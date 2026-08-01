@@ -1,0 +1,3716 @@
+/* ===========================================================================
+   CLIENT
+   Ne simule rien d'autoritaire. Il envoie sa direction de deplacement et sa
+   direction de visee, recoit des snapshots a 20 Hz, et comble les trous par
+   interpolation. Seul son propre personnage est predit localement.
+   =========================================================================== */
+
+import {
+  CFG, PLAYER_COLORS, ENEMY_TYPES, POWERUP_TYPES, DIFFICULTIES,
+  BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
+} from "/shared/game_state.js";
+import {
+  CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, CARD_CFG, cardDetail, computeMods,
+} from "/shared/cards.js";
+import {
+  CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange,
+  SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE,
+} from "/shared/classes.js";
+import {
+  STATUSES, STATUS_VULN, STATUS_DOOM, statusBit,
+} from "/shared/statuses.js";
+import {
+  BOSS_CFG, bossAt, mechAt, ALERT_ORDER, ALERT_WARN,
+  MECH_STACK, MECH_SPREAD, MECH_TOWER, MECH_COUNT, MECH_LINK, MECH_JAIL,
+  MECH_CLUSTER, MECH_FEED, MECH_BAIT, MECH_SANCTUARY, MECH_PROX,
+} from "/shared/bosses.js";
+import {
+  initAudio, playSound, setVolume, setMuted, getVolume, isMuted, audioStats,
+} from "/audio.js";
+import { EventPump } from "/events.js";
+/* La grille du sol est graduee en METRES : c'est ce qui rend les distances des
+   descriptions de cartes lisibles a l'ecran. Seule conversion d'affichage du
+   fichier, et elle passe par le point unique. */
+import { PX_PER_M } from "/shared/units.js";
+/* Les glyphes sont dessines a deux endroits depuis que le HUD est sorti du
+   canvas — dans l'arene et dans le DOM — d'ou un module a part plutot qu'une
+   seconde copie des traces. */
+import {
+  POWERUP_ICON, POWERUP_STYLE, EFFECT_BADGES, STATUS_ICON, paintIcon,
+} from "/icons.js";
+/* Le HUD est en DOM depuis ce lot : ce module possede tout ce qui vit sur
+   l'ecran, le canvas ne garde que le MONDE. La ligne de partage n'est pas
+   « canvas ou CSS » mais « ou vit l'element ». */
+import { showHud, updateHud, hudDamage, resetHud } from "/hud.js";
+/* Toute entite passe par `drawSprite`, et par aucune autre fonction. Le jour ou
+   la couche chaude bascule vers WebGL, on reecrit ce module et pas un appelant
+   ne bouge — c'est le seul but de l'indirection, et il n'y en a qu'une. */
+import { buildAtlas, drawSprite, frameOf, atlasStats, silhouetteSheet } from "/sprites.js";
+/* La charte, et rien qu'elle : plus une seule couleur en dur dans ce fichier.
+   Le canvas lit la table directement au lieu d'interroger `getComputedStyle` a
+   chaque image — c'est la meme source que les variables CSS, posees sur
+   `:root` par `applyPalette()` juste en dessous. */
+import {
+  SURFACE, TEXT, SIGNAL, CLASS_COLOR, COMBAT, ENEMY, ZONE, WALL, BOSS,
+  POWERUP_COLOR, EFFECT_COLOR, OWNED, FX, MARK, HUD, alpha, cssVars,
+} from "/shared/palette.js";
+
+/* Les variables CSS viennent de `palette.js` et n'existent nulle part ailleurs :
+   `tokens.css` ne contient aucune couleur, precisement pour qu'il n'y ait pas
+   deux listes a tenir. Pose des le chargement du module, donc avant la premiere
+   image et avant que le salon ne s'affiche. */
+function applyPalette() {
+  const root = document.documentElement.style;
+  for (const [k, v] of Object.entries(cssVars())) root.setProperty(k, v);
+}
+applyPalette();
+
+const INTERP_MS = 110;
+const INPUT_HZ = 30;
+const SNAP_THRESHOLD = 90;
+
+const PHASE_LOBBY = 0;
+const PHASE_ROUND = 1;
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+
+/* --- densite de pixels native -----------------------------------------------
+   Le canvas avait une memoire FIXE de 1600 x 900 que le CSS etirait. Sur un
+   ecran 1440p ou 4K, tout etait donc agrandi : sprites flous, texte flou —
+   c'est la meme cause racine que le HUD illisible, vue sous un autre angle, et
+   aucun reglage de taille de police ne la corrigeait.
+
+   Les coordonnees monde restent en 1600 x 900 : la transformation absorbe tout
+   et pas une ligne de logique de rendu ne change. Le plafond a 2 est
+   DELIBERE — au-dela, on quadruple le cout de remplissage pour un gain que
+   personne ne voit. */
+let renderScale = 1;
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const r = cv.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+  const w = Math.round(r.width * dpr);
+  const h = Math.round(r.height * dpr);
+  // Reaffecter `width` vide le canvas et remet la transformation a l'identite :
+  // on ne le fait donc QUE si la taille a reellement change, sinon chaque
+  // redimensionnement de fenetre effacerait l'image en cours.
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  renderScale = cv.width / CFG.ARENA_W;
+  ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+}
+
+addEventListener("resize", resize);
+resize();
+const gate = document.getElementById("gate");
+const panel = document.getElementById("panel");
+const panelTitle = document.getElementById("panelTitle");
+const summary = document.getElementById("summary");
+const scoresBody = document.querySelector("#scores tbody");
+const startBtn = document.getElementById("start");
+const waitMsg = document.getElementById("waitMsg");
+const voteRow = document.getElementById("voteRow");
+const voteHint = document.getElementById("voteHint");
+const classRow = document.getElementById("classRow");
+const classHint = document.getElementById("classHint");
+const nameInput = document.getElementById("name");
+const goBtn = document.getElementById("go");
+const statusEl = document.getElementById("status");
+const cardsEl = document.getElementById("cards");
+const cardsTitle = document.getElementById("cardsTitle");
+const cardsRow = document.getElementById("cardsRow");
+const cardsTimerEl = document.getElementById("cardsTimer");
+const cardsTimerFill = cardsTimerEl.querySelector("i");
+const cardsWaitEl = document.getElementById("cardsWaitMsg");
+const bilanEl = document.getElementById("bilan");
+const bilanTitle = document.getElementById("bilanTitle");
+const bilanStats = document.getElementById("bilanStats");
+const bilanScoresBody = document.querySelector("#bilanScores tbody");
+const bilanGo = document.getElementById("bilanGo");
+const bilanBarFill = document.querySelector("#bilanBar i");
+const bilanHint = document.getElementById("bilanHint");
+const loadoutEl = document.getElementById("loadout");
+const loadoutList = document.getElementById("loadoutList");
+const volInput = document.getElementById("vol");
+const volVal = document.getElementById("volVal");
+const muteBtn = document.getElementById("mute");
+
+/* --- etat local ------------------------------------------------------------- */
+
+let ws = null;
+let myId = 0;
+let hostId = 0;
+let phase = PHASE_LOBBY;
+let amSpectator = false;
+let lobby = [];
+let roundNumber = 0;
+let lastResult = null;
+let difficulty = 1;        // mode retenu par le vote
+let tally = [0, 0, 0];
+let myVote = 1;
+
+/* Cartes d'amelioration. `cardsState` porte l'offre en cours et le drapeau
+   "picked" ; on ne le vide pas au clic pour garder l'ecran affiche en mode
+   attente (cf. pickCard). `loadouts` n'est jamais remis a zero par un
+   minuteur : seul le message "round" le fait, en meme temps que le reste de
+   l'etat de manche. */
+let cardsState = null;      // { boss, deadline, offers, picked } ou null
+let cardsPending = [];      // ids des joueurs qui n'ont pas encore choisi
+let cardsTimerHandle = null;
+let loadouts = new Map();   // playerId -> [cardId,...]
+
+/* Recharge d'esquive LOCALE, en secondes. « Célérité » la raccourcit, et le
+   client doit rejouer la meme formule que le serveur : sans ca, sa propre
+   demande d'esquive restait bloquee trois secondes alors que le serveur
+   l'aurait accordee, et la pastille de recharge se remplissait a partir du
+   mauvais denominateur. Mise en cache et recalculee au seul changement de
+   chargement — `computeMods` rejoue toute la table de cartes, ce qui n'a rien a
+   faire dans une boucle a 60 images par seconde. */
+let myDashCd = CFG.DASH_CD;
+function refreshLocalMods() {
+  myDashCd = CFG.DASH_CD * computeMods(ownedCounts(myId)).dashCdMul;
+}
+
+let snapshots = [];
+// Suivi de la reserve de bombes, pour n'afficher l'anneau de portee que dans
+// les deux secondes qui suivent une fin de recharge. Voir `ingest`.
+let bombStockSeen = 0;
+let bombReadyAt = -1e9;
+let latest = null;
+let predicted = null;
+let connected = false;
+let lastSnapAt = 0;
+let ping = 0;
+
+/* --- connexion --------------------------------------------------------------- */
+
+function setStatus(msg, isError = false) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("err", isError);
+}
+
+function connect(name) {
+  setStatus("connexion…");
+  goBtn.disabled = true;
+
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${proto}//${location.host}`);
+
+  ws.onopen = () => ws.send(JSON.stringify({ t: "join", name }));
+
+  ws.onmessage = ev => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+
+    switch (msg.t) {
+      case "welcome":
+        myId = msg.id;
+        hostId = msg.host;
+        phase = msg.phase;
+        amSpectator = msg.spectator;
+        connected = true;
+        gate.hidden = true;
+        localStorage.setItem("survivor.name", name);
+        refreshPanel();
+        break;
+
+      case "lobby":
+        lobby = msg.players;
+        hostId = msg.host;
+        phase = msg.phase;
+        roundNumber = msg.round;
+        difficulty = msg.difficulty ?? difficulty;
+        tally = msg.tally ?? tally;
+        myVote = lobby.find(l => l.id === myId)?.vote ?? myVote;
+        amSpectator = lobby.find(l => l.id === myId)?.spectator ?? false;
+        refreshPanel();
+        break;
+
+      case "round":
+        roundNumber = msg.round;
+        difficulty = msg.difficulty ?? difficulty;
+        phase = PHASE_ROUND;
+        amSpectator = false;
+        lastResult = null;
+        snapshots = [];
+        latest = null;
+        predicted = null;
+        resetFeedback();
+        // Une nouvelle manche remet les cartes a zero : sans ca, le tableau
+        // de fin de la manche precedente resterait affiche derriere le
+        // suivant, et l'ecran de choix d'un boss deja mort resterait ouvert
+        // si la manche a ete relancee pendant qu'il attendait un choix.
+        loadouts = new Map();
+        refreshLocalMods();
+        closeCards();
+        closeBilan();
+        loadoutEl.hidden = true;
+        refreshPanel();
+        break;
+
+      case "roundAbort":
+        phase = PHASE_LOBBY;
+        lastResult = null;
+        snapshots = [];
+        latest = null;
+        predicted = null;
+        resetFeedback();
+        closeCards();
+        closeBilan();
+        loadoutEl.hidden = true;
+        refreshPanel();
+        break;
+
+      case "roundEnd":
+        phase = PHASE_LOBBY;
+        hostId = msg.host;
+        lastResult = msg;
+        // La file d'alertes se vide aussi ici : une consigne encore en attente
+        // du retard d'interpolation serait sortie au debut de la manche
+        // SUIVANTE, sur un combat qui n'a rien a voir.
+        resetFeedback();
+        closeCards();
+        loadoutEl.hidden = true;
+        // Le bilan s'ouvre AVANT `refreshPanel` : c'est lui qui tient le salon
+        // ferme tant qu'il est a l'ecran.
+        showBilan(msg);
+        refreshPanel();
+        break;
+
+      case "state":
+        ingest(msg);
+        /* Le serveur ne signale pas explicitement la reprise de la manche : il
+           cesse simplement de simuler, donc de diffuser des etats, pendant tout
+           le choix. Le premier etat qui revient signe donc la reprise, et il
+           n'y a pas de minuteur local a tenir.
+           La fermeture ne doit surtout pas etre conditionnee au fait d'avoir
+           clique : le joueur qui laisse expirer le delai recoit une carte
+           d'office, la manche repart pour tout le monde, et son ecran serait
+           reste ouvert sur une offre morte pendant qu'il se fait devorer. */
+        if (cardsState) closeCards();
+        break;
+
+      /* Un message "cards" par tour de choix. Deux niveaux gagnes dans la meme
+         vague en envoient deux d'affilee, sans instantane entre les deux : on
+         reconstruit donc l'etat a chaque fois plutot que de le fusionner, ce
+         qui remet `picked` a faux et reamorce le minuteur. Sans ca, le second
+         ecran s'ouvrait deja grise et sur le delai expire du premier. */
+      /* Canal d'evenements de mecanique. Message PONCTUEL, hors du snapshot :
+         c'est lui qui dit « regroupez-vous » la ou le snapshot ne montre qu'un
+         cercle. Il arrive a l'instant de l'annonce, pas vingt fois par seconde. */
+      case "alert":
+        pushAlert(msg);
+        break;
+
+      case "cards":
+        cardsState = {
+          wave: msg.wave, bossWave: msg.bossWave === 1, boss: msg.boss ?? 0,
+          bossKind: msg.bossKind ?? 0,
+          level: msg.level, more: msg.more ?? 0,
+          deadline: msg.deadline, offers: msg.offers,
+          picked: false, pickedId: null,
+          // Instant d'ouverture, pour le filet de compte a rebours : le serveur
+          // envoie une echeance, pas une duree, et le filet a besoin des deux.
+          from: Date.now(),
+        };
+        cardsPending = [];
+        renderCards();
+        break;
+
+      case "cardsWait":
+        cardsPending = msg.pending ?? [];
+        renderCardsWait();
+        break;
+
+      case "loadout":
+        loadouts = new Map(Object.entries(msg.byPlayer).map(([id, arr]) => [Number(id), arr]));
+        // Seul point ou le chargement local change : c'est ici, et nulle part
+        // ailleurs, qu'on recalcule les mods dont la saisie a besoin.
+        refreshLocalMods();
+        break;
+
+      case "full":
+        setStatus(`partie pleine (${msg.max} joueurs)`, true);
+        goBtn.disabled = false;
+        break;
+    }
+  };
+
+  ws.onerror = () => {
+    setStatus("serveur injoignable", true);
+    goBtn.disabled = false;
+  };
+
+  ws.onclose = () => {
+    connected = false;
+    panel.hidden = true;
+    gate.hidden = false;
+    showHud(false);
+    goBtn.disabled = false;
+    closeCards();
+    closeBilan();
+    loadoutEl.hidden = true;
+    setStatus("connexion perdue", true);
+  };
+}
+
+/* Ecran de chargement. Le clic « Rejoindre » est le seul geste utilisateur dont
+   on soit certain avant la premiere balle : c'est donc lui qui debloque le
+   contexte audio ET qui declenche la generation des atlas. Meme moment, meme
+   barre — et le seul ecran ou l'on peut prendre trois secondes, donc le seul ou
+   un logotype a sa place. */
+const loadingEl = document.getElementById("loading");
+const loadFill = document.querySelector("#loadBar > i");
+const loadPct = document.getElementById("loadPct");
+const loadWhat = document.getElementById("loadWhat");
+
+function setLoading(k, quoi) {
+  loadFill.style.width = (Math.max(0, Math.min(1, k)) * 100).toFixed(0) + "%";
+  loadPct.textContent = Math.round(k * 100) + " %";
+  if (quoi) loadWhat.textContent = quoi;
+}
+
+goBtn.onclick = async () => {
+  goBtn.disabled = true;
+  gate.hidden = true;
+  loadingEl.hidden = false;
+  setLoading(0, "génération des sprites");
+
+  // Le contexte audio se cree ICI et nulle part ailleurs : les navigateurs
+  // exigent un geste utilisateur.
+  initAudio();
+  const stats = await buildAtlas(k => setLoading(k * 0.9, null));
+  setLoading(1, "prêt");
+  if (PERF) {
+    console.log(`atlas : ${stats.frames} images, ${stats.w}x${stats.h}, ` +
+                `${atlasStats().mo.toFixed(1)} Mo`);
+  }
+
+  /* `?planche` sort la planche de silhouettes en noir uni sur fond blanc.
+     Ce n'est pas un gadget : c'est le CRITERE D'ACCEPTATION des silhouettes.
+     Un lecteur qui ne connait pas le jeu doit pouvoir les regrouper par type
+     sans hesiter ; un type qui n'est reconnaissable que par sa couleur ou son
+     detail interne a rate son test, et le style travaille alors contre la
+     mecanique au lieu de la servir. */
+  if (location.search.includes("planche")) {
+    const sheet = silhouetteSheet();
+    sheet.style.cssText = "position:fixed;inset:0;margin:auto;z-index:99;" +
+                          "max-width:96vw;max-height:96vh;background:#fff";
+    document.body.appendChild(sheet);
+  }
+
+  loadingEl.hidden = true;
+  gate.hidden = false;
+  goBtn.disabled = false;
+  connect(nameInput.value.trim() || "joueur");
+};
+nameInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
+nameInput.value = localStorage.getItem("survivor.name") || "";
+nameInput.focus();
+
+/* --- reglage du son ------------------------------------------------------- */
+
+function refreshAudioUi() {
+  volInput.value = String(Math.round(getVolume() * 100));
+  volVal.textContent = `${Math.round(getVolume() * 100)} %`;
+  muteBtn.textContent = isMuted() ? "✕" : "♪";
+  muteBtn.classList.toggle("off", isMuted());
+  muteBtn.title = isMuted() ? "rétablir le son" : "couper le son";
+}
+
+volInput.oninput = () => {
+  setVolume(Number(volInput.value) / 100);
+  // Bouger le volume rétablit le son : couper puis tirer la glissiere sans
+  // rien entendre passe pour une panne.
+  if (isMuted() && Number(volInput.value) > 0) setMuted(false);
+  refreshAudioUi();
+};
+
+muteBtn.onclick = () => {
+  // Le bouton sert aussi de bouton de test : il debloque le contexte au
+  // premier clic, avant meme d'avoir rejoint.
+  initAudio();
+  setMuted(!isMuted());
+  refreshAudioUi();
+  if (!isMuted()) playSound("bonus");
+};
+
+// La touche M coupe le son en jeu, sans repasser par le salon.
+window.addEventListener("keydown", e => {
+  if (e.key !== "m" && e.key !== "M") return;
+  if (document.activeElement === nameInput) return;
+  setMuted(!isMuted());
+  refreshAudioUi();
+});
+
+refreshAudioUi();
+
+startBtn.onclick = () => {
+  if (myId !== hostId || phase !== PHASE_LOBBY) return;
+  ws.send(JSON.stringify({ t: "start" }));
+};
+
+/* --- salon et tableau des scores ---------------------------------------------- */
+
+function refreshPanel() {
+  if (!connected) return;
+  // Le HUD ne vit que pendant la manche. Il est en DOM : laisse affiche sous le
+  // salon, il aurait montre une barre de vie et un chronometre figes.
+  showHud(phase === PHASE_ROUND);
+  // Le bilan passe DEVANT le salon et non par-dessus : tant que les deux
+  // etaient le meme ecran, le joueur ne lisait jamais le sien.
+  if (phase === PHASE_ROUND || bilanOpen) { panel.hidden = true; return; }
+  panel.hidden = false;
+
+  const isHost = myId === hostId;
+  const hostName = lobby.find(l => l.id === hostId)?.name ?? "?";
+
+  /* Le salon s'appelle toujours « Salon », meme apres une manche : c'est le
+     bilan qui porte le resultat, et deux ecrans qui annoncent la meme chose
+     n'en font lire aucun. Le tableau, lui, garde les lignes de la derniere
+     manche — c'est de l'information consultable, pas un titre. */
+  panelTitle.textContent = "Salon";
+  summary.textContent = lobby.length > 1
+    ? `${lobby.length} joueurs connectés`
+    : "en attente de joueurs";
+  renderScores(lastResult ? lastResult.rows : lobby.map(l => ({
+    id: l.id, name: l.name, colorIndex: l.colorIndex,
+    score: 0, kills: 0, deaths: 0, total: l.total,
+  })));
+
+  renderVote();
+  renderClasses();
+
+  startBtn.hidden = !isHost;
+  startBtn.disabled = !isHost;
+  waitMsg.textContent = isHost
+    ? "tout le monde entre en jeu, spectateurs compris"
+    : `en attente de ${hostName}…`;
+}
+
+/* Vote de difficulte. Chacun choisit, la majorite l'emporte, et l'egalite
+   retient le mode le plus doux : personne ne doit pouvoir imposer cauchemar
+   a la table en etant seul de son avis. */
+function renderVote() {
+  voteRow.innerHTML = "";
+
+  DIFFICULTIES.forEach((d, i) => {
+    const btn = document.createElement("button");
+    const n = tally[i] ?? 0;
+    btn.innerHTML = `${d.label}` + (n > 0 ? ` <span class="tally">${n}</span>` : "");
+    btn.classList.toggle("mine", i === myVote);
+    btn.classList.toggle("winner", i === difficulty);
+    btn.onclick = () => {
+      if (phase !== PHASE_LOBBY) return;
+      myVote = i;
+      ws.send(JSON.stringify({ t: "vote", v: i }));
+      renderVote();
+    };
+    voteRow.appendChild(btn);
+  });
+
+  const retenu = DIFFICULTIES[difficulty]?.label ?? "normal";
+  voteHint.textContent = lobby.length > 1
+    ? `mode retenu : ${retenu} — à égalité, le plus doux l'emporte`
+    : `mode retenu : ${retenu}`;
+}
+
+/* Choix de classe. Les emplacements uniques deja pris sont grises : le serveur
+   refuse de toute facon le doublon, mais un bouton qui ne repond pas sans rien
+   dire passe pour une panne. Une fois la premiere manche jouee, la classe est
+   verrouillee pour la session — le selecteur reste affiche, en lecture seule,
+   pour qu'on sache avec quoi on joue. */
+/* Les trois statistiques comparees, normalisees sur la MEILLEURE des classes et
+   non sur une valeur absolue : la question du salon est « laquelle encaisse le
+   plus », pas « combien de points de vie fait un Rempart ». */
+const CLASS_STATS = [
+  { nom: "PV", val: c => c.hp, texte: c => String(c.hp) },
+  { nom: "dégâts", val: c => c.damageMul, texte: c => pourcent(c.damageMul) },
+  { nom: "vitesse", val: c => c.speedMul, texte: c => pourcent(c.speedMul) },
+];
+
+function pourcent(mul) {
+  const p = Math.round((mul - 1) * 100);
+  return (p > 0 ? "+" : p < 0 ? "−" : "±") + Math.abs(p) + " %";
+}
+
+/* Silhouette du personnage, a l'ECHELLE REELLE du jeu et surtout AVEC LE MEME
+   SPRITE : le panneau montre exactement ce qu'on aura a l'ecran. Un dessin a
+   part aurait menti au premier reglage — c'est la meme raison qui fait qu'il
+   n'y a qu'une table de couleurs et qu'une echelle typographique.
+
+   Elle passe donc par `drawSprite`, comme toute entite du jeu, sur le contexte
+   du petit canvas plutot que sur celui de l'arene. C'est tout l'interet d'un
+   point de passage qui prend son contexte en argument. */
+const CLASS_SIL_PX = 88;
+
+function paintClassSilhouette(cv2, c) {
+  // Meme regle que l'arene : la memoire du canvas suit la densite de l'ecran,
+  // sinon la silhouette est floue exactement la ou on la regarde de pres.
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv2.width = Math.round(CLASS_SIL_PX * dpr);
+  cv2.height = Math.round(CLASS_SIL_PX * dpr);
+  cv2.style.width = CLASS_SIL_PX + "px";
+  cv2.style.height = CLASS_SIL_PX + "px";
+
+  const g = cv2.getContext("2d");
+  const s = 1.4;                     // l'arene est vue de plus loin que ce panneau
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.translate(CLASS_SIL_PX / 2, CLASS_SIL_PX / 2);
+
+  g.strokeStyle = SURFACE.line;
+  g.lineWidth = 1;
+  g.beginPath(); g.arc(0, 0, (CFG.PLAYER_RADIUS + 8) * s, 0, Math.PI * 2); g.stroke();
+
+  drawSprite(g, frameOf(`c_${c.id}_idle`), 0, 0,
+    { scaleX: s, scaleY: s, tint: c.couleur });
+}
+
+function renderClasses() {
+  if (!classRow) return;
+  classRow.innerHTML = "";
+
+  const me = lobby.find(l => l.id === myId);
+  const mine = me?.cls ?? null;
+  const locked = me?.clsLocked ?? false;
+  const taken = new Map();
+  for (const l of lobby) {
+    if (l.cls === null || l.cls === undefined) continue;
+    if (CLASSES[l.cls]?.unique && l.id !== myId) taken.set(l.cls, l.name);
+  }
+
+  const maxi = CLASS_STATS.map(st => Math.max(...CLASSES.map(st.val)));
+
+  CLASSES.forEach((c, i) => {
+    const btn = document.createElement("button");
+    const pris = taken.get(i);
+    btn.className = "classOpt";
+    btn.style.borderColor = c.couleur;
+    btn.style.color = c.couleur;
+    btn.disabled = locked || !!pris;
+    btn.classList.toggle("mine", i === mine);
+    btn.classList.toggle("taken", !!pris);
+
+    /* Les barres portent la couleur de la classe (`currentColor`) : trois
+       panneaux de barres grises se seraient ressemble au point qu'on aurait
+       compare les longueurs sans savoir laquelle appartient a qui. */
+    const stats = CLASS_STATS.map((st, k) =>
+      `<div class="statRow">` +
+        `<span class="statName">${st.nom}</span>` +
+        `<span class="statBar"><i style="width:${Math.round(st.val(c) / maxi[k] * 100)}%"></i></span>` +
+        `<span class="statVal">${escapeHtml(st.texte(c))}</span>` +
+      `</div>`).join("");
+
+    btn.innerHTML =
+      `<div class="classHead">` +
+        `<canvas class="classSil"></canvas>` +
+        `<div>` +
+          `<div class="className">${escapeHtml(c.nom)}</div>` +
+          `<div class="classRole">${escapeHtml(c.desc)}</div>` +
+        `</div>` +
+      `</div>` +
+      `<div class="classStats">${stats}</div>` +
+      c.skills.map(s =>
+        `<div class="classSkill"><span class="key">${escapeHtml(s.touche)}</span>` +
+        `<span><b>${escapeHtml(s.nom)}</b> — ${escapeHtml(s.desc)}</span></div>`
+      ).join("") +
+      (pris ? `<div class="classTaken">pris par ${escapeHtml(pris)}</div>` : "");
+
+    paintClassSilhouette(btn.querySelector(".classSil"), c);
+
+    btn.onclick = () => {
+      if (locked || pris) return;
+      ws.send(JSON.stringify({ t: "pickClass", cls: i }));
+    };
+    classRow.appendChild(btn);
+  });
+
+  if (!classHint) return;
+  if (locked) {
+    classHint.textContent =
+      `classe verrouillée pour la session : ${classAt(mine ?? CLASS_DEFAULT).nom}`;
+  } else if (mine === null || mine === undefined) {
+    classHint.textContent =
+      `sans choix explicite, tu entres en ${CLASSES[CLASS_DEFAULT].nom} — le choix se verrouille au lancement`;
+  } else {
+    classHint.textContent = "le choix se verrouille au lancement de la première manche";
+  }
+}
+
+function renderScores(rows, body = scoresBody) {
+  body.innerHTML = "";
+  const head = document.createElement("tr");
+  head.innerHTML = "<th>joueur</th><th>classe</th><th>niv.</th><th>score</th><th>kills</th><th>morts</th><th>dégâts</th><th>cartes</th><th>cumul</th>";
+  body.appendChild(head);
+
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const col = PLAYER_COLORS[r.colorIndex % PLAYER_COLORS.length];
+    const tag = r.id === hostId ? " ★" : "";
+    // `cls` peut etre nul : un joueur qui n'a rien choisi et n'a pas encore
+    // joue n'a pas de classe, et lui en afficher une serait mentir.
+    const cdef = (r.cls === null || r.cls === undefined) ? null : classAt(r.cls);
+    tr.innerHTML =
+      `<td class="name" style="color:${col}">${escapeHtml(r.name)}${tag}</td>` +
+      `<td class="sub"${cdef ? ` style="color:${cdef.couleur}"` : ""}>${cdef ? escapeHtml(cdef.nom) : "—"}</td>` +
+      `<td>${r.level ?? 1}</td>` +
+      `<td>${r.score}</td><td>${r.kills}</td><td>${r.deaths}</td>` +
+      // `damage` n'existe pas cote serveur avant ce systeme : un onglet reste
+      // sur une version anterieure du client doit quand meme afficher un
+      // tableau coherent plutot que "undefined".
+      `<td>${Math.round(r.damage ?? 0)}</td>` +
+      `<td class="cards">${cardBadges(r.id)}</td>` +
+      `<td class="sub">${r.total ? r.total.score : 0}</td>`;
+    body.appendChild(tr);
+  }
+}
+
+/* --- bilan de fin de manche -------------------------------------------------
+   Deux temps, et non un seul ecran : le bilan d'abord, le salon ensuite. Le
+   joueur ne lisait jamais son resultat parce que l'ecran suivant etait deja
+   la — avec le tableau, les classes, la difficulte et le bouton de lancement
+   par-dessus. Le bouton « continuer » existe pour ceux qui ont deja regarde,
+   le delai pour ceux qui ont laché la souris. */
+const BILAN_MS = 8000;
+
+let bilanOpen = false;
+let bilanFrom = 0;
+let bilanHandle = null;
+
+function showBilan(res) {
+  bilanOpen = true;
+  bilanFrom = performance.now();
+  bilanEl.hidden = false;
+  panel.hidden = true;
+
+  bilanTitle.textContent = `Manche ${res.round} terminée`;
+  /* Duree et kills en gros chiffres : ce sont les deux seules mesures qui
+     valent pour la table entiere, et elles ouvrent la lecture du tableau. */
+  bilanStats.innerHTML =
+    `<div class="bilanStat"><span class="val">${escapeHtml(fmtTime(res.time))}</span>` +
+    `<span class="lab">survie</span></div>` +
+    `<div class="bilanStat"><span class="val">${res.kills}</span>` +
+    `<span class="lab">kills</span></div>` +
+    `<div class="bilanStat"><span class="val">${res.rows.length}</span>` +
+    `<span class="lab">joueurs</span></div>`;
+  renderScores(res.rows, bilanScoresBody);
+
+  clearInterval(bilanHandle);
+  bilanHandle = setInterval(stepBilan, 100);
+  stepBilan();
+}
+
+function stepBilan() {
+  if (!bilanOpen) return;
+  const k = Math.max(0, 1 - (performance.now() - bilanFrom) / BILAN_MS);
+  bilanBarFill.style.width = `${k * 100}%`;
+  bilanHint.textContent = `le salon s'ouvre dans ${Math.ceil(k * BILAN_MS / 1000)} s`;
+  if (k <= 0) closeBilan();
+}
+
+function closeBilan() {
+  clearInterval(bilanHandle);
+  bilanHandle = null;
+  bilanOpen = false;
+  bilanEl.hidden = true;
+  refreshPanel();
+}
+
+bilanGo.onclick = closeBilan;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* --- cartes d'amelioration ------------------------------------------------- */
+
+// Pastilles compactes pour le tableau de fin : une par carte distincte, avec
+// le multiplicateur si plusieurs exemplaires. Les noms complets tiendraient
+// mal a quatre joueurs sur une ligne, d'ou l'abreviation par ×N plutot que
+// de repeter la carte autant de fois qu'elle a ete prise.
+/* Cartes possedees d'un joueur, en Map id -> exemplaires. C'est la forme
+   qu'attendent `computeMods` et `cardDetail` cote partage : la garder identique
+   evite d'avoir deux representations du meme chargement dans le client. */
+function ownedCounts(playerId) {
+  const counts = new Map();
+  for (const id of loadouts.get(playerId) ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
+  return counts;
+}
+
+function cardBadges(playerId) {
+  const counts = ownedCounts(playerId);
+  if (counts.size === 0) return "";
+
+  let html = "";
+  for (const [id, n] of counts) {
+    const card = CARD_BY_ID.get(id);
+    if (!card) continue;
+    const col = RARITY_COLOR[card.rarity] ?? RARITY_COLOR[0];
+    html += `<span class="cardBadge" style="border-color:${col};color:${col}">` +
+      `${escapeHtml(card.nom)}${n > 1 ? ` ×${n}` : ""}</span>`;
+  }
+  return html;
+}
+
+/* Un glyphe par FAMILLE, pas un par carte. Cinq a huit signes, le joueur les
+   apprend en deux manches et reconnait la nature d'une offre avant de l'avoir
+   lue ; soixante icones n'auraient rien appris a personne et auraient coute
+   soixante dessins. Trait seulement, dans la couleur de rarete du panneau
+   (`currentColor`) — une seconde couleur ici aurait concurrence la seule qui
+   porte une information sur cet ecran.
+
+   La carte de secours n'a pas de famille : elle prend le losange neutre. */
+const FAMILY_ICON = {
+  degats:   `<path d="M12 2 L16 9 L12 22 L8 9 Z"/>`,                      // lame
+  cadence:  `<path d="M13 2 L5 13 h5 l-1 9 l9 -12 h-5 z"/>`,              // eclair
+  mobilite: `<path d="M4 6 l6 6 l-6 6 M13 6 l6 6 l-6 6"/>`,               // double chevron
+  survie:   `<path d="M12 2 L20 6 v6 c0 5 -4 8 -8 10 c-4 -2 -8 -5 -8 -10 V6 Z"/>`,
+  soutien:  `<path d="M12 3 v18 M3 12 h18"/>`,                            // croix
+};
+const FAMILY_ICON_DEFAULT = `<path d="M12 3 L21 12 L12 21 L3 12 Z"/>`;
+
+function familyIcon(famille) {
+  const d = FAMILY_ICON[famille] ?? FAMILY_ICON_DEFAULT;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"` +
+         ` stroke-width="2" stroke-linejoin="miter">${d}</svg>`;
+}
+
+// Ferme l'ecran de choix et son minuteur d'affichage. Fonction unique plutot
+// que de repeter les quatre lignes a chaque point de sortie (fin de manche,
+// abandon, reprise apres choix, deconnexion).
+function closeCards() {
+  cardsState = null;
+  cardsPending = [];
+  stopCardsTimer();
+  cardsEl.hidden = true;
+}
+
+// Envoi de la carte choisie. L'ecran reste ouvert mais bascule en mode
+// attente : le serveur seul decide de la reprise, cf. le commentaire sur le
+// message "state" plus haut.
+function pickCard(id) {
+  if (!cardsState || cardsState.picked) return;
+  cardsState.picked = true;
+  cardsState.pickedId = id;
+  ws.send(JSON.stringify({ t: "pickCard", id }));
+  renderCards();
+}
+
+function renderCards() {
+  if (!cardsState) { cardsEl.hidden = true; return; }
+  cardsEl.hidden = false;
+
+  /* Le titre dit d'ou vient le choix. Les cartes ne tombent plus a la mort d'un
+     boss mais a chaque niveau d'equipe, en fin de vague : sans cette mention,
+     l'ecran s'ouvrait sans qu'on sache ce qui l'avait declenche.
+     `more` compte les choix qui suivent celui-ci — l'annoncer evite qu'on
+     prenne le second ecran pour un bug d'affichage du premier. */
+  const suite = cardsState.more > 0
+    ? ` — encore ${cardsState.more} choix après celui-ci`
+    : "";
+  cardsTitle.textContent = cardsState.bossWave
+    ? `${bossAt(cardsState.bossKind).nom.toUpperCase()} ${ROMAN[cardsState.boss] ?? cardsState.boss}`
+      + ` vaincu — niveau ${cardsState.level}${suite}`
+    : `Vague ${cardsState.wave} terminée — niveau ${cardsState.level}${suite}`;
+
+  /* La carte dit son effet, ce qu'on en possede deja, et ce que l'exemplaire
+     suivant y ajoute. Sans les deux dernieres lignes, un joueur qui a deux
+     Affutage lit « +12 % de dégâts » et n'a aucun moyen de comparer une
+     troisieme carte de degats a une premiere carte defensive — c'est-a-dire
+     exactement la decision que l'ecran est cense lui faire prendre.
+
+     `cardDetail` compose les chaines dans `cards.js`, a cote de la table : le
+     client place des div, il ne calcule pas de valeur de carte. */
+  const owned = ownedCounts(myId);
+
+  cardsRow.innerHTML = "";
+  for (const c of cardsState.offers) {
+    const col = RARITY_COLOR[c.rarity] ?? RARITY_COLOR[0];
+    const d = cardDetail(c.id, owned);
+    const btn = document.createElement("button");
+    /* La rarete est une CLASSE et non une couleur de bordure : chaque palier a
+       un materiau — bordure plate, bordure epaisse, lueur, degrade balaye — et
+       c'est le materiau qui la rend reconnaissable au coin de l'oeil. Le
+       detail vit dans `ui.css`, a cote des autres regles de rendu. */
+    btn.className = `cardOpt r${c.rarity ?? 0}`;
+    btn.style.color = col;
+    btn.disabled = cardsState.picked;
+    /* Selection : la carte prise se verrouille, les deux autres s'estompent.
+       Le joueur doit voir ce qu'il a ECARTE — c'est la moitie de la decision,
+       et l'ecran se fermait dessus sans rien en montrer. */
+    if (cardsState.picked) {
+      btn.classList.add(cardsState.pickedId === c.id ? "picked" : "faded");
+    }
+
+    // Le serveur reste la source de `desc` (c'est lui qui a tire la carte) ;
+    // le reste est deduit localement du chargement, que le client connait deja.
+    /* La famille et le palier tiennent sur la ligne de rarete : « épique » a
+       gauche, « dégâts — palier 3 / 4 » a droite. C'est ce qui rend la
+       progression lisible sans lire les effets — un joueur qui prend le palier 2
+       sait du meme coup qu'il en existe un au-dessus, et que ses paliers
+       inferieurs ne lui seront plus proposes. */
+    /* L'EFFET est la ligne la plus grosse de la carte, pas le nom : c'est ce
+       qu'on compare entre trois cartes en trente secondes. Le nom ne sert qu'a
+       la reconnaitre une fois prise. */
+    let html =
+      `<div class="cardTop">` +
+        `<span class="cardIcon">${familyIcon(d?.familleId)}</span>` +
+        `<span class="cardName">${escapeHtml(c.nom)}</span>` +
+      `</div>` +
+      `<div class="cardMeta">` +
+        `<span class="cardRarity">${RARITY_LABEL[c.rarity] ?? ""}</span>` +
+        (d?.famille ? `<span class="cardFamily">${escapeHtml(d.famille)}</span>` : "") +
+      `</div>` +
+      `<div class="cardBody">` +
+        `<div class="cardMain">${escapeHtml(c.desc)}</div>` +
+        (d?.effectif ? `<div class="cardCond">${escapeHtml(d.effectif)}</div>` : "") +
+        (d?.avertissement ? `<div class="cardWarn">${escapeHtml(d.avertissement)}</div>` : "") +
+      `</div>`;
+
+    // Le pied dit l'ETAT : ce qu'on possede, et ce que l'exemplaire suivant
+    // donnera. Sans la ligne avant/apres, le choix n'est pas decidable.
+    if (d && (d.cumul || d.valeur)) {
+      html += `<div class="cardFoot">` +
+        (d.cumul ? `<span>${escapeHtml(d.cumul)}</span>` : "") +
+        (d.valeur ? `<span class="cardDelta">${escapeHtml(d.valeur)}</span>` : "") +
+      `</div>`;
+    }
+
+    btn.innerHTML = html;
+    btn.onclick = () => pickCard(c.id);
+    cardsRow.appendChild(btn);
+  }
+
+  renderCardsWait();
+  startCardsTimer();
+}
+
+// La liste des joueurs connus (pseudo par id) vient du salon, deja tenue a
+// jour par le message "lobby" — inutile de la faire transiter une seconde
+// fois dans les messages de cartes.
+function renderCardsWait() {
+  if (!cardsState) return;
+  const names = cardsPending.filter(id => id !== myId).map(id => nameOf(id));
+  cardsWaitEl.textContent = names.length ? `en attente de ${names.join(", ")}…` : "";
+}
+
+function stopCardsTimer() {
+  if (cardsTimerHandle) { clearInterval(cardsTimerHandle); cardsTimerHandle = null; }
+}
+
+function startCardsTimer() {
+  stopCardsTimer();
+  updateCardsTimer();
+  cardsTimerHandle = setInterval(updateCardsTimer, 250);
+}
+
+// `deadline` est un Date.now() serveur : un ecart d'une seconde entre les
+// horloges des machines de la LAN est sans consequence, donc pas besoin de
+// synchronisation, juste d'une lecture reguliere du delta local.
+/* Un FILET qui se vide sous le titre, et non un chiffre : le chiffre demandait
+   de quitter les cartes des yeux pour lire un nombre, alors que la seule
+   question est « est-ce que j'ai encore le temps de comparer ». Il vire a
+   l'ambre sur le dernier quart — la, la reponse est non. */
+function updateCardsTimer() {
+  if (!cardsState) return;
+  const span = Math.max(1, cardsState.deadline - cardsState.from);
+  const k = Math.max(0, Math.min(1, (cardsState.deadline - Date.now()) / span));
+  cardsTimerFill.style.width = `${k * 100}%`;
+  cardsTimerEl.classList.toggle("urgent", k < 0.25);
+}
+
+// Liste des cartes possedees par le joueur local, groupees par id — Tab en
+// jeu. Triee par rarete decroissante : une legendaire perdue au milieu de dix
+// communes ne se remarque pas, alors qu'elle est precisement ce qu'on veut
+// verifier d'un coup d'oeil.
+function renderLoadout() {
+  const counts = ownedCounts(myId);
+
+  loadoutList.innerHTML = "";
+  if (counts.size === 0) {
+    loadoutList.textContent = "aucune carte pour l'instant";
+    return;
+  }
+
+  const rows = [...counts.entries()].sort((a, b) =>
+    (CARD_BY_ID.get(b[0])?.rarity ?? 0) - (CARD_BY_ID.get(a[0])?.rarity ?? 0));
+
+  for (const [id, n] of rows) {
+    const card = CARD_BY_ID.get(id);
+    if (!card) continue;
+    const col = RARITY_COLOR[card.rarity] ?? RARITY_COLOR[0];
+    const row = document.createElement("div");
+    row.className = "loadoutRow";
+    // La couleur de rarete est posee sur la LIGNE : le filet de gauche et le
+    // libelle la prennent en `currentColor`, une seule source par ligne.
+    row.style.color = col;
+    /* Le TOTAL cumule et non le gain unitaire : c'est la question a laquelle ce
+       panneau repond. « Affûtage ×3 » ne disait pas +36 %, et il fallait faire
+       la multiplication de tete au milieu d'une vague. */
+    const total = card.stack ? card.stack(n) : "";
+    row.innerHTML =
+      `<span class="loadoutName">${escapeHtml(card.nom)}${n > 1 ? ` ×${n}` : ""}</span>` +
+      (total ? `<span class="loadoutValue">${escapeHtml(total)}</span>` : "") +
+      `<span class="loadoutRarity">${RARITY_LABEL[card.rarity] ?? ""}</span>`;
+    loadoutList.appendChild(row);
+  }
+}
+
+/* --- reception des snapshots --------------------------------------------------- */
+
+function ingest(msg) {
+  const now = performance.now();
+  if (lastSnapAt) ping = Math.round(now - lastSnapAt);
+  lastSnapAt = now;
+
+  const snap = {
+    recvAt: now,
+    tm: msg.tm,
+    over: msg.ov === 1,
+    kills: msg.k,
+    slow: msg.sl === 1,
+    players: new Map(msg.p.map(a => [a[0], {
+      id: a[0], x: a[1], y: a[2], hp: a[3], downed: a[4] === 1,
+      revive: a[5], aimX: a[6], aimY: a[7], kills: a[8],
+      buffs: a[9], score: a[10], deaths: a[11], shield: a[12],
+      level: a[13] ?? 1, maxHp: a[14] ?? CFG.PLAYER_MAX_HP, prog: a[15] ?? 0,
+      dashCd: a[16] ?? 0, dashing: a[17] === 1,
+      // ajouts recents, repli a 0 : un onglet reste sur une version anterieure
+      // du client continue de lire un tableau plus court sans planter.
+      orbiters: a[18] ?? 0, frostRadius: a[19] ?? 0,
+      // Classe et competences. Repli sur la classe par defaut : un serveur
+      // anterieur n'envoie pas le champ, et le client doit alors dessiner un
+      // joueur ordinaire plutot que de planter sur un index inconnu.
+      cls: a[20] ?? CLASS_DEFAULT, cd1: a[21] ?? 0, cd2: a[22] ?? 0,
+      skillFlags: a[23] ?? 0, bombStock: a[24] ?? 0,
+      // Etats. Le masque suffit pour les icones et les halos ; seuls les cumuls
+      // de Vulnerabilite et le decompte de Sentence valent un nombre a eux, le
+      // second parce que le decompte EST l'information.
+      statuses: a[25] ?? 0, vuln: a[26] ?? 0, doom: a[27] ?? 0,
+    }])),
+    /* Le champ de type porte trois informations pour n'en couter qu'une seule
+       sur chacun des 200 ennemis, vingt fois par seconde : le type, le rang
+       d'elite (+100) et le marquage de retardataire (+200). L'ordre du decodage
+       compte — `elite` doit retirer les 200 avant de tester les 100. */
+    enemies: new Map(msg.e.map(a => [a[0], {
+      id: a[0], x: a[1], y: a[2], hp: a[3], maxHp: a[4],
+      type: a[5] % 100, elite: a[5] % 200 >= 100, straggler: a[5] >= 200, ang: a[6],
+    }])),
+    // `heal` en fin de tuple : le projectile du mode soin se dessine dans une
+    // autre couleur, c'est le seul moyen pour la table de voir d'un coup d'oeil
+    // que le soigneur a bascule.
+    bullets: new Map(msg.b.map(a => [a[0], { id: a[0], x: a[1], y: a[2], heal: a[3] ?? 0 }])),
+    shots: new Map(msg.s.map(a => [a[0], { id: a[0], x: a[1], y: a[2] }])),
+    /* `spread`, `life` et `prox` sont des ajouts en fin de tuple : un serveur
+       anterieur au lot 5 n'envoie rien, les replis a 0 font alors dessiner les
+       formes connues et rien d'autre. `life > 0` est ce qui distingue une zone
+       PERSISTANTE d'une detonation — c'est la seule information dont le rendu a
+       besoin pour changer de langage visuel. */
+    zones: msg.z.map(a => ({
+      id: a[0], x: a[1], y: a[2], r: a[3], warn: a[4], blast: a[5],
+      shape: a[6] ?? 0, w: a[7] ?? 0, h: a[8] ?? 0, ang: a[9] ?? 0,
+      hole: a[10] ?? 0, warn0: a[11] || CFG.ZONE_WARN,
+      spread: a[12] ?? 0, life: a[13] ?? 0, prox: a[14] ?? 0,
+    })),
+    /* Arene mobile. Cles absentes tant que rien ne bouge : le repli est l'arene
+       pleine, ce qui est aussi ce que lit un onglet reste sur une version
+       anterieure — il joue alors sans voir la couronne, degrade mais jamais
+       menteur sur la position des entites. */
+    bounds: msg.bn
+      ? { x0: msg.bn[0], y0: msg.bn[1], x1: msg.bn[2], y1: msg.bn[3],
+          nx0: msg.bn[4], ny0: msg.bn[5], nx1: msg.bn[6], ny1: msg.bn[7],
+          warn: msg.bn[8] }
+      : { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H, warn: 0 },
+    walls: msg.wl
+      ? { x: msg.wl[0], y: msg.wl[1], t: msg.wl[2], k: msg.wl[3] }
+      : null,
+    powerups: msg.w.map(a => ({ id: a[0], x: a[1], y: a[2], type: a[3] })),
+    turrets: (msg.tu ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], k: a[3], ang: a[4] })),
+    bulwarks: (msg.bw ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4] })),
+    // `tx`/`ty` : le point de chute annonce, ajout en fin de tuple. Repli sur la
+    // position courante — un serveur anterieur au lot ne l'envoie pas, et le
+    // cercle d'atterrissage se colle alors a la bombe au lieu de mentir.
+    bombs: new Map((msg.bm ?? []).map(a => [a[0], {
+      id: a[0], x: a[1], y: a[2], k: a[3], tx: a[4] ?? a[1], ty: a[5] ?? a[2],
+    }])),
+    // drones : entites mobiles comme les balles, on les garde en Map pour
+    // pouvoir les interpoler pareil (lerpMap) entre deux snapshots. `owner`
+    // est un ajout recent en fin de tuple, repli 0 (aucun joueur connu sous
+    // cet id) pour qu'un onglet reste sur une version anterieure du serveur
+    // continue de lire un tuple plus court sans planter.
+    drones: new Map((msg.dr ?? []).map(a => [a[0], { id: a[0], x: a[1], y: a[2], ang: a[3], kind: a[4], owner: a[5] ?? 0 }])),
+    effects: (msg.f ?? []).map(a => ({
+      id: a[0], x: a[1], y: a[2], r: a[3], k: a[4], kind: a[5] ?? 0,
+      x2: a[6], y2: a[7],
+    })),
+    boss: msg.bo
+      ? { id: msg.bo[0], x: msg.bo[1], y: msg.bo[2], hp: msg.bo[3],
+          maxHp: msg.bo[4], ang: msg.bo[5], index: msg.bo[6],
+          bars: msg.bo[7] ?? 1, phase: msg.bo[8] ?? 0,
+          // Ajouts en fin de tuple : l'index du roster et la jauge d'ultime.
+          // Repli sur le Ravageur, qui est le boss d'origine — un serveur
+          // anterieur au lot 4 n'en envoyait pas d'autre.
+          kind: msg.bo[9] ?? 0, ult: msg.bo[10] ?? 0 }
+      : null,
+    // Second Jumeau : cle nommee, absente pour les quatre autres boss.
+    boss2: msg.bo2
+      ? { id: msg.bo2[0], x: msg.bo2[1], y: msg.bo2[2], ang: msg.bo2[3] }
+      : null,
+    /* Degats portes au boss depuis l'instantane precedent, par joueur. Cle
+       nommee et absente hors combat ; le module d'evenements n'y lit que la
+       ligne du joueur local. */
+    bossDmg: msg.bd ?? null,
+    // Marqueurs de mecanique de groupe. `hp` est un ratio : le client n'affiche
+    // qu'une jauge, la valeur brute d'une cage ne lui apprendrait rien.
+    marks: (msg.mk ?? []).map(a => ({
+      id: a[0], x: a[1], y: a[2], r: a[3], k: a[4], mech: a[5],
+      a: a[6], b: a[7], need: a[8], cur: a[9], hp: a[10],
+    })),
+    slip: msg.sp === 1,
+    // Vague et progression commune. Cles nommees : un serveur anterieur qui ne
+    // les envoie pas laisse simplement les replis en place.
+    wave: msg.wv ?? 0,
+    wavePhase: msg.wp ?? 0,
+    waveBoss: msg.wbs === 1,
+    waveProgress: msg.wb ?? 0,
+    teamLevel: msg.xl ?? 1,
+    teamProgress: msg.xp ?? 0,
+  };
+
+  latest = snap;
+  snapshots.push(snap);
+  while (snapshots.length > 40) snapshots.shift();
+
+  const me = snap.players.get(myId);
+  /* Fin de recharge de la bombe. On la detecte sur la RESERVE et non sur `cd1`,
+     qui vaut deja zero quand il reste une charge sous le coude : c'est le
+     passage d'une charge de plus qui rend le lancer possible. L'anneau de
+     portee ne s'affiche que dans la foulee (voir drawBombRange) — permanent, il
+     serait un cercle de plus a l'ecran a cent ennemis, et il ne dit rien tant
+     qu'on n'a pas de bombe a lancer. */
+  if (me) {
+    const stock = me.bombStock ?? 0;
+    if (stock > bombStockSeen) bombReadyAt = performance.now();
+    bombStockSeen = stock;
+  } else {
+    bombStockSeen = 0;
+  }
+
+  if (me) {
+    // Pendant une esquive, l'ecart avec le serveur depasse volontairement le
+    // seuil de recalage : recaler la ferait avorter a mi-course.
+    const dashing = dash.t > 0 || me.dashing;
+    if (!predicted || me.downed
+        || (!dashing && Math.hypot(me.x - predicted.x, me.y - predicted.y) > SNAP_THRESHOLD)) {
+      predicted = { x: me.x, y: me.y };
+    }
+  } else {
+    predicted = null;
+  }
+}
+
+/* --- saisie ---------------------------------------------------------------------- */
+
+const keys = new Set();
+
+/* Esquive. Le serveur reste seul juge, mais on la joue aussi en local : sans
+   prediction, on appuie et il ne se passe rien pendant un aller-retour reseau,
+   ce qui est precisement le moment ou on avait besoin d'etre ailleurs. La
+   recharge affichee, elle, vient toujours du serveur. */
+const dash = { pending: false, t: 0, cd: 0, x: 0, y: 0 };
+
+/* Competences : deux demandes ponctuelles, exactement comme l'esquive. Elles ne
+   sont PAS predites localement, contrairement au bond : leurs effets (rempart,
+   provocation, bombe) sont des entites de la simulation, et une entite predite
+   qui n'existe pas cote serveur est bien pire qu'un aller-retour de latence. */
+const skills = { s1: false, s2: false };
+
+function requestSkill(n) {
+  if (phase !== PHASE_ROUND || amSpectator || cardsState) return;
+  if (latest?.players.get(myId)?.downed) return;
+  if (n === 1) skills.s1 = true; else skills.s2 = true;
+}
+
+addEventListener("keydown", e => {
+  const repeat = keys.has(e.code);
+  keys.add(e.code);
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)
+      && document.activeElement !== nameInput) e.preventDefault();
+
+  if (e.code === "Space" && !repeat && !e.repeat) requestDash();
+  /* Digit1/Digit2 et non la touche imprimee : sur un clavier AZERTY, les
+     chiffres du rang superieur demandent Maj, et `e.key` vaudrait "&" ou "é".
+     KeyQ/KeyE en second jeu : ce sont les deux voisines immediates de la main
+     de deplacement (A/E en AZERTY, Q/E en QWERTY), donc atteignables sans
+     lacher ZQSD — le rang des chiffres, lui, demande de decoller la main en
+     pleine vague. KeyA est deja pris par le deplacement, d'ou KeyQ. */
+  const s1 = e.code === "Digit1" || e.code === "Numpad1" || e.code === "KeyQ";
+  const s2 = e.code === "Digit2" || e.code === "Numpad2" || e.code === "KeyE";
+  if (s1 && !repeat && !e.repeat) requestSkill(1);
+  if (s2 && !repeat && !e.repeat) requestSkill(2);
+});
+
+/* Le clic droit etait un alias de la competence 1. Retire : dans un navigateur
+   un clic droit reste d'abord un menu contextuel, et le declenchement partait
+   sur des clics qui ne visaient pas le jeu. On garde en revanche la suppression
+   du menu sur le canvas uniquement — ailleurs (champ de pseudo), il reste
+   utile. */
+cv.addEventListener("contextmenu", e => e.preventDefault());
+addEventListener("keyup", e => keys.delete(e.code));
+addEventListener("blur", () => keys.clear());
+
+// Tab affiche les cartes possedees. Le navigateur s'en sert par defaut pour
+// deplacer le focus — sans preventDefault il fait aussi defiler la page une
+// fois le focus sorti des champs, ce qui n'a aucun sens plein ecran. On laisse
+// en revanche le comportement natif quand le pseudo est en cours de saisie,
+// sinon impossible de tabuler jusqu'au bouton "Rejoindre".
+addEventListener("keydown", e => {
+  if (e.code !== "Tab" || document.activeElement === nameInput) return;
+  e.preventDefault();
+  if (phase !== PHASE_ROUND || amSpectator || cardsState) return;
+  loadoutEl.hidden = !loadoutEl.hidden;
+  if (!loadoutEl.hidden) renderLoadout();
+});
+
+function requestDash() {
+  if (phase !== PHASE_ROUND || amSpectator || !predicted) return;
+  if (dash.cd > 0 || dash.t > 0) return;
+  const me = latest?.players.get(myId);
+  if (me?.downed) return;
+
+  const m = readMove();
+  let dx = m.x, dy = m.y;
+  if (Math.hypot(dx, dy) < 0.01) { const a = aimVector(); dx = a.ax; dy = a.ay; }
+  const d = Math.hypot(dx, dy);
+  if (d < 0.01) return;
+
+  dash.x = dx / d;
+  dash.y = dy / d;
+  dash.t = CFG.DASH_TIME;
+  dash.cd = myDashCd;
+  dash.pending = true;
+}
+
+function readMove() {
+  let x = 0, y = 0;
+  if (keys.has("KeyW") || keys.has("ArrowUp"))    y -= 1;
+  if (keys.has("KeyS") || keys.has("ArrowDown"))  y += 1;
+  if (keys.has("KeyA") || keys.has("ArrowLeft"))  x -= 1;
+  if (keys.has("KeyD") || keys.has("ArrowRight")) x += 1;
+  const d = Math.hypot(x, y);
+  return d > 0 ? { x: x / d, y: y / d } : { x: 0, y: 0 };
+}
+
+const mouse = { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+
+function updateMouse(e) {
+  const r = cv.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+  // Vers les coordonnees MONDE, pas vers la memoire du canvas : depuis que
+  // celle-ci suit la densite de pixels de l'ecran, les deux ne sont plus la
+  // meme chose et viser aurait ete decale d'un facteur deux en 4K.
+  mouse.x = (e.clientX - r.left) * (CFG.ARENA_W / r.width);
+  mouse.y = (e.clientY - r.top) * (CFG.ARENA_H / r.height);
+}
+addEventListener("mousemove", updateMouse);
+addEventListener("mousedown", updateMouse);
+
+function aimVector() {
+  const from = predicted ?? { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+  const dx = mouse.x - from.x, dy = mouse.y - from.y;
+  const d = Math.hypot(dx, dy);
+  return d > 0.001 ? { ax: dx / d, ay: dy / d } : { ax: 0, ay: 0 };
+}
+
+/* Distance au reticule, bornee ICI avec la meme fonction que le serveur. Le
+   client n'y gagne aucun droit — le serveur reborne de toute facon — mais son
+   apercu (anneau de portee, cercle d'atterrissage) doit annoncer exactement le
+   lancer qui va partir, sinon il ment sur le seul point que ce lot corrige. */
+function aimRange() {
+  const from = predicted ?? { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+  return bombRange(Math.hypot(mouse.x - from.x, mouse.y - from.y));
+}
+
+setInterval(() => {
+  if (!connected || ws.readyState !== WebSocket.OPEN) return;
+  if (phase !== PHASE_ROUND || amSpectator) return;
+  const m = readMove();
+  const a = aimVector();
+  // `ar` est CONTINU comme ax/ay : il part a chaque paquet et n'est jamais
+  // remis a zero, contrairement aux trois drapeaux ponctuels ci-dessous.
+  const msg = { t: "input", x: m.x, y: m.y, ax: a.ax, ay: a.ay, ar: aimRange() };
+  if (dash.pending) { msg.d = 1; dash.pending = false; }
+  if (skills.s1) { msg.s1 = 1; skills.s1 = false; }
+  if (skills.s2) { msg.s2 = 1; skills.s2 = false; }
+  ws.send(JSON.stringify(msg));
+}, 1000 / INPUT_HZ);
+
+/* --- interpolation ----------------------------------------------------------------- */
+
+function interpolated(renderTime) {
+  if (snapshots.length === 0) return null;
+  if (snapshots.length === 1) return flatten(snapshots[0]);
+
+  let a = null, b = null;
+  for (let i = snapshots.length - 1; i > 0; i--) {
+    if (snapshots[i - 1].recvAt <= renderTime && snapshots[i].recvAt >= renderTime) {
+      a = snapshots[i - 1];
+      b = snapshots[i];
+      break;
+    }
+  }
+  if (!a) return flatten(snapshots[snapshots.length - 1]);
+
+  const span = b.recvAt - a.recvAt;
+  const k = span > 0 ? (renderTime - a.recvAt) / span : 0;
+
+  const lerpMap = (ma, mb) => {
+    const out = [];
+    for (const [id, ea] of ma) {
+      const eb = mb.get(id);
+      out.push(eb
+        ? { ...ea, x: ea.x + (eb.x - ea.x) * k, y: ea.y + (eb.y - ea.y) * k }
+        : ea);
+    }
+    return out;
+  };
+
+  const lerpBoss = (ea, eb) => {
+    if (!ea || !eb || ea.id !== eb.id) return eb;
+    return { ...eb, x: ea.x + (eb.x - ea.x) * k, y: ea.y + (eb.y - ea.y) * k };
+  };
+  const boss = lerpBoss(a.boss, b.boss);
+  const boss2 = lerpBoss(a.boss2, b.boss2);
+
+  /* Les marqueurs suivent leur porteur ou glissent (sanctuaires) : ils sont
+     donc interpoles comme des entites et non pris tels quels comme les zones.
+     Un cercle de regroupement qui saute de 4 px vingt fois par seconde est
+     exactement l'element qu'on regarde le plus pendant une mecanique. */
+  const marksA = new Map((a.marks ?? []).map(m => [m.id, m]));
+  const marks = (b.marks ?? []).map(m => {
+    const prev = marksA.get(m.id);
+    return prev ? { ...m, x: prev.x + (m.x - prev.x) * k, y: prev.y + (m.y - prev.y) * k } : m;
+  });
+
+  return {
+    tm: a.tm + (b.tm - a.tm) * k,
+    over: b.over,
+    kills: b.kills,
+    slow: b.slow,
+    playerList: lerpMap(a.players, b.players),
+    enemyList: lerpMap(a.enemies, b.enemies),
+    bulletList: lerpMap(a.bullets, b.bullets),
+    shotList: lerpMap(a.shots, b.shots),
+    droneList: lerpMap(a.drones, b.drones),
+    bombList: lerpMap(a.bombs ?? new Map(), b.bombs ?? new Map()),
+    zones: b.zones,
+    powerups: b.powerups,
+    turrets: b.turrets,
+    // Le rempart ne bouge pas : pris tel quel, comme les zones.
+    bulwarks: b.bulwarks ?? [],
+    effects: b.effects,
+    boss, boss2, marks, slip: b.slip,
+    // Limites et murs : des paliers, pas des positions. Interpoler une arene qui
+    // se referme donnerait une limite a mi-chemin, c'est-a-dire une limite qui
+    // ment sur l'endroit exact ou l'on prend des degats.
+    bounds: b.bounds, walls: b.walls,
+    // Etat de vague : pris tel quel sur le snapshot le plus recent, jamais
+    // interpole. Ce sont des paliers, pas des positions — un numero de vague
+    // a mi-chemin entre 6 et 7 n'aurait aucun sens.
+    wave: b.wave, wavePhase: b.wavePhase, waveBoss: b.waveBoss,
+    waveProgress: b.waveProgress,
+    teamLevel: b.teamLevel, teamProgress: b.teamProgress,
+  };
+}
+
+function flatten(s) {
+  return {
+    tm: s.tm, over: s.over, kills: s.kills, slow: s.slow,
+    playerList: [...s.players.values()],
+    enemyList: [...s.enemies.values()],
+    bulletList: [...s.bullets.values()],
+    shotList: [...s.shots.values()],
+    droneList: [...s.drones.values()],
+    bombList: [...(s.bombs?.values() ?? [])],
+    zones: s.zones,
+    powerups: s.powerups,
+    turrets: s.turrets,
+    bulwarks: s.bulwarks ?? [],
+    effects: s.effects,
+    boss: s.boss,
+    boss2: s.boss2 ?? null,
+    marks: s.marks ?? [],
+    slip: s.slip ?? false,
+    bounds: s.bounds ?? { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H, warn: 0 },
+    walls: s.walls ?? null,
+    wave: s.wave, wavePhase: s.wavePhase, waveBoss: s.waveBoss,
+    waveProgress: s.waveProgress,
+    teamLevel: s.teamLevel, teamProgress: s.teamProgress,
+  };
+}
+
+/* --- rendu -------------------------------------------------------------------------- */
+
+const ENEMY_TINT = ENEMY.TINT;
+
+// Pose l'icone d'un etat, centree, dans la couleur de l'etat.
+function paintStatusIcon(id, x, y, scale, opacite = 1) {
+  const def = STATUSES[id];
+  if (!def) return;
+  paintIcon(ctx, STATUS_ICON[id], def.couleur, x, y, scale, opacite);
+}
+
+// Liste des etats actifs d'un joueur, dans l'ordre de la table.
+function activeStatuses(p) {
+  const out = [];
+  for (const s of STATUSES) if (p.statuses & statusBit(s.id)) out.push(s.id);
+  return out;
+}
+
+// Pose l'icone d'un bonus, centree sur (x, y), a l'echelle demandee.
+function paintPowerupIcon(st, x, y, scale, opacite = 1) {
+  paintIcon(ctx, st.icon, st.color, x, y, scale, opacite);
+}
+
+let bossAnnounce = 0;      // horodatage de l'arrivee du dernier boss
+let lastBossId = 0;
+let phaseAnnounce = 0;     // horodatage de la derniere barre brisee
+let lastBossPhase = 0;
+
+/* Bandeau d'alerte, TROIS niveaux. UNE consigne a la fois, la derniere recue :
+   deux consignes empilees pendant qu'on esquive ne se lisent pas, et la plus
+   recente est toujours celle qui compte. Chaque niveau a sa propre ligne pour
+   qu'une information ne chasse jamais une consigne.
+
+     consigne      cyan,  gros, avec compte a rebours
+     avertissement ambre, court, sans compte a rebours
+     information   blanc, discret, sans urgence
+
+   Le cyan de la consigne n'est pas decoratif : c'est la couleur qui, dans
+   toute la grammaire de marqueurs, veut dire « ceci te concerne, place-toi ».
+   L'ambre reste au danger, le blanc a ce qui ne demande rien. */
+let alertOrder = null;     // { texte, nom, from, until }
+let alertWarn = null;
+let alertInfo = null;
+
+/* Les alertes arrivent hors du snapshot, donc SANS le retard d'interpolation :
+   affichees a la reception, le bandeau precedait de 110 ms le telegraphe qu'il
+   commente. On les met en file et on les sort sur l'horloge de rendu, comme
+   les evenements — meme raison, meme horloge. */
+const alertQueue = [];
+
+function pushAlert(msg) {
+  alertQueue.push({ msg, at: performance.now() + INTERP_MS });
+}
+
+function flushAlerts(now) {
+  while (alertQueue.length > 0 && alertQueue[0].at <= now) {
+    applyAlert(alertQueue.shift().msg, now);
+  }
+}
+
+function applyAlert(msg, now) {
+  /* Identite du boss : evenement PONCTUEL, il declenche l'annonce plein ecran.
+     Le rendu la declenche aussi sur changement d'identifiant dans le snapshot —
+     les deux chemins se recouvrent volontairement, un joueur qui rejoint en
+     cours de combat n'a jamais recu le message et doit quand meme voir a qui il
+     a affaire. */
+  if (msg.boss !== undefined) {
+    bossAnnounce = now;
+    lastBossPhase = 0;
+    alertOrder = null;
+    alertWarn = null;
+    alertInfo = null;
+    return;
+  }
+  const def = mechAt(msg.mech);
+  if (!def) return;
+  /* Le bandeau DISPARAIT AVANT la resolution, et non une seconde apres comme
+     il le faisait : un texte encore affiche au moment de l'impact masque
+     exactement ce qu'il faut regarder, c'est-a-dire la zone qui explose. Les
+     annonces sans duree (Miasme, ultime) tiennent 1,5 s. */
+  const dur = msg.dur > 0 ? Math.max(800, msg.dur * 1000 - 250) : 1500;
+  const entry = { nom: def.nom, texte: def.texte, from: now, until: now + dur };
+  if (def.level === ALERT_ORDER) alertOrder = entry;
+  else if (def.level === ALERT_WARN) alertWarn = entry;
+  else alertInfo = entry;
+}
+
+/* ===========================================================================
+   RETOUR SENSORIEL
+   Tout part du meme endroit : la liste d'evenements produite par events.js en
+   comparant deux snapshots, LIVREE au moment ou l'horloge de rendu franchit le
+   second des deux. Le son et les particules consomment la meme liste, donc ils
+   ne peuvent pas diverger, et aucun des deux n'arrive avant son image.
+   =========================================================================== */
+
+const PARTICLE_MAX = 300;      // quarante ennemis sous une bombe : il faut couper
+const HIT_FLASH = 0.06;        // eclair blanc de 60 ms sur l'ennemi touche
+const HIT_KICK = 5;            // recul du sprite, en pixels
+const SHAKE_MAX = 10;
+
+const particles = [];
+const hits = new Map();        // ennemi -> { until, dx, dy }
+const shake = { x: 0, y: 0, mag: 0 };
+
+// `myId` n'est pas encore connu a la construction : un accesseur plutot qu'une
+// copie, sinon la diffusion resterait sur l'identifiant 0 toute la partie.
+const pump = new EventPump(handleEvent, { get myId() { return myId; } });
+
+/* Remise a zero entre deux manches. Sans elle, le premier snapshot d'une
+   nouvelle manche se comparait au dernier de la precedente : deux cents morts
+   d'un coup, un mur de bruit et trois cents fragments a l'ouverture. */
+function resetFeedback() {
+  pump.reset();
+  particles.length = 0;
+  deaths.length = 0;
+  gridPings.length = 0;
+  // La cadence des tireurs est DEDUITE des projectiles observes : gardee d'une
+  // manche a l'autre, elle telegraphierait a partir d'un tir qui n'a pas eu
+  // lieu dans celle-ci.
+  shooterFire.clear();
+  seenShots.clear();
+  dmgAgg.clear();
+  bulletTrail.clear();
+  shotTrail.clear();
+  lastPlayerPos.clear();
+  resetHud();
+  alertQueue.length = 0;
+  hits.clear();
+  shake.mag = 0; shake.x = 0; shake.y = 0;
+  alertOrder = null; alertWarn = null; alertInfo = null;
+}
+
+function addShake(mag) {
+  // On garde le PLUS FORT et on ne cumule pas : deux explosions dans la meme
+  // image cumulees donnaient une secousse qui ne retombait plus.
+  shake.mag = Math.min(SHAKE_MAX, Math.max(shake.mag, mag));
+}
+
+/* Le tressaillement ne sort QUE sur les gros evenements — detonation de zone,
+   onde de choc, rupture de barre, bombe. Jamais sur un impact ordinaire : a
+   trois cents impacts par minute l'ecran ne se serait jamais immobilise. */
+const EFFECT_SOUND = {
+  0:  { son: "explosion", force: 0.7, shake: 4 },   // nova
+  5:  { son: "mort", pitch: 0.55, shake: 0 },       // elite abattue
+  7:  { son: "explosion", force: 1.0, shake: 6 },   // explosion de grenade
+  8:  { son: "explosion", force: 0.6, shake: 4 },   // onde blanche
+  12: { son: "explosion", force: 1.35, shake: 9 },  // bombe du DPS
+};
+
+function handleEvent(e) {
+  switch (e.t) {
+    case "tir":
+      playSound("tir");
+      break;
+
+    case "impact":
+      playSound("impact");
+      // Le boss n'a ni sprite ni recul : il est trop gros pour qu'un
+      // deplacement de cinq pixels se lise, et sa barre porte deja
+      // l'information. Ses chiffres passent par `degats`, qui ne montre que
+      // les SIENS — le seul chiffre que le client ne peut pas deduire.
+      if (!e.boss) { registerHit(e); aggregateDamage(e); }
+      break;
+
+    /* Degats subis en ROUGE et plus gros, soins recus en VERT. Ils ne passent
+       pas par l'agregation : il n'y en a jamais qu'un a la fois par joueur, et
+       ce sont les deux chiffres qu'on doit lire immediatement. */
+    case "blesse":
+      hudDamage(e.x, e.y - 26, e.dmg, "hurt");
+      break;
+
+    case "soigne":
+      hudDamage(e.x, e.y - 26, e.dmg, "heal");
+      break;
+
+    case "mort":
+      // La hauteur varie avec le type : c'est gratuit et ca suffit a entendre
+      // la difference entre la pietaille et un gros.
+      playSound("mort", { pitch: e.elite ? 0.6 : 1.3 - Math.min(0.6, e.type * 0.12) });
+      spawnDeath(e.x, e.y, e.type, e.elite);
+      break;
+
+    case "bonus": playSound("bonus"); break;
+    case "niveau": playSound("niveau"); break;
+    case "aterre": playSound("aterre"); break;
+    case "releve": playSound("releve"); break;
+
+    case "explosion": {
+      // L'amplitude suit le RAYON : une case de damier et un balayage de toute
+      // l'arene ne peuvent pas secouer pareil.
+      const k = Math.max(0.35, Math.min(1.4, e.r / 150));
+      playSound("explosion", { force: k });
+      addShake(3 + k * 5);
+      addGridPing(e.x, e.y, e.r);
+      break;
+    }
+
+    case "barre":
+      playSound("barre");
+      addShake(SHAKE_MAX);
+      addGridPing(lastBossPos.x, lastBossPos.y, 260);
+      break;
+
+    case "boss":
+      playSound("boss");
+      break;
+
+    case "degats":
+      pushDamage(e.x, e.y, e.dmg);
+      break;
+
+    case "effet": {
+      const d = EFFECT_SOUND[e.kind];
+      if (!d) break;
+      playSound(d.son, d);
+      if (d.shake) {
+        addShake(d.shake);
+        // Le sol reagit a ce qui le secoue, et a rien d'autre : le meme seuil
+        // que le tressaillement, pour ne pas allumer la grille trois cents fois
+        // par minute sur des impacts ordinaires.
+        addGridPing(e.x, e.y, Math.max(70, e.r || 0));
+      }
+      break;
+    }
+  }
+}
+
+/* Eclair blanc et recul. Le recul se fait dans l'axe joueur -> ennemi et non
+   dans celui du projectile : les balles ne transportent pas leur direction, et
+   la quasi-totalite des degats vient d'un joueur qui tire droit devant lui. La
+   difference ne se voit pas sur cinq pixels et soixante millisecondes. */
+function registerHit(e) {
+  let dx = 0, dy = 0;
+  if (latest) {
+    let best = Infinity;
+    for (const p of latest.players.values()) {
+      const d = (p.x - e.x) ** 2 + (p.y - e.y) ** 2;
+      if (d < best) { best = d; dx = e.x - p.x; dy = e.y - p.y; }
+    }
+    const n = Math.hypot(dx, dy) || 1;
+    dx /= n; dy /= n;
+  }
+  hits.set(e.id, { until: performance.now() + HIT_FLASH * 1000, dx, dy });
+
+  /* ECLAT D'IMPACT : deux fragments clairs projetes dans l'axe du tir. C'est
+     l'action secondaire la moins chere du jeu et celle qui change le plus le
+     ressenti — sans elle, tirer dans la foule ne donne aucune confirmation
+     qu'on touche. Elle passe par le meme plafond que les morts : a trois cents
+     impacts par minute, un eclat non plafonne noie l'ecran. */
+  for (let i = 0; i < 2 && particles.length < PARTICLE_MAX; i++) {
+    const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.6;
+    const sp = 90 + Math.random() * 70;
+    particles.push({
+      x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.14, max: 0.14, col: COMBAT.flash, size: 2,
+    });
+  }
+}
+
+/* MORTS ANIMEES. Trois images d'atlas — fissuration, eclatement, dispersion —
+   plus les fragments. Duree totale 260 ms.
+
+   Plafond global a trente morts simultanees : au-dela, seules les particules
+   subsistent. Quarante ennemis qui meurent sous une bombe, ce sont quarante
+   sequences de trois images qui se recouvrent — on n'en lit aucune, et on paie
+   les quarante. */
+const deaths = [];
+const DEATH_MAX = 30;
+const DEATH_MS = 260;
+
+function drawDeaths() {
+  if (deaths.length === 0) return;
+  const now = performance.now();
+  for (let i = deaths.length - 1; i >= 0; i--) {
+    const d = deaths[i];
+    const k = (now - d.at) / DEATH_MS;
+    if (k >= 1) { deaths[i] = deaths[deaths.length - 1]; deaths.pop(); continue; }
+    const step = k < 0.33 ? 0 : (k < 0.66 ? 1 : 2);
+    drawSprite(ctx, frameOf(`e${d.type}_die${step}`), d.x, d.y, {
+      angle: d.ang,
+      // La depouille s'affaisse : l'ecrasement dit la chute sans une image de
+      // plus, exactement comme l'etirement dit la course.
+      scaleX: d.gain * (1 + k * 0.18),
+      scaleY: d.gain * (1 - k * 0.25),
+      alpha: 1 - k * 0.5,
+    });
+  }
+}
+
+function spawnDeath(x, y, type, elite) {
+  if (deaths.length < DEATH_MAX) {
+    deaths.push({
+      x, y, type, at: performance.now(),
+      ang: Math.random() * Math.PI * 2,
+      gain: elite ? CFG.ELITE_RADIUS_MUL : 1,
+    });
+  }
+  // Plafond franc plutot qu'une eviction des plus anciennes : quand quarante
+  // ennemis meurent ensemble, les huit premiers fragments disent deja tout, et
+  // recycler la liste coutait plus cher que de refuser.
+  if (particles.length >= PARTICLE_MAX) return;
+  const col = ENEMY_TINT[type] ?? ENEMY_TINT[0];
+  const n = elite ? 10 : 7;
+  for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 60 + Math.random() * 130;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.4, max: 0.4, col, size: elite ? 3.5 : 2.5,
+    });
+  }
+}
+
+/* Chiffres de degats. Ce sont des elements DOM depuis que le HUD est sorti du
+   canvas : ils recuperent gratuitement le contour de texte, l'assouplissement
+   et le fondu, pour le seul cout d'une conversion monde -> ecran.
+
+   Un seul chiffre par instantane et par boss : le cumul arrive deja somme du
+   serveur. Douze chiffres empiles sur la meme silhouette masqueraient
+   exactement ce qu'il faut regarder pendant un combat. */
+function pushDamage(x, y, dmg) {
+  hudDamage(x + (Math.random() - 0.5) * 40, y - 30, dmg, "deal");
+}
+
+/* AGREGATION SUR 200 ms. Les chiffres s'affichent desormais sur tous les
+   ennemis et non plus sur le seul boss — mais une balle toutes les 90 ms sur la
+   meme cible produirait une colonne de « 12 » illisible. On somme, on attend
+   deux dixiemes de seconde, et on sort UN chiffre.
+
+   Le seuil d'affichage est de 5 % des PV MAX de la cible : en dessous, le
+   chiffre n'apprend rien et occupe l'ecran. C'est ce qui evite de repeindre la
+   horde de nombres quand une nova touche quarante ennemis pour trois points
+   chacun. */
+const DMG_AGG_MS = 200;
+const DMG_THRESHOLD = 0.05;
+const dmgAgg = new Map();
+
+function aggregateDamage(e) {
+  const a = dmgAgg.get(e.id);
+  if (a) { a.sum += e.dmg; a.x = e.x; a.y = e.y; return; }
+  dmgAgg.set(e.id, {
+    x: e.x, y: e.y, sum: e.dmg, at: performance.now(),
+    maxHp: e.maxHp || 1,
+  });
+}
+
+function flushDamage(now) {
+  if (dmgAgg.size === 0) return;
+  for (const [id, a] of dmgAgg) {
+    if (now - a.at < DMG_AGG_MS) continue;
+    dmgAgg.delete(id);
+    if (a.sum >= a.maxHp * DMG_THRESHOLD) {
+      hudDamage(a.x + (Math.random() - 0.5) * 18, a.y - 22, a.sum, "deal");
+    }
+  }
+}
+
+function stepFeedback(dt) {
+  // Decroissance en 200 ms, exactement : au-dela l'ecran flotte, en deca la
+  // secousse ne se distingue plus d'un decrochage d'image.
+  if (shake.mag > 0.05) {
+    shake.mag *= Math.pow(0.004, dt / 0.2);
+    shake.x = (Math.random() - 0.5) * 2 * shake.mag;
+    shake.y = (Math.random() - 0.5) * 2 * shake.mag;
+  } else {
+    shake.mag = 0; shake.x = 0; shake.y = 0;
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) { particles[i] = particles[particles.length - 1]; particles.pop(); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    // Frottement : sans lui les fragments partent en ligne droite jusqu'au bord
+    // et on lit une gerbe d'etincelles au lieu d'un eclatement.
+    p.vx *= 0.90; p.vy *= 0.90;
+  }
+
+  if (hits.size > 0) {
+    const now = performance.now();
+    for (const [id, h] of hits) if (h.until < now) hits.delete(id);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Vitesse portee de la prediction locale. Elle ne sert qu'au sol glissant du
+// Metronome et rejoue exactement la formule du serveur — sinon le personnage
+// prevu et le personnage reel divergent de plus de 90 px et se recalent sec.
+const slipV = { x: 0, y: 0 };
+
+let lastFrame = performance.now();
+
+/* Compteur de performance, sur `?perf` dans l'adresse. Il n'est pas decoratif :
+   le lot demande de MESURER les images par seconde avec 300 particules et 200
+   ennemis, et une mesure qu'on ne peut pas refaire ne vaut rien. Hors de ce
+   drapeau il ne coute pas une ligne de rendu. */
+const PERF = location.search.includes("perf");
+let fps = 0;
+
+function frame(now) {
+  const dt = Math.min((now - lastFrame) / 1000, 0.1);
+  lastFrame = now;
+  // Moyenne glissante sur environ une seconde : l'inverse du dt brut saute de
+  // 45 a 75 d'une image a l'autre et ne se lit pas.
+  if (PERF && dt > 0) fps += (1 / dt - fps) * Math.min(1, dt * 1.5);
+
+  if (connected && latest) {
+    const renderTime = now - INTERP_MS;
+    if (phase === PHASE_ROUND) {
+      stepPrediction(dt);
+      /* Diffusion des evenements sur l'horloge de RENDU et non a la reception :
+         c'est ce qui fait tomber le son sur l'image et non 110 ms avant. */
+      pump.pump(snapshots, renderTime);
+      flushAlerts(now);
+      flushDamage(now);
+    }
+    stepFeedback(dt);
+    draw(interpolated(renderTime) ?? flatten(latest));
+  } else {
+    ctx.fillStyle = SURFACE.arena;
+    ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+    drawGrid();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+function stepPrediction(dt) {
+  dash.cd = Math.max(0, dash.cd - dt);
+  dash.t = Math.max(0, dash.t - dt);
+
+  const me = latest.players.get(myId);
+  if (!me) { predicted = null; return; }
+  if (!predicted) { predicted = { x: me.x, y: me.y }; return; }
+
+  if (me.downed || latest.over) {
+    predicted.x = me.x; predicted.y = me.y;
+    dash.t = 0;
+    return;
+  }
+
+  /* Prison : le serveur fige le joueur, la prediction doit le figer aussi.
+     Sans ca on jouait quatre secondes a cote de son propre personnage, puis on
+     revenait d'un coup dans la cage — le pire des deux mondes. */
+  if ((latest.marks ?? []).some(m => m.mech === MECH_JAIL && m.a === myId)) {
+    predicted.x = me.x; predicted.y = me.y;
+    dash.t = 0;
+    slipV.x = 0; slipV.y = 0;
+    return;
+  }
+
+  // Position d'avant deplacement : elle dit de quel cote d'un mur de
+  // verrouillage on se trouvait, exactement comme cote serveur.
+  const wasX = predicted.x, wasY = predicted.y;
+
+  if (dash.t > 0) {
+    predicted.x += dash.x * CFG.DASH_SPEED * dt;
+    predicted.y += dash.y * CFG.DASH_SPEED * dt;
+  } else {
+    const m = readMove();
+    if (latest.slip) {
+      // Meme formule que `_players` cote serveur : la vitesse REJOINT la
+      // consigne au lieu de la prendre.
+      const k = Math.min(1, BOSS_CFG.SLIP_ACCEL * dt);
+      slipV.x += (m.x * CFG.PLAYER_SPEED - slipV.x) * k;
+      slipV.y += (m.y * CFG.PLAYER_SPEED - slipV.y) * k;
+      predicted.x += slipV.x * dt;
+      predicted.y += slipV.y * dt;
+    } else {
+      slipV.x = m.x * CFG.PLAYER_SPEED;
+      slipV.y = m.y * CFG.PLAYER_SPEED;
+      predicted.x += m.x * CFG.PLAYER_SPEED * dt;
+      predicted.y += m.y * CFG.PLAYER_SPEED * dt;
+    }
+  }
+
+  /* Les memes limites que le serveur, et le meme blocage sur les murs. Sans ca,
+     la prediction marchait droit dans la couronne d'une constriction ou a
+     travers un mur de verrouillage : le rappel la ramenait ensuite en continu,
+     ce qui donne exactement le recalage permanent qu'on cherche a eviter. */
+  const r = CFG.PLAYER_RADIUS;
+  const B = latest.bounds ?? { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H };
+  predicted.x = Math.min(Math.max(predicted.x, B.x0 + r), B.x1 - r);
+  predicted.y = Math.min(Math.max(predicted.y, B.y0 + r), B.y1 - r);
+  const W = latest.walls;
+  if (W) {
+    const t = W.t / 2 + r;
+    if (Math.abs(predicted.x - W.x) < t) predicted.x = wasX <= W.x ? W.x - t : W.x + t;
+    if (Math.abs(predicted.y - W.y) < t) predicted.y = wasY <= W.y ? W.y - t : W.y + t;
+  }
+
+  // Pendant l'esquive, on relache le rappel vers la position serveur : le
+  // dash local est en avance d'un aller-retour, le corriger en direct
+  // donnerait un mouvement qui bafouille au pire moment.
+  const pull = 1 - Math.exp((dash.t > 0 ? -1.2 : -6) * dt);
+  predicted.x += (me.x - predicted.x) * pull;
+  predicted.y += (me.y - predicted.y) * pull;
+}
+
+function colorOf(id) {
+  const entry = lobby.find(l => l.id === id);
+  return PLAYER_COLORS[entry ? entry.colorIndex % PLAYER_COLORS.length : 0];
+}
+
+// Comme colorOf, mais sans repli sur la couleur 0 : un drone dont le
+// proprietaire a quitte le salon (ou un tuple d'ancienne version sans
+// `owner`, replie a 0) doit garder une teinte neutre plutot que d'emprunter
+// la couleur du premier joueur venu — colorOf ferait justement cette confusion.
+function ownerColorOf(id) {
+  const entry = lobby.find(l => l.id === id);
+  return entry ? PLAYER_COLORS[entry.colorIndex % PLAYER_COLORS.length] : null;
+}
+
+function nameOf(id) {
+  return lobby.find(l => l.id === id)?.name ?? "?";
+}
+
+/* LE SOL. L'arene est une MACHINE, les monstres sont ce qui s'y est introduit :
+   le decor est froid, precis, instrumente — grille technique, filets fins,
+   angles durs, palette desaturee — la ou les creatures sont chaudes,
+   organiques, irregulieres. Ce contraste EST l'identite, et il n'est pas
+   decoratif : les monstres sont les seuls elements organiques a l'ecran, donc
+   ils se detachent instantanement. La direction artistique sert la lisibilite
+   au lieu de la combattre.
+
+   Grille a DEUX niveaux : un trait tous les 5 m, un trait marque tous les
+   20 m. Elle donne une echelle lisible et rend les distances en metres des
+   descriptions de cartes immediatement comprehensibles — sans elle, « rayon
+   6 m » ne veut rien dire a l'ecran. */
+const GRID_FINE = 5 * PX_PER_M;     // 100 px
+const GRID_MAJOR = 20 * PX_PER_M;   // 400 px
+
+function drawGrid() {
+  ctx.lineWidth = 1;
+
+  ctx.strokeStyle = SURFACE.gridFine;
+  ctx.beginPath();
+  for (let x = GRID_FINE; x < CFG.ARENA_W; x += GRID_FINE) {
+    ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
+  }
+  for (let y = GRID_FINE; y < CFG.ARENA_H; y += GRID_FINE) {
+    ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = SURFACE.gridMajor;
+  ctx.beginPath();
+  for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
+    ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
+  }
+  for (let y = GRID_MAJOR; y < CFG.ARENA_H; y += GRID_MAJOR) {
+    ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
+  }
+  ctx.stroke();
+
+  drawGridPings();
+}
+
+/* REACTION AUX IMPACTS : les lignes de grille brillent brievement dans le rayon
+   d'une explosion ou d'une onde de choc. Peu couteux, tres caracteristique du
+   registre instrumentation — le sol est un ECRAN DE MESURE, et un ecran de
+   mesure reagit a ce qu'il mesure. */
+const gridPings = [];
+const GRID_PING_MS = 420;
+
+function addGridPing(x, y, r) {
+  if (gridPings.length > 8) gridPings.shift();
+  gridPings.push({ x, y, r, at: performance.now() });
+}
+
+function drawGridPings() {
+  if (gridPings.length === 0) return;
+  const now = performance.now();
+
+  for (let i = gridPings.length - 1; i >= 0; i--) {
+    const p = gridPings[i];
+    const k = (now - p.at) / GRID_PING_MS;
+    if (k >= 1) { gridPings.splice(i, 1); continue; }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.strokeStyle = SIGNAL.go;
+    ctx.globalAlpha = 0.30 * (1 - k);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const x0 = Math.floor((p.x - p.r) / GRID_FINE) * GRID_FINE;
+    const y0 = Math.floor((p.y - p.r) / GRID_FINE) * GRID_FINE;
+    for (let x = x0; x <= p.x + p.r; x += GRID_FINE) {
+      ctx.moveTo(x + .5, p.y - p.r); ctx.lineTo(x + .5, p.y + p.r);
+    }
+    for (let y = y0; y <= p.y + p.r; y += GRID_FINE) {
+      ctx.moveTo(p.x - p.r, y + .5); ctx.lineTo(p.x + p.r, y + .5);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* VIGNETTAGE. Il concentre le regard et masque les apparitions hors champ.
+   Peint APRES le monde et avant rien d'autre : c'est du decor, il ne doit
+   jamais passer devant une consigne — mais celles-ci sont dans le DOM, donc
+   au-dessus par construction. Le degrade est mis en cache, le reconstruire
+   soixante fois par seconde se voit au profileur. */
+let vignette = null;
+
+function drawVignette() {
+  if (!vignette) {
+    const r = Math.hypot(CFG.ARENA_W, CFG.ARENA_H) / 2;
+    vignette = ctx.createRadialGradient(
+      CFG.ARENA_W / 2, CFG.ARENA_H / 2, r * 0.42,
+      CFG.ARENA_W / 2, CFG.ARENA_H / 2, r);
+    vignette.addColorStop(0, alpha(SURFACE.void, 0));
+    vignette.addColorStop(1, alpha(SURFACE.void, 0.55));
+  }
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+}
+
+/* UNE seule passe. La separation en deux — le monde secoue, l'interface fixe —
+   n'a plus lieu d'etre : le HUD est un FRERE du canvas et non son contenu, donc
+   il ne peut plus trembler avec lui. Le tressaillement est devenu un
+   `transform` CSS sur l'element canvas, que le compositeur applique sans que la
+   boucle de jeu ait a redessiner quoi que ce soit.
+
+   Les pourcentages d'une translation CSS se rapportent a la boite de l'element,
+   qui fait exactement la taille de l'arene : la conversion monde -> ecran est
+   donc une division, et elle reste juste quelle que soit la fenetre. */
+function draw(v) {
+  ctx.fillStyle = SURFACE.arena;
+  ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  drawWorld(v);
+  applyShake();
+  drawScreen(v);
+}
+
+let shakeApplied = false;
+
+function applyShake() {
+  const on = shake.mag > 0;
+  if (!on && !shakeApplied) return;
+  shakeApplied = on;
+  cv.style.transform = on
+    ? `scale(1.015) translate(${(shake.x / CFG.ARENA_W * 100).toFixed(3)}%, ` +
+      `${(shake.y / CFG.ARENA_H * 100).toFixed(3)}%)`
+    : "scale(1.015)";
+}
+
+/* Tout ce qui vit sur l'ECRAN et non dans le monde. Le canvas n'en dessine plus
+   une ligne — voir `hud.js`. Ce qui reste ici est ce que le HUD ne peut pas
+   deduire seul : l'expiration des consignes, l'annonce de phase (qui demande la
+   table des boss) et les compteurs locaux. */
+function drawScreen(v) {
+  const now = performance.now();
+  if (alertOrder && now > alertOrder.until) alertOrder = null;
+  if (alertWarn && now > alertWarn.until) alertWarn = null;
+  if (alertInfo && now > alertInfo.until) alertInfo = null;
+
+  const st = PERF ? audioStats() : null;
+  updateHud(v, {
+    now, myId, lobby, ping, difficulty, amSpectator,
+    myColor: colorOf(myId),
+    dashCd: myDashCd,
+    counts: ownedCounts(myId),
+    alertOrder, alertWarn, alertInfo,
+    bossAnnounce, phaseAnnounce,
+    phaseText: v.boss && v.boss.phase > 0
+      ? phaseUnlockText(v.boss.kind ?? 0, v.boss.phase) : "",
+    perf: PERF, fps, particles: particles.length,
+    voices: st ? st.active : 0, peak: st ? st.peak : 0,
+  });
+}
+
+function drawWorld(v) {
+  drawGrid();
+
+  if (v.slow) {
+    ctx.fillStyle = alpha(WALL.fill, 0.06);
+    ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  }
+
+  // La couronne interdite passe SOUS les zones : c'est le sol lui-meme, et une
+  // annonce dessinee dessous serait invisible exactement la ou il faut encore
+  // pouvoir la lire — au moment ou on court pour rentrer.
+  drawArenaBounds(v.bounds);
+  drawZones(v.zones, v.tm);
+  // Le rempart passe SOUS les entites : c'est un marquage de sol, et il occupe
+  // 170 px de rayon — dessine par-dessus, il masquait exactement les ennemis
+  // qu'il attire.
+  drawBulwarks(v.bulwarks ?? []);
+  drawTurrets(v.turrets ?? []);
+  drawEffects(v.effects);
+  drawPowerups(v.powerups);
+
+  pruneTrails(v);
+  for (const s of v.shotList) {
+    drawBolt(s, CFG.SHOT_RADIUS, COMBAT.shot, shotTrail);
+  }
+
+  for (const b of v.bulletList) {
+    // Le projectile de soin est vert et un peu plus gros : a la table, on doit
+    // voir sans demander que le soigneur ne fait plus de degats.
+    drawBolt(b, CFG.BULLET_RADIUS + (b.heal ? 1.5 : 0),
+             b.heal ? COMBAT.bulletHeal : COMBAT.bullet, bulletTrail);
+  }
+
+  // Les tireurs se telegraphent depuis les projectiles observes : il faut donc
+  // regarder les projectiles AVANT de dessiner les ennemis.
+  trackShooters(v);
+
+  drawBombs(v.bombList ?? []);
+  // Les marqueurs de mecanique passent SOUS les entites, comme le rempart :
+  // un cercle de regroupement de 135 px de rayon dessine par-dessus masquait
+  // exactement les joueurs qu'il demande de compter.
+  drawMarks(v.marks ?? [], v.playerList);
+  // Les depouilles passent SOUS les vivants : une sequence de mort dessinee
+  // par-dessus la horde qui avance masquerait ce qui arrive.
+  drawDeaths();
+  drawEnemies(v.enemyList);
+  if (v.boss) {
+    if (v.boss.id !== lastBossId) {
+      lastBossId = v.boss.id;
+      bossAnnounce = performance.now();
+      lastBossPhase = 0;
+    }
+    if (v.boss.phase > lastBossPhase) {
+      lastBossPhase = v.boss.phase;
+      phaseAnnounce = performance.now();
+    }
+    drawBoss(v.boss);
+    // Le second Jumeau se dessine avec les memes traits : c'est le meme
+    // adversaire, et deux silhouettes differentes auraient laisse croire a
+    // deux combats.
+    if (v.boss2) drawBoss({ ...v.boss2, hp: v.boss.hp, maxHp: v.boss.maxHp, twin: 1 });
+  }
+  drawDrones(v.droneList);
+  drawPlayers(v.playerList, v.tm, v.marks ?? []);
+  // Les lames orbitales par-dessus tout le monde : c'est la bande de rayon la
+  // plus disputee de l'ecran (givre, rempart, marqueurs) et la seule qui dise
+  // au joueur qu'il possede la carte.
+  drawOrbiters(v.playerList, v.tm);
+  // Les murs passent PAR-DESSUS les entites : ils sont infranchissables, et un
+  // ennemi dessine devant laissait croire qu'on pouvait le rejoindre.
+  drawWalls(v.walls);
+  // Fragments par-dessus tout le monde : ce sont des confirmations, elles ne
+  // doivent jamais passer derriere ce qu'elles confirment. Les chiffres de
+  // degats, eux, sont montes d'un cran : ils vivent dans le DOM par-dessus le
+  // canvas, donc au-dessus de tout par construction.
+  drawParticles();
+
+  // Le vignettage ferme le monde. Il vient en dernier parce qu'il assombrit
+  // TOUT ce qui precede : place plus tot, il aurait laisse les entites des
+  // bords a pleine luminosite sur un sol deja eteint.
+  drawVignette();
+}
+
+/* TRAINEES DE PROJECTILE. Le sprite est etire dans son axe, plus une copie a
+   30 % d'opacite un cran en arriere : c'est ce qui fait la difference entre une
+   balle et un point qui saute d'un endroit a l'autre.
+
+   La direction n'est PAS transmise — les projectiles ne portent que leur
+   position, pour la meme raison qu'ils ne portent pas leur proprietaire : un
+   champ de plus sur quatre cents balles en vol, vingt fois par seconde. On la
+   deduit de l'image precedente, ce qui est exact des le second instantane.
+
+   La TAILLE DE COLLISION ne change pas : elle vit dans la simulation, et un
+   projectile qu'on voit plus long que ce qu'il touche est un mensonge dans le
+   sens qui pardonne — c'est le seul sens autorise. */
+const bulletTrail = new Map();
+const shotTrail = new Map();
+
+function drawBolt(b, r, col, trail) {
+  const prev = trail.get(b.id);
+  trail.set(b.id, { x: b.x, y: b.y });
+
+  ctx.fillStyle = col;
+  if (prev) {
+    const dx = b.x - prev.x, dy = b.y - prev.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 0.5) {
+      const ux = dx / d, uy = dy / d;
+      // La copie en arriere : un seul cran, et a 30 % — deux crans donnaient un
+      // chapelet de perles au lieu d'une trainee.
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.arc(b.x - ux * r * 3, b.y - uy * r * 3, r * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      /* Le corps, ETIRE dans l'axe : une capsule tracee au trait, qui coute une
+         ligne la ou une ellipse pivotee en coute cinq. Elle est plus FINE que
+         le disque d'origine et plus longue — a epaisseur egale, l'allongement
+         donnait une pastille et non une balle. La taille de collision, elle, ne
+         bouge pas : elle vit dans la simulation. */
+      ctx.strokeStyle = col;
+      ctx.lineWidth = r * 1.5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(b.x - ux * r * 2.2, b.y - uy * r * 2.2);
+      ctx.lineTo(b.x + ux * r * 0.5, b.y + uy * r * 0.5);
+      ctx.stroke();
+      ctx.lineCap = "butt";
+      return;
+    }
+  }
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/* Les tables de trainee ne grandissent pas indefiniment : une balle disparue ne
+   revient jamais, et garder son entree ferait fuir la memoire sur une manche de
+   dix minutes. On purge par lot plutot qu'a chaque disparition — parcourir
+   quatre cents entrees a chaque image coute plus que de le faire une fois de
+   temps en temps. */
+function pruneTrails(v) {
+  if (bulletTrail.size > 900) {
+    bulletTrail.clear();
+    for (const b of v.bulletList) bulletTrail.set(b.id, { x: b.x, y: b.y });
+  }
+  if (shotTrail.size > 400) {
+    shotTrail.clear();
+    for (const s of v.shotList) shotTrail.set(s.id, { x: s.x, y: s.y });
+  }
+}
+
+/* Trace le contour d'une zone dans le contexte courant, quelle que soit sa
+   forme. L'anneau se dessine en deux cercles de sens opposes : c'est ce qui
+   creuse le trou une fois la regle "evenodd" appliquee au remplissage. */
+const ZONE_INSET = 3;      // retrait purement visuel, la zone de degats est pleine
+
+function zonePath(z, grow = 1) {
+  ctx.beginPath();
+  zoneSubPath(z, grow);
+}
+
+/* Trace SANS ouvrir de chemin : c'est ce qui permet d'empiler plusieurs zones
+   dans un seul `beginPath` et de les remplir d'un coup. Deux mares qui se
+   chevauchent donnent alors une seule tache, sans la couture interne qu'un
+   remplissage par zone laissait — et une fin de combat de Matriarche compte
+   vingt-cinq mares. */
+function zoneSubPath(z, grow = 1) {
+  if (z.shape === 1) {
+    // Les cases du damier se touchent exactement cote serveur ; on les separe
+    // ici pour qu'on lise une grille et non un aplat.
+    const w = Math.max(4, z.w * grow - ZONE_INSET * 2);
+    const h = Math.max(4, z.h * grow - ZONE_INSET * 2);
+    rectSub(z.x, z.y, w, h, z.ang || 0);
+  } else if (z.shape === 2) {
+    ctx.moveTo(z.x + z.r * grow, z.y);
+    ctx.arc(z.x, z.y, z.r * grow, 0, Math.PI * 2);
+    ctx.moveTo(z.x + z.hole, z.y);
+    ctx.arc(z.x, z.y, z.hole, 0, Math.PI * 2, true);
+  } else if (z.shape === 3) {
+    // Cone : le sommet est au centre de la zone, l'ouverture vaut deux fois
+    // `spread`. La pointe est fermee, sinon le remplissage debordait sur la
+    // corde et le joueur croyait le sommet sur.
+    ctx.moveTo(z.x, z.y);
+    ctx.arc(z.x, z.y, z.r * grow, z.ang - z.spread, z.ang + z.spread);
+    ctx.closePath();
+  } else if (z.shape === 4) {
+    // Pac-Man : le disque MOINS le secteur sur. On trace donc le complement,
+    // de `ang + spread` a `ang - spread` : ce qui est peint est ce qui blesse,
+    // regle valable pour toutes les formes du registre.
+    ctx.moveTo(z.x, z.y);
+    ctx.arc(z.x, z.y, z.r * grow, z.ang + z.spread, z.ang - z.spread + Math.PI * 2);
+    ctx.closePath();
+  } else if (z.shape === 5) {
+    // Croix : deux bandes croisees, `r` demi-longueur et `h` epaisseur. Les
+    // deux rectangles se recouvrent au centre — remplis dans le meme chemin en
+    // « nonzero », ils ne laissent aucune couture.
+    const len = z.r * grow * 2, th = z.h * grow;
+    rectSub(z.x, z.y, len, th, z.ang || 0);
+    rectSub(z.x, z.y, th, len, z.ang || 0);
+  } else {
+    ctx.moveTo(z.x + z.r * grow, z.y);
+    ctx.arc(z.x, z.y, z.r * grow, 0, Math.PI * 2);
+  }
+}
+
+// Rectangle oriente ajoute au chemin courant. `ctx.rect` ne sait pas tourner et
+// `save/restore` autour d'un `beginPath` deja ouvert casserait l'empilement.
+function rectSub(cx, cy, w, h, ang) {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  const hw = w / 2, hh = h / 2;
+  const pt = (dx, dy) => [cx + dx * c - dy * s, cy + dx * s + dy * c];
+  const a = pt(-hw, -hh), b = pt(hw, -hh), d = pt(hw, hh), e = pt(-hw, hh);
+  ctx.moveTo(a[0], a[1]);
+  ctx.lineTo(b[0], b[1]);
+  ctx.lineTo(d[0], d[1]);
+  ctx.lineTo(e[0], e[1]);
+  ctx.closePath();
+}
+
+// L'anneau est la seule forme qui se CREUSE : partout ailleurs les sous-chemins
+// doivent s'additionner, sinon la croix perdrait son centre et deux mares qui se
+// chevauchent laisseraient un trou exactement la ou elles sont le plus denses.
+function zoneRule(z) { return z.shape === 2 ? "evenodd" : "nonzero"; }
+
+/* Plafond de zones DESSINEES. La simulation en autorise davantage (mares,
+   exaflares et damier peuvent se croiser) mais au-dela d'une quarantaine le sol
+   n'est plus lisible : mieux vaut montrer les plus urgentes que toutes. Le tri
+   ne se paie que quand le plafond est franchi. */
+const ZONE_DRAW_MAX = 40;
+
+/* Deux temps, deux langages — c'est la condition de reussite du lot. L'arene
+   contient deja 200 ennemis, des projectiles et des marqueurs : si l'annonce et
+   la zone active se ressemblent, tout le catalogue de motifs devient du bruit.
+
+     ANNONCE : remplissage faible, contour ANIME (pointilles qui defilent), et
+               un anneau de compte a rebours quand il y a peu de zones a lire.
+     ACTIVE  : remplissage franc, contour fixe, leger pulse.
+
+   Les zones persistantes sont en plus FUSIONNEES : un seul chemin, un contour
+   obtenu par dilatation, donc aucune couture entre deux mares qui se touchent. */
+function drawZones(zones, tm = 0) {
+  let list = zones;
+  if (list.length > ZONE_DRAW_MAX) {
+    const rank = z => (z.warn > 0 ? z.warn : z.life > 0 ? 0 : 99);
+    list = [...list].sort((a, b) => rank(a) - rank(b)).slice(0, ZONE_DRAW_MAX);
+  }
+
+  /* L'anneau de compte a rebours ne sort que s'il y a peu d'annonces : douze
+     anneaux sur un damier disent moins que les douze contours eux-memes, qui
+     s'allument deja en meme temps. */
+  const ring = list.reduce((n, z) => n + (z.warn > 0 ? 1 : 0), 0) <= 8;
+
+  const persistent = [];
+  for (const z of list) {
+    if (z.warn <= 0 && z.life > 0) { persistent.push(z); continue; }
+    if (z.warn > 0) drawZoneWarn(z, tm, ring);
+    else {
+      const k = Math.max(0, z.blast / 0.25);
+      ctx.fillStyle = alpha(ZONE.blast, k * 0.65);
+      zonePath(z, z.shape === 1 || z.shape === 5 ? 1 : 1 + (1 - k) * 0.12);
+      ctx.fill(zoneRule(z));
+    }
+  }
+
+  if (persistent.length) drawZonesActive(persistent, tm);
+}
+
+function drawZoneWarn(z, tm, ring) {
+  const k = 1 - z.warn / (z.warn0 || CFG.ZONE_WARN);
+  const imminent = z.warn < 0.35;
+
+  // Remplissage volontairement PAUVRE : c'est le contour qui porte l'annonce,
+  // et c'est ce qui la distingue d'une zone active a 45 %.
+  if (z.prox) {
+    // Degats de proximite : le degrade EST l'information. Un aplat aurait dit
+    // « toute la zone fait mal », alors que seul le centre est letal.
+    const g = ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, Math.max(1, z.r));
+    g.addColorStop(0, alpha(ZONE.imminent, 0.10 + k * k * 0.30));
+    g.addColorStop(1, alpha(ZONE.imminent, 0.02 + k * k * 0.05));
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = alpha(BOSS.skin, 0.03 + k * k * 0.11);
+  }
+  zonePath(z);
+  ctx.fill(zoneRule(z));
+
+  ctx.strokeStyle = imminent ? BOSS.barWarn : BOSS.skin;
+  ctx.globalAlpha = 0.5 + k * 0.5;
+  ctx.lineWidth = imminent ? 3 : 2;
+  // Les pointilles DEFILENT : un contour anime se distingue au premier coup
+  // d'oeil d'un contour fixe, meme du coin de l'oeil, meme sur une forme qu'on
+  // n'a jamais vue.
+  ctx.setLineDash(imminent ? [] : [7, 6]);
+  ctx.lineDashOffset = imminent ? 0 : -tm * 26;
+  zonePath(z);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
+  ctx.globalAlpha = 1;
+
+  /* Arc de progression, au centre de la zone quelle que soit sa forme. Un arc
+     epousant le CONTOUR n'avait aucun sens sur un rectangle ou un couloir long
+     de toute l'arene — c'est la raison pour laquelle il avait ete retire. Au
+     centre, il vaut pour les six formes et se lit sans compter les images. */
+  if (ring) {
+    ctx.strokeStyle = imminent ? BOSS.barWarn : BOSS.barRing;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, 15, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
+    ctx.stroke();
+  }
+
+  /* Une zone qui PULSE (dérive, verrouillage) a une annonce ET un souffle en
+     meme temps : son compte a rebours est relance des la detonation. Ne
+     dessiner que l'annonce donnait un danger qui ne se voyait jamais exploser. */
+  if (z.blast > 0) {
+    ctx.fillStyle = alpha(ZONE.blast, Math.max(0, z.blast / 0.25) * 0.5);
+    zonePath(z);
+    ctx.fill(zoneRule(z));
+  }
+}
+
+/* Zones persistantes, toutes ensemble. Le contour vient d'une DILATATION du
+   meme chemin plutot que d'un `stroke` : sur douze mares qui se chevauchent,
+   un trait par mare redessinait chaque cercle a l'interieur de la tache et on
+   ne voyait plus ou finissait la surface dangereuse. */
+function drawZonesActive(list, tm) {
+  const pulse = 0.90 + 0.10 * Math.sin(tm * 4.4);
+
+  ctx.beginPath();
+  for (const z of list) zoneSubPath(z, 1.05);
+  ctx.fillStyle = alpha(ZONE.edge, 0.34 * pulse);
+  ctx.fill("nonzero");
+
+  ctx.beginPath();
+  for (const z of list) zoneSubPath(z, 1);
+  ctx.fillStyle = alpha(ZONE.fill, 0.45 * pulse);
+  ctx.fill("nonzero");
+
+  /* Lisere VIOLET sur le pourtour. Dans la grammaire de marqueurs, le violet
+     dit « persistant : ca restera la apres ». Le remplissage garde le rouge du
+     danger — repeindre la mare en violet aurait casse la regle qui compte le
+     plus, une couleur pour une seule chose. Le violet ne fait donc qu'AJOUTER
+     l'information de duree a un danger qui reste un danger. */
+  ctx.beginPath();
+  for (const z of list) zoneSubPath(z, 1.05);
+  ctx.strokeStyle = alpha(ZONE.persist, 0.55 * pulse);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  /* Fin de vie : les trois dernieres secondes clignotent. Sans ca, une mare
+     disparaissait sous les pieds sans prevenir et on apprenait a ne plus s'y
+     fier du tout — c'est-a-dire a jouer comme si elle etait permanente. */
+  const dying = list.filter(z => z.life > 0 && z.life < 3);
+  if (dying.length && Math.sin(tm * 12) > 0) {
+    ctx.beginPath();
+    for (const z of dying) zoneSubPath(z, 1.05);
+    ctx.fillStyle = alpha(ZONE.dying, 0.16);
+    ctx.fill("nonzero");
+  }
+}
+
+/* Constriction. La couronne interdite est ASSOMBRIE et non peinte en rouge :
+   le rouge est deja la couleur de tout ce qui explose, et une bande rouge
+   permanente sur le pourtour aurait rendu illisible la seule chose qui compte
+   pendant un combat, les annonces. Le palier a venir, lui, est en pointilles
+   rouges : c'est une annonce, il en porte le langage. */
+function drawArenaBounds(b) {
+  if (!b) return;
+  const full = b.x0 <= 0 && b.y0 <= 0 && b.x1 >= CFG.ARENA_W && b.y1 >= CFG.ARENA_H;
+
+  if (!full) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+    ctx.rect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+    ctx.fillStyle = alpha(SURFACE.void, 0.72);
+    ctx.fill("evenodd");
+    ctx.restore();
+
+    ctx.strokeStyle = alpha(ZONE.edge, 0.75);
+    ctx.lineWidth = 3;
+    ctx.strokeRect(b.x0 + 1.5, b.y0 + 1.5, b.x1 - b.x0 - 3, b.y1 - b.y0 - 3);
+  }
+
+  if (b.warn > 0) {
+    ctx.strokeStyle = BOSS.barWarn;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 8]);
+    ctx.strokeRect(b.nx0, b.ny0, b.nx1 - b.nx0, b.ny1 - b.ny0);
+    ctx.setLineDash([]);
+  }
+}
+
+/* Murs de verrouillage. Ils BLOQUENT et ne blessent pas : d'ou une couleur
+   franchement differente de tout ce qui explose, et un aplat plein plutot
+   qu'un contour — on doit lire « obstacle », jamais « zone a esquiver ». */
+function drawWalls(w) {
+  if (!w) return;
+  const t = w.t;
+  ctx.fillStyle = alpha(WALL.fill, 0.30);
+  ctx.fillRect(w.x - t / 2, 0, t, CFG.ARENA_H);
+  ctx.fillRect(0, w.y - t / 2, CFG.ARENA_W, t);
+  ctx.strokeStyle = alpha(WALL.edge, 0.85);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(w.x - t / 2, 0, t, CFG.ARENA_H);
+  ctx.strokeRect(0, w.y - t / 2, CFG.ARENA_W, t);
+}
+
+/* La tourelle se dessine sous les ennemis : elle fait partie du decor qu'on a
+   pose, pas de la mêlée. Son cercle de portee est indispensable — sans lui, on
+   ne peut pas decider ou la poser, et c'est tout son interet. */
+function drawTurrets(list) {
+  const col = POWERUP_STYLE.turret.color;
+  for (const t of list) {
+    const fading = t.k < 0.25;                 // clignote sur la fin
+    const blink = fading ? 0.35 + 0.65 * Math.abs(Math.sin(performance.now() / 110)) : 1;
+
+    ctx.globalAlpha = 0.13 * blink;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 7]);
+    ctx.beginPath(); ctx.arc(t.x, t.y, CFG.TURRET_RANGE, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.globalAlpha = blink;
+
+    ctx.fillStyle = alpha(SURFACE.void, 0.85);
+    ctx.beginPath(); ctx.arc(0, 0, CFG.TURRET_RADIUS, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.rotate(t.ang ?? 0);
+    ctx.fillStyle = col;
+    ctx.fillRect(2, -2.5, CFG.TURRET_RADIUS + 5, 5);
+    ctx.beginPath(); ctx.arc(0, 0, 4.2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // arc de vie restante autour du socle
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = 0.75 * blink;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, CFG.TURRET_RADIUS + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * t.k);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* Drones : `owner` permet de retrouver la couleur du proprietaire via le
+   meme chemin que colorOf (lobby -> colorIndex -> PLAYER_COLORS), pour que
+   chacun reconnaisse ses propres drones en pleine melee. Repli sur une
+   teinte neutre par espece quand le proprietaire est inconnu (parti du
+   salon, ou tuple d'ancienne version sans `owner`) : le soutien tire de loin
+   donc reste visible, le mini-drone d'essaim fonce au contact donc reste
+   petit et effile. */
+const DRONE_COLOR = { 0: OWNED.droneAtk, 1: OWNED.droneHeal };
+
+function drawDrones(list) {
+  for (const d of list) {
+    const col = ownerColorOf(d.owner) ?? DRONE_COLOR[d.kind] ?? OWNED.orphan;
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    ctx.rotate(d.ang ?? 0);
+
+    if (d.kind === 1) {
+      // essaim : dard effile, se consume au contact
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(7, 0); ctx.lineTo(-4, -3.4); ctx.lineTo(-1.2, 0); ctx.lineTo(-4, 3.4);
+      ctx.closePath(); ctx.fill();
+    } else {
+      // soutien : losange qui tire de loin, plus massif que le mini-drone
+      ctx.fillStyle = alpha(SURFACE.void, 0.85);
+      ctx.beginPath();
+      ctx.moveTo(8, 0); ctx.lineTo(0, -6); ctx.lineTo(-8, 0); ctx.lineTo(0, 6);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawEffects(effects) {
+  for (const f of effects) {
+    const grow = 1 - f.k;                    // k va de 1 a 0
+
+    if (f.kind === 1) {
+      // balayage d'arrivee du boss : voile blanc puis onde large
+      ctx.fillStyle = alpha(FX.veil, f.k * 0.16);
+      ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+
+      ctx.strokeStyle = alpha(FX.flash, f.k * 0.85);
+      ctx.lineWidth = 14 * f.k + 2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = alpha(BOSS.skin, f.k * 0.8);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow * 0.86, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 3) {
+      // ricochet : arc entre deux cibles, avec une cassure au milieu pour
+      // qu'on lise un rebond et pas un rayon
+      const mx = (f.x + f.x2) / 2, my = (f.y + f.y2) / 2;
+      const nx = -(f.y2 - f.y), ny = f.x2 - f.x;
+      const nd = Math.hypot(nx, ny) || 1;
+      const off = 14 * (1 - f.k);
+
+      ctx.strokeStyle = alpha(FX.ricochet, f.k);
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(f.x, f.y);
+      ctx.lineTo(mx + (nx / nd) * off, my + (ny / nd) * off);
+      ctx.lineTo(f.x2, f.y2);
+      ctx.stroke();
+
+      ctx.fillStyle = alpha(FX.ricochetCore, f.k * 0.9);
+      ctx.beginPath(); ctx.arc(f.x2, f.y2, 3.5, 0, Math.PI * 2); ctx.fill();
+      continue;
+    }
+
+    if (f.kind === 4) {
+      // balise : double anneau vert qui se resserre sur le releve
+      ctx.strokeStyle = alpha(FX.beacon, f.k * 0.95);
+      ctx.lineWidth = 5 * f.k + 1.5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (0.2 + grow * 0.8), 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = alpha(FX.beaconSoft, f.k * 0.7);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (1 - grow * 0.75), 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 5) {
+      // elite abattue : eclat dore, le butin est juste dessous
+      ctx.strokeStyle = alpha(FX.elite, f.k * 0.9);
+      ctx.lineWidth = 3 * f.k + 1;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (0.2 + grow * 0.8), 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 6) {
+      // rupture d'une barre du boss : souffle blanc puis onde rouge
+      ctx.fillStyle = alpha(FX.veil, f.k * 0.12);
+      ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+
+      ctx.strokeStyle = alpha(FX.elite, f.k * 0.95);
+      ctx.lineWidth = 12 * f.k + 2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = alpha(BOSS.skin, f.k * 0.8);
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow * 0.82, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 7) {
+      // explosion de grenade : souffle bref et dense, chaud pour se
+      // distinguer des ondes froides du pulsar et de la riposte
+      ctx.fillStyle = alpha(FX.blastFill, f.k * 0.35);
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = alpha(FX.blastEdge, f.k * 0.9);
+      ctx.lineWidth = 5 * f.k + 1.5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 8) {
+      // onde blanche : pulsar, onde de mort et riposte partagent ce rendu —
+      // trois declencheurs differents pour le meme signal, le joueur n'a pas
+      // besoin de distinguer la source pour comprendre qu'une zone vient d'agir
+      ctx.strokeStyle = alpha(FX.wave, f.k * 0.85);
+      ctx.lineWidth = 4 * f.k + 1;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = alpha(BOSS.twin, f.k * 0.5);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow * 0.85, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 9) {
+      // pose d'un rempart : l'anneau se REFERME vers le rayon final, la zone
+      // reste ensuite dessinee par drawBulwarks
+      ctx.strokeStyle = alpha(CLASS_COLOR.tank, f.k * 0.9);
+      ctx.lineWidth = 5 * f.k + 1.5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (1.35 - grow * 0.35), 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 10) {
+      // provocation : onde large qui part du tank, dans sa couleur de classe —
+      // c'est la seule competence dont l'effet est de deplacer la horde, elle
+      // doit se voir depuis n'importe ou dans l'arene
+      ctx.strokeStyle = alpha(CLASS_COLOR.tank, f.k * 0.75);
+      ctx.lineWidth = 8 * f.k + 2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = alpha(FX.flash, f.k * 0.4);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow * 0.9, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 11) {
+      // vague de soin : anneau vert plein, distinct de l'onde blanche des
+      // cartes qui, elle, fait des degats
+      ctx.fillStyle = alpha(FX.beacon, f.k * 0.10);
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2); ctx.fill();
+
+      ctx.strokeStyle = alpha(FX.beacon, f.k * 0.9);
+      ctx.lineWidth = 5 * f.k + 1.5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 12) {
+      // explosion de bombe : meme famille chaude que la grenade mais plus
+      // large et plus dense — c'est la plus grosse frappe ponctuelle du jeu
+      ctx.fillStyle = alpha(FX.bombFill, f.k * 0.42);
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2); ctx.fill();
+
+      ctx.strokeStyle = alpha(FX.bombEdge, f.k * 0.95);
+      ctx.lineWidth = 7 * f.k + 2;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 2) {
+      // montee de niveau : anneau dore qui s'ouvre vers l'exterieur
+      ctx.strokeStyle = alpha(FX.level, f.k * 0.9);
+      ctx.lineWidth = 4 * f.k + 1;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (0.15 + grow * 0.85), 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = alpha(FX.levelSoft, f.k * 0.55);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (0.15 + grow * 0.6), 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    ctx.strokeStyle = alpha(FX.nova, f.k * 0.9);
+    ctx.lineWidth = 6 * f.k + 1;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.r * (0.25 + grow * 0.75), 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = alpha(FX.novaSoft, f.k * 0.5);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.r * (0.25 + grow * 0.62), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+/* Rempart du tank. Le contour est plein et la surface a peine teintee : la
+   zone doit se lire d'un coup d'oeil depuis l'autre bout de l'arene sans
+   masquer ce qui se passe dedans — c'est precisement dedans qu'on se bat. */
+function drawBulwarks(list) {
+  for (const b of list) {
+    const opacite = 0.35 + b.k * 0.45;
+    ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.05 + b.k * 0.04);
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = alpha(CLASS_COLOR.tank, opacite);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+
+    // Arc de duree restante, sur le bord : le tank doit savoir quand replier
+    // sans quitter des yeux le centre de sa zone.
+    ctx.strokeStyle = alpha(OWNED.bulwarkArc, 0.85);
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * b.k);
+    ctx.stroke();
+  }
+}
+
+/* Bombe en vol. Le compte a rebours se lit sur l'anneau qui se referme : le
+   delai de detonation est toute la competence, le cacher en ferait un clic
+   gagnant sans anticipation — pour celui qui la lance comme pour les autres. */
+/* La bombe est desormais VISEE, donc son point de chute est une information et
+   non une devinette. On le dessine avec la grammaire des annonces de boss —
+   cercle au sol a la couleur de danger, arc de progression sur le pourtour —
+   parce que c'est exactement le meme contrat : « ceci va exploser ici, dans ce
+   delai ». Un langage visuel de plus pour la meme promesse aurait demande a
+   chacun d'apprendre deux fois la meme chose.
+
+   Le cercle passe SOUS les entites, comme le rempart et les marqueurs : dessine
+   par-dessus, il masquait l'amas d'ennemis qu'on vise. */
+function drawBombs(list) {
+  for (const b of list) {
+    const k = 1 - b.k;                      // 0 au lancer, 1 a l'explosion
+    const r = SKILL_CFG.DPS_BOMB_RADIUS;
+
+    // Point de chute : disque plein tres discret, contour net, arc de compte a
+    // rebours qui se remplit. Le remplissage monte avec l'attente, ce qui rend
+    // l'imminence lisible sans regarder l'arc.
+    ctx.fillStyle = alpha(OWNED.bomb, 0.05 + k * 0.10);
+    ctx.beginPath(); ctx.arc(b.tx, b.ty, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(OWNED.bomb, 0.55);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(b.tx, b.ty, r, 0, Math.PI * 2); ctx.stroke();
+
+    ctx.strokeStyle = OWNED.bomb;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(b.tx, b.ty, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);
+    ctx.stroke();
+
+    // Le projectile lui-meme, en vol vers ce cercle.
+    ctx.fillStyle = OWNED.bomb;
+    ctx.beginPath(); ctx.arc(b.x, b.y, 7, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/* Anneau de portee maximale, pour le seul tireur et pour lui seul. Deux
+   secondes apres une fin de recharge, puis il disparait : la portee est une
+   information dont on a besoin AU MOMENT de decider si l'amas est atteignable,
+   pas en permanence — affiche tout le temps, c'est un cercle de plus a lire
+   dans une arene qui en compte deja beaucoup. */
+const BOMB_RANGE_SHOW_MS = 2000;
+
+function drawBombRange(x, y) {
+  const age = performance.now() - bombReadyAt;
+  if (age > BOMB_RANGE_SHOW_MS) return;
+  const fade = 1 - age / BOMB_RANGE_SHOW_MS;
+
+  ctx.strokeStyle = alpha(OWNED.bomb, 0.30 * fade);
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 8]);
+  ctx.beginPath();
+  ctx.arc(x, y, SKILL_CFG.DPS_BOMB_RANGE_MAX, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawPowerups(list) {
+  const now = performance.now();
+  for (const w of list) {
+    const st = POWERUP_STYLE[POWERUP_TYPES[w.type]] ?? POWERUP_STYLE.heal;
+    const r = CFG.POWERUP_RADIUS;
+    const pulse = 1 + Math.sin(now / 260 + w.id) * 0.1;
+    const bob = Math.sin(now / 520 + w.id * 1.7) * 1.6;   // leger flottement
+    const y = w.y + bob;
+
+    ctx.strokeStyle = st.color;
+    ctx.globalAlpha = 0.25;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(w.x, y, r * 1.9 * pulse, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // ombre au sol : garde le repere de position malgre le flottement
+    ctx.fillStyle = alpha(SURFACE.shadow, 0.28);
+    ctx.beginPath();
+    ctx.ellipse(w.x, w.y + r * 0.95, r * 0.62, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // pastille ronde sombre : l'icone se lit mieux sur un fond plein
+    ctx.fillStyle = alpha(SURFACE.void, 0.82);
+    ctx.beginPath(); ctx.arc(w.x, y, r * pulse, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = st.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    paintPowerupIcon(st, w.x, y, (r / 8.6) * pulse);
+  }
+}
+
+const ELITE_GOLD = ENEMY.elite;
+// Halo des retardataires. Volontairement froid, la ou l'elite est doree : les
+// deux marquages peuvent porter sur le meme ennemi, ils doivent rester lisibles
+// l'un sur l'autre.
+const STRAGGLER_HALO = ENEMY.straggler;
+
+/* Trois principes d'animation, choisis pour leur rapport effet / effort. Aucun
+   ne coute une image d'atlas de plus.
+
+   ANTICIPATION — une image avant l'action principale, ou la creature fait le
+   mouvement inverse. Sans elle, les actions semblent se teleporter. Ce n'est
+   pas du style : c'est aussi un telegraphe de jeu, et il est plus marque sur
+   les attaques dangereuses.
+
+   ECRASEMENT ET ETIREMENT — gratuit via `scale`. Une creature qui se deplace
+   s'etire de 6 % dans son axe, une creature touchee s'ecrase de 12 %.
+
+   ACTION SECONDAIRE — les fragments d'impact et de mort, ailleurs dans ce
+   fichier. C'est le meilleur investissement de toute la partie.
+
+   La respiration est DESYNCHRONISEE par identifiant : deux cents creatures qui
+   respirent en phase produisent une pulsation collective qui saute aux yeux. */
+const BREATH_HZ = 1.2;
+
+/* Cadence des tireurs, DEDUITE et non transmise. Ajouter une recharge au tuple
+   d'ennemi couterait un nombre sur chacun des deux cents ennemis, vingt fois
+   par seconde — exactement ce que le depot refuse pour le rang d'elite, et pour
+   un seul type sur cinq.
+
+   On observe donc l'apparition d'un projectile ennemi pres d'un tireur : c'est
+   la date de son dernier tir. La cadence etant fixe, la SUIVANTE est connue des
+   le second tir, et l'anticipation qui la precede est alors exacte. Avant le
+   premier tir, le tireur reste au repos — un telegraphe qui devine serait pire
+   que pas de telegraphe. */
+const shooterFire = new Map();   // id d'ennemi -> date du dernier tir
+const seenShots = new Set();
+
+function trackShooters(v) {
+  for (const s of v.shotList) {
+    if (seenShots.has(s.id)) continue;
+    seenShots.add(s.id);
+    let best = 40 * 40, who = 0;
+    for (const e of v.enemyList) {
+      if (e.type !== 3) continue;
+      const d = (e.x - s.x) ** 2 + (e.y - s.y) ** 2;
+      if (d < best) { best = d; who = e.id; }
+    }
+    if (who) shooterFire.set(who, performance.now());
+  }
+  // Le jeu d'identifiants ne grandit pas indefiniment : au-dela de quelques
+  // centaines de projectiles disparus, on repart du jeu vivant.
+  if (seenShots.size > 600) {
+    seenShots.clear();
+    for (const s of v.shotList) seenShots.add(s.id);
+  }
+}
+
+const SHOOTER_AIM = 400;         // duree de la visee, en millisecondes
+const SHOOTER_RECOIL = 160;      // duree de la pose de tir
+
+function enemyFrame(e, t, def) {
+  const base = `e${e.type}_`;
+
+  // Le brood gonfle avant d'eclater : c'est l'anticipation la plus utile du
+  // jeu, elle vaut un avertissement.
+  if (e.type === 4 && e.hp / e.maxHp < 0.12) return frameOf(base + "open");
+
+  if (e.type === 3) {
+    const last = shooterFire.get(e.id);
+    if (last !== undefined) {
+      const since = performance.now() - last;
+      if (since < SHOOTER_RECOIL) return frameOf(base + "open");   // canon avance
+      const untilNext = def.shootCd * 1000 - since;
+      if (untilNext > 0 && untilNext < SHOOTER_AIM) {
+        return frameOf(base + "walkB");                            // canon recule
+      }
+    }
+    return frameOf(base + "idle");
+  }
+
+  // Les autres alternent leurs deux images de marche, a une cadence
+  // proportionnelle a leur vitesse.
+  const step = Math.floor(t * def.speed / 90) & 1;
+  return frameOf(base + (step ? "walkA" : "walkB"));
+}
+
+function drawEnemies(list) {
+  const t = performance.now();
+  const ts = t / 1000;
+  for (const e of list) {
+    const def = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
+    const r = e.elite ? def.r * CFG.ELITE_RADIUS_MUL : def.r;
+
+    /* Retour d'impact : eclair blanc et recul de quelques pixels dans l'axe du
+       tir. Le recul ne deplace QUE le sprite, jamais la barre de vie ni les
+       halos — la position reelle de l'ennemi ne bouge pas, et un marqueur qui
+       sautille dirait le contraire. */
+    const hit = hits.get(e.id);
+    const flash = hit ? Math.max(0, (hit.until - t) / (HIT_FLASH * 1000)) : 0;
+    const kx = flash > 0 ? hit.dx * HIT_KICK * flash : 0;
+    const ky = flash > 0 ? hit.dy * HIT_KICK * flash : 0;
+
+    /* Retardataire. Le halo n'est pas decoratif : il dit au joueur que ces
+       ennemis-la sont les derniers de la vague, qu'ils foncent desormais sur
+       lui et qu'il n'a plus a les chercher. Sans ce signal, l'acceleration
+       soudaine des fuyards passait pour une irregularite du jeu.
+       Dessine AVANT le halo d'elite, en cercle plein et large, pour que les
+       deux se distinguent : celui-ci marque une position, celui-la un rang. */
+    if (e.straggler) {
+      const pulse = 0.5 + 0.5 * Math.sin(t / 160 + e.id);
+      ctx.fillStyle = STRAGGLER_HALO;
+      ctx.globalAlpha = 0.10 + pulse * 0.14;
+      ctx.beginPath(); ctx.arc(e.x, e.y, r + 13 + pulse * 4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // L'elite doit se reperer dans une foule de deux cents silhouettes : un
+    // halo qui pulse et un lisere dore, lisibles meme au milieu de la masse.
+    if (e.elite) {
+      const pulse = 0.5 + 0.5 * Math.sin(t / 240 + e.id);
+      ctx.strokeStyle = ELITE_GOLD;
+      ctx.globalAlpha = 0.3 + pulse * 0.35;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(e.x, e.y, r + 6 + pulse * 2, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    /* Respiration, etirement et ecrasement, tous les trois par `scale` : le
+       budget d'atlas ne paie QUE les changements de forme. Le dephasage par
+       identifiant est indispensable — en phase, deux cents creatures pulsent
+       ensemble et l'arene respire comme un seul organisme. */
+    const breath = 1 + 0.03 * Math.sin(ts * BREATH_HZ * Math.PI * 2 + e.id * 1.7);
+    const squash = flash > 0 ? 0.12 * flash : 0;
+    // Le rang d'elite est une ECHELLE et un contour, pas une image de plus :
+    // la taille est le signal le plus rapide a lire dans une foule de deux
+    // cents, et les collisions restent sur le rayon logique.
+    const gain = (e.elite ? CFG.ELITE_RADIUS_MUL : 1) * breath;
+
+    drawSprite(ctx, enemyFrame(e, ts, def), e.x + kx, e.y + ky, {
+      angle: e.ang ?? 0,
+      scaleX: gain * (1 + squash * 0.5),
+      scaleY: gain * (1 - squash),
+      flash,
+    });
+
+    if (e.hp < e.maxHp) {
+      const w = r * 2;
+      const tx = e.x - r, ty = e.y - r - 9;
+      ctx.fillStyle = alpha(SURFACE.shadow, 0.45);
+      ctx.fillRect(tx, ty, w, 3);
+      ctx.fillStyle = e.elite ? ELITE_GOLD : (ENEMY_TINT[e.type] ?? ENEMY_TINT[0]);
+      ctx.fillRect(tx, ty, w * (e.hp / e.maxHp), 3);
+    }
+  }
+}
+
+function drawBoss(b) {
+  const r = CFG.BOSS_RADIUS;
+  const t = performance.now() / 1000;
+  const wounded = 1 - b.hp / b.maxHp;
+  lastBossPos.x = b.x; lastBossPos.y = b.y;
+
+  /* Les Jumeaux portent la couleur de l'etat qu'ils appliquent — orange pour
+     la Brulure, bleu pour l'Entrave. C'est la seule facon de savoir lequel on
+     vient de toucher, donc de ne pas cumuler les deux par accident. */
+  const twin = b.twin ? 1 : 0;
+  const skin = twin ? BOSS.twin : BOSS.skin;
+  const dark = twin ? BOSS.twinDark : BOSS.skinDark;
+  const halo = twin ? alpha(BOSS.twin, 0.10) : alpha(BOSS.skin, 0.10);
+
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(b.x, b.y, r + 22, 0, Math.PI * 2); ctx.fill();
+
+  ctx.save();
+  ctx.translate(b.x, b.y);
+
+  // couronne de pointes, tourne lentement
+  ctx.rotate(t * 0.6);
+  ctx.fillStyle = dark;
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * (r + 14), Math.sin(a) * (r + 14));
+    ctx.lineTo(Math.cos(a + 0.16) * r, Math.sin(a + 0.16) * r);
+    ctx.lineTo(Math.cos(a - 0.16) * r, Math.sin(a - 0.16) * r);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(b.ang ?? 0);
+
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const px = Math.cos(a) * r, py = Math.sin(a) * r;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = twin ? BOSS.twinEdge : BOSS.edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // fissures qui s'ouvrent au fur et a mesure des degats
+  if (wounded > 0.2) {
+    ctx.strokeStyle = alpha(BOSS.crack, Math.min(1, wounded));
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.7, -r * 0.2); ctx.lineTo(-r * 0.1, r * 0.15); ctx.lineTo(r * 0.5, -r * 0.35);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(r * 0.35, 0, r * 0.34, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath(); ctx.arc(r * 0.42, 0, r * 0.17, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+/* Marqueurs de mecanique de groupe. Une seule fonction pour les huit, avec un
+   code couleur constant : CYAN = va dessus, ROUGE = sors de la, JAUNE = detruis.
+   Le sens se lit a la couleur avant meme d'avoir lu le bandeau — c'est ce qui
+   permet de reagir a la deuxieme rencontre sans relire la consigne. */
+const MARK_GO = SIGNAL.go;        // cyan : occuper
+const MARK_AWAY = SIGNAL.lethal;      // rouge : quitter
+const MARK_BREAK = SIGNAL.warn;     // jaune : detruire
+
+function drawMarks(marks, players) {
+  if (!marks.length) return;
+  const byId = new Map(players.map(p => [p.id, p]));
+  const t = performance.now() / 1000;
+
+  for (const m of marks) {
+    const pulse = 0.55 + 0.45 * Math.sin(t * 5);
+    switch (m.mech) {
+      case MECH_STACK: {
+        // Le remplissage monte avec le compte a rebours : c'est le meme code
+        // visuel que les zones, ou `k` dit « ca tombe bientot ».
+        const k = 1 - m.k;
+        ctx.fillStyle = alpha(SIGNAL.go, 0.05 + k * k * 0.22);
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = MARK_GO;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 8]);
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+        markLabel(m.x, m.y - m.r - 10, "REGROUPEMENT", MARK_GO);
+        break;
+      }
+      case MECH_SPREAD: {
+        // Rien au sol : la mecanique porte sur la distance entre joueurs. On
+        // dessine donc le rayon interdit AUTOUR DE CHACUN, seul endroit ou
+        // l'information est utile.
+        ctx.strokeStyle = alpha(FX.nova, 0.35 + 0.35 * (1 - m.k));
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 8]);
+        for (const p of players) {
+          if (p.downed) continue;
+          ctx.beginPath(); ctx.arc(p.x, p.y, m.r / 2, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        break;
+      }
+      case MECH_TOWER:
+      case MECH_COUNT: {
+        const ok = m.mech === MECH_COUNT ? m.cur === m.need : m.cur >= 1;
+        const col = ok ? MARK.ok : MARK_GO;
+        ctx.fillStyle = ok ? alpha(FX.beacon, 0.14) : alpha(SIGNAL.go, 0.10);
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = col;
+        ctx.lineWidth = ok ? 4 : 2;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        // Le denombrement affiche « presents / requis » : c'est toute la
+        // mecanique, elle n'existe pas sans ce chiffre.
+        ctx.textAlign = "center";
+        ctx.fillStyle = col;
+        ctx.font = "700 22px ui-monospace, Menlo, Consolas, monospace";
+        ctx.fillText(m.mech === MECH_COUNT ? `${m.cur}/${m.need}` : `${m.cur}`, m.x, m.y + 8);
+        break;
+      }
+      case MECH_LINK: {
+        const a = byId.get(m.a), b = byId.get(m.b);
+        if (!a || !b) break;
+        ctx.strokeStyle = MARK_AWAY;
+        ctx.lineWidth = 3 + pulse * 2;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.globalAlpha = 1;
+        markLabel((a.x + b.x) / 2, (a.y + b.y) / 2 - 16, "ÉCARTEZ-VOUS", MARK_AWAY);
+        break;
+      }
+      case MECH_JAIL: {
+        // Cage : barreaux + jauge de PV. La jauge est ce qui dit aux autres que
+        // tirer sert a quelque chose.
+        ctx.strokeStyle = MARK_BREAK;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI;
+          ctx.moveTo(m.x + Math.cos(a) * m.r, m.y + Math.sin(a) * m.r);
+          ctx.lineTo(m.x - Math.cos(a) * m.r, m.y - Math.sin(a) * m.r);
+        }
+        ctx.stroke();
+        markGauge(m.x, m.y + m.r + 8, m.hp, MARK_BREAK);
+        markLabel(m.x, m.y - m.r - 10, "LIBÈRE-LE", MARK_BREAK);
+        break;
+      }
+      case MECH_CLUSTER: {
+        ctx.fillStyle = alpha(FX.elite, 0.25 + pulse * 0.25);
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = MARK_BREAK;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        // Le compte a rebours d'eclosion se lit sur l'anneau exterieur
+        ctx.strokeStyle = MARK.bait;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r + 7, -Math.PI / 2, -Math.PI / 2 + m.k * Math.PI * 2);
+        ctx.stroke();
+        markGauge(m.x, m.y + m.r + 12, m.hp, MARK_BREAK);
+        break;
+      }
+      case MECH_FEED: {
+        // Lien nourricier : un trait vers la Matriarche. Il n'a pas besoin de
+        // sa position — il part du rejeton vers le centre de l'arene, la ou
+        // elle se tient de toute facon la plupart du temps.
+        ctx.strokeStyle = alpha(FX.beacon, 0.5 + pulse * 0.4);
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(m.x, m.y);
+        ctx.lineTo(lastBossPos.x, lastBossPos.y);
+        ctx.stroke();
+        ctx.strokeStyle = MARK.ok;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case MECH_BAIT: {
+        // Le fantome : c'est LUI l'annonce, la zone tombe la ou il est.
+        ctx.strokeStyle = alpha(MARK.bait, 0.4 + pulse * 0.4);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.arc(m.x, m.y, CFG.PLAYER_RADIUS + 4, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+        break;
+      }
+      case MECH_SANCTUARY: {
+        // Le seul marqueur qui veut dire « ici on est en securite » : il est
+        // donc plein et clair, a l'inverse de toutes les zones du jeu.
+        ctx.fillStyle = alpha(FX.beacon, 0.16);
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = MARK.ok;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case MECH_PROX: {
+        // Degrade : la couleur dit le danger, pas un contour binaire.
+        const g = ctx.createRadialGradient(m.x, m.y, 10, m.x, m.y, m.r);
+        g.addColorStop(0, alpha(BOSS.skin, 0.45));
+        g.addColorStop(1, alpha(BOSS.skin, 0.02));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      default: break;
+    }
+  }
+}
+
+// Derniere position connue du boss : le lien nourricier y pointe sans avoir a
+// transporter une seconde paire de coordonnees par rejeton.
+const lastBossPos = { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+
+function markLabel(x, y, text, col) {
+  ctx.textAlign = "center";
+  ctx.fillStyle = col;
+  ctx.font = "700 13px ui-monospace, Menlo, Consolas, monospace";
+  ctx.fillText(text, x, y);
+}
+
+function markGauge(x, y, k, col) {
+  const w = 54, h = 5;
+  ctx.fillStyle = alpha(SURFACE.void, 0.8);
+  ctx.fillRect(x - w / 2, y, w, h);
+  ctx.fillStyle = col;
+  ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, k)), h);
+}
+
+/* GRILLE DES RAYONS. Chaque effet dessine autour d'un personnage occupe une
+   bande EXCLUSIVE, et deux effets ne partagent jamais un rayon. Sans cette
+   regle, prendre deux cartes revenait a en perdre une a l'affichage : les lames
+   orbitales (3,7 m) disparaissaient dans l'anneau du champ de givre (8 m), et
+   le joueur ne savait plus qu'il les avait.
+
+   Les valeurs sont donnees en metres pour se relire, en pixels pour se
+   dessiner — la simulation, elle, ne connait que les pixels.
+
+     0,9 m   bouclier          arc epais colle au corps
+     1,1 m   etats             halo colore
+     1,3 m   competence        provocation ou surcharge (jamais les deux)
+     1,5 m+  bonus au sol      anneaux fins empiles
+     3,7 m   lames orbitales   au-dessus de TOUT, avec trainee
+     8 m     champ de givre    disque teinte, sans anneau
+     8,5 m   rempart du tank   zone au sol, sous les entites               */
+const RING_SHIELD = CFG.PLAYER_RADIUS + 4;    // 18 px
+const RING_STATUS = CFG.PLAYER_RADIUS + 8;    // 22 px
+const RING_SKILL  = CFG.PLAYER_RADIUS + 12;   // 26 px
+const RING_BUFF0  = CFG.PLAYER_RADIUS + 16;   // 30 px, puis +4 par bonus
+
+/* Image de classe. Le tuple de joueur ne transporte pas de vitesse — un champ
+   de plus par joueur pour une information que le client peut lire tout seul en
+   comparant deux images. On la deduit donc localement. */
+const lastPlayerPos = new Map();
+
+function playerMoving(id, x, y) {
+  const prev = lastPlayerPos.get(id);
+  lastPlayerPos.set(id, { x, y });
+  if (!prev) return false;
+  // Seuil bas mais non nul : la correction de prediction fait bouger un
+  // personnage a l'arret de quelques dixiemes de pixel, et il se serait mis a
+  // marcher sur place.
+  return Math.hypot(x - prev.x, y - prev.y) > 0.6;
+}
+
+function classFrame(p, pose) {
+  const id = classAt(p.cls ?? CLASS_DEFAULT).id;
+  // Le soigneur en mode soin porte son faisceau a la place du canon : c'est la
+  // seule pose de tir qu'on sache dater a coup sur, et c'est celle qui compte —
+  // toute l'equipe doit voir de loin qu'il ne fait plus de degats.
+  if (id === "soigneur" && (p.skillFlags & SKILL_HEAL_MODE) && pose !== "down") {
+    pose = "shoot";
+  }
+  return frameOf(`c_${id}_${pose}`);
+}
+
+function drawPlayers(list, tm, marks = []) {
+  for (const p of list) {
+    const isMe = p.id === myId;
+    const x = isMe && predicted ? predicted.x : p.x;
+    const y = isMe && predicted ? predicted.y : p.y;
+    const col = colorOf(p.id);
+
+    if (p.downed) {
+      drawSprite(ctx, classFrame(p, "down"), x, y,
+        { angle: Math.atan2(p.aimY, p.aimX), tint: COMBAT.downed });
+
+      ctx.strokeStyle = COMBAT.downed;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.arc(x, y, CFG.REVIVE_RADIUS, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+
+      if (p.revive > 0) {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, CFG.PLAYER_RADIUS + 8, -Math.PI / 2,
+                -Math.PI / 2 + Math.PI * 2 * (p.revive / CFG.REVIVE_TIME));
+        ctx.stroke();
+      }
+    } else {
+      // Esquive : sillage derriere le joueur et halo blanc. Les autres doivent
+      // voir qu'un coequipier est invulnerable, c'est ce qui permet de decider
+      // qui traverse la zone.
+      const dashing = isMe ? dash.t > 0 : p.dashing;
+      if (dashing) {
+        const dir = isMe ? dash : { x: -p.aimX, y: -p.aimY };
+        ctx.strokeStyle = FX.flash;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = CFG.PLAYER_RADIUS * 1.6;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - dir.x * 34, y - dir.y * 34);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.lineCap = "butt";
+      }
+
+      /* Provocation active : halo pulsant dans la couleur du tank. Les autres
+         joueurs doivent le voir — c'est ce qui leur dit que la horde part vers
+         lui et qu'ils ont trois secondes pour relever le coequipier a terre. */
+      if (p.skillFlags & SKILL_TAUNT) {
+        const puls = 0.55 + 0.25 * Math.sin(tm * 9);
+        ctx.strokeStyle = alpha(CLASS_COLOR.tank, puls);
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y, RING_SKILL, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = alpha(CLASS_COLOR.tank, 0.16);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, SKILL_CFG.TANK_TAUNT_RADIUS, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Surcharge : couronne doree. Meme bande que la provocation — les deux
+      // appartiennent a des classes differentes, elles ne coexistent jamais sur
+      // un meme personnage.
+      if (p.skillFlags & SKILL_OVERDRIVE) {
+        ctx.strokeStyle = alpha(FX.level, 0.8);
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, RING_SKILL, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      /* LA FORME DIT LA CLASSE, LA COULEUR DIT LE JOUEUR. Les quatre couleurs
+         de joueur etaient deja prises par l'identite individuelle : faire
+         porter la classe par la couleur aussi rendait soit deux tanks
+         identiques, soit deux joueurs confondus. Les trois silhouettes sont
+         donc distinctes de loin, et la teinte reste celle du joueur.
+
+         Le mode soin est la seule exception, et c'est voulu : la bascule est
+         une posture qui dure, elle doit se lire sur le personnage lui-meme et
+         pas seulement sur ses projectiles — c'est une information tactique
+         pour toute l'equipe. */
+      const moving = playerMoving(p.id, x, y);
+      const teinte = dashing ? FX.flash
+        : ((p.skillFlags & SKILL_HEAL_MODE) ? CLASS_COLOR.soigneur : col);
+      drawSprite(ctx, classFrame(p, moving ? "move" : "idle"), x, y, {
+        angle: Math.atan2(p.aimY, p.aimX),
+        // Etirement dans l'axe du deplacement : 6 %, comme les creatures.
+        scaleX: moving ? 1.06 : 1,
+        scaleY: moving ? 0.96 : 1,
+        tint: teinte,
+      });
+
+      // bouclier : arc d'autant plus complet que la reserve est pleine, colle
+      // au corps — c'est la bande la plus interieure de la grille des rayons.
+      if (p.shield > 0) {
+        const k = p.shield / CFG.SHIELD_POOL;
+        ctx.strokeStyle = POWERUP_COLOR.shield;
+        ctx.globalAlpha = 0.35 + k * 0.45;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, RING_SHIELD, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      let ring = RING_BUFF0;
+      for (const [bit, colour] of [
+        [BUFF_DAMAGE, POWERUP_COLOR.damage], [BUFF_RATE, POWERUP_COLOR.rate],
+        [BUFF_DOUBLE, POWERUP_COLOR.double], [BUFF_PIERCE, POWERUP_COLOR.pierce],
+        [BUFF_RICOCHET, POWERUP_COLOR.ricochet],
+      ]) {
+        if (p.buffs & bit) {
+          ctx.strokeStyle = colour;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(x, y, ring, 0, Math.PI * 2); ctx.stroke();
+          ring += 4;
+        }
+      }
+
+      /* Aura de givre : disque teinte a bord NET, et plus d'anneau. L'anneau
+         occupait une bande de rayon a lui seul, et les lames orbitales — qui
+         tournent a 3,7 m, dans la meme famille de trait — s'y noyaient : un
+         joueur qui prenait les deux cartes ne voyait plus qu'il avait les
+         lames. Un bord de 1 px suffit a dire ou l'aura s'arrete, ce qui est
+         tout ce qu'on lui demande. */
+      if (p.frostRadius > 0) {
+        ctx.fillStyle = alpha(EFFECT_COLOR.givre, 0.06);
+        ctx.beginPath(); ctx.arc(x, y, p.frostRadius, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = alpha(EFFECT_COLOR.givre, 0.22);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(x, y, p.frostRadius, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    if (isMe && !p.downed && !amSpectator) {
+      // Portee de la bombe. Sous le reticule et la ligne de visee : c'est un
+      // repere de sol, pas une consigne.
+      if (classAt(p.cls ?? CLASS_DEFAULT).id === "dps" && (p.bombStock ?? 0) > 0) {
+        drawBombRange(x, y);
+      }
+
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.22;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, 7, 0, Math.PI * 2);
+      ctx.moveTo(mouse.x - 12, mouse.y); ctx.lineTo(mouse.x - 3, mouse.y);
+      ctx.moveTo(mouse.x + 3, mouse.y);  ctx.lineTo(mouse.x + 12, mouse.y);
+      ctx.moveTo(mouse.x, mouse.y - 12); ctx.lineTo(mouse.x, mouse.y - 3);
+      ctx.moveTo(mouse.x, mouse.y + 3);  ctx.lineTo(mouse.x, mouse.y + 12);
+      ctx.stroke();
+    }
+
+    /* Halo d'etat sur le personnage lui-meme. Une icone seule ne se voit pas en
+       pleine action : quand l'arene contient 200 ennemis, le regard est sur la
+       horde, pas sur une pastille de six pixels. Le halo, lui, se lit dans la
+       vision peripherique — c'est lui qui dit « celui-la a un probleme ». */
+    const actifs = activeStatuses(p);
+    if (actifs.length > 0 && !p.downed) {
+      const top = actifs[actifs.length - 1];   // Sentence en dernier : elle prime
+      const def = STATUSES[top];
+      const puls = top === STATUS_DOOM ? 0.35 + 0.45 * Math.abs(Math.sin(tm * 7)) : 0.5;
+      ctx.strokeStyle = def.couleur;
+      ctx.globalAlpha = puls;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, RING_STATUS, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    drawPlayerBar(p, x, y, col);
+    drawPlayerMarks(p, x, y, marks, tm);
+
+    if (!isMe) {
+      ctx.fillStyle = TEXT.dim;
+      ctx.font = "12px ui-monospace, Menlo, Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(nameOf(p.id), x, y - CFG.PLAYER_RADIUS - 28);
+    }
+  }
+}
+
+/* Lames orbitales, en PASSE SEPAREE et par-dessus tout le reste — y compris les
+   autres joueurs et le champ de givre. Dessinees dans la boucle des joueurs,
+   elles passaient sous tout ce qui venait apres et se perdaient dans l'aura du
+   givre : la carte etait prise et invisible.
+
+   L'angle se deduit du temps de manche avec exactement la meme formule que
+   `_orbiters()` dans game_state.js — toute derive ici dessinerait des lames qui
+   touchent les ennemis ailleurs que la ou elles font reellement des degats.
+
+   La trainee n'est pas un ornement : une lame de huit pixels qui tourne a
+   2,2 rad/s se remarque en mouvement, pas a l'arret, et c'est precisement en
+   mouvement qu'un arc court la rend impossible a confondre avec un anneau. */
+function drawOrbiters(list, tm) {
+  for (const p of list) {
+    if (p.downed || !(p.orbiters > 0)) continue;
+    const isMe = p.id === myId;
+    const x = isMe && predicted ? predicted.x : p.x;
+    const y = isMe && predicted ? predicted.y : p.y;
+    const col = colorOf(p.id);
+    const n = p.orbiters;
+    const r = CARD_CFG.ORBIT_RADIUS;
+
+    for (let i = 0; i < n; i++) {
+      const oa = tm * CARD_CFG.ORBIT_SPEED + (i / n) * Math.PI * 2;
+
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(x, y, r, oa - 0.45, oa);
+      ctx.stroke();
+      ctx.lineCap = "butt";
+      ctx.globalAlpha = 1;
+
+      ctx.save();
+      ctx.translate(x + Math.cos(oa) * r, y + Math.sin(oa) * r);
+      ctx.rotate(oa);
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(8, 0); ctx.lineTo(-4, -3); ctx.lineTo(-4, 3);
+      ctx.closePath(); ctx.fill();
+      // Liseré sombre : la lame reste detachee meme posee sur une aura de la
+      // meme famille de teinte.
+      ctx.strokeStyle = alpha(SURFACE.void, 0.85);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+/* Barre de vie au-dessus de CHAQUE joueur, la sienne comprise. Elle n'existait
+   pas : on lisait ses PV en bas a gauche et ceux des autres dans une liste de
+   texte en haut a droite, ce qui interdisait de voir qui etait bas sans quitter
+   l'arene des yeux. Avec un soigneur dans l'equipe, c'est simplement injouable.
+
+   Le bouclier est SUPERPOSE et non accole : une seconde barre a cote decale la
+   lecture de la premiere, et on finit par croire qu'un allie a plus de vie qu'il
+   n'en a. */
+const BAR_W = 40, BAR_H = 4;
+
+function drawPlayerBar(p, x, y, col) {
+  const by = y - CFG.PLAYER_RADIUS - 14;
+  const bx = x - BAR_W / 2;
+  const maxHp = p.maxHp || CFG.PLAYER_MAX_HP;
+  const k = p.downed ? 0 : Math.max(0, Math.min(1, p.hp / maxHp));
+
+  ctx.fillStyle = alpha(SURFACE.shadow, 0.45);
+  ctx.fillRect(bx - 1, by - 1, BAR_W + 2, BAR_H + 2);
+  ctx.fillStyle = SURFACE.lineSoft;
+  ctx.fillRect(bx, by, BAR_W, BAR_H);
+
+  // Ambre sous 50 %, rouge sous 25 % : la couleur du joueur ne dit rien de son
+  // etat, et c'est justement ce qu'on cherche a lire d'un coup d'oeil.
+  ctx.fillStyle = k < 0.25 ? HUD.low : (k < 0.5 ? HUD.mid : col);
+  ctx.fillRect(bx, by, BAR_W * k, BAR_H);
+
+  if (p.shield > 0) {
+    const sk = Math.max(0, Math.min(1, p.shield / CFG.SHIELD_POOL));
+    ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.85);
+    ctx.fillRect(bx, by, BAR_W * sk, 2);
+  }
+
+  // Icones d'etats sous la barre, dans l'ordre de la table.
+  const actifs = activeStatuses(p);
+  if (actifs.length > 0) {
+    let ix = x - (actifs.length * 11 - 3) / 2 + 4;
+    for (const id of actifs) {
+      paintStatusIcon(id, ix, by + BAR_H + 7, 0.62);
+      // Les cumuls de Vulnerabilite se comptent : trois cumuls et un seul ne
+      // sont pas la meme situation, c'est meme toute la mecanique de rotation.
+      if (id === STATUS_VULN && p.vuln > 1) {
+        ctx.fillStyle = STATUSES[STATUS_VULN].couleur;
+        ctx.font = "700 8px ui-monospace, Menlo, Consolas, monospace";
+        ctx.textAlign = "left";
+        ctx.fillText(String(p.vuln), ix + 4, by + BAR_H + 11);
+      }
+      ix += 11;
+    }
+  }
+
+  /* Sentence : le decompte chiffre, gros, sur le joueur concerne. C'est
+     l'urgence absolue du jeu — il faut le soigner a plein avant l'echeance — et
+     une icone de sablier ne dit pas s'il reste sept secondes ou une. */
+  if (p.doom > 0) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = p.doom < 3 && Math.floor(p.doom * 4) % 2 === 0
+      ? SIGNAL.ally : STATUSES[STATUS_DOOM].couleur;
+    ctx.font = "700 20px ui-monospace, Menlo, Consolas, monospace";
+    ctx.fillText(p.doom.toFixed(1), x, by - 8);
+  }
+  ctx.textAlign = "left";
+}
+
+/* Marqueurs SUR LE JOUEUR, au-dessus de sa barre de vie : cible, a regrouper,
+   lie, en cage. Ils repondent a la seule question qu'on se pose quand une
+   mecanique part — « est-ce que ca me concerne, moi ? » — et le cercle au sol
+   n'y repond pas quand on est quatre a se chevaucher dessus.
+
+   GLYPHES DISTINCTS EN SILHOUETTE, jamais differencies par la seule couleur :
+   un daltonien doit s'en sortir, et de toute facon la couleur se noie dans le
+   chaos de deux cents ennemis. La couleur ne fait que confirmer ce que la forme
+   dit deja, avec la meme grammaire qu'au sol : cyan on y va, rouge on s'ecarte,
+   jaune on casse. */
+const PLAYER_MARK = {
+  [MECH_STACK]:  { col: MARK_GO, glyph: "converge" },
+  [MECH_LINK]:   { col: MARK_AWAY, glyph: "lien" },
+  [MECH_JAIL]:   { col: MARK_BREAK, glyph: "cage" },
+  [MECH_BAIT]:   { col: MARK.bait, glyph: "cible" },
+};
+
+function drawPlayerMarks(p, x, y, marks, tm) {
+  if (marks.length === 0) return;
+  const my = [];
+  for (const m of marks) {
+    // `a` porte un identifiant d'ENTITE et non de joueur pour le lien
+    // nourricier : sans cette exclusion, un rejeton dont l'identifiant tombe
+    // sur celui d'un joueur lui collait un glyphe sur la tete.
+    if (m.mech === MECH_FEED) continue;
+    const def = PLAYER_MARK[m.mech];
+    if (!def) continue;
+    if (m.a === p.id || m.b === p.id) my.push(def);
+  }
+  if (my.length === 0) return;
+
+  const gy = y - CFG.PLAYER_RADIUS - 26;
+  const puls = 0.7 + 0.3 * Math.sin(tm * 7);
+  let gx = x - (my.length * 15 - 15) / 2;
+  for (const def of my) {
+    ctx.save();
+    ctx.translate(gx, gy);
+    ctx.globalAlpha = puls;
+    ctx.fillStyle = def.col;
+    ctx.strokeStyle = def.col;
+    ctx.lineWidth = 2;
+    paintMarkGlyph(def.glyph);
+    ctx.restore();
+    gx += 15;
+  }
+  ctx.globalAlpha = 1;
+}
+
+function paintMarkGlyph(glyph) {
+  switch (glyph) {
+    case "converge":     // triangle pointe en bas : viens ici
+      ctx.beginPath();
+      ctx.moveTo(-5, -5); ctx.lineTo(5, -5); ctx.lineTo(0, 4);
+      ctx.closePath(); ctx.fill();
+      break;
+    case "lien":         // deux anneaux relies : ecarte-toi de l'autre
+      ctx.beginPath(); ctx.arc(-4, 0, 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(4, 0, 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-1, 0); ctx.lineTo(1, 0); ctx.stroke();
+      break;
+    case "cage":         // carre barre : on te libere en cassant
+      ctx.strokeRect(-5, -5, 10, 10);
+      ctx.beginPath();
+      ctx.moveTo(-1.5, -5); ctx.lineTo(-1.5, 5);
+      ctx.moveTo(1.5, -5); ctx.lineTo(1.5, 5);
+      ctx.stroke();
+      break;
+    case "cible":        // croix dans un cercle : c'est toi qui es vise
+      ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-7, 0); ctx.lineTo(7, 0);
+      ctx.moveTo(0, -7); ctx.lineTo(0, 7);
+      ctx.stroke();
+      break;
+  }
+}
+
+function fmtTime(t) {
+  const m = String(Math.floor(t / 60)).padStart(2, "0");
+  const s = String(Math.floor(t % 60)).padStart(2, "0");
+  return m + ":" + s;
+}
+
+const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
+
+/* Ce que chaque barre brisee ajoute au repertoire. La liste n'est plus ecrite
+   a la main : elle se lit dans `BOSS_ROSTER`, sinon elle mentirait des le
+   deuxieme boss — c'est exactement ce qui est arrive quand le Ravageur etait
+   seul et que le texte etait recopie ici. */
+const ATTACK_LABEL = {
+  salve: "salve radiale", marques: "marques au sol", charge: "charge",
+  damier: "damier — une case sur deux, puis l'autre moitié",
+  couronne: "couronne — le centre puis l'anneau, ou l'inverse",
+  couloirs: "couloirs — trois bandes, puis les perpendiculaires",
+  balayage: "balayage — cours avec l'aiguille",
+  spirale: "spirale — cours dans le sens de rotation",
+  traque: "traque — la zone se pose sur toi, trois fois",
+  mur: "mur — suis le trou",
+  quadrant: "verrouillage — un quart de l'arène s'interdit",
+  grappes: "grappes — détruis-les avant l'éclosion",
+  nourriciers: "rejetons nourriciers — tue-les, ils la soignent",
+  prison: "prison — libère le prisonnier",
+  proximite: "proximité — le centre est mortel",
+  exaflare: "exaflares — seule la première est annoncée",
+  appat: "appâts — ton fantôme dépose les zones",
+  derive: "dérive — les disques glissent",
+  sanctuaire: "sanctuaires — reste sur les disques sûrs",
+  verglas: "sol glissant — le sol ne répond plus tout de suite",
+  rassemblement: "regroupement — partagez les dégâts",
+  dispersion: "dispersion — écartez-vous",
+  tours: "tours — occupez-les toutes",
+  denombrement: "dénombrement — le nombre inscrit doit être exact",
+  regard: "regard — ne visez plus le boss",
+  lien: "lien — éloignez-vous pour le rompre",
+  croix: "croix — l'intersection est mortelle",
+};
+
+function phaseUnlockText(kind, phase) {
+  const list = bossAt(kind).unlock[phase - 1];
+  if (!list || !list.length) return "il accélère";
+  return list.map(k => ATTACK_LABEL[k] ?? k).join(" · ");
+}
+
+
+window.__clientReady = true;

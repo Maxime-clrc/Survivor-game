@@ -1,0 +1,568 @@
+/* ===========================================================================
+   INTERFACE — ecrans hors combat.
+
+   Direction : SIGNAL ET INSTRUMENTATION. L'interface est un poste de controle.
+   Trois regles qui tranchent chaque decision :
+     - rien de decoratif ne se superpose au jeu, tout ornement vit ici ;
+     - la couleur est fonctionnelle, jamais esthetique ;
+     - les angles sont durs, et le seul cercle du jeu est une entite vivante.
+
+   Aucune valeur en dur : couleurs depuis `shared/palette.js` (posees sur
+   `:root` par le client), tailles et espacements depuis `tokens.css`.
+   =========================================================================== */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Les variables de couleur n'existent qu'une fois `client.js` charge. Le repli
+   est la couleur SYSTEME du theme sombre et non une valeur recopiee : recopier
+   `#08090d` ici, c'est accepter qu'il diverge de `palette.js` un jour. */
+:root { color-scheme: dark; }
+
+html, body {
+  height: 100%;
+  background: var(--bg-void, Canvas);
+  color: var(--text, CanvasText);
+  font-family: var(--font);
+  font-size: var(--t-m);
+  overflow: hidden;
+}
+
+#stage { height: 100%; display: flex; align-items: center; justify-content: center; }
+
+/* Le cadre porte le FORMAT de l'arene, et le canvas comme le HUD le
+   remplissent. Sans lui, le HUD aurait ete positionne contre la fenetre et
+   n'aurait plus coincide avec l'arene des que celle-ci cesse de la remplir. */
+#frame {
+  position: relative;
+  aspect-ratio: 1600 / 900;
+  /* La largeur porte TOUTE la contrainte, et la hauteur en decoule. Un
+     `max-height` sur un element flexible ne redonne pas sa largeur au format :
+     le cadre depassait alors la fenetre par le bas, et le bloc personnel du HUD
+     — l'element le plus important de l'ecran — sortait du champ. */
+  width: min(100%, calc(100vh * 16 / 9));
+}
+
+#frame > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-arena);
+  cursor: crosshair;
+  /* Le tressaillement d'ecran est un `transform` CSS sur le canvas depuis que
+     le HUD est son FRERE et non son contenu : il n'y a plus rien a separer en
+     deux passes de rendu. Le leger agrandissement permanent evite qu'une
+     secousse ne decouvre une bande de page derriere l'arene — dix pixels sur
+     seize cents, soit largement moins que le 1,5 % de marge. */
+  transform: scale(1.015);
+  will-change: transform;
+}
+
+/* --- fond des ecrans hors combat -------------------------------------------
+   Grille tres faible et vignettage : l'ecran ne doit JAMAIS etre du noir plat.
+   C'est le meme vocabulaire que le sol de l'arene, en beaucoup plus discret —
+   ce qui fait que le salon et le jeu appartiennent visiblement au meme
+   objet. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-6);
+  z-index: 10;
+  padding: var(--sp-6);
+  overflow-y: auto;
+  background:
+    radial-gradient(ellipse at 50% 42%, transparent 30%, var(--bg-void) 96%),
+    repeating-linear-gradient(0deg,  var(--line-soft) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(90deg, var(--line-soft) 0 1px, transparent 1px 40px),
+    var(--bg-void);
+  animation: fadeIn var(--fade) ease-out;
+}
+.overlay[hidden] { display: none; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* --- vocabulaire de poste de controle --------------------------------------
+   Un titre de section est en capitales espacees, precede d'un filet court. Le
+   filet ne decore pas : il dit « une nouvelle zone commence », ce qu'une simple
+   marge ne dit pas quand tout l'ecran est en chasse fixe. */
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.sectionTitle::before {
+  content: "";
+  width: var(--sp-6);
+  height: var(--hair);
+  background: var(--line);
+}
+
+/* --- logotype ---------------------------------------------------------------
+   Le nom en capitales espacees et un glyphe simple. Meme minimal, il transforme
+   l'ecran d'accueil : sans lui, la page s'ouvre sur un champ de saisie. */
+#logo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--t-2xl);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text);
+}
+#logo .mark {
+  width: var(--sp-8);
+  height: var(--sp-8);
+  border: var(--edge) solid var(--go);
+  /* Coupe en biseau, pas un arrondi : c'est la regle des angles durs, et le
+     glyphe la porte le premier. */
+  clip-path: polygon(0 0, 100% 0, 100% 60%, 60% 100%, 0 100%);
+  position: relative;
+}
+#logo .mark::after {
+  content: "";
+  position: absolute;
+  inset: var(--sp-2);
+  background: var(--go);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+/* --- ecran de chargement -----------------------------------------------------
+   Le seul ecran du jeu ou l'on peut prendre trois secondes. La barre dit ce
+   qu'elle fait : un pourcentage sans libelle laisse croire a un telechargement,
+   alors que tout est genere sur place. */
+
+#loadBar {
+  width: 320px;
+  max-width: 60vw;
+  height: 6px;
+  background: var(--line-soft);
+  border: var(--hair) solid var(--line);
+}
+
+#loadBar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--go);
+  transition: width var(--tap) linear;
+}
+
+#loadPct {
+  font-size: var(--t-m);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  color: var(--go);
+}
+
+/* --- controles -------------------------------------------------------------- */
+
+.row { display: flex; gap: var(--sp-2); }
+
+input, button {
+  font: inherit;
+  font-size: var(--t-m);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  background: var(--bg-panel);
+  color: var(--text);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color var(--tap) linear, background var(--tap) linear;
+}
+input:focus { border-color: var(--go); }
+button { cursor: pointer; background: var(--bg-raised); }
+button:hover:not(:disabled) { border-color: var(--text-dim); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+/* Le bouton de lancement est l'element le plus voyant de l'ecran : c'est la
+   seule ACTION du salon, tout le reste est un reglage ou de l'information. */
+#start {
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  padding: var(--sp-4) var(--sp-12);
+  color: var(--bg-void);
+  background: var(--go);
+  border-color: var(--go);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--bevel)),
+                     calc(100% - var(--bevel)) 100%, 0 100%);
+}
+#start:hover:not(:disabled) { filter: brightness(1.12); }
+
+#status { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); text-align: center; }
+#status.err { color: var(--lethal); }
+.hint { font-size: var(--t-xs); color: var(--text-dim); line-height: 1.7; text-align: center; }
+.hint b { color: var(--text); }
+
+/* --- reglage du son --------------------------------------------------------- */
+#audioRow { display: flex; align-items: center; gap: var(--sp-3); }
+#audioRow button { padding: var(--sp-2) var(--sp-3); font-size: var(--t-s); min-width: var(--sp-8); }
+#audioRow button.off { color: var(--text-faint); }
+#vol { padding: 0; width: 150px; accent-color: var(--go); cursor: pointer; }
+#volVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
+
+/* --- tableau des scores -----------------------------------------------------
+   De l'INFORMATION, pas une action : au salon il est atténué et passe apres le
+   choix de classe. Au bilan de fin de manche, c'est l'inverse — il y est le
+   sujet de l'ecran, et `#bilan` le remonte. */
+table { border-collapse: collapse; font-size: var(--t-s); min-width: 460px; }
+th {
+  font-weight: 400;
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  text-align: right;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--hair) solid var(--line);
+}
+th:first-child, td:first-child { text-align: left; }
+td {
+  padding: var(--sp-2) var(--sp-3);
+  text-align: right;
+  border-bottom: var(--hair) solid var(--line-soft);
+}
+td.name { font-weight: 700; }
+td.sub { color: var(--text-dim); font-size: var(--t-xs); }
+
+/* Au salon, le tableau est de l'information : il passe APRES l'action et le
+   choix de classe, et il est attenue tant qu'on ne le regarde pas. */
+#scoresWrap { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+#panel #scoresWrap { opacity: 0.6; transition: opacity var(--fade) linear; }
+#panel #scoresWrap:hover { opacity: 1; }
+
+#summary { font-size: var(--t-s); color: var(--text-dim); }
+#panelTitle {
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* --- difficulte : un segment compact ---------------------------------------- */
+#vote { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+#voteRow { display: flex; gap: 0; }
+#voteRow button {
+  min-width: 118px;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--t-s);
+  background: var(--bg-panel);
+  border-radius: 0;
+  border-left-width: 0;
+}
+#voteRow button:first-child { border-left-width: var(--hair); border-radius: var(--radius) 0 0 var(--radius); }
+#voteRow button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+#voteRow button.mine { color: var(--text); background: var(--bg-raised); }
+#voteRow button.winner { border-color: var(--go); color: var(--go); }
+#voteRow .tally { color: var(--text-faint); font-size: var(--t-xs); }
+#voteHint { font-size: var(--t-xs); color: var(--text-faint); }
+
+/* --- choix de classe --------------------------------------------------------
+   Les panneaux MONTRENT : silhouette a l'echelle du jeu, statistiques en barres
+   comparatives, competences avec leur touche. Trois pourcentages en texte
+   demandaient de comparer trois nombres de tete pour choisir. */
+#classes { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
+#classRow { display: flex; gap: var(--sp-3); flex-wrap: wrap; justify-content: center; }
+
+.classOpt {
+  width: 268px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  text-align: left;
+  border-width: var(--edge);
+  white-space: normal;
+  background: var(--bg-panel);
+  position: relative;
+}
+.classOpt:hover:not(:disabled) { transform: translateY(-2px); background: var(--bg-raised); }
+.classOpt.mine { background: var(--bg-raised); }
+.classOpt.mine::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: var(--sp-1);
+  background: currentColor;
+}
+
+.classHead { display: flex; align-items: center; gap: var(--sp-3); }
+.classSil { flex: 0 0 auto; }
+.className {
+  font-size: var(--t-m);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+}
+.classRole { font-size: var(--t-xs); color: var(--text-dim); }
+
+/* Trois barres comparatives, normalisees sur la meilleure des trois classes :
+   c'est une comparaison, pas une mesure absolue. */
+.classStats { display: flex; flex-direction: column; gap: var(--sp-1); }
+.statRow { display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: var(--sp-2); }
+.statName { font-size: var(--t-xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: var(--track-title); }
+.statBar { height: var(--sp-1); background: var(--line-soft); position: relative; }
+.statBar > i { position: absolute; inset: 0 auto 0 0; background: currentColor; display: block; }
+.statVal { font-size: var(--t-xs); color: var(--text-dim); }
+
+.classSkill {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.classSkill .key {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--text);
+  border: var(--hair) solid var(--line);
+  padding: 0 var(--sp-1);
+}
+.classSkill b { color: var(--text); font-weight: 700; }
+
+/* Emplacement pris : grise ET BARRE, avec le nom de celui qui l'occupe. La
+   couleur seule ne suffit pas — un bouton qui ne repond pas passe pour une
+   panne tant qu'on n'a pas lu pourquoi. */
+.classOpt.taken { opacity: 0.42; }
+.classOpt.taken .className { text-decoration: line-through; }
+.classTaken {
+  font-size: var(--t-xs);
+  color: var(--warn);
+  text-transform: uppercase;
+  letter-spacing: var(--track-title);
+}
+#classHint { font-size: var(--t-xs); color: var(--text-faint); }
+
+/* --- pastilles de cartes, au bilan ------------------------------------------ */
+td.cards { text-align: left; max-width: 420px; }
+.cardBadge {
+  display: inline-block;
+  border: var(--hair) solid currentColor;
+  border-radius: var(--radius);
+  padding: 0 var(--sp-1);
+  margin: 1px var(--sp-1) 1px 0;
+  font-size: var(--t-xs);
+  white-space: nowrap;
+}
+
+/* ===========================================================================
+   ECRAN DE CHOIX DE CARTE — l'ecran le plus important du jeu.
+   C'est la seule decision structurante de la manche.
+   =========================================================================== */
+
+#cards { gap: var(--sp-4); }
+
+#cardsTitle {
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  text-align: center;
+  max-width: 720px;
+}
+
+/* Le compte a rebours du choix d'office est un FILET qui se vide sous le titre,
+   et non un chiffre isole : un nombre demande d'etre lu et compare, un filet se
+   voit sans quitter les cartes des yeux. */
+#cardsTimer { width: 720px; max-width: 100%; height: var(--sp-1); background: var(--line-soft); }
+#cardsTimer > i { display: block; height: 100%; background: var(--go); transition: width 250ms linear; }
+#cardsTimer.urgent > i { background: var(--warn); }
+
+#cardsRow { display: flex; gap: var(--sp-4); flex-wrap: wrap; justify-content: center; }
+
+.cardOpt {
+  width: 268px;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  text-align: left;
+  border-width: var(--hair);
+  white-space: normal;
+  background: var(--bg-panel);
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--tap) ease-out, border-color var(--tap) linear,
+              opacity var(--fade) linear;
+}
+.cardOpt:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--text); }
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-3) var(--sp-1);
+}
+.cardIcon { flex: 0 0 auto; width: 18px; height: 18px; color: inherit; }
+.cardIcon svg { display: block; width: 100%; height: 100%; }
+.cardName {
+  font-size: var(--t-s);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text);
+}
+.cardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3) var(--sp-3);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+}
+.cardFamily { color: var(--text-faint); }
+
+/* Le corps : l'effet principal est la LIGNE LA PLUS GROSSE de la carte, pas le
+   nom. C'est ce qu'on compare entre trois cartes en trente secondes. */
+.cardBody {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-top: var(--hair) solid var(--line);
+  border-bottom: var(--hair) solid var(--line);
+}
+.cardMain { font-size: var(--t-m); font-weight: 700; color: var(--text); line-height: 1.35; }
+.cardCond { font-size: var(--t-xs); color: var(--go); line-height: 1.4; }
+.cardWarn { font-size: var(--t-xs); color: var(--warn); line-height: 1.4; }
+
+/* Le pied dit l'ETAT : ce qu'on possede deja, et ce que l'exemplaire suivant y
+   ajoute. C'est la ligne qui rend le choix decidable. */
+.cardFoot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+}
+.cardDelta { color: var(--text); font-weight: 700; }
+
+/* --- materiaux de rarete ----------------------------------------------------
+   Chaque rarete a un MATERIAU et pas seulement une couleur : bordure plate,
+   bordure epaisse, lueur, degrade anime. C'est ce qui la rend reconnaissable au
+   coin de l'oeil, avant meme d'etre lue. */
+.cardOpt.r0 { border-color: var(--commune); }
+.cardOpt.r1 { border-width: var(--edge); border-color: var(--rare); background: var(--bg-raised); }
+.cardOpt.r2 {
+  border-width: var(--edge);
+  border-color: var(--epique);
+  box-shadow: 0 0 var(--sp-6) -2px var(--epique);
+}
+
+/* La legendaire est la SEULE a porter une animation : c'est ce qui en fait un
+   evenement. Elle doit se remarquer avant d'etre lue. */
+.cardOpt.r3 {
+  border-width: var(--edge);
+  border-color: var(--legendaire);
+  background: linear-gradient(160deg, var(--bg-raised) 0%, var(--bg-panel) 62%);
+  box-shadow: 0 0 var(--sp-6) -4px var(--legendaire);
+}
+.cardOpt.r3::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 42%,
+              color-mix(in srgb, var(--legendaire) 22%, transparent) 50%, transparent 58%);
+  transform: translateX(-100%);
+  animation: sweep var(--sweep) linear infinite;
+}
+@keyframes sweep {
+  0%   { transform: translateX(-100%); }
+  55%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Selection : la carte choisie se VERROUILLE et les deux autres s'estompent. Le
+   joueur doit voir ce qu'il a ecarte — sinon l'ecran se ferme sans qu'il sache
+   ce qu'il vient de refuser. */
+.cardOpt.picked { border-color: var(--go); transform: none; }
+.cardOpt.picked::after {
+  content: "verrouillée";
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: var(--sp-1);
+  text-align: center;
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--bg-void);
+  background: var(--go);
+}
+.cardOpt.faded { opacity: 0.3; }
+
+#cardsWaitMsg { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); }
+
+/* --- cartes possedees, touche Tab en jeu ------------------------------------ */
+#loadoutTitle {
+  font-size: var(--t-s);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+#loadoutList { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 300px; max-width: 420px; }
+.loadoutRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid currentColor;
+  background: var(--bg-panel);
+  font-size: var(--t-s);
+}
+.loadoutName { color: var(--text); }
+.loadoutValue { font-size: var(--t-xs); color: var(--text-dim); margin-left: auto; margin-right: var(--sp-1); }
+.loadoutRarity { font-size: var(--t-xs); text-transform: uppercase; letter-spacing: var(--track-title); }
+
+/* ===========================================================================
+   BILAN DE FIN DE MANCHE
+   Ecran a part, et non le salon avec un titre different : tant que le salon
+   suivant etait deja affiche dessous, personne ne lisait son bilan.
+   =========================================================================== */
+
+#bilan { gap: var(--sp-4); }
+
+#bilanTitle {
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+
+#bilanStats { display: flex; gap: var(--sp-12); }
+.bilanStat { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.bilanStat .val { font-size: var(--t-2xl); font-weight: 700; letter-spacing: var(--track-title); }
+.bilanStat .lab {
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+#bilanScores { font-size: var(--t-m); }
+#bilanScores td { padding: var(--sp-3); }
+
+#bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+#bilanBar { width: 260px; height: var(--hair); background: var(--line); }
+#bilanBar > i { display: block; height: 100%; background: var(--text-faint); }
+#bilanHint { font-size: var(--t-xs); color: var(--text-faint); }

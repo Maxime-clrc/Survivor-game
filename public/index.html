@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Survivor LAN</title>
+<!-- Les jetons d'abord, l'interface ensuite. Aucune couleur dans ces deux
+     fichiers : elles sont posees sur :root par client.js depuis
+     shared/palette.js, qui est la seule source de verite du canvas comme du
+     DOM. Le fond de repli des premieres millisecondes est la couleur systeme
+     du theme sombre (`color-scheme`), et non une valeur recopiee. -->
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/ui.css">
+<link rel="stylesheet" href="/css/hud.css">
+</head>
+<body>
+
+<!-- `#frame` porte le format de l'arene (16/9) : le canvas le remplit, le HUD
+     s'y superpose. C'est ce qui fait que le HUD est un FRERE du canvas et non
+     son contenu — d'ou un tressaillement d'ecran qui ne le fait plus trembler,
+     et une taille de texte qui ne retrecit plus avec la fenetre. -->
+<div id="stage">
+  <div id="frame">
+    <canvas id="cv"></canvas>
+
+    <!-- HUD. Tout est en elements CSS : une recharge en `conic-gradient`, une
+         barre avec `transition`, un voile en `opacity`, c'est le compositeur
+         qui travaille et non la boucle de jeu. -->
+    <div id="hud" hidden>
+
+      <!-- haut gauche : chronometre et compteurs de manche -->
+      <div id="hudRun">
+        <div id="hudClock">00:00</div>
+        <div id="hudMeta"></div>
+      </div>
+
+      <!-- haut centre : vague, puis boss -->
+      <div id="hudWave" hidden>
+        <div id="waveName"></div>
+        <div id="waveBar"><i></i></div>
+        <div id="waveState"></div>
+      </div>
+
+      <div id="hudBoss" hidden>
+        <div id="bossHead">
+          <span id="bossName"></span>
+          <span id="bossVerb"></span>
+          <span id="bossHp"></span>
+        </div>
+        <div id="bossBar"><i></i><b id="bossMult"></b></div>
+        <div id="bossPips"></div>
+        <div id="bossUlt" hidden><i></i><span>ULTIME — tenez les tours pour la faire descendre</span></div>
+      </div>
+
+      <!-- haut droite : le cadre d'equipe. Indispensable au soigneur. -->
+      <div id="hudTeam"></div>
+
+      <!-- tiers superieur : les consignes. Elles vivent la et non en haut de
+           l'ecran — pendant une mecanique on regarde son personnage. -->
+      <div id="hudAlerts">
+        <div id="alertOrder" hidden>
+          <div class="txt"></div>
+          <div class="src"></div>
+          <div class="cd"><i></i></div>
+        </div>
+        <div id="alertWarn" hidden></div>
+        <div id="alertInfo" hidden></div>
+      </div>
+
+      <!-- annonces plein ecran : arrivee de boss, barre brisee -->
+      <div id="hudAnnounce" hidden>
+        <div class="big"></div>
+        <div class="mid"></div>
+        <div class="sub"></div>
+      </div>
+
+      <!-- bas gauche : le bloc personnel, l'element le plus gros du HUD -->
+      <div id="hudSelf">
+        <div id="selfEffects"></div>
+        <div id="selfBuffs"></div>
+        <div id="selfMain">
+          <div id="selfGauges">
+            <div id="selfShield"><i></i></div>
+            <div id="selfHp"><i></i></div>
+            <div id="selfXp"><i></i></div>
+          </div>
+          <div id="selfText">
+            <div id="selfHpText"></div>
+            <div id="selfLevel"></div>
+          </div>
+          <div id="selfPips"></div>
+        </div>
+      </div>
+
+      <div id="hudSpectator" hidden>SPECTATEUR — tu entres à la manche suivante</div>
+      <div id="hudPerf" hidden></div>
+
+      <!-- chiffres de degats : des elements DOM, plafonnes. Ils recuperent
+           gratuitement le contour de texte, l'assouplissement et le fondu. -->
+      <div id="dmgLayer"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ecran de connexion -->
+<div id="gate" class="overlay">
+  <div id="logo">
+    <span class="mark"></span>
+    <span>Survivor LAN</span>
+  </div>
+  <div class="row">
+    <input id="name" maxlength="14" placeholder="ton pseudo" autocomplete="off" spellcheck="false">
+    <button id="go">Rejoindre</button>
+  </div>
+  <div id="status"></div>
+  <!-- Reglage du son. Il vit ICI parce que le clic « Rejoindre » est le geste
+       utilisateur qui debloque le contexte audio des navigateurs : regler avant
+       d'entrer evite d'avoir a ressortir du jeu pour baisser le volume. -->
+  <div id="audioRow">
+    <button id="mute" title="couper le son">♪</button>
+    <input id="vol" type="range" min="0" max="100" step="5" title="volume">
+    <span id="volVal">70 %</span>
+  </div>
+  <div class="hint">
+    ZQSD ou flèches pour se déplacer · la souris pour viser<br>
+    <b>Espace</b> pour esquiver — invulnérable le temps du bond<br>
+    <b>A</b> et <b>E</b> (ou <b>1</b> et <b>2</b>) pour les compétences de classe<br>
+    le tir part tout seul · relève un coéquipier en restant à côté de lui
+  </div>
+</div>
+
+<!-- ecran de chargement. Le clic « Rejoindre » debloque deja le contexte audio ;
+     c'est le meme moment et la meme barre pour la generation des atlas. C'est
+     aussi le seul ecran du jeu ou l'on peut prendre trois secondes, donc le seul
+     endroit ou un logotype a sa place. -->
+<div id="loading" class="overlay" hidden>
+  <div id="logo">
+    <span class="mark"></span>
+    <span>Survivor LAN</span>
+  </div>
+  <div id="loadBar"><i></i></div>
+  <div id="loadPct">0 %</div>
+  <div id="loadWhat" class="hint">génération des sprites</div>
+</div>
+
+<!-- bilan de fin de manche. Ecran a part du salon : tant que le salon suivant
+     etait affiche en dessous, le joueur ne lisait jamais son bilan. -->
+<div id="bilan" class="overlay" hidden>
+  <div id="bilanTitle"></div>
+  <div id="bilanStats"></div>
+  <table id="bilanScores"><tbody></tbody></table>
+  <div id="bilanNext">
+    <button id="bilanGo">Continuer</button>
+    <div id="bilanBar"><i></i></div>
+    <div id="bilanHint"></div>
+  </div>
+</div>
+
+<!-- salon. Hierarchie imposee : l'action d'abord (le bouton), puis le choix
+     de classe, puis les reglages, puis l'information (le tableau). -->
+<div id="panel" class="overlay" hidden>
+  <div id="panelTitle">Salon</div>
+  <div id="summary"></div>
+
+  <div id="classes">
+    <div id="classLabel" class="sectionTitle">Classe</div>
+    <div id="classRow"></div>
+    <div id="classHint"></div>
+  </div>
+
+  <div id="vote">
+    <div id="voteLabel" class="sectionTitle">Difficulté</div>
+    <div id="voteRow"></div>
+    <div id="voteHint"></div>
+  </div>
+
+  <div class="row">
+    <button id="start">Lancer la manche</button>
+  </div>
+  <div id="waitMsg" class="hint"></div>
+
+  <div id="scoresWrap">
+    <div class="sectionTitle">Table</div>
+    <table id="scores"><tbody></tbody></table>
+  </div>
+</div>
+
+<!-- ecran de choix de carte, a chaque niveau d'equipe -->
+<div id="cards" class="overlay" hidden>
+  <div id="cardsTitle"></div>
+  <div id="cardsTimer"><i></i></div>
+  <div id="cardsRow"></div>
+  <div id="cardsWaitMsg"></div>
+</div>
+
+<!-- cartes possedees par le joueur, touche Tab en jeu -->
+<div id="loadout" class="overlay" hidden>
+  <div id="loadoutTitle">Cartes possédées</div>
+  <div id="loadoutList"></div>
+</div>
+
+<script>
+  // Si client.js ne se charge pas (mauvaise arborescence, ouverture en file://),
+  // le bouton reste inerte sans le moindre message. On rend l'echec visible.
+  window.addEventListener("error", e => {
+    const s = document.getElementById("status");
+    if (!s || window.__clientReady) return;
+    s.textContent = "erreur de chargement : " + (e.message || "voir la console (F12)");
+    s.classList.add("err");
+  }, true);
+
+  setTimeout(() => {
+    if (window.__clientReady) return;
+    const s = document.getElementById("status");
+    if (!s.textContent) {
+      s.textContent = location.protocol === "file:"
+        ? "ouvre http://localhost:8080 — pas le fichier directement"
+        : "client.js non chargé — vérifie /shared/game_state.js (F12)";
+      s.classList.add("err");
+    }
+  }, 1500);
+</script>
+<script type="module" src="/client.js"></script>
+</body>
+</html>

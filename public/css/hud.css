@@ -1,0 +1,561 @@
+/* ===========================================================================
+   HUD — la couche ECRAN.
+
+   Elle est sortie du canvas : dessine dedans, le HUD retrecissait avec lui, et
+   aucun reglage de taille de police ne corrigeait ca — c'etait la meme cause
+   racine que le flou en 1440p. Ici, une taille en pixels CSS est une taille en
+   pixels CSS, quelle que soit la fenetre.
+
+   Aucune valeur en dur : couleurs depuis `shared/palette.js` (posees sur
+   `:root` par le client), tailles et espacements depuis `tokens.css`.
+
+   Tailles PLANCHER, a ne pas descendre : PV 15 px, touches 13 px gras, noms
+   d'equipe 13 px, chronometre 26 px. Ce sont les quatre choses qu'on lit en
+   combat sans avoir le temps de les chercher.
+   =========================================================================== */
+
+#hud {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  /* Le HUD ne prend jamais le clic : le curseur est un reticule, et une
+     pastille de competence qui avale un tir est un bug de jeu. */
+  pointer-events: none;
+  font-family: var(--font);
+  color: var(--text);
+  overflow: hidden;
+}
+
+#hud[hidden] { display: none; }
+
+/* --- haut gauche : chronometre et compteurs -------------------------------- */
+
+#hudRun {
+  position: absolute;
+  top: var(--sp-4);
+  left: var(--sp-4);
+}
+
+#hudClock {
+  font-size: var(--t-xl);      /* 26 px, plancher */
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  line-height: 1;
+}
+
+#hudMeta {
+  margin-top: var(--sp-2);
+  font-size: var(--t-s);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+#hudMeta .warn  { color: var(--warn); }
+#hudMeta .slow  { color: var(--persist); }
+
+/* --- haut centre : la vague ------------------------------------------------
+   C'est devenu l'information principale de la manche : le chronometre ne dit
+   plus rien de la difficulte, c'est le numero de vague qui la porte. */
+
+#hudWave {
+  position: absolute;
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  text-align: center;
+}
+
+#waveName {
+  font-size: var(--t-l);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+}
+
+#waveName.boss { color: var(--lethal); }
+
+#waveBar {
+  margin-top: var(--sp-2);
+  height: 5px;
+  background: var(--line-soft);
+}
+
+#waveBar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--text-dim);
+  transition: width var(--fade) linear;
+}
+
+#waveState {
+  margin-top: var(--sp-1);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+}
+
+/* --- barre de boss ---------------------------------------------------------
+   Le seul element du HUD qui a le droit d'etre voyant : c'est le moment le plus
+   important de la manche. Elle remplace le bandeau de vague, elle ne s'y
+   ajoute pas — deux barres centrees l'une sous l'autre ne se lisent pas. */
+
+#hudBoss {
+  position: absolute;
+  top: var(--sp-4);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(760px, 62%);
+}
+
+#bossHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  font-size: var(--t-s);
+}
+
+#bossName {
+  font-size: var(--t-m);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  color: var(--lethal);
+}
+
+#bossVerb { color: var(--text-dim); font-size: var(--t-xs); }
+#bossHp   { margin-left: auto; color: var(--text-dim); }
+
+#bossBar {
+  position: relative;
+  height: 26px;
+  background: color-mix(in srgb, var(--bg-void) 85%, transparent);
+  border: var(--edge) solid var(--lethal);
+}
+
+#bossBar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--boss-deep), var(--lethal), var(--boss-low));
+  transition: width 160ms linear;
+}
+
+/* Encoches tous les dixiemes : on lit la progression d'un coup d'oeil, sans
+   compter. Un fond raye plutot que dix elements — c'est dix noeuds de DOM en
+   moins pour exactement le meme dessin. */
+#bossBar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(10% - 2px),
+    color-mix(in srgb, var(--bg-void) 75%, transparent) calc(10% - 2px) 10%);
+}
+
+/* Multiplicateur facon jeu de combat : gros, colle a la barre. */
+#bossMult {
+  position: absolute;
+  left: calc(100% + var(--sp-3));
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--t-l);
+  font-weight: 700;
+  color: var(--warn);
+  white-space: nowrap;
+}
+
+#bossMult.last { color: var(--boss-low); }
+
+#bossPips {
+  display: flex;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+
+#bossPips > span {
+  width: 9px;
+  height: 4px;
+  background: var(--lethal);
+}
+
+#bossPips > span.spent { background: var(--boss-empty); opacity: 0.45; }
+
+#bossUlt { margin-top: var(--sp-2); }
+
+#bossUlt > i {
+  display: block;
+  height: 8px;
+  width: 0;
+  background: var(--boss-ult);
+  border: var(--hair) solid var(--boss-ult);
+  transition: width 160ms linear;
+}
+
+#bossUlt.high > i { background: var(--lethal); }
+
+#bossUlt > span {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--t-xs);
+  color: var(--boss-ult-soft);
+}
+
+/* --- cadre d'equipe --------------------------------------------------------
+   Une barre se lit sans etre lue. Chercher « 34 pv » dans une colonne de
+   chiffres, avec 200 ennemis a l'ecran, demande de s'arreter sur chaque ligne. */
+
+#hudTeam {
+  position: absolute;
+  top: var(--sp-4);
+  right: var(--sp-4);
+  width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.teamRow { display: grid; grid-template-columns: 1fr auto; gap: 0 var(--sp-2); }
+
+.teamRow .nom {
+  font-size: var(--t-s);            /* 13 px, plancher */
+  letter-spacing: var(--track-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teamRow.me .nom { font-weight: 700; }
+
+.teamRow .score { font-size: var(--t-xs); color: var(--text-dim); }
+
+.teamRow .bar {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 5px;
+  margin-top: var(--sp-1);
+  background: var(--line-soft);
+}
+
+.teamRow .bar > i {
+  display: block;
+  height: 100%;
+  transition: width var(--tap) linear;
+}
+
+/* Bouclier SUPERPOSE et non accole : accole, il faussait la lecture de la vie
+   elle-meme. */
+.teamRow .bar > u {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--cls-tank);
+}
+
+.teamRow .tags {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 14px;
+  margin-top: var(--sp-1);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+}
+
+.teamRow .tags .doom { margin-left: auto; font-weight: 700; }
+.teamRow .tags .stack { font-weight: 700; font-size: var(--t-xs); }
+.teamRow .tags canvas { display: block; }
+
+/* --- consignes -------------------------------------------------------------
+   Trois niveaux, chacun sur sa ligne : une information ne doit jamais chasser
+   une consigne. */
+
+#hudAlerts {
+  position: absolute;
+  top: 30%;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+#alertOrder {
+  width: 560px;
+  max-width: 80%;
+  margin: 0 auto;
+  padding: var(--sp-2) var(--sp-4);
+  background: color-mix(in srgb, var(--bg-void) 72%, transparent);
+  border: var(--edge) solid var(--go);
+  animation: alertPulse 280ms linear infinite alternate;
+}
+
+@keyframes alertPulse { from { border-color: var(--go); } to { border-color: color-mix(in srgb, var(--go) 55%, transparent); } }
+
+#alertOrder .txt {
+  font-size: var(--t-l);
+  font-weight: 700;
+  color: var(--go);
+  letter-spacing: var(--track-title);
+}
+
+#alertOrder .src {
+  margin-top: var(--sp-1);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+  letter-spacing: var(--track-caps);
+}
+
+/* Compte a rebours en BARRE et non en anneau : le bandeau est un rectangle
+   large, un anneau a cote aurait demande de regarder un second endroit pour
+   lire le meme temps. Il dit combien de temps il reste pour executer la
+   consigne, ce qui est toute la difference entre une consigne et une
+   decoration. */
+#alertOrder .cd {
+  margin: var(--sp-2) calc(var(--sp-4) * -1) calc(var(--sp-2) * -1);
+  height: 3px;
+  background: color-mix(in srgb, var(--go) 25%, transparent);
+}
+
+#alertOrder .cd > i {
+  display: block;
+  height: 100%;
+  background: var(--go);
+}
+
+#alertWarn {
+  margin-top: var(--sp-3);
+  font-size: var(--t-m);
+  font-weight: 700;
+  color: var(--warn);
+}
+
+#alertInfo {
+  margin-top: var(--sp-2);
+  font-size: var(--t-s);
+  color: var(--text);
+  opacity: 0.8;
+}
+
+/* --- annonces plein ecran -------------------------------------------------- */
+
+#hudAnnounce {
+  position: absolute;
+  top: 42%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  transition: opacity var(--fade) linear;
+}
+
+#hudAnnounce .big {
+  font-size: var(--t-3xl);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  color: var(--boss-warn);
+}
+
+#hudAnnounce .mid {
+  margin-top: var(--sp-2);
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  color: var(--warn);
+}
+
+#hudAnnounce .sub {
+  margin-top: var(--sp-2);
+  font-size: var(--t-m);
+  color: var(--text-dim);
+}
+
+#hudAnnounce.phase .big { font-size: var(--t-2xl); color: var(--warn); }
+#hudAnnounce.phase .mid { color: var(--boss-warn); font-size: var(--t-m); font-weight: 400; letter-spacing: normal; }
+
+/* --- bloc personnel --------------------------------------------------------
+   Le plus gros element du HUD. C'est ce qu'on regarde en priorite quand ca
+   tourne mal, donc il est en bas a gauche, la ou le personnage n'est presque
+   jamais. */
+
+#hudSelf {
+  position: absolute;
+  left: var(--sp-4);
+  bottom: var(--sp-4);
+}
+
+#selfEffects, #selfBuffs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 18px;
+  margin-bottom: var(--sp-1);
+}
+
+#selfEffects .badge, #selfBuffs .badge {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--t-xs);
+  font-weight: 700;
+}
+
+#selfEffects .badge canvas, #selfBuffs .badge canvas { display: block; }
+
+#selfMain { display: flex; align-items: flex-end; gap: var(--sp-3); }
+
+#selfGauges { width: 260px; }
+
+#selfShield, #selfHp, #selfXp { background: var(--line-soft); }
+#selfShield { height: 4px; margin-bottom: var(--sp-1); }
+#selfHp     { height: 16px; }
+#selfXp     { height: 4px; margin-top: var(--sp-1); }
+
+#selfShield > i, #selfHp > i, #selfXp > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  transition: width var(--tap) linear;
+}
+
+#selfShield > i { background: var(--cls-tank); }
+#selfXp > i     { background: var(--xp); }
+
+#selfText { min-width: 96px; }
+
+#selfHpText {
+  font-size: var(--t-m);            /* 15 px, plancher */
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+#selfHpText.downed { color: var(--lethal); }
+
+#selfLevel {
+  margin-top: var(--sp-1);
+  font-size: var(--t-s);
+  font-weight: 600;
+  color: var(--xp);
+  white-space: nowrap;
+}
+
+#selfLevel small { display: block; font-size: var(--t-xs); font-weight: 400; color: var(--text-dim); }
+
+/* --- pastilles de competence -----------------------------------------------
+   Carrees, et non rondes : le seul cercle du jeu est une entite vivante. La
+   recharge est un secteur `conic-gradient` — trois lignes de CSS contre trente
+   au canvas, et c'est le compositeur qui travaille. */
+
+#selfPips { display: flex; gap: var(--sp-2); }
+
+.pip {
+  position: relative;
+  width: 42px;
+  text-align: center;
+}
+
+.pip .box {
+  position: relative;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg-void) 80%, transparent);
+  border: var(--edge) solid var(--line-soft);
+  font-size: var(--t-s);            /* 13 px gras, plancher */
+  font-weight: 700;
+}
+
+.pip.ready .box { border-color: var(--pip); color: var(--pip); }
+.pip .box { color: var(--text-faint); }
+
+/* Le voile de recharge : un secteur qui se vide dans le sens horaire. */
+.pip .box::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(transparent 0 var(--k), color-mix(in srgb, var(--bg-void) 78%, transparent) var(--k) 100%);
+  pointer-events: none;
+}
+
+.pip.ready .box::before { display: none; }
+
+/* Un etat ACTIF (mode soin, provocation, surcharge) se signale par un fond
+   plein : la recharge dit « quand », l'etat dit « maintenant ». */
+.pip.active .box { background: color-mix(in srgb, var(--pip) 28%, transparent); }
+
+/* Eclat au retour a disponibilite : une image de plus a regarder, mais c'est
+   celle qui evite d'appuyer dans le vide. */
+.pip.flash .box { animation: pipFlash 240ms ease-out; }
+@keyframes pipFlash {
+  from { box-shadow: 0 0 0 0 var(--pip); }
+  to   { box-shadow: 0 0 0 10px transparent; }
+}
+
+.pip .lbl {
+  margin-top: var(--sp-1);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pip .stock {
+  position: absolute;
+  top: -6px;
+  right: -2px;
+  font-size: var(--t-xs);
+  font-weight: 700;
+  color: var(--pip);
+}
+
+/* --- divers ---------------------------------------------------------------- */
+
+#hudSpectator {
+  position: absolute;
+  bottom: var(--sp-6);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: var(--t-m);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+#hudPerf {
+  position: absolute;
+  left: var(--sp-4);
+  bottom: 140px;
+  font-size: var(--t-xs);
+  color: var(--gain);
+}
+
+#hudPerf.low { color: var(--lethal); }
+
+/* --- chiffres de degats ----------------------------------------------------
+   Positionnes en POURCENTAGE du cadre : c'est la conversion monde -> ecran la
+   moins chere qui existe, et elle ne demande pas de relire la geometrie de la
+   page a chaque image. */
+
+#dmgLayer { position: absolute; inset: 0; }
+
+.dmg {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: var(--t-s);
+  font-weight: 700;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 var(--bg-void), 0 -1px 0 var(--bg-void),
+               1px 0 0 var(--bg-void), -1px 0 0 var(--bg-void);
+  animation: dmgRise 850ms ease-out forwards;
+}
+
+.dmg.hurt { font-size: var(--t-l); color: var(--lethal); }
+.dmg.heal { color: var(--gain); }
+.dmg.deal { color: var(--boss-eye); }
+
+@keyframes dmgRise {
+  from { opacity: 1; transform: translate(-50%, -50%); }
+  70%  { opacity: 1; }
+  to   { opacity: 0; transform: translate(-50%, calc(-50% - 26px)); }
+}

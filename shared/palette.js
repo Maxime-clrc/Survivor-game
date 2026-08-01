@@ -1,0 +1,412 @@
+/* ===========================================================================
+   PALETTE — la charte visuelle, en une seule source.
+
+   Module PUR, sur le modele exact de `units.js` : il ne depend de rien, et
+   `cards.js`, `classes.js` et le client l'importent. Un cycle d'import
+   casserait le chargement des modules dans le navigateur.
+
+   Pourquoi ici et pas dans une feuille de style : le canvas a besoin des
+   memes couleurs que le DOM, et il ne sait pas lire une variable CSS
+   autrement qu'en interrogeant `getComputedStyle` a chaque image. Deux listes
+   — une en CSS, une en JavaScript — divergent au premier reglage : on a donc
+   UNE table ici, et c'est le client qui pose les variables CSS a partir
+   d'elle (`cssVars()`), jamais l'inverse. `public/css/tokens.css` ne contient
+   pour cette raison aucune couleur : uniquement ce que le canvas n'a pas a
+   connaitre (echelle typographique, grille d'espacement, rayons, durees).
+
+   La direction : SIGNAL ET INSTRUMENTATION. L'interface est un poste de
+   controle, l'arene un ecran de mesure. D'ou des fonds tres sombres et
+   desatures, des filets fins, et de la couleur uniquement quand elle dit
+   quelque chose.
+   =========================================================================== */
+
+/* --- fonds et surfaces -----------------------------------------------------
+   Six valeurs et pas une de plus. Chaque niveau a un role : au-dela, on choisit
+   un gris a l'oeil et l'ecran perd sa profondeur. */
+export const SURFACE = {
+  void:     "#08090d",   // la page, hors arene
+  arena:    "#0f1219",   // fond de l'arene
+  panel:    "#161a24",   // panneaux, cartes
+  raised:   "#1e2431",   // elements interactifs
+  line:     "#2a3140",   // filets
+  lineSoft: "#1c222d",   // grille de l'arene, filets tres faibles
+  /* Grille du sol a DEUX niveaux : un trait tous les 5 m, un trait marque tous
+     les 20 m. C'est ce qui donne une echelle lisible a l'arene et rend les
+     distances en metres des descriptions de cartes immediatement
+     comprehensibles — sans elle, « rayon 6 m » ne veut rien dire a l'ecran. */
+  gridFine:  "#171b24",
+  gridMajor: "#222836",
+  // Le noir pur ne sert QU'a une ombre portee : un aplat noir dans l'interface
+  // creuse un trou dans l'ecran, c'est pour ca que `void` n'est pas noir.
+  shadow:   "#000000",
+};
+
+/* --- texte ---------------------------------------------------------------- */
+export const TEXT = {
+  base:  "#e9edf5",
+  dim:   "#8892a6",
+  faint: "#5a6376",
+};
+
+/* --- la grammaire de couleurs ----------------------------------------------
+   Fonctionnelle, jamais esthetique : une couleur dit UNE chose. La regle qui
+   compte le plus est celle du rouge — jamais de rouge pour quelque chose ou il
+   faut aller. Une seule exception et le joueur cesse de faire confiance au code
+   couleur, donc lit tout au cas par cas, ce qui est intenable a 200 ennemis. */
+export const SIGNAL = {
+  go:      "#38bdf8",   // cyan   : il faut y aller
+  warn:    "#f5a524",   // ambre  : danger, sortir
+  lethal:  "#ef4056",   // rouge  : danger letal
+  ally:    "#e9edf5",   // blanc  : ca concerne un allie
+  persist: "#a855f7",   // violet : persistant, ca restera la apres
+  gain:    "#34d399",   // vert   : gain, soin
+};
+
+/* --- raretes ---------------------------------------------------------------
+   Chaque rarete a un MATERIAU et pas seulement une couleur — bordure, lueur,
+   degrade, balayage : c'est ce qui la rend reconnaissable au coin de l'oeil,
+   avant meme d'etre lue. Le detail du materiau vit dans la feuille de style,
+   la couleur ici. Tableau ORDONNE, l'index est la rarete. */
+export const RARITY_COLOR = ["#94a3b8", "#38bdf8", "#c084fc", "#fbbf24"];
+
+/* --- classes ---------------------------------------------------------------
+   Couleur d'IDENTITE et non de signal : elle dit « qui », pas « quoi ». Elle
+   vit ici parce que le salon, le tableau des scores et le rendu du personnage
+   la lisent tous les trois, et que `classes.js` doit rester une table de
+   reglages sans valeur d'affichage en dur. */
+export const CLASS_COLOR = {
+  tank:     "#7fd8e8",
+  soigneur: "#8ef0c8",
+  dps:      "#f4d35e",
+};
+
+/* --- combat ----------------------------------------------------------------
+   Ce qui vole et ce qui touche. Le projectile de soin est vert parce que le
+   vert dit « gain » : a la table, on doit voir sans demander que le soigneur
+   ne fait plus de degats. */
+export const COMBAT = {
+  bullet:     "#f4d35e",          // tir des joueurs
+  bulletHeal: CLASS_COLOR.soigneur, // tir du soigneur en mode soin
+  shot:       "#ff9d4d",          // tir ennemi
+  flash:      "#ffffff",          // eclair d'impact, silhouette blanche
+  downed:     "#4a5568",          // joueur a terre
+};
+
+/* --- monstres --------------------------------------------------------------
+   Teintes d'IDENTITE, une par type : c'est a quoi on reconnait ce qui arrive.
+   `TINT` est un tableau ORDONNE dont l'index est le type d'ennemi, comme
+   `ENEMY_TYPES` — ne jamais inserer au milieu.
+
+   La table est structuree par MENACE et non par gout : la masse recule
+   visuellement, la vitesse est chaude et saturee, le poids est sombre. Le
+   violet du tireur le sort enfin du tas de rouges — c'est le type le plus
+   dangereux a ignorer, et il y etait noye.
+
+   Une SEULE teinte par type : les cinq valeurs qui donnent son volume au sprite
+   (ombre, base, lumiere, accent, contour) sont derivees par `ramp()`. Ecrire
+   les cinq a la main pour cinq types, c'etait vingt-cinq valeurs a garder
+   coherentes — et un decalage de teinte dans l'ombre qu'on finit par oublier. */
+export const ENEMY = {
+  TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899"],
+
+  // Rang d'elite : or. Retardataire : halo froid — il ne se defend pas, il fuit.
+  elite:      "#ffd76e",
+  straggler:  "#7fd8e8",
+  base:       "#e05263",   // teinte de repli d'un type inconnu
+};
+
+/* --- zones de degats -------------------------------------------------------
+   Gamme de rouges PROPRE aux zones, distincte de celle du boss : une annonce au
+   sol et une barre de boss ne doivent jamais se confondre, et les zones se
+   superposent entre elles — d'ou un rouge d'annonce, un rouge de remplissage
+   plus dense, et un liseré violet qui n'ajoute QUE l'information de duree. Le
+   lot 4 les retouchera contre la grammaire ; elles sont ici pour qu'il n'ait
+   plus a les chercher dans le code de rendu. */
+export const ZONE = {
+  imminent: "#ff3c5a",   // annonce sur le point de resoudre
+  edge:     "#ff5a78",   // contour dilate d'une zone persistante
+  fill:     "#d62850",   // remplissage
+  blast:    "#ff788c",   // souffle a la detonation
+  dying:    "#ffbecd",   // trois dernieres secondes, clignotement
+  persist:  "#b282ff",   // lisere de duree
+};
+
+/* Murs de verrouillage. Ils BLOQUENT et ne blessent pas : d'ou une teinte
+   franchement etrangere a tout ce qui explose. */
+export const WALL = { fill: "#7896ff", edge: "#aac3ff" };
+
+/* --- boss ------------------------------------------------------------------
+   Le boss garde sa propre gamme de rouges : c'est la seule entite du jeu assez
+   grande pour porter un degrade, et sa barre doit se distinguer de tout le
+   reste de l'ecran au premier coup d'oeil. Le Jumeau bleu est l'exception qui
+   dit « il y en a deux ». */
+export const BOSS = {
+  skin:     "#ff4d6d",
+  skinDark: "#8e1230",
+  edge:     "#5c0b1c",
+  twin:     "#9fb4ff",
+  twinDark: "#2a3a7a",
+  twinEdge: "#1b2450",
+  maw:      "#2a0410",   // gueule
+  eye:      "#ffe08a",
+
+  barLow:   "#ff8fa3",   // texte et jauges de barre de boss
+  barWarn:  "#ffd7de",   // annonce imminente : presque blanc
+  barRing:  "#ffb3c1",
+  barDeep:  "#7a0f26",   // pied du degrade de la barre
+  barEmpty: "#783c4b",   // pastille d'une barre deja brisee
+  ult:      "#a97bff",   // jauge d'ultime : violet, ca s'accumule
+  ultSoft:  "#c8b4ff",
+  crack:    "#ffdc78",   // fissures qui s'ouvrent avec les degats
+};
+
+/* --- bonus au sol ----------------------------------------------------------
+   Une couleur par bonus. Elles ne suivent pas la grammaire de signal : un
+   bonus n'est ni un danger ni une consigne, c'est un objet qu'on identifie de
+   loin, et sa teinte sert a le reconnaitre parmi douze autres au sol. */
+export const POWERUP_COLOR = {
+  heal:     "#6fe3a0",
+  damage:   "#f4d35e",
+  rate:     "#5ab6f0",
+  double:   "#d98cf0",
+  shield:   "#7fd8e8",
+  slow:     "#9fb4ff",
+  pierce:   "#ff9d4d",
+  nova:     "#ff6b8a",
+  beacon:   "#8ef0c8",
+  turret:   "#c8d24a",
+  ricochet: "#66e0d8",
+  // Teinte proche du soin mais distincte : c'est un sous-produit de la Recolte,
+  // pas le vrai bonus de soin, et les deux peuvent trainer au sol en meme temps.
+  fragment: "#bfe36a",
+  // Blanc bleute, la seule teinte qui ne soit prise par aucun etat : c'est le
+  // bonus qui les efface, il ne doit ressembler a aucun d'eux.
+  purification: "#e6f2ff",
+};
+
+/* --- effets possedes -------------------------------------------------------
+   La bande d'icones du HUD et les effets dessines autour du personnage lisent
+   la meme table : une carte doit avoir la meme couleur dans le bandeau et dans
+   l'arene, sinon la bande ne sert a rien. */
+export const EFFECT_COLOR = {
+  orbiteurs:     "#d98cf0",
+  givre:         "#9acdff",
+  drone:         "#66e0d8",
+  essaim:        "#f4d35e",
+  pulsar:        "#ff6b8a",
+  bouclierRegen: "#7fd8e8",
+  vampirisme:    "#ff8fa3",
+  vif_argent:    "#9acdff",
+};
+
+/* --- entites posees par les joueurs --------------------------------------- */
+export const OWNED = {
+  droneAtk:   "#7fd0f0",
+  droneHeal:  "#f0a15f",
+  orphan:     "#9aa4c0",   // proprietaire deconnecte : gris, il n'appartient plus
+  bomb:       "#ff9d4d",
+  bulwarkArc: "#b4f0fa",   // arc de duree restante du rempart
+};
+
+/* --- effets ponctuels ------------------------------------------------------
+   Un `kind` d'effet, une paire de teintes : le corps de l'onde et son liseré
+   clair. Les familles sont VOULUES — chaud pour tout ce qui explose, froid pour
+   les ondes de zone, vert pour ce qui soigne, dore pour ce qui recompense. Le
+   joueur n'a jamais a savoir quelle carte a produit l'onde ; il doit savoir en
+   un dixieme de seconde si elle lui veut du bien. */
+export const FX = {
+  flash:        "#ffffff",   // voile et halo blancs
+  veil:         "#fff0f5",   // voile plein ecran des evenements de boss
+  ricochet:     "#66e0d8",
+  ricochetCore: "#c8fffa",
+  beacon:       CLASS_COLOR.soigneur,
+  beaconSoft:   "#dcfff0",
+  elite:        "#ffd76e",
+  blastFill:    "#ff8c3c",   // grenade
+  blastEdge:    "#ffb45a",
+  bombFill:     "#ff7828",   // bombe du tireur, plus dense que la grenade
+  bombEdge:     "#ffc878",
+  wave:         "#ebf5ff",   // onde blanche des cartes
+  waveSoft:     "#9fb4ff",
+  level:        "#f4d35e",   // montee de niveau
+  levelSoft:    "#fff5cd",
+  nova:         "#ff6b8a",   // nova, effet par defaut
+  novaSoft:     "#ffc8d2",
+  slow:         "#7896ff",   // voile de temps ralenti
+};
+
+/* --- marqueurs de mecanique ------------------------------------------------
+   Ils PORTENT la grammaire, ils ne l'illustrent pas : c'est le seul endroit du
+   jeu ou une couleur est une consigne, et ou une erreur de code couleur coute
+   une mort. */
+export const MARK = {
+  go:    SIGNAL.go,       // occuper, se regrouper
+  away:  SIGNAL.lethal,   // quitter
+  break: SIGNAL.warn,     // detruire
+  bait:  "#ff8f4d",       // appat : ni consigne ni danger, un objet a suivre
+  ok:    SIGNAL.gain,     // condition remplie
+};
+
+/* --- HUD -------------------------------------------------------------------
+   Seuils de barre de vie. Le passage a l'ambre puis au rouge se lit sans
+   compter les pixels, ce qu'une barre d'une seule couleur ne permet pas. */
+export const HUD = {
+  low:      "#ff6b8a",
+  mid:      "#f4b04a",
+  ready:    "#ffffff",   // competence disponible
+  notReady: "#565c6e",
+  xp:       "#f4d35e",
+};
+
+/* --- echelle typographique -------------------------------------------------
+   Sept tailles, et pas une de plus. Elle vit ICI et non dans `tokens.css` pour
+   la meme raison que les couleurs : le canvas ecrit du texte lui aussi, et deux
+   echelles — une en CSS, une en JavaScript — se seraient decalees d'un pixel
+   au premier reglage.
+
+   Le HUD dessine dans le canvas n'y est PAS encore aligne : il sort du canvas
+   au lot 4, et le realigner deux fois n'aurait servi a rien. */
+export const TYPE = [11, 13, 15, 19, 26, 34, 46];
+
+/* Teinte d'une couleur avec un alpha. Remplace les `rgba(...)` en dur : la
+   valeur reste dans la table, seule l'opacite varie au point d'appel.
+
+   Le triplet est mis en cache — la fonction est appelee des centaines de fois
+   par image, et reparser six caracteres hexadecimaux a chaque appel se voit au
+   profileur. L'alpha, lui, est continu : il n'y a rien a mettre en cache. */
+const RGB_CACHE = new Map();
+
+export function alpha(hex, a) {
+  let t = RGB_CACHE.get(hex);
+  if (!t) {
+    t = [parseInt(hex.slice(1, 3), 16),
+         parseInt(hex.slice(3, 5), 16),
+         parseInt(hex.slice(5, 7), 16)];
+    RGB_CACHE.set(hex, t);
+  }
+  return `rgba(${t[0]},${t[1]},${t[2]},${a})`;
+}
+
+/* --- rampes de valeurs -----------------------------------------------------
+   Le defaut des sprites generes au code est d'etre PLATS : un aplat, un
+   contour. Ce qui donne du volume, c'est une rampe — cinq valeurs derivees
+   d'une seule teinte de base.
+
+   Le DECALAGE DE TEINTE dans l'ombre et dans la lumiere, plutot qu'un simple
+   assombrissement, est ce qui distingue une palette dessinee d'un degrade
+   mecanique : une ombre pure n'existe pas, elle tire toujours vers une autre
+   couleur. C'est aussi la raison pour laquelle le contour n'est jamais noir —
+   un noir pur ecrase la teinte et rend les cinq types identiques de loin. */
+function hexToHsl(hex) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return [0, 0, l * 100];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h;
+  if (max === r)      h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else                h = (r - g) / d + 4;
+  return [(h * 60 + 360) % 360, s * 100, l * 100];
+}
+
+function hslToHex(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(100, s)) / 100;
+  l = Math.max(0, Math.min(100, l)) / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  const t = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+          : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return "#" + t.map(v => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("");
+}
+
+const RAMP_CACHE = new Map();
+
+export function ramp(hex) {
+  let r = RAMP_CACHE.get(hex);
+  if (r) return r;
+  const [h, s, l] = hexToHsl(hex);
+  /* Plancher de clarte. Sans lui, une teinte deja sombre — le bordeaux du tank
+     est a 30 % — produit un contour a zero, c'est-a-dire du noir pur : la
+     chose que la charte interdit, parce qu'un noir pur ecrase la teinte et
+     rend les cinq types identiques a moyenne distance. Le plancher garde la
+     teinte visible tout en laissant l'ecart de valeur faire son travail. */
+  const dark = (drop, floor) => hslToHex(h - 8, s + 10, Math.max(floor, l - drop));
+  r = {
+    ombre:   dark(28, 13),
+    base:    hex,
+    lumiere: hslToHex(h + 6,  s - 12, Math.max(l + 16, 34)),
+    accent:  hslToHex(h + 40, s + 20, Math.max(l + 30, 62)),  // yeux, plaques, points chauds
+    contour: hslToHex(h - 4,  s + 14, Math.max(l - 40, 8)),
+  };
+  RAMP_CACHE.set(hex, r);
+  return r;
+}
+
+/* Les variables CSS, posees sur `:root` par le client au chargement. C'est la
+   traduction de la table ci-dessus vers le DOM, et le seul sens autorise :
+   recopier ces valeurs dans une feuille de style les ferait diverger a la
+   premiere retouche. */
+export function cssVars() {
+  return {
+    "--bg-void":   SURFACE.void,
+    "--bg-arena":  SURFACE.arena,
+    "--bg-panel":  SURFACE.panel,
+    "--bg-raised": SURFACE.raised,
+    "--line":      SURFACE.line,
+    "--line-soft": SURFACE.lineSoft,
+
+    "--text":       TEXT.base,
+    "--text-dim":   TEXT.dim,
+    "--text-faint": TEXT.faint,
+
+    "--go":      SIGNAL.go,
+    "--warn":    SIGNAL.warn,
+    "--lethal":  SIGNAL.lethal,
+    "--ally":    SIGNAL.ally,
+    "--persist": SIGNAL.persist,
+    "--gain":    SIGNAL.gain,
+
+    "--commune":    RARITY_COLOR[0],
+    "--rare":       RARITY_COLOR[1],
+    "--epique":     RARITY_COLOR[2],
+    "--legendaire": RARITY_COLOR[3],
+
+    /* Couleurs d'IDENTITE de classe. Le salon les lisait deja ; le HUD en DOM
+       les lit maintenant aussi — barre de bouclier, pastilles de competence. */
+    "--cls-tank":     CLASS_COLOR.tank,
+    "--cls-soigneur": CLASS_COLOR.soigneur,
+    "--cls-dps":      CLASS_COLOR.dps,
+
+    /* La gamme du boss. Elle descend dans le DOM depuis que la barre de boss
+       est un element CSS et non plus un trace : c'est le seul element du HUD
+       qui a le droit d'etre voyant, et il porte un degrade. */
+    "--boss-low":      BOSS.barLow,
+    "--boss-warn":     BOSS.barWarn,
+    "--boss-deep":     BOSS.barDeep,
+    "--boss-empty":    BOSS.barEmpty,
+    "--boss-ult":      BOSS.ult,
+    "--boss-ult-soft": BOSS.ultSoft,
+    "--boss-eye":      BOSS.eye,
+
+    /* Seuils de barre de vie et jauge d'experience. */
+    "--hud-low": HUD.low,
+    "--hud-mid": HUD.mid,
+    "--xp":      HUD.xp,
+
+    "--downed": COMBAT.downed,
+
+    "--t-xs":  TYPE[0] + "px",
+    "--t-s":   TYPE[1] + "px",
+    "--t-m":   TYPE[2] + "px",
+    "--t-l":   TYPE[3] + "px",
+    "--t-xl":  TYPE[4] + "px",
+    "--t-2xl": TYPE[5] + "px",
+    "--t-3xl": TYPE[6] + "px",
+  };
+}
