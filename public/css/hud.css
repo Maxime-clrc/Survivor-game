@@ -552,6 +552,10 @@
 
 .dmg.hurt { font-size: var(--t-l); color: var(--lethal); }
 .dmg.heal { color: var(--gain); }
+/* Critique : un cran plus gros que le chiffre ordinaire, en ambre. La taille
+   fait autant que la couleur — le chiffre doit se distinguer au coin de l'oeil,
+   sans etre lu, et un daltonien doit s'en sortir. */
+.dmg.crit { font-size: var(--t-m); color: var(--warn); }
 .dmg.deal { color: var(--boss-eye); }
 
 @keyframes dmgRise {

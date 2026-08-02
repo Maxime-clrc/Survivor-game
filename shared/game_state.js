@@ -308,7 +308,12 @@ export const CFG = {
   BOSS_GROWTH: 0.06,
   BOSS_PHASE_CD_STEP: 0.09,  // le rythme se resserre a chaque barre brisee
   BOSS_PHASE_DAMAGE_STEP: 0.14,
-  BOSS_BREAK_PUSH: 260,      // souffle de rupture de barre
+  /* Souffle de rupture de barre. Il ne DEPLACE plus : il annonce et il blesse.
+     Un teleport de 260 px depassait le seuil de recalage de la prediction
+     locale (90 px), donc chaque changement de phase se voyait comme un
+     arrachement — et il arrivait 110 ms avant l'image qui l'explique. Le rayon
+     n'est plus qu'une taille d'onde a l'ecran. */
+  BOSS_BREAK_RADIUS: 572,
   BOSS_BREAK_DAMAGE: 18,
 
   ZONE_WARN: 1.4,
@@ -529,7 +534,30 @@ export function fullMods(cards, others, cls, wave = 1) {
   // Plus de terme de niveau : les PV max ne viennent que de la classe et des
   // cartes. C'est une perte de 88 PV en fin de manche, que les cartes
   // defensives doivent reprendre a leur compte.
-  let maxHp = def.hp + mods.maxHpBonus;
+  let maxHp = (def.hp + mods.maxHpBonus) * (1 + mods.maxHpRatio);
+
+  /* CONVERSIONS. Les deux se calculent sur les valeurs de BASE, relevees avant
+     la moindre conversion, et jamais l'une sur le resultat de l'autre : sinon
+     « Blindage offensif » lit des PV deja gonfles par « Fureur defensive », qui
+     lit des degats deja gonfles par le premier, et le chargement diverge un peu
+     plus a chaque recalcul — c'est-a-dire a chaque carte prise. C'est le seul
+     endroit du depot ou l'ordre d'ecriture change le resultat, d'ou les deux
+     copies. */
+  const baseDamageMul = mods.damageMul;
+  const baseHp = maxHp;
+  if (mods.hpToDamage > 0) {
+    mods.damageMul += mods.hpToDamage * (baseHp / CARD_CFG.CONVERT_HP_REF);
+  }
+  if (mods.damageToHp > 0) {
+    maxHp += mods.damageToHp * baseDamageMul * CARD_CFG.CONVERT_DMG_REF;
+  }
+  /* « Pacte de fer ». Le bouclier reste dans `shieldPool` — c'est lui qui donne
+     sa valeur a la carte — mais il ne se remplit plus qu'une fois : la regle
+     vit dans `_players`, la ou la regeneration est ecrite. */
+  if (mods.shieldToDamage > 0 && mods.shieldPool > 0) {
+    mods.damageMul += CARD_CFG.PACTE_STEP * (mods.shieldPool / CARD_CFG.PACTE_PER);
+  }
+
   if (mods.hpCap > 0) maxHp = Math.min(maxHp, mods.hpCap);
   return { mods, maxHp: Math.round(maxHp) };
 }
@@ -619,6 +647,13 @@ export class GameState {
        VRAIMENT le sien. La somme par instantane plutot que par coup : a huit
        canons et 0,05 s de cadence, un chiffre par impact serait illisible. */
     this.bossDmg = new Map();      // playerId -> degats cumules
+    this.bossCrit = new Map();     // idem, part critique : le chiffre change de
+                                   // couleur, il ne change pas de nature
+    /* Le dernier coup resolu par `_damage` etait-il critique. Relu par le SEUL
+       `_bulletHitEnemy`, immediatement apres l'appel — voir le commentaire du
+       tirage. Un champ d'instance et non un retour de fonction : `_damage` a
+       une trentaine d'appelants dont aucun ne veut savoir. */
+    this.lastCrit = false;
 
     /* Pause de choix de cartes. GameState ne connait ni minuteur de salon ni
        reseau : il leve le drapeau a la fin d'une vague s'il reste des niveaux
@@ -748,6 +783,24 @@ export class GameState {
       purges: 0,             // pour la campagne de mesure
 
       frenzyStacks: 0,
+
+      /* --- momentum (lot 6) --------------------------------------------------
+         `power` est le multiplicateur de degats de l'INSTANT : elan, meute,
+         carnage, dernier souffle. Il ne peut pas vivre dans `mods`, qui n'est
+         recalcule qu'a la prise d'une carte, et il est releve une fois par tick
+         plutot qu'a chaque coup — la meute demande de compter les ennemis
+         proches, ce qui ne se paie pas quatre cents fois par seconde.
+         Applique dans `_damage`, au point de passage unique : une nouvelle
+         source de degats en herite sans qu'on y pense, exactement comme le vol
+         de vie. Consequence assumee : `_playerPower` ne le voit pas, donc la
+         pression des vagues ne monte pas avec un bonus transitoire — c'est le
+         bon choix, la difficulte suivrait sinon un pic de quatre secondes. */
+      power: 1,
+      elanT: 0,            // secondes sans avoir ete touche
+      rageStacks: 0,       // « Carnage »
+      rageT: 0,
+      pacteUsed: 0,        // « Pacte de fer » : le bouclier a deja ete donne
+
       selfReviveUsed: 0,
       commonStreak: 0,     // boss consecutifs sans mieux qu'une commune
       damageDealt: 0,      // pour que la contribution defensive se voie ailleurs
@@ -978,7 +1031,7 @@ export class GameState {
           p.cd1 = Math.max(0, p.cd1 - dt);
           if (p.cd1 <= 0) {
             p.bombStock++;
-            if (p.bombStock < stockMax) p.cd1 = SKILL_CFG.DPS_BOMB_CD;
+            if (p.bombStock < stockMax) p.cd1 = SKILL_CFG.DPS_BOMB_CD * p.mods.skillCdMul;
           }
         }
       } else {
@@ -1020,13 +1073,27 @@ export class GameState {
         T.frenzy -= dt;
         if (T.frenzy <= 0) p.frenzyStacks = 0;
       }
+      if (p.rageStacks > 0) {
+        p.rageT -= dt;
+        // Meme modele que la frenesie : les cumuls tombent d'un bloc a
+        // l'echeance et non un par un. Une decroissance par cumul demandait un
+        // minuteur par cumul, pour un effet que personne ne distingue.
+        if (p.rageT <= 0) p.rageStacks = 0;
+      }
+      p.elanT += dt;
+      this._momentum(p);
 
-      // Le bouclier des cartes se remplit d'un coup apres le delai : une
-      // regeneration continue transformait chaque accrochage en attente, alors
-      // que le seuil recompense le fait de decrocher completement.
+      /* Le bouclier des cartes se remplit d'un coup apres le delai : une
+         regeneration continue transformait chaque accrochage en attente, alors
+         que le seuil recompense le fait de decrocher completement.
+         « Pacte de fer » coupe ce remplissage — c'est tout le contrat de la
+         carte — mais laisse le PREMIER : un bouclier qui n'existe jamais ne se
+         perd pas, il ne serait qu'un multiplicateur de degats deguise. */
       if (p.mods.shieldPool > 0 && !p.downed
-          && T.shieldRegen <= 0 && p.shield < p.mods.shieldPool) {
+          && T.shieldRegen <= 0 && p.shield < p.mods.shieldPool
+          && !(p.mods.noShieldRegen && p.pacteUsed)) {
         p.shield = p.mods.shieldPool;
+        if (p.mods.noShieldRegen) p.pacteUsed = 1;
       }
 
       /* « Constitution » : la seule regeneration de PV du jeu qui ne demande
@@ -1163,6 +1230,11 @@ export class GameState {
         ? SKILL_CFG.HEAL_MODE_INTERVAL
         : CFG.FIRE_INTERVAL * p.mods.fireIntervalMul;
       if (p.frenzyStacks > 0) interval /= 1 + p.frenzyStacks * CARD_CFG.FRENZY_STEP;
+      // « Adrenaline » : en division comme tous les autres bonus de cadence.
+      // Additionner les reductions donne un intervalle nul des la troisieme.
+      if (p.mods.lowHpRate > 0 && p.hp <= p.maxHp * CARD_CFG.ADRENALINE_HP) {
+        interval /= 1 + p.mods.lowHpRate;
+      }
       if (p.buffRate > 0) interval *= CFG.BUFF_RATE_MUL;
       // Surcharge et bascule vive : deux bonus de cadence de classe, tous deux
       // en division comme la frenesie — additionner les reductions donnait un
@@ -1283,7 +1355,10 @@ export class GameState {
     switch (classAt(p.cls).id) {
       case "tank": {
         if (p.cd1 > 0) return;
-        p.cd1 = SKILL_CFG.TANK_BULWARK_CD;
+        /* `skillCdMul` s'applique a l'affectation de chaque recharge de CLASSE
+           et nulle part ailleurs : l'esquive a deja sa famille (« Celerite »),
+           et cumuler les deux sur le meme bouton l'aurait rendue permanente. */
+        p.cd1 = SKILL_CFG.TANK_BULWARK_CD * p.mods.skillCdMul;
         p.skillUses[0]++;
         const r = SKILL_CFG.TANK_BULWARK_RADIUS * p.mods.bulwarkRadiusMul;
         const life = SKILL_CFG.TANK_BULWARK_TIME + p.mods.bulwarkTime;
@@ -1316,7 +1391,7 @@ export class GameState {
           // suivante au lieu d'attendre la fin de l'intervalle en cours.
           p.fireCd = 0;
         } else {
-          p.healSwapCd = SKILL_CFG.HEAL_MODE_SWAP_CD;
+          p.healSwapCd = SKILL_CFG.HEAL_MODE_SWAP_CD * p.mods.skillCdMul;
         }
         return;
       }
@@ -1327,7 +1402,7 @@ export class GameState {
         // moment ou la vague se regroupe.
         if (p.bombStock <= 0) return;
         p.bombStock--;
-        if (p.cd1 <= 0) p.cd1 = SKILL_CFG.DPS_BOMB_CD;
+        if (p.cd1 <= 0) p.cd1 = SKILL_CFG.DPS_BOMB_CD * p.mods.skillCdMul;
         p.skillUses[0]++;
         /* La bombe est VISEE : elle atterrit sous le reticule et non a une
            distance fixe. L'ancienne version partait a vitesse et delai
@@ -1368,7 +1443,7 @@ export class GameState {
     switch (classAt(p.cls).id) {
       case "tank": {
         const dur = SKILL_CFG.TANK_TAUNT_TIME + p.mods.tauntTime;
-        p.cd2 = Math.max(5, SKILL_CFG.TANK_TAUNT_CD + p.mods.tauntCd);
+        p.cd2 = Math.max(5, (SKILL_CFG.TANK_TAUNT_CD + p.mods.tauntCd) * p.mods.skillCdMul);
         p.skillUses[1]++;
         p.tauntT = dur;
         p.tauntInvuln = SKILL_CFG.TANK_TAUNT_INVULN;
@@ -1385,7 +1460,7 @@ export class GameState {
 
       case "soigneur": {
         const r = SKILL_CFG.HEAL_WAVE_RADIUS * p.mods.healWaveRadiusMul;
-        p.cd2 = SKILL_CFG.HEAL_WAVE_CD;
+        p.cd2 = SKILL_CFG.HEAL_WAVE_CD * p.mods.skillCdMul;
         p.skillUses[1]++;
         // Instantanee, contrairement au rempart du tank qui se prepare : c'est
         // la competence de reaction du soigneur, elle doit repondre au coup
@@ -1407,7 +1482,7 @@ export class GameState {
       }
 
       default: {
-        p.cd2 = SKILL_CFG.DPS_OVERDRIVE_CD;
+        p.cd2 = SKILL_CFG.DPS_OVERDRIVE_CD * p.mods.skillCdMul;
         p.skillUses[1]++;
         p.odT = SKILL_CFG.DPS_OVERDRIVE_TIME + p.mods.overdriveTime;
         // On ne repart pas de zero si un reliquat de la fenetre precedente
@@ -1607,11 +1682,15 @@ export class GameState {
     const owner = this.players.get(bo.owner);
     const mul = owner ? owner.mods.damageMul : 1;
     const dmg = SKILL_CFG.DPS_BOMB_DAMAGE * mul;
-    const r = SKILL_CFG.DPS_BOMB_RADIUS;
+    const r = SKILL_CFG.DPS_BOMB_RADIUS * (owner ? owner.mods.areaMul : 1);
 
     this.effects.push({
       id: this._nextId++, x: bo.x, y: bo.y, r, life: 0.4, max: 0.4, kind: 12,
     });
+    // « Singularite » : l'aspiration est posee AVANT les degats, sinon elle
+    // deplacerait des ennemis deja morts et le regroupement ne se verrait que
+    // sur les survivants du bord.
+    this._areaPull(bo.x, bo.y, r, bo.owner);
 
     const near = [];
     for (const e of this.enemies) {
@@ -1741,7 +1820,29 @@ export class GameState {
        reprendra cet etat avec son icone et sa purge. */
     if (target.vulnUntil > this.time) amount *= CARD_CFG.VULNERABLE_MUL;
     const owner = this.players.get(ownerId);
+    /* COUP CRITIQUE. Le tirage se fait ICI et nulle part ailleurs, pour la meme
+       raison que le vol de vie : une nova, une lame orbitale et une balle
+       critiquent donc toutes les trois sans qu'aucune ne le sache. Un degat
+       CONTINU en est exclu — une brulure qui tire soixante fois par seconde
+       critiquerait a tous les coups en moyenne, et le critique cesserait d'etre
+       un evenement.
+       Le drapeau est relu juste apres l'appel par `_bulletHitEnemy` (Sentence
+       capitale : les critiques traversent). C'est un retour de fonction
+       deguise, et c'en est un a dessein : `_damage` est appele par une trentaine
+       d'endroits dont aucun ne veut savoir ce qui s'est passe. */
+    this.lastCrit = false;
     if (owner) {
+      amount *= owner.power;
+      if (!overTime && Math.random() < owner.mods.critChance) {
+        this.lastCrit = true;
+        amount *= owner.mods.critMul;
+        /* « Sentence capitale ». La Vulnerabilite cote ennemi est la meme que
+           celle du Detonateur : une echeance absolue sur la cible, lue en haut
+           de cette methode. Un critique qui prepare le coup suivant, c'est ce
+           qui fait de l'axe une chaine plutot qu'un multiplicateur. */
+        if (owner.mods.critVuln) target.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
+      }
+
       /* « Catalyseur ». La condition porte sur la CIBLE et non sur le
          chargement : elle ne peut donc pas se calculer dans `computeMods`, elle
          se lit ici. `enemyStatusMask` est la seule definition de « cette cible
@@ -1757,6 +1858,12 @@ export class GameState {
       // le vol de vie juste en dessous.
       if (target === this.boss) {
         this.bossDmg.set(ownerId, (this.bossDmg.get(ownerId) ?? 0) + amount);
+        // Part critique du cumul, pour que le chiffre flottant se distingue.
+        // Un instantane agrege plusieurs touches : le client ne demande donc
+        // pas « ce coup etait-il critique » mais « ce paquet en contient-il un ».
+        if (this.lastCrit) {
+          this.bossCrit.set(ownerId, (this.bossCrit.get(ownerId) ?? 0) + amount);
+        }
       }
       if (owner.mods.lifesteal > 0) this._lifesteal(owner, amount * owner.mods.lifesteal);
     }
@@ -1798,11 +1905,72 @@ export class GameState {
       }
     }
 
+    /* EXECUTION (« Achevement », « Moisson »). Elle repond a la sensation
+       d'ennemis-eponges de fin de manche et se marie avec les degats de zone,
+       qui laissent des survivants a bas PV.
+       Jamais sur le boss ni sur une structure de mecanique : un seuil applique
+       a une reserve de vie de boss supprimerait une barre entiere, c'est-a-dire
+       la moitie du combat que le lot 4 a passe son temps a rendre lisible.
+       Le test se fait APRES les degats et sur les PV MAX de la cible, pas sur
+       ceux du type : un elite a plus de vie et doit donc mourir plus tard. */
     if (target === this.boss) {
       if (target.hp <= 0) this._killBoss(ownerId);
-    } else if (target.hp <= 0) {
-      this._killEnemy(target, ownerId);
+      return;
     }
+    if (target.hp > 0 && owner && owner.mods.execThreshold > 0
+        && target.maxHp > 0 && target.hp <= target.maxHp * owner.mods.execThreshold) {
+      target.hp = 0;
+      if (owner.mods.execHeal > 0 && !owner.downed) {
+        owner.hp = Math.min(owner.maxHp, owner.hp + owner.mods.execHeal);
+      }
+    }
+    if (target.hp <= 0) {
+      /* La mort RENTRE dans `_damage` : l'onde de mort en declenche une autre,
+         et elle ecraserait le drapeau de critique que `_bulletHitEnemy` va lire
+         juste apres. On le rend a sa valeur — sinon un critique FATAL, le seul
+         cas ou l'on veut vraiment que la balle traverse, perdait sa
+         perforation. */
+      const crit = this.lastCrit;
+      this._killEnemy(target, ownerId);
+      this.lastCrit = crit;
+    }
+  }
+
+  /* MULTIPLICATEUR DE L'INSTANT. Quatre cartes dont la valeur ne depend pas du
+     chargement mais de la situation : elan (temps sans etre touche), meute
+     (ennemis proches), carnage (kills recents), dernier souffle (PV bas).
+     Releve une fois par tick et par joueur, jamais au coup : le comptage de la
+     meute est une boucle sur les 220 ennemis, et il se paierait quatre cents
+     fois par seconde a la place.
+     Les quatre s'ADDITIONNENT entre elles et multiplient le reste : quatre
+     bonus multiplicatifs sur un chargement deja a x2,4 auraient donne des
+     pointes a x6 sans qu'aucune carte n'annonce ce chiffre. */
+  _momentum(p) {
+    const m = p.mods;
+    if (m.elanStep === 0 && m.packStep === 0 && m.ragePerKill === 0
+        && m.lowHpDamage === 0) {
+      // Chemin rapide : aucun de ces quatre cartes, donc rien a compter. C'est
+      // le cas de la quasi-totalite des joueurs pendant la quasi-totalite d'une
+      // manche, et la boucle de meute est le seul cout non trivial du lot.
+      p.power = 1;
+      return;
+    }
+    let bonus = 0;
+    if (m.elanStep > 0) bonus += Math.min(m.elanMax, m.elanStep * p.elanT);
+    if (m.packStep > 0) {
+      let near = 0;
+      const r2 = CARD_CFG.PACK_RADIUS ** 2;
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= r2) near++;
+      }
+      bonus += Math.min(m.packMax, m.packStep * near);
+    }
+    if (p.rageStacks > 0) bonus += m.ragePerKill * p.rageStacks;
+    if (m.lowHpDamage > 0 && p.hp <= p.maxHp * CARD_CFG.SOUFFLE_HP) {
+      bonus += m.lowHpDamage;
+    }
+    p.power = 1 + bonus;
   }
 
   /* Le vol de vie se paie sur un budget par seconde plutot que par un plafond
@@ -1816,15 +1984,44 @@ export class GameState {
     p.hp = Math.min(p.maxHp, p.hp + heal);
   }
 
+  /* « Singularite ». Un deplacement SEC vers le centre et non une force : les
+     ennemis n'ont pas de vitesse propre a laquelle ajouter quoi que ce soit, et
+     une attraction etalee dans le temps aurait demande un champ de plus sur
+     chacun des 200 ennemis pour un effet qui dure une image.
+     Le deplacement est borne par la distance restante — un ennemi au centre ne
+     traverse pas de l'autre cote — et suivi de la separation d'avec les joueurs,
+     sans laquelle l'aspiration deposait la horde a l'interieur du disque de
+     16 px ou une balle nait deja au-dela de sa cible. */
+  _areaPull(x, y, r, ownerId) {
+    const owner = this.players.get(ownerId);
+    if (!owner || !owner.mods.areaPull) return;
+    const r2 = r * r;
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      const dx = x - e.x, dy = y - e.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r2) continue;
+      const d = Math.sqrt(d2);
+      if (d < 1) continue;
+      const k = Math.min(CARD_CFG.SINGULARITE_PULL, d) / d;
+      e.x += dx * k;
+      e.y += dy * k;
+    }
+    this._separateFromPlayers();
+  }
+
   /* Explosion de grenade. Elle touche aussi le boss : une arme qui ne sert a
      rien pendant le seul moment ou le combat se decide n'est pas une arme. */
   _explode(x, y, dmg, ownerId) {
+    const owner = this.players.get(ownerId);
+    const r = CARD_CFG.GRENADE_RADIUS * (owner ? owner.mods.areaMul : 1);
     this.effects.push({
       id: this._nextId++,
-      x, y, r: CARD_CFG.GRENADE_RADIUS, life: 0.35, max: 0.35, kind: 7,
+      x, y, r, life: 0.35, max: 0.35, kind: 7,
     });
 
-    const r2 = CARD_CFG.GRENADE_RADIUS ** 2;
+    this._areaPull(x, y, r, ownerId);
+    const r2 = r * r;
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) this._damage(e, dmg, ownerId);
@@ -1832,14 +2029,18 @@ export class GameState {
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) this._damage(boss, dmg, ownerId);
     }
-    this._hitMarks(x, y, CARD_CFG.GRENADE_RADIUS, dmg);
+    this._hitMarks(x, y, r, dmg);
     this.enemies = this.enemies.filter(e => e.hp > 0);
   }
 
   /* Onde blanche : pulsar, onde de mort et riposte partagent la meme forme.
      Trois effets distincts pour trois cartes auraient coute trois `kind` de
-     plus au client sans rien apprendre au joueur. */
+     plus au client sans rien apprendre au joueur.
+     `areaMul` s'applique ICI et pas chez les trois appelants, pour la meme
+     raison : c'est le point de passage unique de l'onde. */
   _wave(x, y, radius, dmg, ownerId) {
+    const owner = this.players.get(ownerId);
+    if (owner) radius *= owner.mods.areaMul;
     this.effects.push({
       id: this._nextId++,
       x, y, r: radius, life: 0.35, max: 0.35, kind: 8,
@@ -2510,10 +2711,13 @@ export class GameState {
 
   /* Onde de choc : bouton panique. Repousse et blesse tout autour du joueur. */
   _nova(p) {
+    // Un seul rayon pour l'effet dessine, les degats, la poussee et le balayage
+    // des projectiles : quatre valeurs a garder d'accord, donc une variable.
+    const R = CFG.NOVA_RADIUS * p.mods.areaMul;
     this.effects.push({
       id: this._nextId++,
       x: p.x, y: p.y,
-      r: CFG.NOVA_RADIUS,
+      r: R,
       life: 0.45, max: 0.45,
       kind: 0,
     });
@@ -2521,7 +2725,7 @@ export class GameState {
     for (const e of this.enemies) {
       const dx = e.x - p.x, dy = e.y - p.y;
       const d = Math.hypot(dx, dy);
-      if (d > CFG.NOVA_RADIUS) continue;
+      if (d > R) continue;
       const ux = d > 0.01 ? dx / d : 1, uy = d > 0.01 ? dy / d : 0;
       e.x += ux * CFG.NOVA_PUSH;
       e.y += uy * CFG.NOVA_PUSH;
@@ -2531,13 +2735,13 @@ export class GameState {
 
     for (const boss of this._bossTargets()) {
       const d = Math.hypot(boss.x - p.x, boss.y - p.y);
-      if (d <= CFG.NOVA_RADIUS) this._damage(boss, CFG.NOVA_BOSS_DAMAGE, p.id);
+      if (d <= R) this._damage(boss, CFG.NOVA_BOSS_DAMAGE, p.id);
     }
 
     // L'onde balaie aussi les projectiles ennemis : c'est ce qui en fait un
     // vrai recours quand l'ecran est sature.
     this.shots = this.shots.filter(sh =>
-      (sh.x - p.x) ** 2 + (sh.y - p.y) ** 2 > CFG.NOVA_RADIUS ** 2);
+      (sh.x - p.x) ** 2 + (sh.y - p.y) ** 2 > R * R);
   }
 
   _effects(dt) {
@@ -2904,10 +3108,15 @@ export class GameState {
     b.y = Math.min(Math.max(b.y, B.y0 - 80), B.y1 + 80);
   }
 
-  /* Rupture de barre. C'est le moment ou le combat change de tete : souffle
-     qui repousse, projectiles effaces, une mecanique de plus au repertoire.
+  /* Rupture de barre. C'est le moment ou le combat change de tete : souffle,
+     projectiles effaces, une mecanique de plus au repertoire.
      On boucle plutot que d'incrementer une fois, parce qu'une nova ou une
-     equipe de quatre peut traverser deux barres dans la meme image. */
+     equipe de quatre peut traverser deux barres dans la meme image.
+
+     Le souffle ne DEPLACE pas les joueurs : un joueur qu'on repousse pendant
+     qu'il esquive une zone se fait tuer par un evenement qu'il n'a aucun moyen
+     de jouer, et le recalage sec de la prediction rendait le tout illisible. Il
+     reste lisible et couteux — onde, respiration du boss, degats. */
   _bossBars(b) {
     const broken = Math.min(b.bars - 1, Math.floor((b.maxHp - b.hp) / b.barHp));
     while (b.phase < broken) {
@@ -2918,20 +3127,13 @@ export class GameState {
       this.effects.push({
         id: this._nextId++,
         x: b.x, y: b.y,
-        r: CFG.BOSS_BREAK_PUSH * 2.2,
+        r: CFG.BOSS_BREAK_RADIUS,
         life: 0.8, max: 0.8,
         kind: 6,
       });
 
       for (const p of this.players.values()) {
         if (p.downed) continue;
-        const dx = p.x - b.x, dy = p.y - b.y;
-        const d = Math.hypot(dx, dy) || 1;
-        p.x += (dx / d) * CFG.BOSS_BREAK_PUSH;
-        p.y += (dy / d) * CFG.BOSS_BREAK_PUSH;
-        // Le souffle repousse DANS les limites courantes : pendant une
-        // constriction, il projetait sinon droit dans la couronne mortelle.
-        this._clampToBounds(p, CFG.PLAYER_RADIUS);
         this._hurt(p, CFG.BOSS_BREAK_DAMAGE);
       }
     }
@@ -3927,7 +4129,20 @@ export class GameState {
        compter plein lui en donnerait pour des degats qu'on ne fait pas la
        plupart du temps. */
     const catalyseur = 1 + m.catalyseur * 0.5;
-    return m.damageMul * barrels * catalyseur * (1 + m.echoChance) / m.fireIntervalMul;
+    /* CRITIQUE. C'est une source de degats PERMANENTE, donc elle doit figurer
+       ici : l'oubli de `barrelDamageMul` avait triple la duree du troisieme
+       combat de boss, et une build critique complete (+38 % de chance, x2,9)
+       vaut +72 % de degats reels — le meme ordre de grandeur.
+       Valeur exacte et non estimee : l'esperance d'un tirage a deux issues est
+       `1 + chance x (multiplicateur - 1)`, et le critique s'applique a tout ce
+       qui passe par `_damage`, donc a tout ce que cette formule mesure deja.
+       Le momentum (elan, meute, carnage, dernier souffle) n'y est PAS : il est
+       transitoire par construction, et indexer la pression des vagues sur un
+       pic de quatre secondes ferait monter la difficulte au moment precis ou le
+       joueur vient de gagner son bonus. */
+    const crit = 1 + m.critChance * (m.critMul - 1);
+    return m.damageMul * barrels * catalyseur * crit
+      * (1 + m.echoChance) / m.fireIntervalMul;
   }
 
   /* Puissance moyenne de l'equipe. Elle calait deja les PV du boss ; elle cale
@@ -4718,6 +4933,10 @@ export class GameState {
     const vuln = p.statuses.get(STATUS_VULN);
     if (vuln) amount *= 1 + STATUS_CFG.VULN_PER_STACK * vuln.stacks;
     if (p.tauntT > 0) amount *= SKILL_CFG.TANK_TAUNT_REDUCTION;
+    /* « Elan » : le compteur repart de zero ICI, au point de passage unique de
+       tout ce qui blesse un joueur. Y compris pour un degat continu — une
+       brulure qui laisserait l'elan monter viderait la carte de son sens. */
+    p.elanT = 0;
     if (!overTime) p.hitCd = CFG.PLAYER_HIT_CD;
 
     /* « Represailles ». Elle recompense de RESTER dans la provocation une fois
@@ -4837,6 +5056,14 @@ export class GameState {
     }
 
     this._damage(e, b.dmg, b.owner, b.burn);
+    /* « Sentence capitale » : un critique traverse. Le drapeau est relu ICI,
+       immediatement apres l'appel, parce que `_damage` ne rend rien — il est
+       appele par une trentaine d'endroits dont aucun ne veut savoir ce qui
+       s'est passe, et lui faire rendre un objet aurait coute une allocation par
+       impact, soit quelques centaines par seconde en fin de manche.
+       La charge de perforation n'est pas decomptee : c'est bien le critique qui
+       paie le passage, pas la balle. */
+    const critPierce = this.lastCrit && this.players.get(b.owner)?.mods.critVuln;
     // La chaine de foudre part de l'impact, le ricochet du kill : deux
     // cartes qui se ressemblent a l'ecran mais pas dans la main.
     if (b.arc > 0 && Math.random() < b.arc) this._arc(e, b.dmg, b.owner);
@@ -4856,6 +5083,13 @@ export class GameState {
     if (b.pierce > 0) {
       b.pierce--;
       if (b.hits) b.hits.add(e.id); else b.hit = e.id;
+      return false;
+    }
+    if (critPierce) {
+      // Le Set n'existe que sur une balle deja perforante : sans lui, la balle
+      // reste superposee a sa victime et la retouche a l'image suivante.
+      b.hits ??= new Set();
+      b.hits.add(e.id);
       return false;
     }
     return true;
@@ -5140,6 +5374,27 @@ export class GameState {
         const cap = Math.round(CARD_CFG.FRENZY_MAX / CARD_CFG.FRENZY_STEP);
         owner.frenzyStacks = Math.min(cap, owner.frenzyStacks + 1);
         owner.timers.frenzy = CARD_CFG.FRENZY_DECAY;
+      }
+
+      /* Trois cartes du lot 6 branchees sur le kill, toutes ici : le point de
+         passage unique de la mort d'un ennemi, comme `_damage` l'est de la
+         blessure. « Carnage » relance sa fenetre a chaque kill au lieu de
+         decompter chaque cumul separement — meme modele que la frenesie
+         juste au-dessus. */
+      if (owner.mods.ragePerKill > 0) {
+        owner.rageStacks = Math.min(CARD_CFG.RAGE_MAX, owner.rageStacks + 1);
+        owner.rageT = CARD_CFG.RAGE_TIME;
+      }
+      if (owner.mods.hpPerKill > 0 && !owner.downed) {
+        owner.hp = Math.min(owner.maxHp, owner.hp + owner.mods.hpPerKill);
+      }
+      /* « Flux continu ». Il lie les competences au rythme de la vague : la
+         recharge ne descend plus toute seule dans le vide, elle descend parce
+         qu'on tue. Sur les deux recharges, y compris celle qui reaccumule les
+         charges de bombe. */
+      if (owner.mods.cdPerKill > 0) {
+        owner.cd1 = Math.max(0, owner.cd1 - owner.mods.cdPerKill);
+        owner.cd2 = Math.max(0, owner.cd2 - owner.mods.cdPerKill);
       }
 
       if (owner.mods.harvest > 0 && Math.random() < owner.mods.harvest) {
@@ -5481,8 +5736,11 @@ export class GameState {
          boss, rien du tout le reste du temps. Chaque client n'y lit QUE sa
          propre ligne — les chiffres des autres n'apprennent rien et
          rempliraient l'ecran au moment ou il faut le lire. */
+      /* Troisieme element AJOUTE EN FIN de tuple : la part critique. Un client
+         anterieur lit un tableau de deux et affiche le chiffre comme avant. */
       bd: this.boss && this.bossDmg.size > 0
-        ? [...this.bossDmg].map(([id, d]) => [id, Math.round(d)])
+        ? [...this.bossDmg].map(([id, d]) =>
+            [id, Math.round(d), Math.round(this.bossCrit.get(id) ?? 0)])
         : null,
       sp: this.slipT > 0 ? 1 : 0,
       /* Arene mobile (lot 5). Cles NOMMEES, et absentes tant que rien ne bouge

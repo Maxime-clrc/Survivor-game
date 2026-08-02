@@ -115,7 +115,11 @@ export function diffSnapshots(a, b, opts = {}) {
        pietaille l'information n'a aucune valeur — on tue en un coup. */
     const mine = (b.bossDmg ?? []).find(d => d[0] === opts.myId);
     if (mine && mine[1] > 0) {
-      out.push({ t: "degats", x: b.boss.x, y: b.boss.y, dmg: mine[1] });
+      // `mine[2]` est la part critique, ajoutee en fin de tuple : un instantane
+      // agrege plusieurs touches, le chiffre dit donc « ce paquet contient un
+      // critique » et non « ce coup en etait un ».
+      out.push({ t: "degats", x: b.boss.x, y: b.boss.y, dmg: mine[1],
+                 crit: (mine[2] ?? 0) > 0 });
     }
   }
 

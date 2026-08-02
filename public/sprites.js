@@ -46,9 +46,9 @@
 import { ENEMY, COMBAT, ramp } from "/shared/palette.js";
 import { parseColor, BLEND_NORMAL, BLEND_ADD } from "/gl.js";
 
-/* Cote d'une case, en unites MONDE. Le plus gros sprite est le tank (21 de
-   rayon) plus son contour et ses epaules debordantes : 60 laisse la marge
-   qu'il faut sans gaspiller de texture. */
+/* Cote d'une case, en unites MONDE. Le plus gros sprite est le Rempart (canon
+   a 23, braces a 21 et ombre portee de 16 de demi-largeur) plus son contour de
+   3,5 px : 60 laisse la marge qu'il faut sans gaspiller de texture. */
 const CELL = 60;
 const HALF = CELL / 2;
 const COLS = 7;
@@ -479,26 +479,69 @@ function broodAccents(swell) {
    multiplicative sur du blanc rend exactement la couleur demandee. */
 const NEUTRAL = ramp("#dfe5f0");
 
+/* LE REMPART — refait au lot 6. Trois defauts cumules dans la version d'avant,
+   tous constates sur la planche de silhouettes :
+
+   - il n'etait PAS plus imposant que les autres (hexagone 14 x 12,5 contre 13
+     de rayon pour le soigneur), alors que la masse est son identite entiere et
+     le signal le plus rapide qui existe ;
+   - les plaques partaient de l'ARRIERE (-3) et pointaient vers l'avant : la
+     silhouette lisait comme un crabe, pas comme un bouclier ;
+   - le canon etait aussi long que celui du tireur (21 contre 21) alors que sa
+     fiche de classe annonce « canon court et large ».
+
+   Corps porte a 17 x 15 — nettement le plus gros des trois —, plaques deplacees
+   a l'AVANT en arc de bouclier, canon court et epais (±6 contre ±2 pour le
+   tireur), contour a 3,5 px et ombre portee plus marquee que les deux autres
+   classes. Le poids du trait et l'ancrage au sol participent a la masse autant
+   que les dimensions.
+
+   Ecart assume avec la specification, qui demandait un canon s'arretant a 17 :
+   le corps y arrive deja (l'hexagone a son sommet a x = 17), un canon a 17
+   aurait donc disparu de la silhouette. Il s'arrete a 23, ce qui le laisse
+   court par rapport a celui du tireur (24 sur un corps de 16) tout en restant
+   visible.
+
+   Chaque appendice est un SOUS-TRACE : un `lineTo` enchaine a la suite du corps
+   se raccorde a son dernier sommet et creuse une entaille dans toute la
+   creature — le bug est documente pour le grunt et le tank ennemi. */
 function tankClassPath(k) {
   const move = k.move ?? 0;
   return g => {
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
-      const px = Math.cos(a) * 14, py = Math.sin(a) * 12.5;
+      const px = Math.cos(a) * 17, py = Math.sin(a) * 15;
       i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
     }
-    // Deux plaques laterales debordantes : c'est la silhouette du REMPART.
+    g.closePath();
+    // Arc de bouclier FRONTAL : deux braces qui enveloppent l'avant de part et
+    // d'autre du canon. C'est ce que le joueur doit lire — un truc qui protege
+    // ce qui est devant lui.
     for (const s of [-1, 1]) {
-      g.lineTo(-3, s * 13);
-      g.lineTo(4 + move, s * 16.5);
-      g.lineTo(9, s * 10);
+      g.moveTo(2, s * 14);
+      g.lineTo(16 + move, s * 16.5);
+      g.lineTo(21 + move, s * 8.5);
+      g.lineTo(9, s * 8.5);
+      g.closePath();
     }
-    // Canon court et large.
-    g.lineTo(13, -5);
-    g.lineTo(21, -4.5);
-    g.lineTo(21, 4.5);
-    g.lineTo(13, 5);
+    // Canon court et large, entre les deux braces.
+    g.moveTo(10, -6);
+    g.lineTo(23, -6);
+    g.lineTo(23, 6);
+    g.lineTo(10, 6);
+    g.closePath();
   };
+}
+
+/* Ancrage au sol. Plus marque que celle du tireur volant (0,5 contre 0,35, et
+   plus large) : c'est le troisieme levier de masse apres les dimensions et le
+   poids du trait, et le seul qui dise que le Rempart PESE au lieu de flotter. */
+function tankClassShadow(g, R) {
+  g.save();
+  g.globalAlpha = 0.5;
+  g.fillStyle = R.contour;
+  g.beginPath(); g.ellipse(0, 15, 16, 5, 0, 0, 7); g.fill();
+  g.restore();
 }
 
 function healClassPath(k) {
@@ -581,7 +624,10 @@ function plan() {
   });
 
   const classes = [
-    { id: "tank",     path: tankClassPath, edge: 3, accents: tankClassAccents },
+    // Contour a 3,5 px pour le seul Rempart : le poids du trait participe a la
+    // masse, et la masse EST son identite.
+    { id: "tank",     path: tankClassPath, edge: 3.5, accents: tankClassAccents,
+      shadow: tankClassShadow },
     { id: "soigneur", path: healClassPath, edge: 1.6, accents: healClassAccents },
     { id: "dps",      path: dpsClassPath,  edge: 2, accents: dpsClassAccents },
   ];
@@ -594,6 +640,7 @@ function plan() {
         name: `c_${def.id}_${nom}`,
         paint: g => {
           if (k.down) g.globalAlpha = 0.55;
+          if (def.shadow) def.shadow(g, NEUTRAL);
           bake(g, NEUTRAL, path, def.accents(k), def.edge);
           g.globalAlpha = 1;
         },
@@ -617,12 +664,17 @@ function plan() {
 
 function tankClassAccents(k) {
   return (g, R) => {
+    // Deux nervures verticales plutot qu'une : elles decoupent le corps en
+    // bandes et lui donnent l'echelle qu'un aplat de 34 px de large perd.
     g.strokeStyle = R.contour;
     g.lineWidth = 2;
-    g.beginPath(); g.moveTo(-6, -9); g.lineTo(-6, 9); g.stroke();
+    g.beginPath();
+    g.moveTo(-8, -11); g.lineTo(-8, 11);
+    g.moveTo(-1, -13); g.lineTo(-1, 13);
+    g.stroke();
     if (k.shoot) {
       g.fillStyle = R.accent;
-      g.beginPath(); g.arc(22, 0, 4, 0, 7); g.fill();
+      g.beginPath(); g.arc(24, 0, 4.5, 0, 7); g.fill();
     }
   };
 }

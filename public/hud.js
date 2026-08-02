@@ -32,7 +32,7 @@ import { CLASS_DEFAULT, SKILL_CFG, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
 import { bossAt } from "/shared/bosses.js";
-import { HUD, SIGNAL, TEXT, COMBAT, BOSS } from "/shared/palette.js";
+import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, STATUS_ICON, iconImg } from "/icons.js";
 
 const $ = id => document.getElementById(id);
@@ -234,7 +234,21 @@ function updateBoss(b) {
   const left = Math.max(1, Math.min(bars, Math.ceil(b.hp / barHp)));
   const k = Math.max(0, Math.min(1, (b.hp - (left - 1) * barHp) / barHp));
 
-  const def = bossAt(b.kind ?? 0);
+  /* La barre prend la teinte de la CREATURE. Deux informations sur le meme
+     adversaire — sa silhouette dans l'arene, sa vie en haut de l'ecran — ne
+     peuvent pas etre de deux couleurs differentes ; jusqu'au lot 6 elles
+     l'etaient, parce que les cinq boss se dessinaient tous en rouge.
+     Deux variables CSS posees sur le seul bloc de boss, ce qui laisse la
+     feuille de style entierement en charge du degrade et des seuils : le
+     canvas ne connait pas cette barre, elle est en DOM. */
+  const kind = b.kind ?? 0;
+  const def = bossAt(kind);
+  if (memo.bsk !== kind) {
+    memo.bsk = kind;
+    const K = BOSS_SKIN[kind] ?? BOSS_SKIN[0];
+    el.boss.style.setProperty("--boss-low", K.bar);
+    el.boss.style.setProperty("--boss-deep", K.deep);
+  }
   setText(el.bossName, "bn", `${def.nom.toUpperCase()} ${ROMAN[b.index] ?? b.index}`);
   setText(el.bossVerb, "bv", def.verbe);
   setText(el.bossHp, "bh", `${Math.max(0, Math.round(b.hp))} / ${b.maxHp}`);

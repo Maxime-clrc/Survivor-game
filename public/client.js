@@ -28,6 +28,7 @@ import {
   BOSS_CFG, bossAt, mechAt, ALERT_ORDER, ALERT_WARN,
   MECH_STACK, MECH_SPREAD, MECH_TOWER, MECH_COUNT, MECH_LINK, MECH_JAIL,
   MECH_CLUSTER, MECH_FEED, MECH_BAIT, MECH_SANCTUARY, MECH_PROX,
+  BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_JUMEAUX,
 } from "/shared/bosses.js";
 import {
   initAudio, playSound, setVolume, setMuted, getVolume, isMuted, audioStats,
@@ -63,7 +64,7 @@ import { createGL } from "/gl.js";
    chaque image — c'est la meme source que les variables CSS, posees sur
    `:root` par `applyPalette()` juste en dessous. */
 import {
-  SURFACE, TEXT, SIGNAL, CLASS_COLOR, COMBAT, ENEMY, ZONE, WALL, BOSS,
+  SURFACE, TEXT, SIGNAL, CLASS_COLOR, COMBAT, ENEMY, ZONE, WALL, BOSS, BOSS_SKIN,
   POWERUP_COLOR, EFFECT_COLOR, OWNED, FX, MARK, HUD, alpha, cssVars,
 } from "/shared/palette.js";
 
@@ -283,57 +284,63 @@ function connect(name) {
         break;
 
       case "round":
-        roundNumber = msg.round;
-        difficulty = msg.difficulty ?? difficulty;
-        phase = PHASE_ROUND;
-        amSpectator = false;
-        lastResult = null;
-        snapshots = [];
-        latest = null;
-        predicted = null;
-        resetFeedback();
-        // Une nouvelle manche remet les cartes a zero : sans ca, le tableau
-        // de fin de la manche precedente resterait affiche derriere le
-        // suivant, et l'ecran de choix d'un boss deja mort resterait ouvert
-        // si la manche a ete relancee pendant qu'il attendait un choix.
-        loadouts = new Map();
-        refreshLocalMods();
-        closeCards();
-        closeBilan();
-        closeBuild();
-        closePause();
-        refreshPanel();
+        pushWorld(() => {
+          roundNumber = msg.round;
+          difficulty = msg.difficulty ?? difficulty;
+          phase = PHASE_ROUND;
+          amSpectator = false;
+          lastResult = null;
+          snapshots = [];
+          latest = null;
+          predicted = null;
+          resetFeedback();
+          // Une nouvelle manche remet les cartes a zero : sans ca, le tableau
+          // de fin de la manche precedente resterait affiche derriere le
+          // suivant, et l'ecran de choix d'un boss deja mort resterait ouvert
+          // si la manche a ete relancee pendant qu'il attendait un choix.
+          loadouts = new Map();
+          refreshLocalMods();
+          closeCards();
+          closeBilan();
+          closeBuild();
+          closePause();
+          refreshPanel();
+        });
         break;
 
       case "roundAbort":
-        phase = PHASE_LOBBY;
-        lastResult = null;
-        snapshots = [];
-        latest = null;
-        predicted = null;
-        resetFeedback();
-        closeCards();
-        closeBilan();
-        closeBuild();
-        closePause();
-        refreshPanel();
+        pushWorld(() => {
+          phase = PHASE_LOBBY;
+          lastResult = null;
+          snapshots = [];
+          latest = null;
+          predicted = null;
+          resetFeedback();
+          closeCards();
+          closeBilan();
+          closeBuild();
+          closePause();
+          refreshPanel();
+        });
         break;
 
       case "roundEnd":
-        phase = PHASE_LOBBY;
-        hostId = msg.host;
-        lastResult = msg;
-        // La file d'alertes se vide aussi ici : une consigne encore en attente
-        // du retard d'interpolation serait sortie au debut de la manche
-        // SUIVANTE, sur un combat qui n'a rien a voir.
-        resetFeedback();
-        closeCards();
-        closeBuild();
-        closePause();
-        // Le bilan s'ouvre AVANT `refreshPanel` : c'est lui qui tient le salon
-        // ferme tant qu'il est a l'ecran.
-        showBilan(msg);
-        refreshPanel();
+        pushWorld(() => {
+          phase = PHASE_LOBBY;
+          hostId = msg.host;
+          lastResult = msg;
+          // La file d'alertes se vide aussi ici : une consigne encore en attente
+          // du retard d'interpolation serait sortie au debut de la manche
+          // SUIVANTE, sur un combat qui n'a rien a voir.
+          resetFeedback();
+          closeCards();
+          closeBuild();
+          closePause();
+          // Le bilan s'ouvre AVANT `refreshPanel` : c'est lui qui tient le salon
+          // ferme tant qu'il est a l'ecran.
+          showBilan(msg);
+          refreshPanel();
+        });
         break;
 
       case "state":
@@ -345,8 +352,15 @@ function connect(name) {
            La fermeture ne doit surtout pas etre conditionnee au fait d'avoir
            clique : le joueur qui laisse expirer le delai recoit une carte
            d'office, la manche repart pour tout le monde, et son ecran serait
-           reste ouvert sur une offre morte pendant qu'il se fait devorer. */
-        if (cardsState) closeCards();
+           reste ouvert sur une offre morte pendant qu'il se fait devorer.
+           La fermeture passe par la file : sinon l'ecran se retire 110 ms avant
+           que le monde ne reparte, et on regarde une image figee. Le drapeau
+           evite d'empiler une fermeture par instantane — il en arrive vingt par
+           seconde. */
+        if (cardsState && !cardsCloseQueued) {
+          cardsCloseQueued = true;
+          pushWorld(() => { cardsCloseQueued = false; closeCards(); });
+        }
         break;
 
       /* Un message "cards" par tour de choix. Deux niveaux gagnes dans la meme
@@ -362,23 +376,30 @@ function connect(name) {
         break;
 
       case "cards":
-        cardsState = {
-          wave: msg.wave, bossWave: msg.bossWave === 1, boss: msg.boss ?? 0,
-          bossKind: msg.bossKind ?? 0,
-          level: msg.level, more: msg.more ?? 0,
-          deadline: msg.deadline, offers: msg.offers,
-          picked: false, pickedId: null,
-          // Instant d'ouverture, pour le filet de compte a rebours : le serveur
-          // envoie une echeance, pas une duree, et le filet a besoin des deux.
-          from: Date.now(),
-        };
-        cardsPending = [];
-        renderCards();
+        pushWorld(() => {
+          cardsState = {
+            wave: msg.wave, bossWave: msg.bossWave === 1, boss: msg.boss ?? 0,
+            bossKind: msg.bossKind ?? 0,
+            level: msg.level, more: msg.more ?? 0,
+            deadline: msg.deadline, offers: msg.offers,
+            picked: false, pickedId: null,
+            // Instant d'ouverture, pour le filet de compte a rebours : le serveur
+            // envoie une echeance, pas une duree, et le filet a besoin des deux.
+            from: Date.now(),
+          };
+          cardsPending = [];
+          renderCards();
+        });
         break;
 
+      // Dans la MEME file que `cards`, pas pour le retard mais pour l'ORDRE :
+      // applique a la reception, il rendrait la liste d'attente sur un ecran
+      // pas encore ouvert.
       case "cardsWait":
-        cardsPending = msg.pending ?? [];
-        renderCardsWait();
+        pushWorld(() => {
+          cardsPending = msg.pending ?? [];
+          renderCardsWait();
+        });
         break;
 
       /* Reponse du serveur a une demande de pause — et aussi son initiative :
@@ -412,6 +433,11 @@ function connect(name) {
 
   ws.onclose = () => {
     connected = false;
+    // La file de transitions se vide ICI et nulle part ailleurs : une ouverture
+    // de cartes ou un bilan encore en attente sortirait par-dessus l'ecran de
+    // reconnexion, 110 ms apres la coupure.
+    worldQueue.length = 0;
+    cardsCloseQueued = false;
     panel.hidden = true;
     gate.hidden = false;
     showHud(false);
@@ -482,6 +508,14 @@ goBtn.onclick = async () => {
     sheet.style.cssText = "position:fixed;inset:0;margin:auto;z-index:99;" +
                           "max-width:96vw;max-height:96vh;background:#fff";
     document.body.appendChild(sheet);
+    // Les boss ne sont pas dans l'atlas — ils sont traces en continu — donc ils
+    // manquaient a la planche. Or le critere d'acceptation du lot 6 porte sur
+    // « cinq boss et trois classes distinguables » : une bande a part, produite
+    // par la MEME routine de dessin que le jeu.
+    const bosses = bossSheet();
+    bosses.style.cssText = "position:fixed;left:0;right:0;bottom:8px;margin:auto;" +
+                           "z-index:100;max-width:96vw;background:#fff";
+    document.body.appendChild(bosses);
   }
 
   loadingEl.hidden = true;
@@ -1121,9 +1155,16 @@ function fmtMul(v) {
   return "×" + v.toFixed(2).replace(".", ",");
 }
 
+/* `get` rend le chiffre qui sert a COLORER la ligne — un multiplicateur, donc
+   comparable a 1 dans les deux sens. `fmt` ne sert qu'a l'ecrire autrement
+   quand le multiplicateur seul ne dit pas ce qu'il faut savoir : le critique se
+   juge sur sa chance ET sur son multiplicateur, et « ×1,38 » cache les deux. */
 const BUILD_MODS = [
   { nom: "dégâts", get: m => m.damageMul },
   { nom: "cadence", get: m => 1 / Math.max(0.01, m.fireIntervalMul) },
+  { nom: "critique", get: m => 1 + m.critChance * (m.critMul - 1),
+    fmt: m => `${Math.round(m.critChance * 100)} % · ${fmtMul(m.critMul)}` },
+  { nom: "rayon", get: m => m.areaMul },
   { nom: "vitesse", get: m => m.speedMul },
   { nom: "dégâts subis", get: m => m.damageTakenMul, bas: true },
 ];
@@ -1169,8 +1210,9 @@ function renderBuild() {
     const bon = d.bas ? v < 0.995 : v > 1.005;
     const mauvais = d.bas ? v > 1.005 : v < 0.995;
     const cls = bon ? " gain" : mauvais ? " cout" : "";
+    const txt = d.fmt ? d.fmt(mods) : fmtMul(v);
     return `<div class="buildMod${cls}"><span class="lab">${escapeHtml(d.nom)}</span>` +
-      `<span class="val">${escapeHtml(fmtMul(v))}</span></div>`;
+      `<span class="val">${escapeHtml(txt)}</span></div>`;
   }).join("");
 
   // Les deux competences de la classe, avec leur touche : la fenetre sert aussi
@@ -1832,6 +1874,30 @@ let alertInfo = null;
    les evenements — meme raison, meme horloge. */
 const alertQueue = [];
 
+/* MEME PIEGE, MEME REMEDE, pour les transitions de manche. Le serveur envoie
+   `cards` a l'instant ou il constate l'arene vide ; le client, lui, dessine
+   encore l'etat d'il y a 110 ms — ou deux ou trois ennemis vivent toujours.
+   L'ecran de choix s'ouvrait donc PAR-DESSUS des ennemis visibles, et de facon
+   irreguliere : ca ne se voit que si les derniers meurent groupes.
+   Une file unique plutot qu'un `setTimeout` par message : l'ordre d'arrivee est
+   preserve (`cardsWait` derriere son `cards`, `roundEnd` derriere son dernier
+   `cards`) et il n'y a aucun minuteur disperse a annuler.
+   REGLE : tout message ponctuel qui decrit un changement du MONDE se consomme
+   ici. Les messages hors-monde — salon, choix de classe, tableau des scores,
+   pause — s'appliquent a la reception : ils ne commentent aucune image. */
+const worldQueue = [];
+let cardsCloseQueued = false;
+
+function pushWorld(fn) {
+  worldQueue.push({ fn, at: performance.now() + INTERP_MS });
+}
+
+/* Jamais vide par `resetFeedback` : les transitions APPELLENT `resetFeedback`,
+   une file videe depuis son propre element courant se perdrait elle-meme. */
+function flushWorld(now) {
+  while (worldQueue.length > 0 && worldQueue[0].at <= now) worldQueue.shift().fn();
+}
+
 function pushAlert(msg) {
   alertQueue.push({ msg, at: performance.now() + INTERP_MS });
 }
@@ -2008,7 +2074,7 @@ function handleEvent(e) {
       break;
 
     case "degats":
-      pushDamage(e.x, e.y, e.dmg);
+      pushDamage(e.x, e.y, e.dmg, e.crit);
       break;
 
     case "effet": {
@@ -2148,7 +2214,13 @@ function spawnDeath(x, y, type, elite) {
   // recycler la liste coutait plus cher que de refuser.
   if (particles.length >= PARTICLE_MAX) return;
   const col = ENEMY_TINT[type] ?? ENEMY_TINT[0];
-  const n = elite ? 10 : 7;
+  /* Deux fois plus de fragments en WebGL. Le plafond y est dix fois plus haut
+     (3 000 contre 300) parce qu'un fragment est un quad du MEME lot que les
+     entites : le compte par mort peut suivre, et c'est le gain le plus visible
+     de la bascule. En 2D chaque fragment reste un `fillRect`, donc l'ancien
+     compte tient. */
+  const dense = glActive();
+  const n = elite ? (dense ? 22 : 10) : (dense ? 14 : 7);
   for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
     const a = Math.random() * Math.PI * 2;
     const sp = 60 + Math.random() * 130;
@@ -2156,6 +2228,51 @@ function spawnDeath(x, y, type, elite) {
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       life: 0.4, max: 0.4, col, size: elite ? 3.5 : 2.5,
     });
+  }
+  /* L'ECLAT. Un fragment blanc, immobile, gros et bref : en additif il sature
+     le centre pendant deux images et c'est lui qui fait « lire » la mort comme
+     un evenement plutot que comme une disparition. Il ne coute qu'une particule
+     de plus, et le mode additif le rend gratuit a l'oeil comme au GPU. */
+  if (particles.length < PARTICLE_MAX) {
+    particles.push({
+      x, y, vx: 0, vy: 0, life: 0.12, max: 0.12,
+      col: COMBAT.flash, size: elite ? 13 : 8,
+    });
+  }
+  // Une elite laisse en plus une onde annulaire : c'est un evenement de manche,
+  // pas une mort de piétaille, et le son a deja sa propre entree.
+  if (elite && bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: 20, max: 74, life: 0.35, t: 0.35, col: ELITE_GOLD });
+  }
+}
+
+/* Ondes annulaires locales, purement visuelles : elles ne viennent d'aucun
+   `kind` d'effet du serveur et n'ont donc rien a diffuser. Une liste a part
+   plutot qu'une entree dans `effects` — celle-la est la copie interpolee de la
+   simulation, y glisser du decor client aurait melange deux sources de verite. */
+const bursts = [];
+const BURST_MAX = 24;
+
+function stepBursts(dt) {
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    bursts[i].t -= dt;
+    if (bursts[i].t <= 0) { bursts[i] = bursts[bursts.length - 1]; bursts.pop(); }
+  }
+}
+
+function drawBursts() {
+  for (const b of bursts) {
+    const k = 1 - b.t / b.life;
+    ctx.save();
+    // ADDITIF : sur le fond ardoise, un anneau qui s'ajoute a la lumiere se lit
+    // comme une onde de choc, la ou un anneau opaque se lit comme un trait.
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = alpha(b.col, (1 - k) * 0.75);
+    ctx.lineWidth = 3 * (1 - k) + 1;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r + (b.max - b.r) * k, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -2166,8 +2283,12 @@ function spawnDeath(x, y, type, elite) {
    Un seul chiffre par instantane et par boss : le cumul arrive deja somme du
    serveur. Douze chiffres empiles sur la meme silhouette masqueraient
    exactement ce qu'il faut regarder pendant un combat. */
-function pushDamage(x, y, dmg) {
-  hudDamage(x + (Math.random() - 0.5) * 40, y - 30, dmg, "deal");
+/* Le critique a sa propre classe : ambre, plus gros. C'est la seule raison
+   qu'un joueur ait jamais eue de REGARDER ces chiffres — sans distinction
+   visible, un axe de build entier ne produit aucun retour a l'ecran et le
+   joueur ne sait pas s'il fonctionne. */
+function pushDamage(x, y, dmg, crit = false) {
+  hudDamage(x + (Math.random() - 0.5) * 40, y - 30, dmg, crit ? "crit" : "deal");
 }
 
 /* AGREGATION SUR 200 ms. Les chiffres s'affichent desormais sur tous les
@@ -2222,7 +2343,11 @@ function stepFeedback(dt) {
     // Frottement : sans lui les fragments partent en ligne droite jusqu'au bord
     // et on lit une gerbe d'etincelles au lieu d'un eclatement.
     p.vx *= 0.90; p.vy *= 0.90;
+    // Les etincelles d'annonce MONTENT : une derive verticale constante suffit
+    // a les distinguer d'un eclatement, qui part dans toutes les directions.
+    if (p.lift) p.vy -= p.lift * dt;
   }
+  stepBursts(dt);
 
   const now = performance.now();
   if (hitQueue.length > 0) flushHitQueue(now);
@@ -2289,6 +2414,10 @@ function frame(now) {
   // Moyenne glissante sur environ une seconde : l'inverse du dt brut saute de
   // 45 a 75 d'une image a l'autre et ne se lit pas.
   if (PERF && dt > 0) fps += (1 / dt - fps) * Math.min(1, dt * 1.5);
+
+  /* Hors du `if` : une transition en attente doit sortir meme quand il n'y a
+     plus d'instantane a dessiner — c'est precisement le cas de `roundEnd`. */
+  flushWorld(now);
 
   if (connected && latest) {
     const renderTime = now - INTERP_MS;
@@ -2649,10 +2778,14 @@ function drawWorld(v) {
       phaseAnnounce = performance.now();
     }
     drawBoss(v.boss);
-    // Le second Jumeau se dessine avec les memes traits : c'est le meme
-    // adversaire, et deux silhouettes differentes auraient laisse croire a
-    // deux combats.
-    if (v.boss2) drawBoss({ ...v.boss2, hp: v.boss.hp, maxHp: v.boss.maxHp, twin: 1 });
+    /* Le second Jumeau passe par la MEME routine : c'est le meme adversaire, et
+       `twin` n'y choisit que la moitie de motif a dessiner. `kind` doit etre
+       repris de `boss` — le snapshot ne le porte pas deux fois, et sans lui le
+       second Jumeau se serait dessine en Ravageur. */
+    if (v.boss2) {
+      drawBoss({ ...v.boss2, kind: v.boss.kind, phase: v.boss.phase, bars: v.boss.bars,
+                 hp: v.boss.hp, maxHp: v.boss.maxHp, twin: 1 });
+    }
   }
   drawDrones(v.droneList);
   drawPlayers(v.playerList, v.tm, v.marks ?? []);
@@ -2668,6 +2801,9 @@ function drawWorld(v) {
   // degats, eux, sont montes d'un cran : ils vivent dans le DOM par-dessus le
   // canvas, donc au-dessus de tout par construction.
   drawParticles();
+  // Les ondes annulaires par-dessus les fragments : elles bornent la gerbe, et
+  // une onde dessinee dessous se serait perdue dedans.
+  drawBursts();
 
   // Le vignettage ferme le monde. Il vient en dernier parce qu'il assombrit
   // TOUT ce qui precede : place plus tot, il aurait laisse les entites des
@@ -2690,10 +2826,29 @@ function drawWorld(v) {
 const bulletTrail = new Map();
 const shotTrail = new Map();
 
+/* LUEUR ADDITIVE. Ce que la bascule a debloque et qui ne servait pas encore :
+   un halo qui s'AJOUTE au fond au lieu de le recouvrir. Sur le sol ardoise, dix
+   balles groupees se lisent alors comme une gerbe lumineuse et non comme dix
+   pastilles, et le tir du soigneur se distingue du tir normal a la luminosite
+   autant qu'a la teinte.
+   Elle est UNIFORME et non proportionnelle aux degats, contrairement a ce que
+   le plan proposait : un projectile ne transporte pas son proprietaire ni ses
+   degats, et un champ de plus sur les quatre cents balles en vol, vingt fois
+   par seconde, coute plus que l'effet ne rapporte — c'est exactement la raison
+   pour laquelle `bd` existe cote boss. */
+function boltGlow(b, r, col) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = alpha(col, 0.16);
+  ctx.beginPath(); ctx.arc(b.x, b.y, r * 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
 function drawBolt(b, r, col, trail) {
   const prev = trail.get(b.id);
   trail.set(b.id, { x: b.x, y: b.y });
 
+  boltGlow(b, r, col);
   ctx.fillStyle = col;
   if (prev) {
     const dx = b.x - prev.x, dy = b.y - prev.y;
@@ -2860,9 +3015,41 @@ function drawZones(zones, tm = 0) {
   if (persistent.length) drawZonesActive(persistent, tm);
 }
 
+/* INTENSITE NON LINEAIRE. Le carre de la progression montait deja doucement,
+   mais il ne DECOLLAIT jamais : on lisait une jauge au lieu de ressentir une
+   echeance. Les 300 dernieres millisecondes valent maintenant a elles seules
+   autant que tout le reste de l'annonce — c'est la fenetre ou il faut avoir
+   bouge, et c'est la seule chose que le telegraphe doit dire.
+   Rendue entre 0 et 1 comme `k*k` l'etait, donc tous les coefficients d'appel
+   restent valables. */
+const ZONE_PUNCH = 0.3;               // secondes de la montee brutale
+
+function warnRamp(k, warn) {
+  const doux = k * k * 0.55;
+  if (warn > ZONE_PUNCH) return doux;
+  return doux + (1 - warn / ZONE_PUNCH) * 0.45;
+}
+
 function drawZoneWarn(z, tm, ring) {
   const k = 1 - z.warn / (z.warn0 || CFG.ZONE_WARN);
   const imminent = z.warn < 0.35;
+  const punch = warnRamp(k, z.warn);
+
+  /* Etincelles qui MONTENT de la zone pendant la fenetre brutale. Elles ne
+     coutent rien — memes particules, meme lot que les entites — et elles font
+     regarder la zone au moment ou le contour seul ne suffit plus. Une seule
+     tous les quelques images : une gerbe continue aurait masque le sol qu'on
+     demande justement de lire. */
+  if (z.warn <= ZONE_PUNCH && particles.length < PARTICLE_MAX && Math.random() < 0.35) {
+    const rad = Math.max(8, z.r || 40);
+    const a = Math.random() * Math.PI * 2;
+    const d = Math.sqrt(Math.random()) * rad;
+    particles.push({
+      x: z.x + Math.cos(a) * d, y: z.y + Math.sin(a) * d,
+      vx: (Math.random() - 0.5) * 20, vy: -30 - Math.random() * 40,
+      lift: 90, life: 0.45, max: 0.45, col: ZONE.imminent, size: 2.4,
+    });
+  }
 
   // Remplissage volontairement PAUVRE : c'est le contour qui porte l'annonce,
   // et c'est ce qui la distingue d'une zone active a 45 %.
@@ -2870,11 +3057,11 @@ function drawZoneWarn(z, tm, ring) {
     // Degats de proximite : le degrade EST l'information. Un aplat aurait dit
     // « toute la zone fait mal », alors que seul le centre est letal.
     const g = ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, Math.max(1, z.r));
-    g.addColorStop(0, alpha(ZONE.imminent, 0.10 + k * k * 0.30));
-    g.addColorStop(1, alpha(ZONE.imminent, 0.02 + k * k * 0.05));
+    g.addColorStop(0, alpha(ZONE.imminent, 0.10 + punch * 0.30));
+    g.addColorStop(1, alpha(ZONE.imminent, 0.02 + punch * 0.05));
     ctx.fillStyle = g;
   } else {
-    ctx.fillStyle = alpha(BOSS.skin, 0.03 + k * k * 0.11);
+    ctx.fillStyle = alpha(BOSS.skin, 0.03 + punch * 0.13);
   }
   zonePath(z);
   ctx.fill(zoneRule(z));
@@ -2931,6 +3118,32 @@ function drawZonesActive(list, tm) {
   for (const z of list) zoneSubPath(z, 1);
   ctx.fillStyle = alpha(ZONE.fill, 0.45 * pulse);
   ctx.fill("nonzero");
+
+  /* TEXTURE QUI DEFILE. C'est le seul moyen de distinguer d'un coup d'oeil
+     « active » de « en cours d'annonce » a la peripherie du regard : les deux
+     sont des aplats rouges, et seule celle-ci bouge. Des hachures obliques
+     tracees en une passe, ecretees a la reunion des zones — un motif par zone
+     aurait coute autant de `clip` que de zones, et il y en a douze sur un
+     damier.
+     Le pas de 14 px et la vitesse de 22 px/s sont ceux du contour pointille de
+     l'annonce : deux vitesses differentes a l'ecran auraient donne deux
+     mecaniques la ou il n'y en a qu'une. */
+  ctx.save();
+  ctx.beginPath();
+  for (const z of list) zoneSubPath(z, 1);
+  ctx.clip("nonzero");
+  ctx.strokeStyle = alpha(ZONE.persist, 0.22);
+  ctx.lineWidth = 3;
+  const pas = 14;
+  const off = (tm * 22) % pas;
+  const span = CFG.ARENA_W + CFG.ARENA_H;
+  ctx.beginPath();
+  for (let d = -CFG.ARENA_H; d < span; d += pas) {
+    ctx.moveTo(d + off, 0);
+    ctx.lineTo(d + off + CFG.ARENA_H, CFG.ARENA_H);
+  }
+  ctx.stroke();
+  ctx.restore();
 
   /* Lisere VIOLET sur le pourtour. Dans la grammaire de marqueurs, le violet
      dit « persistant : ca restera la apres ». Le remplissage garde le rouge du
@@ -3565,33 +3778,148 @@ function drawEnemies(list) {
   }
 }
 
+/* ===========================================================================
+   LES CINQ BOSS
+
+   Une routine par boss, et non une routine unique parametree par la couleur.
+   Le roster est construit autour de cinq VERBES — positionnement, gestion de
+   cibles, mouvement, cohesion, separation — et jusqu'au lot 6 les cinq
+   partageaient la meme couronne de pointes : mecaniquement ils n'avaient rien
+   a voir, visuellement ils etaient interchangeables.
+
+   Chacune doit ANNONCER SON VERBE et passer le test du noir uni. Elles ne sont
+   pas dans l'atlas, et c'est deliberé : le boss est unique a l'ecran, son cout
+   de trace est negligeable, et il gagne a etre anime en continu — ce qui est
+   precisement ce que l'atlas ne sait pas faire.
+
+   Trois choses communes aux cinq, portees par `drawBoss` :
+     - le halo et les fissures, qui disent l'etat et pas l'identite ;
+     - une animation d'INACTIVITE propre a chacun (la Matriarche pulse, le
+       Metronome tourne, l'Oracle derive, le Ravageur respire, les Jumeaux
+       oscillent en opposition de phase) ;
+     - une POSTURE D'ANNONCE : le corps se contracte avant une attaque. Le plan
+       precedent la prevoyait pour les monstres ; c'est sur le boss qu'elle
+       compte le plus, puisque c'est la qu'on lit les mecaniques.
+   =========================================================================== */
+
+/* Tension d'annonce, 0 a 1. Deduite des bandeaux d'alerte deja en place — donc
+   deja cales sur la timeline interpolee — et pas d'un champ de plus dans le
+   snapshot : une consigne ou un avertissement affiche signifie exactement
+   « quelque chose va tomber », c'est-a-dire l'instant ou le corps doit se
+   ramasser. Elle monte a l'approche de l'echeance, comme le remplissage d'un
+   telegraphe de zone. */
+function bossTension(now) {
+  let k = 0;
+  for (const a of [alertOrder, alertWarn]) {
+    if (!a || now > a.until) continue;
+    const p = (now - a.from) / Math.max(1, a.until - a.from);
+    k = Math.max(k, Math.min(1, p));
+  }
+  return k;
+}
+
 function drawBoss(b) {
   const r = CFG.BOSS_RADIUS;
-  const t = performance.now() / 1000;
+  const now = performance.now();
+  const t = now / 1000;
   const wounded = 1 - b.hp / b.maxHp;
   lastBossPos.x = b.x; lastBossPos.y = b.y;
 
-  /* Les Jumeaux portent la couleur de l'etat qu'ils appliquent — orange pour
-     la Brulure, bleu pour l'Entrave. C'est la seule facon de savoir lequel on
+  const kind = b.kind ?? 0;
+  const K = BOSS_SKIN[kind] ?? BOSS_SKIN[0];
+  /* Les Jumeaux portent la couleur de l'etat qu'ils appliquent — orange pour la
+     Brulure, bleu pour l'Entrave. C'est la seule facon de savoir lequel on
      vient de toucher, donc de ne pas cumuler les deux par accident. */
   const twin = b.twin ? 1 : 0;
-  const skin = twin ? BOSS.twin : BOSS.skin;
-  const dark = twin ? BOSS.twinDark : BOSS.skinDark;
-  const halo = twin ? alpha(BOSS.twin, 0.10) : alpha(BOSS.skin, 0.10);
+  const skin = twin ? BOSS.twin : K.skin;
+  const dark = twin ? BOSS.twinDark : K.dark;
+  const edge = twin ? BOSS.twinEdge : K.edge;
 
-  ctx.fillStyle = halo;
+  ctx.fillStyle = alpha(skin, 0.10);
   ctx.beginPath(); ctx.arc(b.x, b.y, r + 22, 0, Math.PI * 2); ctx.fill();
+
+  /* Contraction d'annonce : jusqu'a -8 % sur les deux axes. Assez pour se voir
+     du coin de l'oeil, trop peu pour qu'on croie que le boss recule. */
+  const tense = bossTension(now);
+  const squash = 1 - tense * 0.08;
 
   ctx.save();
   ctx.translate(b.x, b.y);
+  ctx.scale(squash, squash);
+  const S = { r, t, skin, dark, edge, wounded, ang: b.ang ?? 0,
+              phase: b.phase ?? 0, bars: b.bars ?? 4, tense, twin };
+  switch (kind) {
+    case BOSS_MATRIARCHE: drawBossMatriarche(S); break;
+    case BOSS_METRONOME:  drawBossMetronome(S); break;
+    case BOSS_ORACLE:     drawBossOracle(S); break;
+    case BOSS_JUMEAUX:    drawBossJumeaux(S); break;
+    default:              drawBossRavageur(S);
+  }
 
-  // couronne de pointes, tourne lentement
+  // Fissures : elles disent les DEGATS et pas l'identite, donc elles sont
+  // communes aux cinq et se tracent par-dessus la silhouette.
+  if (wounded > 0.2) {
+    ctx.strokeStyle = alpha(BOSS.crack, Math.min(1, wounded));
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.7, -r * 0.2); ctx.lineTo(-r * 0.1, r * 0.15); ctx.lineTo(r * 0.5, -r * 0.35);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* Bande de silhouettes de boss, pour `?planche`. Elle passe par `drawBoss` et
+   par rien d'autre : une planche qui redessinerait les cinq creatures pour les
+   besoins du test aurait cesse de tester ce que le jeu montre des le premier
+   reglage. `ctx` est une VARIABLE, on la detourne le temps du trace — c'est le
+   meme mecanisme qui fait basculer `drawWorld` d'une couche a l'autre. */
+function bossSheet() {
+  const r = CFG.BOSS_RADIUS;
+  const pas = (r + 26) * 2;
+  const poses = [0, 1, 2, 3, 4, 4];       // les Jumeaux comptent pour deux
+  const c = document.createElement("canvas");
+  c.width = pas * poses.length;
+  c.height = pas;
+  const g = c.getContext("2d");
+
+  const garde = ctx;
+  ctx = g;
+  poses.forEach((kind, i) => {
+    drawBoss({
+      kind, x: pas * i + pas / 2, y: pas / 2, ang: 0,
+      hp: 100, maxHp: 100, bars: 4, phase: 0,
+      twin: kind === 4 && i === poses.length - 1 ? 1 : 0,
+    });
+  });
+  ctx = garde;
+
+  // Aplatissement en noir uni sur blanc, exactement comme `silhouetteSheet` —
+  // et dans le meme ordre, pour la meme raison : le fond peint d'abord aurait
+  // rendu tout le canvas opaque et noirci la planche entiere.
+  g.globalCompositeOperation = "source-atop";
+  g.fillStyle = "#000000";
+  g.fillRect(0, 0, c.width, c.height);
+  g.globalCompositeOperation = "destination-over";
+  g.fillStyle = "#ffffff";
+  g.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+
+/* LE RAVAGEUR — positionnement. L'original, conserve : bloc compact, couronne
+   de pointes, lourd. Il est la reference dont les quatre autres s'ecartent.
+   Seul ajout : la respiration, qui ne coute rien puisque c'est un `scale`. */
+function drawBossRavageur(S) {
+  const { r, t, skin, dark, edge, tense } = S;
+
+  ctx.save();
   ctx.rotate(t * 0.6);
   ctx.fillStyle = dark;
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
+    // Les pointes RENTRENT a l'annonce, comme un animal qui se ramasse.
+    const out = r + 14 - tense * 10;
     ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * (r + 14), Math.sin(a) * (r + 14));
+    ctx.moveTo(Math.cos(a) * out, Math.sin(a) * out);
     ctx.lineTo(Math.cos(a + 0.16) * r, Math.sin(a + 0.16) * r);
     ctx.lineTo(Math.cos(a - 0.16) * r, Math.sin(a - 0.16) * r);
     ctx.closePath();
@@ -3600,8 +3928,9 @@ function drawBoss(b) {
   ctx.restore();
 
   ctx.save();
-  ctx.translate(b.x, b.y);
-  ctx.rotate(b.ang ?? 0);
+  ctx.rotate(S.ang);
+  const breath = 1 + Math.sin(t * 1.8) * 0.03;
+  ctx.scale(breath, 1 / breath);
 
   ctx.fillStyle = skin;
   ctx.beginPath();
@@ -3612,24 +3941,246 @@ function drawBoss(b) {
   }
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = twin ? BOSS.twinEdge : BOSS.edge;
+  ctx.strokeStyle = edge;
   ctx.lineWidth = 3;
   ctx.stroke();
-
-  // fissures qui s'ouvrent au fur et a mesure des degats
-  if (wounded > 0.2) {
-    ctx.strokeStyle = alpha(BOSS.crack, Math.min(1, wounded));
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.7, -r * 0.2); ctx.lineTo(-r * 0.1, r * 0.15); ctx.lineTo(r * 0.5, -r * 0.35);
-    ctx.stroke();
-  }
 
   ctx.fillStyle = BOSS.maw;
   ctx.beginPath(); ctx.arc(r * 0.35, 0, r * 0.34, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = BOSS.eye;
   ctx.beginPath(); ctx.arc(r * 0.42, 0, r * 0.17, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
 
+/* LA MATRIARCHE — gestion de cibles. Abdomen segmente et BAS sur le sol, quatre
+   appendices courts, et des poches d'oeufs qui pulsent dont le nombre DECROIT a
+   mesure qu'elle perd ses barres. Le joueur doit comprendre au premier regard
+   que la menace vient de ce qu'elle produit, pas d'elle — et voir sa reserve
+   s'epuiser est la seule facon de savoir qu'on avance. */
+function drawBossMatriarche(S) {
+  const { r, t, skin, dark, edge, phase, bars, tense } = S;
+  ctx.save();
+  ctx.rotate(S.ang);
+
+  // Quatre appendices courts et irreguliers, chacun en SOUS-TRACE : enchaines
+  // au corps ils y creuseraient une entaille — le bug est documente pour le
+  // grunt et le tank.
+  ctx.fillStyle = dark;
+  const legs = [[-0.75, 0.55], [0.55, 0.75], [2.35, 0.6], [3.6, 0.8]];
+  for (const [a0, len] of legs) {
+    const a = a0 + Math.sin(t * 1.4 + a0) * 0.07;
+    const out = r * (1 + len) * (1 - tense * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a - 0.22) * r * 0.9, Math.sin(a - 0.22) * r * 0.9);
+    ctx.lineTo(Math.cos(a) * out, Math.sin(a) * out);
+    ctx.lineTo(Math.cos(a + 0.22) * r * 0.9, Math.sin(a + 0.22) * r * 0.9);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Abdomen : ovale ecrase, plus large que haut. C'est ce qui le pose au sol.
+  const pulse = 1 + Math.sin(t * 2.2) * 0.04;
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.1, 0, r * 1.05 * pulse, r * 0.78 / pulse, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Segmentation : trois arceaux, le signe le plus court d'un abdomen.
+  ctx.strokeStyle = alpha(edge, 0.7);
+  ctx.lineWidth = 2;
+  for (let i = 1; i <= 3; i++) {
+    const x = -r * 0.85 + i * r * 0.42;
+    ctx.beginPath();
+    ctx.ellipse(x, 0, r * 0.1, r * 0.7 * Math.sqrt(1 - (i - 2) * (i - 2) * 0.1), 0,
+      -Math.PI / 2, Math.PI / 2);
+    ctx.stroke();
+  }
+
+  /* Poches d'oeufs. Elles pulsent en OPPOSITION de phase avec l'abdomen — deux
+     rythmes identiques ne se distinguent pas — et il en reste une de moins par
+     barre brisee : c'est la seule lecture de progression qui ne demande pas de
+     regarder la barre du haut. */
+  const pockets = Math.max(1, bars - phase);
+  for (let i = 0; i < pockets; i++) {
+    const a = -1.1 + (i / Math.max(1, pockets - 1 || 1)) * 2.2;
+    const px = Math.cos(a) * r * 0.55 - r * 0.15;
+    const py = Math.sin(a) * r * 0.42;
+    const k = 1 + Math.sin(t * 2.2 + i * 1.3 + Math.PI) * 0.18;
+    ctx.fillStyle = alpha(BOSS.eye, 0.85);
+    ctx.beginPath(); ctx.arc(px, py, r * 0.15 * k, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(edge, 0.6);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Tete minuscule a l'avant : c'est elle qui dit dans quel sens elle regarde,
+  // et sa petitesse dit que ce n'est pas elle, le danger.
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(r * 0.95, 0, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath(); ctx.arc(r * 0.98, 0, r * 0.09, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+/* LE METRONOME — mouvement. Purement geometrique, AUCUN membre : trois anneaux
+   concentriques desaxes qui tournent a des vitesses differentes, et un noyau
+   vide au centre. C'est le seul boss qui doit paraitre MECANIQUE, ce qui est
+   coherent avec le fait qu'il ne frappe jamais — il occupe l'espace. */
+function drawBossMetronome(S) {
+  const { r, t, skin, dark, edge, tense } = S;
+
+  // Trois anneaux, trois vitesses, trois inclinaisons. Des vitesses proches
+  // auraient donne un seul mouvement flou ; le rapport 1 / -1,6 / 2,7 se lit.
+  const rings = [
+    { rad: r * 1.05, w: 5, spin: 1.0, tilt: 0.0, col: dark },
+    { rad: r * 0.78, w: 4, spin: -1.6, tilt: 0.7, col: skin },
+    { rad: r * 0.5, w: 3, spin: 2.7, tilt: 1.4, col: skin },
+  ];
+  for (const ring of rings) {
+    ctx.save();
+    ctx.rotate(t * ring.spin);
+    // L'ecrasement fait tourner l'anneau DANS l'espace : un cercle parfait qui
+    // tourne ne montre rien, et c'est le mouvement qui est l'identite ici.
+    ctx.scale(1, 0.42 + 0.58 * Math.abs(Math.cos(t * ring.spin * 0.5 + ring.tilt)));
+    ctx.strokeStyle = ring.col;
+    ctx.lineWidth = ring.w;
+    ctx.beginPath(); ctx.arc(0, 0, ring.rad * (1 - tense * 0.1), 0, Math.PI * 2);
+    ctx.stroke();
+    // Un ergot par anneau : sans lui la rotation d'un cercle est invisible.
+    ctx.fillStyle = edge;
+    ctx.beginPath(); ctx.arc(ring.rad * (1 - tense * 0.1), 0, ring.w * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Noyau VIDE : un anneau fin et rien dedans. C'est ce qui le distingue des
+  // quatre autres, qui ont tous un corps plein.
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.24, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = alpha(BOSS.eye, 0.5 + tense * 0.5);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.14, 0, Math.PI * 2); ctx.stroke();
+}
+
+/* L'ORACLE — cohesion. Un grand oeil unique entoure d'anneaux FLOTTANTS,
+   separes du corps, avec des glyphes qui s'allument. Les anneaux servent aussi
+   de telegraphe : ils s'orientent vers ce qui va se passer, c'est-a-dire vers
+   la direction du boss, et se resserrent a l'annonce. */
+function drawBossOracle(S) {
+  const { r, t, skin, dark, edge, tense } = S;
+
+  /* Deux anneaux detaches, en derive lente. Ils ne sont PAS concentriques au
+     corps : c'est ce qui les fait lire comme flottants et non comme une
+     armure. */
+  for (let i = 0; i < 2; i++) {
+    const spin = t * (0.5 + i * 0.35) + i * 2.1;
+    const off = r * (0.18 + i * 0.1) * (1 - tense);
+    ctx.save();
+    ctx.rotate(S.ang + Math.sin(t * 0.6 + i) * 0.3);
+    ctx.translate(Math.cos(spin) * off, Math.sin(spin) * off);
+    ctx.strokeStyle = alpha(i === 0 ? skin : dark, 0.9);
+    ctx.lineWidth = 3;
+    // Anneau OUVERT : une brisure oriente le regard, un cercle ferme ne dit
+    // rien de la direction.
+    ctx.beginPath();
+    ctx.arc(0, 0, r * (1.15 - i * 0.22) * (1 - tense * 0.12), 0.5, Math.PI * 2 - 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Corps : disque sombre, volontairement petit — l'Oracle est surtout un oeil.
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  /* Six glyphes en couronne. Ils s'allument A TOUR DE ROLE au repos, et TOUS a
+     l'annonce : c'est le telegraphe le moins cher qui soit, et il se lit meme
+     quand le bandeau est masque par un effet. */
+  ctx.save();
+  ctx.rotate(S.ang);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const lit = tense > 0 ? 1 : (Math.sin(t * 2 - i * 1.05) > 0.7 ? 1 : 0);
+    ctx.strokeStyle = alpha(BOSS.eye, 0.25 + lit * 0.75);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 0.44, Math.sin(a) * r * 0.44);
+    ctx.lineTo(Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // L'oeil. Iris qui suit l'orientation du boss : c'est ce qui dit « il te
+  // regarde », et c'est toute l'identite de la creature.
+  const eyeR = r * 0.34 * (1 - tense * 0.25);
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(0, 0, eyeR, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath();
+  ctx.arc(Math.cos(S.ang) * eyeR * 0.45, Math.sin(S.ang) * eyeR * 0.45,
+    eyeR * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/* LES JUMEAUX — separation. Deux DEMI-FORMES complementaires, chacune
+   incomplete : l'une porte la moitie gauche d'un motif, l'autre la droite.
+   Quand ils se rapprochent, les moities s'alignent visuellement — ce qui rend
+   leur mecanique de soin mutuel lisible sans lire la barre.
+   `twin` dit lequel des deux on dessine, et c'est le SEUL parametre : deux
+   routines auraient diverge au premier reglage. */
+function drawBossJumeaux(S) {
+  const { r, t, skin, dark, edge, twin, tense } = S;
+  const side = twin ? 1 : -1;          // -1 : moitie gauche, +1 : moitie droite
+
+  ctx.save();
+  ctx.rotate(S.ang);
+  // Oscillation en OPPOSITION de phase entre les deux : en phase, ils
+  // paraissaient un seul objet coupe en deux plutot que deux creatures.
+  ctx.rotate(Math.sin(t * 1.3 + (twin ? Math.PI : 0)) * 0.09);
+
+  // Demi-disque : le plat regarde vers l'autre Jumeau. La forme est INCOMPLETE
+  // et doit le rester — c'est ce qui fait qu'on cherche l'autre moitie.
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, side > 0 ? -Math.PI / 2 : Math.PI / 2,
+    side > 0 ? Math.PI / 2 : -Math.PI / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Trois dents sur le plat : elles s'emboitent avec celles de l'autre moitie.
+  // Le motif est le meme des deux cotes, en creux d'un cote et en relief de
+  // l'autre — c'est ce qui rend l'alignement visible quand ils convergent.
+  ctx.fillStyle = twin ? skin : dark;
+  for (let i = -1; i <= 1; i++) {
+    const y = i * r * 0.45;
+    ctx.beginPath();
+    ctx.arc(0, y, r * 0.17, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -r); ctx.lineTo(0, r);
+  ctx.stroke();
+
+  // L'oeil est REPOUSSE vers l'exterieur : les deux regardent chacun de leur
+  // cote, ce qui dit la separation aussi bien que la forme.
+  const ex = side * r * 0.42;
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(ex, 0, r * 0.3 * (1 - tense * 0.2), 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath(); ctx.arc(ex, 0, r * 0.14, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 

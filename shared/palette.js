@@ -160,6 +160,40 @@ export const BOSS = {
   crack:    "#ffdc78",   // fissures qui s'ouvrent avec les degats
 };
 
+/* UNE TEINTE PAR BOSS. Tableau ORDONNE indexe par `BOSS_ROSTER` — l'index
+   circule deja dans le snapshot (`bo[9]`), on n'en ajoute pas un second.
+
+   Le roster a ete concu autour de cinq VERBES differents (positionnement,
+   gestion de cibles, mouvement, cohesion, separation) : mecaniquement ils n'ont
+   rien a voir, et jusqu'au lot 6 ils partageaient une seule routine de dessin et
+   une seule couleur. C'etait le plus gros ecart identite / contenu du jeu.
+
+   Les cinq teintes evitent les cinq teintes d'ENEMY.TINT : un boss ne doit
+   jamais se confondre avec la piétaille qu'il invoque. Elles ne suivent pas la
+   grammaire de signal — ce sont des couleurs d'IDENTITE, comme celles des
+   classes et des types de monstres : elles disent QUI, pas QUOI.
+
+   `bar` et `deep` servent a la barre du HUD, qui prend la teinte de la creature
+   qu'elle mesure : deux informations sur le meme adversaire ne peuvent pas etre
+   de deux couleurs differentes. */
+export const BOSS_SKIN = [
+  // Ravageur — le rouge d'origine : c'est la reference dont les autres
+  // s'ecartent, et le seul boss dont l'apparence ne change pas au lot 6.
+  { skin: "#ff4d6d", dark: "#8e1230", edge: "#5c0b1c", bar: "#ff8fa3", deep: "#7a0f26" },
+  // Matriarche — vert acide de couvee. La seule teinte organique du roster,
+  // pour le seul boss dont la menace vient de ce qu'il PRODUIT.
+  { skin: "#a8d13a", dark: "#4a6112", edge: "#2b3a08", bar: "#c6e46a", deep: "#3f5410" },
+  // Metronome — acier froid. Le seul boss qui doit paraitre MECANIQUE : il ne
+  // frappe jamais, il occupe l'espace.
+  { skin: "#9db4c8", dark: "#3f5266", edge: "#25313d", bar: "#c2d3e2", deep: "#374857" },
+  // Oracle — indigo. Il regarde, il ordonne, il ne touche pas.
+  { skin: "#8b5cf6", dark: "#3b1d80", edge: "#22114d", bar: "#b79dff", deep: "#331a70" },
+  // Jumeaux — orange, celui de la Brulure qu'il applique. Son frere garde le
+  // bleu de l'Entrave (`twin` ci-dessus) : la couleur dit lequel on vient de
+  // toucher, donc comment ne pas cumuler les deux etats par accident.
+  { skin: "#ff8a3d", dark: "#8a3c05", edge: "#4d2103", bar: "#ffb782", deep: "#7a3604" },
+];
+
 /* --- bonus au sol ----------------------------------------------------------
    Une couleur par bonus. Elles ne suivent pas la grammaire de signal : un
    bonus n'est ni un danger ni une consigne, c'est un objet qu'on identifie de

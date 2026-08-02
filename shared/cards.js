@@ -212,6 +212,81 @@ export const CARD_CFG = {
   CELERITE_DASH_CD: 0.20,    // « Celerite » : reduction de recharge d'esquive
   VIF_ARGENT_DAMAGE: 45,     // trainee d'esquive, une fois par ennemi et par esquive
   VIF_ARGENT_RADIUS: 34,     // largeur de la trainee, un peu plus que le joueur
+
+  /* --- coup critique (lot 6) --------------------------------------------------
+     L'axe le plus rentable du lot, et pour une raison structurelle : il est
+     MULTIPLICATIF. Il rend meilleures toutes les cartes de degats deja
+     presentes au lieu de les concurrencer, la ou une quinzieme carte a +25 %
+     additifs ne fait que diluer les precedentes.
+     La base existe pour TOUT LE MONDE (5 %, x2) : sans elle, la premiere carte
+     de chance critique ne se compare a rien et le joueur n'a aucune idee de ce
+     qu'elle vaut. Le tirage se fait dans `_damage`, au point de passage unique,
+     donc une nova critique autant qu'une balle. */
+  CRIT_CHANCE: 0.05,
+  CRIT_MUL: 2,
+  CRIT_CHANCE_CAP: 0.60,     // au-dela, le critique cesse d'etre un evenement
+
+  /* --- rayon ------------------------------------------------------------------
+     Une seule cle pour une quinzaine d'effets. Les trois rayons qui sont DEJA
+     des mods (rempart, vague de soin, givre) l'absorbent a la fin de
+     `computeMods` : ils traversent le reseau ou servent de reference ailleurs,
+     et deux endroits qui multiplient le meme rayon finissent par diverger. Les
+     constantes (bombe, grenade, pulsar, onde de mort, nova, riposte) sont
+     multipliees chez leur appelant. */
+  SINGULARITE_PULL: 26,      // px d'aspiration vers le centre, une fois par detonation
+
+  /* --- recharge ---------------------------------------------------------------
+     Porte sur les COMPETENCES DE CLASSE (rempart, provocation, bombe, bascule,
+     vague, surcharge) et pas sur l'esquive, qui a deja sa famille avec
+     « Celerite » — cumuler les deux sur le meme bouton aurait rendu l'esquive
+     quasi permanente. */
+  FLUX_PER_KILL: 0.1,        // secondes retirees aux recharges a chaque kill
+
+  /* --- execution --------------------------------------------------------------
+     Repond a la sensation d'ennemis-eponges de fin de manche, et se marie avec
+     les degats de zone qui laissent des survivants a bas PV. Jamais sur un boss
+     ni sur une structure de mecanique : un seuil applique a une reserve de vie
+     de boss supprimerait une barre entiere. */
+  EXEC_HEAL: 1,              // PV rendus par « Moisson » a chaque execution
+
+  /* --- conversion -------------------------------------------------------------
+     Elles reglent le probleme signale des la premiere specification : une carte
+     defensive donne l'impression d'un tour perdu. Avec la conversion, empiler
+     du PV devient une strategie offensive assumee.
+     Les deux references existent parce qu'une conversion sans echelle ne veut
+     rien dire : `x % de tes PV` doit se traduire en multiplicateur de degats,
+     et l'inverse en PV. La reference de degats est a 200 PV et non a 100 :
+     a 100, « Fureur defensive » rendait 24 PV sur un chargement a x2,4,
+     c'est-a-dire moins que Peau de titane, qui est epique elle aussi. */
+  CONVERT_HP_REF: 100,       // PV de reference : le tireur nu
+  CONVERT_DMG_REF: 200,      // PV rendus pour un multiplicateur de degats de 1
+  BLINDAGE_OFFENSIF: 0.15,
+  FUREUR_DEFENSIVE: 0.10,
+  /* « Pacte de fer » : 4 % par TRANCHE de 5 points de bouclier et non par
+     point. Par point, trois « Bouclier regenerant » (90 points) auraient donne
+     +360 % de degats, soit quatre fois la meilleure legendaire du jeu. A cette
+     tranche, un bouclier complet vaut +72 % — le prix etant qu'il ne revient
+     jamais de la manche. */
+  PACTE_STEP: 0.04,
+  PACTE_PER: 5,
+
+  /* --- elan et momentum -------------------------------------------------------
+     Cinq cartes dont la valeur depend de l'INSTANT et non du chargement. Elles
+     ne peuvent donc pas vivre dans `computeMods`, qui ne connait qu'une liste
+     de cartes : elles sont relevees a chaque tick dans `_players` et
+     multipliees dans `_damage`, au point de passage unique. */
+  ELAN_STEP: 0.01,           // par seconde sans etre touche
+  ELAN_MAX: 0.25,
+  PACK_STEP: 0.03,           // par ennemi proche
+  PACK_MAX: 0.30,
+  PACK_RADIUS: 160,          // 8 m : la distance a laquelle on est deja au contact
+  RAGE_STEP: 0.01,           // par kill
+  RAGE_MAX: 30,              // cumuls
+  RAGE_TIME: 4,
+  ADRENALINE_HP: 0.5,        // part des PV max sous laquelle la cadence monte
+  ADRENALINE_RATE: 0.25,
+  SOUFFLE_HP: 0.25,
+  SOUFFLE_DAMAGE: 0.80,
 };
 
 /* --- familles ------------------------------------------------------------------
@@ -361,6 +436,97 @@ export const CARDS = [
     apply(m, n) { m.speedMul += 0.07 * n; },
   },
 
+  /* Huit communes de plus (lot 6). Le catalogue en comptait TREIZE pour vingt-
+     sept rares, alors que les communes sortent six fois plus souvent : sur une
+     partie a quinze ou vingt tirages, le joueur revoyait les memes treize en
+     boucle, dont plusieurs plafonnees donc retirees du pool en cours de route.
+     Quatre d'entre elles ouvrent un axe nouveau (critique, rayon, recharge,
+     elan) et quatre sont de pur remplissage a deux petites statistiques : une
+     commune ne doit jamais etre un choix, seulement un gain. */
+  {
+    id: "precision", nom: "Précision", rarity: 0, max: 3, tags: ["off"],
+    desc: "+6 % de chance de coup critique",
+    stack: n => pctAdd(0.06, n),
+    apply(m, n) { m.critChance += 0.06 * n; },
+  },
+  {
+    id: "expansion", nom: "Expansion", rarity: 0, max: 4, tags: ["off"],
+    desc: "+8 % de rayon sur tes explosions, ondes et auras",
+    stack: n => pctAdd(0.08, n),
+    apply(m, n) { m.areaMul += 0.08 * n; },
+  },
+  {
+    id: "condensateur", nom: "Condensateur", rarity: 0, max: 5, tags: ["def"],
+    desc: "−7 % de recharge des compétences",
+    stack: n => pctCut(0.93, n),
+    apply(m, n) { m.skillCdMul *= Math.pow(0.93, n); },
+  },
+  {
+    /* Elle recompense de ne pas etre touche, ce qu'aucune carte ne faisait :
+       tout le reste du pool recompense d'encaisser ou de tuer. Remise a zero
+       dans `_hurt`, au point de passage unique. */
+    id: "elan", nom: "Élan", rarity: 0, max: 3, tags: ["off"],
+    desc: "+1 % de dégâts par seconde sans être touché, jusqu'à +25 %",
+    stack: n => `jusqu'à ${pctAdd(CARD_CFG.ELAN_MAX, n)}`,
+    apply(m, n) { m.elanStep += CARD_CFG.ELAN_STEP * n; m.elanMax += CARD_CFG.ELAN_MAX * n; },
+  },
+  {
+    id: "lest", nom: "Lest", rarity: 0, max: 5, tags: ["off", "def"],
+    desc: "+5 % de dégâts et +5 % de PV max",
+    stack: n => `${pctAdd(0.05, n)} de dégâts, +${5 * n} % de PV`,
+    apply(m, n) { m.damageMul += 0.05 * n; m.maxHpRatio += 0.05 * n; },
+  },
+  {
+    id: "rodage", nom: "Rodage", rarity: 0, max: 5, tags: ["def"],
+    desc: "−5 % de recharge des compétences et +5 % de vitesse",
+    stack: n => `${pctCut(0.95, n)} de recharge, ${pctAdd(0.05, n)} de vitesse`,
+    apply(m, n) { m.skillCdMul *= Math.pow(0.95, n); m.speedMul += 0.05 * n; },
+  },
+  {
+    id: "chargeur_long", nom: "Chargeur long", rarity: 0, max: 4, tags: ["off"],
+    desc: "+10 % de portée et +8 % de vitesse des balles",
+    stack: n => `${pctAdd(0.10, n)} de portée, ${pctAdd(0.08, n)} de vitesse`,
+    apply(m, n) { m.bulletLifeMul += 0.10 * n; m.bulletSpeedMul += 0.08 * n; },
+  },
+  {
+    id: "ferraille", nom: "Ferraille", rarity: 0, max: 4, tags: [],
+    desc: "+12 % de score et +1 PV par ennemi tué",
+    stack: n => `${pctAdd(0.12, n)} de score, +${n} PV par kill`,
+    apply(m, n) { m.scoreMul += 0.12 * n; m.hpPerKill += n; },
+  },
+
+  /* Quatre communes de plus que les huit du plan, et pas du remplissage : les
+     huit premieres portaient le compte a 21 pour 27 rares, et la MESURE donnait
+     12,8 communes distinctes vues par manche contre les 15 demandes — le pool
+     de rarete basse se vide toujours en milieu de manche. Chacune de ces quatre
+     comble en plus un TROU reel du catalogue : quatre systemes n'avaient aucune
+     entree commune, et un joueur devait donc attendre une rare pour decouvrir
+     qu'ils existent. */
+  {
+    id: "reserve", nom: "Réserve", rarity: 0, max: 4, tags: ["def"],
+    desc: "12 points de bouclier, se recharge après 6 s sans dégât subi",
+    stack: n => `${12 * n} points`,
+    apply(m, n) { m.shieldPool += 12 * n; },
+  },
+  {
+    id: "braises", nom: "Braises", rarity: 0, max: 3, tags: ["off"],
+    desc: "brûlure : 3 dégâts sur 3 s",
+    stack: n => `${3 * n} dégâts`,
+    apply(m, n) { m.burnDmg += 3 * n; },
+  },
+  {
+    id: "sangles", nom: "Sangles", rarity: 0, max: 4, tags: ["def"],
+    desc: "−4 % de dégâts subis",
+    stack: n => pctCut(0.96, n),
+    apply(m, n) { m.damageTakenMul *= Math.pow(0.96, n); },
+  },
+  {
+    id: "stimulant", nom: "Stimulant", rarity: 0, max: 4, tags: ["def"],
+    desc: "−8 % de recharge d'esquive",
+    stack: n => pctCut(0.92, n),
+    apply(m, n) { m.dashCdMul *= Math.pow(0.92, n); },
+  },
+
   /* --- rares : elles modifient une mecanique plutot qu'un nombre. La plupart
      reutilisent un systeme deja present (perforant, ricochet, tourelle,
      bouclier), ce qui les rend lisibles sans explication. --- */
@@ -484,6 +650,65 @@ export const CARDS = [
     // Deux exemplaires ne posent pas deux tourelles : ils divisent l'attente.
     stack: n => `toutes les ${num(CARD_CFG.AUTO_TURRET_CD / n)} s`,
     apply(m, n) { m.autoTurretCd = CARD_CFG.AUTO_TURRET_CD / n; },
+  },
+
+  /* --- rares du lot 6 : les paliers moyens des cinq axes nouveaux ------------- */
+  {
+    id: "mire", nom: "Mire", rarity: 1, max: 2, tags: ["off"],
+    desc: "+12 % de chance de coup critique",
+    stack: n => pctAdd(0.12, n),
+    apply(m, n) { m.critChance += 0.12 * n; },
+  },
+  {
+    /* L'autre moitie de l'axe. Seule elle ne vaut rien — 5 % de chance de base
+       sur un x2,4 au lieu d'un x2 — et c'est voulu : c'est ce qui fait du
+       critique un axe a construire et non une statistique de plus. */
+    id: "talon_faible", nom: "Talon faible", rarity: 1, max: 2, tags: ["off"],
+    desc: "+40 % de dégâts critiques",
+    stack: n => pctAdd(0.40, n),
+    effective: (ctx, n) =>
+      `critique actuellement ×${num(CARD_CFG.CRIT_MUL + 0.4 * n)}`,
+    apply(m, n) { m.critMul += 0.40 * n; },
+  },
+  {
+    id: "deflagration", nom: "Déflagration", rarity: 1, max: 3, tags: ["off"],
+    desc: "+20 % de rayon sur tes explosions, ondes et auras",
+    stack: n => pctAdd(0.20, n),
+    apply(m, n) { m.areaMul += 0.20 * n; },
+  },
+  {
+    id: "surtension", nom: "Surtension", rarity: 1, max: 3, tags: ["def"],
+    desc: "−15 % de recharge des compétences",
+    stack: n => pctCut(0.85, n),
+    apply(m, n) { m.skillCdMul *= Math.pow(0.85, n); },
+  },
+  {
+    id: "achevement", nom: "Achèvement", rarity: 1, max: 2, tags: ["off"],
+    desc: "les ennemis sous 12 % de PV meurent instantanément",
+    stack: n => `sous ${num(12 + 4 * (n - 1))} %`,
+    // Le seuil ne se cumule pas en s'additionnant tout droit : deux exemplaires
+    // a +12 % auraient supprime le dernier quart de la barre de tous les elites.
+    apply(m, n) { m.execThreshold = Math.max(m.execThreshold, 0.12 + 0.04 * (n - 1)); },
+  },
+  {
+    /* Celle qui change le plus la facon de jouer : elle recompense de rester au
+       contact, alors que tout le reste du jeu pousse a reculer. */
+    id: "meute", nom: "Meute", rarity: 1, max: 2, tags: ["off"],
+    desc: `+3 % de dégâts par ennemi à moins de ${fmtM(CARD_CFG.PACK_RADIUS)}, jusqu'à +30 %`,
+    stack: n => `jusqu'à ${pctAdd(CARD_CFG.PACK_MAX, n)}`,
+    apply(m, n) { m.packStep += CARD_CFG.PACK_STEP * n; m.packMax += CARD_CFG.PACK_MAX * n; },
+  },
+  {
+    id: "carnage", nom: "Carnage", rarity: 1, max: 2, tags: ["off"],
+    desc: "chaque ennemi tué donne +1 % de dégâts pendant 4 s, jusqu'à 30 fois",
+    stack: n => `jusqu'à ${pctAdd(CARD_CFG.RAGE_STEP * CARD_CFG.RAGE_MAX, n)}`,
+    apply(m, n) { m.ragePerKill += CARD_CFG.RAGE_STEP * n; },
+  },
+  {
+    id: "adrenaline", nom: "Adrénaline", rarity: 1, max: 2, tags: ["off", "cadence"],
+    desc: "+25 % de cadence sous 50 % de PV",
+    stack: n => pctAdd(CARD_CFG.ADRENALINE_RATE, n),
+    apply(m, n) { m.lowHpRate += CARD_CFG.ADRENALINE_RATE * n; },
   },
 
   /* --- rares conditionnelles ---------------------------------------------------
@@ -650,6 +875,52 @@ export const CARDS = [
     apply(m, n) { m.catalyseur += CARD_CFG.CATALYSEUR_BONUS * n; },
   },
 
+  /* --- epiques du lot 6 : sommets des axes nouveaux, et les conversions ------- */
+  {
+    id: "oeil_de_faucon", nom: "Œil de faucon", rarity: 2, max: 1, tags: ["off"],
+    desc: "+20 % de chance et +50 % de dégâts critiques",
+    stack: n => `${pctAdd(0.20, n)} de chance, ${pctAdd(0.50, n)} de dégâts`,
+    apply(m, n) { m.critChance += 0.20 * n; m.critMul += 0.50 * n; },
+  },
+  {
+    id: "singularite", nom: "Singularité", rarity: 2, max: 1, tags: ["off"],
+    desc: "+35 % de rayon, et tes explosions aspirent les ennemis vers leur centre",
+    apply(m) { m.areaMul += 0.35; m.areaPull = 1; },
+  },
+  {
+    /* Elle lie enfin les competences au rythme de la vague : la recharge ne
+       descend plus toute seule dans le vide, elle descend parce qu'on tue. */
+    id: "flux_continu", nom: "Flux continu", rarity: 2, max: 1, tags: ["def"],
+    desc: "−25 % de recharge des compétences, et chaque kill en retire 0,1 s",
+    apply(m) { m.skillCdMul *= 0.75; m.cdPerKill += CARD_CFG.FLUX_PER_KILL; },
+  },
+  {
+    id: "moisson", nom: "Moisson", rarity: 2, max: 1, tags: ["off", "def"],
+    desc: "les ennemis sous 20 % de PV meurent instantanément, et rendent 1 PV",
+    apply(m) {
+      m.execThreshold = Math.max(m.execThreshold, 0.20);
+      m.execHeal += CARD_CFG.EXEC_HEAL;
+    },
+  },
+  {
+    /* Les deux conversions se nourrissent l'une l'autre SANS boucler : elles se
+       calculent toutes les deux sur les valeurs de BASE, avant conversion. Voir
+       `fullMods` — c'est la que la regle est tenue, pas ici. */
+    id: "blindage_offensif", nom: "Blindage offensif", rarity: 2, max: 1, tags: ["off", "def"],
+    desc: `${Math.round(CARD_CFG.BLINDAGE_OFFENSIF * 100)} % de tes PV max s'ajoutent à tes dégâts`,
+    apply(m) { m.hpToDamage += CARD_CFG.BLINDAGE_OFFENSIF; },
+  },
+  {
+    id: "fureur_defensive", nom: "Fureur défensive", rarity: 2, max: 1, tags: ["off", "def"],
+    desc: `${Math.round(CARD_CFG.FUREUR_DEFENSIVE * 100)} % de tes dégâts s'ajoutent à tes PV max`,
+    apply(m) { m.damageToHp += CARD_CFG.FUREUR_DEFENSIVE; },
+  },
+  {
+    id: "dernier_souffle", nom: "Dernier souffle", rarity: 2, max: 1, tags: ["off"],
+    desc: "+80 % de dégâts sous 25 % de PV",
+    apply(m) { m.lowHpDamage += CARD_CFG.SOUFFLE_DAMAGE; },
+  },
+
   /* --- epiques qui reecrivent une regle -----------------------------------------
 
      Les trois premieres epiques ci-dessus ajoutent une source de degats. Ces
@@ -737,6 +1008,27 @@ export const CARDS = [
     id: "essaim", nom: "Essaim", rarity: 3, max: 1, tags: ["off"],
     desc: "4 mini-drones orbitants, 12 dégâts chacun",
     apply(m) { m.swarm = 4; },
+  },
+
+  {
+    /* Le sommet de l'axe critique. Elle ne donne AUCUN chiffre : elle change ce
+       qu'un critique fait, ce qui est la definition d'une legendaire ici. Le
+       perforant se lit dans `_bulletHitEnemy`, la Vulnerabilite dans `_damage`,
+       tous deux au point de passage unique. */
+    id: "sentence_capitale", nom: "Sentence capitale", rarity: 3, max: 1, tags: ["off"],
+    desc: "tes coups critiques traversent la cible et la rendent vulnérable",
+    apply(m) { m.critVuln = 1; },
+  },
+  {
+    /* Le seul echange sec du jeu : on renonce a une defense entiere pour un
+       multiplicateur. Sans bouclier, la carte ne fait rien — c'est ce qui en
+       fait une legendaire de BUILD et non une legendaire de puissance. */
+    id: "pacte_de_fer", nom: "Pacte de fer", rarity: 3, max: 1, tags: ["off"],
+    desc: `ton bouclier ne se régénère plus, mais tes dégâts montent de `
+      + `${Math.round(CARD_CFG.PACTE_STEP * 100)} % par tranche de `
+      + `${CARD_CFG.PACTE_PER} points de bouclier maximum`,
+    effective: () => "sans carte de bouclier, elle ne fait rien",
+    apply(m) { m.shieldToDamage = 1; m.noShieldRegen = 1; },
   },
 
   /* --- paliers 3 des familles ---------------------------------------------------
@@ -1004,6 +1296,42 @@ export function defaultMods() {
     bombVulnerable: 0,
     overdriveTime: 0,
     overdriveFade: 0,
+
+    /* --- axes du lot 6 ------------------------------------------------------
+       `critChance` et `critMul` sont les seuls mods qui ne partent PAS d'une
+       valeur neutre : le critique existe pour tout le monde, sans carte. Une
+       base a zero aurait rendu la premiere carte de chance critique
+       incomparable a quoi que ce soit — le joueur n'aurait eu aucun point de
+       reference pour juger « +6 % ». */
+    critChance: CARD_CFG.CRIT_CHANCE,
+    critMul: CARD_CFG.CRIT_MUL,
+    critVuln: 0,
+    areaMul: 1,
+    areaPull: 0,
+    skillCdMul: 1,
+    cdPerKill: 0,
+    execThreshold: 0,
+    execHeal: 0,
+    hpPerKill: 0,
+    maxHpRatio: 0,           // part des PV de base, appliquee dans `fullMods`
+    /* Conversions. Resolues dans `fullMods` et non ici : l'une a besoin des PV
+       max, l'autre du multiplicateur de degats APRES la classe, et
+       `computeMods` ne connait ni l'un ni l'autre. */
+    hpToDamage: 0,
+    damageToHp: 0,
+    shieldToDamage: 0,
+    noShieldRegen: 0,
+    /* Momentum. Ces cinq-la dependent de l'INSTANT et pas du chargement : ils
+       sont relevés a chaque tick par `_players` et multiplies dans `_damage`.
+       La cle vit quand meme ici, comme toutes les autres — un mod absent donne
+       NaN au premier calcul plutot qu'une valeur neutre. */
+    elanStep: 0,
+    elanMax: 0,
+    packStep: 0,
+    packMax: 0,
+    ragePerKill: 0,
+    lowHpRate: 0,
+    lowHpDamage: 0,
   };
 }
 
@@ -1058,6 +1386,21 @@ export function computeMods(owned) {
   // n'existe rien en dessous. Sans plancher, une troisieme source les aurait
   // rendus invisibles — un etat qui ne se voit pas ne s'apprend pas.
   m.statusTimeMul = Math.max(0.35, m.statusTimeMul);
+  /* Le critique reste un EVENEMENT : au-dela de trois coups sur quatre, il
+     cesse d'etre une pointe et devient un multiplicateur permanent qu'on
+     aurait aussi bien pu ecrire dans `damageMul`. */
+  m.critChance = Math.min(CARD_CFG.CRIT_CHANCE_CAP, m.critChance);
+
+  /* Les trois rayons qui sont deja des mods absorbent `areaMul` ICI, en un seul
+     endroit : `frostRadius` traverse le reseau (le client dessine l'aura
+     dessus) et les deux autres sont lus a plusieurs endroits de la simulation.
+     Multiplier chez l'appelant aurait donne une aura dessinee d'une taille et
+     une aura qui ralentit d'une autre. Les rayons CONSTANTS (bombe, grenade,
+     pulsar, onde de mort, nova, riposte) n'ont pas ce probleme et sont
+     multiplies chez leur appelant. */
+  m.bulwarkRadiusMul *= m.areaMul;
+  m.healWaveRadiusMul *= m.areaMul;
+  m.frostRadius *= m.areaMul;
   return m;
 }
 

@@ -177,6 +177,21 @@ function takenClasses() {
   return taken;
 }
 
+/* Point de passage unique du DEVERROUILLAGE, appele par les deux sorties de
+   manche. Le verrou etait pose pour la session entiere, et sa justification
+   n'existe plus : `startRound()` construit un `new GameState()` a chaque
+   manche, donc les cartes de classe ne survivent pas d'une manche a l'autre et
+   il n'y a plus d'investissement a proteger. Il ne garde de sens que PENDANT
+   une manche — on ne repasse pas tireur au premier boss apres avoir laisse le
+   tank encaisser les vagues.
+   Rien a defaire pour l'emplacement unique : `takenClasses()` se recalcule
+   depuis `c.cls`, donc le tank redevient disponible des que son porteur en
+   change. La seule contrainte est d'appeler ceci AVANT de diffuser le salon,
+   sinon les clients recoivent un `clsLocked` perime et grisent le selecteur. */
+function unlockClasses() {
+  for (const c of clients.values()) c.clsLocked = false;
+}
+
 function lobbyPayload() {
   const vote = votedDifficulty();
   return {
@@ -358,6 +373,7 @@ function startRound() {
 function abortRound() {
   phase = PHASE_LOBBY;
   setPaused(false);
+  unlockClasses();
   log(`manche ${roundNumber} interrompue — plus aucun joueur en jeu`);
   broadcast({ t: "roundAbort", round: roundNumber });
   broadcast(lobbyPayload());
@@ -366,6 +382,7 @@ function abortRound() {
 function endRound() {
   phase = PHASE_LOBBY;
   setPaused(false);
+  unlockClasses();
   for (const c of joined()) {
     const p = state.players.get(c.id);
     if (!p) continue;
@@ -490,11 +507,14 @@ attachWebSocket(httpServer, conn => {
       }
 
       case "pickClass": {
-        /* Trois refus, tous cote serveur : hors salon, apres la premiere manche
-           du joueur, et sur un emplacement unique deja pris. Le dernier regle
-           aussi le choix simultane — deux clients qui envoient « tank » dans le
-           meme tick sont traites l'un apres l'autre, le second voit le premier
-           dans `takenClasses()`. */
+        /* Deux refus, tous deux cote serveur : pendant la manche a laquelle on
+           participe (`clsLocked`, leve aux deux sorties de manche par
+           `unlockClasses()`), et sur un emplacement unique deja pris. Le second
+           regle aussi le choix simultane — deux clients qui envoient « tank »
+           dans le meme tick sont traites l'un apres l'autre, le second voit le
+           premier dans `takenClasses()`.
+           Pas de refus sur la phase : un spectateur prepare son entree pendant
+           qu'une manche tourne, c'est voulu. */
         if (client.clsLocked) break;
         const v = Number(msg.cls);
         if (!Number.isInteger(v) || v < 0 || v >= CLASSES.length) break;
@@ -669,7 +689,10 @@ setInterval(() => {
        sinon une manche jouee hors ligne accumulerait toute sa duree — la carte
        est bornee par le nombre de joueurs, mais le chiffre, lui, deviendrait
        faux a la reconnexion. */
-    if (phase === PHASE_ROUND && state.bossDmg.size > 0) state.bossDmg.clear();
+    if (phase === PHASE_ROUND && state.bossDmg.size > 0) {
+      state.bossDmg.clear();
+      state.bossCrit.clear();
+    }
   }
 }, 1000 / 120);
 

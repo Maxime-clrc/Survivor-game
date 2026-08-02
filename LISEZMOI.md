@@ -28,8 +28,9 @@ Le serveur alterne entre **salon**, **manche** et **choix de cartes**.
   cumul de la session. Seul **l'hôte** peut lancer la manche suivante.
 - Chacun y choisit sa **classe** — Rempart, Soigneur ou Tireur. Au maximum **un
   tank et un soigneur** par partie, premier arrivé premier servi ; le choix se
-  **verrouille au lancement de la première manche** et vaut pour toute la
-  session. Un spectateur choisit la sienne pendant qu'il regarde.
+  **verrouille au lancement de la manche** et se rouvre à la fin de celle-ci —
+  on change donc de classe entre deux manches, mais jamais au milieu d'un
+  combat. Un spectateur choisit la sienne pendant qu'il regarde.
 - Tout le monde y vote la **difficulté** ; l'hôte n'a pas de voix double.
 - L'hôte est le plus ancien joueur connecté. S'il part, le suivant hérite du
   bouton automatiquement.
@@ -338,7 +339,7 @@ maintenant de 9 par vague et le débit de 0,15 apparition/s par vague.
 
 ### Classes et compétences
 
-Trois classes, choisies au salon et **verrouillées pour la session** :
+Trois classes, choisies au salon et **verrouillées pendant la manche** :
 
 | classe | PV | dégâts | vitesse | unique |
 |---|---|---|---|---|
@@ -356,6 +357,15 @@ Les multiplicateurs de classe passent par `p.mods`, comme les cartes : aucun
 système ne demande jamais la classe d'un joueur. Conséquence voulue, la
 puissance d'équipe — donc les PV du boss et la pression des vagues — intègre la
 classe sans une ligne de plus.
+
+**Le verrou de classe ne dure que la manche.** Il valait pour la session
+entière, et sa justification n'existait plus : `startRound()` construit un
+`new GameState()` à chaque manche, donc les cartes de classe ne survivent pas
+d'une manche à l'autre et il n'y avait plus d'investissement à protéger. Il ne
+garde de sens que **pendant** un combat — on ne repasse pas tireur au premier
+boss après avoir laissé le tank encaisser les vagues. Il est levé aux deux
+sorties de manche, avant la diffusion du salon ; l'emplacement unique se libère
+tout seul, puisqu'il se recalcule depuis les classes des clients connectés.
 
 Chaque classe a **une compétence de placement** (proactive, à anticiper) et
 **une compétence de réaction** (le bouton qu'on presse quand ça tourne mal).
@@ -548,6 +558,38 @@ coordination sans équipe — il ne resterait que la punition.
 Son nom et son verbe sont annoncés à l'entrée et rappelés dans la barre haute.
 C'est ce qui permet de savoir comment se placer avant la première mécanique.
 
+**Chacun a sa silhouette et sa couleur.** Jusqu'au lot 6, les cinq passaient par
+une seule routine de dessin — couronne de dix pointes, noyau à huit faces, œil
+central — et le seul écart était la couleur des Jumeaux : mécaniquement ils
+n'avaient rien à voir, visuellement ils étaient interchangeables. C'était le plus
+gros écart identité / contenu du jeu. Chaque silhouette **annonce son verbe** :
+
+| boss | silhouette | animation d'inactivité |
+|---|---|---|
+| **Ravageur** | l'originale, conservée : bloc compact, couronne de pointes, lourd | il respire |
+| **Matriarche** | abdomen segmenté et bas sur le sol, quatre appendices courts, **poches d'œufs** dont le nombre décroît d'une par barre brisée, tête minuscule | elle pulse, les poches en opposition de phase |
+| **Métronome** | purement géométrique, **aucun membre** : trois anneaux concentriques désaxés à trois vitesses, noyau **vide** | il tourne |
+| **Oracle** | un grand œil unique, deux anneaux **détachés du corps**, six glyphes qui s'allument | il dérive |
+| **Jumeaux** | deux **demi-formes complémentaires**, chacune incomplète, qui s'emboîtent quand ils convergent | ils oscillent en opposition de phase |
+
+Les poches de la Matriarche sont la seule lecture de progression qui ne demande
+pas de regarder la barre du haut ; le noyau vide du Métronome est ce qui le
+distingue des quatre autres, tous pleins ; et les demi-formes des Jumeaux rendent
+leur mécanique de soin mutuel lisible **sans lire la barre**.
+
+Le corps se **contracte avant une attaque** (jusqu'à −8 %), et la tension est
+déduite des bandeaux d'alerte déjà en place — donc déjà calés sur la timeline
+interpolée — plutôt que d'un champ de plus dans l'instantané. Une couleur
+dominante par boss, distincte des cinq teintes d'ennemis, et **la barre de vie
+prend la teinte de la créature** : deux informations sur le même adversaire ne
+peuvent pas être de deux couleurs différentes.
+
+Les boss ne sont **pas dans l'atlas** : ils sont uniques à l'écran, leur coût de
+tracé est négligeable, et ils gagnent à être animés en continu — ce que l'atlas
+ne sait pas faire. Ils manquaient donc à la planche de silhouettes ; `?planche`
+en sort désormais une bande à part, produite par la **même** routine de dessin
+que le jeu.
+
 Les `PV` corrigent ce que le verbe coûte en temps de tir : la Matriarche voit
 une partie des dégâts partir sur ses rejetons, le Métronome fait passer le
 combat à courir. L'Oracle était prévu à ×1,10 dans le plan ; **la mesure a dit
@@ -688,8 +730,18 @@ jauge affichée, et un compteur `×5` à côté qui dit combien il en reste.
 Une seule jauge pour 2,6 fois plus de PV avançait si lentement qu'on ne voyait
 plus ses propres dégâts. Découpée, **chaque barre est un objectif atteignable**
 (une dizaine de secondes) et sa rupture devient un évènement : souffle qui
-repousse tout le monde, projectiles effacés, respiration d'une seconde et demie,
+blesse tout le monde, projectiles effacés, respiration d'une seconde et demie,
 et une **mécanique de plus** qui s'ajoute au répertoire.
+
+Le souffle **ne déplace pas** les joueurs, et c'est un retour en arrière assumé.
+Il projetait de 260 px, soit trois fois le seuil de recalage de la prédiction
+locale : le personnage était arraché de sa position au lieu d'être poussé, et
+ça arrivait 110 ms avant l'image qui l'explique. Pire, la rupture ne se
+programme pas — on la déclenche en tirant — donc un joueur au milieu d'une
+esquive de zone se faisait replacer dedans par un évènement qu'il n'avait aucun
+moyen de jouer. Un déplacement qu'on ne peut ni anticiper ni contrer n'est pas
+une difficulté. Les dégâts et l'onde restent : la rupture se voit et se paie,
+elle ne dépossède plus.
 
 **Le répertoire est propre à chaque boss** — c'est ce qui change d'un combat à
 l'autre, les cinq barres et la montée en répertoire restant le squelette commun.
@@ -930,10 +982,60 @@ Le jalon se déclenche au premier écran ouvert **à partir de** la vague 10, et
 non pendant cette vague exactement : une vague où personne ne monte de niveau
 n'ouvre aucun écran, et la garantie sautait alors une fois sur deux.
 
-Les 77 cartes vivent dans `shared/cards.js`, avec leurs valeurs. Les communes
+Les 106 cartes vivent dans `shared/cards.js`, avec leurs valeurs. Les communes
 sont des gains de nombres ; les rares modifient une mécanique ; les épiques
 définissent une orientation de build ; trois des légendaires **remplacent
 l'arme** et s'excluent entre elles.
+
+#### Le déséquilibre du catalogue, et les six axes ajoutés
+
+Le catalogue comptait **13 communes pour 27 rares**, alors que les communes
+sortent **six fois plus souvent**. Sur une partie à quinze ou vingt tirages, le
+joueur revoyait les mêmes treize en boucle, dont plusieurs plafonnées donc
+retirées du pool en cours de route. Douze communes ont été ajoutées — huit qui
+ouvrent un axe nouveau, quatre qui comblent un système sans entrée commune
+(bouclier, brûlure, réduction de dégâts subis, recharge d'esquive). Réparition
+actuelle : **25 / 35 / 32 / 14**.
+
+Six axes classiques du genre manquaient entièrement — aucun coup critique,
+aucun multiplicateur global de rayon, aucune réduction de recharge générique,
+aucun seuil d'exécution, aucune conversion d'une statistique en une autre,
+aucun bonus indexé sur la situation :
+
+| axe | cartes | ce qu'il apporte |
+|---|---|---|
+| **critique** | Précision, Mire, Talon faible, Œil de faucon, Sentence capitale | il est **multiplicatif**, donc il rend meilleures toutes les cartes de dégâts déjà présentes au lieu de les concurrencer |
+| **rayon** | Expansion, Déflagration, Singularité | une seule clé `areaMul`, et une quinzaine de cartes existantes deviennent meilleures |
+| **recharge** | Condensateur, Surtension, Flux continu | Flux continu retire 0,1 s par kill : les compétences suivent enfin le rythme de la vague |
+| **exécution** | Achèvement, Moisson | répond à la sensation d'ennemis-éponges de fin de manche, et se marie avec les dégâts de zone qui laissent des survivants à bas PV |
+| **conversion** | Blindage offensif, Fureur défensive, Pacte de fer | empiler du PV devient une stratégie **offensive** assumée — une carte défensive ne donne plus l'impression d'un tour perdu |
+| **momentum** | Élan, Meute, Carnage, Adrénaline, Dernier souffle | Meute récompense de rester **au contact**, alors que tout le reste du jeu pousse à reculer |
+
+Le critique existe pour **tout le monde**, sans carte : 5 % de chance, ×2. Sans
+cette base, la première carte de chance critique ne se compare à rien et le
+joueur n'a aucun repère pour juger « +6 % ». La chance est plafonnée à **60 %** :
+au-delà, ce n'est plus une pointe mais un multiplicateur permanent qu'on aurait
+aussi bien pu écrire dans `damageMul`. Le tirage se fait dans `_damage()`, au
+point de passage unique — une nova critique donc autant qu'une balle — et jamais
+sur un dégât continu, qui critiquerait à tous les coups en moyenne à soixante
+tirages par seconde.
+
+Deux écarts assumés avec la spécification du lot :
+
+- **Pacte de fer** donne +4 % de dégâts par tranche de **5 points** de bouclier
+  et non par point. Par point, trois « Bouclier régénérant » (90 points)
+  auraient donné **+360 %**, soit quatre fois la meilleure légendaire du jeu ;
+  par tranche de cinq, un bouclier complet vaut +72 %, le prix étant qu'il ne
+  revient jamais de la manche.
+- **Les conversions** ont besoin d'une échelle : `x % de tes PV` doit se
+  traduire en multiplicateur de dégâts. La référence de dégâts est posée à
+  200 PV et non à 100, sans quoi « Fureur défensive » rendait 24 PV sur un
+  chargement à ×2,4 — moins que Peau de titane, qui est épique elle aussi.
+
+Les deux conversions se calculent sur les valeurs **de base**, relevées avant
+toute conversion : sinon « Blindage offensif » lit des PV déjà gonflés par
+« Fureur défensive », qui lit des dégâts déjà gonflés par le premier, et le
+chargement dérive un peu plus à chaque carte prise.
 
 #### Les familles
 
@@ -1144,7 +1246,20 @@ paie que les changements de **forme**. 48 images, 448 × 448 à densité 1.
 Ce n'est pas un gadget : c'est le critère d'acceptation des silhouettes. Un
 lecteur qui ne connaît pas le jeu doit pouvoir les regrouper par type sans
 hésiter ; un type qui n'est reconnaissable qu'à sa couleur a raté son test. Deux
-silhouettes ont déjà échoué à cette planche et ont été refaites.
+silhouettes ont déjà échoué à cette planche et ont été refaites. La planche
+inclut désormais une bande de **boss**, qui ne sont pas dans l'atlas.
+
+**Le Rempart a été refait au lot 6**, pour trois défauts qui se cumulaient et se
+voyaient tous sur cette planche : il n'était pas plus imposant que les autres
+(hexagone 14 × 12,5 contre 13 de rayon pour le soigneur) alors que la masse est
+son identité entière ; ses deux plaques partaient de l'**arrière** et pointaient
+vers l'avant, ce qui lisait comme un crabe plutôt que comme un bouclier ; et son
+canon était aussi long que celui du tireur, alors que sa fiche de classe annonce
+« canon court et large ». Corps porté à 17 × 15, plaques déplacées à l'avant en
+**arc de bouclier frontal**, canon court et épais (±6 contre ±2 pour le tireur),
+contour à 3,5 px et ombre portée plus marquée que les deux autres classes — le
+poids du trait et l'ancrage au sol font autant pour la masse que les dimensions.
+Critère : il doit être identifiable **à sa masse seule**, sans détail interne.
 
 ### Le rendu des entités passe par WebGL
 
@@ -1179,6 +1294,30 @@ derrière. C'est très exactement ce pour quoi cette indirection existait.
 - c'est le mode dégradé quand WebGL2 manque ;
 - c'est la **référence de comparaison** : `localStorage.setItem("survivor.renderer",
   "canvas2d")` dans la console y bascule, sans rien redémarrer.
+
+**Ce que la bascule débloquait et qui ne servait pas encore** a été mis à
+profit au lot 6 : les fragments de mort doublent en nombre quand WebGL est actif
+(22 pour une élite contre 10 en 2D — un fragment y est un quad du même lot que
+les entités, alors qu'en 2D c'est un `fillRect`), chaque mort pose un **éclat**
+blanc additif qui sature le centre pendant deux images, une élite laisse une
+**onde annulaire** additive, et les projectiles portent une lueur additive qui
+fait lire dix balles groupées comme une gerbe lumineuse plutôt que comme dix
+pastilles.
+
+La lueur des projectiles est **uniforme et non proportionnelle aux dégâts**,
+contrairement à ce que le plan proposait : un projectile ne transporte ni son
+propriétaire ni ses dégâts, et un champ de plus sur les quatre cents balles en
+vol, vingt fois par seconde, coûte plus que l'effet ne rapporte — c'est
+exactement la raison pour laquelle `bd` existe côté boss.
+
+Deux autres corrections de lisibilité au même lot : le télégraphe d'une zone
+monte désormais en intensité de façon **non linéaire**, les 300 dernières
+millisecondes valant à elles seules autant que tout le reste de l'annonce (on
+lisait une jauge, on ressent maintenant une échéance) et jettent des étincelles
+qui **montent** ; et une zone persistante porte une **texture qui défile** à
+l'intérieur, seul moyen de distinguer « active » de « en cours d'annonce » à la
+périphérie du regard, puisque les deux sont des aplats rouges et que seule la
+première bouge.
 
 Mesuré : **2 appels de dessin par image pour 3 220 quads** (220 ennemis plus
 3 000 particules), atlas 1,5 Mo à densité 1 et 6,1 Mo à densité 2 — très en
@@ -1218,6 +1357,19 @@ de seconde trop tôt. Les événements se déduisent donc de deux snapshots
 consécutifs mais ne sortent qu'au moment où l'horloge de rendu franchit le
 second — mesuré à +6,7 ms, soit moins d'une image.
 
+**Les transitions de manche tombent sur l'image, elles aussi.** C'était le même
+piège, et il produisait un défaut qu'on remarquait à chaque vague : le serveur
+envoie l'écran de cartes à l'instant où il constate l'arène vide, mais le client
+dessine encore l'état d'il y a 110 ms — où deux ou trois ennemis vivent toujours.
+**L'écran de choix s'ouvrait par-dessus des ennemis visibles**, de façon
+irrégulière puisque ça ne se voit que si les derniers meurent groupés. Les
+messages `round`, `roundAbort`, `roundEnd`, `cards` et `cardsWait` passent
+désormais par une file unique, sur le modèle exact de celle des alertes : une
+file plutôt qu'un minuteur par message, ce qui préserve leur ordre d'arrivée et
+ne laisse rien à annuler quand la connexion tombe. Les messages **hors-monde** —
+salon, choix de classe, tableau des scores, pause — s'appliquent toujours à la
+réception : ils ne commentent aucune image.
+
 Côté image : **éclair blanc de 60 ms** sur l'ennemi touché (le retour le moins
 cher et le plus efficace — sans lui, tirer dans la foule ne confirme rien),
 **recul du sprite** de cinq pixels, **fragments à la mort** (six à dix), et des
@@ -1240,6 +1392,15 @@ deux images et y compris la dernière. Les flashes sont alors **étalés** sur
 l'intervalle plutôt qu'empilés au même instant — sinon on retrouverait le flash
 unique qu'on venait de corriger. Le coup fatal, lui, affiche les PV restants du
 dernier instantané connu.
+
+**Un coup critique s'affiche en ambre et un cran plus gros.** C'est la seule
+raison qu'un joueur ait jamais eue de *regarder* ces chiffres : sans distinction
+visible, un axe de build entier ne produit aucun retour à l'écran et personne ne
+sait s'il fonctionne. La taille fait autant que la couleur — le chiffre doit se
+distinguer au coin de l'œil, et un daltonien doit s'en sortir. Un instantané
+agrège plusieurs touches : le chiffre dit donc « ce paquet contient un
+critique », pas « ce coup en était un ». La part critique voyage en **fin** du
+tuple `bd`, comme tout ce qu'on ajoute au protocole.
 
 Un dégât **continu** — brûlure, couronne mortelle de la constriction —
 n'incrémente pas le compteur : sans cette exception, un ennemi qui brûle
@@ -1457,6 +1618,53 @@ un éclair à 1 rend du blanc pur, et deux quads additifs à `0x40` rendent `128
 Les images par seconde ne sont **pas** mesurables ainsi : le rendu logiciel de
 Chrome sans tête ne dit rien d'un GPU réel, et le temps virtuel fige les
 horloges. Elles se relèvent en session réelle avec `?perf`.
+
+### Les axes de cartes du lot 6
+
+Les dégâts par seconde sont mesurés sur **cible fixe et immortelle** — un ennemi
+neuf replanté à chaque tick, 120 s de tir. C'est la seule mesure qui compare
+deux chargements sans faire dépendre le résultat de la survie du bot.
+
+La comparaison se fait **à nombre de cartes égal**, ce qui est le seul angle
+honnête : un chargement critique complet ne coûte pas le même nombre de tirages
+qu'un chargement brut complet.
+
+| chargement | cartes | dps | chance critique |
+|---|---|---|---|
+| nu | 0 | 60 | 5 % |
+| critique orienté (Précision ×2, Mire, Œil de faucon) | 4 | 98 | 49 % |
+| brut (Affûtage ×3, Calibre) | 4 | 98 | 5 % |
+| critique maximal (+ Talon faible ×2) | 8 | 135 | 60 % |
+| brut (Affûtage ×6, Calibre ×2) | 8 | 134 | 5 % |
+
+**Écart entre build critique et build brute : 1,1 %** à huit cartes, 0,9 % à
+quatre — le critère du lot était « moins de 30 % ». La chance critique d'une
+build orientée atteint 49 %, au-dessus de la fourchette de 25 à 45 % annoncée
+dans le plan : les plafonds d'exemplaires ont déjà été abaissés une fois à la
+mesure (Précision 5 → 3, Mire 3 → 2, Œil de faucon 2 → 1), et descendre plus bas
+faisait tomber la build critique **sous** la build brute.
+
+Conséquence chiffrée du critique de base : la puissance d'un joueur nu passe de
+1,00 à **1,05** dans `_playerPower()`, donc les PV de boss et la pression des
+vagues montent de 5 % — c'est exact, tout le monde inflige réellement 5 % de
+dégâts en plus, et c'est précisément le rôle de l'indexation.
+
+Variété du pool, 200 manches simulées avec la même dérive de qualité que le jeu :
+
+| tirages dans la manche | communes distinctes vues | pire cas |
+|---|---|---|
+| 18 | 14,3 | 8 |
+| 20 | **15,1** | 11 |
+
+Le critère était « plus de 15 ». Il est atteint en haut de la fourchette de
+tirages (le dépôt en annonce quinze à vingt) et manqué de peu en bas : le pool
+de rareté basse se vide toujours en milieu de manche, parce que la dérive de
+qualité pousse mécaniquement les épiques. Douze communes ajoutées au lieu des
+huit du plan, et c'est le levier qui reste si le chiffre doit encore monter.
+
+Aucune case de secours (Ravitaillement) n'a été servie sur les 200 manches, là
+où le pool d'avant en servait : c'est l'effet secondaire attendu d'un catalogue
+passé de 77 à 106 cartes.
 
 ### Vagues et progression
 
