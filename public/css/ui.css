@@ -42,20 +42,40 @@ html, body {
   width: min(100%, calc(100vh * 16 / 9));
 }
 
-#frame > canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: var(--bg-arena);
-  cursor: crosshair;
-  /* Le tressaillement d'ecran est un `transform` CSS sur le canvas depuis que
-     le HUD est son FRERE et non son contenu : il n'y a plus rien a separer en
-     deux passes de rendu. Le leger agrandissement permanent evite qu'une
-     secousse ne decouvre une bande de page derriere l'arene — dix pixels sur
-     seize cents, soit largement moins que le 1,5 % de marge. */
+/* Les TROIS couches de l'arene occupent la meme boite. `#arena` porte le
+   tressaillement pour toutes les trois d'un coup : trois `transform` separes
+   auraient pu diverger d'un sous-pixel, et on aurait vu les entites glisser
+   contre leur propre sol. */
+#arena {
+  position: absolute;
+  inset: 0;
+  /* Le tressaillement d'ecran est un `transform` CSS depuis que le HUD est le
+     FRERE du canvas et non son contenu : il n'y a plus rien a separer en deux
+     passes de rendu. Le leger agrandissement permanent evite qu'une secousse ne
+     decouvre une bande de page derriere l'arene — dix pixels sur seize cents,
+     soit largement moins que le 1,5 % de marge. */
   transform: scale(1.015);
   will-change: transform;
 }
+
+#arena > canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Le fond de l'arene est peint par la couche du DESSOUS, pas par le CSS :
+     les deux couches superieures doivent rester transparentes, sinon elles
+     effacent tout ce qui est dessous. */
+  background: transparent;
+  cursor: crosshair;
+}
+
+/* Seule la couche du dessous porte le fond : c'est le repli quand WebGL n'est
+   pas disponible et que `#cvGl` reste vide. Selecteur descendant et non
+   `#cvUnder` seul : la regle ci-dessus porte un identifiant ET un element, elle
+   l'emporterait sinon sur specificite. */
+#arena > #cvUnder { background: var(--bg-arena); }
 
 /* --- fond des ecrans hors combat -------------------------------------------
    Grille tres faible et vignettage : l'ecran ne doit JAMAIS etre du noir plat.
@@ -511,28 +531,218 @@ td.cards { text-align: left; max-width: 420px; }
 
 #cardsWaitMsg { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); }
 
-/* --- cartes possedees, touche Tab en jeu ------------------------------------ */
-#loadoutTitle {
-  font-size: var(--t-s);
+/* ===========================================================================
+   FENETRE DE BUILD
+   Trois entrees, un seul ecran : Tab en jeu, un clic sur une ligne du bilan, un
+   clic sur une ligne du salon. Elle passe DEVANT les deux autres overlays
+   (z-index plus eleve) puisqu'elle s'ouvre depuis eux — la refermer doit rendre
+   l'ecran d'ou l'on vient, pas le remplacer.
+   =========================================================================== */
+
+#build { z-index: 20; gap: var(--sp-4); justify-content: flex-start; }
+
+#buildHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  width: min(100%, 760px);
+}
+#buildWho { display: flex; align-items: center; gap: var(--sp-4); flex: 1; }
+#buildName {
+  font-size: var(--t-xl);
   font-weight: 700;
+  letter-spacing: var(--track-title);
+}
+#buildClass {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+}
+
+/* Les fleches sont des boutons a part entiere et pas seulement un rappel du
+   clavier : la fenetre s'ouvre aussi au clic depuis un tableau, et on y arrive
+   donc souvent la main sur la souris. */
+.buildNav {
+  font-family: var(--font);
+  font-size: var(--t-l);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.buildNav:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* --- statistiques et multiplicateurs --------------------------------------- */
+
+#buildStats { display: flex; gap: var(--sp-8); flex-wrap: wrap; justify-content: center; }
+.buildStat { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.buildStat .val { font-size: var(--t-l); font-weight: 700; letter-spacing: var(--track-title); }
+.buildStat .lab {
+  font-size: var(--t-xs);
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: var(--text-faint);
 }
-#loadoutList { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 300px; max-width: 420px; }
-.loadoutRow {
+
+/* La ligne la plus interessante des cinq : « ×2,4 dégâts » explique le tableau
+   des scores bien mieux que la liste de cartes. D'ou un traitement plus fort
+   que celui des statistiques brutes juste au-dessus. */
+#buildMods { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: center; }
+.buildMod {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  gap: var(--sp-4);
+  gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
-  border-left: 3px solid currentColor;
+  border: var(--hair) solid var(--line);
   background: var(--bg-panel);
   font-size: var(--t-s);
 }
-.loadoutName { color: var(--text); }
-.loadoutValue { font-size: var(--t-xs); color: var(--text-dim); margin-left: auto; margin-right: var(--sp-1); }
-.loadoutRarity { font-size: var(--t-xs); text-transform: uppercase; letter-spacing: var(--track-title); }
+.buildMod .lab { color: var(--text-faint); font-size: var(--t-xs); text-transform: uppercase; }
+.buildMod .val { font-weight: 700; letter-spacing: var(--track-title); }
+/* Vert « gain », ambre « coût » : la grammaire de couleur du depot. Le neutre
+   reste en texte ordinaire — un ×1,00 n'a rien a signaler. */
+.buildMod.gain .val { color: var(--gain); }
+.buildMod.gain { border-color: var(--gain); }
+.buildMod.cout .val { color: var(--warn); }
+.buildMod.cout { border-color: var(--warn); }
+
+#buildSkills { display: flex; flex-direction: column; gap: var(--sp-1); width: min(100%, 760px); }
+.buildSkill {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: baseline;
+  font-size: var(--t-s);
+  color: var(--text-dim);
+}
+.buildSkill .key {
+  min-width: var(--sp-6);
+  padding: 0 var(--sp-1);
+  border: var(--hair) solid var(--line);
+  text-align: center;
+  font-size: var(--t-xs);
+  font-weight: 700;
+  color: var(--text);
+}
+.buildSkill b { color: var(--text); }
+
+/* --- cartes ----------------------------------------------------------------
+   Groupees par rarete DECROISSANTE : une legendaire perdue au milieu de dix
+   communes ne se remarque pas, alors qu'elle est precisement ce qu'on cherche.
+   Deux colonnes quand la place le permet — une liste de quinze cartes en une
+   seule colonne demande de faire defiler pour comparer deux paliers. */
+#buildCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--sp-1) var(--sp-4);
+  width: min(100%, 760px);
+  align-content: start;
+}
+.buildRarity {
+  grid-column: 1 / -1;
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  margin-top: var(--sp-2);
+}
+.buildCard {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid currentColor;
+  background: var(--bg-panel);
+}
+.buildCardIcon { width: var(--sp-6); height: var(--sp-6); flex: none; }
+.buildCardIcon svg { width: 100%; height: 100%; }
+.buildCardBody { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.buildCardHead { display: flex; gap: var(--sp-3); align-items: baseline; }
+.buildCardName { color: var(--text); font-size: var(--t-s); font-weight: 700; }
+.buildCardTotal { font-size: var(--t-xs); color: var(--text-dim); margin-left: auto; }
+/* L'EFFET est ce qu'on lit, pas le nom : meme regle que l'ecran de choix. */
+.buildCardDesc { font-size: var(--t-s); color: var(--text-dim); }
+.buildCardWarn { font-size: var(--t-xs); color: var(--warn); }
+.buildEmpty { grid-column: 1 / -1; font-size: var(--t-s); color: var(--text-faint); }
+
+/* Une ligne de tableau qui ouvre la fenetre. Le survol le dit — sans lui,
+   personne ne devine qu'un tableau est cliquable. */
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--bg-panel); }
+
+/* ===========================================================================
+   MENU PAUSE
+   Ce n'est PAS un `.overlay`, et c'est la seule difference qui compte : a
+   plusieurs la partie continue derriere, donc le voile doit rester translucide
+   pour qu'on la voie. Un panneau opaque aurait fait croire que tout est arrete,
+   ce qui est exactement le malentendu que le libelle est la pour eviter.
+   =========================================================================== */
+
+#pause {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Assez sombre pour que le panneau se lise, assez clair pour qu'on voie
+     qu'il se passe encore quelque chose derriere. */
+  background: color-mix(in srgb, var(--bg-void) 72%, transparent);
+  animation: fadeIn var(--fade) ease-out;
+}
+#pause[hidden] { display: none; }
+
+#pausePanel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-3);
+  min-width: 320px;
+  padding: var(--sp-6);
+  border: var(--hair) solid var(--line);
+  background: var(--bg-panel);
+}
+
+#pauseTitle {
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* Le libelle d'etat porte toute l'explication : « la partie continue — pause
+   indisponible à plusieurs ». Ambre dans ce cas — c'est un avertissement, pas
+   une information neutre — et gris quand la simulation est vraiment figee. */
+#pauseState {
+  font-size: var(--t-xs);
+  text-align: center;
+  color: var(--text-faint);
+  min-height: var(--sp-4);
+}
+#pauseState.live { color: var(--warn); }
+
+#pauseAudio { display: flex; align-items: center; gap: var(--sp-3); justify-content: center; }
+#pauseAudio button { padding: var(--sp-2) var(--sp-3); font-size: var(--t-s); min-width: var(--sp-8); }
+#pauseAudio button.off { color: var(--text-faint); }
+#pauseVolVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
+
+/* Rouge : une action irreversible pour la manche en cours. C'est le seul
+   endroit de l'interface hors combat qui a le droit d'en porter. */
+button.danger { color: var(--lethal); border-color: var(--lethal); }
+button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--lethal); }
+
+#pauseConfirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--lethal);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+}
+#pauseConfirm .row { justify-content: center; }
+#pauseConfirm[hidden] { display: none; }
 
 /* ===========================================================================
    BILAN DE FIN DE MANCHE

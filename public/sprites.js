@@ -44,6 +44,7 @@
    =========================================================================== */
 
 import { ENEMY, COMBAT, ramp } from "/shared/palette.js";
+import { parseColor, BLEND_NORMAL, BLEND_ADD } from "/gl.js";
 
 /* Cote d'une case, en unites MONDE. Le plus gros sprite est le tank (21 de
    rayon) plus son contour et ses epaules debordantes : 60 laisse la marge
@@ -52,17 +53,39 @@ const CELL = 60;
 const HALF = CELL / 2;
 const COLS = 7;
 
+/* GOUTTIERE TRANSPARENTE autour de chaque case. Invisible en canvas 2D — un
+   `drawImage` lit exactement le rectangle qu'on lui donne — mais SYSTEMATIQUE
+   en WebGL : le filtrage lineaire va chercher les texels voisins au bord du
+   rectangle source et ramene des franges de l'image d'a cote. Deux pixels
+   suffisent, et ils coutent 14 % de surface de texture.
+
+   `PITCH` est donc le pas de la grille, `CELL` la case utile centree dedans.
+   Toute lecture de l'atlas passe par `cellRect()`, jamais par un calcul
+   recopie : deux formules divergeraient au premier reglage de la gouttiere. */
+const PAD = 2;
+const PITCH = CELL + PAD * 2;
+
 /* Densite de pixels de l'atlas. Elle suit celle de l'ecran — un atlas genere a
    1 sur une dalle 1440p redonnerait exactement le flou qu'on est venu corriger
    dans le canvas. Plafonnee a 2 pour la meme raison qu'ailleurs : au-dela on
    quadruple le remplissage pour un gain invisible. */
 const DPR = Math.min(globalThis.devicePixelRatio || 1, 2);
 const PX = CELL * DPR;
+const PITCH_PX = PITCH * DPR;
 
 let atlas = null;        // le canvas unique
 let flashAtlas = null;   // la meme planche, en silhouettes blanches
 const index = new Map(); // nom -> numero de case
 let count = 0;
+
+// Rectangle source d'une case, en pixels de texture. Point de passage unique :
+// le chemin 2D et le chemin WebGL lisent la MEME formule, gouttiere comprise.
+function cellRect(frame) {
+  return {
+    x: (frame % COLS) * PITCH_PX + PAD * DPR,
+    y: Math.floor(frame / COLS) * PITCH_PX + PAD * DPR,
+  };
+}
 
 function slot(name) {
   const id = count++;
@@ -578,6 +601,17 @@ function plan() {
     });
   });
 
+  /* Une case UNIFORMEMENT BLANCHE, pour les particules. Ce n'est pas un sprite
+     de plus au sens de la recette : c'est le moyen de faire passer les
+     fragments par le meme batcher que tout le reste. Sans elle il faudrait un
+     second chemin de rendu — un tampon a part, un shader a part — pour dessiner
+     des carres, ce qui est exactement le genre d'exception que ce module
+     refuse d'ouvrir. La teinte de `drawSprite` fait la couleur. */
+  jobs.push({
+    name: "fx_white",
+    paint: g => { g.fillStyle = "#ffffff"; g.fillRect(-HALF, -HALF, CELL, CELL); },
+  });
+
   return jobs;
 }
 
@@ -636,15 +670,17 @@ export async function buildAtlas(onProgress) {
   const rows = Math.ceil(jobs.length / COLS);
 
   atlas = document.createElement("canvas");
-  atlas.width = COLS * PX;
-  atlas.height = rows * PX;
+  // Le pas de grille porte la GOUTTIERE : la case utile reste a CELL, mais deux
+  // pixels transparents la separent de sa voisine. Voir le commentaire de PAD.
+  atlas.width = COLS * PITCH_PX;
+  atlas.height = rows * PITCH_PX;
   const g = atlas.getContext("2d");
   g.scale(DPR, DPR);
 
   for (let i = 0; i < jobs.length; i++) {
     const id = slot(jobs[i].name);
-    const cx = (id % COLS) * CELL + HALF;
-    const cy = Math.floor(id / COLS) * CELL + HALF;
+    const cx = (id % COLS) * PITCH + PITCH / 2;
+    const cy = Math.floor(id / COLS) * PITCH + PITCH / 2;
     g.save();
     g.translate(cx, cy);
     jobs[i].paint(g);
@@ -673,6 +709,44 @@ export async function buildAtlas(onProgress) {
 
   return { frames: jobs.length, w: atlas.width, h: atlas.height };
 }
+
+/* --- bascule WebGL ---------------------------------------------------------
+   `drawSprite` reste LE point de passage : le batcher se branche ici, et pas un
+   appelant ne bouge. Le chemin canvas 2D reste vivant juste en dessous — c'est
+   le repli en cas de perte de contexte, et la reference de comparaison
+   visuelle tant que la migration n'est pas finie. */
+let renderer = null;
+let targets = new Set();
+const WHITE = [255, 255, 255];
+
+export function bindGL(r, ctxList) {
+  renderer = r;
+  targets = new Set(ctxList ?? []);
+  if (r) {
+    r.setFlashColor(...parseColor(COMBAT.flash).map(v => v / 255));
+    r.setAtlas(atlas);
+  }
+}
+
+// Le contexte restaure repart d'une texture vide : l'atlas est a RETELEVERSER,
+// sinon le jeu revient en sprites blancs. Appele par le gestionnaire de
+// restauration du client.
+export function reuploadAtlas() {
+  renderer?.setAtlas(atlas);
+}
+
+export function atlasCanvas() { return atlas; }
+
+/* Cote d'une case, en unites monde. Exporte pour une seule raison : les
+   particules passent par `drawSprite` sur la case blanche, et leur taille se
+   demande en `scaleX`. Sans cette constante l'appelant recopierait 60, ce qui
+   ferait mentir toutes les particules le jour ou la case change de taille. */
+export const SPRITE_CELL = CELL;
+
+// Vrai quand le rendu passe reellement par le batcher. Les particules s'en
+// servent pour choisir leur plafond : trois mille quads ne coutent rien en
+// WebGL et sont hors de portee du canvas 2D, qui les paie en `fillRect`.
+export function glActive() { return !!(renderer && renderer.ok); }
 
 /* Canvas de travail pour la teinte. UN seul, reutilise : allouer un canvas par
    appel ferait travailler le ramasse-miettes soixante fois par seconde. */
@@ -706,10 +780,33 @@ export function drawSprite(g, frame, x, y, {
   tint = null,
   alpha = 1,
   flash = 0,
+  additive = false,
 } = {}) {
   if (!atlas) return;
-  const sx = (frame % COLS) * PX;
-  const sy = Math.floor(frame / COLS) * PX;
+  const rect = cellRect(frame);
+  const sx = rect.x, sy = rect.y;
+
+  /* CHEMIN WEBGL. Il ne s'ouvre que pour les contextes DECLARES par `bindGL` :
+     la silhouette du salon et la planche de controle passent leur propre
+     contexte 2D et doivent continuer de l'utiliser. C'est aussi ce qui evite
+     un drapeau global que deux appelants liraient differemment.
+
+     Aucun appelant ne change — c'etait tout le but de n'avoir qu'un seul point
+     de passage, et c'est le critere d'acceptation de la bascule. */
+  if (renderer && renderer.ok && targets.has(g)) {
+    renderer.setBlend(additive ? BLEND_ADD : BLEND_NORMAL);
+    const [tr, tg, tb] = tint ? parseColor(tint) : WHITE;
+    const a = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha;
+    // Teinte PREMULTIPLIEE par l'alpha, les quatre canaux : la texture l'est
+    // deja, et l'oublier donne un additif deux fois trop lumineux.
+    renderer.quad(
+      sx / atlas.width, sy / atlas.height,
+      (sx + PX) / atlas.width, (sy + PX) / atlas.height,
+      x, y, HALF * scaleX, HALF * scaleY, angle,
+      (tr * a) | 0, (tg * a) | 0, (tb * a) | 0, (a * 255) | 0,
+      flash > 0 ? Math.min(255, (flash * 255) | 0) : 0);
+    return;
+  }
 
   g.save();
   g.translate(x, y);

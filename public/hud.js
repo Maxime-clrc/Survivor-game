@@ -559,8 +559,12 @@ export function updateHud(v, c) {
 
   if (c.perf) {
     setHidden(el.perf, "pfOn", false);
+    /* Les APPELS DE DESSIN sont la mesure qui compte pour le batcher : un lot
+       vide a chaque sprite donne des centaines d'appels pour exactement la meme
+       image, et rien a l'ecran ne le dit. On en attend deux a quatre. */
     setText(el.perf, "pf",
       `${c.fps.toFixed(0)} i/s · ${c.particles} frag · ${v.enemyList.length} ennemis · ` +
+      `${c.renderer} ${c.draws} appels / ${c.quads} quads · ` +
       `${c.voices} voix (pic ${c.peak})`);
     setClass(el.perf, "pfl", "low", c.fps < 55);
   }

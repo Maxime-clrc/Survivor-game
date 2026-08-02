@@ -96,6 +96,32 @@ let roundNumber = 0;
 let cardDeadline = 0;
 const cardPicked = new Set();
 
+/* Pause demandee par le joueur. Elle N'A DE SENS QU'EN SOLO : le serveur est
+   autoritaire et simule en continu, donc un joueur qui met en pause figerait la
+   partie des trois autres. A plusieurs, le client ouvre le meme panneau mais la
+   manche continue derriere — et c'est le SERVEUR qui le garantit, jamais le
+   client : c'est exactement le type de message qu'un client modifie enverrait
+   pour figer une partie a quatre.
+
+   L'echeance n'est pas un detail. Sans elle, un solo en pause laisse le serveur
+   bloque indefiniment et personne ne peut le rejoindre — c'est le meme piege
+   que la manche qui ne se terminait jamais quand tout le monde quittait. */
+const PAUSE_MAX_MS = 5 * 60 * 1000;
+let paused = false;
+let pausedAt = 0;
+
+/* Levee de pause, quelle qu'en soit la raison. Point de passage unique : trois
+   causes (demande du joueur, echeance, arrivee d'un second joueur) et un seul
+   endroit ou l'etat retombe, sinon une des trois oublie de prevenir les
+   clients. */
+function setPaused(on, why = "") {
+  if (paused === on) return;
+  paused = on;
+  pausedAt = on ? Date.now() : 0;
+  broadcast({ t: "paused", on: on ? 1 : 0, why });
+  log(on ? "manche en pause (solo)" : `pause levee${why ? ` — ${why}` : ""}`);
+}
+
 const clients = new Map();     // id -> client
 let nextClientId = 1;
 let hostId = 0;
@@ -299,6 +325,9 @@ function forceRemainingPicks() {
 
 function startRound() {
   roundNumber++;
+  // Une pause ne survit jamais a un changement de phase : les trois transitions
+  // la lèvent, sinon la manche suivante demarrait figee.
+  setPaused(false);
   const diff = votedDifficulty().index;
   state = new GameState(diff);
   cardPicked.clear();
@@ -328,6 +357,7 @@ function startRound() {
    partie vide, sans moyen de relancer. On revient donc au salon. */
 function abortRound() {
   phase = PHASE_LOBBY;
+  setPaused(false);
   log(`manche ${roundNumber} interrompue — plus aucun joueur en jeu`);
   broadcast({ t: "roundAbort", round: roundNumber });
   broadcast(lobbyPayload());
@@ -335,6 +365,7 @@ function abortRound() {
 
 function endRound() {
   phase = PHASE_LOBBY;
+  setPaused(false);
   for (const c of joined()) {
     const p = state.players.get(c.id);
     if (!p) continue;
@@ -396,6 +427,10 @@ attachWebSocket(httpServer, conn => {
         // Arriver en cours de manche ne coupe pas la partie des autres :
         // on regarde, on entre a la manche suivante.
         client.spectator = phase === PHASE_ROUND;
+        /* Un second joueur arrive : la pause tombe. Sinon un solo en pause
+           bloque le serveur et l'arrivant regarde une image figee sans aucun
+           moyen d'y changer quoi que ce soit. */
+        if (paused) setPaused(false, "un second joueur est arrivé");
 
         refreshHost();
         conn.send(JSON.stringify({
@@ -494,6 +529,36 @@ attachWebSocket(httpServer, conn => {
         break;
       }
 
+      /* Demande de pause. Trois refus, tous cote serveur : hors manche, quand
+         le demandeur n'est pas en jeu, et — le seul qui compte — des qu'un
+         second client est CONNECTE. On compte les connectes et non les joueurs
+         en vie : un spectateur qui regarde a le droit de ne pas voir l'image se
+         figer, et un mort en attente de relevement encore plus. */
+      case "pause": {
+        if (phase !== PHASE_ROUND) break;
+        const on = !!msg.on;
+        if (on && (joined().length > 1 || !state.players.has(id))) break;
+        setPaused(on, on ? "" : "reprise");
+        break;
+      }
+
+      /* Quitter la manche en cours sans fermer l'onglet. Le joueur redevient
+         spectateur et entre a la manche suivante, exactement comme quelqu'un
+         qui arrive en cours de partie — plutot qu'un etat « parti » de plus a
+         tenir. Si c'etait le dernier, la boucle de simulation ramene la table
+         au salon d'elle-meme. */
+      case "leaveRound": {
+        if (phase === PHASE_LOBBY || !state.players.has(id)) break;
+        state.removePlayer(id);
+        client.spectator = true;
+        // Une pause en cours n'a plus de porteur : la lever ici evite qu'un
+        // solo qui abandonne laisse le serveur fige jusqu'a l'echeance.
+        setPaused(false, "le joueur a quitte la manche");
+        broadcast(lobbyPayload());
+        log(`${client.name} quitte la manche ${roundNumber}`);
+        break;
+      }
+
       case "start": {
         // Seul l'hote lance la manche, et seulement depuis le salon.
         if (id !== hostId || phase !== PHASE_LOBBY) break;
@@ -537,6 +602,16 @@ setInterval(() => {
 
   if (phase !== PHASE_LOBBY && state.players.size === 0) {
     abortRound();
+  } else if (phase === PHASE_ROUND && paused) {
+    /* En pause : on n'appelle PAS `step()`, et c'est tout. Les recharges et les
+       etats vivent dans `p.timers` et `p.statuses`, qui ne descendent que la —
+       une pause qui les ferait s'ecouler rendrait les competences gratuites,
+       c'est-a-dire une faille et non un confort. L'accumulateur est vide a
+       chaque tour, sinon la reprise rattraperait d'un coup toute la duree de la
+       pause. Les instantanes, eux, continuent de partir : l'affichage reste
+       vivant et le joueur voit ce qu'il a mis en pause. */
+    acc = 0;
+    if (Date.now() - pausedAt > PAUSE_MAX_MS) setPaused(false, "délai de 5 minutes écoulé");
   } else if (phase === PHASE_ROUND) {
     acc += elapsed;
     while (acc >= CFG.TICK && !state.cardsPending) {

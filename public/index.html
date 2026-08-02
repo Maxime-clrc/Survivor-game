@@ -21,7 +21,31 @@
      et une taille de texte qui ne retrecit plus avec la fenetre. -->
 <div id="stage">
   <div id="frame">
-    <canvas id="cv"></canvas>
+    <!-- TROIS COUCHES EMPILEES, exactement dans cet ordre.
+
+         `#cvUnder` — le sol : grille, vignette de constriction, zones,
+                      telegraphes, remparts, tourelles, projectiles, marqueurs.
+         `#cvGl`    — les ENTITES : monstres, joueurs, depouilles, particules.
+                      WebGL quand il est disponible, vide sinon.
+         `#cv`      — ce qui passe par-dessus les entites : boss, drones,
+                      anneaux de joueur, barres, noms, murs, vignettage.
+
+         Pourquoi trois et non deux : tout ce qui est en canvas 2D passe
+         forcement AU-DESSUS de tout ce qui est en WebGL, puisque ce sont deux
+         elements empiles. Or l'ordre de dessin du jeu intercale du 2D avant ET
+         apres les entites — la grille dessinee par-dessus les monstres est
+         immediatement visible. Une couche intercalee est donc la seule facon de
+         garder l'image identique au pixel pres, ce qui est le critere
+         d'acceptation de la bascule.
+
+         Ils portent tous la meme taille et la meme densite de pixels, et c'est
+         `#arena` qui porte le tressaillement — un `transform` par canvas les
+         aurait fait diverger d'un sous-pixel a chaque secousse. -->
+    <div id="arena">
+      <canvas id="cvUnder"></canvas>
+      <canvas id="cvGl"></canvas>
+      <canvas id="cv"></canvas>
+    </div>
 
     <!-- HUD. Tout est en elements CSS : une recharge en `conic-gradient`, une
          barre avec `transition`, un voile en `opacity`, c'est le compositeur
@@ -193,10 +217,63 @@
   <div id="cardsWaitMsg"></div>
 </div>
 
-<!-- cartes possedees par le joueur, touche Tab en jeu -->
-<div id="loadout" class="overlay" hidden>
-  <div id="loadoutTitle">Cartes possédées</div>
-  <div id="loadoutList"></div>
+<!-- Fenetre de BUILD. Un seul ecran pour trois entrees : Tab en jeu, un clic sur
+     une ligne du bilan, un clic sur une ligne du salon. Le panneau d'inventaire
+     du lot 1 en etait deja la moitie — il ne manquait que la selection du
+     joueur, d'ou les fleches et non une seconde fenetre.
+
+     La ligne des MULTIPLICATEURS est la plus interessante des cinq : « ×2,4
+     dégâts, ×1,8 cadence » explique le tableau des scores bien mieux que la
+     liste des cartes, qu'il faut lire ligne a ligne pour en tirer la meme
+     chose. -->
+<div id="build" class="overlay" hidden>
+  <div id="buildHead">
+    <button id="buildPrev" class="buildNav" title="joueur précédent">◀</button>
+    <div id="buildWho">
+      <canvas id="buildSil"></canvas>
+      <div id="buildIdent">
+        <div id="buildName"></div>
+        <div id="buildClass"></div>
+      </div>
+    </div>
+    <button id="buildNext" class="buildNav" title="joueur suivant">▶</button>
+  </div>
+
+  <div id="buildStats"></div>
+  <div id="buildMods"></div>
+  <div id="buildSkills"></div>
+  <div id="buildCards"></div>
+  <div id="buildHint" class="hint">← → changer de joueur · <b>Échap</b> fermer</div>
+</div>
+
+<!-- Menu pause. Il n'est PAS un `.overlay` : a plusieurs la partie continue
+     derriere, et le voile doit donc rester translucide pour qu'on la voie. Le
+     libellé dit pourquoi — un panneau identique qui met en pause ici et pas là
+     passerait pour un bug. -->
+<div id="pause" hidden>
+  <div id="pausePanel">
+    <div id="pauseTitle">Pause</div>
+    <div id="pauseState"></div>
+
+    <button id="pauseResume">Reprendre</button>
+
+    <div id="pauseAudio">
+      <button id="pauseMute" title="couper le son">♪</button>
+      <input id="pauseVol" type="range" min="0" max="100" step="5" title="volume">
+      <span id="pauseVolVal">70 %</span>
+    </div>
+
+    <button id="pauseBuild">Consulter son build</button>
+    <button id="pauseQuit" class="danger">Quitter la manche</button>
+
+    <div id="pauseConfirm" hidden>
+      <div>Quitter la manche en cours ? Tu redeviens spectateur jusqu'à la suivante.</div>
+      <div class="row">
+        <button id="pauseQuitYes" class="danger">Oui, quitter</button>
+        <button id="pauseQuitNo">Annuler</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>

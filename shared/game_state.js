@@ -76,6 +76,24 @@ export const CFG = {
   BULLET_DAMAGE: 12,
 
   ENEMY_SEPARATION: 0.35,
+  /* Repulsion ennemi / JOUEUR. Constante dediee et non `ENEMY_SEPARATION`
+     reutilise : la force qui separe deux monstres est un evitement souple —
+     le troupeau doit continuer de couler — la ou celle qui separe un monstre
+     d'un joueur est une CONTRAINTE. A 0,35 un runner rapide s'enfoncait de dix
+     pixels avant d'etre repousse, ce qui laissait vivre le bug qu'on corrige.
+
+     Rien ne pousse le joueur en retour : il n'est deplace que par ses propres
+     entrees. Une repulsion symetrique aurait laisse deux cents ennemis le
+     charrier a travers l'arene, et la prediction locale aurait combattu le
+     serveur a chaque image.
+
+     Le contact garde volontairement UNE MORSURE d'un pixel (`PLAYER_BITE`) :
+     resolue exactement a la somme des rayons, la distance retombe pile sur la
+     frontiere et le test de degat de contact — un `<=` sur les carres —
+     echouait une image sur deux au gre de l'arrondi flottant. Un monstre colle
+     cessait alors de faire mal, ce qui est le bug inverse. */
+  PLAYER_SEPARATION: 1,
+  PLAYER_BITE: 1,
   MAX_ENEMIES: 200,
 
   /* Elites. Cadences par un minuteur et non par un tirage a chaque
@@ -442,6 +460,80 @@ export const BUFF_DOUBLE = 4;
 export const BUFF_PIERCE = 8;
 export const BUFF_RICOCHET = 16;
 
+/* --- chargement effectif et table de mods complete ----------------------------
+
+   Deux fonctions PURES, exportees, et c'est volontaire : la fenetre de build du
+   client doit afficher les multiplicateurs REELS d'un joueur — « ×2,4 dégâts,
+   ×1,8 cadence » explique le tableau des scores bien mieux que la liste des
+   cartes. Recoder ce repli cote client aurait donne deux implementations qui
+   divergent au premier reglage, sur precisement l'ecran qui sert a verifier un
+   chargement.
+
+   Elles vivent ici et non dans `cards.js` : le repli de classe a besoin de
+   `classAt`, et `cards.js` ne doit dependre de rien — un cycle d'import casse
+   le chargement dans le navigateur. `game_state.js` importe deja les deux.
+   ----------------------------------------------------------------------- */
+
+/* Ses cartes, plus les cartes de soutien de tout coequipier qui porte le
+   « Vœu partagé ». C'est le seul endroit du jeu ou le chargement d'un joueur
+   depend de celui d'un autre, et c'est pour ca que la fusion se fait ici et non
+   dans `computeMods` : cette derniere ne connait qu'une liste de cartes a la
+   fois, et doit le rester pour qu'un script de mesure puisse la rejouer sans
+   table.
+
+   On prend le MAXIMUM et non la somme : deux Trousse chez le porteur et deux
+   chez le receveur ne font pas quatre exemplaires, sinon le plafond de la carte
+   ne veut plus rien dire. Et le Vœu lui-meme ne se partage pas — il se serait
+   propage de proche en proche a toute la table. */
+export function effectiveCards(cards, others = []) {
+  let fusion = null;
+  for (const o of others) {
+    if (o === cards || !((o.get("voeu_partage") ?? 0) > 0)) continue;
+    for (const [id, n] of o) {
+      if (id === "voeu_partage" || n <= 0) continue;
+      const c = CARD_BY_ID.get(id);
+      if (!c || !c.tags.includes("coop")) continue;
+      fusion ??= new Map(cards);
+      fusion.set(id, Math.max(fusion.get(id) ?? 0, n));
+    }
+  }
+  // Chemin rapide : sans Vœu sur la table — c'est-a-dire la quasi-totalite des
+  // manches — on ne cree aucune Map de plus par recalcul.
+  return fusion ?? cards;
+}
+
+/* Table de mods complete : cartes, Vœu partagé, part de vague du « Cœur de
+   forge », puis repli de la classe. Rend aussi les PV max, qui en decoulent.
+
+   La classe est MULTIPLICATIVE et non additive : un tank a -20 % qui prend cinq
+   cartes de degats doit garder sa penalite, alors qu'un terme additif l'aurait
+   diluee jusqu'a la rendre invisible en fin de manche — et la classe n'aurait
+   plus voulu dire grand-chose passe la vague 8. Consequence voulue :
+   `_playerPower` lit `damageMul`, donc la puissance d'equipe integre la classe
+   sans une ligne de plus, et la pression des vagues suit. */
+export function fullMods(cards, others, cls, wave = 1) {
+  const mods = computeMods(effectiveCards(cards, others));
+
+  /* « Coeur de forge » : la seule carte dont la valeur depend du TEMPS.
+     `computeMods` est une fonction de la seule liste de cartes possedees — la
+     vague n'y a rien a faire, sinon elle cesse d'etre rejouable telle quelle
+     dans un script de mesure. La part de vague est donc ajoutee ici. */
+  if (mods.damagePerWave > 0) {
+    mods.damageMul += mods.damagePerWave * Math.max(0, wave - 1);
+  }
+
+  const def = classAt(cls);
+  mods.damageMul *= def.damageMul;
+  mods.speedMul *= def.speedMul;
+
+  // Plus de terme de niveau : les PV max ne viennent que de la classe et des
+  // cartes. C'est une perte de 88 PV en fin de manche, que les cartes
+  // defensives doivent reprendre a leur compte.
+  let maxHp = def.hp + mods.maxHpBonus;
+  if (mods.hpCap > 0) maxHp = Math.min(maxHp, mods.hpCap);
+  return { mods, maxHp: Math.round(maxHp) };
+}
+
 export class GameState {
   constructor(difficulty = DIFF_NORMAL) {
     this.diffIndex = Math.min(Math.max(difficulty | 0, 0), DIFFICULTIES.length - 1);
@@ -759,32 +851,14 @@ export class GameState {
     return true;
   }
 
-  /* Chargement EFFECTIF d'un joueur : ses cartes, plus les cartes de soutien de
-     tout coequipier qui porte le « Vœu partagé ». C'est le seul endroit du jeu
-     ou le chargement d'un joueur depend de celui d'un autre, et c'est pour ca
-     que la fusion se fait ici et non dans `computeMods` : cette derniere ne
-     connait qu'une liste de cartes a la fois, et doit le rester pour qu'un
-     script de mesure puisse la rejouer sans table.
-
-     On prend le MAXIMUM et non la somme : deux Trousse chez le porteur et deux
-     chez le receveur ne font pas quatre exemplaires, sinon le plafond de la
-     carte ne veut plus rien dire. Et le Vœu lui-meme ne se partage pas — il se
-     serait propage de proche en proche a toute la table. */
-  _effectiveCards(p) {
-    let fusion = null;
-    for (const o of this.players.values()) {
-      if (o === p || !((o.cards.get("voeu_partage") ?? 0) > 0)) continue;
-      for (const [id, n] of o.cards) {
-        if (id === "voeu_partage" || n <= 0) continue;
-        const c = CARD_BY_ID.get(id);
-        if (!c || !c.tags.includes("coop")) continue;
-        fusion ??= new Map(p.cards);
-        fusion.set(id, Math.max(fusion.get(id) ?? 0, n));
-      }
-    }
-    // Chemin rapide : sans Vœu sur la table — c'est-a-dire la quasi-totalite des
-    // manches — on ne cree aucune Map de plus par recalcul.
-    return fusion ?? p.cards;
+  // Les listes de cartes des AUTRES joueurs, pour le « Vœu partagé ». La fusion
+  // elle-meme vit dans `effectiveCards`, en fonction pure : c'est la fenetre de
+  // build du client qui l'a rendue partageable, et deux implementations de la
+  // meme regle auraient diverge au premier reglage.
+  _otherCards(p) {
+    const out = [];
+    for (const o of this.players.values()) if (o !== p) out.push(o.cards);
+    return out;
   }
 
   // Le Vœu partagé fait dependre les mods de TOUS les joueurs de la liste de
@@ -806,39 +880,16 @@ export class GameState {
      sinon deux recalculs successifs le feraient deriver. Le gain est rendu
      immediatement — prendre +20 PV max a 12 PV doit sauver la vie tout de
      suite, pas au prochain soin. */
+  /* Tout le calcul vit dans `fullMods`, en fonction pure et exportee : la
+     fenetre de build du client affiche les MEMES multiplicateurs que ceux dont
+     la simulation se sert. `_waveStart` rappelle ce recalcul a chaque vague,
+     sinon le « Cœur de forge » resterait fige a la vague ou la carte a ete
+     prise. */
   _recomputeMods(p) {
     const before = p.maxHp;
-    p.mods = computeMods(this._effectiveCards(p));
-
-    /* « Coeur de forge » : la seule carte dont la valeur depend du TEMPS.
-       `computeMods` est une fonction de la seule liste de cartes possedees — la
-       vague n'y a rien a faire, sinon elle cesse d'etre rejouable telle quelle
-       dans un script de mesure. La part de vague est donc ajoutee ici, et
-       `_waveStart` rappelle ce recalcul a chaque vague : sans ce rappel, le
-       bonus serait fige a la vague ou la carte a ete prise. */
-    if (p.mods.damagePerWave > 0) {
-      p.mods.damageMul += p.mods.damagePerWave * Math.max(0, this.wave - 1);
-    }
-
-    /* La classe se replie sur les mods, elle n'est jamais consultee ailleurs.
-       Multiplicatif et non additif : un tank a -20 % qui prend cinq cartes de
-       degats doit garder sa penalite, alors qu'un terme additif l'aurait
-       diluee jusqu'a la rendre invisible en fin de manche — et la classe
-       n'aurait plus voulu dire grand-chose passe la vague 8.
-       Consequence voulue : `_playerPower` lit `damageMul`, donc la puissance
-       d'equipe integre la classe sans une ligne de plus, et la pression des
-       vagues suit. */
-    const def = classAt(p.cls);
-    p.mods.damageMul *= def.damageMul;
-    p.mods.speedMul *= def.speedMul;
-
-    // Plus de terme de niveau : les PV max ne viennent que de la classe et des
-    // cartes. C'est une perte de 88 PV en fin de manche, que les cartes
-    // defensives doivent reprendre a leur compte — c'est precisement ce que la
-    // campagne de mesure du lot 1 avait a verifier.
-    let maxHp = def.hp + p.mods.maxHpBonus;
-    if (p.mods.hpCap > 0) maxHp = Math.min(maxHp, p.mods.hpCap);
-    p.maxHp = Math.round(maxHp);
+    const r = fullMods(p.cards, this._otherCards(p), p.cls, this.wave);
+    p.mods = r.mods;
+    p.maxHp = r.maxHp;
 
     const gained = p.maxHp - before;
     if (gained > 0 && !p.downed) p.hp = Math.min(p.maxHp, p.hp + gained);
@@ -1181,7 +1232,7 @@ export class GameState {
       ? Infinity
       : (p.buffPierce > 0 ? CFG.PIERCE_HITS : 0) + p.mods.pierce;
 
-    this.bullets.push({
+    const b = {
       id: this._nextId++,
       x: p.x + dx * (CFG.PLAYER_RADIUS + 2),
       y: p.y + dy * (CFG.PLAYER_RADIUS + 2),
@@ -1209,7 +1260,14 @@ export class GameState {
       inertia: p.mods.inertia ? 1 : 0,
       bounce: p.mods.bounce ? CARD_CFG.BOUNCE_MAX : 0,
       dmg0: dmg,
-    });
+    };
+
+    // La balle nait a seize pixels du centre : tout ce qui se tient dans cet
+    // intervalle doit etre teste MAINTENANT, sinon elle commence sa vie de
+    // l'autre cote de sa cible. Une balle consommee sur place n'entre jamais
+    // dans la liste — elle n'a jamais existe a l'ecran.
+    if (this._spawnSweep(b, p.x, p.y)) return;
+    this.bullets.push(b);
   }
 
   /* --- competences de classe ----------------------------------------------------
@@ -1663,7 +1721,13 @@ export class GameState {
      sont branches une seule fois — une nouvelle source de degats en herite
      sans qu'on ait a y penser, ce qui est precisement ce qu'on a appris a
      faire avec la difficulte dans _hurt(). */
-  _damage(target, amount, ownerId, burn = 0) {
+  /* `overTime` a exactement le sens qu'il a dans `_hurt` : un degat CONTINU,
+     etale image par image, et non une touche. Sans ce drapeau, la brulure
+     incrementerait le compteur de touches soixante fois par seconde et
+     l'ennemi qui brule clignoterait en permanence — c'est-a-dire que le retour
+     d'impact, qu'on vient precisement de rendre exact, ne voudrait plus rien
+     dire. */
+  _damage(target, amount, ownerId, burn = 0, overTime = false) {
     if (!target || amount <= 0) return;
     /* Les Jumeaux partagent UNE reserve de vie : frapper le second, c'est
        frapper le premier. La redirection est ici, au point de passage unique,
@@ -1698,6 +1762,29 @@ export class GameState {
     }
 
     target.hp -= amount;
+
+    /* COMPTEUR DE TOUCHES. Le client deduisait le flash d'impact d'une variation
+       de PV entre deux instantanes : a 20 Hz, un joueur a cadence elevee place
+       deux a quatre balles dans les cinquante millisecondes qui les separent, et
+       le client n'en voyait qu'une seule. Pire, un ennemi tue entre deux
+       instantanes ne montre jamais de PV intermediaires — le coup fatal, le plus
+       satisfaisant de tous, ne produisait aucun retour.
+       Aucun reglage cote client ne corrige ca : la source manquait.
+
+       Le compteur va de 0 a 9 et non de 0 a 255. Le client ne lit qu'une
+       DIFFERENCE entre deux instantanes consecutifs, jamais une valeur absolue,
+       et dix touches en cinquante millisecondes sur la meme cible — deux cents
+       par seconde — est une cadence qu'aucun chargement n'approche. Un chiffre
+       de plus et non trois : mesure arene pleine, la version a 255 faisait
+       +11,8 % de poids d'instantane au pire cas, au-dessus du budget de 10 %
+       qu'on s'etait fixe. A un chiffre la hausse retombe a +6,2 %.
+
+       Pose ici, au point de passage unique, comme le vol de vie et le cumul de
+       degats au boss : une nouvelle source de degats est comptee sans qu'on y
+       pense. */
+    if (!overTime && target.hitSeq !== undefined) {
+      target.hitSeq = (target.hitSeq + 1) % 10;
+    }
 
     if (burn > 0) {
       /* La brulure ne se cumule pas sur la meme cible, sinon quatre balles par
@@ -2073,6 +2160,10 @@ export class GameState {
       // ENEMY_TYPES aurait desarme les tireurs pour tout le processus.
       straggler: 0,
       standoff: t.standoff ?? 200,
+      // Compteur de touches, transmis dans l'instantane : voir `_damage`. Il
+      // n'existe QUE sur les ennemis — le boss a ses propres chiffres de degats
+      // et sa barre, il n'a besoin ni de l'un ni de l'autre.
+      hitSeq: 0,
       /* Recharge d'application d'etat, en echeance ABSOLUE et non en minuteur
          decompte : un champ de plus a faire descendre sur chacun des 200
          ennemis a chaque image, pour un effet qui ne concerne que les elites,
@@ -2477,7 +2568,10 @@ export class GameState {
          pour un bug d'affichage. */
       if (e.burn) {
         e.burn.t -= dt;
-        this._damage(e, e.burn.dmg * dt / CARD_CFG.BURN_TIME, e.burn.owner);
+        // `overTime` : une brulure n'est pas une touche. Sans ce drapeau elle
+        // incrementerait le compteur soixante fois par seconde et l'ennemi
+        // clignoterait tout du long.
+        this._damage(e, e.burn.dmg * dt / CARD_CFG.BURN_TIME, e.burn.owner, 0, true);
         if (e.burn.t <= 0) e.burn = null;
         if (e.hp <= 0) continue;
       }
@@ -2551,6 +2645,47 @@ export class GameState {
           a.x -= ux; a.y -= uy;
           b.x += ux; b.y += uy;
         }
+      }
+    }
+
+    this._separateFromPlayers();
+  }
+
+  /* Separation ennemi / joueur. Elle n'existait pas : `ENEMY_SEPARATION` ne
+     servait qu'a la boucle ennemi contre ennemi, et rien n'empechait un runner
+     de se poser exactement sur le centre d'un joueur.
+
+     C'etait la cause racine de l'ennemi colle intouchable. Les balles naissent
+     a PLAYER_RADIUS + 2 = 16 px du centre ; un runner a 9 px de rayon, une
+     balle 4, donc la collision se fait a 13 px. Un runner a moins de 3 px du
+     centre voyait la balle naitre DEJA AU-DELA de lui, puis s'eloigner : il y
+     avait un disque de 16 px de rayon autour de chaque joueur dans lequel un
+     ennemi etait strictement invulnerable a son porteur. En equipe un allie le
+     tuait de l'exterieur ; en solo, personne — d'ou la reproduction
+     systematique en solo.
+
+     Elle rend aussi les degats de contact lisibles : on voit le monstre qui
+     frappe au lieu de le voir disparaitre sous soi.
+
+     Le joueur, lui, n'est jamais deplace : voir le commentaire de
+     PLAYER_SEPARATION. */
+  _separateFromPlayers() {
+    for (const p of this.players.values()) {
+      if (p.downed) continue;
+      for (const e of this.enemies) {
+        const min = e.r + CFG.PLAYER_RADIUS - CFG.PLAYER_BITE;
+        const dx = e.x - p.x, dy = e.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= min * min) continue;
+        // Centres exactement confondus : aucune direction ne se deduit, on en
+        // choisit une plutot que de diviser par zero et de propager un NaN dans
+        // toute la simulation.
+        const d = Math.sqrt(d2) || 0.0001;
+        const push = (min - d) * CFG.PLAYER_SEPARATION;
+        const ux = d2 > 0.000001 ? dx / d : 1;
+        const uy = d2 > 0.000001 ? dy / d : 0;
+        e.x += ux * push;
+        e.y += uy * push;
       }
     }
   }
@@ -2704,7 +2839,7 @@ export class GameState {
 
     if (b.burn) {
       b.burn.t -= dt;
-      this._damage(b, b.burn.dmg * dt / CARD_CFG.BURN_TIME, b.burn.owner);
+      this._damage(b, b.burn.dmg * dt / CARD_CFG.BURN_TIME, b.burn.owner, 0, true);
       if (b.burn.t <= 0) b.burn = null;
       if (!this.boss) return;      // la brulure peut l'achever
     }
@@ -4067,7 +4202,9 @@ export class GameState {
       for (const e of this.enemies) {
         if (e.hp <= 0) continue;
         if (e.x >= B.x0 && e.x <= B.x1 && e.y >= B.y0 && e.y <= B.y1) continue;
-        this._damage(e, BOSS_CFG.CROWN_DPS * dt, 0);
+        // Degat CONTINU de la couronne : meme drapeau que la brulure, sinon
+        // toute la horde comprimee clignote a soixante hertz.
+        this._damage(e, BOSS_CFG.CROWN_DPS * dt, 0, 0, true);
       }
       this.enemies = this.enemies.filter(e => e.hp > 0);
     }
@@ -4682,6 +4819,88 @@ export class GameState {
     return false;
   }
 
+  /* Une balle touche un ennemi. Extrait de `_collisions` pour devenir le POINT
+     DE PASSAGE UNIQUE de l'impact balle / ennemi : le balayage a l'apparition
+     (`_spawnSweep`) doit appliquer exactement les memes regles — grenade,
+     chaine de foudre, ricochet, inertie, perforation — sinon une balle qui
+     touche a bout portant se comporte differemment d'une balle qui touche a
+     dix metres, ce qui est indefendable et se paierait a la premiere carte
+     ajoutee.
+
+     `ix`/`iy` est le point d'IMPACT et non la position de la balle : pour la
+     grenade, les deux different quand la touche est detectee sur un segment.
+     Rend vrai si la balle est consommee. */
+  _bulletHitEnemy(b, e, ix, iy) {
+    if (b.boom > 0) {
+      this._explode(ix, iy, b.boom, b.owner);
+      return true;
+    }
+
+    this._damage(e, b.dmg, b.owner, b.burn);
+    // La chaine de foudre part de l'impact, le ricochet du kill : deux
+    // cartes qui se ressemblent a l'ecran mais pas dans la main.
+    if (b.arc > 0 && Math.random() < b.arc) this._arc(e, b.dmg, b.owner);
+    if (e.hp <= 0 && b.chain > 0) this._ricochet(e, b);
+
+    /* « Inertie » : la balle ne s'arrete pas, elle s'use. Le plancher
+       n'est pas cosmetique — sans lui, une balle a 0,1 degat restait en
+       vol a se tester contre les 200 ennemis de l'arene a chaque tick
+       jusqu'a expiration, et le cout CPU montait avec la densite,
+       c'est-a-dire au pire moment. */
+    if (b.inertia) {
+      b.dmg *= CARD_CFG.INERTIA_DECAY;
+      if (b.dmg < b.dmg0 * CARD_CFG.INERTIA_MIN_MUL) return true;
+    }
+
+    // Une balle perforante continue sa route en decomptant ses charges
+    if (b.pierce > 0) {
+      b.pierce--;
+      if (b.hits) b.hits.add(e.id); else b.hit = e.id;
+      return false;
+    }
+    return true;
+  }
+
+  /* Balayage a l'APPARITION. Filet de securite du correctif de l'ennemi colle :
+     la balle nait a PLAYER_RADIUS + 2 du centre, donc tout ce qui se trouve
+     entre le joueur et ce point n'a jamais ete teste — la balle commence sa vie
+     de l'autre cote de sa cible et s'en eloigne.
+
+     La separation ennemi / joueur vide normalement ce disque ; ce balayage
+     couvre ce qui y entrerait quand meme, et c'est de toute facon la bonne
+     correction pour toute apparition decalee (un canon, un drone) que le depot
+     pourrait ajouter plus tard.
+
+     On teste le SEGMENT centre du joueur -> point d'apparition, dans l'ordre
+     ou la balle le parcourt : sinon une balle perforante depenserait sa charge
+     sur l'ennemi le plus lointain du segment. Rend vrai si la balle est
+     consommee avant meme d'avoir vole. */
+  _spawnSweep(b, px, py) {
+    const sx = b.x - px, sy = b.y - py;
+    const len2 = sx * sx + sy * sy;
+    if (len2 <= 0) return false;
+
+    // Candidats seulement : zero a trois ennemis dans les seize pixels autour
+    // du joueur, la boucle de tri ne coute donc rien.
+    const near = [];
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      const rr = e.r + CFG.BULLET_RADIUS;
+      const t = Math.max(0, Math.min(1, ((e.x - px) * sx + (e.y - py) * sy) / len2));
+      const cx = px + sx * t - e.x, cy = py + sy * t - e.y;
+      if (cx * cx + cy * cy <= rr * rr) near.push({ e, t });
+    }
+    if (near.length === 0) return false;
+    near.sort((a, c) => a.t - c.t);
+
+    for (const { e, t } of near) {
+      if (e.hp <= 0) continue;
+      if (b.hits ? b.hits.has(e.id) : b.hit === e.id) continue;
+      if (this._bulletHitEnemy(b, e, px + sx * t, py + sy * t)) return true;
+    }
+    return false;
+  }
+
   _collisions() {
     // balles du joueur contre le boss et les ennemis
     const live = [];
@@ -4741,38 +4960,9 @@ export class GameState {
           if (e.hp <= 0) continue;
           if (b.hits ? b.hits.has(e.id) : b.hit === e.id) continue;   // deja traverse celui-la
           const rr = e.r + CFG.BULLET_RADIUS;
-          if ((b.x - e.x) ** 2 + (b.y - e.y) ** 2 <= rr * rr) {
-            if (b.boom > 0) {
-              this._explode(b.x, b.y, b.boom, b.owner);
-              hit = true;
-              break;
-            }
-
-            this._damage(e, b.dmg, b.owner, b.burn);
-            // La chaine de foudre part de l'impact, le ricochet du kill : deux
-            // cartes qui se ressemblent a l'ecran mais pas dans la main.
-            if (b.arc > 0 && Math.random() < b.arc) this._arc(e, b.dmg, b.owner);
-            if (e.hp <= 0 && b.chain > 0) this._ricochet(e, b);
-
-            /* « Inertie » : la balle ne s'arrete pas, elle s'use. Le plancher
-               n'est pas cosmetique — sans lui, une balle a 0,1 degat restait en
-               vol a se tester contre les 200 ennemis de l'arene a chaque tick
-               jusqu'a expiration, et le cout CPU montait avec la densite,
-               c'est-a-dire au pire moment. */
-            if (b.inertia) {
-              b.dmg *= CARD_CFG.INERTIA_DECAY;
-              if (b.dmg < b.dmg0 * CARD_CFG.INERTIA_MIN_MUL) { hit = true; break; }
-            }
-
-            // Une balle perforante continue sa route en decomptant ses charges
-            if (b.pierce > 0) {
-              b.pierce--;
-              if (b.hits) b.hits.add(e.id); else b.hit = e.id;
-            } else {
-              hit = true;
-            }
-            break;
-          }
+          if ((b.x - e.x) ** 2 + (b.y - e.y) ** 2 > rr * rr) continue;
+          hit = this._bulletHitEnemy(b, e, b.x, b.y);
+          break;
         }
       }
       if (!hit) live.push(b);
@@ -5174,6 +5364,14 @@ export class GameState {
         this._statusMask(p),
         p.statuses.get(STATUS_VULN)?.stacks ?? 0,
         r1(Math.max(0, (p.statuses.get(STATUS_DOOM)?.until ?? 0) - this.time)),
+        /* Degats cumules depuis le debut de la manche. En fin de tableau comme
+           tout le reste, et c'est le seul chiffre de la fenetre de build que le
+           client ne peut pas deduire : les projectiles ne portent pas leur
+           proprietaire. Quatre nombres par instantane la ou la liste d'ennemis
+           en compte seize cents — la fenetre s'ouvre EN JEU, sur soi comme sur
+           un allie, et sans lui elle aurait affiche un tiret au moment ou l'on
+           veut justement comprendre qui porte l'equipe. */
+        Math.round(p.damageDealt),
       ]),
       /* Le rang d'elite voyage dans le champ de type (+100) : un drapeau separe
          aurait coute un nombre de plus sur chacun des 200 ennemis. Le marquage
@@ -5182,9 +5380,23 @@ export class GameState {
          information qui ne concerne que les dernieres secondes d'une vague.
          Decodage cote client : type = a[5] % 100, elite = a[5] % 200 >= 100,
          retardataire = a[5] >= 200. */
-      e: this.enemies.map(e => [e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
+      /* Huitieme element, AJOUT EN FIN de tuple : le compteur de touches. C'est
+         le seul chiffre du retour d'impact que le client ne peut pas deduire —
+         a 20 Hz, deux a quatre balles tombent entre deux instantanes et une
+         variation de PV n'en montre qu'une. Un CHIFFRE de plus par ennemi, soit
+         +6,2 % de poids d'instantane arene pleine, pire cas ou tous ont deja ete
+         touches ; la mesure est au LISEZMOI. Un onglet reste sur une version
+         anterieure lit un tuple de sept et retombe sur l'ancien comportement,
+         degrade mais correct.
+
+         Le compteur est COUPE quand il vaut zero, comme les zeros de queue des
+         zones : la majorite des ennemis presents a un instant donne n'ont jamais
+         ete touches — on meurt en une ou deux balles — et ils ne paient donc
+         rien. `keep` vaut 7 et non 6 : le client lit `a[6]` (l'orientation) sans
+         valeur de repli, et une orientation nulle est parfaitement ordinaire. */
+      e: this.enemies.map(e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
                                 e.type + (e.elite ? 100 : 0) + (e.straggler ? 200 : 0),
-                                r2(e.ang)]),
+                                r2(e.ang), e.hitSeq], 7)),
       // Quatrieme element : projectile de soin. Ajout en fin de tuple, repli 0
       // cote client — la balle reste dessinee, simplement dans la couleur du
       // tir normal sur un onglet reste en arriere.

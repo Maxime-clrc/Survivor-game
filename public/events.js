@@ -60,20 +60,38 @@ export function diffSnapshots(a, b, opts = {}) {
   for (const [id, eb] of b.enemies) {
     if (nImpact >= MAX_IMPACT) break;
     const ea = a.enemies.get(id);
-    if (ea && eb.hp < ea.hp) {
-      // `maxHp` voyage avec l'impact : les chiffres de degats ne s'affichent
-      // qu'au-dela de 5 % des PV de la cible, et ce seuil se juge sur la cible
-      // et non dans l'absolu — cinq points sur un runner sont un evenement,
-      // cinq points sur un tank ne sont rien.
-      out.push({ t: "impact", id, x: eb.x, y: eb.y, dmg: ea.hp - eb.hp,
-                 type: eb.type, maxHp: eb.maxHp });
-      nImpact++;
-    }
+    if (!ea) continue;
+    /* NOMBRE DE TOUCHES. Le compteur du serveur est un chiffre cyclique : on lit
+       une DIFFERENCE modulo 10, jamais une valeur absolue. C'est ce qui rend le
+       flash exact — la perte de PV, elle, ne dit qu'une chose, « il a pris des
+       degats », alors que trois balles sont tombees pendant les cinquante
+       millisecondes de l'intervalle.
+
+       Repli sur l'ancien comportement quand le compteur ne bouge pas mais que
+       les PV baissent : c'est le cas d'un serveur anterieur, et celui d'un
+       degat CONTINU (brulure, couronne) que le serveur ne compte volontairement
+       pas comme une touche — un flash unique y reste la bonne lecture. */
+    const hits = ((eb.hitSeq ?? 0) - (ea.hitSeq ?? 0) + 10) % 10;
+    const lost = ea.hp - eb.hp;
+    if (hits === 0 && lost <= 0) continue;
+    // `maxHp` voyage avec l'impact : les chiffres de degats ne s'affichent
+    // qu'au-dela de 5 % des PV de la cible, et ce seuil se juge sur la cible
+    // et non dans l'absolu — cinq points sur un runner sont un evenement,
+    // cinq points sur un tank ne sont rien.
+    out.push({ t: "impact", id, x: eb.x, y: eb.y, dmg: Math.max(0, lost),
+               hits: Math.max(1, hits), type: eb.type, maxHp: eb.maxHp });
+    nImpact++;
   }
   for (const [id, ea] of a.enemies) {
     if (nDeath >= MAX_DEATH) break;
     if (b.enemies.has(id)) continue;
-    out.push({ t: "mort", id, x: ea.x, y: ea.y, type: ea.type, elite: ea.elite });
+    /* Le COUP FATAL ne laisse aucune trace dans les PV : l'ennemi disparait
+       entre deux instantanes, sans jamais montrer de valeur intermediaire. Le
+       montant est donc ce qui lui restait au dernier instantane connu — c'est
+       exactement ce que la balle lui a pris, aux degats de surplus pres, et
+       c'est le chiffre le plus satisfaisant du jeu. */
+    out.push({ t: "mort", id, x: ea.x, y: ea.y, type: ea.type, elite: ea.elite,
+               dmg: Math.max(0, ea.hp), maxHp: ea.maxHp });
     nDeath++;
   }
 

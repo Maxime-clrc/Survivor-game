@@ -60,10 +60,16 @@ Le serveur alterne entre **salon**, **manche** et **choix de cartes**.
   main en pleine vague. Le clic droit **n'est plus** un alias de la compétence 1 :
   dans un navigateur, un clic droit reste d'abord un menu contextuel, et la
   compétence partait sur des clics qui ne visaient pas le jeu.
-- **Tab** affiche les cartes déjà obtenues. Au bout de trois boss, plus personne
-  ne se souvient de ce qu'il a pris — c'est la raison d'être de cette touche.
+- **Tab** ouvre la **fenêtre de build**. Au bout de trois boss, plus personne ne
+  se souvient de ce qu'il a pris — c'est la raison d'être de cette touche. Les
+  **flèches gauche et droite** y passent d'un joueur à l'autre sans refermer, et
+  **Échap** ferme.
+- **Échap** ouvre le **menu pause** : reprendre, régler le son, consulter sa
+  build, quitter la manche. En solo il met vraiment la simulation en pause ; à
+  plusieurs la partie continue et le panneau le dit.
 - **M** coupe et rétablit le son sans repasser par le salon. Le volume se règle
-  sur l'écran de connexion, et le réglage survit à un rechargement.
+  sur l'écran de connexion **et dans le menu pause**, et le réglage survit à un
+  rechargement.
 
 ## Contenu
 
@@ -139,6 +145,39 @@ restent hors du corps à corps et meurent rarement — finissaient par occuper
 117 des 180 places : les vagues ne contenaient plus que des tireurs et toute la
 variété disparaissait. Chaque type est maintenant borné à une part du plafond
 (16 % pour les shooters, 22 % pour les tanks).
+
+**Un monstre ne se superpose jamais à un joueur**, et cette règle a corrigé un
+bug qu'on croyait être un problème de vitesse. Un runner rapide qui se collait
+au joueur devenait **strictement impossible à toucher**, systématiquement en
+solo, jamais remarqué en équipe.
+
+La cause était arithmétique. Les balles apparaissent à 16 px du centre du
+joueur ; un runner a 9 px de rayon et une balle 4, donc la collision se fait à
+13 px. Un runner à moins de 3 px du centre voyait la balle naître **déjà
+au-delà de lui**, puis s'éloigner : il y avait un disque de 16 px de rayon autour
+de chaque joueur dans lequel un ennemi était invulnérable à son porteur. En
+équipe, un allié le tuait depuis l'extérieur et le bug passait inaperçu.
+
+La correction n'est pas de ralentir le runner — l'observation initiale était
+juste, le problème n'était pas qu'il aille vite mais qu'il devienne invulnérable.
+C'est une **séparation ennemi/joueur**, avec en filet de sécurité un test de
+collision sur le segment centre du joueur → point d'apparition de la balle. Elle
+rend aussi les dégâts de contact bien plus lisibles : on voit le monstre qui
+frappe au lieu de le voir disparaître sous soi.
+
+Trois détails qui comptent. La répulsion contre un joueur a sa **propre**
+constante — celle qui sépare deux monstres est un évitement souple, le troupeau
+doit continuer de couler. Le joueur, lui, **n'est jamais poussé en retour** :
+deux cents ennemis l'auraient charrié à travers l'arène et la prédiction locale
+aurait combattu le serveur à chaque image. Et le contact garde **une morsure
+d'un pixel** : une séparation résolue pile à la somme des rayons fait échouer le
+test de dégât de contact une image sur deux au gré de l'arrondi flottant, ce qui
+aurait été le bug inverse.
+
+Vérifié : un runner posé à 0, 5, 10 et 15 px du centre du joueur **meurt en
+0,18 s** sous son tir. Chevauchement maximal après résolution : **1,00 px**
+(critère : 2). Mesuré sur cinq manches solo, la séparation ne change ni la
+survie ni le nombre de kills — 133 s / 92 kills sans, 143 s / 95 kills avec.
 
 ### Bonus temporaires
 
@@ -1013,16 +1052,144 @@ Quelques pièges rencontrés, qui expliquent des choix qui semblent arbitraires 
 Les cartes ne circulent **jamais dans le snapshot à 20 Hz** : elles ne changent
 qu'entre deux combats de boss, une diffusion par changement suffit.
 
+### Consulter une build
+
+Le bilan de fin de manche affichait les cartes de chacun en pastilles, mais
+elles n'étaient pas lisibles — impossible d'analyser ce qu'avaient pris les
+autres, alors que c'est exactement le moment où l'on veut comprendre pourquoi
+quelqu'un a fait trois fois plus de dégâts.
+
+**Une seule fenêtre, trois entrées** : **Tab** en jeu, un clic sur une ligne du
+bilan, un clic sur une ligne du salon. Les **flèches** passent d'un joueur à
+l'autre sans refermer — refermer et rouvrir pour comparer deux chargements,
+c'est perdre le point de comparaison, or comparer est tout ce que cet écran sert
+à faire.
+
+Elle montre cinq choses : la **classe** et ses deux compétences, les
+**statistiques** (score, kills, morts, dégâts, PV max), les **multiplicateurs
+effectifs**, et toutes les **cartes** groupées par rareté décroissante avec leur
+cumul et leur description complète — celle du tirage, donc en mètres et avec les
+valeurs effectives.
+
+**La ligne des multiplicateurs est la plus intéressante des cinq.** « ×2,4
+dégâts, ×1,8 cadence » explique le tableau des scores bien mieux que la liste de
+cartes, qu'il faut lire ligne à ligne pour reconstituer la même chose de tête.
+Ils sont calculés par **la même fonction que la simulation** — Vœu partagé
+compris, part de vague du Cœur de forge comprise, repli de classe compris :
+recoder ce calcul côté client aurait donné deux résultats différents sur
+précisément l'écran dont le seul but est de vérifier un chargement.
+
+La **cadence s'affiche inversée** (`×1,8` et non l'intervalle) parce que la
+simulation raisonne en intervalle de tir : sinon ce serait la seule ligne de
+l'écran où « plus grand » voudrait dire « pire ».
+
+Un seul chiffre a demandé un ajout au protocole : les **dégâts cumulés** par
+joueur. Les projectiles ne portent pas leur propriétaire — un identifiant de
+plus sur chacune des quatre cents balles en vol, vingt fois par seconde — donc
+le client ne peut pas le déduire. Quatre nombres par instantané, à comparer aux
+seize cents de la liste d'ennemis.
+
+### Menu pause
+
+La contrainte est structurelle : le serveur est autoritaire et simule en
+continu. **Une pause n'a de sens que s'il n'y a qu'un seul joueur**, sinon un
+joueur figerait la partie des autres.
+
+- **En solo**, `Échap` met réellement la simulation en pause. Le serveur cesse
+  d'appeler `step()` mais continue de diffuser des instantanés, pour que
+  l'affichage reste vivant.
+- **À plusieurs**, `Échap` ouvre le même panneau et **la partie continue**. Le
+  panneau est translucide, le jeu reste visible derrière, et un libellé ambre
+  dit pourquoi : « la partie continue — pause indisponible à plusieurs ».
+
+Le panneau donne : reprendre, le volume et la coupure du son, la fenêtre de
+build, et quitter la manche avec confirmation — qui rend spectateur jusqu'à la
+manche suivante, exactement comme quelqu'un qui arrive en cours de partie.
+
+Trois points de vigilance, tous réglés côté serveur :
+
+- **Le serveur valide.** Une demande de pause reçue alors qu'un second client
+  est connecté est ignorée. Ne jamais se fier au client là-dessus : c'est le
+  type de message qu'un onglet modifié enverrait pour figer une partie à quatre.
+  On compte les **connectés** et non les vivants — un spectateur a le droit de
+  ne pas voir l'image se figer.
+- **La pause se lève toute seule** au bout de 5 minutes, ou dès qu'un second
+  joueur se connecte. Sans ça, un solo en pause laisse le serveur bloqué
+  indéfiniment et personne ne peut le rejoindre : c'est le même piège que la
+  manche qui ne se terminait jamais quand tout le monde quittait.
+- **Les recharges et les états ne s'écoulent pas.** Ils vivent dans `p.timers`
+  et `p.statuses`, qui ne descendent que dans `step()` — il suffit donc de ne
+  pas l'appeler, mais une pause qui rendrait les compétences gratuites serait
+  une faille et non un confort.
+
+Ouvrir le menu **arrête le personnage** : en solo la prédiction locale dérivait
+derrière le voile pour se faire recaler sèchement à la reprise, et à plusieurs
+un personnage qui court pendant qu'on règle le volume est pire encore.
+
 ### Rendu des monstres
 
-Chaque type est dessiné **une seule fois** dans un canvas hors écran au
-démarrage, puis simplement collé et pivoté à chaque image. Redessiner 220
-silhouettes trait par trait à 60 images par seconde coûterait bien trop cher.
-Les sprites regardent vers la droite ; le serveur transmet l'angle de chaque
-ennemi et la rotation fait le reste.
+Chaque forme est dessinée **une seule fois** dans un atlas hors écran au
+démarrage, puis simplement collée, pivotée et mise à l'échelle à chaque image.
+Redessiner 220 silhouettes trait par trait à 60 images par seconde coûterait
+bien trop cher. Les sprites regardent vers la droite ; le serveur transmet
+l'angle de chaque ennemi et la rotation fait le reste.
 
-Pour retoucher une silhouette, tout est dans `buildSprites()` de
-`public/client.js` — coordonnées locales, origine au centre, nez vers la droite.
+Tout est dans `public/sprites.js` — coordonnées locales, origine au centre, nez
+vers la droite. La règle de budget de l'atlas : **ne pas stocker en image ce
+qu'une transformation peut faire**. Respiration, écrasement, orientation, recul
+au tir et rang d'élite sont des `scale` et des `rotate`, donc gratuits ; on ne
+paie que les changements de **forme**. 48 images, 448 × 448 à densité 1.
+
+`?planche` dans l'adresse sort tous les sprites en **noir uni sur fond blanc**.
+Ce n'est pas un gadget : c'est le critère d'acceptation des silhouettes. Un
+lecteur qui ne connaît pas le jeu doit pouvoir les regrouper par type sans
+hésiter ; un type qui n'est reconnaissable qu'à sa couleur a raté son test. Deux
+silhouettes ont déjà échoué à cette planche et ont été refaites.
+
+### Le rendu des entités passe par WebGL
+
+Les entités — monstres, joueurs, dépouilles, particules — sont dessinées par un
+**batcher WebGL2 écrit à la main**, 400 lignes dans `public/gl.js`, sans
+bibliothèque. Le reste du monde (sol, zones, télégraphes, boss, barres, noms)
+reste en canvas 2D, sur deux couches qui encadrent la couche WebGL.
+
+**Ce n'est pas une question de fluidité.** À ~800 sprites par image, le canvas
+2D accéléré tient largement. Ce que la bascule apporte, ce sont des capacités
+que le 2D ne sait pas produire : teinte par sprite gratuite, mélange additif,
+et un plafond de particules qui passe de **300 à 3 000**.
+
+Pourquoi pas PixiJS : c'est un moteur à **graphe de scène**, en mode retenu — on
+crée des objets persistants qu'on modifie. Le jeu est en **mode immédiat** : il
+redessine tout à chaque image depuis un instantané interpolé, sans état de rendu
+persistant. Les marier voudrait dire maintenir un objet d'affichage par entité,
+gérer sa création et sa destruction au rythme des identifiants du serveur, et
+synchroniser deux sources de vérité — plus de travail que le batcher lui-même,
+et toute une classe de bugs (objets fantômes, fuites) qui n'existe pas
+aujourd'hui.
+
+**La migration n'a pas touché un seul appelant.** `drawSprite()` était depuis le
+début le point de passage unique du dessin d'entité ; on a réécrit ce qu'il y a
+derrière. C'est très exactement ce pour quoi cette indirection existait.
+
+**Le chemin canvas 2D reste vivant**, et ce n'est pas de la prudence gratuite :
+
+- c'est le **repli automatique** en cas de perte de contexte WebGL — bascule de
+  GPU sur un portable, mise en veille, redémarrage de pilote. Non géré, c'est un
+  écran noir définitif et le joueur doit recharger la page ;
+- c'est le mode dégradé quand WebGL2 manque ;
+- c'est la **référence de comparaison** : `localStorage.setItem("survivor.renderer",
+  "canvas2d")` dans la console y bascule, sans rien redémarrer.
+
+Mesuré : **2 appels de dessin par image pour 3 220 quads** (220 ennemis plus
+3 000 particules), atlas 1,5 Mo à densité 1 et 6,1 Mo à densité 2 — très en
+dessous du plafond de 16 Mo qu'on s'était fixé.
+
+Trois pièges connus, tous les trois évités et documentés dans le code :
+l'**alpha prémultiplié** (sans lui, un liseré sombre sur chaque bord transparent
+et un additif faux), la **gouttière de 2 px** autour de chaque case de l'atlas
+(sans elle, le filtrage linéaire ramène des franges de l'image voisine — c'est
+invisible en canvas 2D et systématique en WebGL), et le `preventDefault()` sur
+`webglcontextlost` (sans lui, le contexte n'est jamais restauré).
 
 ### Son et retour d'impact
 
@@ -1053,9 +1220,42 @@ second — mesuré à +6,7 ms, soit moins d'une image.
 
 Côté image : **éclair blanc de 60 ms** sur l'ennemi touché (le retour le moins
 cher et le plus efficace — sans lui, tirer dans la foule ne confirme rien),
-**recul du sprite** de cinq pixels, **fragments à la mort** (six à dix, plafonnés
-à 300 au total), et **chiffres de dégâts uniquement sur le boss et uniquement les
-siens** : tout afficher à 200 ennemis rendrait l'écran inutilisable.
+**recul du sprite** de cinq pixels, **fragments à la mort** (six à dix), et des
+**chiffres de dégâts** agrégés sur 200 ms.
+
+**Le flash est exact, et il ne l'a pas toujours été.** Il se déduisait de la
+variation de PV entre deux images interpolées. Or les instantanés partent à
+20 Hz : entre deux, il s'écoule 50 ms pendant lesquelles un joueur à cadence
+élevée place **deux à quatre balles** sur la même cible. Le client ne voyait
+qu'une seule variation de PV, donc affichait **un** flash pour trois touches.
+Pire : un ennemi tué entre deux instantanés ne montre jamais de PV
+intermédiaires — il disparaît, et **le coup fatal ne produisait aucun retour**,
+alors que c'est le plus satisfaisant de tous.
+
+Aucun réglage côté client ne corrigeait ça : la source manquait. Le serveur
+transmet donc un **compteur de touches par ennemi**, un chiffre cyclique de 0 à
+9 incrémenté dans `_damage()`. Le client en lit la **différence** entre deux
+instantanés et sait exactement combien de balles sont tombées, y compris entre
+deux images et y compris la dernière. Les flashes sont alors **étalés** sur
+l'intervalle plutôt qu'empilés au même instant — sinon on retrouverait le flash
+unique qu'on venait de corriger. Le coup fatal, lui, affiche les PV restants du
+dernier instantané connu.
+
+Un dégât **continu** — brûlure, couronne mortelle de la constriction —
+n'incrémente pas le compteur : sans cette exception, un ennemi qui brûle
+clignoterait soixante fois par seconde et le retour d'impact ne voudrait plus
+rien dire.
+
+Coût : un chiffre de plus par ennemi et par instantané, **+6,2 % de poids arène
+pleine** (200 ennemis tous déjà touchés, c'est-à-dire le pire cas absolu). Une
+première version sur un octet complet coûtait +11,8 %, au-dessus du budget de
+10 % qu'on s'était fixé — d'où le passage à un seul chiffre, qui suffit
+largement : dix touches en cinquante millisecondes sur la même cible, c'est deux
+cents par seconde, une cadence qu'aucun chargement n'approche.
+
+Les **chiffres de dégâts** ne s'affichent que sur le boss et uniquement les
+siens : tout afficher à 200 ennemis rendrait l'écran inutilisable, et sur la
+piétaille l'information n'a aucune valeur puisqu'on tue en un coup.
 
 Le **tressaillement d'écran** ne sort que sur les gros événements — détonation de
 zone, onde de choc, rupture de barre, bombe — jamais sur un impact ordinaire.
@@ -1137,8 +1337,8 @@ indépendamment du taux de rafraîchissement.
 
 | Sens | Message |
 |---|---|
-| client → serveur | `{t:"join", name}` · `{t:"input", x, y, ax, ay, d}` à 30 Hz · `{t:"vote", v}` · `{t:"start"}` (hôte) · `{t:"pickCard", id}` |
-| serveur → client | `welcome` · `lobby` · `state` (20 Hz) · `round` · `roundEnd` · `roundAbort` · `full` · `cards` · `cardsWait` · `loadout` · `alert` |
+| client → serveur | `{t:"join", name}` · `{t:"input", x, y, ax, ay, ar, d, s1, s2}` à 30 Hz · `{t:"vote", v}` · `{t:"pickClass", cls}` · `{t:"start"}` (hôte) · `{t:"pickCard", id}` · `{t:"pause", on}` · `{t:"leaveRound"}` |
+| serveur → client | `welcome` · `lobby` · `state` (20 Hz) · `round` · `roundEnd` · `roundAbort` · `full` · `cards` · `cardsWait` · `loadout` · `alert` · `paused` |
 
 `d:1` dans `input` demande une esquive ; le serveur la consomme au tick suivant
 et vérifie lui-même la recharge.
@@ -1176,6 +1376,20 @@ formes n'en remplissent que douze — un damier de douze cases économise ainsi
 trente-six nombres par instantané, vingt fois par seconde. Omettre à la fin est
 sûr ; *déplacer* un champ ne l'est pas.
 
+Les tuples d'ennemi le font aussi depuis l'ajout du **compteur de touches** :
+il vaut zéro tant que rien ne les a touchés, et la majorité des ennemis présents
+à un instant donné n'ont jamais été touchés — on meurt en une ou deux balles.
+La coupe s'arrête au septième champ et non au sixième : le client lit
+l'orientation sans valeur de repli, et une orientation nulle est parfaitement
+ordinaire.
+
+`paused` est ponctuel lui aussi : le serveur l'émet quand il accorde une pause,
+quand il la lève sur demande, et quand il la lève **de lui-même** — au bout de
+cinq minutes ou à l'arrivée d'un second joueur. Le client garde son panneau
+ouvert dans ce dernier cas et change simplement de libellé : le refermer
+d'office aurait retiré le son et le bouton de sortie à quelqu'un qui ne
+demandait rien.
+
 ## Mesures relevées
 
 Simulation à 4 joueurs, mesurée sur ce projet :
@@ -1202,6 +1416,47 @@ plutôt que dans un drapeau séparé, qui aurait ajouté un nombre sur chacun de
 200 ennemis. Le marquage de **retardataire** s'y ajoute (+200) pour la même
 raison : un huitième élément payé sur tous les ennemis, vingt fois par seconde,
 pour une information qui ne concerne que les dernières secondes d'une vague.
+
+Le **compteur de touches**, lui, a bien fallu le payer — c'est le seul champ
+ajouté à la liste d'ennemis depuis l'origine. Mesuré arène pleine, tous les
+ennemis déjà touchés (le pire cas absolu) :
+
+| version du compteur | poids de l'instantané | hausse |
+|---|---|---|
+| sans compteur | 6,65 Ko | référence |
+| un octet complet (0 à 255) | 7,43 Ko | **+11,8 %** |
+| un chiffre (0 à 9) | 7,04 Ko | **+5,9 %** |
+
+Le budget qu'on s'était fixé était de 10 %. La première version le dépassait, et
+c'est la mesure qui a tranché : un chiffre suffit largement, puisque le client ne
+lit qu'une différence entre deux instantanés consécutifs. Sur une campagne
+normale à un joueur, la bande passante passe de 11,0 à 11,6 Ko/s.
+
+### Rendu WebGL
+
+Mesuré dans Chrome sans tête, sur un banc synthétique qui reproduit le pire cas
+annoncé — 220 ennemis plus 3 000 particules :
+
+| mesure | attendu | relevé |
+|---|---|---|
+| appels de dessin par image | 2 à 4 | **2** (un normal, un additif) |
+| quads par image, pire cas | sous 4 000 | **3 220** |
+| mémoire GPU de l'atlas | sous 16 Mo | **1,5 Mo** à densité 1, **6,1 Mo** à densité 2 |
+| teinte, alpha, éclair, additif | exacts | lecture de pixels conforme aux quatre |
+
+Les deux appels de dessin sont le chiffre qui compte : un lot vidé à chaque
+sprite donnerait des centaines d'appels pour exactement la même image, et rien à
+l'écran ne le dirait. `?perf` dans l'adresse les affiche en jeu, à côté des
+images par seconde, du nombre de fragments et du chemin de rendu utilisé.
+
+La lecture de pixels vérifie les quatre points où une bascule WebGL échoue
+visuellement : une teinte rouge pleine rend `255,0,0,255`, un alpha de 0,5 rend
+`127,127,127,127` (prémultiplié — un `255,255,255,127` aurait signalé l'erreur),
+un éclair à 1 rend du blanc pur, et deux quads additifs à `0x40` rendent `128`.
+
+Les images par seconde ne sont **pas** mesurables ainsi : le rendu logiciel de
+Chrome sans tête ne dit rien d'un GPU réel, et le temps virtuel fige les
+horloges. Elles se relèvent en session réelle avec `?perf`.
 
 ### Vagues et progression
 
@@ -1694,9 +1949,10 @@ les trente-quatre autres n'auraient produit qu'un mur de bruit saturé.
 **Les images par seconde se mesurent au navigateur**, pas en simulation : le
 coût du rendu est celui du canvas, qui n'existe pas dans Node. Ouvrir
 `http://localhost:8080/?perf` affiche images par seconde, nombre de fragments,
-nombre d'ennemis et voix actives dans le coin bas gauche. Le budget est large :
-les deux parts mesurables du lot — diffusion et particules — consomment ensemble
-**0,016 ms** sur les 16,7 ms d'une image.
+nombre d'ennemis, **chemin de rendu et appels de dessin**, et voix actives dans
+le coin bas gauche. Le budget est large : les deux parts mesurables du lot —
+diffusion et particules — consomment ensemble **0,016 ms** sur les 16,7 ms d'une
+image.
 
 ## Réglages
 
@@ -1836,6 +2092,24 @@ Composition des vagues, dans `ENEMY_TYPES` : `from` (moment d'apparition),
 - L'évitement entre ennemis reste en O(n²). À 180 c'est négligeable ; au-delà de
   400, il faudrait une grille spatiale.
 - Une seule partie à la fois, pas de gestionnaire de salons.
-- Les collisions sont testées par distance, sans balayage continu : une balle
-  très rapide pourrait traverser un ennemi très fin. Aux vitesses actuelles le
-  cas ne se produit pas.
+- Les collisions sont testées par distance, sans balayage continu **en vol** :
+  une balle très rapide pourrait traverser un ennemi très fin. Aux vitesses
+  actuelles le cas ne se produit pas. Seule l'**apparition** est balayée en
+  continu, parce que là le cas se produisait vraiment — voir la séparation
+  ennemi/joueur.
+- L'évitement ennemi/joueur est lui aussi en O(joueurs × ennemis), soit 800
+  tests par image au pire. Négligeable à côté des 20 000 de l'évitement mutuel,
+  et il tomberait avec la même grille spatiale.
+- Les fragments passent **sous** le boss et les barres de vie depuis la bascule
+  WebGL, là où le chemin canvas 2D les mettait au-dessus de tout. Les remonter
+  demanderait un second contexte WebGL par-dessus la couche 2D supérieure — un
+  canvas de plus à composer à chaque image pour quatre cents millisecondes
+  d'effet derrière un boss.
+- La bascule WebGL s'est arrêtée aux capacités qui servaient déjà à quelque
+  chose : teinte, éclair, additif, particules. Restent ouvertes, dans l'ordre du
+  rapport effet/effort — la passe de post-traitement (vignettage, aberration
+  chromatique à l'impact, étalonnage par difficulté, flou directionnel pendant
+  l'esquive), la distorsion du souffle des explosions, et l'échange de palette
+  par texture de correspondance pour des variantes d'ennemis sans une seule
+  image d'atlas de plus. L'éclairage dynamique est possible mais c'est un
+  chantier à part entière, à ne pas embarquer dans la même migration.

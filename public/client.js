@@ -8,6 +8,11 @@
 import {
   CFG, PLAYER_COLORS, ENEMY_TYPES, POWERUP_TYPES, DIFFICULTIES,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
+  /* La fenetre de build affiche les multiplicateurs EFFECTIFS. Elle appelle la
+     meme fonction que la simulation plutot que d'en recoder le repli : deux
+     implementations auraient diverge au premier reglage, sur precisement
+     l'ecran dont le seul but est de verifier un chargement. */
+  fullMods,
 } from "/shared/game_state.js";
 import {
   CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, CARD_CFG, cardDetail, computeMods,
@@ -45,7 +50,14 @@ import { showHud, updateHud, hudDamage, resetHud } from "/hud.js";
 /* Toute entite passe par `drawSprite`, et par aucune autre fonction. Le jour ou
    la couche chaude bascule vers WebGL, on reecrit ce module et pas un appelant
    ne bouge — c'est le seul but de l'indirection, et il n'y en a qu'une. */
-import { buildAtlas, drawSprite, frameOf, atlasStats, silhouetteSheet } from "/sprites.js";
+import {
+  buildAtlas, drawSprite, frameOf, atlasStats, silhouetteSheet,
+  bindGL, reuploadAtlas, glActive, SPRITE_CELL,
+} from "/sprites.js";
+/* Le batcher WebGL. Il ne connait ni le jeu ni l'atlas : `sprites.js` lui
+   pousse des quads, `client.js` lui donne un canvas et une taille. C'est
+   `drawSprite` qui choisit le chemin, et aucun de ses appelants ne le sait. */
+import { createGL } from "/gl.js";
 /* La charte, et rien qu'elle : plus une seule couleur en dur dans ce fichier.
    Le canvas lit la table directement au lieu d'interroger `getComputedStyle` a
    chaque image — c'est la meme source que les variables CSS, posees sur
@@ -72,8 +84,45 @@ const SNAP_THRESHOLD = 90;
 const PHASE_LOBBY = 0;
 const PHASE_ROUND = 1;
 
+/* TROIS COUCHES. Voir le commentaire d'`index.html` : tout ce qui est en canvas
+   2D passe forcement AU-DESSUS de tout ce qui est en WebGL, et l'ordre de
+   dessin du jeu intercale du 2D avant ET apres les entites. D'ou une couche 2D
+   de chaque cote plutot qu'une seule.
+
+   `ctx` est la couche 2D COURANTE, et c'est une variable et non une constante :
+   `drawWorld` la bascule du dessous au dessus au moment ou l'on franchit les
+   entites. C'est ce qui permet aux deux cents fonctions de dessin de ne pas
+   savoir sur quel canvas elles ecrivent — exactement comme `drawSprite` ne dit
+   pas a ses appelants s'il passe par WebGL ou par le 2D. */
+const arenaEl = document.getElementById("arena");
+const cvUnder = document.getElementById("cvUnder");
+const cvGl = document.getElementById("cvGl");
 const cv = document.getElementById("cv");
-const ctx = cv.getContext("2d");
+const underCtx = cvUnder.getContext("2d");
+const overCtx = cv.getContext("2d");
+let ctx = underCtx;
+
+/* Drapeau de bascule. Le chemin canvas 2D RESTE EN PLACE et fonctionnel :
+   c'est la comparaison visuelle entre les deux rendus, c'est le repli en cas de
+   perte de contexte, et c'est ce qui permet de livrer a mi-chemin sans rien
+   casser. `localStorage.setItem("survivor.renderer", "canvas2d")` suffit a
+   revenir en arriere, depuis la console, sans rechargement du serveur.
+
+   `localStorage` dans un try : un navigateur en navigation privee stricte le
+   refuse, et le jeu n'a aucune raison de ne pas demarrer pour un reglage. */
+function rendererFlag() {
+  try { return localStorage.getItem("survivor.renderer") ?? "webgl"; }
+  catch { return "webgl"; }
+}
+
+/* Perte de contexte : bascule de GPU sur un portable, mise en veille,
+   redemarrage de pilote. Le repli est immediat et gratuit — `drawSprite`
+   retombe tout seul sur le chemin 2D des que `renderer.ok` est faux — et la
+   restauration doit RETELEVERSER l'atlas, sinon le jeu revient en sprites
+   blancs. */
+const gl = rendererFlag() === "webgl"
+  ? createGL(cvGl, { onRestore: () => { reuploadAtlas(); resize(); } })
+  : null;
 
 /* --- densite de pixels native -----------------------------------------------
    Le canvas avait une memoire FIXE de 1600 x 900 que le CSS etirait. Sur un
@@ -96,9 +145,17 @@ function resize() {
   // Reaffecter `width` vide le canvas et remet la transformation a l'identite :
   // on ne le fait donc QUE si la taille a reellement change, sinon chaque
   // redimensionnement de fenetre effacerait l'image en cours.
-  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  for (const c of [cv, cvUnder]) {
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  }
   renderScale = cv.width / CFG.ARENA_W;
-  ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+  // Les DEUX couches 2D partagent la meme transformation : elles doivent
+  // coincider au pixel pres, sinon les entites glissent contre leur sol.
+  underCtx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+  overCtx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+  // Le viewport WebGL est en pixels PHYSIQUES, deja multiplies par la densite.
+  // L'oublier donne le symptome classique du rendu tasse dans un coin.
+  gl?.resize(w, h, CFG.ARENA_W, CFG.ARENA_H);
 }
 
 addEventListener("resize", resize);
@@ -130,8 +187,6 @@ const bilanScoresBody = document.querySelector("#bilanScores tbody");
 const bilanGo = document.getElementById("bilanGo");
 const bilanBarFill = document.querySelector("#bilanBar i");
 const bilanHint = document.getElementById("bilanHint");
-const loadoutEl = document.getElementById("loadout");
-const loadoutList = document.getElementById("loadoutList");
 const volInput = document.getElementById("vol");
 const volVal = document.getElementById("volVal");
 const muteBtn = document.getElementById("mute");
@@ -245,7 +300,8 @@ function connect(name) {
         refreshLocalMods();
         closeCards();
         closeBilan();
-        loadoutEl.hidden = true;
+        closeBuild();
+        closePause();
         refreshPanel();
         break;
 
@@ -258,7 +314,8 @@ function connect(name) {
         resetFeedback();
         closeCards();
         closeBilan();
-        loadoutEl.hidden = true;
+        closeBuild();
+        closePause();
         refreshPanel();
         break;
 
@@ -271,7 +328,8 @@ function connect(name) {
         // SUIVANTE, sur un combat qui n'a rien a voir.
         resetFeedback();
         closeCards();
-        loadoutEl.hidden = true;
+        closeBuild();
+        closePause();
         // Le bilan s'ouvre AVANT `refreshPanel` : c'est lui qui tient le salon
         // ferme tant qu'il est a l'ecran.
         showBilan(msg);
@@ -323,6 +381,16 @@ function connect(name) {
         renderCardsWait();
         break;
 
+      /* Reponse du serveur a une demande de pause — et aussi son initiative :
+         il la leve tout seul au bout de cinq minutes ou a l'arrivee d'un second
+         joueur. Le panneau reste ouvert dans ce cas, il change simplement de
+         libelle : le refermer d'office aurait retire le son et le bouton de
+         sortie a quelqu'un qui ne demandait rien. */
+      case "paused":
+        pauseReal = msg.on === 1;
+        if (!pauseEl.hidden) renderPauseState();
+        break;
+
       case "loadout":
         loadouts = new Map(Object.entries(msg.byPlayer).map(([id, arr]) => [Number(id), arr]));
         // Seul point ou le chargement local change : c'est ici, et nulle part
@@ -350,7 +418,8 @@ function connect(name) {
     goBtn.disabled = false;
     closeCards();
     closeBilan();
-    loadoutEl.hidden = true;
+    closeBuild();
+    closePause();
     setStatus("connexion perdue", true);
   };
 }
@@ -381,10 +450,25 @@ goBtn.onclick = async () => {
   // exigent un geste utilisateur.
   initAudio();
   const stats = await buildAtlas(k => setLoading(k * 0.9, null));
+
+  /* Branchement du batcher. Il ne peut pas se faire avant : l'atlas n'existe
+     qu'ici, et c'est lui la texture. Les DEUX couches 2D sont declarees comme
+     cibles — la silhouette du salon et la planche de controle passent leur
+     propre contexte et doivent continuer d'emprunter le chemin 2D. */
+  if (gl) {
+    bindGL(gl, [underCtx, overCtx]);
+    resize();
+  }
+  if (glActive()) {
+    PARTICLE_MAX = PARTICLE_GL;
+    fxWhite = frameOf("fx_white");
+  }
+
   setLoading(1, "prêt");
   if (PERF) {
     console.log(`atlas : ${stats.frames} images, ${stats.w}x${stats.h}, ` +
-                `${atlasStats().mo.toFixed(1)} Mo`);
+                `${atlasStats().mo.toFixed(1)} Mo — rendu : ` +
+                `${gl?.ok ? "WebGL2" : "canvas 2D"}`);
   }
 
   /* `?planche` sort la planche de silhouettes en noir uni sur fond blanc.
@@ -409,32 +493,51 @@ nameInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
 nameInput.value = localStorage.getItem("survivor.name") || "";
 nameInput.focus();
 
-/* --- reglage du son ------------------------------------------------------- */
+/* --- reglage du son -------------------------------------------------------
+
+   DEUX jeux de controles pour un seul reglage : celui de l'ecran d'accueil et
+   celui du menu pause. Une liste et une boucle plutot que deux copies des trois
+   gestionnaires — le second jeu aurait sinon oublie de se remettre a jour quand
+   on touche au premier, et on aurait vu deux volumes differents affiches en
+   meme temps. */
+const audioUi = [
+  { vol: volInput, val: volVal, mute: muteBtn },
+  {
+    vol: document.getElementById("pauseVol"),
+    val: document.getElementById("pauseVolVal"),
+    mute: document.getElementById("pauseMute"),
+  },
+];
 
 function refreshAudioUi() {
-  volInput.value = String(Math.round(getVolume() * 100));
-  volVal.textContent = `${Math.round(getVolume() * 100)} %`;
-  muteBtn.textContent = isMuted() ? "✕" : "♪";
-  muteBtn.classList.toggle("off", isMuted());
-  muteBtn.title = isMuted() ? "rétablir le son" : "couper le son";
+  const pct = Math.round(getVolume() * 100);
+  for (const u of audioUi) {
+    u.vol.value = String(pct);
+    u.val.textContent = `${pct} %`;
+    u.mute.textContent = isMuted() ? "✕" : "♪";
+    u.mute.classList.toggle("off", isMuted());
+    u.mute.title = isMuted() ? "rétablir le son" : "couper le son";
+  }
 }
 
-volInput.oninput = () => {
-  setVolume(Number(volInput.value) / 100);
-  // Bouger le volume rétablit le son : couper puis tirer la glissiere sans
-  // rien entendre passe pour une panne.
-  if (isMuted() && Number(volInput.value) > 0) setMuted(false);
-  refreshAudioUi();
-};
+for (const u of audioUi) {
+  u.vol.oninput = () => {
+    setVolume(Number(u.vol.value) / 100);
+    // Bouger le volume rétablit le son : couper puis tirer la glissiere sans
+    // rien entendre passe pour une panne.
+    if (isMuted() && Number(u.vol.value) > 0) setMuted(false);
+    refreshAudioUi();
+  };
 
-muteBtn.onclick = () => {
-  // Le bouton sert aussi de bouton de test : il debloque le contexte au
-  // premier clic, avant meme d'avoir rejoint.
-  initAudio();
-  setMuted(!isMuted());
-  refreshAudioUi();
-  if (!isMuted()) playSound("bonus");
-};
+  u.mute.onclick = () => {
+    // Le bouton sert aussi de bouton de test : il debloque le contexte au
+    // premier clic, avant meme d'avoir rejoint.
+    initAudio();
+    setMuted(!isMuted());
+    refreshAudioUi();
+    if (!isMuted()) playSound("bonus");
+  };
+}
 
 // La touche M coupe le son en jeu, sans repasser par le salon.
 window.addEventListener("keydown", e => {
@@ -662,6 +765,14 @@ function renderScores(rows, body = scoresBody) {
       `<td>${Math.round(r.damage ?? 0)}</td>` +
       `<td class="cards">${cardBadges(r.id)}</td>` +
       `<td class="sub">${r.total ? r.total.score : 0}</td>`;
+    /* La LIGNE ouvre la fenetre de build. Les pastilles de cartes etaient la
+       depuis le debut mais illisibles : c'est ici, le tableau sous les yeux,
+       qu'on veut comprendre pourquoi quelqu'un a fait trois fois plus de
+       degats. Le clic sur la ligne entiere et non sur un bouton dedie — la
+       cible est plus grande et il n'y a rien d'autre a faire d'une ligne. */
+    tr.className = "clickable";
+    tr.title = "voir la build";
+    tr.onclick = () => openBuild(r.id);
     body.appendChild(tr);
   }
 }
@@ -733,9 +844,21 @@ function escapeHtml(s) {
 /* Cartes possedees d'un joueur, en Map id -> exemplaires. C'est la forme
    qu'attendent `computeMods` et `cardDetail` cote partage : la garder identique
    evite d'avoir deux representations du meme chargement dans le client. */
+/* Liste brute des cartes d'un joueur. Le message `loadout` est la source en
+   jeu ; le bilan de fin de manche est la source une fois revenu au salon, ou
+   plus aucun `loadout` n'arrive. Une seule fonction pour les deux, sinon la
+   fenetre de build aurait affiche une liste vide sur exactement l'ecran ou on
+   veut la consulter. `lastResult` est remis a null au lancement d'une manche :
+   aucun risque d'afficher le chargement de la precedente. */
+function cardListOf(playerId) {
+  const live = loadouts.get(playerId);
+  if (live && live.length) return live;
+  return lastResult?.rows.find(r => r.id === playerId)?.cards ?? [];
+}
+
 function ownedCounts(playerId) {
   const counts = new Map();
-  for (const id of loadouts.get(playerId) ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const id of cardListOf(playerId)) counts.set(id, (counts.get(id) ?? 0) + 1);
   return counts;
 }
 
@@ -921,42 +1044,278 @@ function updateCardsTimer() {
   cardsTimerEl.classList.toggle("urgent", k < 0.25);
 }
 
-// Liste des cartes possedees par le joueur local, groupees par id — Tab en
-// jeu. Triee par rarete decroissante : une legendaire perdue au milieu de dix
-// communes ne se remarque pas, alors qu'elle est precisement ce qu'on veut
-// verifier d'un coup d'oeil.
-function renderLoadout() {
-  const counts = ownedCounts(myId);
+/* ===========================================================================
+   FENETRE DE BUILD
+   Un seul ecran pour trois entrees : Tab en jeu, un clic sur une ligne du
+   bilan, un clic sur une ligne du salon. Le panneau d'inventaire du lot 1 en
+   etait deja la moitie — il ne manquait que la selection du joueur.
 
-  loadoutList.innerHTML = "";
+   Pourquoi elle existe : le bilan affichait les cartes de chacun en pastilles,
+   sans moyen de les lire. Or c'est exactement le moment ou l'on veut comprendre
+   pourquoi quelqu'un a fait trois fois plus de degats — et la reponse tient
+   dans les MULTIPLICATEURS, pas dans la liste de cartes qu'il faut lire ligne a
+   ligne pour la reconstituer de tete.
+   =========================================================================== */
+
+const buildEl = document.getElementById("build");
+const buildName = document.getElementById("buildName");
+const buildClass = document.getElementById("buildClass");
+const buildSil = document.getElementById("buildSil");
+const buildStats = document.getElementById("buildStats");
+const buildMods = document.getElementById("buildMods");
+const buildSkills = document.getElementById("buildSkills");
+const buildCards = document.getElementById("buildCards");
+
+let buildTarget = 0;
+let buildPaintedAt = 0;
+
+/* Qui l'on peut inspecter, dans l'ordre. En jeu ce sont les joueurs presents
+   dans l'instantane ; au salon, ceux du dernier bilan ; a defaut, la table du
+   salon. Trois sources et une seule liste : les fleches doivent parcourir la
+   meme chose quel que soit l'ecran d'ou la fenetre a ete ouverte. */
+function buildRoster() {
+  if (phase === PHASE_ROUND && latest) return [...latest.players.keys()];
+  if (lastResult) return lastResult.rows.map(r => r.id);
+  return lobby.filter(l => !l.spectator).map(l => l.id);
+}
+
+/* Tout ce que la fenetre affiche d'un joueur, ramene a une seule forme. Les
+   statistiques viennent de l'instantane en jeu et du bilan au salon — la
+   fenetre, elle, ne connait qu'un objet. */
+function buildInfo(id) {
+  const live = phase === PHASE_ROUND ? latest?.players.get(id) : null;
+  const row = lastResult?.rows.find(r => r.id === id);
+  const lob = lobby.find(l => l.id === id);
+  const cls = live?.cls ?? row?.cls ?? lob?.cls ?? null;
+  return {
+    id,
+    name: nameOf(id),
+    colorIndex: lob?.colorIndex ?? 0,
+    cls,
+    counts: ownedCounts(id),
+    score: live?.score ?? row?.score ?? 0,
+    kills: live?.kills ?? row?.kills ?? 0,
+    deaths: live?.deaths ?? row?.deaths ?? 0,
+    damage: Math.round(live?.damage ?? row?.damage ?? 0),
+  };
+}
+
+/* Les multiplicateurs EFFECTIFS, calcules par la meme fonction que la
+   simulation (`fullMods`, exportee par game_state) : Vœu partagé compris, part
+   de vague du « Cœur de forge » comprise, repli de classe compris. Recoder ce
+   calcul ici aurait donne deux resultats differents sur l'ecran dont le seul
+   but est de verifier un chargement. */
+function buildMultipliers(info) {
+  const others = [];
+  for (const id of buildRoster()) if (id !== info.id) others.push(ownedCounts(id));
+  const wave = latest?.wave ?? 1;
+  return fullMods(info.counts, others, info.cls ?? CLASS_DEFAULT, wave);
+}
+
+/* Un multiplicateur se lit « ×1,84 » et non « +84 % » : c'est la forme sous
+   laquelle on compare deux joueurs d'un coup d'oeil, et celle du tableau des
+   scores qu'on est en train d'expliquer. La cadence est un INTERVALLE cote
+   simulation — plus il est court, plus on tire — donc on affiche son inverse,
+   sinon la seule ligne du panneau ou « plus grand » veut dire « pire ». */
+function fmtMul(v) {
+  return "×" + v.toFixed(2).replace(".", ",");
+}
+
+const BUILD_MODS = [
+  { nom: "dégâts", get: m => m.damageMul },
+  { nom: "cadence", get: m => 1 / Math.max(0.01, m.fireIntervalMul) },
+  { nom: "vitesse", get: m => m.speedMul },
+  { nom: "dégâts subis", get: m => m.damageTakenMul, bas: true },
+];
+
+function renderBuild() {
+  const roster = buildRoster();
+  if (roster.length === 0) { closeBuild(); return; }
+  if (!roster.includes(buildTarget)) buildTarget = roster[0];
+
+  const info = buildInfo(buildTarget);
+  const col = PLAYER_COLORS[info.colorIndex % PLAYER_COLORS.length];
+  const def = classAt(info.cls ?? CLASS_DEFAULT);
+  const { mods, maxHp } = buildMultipliers(info);
+
+  buildName.textContent = info.name;
+  buildName.style.color = col;
+  // `cls` peut etre nul : un joueur qui n'a jamais joue n'a pas de classe, et
+  // lui en afficher une serait mentir.
+  buildClass.textContent = info.cls === null || info.cls === undefined
+    ? "sans classe" : def.nom;
+  const sansClasse = info.cls === null || info.cls === undefined;
+  buildClass.style.color = sansClasse ? "" : def.couleur;
+  /* Meme sprite que dans l'arene, par `drawSprite` comme toute entite : un
+     dessin a part aurait menti au premier reglage. Cachee quand le joueur n'a
+     pas de classe — `classAt` se replie sur le tireur, et dessiner un tireur
+     sous un libelle « sans classe » aurait ete la seule ligne fausse de
+     l'ecran. */
+  buildSil.hidden = sansClasse;
+  if (!sansClasse) paintClassSilhouette(buildSil, def);
+
+  buildStats.innerHTML = [
+    ["score", info.score], ["kills", info.kills],
+    ["morts", info.deaths], ["dégâts", info.damage], ["PV max", maxHp],
+  ].map(([lab, val]) =>
+    `<div class="buildStat"><span class="val">${escapeHtml(String(val))}</span>` +
+    `<span class="lab">${escapeHtml(lab)}</span></div>`).join("");
+
+  buildMods.innerHTML = BUILD_MODS.map(d => {
+    const v = d.get(mods);
+    // Vert quand c'est un gain, ambre quand c'en est un cout : la grammaire de
+    // couleur du depot, sur la seule ligne du panneau ou un chiffre peut aller
+    // dans les deux sens.
+    const bon = d.bas ? v < 0.995 : v > 1.005;
+    const mauvais = d.bas ? v > 1.005 : v < 0.995;
+    const cls = bon ? " gain" : mauvais ? " cout" : "";
+    return `<div class="buildMod${cls}"><span class="lab">${escapeHtml(d.nom)}</span>` +
+      `<span class="val">${escapeHtml(fmtMul(v))}</span></div>`;
+  }).join("");
+
+  // Les deux competences de la classe, avec leur touche : la fenetre sert aussi
+  // a se rappeler ce que fait la classe d'un allie qu'on ne joue jamais.
+  buildSkills.innerHTML = sansClasse ? "" :
+    def.skills.map(s =>
+      `<div class="buildSkill"><span class="key">${escapeHtml(s.touche)}</span>` +
+      `<span><b>${escapeHtml(s.nom)}</b> — ${escapeHtml(s.desc)}</span></div>`).join("");
+
+  renderBuildCards(info.counts);
+}
+
+/* Les cartes, groupees par rarete DECROISSANTE : une legendaire perdue au
+   milieu de dix communes ne se remarque pas, alors qu'elle est precisement ce
+   qu'on veut voir d'un coup d'oeil.
+
+   Chaque carte porte sa description complete, celle du tirage — donc en metres
+   et avec ses valeurs effectives, composee par `cardDetail` a cote de la table.
+   Une pastille avec le seul nom ne repondait a aucune question. */
+function renderBuildCards(counts) {
+  buildCards.innerHTML = "";
   if (counts.size === 0) {
-    loadoutList.textContent = "aucune carte pour l'instant";
+    buildCards.innerHTML = `<div class="buildEmpty">aucune carte</div>`;
     return;
   }
 
   const rows = [...counts.entries()].sort((a, b) =>
     (CARD_BY_ID.get(b[0])?.rarity ?? 0) - (CARD_BY_ID.get(a[0])?.rarity ?? 0));
 
+  let rarity = -1;
   for (const [id, n] of rows) {
     const card = CARD_BY_ID.get(id);
     if (!card) continue;
     const col = RARITY_COLOR[card.rarity] ?? RARITY_COLOR[0];
+
+    if (card.rarity !== rarity) {
+      rarity = card.rarity;
+      const h = document.createElement("div");
+      h.className = "buildRarity";
+      h.style.color = col;
+      h.textContent = RARITY_LABEL[rarity] ?? "";
+      buildCards.appendChild(h);
+    }
+
+    const d = cardDetail(id, counts);
     const row = document.createElement("div");
-    row.className = "loadoutRow";
-    // La couleur de rarete est posee sur la LIGNE : le filet de gauche et le
-    // libelle la prennent en `currentColor`, une seule source par ligne.
+    row.className = "buildCard";
+    // La couleur de rarete est posee sur la LIGNE : le filet de gauche et
+    // l'icone la prennent en `currentColor`, une seule source par ligne.
     row.style.color = col;
     /* Le TOTAL cumule et non le gain unitaire : c'est la question a laquelle ce
        panneau repond. « Affûtage ×3 » ne disait pas +36 %, et il fallait faire
        la multiplication de tete au milieu d'une vague. */
     const total = card.stack ? card.stack(n) : "";
     row.innerHTML =
-      `<span class="loadoutName">${escapeHtml(card.nom)}${n > 1 ? ` ×${n}` : ""}</span>` +
-      (total ? `<span class="loadoutValue">${escapeHtml(total)}</span>` : "") +
-      `<span class="loadoutRarity">${RARITY_LABEL[card.rarity] ?? ""}</span>`;
-    loadoutList.appendChild(row);
+      `<span class="buildCardIcon">${familyIcon(d?.familleId)}</span>` +
+      `<div class="buildCardBody">` +
+        `<div class="buildCardHead">` +
+          `<span class="buildCardName">${escapeHtml(card.nom)}${n > 1 ? ` ×${n}` : ""}</span>` +
+          (total ? `<span class="buildCardTotal">${escapeHtml(total)}</span>` : "") +
+        `</div>` +
+        `<div class="buildCardDesc">${escapeHtml(d?.desc ?? "")}</div>` +
+        (d?.avertissement ? `<div class="buildCardWarn">${escapeHtml(d.avertissement)}</div>` : "") +
+      `</div>`;
+    buildCards.appendChild(row);
   }
 }
+
+function openBuild(id) {
+  const roster = buildRoster();
+  if (roster.length === 0) return;
+  buildTarget = roster.includes(id) ? id : roster[0];
+  buildEl.hidden = false;
+  renderBuild();
+}
+
+function closeBuild() { buildEl.hidden = true; }
+
+function cycleBuild(step) {
+  if (buildEl.hidden) return;
+  const roster = buildRoster();
+  if (roster.length === 0) return;
+  const i = roster.indexOf(buildTarget);
+  buildTarget = roster[((i < 0 ? 0 : i) + step + roster.length) % roster.length];
+  renderBuild();
+}
+
+document.getElementById("buildPrev").onclick = () => cycleBuild(-1);
+document.getElementById("buildNext").onclick = () => cycleBuild(1);
+
+/* ===========================================================================
+   MENU PAUSE
+   La contrainte est structurelle : le serveur est autoritaire et simule en
+   continu, donc UNE PAUSE N'A DE SENS QU'A UN SEUL JOUEUR. A plusieurs, le
+   panneau s'ouvre quand meme — c'est le seul endroit d'ou l'on regle le son ou
+   quitte une manche — mais la partie continue derriere, et le panneau le dit.
+
+   Le client ne DECIDE de rien : il demande, le serveur accorde ou non, et
+   `pauseReal` ne vaut vrai que sur la reponse. Se fier au client ici, c'est
+   accepter qu'un onglet modifie fige une partie a quatre.
+   =========================================================================== */
+
+const pauseEl = document.getElementById("pause");
+const pauseState = document.getElementById("pauseState");
+const pauseConfirm = document.getElementById("pauseConfirm");
+const pauseQuitBtn = document.getElementById("pauseQuit");
+
+let pauseReal = false;     // le serveur a vraiment cesse de simuler
+
+function renderPauseState() {
+  pauseState.textContent = pauseReal
+    ? "simulation figée — personne d'autre n'attend"
+    : "la partie continue — pause indisponible à plusieurs";
+  pauseState.classList.toggle("live", !pauseReal);
+  // Un spectateur n'a pas de manche a quitter : lui proposer un bouton qui ne
+  // fait rien vaut moins que ne rien proposer.
+  pauseQuitBtn.hidden = amSpectator;
+}
+
+function openPause() {
+  if (phase !== PHASE_ROUND) return;
+  pauseEl.hidden = false;
+  pauseConfirm.hidden = true;
+  if (!amSpectator) ws?.send(JSON.stringify({ t: "pause", on: 1 }));
+  renderPauseState();
+}
+
+function closePause() {
+  if (pauseEl.hidden) return;
+  pauseEl.hidden = true;
+  pauseConfirm.hidden = true;
+  // On leve la pause meme si le serveur ne l'avait pas accordee : le message
+  // est sans effet dans ce cas, et le tester ici aurait fait deux chemins la
+  // ou un seul suffit.
+  ws?.send(JSON.stringify({ t: "pause", on: 0 }));
+}
+
+document.getElementById("pauseResume").onclick = closePause;
+document.getElementById("pauseBuild").onclick = () => openBuild(myId);
+pauseQuitBtn.onclick = () => { pauseConfirm.hidden = false; };
+document.getElementById("pauseQuitNo").onclick = () => { pauseConfirm.hidden = true; };
+document.getElementById("pauseQuitYes").onclick = () => {
+  ws?.send(JSON.stringify({ t: "leaveRound" }));
+  closePause();
+};
 
 /* --- reception des snapshots --------------------------------------------------- */
 
@@ -989,6 +1348,10 @@ function ingest(msg) {
       // de Vulnerabilite et le decompte de Sentence valent un nombre a eux, le
       // second parce que le decompte EST l'information.
       statuses: a[25] ?? 0, vuln: a[26] ?? 0, doom: a[27] ?? 0,
+      // Degats cumules, pour la fenetre de build ouverte en jeu. Repli a 0 : un
+      // serveur anterieur ne l'envoie pas, la fenetre affiche alors zero plutot
+      // que de planter.
+      damage: a[28] ?? 0,
     }])),
     /* Le champ de type porte trois informations pour n'en couter qu'une seule
        sur chacun des 200 ennemis, vingt fois par seconde : le type, le rang
@@ -997,6 +1360,11 @@ function ingest(msg) {
     enemies: new Map(msg.e.map(a => [a[0], {
       id: a[0], x: a[1], y: a[2], hp: a[3], maxHp: a[4],
       type: a[5] % 100, elite: a[5] % 200 >= 100, straggler: a[5] >= 200, ang: a[6],
+      // Compteur de touches, ajout en fin de tuple. Repli a 0 : un serveur
+      // anterieur ne l'envoie pas, le compteur reste constant, et le module
+      // d'evenements retombe alors sur l'ancien comportement — un flash par
+      // variation de PV.
+      hitSeq: a[7] ?? 0,
     }])),
     // `heal` en fin de tuple : le projectile du mode soin se dessine dans une
     // autre couleur, c'est le seul moyen pour la table de voir d'un coup d'oeil
@@ -1083,6 +1451,16 @@ function ingest(msg) {
   snapshots.push(snap);
   while (snapshots.length > 40) snapshots.shift();
 
+  /* La fenetre de build reste VIVANTE quand elle est ouverte en jeu : les
+     degats et les kills montent pendant qu'on la lit. Deux fois par seconde et
+     non a chaque instantane — repeindre une liste de quinze cartes vingt fois
+     par seconde ferait recalculer la mise en page pour rien, exactement le cout
+     que le HUD est venu chercher en memorisant ses valeurs. */
+  if (!buildEl.hidden && now - buildPaintedAt > 500) {
+    buildPaintedAt = now;
+    renderBuild();
+  }
+
   const me = snap.players.get(myId);
   /* Fin de recharge de la bombe. On la detecte sur la RESERVE et non sur `cd1`,
      qui vaut deja zero quand il reste une charge sous le coude : c'est le
@@ -1129,6 +1507,9 @@ const skills = { s1: false, s2: false };
 
 function requestSkill(n) {
   if (phase !== PHASE_ROUND || amSpectator || cardsState) return;
+  // Menu pause ouvert : meme raison que le deplacement. Une competence lancee
+  // depuis un menu part sur une situation qu'on ne regarde pas.
+  if (!pauseEl.hidden) return;
   if (latest?.players.get(myId)?.downed) return;
   if (n === 1) skills.s1 = true; else skills.s2 = true;
 }
@@ -1169,13 +1550,56 @@ addEventListener("blur", () => keys.clear());
 addEventListener("keydown", e => {
   if (e.code !== "Tab" || document.activeElement === nameInput) return;
   e.preventDefault();
-  if (phase !== PHASE_ROUND || amSpectator || cardsState) return;
-  loadoutEl.hidden = !loadoutEl.hidden;
-  if (!loadoutEl.hidden) renderLoadout();
+  if (cardsState) return;
+  // La fenetre s'ouvre SUR SOI et se parcourt ensuite : c'est sa propre build
+  // qu'on veut voir en pleine vague, celle des autres qu'on compare a froid.
+  if (buildEl.hidden) openBuild(myId); else closeBuild();
+});
+
+/* Fleches gauche et droite : on passe d'un joueur a l'autre sans refermer.
+   Refermer et rouvrir pour comparer deux chargements, c'est perdre le point de
+   comparaison entre les deux — or comparer est tout ce que cet ecran sert a
+   faire. Echap ferme.
+
+   Le gestionnaire est monte en CAPTURE et sort tout de suite quand la fenetre
+   est fermee : sans ca, les fleches de deplacement du jeu seraient interceptees
+   pendant toute la manche. */
+addEventListener("keydown", e => {
+  if (buildEl.hidden) return;
+  if (e.code !== "ArrowLeft" && e.code !== "ArrowRight" && e.code !== "Escape") return;
+  e.preventDefault();
+  /* `stopImmediatePropagation` et non `stopPropagation` : les autres
+     gestionnaires de touches sont poses sur le MEME noeud (`window`), et
+     `stopPropagation` ne bloque que les noeuds SUIVANTS — il les laisse donc
+     tous s'executer. Le bug a existe : Echap fermait la fenetre de build et
+     ouvrait le menu pause dans la meme frappe, si bien que la touche suivante
+     le refermait et que le menu paraissait ne s'ouvrir qu'une fois sur deux.
+
+     Sans cette coupure, la fleche naviguerait dans la fenetre ET ferait marcher
+     le personnage, puisque le deplacement range les touches dans le meme jeu.
+     Le `keyup`, lui, n'est pas coupe — la touche sort donc bien du jeu quand on
+     la relache. */
+  e.stopImmediatePropagation();
+  if (e.code === "ArrowLeft") cycleBuild(-1);
+  else if (e.code === "ArrowRight") cycleBuild(1);
+  else closeBuild();
+}, true);
+
+/* Echap : le menu pause. L'ORDRE compte — la fenetre de build s'ouvre depuis le
+   menu pause, donc Echap doit d'abord rendre le menu et seulement ensuite le
+   fermer. Le gestionnaire de build ci-dessus coupe la propagation quand il est
+   ouvert, ce qui produit exactement cet enchainement sans qu'aucun des deux ne
+   connaisse l'autre. */
+addEventListener("keydown", e => {
+  if (e.code !== "Escape" || document.activeElement === nameInput) return;
+  if (phase !== PHASE_ROUND) return;
+  e.preventDefault();
+  if (pauseEl.hidden) openPause(); else closePause();
 });
 
 function requestDash() {
   if (phase !== PHASE_ROUND || amSpectator || !predicted) return;
+  if (!pauseEl.hidden) return;
   if (dash.cd > 0 || dash.t > 0) return;
   const me = latest?.players.get(myId);
   if (me?.downed) return;
@@ -1194,6 +1618,13 @@ function requestDash() {
 }
 
 function readMove() {
+  /* Menu pause ouvert : on ne bouge plus. En solo la simulation est figee et le
+     mouvement predit derivait tout seul derriere le voile, pour se faire
+     recaler sechement a la reprise. A plusieurs la partie continue vraiment, et
+     un personnage qui court pendant qu'on regle le volume est encore pire.
+     Le test est ici, au point de passage unique de la lecture des touches :
+     la prediction locale et le paquet d'entree le voient tous les deux. */
+  if (!pauseEl.hidden) return { x: 0, y: 0 };
   let x = 0, y = 0;
   if (keys.has("KeyW") || keys.has("ArrowUp"))    y -= 1;
   if (keys.has("KeyS") || keys.has("ArrowDown"))  y += 1;
@@ -1446,7 +1877,19 @@ function applyAlert(msg, now) {
    ne peuvent pas diverger, et aucun des deux n'arrive avant son image.
    =========================================================================== */
 
-const PARTICLE_MAX = 300;      // quarante ennemis sous une bombe : il faut couper
+/* Plafond de particules. Il valait 300 pour une seule raison : en canvas 2D,
+   chaque fragment est un `fillRect` et quarante ennemis morts sous une bombe en
+   produisaient assez pour se voir a l'image. En WebGL ce sont des quads du
+   MEME lot que les entites — ils ne coutent ni appel de dessin ni changement
+   d'etat — et le plafond peut monter d'un facteur dix sans effet mesurable.
+   C'est le gain le plus visible de la bascule : les morts, les impacts et les
+   explosions deviennent des gerbes au lieu de trois etincelles. */
+const PARTICLE_2D = 300;
+const PARTICLE_GL = 3000;
+// Une variable et non une constante : le batcher ne se branche qu'apres la
+// generation de l'atlas, donc apres le chargement de ce module. Le plafond se
+// fixe la, une fois qu'on sait quel chemin de rendu on a reellement obtenu.
+let PARTICLE_MAX = PARTICLE_2D;
 const HIT_FLASH = 0.06;        // eclair blanc de 60 ms sur l'ennemi touche
 const HIT_KICK = 5;            // recul du sprite, en pixels
 const SHAKE_MAX = 10;
@@ -1479,6 +1922,7 @@ function resetFeedback() {
   resetHud();
   alertQueue.length = 0;
   hits.clear();
+  hitQueue.length = 0;
   shake.mag = 0; shake.x = 0; shake.y = 0;
   alertOrder = null; alertWarn = null; alertInfo = null;
 }
@@ -1531,6 +1975,11 @@ function handleEvent(e) {
       // la difference entre la pietaille et un gros.
       playSound("mort", { pitch: e.elite ? 0.6 : 1.3 - Math.min(0.6, e.type * 0.12) });
       spawnDeath(e.x, e.y, e.type, e.elite);
+      // Le coup fatal porte son chiffre comme n'importe quelle touche : c'est
+      // le seul degat du jeu qui n'apparaissait nulle part, alors qu'il est le
+      // plus satisfaisant. Il passe par la meme agregation, donc il se fond
+      // dans les touches qui l'ont precede au lieu d'ouvrir une seconde colonne.
+      if (e.dmg > 0) aggregateDamage(e);
       break;
 
     case "bonus": playSound("bonus"); break;
@@ -1593,7 +2042,36 @@ function registerHit(e) {
     const n = Math.hypot(dx, dy) || 1;
     dx /= n; dy /= n;
   }
-  hits.set(e.id, { until: performance.now() + HIT_FLASH * 1000, dx, dy });
+
+  /* PLUSIEURS touches dans le meme intervalle : on les ETALE au lieu de n'en
+     montrer qu'une. Le compteur du serveur dit exactement combien de balles
+     sont tombees pendant les cinquante millisecondes qui separent deux
+     instantanes ; les empiler au meme instant redonnerait le seul flash qu'on
+     vient de corriger.
+
+     L'espacement est celui de l'intervalle divise par le nombre de touches,
+     borne par la duree du flash lui-meme : deux flashes plus rapproches que
+     leur propre duree se recouvrent et se relisent comme un seul. Au-dela de
+     ce que l'intervalle peut porter, on renonce — c'est le meme raisonnement
+     que le plafond des eclats. */
+  const now = performance.now();
+  const n = Math.max(1, Math.min(HIT_BURST_MAX, e.hits ?? 1));
+  const span = 1000 / CFG.SNAPSHOT_HZ;
+  const step = Math.max(HIT_FLASH * 1000, span / n);
+  for (let i = 0; i < n; i++) {
+    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy);
+    else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy });
+  }
+}
+
+// Au-dela, l'oeil ne compte plus : quatre eclairs en cinquante millisecondes
+// sont deja a la limite du discernable, et les suivants ne feraient
+// qu'allonger la file.
+const HIT_BURST_MAX = 4;
+const hitQueue = [];
+
+function applyHit(id, x, y, dx, dy) {
+  hits.set(id, { until: performance.now() + HIT_FLASH * 1000, dx, dy });
 
   /* ECLAT D'IMPACT : deux fragments clairs projetes dans l'axe du tir. C'est
      l'action secondaire la moins chere du jeu et celle qui change le plus le
@@ -1604,9 +2082,26 @@ function registerHit(e) {
     const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.6;
     const sp = 90 + Math.random() * 70;
     particles.push({
-      x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       life: 0.14, max: 0.14, col: COMBAT.flash, size: 2,
     });
+  }
+}
+
+/* Sortie des flashes differes. Une file balayee en entier et non arretee au
+   premier terme non echu : deux ennemis touches dans la meme diffusion ont des
+   espacements differents — quatre balles sur l'un, deux sur l'autre — et la
+   file n'est donc PAS triee par echeance. Elle ne depasse jamais quelques
+   dizaines d'entrees, le balayage complet est gratuit.
+
+   Une file, et pas un minuteur par touche : a trois cents impacts par minute,
+   ce serait trois cents `setTimeout` pour soixante millisecondes de flash. */
+function flushHitQueue(now) {
+  for (let i = hitQueue.length - 1; i >= 0; i--) {
+    if (hitQueue[i].at > now) continue;
+    const h = hitQueue[i];
+    hitQueue.splice(i, 1);
+    applyHit(h.id, h.x, h.y, h.dx, h.dy);
   }
 }
 
@@ -1729,13 +2224,43 @@ function stepFeedback(dt) {
     p.vx *= 0.90; p.vy *= 0.90;
   }
 
+  const now = performance.now();
+  if (hitQueue.length > 0) flushHitQueue(now);
   if (hits.size > 0) {
-    const now = performance.now();
     for (const [id, h] of hits) if (h.until < now) hits.delete(id);
   }
 }
 
+/* Case blanche de l'atlas, teintee a la volee : c'est ce qui fait passer les
+   fragments par le MEME lot que les entites. Sans elle il faudrait un second
+   chemin de rendu pour dessiner des carres. */
+let fxWhite = 0;
+
 function drawParticles() {
+  /* CHEMIN WEBGL. Les fragments partent en ADDITIF : sur un fond sombre, deux
+     etincelles qui se croisent s'additionnent au lieu de se recouvrir, et une
+     gerbe se lit comme une source de lumiere et non comme un tas de carres.
+     C'est le mode que la bascule debloque, et le premier endroit ou l'employer.
+
+     Ecart d'empilement assume : en WebGL les fragments vivent dans la couche
+     des entites, donc SOUS le boss, les anneaux de joueur et les barres, la ou
+     le chemin 2D les mettait au-dessus de tout. Les remonter demanderait un
+     second contexte WebGL au-dessus de la couche 2D superieure — un canvas
+     de plus a composer a chaque image pour quatre cents millisecondes d'effet
+     derriere un boss. */
+  if (glActive()) {
+    for (const p of particles) {
+      drawSprite(ctx, fxWhite, p.x, p.y, {
+        scaleX: p.size / SPRITE_CELL,
+        scaleY: p.size / SPRITE_CELL,
+        tint: p.col,
+        alpha: Math.max(0, p.life / p.max),
+        additive: true,
+      });
+    }
+    return;
+  }
+
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, p.life / p.max);
     ctx.fillStyle = p.col;
@@ -1778,9 +2303,17 @@ function frame(now) {
     stepFeedback(dt);
     draw(interpolated(renderTime) ?? flatten(latest));
   } else {
+    // Hors manche : le sol seul, sur la couche du dessous. Les deux autres sont
+    // videes a chaque image — un canvas WebGL qu'on cesse de dessiner garde un
+    // contenu indefini, et la derniere image de la manche precedente aurait pu
+    // reapparaitre par-dessous le salon.
+    ctx = underCtx;
     ctx.fillStyle = SURFACE.arena;
     ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
     drawGrid();
+    overCtx.clearRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+    gl?.begin();
+    gl?.end();
   }
   requestAnimationFrame(frame);
 }
@@ -1989,9 +2522,17 @@ function drawVignette() {
    qui fait exactement la taille de l'arene : la conversion monde -> ecran est
    donc une division, et elle reste juste quelle que soit la fenetre. */
 function draw(v) {
-  ctx.fillStyle = SURFACE.arena;
-  ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  // Le fond n'est peint que par la couche du DESSOUS ; les deux autres doivent
+  // rester transparentes, sinon elles effacent ce qu'il y a dessous.
+  underCtx.fillStyle = SURFACE.arena;
+  underCtx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  overCtx.clearRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  // Le lot WebGL s'ouvre autour de TOUT le monde : les quads sont accumules au
+  // fil des appels et vides a la fin, donc leur ordre entre eux est celui du
+  // code, mais leur position dans l'empilement est celle du canvas.
+  gl?.begin();
   drawWorld(v);
+  gl?.end();
   applyShake();
   drawScreen(v);
 }
@@ -2002,7 +2543,9 @@ function applyShake() {
   const on = shake.mag > 0;
   if (!on && !shakeApplied) return;
   shakeApplied = on;
-  cv.style.transform = on
+  // Le tressaillement porte sur `#arena` et non sur un canvas : les trois
+  // couches doivent bouger ENSEMBLE, au sous-pixel pres.
+  arenaEl.style.transform = on
     ? `scale(1.015) translate(${(shake.x / CFG.ARENA_W * 100).toFixed(3)}%, ` +
       `${(shake.y / CFG.ARENA_H * 100).toFixed(3)}%)`
     : "scale(1.015)";
@@ -2029,11 +2572,17 @@ function drawScreen(v) {
     phaseText: v.boss && v.boss.phase > 0
       ? phaseUnlockText(v.boss.kind ?? 0, v.boss.phase) : "",
     perf: PERF, fps, particles: particles.length,
+    renderer: glActive() ? "GL" : "2D",
+    draws: gl?.draws ?? 0, quads: gl?.quads ?? 0,
     voices: st ? st.active : 0, peak: st ? st.peak : 0,
   });
 }
 
 function drawWorld(v) {
+  /* LA LIGNE DE PARTAGE. Tout ce qui suit vit SOUS les entites : sol, zones,
+     telegraphes, projectiles, marqueurs. Elle bascule une seule fois, juste
+     apres les monstres — voir plus bas. */
+  ctx = underCtx;
   drawGrid();
 
   if (v.slow) {
@@ -2079,6 +2628,16 @@ function drawWorld(v) {
   // par-dessus la horde qui avance masquerait ce qui arrive.
   drawDeaths();
   drawEnemies(v.enemyList);
+
+  /* BASCULE VERS LA COUCHE DU DESSUS. Tout ce qui suit passait deja par-dessus
+     les monstres dans l'ordre de dessin d'origine : boss, drones, anneaux de
+     joueur, barres, noms, lames orbitales, murs, fragments, vignettage. Le seul
+     ecart assume est que les anneaux d'un joueur passent desormais AU-DESSUS de
+     son propre sprite au lieu de dessous — ils vivent a 18 px et plus du centre
+     pour un personnage de 14 px de rayon, le recouvrement se compte en un ou
+     deux pixels. */
+  ctx = overCtx;
+
   if (v.boss) {
     if (v.boss.id !== lastBossId) {
       lastBossId = v.boss.id;
@@ -3325,16 +3884,22 @@ function drawPlayers(list, tm, marks = []) {
       const dashing = isMe ? dash.t > 0 : p.dashing;
       if (dashing) {
         const dir = isMe ? dash : { x: -p.aimX, y: -p.aimY };
-        ctx.strokeStyle = FX.flash;
-        ctx.globalAlpha = 0.45;
-        ctx.lineWidth = CFG.PLAYER_RADIUS * 1.6;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x - dir.x * 34, y - dir.y * 34);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-        ctx.lineCap = "butt";
+        /* Le sillage est le SEUL trace de ce bloc a passer explicitement par la
+           couche du dessous : c'est un trait epais de 22 px qui part du centre
+           du personnage, et dessine par-dessus il l'aurait efface pendant toute
+           l'esquive. Les anneaux, eux, vivent au-dela du corps et n'ont pas ce
+           probleme. */
+        const g = underCtx;
+        g.strokeStyle = FX.flash;
+        g.globalAlpha = 0.45;
+        g.lineWidth = CFG.PLAYER_RADIUS * 1.6;
+        g.lineCap = "round";
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x - dir.x * 34, y - dir.y * 34);
+        g.stroke();
+        g.globalAlpha = 1;
+        g.lineCap = "butt";
       }
 
       /* Provocation active : halo pulsant dans la couleur du tank. Les autres

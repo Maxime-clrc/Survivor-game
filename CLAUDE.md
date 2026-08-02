@@ -41,6 +41,7 @@ shared/units.js        pixels → mètres, le SEUL point de conversion d'afficha
 shared/palette.js      LA CHARTE — couleurs, rampes, échelle typo, lues par le canvas ET le DOM
 public/client.js       saisie, interpolation, prédiction, rendu du MONDE
 public/sprites.js      atlas généré au chargement + `drawSprite`, LE point de passage d'entité
+public/gl.js           batcher de quads WebGL2 — ne connaît ni le jeu ni l'atlas
 public/hud.js          le HUD, en DOM : la couche ÉCRAN
 public/icons.js        glyphes de bonus, d'effets et d'états — dessinés dans l'arène ET dans le HUD
 public/events.js       diffusion des snapshots en événements typés (module pur)
@@ -62,9 +63,9 @@ La question n'est pas « canvas ou CSS » mais **où vit l'élément**.
 
 | couche | contenu | technologie |
 |---|---|---|
-| **Monde** | entités, projectiles, zones, sol, particules | canvas (`client.js`, `sprites.js`) |
+| **Monde** | entités, projectiles, zones, sol, particules | canvas (`client.js`, `sprites.js`, `gl.js`) |
 | **Écran** | HUD, barres, recharges, consignes, chiffres de dégâts | DOM + CSS (`hud.js`) |
-| **Menus** | chargement, salon, cartes, bilan | DOM + CSS (`client.js`, `ui.css`) |
+| **Menus** | chargement, salon, cartes, bilan, build, pause | DOM + CSS (`client.js`, `ui.css`) |
 
 Le monde reste au canvas parce que 220 ennemis repositionnés à chaque image,
 ce sont 220 couches composées en DOM. L'écran passe en DOM parce qu'une
@@ -80,11 +81,41 @@ monde restent en 1600 × 900 — la transformation absorbe tout, et pas une lign
 de logique de rendu ne change. Corollaire : la souris se convertit vers les
 **coordonnées monde** (`CFG.ARENA_W / rect.width`), jamais vers `cv.width`.
 
-**Le tressaillement d'écran est un `transform` CSS sur l'élément canvas.** Le
-HUD est son **frère** et non son contenu : il ne peut plus trembler avec lui, et
-la séparation du rendu en deux passes n'a plus lieu d'être. Le canvas porte un
-`scale(1.015)` permanent pour qu'une secousse ne découvre pas une bande de page
-derrière l'arène.
+**Le monde tient sur TROIS canvas empilés** (`#arena` dans `index.html`), et
+c'est la bascule WebGL qui l'impose : deux éléments empilés se composent
+strictement l'un sur l'autre, donc *tout* le canvas 2D passerait au-dessus de
+*tout* le WebGL. Or l'ordre de dessin intercale du 2D avant **et** après les
+entités.
+
+| canvas | contenu | technologie |
+|---|---|---|
+| `#cvUnder` | sol, grille, zones, télégraphes, remparts, tourelles, projectiles, marqueurs, sillage d'esquive | canvas 2D |
+| `#cvGl` | **entités** : monstres, joueurs, dépouilles, particules | WebGL2 (`gl.js`), vide en repli |
+| `#cv` | boss, drones, anneaux de joueur, barres, noms, lames orbitales, murs, vignettage | canvas 2D |
+
+`ctx` dans `client.js` est une **variable** et non une constante : `drawWorld()`
+la bascule de `underCtx` à `overCtx` une seule fois, juste après les monstres.
+Les deux cents fonctions de dessin ignorent donc sur quel canvas elles écrivent,
+exactement comme `drawSprite` ne dit pas à ses appelants s'il passe par WebGL.
+
+Deux écarts d'empilement assumés, tous deux mesurés en pixels : les anneaux d'un
+joueur passent au-dessus de son propre sprite (ils vivent à 18 px et plus du
+centre pour un corps de 14 px de rayon), et les fragments passent sous le boss
+et les barres au lieu d'être au-dessus de tout. Le second se corrigerait avec un
+second contexte WebGL par-dessus la couche 2D supérieure — un canvas de plus à
+composer à chaque image pour quatre cents millisecondes d'effet derrière un boss.
+
+**Le tressaillement d'écran est un `transform` CSS**, porté par `#arena` et non
+par un canvas : les trois couches doivent bouger **ensemble**, au sous-pixel
+près. Le HUD est le **frère** de `#arena` et non son contenu : il ne peut plus
+trembler avec lui, et la séparation du rendu en deux passes n'a plus lieu
+d'être. `#arena` porte un `scale(1.015)` permanent pour qu'une secousse ne
+découvre pas une bande de page derrière l'arène.
+
+**Seul `#cvUnder` peint un fond.** Les deux autres se vident (`clearRect`,
+`gl.clear`) à chaque image — un canvas WebGL qu'on cesse de dessiner garde un
+contenu indéfini, et la dernière image d'une manche pouvait réapparaître sous le
+salon.
 
 **Le HUD n'écrit dans le DOM que si la valeur a changé** (table `memo` dans
 `hud.js`). Repeindre soixante fois par seconde une chaîne identique fait
@@ -93,29 +124,84 @@ chercher en sortant du canvas.
 
 ### `drawSprite` est LE point de passage du dessin d'entité
 
-Monstres, joueurs, silhouettes du salon : **tout** passe par `drawSprite`
-(`public/sprites.js`), et par aucune autre fonction. Si un cas ne rentre pas
-dans la signature (`angle`, `scaleX`, `scaleY`, `tint`, `alpha`, `flash`), c'est
-la **signature** qu'on étend, jamais une exception qu'on ouvre.
+Monstres, joueurs, silhouettes du salon, **particules** : tout passe par
+`drawSprite` (`public/sprites.js`), et par aucune autre fonction. Si un cas ne
+rentre pas dans la signature (`angle`, `scaleX`, `scaleY`, `tint`, `alpha`,
+`flash`, `additive`), c'est la **signature** qu'on étend, jamais une exception
+qu'on ouvre.
 
-C'est ce qui rend une éventuelle bascule vers WebGL abordable — pas pour la
-fluidité, mais pour des capacités que le canvas 2D ne sait pas produire : lueurs
-additives sur des centaines de sprites, teinte par sprite gratuite. Le jour
-venu, on réécrit ce module et aucun appelant ne bouge. L'erreur inverse est
-documentée : cinq cents appels vectoriels dispersés dans vingt-neuf fonctions,
-sans point de passage, c'est ce qui rendait la situation d'avant coûteuse.
+C'est ce qui a rendu la bascule vers WebGL abordable : **le module a été réécrit
+et pas un appelant n'a bougé**. L'erreur inverse est documentée — cinq cents
+appels vectoriels dispersés dans vingt-neuf fonctions, sans point de passage,
+c'est ce qui rendait la situation d'avant coûteuse.
 
-**`tint` doit exister même approximatif** — sinon il faudrait reprendre tous les
-appelants le jour où il devient gratuit. Une seule indirection, pas une couche
-d'abstraction de rendu : pas d'interface, pas de fabrique, pas de gestionnaire
-de ressources.
+**`tint` a toujours existé, même approximatif**, et c'est ce qui a permis de le
+rendre gratuit sans reprendre un seul appelant. Une seule indirection, pas une
+couche d'abstraction de rendu : pas d'interface, pas de fabrique, pas de
+gestionnaire de ressources.
 
 **L'atlas est généré au chargement, jamais figé.** Il suit la densité de pixels
 de l'écran, comme le canvas. Sa règle de budget : **ne pas stocker en image ce
 qu'une transformation peut faire** — respiration, écrasement, orientation, recul
 au tir et rang d'élite sont des `scale` et des `rotate`, donc gratuits. On ne
 paie que les changements de **forme** : membres, mandibules, télégraphes, étapes
-de mort. 47 images, 420 × 420 à densité 1, 1,3 Mo, 22 ms de génération.
+de mort. 48 images, 448 × 448 à densité 1 (1,5 Mo), 896 × 896 à densité 2
+(6,1 Mo).
+
+**Chaque case est entourée d'une gouttière transparente de 2 px** (`PAD` /
+`PITCH` dans `sprites.js`). Invisible en canvas 2D — un `drawImage` lit
+exactement le rectangle demandé — mais **systématique** en WebGL : le filtrage
+linéaire va chercher les texels voisins au bord du rectangle source et ramène
+des franges de l'image d'à côté. `cellRect()` est le point de passage unique de
+la lecture de l'atlas : le chemin 2D et le chemin WebGL lisent la même formule.
+
+**La 48ᵉ case est un carré blanc uni** (`fx_white`). Ce n'est pas un sprite au
+sens de la recette : c'est ce qui fait passer les **particules** par le même lot
+que les entités. Sans elle il faudrait un second chemin de rendu — un tampon à
+part, un shader à part — pour dessiner des carrés.
+
+### La bascule WebGL
+
+`public/gl.js` est un **batcher écrit à la main, en WebGL2**, sans bibliothèque.
+La raison n'est pas idéologique : PixiJS et ses équivalents sont des moteurs à
+**graphe de scène**, en mode retenu, là où le jeu est en **mode immédiat** — il
+redessine tout à chaque image depuis un instantané interpolé, sans état de rendu
+persistant. Les marier voudrait dire maintenir un objet d'affichage par entité
+et synchroniser deux sources de vérité, soit plus de travail que le batcher
+lui-même et toute une classe de bugs (objets fantômes, fuites) qui n'existe pas.
+
+**Elle n'apporte pas de fluidité** — à ~800 sprites le canvas 2D tient
+largement. Elle apporte des **capacités** : teinte par sprite gratuite, mélange
+additif, milliers de particules, et plus tard passe de post-traitement,
+distorsion, échange de palette.
+
+Six points, dont cinq sont des pièges connus :
+
+- **Alpha prémultiplié partout** (`UNPACK_PREMULTIPLY_ALPHA_WEBGL`). Sans lui,
+  liseré sombre sur chaque bord transparent et additif faux. La teinte multiplie
+  donc les **quatre** canaux, alpha compris.
+- **L'éclair blanc ne peut pas venir de la teinte** : un multiplicatif ne sait
+  pas éclaircir. C'est un attribut de sommet et un `mix`, donc dans le **même**
+  appel de dessin — l'autre option (redessiner en additif) doublait les quads
+  des entités touchées, c'est-à-dire des dizaines pendant une nova.
+- **Le retournement de Y est absorbé par la projection.** Le code de jeu
+  continue de travailler en 1600 × 900 avec Y vers le bas.
+- **Le viewport est en pixels physiques**, déjà multipliés par la densité.
+- **Un lot ne se vide qu'au changement d'état** : mode de mélange, plafond,
+  fin d'image. Mesuré : **2 appels de dessin pour 3 220 quads**.
+- **La perte de contexte n'est pas un cas d'école** (bascule de GPU, veille,
+  redémarrage de pilote). `preventDefault()` dans `webglcontextlost` n'est pas
+  facultatif — sans lui le contexte n'est **jamais** restauré. La restauration
+  doit **retéléverser l'atlas**, sinon le jeu revient en sprites blancs.
+
+**Le chemin canvas 2D reste vivant**, et ce n'est pas de la prudence gratuite :
+c'est le repli automatique en perte de contexte (`drawSprite` retombe dessus dès
+que `renderer.ok` est faux), la comparaison visuelle entre les deux rendus, et
+le mode dégradé quand WebGL2 manque.
+`localStorage.setItem("survivor.renderer", "canvas2d")` y bascule sans
+rechargement du serveur. Le plafond de particules suit : **300 en 2D, 3 000 en
+WebGL** — en 2D chaque fragment est un `fillRect`, en WebGL c'est un quad du
+même lot que les entités.
 
 **Une silhouette est faite de plusieurs sous-tracés.** Un appendice enchaîné en
 `lineTo` à la suite du corps se raccorde au dernier sommet de celui-ci et creuse
@@ -213,7 +299,27 @@ exactement ce qu'il faut regarder.
 
 **Tout ce qui blesse un joueur passe par `_hurt()`**, et le multiplicateur de difficulté s'applique **là et nulle part ailleurs**. Ne pas le remultiplier aux points d'appel. Une nouvelle attaque est ainsi couverte sans qu'on y pense.
 
-**Tout ce qui blesse un ennemi ou le boss passe par `_damage()`**, symétriquement : vol de vie, brûlure et comptage des dégâts y sont branchés une seule fois.
+**Tout ce qui blesse un ennemi ou le boss passe par `_damage()`**, symétriquement : vol de vie, brûlure, comptage des dégâts et **compteur de touches** y sont branchés une seule fois.
+
+**`_damage()` prend `overTime` exactement comme `_hurt()`**, et pour la même raison : un dégât **continu** (brûlure, couronne mortelle) n'est pas une touche. Sans ce drapeau il incrémenterait le compteur soixante fois par seconde et l'ennemi qui brûle clignoterait en permanence — c'est-à-dire que le retour d'impact, qu'on vient précisément de rendre exact, ne voudrait plus rien dire.
+
+**Le compteur de touches (`hitSeq`) est un chiffre CYCLIQUE de 0 à 9, jamais une valeur absolue.** Le client ne lit qu'une **différence** entre deux instantanés consécutifs. Dix touches en cinquante millisecondes sur la même cible — deux cents par seconde — est une cadence qu'aucun chargement n'approche. Un chiffre et non trois octets : mesuré arène pleine, la version à 255 coûtait +11,8 % de poids d'instantané, au-dessus du budget de 10 % ; à un chiffre, +6,2 %. Il est **coupé quand il vaut zéro** (`trimTail`, `keep = 7`), et la majorité des ennemis présents n'ont jamais été touchés.
+
+Il existe parce qu'aucun réglage client ne pouvait corriger le problème : à 20 Hz, un joueur à cadence élevée place deux à quatre balles entre deux instantanés, et une variation de PV n'en montre qu'une seule. Le **coup fatal** ne laissait, lui, aucune trace du tout.
+
+**Une balle qui touche un ennemi passe par `_bulletHitEnemy()`.** La boucle de collision **et** le balayage à l'apparition l'appellent : sinon une balle qui touche à bout portant se comporterait différemment d'une balle qui touche à dix mètres — grenade, chaîne de foudre, ricochet, inertie, perforation — ce qui se paierait à la première carte ajoutée.
+
+**Un ennemi ne chevauche jamais un joueur** (`_separateFromPlayers()`, `PLAYER_SEPARATION`). Cause racine d'un bug bien réel : les balles naissent à 16 px du centre, un runner a 9 px de rayon et une balle 4, donc la collision se fait à 13 px. Un runner à moins de 3 px du centre voyait la balle naître **déjà au-delà de lui**, puis s'éloigner — il y avait un disque de 16 px de rayon autour de chaque joueur dans lequel un ennemi était strictement invulnérable à son porteur. En équipe un allié le tuait de l'extérieur ; en solo, personne.
+
+Trois règles indissociables : la constante est **dédiée** (la répulsion contre un joueur est une contrainte, pas l'évitement souple du troupeau) ; le joueur n'est **jamais** déplacé en retour (deux cents ennemis l'auraient charrié à travers l'arène, et la prédiction locale aurait combattu le serveur à chaque image) ; et le contact garde **une morsure d'un pixel** (`PLAYER_BITE`), parce qu'une séparation résolue pile à la somme des rayons fait échouer le test de dégât de contact une image sur deux au gré de l'arrondi flottant.
+
+**`_spawnSweep()` teste le segment centre du joueur → point d'apparition**, dans l'ordre où la balle le parcourt. C'est le filet de sécurité du même bug, et la bonne correction pour toute apparition décalée qu'on ajouterait plus tard.
+
+**`fullMods()` et `effectiveCards()` sont exportés par `game_state.js`, en fonctions pures.** La fenêtre de build affiche les multiplicateurs **réels** d'un joueur — « ×2,4 dégâts, ×1,8 cadence » explique le tableau des scores bien mieux que la liste des cartes. Recoder le repli côté client aurait donné deux implémentations qui divergent au premier réglage, sur précisément l'écran dont le seul but est de vérifier un chargement. Elles vivent dans `game_state.js` et non dans `cards.js` parce que le repli de classe a besoin de `classAt` — et `cards.js` ne doit dépendre de rien.
+
+**Une pause n'a de sens qu'à UN SEUL joueur, et c'est le serveur qui l'accorde.** Il simule en continu : à plusieurs, un joueur figerait la partie des autres. Le client ouvre le même panneau dans les deux cas, mais `pauseReal` ne vaut vrai que sur la réponse du serveur — se fier au client ici, c'est accepter qu'un onglet modifié fige une partie à quatre. Trois refus côté serveur : hors manche, demandeur pas en jeu, et **dès qu'un second client est connecté** (les connectés, pas les vivants : un spectateur a le droit de ne pas voir l'image se figer).
+
+**La pause se lève toute seule au bout de 5 minutes ou à l'arrivée d'un second joueur** (`setPaused()`, point de passage unique des trois causes). Sans ça, un solo en pause laisse le serveur bloqué indéfiniment et personne ne peut le rejoindre — le même piège que la manche qui ne se terminait jamais quand tout le monde quittait. **Les recharges et les états ne s'écoulent pas** pendant la pause : ils vivent dans `p.timers` et `p.statuses`, qui ne descendent que dans `step()`, et il suffit donc de ne pas l'appeler. Une pause qui rendrait les compétences gratuites serait une faille, pas un confort.
 
 **Tout ce qui pose un état passe par `_applyStatus()`, tout ce qui en retire un par `_purgeStatus()`** — mêmes points de passage uniques que `_hurt()` et `_damage()`. Les effets se lisent là où ils s'appliquent et **nulle part ailleurs** : la Vulnérabilité dans `_hurt()`, l'Entrave dans `_players()`, la Brûlure dans `_statuses()`.
 
@@ -296,6 +402,8 @@ Ajouter une entrée impose de traiter les deux côtés :
 | `kind` d'effet → son | rien | `EFFECT_SOUND` dans `client.js` : son et amplitude de tressaillement par `kind` |
 | glyphe posé sur un joueur | `a` / `b` d'une entrée de `state.marks` | `PLAYER_MARK` + `paintMarkGlyph()` |
 | effet possédé visible en jeu | rien — déduit de la liste de cartes | `EFFECT_BADGES` dans `client.js` : bande d'effets actifs du HUD |
+| pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
+| sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 
 Les cinq derniers registres sont **purement clients** : un son, un glyphe, une
 icône d'effet et une image de sprite ne traversent pas le réseau, ils se
@@ -303,6 +411,11 @@ déduisent de ce que le snapshot — ou la liste de cartes, déjà diffusée —
 déjà. Une nouvelle mécanique ne demande donc pas d'ajouter un message :
 seulement une entrée dans `MECHS` et, si elle marque un joueur, une entrée dans
 `PLAYER_MARK`.
+
+**Le retour d'impact, lui, n'est PLUS déduit** : il l'était, et c'était le
+défaut. Voir `hitSeq` dans les invariants — un différentiel de PV échantillonné
+à 20 Hz est structurellement lacunaire, et le coup fatal n'y apparaissait pas du
+tout.
 
 **Trois informations d'affichage sont DÉDUITES et non transmises**, pour la même
 raison à chaque fois : un champ de plus sur 200 ennemis ou 400 balles, vingt
@@ -325,7 +438,9 @@ Le tag `cadence` n'est pas décoratif : « Résonance » compte les cartes qui l
 
 Les clés de vague et de progression (`wv`, `wp`, `wbs`, `wb`, `xl`, `xp`), les deux listes de compétence (`bw` remparts, `bm` bombes), celles du lot 4 (`mk` marqueurs de mécanique, `bo2` second Jumeau, `sp` sol glissant), celles du lot 5 (`bn` limites d'arène et palier annoncé, `wl` murs de verrouillage) et celle du lot 6 (`bd` dégâts portés au boss depuis le dernier instantané, par joueur) sont des **clés nommées** du snapshot, pas des éléments de tableau : la règle positionnelle ne vaut qu'à l'intérieur des tableaux, et une clé inconnue est simplement ignorée par un client plus ancien. `bn` et `wl` sont **absentes** tant que l'arène ne bouge pas, c'est-à-dire quatre-vingt-dix pour cent d'une manche.
 
-**Les zéros de queue des tuples de zone sont coupés** (`trimTail` dans `snapshot()`). La règle positionnelle interdit de *déplacer* un champ, pas d'en *omettre* à la fin : le client lit déjà tout ce qui suit l'index 6 avec un repli (`a[7] ?? 0`), le mécanisme même qui empêche un onglet resté sur une version antérieure de planter. Un tuple de zone en compte quinze et la plupart des formes n'en remplissent que douze.
+**Les zéros de queue des tuples de zone et d'ennemi sont coupés** (`trimTail` dans `snapshot()`). La règle positionnelle interdit de *déplacer* un champ, pas d'en *omettre* à la fin : le client lit déjà tout ce qui suit l'index 6 avec un repli (`a[7] ?? 0`), le mécanisme même qui empêche un onglet resté sur une version antérieure de planter. Un tuple de zone en compte quinze et la plupart des formes n'en remplissent que douze ; un tuple d'ennemi en compte huit et son huitième champ — le compteur de touches — vaut zéro tant que rien ne l'a touché. Le `keep` d'un ennemi vaut **7 et non 6** : le client lit `a[6]` (l'orientation) sans valeur de repli, et une orientation nulle est parfaitement ordinaire.
+
+**Deux ajouts en fin de tuple sur ce lot** : `hitSeq` sur l'ennemi (index 7) et les **dégâts cumulés** sur le joueur (index 28). Le second est le seul chiffre de la fenêtre de build que le client ne peut pas déduire, pour la même raison que `bd` — les projectiles ne portent pas leur propriétaire. Quatre nombres par instantané là où la liste d'ennemis en compte seize cents, et sans lui la fenêtre affichait un tiret au moment précis où l'on veut comprendre qui porte l'équipe.
 
 **`bd` est le seul chiffre que le client ne peut pas déduire.** Les projectiles
 ne transportent pas leur propriétaire — un identifiant de plus sur chacune des
@@ -450,6 +565,41 @@ s'apprennent, soixante ne se lisent jamais.
 
 **Le bilan de fin de manche et le salon sont deux écrans.** Tant que le salon
 suivant était affiché dessous, personne ne lisait son bilan.
+
+**La fenêtre de build est UN écran pour trois entrées** : Tab en jeu, un clic
+sur une ligne du bilan, un clic sur une ligne du salon. Deux fenêtres qui
+montrent la même chose auraient divergé au premier réglage, et le panneau
+d'inventaire en était déjà la moitié — il ne manquait que la sélection du
+joueur, d'où les flèches gauche/droite plutôt qu'une seconde fenêtre. On passe
+d'un joueur à l'autre **sans refermer** : refermer et rouvrir pour comparer deux
+chargements, c'est perdre le point de comparaison, or comparer est tout ce que
+cet écran sert à faire.
+
+**Sa ligne la plus importante est celle des multiplicateurs, pas la liste de
+cartes.** « ×2,4 dégâts, ×1,8 cadence » explique le tableau des scores ; la
+liste de cartes demande de la reconstituer de tête. Un multiplicateur se lit
+« ×1,84 » et non « +84 % » — c'est la forme du tableau qu'on est en train
+d'expliquer — et la **cadence s'affiche inversée** parce que la simulation
+raisonne en intervalle : sinon ce serait la seule ligne de l'écran où « plus
+grand » voudrait dire « pire ».
+
+**Le menu pause n'est pas un `.overlay`.** À plusieurs la partie continue
+derrière et le voile doit rester translucide pour qu'on la voie ; un panneau
+opaque aurait fait croire que tout est arrêté, ce qui est exactement le
+malentendu que le libellé (« la partie continue — pause indisponible à
+plusieurs », en **ambre**, c'est un avertissement) est là pour éviter.
+Ouvrir le menu **arrête le personnage** (`readMove()` sort à vide) : en solo la
+prédiction dérivait derrière le voile pour se faire recaler sèchement à la
+reprise, et à plusieurs un personnage qui court pendant qu'on règle le volume
+est pire encore.
+
+**Ordre des touches : Échap rend d'abord le menu, puis le ferme.** La fenêtre de
+build s'ouvre depuis le menu pause, donc son gestionnaire coupe la propagation —
+et il la coupe avec **`stopImmediatePropagation`** : les autres gestionnaires de
+touches sont posés sur le **même** nœud (`window`), et `stopPropagation` ne
+bloque que les nœuds suivants. Le bug a existé : Échap fermait la build et
+ouvrait la pause dans la même frappe, si bien que le menu paraissait ne
+s'ouvrir qu'une fois sur deux.
 
 ## Équilibrage
 
