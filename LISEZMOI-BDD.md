@@ -60,6 +60,11 @@ configuration :
 
 Sur le VPS, selon le mode de lancement :
 
+- **conteneur avec redéploiement automatique** (Coolify, CapRover, Dokploy,
+  compose…) — les poser **une fois** dans le panneau du service (« Environment
+  Variables », « App Configs »… selon la plateforme) : elles survivent aux
+  redéploiements. En `docker-compose.yml`, bloc `environment:` du service.
+
 - **systemd** — dans l'unité (`/etc/systemd/system/survivor.service`), section
   `[Service]` :
 
@@ -121,6 +126,14 @@ Render, machine du salon…). Les plateformes *serverless* (fonctions à la
 demande, dont Vercel) ne conviennent **pas** pour ce processus : elles coupent
 entre deux requêtes et ne portent pas de serveur WebSocket. Vercel peut en
 revanche servir une page d'accueil ou de la documentation, séparément du jeu.
+
+Avec un **redéploiement automatique à chaque push**, deux choses à savoir :
+
+- à l'arrêt (SIGTERM), le serveur pousse une dernière sauvegarde vers Supabase
+  avant de mourir — la progression déjà acquise ne se perd pas ;
+- un push pendant qu'une table joue **coupe la manche en cours** (les gains de
+  cette manche sont versés en fin de manche, donc perdus). Pousser de
+  préférence quand personne ne joue.
 
 ## Dépannage
 

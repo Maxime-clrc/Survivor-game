@@ -1071,6 +1071,18 @@ function lanAddresses() {
   return out;
 }
 
+/* Le deploiement en conteneur redemarre le serveur a chaque push : la
+   plateforme envoie SIGTERM puis tue. Sans copie disque, un envoi Supabase en
+   vol a cet instant serait perdu pour de bon — on pousse une derniere fois et
+   on attend que l'envoi aboutisse, borne par le flush lui-meme. SIGINT suit le
+   meme chemin pour qu'un Ctrl+C local ne soit pas moins sur qu'un deploiement. */
+for (const sig of ["SIGTERM", "SIGINT"]) {
+  process.once(sig, () => {
+    log(`signal ${sig} — sauvegarde finale avant arret`);
+    store.flush(() => process.exit(0));
+  });
+}
+
 /* L'ecoute attend le chargement de la progression : un joueur connecte avant
    la lecture Supabase recevrait un profil neuf qui masquerait le sien. `ready`
    se resout des la premiere tentative, succes ou echec — une panne reseau

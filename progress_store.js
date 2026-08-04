@@ -272,6 +272,22 @@ export function createStore(log = console.log) {
     ready = Promise.resolve();
   }
 
+  /* Vidage final avant l'arret du processus. Ne au deploiement en conteneur :
+     la plateforme envoie SIGTERM puis tue, et sans copie disque un envoi en
+     vol ou retenu par un minuteur de reessai serait perdu pour de bon. UNE
+     tentative, bornee dans le temps — a l'arret, boucler sur des reessais ne
+     ferait que retarder le SIGKILL. `done` est toujours appele. */
+  function flush(done) {
+    if (!remote || !loaded) return done();
+    push();
+    const deadline = Date.now() + REMOTE_TIMEOUT_MS + 500;
+    const wait = () => {
+      if ((!pushing && !dirty) || Date.now() > deadline) return done();
+      setTimeout(wait, 50);
+    };
+    wait();
+  }
+
   /* Le PSEUDO n'est pas une identite : n'importe qui peut taper le tien. La
      cle est un identifiant tire au sort a la premiere connexion, stocke dans
      le localStorage du client et envoye au join — le pseudo n'est plus qu'un
@@ -346,5 +362,5 @@ export function createStore(log = console.log) {
     return null;
   }
 
-  return { data, ready, save, profileFor, claimPseudo, recoverUid };
+  return { data, ready, save, flush, profileFor, claimPseudo, recoverUid };
 }
