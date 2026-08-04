@@ -48,6 +48,7 @@ public/hud.js          le HUD, en DOM : la couche ÉCRAN
 public/icons.js        glyphes de bonus, d'effets et d'états — dessinés dans l'arène ET dans le HUD
 public/events.js       diffusion des snapshots en événements typés (module pur)
 public/audio.js        synthèse WebAudio, palette sonore, limitation de voix, réglages
+public/music.js        bande son séquencée en WebAudio — emprunte le contexte et le bus d'audio.js, trois humeurs (calme, vague, boss)
 public/index.html      page, chargement, salon, bilan, cartes, ossature du HUD
 public/css/tokens.css  espacement, géométrie, mouvement (aucune couleur, cf. charte)
 public/css/ui.css      les écrans hors combat

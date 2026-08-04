@@ -145,6 +145,13 @@
     <input id="vol" type="range" min="0" max="100" step="5" title="volume">
     <span id="volVal">70 %</span>
   </div>
+  <!-- Volume de la MUSIQUE, separe des sons de jeu : la bande son est un fond
+       qu'on regle — ou qu'on coupe a zero — sans toucher aux signaux. -->
+  <div id="musicRow">
+    <span class="musGlyph" title="musique">♫</span>
+    <input id="musVol" type="range" min="0" max="100" step="5" title="volume de la musique">
+    <span id="musVolVal">50 %</span>
+  </div>
   <div class="hint">
     ZQSD ou flèches pour se déplacer · la souris pour viser<br>
     <b>Espace</b> pour esquiver — invulnérable le temps du bond<br>
@@ -278,6 +285,11 @@
       <button id="pauseMute" title="couper le son">♪</button>
       <input id="pauseVol" type="range" min="0" max="100" step="5" title="volume">
       <span id="pauseVolVal">70 %</span>
+    </div>
+    <div id="pauseMusic">
+      <span class="musGlyph" title="musique">♫</span>
+      <input id="pauseMusVol" type="range" min="0" max="100" step="5" title="volume de la musique">
+      <span id="pauseMusVolVal">50 %</span>
     </div>
 
     <button id="pauseBuild">Consulter son build</button>

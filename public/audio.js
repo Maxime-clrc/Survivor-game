@@ -90,6 +90,7 @@ export class VoiceLimiter {
 
 let ac = null;
 let master = null;
+let musicG = null;
 let noiseBuf = null;
 const limiter = new VoiceLimiter();
 
@@ -98,6 +99,11 @@ const limiter = new VoiceLimiter();
 // zero.
 let volume = readNumber("survivor.audio.vol", 0.7);
 let muted = readNumber("survivor.audio.mute", 0) === 1;
+/* Volume de la MUSIQUE, separe des sons de jeu : la bande son est un fond
+   qu'on regle — ou qu'on coupe — sans toucher aux signaux qui decident du
+   combat. Il s'applique sur un bus dedie SOUS le master : la coupure et le
+   volume globaux emportent donc aussi la musique, jamais l'inverse. */
+let musicVolume = readNumber("survivor.audio.musicVol", 0.5);
 
 function readNumber(key, fallback) {
   if (typeof localStorage === "undefined") return fallback;
@@ -124,11 +130,29 @@ export function initAudio() {
     master = ac.createGain();
     master.gain.value = muted ? 0 : volume * AUDIO_CFG.MASTER;
     master.connect(ac.destination);
+    musicG = ac.createGain();
+    musicG.gain.value = musicVolume;
+    musicG.connect(master);
     noiseBuf = makeNoise(ac);
   }
   if (ac.state === "suspended" && ac.resume) ac.resume();
   return true;
 }
+
+/* Acces du module de musique, et de lui seul : le contexte et le bus dedie.
+   `music.js` construit ses propres oscillateurs mais ne possede ni contexte ni
+   sortie — deux contextes audio se disputeraient le materiel, et un bus hors
+   du master echapperait a la coupure. */
+export function audioContext() { return ac; }
+export function musicBus() { return musicG; }
+
+export function setMusicVolume(v) {
+  musicVolume = Math.max(0, Math.min(1, v));
+  store("survivor.audio.musicVol", musicVolume);
+  if (musicG) musicG.gain.value = musicVolume;
+}
+
+export function getMusicVolume() { return musicVolume; }
 
 export function audioReady() { return ac !== null; }
 

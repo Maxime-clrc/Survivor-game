@@ -230,6 +230,19 @@ button:disabled { opacity: 0.45; cursor: default; }
 #vol { padding: 0; width: 150px; accent-color: var(--go); cursor: pointer; }
 #volVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
 
+/* Volume de la musique : la meme rangee que le son, un glyphe a la place du
+   bouton — la musique n'a pas de coupure propre, zero suffit. */
+#musicRow, #pauseMusic { display: flex; align-items: center; gap: var(--sp-3); }
+#pauseMusic { justify-content: center; }
+.musGlyph {
+  min-width: var(--sp-8);
+  text-align: center;
+  font-size: var(--t-s);
+  color: var(--text-dim);
+}
+#musVol, #pauseMusVol { padding: 0; width: 150px; accent-color: var(--go); cursor: pointer; }
+#musVolVal, #pauseMusVolVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
+
 /* --- tableau des scores -----------------------------------------------------
    De l'INFORMATION, pas une action : au salon il est atténué et passe apres le
    choix de classe. Au bilan de fin de manche, c'est l'inverse — il y est le

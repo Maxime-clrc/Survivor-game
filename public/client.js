@@ -42,7 +42,12 @@ import {
 } from "/shared/bosses.js";
 import {
   initAudio, playSound, setVolume, setMuted, getVolume, isMuted, audioStats,
+  setMusicVolume, getMusicVolume,
 } from "/audio.js";
+/* La bande son vit dans son propre module, sur le modele d'audio.js : elle ne
+   depend ni du DOM ni du reseau, et elle emprunte le contexte et le bus
+   d'audio.js — la coupure et le volume globaux l'emportent donc toujours. */
+import { startMusic, setMusicMood } from "/music.js";
 import { EventPump } from "/events.js";
 /* La grille du sol est graduee en METRES : c'est ce qui rend les distances des
    descriptions de cartes lisibles a l'ecran. Seule conversion d'affichage du
@@ -517,6 +522,9 @@ goBtn.onclick = async () => {
   // Le contexte audio se cree ICI et nulle part ailleurs : les navigateurs
   // exigent un geste utilisateur.
   initAudio();
+  // La musique demarre avec le contexte : le salon a droit a son fond calme,
+  // et c'est l'humeur — pas le demarrage — qui suivra la partie.
+  startMusic();
   const stats = await buildAtlas(k => setLoading(k * 0.9, null));
 
   /* Branchement du batcher. Il ne peut pas se faire avant : l'atlas n'existe
@@ -577,22 +585,31 @@ nameInput.focus();
    on touche au premier, et on aurait vu deux volumes differents affiches en
    meme temps. */
 const audioUi = [
-  { vol: volInput, val: volVal, mute: muteBtn },
+  { vol: volInput, val: volVal, mute: muteBtn,
+    mus: document.getElementById("musVol"),
+    musVal: document.getElementById("musVolVal") },
   {
     vol: document.getElementById("pauseVol"),
     val: document.getElementById("pauseVolVal"),
     mute: document.getElementById("pauseMute"),
+    mus: document.getElementById("pauseMusVol"),
+    musVal: document.getElementById("pauseMusVolVal"),
   },
 ];
 
 function refreshAudioUi() {
   const pct = Math.round(getVolume() * 100);
+  const mus = Math.round(getMusicVolume() * 100);
   for (const u of audioUi) {
     u.vol.value = String(pct);
     u.val.textContent = `${pct} %`;
     u.mute.textContent = isMuted() ? "✕" : "♪";
     u.mute.classList.toggle("off", isMuted());
     u.mute.title = isMuted() ? "rétablir le son" : "couper le son";
+    if (u.mus) {
+      u.mus.value = String(mus);
+      u.musVal.textContent = `${mus} %`;
+    }
   }
 }
 
@@ -613,6 +630,15 @@ for (const u of audioUi) {
     refreshAudioUi();
     if (!isMuted()) playSound("bonus");
   };
+
+  // Volume de la MUSIQUE, separe : a zero, la bande son se tait sans toucher
+  // aux signaux du jeu — c'est le bouton « je joue sans musique ».
+  if (u.mus) {
+    u.mus.oninput = () => {
+      setMusicVolume(Number(u.mus.value) / 100);
+      refreshAudioUi();
+    };
+  }
 }
 
 // La touche M coupe le son en jeu, sans repasser par le salon.
@@ -2741,6 +2767,12 @@ function frame(now) {
   /* Hors du `if` : une transition en attente doit sortir meme quand il n'y a
      plus d'instantane a dessiner — c'est precisement le cas de `roundEnd`. */
   flushWorld(now);
+
+  /* L'humeur musicale suit l'etat du jeu, relue a chaque image : salon et
+     bilan sont calmes, la manche pulse, le boss densifie. `setMusicMood` est
+     sans effet quand rien ne change — pas de transition a orchestrer ici, le
+     sequenceur relit l'humeur au pas suivant. */
+  setMusicMood(phase !== PHASE_ROUND ? "calme" : (latest?.boss ? "boss" : "vague"));
 
   if (connected && latest) {
     const renderTime = now - INTERP_MS;
