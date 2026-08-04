@@ -1,51 +1,49 @@
 /* ===========================================================================
    PERSISTANCE DE LA PROGRESSION (lot D) — cote serveur uniquement.
 
-   Un seul fichier, `data/progress.json`, ecrit par le processus qui sert deja
-   le jeu. Trois risques traites des la premiere ligne :
+   SUPABASE EST LA SEULE PERSISTANCE — il n'y a plus de fichier local. L'etat
+   chaud vit en memoire (`data`), Supabase en est la copie durable. Ce choix
+   supprime le fichier `data/progress.json` et sa mecanique d'ecriture
+   atomique : un hebergeur sans disque persistant (conteneur, PaaS) ne peut de
+   toute facon rien garantir d'un fichier local entre deux deploiements.
 
-     - le VERSIONNAGE : le champ `version` est present des la premiere
-       ecriture, et une version inconnue est ignoree en journalisant — le
-       premier changement de format n'efface pas la progression du groupe ;
-     - l'ECRITURE ATOMIQUE : on ecrit dans `progress.json.tmp` puis on renomme.
-       Une coupure en pleine ecriture sur le fichier unique emporterait toute
-       la progression ; le renommage est atomique sur les systemes de fichiers
-       courants (et `fs.rename` remplace la cible existante, y compris sous
-       Windows) ;
-     - un fichier CORROMPU OU ABSENT ne bloque jamais le demarrage : on repart
-       d'un fichier neuf en journalisant l'incident.
+   La configuration passe par les variables d'environnement SUPABASE_URL et
+   SUPABASE_SERVICE_KEY, et par RIEN d'autre : c'est le modele de tous les
+   hebergeurs modernes, et un fichier de cle qui traine sur disque n'a plus de
+   raison d'etre quand le disque n'est plus une source de verite. Sans ces
+   variables, le serveur reste jouable en LAN mais la progression ne survit pas
+   a un redemarrage — le journal le dit en toutes lettres au boot.
 
-   L'ecriture est synchrone et c'est assume : elle n'a lieu qu'au salon, a la
-   fin d'une manche ou au depart d'un joueur — JAMAIS pendant une vague, ou un
-   acces disque dans la boucle de simulation produirait un a-coup visible.
+   Trois protections, toutes rendues NECESSAIRES par l'absence de copie disque :
 
-   REPLIQUE SUPABASE (facultative). Le fichier local reste la source chaude ;
-   Supabase n'est qu'une copie de secours hors machine, pour survivre a une
-   reinstallation du VPS. Quatre regles :
+     - le CHARGEMENT PRECEDE L'ECOUTE : `ready` est attendue par server.js
+       avant `listen()`. Avant, la recuperation arrivait apres le demarrage et
+       « un joueur connecte entre-temps a raison » suffisait, parce que le cas
+       normal etait le fichier local. Ici la lecture distante EST le cas
+       normal : un joueur qui se connecterait avant elle recevrait un profil
+       neuf qui masquerait le sien. `ready` se resout des la PREMIERE tentative,
+       succes ou echec — une panne reseau ne doit pas empecher une table en LAN
+       de jouer — et les tentatives continuent en arriere-plan ;
+     - l'ECRITURE EST SUSPENDUE tant qu'aucune lecture n'a reussi : pousser un
+       etat quasi vide par-dessus la seule copie existante est exactement la
+       perte de donnees qu'on ne peut plus rattraper. Meme regle si la ligne
+       distante porte une version INCONNUE (serveur pas a jour) : on n'ecrase
+       jamais un format qu'on ne sait pas lire. Les save() faits pendant la
+       suspension sont retenus (`dirty`) et partent des que la lecture aboutit ;
+     - l'ENVOI RATE SE REESSAIE tout seul (10 s) : avant, l'echec attendait le
+       save() suivant, et le fichier local couvrait l'intervalle. Sans lui, un
+       envoi perdu est une fin de manche perdue si le processus s'arrete.
 
-     - elle n'existe que si la configuration est fournie : variables
-       d'environnement SUPABASE_URL / SUPABASE_SERVICE_KEY, ou a defaut le
-       fichier `data/supabase.json` ({"url": ..., "key": ...}) — un fichier a
-       cote de progress.json plutot qu'une configuration systemd/pm2, parce que
-       poser un fichier est le seul geste qu'on peut demander sans connaitre le
-       mode de lancement du serveur. `data/` est dans le .gitignore : la cle ne
-       peut pas partir dans le depot. Sans l'un ni l'autre, ce module se
-       comporte exactement comme avant, et le jeu reste jouable en LAN sans
-       internet ;
-     - le push suit chaque save(), en ASYNCHRONE et sans jamais bloquer ni
-       planter : un echec reseau se journalise et la vie continue. Les pushes
-       sont serialises (un seul en vol, le suivant attend) parce que deux
-       reponses HTTP peuvent se croiser et une vieille ecraserait la neuve ;
-     - la recuperation ne se tente QUE si le fichier local manque ou est
-       invalide : un fichier present et sain a toujours raison, meme si la
-       replique est plus recente — c'est lui que le serveur vient d'ecrire ;
-     - la replique est UNE ligne (`account_id` = "serveur") qui porte le
-       fichier entier, et non une ligne par joueur : memes semantiques que le
-       fichier (versionnage compris), un seul upsert atomique, et le tableau
-       de bord Supabase sait toujours requeter dans le jsonb. */
+   La recuperation tardive (lecture qui n'aboutit qu'apres des connexions)
+   n'adopte un profil distant que si le profil local est VIERGE — aucun noyau,
+   aucune manche, aucun achat : dans les secondes qui separent le boot d'une
+   lecture retardee, personne n'a pu finir une manche, donc le profil distant a
+   raison. Un profil local qui a deja progresse a raison, comme avant.
 
-import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+   La replique reste UNE ligne (`account_id` = "serveur") qui porte tout l'etat,
+   et non une ligne par joueur : memes semantiques de versionnage qu'avant, un
+   seul upsert atomique, et le tableau de bord Supabase sait requeter le jsonb. */
+
 import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
 import { scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
@@ -88,29 +86,19 @@ function hashCode(code, saltHex) {
 
 const REMOTE_ROW = "serveur";
 const REMOTE_TIMEOUT_MS = 3000;
+const LOAD_RETRY_MS = 15000;
+const PUSH_RETRY_MS = 10000;
 
-/* Les variables d'environnement priment (elles permettent de tester avec un
-   autre projet sans toucher au fichier) ; le fichier `data/supabase.json` est
-   le chemin ordinaire sur le VPS. Un fichier illisible ou incomplet se
-   journalise et desactive la replique — jamais de crash au boot. */
-function remoteConfig(env, dir, log) {
-  let url = env.SUPABASE_URL;
-  let key = env.SUPABASE_SERVICE_KEY;
+/* Variables d'environnement uniquement. Une configuration partielle est un
+   accident de deploiement, pas un choix : on le journalise au lieu de le
+   confondre avec le mode « sans persistance » assume. */
+function remoteConfig(env, log) {
+  const url = env.SUPABASE_URL;
+  const key = env.SUPABASE_SERVICE_KEY;
+  if (!url && !key) return null;
   if (!url || !key) {
-    try {
-      const raw = JSON.parse(readFileSync(join(dir, "supabase.json"), "utf8"));
-      url = raw?.url;
-      key = raw?.key;
-      if (!url || !key) {
-        log("data/supabase.json présent mais incomplet (attendu : url et key) — réplique désactivée");
-        return null;
-      }
-    } catch (e) {
-      if (e.code !== "ENOENT") {
-        log(`data/supabase.json illisible (${e.message}) — réplique désactivée`);
-      }
-      return null;
-    }
+    log("configuration Supabase incomplète (il faut SUPABASE_URL ET SUPABASE_SERVICE_KEY) — persistance désactivée");
+    return null;
   }
   return { url: url.replace(/\/+$/, ""), key };
 }
@@ -160,56 +148,57 @@ function restCall(cfg, method, path, body, done) {
   req.end();
 }
 
-export function createStore(root, log = console.log) {
-  const dir = join(root, "data");
-  const file = join(dir, "progress.json");
-  const remote = remoteConfig(process.env, dir, log);
+/* Un profil qui n'a RIEN accumule : cree par une connexion arrivee avant que
+   la lecture distante n'aboutisse. Seul cas ou le distant a raison sur le
+   local — tout champ acquis rend le profil local prioritaire, comme avant. */
+function pristine(p) {
+  return p.cores === 0 && p.runs === 0 && !p.pseudo
+    && p.milestones.length === 0 && p.confort.length === 0
+    && Object.keys(p.classes).length === 0;
+}
+
+export function createStore(log = console.log) {
+  const remote = remoteConfig(process.env, log);
 
   /* `data` n'est JAMAIS reassigne : server.js garde la reference retournee,
-     et la recuperation Supabase mute ses proprietes en place. */
+     et le chargement Supabase mute ses proprietes en place. */
   const data = { version: PROG_CFG.VERSION, players: {} };
-  let localOk = false;
 
-  function validate(raw) {
-    if (!raw || typeof raw !== "object" || !raw.players || typeof raw.players !== "object") return false;
-    if (raw.version !== PROG_CFG.VERSION) {
-      // Migration explicite : la seule version connue est la premiere. Une
-      // version future ajoutera son cas ICI plutot que d'ecraser le fichier.
-      log(`progression en version ${raw.version} inconnue — ignorée, progression neuve`);
-      return false;
-    }
-    return true;
-  }
+  /* `loaded` garde l'ecriture fermee tant qu'aucune lecture n'a reussi — la
+     protection centrale du module, voir l'en-tete. Sans configuration, il n'y
+     a rien a proteger : la progression vit et meurt avec le processus. */
+  let loaded = false;
 
-  try {
-    const raw = JSON.parse(readFileSync(file, "utf8"));
-    if (validate(raw)) {
-      data.version = raw.version;
-      data.players = raw.players;
-      localOk = true;
-    }
-  } catch (e) {
-    if (e.code !== "ENOENT") {
-      log(`progress.json illisible (${e.message}) — progression neuve`);
-    }
-  }
-
-  /* Push serialise : un seul en vol. `dirty` retient qu'un save() a eu lieu
-     pendant l'envoi — on repartira avec l'etat le plus recent, pas celui du
-     moment de la demande. */
   let pushing = false;
   let dirty = false;
+  let retryTimer = null;
+
   function push() {
     if (!remote) return;
-    if (pushing) {
+    if (!loaded || pushing) {
       dirty = true;
       return;
     }
     pushing = true;
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
     const row = [{ account_id: REMOTE_ROW, data, updated_at: new Date().toISOString() }];
     restCall(remote, "POST", "/rest/v1/progress", row, err => {
       pushing = false;
-      if (err) log(`réplique Supabase : envoi impossible (${err.message})`);
+      if (err) {
+        log(`progression Supabase : envoi impossible (${err.message}) — nouvel essai dans ${PUSH_RETRY_MS / 1000} s`);
+        // Sans copie disque, un envoi perdu ne peut plus attendre le save()
+        // suivant : le reessai est porte par un minuteur, un seul a la fois.
+        if (!retryTimer) {
+          retryTimer = setTimeout(() => {
+            retryTimer = null;
+            push();
+          }, PUSH_RETRY_MS);
+        }
+        return;
+      }
       if (dirty) {
         dirty = false;
         push();
@@ -217,52 +206,70 @@ export function createStore(root, log = console.log) {
     });
   }
 
+  // Le nom reste `save` : les huit points d'appel de server.js decrivent une
+  // intention (« cet etat doit survivre »), pas un moyen.
   function save() {
-    try {
-      mkdirSync(dir, { recursive: true });
-      const tmp = file + ".tmp";
-      writeFileSync(tmp, JSON.stringify(data));
-      renameSync(tmp, file);
-    } catch (e) {
-      // Un disque plein ou un droit manquant ne doit pas tuer le serveur en
-      // pleine partie : on journalise, la progression vivra en memoire.
-      log(`écriture de progress.json impossible : ${e.message}`);
-    }
-    // Le push part meme si le disque a echoue : la replique devient alors la
-    // seule copie qui survivra a un redemarrage.
     push();
   }
 
-  /* Recuperation au boot, seulement sans fichier local sain. Elle arrive une
-     ou deux secondes apres le demarrage : si un joueur s'est connecte entre
-     temps, son profil neuf a raison et la replique ne comble que les absents. */
-  if (remote && !localOk) {
+  function attemptLoad(resolveReady) {
     const path = `/rest/v1/progress?account_id=eq.${REMOTE_ROW}&select=data`;
     restCall(remote, "GET", path, null, (err, out) => {
       if (err) {
-        log(`réplique Supabase : récupération impossible (${err.message})`);
+        log(`progression Supabase : lecture impossible (${err.message}) — `
+          + `nouvel essai dans ${LOAD_RETRY_MS / 1000} s, sauvegarde suspendue d'ici là`);
+        setTimeout(() => attemptLoad(resolveReady), LOAD_RETRY_MS);
+        resolveReady(); // le serveur demarre : une panne reseau ne prive pas le LAN de jeu
         return;
       }
-      let raw;
+      let raw = null;
       try {
         raw = JSON.parse(out)[0]?.data;
       } catch {
         raw = null;
       }
-      if (!raw) return; // pas de ligne : premier lancement, rien a recuperer
-      if (!validate(raw)) return;
+      if (raw && raw.version !== PROG_CFG.VERSION) {
+        /* Version inconnue : ce serveur est en retard sur la donnee. On
+           n'adopte rien et surtout on n'ecrira JAMAIS par-dessus — `loaded`
+           reste faux, l'ecriture reste fermee. Une version future ajoutera sa
+           migration ICI plutot que d'ecraser la ligne. */
+        log(`progression Supabase en version ${raw.version} inconnue — `
+          + "sauvegarde suspendue pour ne pas l'écraser (mettre le serveur à jour)");
+        resolveReady();
+        return;
+      }
       let adopted = 0;
-      for (const [uid, p] of Object.entries(raw.players)) {
-        if (!data.players[uid]) {
-          data.players[uid] = p;
-          adopted++;
+      if (raw && raw.players && typeof raw.players === "object") {
+        for (const [uid, p] of Object.entries(raw.players)) {
+          const cur = data.players[uid];
+          if (!cur || pristine(cur)) {
+            data.players[uid] = p;
+            adopted++;
+          }
         }
       }
-      if (adopted > 0) {
-        log(`réplique Supabase : ${adopted} profil(s) récupéré(s)`);
-        save(); // grave la recuperation sur disque sans attendre une fin de manche
+      loaded = true;
+      log(raw
+        ? `progression Supabase chargée — ${adopted} profil(s)`
+        : "progression Supabase : table vide, première utilisation");
+      // Les save() retenus pendant la suspension partent maintenant.
+      if (dirty) {
+        dirty = false;
+        push();
       }
+      resolveReady();
     });
+  }
+
+  /* `ready` : attendue par server.js avant listen(). Resolue des la premiere
+     tentative — les suivantes, en cas d'echec, continuent en arriere-plan. */
+  let ready;
+  if (remote) {
+    ready = new Promise(resolve => attemptLoad(resolve));
+  } else {
+    log("aucune configuration Supabase (SUPABASE_URL / SUPABASE_SERVICE_KEY) — "
+      + "la progression ne survivra PAS à un redémarrage");
+    ready = Promise.resolve();
   }
 
   /* Le PSEUDO n'est pas une identite : n'importe qui peut taper le tien. La
@@ -339,5 +346,5 @@ export function createStore(root, log = console.log) {
     return null;
   }
 
-  return { data, save, profileFor, claimPseudo, recoverUid };
+  return { data, ready, save, profileFor, claimPseudo, recoverUid };
 }

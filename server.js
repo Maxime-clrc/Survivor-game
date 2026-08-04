@@ -133,11 +133,13 @@ let hostId = 0;
 
 /* --- progression permanente (lot D) ------------------------------------------
 
-   Le magasin charge `data/progress.json` au demarrage — un fichier corrompu ou
-   absent ne bloque rien, on repart a neuf en journalisant. Les ecritures n'ont
-   lieu qu'au salon, en fin de manche et au depart d'un joueur : JAMAIS pendant
-   une vague. */
-const store = createStore(ROOT, msg => log(msg));
+   Le magasin vit en memoire et Supabase est sa seule persistance (variables
+   SUPABASE_URL / SUPABASE_SERVICE_KEY) — il n'y a plus de fichier local. Le
+   chargement precede l'ecoute (`store.ready` avant listen()), et sans
+   configuration le jeu reste jouable mais la progression meurt avec le
+   processus. Les ecritures n'ont lieu qu'au salon, en fin de manche et au
+   depart d'un joueur : JAMAIS pendant une vague. */
+const store = createStore(msg => log(msg));
 
 /* L'identifiant de compte vient du localStorage du client, tire au sort a la
    premiere connexion — le pseudo n'est qu'un affichage, n'importe qui peut
@@ -1069,11 +1071,17 @@ function lanAddresses() {
   return out;
 }
 
-httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log("\n  Survivor LAN — serveur demarre\n");
-  console.log(`  Sur cette machine   http://localhost:${PORT}`);
-  for (const ip of lanAddresses()) {
-    console.log(`  Pour les autres     http://${ip}:${PORT}`);
-  }
-  console.log(`\n  ${MAX_PLAYERS} joueurs max — Ctrl+C pour arreter\n`);
+/* L'ecoute attend le chargement de la progression : un joueur connecte avant
+   la lecture Supabase recevrait un profil neuf qui masquerait le sien. `ready`
+   se resout des la premiere tentative, succes ou echec — une panne reseau
+   retarde le demarrage de quelques secondes, elle ne l'empeche jamais. */
+store.ready.then(() => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log("\n  Survivor LAN — serveur demarre\n");
+    console.log(`  Sur cette machine   http://localhost:${PORT}`);
+    for (const ip of lanAddresses()) {
+      console.log(`  Pour les autres     http://${ip}:${PORT}`);
+    }
+    console.log(`\n  ${MAX_PLAYERS} joueurs max — Ctrl+C pour arreter\n`);
+  });
 });

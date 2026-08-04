@@ -1,25 +1,26 @@
 # Sauvegarde Supabase et comptes joueurs
 
-Ce guide couvre la mise en place de la réplique Supabase de la progression et
-le fonctionnement des comptes à pseudo réservé. Le raisonnement derrière chaque
-choix est documenté dans `CLAUDE.md` (section lot D) ; ici, uniquement les
-étapes à suivre.
+Ce guide couvre la mise en place de la persistance Supabase de la progression
+et le fonctionnement des comptes à pseudo réservé. Le raisonnement derrière
+chaque choix est documenté dans `CLAUDE.md` (section lot D) ; ici, uniquement
+les étapes à suivre.
 
 ## Vue d'ensemble
 
-La progression permanente (noyaux, arbres, jalons) vit dans `data/progress.json`
-sur la machine qui héberge le serveur. Ce fichier reste la **source de vérité**.
-Supabase n'est qu'une **copie de secours hors machine**, mise à jour
-automatiquement, qui permet de survivre à une réinstallation du VPS ou à un
-disque mort.
+La progression permanente (noyaux, arbres, jalons) vit **en mémoire** sur le
+serveur de jeu, et **Supabase en est la seule persistance** — il n'y a plus
+aucun fichier local (`data/progress.json` a disparu). Chaque sauvegarde (fin de
+manche, achat au salon, départ d'un joueur) pousse l'état vers Supabase en
+arrière-plan ; au démarrage, le serveur recharge tout depuis Supabase **avant**
+d'accepter la première connexion.
 
-- Sans configuration Supabase, rien ne change : le jeu fonctionne 100 % en
-  local, jouable en LAN sans internet.
-- Avec la configuration, chaque sauvegarde (fin de manche, achat au salon)
-  pousse une copie vers Supabase en arrière-plan. Un échec réseau se journalise
-  et n'affecte jamais la partie.
-- Au démarrage, si `data/progress.json` est absent ou corrompu, le serveur
-  récupère la copie Supabase et la réécrit sur disque.
+- Sans configuration Supabase, le jeu reste jouable en LAN sans internet, mais
+  la progression **ne survit pas à un redémarrage** du serveur. Le journal le
+  dit en toutes lettres au boot.
+- Un échec réseau ne bloque jamais une partie : la lecture se réessaie toutes
+  les 15 s, un envoi raté se réessaie tout seul après 10 s, et tant qu'aucune
+  lecture n'a réussi le serveur **suspend ses écritures** pour ne jamais
+  écraser la seule copie existante.
 
 Aucune dépendance npm : les appels passent par le module natif `node:https`.
 
@@ -28,7 +29,7 @@ Aucune dépendance npm : les appels passent par le module natif `node:https`.
 ### 1. Créer le projet Supabase (une fois, ~10 minutes)
 
 1. Compte sur [supabase.com](https://supabase.com) (la connexion GitHub suffit).
-2. **New project** — nom libre, région proche du VPS (ex. `eu-west`).
+2. **New project** — nom libre, région proche de l'hébergeur (ex. `eu-west`).
 3. Dans **SQL Editor**, exécuter :
 
 ```sql
@@ -51,45 +52,75 @@ alter table progress enable row level security;
 
 ### 2. Configurer le serveur de jeu
 
-Créer le fichier `data/supabase.json` à côté de `data/progress.json` :
+Deux variables d'environnement, et rien d'autre — pas de fichier de
+configuration :
 
-```json
-{
-  "url": "https://xxxx.supabase.co",
-  "key": "eyJ...la_cle_service_role..."
-}
-```
+- `SUPABASE_URL` — le Project URL ;
+- `SUPABASE_SERVICE_KEY` — la clé `service_role`.
 
-Recommandé, pour qu'il ne soit lisible que par le compte qui lance le serveur :
+Sur le VPS, selon le mode de lancement :
+
+- **systemd** — dans l'unité (`/etc/systemd/system/survivor.service`), section
+  `[Service]` :
+
+  ```ini
+  Environment=SUPABASE_URL=https://xxxx.supabase.co
+  Environment=SUPABASE_SERVICE_KEY=eyJ...
+  ```
+
+  Puis `systemctl daemon-reload` et `systemctl restart survivor`. Variante qui
+  garde la clé hors de l'unité : `EnvironmentFile=/etc/survivor.env` (fichier
+  `CLE=valeur`, en `chmod 600`).
+
+- **pm2** — dans l'`ecosystem.config.js`, bloc `env: { SUPABASE_URL: "…",
+  SUPABASE_SERVICE_KEY: "…" }`, puis `pm2 restart survivor --update-env`.
+
+- **lancement direct** (shell, `screen`, `tmux`) :
+
+  ```bash
+  SUPABASE_URL=https://xxxx.supabase.co SUPABASE_SERVICE_KEY=eyJ... node server.js
+  ```
+
+Sous Windows (PowerShell), pour tester en local :
 
 ```bash
-chmod 600 data/supabase.json
+$env:SUPABASE_URL = "https://xxxx.supabase.co"; $env:SUPABASE_SERVICE_KEY = "eyJ..."; node server.js
 ```
 
-Le dossier `data/` est dans le `.gitignore` : la clé ne peut pas partir dans le
-dépôt, même par accident.
+Sur un PaaS (Railway, Fly.io, Render…), elles se posent dans l'interface du
+service (« Variables », « Secrets »).
 
-Alternative : les variables d'environnement `SUPABASE_URL` et
-`SUPABASE_SERVICE_KEY`, qui **priment** sur le fichier si elles sont posées
-(pratique pour tester un second projet sans toucher à la configuration).
+Une configuration incomplète (une seule des deux variables) est journalisée et
+désactive la persistance — elle n'est jamais confondue avec le mode « sans
+persistance » assumé.
 
 ### 3. Redémarrer et vérifier
 
 1. Redémarrer le serveur (comme après toute mise à jour du code).
-2. Jouer une manche jusqu'au bout, ou faire un achat au salon.
-3. Dans le dashboard Supabase, **Table Editor → progress** : une ligne
+2. Le journal doit afficher `progression Supabase : table vide, première
+   utilisation` (premier lancement) ou `progression Supabase chargée — N
+   profil(s)`.
+3. Jouer une manche jusqu'au bout, ou faire un achat au salon.
+4. Dans le dashboard Supabase, **Table Editor → progress** : une ligne
    `serveur` doit exister, avec `updated_at` à l'heure de la sauvegarde.
 
-Toute la progression tient dans cette ligne unique : c'est le miroir exact du
-fichier local, versionnage compris.
+Toute la progression tient dans cette ligne unique, versionnage compris.
 
-## Récupération après perte du VPS
+## Réinstallation ou changement d'hébergeur
 
-1. Réinstaller le jeu (`git clone`, etc.).
-2. Recréer `data/supabase.json` (étape 2 ci-dessus).
-3. Lancer le serveur : il constate l'absence de `data/progress.json`, récupère
-   la copie Supabase et la réécrit sur disque. Le journal affiche
-   `réplique Supabase : N profil(s) récupéré(s)`.
+Rien à restaurer à la main : poser les deux variables d'environnement sur la
+nouvelle machine et lancer le serveur. Il recharge tout depuis Supabase avant
+d'accepter la première connexion.
+
+## Hébergement du serveur de jeu
+
+Le serveur est un **processus Node persistant** : boucle de simulation à 60 Hz
+et WebSocket maintenus ouverts pendant toute une manche. Il lui faut un
+hébergeur qui fait tourner un processus en continu (VPS, Railway, Fly.io,
+Render, machine du salon…). Les plateformes *serverless* (fonctions à la
+demande, dont Vercel) ne conviennent **pas** pour ce processus : elles coupent
+entre deux requêtes et ne portent pas de serveur WebSocket. Vercel peut en
+revanche servir une page d'accueil ou de la documentation, séparément du jeu.
 
 ## Dépannage
 
@@ -98,11 +129,13 @@ fichier local, versionnage compris.
 | `envoi impossible (HTTP 401 …)` dans les logs | mauvaise clé (vérifier que c'est bien la `service_role`) |
 | `envoi impossible (getaddrinfo …)` | URL fausse ou pas d'accès internet sortant |
 | `envoi impossible (delai depasse)` | projet Supabase en pause (tier gratuit : suspension après 7 jours sans requête — jouer une manche par semaine suffit à l'éviter) |
-| `data/supabase.json présent mais incomplet` | il manque `url` ou `key` dans le fichier |
-| rien dans les logs, rien dans Supabase | configuration absente : le serveur tourne en mode local pur, c'est le comportement normal sans fichier |
+| `lecture impossible (…) — nouvel essai dans 15 s` | Supabase injoignable au boot ; le jeu tourne, la sauvegarde reprend dès que la lecture aboutit |
+| `sauvegarde suspendue pour ne pas l'écraser` | la ligne Supabase vient d'une version plus récente du serveur — mettre le serveur à jour |
+| `configuration Supabase incomplète` | il manque `SUPABASE_URL` ou `SUPABASE_SERVICE_KEY` |
+| `aucune configuration Supabase (…)` au boot | les variables ne sont pas posées : le serveur tourne sans persistance, c'est le comportement normal sans configuration |
 
-Aucun de ces cas ne bloque le jeu : le fichier local continue de fonctionner,
-la réplique reprend au prochain succès.
+Aucun de ces cas ne bloque le jeu : la partie en cours continue, les envois
+reprennent au prochain succès.
 
 ## Comptes joueurs (pseudo réservé)
 
