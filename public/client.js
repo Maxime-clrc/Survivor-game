@@ -2281,6 +2281,10 @@ function resetFeedback() {
   shooterFire.clear();
   seenShots.clear();
   dmgAgg.clear();
+  // Un cumul sous le seuil d'affichage attend la fenetre suivante : sans ce
+  // vidage, le filet de soin de la manche precedente ressortirait sur la
+  // premiere image de la suivante.
+  selfAgg.clear();
   bulletTrail.clear();
   shotTrail.clear();
   lastPlayerPos.clear();
@@ -2335,21 +2339,24 @@ function handleEvent(e) {
       if (!e.boss) { registerHit(e); aggregateDamage(e); }
       break;
 
-    /* Degats subis en ROUGE et plus gros, soins recus en VERT. Ils ne passent
-       pas par l'agregation : il n'y en a jamais qu'un a la fois par joueur, et
-       ce sont les deux chiffres qu'on doit lire immediatement. */
-    /* La PROVENANCE accompagne le chiffre rouge. Sans elle, perdre 40 PV
+    /* Degats subis en ROUGE et plus gros, soins recus en VERT. Ils passent
+       DESORMAIS par l'agregation, comme les chiffres d'ennemi : la raison pour
+       laquelle ils y echappaient — « il n'y en a jamais qu'un a la fois par
+       joueur » — est fausse depuis le vol de vie et les degats continus. Voir
+       `aggregateSelf`.
+
+       La PROVENANCE accompagne le chiffre rouge. Sans elle, perdre 40 PV
        n'apprenait rien : contact, projectile, zone, mecanique et brulure
        donnaient le meme nombre au meme endroit, et c'est la principale raison
        pour laquelle on ne comprend pas ses morts. Le glyphe est a gauche du
        nombre, dans sa couleur — une seconde teinte aurait fait croire a deux
        informations. */
     case "blesse":
-      hudDamage(e.x, e.y - 26, e.dmg, "hurt", SRC_ICON[e.src] ?? null);
+      aggregateSelf("hurt", e);
       break;
 
     case "soigne":
-      hudDamage(e.x, e.y - 26, e.dmg, "heal");
+      aggregateSelf("heal", e);
       break;
 
     case "mort":
@@ -2629,6 +2636,65 @@ function aggregateDamage(e) {
   });
 }
 
+/* AGREGATION DES CHIFFRES QUI CONCERNENT UN JOUEUR — degats subis et soins recus.
+   Ils y echappaient, et la justification etait « il n'y en a jamais qu'un a la
+   fois par joueur ». Cette premisse est fausse depuis deux mecaniques :
+
+     - le VOL DE VIE rend un pourcentage des degats a CHAQUE TOUCHE. Mesure a un
+       exemplaire : 0,29 a 0,58 PV par touche, six touches par seconde, soit un
+       « +1 » vert environ trois fois par seconde. Le joueur en conclut
+       logiquement que la carte se declenche au TIR et non a la touche — alors que
+       la simulation est juste, et mesuree comme telle : trente tirs qui touchent
+       donnent trente soins, trente tirs qui ratent en donnent zero.
+     - un degat CONTINU (brulure, mare) descend les PV a chaque tic, donc a
+       chaque instantane : jusqu'a vingt nombres rouges par seconde pour un seul
+       effet.
+
+   Meme fenetre que les chiffres d'ennemi, pour la meme raison : on somme, on
+   attend deux dixiemes de seconde, et on sort UN chiffre. Mesure a un exemplaire
+   de Vampirisme, cinq secondes de tir dans une horde : quinze nombres verts
+   avant, neuf apres, et ils portent des valeurs qu'on peut lire au lieu d'un
+   clignotement de « +1 ».
+
+   Pas de seuil en part des PV max, contrairement aux chiffres d'ennemi : on ne
+   connait pas ceux de la source. Le garde-fou porte sur la valeur AFFICHABLE — un
+   total qui arrondit a zero n'est pas jete mais reporte sur la fenetre suivante.
+   Il ne se declenche pas aujourd'hui (les PV traversent le reseau arrondis, donc
+   un evenement porte toujours au moins un point entier) et c'est voulu : le jour
+   ou ils passeront au dixieme, un filet de soin ne doit pas disparaitre. */
+const SELF_AGG_MS = 200;
+const selfAgg = new Map();
+
+function aggregateSelf(kind, e) {
+  const cle = e.id + ":" + kind;
+  const a = selfAgg.get(cle);
+  if (a) {
+    a.sum += e.dmg;
+    a.x = e.x; a.y = e.y;
+    // La provenance retenue est celle du DERNIER tic de la fenetre : c'est celle
+    // qui est encore en train de faire mal.
+    if (kind === "hurt") a.src = e.src ?? 0;
+    return;
+  }
+  selfAgg.set(cle, {
+    kind, x: e.x, y: e.y, sum: e.dmg, at: performance.now(), src: e.src ?? 0,
+  });
+}
+
+function flushSelf(now) {
+  if (selfAgg.size === 0) return;
+  for (const [cle, a] of selfAgg) {
+    if (now - a.at < SELF_AGG_MS) continue;
+    // Rien d'affichable : on garde le cumul et on rouvre une fenetre plutot que
+    // de le jeter. Voir l'en-tete — ce garde-fou dort tant que les PV circulent
+    // arrondis.
+    if (Math.round(a.sum) < 1) { a.at = now; continue; }
+    selfAgg.delete(cle);
+    hudDamage(a.x, a.y - 26, a.sum, a.kind,
+              a.kind === "hurt" ? (SRC_ICON[a.src] ?? null) : null);
+  }
+}
+
 function flushDamage(now) {
   if (dmgAgg.size === 0) return;
   for (const [id, a] of dmgAgg) {
@@ -2751,6 +2817,7 @@ function frame(now) {
       pump.pump(snapshots, renderTime);
       flushAlerts(now);
       flushDamage(now);
+      flushSelf(now);
     }
     stepFeedback(dt);
     draw(interpolated(renderTime) ?? flatten(latest));

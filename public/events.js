@@ -115,11 +115,16 @@ export function diffSnapshots(a, b, opts = {}) {
        pietaille l'information n'a aucune valeur — on tue en un coup. */
     const mine = (b.bossDmg ?? []).find(d => d[0] === opts.myId);
     if (mine && mine[1] > 0) {
-      // `mine[2]` est la part critique, ajoutee en fin de tuple : un instantane
-      // agrege plusieurs touches, le chiffre dit donc « ce paquet contient un
-      // critique » et non « ce coup en etait un ».
-      out.push({ t: "degats", x: b.boss.x, y: b.boss.y, dmg: mine[1],
-                 crit: (mine[2] ?? 0) > 0 });
+      /* `mine[2]` est la part critique, ajoutee en fin de tuple : un instantane
+         agrege plusieurs touches, le chiffre dit donc « ce paquet contient un
+         critique » et non « ce coup en etait un ».
+         `mine[3]`/`mine[4]` est le POINT D'IMPACT, et il existe pour les seuls
+         Jumeaux : ils partagent une reserve de vie, donc le serveur redirige tout
+         sur le premier et le chiffre sortait sur lui quel que soit celui qu'on
+         frappait. Repli sur la position du boss — c'est exactement ce qu'elle
+         vaut pour les quatre autres, et le comportement d'un serveur anterieur. */
+      out.push({ t: "degats", x: mine[3] ?? b.boss.x, y: mine[4] ?? b.boss.y,
+                 dmg: mine[1], crit: (mine[2] ?? 0) > 0 });
     }
   }
 

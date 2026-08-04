@@ -701,9 +701,19 @@ export class GameState {
        leur proprietaire, et le chiffre de degats n'a de sens que si c'est
        VRAIMENT le sien. La somme par instantane plutot que par coup : a huit
        canons et 0,05 s de cadence, un chiffre par impact serait illisible. */
-    this.bossDmg = new Map();      // playerId -> degats cumules
-    this.bossCrit = new Map();     // idem, part critique : le chiffre change de
-                                   // couleur, il ne change pas de nature
+    /* playerId -> { d, crit, x, y }. UNE seule table et non trois : la part
+       critique et le POINT D'IMPACT accompagnent forcement le cumul, et trois
+       Map a vider ensemble se seraient desynchronisees a la premiere oubliee.
+       Une allocation par joueur et par intervalle d'instantane, soit quatre par
+       50 ms pendant un combat de boss et rien du tout le reste du temps.
+
+       `x`/`y` est le point d'impact du DERNIER coup de l'intervalle, et il
+       existe pour les Jumeaux : ils partagent une reserve de vie, donc
+       `_damage` redirige tout sur `boss`, et le chiffre flottant sortait
+       toujours sur le premier des deux — on tirait sur l'un et le nombre
+       s'affichait sur l'autre. La position est donc relevee AVANT la
+       redirection, sur l'entite reellement touchee. */
+    this.bossDmg = new Map();
     /* Le dernier coup resolu par `_damage` etait-il critique. Relu par le SEUL
        `_bulletHitEnemy`, immediatement apres l'appel — voir le commentaire du
        tirage. Un champ d'instance et non un retour de fonction : `_damage` a
@@ -2145,6 +2155,10 @@ export class GameState {
        frapper le premier. La redirection est ici, au point de passage unique,
        plutot que chez les huit appelants — c'est la meme raison qui met la
        difficulte dans `_hurt` et le vol de vie ici. */
+    /* L'entite REELLEMENT touchee, relevee avant la redirection : c'est elle qui
+       porte le chiffre flottant. Sans ca, frapper le second Jumeau faisait sortir
+       le nombre sur le premier. */
+    const struck = target;
     if (this.boss2 && target === this.boss2) target = this.boss;
     /* Vulnerabilite (« Detonateur »). Elle vit sur une echeance absolue et non
        sur un minuteur decompte : un champ de plus a faire descendre sur chacun
@@ -2190,13 +2204,19 @@ export class GameState {
       // nouvelle source de degats est ainsi comptee sans qu'on y pense, comme
       // le vol de vie juste en dessous.
       if (target === this.boss) {
-        this.bossDmg.set(ownerId, (this.bossDmg.get(ownerId) ?? 0) + amount);
+        let cumul = this.bossDmg.get(ownerId);
+        if (!cumul) this.bossDmg.set(ownerId, cumul = { d: 0, crit: 0, x: 0, y: 0 });
+        cumul.d += amount;
         // Part critique du cumul, pour que le chiffre flottant se distingue.
         // Un instantane agrege plusieurs touches : le client ne demande donc
         // pas « ce coup etait-il critique » mais « ce paquet en contient-il un ».
-        if (this.lastCrit) {
-          this.bossCrit.set(ownerId, (this.bossCrit.get(ownerId) ?? 0) + amount);
-        }
+        if (this.lastCrit) cumul.crit += amount;
+        /* Point d'impact du DERNIER coup de l'intervalle, sur l'entite frappee et
+           non sur le porteur de la reserve de vie. Le dernier et non une moyenne :
+           deux Jumeaux touches dans le meme intervalle donneraient un chiffre a
+           mi-chemin, c'est-a-dire sur aucun des deux. */
+        cumul.x = struck.x;
+        cumul.y = struck.y;
       }
       if (owner.mods.lifesteal > 0) this._lifesteal(owner, amount * owner.mods.lifesteal);
     }
@@ -6301,10 +6321,15 @@ export class GameState {
          propre ligne — les chiffres des autres n'apprennent rien et
          rempliraient l'ecran au moment ou il faut le lire. */
       /* Troisieme element AJOUTE EN FIN de tuple : la part critique. Un client
-         anterieur lit un tableau de deux et affiche le chiffre comme avant. */
+         anterieur lit un tableau de deux et affiche le chiffre comme avant.
+         Quatrieme et cinquieme, ajoutes en fin eux aussi : le POINT D'IMPACT. Il
+         n'existe que pour les Jumeaux — partout ailleurs c'est la position du
+         boss, que le client a deja dans `bo`. Un client anterieur lit un tableau
+         de trois et retombe sur cette position, donc sur le comportement d'avant :
+         juste pour quatre boss sur cinq, faux pour le cinquieme. */
       bd: this.boss && this.bossDmg.size > 0
-        ? [...this.bossDmg].map(([id, d]) =>
-            [id, Math.round(d), Math.round(this.bossCrit.get(id) ?? 0)])
+        ? [...this.bossDmg].map(([id, c]) =>
+            [id, Math.round(c.d), Math.round(c.crit), r1(c.x), r1(c.y)])
         : null,
       sp: this.slipT > 0 ? 1 : 0,
       /* Arene mobile (lot 5). Cles NOMMEES, et absentes tant que rien ne bouge

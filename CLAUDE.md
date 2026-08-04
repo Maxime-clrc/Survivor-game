@@ -315,6 +315,8 @@ exactement ce qu'il faut regarder.
 
 **Les Jumeaux sont deux entités pour UNE réserve de vie.** `state.boss` reste la source de vérité (PV, barres, phase) ; `state.boss2` n'est qu'un second point d'application. La redirection se fait dans `_damage()`, au point de passage unique, et tout ce qui frappe « le boss » en zone doit passer par `_bossTargets()` — sinon la moitié du combat est invulnérable aux grenades, aux ondes et aux orbiteurs.
 
+**Corollaire : tout retour visuel doit viser l'entité RÉELLEMENT touchée, pas le porteur de la réserve.** `_damage()` relève la cible avant la redirection (`struck`) et `bossDmg` transporte son point d'impact — sans ça le chiffre de dégâts sortait toujours sur le premier Jumeau, y compris quand on tirait sur le second. C'est le piège de tout ce qu'on ajoutera derrière la redirection.
+
 **Une mécanique ratée met à terre, elle ne tue jamais sèchement un joueur à pleine vie.** Le plafond vit dans `_hurt()` derrière le drapeau `mech`, pour la même raison que le multiplicateur de difficulté : une mécanique de plus est couverte sans qu'on y pense. La progression de la sanction est portée par le **cumul de Vulnérabilité** posé par `_mechHit()`, jamais par la valeur brute — c'est le second échec qui tue.
 
 **Les mécaniques de groupe vivent dans une liste unique, `state.marks`.** Elles ont toutes le même cycle (annonce, résolution, disparition) et le client n'a alors qu'une liste à dessiner. Un marqueur dont le porteur se déconnecte ou tombe **se supprime lui-même** : lien orphelin, tour inoccupable, cage sans prisonnier — c'est ce qui empêche une déconnexion de bloquer un combat.
@@ -454,6 +456,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
+| point d'impact sur le boss | quatrième et cinquième éléments d'un tuple `bd`, ajoutés **en fin** — n'existe que pour les Jumeaux | `diffSnapshots()` : `mine[3] ?? b.boss.x` |
 | provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) ; `p.hurtBy` sort au `roundEnd` | `SRC_ICON` dans `icons.js` + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
 | propriétaire d'une balle | cinquième élément du tuple `b`, ajouté **en fin** | `ownerColorOf(b.owner) ?? COMBAT.bullet` dans `drawWorld` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
@@ -631,6 +634,18 @@ produit une colonne illisible ; sans le seuil, une nova qui touche quarante
 ennemis pour trois points repeint l'écran de nombres. Les dégâts **subis** sont
 rouges et plus gros, les **soins** verts — sans ce dernier chiffre, le soigneur
 n'a aucun retour visible de son action.
+
+**Les chiffres qui concernent un JOUEUR sont agrégés eux aussi** (`aggregateSelf`
+/ `flushSelf`), même fenêtre de 200 ms. Ils y échappaient, et la justification —
+« il n'y en a jamais qu'un à la fois par joueur » — est fausse depuis deux
+mécaniques : le **vol de vie** rend une fraction des dégâts à *chaque touche*
+(mesuré : 0,29 à 0,58 PV par touche à un exemplaire, six touches par seconde),
+et un dégât **continu** descend les PV à chaque tic donc à chaque snapshot,
+jusqu'à vingt nombres rouges par seconde pour un seul effet. Un joueur qui voit
+un « +1 » vert trois fois par seconde en conclut que le vol de vie se déclenche
+au *tir* — c'est un bug de retour, pas de simulation. Le seuil n'est pas en part
+des PV max (on ne connaît pas ceux de la source) mais sur la valeur affichable,
+et un total sous le seuil est **reporté** sur la fenêtre suivante, jamais jeté.
 
 **Un dégât SUBI porte le glyphe de sa provenance, un dégât infligé non.** Sur un
 chiffre infligé la provenance est évidente — c'est nous — et un glyphe de plus à

@@ -1500,6 +1500,31 @@ Les **chiffres de dégâts** ne s'affichent que sur le boss et uniquement les
 siens : tout afficher à 200 ennemis rendrait l'écran inutilisable, et sur la
 piétaille l'information n'a aucune valeur puisqu'on tue en un coup.
 
+**Sur les Jumeaux, le chiffre sort sur celui qu'on a touché.** Ils partagent une
+réserve de vie : le serveur redirige donc tous les dégâts sur le premier, et le
+nombre s'affichait sur lui même quand on tirait sur le second — on voyait ses
+propres dégâts apparaître à l'autre bout de l'arène. Le point d'impact est relevé
+*avant* la redirection et voyage avec le cumul. C'est le piège de tout ce qu'on
+branchera derrière cette redirection : la réserve de vie est commune, le retour
+visuel ne l'est pas.
+
+**Les chiffres qui concernent le joueur — dégâts subis, soins reçus — sont
+agrégés comme les autres**, sur la même fenêtre de 200 ms. Ils y échappaient, et
+la raison invoquée était « il n'y en a jamais qu'un à la fois par joueur ». C'est
+faux depuis deux mécaniques :
+
+- le **vol de vie** rend une fraction des dégâts à *chaque touche* : mesuré à un
+  exemplaire, 0,29 à 0,58 PV par touche et six touches par seconde, soit un « +1 »
+  vert environ trois fois par seconde. Un joueur en conclut logiquement que la
+  carte se déclenche au *tir* — c'était un défaut de retour et non de simulation,
+  vérifié comme tel : trente tirs qui touchent donnent trente soins, trente tirs
+  qui ratent en donnent zéro ;
+- un dégât **continu** (brûlure, mare) descend les PV à chaque tic, donc à chaque
+  instantané : jusqu'à vingt nombres rouges par seconde pour un seul effet.
+
+Mesuré sur cinq secondes de tir dans une horde : quinze nombres verts avant, neuf
+après, portant des valeurs qu'on peut lire au lieu d'un clignotement.
+
 Le **tressaillement d'écran** ne sort que sur les gros événements — détonation de
 zone, onde de choc, rupture de barre, bombe — jamais sur un impact ordinaire.
 Il secoue **le monde et pas l'interface** : la barre de vie, la barre de boss et

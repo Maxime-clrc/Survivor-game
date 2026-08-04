@@ -950,10 +950,10 @@ setInterval(() => {
        sinon une manche jouee hors ligne accumulerait toute sa duree — la carte
        est bornee par le nombre de joueurs, mais le chiffre, lui, deviendrait
        faux a la reconnexion. */
-    if (phase === PHASE_ROUND && state.bossDmg.size > 0) {
-      state.bossDmg.clear();
-      state.bossCrit.clear();
-    }
+    // Une seule table a vider : le cumul, la part critique et le point d'impact
+    // vivent dans la meme entree. Deux tables a vider ensemble, c'en est une
+    // qu'on oublie un jour.
+    if (phase === PHASE_ROUND && state.bossDmg.size > 0) state.bossDmg.clear();
   }
 }, 1000 / 120);
 
