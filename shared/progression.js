@@ -204,14 +204,17 @@ export function tierCost(currentTier) {
    Les groupes sont CALCULES depuis la table des cartes et non recopies : une
    liste d'identifiants ecrite ici aurait diverge a la premiere carte ajoutee
    (le lot C vient justement d'ajouter trois legendaires). */
-const legendaires = CARDS
-  .filter(c => c.rarity === RARITY.LEGENDAIRE && !c.fallback)
-  .map(c => c.id);
+// Les armes sont TOUTES legendaires aujourd'hui : les tenir a part d'abord,
+// sinon le groupe des legendaires les absorbe et le jalon des armes ne
+// debloque rien — c'est arrive, l'ecran affichait « (0 carte) ».
 const armes = CARDS
-  .filter(c => c.remplaceArme && c.rarity !== RARITY.LEGENDAIRE)
+  .filter(c => c.remplaceArme && !c.fallback)
+  .map(c => c.id);
+const legendaires = CARDS
+  .filter(c => c.rarity === RARITY.LEGENDAIRE && !c.fallback && !c.remplaceArme)
   .map(c => c.id);
 const conditionnelles = CARDS
-  .filter(c => c.applyAfter && c.rarity !== RARITY.LEGENDAIRE)
+  .filter(c => c.applyAfter && c.rarity !== RARITY.LEGENDAIRE && !c.remplaceArme)
   .map(c => c.id);
 
 // Les legendaires se repartissent sur les cinq boss, en tourniquet : chaque
@@ -220,16 +223,16 @@ const conditionnelles = CARDS
 const legendairesDuBoss = i => legendaires.filter((_, k) => k % BOSS_ROSTER.length === i);
 
 export const MILESTONES = [
-  { id: "vague8", label: "atteindre la vague 8", unlocks: armes },
+  { id: "vague8", label: "atteindre la vague 8", unlocks: conditionnelles },
   ...BOSS_ROSTER.map((b, i) => ({
     id: `boss_${i}`, label: `vaincre ${b.nom}`, unlocks: legendairesDuBoss(i),
   })),
   { id: "sans_chute",
     label: `terminer une manche (vague ${PROG_CFG.NO_DOWN_MIN_WAVE}+) sans être mis à terre`,
-    unlocks: conditionnelles.filter((_, k) => k % 2 === 0) },
+    unlocks: armes.filter((_, k) => k % 2 === 0) },
   { id: "kills500",
     label: `tuer ${PROG_CFG.KILLS_MILESTONE} ennemis avec une même classe`,
-    unlocks: conditionnelles.filter((_, k) => k % 2 === 1) },
+    unlocks: armes.filter((_, k) => k % 2 === 1) },
 ];
 
 const MILESTONE_BY_ID = new Map(MILESTONES.map(m => [m.id, m]));

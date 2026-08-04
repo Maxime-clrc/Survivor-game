@@ -1,3 +1,5 @@
 node_modules/
 # progression permanente : donnees d'execution, jamais versionnees
 data/
+# outillage local
+.claude/launch.json

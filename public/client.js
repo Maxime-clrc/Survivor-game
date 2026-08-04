@@ -2284,6 +2284,14 @@ function resetFeedback() {
   bulletTrail.clear();
   shotTrail.clear();
   lastPlayerPos.clear();
+  // Lot E : tout ce que les zones ont depose meurt avec la manche — une
+  // decoloration ou une direction de courant gardee d'une manche a l'autre
+  // commenterait un sol qui n'existe plus.
+  zoneCracks.clear();
+  zoneMotion.clear();
+  blastSeen.clear();
+  scorches.length = 0;
+  zoneFx = 0;
   resetHud();
   alertQueue.length = 0;
   hits.clear();
@@ -2646,7 +2654,14 @@ function stepFeedback(dt) {
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.life -= dt;
-    if (p.life <= 0) { particles[i] = particles[particles.length - 1]; particles.pop(); continue; }
+    if (p.life <= 0) {
+      // Le budget des particules de zone (lot E) se rend ICI, au seul endroit
+      // ou une particule meurt — un compteur separe aurait derive.
+      if (p.zfx) zoneFx--;
+      particles[i] = particles[particles.length - 1];
+      particles.pop();
+      continue;
+    }
     p.x += p.vx * dt; p.y += p.vy * dt;
     // Frottement : sans lui les fragments partent en ligne droite jusqu'au bord
     // et on lit une gerbe d'etincelles au lieu d'un eclatement.
@@ -3124,6 +3139,10 @@ function drawWorld(v) {
   }
 
   drawPlayers(v.playerList, v.tm, v.marks ?? []);
+  /* Colonnes lumineuses des marqueurs accueillants (lot E) : le seul element
+     autorise a depasser en hauteur, donc dessine PAR-DESSUS la horde — le
+     disque du marqueur, lui, reste sous les entites, comme documente. */
+  drawMarkColumns(v.marks ?? [], v.tm);
   // Les lames orbitales par-dessus tout le monde : c'est la bande de rayon la
   // plus disputee de l'ecran (givre, rempart, marqueurs) et la seule qui dise
   // au joueur qu'il possede la carte.
@@ -3350,6 +3369,233 @@ function zoneRule(z) { return z.shape === 2 ? "evenodd" : "nonzero"; }
    ne se paie que quand le plafond est franchi. */
 const ZONE_DRAW_MAX = 40;
 
+/* --- lot E : les quatre signatures ------------------------------------------
+
+   Une zone se reconnait a son COMPORTEMENT avant sa couleur — la couleur
+   confirme, elle ne distingue jamais, elle se noie dans le chaos :
+
+     IMMINENT    craquelures qui s'ouvrent depuis le centre  « ca va exploser »
+     PERSISTANT  braises et fumee qui montent                « ca restera »
+     MOBILE      courant qui defile dans le deplacement      « ca vient »
+     ACCUEILLANT halo vers l'interieur, colonne              « il faut y etre »
+
+   Les signatures se COMBINENT avec les six formes du registre : une zone est
+   un couple forme x signature, pas un cas particulier de plus. */
+
+/* Budget des particules de zone : 600 au total, et l'emission par zone est
+   cadencee pour qu'une zone n'en tienne jamais plus d'une quarantaine en vie
+   (duree de vie x debit). La fumee ne sort QUE sur les persistantes, jamais
+   sur un telegraphe — c'est l'erreur classique : soigner l'annonce jusqu'a ce
+   qu'on ne voie plus qu'on brule. */
+const ZONE_FX_MAX = 600;
+let zoneFx = 0;
+
+/* Craquelures pre-generees par identifiant de zone : deux zones voisines ne
+   sont jamais identiques, et la geometrie ne se recalcule pas a chaque image.
+   La table se vide d'un bloc quand elle grossit — les identifiants ne se
+   reutilisent pas, une entree morte ne sera jamais relue. */
+const zoneCracks = new Map();
+const zoneMotion = new Map();   // id -> { x, y, dx, dy } : le courant est DEDUIT
+const scorches = [];            // { z, until } : decoloration du sol, 2 s
+const blastSeen = new Map();    // id -> instant de la derniere resolution
+
+// Petit generateur deterministe : la craquelure d'une zone doit etre la meme a
+// chaque image, et Math.random ne sait pas promettre ca.
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Rayon d'encombrement d'une zone, toutes formes confondues : les craquelures
+// et le courant en ont besoin sans vouloir connaitre la geometrie exacte.
+function zoneSpan(z) {
+  if (z.shape === 1) return Math.max(z.w, z.h) / 2;
+  return z.r || 40;
+}
+
+function crackSetFor(id) {
+  let branches = zoneCracks.get(id);
+  if (branches) return branches;
+  if (zoneCracks.size > 160) zoneCracks.clear();
+  const rnd = mulberry32(id);
+  branches = [];
+  const n = 4 + Math.floor(rnd() * 3);
+  for (let i = 0; i < n; i++) {
+    let a = (i / n) * Math.PI * 2 + rnd() * 0.9;
+    const pts = [];
+    let d = 0.10 + rnd() * 0.08;
+    while (d < 1) {
+      pts.push({ d, a });
+      d += 0.14 + rnd() * 0.20;
+      a += (rnd() - 0.5) * 0.8;
+    }
+    pts.push({ d: 1, a });
+    branches.push(pts);
+  }
+  zoneCracks.set(id, branches);
+  return branches;
+}
+
+/* Le reseau de fissures s'ETEND au rythme du compte a rebours, et sa lueur
+   suit la meme rampe non lineaire que le remplissage : lente sur deux tiers,
+   brutale sur les 300 dernieres millisecondes. Ecretees a la forme — une
+   fissure qui depasse d'un couloir en ferait un disque. */
+function drawZoneCracks(z, k, punch) {
+  const span = zoneSpan(z);
+  const R = span * Math.min(1, k * 1.15);
+  if (R < 12) return;
+  const branches = crackSetFor(z.id);
+  ctx.save();
+  zonePath(z);
+  ctx.clip(zoneRule(z));
+  ctx.strokeStyle = alpha(ZONE.blast, 0.20 + punch * 0.70);
+  ctx.lineWidth = 1 + punch * 1.6;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (const pts of branches) {
+    ctx.moveTo(z.x, z.y);
+    for (const pt of pts) {
+      if (pt.d * span > R) break;
+      ctx.lineTo(z.x + Math.cos(pt.a) * pt.d * span,
+                 z.y + Math.sin(pt.a) * pt.d * span);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* Le courant est DEDUIT du deplacement entre deux images, comme la direction
+   des projectiles : un champ de plus sur chaque zone, vingt fois par seconde,
+   couterait plus que la deduction. Lisse, parce que les positions arrivent a
+   20 Hz et sauteraient. */
+function trackZoneMotion(list) {
+  for (const z of list) {
+    const m = zoneMotion.get(z.id);
+    if (!m) { zoneMotion.set(z.id, { x: z.x, y: z.y, dx: 0, dy: 0 }); continue; }
+    m.dx = m.dx * 0.85 + (z.x - m.x) * 0.15;
+    m.dy = m.dy * 0.85 + (z.y - m.y) * 0.15;
+    m.x = z.x; m.y = z.y;
+  }
+  if (zoneMotion.size > 220) zoneMotion.clear();
+}
+
+/* Signature MOBILE : bandes perpendiculaires au deplacement qui defilent plus
+   vite que la zone (la sensation de vitesse), trainee qui s'estompe derriere,
+   et avant-garde plus lumineuse — on lit la direction A L'ARRET, sur une
+   capture. Les exaflares heritent gratuitement de l'orientation : chaque
+   explosion successive du meme train suit le meme vecteur. */
+function drawZoneFlow(z, tm) {
+  const m = zoneMotion.get(z.id);
+  if (!m) return;
+  const d = Math.hypot(m.dx, m.dy);
+  if (d < 0.45) return;
+  const ux = m.dx / d, uy = m.dy / d;
+  const R = zoneSpan(z);
+
+  // Trainee : deux contours fantomes derriere, sur environ deux longueurs.
+  for (let i = 1; i <= 2; i++) {
+    ctx.save();
+    ctx.translate(-ux * R * 0.55 * i, -uy * R * 0.55 * i);
+    ctx.globalAlpha = 0.14 / i;
+    ctx.strokeStyle = ZONE.edge;
+    ctx.lineWidth = 2;
+    zonePath(z);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  // Bandes de courant, ecretees a la forme.
+  ctx.save();
+  zonePath(z);
+  ctx.clip(zoneRule(z));
+  ctx.strokeStyle = alpha(ZONE.edge, 0.30);
+  ctx.lineWidth = 2.5;
+  const pas = 22;
+  const off = (tm * 90) % pas;
+  ctx.beginPath();
+  for (let s = -R + off - pas; s < R + pas; s += pas) {
+    const cx = z.x + ux * s, cy = z.y + uy * s;
+    ctx.moveTo(cx - uy * R, cy + ux * R);
+    ctx.lineTo(cx + uy * R, cy - ux * R);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Avant-garde : liseré lumineux sur le bord AVANT, plus sombre a l'arriere.
+  if (!z.shape || z.shape === 2) {
+    const ang = Math.atan2(uy, ux);
+    ctx.strokeStyle = alpha(ZONE.blast, 0.65);
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, z.r, ang - 0.9, ang + 0.9);
+    ctx.stroke();
+  }
+}
+
+/* RESOLUTION d'un telegraphe : onde annulaire qui depasse largement le rayon,
+   debris projetes, et une decoloration du sol qui persiste deux secondes — la
+   trace de ce qui vient de se passer, celle qui aide a comprendre ce qui nous
+   a touche. Declenchee sur le souffle, une fois par detonation : les zones qui
+   PULSENT (derive, verrouillage) redetonent et redeclenchent. */
+function zoneResolved(z, tm) {
+  const last = blastSeen.get(z.id) ?? -9;
+  if (tm - last < 0.4) return;
+  blastSeen.set(z.id, tm);
+  if (blastSeen.size > 220) { const keep = blastSeen.get(z.id); blastSeen.clear(); blastSeen.set(z.id, keep); }
+
+  scorches.push({ z: { ...z }, until: tm + 2 });
+  if (scorches.length > 24) scorches.shift();
+
+  const span = zoneSpan(z);
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x: z.x, y: z.y, r: span * 0.5, max: span * 1.6, life: 0.35, t: 0.35, col: ZONE.blast });
+  }
+  for (let i = 0; i < 8 && particles.length < PARTICLE_MAX; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 70 + Math.random() * 120;
+    particles.push({
+      x: z.x + Math.cos(a) * span * 0.4, y: z.y + Math.sin(a) * span * 0.4,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
+      life: 0.5, max: 0.5, col: ZONE.blast, size: 2.6,
+    });
+  }
+}
+
+function drawScorches(tm) {
+  for (let i = scorches.length - 1; i >= 0; i--) {
+    const s = scorches[i];
+    if (s.until <= tm || s.until > tm + 2.5) {
+      scorches[i] = scorches[scorches.length - 1];
+      scorches.pop();
+      continue;
+    }
+    ctx.fillStyle = alpha(SURFACE.void, 0.30 * ((s.until - tm) / 2));
+    zonePath(s.z);
+    ctx.fill(zoneRule(s.z));
+  }
+}
+
+// Point aleatoire DANS une zone, pour l'emission de braises. Approximatif sur
+// les formes anguleuses — une braise a un centimetre du bord ne ment a
+// personne, et l'exactitude couterait un test de forme par particule.
+function zoneRandomPoint(z) {
+  if (z.shape === 1) {
+    const c = Math.cos(z.ang || 0), s = Math.sin(z.ang || 0);
+    const dx = (Math.random() - 0.5) * z.w, dy = (Math.random() - 0.5) * z.h;
+    return { x: z.x + dx * c - dy * s, y: z.y + dx * s + dy * c };
+  }
+  const rMin = z.shape === 2 ? (z.hole || 0) : 0;
+  const rr = rMin + Math.sqrt(Math.random()) * Math.max(1, (z.r || 40) - rMin);
+  const a = Math.random() * Math.PI * 2;
+  return { x: z.x + Math.cos(a) * rr, y: z.y + Math.sin(a) * rr };
+}
+
 /* Deux temps, deux langages — c'est la condition de reussite du lot. L'arene
    contient deja 200 ennemis, des projectiles et des marqueurs : si l'annonce et
    la zone active se ressemblent, tout le catalogue de motifs devient du bruit.
@@ -3367,6 +3613,11 @@ function drawZones(zones, tm = 0) {
     list = [...list].sort((a, b) => rank(a) - rank(b)).slice(0, ZONE_DRAW_MAX);
   }
 
+  // La trace des detonations passe SOUS tout le reste : c'est le sol, pas un
+  // danger — une decoloration par-dessus une annonce masquerait la suivante.
+  drawScorches(tm);
+  trackZoneMotion(list);
+
   /* L'anneau de compte a rebours ne sort que s'il y a peu d'annonces : douze
      anneaux sur un damier disent moins que les douze contours eux-memes, qui
      s'allument deja en meme temps. */
@@ -3374,6 +3625,7 @@ function drawZones(zones, tm = 0) {
 
   const persistent = [];
   for (const z of list) {
+    if (z.blast > 0.15) zoneResolved(z, tm);
     if (z.warn <= 0 && z.life > 0) { persistent.push(z); continue; }
     if (z.warn > 0) drawZoneWarn(z, tm, ring);
     else {
@@ -3385,6 +3637,11 @@ function drawZones(zones, tm = 0) {
   }
 
   if (persistent.length) drawZonesActive(persistent, tm);
+
+  /* Le courant se dessine PAR-DESSUS la signature de la zone : c'est une
+     information de trajectoire, elle vaut pour une annonce qui glisse comme
+     pour une mare poursuivante. */
+  for (const z of list) drawZoneFlow(z, tm);
 }
 
 /* INTENSITE NON LINEAIRE. Le carre de la progression montait deja doucement,
@@ -3438,6 +3695,12 @@ function drawZoneWarn(z, tm, ring) {
   zonePath(z);
   ctx.fill(zoneRule(z));
 
+  /* Craquelures (lot E). C'est la SIGNATURE de l'imminent : un reseau de
+     fissures qui s'ouvre depuis le centre au rythme du compte a rebours, la ou
+     le persistant a ses braises et le mobile son courant. Le remplissage reste
+     pauvre — les fissures disent l'echeance, pas la surface. */
+  drawZoneCracks(z, k, punch);
+
   ctx.strokeStyle = imminent ? BOSS.barWarn : BOSS.skin;
   ctx.globalAlpha = 0.5 + k * 0.5;
   ctx.lineWidth = imminent ? 3 : 2;
@@ -3479,7 +3742,42 @@ function drawZoneWarn(z, tm, ring) {
    un trait par mare redessinait chaque cercle a l'interieur de la tache et on
    ne voyait plus ou finissait la surface dangereuse. */
 function drawZonesActive(list, tm) {
-  const pulse = 0.90 + 0.10 * Math.sin(tm * 4.4);
+  /* La pulsation est SYNCHRONISEE sur le tic de degats (ZONE_TICK) et non sur
+     une sinusoide decorative : on voit QUAND ca frappe, ce qui rend le danger
+     previsible au lieu de continu. Un eclat bref a chaque palier, puis la
+     surface retombe. */
+  const tick = CFG.ZONE_TICK || 0.25;
+  const ph = (tm % tick) / tick;
+  const pulse = 0.88 + 0.12 * Math.max(0, 1 - ph * 2.5);
+
+  /* Braises et fumee (lot E) : la signature du persistant. Emission cadencee —
+     duree de vie x debit tient chaque zone sous la quarantaine de particules —
+     et budget global a part (`zoneFx`), pour que vingt-cinq mares de fin de
+     Matriarche ne volent pas les fragments des morts. La fumee ne sort QUE
+     ici : jamais sur un telegraphe. */
+  for (const z of list) {
+    if (zoneFx >= ZONE_FX_MAX || particles.length >= PARTICLE_MAX) break;
+    if (Math.random() < 0.55) {
+      const pt = zoneRandomPoint(z);
+      particles.push({
+        x: pt.x, y: pt.y,
+        vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 18,
+        lift: 26, life: 0.9 + Math.random() * 0.5, max: 1.4,
+        col: ZONE.blast, size: 2.2, zfx: 1,
+      });
+      zoneFx++;
+    }
+    if (Math.random() < 0.16 && zoneFx < ZONE_FX_MAX && particles.length < PARTICLE_MAX) {
+      const pt = zoneRandomPoint(z);
+      particles.push({
+        x: pt.x, y: pt.y,
+        vx: (Math.random() - 0.5) * 8, vy: -10 - Math.random() * 10,
+        lift: 14, life: 1.6 + Math.random() * 0.6, max: 2.2,
+        col: SURFACE.line, size: 6 + Math.random() * 3, zfx: 1,
+      });
+      zoneFx++;
+    }
+  }
 
   ctx.beginPath();
   for (const z of list) zoneSubPath(z, 1.05);
@@ -4656,6 +4954,42 @@ const MARK_GO = SIGNAL.go;        // cyan : occuper
 const MARK_AWAY = SIGNAL.lethal;      // rouge : quitter
 const MARK_BREAK = SIGNAL.warn;     // jaune : detruire
 
+/* Halo qui monte vers l'INTERIEUR (lot E) : l'inverse exact du telegraphe,
+   dont l'energie sort. Le mouvement centripete est lu comme un appel — c'est
+   la signature des zones ACCUEILLANTES, partagee par les tours, le
+   regroupement et le sanctuaire. Cyan ou vert, jamais de rouge : la regle de
+   la grammaire ne souffre aucune exception. */
+function markHalo(x, y, r, col, t) {
+  for (let i = 0; i < 2; i++) {
+    const ph = (t * 0.6 + i * 0.5) % 1;
+    ctx.strokeStyle = alpha(col, 0.30 * ph);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(8, r * (1.05 - ph * 0.4)), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+/* Colonnes lumineuses des marqueurs accueillants. Elles vivent dans la couche
+   SUPERIEURE, contrairement au disque qui reste sous les entites : c'est le
+   seul element du jeu autorise a depasser en hauteur, justement pour etre
+   reperable par-dessus la horde — une tour qu'on ne voit pas ne s'occupe pas. */
+function drawMarkColumns(marks, t) {
+  for (const m of marks) {
+    if (m.mech !== MECH_TOWER && m.mech !== MECH_COUNT
+        && m.mech !== MECH_STACK && m.mech !== MECH_SANCTUARY) continue;
+    const ok = m.mech === MECH_SANCTUARY
+      || (m.mech === MECH_COUNT ? m.cur === m.need : m.cur >= 1);
+    const col = ok ? MARK.ok : MARK_GO;
+    const h = 110 + Math.sin(t * 2.2) * 8;
+    const g = ctx.createLinearGradient(m.x, m.y, m.x, m.y - h);
+    g.addColorStop(0, alpha(col, 0.50));
+    g.addColorStop(1, alpha(col, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(m.x - 3, m.y - h, 6, h);
+  }
+}
+
 function drawMarks(marks, players) {
   if (!marks.length) return;
   const byId = new Map(players.map(p => [p.id, p]));
@@ -4670,6 +5004,7 @@ function drawMarks(marks, players) {
         const k = 1 - m.k;
         ctx.fillStyle = alpha(SIGNAL.go, 0.05 + k * k * 0.22);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        markHalo(m.x, m.y, m.r, MARK_GO, t);
         ctx.strokeStyle = MARK_GO;
         ctx.lineWidth = 3;
         ctx.setLineDash([10, 8]);
@@ -4698,15 +5033,22 @@ function drawMarks(marks, players) {
         const col = ok ? MARK.ok : MARK_GO;
         ctx.fillStyle = ok ? alpha(FX.beacon, 0.14) : alpha(SIGNAL.go, 0.10);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        markHalo(m.x, m.y, m.r, col, t);
         ctx.strokeStyle = col;
         ctx.lineWidth = ok ? 4 : 2;
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
-        // Le denombrement affiche « presents / requis » : c'est toute la
-        // mecanique, elle n'existe pas sans ce chiffre.
+        /* Le denombrement affiche « presents / requis » : c'est toute la
+           mecanique, elle n'existe pas sans ce chiffre. Le chiffre vire au vert
+           (`col`) quand le compte est bon, et il est CERCLE de sombre pour
+           rester lisible par-dessus la horde. */
         ctx.textAlign = "center";
+        ctx.font = "700 26px ui-monospace, Menlo, Consolas, monospace";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = alpha(SURFACE.void, 0.8);
+        const compte = m.mech === MECH_COUNT ? `${m.cur}/${m.need}` : `${m.cur}`;
+        ctx.strokeText(compte, m.x, m.y + 9);
         ctx.fillStyle = col;
-        ctx.font = "700 22px ui-monospace, Menlo, Consolas, monospace";
-        ctx.fillText(m.mech === MECH_COUNT ? `${m.cur}/${m.need}` : `${m.cur}`, m.x, m.y + 8);
+        ctx.fillText(compte, m.x, m.y + 9);
         break;
       }
       case MECH_LINK: {
@@ -4782,6 +5124,7 @@ function drawMarks(marks, players) {
         // donc plein et clair, a l'inverse de toutes les zones du jeu.
         ctx.fillStyle = alpha(FX.beacon, 0.16);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        markHalo(m.x, m.y, m.r, MARK.ok, t);
         ctx.strokeStyle = MARK.ok;
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
