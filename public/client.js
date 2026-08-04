@@ -47,7 +47,7 @@ import {
 /* La bande son vit dans son propre module, sur le modele d'audio.js : elle ne
    depend ni du DOM ni du reseau, et elle emprunte le contexte et le bus
    d'audio.js — la coupure et le volume globaux l'emportent donc toujours. */
-import { startMusic, setMusicMood } from "/music.js";
+import { startMusic, setMusicIntensity } from "/music.js";
 import { EventPump } from "/events.js";
 /* La grille du sol est graduee en METRES : c'est ce qui rend les distances des
    descriptions de cartes lisibles a l'ecran. Seule conversion d'affichage du
@@ -2768,11 +2768,11 @@ function frame(now) {
      plus d'instantane a dessiner — c'est precisement le cas de `roundEnd`. */
   flushWorld(now);
 
-  /* L'humeur musicale suit l'etat du jeu, relue a chaque image : salon et
-     bilan sont calmes, la manche pulse, le boss densifie. `setMusicMood` est
-     sans effet quand rien ne change — pas de transition a orchestrer ici, le
-     sequenceur relit l'humeur au pas suivant. */
-  setMusicMood(phase !== PHASE_ROUND ? "calme" : (latest?.boss ? "boss" : "vague"));
+  /* L'INTENSITE musicale suit l'etat du jeu, relue a chaque image. C'est une
+     cible : le sequenceur glisse vers elle — montee franche, descente lente —
+     et chaque couche (kick, basse, charleys, acide) nait au seuil qui la
+     concerne. Ici on ne fait que dire au juke-box a quel point ca chauffe. */
+  setMusicIntensity(gameIntensity());
 
   if (connected && latest) {
     const renderTime = now - INTERP_MS;
@@ -2873,6 +2873,23 @@ function stepPrediction(dt) {
   const pull = 1 - Math.exp((dash.t > 0 ? -1.2 : -6) * dt);
   predicted.x += (me.x - predicted.x) * pull;
   predicted.y += (me.y - predicted.y) * pull;
+}
+
+/* Ce que le jeu dit a la musique : un seul nombre entre 0 et 1. Tres doux au
+   salon, montee avec les vagues, souffle pendant le repit, pic sur le boss —
+   qui se tend encore a mesure que ses barres tombent, parce que la fin d'un
+   combat est son moment le plus dangereux. Les coefficients sont des reglages
+   d'oreille, pas de la simulation : ils n'ont rien a faire dans CFG. */
+function gameIntensity() {
+  if (phase !== PHASE_ROUND || !latest) return 0.05;
+  const v = latest;
+  let i = 0.20 + Math.min(0.45, (v.wave ?? 1) * 0.04);
+  if (v.wavePhase === 2) i -= 0.18;              // repit : la musique souffle
+  if (v.boss) {
+    const bars = v.boss.bars ?? 1;
+    i = Math.max(i, 0.72) + (CFG.BOSS_BARS - bars) * 0.05;
+  }
+  return Math.max(0.05, Math.min(1, i));
 }
 
 function colorOf(id) {
