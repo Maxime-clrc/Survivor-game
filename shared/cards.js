@@ -171,6 +171,17 @@ export const CARD_CFG = {
      de 64 cartes plus quatre qui n'appartiennent qu'a lui. */
   REMPART_LARGE_RADIUS: 0.4,   // +40 % de rayon
   REMPART_LARGE_TIME: 3,
+  /* « Ancrage ». La competence de base SUIT desormais le tank ; cette carte lui
+     rend sa version POSEE, et c'est le seul endroit du jeu ou une carte change
+     la nature d'une competence au lieu d'en ajuster un chiffre. Elle existe
+     parce qu'un rempart qui suit sans contrepartie est une aura permanente : le
+     tank perd sa decision de placement. Rendue au sol, la zone est plus grande,
+     plus longue et regenere mieux — donc le choix redevient un choix.
+     Le rayon est absolu et non un multiplicateur : il remplace la valeur de
+     base, il ne s'y ajoute pas. */
+  ANCRAGE_RADIUS: 220,
+  ANCRAGE_TIME: 12,
+  ANCRAGE_SHIELD_MUL: 1.5,
   PROVOCATION_LONGUE_TIME: 2,
   PROVOCATION_LONGUE_CD: 4,
   REPRESAILLES_DAMAGE: 40,
@@ -303,6 +314,73 @@ export const CARD_CFG = {
      - un palier superieur possede retire les paliers inferieurs du pool ;
      - les paliers se CUMULENT, ils ne se remplacent pas : c'est une
        progression, pas un echange. */
+/* --- categories ----------------------------------------------------------------
+
+   NE PAS CONFONDRE AVEC LES FAMILLES. Une famille est un axe decline sur quatre
+   paliers de rarete, et elle ne concerne que vingt cartes : c'est une regle de
+   TIRAGE. Une categorie couvre le catalogue entier et ne sert qu'a l'affichage :
+   elle dit a quel rayon du magasin la carte se trouve.
+
+   Ce qui manquait a l'ecran de choix, ce n'est pas l'effet — il est ecrit en
+   gros — c'est « qu'est-ce que j'ai deja empile ». Un joueur qui a pris six
+   cartes offensives et zero defensive ne s'en apercoit pas : chaque tirage se
+   lit isolement, et la build se construit par accident. La categorie plus le
+   RANG (« 3ᵉ carte de zone ») rendent le choix decidable en une seconde.
+
+   Tableau ORDONNE comme les autres, mais l'index NE CIRCULE PAS : les cartes
+   voyagent par identifiant de chaine, et la categorie se deduit localement de la
+   table. On peut donc en inserer une au milieu sans rien reecrire.
+   `CARD_CATEGORY_COLOR` vit dans `palette.js` : c'est la charte qui tient les
+   couleurs, ici on ne garde que les libelles. */
+/* `label` nomme la categorie, `rang` compose la phrase du rang. Deux champs et
+   non un seul parce que « 4ᵉ carte de offensif » ne se lit pas : ce sont des
+   chaines vues par le joueur, elles s'accordent. Composer la phrase ici plutot
+   que dans le client est la meme regle que partout — le formatage vit a cote de
+   la table, et deux clients ne peuvent pas diverger dessus. */
+export const CATEGORIES = [
+  { id: "off",     label: "offensif",   rang: "carte offensive" },
+  { id: "def",     label: "défensif",   rang: "carte défensive" },
+  { id: "soutien", label: "soutien",    rang: "carte de soutien" },
+  { id: "zone",    label: "zone",       rang: "carte de zone" },
+  { id: "util",    label: "utilitaire", rang: "carte utilitaire" },
+];
+
+export const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map(c => [c.id, c.label]));
+const CATEGORY_RANG = Object.fromEntries(CATEGORIES.map(c => [c.id, c.rang]));
+
+/* Categorie d'une carte. Point de passage UNIQUE, et DEDUITE des tags plutot
+   qu'ecrite cent six fois : les tags existent deja, ils sont deja tenus a jour
+   (« Resonance » compte `cadence`, `Symbiose` compte `def`), et un second champ
+   a recopier sur tout le catalogue aurait divergé du premier des la carte
+   suivante. Seul `cat` explicite passe devant — c'est ce qui sort les cartes de
+   ZONE, que les tags ne savent pas nommer.
+
+   L'ORDRE DE PRIORITE compte, et il n'est pas arbitraire : une carte cooperative
+   est d'abord du soutien meme si elle protege (« Rempart élargi » porte def et
+   coop), et une carte qui touche aux degats est offensive meme si elle donne
+   aussi des PV (« Lest »). Autrement dit, on nomme la carte par ce qui la rend
+   remarquable, pas par sa premiere lettre de tag. */
+export function cardCategory(card) {
+  if (!card) return "util";
+  if (card.cat) return card.cat;
+  const t = card.tags ?? [];
+  if (t.includes("coop")) return "soutien";
+  if (t.includes("off")) return "off";
+  if (t.includes("def")) return "def";
+  return "util";
+}
+
+/* Exemplaires possedes dans une categorie, toutes cartes confondues. C'est le
+   chiffre du rang, et il compte les EXEMPLAIRES et non les cartes distinctes :
+   quatre Affutage, c'est bien quatre cartes offensives dans la build. */
+export function categoryCount(owned, cat) {
+  let n = 0;
+  for (const [id, k] of owned) {
+    if (k > 0 && cardCategory(CARD_BY_ID.get(id)) === cat) n += k;
+  }
+  return n;
+}
+
 export const FAMILY_LABEL = {
   degats: "dégâts",
   cadence: "cadence",
@@ -450,7 +528,7 @@ export const CARDS = [
     apply(m, n) { m.critChance += 0.06 * n; },
   },
   {
-    id: "expansion", nom: "Expansion", rarity: 0, max: 4, tags: ["off"],
+    id: "expansion", nom: "Expansion", rarity: 0, max: 4, tags: ["off"], cat: "zone",
     desc: "+8 % de rayon sur tes explosions, ondes et auras",
     stack: n => pctAdd(0.08, n),
     apply(m, n) { m.areaMul += 0.08 * n; },
@@ -609,7 +687,7 @@ export const CARDS = [
     apply(m) { m.reviveRadiusMul += 0.6; m.reviveHpRatio = Math.max(m.reviveHpRatio, 0.7); m.maxHpBonus += 10; },
   },
   {
-    id: "contreAttaque", nom: "Contre-attaque", rarity: 1, max: 2, tags: ["def"],
+    id: "contreAttaque", nom: "Contre-attaque", rarity: 1, max: 2, tags: ["def"], cat: "zone",
     desc: `encaisser déclenche une nova de 60 dégâts sur ${fmtM(CARD_CFG.COUNTER_RADIUS)} (recharge 3 s)`,
     stack: n => `${60 * n} dégâts`,
     apply(m, n) { m.counterNova += 60 * n; },
@@ -671,7 +749,7 @@ export const CARDS = [
     apply(m, n) { m.critMul += 0.40 * n; },
   },
   {
-    id: "deflagration", nom: "Déflagration", rarity: 1, max: 3, tags: ["off"],
+    id: "deflagration", nom: "Déflagration", rarity: 1, max: 3, tags: ["off"], cat: "zone",
     desc: "+20 % de rayon sur tes explosions, ondes et auras",
     stack: n => pctAdd(0.20, n),
     apply(m, n) { m.areaMul += 0.20 * n; },
@@ -779,7 +857,7 @@ export const CARDS = [
     apply(m, n) { m.chainChance += 0.15 * n; },
   },
   {
-    id: "pulsar", nom: "Pulsar", rarity: 2, max: 2, tags: ["off"],
+    id: "pulsar", nom: "Pulsar", rarity: 2, max: 2, tags: ["off"], cat: "zone",
     desc: `toutes les 12 s, onde automatique de 90 dégâts sur ${fmtM(CARD_CFG.PULSAR_RADIUS)}`,
     stack: n => `toutes les ${num(12 / n)} s`,
     apply(m, n) { m.pulsarCd = 12 / n; },
@@ -842,7 +920,7 @@ export const CARDS = [
     apply(m) { m.frenzy = 1; },
   },
   {
-    id: "givre", nom: "Champ de givre", rarity: 2, max: 2, tags: ["def"],
+    id: "givre", nom: "Champ de givre", rarity: 2, max: 2, tags: ["def"], cat: "zone",
     desc: `aura de ${fmtM(160)}, ennemis à 65 % de vitesse`,
     stack: n => `aura de ${fmtM(160 * (1 + 0.35 * (n - 1)))}`,
     apply(m, n) { m.frostRadius = Math.max(m.frostRadius, 160 * (1 + 0.35 * (n - 1))); },
@@ -854,7 +932,7 @@ export const CARDS = [
     apply(m, n) { m.harvest += 0.08 * n; },
   },
   {
-    id: "ondeMort", nom: "Onde de mort", rarity: 2, max: 2, tags: ["off"],
+    id: "ondeMort", nom: "Onde de mort", rarity: 2, max: 2, tags: ["off"], cat: "zone",
     desc: `tuer un ennemi déclenche 25 dégâts sur ${fmtM(CARD_CFG.DEATHWAVE_RADIUS)} autour de lui`,
     stack: n => `${25 * n} dégâts`,
     apply(m, n) { m.deathWave += 25 * n; },
@@ -883,7 +961,7 @@ export const CARDS = [
     apply(m, n) { m.critChance += 0.20 * n; m.critMul += 0.50 * n; },
   },
   {
-    id: "singularite", nom: "Singularité", rarity: 2, max: 1, tags: ["off"],
+    id: "singularite", nom: "Singularité", rarity: 2, max: 1, tags: ["off"], cat: "zone",
     desc: "+35 % de rayon, et tes explosions aspirent les ennemis vers leur centre",
     apply(m) { m.areaMul += 0.35; m.areaPull = 1; },
   },
@@ -1100,6 +1178,19 @@ export const CARDS = [
     },
   },
   {
+    /* La seule carte du jeu qui change la NATURE d'une competence. Le rempart
+       de base suit le tank depuis le lot A ; celle-ci le repose au sol, plus
+       grand et plus long. Elle n'est donc pas une amelioration mais un ECHANGE :
+       on rend la mobilite pour une zone qui vaut la peine d'etre tenue.
+       Incompatible avec rien — « Rempart élargi » s'y ajoute, et le cumul des
+       deux est exactement la build de tank statique qu'on veut rendre jouable. */
+    id: "ancrage", nom: "Ancrage", rarity: 1, max: 1, tags: ["def", "coop"],
+    cls: "tank",
+    desc: `rempart posé au sol : ${fmtM(CARD_CFG.ANCRAGE_RADIUS)}, `
+        + `${CARD_CFG.ANCRAGE_TIME} s, +50 % de bouclier par seconde`,
+    apply(m) { m.bulwarkAnchor = 1; },
+  },
+  {
     id: "provocation_longue", nom: "Provocation prolongée", rarity: 1, max: 1, tags: ["def", "coop"],
     cls: "tank",
     desc: "provocation : +2 s de durée, −4 s de recharge",
@@ -1109,6 +1200,13 @@ export const CARDS = [
     },
   },
   {
+    /* Depuis que le rempart de base SUIT le tank, elle ne dit plus rien de ce
+       rempart-la : son porteur est toujours dedans. Elle est devenue la
+       compagne d'« Ancrage » — poser la zone puis aller chercher la horde sans
+       renoncer a son propre bouclier — et c'est la seule paire de cartes de
+       classe du jeu ou l'une conditionne l'interet de l'autre. Elle reste
+       tiree comme les autres : rendre son offre conditionnelle a une carte deja
+       possedee serait le premier pool a deux etages du depot. */
     id: "carapace", nom: "Carapace", rarity: 2, max: 1, tags: ["def"],
     cls: "tank",
     desc: "le bouclier du rempart s'applique au tank même hors de sa zone",
@@ -1283,6 +1381,10 @@ export function defaultMods() {
        quand un nombre suffit — une carte suivante doit pouvoir s'y ajouter. */
     bulwarkRadiusMul: 1,
     bulwarkTime: 0,          // secondes ajoutees a la duree de base
+    /* « Ancrage » : le rempart redevient POSE au sol au lieu de suivre le tank.
+       Un drapeau et non un nombre — c'est le seul mod du jeu qui change la
+       nature d'une competence, et il n'y a rien a y cumuler. */
+    bulwarkAnchor: 0,
     carapace: 0,
     tauntTime: 0,
     tauntCd: 0,              // negatif : reduction de recharge
@@ -1615,11 +1717,29 @@ export function cardDetail(id, owned = new Map()) {
     ? `${FAMILY_LABEL[c.family] ?? c.family} — palier ${c.tier + 1} / ${FAMILY_TIERS}`
     : null;
 
+  /* CATEGORIE ET RANG DANS LA BUILD. C'est la ligne qui rend un choix decidable
+     en une seconde : « 3ᵉ carte de zone » dit d'un coup ce que la liste de
+     cartes ne dit qu'apres reconstitution de tete. Sans elle, chaque tirage se
+     lit isolement et on empile un axe sans s'en apercevoir — le defaut se voit
+     au tableau de fin, c'est-a-dire trop tard.
+
+     Le rang compte la carte QU'ON EST EN TRAIN DE REGARDER, exemplaire suivant
+     inclus : c'est ce qu'elle serait si on la prenait, pas ce qu'on a deja.
+     « 1ʳᵉ » et non « 1ᵉ » : c'est une chaine vue par le joueur, elle est
+     ecrite correctement.
+
+     `categorieId` est la CLE et non le libelle — le client y prend sa couleur
+     dans `CARD_CATEGORY_COLOR`, comme il prend son glyphe sur `familleId`. */
+  const catId = cardCategory(c);
+  const rangN = categoryCount(owned, catId) + 1;
+  const rang = `${rangN === 1 ? "1ʳᵉ" : `${rangN}ᵉ`} ${CATEGORY_RANG[catId]}`;
+
   /* `familleId` est la CLE de famille, pas son libelle : le client choisit son
      glyphe dessus. Une icone par famille et non par carte — cinq glyphes que le
      joueur apprend a reconnaitre valent mieux que soixante qu'il ne lira
      jamais. */
   return { id: c.id, nom: c.nom, rarity: c.rarity, desc: c.desc,
            famille, familleId: c.family ?? null,
+           categorie: CATEGORY_LABEL[catId], categorieId: catId, rang,
            cumul, valeur, effectif, avertissement };
 }

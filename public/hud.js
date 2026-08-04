@@ -523,11 +523,23 @@ function updateAnnounce(v, c, now) {
 const DMG_MAX = 40;
 let dmgCount = 0;
 
-export function hudDamage(x, y, val, kind = "deal") {
+/* `icon` est une fonction de trace d'`icons.js`, jamais une image ni une chaine :
+   le HUD ne sait pas dessiner, et `iconImg` met le rendu en cache par (glyphe,
+   couleur, taille) — donc le trace n'est fait qu'une fois par provenance, pas
+   une fois par chiffre. Elle ne sert qu'aux degats SUBIS : sur un chiffre
+   inflige, la provenance est evidente (c'est nous), et un glyphe de plus a trois
+   cents impacts par minute repeindrait l'ecran. */
+export function hudDamage(x, y, val, kind = "deal", icon = null) {
   if (dmgCount >= DMG_MAX) return;
   const d = document.createElement("div");
   d.className = "dmg " + kind;
-  d.textContent = kind === "heal" ? "+" + Math.round(val) : Math.round(val);
+  if (icon) {
+    // La couleur du glyphe est celle du texte : c'est la meme information, elle
+    // ne peut pas etre de deux couleurs.
+    d.appendChild(iconImg(icon, HUD.low, 12));
+  }
+  d.appendChild(document.createTextNode(
+    kind === "heal" ? "+" + Math.round(val) : String(Math.round(val))));
   d.style.left = (x / CFG.ARENA_W * 100).toFixed(2) + "%";
   d.style.top = (y / CFG.ARENA_H * 100).toFixed(2) + "%";
   d.addEventListener("animationend", () => { d.remove(); dmgCount--; }, { once: true });

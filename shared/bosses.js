@@ -50,6 +50,19 @@ export const MECH_DODGE = 20;       // repli solo du regroupement : une zone a e
 export const MECH_SHRINK = 21;      // constriction de l'arene
 export const MECH_PUDDLE = 22;      // flaques remanentes
 export const MECH_SAFE = 23;        // secteur epargne (Pac-Man)
+/* Rupture de barre, DECLINEE PAR BOSS (lot A). Elle etait la meme cinq fois par
+   combat et pour les cinq boss : un souffle, et des degats. Les degats sont
+   partis — casser une barre est une reussite, le jeu la taxait — et le souffle
+   parle desormais le verbe du boss qu'on est en train de casser.
+
+   Quatre entrees et non cinq : l'Oracle pose un cumul de Vulnerabilite a toute
+   l'equipe, ce que `MECH_MIASMA` annonce DEJA mot pour mot. Ajouter une
+   cinquieme mecanique pour redire la meme phrase aurait fait deux libelles a
+   garder d'accord. */
+export const MECH_BREATH = 24;      // Ravageur : souffle qui repousse
+export const MECH_BROOD = 25;       // Matriarche : nuee de rejetons
+export const MECH_REVERSE = 26;     // Metronome : les motifs s'inversent
+export const MECH_SWAP = 27;        // Jumeaux : ils echangent leurs places
 
 /* Niveaux d'alerte. `consigne` demande une action immediate, `avertissement`
    previent d'un danger, `information` raconte. Le client n'affiche jamais deux
@@ -119,6 +132,23 @@ export const MECHS = [
     level: ALERT_INFO, texte: "chaque tir laisse une mare — le sol se réduit" },
   { id: MECH_SAFE, key: "safe", nom: "Secteur sûr", minPlayers: 1, fallback: -1,
     level: ALERT_ORDER, texte: "PLACE-TOI dans le secteur épargné" },
+
+  /* Les quatre ruptures de barre. Toutes en `minPlayers: 1` et sans repli : une
+     rupture arrive quel que soit l'effectif, et une variante qu'on ne pourrait
+     pas poser laisserait la barre se casser en silence — ce qui est exactement
+     le defaut qu'on corrige.
+     Aucune n'est une CONSIGNE : le joueur n'a rien a faire d'un souffle, il a
+     besoin de savoir ce qui vient de changer. D'ou `avertissement` pour les
+     trois qui modifient le champ de bataille, et `information` pour le souffle
+     du Ravageur, qui ne fait que nettoyer. */
+  { id: MECH_BREATH, key: "breath", nom: "Souffle", minPlayers: 1, fallback: -1,
+    level: ALERT_INFO, texte: "le souffle efface les projectiles" },
+  { id: MECH_BROOD, key: "brood", nom: "Nuée", minPlayers: 1, fallback: -1,
+    level: ALERT_WARN, texte: "une nuée de rejetons éclot" },
+  { id: MECH_REVERSE, key: "reverse", nom: "Inversion", minPlayers: 1, fallback: -1,
+    level: ALERT_WARN, texte: "les motifs repartent en sens inverse" },
+  { id: MECH_SWAP, key: "swap", nom: "Échange", minPlayers: 1, fallback: -1,
+    level: ALERT_WARN, texte: "ils viennent d'échanger leurs places" },
 ];
 
 export function mechAt(id) { return MECHS[id] ?? null; }
@@ -239,6 +269,17 @@ export function bossPool(kind, phase) {
 }
 
 export const BOSS_CFG = {
+  /* --- rupture de barre ----------------------------------------------------
+     Elle NE FAIT PLUS DE DEGATS. Casser une barre est une reussite, et le jeu
+     la punissait cinq fois par combat : c'est devenu une recompense — le souffle
+     repousse la pression, efface les projectiles en vol et ouvre une fenetre de
+     respiration (`attackCd` releve). La sanction, quand il en faut une, vient
+     des mecaniques ratees, qui se jouent.
+
+     La nuee de la Matriarche est HORS BUDGET de vague, comme ses renforts
+     ordinaires : elle ne doit pas vider le budget de la vague en cours, mais
+     elle compte bien pour « arene vide ». */
+  BROOD_COUNT: 5,            // rejetons liberes par barre rompue
   /* --- sanction d'echec ---------------------------------------------------
      Une mecanique ratee MET A TERRE, elle ne tue jamais sechement. Dans un MMO
      rater une mecanique tue et on recommence en trois minutes ; ici une manche

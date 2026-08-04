@@ -8,6 +8,9 @@
 import {
   CFG, PLAYER_COLORS, ENEMY_TYPES, POWERUP_TYPES, DIFFICULTIES,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
+  // Registre des provenances de degats : le bilan y lit ses libelles, et l'ordre
+  // est celui des index qui circulent dans l'instantane.
+  DAMAGE_SOURCES,
   /* La fenetre de build affiche les multiplicateurs EFFECTIFS. Elle appelle la
      meme fonction que la simulation plutot que d'en recoder le repli : deux
      implementations auraient diverge au premier reglage, sur precisement
@@ -42,7 +45,8 @@ import { PX_PER_M } from "/shared/units.js";
    canvas — dans l'arene et dans le DOM — d'ou un module a part plutot qu'une
    seconde copie des traces. */
 import {
-  POWERUP_ICON, POWERUP_STYLE, EFFECT_BADGES, STATUS_ICON, paintIcon,
+  POWERUP_ICON, POWERUP_STYLE, EFFECT_BADGES, STATUS_ICON, SRC_ICON,
+  paintIcon, iconImg,
 } from "/icons.js";
 /* Le HUD est en DOM depuis ce lot : ce module possede tout ce qui vit sur
    l'ecran, le canvas ne garde que le MONDE. La ligne de partage n'est pas
@@ -65,7 +69,8 @@ import { createGL } from "/gl.js";
    `:root` par `applyPalette()` juste en dessous. */
 import {
   SURFACE, TEXT, SIGNAL, CLASS_COLOR, COMBAT, ENEMY, ZONE, WALL, BOSS, BOSS_SKIN,
-  POWERUP_COLOR, EFFECT_COLOR, OWNED, FX, MARK, HUD, alpha, cssVars,
+  POWERUP_COLOR, EFFECT_COLOR, OWNED, FX, MARK, HUD, CARD_CATEGORY_COLOR,
+  alpha, cssVars,
 } from "/shared/palette.js";
 
 /* Les variables CSS viennent de `palette.js` et n'existent nulle part ailleurs :
@@ -184,6 +189,7 @@ const cardsWaitEl = document.getElementById("cardsWaitMsg");
 const bilanEl = document.getElementById("bilan");
 const bilanTitle = document.getElementById("bilanTitle");
 const bilanStats = document.getElementById("bilanStats");
+const bilanHurt = document.getElementById("bilanHurt");
 const bilanScoresBody = document.querySelector("#bilanScores tbody");
 const bilanGo = document.getElementById("bilanGo");
 const bilanBarFill = document.querySelector("#bilanBar i");
@@ -829,7 +835,15 @@ function showBilan(res) {
   bilanEl.hidden = false;
   panel.hidden = true;
 
-  bilanTitle.textContent = `Manche ${res.round} terminée`;
+  /* LE TITRE PARLE DE VAGUES. « Manche 1 terminée » apres douze vagues
+     enchainees se lisait comme un compteur casse : le numero de manche etait
+     juste, c'est l'unite de jeu qui a change. La vague atteinte est ce que la
+     table retient de sa partie, donc c'est elle qui titre ; le numero de manche
+     descend avec les autres chiffres. Repli sur le numero de manche si le
+     serveur ne transmet pas la vague — un serveur anterieur au lot. */
+  bilanTitle.textContent = res.wave
+    ? `Partie terminée — vague ${res.wave} atteinte`
+    : `Partie terminée`;
   /* Duree et kills en gros chiffres : ce sont les deux seules mesures qui
      valent pour la table entiere, et elles ouvrent la lecture du tableau. */
   bilanStats.innerHTML =
@@ -838,12 +852,61 @@ function showBilan(res) {
     `<div class="bilanStat"><span class="val">${res.kills}</span>` +
     `<span class="lab">kills</span></div>` +
     `<div class="bilanStat"><span class="val">${res.rows.length}</span>` +
-    `<span class="lab">joueurs</span></div>`;
+    `<span class="lab">joueurs</span></div>` +
+    `<div class="bilanStat"><span class="val">${res.round}</span>` +
+    `<span class="lab">manche</span></div>`;
+  renderHurtBy(res.rows);
   renderScores(res.rows, bilanScoresBody);
 
   clearInterval(bilanHandle);
   bilanHandle = setInterval(stepBilan, 100);
   stepBilan();
+}
+
+/* DE QUOI L'EQUIPE EST MORTE. Une ligne de barres, une par provenance, en part
+   du total encaisse par la table.
+
+   Agrege sur l'EQUIPE et non par joueur, et c'est un choix : cinq colonnes de
+   plus dans le tableau des scores l'auraient rendu illisible a quatre joueurs,
+   alors que la question — « qu'est-ce qui nous a tues » — se pose au collectif.
+   Le detail par joueur existe deja ailleurs pour ce qui le merite (la fenetre de
+   build, ouverte depuis une ligne du tableau).
+
+   Rien ne s'affiche si personne n'a rien pris : une rangee de zeros n'est pas
+   une information, et une manche parfaite ne doit pas se lire comme une erreur
+   d'affichage. */
+function renderHurtBy(rows) {
+  const total = DAMAGE_SOURCES.map(() => 0);
+  for (const r of rows) {
+    for (let i = 0; i < total.length; i++) total[i] += (r.hurtBy?.[i] ?? 0);
+  }
+  const somme = total.reduce((a, b) => a + b, 0);
+  if (somme <= 0) { bilanHurt.hidden = true; bilanHurt.innerHTML = ""; return; }
+  bilanHurt.hidden = false;
+
+  // Tri DECROISSANT : ce qui a le plus fait mal se lit en premier. Les
+  // provenances a zero sortent — elles n'apprennent rien et diluent la ligne.
+  const parts = DAMAGE_SOURCES
+    .map((s, i) => ({ i, label: s.label, val: total[i] }))
+    .filter(p => p.val > 0)
+    .sort((a, b) => b.val - a.val);
+
+  let html = `<div class="hurtTitle">dégâts subis par l'équipe</div>`;
+  for (const p of parts) {
+    const pct = Math.round(p.val / somme * 100);
+    html += `<div class="hurtRow">` +
+      `<span class="hurtIco"></span>` +
+      `<span class="hurtLab">${escapeHtml(p.label)}</span>` +
+      `<span class="hurtBar"><i style="width:${pct}%"></i></span>` +
+      `<span class="hurtVal">${pct} %</span>` +
+    `</div>`;
+  }
+  bilanHurt.innerHTML = html;
+  // Les glyphes sont poses APRES coup : `iconImg` rend un element et non une
+  // chaine, et le coller dans du HTML l'aurait fait passer par une adresse
+  // `data:` recopiee cinq fois au lieu d'une image mise en cache.
+  const icos = bilanHurt.querySelectorAll(".hurtIco");
+  parts.forEach((p, k) => icos[k]?.appendChild(iconImg(SRC_ICON[p.i], HUD.low, 14)));
 }
 
 function stepBilan() {
@@ -1020,6 +1083,17 @@ function renderCards() {
         `<span class="cardRarity">${RARITY_LABEL[c.rarity] ?? ""}</span>` +
         (d?.famille ? `<span class="cardFamily">${escapeHtml(d.famille)}</span>` : "") +
       `</div>` +
+      /* CATEGORIE ET RANG. La categorie est la seule couleur de la carte qui ne
+         soit pas celle de la rarete, et c'est assume : elle reprend la grammaire
+         fonctionnelle (rouge offensif, cyan defensif, vert soutien, violet
+         zone), donc elle se reconnait avant d'etre lue. Le rang, lui, est en
+         teinte neutre : c'est un chiffre, pas un signal. */
+      (d ? `<div class="cardCat">` +
+        `<span class="catDot" style="background:${CARD_CATEGORY_COLOR[d.categorieId]}"></span>` +
+        `<span class="catName" style="color:${CARD_CATEGORY_COLOR[d.categorieId]}">` +
+          `${escapeHtml(d.categorie)}</span>` +
+        `<span class="catRank">${escapeHtml(d.rang)}</span>` +
+      `</div>` : "") +
       `<div class="cardBody">` +
         `<div class="cardMain">${escapeHtml(c.desc)}</div>` +
         (d?.effectif ? `<div class="cardCond">${escapeHtml(d.effectif)}</div>` : "") +
@@ -1394,6 +1468,10 @@ function ingest(msg) {
       // serveur anterieur ne l'envoie pas, la fenetre affiche alors zero plutot
       // que de planter.
       damage: a[28] ?? 0,
+      // Provenance du dernier degat encaisse. Repli sur le contact, qui est le
+      // cas majoritaire : un serveur anterieur au lot ne l'envoie pas, et le
+      // chiffre rouge porte alors l'icone la plus probable au lieu d'aucune.
+      src: a[29] ?? 0,
     }])),
     /* Le champ de type porte trois informations pour n'en couter qu'une seule
        sur chacun des 200 ennemis, vingt fois par seconde : le type, le rang
@@ -1408,10 +1486,17 @@ function ingest(msg) {
       // variation de PV.
       hitSeq: a[7] ?? 0,
     }])),
-    // `heal` en fin de tuple : le projectile du mode soin se dessine dans une
-    // autre couleur, c'est le seul moyen pour la table de voir d'un coup d'oeil
-    // que le soigneur a bascule.
-    bullets: new Map(msg.b.map(a => [a[0], { id: a[0], x: a[1], y: a[2], heal: a[3] ?? 0 }])),
+    /* `heal` en fin de tuple : le projectile du mode soin se dessine dans une
+       autre couleur, c'est le seul moyen pour la table de voir d'un coup d'oeil
+       que le soigneur a bascule.
+       `owner` est l'ajout du lot A, en fin de tuple comme toujours : la balle
+       prend la couleur de son tireur. Repli 0 — aucun joueur ne porte cet
+       identifiant, `colorOf` retombe alors sur la premiere couleur, et un
+       onglet reste sur une version anterieure du serveur dessine donc un tir
+       uniforme au lieu de planter. */
+    bullets: new Map(msg.b.map(a => [a[0], {
+      id: a[0], x: a[1], y: a[2], heal: a[3] ?? 0, owner: a[4] ?? 0,
+    }])),
     shots: new Map(msg.s.map(a => [a[0], { id: a[0], x: a[1], y: a[2] }])),
     /* `spread`, `life` et `prox` sont des ajouts en fin de tuple : un serveur
        anterieur au lot 5 n'envoie rien, les replis a 0 font alors dessiner les
@@ -1760,12 +1845,19 @@ function interpolated(renderTime) {
   /* Les marqueurs suivent leur porteur ou glissent (sanctuaires) : ils sont
      donc interpoles comme des entites et non pris tels quels comme les zones.
      Un cercle de regroupement qui saute de 4 px vingt fois par seconde est
-     exactement l'element qu'on regarde le plus pendant une mecanique. */
-  const marksA = new Map((a.marks ?? []).map(m => [m.id, m]));
-  const marks = (b.marks ?? []).map(m => {
-    const prev = marksA.get(m.id);
-    return prev ? { ...m, x: prev.x + (m.x - prev.x) * k, y: prev.y + (m.y - prev.y) * k } : m;
-  });
+     exactement l'element qu'on regarde le plus pendant une mecanique.
+     Le rempart, qui suit son tank depuis le lot A, a exactement le meme besoin :
+     d'ou une fonction et non deux blocs recopies. Les listes indexees par
+     identifiant passent par ici, les Map par `lerpMap` — c'est la seule
+     difference entre les deux. */
+  const lerpList = (la, lb) => {
+    const prev = new Map((la ?? []).map(o => [o.id, o]));
+    return (lb ?? []).map(o => {
+      const p0 = prev.get(o.id);
+      return p0 ? { ...o, x: p0.x + (o.x - p0.x) * k, y: p0.y + (o.y - p0.y) * k } : o;
+    });
+  };
+  const marks = lerpList(a.marks, b.marks);
 
   return {
     tm: a.tm + (b.tm - a.tm) * k,
@@ -1781,8 +1873,14 @@ function interpolated(renderTime) {
     zones: b.zones,
     powerups: b.powerups,
     turrets: b.turrets,
-    // Le rempart ne bouge pas : pris tel quel, comme les zones.
-    bulwarks: b.bulwarks ?? [],
+    /* Le rempart SUIT son tank depuis le lot A : il est donc interpole comme un
+       marqueur et non pris tel quel comme une zone. Un disque de 6,5 m de rayon
+       qui saute vingt fois par seconde sous les pieds du joueur est exactement
+       l'element qu'on regarde le plus quand on tient une position — et il
+       decrochait visiblement du personnage, qui est lui predit a l'image.
+       Le rempart ANCRE traverse la meme fonction sans y perdre : sa position ne
+       change pas d'un instantane a l'autre, l'interpolation est l'identite. */
+    bulwarks: lerpList(a.bulwarks, b.bulwarks),
     effects: b.effects,
     boss, boss2, marks, slip: b.slip,
     // Limites et murs : des paliers, pas des positions. Interpoler une arene qui
@@ -2028,8 +2126,14 @@ function handleEvent(e) {
     /* Degats subis en ROUGE et plus gros, soins recus en VERT. Ils ne passent
        pas par l'agregation : il n'y en a jamais qu'un a la fois par joueur, et
        ce sont les deux chiffres qu'on doit lire immediatement. */
+    /* La PROVENANCE accompagne le chiffre rouge. Sans elle, perdre 40 PV
+       n'apprenait rien : contact, projectile, zone, mecanique et brulure
+       donnaient le meme nombre au meme endroit, et c'est la principale raison
+       pour laquelle on ne comprend pas ses morts. Le glyphe est a gauche du
+       nombre, dans sa couleur — une seconde teinte aurait fait croire a deux
+       informations. */
     case "blesse":
-      hudDamage(e.x, e.y - 26, e.dmg, "hurt");
+      hudDamage(e.x, e.y - 26, e.dmg, "hurt", SRC_ICON[e.src] ?? null);
       break;
 
     case "soigne":
@@ -2725,27 +2829,17 @@ function drawWorld(v) {
   drawArenaBounds(v.bounds);
   drawZones(v.zones, v.tm);
   // Le rempart passe SOUS les entites : c'est un marquage de sol, et il occupe
-  // 170 px de rayon — dessine par-dessus, il masquait exactement les ennemis
-  // qu'il attire.
+  // 6,5 m de rayon (11 m ancre) — dessine par-dessus, il masquait exactement
+  // les ennemis qu'il attire.
   drawBulwarks(v.bulwarks ?? []);
   drawTurrets(v.turrets ?? []);
   drawEffects(v.effects);
   drawPowerups(v.powerups);
 
   pruneTrails(v);
-  for (const s of v.shotList) {
-    drawBolt(s, CFG.SHOT_RADIUS, COMBAT.shot, shotTrail);
-  }
-
-  for (const b of v.bulletList) {
-    // Le projectile de soin est vert et un peu plus gros : a la table, on doit
-    // voir sans demander que le soigneur ne fait plus de degats.
-    drawBolt(b, CFG.BULLET_RADIUS + (b.heal ? 1.5 : 0),
-             b.heal ? COMBAT.bulletHeal : COMBAT.bullet, bulletTrail);
-  }
-
   // Les tireurs se telegraphent depuis les projectiles observes : il faut donc
-  // regarder les projectiles AVANT de dessiner les ennemis.
+  // regarder les projectiles AVANT de dessiner les ennemis. Le suivi ne dessine
+  // rien, il n'a donc rien a voir avec la couche courante.
   trackShooters(v);
 
   drawBombs(v.bombList ?? []);
@@ -2788,6 +2882,38 @@ function drawWorld(v) {
     }
   }
   drawDrones(v.droneList);
+
+  /* LES PROJECTILES PASSENT AU-DESSUS DES ENNEMIS, et c'est un changement d'ordre
+     assume : ils etaient sous la horde, donc une balle disparaissait derriere le
+     premier corps rencontre et on ne voyait plus ce qu'on tirait. L'ordre impose
+     par le lot est : sol -> zones -> bonus -> ennemis -> projectiles -> joueurs.
+
+     `drawEffects` reste, lui, SOUS les entites, contre la lettre de l'ordre :
+     une nova de 250 px de rayon dessinee par-dessus masquerait exactement les
+     joueurs que le lot vient de rendre identifiables. Une onde est un ornement
+     de sol, un projectile est une entite — la ligne de partage est la. */
+  for (const s of v.shotList) {
+    // Rouge franc ET losange : deux signaux pour la meme information, parce
+    // qu'aucun des deux ne suffit seul a 220 ennemis.
+    drawBolt(s, CFG.SHOT_RADIUS, COMBAT.shot, shotTrail, true);
+  }
+  for (const b of v.bulletList) {
+    /* La balle prend LA COULEUR DE SON TIREUR. Elle repond du meme coup a deux
+       questions : « est-ce a moi que ca fait mal » et « qui a tire ca » — la
+       seconde n'avait aucune reponse en cooperatif.
+       Le projectile de soin garde le vert et son embonpoint : il ne dit pas qui
+       tire mais CE QUE le tir fait, et c'est l'information la plus utile a la
+       table.
+
+       `ownerColorOf` et non `colorOf` : un proprietaire inconnu — serveur
+       anterieur au lot, ou tireur deja deconnecte dont les balles volent encore
+       — doit retomber sur l'ambre d'origine et non emprunter la couleur du
+       premier joueur venu, qui serait un mensonge sur qui a tire. */
+    drawBolt(b, CFG.BULLET_RADIUS + (b.heal ? 1.5 : 0),
+             b.heal ? COMBAT.bulletHeal : (ownerColorOf(b.owner) ?? COMBAT.bullet),
+             bulletTrail);
+  }
+
   drawPlayers(v.playerList, v.tm, v.marks ?? []);
   // Les lames orbitales par-dessus tout le monde : c'est la bande de rayon la
   // plus disputee de l'ecran (givre, rempart, marqueurs) et la seule qui dise
@@ -2844,7 +2970,30 @@ function boltGlow(b, r, col) {
   ctx.restore();
 }
 
-function drawBolt(b, r, col, trail) {
+/* LOSANGE ETIRE : la forme du projectile HOSTILE. La couleur seule ne suffit
+   pas — a 220 ennemis elle se noie, et c'est exactement le moment ou il faut
+   distinguer ce qu'on tire de ce qu'on recoit. Une forme, elle, survit a la
+   saturation : elle reste lisible en vision peripherique et pour un daltonien.
+
+   Il est trace dans l'axe de vol, comme la capsule du tir allie, et sur le meme
+   demi-grand-axe : la taille de collision ne change pas, seule la silhouette. */
+function boltDiamond(x, y, ux, uy, r) {
+  const px = -uy, py = ux;                  // normale a l'axe
+  const long = r * 2.4, wide = r * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(x + ux * long, y + uy * long);
+  ctx.lineTo(x + px * wide, y + py * wide);
+  ctx.lineTo(x - ux * long, y - uy * long);
+  ctx.lineTo(x - px * wide, y - py * wide);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* `diamond` choisit la silhouette : capsule ronde pour le tir allie, losange
+   pour le tir hostile. Un parametre et non deux fonctions — le halo, la
+   trainee, la deduction de direction et la purge des tables sont communs, et
+   les dupliquer les aurait fait diverger au premier reglage. */
+function drawBolt(b, r, col, trail, diamond = false) {
   const prev = trail.get(b.id);
   trail.set(b.id, { x: b.x, y: b.y });
 
@@ -2855,6 +3004,15 @@ function drawBolt(b, r, col, trail) {
     const d = Math.hypot(dx, dy);
     if (d > 0.5) {
       const ux = dx / d, uy = dy / d;
+      if (diamond) {
+        // La copie en arriere d'abord, sous le corps : elle donne le sens du vol
+        // sans qu'on ait a comparer deux images.
+        ctx.globalAlpha = 0.3;
+        boltDiamond(b.x - ux * r * 3, b.y - uy * r * 3, ux, uy, r * 0.7);
+        ctx.globalAlpha = 1;
+        boltDiamond(b.x, b.y, ux, uy, r);
+        return;
+      }
       // La copie en arriere : un seul cran, et a 30 % — deux crans donnaient un
       // chapelet de perles au lieu d'une trainee.
       ctx.globalAlpha = 0.3;
@@ -2878,6 +3036,11 @@ function drawBolt(b, r, col, trail) {
       return;
     }
   }
+  /* Premiere image d'un projectile : la direction n'est pas encore connue (elle
+     se deduit de l'image precedente). Le losange se trace alors dans l'axe
+     horizontal — une pastille ronde ici aurait fait clignoter la forme d'une
+     image sur l'autre, ce qui est pire que pas de distinction du tout. */
+  if (diamond) { boltDiamond(b.x, b.y, 1, 0, r); return; }
   ctx.beginPath();
   ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
   ctx.fill();
@@ -4403,6 +4566,31 @@ function classFrame(p, pose) {
   return frameOf(`c_${id}_${pose}`);
 }
 
+/* LISERE PERMANENT DU JOUEUR — le correctif le plus rentable du lot. Rien ne
+   distinguait un personnage d'un monstre en priorite d'affichage : dans une
+   melee de 220 creatures organiques, la silhouette du joueur etait une de plus.
+
+   Ce n'est pas un `stroke` : les entites passent par `drawSprite`, qui ne rend
+   pas de chemin. C'est la SILHOUETTE BLANCHE deja cuite dans l'atlas
+   (`flash: 1`), dessinee un cran plus grande SOUS le sprite — donc un quad de
+   plus dans le meme lot, aucune nouvelle image, et le meme resultat par les deux
+   chemins de rendu. L'echelle vaut 2 px de contour pour un corps de 14 px de
+   rayon : au-dela le personnage grossit au lieu de se cerner.
+
+   Il porte l'orientation, l'etirement et l'ecrasement du sprite qu'il double :
+   un contour qui garderait ses proportions se decollerait a chaque pas. */
+const OUTLINE_SCALE = 1.16;
+
+function paintOutline(frame, x, y, angle, scaleX, scaleY, a) {
+  drawSprite(ctx, frame, x, y, {
+    angle,
+    scaleX: scaleX * OUTLINE_SCALE,
+    scaleY: scaleY * OUTLINE_SCALE,
+    flash: 1,
+    alpha: a,
+  });
+}
+
 function drawPlayers(list, tm, marks = []) {
   for (const p of list) {
     const isMe = p.id === myId;
@@ -4411,8 +4599,12 @@ function drawPlayers(list, tm, marks = []) {
     const col = colorOf(p.id);
 
     if (p.downed) {
+      const ang = Math.atan2(p.aimY, p.aimX);
+      // Un cran plus discret a terre : le personnage n'agit plus, mais il faut
+      // toujours pouvoir le trouver pour aller le relever.
+      paintOutline(classFrame(p, "down"), x, y, ang, 1, 1, 0.45);
       drawSprite(ctx, classFrame(p, "down"), x, y,
-        { angle: Math.atan2(p.aimY, p.aimX), tint: COMBAT.downed });
+        { angle: ang, tint: COMBAT.downed });
 
       ctx.strokeStyle = COMBAT.downed;
       ctx.lineWidth = 1;
@@ -4489,12 +4681,16 @@ function drawPlayers(list, tm, marks = []) {
       const moving = playerMoving(p.id, x, y);
       const teinte = dashing ? FX.flash
         : ((p.skillFlags & SKILL_HEAL_MODE) ? CLASS_COLOR.soigneur : col);
-      drawSprite(ctx, classFrame(p, moving ? "move" : "idle"), x, y, {
-        angle: Math.atan2(p.aimY, p.aimX),
-        // Etirement dans l'axe du deplacement : 6 %, comme les creatures.
-        scaleX: moving ? 1.06 : 1,
-        scaleY: moving ? 0.96 : 1,
-        tint: teinte,
+      const frame = classFrame(p, moving ? "move" : "idle");
+      const ang = Math.atan2(p.aimY, p.aimX);
+      // Etirement dans l'axe du deplacement : 6 %, comme les creatures.
+      const sx = moving ? 1.06 : 1;
+      const sy = moving ? 0.96 : 1;
+      // Pas de lisere pendant l'esquive : le personnage est DEJA blanc, le
+      // contour n'y ajouterait qu'un pate de deux pixels.
+      if (!dashing) paintOutline(frame, x, y, ang, sx, sy, 0.9);
+      drawSprite(ctx, frame, x, y, {
+        angle: ang, scaleX: sx, scaleY: sy, tint: teinte,
       });
 
       // bouclier : arc d'autant plus complet que la reserve est pleine, colle

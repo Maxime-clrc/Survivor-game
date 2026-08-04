@@ -23,6 +23,7 @@ import {
   MECH_EXAFLARE, MECH_BAIT, MECH_DRIFT, MECH_SANCTUARY, MECH_SLIP,
   MECH_QUADRANT, MECH_CROSS, MECH_CONVERGE, MECH_DODGE,
   MECH_SHRINK, MECH_PUDDLE, MECH_SAFE,
+  MECH_BREATH, MECH_BROOD, MECH_REVERSE, MECH_SWAP,
   BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME,
 } from "./bosses.js";
 
@@ -308,13 +309,17 @@ export const CFG = {
   BOSS_GROWTH: 0.06,
   BOSS_PHASE_CD_STEP: 0.09,  // le rythme se resserre a chaque barre brisee
   BOSS_PHASE_DAMAGE_STEP: 0.14,
-  /* Souffle de rupture de barre. Il ne DEPLACE plus : il annonce et il blesse.
-     Un teleport de 260 px depassait le seuil de recalage de la prediction
-     locale (90 px), donc chaque changement de phase se voyait comme un
-     arrachement — et il arrivait 110 ms avant l'image qui l'explique. Le rayon
-     n'est plus qu'une taille d'onde a l'ecran. */
+  /* Souffle de rupture de barre. Il ne DEPLACE plus, et il NE BLESSE PLUS. Le
+     deplacement d'abord : un teleport de 260 px depassait le seuil de recalage
+     de la prediction locale (90 px), donc chaque changement de phase se voyait
+     comme un arrachement — et il arrivait 110 ms avant l'image qui l'explique.
+     Les degats ensuite (lot A) : casser une barre est une reussite, et 18 points
+     multiplies par la difficulte et par la Vulnerabilite en cours en faisaient
+     une taxe, cinq fois par combat et pour les cinq boss. Ce qui reste est une
+     recompense — les projectiles s'effacent, le boss respire une seconde et
+     demie — et une variante par boss, cf. `_bossBreak`. Le rayon n'est plus
+     qu'une taille d'onde a l'ecran. */
   BOSS_BREAK_RADIUS: 572,
-  BOSS_BREAK_DAMAGE: 18,
 
   ZONE_WARN: 1.4,
   ZONE_RADIUS: 74,
@@ -389,6 +394,48 @@ export const CFG = {
 };
 
 export const PLAYER_COLORS = ["#6fe3a0", "#5ab6f0", "#d98cf0", "#f0a95a"];
+
+/* --- provenance des degats subis -----------------------------------------------
+
+   Quand on perd 40 PV, rien n'indiquait si c'etait un contact, un projectile,
+   une zone, une mecanique ou une brulure. C'est la principale raison pour
+   laquelle on ne comprend pas ses morts : on voit un chiffre rouge et une barre
+   qui tombe, jamais ce qui vient de la vider.
+
+   `_hurt()` recevait deja tous les appels : il suffisait de lui passer une
+   source. Le registre est donc un TABLEAU ORDONNE dont l'index circule dans le
+   snapshot (fin du tuple joueur) — meme invariant que STATUSES, MECHS et
+   POWERUP_TYPES : ne jamais inserer au milieu, ajouter a la fin.
+
+   CINQ sources et non six. Le plan en annoncait une sixieme, « souffle », pour
+   la rupture de barre de boss : le meme lot vient justement de lui retirer ses
+   degats (cf. `_bossBreak`), et plus rien du jeu n'inflige de souffle a un
+   joueur. Une entree toujours nulle dans un registre partage est du poids mort
+   qu'on paie a chaque relecture — elle s'ajoutera EN FIN le jour ou une
+   mecanique en aura besoin.
+
+   `label` est vu par le joueur (bilan de fin), il porte donc les accents ; `key`
+   est un identifiant et n'en a pas. */
+export const SRC_CONTACT = 0;
+export const SRC_SHOT = 1;
+export const SRC_ZONE = 2;
+export const SRC_MECH = 3;
+export const SRC_BURN = 4;
+
+export const DAMAGE_SOURCES = [
+  { key: "contact",    label: "contact" },
+  { key: "projectile", label: "projectile" },
+  { key: "zone",       label: "zone au sol" },
+  { key: "mech",       label: "mécanique" },
+  { key: "burn",       label: "brûlure" },
+];
+
+/* Les options d'un echec de mecanique, ecrites UNE FOIS. Trois appels les
+   passaient a l'identique et les recopier trois fois etait la maniere la plus
+   sure de les faire diverger — c'est le plafond « ne tue jamais un joueur a
+   pleine vie » qui est en jeu, et un `mech: true` oublie le supprime en
+   silence. L'objet est constant et partage : `_hurt` ne le modifie pas. */
+const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
 
 /* Difficultes. Tout passe par des multiplicateurs sur la courbe de pression,
    qui vit desormais dans CFG : rien n'est duplique, et un reglage ajuste
@@ -840,6 +887,19 @@ export class GameState {
       twinCd: 0,           // recharge d'application d'etat des Jumeaux
       trail: [],           // [{t, x, y}], borne a BAIT_LAG secondes
       mechFails: 0,        // pour la campagne de mesure
+
+      /* --- provenance des degats subis (lot A) -------------------------------
+         `lastSrc` est la derniere source encaissee : elle traverse le reseau
+         pour que le chiffre rouge porte son icone. Elle n'est jamais remise a
+         zero — le client ne la lit qu'a l'instant ou les PV baissent, donc une
+         valeur perimee n'est jamais consultee, et la remettre a zero aurait
+         coute un champ de plus a ecrire soixante fois par seconde.
+         `hurtBy` cumule la manche entiere, par source. Il reste cote serveur et
+         ne sort qu'au bilan : c'est la ou l'on comprend ses morts, et c'est
+         aussi le meilleur outil d'equilibrage du depot — il dit si une
+         mecanique tue ou si c'est la horde. */
+      lastSrc: SRC_CONTACT,
+      hurtBy: DAMAGE_SOURCES.map(() => 0),
     };
 
     this.players.set(id, p);
@@ -1360,10 +1420,20 @@ export class GameState {
            et cumuler les deux sur le meme bouton l'aurait rendue permanente. */
         p.cd1 = SKILL_CFG.TANK_BULWARK_CD * p.mods.skillCdMul;
         p.skillUses[0]++;
-        const r = SKILL_CFG.TANK_BULWARK_RADIUS * p.mods.bulwarkRadiusMul;
-        const life = SKILL_CFG.TANK_BULWARK_TIME + p.mods.bulwarkTime;
+        /* Deux remparts pour un seul bouton, et c'est « Ancrage » qui tranche :
+           celui qui SUIT le tank (defaut) et celui qu'on POSE (la carte). Le
+           choix est fait a la pose et grave sur l'entite : le relire a chaque
+           image aurait fait bouger un rempart deja pose le jour ou une carte
+           arrive en cours de manche. */
+        const anchor = p.mods.bulwarkAnchor > 0;
+        const r = (anchor ? CARD_CFG.ANCRAGE_RADIUS : SKILL_CFG.TANK_BULWARK_RADIUS)
+          * p.mods.bulwarkRadiusMul;
+        const life = (anchor ? CARD_CFG.ANCRAGE_TIME : SKILL_CFG.TANK_BULWARK_TIME)
+          + p.mods.bulwarkTime;
         this.bulwarks.push({
           id: this._nextId++, x: p.x, y: p.y, r, life, max: life, owner: p.id,
+          anchor: anchor ? 1 : 0,
+          rate: anchor ? CARD_CFG.ANCRAGE_SHIELD_MUL : 1,
           /* Purge a l'entree, UNE FOIS par joueur et par pose : sans cette
              memoire, rester dans la zone purgeait un etat par image et le
              rempart remplacait le soigneur a lui seul. Elle donne une raison de
@@ -1613,14 +1683,25 @@ export class GameState {
 
   _skills(dt) {
     /* Remparts. Le bouclier se donne par seconde passee dedans et non d'un
-       coup a la pose : la zone recompense l'immobilite dans un jeu qui la
-       punit, et la horde converge exactement la — c'est toute la tension de la
-       competence, la retirer en donnant le bouclier a l'entree la viderait. */
+       coup a la pose : la horde converge exactement la, et donner le bouclier a
+       l'entree aurait fait du bouton un soin instantane.
+
+       LE REMPART SUIT SON TANK, sauf s'il est ancre. La version figee ne
+       survivait pas a l'usage : le tank qui va chercher la horde pour la ramener
+       est celui qui ne peut jamais rester dans sa propre zone, et ses allies
+       n'ont aucune raison de tenir un disque au milieu de l'arene. Le suivi est
+       une simple recopie de position — l'entite reste une entite du monde, avec
+       son identifiant, sa duree et son ensemble de purges, et le client n'a rien
+       de nouveau a lire : il dessine deja la position transmise.
+       Un proprietaire deconnecte ou a terre laisse le rempart ou il est : la
+       zone posee par un tank qui vient de tomber est exactement ce qui permet a
+       l'equipe de le relever. */
     const kept = [];
     for (const bw of this.bulwarks) {
       bw.life -= dt;
       const owner = this.players.get(bw.owner);
-      const gain = SKILL_CFG.TANK_BULWARK_SHIELD_RATE * dt;
+      if (!bw.anchor && owner && !owner.downed) { bw.x = owner.x; bw.y = owner.y; }
+      const gain = SKILL_CFG.TANK_BULWARK_SHIELD_RATE * (bw.rate ?? 1) * dt;
 
       for (const p of this.players.values()) {
         if (p.downed) continue;
@@ -3115,8 +3196,21 @@ export class GameState {
 
      Le souffle ne DEPLACE pas les joueurs : un joueur qu'on repousse pendant
      qu'il esquive une zone se fait tuer par un evenement qu'il n'a aucun moyen
-     de jouer, et le recalage sec de la prediction rendait le tout illisible. Il
-     reste lisible et couteux — onde, respiration du boss, degats. */
+     de jouer, et le recalage sec de la prediction rendait le tout illisible.
+
+     ELLE NE FAIT PLUS DE DEGATS (lot A). C'etait la meme ligne cinq fois par
+     combat, pour les cinq boss, et elle PUNISSAIT une reussite : le joueur qui
+     casse une barre encaissait 18 points de degats multiplies par la difficulte
+     et par sa Vulnerabilite en cours. Le souffle seul suffit a marquer le
+     changement de phase — il efface les projectiles en vol et releve
+     `attackCd`, donc il ouvre une fenetre de respiration au lieu de la fermer.
+
+     Et elle est DECLINEE PAR BOSS, selon son verbe. Une variante par boss et
+     non une variante par effectif : c'est le meme principe que `adaptMech`, et
+     la duplication qu'on refuse est celle des combats, pas celle des
+     evenements. Chacune s'annonce par le canal d'alerte — une variante qui ne
+     s'annonce pas surprend au lieu d'informer, ce qui est precisement ce qu'on
+     reproche a une mecanique punitive. */
   _bossBars(b) {
     const broken = Math.min(b.bars - 1, Math.floor((b.maxHp - b.hp) / b.barHp));
     while (b.phase < broken) {
@@ -3132,10 +3226,89 @@ export class GameState {
         kind: 6,
       });
 
-      for (const p of this.players.values()) {
-        if (p.downed) continue;
-        this._hurt(p, CFG.BOSS_BREAK_DAMAGE);
+      this._bossBreak(b);
+      // Le boss peut mourir dans sa propre rupture (deux barres traversees dans
+      // la meme image, derniere barre incluse) : `_bossBreak` lit `this.boss2`,
+      // qui a pu disparaitre entre deux tours de boucle.
+      if (!this.boss) return;
+    }
+  }
+
+  /* La variante de rupture, par boss. Extraite pour que `_bossBars` reste le
+     squelette partage — cinq barres, une couche de repertoire par barre — et que
+     l'ecart entre les cinq combats tienne en un seul `switch`. */
+  _bossBreak(b) {
+    switch (b.kind) {
+      /* Matriarche : elle PRODUIT, c'est tout son verbe. Une nuee hors budget de
+         vague, exactement comme ses renforts ordinaires : la barre rompue ne
+         doit pas se payer sur le budget de la vague en cours, mais les rejetons
+         comptent bien pour « arene vide ». Le plafond d'arene est respecte —
+         sans lui, une derniere barre cassee arene pleine ne faisait rien
+         apparaitre et l'annonce mentait. */
+      case BOSS_MATRIARCHE: {
+        for (let i = 0; i < BOSS_CFG.BROOD_COUNT; i++) {
+          if (this.enemies.length >= CFG.MAX_ENEMIES) break;
+          const a = Math.random() * Math.PI * 2;
+          this._spawnEnemy(1, b.x + Math.cos(a) * 130, b.y + Math.sin(a) * 130);
+        }
+        this._alert(MECH_BROOD, 2);
+        return;
       }
+
+      /* Metronome : il n'attaque pas, il occupe l'espace — donc on renverse
+         l'espace. Toutes les zones EN COURS repartent dans l'autre sens : les
+         disques a la derive, les sanctuaires qui glissent, les exaflares deja
+         posees. Le joueur qui avait lu le motif doit le relire, ce qui est
+         exactement la question que ce combat pose.
+         Les zones qui POURSUIVENT un joueur (`follow`) en sont exclues : une
+         poursuite inversee devient une fuite, c'est-a-dire plus rien. */
+      case BOSS_METRONOME: {
+        let n = 0;
+        for (const z of this.zones) {
+          if (z.follow) continue;
+          if (!z.vx && !z.vy) continue;
+          z.vx = -z.vx; z.vy = -z.vy;
+          n++;
+        }
+        // On n'annonce que s'il y avait quelque chose a inverser : une consigne
+        // qui ne correspond a rien a l'ecran est pire que pas de consigne.
+        if (n > 0) this._alert(MECH_REVERSE, 2);
+        else this._alert(MECH_BREATH, 2);
+        return;
+      }
+
+      /* Oracle : il regarde, il ordonne, il ne touche pas. Sa rupture est donc
+         la seule qui laisse une TRACE durable, et c'est un cumul de
+         Vulnerabilite a toute l'equipe — la monnaie de sanction de tout le jeu.
+         Elle passe par `_applyStatus`, point de passage unique, donc la
+         Sentence en equipe sans soigneur et la duree d'etat des cartes sont
+         respectees sans qu'on y pense. Le Miasme dit deja cette phrase : on
+         reutilise son annonce plutot que d'en ecrire une seconde. */
+      case BOSS_ORACLE: {
+        for (const p of this._alivePlayers()) {
+          this._applyStatus(p, STATUS_VULN, BOSS_CFG.MECH_VULN);
+        }
+        this._alert(MECH_MIASMA, 0);
+        return;
+      }
+
+      /* Jumeaux : leur verbe est la separation. Ils echangent leurs places, donc
+         l'equipe qui venait de se repartir entre les deux se retrouve du mauvais
+         cote. C'est le renversement le moins couteux du roster — deux positions
+         permutees — et le plus lisible : la teinte dit lequel on avait devant
+         soi, elle vient de traverser l'arene. */
+      case BOSS_JUMEAUX: {
+        if (!this.boss2) return;
+        const x = b.x, y = b.y;
+        b.x = this.boss2.x; b.y = this.boss2.y;
+        this.boss2.x = x; this.boss2.y = y;
+        this._alert(MECH_SWAP, 2);
+        return;
+      }
+
+      // Ravageur, et repli de tout boss ajoute plus tard : le souffle seul.
+      default:
+        this._alert(MECH_BREATH, 2);
     }
   }
 
@@ -3365,7 +3538,7 @@ export class GameState {
   _mechHit(p, ratio = 1) {
     if (!p || p.downed) return;
     p.mechFails++;
-    this._hurt(p, this._mechDamage(p) * ratio, true, false, false, true);
+    this._hurt(p, this._mechDamage(p) * ratio, MECH_HURT);
     this._applyStatus(p, STATUS_VULN, BOSS_CFG.MECH_VULN);
   }
 
@@ -3435,7 +3608,7 @@ export class GameState {
     if (inside.length <= 1) { this._mechHit(carrier); return; }
     const share = 1 / inside.length;
     for (const p of inside) {
-      this._hurt(p, this._mechDamage(p) * share, true, false, false, true);
+      this._hurt(p, this._mechDamage(p) * share, MECH_HURT);
     }
   }
 
@@ -3632,7 +3805,7 @@ export class GameState {
       // Letal au centre : au-dela de 85 % de la sanction on passe par le meme
       // chemin qu'un echec franc, cumul de Vulnerabilite compris.
       if (ratio >= 0.85) this._mechHit(p, ratio);
-      else this._hurt(p, this._mechDamage(p) * ratio, true, false, false, true);
+      else this._hurt(p, this._mechDamage(p) * ratio, MECH_HURT);
     }
   }
 
@@ -3862,8 +4035,9 @@ export class GameState {
         if (!a || !c || a.downed || c.downed) { m.dead = true; return; }
         m.x = (a.x + c.x) / 2; m.y = (a.y + c.y) / 2;
         if ((a.x - c.x) ** 2 + (a.y - c.y) ** 2 >= m.r * m.r) { m.dead = true; return; }
-        this._hurt(a, BOSS_CFG.LINK_DPS * dt, true, false, true);
-        this._hurt(c, BOSS_CFG.LINK_DPS * dt, true, false, true);
+        const lien = { ignoreCooldown: true, overTime: true, src: SRC_MECH };
+        this._hurt(a, BOSS_CFG.LINK_DPS * dt, lien);
+        this._hurt(c, BOSS_CFG.LINK_DPS * dt, lien);
         break;
       }
       case MECH_JAIL: {
@@ -4674,7 +4848,7 @@ export class GameState {
          0,55 s quatre fois par seconde et rendait sa victime immunisee a tout
          le reste — le contact, les tirs, les autres zones. On mourait en
          securite dans une flaque. C'est exactement le bug de la brulure. */
-      this._hurt(p, dmg, true, true, overTime);
+      this._hurt(p, dmg, { ignoreCooldown: true, fromZone: true, overTime, src: SRC_ZONE });
     }
   }
 
@@ -4850,7 +5024,10 @@ export class GameState {
            ennemis : a un degat par demi-seconde on voyait la barre de vie sauter
            et l'etat passait pour un bug d'affichage. `overTime` empeche qu'elle
            ne pose un temps d'invincibilite a chaque image — voir `_hurt`. */
-        if (id === STATUS_BURN) this._hurt(p, STATUS_CFG.BURN_DPS * dt, true, false, true);
+        if (id === STATUS_BURN) {
+          this._hurt(p, STATUS_CFG.BURN_DPS * dt,
+            { ignoreCooldown: true, overTime: true, src: SRC_BURN });
+        }
 
         if (this.time < st.until) continue;
         p.statuses.delete(id);
@@ -4908,7 +5085,22 @@ export class GameState {
      avec `ignoreCooldown` seul, une brulure de cinq secondes remettait
      `hitCd` a 0,55 s soixante fois par seconde et rendait sa victime immunisee
      a tout le reste : le contact, les tirs, les zones. On brulait en securite. */
-  _hurt(p, amount, ignoreCooldown = false, fromZone = false, overTime = false, mech = false) {
+  /* SAC D'OPTIONS et non plus cinq booleens positionnels. Le lot A ajoute une
+     sixieme information — la PROVENANCE — et `_hurt(p, d, true, false, false,
+     true)` etait deja illisible au point d'appel : on ne savait plus lequel des
+     `false` etait la zone. Un sac coute une allocation par degat subi, soit
+     quelques dizaines par seconde au pire (les degats INFLIGES, qui se comptent
+     par centaines, passent par `_damage` et ne changent pas) : c'est le seul
+     endroit du depot ou la lisibilite valait ce prix-la.
+
+     `src` a une valeur par defaut et non pas d'obligation : un appel qui
+     l'oublie compte en contact, ce qui est le cas majoritaire — et non une
+     source « inconnue » de plus dans le registre, qui n'apprendrait rien a
+     personne et n'aurait jamais ete corrigee. */
+  _hurt(p, amount, {
+    ignoreCooldown = false, fromZone = false, overTime = false, mech = false,
+    src = SRC_CONTACT,
+  } = {}) {
     if (!p || p.downed) return;
     // L'esquive traverse tout, y compris ce qui ignore le temps d'invincibilite
     // normal : c'est la seule reponse possible aux zones du boss.
@@ -4970,6 +5162,20 @@ export class GameState {
       amount = Math.min(amount, p.hp - 1);
       if (amount <= 0) return;
     }
+
+    /* PROVENANCE. Relevee ICI et nulle part ailleurs, comme le multiplicateur de
+       difficulte et la Vulnerabilite : apres tous les multiplicateurs et apres
+       le plafond de mecanique, donc sur le montant qui atteint reellement le
+       joueur — bouclier compris, puisqu'un bouclier consomme est bien du degat
+       encaisse.
+       Deux destinations, et deux couts differents : `lastSrc` traverse le reseau
+       (un nombre par joueur et par instantane, soit quatre au total) pour que le
+       chiffre rouge porte son icone ; `hurtBy` reste dans la simulation et ne
+       sort qu'au bilan de fin, ou il est aussi un excellent outil
+       d'equilibrage — c'est lui qui dira si une mecanique tue ou si c'est le
+       contact. */
+    p.lastSrc = src;
+    p.hurtBy[src] += amount;
 
     // Le bouclier encaisse d'abord, jusqu'a epuisement de sa reserve
     if (p.shield > 0) {
@@ -5210,7 +5416,7 @@ export class GameState {
       for (const e of this.enemies) {
         const rr = e.r + CFG.PLAYER_RADIUS;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
-          this._hurt(p, ENEMY_TYPES[e.type].dmg);
+          this._hurt(p, ENEMY_TYPES[e.type].dmg, { src: SRC_CONTACT });
           /* Les elites appliquent leur etat AU CONTACT. C'est ce qui leur donne
              enfin une raison d'etre traitees en priorite plutot que contournees.
              La recharge par elite existe parce qu'une elite collee a sa cible
@@ -5230,7 +5436,7 @@ export class GameState {
       for (const boss of this._bossTargets()) {
         const rr = CFG.BOSS_RADIUS + CFG.PLAYER_RADIUS;
         if ((p.x - boss.x) ** 2 + (p.y - boss.y) ** 2 > rr * rr) continue;
-        this._hurt(p, CFG.BOSS_CONTACT_DAMAGE);
+        this._hurt(p, CFG.BOSS_CONTACT_DAMAGE, { src: SRC_CONTACT });
         /* Jumeaux : chacun applique SON etat au contact — Brulure d'un cote,
            Entrave de l'autre. Porter les deux fait exploser (voir `_twins`),
            c'est ce qui interdit de les traiter ensemble. La recharge est celle
@@ -5254,7 +5460,7 @@ export class GameState {
         if (p.downed) continue;
         const rr = CFG.PLAYER_RADIUS + CFG.SHOT_RADIUS;
         if ((p.x - s.x) ** 2 + (p.y - s.y) ** 2 <= rr * rr) {
-          this._hurt(p, CFG.SHOT_DAMAGE);
+          this._hurt(p, CFG.SHOT_DAMAGE, { src: SRC_SHOT });
           hit = true;
           break;
         }
@@ -5627,6 +5833,14 @@ export class GameState {
            un allie, et sans lui elle aurait affiche un tiret au moment ou l'on
            veut justement comprendre qui porte l'equipe. */
         Math.round(p.damageDealt),
+        /* PROVENANCE du dernier degat encaisse. En fin de tableau comme tout le
+           reste, et c'est le seul moyen de la connaitre : le client deduit les
+           degats subis d'une variation de PV, ce qui ne dit jamais d'ou ils
+           viennent. Un nombre par joueur, soit quatre par instantane, la ou la
+           liste d'ennemis en compte seize cents — et sans lui on continue de
+           mourir sans comprendre pourquoi, ce qui est le defaut de lisibilite le
+           plus cher du jeu. */
+        p.lastSrc,
       ]),
       /* Le rang d'elite voyage dans le champ de type (+100) : un drapeau separe
          aurait coute un nombre de plus sur chacun des 200 ennemis. Le marquage
@@ -5652,10 +5866,27 @@ export class GameState {
       e: this.enemies.map(e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
                                 e.type + (e.elite ? 100 : 0) + (e.straggler ? 200 : 0),
                                 r2(e.ang), e.hitSeq], 7)),
-      // Quatrieme element : projectile de soin. Ajout en fin de tuple, repli 0
-      // cote client — la balle reste dessinee, simplement dans la couleur du
-      // tir normal sur un onglet reste en arriere.
-      b: this.bullets.map(b => [b.id, r1(b.x), r1(b.y), b.heal > 0 ? 1 : 0]),
+      /* Quatrieme element : projectile de soin. Ajout en fin de tuple, repli 0
+         cote client — la balle reste dessinee, simplement dans la couleur du
+         tir normal sur un onglet reste en arriere.
+
+         CINQUIEME element, ajout en fin de tuple (lot A) : le PROPRIETAIRE. Le
+         depot avait jusqu'ici refuse de le transmettre, et la raison etait
+         bonne — un champ de plus sur quatre cents balles en vol, vingt fois par
+         seconde. Ce qui a change, c'est ce qu'on en fait : ce n'etait qu'un
+         chiffre de degats a attribuer (ce que `bd` resout cote boss sans rien
+         payer par balle), c'est maintenant la LISIBILITE du tir. Deux ambres
+         voisins pour le tir allie et le tir hostile rendaient l'ecran illisible
+         a 220 ennemis, et aucune deduction locale ne peut retrouver le tireur.
+
+         Le cout est MESURE et non estime : +5,4 % de poids d'instantane dans le
+         pire cas (arene pleine, 400 balles en vol, quatre joueurs) et +2,0 % en
+         moyenne sur une manche a quatre — sous le budget de 10 % du depot, et du
+         meme ordre que `hitSeq` (+6,2 %). Les chiffres sont au LISEZMOI.
+         C'est un entier court — les identifiants de joueur vont de 1 a 4 — la ou
+         un tuple d'ennemi en coute huit. `trimTail` ne s'y applique pas : un
+         proprietaire nul est justement le cas qu'on veut distinguer. */
+      b: this.bullets.map(b => [b.id, r1(b.x), r1(b.y), b.heal > 0 ? 1 : 0, b.owner]),
       s: this.shots.map(s => [s.id, r1(s.x), r1(s.y)]),
       /* Trois ajouts EN FIN de tuple (lot 5), jamais au milieu : l'ouverture
          angulaire des formes 3 et 4, le temps de persistance restant, et le

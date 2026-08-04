@@ -552,6 +552,13 @@
 
 .dmg.hurt { font-size: var(--t-l); color: var(--lethal); }
 .dmg.heal { color: var(--gain); }
+/* Le glyphe de PROVENANCE, a gauche du nombre. Il n'existe que sur les degats
+   subis : sur un chiffre inflige la provenance est evidente, c'est nous.
+   `display: flex` seulement quand il y a une icone — sinon `translate(-50%)`
+   centrerait une boite de largeur differente et les chiffres sans glyphe se
+   decaleraient de quelques pixels par rapport aux autres. */
+.dmg.hurt:has(img) { display: flex; align-items: center; gap: 3px; }
+.dmg img { display: block; width: 12px; height: 12px; }
 /* Critique : un cran plus gros que le chiffre ordinaire, en ambre. La taille
    fait autant que la couleur — le chiffre doit se distinguer au coin de l'oeil,
    sans etre lu, et un daltonien doit s'en sortir. */

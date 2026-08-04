@@ -89,9 +89,17 @@ entités.
 
 | canvas | contenu | technologie |
 |---|---|---|
-| `#cvUnder` | sol, grille, zones, télégraphes, remparts, tourelles, projectiles, marqueurs, sillage d'esquive | canvas 2D |
+| `#cvUnder` | sol, grille, zones, télégraphes, remparts, tourelles, marqueurs, sillage d'esquive | canvas 2D |
 | `#cvGl` | **entités** : monstres, joueurs, dépouilles, particules | WebGL2 (`gl.js`), vide en repli |
-| `#cv` | boss, drones, anneaux de joueur, barres, noms, lames orbitales, murs, vignettage | canvas 2D |
+| `#cv` | boss, drones, **projectiles**, anneaux de joueur, barres, noms, lames orbitales, murs, vignettage | canvas 2D |
+
+**L'ordre d'affichage du monde est imposé** : sol → zones → bonus → ennemis →
+**projectiles** → joueurs. Les projectiles étaient sous la horde, donc une balle
+disparaissait derrière le premier corps rencontré. `drawEffects` (nova, pulsar,
+ondes) reste volontairement **sous** les entités, contre la lettre de cette règle :
+une onde de 250 px de rayon dessinée par-dessus masquerait exactement les joueurs
+que le liseré vient de rendre identifiables. Une onde est un ornement de sol, un
+projectile est une entité — la ligne de partage est là.
 
 `ctx` dans `client.js` est une **variable** et non une constante : `drawWorld()`
 la bascule de `underCtx` à `overCtx` une seule fois, juste après les monstres.
@@ -129,6 +137,15 @@ Monstres, joueurs, silhouettes du salon, **particules** : tout passe par
 rentre pas dans la signature (`angle`, `scaleX`, `scaleY`, `tint`, `alpha`,
 `flash`, `additive`), c'est la **signature** qu'on étend, jamais une exception
 qu'on ouvre.
+
+**Le liseré permanent des joueurs passe par là aussi**, et c'est ce qui le rend
+gratuit : ce n'est pas un `stroke` — `drawSprite` ne rend pas de chemin — mais la
+silhouette blanche déjà cuite dans l'atlas (`flash: 1`), dessinée un cran plus
+grande **sous** le sprite. Un quad de plus dans le même lot, aucune image
+nouvelle, et le même résultat par les deux chemins de rendu. Il porte l'angle,
+l'étirement et l'écrasement du sprite qu'il double : un contour qui garderait ses
+proportions se décollerait à chaque pas. Pas de liseré pendant une esquive — le
+personnage est déjà blanc.
 
 C'est ce qui a rendu la bascule vers WebGL abordable : **le module a été réécrit
 et pas un appelant n'a bougé**. L'erreur inverse est documentée — cinq cents
@@ -266,6 +283,15 @@ ambre : sortir. Cyan : il faut y être. Blanc : ça concerne un allié. Violet :
 persistant, ça restera là après (liseré seulement — le remplissage garde la
 couleur du danger, une couleur ne dit qu'une chose).
 
+**Le tir allié porte la couleur de son tireur, le tir hostile est rouge ET
+losange.** `bullet` et `shot` étaient deux ambres voisins, le pire cas possible :
+on ne distinguait plus ce qu'on tire de ce qu'on reçoit. Le rouge franc et non un
+autre ambre parce que la quatrième couleur de joueur est un orange ; la **forme**
+en plus de la couleur parce que la couleur se perd dans le chaos et qu'un
+daltonien doit s'en sortir — même règle que pour les marqueurs posés sur un
+joueur. Le tir du soigneur garde son vert : il ne dit pas *qui* tire mais *ce
+que* le tir fait.
+
 **Les marqueurs posés sur un joueur sont des glyphes distincts en silhouette**,
 jamais différenciés par la seule couleur : un daltonien doit s'en sortir, et de
 toute façon la couleur se noie dans le chaos. La couleur ne fait que confirmer
@@ -298,6 +324,14 @@ exactement ce qu'il faut regarder.
 **Le rang d'élite et le marquage de retardataire sont encodés dans le champ de type** (`+100` et `+200`), pour ne pas payer un nombre de plus sur chacun des 200 ennemis, vingt fois par seconde. Côté client : `type = a[5] % 100`, `elite = a[5] % 200 >= 100`, `straggler = a[5] >= 200`. L'ordre du décodage compte — retirer les 200 avant de tester les 100.
 
 **Tout ce qui blesse un joueur passe par `_hurt()`**, et le multiplicateur de difficulté s'applique **là et nulle part ailleurs**. Ne pas le remultiplier aux points d'appel. Une nouvelle attaque est ainsi couverte sans qu'on y pense.
+
+**`_hurt()` prend un SAC D'OPTIONS, pas des booléens positionnels** : `{ ignoreCooldown, fromZone, overTime, mech, src }`. `_hurt(p, d, true, false, false, true)` était illisible au point d'appel — on ne savait plus lequel des `false` était la zone — et le lot A y ajoutait une sixième information. C'est le seul endroit du dépôt où une allocation par appel se justifie : les dégâts **subis** se comptent par dizaines par seconde, là où les dégâts **infligés** passent par `_damage()` et restent en positionnel. Les options d'un échec de mécanique sont écrites **une seule fois** (`MECH_HURT`) : trois appels les passaient à l'identique, et un `mech: true` oublié supprime en silence le plafond « ne tue jamais un joueur à pleine vie ».
+
+**Tout dégât subi porte une PROVENANCE** (`src`, index de `DAMAGE_SOURCES`). Elle est relevée dans `_hurt()` au point de passage unique, après tous les multiplicateurs et après le plafond de mécanique — donc sur le montant qui atteint réellement le joueur, bouclier compris. Deux destinations, deux coûts : `p.lastSrc` traverse le réseau (un nombre par joueur) pour que le chiffre rouge porte son icône, `p.hurtBy` reste dans la simulation et ne sort qu'au bilan. Un appel qui oublie `src` compte en **contact**, le cas majoritaire — jamais en source « inconnue », qui n'apprendrait rien et n'aurait jamais été corrigée. Registre à **cinq** entrées : le « souffle » du plan n'existe pas, la rupture de barre ne blesse plus.
+
+**La rupture de barre de boss ne blesse pas, et elle est déclinée par boss** (`_bossBreak`). Elle punissait une réussite, cinq fois par combat et pour les cinq boss. Une variante par **boss** et non par effectif — c'est le même principe qu'`adaptMech`, la duplication qu'on refuse est celle des combats. Chaque variante **s'annonce** par le canal d'alerte : une variante muette surprend au lieu d'informer, ce qui est exactement le reproche fait à une mécanique punitive. Le boss peut mourir dans sa propre rupture (deux barres traversées dans la même image) : tester `this.boss` après chaque tour de boucle.
+
+**Le rempart suit son tank, sauf s'il est ancré** (`bw.anchor`, carte « Ancrage »). Le choix est fait à la pose et gravé sur l'entité, jamais relu à chaque image — sinon un rempart déjà posé bougerait le jour où la carte arrive en cours de manche. Un propriétaire déconnecté ou à terre laisse le rempart où il est : la zone posée par un tank qui vient de tomber est précisément ce qui permet de le relever. Corollaire côté client : **le rempart est interpolé** (`lerpList`), comme les marqueurs — un disque de 6,5 m qui saute vingt fois par seconde sous les pieds du joueur décroche visiblement du personnage, qui est prédit à l'image.
 
 **Tout ce qui blesse un ennemi ou le boss passe par `_damage()`**, symétriquement : vol de vie, brûlure, comptage des dégâts et **compteur de touches** y sont branchés une seule fois.
 
@@ -414,13 +448,17 @@ Ajouter une entrée impose de traiter les deux côtés :
 | sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
+| provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) ; `p.hurtBy` sort au `roundEnd` | `SRC_ICON` dans `icons.js` + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
+| propriétaire d'une balle | cinquième élément du tuple `b`, ajouté **en fin** | `ownerColorOf(b.owner) ?? COMBAT.bullet` dans `drawWorld` |
+| catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
 
-Les cinq derniers registres sont **purement clients** : un son, un glyphe, une
-icône d'effet et une image de sprite ne traversent pas le réseau, ils se
-déduisent de ce que le snapshot — ou la liste de cartes, déjà diffusée — dit
-déjà. Une nouvelle mécanique ne demande donc pas d'ajouter un message :
-seulement une entrée dans `MECHS` et, si elle marque un joueur, une entrée dans
-`PLAYER_MARK`.
+Cinq de ces registres sont **purement clients** — image de sprite, son, `kind`
+d'effet → son, glyphe posé sur un joueur, effet possédé visible en jeu — auxquels
+s'ajoute la **catégorie de carte** : un son, un glyphe, une icône d'effet et une
+image de sprite ne traversent pas le réseau, ils se déduisent de ce que le
+snapshot — ou la liste de cartes, déjà diffusée — dit déjà. Une nouvelle
+mécanique ne demande donc pas d'ajouter un message : seulement une entrée dans
+`MECHS` et, si elle marque un joueur, une entrée dans `PLAYER_MARK`.
 
 **Le retour d'impact, lui, n'est PLUS déduit** : il l'était, et c'était le
 défaut. Voir `hitSeq` dans les invariants — un différentiel de PV échantillonné
@@ -429,7 +467,9 @@ tout.
 
 **Trois informations d'affichage sont DÉDUITES et non transmises**, pour la même
 raison à chaque fois : un champ de plus sur 200 ennemis ou 400 balles, vingt
-fois par seconde, coûte plus que la déduction.
+fois par seconde, coûte plus que la déduction. Le **propriétaire d'une balle**,
+lui, ne l'est plus — voir plus bas : le calcul de coût est le même, c'est l'usage
+qui a changé.
 
 - **La cadence des tireurs**, qui porte leur télégraphe de visée : on observe
   l'apparition d'un projectile près d'un tireur, la cadence est fixe, donc le
@@ -452,10 +492,13 @@ Les clés de vague et de progression (`wv`, `wp`, `wbs`, `wb`, `xl`, `xp`), les 
 
 **Deux ajouts en fin de tuple sur ce lot** : `hitSeq` sur l'ennemi (index 7) et les **dégâts cumulés** sur le joueur (index 28). Le second est le seul chiffre de la fenêtre de build que le client ne peut pas déduire, pour la même raison que `bd` — les projectiles ne portent pas leur propriétaire. Quatre nombres par instantané là où la liste d'ennemis en compte seize cents, et sans lui la fenêtre affichait un tiret au moment précis où l'on veut comprendre qui porte l'équipe.
 
-**`bd` est le seul chiffre que le client ne peut pas déduire.** Les projectiles
-ne transportent pas leur propriétaire — un identifiant de plus sur chacune des
-quatre cents balles en vol, vingt fois par seconde — donc personne ne peut
-savoir localement quels dégâts sont les siens. `_damage()` cumule dans
+**Deux ajouts en fin de tuple au lot A** : la **provenance du dernier dégât subi** sur le joueur (index 29) et le **propriétaire** sur la balle (index 4). Le second casse une décision explicite du dépôt, et il faut savoir pourquoi : le propriétaire n'était refusé que parce qu'il ne servait qu'à *attribuer des dégâts*, ce que `bd` résout côté boss sans rien payer par balle. Il sert désormais à la **lisibilité du tir** — deux ambres voisins pour le tir allié et le tir hostile rendaient l'écran illisible à 220 ennemis — et aucune déduction locale ne peut retrouver un tireur. Coût mesuré : **+5,4 %** de poids d'instantané dans le pire cas (arène pleine, 400 balles, quatre joueurs), **+2,0 %** en moyenne à quatre, sous le budget de 10 % et du même ordre que `hitSeq`. `trimTail` ne s'y applique pas : un propriétaire nul est justement le cas qu'on veut distinguer.
+
+**`bd` reste le seul chiffre AGRÉGÉ que le client ne peut pas déduire.** Les
+projectiles portent maintenant leur propriétaire, mais pas leurs dégâts — et
+c'est bien ces derniers qu'il faudrait pour savoir localement quels dégâts sont
+les siens, en plus de la part critique et du surplus sur le coup fatal.
+`_damage()` cumule dans
 `state.bossDmg` au point de passage unique, `snapshot()` l'émet, le serveur vide
 après diffusion comme il vide la file d'alertes. Chaque client n'y lit **que**
 sa propre ligne : les chiffres des autres n'apprennent rien et rempliraient
@@ -583,13 +626,46 @@ ennemis pour trois points repeint l'écran de nombres. Les dégâts **subis** so
 rouges et plus gros, les **soins** verts — sans ce dernier chiffre, le soigneur
 n'a aucun retour visible de son action.
 
+**Un dégât SUBI porte le glyphe de sa provenance, un dégât infligé non.** Sur un
+chiffre infligé la provenance est évidente — c'est nous — et un glyphe de plus à
+trois cents impacts par minute repeindrait l'écran. Le glyphe est dans la couleur
+du texte : c'est la même information, elle ne peut pas être de deux couleurs.
+
 **Sur l'écran de cartes, l'effet est la ligne la plus grosse, pas le nom.** C'est
 ce qu'on compare en trente secondes ; le nom ne sert qu'à reconnaître la carte
 une fois prise. Une icône par **famille** et non par carte : cinq glyphes
 s'apprennent, soixante ne se lisent jamais.
 
+**Une carte dit sa CATÉGORIE et son RANG dans la build** (« zone · 3ᵉ carte de
+zone »). Sans ça, chaque tirage se lit isolément et la build se construit par
+accident — le joueur qui a six cartes offensives et zéro défensive ne s'en aperçoit
+qu'au tableau de fin. Ne pas confondre avec les **familles** : une famille est un
+axe sur quatre paliers de rareté et c'est une règle de *tirage* ; une catégorie
+couvre les 107 cartes et ne sert qu'à l'*affichage*. Elle est **déduite des `tags`**
+(`cardCategory()`, point de passage unique) plutôt que recopiée sur tout le
+catalogue, avec un `cat` explicite pour les seules cartes de zone. L'ordre de
+priorité compte : `coop` → soutien, puis `off`, puis `def`, sinon utilitaire — on
+nomme la carte par ce qui la rend remarquable, pas par sa première lettre de tag.
+
+**Les cinq couleurs de catégorie reprennent la grammaire fonctionnelle**, et
+l'offensif y est **rouge**. C'est la seule dérogation à « jamais de rouge pour
+quelque chose où il faut aller », et elle est bornée : la règle porte sur
+l'**arène**, où une erreur de code couleur coûte une mort. Sur un panneau de choix
+hors combat, le rouge ne désigne pas un endroit, il nomme la seule famille d'effet
+que la grammaire appelle « dégâts ». Ne pas étendre cette dérogation au monde.
+
 **Le bilan de fin de manche et le salon sont deux écrans.** Tant que le salon
 suivant était affiché dessous, personne ne lisait son bilan.
+
+**Le bilan titre sur la VAGUE atteinte, pas sur le numéro de manche.** `roundNumber`
+s'incrémentait correctement — ce n'était jamais un bug de compteur — mais l'unité
+de jeu est devenue la vague, et « Manche 1 terminée » après douze vagues se lit
+comme un compteur cassé. Le numéro de manche descend avec les autres chiffres.
+Il porte aussi la **répartition des dégâts subis** par provenance, agrégée sur
+l'**équipe** et non par joueur : cinq colonnes de plus dans le tableau des scores
+l'auraient rendu illisible à quatre, alors que la question — « qu'est-ce qui nous a
+tués » — se pose au collectif. Rien ne s'affiche si personne n'a rien pris : une
+rangée de zéros n'est pas une information.
 
 **La fenêtre de build est UN écran pour trois entrées** : Tab en jeu, un clic
 sur une ligne du bilan, un clic sur une ligne du salon. Deux fenêtres qui

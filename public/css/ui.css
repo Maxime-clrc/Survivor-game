@@ -448,6 +448,28 @@ td.cards { text-align: left; max-width: 420px; }
 }
 .cardFamily { color: var(--text-faint); }
 
+/* CATEGORIE ET RANG DANS LA BUILD. Une ligne de plus, et c'est celle qui dit
+   « qu'est-ce que j'ai deja empile » — la seule information que l'ecran ne
+   donnait pas et qu'on ne peut pas reconstituer de tete en trente secondes.
+
+   La pastille de couleur porte la grammaire fonctionnelle, la couleur est donc
+   posee en ligne depuis `palette.js` : cinq classes CSS de plus auraient recopie
+   cinq couleurs que la charte tient deja. Le rang reste en teinte neutre — c'est
+   un chiffre, pas un signal, et deux couleurs sur la meme ligne se seraient
+   concurrencees. */
+.cardCat {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3) var(--sp-3);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+}
+/* Un carre et non un disque : le seul cercle du jeu est une entite vivante. */
+.catDot { width: 7px; height: 7px; flex: 0 0 auto; }
+.catName { text-transform: uppercase; font-weight: 700; }
+.catRank { margin-left: auto; color: var(--text-dim); }
+
 /* Le corps : l'effet principal est la LIGNE LA PLUS GROSSE de la carte, pas le
    nom. C'est ce qu'on compare entre trois cartes en trente secondes. */
 .cardBody {
@@ -758,6 +780,38 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
 }
+
+/* DE QUOI L'EQUIPE EST MORTE. Des barres et non des nombres : c'est une
+   REPARTITION, et une proportion se compare a l'oeil alors que cinq nombres
+   demandent d'etre additionnes de tete. Elles restent en teinte de danger — la
+   ligne parle de degats subis, une teinte par provenance aurait fait croire a
+   cinq informations differentes. */
+#bilanHurt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+  max-width: 560px;
+}
+.hurtTitle {
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: var(--sp-1);
+}
+.hurtRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-s);
+  color: var(--text-dim);
+}
+.hurtIco { display: flex; width: 14px; height: 14px; flex: 0 0 auto; }
+.hurtLab { flex: 0 0 96px; }
+.hurtBar { flex: 1 1 auto; height: 6px; background: var(--bg-raised); }
+.hurtBar > i { display: block; height: 100%; background: var(--hud-low); }
+.hurtVal { flex: 0 0 40px; text-align: right; color: var(--text); font-weight: 700; }
 
 #bilanStats { display: flex; gap: var(--sp-12); }
 .bilanStat { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }

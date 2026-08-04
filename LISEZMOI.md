@@ -44,7 +44,11 @@ Le serveur alterne entre **salon**, **manche** et **choix de cartes**.
   tout le monde a choisi — ou au bout de 30 s, la première carte étant alors
   attribuée d'office. Deux niveaux gagnés dans la même vague donnent deux choix
   d'affilée.
-- La manche se termine quand tout le monde est à terre.
+- La manche se termine quand tout le monde est à terre. Le bilan titre sur la
+  **vague atteinte** et non sur le numéro de manche : l'unité de jeu est devenue
+  la vague, et lire « Manche 1 terminée » après en avoir enchaîné douze donnait
+  l'impression d'un compteur cassé. Le numéro de manche descend avec les autres
+  chiffres, où il est juste et sans ambiguïté.
 
 ## Commandes
 
@@ -371,9 +375,25 @@ Chaque classe a **une compétence de placement** (proactive, à anticiper) et
 **une compétence de réaction** (le bouton qu'on presse quand ça tourne mal).
 C'est ce qui évite d'avoir deux boutons redondants.
 
-- **Tank — Rempart** (8 s, recharge 20 s) : zone de 170 px qui donne du bouclier
-  à qui s'y tient. Elle récompense l'immobilité dans un jeu qui la punit, et la
-  horde converge exactement là : toute la tension est dans ce dilemme.
+- **Tank — Rempart** (8 s, recharge 20 s) : zone de 6,5 m qui **suit le tank** et
+  donne du bouclier à qui s'y tient.
+
+  Elle était **posée au sol**, et la justification d'origine — « ça récompense
+  l'immobilité dans un jeu qui la punit, donc c'est une tension intéressante » —
+  n'a pas tenu à l'usage. Ce n'était pas une tension, c'était inutilisable : le
+  tank qui va chercher la horde pour la ramener est précisément celui qui ne peut
+  jamais rester dedans, et ses alliés n'avaient aucune raison de tenir un disque
+  au milieu de l'arène. Le rayon tombe donc de 8,5 m à 6,5 m — une zone qui suit
+  vaut bien plus qu'une zone posée, et la garder à 170 px aurait fait du bouton
+  une aura permanente sans aucune décision.
+
+  Mais le faire suivre **sans rien d'autre** retire au tank sa seule décision de
+  placement. La carte **Ancrage** (rare, classe Rempart) rend donc la version
+  posée à qui la veut : 11 m, 12 s, +50 % de bouclier par seconde. C'est la seule
+  carte du jeu qui change la *nature* d'une compétence au lieu d'en ajuster un
+  chiffre, et « Carapace » — le bouclier du rempart hors de sa zone — est devenue
+  sa compagne naturelle : elle ne dit plus rien du rempart de base, dont le
+  porteur est toujours dedans.
 - **Tank — Provocation** (5 s, recharge 24 s) : tous les ennemis dans 400 px
   prennent le tank pour cible ; il est invulnérable **1,2 s**, puis à −50 % de
   dégâts subis. C'est aussi la compétence qui donne enfin un sens à la
@@ -729,9 +749,9 @@ jauge affichée, et un compteur `×5` à côté qui dit combien il en reste.
 
 Une seule jauge pour 2,6 fois plus de PV avançait si lentement qu'on ne voyait
 plus ses propres dégâts. Découpée, **chaque barre est un objectif atteignable**
-(une dizaine de secondes) et sa rupture devient un évènement : souffle qui
-blesse tout le monde, projectiles effacés, respiration d'une seconde et demie,
-et une **mécanique de plus** qui s'ajoute au répertoire.
+(une dizaine de secondes) et sa rupture devient un évènement : projectiles
+effacés, respiration d'une seconde et demie, et une **mécanique de plus** qui
+s'ajoute au répertoire.
 
 Le souffle **ne déplace pas** les joueurs, et c'est un retour en arrière assumé.
 Il projetait de 260 px, soit trois fois le seuil de recalage de la prédiction
@@ -740,8 +760,31 @@ locale : le personnage était arraché de sa position au lieu d'être poussé, e
 programme pas — on la déclenche en tirant — donc un joueur au milieu d'une
 esquive de zone se faisait replacer dedans par un évènement qu'il n'avait aucun
 moyen de jouer. Un déplacement qu'on ne peut ni anticiper ni contrer n'est pas
-une difficulté. Les dégâts et l'onde restent : la rupture se voit et se paie,
-elle ne dépossède plus.
+une difficulté.
+
+**Il ne blesse plus non plus.** C'était 18 points de dégâts, multipliés par la
+difficulté et par la Vulnérabilité en cours, cinq fois par combat et pour les
+cinq boss : le jeu **punissait une réussite**. Casser une barre est désormais une
+récompense — les projectiles en vol s'effacent et le boss respire. La sanction,
+quand il en faut une, vient des mécaniques ratées, qui elles se jouent.
+
+**Et la rupture parle le verbe de son boss.** La même ligne cinq fois par combat
+pour cinq adversaires qui n'ont mécaniquement rien à voir, c'était le plus gros
+écart identité / contenu qui restait après le roster.
+
+| boss | à la rupture de barre |
+|---|---|
+| Ravageur | le souffle, seul — il nettoie l'arène |
+| Matriarche | **cinq rejetons** éclosent autour d'elle, hors budget de vague |
+| Métronome | **les motifs s'inversent** : toutes les zones mobiles repartent en sens contraire |
+| Oracle | **un cumul de Vulnérabilité** à toute l'équipe |
+| Jumeaux | **ils échangent leurs places** — l'équipe qui venait de se répartir est du mauvais côté |
+
+Chacune **s'annonce** par le canal de consigne existant. Une variante qui ne
+s'annonce pas surprend au lieu d'informer, c'est-à-dire exactement le reproche
+qu'on fait à une mécanique punitive. Les zones qui *poursuivent* un joueur sont
+exclues de l'inversion du Métronome : une poursuite inversée devient une fuite,
+donc plus rien.
 
 **Le répertoire est propre à chaque boss** — c'est ce qui change d'un combat à
 l'autre, les cinq barres et la montée en répertoire restant le squelette commun.
@@ -1036,6 +1079,45 @@ Les deux conversions se calculent sur les valeurs **de base**, relevées avant
 toute conversion : sinon « Blindage offensif » lit des PV déjà gonflés par
 « Fureur défensive », qui lit des dégâts déjà gonflés par le premier, et le
 chargement dérive un peu plus à chaque carte prise.
+
+#### Ce qu'une carte dit d'elle-même
+
+Une carte affichait son nom, sa rareté et son effet. Rien ne disait **à quelle
+catégorie elle appartient** ni **ce qu'on a déjà pris dans cette catégorie** —
+donc chaque tirage se lisait isolément, et la build se construisait par accident.
+Un joueur qui a pris six cartes offensives et zéro défensive ne s'en aperçoit
+qu'au tableau de fin, c'est-à-dire trop tard.
+
+```
+DÉFLAGRATION                              rare
+zone · 3ᵉ carte de zone
++20 % de rayon sur tous tes effets
+possédée 0 / 2  ·  rayon +8 % → +28 %
+```
+
+Cinq **catégories** couvrent le catalogue entier — offensif, défensif, soutien,
+zone, utilitaire — et reprennent la grammaire fonctionnelle du jeu (rouge, cyan,
+vert, violet, neutre) au lieu d'inventer cinq teintes de plus. L'écran de cartes
+est **hors combat**, et c'est ce qui autorise le rouge ici : la règle « jamais de
+rouge pour quelque chose où il faut aller » porte sur l'arène, où une erreur de
+code couleur coûte une mort ; sur un panneau de choix, le rouge ne désigne pas un
+endroit, il nomme la seule famille d'effet que la grammaire appelle « dégâts ».
+
+**Ne pas confondre catégorie et famille.** Une famille est un axe décliné sur
+quatre paliers de rareté et ne concerne que vingt cartes : c'est une règle de
+*tirage*. Une catégorie couvre les 107 cartes et ne sert qu'à l'*affichage*. Elle
+est **déduite des tags** existants plutôt qu'écrite cent sept fois — les tags sont
+déjà tenus à jour puisque « Résonance » compte `cadence` et « Symbiose » compte
+`def` — avec un champ explicite pour les seules cartes de zone, que les tags ne
+savent pas nommer. La priorité n'est pas arbitraire : une carte coopérative est
+d'abord du soutien même si elle protège, et une carte qui touche aux dégâts est
+offensive même si elle donne aussi des PV. On nomme la carte par ce qui la rend
+remarquable.
+
+Répartition mesurée du catalogue : **offensif 61 · défensif 25 · soutien 11 ·
+zone 7 · utilitaire 3**. Le déséquilibre est réel et c'est le catalogue qui le
+porte, pas la déduction — le rang reste informatif dans les deux sens
+(« 7ᵉ carte offensive » dit qu'on est tout-en dégâts).
 
 #### Les familles
 
@@ -1424,6 +1506,82 @@ Il secoue **le monde et pas l'interface** : la barre de vie, la barre de boss et
 le bandeau d'alerte ne bougent pas d'un pixel, sans quoi la secousse rendrait
 illisible exactement ce qu'il faut lire au moment où quelque chose explose.
 
+### D'où viennent les dégâts qu'on prend
+
+Quand on perdait 40 PV, **rien** n'indiquait si c'était un contact, un
+projectile, une zone, une mécanique ou une brûlure. C'était la principale raison
+pour laquelle on ne comprend pas ses morts : on voyait un chiffre rouge et une
+barre qui tombe, jamais ce qui venait de la vider.
+
+Tout ce qui blesse un joueur passait déjà par `_hurt()` — il suffisait de lui
+faire porter une **provenance**. Cinq sources, un glyphe chacune, affiché à
+gauche du chiffre rouge :
+
+| source | ce que c'est |
+|---|---|
+| contact | la horde et le boss au corps à corps |
+| projectile | les tirs ennemis |
+| zone au sol | tout ce qui explose ou persiste par terre |
+| mécanique | un échec de mécanique de groupe |
+| brûlure | l'état, en dégât continu |
+
+Cinq et non six : le plan en prévoyait une sixième, « souffle », pour la rupture
+de barre de boss — le même lot vient justement de lui retirer ses dégâts, et plus
+rien du jeu n'inflige de souffle à un joueur. Une entrée toujours nulle dans un
+registre partagé est du poids mort ; elle s'ajoutera **en fin** le jour où une
+mécanique en aura besoin.
+
+Le bilan de fin de partie en donne la **répartition sur l'équipe**, en barres.
+C'est accessoirement le meilleur outil d'équilibrage du dépôt : il distingue
+enfin une mécanique punitive d'une horde mal calibrée. Mesuré sur six manches de
+420 s à deux joueurs (vague 8,8 en moyenne) : **contact 78,2 % · mécanique 9,2 % ·
+zone 8,3 % · projectile 3,0 % · brûlure 1,3 %**.
+
+Coût réseau : **un nombre par joueur et par instantané**, soit quatre — la
+provenance est le seul champ du tuple joueur qu'un client ne pourrait pas
+recalculer, puisqu'une variation de PV ne dit jamais d'où elle vient.
+
+### On ne confondait plus son tir avec celui d'en face
+
+Le tir allié était `#f4d35e` et le tir ennemi `#ff9d4d` : **deux ambres
+voisins**, c'est-à-dire le pire cas possible. À 220 ennemis l'écran devenait une
+bouillie orange où on ne distinguait plus ce qu'on tire de ce qu'on reçoit.
+
+Trois correctifs, et il fallait les trois — chacun seul est insuffisant :
+
+- **Les balles prennent la couleur de leur tireur.** Les quatre couleurs de
+  joueur existaient déjà, et ça répond du même coup à « qui a tiré ça », qui
+  n'avait aucune réponse en coopératif. Le tir du soigneur garde son vert : il ne
+  dit pas *qui* tire mais *ce que* le tir fait, et c'est l'information la plus
+  utile à la table.
+- **Les projectiles ennemis passent au rouge franc** (`#ff3b5c`) et deviennent
+  des **losanges étirés** dans leur axe. Le rouge et non un autre ambre parce que
+  la quatrième couleur de joueur est un orange ; la forme parce que la couleur se
+  perd dans le chaos et qu'un daltonien doit s'en sortir.
+- **Un liseré clair permanent sur les joueurs**, et c'est le plus rentable des
+  trois : rien ne distinguait un personnage d'un monstre en priorité
+  d'affichage. Ce n'est pas un tracé — les entités passent par `drawSprite` — mais
+  la silhouette blanche déjà cuite dans l'atlas, dessinée un cran plus grande
+  sous le sprite. Un quad de plus, aucune image nouvelle, et le même résultat par
+  les deux chemins de rendu.
+
+L'ordre d'affichage devient : sol → zones → bonus → **ennemis → projectiles →
+joueurs**. Les projectiles étaient sous la horde, donc une balle disparaissait
+derrière le premier corps rencontré. Les **ondes de carte** (nova, pulsar) restent
+volontairement *sous* les entités, contre la lettre de cette règle : une onde de
+12 m de rayon dessinée par-dessus masquerait exactement les joueurs que le lot
+vient de rendre identifiables. Une onde est un ornement de sol, un projectile est
+une entité — la ligne de partage est là.
+
+Coût réseau du propriétaire de balle : **+5,4 %** de poids d'instantané dans le
+pire cas (arène pleine, 400 balles en vol, quatre joueurs) et **+2,0 %** en
+moyenne sur une manche à quatre, **+0,9 %** en solo. Du même ordre que le
+compteur de touches (+6,2 %) et sous le budget de 10 %. Le dépôt avait jusqu'ici
+refusé de transmettre le propriétaire d'une balle, et la raison était bonne : il
+ne servait qu'à attribuer des dégâts, ce que `bd` résout côté boss sans rien
+payer par balle. Ce qui a changé, c'est l'usage — la lisibilité, qu'aucune
+déduction locale ne peut retrouver.
+
 ### Grammaire de marqueurs
 
 Ce qui fait fonctionner les marqueurs n'est pas leur beauté mais leur
@@ -1592,6 +1750,32 @@ Le budget qu'on s'était fixé était de 10 %. La première version le dépassai
 c'est la mesure qui a tranché : un chiffre suffit largement, puisque le client ne
 lit qu'une différence entre deux instantanés consécutifs. Sur une campagne
 normale à un joueur, la bande passante passe de 11,0 à 11,6 Ko/s.
+
+### Les deux champs du lot de lisibilité
+
+Le **propriétaire d'une balle** et la **provenance du dernier dégât subi**. Le
+dépôt avait jusqu'ici refusé de transmettre le premier, et la raison était bonne :
+il ne servait qu'à attribuer des dégâts, ce que `bd` résout côté boss sans rien
+payer par balle. Ce qui a changé, c'est l'usage — la lisibilité du tir, qu'aucune
+déduction locale ne peut retrouver.
+
+Pire cas mesuré : arène pleine (200 ennemis, la moitié déjà touchés), **400 balles
+en vol**, 50 projectiles ennemis, quatre joueurs.
+
+| version | poids de l'instantané | hausse |
+|---|---|---|
+| avant le lot | 14 844 o | référence |
+| + provenance (4 joueurs) | 14 852 o | **+0,05 %** |
+| + propriétaire (400 balles) | 15 652 o | **+5,4 %** |
+
+Sur une manche réelle de 420 s, moyenne sur 25 200 instantanés : **+0,9 %** en
+solo (889 → 897 o), **+2,0 %** à quatre (1 834 → 1 870 o). La provenance coûte
+quatre nombres par instantané, quelle que soit la scène ; c'est la balle qui paie,
+et elle ne paie qu'en fin de manche chargée.
+
+Le total reste sous le budget de 10 % et du même ordre que le compteur de touches.
+La répartition des dégâts subis par provenance est mesurée plus haut, dans « D'où
+viennent les dégâts qu'on prend ».
 
 ### Rendu WebGL
 

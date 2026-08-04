@@ -29,7 +29,21 @@ export const SKILL_CFG = {
      Une competence de PLACEMENT (proactive, a anticiper) et une de REACTION
      (le bouton qu'on presse quand ca tourne mal). C'est la regle des trois
      classes : deux boutons de reaction auraient ete redondants. */
-  TANK_BULWARK_RADIUS: 170,
+  /* LE REMPART SUIT LE TANK. Il etait pose au sol, a `x`/`y` figes, et la
+     justification d'origine — « ca recompense l'immobilite dans un jeu qui la
+     punit, donc c'est une tension interessante » — ne tenait pas a l'usage : ce
+     n'etait pas une tension, c'etait inutilisable. Le tank qui va chercher la
+     horde pour la ramener est precisement celui qui ne peut pas rester dedans.
+
+     Le rayon tombe de 170 a 130 : une zone qui suit vaut bien plus qu'une zone
+     posee, et la garder a 170 aurait fait du bouton une aura permanente de
+     8,5 m sans aucune decision.
+
+     Mais le faire suivre SANS RIEN D'AUTRE retire au tank sa seule decision de
+     placement. D'ou la carte « Ancrage », qui rend la version posee — plus
+     grande, plus longue, meilleure regeneration — a qui la veut. Les deux
+     versions coexistent, et c'est la carte qui choisit. */
+  TANK_BULWARK_RADIUS: 130,
   TANK_BULWARK_TIME: 8,
   TANK_BULWARK_SHIELD_RATE: 12,   // points de bouclier par seconde
   TANK_BULWARK_SHIELD_CAP: 60,    // au-dela du reservoir des cartes
@@ -160,7 +174,7 @@ export const CLASSES = [
     couleur: CLASS_COLOR.tank,
     skills: [
       { nom: "Rempart", touche: "A/1",
-        desc: `zone de bouclier de ${fmtM(SKILL_CFG.TANK_BULWARK_RADIUS)} posée au sol, 8 s` },
+        desc: `zone de bouclier de ${fmtM(SKILL_CFG.TANK_BULWARK_RADIUS)} qui te suit, 8 s` },
       { nom: "Provocation", touche: "E/2",
         desc: `attire la horde dans ${fmtM(SKILL_CFG.TANK_TAUNT_RADIUS)}, invulnérable 1,2 s puis −50 %` },
     ],

@@ -327,6 +327,58 @@ export const STATUS_ICON = [
   },
 ];
 
+/* --- provenance des degats subis -----------------------------------------------
+
+   Un glyphe par entree de `DAMAGE_SOURCES` (game_state.js), dans le MEME ORDRE :
+   l'index circule dans le snapshot, une icone inseree au milieu ferait mentir
+   tous les chiffres rouges d'un coup.
+
+   Ils sont volontairement plus SIMPLES que les icones d'etat : ils apparaissent
+   a cote d'un nombre de treize pixels, pendant une demi-seconde, et se lisent
+   en vision peripherique. Un glyphe detaille a cette taille est un pate. */
+export const SRC_ICON = [
+  // Contact : deux mandibules qui se ferment. C'est la horde.
+  g => {
+    g.lineWidth = 2; g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(-5, -6); g.lineTo(-1.5, 0); g.lineTo(-5, 6);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(5, -6); g.lineTo(1.5, 0); g.lineTo(5, 6);
+    g.stroke();
+  },
+  // Projectile : le losange du tir hostile, exactement la forme qu'on voit voler.
+  g => {
+    g.beginPath();
+    g.moveTo(6.5, 0); g.lineTo(0, -3); g.lineTo(-6.5, 0); g.lineTo(0, 3);
+    g.closePath(); g.fill();
+  },
+  // Zone au sol : un disque au trait, pose a plat.
+  g => {
+    g.lineWidth = 2;
+    g.beginPath(); g.ellipse(0, 1, 6.5, 3.6, 0, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.ellipse(0, 1, 2.4, 1.3, 0, 0, Math.PI * 2); g.fill();
+  },
+  // Mecanique : le losange d'alerte. C'est le signe des annonces du boss.
+  g => {
+    g.lineWidth = 1.8;
+    g.beginPath();
+    g.moveTo(0, -6.5); g.lineTo(6.5, 0); g.lineTo(0, 6.5); g.lineTo(-6.5, 0);
+    g.closePath(); g.stroke();
+    g.fillRect(-1, -3.4, 2, 4.6);
+    g.fillRect(-1, 3, 2, 2);
+  },
+  // Brulure : la meme flamme que l'etat. Deux dessins pour la meme chose se
+  // seraient decorreles au premier reglage.
+  g => {
+    g.beginPath();
+    g.moveTo(0, -6.4);
+    g.bezierCurveTo(4.4, -1.6, 4, 5.4, 0, 5.4);
+    g.bezierCurveTo(-4, 5.4, -4.4, -1, 0, -6.4);
+    g.closePath(); g.fill();
+  },
+];
+
 /* Pose un glyphe centre sur (x, y) dans le contexte fourni. Point de passage
    unique du trace : l'arene et le HUD passent tous les deux par ici, sinon
    deux reglages de graisse de trait cohabiteraient. */

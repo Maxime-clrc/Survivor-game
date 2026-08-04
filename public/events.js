@@ -137,8 +137,13 @@ export function diffSnapshots(a, b, opts = {}) {
        sait pas s'il soigne — ses projectiles partent, ils touchent, et rien a
        l'ecran ne le confirme. C'est la seule classe du jeu dont l'action n'a
        aucun retour visible sans ce chiffre. */
+    /* La PROVENANCE, elle, ne se deduit pas : une variation de PV ne dit jamais
+       si c'est un contact, une zone ou une brulure. C'est le seul champ du
+       tuple joueur que le client ne pourrait pas recalculer, et c'est la
+       principale raison pour laquelle on ne comprenait pas ses morts. */
     if (pb.hp < pa.hp) {
-      out.push({ t: "blesse", id, x: pb.x, y: pb.y, dmg: pa.hp - pb.hp });
+      out.push({ t: "blesse", id, x: pb.x, y: pb.y, dmg: pa.hp - pb.hp,
+                 src: pb.src ?? 0 });
     } else if (pb.hp > pa.hp && !pb.downed) {
       out.push({ t: "soigne", id, x: pb.x, y: pb.y, dmg: pb.hp - pa.hp });
     }

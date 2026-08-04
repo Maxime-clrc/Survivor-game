@@ -69,6 +69,24 @@ export const SIGNAL = {
    la couleur ici. Tableau ORDONNE, l'index est la rarete. */
 export const RARITY_COLOR = ["#94a3b8", "#38bdf8", "#c084fc", "#fbbf24"];
 
+/* --- categories de carte ---------------------------------------------------
+   Elles REPRENNENT la grammaire fonctionnelle au lieu d'inventer cinq teintes
+   de plus : offensif = ce qui fait mal, defensif = ce qu'on tient, soutien = ce
+   qui rend, zone = ce qui persiste au sol, utilitaire = le reste.
+
+   L'ecran de cartes est HORS COMBAT, et c'est ce qui autorise le rouge ici : la
+   regle « jamais de rouge pour quelque chose ou il faut aller » porte sur
+   l'arene, ou une erreur de code couleur coute une mort. Sur un panneau de choix
+   le rouge ne designe pas un endroit, il nomme une famille d'effet — et c'est la
+   seule teinte de la grammaire qui veuille dire « degats ». */
+export const CARD_CATEGORY_COLOR = {
+  off:     SIGNAL.lethal,
+  def:     SIGNAL.go,
+  soutien: SIGNAL.gain,
+  zone:    SIGNAL.persist,
+  util:    TEXT.dim,
+};
+
 /* --- classes ---------------------------------------------------------------
    Couleur d'IDENTITE et non de signal : elle dit « qui », pas « quoi ». Elle
    vit ici parce que le salon, le tableau des scores et le rendu du personnage
@@ -83,13 +101,35 @@ export const CLASS_COLOR = {
 /* --- combat ----------------------------------------------------------------
    Ce qui vole et ce qui touche. Le projectile de soin est vert parce que le
    vert dit « gain » : a la table, on doit voir sans demander que le soigneur
-   ne fait plus de degats. */
+   ne fait plus de degats.
+
+   `bullet` et `shot` etaient DEUX AMBRES VOISINS (#f4d35e et #ff9d4d), et
+   c'etait le pire cas possible : a 220 ennemis on ne distinguait plus ce qu'on
+   tire de ce qu'on recoit, et l'ecran devenait une bouillie orange. Trois
+   correctifs indissociables, tous les trois necessaires :
+
+     - les balles prennent la COULEUR DE LEUR TIREUR (les quatre couleurs de
+       joueur existent deja), ce qui repond du meme coup a « qui a tire ca » ;
+     - les projectiles ennemis passent au ROUGE FRANC. Le rouge et non un autre
+       ambre : la quatrieme couleur de joueur (#f0a95a) est un orange, un tir
+       ennemi ambre l'aurait croisee ;
+     - le tir hostile change de FORME (losange etire, cf. `drawBolt` cote
+       client). La couleur se perd dans le chaos, la forme non — c'est la seule
+       distinction qui survit a la saturation.
+
+   `bullet` reste la teinte de REPLI : un serveur anterieur n'envoie pas le
+   proprietaire de la balle, et le tir garde alors son ambre d'origine. */
 export const COMBAT = {
-  bullet:     "#f4d35e",          // tir des joueurs
+  bullet:     "#f4d35e",          // tir des joueurs, teinte de repli
   bulletHeal: CLASS_COLOR.soigneur, // tir du soigneur en mode soin
-  shot:       "#ff9d4d",          // tir ennemi
+  shot:       "#ff3b5c",          // tir ennemi : rouge franc, jamais un ambre
   flash:      "#ffffff",          // eclair d'impact, silhouette blanche
   downed:     "#4a5568",          // joueur a terre
+  /* Lisere permanent des joueurs. Le correctif le PLUS RENTABLE du lot : rien
+     ne distinguait un joueur d'un monstre en priorite d'affichage. Il est
+     dessine par la silhouette blanche deja cuite dans l'atlas, agrandie d'un
+     cran sous le sprite — donc un quad de plus et aucune nouvelle image. */
+  outline:    "#ffffff",
 };
 
 /* --- monstres --------------------------------------------------------------

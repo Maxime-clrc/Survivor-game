@@ -238,6 +238,14 @@ function scoreboardRows() {
       // contribution d'un joueur qui a pris des cartes defensives apparaisse
       // ailleurs que dans un score qu'il a mecaniquement plus bas.
       damage: p ? Math.round(p.damageDealt) : 0,
+      /* Degats SUBIS, ventiles par provenance. Ils ne passent pas par
+         l'instantane — un tableau de cinq nombres par joueur, vingt fois par
+         seconde, pour une information qui ne se lit qu'a la fin — mais par le
+         bilan, ou ils repondent a la seule question que le tableau des scores ne
+         traitait pas : de quoi est-on mort. C'est accessoirement le meilleur
+         outil d'equilibrage du depot, parce qu'il distingue enfin une mecanique
+         punitive d'une horde mal calibree. */
+      hurtBy: p ? p.hurtBy.map(v => Math.round(v)) : [],
       cards: p ? expandCards(p) : [],
       total: c.total,
     };
@@ -395,6 +403,12 @@ function endRound() {
   broadcast({
     t: "roundEnd",
     round: roundNumber,
+    /* La VAGUE atteinte. Le numero de manche s'incremente correctement — ce
+       n'etait jamais un bug de compteur — mais l'unite de jeu est devenue la
+       vague : apres en avoir enchaine douze, lire « Manche 1 terminée » donne
+       l'impression d'un compteur casse. Le titre du bilan parle donc de vagues
+       et le numero de manche descend avec le reste. */
+    wave: state.wave,
     time: Math.round(state.time),
     kills: state.totalKills,
     host: hostId,
