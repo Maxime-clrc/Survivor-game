@@ -354,6 +354,43 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
 }
 #metaMilestones .metaJalon.done { color: var(--go); }
 
+/* --- compte a pseudo reserve -------------------------------------------------
+   Le code secret est la seule chose de ce bloc qu'on RECOPIE : gros, chasse
+   fixe (c'est deja la police du jeu), espace entre les caracteres — il se lit
+   depuis l'autre bout de la piece, ou se prend en photo. */
+#account {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: min(720px, 92vw);
+}
+#account .accRow { justify-content: center; }
+#account input { font-size: var(--t-s); width: 180px; }
+#account button { font-size: var(--t-s); }
+#accCode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-6);
+  border: var(--edge) solid var(--go);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+#accCodeHandle {
+  font-size: var(--t-m);
+  font-weight: 700;
+  color: var(--text);
+}
+#accCodeValue {
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: 6px;
+  color: var(--go);
+}
+#accMsg:empty { display: none; }
+
 /* --- choix de classe --------------------------------------------------------
    Les panneaux MONTRENT : silhouette a l'echelle du jeu, statistiques en barres
    comparatives, competences avec leur touche. Trois pourcentages en texte

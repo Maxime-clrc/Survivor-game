@@ -216,6 +216,30 @@
     <div id="metaMilestones"></div>
   </div>
 
+  <!-- compte a pseudo reserve. Reserver rend un code secret affiche UNE fois ;
+       pseudo + code retrouvent la progression depuis un autre navigateur. Sans
+       reservation, rien ne change : le compte reste la cle du localStorage. -->
+  <div id="account" hidden>
+    <div class="sectionTitle">Compte</div>
+    <div id="accStatus" class="hint"></div>
+    <div class="row accRow">
+      <input id="accClaimPseudo" maxlength="14" placeholder="pseudo à réserver">
+      <button id="accClaim">Réserver</button>
+    </div>
+    <div id="accCode" hidden>
+      <div id="accCodeHandle"></div>
+      <div id="accCodeValue"></div>
+      <div class="hint">note ce pseudo complet et ce code : ensemble ils retrouvent
+        ta progression sur n'importe quel navigateur — le code ne sera plus jamais affiché</div>
+    </div>
+    <div class="row accRow">
+      <input id="accRecPseudo" maxlength="19" placeholder="pseudo ou pseudo#1234">
+      <input id="accRecCode" maxlength="9" placeholder="code XXXX-XXXX">
+      <button id="accRecover">Récupérer</button>
+    </div>
+    <div id="accMsg" class="hint"></div>
+  </div>
+
   <div id="vote">
     <div id="voteLabel" class="sectionTitle">Difficulté</div>
     <div id="voteRow"></div>

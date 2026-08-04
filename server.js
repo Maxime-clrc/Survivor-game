@@ -167,6 +167,11 @@ function progressPayload(c) {
     kills: pr.kills,
     classes: pr.classes,
     confort: pr.confort,
+    // Pseudo reserve du compte et son tag (chaines vides sinon). Le HACHAGE
+    // du code ne voyage jamais : le client n'a aucun usage legitime d'un
+    // hachage.
+    pseudo: pr.pseudo ?? "",
+    tag: pr.tag ?? "",
     // Le gain de la derniere manche, pour le bilan — remis a zero apres envoi.
     gained: c.lastGain ?? 0,
   };
@@ -602,6 +607,16 @@ attachWebSocket(httpServer, conn => {
            est absent ou difforme, on en tire un neuf et on le renvoie dans le
            `welcome` — le client le range dans son localStorage. */
         client.uid = sanitizeUid(msg.uid) ?? randomUid();
+        /* Le meme compte connecte deux fois cumulerait les noyaux en double —
+           `awardRun` parcourt les clients, pas les comptes. Avant la
+           recuperation par pseudo + code c'etait impossible (un identifiant
+           par navigateur) ; maintenant deux machines peuvent porter le meme.
+           Le second recoit un compte jetable, et son welcome n'emporte PAS
+           cet identifiant : le localStorage du navigateur garde le vrai
+           compte, qui reprend la main des que l'autre onglet est ferme. */
+        client.tempAccount = [...clients.values()]
+          .some(c => c !== client && c.uid === client.uid);
+        if (client.tempAccount) client.uid = randomUid();
         client.profile = store.profileFor(client.uid, client.name);
 
         // Arriver en cours de manche ne coupe pas la partie des autres :
@@ -620,15 +635,23 @@ attachWebSocket(httpServer, conn => {
           phase,
           spectator: client.spectator,
           colors: PLAYER_COLORS,
-          uid: client.uid,
+          // Compte jetable : ne pas l'envoyer, sinon le client ECRASERAIT le
+          // vrai compte dans son localStorage (JSON.stringify omet undefined).
+          uid: client.tempAccount ? undefined : client.uid,
           cfg: {
             ARENA_W: CFG.ARENA_W, ARENA_H: CFG.ARENA_H,
             SNAPSHOT_HZ: CFG.SNAPSHOT_HZ,
           },
         }));
         sendProgress(client);
+        if (client.tempAccount) {
+          client.conn.send(JSON.stringify({ t: "accountError",
+            msg: "ce compte est déjà connecté ailleurs — progression temporaire sur cet onglet" }));
+        }
         broadcast(lobbyPayload());
-        log(`${client.name} rejoint${client.spectator ? " (spectateur)" : ""} — ${joined().length} connecte(s)`);
+        log(`${client.name} rejoint${client.spectator ? " (spectateur)" : ""}`
+            + `${client.tempAccount ? " (compte jetable : le sien est deja connecte)" : ""}`
+            + ` — ${joined().length} connecte(s)`);
         break;
       }
 
@@ -818,6 +841,68 @@ attachWebSocket(httpServer, conn => {
         break;
       }
 
+      /* --- compte a pseudo reserve ---------------------------------------------
+         Reserver attache un pseudo unique au compte et rend un code secret ;
+         pseudo + code retrouvent le compte depuis un autre navigateur. Salon
+         uniquement, comme les achats — un changement d'identite en pleine
+         manche n'a aucun sens et le profil est lu par la simulation. */
+
+      case "claim": {
+        if (phase !== PHASE_LOBBY || !client.profile) break;
+        const pseudo = sanitizePseudo(msg.pseudo);
+        if (!pseudo) {
+          client.conn.send(JSON.stringify({ t: "accountError",
+            msg: "pseudo invalide (3 à 14 caractères : lettres, chiffres, _ . -)" }));
+          break;
+        }
+        const r = store.claimPseudo(client.uid, pseudo);
+        if (r.error) {
+          client.conn.send(JSON.stringify({ t: "accountError", msg: r.error }));
+          break;
+        }
+        log(`${client.name} réserve le pseudo « ${pseudo}#${r.tag} »`);
+        client.conn.send(JSON.stringify({ t: "claimed", pseudo, tag: r.tag, code: r.code }));
+        sendProgress(client);
+        break;
+      }
+
+      case "recover": {
+        if (phase !== PHASE_LOBBY || !client.profile) break;
+        /* Frein a la force brute : cinq essais par connexion. Le code a ~40
+           bits d'entropie, ce frein suffit sur un LAN — pas de bannissement
+           d'IP, qui punirait toute la maisonnee derriere un NAT. */
+        client.recoverFails = client.recoverFails | 0;
+        if (client.recoverFails >= 5) {
+          client.conn.send(JSON.stringify({ t: "accountError",
+            msg: "trop d'essais — reconnecte-toi pour réessayer" }));
+          break;
+        }
+        const uid = store.recoverUid(msg.pseudo, msg.code);
+        if (!uid) {
+          client.recoverFails++;
+          client.conn.send(JSON.stringify({ t: "accountError",
+            msg: "pseudo ou code incorrect" }));
+          break;
+        }
+        // Deux onglets sur le meme compte cumuleraient deux fois les noyaux
+        // d'une meme manche : le compte doit etre libre.
+        if ([...clients.values()].some(c => c !== client && c.uid === uid)) {
+          client.conn.send(JSON.stringify({ t: "accountError",
+            msg: "ce compte est déjà connecté" }));
+          break;
+        }
+        client.uid = uid;
+        client.profile = store.profileFor(uid, client.name);
+        store.save();
+        log(`${client.name} récupère le compte « ${client.profile.pseudo}#${client.profile.tag ?? ""} »`);
+        // Le client range ce nouvel identifiant dans son localStorage, comme
+        // il range celui du welcome.
+        client.conn.send(JSON.stringify({ t: "recovered", uid,
+          pseudo: client.profile.pseudo, tag: client.profile.tag ?? "" }));
+        sendProgress(client);
+        break;
+      }
+
       /* « Relance » : un nouveau tirage de la MEME qualite, une fois par
          manche, tant qu'on n'a pas choisi. Le serveur retire l'offre
          precedente — elle n'est plus valable, `pickCard` la refuserait. */
@@ -864,6 +949,16 @@ attachWebSocket(httpServer, conn => {
 function sanitizeName(v) {
   if (typeof v !== "string") return "";
   return v.replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, 14);
+}
+
+/* Le pseudo reserve suit le meme alphabet que le nom d'affichage mais SANS
+   espace (un pseudo se recopie a la main, un espace invisible en bout de champ
+   ferait echouer la recuperation sans explication) et avec un minimum de trois
+   caracteres. */
+function sanitizePseudo(v) {
+  if (typeof v !== "string") return null;
+  const p = v.replace(/[^\p{L}\p{N}_.-]/gu, "").slice(0, 14);
+  return p.length >= 3 ? p : null;
 }
 
 /* --- boucle de simulation --------------------------------------------------------- */

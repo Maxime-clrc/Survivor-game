@@ -314,6 +314,30 @@ function connect(name) {
       case "progress":
         progressState = msg;
         renderMeta();
+        renderAccount();
+        break;
+
+      /* --- compte a pseudo reserve. Le code s'affiche UNE fois : il n'existe
+         en clair que dans ce message, le serveur n'en garde qu'un hachage. */
+      case "claimed":
+        // L'identite complete est pseudo#tag : c'est ELLE qu'on note avec le
+        // code, un pseudo seul peut designer plusieurs comptes.
+        accCodeHandle.textContent = `${msg.pseudo}#${msg.tag}`;
+        accCodeValue.textContent = msg.code;
+        accCodeEl.hidden = false;
+        accMsgEl.textContent = "";
+        break;
+
+      case "recovered":
+        // Le compte recupere devient LE compte de ce navigateur : meme geste
+        // que pour l'identifiant du welcome.
+        localStorage.setItem("survivor.uid", msg.uid);
+        accCodeEl.hidden = true;
+        accMsgEl.textContent = `compte « ${msg.pseudo}${msg.tag ? "#" + msg.tag : ""} » récupéré`;
+        break;
+
+      case "accountError":
+        accMsgEl.textContent = msg.msg;
         break;
 
       case "lobby":
@@ -687,6 +711,7 @@ function refreshPanel() {
   renderVote();
   renderClasses();
   renderMeta();
+  renderAccount();
 
   startBtn.hidden = !isHost;
   startBtn.disabled = !isHost;
@@ -953,6 +978,57 @@ function renderMeta() {
       + ` <small>(${m.unlocks.length} carte${m.unlocks.length > 1 ? "s" : ""})</small></span>`;
   }).join("");
 }
+
+/* --- compte a pseudo reserve -----------------------------------------------------
+
+   Deux gestes : reserver (pseudo -> code secret affiche une fois) et recuperer
+   (pseudo + code -> la progression suit sur ce navigateur). Le serveur valide
+   tout ; ces boutons ne sont que des demandes, comme les achats de l'arbre. */
+
+const accountEl = document.getElementById("account");
+const accStatusEl = document.getElementById("accStatus");
+const accClaimPseudo = document.getElementById("accClaimPseudo");
+const accClaimBtn = document.getElementById("accClaim");
+const accCodeEl = document.getElementById("accCode");
+const accCodeHandle = document.getElementById("accCodeHandle");
+const accCodeValue = document.getElementById("accCodeValue");
+const accRecPseudo = document.getElementById("accRecPseudo");
+const accRecCode = document.getElementById("accRecCode");
+const accRecoverBtn = document.getElementById("accRecover");
+const accMsgEl = document.getElementById("accMsg");
+
+function renderAccount() {
+  if (!accountEl) return;
+  if (!progressState) { accountEl.hidden = true; return; }
+  accountEl.hidden = false;
+
+  const pseudo = progressState.pseudo || "";
+  const handle = pseudo + (progressState.tag ? "#" + progressState.tag : "");
+  accStatusEl.textContent = pseudo
+    ? `pseudo réservé : ${handle} — re-réserver régénère le code (l'ancien meurt)`
+    : "aucun pseudo réservé — la progression ne vit que dans ce navigateur";
+  if (!accClaimPseudo.value) {
+    accClaimPseudo.value = pseudo || nameInput.value;
+  }
+  const inLobby = phase === PHASE_LOBBY;
+  accClaimBtn.disabled = !inLobby;
+  accRecoverBtn.disabled = !inLobby;
+}
+
+accClaimBtn.onclick = () => {
+  const pseudo = accClaimPseudo.value.trim();
+  if (!pseudo) return;
+  accMsgEl.textContent = "";
+  ws.send(JSON.stringify({ t: "claim", pseudo }));
+};
+
+accRecoverBtn.onclick = () => {
+  const pseudo = accRecPseudo.value.trim();
+  const code = accRecCode.value.trim();
+  if (!pseudo || !code) return;
+  accMsgEl.textContent = "";
+  ws.send(JSON.stringify({ t: "recover", pseudo, code }));
+};
 
 function renderScores(rows, body = scoresBody) {
   body.innerHTML = "";
