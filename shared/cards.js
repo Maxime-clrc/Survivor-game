@@ -1545,6 +1545,21 @@ export function defaultMods() {
        simulation indexe les tables SKILL3_* dessus. */
     skill3: 0,
 
+    /* --- progression permanente (lot D) -------------------------------------
+       Ces cles ne sont ecrites par AUCUNE carte : elles n'existent que pour
+       `applyMeta` (shared/progression.js), qui s'applique en aval de fullMods.
+       Elles vivent quand meme ici, comme toutes les autres — un mod absent
+       donne NaN au premier calcul plutot qu'une valeur neutre, et la
+       simulation les lit sans savoir si le joueur a un compte. */
+    thorns: 0,               // « Epines » : part des degats subis renvoyee a 4 m
+    guardAura: 0,            // « Garde » : reduction des degats des allies proches
+    healGivenMul: 1,         // « Flux » : multiplicateur des soins prodigues
+    healBeamMul: 1,          // « Portee » : vitesse et portee du projectile de soin
+    reviveHpBonus: 0,        // « Releve » : PV rendus en plus au releve
+    catalyse: 0,             // « Catalyse » : bonus de degats de la cible soignee
+    bombCdCut: 0,            // « Charge » : secondes retirees a la recharge de bombe
+    bombRadiusMul: 1,        // « Charge » : rayon de la bombe
+
     /* --- axes du lot 6 ------------------------------------------------------
        `critChance` et `critMul` sont les seuls mods qui ne partent PAS d'une
        valeur neutre : le critique existe pour tout le monde, sans carte. Une
@@ -1692,7 +1707,7 @@ function topTiers(owned) {
    le seul endroit du depot ou une classe est designee par son nom, et c'est
    volontaire, une carte doit rester lisible sans compter les colonnes d'un
    tableau exporte ailleurs. */
-export function eligibleCards(owned, cls = null, waveNow = 0) {
+export function eligibleCards(owned, cls = null, waveNow = 0, locked = null) {
   const blocked = new Set();
   for (const id of owned.keys()) {
     const card = CARD_BY_ID.get(id);
@@ -1716,6 +1731,10 @@ export function eligibleCards(owned, cls = null, waveNow = 0) {
        `waveNow` (0) FILTRE ces cartes — un appelant qui ne connait pas la
        vague n'a pas a les offrir, c'est le sens sur de l'oubli. */
     if (c.minWave && waveNow < c.minWave) return false;
+    /* Deblocage par jalons (lot D) : une carte encore verrouillee pour ce
+       compte n'apparait JAMAIS dans un tirage. Le filtre est ici, avec les
+       autres, et non a l'affichage. */
+    if (locked && locked.has(c.id)) return false;
     if (blocked.has(c.id)) return false;
     return (owned.get(c.id) || 0) < c.max;
   });
@@ -1740,12 +1759,16 @@ export const FALLBACK_CARD = CARDS.find(c => c.fallback);
    une fonction de ses arguments, rejouable telle quelle dans un script de
    mesure. */
 export function drawCards(owned, quality, forceRare = false, cls = null,
-                          rng = Math.random, wave = 0, waveNow = 0) {
+                          rng = Math.random, wave = 0, waveNow = 0, opts = {}) {
+  /* `opts.locked` : cartes verrouillees par la progression (lot D), jamais
+     tirees. `opts.count` : nombre de cartes offertes — 3 partout, 4 pour la
+     « Quatrieme offre » du tronc de confort. */
+  const count = opts.count ?? 3;
   /* Plafond dur. Sans lui, un joueur chanceux en cumulait quatre et rendait
      toute mesure d'equilibrage inutilisable : la puissance de la table ne
      depend plus alors du systeme mais d'un tirage. */
   const capped = legendaryCount(owned) >= CARD_CFG.LEGENDARY_MAX;
-  const pool = eligibleCards(owned, cls, waveNow)
+  const pool = eligibleCards(owned, cls, waveNow, opts.locked ?? null)
     .filter(c => !(capped && c.rarity === RARITY.LEGENDAIRE));
   const weights = rarityWeights(quality);
   const out = [];
@@ -1794,7 +1817,7 @@ export function drawCards(owned, quality, forceRare = false, cls = null,
     if (c) push(c);
   }
 
-  while (out.length < 3) {
+  while (out.length < count) {
     const list = restant();
     if (list.length === 0) break;
     const c = pickFrom(list);
@@ -1807,7 +1830,7 @@ export function drawCards(owned, quality, forceRare = false, cls = null,
      bloque deux autres) et vide les communes se voyait offrir un ecran a une
      case. La carte de secours n'a pas de plafond et comble autant de cases que
      necessaire — c'est le seul endroit du jeu ou elle apparait. */
-  while (out.length < 3 && FALLBACK_CARD) out.push(FALLBACK_CARD);
+  while (out.length < count && FALLBACK_CARD) out.push(FALLBACK_CARD);
 
   return out;
 }

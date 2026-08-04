@@ -37,6 +37,8 @@ shared/cards.js        les cartes, les raretés, le tirage, le calcul des mods
 shared/classes.js      les 3 classes, les constantes de compétence (module pur, comme cards.js)
 shared/statuses.js     les 4 états, la priorité de purge, les états posés par les élites
 shared/bosses.js       le roster des 5 boss, le registre des mécaniques, leurs seuils d'effectif
+shared/progression.js  la méta : arbres par classe, noyaux, jalons, emplacements (module pur)
+progress_store.js      persistance de data/progress.json — serveur SEUL, écriture atomique
 shared/units.js        pixels → mètres, le SEUL point de conversion d'affichage
 shared/palette.js      LA CHARTE — couleurs, rampes, échelle typo, lues par le canvas ET le DOM
 public/client.js       saisie, interpolation, prédiction, rendu du MONDE
@@ -395,6 +397,8 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **Le serveur valide qu'une carte choisie figure bien dans les trois offertes à ce joueur pour ce tour de choix.** Sans ça, n'importe quel client s'octroie une légendaire. Les tours s'enchaînent : `resumeRound()` rouvre un écran tant que `state.pendingLevels > 0` au lieu de reprendre la manche.
 
+**La progression permanente (lot D) est EXCLUE de la difficulté par construction.** `_recomputeMods()` garde dans `p.powerMods` le résultat de `fullMods` (cartes + classe) et applique la méta (`applyMeta`, `shared/progression.js`) sur une **copie** qui devient `p.mods` ; `_playerPower()` lit `p.powerMods` et rien d'autre. Les cartes restent absorbées par les vagues et les boss, la méta est un gain net borné par les emplacements. Corollaires : le serveur valide tout achat (`metaBuy`/`metaEquip`/`metaConfort`, salon uniquement), les cartes verrouillées par jalons ne sortent jamais d'un tirage (`locked` dans `eligibleCards`), la monnaie se verse **à parts égales** en fin de manche (`awardRun`), et `data/progress.json` s'écrit en atomique (tmp + rename), jamais pendant une vague. Le pseudo n'est pas une identité : la clé du compte est un identifiant tiré au sort, rangé dans le `localStorage`.
+
 **Les PV du boss ET la pression des vagues sont indexés sur `_teamPower()`**, pour que la difficulté suive la puissance réelle de l'équipe et non le temps écoulé. Toute nouvelle source de dégâts permanente doit être prise en compte dans `_playerPower`, sinon le boss redevient une formalité en fin de manche — et toute pénalité qui accompagne un gain doit y figurer aussi : oublier `barrelDamageMul` faisait surestimer la puissance de 44 % et triplait la durée du troisième combat.
 
 **L'indexation porte sur la puissance mesurée, jamais sur la composition de l'équipe.** Ajuster la difficulté selon les rôles présents revient à facturer le soigneur à sa table : celui qui le choisit rend la partie plus dure pour tout le monde, et plus personne ne le choisit.
@@ -709,6 +713,8 @@ Toute la courbe de pression vit dans `CFG` en haut de `shared/game_state.js` —
 Les chiffres de `LISEZMOI.md` (« Mesures relevées », tables de progression, durées de boss) viennent de simulations réelles. **Les remesurer plutôt que les extrapoler** quand un réglage change : plusieurs ajustements de cette base de code se sont révélés contre-intuitifs à la mesure (un buff de dégâts qui divise par trois la durée d'un combat de boss, des élites en probabilité dont le nombre explose en fin de manche).
 
 Pour juger une mécanique de boss, la bonne mesure n'est pas les dégâts infligés mais **l'écart entre un joueur qui lit les annonces et un joueur qui les ignore**. Si l'écart est faible, la mécanique est punitive et non difficile.
+
+**Toute mesure doit préciser son profil de compte** (lot D). Deux références : *compte neuf* — aucune amélioration, aucune carte déverrouillée — et *compte maximal* — tous les emplacements remplis. Un `GameState` sans `meta` est le compte neuf ; l'écart entre les deux est une métrique en soi, attendu **sous 1,5 vague**. S'il dépasse, réduire le **nombre d'emplacements**, jamais les valeurs individuelles.
 
 ## Conventions
 

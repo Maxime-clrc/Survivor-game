@@ -15,6 +15,7 @@ import {
   STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOOM,
   PURGE_ORDER, ELITE_STATUS, statusAt, statusBit, enemyStatusMask,
 } from "./statuses.js";
+import { PROG_CFG, applyMeta } from "./progression.js";
 import {
   BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, bossPool, mechAt, adaptMech, towerCount,
   ALERT_ORDER, ALERT_WARN, ALERT_INFO,
@@ -675,6 +676,11 @@ export class GameState {
     // Dernier boss sorti. Il survit a sa mort : l'ecran de choix de cartes
     // s'ouvre APRES, et il doit pouvoir dire lequel vient d'etre vaincu.
     this.lastBossKind = 0;
+    /* Boss VAINCUS cette manche (lot D) : le compte pour la monnaie, les kinds
+       pour les jalons de premiere victoire. La progression vit cote serveur,
+       mais c'est la simulation qui sait qui est mort. */
+    this.bossKills = 0;
+    this.bossKindsKilled = new Set();
 
     /* Marqueurs de mecanique de groupe : cercles de regroupement, tours, liens,
        cages, grappes, sanctuaires. Une liste unique plutot qu'un champ par
@@ -756,7 +762,12 @@ export class GameState {
     this.pendingLevels = 0;
   }
 
-  addPlayer(id, name = "joueur", colorIndex = 0, cls = CLASS_DEFAULT) {
+  /* `meta` (lot D) : ce que la progression permanente change pour CE joueur —
+     `{ lines, confort, locked }` construit par le serveur depuis le profil.
+     Nul pour un compte neuf comme pour un script de mesure : la simulation
+     reste jouable seule, et une mesure sans profil est le « compte neuf » de
+     reference. */
+  addPlayer(id, name = "joueur", colorIndex = 0, cls = CLASS_DEFAULT, meta = null) {
     const def = classAt(cls);
     const p = {
       id, name, colorIndex,
@@ -906,6 +917,18 @@ export class GameState {
          mecanique tue ou si c'est la horde. */
       lastSrc: SRC_CONTACT,
       hurtBy: DAMAGE_SOURCES.map(() => 0),
+
+      /* --- progression permanente (lot D) -----------------------------------
+         `meta` porte les lignes equipees, `locked` les cartes que les jalons
+         n'ont pas encore debloquees. `catalyseT` / `catalyseMul` sont l'etat
+         de la ligne « Catalyse » du soigneur : poses par `_heal`, lus par
+         `_momentum` — un bonus de l'instant, comme la meute. */
+      meta,
+      locked: meta && meta.locked
+        ? (meta.locked instanceof Set ? meta.locked : new Set(meta.locked))
+        : null,
+      catalyseT: 0,
+      catalyseMul: 1,
     };
 
     this.players.set(id, p);
@@ -915,6 +938,21 @@ export class GameState {
        premiere carte et le tank tapait comme un tireur pendant deux vagues. */
     this._recomputeMods(p);
     p.hp = p.maxHp;
+
+    /* « Ravitaillement initial » (tronc de confort, lot D) : un bonus au sol
+       des la vague 1, pose pres du joueur a l'inscription. Un bonus ordinaire
+       du pool tournant — pas un choix, juste une avance sur le premier
+       detour. */
+    if (meta && meta.confort && meta.confort.ravitaillement) {
+      const a = Math.random() * Math.PI * 2;
+      this.powerups.push({
+        id: this._nextId++,
+        type: this._randomPowerupType(),
+        x: Math.min(Math.max(p.x + Math.cos(a) * 120, 60), CFG.ARENA_W - 60),
+        y: Math.min(Math.max(p.y + Math.sin(a) * 120, 60), CFG.ARENA_H - 60),
+        life: CFG.POWERUP_LIFE,
+      });
+    }
   }
 
   /* --- cartes ---------------------------------------------------------------
@@ -941,8 +979,12 @@ export class GameState {
     // `this.wave` est la vague COURANTE, passee a chaque tirage : c'est elle
     // qui tient la troisieme competence hors des premiers ecrans (`minWave`).
     // A ne pas confondre avec `wave`, qui ne sert qu'au jalon de legendaire.
+    // Lot D : les cartes encore verrouillees par les jalons du compte ne sont
+    // jamais tirees, et la « Quatrieme offre » du tronc de confort elargit
+    // l'ecran a quatre cases.
     const picks = drawCards(p.cards, quality, forceRare || p.commonStreak >= 2,
-      classAt(p.cls).id, Math.random, wave, this.wave);
+      classAt(p.cls).id, Math.random, wave, this.wave,
+      { locked: p.locked, count: p.meta?.confort?.quatrieme ? 4 : 3 });
     return picks.map(c => c.id);
   }
 
@@ -1010,8 +1052,22 @@ export class GameState {
   _recomputeMods(p) {
     const before = p.maxHp;
     const r = fullMods(p.cards, this._otherCards(p), p.cls, this.wave);
-    p.mods = r.mods;
-    p.maxHp = r.maxHp;
+    /* PROGRESSION PERMANENTE (lot D). `powerMods` garde le resultat de
+       fullMods — cartes et classe, rien d'autre — et c'est LUI que lit
+       `_playerPower` : la meta est exclue de la difficulte PAR CONSTRUCTION,
+       jamais par soustraction. Les cartes restent absorbees par les vagues et
+       les boss ; la puissance permanente est un gain net, borne par les
+       emplacements. `applyMeta` copie l'objet a plat, les deux ne partagent
+       donc jamais une reference. */
+    p.powerMods = r.mods;
+    if (p.meta && p.meta.lines) {
+      const rr = applyMeta(r.mods, r.maxHp, classAt(p.cls).id, p.meta.lines);
+      p.mods = rr.mods;
+      p.maxHp = rr.maxHp;
+    } else {
+      p.mods = r.mods;
+      p.maxHp = r.maxHp;
+    }
 
     const gained = p.maxHp - before;
     if (gained > 0 && !p.downed) p.hp = Math.min(p.maxHp, p.hp + gained);
@@ -1090,6 +1146,8 @@ export class GameState {
          charge, au lieu de s'arreter a zero. */
       p.cd2 = Math.max(0, p.cd2 - dt);
       p.cd3 = Math.max(0, p.cd3 - dt);
+      p.catalyseT = Math.max(0, p.catalyseT - dt);
+      if (p.catalyseT <= 0) p.catalyseMul = 1;
       p.healSwapCd = Math.max(0, p.healSwapCd - dt);
       p.healSwapBoost = Math.max(0, p.healSwapBoost - dt);
       p.tauntInvuln = Math.max(0, p.tauntInvuln - dt);
@@ -1101,7 +1159,13 @@ export class GameState {
           p.cd1 = Math.max(0, p.cd1 - dt);
           if (p.cd1 <= 0) {
             p.bombStock++;
-            if (p.bombStock < stockMax) p.cd1 = SKILL_CFG.DPS_BOMB_CD * p.mods.skillCdMul;
+            // « Charge » (méta, lot D) retire des secondes AVANT skillCdMul,
+            // avec un plancher — les deux reductions cumulees ne doivent pas
+            // rendre la bombe permanente.
+            if (p.bombStock < stockMax) {
+              p.cd1 = Math.max(2, SKILL_CFG.DPS_BOMB_CD - p.mods.bombCdCut)
+                * p.mods.skillCdMul;
+            }
           }
         }
       } else {
@@ -1483,7 +1547,12 @@ export class GameState {
         // moment ou la vague se regroupe.
         if (p.bombStock <= 0) return;
         p.bombStock--;
-        if (p.cd1 <= 0) p.cd1 = SKILL_CFG.DPS_BOMB_CD * p.mods.skillCdMul;
+        // Meme formule que la reaccumulation dans `_players` : « Charge »
+        // (méta) retire ses secondes avant skillCdMul, plancher compris.
+        if (p.cd1 <= 0) {
+          p.cd1 = Math.max(2, SKILL_CFG.DPS_BOMB_CD - p.mods.bombCdCut)
+            * p.mods.skillCdMul;
+        }
         p.skillUses[0]++;
         /* La bombe est VISEE : elle atterrit sous le reticule et non a une
            distance fixe. L'ancienne version partait a vitesse et delai
@@ -1676,6 +1745,18 @@ export class GameState {
      heritera sans qu'on y pense. */
   _heal(healer, target, amount) {
     if (amount <= 0 || target.downed) return 0;
+    // « Flux » (méta, lot D) : multiplicateur des soins prodigues, applique au
+    // point de passage unique — toute source de soin en herite sans le savoir.
+    amount *= healer.mods.healGivenMul ?? 1;
+
+    /* « Catalyse » (méta, lot D) : la cible soignee gagne un bonus de degats
+       bref. Pose ICI et lu par `_momentum`, comme la meute — c'est un bonus de
+       l'instant, pas un mod. Jamais sur soi : la ligne rend le soigneur
+       offensif INDIRECTEMENT, c'est tout son contrat. */
+    if ((healer.mods.catalyse ?? 0) > 0 && healer !== target) {
+      target.catalyseT = PROG_CFG.CATALYSE_TIME;
+      target.catalyseMul = Math.max(target.catalyseMul, 1 + healer.mods.catalyse);
+    }
 
     const missing = Math.max(0, target.maxHp - target.hp);
     const healed = Math.min(missing, amount);
@@ -1707,13 +1788,15 @@ export class GameState {
   _fireHeal(p) {
     const a = Math.atan2(p.aimY, p.aimX);
     const dx = Math.cos(a), dy = Math.sin(a);
-    const speed = CFG.BULLET_SPEED * p.mods.bulletSpeedMul;
+    // « Portee » (méta, lot D) : vitesse ET portee du seul faisceau de soin —
+    // les cartes de balles du soigneur profitent deja a son tir normal.
+    const speed = CFG.BULLET_SPEED * p.mods.bulletSpeedMul * (p.mods.healBeamMul ?? 1);
     this.bullets.push({
       id: this._nextId++,
       x: p.x + dx * (CFG.PLAYER_RADIUS + 2),
       y: p.y + dy * (CFG.PLAYER_RADIUS + 2),
       vx: dx * speed, vy: dy * speed,
-      life: CFG.BULLET_LIFE * p.mods.bulletLifeMul,
+      life: CFG.BULLET_LIFE * p.mods.bulletLifeMul * (p.mods.healBeamMul ?? 1),
       dmg: 0,
       owner: p.id,
       // Les champs du tir normal restent presents et neutres : `_bullets` et
@@ -1749,8 +1832,11 @@ export class GameState {
         p.revive = Math.min(CFG.REVIVE_TIME, p.revive + SKILL_CFG.HEAL_MODE_REVIVE);
         if (p.revive >= CFG.REVIVE_TIME) {
           p.downed = false;
-          p.hp = Math.round(p.maxHp * Math.max(CFG.REVIVE_HP_RATIO,
-            owner ? owner.mods.reviveHpRatio : 0));
+          // « Releve » (méta, lot D) : des PV plats en plus, ceux du SAUVETEUR
+          // — comme le ratio, c'est sa ligne qui aide, pas celle du tombe.
+          p.hp = Math.min(p.maxHp, Math.round(p.maxHp * Math.max(CFG.REVIVE_HP_RATIO,
+            owner ? owner.mods.reviveHpRatio : 0))
+            + (owner ? owner.mods.reviveHpBonus ?? 0 : 0));
           p.revive = 0;
           p.hitCd = CFG.PLAYER_HIT_CD;
         }
@@ -1926,7 +2012,10 @@ export class GameState {
     const owner = this.players.get(bo.owner);
     const mul = owner ? owner.mods.damageMul : 1;
     const dmg = SKILL_CFG.DPS_BOMB_DAMAGE * mul;
-    const r = SKILL_CFG.DPS_BOMB_RADIUS * (owner ? owner.mods.areaMul : 1);
+    // « Charge » (méta, lot D) s'ajoute a areaMul : les deux rayons se
+    // composent, comme partout ou areaMul multiplie une constante.
+    const r = SKILL_CFG.DPS_BOMB_RADIUS
+      * (owner ? owner.mods.areaMul * (owner.mods.bombRadiusMul ?? 1) : 1);
 
     this.effects.push({
       id: this._nextId++, x: bo.x, y: bo.y, r, life: 0.4, max: 0.4, kind: 12,
@@ -2191,12 +2280,16 @@ export class GameState {
      pointes a x6 sans qu'aucune carte n'annonce ce chiffre. */
   _momentum(p) {
     const m = p.mods;
+    // « Catalyse » (méta, lot D) : le bonus de la cible soignee vit ici, avec
+    // le reste du multiplicateur de l'instant — il est transitoire par
+    // construction, donc invisible de `_playerPower`, exactement comme l'elan.
+    const cata = p.catalyseT > 0 ? p.catalyseMul : 1;
     if (m.elanStep === 0 && m.packStep === 0 && m.ragePerKill === 0
         && m.lowHpDamage === 0) {
-      // Chemin rapide : aucun de ces quatre cartes, donc rien a compter. C'est
+      // Chemin rapide : aucune de ces quatre cartes, donc rien a compter. C'est
       // le cas de la quasi-totalite des joueurs pendant la quasi-totalite d'une
       // manche, et la boucle de meute est le seul cout non trivial du lot.
-      p.power = 1;
+      p.power = cata;
       return;
     }
     let bonus = 0;
@@ -2214,7 +2307,7 @@ export class GameState {
     if (m.lowHpDamage > 0 && p.hp <= p.maxHp * CARD_CFG.SOUFFLE_HP) {
       bonus += m.lowHpDamage;
     }
-    p.power = 1 + bonus;
+    p.power = (1 + bonus) * cata;
   }
 
   /* Le vol de vie se paie sur un budget par seconde plutot que par un plafond
@@ -4454,7 +4547,13 @@ export class GameState {
      il ne cherche pas a predire les degats reels, seulement a suivre l'ordre de
      grandeur des cartes prises. */
   _playerPower(p) {
-    const m = p.mods;
+    /* `powerMods` et non `mods` : la progression permanente (lot D) est exclue
+       de la mesure de puissance par decision verrouillee du plan. L'indexer
+       ici rendrait la meta absorbee par la difficulte — un tapis roulant — et
+       taxerait l'arbre offensif du Tireur la ou celui du Rempart, defensif,
+       passerait gratuit, sans que personne ne comprenne pourquoi. Le repli sur
+       `mods` couvre un GameState d'avant le lot (script de mesure). */
+    const m = p.powerMods ?? p.mods;
     // barrelDamageMul, oubli d'origine : « Second canon » ajoute un canon mais
     // retire 18 % de degats a CHAQUE balle. Compter les canons sans la penalite
     // surestimait la puissance de 44 % avec deux exemplaires, et le boss
@@ -5301,6 +5400,17 @@ export class GameState {
     if (!ignoreCooldown && p.hitCd > 0) return;
 
     amount *= this.diff.dmg * p.mods.damageTakenMul;
+    /* « Garde » (méta, lot D) : un Rempart proche protege ses ALLIES, jamais
+       lui-meme — l'arbre renforce ce que la classe fait deja. Une seule aura
+       compte, comme le givre : deux tanks ne coexistent pas (classe unique),
+       le break est une precaution, pas une regle. */
+    for (const o of this.players.values()) {
+      if (o === p || o.downed || !(o.mods.guardAura > 0)) continue;
+      if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 <= PROG_CFG.GUARD_RADIUS ** 2) {
+        amount *= 1 - o.mods.guardAura;
+        break;
+      }
+    }
     /* Vulnerabilite. Elle s'applique ICI et nulle part ailleurs, exactement
        comme le multiplicateur de difficulte : une nouvelle source de degats est
        ainsi couverte sans qu'on y pense, et personne n'a a se demander si telle
@@ -5360,6 +5470,21 @@ export class GameState {
     p.lastSrc = src;
     p.hurtBy[src] += amount;
 
+    /* « Epines » (méta, lot D) : renvoie une part des degats subis aux ennemis
+       proches. Sur le montant qui atteint reellement le joueur — bouclier
+       compris — et jamais sur un degat continu : une brulure qui renverrait
+       soixante fois par seconde ferait des epines une aura gratuite. Passe par
+       `_damage`, comme tout ce qui blesse un ennemi. */
+    if (p.mods.thorns > 0 && amount > 0 && !overTime) {
+      const rr = PROG_CFG.THORNS_RADIUS ** 2;
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= rr) {
+          this._damage(e, amount * p.mods.thorns, p.id);
+        }
+      }
+    }
+
     // Le bouclier encaisse d'abord, jusqu'a epuisement de sa reserve
     if (p.shield > 0) {
       const absorbed = Math.min(p.shield, amount);
@@ -5416,7 +5541,9 @@ export class GameState {
       if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 > r * r) continue;
 
       o.timers.guardian = o.mods.guardianCd;
-      p.hp = Math.round(p.maxHp * Math.max(CFG.REVIVE_HP_RATIO, o.mods.reviveHpRatio));
+      p.hp = Math.min(p.maxHp,
+        Math.round(p.maxHp * Math.max(CFG.REVIVE_HP_RATIO, o.mods.reviveHpRatio))
+        + (o.mods.reviveHpBonus ?? 0));
       p.hitCd = CFG.PLAYER_HIT_CD;
       this.effects.push({
         id: this._nextId++,
@@ -5839,6 +5966,10 @@ export class GameState {
   _killBoss(ownerId) {
     this._credit(this.players.get(ownerId), 500);
     this.totalKills++;
+    // Lot D : la monnaie et les jalons de premiere victoire se constatent a la
+    // fin de manche, mais c'est ICI qu'on sait quel boss vient de tomber.
+    if (this.boss) this.bossKindsKilled.add(this.boss.kind);
+    this.bossKills++;
     this.boss = null;
     this.boss2 = null;
     this.shots = [];
@@ -5880,12 +6011,15 @@ export class GameState {
          les cartes cooperatives visibles a la table — on voit qui releve vite. */
       let rate = 0;
       let ratio = CFG.REVIVE_HP_RATIO;
+      let bonus = 0;
       for (const o of this.players.values()) {
         if (o.id === p.id || o.downed) continue;
         const r = CFG.REVIVE_RADIUS * o.mods.reviveRadiusMul;
         if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 > r * r) continue;
         rate += o.mods.reviveSpeedMul;
         if (o.mods.reviveHpRatio > ratio) ratio = o.mods.reviveHpRatio;
+        // « Releve » (méta, lot D) : le meilleur bonus present, comme le ratio.
+        if ((o.mods.reviveHpBonus ?? 0) > bonus) bonus = o.mods.reviveHpBonus;
       }
 
       if (rate > 0) {
@@ -5894,7 +6028,7 @@ export class GameState {
         p.revive += dt * rate;
         if (p.revive >= CFG.REVIVE_TIME) {
           p.downed = false;
-          p.hp = Math.round(p.maxHp * ratio);
+          p.hp = Math.min(p.maxHp, Math.round(p.maxHp * ratio) + bonus);
           p.revive = 0;
           p.hitCd = CFG.PLAYER_HIT_CD;
         }

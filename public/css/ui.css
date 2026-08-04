@@ -287,6 +287,60 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
 #voteRow .tally { color: var(--text-faint); font-size: var(--t-xs); }
 #voteHint { font-size: var(--t-xs); color: var(--text-faint); }
 
+/* --- progression permanente (lot D) ------------------------------------------
+   Le panneau du compte : l'arbre de la classe selectionnee, le tronc de
+   confort, les jalons. Des lignes denses et non des cartes — c'est un magasin
+   qu'on relit a chaque salon, pas un choix sous pression. Aucune couleur en
+   dur : tout vient des variables posees par client.js depuis la charte. */
+#meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: min(720px, 92vw);
+}
+#metaCores { color: var(--text); text-transform: none; letter-spacing: 0; }
+#metaSub { font-size: var(--t-xs); color: var(--text-faint); }
+#metaTree, #metaConfort {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+}
+#metaConfort { margin-top: var(--sp-2); }
+.metaLine {
+  display: grid;
+  grid-template-columns: 110px 64px 1fr 74px 74px;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-panel);
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius);
+  font-size: var(--t-xs);
+}
+.metaLine.confort { grid-template-columns: 150px 1fr 74px; }
+.metaLine.equipped { border-color: var(--go); }
+.metaName { font-weight: 700; color: var(--text); }
+.metaPips { color: var(--text-dim); letter-spacing: 2px; }
+.metaDesc { color: var(--text-dim); }
+.metaBuy, .metaEquip {
+  padding: 2px var(--sp-1);
+  font-size: var(--t-xs);
+  background: var(--bg-raised);
+}
+.metaEquip.on { border-color: var(--go); color: var(--go); }
+#metaMilestones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-2);
+  font-size: var(--t-xs);
+  color: var(--text-faint);
+}
+#metaMilestones .metaJalon.done { color: var(--go); }
+
 /* --- choix de classe --------------------------------------------------------
    Les panneaux MONTRENT : silhouette a l'echelle du jeu, statistiques en barres
    comparatives, competences avec leur touche. Trois pourcentages en texte
@@ -402,6 +456,19 @@ td.cards { text-align: left; max-width: 420px; }
 #cardsTimer.urgent > i { background: var(--warn); }
 
 #cardsRow { display: flex; gap: var(--sp-4); flex-wrap: wrap; justify-content: center; }
+
+/* « Relance » (lot D) : une colonne etroite au bout de la rangee, jamais une
+   carte de plus — elle ne doit pas se confondre avec une offre. */
+#cardsReroll {
+  width: 92px;
+  min-height: 260px;
+  font-size: var(--t-s);
+  color: var(--text-dim);
+  background: var(--bg-panel);
+  border: var(--hair) dashed var(--line);
+  border-radius: var(--radius);
+}
+#cardsReroll:hover:not(:disabled) { color: var(--text); border-style: solid; }
 
 .cardOpt {
   width: 268px;

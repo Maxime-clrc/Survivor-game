@@ -27,6 +27,13 @@ import {
 import {
   STATUSES, STATUS_VULN, STATUS_DOOM, statusBit,
 } from "/shared/statuses.js";
+/* Progression permanente (lot D). Le client importe les TABLES — arbres,
+   couts, jalons — et ne recoit du serveur que l'etat du compte : deux copies
+   des tables auraient diverge au premier reglage, exactement comme les
+   couleurs. */
+import {
+  PROG_CFG, TREES, CONFORT, MILESTONES, slotsFor, tierCost,
+} from "/shared/progression.js";
 import {
   BOSS_CFG, bossAt, mechAt, ALERT_ORDER, ALERT_WARN,
   MECH_STACK, MECH_SPREAD, MECH_TOWER, MECH_COUNT, MECH_LINK, MECH_JAIL,
@@ -218,6 +225,10 @@ let myVote = 1;
    minuteur : seul le message "round" le fait, en meme temps que le reste de
    l'etat de manche. */
 let cardsState = null;      // { boss, deadline, offers, picked } ou null
+/* Etat du compte de progression (lot D), tel que le serveur l'envoie. Nul tant
+   que rien n'est arrive — le panneau reste alors cache, un compte sans serveur
+   n'existe pas. */
+let progressState = null;
 let cardsPending = [];      // ids des joueurs qui n'ont pas encore choisi
 let cardsTimerHandle = null;
 let loadouts = new Map();   // playerId -> [cardId,...]
@@ -252,6 +263,19 @@ function setStatus(msg, isError = false) {
   statusEl.classList.toggle("err", isError);
 }
 
+/* Identifiant de compte (lot D). Tire au sort a la premiere connexion et range
+   dans le localStorage : le pseudo n'est PAS une identite — n'importe qui peut
+   taper le tien — et c'est cette cle qui porte la progression. Changer de
+   navigateur repart de zero, c'est assume en reseau local et dit au LISEZMOI. */
+function accountUid() {
+  let uid = localStorage.getItem("survivor.uid");
+  if (uid && /^[a-z0-9]{8,64}$/i.test(uid)) return uid;
+  uid = "";
+  while (uid.length < 24) uid += Math.floor(Math.random() * 36).toString(36);
+  localStorage.setItem("survivor.uid", uid);
+  return uid;
+}
+
 function connect(name) {
   setStatus("connexion…");
   goBtn.disabled = true;
@@ -259,7 +283,7 @@ function connect(name) {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}`);
 
-  ws.onopen = () => ws.send(JSON.stringify({ t: "join", name }));
+  ws.onopen = () => ws.send(JSON.stringify({ t: "join", name, uid: accountUid() }));
 
   ws.onmessage = ev => {
     let msg;
@@ -274,7 +298,17 @@ function connect(name) {
         connected = true;
         gate.hidden = true;
         localStorage.setItem("survivor.name", name);
+        // Le serveur peut avoir remplace un identifiant difforme par un neuf :
+        // on garde LE SIEN, sinon la progression du compte se perd au retour.
+        if (msg.uid) localStorage.setItem("survivor.uid", msg.uid);
         refreshPanel();
+        break;
+
+      /* Etat du compte de progression (lot D) : envoye a la connexion, apres
+         chaque achat et apres chaque fin de manche. */
+      case "progress":
+        progressState = msg;
+        renderMeta();
         break;
 
       case "lobby":
@@ -388,6 +422,8 @@ function connect(name) {
             bossKind: msg.bossKind ?? 0,
             level: msg.level, more: msg.more ?? 0,
             deadline: msg.deadline, offers: msg.offers,
+            // « Relance » (lot D) : le serveur dit si elle est disponible.
+            reroll: msg.reroll === 1,
             picked: false, pickedId: null,
             // Instant d'ouverture, pour le filet de compte a rebours : le serveur
             // envoie une echeance, pas une duree, et le filet a besoin des deux.
@@ -624,6 +660,7 @@ function refreshPanel() {
 
   renderVote();
   renderClasses();
+  renderMeta();
 
   startBtn.hidden = !isHost;
   startBtn.disabled = !isHost;
@@ -781,10 +818,120 @@ function renderClasses() {
   }
 }
 
+/* --- progression permanente (lot D) ---------------------------------------------
+
+   Le panneau vit dans le salon. Il montre l'arbre de la classe SELECTIONNEE :
+   comparer trois arbres a la fois n'aide personne, et c'est de toute facon
+   cette classe-la qu'on va jouer. Les tables viennent de
+   `shared/progression.js` — le serveur n'envoie que l'etat du compte, et il
+   valide chaque achat de son cote : ces boutons ne sont qu'une demande. */
+
+const metaEl = document.getElementById("meta");
+const metaCoresEl = document.getElementById("metaCores");
+const metaSubEl = document.getElementById("metaSub");
+const metaTreeEl = document.getElementById("metaTree");
+const metaConfortEl = document.getElementById("metaConfort");
+const metaMilestonesEl = document.getElementById("metaMilestones");
+
+function renderMeta() {
+  if (!metaEl) return;
+  if (!progressState) { metaEl.hidden = true; return; }
+  metaEl.hidden = false;
+
+  const pr = progressState;
+  const me = lobby.find(l => l.id === myId);
+  const cdef = classAt(me?.cls ?? CLASS_DEFAULT);
+  const clsId = cdef.id;
+  const cp = pr.classes?.[clsId] ?? { tiers: {}, equipped: [] };
+  const slots = slotsFor(cp);
+  const equipped = cp.equipped ?? [];
+
+  metaCoresEl.textContent = `${pr.cores} noyaux`;
+  metaSubEl.textContent =
+    `arbre du ${cdef.nom} — ${equipped.length} / ${slots} emplacements équipés · `
+    + `réattribution libre entre les manches`;
+
+  metaTreeEl.innerHTML = "";
+  for (const line of TREES[clsId] ?? []) {
+    const n = cp.tiers?.[line.id] | 0;
+    const cost = tierCost(n);
+    const isEquipped = equipped.includes(line.id);
+
+    const row = document.createElement("div");
+    row.className = "metaLine" + (isEquipped ? " equipped" : "");
+    row.innerHTML =
+      `<span class="metaName">${escapeHtml(line.nom)}</span>` +
+      `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
+      // A zero palier on montre le pas — c'est ce qu'on achete — sinon le TOTAL
+      // possede, qui est ce qu'on a.
+      `<span class="metaDesc">${escapeHtml(n > 0 ? line.desc(n) : line.desc(1) + " par palier")}</span>`;
+
+    const buy = document.createElement("button");
+    buy.className = "metaBuy";
+    if (n >= PROG_CFG.TIERS_MAX) {
+      buy.textContent = "max";
+      buy.disabled = true;
+    } else {
+      buy.textContent = `${cost} ◈`;
+      buy.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
+      buy.onclick = () => ws.send(JSON.stringify({ t: "metaBuy", cls: clsId, line: line.id }));
+    }
+
+    const eq = document.createElement("button");
+    eq.className = "metaEquip" + (isEquipped ? " on" : "");
+    eq.textContent = isEquipped ? "équipée" : "équiper";
+    // On peut toujours DESEQUIPER, meme sans emplacement libre : c'est
+    // precisement comme ca qu'on en libere un.
+    eq.disabled = n <= 0 || (!isEquipped && equipped.length >= slots) || phase !== PHASE_LOBBY;
+    eq.onclick = () => {
+      const lines = isEquipped ? equipped.filter(l => l !== line.id) : [...equipped, line.id];
+      ws.send(JSON.stringify({ t: "metaEquip", cls: clsId, lines }));
+    };
+
+    row.append(buy, eq);
+    metaTreeEl.appendChild(row);
+  }
+
+  /* Le tronc de confort : commun aux trois classes, ne consomme aucun
+     emplacement — d'ou une liste a part, sans bouton d'equipement. */
+  metaConfortEl.innerHTML = "";
+  for (const cf of CONFORT) {
+    const owned = (pr.confort ?? []).includes(cf.id);
+    const cost = PROG_CFG.CONFORT_COSTS[cf.id];
+    const row = document.createElement("div");
+    row.className = "metaLine confort";
+    row.innerHTML =
+      `<span class="metaName">${escapeHtml(cf.nom)}</span>` +
+      `<span class="metaDesc">${escapeHtml(cf.desc)}</span>`;
+    const b = document.createElement("button");
+    b.className = "metaBuy";
+    if (owned) {
+      b.textContent = "acquise";
+      b.disabled = true;
+    } else {
+      b.textContent = `${cost} ◈`;
+      b.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
+      b.onclick = () => ws.send(JSON.stringify({ t: "metaConfort", id: cf.id }));
+    }
+    row.appendChild(b);
+    metaConfortEl.appendChild(row);
+  }
+
+  /* Les jalons de deblocage : ce qui reste a accomplir est une promesse de
+     contenu, l'afficher fait partie du systeme. */
+  const done = new Set(pr.milestones ?? []);
+  metaMilestonesEl.innerHTML = MILESTONES.map(m => {
+    const ok = done.has(m.id);
+    return `<span class="metaJalon${ok ? " done" : ""}">`
+      + `${ok ? "✓" : "•"} ${escapeHtml(m.label)}`
+      + ` <small>(${m.unlocks.length} carte${m.unlocks.length > 1 ? "s" : ""})</small></span>`;
+  }).join("");
+}
+
 function renderScores(rows, body = scoresBody) {
   body.innerHTML = "";
   const head = document.createElement("tr");
-  head.innerHTML = "<th>joueur</th><th>classe</th><th>niv.</th><th>score</th><th>kills</th><th>morts</th><th>dégâts</th><th>cartes</th><th>cumul</th>";
+  head.innerHTML = "<th>joueur</th><th>classe</th><th>niv.</th><th>score</th><th>kills</th><th>morts</th><th>dégâts</th><th>cartes</th><th>noyaux</th><th>cumul</th>";
   body.appendChild(head);
 
   for (const r of rows) {
@@ -804,6 +951,9 @@ function renderScores(rows, body = scoresBody) {
       // tableau coherent plutot que "undefined".
       `<td>${Math.round(r.damage ?? 0)}</td>` +
       `<td class="cards">${cardBadges(r.id)}</td>` +
+      // Noyaux gagnes sur la manche (lot D). Un tiret pour les lignes du salon
+      // et les serveurs anterieurs, qui n'envoient pas le champ.
+      `<td class="sub">${r.cores !== undefined ? "+" + r.cores : "—"}</td>` +
       `<td class="sub">${r.total ? r.total.score : 0}</td>`;
     /* La LIGNE ouvre la fenetre de build. Les pastilles de cartes etaient la
        depuis le debut mais illisibles : c'est ici, le tableau sous les yeux,
@@ -1112,6 +1262,23 @@ function renderCards() {
     btn.innerHTML = html;
     btn.onclick = () => pickCard(c.id);
     cardsRow.appendChild(btn);
+  }
+
+  /* « Relance » (lot D) : une nouvelle offre, une fois par manche. Le bouton
+     vit dans la rangee des cartes, en derniere position — c'est un choix de
+     tirage, pas une action d'ecran. Le serveur repond par un nouveau message
+     `cards` qui reconstruit tout cet etat. */
+  if (cardsState.reroll && !cardsState.picked) {
+    const rb = document.createElement("button");
+    rb.id = "cardsReroll";
+    rb.innerHTML = "↻<br>relancer<br>le tirage";
+    rb.title = "une seule relance par manche";
+    rb.onclick = () => {
+      cardsState.reroll = false;
+      rb.disabled = true;
+      ws?.send(JSON.stringify({ t: "reroll" }));
+    };
+    cardsRow.appendChild(rb);
   }
 
   renderCardsWait();

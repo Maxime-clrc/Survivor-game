@@ -21,6 +21,11 @@ import { attachWebSocket } from "./ws_lite.js";
 import { GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL } from "./shared/game_state.js";
 import { CARD_CFG, cardBrief } from "./shared/cards.js";
 import { CLASSES, CLASS_DEFAULT, SKILL_CFG, bombRange } from "./shared/classes.js";
+import {
+  PROG_CFG, TREES, CONFORT, slotsFor, tierCost, lockedCards,
+  coresForRun, coresPartial,
+} from "./shared/progression.js";
+import { createStore } from "./progress_store.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT) || 8080;
@@ -125,6 +130,109 @@ function setPaused(on, why = "") {
 const clients = new Map();     // id -> client
 let nextClientId = 1;
 let hostId = 0;
+
+/* --- progression permanente (lot D) ------------------------------------------
+
+   Le magasin charge `data/progress.json` au demarrage — un fichier corrompu ou
+   absent ne bloque rien, on repart a neuf en journalisant. Les ecritures n'ont
+   lieu qu'au salon, en fin de manche et au depart d'un joueur : JAMAIS pendant
+   une vague. */
+const store = createStore(ROOT, msg => log(msg));
+
+/* L'identifiant de compte vient du localStorage du client, tire au sort a la
+   premiere connexion — le pseudo n'est qu'un affichage, n'importe qui peut
+   taper celui d'un autre. Un identifiant absent ou difforme (vieux client,
+   client bricole) recoit un compte tout neuf : c'est le sens sur du refus. */
+function sanitizeUid(v) {
+  return (typeof v === "string" && /^[a-z0-9]{8,64}$/i.test(v)) ? v : null;
+}
+function randomUid() {
+  let s = "";
+  while (s.length < 24) s += Math.floor(Math.random() * 36).toString(36);
+  return s;
+}
+
+/* Tout l'etat dynamique du compte, envoye au client apres chaque changement.
+   Les TABLES (arbres, couts, jalons) ne voyagent pas : le client importe
+   `shared/progression.js` lui-meme, deux copies auraient diverge au premier
+   reglage. */
+function progressPayload(c) {
+  const pr = c.profile;
+  return {
+    t: "progress",
+    cores: pr.cores,
+    runs: pr.runs,
+    best: pr.best,
+    milestones: pr.milestones,
+    kills: pr.kills,
+    classes: pr.classes,
+    confort: pr.confort,
+    // Le gain de la derniere manche, pour le bilan — remis a zero apres envoi.
+    gained: c.lastGain ?? 0,
+  };
+}
+function sendProgress(c) {
+  c.conn.send(JSON.stringify(progressPayload(c)));
+  c.lastGain = 0;
+}
+
+/* Versement de fin de manche : vagues + boss, multiplie par la difficulte, A
+   PARTS EGALES — y compris ceux qui etaient a terre a la fin. Les jalons de
+   premiere fois (vagues seuils, premiere victoire sur chaque boss) s'ajoutent
+   par compte, et les jalons de DEBLOCAGE se constatent au meme endroit. */
+function awardRun() {
+  const shared = coresForRun(state.wave, state.bossKills, state.diffIndex);
+  for (const c of joined()) {
+    const p = state.players.get(c.id);
+    if (!p || !c.profile) continue;
+    const pr = c.profile;
+    let gain = shared;
+
+    for (const [w, bonus] of Object.entries(PROG_CFG.CORE_FIRST_WAVES)) {
+      const id = `vague${w}`;
+      if (state.wave >= Number(w) && !pr.milestones.includes(id)) {
+        pr.milestones.push(id);
+        gain += bonus;
+      }
+    }
+    for (const kind of state.bossKindsKilled) {
+      const id = `boss_${kind}`;
+      if (!pr.milestones.includes(id)) {
+        pr.milestones.push(id);
+        gain += PROG_CFG.CORE_FIRST_BOSS;
+      }
+    }
+    if (state.wave >= 8 && !pr.milestones.includes("vague8")) pr.milestones.push("vague8");
+    if (p.deaths === 0 && state.wave >= PROG_CFG.NO_DOWN_MIN_WAVE
+        && !pr.milestones.includes("sans_chute")) {
+      pr.milestones.push("sans_chute");
+    }
+    const clsId = CLASSES[p.cls]?.id ?? "dps";
+    pr.kills[clsId] = (pr.kills[clsId] ?? 0) + p.kills;
+    if (!pr.milestones.includes("kills500")
+        && Object.values(pr.kills).some(k => k >= PROG_CFG.KILLS_MILESTONE)) {
+      pr.milestones.push("kills500");
+    }
+
+    pr.cores += gain;
+    pr.runs += 1;
+    if (state.wave > pr.best.wave) pr.best.wave = state.wave;
+    if (p.score > pr.best.score) pr.best.score = p.score;
+    c.lastGain = gain;
+  }
+  store.save();
+  /* Pas d'envoi ici : `endRound` diffuse d'abord le bilan — qui lit `lastGain`
+     dans ses lignes — puis pousse le message `progress`, qui le remet a zero. */
+}
+
+/* Part d'un joueur qui quitte EN COURS de manche (bouton ou deconnexion) :
+   les vagues jouees, rien d'autre. Appele AVANT que le joueur ne sorte de
+   `state.players`. */
+function awardPartial(c) {
+  if (phase === PHASE_LOBBY || !c.profile || !state.players.has(c.id)) return;
+  c.profile.cores += coresPartial(state.wave, state.diffIndex);
+  store.save();
+}
 
 function joined() {
   return [...clients.values()].filter(c => c.joined);
@@ -248,6 +356,9 @@ function scoreboardRows() {
       hurtBy: p ? p.hurtBy.map(v => Math.round(v)) : [],
       cards: p ? expandCards(p) : [],
       total: c.total,
+      // Noyaux gagnes sur la manche (lot D) — la meme somme pour tous les
+      // participants, jalons de premiere fois en plus, par compte.
+      cores: c.lastGain ?? 0,
     };
   }).sort((a, b) => b.score - a.score);
 }
@@ -293,6 +404,8 @@ function enterCardPhase() {
     if (!c) continue;
     c.conn.send(JSON.stringify({
       t: "cards",
+      // « Relance » (lot D) : une seule par manche, si le confort est achete.
+      reroll: c.profile?.confort.includes("relance") && !c.rerollUsed ? 1 : 0,
       // La vague a remplace le boss : les cartes ne tombent plus a la mort d'un
       // boss mais a la fin de n'importe quelle vague ou un niveau est monte.
       wave: state.wave,
@@ -363,7 +476,32 @@ function startRound() {
        apres avoir laisse le tank encaisser les vagues. */
     if (c.cls === null) c.cls = CLASS_DEFAULT;
     c.clsLocked = true;
-    state.addPlayer(c.id, c.name, c.colorIndex, c.cls);
+    /* Progression permanente (lot D) : la simulation recoit les lignes
+       EQUIPEES de la classe jouee, les achats de confort et les cartes encore
+       verrouillees. Tout est fige au lancement — la reattribution ne vaut
+       qu'au salon, jamais pendant. */
+    let meta = null;
+    if (c.profile) {
+      const clsId = CLASSES[c.cls].id;
+      const cp = c.profile.classes[clsId];
+      const lines = {};
+      if (cp) {
+        for (const lid of cp.equipped ?? []) {
+          const t = cp.tiers?.[lid] | 0;
+          if (t > 0) lines[lid] = t;
+        }
+      }
+      meta = {
+        lines,
+        confort: {
+          ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
+          quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
+        },
+        locked: lockedCards(c.profile.milestones),
+      };
+    }
+    c.rerollUsed = false;
+    state.addPlayer(c.id, c.name, c.colorIndex, c.cls, meta);
     c.input.x = 0; c.input.y = 0; c.input.dash = false;
     c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
   }
@@ -391,6 +529,10 @@ function endRound() {
   phase = PHASE_LOBBY;
   setPaused(false);
   unlockClasses();
+  /* Les noyaux se versent AVANT le tableau : `scoreboardRows` lit `lastGain`
+     pour afficher le gain de chacun sur le bilan. L'ecriture disque a lieu ici,
+     au changement de phase — jamais pendant une vague. */
+  awardRun();
   for (const c of joined()) {
     const p = state.players.get(c.id);
     if (!p) continue;
@@ -415,6 +557,8 @@ function endRound() {
     rows,
   });
   broadcast(lobbyPayload());
+  // Le solde de compte part APRES le bilan : voir `awardRun`.
+  for (const c of joined()) if (c.profile) sendProgress(c);
   log(`manche ${roundNumber} terminee — ${Math.round(state.time)} s, ${state.totalKills} kills`);
 }
 
@@ -454,6 +598,11 @@ attachWebSocket(httpServer, conn => {
         client.joined = true;
         client.name = sanitizeName(msg.name) || client.name;
         client.colorIndex = freeColor();
+        /* Compte de progression (lot D). L'identifiant vient du client ; s'il
+           est absent ou difforme, on en tire un neuf et on le renvoie dans le
+           `welcome` — le client le range dans son localStorage. */
+        client.uid = sanitizeUid(msg.uid) ?? randomUid();
+        client.profile = store.profileFor(client.uid, client.name);
 
         // Arriver en cours de manche ne coupe pas la partie des autres :
         // on regarde, on entre a la manche suivante.
@@ -471,11 +620,13 @@ attachWebSocket(httpServer, conn => {
           phase,
           spectator: client.spectator,
           colors: PLAYER_COLORS,
+          uid: client.uid,
           cfg: {
             ARENA_W: CFG.ARENA_W, ARENA_H: CFG.ARENA_H,
             SNAPSHOT_HZ: CFG.SNAPSHOT_HZ,
           },
         }));
+        sendProgress(client);
         broadcast(lobbyPayload());
         log(`${client.name} rejoint${client.spectator ? " (spectateur)" : ""} — ${joined().length} connecte(s)`);
         break;
@@ -584,7 +735,11 @@ attachWebSocket(httpServer, conn => {
          au salon d'elle-meme. */
       case "leaveRound": {
         if (phase === PHASE_LOBBY || !state.players.has(id)) break;
+        // Part du deserteur (lot D) : les vagues jouees, rien d'autre — avant
+        // que le joueur ne sorte de la simulation.
+        awardPartial(client);
         state.removePlayer(id);
+        sendProgress(client);
         client.spectator = true;
         // Une pause en cours n'a plus de porteur : la lever ici evite qu'un
         // solo qui abandonne laisse le serveur fige jusqu'a l'echeance.
@@ -601,10 +756,100 @@ attachWebSocket(httpServer, conn => {
         startRound();
         break;
       }
+
+      /* --- progression permanente (lot D) --------------------------------------
+         Tout achat et toute reattribution passent par le serveur, qui verifie
+         le solde, le palier precedent et le nombre d'emplacements. Le client
+         n'ecrit jamais rien : c'est exactement le genre de message qu'un
+         client modifie enverrait. Tous refuses hors salon — on debloque
+         definitivement, on reattribue ENTRE deux manches, jamais pendant. */
+
+      case "metaBuy": {
+        if (phase !== PHASE_LOBBY || !client.profile) break;
+        const tree = TREES[msg.cls];
+        if (!tree) break;
+        const line = tree.find(l => l.id === msg.line);
+        if (!line) break;
+        const pr = client.profile;
+        const cp = pr.classes[msg.cls] ??= { tiers: {}, equipped: [] };
+        const cur = cp.tiers[line.id] | 0;
+        if (cur >= PROG_CFG.TIERS_MAX) break;
+        const cost = tierCost(cur);
+        if (pr.cores < cost) break;
+        pr.cores -= cost;
+        cp.tiers[line.id] = cur + 1;
+        /* Premier palier d'une ligne : elle s'equipe toute seule s'il reste un
+           emplacement. On vient de la payer — la laisser inerte jusqu'a une
+           seconde manipulation serait le piege classique du panneau. */
+        if (cur === 0 && !cp.equipped.includes(line.id)
+            && cp.equipped.length < slotsFor(cp)) {
+          cp.equipped.push(line.id);
+        }
+        store.save();
+        sendProgress(client);
+        break;
+      }
+
+      case "metaEquip": {
+        if (phase !== PHASE_LOBBY || !client.profile) break;
+        const cp = client.profile.classes[msg.cls];
+        if (!cp || !Array.isArray(msg.lines) || msg.lines.length > 16) break;
+        const lines = [...new Set(msg.lines.filter(l => typeof l === "string"))];
+        // Chaque ligne equipee doit etre achetee, et le total tenir dans les
+        // emplacements de la classe.
+        if (lines.some(l => !(cp.tiers[l] > 0))) break;
+        if (lines.length > slotsFor(cp)) break;
+        cp.equipped = lines;
+        store.save();
+        sendProgress(client);
+        break;
+      }
+
+      case "metaConfort": {
+        if (phase !== PHASE_LOBBY || !client.profile) break;
+        const cost = PROG_CFG.CONFORT_COSTS[msg.id];
+        if (cost === undefined) break;
+        const pr = client.profile;
+        if (pr.confort.includes(msg.id) || pr.cores < cost) break;
+        pr.cores -= cost;
+        pr.confort.push(msg.id);
+        store.save();
+        sendProgress(client);
+        break;
+      }
+
+      /* « Relance » : un nouveau tirage de la MEME qualite, une fois par
+         manche, tant qu'on n'a pas choisi. Le serveur retire l'offre
+         precedente — elle n'est plus valable, `pickCard` la refuserait. */
+      case "reroll": {
+        if (phase !== PHASE_CARDS || cardPicked.has(id)) break;
+        if (!client.profile?.confort.includes("relance") || client.rerollUsed) break;
+        const p = state.players.get(id);
+        if (!p || !state.cardOffers.has(id)) break;
+        client.rerollUsed = true;
+        const offers = state.offerCards(p);
+        state.cardOffers.set(id, offers);
+        client.conn.send(JSON.stringify({
+          t: "cards",
+          reroll: 0,
+          wave: state.wave,
+          bossWave: state.waveBoss ? 1 : 0,
+          boss: state.bossCount,
+          bossKind: state.lastBossKind,
+          more: state.pendingLevels,
+          level: state.level,
+          deadline: cardDeadline,
+          offers: offers.map(cardBrief),
+        }));
+        break;
+      }
     }
   };
 
   conn.onclose = () => {
+    // Part du deconnecte (lot D), avant qu'il ne sorte de la simulation : le
+    // compte survit a l'onglet, c'est tout son interet.
+    awardPartial(client);
     clients.delete(id);
     state.removePlayer(id);
     if (client.joined) {

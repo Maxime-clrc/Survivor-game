@@ -149,6 +149,7 @@
     ZQSD ou flèches pour se déplacer · la souris pour viser<br>
     <b>Espace</b> pour esquiver — invulnérable le temps du bond<br>
     <b>A</b> et <b>E</b> (ou <b>1</b> et <b>2</b>) pour les compétences de classe<br>
+    <b>3</b> (ou <b>R</b>, ou clic milieu) pour la troisième compétence, une fois sa carte tirée<br>
     le tir part tout seul · relève un coéquipier en restant à côté de lui
   </div>
 </div>
@@ -194,6 +195,18 @@
     <div id="classLabel" class="sectionTitle">Classe</div>
     <div id="classRow"></div>
     <div id="classHint"></div>
+  </div>
+
+  <!-- progression permanente (lot D). L'arbre affiche est celui de la classe
+       selectionnee au-dessus : c'est elle qu'on va jouer. Les tables viennent
+       de shared/progression.js, le serveur n'envoie que l'etat du compte et
+       valide chaque achat de son cote. -->
+  <div id="meta" hidden>
+    <div class="sectionTitle">Progression <span id="metaCores"></span></div>
+    <div id="metaSub" class="hint"></div>
+    <div id="metaTree"></div>
+    <div id="metaConfort"></div>
+    <div id="metaMilestones"></div>
   </div>
 
   <div id="vote">
