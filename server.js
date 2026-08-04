@@ -365,7 +365,7 @@ function startRound() {
     c.clsLocked = true;
     state.addPlayer(c.id, c.name, c.colorIndex, c.cls);
     c.input.x = 0; c.input.y = 0; c.input.dash = false;
-    c.input.s1 = false; c.input.s2 = false;
+    c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
   }
   phase = PHASE_ROUND;
   broadcast({ t: "round", round: roundNumber, difficulty: diff });
@@ -438,7 +438,7 @@ attachWebSocket(httpServer, conn => {
     cls: null,           // null tant que le joueur n'a rien choisi
     clsLocked: false,    // vrai des qu'il est entre en jeu une fois
     input: { x: 0, y: 0, ax: 1, ay: 0, ar: SKILL_CFG.DPS_BOMB_RANGE_MAX,
-             dash: false, s1: false, s2: false },
+             dash: false, s1: false, s2: false, s3: false },
     total: { score: 0, kills: 0, deaths: 0, rounds: 0 },
   };
   clients.set(id, client);
@@ -517,6 +517,7 @@ attachWebSocket(httpServer, conn => {
         // bug est documente pour l'esquive dans CLAUDE.md, ne pas le refaire.
         if (msg.s1) client.input.s1 = true;
         if (msg.s2) client.input.s2 = true;
+        if (msg.s3) client.input.s3 = true;
         break;
       }
 
@@ -660,6 +661,7 @@ setInterval(() => {
         c.input.dash = false;
         c.input.s1 = false;
         c.input.s2 = false;
+        c.input.s3 = false;
       }
       acc -= CFG.TICK;
     }

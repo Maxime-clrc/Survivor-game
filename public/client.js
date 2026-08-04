@@ -1472,6 +1472,10 @@ function ingest(msg) {
       // cas majoritaire : un serveur anterieur au lot ne l'envoie pas, et le
       // chiffre rouge porte alors l'icone la plus probable au lieu d'aucune.
       src: a[29] ?? 0,
+      // Troisieme competence (lot C) : recharge et palier possede. Repli a 0 —
+      // un serveur anterieur n'envoie rien, la pastille reste alors grisee,
+      // qui est exactement l'etat « pas de carte ».
+      cd3: a[30] ?? 0, skill3: a[31] ?? 0,
     }])),
     /* Le champ de type porte trois informations pour n'en couter qu'une seule
        sur chacun des 200 ennemis, vingt fois par seconde : le type, le rang
@@ -1524,6 +1528,10 @@ function ingest(msg) {
     powerups: msg.w.map(a => ({ id: a[0], x: a[1], y: a[2], type: a[3] })),
     turrets: (msg.tu ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], k: a[3], ang: a[4] })),
     bulwarks: (msg.bw ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4] })),
+    // Ancres et sanctuaires (lot C) : cles nommees, absentes d'un serveur
+    // anterieur — le repli est la liste vide, rien a dessiner.
+    anchors: (msg.an ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4], vuln: a[5] ?? 0 })),
+    sancts: (msg.sa ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4] })),
     // `tx`/`ty` : le point de chute annonce, ajout en fin de tuple. Repli sur la
     // position courante — un serveur anterieur au lot ne l'envoie pas, et le
     // cercle d'atterrissage se colle alors a la bombe au lieu de mentir.
@@ -1630,7 +1638,7 @@ const dash = { pending: false, t: 0, cd: 0, x: 0, y: 0 };
    sont PAS predites localement, contrairement au bond : leurs effets (rempart,
    provocation, bombe) sont des entites de la simulation, et une entite predite
    qui n'existe pas cote serveur est bien pire qu'un aller-retour de latence. */
-const skills = { s1: false, s2: false };
+const skills = { s1: false, s2: false, s3: false };
 
 function requestSkill(n) {
   if (phase !== PHASE_ROUND || amSpectator || cardsState) return;
@@ -1638,7 +1646,9 @@ function requestSkill(n) {
   // depuis un menu part sur une situation qu'on ne regarde pas.
   if (!pauseEl.hidden) return;
   if (latest?.players.get(myId)?.downed) return;
-  if (n === 1) skills.s1 = true; else skills.s2 = true;
+  if (n === 1) skills.s1 = true;
+  else if (n === 2) skills.s2 = true;
+  else skills.s3 = true;
 }
 
 addEventListener("keydown", e => {
@@ -1656,8 +1666,25 @@ addEventListener("keydown", e => {
      pleine vague. KeyA est deja pris par le deplacement, d'ou KeyQ. */
   const s1 = e.code === "Digit1" || e.code === "Numpad1" || e.code === "KeyQ";
   const s2 = e.code === "Digit2" || e.code === "Numpad2" || e.code === "KeyE";
+  /* La troisieme competence (lot C) : touche 3, alias clic milieu plus bas.
+     KeyR en second jeu, pour la meme raison que KeyQ/KeyE — la voisine
+     immediate de la main de deplacement, atteignable sans lacher ZQSD. */
+  const s3 = e.code === "Digit3" || e.code === "Numpad3" || e.code === "KeyR";
   if (s1 && !repeat && !e.repeat) requestSkill(1);
   if (s2 && !repeat && !e.repeat) requestSkill(2);
+  if (s3 && !repeat && !e.repeat) requestSkill(3);
+});
+
+/* Clic milieu : alias de la troisieme competence. Contrairement au clic droit
+   (retire — il reste d'abord un menu contextuel), le clic milieu n'a aucun
+   role dans un jeu plein ecran ; son defilement automatique, lui, doit etre
+   coupe, sinon chaque declenchement fait deriver la page. Sur le canvas
+   uniquement : ailleurs (une page de depannage ouverte a cote), il garde son
+   sens. */
+cv.addEventListener("mousedown", e => {
+  if (e.button !== 1) return;
+  e.preventDefault();
+  requestSkill(3);
 });
 
 /* Le clic droit etait un alias de la competence 1. Retire : dans un navigateur
@@ -1802,6 +1829,7 @@ setInterval(() => {
   if (dash.pending) { msg.d = 1; dash.pending = false; }
   if (skills.s1) { msg.s1 = 1; skills.s1 = false; }
   if (skills.s2) { msg.s2 = 1; skills.s2 = false; }
+  if (skills.s3) { msg.s3 = 1; skills.s3 = false; }
   ws.send(JSON.stringify(msg));
 }, 1000 / INPUT_HZ);
 
@@ -1881,6 +1909,10 @@ function interpolated(renderTime) {
        Le rempart ANCRE traverse la meme fonction sans y perdre : sa position ne
        change pas d'un instantane a l'autre, l'interpolation est l'identite. */
     bulwarks: lerpList(a.bulwarks, b.bulwarks),
+    // Ancres et sanctuaires : POSES au sol, leur position ne change jamais —
+    // l'interpolation serait l'identite, on prend le snapshot le plus recent.
+    anchors: b.anchors,
+    sancts: b.sancts,
     effects: b.effects,
     boss, boss2, marks, slip: b.slip,
     // Limites et murs : des paliers, pas des positions. Interpoler une arene qui
@@ -1909,6 +1941,8 @@ function flatten(s) {
     powerups: s.powerups,
     turrets: s.turrets,
     bulwarks: s.bulwarks ?? [],
+    anchors: s.anchors ?? [],
+    sancts: s.sancts ?? [],
     effects: s.effects,
     boss: s.boss,
     boss2: s.boss2 ?? null,
@@ -2106,6 +2140,9 @@ const EFFECT_SOUND = {
   7:  { son: "explosion", force: 1.0, shake: 6 },   // explosion de grenade
   8:  { son: "explosion", force: 0.6, shake: 4 },   // onde blanche
   12: { son: "explosion", force: 1.35, shake: 9 },  // bombe du DPS
+  // Salve (lot C) : un impact aigu par cible, jamais de tressaillement — une
+  // volee de huit ne doit pas secouer l'ecran huit fois.
+  13: { son: "impact", pitch: 1.4, force: 0.5, shake: 0 },
 };
 
 function handleEvent(e) {
@@ -2832,6 +2869,11 @@ function drawWorld(v) {
   // 6,5 m de rayon (11 m ancre) — dessine par-dessus, il masquait exactement
   // les ennemis qu'il attire.
   drawBulwarks(v.bulwarks ?? []);
+  // Ancre et sanctuaire (lot C) : des marquages de sol, comme le rempart, et
+  // pour la meme raison — dessines par-dessus, ils masqueraient exactement ce
+  // qu'ils retiennent ou protegent.
+  drawAnchors(v.anchors ?? []);
+  drawSancts(v.sancts ?? []);
   drawTurrets(v.turrets ?? []);
   drawEffects(v.effects);
   drawPowerups(v.powerups);
@@ -3505,6 +3547,31 @@ function drawEffects(effects) {
       continue;
     }
 
+    if (f.kind === 13) {
+      // Salve (lot C) : rayon de verrouillage du tireur vers sa cible, plus un
+      // losange qui marque la cible touchee. Droit et non casse — c'est un
+      // verrouillage, pas un rebond, et la difference doit se lire.
+      ctx.strokeStyle = alpha(CLASS_COLOR.dps, f.k * 0.8);
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(f.x2, f.y2);
+      ctx.lineTo(f.x, f.y);
+      ctx.stroke();
+
+      const s = 6 + 6 * f.k;
+      ctx.strokeStyle = alpha(CLASS_COLOR.dps, f.k);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(f.x, f.y - s);
+      ctx.lineTo(f.x + s, f.y);
+      ctx.lineTo(f.x, f.y + s);
+      ctx.lineTo(f.x - s, f.y);
+      ctx.closePath();
+      ctx.stroke();
+      continue;
+    }
+
     if (f.kind === 4) {
       // balise : double anneau vert qui se resserre sur le releve
       ctx.strokeStyle = alpha(FX.beacon, f.k * 0.95);
@@ -3690,6 +3757,73 @@ function drawBulwarks(list) {
     ctx.lineWidth = 3.5;
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * b.k);
+    ctx.stroke();
+  }
+}
+
+/* Ancre du tank (lot C). Le langage est celui du rempart — disque discret,
+   anneau a la couleur de classe, arc de duree — avec DEUX ajouts qui disent la
+   mecanique : la laisse (anneau pointille au double du rayon, la ou les
+   ennemis captures butent) et des crampons vers l'interieur, qui disent
+   « retenue » la ou le rempart dit « abri ». */
+function drawAnchors(list) {
+  for (const an of list) {
+    // Zone de capture.
+    ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.04 + an.k * 0.04);
+    ctx.beginPath(); ctx.arc(an.x, an.y, an.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(CLASS_COLOR.tank, 0.30 + an.k * 0.45);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(an.x, an.y, an.r, 0, Math.PI * 2); ctx.stroke();
+
+    // La laisse : c'est elle que les allies lisent pour savoir ou la horde
+    // s'arretera. Pointillee — elle ne bloque pas les joueurs, elle retient.
+    ctx.setLineDash([6, 8]);
+    ctx.strokeStyle = alpha(CLASS_COLOR.tank, 0.25);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(an.x, an.y, an.r * 2, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Crampons : six ticks orientes vers le centre.
+    ctx.strokeStyle = alpha(CLASS_COLOR.tank, 0.7);
+    ctx.lineWidth = 2.5;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(an.x + Math.cos(a) * an.r, an.y + Math.sin(a) * an.r);
+      ctx.lineTo(an.x + Math.cos(a) * (an.r - 10), an.y + Math.sin(a) * (an.r - 10));
+      ctx.stroke();
+    }
+
+    // Arc de duree restante, sur le bord, comme le rempart.
+    ctx.strokeStyle = alpha(OWNED.bulwarkArc, 0.85);
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(an.x, an.y, an.r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * an.k);
+    ctx.stroke();
+  }
+}
+
+/* Sanctuaire du soigneur (lot C). Couleur de classe, comme le rempart et
+   l'ancre — l'identite dit QUI protege. Le bord est double : le liseré
+   exterieur marque la limite ou les projectiles ennemis meurent, c'est
+   l'information tactique du dome. */
+function drawSancts(list) {
+  for (const sa of list) {
+    ctx.fillStyle = alpha(CLASS_COLOR.soigneur, 0.05 + sa.k * 0.04);
+    ctx.beginPath(); ctx.arc(sa.x, sa.y, sa.r, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = alpha(CLASS_COLOR.soigneur, 0.35 + sa.k * 0.45);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(sa.x, sa.y, sa.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = alpha(CLASS_COLOR.soigneur, 0.18);
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(sa.x, sa.y, sa.r - 5, 0, Math.PI * 2); ctx.stroke();
+
+    // Arc de duree restante — meme grammaire que le rempart et l'ancre.
+    ctx.strokeStyle = alpha(OWNED.bulwarkArc, 0.85);
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(sa.x, sa.y, sa.r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * sa.k);
     ctx.stroke();
   }
 }

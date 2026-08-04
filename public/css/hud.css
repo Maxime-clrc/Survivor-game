@@ -509,6 +509,22 @@
   color: var(--pip);
 }
 
+/* Troisieme competence non obtenue (lot C) : grisee ET barree — la couleur
+   seule ne suffit jamais. L'emplacement reste visible des le debut de la
+   partie, c'est ce qui rend la carte desirable avant meme de la connaitre. */
+.pip.locked { opacity: 0.45; }
+.pip.locked .box::before { display: none; }
+.pip.locked .box::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 50%;
+  border-top: var(--edge) solid var(--text-faint);
+  transform: rotate(-24deg);
+  pointer-events: none;
+}
+
 /* --- divers ---------------------------------------------------------------- */
 
 #hudSpectator {

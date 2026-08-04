@@ -206,6 +206,14 @@ export const CLASSES = [
 
 export const CLASS_BY_ID = new Map(CLASSES.map((c, i) => [c.id, i]));
 
+/* Nom de la TROISIEME competence (lot C), par identifiant de classe. Elle ne
+   vit pas dans `skills` : ces deux entrees decrivent ce qu'on a toujours, la
+   troisieme n'existe que si sa carte est tiree — ses chiffres vivent donc dans
+   CARD_CFG (tables SKILL3_*), a cote des cartes qui l'accordent. Le nom reste
+   ici parce que le HUD en a besoin AVANT la carte : la pastille grisee doit
+   dire ce qu'on pourrait obtenir, c'est ce qui rend la carte desirable. */
+export const SKILL3_NAME = { tank: "Ancre", soigneur: "Sanctuaire", dps: "Salve" };
+
 /* Classe par defaut d'un joueur qui n'a rien choisi. C'est le tireur : la
    seule classe non unique, donc la seule qu'on puisse attribuer d'office sans
    risquer de voler l'emplacement de quelqu'un. */

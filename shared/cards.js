@@ -298,6 +298,36 @@ export const CARD_CFG = {
   ADRENALINE_RATE: 0.25,
   SOUFFLE_HP: 0.25,
   SOUFFLE_DAMAGE: 0.80,
+
+  /* --- troisieme competence (lot C du plan v3) --------------------------------
+     Une carte accorde une TROISIEME competence, propre a la classe, declinee en
+     trois paliers (rare, epique, legendaire). Le palier ne change jamais la
+     nature de la competence, seulement son ampleur — sinon on ne peut pas
+     apprendre a jouer avec. Les tables vivent ici et non dans SKILL_CFG, pour
+     la meme raison qu'ANCRAGE_RADIUS : la competence n'existe que par sa carte,
+     son reglage doit etre lisible a cote de la table qui la decrit.
+     Le palier circule dans `mods.skill3` (0 = pas de carte, 1..3), et l'index
+     dans ces tableaux est `palier - 1`. */
+  SKILL3_MIN_WAVE: 4,        // jamais avant : elle ecraserait le reste du build
+  SKILL3_ANCRE: [
+    { r: 120, time: 4,   cd: 26, vuln: 0 },
+    { r: 160, time: 5.5, cd: 22, vuln: 0 },
+    { r: 200, time: 7,   cd: 18, vuln: 1 },
+  ],
+  SKILL3_ANCRE_SLOW: 0.40,   // vitesse RESTANTE des ennemis dans le rayon
+  SKILL3_ANCRE_LEASH: 2,     // rayon de laisse, en multiples du rayon
+  SKILL3_SANCTUAIRE: [
+    { r: 100, time: 5, heal: 8,  cd: 30, purge: 0 },
+    { r: 130, time: 7, heal: 12, cd: 26, purge: 0 },
+    { r: 160, time: 9, heal: 16, cd: 22, purge: 1 },
+  ],
+  SKILL3_SALVE: [
+    { targets: 4, mul: 0.60, cd: 20, vuln: 0 },
+    { targets: 6, mul: 0.75, cd: 17, vuln: 0 },
+    { targets: 8, mul: 0.90, cd: 14, vuln: 1 },
+  ],
+  SKILL3_SALVE_RANGE: 480,   // 24 m — un peu plus que la portee des tireurs
+  SKILL3_SALVE_SPREAD: 0.7,  // demi-ouverture du cone de verrouillage, en rad
 };
 
 /* --- familles ------------------------------------------------------------------
@@ -415,6 +445,27 @@ const pctAdd = (step, n) => `+${num(step * n * 100)} %`;
 const pctCut = (keep, n) => `−${num((1 - Math.pow(keep, n)) * 100)} %`;
 const pctUp  = (mul, n) => `+${num((Math.pow(mul, n) - 1) * 100)} %`;
 const plur = (n, mot) => `${n} ${mot}${n > 1 ? "s" : ""}`;
+
+/* Descriptions de la troisieme competence (lot C). Composees depuis les tables
+   de CARD_CFG et non recopiees — meme regle que fmtM partout ailleurs : un
+   texte qui recopie une constante ment des le premier reglage. Le suffixe
+   propre au palier legendaire (Vulnerabilite, purge) est ajoute a la main dans
+   la carte : c'est un EFFET en plus, pas un chiffre de la table. */
+const skill3Ancre = t => {
+  const c = CARD_CFG.SKILL3_ANCRE[t];
+  return `3ᵉ compétence (touche 3) : ancre au sol de ${fmtM(c.r)} pendant ${num(c.time)} s — `
+    + `ennemis ralentis à ${num(CARD_CFG.SKILL3_ANCRE_SLOW * 100)} % et retenus dans le double du rayon`;
+};
+const skill3Sanctuaire = t => {
+  const c = CARD_CFG.SKILL3_SANCTUAIRE[t];
+  return `3ᵉ compétence (touche 3) : dôme de ${fmtM(c.r)} pendant ${num(c.time)} s — `
+    + `${c.heal} PV/s à l'intérieur, les projectiles ennemis qui entrent sont détruits`;
+};
+const skill3Salve = t => {
+  const c = CARD_CFG.SKILL3_SALVE[t];
+  return `3ᵉ compétence (touche 3) : verrouille ${c.targets} ennemis dans un cône de ${fmtM(CARD_CFG.SKILL3_SALVE_RANGE)} `
+    + `et les touche à coup sûr, ${num(c.mul * 100)} % de dégâts par cible`;
+};
 
 /* --- la table -----------------------------------------------------------------
 
@@ -1280,6 +1331,97 @@ export const CARDS = [
     apply(m) { m.bombVulnerable = 1; },
   },
 
+  /* --- troisieme competence (lot C) ----------------------------------------------
+
+     Le seul endroit du jeu ou une carte change ce qu'on FAIT, pas seulement les
+     nombres. Trois regles, portees par trois champs :
+       - `minWave` : jamais avant la vague 4 — obtenue trop tot, elle ecrase le
+         reste du build, et le joueur n'a pas encore assimile ses deux premieres
+         competences ;
+       - `incompatible` mutuel : PAS de cumul — une fois un palier obtenu, les
+         deux autres sortent du pool. Ce n'est pas une famille : les familles se
+         cumulent, ici on choisit une fois ;
+       - `excl` : jamais deux paliers de la meme competence dans le meme tirage
+         — le palier superieur ecraserait toujours l'autre et le choix serait
+         faux. Meme regle que `family`, sans en porter l'affichage de cumul. --- */
+
+  /* Tank — Ancre. Du controle de foule pur, ce qui manque totalement au jeu :
+     on ne peut aujourd'hui que subir la horde ou la fuir, jamais la contenir.
+     Les descriptions COMPOSENT les constantes (skill3Ancre etc.), comme partout :
+     un texte qui recopie un nombre ment des le premier reglage. */
+  {
+    id: "ancre", nom: "Ancre", rarity: 1, max: 1, tags: ["def", "coop"],
+    cls: "tank", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["ancre_lourde", "ancre_souveraine"],
+    desc: skill3Ancre(0),
+    apply(m) { m.skill3 = Math.max(m.skill3, 1); },
+  },
+  {
+    id: "ancre_lourde", nom: "Ancre lourde", rarity: 2, max: 1, tags: ["def", "coop"],
+    cls: "tank", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["ancre", "ancre_souveraine"],
+    desc: skill3Ancre(1),
+    apply(m) { m.skill3 = Math.max(m.skill3, 2); },
+  },
+  {
+    id: "ancre_souveraine", nom: "Ancre souveraine", rarity: 3, max: 1, tags: ["def", "coop"],
+    cls: "tank", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["ancre", "ancre_lourde"],
+    desc: skill3Ancre(2) + " — les ennemis retenus sont Vulnérables",
+    apply(m) { m.skill3 = Math.max(m.skill3, 3); },
+  },
+
+  /* Soigneur — Sanctuaire. La destruction de projectiles est l'effet le plus
+     important : c'est la seule reponse du jeu a la saturation de tirs pendant
+     un combat de boss, et elle donne au soigneur un role qui n'est pas du
+     rattrapage. */
+  {
+    id: "sanctuaire", nom: "Sanctuaire", rarity: 1, max: 1, tags: ["coop", "def"],
+    cls: "soigneur", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["grand_sanctuaire", "sanctuaire_absolu"],
+    desc: skill3Sanctuaire(0),
+    apply(m) { m.skill3 = Math.max(m.skill3, 1); },
+  },
+  {
+    id: "grand_sanctuaire", nom: "Grand sanctuaire", rarity: 2, max: 1, tags: ["coop", "def"],
+    cls: "soigneur", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["sanctuaire", "sanctuaire_absolu"],
+    desc: skill3Sanctuaire(1),
+    apply(m) { m.skill3 = Math.max(m.skill3, 2); },
+  },
+  {
+    id: "sanctuaire_absolu", nom: "Sanctuaire absolu", rarity: 3, max: 1, tags: ["coop", "def"],
+    cls: "soigneur", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["sanctuaire", "grand_sanctuaire"],
+    desc: skill3Sanctuaire(2) + " — purge un état à l'entrée",
+    apply(m) { m.skill3 = Math.max(m.skill3, 3); },
+  },
+
+  /* Tireur — Salve. La reponse aux tireurs qui gardent leurs distances et aux
+     ennemis qui tournent derriere — la faiblesse structurelle de la visee
+     manuelle : le verrouillage touche a coup sur. */
+  {
+    id: "salve", nom: "Salve", rarity: 1, max: 1, tags: ["off"],
+    cls: "dps", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["salve_etendue", "salve_totale"],
+    desc: skill3Salve(0),
+    apply(m) { m.skill3 = Math.max(m.skill3, 1); },
+  },
+  {
+    id: "salve_etendue", nom: "Salve étendue", rarity: 2, max: 1, tags: ["off"],
+    cls: "dps", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["salve", "salve_totale"],
+    desc: skill3Salve(1),
+    apply(m) { m.skill3 = Math.max(m.skill3, 2); },
+  },
+  {
+    id: "salve_totale", nom: "Salve totale", rarity: 3, max: 1, tags: ["off"],
+    cls: "dps", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    incompatible: ["salve", "salve_etendue"],
+    desc: skill3Salve(2) + " — cibles rendues Vulnérables",
+    apply(m) { m.skill3 = Math.max(m.skill3, 3); },
+  },
+
   /* --- carte de secours ---------------------------------------------------------
 
      Elle ne sort JAMAIS du tirage normal (`fallback`), uniquement pour combler
@@ -1398,6 +1540,10 @@ export function defaultMods() {
     bombVulnerable: 0,
     overdriveTime: 0,
     overdriveFade: 0,
+    /* Troisieme competence (lot C) : le PALIER possede, 0 = pas de carte,
+       1 rare, 2 epique, 3 legendaire. Un nombre et non un drapeau : la
+       simulation indexe les tables SKILL3_* dessus. */
+    skill3: 0,
 
     /* --- axes du lot 6 ------------------------------------------------------
        `critChance` et `critMul` sont les seuls mods qui ne partent PAS d'une
@@ -1546,7 +1692,7 @@ function topTiers(owned) {
    le seul endroit du depot ou une classe est designee par son nom, et c'est
    volontaire, une carte doit rester lisible sans compter les colonnes d'un
    tableau exporte ailleurs. */
-export function eligibleCards(owned, cls = null) {
+export function eligibleCards(owned, cls = null, waveNow = 0) {
   const blocked = new Set();
   for (const id of owned.keys()) {
     const card = CARD_BY_ID.get(id);
@@ -1566,6 +1712,10 @@ export function eligibleCards(owned, cls = null) {
     // non a l'affichage : une carte visible mais impossible a prendre est pire
     // qu'une carte absente.
     if (c.cls && c.cls !== cls) return false;
+    /* Troisieme competence : jamais avant sa vague seuil. Le defaut de
+       `waveNow` (0) FILTRE ces cartes — un appelant qui ne connait pas la
+       vague n'a pas a les offrir, c'est le sens sur de l'oubli. */
+    if (c.minWave && waveNow < c.minWave) return false;
     if (blocked.has(c.id)) return false;
     return (owned.get(c.id) || 0) < c.max;
   });
@@ -1590,17 +1740,21 @@ export const FALLBACK_CARD = CARDS.find(c => c.fallback);
    une fonction de ses arguments, rejouable telle quelle dans un script de
    mesure. */
 export function drawCards(owned, quality, forceRare = false, cls = null,
-                          rng = Math.random, wave = 0) {
+                          rng = Math.random, wave = 0, waveNow = 0) {
   /* Plafond dur. Sans lui, un joueur chanceux en cumulait quatre et rendait
      toute mesure d'equilibrage inutilisable : la puissance de la table ne
      depend plus alors du systeme mais d'un tirage. */
   const capped = legendaryCount(owned) >= CARD_CFG.LEGENDARY_MAX;
-  const pool = eligibleCards(owned, cls)
+  const pool = eligibleCards(owned, cls, waveNow)
     .filter(c => !(capped && c.rarity === RARITY.LEGENDAIRE));
   const weights = rarityWeights(quality);
   const out = [];
   const taken = new Set();
   const families = new Set();
+  // Groupes d'exclusion de tirage (troisieme competence) : meme regle que les
+  // familles — deux paliers ensemble, le superieur ecrase l'autre — sans en
+  // porter l'affichage de cumul, puisque ces cartes ne se cumulent pas.
+  const excls = new Set();
 
   const pickFrom = list => {
     let total = 0;
@@ -1620,9 +1774,12 @@ export function drawCards(owned, quality, forceRare = false, cls = null,
     // Jamais deux paliers de la meme famille dans le meme tirage : le palier
     // superieur ecrase toujours l'autre, et le choix n'en est plus un.
     if (c.family) families.add(c.family);
+    if (c.excl) excls.add(c.excl);
   };
   const restant = () =>
-    pool.filter(c => !taken.has(c.id) && !(c.family && families.has(c.family)));
+    pool.filter(c => !taken.has(c.id)
+      && !(c.family && families.has(c.family))
+      && !(c.excl && excls.has(c.excl)));
 
   /* Garantie de jalon. Elle passe AVANT `forceRare`, qu'elle satisfait au
      passage : une legendaire est une rare au sens de la garantie

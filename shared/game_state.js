@@ -623,6 +623,8 @@ export class GameState {
     this.drones = [];
     this.bulwarks = [];     // remparts poses par les tanks
     this.bombs = [];        // bombes du tireur, en vol
+    this.anchors = [];      // ancres du tank (3e competence, lot C)
+    this.sancts = [];       // sanctuaires du soigneur (3e competence, lot C)
     this.effects = [];      // purement visuel : ondes de choc
 
     /* Provocation : un etat GLOBAL et non une cible par ennemi. Les ennemis
@@ -861,6 +863,10 @@ export class GameState {
          reaccumule au lieu de simplement descendre a zero. */
       cd1: 0,
       cd2: 0,
+      /* La troisieme recharge (lot C) existe pour tout le monde, comme les
+         cles de mods : elle ne sert que si `mods.skill3` est non nul, et un
+         champ absent aurait donne NaN au premier decompte. */
+      cd3: 0,
       bombStock: 1,
       healMode: 0,
       healSwapCd: 0,
@@ -872,7 +878,7 @@ export class GameState {
       // Compteurs de competence, pour la campagne de mesure : une recharge qui
       // dort est un probleme de conception, pas de reglage, et on ne le voit
       // qu'en comptant les declenchements contre les recharges disponibles.
-      skillUses: [0, 0],
+      skillUses: [0, 0, 0],
 
       /* --- mecaniques de boss (lot 4) ---------------------------------------
          Cinq champs legers plutot qu'une structure : ils ne servent qu'a un
@@ -932,8 +938,11 @@ export class GameState {
     // les huit autres n'ont jamais a apparaitre dans son tirage.
     // `wave` ne vaut autre chose que 0 qu'au premier ecran d'une vague de jalon
     // — c'est lui qui declenche la legendaire garantie.
+    // `this.wave` est la vague COURANTE, passee a chaque tirage : c'est elle
+    // qui tient la troisieme competence hors des premiers ecrans (`minWave`).
+    // A ne pas confondre avec `wave`, qui ne sert qu'au jalon de legendaire.
     const picks = drawCards(p.cards, quality, forceRare || p.commonStreak >= 2,
-      classAt(p.cls).id, Math.random, wave);
+      classAt(p.cls).id, Math.random, wave, this.wave);
     return picks.map(c => c.id);
   }
 
@@ -1080,6 +1089,7 @@ export class GameState {
          est deja puni une fois. La bombe se REACCUMULE tant qu'il manque une
          charge, au lieu de s'arreter a zero. */
       p.cd2 = Math.max(0, p.cd2 - dt);
+      p.cd3 = Math.max(0, p.cd3 - dt);
       p.healSwapCd = Math.max(0, p.healSwapCd - dt);
       p.healSwapBoost = Math.max(0, p.healSwapBoost - dt);
       p.tauntInvuln = Math.max(0, p.tauntInvuln - dt);
@@ -1222,6 +1232,7 @@ export class GameState {
          seule a chaque fin de recharge. */
       if (inp && inp.s1) this._skill1(p);
       if (inp && inp.s2) this._skill2(p);
+      if (inp && inp.s3) this._skill3(p);
 
       /* Prison : le joueur est immobile tant que la cage tient, esquive
          comprise. C'est la seule chose du jeu qui coupe l'esquive, et c'est
@@ -1563,6 +1574,102 @@ export class GameState {
     }
   }
 
+  /* Troisieme competence (lot C). Elle n'existe que si sa carte a ete tiree :
+     `mods.skill3` porte le palier (1 rare, 2 epique, 3 legendaire), zero sinon.
+     Meme modele que les deux autres — le client DEMANDE, le serveur decide, le
+     drapeau `s3` est ponctuel et remis a zero par la boucle du serveur apres
+     chaque tick. `areaMul` s'applique aux rayons et `skillCdMul` aux recharges,
+     exactement comme pour les competences de base : c'est ce qui rend le palier
+     rare viable face au legendaire une fois les cartes de recharge prises. */
+  _skill3(p) {
+    if (p.downed || p.cd3 > 0) return;
+    const tier = p.mods.skill3;
+    if (tier <= 0) return;
+
+    switch (classAt(p.cls).id) {
+      case "tank": {
+        const c = CARD_CFG.SKILL3_ANCRE[tier - 1];
+        p.cd3 = c.cd * p.mods.skillCdMul;
+        p.skillUses[2]++;
+        const r = c.r * p.mods.areaMul;
+        this.anchors.push({
+          id: this._nextId++, x: p.x, y: p.y, r,
+          life: c.time, max: c.time, owner: p.id, vuln: c.vuln,
+          /* Ennemis captures : la laisse ne retient que ceux qui sont ENTRES
+             dans le rayon, jamais toute l'arene — un Set d'identifiants, comme
+             les purges du rempart. Il n'est pas nettoye des morts : un
+             identifiant d'ennemi ne se reutilise jamais dans une manche. */
+          held: new Set(),
+        });
+        this.effects.push({
+          id: this._nextId++, x: p.x, y: p.y, r, life: 0.5, max: 0.5, kind: 9,
+        });
+        return;
+      }
+
+      case "soigneur": {
+        const c = CARD_CFG.SKILL3_SANCTUAIRE[tier - 1];
+        p.cd3 = c.cd * p.mods.skillCdMul;
+        p.skillUses[2]++;
+        const r = c.r * p.mods.areaMul;
+        this.sancts.push({
+          id: this._nextId++, x: p.x, y: p.y, r,
+          life: c.time, max: c.time, owner: p.id,
+          heal: c.heal, purge: c.purge,
+          // Purge a l'entree (palier legendaire), UNE FOIS par joueur et par
+          // pose : la meme memoire que le rempart, pour la meme raison.
+          purged: new Set(),
+        });
+        this.effects.push({
+          id: this._nextId++, x: p.x, y: p.y, r, life: 0.45, max: 0.45, kind: 11,
+        });
+        return;
+      }
+
+      default: {
+        /* Salve. Le verrouillage se fait dans un cone vers la visee et touche a
+           coup sur : c'est la reponse aux tireurs qui gardent leurs distances,
+           la faiblesse structurelle de la visee manuelle. SANS CIBLE, PAS DE
+           RECHARGE : une volee dans le vide punirait la lecture du terrain que
+           la competence est censee recompenser. */
+        const c = CARD_CFG.SKILL3_SALVE[tier - 1];
+        const a0 = Math.atan2(p.aimY, p.aimX);
+        const range = CARD_CFG.SKILL3_SALVE_RANGE;
+        const near = [];
+        for (const e of this.enemies) {
+          if (e.hp <= 0) continue;
+          const dx = e.x - p.x, dy = e.y - p.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > range * range) continue;
+          if (Math.abs(this._angleDiff(Math.atan2(dy, dx), a0))
+              > CARD_CFG.SKILL3_SALVE_SPREAD) continue;
+          near.push({ e, d2 });
+        }
+        if (near.length === 0) return;
+        near.sort((a, b) => a.d2 - b.d2);
+
+        p.cd3 = c.cd * p.mods.skillCdMul;
+        p.skillUses[2]++;
+        /* Les degats passent par `_damage`, au point de passage unique : la
+           salve critique donc comme une balle, sans le savoir. Pas de boss dans
+           les cibles — comme l'execution, un verrouillage garanti applique a
+           une reserve de vie de boss changerait la nature du combat. */
+        const dmg = CFG.BULLET_DAMAGE * p.mods.damageMul * p.mods.barrelDamageMul * c.mul;
+        for (let i = 0; i < near.length && i < c.targets; i++) {
+          const e = near[i].e;
+          // La Vulnerabilite s'applique AVANT les degats, comme « Detonateur » :
+          // sinon le palier ne vaut rien sur une cible que la salve tue.
+          if (c.vuln) e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
+          this._damage(e, dmg, p.id);
+          this.effects.push({
+            id: this._nextId++, x: e.x, y: e.y, r: 16,
+            life: 0.3, max: 0.3, kind: 13, x2: p.x, y2: p.y,
+          });
+        }
+      }
+    }
+  }
+
   /* Soin d'un joueur par un autre. Point de passage unique, comme `_hurt` pour
      les degats : le surplus en bouclier, le retour de transfusion et le
      comptage y sont branches une seule fois, et une future source de soin en
@@ -1725,6 +1832,62 @@ export class GameState {
       if (bw.life > 0) kept.push(bw);
     }
     this.bulwarks = kept;
+
+    /* Ancres (lot C). Le RALENTISSEMENT s'applique dans `_enemies`, comme le
+       givre — c'est la que la vitesse se calcule. Ici : la capture, la laisse
+       et la Vulnerabilite du palier legendaire. `_skills` tourne avant
+       `_enemies`, la laisse rattrape donc le deplacement de l'image PRECEDENTE
+       — un depassement d'une image, invisible a 60 Hz, et aucune double
+       resolution. */
+    if (this.anchors.length) {
+      const keptAnchors = [];
+      for (const an of this.anchors) {
+        an.life -= dt;
+        const leash = an.r * CARD_CFG.SKILL3_ANCRE_LEASH;
+        for (const e of this.enemies) {
+          if (e.hp <= 0) continue;
+          const d2 = (e.x - an.x) ** 2 + (e.y - an.y) ** 2;
+          if (d2 <= an.r * an.r) an.held.add(e.id);
+          else if (an.held.has(e.id) && d2 > leash * leash) {
+            const d = Math.sqrt(d2) || 1;
+            e.x = an.x + (e.x - an.x) / d * leash;
+            e.y = an.y + (e.y - an.y) / d * leash;
+          }
+          // Palier legendaire : les ennemis retenus restent Vulnerables tant
+          // que l'ancre tient — le minuteur est relance a chaque tick, il
+          // expire donc VULNERABLE_TIME apres la sortie ou la fin de l'ancre.
+          if (an.vuln && an.held.has(e.id)) {
+            e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
+          }
+        }
+        if (an.life > 0) keptAnchors.push(an);
+      }
+      this.anchors = keptAnchors;
+    }
+
+    /* Sanctuaires (lot C). Le soin passe par `_heal`, point de passage unique —
+       surplus en bouclier et comptage compris. La destruction des projectiles
+       ennemis vit dans `_shots`, la ou ils avancent. Un proprietaire
+       deconnecte laisse son dome finir sa vie : la cible se soigne alors « en
+       son nom », ce qui ne fausse qu'un compteur de bilan. */
+    if (this.sancts.length) {
+      const keptSancts = [];
+      for (const sa of this.sancts) {
+        sa.life -= dt;
+        const owner = this.players.get(sa.owner);
+        for (const p of this.players.values()) {
+          if (p.downed) continue;
+          if ((p.x - sa.x) ** 2 + (p.y - sa.y) ** 2 > sa.r * sa.r) continue;
+          if (sa.purge && !sa.purged.has(p.id)) {
+            sa.purged.add(p.id);
+            this._purgeStatus(p);
+          }
+          this._heal(owner ?? p, p, sa.heal * dt);
+        }
+        if (sa.life > 0) keptSancts.push(sa);
+      }
+      this.sancts = keptSancts;
+    }
 
     // Bombes en vol. Le delai est essentiel : sans lui, c'est un clic gagnant
     // sans anticipation.
@@ -2877,6 +3040,15 @@ export class GameState {
           // Deux auras ne se cumulent pas : a 0,65 chacune, trois joueurs
           // givres immobilisaient l'arene entiere.
           mul *= CARD_CFG.FROST_MUL;
+          break;
+        }
+      }
+      /* Ancre (lot C) : ralentissement dans le rayon, comme le givre — et
+         comme lui, deux ancres ne se cumulent pas. La laisse, elle, vit dans
+         `_skills` : elle est une contrainte de position, pas de vitesse. */
+      for (const an of this.anchors) {
+        if ((e.x - an.x) ** 2 + (e.y - an.y) ** 2 <= an.r * an.r) {
+          mul *= CARD_CFG.SKILL3_ANCRE_SLOW;
           break;
         }
       }
@@ -4752,6 +4924,17 @@ export class GameState {
       s.life -= dt;
       s.x += s.vx * dt;
       s.y += s.vy * dt;
+      /* Sanctuaire (lot C) : les projectiles ennemis qui entrent sont DETRUITS
+         — la seule reponse du jeu a la saturation de tirs d'un boss. Detruit
+         et non expire : un tir absorbe ne laisse pas de flaque de Matriarche,
+         il n'a jamais fini sa course. Le test ne coute que dome ouvert. */
+      if (this.sancts.length) {
+        let absorbed = false;
+        for (const sa of this.sancts) {
+          if ((s.x - sa.x) ** 2 + (s.y - sa.y) ** 2 <= sa.r * sa.r) { absorbed = true; break; }
+        }
+        if (absorbed) continue;
+      }
       if (s.life > 0 && s.x > -60 && s.x < CFG.ARENA_W + 60
                      && s.y > -60 && s.y < CFG.ARENA_H + 60) { kept.push(s); continue; }
       /* Flaques de la Matriarche : le tir qui S'ETEINT laisse sa mare, pas
@@ -5841,6 +6024,11 @@ export class GameState {
            mourir sans comprendre pourquoi, ce qui est le defaut de lisibilite le
            plus cher du jeu. */
         p.lastSrc,
+        /* Troisieme competence (lot C), en fin de tableau : la recharge et le
+           palier possede (0 = pas de carte). Le palier sert au HUD — la
+           pastille reste grisee tant que la carte n'est pas tiree — et le
+           repli a 0 d'un serveur anterieur donne exactement cet etat. */
+        r1(p.cd3), p.mods.skill3,
       ]),
       /* Le rang d'elite voyage dans le champ de type (+100) : un drapeau separe
          aurait coute un nombre de plus sur chacun des 200 ennemis. Le marquage
@@ -5915,6 +6103,14 @@ export class GameState {
       // client plus ancien les ignore et joue sans les voir, ce qui reste
       // correct — aucune des deux ne le fait mentir sur l'etat du jeu.
       bw: this.bulwarks.map(b => [b.id, r1(b.x), r1(b.y), Math.round(b.r), r2(b.life / b.max)]),
+      /* Ancres et sanctuaires (lot C) : deux cles nommees, memes regles que
+         `bw` — un client anterieur les ignore simplement. Le sixieme champ de
+         l'ancre dit si le palier legendaire rend Vulnerable, pour que le
+         client puisse le montrer sans deviner. */
+      an: this.anchors.map(a => [a.id, r1(a.x), r1(a.y), Math.round(a.r),
+                                 r2(a.life / a.max), a.vuln ? 1 : 0]),
+      sa: this.sancts.map(s => [s.id, r1(s.x), r1(s.y), Math.round(s.r),
+                                r2(s.life / s.max)]),
       // Le point de chute est AJOUTE EN FIN de tuple, comme partout : un onglet
       // reste sur une version anterieure lit les quatre premiers champs et
       // dessine la bombe sans son cercle d'atterrissage.
@@ -5925,8 +6121,11 @@ export class GameState {
         .map(d => [d.id, r1(d.x), r1(d.y), r2(d.ang), d.kind, d.owner]),
       // les segments de chaine trainent deux points de plus ; les autres
       // effets ne paient pas ce supplement
-      f: this.effects.map(f => f.kind === 3
-        ? [f.id, r1(f.x), r1(f.y), 0, r2(f.life / f.max), 3, r1(f.x2), r1(f.y2)]
+      /* Les kinds 3 (ricochet) et 13 (salve) transportent deux points de plus :
+         l'arc a besoin de ses deux extremites. Les autres ne paient pas ce
+         supplement. */
+      f: this.effects.map(f => f.kind === 3 || f.kind === 13
+        ? [f.id, r1(f.x), r1(f.y), Math.round(f.r ?? 0), r2(f.life / f.max), f.kind, r1(f.x2), r1(f.y2)]
         : [f.id, r1(f.x), r1(f.y), Math.round(f.r), r2(f.life / f.max), f.kind ?? 0]),
       sl: this.slow > 0 ? 1 : 0,
       df: this.diffIndex,

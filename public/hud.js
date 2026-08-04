@@ -28,8 +28,9 @@ import {
   CFG, PLAYER_COLORS, DIFFICULTIES,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
-import { CLASS_DEFAULT, SKILL_CFG, classAt,
+import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
+import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
 import { bossAt } from "/shared/bosses.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN } from "/shared/palette.js";
@@ -319,6 +320,14 @@ const SKILL_BASE_CD = {
   dps: [SKILL_CFG.DPS_BOMB_CD, SKILL_CFG.DPS_OVERDRIVE_CD],
 };
 
+/* Recharges de base de la TROISIEME competence (lot C), indexees par palier —
+   la recharge depend du palier de la carte, contrairement aux deux premieres. */
+const SKILL3_BASE_CD = {
+  tank: CARD_CFG.SKILL3_ANCRE.map(c => c.cd),
+  soigneur: CARD_CFG.SKILL3_SANCTUAIRE.map(c => c.cd),
+  dps: CARD_CFG.SKILL3_SALVE.map(c => c.cd),
+};
+
 function buildPips(cdef) {
   el.pips.textContent = "";
   const mk = (key, label, color) => {
@@ -335,6 +344,10 @@ function buildPips(cdef) {
   mk("ESP", "esquive", TEXT.base);
   mk("A", cdef.skills[0].nom.slice(0, 11), cdef.couleur);
   mk("E", cdef.skills[1].nom.slice(0, 11), cdef.couleur);
+  /* La troisieme pastille existe DES LE DEBUT, grisee et barree tant que la
+     carte n'est pas tiree : le joueur voit que l'emplacement existe, ce qui
+     rend la carte desirable avant meme de la connaitre. */
+  mk("3", (SKILL3_NAME[cdef.id] ?? "").toLowerCase().slice(0, 11), cdef.couleur);
 }
 
 function updatePip(node, i, ready, k, active, stock) {
@@ -398,6 +411,17 @@ function updateSelf(v, c) {
     (me.skillFlags & SKILL_HEAL_MODE) !== 0, stock);
   updatePip(el.pips.children[2], 2, cd2 <= 0, cd2 <= 0 ? 1 : 1 - cd2 / base[1],
     (me.skillFlags & (SKILL_TAUNT | SKILL_OVERDRIVE)) !== 0, 0);
+
+  /* Troisieme pastille (lot C). Grisee tant que `skill3` vaut zero — c'est le
+     palier de la carte, transmis par le snapshot, et un serveur anterieur qui
+     ne l'envoie pas donne exactement cet etat. */
+  const tier3 = me.skill3 ?? 0;
+  const pip3 = el.pips.children[3];
+  setClass(pip3, "p3lock", "locked", tier3 <= 0);
+  const cd3 = me.cd3 ?? 0;
+  const base3 = tier3 > 0 ? (SKILL3_BASE_CD[cdef.id]?.[tier3 - 1] ?? 1) : 1;
+  updatePip(pip3, 3, tier3 > 0 && cd3 <= 0, cd3 <= 0 ? (tier3 > 0 ? 1 : 0) : 1 - cd3 / base3,
+    false, 0);
 
   updateEffects(c.counts);
   updateBuffs(me.buffs);
