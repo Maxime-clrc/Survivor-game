@@ -10,8 +10,9 @@ node server.js
 ```
 
 Node 18 ou plus, **aucun `npm install`** : le projet n'a aucune dépendance.
-Le serveur affiche l'adresse à communiquer. Pour changer de port :
-`PORT=3000 node server.js`
+Le serveur affiche l'adresse à communiquer. Le port par défaut est **7777**
+(derrière un proxy inverse, le port interne n'a plus d'importance — autant en
+prendre un sans collision) ; pour en changer : `PORT=3000 node server.js`
 
 ### Si les autres n'arrivent pas à se connecter
 
@@ -22,7 +23,16 @@ Le serveur affiche l'adresse à communiquer. Pour changer de port :
 
 ## Déroulement d'une partie
 
-Le serveur alterne entre **salon**, **manche** et **choix de cartes**.
+À la connexion on arrive au **hub** : la liste des salles. On en rejoint une
+d'un clic, ou on crée la sienne — avec un mot de passe optionnel pour une
+partie privée. Chaque salle est une partie indépendante (jusqu'à 16 salles de
+4 joueurs sur le même serveur) ; une salle pleine reste affichée `4/4`, grisée,
+pour qu'on sache s'il faut patienter ou créer la sienne. Une salle vide survit
+60 secondes : recharger sa page ne détruit pas la partie, et on retrouve sa
+salle d'un geste.
+
+Dans une salle, le serveur alterne entre **salon**, **manche** et **choix de
+cartes**.
 
 - Au salon, le tableau des scores de la manche précédente s'affiche, avec le
   cumul de la session. Seul **l'hôte** peut lancer la manche suivante.
@@ -1642,10 +1652,12 @@ de toute façon la couleur se noie dans le chaos.
 ## Architecture
 
 ```
-server.js              serveur HTTP + WebSocket + boucle autoritaire
-ws_lite.js             implémentation WebSocket minimale (RFC 6455)
+server.js              amorce : HTTP, WebSocket, page admin, câblage
+hub.js                 registre des salles, comptes, progression — seul à écrire
+room.js                une partie : GameState, clients, phases, tick
+ws_lite.js             implémentation WebSocket minimale (RFC 6455 + permessage-deflate)
 shared/game_state.js   LOGIQUE PURE — importée par le serveur ET le navigateur
-public/index.html      page, salon, tableau des scores
+public/index.html      page, hub, salon, tableau des scores
 public/client.js       saisie, interpolation, prédiction, rendu
 public/events.js       diffusion des snapshots en événements typés
 public/audio.js        synthèse WebAudio — aucun fichier son
@@ -1653,6 +1665,32 @@ public/audio.js        synthèse WebAudio — aucun fichier son
 
 Un seul port sert les fichiers **et** les WebSocket : pas de second serveur, pas
 de CORS, pas d'adresse à saisir côté client.
+
+### Hub et salles
+
+Plusieurs parties simultanées dans **un seul processus** : chaque salle tient
+son propre `GameState` et ses clients, un intervalle unique à 120 Hz les fait
+toutes avancer, avec un `try/catch` par salle — une partie qui plante ferme sa
+salle et renvoie ses joueurs au hub, elle n'emporte plus le serveur. Pas de
+processus par salon : la progression vit en mémoire avec Supabase pour seule
+persistance, et deux processus tiendraient chacun leur copie du même compte.
+Une salle n'écrit jamais rien elle-même — elle émet ses événements (fin de
+manche, départ) et le hub, seul écrivain, persiste en regroupant les écritures
+sur une courte fenêtre.
+
+Les accumulateurs de simulation et de diffusion sont **décalés** d'une salle à
+l'autre : seize salles qui simulent (0,78 ms pièce au pire cas) ou diffusent
+(7 Ko × 4 clients) dans le même tour de boucle crèveraient le budget de 8,3 ms.
+
+Les snapshots sont **compressés** (permessage-deflate, niveau 1, négocié sans
+reprise de contexte) : une seule compression par salle et par message, la même
+trame part vers toutes les sockets qui l'ont négociée. Mesuré sur un snapshot
+pire cas de 7,3 Ko : **2,8 Ko, soit 61 % de gain** — le niveau 6 n'apporte que
+3 points de plus pour bien plus de CPU. À 8 salles pleines, la bande passante
+descend d'environ 36 à 14 Mbps.
+
+Le TLS reste au proxy inverse (Caddy ou nginx) : Node parle HTTP en local, le
+client passe en `wss://` tout seul quand la page est servie en HTTPS.
 
 ### Le serveur est autoritaire
 
@@ -1681,8 +1719,14 @@ indépendamment du taux de rafraîchissement.
 
 | Sens | Message |
 |---|---|
-| client → serveur | `{t:"join", name}` · `{t:"input", x, y, ax, ay, ar, d, s1, s2}` à 30 Hz · `{t:"vote", v}` · `{t:"pickClass", cls}` · `{t:"start"}` (hôte) · `{t:"pickCard", id}` · `{t:"pause", on}` · `{t:"leaveRound"}` |
-| serveur → client | `welcome` · `lobby` · `state` (20 Hz) · `round` · `roundEnd` · `roundAbort` · `full` · `cards` · `cardsWait` · `loadout` · `alert` · `paused` |
+| client → serveur | `{t:"join", pseudo, key}` · `{t:"listRooms"}` · `{t:"createRoom", name, pass}` · `{t:"joinRoom", code, pass}` · `{t:"leaveRoom"}` · `{t:"input", x, y, ax, ay, ar, d, s1, s2}` à 30 Hz · `{t:"vote", v}` · `{t:"pickClass", cls}` · `{t:"start"}` (hôte) · `{t:"pickCard", id}` · `{t:"pause", on}` · `{t:"leaveRound"}` |
+| serveur → client | `welcome` · `rooms` · `roomJoined` · `joinRoomError` · `roomClosed` · `lobby` · `state` (20 Hz) · `round` · `roundEnd` · `roundAbort` · `cards` · `cardsWait` · `loadout` · `alert` · `paused` |
+
+Un client est en état **hub** (liste des salles) ou en état **salle**
+(comportement historique) : les messages de jeu ne sont valides qu'en salle, et
+le serveur rejette proprement ce qui n'a pas de sens dans l'état courant.
+`listRooms` est limité à une demande par seconde — c'est un bouton qu'on
+martèle, et le port est public.
 
 `d:1` dans `input` demande une esquive ; le serveur la consomme au tick suivant
 et vérifie lui-même la recharge.

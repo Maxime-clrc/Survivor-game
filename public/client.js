@@ -220,6 +220,14 @@ const bilanHint = document.getElementById("bilanHint");
 const volInput = document.getElementById("vol");
 const volVal = document.getElementById("volVal");
 const muteBtn = document.getElementById("mute");
+const hubScreenEl = document.getElementById("hubScreen");
+const hubRefreshBtn = document.getElementById("hubRefresh");
+const roomListEl = document.getElementById("roomList");
+const roomNameInput = document.getElementById("roomName");
+const roomPassInput = document.getElementById("roomPass");
+const roomCreateBtn = document.getElementById("roomCreate");
+const hubStatusEl = document.getElementById("hubStatus");
+const panelLeaveBtn = document.getElementById("panelLeave");
 
 /* --- etat local ------------------------------------------------------------- */
 
@@ -230,6 +238,13 @@ let phase = PHASE_LOBBY;
 let amSpectator = false;
 let lobby = [];
 let roundNumber = 0;
+/* Etat hub / etat salle (plan infra). `inRoom` est la verite locale : tant
+   qu'il est faux, le salon ne s'affiche jamais — les messages de jeu
+   n'existent qu'en salle, et le serveur les rejette de toute facon. */
+let inRoom = false;
+let roomsList = [];
+let roomNameCur = "";       // nom de la salle courante, pour le titre du salon
+let pendingRejoin = null;   // { code, name } propose par welcome apres rechargement
 let lastResult = null;
 let difficulty = 1;        // mode retenu par le vote
 let tally = [0, 0, 0];
@@ -316,18 +331,19 @@ function connect(pseudo, key) {
     switch (msg.t) {
       case "welcome":
         myId = msg.id;
-        hostId = msg.host;
-        phase = msg.phase;
-        amSpectator = msg.spectator;
         connected = true;
         goBtn.disabled = false;
+        // La connexion tombe desormais sur le HUB, pas dans une partie : hote,
+        // phase et statut de spectateur arriveront avec `roomJoined`.
+        inRoom = false;
+        pendingRejoin = msg.rejoin ?? null;
         // Pseudo+cle viennent de reussir un vrai aller-retour : on les range
         // MAINTENANT, jamais avant (une cle tapee au clavier pourrait etre
         // fausse — la ranger avant verification ecraserait une bonne cle
         // memorisee par une mauvaise).
         localStorage.setItem("survivor.pseudo", pendingPseudo);
         localStorage.setItem("survivor.key", pendingKey);
-        // Deux cas s'arretent sur #gate avant le salon : compte neuf (la cle
+        // Deux cas s'arretent sur #gate avant le hub : compte neuf (la cle
         // ne sera plus jamais affichee, il faut la lire) et compte deja
         // connecte ailleurs (a dire, pas a laisser deviner). Decide sur CES
         // DRAPEAUX, jamais sur l'ordre d'arrivee des messages — `accountCreated`
@@ -343,7 +359,71 @@ function connect(pseudo, key) {
           gateHold.hidden = false;
         } else {
           gate.hidden = true;
-          refreshPanel();
+          enterHub();
+        }
+        break;
+
+      /* Liste des salles. Poussee par le serveur a chaque changement
+         d'effectif ou d'etat, et en reponse a `listRooms` : la version recue
+         est TOUJOURS plus fraiche que l'affichee, on remplace sans comparer. */
+      case "rooms":
+        roomsList = msg.rooms ?? [];
+        renderRooms();
+        break;
+
+      case "roomJoined":
+        inRoom = true;
+        pendingRejoin = null;
+        roomNameCur = msg.name ?? "";
+        hostId = msg.host;
+        phase = msg.phase;
+        roundNumber = msg.round ?? 0;
+        amSpectator = msg.spectator;
+        hubScreenEl.hidden = true;
+        hubStatus("");
+        refreshPanel();
+        break;
+
+      /* Echec d'entree en salle. `pleine` et `disparue` arrivent au meme
+         moment (fin de manche, salle qui se vide ou se remplit pendant qu'on
+         lit la liste) et la conduite a tenir differe : reessayer, ou creer la
+         sienne — d'ou un motif distinct plutot qu'un texte unique. */
+      case "joinRoomError": {
+        pendingRejoin = null;
+        const MOTIFS = {
+          pleine: "salle pleine — attends qu'une place se libère, ou crée la tienne",
+          disparue: "cette salle n'existe plus — actualise la liste",
+          motdepasse: "mot de passe incorrect — entre-le dans le champ ci-dessus puis re-clique",
+          plafond: "plafond de salles atteint — rejoins une salle existante",
+        };
+        hubStatus(MOTIFS[msg.motif] ?? "impossible de rejoindre cette salle", true);
+        break;
+      }
+
+      /* Retour au hub, volontaire (leaveRoom) ou subi (salle fermee sur
+         erreur). Meme nettoyage qu'une fin de connexion, sans toucher a la
+         socket : l'etat de manche appartient a la salle qu'on vient de
+         quitter. */
+      case "roomClosed":
+        inRoom = false;
+        roomNameCur = "";
+        phase = PHASE_LOBBY;
+        lastResult = null;
+        snapshots = [];
+        latest = null;
+        predicted = null;
+        worldQueue.length = 0;
+        cardsCloseQueued = false;
+        resetFeedback();
+        closeCards();
+        closeBilan();
+        closeBuild();
+        closePause();
+        showHud(false);
+        panel.hidden = true;
+        enterHub();
+        if (msg.why === "erreur interne") {
+          hubStatus("la salle a été fermée sur une erreur — désolé", true);
         }
         break;
 
@@ -394,6 +474,7 @@ function connect(pseudo, key) {
         hostId = msg.host;
         phase = msg.phase;
         roundNumber = msg.round;
+        roomNameCur = msg.roomName ?? roomNameCur;
         difficulty = msg.difficulty ?? difficulty;
         tally = msg.tally ?? tally;
         myVote = lobby.find(l => l.id === myId)?.vote ?? myVote;
@@ -554,6 +635,13 @@ function connect(pseudo, key) {
   ws.onclose = () => {
     connected = false;
     metaClsOverride = null;
+    // L'etat hub/salle meurt avec la socket : a la reconnexion, le serveur
+    // reproposera la salle survivante via `welcome.rejoin`.
+    inRoom = false;
+    roomNameCur = "";
+    roomsList = [];
+    pendingRejoin = null;
+    hubScreenEl.hidden = true;
     // La file de transitions se vide ICI et nulle part ailleurs : une ouverture
     // de cartes ou un bilan encore en attente sortirait par-dessus l'ecran de
     // reconnexion, 110 ms apres la coupure.
@@ -679,12 +767,99 @@ nameInput.value = localStorage.getItem("survivor.pseudo") || "";
 nameInput.focus();
 
 /* --- suite de la connexion ---------------------------------------------------
-   `#gateContinue` tombe DIRECT sur le salon (ou le HUD, pour un spectateur
-   arrive en cours de manche) — pas sur le Menu, qui ne s'ouvre plus qu'a la
-   demande, depuis la carte d'une classe au salon (`openMenuFor`). */
+   `#gateContinue` tombe sur le HUB (la liste des salles) — ou sur le salon si
+   une auto-rejointe a abouti pendant qu'on lisait sa cle. Jamais sur le Menu,
+   qui ne s'ouvre qu'a la demande depuis la carte d'une classe au salon. */
 gateContinueBtn.onclick = () => {
   gate.hidden = true;
-  refreshPanel();
+  if (inRoom) refreshPanel();
+  else enterHub();
+};
+
+/* --- hub des salles (plan infra) ---------------------------------------------- */
+
+function hubStatus(msg, isError = false) {
+  hubStatusEl.textContent = msg;
+  hubStatusEl.classList.toggle("err", isError);
+}
+
+/* Entree en etat hub. L'auto-rejointe ne part QUE d'ici, une seule fois par
+   `welcome` : si la salle a disparu entre-temps, `joinRoomError` retombe sur
+   la liste — l'utilisateur n'a jamais a connaitre le code. */
+function enterHub() {
+  if (!connected || inRoom) return;
+  hubScreenEl.hidden = false;
+  renderRooms();
+  if (pendingRejoin) {
+    const { code, name } = pendingRejoin;
+    pendingRejoin = null;
+    hubStatus(`retour vers « ${name} »…`);
+    ws.send(JSON.stringify({ t: "joinRoom", code }));
+  }
+}
+
+function renderRooms() {
+  if (hubScreenEl.hidden) return;
+  roomListEl.innerHTML = "";
+  if (roomsList.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "roomEmpty";
+    empty.textContent = "aucune salle — crée la première";
+    roomListEl.appendChild(empty);
+    return;
+  }
+  for (const r of roomsList) {
+    const full = r.count >= r.max;
+    const btn = document.createElement("button");
+    btn.className = "roomEntry";
+    // Une entree pleine est DESACTIVEE, pas masquee : la salle ou sont les
+    // autres est celle qu'on attend. La rendre cliquable pour afficher ensuite
+    // un refus serait pire — le joueur apprendrait l'information deux fois.
+    btn.disabled = full;
+    const lock = r.locked ? `<span class="roomLock" title="protégée par mot de passe">⚿</span>` : "";
+    const state = r.state === 1
+      ? `<span class="roomState running">manche en cours</span>`
+      : `<span class="roomState">salon</span>`;
+    btn.innerHTML = `<span class="roomName"></span>${lock}${state}`
+      + `<span class="roomCount">${r.count}/${r.max}</span>`;
+    // textContent et non innerHTML pour le nom : il vient d'un autre joueur.
+    btn.querySelector(".roomName").textContent = r.name;
+    btn.onclick = () => {
+      hubStatus(`entrée dans « ${r.name} »…`);
+      ws.send(JSON.stringify({ t: "joinRoom", code: r.code, pass: roomPassInput.value }));
+    };
+    roomListEl.appendChild(btn);
+  }
+}
+
+/* Le bouton se desarme une seconde, en miroir de la limite serveur (une
+   demande par seconde, les suivantes ignorees) : un bouton qui accepte le
+   clic pendant que le serveur l'ignore laisse croire que la liste est a
+   jour alors qu'elle n'a pas bouge. */
+hubRefreshBtn.onclick = () => {
+  if (!connected || inRoom) return;
+  ws.send(JSON.stringify({ t: "listRooms" }));
+  hubRefreshBtn.disabled = true;
+  setTimeout(() => { hubRefreshBtn.disabled = false; }, 1000);
+};
+
+roomCreateBtn.onclick = () => {
+  if (!connected || inRoom) return;
+  hubStatus("création…");
+  ws.send(JSON.stringify({
+    t: "createRoom",
+    name: roomNameInput.value.trim(),
+    pass: roomPassInput.value,
+  }));
+};
+roomNameInput.onkeydown = e => { if (e.key === "Enter") roomCreateBtn.click(); };
+
+/* Quitter la salle depuis le salon. Pas de confirmation : on ne quitte qu'un
+   salon (la manche a son propre bouton, avec confirmation, dans le menu
+   pause), et la salle survit a son delai de grace de toute facon. */
+panelLeaveBtn.onclick = () => {
+  if (!connected || !inRoom) return;
+  ws.send(JSON.stringify({ t: "leaveRoom" }));
 };
 
 /* --- Menu (progression) -----------------------------------------------------
@@ -786,6 +961,10 @@ startBtn.onclick = () => {
 
 function refreshPanel() {
   if (!connected) return;
+  // Hors salle, il n'y a pas de salon : c'est le hub qui occupe l'ecran, et
+  // un broadcast attarde de la salle qu'on vient de quitter ne doit pas le
+  // rouvrir par-dessus la liste.
+  if (!inRoom) { panel.hidden = true; return; }
   // #gate peut etre en pause (cle a lire, ou message de doublon) sans etre
   // hidden : #panel est plus loin dans le DOM, meme z-index, et peindrait
   // dessus au premier broadcast "lobby" (qui arrive presque tout de suite
@@ -809,9 +988,9 @@ function refreshPanel() {
 
   /* Le salon s'appelle toujours « Salon », meme apres une manche : c'est le
      bilan qui porte le resultat, et deux ecrans qui annoncent la meme chose
-     n'en font lire aucun. Le tableau, lui, garde les lignes de la derniere
-     manche — c'est de l'information consultable, pas un titre. */
-  panelTitle.textContent = "Salon";
+     n'en font lire aucun. Le nom de la SALLE s'y ajoute — il existe plusieurs
+     endroits ou etre depuis le plan infra, le titre dit lequel. */
+  panelTitle.textContent = roomNameCur ? `Salon — ${roomNameCur}` : "Salon";
   summary.textContent = lobby.length > 1
     ? `${lobby.length} joueurs connectés`
     : "en attente de joueurs";

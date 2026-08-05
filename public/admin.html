@@ -110,7 +110,8 @@
     <p style="color: var(--text-dim);">
       Supprime la ligne « serveur » dans Supabase <strong>et</strong> vide la
       progression en mémoire : noyaux, arbres, jalons, pseudos réservés — tout
-      le monde repart de zéro, sans redémarrage. Refusé pendant une manche.
+      le monde repart de zéro, sans redémarrage. Refusé dès qu'une salle est
+      en manche.
     </p>
     <div class="row">
       <button id="reset" class="danger">Supprimer la ligne « serveur »</button>
@@ -152,7 +153,7 @@
     }
     if (r.status === 401) return say("clé invalide", "bad");
     if (!r.ok) return say(`erreur HTTP ${r.status}`, "bad");
-    const { status, probe, phase, connectes } = await r.json();
+    const { status, probe, salles, connectes } = await r.json();
 
     let html = "";
     html += line("configuration", status.configured
@@ -173,7 +174,17 @@
     }
     html += line("mémoire du serveur", `${status.players} profil(s)`
       + (status.pushing || status.pending ? " — envoi en attente" : ""));
-    html += line("partie", `${PHASES[phase] ?? phase} — ${connectes} connecté(s)`);
+    // La page supposait une partie unique ; elle liste desormais les salles.
+    html += line("connectés", `${connectes} client(s)`);
+    if (!salles || salles.length === 0) {
+      html += line("salles", "aucune");
+    } else {
+      for (const s of salles) {
+        html += line(`salle ${s.code}`,
+          `« ${s.nom} » — ${s.joueurs}/${s.max}, ${PHASES[s.phase] ?? s.phase}`
+          + (s.phase === 1 ? ` (manche ${s.manche}, vague ${s.vague})` : ""));
+      }
+    }
     html += line("dernier échange réussi", fmtT(status.lastOkAt));
     if (status.lastError) {
       html += line("dernier échec", `${status.lastError} (${fmtT(status.lastErrorAt)})`, "warn");

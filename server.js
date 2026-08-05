@@ -1,14 +1,20 @@
 /* ===========================================================================
-   SERVEUR AUTORITAIRE
+   AMORCE DU SERVEUR : HTTP, WebSocket, page admin, cablage.
    Un seul port : le meme serveur HTTP sert les fichiers du jeu et accepte les
    connexions WebSocket. Aucune configuration cote joueur, aucun CORS.
 
-   Le serveur est la seule source de verite. Les clients n'envoient que leur
-   intention — direction de deplacement et direction de visee. Ils ne decident
-   jamais de leur position, des degats, des morts ni du score.
+   Depuis le refactor en salons (plan infra), la logique de partie vit dans
+   room.js et le registre des salles dans hub.js — ce fichier ne garde que ce
+   qui existe une seule fois par processus : le serveur HTTP, la persistance,
+   la boucle d'intervalle et l'admin. Le decoupage n'est pas cosmetique :
 
-   Deux phases : "salon" (tableau des scores, on attend l'hote) et "manche".
-   Qui se connecte pendant une manche est spectateur jusqu'a la suivante.
+     server.js    amorce : HTTP, WebSocket, page admin, cablage
+     hub.js       registre des salles, comptes, progression — SEUL a ecrire
+     room.js      une partie : GameState, clients, phases, tick
+
+   Le TLS n'est PAS ici : c'est le travail du proxy inverse (Caddy/nginx),
+   Node continue de parler HTTP en local et le client bascule deja en wss://
+   quand la page est servie en HTTPS.
    =========================================================================== */
 
 import { createServer } from "node:http";
@@ -19,18 +25,14 @@ import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { attachWebSocket } from "./ws_lite.js";
-import { GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL } from "./shared/game_state.js";
-import { CARD_CFG, cardBrief } from "./shared/cards.js";
-import { CLASSES, CLASS_DEFAULT, SKILL_CFG, bombRange } from "./shared/classes.js";
-import {
-  PROG_CFG, TREES, CONFORT, slotsFor, tierCost, lockedCards,
-  coresForRun, coresPartial,
-} from "./shared/progression.js";
+import { createHub } from "./hub.js";
 import { createStore } from "./progress_store.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
-const PORT = Number(process.env.PORT) || 8082;
-const MAX_PLAYERS = PLAYER_COLORS.length;
+/* 7777 et non 8080 : derriere un proxy inverse le port interne n'a plus
+   d'importance, autant en prendre un sans collision sur une machine de
+   developpeur. */
+const PORT = Number(process.env.PORT) || 7777;
 
 /* Cle de la page admin. Meme modele que la configuration Supabase : une
    variable d'environnement, rien d'autre. ABSENTE = admin coupe, tout /admin
@@ -136,47 +138,30 @@ function handleAdmin(req, res, urlPath) {
   };
 
   /* Un seul point de lecture : l'etat interne du magasin, la sonde en direct
-     (latence + ligne) et le contexte de jeu qui borne les actions. */
+     (latence + ligne) et le contexte de jeu qui borne les actions — desormais
+     la LISTE des salles, la page supposait une partie unique. */
   if (req.method === "GET" && urlPath === "/admin/api/etat") {
     store.probe(probe => sendJson({
       status: store.status(),
       probe,
-      phase,
-      connectes: joined().length,
+      ...hub.adminView(),
     }));
     return;
   }
 
-  /* Suppression de la ligne + remise a zero de la memoire, au salon
-     uniquement — pendant une manche, les profils sont sous les pieds
-     d'`awardRun` et des achats. Les connectes sont relies a des profils
-     neufs immediatement : garder l'ancien objet en memoire le ferait
-     repartir en entier au prochain save(), c'est le piege qui imposait un
-     redemarrage quand la suppression se faisait dans le dashboard.
-
-     La ligne supprimee emporte aussi le hachage de cle de CHAQUE compte —
-     depuis pseudo+cle, il n'y a plus de uid silencieux derriere lequel un
-     reset restait invisible pour le joueur. `resolveAccount(pseudo, "")`
-     est donc rappele ici plutot que reconstruit a la main : meme point de
-     passage unique qu'un premier `join`, meme cas "pseudo absent" puisque
-     `store.reset()` vient de le vider, et la nouvelle cle repart par le
-     meme message `accountCreated` qu'une premiere connexion — pas un
-     second chemin a maintenir pour la faire parvenir au navigateur. */
+  /* Suppression de la ligne + remise a zero de la memoire, refusee des qu'UNE
+     salle est en manche — pendant une manche, les profils sont sous les pieds
+     d'awardRun et des achats, quelle que soit la salle. Les connectes sont
+     relies a des profils neufs immediatement, par le meme resolveAccount qu'un
+     premier join (rebindAccounts) : garder l'ancien objet en memoire le ferait
+     repartir en entier au prochain save(). */
   if (req.method === "POST" && urlPath === "/admin/api/reset") {
-    if (phase !== PHASE_LOBBY) {
-      return sendJson({ error: "une manche est en cours — réinitialisation possible au salon uniquement" });
+    if (hub.anyRoundRunning()) {
+      return sendJson({ error: "une manche est en cours — réinitialisation possible quand toutes les salles sont au salon" });
     }
     store.reset(err => {
       if (err) return sendJson({ error: `suppression impossible : ${err.message}` });
-      for (const c of joined()) {
-        if (!c.profile) continue;
-        const r = store.resolveAccount(c.name, "");
-        c.profile = r.profile;
-        sendProgress(c);
-        if (r.fresh) {
-          c.conn.send(JSON.stringify({ t: "accountCreated", pseudo: r.profile.pseudo, key: r.key }));
-        }
-      }
+      hub.rebindAccounts();
       log("progression réinitialisée depuis la page admin");
       sendJson({ ok: 1 });
     });
@@ -186,942 +171,27 @@ function handleAdmin(req, res, urlPath) {
   plain(404, "404");
 }
 
-/* --- etat du serveur --------------------------------------------------------- */
-
-const PHASE_LOBBY = 0;
-const PHASE_ROUND = 1;
-const PHASE_CARDS = 2;
-
-let phase = PHASE_LOBBY;
-let state = new GameState();
-let roundNumber = 0;
-
-/* Pause de choix de cartes. Le serveur n'appelle plus step() pendant cette
-   phase : l'arene se fige sur le dernier instantane recu par les clients, ce
-   qui suffit — diffuser des instantanes identiques a 20 Hz pour une scene qui
-   ne bouge pas n'apporte rien et compliquait la fermeture de l'ecran cote
-   client, qui se contente maintenant du retour des instantanes. */
-let cardDeadline = 0;
-const cardPicked = new Set();
-
-/* Pause demandee par le joueur. Elle N'A DE SENS QU'EN SOLO : le serveur est
-   autoritaire et simule en continu, donc un joueur qui met en pause figerait la
-   partie des trois autres. A plusieurs, le client ouvre le meme panneau mais la
-   manche continue derriere — et c'est le SERVEUR qui le garantit, jamais le
-   client : c'est exactement le type de message qu'un client modifie enverrait
-   pour figer une partie a quatre.
-
-   L'echeance n'est pas un detail. Sans elle, un solo en pause laisse le serveur
-   bloque indefiniment et personne ne peut le rejoindre — c'est le meme piege
-   que la manche qui ne se terminait jamais quand tout le monde quittait. */
-const PAUSE_MAX_MS = 5 * 60 * 1000;
-let paused = false;
-let pausedAt = 0;
-
-/* Levee de pause, quelle qu'en soit la raison. Point de passage unique : trois
-   causes (demande du joueur, echeance, arrivee d'un second joueur) et un seul
-   endroit ou l'etat retombe, sinon une des trois oublie de prevenir les
-   clients. */
-function setPaused(on, why = "") {
-  if (paused === on) return;
-  paused = on;
-  pausedAt = on ? Date.now() : 0;
-  broadcast({ t: "paused", on: on ? 1 : 0, why });
-  log(on ? "manche en pause (solo)" : `pause levee${why ? ` — ${why}` : ""}`);
-}
-
-const clients = new Map();     // id -> client
-let nextClientId = 1;
-let hostId = 0;
-
-/* --- progression permanente (lot D) ------------------------------------------
-
-   Le magasin vit en memoire et Supabase est sa seule persistance (variables
-   SUPABASE_URL / SUPABASE_SERVICE_KEY) — il n'y a plus de fichier local. Le
-   chargement precede l'ecoute (`store.ready` avant listen()), et sans
-   configuration le jeu reste jouable mais la progression meurt avec le
-   processus. Les ecritures n'ont lieu qu'au salon, en fin de manche et au
-   depart d'un joueur : JAMAIS pendant une vague. */
-const store = createStore(msg => log(msg));
-
-/* Tout l'etat dynamique du compte, envoye au client apres chaque changement.
-   Les TABLES (arbres, couts, jalons) ne voyagent pas : le client importe
-   `shared/progression.js` lui-meme, deux copies auraient diverge au premier
-   reglage. */
-function progressPayload(c) {
-  const pr = c.profile;
-  return {
-    t: "progress",
-    cores: pr.cores,
-    runs: pr.runs,
-    best: pr.best,
-    milestones: pr.milestones,
-    kills: pr.kills,
-    classes: pr.classes,
-    confort: pr.confort,
-    // Le pseudo du compte (toujours pose depuis la simplification pseudo+cle).
-    // Le HACHAGE de la cle ne voyage jamais : le client n'a aucun usage
-    // legitime d'un hachage.
-    pseudo: pr.pseudo ?? "",
-    // Le gain de la derniere manche, pour le bilan — remis a zero apres envoi.
-    gained: c.lastGain ?? 0,
-  };
-}
-function sendProgress(c) {
-  c.conn.send(JSON.stringify(progressPayload(c)));
-  c.lastGain = 0;
-}
-
-/* Versement de fin de manche : vagues + boss, multiplie par la difficulte, A
-   PARTS EGALES — y compris ceux qui etaient a terre a la fin. Les jalons de
-   premiere fois (vagues seuils, premiere victoire sur chaque boss) s'ajoutent
-   par compte, et les jalons de DEBLOCAGE se constatent au meme endroit. */
-function awardRun() {
-  const shared = coresForRun(state.wave, state.bossKills, state.diffIndex);
-  for (const c of joined()) {
-    const p = state.players.get(c.id);
-    if (!p || !c.profile) continue;
-    const pr = c.profile;
-    let gain = shared;
-
-    for (const [w, bonus] of Object.entries(PROG_CFG.CORE_FIRST_WAVES)) {
-      const id = `vague${w}`;
-      if (state.wave >= Number(w) && !pr.milestones.includes(id)) {
-        pr.milestones.push(id);
-        gain += bonus;
-      }
-    }
-    for (const kind of state.bossKindsKilled) {
-      const id = `boss_${kind}`;
-      if (!pr.milestones.includes(id)) {
-        pr.milestones.push(id);
-        gain += PROG_CFG.CORE_FIRST_BOSS;
-      }
-    }
-    if (state.wave >= 8 && !pr.milestones.includes("vague8")) pr.milestones.push("vague8");
-    if (p.deaths === 0 && state.wave >= PROG_CFG.NO_DOWN_MIN_WAVE
-        && !pr.milestones.includes("sans_chute")) {
-      pr.milestones.push("sans_chute");
-    }
-    const clsId = CLASSES[p.cls]?.id ?? "dps";
-    pr.kills[clsId] = (pr.kills[clsId] ?? 0) + p.kills;
-    if (!pr.milestones.includes("kills500")
-        && Object.values(pr.kills).some(k => k >= PROG_CFG.KILLS_MILESTONE)) {
-      pr.milestones.push("kills500");
-    }
-
-    pr.cores += gain;
-    pr.runs += 1;
-    if (state.wave > pr.best.wave) pr.best.wave = state.wave;
-    if (p.score > pr.best.score) pr.best.score = p.score;
-    c.lastGain = gain;
-  }
-  store.save();
-  /* Pas d'envoi ici : `endRound` diffuse d'abord le bilan — qui lit `lastGain`
-     dans ses lignes — puis pousse le message `progress`, qui le remet a zero. */
-}
-
-/* Part d'un joueur qui quitte EN COURS de manche (bouton ou deconnexion) :
-   les vagues jouees, rien d'autre. Appele AVANT que le joueur ne sorte de
-   `state.players`. */
-function awardPartial(c) {
-  if (phase === PHASE_LOBBY || !c.profile || !state.players.has(c.id)) return;
-  c.profile.cores += coresPartial(state.wave, state.diffIndex);
-  store.save();
-}
-
-function joined() {
-  return [...clients.values()].filter(c => c.joined);
-}
-
-function freeColor() {
-  const used = new Set(joined().map(c => c.colorIndex));
-  for (let i = 0; i < PLAYER_COLORS.length; i++) if (!used.has(i)) return i;
-  return 0;
-}
-
-function broadcast(obj) {
-  const msg = JSON.stringify(obj);
-  for (const c of clients.values()) c.conn.send(msg);
-}
-
-/* L'hote est le plus ancien client encore connecte. S'il part, le suivant
-   herite du bouton sans que personne n'ait a rien faire. */
-function refreshHost() {
-  const list = joined();
-  if (list.some(c => c.id === hostId)) return false;
-  hostId = list.length ? Math.min(...list.map(c => c.id)) : 0;
-  return true;
-}
-
-/* Depouillement du vote de difficulte. Majorite simple ; a egalite on retient
-   le mode le plus doux. C'est volontaire : personne ne doit pouvoir imposer
-   cauchemar a la table en etant seul de son avis. */
-function votedDifficulty() {
-  const tally = DIFFICULTIES.map(() => 0);
-  for (const c of joined()) tally[c.vote]++;
-
-  let best = DIFF_NORMAL, bestN = -1;
-  for (let i = 0; i < tally.length; i++) {
-    if (tally[i] > bestN) { bestN = tally[i]; best = i; }
-  }
-  return { index: bestN > 0 ? best : DIFF_NORMAL, tally };
-}
-
-/* Emplacements de classe deja pris. Calcule a la demande sur les clients
-   CONNECTES et non memorise : la liberation a la deconnexion est ainsi
-   automatique, alors qu'un ensemble tenu a part aurait garde l'emplacement du
-   tank verrouille jusqu'a la fin de la session. */
-function takenClasses() {
-  const taken = new Set();
-  for (const c of joined()) {
-    if (c.cls === null) continue;
-    if (CLASSES[c.cls]?.unique) taken.add(c.cls);
-  }
-  return taken;
-}
-
-/* Point de passage unique du DEVERROUILLAGE, appele par les deux sorties de
-   manche. Le verrou etait pose pour la session entiere, et sa justification
-   n'existe plus : `startRound()` construit un `new GameState()` a chaque
-   manche, donc les cartes de classe ne survivent pas d'une manche a l'autre et
-   il n'y a plus d'investissement a proteger. Il ne garde de sens que PENDANT
-   une manche — on ne repasse pas tireur au premier boss apres avoir laisse le
-   tank encaisser les vagues.
-   Rien a defaire pour l'emplacement unique : `takenClasses()` se recalcule
-   depuis `c.cls`, donc le tank redevient disponible des que son porteur en
-   change. La seule contrainte est d'appeler ceci AVANT de diffuser le salon,
-   sinon les clients recoivent un `clsLocked` perime et grisent le selecteur. */
-function unlockClasses() {
-  for (const c of clients.values()) c.clsLocked = false;
-}
-
-function lobbyPayload() {
-  const vote = votedDifficulty();
-  return {
-    t: "lobby",
-    phase,
-    host: hostId,
-    round: roundNumber,
-    difficulty: vote.index,
-    tally: vote.tally,
-    modes: DIFFICULTIES.map(d => d.label),
-    players: joined().map(c => ({
-      id: c.id,
-      name: c.name,
-      colorIndex: c.colorIndex,
-      spectator: c.spectator,
-      vote: c.vote,
-      total: c.total,
-      // `null` tant que rien n'a ete choisi : le client affiche « au choix »
-      // plutot que de pretendre que le joueur a decide d'etre tireur. La classe
-      // par defaut ne s'applique qu'au lancement de la manche.
-      cls: c.cls,
-      clsLocked: c.clsLocked,
-    })),
-  };
-}
-
-function scoreboardRows() {
-  return joined().map(c => {
-    const p = state.players.get(c.id);
-    return {
-      id: c.id,
-      name: c.name,
-      colorIndex: c.colorIndex,
-      played: !!p,
-      cls: p ? p.cls : c.cls,
-      // Le niveau est celui de l'EQUIPE : la jauge est commune, la colonne est
-      // donc la meme pour tout le monde. Elle reste au tableau parce qu'elle
-      // situe la manche, pas le joueur.
-      level: p ? state.level : 1,
-      score: p ? p.score : 0,
-      kills: p ? p.kills : 0,
-      deaths: p ? p.deaths : 0,
-      // Les degats infliges figurent au tableau de fin pour que la
-      // contribution d'un joueur qui a pris des cartes defensives apparaisse
-      // ailleurs que dans un score qu'il a mecaniquement plus bas.
-      damage: p ? Math.round(p.damageDealt) : 0,
-      /* Degats SUBIS, ventiles par provenance. Ils ne passent pas par
-         l'instantane — un tableau de cinq nombres par joueur, vingt fois par
-         seconde, pour une information qui ne se lit qu'a la fin — mais par le
-         bilan, ou ils repondent a la seule question que le tableau des scores ne
-         traitait pas : de quoi est-on mort. C'est accessoirement le meilleur
-         outil d'equilibrage du depot, parce qu'il distingue enfin une mecanique
-         punitive d'une horde mal calibree. */
-      hurtBy: p ? p.hurtBy.map(v => Math.round(v)) : [],
-      cards: p ? expandCards(p) : [],
-      total: c.total,
-      // Noyaux gagnes sur la manche (lot D) — la meme somme pour tous les
-      // participants, jalons de premiere fois en plus, par compte.
-      cores: c.lastGain ?? 0,
-    };
-  }).sort((a, b) => b.score - a.score);
-}
-
-/* Les cartes circulent sous forme de liste d'identifiants repetes plutot que
-   de paires (id, nombre) : le client les regroupe deja pour l'affichage, et
-   une seule forme sur le reseau evite d'avoir a se rappeler laquelle est
-   laquelle. Ces messages ne partent qu'a chaque changement, jamais dans
-   l'instantane a 20 Hz. */
-function expandCards(p) {
-  const out = [];
-  for (const [id, n] of p.cards) for (let i = 0; i < n; i++) out.push(id);
-  return out;
-}
-
-function loadoutPayload() {
-  const byPlayer = {};
-  for (const p of state.players.values()) byPlayer[p.id] = expandCards(p);
-  return { t: "loadout", byPlayer };
-}
-
-/* Qui n'a pas encore choisi. Les deconnectes sortent de la liste tout seuls :
-   sans ca, quelqu'un qui ferme son onglet pendant la pause bloquait la table
-   jusqu'au bout des trente secondes. */
-function cardsPendingIds() {
-  return [...state.players.keys()].filter(id => !cardPicked.has(id) && clients.has(id));
-}
-
-/* Ouvre UN ecran de choix. Appele autant de fois qu'il y a de niveaux en
-   attente : deux niveaux gagnes pendant la meme vague donnent deux choix
-   d'affilee, sans repasser par la simulation entre les deux. Le minuteur et la
-   liste des joueurs qui n'ont pas encore choisi sont remis a zero a chaque
-   tour — sans ca, le second ecran heritait du delai deja ecoule du premier et
-   se fermait aussitot ouvert. */
-function enterCardPhase() {
-  phase = PHASE_CARDS;
-  state.cardsPending = false;
-  cardPicked.clear();
-  cardDeadline = Date.now() + CARD_CFG.PICK_TIME * 1000;
-
-  for (const [id, offers] of state.cardOffers) {
-    const c = clients.get(id);
-    if (!c) continue;
-    c.conn.send(JSON.stringify({
-      t: "cards",
-      // « Relance » (lot D) : une seule par manche, si le confort est achete.
-      reroll: c.profile?.confort.includes("relance") && !c.rerollUsed ? 1 : 0,
-      // La vague a remplace le boss : les cartes ne tombent plus a la mort d'un
-      // boss mais a la fin de n'importe quelle vague ou un niveau est monte.
-      wave: state.wave,
-      bossWave: state.waveBoss ? 1 : 0,
-      // Toujours transmis : le client en tire le chiffre romain quand le choix
-      // vient d'une vague de boss. `bossKind` dit LEQUEL des cinq vient d'etre
-      // vaincu — il n'y a plus qu'un seul nom possible depuis le lot 4.
-      boss: state.bossCount,
-      bossKind: state.lastBossKind,
-      // Nombre de choix restants APRES celui-ci, pour que le joueur sache qu'il
-      // en vient un autre au lieu de croire l'ecran bloque.
-      more: state.pendingLevels,
-      level: state.level,
-      deadline: cardDeadline,
-      offers: offers.map(cardBrief),
-    }));
-  }
-  broadcast({ t: "cardsWait", pending: cardsPendingIds() });
-  log(`vague ${state.wave} terminee — choix de cartes (niveau ${state.level}`
-    + `${state.pendingLevels > 0 ? `, ${state.pendingLevels} autre(s) a suivre` : ""})`);
-}
-
-/* Fin d'un tour de choix. S'il reste des niveaux en file, on rouvre un ecran au
-   lieu de reprendre la manche : la simulation ne redemarre qu'une fois toute la
-   file consommee. */
-function resumeRound() {
-  if (state.pendingLevels > 0) {
-    state.openCards();
-    enterCardPhase();
-    return;
-  }
-  phase = PHASE_ROUND;
-  state.cardOffers = new Map();
-  broadcast(loadoutPayload());
-}
-
-/* Choix d'office a l'expiration du delai. Ce n'est pas une securite : trois
-   minutes de jeu puis un ecran de choix, il suffit d'un joueur parti chercher
-   un cafe pour que les trois autres attendent sans rien pouvoir faire. */
-function forceRemainingPicks() {
-  let forced = 0;
-  for (const [id, offers] of state.cardOffers) {
-    if (cardPicked.has(id)) continue;
-    const p = state.players.get(id);
-    if (p && offers.length) { state.takeCard(p, offers[0]); forced++; }
-    cardPicked.add(id);
-  }
-  // Le journal ne parle du delai que s'il a vraiment servi : la reprise passe
-  // aussi par ici quand tout le monde a choisi a temps, et le message
-  // apparaissait alors a chaque boss sans que personne n'ait rien manque.
-  if (forced > 0) log(`delai de choix ecoule — ${forced} carte(s) attribuee(s) d'office`);
-}
-
-function startRound() {
-  roundNumber++;
-  // Une pause ne survit jamais a un changement de phase : les trois transitions
-  // la lèvent, sinon la manche suivante demarrait figee.
-  setPaused(false);
-  const diff = votedDifficulty().index;
-  state = new GameState(diff);
-  cardPicked.clear();
-  for (const c of joined()) {
-    c.spectator = false;
-    /* La classe se VERROUILLE ici, pas au choix : un joueur peut changer d'avis
-       tant qu'il n'a pas joue — y compris un spectateur qui prepare son entree
-       pendant qu'il regarde — mais plus une fois qu'il est entre en jeu. Sans
-       ce verrou, il suffisait d'attendre le premier boss pour repasser tireur
-       apres avoir laisse le tank encaisser les vagues. */
-    if (c.cls === null) c.cls = CLASS_DEFAULT;
-    c.clsLocked = true;
-    /* Progression permanente (lot D) : la simulation recoit les lignes
-       EQUIPEES de la classe jouee, les achats de confort et les cartes encore
-       verrouillees. Tout est fige au lancement — la reattribution ne vaut
-       qu'au salon, jamais pendant. */
-    let meta = null;
-    if (c.profile) {
-      const clsId = CLASSES[c.cls].id;
-      const cp = c.profile.classes[clsId];
-      const lines = {};
-      if (cp) {
-        for (const lid of cp.equipped ?? []) {
-          const t = cp.tiers?.[lid] | 0;
-          if (t > 0) lines[lid] = t;
-        }
-      }
-      meta = {
-        lines,
-        confort: {
-          ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
-          quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
-        },
-        locked: lockedCards(c.profile.milestones),
-      };
-    }
-    c.rerollUsed = false;
-    state.addPlayer(c.id, c.name, c.colorIndex, c.cls, meta);
-    c.input.x = 0; c.input.y = 0; c.input.dash = false;
-    c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
-  }
-  phase = PHASE_ROUND;
-  broadcast({ t: "round", round: roundNumber, difficulty: diff });
-  broadcast(lobbyPayload());
-  log(`manche ${roundNumber} lancee — ${state.players.size} joueur(s), `
-    + `difficulte ${DIFFICULTIES[diff].label}`);
-}
-
-/* Si tout le monde s'est deconnecte en cours de manche, il n'y a plus personne
-   pour mourir : la condition de fin ne se declenche jamais et le serveur reste
-   bloque en manche. Les arrivants suivants deviennent alors spectateurs d'une
-   partie vide, sans moyen de relancer. On revient donc au salon. */
-function abortRound() {
-  phase = PHASE_LOBBY;
-  setPaused(false);
-  unlockClasses();
-  log(`manche ${roundNumber} interrompue — plus aucun joueur en jeu`);
-  broadcast({ t: "roundAbort", round: roundNumber });
-  broadcast(lobbyPayload());
-}
-
-function endRound() {
-  phase = PHASE_LOBBY;
-  setPaused(false);
-  unlockClasses();
-  /* Les noyaux se versent AVANT le tableau : `scoreboardRows` lit `lastGain`
-     pour afficher le gain de chacun sur le bilan. L'ecriture disque a lieu ici,
-     au changement de phase — jamais pendant une vague. */
-  awardRun();
-  for (const c of joined()) {
-    const p = state.players.get(c.id);
-    if (!p) continue;
-    c.total.score += p.score;
-    c.total.kills += p.kills;
-    c.total.deaths += p.deaths;
-    c.total.rounds += 1;
-  }
-  const rows = scoreboardRows();
-  broadcast({
-    t: "roundEnd",
-    round: roundNumber,
-    /* La VAGUE atteinte. Le numero de manche s'incremente correctement — ce
-       n'etait jamais un bug de compteur — mais l'unite de jeu est devenue la
-       vague : apres en avoir enchaine douze, lire « Manche 1 terminée » donne
-       l'impression d'un compteur casse. Le titre du bilan parle donc de vagues
-       et le numero de manche descend avec le reste. */
-    wave: state.wave,
-    time: Math.round(state.time),
-    kills: state.totalKills,
-    host: hostId,
-    rows,
-  });
-  broadcast(lobbyPayload());
-  // Le solde de compte part APRES le bilan : voir `awardRun`.
-  for (const c of joined()) if (c.profile) sendProgress(c);
-  log(`manche ${roundNumber} terminee — ${Math.round(state.time)} s, ${state.totalKills} kills`);
-}
-
-/* --- connexions ---------------------------------------------------------------- */
-
-attachWebSocket(httpServer, conn => {
-  if (clients.size >= MAX_PLAYERS) {
-    conn.send(JSON.stringify({ t: "full", max: MAX_PLAYERS }));
-    setTimeout(() => conn.close(), 200);
-    return;
-  }
-
-  const id = nextClientId++;
-  const client = {
-    id, conn,
-    name: "joueur " + id,
-    colorIndex: 0,
-    joined: false,
-    spectator: false,
-    vote: DIFF_NORMAL,
-    cls: null,           // null tant que le joueur n'a rien choisi
-    clsLocked: false,    // vrai des qu'il est entre en jeu une fois
-    input: { x: 0, y: 0, ax: 1, ay: 0, ar: SKILL_CFG.DPS_BOMB_RANGE_MAX,
-             dash: false, s1: false, s2: false, s3: false },
-    total: { score: 0, kills: 0, deaths: 0, rounds: 0 },
-  };
-  clients.set(id, client);
-
-  conn.onmessage = raw => {
-    let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
-    if (!msg || typeof msg !== "object") return;
-
-    switch (msg.t) {
-      case "join": {
-        if (client.joined) break;
-
-        /* Frein a la force brute sur les tentatives de CLE — cinq essais par
-           connexion, comme l'ancien `recover`. Au-dela, il faut une connexion
-           neuve : retenter sur celle-ci contournerait le compteur pour rien,
-           d'ou `fatal` (le client doit fermer la socket, pas juste renvoyer
-           un `join` corrige). */
-        if ((client.joinFails | 0) >= 5) {
-          conn.send(JSON.stringify({ t: "joinError",
-            msg: "trop d'essais — reconnecte-toi pour réessayer", fatal: 1 }));
-          break;
-        }
-
-        const pseudo = sanitizePseudo(msg.pseudo);
-        if (!pseudo) {
-          conn.send(JSON.stringify({ t: "joinError",
-            msg: "pseudo invalide (3 à 14 caractères : lettres, chiffres, _ . -)" }));
-          break;
-        }
-
-        /* Fusion pseudo+cle (claim + recover d'avant) : pseudo libre -> compte
-           cree ici ; pseudo pris -> il faut la cle. `resolveAccount` ne dit
-           jamais LEQUEL des deux cloche sur un echec — sinon un pseudo sans
-           cle designe qui a un compte existant, ce qu'un simple curieux ne
-           doit pas pouvoir tester. */
-        const key = typeof msg.key === "string" ? msg.key : "";
-        const r = store.resolveAccount(pseudo, key);
-        if (!r.ok) {
-          // Compte seulement les vraies tentatives de cle : un pseudo pris
-          // rencontre SANS cle est le cas normal d'un nouveau joueur qui
-          // cherche encore un pseudo libre, pas une tentative de devinette.
-          if (key) client.joinFails = (client.joinFails | 0) + 1;
-          conn.send(JSON.stringify({ t: "joinError",
-            msg: "ce pseudo est déjà pris — entre sa clé pour le récupérer, ou choisis-en un autre" }));
-          break;
-        }
-
-        client.joined = true;
-        client.name = r.profile.pseudo;
-        client.pseudoKey = pseudo.toLowerCase();
-        client.colorIndex = freeColor();
-        /* Le meme compte connecte deux fois cumulerait les noyaux en double —
-           `awardRun` parcourt les clients, pas les comptes. Le controle se
-           fait ICI, APRES verification de la cle (jamais avant : sinon un
-           pseudo sans cle sert d'oracle de presence). La copie est DETACHEE
-           (`structuredClone`) et n'est jamais rangee dans `data.players` :
-           contrairement a l'ancien compte jetable par uid, elle ne laisse
-           aucun dechet a sauvegarder derriere elle. */
-        client.tempAccount = [...clients.values()]
-          .some(c => c !== client && c.pseudoKey === client.pseudoKey);
-        client.profile = client.tempAccount ? structuredClone(r.profile) : r.profile;
-
-        // Arriver en cours de manche ne coupe pas la partie des autres :
-        // on regarde, on entre a la manche suivante.
-        client.spectator = phase === PHASE_ROUND;
-        /* Un second joueur arrive : la pause tombe. Sinon un solo en pause
-           bloque le serveur et l'arrivant regarde une image figee sans aucun
-           moyen d'y changer quoi que ce soit. */
-        if (paused) setPaused(false, "un second joueur est arrivé");
-
-        refreshHost();
-        conn.send(JSON.stringify({
-          t: "welcome",
-          id,
-          host: hostId,
-          phase,
-          spectator: client.spectator,
-          colors: PLAYER_COLORS,
-          /* Dit au client s'il doit marquer une pause sur #gate avant de
-             rejoindre le salon : compte neuf (afficher la cle une fois) ou
-             deja connecte ailleurs (le dire). Sur CES DRAPEAUX et rien
-             d'autre — jamais sur l'ordre d'arrivee des messages, qui ne
-             garantit rien cote logique client. */
-          fresh: r.fresh ? 1 : 0,
-          dup: client.tempAccount ? 1 : 0,
-          cfg: {
-            ARENA_W: CFG.ARENA_W, ARENA_H: CFG.ARENA_H,
-            SNAPSHOT_HZ: CFG.SNAPSHOT_HZ,
-          },
-        }));
-        // La cle n'existe EN CLAIR qu'ici, au moment de sa creation : le
-        // serveur n'en garde qu'un hachage (resolveAccount), et ce message ne
-        // repart jamais une deuxieme fois pour ce compte.
-        if (r.fresh) {
-          conn.send(JSON.stringify({ t: "accountCreated", pseudo: r.profile.pseudo, key: r.key }));
-        }
-        sendProgress(client);
-        broadcast(lobbyPayload());
-        log(`${client.name} rejoint${client.spectator ? " (spectateur)" : ""}`
-            + `${r.fresh ? " (nouveau compte)" : ""}`
-            + `${client.tempAccount ? " (deja connecte ailleurs : session temporaire)" : ""}`
-            + ` — ${joined().length} connecte(s)`);
-        break;
-      }
-
-      case "input": {
-        // Le serveur ne fait jamais confiance au client : on borne le vecteur.
-        let x = Number(msg.x) || 0;
-        let y = Number(msg.y) || 0;
-        const d = Math.hypot(x, y);
-        if (d > 1) { x /= d; y /= d; }
-        client.input.x = x;
-        client.input.y = y;
-
-        const ax = Number(msg.ax);
-        const ay = Number(msg.ay);
-        if (Number.isFinite(ax) && Number.isFinite(ay) && (ax !== 0 || ay !== 0)) {
-          const ad = Math.hypot(ax, ay);
-          client.input.ax = ax / ad;
-          client.input.ay = ay / ad;
-        }
-
-        /* Distance au reticule, pour la bombe du tireur. CONTINUE comme les
-           deux directions, et non ponctuelle comme l'esquive : elle decrit une
-           position, pas une demande — la remettre a zero apres le tick ferait
-           retomber le lancer suivant sur la portee maximale une image sur deux.
-           `bombRange()` refuse tout ce qui n'est pas un nombre exploitable et
-           borne le reste : le serveur ne fait jamais confiance au client, sinon
-           n'importe qui pose une explosion a l'autre bout de l'arene. */
-        client.input.ar = bombRange(msg.ar);
-
-        // L'esquive est une demande ponctuelle : on la garde levee jusqu'au
-        // prochain tick de simulation, qui la consomme. Sans ce drapeau, une
-        // demande arrivee entre deux ticks se perdait.
-        if (msg.d) client.input.dash = true;
-        // Meme modele exactement pour les deux competences : demande ponctuelle,
-        // consommee par le prochain tick. Une demande qui resterait levee
-        // relancerait la competence toute seule a chaque fin de recharge — le
-        // bug est documente pour l'esquive dans CLAUDE.md, ne pas le refaire.
-        if (msg.s1) client.input.s1 = true;
-        if (msg.s2) client.input.s2 = true;
-        if (msg.s3) client.input.s3 = true;
-        break;
-      }
-
-      case "pickClass": {
-        /* Deux refus, tous deux cote serveur : pendant la manche a laquelle on
-           participe (`clsLocked`, leve aux deux sorties de manche par
-           `unlockClasses()`), et sur un emplacement unique deja pris. Le second
-           regle aussi le choix simultane — deux clients qui envoient « tank »
-           dans le meme tick sont traites l'un apres l'autre, le second voit le
-           premier dans `takenClasses()`.
-           Pas de refus sur la phase : un spectateur prepare son entree pendant
-           qu'une manche tourne, c'est voulu. */
-        if (client.clsLocked) break;
-        const v = Number(msg.cls);
-        if (!Number.isInteger(v) || v < 0 || v >= CLASSES.length) break;
-        if (CLASSES[v].unique && client.cls !== v && takenClasses().has(v)) break;
-        client.cls = v;
-        broadcast(lobbyPayload());
-        break;
-      }
-
-      case "vote": {
-        if (phase !== PHASE_LOBBY) break;
-        const v = Number(msg.v);
-        if (!Number.isInteger(v) || v < 0 || v >= DIFFICULTIES.length) break;
-        client.vote = v;
-        broadcast(lobbyPayload());
-        break;
-      }
-
-      case "pickCard": {
-        /* Le serveur valide que la carte fait bien partie des trois offertes a
-           CE joueur pour CE tour de choix. Sans cette verification, n'importe
-           quel client s'octroie une legendaire en envoyant son identifiant. */
-        if (phase !== PHASE_CARDS || cardPicked.has(id)) break;
-        const offers = state.cardOffers.get(id);
-        const p = state.players.get(id);
-        if (!offers || !p || !offers.includes(msg.id)) break;
-        if (!state.takeCard(p, msg.id)) break;
-
-        cardPicked.add(id);
-        broadcast(loadoutPayload());
-        broadcast({ t: "cardsWait", pending: cardsPendingIds() });
-        break;
-      }
-
-      /* Demande de pause. Trois refus, tous cote serveur : hors manche, quand
-         le demandeur n'est pas en jeu, et — le seul qui compte — des qu'un
-         second client est CONNECTE. On compte les connectes et non les joueurs
-         en vie : un spectateur qui regarde a le droit de ne pas voir l'image se
-         figer, et un mort en attente de relevement encore plus. */
-      case "pause": {
-        if (phase !== PHASE_ROUND) break;
-        const on = !!msg.on;
-        if (on && (joined().length > 1 || !state.players.has(id))) break;
-        setPaused(on, on ? "" : "reprise");
-        break;
-      }
-
-      /* Quitter la manche en cours sans fermer l'onglet. Le joueur redevient
-         spectateur et entre a la manche suivante, exactement comme quelqu'un
-         qui arrive en cours de partie — plutot qu'un etat « parti » de plus a
-         tenir. Si c'etait le dernier, la boucle de simulation ramene la table
-         au salon d'elle-meme. */
-      case "leaveRound": {
-        if (phase === PHASE_LOBBY || !state.players.has(id)) break;
-        // Part du deserteur (lot D) : les vagues jouees, rien d'autre — avant
-        // que le joueur ne sorte de la simulation.
-        awardPartial(client);
-        state.removePlayer(id);
-        sendProgress(client);
-        client.spectator = true;
-        // Une pause en cours n'a plus de porteur : la lever ici evite qu'un
-        // solo qui abandonne laisse le serveur fige jusqu'a l'echeance.
-        setPaused(false, "le joueur a quitte la manche");
-        broadcast(lobbyPayload());
-        log(`${client.name} quitte la manche ${roundNumber}`);
-        break;
-      }
-
-      case "start": {
-        // Seul l'hote lance la manche, et seulement depuis le salon.
-        if (id !== hostId || phase !== PHASE_LOBBY) break;
-        if (joined().length === 0) break;
-        startRound();
-        break;
-      }
-
-      /* --- progression permanente (lot D) --------------------------------------
-         Tout achat et toute reattribution passent par le serveur, qui verifie
-         le solde, le palier precedent et le nombre d'emplacements. Le client
-         n'ecrit jamais rien : c'est exactement le genre de message qu'un
-         client modifie enverrait. Tous refuses hors salon — on debloque
-         definitivement, on reattribue ENTRE deux manches, jamais pendant. */
-
-      case "metaBuy": {
-        if (phase !== PHASE_LOBBY || !client.profile) break;
-        const tree = TREES[msg.cls];
-        if (!tree) break;
-        const line = tree.find(l => l.id === msg.line);
-        if (!line) break;
-        const pr = client.profile;
-        const cp = pr.classes[msg.cls] ??= { tiers: {}, equipped: [] };
-        const cur = cp.tiers[line.id] | 0;
-        if (cur >= PROG_CFG.TIERS_MAX) break;
-        const cost = tierCost(cur);
-        if (pr.cores < cost) break;
-        pr.cores -= cost;
-        cp.tiers[line.id] = cur + 1;
-        /* Premier palier d'une ligne : elle s'equipe toute seule s'il reste un
-           emplacement. On vient de la payer — la laisser inerte jusqu'a une
-           seconde manipulation serait le piege classique du panneau. */
-        if (cur === 0 && !cp.equipped.includes(line.id)
-            && cp.equipped.length < slotsFor(cp)) {
-          cp.equipped.push(line.id);
-        }
-        store.save();
-        sendProgress(client);
-        break;
-      }
-
-      case "metaEquip": {
-        if (phase !== PHASE_LOBBY || !client.profile) break;
-        const cp = client.profile.classes[msg.cls];
-        if (!cp || !Array.isArray(msg.lines) || msg.lines.length > 16) break;
-        const lines = [...new Set(msg.lines.filter(l => typeof l === "string"))];
-        // Chaque ligne equipee doit etre achetee, et le total tenir dans les
-        // emplacements de la classe.
-        if (lines.some(l => !(cp.tiers[l] > 0))) break;
-        if (lines.length > slotsFor(cp)) break;
-        cp.equipped = lines;
-        store.save();
-        sendProgress(client);
-        break;
-      }
-
-      case "metaConfort": {
-        if (phase !== PHASE_LOBBY || !client.profile) break;
-        const cost = PROG_CFG.CONFORT_COSTS[msg.id];
-        if (cost === undefined) break;
-        const pr = client.profile;
-        if (pr.confort.includes(msg.id) || pr.cores < cost) break;
-        pr.cores -= cost;
-        pr.confort.push(msg.id);
-        store.save();
-        sendProgress(client);
-        break;
-      }
-
-      /* « Relance » : un nouveau tirage de la MEME qualite, une fois par
-         manche, tant qu'on n'a pas choisi. Le serveur retire l'offre
-         precedente — elle n'est plus valable, `pickCard` la refuserait. */
-      case "reroll": {
-        if (phase !== PHASE_CARDS || cardPicked.has(id)) break;
-        if (!client.profile?.confort.includes("relance") || client.rerollUsed) break;
-        const p = state.players.get(id);
-        if (!p || !state.cardOffers.has(id)) break;
-        client.rerollUsed = true;
-        const offers = state.offerCards(p);
-        state.cardOffers.set(id, offers);
-        client.conn.send(JSON.stringify({
-          t: "cards",
-          reroll: 0,
-          wave: state.wave,
-          bossWave: state.waveBoss ? 1 : 0,
-          boss: state.bossCount,
-          bossKind: state.lastBossKind,
-          more: state.pendingLevels,
-          level: state.level,
-          deadline: cardDeadline,
-          offers: offers.map(cardBrief),
-        }));
-        break;
-      }
-    }
-  };
-
-  conn.onclose = () => {
-    // Part du deconnecte (lot D), avant qu'il ne sorte de la simulation : le
-    // compte survit a l'onglet, c'est tout son interet.
-    awardPartial(client);
-    clients.delete(id);
-    state.removePlayer(id);
-    if (client.joined) {
-      const changed = refreshHost();
-      broadcast(lobbyPayload());
-      log(`${client.name} quitte — ${joined().length} connecte(s)`
-          + (changed && hostId ? ` (hote : ${clients.get(hostId)?.name})` : ""));
-    }
-  };
-});
-
-/* Le pseudo est desormais le compte (simplification pseudo+cle) : plus de nom
-   d'affichage distinct a sanitiser separement. SANS espace — un pseudo se
-   recopie a la main pour se reconnecter, un espace invisible en bout de champ
-   ferait echouer la reconnexion sans explication — et un minimum de trois
-   caracteres. */
-function sanitizePseudo(v) {
-  if (typeof v !== "string") return null;
-  const p = v.replace(/[^\p{L}\p{N}_.-]/gu, "").slice(0, 14);
-  return p.length >= 3 ? p : null;
-}
-
-/* --- boucle de simulation --------------------------------------------------------- */
-
-const inputs = new Map();
-let acc = 0;
-let lastTick = process.hrtime.bigint();
-let sinceSnapshot = 0;
-const SNAPSHOT_INTERVAL = 1 / CFG.SNAPSHOT_HZ;
-
-setInterval(() => {
-  const now = process.hrtime.bigint();
-  let elapsed = Number(now - lastTick) / 1e9;
-  lastTick = now;
-  if (elapsed > 0.25) elapsed = 0.25;
-
-  if (phase !== PHASE_LOBBY && state.players.size === 0) {
-    abortRound();
-  } else if (phase === PHASE_ROUND && paused) {
-    /* En pause : on n'appelle PAS `step()`, et c'est tout. Les recharges et les
-       etats vivent dans `p.timers` et `p.statuses`, qui ne descendent que la —
-       une pause qui les ferait s'ecouler rendrait les competences gratuites,
-       c'est-a-dire une faille et non un confort. L'accumulateur est vide a
-       chaque tour, sinon la reprise rattraperait d'un coup toute la duree de la
-       pause. Les instantanes, eux, continuent de partir : l'affichage reste
-       vivant et le joueur voit ce qu'il a mis en pause. */
-    acc = 0;
-    if (Date.now() - pausedAt > PAUSE_MAX_MS) setPaused(false, "délai de 5 minutes écoulé");
-  } else if (phase === PHASE_ROUND) {
-    acc += elapsed;
-    while (acc >= CFG.TICK && !state.cardsPending) {
-      inputs.clear();
-      for (const c of clients.values()) if (!c.spectator) inputs.set(c.id, c.input);
-      state.step(CFG.TICK, inputs);
-      /* Les demandes ponctuelles ne valent que pour un tick : sans cette remise
-         a zero, elles repartiraient toutes seules a chaque fin de recharge.
-         `ax`, `ay` et `ar` n'en font PAS partie — ce sont des etats continus,
-         les vider ferait perdre la visee entre deux paquets d'entree. */
-      for (const c of clients.values()) {
-        c.input.dash = false;
-        c.input.s1 = false;
-        c.input.s2 = false;
-        c.input.s3 = false;
-      }
-      acc -= CFG.TICK;
-    }
-
-    /* Canal d'evenements de mecanique. La simulation empile, le serveur vide et
-       diffuse : message PONCTUEL, hors du snapshot a 20 Hz. Sans lui personne ne
-       comprendra jamais l'Oracle — un cercle cyan ne dit pas « regroupez-vous »
-       a la premiere rencontre. La file se vide meme sans client connecte, sinon
-       elle accumulerait toute une manche jouee en solo hors ligne. */
-    if (state.alerts.length > 0) {
-      for (const a of state.alerts) broadcast({ t: "alert", ...a });
-      state.alerts.length = 0;
-    }
-    if (state.gameOver) endRound();
-    // La fin de vague leve le drapeau au milieu du rattrapage : on sort de la
-    // boucle de ticks avant d'en simuler d'autres, sinon la pause commencait
-    // une fraction de seconde apres la vague et les derniers projectiles
-    // continuaient de voler pendant l'ecran de choix.
-    else if (state.cardsPending) { acc = 0; enterCardPhase(); }
-  } else if (phase === PHASE_CARDS) {
-    acc = 0;
-    if (cardsPendingIds().length === 0 || Date.now() >= cardDeadline) {
-      forceRemainingPicks();
-      resumeRound();
-    }
-  } else {
-    acc = 0;
-  }
-
-  sinceSnapshot += elapsed;
-  if (sinceSnapshot >= SNAPSHOT_INTERVAL) {
-    sinceSnapshot = 0;
-    if (clients.size > 0 && phase === PHASE_ROUND) {
-      const snap = state.snapshot();
-      snap.ph = phase;
-      broadcast(snap);
-    }
-    /* Les degats portes au boss se vident APRES l'instantane, exactement comme
-       la file d'alertes se vide apres diffusion : ce sont des cumuls d'un
-       intervalle, pas un etat. Le vidage a lieu meme sans client connecte,
-       sinon une manche jouee hors ligne accumulerait toute sa duree — la carte
-       est bornee par le nombre de joueurs, mais le chiffre, lui, deviendrait
-       faux a la reconnexion. */
-    // Une seule table a vider : le cumul, la part critique et le point d'impact
-    // vivent dans la meme entree. Deux tables a vider ensemble, c'en est une
-    // qu'on oublie un jour.
-    if (phase === PHASE_ROUND && state.bossDmg.size > 0) state.bossDmg.clear();
-  }
-}, 1000 / 120);
-
-/* --- demarrage ----------------------------------------------------------------------- */
+/* --- cablage ------------------------------------------------------------------- */
 
 function log(msg) {
   const t = new Date().toTimeString().slice(0, 8);
   console.log(`[${t}] ${msg}`);
 }
+
+/* Le magasin vit en memoire et Supabase est sa seule persistance. Le
+   chargement precede l'ecoute (`store.ready` avant listen()), et sans
+   configuration le jeu reste jouable mais la progression meurt avec le
+   processus. Le hub est le SEUL a ecrire dedans. */
+const store = createStore(msg => log(msg));
+const hub = createHub(store, log);
+
+attachWebSocket(httpServer, (conn, req) => hub.handleConnection(conn, req));
+
+/* Un seul intervalle pour toutes les salles — voir hub.tick() pour le
+   decalage des accumulateurs et l'isolation aux pannes. */
+setInterval(() => hub.tick(), 1000 / 120);
+
+/* --- demarrage ----------------------------------------------------------------------- */
 
 function lanAddresses() {
   const out = [];
@@ -1137,7 +207,9 @@ function lanAddresses() {
    plateforme envoie SIGTERM puis tue. Sans copie disque, un envoi Supabase en
    vol a cet instant serait perdu pour de bon — on pousse une derniere fois et
    on attend que l'envoi aboutisse, borne par le flush lui-meme. SIGINT suit le
-   meme chemin pour qu'un Ctrl+C local ne soit pas moins sur qu'un deploiement. */
+   meme chemin pour qu'un Ctrl+C local ne soit pas moins sur qu'un deploiement.
+   `data` etant mute en place, le flush emporte aussi les save() encore dans la
+   fenetre de regroupement du hub. */
 for (const sig of ["SIGTERM", "SIGINT"]) {
   process.once(sig, () => {
     log(`signal ${sig} — sauvegarde finale avant arret`);
@@ -1151,11 +223,11 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
    retarde le demarrage de quelques secondes, elle ne l'empeche jamais. */
 store.ready.then(() => {
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log("\n  Survivor LAN — serveur demarre\n");
+    console.log("\n  Survivor — serveur demarre (hub + salles)\n");
     console.log(`  Sur cette machine   http://localhost:${PORT}`);
     for (const ip of lanAddresses()) {
       console.log(`  Pour les autres     http://${ip}:${PORT}`);
     }
-    console.log(`\n  ${MAX_PLAYERS} joueurs max — Ctrl+C pour arreter\n`);
+    console.log("\n  Ctrl+C pour arreter\n");
   });
 });

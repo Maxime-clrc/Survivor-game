@@ -1,13 +1,22 @@
 /* ===========================================================================
-   WebSocket minimal (RFC 6455), sans dependance externe.
+   WebSocket minimal (RFC 6455 + RFC 7692), sans dependance externe.
    Node n'expose pas de serveur WebSocket natif : plutot que d'imposer un
    npm install, on implemente le strict necessaire — poignee de main,
-   lecture des trames masquees, ecriture des trames serveur, ping/pong.
-   Suffisant pour du JSON sur un reseau local. Ce n'est pas une lib generale :
-   pas de compression (permessage-deflate), pas de TLS.
+   lecture des trames masquees, ecriture des trames serveur, ping/pong,
+   et permessage-deflate. Suffisant pour du JSON. Pas de TLS : le chiffrement
+   est le travail du proxy inverse, pas celui de ce module.
+
+   La compression est negociee SANS reprise de contexte des deux cotes
+   (no_context_takeover) : chaque message se compresse et se decompresse
+   seul. C'est ce qui permet de compresser un broadcast UNE fois et d'ecrire
+   la meme trame sur toutes les sockets — un flux zlib par connexion aurait
+   impose une compression par client, soit exactement le cout qu'on refuse
+   (mesure : 0,31 ms par compression, une par salle et non une par joueur).
+   Le prix est ~3 % de taux en moins, tres loin de justifier l'etat partage.
    =========================================================================== */
 
 import { createHash } from "node:crypto";
+import { deflateRawSync, inflateRawSync, constants as zconst } from "node:zlib";
 
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -20,17 +29,40 @@ const OP_PONG  = 0xa;
 
 const MAX_MESSAGE = 1 << 20;   // 1 Mo, garde-fou
 
+/* Sous ce poids, la compression coute plus qu'elle ne rapporte : l'en-tete
+   deflate et l'appel zlib ne se remboursent que sur les gros messages — en
+   pratique les snapshots (7 Ko), qui sont precisement ce qu'on vise. */
+const COMPRESS_MIN = 256;
+
+/* Queue de vidage sync (RFC 7692 § 7.2.1) : l'emetteur la retire, le
+   recepteur la remet avant d'inflater. */
+const FLUSH_TAIL = Buffer.from([0x00, 0x00, 0xff, 0xff]);
+
+function compressPayload(payload) {
+  const out = deflateRawSync(payload, { level: 1, finishFlush: zconst.Z_SYNC_FLUSH });
+  // Le vidage sync termine toujours par 00 00 ff ff ; on le retire comme
+  // l'impose la RFC. S'il manque (jamais observe), on envoie non compresse
+  // plutot que d'emettre une trame que le navigateur refusera.
+  if (out.length < 4 || !out.subarray(out.length - 4).equals(FLUSH_TAIL)) return null;
+  return out.subarray(0, out.length - 4);
+}
+
 export class WsConnection {
-  constructor(socket) {
+  constructor(socket, deflate = false) {
     this.socket = socket;
     this.open = true;
     this.onmessage = null;
     this.onclose = null;
+    // Vrai si permessage-deflate a ete negocie a la poignee de main. Les
+    // trames RSV1 ne sont acceptees que dans ce cas — hors negociation,
+    // RSV1 reste une erreur de protocole, comme avant.
+    this.deflate = deflate;
 
     this._buf = Buffer.alloc(0);
     this._fragOp = 0;
     this._frags = [];
     this._fragLen = 0;
+    this._fragCompressed = false;
 
     socket.on("data", chunk => this._onData(chunk));
     socket.on("error", () => this._shutdown());
@@ -40,7 +72,23 @@ export class WsConnection {
   send(str) {
     if (!this.open) return;
     try {
-      this.socket.write(encodeFrame(OP_TEXT, Buffer.from(str, "utf8")));
+      const payload = Buffer.from(str, "utf8");
+      if (this.deflate && payload.length >= COMPRESS_MIN) {
+        const z = compressPayload(payload);
+        if (z) { this.socket.write(encodeFrame(OP_TEXT, z, true)); return; }
+      }
+      this.socket.write(encodeFrame(OP_TEXT, payload));
+    } catch {
+      this._shutdown();
+    }
+  }
+
+  /* Ecrit un message prepare par `prepareMessage` : la serialisation ET la
+     compression ont deja eu lieu, une seule fois pour tout le broadcast. */
+  sendPrepared(prep) {
+    if (!this.open) return;
+    try {
+      this.socket.write(this.deflate && prep.deflated ? prep.deflated : prep.plain);
     } catch {
       this._shutdown();
     }
@@ -71,7 +119,7 @@ export class WsConnection {
     this._buf = this._buf.length ? Buffer.concat([this._buf, chunk]) : chunk;
 
     while (this.open) {
-      const frame = decodeFrame(this._buf);
+      const frame = decodeFrame(this._buf, this.deflate);
       if (frame === null) break;                 // trame incomplete, on attend la suite
       if (frame === false) { this.close(); return; }  // trame invalide
 
@@ -92,11 +140,14 @@ export class WsConnection {
         case OP_TEXT:
         case OP_BIN:
           if (frame.fin) {
-            this._deliver(frame.opcode, frame.payload);
+            this._deliver(frame.opcode, frame.payload, frame.rsv1);
           } else {
             this._fragOp = frame.opcode;
             this._frags = [frame.payload];
             this._fragLen = frame.payload.length;
+            // RSV1 ne se pose que sur la PREMIERE trame d'un message (RFC
+            // 7692) : on le retient ici pour la livraison finale.
+            this._fragCompressed = frame.rsv1;
           }
           break;
 
@@ -108,10 +159,12 @@ export class WsConnection {
           if (frame.fin) {
             const full = Buffer.concat(this._frags, this._fragLen);
             const op = this._fragOp;
+            const compressed = this._fragCompressed;
             this._fragOp = 0;
             this._frags = [];
             this._fragLen = 0;
-            this._deliver(op, full);
+            this._fragCompressed = false;
+            this._deliver(op, full, compressed);
           }
           break;
 
@@ -122,25 +175,58 @@ export class WsConnection {
     }
   }
 
-  _deliver(opcode, payload) {
+  _deliver(opcode, payload, compressed) {
     if (opcode !== OP_TEXT || !this.onmessage) return;
+    if (compressed) {
+      /* no_context_takeover cote client aussi : chaque message s'inflate
+         seul, aucun flux a maintenir. `maxOutputLength` borne la detente —
+         sans elle, un message d'un kilo-octet pourrait se gonfler en
+         gigaoctets (bombe zip) et le garde-fou MAX_MESSAGE ne verrait rien. */
+      try {
+        payload = inflateRawSync(Buffer.concat([payload, FLUSH_TAIL]), {
+          finishFlush: zconst.Z_SYNC_FLUSH,
+          maxOutputLength: MAX_MESSAGE,
+        });
+      } catch {
+        this.close();
+        return;
+      }
+    }
     this.onmessage(payload.toString("utf8"));
   }
 }
 
-function decodeFrame(buf) {
+/* Serialise un message UNE fois pour un broadcast : la trame claire toujours,
+   la trame compressee seulement si elle en vaut la peine. `sendPrepared`
+   choisit ensuite par connexion selon ce qui a ete negocie — c'est ce qui
+   donne « une seule compression par salle, pas une par client ». */
+export function prepareMessage(str) {
+  const payload = Buffer.from(str, "utf8");
+  const prep = { plain: encodeFrame(OP_TEXT, payload), deflated: null };
+  if (payload.length >= COMPRESS_MIN) {
+    const z = compressPayload(payload);
+    if (z) prep.deflated = encodeFrame(OP_TEXT, z, true);
+  }
+  return prep;
+}
+
+function decodeFrame(buf, allowDeflate = false) {
   if (buf.length < 2) return null;
 
   const b0 = buf[0];
   const b1 = buf[1];
   const fin = (b0 & 0x80) !== 0;
-  const rsv = b0 & 0x70;
+  const rsv1 = (b0 & 0x40) !== 0;
+  const rsv23 = b0 & 0x30;
   const opcode = b0 & 0x0f;
   const masked = (b1 & 0x80) !== 0;
   let len = b1 & 0x7f;
   let offset = 2;
 
-  if (rsv !== 0) return false;          // pas d'extension negociee
+  if (rsv23 !== 0) return false;        // RSV2/RSV3 : aucune extension ne les pose
+  // RSV1 n'est licite que si permessage-deflate a ete negocie, et seulement
+  // sur une trame de donnees (jamais sur un ping ni une continuation).
+  if (rsv1 && (!allowDeflate || (opcode !== OP_TEXT && opcode !== OP_BIN))) return false;
   if (!masked) return false;            // un client DOIT masquer ses trames
 
   if (len === 126) {
@@ -164,10 +250,10 @@ function decodeFrame(buf) {
   const payload = Buffer.allocUnsafe(len);
   for (let i = 0; i < len; i++) payload[i] = buf[offset + i] ^ mask[i & 3];
 
-  return { fin, opcode, payload, consumed: offset + len };
+  return { fin, rsv1, opcode, payload, consumed: offset + len };
 }
 
-function encodeFrame(opcode, payload) {
+function encodeFrame(opcode, payload, rsv1 = false) {
   const len = payload.length;
   let header;
 
@@ -183,7 +269,8 @@ function encodeFrame(opcode, payload) {
     header[1] = 127;
     header.writeBigUInt64BE(BigInt(len), 2);
   }
-  header[0] = 0x80 | opcode;   // FIN + opcode, pas de masque cote serveur
+  // FIN + RSV1 eventuel + opcode, pas de masque cote serveur
+  header[0] = 0x80 | (rsv1 ? 0x40 : 0) | opcode;
 
   return Buffer.concat([header, payload], header.length + len);
 }
@@ -200,15 +287,28 @@ export function attachWebSocket(httpServer, onConnection) {
       return;
     }
 
+    /* Negociation permessage-deflate. On repond SANS reprise de contexte des
+       deux cotes, quelles que soient les options offertes — c'est toujours une
+       reponse licite a une offre permessage-deflate (RFC 7692 § 7.1.1), et
+       c'est la condition du broadcast compresse une seule fois. Un client qui
+       n'offre rien garde le protocole nu d'avant, trame pour trame. */
+    const offers = String(req.headers["sec-websocket-extensions"] || "");
+    const deflate = /(^|,)\s*permessage-deflate\b/.test(offers);
+
     const accept = createHash("sha1").update(key + GUID).digest("base64");
     socket.write(
       "HTTP/1.1 101 Switching Protocols\r\n" +
       "Upgrade: websocket\r\n" +
       "Connection: Upgrade\r\n" +
-      "Sec-WebSocket-Accept: " + accept + "\r\n\r\n"
+      "Sec-WebSocket-Accept: " + accept + "\r\n" +
+      (deflate
+        ? "Sec-WebSocket-Extensions: permessage-deflate; " +
+          "server_no_context_takeover; client_no_context_takeover\r\n"
+        : "") +
+      "\r\n"
     );
     socket.setNoDelay(true);   // desactive Nagle : indispensable pour du temps reel
 
-    onConnection(new WsConnection(socket), req);
+    onConnection(new WsConnection(socket, deflate), req);
   });
 }

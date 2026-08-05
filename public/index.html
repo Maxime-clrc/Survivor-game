@@ -202,6 +202,30 @@
   <div id="loadWhat" class="hint">génération des sprites</div>
 </div>
 
+<!-- ecran de HUB (plan infra) : la liste des salles, avant le salon. Une
+     entree 4/4 est DESACTIVEE, jamais masquee — la salle ou sont les autres
+     est precisement celle qu'on attend, la faire disparaitre laisserait le
+     joueur sans savoir s'il doit patienter ou creer la sienne. Le bouton
+     d'actualisation se desarme une seconde apres un clic, en miroir de la
+     limite serveur : un bouton qui accepte le clic pendant que le serveur
+     l'ignore laisse croire que la liste est a jour. -->
+<div id="hubScreen" class="overlay" hidden>
+  <div id="hubTitle">Salons</div>
+  <div id="hubBar" class="row">
+    <button id="hubRefresh">Actualiser</button>
+  </div>
+  <div id="roomList"></div>
+  <div class="sectionTitle">Créer une salle</div>
+  <div class="row" id="hubCreateRow">
+    <input id="roomName" maxlength="20" placeholder="nom de la salle" autocomplete="off" spellcheck="false">
+    <input id="roomPass" maxlength="20" placeholder="mot de passe (optionnel)" autocomplete="off" spellcheck="false">
+    <button id="roomCreate">Créer</button>
+  </div>
+  <div id="hubStatus"></div>
+  <div class="hint">une salle protégée demande son mot de passe — entre-le dans
+    le champ ci-dessus avant de cliquer dessus</div>
+</div>
+
 <!-- bilan de fin de manche. Ecran a part du salon : tant que le salon suivant
      etait affiche en dessous, le joueur ne lisait jamais son bilan. -->
 <div id="bilan" class="overlay" hidden>
@@ -271,6 +295,12 @@
   <div id="scoresWrap">
     <div class="sectionTitle">Table</div>
     <table id="scores"><tbody></tbody></table>
+  </div>
+
+  <!-- retour au hub (plan infra) : quitter la salle, pas la partie du reste
+       de la table — le salon existant est devenu l'ecran d'UNE salle. -->
+  <div class="row">
+    <button id="panelLeave">← Retour aux salons</button>
   </div>
 </div>
 

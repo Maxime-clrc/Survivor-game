@@ -297,6 +297,65 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
   color: var(--text-dim);
 }
 
+/* --- hub des salles (plan infra) ---------------------------------------------
+   L'ecran d'avant le salon : la liste des salles, la creation. Chaque entree
+   est un bouton — une entree 4/4 est desactivee, jamais masquee (la salle ou
+   sont les autres est celle qu'on attend). L'etat et l'effectif sont dans la
+   ligne, pas dans un texte a analyser. */
+#hubTitle {
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+#roomList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(440px, 90vw);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+#roomList .roomEntry {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-3) var(--sp-4);
+}
+
+#roomList .roomEntry .roomName {
+  flex: 1;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#roomList .roomEntry .roomCount { font-size: var(--t-s); color: var(--text-dim); }
+#roomList .roomEntry .roomState { font-size: var(--t-xs); color: var(--text-faint); }
+/* La manche en cours se signale en ambre : on peut entrer, mais on regarde
+   jusqu'a la suivante — c'est un avertissement, pas un interdit. */
+#roomList .roomEntry .roomState.running { color: var(--warn); }
+#roomList .roomEntry .roomLock { font-size: var(--t-s); color: var(--text-dim); }
+
+#roomList .roomEmpty {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: var(--t-s);
+  padding: var(--sp-4);
+  border: var(--hair) dashed var(--line-soft);
+  border-radius: var(--radius);
+}
+
+#hubCreateRow input { min-width: 150px; }
+#hubStatus { min-height: var(--sp-6); font-size: var(--t-s); color: var(--text-dim); }
+#hubStatus.err { color: var(--lethal); }
+
 /* --- Menu : ecran hub entre connexion et salon -------------------------------
    Meme famille que #gate/#panel (.overlay). Premier occupant : la
    progression (#meta, ci-dessous), deplacee du salon. */

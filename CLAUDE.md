@@ -9,10 +9,16 @@ Mini survivor multijoueur LAN. Serveur Node autoritaire, client navigateur, **z�
 ## Commandes
 
 ```bash
-npm start                 # lance le serveur sur le port 8080
+npm start                 # lance le serveur sur le port 7777
 PORT=8123 node server.js  # autre port
 node --check server.js    # vérification syntaxique (pas de linter dans le projet)
 ```
+
+Le port par défaut est **7777** et non 8080 : derrière le proxy inverse du VPS
+le port interne n'a plus d'importance, autant en prendre un sans collision sur
+une machine de développeur. `ROOM_GRACE_MS` et `ROOM_MAX` sont surchargeables
+par l'environnement **pour les tests uniquement** (un délai de grâce de 60 s
+rendrait le test de destruction interminable).
 
 Pas de framework de test ni de suite de tests versionnée. La logique étant pure et sans DOM, on la teste en important le module directement dans un script jetable :
 
@@ -30,8 +36,10 @@ Pour un test bout en bout du protocole, lancer `server.js` avec un `PORT` dédi�
 ## Architecture
 
 ```
-server.js              HTTP + WebSocket + boucle autoritaire 60 Hz, snapshots 20 Hz
-ws_lite.js             WebSocket minimal (RFC 6455) — pas de TLS, pas de compression
+server.js              amorce : HTTP, WebSocket, page admin, câblage — rien qui n'existe qu'une fois par processus
+hub.js                 registre des salles, comptes, progression — SEUL à écrire dans le magasin
+room.js                UNE partie : GameState, clients, phases, pause, tick — l'ancien état global de server.js
+ws_lite.js             WebSocket minimal (RFC 6455 + permessage-deflate) — pas de TLS (travail du proxy inverse)
 shared/game_state.js   LOGIQUE PURE — importée telle quelle par le serveur ET le navigateur
 shared/cards.js        les cartes, les raretés, le tirage, le calcul des mods
 shared/classes.js      les 3 classes, les constantes de compétence (module pur, comme cards.js)
@@ -245,13 +253,85 @@ Un seul port sert les fichiers **et** les WebSocket. `resolvePath()` dans `serve
 
 **`shared/game_state.js` ne doit jamais référencer le DOM, le canvas, le clavier ou le réseau.** C'est l'invariant qui tient tout le reste : le serveur en fait la source de vérité, le client s'en sert pour connaître les constantes et prédire ses propres mouvements.
 
+### Hub et salles (plan infra)
+
+**Un seul processus, salles en mémoire — jamais un processus par salon.** Ce
+n'est pas un arbitrage de performance (~5 % d'un cœur par salle au pire cas) :
+la progression vit en mémoire avec Supabase pour seule persistance, et deux
+processus tiendraient chacun leur copie du même compte — la sauvegarde du
+salon B écraserait celle du salon A.
+
+**Une `Room` ne touche jamais à Supabase, ne lit jamais de variable globale,
+et ne connaît pas les autres salles.** Elle reçoit ses entrées, émet des
+événements — les `hooks` passés à la construction : `awardRun`, `awardPartial`,
+`sendProgress`, `occupancy` — et c'est tout. Le hub est le SEUL écrivain : les
+écritures concurrentes disparaissent par construction, et une salle se teste
+sans serveur ni base. Corollaire : **tout nouvel état serveur s'attache à la
+partie en cours (`Room`), jamais au module** — c'est la règle qui rend les
+plans de contenu et d'infrastructure exécutables dans n'importe quel ordre.
+
+**Un client est en état HUB ou en état SALLE, et chaque message est routé selon
+cet état.** `hub.js` traite `join` (authentification), `listRooms` (limité à
+une demande par seconde), `createRoom`, `joinRoom`, `leaveRoom` et les achats
+`meta*` (valides au hub ET au salon d'une salle, jamais en manche) ; tout le
+reste est délégué à `room.handleMessage()` — et **rejeté** si le client n'est
+dans aucune salle, c'est exactement le type de message qu'un client modifié
+enverrait. `nextClientId` vit au hub : un identifiant est unique sur tout le
+serveur, jamais par salle, sinon collision quand un joueur change de salon.
+
+**Le recomptage de l'effectif a un point de passage unique** : le hook
+`occupancy`, appelé par tout ce qui attache, détache ou change la phase d'une
+salle, aboutit à `broadcastRooms()` — la liste est POUSSÉE aux clients en état
+hub à chaque changement. Un seul chemin de sortie oublié laisse une salle
+affichée 4/4 avec une place libre, et la fin de manche est le cas le plus
+fréquent. Le bouton d'actualisation reste le recours (diffusion perdue,
+reconnexion) : limité côté serveur, désarmé une seconde côté client en miroir.
+
+**Une salle pleine se refuse, elle ne met pas en attente** : à 4/4, `joinRoom`
+répond `joinRoomError{motif:"pleine"}` et le client RESTE au hub — la
+connexion n'est plus jamais fermée pour cause d'effectif, c'est la salle qui
+compte, pas la socket. `pleine` et `disparue` sont des motifs distincts parce
+que la conduite à tenir diffère (réessayer, ou créer sa salle). Les entrées
+4/4 restent listées, désactivées : la salle où sont les autres est précisément
+celle qu'on attend.
+
+**Une salle vide survit `ROOM_GRACE_MS` (60 s) puis est détruite.** Le délai
+couvre la coupure réseau brève et le rechargement de page : `welcome` propose
+la dernière salle du compte (`rejoin`), et un membre connu re-entre sans mot de
+passe (`knownMembers`). Une salle vide TICKE quand même — une manche abandonnée
+doit revenir au salon d'elle-même, sinon celui qui la retrouve pendant la grâce
+arrive spectateur d'une partie figée.
+
+**Un seul intervalle à 120 Hz pour toutes les salles, avec `try/catch` par
+salle** : une exception ferme LA salle (`closeRoom`, clients renvoyés au hub)
+au lieu de tomber le processus. Les accumulateurs de simulation et de diffusion
+sont **décalés explicitement** à la création (`staggerFrac`) — seize salles qui
+simulent ou diffusent dans le même tour crèveraient le budget de 8,3 ms ; la
+remise à zéro du compteur de snapshot est RELATIVE pour conserver ce décalage.
+
+**La compression se fait UNE fois par broadcast, pas une par client.**
+`prepareMessage()` dans `ws_lite.js` produit la trame claire et la trame
+deflate ; `sendPrepared()` choisit selon ce que chaque connexion a négocié.
+C'est possible parce que permessage-deflate est négocié **sans reprise de
+contexte des deux côtés** (`no_context_takeover`) : chaque message se comprime
+seul, donc la même trame sert à toutes les sockets. Niveau 1 (61 % de gain
+mesuré sur un snapshot pire cas, les 3 % du niveau 6 ne valent pas le CPU),
+seuil de 256 octets sous lequel on n'essaie même pas. Un client qui n'offre
+rien garde le protocole nu, trame pour trame — et RSV1 hors négociation reste
+une erreur de protocole.
+
+**Le TLS n'entre pas dans `ws_lite.js`** : proxy inverse (Caddy/nginx) devant,
+Node parle HTTP en local, le client bascule déjà en `wss://` quand la page est
+servie en HTTPS. S'y ajoute un plafond de connexions par adresse IP
+(`IP_CONN_MAX`) : le port est public désormais.
+
 ### Serveur autoritaire
 
 Les clients n'envoient que des intentions (deux directions, la distance au réticule, un drapeau d'esquive) à 30 Hz. Ils ne décident jamais de leur position, des dégâts, des morts, du score ni de la cible touchée. Les vecteurs reçus sont renormalisés côté serveur.
 
 **`ar`, la distance au réticule, est un état CONTINU comme `ax`/`ay`** — il n'est pas remis à zéro après le tick, contrairement à `d`, `s1` et `s2`. Il décrit une position, pas une demande : le vider ferait perdre la visée entre deux paquets. `bombRange()` dans `classes.js` est son point de passage unique, appelé côté serveur **et** dans `game_state.js` (qui doit rester jouable seul dans un script de mesure). Une valeur absente, négative ou aberrante retombe sur la portée **maximale** et non sur zéro : un client antérieur, qui n'envoie pas `ar`, lance donc exactement comme avant.
 
-Le drapeau d'esquive (`d:1`) est *ponctuel* : la boucle de simulation le remet à zéro après chaque tick (`server.js`). Sans ça, une demande resterait levée et l'esquive repartirait toute seule à chaque fin de recharge. **`s1`, `s2` et `s3` (les compétences de classe) suivent exactement le même modèle** — même remise à zéro, même raison. `s3` est la **troisième compétence** (lot C) : elle n'existe que si sa carte a été tirée (`mods.skill3` porte le palier, 0 = rien), ses tables vivent dans `CARD_CFG` (`SKILL3_*`) et non dans `SKILL_CFG` — la compétence n'existe que par sa carte. La Salve **ne consomme pas sa recharge sans cible**, et aucun palier ne verrouille le boss.
+Le drapeau d'esquive (`d:1`) est *ponctuel* : la boucle de simulation le remet à zéro après chaque tick (`room.js`). Sans ça, une demande resterait levée et l'esquive repartirait toute seule à chaque fin de recharge. **`s1`, `s2` et `s3` (les compétences de classe) suivent exactement le même modèle** — même remise à zéro, même raison. `s3` est la **troisième compétence** (lot C) : elle n'existe que si sa carte a été tirée (`mods.skill3` porte le palier, 0 = rien), ses tables vivent dans `CARD_CFG` (`SKILL3_*`) et non dans `SKILL_CFG` — la compétence n'existe que par sa carte. La Salve **ne consomme pas sa recharge sans cible**, et aucun palier ne verrouille le boss.
 
 ### Trois choses côté client
 
@@ -401,11 +481,11 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **Le serveur valide qu'une carte choisie figure bien dans les trois offertes à ce joueur pour ce tour de choix.** Sans ça, n'importe quel client s'octroie une légendaire. Les tours s'enchaînent : `resumeRound()` rouvre un écran tant que `state.pendingLevels > 0` au lieu de reprendre la manche.
 
-**La progression permanente (lot D) est EXCLUE de la difficulté par construction.** `_recomputeMods()` garde dans `p.powerMods` le résultat de `fullMods` (cartes + classe) et applique la méta (`applyMeta`, `shared/progression.js`) sur une **copie** qui devient `p.mods` ; `_playerPower()` lit `p.powerMods` et rien d'autre. Les cartes restent absorbées par les vagues et les boss, la méta est un gain net borné par les emplacements. Corollaires : le serveur valide tout achat (`metaBuy`/`metaEquip`/`metaConfort`, salon uniquement), les cartes verrouillées par jalons ne sortent jamais d'un tirage (`locked` dans `eligibleCards`), la monnaie se verse **à parts égales** en fin de manche (`awardRun`), et les sauvegardes n'ont lieu qu'au salon, en fin de manche et au départ d'un joueur — jamais pendant une vague. **Supabase est la SEULE persistance — il n'y a plus de fichier local.** L'état chaud vit en mémoire (`data`, jamais réassigné : `server.js` en garde la référence, le chargement mute en place) ; la configuration passe par les variables `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` et par rien d'autre — sans elles le jeu reste jouable en LAN mais la progression meurt avec le processus, et le journal le dit au boot. Trois protections, toutes nées de l'absence de copie disque : **le chargement précède l'écoute** (`store.ready` attendue avant `listen()`, résolue dès la première tentative pour qu'une panne réseau ne prive pas le LAN de jeu — un joueur connecté avant la lecture recevrait un profil neuf qui masquerait le sien) ; **l'écriture est suspendue tant qu'aucune lecture n'a réussi**, y compris face à une version inconnue de la ligne distante — pousser un état quasi vide par-dessus la seule copie existante est la perte qu'on ne rattrape plus, les `save()` retenus (`dirty`) partent dès que la lecture aboutit ; **un envoi raté se réessaie tout seul** (10 s) au lieu d'attendre le `save()` suivant que le fichier local couvrait autrefois ; et **l'arrêt du processus vide la file** (`flush()` sur SIGTERM/SIGINT, une tentative bornée dans le temps) — le déploiement en conteneur redémarre le serveur à chaque push, et un envoi en vol à cet instant serait perdu pour de bon. **La page admin (`/admin`) n'existe que si `ADMIN_KEY` est posée** — sinon 404, page comprise ; la clé voyage dans l'en-tête `x-admin-key` (jamais l'URL, qui finit dans les journaux du proxy), comparée en `timingSafeEqual`. Sa remise à zéro (`store.reset()`, salon uniquement) fait les DEUX moitiés ou rien : suppression de la ligne distante **et** mémoire vidée, après attente de l'envoi en vol — dont le corps déjà sérialisé ressusciterait la ligne — puis les connectés sont reliés à des profils neufs par `resolveAccount(pseudo, "")`, le même point de passage qu'un premier `join` : chaque compte perd sa clé avec la ligne supprimée, donc chacun en reçoit une **neuve** par le même message `accountCreated` qu'à la création, y compris hors de `#gate` — qui doit alors se rouvrir pour la montrer, sans quoi elle ne serait jamais lue. Garder l'ancien objet en mémoire ferait tout repousser au `save()` suivant, le piège qui imposait un redémarrage quand on supprimait la ligne à la main. La récupération tardive n'adopte un profil distant que si le local est **vierge** (`pristine()` : aucun noyau, aucune manche, aucun achat) — un profil qui a déjà progressé a raison, comme avant. Une seule ligne (`account_id` = "serveur") porte tout l'état, mêmes sémantiques de versionnage, un seul upsert atomique. Appels REST en `node:https` natif — pas de `fetch` en Node 16, pas de dépendance.
+**La progression permanente (lot D) est EXCLUE de la difficulté par construction.** `_recomputeMods()` garde dans `p.powerMods` le résultat de `fullMods` (cartes + classe) et applique la méta (`applyMeta`, `shared/progression.js`) sur une **copie** qui devient `p.mods` ; `_playerPower()` lit `p.powerMods` et rien d'autre. Les cartes restent absorbées par les vagues et les boss, la méta est un gain net borné par les emplacements. Corollaires : le serveur valide tout achat (`metaBuy`/`metaEquip`/`metaConfort`, traités par le hub — valides au hub et au salon d'une salle, jamais pendant une manche), les cartes verrouillées par jalons ne sortent jamais d'un tirage (`locked` dans `eligibleCards`), la monnaie se verse **à parts égales** en fin de manche (`awardRun`), et les sauvegardes n'ont lieu qu'au salon, en fin de manche et au départ d'un joueur — jamais pendant une vague. **Supabase est la SEULE persistance — il n'y a plus de fichier local.** L'état chaud vit en mémoire (`data`, jamais réassigné : le hub en garde la référence, le chargement mute en place) ; la configuration passe par les variables `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` et par rien d'autre — sans elles le jeu reste jouable en LAN mais la progression meurt avec le processus, et le journal le dit au boot. Trois protections, toutes nées de l'absence de copie disque : **le chargement précède l'écoute** (`store.ready` attendue avant `listen()`, résolue dès la première tentative pour qu'une panne réseau ne prive pas le LAN de jeu — un joueur connecté avant la lecture recevrait un profil neuf qui masquerait le sien) ; **l'écriture est suspendue tant qu'aucune lecture n'a réussi**, y compris face à une version inconnue de la ligne distante — pousser un état quasi vide par-dessus la seule copie existante est la perte qu'on ne rattrape plus, les `save()` retenus (`dirty`) partent dès que la lecture aboutit ; **un envoi raté se réessaie tout seul** (10 s) au lieu d'attendre le `save()` suivant que le fichier local couvrait autrefois ; et **l'arrêt du processus vide la file** (`flush()` sur SIGTERM/SIGINT, une tentative bornée dans le temps) — le déploiement en conteneur redémarre le serveur à chaque push, et un envoi en vol à cet instant serait perdu pour de bon. **La page admin (`/admin`) n'existe que si `ADMIN_KEY` est posée** — sinon 404, page comprise ; la clé voyage dans l'en-tête `x-admin-key` (jamais l'URL, qui finit dans les journaux du proxy), comparée en `timingSafeEqual`. Sa remise à zéro (`store.reset()`, refusée dès qu'une salle est en manche) fait les DEUX moitiés ou rien : suppression de la ligne distante **et** mémoire vidée, après attente de l'envoi en vol — dont le corps déjà sérialisé ressusciterait la ligne — puis les connectés sont reliés à des profils neufs par `resolveAccount(pseudo, "")`, le même point de passage qu'un premier `join` : chaque compte perd sa clé avec la ligne supprimée, donc chacun en reçoit une **neuve** par le même message `accountCreated` qu'à la création, y compris hors de `#gate` — qui doit alors se rouvrir pour la montrer, sans quoi elle ne serait jamais lue. Garder l'ancien objet en mémoire ferait tout repousser au `save()` suivant, le piège qui imposait un redémarrage quand on supprimait la ligne à la main. La récupération tardive n'adopte un profil distant que si le local est **vierge** (`pristine()` : aucun noyau, aucune manche, aucun achat) — un profil qui a déjà progressé a raison, comme avant. Une seule ligne (`account_id` = "serveur") porte tout l'état, mêmes sémantiques de versionnage, un seul upsert atomique. Appels REST en `node:https` natif — pas de `fetch` en Node 16, pas de dépendance.
 
-**Le pseudo EST le compte, unique en minuscules** — depuis la simplification pseudo+clé, plus de `uid` invisible ni de tag à quatre chiffres : `resolveAccount(pseudo, key)` (`progress_store.js`) fusionne join, claim et recover d'avant en un seul point de passage, appelé depuis `case "join"` de `server.js` et depuis la remise à zéro admin — nulle part ailleurs. Pseudo libre → compte créé sur-le-champ, une clé (`XXXX-XXXX`) rendue en clair une seule fois — le serveur n'en garde qu'un hachage scrypt (`node:crypto`, dans `progress_store.js`, jamais dans `shared/`, que le navigateur importe) — et voyage dans un message `accountCreated` séparé, à la suite du `welcome`. Pseudo pris → il faut la clé qui va avec ; sans elle ou avec la mauvaise, `resolveAccount` répond `ok:false` et **rien de plus** — ne dit jamais si c'est le pseudo ou la clé qui cloche, sinon un pseudo sans clé devient un oracle de présence pour qui n'a pas la clé. Le contrôle « déjà connecté ailleurs » (double onglet) se fait **après** cette vérification, jamais avant, pour la même raison ; la session dupliquée reçoit une copie détachée (`structuredClone`), jamais rangée dans `data.players` — contrairement à l'ancien compte jetable par `uid`, elle ne laisse aucun déchet à sauvegarder. Cinq tentatives de clé par connexion (`client.joinFails`, compté seulement sur une clé non vide qui échoue — un pseudo pris rencontré sans clé est le cas normal d'un nouveau joueur qui en cherche un libre, pas une devinette) ; au-delà, `joinError` porte `fatal:1` et le client doit fermer sa socket pour en rouvrir une neuve, sinon retenter sur la même contournerait le frein pour rien. **Une clé perdue n'a plus aucun filet** : il n'existe plus de `uid` parallèle depuis lequel en régénérer une — assumé, écrit dans `LISEZMOI-BDD.md`.
+**Le pseudo EST le compte, unique en minuscules** — depuis la simplification pseudo+clé, plus de `uid` invisible ni de tag à quatre chiffres : `resolveAccount(pseudo, key)` (`progress_store.js`) fusionne join, claim et recover d'avant en un seul point de passage, appelé depuis `handleJoin` de `hub.js` et depuis la remise à zéro admin (`rebindAccounts`) — nulle part ailleurs. Pseudo libre → compte créé sur-le-champ, une clé (`XXXX-XXXX`) rendue en clair une seule fois — le serveur n'en garde qu'un hachage scrypt (`node:crypto`, dans `progress_store.js`, jamais dans `shared/`, que le navigateur importe) — et voyage dans un message `accountCreated` séparé, à la suite du `welcome`. Pseudo pris → il faut la clé qui va avec ; sans elle ou avec la mauvaise, `resolveAccount` répond `ok:false` et **rien de plus** — ne dit jamais si c'est le pseudo ou la clé qui cloche, sinon un pseudo sans clé devient un oracle de présence pour qui n'a pas la clé. Le contrôle « déjà connecté ailleurs » (double onglet) se fait **après** cette vérification, jamais avant, pour la même raison ; la session dupliquée reçoit une copie détachée (`structuredClone`), jamais rangée dans `data.players` — contrairement à l'ancien compte jetable par `uid`, elle ne laisse aucun déchet à sauvegarder. Cinq tentatives de clé par connexion (`client.joinFails`, compté seulement sur une clé non vide qui échoue — un pseudo pris rencontré sans clé est le cas normal d'un nouveau joueur qui en cherche un libre, pas une devinette) ; au-delà, `joinError` porte `fatal:1` et le client doit fermer sa socket pour en rouvrir une neuve, sinon retenter sur la même contournerait le frein pour rien. **Une clé perdue n'a plus aucun filet** : il n'existe plus de `uid` parallèle depuis lequel en régénérer une — assumé, écrit dans `LISEZMOI-BDD.md`.
 
-**`#gate` a un état « en pause », et le Menu est un écran à part du Salon.** Historiquement le bloc compte et le bloc progression (`#meta`) vivaient tous les deux dans `#panel` — pour récupérer un pseudo il fallait déjà avoir rejoint la partie et être arrivé au salon, trois écrans après l'avoir choisi. Sur `"welcome"`, le client ne cache `#gate` que dans le cas normal (`gate.hidden = true; refreshPanel();`) ; deux drapeaux portés par le `welcome` lui-même (`fresh`, `dup` — jamais l'ordre d'arrivée des messages, qui ne garantit rien côté logique client) le font au contraire rester sur `#gate` et révéler `#gateHold` : compte neuf (`#keyReveal`, la clé à noter une seule fois) ou compte déjà connecté ailleurs (`#gateHoldMsg`) — avant qu'un clic sur `#gateContinue` ne poursuive. Le même `#keyReveal` se rouvre, hors connexion, quand un `accountCreated` arrive alors que `#gate` est déjà fermé — le seul cas est la remise à zéro admin, qui recrée le compte de chaque connecté pendant qu'il est au salon. Le Menu, lui, ne s'ouvre plus depuis la connexion : chaque carte de classe du salon (`#classes`) porte son propre bouton (`.classMetaBtn`), qui appelle `openMenuFor(clsIndex)` — un joueur consulte les trois arbres avant de choisir sa classe, `#menuClose` referme vers le salon. `refreshPanel()` refuse de toucher `#panel`/le HUD tant que `#gate` ou `#menu` ne sont pas cachés (mêmes gardes, `!gate.hidden` puis `!menuEl.hidden`) : sans ça, un `"lobby"` broadcast — qui arrive presque tout de suite après n'importe quelle connexion — repeindrait le salon par-dessus, `#panel` étant plus loin dans le DOM que les deux autres, même z-index.
+**`#gate` a un état « en pause », et le Menu est un écran à part du Salon.** Historiquement le bloc compte et le bloc progression (`#meta`) vivaient tous les deux dans `#panel` — pour récupérer un pseudo il fallait déjà avoir rejoint la partie et être arrivé au salon, trois écrans après l'avoir choisi. Sur `"welcome"`, le client ne cache `#gate` que dans le cas normal (`gate.hidden = true; enterHub();` — le hub des salles, plus le salon) ; deux drapeaux portés par le `welcome` lui-même (`fresh`, `dup` — jamais l'ordre d'arrivée des messages, qui ne garantit rien côté logique client) le font au contraire rester sur `#gate` et révéler `#gateHold` : compte neuf (`#keyReveal`, la clé à noter une seule fois) ou compte déjà connecté ailleurs (`#gateHoldMsg`) — avant qu'un clic sur `#gateContinue` ne poursuive. Le même `#keyReveal` se rouvre, hors connexion, quand un `accountCreated` arrive alors que `#gate` est déjà fermé — le seul cas est la remise à zéro admin, qui recrée le compte de chaque connecté pendant qu'il est au salon. Le Menu, lui, ne s'ouvre plus depuis la connexion : chaque carte de classe du salon (`#classes`) porte son propre bouton (`.classMetaBtn`), qui appelle `openMenuFor(clsIndex)` — un joueur consulte les trois arbres avant de choisir sa classe, `#menuClose` referme vers le salon. `refreshPanel()` refuse de toucher `#panel`/le HUD tant que `#gate` ou `#menu` ne sont pas cachés (mêmes gardes, `!gate.hidden` puis `!menuEl.hidden`) : sans ça, un `"lobby"` broadcast — qui arrive presque tout de suite après n'importe quelle connexion — repeindrait le salon par-dessus, `#panel` étant plus loin dans le DOM que les deux autres, même z-index.
 
 **Les PV du boss ET la pression des vagues sont indexés sur `_teamPower()`**, pour que la difficulté suive la puissance réelle de l'équipe et non le temps écoulé. Toute nouvelle source de dégâts permanente doit être prise en compte dans `_playerPower`, sinon le boss redevient une formalité en fin de manche — et toute pénalité qui accompagne un gain doit y figurer aussi : oublier `barrelDamageMul` faisait surestimer la puissance de 44 % et triplait la durée du troisième combat.
 
@@ -459,6 +539,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | glyphe posé sur un joueur | `a` / `b` d'une entrée de `state.marks` | `PLAYER_MARK` + `paintMarkGlyph()` |
 | effet possédé visible en jeu | rien — déduit de la liste de cartes | `EFFECT_BADGES` dans `client.js` : bande d'effets actifs du HUD |
 | pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
+| hub des salles | messages `listRooms` · `createRoom` · `joinRoom` · `leaveRoom` (client → serveur) ; `rooms` · `roomJoined` · `joinRoomError` (motifs `pleine` · `disparue` · `motdepasse` · `plafond`) · `roomClosed` (serveur → client) — routés par `hub.js`, jamais par une salle | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité (pseudo + clé) | message `join` (fusionne claim + recover d'avant) ; `resolveAccount()` dans `progress_store.js` ; réponses `welcome{fresh,dup}` · `accountCreated` · `joinError{fatal?}` ; le `pseudo` voyage dans `progress`, le hachage jamais | `#gateHold`/`#keyReveal` sur `#gate` |
 | sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |

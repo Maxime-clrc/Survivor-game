@@ -1,0 +1,545 @@
+/* ===========================================================================
+   LE HUB : registre des salles, comptes, progression — SEUL A ECRIRE.
+   Un seul processus, salles en memoire (infra-salons.md § 1) : la progression
+   permanente vit en memoire avec Supabase pour seule persistance, et deux
+   processus tiendraient chacun leur copie du meme compte — celle du salon A
+   ecraserait celle du salon B. Le verrouillage distribue qu'il faudrait pour
+   s'en sortir coute plus que le gain CPU (mesure : ~5 % d'un coeur par salle
+   au pire cas).
+
+   Le hub recoit chaque connexion, authentifie (pseudo + cle), sert la liste
+   des salles, cree et detruit les salles, et route les messages : un client
+   est en etat HUB (liste des salles) ou en etat SALLE (comportement d'avant).
+   Un message de jeu recu en etat hub est rejete — c'est exactement le type de
+   message qu'un client modifie enverrait.
+
+   La persistance ne bouge pas de mecanisme : les salles EMETTENT (awardRun,
+   awardPartial), le hub ecrit. Avec plusieurs salles la frequence d'ecriture
+   monte, d'ou le REGROUPEMENT : les save() s'accumulent sur une courte
+   fenetre et partent en une fois — `data` est mute en place, le flush de
+   SIGTERM couvre donc aussi ce qui attendait la fenetre.
+   =========================================================================== */
+
+import { CFG, PLAYER_COLORS, DIFF_NORMAL } from "./shared/game_state.js";
+import { CLASSES, SKILL_CFG } from "./shared/classes.js";
+import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial } from "./shared/progression.js";
+import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
+
+/* Surchargeables par l'environnement POUR LES TESTS uniquement (un delai de
+   grace de 60 s rendrait le test de destruction interminable) — en production
+   ces valeurs sont celles de la spec, on ne les regle pas. */
+const ROOM_GRACE_MS = Number(process.env.ROOM_GRACE_MS) || 60000;
+const ROOM_MAX = Number(process.env.ROOM_MAX) || 16;
+
+/* Le port est desormais public (VPS) : quelques connexions par adresse
+   suffisent a une table de quatre, et ca evite qu'un scan automatise remplisse
+   le serveur de sockets mortes. */
+const IP_CONN_MAX = 8;
+const LIST_MIN_MS = 1000;   // une demande de liste par seconde et par client
+const SAVE_BATCH_MS = 2000; // fenetre de regroupement des ecritures Supabase
+
+/* Code de salle : quatre caracteres sans ambiguite (pas de O/0, I/1/l). Il
+   identifie la salle dans le protocole ; la LISTE publique est le moyen normal
+   de la trouver, le code n'a pas besoin d'etre secret ni memorisable. */
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+export function createHub(store, log) {
+  const clients = new Map();          // id -> client (toutes connexions, authentifiees ou non)
+  const rooms = new Map();            // code -> Room
+  const ipCounts = new Map();         // adresse -> connexions ouvertes
+  const lastRoomOf = new Map();       // pseudoKey -> code, pour retrouver sa salle
+  let nextClientId = 1;               // unique sur TOUT le serveur, jamais par salle
+  let nextSlot = 0;                   // decalage d'accumulateur des salles
+  let saveTimer = null;
+
+  /* --- persistance (seul ecrivain) ------------------------------------------- */
+
+  function persist() {
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      store.save();
+    }, SAVE_BATCH_MS);
+  }
+
+  function progressPayload(c) {
+    const pr = c.profile;
+    return {
+      t: "progress",
+      cores: pr.cores,
+      runs: pr.runs,
+      best: pr.best,
+      milestones: pr.milestones,
+      kills: pr.kills,
+      classes: pr.classes,
+      confort: pr.confort,
+      pseudo: pr.pseudo ?? "",
+      gained: c.lastGain ?? 0,
+    };
+  }
+  function sendProgress(c) {
+    c.conn.send(JSON.stringify(progressPayload(c)));
+    c.lastGain = 0;
+  }
+
+  /* Versement de fin de manche — port de l'awardRun d'avant, par salle. La
+     salle emet, le hub ecrit : c'est ce qui fait disparaitre les ecritures
+     concurrentes par construction. */
+  function awardRun(room) {
+    const state = room.state;
+    const shared = coresForRun(state.wave, state.bossKills, state.diffIndex);
+    for (const c of room.joined()) {
+      const p = state.players.get(c.id);
+      if (!p || !c.profile) continue;
+      const pr = c.profile;
+      let gain = shared;
+
+      for (const [w, bonus] of Object.entries(PROG_CFG.CORE_FIRST_WAVES)) {
+        const id = `vague${w}`;
+        if (state.wave >= Number(w) && !pr.milestones.includes(id)) {
+          pr.milestones.push(id);
+          gain += bonus;
+        }
+      }
+      for (const kind of state.bossKindsKilled) {
+        const id = `boss_${kind}`;
+        if (!pr.milestones.includes(id)) {
+          pr.milestones.push(id);
+          gain += PROG_CFG.CORE_FIRST_BOSS;
+        }
+      }
+      if (state.wave >= 8 && !pr.milestones.includes("vague8")) pr.milestones.push("vague8");
+      if (p.deaths === 0 && state.wave >= PROG_CFG.NO_DOWN_MIN_WAVE
+          && !pr.milestones.includes("sans_chute")) {
+        pr.milestones.push("sans_chute");
+      }
+      const clsId = CLASSES[p.cls]?.id ?? "dps";
+      pr.kills[clsId] = (pr.kills[clsId] ?? 0) + p.kills;
+      if (!pr.milestones.includes("kills500")
+          && Object.values(pr.kills).some(k => k >= PROG_CFG.KILLS_MILESTONE)) {
+        pr.milestones.push("kills500");
+      }
+
+      pr.cores += gain;
+      pr.runs += 1;
+      if (state.wave > pr.best.wave) pr.best.wave = state.wave;
+      if (p.score > pr.best.score) pr.best.score = p.score;
+      c.lastGain = gain;
+    }
+    persist();
+  }
+
+  /* Part d'un joueur qui quitte EN COURS de manche : les vagues jouees, rien
+     d'autre. Appele AVANT que le joueur ne sorte de state.players. */
+  function awardPartial(c, room) {
+    if (room.phase === PHASE_LOBBY || !c.profile || !room.state.players.has(c.id)) return;
+    c.profile.cores += coresPartial(room.state.wave, room.state.diffIndex);
+    persist();
+  }
+
+  /* --- registre des salles ----------------------------------------------------- */
+
+  const hooks = {
+    log,
+    occupancy: () => broadcastRooms(),
+    awardRun,
+    awardPartial,
+    sendProgress,
+  };
+
+  function roomsPayload() {
+    return { t: "rooms", rooms: [...rooms.values()].map(r => r.info()) };
+  }
+
+  /* LE point de passage unique du recomptage (infra-salons.md § 10) : tout ce
+     qui change l'effectif ou l'etat d'une salle passe par le hook `occupancy`,
+     qui aboutit ici. Les clients en etat hub sont peu nombreux et le message
+     minuscule ; une liste qui vieillit sur l'ecran de celui qui attend une
+     place est exactement le defaut qu'on veut eviter. */
+  function broadcastRooms() {
+    const msg = JSON.stringify(roomsPayload());
+    for (const c of clients.values()) {
+      if (c.joined && !c.room) c.conn.send(msg);
+    }
+  }
+
+  function makeCode() {
+    for (;;) {
+      let code = "";
+      for (let i = 0; i < 4; i++) {
+        code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+      }
+      if (!rooms.has(code)) return code;
+    }
+  }
+
+  function sanitizeRoomName(v, fallback) {
+    if (typeof v !== "string") return fallback;
+    const name = v.replace(/[\p{C}]/gu, "").replace(/\s+/g, " ").trim().slice(0, 20);
+    return name.length >= 1 ? name : fallback;
+  }
+
+  function joinError(c, motif) {
+    c.conn.send(JSON.stringify({ t: "joinRoomError", motif }));
+  }
+
+  /* Detache un client de sa salle et le ramene en etat hub. `why` fait la
+     difference entre un depart volontaire et une salle qui ferme. */
+  function returnToHub(c, why) {
+    c.conn.send(JSON.stringify({ t: "roomClosed", why }));
+    c.conn.send(JSON.stringify(roomsPayload()));
+  }
+
+  /* Fermeture d'une salle en erreur : une salle qui plante ne doit emporter ni
+     les autres ni le hub. On detache chaque client avec la meme prudence que
+     le tick — la salle vient de prouver qu'elle peut lancer. */
+  function closeRoom(room, why) {
+    for (const c of [...room.clients.values()]) {
+      try {
+        room.detach(c);
+      } catch {
+        c.room = null;
+        room.clients.delete(c.id);
+      }
+      returnToHub(c, why);
+    }
+    rooms.delete(room.code);
+    broadcastRooms();
+    log(`salle ${room.code} fermée — ${why}`);
+  }
+
+  /* --- messages en etat hub ----------------------------------------------------- */
+
+  function handleCreateRoom(client, msg) {
+    if (client.room) return;
+    if (rooms.size >= ROOM_MAX) return joinError(client, "plafond");
+    const name = sanitizeRoomName(msg.name, `salle de ${client.name}`);
+    const pass = typeof msg.pass === "string" ? msg.pass.trim().slice(0, 20) : "";
+    const room = new Room(makeCode(), name, pass, nextSlot++, hooks);
+    rooms.set(room.code, room);
+    log(`salle ${room.code} créée par ${client.name} — « ${name} »${pass ? " (protégée)" : ""}`);
+    lastRoomOf.set(client.pseudoKey, room.code);
+    room.attach(client);
+  }
+
+  function handleJoinRoom(client, msg) {
+    if (client.room) return;
+    const room = rooms.get(typeof msg.code === "string" ? msg.code.toUpperCase() : "");
+    /* `pleine` et `disparue` sont deux motifs DISTINCTS : ils arrivent au meme
+       moment (fin de manche, salle qui se vide ou se remplit pendant qu'on lit
+       la liste) et la conduite a tenir n'est pas la meme — reessayer, ou creer
+       sa propre salle. */
+    if (!room) return joinError(client, "disparue");
+    if (room.clients.size >= ROOM_MAX_PLAYERS) return joinError(client, "pleine");
+    /* Un membre connu re-entre sans mot de passe : c'est ce qui fait qu'un
+       rechargement de page pendant le delai de grace retrouve sa salle sans
+       rien retaper, meme protegee. */
+    if (room.pass && !room.knownMembers.has(client.pseudoKey)) {
+      const pass = typeof msg.pass === "string" ? msg.pass.trim() : "";
+      if (pass !== room.pass) return joinError(client, "motdepasse");
+    }
+    lastRoomOf.set(client.pseudoKey, room.code);
+    room.attach(client);
+  }
+
+  /* Achats et reattributions de la progression permanente. Ils vivent au HUB —
+     seul ecrivain — et restent refuses pendant une manche : depuis le hub ou
+     depuis le salon d'une salle, jamais en jeu. */
+  function metaAllowed(client) {
+    return client.joined && !!client.profile
+      && (!client.room || client.room.phase === PHASE_LOBBY);
+  }
+
+  function handleMeta(client, msg) {
+    switch (msg.t) {
+      case "metaBuy": {
+        const tree = TREES[msg.cls];
+        if (!tree) break;
+        const line = tree.find(l => l.id === msg.line);
+        if (!line) break;
+        const pr = client.profile;
+        const cp = pr.classes[msg.cls] ??= { tiers: {}, equipped: [] };
+        const cur = cp.tiers[line.id] | 0;
+        if (cur >= PROG_CFG.TIERS_MAX) break;
+        const cost = tierCost(cur);
+        if (pr.cores < cost) break;
+        pr.cores -= cost;
+        cp.tiers[line.id] = cur + 1;
+        if (cur === 0 && !cp.equipped.includes(line.id)
+            && cp.equipped.length < slotsFor(cp)) {
+          cp.equipped.push(line.id);
+        }
+        persist();
+        sendProgress(client);
+        break;
+      }
+
+      case "metaEquip": {
+        const cp = client.profile.classes[msg.cls];
+        if (!cp || !Array.isArray(msg.lines) || msg.lines.length > 16) break;
+        const lines = [...new Set(msg.lines.filter(l => typeof l === "string"))];
+        if (lines.some(l => !(cp.tiers[l] > 0))) break;
+        if (lines.length > slotsFor(cp)) break;
+        cp.equipped = lines;
+        persist();
+        sendProgress(client);
+        break;
+      }
+
+      case "metaConfort": {
+        const cost = PROG_CFG.CONFORT_COSTS[msg.id];
+        if (cost === undefined) break;
+        const pr = client.profile;
+        if (pr.confort.includes(msg.id) || pr.cores < cost) break;
+        pr.cores -= cost;
+        pr.confort.push(msg.id);
+        persist();
+        sendProgress(client);
+        break;
+      }
+    }
+  }
+
+  /* --- connexion ---------------------------------------------------------------- */
+
+  function handleConnection(conn, req) {
+    const ip = req.socket?.remoteAddress ?? "?";
+    const ipCount = (ipCounts.get(ip) ?? 0) + 1;
+    if (ipCount > IP_CONN_MAX) {
+      conn.send(JSON.stringify({ t: "joinError",
+        msg: "trop de connexions depuis cette adresse", fatal: 1 }));
+      setTimeout(() => conn.close(), 200);
+      return;
+    }
+    ipCounts.set(ip, ipCount);
+
+    const id = nextClientId++;
+    const client = {
+      id, conn,
+      name: "joueur " + id,
+      colorIndex: 0,
+      joined: false,       // authentifie (pseudo + cle valides)
+      room: null,          // null = etat hub, sinon la Room
+      spectator: false,
+      vote: DIFF_NORMAL,
+      cls: null,
+      clsLocked: false,
+      lastListAt: 0,
+      input: { x: 0, y: 0, ax: 1, ay: 0, ar: SKILL_CFG.DPS_BOMB_RANGE_MAX,
+               dash: false, s1: false, s2: false, s3: false },
+      total: { score: 0, kills: 0, deaths: 0, rounds: 0 },
+    };
+    clients.set(id, client);
+
+    conn.onmessage = raw => {
+      let msg;
+      try { msg = JSON.parse(raw); } catch { return; }
+      if (!msg || typeof msg !== "object") return;
+
+      if (msg.t === "join") { handleJoin(client, msg); return; }
+      if (!client.joined) return;   // rien d'autre n'a de sens avant l'authentification
+
+      switch (msg.t) {
+        case "listRooms": {
+          /* Le bouton de rafraichissement est un bouton qu'on martele, et le
+             port est public : au-dela d'une demande par seconde, on ignore. */
+          const now = Date.now();
+          if (now - client.lastListAt < LIST_MIN_MS) return;
+          client.lastListAt = now;
+          client.conn.send(JSON.stringify(roomsPayload()));
+          return;
+        }
+        case "createRoom": handleCreateRoom(client, msg); return;
+        case "joinRoom":   handleJoinRoom(client, msg); return;
+        case "leaveRoom": {
+          const room = client.room;
+          if (!room) return;
+          try { room.detach(client); } catch { client.room = null; }
+          returnToHub(client, "quitté");
+          return;
+        }
+        case "metaBuy":
+        case "metaEquip":
+        case "metaConfort":
+          if (metaAllowed(client)) handleMeta(client, msg);
+          return;
+      }
+
+      /* Tout le reste est un message de jeu : valide en etat salle, rejete en
+         etat hub. Le try/catch a la meme raison d'etre que celui du tick — une
+         salle qui plante sur un message ne doit pas emporter le processus. */
+      const room = client.room;
+      if (!room) return;
+      try {
+        room.handleMessage(client, msg);
+      } catch (err) {
+        log(`salle ${room.code} en erreur sur « ${msg.t} » : ${err.message}`);
+        closeRoom(room, "erreur interne");
+      }
+    };
+
+    conn.onclose = () => {
+      if (client.room) {
+        try { client.room.detach(client); } catch { client.room = null; }
+      }
+      clients.delete(id);
+      const left = (ipCounts.get(ip) ?? 1) - 1;
+      if (left <= 0) ipCounts.delete(ip); else ipCounts.set(ip, left);
+      if (client.joined) {
+        log(`${client.name} déconnecté — ${[...clients.values()].filter(c => c.joined).length} connecté(s)`);
+      }
+    };
+  }
+
+  function handleJoin(client, msg) {
+    if (client.joined) return;
+    const conn = client.conn;
+
+    if ((client.joinFails | 0) >= 5) {
+      conn.send(JSON.stringify({ t: "joinError",
+        msg: "trop d'essais — reconnecte-toi pour réessayer", fatal: 1 }));
+      return;
+    }
+
+    const pseudo = sanitizePseudo(msg.pseudo);
+    if (!pseudo) {
+      conn.send(JSON.stringify({ t: "joinError",
+        msg: "pseudo invalide (3 à 14 caractères : lettres, chiffres, _ . -)" }));
+      return;
+    }
+
+    const key = typeof msg.key === "string" ? msg.key : "";
+    const r = store.resolveAccount(pseudo, key);
+    if (!r.ok) {
+      if (key) client.joinFails = (client.joinFails | 0) + 1;
+      conn.send(JSON.stringify({ t: "joinError",
+        msg: "ce pseudo est déjà pris — entre sa clé pour le récupérer, ou choisis-en un autre" }));
+      return;
+    }
+
+    client.joined = true;
+    client.name = r.profile.pseudo;
+    client.pseudoKey = pseudo.toLowerCase();
+    /* Le meme compte connecte deux fois cumulerait les noyaux en double. La
+       copie est DETACHEE et jamais rangee dans data.players : elle ne laisse
+       aucun dechet a sauvegarder derriere elle. */
+    client.tempAccount = [...clients.values()]
+      .some(c => c !== client && c.pseudoKey === client.pseudoKey);
+    client.profile = client.tempAccount ? structuredClone(r.profile) : r.profile;
+
+    /* Retrouver sa salle apres un rechargement : si le compte etait dans une
+       salle encore vivante (delai de grace compris), le client peut y revenir
+       d'un geste — c'est lui qui envoie joinRoom, le hub ne teleporte pas. */
+    const lastCode = lastRoomOf.get(client.pseudoKey);
+    const lastRoom = lastCode ? rooms.get(lastCode) : null;
+    const rejoin = lastRoom && lastRoom.clients.size < ROOM_MAX_PLAYERS
+      ? { code: lastRoom.code, name: lastRoom.name } : null;
+
+    conn.send(JSON.stringify({
+      t: "welcome",
+      id: client.id,
+      colors: PLAYER_COLORS,
+      fresh: r.fresh ? 1 : 0,
+      dup: client.tempAccount ? 1 : 0,
+      rejoin,
+      cfg: {
+        ARENA_W: CFG.ARENA_W, ARENA_H: CFG.ARENA_H,
+        SNAPSHOT_HZ: CFG.SNAPSHOT_HZ,
+      },
+    }));
+    if (r.fresh) {
+      conn.send(JSON.stringify({ t: "accountCreated", pseudo: r.profile.pseudo, key: r.key }));
+    }
+    sendProgress(client);
+    conn.send(JSON.stringify(roomsPayload()));
+    log(`${client.name} connecté au hub`
+      + `${r.fresh ? " (nouveau compte)" : ""}`
+      + `${client.tempAccount ? " (déjà connecté ailleurs : session temporaire)" : ""}`
+      + ` — ${[...clients.values()].filter(c => c.joined).length} connecté(s)`);
+  }
+
+  /* --- boucle ------------------------------------------------------------------- */
+
+  /* Un SEUL intervalle pour toutes les salles : moins de minuteurs, et la
+     maitrise du budget total. Le decalage des accumulateurs fait le reste
+     (voir Room). L'isolation aux pannes est le benefice reel du try/catch :
+     avant le refactor, une exception dans une partie tombait tout le serveur. */
+  let lastTick = process.hrtime.bigint();
+
+  function tick() {
+    const now = process.hrtime.bigint();
+    let elapsed = Number(now - lastTick) / 1e9;
+    lastTick = now;
+    if (elapsed > 0.25) elapsed = 0.25;
+
+    const nowMs = Date.now();
+    for (const room of [...rooms.values()]) {
+      /* Une salle vide TICKE quand meme : une manche abandonnee doit revenir
+         au salon d'elle-meme (abortRound), sinon celui qui la retrouve pendant
+         le delai de grace arriverait spectateur d'une partie figee. Elle ne
+         coute rien — sans manche en cours, le tick se reduit a trois tests. */
+      try {
+        room.tick(elapsed);
+      } catch (err) {
+        // Une salle qui plante ne doit pas emporter les autres.
+        log(`salle ${room.code} en erreur : ${err.message}`);
+        closeRoom(room, "erreur interne");
+        continue;
+      }
+      // Une salle vide survit son delai de grace, puis disparait. Pas de
+      // message a envoyer : il n'y a personne dedans par definition.
+      if (room.clients.size === 0 && room.emptySince
+          && nowMs - room.emptySince >= ROOM_GRACE_MS) {
+        rooms.delete(room.code);
+        broadcastRooms();
+        log(`salle ${room.code} détruite — vide depuis ${Math.round(ROOM_GRACE_MS / 1000)} s`);
+      }
+    }
+  }
+
+  /* --- vues pour la page admin ---------------------------------------------------- */
+
+  function adminView() {
+    return {
+      salles: [...rooms.values()].map(r => ({
+        code: r.code,
+        nom: r.name,
+        joueurs: r.clients.size,
+        max: ROOM_MAX_PLAYERS,
+        phase: r.phase,
+        manche: r.roundNumber,
+        vague: r.phase === PHASE_ROUND ? r.state.wave : 0,
+      })),
+      connectes: [...clients.values()].filter(c => c.joined).length,
+    };
+  }
+
+  function anyRoundRunning() {
+    return [...rooms.values()].some(r => r.phase !== PHASE_LOBBY);
+  }
+
+  /* Apres un reset : relier TOUS les connectes — quel que soit leur etat — a
+     des profils neufs, par le meme resolveAccount qu'un premier join. */
+  function rebindAccounts() {
+    for (const c of clients.values()) {
+      if (!c.joined || !c.profile) continue;
+      const r = store.resolveAccount(c.name, "");
+      c.profile = r.profile;
+      sendProgress(c);
+      if (r.fresh) {
+        c.conn.send(JSON.stringify({ t: "accountCreated", pseudo: r.profile.pseudo, key: r.key }));
+      }
+    }
+  }
+
+  return { handleConnection, tick, adminView, anyRoundRunning, rebindAccounts, rooms, clients };
+}
+
+/* Le pseudo est le compte (simplification pseudo+cle). SANS espace — un pseudo
+   se recopie a la main pour se reconnecter — et un minimum de trois
+   caracteres. */
+function sanitizePseudo(v) {
+  if (typeof v !== "string") return null;
+  const p = v.replace(/[^\p{L}\p{N}_.-]/gu, "").slice(0, 14);
+  return p.length >= 3 ? p : null;
+}
