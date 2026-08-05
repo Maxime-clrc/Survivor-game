@@ -432,7 +432,7 @@ Le canal `alert`, qui arrive hors du snapshot donc sans ce retard, est mis en
 file et sorti sur la même horloge — même raison.
 
 **On secoue le monde, pas l'interface.** `draw()` fait deux passes : `drawWorld()`
-sous la translation du tressaillement, `drawHud()` en dehors. Tout dans la même
+sous la translation du tressaillement, `drawScreen()` en dehors. Tout dans la même
 passe, la secousse rendait illisibles la barre de vie, la barre de boss et le
 bandeau d'alerte — c'est-à-dire exactement ce qu'il faut lire quand quelque
 chose explose.
@@ -448,14 +448,34 @@ ambre : sortir. Cyan : il faut y être. Blanc : ça concerne un allié. Violet :
 persistant, ça restera là après (liseré seulement — le remplissage garde la
 couleur du danger, une couleur ne dit qu'une chose).
 
-**Le tir allié porte la couleur de son tireur, le tir hostile est rouge ET
-losange.** `bullet` et `shot` étaient deux ambres voisins, le pire cas possible :
-on ne distinguait plus ce qu'on tire de ce qu'on reçoit. Le rouge franc et non un
-autre ambre parce que la quatrième couleur de joueur est un orange ; la **forme**
-en plus de la couleur parce que la couleur se perd dans le chaos et qu'un
-daltonien doit s'en sortir — même règle que pour les marqueurs posés sur un
-joueur. Le tir du soigneur garde son vert : il ne dit pas *qui* tire mais *ce
-que* le tir fait.
+**Trois silhouettes de projectile, jamais trois couleurs seules** (`BOLT_CAPSULE`
+· `BOLT_DIAMOND` · `BOLT_CROSS`, paramètre `shape` de `drawBolt`) : capsule pour
+le tir allié de dégâts, losange pour le tir hostile, **croix** pour le tir de
+soin.
+
+`bullet` et `shot` étaient deux ambres voisins, le pire cas possible : on ne
+distinguait plus ce qu'on tire de ce qu'on reçoit. Le rouge franc et non un autre
+ambre parce que le **Tireur est ambre** — et c'est la classe qui tire le plus ;
+la **forme** en
+plus de la couleur parce que la couleur se perd dans le chaos et qu'un daltonien
+doit s'en sortir — même règle que pour les marqueurs posés sur un joueur.
+
+**La croix est née du même défaut, une seconde fois.** Le tir de soin ne se
+distinguait que par sa couleur, ce qui tenait tant que le soigneur portait la
+teinte de son joueur : tir de dégâts magenta, tir de soin vert. Depuis que la
+couleur dit la classe, le soigneur est vert en permanence et ses deux tirs sont
+devenus deux verts voisins — exactement le cas que `bullet` et `shot` avaient
+créé. Même réponse, pour la même raison. La croix n'est pas un dessin inventé
+pour l'occasion : c'est le signe du soin, déjà porté par le bonus au sol, les
+croix du sanctuaire et le HUD.
+
+Deux détails qui se paient si on les oublie. La croix est **orientée dans l'axe
+de vol**, comme les deux autres : figée à l'horizontale, elle devient un X sur un
+tir en diagonale, donc une forme différente selon la direction. Et elle est
+tracée en **deux `fill()`** et non en un tracé à deux sous-tracés — deux contours
+en sens contraires annulent leur zone commune sous la règle non nulle, et le
+centre de la croix, qui est exactement leur intersection, deviendrait un trou.
+C'est le bug documenté pour `mirrored()` dans `sprites.js`.
 
 **Les marqueurs posés sur un joueur sont des glyphes distincts en silhouette**,
 jamais différenciés par la seule couleur : un daltonien doit s'en sortir, et de
@@ -618,20 +638,21 @@ Ajouter une entrée impose de traiter les deux côtés :
 | Registre | Serveur | Client |
 |---|---|---|
 | `kind` d'effet | 0 nova · 1 balayage d'arrivée · 2 montée de niveau · 3 ricochet · 4 balise / relèvement / purification / Sentence survécue · 5 élite abattue · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart posé · 10 provocation · 11 vague de soin · 12 explosion de bombe · 13 salve verrouillée (transporte deux points de plus, comme le 3) | `drawEffects()` |
-| classe | `CLASSES` dans `classes.js` (tableau ordonné, l'index circule) | sélecteur du salon + `drawSkillPip()` |
+| classe | `CLASSES` dans `classes.js` (tableau ordonné, l'index circule) | sélecteur du salon + `buildPips()` / `updatePip()` dans `hud.js` |
+| couleur d'un joueur | `assignColors()` dans `room.js`, point de passage unique ; l'index voyage dans `colorIndex` du salon | `PLAYER_COLORS` (ordre = tank, soigneur, tireur A, tireur B) via `colorOf` / `ownerColorOf` |
 | bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` (masque) | teinte du joueur, halos, icônes |
-| états | `STATUSES` dans `statuses.js` (tableau ordonné, l'index sert de bit dans `stMask`) | `STATUS_ICON` + halo joueur + cadre d'équipe |
+| états | `STATUSES` dans `statuses.js` (tableau ordonné, l'index sert de bit dans le masque produit par `_statusMask()`, champ `statuses` du tuple joueur) | `STATUS_ICON` + halo joueur + cadre d'équipe |
 | `shape` de zone | 0 disque · 1 rectangle orienté · 2 anneau · 3 cône · 4 Pac-Man · 5 croix | `zonePath()` / `zoneSubPath()` + `_zoneHits()` |
 | bits de buff | `BUFF_DAMAGE` … `BUFF_RICOCHET` (masque) | anneaux joueur + bandeau HUD |
 | bonus | `_applyPowerup()` | `POWERUP_ICON` + `POWERUP_STYLE` |
 | clés de `mods` liées aux états | `statusTimeMul`, `catalyseur` dans `cards.js` | rien |
 | clés de `mods` | `defaultMods()` dans `cards.js`, lues par la simulation | rien — les effets ne traversent pas le réseau |
 | tags de carte | `tags` dans la table de `cards.js` (`off`, `def`, `coop`, `cadence`) | rien |
-| phase de vague | `wavePhase` : 0 apparition · 1 nettoyage · 2 répit | `drawWaveBanner()` |
+| phase de vague | `wavePhase` : 0 apparition · 1 nettoyage · 2 répit | `updateWave()` dans `hud.js` |
 | boss | `BOSS_ROSTER` dans `bosses.js` (tableau ordonné, l'index circule dans `bo[9]`) | `drawBoss*()` (une routine par boss) + `BOSS_SKIN` dans `palette.js` + barre du HUD + annonce d'entrée + `phaseUnlockText()` |
 | mécanique | `MECHS` dans `bosses.js` (tableau ordonné, l'index circule dans le canal d'alerte et dans `mk`) | `drawMarks()` + `pushAlert()` |
 | clé d'attaque de boss | chaînes du `base`/`unlock` d'un boss, dispatchées par `_atk()` | `ATTACK_LABEL` (texte de barre brisée) — **ne circule pas** |
-| niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` dans `bosses.js` | `drawAlerts()` : consigne cyan avec compte à rebours · avertissement ambre · information blanche |
+| niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` dans `bosses.js` | `updateAlerts()` dans `hud.js` : consigne cyan avec compte à rebours · avertissement ambre · information blanche |
 | type d'événement | rien — déduit des snapshots | `diffSnapshots()` dans `events.js`, consommé par `handleEvent()` |
 | image de sprite | rien | `plan()` dans `sprites.js` : `e{type}_{idle,walkA,walkB,open,die0..2}` et `c_{classe}_{idle,move,shoot,down}`, adressées par NOM via `frameOf()` |
 | son | rien | `PALETTE` dans `audio.js` + `SOUND_GAIN` (hiérarchie de volume) |
@@ -795,12 +816,49 @@ n'appellent que `moveTo`, `lineTo` et `closePath`, donc un enregistreur suffit.
 On retient la **plus petite** des deux dimensions, jamais la plus grande ni la
 diagonale : c'est l'épaisseur qui dit combien de place il y a pour modeler.
 
-**La forme dit la classe, la couleur dit le joueur.** Les quatre couleurs de
-joueur sont déjà prises par l'identité individuelle : faire porter la classe par
-la couleur rendrait soit deux tanks identiques, soit deux joueurs confondus. Les
-sprites de classe sont donc cuits dans une rampe neutre et teintés à la volée.
-Le mode soin est la seule exception, et c'est voulu — c'est une information
-tactique pour toute l'équipe.
+**La couleur dit la classe, et la forme aussi.** C'est le **renversement** de la
+règle d'origine (« la forme dit la classe, la couleur dit le joueur »), qui
+tenait tant que les quatre teintes servaient à distinguer Paul de Marie. À
+l'usage, la question posée vingt fois par manche est « où est le soigneur », pas
+« lequel de ces deux points est Paul ». Les deux canaux disent donc la même chose
+et se renforcent, au lieu de se partager le travail. Les sprites de classe
+restent cuits dans une rampe neutre et teintés à la volée — rien ne change à ce
+niveau.
+
+**Rempart bleu, Soigneur vert, Tireur ambre ou violet.** Deux teintes de tireur
+parce que c'est la seule classe non unique. `PLAYER_COLORS` (dans
+`game_state.js`) n'est plus quatre littéraux mais quatre renvois vers
+`CLASS_COLOR`, et son ordre **est** celui de l'attribution : 0 tank, 1 soigneur,
+2 tireur A, 3 tireur B.
+
+**`assignColors()` dans `room.js` est le point de passage unique**, et trois
+choses y sont indissociables :
+
+- **Deux teintes de tireur ne suffisent pas toujours.** `unique: true` veut dire
+  « au plus un », pas « exactement un » : une table de quatre où personne ne
+  prend le tank ni le soigneur aligne **quatre tireurs**. Les tireurs puisent
+  donc dans leurs deux teintes puis **empruntent** les couleurs de classe unique
+  restées libres. La règle du dessus n'en souffre jamais — si un tank est là, le
+  bleu est à lui, donc il n'est pas empruntable.
+- **Le tri est par identifiant**, pas par ordre d'itération de la `Map` : sans
+  lui, un tireur change de teinte parce qu'un *autre* joueur a quitté le salon.
+- **Jamais en pleine manche** (`phase !== PHASE_LOBBY` sort immédiatement). Le
+  calcul dépend de la salle entière : une déconnexion recolorerait des joueurs
+  vivants au milieu d'un combat, or la couleur est précisément ce qui sert à se
+  repérer. `startRound()` appelle la méthode **avant** de basculer la phase ;
+  un arrivant en cours de manche garde la teinte que `freeColor()` lui a donnée.
+
+Le recalcul se fait **à la diffusion** (`lobbyPayload()`) plutôt qu'à chaque
+mutation : le salon est rediffusé à toute arrivée, tout départ et tout choix de
+classe, donc il n'y a aucun point de mutation à ne pas oublier de brancher.
+
+**Corollaire : le mode soin a perdu son signal de couleur.** La bascule se lisait
+au passage de la couleur de joueur au vert du soigneur ; le soigneur étant
+désormais vert en permanence, il ne restait qu'un vert pâle virant au vert
+saturé. Un **anneau pulsant** l'a remplacé, dans la même bande `RING_SKILL` que
+la provocation et la surcharge — troisième classe, et les trois ne coexistent
+jamais sur un personnage. Le mouvement se lit à travers la horde là où deux verts
+voisins ne se lisent plus.
 
 **Le Soigneur a été refait, pour la même raison que le Rempart au lot 6 et
 constaté sur la même planche** : c'était un polygone à quatorze côtés de rayon
@@ -925,7 +983,7 @@ zone »). Sans ça, chaque tirage se lit isolément et la build se construit par
 accident — le joueur qui a six cartes offensives et zéro défensive ne s'en aperçoit
 qu'au tableau de fin. Ne pas confondre avec les **familles** : une famille est un
 axe sur quatre paliers de rareté et c'est une règle de *tirage* ; une catégorie
-couvre les 107 cartes et ne sert qu'à l'*affichage*. Elle est **déduite des `tags`**
+couvre les 116 cartes et ne sert qu'à l'*affichage*. Elle est **déduite des `tags`**
 (`cardCategory()`, point de passage unique) plutôt que recopiée sur tout le
 catalogue, avec un `cat` explicite pour les seules cartes de zone. L'ordre de
 priorité compte : `coop` → soutien, puis `off`, puis `def`, sinon utilitaire — on

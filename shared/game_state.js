@@ -16,6 +16,10 @@ import {
   PURGE_ORDER, ELITE_STATUS, statusAt, statusBit, enemyStatusMask,
 } from "./statuses.js";
 import { PROG_CFG, applyMeta } from "./progression.js";
+/* La SEULE valeur d'affichage lue ici, et elle ne sert qu'a construire
+   `PLAYER_COLORS` juste en dessous : `palette.js` ne depend de rien, donc pas
+   de cycle. La simulation elle-meme n'ouvre jamais cette table. */
+import { CLASS_COLOR } from "./palette.js";
 import {
   BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, bossPool, mechAt, adaptMech, towerCount,
   ALERT_ORDER, ALERT_WARN, ALERT_INFO,
@@ -394,7 +398,25 @@ export const CFG = {
   SNAPSHOT_HZ: 20,
 };
 
-export const PLAYER_COLORS = ["#6fe3a0", "#5ab6f0", "#d98cf0", "#f0a95a"];
+/* LES QUATRE COULEURS DE JOUEUR SONT CELLES DES CLASSES, et l'ordre du tableau
+   est celui de l'attribution : 0 Rempart, 1 Soigneur, 2 Tireur A, 3 Tireur B.
+   C'est `assignColors()` dans `room.js` qui distribue les index, et lui seul.
+
+   Elles ne sont plus quatre litteraux mais des renvois vers `CLASS_COLOR` :
+   deux tables de couleurs divergent au premier reglage, et `palette.js` est LA
+   source de verite du depot. Le tableau reste exporte d'ici parce que tout le
+   monde l'importe deja par ce chemin — c'est l'index qui circule, pas la
+   valeur.
+
+   Ordre POSITIONNEL, comme les autres tables exportees : l'index voyage jusqu'au
+   client. Le reordonner change la couleur des joueurs sur un onglet reste sur
+   une version anterieure — sans casser quoi que ce soit, mais il le fera. */
+export const PLAYER_COLORS = [
+  CLASS_COLOR.tank,      // 0 — Rempart, toujours
+  CLASS_COLOR.soigneur,  // 1 — Soigneur, toujours
+  CLASS_COLOR.dps,       // 2 — Tireur
+  CLASS_COLOR.dps2,      // 3 — second Tireur
+];
 
 /* --- provenance des degats subis -----------------------------------------------
 

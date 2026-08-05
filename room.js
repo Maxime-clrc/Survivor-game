@@ -31,6 +31,15 @@ export const PHASE_CARDS = 2;
 
 export const ROOM_MAX_PLAYERS = PLAYER_COLORS.length;
 
+/* Index dans `PLAYER_COLORS`, dont l'ordre EST celui des classes. Nommer les
+   quatre plutot que d'ecrire 0..3 dans `assignColors` : c'est la seule chose
+   qui relie ce fichier a l'ordre de la table, et un nombre nu s'y trompe en
+   silence. */
+const COLOR_TANK  = 0;
+const COLOR_HEAL  = 1;
+const COLOR_DPS_A = 2;
+const COLOR_DPS_B = 3;
+
 const PAUSE_MAX_MS = 5 * 60 * 1000;
 const SNAPSHOT_INTERVAL = 1 / CFG.SNAPSHOT_HZ;
 
@@ -100,10 +109,71 @@ export class Room {
 
   /* --- entrees / sorties ------------------------------------------------------ */
 
+  /* Premiere couleur libre. Ce n'est plus la regle generale — voir
+     `assignColors` juste en dessous — mais c'est le filet de l'arrivee EN COURS
+     DE MANCHE, ou l'attribution par classe refuse de toucher a quoi que ce
+     soit. Sans lui, un spectateur arriverait sans couleur du tout. */
   freeColor() {
     const used = new Set(this.joined().map(c => c.colorIndex));
     for (let i = 0; i < PLAYER_COLORS.length; i++) if (!used.has(i)) return i;
     return 0;
+  }
+
+  /* LA COULEUR SUIT LA CLASSE, et c'est ici qu'elle est attribuee — nulle part
+     ailleurs. Le Rempart est toujours bleu, le Soigneur toujours vert : a la
+     table, la question posee vingt fois par manche est « ou est le soigneur »,
+     et une teinte tiree au sort a l'arrivee n'y repondait jamais.
+
+     Ce n'etait pas gratuit a obtenir. `freeColor()` attribuait la premiere
+     couleur libre A L'ARRIVEE dans la salle, donc AVANT tout choix de classe, et
+     ne la revoyait plus jamais. La couleur devant maintenant suivre un choix qui
+     change au salon, elle se RECALCULE a chaque diffusion plutot que de se poser
+     une fois : c'est idempotent, ca coute une boucle sur quatre clients, et il
+     n'y a aucun point de mutation a ne pas oublier de brancher.
+
+     LE TIREUR A DEUX TEINTES ET ELLES NE SUFFISENT PAS TOUJOURS. `unique: true`
+     sur le tank et le soigneur veut dire « au plus un », pas « exactement un » :
+     une table de quatre ou personne ne prend ces deux roles aligne QUATRE
+     tireurs, et deux d'entre eux seraient identiques. Les tireurs puisent donc
+     d'abord dans leurs deux teintes, puis EMPRUNTENT les couleurs de classe
+     unique restees libres. La regle du dessus n'en souffre jamais : si un tank
+     est la, le bleu est a lui, donc il n'est pas empruntable. */
+  assignColors() {
+    /* JAMAIS EN PLEINE MANCHE. Le recalcul depend de la salle entiere : si un
+       tireur se deconnecte, les tireurs suivants remontent d'un cran dans le
+       pool et changeraient de couleur SOUS LES YEUX des autres, au milieu d'un
+       combat, alors que la couleur est precisement ce qui sert a se reperer.
+       `startRound()` appelle cette methode avant de basculer la phase, donc
+       l'attribution de depart passe ; tout ce qui arrive apres attend le salon
+       suivant. Un arrivant en cours de manche garde la teinte que `freeColor()`
+       lui a donnee a l'entree. */
+    if (this.phase !== PHASE_LOBBY) return;
+    // Tri par identifiant : l'ordre d'iteration d'une Map suffirait aujourd'hui,
+    // mais l'attribution doit etre STABLE — un tireur qui change de teinte parce
+    // qu'un autre joueur a quitte le salon est exactement le genre de scintillement
+    // qu'on ne remarque qu'en partie.
+    const list = [...this.joined()].sort((a, b) => a.id - b.id);
+    const pris = new Set();
+
+    for (const c of list) {
+      const id = c.cls === null || c.cls === undefined ? null : CLASSES[c.cls]?.id;
+      if (id === "tank" && !pris.has(COLOR_TANK)) {
+        c.colorIndex = COLOR_TANK; pris.add(COLOR_TANK);
+      } else if (id === "soigneur" && !pris.has(COLOR_HEAL)) {
+        c.colorIndex = COLOR_HEAL; pris.add(COLOR_HEAL);
+      } else {
+        // Tireur, sans classe, ou doublon d'une classe unique que le serveur
+        // aurait laisse passer : traite au second tour.
+        c.colorIndex = -1;
+      }
+    }
+
+    const pool = [COLOR_DPS_A, COLOR_DPS_B, COLOR_TANK, COLOR_HEAL]
+      .filter(i => !pris.has(i));
+    let k = 0;
+    for (const c of list) {
+      if (c.colorIndex === -1) c.colorIndex = pool[k++] ?? COLOR_DPS_A;
+    }
   }
 
   /* L'hote est le plus ancien client encore present. S'il part, le suivant
@@ -118,12 +188,20 @@ export class Room {
 
   attach(client) {
     client.room = this;
+    /* Teinte provisoire : la premiere libre, comme avant. Elle ne sert qu'a
+       couvrir l'arrivee EN COURS DE MANCHE, ou `assignColors()` refuse de
+       toucher a quoi que ce soit — sans elle, un spectateur arriverait sans
+       couleur du tout. Au salon, elle est ecrasee deux lignes plus bas. */
     client.colorIndex = this.freeColor();
     // Arriver en cours de manche ne coupe pas la partie des autres : on
     // regarde, on entre a la manche suivante — comportement inchange, par
     // salle desormais.
     client.spectator = this.phase !== PHASE_LOBBY;
     this.clients.set(client.id, client);
+    // APRES l'insertion : l'attribution regarde la salle entiere, l'arrivant
+    // compris. Il n'a pas encore de classe, il prendra donc une teinte de
+    // tireur — et changera des qu'il choisira, comme tout le monde.
+    this.assignColors();
     this.knownMembers.add(client.pseudoKey);
     this.emptySince = 0;
 
@@ -204,6 +282,11 @@ export class Room {
   }
 
   lobbyPayload() {
+    /* Recalcul AVANT la diffusion, et c'est le point de passage qui rend le
+       reste inutile : le salon est rediffuse a chaque changement — arrivee,
+       depart, choix de classe — donc la couleur suit la classe sans qu'aucun
+       de ces trois endroits ait a y penser. Idempotent, quatre clients au plus. */
+    this.assignColors();
     const vote = this.votedDifficulty();
     return {
       t: "lobby",
@@ -344,9 +427,14 @@ export class Room {
     const diff = this.votedDifficulty().index;
     this.state = new GameState(diff);
     this.cardPicked.clear();
+    /* Les classes non choisies retombent sur le tireur AVANT l'attribution des
+       couleurs, et l'attribution avant `addPlayer` : elle depend de la classe,
+       et un `null` ne dirait pas quelle teinte prendre. Deux passes plutot
+       qu'une, pour cette seule raison. */
+    for (const c of this.joined()) if (c.cls === null) c.cls = CLASS_DEFAULT;
+    this.assignColors();
     for (const c of this.joined()) {
       c.spectator = false;
-      if (c.cls === null) c.cls = CLASS_DEFAULT;
       c.clsLocked = true;
       /* Progression permanente (lot D) : la simulation recoit les lignes
          EQUIPEES de la classe jouee, les achats de confort et les cartes

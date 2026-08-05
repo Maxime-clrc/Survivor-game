@@ -110,14 +110,31 @@ export const CARD_CATEGORY_COLOR = {
 };
 
 /* --- classes ---------------------------------------------------------------
-   Couleur d'IDENTITE et non de signal : elle dit « qui », pas « quoi ». Elle
-   vit ici parce que le salon, le tableau des scores et le rendu du personnage
-   la lisent tous les trois, et que `classes.js` doit rester une table de
-   reglages sans valeur d'affichage en dur. */
+   LA COULEUR DIT LA CLASSE. C'est l'inverse de la regle d'origine — « la forme
+   dit la classe, la couleur dit le joueur » — et le renversement est
+   deliberé : a la table, la question posee vingt fois par manche est « ou est
+   le soigneur », pas « lequel de ces deux points est Paul ». La silhouette
+   continue de dire la classe, elle aussi ; les deux se renforcent au lieu de
+   se partager le travail.
+
+   Le Rempart est BLEU, le Soigneur VERT, le Tireur AMBRE ou VIOLET. Deux
+   teintes de tireur parce que c'est la seule classe non unique : `tank` et
+   `soigneur` portent `unique: true` dans `classes.js`, donc au plus un de
+   chaque, alors qu'une table de quatre peut aligner quatre tireurs.
+
+   Ces quatre valeurs sont AUSSI les quatre couleurs de joueur : voir
+   `PLAYER_COLORS` dans `game_state.js`, qui les reprend dans cet ordre plutot
+   que de recopier des litteraux. */
 export const CLASS_COLOR = {
   tank:     "#7fd8e8",
   soigneur: "#8ef0c8",
   dps:      "#f4d35e",
+  /* Seconde teinte de tireur. Violet, et non un second ambre : `bullet` et
+     `shot` etaient deux ambres voisins et c'est le pire cas connu de ce
+     depot — deux tireurs en ambre voisin auraient refait la meme erreur, entre
+     coequipiers cette fois. Le violet est deja prouve comme couleur de joueur,
+     c'etait la troisieme de l'ancienne table. */
+  dps2:     "#d98cf0",
 };
 
 /* --- combat ----------------------------------------------------------------
@@ -133,8 +150,9 @@ export const CLASS_COLOR = {
      - les balles prennent la COULEUR DE LEUR TIREUR (les quatre couleurs de
        joueur existent deja), ce qui repond du meme coup a « qui a tire ca » ;
      - les projectiles ennemis passent au ROUGE FRANC. Le rouge et non un autre
-       ambre : la quatrieme couleur de joueur (#f0a95a) est un orange, un tir
-       ennemi ambre l'aurait croisee ;
+       ambre : le TIREUR est ambre (#f4d35e), un tir ennemi ambre aurait croise
+       sa couleur — et depuis que la teinte dit la classe, c'est meme la couleur
+       de la classe qui tire le plus ;
      - le tir hostile change de FORME (losange etire, cf. `drawBolt` cote
        client). La couleur se perd dans le chaos, la forme non — c'est la seule
        distinction qui survit a la saturation.

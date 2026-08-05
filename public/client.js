@@ -3848,15 +3848,16 @@ function drawWorld(v) {
   for (const s of v.shotList) {
     // Rouge franc ET losange : deux signaux pour la meme information, parce
     // qu'aucun des deux ne suffit seul a 220 ennemis.
-    drawBolt(s, CFG.SHOT_RADIUS, COMBAT.shot, shotTrail, true);
+    drawBolt(s, CFG.SHOT_RADIUS, COMBAT.shot, shotTrail, BOLT_DIAMOND);
   }
   for (const b of v.bulletList) {
     /* La balle prend LA COULEUR DE SON TIREUR. Elle repond du meme coup a deux
        questions : « est-ce a moi que ca fait mal » et « qui a tire ca » — la
        seconde n'avait aucune reponse en cooperatif.
-       Le projectile de soin garde le vert et son embonpoint : il ne dit pas qui
-       tire mais CE QUE le tir fait, et c'est l'information la plus utile a la
-       table.
+       Le projectile de soin garde le vert, mais il porte surtout une CROIX : sa
+       couleur ne le distingue plus du tir de degats du soigneur, qui est vert
+       lui aussi depuis que la teinte dit la classe. La forme le fait, et elle
+       survit au chaos et au daltonisme — meme raison que le losange hostile.
 
        `ownerColorOf` et non `colorOf` : un proprietaire inconnu — serveur
        anterieur au lot, ou tireur deja deconnecte dont les balles volent encore
@@ -3864,7 +3865,7 @@ function drawWorld(v) {
        premier joueur venu, qui serait un mensonge sur qui a tire. */
     drawBolt(b, CFG.BULLET_RADIUS + (b.heal ? 1.5 : 0),
              b.heal ? COMBAT.bulletHeal : (ownerColorOf(b.owner) ?? COMBAT.bullet),
-             bulletTrail);
+             bulletTrail, b.heal ? BOLT_CROSS : BOLT_CAPSULE);
   }
 
   drawPlayers(v.playerList, v.tm, v.marks ?? []);
@@ -3946,11 +3947,59 @@ function boltDiamond(x, y, ux, uy, r) {
   ctx.fill();
 }
 
-/* `diamond` choisit la silhouette : capsule ronde pour le tir allie, losange
-   pour le tir hostile. Un parametre et non deux fonctions — le halo, la
-   trainee, la deduction de direction et la purge des tables sont communs, et
-   les dupliquer les aurait fait diverger au premier reglage. */
-function drawBolt(b, r, col, trail, diamond = false) {
+/* CROIX du tir de soin. Deux `fill()` et non un seul trace a deux sous-traces :
+   deux contours parcourus en sens contraires annulent leur zone commune sous la
+   regle non nulle, et le centre de la croix — exactement leur intersection —
+   serait devenu un trou. Le bug a existe sur trois silhouettes de creature (voir
+   `mirrored` dans `sprites.js`) ; ici deux remplissages coutent moins cher que
+   de raisonner sur le sens de parcours a chaque reglage.
+
+   Elle est orientee dans l'AXE DE VOL, comme les deux autres silhouettes : une
+   croix figee a l'horizontale deviendrait un X sur un tir en diagonale, donc une
+   forme differente selon la direction — l'inverse de ce qu'on cherche. */
+function boltCross(x, y, ux, uy, r) {
+  const px = -uy, py = ux;
+  const L = r * 2.0, W = r * 0.5, C = r * 1.25;
+  ctx.beginPath();
+  ctx.moveTo(x + ux * L + px * W, y + uy * L + py * W);
+  ctx.lineTo(x + ux * L - px * W, y + uy * L - py * W);
+  ctx.lineTo(x - ux * L - px * W, y - uy * L - py * W);
+  ctx.lineTo(x - ux * L + px * W, y - uy * L + py * W);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + px * C + ux * W, y + py * C + uy * W);
+  ctx.lineTo(x + px * C - ux * W, y + py * C - uy * W);
+  ctx.lineTo(x - px * C - ux * W, y - py * C - uy * W);
+  ctx.lineTo(x - px * C + ux * W, y - py * C + uy * W);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* Les trois silhouettes de projectile. `shape` etait un booleen `diamond` tant
+   qu'il n'y avait que deux formes ; c'est la SIGNATURE qu'on etend, jamais une
+   exception qu'on ouvre a cote — meme regle que pour `drawSprite`. */
+const BOLT_CAPSULE = 0;   // tir allie de degats
+const BOLT_DIAMOND = 1;   // tir hostile
+const BOLT_CROSS   = 2;   // tir de soin
+
+/* `shape` choisit la silhouette. Un parametre et non trois fonctions — le halo,
+   la trainee, la deduction de direction et la purge des tables sont communs, et
+   les dupliquer les aurait fait diverger au premier reglage.
+
+   POURQUOI UNE TROISIEME FORME. Le tir de soin se distinguait par sa seule
+   COULEUR, et ca marchait tant que le soigneur portait la teinte de son joueur :
+   son tir de degats etait magenta ou orange, son tir de soin vert. Depuis que la
+   couleur dit la classe, le soigneur est vert en permanence — ses deux tirs sont
+   donc deux verts voisins, exactement le defaut que `bullet` et `shot` avaient
+   avant d'etre separes, et le pire cas connu de ce depot.
+
+   La reponse est la meme que la fois precedente, et elle est deja ecrite dans la
+   charte : la couleur se perd dans le chaos, la forme non — et un daltonien doit
+   s'en sortir. La croix n'est pas un dessin invente pour l'occasion, c'est le
+   signe du soin deja porte par le bonus au sol, les motes du sanctuaire et le
+   HUD. */
+function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
   const prev = trail.get(b.id);
   trail.set(b.id, { x: b.x, y: b.y });
 
@@ -3961,13 +4010,21 @@ function drawBolt(b, r, col, trail, diamond = false) {
     const d = Math.hypot(dx, dy);
     if (d > 0.5) {
       const ux = dx / d, uy = dy / d;
-      if (diamond) {
+      if (shape === BOLT_DIAMOND) {
         // La copie en arriere d'abord, sous le corps : elle donne le sens du vol
         // sans qu'on ait a comparer deux images.
         ctx.globalAlpha = 0.3;
         boltDiamond(b.x - ux * r * 3, b.y - uy * r * 3, ux, uy, r * 0.7);
         ctx.globalAlpha = 1;
         boltDiamond(b.x, b.y, ux, uy, r);
+        return;
+      }
+      if (shape === BOLT_CROSS) {
+        /* Pas de copie en arriere ici. La croix a deja quatre branches ; une
+           seconde croix fantome derriere elle donnait une bouillie ou l'on ne
+           lisait plus ni la forme ni le sens du vol. La trainee du soin est
+           portee par le halo, qui reste commun aux trois silhouettes. */
+        boltCross(b.x, b.y, ux, uy, r);
         return;
       }
       // La copie en arriere : un seul cran, et a 30 % — deux crans donnaient un
@@ -3997,7 +4054,8 @@ function drawBolt(b, r, col, trail, diamond = false) {
      se deduit de l'image precedente). Le losange se trace alors dans l'axe
      horizontal — une pastille ronde ici aurait fait clignoter la forme d'une
      image sur l'autre, ce qui est pire que pas de distinction du tout. */
-  if (diamond) { boltDiamond(b.x, b.y, 1, 0, r); return; }
+  if (shape === BOLT_DIAMOND) { boltDiamond(b.x, b.y, 1, 0, r); return; }
+  if (shape === BOLT_CROSS) { boltCross(b.x, b.y, 1, 0, r); return; }
   ctx.beginPath();
   ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
   ctx.fill();
@@ -6202,23 +6260,40 @@ function drawPlayers(list, tm, marks = []) {
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, y, RING_SKILL, 0, Math.PI * 2); ctx.stroke();
       }
+      /* Mode soin : anneau pulsant, MEME BANDE que la provocation et la
+         surcharge — troisieme classe, et les trois ne coexistent jamais sur un
+         personnage.
 
-      /* LA FORME DIT LA CLASSE, LA COULEUR DIT LE JOUEUR. Les quatre couleurs
-         de joueur etaient deja prises par l'identite individuelle : faire
-         porter la classe par la couleur aussi rendait soit deux tanks
-         identiques, soit deux joueurs confondus. Les trois silhouettes sont
-         donc distinctes de loin, et la teinte reste celle du joueur.
+         Il n'existait pas : la bascule se lisait a la TEINTE du personnage, qui
+         passait de sa couleur de joueur au vert du soigneur. Depuis que la
+         couleur dit la classe, le soigneur est vert en permanence et ce signal
+         a perdu presque tout son contraste — il ne restait que le passage d'un
+         vert pale a un vert sature. Le mouvement le remplace : une pulsation se
+         lit a travers la horde la ou deux verts voisins ne se lisent plus. */
+      if (p.skillFlags & SKILL_HEAL_MODE) {
+        const puls = 0.55 + 0.25 * Math.sin(tm * 7);
+        ctx.strokeStyle = alpha(FX.heal, puls);
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y, RING_SKILL, 0, Math.PI * 2); ctx.stroke();
+      }
 
-         Le mode soin est la seule exception, et c'est voulu : la bascule est
-         une posture qui dure, elle doit se lire sur le personnage lui-meme et
-         pas seulement sur ses projectiles — c'est une information tactique
-         pour toute l'equipe. */
+      /* LA COULEUR DIT LA CLASSE, ET LA FORME AUSSI. C'est le renversement de la
+         regle d'origine — « la forme dit la classe, la couleur dit le joueur ».
+         Elle tenait tant que les quatre teintes servaient a distinguer Paul de
+         Marie ; a l'usage, la question posee vingt fois par manche est « ou est
+         le soigneur », pas « lequel de ces deux points est Paul ». Les deux
+         canaux disent donc la meme chose et se renforcent, au lieu de se
+         partager le travail.
+
+         Ce que ca coute : deux tireurs ne se distinguent plus que par leurs deux
+         teintes (`dps` et `dps2`), et quatre tireurs empruntent le bleu et le
+         vert restes libres — voir `assignColors()` dans `room.js`, ou vit toute
+         la regle. */
       const moving = playerMoving(p.id, x, y);
-      /* Le vert du SOIN et non la couleur de classe : cette teinte ne dit pas
-         « c'est un soigneur » — sa silhouette le dit deja, et sa couleur de
-         joueur dit qui il est — elle dit « il soigne EN CE MOMENT ». C'est un
-         etat, donc la famille fonctionnelle, et elle s'accorde ainsi avec les
-         projectiles qu'il tire pendant ce temps. */
+      /* La teinte de mode soin reste, mais elle ne porte plus le signal a elle
+         seule : c'est l'anneau pulsant ci-dessus qui le fait. Elle sature le
+         vert du personnage, ce qui accompagne la pulsation au lieu de la
+         doubler. */
       const teinte = dashing ? FX.flash
         : ((p.skillFlags & SKILL_HEAL_MODE) ? FX.heal : col);
       const frame = classFrame(p, moving ? "move" : "idle");

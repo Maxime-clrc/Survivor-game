@@ -1078,7 +1078,7 @@ Le jalon se déclenche au premier écran ouvert **à partir de** la vague 10, et
 non pendant cette vague exactement : une vague où personne ne monte de niveau
 n'ouvre aucun écran, et la garantie sautait alors une fois sur deux.
 
-Les 106 cartes vivent dans `shared/cards.js`, avec leurs valeurs. Les communes
+Les 116 cartes vivent dans `shared/cards.js`, avec leurs valeurs. Les communes
 sont des gains de nombres ; les rares modifient une mécanique ; les épiques
 définissent une orientation de build ; trois des légendaires **remplacent
 l'arme** et s'excluent entre elles.
@@ -1158,7 +1158,7 @@ endroit, il nomme la seule famille d'effet que la grammaire appelle « dégâts 
 
 **Ne pas confondre catégorie et famille.** Une famille est un axe décliné sur
 quatre paliers de rareté et ne concerne que vingt cartes : c'est une règle de
-*tirage*. Une catégorie couvre les 107 cartes et ne sert qu'à l'*affichage*. Elle
+*tirage*. Une catégorie couvre les 116 cartes et ne sert qu'à l'*affichage*. Elle
 est **déduite des tags** existants plutôt qu'écrite cent sept fois — les tags sont
 déjà tenus à jour puisque « Résonance » compte `cadence` et « Symbiose » compte
 `def` — avec un champ explicite pour les seules cartes de zone, que les tags ne
@@ -1435,11 +1435,13 @@ Critère : il doit être identifiable **à sa masse seule**, sans détail intern
 polygone à quatorze côtés de rayon 13 — un **cercle**. Aucun appendice, aucune
 pointe, donc aucune orientation lisible en silhouette, et il était la seule des
 trois classes dans ce cas : le Rempart a son arc de bouclier, le DPS son dard.
-Or la charte dit « la forme dit la classe, la couleur dit le joueur » ; un
-soigneur qui ne tient que par sa teinte fait porter la classe par la couleur,
-alors que les quatre couleurs sont déjà prises par l'identité des joueurs. Sur la
-planche en noir uni, ses quatre cases étaient des ronds pleins qu'on ne pouvait
-ni orienter ni distinguer l'un de l'autre.
+Or la charte disait alors « la forme dit la classe, la couleur dit le joueur » ;
+un soigneur qui ne tient que par sa teinte fait porter la classe par la couleur,
+alors que les quatre couleurs étaient déjà prises par l'identité des joueurs. Sur
+la planche en noir uni, ses quatre cases étaient des ronds pleins qu'on ne
+pouvait ni orienter ni distinguer l'un de l'autre. (La règle a depuis été
+renversée — voir plus bas — mais la silhouette reste, et elle porte désormais la
+même information que la couleur au lieu de la remplacer.)
 
 Trois ajouts, et **pas un canon** — il soigne, il ne perce pas : un corps en
 **œuf** pointé vers l'avant, qui garde la masse ronde le séparant de l'hexagone
@@ -1740,13 +1742,18 @@ Trois correctifs, et il fallait les trois — chacun seul est insuffisant :
 
 - **Les balles prennent la couleur de leur tireur.** Les quatre couleurs de
   joueur existaient déjà, et ça répond du même coup à « qui a tiré ça », qui
-  n'avait aucune réponse en coopératif. Le tir du soigneur garde son vert : il ne
-  dit pas *qui* tire mais *ce que* le tir fait, et c'est l'information la plus
-  utile à la table.
+  n'avait aucune réponse en coopératif. Depuis que la couleur dit la **classe**,
+  elle répond en plus à « qui, dans l'équipe, tire ça ».
 - **Les projectiles ennemis passent au rouge franc** (`#ff3b5c`) et deviennent
   des **losanges étirés** dans leur axe. Le rouge et non un autre ambre parce que
-  la quatrième couleur de joueur est un orange ; la forme parce que la couleur se
-  perd dans le chaos et qu'un daltonien doit s'en sortir.
+  le **Tireur est ambre**, et c'est la classe qui tire le plus ; la forme parce
+  que la couleur se perd dans le chaos et qu'un daltonien doit s'en sortir.
+- **Le tir de soin porte une croix** — troisième silhouette. Il ne se
+  distinguait que par son vert, ce qui suffisait tant que le soigneur portait la
+  teinte de son joueur. Le soigneur étant vert en permanence, ses deux tirs
+  seraient devenus deux verts voisins : exactement le défaut du dessus, une
+  seconde fois. Même réponse, et la croix est déjà le signe du soin partout
+  ailleurs.
 - **Un liseré clair permanent sur les joueurs**, et c'est le plus rentable des
   trois : rien ne distinguait un personnage d'un monstre en priorité
   d'affichage. Ce n'est pas un tracé — les entités passent par `drawSprite` — mais
@@ -1802,6 +1809,49 @@ de vie** : triangle pour « viens ici », deux anneaux reliés pour un lien à
 rompre, carré barré pour une cage, croix pour une cible. **Distincts en
 silhouette et pas seulement par la couleur** — un daltonien doit s'en sortir, et
 de toute façon la couleur se noie dans le chaos.
+
+### La couleur dit la classe
+
+C'est le **renversement** de la règle d'origine, « la forme dit la classe, la
+couleur dit le joueur ». Elle tenait tant que les quatre teintes servaient à
+distinguer Paul de Marie. À l'usage, la question posée vingt fois par manche est
+« où est le soigneur », pas « lequel de ces deux points est Paul ». Les deux
+canaux disent donc la même chose et se renforcent, au lieu de se partager le
+travail — la silhouette continue de dire la classe, elle aussi.
+
+**Rempart bleu, Soigneur vert, Tireur ambre ou violet.** Deux teintes de tireur
+parce que c'est la seule classe non unique.
+
+Trois choses rendent la règle tenable, et aucune n'est décorative :
+
+**Deux teintes de tireur ne suffisent pas toujours.** « Au plus un tank et un
+soigneur » ne veut pas dire « exactement un » : une table de quatre où personne ne
+prend ces deux rôles aligne **quatre tireurs**, et deux d'entre eux seraient
+identiques. Les tireurs puisent donc dans leurs deux teintes, puis **empruntent**
+les couleurs de classe unique restées libres. La règle du dessus n'en souffre
+jamais : si un Rempart est là, le bleu est à lui, donc il n'est pas empruntable.
+
+**L'attribution est triée par identifiant**, pas laissée à l'ordre d'itération.
+Sans ça, un tireur change de teinte parce qu'un *autre* joueur a quitté le
+salon — le genre de scintillement qu'on ne remarque qu'en partie.
+
+**Elle ne tourne jamais en pleine manche.** Le calcul dépend de la salle entière :
+une déconnexion recolorerait des joueurs vivants au milieu d'un combat, alors que
+la couleur est précisément ce qui sert à se repérer. Le lancement de manche
+attribue avant de basculer la phase ; un arrivant en cours de partie garde la
+teinte reçue à l'entrée jusqu'au salon suivant.
+
+Le recalcul se fait **à la diffusion du salon** plutôt qu'à chaque changement : le
+salon est rediffusé à toute arrivée, tout départ et tout choix de classe, donc il
+n'y a aucun point de mutation à ne pas oublier de brancher.
+
+**Ce que ça a coûté : le mode soin a perdu son signal de couleur.** La bascule se
+lisait au passage de la couleur de joueur au vert du soigneur. Le soigneur étant
+maintenant vert en permanence, il ne restait qu'un vert pâle virant au vert
+saturé — presque rien. Un **anneau pulsant** l'a remplacé, dans la même bande que
+la provocation du Rempart et la surcharge du Tireur : trois compétences, trois
+classes, elles ne coexistent jamais sur un même personnage. Le mouvement se lit à
+travers la horde là où deux verts voisins ne se lisent plus.
 
 ### Un seul vert pour le soin
 
@@ -2129,7 +2179,9 @@ huit du plan, et c'est le levier qui reste si le chiffre doit encore monter.
 
 Aucune case de secours (Ravitaillement) n'a été servie sur les 200 manches, là
 où le pool d'avant en servait : c'est l'effet secondaire attendu d'un catalogue
-passé de 77 à 106 cartes.
+passé de 77 à 106 cartes. **Mesure prise à 106 cartes** — le catalogue en compte
+116 depuis, et l'effet ne peut qu'avoir grandi. Le chiffre n'est pas mis à jour
+ici : une mesure se remesure, elle ne se réécrit pas.
 
 ### Vagues et progression
 
@@ -2759,12 +2811,17 @@ Composition des vagues, dans `ENEMY_TYPES` : `from` (moment d'apparition),
 
 ## Limites connues
 
-- `ws_lite.js` couvre le nécessaire, pas plus : pas de compression, pas de TLS.
-  Parfait en LAN, à ne pas exposer sur Internet.
-- Pas de reprise de connexion : une coupure renvoie à l'écran de connexion.
+- `ws_lite.js` couvre le nécessaire, pas plus : **pas de TLS**, qui est le
+  travail du proxy inverse. Il fait en revanche la compression
+  (`permessage-deflate`) depuis le lot infra.
 - L'évitement entre ennemis reste en O(n²). À 180 c'est négligeable ; au-delà de
   400, il faudrait une grille spatiale.
-- Une seule partie à la fois, pas de gestionnaire de salons.
+- Pas de reprise de partie : une coupure en pleine manche fait perdre la place
+  dans la salle en cours. La **session**, elle, se reprend toute seule
+  (`loginToken`) — on ne retape pas son mot de passe.
+- Pas de récupération de mot de passe autonome : sans email, seul l'opérateur
+  peut réinitialiser (`adminPassReset`). Assumé, documenté dans
+  `LISEZMOI-BDD.md`.
 - Les collisions sont testées par distance, sans balayage continu **en vol** :
   une balle très rapide pourrait traverser un ennemi très fin. Aux vitesses
   actuelles le cas ne se produit pas. Seule l'**apparition** est balayée en

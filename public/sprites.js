@@ -646,7 +646,9 @@ function tankClassShadow(g, R) {
    orientation lisible en silhouette — et c'etait la seule des trois classes
    dans ce cas, le Rempart ayant son arc de bouclier et le DPS son dard.
 
-   Or la charte dit « la forme dit la classe, la couleur dit le joueur » : un
+   Or la charte disait alors « la forme dit la classe, la couleur dit le
+   joueur » — elle a depuis ete renversee, la couleur dit la classe elle aussi,
+   mais la silhouette reste et doit porter la meme information : un
    soigneur qui ne tient que par sa teinte fait exactement porter la classe par
    la couleur, alors que les quatre couleurs sont deja prises par l'identite des
    joueurs. Sur la planche en noir uni, ses quatre cases etaient des ronds
