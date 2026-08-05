@@ -232,6 +232,11 @@ const roomNameInput = document.getElementById("roomName");
 const roomPassInput = document.getElementById("roomPass");
 const roomCreateBtn = document.getElementById("roomCreate");
 const hubStatusEl = document.getElementById("hubStatus");
+const hubPassAskEl = document.getElementById("hubPassAsk");
+const hubPassAskWhoEl = document.getElementById("hubPassAskWho");
+const hubPassAskInput = document.getElementById("hubPassAskInput");
+const hubPassAskGoBtn = document.getElementById("hubPassAskGo");
+const hubPassAskCancelBtn = document.getElementById("hubPassAskCancel");
 const panelLeaveBtn = document.getElementById("panelLeave");
 const hubWhoEl = document.getElementById("hubWho");
 const hubLogoutBtn = document.getElementById("hubLogout");
@@ -258,6 +263,7 @@ let inRoom = false;
 let roomsList = [];
 let roomNameCur = "";       // nom de la salle courante, pour le titre du salon
 let pendingRejoin = null;   // { code, name } propose par welcome apres rechargement
+let joinAttempt = null;     // { code, name } de la derniere salle cliquee — pour l'encart mot de passe
 let lastResult = null;
 let difficulty = 1;        // mode retenu par le vote
 let tally = [0, 0, 0];
@@ -383,6 +389,9 @@ function connect() {
       case "roomJoined":
         inRoom = true;
         pendingRejoin = null;
+        joinAttempt = null;
+        hubPassAskEl.hidden = true;
+        hubPassAskInput.value = "";
         roomNameCur = msg.name ?? "";
         hostId = msg.host;
         phase = msg.phase;
@@ -399,10 +408,23 @@ function connect() {
          sienne — d'ou un motif distinct plutot qu'un texte unique. */
       case "joinRoomError": {
         pendingRejoin = null;
+        /* `motdepasse` ouvre l'encart de saisie sous la liste : le premier
+           clic sur une salle protegee tente l'entree SANS mot de passe (un
+           membre connu re-entre directement), et c'est ce refus qui fait
+           apparaitre le champ — jamais un champ affiche d'avance. */
+        if (msg.motif === "motdepasse" && joinAttempt) {
+          const retry = !hubPassAskEl.hidden;
+          hubPassAskWhoEl.textContent = `« ${joinAttempt.name} » est protégée — entre son mot de passe`;
+          hubPassAskEl.hidden = false;
+          hubPassAskInput.value = "";
+          hubPassAskInput.focus();
+          hubStatus(retry ? "mot de passe incorrect" : "", retry);
+          break;
+        }
         const MOTIFS = {
           pleine: "salle pleine — attends qu'une place se libère, ou crée la tienne",
           disparue: "cette salle n'existe plus — actualise la liste",
-          motdepasse: "mot de passe incorrect — entre-le dans le champ ci-dessus puis re-clique",
+          motdepasse: "mot de passe incorrect",
           plafond: "plafond de salles atteint — rejoins une salle existante",
         };
         hubStatus(MOTIFS[msg.motif] ?? "impossible de rejoindre cette salle", true);
@@ -867,6 +889,8 @@ function hubStatus(msg, isError = false) {
 function enterHub() {
   if (!connected || inRoom) return;
   hubScreenEl.hidden = false;
+  hubPassAskEl.hidden = true;
+  hubPassAskInput.value = "";
   hubWhoEl.textContent = `connecté comme ${localStorage.getItem("survivor.pseudo") || "?"}`;
   renderRooms();
   if (pendingRejoin) {
@@ -904,8 +928,12 @@ function renderRooms() {
     // textContent et non innerHTML pour le nom : il vient d'un autre joueur.
     btn.querySelector(".roomName").textContent = r.name;
     btn.onclick = () => {
+      // Premier essai toujours SANS mot de passe : un membre connu re-entre
+      // directement, et le refus `motdepasse` ouvre l'encart de saisie.
+      joinAttempt = { code: r.code, name: r.name };
+      hubPassAskEl.hidden = true;
       hubStatus(`entrée dans « ${r.name} »…`);
-      ws.send(JSON.stringify({ t: "joinRoom", code: r.code, pass: roomPassInput.value }));
+      ws.send(JSON.stringify({ t: "joinRoom", code: r.code }));
     };
     roomListEl.appendChild(btn);
   }
@@ -920,6 +948,21 @@ hubRefreshBtn.onclick = () => {
   ws.send(JSON.stringify({ t: "listRooms" }));
   hubRefreshBtn.disabled = true;
   setTimeout(() => { hubRefreshBtn.disabled = false; }, 1000);
+};
+
+/* L'encart mot de passe d'une salle protegee : renvoie un joinRoom complet
+   sur la MEME salle que le clic initial. */
+hubPassAskGoBtn.onclick = () => {
+  if (!connected || inRoom || !joinAttempt) return;
+  hubStatus(`entrée dans « ${joinAttempt.name} »…`);
+  ws.send(JSON.stringify({ t: "joinRoom", code: joinAttempt.code, pass: hubPassAskInput.value }));
+};
+hubPassAskInput.onkeydown = e => { if (e.key === "Enter") hubPassAskGoBtn.click(); };
+hubPassAskCancelBtn.onclick = () => {
+  joinAttempt = null;
+  hubPassAskEl.hidden = true;
+  hubPassAskInput.value = "";
+  hubStatus("");
 };
 
 roomCreateBtn.onclick = () => {
