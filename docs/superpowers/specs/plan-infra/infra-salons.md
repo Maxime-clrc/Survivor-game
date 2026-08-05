@@ -111,6 +111,25 @@ salle supplémentaire au pire cas ferait décrocher la boucle.
 câblée dans `PLAYER_COLORS` (quatre couleurs) et dans la règle « un tank et un
 soigneur au maximum ». L'augmenter est un chantier distinct, hors périmètre.
 
+**Une salle pleine se refuse, elle ne met pas en attente.** Pas de file, pas de
+spectateur surnuméraire : à 4/4, `joinRoom` répond `joinRoomError` et le client
+reste au hub. La solution inverse — laisser entrer un cinquième client en
+spectateur, puis le promouvoir quand une place se libère — demandait une file
+d'arrivée, une attribution tardive de `PLAYER_COLORS`, une reprise du choix de
+classe quand la sienne a été prise entre-temps, et le doublement des mesures de
+bande passante de la section 13. Beaucoup de mécanique pour un cas que le
+bouton de rafraîchissement couvre.
+
+Le refus se déplace en revanche de la connexion vers la salle : aujourd'hui
+`attachWebSocket` ferme la socket d'un cinquième arrivant (`clients.size >=
+MAX_PLAYERS`, `server.js`). Une connexion au hub n'occupe aucune salle et n'a
+plus de raison d'être refusée — c'est `joinRoom` qui compte l'effectif de la
+salle visée.
+
+Le spectateur **existant** n'est pas touché : celui qui rejoint une salle non
+pleine pendant une manche en cours reste spectateur jusqu'à la suivante,
+comportement inchangé (voir section 10).
+
 ---
 
 ## 5. Le parcours client — le vrai changement de protocole
@@ -135,8 +154,30 @@ proprement ce qui n'a pas de sens dans l'état courant.
 
 Une liste publique plutôt qu'un code secret : sur un serveur entre joueurs qui
 se connaissent, chercher un code à taper est une friction inutile. Chaque
-entrée affiche le nom de la salle, le nombre de joueurs, et l'état (salon ou
+entrée affiche le nom de la salle, l'effectif (`3/4`), et l'état (salon ou
 manche en cours).
+
+**Les salles pleines restent dans la liste, marquées `4/4` et non cliquables.**
+Les masquer ferait disparaître de l'écran la salle où sont les autres joueurs,
+c'est-à-dire précisément celle qu'on attend — un joueur ne saurait pas s'il
+doit patienter ou créer la sienne.
+
+**Un bouton de rafraîchissement, et une liste qui se pousse toute seule.** Les
+deux, et ce n'est pas redondant :
+
+- Le hub **diffuse** `rooms` aux clients en état hub à chaque changement
+  d'effectif ou d'état d'une salle. Ils sont peu nombreux et le message est
+  minuscule ; une liste qui vieillit sur l'écran de celui qui attend une place
+  est exactement le défaut qu'on veut éviter.
+- Le bouton reste indispensable comme **recours**. Il couvre le cas qui motive
+  toute la section : une salle passe de `4/4` à `3/4` en fin de manche, quand
+  un joueur repart avant que l'hôte relance. Une diffusion perdue, une
+  reconnexion, un onglet resté ouvert — le joueur qui attend doit avoir un
+  moyen explicite de revérifier sans recharger la page.
+
+Le rafraîchissement est **limité en fréquence** côté serveur (une demande par
+seconde et par client, les suivantes ignorées) : c'est un bouton qu'on
+martèle, et le port est public.
 
 Un **mot de passe optionnel** à la création, pour une partie privée. Simple à
 faire, et ça évite d'avoir à trancher entre « tout public » et « tout privé ».
@@ -268,6 +309,13 @@ explicitement après le passage en salles :
   manche s'interrompt ; désormais par salle, sans affecter les autres.
 - **La page admin** — elle suppose aujourd'hui une partie unique. À adapter
   pour lister les salles.
+- **L'effectif diffusé au hub** — il doit se mettre à jour à *toutes* les
+  sorties, et elles sont nombreuses : `leaveRoom`, `leaveRound`, fermeture de
+  socket, expiration du délai de grâce, fermeture de salle sur erreur. Un seul
+  chemin oublié laisse une salle affichée `4/4` alors qu'une place est libre —
+  et c'est le cas de la fin de manche, le plus fréquent de tous. Point de
+  passage unique côté hub : une seule fonction qui recompte et rediffuse,
+  appelée par tout ce qui détache un client d'une salle.
 
 ---
 
@@ -277,12 +325,23 @@ Nouveaux messages, à ajouter sans casser l'existant :
 
 | sens | message |
 |---|---|
-| serveur → client | `rooms` — liste des salles (nom, joueurs, état) |
+| serveur → client | `rooms` — liste des salles (nom, effectif, plafond, état, protégée) |
+| client → serveur | `listRooms` — demande explicite, limitée à une par seconde |
 | client → serveur | `createRoom` — nom, mot de passe optionnel |
 | client → serveur | `joinRoom` — code, mot de passe |
+| serveur → client | `joinRoomError` — motif : `pleine`, `disparue`, `mot de passe` |
 | client → serveur | `leaveRoom` |
 | serveur → client | `roomJoined` — le client bascule en état salle |
 | serveur → client | `roomClosed` — retour à l'état hub |
+
+`rooms` transporte le **plafond** en plus de l'effectif plutôt que la seule
+chaîne `3/4` : le client compose son libellé et sait par lui-même si l'entrée
+est cliquable, sans réanalyser un texte.
+
+`joinRoomError` porte un motif distinct pour `pleine` et `disparue` — les deux
+arrivent au même moment (fin de manche, salle qui se vide ou se remplit
+pendant qu'on lit la liste) et la conduite à tenir n'est pas la même :
+réessayer, ou créer sa propre salle.
 
 Tous les messages existants restent inchangés, mais ne sont valides qu'en état
 salle. Le serveur rejette proprement un message de jeu reçu en état hub — c'est
@@ -294,9 +353,19 @@ exactement le type de message qu'un client modifié enverrait.
 
 Un écran de hub avant le salon actuel :
 
-- La liste des salles, avec nom, effectif et état.
+- La liste des salles, avec nom, effectif (`3/4`) et état.
+- Un **bouton de rafraîchissement** au-dessus de la liste.
 - Un bouton de création, avec nom et mot de passe optionnel.
 - Un bouton de retour au hub depuis le salon.
+
+Une entrée `4/4` est **désactivée**, pas masquée — voir section 5. La rendre
+cliquable pour afficher ensuite un refus serait pire que de la griser : le
+joueur apprend l'information deux fois, une fois de trop.
+
+Le bouton de rafraîchissement se **désarme une seconde** après un clic, en
+miroir de la limite serveur. Un bouton qui accepte le clic pendant que le
+serveur l'ignore laisse croire que la liste est à jour alors qu'elle n'a pas
+bougé.
 
 Le salon existant devient l'écran **d'une salle**, sans autre changement.
 
@@ -328,4 +397,11 @@ en observant le jeu.
   salle où il a joué.
 - Aucun message de jeu n'est accepté d'un client en état hub.
 - Le plafond de salles est respecté, avec un refus explicite au-delà.
-- Les sept mécanismes listés en section 10 fonctionnent à l'identique après refactor.
+- Une salle à 4/4 refuse un cinquième joueur avec un motif explicite, sans
+  fermer sa connexion : il reste au hub et peut rejoindre ailleurs.
+- Un joueur qui quitte une salle pleine en fin de manche la fait passer à 3/4
+  dans la liste de tous les clients en état hub, sans qu'aucun d'eux ait à
+  recharger sa page.
+- Le bouton de rafraîchissement renvoie une liste à jour, et un martèlement de
+  clics ne produit pas plus d'une demande par seconde.
+- Les huit mécanismes listés en section 10 fonctionnent à l'identique après refactor.
