@@ -62,6 +62,28 @@ export const SIGNAL = {
   gain:    "#34d399",   // vert   : gain, soin
 };
 
+/* LE VERT DU SOIN, et il n'y en a qu'UN.
+
+   Il y en avait quatre : `SIGNAL.gain` sur les chiffres de soin et `MARK.ok`,
+   `POWERUP_COLOR.heal` (#6fe3a0) sur le bonus au sol, et `CLASS_COLOR.soigneur`
+   (#8ef0c8) sur le tir de soin, le sanctuaire, la vague de soin et la balise.
+   Quatre verts qu'aucun joueur ne peut distinguer volontairement, donc quatre
+   fois la meme information dite de quatre facons — c'est-a-dire aucune.
+
+   Pire : `POWERUP_COLOR.beacon` valait exactement `CLASS_COLOR.soigneur`. Une
+   balise posee au sol avait la couleur d'un joueur soigneur, ce que la charte
+   interdit partout ailleurs.
+
+   Regle : TOUT CE QUI REND DES PV OU RELEVE UN ALLIE porte `HEAL`, alias de
+   `SIGNAL.gain`. Le relevement en fait partie — il restaure un allie, c'est la
+   meme promesse. `CLASS_COLOR.soigneur` reste l'identite du JOUEUR et ne dit
+   plus jamais « ceci soigne » : c'est la distinction entre le qui et le quoi,
+   et c'est elle qui rendait la table incoherente.
+
+   Un alias plutot qu'une valeur recopiee : deux litteraux identiques divergent
+   au premier reglage, ce que ce fichier existe precisement pour empecher. */
+export const HEAL = SIGNAL.gain;
+
 /* --- raretes ---------------------------------------------------------------
    Chaque rarete a un MATERIAU et pas seulement une couleur — bordure, lueur,
    degrade, balayage : c'est ce qui la rend reconnaissable au coin de l'oeil,
@@ -121,7 +143,11 @@ export const CLASS_COLOR = {
    proprietaire de la balle, et le tir garde alors son ambre d'origine. */
 export const COMBAT = {
   bullet:     "#f4d35e",          // tir des joueurs, teinte de repli
-  bulletHeal: CLASS_COLOR.soigneur, // tir du soigneur en mode soin
+  /* Le vert du SOIN et non celui de la classe : ce projectile ne dit pas qui
+     tire — les balles portent deja la couleur de leur tireur — il dit ce que le
+     tir FAIT. C'etait ecrit dans ce commentaire depuis le debut, et la valeur
+     disait le contraire. */
+  bulletHeal: HEAL,               // tir du soigneur en mode soin
   shot:       "#ff3b5c",          // tir ennemi : rouge franc, jamais un ambre
   flash:      "#ffffff",          // eclair d'impact, silhouette blanche
   downed:     "#4a5568",          // joueur a terre
@@ -237,9 +263,15 @@ export const BOSS_SKIN = [
 /* --- bonus au sol ----------------------------------------------------------
    Une couleur par bonus. Elles ne suivent pas la grammaire de signal : un
    bonus n'est ni un danger ni une consigne, c'est un objet qu'on identifie de
-   loin, et sa teinte sert a le reconnaitre parmi douze autres au sol. */
+   loin, et sa teinte sert a le reconnaitre parmi douze autres au sol.
+
+   DEUX EXCEPTIONS, et elles vont dans l'autre sens : `heal` et `beacon` rendent
+   des PV ou relevent un allie, donc ils portent `HEAL` comme tout le reste de
+   cette famille. Un bonus qui soigne est d'abord un soin, ensuite un objet — et
+   `beacon` valait par-dessus le marche exactement `CLASS_COLOR.soigneur`, ce qui
+   donnait a une balise au sol la couleur d'un joueur. */
 export const POWERUP_COLOR = {
-  heal:     "#6fe3a0",
+  heal:     HEAL,
   damage:   "#f4d35e",
   rate:     "#5ab6f0",
   double:   "#d98cf0",
@@ -247,7 +279,7 @@ export const POWERUP_COLOR = {
   slow:     "#9fb4ff",
   pierce:   "#ff9d4d",
   nova:     "#ff6b8a",
-  beacon:   "#8ef0c8",
+  beacon:   HEAL,
   turret:   "#c8d24a",
   ricochet: "#66e0d8",
   // Teinte proche du soin mais distincte : c'est un sous-produit de la Recolte,
@@ -276,7 +308,10 @@ export const EFFECT_COLOR = {
 /* --- entites posees par les joueurs --------------------------------------- */
 export const OWNED = {
   droneAtk:   "#7fd0f0",
-  droneHeal:  "#f0a15f",
+  /* Le mini-drone d'ESSAIM, qui fonce au contact et fait des degats. Il
+     s'appelait `droneHeal` — le nom mentait, pas la couleur : l'orange convient
+     a un dard qui se consume, et rien dans le jeu ne soigne en orange. */
+  droneSwarm: "#f0a15f",
   orphan:     "#9aa4c0",   // proprietaire deconnecte : gris, il n'appartient plus
   bomb:       "#ff9d4d",
   bulwarkArc: "#b4f0fa",   // arc de duree restante du rempart
@@ -293,8 +328,13 @@ export const FX = {
   veil:         "#fff0f5",   // voile plein ecran des evenements de boss
   ricochet:     "#66e0d8",
   ricochetCore: "#c8fffa",
-  beacon:       CLASS_COLOR.soigneur,
-  beaconSoft:   "#dcfff0",
+  /* Balise, vague de soin, sanctuaire : le MEME vert que le reste de la famille.
+     Il valait `CLASS_COLOR.soigneur`, ce qui faisait dire a un effet ce qu'il ne
+     dit pas — une vague de soin ne parle pas du soigneur, elle parle du soin, et
+     un Rempart avec la carte Vague de soin en produisait une de la couleur d'une
+     autre classe. */
+  heal:         HEAL,
+  healSoft:     "#dcfff0",   // secondaire pale : une VALEUR, pas une seconde teinte
   elite:        "#ffd76e",
   blastFill:    "#ff8c3c",   // grenade
   blastEdge:    "#ffb45a",
@@ -417,6 +457,17 @@ export function ramp(hex) {
     lumiere: hslToHex(h + 6,  s - 12, Math.max(l + 16, 34)),
     accent:  hslToHex(h + 40, s + 20, Math.max(l + 30, 62)),  // yeux, plaques, points chauds
     contour: hslToHex(h - 4,  s + 14, Math.max(l - 40, 8)),
+    /* CONTRE-JOUR : le liseré clair du cote OPPOSE a la lumiere principale.
+       C'est la valeur qui detache une creature d'un fond sombre, et l'arene
+       l'est — sans lui, une silhouette sombre sur un sol sombre ne tient que
+       par son contour, c'est-a-dire par la seule chose qui ne dit rien de sa
+       forme.
+
+       Elle reste derivee de la TEINTE DU TYPE et non d'une couleur d'ambiance
+       commune : un lisere identique sur les cinq types les aurait rapproches a
+       moyenne distance, ce que toute la charte refuse. Tres clair mais
+       desature — un contre-jour est une valeur, pas une couleur. */
+    rim:     hslToHex(h + 10, Math.max(0, s - 30), Math.min(92, l + 44)),
   };
   RAMP_CACHE.set(hex, r);
   return r;

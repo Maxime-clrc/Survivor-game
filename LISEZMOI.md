@@ -611,12 +611,51 @@ pas de regarder la barre du haut ; le noyau vide du Métronome est ce qui le
 distingue des quatre autres, tous pleins ; et les demi-formes des Jumeaux rendent
 leur mécanique de soin mutuel lisible **sans lire la barre**.
 
-Le corps se **contracte avant une attaque** (jusqu'à −8 %), et la tension est
-déduite des bandeaux d'alerte déjà en place — donc déjà calés sur la timeline
-interpolée — plutôt que d'un champ de plus dans l'instantané. Une couleur
-dominante par boss, distincte des cinq teintes d'ennemis, et **la barre de vie
-prend la teinte de la créature** : deux informations sur le même adversaire ne
-peuvent pas être de deux couleurs différentes.
+Une couleur dominante par boss, distincte des cinq teintes d'ennemis, et **la
+barre de vie prend la teinte de la créature** : deux informations sur le même
+adversaire ne peuvent pas être de deux couleurs différentes.
+
+#### La posture d'attaque, et pourquoi elle a été refaite
+
+Le corps se contractait avant une attaque, et la tension était déduite du
+**bandeau d'alerte** : une rampe linéaire qui montait pendant que le texte était
+affiché. C'était faux, et d'une façon qui annulait tout l'effet.
+
+Le bandeau disparaît volontairement **250 ms avant la résolution** — un texte
+encore affiché au moment de l'impact masque exactement ce qu'il faut regarder.
+La tension retombait donc à zéro un quart de seconde **avant** le coup : le boss
+se détendait pile avant de frapper, et rien du tout ne marquait l'impact
+lui-même. Une anticipation sans relâche n'est pas une anticipation, c'est un
+changement de taille.
+
+La posture a maintenant **sa propre horloge**, calée sur la résolution et non sur
+le texte, en trois temps :
+
+| temps | ce qui se passe | pourquoi cette courbe |
+|---|---|---|
+| **anticipation** | le corps se ramasse, jusqu'à −9 % | **en carré, pas en linéaire** : une rampe droite se lit comme un état, un resserrement qui accélère se lit comme un élan qui se charge, et le gros du mouvement tombe dans le dernier tiers |
+| **maintien** | il reste ramassé jusqu'au coup | c'est ce que l'ancienne version perdait |
+| **relâche** | détente à +12 %, tenue cinq images, puis retombée avec un léger contre-mouvement | l'asymétrie (−9 / +12) est voulue : une détente qui ne dépasse pas le repos se lit comme un **arrêt** et non comme un coup porté |
+
+Le palier de maintien est **mesuré et non choisi**. Sans lui, la courbe amortie
+seule tombait de 1,0 à 0,09 en cent millisecondes, soit quatre images à 60 Hz :
+le sommet n'existait qu'un instant et le coup ne se lisait pas. À 0,22 de la
+relâche, l'extension tient cinq images pleines — le minimum pour qu'un mouvement
+soit vu plutôt que deviné.
+
+Et **chaque boss rend le coup dans son propre verbe**, plutôt que de partager le
+seul écrasement commun :
+
+| boss | ce que fait la relâche | pourquoi |
+|---|---|---|
+| **Ravageur** | les pointes jaillissent au **double** de leur retrait, la couronne prend de l'avance sur le corps | le dépassement porte la lecture de l'impact ; la retraction ne fait que l'annoncer |
+| **Matriarche** | les poches d'œufs se **vident** au lieu de gonfler | seule pièce du jeu à aller à contresens de la détente : ce qui sort d'elle *est* le danger, donc l'instant doit se lire comme une expulsion |
+| **Métronome** | à-coup **proportionnel à la vitesse** de chaque anneau | un à-coup identique pour les trois les aurait fait bouger comme une seule pièce — exactement ce que les trois vitesses existent pour éviter |
+| **Oracle** | les glyphes s'éteignent pendant que l'œil se dilate | l'énergie va quelque part, elle ne disparaît pas : la créature devient causale |
+| **Jumeaux** | l'oscillation **enfle**, les deux moitiés s'écartent | leur verbe est la séparation, pas la poussée — un écrasement n'aurait rien dit ici |
+
+Rien de tout ça ne coûte un champ de plus dans l'instantané : la fenêtre est
+posée par le **canal d'alerte**, qui passe déjà par la timeline interpolée.
 
 Les boss ne sont **pas dans l'atlas** : ils sont uniques à l'écran, leur coût de
 tracé est négligeable, et ils gagnent à être animés en continu — ce que l'atlas
@@ -1336,7 +1375,24 @@ Tout est dans `public/sprites.js` — coordonnées locales, origine au centre, n
 vers la droite. La règle de budget de l'atlas : **ne pas stocker en image ce
 qu'une transformation peut faire**. Respiration, écrasement, orientation, recul
 au tir et rang d'élite sont des `scale` et des `rotate`, donc gratuits ; on ne
-paie que les changements de **forme**. 48 images, 448 × 448 à densité 1.
+paie que les changements de **forme**. 50 images, 448 × 512 à densité 1 (1,8 Mo),
+896 × 1024 à densité 2 (7,0 Mo).
+
+Les trois dernières cases sont les **particules**, et c'est la même règle de
+budget qui a fixé leur nombre. Chacune dit une matière : `fx_white` étiré est
+une **étincelle** (ce qui file), `fx_shard` un **éclat** anguleux qui tourne (de
+la matière arrachée), `fx_glow` un **halo** dégradé (de la lumière, ou de la
+fumée — qui n'a pas d'arête). Avant, tout partait du même carré blanc : la mort
+d'un monstre était un tas de pixels identiques à la gerbe d'un impact, et
+l'éclair de mort, un carré blanc de 13 px en additif, se lisait exactement comme
+un carré.
+
+La liste s'arrête à trois, et pas à quatre ou cinq, parce que la règle tranche
+seule : une étincelle allongée est le carré blanc avec `scaleX` différent de
+`scaleY` et un `angle`, donc une **transformation** — la cuire aurait payé une
+image pour un `scale`. Et la fumée réutilise le halo en le faisant gonfler
+plutôt que d'ouvrir une case de plus : deux effets qui partagent une forme se
+distinguent par leur **comportement**.
 
 `?planche` dans l'adresse sort tous les sprites en **noir uni sur fond blanc**.
 Ce n'est pas un gadget : c'est le critère d'acceptation des silhouettes. Un
@@ -1344,6 +1400,24 @@ lecteur qui ne connaît pas le jeu doit pouvoir les regrouper par type sans
 hésiter ; un type qui n'est reconnaissable qu'à sa couleur a raté son test. Deux
 silhouettes ont déjà échoué à cette planche et ont été refaites. La planche
 inclut désormais une bande de **boss**, qui ne sont pas dans l'atlas.
+
+**Il faut la regarder en résolution native.** Trois créatures étaient percées
+d'un trou transparent depuis toujours — mandibules du grunt, épaules du tank,
+braces du Rempart — et la planche le montrait : un pixel blanc au milieu d'une
+forme noire. Mais à 64 px par case, la fente fait deux pixels et on la prend pour
+du bruit de rendu. Regardée à trois fois cette taille, elle saute aux yeux.
+
+La cause est un piège de la même famille que celui des sous-tracés, et il est
+pire parce qu'il ne se voit pas à la lecture du code : écrire un appendice
+**miroir** avec `y * s` inverse son **sens de parcours** quand `s = -1`, et le
+remplissage par règle non nulle annule alors la zone commune avec le corps. Le
+contour tracé par-dessus fait ensuite lire le trou comme une fente volontaire.
+
+La correction ne devine pas quel côté est fautif : elle mesure l'**aire signée**
+du polygone et retourne l'ordre des sommets si le signe n'est pas le bon.
+Inverser « le côté `s = -1` » a été essayé et perçait les **deux** côtés — c'est
+`s = +1` qui était à l'envers sur le tank, corps +845,7 contre épaule −253,5,
+indice de tour nul au point (0,10).
 
 **Le Rempart a été refait au lot 6**, pour trois défauts qui se cumulaient et se
 voyaient tous sur cette planche : il n'était pas plus imposant que les autres
@@ -1356,6 +1430,82 @@ canon était aussi long que celui du tireur, alors que sa fiche de classe annonc
 contour à 3,5 px et ombre portée plus marquée que les deux autres classes — le
 poids du trait et l'ancrage au sol font autant pour la masse que les dimensions.
 Critère : il doit être identifiable **à sa masse seule**, sans détail interne.
+
+**Le Soigneur a été refait ensuite, pour exactement le même motif.** C'était un
+polygone à quatorze côtés de rayon 13 — un **cercle**. Aucun appendice, aucune
+pointe, donc aucune orientation lisible en silhouette, et il était la seule des
+trois classes dans ce cas : le Rempart a son arc de bouclier, le DPS son dard.
+Or la charte dit « la forme dit la classe, la couleur dit le joueur » ; un
+soigneur qui ne tient que par sa teinte fait porter la classe par la couleur,
+alors que les quatre couleurs sont déjà prises par l'identité des joueurs. Sur la
+planche en noir uni, ses quatre cases étaient des ronds pleins qu'on ne pouvait
+ni orienter ni distinguer l'un de l'autre.
+
+Trois ajouts, et **pas un canon** — il soigne, il ne perce pas : un corps en
+**œuf** pointé vers l'avant, qui garde la masse ronde le séparant de l'hexagone
+et du dard mais lui donne un avant et un arrière ; une **antenne dorsale** d'un
+seul côté, l'asymétrie structurelle que les cinq monstres ont tous et qu'aucune
+classe n'avait ; et une **embouchure courte et large** là où part déjà le
+faisceau du mode soin. Courte face aux deux autres — 21 contre 23 pour le Rempart
+et 24 pour le DPS — et large par rapport à sa longueur : ça se lit comme une
+buse, pas comme une arme.
+
+### L'éclairage suit la taille de la forme
+
+La recette avait deux grandeurs **fixes** : un décalage d'ombre de 2 px et un arc
+de lumière de rayon 12,6, identiques pour les huit silhouettes. Un runner fait
+21 px d'épaisseur, un Rempart 33 : sur le petit, l'arc débordait et disparaissait
+presque entièrement à l'écrêtage ; sur le gros, l'ombre de 2 px était un cheveu.
+La lumière était posée **à côté** de la forme au lieu de la suivre.
+
+Les deux grandeurs, plus l'épaisseur du trait, sont maintenant indexées sur
+l'étendue réelle du tracé — **mesurée**, pas déclarée à côté de chaque type, où
+elle aurait menti dès le premier réglage. On retient la **plus petite** des deux
+dimensions et non la plus grande : c'est l'épaisseur qui dit combien de place il
+y a pour modeler. L'arc est centré sur la forme réelle et non sur l'origine,
+sinon un tireur dont le corps est décalé vers l'arrière reçoit sa lumière sur son
+canon.
+
+**Une septième couche est apparue : le contre-jour.** C'est le liseré clair du
+côté opposé à la lumière principale, et c'est ce qui détache une créature d'un
+fond sombre — or l'arène l'est. Sans lui, une silhouette sombre sur un sol sombre
+ne tient que par son contour, c'est-à-dire par la seule chose qui ne dit rien de
+sa forme. Il est obtenu en décalant le tracé du côté opposé à l'ombre et en
+l'écrêtant à la silhouette d'origine : là où le contour déplacé tombe à
+l'intérieur, le liseré se voit ; de l'autre côté il sort de l'écrêtage et
+disparaît. Un seul décalage suffit donc à épouser la forme, appendices compris,
+sans avoir à décrire où est son bord.
+
+Sa couleur reste dérivée de la **teinte du type** et non d'une couleur d'ambiance
+commune : un liseré identique sur les cinq les aurait rapprochés à moyenne
+distance, ce que toute la charte refuse. Très clair mais désaturé — un
+contre-jour est une valeur, pas une couleur.
+
+### Les cinq types ne mouraient pas différemment
+
+Le seul branchement de la mort était le rang d'élite : même compte de fragments,
+même taille, même vitesse pour les cinq. Un tank de 42 px de large se
+désagrégeait donc en la même poussière qu'un runner de 21 — ce qui gaspille la
+seule information gratuite qu'on ait, puisque le joueur **sait** déjà ce qu'il
+vient de tuer et que la mort doit le lui confirmer.
+
+| type | sa mort | pourquoi |
+|---|---|---|
+| **grunt** | la référence dont les quatre autres s'écartent | — |
+| **runner** | peu d'éclats, petits, rapides, dans un **cône serré autour de sa course** | la vitesse était son identité entière, elle doit lui survivre d'une demi-seconde |
+| **tank** | gros morceaux, lents, peu nombreux, et ils **traînent** | une masse ne se pulvérise pas, elle se casse — la durée plus longue fait qu'on voit les morceaux se poser |
+| **tireur** | débris mous, sans élan propre | il flottait |
+| **brood** | beaucoup, minuscules, vifs | ce qui sortait d'elle était le danger : sa mort se lit comme une dispersion, pas comme l'éclatement d'un corps |
+
+Le rang d'élite reste **orthogonal** au type : il multiplie le compte et la
+taille, il ne choisit pas une autre façon de mourir. Un tank élite doit mourir
+comme un tank, en plus gros — sinon le rang effacerait le type au moment précis
+où l'on veut lire les deux. Et un gros morceau tourne **lentement**, sans quoi un
+fragment de tank tourbillonne comme une escarbille.
+
+Rien de tout ça ne coûte un octet : le type est déjà dans l'instantané, et
+l'orientation aussi — elle y était pour dessiner l'ennemi, elle sert maintenant
+aussi à le faire éclater dans le bon sens.
 
 ### Le rendu des entités passe par WebGL
 
@@ -1652,6 +1802,64 @@ de vie** : triangle pour « viens ici », deux anneaux reliés pour un lien à
 rompre, carré barré pour une cage, croix pour une cible. **Distincts en
 silhouette et pas seulement par la couleur** — un daltonien doit s'en sortir, et
 de toute façon la couleur se noie dans le chaos.
+
+### Un seul vert pour le soin
+
+Il y en avait **quatre**, et c'est le genre d'incohérence qui s'installe sans que
+personne la décide :
+
+| ce qui soignait | couleur |
+|---|---|
+| chiffres de soin, marqueur réussi | `#34d399` |
+| bonus de soin au sol | `#6fe3a0` |
+| tir du soigneur, sanctuaire, vague de soin, balise | `#8ef0c8` |
+
+Quatre verts qu'aucun joueur ne peut distinguer volontairement : la même
+information dite de quatre façons, c'est-à-dire aucune. Et la balise valait
+**exactement** la couleur de classe du soigneur — une balise posée au sol avait
+donc la couleur d'un joueur, ce que la charte interdit partout ailleurs.
+
+Règle : **tout ce qui rend des PV ou relève un allié porte le même vert.** Bonus
+de soin, balise, tir du soigneur, vague de soin, sanctuaire, mode soin du
+personnage, chiffres verts. Le relèvement en fait partie — il restaure un allié,
+c'est la même promesse.
+
+C'est une **exception assumée** à la règle qui met les couleurs d'identité
+(classes, types de monstres, bonus au sol) hors de la grammaire fonctionnelle :
+un bonus qui soigne est d'abord un soin, ensuite un objet. La couleur de classe
+du soigneur reste l'identité du **joueur** et ne dit plus jamais « ceci
+soigne » — c'est la confusion entre le *qui* et le *quoi* qui avait produit les
+quatre verts.
+
+Le sanctuaire a donc quitté la couleur de classe que partagent le rempart et
+l'ancre. C'était la bonne règle pour ces deux-là, qui déplacent ou retiennent, et
+la mauvaise pour lui, qui **soigne**.
+
+### Le sanctuaire se reconnaît à ses croix qui montent
+
+Un disque vert clair et un disque bleu clair posés au sol se distinguent mal en
+pleine mêlée — le rempart est l'autre grand disque du jeu. Du **mouvement**, lui,
+se lit par-dessus n'importe quel encombrement : c'est déjà le raisonnement des
+signatures de zone, où une zone se reconnaît à son comportement avant sa couleur.
+
+Sept croix montent lentement à l'intérieur du dôme, apparaissent en bas et
+s'effacent en haut. La croix n'est pas un glyphe inventé pour l'occasion : c'est
+celle du bonus de soin, déjà **le** signe du soin dans l'arène et dans le HUD.
+
+Aucune allocation, aucune liste : la position de chaque croix est une fonction de
+l'identifiant du sanctuaire, de son rang et du temps. Les particules du jeu
+passent par une liste plafonnée qui coûte à gérer ; sept croix par dôme n'ont ni
+à naître, ni à mourir, ni à être comptées.
+
+Trois détails trahissent la boucle si on les oublie, et tous les trois ont été
+vérifiés au calcul plutôt qu'à l'œil : la phase est décalée **par rang et par
+identifiant** (en phase, les sept montent comme une seule barre, et deux
+sanctuaires posés en même temps battent à l'unisson) ; la dérive latérale est
+bornée par la **corde du cercle** à cette hauteur, sinon une croix sort du dôme ou
+se pose sur le liseré qui porte l'information tactique ; et l'opacité s'ouvre et
+se ferme en sinus, une croix qui surgit ou se coupe net au bord se lisant comme
+un défaut de rendu. Mesuré sur 2 625 échantillons : **aucune croix hors du
+disque**, aucune sur le liseré.
 
 ## Architecture
 

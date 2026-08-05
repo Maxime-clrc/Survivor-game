@@ -754,6 +754,8 @@ async function bootOnce() {
   if (glActive()) {
     PARTICLE_MAX = PARTICLE_GL;
     fxWhite = frameOf("fx_white");
+    fxShard = frameOf("fx_shard");
+    fxGlow = frameOf("fx_glow");
   }
 
   setLoading(1, "prêt");
@@ -2644,6 +2646,17 @@ let alertOrder = null;     // { texte, nom, from, until }
 let alertWarn = null;
 let alertInfo = null;
 
+/* Fenetre d'anticipation du CORPS du boss, distincte du bandeau. { from, impact }
+   ou null — consommee par `bossPose`, plus bas.
+
+   Deux horloges et pas une, parce que les deux regles se contredisent : le
+   bandeau DISPARAIT 250 ms AVANT la resolution (un texte encore affiche masque
+   ce qu'il faut regarder), alors que le corps doit rester ramasse jusqu'au coup
+   et se detendre DESSUS. Deduire la posture de la duree du bandeau, comme on le
+   faisait, detendait donc le boss un quart de seconde avant de frapper —
+   l'anticipation retombait a plat et rien ne marquait l'impact. */
+let bossCue = null;
+
 /* Les alertes arrivent hors du snapshot, donc SANS le retard d'interpolation :
    affichees a la reception, le bandeau precedait de 110 ms le telegraphe qu'il
    commente. On les met en file et on les sort sur l'horloge de rendu, comme
@@ -2696,6 +2709,7 @@ function applyAlert(msg, now) {
     alertOrder = null;
     alertWarn = null;
     alertInfo = null;
+    bossCue = null;
     return;
   }
   const def = mechAt(msg.mech);
@@ -2709,6 +2723,13 @@ function applyAlert(msg, now) {
   if (def.level === ALERT_ORDER) alertOrder = entry;
   else if (def.level === ALERT_WARN) alertWarn = entry;
   else alertInfo = entry;
+  /* La posture du corps se cale sur la RESOLUTION, pas sur le bandeau : d'ou la
+     duree brute et non celle, amputee de 250 ms, du texte. Seules la consigne et
+     l'avertissement en posent une — une information ne precede aucun coup, et
+     faire se ramasser le boss dessus mentirait sur ce qui arrive. */
+  if (def.level === ALERT_ORDER || def.level === ALERT_WARN) {
+    bossCue = { from: now, impact: now + (msg.dur > 0 ? msg.dur * 1000 : 1500) };
+  }
 }
 
 /* ===========================================================================
@@ -2779,6 +2800,7 @@ function resetFeedback() {
   hitQueue.length = 0;
   shake.mag = 0; shake.x = 0; shake.y = 0;
   alertOrder = null; alertWarn = null; alertInfo = null;
+  bossCue = null;
 }
 
 function addShake(mag) {
@@ -2840,7 +2862,7 @@ function handleEvent(e) {
       // La hauteur varie avec le type : c'est gratuit et ca suffit a entendre
       // la difference entre la pietaille et un gros.
       playSound("mort", { pitch: e.elite ? 0.6 : 1.3 - Math.min(0.6, e.type * 0.12) });
-      spawnDeath(e.x, e.y, e.type, e.elite);
+      spawnDeath(e.x, e.y, e.type, e.elite, e.ang ?? 0);
       // Le coup fatal porte son chiffre comme n'importe quelle touche : c'est
       // le seul degat du jeu qui n'apparaissait nulle part, alors qu'il est le
       // plus satisfaisant. Il passe par la meme agregation, donc il se fond
@@ -2947,9 +2969,15 @@ function applyHit(id, x, y, dx, dy) {
   for (let i = 0; i < 2 && particles.length < PARTICLE_MAX; i++) {
     const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.6;
     const sp = 90 + Math.random() * 70;
+    /* TRAINEE et non carre : `long` etire la case blanche le long de sa propre
+       vitesse. C'est une transformation, donc aucune case d'atlas — et c'est
+       precisement pour ca que l'etincelle allongee n'est pas cuite. Une gerbe
+       de traits orientes se lit comme une direction ; la meme gerbe en carres
+       ne disait que « quelque chose s'est passe ici ». */
     particles.push({
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       life: 0.14, max: 0.14, col: COMBAT.flash, size: 2,
+      ang: a, long: 3.4,
     });
   }
 }
@@ -3001,7 +3029,39 @@ function drawDeaths() {
   }
 }
 
-function spawnDeath(x, y, type, elite) {
+/* Comment meurt chaque type. Registre PUREMENT CLIENT, comme le son ou le
+   glyphe : rien de tout ca ne traverse le reseau, tout se deduit du type que le
+   snapshot porte deja.
+
+   Les cinq mouraient a l'identique — `n = elite ? 22 : 14`, `size = 2,5`,
+   le seul branchement etant le rang d'elite. Un tank de 42 px de large se
+   desagregeait donc en la meme poussiere qu'un runner de 21, ce qui gaspille la
+   seule information gratuite qu'on ait : le joueur SAIT deja ce qu'il vient de
+   tuer, la mort doit le lui confirmer.
+
+   `cone` est l'ouverture de la gerbe autour de l'orientation de la depouille.
+   A 2π elle part dans toutes les directions, ce qui reste le cas general — seul
+   le runner meurt dans son axe. */
+const DEATH_BURST = [
+  // grunt — la reference dont les quatre autres s'ecartent.
+  { n: 1.00, size: 2.5, sp: 60, spread: 130, life: 0.40, flash: 1.0, cone: 7 },
+  /* runner — il meurt EN AVANCANT. Peu d'eclats, petits, rapides, dans un cone
+     serre autour de sa course : c'est la vitesse qui etait son identite
+     entiere, elle doit lui survivre d'une demi-seconde. */
+  { n: 0.75, size: 2.0, sp: 150, spread: 190, life: 0.30, flash: 0.8, cone: 1.1 },
+  /* tank — gros morceaux, lents, PEU NOMBREUX, et ils trainent. Une masse ne se
+     pulverise pas ; elle se casse. La duree plus longue est ce qui fait qu'on
+     voit les morceaux se poser au lieu de les voir disparaitre. */
+  { n: 0.50, size: 5.2, sp: 35, spread: 70, life: 0.65, flash: 1.35, cone: 7 },
+  // tireur — il flottait : ses debris partent mollement, sans elan propre.
+  { n: 0.85, size: 2.6, sp: 45, spread: 95, life: 0.45, flash: 0.9, cone: 7 },
+  /* brood — la NUEE. Beaucoup, minuscules, vifs : ce qui sortait d'elle etait
+     le danger, et sa mort doit se lire comme une dispersion de ce qu'elle
+     portait, pas comme l'eclatement d'un corps. */
+  { n: 1.70, size: 1.8, sp: 95, spread: 175, life: 0.35, flash: 0.85, cone: 7 },
+];
+
+function spawnDeath(x, y, type, elite, ang = 0) {
   if (deaths.length < DEATH_MAX) {
     deaths.push({
       x, y, type, at: performance.now(),
@@ -3020,23 +3080,48 @@ function spawnDeath(x, y, type, elite) {
      de la bascule. En 2D chaque fragment reste un `fillRect`, donc l'ancien
      compte tient. */
   const dense = glActive();
-  const n = elite ? (dense ? 22 : 10) : (dense ? 14 : 7);
+  const D = DEATH_BURST[type] ?? DEATH_BURST[0];
+  /* Le rang d'elite reste ORTHOGONAL au type : il multiplie le compte et la
+     taille, il ne choisit pas une autre facon de mourir. Un tank elite doit
+     mourir comme un tank, en plus gros — sinon le rang effacerait le type au
+     moment precis ou l'on veut lire les deux. */
+  const n = Math.round((elite ? (dense ? 22 : 10) : (dense ? 14 : 7)) * D.n);
+  const grow = elite ? 1.4 : 1;
   for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const sp = 60 + Math.random() * 130;
+    const a = D.cone >= 7 ? Math.random() * Math.PI * 2
+                          : ang + (Math.random() - 0.5) * D.cone;
+    const sp = D.sp + Math.random() * D.spread;
+    /* ECLAT anguleux, et il TOURNE. Un debris de creature n'est pas une
+       etincelle : il a une masse, donc une orientation propre qui n'a aucune
+       raison de suivre sa trajectoire. La rotation est ce qui le dit — et elle
+       ne coute qu'une addition par image, la ou une seconde image d'atlas
+       aurait paye une forme figee. */
     particles.push({
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      life: 0.4, max: 0.4, col, size: elite ? 3.5 : 2.5,
+      life: D.life, max: D.life, col, size: D.size * grow,
+      frame: fxShard, ang: Math.random() * Math.PI * 2,
+      /* Un GROS morceau tourne LENTEMENT — c'est la seule chose qui distingue
+         un debris massif d'un petit debris grossi, et sans elle un fragment de
+         tank tourbillonnait comme une escarbille. */
+      spin: (Math.random() - 0.5) * 14 * (2.5 / D.size),
     });
   }
-  /* L'ECLAT. Un fragment blanc, immobile, gros et bref : en additif il sature
-     le centre pendant deux images et c'est lui qui fait « lire » la mort comme
-     un evenement plutot que comme une disparition. Il ne coute qu'une particule
-     de plus, et le mode additif le rend gratuit a l'oeil comme au GPU. */
+  /* L'ECLAT. Un halo blanc, immobile, gros et bref : en additif il sature le
+     centre pendant deux images et c'est lui qui fait « lire » la mort comme un
+     evenement plutot que comme une disparition. Il ne coute qu'une particule de
+     plus, et le mode additif le rend gratuit a l'oeil comme au GPU.
+
+     Halo et non carre : un carre blanc de 13 px en additif se lisait comme un
+     CARRE lumineux, ce qui est exactement l'aspect que le reste du rendu evite.
+     Une source de lumiere n'a pas d'arete — et c'est la seule des trois formes
+     dont on ne peut pas se passer, aucune transformation d'un carre ne
+     produisant un degradé. */
   if (particles.length < PARTICLE_MAX) {
     particles.push({
       x, y, vx: 0, vy: 0, life: 0.12, max: 0.12,
-      col: COMBAT.flash, size: elite ? 13 : 8,
+      // Le halo suit la MASSE du type, comme le reste : un tank part avec un
+      // eclat nettement plus large qu'un runner.
+      col: COMBAT.flash, size: (elite ? 20 : 13) * D.flash, frame: fxGlow,
     });
   }
   // Une elite laisse en plus une onde annulaire : c'est un evenement de manche,
@@ -3212,6 +3297,15 @@ function stepFeedback(dt) {
     // Les etincelles d'annonce MONTENT : une derive verticale constante suffit
     // a les distinguer d'un eclatement, qui part dans toutes les directions.
     if (p.lift) p.vy -= p.lift * dt;
+    /* Deux champs OPTIONNELS, testes et non appliques par defaut : la boucle
+       tourne sur trois mille particules a chaque image, et deux multiplications
+       inutiles par fragment se paient. Un `if` sur un champ absent est
+       strictement moins cher que l'arithmetique qu'il evite. */
+    if (p.spin) p.ang += p.spin * dt;
+    // La fumee GONFLE en montant. C'est ce qui la separe d'une braise, qui garde
+    // sa taille : deux effets qui partagent la meme case d'atlas doivent se
+    // distinguer par leur comportement, sinon la case est mal partagee.
+    if (p.grow) p.size += p.grow * dt;
   }
   stepBursts(dt);
 
@@ -3222,10 +3316,20 @@ function stepFeedback(dt) {
   }
 }
 
-/* Case blanche de l'atlas, teintee a la volee : c'est ce qui fait passer les
-   fragments par le MEME lot que les entites. Sans elle il faudrait un second
-   chemin de rendu pour dessiner des carres. */
-let fxWhite = 0;
+/* Cases de particule de l'atlas, teintees a la volee : c'est ce qui fait passer
+   les fragments par le MEME lot que les entites. Sans elles il faudrait un
+   second chemin de rendu pour dessiner des carres.
+
+   Trois cases pour trois MATIERES, et le vocabulaire est fixe :
+     - `fxWhite`  etire en trainee — une etincelle, ce qui file ;
+     - `fxShard`  eclat anguleux   — de la matiere, ce qui est arrache ;
+     - `fxGlow`   halo degradé     — de la lumiere ou de la fumee, ce qui n'a
+                                     pas d'arete.
+   Un fragment de creature et un eclair de mort partaient du meme carre blanc :
+   a l'ecran, la mort d'un monstre etait un tas de pixels identiques a la gerbe
+   d'un impact. La forme est ce qui les separe, et elle se lit avant la
+   couleur — meme raison que pour les silhouettes de monstres. */
+let fxWhite = 0, fxShard = 0, fxGlow = 0;
 
 function drawParticles() {
   /* CHEMIN WEBGL. Les fragments partent en ADDITIF : sur un fond sombre, deux
@@ -3241,9 +3345,13 @@ function drawParticles() {
      derriere un boss. */
   if (glActive()) {
     for (const p of particles) {
-      drawSprite(ctx, fxWhite, p.x, p.y, {
-        scaleX: p.size / SPRITE_CELL,
-        scaleY: p.size / SPRITE_CELL,
+      const s = p.size / SPRITE_CELL;
+      drawSprite(ctx, p.frame ?? fxWhite, p.x, p.y, {
+        // `long` etire le long de l'axe propre de la particule : combine a
+        // `angle`, c'est la trainee — et elle ne coute aucune case d'atlas.
+        scaleX: s * (p.long ?? 1),
+        scaleY: s,
+        angle: p.ang ?? 0,
         tint: p.col,
         alpha: Math.max(0, p.life / p.max),
         additive: true,
@@ -3252,10 +3360,21 @@ function drawParticles() {
     return;
   }
 
+  /* CHEMIN CANVAS 2D — le mode degradé. Il ne rejoue ni l'eclat ni la trainee :
+     un quadrilatere tourne y coute un `path` par fragment, la ou le chemin
+     WebGL n'ajoute rien du tout au lot. Le halo, lui, est repris — un `arc` est
+     du meme ordre qu'un `fillRect`, et sans lui l'eclair de mort reste le carre
+     blanc que toute cette passe est venue supprimer. */
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, p.life / p.max);
     ctx.fillStyle = p.col;
-    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    if (p.frame === fxGlow && fxGlow) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
   }
   ctx.globalAlpha = 1;
 }
@@ -4130,6 +4249,9 @@ function zoneResolved(z, tm) {
       x: z.x + Math.cos(a) * span * 0.4, y: z.y + Math.sin(a) * span * 0.4,
       vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
       life: 0.5, max: 0.5, col: ZONE.blast, size: 2.6,
+      // Des ECLATS : une detonation arrache du sol, elle ne fait pas d'etincelles.
+      frame: fxShard, ang: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 10,
     });
   }
 }
@@ -4243,7 +4365,9 @@ function drawZoneWarn(z, tm, ring) {
     particles.push({
       x: z.x + Math.cos(a) * d, y: z.y + Math.sin(a) * d,
       vx: (Math.random() - 0.5) * 20, vy: -30 - Math.random() * 40,
-      lift: 90, life: 0.45, max: 0.45, col: ZONE.imminent, size: 2.4,
+      lift: 90, life: 0.45, max: 0.45, col: ZONE.imminent, size: 4.5,
+      // Une braise est de la LUMIERE qui monte, pas un debris qui retombe.
+      frame: fxGlow,
     });
   }
 
@@ -4330,7 +4454,7 @@ function drawZonesActive(list, tm) {
         x: pt.x, y: pt.y,
         vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 18,
         lift: 26, life: 0.9 + Math.random() * 0.5, max: 1.4,
-        col: ZONE.blast, size: 2.2, zfx: 1,
+        col: ZONE.blast, size: 4, zfx: 1, frame: fxGlow,
       });
       zoneFx++;
     }
@@ -4340,7 +4464,13 @@ function drawZonesActive(list, tm) {
         x: pt.x, y: pt.y,
         vx: (Math.random() - 0.5) * 8, vy: -10 - Math.random() * 10,
         lift: 14, life: 1.6 + Math.random() * 0.6, max: 2.2,
-        col: SURFACE.line, size: 6 + Math.random() * 3, zfx: 1,
+        /* La fumee reutilise le HALO plutot que d'ajouter une quatrieme case :
+           un degradé radial large et peu opaque EST une bouffee de fumee, et la
+           regle de budget de l'atlas s'applique aussi entre deux usages d'une
+           meme forme. Elle gonfle en montant (`grow`), ce qu'une case figee
+           n'aurait pas su faire de toute facon. */
+        col: SURFACE.line, size: 10 + Math.random() * 5, zfx: 1,
+        frame: fxGlow, grow: 9,
       });
       zoneFx++;
     }
@@ -4503,7 +4633,7 @@ function drawTurrets(list) {
    salon, ou tuple d'ancienne version sans `owner`) : le soutien tire de loin
    donc reste visible, le mini-drone d'essaim fonce au contact donc reste
    petit et effile. */
-const DRONE_COLOR = { 0: OWNED.droneAtk, 1: OWNED.droneHeal };
+const DRONE_COLOR = { 0: OWNED.droneAtk, 1: OWNED.droneSwarm };
 
 function drawDrones(list) {
   for (const d of list) {
@@ -4606,13 +4736,13 @@ function drawEffects(effects) {
 
     if (f.kind === 4) {
       // balise : double anneau vert qui se resserre sur le releve
-      ctx.strokeStyle = alpha(FX.beacon, f.k * 0.95);
+      ctx.strokeStyle = alpha(FX.heal, f.k * 0.95);
       ctx.lineWidth = 5 * f.k + 1.5;
       ctx.beginPath();
       ctx.arc(f.x, f.y, f.r * (0.2 + grow * 0.8), 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.strokeStyle = alpha(FX.beaconSoft, f.k * 0.7);
+      ctx.strokeStyle = alpha(FX.healSoft, f.k * 0.7);
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(f.x, f.y, f.r * (1 - grow * 0.75), 0, Math.PI * 2);
@@ -4715,10 +4845,10 @@ function drawEffects(effects) {
     if (f.kind === 11) {
       // vague de soin : anneau vert plein, distinct de l'onde blanche des
       // cartes qui, elle, fait des degats
-      ctx.fillStyle = alpha(FX.beacon, f.k * 0.10);
+      ctx.fillStyle = alpha(FX.heal, f.k * 0.10);
       ctx.beginPath(); ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2); ctx.fill();
 
-      ctx.strokeStyle = alpha(FX.beacon, f.k * 0.9);
+      ctx.strokeStyle = alpha(FX.heal, f.k * 0.9);
       ctx.lineWidth = 5 * f.k + 1.5;
       ctx.beginPath();
       ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
@@ -4835,21 +4965,74 @@ function drawAnchors(list) {
   }
 }
 
-/* Sanctuaire du soigneur (lot C). Couleur de classe, comme le rempart et
-   l'ancre — l'identite dit QUI protege. Le bord est double : le liseré
-   exterieur marque la limite ou les projectiles ennemis meurent, c'est
-   l'information tactique du dome. */
+/* Nombre de croix qui montent dans un sanctuaire. Sept : en dessous on lit des
+   accidents isoles, au-dela la surface du dome se remplit et le liseré
+   exterieur — qui porte l'information tactique — passe au second plan. */
+const SANCT_MOTES = 7;
+/* Duree d'une montee, en secondes. Lente : ce n'est pas une gerbe, c'est une
+   respiration. A moins d'une seconde on lit un jaillissement, donc un effet
+   ponctuel, alors que le sanctuaire dure. */
+const SANCT_RISE = 2.6;
+
+/* Sanctuaire du soigneur (lot C).
+
+   Il portait la couleur de CLASSE, comme le rempart et l'ancre, au motif que
+   l'identite dit qui protege. C'etait la bonne regle pour les deux autres et la
+   mauvaise pour celui-la : le rempart et l'ancre deplacent ou retiennent, le
+   sanctuaire SOIGNE. Il porte donc le vert du soin, comme la vague, la balise et
+   les chiffres — et le disque bleu-menthe ne se confond plus avec le rempart,
+   qui est l'autre grand disque pose au sol.
+
+   Le bord reste double : le liseré exterieur marque la limite ou les projectiles
+   ennemis meurent, c'est l'information tactique du dome.
+
+   LES CROIX QUI MONTENT sont sa signature. Un disque vert clair et un disque
+   bleu clair au sol se distinguent mal en pleine melee, alors que du mouvement
+   se lit par-dessus n'importe quel encombrement — c'est le meme raisonnement que
+   pour les signatures de zone du lot E, ou une zone se reconnait a son
+   comportement avant sa couleur. La croix, elle, n'est pas un glyphe invente
+   pour l'occasion : c'est `POWERUP_ICON.heal`, deja LE signe du soin dans
+   l'arene et dans le HUD.
+
+   Aucune allocation, aucune liste : la position de chaque croix est une fonction
+   de l'identifiant du sanctuaire, de son rang et du temps. Les particules du jeu
+   passent par `particles`, qui a un plafond et un cout de gestion ; ici sept
+   croix par dome n'ont ni a naitre, ni a mourir, ni a etre comptees. */
 function drawSancts(list) {
+  const t = performance.now() / 1000;
   for (const sa of list) {
-    ctx.fillStyle = alpha(CLASS_COLOR.soigneur, 0.05 + sa.k * 0.04);
+    ctx.fillStyle = alpha(FX.heal, 0.05 + sa.k * 0.04);
     ctx.beginPath(); ctx.arc(sa.x, sa.y, sa.r, 0, Math.PI * 2); ctx.fill();
 
-    ctx.strokeStyle = alpha(CLASS_COLOR.soigneur, 0.35 + sa.k * 0.45);
+    ctx.strokeStyle = alpha(FX.heal, 0.35 + sa.k * 0.45);
     ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(sa.x, sa.y, sa.r, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = alpha(CLASS_COLOR.soigneur, 0.18);
+    ctx.strokeStyle = alpha(FX.heal, 0.18);
     ctx.lineWidth = 5;
     ctx.beginPath(); ctx.arc(sa.x, sa.y, sa.r - 5, 0, Math.PI * 2); ctx.stroke();
+
+    for (let i = 0; i < SANCT_MOTES; i++) {
+      /* Phase decalee par rang : en phase, les sept croix montent comme une
+         seule barre et le dome clignote au lieu de respirer. Le decalage est
+         aussi fonction de l'identifiant, sinon deux sanctuaires poses en meme
+         temps battent a l'unisson. */
+      const ph = ((t / SANCT_RISE) + i / SANCT_MOTES + sa.id * 0.137) % 1;
+      // Montee du bas vers le haut du disque, sur 1,4 rayon.
+      const dy = sa.r * (0.7 - ph * 1.4);
+      /* La demi-largeur disponible A CETTE HAUTEUR, pour qu'aucune croix ne sorte
+         du dome : c'est la corde du cercle. Le 0,78 garde une marge sous le
+         liseré, qu'une croix posee dessus rendrait illisible. */
+      const lim = Math.sqrt(Math.max(0, sa.r * sa.r - dy * dy)) * 0.78;
+      // L'angle propre a la croix la place a gauche ou a droite, et l'oscillation
+      // lente la fait deriver : une montee strictement verticale lit comme une
+      // animation en boucle, ce qu'elle est, et le mouvement doit le cacher.
+      const dx = Math.cos(sa.id * 1.7 + i * 2.399963 + Math.sin(t * 0.6 + i) * 0.35) * lim;
+      // Apparition et disparition par les deux bouts : une croix qui surgit ou
+      // se coupe net au bord trahit la boucle.
+      const a = Math.sin(ph * Math.PI);
+      paintIcon(ctx, POWERUP_ICON.heal, FX.heal,
+        sa.x + dx, sa.y + dy, 0.42, a * 0.55 * (0.4 + sa.k * 0.6));
+    }
 
     // Arc de duree restante — meme grammaire que le rempart et l'ancre.
     ctx.strokeStyle = alpha(OWNED.bulwarkArc, 0.85);
@@ -5131,20 +5314,59 @@ function drawEnemies(list) {
        compte le plus, puisque c'est la qu'on lit les mecaniques.
    =========================================================================== */
 
-/* Tension d'annonce, 0 a 1. Deduite des bandeaux d'alerte deja en place — donc
-   deja cales sur la timeline interpolee — et pas d'un champ de plus dans le
-   snapshot : une consigne ou un avertissement affiche signifie exactement
-   « quelque chose va tomber », c'est-a-dire l'instant ou le corps doit se
-   ramasser. Elle monte a l'approche de l'echeance, comme le remplissage d'un
-   telegraphe de zone. */
-function bossTension(now) {
-  let k = 0;
-  for (const a of [alertOrder, alertWarn]) {
-    if (!a || now > a.until) continue;
-    const p = (now - a.from) / Math.max(1, a.until - a.from);
-    k = Math.max(k, Math.min(1, p));
+/* Duree de la RELACHE, en millisecondes. Courte volontairement : au-dela d'un
+   tiers de seconde le rebond cesse d'etre lu comme la consequence du coup et
+   devient une animation d'inactivite de plus. */
+const BOSS_RELEASE_MS = 320;
+
+/* Part de la relache passee en pleine extension avant que la retombee commence.
+   MESUREE et non choisie : sans ce palier, la courbe amortie seule tombait de
+   1,0 a 0,09 en cent millisecondes, soit quatre images a 60 Hz — le sommet
+   n'existait qu'un instant et le coup ne se lisait pas. A 0,22, l'extension
+   tient cinq images pleines, ce qui est le minimum pour qu'un mouvement soit vu
+   plutot que devine. */
+const BOSS_HOLD = 0.22;
+
+/* Posture du boss : { gather, burst }, tous deux 0 a 1.
+
+   C'est une TIMELINE en trois temps et non plus une rampe lineaire, parce que
+   c'est le rythme qui rend une attaque lisible, pas la couleur du bandeau :
+
+     - ANTICIPATION — `gather` monte de 0 a 1 sur toute la fenetre d'annonce, en
+       carre. Le carre et non le lineaire parce qu'une rampe droite est lue
+       comme un deplacement uniforme, donc comme un etat, alors qu'un
+       resserrement qui ACCELERE est lu comme un elan qui se charge. Le gros du
+       mouvement tombe ainsi dans le dernier tiers, la ou le joueur regarde.
+     - MAINTIEN — implicite : `gather` reste a son maximum jusqu'a `impact`,
+       puisque la fenetre va jusque-la. C'est ce que l'ancienne version perdait,
+       le bandeau s'effacant 250 ms plus tot.
+     - RELACHE — `burst` vaut 1 A L'INSTANT DU COUP, TIENT le temps de
+       `BOSS_HOLD`, puis retombe avec un depassement negatif. Le cosinus passe
+       sous zero a mi-retombee : le corps se detend au-dela de son repos, revient
+       legerement en deca, puis se pose. Un simple `1 - u` se serait arrete pile
+       au repos, ce qui se lit comme un arret et non comme une detente.
+
+   Aucun champ de plus dans le snapshot : la fenetre est posee par le canal
+   d'alerte, qui passe deja par la timeline interpolee. */
+function bossPose(now) {
+  if (!bossCue) return { gather: 0, burst: 0 };
+  const { from, impact } = bossCue;
+  if (now < impact) {
+    const p = Math.min(1, Math.max(0, (now - from) / Math.max(1, impact - from)));
+    return { gather: p * p, burst: 0 };
   }
-  return k;
+  const u = (now - impact) / BOSS_RELEASE_MS;
+  /* Une fenetre epuisee rend zero mais n'est PAS effacee ici. La fonction doit
+     rester sans effet de bord : `drawBoss` est appele DEUX FOIS par image pour
+     les Jumeaux, et une posture qui se consomme a la lecture aurait rendu la
+     vraie valeur au premier et zero au second — les deux moities se seraient
+     desynchronisees pile sur le coup. La fenetre est remplacee a l'annonce
+     suivante et effacee aux transitions de manche. */
+  if (u >= 1) return { gather: 0, burst: 0 };
+  if (u < BOSS_HOLD) return { gather: 0, burst: 1 };
+  const v = (u - BOSS_HOLD) / (1 - BOSS_HOLD);
+  const k = 1 - v;
+  return { gather: 0, burst: k * k * Math.cos(v * Math.PI * 1.3) };
 }
 
 function drawBoss(b) {
@@ -5164,19 +5386,31 @@ function drawBoss(b) {
   const dark = twin ? BOSS.twinDark : K.dark;
   const edge = twin ? BOSS.twinEdge : K.edge;
 
-  ctx.fillStyle = alpha(skin, 0.10);
-  ctx.beginPath(); ctx.arc(b.x, b.y, r + 22, 0, Math.PI * 2); ctx.fill();
+  const { gather, burst } = bossPose(now);
 
-  /* Contraction d'annonce : jusqu'a -8 % sur les deux axes. Assez pour se voir
-     du coin de l'oeil, trop peu pour qu'on croie que le boss recule. */
-  const tense = bossTension(now);
-  const squash = 1 - tense * 0.08;
+  /* Le halo respire la posture : il se resserre pendant que le corps se ramasse
+     et se dilate d'un coup a la relache. C'est le seul element de la creature
+     visible A TRAVERS la horde quand elle est collee au boss — le corps, lui,
+     est masque par les monstres exactement au moment ou l'on voudrait le lire. */
+  ctx.fillStyle = alpha(skin, 0.10 + burst * 0.10);
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, r + 22 - gather * 10 + burst * 26, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* Ecrasement : -9 % au ramasse, +12 % a la detente. L'asymetrie est voulue —
+     une detente qui ne depasserait pas le repos se lit comme un arret et non
+     comme un coup porte, et c'est precisement l'instant qu'on cherche a rendre
+     lisible. Les deux restent trop faibles pour qu'on croie que le boss recule
+     ou grandit. */
+  const squash = 1 - gather * 0.09 + burst * 0.12;
 
   ctx.save();
   ctx.translate(b.x, b.y);
   ctx.scale(squash, squash);
+  // `tense` garde son nom dans `S` : c'est le vocabulaire des cinq routines, et
+  // le renommer aurait touche les cinq pour ne rien dire de plus.
   const S = { r, t, skin, dark, edge, wounded, ang: b.ang ?? 0,
-              phase: b.phase ?? 0, bars: b.bars ?? 4, tense, twin };
+              phase: b.phase ?? 0, bars: b.bars ?? 4, tense: gather, burst, twin };
   switch (kind) {
     case BOSS_MATRIARCHE: drawBossMatriarche(S); break;
     case BOSS_METRONOME:  drawBossMetronome(S); break;
@@ -5213,6 +5447,12 @@ function bossSheet() {
 
   const garde = ctx;
   ctx = g;
+  /* La posture est NEUTRALISEE le temps du trace, par le meme detournement que
+     `ctx`. Sans ca une planche prise pendant une annonce sortait les cinq boss
+     ramasses ou en pleine detente : le test de silhouette est un critere
+     d'acceptation, il ne peut pas dependre de l'instant ou on l'a pris. */
+  const gardeCue = bossCue;
+  bossCue = null;
   poses.forEach((kind, i) => {
     drawBoss({
       kind, x: pas * i + pas / 2, y: pas / 2, ang: 0,
@@ -5221,6 +5461,7 @@ function bossSheet() {
     });
   });
   ctx = garde;
+  bossCue = gardeCue;
 
   // Aplatissement en noir uni sur blanc, exactement comme `silhouetteSheet` —
   // et dans le meme ordre, pour la meme raison : le fond peint d'abord aurait
@@ -5238,15 +5479,22 @@ function bossSheet() {
    de pointes, lourd. Il est la reference dont les quatre autres s'ecartent.
    Seul ajout : la respiration, qui ne coute rien puisque c'est un `scale`. */
 function drawBossRavageur(S) {
-  const { r, t, skin, dark, edge, tense } = S;
+  const { r, t, skin, dark, edge, tense, burst } = S;
 
   ctx.save();
-  ctx.rotate(t * 0.6);
+  /* MOUVEMENT SECONDAIRE : la couronne prend de l'avance sur le corps a la
+     detente. Une piece qui suit le mouvement principal avec un decalage est ce
+     qui distingue un objet articule d'un bloc qu'on redimensionne — et elle ne
+     coute rien, la rotation etait deja la. */
+  ctx.rotate(t * 0.6 + burst * 0.24);
   ctx.fillStyle = dark;
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
-    // Les pointes RENTRENT a l'annonce, comme un animal qui se ramasse.
-    const out = r + 14 - tense * 10;
+    /* Les pointes RENTRENT a l'annonce, comme un animal qui se ramasse, puis
+       JAILLISSENT au-dela de leur repos au moment du coup. Le depassement est
+       le double de la retraction : c'est lui qui porte la lecture de l'impact,
+       la retraction ne fait que l'annoncer. */
+    const out = r + 14 - tense * 10 + burst * 20;
     ctx.beginPath();
     ctx.moveTo(Math.cos(a) * out, Math.sin(a) * out);
     ctx.lineTo(Math.cos(a + 0.16) * r, Math.sin(a + 0.16) * r);
@@ -5287,7 +5535,7 @@ function drawBossRavageur(S) {
    que la menace vient de ce qu'elle produit, pas d'elle — et voir sa reserve
    s'epuiser est la seule facon de savoir qu'on avance. */
 function drawBossMatriarche(S) {
-  const { r, t, skin, dark, edge, phase, bars, tense } = S;
+  const { r, t, skin, dark, edge, phase, bars, tense, burst } = S;
   ctx.save();
   ctx.rotate(S.ang);
 
@@ -5298,7 +5546,9 @@ function drawBossMatriarche(S) {
   const legs = [[-0.75, 0.55], [0.55, 0.75], [2.35, 0.6], [3.6, 0.8]];
   for (const [a0, len] of legs) {
     const a = a0 + Math.sin(t * 1.4 + a0) * 0.07;
-    const out = r * (1 + len) * (1 - tense * 0.12);
+    // Les appendices se replient a l'annonce et se DETENDENT sur le coup — elle
+    // prend appui pour expulser, elle ne frappe pas avec.
+    const out = r * (1 + len) * (1 - tense * 0.12 + burst * 0.22);
     ctx.beginPath();
     ctx.moveTo(Math.cos(a - 0.22) * r * 0.9, Math.sin(a - 0.22) * r * 0.9);
     ctx.lineTo(Math.cos(a) * out, Math.sin(a) * out);
@@ -5337,7 +5587,11 @@ function drawBossMatriarche(S) {
     const a = -1.1 + (i / Math.max(1, pockets - 1 || 1)) * 2.2;
     const px = Math.cos(a) * r * 0.55 - r * 0.15;
     const py = Math.sin(a) * r * 0.42;
-    const k = 1 + Math.sin(t * 2.2 + i * 1.3 + Math.PI) * 0.18;
+    /* Les poches se VIDENT sur le coup, au lieu de gonfler comme tout le reste.
+       C'est la seule piece du jeu qui va a contresens de la detente, et c'est le
+       sens meme de la creature : ce qui sort d'elle est le danger, donc l'instant
+       de l'attaque doit se lire comme une expulsion et pas comme une poussee. */
+    const k = (1 + Math.sin(t * 2.2 + i * 1.3 + Math.PI) * 0.18) * (1 - burst * 0.38);
     ctx.fillStyle = alpha(BOSS.eye, 0.85);
     ctx.beginPath(); ctx.arc(px, py, r * 0.15 * k, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = alpha(edge, 0.6);
@@ -5359,7 +5613,7 @@ function drawBossMatriarche(S) {
    vide au centre. C'est le seul boss qui doit paraitre MECANIQUE, ce qui est
    coherent avec le fait qu'il ne frappe jamais — il occupe l'espace. */
 function drawBossMetronome(S) {
-  const { r, t, skin, dark, edge, tense } = S;
+  const { r, t, skin, dark, edge, tense, burst } = S;
 
   // Trois anneaux, trois vitesses, trois inclinaisons. Des vitesses proches
   // auraient donne un seul mouvement flou ; le rapport 1 / -1,6 / 2,7 se lit.
@@ -5368,19 +5622,25 @@ function drawBossMetronome(S) {
     { rad: r * 0.78, w: 4, spin: -1.6, tilt: 0.7, col: skin },
     { rad: r * 0.5, w: 3, spin: 2.7, tilt: 1.4, col: skin },
   ];
+  const kick = 1 - tense * 0.1 + burst * 0.16;
   for (const ring of rings) {
     ctx.save();
-    ctx.rotate(t * ring.spin);
+    /* A-COUP proportionnel a la vitesse de chaque anneau : le plus rapide saute
+       le plus loin, donc l'ecart entre les trois s'ACCENTUE sur le coup au lieu
+       de se refermer. Un a-coup identique pour les trois les aurait fait bouger
+       comme une seule piece, ce qui est exactement ce que les trois vitesses
+       existent pour eviter. */
+    ctx.rotate(t * ring.spin + burst * 0.30 * ring.spin);
     // L'ecrasement fait tourner l'anneau DANS l'espace : un cercle parfait qui
     // tourne ne montre rien, et c'est le mouvement qui est l'identite ici.
     ctx.scale(1, 0.42 + 0.58 * Math.abs(Math.cos(t * ring.spin * 0.5 + ring.tilt)));
     ctx.strokeStyle = ring.col;
     ctx.lineWidth = ring.w;
-    ctx.beginPath(); ctx.arc(0, 0, ring.rad * (1 - tense * 0.1), 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(0, 0, ring.rad * kick, 0, Math.PI * 2);
     ctx.stroke();
     // Un ergot par anneau : sans lui la rotation d'un cercle est invisible.
     ctx.fillStyle = edge;
-    ctx.beginPath(); ctx.arc(ring.rad * (1 - tense * 0.1), 0, ring.w * 0.9, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(ring.rad * kick, 0, ring.w * 0.9, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -5390,9 +5650,11 @@ function drawBossMetronome(S) {
   ctx.strokeStyle = edge;
   ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(0, 0, r * 0.24, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = alpha(BOSS.eye, 0.5 + tense * 0.5);
+  ctx.strokeStyle = alpha(BOSS.eye, Math.min(1, 0.5 + tense * 0.5 + burst * 0.5));
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, 0, r * 0.14, 0, Math.PI * 2); ctx.stroke();
+  // Le noyau est le seul point FIXE de la creature : il ne peut pas rendre le
+  // coup par un deplacement, il le rend donc par sa taille.
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.14 * (1 + burst * 0.45), 0, Math.PI * 2); ctx.stroke();
 }
 
 /* L'ORACLE — cohesion. Un grand oeil unique entoure d'anneaux FLOTTANTS,
@@ -5400,7 +5662,7 @@ function drawBossMetronome(S) {
    de telegraphe : ils s'orientent vers ce qui va se passer, c'est-a-dire vers
    la direction du boss, et se resserrent a l'annonce. */
 function drawBossOracle(S) {
-  const { r, t, skin, dark, edge, tense } = S;
+  const { r, t, skin, dark, edge, tense, burst } = S;
 
   /* Deux anneaux detaches, en derive lente. Ils ne sont PAS concentriques au
      corps : c'est ce qui les fait lire comme flottants et non comme une
@@ -5416,7 +5678,8 @@ function drawBossOracle(S) {
     // Anneau OUVERT : une brisure oriente le regard, un cercle ferme ne dit
     // rien de la direction.
     ctx.beginPath();
-    ctx.arc(0, 0, r * (1.15 - i * 0.22) * (1 - tense * 0.12), 0.5, Math.PI * 2 - 0.5);
+    ctx.arc(0, 0, r * (1.15 - i * 0.22) * (1 - tense * 0.12 + burst * 0.20),
+      0.5, Math.PI * 2 - 0.5);
     ctx.stroke();
     ctx.restore();
   }
@@ -5436,7 +5699,13 @@ function drawBossOracle(S) {
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
     const lit = tense > 0 ? 1 : (Math.sin(t * 2 - i * 1.05) > 0.7 ? 1 : 0);
-    ctx.strokeStyle = alpha(BOSS.eye, 0.25 + lit * 0.75);
+    /* Les glyphes S'ETEIGNENT sur le coup. Ils se sont allumes tous ensemble
+       pendant la charge ; les voir se vider au moment ou l'oeil se dilate rend
+       la creature causale — l'energie va quelque part, elle ne disparait pas.
+       `Math.max(0, burst)` parce que le rebond passe sous zero : sans la garde,
+       les glyphes redeviendraient plus lumineux qu'au repos pendant le retour. */
+    ctx.strokeStyle = alpha(BOSS.eye,
+      (0.25 + lit * 0.75) * (1 - Math.max(0, burst) * 0.85));
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(Math.cos(a) * r * 0.44, Math.sin(a) * r * 0.44);
@@ -5447,7 +5716,9 @@ function drawBossOracle(S) {
 
   // L'oeil. Iris qui suit l'orientation du boss : c'est ce qui dit « il te
   // regarde », et c'est toute l'identite de la creature.
-  const eyeR = r * 0.34 * (1 - tense * 0.25);
+  // L'oeil se plisse pendant la charge et se DILATE sur le coup. C'est la piece
+  // qui porte l'identite de l'Oracle, donc celle qui doit porter l'instant.
+  const eyeR = r * 0.34 * (1 - tense * 0.25 + burst * 0.40);
   ctx.fillStyle = BOSS.maw;
   ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = skin;
@@ -5466,14 +5737,19 @@ function drawBossOracle(S) {
    `twin` dit lequel des deux on dessine, et c'est le SEUL parametre : deux
    routines auraient diverge au premier reglage. */
 function drawBossJumeaux(S) {
-  const { r, t, skin, dark, edge, twin, tense } = S;
+  const { r, t, skin, dark, edge, twin, tense, burst } = S;
   const side = twin ? 1 : -1;          // -1 : moitie gauche, +1 : moitie droite
 
   ctx.save();
   ctx.rotate(S.ang);
-  // Oscillation en OPPOSITION de phase entre les deux : en phase, ils
-  // paraissaient un seul objet coupe en deux plutot que deux creatures.
-  ctx.rotate(Math.sin(t * 1.3 + (twin ? Math.PI : 0)) * 0.09);
+  /* Oscillation en OPPOSITION de phase entre les deux : en phase, ils
+     paraissaient un seul objet coupe en deux plutot que deux creatures.
+
+     Son amplitude ENFLE sur le coup, et c'est ce qui fait leur relache : les
+     deux moities s'ecartent visiblement l'une de l'autre au moment de frapper.
+     Un ecrasement, comme pour les quatre autres, n'aurait rien dit ici — leur
+     verbe est la separation, pas la poussee. */
+  ctx.rotate(Math.sin(t * 1.3 + (twin ? Math.PI : 0)) * (0.09 + Math.max(0, burst) * 0.11));
 
   // Demi-disque : le plat regarde vers l'autre Jumeau. La forme est INCOMPLETE
   // et doit le rester — c'est ce qui fait qu'on cherche l'autre moitie.
@@ -5505,9 +5781,13 @@ function drawBossJumeaux(S) {
 
   // L'oeil est REPOUSSE vers l'exterieur : les deux regardent chacun de leur
   // cote, ce qui dit la separation aussi bien que la forme.
-  const ex = side * r * 0.42;
+  // L'oeil s'ecarte encore un peu du plat sur le coup : la separation se lit
+  // deux fois, dans la rotation et dans la position du regard.
+  const ex = side * r * (0.42 + Math.max(0, burst) * 0.10);
   ctx.fillStyle = BOSS.maw;
-  ctx.beginPath(); ctx.arc(ex, 0, r * 0.3 * (1 - tense * 0.2), 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(ex, 0, r * 0.3 * (1 - tense * 0.2 + burst * 0.35), 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = BOSS.eye;
   ctx.beginPath(); ctx.arc(ex, 0, r * 0.14, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
@@ -5598,7 +5878,7 @@ function drawMarks(marks, players) {
       case MECH_COUNT: {
         const ok = m.mech === MECH_COUNT ? m.cur === m.need : m.cur >= 1;
         const col = ok ? MARK.ok : MARK_GO;
-        ctx.fillStyle = ok ? alpha(FX.beacon, 0.14) : alpha(SIGNAL.go, 0.10);
+        ctx.fillStyle = ok ? alpha(FX.heal, 0.14) : alpha(SIGNAL.go, 0.10);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
         markHalo(m.x, m.y, m.r, col, t);
         ctx.strokeStyle = col;
@@ -5666,7 +5946,7 @@ function drawMarks(marks, players) {
         // Lien nourricier : un trait vers la Matriarche. Il n'a pas besoin de
         // sa position — il part du rejeton vers le centre de l'arene, la ou
         // elle se tient de toute facon la plupart du temps.
-        ctx.strokeStyle = alpha(FX.beacon, 0.5 + pulse * 0.4);
+        ctx.strokeStyle = alpha(FX.heal, 0.5 + pulse * 0.4);
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(m.x, m.y);
@@ -5689,7 +5969,7 @@ function drawMarks(marks, players) {
       case MECH_SANCTUARY: {
         // Le seul marqueur qui veut dire « ici on est en securite » : il est
         // donc plein et clair, a l'inverse de toutes les zones du jeu.
-        ctx.fillStyle = alpha(FX.beacon, 0.16);
+        ctx.fillStyle = alpha(FX.heal, 0.16);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
         markHalo(m.x, m.y, m.r, MARK.ok, t);
         ctx.strokeStyle = MARK.ok;
@@ -5891,8 +6171,13 @@ function drawPlayers(list, tm, marks = []) {
          pas seulement sur ses projectiles — c'est une information tactique
          pour toute l'equipe. */
       const moving = playerMoving(p.id, x, y);
+      /* Le vert du SOIN et non la couleur de classe : cette teinte ne dit pas
+         « c'est un soigneur » — sa silhouette le dit deja, et sa couleur de
+         joueur dit qui il est — elle dit « il soigne EN CE MOMENT ». C'est un
+         etat, donc la famille fonctionnelle, et elle s'accorde ainsi avec les
+         projectiles qu'il tire pendant ce temps. */
       const teinte = dashing ? FX.flash
-        : ((p.skillFlags & SKILL_HEAL_MODE) ? CLASS_COLOR.soigneur : col);
+        : ((p.skillFlags & SKILL_HEAL_MODE) ? FX.heal : col);
       const frame = classFrame(p, moving ? "move" : "idle");
       const aimDir = isMe ? aimVector() : { ax: p.aimX, ay: p.aimY };
       const ang = Math.atan2(aimDir.ay, aimDir.ax);

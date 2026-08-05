@@ -118,7 +118,95 @@ export function frameOf(name) {
    difference entre une forme et une creature. Si un type demande un traitement
    particulier, c'est le type qu'il faut revoir, pas la recette — un style n'est
    tenable que s'il se repete a l'identique sur tout le jeu. */
+/* SOUS-TRACE MIROIR. A n'utiliser que la, et pour une raison qui ne se voit pas
+   a la lecture du code fautif.
+
+   Ecrire les memes sommets avec `y * s` inverse le SENS DE PARCOURS quand
+   s = -1. Or `fill()` applique la regle NON NULLE : deux contours parcourus en
+   sens contraires annulent leur zone commune. Un appendice miroir qui chevauche
+   le corps y perce donc un TROU transparent — et comme le contour est trace
+   apres, le resultat lit comme une fente, pas comme une erreur.
+
+   Trois creatures en etaient percees et personne ne l'avait vu : les mandibules
+   du grunt d'un cote, les epaules du tank, les braces du Rempart. La planche de
+   silhouettes le montrait depuis le debut — un pixel blanc au milieu d'une forme
+   noire — mais a 64 px par case la fente fait deux pixels.
+
+   La correction NE DEVINE PAS quel cote est fautif : elle mesure l'aire signee
+   du polygone tel qu'il va etre emis, et retourne l'ordre des sommets si le
+   signe n'est pas le bon. Reverser « le cote s = -1 » avait ete essaye et
+   percait les DEUX cotes — c'est s = +1 qui etait a l'envers sur le tank
+   (corps +845,7 contre epaule -253,5, indice de tour nul au point (0,10)).
+   Un test de signe ne peut pas se tromper de cote, et il couvre le prochain
+   appendice qu'on ecrira sans y penser.
+
+   Convention : sens POSITIF, celui des corps. Les trois corps concernes sont
+   des polygones parcourus a angle croissant, donc positifs — grunt, tank, et
+   l'hexagone du Rempart. Un corps ecrit un jour dans l'autre sens inverserait
+   la regle, et c'est la seule hypothese de cette fonction. */
+function mirrored(g, s, pts) {
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i];
+    const [x2, y2] = pts[(i + 1) % pts.length];
+    area += x1 * (y2 * s) - x2 * (y1 * s);
+  }
+  const list = area < 0 ? [...pts].reverse() : pts;
+  for (let i = 0; i < list.length; i++) {
+    const [px, py] = list[i];
+    i === 0 ? g.moveTo(px, py * s) : g.lineTo(px, py * s);
+  }
+  g.closePath();
+}
+
+/* Etendue reelle d'un trace, MESUREE et non declaree. Un `size` recopie a cote
+   de chaque type aurait menti des le premier reglage de silhouette — c'est la
+   meme regle que pour les descriptions de cartes qui composent `fmtM(LA
+   CONSTANTE)` plutot que de recopier un nombre.
+
+   Les huit traces du jeu n'appellent que `moveTo`, `lineTo` et `closePath`, donc
+   un simple enregistreur suffit. `arc` et `ellipse` sont couverts par leur boite
+   englobante : ils ne servent aujourd'hui qu'aux accents, qui ne passent pas
+   par ici, mais un trace qui en gagnerait un donnerait une etendue correcte au
+   lieu de faire tomber le chargement. */
+function pathExtent(path) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const note = (x, y) => {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  };
+  path({
+    moveTo: note,
+    lineTo: note,
+    closePath() {},
+    arc(x, y, r) { note(x - r, y - r); note(x + r, y + r); },
+    ellipse(x, y, rx, ry) { note(x - rx, y - ry); note(x + rx, y + ry); },
+  });
+  if (!Number.isFinite(minX)) return { cx: 0, cy: 0, span: CELL * 0.5 };
+  return {
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2,
+    /* La PLUS PETITE des deux dimensions, jamais la plus grande ni la diagonale.
+       Un runner fait 31 de long pour 21 de haut : indexer son eclairage sur sa
+       longueur aurait pose un arc de lumiere plus large que le corps, qui se
+       serait fait ecreter presque entierement — exactement le defaut qu'on
+       corrige. C'est l'epaisseur qui dit combien de place il y a pour modeler. */
+    span: Math.min(maxX - minX, maxY - minY),
+  };
+}
+
 function bake(g, R, path, accents, edge = 2) {
+  /* Les trois grandeurs d'eclairage suivent la TAILLE DE LA FORME. Elles etaient
+     fixes — decalage d'ombre de 2 px et arc de lumiere de rayon 12,6 pour tout
+     le monde —, ce qui donnait le meme modele a un runner de 21 px d'epaisseur
+     et a un Rempart de 33. Sur le petit, l'arc debordait et disparaissait a
+     l'ecretage ; sur le gros, l'ombre de 2 px etait un cheveu. La lumiere etait
+     posee A COTE de la forme au lieu de la suivre. */
+  const E = pathExtent(path);
+  const off = Math.max(1.5, Math.min(3.5, E.span * 0.075));
+
   // 1 — silhouette
   g.beginPath(); path(g); g.closePath();
   g.fillStyle = R.base;
@@ -127,22 +215,45 @@ function bake(g, R, path, accents, edge = 2) {
   // 2 — ombrage, ecrete a la silhouette
   g.save();
   g.clip();
-  g.translate(2, 2);
+  g.translate(off, off);
   g.beginPath(); path(g); g.closePath();
   g.fillStyle = R.ombre;
   g.globalAlpha = 0.85;
   g.fill();
   g.restore();
 
-  // 3 — lumiere, un arc en haut-gauche, ecrete de meme
+  // 3 — lumiere, un arc en haut-gauche, ecrete de meme. Centre sur la forme
+  // REELLE et non sur l'origine : un tireur dont le corps est decale vers
+  // l'arriere recevait sa lumiere sur son canon.
   g.save();
   g.beginPath(); path(g); g.closePath();
   g.clip();
   g.strokeStyle = R.lumiere;
-  g.lineWidth = 4;
+  g.lineWidth = Math.max(2.5, E.span * 0.115);
   g.globalAlpha = 0.55;
   g.beginPath();
-  g.arc(0, 0, HALF * 0.42, Math.PI * 1.05, Math.PI * 1.72);
+  g.arc(E.cx, E.cy, E.span * 0.28, Math.PI * 1.05, Math.PI * 1.72);
+  g.stroke();
+  g.restore();
+
+  /* 3 bis — CONTRE-JOUR. Le trace, decale du cote OPPOSE a l'ombre et ecrete a
+     la silhouette d'origine : la ou le contour deplace tombe a l'interieur —
+     c'est-a-dire sur le bord bas-droit — le liseré se voit ; du cote haut-gauche
+     il sort de l'ecretage et disparait. Un seul decalage donne donc un liseré
+     qui epouse exactement la forme, appendices compris, sans avoir a decrire
+     ou est son bord.
+
+     Il passe AVANT le contour, qui l'encadre ensuite : dessine par-dessus, il
+     aurait mange la ligne sombre qui detache la creature du sol. */
+  g.save();
+  g.beginPath(); path(g); g.closePath();
+  g.clip();
+  g.translate(-off * 0.9, -off * 0.9);
+  g.beginPath(); path(g); g.closePath();
+  g.strokeStyle = R.rim;
+  g.lineWidth = Math.max(1.5, E.span * 0.055);
+  g.globalAlpha = 0.75;
+  g.lineJoin = "round";
   g.stroke();
   g.restore();
 
@@ -255,11 +366,7 @@ function gruntPath(k) {
        disparaissaient sur un corps deja sombre — et le grunt n'etait plus
        qu'une masse ronde parmi cinq masses rondes. */
     for (const s of [-1, 1]) {
-      g.moveTo(8, s * 5);
-      g.lineTo(21, s * (2.5 + open));
-      g.lineTo(22, s * (6 + open));
-      g.lineTo(9, s * 10);
-      g.closePath();
+      mirrored(g, s, [[8, 5], [21, 2.5 + open], [22, 6 + open], [9, 10]]);
     }
 
     // Pattes : trois paires courtes, en sous-traces separes, qui alternent
@@ -270,10 +377,7 @@ function gruntPath(k) {
         const px = -9 + i * 6;
         const alt = (i + (s > 0 ? 0 : 1) + (legs < 0 ? 1 : 0)) & 1;
         const ext = 3.5 + (alt && legs !== 0 ? 3.5 : 0);
-        g.moveTo(px - 2.5, s * 10);
-        g.lineTo(px + 0.5, s * (12 + ext));
-        g.lineTo(px + 3, s * 10);
-        g.closePath();
+        mirrored(g, s, [[px - 2.5, 10], [px + 0.5, 12 + ext], [px + 3, 10]]);
       }
     }
   };
@@ -352,11 +456,7 @@ function tankPath(k) {
     // image : c'est l'anticipation de la charge, et elle doit se lire de loin.
     for (const s of [-1, 1]) {
       const out = 14 + plates * 7;
-      g.moveTo(-13, s * 8);
-      g.lineTo(-9 + step * 2, s * out);
-      g.lineTo(6 + step * 2, s * out);
-      g.lineTo(11, s * 8);
-      g.closePath();
+      mirrored(g, s, [[-13, 8], [-9 + step * 2, out], [6 + step * 2, out], [11, 8]]);
     }
 
     // Asymetrie : une plaque de plus, toujours en haut-arriere.
@@ -518,11 +618,7 @@ function tankClassPath(k) {
     // d'autre du canon. C'est ce que le joueur doit lire — un truc qui protege
     // ce qui est devant lui.
     for (const s of [-1, 1]) {
-      g.moveTo(2, s * 14);
-      g.lineTo(16 + move, s * 16.5);
-      g.lineTo(21 + move, s * 8.5);
-      g.lineTo(9, s * 8.5);
-      g.closePath();
+      mirrored(g, s, [[2, 14], [16 + move, 16.5], [21 + move, 8.5], [9, 8.5]]);
     }
     // Canon court et large, entre les deux braces.
     g.moveTo(10, -6);
@@ -544,14 +640,60 @@ function tankClassShadow(g, R) {
   g.restore();
 }
 
+/* LE SOIGNEUR — refait, pour le meme defaut que le Rempart au lot 6 et constate
+   sur la meme planche : c'etait un polygone a quatorze cotes de rayon 13,
+   c'est-a-dire un CERCLE. Aucun appendice, aucune pointe, donc aucune
+   orientation lisible en silhouette — et c'etait la seule des trois classes
+   dans ce cas, le Rempart ayant son arc de bouclier et le DPS son dard.
+
+   Or la charte dit « la forme dit la classe, la couleur dit le joueur » : un
+   soigneur qui ne tient que par sa teinte fait exactement porter la classe par
+   la couleur, alors que les quatre couleurs sont deja prises par l'identite des
+   joueurs. Sur la planche en noir uni, ses quatre cases etaient des ronds
+   pleins qu'on ne pouvait ni orienter ni distinguer l'un de l'autre.
+
+   Trois ajouts, et pas un canon : il soigne, il ne perce pas.
+     - CORPS EN OEUF pointe vers l'avant plutot qu'un disque. Il garde sa masse
+       ronde — c'est elle qui le separe de l'hexagone du Rempart et du dard du
+       DPS — mais il a desormais un avant et un arriere.
+     - ANTENNE DORSALE, d'un seul cote. C'est l'asymetrie structurelle que les
+       cinq monstres ont tous et qu'aucune des trois classes n'avait ; elle est
+       toujours du meme cote, comme la regle l'exige.
+     - EMBOUCHURE COURTE ET LARGE a l'avant, la ou le faisceau de mode soin part
+       deja (x = 12). Courte face aux deux autres — 21 contre 23 pour le Rempart
+       et 24 pour le DPS — et large par rapport a sa longueur : ca se lit comme
+       une buse, pas comme une arme. */
 function healClassPath(k) {
   const move = k.move ?? 0;
   return g => {
-    g.moveTo(14, 0);
-    for (let i = 1; i <= 14; i++) {
-      const a = (i / 14) * Math.PI * 2;
-      g.lineTo(Math.cos(a) * (13 + move * 0.6), Math.sin(a) * 13);
+    // Corps en oeuf : le rayon decroit vers l'arriere, donc la pointe est a
+    // l'avant sans qu'aucune arete ne vienne casser la rondeur.
+    const pts = 16;
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const r = 13 + Math.cos(a) * 3;
+      const px = Math.cos(a) * (r + move * 0.6), py = Math.sin(a) * r * 0.96;
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
     }
+    g.closePath();
+
+    /* Antenne dorsale, en SOUS-TRACE : enchainee au corps elle y creuserait une
+       entaille — le bug est documente pour le grunt et le tank. Elle se couche
+       vers l'arriere quand il se deplace, ce qui est le seul changement de FORME
+       de son cycle : le reste (respiration, etirement) sont des transformations
+       et ne coutent donc aucune image. */
+    g.moveTo(3, -10.5);
+    g.lineTo(7 - move * 3, -22);
+    g.lineTo(12 - move * 3, -20.5);
+    g.lineTo(9.5, -8.5);
+    g.closePath();
+
+    // Embouchure : courte, large, et evasee vers l'avant.
+    g.moveTo(13, -4.5);
+    g.lineTo(21, -6.5);
+    g.lineTo(21, 6.5);
+    g.lineTo(13, 4.5);
+    g.closePath();
   };
 }
 
@@ -657,6 +799,60 @@ function plan() {
   jobs.push({
     name: "fx_white",
     paint: g => { g.fillStyle = "#ffffff"; g.fillRect(-HALF, -HALF, CELL, CELL); },
+  });
+
+  /* Deux formes de particule, et DEUX SEULEMENT. La regle de budget de l'atlas
+     tranche seule la liste : on ne stocke pas en image ce qu'une transformation
+     sait faire.
+
+     L'ETINCELLE ALLONGEE, qu'on aurait pu croire indispensable, n'est donc PAS
+     ici : une trainee, c'est le carre blanc avec `scaleX` different de `scaleY`
+     et un `angle` — trois parametres que `drawSprite` porte deja. La cuire
+     aurait paye une case pour un `scale`.
+
+     Restent les deux vrais changements de FORME, que nulle transformation d'un
+     carre ne produit :
+       - `fx_shard`, un eclat anguleux. Un fragment de creature n'est pas un
+         pixel : la silhouette irreguliere est ce qui le rattache au corps d'ou
+         il sort, et c'est le meme contraste organique/geometrique qui separe
+         les monstres du decor.
+       - `fx_glow`, un halo a degradé radial. C'est celui qui compte le plus :
+         l'eclair de mort et l'etincelle d'impact partaient en ADDITIF sur un
+         carre blanc a bords francs, donc se lisaient comme des carres lumineux.
+         Une source de lumiere n'a pas d'arete. */
+  jobs.push({
+    name: "fx_shard",
+    paint: g => {
+      // Quadrilatere volontairement DISSYMETRIQUE : quatre sommets suffisent, et
+      // deux d'entre eux hors des axes suffisent a casser la lecture « losange ».
+      g.fillStyle = "#ffffff";
+      g.beginPath();
+      g.moveTo(0, -HALF);
+      g.lineTo(HALF * 0.62, -HALF * 0.12);
+      g.lineTo(HALF * 0.18, HALF);
+      g.lineTo(-HALF * 0.72, HALF * 0.3);
+      g.closePath();
+      g.fill();
+    },
+  });
+
+  jobs.push({
+    name: "fx_glow",
+    paint: g => {
+      /* Le degradé s'arrete a 0,5 de rayon et non au bord de la case : en
+         additif, une queue qui court jusqu'au bord empile des valeurs quasi
+         nulles sur toute la surface et une gerbe dense finit par blanchir le
+         fond. Le point d'arret a 0,45 garde en plus la forme a l'interieur de
+         la gouttiere. */
+      const grad = g.createRadialGradient(0, 0, 0, 0, 0, HALF * 0.9);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(0.45, "rgba(255,255,255,0.38)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(0, 0, HALF * 0.9, 0, Math.PI * 2);
+      g.fill();
+    },
   });
 
   return jobs;

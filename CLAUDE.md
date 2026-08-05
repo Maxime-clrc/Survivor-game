@@ -174,8 +174,8 @@ de l'écran, comme le canvas. Sa règle de budget : **ne pas stocker en image ce
 qu'une transformation peut faire** — respiration, écrasement, orientation, recul
 au tir et rang d'élite sont des `scale` et des `rotate`, donc gratuits. On ne
 paie que les changements de **forme** : membres, mandibules, télégraphes, étapes
-de mort. 48 images, 448 × 448 à densité 1 (1,5 Mo), 896 × 896 à densité 2
-(6,1 Mo).
+de mort. 50 images, 448 × 512 à densité 1 (1,8 Mo), 896 × 1024 à densité 2
+(7,0 Mo) — mesuré, pas extrapolé.
 
 **Chaque case est entourée d'une gouttière transparente de 2 px** (`PAD` /
 `PITCH` dans `sprites.js`). Invisible en canvas 2D — un `drawImage` lit
@@ -184,10 +184,34 @@ linéaire va chercher les texels voisins au bord du rectangle source et ramène
 des franges de l'image d'à côté. `cellRect()` est le point de passage unique de
 la lecture de l'atlas : le chemin 2D et le chemin WebGL lisent la même formule.
 
-**La 48ᵉ case est un carré blanc uni** (`fx_white`). Ce n'est pas un sprite au
-sens de la recette : c'est ce qui fait passer les **particules** par le même lot
-que les entités. Sans elle il faudrait un second chemin de rendu — un tampon à
-part, un shader à part — pour dessiner des carrés.
+**Les trois dernières cases sont des particules, et elles disent une MATIÈRE**
+(`fx_white`, `fx_shard`, `fx_glow`). Ce ne sont pas des sprites au sens de la
+recette : c'est ce qui fait passer les **particules** par le même lot que les
+entités. Sans elles il faudrait un second chemin de rendu — un tampon à part, un
+shader à part — pour dessiner des carrés.
+
+Le vocabulaire est fixe : `fx_white` **étiré** est une étincelle (ce qui file),
+`fx_shard` un éclat anguleux (de la matière arrachée, et il **tourne** —
+`p.spin`), `fx_glow` un halo dégradé (de la lumière ou de la fumée, ce qui n'a
+pas d'arête). Un fragment de créature et un éclair de mort partaient du même
+carré blanc : la mort d'un monstre était un tas de pixels identiques à la gerbe
+d'un impact.
+
+**La liste s'arrête à trois parce que la règle de budget la coupe là.** Une
+étincelle allongée n'a **pas** de case : c'est le carré blanc avec `scaleX`
+différent de `scaleY` et un `angle`, soit trois paramètres que `drawSprite`
+porte déjà — la cuire aurait payé une image pour un `scale`. Seuls l'éclat et le
+halo sont de vrais changements de forme, et la fumée **réutilise le halo** avec
+un `grow` plutôt que d'ouvrir une quatrième case : deux effets qui partagent une
+forme doivent se distinguer par leur **comportement**. `spin` et `grow` sont
+testés et non appliqués par défaut — la boucle tourne sur trois mille particules
+par image, un `if` sur un champ absent coûte moins que l'arithmétique qu'il
+évite.
+
+Le chemin canvas 2D ne rejoue **ni** l'éclat **ni** la traînée : un quadrilatère
+tourné y coûte un `path` par fragment, là où le chemin WebGL n'ajoute rien au
+lot. Il reprend le halo — un `arc` est du même ordre qu'un `fillRect`, et sans
+lui l'éclair de mort reste le carré blanc qu'on est venu supprimer.
 
 ### La bascule WebGL
 
@@ -238,8 +262,65 @@ une entaille dans toute la créature : le grunt et le tank ne passaient plus leu
 propre test de silhouette. Chaque membre commence par un `moveTo` et se ferme
 par un `closePath`.
 
+**Deuxième piège de la même famille, et il est pire parce qu'il est invisible :
+un sous-tracé MIROIR change de sens de parcours.** Écrire les mêmes sommets avec
+`y * s` inverse le sens quand `s = -1`, et `fill()` applique la règle **non
+nulle** — deux contours parcourus en sens contraires annulent leur zone commune.
+Un appendice miroir qui chevauche le corps y perce donc un **trou transparent**,
+que le contour tracé ensuite fait lire comme une fente volontaire. Trois
+créatures en étaient percées sans que personne l'ait vu : mandibules du grunt,
+épaules du tank, braces du Rempart. La planche le montrait depuis toujours — un
+pixel blanc au milieu d'une forme noire — mais à 64 px par case la fente fait
+deux pixels, d'où la nécessité de la regarder en **résolution native**.
+
+`mirrored(g, s, pts)` est le point de passage unique. Il ne devine pas quel côté
+est fautif : il **mesure l'aire signée** du polygone tel qu'il sera émis et
+retourne l'ordre des sommets si le signe n'est pas le bon. Inverser « le côté
+`s = -1` » a été essayé et perçait les **deux** côtés — c'est `s = +1` qui était
+à l'envers sur le tank (corps +845,7 contre épaule −253,5, indice de tour nul au
+point (0,10)). Un test de signe ne peut pas se tromper de côté, et il couvre le
+prochain appendice qu'on écrira sans y penser. Seule hypothèse : les corps sont
+parcourus dans le sens positif, ce qui est le cas des trois concernés.
+
 **Le boss n'est pas dans l'atlas** : il est unique à l'écran, son coût est
 négligeable, et il gagne à être animé en continu au tracé.
+
+**La posture du boss est une TIMELINE en trois temps, et son horloge n'est pas
+celle du bandeau** (`bossCue`, `bossPose` dans `client.js`). Les deux règles se
+contredisent : le bandeau s'efface 250 ms **avant** la résolution, alors que le
+corps doit rester ramassé jusqu'au coup et se détendre **dessus**. Déduire la
+posture de la durée du bandeau, ce qu'on faisait, détendait donc le boss un quart
+de seconde avant de frapper — l'anticipation retombait à plat et rien ne marquait
+l'impact.
+
+- **Anticipation** — `gather` monte de 0 à 1 **en carré**, jamais en linéaire :
+  une rampe droite se lit comme un état, un resserrement qui accélère se lit
+  comme un élan qui se charge.
+- **Maintien** — implicite, la fenêtre va jusqu'à l'impact.
+- **Relâche** — `burst` vaut 1 **à l'instant du coup**, tient `BOSS_HOLD`
+  (0,22 de la fenêtre, soit cinq images), puis retombe avec un **dépassement
+  négatif**. Le palier est mesuré et non choisi : sans lui la courbe amortie
+  tombait de 1,0 à 0,09 en cent millisecondes et le sommet n'existait qu'un
+  instant. L'écrasement est asymétrique — −9 % au ramassé, +12 % à la détente —
+  parce qu'une détente qui ne dépasse pas le repos se lit comme un arrêt.
+
+Deux corollaires. `bossPose` est **sans effet de bord** : `drawBoss` est appelé
+deux fois par image pour les Jumeaux, et une posture qui se consommerait à la
+lecture désynchroniserait les deux moitiés pile sur le coup. Et `bossSheet()`
+**neutralise** `bossCue` le temps du tracé, par le même détournement que `ctx` —
+le test de silhouette est un critère d'acceptation, il ne peut pas dépendre de
+l'instant où on l'a pris.
+
+**Chaque boss rend le coup dans son propre verbe**, jamais par le seul
+écrasement commun : les pointes du Ravageur jaillissent au double de leur
+retrait et sa couronne prend de l'avance sur le corps ; les poches de la
+Matriarche se **vident** au lieu de gonfler — seule pièce du jeu à aller à
+contresens de la détente, parce que ce qui sort d'elle *est* le danger ; les
+anneaux du Métronome reçoivent un à-coup **proportionnel à leur vitesse**, ce qui
+accentue l'écart entre les trois au lieu de le refermer ; les glyphes de l'Oracle
+s'éteignent pendant que son œil se dilate, l'énergie va quelque part ; et
+l'oscillation des Jumeaux **enfle**, les deux moitiés s'écartant visiblement —
+leur verbe est la séparation, pas la poussée.
 
 `shared/cards.js`, `shared/classes.js`, `shared/statuses.js` et
 `shared/bosses.js` ne dépendent de **rien** : `game_state.js` les importe,
@@ -497,6 +578,25 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **Ne jamais écrire dans `ENEMY_TYPES`.** La table est partagée, exportée et lue par le client. Les retardataires copient `standoff` sur l'ennemi (`e.standoff`) au lieu de modifier son type, qui désarmerait les tireurs pour tout le processus.
 
+**Le sanctuaire se reconnaît à ses CROIX QUI MONTENT**, pas à sa couleur. Un
+disque vert clair et un disque bleu clair posés au sol se distinguent mal en
+pleine mêlée — le rempart est l'autre grand disque — alors que du mouvement se
+lit par-dessus n'importe quel encombrement. C'est le même raisonnement que pour
+les signatures de zone ci-dessous. La croix n'est pas un glyphe inventé pour
+l'occasion : c'est `POWERUP_ICON.heal`, déjà **le** signe du soin dans l'arène et
+dans le HUD.
+
+Sept croix, montée de 2,6 s, **aucune allocation et aucune liste** : la position
+de chacune est une fonction de l'identifiant du sanctuaire, de son rang et du
+temps. Les particules du jeu passent par `particles`, qui a un plafond et un coût
+de gestion ; sept croix par dôme n'ont ni à naître, ni à mourir, ni à être
+comptées. Trois détails qui trahissent la boucle si on les oublie : la phase est
+décalée **par rang et par identifiant** (en phase, les sept montent comme une
+barre et deux dômes battent à l'unisson), la dérive latérale est bornée par la
+**corde du cercle** à cette hauteur (sinon une croix sort du dôme ou se pose sur
+le liseré, qui porte l'information tactique), et l'opacité s'ouvre et se ferme en
+sinus (une croix qui surgit ou se coupe net au bord se lit comme un défaut).
+
 **Une zone se reconnaît à sa SIGNATURE avant sa couleur** (lot E) : imminent = craquelures qui s'ouvrent depuis le centre (`drawZoneCracks`, géométrie par identifiant de zone), persistant = braises et fumée qui montent + pulsation **synchronisée sur `ZONE_TICK`**, mobile = courant déduit du déplacement entre deux images (`zoneMotion`, jamais transmis) avec avant-garde lumineuse, accueillant = halo centripète + colonne lumineuse (`drawMarkColumns`, la seule chose dessinée au-dessus de la horde — le disque du marqueur reste sous les entités). Une détonation laisse une **décoloration du sol de 2 s** (`scorches`). Trois plafonds : particules de zone à part (`zoneFx`, 600), fumée **jamais** sur un télégraphe, et le télégraphe jamais plus voyant que la zone active.
 
 **Les zones de dégâts sont pleines ; les retraits sont purement visuels.** Les cases du damier se touchent exactement — le jeu de quelques pixels qu'on met d'ordinaire pour la lisibilité créait une ligne parfaitement sûre sur toute la hauteur de l'arène. L'inset se fait dans `zonePath()` côté client.
@@ -538,6 +638,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | `kind` d'effet → son | rien | `EFFECT_SOUND` dans `client.js` : son et amplitude de tressaillement par `kind` |
 | glyphe posé sur un joueur | `a` / `b` d'une entrée de `state.marks` | `PLAYER_MARK` + `paintMarkGlyph()` |
 | effet possédé visible en jeu | rien — déduit de la liste de cartes | `EFFECT_BADGES` dans `client.js` : bande d'effets actifs du HUD |
+| façon de mourir d'un type | rien — déduit du type déjà porté par le snapshot | `DEATH_BURST` dans `client.js` : compte, taille, vitesse, durée, halo et ouverture de gerbe |
 | pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
 | hub des salles | messages `listRooms` · `createRoom` · `joinRoom` · `leaveRoom` (client → serveur) ; `rooms` · `roomJoined` · `joinRoomError` (motifs `pleine` · `disparue` · `motdepasse` · `plafond`) · `roomClosed` (serveur → client) — routés par `hub.js`, jamais par une salle | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité (compte + session) | messages `register` · `login` · `loginToken` · `logout` · `changePass` (client → serveur) ; `register/login/loginToken/…` dans `progress_store.js` ; réponses `welcome{pseudo,token?,dup}` · `authError{motif,fatal?}` · `passChanged` · `loggedOut` ; ni hachage ni mot de passe ne voyagent jamais vers un client | `#gate` (trois modes : reprise / connexion / création), bloc compte du hub, `survivor.token` en localStorage |
@@ -549,13 +650,26 @@ Ajouter une entrée impose de traiter les deux côtés :
 | propriétaire d'une balle | cinquième élément du tuple `b`, ajouté **en fin** | `ownerColorOf(b.owner) ?? COMBAT.bullet` dans `drawWorld` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
 
-Cinq de ces registres sont **purement clients** — image de sprite, son, `kind`
-d'effet → son, glyphe posé sur un joueur, effet possédé visible en jeu — auxquels
-s'ajoute la **catégorie de carte** : un son, un glyphe, une icône d'effet et une
-image de sprite ne traversent pas le réseau, ils se déduisent de ce que le
-snapshot — ou la liste de cartes, déjà diffusée — dit déjà. Une nouvelle
-mécanique ne demande donc pas d'ajouter un message : seulement une entrée dans
-`MECHS` et, si elle marque un joueur, une entrée dans `PLAYER_MARK`.
+Six de ces registres sont **purement clients** — image de sprite, son, `kind`
+d'effet → son, glyphe posé sur un joueur, effet possédé visible en jeu, façon de
+mourir d'un type — auxquels s'ajoute la **catégorie de carte** : un son, un
+glyphe, une icône d'effet et une image de sprite ne traversent pas le réseau, ils
+se déduisent de ce que le snapshot — ou la liste de cartes, déjà diffusée — dit
+déjà. Une nouvelle mécanique ne demande donc pas d'ajouter un message : seulement
+une entrée dans `MECHS` et, si elle marque un joueur, une entrée dans
+`PLAYER_MARK`.
+
+**Les cinq types ne mouraient pas différemment**, et c'est ce que `DEATH_BURST`
+corrige : le seul branchement était le rang d'élite, donc un tank de 42 px de
+large se désagrégeait en la même poussière qu'un runner de 21. C'est gaspiller la
+seule information gratuite qu'on ait — le joueur **sait** déjà ce qu'il vient de
+tuer, la mort doit le lui confirmer. Le rang d'élite reste **orthogonal** au
+type : il multiplie le compte et la taille, il ne choisit pas une autre façon de
+mourir. Un gros morceau tourne **lentement** (`spin` indexé sur l'inverse de la
+taille), sans quoi un fragment de tank tourbillonne comme une escarbille. Et
+l'**orientation** voyage avec la mort — elle est déjà dans le snapshot pour
+dessiner l'ennemi — pour que le runner éclate le long de sa course : la vitesse
+était son identité entière, elle doit lui survivre d'une demi-seconde.
 
 **Le retour d'impact, lui, n'est PLUS déduit** : il l'était, et c'était le
 défaut. Voir `hitSeq` dans les invariants — un différentiel de PV échantillonné
@@ -645,17 +759,41 @@ couleur ou son détail interne a raté son test, et le style travaille alors
 contre la mécanique. Deux silhouettes ont déjà échoué à cette planche et ont été
 refaites.
 
-**Une teinte par type, et cinq valeurs dérivées** (`ramp()` dans `palette.js`) :
-ombre, base, lumière, accent, contour. Le **décalage de teinte** dans l'ombre et
-la lumière, plutôt qu'un simple assombrissement, est ce qui distingue une
-palette dessinée d'un dégradé mécanique. Écrire les cinq à la main pour cinq
-types, c'était vingt-cinq valeurs à garder cohérentes.
+**Une teinte par type, et six valeurs dérivées** (`ramp()` dans `palette.js`) :
+ombre, base, lumière, accent, contour, **contre-jour**. Le **décalage de teinte**
+dans l'ombre et la lumière, plutôt qu'un simple assombrissement, est ce qui
+distingue une palette dessinée d'un dégradé mécanique. Les écrire à la main pour
+cinq types, c'était trente valeurs à garder cohérentes.
 
-**La recette en six couches est appliquée uniformément** : silhouette, ombrage
-décalé et écrêté, lumière en arc haut-gauche, contour, accents, asymétrie du
-même côté à chaque image. Si un type demande un traitement particulier, c'est le
-**type** qu'il faut revoir, pas la recette — un style n'est tenable que s'il se
-répète à l'identique sur tout le jeu.
+Le **contre-jour** (`rim`) est le liseré clair du côté opposé à la lumière
+principale : c'est la valeur qui détache une créature d'un fond sombre, et
+l'arène l'est. Sans lui une silhouette sombre sur un sol sombre ne tient que par
+son contour, c'est-à-dire par la seule chose qui ne dit rien de sa forme. Il
+reste dérivé de la **teinte du type** et non d'une couleur d'ambiance commune :
+un liseré identique sur les cinq les aurait rapprochés à moyenne distance.
+
+**La recette en sept couches est appliquée uniformément** : silhouette, ombrage
+décalé et écrêté, lumière en arc haut-gauche, **contre-jour**, contour, accents,
+asymétrie du même côté à chaque image. Si un type demande un traitement
+particulier, c'est le **type** qu'il faut revoir, pas la recette — un style n'est
+tenable que s'il se répète à l'identique sur tout le jeu. Le contre-jour passe
+**avant** le contour, qui l'encadre ensuite : dessiné par-dessus, il mangerait la
+ligne sombre qui détache la créature du sol.
+
+**Les trois grandeurs d'éclairage suivent la TAILLE de la forme, elles ne sont
+plus fixes** (`pathExtent()`). Le décalage d'ombre valait 2 px et l'arc de
+lumière un rayon de 12,6 pour tout le monde : un runner de 21 px d'épaisseur et
+un Rempart de 33 recevaient le même modelé. Sur le petit, l'arc débordait et
+disparaissait à l'écrêtage ; sur le gros, l'ombre de 2 px était un cheveu. La
+lumière était posée **à côté** de la forme au lieu de la suivre — et l'arc est
+désormais centré sur la forme réelle, pas sur l'origine, sinon un tireur dont le
+corps est décalé vers l'arrière reçoit sa lumière sur son canon.
+
+L'étendue est **mesurée et non déclarée** : un `size` recopié à côté de chaque
+type aurait menti dès le premier réglage de silhouette. Les huit tracés
+n'appellent que `moveTo`, `lineTo` et `closePath`, donc un enregistreur suffit.
+On retient la **plus petite** des deux dimensions, jamais la plus grande ni la
+diagonale : c'est l'épaisseur qui dit combien de place il y a pour modeler.
 
 **La forme dit la classe, la couleur dit le joueur.** Les quatre couleurs de
 joueur sont déjà prises par l'identité individuelle : faire porter la classe par
@@ -663,6 +801,18 @@ la couleur rendrait soit deux tanks identiques, soit deux joueurs confondus. Les
 sprites de classe sont donc cuits dans une rampe neutre et teintés à la volée.
 Le mode soin est la seule exception, et c'est voulu — c'est une information
 tactique pour toute l'équipe.
+
+**Le Soigneur a été refait, pour la même raison que le Rempart au lot 6 et
+constaté sur la même planche** : c'était un polygone à quatorze côtés de rayon
+13, c'est-à-dire un **cercle**. Aucun appendice, aucune pointe, donc aucune
+orientation lisible en silhouette — et il était la seule des trois classes dans
+ce cas. Un soigneur qui ne tient que par sa teinte fait exactement porter la
+classe par la couleur, ce que la règle ci-dessus interdit. Corps en **œuf**
+pointé vers l'avant (il garde la masse ronde qui le sépare de l'hexagone du
+Rempart et du dard du DPS, mais il a un avant et un arrière), **antenne dorsale**
+d'un seul côté — l'asymétrie structurelle que les cinq monstres ont tous et
+qu'aucune classe n'avait — et **embouchure courte et large** là où part déjà le
+faisceau de mode soin. Pas de canon : il soigne, il ne perce pas.
 
 **Trois principes d'animation, et aucun ne coûte une image d'atlas** :
 anticipation (le brood gonfle avant d'éclater, le tireur recule son canon, le
@@ -686,6 +836,31 @@ seule exception et le joueur cesse de faire confiance au code couleur, donc lit
 tout au cas par cas, ce qui est intenable à 200 ennemis à l'écran. Les couleurs
 d'**identité** (classes, types de monstres, bonus au sol) sont une famille à
 part : elles disent *qui*, pas *quoi*, et ne suivent pas cette grammaire.
+
+**Un seul vert pour le soin, et c'est `HEAL`** (alias de `SIGNAL.gain` dans
+`palette.js`). Il y en avait **quatre** : `SIGNAL.gain` sur les chiffres de soin
+et `MARK.ok`, `POWERUP_COLOR.heal` (`#6fe3a0`) sur le bonus au sol, et
+`CLASS_COLOR.soigneur` (`#8ef0c8`) sur le tir de soin, le sanctuaire, la vague de
+soin et la balise. Quatre verts qu'aucun joueur ne peut distinguer volontairement
+— donc la même information dite de quatre façons, c'est-à-dire aucune. Pire,
+`POWERUP_COLOR.beacon` valait **exactement** `CLASS_COLOR.soigneur` : une balise
+au sol avait la couleur d'un joueur.
+
+Règle : **tout ce qui rend des PV ou relève un allié porte `HEAL`** — bonus de
+soin, balise, tir du soigneur, vague de soin, sanctuaire, mode soin du
+personnage, chiffres verts. Le relèvement en fait partie : il restaure un allié,
+c'est la même promesse.
+
+**Cette famille est une exception à la carve-out d'identité ci-dessus**, et c'est
+délibéré : un bonus qui soigne est d'abord un soin, ensuite un objet.
+`CLASS_COLOR.soigneur` reste l'identité du **joueur** et ne dit plus jamais
+« ceci soigne » — c'est la distinction entre le *qui* et le *quoi* qui rendait la
+table incohérente. Corollaire : le sanctuaire a quitté la couleur de classe que
+partagent le rempart et l'ancre. C'était la bonne règle pour ces deux-là, qui
+déplacent ou retiennent, et la mauvaise pour lui, qui **soigne**.
+
+Un **alias** et non une valeur recopiée : deux littéraux identiques divergent au
+premier réglage, ce que `palette.js` existe précisément pour empêcher.
 
 **Chaque rareté a un matériau, pas seulement une couleur** : bordure plate,
 bordure épaisse, lueur externe, dégradé balayé. C'est ce qui la rend

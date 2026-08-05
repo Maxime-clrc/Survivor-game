@@ -90,8 +90,12 @@ export function diffSnapshots(a, b, opts = {}) {
        montant est donc ce qui lui restait au dernier instantane connu — c'est
        exactement ce que la balle lui a pris, aux degats de surplus pres, et
        c'est le chiffre le plus satisfaisant du jeu. */
+    /* L'ORIENTATION voyage avec la mort. Elle ne coute rien — le snapshot la
+       porte deja pour dessiner l'ennemi — et c'est elle qui permet a une
+       depouille de runner d'eclater le long de sa course plutot que dans toutes
+       les directions. Sans elle, les cinq types mouraient exactement pareil. */
     out.push({ t: "mort", id, x: ea.x, y: ea.y, type: ea.type, elite: ea.elite,
-               dmg: Math.max(0, ea.hp), maxHp: ea.maxHp });
+               ang: ea.ang, dmg: Math.max(0, ea.hp), maxHp: ea.maxHp });
     nDeath++;
   }
 
