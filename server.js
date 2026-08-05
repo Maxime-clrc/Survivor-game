@@ -28,7 +28,7 @@ import {
 import { createStore } from "./progress_store.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = Number(process.env.PORT) || 8082;
 const MAX_PLAYERS = PLAYER_COLORS.length;
 
 /* --- serveur de fichiers statiques ----------------------------------------- */
@@ -141,19 +141,6 @@ let hostId = 0;
    depart d'un joueur : JAMAIS pendant une vague. */
 const store = createStore(msg => log(msg));
 
-/* L'identifiant de compte vient du localStorage du client, tire au sort a la
-   premiere connexion — le pseudo n'est qu'un affichage, n'importe qui peut
-   taper celui d'un autre. Un identifiant absent ou difforme (vieux client,
-   client bricole) recoit un compte tout neuf : c'est le sens sur du refus. */
-function sanitizeUid(v) {
-  return (typeof v === "string" && /^[a-z0-9]{8,64}$/i.test(v)) ? v : null;
-}
-function randomUid() {
-  let s = "";
-  while (s.length < 24) s += Math.floor(Math.random() * 36).toString(36);
-  return s;
-}
-
 /* Tout l'etat dynamique du compte, envoye au client apres chaque changement.
    Les TABLES (arbres, couts, jalons) ne voyagent pas : le client importe
    `shared/progression.js` lui-meme, deux copies auraient diverge au premier
@@ -169,11 +156,10 @@ function progressPayload(c) {
     kills: pr.kills,
     classes: pr.classes,
     confort: pr.confort,
-    // Pseudo reserve du compte et son tag (chaines vides sinon). Le HACHAGE
-    // du code ne voyage jamais : le client n'a aucun usage legitime d'un
-    // hachage.
+    // Le pseudo du compte (toujours pose depuis la simplification pseudo+cle).
+    // Le HACHAGE de la cle ne voyage jamais : le client n'a aucun usage
+    // legitime d'un hachage.
     pseudo: pr.pseudo ?? "",
-    tag: pr.tag ?? "",
     // Le gain de la derniere manche, pour le bilan — remis a zero apres envoi.
     gained: c.lastGain ?? 0,
   };
@@ -602,24 +588,56 @@ attachWebSocket(httpServer, conn => {
     switch (msg.t) {
       case "join": {
         if (client.joined) break;
+
+        /* Frein a la force brute sur les tentatives de CLE — cinq essais par
+           connexion, comme l'ancien `recover`. Au-dela, il faut une connexion
+           neuve : retenter sur celle-ci contournerait le compteur pour rien,
+           d'ou `fatal` (le client doit fermer la socket, pas juste renvoyer
+           un `join` corrige). */
+        if ((client.joinFails | 0) >= 5) {
+          conn.send(JSON.stringify({ t: "joinError",
+            msg: "trop d'essais — reconnecte-toi pour réessayer", fatal: 1 }));
+          break;
+        }
+
+        const pseudo = sanitizePseudo(msg.pseudo);
+        if (!pseudo) {
+          conn.send(JSON.stringify({ t: "joinError",
+            msg: "pseudo invalide (3 à 14 caractères : lettres, chiffres, _ . -)" }));
+          break;
+        }
+
+        /* Fusion pseudo+cle (claim + recover d'avant) : pseudo libre -> compte
+           cree ici ; pseudo pris -> il faut la cle. `resolveAccount` ne dit
+           jamais LEQUEL des deux cloche sur un echec — sinon un pseudo sans
+           cle designe qui a un compte existant, ce qu'un simple curieux ne
+           doit pas pouvoir tester. */
+        const key = typeof msg.key === "string" ? msg.key : "";
+        const r = store.resolveAccount(pseudo, key);
+        if (!r.ok) {
+          // Compte seulement les vraies tentatives de cle : un pseudo pris
+          // rencontre SANS cle est le cas normal d'un nouveau joueur qui
+          // cherche encore un pseudo libre, pas une tentative de devinette.
+          if (key) client.joinFails = (client.joinFails | 0) + 1;
+          conn.send(JSON.stringify({ t: "joinError",
+            msg: "ce pseudo est déjà pris — entre sa clé pour le récupérer, ou choisis-en un autre" }));
+          break;
+        }
+
         client.joined = true;
-        client.name = sanitizeName(msg.name) || client.name;
+        client.name = r.profile.pseudo;
+        client.pseudoKey = pseudo.toLowerCase();
         client.colorIndex = freeColor();
-        /* Compte de progression (lot D). L'identifiant vient du client ; s'il
-           est absent ou difforme, on en tire un neuf et on le renvoie dans le
-           `welcome` — le client le range dans son localStorage. */
-        client.uid = sanitizeUid(msg.uid) ?? randomUid();
         /* Le meme compte connecte deux fois cumulerait les noyaux en double —
-           `awardRun` parcourt les clients, pas les comptes. Avant la
-           recuperation par pseudo + code c'etait impossible (un identifiant
-           par navigateur) ; maintenant deux machines peuvent porter le meme.
-           Le second recoit un compte jetable, et son welcome n'emporte PAS
-           cet identifiant : le localStorage du navigateur garde le vrai
-           compte, qui reprend la main des que l'autre onglet est ferme. */
+           `awardRun` parcourt les clients, pas les comptes. Le controle se
+           fait ICI, APRES verification de la cle (jamais avant : sinon un
+           pseudo sans cle sert d'oracle de presence). La copie est DETACHEE
+           (`structuredClone`) et n'est jamais rangee dans `data.players` :
+           contrairement a l'ancien compte jetable par uid, elle ne laisse
+           aucun dechet a sauvegarder derriere elle. */
         client.tempAccount = [...clients.values()]
-          .some(c => c !== client && c.uid === client.uid);
-        if (client.tempAccount) client.uid = randomUid();
-        client.profile = store.profileFor(client.uid, client.name);
+          .some(c => c !== client && c.pseudoKey === client.pseudoKey);
+        client.profile = client.tempAccount ? structuredClone(r.profile) : r.profile;
 
         // Arriver en cours de manche ne coupe pas la partie des autres :
         // on regarde, on entre a la manche suivante.
@@ -637,22 +655,29 @@ attachWebSocket(httpServer, conn => {
           phase,
           spectator: client.spectator,
           colors: PLAYER_COLORS,
-          // Compte jetable : ne pas l'envoyer, sinon le client ECRASERAIT le
-          // vrai compte dans son localStorage (JSON.stringify omet undefined).
-          uid: client.tempAccount ? undefined : client.uid,
+          /* Dit au client s'il doit marquer une pause sur #gate avant de
+             rejoindre le salon : compte neuf (afficher la cle une fois) ou
+             deja connecte ailleurs (le dire). Sur CES DRAPEAUX et rien
+             d'autre — jamais sur l'ordre d'arrivee des messages, qui ne
+             garantit rien cote logique client. */
+          fresh: r.fresh ? 1 : 0,
+          dup: client.tempAccount ? 1 : 0,
           cfg: {
             ARENA_W: CFG.ARENA_W, ARENA_H: CFG.ARENA_H,
             SNAPSHOT_HZ: CFG.SNAPSHOT_HZ,
           },
         }));
-        sendProgress(client);
-        if (client.tempAccount) {
-          client.conn.send(JSON.stringify({ t: "accountError",
-            msg: "ce compte est déjà connecté ailleurs — progression temporaire sur cet onglet" }));
+        // La cle n'existe EN CLAIR qu'ici, au moment de sa creation : le
+        // serveur n'en garde qu'un hachage (resolveAccount), et ce message ne
+        // repart jamais une deuxieme fois pour ce compte.
+        if (r.fresh) {
+          conn.send(JSON.stringify({ t: "accountCreated", pseudo: r.profile.pseudo, key: r.key }));
         }
+        sendProgress(client);
         broadcast(lobbyPayload());
         log(`${client.name} rejoint${client.spectator ? " (spectateur)" : ""}`
-            + `${client.tempAccount ? " (compte jetable : le sien est deja connecte)" : ""}`
+            + `${r.fresh ? " (nouveau compte)" : ""}`
+            + `${client.tempAccount ? " (deja connecte ailleurs : session temporaire)" : ""}`
             + ` — ${joined().length} connecte(s)`);
         break;
       }
@@ -843,68 +868,6 @@ attachWebSocket(httpServer, conn => {
         break;
       }
 
-      /* --- compte a pseudo reserve ---------------------------------------------
-         Reserver attache un pseudo unique au compte et rend un code secret ;
-         pseudo + code retrouvent le compte depuis un autre navigateur. Salon
-         uniquement, comme les achats — un changement d'identite en pleine
-         manche n'a aucun sens et le profil est lu par la simulation. */
-
-      case "claim": {
-        if (phase !== PHASE_LOBBY || !client.profile) break;
-        const pseudo = sanitizePseudo(msg.pseudo);
-        if (!pseudo) {
-          client.conn.send(JSON.stringify({ t: "accountError",
-            msg: "pseudo invalide (3 à 14 caractères : lettres, chiffres, _ . -)" }));
-          break;
-        }
-        const r = store.claimPseudo(client.uid, pseudo);
-        if (r.error) {
-          client.conn.send(JSON.stringify({ t: "accountError", msg: r.error }));
-          break;
-        }
-        log(`${client.name} réserve le pseudo « ${pseudo}#${r.tag} »`);
-        client.conn.send(JSON.stringify({ t: "claimed", pseudo, tag: r.tag, code: r.code }));
-        sendProgress(client);
-        break;
-      }
-
-      case "recover": {
-        if (phase !== PHASE_LOBBY || !client.profile) break;
-        /* Frein a la force brute : cinq essais par connexion. Le code a ~40
-           bits d'entropie, ce frein suffit sur un LAN — pas de bannissement
-           d'IP, qui punirait toute la maisonnee derriere un NAT. */
-        client.recoverFails = client.recoverFails | 0;
-        if (client.recoverFails >= 5) {
-          client.conn.send(JSON.stringify({ t: "accountError",
-            msg: "trop d'essais — reconnecte-toi pour réessayer" }));
-          break;
-        }
-        const uid = store.recoverUid(msg.pseudo, msg.code);
-        if (!uid) {
-          client.recoverFails++;
-          client.conn.send(JSON.stringify({ t: "accountError",
-            msg: "pseudo ou code incorrect" }));
-          break;
-        }
-        // Deux onglets sur le meme compte cumuleraient deux fois les noyaux
-        // d'une meme manche : le compte doit etre libre.
-        if ([...clients.values()].some(c => c !== client && c.uid === uid)) {
-          client.conn.send(JSON.stringify({ t: "accountError",
-            msg: "ce compte est déjà connecté" }));
-          break;
-        }
-        client.uid = uid;
-        client.profile = store.profileFor(uid, client.name);
-        store.save();
-        log(`${client.name} récupère le compte « ${client.profile.pseudo}#${client.profile.tag ?? ""} »`);
-        // Le client range ce nouvel identifiant dans son localStorage, comme
-        // il range celui du welcome.
-        client.conn.send(JSON.stringify({ t: "recovered", uid,
-          pseudo: client.profile.pseudo, tag: client.profile.tag ?? "" }));
-        sendProgress(client);
-        break;
-      }
-
       /* « Relance » : un nouveau tirage de la MEME qualite, une fois par
          manche, tant qu'on n'a pas choisi. Le serveur retire l'offre
          precedente — elle n'est plus valable, `pickCard` la refuserait. */
@@ -948,14 +911,10 @@ attachWebSocket(httpServer, conn => {
   };
 });
 
-function sanitizeName(v) {
-  if (typeof v !== "string") return "";
-  return v.replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, 14);
-}
-
-/* Le pseudo reserve suit le meme alphabet que le nom d'affichage mais SANS
-   espace (un pseudo se recopie a la main, un espace invisible en bout de champ
-   ferait echouer la recuperation sans explication) et avec un minimum de trois
+/* Le pseudo est desormais le compte (simplification pseudo+cle) : plus de nom
+   d'affichage distinct a sanitiser separement. SANS espace — un pseudo se
+   recopie a la main pour se reconnecter, un espace invisible en bout de champ
+   ferait echouer la reconnexion sans explication — et un minimum de trois
    caracteres. */
 function sanitizePseudo(v) {
   if (typeof v !== "string") return null;

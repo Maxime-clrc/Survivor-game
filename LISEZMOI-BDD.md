@@ -1,7 +1,7 @@
 # Sauvegarde Supabase et comptes joueurs
 
 Ce guide couvre la mise en place de la persistance Supabase de la progression
-et le fonctionnement des comptes à pseudo réservé. Le raisonnement derrière
+et le fonctionnement de l'identité joueur (pseudo + clé). Le raisonnement derrière
 chaque choix est documenté dans `CLAUDE.md` (section lot D) ; ici, uniquement
 les étapes à suivre.
 
@@ -150,28 +150,46 @@ Avec un **redéploiement automatique à chaque push**, deux choses à savoir :
 Aucun de ces cas ne bloque le jeu : la partie en cours continue, les envois
 reprennent au prochain succès.
 
-## Comptes joueurs (pseudo réservé)
+**Après la simplification pseudo+clé (version de progression 1 → 2)** : si la
+table Supabase contient encore une ligne de l'ancien format (comptes
+`pseudo#tag`), le serveur voit une version inconnue et affiche le même
+`sauvegarde suspendue pour ne pas l'écraser` que ci-dessus — mais dans l'autre
+sens (la ligne distante est plus **ancienne**, pas plus récente). Les seuls
+comptes existants au moment de cette mise à jour étaient des comptes de test :
+effacer la ligne dans **Table Editor → progress** (ou `delete from progress;`
+dans le SQL Editor) avant de relancer le serveur, qui repartira alors d'une
+table vide.
 
-Par défaut, la progression d'un joueur est liée au navigateur (un identifiant
-dans le `localStorage`). Changer de machine ou de navigateur repart de zéro —
-sauf si le joueur réserve un pseudo.
+## Identité joueur (pseudo + clé)
 
-**Réserver.** Au salon, bloc « Compte » : entrer un pseudo et cliquer
-« Réserver ». Le serveur attribue un tag à quatre chiffres — l'identité
-complète est `Pseudo#1234`, façon Discord, donc deux personnes peuvent porter
-le même pseudo — et affiche un **code secret** (`XXXX-XXXX`), une seule fois.
-Le noter avec le pseudo complet : le serveur n'en garde qu'une empreinte
-chiffrée, il ne pourra jamais le réafficher.
+Le pseudo tapé sur l'écran de connexion **est** le compte — pas d'étape à
+part, pas de tag à quatre chiffres, pas d'identifiant invisible dans le
+`localStorage`.
 
-**Récupérer.** Sur un autre navigateur : entrer le pseudo (`Kevin` ou
-`Kevin#4821`) et le code, cliquer « Récupérer ». La progression suit. Le code
-se tape indifféremment en majuscules ou minuscules, avec ou sans tiret.
+**Première connexion.** Taper un pseudo neuf et cliquer « Rejoindre » : le
+serveur crée le compte et affiche une **clé secrète** (`XXXX-XXXX`), une seule
+fois, sur cette même page. La noter avec le pseudo : le serveur n'en garde
+qu'une empreinte chiffrée, il ne pourra jamais la réafficher.
 
-**Code perdu.** Re-réserver le même pseudo depuis un navigateur encore
-connecté au compte : un nouveau code est généré, l'ancien meurt, le tag ne
-change pas.
+**Même navigateur, plus tard.** Rien à retaper — le pseudo et la clé sont
+mémorisés localement et renvoyés tout seuls au clic sur « Rejoindre ».
 
-Limites voulues : cinq essais de récupération par connexion, récupération
-refusée si le compte est déjà connecté ailleurs, et le second onglet ouvert
-sur un même compte reçoit un compte temporaire (les noyaux ne se comptent
-jamais en double).
+**Autre navigateur ou autre machine.** Taper le pseudo ET la clé dans le
+champ prévu à côté ; la progression suit. La clé se tape indifféremment en
+majuscules ou minuscules, avec ou sans tiret.
+
+**Clé perdue : il n'y a pas de rattrapage.** Contrairement à l'ancien système
+(un identifiant de navigateur permettait de re-réserver un nouveau code), le
+pseudo+clé est la seule porte d'entrée du compte — la perdre sans l'avoir
+notée abandonne ce pseudo et sa progression pour de bon. Choisir un autre
+pseudo repart d'un compte neuf. Acceptable pour un LAN de quatre joueurs ;
+à savoir avant de miser beaucoup de parties sur un compte qu'on ne peut pas
+noter (poste public, appareil partagé...).
+
+**Pseudo déjà pris ?** Sans la bonne clé, la connexion est refusée — choisir
+un pseudo différent, ou entrer la clé qui va avec celui-là.
+
+Limites voulues : cinq tentatives de clé par connexion avant reconnexion
+forcée, et le second onglet ouvert sur un même pseudo (déjà connecté ailleurs)
+reçoit une session temporaire, non sauvegardée — les noyaux ne se comptent
+jamais en double.

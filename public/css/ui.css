@@ -203,8 +203,11 @@ button:hover:not(:disabled) { border-color: var(--text-dim); }
 button:disabled { opacity: 0.45; cursor: default; }
 
 /* Le bouton de lancement est l'element le plus voyant de l'ecran : c'est la
-   seule ACTION du salon, tout le reste est un reglage ou de l'information. */
-#start {
+   seule ACTION du salon, tout le reste est un reglage ou de l'information.
+   `#gateContinue` (connexion -> salon) et `#menuClose` (retour au salon depuis
+   la progression d'une classe) portent la meme grammaire : chacun est aussi
+   LA seule action de son ecran. */
+#start, #gateContinue, #menuClose {
   font-size: var(--t-l);
   font-weight: 700;
   letter-spacing: var(--track-title);
@@ -216,12 +219,24 @@ button:disabled { opacity: 0.45; cursor: default; }
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--bevel)),
                      calc(100% - var(--bevel)) 100%, 0 100%);
 }
-#start:hover:not(:disabled) { filter: brightness(1.12); }
+#start:hover:not(:disabled), #gateContinue:hover:not(:disabled), #menuClose:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
 
 #status { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); text-align: center; }
 #status.err { color: var(--lethal); }
 .hint { font-size: var(--t-xs); color: var(--text-dim); line-height: 1.7; text-align: center; }
 .hint b { color: var(--text); }
+
+/* Pause forcee sur #gate : compte neuf (cle a noter) ou deja connecte
+   ailleurs (a dire) — dans tous les autres cas, join va direct au salon,
+   cet ecran ne s'affiche jamais. */
+#gateHold { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); }
+#gateWho { color: var(--text); }
+/* Clé courte (XXXX-XXXX) : pas besoin de toute la largeur du pseudo, et une
+   ligne pseudo+cle+bouton qui deborde sur mobile serait pire que deux tailles
+   differentes. */
+#key { max-width: 130px; }
 
 /* --- reglage du son --------------------------------------------------------- */
 #audioRow { display: flex; align-items: center; gap: var(--sp-3); }
@@ -275,6 +290,17 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
 
 #summary { font-size: var(--t-s); color: var(--text-dim); }
 #panelTitle {
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* --- Menu : ecran hub entre connexion et salon -------------------------------
+   Meme famille que #gate/#panel (.overlay). Premier occupant : la
+   progression (#meta, ci-dessous), deplacee du salon. */
+#menuTitle {
   font-size: var(--t-l);
   font-weight: 700;
   letter-spacing: var(--track-caps);
@@ -354,21 +380,13 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
 }
 #metaMilestones .metaJalon.done { color: var(--go); }
 
-/* --- compte a pseudo reserve -------------------------------------------------
-   Le code secret est la seule chose de ce bloc qu'on RECOPIE : gros, chasse
-   fixe (c'est deja la police du jeu), espace entre les caracteres — il se lit
-   depuis l'autre bout de la piece, ou se prend en photo. */
-#account {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-2);
-  width: min(720px, 92vw);
-}
-#account .accRow { justify-content: center; }
-#account input { font-size: var(--t-s); width: 180px; }
-#account button { font-size: var(--t-s); }
-#accCode {
+/* --- identite : pseudo + cle --------------------------------------------------
+   La cle est la seule chose de ce bloc qu'on RECOPIE : gros, chasse fixe
+   (c'est deja la police du jeu), espace entre les caracteres — elle se lit
+   depuis l'autre bout de la piece, ou se prend en photo. Meme traitement
+   visuel qu'avant (ex-`#accCode`), la simplification pseudo+cle n'a change
+   que le protocole, pas ce rendu-la. */
+#keyReveal {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -378,18 +396,18 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
   border-radius: var(--radius);
   background: var(--bg-panel);
 }
-#accCodeHandle {
+#keyRevealHandle {
   font-size: var(--t-m);
   font-weight: 700;
   color: var(--text);
 }
-#accCodeValue {
+#keyRevealValue {
   font-size: var(--t-xl);
   font-weight: 700;
   letter-spacing: 6px;
   color: var(--go);
 }
-#accMsg:empty { display: none; }
+#gateHoldMsg:empty { display: none; }
 
 /* --- choix de classe --------------------------------------------------------
    Les panneaux MONTRENT : silhouette a l'echelle du jeu, statistiques en barres
@@ -420,6 +438,30 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
   height: var(--sp-1);
   background: currentColor;
 }
+
+/* Acces a la progression (lot D) de CETTE classe, depuis sa propre carte —
+   pas un bouton unique en haut d'ecran qui forcerait a deviner lequel des
+   trois arbres il montre. En BAS de la carte (dernier enfant du flex column,
+   `align-self: center`) : en tete il concurrencait le nom de la classe, en
+   pied c'est une action secondaire qu'on lit APRES avoir compare les trois
+   cartes. Un `span` et non un bouton imbrique : le HTML interdit un
+   `<button>` dans un `<button>`, et `stopPropagation` (client.js) l'empeche
+   de declencher aussi le choix de la classe. */
+.classMetaBtn {
+  align-self: center;
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: var(--bg-raised);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.classMetaBtn:hover { color: var(--text); border-color: var(--text-dim); }
 
 .classHead { display: flex; align-items: center; gap: var(--sp-3); }
 .classSil { flex: 0 0 auto; }

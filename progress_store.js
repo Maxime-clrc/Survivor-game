@@ -50,20 +50,24 @@ import { scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { PROG_CFG, newProfile } from "./shared/progression.js";
 
-/* --- compte a pseudo reserve -----------------------------------------------------
+/* --- identite : pseudo + cle ------------------------------------------------------
 
-   Le pseudo n'est une identite QUE s'il est reserve : un compte peut y attacher
-   un pseudo unique et recoit en echange un code secret, affiche une seule fois.
-   Pseudo + code permettent de retrouver son compte depuis un autre navigateur —
-   c'est le seul probleme qu'on resout : sans ca, changer de machine perdait la
-   progression. Pas de mot de passe choisi par le joueur : un code GENERE est un
-   mot de passe fort sans politique de force, sans reinitialisation par email,
-   sans rien a concevoir autour de l'oubli — on peut re-reserver, ce qui
-   regenere un code et invalide l'ancien.
+   Le pseudo EST le compte, unique (insensible a la casse) : plus de uid
+   invisible, plus de tag a quatre chiffres pour departager des homonymes.
+   A la premiere connexion avec un pseudo neuf, `resolveAccount()` cree le
+   compte et rend une cle secrete, affichee une seule fois par l'appelant puis
+   oubliee. Pseudo + cle retrouvent ensuite le compte depuis n'importe quel
+   navigateur — c'est le seul probleme qu'on resout : sans ca, changer de
+   machine perdait la progression. Pas de mot de passe choisi par le joueur :
+   une cle GENEREE est un mot de passe fort sans politique de force, sans
+   reinitialisation par email, sans rien a concevoir autour de l'oubli — mais
+   aussi sans aucun filet si elle est perdue : il n'existe plus de uid parallele
+   depuis lequel re-generer une cle neuve. Assume, ecrit dans LISEZMOI-BDD.md.
 
-   Le code est hache (scrypt, node:crypto — cote serveur uniquement, ce module
+   La cle est hachee (scrypt, node:crypto — cote serveur uniquement, ce module
    n'est jamais importe par le navigateur). L'alphabet exclut les caracteres
-   ambigus (0/O, 1/I/L) : ce code se recopie a la main depuis un bout de papier. */
+   ambigus (0/O, 1/I/L) : cette cle se recopie a la main depuis un bout de
+   papier. */
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CODE_LEN = 8;
@@ -150,9 +154,14 @@ function restCall(cfg, method, path, body, done) {
 
 /* Un profil qui n'a RIEN accumule : cree par une connexion arrivee avant que
    la lecture distante n'aboutisse. Seul cas ou le distant a raison sur le
-   local — tout champ acquis rend le profil local prioritaire, comme avant. */
+   local — tout champ acquis rend le profil local prioritaire, comme avant.
+   Ne teste PLUS `!p.pseudo` : depuis la simplification pseudo+cle, un compte a
+   TOUJOURS un pseudo dès sa creation (c'est sa cle d'entree dans `data.players`),
+   donc cette condition ne serait plus jamais vraie — et plus aucun profil
+   n'aurait jamais ete considere pristine, ce qui aurait bloque net l'adoption
+   tardive d'une lecture Supabase en retard. */
 function pristine(p) {
-  return p.cores === 0 && p.runs === 0 && !p.pseudo
+  return p.cores === 0 && p.runs === 0
     && p.milestones.length === 0 && p.confort.length === 0
     && Object.keys(p.classes).length === 0;
 }
@@ -288,79 +297,46 @@ export function createStore(log = console.log) {
     wait();
   }
 
-  /* Le PSEUDO n'est pas une identite : n'importe qui peut taper le tien. La
-     cle est un identifiant tire au sort a la premiere connexion, stocke dans
-     le localStorage du client et envoye au join — le pseudo n'est plus qu'un
-     affichage, mis a jour a chaque connexion. */
-  function profileFor(uid, name) {
-    let p = data.players[uid];
-    if (!p) {
-      p = newProfile(name);
-      data.players[uid] = p;
-    } else if (name) {
-      p.name = name;
-    }
-    return p;
-  }
+  /* Point de passage unique de l'identite (join = claim + recover fusionnes).
+     `pseudo` est deja valide en forme par l'appelant (`sanitizePseudo` cote
+     serveur) — cette fonction ne tranche que l'unicite et l'authentification.
+     Reste SYNCHRONE, sans `await` : c'est ce qui rend la creation simultanee
+     du meme pseudo neuf par deux connexions sure — l'event loop de Node
+     serialise deja les deux `onmessage`, le second appel voit forcement
+     l'ecriture du premier.
 
-  /* Reserve un pseudo pour un compte et rend le code EN CLAIR — la seule fois
-     ou il existe hors hachage ; l'appelant l'affiche puis l'oublie. Re-reserver
-     (meme pseudo ou un autre) regenere le code : c'est la reponse a « j'ai
-     perdu mon papier » sans machinerie de reinitialisation.
+     - pseudo libre -> compte cree ICI, cle rendue EN CLAIR une seule fois
+       (l'appelant l'affiche puis l'oublie ; le serveur n'en garde qu'un
+       hachage) ;
+     - pseudo pris, cle correcte -> ce compte, sans rien regenerer ;
+     - pseudo pris, cle absente ou fausse -> `ok:false`, et strictement rien
+       d'autre : ne dit jamais si c'est le pseudo ou la cle qui cloche, ce qui
+       transformerait un pseudo libre en oracle de presence pour qui n'a pas
+       la cle.
 
-     Le pseudo n'est PAS unique : c'est le couple pseudo#tag qui l'est. Le tag
-     — quatre chiffres tires au sort — permet a deux personnes de s'appeler
-     Kevin sans se marcher dessus. Re-reserver le MEME pseudo garde le tag :
-     l'identite que les autres joueurs connaissent ne change pas quand on
-     regenere un code perdu. */
-  function claimPseudo(uid, pseudo) {
-    const p = data.players[uid];
-    if (!p) return { error: "compte inconnu" };
+     Aucune reservation a part, aucun tag : le pseudo EST le compte, unique
+     (compare en minuscules), et une cle perdue n'a plus de filet — dit dans
+     LISEZMOI-BDD.md. */
+  function resolveAccount(pseudo, key) {
     const lower = pseudo.toLowerCase();
-    let tag = (p.pseudo && p.pseudo.toLowerCase() === lower && p.tag) ? p.tag : null;
-    if (!tag) {
-      const taken = new Set();
-      for (const [otherUid, other] of Object.entries(data.players)) {
-        if (otherUid !== uid && other.pseudo && other.pseudo.toLowerCase() === lower) {
-          taken.add(other.tag);
-        }
-      }
-      // 10 000 tags pour une table de LAN : la boucle ne tourne qu'en theorie.
-      do {
-        tag = String(randomBytes(2).readUInt16BE(0) % 10000).padStart(4, "0");
-      } while (taken.has(tag));
+    const p = data.players[lower];
+
+    if (!p) {
+      const freshKey = generateCode();
+      const salt = randomBytes(16).toString("hex");
+      const profile = newProfile(pseudo);
+      profile.code = { salt, hash: hashCode(freshKey, salt) };
+      data.players[lower] = profile;
+      save();
+      return { ok: true, profile, fresh: true, key: freshKey };
     }
-    const code = generateCode();
-    const salt = randomBytes(16).toString("hex");
-    p.pseudo = pseudo;
-    p.tag = tag;
-    p.code = { salt, hash: hashCode(code, salt) };
-    save();
-    return { code, tag };
+
+    if (!key) return { ok: false };
+    const expected = Buffer.from(p.code.hash, "hex");
+    const got = Buffer.from(hashCode(key, p.code.salt), "hex");
+    if (expected.length !== got.length || !timingSafeEqual(expected, got)) return { ok: false };
+    return { ok: true, profile: p, fresh: false };
   }
 
-  /* Retrouve l'identifiant d'un compte par pseudo + code. Accepte « Kevin »
-     comme « Kevin#4821 » : le code a ~40 bits d'entropie, il designe son
-     compte a lui seul — le tag ne sert qu'a restreindre les candidats. On
-     essaie donc TOUS les homonymes au lieu de s'arreter au premier : le bon
-     compte peut etre le troisieme Kevin. `timingSafeEqual` par principe —
-     sur un LAN l'attaque temporelle est theorique, la version sure coute une
-     ligne. */
-  function recoverUid(pseudoInput, code) {
-    const s = String(pseudoInput ?? "");
-    const hashIdx = s.indexOf("#");
-    const pseudo = (hashIdx >= 0 ? s.slice(0, hashIdx) : s).trim().toLowerCase();
-    const tag = hashIdx >= 0 ? s.slice(hashIdx + 1).replace(/\D/g, "") : null;
-    if (!pseudo) return null;
-    for (const [uid, p] of Object.entries(data.players)) {
-      if (!p.pseudo || !p.code || p.pseudo.toLowerCase() !== pseudo) continue;
-      if (tag && p.tag !== tag) continue;
-      const expected = Buffer.from(p.code.hash, "hex");
-      const got = Buffer.from(hashCode(code, p.code.salt), "hex");
-      if (expected.length === got.length && timingSafeEqual(expected, got)) return uid;
-    }
-    return null;
-  }
-
-  return { data, ready, save, flush, profileFor, claimPseudo, recoverUid };
+  return { data, ready, save, flush, resolveAccount };
 }
