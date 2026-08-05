@@ -42,7 +42,12 @@ import {
 } from "/shared/bosses.js";
 import {
   initAudio, playSound, setVolume, setMuted, getVolume, isMuted, audioStats,
+  setMusicVolume, getMusicVolume,
 } from "/audio.js";
+/* La bande son vit dans son propre module, sur le modele d'audio.js : elle ne
+   depend ni du DOM ni du reseau, et elle emprunte le contexte et le bus
+   d'audio.js — la coupure et le volume globaux l'emportent donc toujours. */
+import { startMusic, setMusicIntensity } from "/music.js";
 import { EventPump } from "/events.js";
 /* La grille du sol est graduee en METRES : c'est ce qui rend les distances des
    descriptions de cartes lisibles a l'ecran. Seule conversion d'affichage du
@@ -309,6 +314,30 @@ function connect(name) {
       case "progress":
         progressState = msg;
         renderMeta();
+        renderAccount();
+        break;
+
+      /* --- compte a pseudo reserve. Le code s'affiche UNE fois : il n'existe
+         en clair que dans ce message, le serveur n'en garde qu'un hachage. */
+      case "claimed":
+        // L'identite complete est pseudo#tag : c'est ELLE qu'on note avec le
+        // code, un pseudo seul peut designer plusieurs comptes.
+        accCodeHandle.textContent = `${msg.pseudo}#${msg.tag}`;
+        accCodeValue.textContent = msg.code;
+        accCodeEl.hidden = false;
+        accMsgEl.textContent = "";
+        break;
+
+      case "recovered":
+        // Le compte recupere devient LE compte de ce navigateur : meme geste
+        // que pour l'identifiant du welcome.
+        localStorage.setItem("survivor.uid", msg.uid);
+        accCodeEl.hidden = true;
+        accMsgEl.textContent = `compte « ${msg.pseudo}${msg.tag ? "#" + msg.tag : ""} » récupéré`;
+        break;
+
+      case "accountError":
+        accMsgEl.textContent = msg.msg;
         break;
 
       case "lobby":
@@ -517,6 +546,9 @@ goBtn.onclick = async () => {
   // Le contexte audio se cree ICI et nulle part ailleurs : les navigateurs
   // exigent un geste utilisateur.
   initAudio();
+  // La musique demarre avec le contexte : le salon a droit a son fond calme,
+  // et c'est l'humeur — pas le demarrage — qui suivra la partie.
+  startMusic();
   const stats = await buildAtlas(k => setLoading(k * 0.9, null));
 
   /* Branchement du batcher. Il ne peut pas se faire avant : l'atlas n'existe
@@ -577,22 +609,31 @@ nameInput.focus();
    on touche au premier, et on aurait vu deux volumes differents affiches en
    meme temps. */
 const audioUi = [
-  { vol: volInput, val: volVal, mute: muteBtn },
+  { vol: volInput, val: volVal, mute: muteBtn,
+    mus: document.getElementById("musVol"),
+    musVal: document.getElementById("musVolVal") },
   {
     vol: document.getElementById("pauseVol"),
     val: document.getElementById("pauseVolVal"),
     mute: document.getElementById("pauseMute"),
+    mus: document.getElementById("pauseMusVol"),
+    musVal: document.getElementById("pauseMusVolVal"),
   },
 ];
 
 function refreshAudioUi() {
   const pct = Math.round(getVolume() * 100);
+  const mus = Math.round(getMusicVolume() * 100);
   for (const u of audioUi) {
     u.vol.value = String(pct);
     u.val.textContent = `${pct} %`;
     u.mute.textContent = isMuted() ? "✕" : "♪";
     u.mute.classList.toggle("off", isMuted());
     u.mute.title = isMuted() ? "rétablir le son" : "couper le son";
+    if (u.mus) {
+      u.mus.value = String(mus);
+      u.musVal.textContent = `${mus} %`;
+    }
   }
 }
 
@@ -613,6 +654,15 @@ for (const u of audioUi) {
     refreshAudioUi();
     if (!isMuted()) playSound("bonus");
   };
+
+  // Volume de la MUSIQUE, separe : a zero, la bande son se tait sans toucher
+  // aux signaux du jeu — c'est le bouton « je joue sans musique ».
+  if (u.mus) {
+    u.mus.oninput = () => {
+      setMusicVolume(Number(u.mus.value) / 100);
+      refreshAudioUi();
+    };
+  }
 }
 
 // La touche M coupe le son en jeu, sans repasser par le salon.
@@ -661,6 +711,7 @@ function refreshPanel() {
   renderVote();
   renderClasses();
   renderMeta();
+  renderAccount();
 
   startBtn.hidden = !isHost;
   startBtn.disabled = !isHost;
@@ -927,6 +978,57 @@ function renderMeta() {
       + ` <small>(${m.unlocks.length} carte${m.unlocks.length > 1 ? "s" : ""})</small></span>`;
   }).join("");
 }
+
+/* --- compte a pseudo reserve -----------------------------------------------------
+
+   Deux gestes : reserver (pseudo -> code secret affiche une fois) et recuperer
+   (pseudo + code -> la progression suit sur ce navigateur). Le serveur valide
+   tout ; ces boutons ne sont que des demandes, comme les achats de l'arbre. */
+
+const accountEl = document.getElementById("account");
+const accStatusEl = document.getElementById("accStatus");
+const accClaimPseudo = document.getElementById("accClaimPseudo");
+const accClaimBtn = document.getElementById("accClaim");
+const accCodeEl = document.getElementById("accCode");
+const accCodeHandle = document.getElementById("accCodeHandle");
+const accCodeValue = document.getElementById("accCodeValue");
+const accRecPseudo = document.getElementById("accRecPseudo");
+const accRecCode = document.getElementById("accRecCode");
+const accRecoverBtn = document.getElementById("accRecover");
+const accMsgEl = document.getElementById("accMsg");
+
+function renderAccount() {
+  if (!accountEl) return;
+  if (!progressState) { accountEl.hidden = true; return; }
+  accountEl.hidden = false;
+
+  const pseudo = progressState.pseudo || "";
+  const handle = pseudo + (progressState.tag ? "#" + progressState.tag : "");
+  accStatusEl.textContent = pseudo
+    ? `pseudo réservé : ${handle} — re-réserver régénère le code (l'ancien meurt)`
+    : "aucun pseudo réservé — la progression ne vit que dans ce navigateur";
+  if (!accClaimPseudo.value) {
+    accClaimPseudo.value = pseudo || nameInput.value;
+  }
+  const inLobby = phase === PHASE_LOBBY;
+  accClaimBtn.disabled = !inLobby;
+  accRecoverBtn.disabled = !inLobby;
+}
+
+accClaimBtn.onclick = () => {
+  const pseudo = accClaimPseudo.value.trim();
+  if (!pseudo) return;
+  accMsgEl.textContent = "";
+  ws.send(JSON.stringify({ t: "claim", pseudo }));
+};
+
+accRecoverBtn.onclick = () => {
+  const pseudo = accRecPseudo.value.trim();
+  const code = accRecCode.value.trim();
+  if (!pseudo || !code) return;
+  accMsgEl.textContent = "";
+  ws.send(JSON.stringify({ t: "recover", pseudo, code }));
+};
 
 function renderScores(rows, body = scoresBody) {
   body.innerHTML = "";
@@ -2808,6 +2910,12 @@ function frame(now) {
      plus d'instantane a dessiner — c'est precisement le cas de `roundEnd`. */
   flushWorld(now);
 
+  /* L'INTENSITE musicale suit l'etat du jeu, relue a chaque image. C'est une
+     cible : le sequenceur glisse vers elle — montee franche, descente lente —
+     et chaque couche (kick, basse, charleys, acide) nait au seuil qui la
+     concerne. Ici on ne fait que dire au juke-box a quel point ca chauffe. */
+  setMusicIntensity(gameIntensity());
+
   if (connected && latest) {
     const renderTime = now - INTERP_MS;
     if (phase === PHASE_ROUND) {
@@ -2908,6 +3016,23 @@ function stepPrediction(dt) {
   const pull = 1 - Math.exp((dash.t > 0 ? -1.2 : -6) * dt);
   predicted.x += (me.x - predicted.x) * pull;
   predicted.y += (me.y - predicted.y) * pull;
+}
+
+/* Ce que le jeu dit a la musique : un seul nombre entre 0 et 1. Tres doux au
+   salon, montee avec les vagues, souffle pendant le repit, pic sur le boss —
+   qui se tend encore a mesure que ses barres tombent, parce que la fin d'un
+   combat est son moment le plus dangereux. Les coefficients sont des reglages
+   d'oreille, pas de la simulation : ils n'ont rien a faire dans CFG. */
+function gameIntensity() {
+  if (phase !== PHASE_ROUND || !latest) return 0.05;
+  const v = latest;
+  let i = 0.20 + Math.min(0.45, (v.wave ?? 1) * 0.04);
+  if (v.wavePhase === 2) i -= 0.18;              // repit : la musique souffle
+  if (v.boss) {
+    const bars = v.boss.bars ?? 1;
+    i = Math.max(i, 0.72) + (CFG.BOSS_BARS - bars) * 0.05;
+  }
+  return Math.max(0.05, Math.min(1, i));
 }
 
 function colorOf(id) {

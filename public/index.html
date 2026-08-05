@@ -145,6 +145,13 @@
     <input id="vol" type="range" min="0" max="100" step="5" title="volume">
     <span id="volVal">70 %</span>
   </div>
+  <!-- Volume de la MUSIQUE, separe des sons de jeu : la bande son est un fond
+       qu'on regle — ou qu'on coupe a zero — sans toucher aux signaux. -->
+  <div id="musicRow">
+    <span class="musGlyph" title="musique">♫</span>
+    <input id="musVol" type="range" min="0" max="100" step="5" title="volume de la musique">
+    <span id="musVolVal">50 %</span>
+  </div>
   <div class="hint">
     ZQSD ou flèches pour se déplacer · la souris pour viser<br>
     <b>Espace</b> pour esquiver — invulnérable le temps du bond<br>
@@ -207,6 +214,30 @@
     <div id="metaTree"></div>
     <div id="metaConfort"></div>
     <div id="metaMilestones"></div>
+  </div>
+
+  <!-- compte a pseudo reserve. Reserver rend un code secret affiche UNE fois ;
+       pseudo + code retrouvent la progression depuis un autre navigateur. Sans
+       reservation, rien ne change : le compte reste la cle du localStorage. -->
+  <div id="account" hidden>
+    <div class="sectionTitle">Compte</div>
+    <div id="accStatus" class="hint"></div>
+    <div class="row accRow">
+      <input id="accClaimPseudo" maxlength="14" placeholder="pseudo à réserver">
+      <button id="accClaim">Réserver</button>
+    </div>
+    <div id="accCode" hidden>
+      <div id="accCodeHandle"></div>
+      <div id="accCodeValue"></div>
+      <div class="hint">note ce pseudo complet et ce code : ensemble ils retrouvent
+        ta progression sur n'importe quel navigateur — le code ne sera plus jamais affiché</div>
+    </div>
+    <div class="row accRow">
+      <input id="accRecPseudo" maxlength="19" placeholder="pseudo ou pseudo#1234">
+      <input id="accRecCode" maxlength="9" placeholder="code XXXX-XXXX">
+      <button id="accRecover">Récupérer</button>
+    </div>
+    <div id="accMsg" class="hint"></div>
   </div>
 
   <div id="vote">
@@ -278,6 +309,11 @@
       <button id="pauseMute" title="couper le son">♪</button>
       <input id="pauseVol" type="range" min="0" max="100" step="5" title="volume">
       <span id="pauseVolVal">70 %</span>
+    </div>
+    <div id="pauseMusic">
+      <span class="musGlyph" title="musique">♫</span>
+      <input id="pauseMusVol" type="range" min="0" max="100" step="5" title="volume de la musique">
+      <span id="pauseMusVolVal">50 %</span>
     </div>
 
     <button id="pauseBuild">Consulter son build</button>

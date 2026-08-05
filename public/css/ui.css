@@ -230,6 +230,19 @@ button:disabled { opacity: 0.45; cursor: default; }
 #vol { padding: 0; width: 150px; accent-color: var(--go); cursor: pointer; }
 #volVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
 
+/* Volume de la musique : la meme rangee que le son, un glyphe a la place du
+   bouton — la musique n'a pas de coupure propre, zero suffit. */
+#musicRow, #pauseMusic { display: flex; align-items: center; gap: var(--sp-3); }
+#pauseMusic { justify-content: center; }
+.musGlyph {
+  min-width: var(--sp-8);
+  text-align: center;
+  font-size: var(--t-s);
+  color: var(--text-dim);
+}
+#musVol, #pauseMusVol { padding: 0; width: 150px; accent-color: var(--go); cursor: pointer; }
+#musVolVal, #pauseMusVolVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
+
 /* --- tableau des scores -----------------------------------------------------
    De l'INFORMATION, pas une action : au salon il est atténué et passe apres le
    choix de classe. Au bilan de fin de manche, c'est l'inverse — il y est le
@@ -340,6 +353,43 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
   color: var(--text-faint);
 }
 #metaMilestones .metaJalon.done { color: var(--go); }
+
+/* --- compte a pseudo reserve -------------------------------------------------
+   Le code secret est la seule chose de ce bloc qu'on RECOPIE : gros, chasse
+   fixe (c'est deja la police du jeu), espace entre les caracteres — il se lit
+   depuis l'autre bout de la piece, ou se prend en photo. */
+#account {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: min(720px, 92vw);
+}
+#account .accRow { justify-content: center; }
+#account input { font-size: var(--t-s); width: 180px; }
+#account button { font-size: var(--t-s); }
+#accCode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-6);
+  border: var(--edge) solid var(--go);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+#accCodeHandle {
+  font-size: var(--t-m);
+  font-weight: 700;
+  color: var(--text);
+}
+#accCodeValue {
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: 6px;
+  color: var(--go);
+}
+#accMsg:empty { display: none; }
 
 /* --- choix de classe --------------------------------------------------------
    Les panneaux MONTRENT : silhouette a l'echelle du jeu, statistiques en barres
