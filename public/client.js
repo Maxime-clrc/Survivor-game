@@ -2126,7 +2126,8 @@ function interpolated(renderTime) {
     for (const [id, ea] of ma) {
       const eb = mb.get(id);
       out.push(eb
-        ? { ...ea, x: ea.x + (eb.x - ea.x) * k, y: ea.y + (eb.y - ea.y) * k }
+        ? { ...ea, x: ea.x + (eb.x - ea.x) * k, y: ea.y + (eb.y - ea.y) * k,
+            aimX: ea.aimX + (eb.aimX - ea.aimX) * k, aimY: ea.aimY + (eb.aimY - ea.aimY) * k }
         : ea);
     }
     return out;
