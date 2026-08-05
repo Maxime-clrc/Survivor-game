@@ -29,7 +29,10 @@ export const PROG_CFG = {
   // une ligne Supabase ecrite par l'ancien format n'est plus jamais adoptee
   // en silence, `progress_store.js` la voit comme une version inconnue et
   // suspend l'ecriture au lieu d'ecraser ou de melanger les deux modeles.
-  VERSION: 2,
+  /* 3 : comptes pseudo+mot de passe, une ligne Supabase par compte — le
+     profil ne porte plus de champ `code` (l'authentification vit dans les
+     colonnes de la table, jamais dans le jsonb de progression). */
+  VERSION: 3,
 
   /* Emplacements. On debloque definitivement, on equipe partiellement : c'est
      ce qui distingue ce systeme d'une simple echelle — apres cent parties, la
@@ -274,7 +277,7 @@ export function coresPartial(wave, diffIndex) {
 /* Simplification pseudo+cle : le pseudo EST le compte, plus un champ `name`
    distinct qui ne servait qu'a l'affichage avant reservation. Le compte
    n'existe qu'a partir du moment ou un pseudo lui est attache — `pseudo` est
-   donc pose ici, a la creation, par `progress_store.js#resolveAccount`. */
+   donc pose ici, a la creation, par `progress_store.js#register`. */
 export function newProfile(pseudo) {
   return {
     pseudo,

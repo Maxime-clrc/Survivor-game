@@ -67,6 +67,14 @@ export class WsConnection {
     socket.on("data", chunk => this._onData(chunk));
     socket.on("error", () => this._shutdown());
     socket.on("close", () => this._shutdown());
+    /* 'end' aussi, et ce n'est pas de la ceinture-bretelles : une socket
+       d'upgrade HTTP ne re-emet pas toujours 'close' apres le FIN du pair
+       (mesure : un client qui detruit sa connexion sans trame de fermeture ne
+       produisait QUE 'end'). Un pair qui a dit FIN n'enverra plus jamais de
+       trame — c'est une fin de connexion. Sans ca, le serveur gardait un
+       client fantome jusqu'a la prochaine ecriture echouee, et le compteur de
+       connexions par adresse IP ne redescendait jamais. */
+    socket.on("end", () => this._shutdown());
   }
 
   send(str) {

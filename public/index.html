@@ -126,41 +126,50 @@
   </div>
 </div>
 
-<!-- ecran de connexion -->
+<!-- ecran de connexion. Identite = compte pseudo + mot de passe (le systeme
+     habituel : une page de creation, une page de connexion). La SESSION est
+     un jeton range en localStorage — jamais le mot de passe : sur le meme
+     navigateur, « Se connecter » avec le champ mot de passe VIDE reprend la
+     session memorisee. Le clic reste obligatoire dans tous les cas : c'est
+     lui qui debloque le contexte audio et lance la generation des atlas. -->
 <div id="gate" class="overlay">
   <div id="logo">
     <span class="mark"></span>
     <span>Survivor LAN</span>
   </div>
-  <!-- Identite = pseudo + cle (plus de uid invisible, plus de reservation a
-       part). `#key` reste vide la premiere fois qu'on tape un pseudo — le
-       serveur cree alors le compte et rend une cle a noter. Sur un pseudo deja
-       pris, cette meme cle retrouve le compte, meme depuis un autre appareil ;
-       sur le meme navigateur elle est retenue, jamais a retaper. -->
-  <div class="row" id="gateJoinRow">
-    <input id="name" maxlength="14" placeholder="ton pseudo" autocomplete="off" spellcheck="false">
-    <input id="key" maxlength="9" placeholder="clé (laisse vide la 1ère fois)" autocomplete="off" spellcheck="false">
-    <button id="go">Rejoindre</button>
+
+  <!-- connexion / creation, en deux onglets : deux formulaires qui se
+       ressemblent mais ne disent pas la meme chose — fusionnes, le joueur ne
+       sait jamais s'il est en train de creer un compte ou de se tromper de
+       mot de passe. -->
+  <div id="gateForms">
+    <div id="gateTabs">
+      <button id="tabLogin" class="mine">Se connecter</button>
+      <button id="tabRegister">Créer un compte</button>
+    </div>
+
+    <div class="gateForm" id="loginForm">
+      <input id="name" maxlength="14" placeholder="ton pseudo" autocomplete="username" spellcheck="false">
+      <input id="pass" type="password" maxlength="72" placeholder="mot de passe" autocomplete="current-password">
+      <button id="go">Se connecter</button>
+    </div>
+
+    <div class="gateForm" id="registerForm" hidden>
+      <input id="regName" maxlength="14" placeholder="choisis un pseudo (3 à 14 caractères)" autocomplete="username" spellcheck="false">
+      <input id="regPass" type="password" maxlength="72" placeholder="mot de passe (8 caractères minimum)" autocomplete="new-password">
+      <input id="regPass2" type="password" maxlength="72" placeholder="confirme le mot de passe" autocomplete="new-password">
+      <button id="regGo">Créer le compte</button>
+      <div class="hint">pas de récupération par email — note ton mot de passe quelque part</div>
+    </div>
   </div>
   <div id="status"></div>
 
-  <!-- Pause forcee sur CETTE page dans deux cas seulement : compte neuf (la
-       cle ne s'affichera plus jamais, il faut la lire) et compte deja
-       connecte ailleurs (progression temporaire sur cet onglet — a dire, pas
-       a laisser deviner). Dans tous les autres cas, join va direct au salon,
-       sans passer par cet ecran. -->
+  <!-- Pause forcee sur CETTE page dans un seul cas : compte deja connecte
+       ailleurs (progression temporaire sur cet onglet — a dire, pas a
+       laisser deviner). -->
   <div id="gateHold" hidden>
     <div id="gateWho" class="hint"></div>
-
-    <div id="keyReveal" hidden>
-      <div id="keyRevealHandle"></div>
-      <div id="keyRevealValue"></div>
-      <div class="hint">note ce pseudo et cette clé : ensemble ils retrouvent
-        ta progression sur n'importe quel navigateur — la clé ne sera plus jamais affichée</div>
-    </div>
-
     <div id="gateHoldMsg" class="hint" hidden></div>
-
     <button id="gateContinue">Continuer</button>
   </div>
 
@@ -224,6 +233,25 @@
   <div id="hubStatus"></div>
   <div class="hint">une salle protégée demande son mot de passe — entre-le dans
     le champ ci-dessus avant de cliquer dessus</div>
+
+  <!-- le compte : qui je suis, en sortir, changer le mot de passe. Au hub et
+       pas au salon — c'est l'ecran d'identite, le salon est l'ecran d'une
+       partie. -->
+  <div id="hubAccount">
+    <div class="row">
+      <span id="hubWho" class="hint"></span>
+      <button id="hubLogout" class="ghost">se déconnecter</button>
+      <button id="hubPassToggle" class="ghost">mot de passe…</button>
+    </div>
+    <div id="hubPassBox" hidden>
+      <div class="row">
+        <input id="passOld" type="password" maxlength="72" placeholder="ancien mot de passe" autocomplete="current-password">
+        <input id="passNew" type="password" maxlength="72" placeholder="nouveau (8 caractères min)" autocomplete="new-password">
+        <button id="passChangeBtn">Changer</button>
+      </div>
+      <div id="passMsg" class="hint"></div>
+    </div>
+  </div>
 </div>
 
 <!-- bilan de fin de manche. Ecran a part du salon : tant que le salon suivant

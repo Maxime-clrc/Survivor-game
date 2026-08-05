@@ -297,6 +297,51 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
   color: var(--text-dim);
 }
 
+/* --- ecran de connexion : comptes pseudo + mot de passe ----------------------
+   Trois modes qui s'excluent : reprise par jeton, connexion, creation. Les
+   onglets reprennent le langage du segment de vote (bordures qui se touchent,
+   `.mine` pour l'actif) — un troisieme style de bascule serait un de trop. */
+#gateTabs { display: flex; gap: 0; }
+#gateTabs button {
+  min-width: 150px;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--t-s);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  border-radius: 0;
+  border-left-width: 0;
+}
+#gateTabs button:first-child { border-left-width: var(--hair); border-radius: var(--radius) 0 0 var(--radius); }
+#gateTabs button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+#gateTabs button.mine { color: var(--text); background: var(--bg-raised); }
+
+#gateForms { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
+.gateForm { display: flex; flex-direction: column; gap: var(--sp-2); width: min(320px, 86vw); }
+.gateForm input { width: 100%; }
+/* Un `display` d'auteur ecrase le display:none de l'attribut hidden — meme
+   piege que `.overlay[hidden]`, meme contre-regle. Sans elle, les deux
+   formulaires (connexion, creation) s'affichent TOUS LES DEUX a la fois, et
+   le bloc entier reste visible sous la pause « deja connecte ailleurs ». */
+#gateForms[hidden], .gateForm[hidden] { display: none; }
+
+/* Bouton discret : une action secondaire qui ne doit pas concurrencer la
+   principale (« autre compte » sous « Continuer », « se déconnecter » au hub). */
+button.ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--text-dim);
+  font-size: var(--t-xs);
+}
+button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text); }
+
+#hubAccount { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+#hubAccount .row { align-items: center; }
+#hubPassBox { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+#hubPassBox[hidden] { display: none; }
+#passMsg { min-height: var(--sp-5); }
+#passMsg.err { color: var(--lethal); }
+#passMsg.ok { color: var(--gain); }
+
 /* --- hub des salles (plan infra) ---------------------------------------------
    L'ecran d'avant le salon : la liste des salles, la creation. Chaque entree
    est un bouton — une entree 4/4 est desactivee, jamais masquee (la salle ou
@@ -439,33 +484,6 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
 }
 #metaMilestones .metaJalon.done { color: var(--go); }
 
-/* --- identite : pseudo + cle --------------------------------------------------
-   La cle est la seule chose de ce bloc qu'on RECOPIE : gros, chasse fixe
-   (c'est deja la police du jeu), espace entre les caracteres — elle se lit
-   depuis l'autre bout de la piece, ou se prend en photo. Meme traitement
-   visuel qu'avant (ex-`#accCode`), la simplification pseudo+cle n'a change
-   que le protocole, pas ce rendu-la. */
-#keyReveal {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: var(--sp-3) var(--sp-6);
-  border: var(--edge) solid var(--go);
-  border-radius: var(--radius);
-  background: var(--bg-panel);
-}
-#keyRevealHandle {
-  font-size: var(--t-m);
-  font-weight: 700;
-  color: var(--text);
-}
-#keyRevealValue {
-  font-size: var(--t-xl);
-  font-weight: 700;
-  letter-spacing: 6px;
-  color: var(--go);
-}
 #gateHoldMsg:empty { display: none; }
 
 /* --- choix de classe --------------------------------------------------------

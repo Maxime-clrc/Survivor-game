@@ -23,7 +23,11 @@ prendre un sans collision) ; pour en changer : `PORT=3000 node server.js`
 
 ## Déroulement d'une partie
 
-À la connexion on arrive au **hub** : la liste des salles. On en rejoint une
+On entre avec un **compte** : pseudo + mot de passe, créé sur la page
+d'accueil (pas de récupération par email — noter son mot de passe ; sur le
+même navigateur, « Se connecter » avec le mot de passe laissé vide reprend la
+session pendant 30 jours). Voir `LISEZMOI-BDD.md` pour le détail des comptes
+et de leur sauvegarde. À la connexion on arrive au **hub** : la liste des salles. On en rejoint une
 d'un clic, ou on crée la sienne — avec un mot de passe optionnel pour une
 partie privée. Chaque salle est une partie indépendante (jusqu'à 16 salles de
 4 joueurs sur le même serveur) ; une salle pleine reste affichée `4/4`, grisée,
@@ -1719,8 +1723,8 @@ indépendamment du taux de rafraîchissement.
 
 | Sens | Message |
 |---|---|
-| client → serveur | `{t:"join", pseudo, key}` · `{t:"listRooms"}` · `{t:"createRoom", name, pass}` · `{t:"joinRoom", code, pass}` · `{t:"leaveRoom"}` · `{t:"input", x, y, ax, ay, ar, d, s1, s2}` à 30 Hz · `{t:"vote", v}` · `{t:"pickClass", cls}` · `{t:"start"}` (hôte) · `{t:"pickCard", id}` · `{t:"pause", on}` · `{t:"leaveRound"}` |
-| serveur → client | `welcome` · `rooms` · `roomJoined` · `joinRoomError` · `roomClosed` · `lobby` · `state` (20 Hz) · `round` · `roundEnd` · `roundAbort` · `cards` · `cardsWait` · `loadout` · `alert` · `paused` |
+| client → serveur | `{t:"register", pseudo, pass}` · `{t:"login", pseudo, pass}` · `{t:"loginToken", pseudo, token}` · `{t:"logout"}` · `{t:"changePass", ancien, neuf}` · `{t:"listRooms"}` · `{t:"createRoom", name, pass}` · `{t:"joinRoom", code, pass}` · `{t:"leaveRoom"}` · `{t:"input", x, y, ax, ay, ar, d, s1, s2}` à 30 Hz · `{t:"vote", v}` · `{t:"pickClass", cls}` · `{t:"start"}` (hôte) · `{t:"pickCard", id}` · `{t:"pause", on}` · `{t:"leaveRound"}` |
+| serveur → client | `welcome` · `authError` · `passChanged` · `loggedOut` · `rooms` · `roomJoined` · `joinRoomError` · `roomClosed` · `lobby` · `state` (20 Hz) · `round` · `roundEnd` · `roundAbort` · `cards` · `cardsWait` · `loadout` · `alert` · `paused` |
 
 Un client est en état **hub** (liste des salles) ou en état **salle**
 (comportement historique) : les messages de jeu ne sont valides qu'en salle, et

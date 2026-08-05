@@ -1,97 +1,89 @@
 /* ===========================================================================
-   PERSISTANCE DE LA PROGRESSION (lot D) — cote serveur uniquement.
+   COMPTES ET PROGRESSION — cote serveur uniquement.
 
-   SUPABASE EST LA SEULE PERSISTANCE — il n'y a plus de fichier local. L'etat
-   chaud vit en memoire (`data`), Supabase en est la copie durable. Ce choix
-   supprime le fichier `data/progress.json` et sa mecanique d'ecriture
-   atomique : un hebergeur sans disque persistant (conteneur, PaaS) ne peut de
-   toute facon rien garantir d'un fichier local entre deux deploiements.
+   UNE LIGNE SUPABASE PAR COMPTE (table `comptes`), portant l'authentification
+   (colonnes) ET la progression (jsonb `data`). L'ancien modele — une ligne
+   unique `serveur` avec tous les profils dans un blob — rendait chaque
+   sauvegarde totale et la table illisible ; ici une fin de manche a quatre
+   joueurs upserte quatre lignes, et supprimer un compte supprime une ligne.
+   La bascule est SECHE (decision actee) : pas de migration depuis l'ancienne
+   table `progress`, qui peut etre supprimee du projet Supabase.
 
-   La configuration passe par les variables d'environnement SUPABASE_URL et
-   SUPABASE_SERVICE_KEY, et par RIEN d'autre : c'est le modele de tous les
-   hebergeurs modernes, et un fichier de cle qui traine sur disque n'a plus de
-   raison d'etre quand le disque n'est plus une source de verite. Sans ces
-   variables, le serveur reste jouable en LAN mais la progression ne survit pas
-   a un redemarrage — le journal le dit en toutes lettres au boot.
+   L'identite est pseudo + MOT DE PASSE choisi par le joueur, plus une cle
+   generee. Le mot de passe est hache scrypt avec sel par compte, et n'est
+   JAMAIS normalise — la normalisation (majuscules, tirets retires) etait
+   faite pour une cle recopiee depuis un papier ; appliquee a un mot de passe
+   choisi, elle en detruirait l'entropie et « MonPass » vaudrait « monpass ».
 
-   Trois protections, toutes rendues NECESSAIRES par l'absence de copie disque :
+   LA SESSION EST UN JETON, pas le mot de passe rejoue : au login reussi le
+   serveur emet 32 octets aleatoires, n'en garde que le hachage (sha256 —
+   suffisant pour un secret a haute entropie, et gratuit la ou scrypt bloque
+   ~50 ms l'event loop a chaque reconnexion silencieuse) et une expiration
+   GLISSANTE de 30 jours. Le client range le jeton, jamais le mot de passe.
+   Le jeton vit dans la ligne du compte : il survit donc au redeploiement, et
+   un login regenere le jeton — le dernier login gagne, l'ancien onglet devra
+   retaper son mot de passe.
 
-     - le CHARGEMENT PRECEDE L'ECOUTE : `ready` est attendue par server.js
-       avant `listen()`. Avant, la recuperation arrivait apres le demarrage et
-       « un joueur connecte entre-temps a raison » suffisait, parce que le cas
-       normal etait le fichier local. Ici la lecture distante EST le cas
-       normal : un joueur qui se connecterait avant elle recevrait un profil
-       neuf qui masquerait le sien. `ready` se resout des la PREMIERE tentative,
-       succes ou echec — une panne reseau ne doit pas empecher une table en LAN
-       de jouer — et les tentatives continuent en arriere-plan ;
-     - l'ECRITURE EST SUSPENDUE tant qu'aucune lecture n'a reussi : pousser un
-       etat quasi vide par-dessus la seule copie existante est exactement la
-       perte de donnees qu'on ne peut plus rattraper. Meme regle si la ligne
-       distante porte une version INCONNUE (serveur pas a jour) : on n'ecrase
-       jamais un format qu'on ne sait pas lire. Les save() faits pendant la
-       suspension sont retenus (`dirty`) et partent des que la lecture aboutit ;
-     - l'ENVOI RATE SE REESSAIE tout seul (10 s) : avant, l'echec attendait le
-       save() suivant, et le fichier local couvrait l'intervalle. Sans lui, un
-       envoi perdu est une fin de manche perdue si le processus s'arrete.
+   L'etat chaud vit en memoire, Supabase est la seule persistance (variables
+   SUPABASE_URL / SUPABASE_SERVICE_KEY, rien d'autre). Les protections nees de
+   l'absence de copie disque sont conservees a l'identique :
 
-   La recuperation tardive (lecture qui n'aboutit qu'apres des connexions)
-   n'adopte un profil distant que si le profil local est VIERGE — aucun noyau,
-   aucune manche, aucun achat : dans les secondes qui separent le boot d'une
-   lecture retardee, personne n'a pu finir une manche, donc le profil distant a
-   raison. Un profil local qui a deja progresse a raison, comme avant.
+     - le CHARGEMENT PRECEDE L'ECOUTE (`ready` avant listen()), resolu des la
+       premiere tentative pour qu'une panne reseau ne prive pas le LAN de jeu ;
+     - l'ECRITURE EST SUSPENDUE tant qu'aucune lecture n'a reussi — pousser un
+       etat quasi vide par-dessus la seule copie existante est la perte qu'on
+       ne rattrape plus. Une ligne de VERSION inconnue est gelee : ni adoptee,
+       ni jamais reecrite, et son pseudo reste indisponible ;
+     - un ENVOI RATE SE REESSAIE tout seul (10 s) ;
+     - les ecritures sont REGROUPEES (fenetre de 2 s) et CIBLEES : seuls les
+       comptes marques sales partent, en un seul upsert multi-lignes.
 
-   La replique reste UNE ligne (`account_id` = "serveur") qui porte tout l'etat,
-   et non une ligne par joueur : memes semantiques de versionnage qu'avant, un
-   seul upsert atomique, et le tableau de bord Supabase sait requeter le jsonb. */
+   Le chargement est PAGINE (en-tete Range) : PostgREST plafonne une reponse a
+   1000 lignes par defaut, et un chargement silencieusement tronque est
+   exactement le bug qu'on ne debogue pas. */
 
 import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
-import { scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
+import { scryptSync, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 
 import { PROG_CFG, newProfile } from "./shared/progression.js";
 
-/* --- identite : pseudo + cle ------------------------------------------------------
-
-   Le pseudo EST le compte, unique (insensible a la casse) : plus de uid
-   invisible, plus de tag a quatre chiffres pour departager des homonymes.
-   A la premiere connexion avec un pseudo neuf, `resolveAccount()` cree le
-   compte et rend une cle secrete, affichee une seule fois par l'appelant puis
-   oubliee. Pseudo + cle retrouvent ensuite le compte depuis n'importe quel
-   navigateur — c'est le seul probleme qu'on resout : sans ca, changer de
-   machine perdait la progression. Pas de mot de passe choisi par le joueur :
-   une cle GENEREE est un mot de passe fort sans politique de force, sans
-   reinitialisation par email, sans rien a concevoir autour de l'oubli — mais
-   aussi sans aucun filet si elle est perdue : il n'existe plus de uid parallele
-   depuis lequel re-generer une cle neuve. Assume, ecrit dans LISEZMOI-BDD.md.
-
-   La cle est hachee (scrypt, node:crypto — cote serveur uniquement, ce module
-   n'est jamais importe par le navigateur). L'alphabet exclut les caracteres
-   ambigus (0/O, 1/I/L) : cette cle se recopie a la main depuis un bout de
-   papier. */
-
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const CODE_LEN = 8;
-
-function generateCode() {
-  const bytes = randomBytes(CODE_LEN);
-  let s = "";
-  for (let i = 0; i < CODE_LEN; i++) s += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return s.slice(0, 4) + "-" + s.slice(4);
-}
-
-// La comparaison tolere ce qu'un humain tape : tirets, espaces, minuscules.
-function normalizeCode(v) {
-  return String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-function hashCode(code, saltHex) {
-  return scryptSync(normalizeCode(code), Buffer.from(saltHex, "hex"), 32).toString("hex");
-}
-
-const REMOTE_ROW = "serveur";
 const REMOTE_TIMEOUT_MS = 3000;
 const LOAD_RETRY_MS = 15000;
 const PUSH_RETRY_MS = 10000;
+const SAVE_BATCH_MS = 2000;
+const LOAD_PAGE = 1000;
+
+const TOKEN_TTL_MS = 30 * 24 * 3600 * 1000;   // expiration glissante du jeton
+
+export const PASS_MIN = 8;
+export const PASS_MAX = 72;
+
+/* Mot de passe temporaire de la remise a zero admin : minuscules sans
+   caracteres ambigus, il se dicte a voix haute et se recopie exactement
+   (aucune normalisation ne s'applique aux mots de passe). */
+const TEMP_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+
+function tempPassword() {
+  const bytes = randomBytes(10);
+  let s = "";
+  for (let i = 0; i < 10; i++) s += TEMP_ALPHABET[bytes[i] % TEMP_ALPHABET.length];
+  return s.slice(0, 5) + "-" + s.slice(5);
+}
+
+function hashPass(pass, saltHex) {
+  return scryptSync(String(pass), Buffer.from(saltHex, "hex"), 32).toString("hex");
+}
+
+function hashToken(token) {
+  return createHash("sha256").update(String(token)).digest("hex");
+}
+
+function passMatches(acc, pass) {
+  const expected = Buffer.from(acc.passHash, "hex");
+  const got = Buffer.from(hashPass(pass, acc.passSalt), "hex");
+  return expected.length === got.length && timingSafeEqual(expected, got);
+}
 
 /* Variables d'environnement uniquement. Une configuration partielle est un
    accident de deploiement, pas un choix : on le journalise au lieu de le
@@ -112,7 +104,7 @@ function remoteConfig(env, log) {
    http est accepte uniquement pour pouvoir tester contre un faux Supabase
    local. `done` est garanti appele une seule fois — `error` peut suivre un
    `end` quand la socket meurt en fin d'echange. */
-function restCall(cfg, method, path, body, done) {
+function restCall(cfg, method, path, body, done, extraHeaders = null) {
   let finished = false;
   const finish = (err, out) => {
     if (finished) return;
@@ -131,6 +123,7 @@ function restCall(cfg, method, path, body, done) {
     apikey: cfg.key,
     authorization: `Bearer ${cfg.key}`,
     "content-type": "application/json",
+    ...extraHeaders,
   };
   // merge-duplicates : POST devient un upsert sur la cle primaire.
   if (method === "POST") headers.prefer = "resolution=merge-duplicates";
@@ -154,12 +147,7 @@ function restCall(cfg, method, path, body, done) {
 
 /* Un profil qui n'a RIEN accumule : cree par une connexion arrivee avant que
    la lecture distante n'aboutisse. Seul cas ou le distant a raison sur le
-   local — tout champ acquis rend le profil local prioritaire, comme avant.
-   Ne teste PLUS `!p.pseudo` : depuis la simplification pseudo+cle, un compte a
-   TOUJOURS un pseudo dès sa creation (c'est sa cle d'entree dans `data.players`),
-   donc cette condition ne serait plus jamais vraie — et plus aucun profil
-   n'aurait jamais ete considere pristine, ce qui aurait bloque net l'adoption
-   tardive d'une lecture Supabase en retard. */
+   local — tout champ acquis rend le profil local prioritaire. */
 function pristine(p) {
   return p.cores === 0 && p.runs === 0
     && p.milestones.length === 0 && p.confort.length === 0
@@ -169,21 +157,22 @@ function pristine(p) {
 export function createStore(log = console.log) {
   const remote = remoteConfig(process.env, log);
 
-  /* `data` n'est JAMAIS reassigne : server.js garde la reference retournee,
-     et le chargement Supabase mute ses proprietes en place. */
-  const data = { version: PROG_CFG.VERSION, players: {} };
+  /* pseudoLower -> compte. Le profil (progression pure, ce que le jeu
+     manipule) vit dans `acc.profile` ; l'authentification vit A COTE, jamais
+     dedans — c'est ce qui garantit qu'un hachage ne part jamais dans le jsonb
+     ni vers un navigateur. */
+  const accounts = new Map();
+  /* Pseudos dont la ligne distante porte une version inconnue : ni adoptes,
+     ni jamais reecrits, et indisponibles a l'inscription — ecraser un format
+     qu'on ne sait pas lire est la perte qu'on ne rattrape plus. */
+  const frozen = new Set();
 
-  /* `loaded` garde l'ecriture fermee tant qu'aucune lecture n'a reussi — la
-     protection centrale du module, voir l'en-tete. Sans configuration, il n'y
-     a rien a proteger : la progression vit et meurt avec le processus. */
   let loaded = false;
-
   let pushing = false;
-  let dirty = false;
+  const dirty = new Set();     // pseudoLower a upserter au prochain envoi
+  let batchTimer = null;       // fenetre de regroupement des save()
   let retryTimer = null;
 
-  /* Sante des echanges, pour la page admin : dernier succes, dernier echec.
-     Releves dans push() et attemptLoad(), les deux seuls chemins reseau. */
   let lastOkAt = 0;
   let lastError = "";
   let lastErrorAt = 0;
@@ -197,25 +186,52 @@ export function createStore(log = console.log) {
     lastErrorAt = Date.now();
   }
 
-  function push() {
-    if (!remote) return;
-    if (!loaded || pushing) {
-      dirty = true;
-      return;
+  /* --- ecriture ----------------------------------------------------------------- */
+
+  /* La ligne d'un compte. Serialisation DEFENSIVE : un upsert multi-lignes
+     echoue en bloc, une seule ligne malade priverait tous les autres comptes
+     de sauvegarde — on l'ecarte en journalisant plutot. */
+  function rowFor(lower) {
+    const acc = accounts.get(lower);
+    if (!acc) return null;
+    try {
+      return JSON.parse(JSON.stringify({
+        pseudo: lower,
+        affichage: acc.affichage,
+        pass_salt: acc.passSalt,
+        pass_hash: acc.passHash,
+        jeton_hash: acc.jetonHash,
+        jeton_exp: acc.jetonExp ? new Date(acc.jetonExp).toISOString() : null,
+        version: PROG_CFG.VERSION,
+        data: acc.profile,
+        cree_le: acc.creeLe,
+        vu_le: acc.vuLe,
+      }));
+    } catch (err) {
+      log(`compte ${lower} : ligne insérialisable (${err.message}) — écarté de l'envoi`);
+      return null;
     }
-    pushing = true;
+  }
+
+  function push() {
+    if (!remote || dirty.size === 0) return;
+    if (!loaded || pushing) return;   // `dirty` garde la liste, l'envoi suivra
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
     }
-    const row = [{ account_id: REMOTE_ROW, data, updated_at: new Date().toISOString() }];
-    restCall(remote, "POST", "/rest/v1/progress", row, err => {
+    const batch = [...dirty];
+    const rows = batch.map(rowFor).filter(Boolean);
+    dirty.clear();
+    if (rows.length === 0) return;
+    pushing = true;
+    restCall(remote, "POST", "/rest/v1/comptes", rows, err => {
       pushing = false;
       if (err) {
         noteError(err);
-        log(`progression Supabase : envoi impossible (${err.message}) — nouvel essai dans ${PUSH_RETRY_MS / 1000} s`);
-        // Sans copie disque, un envoi perdu ne peut plus attendre le save()
-        // suivant : le reessai est porte par un minuteur, un seul a la fois.
+        // Les comptes du lot redeviennent sales : rien n'est parti.
+        for (const lower of batch) if (accounts.has(lower)) dirty.add(lower);
+        log(`comptes Supabase : envoi impossible (${err.message}) — nouvel essai dans ${PUSH_RETRY_MS / 1000} s`);
         if (!retryTimer) {
           retryTimer = setTimeout(() => {
             retryTimer = null;
@@ -225,217 +241,344 @@ export function createStore(log = console.log) {
         return;
       }
       noteOk();
-      if (dirty) {
-        dirty = false;
-        push();
-      }
+      if (dirty.size > 0) push();
     });
   }
 
-  // Le nom reste `save` : les huit points d'appel de server.js decrivent une
-  // intention (« cet etat doit survivre »), pas un moyen.
-  function save() {
-    push();
+  /* Marque un compte a sauvegarder. Le regroupement vit ICI : les huit points
+     d'appel du hub decrivent une intention (« ce compte doit survivre »), la
+     fenetre de 2 s agrege une fin de manche a quatre joueurs — ou quatre
+     salles — en un seul envoi. */
+  function save(lower) {
+    if (!lower || !accounts.has(lower)) return;
+    dirty.add(lower);
+    if (batchTimer) return;
+    batchTimer = setTimeout(() => {
+      batchTimer = null;
+      push();
+    }, SAVE_BATCH_MS);
+  }
+
+  /* --- chargement ---------------------------------------------------------------- */
+
+  function adoptRow(row) {
+    const lower = String(row.pseudo ?? "").toLowerCase();
+    if (!lower) return 0;
+    if (row.version !== PROG_CFG.VERSION) {
+      frozen.add(lower);
+      return 0;
+    }
+    const cur = accounts.get(lower);
+    if (cur && !pristine(cur.profile)) return 0;   // le local qui a progresse a raison
+    accounts.set(lower, {
+      affichage: typeof row.affichage === "string" && row.affichage ? row.affichage : lower,
+      passSalt: row.pass_salt,
+      passHash: row.pass_hash,
+      jetonHash: row.jeton_hash ?? null,
+      jetonExp: row.jeton_exp ? Date.parse(row.jeton_exp) || 0 : 0,
+      profile: row.data,
+      creeLe: row.cree_le ?? new Date().toISOString(),
+      vuLe: row.vu_le ?? new Date().toISOString(),
+    });
+    return 1;
   }
 
   function attemptLoad(resolveReady) {
-    const path = `/rest/v1/progress?account_id=eq.${REMOTE_ROW}&select=data`;
-    restCall(remote, "GET", path, null, (err, out) => {
-      if (err) {
-        noteError(err);
-        log(`progression Supabase : lecture impossible (${err.message}) — `
-          + `nouvel essai dans ${LOAD_RETRY_MS / 1000} s, sauvegarde suspendue d'ici là`);
-        setTimeout(() => attemptLoad(resolveReady), LOAD_RETRY_MS);
-        resolveReady(); // le serveur demarre : une panne reseau ne prive pas le LAN de jeu
-        return;
-      }
-      let raw = null;
-      try {
-        raw = JSON.parse(out)[0]?.data;
-      } catch {
-        raw = null;
-      }
-      if (raw && raw.version !== PROG_CFG.VERSION) {
-        /* Version inconnue : ce serveur est en retard sur la donnee. On
-           n'adopte rien et surtout on n'ecrira JAMAIS par-dessus — `loaded`
-           reste faux, l'ecriture reste fermee. Une version future ajoutera sa
-           migration ICI plutot que d'ecraser la ligne. */
-        log(`progression Supabase en version ${raw.version} inconnue — `
-          + "sauvegarde suspendue pour ne pas l'écraser (mettre le serveur à jour)");
-        resolveReady();
-        return;
-      }
-      let adopted = 0;
-      if (raw && raw.players && typeof raw.players === "object") {
-        for (const [uid, p] of Object.entries(raw.players)) {
-          const cur = data.players[uid];
-          if (!cur || pristine(cur)) {
-            data.players[uid] = p;
-            adopted++;
-          }
+    let adopted = 0;
+    let total = 0;
+
+    const page = from => {
+      const path = "/rest/v1/comptes?select=*&order=pseudo";
+      restCall(remote, "GET", path, null, (err, out) => {
+        if (err) {
+          noteError(err);
+          log(`comptes Supabase : lecture impossible (${err.message}) — `
+            + `nouvel essai dans ${LOAD_RETRY_MS / 1000} s, sauvegarde suspendue d'ici là`);
+          setTimeout(() => attemptLoad(resolveReady), LOAD_RETRY_MS);
+          resolveReady(); // le serveur demarre : une panne reseau ne prive pas le LAN de jeu
+          return;
         }
-      }
-      loaded = true;
-      noteOk();
-      log(raw
-        ? `progression Supabase chargée — ${adopted} profil(s)`
-        : "progression Supabase : table vide, première utilisation");
-      // Les save() retenus pendant la suspension partent maintenant.
-      if (dirty) {
-        dirty = false;
-        push();
-      }
-      resolveReady();
-    });
+        let rows;
+        try {
+          rows = JSON.parse(out);
+        } catch {
+          rows = [];
+        }
+        if (!Array.isArray(rows)) rows = [];
+        total += rows.length;
+        for (const row of rows) adopted += adoptRow(row);
+
+        // Page pleine : il peut en rester — on continue. Une page partielle
+        // (ou vide) signe la fin de la table.
+        if (rows.length === LOAD_PAGE) return page(from + LOAD_PAGE);
+
+        loaded = true;
+        noteOk();
+        log(total > 0
+          ? `comptes Supabase chargés — ${adopted} adopté(s) sur ${total}`
+            + (frozen.size > 0 ? `, ${frozen.size} gelé(s) (version inconnue)` : "")
+          : "comptes Supabase : table vide, première utilisation");
+        if (dirty.size > 0) push();   // les save() retenus pendant la suspension
+        resolveReady();
+      }, { "range-unit": "items", range: `${from}-${from + LOAD_PAGE - 1}` });
+    };
+    page(0);
   }
 
-  /* `ready` : attendue par server.js avant listen(). Resolue des la premiere
-     tentative — les suivantes, en cas d'echec, continuent en arriere-plan. */
   let ready;
   if (remote) {
     ready = new Promise(resolve => attemptLoad(resolve));
   } else {
     log("aucune configuration Supabase (SUPABASE_URL / SUPABASE_SERVICE_KEY) — "
-      + "la progression ne survivra PAS à un redémarrage");
+      + "les comptes ne survivront PAS à un redémarrage");
     ready = Promise.resolve();
   }
 
-  /* --- introspection et remise a zero, pour la page admin --------------------- */
+  /* --- identite : inscription, connexion, session -------------------------------
 
-  /* Photographie de l'etat interne — aucune requete reseau, c'est la sonde qui
-     s'en charge. `dirty` agrege le drapeau et le minuteur de reessai : pour un
-     admin, « quelque chose attend de partir » est une seule information. */
+     Tout reste SYNCHRONE sur la memoire, sans await : l'event loop de Node
+     serialise les `onmessage`, donc deux inscriptions simultanees du meme
+     pseudo se voient l'une l'autre. scrypt bloque ~50 ms — acceptable parce
+     que borne (5 essais par connexion, delai par pseudo cote hub) et paye
+     seulement a l'inscription et au login : la reconnexion silencieuse par
+     jeton passe par sha256. */
+
+  function issueToken(acc) {
+    const token = randomBytes(32).toString("base64url");
+    acc.jetonHash = hashToken(token);
+    acc.jetonExp = Date.now() + TOKEN_TTL_MS;
+    return token;
+  }
+
+  /* `pseudo` est deja valide en forme par l'appelant (sanitizePseudo), le mot
+     de passe deja borne en longueur. « Deja pris » est une reponse NORMALE de
+     l'inscription — l'oracle de presence de l'ancien systeme disparait
+     volontairement, c'est le compromis de tout systeme a page de creation. */
+  function register(pseudo, pass) {
+    const lower = pseudo.toLowerCase();
+    if (accounts.has(lower) || frozen.has(lower)) return { ok: false, motif: "pris" };
+
+    const salt = randomBytes(16).toString("hex");
+    const now = new Date().toISOString();
+    const acc = {
+      affichage: pseudo,
+      passSalt: salt,
+      passHash: hashPass(pass, salt),
+      jetonHash: null,
+      jetonExp: 0,
+      profile: newProfile(pseudo),
+      creeLe: now,
+      vuLe: now,
+    };
+    accounts.set(lower, acc);
+    const token = issueToken(acc);
+    save(lower);
+    return { ok: true, profile: acc.profile, token };
+  }
+
+  /* Echec muet : ne dit jamais si c'est le pseudo ou le mot de passe qui
+     cloche — l'inscription revele deja les pseudos pris, inutile d'offrir en
+     plus une confirmation gratuite a qui essaie des mots de passe. */
+  function login(pseudo, pass) {
+    const lower = pseudo.toLowerCase();
+    const acc = accounts.get(lower);
+    if (!acc || !passMatches(acc, pass)) return { ok: false };
+    // Nouveau jeton a chaque login : le dernier login gagne, l'ancien jeton
+    // meurt — c'est la reponse au « deux onglets, meme compte ».
+    const token = issueToken(acc);
+    acc.vuLe = new Date().toISOString();
+    save(lower);
+    return { ok: true, profile: acc.profile, token };
+  }
+
+  /* Reconnexion silencieuse. L'expiration est GLISSANTE : chaque retour
+     repousse les 30 jours — un habitue ne retape jamais son mot de passe, un
+     compte abandonne expire. */
+  function loginToken(pseudo, token) {
+    const lower = String(pseudo ?? "").toLowerCase();
+    const acc = accounts.get(lower);
+    if (!acc || !acc.jetonHash || Date.now() > acc.jetonExp) return { ok: false };
+    const expected = Buffer.from(acc.jetonHash, "hex");
+    const got = Buffer.from(hashToken(token), "hex");
+    if (expected.length !== got.length || !timingSafeEqual(expected, got)) return { ok: false };
+    acc.jetonExp = Date.now() + TOKEN_TTL_MS;
+    acc.vuLe = new Date().toISOString();
+    save(lower);
+    return { ok: true, profile: acc.profile };
+  }
+
+  function logout(pseudo) {
+    const lower = String(pseudo ?? "").toLowerCase();
+    const acc = accounts.get(lower);
+    if (!acc) return;
+    acc.jetonHash = null;
+    acc.jetonExp = 0;
+    save(lower);
+  }
+
+  /* Le jeton actif SURVIT au changement de mot de passe : c'est celui qui
+     change le mot de passe qui tient la session, le deconnecter n'aurait
+     puni que lui. La remise a zero admin, elle, invalide le jeton — le
+     titulaire legitime est peut-etre precisement celui qui a perdu l'acces. */
+  function changePass(pseudo, oldPass, newPass) {
+    const lower = String(pseudo ?? "").toLowerCase();
+    const acc = accounts.get(lower);
+    if (!acc || !passMatches(acc, oldPass)) return { ok: false };
+    const salt = randomBytes(16).toString("hex");
+    acc.passSalt = salt;
+    acc.passHash = hashPass(newPass, salt);
+    save(lower);
+    return { ok: true };
+  }
+
+  /* --- introspection et administration ------------------------------------------- */
+
   function status() {
     return {
       configured: !!remote,
       loaded,
       pushing,
-      pending: dirty || !!retryTimer,
-      players: Object.keys(data.players).length,
+      pending: dirty.size > 0 || !!retryTimer || !!batchTimer,
+      players: accounts.size,
+      frozen: frozen.size,
       lastOkAt,
       lastError,
       lastErrorAt,
     };
   }
 
-  /* Sonde EN DIRECT : une lecture reelle de la ligne, avec latence mesuree.
-     C'est la seule reponse honnete a « l'acces a la base est-il ok ? » — les
-     compteurs internes disent le passe, la sonde dit maintenant. Elle rend
-     aussi la ligne entiere : la page admin est la vue de la table. */
+  /* Sonde EN DIRECT : une lecture reelle, latence mesuree. Elle ne rapatrie
+     que les pseudos — la page admin liste les comptes depuis la memoire, la
+     sonde ne repond qu'a « la base est-elle joignable et combien de lignes ». */
   function probe(done) {
     if (!remote) return done({ ok: false, error: "configuration absente" });
     const t0 = Date.now();
-    const path = `/rest/v1/progress?account_id=eq.${REMOTE_ROW}&select=data,updated_at`;
-    restCall(remote, "GET", path, null, (err, out) => {
+    restCall(remote, "GET", "/rest/v1/comptes?select=pseudo", null, (err, out) => {
       const ms = Date.now() - t0;
       if (err) {
         noteError(err);
         return done({ ok: false, ms, error: err.message });
       }
       noteOk();
-      let row = null;
+      let count = 0;
       try {
-        row = JSON.parse(out)[0] ?? null;
+        count = JSON.parse(out).length;
       } catch {
-        row = null;
+        count = 0;
       }
-      done({ ok: true, ms, row });
+      done({ ok: true, ms, count });
     });
   }
 
-  /* Remise a zero : supprime la ligne distante ET vide la memoire, dans cet
-     ordre. Les deux ensemble ou rien — supprimer la ligne en laissant la
-     memoire ferait tout repousser au save() suivant (le piege documente du
-     redemarrage obligatoire, qu'on supprime ici), et vider la memoire sans la
-     ligne laisserait l'ancien etat revenir au prochain boot.
+  /* La vue memoire pour la page admin : jamais de hachage, jamais de jeton —
+     seulement ce qu'un operateur lit (qui, combien, quand). */
+  function listAccounts() {
+    return [...accounts.entries()].map(([lower, acc]) => ({
+      pseudo: lower,
+      affichage: acc.affichage,
+      cores: acc.profile.cores,
+      runs: acc.profile.runs,
+      vuLe: acc.vuLe,
+      creeLe: acc.creeLe,
+    })).sort((a, b) => a.pseudo.localeCompare(b.pseudo));
+  }
 
-     On attend d'abord la fin d'un envoi en vol : son corps est deja serialise,
-     il pourrait atterrir APRES la suppression et ressusciter la ligne. Tout
-     envoi retenu (dirty, minuteur) est annule pour la meme raison. L'appelant
-     doit relier les profils des clients connectes a des objets neufs — les
-     references qu'il garde pointent sur l'ancien contenu. */
-  function reset(done) {
-    if (!remote) return done(new Error("configuration Supabase absente"));
+  /* Attend la fin d'un envoi en vol, bornee : son corps est deja serialise et
+     atterrirait APRES une suppression, ressuscitant les lignes. Partage par
+     reset() et deleteAccount(), qui suppriment tous les deux du distant. */
+  function afterPush(fn) {
     const deadline = Date.now() + REMOTE_TIMEOUT_MS + 500;
     const wait = () => {
       if (pushing && Date.now() < deadline) return setTimeout(wait, 50);
-      dirty = false;
-      if (retryTimer) {
-        clearTimeout(retryTimer);
-        retryTimer = null;
-      }
-      restCall(remote, "DELETE", `/rest/v1/progress?account_id=eq.${REMOTE_ROW}`, null, err => {
+      fn();
+    };
+    wait();
+  }
+
+  /* Remise a zero totale : la table ET la memoire, les deux ou rien. Le
+     filtre `cree_le=not.is.null` matche toutes les lignes — PostgREST refuse
+     selon les versions un DELETE sans filtre, et un filtre toujours-vrai est
+     la forme portable. */
+  function reset(done) {
+    if (!remote) return done(new Error("configuration Supabase absente"));
+    afterPush(() => {
+      dirty.clear();
+      if (batchTimer) { clearTimeout(batchTimer); batchTimer = null; }
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      restCall(remote, "DELETE", "/rest/v1/comptes?cree_le=not.is.null", null, err => {
         if (err) {
           noteError(err);
           return done(err);
         }
         noteOk();
-        for (const k of Object.keys(data.players)) delete data.players[k];
+        accounts.clear();
+        frozen.clear();
         // Une table qu'on vient de vider soi-meme est une table lue : si le
         // boot etait encore suspendu, la suppression vaut lecture reussie.
         loaded = true;
         done(null);
       });
-    };
-    wait();
+    });
   }
 
-  /* Vidage final avant l'arret du processus. Ne au deploiement en conteneur :
-     la plateforme envoie SIGTERM puis tue, et sans copie disque un envoi en
-     vol ou retenu par un minuteur de reessai serait perdu pour de bon. UNE
-     tentative, bornee dans le temps — a l'arret, boucler sur des reessais ne
-     ferait que retarder le SIGKILL. `done` est toujours appele. */
+  /* Suppression d'UN compte (admin). Memoire d'abord — il ne repartira dans
+     aucun envoi — puis la ligne. Sans configuration distante, la memoire
+     suffit : c'est tout ce qui existe. */
+  function deleteAccount(pseudo, done) {
+    const lower = String(pseudo ?? "").toLowerCase();
+    if (!accounts.has(lower)) return done(new Error("compte inconnu"));
+    accounts.delete(lower);
+    dirty.delete(lower);
+    if (!remote) return done(null);
+    afterPush(() => {
+      restCall(remote, "DELETE", `/rest/v1/comptes?pseudo=eq.${encodeURIComponent(lower)}`, null, err => {
+        if (err) {
+          noteError(err);
+          return done(err);
+        }
+        noteOk();
+        done(null);
+      });
+    });
+  }
+
+  /* Le filet « mot de passe perdu » sans email : l'operateur genere un mot de
+     passe temporaire, affiche UNE fois dans la page admin, que le joueur
+     change des sa reconnexion. Le jeton est invalide — le titulaire legitime
+     est peut-etre celui qui a perdu l'acces, pas celui qui tient la session. */
+  function adminPassReset(pseudo) {
+    const lower = String(pseudo ?? "").toLowerCase();
+    const acc = accounts.get(lower);
+    if (!acc) return { ok: false, error: "compte inconnu" };
+    const temp = tempPassword();
+    const salt = randomBytes(16).toString("hex");
+    acc.passSalt = salt;
+    acc.passHash = hashPass(temp, salt);
+    acc.jetonHash = null;
+    acc.jetonExp = 0;
+    save(lower);
+    return { ok: true, temp };
+  }
+
+  /* Vidage final avant l'arret du processus (SIGTERM du redeploiement). UNE
+     tentative, bornee — a l'arret, boucler sur des reessais ne ferait que
+     retarder le SIGKILL. La fenetre de regroupement est court-circuitee :
+     ce qui attendait 2 s part maintenant. */
   function flush(done) {
     if (!remote || !loaded) return done();
+    if (batchTimer) { clearTimeout(batchTimer); batchTimer = null; }
     push();
     const deadline = Date.now() + REMOTE_TIMEOUT_MS + 500;
     const wait = () => {
-      if ((!pushing && !dirty) || Date.now() > deadline) return done();
+      if ((!pushing && dirty.size === 0) || Date.now() > deadline) return done();
       setTimeout(wait, 50);
     };
     wait();
   }
 
-  /* Point de passage unique de l'identite (join = claim + recover fusionnes).
-     `pseudo` est deja valide en forme par l'appelant (`sanitizePseudo` cote
-     serveur) — cette fonction ne tranche que l'unicite et l'authentification.
-     Reste SYNCHRONE, sans `await` : c'est ce qui rend la creation simultanee
-     du meme pseudo neuf par deux connexions sure — l'event loop de Node
-     serialise deja les deux `onmessage`, le second appel voit forcement
-     l'ecriture du premier.
-
-     - pseudo libre -> compte cree ICI, cle rendue EN CLAIR une seule fois
-       (l'appelant l'affiche puis l'oublie ; le serveur n'en garde qu'un
-       hachage) ;
-     - pseudo pris, cle correcte -> ce compte, sans rien regenerer ;
-     - pseudo pris, cle absente ou fausse -> `ok:false`, et strictement rien
-       d'autre : ne dit jamais si c'est le pseudo ou la cle qui cloche, ce qui
-       transformerait un pseudo libre en oracle de presence pour qui n'a pas
-       la cle.
-
-     Aucune reservation a part, aucun tag : le pseudo EST le compte, unique
-     (compare en minuscules), et une cle perdue n'a plus de filet — dit dans
-     LISEZMOI-BDD.md. */
-  function resolveAccount(pseudo, key) {
-    const lower = pseudo.toLowerCase();
-    const p = data.players[lower];
-
-    if (!p) {
-      const freshKey = generateCode();
-      const salt = randomBytes(16).toString("hex");
-      const profile = newProfile(pseudo);
-      profile.code = { salt, hash: hashCode(freshKey, salt) };
-      data.players[lower] = profile;
-      save();
-      return { ok: true, profile, fresh: true, key: freshKey };
-    }
-
-    if (!key) return { ok: false };
-    const expected = Buffer.from(p.code.hash, "hex");
-    const got = Buffer.from(hashCode(key, p.code.salt), "hex");
-    if (expected.length !== got.length || !timingSafeEqual(expected, got)) return { ok: false };
-    return { ok: true, profile: p, fresh: false };
-  }
-
-  return { data, ready, save, flush, status, probe, reset, resolveAccount };
+  return {
+    ready, save, flush, status, probe, reset,
+    register, login, loginToken, logout, changePass,
+    listAccounts, deleteAccount, adminPassReset,
+  };
 }

@@ -23,6 +23,7 @@
 import { CFG, PLAYER_COLORS, DIFF_NORMAL } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial } from "./shared/progression.js";
+import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
 
 /* Surchargeables par l'environnement POUR LES TESTS uniquement (un delai de
@@ -36,7 +37,14 @@ const ROOM_MAX = Number(process.env.ROOM_MAX) || 16;
    le serveur de sockets mortes. */
 const IP_CONN_MAX = 8;
 const LIST_MIN_MS = 1000;   // une demande de liste par seconde et par client
-const SAVE_BATCH_MS = 2000; // fenetre de regroupement des ecritures Supabase
+
+/* Frein par PSEUDO CIBLE, en plus des cinq essais par connexion : depuis que
+   se reconnecter est gratuit (plus de place de partie a occuper), le frein
+   par connexion seul se contourne en rouvrant une socket. Cinq echecs sur un
+   pseudo gelent ce pseudo dix secondes — et le gel se teste AVANT scrypt,
+   c'est aussi ce qui borne le cout CPU d'une rafale. */
+const PSEUDO_FAILS_MAX = 5;
+const PSEUDO_FREEZE_MS = 10000;
 
 /* Code de salle : quatre caracteres sans ambiguite (pas de O/0, I/1/l). Il
    identifie la salle dans le protocole ; la LISTE publique est le moyen normal
@@ -48,18 +56,19 @@ export function createHub(store, log) {
   const rooms = new Map();            // code -> Room
   const ipCounts = new Map();         // adresse -> connexions ouvertes
   const lastRoomOf = new Map();       // pseudoKey -> code, pour retrouver sa salle
+  const authFails = new Map();        // pseudoLower -> { n, until } (frein par pseudo cible)
   let nextClientId = 1;               // unique sur TOUT le serveur, jamais par salle
   let nextSlot = 0;                   // decalage d'accumulateur des salles
-  let saveTimer = null;
 
   /* --- persistance (seul ecrivain) ------------------------------------------- */
 
-  function persist() {
-    if (saveTimer) return;
-    saveTimer = setTimeout(() => {
-      saveTimer = null;
-      store.save();
-    }, SAVE_BATCH_MS);
+  /* Le regroupement des ecritures vit dans le magasin (fenetre de 2 s) ; ici
+     on ne fait que designer QUEL compte doit survivre. Une session temporaire
+     (deja connecte ailleurs) n'est pas dans le magasin : save() l'ignore tout
+     seul, exactement le comportement voulu — les noyaux ne se comptent jamais
+     en double. */
+  function persist(c) {
+    if (c.pseudoKey) store.save(c.pseudoKey);
   }
 
   function progressPayload(c) {
@@ -125,8 +134,8 @@ export function createHub(store, log) {
       if (state.wave > pr.best.wave) pr.best.wave = state.wave;
       if (p.score > pr.best.score) pr.best.score = p.score;
       c.lastGain = gain;
+      persist(c);
     }
-    persist();
   }
 
   /* Part d'un joueur qui quitte EN COURS de manche : les vagues jouees, rien
@@ -134,7 +143,7 @@ export function createHub(store, log) {
   function awardPartial(c, room) {
     if (room.phase === PHASE_LOBBY || !c.profile || !room.state.players.has(c.id)) return;
     c.profile.cores += coresPartial(room.state.wave, room.state.diffIndex);
-    persist();
+    persist(c);
   }
 
   /* --- registre des salles ----------------------------------------------------- */
@@ -269,7 +278,7 @@ export function createHub(store, log) {
             && cp.equipped.length < slotsFor(cp)) {
           cp.equipped.push(line.id);
         }
-        persist();
+        persist(client);
         sendProgress(client);
         break;
       }
@@ -281,7 +290,7 @@ export function createHub(store, log) {
         if (lines.some(l => !(cp.tiers[l] > 0))) break;
         if (lines.length > slotsFor(cp)) break;
         cp.equipped = lines;
-        persist();
+        persist(client);
         sendProgress(client);
         break;
       }
@@ -293,7 +302,7 @@ export function createHub(store, log) {
         if (pr.confort.includes(msg.id) || pr.cores < cost) break;
         pr.cores -= cost;
         pr.confort.push(msg.id);
-        persist();
+        persist(client);
         sendProgress(client);
         break;
       }
@@ -306,7 +315,7 @@ export function createHub(store, log) {
     const ip = req.socket?.remoteAddress ?? "?";
     const ipCount = (ipCounts.get(ip) ?? 0) + 1;
     if (ipCount > IP_CONN_MAX) {
-      conn.send(JSON.stringify({ t: "joinError",
+      conn.send(JSON.stringify({ t: "authError",
         msg: "trop de connexions depuis cette adresse", fatal: 1 }));
       setTimeout(() => conn.close(), 200);
       return;
@@ -336,10 +345,41 @@ export function createHub(store, log) {
       try { msg = JSON.parse(raw); } catch { return; }
       if (!msg || typeof msg !== "object") return;
 
-      if (msg.t === "join") { handleJoin(client, msg); return; }
+      if (msg.t === "register")   { handleRegister(client, msg); return; }
+      if (msg.t === "login")      { handleLogin(client, msg); return; }
+      if (msg.t === "loginToken") { handleLoginToken(client, msg); return; }
       if (!client.joined) return;   // rien d'autre n'a de sens avant l'authentification
 
       switch (msg.t) {
+        case "logout": {
+          /* Invalide le jeton et ramene la connexion a l'etat non authentifie.
+             Le client purge son localStorage et referme la socket de lui-meme ;
+             cote serveur on detache proprement au cas ou il ne le ferait pas. */
+          const room = client.room;
+          if (room) {
+            try { room.detach(client); } catch { client.room = null; }
+          }
+          store.logout(client.pseudoKey);
+          client.joined = false;
+          client.profile = null;
+          client.pseudoKey = null;
+          client.conn.send(JSON.stringify({ t: "loggedOut" }));
+          return;
+        }
+        case "changePass": {
+          const neuf = typeof msg.neuf === "string" ? msg.neuf : "";
+          if (neuf.length < PASS_MIN || neuf.length > PASS_MAX) {
+            client.conn.send(JSON.stringify({ t: "authError", motif: "passfaible",
+              msg: `mot de passe : ${PASS_MIN} caractères minimum` }));
+            return;
+          }
+          const r = store.changePass(client.pseudoKey,
+            typeof msg.ancien === "string" ? msg.ancien : "", neuf);
+          client.conn.send(JSON.stringify(r.ok
+            ? { t: "passChanged" }
+            : { t: "authError", motif: "identifiants", msg: "ancien mot de passe incorrect" }));
+          return;
+        }
         case "listRooms": {
           /* Le bouton de rafraichissement est un bouton qu'on martele, et le
              port est public : au-dela d'une demande par seconde, on ignore. */
@@ -391,41 +431,106 @@ export function createHub(store, log) {
     };
   }
 
-  function handleJoin(client, msg) {
-    if (client.joined) return;
-    const conn = client.conn;
+  /* --- authentification ----------------------------------------------------------
 
-    if ((client.joinFails | 0) >= 5) {
-      conn.send(JSON.stringify({ t: "joinError",
-        msg: "trop d'essais — reconnecte-toi pour réessayer", fatal: 1 }));
-      return;
-    }
+     Trois portes : `register` (la page de creation), `login` (pseudo + mot de
+     passe) et `loginToken` (la reconnexion silencieuse du meme navigateur).
+     Toutes aboutissent a `finishAuth`, le seul endroit qui fabrique un client
+     authentifie — session temporaire, salle a retrouver et `welcome` compris. */
 
+  function authError(client, motif, msg, fatal = 0) {
+    client.conn.send(JSON.stringify(fatal
+      ? { t: "authError", motif, msg, fatal: 1 }
+      : { t: "authError", motif, msg }));
+  }
+
+  /* Frein par connexion (cinq essais puis socket a fermer) — le meme qu'avant,
+     il borne une socket unique. Le frein par pseudo est teste separement dans
+     handleLogin. */
+  function connFailsExceeded(client) {
+    if ((client.joinFails | 0) < 5) return false;
+    authError(client, "essais", "trop d'essais — reconnecte-toi pour réessayer", 1);
+    return true;
+  }
+
+  function validPass(client, v) {
+    const pass = typeof v === "string" ? v : "";
+    if (pass.length >= PASS_MIN && pass.length <= PASS_MAX) return pass;
+    authError(client, "passfaible",
+      `mot de passe : ${PASS_MIN} caractères minimum (${PASS_MAX} maximum)`);
+    return null;
+  }
+
+  function handleRegister(client, msg) {
+    if (client.joined || connFailsExceeded(client)) return;
     const pseudo = sanitizePseudo(msg.pseudo);
     if (!pseudo) {
-      conn.send(JSON.stringify({ t: "joinError",
-        msg: "pseudo invalide (3 à 14 caractères : lettres, chiffres, _ . -)" }));
-      return;
+      return authError(client, "pseudo",
+        "pseudo invalide (3 à 14 caractères : lettres, chiffres, _ . -)");
+    }
+    const pass = validPass(client, msg.pass);
+    if (pass === null) return;
+    const r = store.register(pseudo, pass);
+    // « Deja pris » est la reponse normale d'une inscription — pas un echec a
+    // compter dans le frein, c'est le parcours de qui cherche un pseudo libre.
+    if (!r.ok) return authError(client, "pris", "ce pseudo est déjà pris — choisis-en un autre, ou connecte-toi avec");
+    finishAuth(client, r.profile, r.token, "nouveau compte");
+  }
+
+  function handleLogin(client, msg) {
+    if (client.joined || connFailsExceeded(client)) return;
+    const pseudo = sanitizePseudo(msg.pseudo);
+    const pass = typeof msg.pass === "string" ? msg.pass : "";
+    if (!pseudo || !pass) return authError(client, "identifiants", "pseudo ou mot de passe incorrect");
+
+    /* Gel par pseudo cible, teste AVANT scrypt : c'est lui qui borne a la fois
+       la devinette distribuee (rouvrir une socket ne remet pas ce compteur a
+       zero) et le cout CPU d'une rafale. */
+    const lower = pseudo.toLowerCase();
+    const freeze = authFails.get(lower);
+    if (freeze && Date.now() < freeze.until) {
+      return authError(client, "attente", "trop d'essais sur ce pseudo — attends quelques secondes");
     }
 
-    const key = typeof msg.key === "string" ? msg.key : "";
-    const r = store.resolveAccount(pseudo, key);
+    const r = store.login(pseudo, pass);
     if (!r.ok) {
-      if (key) client.joinFails = (client.joinFails | 0) + 1;
-      conn.send(JSON.stringify({ t: "joinError",
-        msg: "ce pseudo est déjà pris — entre sa clé pour le récupérer, ou choisis-en un autre" }));
-      return;
+      client.joinFails = (client.joinFails | 0) + 1;
+      const rec = authFails.get(lower) ?? { n: 0, until: 0 };
+      rec.n += 1;
+      if (rec.n >= PSEUDO_FAILS_MAX) rec.until = Date.now() + PSEUDO_FREEZE_MS;
+      authFails.set(lower, rec);
+      // Jamais le detail : l'inscription revele deja les pseudos pris, inutile
+      // d'offrir en plus une confirmation gratuite a qui essaie des mots de passe.
+      return authError(client, "identifiants", "pseudo ou mot de passe incorrect");
     }
+    authFails.delete(lower);
+    finishAuth(client, r.profile, r.token, "");
+  }
 
+  /* La reconnexion silencieuse. Un echec est un cas NORMAL (jeton expire,
+     compte supprime, login plus recent ailleurs) : le client retombe sur le
+     formulaire sans bruit — ni compteur, ni gel, un jeton de 256 bits ne se
+     devine pas. */
+  function handleLoginToken(client, msg) {
+    if (client.joined) return;
+    const pseudo = typeof msg.pseudo === "string" ? msg.pseudo : "";
+    const token = typeof msg.token === "string" ? msg.token : "";
+    const r = pseudo && token ? store.loginToken(pseudo, token) : { ok: false };
+    if (!r.ok) return authError(client, "jeton", "session expirée — reconnecte-toi");
+    finishAuth(client, r.profile, null, "reprise par jeton");
+  }
+
+  function finishAuth(client, profile, token, note) {
+    const conn = client.conn;
     client.joined = true;
-    client.name = r.profile.pseudo;
-    client.pseudoKey = pseudo.toLowerCase();
+    client.name = profile.pseudo;
+    client.pseudoKey = profile.pseudo.toLowerCase();
     /* Le meme compte connecte deux fois cumulerait les noyaux en double. La
-       copie est DETACHEE et jamais rangee dans data.players : elle ne laisse
+       copie est DETACHEE et jamais rangee dans le magasin : elle ne laisse
        aucun dechet a sauvegarder derriere elle. */
     client.tempAccount = [...clients.values()]
       .some(c => c !== client && c.pseudoKey === client.pseudoKey);
-    client.profile = client.tempAccount ? structuredClone(r.profile) : r.profile;
+    client.profile = client.tempAccount ? structuredClone(profile) : profile;
 
     /* Retrouver sa salle apres un rechargement : si le compte etait dans une
        salle encore vivante (delai de grace compris), le client peut y revenir
@@ -438,8 +543,11 @@ export function createHub(store, log) {
     conn.send(JSON.stringify({
       t: "welcome",
       id: client.id,
+      pseudo: client.name,
+      // Le jeton ne part QUE fraichement emis (register/login) : la reprise
+      // par jeton n'en regenere pas, elle prolonge l'existant.
+      token: token ?? undefined,
       colors: PLAYER_COLORS,
-      fresh: r.fresh ? 1 : 0,
       dup: client.tempAccount ? 1 : 0,
       rejoin,
       cfg: {
@@ -447,13 +555,10 @@ export function createHub(store, log) {
         SNAPSHOT_HZ: CFG.SNAPSHOT_HZ,
       },
     }));
-    if (r.fresh) {
-      conn.send(JSON.stringify({ t: "accountCreated", pseudo: r.profile.pseudo, key: r.key }));
-    }
     sendProgress(client);
     conn.send(JSON.stringify(roomsPayload()));
     log(`${client.name} connecté au hub`
-      + `${r.fresh ? " (nouveau compte)" : ""}`
+      + `${note ? ` (${note})` : ""}`
       + `${client.tempAccount ? " (déjà connecté ailleurs : session temporaire)" : ""}`
       + ` — ${[...clients.values()].filter(c => c.joined).length} connecté(s)`);
   }
@@ -518,21 +623,49 @@ export function createHub(store, log) {
     return [...rooms.values()].some(r => r.phase !== PHASE_LOBBY);
   }
 
-  /* Apres un reset : relier TOUS les connectes — quel que soit leur etat — a
-     des profils neufs, par le meme resolveAccount qu'un premier join. */
-  function rebindAccounts() {
-    for (const c of clients.values()) {
-      if (!c.joined || !c.profile) continue;
-      const r = store.resolveAccount(c.name, "");
-      c.profile = r.profile;
-      sendProgress(c);
-      if (r.fresh) {
-        c.conn.send(JSON.stringify({ t: "accountCreated", pseudo: r.profile.pseudo, key: r.key }));
+  /* Apres un reset : les comptes n'existent plus, et un mot de passe ne se
+     recree pas d'office comme l'etait une cle generee. On DECONNECTE donc
+     proprement tous les authentifies — `fatal` fait fermer la socket au
+     client, qui purge son jeton et retombe sur l'ecran de creation. Garder
+     l'ancien profil en memoire le ferait repartir au prochain save(). */
+  function kickAccounts(msg) {
+    for (const c of [...clients.values()]) {
+      if (!c.joined) continue;
+      if (c.room) {
+        try { c.room.detach(c); } catch { c.room = null; }
       }
+      c.joined = false;
+      c.profile = null;
+      c.pseudoKey = null;
+      authError(c, "reset", msg, 1);
     }
   }
 
-  return { handleConnection, tick, adminView, anyRoundRunning, rebindAccounts, rooms, clients };
+  /* La deconnexion d'UN compte (suppression admin) : meme chemin, un seul
+     visé. */
+  function kickAccount(lower, msg) {
+    for (const c of [...clients.values()]) {
+      if (!c.joined || c.pseudoKey !== lower) continue;
+      if (c.room) {
+        try { c.room.detach(c); } catch { c.room = null; }
+      }
+      c.joined = false;
+      c.profile = null;
+      c.pseudoKey = null;
+      authError(c, "reset", msg, 1);
+    }
+  }
+
+  function connectedKeys() {
+    const out = new Set();
+    for (const c of clients.values()) if (c.joined && c.pseudoKey) out.add(c.pseudoKey);
+    return out;
+  }
+
+  return {
+    handleConnection, tick, adminView, anyRoundRunning,
+    kickAccounts, kickAccount, connectedKeys, rooms, clients,
+  };
 }
 
 /* Le pseudo est le compte (simplification pseudo+cle). SANS espace — un pseudo

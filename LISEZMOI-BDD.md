@@ -1,18 +1,22 @@
 # Sauvegarde Supabase et comptes joueurs
 
-Ce guide couvre la mise en place de la persistance Supabase de la progression
-et le fonctionnement de l'identité joueur (pseudo + clé). Le raisonnement derrière
-chaque choix est documenté dans `CLAUDE.md` (section lot D) ; ici, uniquement
-les étapes à suivre.
+Ce guide couvre la mise en place de la persistance Supabase et le
+fonctionnement des comptes joueurs (pseudo + mot de passe, session par jeton).
+Le raisonnement derrière chaque choix est documenté dans `CLAUDE.md` ; ici,
+uniquement les étapes à suivre.
 
 ## Vue d'ensemble
 
-La progression permanente (noyaux, arbres, jalons) vit **en mémoire** sur le
-serveur de jeu, et **Supabase en est la seule persistance** — il n'y a plus
-aucun fichier local (`data/progress.json` a disparu). Chaque sauvegarde (fin de
-manche, achat au salon, départ d'un joueur) pousse l'état vers Supabase en
-arrière-plan ; au démarrage, le serveur recharge tout depuis Supabase **avant**
-d'accepter la première connexion.
+Chaque joueur a un **compte** (pseudo + mot de passe) qui porte sa progression
+permanente (noyaux, arbres, jalons). Les comptes vivent **en mémoire** sur le
+serveur de jeu, et **Supabase en est la seule persistance** : une table
+`comptes`, **une ligne par compte**, portant l'authentification (colonnes) et
+la progression (jsonb). Chaque sauvegarde (fin de manche, achat, départ d'un
+joueur) upserte les seules lignes concernées, en arrière-plan et par lots ; au
+démarrage, le serveur recharge tout depuis Supabase **avant** d'accepter la
+première connexion. **Les comptes survivent donc aux redéploiements** — y
+compris la session en cours : le jeton étant en table, personne n'a à se
+reconnecter après un push.
 
 - Sans configuration Supabase, le jeu reste jouable en LAN sans internet, mais
   la progression **ne survit pas à un redémarrage** du serveur. Le journal le
@@ -33,16 +37,28 @@ Aucune dépendance npm : les appels passent par le module natif `node:https`.
 3. Dans **SQL Editor**, exécuter :
 
 ```sql
-create table progress (
-  account_id text primary key,
-  data jsonb not null,
-  updated_at timestamptz not null default now()
+create table comptes (
+  pseudo      text primary key,          -- en minuscules : la cle d'unicite
+  affichage   text not null,             -- la casse choisie par le joueur
+  pass_salt   text not null,
+  pass_hash   text not null,             -- scrypt, jamais le mot de passe
+  jeton_hash  text,                      -- session en cours (null = deconnecte)
+  jeton_exp   timestamptz,
+  version     int  not null,             -- version du format de `data`
+  data        jsonb not null,            -- la progression du compte
+  cree_le     timestamptz not null default now(),
+  vu_le       timestamptz not null default now()
 );
 
 -- RLS active mais AUCUNE policy : seule la cle service_role passe.
 -- Le navigateur ne doit jamais lire cette table.
-alter table progress enable row level security;
+alter table comptes enable row level security;
 ```
+
+Si le projet date d'avant le passage aux comptes (table `progress` avec sa
+ligne unique `serveur`) : la bascule a été **sèche**, décision actée — aucune
+migration, chacun recrée son compte. Supprimer l'ancienne table :
+`drop table if exists progress;`
 
 4. Dans **Settings → API**, noter deux valeurs :
    - le **Project URL** (forme `https://xxxx.supabase.co`) ;
@@ -102,14 +118,12 @@ persistance » assumé.
 ### 3. Redémarrer et vérifier
 
 1. Redémarrer le serveur (comme après toute mise à jour du code).
-2. Le journal doit afficher `progression Supabase : table vide, première
-   utilisation` (premier lancement) ou `progression Supabase chargée — N
-   profil(s)`.
-3. Jouer une manche jusqu'au bout, ou faire un achat au salon.
-4. Dans le dashboard Supabase, **Table Editor → progress** : une ligne
-   `serveur` doit exister, avec `updated_at` à l'heure de la sauvegarde.
-
-Toute la progression tient dans cette ligne unique, versionnage compris.
+2. Le journal doit afficher `comptes Supabase : table vide, première
+   utilisation` (premier lancement) ou `comptes Supabase chargés — N
+   adopté(s)`.
+3. Créer un compte depuis le jeu, puis jouer une manche ou faire un achat.
+4. Dans le dashboard Supabase, **Table Editor → comptes** : une ligne par
+   compte créé, `vu_le` à l'heure de la dernière connexion.
 
 ## Réinstallation ou changement d'hébergeur
 
@@ -137,9 +151,10 @@ Avec un **redéploiement automatique à chaque push**, deux choses à savoir :
 
 ## Page d'administration
 
-`https://<serveur>/admin` — trois fonctions d'opérateur : vérifier que l'accès
+`https://<serveur>/admin` — les fonctions d'opérateur : vérifier que l'accès
 Supabase fonctionne **depuis la machine qui héberge** (sonde en direct avec
-latence), voir le contenu de la ligne `serveur`, et la supprimer.
+latence), voir les salles et la liste des comptes, réinitialiser le mot de
+passe d'un compte, supprimer un compte, ou tout supprimer.
 
 **Armement.** La page n'existe que si la variable d'environnement `ADMIN_KEY`
 est posée (même panneau que les variables Supabase). Sans elle, tout `/admin`
@@ -148,16 +163,23 @@ répond 404. Choisir une clé longue et aléatoire (par exemple `openssl rand -h
 sur la page et voyage dans un en-tête HTTP, jamais dans l'adresse — elle ne
 finit donc pas dans les journaux du reverse proxy.
 
-**La suppression fait les deux moitiés du travail** : la ligne Supabase **et**
-la progression en mémoire du serveur, avec bascule immédiate des joueurs
-connectés sur des profils neufs. Contrairement à une suppression à la main dans
-le dashboard, **aucun redémarrage n'est nécessaire** — et il n'y a pas de piège
-de re-poussée. Elle est refusée pendant une manche (revenir au salon d'abord).
+**« Réinit. mdp »** est le seul rattrapage d'un mot de passe perdu (il n'y a
+pas d'email) : un mot de passe temporaire est généré et affiché **une seule
+fois** à l'opérateur, qui le transmet au joueur ; la session en cours du compte
+est invalidée. Le joueur se connecte avec le temporaire et en choisit un neuf
+depuis le hub (« mot de passe… »).
+
+**La suppression fait les deux moitiés du travail** : la ou les lignes Supabase
+**et** la mémoire du serveur, avec déconnexion immédiate des joueurs concernés
+— un mot de passe ne se recrée pas d'office, chacun repasse par l'écran de
+création. Contrairement à une suppression à la main dans le dashboard, **aucun
+redémarrage n'est nécessaire** — et il n'y a pas de piège de re-poussée. La
+suppression totale est refusée dès qu'une salle est en manche.
 
 Ce que montre l'état : configuration présente ou non, sonde en direct (latence
-mesurée), lecture au boot réussie (écritures ouvertes) ou suspendue, présence
-de la ligne avec son horodatage et son nombre de profils, profils en mémoire,
-phase de jeu, dernier échange réussi et dernier échec.
+mesurée et nombre de lignes), lecture au boot réussie (écritures ouvertes) ou
+suspendue, comptes en mémoire, salles et connectés, dernier échange réussi et
+dernier échec.
 
 ## Dépannage
 
@@ -167,53 +189,55 @@ phase de jeu, dernier échange réussi et dernier échec.
 | `envoi impossible (getaddrinfo …)` | URL fausse ou pas d'accès internet sortant |
 | `envoi impossible (delai depasse)` | projet Supabase en pause (tier gratuit : suspension après 7 jours sans requête — jouer une manche par semaine suffit à l'éviter) |
 | `lecture impossible (…) — nouvel essai dans 15 s` | Supabase injoignable au boot ; le jeu tourne, la sauvegarde reprend dès que la lecture aboutit |
-| `sauvegarde suspendue pour ne pas l'écraser` | la ligne Supabase vient d'une version plus récente du serveur — mettre le serveur à jour |
+| `N gelé(s) (version inconnue)` au chargement | des lignes de `comptes` viennent d'une version plus récente du serveur — mettre le serveur à jour ; ces comptes ne sont ni utilisables ni écrasés d'ici là |
 | `configuration Supabase incomplète` | il manque `SUPABASE_URL` ou `SUPABASE_SERVICE_KEY` |
 | `aucune configuration Supabase (…)` au boot | les variables ne sont pas posées : le serveur tourne sans persistance, c'est le comportement normal sans configuration |
 
 Aucun de ces cas ne bloque le jeu : la partie en cours continue, les envois
 reprennent au prochain succès.
 
-**Après la simplification pseudo+clé (version de progression 1 → 2)** : si la
-table Supabase contient encore une ligne de l'ancien format (comptes
-`pseudo#tag`), le serveur voit une version inconnue et affiche le même
-`sauvegarde suspendue pour ne pas l'écraser` que ci-dessus — mais dans l'autre
-sens (la ligne distante est plus **ancienne**, pas plus récente). Les seuls
-comptes existants au moment de cette mise à jour étaient des comptes de test :
-effacer la ligne dans **Table Editor → progress** (ou `delete from progress;`
-dans le SQL Editor) avant de relancer le serveur, qui repartira alors d'une
-table vide.
+**Après le passage aux comptes (version de progression 2 → 3)** : la table a
+changé de forme (`progress` → `comptes`, une ligne par compte) et la bascule a
+été **sèche** — pas de migration, les anciennes clés `XXXX-XXXX` ne sont plus
+acceptées, chacun recrée un compte. Supprimer l'ancienne table `progress` dans
+le SQL Editor. Une ligne de `comptes` portant une version **future** (serveur
+en retard sur la donnée) est **gelée** : ni adoptée, ni jamais réécrite, et son
+pseudo reste indisponible jusqu'à mise à jour du serveur.
 
-## Identité joueur (pseudo + clé)
+## Comptes joueurs (pseudo + mot de passe)
 
-Le pseudo tapé sur l'écran de connexion **est** le compte — pas d'étape à
-part, pas de tag à quatre chiffres, pas d'identifiant invisible dans le
-`localStorage`.
+Le système habituel : une page de **création** (pseudo, mot de passe et sa
+confirmation), une page de **connexion**, et une **reprise en un clic** sur le
+même navigateur.
 
-**Première connexion.** Taper un pseudo neuf et cliquer « Rejoindre » : le
-serveur crée le compte et affiche une **clé secrète** (`XXXX-XXXX`), une seule
-fois, sur cette même page. La noter avec le pseudo : le serveur n'en garde
-qu'une empreinte chiffrée, il ne pourra jamais la réafficher.
+**Créer un compte.** Onglet « Créer un compte » : pseudo (3 à 14 caractères),
+mot de passe (8 minimum, 72 maximum — aucune règle de complexité imposée).
+**Pas de récupération par email** : noter son mot de passe quelque part. Le
+serveur n'en garde qu'une empreinte (scrypt), il ne pourra jamais le réafficher.
 
-**Même navigateur, plus tard.** Rien à retaper — le pseudo et la clé sont
-mémorisés localement et renvoyés tout seuls au clic sur « Rejoindre ».
+**Même navigateur, plus tard.** Le pseudo est prérempli : cliquer
+« Se connecter » en laissant le mot de passe **vide** reprend la session — un
+**jeton** mémorisé localement (jamais le mot de passe), valable 30 jours
+glissants, chaque retour repousse l'échéance. Il survit aux redéploiements du
+serveur. Pour changer de compte, taper un autre pseudo et son mot de passe.
 
-**Autre navigateur ou autre machine.** Taper le pseudo ET la clé dans le
-champ prévu à côté ; la progression suit. La clé se tape indifféremment en
-majuscules ou minuscules, avec ou sans tiret.
+**Autre navigateur ou autre machine.** Onglet « Se connecter », pseudo et mot
+de passe. Chaque connexion émet un jeton neuf : **le dernier login gagne**,
+l'appareil précédent devra retaper le mot de passe.
 
-**Clé perdue : il n'y a pas de rattrapage.** Contrairement à l'ancien système
-(un identifiant de navigateur permettait de re-réserver un nouveau code), le
-pseudo+clé est la seule porte d'entrée du compte — la perdre sans l'avoir
-notée abandonne ce pseudo et sa progression pour de bon. Choisir un autre
-pseudo repart d'un compte neuf. Acceptable pour un LAN de quatre joueurs ;
-à savoir avant de miser beaucoup de parties sur un compte qu'on ne peut pas
-noter (poste public, appareil partagé...).
+**Changer de mot de passe.** Depuis le hub (« mot de passe… »), en connaissant
+l'ancien. La session en cours survit au changement.
 
-**Pseudo déjà pris ?** Sans la bonne clé, la connexion est refusée — choisir
-un pseudo différent, ou entrer la clé qui va avec celui-là.
+**Mot de passe perdu.** Pas d'email, donc pas de réinitialisation autonome :
+c'est l'opérateur du serveur qui génère un mot de passe temporaire depuis la
+page admin (voir plus haut). Sur un serveur sans opérateur joignable, un mot
+de passe perdu abandonne le compte — comme l'ancienne clé.
 
-Limites voulues : cinq tentatives de clé par connexion avant reconnexion
-forcée, et le second onglet ouvert sur un même pseudo (déjà connecté ailleurs)
-reçoit une session temporaire, non sauvegardée — les noyaux ne se comptent
-jamais en double.
+**Pseudo déjà pris ?** L'inscription le dit franchement — choisir un autre
+pseudo, ou se connecter avec si c'est le sien.
+
+Limites voulues : cinq tentatives par connexion avant reconnexion forcée, un
+**gel de dix secondes** du pseudo visé après cinq échecs (même en rouvrant des
+connexions), et le second onglet ouvert sur un même compte (déjà connecté
+ailleurs) reçoit une session temporaire, non sauvegardée — les noyaux ne se
+comptent jamais en double.

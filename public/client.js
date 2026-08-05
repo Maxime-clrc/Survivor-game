@@ -179,13 +179,18 @@ function resize() {
 addEventListener("resize", resize);
 resize();
 const gate = document.getElementById("gate");
-const gateJoinRow = document.getElementById("gateJoinRow");
-const keyInput = document.getElementById("key");
+const gateFormsEl = document.getElementById("gateForms");
+const tabLoginBtn = document.getElementById("tabLogin");
+const tabRegisterBtn = document.getElementById("tabRegister");
+const loginFormEl = document.getElementById("loginForm");
+const registerFormEl = document.getElementById("registerForm");
+const passInput = document.getElementById("pass");
+const regNameInput = document.getElementById("regName");
+const regPassInput = document.getElementById("regPass");
+const regPass2Input = document.getElementById("regPass2");
+const regGoBtn = document.getElementById("regGo");
 const gateHold = document.getElementById("gateHold");
 const gateWho = document.getElementById("gateWho");
-const keyRevealEl = document.getElementById("keyReveal");
-const keyRevealHandleEl = document.getElementById("keyRevealHandle");
-const keyRevealValueEl = document.getElementById("keyRevealValue");
 const gateHoldMsgEl = document.getElementById("gateHoldMsg");
 const gateContinueBtn = document.getElementById("gateContinue");
 const menuEl = document.getElementById("menu");
@@ -228,6 +233,14 @@ const roomPassInput = document.getElementById("roomPass");
 const roomCreateBtn = document.getElementById("roomCreate");
 const hubStatusEl = document.getElementById("hubStatus");
 const panelLeaveBtn = document.getElementById("panelLeave");
+const hubWhoEl = document.getElementById("hubWho");
+const hubLogoutBtn = document.getElementById("hubLogout");
+const hubPassToggleBtn = document.getElementById("hubPassToggle");
+const hubPassBoxEl = document.getElementById("hubPassBox");
+const passOldInput = document.getElementById("passOld");
+const passNewInput = document.getElementById("passNew");
+const passChangeBtn = document.getElementById("passChangeBtn");
+const passMsgEl = document.getElementById("passMsg");
 
 /* --- etat local ------------------------------------------------------------- */
 
@@ -298,31 +311,29 @@ function setStatus(msg, isError = false) {
   statusEl.classList.toggle("err", isError);
 }
 
-/* Identite = pseudo + cle (plus de uid invisible). `key` reste vide tant que
-   le navigateur n'a jamais reussi de connexion : au premier `welcome` (fresh
-   ou non), on range pseudo+cle qui ont VRAIMENT fonctionne — jamais une
-   valeur juste tapee au clavier, qui pourrait etre fausse. */
-let pendingPseudo = "";
-let pendingKey = "";
+/* Identite = compte pseudo + mot de passe ; session = JETON. Le localStorage
+   ne contient que `survivor.pseudo` et `survivor.token` — jamais le mot de
+   passe : un jeton volé ouvre CE jeu, un mot de passe volé ouvre tout ce que
+   le joueur protège avec le même. `pendingAuth` porte le message
+   d'authentification à (re)jouer : les tentatives suivantes, après un
+   `authError` non-fatal, renvoient sur la MÊME socket — sinon chaque faute de
+   frappe ouvrirait une socket fantôme. */
+let pendingAuth = null;
 
-// N'ouvre la connexion QUE la premiere fois ; les tentatives suivantes (apres
-// un `joinError` non-`fatal`) renvoient juste un `join` corrige sur la MEME
-// socket, voir `goBtn.onclick` — sinon chaque faute de frappe sur la cle
-// laisserait une socket fantome manger une des quatre places.
-function sendJoin(pseudo, key) {
-  pendingPseudo = pseudo;
-  pendingKey = key;
-  ws.send(JSON.stringify({ t: "join", pseudo, key }));
+function sendAuth(msg) {
+  pendingAuth = msg;
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  else connect();
 }
 
-function connect(pseudo, key) {
+function connect() {
   setStatus("connexion…");
-  goBtn.disabled = true;
+  setGateBusy(true);
 
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}`);
 
-  ws.onopen = () => sendJoin(pseudo, key);
+  ws.onopen = () => { if (pendingAuth) ws.send(JSON.stringify(pendingAuth)); };
 
   ws.onmessage = ev => {
     let msg;
@@ -332,30 +343,28 @@ function connect(pseudo, key) {
       case "welcome":
         myId = msg.id;
         connected = true;
-        goBtn.disabled = false;
+        pendingAuth = null;
+        setGateBusy(false);
+        setStatus("");
         // La connexion tombe desormais sur le HUB, pas dans une partie : hote,
         // phase et statut de spectateur arriveront avec `roomJoined`.
         inRoom = false;
         pendingRejoin = msg.rejoin ?? null;
-        // Pseudo+cle viennent de reussir un vrai aller-retour : on les range
-        // MAINTENANT, jamais avant (une cle tapee au clavier pourrait etre
-        // fausse — la ranger avant verification ecraserait une bonne cle
-        // memorisee par une mauvaise).
-        localStorage.setItem("survivor.pseudo", pendingPseudo);
-        localStorage.setItem("survivor.key", pendingKey);
-        // Deux cas s'arretent sur #gate avant le hub : compte neuf (la cle
-        // ne sera plus jamais affichee, il faut la lire) et compte deja
-        // connecte ailleurs (a dire, pas a laisser deviner). Decide sur CES
-        // DRAPEAUX, jamais sur l'ordre d'arrivee des messages — `accountCreated`
-        // suit ce `welcome` mais rien ne garantit que le code appele depuis
-        // ce handler l'ait deja vu.
-        if (msg.fresh || msg.dup) {
-          gateJoinRow.hidden = true;
-          gateWho.textContent = `connecté comme ${pendingPseudo}`;
-          keyRevealEl.hidden = !msg.fresh;
-          gateHoldMsgEl.hidden = !msg.dup;
-          gateHoldMsgEl.textContent = msg.dup
-            ? "ce pseudo est déjà connecté ailleurs — progression temporaire sur cet onglet" : "";
+        /* Le pseudo memorise est celui que le SERVEUR renvoie (casse
+           canonique du compte), jamais la valeur tapee. Le jeton n'arrive
+           que fraichement emis (register/login) : une reprise par jeton
+           prolonge l'existant sans en changer. */
+        localStorage.setItem("survivor.pseudo", msg.pseudo ?? "");
+        if (msg.token) localStorage.setItem("survivor.token", msg.token);
+        // Un seul cas s'arrete sur #gate avant le hub : compte deja connecte
+        // ailleurs (a dire, pas a laisser deviner). Decide sur CE DRAPEAU,
+        // jamais sur l'ordre d'arrivee des messages.
+        if (msg.dup) {
+          gateFormsEl.hidden = true;
+          gateWho.textContent = `connecté comme ${msg.pseudo}`;
+          gateHoldMsgEl.hidden = false;
+          gateHoldMsgEl.textContent =
+            "ce compte est déjà connecté ailleurs — progression temporaire sur cet onglet";
           gateHold.hidden = false;
         } else {
           gate.hidden = true;
@@ -434,39 +443,44 @@ function connect(pseudo, key) {
         renderMeta();
         break;
 
-      /* La cle n'existe EN CLAIR qu'ici, une seule fois : le serveur n'en
-         garde qu'un hachage (`resolveAccount`, progress_store.js). Suit
-         normalement un `welcome{fresh:1}` avec #gate deja ouvert — mais la
-         remise a zero de la page admin en genere aussi une PENDANT que le
-         joueur est au salon (son compte vient d'etre recree, resolveAccount
-         y voit un pseudo absent) : #gate est alors ferme, et le rouvrir est
-         la seule facon de ne pas perdre une cle qui ne sera plus jamais
-         reaffichee. `refreshPanel()` a deja la garde `!gate.hidden` : la
-         reouvrir ici suffit a suspendre le salon dessous, meme mecanisme
-         qu'a la premiere connexion. */
-      case "accountCreated":
-        keyRevealHandleEl.textContent = msg.pseudo;
-        keyRevealValueEl.textContent = msg.key;
-        localStorage.setItem("survivor.key", msg.key);
-        pendingKey = msg.key;
-        if (gate.hidden) {
-          gateJoinRow.hidden = true;
-          gateWho.textContent = `connecté comme ${msg.pseudo}`;
-          keyRevealEl.hidden = false;
-          gateHoldMsgEl.hidden = true;
-          gateHoldMsgEl.textContent = "";
-          gateHold.hidden = false;
-          gate.hidden = false;
+      /* Echec d'authentification. Deux cas se traitent sans bruit : un jeton
+         expire (`jeton` — cas NORMAL, on retombe sur les formulaires) et la
+         remise a zero admin (`reset` — le compte n'existe plus, le jeton non
+         plus). Le reste s'affiche tel quel. `fatal` : cette socket ne peut
+         plus reussir (cinq essais), il en faut une neuve pour reobtenir un
+         compteur a zero — retenter dessus contournerait le frein pour rien. */
+      case "authError":
+        pendingAuth = null;
+        setGateBusy(false);
+        if (msg.motif === "jeton" || msg.motif === "reset") {
+          localStorage.removeItem("survivor.token");
         }
+        /* Connecte, la seule source d'authError est le changement de mot de
+           passe : la reponse va dans son encart, pas sur l'ecran d'entree. */
+        if (connected) {
+          passMsg(msg.msg ?? "refusé", true);
+          break;
+        }
+        renderGateMode();
+        setStatus(msg.motif === "jeton"
+          ? "session expirée — tape ton mot de passe" : (msg.msg ?? ""),
+          msg.motif !== "jeton" ? true : false);
+        if (msg.fatal) ws.close();
         break;
 
-      case "joinError":
-        setStatus(msg.msg, true);
-        goBtn.disabled = false;
-        // `fatal` (cinq mauvaises cles) : cette socket ne peut plus reussir,
-        // il en faut une neuve pour reobtenir un compteur d'essais a zero.
-        // Retenter dessus contournerait le frein anti-force-brute pour rien.
-        if (msg.fatal) ws.close();
+      /* Reponses du bloc compte (hub) : changement de mot de passe reussi,
+         deconnexion actee — le client purge sa session et repart de l'ecran
+         d'entree via onclose. */
+      case "passChanged":
+        passMsg("mot de passe changé", false);
+        passOldInput.value = "";
+        passNewInput.value = "";
+        break;
+
+      case "loggedOut":
+        localStorage.removeItem("survivor.token");
+        localStorage.removeItem("survivor.pseudo");
+        ws.close();
         break;
 
       case "lobby":
@@ -649,20 +663,26 @@ function connect(pseudo, key) {
     cardsCloseQueued = false;
     panel.hidden = true;
     menuEl.hidden = true;
-    // Reconnexion : on repart de la ligne pseudo, pas de la pause de la
-    // session precedente (cle affichee ou message de doublon).
+    // Reconnexion : on repart de l'ecran d'entree, dans le mode qui
+    // correspond a la session memorisee (reprise par jeton s'il en reste un,
+    // formulaires sinon) — jamais de la pause de doublon precedente.
     gateHold.hidden = true;
-    keyRevealEl.hidden = true;
     gateHoldMsgEl.hidden = true;
-    gateJoinRow.hidden = false;
+    renderGateMode();
     gate.hidden = false;
     showHud(false);
-    goBtn.disabled = false;
+    setGateBusy(false);
     closeCards();
     closeBilan();
     closeBuild();
     closePause();
-    setStatus("connexion perdue", true);
+    // `loggedOut` ferme aussi la socket : une deconnexion voulue n'est pas
+    // une connexion perdue, le statut reste muet dans ce cas.
+    if (localStorage.getItem("survivor.pseudo") || pendingAuth) {
+      setStatus("connexion perdue", true);
+    } else {
+      setStatus("");
+    }
   };
 }
 
@@ -682,28 +702,41 @@ function setLoading(k, quoi) {
   if (quoi) loadWhat.textContent = quoi;
 }
 
-goBtn.onclick = async () => {
-  const pseudo = nameInput.value.trim();
-  if (!pseudo) { setStatus("tape un pseudo", true); return; }
-  const key = keyInput.value.trim() || localStorage.getItem("survivor.key") || "";
+/* L'ecran d'entree n'a qu'un chemin de connexion : « Se connecter ». La
+   session memorisee (jeton) s'y absorbe — pseudo prerempli, et un champ mot
+   de passe laisse VIDE reprend la session, comme l'ancienne cle relue en
+   silence a l'envoi. Le libelle du champ le dit, sinon un champ obligatoire
+   qu'on peut laisser vide passe pour un bug. */
+function renderGateMode() {
+  // Les formulaires reviennent : seul le cas « deja connecte ailleurs »
+  // (#gateHold) les masque, et une reconnexion doit les retrouver.
+  gateFormsEl.hidden = false;
+  const pseudo = localStorage.getItem("survivor.pseudo") || "";
+  const token = localStorage.getItem("survivor.token") || "";
+  if (!nameInput.value) nameInput.value = pseudo;
+  passInput.placeholder = pseudo && token
+    ? "mot de passe (vide : reprendre la session)"
+    : "mot de passe";
+}
 
-  /* Retenter sur la MEME socket apres un `joinError` non-`fatal` : elle est
-     deja ouverte et l'atlas deja construit, inutile de rejouer tout l'ecran
-     de chargement pour une faute de frappe sur la cle. Sans ca, chaque essai
-     ouvrirait une socket de plus — jusqu'a en manger les quatre places. */
-  if (ws && ws.readyState === WebSocket.OPEN && !connected) {
-    goBtn.disabled = true;
-    sendJoin(pseudo, key);
-    return;
-  }
+function setGateBusy(busy) {
+  goBtn.disabled = busy;
+  regGoBtn.disabled = busy;
+}
 
-  goBtn.disabled = true;
+/* La generation des atlas et le contexte audio ne se font qu'UNE fois, au
+   premier geste — quel que soit le bouton : connexion, creation ou reprise.
+   Les navigateurs exigent un geste utilisateur pour l'audio, et c'est le seul
+   ecran ou l'on peut prendre trois secondes. */
+let booted = false;
+async function bootOnce() {
+  if (booted) return;
+  booted = true;
+
   gate.hidden = true;
   loadingEl.hidden = false;
   setLoading(0, "génération des sprites");
 
-  // Le contexte audio se cree ICI et nulle part ailleurs : les navigateurs
-  // exigent un geste utilisateur.
   initAudio();
   // La musique demarre avec le contexte : le salon a droit a son fond calme,
   // et c'est l'humeur — pas le demarrage — qui suivra la partie.
@@ -753,17 +786,60 @@ goBtn.onclick = async () => {
 
   loadingEl.hidden = true;
   gate.hidden = false;
-  goBtn.disabled = false;
-  connect(pseudo, key);
+}
+
+/* Connexion : le mot de passe part vers le serveur et n'est range NULLE part.
+   Un champ mot de passe VIDE avec une session memorisee pour CE pseudo part
+   en `loginToken` — c'est la reprise silencieuse, sans bouton a part. Si le
+   jeton a expire, `authError{motif:"jeton"}` retombe ici et le joueur tape
+   son mot de passe. Retenter apres un `authError` non-fatal reutilise la
+   meme socket (sendAuth) : elle est deja ouverte et l'atlas deja construit. */
+goBtn.onclick = async () => {
+  const pseudo = nameInput.value.trim();
+  const pass = passInput.value;
+  if (!pseudo) { setStatus("tape ton pseudo", true); return; }
+
+  const storedPseudo = localStorage.getItem("survivor.pseudo") || "";
+  const token = localStorage.getItem("survivor.token") || "";
+  const canResume = !!token && pseudo.toLowerCase() === storedPseudo.toLowerCase();
+  if (!pass && !canResume) { setStatus("tape ton mot de passe", true); return; }
+
+  setGateBusy(true);
+  await bootOnce();
+  sendAuth(pass
+    ? { t: "login", pseudo, pass }
+    : { t: "loginToken", pseudo: storedPseudo, token });
 };
+
+/* Creation : la confirmation et la longueur se verifient ICI, avant le
+   reseau — le serveur revalide de toute facon, mais une faute de frappe ne
+   merite pas un aller-retour. */
+regGoBtn.onclick = async () => {
+  const pseudo = regNameInput.value.trim();
+  const pass = regPassInput.value;
+  if (!pseudo) { setStatus("choisis un pseudo", true); return; }
+  if (pass.length < 8) { setStatus("mot de passe : 8 caractères minimum", true); return; }
+  if (pass !== regPass2Input.value) { setStatus("les deux mots de passe ne correspondent pas", true); return; }
+  setGateBusy(true);
+  await bootOnce();
+  sendAuth({ t: "register", pseudo, pass });
+};
+
+function activateTab(register) {
+  tabLoginBtn.classList.toggle("mine", !register);
+  tabRegisterBtn.classList.toggle("mine", register);
+  loginFormEl.hidden = register;
+  registerFormEl.hidden = !register;
+  setStatus("");
+  (register ? regNameInput : nameInput).focus();
+}
+tabLoginBtn.onclick = () => activateTab(false);
+tabRegisterBtn.onclick = () => activateTab(true);
+
 nameInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
-keyInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
-nameInput.value = localStorage.getItem("survivor.pseudo") || "";
-// La cle n'est JAMAIS pre-remplie visiblement : elle n'est relue qu'en
-// silence a l'envoi (`goBtn.onclick`). Un champ vide qui fonctionne quand
-// meme est ce qui rend le retour sur le meme navigateur aussi simple qu'avant
-// la simplification pseudo+cle ; l'afficher en clair n'aiderait qu'a le faire
-// fuiter par-dessus l'epaule sur un poste partage.
+passInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
+regPass2Input.onkeydown = e => { if (e.key === "Enter") regGoBtn.click(); };
+renderGateMode();
 nameInput.focus();
 
 /* --- suite de la connexion ---------------------------------------------------
@@ -789,6 +865,7 @@ function hubStatus(msg, isError = false) {
 function enterHub() {
   if (!connected || inRoom) return;
   hubScreenEl.hidden = false;
+  hubWhoEl.textContent = `connecté comme ${localStorage.getItem("survivor.pseudo") || "?"}`;
   renderRooms();
   if (pendingRejoin) {
     const { code, name } = pendingRejoin;
@@ -860,6 +937,36 @@ roomNameInput.onkeydown = e => { if (e.key === "Enter") roomCreateBtn.click(); }
 panelLeaveBtn.onclick = () => {
   if (!connected || !inRoom) return;
   ws.send(JSON.stringify({ t: "leaveRoom" }));
+};
+
+/* --- le compte, depuis le hub -------------------------------------------------- */
+
+function passMsg(msg, isError) {
+  passMsgEl.textContent = msg;
+  passMsgEl.classList.toggle("err", isError);
+  passMsgEl.classList.toggle("ok", !isError && !!msg);
+}
+
+/* La deconnexion est un aller-retour : le serveur invalide le jeton PUIS le
+   client purge et referme (`loggedOut`). Purger d'abord laisserait un jeton
+   valide de trente jours orphelin cote serveur. */
+hubLogoutBtn.onclick = () => {
+  if (!connected) return;
+  ws.send(JSON.stringify({ t: "logout" }));
+};
+
+hubPassToggleBtn.onclick = () => {
+  hubPassBoxEl.hidden = !hubPassBoxEl.hidden;
+  passMsg("", false);
+  if (!hubPassBoxEl.hidden) passOldInput.focus();
+};
+
+passChangeBtn.onclick = () => {
+  if (!connected) return;
+  const ancien = passOldInput.value;
+  const neuf = passNewInput.value;
+  if (neuf.length < 8) { passMsg("nouveau mot de passe : 8 caractères minimum", true); return; }
+  ws.send(JSON.stringify({ t: "changePass", ancien, neuf }));
 };
 
 /* --- Menu (progression) -----------------------------------------------------
@@ -945,7 +1052,9 @@ for (const u of audioUi) {
 // La touche M coupe le son en jeu, sans repasser par le salon.
 window.addEventListener("keydown", e => {
   if (e.key !== "m" && e.key !== "M") return;
-  if (document.activeElement === nameInput) return;
+  // Jamais pendant une saisie : l'ecran d'entree et le hub sont pleins de
+  // champs (pseudo, mots de passe, nom de salle) ou un « m » est une lettre.
+  if (document.activeElement?.tagName === "INPUT") return;
   setMuted(!isMuted());
   refreshAudioUi();
 });

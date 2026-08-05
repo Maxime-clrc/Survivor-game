@@ -137,38 +137,82 @@ function handleAdmin(req, res, urlPath) {
     res.end(JSON.stringify(obj));
   };
 
-  /* Un seul point de lecture : l'etat interne du magasin, la sonde en direct
-     (latence + ligne) et le contexte de jeu qui borne les actions — desormais
-     la LISTE des salles, la page supposait une partie unique. */
+  /* Un seul point de lecture : l'etat interne du magasin, la sonde en direct,
+     la liste des salles ET celle des comptes — jamais un hachage ni un jeton,
+     seulement ce qu'un operateur lit. */
   if (req.method === "GET" && urlPath === "/admin/api/etat") {
-    store.probe(probe => sendJson({
-      status: store.status(),
-      probe,
-      ...hub.adminView(),
-    }));
+    store.probe(probe => {
+      const connectes = hub.connectedKeys();
+      sendJson({
+        status: store.status(),
+        probe,
+        ...hub.adminView(),
+        comptes: store.listAccounts().map(a => ({ ...a, connecte: connectes.has(a.pseudo) ? 1 : 0 })),
+      });
+    });
     return;
   }
 
-  /* Suppression de la ligne + remise a zero de la memoire, refusee des qu'UNE
-     salle est en manche — pendant une manche, les profils sont sous les pieds
-     d'awardRun et des achats, quelle que soit la salle. Les connectes sont
-     relies a des profils neufs immediatement, par le meme resolveAccount qu'un
-     premier join (rebindAccounts) : garder l'ancien objet en memoire le ferait
-     repartir en entier au prochain save(). */
+  /* Remise a zero TOTALE (table + memoire), refusee des qu'UNE salle est en
+     manche. Un mot de passe ne se recree pas d'office comme l'etait une cle
+     generee : les connectes sont DECONNECTES proprement et repassent par
+     l'ecran de creation — garder leurs anciens profils en memoire les ferait
+     repartir au prochain save(). */
   if (req.method === "POST" && urlPath === "/admin/api/reset") {
     if (hub.anyRoundRunning()) {
       return sendJson({ error: "une manche est en cours — réinitialisation possible quand toutes les salles sont au salon" });
     }
     store.reset(err => {
       if (err) return sendJson({ error: `suppression impossible : ${err.message}` });
-      hub.rebindAccounts();
-      log("progression réinitialisée depuis la page admin");
+      hub.kickAccounts("progression réinitialisée — recrée un compte");
+      log("comptes réinitialisés depuis la page admin");
       sendJson({ ok: 1 });
     });
     return;
   }
 
+  /* Le filet « mot de passe perdu » sans email : un temporaire, affiche UNE
+     fois a l'operateur, que le joueur change des sa reconnexion. */
+  if (req.method === "POST" && urlPath === "/admin/api/passreset") {
+    readJson(req, body => {
+      const r = store.adminPassReset(body?.pseudo);
+      if (!r.ok) return sendJson({ error: r.error });
+      log(`mot de passe réinitialisé pour ${body.pseudo} (admin)`);
+      sendJson({ ok: 1, temp: r.temp });
+    });
+    return;
+  }
+
+  /* Suppression d'UN compte. Le titulaire eventuellement connecte est
+     deconnecte D'ABORD : son profil en memoire ne doit pas survivre a sa
+     ligne, sinon il repart au prochain save(). */
+  if (req.method === "POST" && urlPath === "/admin/api/delcompte") {
+    readJson(req, body => {
+      const pseudo = String(body?.pseudo ?? "").toLowerCase();
+      hub.kickAccount(pseudo, "compte supprimé par l'administrateur");
+      store.deleteAccount(pseudo, err => {
+        if (err) return sendJson({ error: `suppression impossible : ${err.message}` });
+        log(`compte ${pseudo} supprimé (admin)`);
+        sendJson({ ok: 1 });
+      });
+    });
+    return;
+  }
+
   plain(404, "404");
+}
+
+/* Corps JSON d'une requete admin, borne : ces routes recoivent un pseudo,
+   pas un televersement. */
+function readJson(req, done) {
+  let body = "";
+  req.on("data", c => {
+    body += c;
+    if (body.length > 4096) req.destroy();
+  });
+  req.on("end", () => {
+    try { done(JSON.parse(body)); } catch { done(null); }
+  });
 }
 
 /* --- cablage ------------------------------------------------------------------- */
