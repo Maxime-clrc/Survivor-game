@@ -135,6 +135,30 @@ Avec un **redéploiement automatique à chaque push**, deux choses à savoir :
   cette manche sont versés en fin de manche, donc perdus). Pousser de
   préférence quand personne ne joue.
 
+## Page d'administration
+
+`https://<serveur>/admin` — trois fonctions d'opérateur : vérifier que l'accès
+Supabase fonctionne **depuis la machine qui héberge** (sonde en direct avec
+latence), voir le contenu de la ligne `serveur`, et la supprimer.
+
+**Armement.** La page n'existe que si la variable d'environnement `ADMIN_KEY`
+est posée (même panneau que les variables Supabase). Sans elle, tout `/admin`
+répond 404. Choisir une clé longue et aléatoire (par exemple `openssl rand -hex
+24`) : quiconque la possède peut effacer toute la progression. La clé se saisit
+sur la page et voyage dans un en-tête HTTP, jamais dans l'adresse — elle ne
+finit donc pas dans les journaux du reverse proxy.
+
+**La suppression fait les deux moitiés du travail** : la ligne Supabase **et**
+la progression en mémoire du serveur, avec bascule immédiate des joueurs
+connectés sur des profils neufs. Contrairement à une suppression à la main dans
+le dashboard, **aucun redémarrage n'est nécessaire** — et il n'y a pas de piège
+de re-poussée. Elle est refusée pendant une manche (revenir au salon d'abord).
+
+Ce que montre l'état : configuration présente ou non, sonde en direct (latence
+mesurée), lecture au boot réussie (écritures ouvertes) ou suspendue, présence
+de la ligne avec son horodatage et son nombre de profils, profils en mémoire,
+phase de jeu, dernier échange réussi et dernier échec.
+
 ## Dépannage
 
 | Symptôme | Cause probable |

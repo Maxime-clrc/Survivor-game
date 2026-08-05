@@ -173,6 +173,21 @@ export function createStore(log = console.log) {
   let dirty = false;
   let retryTimer = null;
 
+  /* Sante des echanges, pour la page admin : dernier succes, dernier echec.
+     Releves dans push() et attemptLoad(), les deux seuls chemins reseau. */
+  let lastOkAt = 0;
+  let lastError = "";
+  let lastErrorAt = 0;
+
+  function noteOk() {
+    lastOkAt = Date.now();
+    lastError = "";
+  }
+  function noteError(err) {
+    lastError = err.message;
+    lastErrorAt = Date.now();
+  }
+
   function push() {
     if (!remote) return;
     if (!loaded || pushing) {
@@ -188,6 +203,7 @@ export function createStore(log = console.log) {
     restCall(remote, "POST", "/rest/v1/progress", row, err => {
       pushing = false;
       if (err) {
+        noteError(err);
         log(`progression Supabase : envoi impossible (${err.message}) — nouvel essai dans ${PUSH_RETRY_MS / 1000} s`);
         // Sans copie disque, un envoi perdu ne peut plus attendre le save()
         // suivant : le reessai est porte par un minuteur, un seul a la fois.
@@ -199,6 +215,7 @@ export function createStore(log = console.log) {
         }
         return;
       }
+      noteOk();
       if (dirty) {
         dirty = false;
         push();
@@ -216,6 +233,7 @@ export function createStore(log = console.log) {
     const path = `/rest/v1/progress?account_id=eq.${REMOTE_ROW}&select=data`;
     restCall(remote, "GET", path, null, (err, out) => {
       if (err) {
+        noteError(err);
         log(`progression Supabase : lecture impossible (${err.message}) — `
           + `nouvel essai dans ${LOAD_RETRY_MS / 1000} s, sauvegarde suspendue d'ici là`);
         setTimeout(() => attemptLoad(resolveReady), LOAD_RETRY_MS);
@@ -249,6 +267,7 @@ export function createStore(log = console.log) {
         }
       }
       loaded = true;
+      noteOk();
       log(raw
         ? `progression Supabase chargée — ${adopted} profil(s)`
         : "progression Supabase : table vide, première utilisation");
@@ -270,6 +289,86 @@ export function createStore(log = console.log) {
     log("aucune configuration Supabase (SUPABASE_URL / SUPABASE_SERVICE_KEY) — "
       + "la progression ne survivra PAS à un redémarrage");
     ready = Promise.resolve();
+  }
+
+  /* --- introspection et remise a zero, pour la page admin --------------------- */
+
+  /* Photographie de l'etat interne — aucune requete reseau, c'est la sonde qui
+     s'en charge. `dirty` agrege le drapeau et le minuteur de reessai : pour un
+     admin, « quelque chose attend de partir » est une seule information. */
+  function status() {
+    return {
+      configured: !!remote,
+      loaded,
+      pushing,
+      pending: dirty || !!retryTimer,
+      players: Object.keys(data.players).length,
+      lastOkAt,
+      lastError,
+      lastErrorAt,
+    };
+  }
+
+  /* Sonde EN DIRECT : une lecture reelle de la ligne, avec latence mesuree.
+     C'est la seule reponse honnete a « l'acces a la base est-il ok ? » — les
+     compteurs internes disent le passe, la sonde dit maintenant. Elle rend
+     aussi la ligne entiere : la page admin est la vue de la table. */
+  function probe(done) {
+    if (!remote) return done({ ok: false, error: "configuration absente" });
+    const t0 = Date.now();
+    const path = `/rest/v1/progress?account_id=eq.${REMOTE_ROW}&select=data,updated_at`;
+    restCall(remote, "GET", path, null, (err, out) => {
+      const ms = Date.now() - t0;
+      if (err) {
+        noteError(err);
+        return done({ ok: false, ms, error: err.message });
+      }
+      noteOk();
+      let row = null;
+      try {
+        row = JSON.parse(out)[0] ?? null;
+      } catch {
+        row = null;
+      }
+      done({ ok: true, ms, row });
+    });
+  }
+
+  /* Remise a zero : supprime la ligne distante ET vide la memoire, dans cet
+     ordre. Les deux ensemble ou rien — supprimer la ligne en laissant la
+     memoire ferait tout repousser au save() suivant (le piege documente du
+     redemarrage obligatoire, qu'on supprime ici), et vider la memoire sans la
+     ligne laisserait l'ancien etat revenir au prochain boot.
+
+     On attend d'abord la fin d'un envoi en vol : son corps est deja serialise,
+     il pourrait atterrir APRES la suppression et ressusciter la ligne. Tout
+     envoi retenu (dirty, minuteur) est annule pour la meme raison. L'appelant
+     doit relier les profils des clients connectes a des objets neufs — les
+     references qu'il garde pointent sur l'ancien contenu. */
+  function reset(done) {
+    if (!remote) return done(new Error("configuration Supabase absente"));
+    const deadline = Date.now() + REMOTE_TIMEOUT_MS + 500;
+    const wait = () => {
+      if (pushing && Date.now() < deadline) return setTimeout(wait, 50);
+      dirty = false;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      restCall(remote, "DELETE", `/rest/v1/progress?account_id=eq.${REMOTE_ROW}`, null, err => {
+        if (err) {
+          noteError(err);
+          return done(err);
+        }
+        noteOk();
+        for (const k of Object.keys(data.players)) delete data.players[k];
+        // Une table qu'on vient de vider soi-meme est une table lue : si le
+        // boot etait encore suspendu, la suppression vaut lecture reussie.
+        loaded = true;
+        done(null);
+      });
+    };
+    wait();
   }
 
   /* Vidage final avant l'arret du processus. Ne au deploiement en conteneur :
@@ -362,5 +461,5 @@ export function createStore(log = console.log) {
     return null;
   }
 
-  return { data, ready, save, flush, profileFor, claimPseudo, recoverUid };
+  return { data, ready, save, flush, status, probe, reset, profileFor, claimPseudo, recoverUid };
 }
