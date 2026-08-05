@@ -12,6 +12,7 @@
    =========================================================================== */
 
 import { createServer } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
 import { extname, join } from "node:path";
@@ -30,6 +31,12 @@ import { createStore } from "./progress_store.js";
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT) || 8080;
 const MAX_PLAYERS = PLAYER_COLORS.length;
+
+/* Cle de la page admin. Meme modele que la configuration Supabase : une
+   variable d'environnement, rien d'autre. ABSENTE = admin coupe, tout /admin
+   repond 404 — sur un serveur public, une page qui peut effacer la progression
+   n'existe que si son operateur l'a explicitement armee. */
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
 /* --- serveur de fichiers statiques ----------------------------------------- */
 
@@ -67,6 +74,13 @@ function resolvePath(urlPath) {
 }
 
 const httpServer = createServer(async (req, res) => {
+  const urlPath = (req.url || "/").split("?")[0];
+  // La page admin et son API passent AVANT le service de fichiers : /admin.html
+  // ne doit pas etre servi comme un fichier ordinaire quand l'admin est coupe.
+  if (urlPath === "/admin" || urlPath === "/admin.html" || urlPath.startsWith("/admin/")) {
+    handleAdmin(req, res, urlPath);
+    return;
+  }
   const file = resolvePath(req.url || "/");
   if (!file) { res.writeHead(400).end("Bad request"); return; }
 
@@ -82,6 +96,82 @@ const httpServer = createServer(async (req, res) => {
     res.end("404");
   }
 });
+
+/* --- page admin ----------------------------------------------------------------
+
+   Trois besoins d'operateur, pas un de plus : verifier que l'acces Supabase
+   fonctionne depuis la machine qui heberge, voir la ligne, la supprimer. La
+   cle voyage dans l'en-tete `x-admin-key` — jamais dans l'URL, ou elle
+   finirait dans les journaux d'acces du reverse proxy. La page elle-meme est
+   servie sans cle (elle ne contient rien de secret, c'est elle qui la
+   demande), mais seulement si l'admin est arme. */
+
+function adminAuthorized(req) {
+  const got = Buffer.from(String(req.headers["x-admin-key"] ?? ""));
+  const want = Buffer.from(ADMIN_KEY);
+  // timingSafeEqual par principe, comme pour le code de compte : la longueur
+  // fuit, pas le contenu.
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
+function handleAdmin(req, res, urlPath) {
+  const plain = (code, msg) => {
+    res.writeHead(code, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end(msg);
+  };
+  if (!ADMIN_KEY) return plain(404, "404");
+
+  if (req.method === "GET" && (urlPath === "/admin" || urlPath === "/admin.html")) {
+    readFile(join(ROOT, "public", "admin.html")).then(d => {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(d);
+    }).catch(() => plain(404, "404"));
+    return;
+  }
+
+  if (!adminAuthorized(req)) return plain(401, "clé invalide");
+  const sendJson = obj => {
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    res.end(JSON.stringify(obj));
+  };
+
+  /* Un seul point de lecture : l'etat interne du magasin, la sonde en direct
+     (latence + ligne) et le contexte de jeu qui borne les actions. */
+  if (req.method === "GET" && urlPath === "/admin/api/etat") {
+    store.probe(probe => sendJson({
+      status: store.status(),
+      probe,
+      phase,
+      connectes: joined().length,
+    }));
+    return;
+  }
+
+  /* Suppression de la ligne + remise a zero de la memoire, au salon
+     uniquement — pendant une manche, les profils sont sous les pieds
+     d'`awardRun` et des achats. Les connectes sont relies a des profils
+     neufs immediatement : garder l'ancien objet en memoire le ferait
+     repartir en entier au prochain save(), c'est le piege qui imposait un
+     redemarrage quand la suppression se faisait dans le dashboard. */
+  if (req.method === "POST" && urlPath === "/admin/api/reset") {
+    if (phase !== PHASE_LOBBY) {
+      return sendJson({ error: "une manche est en cours — réinitialisation possible au salon uniquement" });
+    }
+    store.reset(err => {
+      if (err) return sendJson({ error: `suppression impossible : ${err.message}` });
+      for (const c of joined()) {
+        if (!c.profile) continue;
+        c.profile = store.profileFor(c.uid, c.name);
+        sendProgress(c);
+      }
+      log("progression réinitialisée depuis la page admin");
+      sendJson({ ok: 1 });
+    });
+    return;
+  }
+
+  plain(404, "404");
+}
 
 /* --- etat du serveur --------------------------------------------------------- */
 

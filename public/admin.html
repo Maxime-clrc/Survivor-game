@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Survivor — administration</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<style>
+  /* Page hors combat, hors jeu : elle suit la charte (palette posee par
+     cssVars(), grille de 4 px, angles durs) mais ne charge RIEN du client —
+     un operateur doit pouvoir l'ouvrir meme si le jeu est en morceaux. */
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg-void);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: var(--t-m);
+    padding: var(--sp-8) var(--sp-4);
+  }
+  main { max-width: 720px; margin: 0 auto; display: grid; gap: var(--sp-6); }
+  h1 {
+    font-size: var(--t-l);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+  section {
+    background: var(--bg-panel);
+    border: var(--hair) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--sp-4);
+    display: grid;
+    gap: var(--sp-3);
+  }
+  h2 {
+    font-size: var(--t-s);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+  input {
+    flex: 1;
+    min-width: 200px;
+    background: var(--bg-raised);
+    color: var(--text);
+    border: var(--hair) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--sp-2) var(--sp-3);
+    font: inherit;
+  }
+  button {
+    background: var(--bg-raised);
+    color: var(--text);
+    border: var(--hair) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--sp-2) var(--sp-4);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color var(--tap);
+  }
+  button:hover { border-color: var(--text-dim); }
+  button.danger { color: var(--lethal); border-color: var(--lethal); }
+  dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--sp-1) var(--sp-4);
+  }
+  dt { color: var(--text-faint); }
+  dd { margin: 0; }
+  .ok { color: var(--gain); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--lethal); }
+  pre {
+    background: var(--bg-void);
+    border: var(--hair) solid var(--line-soft);
+    border-radius: var(--radius);
+    padding: var(--sp-3);
+    overflow-x: auto;
+    font-size: var(--t-s);
+    max-height: 420px;
+  }
+  #message { min-height: var(--sp-6); color: var(--text-dim); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Survivor — administration</h1>
+
+  <section>
+    <h2>Clé d'accès</h2>
+    <div class="row">
+      <input id="key" type="password" placeholder="ADMIN_KEY" autocomplete="off">
+      <button id="refresh">Actualiser</button>
+    </div>
+    <div id="message"></div>
+  </section>
+
+  <section>
+    <h2>État</h2>
+    <dl id="status"><dt>—</dt><dd>pas encore interrogé</dd></dl>
+  </section>
+
+  <section>
+    <h2>Ligne « serveur »</h2>
+    <pre id="rowView">—</pre>
+  </section>
+
+  <section>
+    <h2>Zone dangereuse</h2>
+    <p style="color: var(--text-dim);">
+      Supprime la ligne « serveur » dans Supabase <strong>et</strong> vide la
+      progression en mémoire : noyaux, arbres, jalons, pseudos réservés — tout
+      le monde repart de zéro, sans redémarrage. Refusé pendant une manche.
+    </p>
+    <div class="row">
+      <button id="reset" class="danger">Supprimer la ligne « serveur »</button>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+  import { cssVars } from "/shared/palette.js";
+  const root = document.documentElement;
+  for (const [k, v] of Object.entries(cssVars())) root.style.setProperty(k, v);
+
+  const $ = id => document.getElementById(id);
+  const keyInput = $("key");
+  keyInput.value = localStorage.getItem("survivor.adminKey") ?? "";
+
+  const PHASES = ["salon", "manche en cours", "choix de cartes"];
+  const fmtT = ts => ts ? new Date(ts).toLocaleString() : "jamais";
+
+  function say(msg, cls = "") {
+    $("message").textContent = msg;
+    $("message").className = cls;
+  }
+
+  function line(dt, dd, cls = "") {
+    return `<dt>${dt}</dt><dd class="${cls}">${dd}</dd>`;
+  }
+
+  async function refresh() {
+    const key = keyInput.value.trim();
+    if (!key) return say("entrer la clé ADMIN_KEY du serveur");
+    localStorage.setItem("survivor.adminKey", key);
+    say("interrogation…");
+    let r;
+    try {
+      r = await fetch("/admin/api/etat", { headers: { "x-admin-key": key } });
+    } catch {
+      return say("serveur injoignable", "bad");
+    }
+    if (r.status === 401) return say("clé invalide", "bad");
+    if (!r.ok) return say(`erreur HTTP ${r.status}`, "bad");
+    const { status, probe, phase, connectes } = await r.json();
+
+    let html = "";
+    html += line("configuration", status.configured
+      ? "SUPABASE_URL + SUPABASE_SERVICE_KEY présentes"
+      : "absente — aucune persistance", status.configured ? "ok" : "bad");
+    html += line("accès en direct", probe.ok
+      ? `OK — ${probe.ms} ms`
+      : `ÉCHEC — ${probe.error ?? "?"}`, probe.ok ? "ok" : "bad");
+    html += line("lecture au boot", status.loaded
+      ? "réussie — écritures ouvertes"
+      : "pas encore réussie — écritures suspendues", status.loaded ? "ok" : "warn");
+    if (probe.ok) {
+      html += probe.row
+        ? line("ligne « serveur »",
+            `présente — ${Object.keys(probe.row.data?.players ?? {}).length} profil(s), `
+            + `sauvée le ${fmtT(probe.row.updated_at)}`, "ok")
+        : line("ligne « serveur »", "absente (table vide — normal avant la première sauvegarde)", "warn");
+    }
+    html += line("mémoire du serveur", `${status.players} profil(s)`
+      + (status.pushing || status.pending ? " — envoi en attente" : ""));
+    html += line("partie", `${PHASES[phase] ?? phase} — ${connectes} connecté(s)`);
+    html += line("dernier échange réussi", fmtT(status.lastOkAt));
+    if (status.lastError) {
+      html += line("dernier échec", `${status.lastError} (${fmtT(status.lastErrorAt)})`, "warn");
+    }
+    $("status").innerHTML = html;
+
+    $("rowView").textContent = probe.ok && probe.row
+      ? JSON.stringify(probe.row.data, null, 2)
+      : "—";
+    say("");
+  }
+
+  async function reset() {
+    const key = keyInput.value.trim();
+    if (!key) return say("entrer la clé ADMIN_KEY du serveur");
+    if (!confirm("Supprimer TOUTE la progression (Supabase + mémoire) ? "
+      + "Les pseudos réservés et leurs codes seront perdus.")) return;
+    say("suppression…");
+    let r;
+    try {
+      r = await fetch("/admin/api/reset", { method: "POST", headers: { "x-admin-key": key } });
+    } catch {
+      return say("serveur injoignable", "bad");
+    }
+    if (r.status === 401) return say("clé invalide", "bad");
+    const out = await r.json();
+    if (out.error) return say(out.error, "warn");
+    say("progression supprimée — table et mémoire vides", "ok");
+    refresh();
+  }
+
+  $("refresh").addEventListener("click", refresh);
+  $("reset").addEventListener("click", reset);
+  keyInput.addEventListener("keydown", e => { if (e.key === "Enter") refresh(); });
+  if (keyInput.value) refresh();
+</script>
+</body>
+</html>
