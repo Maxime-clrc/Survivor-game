@@ -5436,7 +5436,8 @@ function drawPlayers(list, tm, marks = []) {
     const col = colorOf(p.id);
 
     if (p.downed) {
-      const ang = Math.atan2(p.aimY, p.aimX);
+      const aimDir = isMe ? aimVector() : { ax: p.aimX, ay: p.aimY };
+      const ang = Math.atan2(aimDir.ay, aimDir.ax);
       // Un cran plus discret a terre : le personnage n'agit plus, mais il faut
       // toujours pouvoir le trouver pour aller le relever.
       paintOutline(classFrame(p, "down"), x, y, ang, 1, 1, 0.45);
@@ -5519,7 +5520,8 @@ function drawPlayers(list, tm, marks = []) {
       const teinte = dashing ? FX.flash
         : ((p.skillFlags & SKILL_HEAL_MODE) ? CLASS_COLOR.soigneur : col);
       const frame = classFrame(p, moving ? "move" : "idle");
-      const ang = Math.atan2(p.aimY, p.aimX);
+      const aimDir = isMe ? aimVector() : { ax: p.aimX, ay: p.aimY };
+      const ang = Math.atan2(aimDir.ay, aimDir.ax);
       // Etirement dans l'axe du deplacement : 6 %, comme les creatures.
       const sx = moving ? 1.06 : 1;
       const sy = moving ? 0.96 : 1;
