@@ -25,7 +25,11 @@ import { SKILL_CFG } from "./classes.js";
 import { BOSS_ROSTER } from "./bosses.js";
 
 export const PROG_CFG = {
-  VERSION: 1,
+  // Passe a 2 avec la simplification pseudo+cle (plus de uid ni de tag) :
+  // une ligne Supabase ecrite par l'ancien format n'est plus jamais adoptee
+  // en silence, `progress_store.js` la voit comme une version inconnue et
+  // suspend l'ecriture au lieu d'ecraser ou de melanger les deux modeles.
+  VERSION: 2,
 
   /* Emplacements. On debloque definitivement, on equipe partiellement : c'est
      ce qui distingue ce systeme d'une simple echelle — apres cent parties, la
@@ -267,9 +271,13 @@ export function coresPartial(wave, diffIndex) {
 
 /* Profil neuf. Le champ `version` vit sur le FICHIER (progress_store), pas sur
    chaque profil. `kills` cumule par classe, pour le jalon des 500. */
-export function newProfile(name = "") {
+/* Simplification pseudo+cle : le pseudo EST le compte, plus un champ `name`
+   distinct qui ne servait qu'a l'affichage avant reservation. Le compte
+   n'existe qu'a partir du moment ou un pseudo lui est attache — `pseudo` est
+   donc pose ici, a la creation, par `progress_store.js#resolveAccount`. */
+export function newProfile(pseudo) {
   return {
-    name,
+    pseudo,
     cores: 0,
     runs: 0,
     best: { wave: 0, score: 0 },

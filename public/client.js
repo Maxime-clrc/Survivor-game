@@ -179,6 +179,17 @@ function resize() {
 addEventListener("resize", resize);
 resize();
 const gate = document.getElementById("gate");
+const gateJoinRow = document.getElementById("gateJoinRow");
+const keyInput = document.getElementById("key");
+const gateHold = document.getElementById("gateHold");
+const gateWho = document.getElementById("gateWho");
+const keyRevealEl = document.getElementById("keyReveal");
+const keyRevealHandleEl = document.getElementById("keyRevealHandle");
+const keyRevealValueEl = document.getElementById("keyRevealValue");
+const gateHoldMsgEl = document.getElementById("gateHoldMsg");
+const gateContinueBtn = document.getElementById("gateContinue");
+const menuEl = document.getElementById("menu");
+const menuCloseBtn = document.getElementById("menuClose");
 const panel = document.getElementById("panel");
 const panelTitle = document.getElementById("panelTitle");
 const summary = document.getElementById("summary");
@@ -260,6 +271,10 @@ let predicted = null;
 let connected = false;
 let lastSnapAt = 0;
 let ping = 0;
+// Quelle classe le Menu (progression) montre actuellement : posee par la
+// carte qui l'a ouvert (`openMenuFor`), pas par la classe deja choisie au
+// salon — on doit pouvoir consulter les trois arbres avant de choisir.
+let metaClsOverride = null;
 
 /* --- connexion --------------------------------------------------------------- */
 
@@ -268,27 +283,31 @@ function setStatus(msg, isError = false) {
   statusEl.classList.toggle("err", isError);
 }
 
-/* Identifiant de compte (lot D). Tire au sort a la premiere connexion et range
-   dans le localStorage : le pseudo n'est PAS une identite — n'importe qui peut
-   taper le tien — et c'est cette cle qui porte la progression. Changer de
-   navigateur repart de zero, c'est assume en reseau local et dit au LISEZMOI. */
-function accountUid() {
-  let uid = localStorage.getItem("survivor.uid");
-  if (uid && /^[a-z0-9]{8,64}$/i.test(uid)) return uid;
-  uid = "";
-  while (uid.length < 24) uid += Math.floor(Math.random() * 36).toString(36);
-  localStorage.setItem("survivor.uid", uid);
-  return uid;
+/* Identite = pseudo + cle (plus de uid invisible). `key` reste vide tant que
+   le navigateur n'a jamais reussi de connexion : au premier `welcome` (fresh
+   ou non), on range pseudo+cle qui ont VRAIMENT fonctionne — jamais une
+   valeur juste tapee au clavier, qui pourrait etre fausse. */
+let pendingPseudo = "";
+let pendingKey = "";
+
+// N'ouvre la connexion QUE la premiere fois ; les tentatives suivantes (apres
+// un `joinError` non-`fatal`) renvoient juste un `join` corrige sur la MEME
+// socket, voir `goBtn.onclick` — sinon chaque faute de frappe sur la cle
+// laisserait une socket fantome manger une des quatre places.
+function sendJoin(pseudo, key) {
+  pendingPseudo = pseudo;
+  pendingKey = key;
+  ws.send(JSON.stringify({ t: "join", pseudo, key }));
 }
 
-function connect(name) {
+function connect(pseudo, key) {
   setStatus("connexion…");
   goBtn.disabled = true;
 
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}`);
 
-  ws.onopen = () => ws.send(JSON.stringify({ t: "join", name, uid: accountUid() }));
+  ws.onopen = () => sendJoin(pseudo, key);
 
   ws.onmessage = ev => {
     let msg;
@@ -301,12 +320,31 @@ function connect(name) {
         phase = msg.phase;
         amSpectator = msg.spectator;
         connected = true;
-        gate.hidden = true;
-        localStorage.setItem("survivor.name", name);
-        // Le serveur peut avoir remplace un identifiant difforme par un neuf :
-        // on garde LE SIEN, sinon la progression du compte se perd au retour.
-        if (msg.uid) localStorage.setItem("survivor.uid", msg.uid);
-        refreshPanel();
+        goBtn.disabled = false;
+        // Pseudo+cle viennent de reussir un vrai aller-retour : on les range
+        // MAINTENANT, jamais avant (une cle tapee au clavier pourrait etre
+        // fausse — la ranger avant verification ecraserait une bonne cle
+        // memorisee par une mauvaise).
+        localStorage.setItem("survivor.pseudo", pendingPseudo);
+        localStorage.setItem("survivor.key", pendingKey);
+        // Deux cas s'arretent sur #gate avant le salon : compte neuf (la cle
+        // ne sera plus jamais affichee, il faut la lire) et compte deja
+        // connecte ailleurs (a dire, pas a laisser deviner). Decide sur CES
+        // DRAPEAUX, jamais sur l'ordre d'arrivee des messages — `accountCreated`
+        // suit ce `welcome` mais rien ne garantit que le code appele depuis
+        // ce handler l'ait deja vu.
+        if (msg.fresh || msg.dup) {
+          gateJoinRow.hidden = true;
+          gateWho.textContent = `connecté comme ${pendingPseudo}`;
+          keyRevealEl.hidden = !msg.fresh;
+          gateHoldMsgEl.hidden = !msg.dup;
+          gateHoldMsgEl.textContent = msg.dup
+            ? "ce pseudo est déjà connecté ailleurs — progression temporaire sur cet onglet" : "";
+          gateHold.hidden = false;
+        } else {
+          gate.hidden = true;
+          refreshPanel();
+        }
         break;
 
       /* Etat du compte de progression (lot D) : envoye a la connexion, apres
@@ -314,30 +352,41 @@ function connect(name) {
       case "progress":
         progressState = msg;
         renderMeta();
-        renderAccount();
         break;
 
-      /* --- compte a pseudo reserve. Le code s'affiche UNE fois : il n'existe
-         en clair que dans ce message, le serveur n'en garde qu'un hachage. */
-      case "claimed":
-        // L'identite complete est pseudo#tag : c'est ELLE qu'on note avec le
-        // code, un pseudo seul peut designer plusieurs comptes.
-        accCodeHandle.textContent = `${msg.pseudo}#${msg.tag}`;
-        accCodeValue.textContent = msg.code;
-        accCodeEl.hidden = false;
-        accMsgEl.textContent = "";
+      /* La cle n'existe EN CLAIR qu'ici, une seule fois : le serveur n'en
+         garde qu'un hachage (`resolveAccount`, progress_store.js). Suit
+         normalement un `welcome{fresh:1}` avec #gate deja ouvert — mais la
+         remise a zero de la page admin en genere aussi une PENDANT que le
+         joueur est au salon (son compte vient d'etre recree, resolveAccount
+         y voit un pseudo absent) : #gate est alors ferme, et le rouvrir est
+         la seule facon de ne pas perdre une cle qui ne sera plus jamais
+         reaffichee. `refreshPanel()` a deja la garde `!gate.hidden` : la
+         reouvrir ici suffit a suspendre le salon dessous, meme mecanisme
+         qu'a la premiere connexion. */
+      case "accountCreated":
+        keyRevealHandleEl.textContent = msg.pseudo;
+        keyRevealValueEl.textContent = msg.key;
+        localStorage.setItem("survivor.key", msg.key);
+        pendingKey = msg.key;
+        if (gate.hidden) {
+          gateJoinRow.hidden = true;
+          gateWho.textContent = `connecté comme ${msg.pseudo}`;
+          keyRevealEl.hidden = false;
+          gateHoldMsgEl.hidden = true;
+          gateHoldMsgEl.textContent = "";
+          gateHold.hidden = false;
+          gate.hidden = false;
+        }
         break;
 
-      case "recovered":
-        // Le compte recupere devient LE compte de ce navigateur : meme geste
-        // que pour l'identifiant du welcome.
-        localStorage.setItem("survivor.uid", msg.uid);
-        accCodeEl.hidden = true;
-        accMsgEl.textContent = `compte « ${msg.pseudo}${msg.tag ? "#" + msg.tag : ""} » récupéré`;
-        break;
-
-      case "accountError":
-        accMsgEl.textContent = msg.msg;
+      case "joinError":
+        setStatus(msg.msg, true);
+        goBtn.disabled = false;
+        // `fatal` (cinq mauvaises cles) : cette socket ne peut plus reussir,
+        // il en faut une neuve pour reobtenir un compteur d'essais a zero.
+        // Retenter dessus contournerait le frein anti-force-brute pour rien.
+        if (msg.fatal) ws.close();
         break;
 
       case "lobby":
@@ -504,12 +553,20 @@ function connect(name) {
 
   ws.onclose = () => {
     connected = false;
+    metaClsOverride = null;
     // La file de transitions se vide ICI et nulle part ailleurs : une ouverture
     // de cartes ou un bilan encore en attente sortirait par-dessus l'ecran de
     // reconnexion, 110 ms apres la coupure.
     worldQueue.length = 0;
     cardsCloseQueued = false;
     panel.hidden = true;
+    menuEl.hidden = true;
+    // Reconnexion : on repart de la ligne pseudo, pas de la pause de la
+    // session precedente (cle affichee ou message de doublon).
+    gateHold.hidden = true;
+    keyRevealEl.hidden = true;
+    gateHoldMsgEl.hidden = true;
+    gateJoinRow.hidden = false;
     gate.hidden = false;
     showHud(false);
     goBtn.disabled = false;
@@ -538,6 +595,20 @@ function setLoading(k, quoi) {
 }
 
 goBtn.onclick = async () => {
+  const pseudo = nameInput.value.trim();
+  if (!pseudo) { setStatus("tape un pseudo", true); return; }
+  const key = keyInput.value.trim() || localStorage.getItem("survivor.key") || "";
+
+  /* Retenter sur la MEME socket apres un `joinError` non-`fatal` : elle est
+     deja ouverte et l'atlas deja construit, inutile de rejouer tout l'ecran
+     de chargement pour une faute de frappe sur la cle. Sans ca, chaque essai
+     ouvrirait une socket de plus — jusqu'a en manger les quatre places. */
+  if (ws && ws.readyState === WebSocket.OPEN && !connected) {
+    goBtn.disabled = true;
+    sendJoin(pseudo, key);
+    return;
+  }
+
   goBtn.disabled = true;
   gate.hidden = true;
   loadingEl.hidden = false;
@@ -595,11 +666,42 @@ goBtn.onclick = async () => {
   loadingEl.hidden = true;
   gate.hidden = false;
   goBtn.disabled = false;
-  connect(nameInput.value.trim() || "joueur");
+  connect(pseudo, key);
 };
 nameInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
-nameInput.value = localStorage.getItem("survivor.name") || "";
+keyInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
+nameInput.value = localStorage.getItem("survivor.pseudo") || "";
+// La cle n'est JAMAIS pre-remplie visiblement : elle n'est relue qu'en
+// silence a l'envoi (`goBtn.onclick`). Un champ vide qui fonctionne quand
+// meme est ce qui rend le retour sur le meme navigateur aussi simple qu'avant
+// la simplification pseudo+cle ; l'afficher en clair n'aiderait qu'a le faire
+// fuiter par-dessus l'epaule sur un poste partage.
 nameInput.focus();
+
+/* --- suite de la connexion ---------------------------------------------------
+   `#gateContinue` tombe DIRECT sur le salon (ou le HUD, pour un spectateur
+   arrive en cours de manche) — pas sur le Menu, qui ne s'ouvre plus qu'a la
+   demande, depuis la carte d'une classe au salon (`openMenuFor`). */
+gateContinueBtn.onclick = () => {
+  gate.hidden = true;
+  refreshPanel();
+};
+
+/* --- Menu (progression) -----------------------------------------------------
+   Ouvert depuis le bouton dedie sur la carte d'UNE classe (`renderClasses`,
+   `.classMetaBtn`), jamais depuis un point d'entree unique en haut d'ecran :
+   celui qui l'ouvre sait deja quelle classe il veut voir. `#menuClose` revient
+   au salon sans repasser par la connexion. */
+function openMenuFor(clsIndex) {
+  panel.hidden = true;
+  menuEl.hidden = false;
+  renderMeta(clsIndex);
+}
+
+menuCloseBtn.onclick = () => {
+  menuEl.hidden = true;
+  refreshPanel();
+};
 
 /* --- reglage du son -------------------------------------------------------
 
@@ -684,6 +786,16 @@ startBtn.onclick = () => {
 
 function refreshPanel() {
   if (!connected) return;
+  // #gate peut etre en pause (cle a lire, ou message de doublon) sans etre
+  // hidden : #panel est plus loin dans le DOM, meme z-index, et peindrait
+  // dessus au premier broadcast "lobby" (qui arrive presque tout de suite
+  // apres n'importe quelle connexion) si on ne le bloquait pas ici.
+  if (!gate.hidden) return;
+  // Le Menu (progression) est ouvert PAR-DESSUS le salon (meme z-index,
+  // #panel apres #menu dans le DOM) : un lobby broadcast pendant qu'on le lit
+  // ne doit pas rouvrir le salon dessous. `menuCloseBtn` cache #menu AVANT
+  // d'appeler refreshPanel(), donc le retour volontaire n'est pas bloque ici.
+  if (!menuEl.hidden) return;
   // Le HUD ne vit que pendant la manche. Il est en DOM : laisse affiche sous le
   // salon, il aurait montre une barre de vie et un chronometre figes.
   showHud(phase === PHASE_ROUND);
@@ -711,7 +823,6 @@ function refreshPanel() {
   renderVote();
   renderClasses();
   renderMeta();
-  renderAccount();
 
   startBtn.hidden = !isHost;
   startBtn.disabled = !isHost;
@@ -850,6 +961,27 @@ function renderClasses() {
 
     paintClassSilhouette(btn.querySelector(".classSil"), c);
 
+    /* Acces a la progression de CETTE classe (lot D), depuis sa propre
+       carte — pas un bouton unique en haut d'ecran qui forcerait a deviner
+       lequel des trois arbres il montre. Un `span` et non un bouton : le HTML
+       interdit un `<button>` dans un `<button>`. `stopPropagation` l'empeche
+       de declencher aussi `pickClass` sur la carte entiere. */
+    const metaBtn = document.createElement("span");
+    metaBtn.className = "classMetaBtn";
+    metaBtn.textContent = "Progression";
+    metaBtn.setAttribute("role", "button");
+    metaBtn.tabIndex = 0;
+    metaBtn.onclick = ev => { ev.stopPropagation(); openMenuFor(i); };
+    metaBtn.onkeydown = ev => {
+      if (ev.key !== "Enter" && ev.key !== " ") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      openMenuFor(i);
+    };
+    // En bas de la carte, apres les competences — dernier enfant du flex
+    // column plutot qu'en tete, pour ne pas concurrencer le nom de la classe.
+    btn.appendChild(metaBtn);
+
     btn.onclick = () => {
       if (locked || pris) return;
       ws.send(JSON.stringify({ t: "pickClass", cls: i }));
@@ -871,11 +1003,15 @@ function renderClasses() {
 
 /* --- progression permanente (lot D) ---------------------------------------------
 
-   Le panneau vit dans le salon. Il montre l'arbre de la classe SELECTIONNEE :
-   comparer trois arbres a la fois n'aide personne, et c'est de toute facon
-   cette classe-la qu'on va jouer. Les tables viennent de
-   `shared/progression.js` — le serveur n'envoie que l'etat du compte, et il
-   valide chaque achat de son cote : ces boutons ne sont qu'une demande. */
+   Le panneau vit dans le Menu, ouvert depuis la carte d'UNE classe au salon
+   (`.classMetaBtn`, `openMenuFor`). Il montre l'arbre de CETTE classe, pas
+   forcement celle deja choisie : comparer trois arbres a la fois n'aide
+   personne, mais il faut pouvoir les consulter avant de choisir, pas apres.
+   `metaClsOverride` retient laquelle entre deux rendus (un lobby broadcast
+   pendant que le Menu est ouvert rejoue `renderMeta()` sans argument). Les
+   tables viennent de `shared/progression.js` — le serveur n'envoie que
+   l'etat du compte, et il valide chaque achat de son cote : ces boutons ne
+   sont qu'une demande. */
 
 const metaEl = document.getElementById("meta");
 const metaCoresEl = document.getElementById("metaCores");
@@ -884,14 +1020,15 @@ const metaTreeEl = document.getElementById("metaTree");
 const metaConfortEl = document.getElementById("metaConfort");
 const metaMilestonesEl = document.getElementById("metaMilestones");
 
-function renderMeta() {
+function renderMeta(clsOverride) {
+  if (clsOverride !== undefined) metaClsOverride = clsOverride;
   if (!metaEl) return;
   if (!progressState) { metaEl.hidden = true; return; }
   metaEl.hidden = false;
 
   const pr = progressState;
   const me = lobby.find(l => l.id === myId);
-  const cdef = classAt(me?.cls ?? CLASS_DEFAULT);
+  const cdef = classAt(metaClsOverride ?? me?.cls ?? CLASS_DEFAULT);
   const clsId = cdef.id;
   const cp = pr.classes?.[clsId] ?? { tiers: {}, equipped: [] };
   const slots = slotsFor(cp);
@@ -978,57 +1115,6 @@ function renderMeta() {
       + ` <small>(${m.unlocks.length} carte${m.unlocks.length > 1 ? "s" : ""})</small></span>`;
   }).join("");
 }
-
-/* --- compte a pseudo reserve -----------------------------------------------------
-
-   Deux gestes : reserver (pseudo -> code secret affiche une fois) et recuperer
-   (pseudo + code -> la progression suit sur ce navigateur). Le serveur valide
-   tout ; ces boutons ne sont que des demandes, comme les achats de l'arbre. */
-
-const accountEl = document.getElementById("account");
-const accStatusEl = document.getElementById("accStatus");
-const accClaimPseudo = document.getElementById("accClaimPseudo");
-const accClaimBtn = document.getElementById("accClaim");
-const accCodeEl = document.getElementById("accCode");
-const accCodeHandle = document.getElementById("accCodeHandle");
-const accCodeValue = document.getElementById("accCodeValue");
-const accRecPseudo = document.getElementById("accRecPseudo");
-const accRecCode = document.getElementById("accRecCode");
-const accRecoverBtn = document.getElementById("accRecover");
-const accMsgEl = document.getElementById("accMsg");
-
-function renderAccount() {
-  if (!accountEl) return;
-  if (!progressState) { accountEl.hidden = true; return; }
-  accountEl.hidden = false;
-
-  const pseudo = progressState.pseudo || "";
-  const handle = pseudo + (progressState.tag ? "#" + progressState.tag : "");
-  accStatusEl.textContent = pseudo
-    ? `pseudo réservé : ${handle} — re-réserver régénère le code (l'ancien meurt)`
-    : "aucun pseudo réservé — la progression ne vit que dans ce navigateur";
-  if (!accClaimPseudo.value) {
-    accClaimPseudo.value = pseudo || nameInput.value;
-  }
-  const inLobby = phase === PHASE_LOBBY;
-  accClaimBtn.disabled = !inLobby;
-  accRecoverBtn.disabled = !inLobby;
-}
-
-accClaimBtn.onclick = () => {
-  const pseudo = accClaimPseudo.value.trim();
-  if (!pseudo) return;
-  accMsgEl.textContent = "";
-  ws.send(JSON.stringify({ t: "claim", pseudo }));
-};
-
-accRecoverBtn.onclick = () => {
-  const pseudo = accRecPseudo.value.trim();
-  const code = accRecCode.value.trim();
-  if (!pseudo || !code) return;
-  accMsgEl.textContent = "";
-  ws.send(JSON.stringify({ t: "recover", pseudo, code }));
-};
 
 function renderScores(rows, body = scoresBody) {
   body.innerHTML = "";
