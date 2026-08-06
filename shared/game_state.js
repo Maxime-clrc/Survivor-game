@@ -196,6 +196,42 @@ export const CFG = {
   WAVE_BREATHER: 4,          // secondes de repit entre deux vagues
   WAVE_BOSS_EVERY: 5,        // la vague 5, 10, 15... est un boss
 
+  /* Vagues speciales (lot L). Activation DETERMINISTE et non aleatoire : le
+     classement au temps du boss final (lot N) compare des parties entre elles,
+     et deux parties identiques qui n'auraient pas tire les memes vagues
+     speciales ne seraient plus comparables.
+
+     `vague % 5 === 3` n'est pas un choix esthetique, c'est le seul module qui
+     tienne les trois garanties d'un coup, par arithmetique et non par une liste
+     d'exceptions a maintenir :
+       - 3 % 5 !== 0 : jamais de collision avec un boss (vagues 5, 10, 15...),
+         ni avec le boss final (vague 30) ;
+       - deux speciales sont espacees de cinq vagues : jamais deux d'affilee ;
+       - chaque tranche de cinq a le meme motif — trois normales, une speciale,
+         un boss. Le rythme s'apprend, donc il s'anticipe.
+     La proposition initiale (3, 6, 9, 12 puis cycle) retombait sur 15 et 20 des
+     le premier cycle. */
+  SPECIAL_WAVE_MOD: 5,
+  SPECIAL_WAVE_REM: 3,
+  /* « Chasse » : un seul gibier porte tout le budget de la vague. Ses PV sont
+     donc derives du budget que la vague AURAIT eu, jamais d'un nombre fixe —
+     un multiplicateur en dur aurait vieilli des la premiere retouche de
+     WAVE_BUDGET_RAMP, et ne suivrait ni l'effectif ni la difficulte. La part
+     est sous 1 parce qu'une cible unique se tue bien plus vite qu'une horde de
+     PV equivalents : pas de trajet, pas de balle perdue, pas de dispersion. */
+  CHASSE_HP_SHARE: 0.75,
+  /* Score moyen d'une apparition, moyenne des `score` de ENEMY_TYPES ponderee
+     par leur `weight`, tous types debloques : 58,4 / 3,20 = 18,25. C'est un
+     CALCUL sur la table et non une valeur choisie — a refaire si la table
+     bouge. Il ne sert qu'a convertir un nombre d'apparitions en points pour le
+     gibier de « Chasse ». */
+  WAVE_MEAN_SCORE: 18.25,
+  CHASSE_RADIUS_MUL: 1.9,    // par-dessus le gabarit d'elite
+  // Un gibier a la vitesse d'un tank se contourne indefiniment : la chasse
+  // devient une promenade. Il reste sous PLAYER_SPEED (260) — on lui echappe,
+  // mais il faut le vouloir.
+  CHASSE_SPEED_MUL: 1.55,
+
   /* Soin de fin de vague. Il ne figurait pas au plan du lot, et son absence
      s'est vue a la premiere mesure : la suppression des gains de niveau avait
      emporte LEVEL_HEAL (10 PV par palier) sans rien mettre a la place, et il ne
@@ -572,6 +608,65 @@ export const ENEMY_TYPES = [
     heal: 6, healInterval: 1.2, healRange: 260, standoff: 240 },
 ];
 
+/* Vagues speciales (lot L). Une vague speciale remplace le TIRAGE d'une vague
+   entiere — sa composition, rien d'autre : le modele budget-puis-nettoyage est
+   conserve tel quel, et c'est ce qui permet de n'ajouter aucune condition de
+   fin de vague.
+
+   L'ORDRE DU TABLEAU EST LA SEQUENCE. Il n'y a pas de constante
+   `SPECIAL_SEQUENCE` a cote : deux listes a garder d'accord divergent a la
+   premiere retouche, et c'est l'index qui circule dans le snapshot — le
+   reordonner ferait annoncer « Siege » a un onglet reste sur une version
+   anterieure pendant qu'il affronte une nuee. On ajoute a la FIN.
+
+   `pool` remplace `_pickType` : les quotas de part (`share`) y sont
+   volontairement contournes. Une nuee de runners depasse largement la part de
+   45 % qu'un runner s'autorise en vague normale, et c'est exactement ce qui en
+   fait une nuee.
+
+   Les trois multiplicateurs sont indexes sur `_teamPower()` comme les vagues
+   normales — ils portent sur le budget, les PV et le debit, pas sur la courbe
+   de puissance, qui reste commune. Valeurs de DEPART : la spec demande de les
+   mesurer par type, il n'y a pas de cible a priori. */
+export const SPECIAL_WAVES = [
+  /* Nuee — beaucoup, faibles, vite. Le budget double et les PV baissent : le
+     danger n'est pas la resistance, c'est de se faire encercler. */
+  { key: "nuee", nom: "Nuée", sous: "ne te laisse pas encercler",
+    pool: [{ type: 1, weight: 1 }],
+    budgetMul: 1.7, hpMul: 0.75, spawnMul: 1.8 },
+  /* Tir croise — les shooters dominent, les grunts poussent en avant. Sans les
+     grunts, il suffirait de reculer : c'est le melange qui oblige a fermer la
+     distance plutot qu'a la subir. */
+  { key: "croise", nom: "Tir croisé", sous: "ferme la distance",
+    pool: [{ type: 3, weight: 0.75 }, { type: 0, weight: 0.25 }],
+    budgetMul: 1.0, hpMul: 0.9, spawnMul: 1.0 },
+  /* Siege — que des tanks. Peu nombreux, lents, coriaces : la vague dure
+     longtemps par construction, d'ou un budget nettement reduit. */
+  { key: "siege", nom: "Siège", sous: "ils ne reculeront pas",
+    pool: [{ type: 2, weight: 1 }],
+    budgetMul: 0.30, hpMul: 0.85, spawnMul: 1.0 },
+  /* Chasse — un seul gibier, aucun autre ennemi. Le tank pour son gabarit,
+     deja le plus grand du bestiaire ; le bulwark est le candidat evident a la
+     variete une fois la vague mesuree, mais son bouclier frontal sur une cible
+     unique a PV de boss risque de rendre la chasse injouable en solo, et ca se
+     mesure avant de se decider. Le brood est exclu par construction : un gibier
+     qui se scinde contredit « aucun autre ennemi ». */
+  { key: "chasse", nom: "Chasse", sous: "un seul, et il te cherche",
+    pool: null, quarry: 2,
+    budgetMul: 0, hpMul: 1, spawnMul: 1 },
+];
+
+export function specialAt(i) { return SPECIAL_WAVES[i] ?? null; }
+
+/* Quelle vague speciale pour la vague `w`, ou -1. Point de passage unique :
+   la regle vit ici, jamais recopiee chez un appelant — le client la rejoue
+   pour annoncer la prochaine, et deux copies divergeraient. */
+export function specialForWave(w) {
+  if (w % CFG.SPECIAL_WAVE_MOD !== CFG.SPECIAL_WAVE_REM) return -1;
+  const n = Math.floor((w - CFG.SPECIAL_WAVE_REM) / CFG.SPECIAL_WAVE_MOD);
+  return n < 0 ? -1 : n % SPECIAL_WAVES.length;
+}
+
 /* L'ordre fait foi : le snapshot ne transmet que l'index. On ajoute donc a la
    fin, jamais au milieu — et on ne REORDONNE pas davantage, y compris pour
    sortir une entree de la rotation : `damage`, `rate`, `double` et `pierce` en
@@ -928,6 +1023,10 @@ export class GameState {
     // manche donnaient l'impression que le serveur n'avait pas demarre.
     this.waveTimer = 1.5;
     this.waveBoss = false;
+    /* Vague speciale en cours (lot L), index dans SPECIAL_WAVES ou -1. Un
+       CHAMP et non un recalcul a chaque lecture : `_pickType` et `_spawnEnemy`
+       le consultent a chaque apparition, soit deux cents fois par vague. */
+    this.waveSpecial = -1;
     // Le boss apparait dans _boss, qui tourne APRES _wave dans le meme tick.
     // Sans ce drapeau, _wave voyait un budget nul et basculait en nettoyage
     // avant que le boss n'existe : l'arene etant vide, la vague de boss se
@@ -2454,7 +2553,11 @@ export class GameState {
       if (target.hp <= 0) this._killBoss(ownerId);
       return;
     }
-    if (target.hp > 0 && owner && owner.mods.execThreshold > 0
+    /* `noExec` porte la meme exemption que le boss, pour la meme raison : le
+       gibier de « Chasse » (lot L) est une grosse reserve de vie unique, et un
+       seuil de 10 % applique dessus fait disparaitre le dernier quart de la
+       VAGUE ENTIERE en un tir pour quiconque a la carte. */
+    if (target.hp > 0 && !target.noExec && owner && owner.mods.execThreshold > 0
         && target.maxHp > 0 && target.hp <= target.maxHp * owner.mods.execThreshold) {
       target.hp = 0;
       if (owner.mods.execHeal > 0 && !owner.downed) {
@@ -2853,6 +2956,22 @@ export class GameState {
      types qui se font rarement tuer finissent par occuper toutes les places et
      la composition des vagues s'appauvrit. */
   _pickType() {
+    /* Vague speciale (lot L) : sa composition REMPLACE le tirage, quotas de
+       part compris. Le garde-fou ci-dessous existe pour qu'une vague normale ne
+       s'appauvrisse pas ; une vague speciale est justement definie par son
+       appauvrissement, l'y soumettre reviendrait a la refuser. */
+    const sp = specialAt(this.waveSpecial);
+    if (sp && sp.pool) {
+      let total = 0;
+      for (const e of sp.pool) total += e.weight;
+      let roll = Math.random() * total;
+      for (const e of sp.pool) {
+        roll -= e.weight;
+        if (roll <= 0) return ENEMY_TYPES[e.type];
+      }
+      return ENEMY_TYPES[sp.pool[0].type];
+    }
+
     const counts = new Array(ENEMY_TYPES.length).fill(0);
     for (const e of this.enemies) counts[e.type]++;
 
@@ -2883,7 +3002,12 @@ export class GameState {
       * (1 + CFG.WAVE_HP_POWER_K * (this._teamPower() - 1))
       * this.diff.hp;
     const pos = x === null ? this._spawnPoint() : { x, y };
-    const hp = baseHp * t.hpMul * (elite ? CFG.ELITE_HP_MUL : 1);
+    /* Calibrage propre a la vague speciale (lot L). Il ne s'applique qu'aux
+       apparitions de VAGUE : les renforts d'un boss et les rejetons d'une
+       pondeuse passent par un typeIndex explicite et gardent leur profil — une
+       nuee n'a pas a rendre plus faibles les rejetons qu'elle ne produit pas. */
+    const sp = typeIndex < 0 ? specialAt(this.waveSpecial) : null;
+    const hp = baseHp * t.hpMul * (sp ? sp.hpMul : 1) * (elite ? CFG.ELITE_HP_MUL : 1);
     const e = {
       id: this._nextId++,
       type: ti,
@@ -2922,6 +3046,27 @@ export class GameState {
       pressT: 0,
       fleeT: 0,
       lastSeq: 0,
+      /* Lot L — le gibier de « Chasse ». Deux drapeaux et non un : ils disent
+         deux choses distinctes qui se trouvent coincider aujourd'hui.
+         `noExec` l'exclut du seuil d'execution, exactement comme le boss et les
+         structures de mecanique — sans lui, le dernier quart de la vague
+         disparait en un tir pour quiconque a la carte, et une vague entiere
+         s'evapore. `hunt` le protege du marquage de retardataire : une chasse
+         dure par construction plus que WAVE_STRAGGLER_DELAY, et un gibier a
+         x2 de vitesse cesse d'etre chassable. Presents sur tous les ennemis
+         pour garder la forme d'objet stable, comme les champs du medic. */
+      noExec: 0,
+      hunt: 0,
+      /* Ce que cette mort vaut, en APPARITIONS representees. Un ennemi ordinaire
+         en vaut une, d'ou 1 partout. Le gibier de « Chasse » remplace a lui seul
+         le budget entier d'une vague : sans ces deux facteurs, une vague de
+         chasse verse 1 point d'experience la ou une vague 18 en verse 116, et le
+         joueur perd purement et simplement une carte a chaque chasse. Deux
+         champs et non un parce que ce sont deux monnaies : l'experience se
+         compte par apparition (donc exactement le budget), le score se compte en
+         points (donc au score moyen d'une apparition). */
+      xpWorth: 1,
+      scoreWorth: 1,
     };
     this.enemies.push(e);
     return e;
@@ -2984,6 +3129,12 @@ export class GameState {
     if (this.waveTimer >= CFG.WAVE_STRAGGLER_DELAY) {
       for (const e of this.enemies) {
         if (e.straggler) continue;
+        /* Le gibier de « Chasse » (lot L) n'est jamais un retardataire. Une
+           chasse dure par construction plus que WAVE_STRAGGLER_DELAY — c'est
+           une cible unique a PV de vague entiere — et le marquage lui donnerait
+           x2 de vitesse, donc plus vite que le joueur : le gibier deviendrait
+           le chasseur, et la vague ne se terminerait qu'a la mort de l'equipe. */
+        if (e.hunt) continue;
         e.straggler = 1;
         // Applique UNE fois : e.speed est un champ stocke, le multiplier a
         // chaque tick l'aurait fait diverger en une seconde.
@@ -3000,6 +3151,10 @@ export class GameState {
     this.wave++;
     this.waveBoss = this.wave % CFG.WAVE_BOSS_EVERY === 0;
     this.waveBossPending = this.waveBoss;
+    // Lot L. L'arithmetique garantit qu'une speciale et un boss ne coincident
+    // jamais ; on ne teste donc PAS `!this.waveBoss` ici — un test defensif
+    // masquerait une regression du module au lieu de la faire eclater.
+    this.waveSpecial = specialForWave(this.wave);
     this.wavePhase = 0;
     this.waveSpawned = 0;
     this.waveTimer = 0;
@@ -3014,10 +3169,54 @@ export class GameState {
     }
 
     const crowd = Math.max(1, this.players.size);
-    this.waveBudget = this.waveBoss
-      ? 0
-      : Math.round((CFG.WAVE_BUDGET_BASE + CFG.WAVE_BUDGET_RAMP * (this.wave - 1))
-          * Math.pow(crowd, CFG.WAVE_CROWD_EXP) * this.diff.spawn);
+    const budget = Math.round((CFG.WAVE_BUDGET_BASE + CFG.WAVE_BUDGET_RAMP * (this.wave - 1))
+      * Math.pow(crowd, CFG.WAVE_CROWD_EXP) * this.diff.spawn);
+    const sp = specialAt(this.waveSpecial);
+    this.waveBudget = this.waveBoss ? 0
+      : sp ? Math.round(budget * sp.budgetMul)
+      : budget;
+
+    /* « Chasse » : le gibier sort ICI et non par le debit. Son budget est nul,
+       donc `_waveTick` bascule en nettoyage des le tick suivant et la vague se
+       termine a sa mort — exactement le cycle d'une vague de boss, sans le
+       drapeau `waveBossPending` puisque le gibier existe deja quand la bascule
+       se produit. Le passer par `_spawner` aurait rendu son rang d'elite
+       tributaire de `eliteCd`, c'est-a-dire du hasard. */
+    if (sp && sp.quarry !== undefined) this._spawnQuarry(sp, budget);
+  }
+
+  /* Le gibier de « Chasse ». Ses PV derivent du budget que la vague AURAIT eu :
+     il « porte toute la vague », donc il suit l'effectif, la difficulte et le
+     numero de vague sans qu'aucun nombre ne soit a maintenir en face.
+     Les surcharges se font APRES `_spawnEnemy` plutot que par des parametres de
+     plus : la signature sert deux cents apparitions par vague, et lui est
+     seul. */
+  _spawnQuarry(sp, budget) {
+    const e = this._spawnEnemy(sp.quarry, null, null, true);
+    if (!e) return null;
+    const t = ENEMY_TYPES[sp.quarry];
+    const n = Math.max(1, budget);
+
+    /* PV. On repart des PV de BASE — ni le multiplicateur de type ni celui
+       d'elite — parce que la part de budget compte deja la vague entiere : les
+       cumuler ferait porter au gibier 4,5 fois la vague qu'il remplace, le
+       multiplicateur du tank etant applique par-dessus le compte d'apparitions.
+       `e.maxHp` vaut `baseHp * t.hpMul * ELITE_HP_MUL` a sa sortie de
+       `_spawnEnemy` : on divise donc par les deux pour retrouver `baseHp`. */
+    const baseHp = e.maxHp / (CFG.ELITE_HP_MUL * t.hpMul);
+    e.hp = e.maxHp = baseHp * CFG.CHASSE_HP_SHARE * n;
+
+    e.r = t.r * CFG.ELITE_RADIUS_MUL * CFG.CHASSE_RADIUS_MUL;
+    e.speed = t.speed * CFG.ELITE_SPEED_MUL * CFG.CHASSE_SPEED_MUL;
+    e.noExec = 1;
+    e.hunt = 1;
+
+    // Il vaut la vague qu'il remplace, dans les deux monnaies. Le facteur de
+    // score divise par le score d'elite deja applique en aval, pour que le
+    // resultat soit bien « n apparitions moyennes » et non « n tanks dores ».
+    e.xpWorth = n;
+    e.scoreWorth = (n * CFG.WAVE_MEAN_SCORE) / (t.score * CFG.ELITE_SCORE_MUL);
+    return e;
   }
 
   _endWave() {
@@ -3026,15 +3225,49 @@ export class GameState {
     // moins qu'une vague de grunts alors qu'elle prend plus longtemps.
     this._addXp(CFG.WAVE_XP_BONUS);
 
-    // Respiration. Les joueurs a terre n'en profitent pas : c'est la
-    // reanimation qui les releve, sinon la fin de vague annulerait toute la
-    // tension d'un coequipier au sol.
-    for (const p of this.players.values()) {
-      if (!p.downed) p.hp = Math.min(p.maxHp, p.hp + CFG.WAVE_HEAL);
+    /* Cloture d'une vague speciale (lot L) : 100 % des PV, 100 % du bouclier,
+       et les joueurs a terre se RELEVENT. C'est l'exception a la regle du
+       dessous, et elle est deliberement sans condition — un cas « releve mais
+       pas soigne » ou « soigne mais reste a terre » serait illisible au moment
+       precis ou l'equipe cherche a comprendre ce qu'elle vient de gagner.
+       C'est aussi ce qui paie l'asymetrie de la composition : un siege de
+       tanks parait plus dangereux qu'une vague normale, et sans recompense
+       nette la bonne reponse serait de le fuir. */
+    if (this.waveSpecial >= 0) {
+      for (const p of this.players.values()) {
+        p.hp = p.maxHp;
+        p.shield = p.mods.shieldPool;
+        if (p.downed) {
+          p.downed = false;
+          p.revive = 0;
+          // Meme grace qu'un relevement ordinaire : sans elle, un joueur remis
+          // debout au milieu de la horde reperd ses PV dans l'image suivante.
+          p.hitCd = CFG.PLAYER_HIT_CD;
+        }
+        this.effects.push({
+          id: this._nextId++,
+          x: p.x, y: p.y, r: 120, life: 0.7, max: 0.7, kind: 4,
+        });
+      }
+    } else {
+      // Respiration. Les joueurs a terre n'en profitent pas : c'est la
+      // reanimation qui les releve, sinon la fin de vague annulerait toute la
+      // tension d'un coequipier au sol.
+      for (const p of this.players.values()) {
+        if (!p.downed) p.hp = Math.min(p.maxHp, p.hp + CFG.WAVE_HEAL);
+      }
     }
 
     this.wavePhase = 2;
     this.waveTimer = CFG.WAVE_BREATHER;
+
+    /* Annonce de la vague suivante si elle est speciale. ICI et non dans
+       `_startWave` : le critere d'acceptation demande qu'elle soit annoncee
+       AVANT son demarrage, et le repit est le seul moment ou l'equipe a le
+       temps de lire. La regle n'est pas recopiee — `specialForWave` est son
+       point de passage unique. */
+    const next = specialForWave(this.wave + 1);
+    if (next >= 0) this._alertSpecial(next);
 
     /* Les niveaux gagnes pendant la vague se consomment MAINTENANT, tous
        d'affilee. Le drapeau part au serveur, qui enchaine autant d'ecrans de
@@ -4245,6 +4478,17 @@ export class GameState {
   // de savoir immediatement a quoi s'attendre, avant meme la premiere annonce.
   _alertBoss(kind) {
     this.alerts.push({ mech: -1, level: ALERT_INFO, dur: 3, boss: kind });
+  }
+
+  /* Annonce d'une vague speciale (lot L). Troisieme variante du canal, a cote
+     de la mecanique et de l'identite du boss : ce n'est ni l'une ni l'autre —
+     aucune entree de MECHS ne lui correspond, et en fabriquer une melangerait
+     le registre des mecaniques de boss avec celui des compositions de vague.
+     Un client reste sur une version anterieure ignore la cle et ne voit rien,
+     ce qui est le comportement voulu : la vague se joue de la meme facon. */
+  _alertSpecial(index) {
+    this.alerts.push({ mech: -1, level: ALERT_WARN, dur: CFG.WAVE_BREATHER, special: index });
+    if (this.alerts.length > 16) this.alerts.shift();
   }
 
   /* Sanction d'echec. Calibree en part des PV MAX et non en valeur brute : une
@@ -6330,11 +6574,11 @@ export class GameState {
 
   /* Un kill credite le tueur et peut declencher plusieurs paliers d'un coup :
      une nova qui balaie l'ecran doit pouvoir faire monter de deux niveaux. */
-  _credit(owner, score) {
+  _credit(owner, score, xp = 1) {
     // L'experience est versee que le kill soit attribue ou non : une mort par
     // brulure sans proprietaire, ou le kill d'un joueur deconnecte entre-temps,
     // faisait autrement disparaitre de la progression commune.
-    this._addXp(1);
+    this._addXp(xp);
     if (!owner) return;
     owner.kills++;
     owner.score += Math.round(score * owner.mods.scoreMul);
@@ -6397,7 +6641,8 @@ export class GameState {
     this.totalKills++;
     const def = ENEMY_TYPES[e.type];
     const owner = this.players.get(ownerId);
-    this._credit(owner, e.elite ? Math.round(def.score * CFG.ELITE_SCORE_MUL) : def.score);
+    const brut = (e.elite ? def.score * CFG.ELITE_SCORE_MUL : def.score) * e.scoreWorth;
+    this._credit(owner, Math.round(brut), e.xpWorth);
 
     if (owner) {
       // Frenesie : la cadence monte kill apres kill et retombe des qu'on
@@ -6825,6 +7070,13 @@ export class GameState {
       wv: this.wave,
       wp: this.wavePhase,
       wbs: this.waveBoss ? 1 : 0,
+      /* Vague speciale en cours (lot L), index dans SPECIAL_WAVES. ABSENTE hors
+         vague speciale — c'est quatre vagues sur vingt, donc la cle ne se paie
+         pas les seize autres fois, meme raison que `bn` et `wl`. Le client la
+         relit a chaque instantane plutot que de la deduire de `wv` : la regle
+         d'activation vit cote simulation, et un client qui la recalculerait
+         en tiendrait une seconde copie. */
+      ...(this.waveSpecial >= 0 ? { wsp: this.waveSpecial } : {}),
       wb: this.waveBudget > 0 ? r2(Math.min(1, this.waveSpawned / this.waveBudget)) : 1,
       xl: this.level,
       xp: this.level >= CFG.LEVEL_MAX

@@ -74,6 +74,12 @@
 
 #waveName.boss { color: var(--lethal); }
 
+/* Vague speciale (lot L) : ambre, pas rouge. La grammaire reserve le rouge au
+   letal, et une vague speciale n'est pas plus mortelle qu'une autre — elle est
+   ASYMETRIQUE, ce qui demande d'adapter sa facon de jouer. C'est exactement ce
+   que dit l'ambre. Le rouge du boss reste ainsi le seul rouge du bandeau. */
+#waveName.special { color: var(--warn); }
+
 #waveBar {
   margin-top: var(--sp-2);
   height: 5px;
