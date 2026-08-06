@@ -73,6 +73,9 @@ cartes**.
   **emplacements** (3 à 6) se gagnent aux jalons du compte — vague 10, trois
   boss différents, 25 parties — et la réattribution est libre entre les
   manches.
+- Après chaque victoire de boss, le **marchand** propose trois **reliques** à
+  acheter contre les éclats de la manche — valeurs brutes, budget à répartir,
+  relance payante. Voir la section « Le marchand de reliques ».
 - La manche se termine quand tout le monde est à terre. Le bilan titre sur la
   **vague atteinte** et non sur le numéro de manche : l'unité de jeu est devenue
   la vague, et lire « Manche 1 terminée » après en avoir enchaîné douze donnait
@@ -312,6 +315,93 @@ se termine d'elle-même.
 
 Une vague sur cinq est un **boss**. Son budget d'apparitions est nul : il occupe
 la vague entière et seuls ses propres renforts sortent.
+
+### Vagues spéciales
+
+Une vague sur cinq, elle aussi, mais décalée : **les vagues 3, 8, 13, 18, 23…**
+remplacent le tirage normal par une composition imposée. Quatre types, dans un
+cycle fixe.
+
+| vague | type | composition | ce que ça demande |
+|---|---|---|---|
+| 3, 23, … | **Nuée** | uniquement des runners, nombreux et fragiles | ne pas se laisser encercler |
+| 8, 28, … | **Tir croisé** | shooters en majorité, quelques grunts pour pousser | fermer la distance |
+| 13, 33, … | **Siège** | uniquement des tanks, lents et coriaces | tenir la position |
+| 18, 38, … | **Chasse** | un seul gibier, énorme, et rien d'autre | un duel |
+
+**Terminer une vague spéciale rend 100 % des PV et du bouclier à toute
+l'équipe, et relève ceux qui sont à terre.** Sans condition. C'est la seule
+clôture de vague qui fasse mieux que les 18 PV du répit, et c'est elle qui paie
+l'asymétrie : un siège de tanks *paraît* plus dangereux qu'une vague ordinaire,
+et sans récompense nette la bonne réponse serait de le fuir.
+
+Chaque vague spéciale est **annoncée pendant le répit qui la précède** — pas au
+moment où elle démarre. Le bandeau de vague porte ensuite son nom en ambre tant
+qu'elle dure : la question « qu'est-ce que je suis en train de combattre » se
+pose encore trente secondes après le début, quand la consigne a disparu.
+
+**Pourquoi un calendrier fixe plutôt que le hasard.** Le classement au temps du
+boss final compare des parties entre elles. Si les vagues spéciales tombaient au
+hasard, deux parties identiques en tout point auraient des temps différents
+parce que l'une aurait tiré une vague qui la ralentit et l'autre non — le
+classement perdrait sa valeur de comparaison. `vague % 5 === 3` donne les trois
+garanties d'un coup, **par arithmétique et non par une liste à maintenir** :
+
+- `3 % 5 ≠ 0` : jamais de collision avec un boss (vagues 5, 10, 15…), ni avec le
+  boss final (vague 30) ;
+- cinq vagues d'écart : jamais deux spéciales d'affilée ;
+- chaque tranche de cinq a le même motif — trois normales, une spéciale, un
+  boss.
+
+La première proposition (3, 6, 9, 12 puis cycle) retombait sur 15 et 20 dès le
+premier cycle. Le compromis assumé est la perte de la surprise : en échange, un
+joueur sait qu'à la vague 13 vient un siège et peut orienter ses choix de cartes
+dans les vagues précédentes. C'est une couche de décision à moyen terme plutôt
+qu'un événement ponctuel.
+
+**Le gibier de la Chasse est le seul ennemi du jeu exclu du seuil
+d'exécution**, avec le boss et les structures de mécanique. Il porte à lui seul
+les PV de toute une vague : un seuil de 10 % appliqué là-dessus ferait
+disparaître le dernier quart de la vague en un tir pour quiconque a la carte
+« Achèvement ». Il est aussi le seul à ne jamais être marqué retardataire — une
+chasse dure par construction plus que les 8 s du délai, et le ×1,6 de vitesse en
+ferait le chasseur.
+
+Ses PV ne sont pas un nombre écrit quelque part : ils **dérivent du budget que
+la vague aurait eu**, donc ils suivent l'effectif, la difficulté et le numéro de
+vague sans qu'aucune valeur ne soit à maintenir en face. Même raisonnement pour
+ce qu'il rapporte — il vaut le nombre d'apparitions qu'il remplace, sinon une
+vague de chasse verserait **1** point d'expérience là où une vague 18 en verse
+116, et le joueur perdrait une carte à chaque chasse.
+
+#### Mesures relevées
+
+Durée d'une vague spéciale rapportée à celle de la vague **normale qui la
+précède**, compte neuf, difficulté normale. Le témoin est la vague `N−1` et non
+la même vague neutralisée : le budget se calcule au démarrage, le neutraliser
+après coup ne le rattrape pas. Biais connus du banc, tous deux notés parce
+qu'ils changent le chiffre — le bulwark est retiré du tirage (son bouclier
+frontal rend le bot incapable de le tuer, et le banc bloquait dès la vague 9),
+et le bot frappe ×6 pour que la durée mesurée soit celle de la vague et non de
+son adresse.
+
+| vague | type | 1 joueur | 4 joueurs | budget (1 j.) | pic simultané (4 j.) |
+|---|---|---|---|---|---|
+| 3 | Nuée | ×1,19 | ×1,22 | 44 runners | 39 |
+| 8 | Tir croisé | ×1,23 | ×1,12 | 56 | 134 |
+| 13 | Siège | ×1,08 | ×0,89 | 26 tanks | 72 |
+| 18 | Chasse | ×0,64 | ×0,68 | 1 gibier | 1 |
+
+La chasse est **délibérément la plus courte**, et c'est le seul écart marqué de
+la table : un ennemi unique ne peut ni encercler, ni couper une retraite, ni
+tirer depuis trois directions. Une durée égale à celle d'une vague normale en
+aurait fait un marathon contre une éponge — 200 s en solo à la vague 18, mesuré.
+
+Trois réglages sont venus de ces mesures et non du plan : la nuée est passée de
+×2,2 à ×1,7 de budget (elle sortait à ×1,5 de durée), le tir croisé de ×0,85 à
+×1,0 (×0,80, trop expédié), et les PV du gibier de 0,55 à 0,75 part de budget
+(×0,44, il tombait deux fois trop vite). Le siège n'a pas bougé : la première
+mesure le donnait à ×2,4, mais c'était le témoin qui était faux.
 
 ### Niveaux
 
@@ -1124,6 +1214,77 @@ par dilatation plutôt que par un trait par zone. Sur douze mares qui se
 chevauchent, un trait par mare redessinait chaque cercle à l'intérieur de la
 tache et on ne voyait plus où finissait la surface dangereuse. Le rendu est
 plafonné à **40 zones**, les plus urgentes d'abord.
+
+### Le marchand de reliques
+
+Après chaque victoire de boss (les cinq boss normaux — le boss final a son
+propre traitement), un **marchand** propose **trois reliques à acheter** contre
+des éclats, la monnaie de récolte du lot I. L'écran s'ouvre après la fin de la
+vague, comme celui des cartes, et chacun repart avec ce qu'il s'est offert.
+
+La différence fondamentale avec les cartes :
+
+| | cartes | reliques |
+|---|---|---|
+| monnaie | gratuites, tirage | éclats, achat |
+| effet | presque toujours en % | **valeur brute** |
+| fréquence | à chaque niveau | après chaque boss |
+| choix | une parmi trois, obligatoire | **budget à répartir** — zéro, une ou trois |
+| relance | une fois par manche, gratuite | payante, coût croissant avec la vague |
+
+**La valeur brute est le cœur de la relique.** « +8 dégâts » reste utile sur
+une build qui n'a pris aucune carte de dégâts — c'est un axe de puissance qui
+ne dépend d'aucun autre choix, ce qu'aucune carte ne permet. À l'inverse, une
+relique ne cumule pas son pourcentage avec les autres : elle ajoute, elle ne
+multiplie pas.
+
+Quatre raretés, comme les cartes, à des prix croissants. La légendaire est
+**limitée à une par manche, tous marchands confondus** : sans cette borne, une
+manche généreuse en éclats cumulerait plusieurs effets exceptionnels et
+déséquilibrerait le combat suivant.
+
+Les dix reliques de départ — la liste est validée, l'équilibrage fin viendra
+en jouant :
+
+| rareté | relique | effet |
+|---|---|---|
+| commune | Éclat dur | +6 dégâts bruts sur chaque tir |
+| commune | Plaque rouillée | +25 PV bruts |
+| commune | Ressort usé | −0,03 s d'intervalle de tir |
+| rare | Noyau instable | +18 dégâts bruts, **mais −10 PV bruts** |
+| rare | Filtre purifiant | retire un état toutes les 10 s, sans action |
+| rare | Batterie de secours | le bouclier, une fois vide, se recharge une fois à 50 % (une fois par manche) |
+| épique | Cœur de Ravageur | +35 dégâts bruts contre les boss uniquement |
+| épique | Essaim captif | un projectile supplémentaire orbite en permanence |
+| épique | Mémoire gravée | la première compétence utilisée à chaque vague a sa recharge réinitialisée |
+| légendaire | Cœur-machine | +50 dégâts bruts, +80 PV bruts, **mais la vitesse est fixée à sa valeur de base** |
+
+Les contreparties sont affichées en évidence, pas en petit texte : une relique
+se refuse pour ce qu'elle coûte, pas pour ce qu'elle donne. La relance de
+l'offre se paie (6 éclats + 2 par vague) — un coût fixe se banaliserait en fin
+de manche quand les éclats abondent.
+
+Les reliques **entrent dans le calcul de puissance** de l'équipe : les vagues
+et les boss qui suivent le marchand sont calibrés sur les dégâts réels, pas
+sur un chargement qui les ignorerait. Le « Cœur de Ravageur », qui ne frappe
+que les boss, y compte au tiers — la part du temps passé contre eux.
+
+#### Mesures relevées
+
+Éclats accumulés à l'arrivée du premier marchand (vague 5), compte neuf,
+difficulté normale, bots qui explorent et récoltent :
+
+| effectif | éclats par joueur | temps |
+|---|---|---|
+| 1 joueur | ~98 | 148 s |
+| 4 joueurs | ~95 | 161 s |
+
+Le budget du premier marchand permet environ **deux communes et demie** (25
+éclats pièce), ou une épique, ou une rare plus une commune — pas la légendaire
+(150), qui reste un objectif de fin de manche. L'écart de puissance mesuré
+après un achat : **×1,5 d'indice pour une commune de dégâts** (`+6` sur une
+base de 12) — délibéré, c'est le prix de la valeur brute prise tôt, et
+l'indexation absorbe le reste de la manche.
 
 ### Cartes d'amélioration
 

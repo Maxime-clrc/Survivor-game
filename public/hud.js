@@ -25,7 +25,7 @@
    =========================================================================== */
 
 import {
-  CFG, PLAYER_COLORS, DIFFICULTIES,
+  CFG, PLAYER_COLORS, DIFFICULTIES, specialAt,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
@@ -288,10 +288,19 @@ function updateWave(v) {
   if (!v.wave || v.boss) { setHidden(el.wave, "wvOn", true); return; }
   setHidden(el.wave, "wvOn", false);
 
+  /* Le bandeau porte le nom de la vague speciale pendant TOUTE sa duree (lot L),
+     la ou l'alerte du repit ne fait que l'annoncer. Deux roles distincts : le
+     bandeau repond a « qu'est-ce que je suis en train de combattre », question
+     qui se pose encore trente secondes apres le debut, quand la consigne a
+     disparu depuis longtemps. */
   const nom = v.boss ? bossAt(v.boss.kind ?? 0).nom.toUpperCase() : "BOSS";
+  const sp = v.waveSpecial >= 0 ? specialAt(v.waveSpecial) : null;
   setText(el.waveName, "wvn",
-    v.waveBoss ? `VAGUE ${v.wave} — ${nom}` : `Vague ${v.wave}`);
+    v.waveBoss ? `VAGUE ${v.wave} — ${nom}`
+      : sp ? `VAGUE ${v.wave} — ${sp.nom.toUpperCase()}`
+      : `Vague ${v.wave}`);
   setClass(el.waveName, "wvb", "boss", !!v.waveBoss);
+  setClass(el.waveName, "wvsp", "special", !!sp);
 
   // Le repit affiche une barre PLEINE et non un compte a rebours : ce qui
   // compte est « la vague est finie », pas « il reste 2,4 s ».

@@ -21,11 +21,17 @@ import {
      le genou commence a l'absorber. Les afficher, c'est rendre visible la seule
      regle du jeu que le joueur subissait sans jamais la voir. */
   powerIndex, bossPower,
+  // Lot L : le nom et le sous-titre d'une vague speciale. Comme pour les boss,
+  // seul l'index circule — le libelle se lit dans la table partagee.
+  specialAt,
 } from "/shared/game_state.js";
 import {
   CARDS, CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, CARD_CFG, cardDetail, computeMods,
   banClosure,
 } from "/shared/cards.js";
+import {
+  RELICS, RELIC_RARITY, relicById, relicPrice, relicRerollCost,
+} from "/shared/reliques.js";
 import {
   CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange,
   SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE,
@@ -275,6 +281,13 @@ const cardsRow = document.getElementById("cardsRow");
 const cardsTimerEl = document.getElementById("cardsTimer");
 const cardsTimerFill = cardsTimerEl.querySelector("i");
 const cardsWaitEl = document.getElementById("cardsWaitMsg");
+/* Marchand de reliques (lot K) : meme squelette que l'ecran de cartes. */
+const merchantEl = document.getElementById("merchant");
+const merchantTitle = document.getElementById("merchantTitle");
+const merchantRow = document.getElementById("merchantRow");
+const merchantTimerEl = document.getElementById("merchantTimer");
+const merchantTimerFill = merchantTimerEl.querySelector("i");
+const merchantWaitEl = document.getElementById("merchantWaitMsg");
 const bilanEl = document.getElementById("bilan");
 const bilanTitle = document.getElementById("bilanTitle");
 const bilanStats = document.getElementById("bilanStats");
@@ -341,6 +354,13 @@ let myVote = 1;
    minuteur : seul le message "round" le fait, en meme temps que le reste de
    l'etat de manche. */
 let cardsState = null;      // { boss, deadline, offers, picked } ou null
+/* Marchand de reliques (lot K). `merchantState` porte l'offre en cours et le
+   solde ; contrairement aux cartes, `done` ne verrouille pas tout l'ecran —
+   on peut acheter zero, une ou trois reliques, et « passer » n'est qu'un
+   renoncement. */
+let merchantState = null;
+let merchantWait = [];      // ids des joueurs qui n'ont pas encore passe
+let merchantTimerHandle = null;
 /* Etat du compte de progression (lot D), tel que le serveur l'envoie. Nul tant
    que rien n'est arrive — le panneau reste alors cache, un compte sans serveur
    n'existe pas. */
@@ -348,6 +368,10 @@ let progressState = null;
 let cardsPending = [];      // ids des joueurs qui n'ont pas encore choisi
 let cardsTimerHandle = null;
 let loadouts = new Map();   // playerId -> [cardId,...]
+/* Reliques par joueur (lot K), portees par le meme message `loadout` dans un
+   champ separe : la fenetre de build affiche l'indice de puissance reel, et
+   il inclut le flat des reliques. */
+let relicsByPlayer = new Map();  // playerId -> [relicId,...]
 
 /* Recharge d'esquive LOCALE, en secondes. « Célérité » la raccourcit, et le
    client doit rejouer la meme formule que le serveur : sans ca, sa propre
@@ -510,6 +534,7 @@ function connect() {
         cardsCloseQueued = false;
         resetFeedback();
         closeCards();
+        closeMerchant();
         closeBilan();
         closeBuild();
         closePause();
@@ -600,6 +625,7 @@ function connect() {
           loadouts = new Map();
           refreshLocalMods();
           closeCards();
+          closeMerchant();
           closeBilan();
           closeBuild();
           closePause();
@@ -616,6 +642,7 @@ function connect() {
           predicted = null;
           resetFeedback();
           closeCards();
+          closeMerchant();
           closeBilan();
           closeBuild();
           closePause();
@@ -633,6 +660,7 @@ function connect() {
           // SUIVANTE, sur un combat qui n'a rien a voir.
           resetFeedback();
           closeCards();
+          closeMerchant();
           closeBuild();
           closePause();
           // Le bilan s'ouvre AVANT `refreshPanel` : c'est lui qui tient le salon
@@ -658,7 +686,7 @@ function connect() {
            seconde. */
         if (cardsState && !cardsCloseQueued) {
           cardsCloseQueued = true;
-          pushWorld(() => { cardsCloseQueued = false; closeCards(); });
+          pushWorld(() => { cardsCloseQueued = false; closeCards(); closeMerchant(); });
         }
         break;
 
@@ -703,6 +731,34 @@ function connect() {
         });
         break;
 
+      /* Marchand (lot K). Message de transition du monde, comme `cards` :
+         il s'ouvre par-dessus la depouille du boss 110 ms avant que le client
+         ne la dessine morte, sinon. `offers` est un tableau d'IDS — le client
+         lit la table partagee, comme pour les boss ; un onglet anterieur
+         ignore le message entier et continue de jouer. */
+      case "merchant":
+        pushWorld(() => {
+          merchantState = {
+            wave: msg.wave ?? 0,
+            deadline: msg.deadline,
+            eclats: msg.eclats ?? 0,
+            rerollCost: msg.rerollCost ?? 0,
+            offers: msg.offers ?? [],
+            done: false,
+            from: Date.now(),
+          };
+          merchantWait = [];
+          renderMerchant();
+        });
+        break;
+
+      case "merchantWait":
+        pushWorld(() => {
+          merchantWait = msg.pending ?? [];
+          renderMerchantWait();
+        });
+        break;
+
       /* Reponse du serveur a une demande de pause — et aussi son initiative :
          il la leve tout seul au bout de cinq minutes ou a l'arrivee d'un second
          joueur. Le panneau reste ouvert dans ce cas, il change simplement de
@@ -715,6 +771,8 @@ function connect() {
 
       case "loadout":
         loadouts = new Map(Object.entries(msg.byPlayer).map(([id, arr]) => [Number(id), arr]));
+        relicsByPlayer = new Map(
+          Object.entries(msg.relics ?? {}).map(([id, arr]) => [Number(id), arr]));
         // Seul point ou le chargement local change : c'est ici, et nulle part
         // ailleurs, qu'on recalcule les mods dont la saisie a besoin.
         refreshLocalMods();
@@ -758,6 +816,7 @@ function connect() {
     showHud(false);
     setGateBusy(false);
     closeCards();
+    closeMerchant();
     closeBilan();
     closeBuild();
     closePause();
@@ -1734,6 +1793,7 @@ function renderBilanMine(res) {
 
   const info = buildInfo(myId);
   const { mods } = buildMultipliers(info);
+  const flat = relicFlatOf(myId);
   const def = (info.cls === null || info.cls === undefined) ? null : classAt(info.cls);
   const dps = res.time > 0 ? (row.damage ?? 0) / res.time : 0;
   const subis = (row.hurtBy ?? []).reduce((a, b) => a + b, 0);
@@ -1760,7 +1820,7 @@ function renderBilanMine(res) {
       `<div class="buildStat"><span class="val">${info.counts.size}</span><span class="lab">cartes</span></div>` +
     `</div>` +
     `<div class="mineMods">${modsChipsHtml(mods)}</div>` +
-    `<div id="minePower">${powerBlockHtml(mods)}</div>`;
+    `<div id="minePower">${powerBlockHtml(mods, flat)}</div>`;
 
   // La fenetre de build complete reste a un clic : le bilan en montre la
   // synthese, pas la liste des cartes, qui demande la place d'un ecran entier.
@@ -1909,6 +1969,135 @@ function closeCards() {
   cardsPending = [];
   stopCardsTimer();
   cardsEl.hidden = true;
+}
+
+/* --- marchand de reliques (lot K) -------------------------------------------
+   Meme squelette que l'ecran de cartes — overlay, titre, filet de temps,
+   rangee — mais les achats sont INDEPENDANTS : pas de verrouillage global au
+   premier clic. Le prix et le solde changent a chaque achat ; le serveur
+   renvoie alors l'offre a jour (message `merchant`), que ce rendu rejoue.
+
+   L'effet d'une relique est en valeur EXACTE, jamais en pourcentage — c'est
+   sa nature, la spec K7 l'exige, et c'est ce qui la distingue d'une carte
+   des qu'on la lit. La contrepartie est en evidence (`.cardWarn`, ambre),
+   pas en petit texte : une relique a contrepartie doit se refuser pour ce
+   qu'elle COUTE, pas pour ce qu'elle donne. */
+
+function renderMerchant() {
+  if (!merchantState) { merchantEl.hidden = true; return; }
+  merchantEl.hidden = false;
+
+  /* Le titre porte le solde : c'est la question que l'ecran pose — « qu'est-ce
+     que je peux m'offrir » — et le solde est la reponse, avant meme de lire
+     les reliques. */
+  merchantTitle.innerHTML =
+    `Marchand <span class="merchantEclats">${merchantState.eclats} éclats</span>`;
+
+  merchantRow.innerHTML = "";
+  for (const id of merchantState.offers) {
+    const r = relicById(id);
+    if (!r) continue;
+    const col = RARITY_COLOR[r.tier] ?? RARITY_COLOR[0];
+    const prix = relicPrice(r);
+    const btn = document.createElement("button");
+    /* Memes materiaux de rarete que les cartes : une relique legendaire est un
+       evenement, elle se reconnait avant d'etre lue. */
+    btn.className = `cardOpt r${r.tier}`;
+    btn.style.color = col;
+    btn.dataset.id = id;
+    btn.disabled = merchantState.done || merchantState.eclats < prix;
+    /* L'effet est la ligne la plus grosse, comme sur les cartes : c'est ce
+       qu'on compare entre trois reliques. */
+    let html =
+      `<div class="cardTop">` +
+        `<span class="cardName">${escapeHtml(r.nom)}</span>` +
+      `</div>` +
+      `<div class="cardMeta">` +
+        `<span class="cardRarity">${RELIC_RARITY[r.tier] ?? ""}</span>` +
+      `</div>` +
+      `<div class="cardBody">` +
+        `<div class="cardMain">${escapeHtml(r.desc)}</div>` +
+        (r.contrepartie
+          ? `<div class="cardWarn">${escapeHtml(r.contrepartie)}</div>`
+          : "") +
+      `</div>` +
+      `<div class="cardFoot">` +
+        `<span class="merchantPrix">${prix} éclats</span>` +
+      `</div>`;
+    btn.innerHTML = html;
+    btn.onclick = () => buyRelic(id);
+    merchantRow.appendChild(btn);
+  }
+
+  /* La relance, a cote de la rangee : elle se paie et elle ne repart pas.
+     Desactivee quand le joueur n'a pas assez — le cout croit avec la vague,
+     donc elle finit toujours par couter plus que ce qu'elle vaut. */
+  const reroll = document.createElement("button");
+  reroll.className = "ghost";
+  reroll.textContent = `Relancer (${merchantState.rerollCost} éclats)`;
+  reroll.disabled = merchantState.done || merchantState.eclats < merchantState.rerollCost;
+  reroll.onclick = () => {
+    ws.send(JSON.stringify({ t: "rerollRelic" }));
+  };
+  merchantRow.appendChild(reroll);
+
+  /* Passer est un RENONCEMENT, jamais un choix par defaut : le bouton reste
+     explicite, la spec K7 l'exige — on ne doit jamais avoir l'impression qu'un
+     achat est obligatoire. */
+  const passer = document.createElement("button");
+  passer.className = "ghost";
+  passer.textContent = "Passer";
+  passer.disabled = merchantState.done;
+  passer.onclick = () => {
+    merchantState.done = true;
+    ws.send(JSON.stringify({ t: "skipMerchant" }));
+    renderMerchant();
+  };
+  merchantRow.appendChild(passer);
+
+  renderMerchantWait();
+  startMerchantTimer();
+}
+
+function renderMerchantWait() {
+  if (!merchantState) return;
+  const names = merchantWait.filter(id => id !== myId).map(id => nameOf(id));
+  merchantWaitEl.textContent = names.length
+    ? `en attente de ${names.join(", ")}…`
+    : "";
+}
+
+function buyRelic(id) {
+  if (!merchantState || merchantState.done) return;
+  ws.send(JSON.stringify({ t: "buyRelic", id }));
+  /* On ne grise pas tout : les autres reliques restent achetables. Mais on
+     desactive celle-ci pour eviter le double envoi (le serveur renverra
+     l'offre a jour, qui la retirera). */
+  const btn = merchantRow.querySelector(`button[data-id="${id}"]`);
+  if (btn) btn.disabled = true;
+}
+
+function closeMerchant() {
+  merchantState = null;
+  merchantWait = [];
+  stopMerchantTimer();
+  merchantEl.hidden = true;
+}
+
+function stopMerchantTimer() {
+  if (merchantTimerHandle) { clearInterval(merchantTimerHandle); merchantTimerHandle = null; }
+}
+function startMerchantTimer() {
+  stopMerchantTimer();
+  updateMerchantTimer();
+  merchantTimerHandle = setInterval(updateMerchantTimer, 250);
+}
+function updateMerchantTimer() {
+  if (!merchantState) return;
+  const span = Math.max(1, merchantState.deadline - merchantState.from);
+  const k = Math.max(0, Math.min(1, (merchantState.deadline - Date.now()) / span));
+  merchantTimerFill.style.width = `${k * 100}%`;
+  merchantTimerEl.classList.toggle("urgent", k < 0.25);
 }
 
 // Envoi de la carte choisie. L'ecran reste ouvert mais bascule en mode
@@ -2248,8 +2437,26 @@ function powerLabel(v) {
    sous le genou, une carte de degats est integralement absorbee par les PV du
    boss ; au-dessus, elle commence a payer. C'etait jusqu'ici la seule regle du
    jeu que le joueur subissait sans jamais pouvoir la voir. */
-function powerBlockHtml(mods) {
-  const v = powerIndex(mods);
+/* Degats bruts des reliques d'un joueur, pour la jauge de puissance. La table
+   partagee est la source de verite — meme lecture que `_playerPower` cote
+   simulation, aucune constante recopiee. Le flat du « Coeur de Ravageur »
+   (boss uniquement) compte au meme tiers que cote serveur : la jauge et le
+   boss doivent lire le meme chiffre. */
+function relicFlatOf(playerId) {
+  let s = 0;
+  for (const id of relicsByPlayer.get(playerId) ?? []) {
+    const r = relicById(id);
+    if (r && r.flatDamage) s += r.flatDamage;
+    if (r && r.bossDamage) s += r.bossDamage * 0.3;
+  }
+  return s;
+}
+
+function powerBlockHtml(mods, flat = 0) {
+  /* `flat` : les degats bruts des reliques (lot K). Le chiffre affiche est
+     celui qui pilote REELLEMENT les PV du boss — il inclut le flat cote
+     simulation, l'afficher sans le flat ferait relire une jauge qui ment. */
+  const v = powerIndex(mods, flat);
   const pct = x => Math.max(0, Math.min(100, (x - 1) / (POWER_SCALE_MAX - 1) * 100));
   const knee = CFG.BOSS_POWER_KNEE;
   const over = v > knee;
@@ -2332,7 +2539,7 @@ function renderBuild() {
     `<span class="lab">${escapeHtml(lab)}</span></div>`).join("");
 
   buildMods.innerHTML = modsChipsHtml(mods);
-  buildPower.innerHTML = powerBlockHtml(mods);
+  buildPower.innerHTML = powerBlockHtml(mods, relicFlatOf(buildTarget));
 
   // Les deux competences de la classe, avec leur touche : la fenetre sert aussi
   // a se rappeler ce que fait la classe d'un allie qu'on ne joue jamais.
@@ -2645,6 +2852,9 @@ function ingest(msg) {
     wave: msg.wv ?? 0,
     wavePhase: msg.wp ?? 0,
     waveBoss: msg.wbs === 1,
+    // Lot L. Absente hors vague speciale, d'ou le repli a -1 : la cle ne se
+    // paie pas les seize vagues sur vingt ou il n'y a rien a dire.
+    waveSpecial: msg.wsp ?? -1,
     waveProgress: msg.wb ?? 0,
     teamLevel: msg.xl ?? 1,
     teamProgress: msg.xp ?? 0,
@@ -2709,7 +2919,7 @@ const dash = { pending: false, t: 0, cd: 0, x: 0, y: 0 };
 const skills = { s1: false, s2: false, s3: false };
 
 function requestSkill(n) {
-  if (phase !== PHASE_ROUND || amSpectator || cardsState) return;
+  if (phase !== PHASE_ROUND || amSpectator || cardsState || merchantState) return;
   // Menu pause ouvert : meme raison que le deplacement. Une competence lancee
   // depuis un menu part sur une situation qu'on ne regarde pas.
   if (!pauseEl.hidden) return;
@@ -3006,6 +3216,7 @@ function interpolated(renderTime) {
     // interpole. Ce sont des paliers, pas des positions — un numero de vague
     // a mi-chemin entre 6 et 7 n'aurait aucun sens.
     wave: b.wave, wavePhase: b.wavePhase, waveBoss: b.waveBoss,
+    waveSpecial: b.waveSpecial ?? -1,
     waveProgress: b.waveProgress,
     teamLevel: b.teamLevel, teamProgress: b.teamProgress,
   };
@@ -3035,6 +3246,7 @@ function flatten(s) {
     bounds: s.bounds ?? { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H, warn: 0 },
     walls: s.walls ?? null,
     wave: s.wave, wavePhase: s.wavePhase, waveBoss: s.waveBoss,
+    waveSpecial: s.waveSpecial ?? -1,
     waveProgress: s.waveProgress,
     teamLevel: s.teamLevel, teamProgress: s.teamProgress,
   };
@@ -3148,6 +3360,22 @@ function applyAlert(msg, now) {
     alertWarn = null;
     alertInfo = null;
     bossCue = null;
+    return;
+  }
+  /* Vague speciale (lot L). Elle emprunte le bandeau d'AVERTISSEMENT et non la
+     consigne : il n'y a rien a faire tout de suite, c'est ce qui vient qu'on
+     annonce. Pas de `bossCue` non plus — aucun corps ne se ramasse dessus, et
+     poser une posture sur une annonce de vague ferait tressaillir un boss
+     absent. */
+  if (msg.special !== undefined) {
+    const sp = specialAt(msg.special);
+    if (!sp) return;
+    alertWarn = {
+      nom: `PROCHAINE VAGUE : ${sp.nom}`,
+      texte: sp.sous,
+      from: now,
+      until: now + Math.max(800, (msg.dur > 0 ? msg.dur * 1000 : 1500) - 250),
+    };
     return;
   }
   const def = mechAt(msg.mech);

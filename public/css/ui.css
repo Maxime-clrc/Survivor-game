@@ -652,6 +652,34 @@ td.cards { text-align: left; max-width: 420px; }
 
 #cards { gap: var(--sp-4); }
 
+/* --- marchand de reliques (lot K) -------------------------------------------
+   Meme squelette que l'ecran de cartes, a une difference pres : le titre porte
+   le solde d'eclats — la question que l'ecran pose est « qu'est-ce que je peux
+   m'offrir », et le solde est la reponse avant meme de lire les reliques. */
+#merchant { gap: var(--sp-4); }
+
+#merchantTitle {
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  text-align: center;
+  max-width: 720px;
+}
+.merchantEclats { color: var(--gain); letter-spacing: var(--track-caps); }
+
+#merchantTimer { width: 720px; max-width: 100%; height: var(--sp-1); background: var(--line-soft); }
+#merchantTimer > i { display: block; height: 100%; background: var(--go); transition: width 250ms linear; }
+#merchantTimer.urgent > i { background: var(--warn); }
+
+#merchantRow { display: flex; gap: var(--sp-4); flex-wrap: wrap; justify-content: center; }
+
+/* Le prix d'une relique est le pied de carte, dans la couleur du gain : il se
+   compare au solde du titre sans quitter les reliques des yeux. */
+.merchantPrix { color: var(--gain); font-weight: 600; }
+
+#merchantWaitMsg { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); }
+
 #cardsTitle {
   font-size: var(--t-l);
   font-weight: 700;
