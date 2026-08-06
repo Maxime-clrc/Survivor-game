@@ -82,6 +82,9 @@ export function createHub(store, log) {
       kills: pr.kills,
       classes: pr.classes,
       confort: pr.confort,
+      // Lot J : la liste des cartes bannies — le Terminal l'affiche, le
+      // repli couvre les profils v4 d'avant le lot.
+      bannedCards: pr.bannedCards ?? [],
       pseudo: pr.pseudo ?? "",
       gained: c.lastGain ?? 0,
     };
@@ -152,6 +155,11 @@ export function createHub(store, log) {
     awardRun,
     awardPartial,
     sendProgress,
+    /* Lot J : le bannissement s'ecrit IMMEDIATEMENT — il ne doit pas se
+       perdre si le serveur redemarre avant la fin de la manche. La salle
+       emet, le hub ecrit, comme pour tout le reste de la progression ;
+       l'ecran de cartes est une pause entre deux vagues, pas une vague. */
+    persist,
   };
 
   function roomsPayload() {

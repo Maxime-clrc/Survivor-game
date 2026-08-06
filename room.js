@@ -20,7 +20,7 @@
    =========================================================================== */
 
 import { GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL } from "./shared/game_state.js";
-import { CARD_CFG, cardBrief } from "./shared/cards.js";
+import { CARD_CFG, cardBrief, banClosure } from "./shared/cards.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
 import { lockedCards } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
@@ -457,7 +457,14 @@ export class Room {
             ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
             quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
           },
-          locked: lockedCards(c.profile.milestones),
+          locked: (() => {
+            /* Le ban (lot J) emprunte le mecanisme des jalons : `locked` est
+               deja le filtre « n'apparait jamais dans un tirage », en amont
+               du tirage — exactement la garantie que le ban demande. */
+            const locked = lockedCards(c.profile.milestones);
+            for (const bid of c.profile.bannedCards ?? []) locked.add(bid);
+            return locked;
+          })(),
         };
       }
       c.rerollUsed = false;
@@ -585,6 +592,36 @@ export class Room {
         this.cardPicked.add(id);
         this.broadcast(this.loadoutPayload());
         this.broadcast({ t: "cardsWait", pending: this.cardsPendingIds() });
+        break;
+      }
+
+      /* Bannissement (lot J). Memes gardes que pickCard — la carte doit
+         figurer dans l'OFFRE COURANTE de ce joueur, la phase etre ouverte —
+         plus l'idempotence. Bannir CONSOMME la phase : pas de selection, pas
+         de carte de remplacement. La cloture de dependances est calculee ici
+         et ecrite a plat ; `p.locked` est mis a jour dans la foulee pour que
+         le prochain ecran de la meme manche ne re-propose jamais la carte. */
+      case "banCard": {
+        if (this.phase !== PHASE_CARDS || this.cardPicked.has(id)) break;
+        const offers = this.state.cardOffers.get(id);
+        const p = this.state.players.get(id);
+        if (!offers || !p || !offers.includes(msg.id)) break;
+        if (!client.profile) break;
+        const pr = client.profile;
+        pr.bannedCards ??= [];
+        if (pr.bannedCards.includes(msg.id)) break;
+
+        const closure = banClosure(msg.id).filter(bid => !pr.bannedCards.includes(bid));
+        pr.bannedCards.push(...closure);
+        p.locked ??= new Set();
+        for (const bid of closure) p.locked.add(bid);
+        this.hooks.persist(client);
+        this.hooks.sendProgress(client);
+
+        this.cardPicked.add(id);
+        this.broadcast({ t: "cardsWait", pending: this.cardsPendingIds() });
+        this.hooks.log(`[${this.code}] ${client.name} bannit ${msg.id}`
+          + (closure.length > 1 ? ` (+${closure.length - 1} dépendante(s))` : ""));
         break;
       }
 

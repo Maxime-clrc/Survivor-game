@@ -514,6 +514,21 @@ button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text
   font-size: var(--t-xs);
 }
 .metaLine.confort { grid-template-columns: 150px 1fr 74px; }
+#metaBans {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+  margin-top: var(--sp-2);
+}
+.metaLine.banned { opacity: 0.75; }
+.metaBanTag {
+  font-size: var(--t-xs);
+  color: var(--lethal);
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+}
 /* Trois etats nets (lot H) : equipe = lisere cyan plein, achete non equipe =
    lisere clair, non achete = attenue. Pas trois gris. */
 .metaLine.equipped { border-color: var(--go); }
@@ -761,6 +776,21 @@ td.cards { text-align: left; max-width: 420px; }
   color: var(--text-dim);
 }
 .cardDelta { color: var(--text); font-weight: 700; }
+
+/* Bouton de BAN (lot J) : une action rare et irreversible — discrete, en pied
+   de carte, elle ne concurrence jamais le choix. Le rouge n'arrive qu'au
+   survol : la grammaire l'associe au danger, et un pied de carte rouge en
+   permanence serait un signal criard sur les trois cartes. */
+.cardBan {
+  align-self: center;
+  padding: 2px var(--sp-2);
+  font-size: var(--t-xs);
+  color: var(--text-faint);
+  border: var(--hair) solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.cardBan:hover { color: var(--lethal); border-color: var(--lethal); }
 
 /* --- materiaux de rarete ----------------------------------------------------
    Chaque rarete a un MATERIAU et pas seulement une couleur : bordure plate,
