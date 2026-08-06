@@ -16,6 +16,7 @@ import {
   PURGE_ORDER, ELITE_STATUS, statusAt, statusBit, enemyStatusMask,
 } from "./statuses.js";
 import { PROG_CFG, applyMeta } from "./progression.js";
+import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 /* La SEULE valeur d'affichage lue ici, et elle ne sert qu'a construire
    `PLAYER_COLORS` juste en dessous : `palette.js` ne depend de rien, donc pas
    de cycle. La simulation elle-meme n'ouvre jamais cette table. */
@@ -36,6 +37,7 @@ export { CARD_CFG };
 export { CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt };
 export { STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOOM };
 export { BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, mechAt };
+export { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost };
 
 export const CFG = {
   /* GRANDE ARENE (lot I). L'arene fait TROIS fois la vue dans chaque
@@ -825,7 +827,7 @@ export function fullMods(cards, others, cls, wave = 1) {
    Prend un `mods` et rien d'autre. Cote simulation on lui passe `powerMods`
    (cartes + classe, sans la progression permanente) et non `mods` : la meta est
    exclue de la difficulte PAR CONSTRUCTION. */
-export function powerIndex(m) {
+export function powerIndex(m, flat = 0) {
   // barrelDamageMul, oubli d'origine : « Second canon » ajoute un canon mais
   // retire 18 % de degats a CHAQUE balle. Compter les canons sans la penalite
   // surestimait la puissance de 44 % avec deux exemplaires, et le boss
@@ -858,8 +860,14 @@ export function powerIndex(m) {
      pic de quatre secondes ferait monter la difficulte au moment precis ou le
      joueur vient de gagner son bonus. */
   const crit = 1 + m.critChance * (m.critMul - 1);
+  /* Reliques a degats bruts (lot K). Le flat s'ajoute a la BASE comme dans
+     `_shoot` : le facteur vaut exactement l'apport d'une relique au tir reel,
+     ni plus ni moins. `flat` est le TOTAL brut (eclat_dur + noyau_instable +
+     coeur_machine), passe par les appelants — la fonction reste pure, elle
+     ne lit aucune table. */
+  const flatMul = 1 + flat / CFG.BULLET_DAMAGE;
   return m.damageMul * barrels * catalyseur * crit
-    * (1 + m.echoChance) / m.fireIntervalMul;
+    * (1 + m.echoChance) / m.fireIntervalMul * flatMul;
 }
 
 /* Puissance vue par un BOSS : l'indice passe au genou. Pure elle aussi, pour
@@ -1001,6 +1009,21 @@ export class GameState {
        vague 10 de donner trois legendaires. */
     this.legendaryWaveDone = new Set();
 
+    /* --- marchand (lot K) ----------------------------------------------------
+       Meme modele que les cartes : `relicPending` stoppe la boucle du serveur,
+       `relicOffers` est l'offre courante (une par joueur, comme `cardOffers`),
+       et `relicLegendaryTaken` est la limite « une seule legendaire par manche,
+       tous marchands confondus » — l'equivalent local de `legendaryWaveDone` :
+       sans elle l'offre se regenererait et la borne sauterait. */
+    this.relicPending = false;
+    this.relicOffers = new Map();  // playerId -> [3 ids]
+    this.relicLegendaryTaken = false;
+    /* Un marchand par victoire de boss, jamais plus : sans ce drapeau, une
+       victoire suivie de pres par une autre (boss final du lot N, ou une vague
+       de boss dont le repit se termine pendant qu'une autre commence) ouvrirait
+       deux ecrans d'affilee. Pose par _killBoss, consomme par openMerchant. */
+    this.relicBossDue = false;
+
     this.time = 0;
     this.spawnAcc = 0;
     this.powerupCd = 8;
@@ -1119,6 +1142,7 @@ export class GameState {
         frenzy: 0,
         lifesteal: 0,      // budget de vol de vie restant sur la seconde
         lifestealSec: 0,
+        relicPurge: 0,     // « Filtre purifiant » (lot K) : compte a rebours 10 s
       },
       /* --- etats ------------------------------------------------------------
          Ils vivent A COTE de `mods`, comme les minuteurs : `_recomputeMods()`
@@ -1149,12 +1173,25 @@ export class GameState {
       rageStacks: 0,       // « Carnage »
       rageT: 0,
       pacteUsed: 0,        // « Pacte de fer » : le bouclier a deja ete donne
+      /* Reliques (lot K) — drapeaux d'usage unique par manche, meme rege que
+         `pacteUsed` : `relicBatteryUsed` (Batterie de secours, une recharge),
+         `relicMemoireUsed` (Memoire gravee, une competence par VAGUE — le
+         drapeau se remet a zero dans _startWave, pas ici). */
+      relicBatteryUsed: 0,
+      relicMemoireUsed: 0,
 
       selfReviveUsed: 0,
       commonStreak: 0,     // boss consecutifs sans mieux qu'une commune
       damageDealt: 0,      // pour que la contribution defensive se voie ailleurs
       healDealt: 0,        // meme raison, pour le soigneur
       eclats: 0,           // monnaie de manche (lot I) — jamais persistee
+      /* Reliques du marchand (lot K). A COTE de p.mods, jamais dedans :
+         `_recomputeMods()` rejoue tout le chargement a chaque carte prise, et
+         une relique rangee dans mods disparaitrait au premier ecran de choix.
+         C'est la meme rege que les etats et les minuteurs. La Map id->1 (le
+         comptage sert pour « une seule relique de chaque ») et les effets a
+         `mode` ajoutent leurs champs d'etat propres (batteryUsed, etc.). */
+      relics: new Map(),
 
       /* --- competences ------------------------------------------------------
          Deux recharges seulement, quelle que soit la classe : le protocole
@@ -1361,6 +1398,14 @@ export class GameState {
       p.mods = r.mods;
       p.maxHp = r.maxHp;
     }
+
+    /* Reliques a PV bruts (lot K), apres la meta — le delta ci-dessous fait
+       tout le travail : un achat ajoute les PV a la jauge. `flatHp` peut etre
+       negatif (« Noyau instable », -10) : la contrepartie se lit a l'achat,
+       et elle peut faire tomber un joueur deja tres bas — c'est le prix
+       assume de la relique, elle l'affiche en evidence. */
+    const flat = this._relicSum(p, "flatHp");
+    if (flat !== 0) p.maxHp = Math.max(1, p.maxHp + flat);
 
     const gained = p.maxHp - before;
     if (gained > 0 && !p.downed) p.hp = Math.min(p.maxHp, p.hp + gained);
@@ -1611,7 +1656,12 @@ export class GameState {
         // Entrave : -40 % de vitesse. Elle porte sur le DEPLACEMENT et pas sur
         // l'esquive, qui reste la reponse a tout — un etat qui coupe aussi
         // l'esquive ne se subit pas, il se regarde.
-        const sp = CFG.PLAYER_SPEED * p.mods.speedMul
+        /* Relique « Coeur-machine » (lot K) : la vitesse est FIXEE a sa valeur
+           de base, tous les bonus de vitesse des cartes sont annules — c'est
+           la contrepartie, elle doit peser. `speedFixed` remplace le mod au
+           lieu de le multiplier, sinon l'annulation serait incomplete. */
+        const speedMul = p.relics.has("coeur_machine") ? 1 : p.mods.speedMul;
+        const sp = CFG.PLAYER_SPEED * speedMul
           * (p.statuses.has(STATUS_ROOT) ? 1 - STATUS_CFG.ROOT_SLOW : 1);
         if (this.slipT > 0) {
           /* Sol glissant du Metronome : la vitesse REJOINT la consigne au lieu
@@ -1670,7 +1720,12 @@ export class GameState {
       // intervalle nul des la moitie de la fenetre.
       if (p.odBonus > 0) interval /= 1 + p.odBonus;
       if (p.healSwapBoost > 0) interval /= 1 + CARD_CFG.BASCULE_VIVE_RATE;
-      interval = Math.max(CFG.FIRE_INTERVAL_MIN, interval);
+      /* Relique « Ressort use » (lot K) : reduction FIXE de l'intervalle, en
+         secondes. Soustraite apres toutes les divisions, avant le plancher —
+         une valeur brute ne doit pas etre diluee par les bonus de cadence.
+         `rateFlat` est negatif dans la table (-0,03) : ajouter la somme la
+         soustrait bien de l'intervalle. */
+      interval = Math.max(CFG.FIRE_INTERVAL_MIN, interval + this._relicSum(p, "rateFlat"));
 
       if (p.fireCd <= 0) {
         p.fireCd = interval;
@@ -1684,8 +1739,28 @@ export class GameState {
      deux evite que l'echo ne rejoue aussi la salve arriere et les canons
      supplementaires deux fois chacun, ce qui la rendait bien plus forte que
      ses 20 % annonces. */
+  /* Somme d'une cle a valeur brute des reliques du joueur (lot K). La table
+     RELICS est la source de verite : aucune constante recopiee, un reglage se
+     fait dans reliques.js et rien ne derive ici. `flatDamage` s'ajoute a la
+     base d'un tir AVANT les multiplicateurs ; `bossDamage` au montant final
+     d'un degat contre le boss — deux cles, deux points d'application. */
+  _relicSum(p, key) {
+    let s = 0;
+    for (const id of p.relics.keys()) {
+      const r = relicById(id);
+      if (r && r[key]) s += r[key];
+    }
+    return s;
+  }
+
   _shoot(p) {
-    const base = CFG.BULLET_DAMAGE * p.mods.damageMul
+    /* Reliques a valeur brute (lot K) : le bonus s'ajoute a la BASE, AVANT les
+       multiplicateurs — c'est ce qui rend « +8 degats » utile meme sur une
+       build sans aucune carte de degats. Le multiplicateur de la classe
+       (0,80 pour le Rempart) s'applique donc au total, pas a la base seule :
+       une relique de degats vaut autant pour toutes les classes, ce qui est
+       precisement l'axe de puissance neuf que les cartes ne donnent pas. */
+    const base = (CFG.BULLET_DAMAGE + this._relicSum(p, "flatDamage")) * p.mods.damageMul
       * (p.buffDamage > 0 ? CFG.BUFF_DAMAGE_MUL : 1);
     this._volley(p, base);
     if (p.mods.echoChance > 0 && Math.random() < p.mods.echoChance) this._volley(p, base);
@@ -1779,6 +1854,29 @@ export class GameState {
      boutons de placement auraient laisse les classes sans reponse a l'urgence.
      ---------------------------------------------------------------------- */
 
+  /* Relique « Memoire gravee » (lot K) : la PREMIERE competence utilisee a
+     chaque vague a sa recharge immediatement reinitialisee. Le drapeau est
+     leve ici et remis a zero dans `_startWave` — une vague est la frontiere
+     naturelle, pas un temps fixe. La recharge depend de la classe :
+     le Rempart reprend son rempart, le Soigneur rebascule a volonte, le
+     Tireur retrouve sa charge de bombe. */
+  _relicMemoire(p) {
+    if (p.relicMemoireUsed || !p.relics.has("memoire_gravee")) return;
+    p.relicMemoireUsed = 1;
+    switch (classAt(p.cls).id) {
+      case "tank": p.cd1 = 0; break;
+      case "soigneur": p.healSwapCd = 0; break;
+      default:
+        // La bombe se reaccumule par le bas dans `_players` : rendre la
+        // charge, c'est incrementer le stock, pas mettre cd1 a zero — la
+        // recharge ne se rearme qu'en traversant la boucle. Meme plafond que
+        // la reaccumulation (`1 + mods.bombCharges`), sinon la relique
+        // contournerait la limite de « Double charge ».
+        p.bombStock = Math.min(1 + p.mods.bombCharges, p.bombStock + 1);
+        p.cd1 = 0;
+    }
+  }
+
   _skill1(p) {
     if (p.downed) return;
     switch (classAt(p.cls).id) {
@@ -1812,6 +1910,7 @@ export class GameState {
         this.effects.push({
           id: this._nextId++, x: p.x, y: p.y, r, life: 0.5, max: 0.5, kind: 9,
         });
+        this._relicMemoire(p);
         return;
       }
 
@@ -1832,6 +1931,7 @@ export class GameState {
         } else {
           p.healSwapCd = SKILL_CFG.HEAL_MODE_SWAP_CD * p.mods.skillCdMul;
         }
+        this._relicMemoire(p);
         return;
       }
 
@@ -1878,6 +1978,7 @@ export class GameState {
           ty: Math.min(Math.max(p.y + p.aimY * range, this.bounds.y0), this.bounds.y1),
           owner: p.id,
         });
+        this._relicMemoire(p);
       }
     }
   }
@@ -1899,6 +2000,7 @@ export class GameState {
           id: this._nextId++, x: p.x, y: p.y,
           r: SKILL_CFG.TANK_TAUNT_RADIUS, life: 0.55, max: 0.55, kind: 10,
         });
+        this._relicMemoire(p);
         return;
       }
 
@@ -1922,6 +2024,7 @@ export class GameState {
         this.effects.push({
           id: this._nextId++, x: p.x, y: p.y, r, life: 0.45, max: 0.45, kind: 11,
         });
+        this._relicMemoire(p);
         return;
       }
 
@@ -1933,6 +2036,7 @@ export class GameState {
         // descend encore : la carte « Surcharge prolongee » recompenserait
         // sinon d'attendre que le bonus soit retombe.
         p.odBonus = Math.max(p.odBonus, SKILL_CFG.DPS_OVERDRIVE_BASE);
+        this._relicMemoire(p);
       }
     }
   }
@@ -2442,6 +2546,15 @@ export class GameState {
        porte le chiffre flottant. Sans ca, frapper le second Jumeau faisait sortir
        le nombre sur le premier. */
     const struck = target;
+    /* Relique « Coeur de Ravageur » (lot K) : degats bruts contre les boss
+       uniquement. Teste sur la cible AVANT la redirection des Jumeaux — une
+       balle qui frappe le second jumeau blesse bien le boss. Valeur brute :
+       ajoutee au montant final, apres tout ce qui l'a multiplie, et c'est
+       exactement la que spec K5 la veut. */
+    if ((struck === this.boss || struck === this.boss2) && ownerId) {
+      const owner = this.players.get(ownerId);
+      if (owner) amount += this._relicSum(owner, "bossDamage");
+    }
     if (this.boss2 && target === this.boss2) target = this.boss;
     /* Vulnerabilite (« Detonateur »). Elle vit sur une echeance absolue et non
        sur un minuteur decompte : un champ de plus a faire descendre sur chacun
@@ -2821,8 +2934,15 @@ export class GameState {
   _drones(dt) {
     const want = new Map();
     for (const p of this.players.values()) {
-      if (p.mods.drones || p.mods.swarm) {
-        want.set(p.id, { sup: p.mods.drones, swarm: p.mods.swarm });
+      /* Relique « Essaim captif » (lot K) : un mini-drone d'essaim de plus en
+         permanence. Meme chemin, meme rendu — le drone est deja une entite du
+         snapshot, rien a transmettre de plus. Il partage le rayon des drones
+         de la carte Essaim par choix : c'est le MEME effet (des drones
+         d'essaim), pas deux effets concurrents — l'invariant des bandes de
+         rayon exclut un conflit d'EFFETS, pas un empilement du meme. */
+      const swarm = p.mods.swarm + (p.relics.has("essaim_captif") ? 1 : 0);
+      if (p.mods.drones || swarm > 0) {
+        want.set(p.id, { sup: p.mods.drones, swarm });
       }
     }
 
@@ -3166,6 +3286,11 @@ export class GameState {
        est bon marche : une fois par vague, pas une fois par image. */
     for (const p of this.players.values()) {
       if (p.mods.damagePerWave > 0) this._recomputeMods(p);
+      /* Relique « Memoire gravee » (lot K) : le droit a la reinitialisation
+         se rearme a chaque VAGUE — la frontiere est le cycle, pas un temps
+         fixe, et un joueur qui economise sa competence pour la vague suivante
+         doit en profiter. */
+      p.relicMemoireUsed = 0;
     }
 
     const crowd = Math.max(1, this.players.size);
@@ -3273,6 +3398,13 @@ export class GameState {
        d'affilee. Le drapeau part au serveur, qui enchaine autant d'ecrans de
        choix qu'il y a de niveaux en attente. */
     if (this.pendingLevels > 0) this.openCards();
+    /* Le marchand (lot K) s'ouvre ICI, et pas dans `_killBoss` : c'est la fin
+       de vague qui decide, exactement comme les cartes — le serveur arrete la
+       boucle sur `relicPending`, et l'ecran n'arrive jamais par-dessus la
+       depouille du boss. Les deux drapeaux peuvent etre vrais a la fois
+       (boss vaincu ET niveau gagne) : le serveur ouvre les cartes d'abord,
+       puis le marchand. */
+    if (this.relicBossDue) this.openMerchant();
   }
 
   /* Prepare une offre pour chacun. Appelable plusieurs fois de suite : le
@@ -3301,6 +3433,111 @@ export class GameState {
         this.offerCards(p, this.cardsQuality, this.waveBoss, jalon ?? 0));
     }
     this.cardsPending = true;
+  }
+
+  /* --- marchand de reliques (lot K) -----------------------------------------
+
+     S'ouvre apres chaque victoire de boss, quand la vague est finie (donc
+     depuis _endWave, jamais depuis _killBoss : c'est le serveur qui decide de
+     ne plus appeler step(), et le boss meurt un tick avant que la vague ne se
+     termine — l'ecran s'ouvrirait alors par-dessus la depouille). Le serveur
+     vide `relicPending` quand tout le monde a fini (achete ou passe), et la
+     manche reprend la ou le repit l'a laissee.
+
+     Differences avec les cartes, qui tiennent le modele :
+       - ce n'est pas un choix EXCLUSIF : c'est un budget a repartir, un joueur
+         achete zero, une ou plusieurs reliques ;
+       - il n'y a qu'UN marchand par victoire de boss, la ou les cartes peuvent
+         s'enchaner (plusieurs niveaux) ;
+       - les reliques se paient en eclats — la monnaie du lot I, jamais
+         persistee, qui meurt avec le GameState. */
+
+  /* Le drapeau se leve a la mort du boss ; la vague se termine au tick suivant,
+     et _endWave decidera d'ouvrir (voir la-bas). */
+  _merchantDue() {
+    this.relicBossDue = true;
+  }
+
+  /* Tire une offre pour un joueur. Meme regle de non-repetition que les cartes
+     pour le joueur, PLUS la limite de legendaire pour toute la manche. */
+  _offerRelics(p) {
+    const poss = p.relics;
+    const pool = RELICS.filter(r =>
+      !poss.has(r.id)
+      && (r.tier < 3 || !this.relicLegendaryTaken));
+    const picks = [];
+    const from = [...pool];
+    while (picks.length < RELIC_CFG.OFFER_COUNT && from.length > 0) {
+      // Poids par palier : plus une relique est chere, plus elle est rare.
+      const weights = [46, 32, 17, 5];   // commune..legendaire
+      let total = 0;
+      for (const r of from) total += weights[r.tier];
+      let roll = Math.random() * total;
+      let idx = 0;
+      for (let i = 0; i < from.length; i++) {
+        roll -= weights[from[i].tier];
+        if (roll <= 0) { idx = i; break; }
+      }
+      picks.push(from[idx].id);
+      from.splice(idx, 1);
+    }
+    return picks;
+  }
+
+  openMerchant() {
+    this.relicBossDue = false;
+    this.relicOffers = new Map();
+    for (const p of this.players.values()) {
+      this.relicOffers.set(p.id, this._offerRelics(p));
+    }
+    this.relicPending = true;
+  }
+
+  /* Achat. Retourne true si l'achat a eu lieu. Le serveur a deja verifie que
+     la relique figure dans l'offre courante : ici on verifie ce que le client
+     ne peut pas tricher — le solde, et la limite de legendaire. */
+  buyRelic(p, id) {
+    const offers = this.relicOffers.get(p.id);
+    if (!offers || !offers.includes(id)) return false;
+    const r = relicById(id);
+    if (!r) return false;
+    if (r.tier === 3 && this.relicLegendaryTaken) return false;
+    const price = relicPrice(r);
+    if (p.eclats < price) return false;
+    p.eclats -= price;
+    p.relics.set(id, 1);
+    if (r.tier === 3) this.relicLegendaryTaken = true;
+    /* La relique achetée sort de l'offre courante : sans cette retraite, un
+       solde genererux permettait d'acheter la MÊME relique trois fois — et
+       les PV bruts se cumulaient sur la jauge. Elle reste possedee, donc
+       `_offerRelics` ne la retirera plus jamais. */
+    const off = this.relicOffers.get(p.id);
+    if (off) this.relicOffers.set(p.id, off.filter(o => o !== id));
+    /* Les PV bruts changent la jauge : il faut la recalculer tout de suite,
+       pas au prochain ecran de cartes. */
+    if (r.flatHp) this._recomputeAll(p);
+    return true;
+  }
+
+  /* Relance de l'offre contre des eclats, cout croissant avec la vague. */
+  rerollRelic(p) {
+    const cost = relicRerollCost(this.wave);
+    if (p.eclats < cost) return false;
+    p.eclats -= cost;
+    this.relicOffers.set(p.id, this._offerRelics(p));
+    return true;
+  }
+
+  /* Le joueur a fini au marchand (achete, ou passe). Le serveur rouvre quand
+     plus personne n'attend. */
+  relicDone(p) {
+    this.relicOffers.delete(p.id);
+  }
+
+  /* Fin de marchand : tout le monde a fini (ou le delai est ecoule). */
+  closeMerchant() {
+    this.relicPending = false;
+    this.relicOffers.clear();
   }
 
   _spawner(dt) {
@@ -5258,8 +5495,25 @@ export class GameState {
        ici rendrait la meta absorbee par la difficulte — un tapis roulant — et
        taxerait l'arbre offensif du Tireur la ou celui du Rempart, defensif,
        passerait gratuit, sans que personne ne comprenne pourquoi. Le repli sur
-       `mods` couvre un GameState d'avant le lot (script de mesure). */
-    return powerIndex(p.powerMods ?? p.mods);
+       `mods` couvre un GameState d'avant le lot (script de mesure).
+
+       Les reliques a degats bruts (lot K), elles, y ENTREnt — c'est la
+       decision de K5 : sans elles, les vagues suivant un passage chez le
+       marchand seraient sous-calibrees par rapport aux degats reels de
+       l'equipe, et le boss du lot N serait une formalite. La spec exigeait
+       l'injection « en amont du calcul », c'est exactement ce que fait le
+       parametre `flat` de powerIndex : un facteur sur la base, comme dans
+       `_shoot`.
+
+       Le flat du « Coeur de Ravageur » (boss uniquement) compte A UN TIERS —
+       la part du temps de jeu passe contre les boss, une vague sur cinq plus
+       leur duree — exactement le precedent du catalyseur, qui ne vaut que
+       contre une cible affectee et compte a moitie. Le compter plein
+       sur-calibrerait les vagues, ne pas le compter sous-calibrerait les
+       boss : le premier tiers est la moyenne mesuree. */
+    const flat = this._relicSum(p, "flatDamage")
+      + this._relicSum(p, "bossDamage") * 0.3;
+    return powerIndex(p.powerMods ?? p.mods, flat);
   }
 
   /* Puissance moyenne de l'equipe. Elle calait deja les PV du boss ; elle cale
@@ -6033,6 +6287,19 @@ export class GameState {
 
   _statuses(dt) {
     for (const p of this.players.values()) {
+      /* Relique « Filtre purifiant » (lot K) : retire un etat toutes les 10 s,
+         sans action du joueur. Le compte descend ICI, avant le test de vide —
+         le filtre doit tourner meme quand le joueur n'a aucun etat : il a
+         precisement pour fonction d'empêcher qu'ils s'accumulent. `_purgeStatus`
+         respecte deja PURGE_ORDER, donc ce qu'il retire est le bon. */
+      if (p.relics.has("filtre_purifiant")) {
+        p.timers.relicPurge -= dt;
+        if (p.timers.relicPurge <= 0) {
+          p.timers.relicPurge = 10;
+          if (p.statuses.size > 0) this._purgeStatus(p);
+        }
+      }
+
       // Fenetres de purge par insistance expirees. Le compteur appartient au
       // couple (soigneur, cible) : deux soigneurs ne s'additionnent pas, chacun
       // doit rester sur sa cible.
@@ -6230,6 +6497,15 @@ export class GameState {
       const absorbed = Math.min(p.shield, amount);
       p.shield -= absorbed;
       amount -= absorbed;
+      /* Relique « Batterie de secours » (lot K) : le bouclier venant de se
+         vider, il se recharge UNE fois a 50 % de sa jauge — usage unique par
+         manche, le drapeau est la meme rege que `pacteUsed`. Teste AVANT
+         l'epuisement du montant : une batterie qui se declenche sur un coup
+         qui la depasse doit quand meme encaisser la suite de ce coup. */
+      if (p.shield === 0 && !p.relicBatteryUsed && p.relics.has("battery_secours")) {
+        p.relicBatteryUsed = 1;
+        p.shield = p.mods.shieldPool * 0.5;
+      }
       if (amount <= 0) return;
     }
 
@@ -6753,6 +7029,11 @@ export class GameState {
     // fin de manche, mais c'est ICI qu'on sait quel boss vient de tomber.
     if (this.boss) this.bossKindsKilled.add(this.boss.kind);
     this.bossKills++;
+    /* Le marchand (lot K) se cale sur la FIN DE VAGUE, pas ici — mais c'est
+       ici qu'on sait QUELLE vague vient de se terminer : le boss final (lot N)
+       aura son propre traitement de victoire, les cinq boss normaux ouvrent
+       le marchand. */
+    if (this.boss && this.boss.kind < BOSS_ROSTER.length) this._merchantDue();
     this.boss = null;
     this.boss2 = null;
     this.shots = [];

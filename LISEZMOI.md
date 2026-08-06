@@ -73,6 +73,9 @@ cartes**.
   **emplacements** (3 à 6) se gagnent aux jalons du compte — vague 10, trois
   boss différents, 25 parties — et la réattribution est libre entre les
   manches.
+- Après chaque victoire de boss, le **marchand** propose trois **reliques** à
+  acheter contre les éclats de la manche — valeurs brutes, budget à répartir,
+  relance payante. Voir la section « Le marchand de reliques ».
 - La manche se termine quand tout le monde est à terre. Le bilan titre sur la
   **vague atteinte** et non sur le numéro de manche : l'unité de jeu est devenue
   la vague, et lire « Manche 1 terminée » après en avoir enchaîné douze donnait
@@ -1211,6 +1214,77 @@ par dilatation plutôt que par un trait par zone. Sur douze mares qui se
 chevauchent, un trait par mare redessinait chaque cercle à l'intérieur de la
 tache et on ne voyait plus où finissait la surface dangereuse. Le rendu est
 plafonné à **40 zones**, les plus urgentes d'abord.
+
+### Le marchand de reliques
+
+Après chaque victoire de boss (les cinq boss normaux — le boss final a son
+propre traitement), un **marchand** propose **trois reliques à acheter** contre
+des éclats, la monnaie de récolte du lot I. L'écran s'ouvre après la fin de la
+vague, comme celui des cartes, et chacun repart avec ce qu'il s'est offert.
+
+La différence fondamentale avec les cartes :
+
+| | cartes | reliques |
+|---|---|---|
+| monnaie | gratuites, tirage | éclats, achat |
+| effet | presque toujours en % | **valeur brute** |
+| fréquence | à chaque niveau | après chaque boss |
+| choix | une parmi trois, obligatoire | **budget à répartir** — zéro, une ou trois |
+| relance | une fois par manche, gratuite | payante, coût croissant avec la vague |
+
+**La valeur brute est le cœur de la relique.** « +8 dégâts » reste utile sur
+une build qui n'a pris aucune carte de dégâts — c'est un axe de puissance qui
+ne dépend d'aucun autre choix, ce qu'aucune carte ne permet. À l'inverse, une
+relique ne cumule pas son pourcentage avec les autres : elle ajoute, elle ne
+multiplie pas.
+
+Quatre raretés, comme les cartes, à des prix croissants. La légendaire est
+**limitée à une par manche, tous marchands confondus** : sans cette borne, une
+manche généreuse en éclats cumulerait plusieurs effets exceptionnels et
+déséquilibrerait le combat suivant.
+
+Les dix reliques de départ — la liste est validée, l'équilibrage fin viendra
+en jouant :
+
+| rareté | relique | effet |
+|---|---|---|
+| commune | Éclat dur | +6 dégâts bruts sur chaque tir |
+| commune | Plaque rouillée | +25 PV bruts |
+| commune | Ressort usé | −0,03 s d'intervalle de tir |
+| rare | Noyau instable | +18 dégâts bruts, **mais −10 PV bruts** |
+| rare | Filtre purifiant | retire un état toutes les 10 s, sans action |
+| rare | Batterie de secours | le bouclier, une fois vide, se recharge une fois à 50 % (une fois par manche) |
+| épique | Cœur de Ravageur | +35 dégâts bruts contre les boss uniquement |
+| épique | Essaim captif | un projectile supplémentaire orbite en permanence |
+| épique | Mémoire gravée | la première compétence utilisée à chaque vague a sa recharge réinitialisée |
+| légendaire | Cœur-machine | +50 dégâts bruts, +80 PV bruts, **mais la vitesse est fixée à sa valeur de base** |
+
+Les contreparties sont affichées en évidence, pas en petit texte : une relique
+se refuse pour ce qu'elle coûte, pas pour ce qu'elle donne. La relance de
+l'offre se paie (6 éclats + 2 par vague) — un coût fixe se banaliserait en fin
+de manche quand les éclats abondent.
+
+Les reliques **entrent dans le calcul de puissance** de l'équipe : les vagues
+et les boss qui suivent le marchand sont calibrés sur les dégâts réels, pas
+sur un chargement qui les ignorerait. Le « Cœur de Ravageur », qui ne frappe
+que les boss, y compte au tiers — la part du temps passé contre eux.
+
+#### Mesures relevées
+
+Éclats accumulés à l'arrivée du premier marchand (vague 5), compte neuf,
+difficulté normale, bots qui explorent et récoltent :
+
+| effectif | éclats par joueur | temps |
+|---|---|---|
+| 1 joueur | ~98 | 148 s |
+| 4 joueurs | ~95 | 161 s |
+
+Le budget du premier marchand permet environ **deux communes et demie** (25
+éclats pièce), ou une épique, ou une rare plus une commune — pas la légendaire
+(150), qui reste un objectif de fin de manche. L'écart de puissance mesuré
+après un achat : **×1,5 d'indice pour une commune de dégâts** (`+6` sur une
+base de 12) — délibéré, c'est le prix de la valeur brute prise tôt, et
+l'indexation absorbe le reste de la manche.
 
 ### Cartes d'amélioration
 
