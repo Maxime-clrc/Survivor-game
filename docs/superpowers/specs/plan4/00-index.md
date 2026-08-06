@@ -57,8 +57,11 @@ recalibrer à chaque lot suivant.
 
 ## Décisions du porteur du projet (2026-08-06)
 
-- **Lot H** : la migration se fait côté Supabase, par ligne de compte, avec
-  instantané de table préalable (section F3 mise à jour).
+- **Lot H** : jeu en développement, impact joueurs accepté — pas de
+  remboursement ni d'instantané : **reset de progression, comptes
+  conservés** (profil neuf v4 pour toute version antérieure, auth et session
+  intactes ; section F3 mise à jour). Rien à faire côté Supabase au
+  déploiement.
 - **Lot J** : le but du ban est qu'une carte précise ne revienne plus.
   **Bannir une carte bannit aussi les cartes qui dépendent d'elle** — rien de
   plus (section J1 mise à jour).

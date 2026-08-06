@@ -149,32 +149,34 @@ de moyen terme, pas des achats de la troisième partie.
 
 ---
 
-## F3. La migration des sauvegardes
+## F3. La migration des sauvegardes — décision : reset, comptes conservés
 
-**Point à ne pas rater.** Changer les coûts invalide les comptes existants : le
-joueur du compte relevé en F1 a payé 2 630 noyaux pour six paliers qui en
-coûteront désormais 1 500.
+**Décision du porteur (2026-08-06)** : le jeu est en développement, l'impact
+sur les joueurs est acceptable. Pas de remboursement, pas d'instantané de
+table, pas de rollback — la mécanique complète (remboursement selon
+l'ancienne grille, idempotence, copie de sauvegarde) n'existait que pour
+protéger une progression qu'on accepte de perdre.
 
-La persistance n'est plus `data/progress.json` mais **Supabase, une ligne par
-compte** (`LISEZMOI-BDD.md`). La migration se fait donc **par ligne**, en
-version 2 du schéma de profil, exécutée une fois au chargement de chaque
-compte (au boot pour les lignes déjà en mémoire, à la première connexion pour
-les autres) :
+À la place, un **reset de progression qui conserve les comptes** :
 
-1. Pour chaque compte en version 1, **rembourser intégralement** les noyaux
-   dépensés selon l'ancienne grille (`TIER_COSTS` v1 et `CONFORT_COSTS` v1).
-2. **Remettre à zéro** `tiers`, `equipped` et `confort`.
-3. **Conserver** `cores`, `runs`, `best`, `milestones`, `unlockedCards`, `kills`.
-4. **Recalculer les emplacements** selon les nouveaux jalons.
-5. Écrire `version: 2` dans le profil de la ligne.
+- La persistance est **Supabase, une ligne par compte** (`LISEZMOI-BDD.md`).
+  Le serveur, au chargement d'une ligne dont le profil porte une **version
+  antérieure** à la courante (`PROG_CFG.VERSION` passe à 4), remplace `data`
+  par un **profil neuf** en version 4.
+- L'authentification (pseudo, mot de passe, jeton de session) est portée par
+  les **colonnes** de la ligne, pas par `data` : les joueurs gardent leur
+  compte et leur session, ils perdent arbres, noyaux, jalons et statistiques.
+- **Rien à faire dans le dashboard Supabase**, ni avant ni après le
+  déploiement.
 
-Le remboursement plutôt que l'effacement : personne ne perd de progression, et
-tout le monde repart avec un choix libre sur la nouvelle grille. Journaliser
-chaque migration, et **prendre un instantané de la table avant la première
-écriture migrée** (export ou table `comptes_v1` copiée côté Supabase) — une
-migration ratée sans copie, c'est la progression du groupe perdue. La
-migration est **idempotente** : une ligne déjà en version 2 ne se migre
-jamais deux fois, même si le serveur redémarre au milieu du lot.
+**Point à ne pas rater** — le chargement actuel (`progress_store.js`) **gèle**
+toute ligne dont la version diffère de la courante, y compris les versions
+antérieures. Tel quel, passer `VERSION: 4` rendrait tous les comptes v3
+inutilisables. Le lot H doit distinguer deux cas :
+
+- version **antérieure** connue → profil neuf v4 (le reset ci-dessus) ;
+- version **future** inconnue (serveur en retard sur la donnée) → gel,
+  comportement actuel conservé.
 
 ---
 
@@ -269,8 +271,9 @@ le seul levier qui préserve l'équilibre relatif des lignes entre elles.
 
 - Une première partie ne permet plus de porter une ligne au maximum.
 - Les jalons ne créditent aucun noyau.
-- La migration v1 → v2 rembourse intégralement, est idempotente par ligne, et
-  un instantané de la table existe avant la première écriture migrée.
+- Un compte en version antérieure repart sur un profil neuf v4 en conservant
+  pseudo, mot de passe et session ; une version future reste gelée, jamais
+  écrasée.
 - Le salon ne contient plus l'arbre de progression.
 - Le bouton Terminal signale la présence de noyaux dépensables.
 - La réattribution d'emplacements est gratuite et n'est possible qu'au salon.
