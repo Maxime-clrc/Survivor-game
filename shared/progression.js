@@ -318,5 +318,9 @@ export function newProfile(pseudo) {
     kills: {},           // clsId -> kills cumules
     classes: {},         // clsId -> { tiers: { ligne -> palier }, equipped: [lignes] }
     confort: [],         // identifiants de CONFORT achetes
+    /* Cartes bannies (lot J) : identifiants a plat, cloture de dependances
+       incluse a l'ecriture. Un profil sans ce champ (v4 d'avant le lot) se
+       lit comme une liste vide — les lecteurs font `?? []`. */
+    bannedCards: [],
   };
 }

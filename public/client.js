@@ -23,7 +23,8 @@ import {
   powerIndex, bossPower,
 } from "/shared/game_state.js";
 import {
-  CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, CARD_CFG, cardDetail, computeMods,
+  CARDS, CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, CARD_CFG, cardDetail, computeMods,
+  banClosure,
 } from "/shared/cards.js";
 import {
   CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange,
@@ -1442,11 +1443,16 @@ const metaClassTabsEl = document.getElementById("metaClassTabs");
 const metaSlotsEl = document.getElementById("metaSlots");
 
 // Onglet courant du Terminal. L'arbre est l'onglet par defaut : c'est la
-// qu'on depense, les deux autres sont de la consultation.
+// qu'on depense, les autres sont de la consultation.
+const META_TABS = [
+  ["metaTabArbre", "arbre"], ["metaTabConfort", "confort"],
+  ["metaTabJalons", "jalons"], ["metaTabBans", "bans"],
+];
 let metaTab = "arbre";
-for (const [id, tab] of [["metaTabArbre", "arbre"], ["metaTabConfort", "confort"], ["metaTabJalons", "jalons"]]) {
+for (const [id, tab] of META_TABS) {
   document.getElementById(id).onclick = () => { metaTab = tab; renderMeta(); };
 }
+const metaBansEl = document.getElementById("metaBans");
 
 function renderMeta(clsOverride) {
   if (clsOverride !== undefined) metaClsOverride = clsOverride;
@@ -1488,18 +1494,41 @@ function renderMeta(clsOverride) {
     + ` · ${PROG_CFG.SLOTS_BOSSES} boss différents (${Math.min(bosses, PROG_CFG.SLOTS_BOSSES)}/${PROG_CFG.SLOTS_BOSSES})`
     + ` · ${PROG_CFG.SLOTS_RUNS} parties (${Math.min(pr.runs ?? 0, PROG_CFG.SLOTS_RUNS)}/${PROG_CFG.SLOTS_RUNS})</small>`;
 
-  // Bascule d'onglet : une seule des trois listes est visible.
+  // Bascule d'onglet : une seule des listes est visible.
   metaTreeEl.hidden = metaTab !== "arbre";
   metaConfortEl.hidden = metaTab !== "confort";
   metaMilestonesEl.hidden = metaTab !== "jalons";
-  for (const [id, tab] of [["metaTabArbre", "arbre"], ["metaTabConfort", "confort"], ["metaTabJalons", "jalons"]]) {
+  metaBansEl.hidden = metaTab !== "bans";
+  for (const [id, tab] of META_TABS) {
     document.getElementById(id).classList.toggle("mine", metaTab === tab);
   }
   metaSubEl.textContent = metaTab === "arbre"
     ? `arbre du ${cdef.nom} — l'effet affiché est le TOTAL possédé`
     : metaTab === "confort"
       ? "confort : aucun emplacement consommé, commun aux trois classes"
-      : "les jalons débloquent cartes et emplacements — jamais des noyaux";
+      : metaTab === "jalons"
+        ? "les jalons débloquent cartes et emplacements — jamais des noyaux"
+        : "cartes bannies de ce compte — définitif, pas de débannissement";
+
+  /* Cartes bannies (lot J) : consultation seule. Le nom et l'effet — on doit
+     pouvoir se rappeler ce qu'on a ecarte — et rien d'autre : pas de bouton,
+     le ban est definitif par contrat. */
+  metaBansEl.innerHTML = "";
+  const bans = progressState?.bannedCards ?? [];
+  if (bans.length === 0) {
+    metaBansEl.innerHTML = `<div class="hint">aucune carte bannie — le bouton vit sur l'écran de choix, pendant une manche</div>`;
+  } else {
+    for (const bid of bans) {
+      const card = CARD_BY_ID.get(bid);
+      const row = document.createElement("div");
+      row.className = "metaLine confort banned";
+      row.innerHTML =
+        `<span class="metaName">${escapeHtml(card?.nom ?? bid)}</span>` +
+        `<span class="metaDesc">${escapeHtml(card?.desc ?? "carte inconnue de cette version")}</span>` +
+        `<span class="metaBanTag">bannie</span>`;
+      metaBansEl.appendChild(row);
+    }
+  }
 
   metaTreeEl.innerHTML = "";
   for (const line of TREES[clsId] ?? []) {
@@ -1893,6 +1922,40 @@ function pickCard(id) {
   renderCards();
 }
 
+/* Bannissement (lot J). Irreversible et sans carte de remplacement : la
+   confirmation est SYSTEMATIQUE et dit tout — la cloture de dependances, et
+   le cas particulier de la derniere variante de troisieme competence encore
+   disponible pour la classe, qui prive le compte de `s3` pour toujours. */
+function banCard(id) {
+  if (!cardsState || cardsState.picked) return;
+  const card = CARD_BY_ID.get(id);
+  if (!card) return;
+  const closure = banClosure(id)
+    .filter(bid => !(progressState?.bannedCards ?? []).includes(bid));
+  let msg = `Bannir « ${card.nom} » ?\n\n`
+    + "Cette carte ne sera plus JAMAIS proposée sur ce compte, et tu ne "
+    + "recevras pas de carte de remplacement pour cette apparition.";
+  const entrained = closure.filter(bid => bid !== id);
+  if (entrained.length > 0) {
+    msg += "\n\nBannies avec elle (elles dépendent de celle-ci) :\n— "
+      + entrained.map(bid => CARD_BY_ID.get(bid)?.nom ?? bid).join("\n— ");
+  }
+  if (card.excl === "skill3") {
+    const variants = CARDS.filter(c => c.excl === "skill3" && c.cls === card.cls);
+    const banned = new Set([...(progressState?.bannedCards ?? []), ...closure]);
+    if (variants.every(v => banned.has(v.id))) {
+      msg += "\n\n⚠ C'est la DERNIÈRE variante de troisième compétence du "
+        + `${classAt(lobby.find(l => l.id === myId)?.cls ?? CLASS_DEFAULT).nom} : `
+        + "ce compte n'aura plus jamais de troisième compétence sur cette classe.";
+    }
+  }
+  if (!confirm(msg)) return;
+  cardsState.picked = true;
+  cardsState.pickedId = null;
+  ws.send(JSON.stringify({ t: "banCard", id }));
+  renderCards();
+}
+
 function renderCards() {
   if (!cardsState) { cardsEl.hidden = true; return; }
   cardsEl.hidden = false;
@@ -1986,6 +2049,20 @@ function renderCards() {
 
     btn.innerHTML = html;
     btn.onclick = () => pickCard(c.id);
+
+    /* Bouton de BAN (lot J), clairement separe du choix : un `span` en pied
+       de carte (le HTML interdit un bouton dans un bouton), discret — c'est
+       une action rare et irreversible, elle ne doit pas concurrencer le
+       choix. `stopPropagation` l'empeche de declencher aussi pickCard. */
+    if (!cardsState.picked) {
+      const ban = document.createElement("span");
+      ban.className = "cardBan";
+      ban.textContent = "bannir";
+      ban.setAttribute("role", "button");
+      ban.title = "retirer définitivement cette carte du tirage de ce compte";
+      ban.onclick = ev => { ev.stopPropagation(); banCard(c.id); };
+      btn.appendChild(ban);
+    }
     cardsRow.appendChild(btn);
   }
 
