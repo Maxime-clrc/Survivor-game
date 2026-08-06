@@ -1343,6 +1343,16 @@ Le panneau donne : reprendre, le volume et la coupure du son, la fenêtre de
 build, et quitter la manche avec confirmation — qui rend spectateur jusqu'à la
 manche suivante, exactement comme quelqu'un qui arrive en cours de partie.
 
+Pour un **spectateur**, le même bouton dit « quitter la salle » et renvoie au
+hub : pendant une manche le salon est caché, donc le menu pause est sa seule
+porte de sortie. Sans ce cas, quelqu'un arrivé en cours de partie y restait
+enfermé jusqu'à la fin de la manche — et recharger la page ne l'en sortait pas
+non plus, puisque le client reprenait sa salle tout seul. La reprise est
+désormais un **geste** : le hub propose « tu étais dans *nom* — reprendre »,
+il ne téléporte plus. Quitter volontairement efface la proposition côté
+serveur (`lastRoomOf`), sinon la salle qu'on vient de fuir revenait à chaque
+reconnexion.
+
 Trois points de vigilance, tous réglés côté serveur :
 
 - **Le serveur valide.** Une demande de pause reçue alors qu'un second client

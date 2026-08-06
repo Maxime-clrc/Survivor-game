@@ -223,6 +223,19 @@
   <div id="hubBar" class="row">
     <button id="hubRefresh">Actualiser</button>
   </div>
+
+  <!-- Reprise apres rechargement. Le retour dans la salle est un GESTE, jamais
+       automatique : recharger la page est le reflexe de celui qui veut SORTIR
+       (un spectateur, typiquement), et il se retrouvait teleporte dans la
+       partie qu'il essayait de quitter. Le serveur ne fait que PROPOSER
+       (`welcome.rejoin`) — c'est ce que dit son commentaire, le client ne le
+       respectait pas. -->
+  <div id="hubRejoin" class="row" hidden>
+    <span id="hubRejoinWho" class="hint"></span>
+    <button id="hubRejoinGo">Reprendre</button>
+    <button id="hubRejoinNo" class="ghost">rester ici</button>
+  </div>
+
   <div id="roomList"></div>
 
   <!-- demande de mot de passe d'une salle protegee. L'encart n'apparait

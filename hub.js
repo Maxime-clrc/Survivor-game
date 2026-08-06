@@ -395,6 +395,12 @@ export function createHub(store, log) {
           const room = client.room;
           if (!room) return;
           try { room.detach(client); } catch { client.room = null; }
+          /* Sortie VOLONTAIRE : on oublie la salle. `lastRoomOf` ne sert qu'a
+             proposer un retour apres un rechargement ou une coupure ; le
+             garder ici rendrait la salle qu'on vient de quitter a chaque
+             reconnexion, c'est-a-dire exactement le contraire de ce qui vient
+             d'etre demande. */
+          lastRoomOf.delete(client.pseudoKey);
           returnToHub(client, "quitté");
           return;
         }

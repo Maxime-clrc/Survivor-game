@@ -227,6 +227,10 @@ const volVal = document.getElementById("volVal");
 const muteBtn = document.getElementById("mute");
 const hubScreenEl = document.getElementById("hubScreen");
 const hubRefreshBtn = document.getElementById("hubRefresh");
+const hubRejoinEl = document.getElementById("hubRejoin");
+const hubRejoinWhoEl = document.getElementById("hubRejoinWho");
+const hubRejoinGoBtn = document.getElementById("hubRejoinGo");
+const hubRejoinNoBtn = document.getElementById("hubRejoinNo");
 const roomListEl = document.getElementById("roomList");
 const roomNameInput = document.getElementById("roomName");
 const roomPassInput = document.getElementById("roomPass");
@@ -389,6 +393,7 @@ function connect() {
       case "roomJoined":
         inRoom = true;
         pendingRejoin = null;
+        hubRejoinEl.hidden = true;
         joinAttempt = null;
         hubPassAskEl.hidden = true;
         hubPassAskInput.value = "";
@@ -408,6 +413,7 @@ function connect() {
          sienne — d'ou un motif distinct plutot qu'un texte unique. */
       case "joinRoomError": {
         pendingRejoin = null;
+        hubRejoinEl.hidden = true;
         /* `motdepasse` ouvre l'encart de saisie sous la liste : le premier
            clic sur une salle protegee tente l'entree SANS mot de passe (un
            membre connu re-entre directement), et c'est ce refus qui fait
@@ -677,6 +683,7 @@ function connect() {
     roomNameCur = "";
     roomsList = [];
     pendingRejoin = null;
+    hubRejoinEl.hidden = true;
     hubScreenEl.hidden = true;
     // La file de transitions se vide ICI et nulle part ailleurs : une ouverture
     // de cartes ou un bilan encore en attente sortirait par-dessus l'ecran de
@@ -883,9 +890,13 @@ function hubStatus(msg, isError = false) {
   hubStatusEl.classList.toggle("err", isError);
 }
 
-/* Entree en etat hub. L'auto-rejointe ne part QUE d'ici, une seule fois par
-   `welcome` : si la salle a disparu entre-temps, `joinRoomError` retombe sur
-   la liste — l'utilisateur n'a jamais a connaitre le code. */
+/* Entree en etat hub. La salle survivante est PROPOSEE, jamais reprise d'office
+   — c'est ce que dit deja le serveur en n'envoyant qu'un `rejoin` dans
+   `welcome`, et le client le contredisait en renvoyant un `joinRoom` seul.
+   Recharger la page est le reflexe de qui veut SORTIR : un spectateur d'une
+   manche en cours se retrouvait rendu a la partie qu'il fuyait, en boucle. Si
+   la salle a disparu entre-temps, `joinRoomError` retombe sur la liste —
+   l'utilisateur n'a jamais a connaitre le code. */
 function enterHub() {
   if (!connected || inRoom) return;
   hubScreenEl.hidden = false;
@@ -893,13 +904,29 @@ function enterHub() {
   hubPassAskInput.value = "";
   hubWhoEl.textContent = `connecté comme ${localStorage.getItem("survivor.pseudo") || "?"}`;
   renderRooms();
+  renderRejoin();
+}
+
+function renderRejoin() {
+  hubRejoinEl.hidden = !pendingRejoin;
   if (pendingRejoin) {
-    const { code, name } = pendingRejoin;
-    pendingRejoin = null;
-    hubStatus(`retour vers « ${name} »…`);
-    ws.send(JSON.stringify({ t: "joinRoom", code }));
+    hubRejoinWhoEl.textContent = `tu étais dans « ${pendingRejoin.name} »`;
   }
 }
+
+hubRejoinGoBtn.onclick = () => {
+  if (!connected || inRoom || !pendingRejoin) return;
+  const { code, name } = pendingRejoin;
+  pendingRejoin = null;
+  hubRejoinEl.hidden = true;
+  hubStatus(`retour vers « ${name} »…`);
+  ws.send(JSON.stringify({ t: "joinRoom", code }));
+};
+
+hubRejoinNoBtn.onclick = () => {
+  pendingRejoin = null;
+  hubRejoinEl.hidden = true;
+};
 
 function renderRooms() {
   if (hubScreenEl.hidden) return;
