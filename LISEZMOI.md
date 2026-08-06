@@ -66,6 +66,13 @@ cartes**.
   tout le monde a choisi — ou au bout de 30 s, la première carte étant alors
   attribuée d'office. Deux niveaux gagnés dans la même vague donnent deux choix
   d'affilée.
+- Les manches rapportent des **noyaux** — la vague atteinte et les boss
+  vaincus, versés à parts égales, plafonnés par partie — à dépenser dans le
+  **Terminal** (bouton au salon, pastille quand un achat est possible) :
+  les trois arbres de classe par onglets, le confort, les jalons. Les
+  **emplacements** (3 à 6) se gagnent aux jalons du compte — vague 10, trois
+  boss différents, 25 parties — et la réattribution est libre entre les
+  manches.
 - La manche se termine quand tout le monde est à terre. Le bilan titre sur la
   **vague atteinte** et non sur le numéro de manche : l'unité de jeu est devenue
   la vague, et lire « Manche 1 terminée » après en avoir enchaîné douze donnait
@@ -2272,6 +2279,30 @@ les quatre bords d'avant.
 Restent à mesurer en conditions réelles (fenêtre visible, table à quatre) :
 les images par seconde avec culling actif — le compteur `?perf` est en place —
 et la durée moyenne d'une vague avant/après (attendu : écart sous 15 %).
+
+### Économie du Terminal (lot H)
+
+Le revenu devient **linéaire et plafonné** — on paie la vague atteinte, plus
+la somme des vagues traversées, qui croissait au carré : une seule bonne
+partie payait une ligne entière au palier maximal (≈ 3 100 noyaux mesurés,
+dont deux tiers de primes de première fois, supprimées avec le lot). Les
+coûts deviennent géométriques (200 → 3 600, 6 900 la ligne), les emplacements
+se gagnent aux **jalons du compte** et plus aux achats. Cibles du spec F5,
+vérifiées avec les fonctions réelles :
+
+| mesure | attendu | relevé |
+|---|---|---|
+| vague 12, normal, 2 boss | 250 à 350 | **280** |
+| vague 20, cauchemar, 4 boss | plafonné à 600 | **600** |
+| parties pour un premier palier | 1 | **1** (200 ◈, ~280-378/partie) |
+| parties pour une ligne complète | 16 à 20 | **18,3** |
+| parties pour trois lignes complètes | 50 à 60 | **54,8** |
+| emplacements compte neuf → maximal | 3 → 6 | **3 → 6** (jalons) |
+
+Vérifié en jeu réel : une manche vague 1 en normal verse exactement 14 noyaux
+(10 × 1 × 1,4). L'écart compte neuf / compte maximal reste à remesurer en
+simulation complète (attendu sous 1,5 vague — les valeurs des lignes n'ont
+pas changé, seuls le rythme d'acquisition et la capacité ont bougé).
 
 ### Rendu WebGL
 

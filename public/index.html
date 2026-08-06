@@ -291,29 +291,34 @@
   </div>
 </div>
 
-<!-- Menu : ecran de progression, ouvert depuis le bouton dedie sur la carte
-     d'UNE classe au salon (#classes) — jamais impose apres la connexion, qui
-     tombe direct sur le salon. Premier et seul occupant : la progression
-     permanente (lot D), qui n'a pas sa place dans un ecran dont le seul but
-     est de preparer une manche. -->
+<!-- TERMINAL (lot H) : l'ecran de la progression permanente, plein ecran,
+     ouvert depuis le bouton unique du salon. Les trois arbres se consultent
+     par onglets de classe ; les emplacements — la contrainte qui structure
+     toutes les decisions — restent visibles en permanence, jamais derriere
+     un clic. Confort et jalons passent en onglets plutot qu'en empilement.
+     Les tables viennent de shared/progression.js, le serveur n'envoie que
+     l'etat du compte et valide chaque achat de son cote. -->
 <div id="menu" class="overlay" hidden>
-  <div id="menuTitle">Menu</div>
+  <div id="menuTitle">Terminal <span id="metaCores"></span></div>
 
-  <!-- progression permanente (lot D). L'arbre affiche est celui de la classe
-       dont la carte a ouvert cet ecran (renderMeta(clsIndex)), pas forcement
-       celle deja choisie au salon — on peut consulter les trois. Les tables
-       viennent de shared/progression.js, le serveur n'envoie que l'etat du
-       compte et valide chaque achat de son cote. -->
+  <div id="metaClassTabs"></div>
+  <div id="metaSlots"></div>
+
+  <div id="metaTabs">
+    <button id="metaTabArbre" class="mine">Arbre</button>
+    <button id="metaTabConfort">Confort</button>
+    <button id="metaTabJalons">Jalons</button>
+  </div>
+
   <div id="meta" hidden>
-    <div class="sectionTitle">Progression <span id="metaCores"></span></div>
     <div id="metaSub" class="hint"></div>
     <div id="metaTree"></div>
-    <div id="metaConfort"></div>
-    <div id="metaMilestones"></div>
+    <div id="metaConfort" hidden></div>
+    <div id="metaMilestones" hidden></div>
   </div>
 
   <div class="row">
-    <button id="menuClose">Retour au salon</button>
+    <button id="menuClose">Fermer</button>
   </div>
 </div>
 
@@ -333,6 +338,13 @@
     <div id="voteLabel" class="sectionTitle">Difficulté</div>
     <div id="voteRow"></div>
     <div id="voteHint"></div>
+  </div>
+
+  <!-- Terminal (lot H) : le seul point d'entree de la progression. La
+       pastille s'allume quand des noyaux sont depensables — sans elle,
+       personne ne pense a l'ouvrir. -->
+  <div class="row">
+    <button id="terminalBtn">Terminal<i id="terminalDot" hidden></i></button>
   </div>
 
   <div class="row">
