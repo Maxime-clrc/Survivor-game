@@ -84,6 +84,12 @@
     max-height: 420px;
   }
   #message { min-height: var(--sp-6); color: var(--text-dim); }
+  /* Tout ce qui suit la cle n'existe qu'apres une reponse authentifiee du
+     serveur : montrer « Supprimer tous les comptes » a un visiteur sans cle
+     invite a essayer. Le masquage est du confort, pas une securite — c'est
+     le serveur qui refuse (401), la page ne fait que suivre. */
+  #authed { display: grid; gap: var(--sp-6); }
+  #authed[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -99,9 +105,15 @@
     <div id="message"></div>
   </section>
 
+  <div id="authed" hidden>
   <section>
     <h2>État</h2>
     <dl id="status"><dt>—</dt><dd>pas encore interrogé</dd></dl>
+  </section>
+
+  <section>
+    <h2>Salles</h2>
+    <table id="salles"><tbody></tbody></table>
   </section>
 
   <section>
@@ -127,6 +139,7 @@
       <button id="reset" class="danger">Supprimer tous les comptes</button>
     </div>
   </section>
+  </div>
 </main>
 
 <script type="module">
@@ -161,9 +174,11 @@
     } catch {
       return say("serveur injoignable", "bad");
     }
-    if (r.status === 401) return say("clé invalide", "bad");
+    if (r.status === 401) { $("authed").hidden = true; return say("clé invalide", "bad"); }
     if (!r.ok) return say(`erreur HTTP ${r.status}`, "bad");
     const { status, probe, salles, connectes, comptes } = await r.json();
+    // La cle vient d'etre acceptee : les sections sensibles apparaissent.
+    $("authed").hidden = false;
 
     let html = "";
     html += line("configuration", status.configured
@@ -178,25 +193,37 @@
     html += line("mémoire du serveur", `${status.players} compte(s)`
       + (status.frozen ? ` — ${status.frozen} gelé(s), version inconnue` : "")
       + (status.pushing || status.pending ? " — envoi en attente" : ""));
-    // La page supposait une partie unique ; elle liste desormais les salles.
     html += line("connectés", `${connectes} client(s)`);
-    if (!salles || salles.length === 0) {
-      html += line("salles", "aucune");
-    } else {
-      for (const s of salles) {
-        html += line(`salle ${s.code}`,
-          `« ${s.nom} » — ${s.joueurs}/${s.max}, ${PHASES[s.phase] ?? s.phase}`
-          + (s.phase === 1 ? ` (manche ${s.manche}, vague ${s.vague})` : ""));
-      }
-    }
     html += line("dernier échange réussi", fmtT(status.lastOkAt));
     if (status.lastError) {
       html += line("dernier échec", `${status.lastError} (${fmtT(status.lastErrorAt)})`, "warn");
     }
     $("status").innerHTML = html;
 
+    renderSalles(salles ?? []);
     renderComptes(comptes ?? []);
     say("");
+  }
+
+  /* Les noms de salle viennent des joueurs, comme les pseudos : textContent,
+     jamais innerHTML — la ligne `salle` de l'etat les injectait en HTML. */
+  function renderSalles(salles) {
+    const tbody = $("salles").querySelector("tbody");
+    tbody.textContent = "";
+    if (salles.length === 0) {
+      const td = tbody.insertRow().insertCell();
+      td.colSpan = 4;
+      td.textContent = "aucune salle";
+      return;
+    }
+    for (const s of salles) {
+      const tr = tbody.insertRow();
+      tr.insertCell().textContent = s.code;
+      tr.insertCell().textContent = `« ${s.nom} »`;
+      tr.insertCell().textContent = `${s.joueurs}/${s.max}`;
+      tr.insertCell().textContent = (PHASES[s.phase] ?? s.phase)
+        + (s.phase === 1 ? ` (manche ${s.manche}, vague ${s.vague})` : "");
+    }
   }
 
   /* La table des comptes vient de la MEMOIRE du serveur — jamais un hachage
@@ -247,7 +274,7 @@
       say("serveur injoignable", "bad");
       return null;
     }
-    if (r.status === 401) { say("clé invalide", "bad"); return null; }
+    if (r.status === 401) { $("authed").hidden = true; say("clé invalide", "bad"); return null; }
     const out = await r.json();
     if (out.error) { say(out.error, "warn"); return null; }
     return out;
