@@ -191,7 +191,16 @@ export const COMBAT = {
    les cinq a la main pour cinq types, c'etait vingt-cinq valeurs a garder
    coherentes — et un decalage de teinte dans l'ombre qu'on finit par oublier. */
 export const ENEMY = {
-  TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899"],
+  /* Lot M, trois entrees EN FIN : le kamikaze en vermillon criard — le plus
+     chaud de la table, c'est une alarme qui court ; le bulwark en bronze
+     terne — du metal porte, mat, qui recule visuellement comme le tank ; le
+     medic en VERT — la seule entorse assumee a la table chaude, parce que la
+     mecanique passe avant la charte : « couper le soin » doit se reperer
+     d'un coup d'oeil, et un vert franc au milieu des rouges est exactement
+     ce signal. Distinct du vert HEAL (#6fe3a0) et du soigneur (#8ef0c8) :
+     plus sombre, plus sature — il dit « soin ENNEMI ». */
+  TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899",
+         "#ff4d21", "#a1662f", "#1fab68"],
 
   // Rang d'elite : or. Retardataire : halo froid — il ne se defend pas, il fuit.
   elite:      "#ffd76e",

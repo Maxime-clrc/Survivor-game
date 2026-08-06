@@ -632,6 +632,8 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **Ne jamais écrire dans `ENEMY_TYPES`.** La table est partagée, exportée et lue par le client. Les retardataires copient `standoff` sur l'ennemi (`e.standoff`) au lieu de modifier son type, qui désarmerait les tireurs pour tout le processus.
 
+**Les trois types du lot M sont des COMPORTEMENTS, branchés aux points de passage** (indices 5 kamikaze, 6 bulwark, 7 medic — en fin de table). Le **kamikaze** explose à sa mort dans `_killEnemy()`, le point unique où toute mort passe — tir, zone, brûlure, couronne, la cause ne compte pas — via une **zone** à annonce courte (0,15 s) qui porte sa provenance (`z.src` = `SRC_BLAST`, sixième entrée de `DAMAGE_SOURCES`, ajoutée en fin comme promis) et mord aussi les ennemis (`z.foe`, résolu dans `_zoneApply` ; deux kamikazes voisins se déclenchent en chaîne à une image d'écart, sans récursion). Le **bulwark** absorbe les balles de face dans `_bulletHitEnemy()`, AVANT tout — grenade comprise — sinon le balayage d'apparition divergerait de la boucle de collision ; l'absorption incrémente `hitSeq` sans dégât, c'est l'éclair blanc qui rend la mécanique lisible ; sa rotation est plafonnée (`shieldTurnRate`), c'est toute la mécanique. Le **medic** lit la pression sur le compteur de touches existant (aucun branchement dans `_damage`) : plus d'une seconde de tirs soutenus rompt le lien et le fait fuir ; son soin est un **chemin dédié**, jamais un `_damage` négatif — vol de vie, critiques et compteur de touches n'ont aucun sens sur un soin. Sa cible voyage en **neuvième élément** du tuple ennemi (index 8, coupé quand nul — seuls les medics actifs le paient) et porte le filet lumineux dessiné PAR-DESSUS la horde.
+
 **Le sanctuaire se reconnaît à ses CROIX QUI MONTENT**, pas à sa couleur. Un
 disque vert clair et un disque bleu clair posés au sol se distinguent mal en
 pleine mêlée — le rempart est l'autre grand disque — alors que du mouvement se
@@ -704,7 +706,8 @@ Ajouter une entrée impose de traiter les deux côtés :
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
 | point d'impact sur le boss | quatrième et cinquième éléments d'un tuple `bd`, ajoutés **en fin** — n'existe que pour les Jumeaux | `diffSnapshots()` : `mine[3] ?? b.boss.x` |
-| provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) ; `p.hurtBy` sort au `roundEnd` | `SRC_ICON` dans `icons.js` + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
+| provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) — **six** entrées depuis le lot M (`explosion`) | `SRC_ICON` dans `icons.js` + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
+| lien de soin du medic | neuvième élément du tuple ennemi (index 8, coupé quand nul) | `drawHealLinks()` par-dessus la horde |
 | propriétaire d'une balle | cinquième élément du tuple `b`, ajouté **en fin** | `ownerColorOf(b.owner) ?? COMBAT.bullet` dans `drawWorld` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
 

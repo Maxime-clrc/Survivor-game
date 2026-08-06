@@ -2473,6 +2473,9 @@ function ingest(msg) {
       // d'evenements retombe alors sur l'ancien comportement — un flash par
       // variation de PV.
       hitSeq: a[7] ?? 0,
+      // Cible du lien de soin du medic (lot M), neuvieme element coupe quand
+      // nul : seuls les medics en train de soigner le paient.
+      healTarget: a[8] ?? 0,
     }])),
     /* `heal` en fin de tuple : le projectile du mode soin se dessine dans une
        autre couleur, c'est le seul moyen pour la table de voir d'un coup d'oeil
@@ -3418,6 +3421,15 @@ const DEATH_BURST = [
      le danger, et sa mort doit se lire comme une dispersion de ce qu'elle
      portait, pas comme l'eclatement d'un corps. */
   { n: 1.70, size: 1.8, sp: 95, spread: 175, life: 0.35, flash: 0.85, cone: 7 },
+  /* kamikaze (lot M) — sa mort N'EST PAS sa gerbe : l'explosion arrive un
+     dixieme apres, par la zone. Les fragments restent discrets — c'est la
+     detonation qui doit se lire, pas la depouille. */
+  { n: 0.60, size: 2.0, sp: 130, spread: 160, life: 0.25, flash: 1.2, cone: 7 },
+  // bulwark (lot M) — du metal : peu de morceaux, anguleux, lourds, la plaque
+  // qui tombe. Meme famille de mort que le tank, en plus sec.
+  { n: 0.55, size: 4.4, sp: 40, spread: 75, life: 0.55, flash: 1.1, cone: 7 },
+  // medic (lot M) — mou et sans elan : il se defait plus qu'il n'eclate.
+  { n: 0.90, size: 2.4, sp: 40, spread: 90, life: 0.45, flash: 0.8, cone: 7 },
 ];
 
 function spawnDeath(x, y, type, elite, ang = 0) {
@@ -4146,6 +4158,12 @@ function drawWorld(v) {
      pour un personnage de 14 px de rayon, le recouvrement se compte en un ou
      deux pixels. */
   ctx = overCtx;
+
+  /* Le FILET DE SOIN du medic (lot M), PAR-DESSUS la horde : c'est lui qui
+     permet de reperer le soigneur ennemi dans la melee et de couper le soin
+     en priorite — dessine dessous, il disparaissait sous les corps qu'il
+     soigne. Vert ennemi, pas le vert HEAL : ce soin-la est une menace. */
+  drawHealLinks(v.enemyList);
 
   if (v.boss) {
     if (v.boss.id !== lastBossId) {
@@ -5718,6 +5736,45 @@ function drawHarvests(list) {
   }
 }
 
+/* Filet de soin du medic (lot M). La cible voyage en fin de tuple ennemi
+   (index 8, coupe quand nul) : seuls les medics en train de soigner le
+   paient. Le trace est une ligne ondulee — un filet, pas un rayon : le rayon
+   droit est le langage des verrouillages (salve, ricochet), celui-ci NOURRIT. */
+function drawHealLinks(list) {
+  let byId = null;
+  const t = performance.now() / 1000;
+  for (const e of list) {
+    if (!e.healTarget) continue;
+    if (byId === null) {
+      byId = new Map();
+      for (const o of list) byId.set(o.id, o);
+    }
+    const target = byId.get(e.healTarget);
+    if (!target) continue;
+    if (!inView(e.x, e.y, 200) && !inView(target.x, target.y, 200)) continue;
+
+    const dx = target.x - e.x, dy = target.y - e.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const nx = -dy / d, ny = dx / d;
+    ctx.strokeStyle = alpha(ENEMY_TINT[7] ?? ENEMY.base, 0.7);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(e.x, e.y);
+    const STEPS = 8;
+    for (let i = 1; i <= STEPS; i++) {
+      const k = i / STEPS;
+      const wob = Math.sin(k * Math.PI * 3 + t * 6 + e.id) * 5 * Math.sin(k * Math.PI);
+      ctx.lineTo(e.x + dx * k + nx * wob, e.y + dy * k + ny * wob);
+    }
+    ctx.stroke();
+    // la pastille au bout : ou va le soin
+    ctx.fillStyle = alpha(ENEMY_TINT[7] ?? ENEMY.base, 0.85);
+    ctx.beginPath();
+    ctx.arc(target.x, target.y, 3.5 + Math.sin(t * 8 + e.id) * 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 const ELITE_GOLD = ENEMY.elite;
 // Halo des retardataires. Volontairement froid, la ou l'elite est doree : les
 // deux marquages peuvent porter sur le meme ennemi, ils doivent rester lisibles
@@ -5858,7 +5915,14 @@ function drawEnemies(list) {
     // Le rang d'elite est une ECHELLE et un contour, pas une image de plus :
     // la taille est le signal le plus rapide a lire dans une foule de deux
     // cents, et les collisions restent sur le rayon logique.
-    const gain = (e.elite ? CFG.ELITE_RADIUS_MUL : 1) * breath;
+    let gain = (e.elite ? CFG.ELITE_RADIUS_MUL : 1) * breath;
+    /* Kamikaze (lot M) : pulsation CROISSANTE a mesure que les PV tombent —
+       l'indice progressif de danger, meme principe que le gonflement du brood
+       avant scission. Un kamikaze presque mort bat visiblement plus fort. */
+    if (def.blastRadius) {
+      const worn = 1 - Math.max(0, e.hp / e.maxHp);
+      gain *= 1 + worn * 0.14 * (0.5 + 0.5 * Math.sin(t / (90 - worn * 50) + e.id));
+    }
 
     drawSprite(ctx, enemyFrame(e, ts, def), e.x + kx, e.y + ky, {
       angle: e.ang ?? 0,
