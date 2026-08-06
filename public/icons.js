@@ -377,6 +377,18 @@ export const SRC_ICON = [
     g.bezierCurveTo(-4, 5.4, -4.4, -1, 0, -6.4);
     g.closePath(); g.fill();
   },
+  // Explosion (lot M, le kamikaze) : une etoile de detonation a huit rayons
+  // inegaux — pas le disque de la zone, pas la flamme de la brulure.
+  g => {
+    g.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const out = i % 2 ? 3 : 6.5;
+      const px = Math.cos(a) * out, py = Math.sin(a) * out;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.closePath(); g.fill();
+  },
 ];
 
 /* Pose un glyphe centre sur (x, y) dans le contexte fourni. Point de passage

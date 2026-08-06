@@ -506,6 +506,9 @@ export const SRC_SHOT = 1;
 export const SRC_ZONE = 2;
 export const SRC_MECH = 3;
 export const SRC_BURN = 4;
+// Lot M : l'explosion du kamikaze — la sixieme entree annoncee « le jour ou
+// une mecanique en aura besoin » est arrivee, ajoutee EN FIN comme promis.
+export const SRC_BLAST = 5;
 
 export const DAMAGE_SOURCES = [
   { key: "contact",    label: "contact" },
@@ -513,6 +516,7 @@ export const DAMAGE_SOURCES = [
   { key: "zone",       label: "zone au sol" },
   { key: "mech",       label: "mécanique" },
   { key: "burn",       label: "brûlure" },
+  { key: "explosion",  label: "explosion" },
 ];
 
 /* Les options d'un echec de mecanique, ecrites UNE FOIS. Trois appels les
@@ -548,6 +552,24 @@ export const ENEMY_TYPES = [
   { key: "tank",    from: 3, weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30 },
   { key: "shooter", from: 4, weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25, shootCd: 2.6, standoff: 170 },
   { key: "brood",   from: 6, weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20, splits: 3 },
+  /* Lot M — trois types a COMPORTEMENT, pas trois profils de statistiques :
+     chacun impose une priorite de ciblage ou une adaptation tactique.
+     Ajoutes en FIN, l'index circule dans les snapshots (+100/+200 d'elite et
+     de retardataire supposent seulement des indices sous 100).
+     - kamikaze : fonce et EXPLOSE a sa mort, quelle que soit la cause — punit
+       le corps-a-corps et rend les zones du joueur risquees a bout portant ;
+     - bulwark : bouclier frontal qui absorbe les balles de face, rotation
+       limitee — on gagne l'angle en se deplacant lateralement ;
+     - medic : en retrait, soigne l'allie blesse le plus proche par un lien
+       visible, rompt et fuit s'il encaisse plus d'une seconde de tirs — le
+       seul ennemi qui force une priorite de cible. Rare par construction
+       (share bas) : c'est un multiplicateur de menace, pas un effectif. */
+  { key: "kamikaze", from: 7,  weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8,  r: 10, score: 16,
+    blastRadius: 90, blastDamage: 45, blastDelay: 0.15 },
+  { key: "bulwark",  from: 9,  weight: 0.30, share: 0.16, hpMul: 2.2, speed: 58,  dmg: 22, r: 15, score: 28,
+    shieldArc: 100 * Math.PI / 180, shieldTurnRate: 2.4 },
+  { key: "medic",    from: 11, weight: 0.28, share: 0.12, hpMul: 0.9, speed: 68,  dmg: 10, r: 13, score: 26,
+    heal: 6, healInterval: 1.2, healRange: 260, standoff: 240 },
 ];
 
 /* L'ordre fait foi : le snapshot ne transmet que l'index. On ajoute donc a la
@@ -2889,6 +2911,17 @@ export class GameState {
          ennemis a chaque image, pour un effet qui ne concerne que les elites,
          ne se justifie pas — meme raison que `vulnUntil`. */
       statusAt: 0,
+      /* Lot M — champs du medic, presents sur tous les ennemis pour garder la
+         forme d'objet stable (V8), testes seulement derriere `def.heal` :
+         healCd la recharge de soin, healTarget l'allie lie (0 = aucun,
+         transmis en fin de tuple et coupe par trimTail), pressT le temps de
+         tirs encaisses en continu, fleeT la fuite en cours, lastSeq la
+         derniere valeur vue du compteur de touches. */
+      healCd: t.healInterval ?? 0,
+      healTarget: 0,
+      pressT: 0,
+      fleeT: 0,
+      lastSeq: 0,
     };
     this.enemies.push(e);
     return e;
@@ -3458,7 +3491,21 @@ export class GameState {
           break;
         }
       }
-      e.ang = Math.atan2(dy, dx);   // sert au rendu oriente cote client
+      /* Le bulwark ORIENTE son bouclier avec une vitesse de rotation limitee
+         (lot M) : un joueur qui se deplace lateralement gagne l'angle avant
+         que la plaque ne le rattrape — c'est toute la mecanique, et elle
+         mourrait avec un `atan2` sec. Les autres types gardent l'orientation
+         instantanee. */
+      if (def.shieldArc) {
+        const want = Math.atan2(dy, dx);
+        let delta = want - e.ang;
+        while (delta > Math.PI) delta -= Math.PI * 2;
+        while (delta < -Math.PI) delta += Math.PI * 2;
+        const maxTurn = def.shieldTurnRate * dt;
+        e.ang += Math.min(Math.max(delta, -maxTurn), maxTurn);
+      } else {
+        e.ang = Math.atan2(dy, dx);   // sert au rendu oriente cote client
+      }
 
       if (def.shootCd) {
         // Les tireurs gardent leurs distances et arrosent de loin
@@ -3477,6 +3524,52 @@ export class GameState {
             vy: (dy / d) * CFG.SHOT_SPEED,
             life: CFG.SHOT_LIFE,
           });
+        }
+      } else if (def.heal) {
+        /* Le MEDIC (lot M) : en retrait comme un tireur, mais son arme est le
+           lien de soin. La pression se lit sur le COMPTEUR DE TOUCHES — il
+           existe deja, aucun branchement dans `_damage` : si des impacts
+           continuent d'arriver, `pressT` monte ; plus d'une seconde de tirs
+           soutenus rompt le lien et le fait fuir. C'est ce qui l'empeche de
+           devenir un mur qui regenere indefiniment : le viser SUFFIT. */
+        if (e.hitSeq !== e.lastSeq) {
+          e.lastSeq = e.hitSeq;
+          e.pressT += dt * 8;   // une touche pese lourd, l'accalmie efface vite
+        } else {
+          e.pressT = Math.max(0, e.pressT - dt * 2);
+        }
+        if (e.pressT > 1) { e.fleeT = 3; e.pressT = 0; }
+
+        if (e.fleeT > 0) {
+          e.fleeT -= dt;
+          e.healTarget = 0;
+          // fuite : plein dos au joueur, un peu plus vite que sa marche
+          e.x -= (dx / d) * e.speed * 1.3 * mul * dt;
+          e.y -= (dy / d) * e.speed * 1.3 * mul * dt;
+        } else {
+          const approach = d > e.standoff ? 1 : -0.35;
+          e.x += (dx / d) * e.speed * mul * approach * dt;
+          e.y += (dy / d) * e.speed * mul * approach * dt;
+
+          /* Cible de soin : l'allie BLESSE le plus proche, a portee du lien.
+             Relue a chaque image — un lien fige sur un mort serait pire que
+             pas de lien — et transmise au client (fin de tuple) : le filet
+             lumineux est ce qui permet de reperer le medic dans la melee. */
+          let best = null, bestD2 = def.healRange * def.healRange;
+          for (const o of this.enemies) {
+            if (o === e || o.hp <= 0 || o.hp >= o.maxHp) continue;
+            const ox = o.x - e.x, oy = o.y - e.y;
+            const d2 = ox * ox + oy * oy;
+            if (d2 < bestD2) { best = o; bestD2 = d2; }
+          }
+          e.healTarget = best ? best.id : 0;
+          e.healCd -= dt;
+          if (e.healCd <= 0) {
+            e.healCd = def.healInterval;
+            // Un CHEMIN DEDIE, pas un `_damage` negatif : vol de vie,
+            // critiques et compteur de touches n'ont aucun sens sur un soin.
+            if (best) best.hp = Math.min(best.maxHp, best.hp + def.heal);
+          }
         }
       } else {
         e.x += (dx / d) * e.speed * mul * dt;
@@ -5515,8 +5608,25 @@ export class GameState {
          detonation. Sans lui, une mare de quinze secondes remettait `hitCd` a
          0,55 s quatre fois par seconde et rendait sa victime immunisee a tout
          le reste — le contact, les tirs, les autres zones. On mourait en
-         securite dans une flaque. C'est exactement le bug de la brulure. */
-      this._hurt(p, dmg, { ignoreCooldown: true, fromZone: true, overTime, src: SRC_ZONE });
+         securite dans une flaque. C'est exactement le bug de la brulure.
+         `z.src` (lot M) : une zone peut porter sa provenance — l'explosion du
+         kamikaze n'est pas une « zone au sol » sur le chiffre rouge. */
+      this._hurt(p, dmg, { ignoreCooldown: true, fromZone: true, overTime, src: z.src ?? SRC_ZONE });
+    }
+
+    /* `foe` (lot M) : la zone mord AUSSI les ennemis a la resolution —
+       l'explosion du kamikaze blesse ses allies, ce qui rend sa mort
+       dangereuse pour les deux camps. Un seul passage, jamais sur les tics
+       persistants (aucune zone `foe` n'en a), et `overTime` vaut pour les
+       deux boucles. Deux kamikazes voisins se declenchent donc en chaine, a
+       une image d'ecart — le cadavre est deja hors liste, pas de recursion. */
+    if (z.foe) {
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if (!this._zoneHits(z, e)) continue;
+        this._damage(e, amount, 0, 0, overTime);
+      }
+      this.enemies = this.enemies.filter(e => e.hp > 0);
     }
   }
 
@@ -5952,6 +6062,24 @@ export class GameState {
      grenade, les deux different quand la touche est detectee sur un segment.
      Rend vrai si la balle est consommee. */
   _bulletHitEnemy(b, e, ix, iy) {
+    /* Bouclier frontal du bulwark (lot M), AVANT tout le reste — grenade
+       comprise : une plaque qui laisserait passer l'explosion mais pas la
+       balle ne se lirait pas. L'absorption vit ICI et nulle part ailleurs :
+       la boucle de collision ET le balayage d'apparition passent par ce point
+       de passage, sinon une balle nee a bout portant traverserait le bouclier
+       qu'une balle tiree a dix metres respecte. Le compteur de touches est
+       incremente SANS degat : c'est lui qui porte l'eclair blanc cote client,
+       et un impact absorbe doit se voir — c'est toute la pedagogie de la
+       mecanique. Un tir de flanc ou de dos touche normalement. */
+    const bdef = ENEMY_TYPES[e.type];
+    if (bdef?.shieldArc) {
+      const from = Math.atan2(iy - e.y, ix - e.x);
+      if (Math.abs(this._angleDiff(from, e.ang)) <= bdef.shieldArc / 2) {
+        e.hitSeq = (e.hitSeq + 1) % 10;
+        return true;
+      }
+    }
+
     if (b.boom > 0) {
       this._explode(ix, iy, b.boom, b.owner);
       return true;
@@ -6350,6 +6478,27 @@ export class GameState {
         this._spawnEnemy(1, e.x + Math.cos(a) * 22, e.y + Math.sin(a) * 22);
       }
     }
+
+    /* Le kamikaze EXPLOSE a sa mort (lot M) — et c'est bien ici, au point
+       unique ou toute mort d'ennemi passe, que ca se branche : tir, zone,
+       brulure, onde, contact du crown — la cause ne compte pas, c'est le
+       critere d'acceptation du lot. L'explosion est une ZONE a l'annonce tres
+       courte (blastDelay, 0,15 s) : le previs visuel, la detonation, la
+       decoloration du sol et le son passent par le langage de zone existant,
+       rien de nouveau a dessiner. `foe: 1` la fait mordre aussi les ennemis a
+       la resolution, `src` marque la provenance « explosion » du chiffre
+       rouge. Pas d'explosion en chaine geree ici : deux kamikazes voisins se
+       declenchent l'un l'autre via la resolution de zone, une image plus
+       tard — c'est voulu, et sans recursion. */
+    if (def.blastRadius) {
+      this._zone({
+        x: e.x, y: e.y, r: def.blastRadius,
+        warn: def.blastDelay,
+        dmg: def.blastDamage,
+        src: SRC_BLAST,
+        foe: 1,
+      });
+    }
   }
 
   _killBoss(ownerId) {
@@ -6578,9 +6727,14 @@ export class GameState {
          ete touches — on meurt en une ou deux balles — et ils ne paient donc
          rien. `keep` vaut 7 et non 6 : le client lit `a[6]` (l'orientation) sans
          valeur de repli, et une orientation nulle est parfaitement ordinaire. */
+      /* NEUVIEME element, ajout en fin (lot M) : la cible du lien de soin du
+         medic. Nul sur tout ce qui n'est pas un medic en train de soigner,
+         donc coupe par `trimTail` — seuls les medics actifs le paient. Le
+         client dessine le filet lumineux avec, et c'est ce filet qui permet
+         de reperer le soigneur ennemi dans la melee. */
       e: this.enemies.map(e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
                                 e.type + (e.elite ? 100 : 0) + (e.straggler ? 200 : 0),
-                                r2(e.ang), e.hitSeq], 7)),
+                                r2(e.ang), e.hitSeq, e.healTarget], 7)),
       /* Quatrieme element : projectile de soin. Ajout en fin de tuple, repli 0
          cote client — la balle reste dessinee, simplement dans la couleur du
          tir normal sur un onglet reste en arriere.
