@@ -201,7 +201,15 @@ const summary = document.getElementById("summary");
 const scoresBody = document.querySelector("#scores tbody");
 const startBtn = document.getElementById("start");
 const readyBtn = document.getElementById("readyBtn");
-const teamEl = document.getElementById("team");
+const teamListEl = document.getElementById("teamList");
+const teamReadyEl = document.getElementById("teamReady");
+const historyListEl = document.getElementById("historyList");
+const launchSummaryEl = document.getElementById("launchSummary");
+const metaOpenBtn = document.getElementById("metaOpen");
+// Le kicker du salon (« Salon · tu es l'hôte ») n'a pas d'identifiant : il est
+// pose par le markup et lu ici par sa position, pour ne pas ajouter un id de
+// plus a un element que seul cet ecran connait.
+const panelKicker = document.querySelector(".panelHead .sectionTitle");
 const waitMsg = document.getElementById("waitMsg");
 const voteRow = document.getElementById("voteRow");
 const voteHint = document.getElementById("voteHint");
@@ -257,6 +265,11 @@ let hostId = 0;
 let phase = PHASE_LOBBY;
 let amSpectator = false;
 let lobby = [];
+/* Manches precedentes de CETTE salle. Alimente par le salon quand le serveur
+   le portera : l'historique appartient a la soiree et non au joueur, donc il
+   vit sur la salle — un joueur qui se reconnecte doit le retrouver, et quatre
+   clients qui tiendraient chacun le leur en afficheraient quatre versions. */
+let roundHistory = [];
 let roundNumber = 0;
 /* Etat hub / etat salle (plan infra). `inRoom` est la verite locale : tant
    qu'il est faux, le salon ne s'affiche jamais — les messages de jeu
@@ -515,6 +528,10 @@ function connect() {
         roomNameCur = msg.roomName ?? roomNameCur;
         difficulty = msg.difficulty ?? difficulty;
         tally = msg.tally ?? tally;
+        // Une cle inconnue d'un client anterieur est simplement ignoree ; ici
+        // c'est le repli qui compte — un serveur anterieur n'envoie rien et la
+        // liste reste vide plutot que de valoir `undefined`.
+        roundHistory = msg.history ?? [];
         myVote = lobby.find(l => l.id === myId)?.vote ?? myVote;
         amSpectator = lobby.find(l => l.id === myId)?.spectator ?? false;
         refreshPanel();
@@ -1017,15 +1034,23 @@ passChangeBtn.onclick = () => {
 };
 
 /* --- Menu (progression) -----------------------------------------------------
-   Ouvert depuis le bouton dedie sur la carte d'UNE classe (`renderClasses`,
-   `.classMetaBtn`), jamais depuis un point d'entree unique en haut d'ecran :
-   celui qui l'ouvre sait deja quelle classe il veut voir. `#menuClose` revient
-   au salon sans repasser par la connexion. */
+   UN SEUL point d'entree, le bouton « Talents » de la barre d'action, et non
+   plus un bouton par carte de classe : trois boutons pour le meme ecran, c'est
+   trois fois la meme action qui concurrence le choix de classe sur sa propre
+   carte. L'arbre montre par defaut la classe DEJA choisie — c'est celle qu'on
+   vient regarder — et `openMenuFor` garde son argument pour le jour ou l'on
+   voudra pointer un autre arbre. `#menuClose` revient au salon sans repasser
+   par la connexion. */
 function openMenuFor(clsIndex) {
   panel.hidden = true;
   menuEl.hidden = false;
   renderMeta(clsIndex);
 }
+
+metaOpenBtn.onclick = () => {
+  const me = lobby.find(l => l.id === myId);
+  openMenuFor(me?.cls ?? CLASS_DEFAULT);
+};
 
 menuCloseBtn.onclick = () => {
   menuEl.hidden = true;
@@ -1142,11 +1167,13 @@ function refreshPanel() {
   const isHost = myId === hostId;
   const hostName = lobby.find(l => l.id === hostId)?.name ?? "?";
 
-  /* Le salon s'appelle toujours « Salon », meme apres une manche : c'est le
-     bilan qui porte le resultat, et deux ecrans qui annoncent la meme chose
-     n'en font lire aucun. Le nom de la SALLE s'y ajoute — il existe plusieurs
-     endroits ou etre depuis le plan infra, le titre dit lequel. */
-  panelTitle.textContent = roomNameCur ? `Salon — ${roomNameCur}` : "Salon";
+  /* TROIS NIVEAUX, un seul par element. Le KICKER dit ou l'on est (« Salon ·
+     tu es l'hôte »), le TITRE dit quoi — le nom de la salle, pas le mot
+     « Salon », qui serait redit deux fois de suite. Le titre reste « Salon »
+     quand la salle n'a pas de nom : un titre vide vaut moins qu'un titre
+     generique. */
+  if (panelKicker) panelKicker.textContent = isHost ? "Salon · tu es l'hôte" : "Salon";
+  panelTitle.textContent = roomNameCur || "Salon";
   summary.textContent = lobby.length > 1
     ? `${lobby.length} joueurs connectés`
     : "en attente de joueurs";
@@ -1157,7 +1184,6 @@ function refreshPanel() {
 
   renderVote();
   renderClasses();
-  renderTeam();
   renderMeta();
 
   /* Le lancement attend que TOUT LE MONDE ait confirme. C'est le bon choix en
@@ -1177,20 +1203,34 @@ function refreshPanel() {
   startBtn.hidden = !isHost;
   startBtn.disabled = !isHost || manquants.length > 0;
 
+  renderTeam();
+  renderHistory();
+
+  /* Le resume de lancement dit ce qu'on s'apprete a lancer, en une ligne :
+     ma classe, le mode retenu, l'effectif prêt. `#waitMsg` juste dessous dit
+     pourquoi le bouton ne repond pas. Deux lignes et deux roles — la premiere
+     decrit, la seconde explique. */
+  const maClasse = classAt(me?.cls ?? CLASS_DEFAULT).nom;
+  const mode = DIFFICULTIES[difficulty]?.label ?? "normal";
+  const prets = lobby.length - manquants.length;
+  launchSummaryEl.textContent =
+    `${maClasse} · difficulté ${mode} · ${prets} joueur${prets > 1 ? "s" : ""}`
+    + ` sur ${lobby.length} ${prets > 1 ? "sont prêts" : "est prêt"}`;
+
   /* Griser sans expliquer fait passer le bouton pour une panne — meme regle
      que `.classOpt.taken`, qui nomme l'occupant au lieu de seulement griser.
      On NOMME donc qui manque, et au-dela de deux on compte : quatre pseudos
      dans une barre de 16 px de haut ne se lisent plus. */
   if (manquants.length === 0) {
     waitMsg.textContent = isHost
-      ? "tout le monde est prêt — tout le monde entre en jeu, spectateurs compris"
-      : `tout le monde est prêt — en attente de ${hostName}…`;
+      ? "Tout le monde est prêt. Tout le monde entre en jeu, spectateurs compris."
+      : `Tout le monde est prêt. En attente de ${hostName}…`;
   } else if (manquants.length === 1 && manquants[0].id === myId) {
-    waitMsg.textContent = "il ne manque que toi";
+    waitMsg.textContent = "Il ne manque que toi.";
   } else if (manquants.length <= 2) {
-    waitMsg.textContent = `en attente de ${manquants.map(l => l.name).join(" et ")}`;
+    waitMsg.textContent = `En attente de ${manquants.map(l => l.name).join(" et ")}.`;
   } else {
-    waitMsg.textContent = `en attente de ${manquants.length} joueurs`;
+    waitMsg.textContent = `En attente de ${manquants.length} joueurs.`;
   }
 }
 
@@ -1198,21 +1238,20 @@ function refreshPanel() {
    Rien de tout cela n'existait, et c'est ce qui manquait le plus depuis le
    passage du reseau local au jeu en ligne — en LAN le ping etait une
    decoration a 8 ms pres, en ligne c'est ce qui explique pourquoi un joueur
-   « teleporte ».
-
-   La pastille de prêt est un GLYPHE et pas seulement une couleur (meme regle
-   que les marqueurs poses sur un joueur) : un daltonien doit s'en sortir, et
-   de toute facon un point vert et un point ambre de 8 px ne se distinguent pas
-   au coin de l'oeil. */
+   « teleporte », et c'est ce qui decide si on rejoint une salle ou non. */
 function renderTeam() {
-  if (!teamEl) return;
-  teamEl.innerHTML = "";
+  if (!teamListEl) return;
+  teamListEl.innerHTML = "";
+
+  const prets = lobby.filter(l => l.ready).length;
+  if (teamReadyEl) {
+    teamReadyEl.textContent =
+      `${prets} / ${lobby.length} prêt${lobby.length > 1 ? "s" : ""}`;
+  }
 
   for (const l of lobby) {
-    const line = document.createElement("div");
-    line.className = "teamLine";
-    line.classList.toggle("ready", !!l.ready);
-    line.classList.toggle("me", l.id === myId);
+    const row = document.createElement("div");
+    row.className = "teamRow" + (l.ready ? " ready" : "");
 
     const cls = (l.cls === null || l.cls === undefined) ? null : classAt(l.cls);
     /* Le ping vaut -1 tant qu'aucun aller-retour n'est revenu : on affiche un
@@ -1220,20 +1259,63 @@ function renderTeam() {
        exactement le contraire de « on ne sait pas encore ». */
     const ms = Number(l.ping);
     const pingTxt = Number.isFinite(ms) && ms >= 0 ? `${ms} ms` : "—";
-    const pingCls = !Number.isFinite(ms) || ms < 0 ? "unknown"
-      : ms < 80 ? "good" : ms < 180 ? "fair" : "poor";
 
-    line.innerHTML =
-      `<span class="teamPip">${l.ready ? "✓" : "…"}</span>` +
+    row.innerHTML =
       `<span class="teamName"></span>` +
       (l.id === hostId ? `<span class="teamHost">hôte</span>` : "") +
       `<span class="teamCls">${cls ? escapeHtml(cls.nom) : "—"}</span>` +
-      `<span class="teamPing ${pingCls}">${pingTxt}</span>`;
+      `<span class="teamPing">${pingTxt}</span>` +
+      // Le carre porte l'etat prêt en plus du fond de la ligne. Ce n'est pas
+      // une redondance decorative : le fond vert est tres pale (7 %) pour
+      // rester lisible sous du texte, et il ne suffit pas seul a distinguer
+      // quatre lignes d'un coup d'oeil.
+      `<span class="teamDot"></span>`;
 
     // textContent et non innerHTML : le pseudo vient d'un autre joueur.
-    line.querySelector(".teamName").textContent = l.name;
-    if (cls) line.querySelector(".teamCls").style.color = cls.couleur;
-    teamEl.appendChild(line);
+    row.querySelector(".teamName").textContent = l.name;
+    if (cls) row.querySelector(".teamCls").style.color = cls.couleur;
+    teamListEl.appendChild(row);
+  }
+}
+
+/* Les manches precedentes de CETTE salle, la plus recente en tete. Trois
+   informations et pas une de plus : l'heure, le mode, la vague atteinte.
+
+   PAS de victoire ni de defaite, contrairement a ce que montre le prototype :
+   le jeu ne connait pas cette notion — `bilanTitle` dit « vague N atteinte » —
+   et l'introduire ici en ferait une regle de game design decidee par un ecran
+   d'interface. Decision de l'auteur du jeu, la vague seule.
+
+   L'heure est formatee ICI et non cote serveur : elle voyage en horodatage
+   absolu, donc chaque joueur la lit dans SON fuseau. Un « 21:04 » calcule sur
+   le serveur serait faux pour tout le monde sauf lui. */
+function renderHistory() {
+  if (!historyListEl) return;
+  historyListEl.innerHTML = "";
+
+  if (!roundHistory.length) {
+    const row = document.createElement("div");
+    row.className = "histRow";
+    row.innerHTML = `<span class="histWhen">—</span>`
+      + `<span class="histLabel">aucune manche jouée dans cette salle</span><span></span>`;
+    historyListEl.appendChild(row);
+    return;
+  }
+
+  for (const h of roundHistory) {
+    const t = new Date(h.at);
+    const heure = Number.isFinite(t.getTime())
+      ? `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`
+      : "—";
+    const mode = DIFFICULTIES[h.diffIndex]?.label ?? "?";
+
+    const row = document.createElement("div");
+    row.className = "histRow";
+    row.innerHTML =
+      `<span class="histWhen">${escapeHtml(heure)}</span>` +
+      `<span class="histLabel">${escapeHtml(mode)}</span>` +
+      `<span class="histWave">vague ${h.wave | 0}</span>`;
+    historyListEl.appendChild(row);
   }
 }
 
@@ -1376,27 +1458,11 @@ function renderClasses() {
 
     paintClassSilhouette(btn.querySelector(".classSil"), c);
 
-    /* Acces a la progression de CETTE classe (lot D), depuis sa propre
-       carte — pas un bouton unique en haut d'ecran qui forcerait a deviner
-       lequel des trois arbres il montre. Un `span` et non un bouton : le HTML
-       interdit un `<button>` dans un `<button>`. `stopPropagation` l'empeche
-       de declencher aussi `pickClass` sur la carte entiere. */
-    const metaBtn = document.createElement("span");
-    metaBtn.className = "classMetaBtn";
-    metaBtn.textContent = "Progression";
-    metaBtn.setAttribute("role", "button");
-    metaBtn.tabIndex = 0;
-    metaBtn.onclick = ev => { ev.stopPropagation(); openMenuFor(i); };
-    metaBtn.onkeydown = ev => {
-      if (ev.key !== "Enter" && ev.key !== " ") return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      openMenuFor(i);
-    };
-    // En bas de la carte, apres les competences — dernier enfant du flex
-    // column plutot qu'en tete, pour ne pas concurrencer le nom de la classe.
-    btn.appendChild(metaBtn);
-
+    /* Plus de bouton « Progression » par carte : l'acces a l'arbre passe
+       desormais par le seul bouton « Talents » de la barre d'action. Un bouton
+       par carte, c'etait trois fois la meme action, et chacune concurrencait le
+       choix de classe sur sa propre carte — or la carte a un seul but, se faire
+       choisir. */
     btn.onclick = () => {
       if (locked || pris) return;
       ws.send(JSON.stringify({ t: "pickClass", cls: i }));
@@ -1434,6 +1500,7 @@ const metaSubEl = document.getElementById("metaSub");
 const metaTreeEl = document.getElementById("metaTree");
 const metaConfortEl = document.getElementById("metaConfort");
 const metaMilestonesEl = document.getElementById("metaMilestones");
+const menuTitleEl = document.getElementById("menuTitle");
 
 function renderMeta(clsOverride) {
   if (clsOverride !== undefined) metaClsOverride = clsOverride;
@@ -1449,9 +1516,14 @@ function renderMeta(clsOverride) {
   const slots = slotsFor(cp);
   const equipped = cp.equipped ?? [];
 
+  /* Le titre porte l'arbre affiche : c'est la premiere chose a savoir sur cet
+     ecran, et le kicker au-dessus dit deja de quoi il s'agit. Le chiffre de
+     noyaux sort du libelle pour devenir un chiffre a part entiere — c'est
+     l'information qu'on vient chercher, elle ne doit pas etre un suffixe. */
+  menuTitleEl.textContent = `Arbre du ${cdef.nom}`;
   metaCoresEl.textContent = `${pr.cores} noyaux`;
   metaSubEl.textContent =
-    `arbre du ${cdef.nom} — ${equipped.length} / ${slots} emplacements équipés · `
+    `${equipped.length} / ${slots} emplacements équipés · `
     + `réattribution libre entre les manches`;
 
   metaTreeEl.innerHTML = "";
@@ -1475,7 +1547,11 @@ function renderMeta(clsOverride) {
       buy.textContent = "max";
       buy.disabled = true;
     } else {
-      buy.textContent = `${cost} ◈`;
+      // L'unite en toutes lettres, jamais un glyphe : un signe de monnaie
+      // invente doit s'apprendre avant de pouvoir lire un prix, et il n'existe
+      // nulle part ailleurs dans le jeu. C'est la meme forme qu'en tete
+      // d'ecran, « 2 480 noyaux ».
+      buy.textContent = `${cost} noyaux`;
       buy.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
       buy.onclick = () => ws.send(JSON.stringify({ t: "metaBuy", cls: clsId, line: line.id }));
     }
@@ -1512,7 +1588,7 @@ function renderMeta(clsOverride) {
       b.textContent = "acquise";
       b.disabled = true;
     } else {
-      b.textContent = `${cost} ◈`;
+      b.textContent = `${cost} noyaux`;
       b.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
       b.onclick = () => ws.send(JSON.stringify({ t: "metaConfort", id: cf.id }));
     }
@@ -1644,36 +1720,16 @@ function renderHurtBy(rows) {
     .filter(p => p.val > 0)
     .sort((a, b) => b.val - a.val);
 
-  /* UNE barre empilee et non cinq barres alignees. Cinq barres demandent de
-     comparer cinq longueurs qui ne partagent pas la meme origine ; une seule
-     barre montre la repartition d'un coup d'oeil, ce qui est exactement la
-     question posee. Les parts etaient deja calculees — c'est de la
-     presentation, pas une donnee de plus.
-
-     UNE SEULE TEINTE, et l'OPACITE porte le rang. Une couleur par provenance
-     aurait fait croire a cinq informations differentes, alors que la ligne n'en
-     dit qu'une : ce sont des degats subis. Sans variation en revanche les
-     segments se fondent, d'ou l'opacite decroissante — elle suit le tri, donc
-     elle ne dit rien de plus que la longueur elle-meme. Le PLANCHER a 0,34
-     n'est pas cosmetique : sous cette valeur le dernier segment disparait dans
-     le fond du rail. */
-  const pcts = parts.map(p => Math.round(p.val / somme * 100));
-
-  let html = `<div class="hurtTitle">dégâts subis par l'équipe</div><div class="hurtStack">`;
-  parts.forEach((p, k) => {
-    const o = Math.max(0.34, 1 - k * 0.16);
-    html += `<i style="width:${pcts[k]}%;opacity:${o}" title="${escapeHtml(p.label)} — ${pcts[k]} %"></i>`;
-  });
-  html += `</div><div class="hurtLegend">`;
-  parts.forEach((p, k) => {
-    html += `<span class="hurtKey">` +
+  let html = `<div class="hurtTitle">dégâts subis par l'équipe</div>`;
+  for (const p of parts) {
+    const pct = Math.round(p.val / somme * 100);
+    html += `<div class="hurtRow">` +
       `<span class="hurtIco"></span>` +
       `<span class="hurtLab">${escapeHtml(p.label)}</span>` +
-      `<b class="hurtVal">${pcts[k]} %</b>` +
-    `</span>`;
-  });
-  html += `</div>`;
-
+      `<span class="hurtBar"><i style="width:${pct}%"></i></span>` +
+      `<span class="hurtVal">${pct} %</span>` +
+    `</div>`;
+  }
   bilanHurt.innerHTML = html;
   // Les glyphes sont poses APRES coup : `iconImg` rend un element et non une
   // chaine, et le coller dans du HTML l'aurait fait passer par une adresse

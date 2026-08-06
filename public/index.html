@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Survivor LAN</title>
+<!-- « Survivor » et non « Survivor LAN » : le jeu est passe en ligne, et le
+     kicker de l'ecran de connexion dit « En ligne · coopératif · 4 joueurs »
+     juste sous le logotype. Le nom ne peut pas dire le contraire. -->
+<title>Survivor</title>
 <!-- Les jetons d'abord, l'interface ensuite. Aucune couleur dans ces deux
      fichiers : elles sont posees sur :root par client.js depuis
      shared/palette.js, qui est la seule source de verite du canvas comme du
@@ -12,10 +15,9 @@
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/ui.css">
 <!-- Refonte des menus. ADDITIVE et chargee APRES ui.css : elle surcharge les
-     ecrans d'avant-partie (#gate, #loading, #hubScreen, #panel, #bilan, #menu)
-     et ne touche pas aux ecrans de combat, qui restent sous la seule autorite
-     de ui.css et hud.css. Si un ecran de combat change d'aspect, c'est qu'une
-     regle de menus.css fuit. -->
+     ecrans d'avant-partie et les ecrans hors combat. Le HUD reste sous la
+     seule autorite de hud.css — c'est la qu'une forme doit se lire en un
+     dixieme de seconde, et les angles y restent durs. -->
 <link rel="stylesheet" href="/css/menus.css">
 <link rel="stylesheet" href="/css/hud.css">
 </head>
@@ -138,31 +140,35 @@
      navigateur, « Se connecter » avec le champ mot de passe VIDE reprend la
      session memorisee. Le clic reste obligatoire dans tous les cas : c'est
      lui qui debloque le contexte audio et lance la generation des atlas. -->
-<!-- Deux colonnes : a GAUCHE l'identite et le propos (de quoi s'agit-il), a
-     DROITE le seul formulaire. Les deux conteneurs sont explicites et non un
-     placement automatique par `grid-column` : l'ordre de remplissage d'une
-     grille depend alors de l'ordre du DOM autant que des colonnes assignees,
-     donc ajouter un bloc plus tard rebattrait toute la mise en page. Aucun
-     identifiant n'est renomme — client.js les prend par `getElementById` et
-     ne parcourt jamais les enfants de `#gate`. -->
 <div id="gate" class="overlay">
-  <div class="gateLeft">
-  <div id="logo">
-    <span class="mark"></span>
-    <span>Survivor LAN</span>
-  </div>
 
-  <!-- Le propos. Un ecran d'accueil doit repondre a « de quoi s'agit-il »
-       avant de demander un pseudo ; il s'ouvrait sur un champ de saisie. -->
+  <!-- DEUX COLONNES EXPLICITES. Sans elles, menus.css place les enfants de
+       #gate en colonne 1 ou 2 par `grid-column`, ce qui suppose un ordre et un
+       nombre d'enfants precis : des qu'un bloc bouge, tout se decale et le
+       formulaire flotte a droite au milieu du vide. Le markup est ADDITIF —
+       aucun identifiant n'est renomme, client.js trouve tout ce qu'il
+       cherche. -->
+  <div class="gateLeft">
+    <div id="logo">
+      <span class="mark"></span>
+      <span>Survivor</span>
+    </div>
+
+    <!-- Le propos. Un ecran d'accueil doit repondre a « de quoi s'agit-il »
+         avant de demander un pseudo ; il s'ouvrait sur un champ de saisie. -->
     <div class="gatePitch">
       <div class="sectionTitle">En ligne · coopératif · 4 joueurs</div>
-      <h1>Tenez la ligne jusqu'à la dernière vague.</h1>
+      <h1 class="gateH1">Tenez la ligne jusqu'à la dernière vague.</h1>
+      <p class="gateLead">
+        Connecte-toi pour voir les salles ouvertes, choisir ta classe
+        et lancer une manche avec ton équipe.
+      </p>
     </div>
 
     <!-- Le pense-bete des touches. Cinq lignes centrees de 11 px sous le
          formulaire : c'etait le bloc qui pesait le plus lourd pour ce qu'il
          apporte a la connexion. Aligne a gauche, sous le propos. -->
-    <div class="hint">
+    <div class="hint gateKeys">
       ZQSD ou flèches pour se déplacer · la souris pour viser<br>
       <b>Espace</b> pour esquiver — invulnérable le temps du bond<br>
       <b>A</b> et <b>E</b> (ou <b>1</b> et <b>2</b>) pour les compétences de classe<br>
@@ -209,18 +215,23 @@
 
   <!-- Reglage du son. Il vit ICI parce que le clic « Rejoindre » est le geste
        utilisateur qui debloque le contexte audio des navigateurs : regler avant
-       d'entrer evite d'avoir a ressortir du jeu pour baisser le volume. -->
-  <div id="audioRow">
-    <button id="mute" title="couper le son">♪</button>
-    <input id="vol" type="range" min="0" max="100" step="5" title="volume">
-    <span id="volVal">70 %</span>
-  </div>
-  <!-- Volume de la MUSIQUE, separe des sons de jeu : la bande son est un fond
-       qu'on regle — ou qu'on coupe a zero — sans toucher aux signaux. -->
-  <div id="musicRow">
-    <span class="musGlyph" title="musique">♫</span>
-    <input id="musVol" type="range" min="0" max="100" step="5" title="volume de la musique">
-    <span id="musVolVal">50 %</span>
+       d'entrer evite d'avoir a ressortir du jeu pour baisser le volume. Au PIED
+       de la colonne de droite, separe par un filet : les deux rangees
+       flottaient entre le formulaire et le pense-bete, au meme niveau visuel
+       que les deux. -->
+  <div class="gateAudio">
+    <div id="audioRow">
+      <button id="mute" title="couper le son">♪</button>
+      <input id="vol" type="range" min="0" max="100" step="5" title="volume">
+      <span id="volVal">70 %</span>
+    </div>
+    <!-- Volume de la MUSIQUE, separe des sons de jeu : la bande son est un fond
+         qu'on regle — ou qu'on coupe a zero — sans toucher aux signaux. -->
+    <div id="musicRow">
+      <span class="musGlyph" title="musique">♫</span>
+      <input id="musVol" type="range" min="0" max="100" step="5" title="volume de la musique">
+      <span id="musVolVal">50 %</span>
+    </div>
   </div>
   </div>
 </div>
@@ -232,7 +243,7 @@
 <div id="loading" class="overlay" hidden>
   <div id="logo">
     <span class="mark"></span>
-    <span>Survivor LAN</span>
+    <span>Survivor</span>
   </div>
   <div id="loadBar"><i></i></div>
   <div id="loadPct">0 %</div>
@@ -247,50 +258,71 @@
      limite serveur : un bouton qui accepte le clic pendant que le serveur
      l'ignore laisse croire que la liste est a jour. -->
 <div id="hubScreen" class="overlay" hidden>
-  <div id="hubTitle">Salons</div>
-  <div id="hubBar" class="row">
-    <button id="hubRefresh">Actualiser</button>
-  </div>
-  <div id="roomList"></div>
+  <!-- `.hubWrap` porte la colonne : sans conteneur de largeur, le contenu
+       s'etale sur toute la fenetre et le pied de page se centre tout seul au
+       milieu du vide. -->
+  <div class="hubWrap">
 
-  <!-- demande de mot de passe d'une salle protegee. L'encart n'apparait
-       QU'APRES un refus `motdepasse` : un membre connu (rechargement de page)
-       re-entre sans rien taper, et le demander d'avance a tout le monde
-       punirait le cas majoritaire. -->
-  <div id="hubPassAsk" hidden>
-    <div id="hubPassAskWho" class="hint"></div>
-    <div class="row">
-      <input id="hubPassAskInput" type="password" maxlength="20" placeholder="mot de passe de la salle" autocomplete="off">
-      <button id="hubPassAskGo">Rejoindre</button>
-      <button id="hubPassAskCancel" class="ghost">annuler</button>
-    </div>
-  </div>
-
-  <div class="sectionTitle">Créer une salle</div>
-  <div class="row" id="hubCreateRow">
-    <input id="roomName" maxlength="20" placeholder="nom de la salle" autocomplete="off" spellcheck="false">
-    <input id="roomPass" maxlength="20" placeholder="mot de passe (optionnel)" autocomplete="off" spellcheck="false">
-    <button id="roomCreate">Créer</button>
-  </div>
-  <div id="hubStatus"></div>
-
-  <!-- le compte : qui je suis, en sortir, changer le mot de passe. Au hub et
-       pas au salon — c'est l'ecran d'identite, le salon est l'ecran d'une
-       partie. -->
-  <div id="hubAccount">
-    <div class="row">
-      <span id="hubWho" class="hint"></span>
-      <button id="hubLogout" class="ghost">se déconnecter</button>
-      <button id="hubPassToggle" class="ghost">mot de passe…</button>
-    </div>
-    <div id="hubPassBox" hidden>
-      <div class="row">
-        <input id="passOld" type="password" maxlength="72" placeholder="ancien mot de passe" autocomplete="current-password">
-        <input id="passNew" type="password" maxlength="72" placeholder="nouveau (8 caractères min)" autocomplete="new-password">
-        <button id="passChangeBtn">Changer</button>
+    <!-- Titre et « Actualiser » sur la MEME ligne : l'actualisation est une
+         action de service sur la liste, pas un bloc de plus a lire. -->
+    <div class="hubHead">
+      <div>
+        <h1 id="hubTitle">Salons</h1>
+        <p class="hubLead">Une salle pleine reste visible : c'est celle où sont les autres.</p>
       </div>
-      <div id="passMsg" class="hint"></div>
+      <div id="hubBar" class="row">
+        <button id="hubRefresh">Actualiser</button>
+      </div>
     </div>
+
+    <div id="roomList"></div>
+
+    <!-- demande de mot de passe d'une salle protegee. L'encart n'apparait
+         QU'APRES un refus `motdepasse` : un membre connu (rechargement de page)
+         re-entre sans rien taper, et le demander d'avance a tout le monde
+         punirait le cas majoritaire. -->
+    <div id="hubPassAsk" hidden>
+      <div id="hubPassAskWho" class="hint"></div>
+      <div class="row">
+        <input id="hubPassAskInput" type="password" maxlength="20" placeholder="mot de passe de la salle" autocomplete="off">
+        <button id="hubPassAskGo">Rejoindre</button>
+        <button id="hubPassAskCancel" class="ghost">annuler</button>
+      </div>
+    </div>
+
+    <!-- La creation dans son propre encart : c'est une action, elle ne doit pas
+         flotter au milieu de la page comme une ligne de plus. -->
+    <div class="hubCreate">
+      <div class="sectionTitle">Créer une salle</div>
+      <p class="hubLead">Tu en deviens l'hôte : la difficulté et le lancement te reviennent.</p>
+      <div class="row" id="hubCreateRow">
+        <input id="roomName" maxlength="20" placeholder="nom de la salle" autocomplete="off" spellcheck="false">
+        <input id="roomPass" maxlength="20" placeholder="mot de passe (optionnel)" autocomplete="off" spellcheck="false">
+        <button id="roomCreate">Créer</button>
+      </div>
+    </div>
+
+    <div id="hubStatus"></div>
+
+    <!-- le compte : qui je suis, en sortir, changer le mot de passe. Au hub et
+         pas au salon — c'est l'ecran d'identite, le salon est l'ecran d'une
+         partie. En PIED DE PAGE : on y touche une fois par soiree. -->
+    <div id="hubAccount">
+      <div class="row">
+        <span id="hubWho" class="hint"></span>
+        <button id="hubLogout" class="ghost">se déconnecter</button>
+        <button id="hubPassToggle" class="ghost">mot de passe…</button>
+      </div>
+      <div id="hubPassBox" hidden>
+        <div class="row">
+          <input id="passOld" type="password" maxlength="72" placeholder="ancien mot de passe" autocomplete="current-password">
+          <input id="passNew" type="password" maxlength="72" placeholder="nouveau (8 caractères min)" autocomplete="new-password">
+          <button id="passChangeBtn">Changer</button>
+        </div>
+        <div id="passMsg" class="hint"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -317,76 +349,143 @@
      permanente (lot D), qui n'a pas sa place dans un ecran dont le seul but
      est de preparer une manche. -->
 <div id="menu" class="overlay" hidden>
-  <div id="menuTitle">Menu</div>
+  <div class="metaWrap">
 
-  <!-- progression permanente (lot D). L'arbre affiche est celui de la classe
-       dont la carte a ouvert cet ecran (renderMeta(clsIndex)), pas forcement
-       celle deja choisie au salon — on peut consulter les trois. Les tables
-       viennent de shared/progression.js, le serveur n'envoie que l'etat du
-       compte et valide chaque achat de son cote. -->
-  <div id="meta" hidden>
-    <div class="sectionTitle">Progression <span id="metaCores"></span></div>
-    <div id="metaSub" class="hint"></div>
-    <div id="metaTree"></div>
-    <div id="metaConfort"></div>
-    <div id="metaMilestones"></div>
-  </div>
+    <!-- `#metaCores` sort de `.sectionTitle` pour devenir un chiffre a part
+         entiere : c'est l'information qu'on vient chercher, elle ne doit pas
+         etre le suffixe d'un libelle. Unite en toutes lettres — client.js rend
+         `${pr.cores} noyaux`, jamais un glyphe de monnaie. -->
+    <div class="metaHead">
+      <div>
+        <div class="sectionTitle">Progression permanente</div>
+        <h1 id="menuTitle">Arbre du Tireur</h1>
+      </div>
+      <div class="metaCoresBox">
+        <div class="metaCoresLabel">Noyaux disponibles</div>
+        <div id="metaCores"></div>
+      </div>
+    </div>
 
-  <div class="row">
-    <button id="menuClose">Retour au salon</button>
+    <p class="metaLead">
+      Chaque arbre renforce ce que la classe fait déjà, il ne comble pas ses
+      faiblesses. Les noyaux viennent de la performance d'équipe — vague
+      atteinte et boss vaincus, versés à parts égales — jamais des kills
+      individuels.
+    </p>
+
+    <!-- progression permanente (lot D). L'arbre affiche est celui de la classe
+         choisie au salon (renderMeta(clsIndex)). Les tables viennent de
+         shared/progression.js, le serveur n'envoie que l'etat du compte et
+         valide chaque achat de son cote. -->
+    <div id="meta" hidden>
+      <div class="sectionTitle">Paliers</div>
+      <div id="metaSub" class="hint"></div>
+      <div id="metaTree"></div>
+
+      <div class="sectionTitle">Tronc de confort</div>
+      <div id="metaConfort"></div>
+
+      <div class="sectionTitle">Jalons</div>
+      <div id="metaMilestones"></div>
+    </div>
+
+    <div class="row metaBack">
+      <button id="menuClose">Retour au salon</button>
+    </div>
+
   </div>
 </div>
 
-<!-- Salon. DEUX COLONNES : a gauche les CHOIX (classe, difficulte), a droite
-     l'ETAT (qui est la, qui est prêt, avec quelle latence). L'action de
-     lancement est ancree en bas de fenetre par menus.css et reste un enfant
-     DIRECT de #panel — c'est a ce titre que `#panel > .row:has(#start)` la
-     trouve. Sept blocs empiles au centre, c'etait l'ecran qui souffrait le
-     plus : le bouton remontait ou descendait selon le nombre de joueurs. -->
+<!-- Salon. C'etait l'ecran qui souffrait le plus : sept blocs empiles au
+     centre, dont un bouton de lancement qui remontait ou descendait selon le
+     nombre de joueurs. Desormais DEUX COLONNES — les CHOIX a gauche (classe,
+     difficulte), l'ETAT a droite (equipe, historique, table) — et l'action
+     ancree en bas de fenetre, donc toujours au meme pixel. -->
 <div id="panel" class="overlay" hidden>
-  <div id="panelTitle">Salon</div>
-  <div id="summary"></div>
+  <div class="panelWrap">
 
-  <div class="panelCols">
-    <div class="panelMain">
-      <div id="classes">
-        <div id="classLabel" class="sectionTitle">Classe</div>
-        <div id="classRow"></div>
-        <div id="classHint"></div>
+    <div class="panelHead">
+      <div>
+        <div class="sectionTitle">Salon · tu es l'hôte</div>
+        <h1 id="panelTitle">Salon</h1>
+        <div id="summary"></div>
       </div>
-
-      <div id="vote">
-        <div id="voteLabel" class="sectionTitle">Difficulté</div>
-        <div id="voteRow"></div>
-        <div id="voteHint"></div>
-      </div>
-
-      <div id="scoresWrap">
-        <div class="sectionTitle">Table</div>
-        <table id="scores"><tbody></tbody></table>
+      <!-- retour au hub (plan infra) : quitter la salle, pas la partie du
+           reste de la table. Action SECONDAIRE, donc en haut a cote du titre :
+           en bas, elle concurrencerait le lancement. -->
+      <div class="row panelLeaveRow">
+        <button id="panelLeave">← Retour aux salons</button>
       </div>
     </div>
 
-    <!-- L'equipe : qui est connecte, avec quelle classe, prêt ou non, et a
-         quelle latence. C'est l'information qu'on n'avait pas et qui manquait
-         le plus depuis le passage en ligne — les joueurs ne sont plus dans la
-         meme piece, on ne peut pas demander « t'es prêt ? » a voix haute. -->
-    <div class="panelSide">
-      <div class="sectionTitle">Équipe</div>
-      <div id="team"></div>
+    <!-- DEUX COLONNES : les CHOIX à gauche, l'ÉTAT à droite -->
+    <div class="panelGrid">
+
+      <div class="panelChoices">
+        <div id="classes">
+          <div id="classLabel" class="sectionTitle">1 — Classe</div>
+          <p class="panelLead">
+            Rempart et Soigneur sont uniques : un seul joueur chacun.
+            Sans choix explicite, tu entres en Tireur.
+          </p>
+          <div id="classRow"></div>
+          <div id="classHint"></div>
+        </div>
+
+        <div id="vote">
+          <div id="voteLabel" class="sectionTitle">2 — Difficulté</div>
+          <p class="panelLead">
+            Chacun vote, la majorité l'emporte. Le mode retenu s'applique à toute l'équipe.
+          </p>
+          <div id="voteRow"></div>
+          <div id="voteHint"></div>
+        </div>
+      </div>
+
+      <aside class="panelState">
+        <!-- L'EQUIPE : qui est la, avec quelle classe, prêt ou non, et a quelle
+             latence. Rien de tout cela n'existait, et c'est ce qui manquait le
+             plus depuis le passage du reseau local au jeu en ligne — on ne peut
+             plus demander « t'es prêt ? » a voix haute. -->
+        <section class="panelCard">
+          <div class="panelCardHead">
+            <span class="sectionTitle">Équipe</span>
+            <span id="teamReady"></span>
+          </div>
+          <div id="teamList"></div>
+          <button id="readyBtn">Je suis prêt</button>
+        </section>
+
+        <section class="panelCard">
+          <div class="sectionTitle">Manches précédentes</div>
+          <div id="historyList"></div>
+        </section>
+
+        <div id="scoresWrap">
+          <div class="sectionTitle">Table</div>
+          <table id="scores"><tbody></tbody></table>
+        </div>
+      </aside>
+
     </div>
   </div>
 
-  <div id="waitMsg" class="hint"></div>
-  <div class="row">
-    <button id="readyBtn">Je suis prêt</button>
-    <button id="start">Lancer la manche</button>
-  </div>
-
-  <!-- retour au hub (plan infra) : quitter la salle, pas la partie du reste
-       de la table — le salon existant est devenu l'ecran d'UNE salle. -->
-  <div class="row">
-    <button id="panelLeave">← Retour aux salons</button>
+  <!-- BARRE D'ACTION FIXE — enfant DIRECT de #panel et non de .panelWrap :
+       elle est en `position: fixed` et heriterait sinon de la largeur de la
+       colonne. `#waitMsg` y vit, a gauche du bouton : c'est lui qui explique
+       pourquoi `#start` ne repond pas, et un bouton grise sans explication
+       passe pour une panne. -->
+  <div class="panelBar">
+    <div class="panelBarInner">
+      <div class="panelBarText">
+        <div id="launchSummary"></div>
+        <div id="waitMsg"></div>
+      </div>
+      <div class="row">
+        <button id="metaOpen">Talents</button>
+        <button id="start">Lancer la manche</button>
+      </div>
+    </div>
   </div>
 </div>
 

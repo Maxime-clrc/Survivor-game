@@ -101,6 +101,17 @@ html, body {
   animation: fadeIn var(--fade) ease-out;
 }
 .overlay[hidden] { display: none; }
+/* LA MEME CONTRE-REGLE, PORTEE PAR CHAQUE IDENTIFIANT. `.overlay[hidden]` pese
+   0-2-0 : toute regle d'auteur qui pose un `display` sur l'un de ces ecrans par
+   son identifiant (1-0-0) l'emporte, et l'ecran ne se ferme plus JAMAIS.
+   `menus.css` passe `#gate` en `display: grid` — sans cette ligne, l'ecran de
+   connexion reste affiche par-dessus le hub, le salon et la manche.
+   Elle est ecrite ici plutot que la-bas parce que c'est ui.css qui pose la
+   regle d'origine, et parce qu'elle doit couvrir la prochaine feuille qui fera
+   la meme chose sans y penser. */
+#gate[hidden], #loading[hidden], #hubScreen[hidden],
+#panel[hidden], #bilan[hidden], #menu[hidden],
+#cards[hidden], #build[hidden] { display: none; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -232,6 +243,13 @@ button:disabled { opacity: 0.45; cursor: default; }
    ailleurs (a dire) — dans tous les autres cas, join va direct au salon,
    cet ecran ne s'affiche jamais. */
 #gateHold { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); }
+/* Meme contre-regle que `.gateForm[hidden]` et `#hubPassAsk[hidden]`, et elle
+   manquait : un `display` d'auteur ecrase le `display: none` que l'agent
+   utilisateur attache a l'attribut `hidden`, donc le bouton « Continuer »
+   restait affiche en permanence sous le formulaire de connexion. Le centrage
+   vertical de `.overlay` le noyait au milieu de la pile ; il devient flagrant
+   des que l'ecran a une colonne. */
+#gateHold[hidden] { display: none; }
 #gateWho { color: var(--text); }
 /* Clé courte (XXXX-XXXX) : pas besoin de toute la largeur du pseudo, et une
    ligne pseudo+cle+bouton qui deborde sur mobile serait pire que deux tailles
@@ -287,6 +305,13 @@ td.sub { color: var(--text-dim); font-size: var(--t-xs); }
 #scoresWrap { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
 #panel #scoresWrap { opacity: 0.6; transition: opacity var(--fade) linear; }
 #panel #scoresWrap:hover { opacity: 1; }
+/* Le tableau garde son plancher de 460 px — neuf colonnes serrees en dessous
+   ne se lisent plus — mais la colonne d'etat du salon n'en fait que 300. Il
+   DEFILE donc dans sa colonne au lieu de deborder : `min-width: 0` seul ne
+   suffit pas, une table ne se comprime pas sous la largeur de son contenu. Au
+   bilan le tableau est le sujet de l'ecran et a toute la largeur, la regle n'y
+   s'applique pas. */
+#panel #scoresWrap { overflow-x: auto; align-items: stretch; }
 
 #summary { font-size: var(--t-s); color: var(--text-dim); }
 #panelTitle {
@@ -456,7 +481,10 @@ button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text
   width: min(720px, 92vw);
 }
 #metaCores { color: var(--text); text-transform: none; letter-spacing: 0; }
-#metaSub { font-size: var(--t-xs); color: var(--text-faint); }
+/* Aligne a gauche et non centre : c'est une ligne de CORPS sous un titre de
+   section, pas une legende. Il heritait du centrage de `.hint`, ce qui le
+   detachait de la colonne de gauche que suit tout le reste de l'ecran. */
+#metaSub { font-size: var(--t-xs); color: var(--text-faint); text-align: left; }
 #metaTree, #metaConfort {
   display: flex;
   flex-direction: column;

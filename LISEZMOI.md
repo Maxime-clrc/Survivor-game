@@ -1,7 +1,11 @@
-# Survivor LAN
+# Survivor
 
-Survivor coopératif jouable à 4 sur un réseau local. Un joueur lance le serveur,
-les autres ouvrent une URL. Aucune installation côté joueurs.
+Survivor coopératif jouable à 4, en ligne ou sur un réseau local. Un joueur
+lance le serveur, les autres ouvrent une URL. Aucune installation côté joueurs.
+
+Le jeu s'appelait « Survivor LAN » : le nom a perdu son suffixe le jour où il
+est passé en ligne, derrière un proxy inverse et un hub de salles. Le réseau
+local reste un mode de jeu, il n'est plus le seul.
 
 ## Lancer
 

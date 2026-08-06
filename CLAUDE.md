@@ -530,6 +530,20 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **Le lancement attend que TOUS les présents aient confirmé, et la garde vit des DEUX côtés** (`notReady()` dans `room.js`, point de passage unique du `case "start"` et du libellé d'attente). Désarmer `#start` côté client est de l'**affichage**, pas une règle : un client modifié enverrait `{ t: "start" }` directement. Le drapeau est porté par le **client** et non par la salle — il suit le joueur, comme `cls` et `vote` — et se remet à zéro à **trois** endroits : au lancement de la manche (`startRound()` ; le salon se réaffiche entre deux manches, un `ready` hérité ferait démarrer la suivante sans que personne n'ait rien reconfirmé), à l'entrée dans une salle (`attach()` ; sinon on arriverait « prêt » dans un salon où l'on vient de mettre le pied), et à l'initialisation du client. `notReady()` **ne filtre pas les spectateurs**, contrairement à ce que la spécification de conception demandait : au salon, `spectator` dit « je n'ai pas joué la manche qui vient de finir », c'est un résidu et non une prévision — `startRound()` remet tout le monde à `spectator = false`, donc tous les présents entrent. Le bouton désarmé **nomme qui manque** (« en attente de Kiwi »), même règle que `.classOpt.taken` : un bouton qui ne répond pas passe pour une panne tant qu'on n'a pas lu pourquoi.
 
+**L'historique appartient à la SALLE, pas au joueur** (`room.history`) : celui
+qui se reconnecte doit le retrouver, et quatre clients qui tiendraient chacun le
+leur en afficheraient quatre versions. Il est rempli par `recordRound()`, appelé
+aux **deux** sorties de manche à côté d'`unlockClasses()` et pour la même raison
+— un seul des deux chemins oublié laisserait un trou une fois sur deux. Plafonné
+à huit : `lobbyPayload()` est diffusé à chaque vote et à chaque choix de classe,
+et une soirée de trente manches ferait grossir chaque message pour une
+information que personne ne lit au-delà des trois dernières lignes. Il porte la
+**vague atteinte et rien d'autre — ni victoire ni défaite** : le jeu ne connaît
+pas cette notion, `bilanTitle` dit « vague N atteinte », et l'introduire là en
+ferait une règle de game design décidée par un écran d'interface. L'heure voyage
+en **horodatage absolu** et se formate côté client : un « 21:04 » calculé sur le
+serveur serait faux pour tout le monde sauf lui.
+
 **La latence est une propriété de la CONNEXION, pas de la partie** : `rtt` vit sur `WsConnection` et le battement de cœur (`hub.pingAll()`, 1 Hz, dans `server.js` à côté du tick mais jamais dedans — c'est du réseau, pas du jeu) est émis par le **hub**, seul émetteur de `ping()` du processus. L'horodatage voyage dans la **charge du ping** parce que la RFC 6455 impose au pair de la renvoyer à l'identique : c'est gratuit côté navigateur, et c'est ce qui rend la mesure juste quand deux pings sont en vol. Un pong de huit octets est une réponse au nôtre, toute autre longueur est un pong non sollicité qu'on ignore. **Moyenne exponentielle** et non valeur brute — un aller-retour saute de 8 à 40 ms d'une trame à l'autre, et un chiffre qui danse ne se lit pas. Il voyage dans `lobbyPayload()`, diffusé **sur événement** : le chiffre a quelques secondes au salon, ce qui est sans importance puisqu'on n'y joue pas, là où un message à 1 Hz aurait rendu bavard un salon inactif. `-1` quand aucun aller-retour n'est revenu, affiché en tiret : « 0 ms » se lirait comme une connexion parfaite, exactement le contraire de « on ne sait pas ».
 
 **Une pause n'a de sens qu'à UN SEUL joueur, et c'est le serveur qui l'accorde.** Il simule en continu : à plusieurs, un joueur figerait la partie des autres. Le client ouvre le même panneau dans les deux cas, mais `pauseReal` ne vaut vrai que sur la réponse du serveur — se fier au client ici, c'est accepter qu'un onglet modifié fige une partie à quatre. Trois refus côté serveur : hors manche, demandeur pas en jeu, et **dès qu'un second client est connecté** (les connectés, pas les vivants : un spectateur a le droit de ne pas voir l'image se figer).
@@ -648,8 +662,9 @@ Ajouter une entrée impose de traiter les deux côtés :
 | pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
 | hub des salles | messages `listRooms` · `createRoom` · `joinRoom` · `leaveRoom` (client → serveur) ; `rooms` · `roomJoined` · `joinRoomError` (motifs `pleine` · `disparue` · `motdepasse` · `plafond`) · `roomClosed` (serveur → client) — routés par `hub.js`, jamais par une salle | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité (compte + session) | messages `register` · `login` · `loginToken` · `logout` · `changePass` (client → serveur) ; `register/login/loginToken/…` dans `progress_store.js` ; réponses `welcome{pseudo,token?,dup}` · `authError{motif,fatal?}` · `passChanged` · `loggedOut` ; ni hachage ni mot de passe ne voyagent jamais vers un client | `#gate` (trois modes : reprise / connexion / création), bloc compte du hub, `survivor.token` en localStorage |
-| état prêt | message `ready{on}` (client → serveur) ; champ `ready` dans `lobbyPayload().players[]` ; `notReady()` est le point de passage unique, lu par le `case "start"` | `#readyBtn`, `.teamPip`, `#waitMsg` qui nomme qui manque, `#start` désarmé |
-| latence | `WsConnection.rtt` (`ws_lite.js`) ; horodatage dans la charge du ping, lu au pong ; `hub.pingAll()` à 1 Hz ; champ `ping` dans `lobbyPayload().players[]`, `-1` si inconnu | `.teamPing` + ses trois paliers (`good` · `fair` · `poor` · `unknown`) |
+| état prêt | message `ready{on}` (client → serveur) ; champ `ready` dans `lobbyPayload().players[]` ; `notReady()` est le point de passage unique, lu par le `case "start"` | `#readyBtn` (+ `.on`), `.teamRow.ready`, `#teamReady`, `#waitMsg` qui nomme qui manque, `#start` désarmé |
+| latence | `WsConnection.rtt` (`ws_lite.js`) ; horodatage dans la charge du ping, lu au pong ; `hub.pingAll()` à 1 Hz ; champ `ping` dans `lobbyPayload().players[]`, `-1` si inconnu | `.teamPing`, tiret quand inconnu |
+| historique des manches | `room.history` (`{at, diffIndex, wave}`, plafonné à `ROUND_HISTORY_MAX`), rempli par `recordRound()` aux DEUX sorties de manche ; champ `history` dans `lobbyPayload()`, plus récent en tête | `renderHistory()` → `#historyList .histRow` (`.histWhen` · `.histLabel` · `.histWave`) |
 | sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
@@ -938,8 +953,45 @@ du tableau. Trois largeurs et pas une de plus — 960 px pour le hub (une liste)
 appartient donc à la barre. La barre porte un **fond opaque et non un dégradé** :
 le contenu défile dessous, et un dégradé laisse passer assez de texte pour
 rendre le libellé du bouton illisible une ligne sur trois. Corollaire : le
-`padding-bottom` de `#panel` doit rester **≥ la hauteur réelle de la barre**,
+`padding-bottom` de `.panelWrap` doit rester **≥ la hauteur réelle de la barre**,
 sinon le pied des cartes de classe passe dessous.
+
+**`menus.css` NE PEUT PAS produire cette mise en page seul, et c'est structurel.**
+Deux colonnes, une barre fixe, un panneau latéral : il n'y a rien dans le markup
+d'origine sur quoi les accrocher. Un premier essai a posé la feuille sur
+`index.html` inchangé et la plupart des règles de disposition n'ont correspondu
+à rien — seuls les rayons et quelques couleurs sont passés. Les conteneurs sont
+donc **ajoutés dans `index.html`**, et de façon strictement **additive** :
+on enveloppe, on n'échange pas. Aucun `id` renommé, aucune classe posée par
+`client.js` (`.mine`, `.winner`, `.taken`, `.running`, `.err`, `.equipped`,
+`.r0`–`.r3`, `.picked`, `.faded`) touchée.
+
+| Écran | Conteneurs |
+|---|---|
+| `#gate` | `.gateLeft` · `.gateRight` · `.gateAudio` · `.gatePitch` (`.gateH1`, `.gateLead`) · `.gateKeys` |
+| `#hubScreen` | `.hubWrap` · `.hubHead` · `.hubCreate` · `.hubLead` |
+| `#panel` | `.panelWrap` · `.panelHead` · `.panelGrid` (`.panelChoices` / `.panelState`) · `.panelCard` · `.panelBar` (`.panelBarInner`, `.panelBarText`) · `.panelLead` · `.panelLeaveRow` |
+| `#menu` | `.metaWrap` · `.metaHead` · `.metaCoresBox` · `.metaLead` · `.metaBack` |
+
+`#loading`, `#bilan`, `#cards`, `#build` et `#pause` marchent au **CSS seul** :
+leur markup d'origine suffit.
+
+Deux pièges de placement, tous deux vérifiés au rendu : **`.panelBar` est un
+enfant DIRECT de `#panel`** et jamais de `.panelWrap` — elle est en
+`position: fixed` et hériterait sinon de la largeur de la colonne ; et
+`#metaCores` **sort de son `.sectionTitle`** pour devenir un chiffre à part
+entière, parce que c'est l'information qu'on vient chercher et non le suffixe
+d'un libellé.
+
+**Un seul point d'entrée vers la progression : `#metaOpen` dans la barre
+d'action.** Il remplace le bouton par carte de classe (`.classMetaBtn`) : trois
+boutons pour le même écran, c'était trois fois la même action, et chacune
+concurrençait le choix de classe sur sa propre carte — or une carte de classe a
+un seul but, se faire choisir.
+
+**L'unité de la monnaie s'écrit en toutes lettres, jamais en glyphe** :
+« 650 noyaux », jamais « 650 ◈ ». Un signe inventé doit s'apprendre avant qu'on
+puisse lire un prix, et il n'existe nulle part ailleurs dans le jeu.
 
 **Rien de décoratif ne se superpose au jeu.** Tout ornement — balayage des
 légendaires, logotype — vit dans les écrans hors combat. Les transitions entre
