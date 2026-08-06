@@ -21,6 +21,9 @@ import {
      le genou commence a l'absorber. Les afficher, c'est rendre visible la seule
      regle du jeu que le joueur subissait sans jamais la voir. */
   powerIndex, bossPower,
+  // Lot L : le nom et le sous-titre d'une vague speciale. Comme pour les boss,
+  // seul l'index circule — le libelle se lit dans la table partagee.
+  specialAt,
 } from "/shared/game_state.js";
 import {
   CARDS, CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, CARD_CFG, cardDetail, computeMods,
@@ -2645,6 +2648,9 @@ function ingest(msg) {
     wave: msg.wv ?? 0,
     wavePhase: msg.wp ?? 0,
     waveBoss: msg.wbs === 1,
+    // Lot L. Absente hors vague speciale, d'ou le repli a -1 : la cle ne se
+    // paie pas les seize vagues sur vingt ou il n'y a rien a dire.
+    waveSpecial: msg.wsp ?? -1,
     waveProgress: msg.wb ?? 0,
     teamLevel: msg.xl ?? 1,
     teamProgress: msg.xp ?? 0,
@@ -3006,6 +3012,7 @@ function interpolated(renderTime) {
     // interpole. Ce sont des paliers, pas des positions — un numero de vague
     // a mi-chemin entre 6 et 7 n'aurait aucun sens.
     wave: b.wave, wavePhase: b.wavePhase, waveBoss: b.waveBoss,
+    waveSpecial: b.waveSpecial ?? -1,
     waveProgress: b.waveProgress,
     teamLevel: b.teamLevel, teamProgress: b.teamProgress,
   };
@@ -3035,6 +3042,7 @@ function flatten(s) {
     bounds: s.bounds ?? { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H, warn: 0 },
     walls: s.walls ?? null,
     wave: s.wave, wavePhase: s.wavePhase, waveBoss: s.waveBoss,
+    waveSpecial: s.waveSpecial ?? -1,
     waveProgress: s.waveProgress,
     teamLevel: s.teamLevel, teamProgress: s.teamProgress,
   };
@@ -3148,6 +3156,22 @@ function applyAlert(msg, now) {
     alertWarn = null;
     alertInfo = null;
     bossCue = null;
+    return;
+  }
+  /* Vague speciale (lot L). Elle emprunte le bandeau d'AVERTISSEMENT et non la
+     consigne : il n'y a rien a faire tout de suite, c'est ce qui vient qu'on
+     annonce. Pas de `bossCue` non plus — aucun corps ne se ramasse dessus, et
+     poser une posture sur une annonce de vague ferait tressaillir un boss
+     absent. */
+  if (msg.special !== undefined) {
+    const sp = specialAt(msg.special);
+    if (!sp) return;
+    alertWarn = {
+      nom: `PROCHAINE VAGUE : ${sp.nom}`,
+      texte: sp.sous,
+      from: now,
+      until: now + Math.max(800, (msg.dur > 0 ? msg.dur * 1000 : 1500) - 250),
+    };
     return;
   }
   const def = mechAt(msg.mech);

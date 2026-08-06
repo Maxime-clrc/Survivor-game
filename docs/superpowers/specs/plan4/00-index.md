@@ -76,6 +76,34 @@ recalibrer à chaque lot suivant.
 - **Lot K** : les dix reliques proposées servent de liste de départ ;
   ajouts et équilibrage plus tard.
 
+## Décisions du porteur du projet (2026-08-06, seconde passe)
+
+Prises au lancement des trois lots restants (K, L, N — H, I, J et M sont faits).
+
+- **Ordre d'exécution** : L, puis K, puis N, avec une validation entre chaque.
+  L ne crée aucun écran et se mesure seul ; K a besoin des éclats (I, fait) ;
+  N a besoin des deux, et la spec dit elle-même qu'il se calibre en dernier.
+- **Lot K, section K2** (question laissée ouverte par la spec) : **oui, une
+  relance de l'offre contre des éclats**, à coût **croissant avec la vague** —
+  la proposition par défaut. Une relance à coût fixe se banalise en fin de
+  manche, quand les éclats abondent, et le marchand n'offre plus de choix.
+- **Lot N, section N4** : les **deux** mécaniques exclusives proposées sont
+  retenues telles quelles — phase de synthèse (exaflares du Métronome
+  traversant une zone de regroupement de l'Oracle) et sceau final (les joueurs
+  vivants occupent simultanément des zones distinctes aux quatre coins,
+  nombre adapté à l'effectif par `adaptMech`).
+- **Lot N, section N8** : le classement au temps se consulte depuis le **hub
+  des salles**, pas depuis le Terminal ni le salon. Le classement compare des
+  comptes toutes salles confondues : sa place est là où l'on est justement
+  hors salle, et il est ainsi visible dès la connexion.
+
+## Corrections de spec relevées à l'exécution
+
+- **`mémoire_gravee` (lot K, K4) est renommée `memoire_gravee`.** Les
+  identifiants du dépôt sont en français **sans accents** ; seules les chaînes
+  affichées au joueur en portent. L'identifiant circule dans le protocole
+  d'achat, et un accent y aurait été le premier du dépôt.
+
 ## Ce qui reste à valider par le porteur du projet
 
 - **La taille exacte de la grande arène** (lot I) et le rythme des points de
