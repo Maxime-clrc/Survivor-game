@@ -57,7 +57,7 @@ import { EventPump } from "/events.js";
 /* La grille du sol est graduee en METRES : c'est ce qui rend les distances des
    descriptions de cartes lisibles a l'ecran. Seule conversion d'affichage du
    fichier, et elle passe par le point unique. */
-import { PX_PER_M } from "/shared/units.js";
+import { PX_PER_M, fmtM } from "/shared/units.js";
 /* Les glyphes sont dessines a deux endroits depuis que le HUD est sorti du
    canvas — dans l'arene et dans le DOM — d'ou un module a part plutot qu'une
    seconde copie des traces. */
@@ -225,6 +225,17 @@ function applyCamera() {
   const tx = -camera.x0 * renderScale, ty = -camera.y0 * renderScale;
   underCtx.setTransform(renderScale, 0, 0, renderScale, tx, ty);
   overCtx.setTransform(renderScale, 0, 0, renderScale, tx, ty);
+}
+
+/* Culling : un point est-il dans le rectangle de vue, a une marge pres ? La
+   marge par defaut couvre le plus grand sprite, son halo et son recul — une
+   entite qui apparait ou disparait au bord de l'ecran se voit, c'est le
+   critere d'acceptation du lot. Dessiner les 220 ennemis d'une salle 9 fois
+   plus grande que l'ecran, c'est payer 9 fois le monde pour une vue. */
+const CULL_MARGIN = 90;
+function inView(x, y, m = CULL_MARGIN) {
+  return x > camera.x0 - m && x < camera.x0 + CFG.VIEW_W + m
+      && y > camera.y0 - m && y < camera.y0 + CFG.VIEW_H + m;
 }
 
 addEventListener("resize", resize);
@@ -3290,6 +3301,7 @@ function drawDeaths() {
     const d = deaths[i];
     const k = (now - d.at) / DEATH_MS;
     if (k >= 1) { deaths[i] = deaths[deaths.length - 1]; deaths.pop(); continue; }
+    if (!inView(d.x, d.y)) continue;
     const step = k < 0.33 ? 0 : (k < 0.66 ? 1 : 2);
     drawSprite(ctx, frameOf(`e${d.type}_die${step}`), d.x, d.y, {
       angle: d.ang,
@@ -3620,6 +3632,7 @@ function drawParticles() {
      derriere un boss. */
   if (glActive()) {
     for (const p of particles) {
+      if (!inView(p.x, p.y, 40)) continue;
       const s = p.size / SPRITE_CELL;
       drawSprite(ctx, p.frame ?? fxWhite, p.x, p.y, {
         // `long` etire le long de l'axe propre de la particule : combine a
@@ -3641,6 +3654,7 @@ function drawParticles() {
      du meme ordre qu'un `fillRect`, et sans lui l'eclair de mort reste le carre
      blanc que toute cette passe est venue supprimer. */
   for (const p of particles) {
+    if (!inView(p.x, p.y, 40)) continue;
     ctx.globalAlpha = Math.max(0, p.life / p.max);
     ctx.fillStyle = p.col;
     if (p.frame === fxGlow && fxGlow) {
@@ -4090,11 +4104,13 @@ function drawWorld(v) {
      joueurs que le lot vient de rendre identifiables. Une onde est un ornement
      de sol, un projectile est une entite — la ligne de partage est la. */
   for (const s of v.shotList) {
+    if (!inView(s.x, s.y, 40)) continue;
     // Rouge franc ET losange : deux signaux pour la meme information, parce
     // qu'aucun des deux ne suffit seul a 220 ennemis.
     drawBolt(s, CFG.SHOT_RADIUS, COMBAT.shot, shotTrail, BOLT_DIAMOND);
   }
   for (const b of v.bulletList) {
+    if (!inView(b.x, b.y, 40)) continue;
     /* La balle prend LA COULEUR DE SON TIREUR. Elle repond du meme coup a deux
        questions : « est-ce a moi que ca fait mal » et « qui a tire ca » — la
        seconde n'avait aucune reponse en cooperatif.
@@ -4137,6 +4153,58 @@ function drawWorld(v) {
   // TOUT ce qui precede : place plus tot, il aurait laisse les entites des
   // bords a pleine luminosite sur un sol deja eteint.
   drawVignette();
+  // Les fleches d'allies hors champ APRES le vignettage : ce sont des
+  // indicateurs d'ecran, pas des elements du monde — assombries, elles
+  // perdraient exactement la lisibilite qui les justifie.
+  drawAllyArrows(v.playerList);
+}
+
+/* FLECHES DE COEQUIPIER (lot I). Pour chaque allie hors du rectangle de vue,
+   une fleche au bord de l'ecran pointe vers lui, dans SA couleur, avec la
+   distance en metres — l'unite de toutes les distances affichees du jeu. La
+   position est la projection du vecteur (centre de vue -> allie) sur le
+   rectangle de vue retreci d'une marge : la fleche longe le bord, elle ne le
+   quitte jamais. Un allie a terre pulse : c'est lui qu'on va chercher. */
+const ARROW_MARGIN = 34;
+
+function drawAllyArrows(players) {
+  if (phase !== PHASE_ROUND) return;
+  const me = predicted ?? { x: camera.x, y: camera.y };
+  for (const p of players) {
+    if (p.id === myId) continue;
+    if (inView(p.x, p.y, -20)) continue;
+    const dx = p.x - camera.x, dy = p.y - camera.y;
+    const ang = Math.atan2(dy, dx);
+    const hw = CFG.VIEW_W / 2 - ARROW_MARGIN, hh = CFG.VIEW_H / 2 - ARROW_MARGIN;
+    const k = Math.min(hw / Math.max(Math.abs(dx), 1e-6),
+                       hh / Math.max(Math.abs(dy), 1e-6));
+    const ax = camera.x + dx * k, ay = camera.y + dy * k;
+    const col = colorOf(p.id);
+    const pulse = p.downed ? 0.45 + 0.4 * Math.sin(performance.now() / 160) : 1;
+
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.globalAlpha = 0.9 * pulse;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(12, 0);
+    ctx.lineTo(-7, -8);
+    ctx.lineTo(-3, 0);
+    ctx.lineTo(-7, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = col;
+    ctx.font = "700 13px ui-monospace, Menlo, Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(fmtM(Math.hypot(p.x - me.x, p.y - me.y)),
+                 ax, ay + (ay < camera.y ? 26 : -16));
+    ctx.restore();
+  }
 }
 
 /* TRAINEES DE PROJECTILE. Le sprite est etire dans son axe, plus une copie a
@@ -5457,6 +5525,7 @@ function drawBombRange(x, y) {
 function drawPowerups(list) {
   const now = performance.now();
   for (const w of list) {
+    if (!inView(w.x, w.y, 60)) continue;
     const st = POWERUP_STYLE[POWERUP_TYPES[w.type]] ?? POWERUP_STYLE.heal;
     const r = CFG.POWERUP_RADIUS;
     const pulse = 1 + Math.sin(now / 260 + w.id) * 0.1;
@@ -5576,6 +5645,10 @@ function drawEnemies(list) {
   const t = performance.now();
   const ts = t / 1000;
   for (const e of list) {
+    // Culling (lot I) : hors du rectangle de vue, rien a dessiner. La marge
+    // couvre le plus grand sprite avec son halo — une entite ne doit jamais
+    // apparaitre ou disparaitre visiblement au bord de l'ecran.
+    if (!inView(e.x, e.y)) continue;
     const def = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
     const r = e.elite ? def.r * CFG.ELITE_RADIUS_MUL : def.r;
 
