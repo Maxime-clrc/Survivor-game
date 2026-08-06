@@ -38,8 +38,16 @@ export { STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOO
 export { BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, mechAt };
 
 export const CFG = {
-  ARENA_W: 1600,
-  ARENA_H: 900,
+  /* GRANDE ARENE (lot I). L'arene fait TROIS fois la vue dans chaque
+     dimension : l'exploration devient un vrai deplacement, pas un pas de
+     cote. La VUE reste 1600 x 900 — c'est elle que le client affiche (camera
+     par joueur), c'est le format du cadre CSS, et c'est la taille de l'arene
+     de combat de boss (bounds resserres a l'engagement). Tout ce qui etait
+     calibre "a l'ecran" (portees, rayons, telegraphies) reste donc valide. */
+  ARENA_W: 4800,
+  ARENA_H: 2700,
+  VIEW_W: 1600,
+  VIEW_H: 900,
 
   PLAYER_SPEED: 260,
   PLAYER_RADIUS: 14,
@@ -207,8 +215,11 @@ export const CFG = {
      delai, les restants recoivent un halo, accelerent, et les tireurs perdent
      leur distance de securite : ils viennent au contact et la vague se termine
      d'elle-meme en quelques secondes. */
-  WAVE_STRAGGLER_DELAY: 8,
-  WAVE_STRAGGLER_SPEED: 1.6,
+  /* Resserres avec la grande arene (lot I) : un fuyard isole sur une surface
+     neuf fois plus grande met bien plus longtemps a retrouver un joueur par
+     ses propres moyens. Valeurs de depart du spec, a remesurer. */
+  WAVE_STRAGGLER_DELAY: 5,
+  WAVE_STRAGGLER_SPEED: 2.0,
 
   /* Difficulte indexee sur la PUISSANCE MESUREE de l'equipe, jamais sur sa
      composition. La tentation etait d'ajuster selon les roles presents — plus
@@ -752,10 +763,11 @@ export class GameState {
     this.slipT = 0;         // sol glissant du Metronome, temps restant
     this.boss = null;
 
-    /* --- ARENE MOBILE (lot 5) ------------------------------------------------
-       `bounds` est la surface JOUABLE courante. Elle vaut l'arene entiere en
-       temps normal et se referme par paliers pendant la constriction du
-       Ravageur. TOUT ce qui borne un deplacement doit la lire — joueurs,
+    /* --- ARENE MOBILE (lot 5, etendue au lot I) ------------------------------
+       `bounds` est la surface JOUABLE courante. Elle vaut l'arene entiere
+       pendant les vagues, une VUE (1600 x 900) ancree sur l'equipe pendant
+       tout combat de boss, et se referme encore par paliers pendant la
+       constriction du Ravageur. TOUT ce qui borne un deplacement doit la lire — joueurs,
        esquive, souffle de rupture de barre, boss, bonus au sol — et jamais
        CFG.ARENA_W/H en dur : c'est le principal risque de regression du lot,
        un seul oubli laisse un joueur, un boss ou un bonus dans la couronne
@@ -891,14 +903,19 @@ export class GameState {
      reference. */
   addPlayer(id, name = "joueur", colorIndex = 0, cls = CLASS_DEFAULT, meta = null) {
     const def = classAt(cls);
+    /* Pres du GROUPE, pas au centre geometrique : sur 4800 x 2700 le centre
+       de la salle n'a aucun rapport avec l'endroit ou l'equipe joue, et un
+       arrivant y serait seul, hors de tout ecran. Premier joueur : centre des
+       bounds, qui vaut le centre de l'arene en debut de manche. */
+    const at = this._teamCentroid();
     const p = {
       id, name, colorIndex,
       // Index dans CLASSES : c'est lui qui circule dans le snapshot. L'objet de
       // classe se relit par classAt(), jamais stocke ici — il contient des
       // chaines affichees, qui n'ont rien a faire dans la simulation.
       cls: CLASSES[cls] ? cls : CLASS_DEFAULT,
-      x: CFG.ARENA_W / 2 + (Math.random() - 0.5) * 140,
-      y: CFG.ARENA_H / 2 + (Math.random() - 0.5) * 140,
+      x: at.x + (Math.random() - 0.5) * 140,
+      y: at.y + (Math.random() - 0.5) * 140,
       hp: def.hp,
       maxHp: def.hp,
       /* Ni `level` ni `dmgMul` ici : la progression est commune (this.level) et
@@ -1067,11 +1084,14 @@ export class GameState {
        detour. */
     if (meta && meta.confort && meta.confort.ravitaillement) {
       const a = Math.random() * Math.PI * 2;
+      // `_dropPoint` et non un clamp a la main : c'etait la seule pose de
+      // bonus au sol qui ne passait pas par le point de passage unique.
+      const at2 = this._dropPoint(p.x + Math.cos(a) * 120, p.y + Math.sin(a) * 120, 60);
       this.powerups.push({
         id: this._nextId++,
         type: this._randomPowerupType(),
-        x: Math.min(Math.max(p.x + Math.cos(a) * 120, 60), CFG.ARENA_W - 60),
-        y: Math.min(Math.max(p.y + Math.sin(a) * 120, 60), CFG.ARENA_H - 60),
+        x: at2.x,
+        y: at2.y,
         life: CFG.POWERUP_LIFE,
       });
     }
@@ -1699,11 +1719,11 @@ export class GameState {
           // Point de chute, transmis tel quel au client : le cercle
           // d'atterrissage doit se dessiner des le lancer, pas se deviner en
           // extrapolant une vitesse qui n'est plus constante.
-          // Borne a l'arene comme le vol lui-meme (voir la boucle des bombes) :
-          // un cercle d'atterrissage dessine hors du terrain annoncerait une
-          // explosion la ou elle n'aura pas lieu.
-          tx: Math.min(Math.max(p.x + p.aimX * range, 0), CFG.ARENA_W),
-          ty: Math.min(Math.max(p.y + p.aimY * range, 0), CFG.ARENA_H),
+          // Borne aux BOUNDS comme le vol lui-meme (voir la boucle des
+          // bombes) : un cercle d'atterrissage dessine dans la couronne
+          // mortelle annoncerait une explosion la ou elle n'aura pas lieu.
+          tx: Math.min(Math.max(p.x + p.aimX * range, this.bounds.x0), this.bounds.x1),
+          ty: Math.min(Math.max(p.y + p.aimY * range, this.bounds.y0), this.bounds.y1),
           owner: p.id,
         });
       }
@@ -2104,8 +2124,7 @@ export class GameState {
       bo.t -= dt;
       bo.x += bo.vx * dt;
       bo.y += bo.vy * dt;
-      bo.x = Math.min(Math.max(bo.x, 0), CFG.ARENA_W);
-      bo.y = Math.min(Math.max(bo.y, 0), CFG.ARENA_H);
+      this._clampToBounds(bo);
       /* A l'echeance, on RECALE sur le point de chute annonce. Le pas de temps
          ne tombe presque jamais juste sur la duree de vol : la derniere image
          emportait la bombe une dizaine de pixels plus loin, et le cercle
@@ -3027,13 +3046,54 @@ export class GameState {
     }
   }
 
+  /* Centre de gravite de l'equipe vivante. Repli : centre des bounds — qui
+     vaut le centre de l'arene en temps normal. Trois usages : l'apparition
+     d'un joueur, l'ancrage de l'arene de boss, l'onde de montee de niveau. */
+  _teamCentroid() {
+    const ps = this._alivePlayers();
+    if (ps.length === 0) {
+      const B = this.bounds;
+      return { x: (B.x0 + B.x1) / 2, y: (B.y0 + B.y1) / 2 };
+    }
+    let sx = 0, sy = 0;
+    for (const p of ps) { sx += p.x; sy += p.y; }
+    return { x: sx / ps.length, y: sy / ps.length };
+  }
+
+  /* AUTOUR DES JOUEURS ACTIFS, plus sur les bords de la salle (lot I). Sur
+     4800 x 2700, un tirage uniforme sur les bords mettait la moitie du budget
+     a trente secondes de marche : la vague trainait sans raison de gameplay.
+     Le tirage se fait sur le perimetre de la boite englobante des joueurs
+     vivants, gonflee d'une demi-vue plus une marge — hors ecran pour le
+     joueur le plus proche, donc jamais une apparition sous les yeux. La boite
+     est ecretee aux bords historiques de la salle (marge 60 hors terrain) :
+     sur une arene d'une seule vue, ce tirage redonne exactement les quatre
+     bords d'avant. `_spawnSweep` reste le filet de securite de toute
+     apparition proche (invariant du depot). */
   _spawnPoint() {
     const m = 60;
+    const ps = this._alivePlayers();
+    let x0, y0, x1, y1;
+    if (ps.length === 0) {
+      const B = this.bounds;
+      x0 = B.x0; y0 = B.y0; x1 = B.x1; y1 = B.y1;
+    } else {
+      x0 = Infinity; y0 = Infinity; x1 = -Infinity; y1 = -Infinity;
+      for (const p of ps) {
+        if (p.x < x0) x0 = p.x;
+        if (p.x > x1) x1 = p.x;
+        if (p.y < y0) y0 = p.y;
+        if (p.y > y1) y1 = p.y;
+      }
+    }
+    const offX = CFG.VIEW_W / 2 + 140, offY = CFG.VIEW_H / 2 + 140;
+    x0 = Math.max(x0 - offX, -m); x1 = Math.min(x1 + offX, CFG.ARENA_W + m);
+    y0 = Math.max(y0 - offY, -m); y1 = Math.min(y1 + offY, CFG.ARENA_H + m);
     switch (Math.floor(Math.random() * 4)) {
-      case 0:  return { x: Math.random() * CFG.ARENA_W, y: -m };
-      case 1:  return { x: Math.random() * CFG.ARENA_W, y: CFG.ARENA_H + m };
-      case 2:  return { x: -m, y: Math.random() * CFG.ARENA_H };
-      default: return { x: CFG.ARENA_W + m, y: Math.random() * CFG.ARENA_H };
+      case 0:  return { x: x0 + Math.random() * (x1 - x0), y: y0 };
+      case 1:  return { x: x0 + Math.random() * (x1 - x0), y: y1 };
+      case 2:  return { x: x0, y: y0 + Math.random() * (y1 - y0) };
+      default: return { x: x1, y: y0 + Math.random() * (y1 - y0) };
     }
   }
 
@@ -3421,9 +3481,28 @@ export class GameState {
         this.enemies = [];
         this.shots = [];
         this.zones = [];
+
+        /* ARENE DE BOSS (lot I). Le combat se joue dans des bounds resserres
+           a la taille d'UNE VUE, ancres sur le centre de gravite de l'equipe :
+           toutes les mecaniques (damier, exaflares, couronne...) restent
+           calibrees a l'echelle d'un ecran, et la couronne mortelle existante
+           fait le reste — la horde des renforts la traverse, les joueurs non.
+           Les joueurs eloignes sont RAMENES au bord : le combat commence, il
+           n'attend personne. C'est le mecanisme de constriction du lot 5,
+           reutilise tel quel — `_bossDead` rouvre l'arene entiere. */
+        const c = this._teamCentroid();
+        const bw = CFG.VIEW_W, bh = CFG.VIEW_H;
+        const bcx = Math.min(Math.max(c.x, bw / 2), CFG.ARENA_W - bw / 2);
+        const bcy = Math.min(Math.max(c.y, bh / 2), CFG.ARENA_H - bh / 2);
+        this.bounds = {
+          x0: bcx - bw / 2, y0: bcy - bh / 2,
+          x1: bcx + bw / 2, y1: bcy + bh / 2,
+        };
+        for (const p of this.players.values()) this._clampToBounds(p, CFG.PLAYER_RADIUS);
+
         this.effects.push({
           id: this._nextId++,
-          x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2,
+          x: bcx, y: bcy,
           r: CFG.BOSS_SWEEP_R,
           life: 0.9, max: 0.9,
           kind: 1,
@@ -3452,7 +3531,18 @@ export class GameState {
         const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
           * (1 + (this.bossCount - 1) * CFG.BOSS_GROWTH)
           * power * CFG.BOSS_HP_MUL * this.diff.boss * def.hpMul;
-        const pos = this._spawnPoint();
+        /* Le boss apparait sur un BORD de son arene, pas via `_spawnPoint` :
+           le tirage autour des joueurs peut sortir loin des bounds resserres,
+           et `_bossMove` l'y aurait recale d'un coup sec a la premiere image. */
+        const pos = (() => {
+          const B = this.bounds, e = 80;
+          switch (Math.floor(Math.random() * 4)) {
+            case 0:  return { x: B.x0 + Math.random() * bw, y: B.y0 + e };
+            case 1:  return { x: B.x0 + Math.random() * bw, y: B.y1 - e };
+            case 2:  return { x: B.x0 + e, y: B.y0 + Math.random() * bh };
+            default: return { x: B.x1 - e, y: B.y0 + Math.random() * bh };
+          }
+        })();
         this.boss = {
           id: this._nextId++,
           kind,
@@ -3538,7 +3628,20 @@ export class GameState {
       b.summonCd = CFG.BOSS_SUMMON_EVERY;
       if (this.enemies.length < CFG.BOSS_ADD_CAP) {
         const count = CFG.BOSS_SUMMON_BASE + Math.max(1, this.players.size);
-        for (let i = 0; i < count; i++) this._spawnEnemy();
+        /* Les renforts naissent sur le BORD de l'arene de boss, jamais via
+           `_spawnPoint` : depuis le lot I le combat vit dans des bounds
+           resserres, et un renfort tire autour des joueurs serait ne dans la
+           couronne — a 60 degats par seconde, il mourait avant d'arriver et
+           le boss perdait tous ses renforts sans que personne ne tire. */
+        const B = this.bounds;
+        for (let i = 0; i < count; i++) {
+          const side = Math.floor(Math.random() * 4);
+          const sx = side === 2 ? B.x0 + 20 : side === 3 ? B.x1 - 20
+            : B.x0 + Math.random() * (B.x1 - B.x0);
+          const sy = side === 0 ? B.y0 + 20 : side === 1 ? B.y1 - 20
+            : B.y0 + Math.random() * (B.y1 - B.y0);
+          this._spawnEnemy(-1, sx, sy);
+        }
       }
     }
 
@@ -3843,9 +3946,13 @@ export class GameState {
      a chaque pas. On ne lit pas une forme, on lit un trajet : il faut suivre
      le trou en courant, et il n'y a pas d'endroit ou attendre. */
   _atkMur(b) {
+    // Geometrie sur les BOUNDS du combat, plus sur l'arene dessinee (lot I) :
+    // un mur qui balaie 4800 px n'annonce plus rien a l'echelle d'une vue.
+    const B = this.bounds;
+    const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
     const vertical = Math.random() < 0.5;
-    const span = vertical ? CFG.ARENA_W : CFG.ARENA_H;
-    const across = vertical ? CFG.ARENA_H : CFG.ARENA_W;
+    const span = vertical ? bw : bh;
+    const across = vertical ? bh : bw;
     let hole = CFG.WALL_HOLE / 2 + Math.random() * (across - CFG.WALL_HOLE);
     const drift = (Math.random() < 0.5 ? 1 : -1) * (across / (CFG.WALL_STEPS + 1));
 
@@ -3867,8 +3974,8 @@ export class GameState {
       if (before > 4) {
         this._zone({
           shape: 1,
-          x: vertical ? pos : before / 2,
-          y: vertical ? before / 2 : pos,
+          x: B.x0 + (vertical ? pos : before / 2),
+          y: B.y0 + (vertical ? before / 2 : pos),
           w: vertical ? CFG.WALL_THICKNESS : before,
           h: vertical ? before : CFG.WALL_THICKNESS,
           warn, dmg: this._zoneDamage(b),
@@ -3877,8 +3984,8 @@ export class GameState {
       if (after > 4) {
         this._zone({
           shape: 1,
-          x: vertical ? pos : across - after / 2,
-          y: vertical ? across - after / 2 : pos,
+          x: B.x0 + (vertical ? pos : across - after / 2),
+          y: B.y0 + (vertical ? across - after / 2 : pos),
           w: vertical ? CFG.WALL_THICKNESS : after,
           h: vertical ? after : CFG.WALL_THICKNESS,
           warn, dmg: this._zoneDamage(b),
@@ -4224,10 +4331,12 @@ export class GameState {
      forme. D'ou un minuteur sur le boss plutot que douze zones posees d'un
      coup, qui auraient tout revele. */
   _atkExaflare(b) {
+    const B = this.bounds;
+    const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
     const a = Math.random() * Math.PI * 2;
     const start = {
-      x: CFG.ARENA_W / 2 - Math.cos(a) * CFG.ARENA_W * 0.45,
-      y: CFG.ARENA_H / 2 - Math.sin(a) * CFG.ARENA_H * 0.45,
+      x: (B.x0 + B.x1) / 2 - Math.cos(a) * bw * 0.45,
+      y: (B.y0 + B.y1) / 2 - Math.sin(a) * bh * 0.45,
     };
     b.flare = {
       x: start.x, y: start.y,
@@ -4254,8 +4363,9 @@ export class GameState {
     f.first = 0;
     f.x += f.dx; f.y += f.dy;
     f.left--;
-    if (f.left <= 0 || f.x < -200 || f.x > CFG.ARENA_W + 200
-        || f.y < -200 || f.y > CFG.ARENA_H + 200) b.flare = null;
+    const B = this.bounds;
+    if (f.left <= 0 || f.x < B.x0 - 200 || f.x > B.x1 + 200
+        || f.y < B.y0 - 200 || f.y > B.y1 + 200) b.flare = null;
   }
 
   /* Appats : la zone se pose la ou le joueur etait il y a une seconde, et le
@@ -4327,7 +4437,7 @@ export class GameState {
   _atkCroix(b) {
     for (const e of this._bossTargets()) {
       const a = Math.random() * Math.PI * 2;
-      const len = Math.hypot(CFG.ARENA_W, CFG.ARENA_H);
+      const len = Math.hypot(this.bounds.x1 - this.bounds.x0, this.bounds.y1 - this.bounds.y0);
       for (let i = 0; i < 2; i++) {
         this._zone({
           shape: 1, x: e.x, y: e.y,
@@ -4348,7 +4458,7 @@ export class GameState {
      entrees de snapshot par branche, deux tests de collision, et surtout deux
      annonces distinctes la ou le joueur doit lire UNE figure. */
   _atkCroixDurable(b) {
-    const len = Math.hypot(CFG.ARENA_W, CFG.ARENA_H) / 2;
+    const len = Math.hypot(this.bounds.x1 - this.bounds.x0, this.bounds.y1 - this.bounds.y0) / 2;
     for (const e of this._bossTargets()) {
       this._zone({
         shape: 5, x: e.x, y: e.y,
@@ -4793,8 +4903,11 @@ export class GameState {
      de case sure sur les deux temps — il faut bouger entre les deux, ce qui
      en fait la premiere mecanique qui demande de prevoir plutot que reagir. */
   _atkDamier(b) {
-    const cw = CFG.ARENA_W / CFG.GRID_COLS;
-    const ch = CFG.ARENA_H / CFG.GRID_ROWS;
+    // La grille couvre les BOUNDS du combat (lot I) — un damier decoupe sur
+    // l'arene dessinee aurait des cases de 1200 px et un seul carreau visible.
+    const B = this.bounds;
+    const cw = (B.x1 - B.x0) / CFG.GRID_COLS;
+    const ch = (B.y1 - B.y0) / CFG.GRID_ROWS;
     const parity = Math.random() < 0.5 ? 0 : 1;
 
     for (let cx = 0; cx < CFG.GRID_COLS; cx++) {
@@ -4806,7 +4919,7 @@ export class GameState {
         // au dessin, jamais sur la zone de degats.
         this._zone({
           shape: 1,
-          x: cw * (cx + 0.5), y: ch * (cy + 0.5),
+          x: B.x0 + cw * (cx + 0.5), y: B.y0 + ch * (cy + 0.5),
           w: cw, h: ch,
           warn: CFG.GRID_WARN + (first ? 0 : CFG.GRID_GAP),
           dmg: this._zoneDamage(b),
@@ -4819,9 +4932,10 @@ export class GameState {
      ressort). L'ordre s'inverse une fois sur deux pour qu'on ne joue pas de
      memoire. */
   _atkCouronne(b) {
-    const cx = CFG.ARENA_W / 2, cy = CFG.ARENA_H / 2;
+    const B = this.bounds;
+    const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
     const ringFirst = Math.random() < 0.5;
-    const outer = Math.hypot(CFG.ARENA_W, CFG.ARENA_H);
+    const outer = Math.hypot(B.x1 - B.x0, B.y1 - B.y0);
 
     this._zone({
       shape: 2, x: cx, y: cy, r: outer, hole: CFG.DONUT_HOLE,
@@ -4838,6 +4952,9 @@ export class GameState {
   /* Couloirs : trois bandes, puis les trois perpendiculaires. On lit un axe,
      on se place, on relit l'autre. */
   _atkCouloirs(b) {
+    const B = this.bounds;
+    const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
+    const mx = (B.x0 + B.x1) / 2, my = (B.y0 + B.y1) / 2;
     const vertical = Math.random() < 0.5;
     const lanes = 3;
 
@@ -4845,19 +4962,19 @@ export class GameState {
       const k = (i + 0.5) / lanes;
       this._zone({
         shape: 1,
-        x: vertical ? CFG.ARENA_W * k : CFG.ARENA_W / 2,
-        y: vertical ? CFG.ARENA_H / 2 : CFG.ARENA_H * k,
-        w: vertical ? CFG.LANE_THICKNESS : CFG.ARENA_W,
-        h: vertical ? CFG.ARENA_H : CFG.LANE_THICKNESS,
+        x: vertical ? B.x0 + bw * k : mx,
+        y: vertical ? my : B.y0 + bh * k,
+        w: vertical ? CFG.LANE_THICKNESS : bw,
+        h: vertical ? bh : CFG.LANE_THICKNESS,
         warn: CFG.LANE_WARN,
         dmg: this._zoneDamage(b),
       });
       this._zone({
         shape: 1,
-        x: vertical ? CFG.ARENA_W / 2 : CFG.ARENA_W * k,
-        y: vertical ? CFG.ARENA_H * k : CFG.ARENA_H / 2,
-        w: vertical ? CFG.ARENA_W : CFG.LANE_THICKNESS,
-        h: vertical ? CFG.LANE_THICKNESS : CFG.ARENA_H,
+        x: vertical ? mx : B.x0 + bw * k,
+        y: vertical ? B.y0 + bh * k : my,
+        w: vertical ? bw : CFG.LANE_THICKNESS,
+        h: vertical ? CFG.LANE_THICKNESS : bh,
         warn: CFG.LANE_WARN + CFG.LANE_GAP,
         dmg: this._zoneDamage(b),
       });
@@ -4868,7 +4985,7 @@ export class GameState {
      dans le sens horaire ou l'inverse. On court avec l'aiguille, pas contre. */
   _atkBalayage(b) {
     const blades = CFG.SWEEP_BLADES;
-    const len = Math.hypot(CFG.ARENA_W, CFG.ARENA_H);
+    const len = Math.hypot(this.bounds.x1 - this.bounds.x0, this.bounds.y1 - this.bounds.y0);
     const base = Math.random() * Math.PI * 2;
     const dir = Math.random() < 0.5 ? 1 : -1;
 
@@ -4899,19 +5016,23 @@ export class GameState {
      tout ce qui borne un deplacement doit lire `this.bounds`.
      =========================================================================== */
 
-  /* Trois choses gardent VOLONTAIREMENT CFG.ARENA_W/H, et ce ne sont pas des
+  /* Deux choses gardent VOLONTAIREMENT l'arene entiere, et ce ne sont pas des
      oublis :
 
-     - l'apparition des ennemis (`_edgeSpawn`) : la horde vient toujours des
-       bords de la salle et traverse la couronne pour arriver, ce qui est
-       exactement l'interaction que la constriction cherche a creer ;
-     - le vol et la culture des projectiles : une balle qui rebondit sur une
-       limite invisible au milieu de l'ecran ne se lit pas, alors que le mur de
-       la salle se voit ;
-     - la GEOMETRIE des zones (damier, couloirs, balayage, couronne) : elles
-       couvrent la salle entiere. Deborder sur la couronne est sans effet
-       puisque plus personne n'y est, et redecouper la grille a chaque palier
-       aurait change la taille des cases en plein combat. */
+     - l'apparition des ennemis (`_spawnPoint`) : le tirage se fait autour des
+       joueurs mais JAMAIS borne aux bounds — la horde traverse la couronne
+       pour arriver, ce qui est exactement l'interaction que la constriction
+       cherche a creer ;
+     - le CULLING des projectiles : leur duree de vie fait le vrai travail, et
+       les bornes larges de l'arene n'existent que contre une fuite infinie.
+
+     La GEOMETRIE des zones, elle, lit les bounds depuis le lot I : une arene
+     de boss fait une vue (1600 x 900) dans une salle de 4800 x 2700, et un
+     damier decoupe sur la salle entiere n'aurait plus montre qu'un carreau.
+     La grille se redecoupe donc au palier de constriction — c'est le prix,
+     et il est paye une fois par palier, pas par image. Le REBOND des balles
+     lit les bounds pour la meme raison : sur la salle entiere, une balle
+     partait vivre sa vie a deux ecrans du combat. */
 
   // Ramene une entite dans les limites courantes. Point de passage unique, sur
   // le modele de `_hurt` : une nouvelle chose qui se deplace est couverte sans
@@ -4974,8 +5095,10 @@ export class GameState {
        La constriction fait l'inverse : elle COMPRIME 200 ennemis avec les
        joueurs, et en faire un outil de nettoyage desespere est ce qui rend le
        palier memorable au lieu d'etre une simple taxe de surface. */
+    // Les QUATRE cotes : une arene de boss collee au bord gauche de la salle
+    // a x0 = 0, et la couronne existait bel et bien sur les trois autres.
     const B = this.bounds;
-    if (B.x0 > 0 || B.y0 > 0) {
+    if (B.x0 > 0 || B.y0 > 0 || B.x1 < CFG.ARENA_W || B.y1 < CFG.ARENA_H) {
       for (const e of this.enemies) {
         if (e.hp <= 0) continue;
         if (e.x >= B.x0 && e.x <= B.x1 && e.y >= B.y0 && e.y <= B.y1) continue;
@@ -4993,19 +5116,23 @@ export class GameState {
   }
 
   /* Constriction : un palier de plus a chaque lancer, jusqu'au plancher. Le
-     centre reste celui de l'arene — un carre qui derive obligerait a relire
-     toute la surface a chaque palier au lieu de simplement rentrer. */
+     centre reste celui des bounds COURANTS — pas celui de l'arene dessinee :
+     depuis le lot I, un combat de boss se joue dans des bounds ancres sur
+     l'equipe, et un palier recentre sur la salle aurait teleporte la couronne
+     ailleurs que sur le combat. Le plancher et le pas sont relatifs a la VUE,
+     qui est la taille d'une arene de boss — les relire sur ARENA_W aurait
+     donne un plancher plus grand que l'arene de combat elle-meme. */
   _atkConstriction(b) {
     if (this.shrink) return;      // un palier a la fois, sinon ils se doublent
     const B = this.bounds;
     const w = B.x1 - B.x0, h = B.y1 - B.y0;
-    const minW = CFG.ARENA_W * BOSS_CFG.SHRINK_MIN;
-    const minH = CFG.ARENA_H * BOSS_CFG.SHRINK_MIN;
+    const minW = CFG.VIEW_W * BOSS_CFG.SHRINK_MIN;
+    const minH = CFG.VIEW_H * BOSS_CFG.SHRINK_MIN;
     if (w <= minW + 1 && h <= minH + 1) { this._atkMarques(b); return; }
 
-    const nw = Math.max(minW, w - CFG.ARENA_W * BOSS_CFG.SHRINK_STEP);
-    const nh = Math.max(minH, h - CFG.ARENA_H * BOSS_CFG.SHRINK_STEP);
-    const cx = CFG.ARENA_W / 2, cy = CFG.ARENA_H / 2;
+    const nw = Math.max(minW, w - CFG.VIEW_W * BOSS_CFG.SHRINK_STEP);
+    const nh = Math.max(minH, h - CFG.VIEW_H * BOSS_CFG.SHRINK_STEP);
+    const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
     this.shrink = {
       x0: cx - nw / 2, y0: cy - nh / 2,
       x1: cx + nw / 2, y1: cy + nh / 2,
@@ -5103,11 +5230,15 @@ export class GameState {
          quarante balles en vol simultane doublaient la charge de collision
          pour un gain de jeu nul — on ne visait plus, on remplissait. */
       if (b.bounce > 0) {
+        // Sur les BOUNDS et non les bords de la salle : pendant un combat de
+        // boss, une balle qui rebondit doit revenir dans le combat, pas
+        // s'echapper a deux ecrans de la. Hors combat, bounds = la salle.
+        const BB = this.bounds;
         let bounced = false;
-        if (b.x < 0)               { b.x = -b.x; b.vx = -b.vx; bounced = true; }
-        else if (b.x > CFG.ARENA_W) { b.x = 2 * CFG.ARENA_W - b.x; b.vx = -b.vx; bounced = true; }
-        if (b.y < 0)               { b.y = -b.y; b.vy = -b.vy; bounced = true; }
-        else if (b.y > CFG.ARENA_H) { b.y = 2 * CFG.ARENA_H - b.y; b.vy = -b.vy; bounced = true; }
+        if (b.x < BB.x0)           { b.x = 2 * BB.x0 - b.x; b.vx = -b.vx; bounced = true; }
+        else if (b.x > BB.x1)      { b.x = 2 * BB.x1 - b.x; b.vx = -b.vx; bounced = true; }
+        if (b.y < BB.y0)           { b.y = 2 * BB.y0 - b.y; b.vy = -b.vy; bounced = true; }
+        else if (b.y > BB.y1)      { b.y = 2 * BB.y1 - b.y; b.vy = -b.vy; bounced = true; }
         if (bounced) {
           b.bounce--;
           b.dmg *= CARD_CFG.BOUNCE_DAMAGE_MUL;
@@ -5968,11 +6099,14 @@ export class GameState {
       this.levelStep = Math.round(this.levelStep * CFG.LEVEL_KILLS_GROWTH * this._xpCostMul());
       this.levelAt = this.levelFrom + this.levelStep;
 
-      // L'onde de montee de niveau part du centre de l'arene et non d'un
-      // joueur : la jauge n'appartient plus a personne en particulier.
+      // L'onde de montee de niveau part du centre de gravite de l'EQUIPE et
+      // non d'un joueur : la jauge n'appartient a personne en particulier.
+      // (Centre de l'arene avant le lot I — sur 4800 x 2700 il serait hors
+      // champ pour tout le monde, l'onde n'annoncerait plus rien.)
+      const lvlAt = this._teamCentroid();
       this.effects.push({
         id: this._nextId++,
-        x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2,
+        x: lvlAt.x, y: lvlAt.y,
         r: 78,
         life: 0.55, max: 0.55,
         kind: 2,
@@ -6437,7 +6571,12 @@ export class GameState {
          `bn` porte les limites courantes ET le palier annonce : le client doit
          pouvoir dessiner la couronne qui VA devenir mortelle, sinon la
          constriction se subit au lieu de se lire. */
-      bn: this.bounds.x0 > 0 || this.bounds.y0 > 0 || this.shrink
+      /* La condition teste les QUATRE cotes : une arene de boss ancree pres du
+         bord gauche de la salle a x0 = 0 avec x1 < ARENA_W, et l'ancienne
+         condition (x0/y0 seuls) aurait omis la cle — le client aurait dessine
+         l'arene pleine pendant tout le combat. */
+      bn: this.bounds.x0 > 0 || this.bounds.y0 > 0
+          || this.bounds.x1 < CFG.ARENA_W || this.bounds.y1 < CFG.ARENA_H || this.shrink
         ? [r1(this.bounds.x0), r1(this.bounds.y0), r1(this.bounds.x1), r1(this.bounds.y1),
            this.shrink ? r1(this.shrink.x0) : 0, this.shrink ? r1(this.shrink.y0) : 0,
            this.shrink ? r1(this.shrink.x1) : 0, this.shrink ? r1(this.shrink.y1) : 0,
