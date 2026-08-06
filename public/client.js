@@ -2081,6 +2081,7 @@ const pauseEl = document.getElementById("pause");
 const pauseState = document.getElementById("pauseState");
 const pauseConfirm = document.getElementById("pauseConfirm");
 const pauseQuitBtn = document.getElementById("pauseQuit");
+const pauseQuitAsk = document.getElementById("pauseQuitAsk");
 
 let pauseReal = false;     // le serveur a vraiment cesse de simuler
 
@@ -2089,9 +2090,18 @@ function renderPauseState() {
     ? "simulation figée — personne d'autre n'attend"
     : "la partie continue — pause indisponible à plusieurs";
   pauseState.classList.toggle("live", !pauseReal);
-  // Un spectateur n'a pas de manche a quitter : lui proposer un bouton qui ne
-  // fait rien vaut moins que ne rien proposer.
-  pauseQuitBtn.hidden = amSpectator;
+  /* Un spectateur n'a pas de manche a quitter, mais il a une SALLE a quitter —
+     et pendant une manche le menu pause est sa seule porte de sortie : le
+     salon (`#panel`, qui porte le bouton « quitter la salle ») est cache. Sans
+     ce cas, un spectateur arrive sur une partie en cours y restait prisonnier
+     jusqu'a la fin de la manche. Meme bouton, meme confirmation : deux boutons
+     auraient demande deux libelles a lire au moment ou l'un des deux n'existe
+     jamais. */
+  pauseQuitBtn.hidden = false;
+  pauseQuitBtn.textContent = amSpectator ? "Quitter la salle" : "Quitter la manche";
+  pauseQuitAsk.textContent = amSpectator
+    ? "Quitter la salle ? Tu retournes à la liste des salons."
+    : "Quitter la manche en cours ? Tu redeviens spectateur jusqu'à la suivante.";
 }
 
 function openPause() {
@@ -2117,7 +2127,11 @@ document.getElementById("pauseBuild").onclick = () => openBuild(myId);
 pauseQuitBtn.onclick = () => { pauseConfirm.hidden = false; };
 document.getElementById("pauseQuitNo").onclick = () => { pauseConfirm.hidden = true; };
 document.getElementById("pauseQuitYes").onclick = () => {
-  ws?.send(JSON.stringify({ t: "leaveRound" }));
+  // `leaveRound` est un message de SALLE (elle le route vers la simulation),
+  // `leaveRoom` un message de HUB : un spectateur n'est dans aucune manche, il
+  // sort de la salle. Le retour au hub arrive par `roomClosed`, qui referme le
+  // menu — on n'y touche pas ici.
+  ws?.send(JSON.stringify({ t: amSpectator ? "leaveRoom" : "leaveRound" }));
   closePause();
 };
 
