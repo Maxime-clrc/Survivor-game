@@ -264,22 +264,36 @@ export function createStore(log = console.log) {
   function adoptRow(row) {
     const lower = String(row.pseudo ?? "").toLowerCase();
     if (!lower) return 0;
-    if (row.version !== PROG_CFG.VERSION) {
+    /* Deux directions, deux conduites (lot H). Une version FUTURE — serveur en
+       retard sur la donnee — reste GELEE : ni adoptee, ni jamais reecrite,
+       ecraser un format qu'on ne sait pas lire est la perte qu'on ne rattrape
+       plus. Une version ANTERIEURE connue est adoptee avec un PROFIL NEUF :
+       reset de progression, comptes conserves — l'authentification vit dans
+       les COLONNES de la ligne, elle traverse intacte (pseudo, mot de passe,
+       jeton de session). Decision du porteur : le jeu est en developpement,
+       pas de remboursement ni d'instantane. */
+    if (row.version > PROG_CFG.VERSION || typeof row.version !== "number") {
       frozen.add(lower);
       return 0;
     }
+    const reset = row.version < PROG_CFG.VERSION;
     const cur = accounts.get(lower);
     if (cur && !pristine(cur.profile)) return 0;   // le local qui a progresse a raison
+    const affichage = typeof row.affichage === "string" && row.affichage ? row.affichage : lower;
     accounts.set(lower, {
-      affichage: typeof row.affichage === "string" && row.affichage ? row.affichage : lower,
+      affichage,
       passSalt: row.pass_salt,
       passHash: row.pass_hash,
       jetonHash: row.jeton_hash ?? null,
       jetonExp: row.jeton_exp ? Date.parse(row.jeton_exp) || 0 : 0,
-      profile: row.data,
+      profile: reset ? newProfile(affichage) : row.data,
       creeLe: row.cree_le ?? new Date().toISOString(),
       vuLe: row.vu_le ?? new Date().toISOString(),
     });
+    if (reset) {
+      log(`compte ${lower} : profil v${row.version} remis a neuf en v${PROG_CFG.VERSION} (lot H)`);
+      dirty.add(lower);   // la ligne repart en v courante au prochain envoi
+    }
     return 1;
   }
 

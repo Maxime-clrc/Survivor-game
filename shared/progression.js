@@ -32,33 +32,53 @@ export const PROG_CFG = {
   /* 3 : comptes pseudo+mot de passe, une ligne Supabase par compte — le
      profil ne porte plus de champ `code` (l'authentification vit dans les
      colonnes de la table, jamais dans le jsonb de progression). */
-  VERSION: 3,
+  /* 4 (lot H) : economie refaite — revenu lineaire plafonne, primes de
+     premiere fois supprimees, emplacements par jalons, couts geometriques.
+     Migration SECHE cote store : une ligne de version anterieure repart sur
+     un profil neuf, l'authentification (colonnes) est conservee — decision du
+     porteur, le jeu est en developpement. */
+  VERSION: 4,
 
   /* Emplacements. On debloque definitivement, on equipe partiellement : c'est
      ce qui distingue ce systeme d'une simple echelle — apres cent parties, la
-     decision existe toujours, et deux tanks peuvent etre joues differemment. */
+     decision existe toujours, et deux tanks peuvent etre joues differemment.
+     Gagnes aux JALONS et plus aux achats (lot H) : avec des couts
+     geometriques, « +1 tous les 12 paliers » devenait inatteignable, et lier
+     la capacite a la depense cumulait les deux avantages sur la meme tete —
+     celui qui a le plus de noyaux avait aussi le plus d'emplacements. */
   SLOTS_BASE: 3,
   SLOTS_MAX: 6,
-  SLOTS_STEP: 12,            // +1 emplacement tous les 12 paliers achetes dans la classe
+  SLOTS_BOSSES: 3,           // +1 : trois boss differents vaincus
+  SLOTS_RUNS: 25,            // +1 : 25 parties jouees
+  SLOTS_WAVE: 10,            // +1 : vague 10 atteinte (jalon `vague10`)
 
   TIERS_MAX: 5,
-  TIER_COSTS: [150, 260, 420, 650, 1000],
+  /* Geometriques (lot H) : 6 900 la ligne complete. Le revenu etant lineaire,
+     c'est la grille qui porte la duree de progression — premier palier a la
+     premiere partie, ligne complete vers la dix-huitieme. */
+  TIER_COSTS: [200, 420, 880, 1800, 3600],
 
   /* La monnaie : les NOYAUX, extraits des creatures. Jamais sur les kills
-     individuels — vague atteinte et boss vaincus, verses a parts egales. */
-  CORE_WAVE: 4,              // par vague atteinte : 4 x numero de la vague
-  CORE_BOSS: 120,
-  CORE_FIRST_WAVES: { 5: 200, 10: 400, 15: 800, 20: 1500 },
-  CORE_FIRST_BOSS: 300,
-  DIFF_MUL: [1, 1.35, 1.8],  // meme ordre que DIFFICULTIES
+     individuels — vague atteinte et boss vaincus, verses a parts egales.
+     LINEAIRE et PLAFONNE (lot H) : l'ancienne formule sommait les vagues
+     traversees, donc croissait au carre — 3 100 noyaux des la premiere bonne
+     partie, les deux tiers venant des primes de premiere fois. On paie la
+     vague ATTEINTE ; le plafond n'est pas cosmetique, sans lui une soiree
+     exceptionnelle efface un mois de progression. */
+  CORE_WAVE: 10,             // x vague atteinte, sans cumul
+  CORE_BOSS: 40,
+  CORE_RUN_CAP: 600,         // plafond par partie
+  DIFF_MUL: [1, 1.4, 2],     // meme ordre que DIFFICULTIES — la difficulte pese plus
 
   /* Jalons de deblocage de cartes. */
   KILLS_MILESTONE: 500,      // kills cumules avec une meme classe
   NO_DOWN_MIN_WAVE: 5,       // « sans etre mis a terre » ne vaut qu'a partir de la
 
   /* Le tronc de confort : non-puissance, coût fixe, ne consomme AUCUN
-     emplacement. */
-  CONFORT_COSTS: { relance: 800, quatrieme: 1500, ravitaillement: 600 },
+     emplacement. Les achats les plus puissants du systeme — la quatrieme
+     offre ameliore TOUTES les parties futures — donc des objectifs de moyen
+     terme, pas des achats de la troisieme partie. */
+  CONFORT_COSTS: { relance: 1200, quatrieme: 2500, ravitaillement: 900 },
 
   /* Constantes des lignes qui ne se resument pas a un mod existant. */
   CATALYSE_TIME: 3,          // secondes de bonus sur la cible soignee
@@ -187,14 +207,21 @@ export function applyMeta(mods, maxHp, clsId, lines) {
   return { mods: m, maxHp: hp };
 }
 
-/* Emplacements disponibles pour un profil de classe : la base, plus un tous
-   les SLOTS_STEP paliers achetes dans CETTE classe — ameliorer le tank ne
-   benefice pas au tireur, l'emplacement non plus. */
-export function slotsFor(clsProfile) {
-  let bought = 0;
-  for (const v of Object.values(clsProfile?.tiers ?? {})) bought += v | 0;
-  return Math.min(PROG_CFG.SLOTS_MAX,
-    PROG_CFG.SLOTS_BASE + Math.floor(bought / PROG_CFG.SLOTS_STEP));
+/* Emplacements disponibles : la base, plus les JALONS du compte (lot H) —
+   vague 10 atteinte, trois boss differents vaincus, 25 parties jouees. La
+   fonction prend desormais le PROFIL entier et non le profil de classe : la
+   capacite est une propriete du compte, les listes equipees restent par
+   classe. Les jalons de boss sont COMPTES depuis les jalons `boss_N` deja
+   poses pour les legendaires — pas de second marqueur a synchroniser. */
+export function slotsFor(profile) {
+  const ms = profile?.milestones ?? [];
+  let n = PROG_CFG.SLOTS_BASE;
+  if (ms.includes("vague10")) n++;
+  let bosses = 0;
+  for (const id of ms) if (id.startsWith("boss_")) bosses++;
+  if (bosses >= PROG_CFG.SLOTS_BOSSES) n++;
+  if ((profile?.runs | 0) >= PROG_CFG.SLOTS_RUNS) n++;
+  return Math.min(PROG_CFG.SLOTS_MAX, n);
 }
 
 export function tierCost(currentTier) {
@@ -257,19 +284,22 @@ export function lockedCards(milestonesDone = []) {
 
 /* --- monnaie --------------------------------------------------------------------
 
-   La somme des vagues est fermee : Σ 4w pour w = 1..W vaut 2 W (W+1). Verse a
-   parts EGALES : la fonction ne prend rien d'individuel, et c'est voulu. */
+   LINEAIRE (lot H) : on paie la vague atteinte, pas la somme des vagues
+   traversees — l'ancienne formule croissait au carre et distancait des couts
+   lineaires. Verse a parts EGALES : la fonction ne prend rien d'individuel,
+   et c'est voulu. Le plafond s'applique au TOTAL multiplie : une soiree
+   exceptionnelle ne doit pas effacer un mois de progression. */
 export function coresForRun(wave, bossKills, diffIndex) {
-  const base = PROG_CFG.CORE_WAVE * wave * (wave + 1) / 2
-    + PROG_CFG.CORE_BOSS * bossKills;
-  return Math.round(base * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1));
+  const base = PROG_CFG.CORE_WAVE * wave + PROG_CFG.CORE_BOSS * bossKills;
+  return Math.min(PROG_CFG.CORE_RUN_CAP,
+    Math.round(base * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)));
 }
 
 // Part d'un joueur qui quitte en cours de manche : les vagues jouees, rien
-// d'autre — ni boss ni jalons, qui se constatent a la fin.
+// d'autre — ni boss ni jalons, qui se constatent a la fin. Meme plafond.
 export function coresPartial(wave, diffIndex) {
-  return Math.round(PROG_CFG.CORE_WAVE * wave * (wave + 1) / 2
-    * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1));
+  return Math.min(PROG_CFG.CORE_RUN_CAP,
+    Math.round(PROG_CFG.CORE_WAVE * wave * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)));
 }
 
 /* Profil neuf. Le champ `version` vit sur le FICHIER (progress_store), pas sur

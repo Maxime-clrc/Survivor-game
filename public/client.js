@@ -253,6 +253,8 @@ const regPass2Input = document.getElementById("regPass2");
 const regGoBtn = document.getElementById("regGo");
 const menuEl = document.getElementById("menu");
 const menuCloseBtn = document.getElementById("menuClose");
+const terminalBtn = document.getElementById("terminalBtn");
+const terminalDot = document.getElementById("terminalDot");
 const panel = document.getElementById("panel");
 const panelTitle = document.getElementById("panelTitle");
 const summary = document.getElementById("summary");
@@ -523,6 +525,7 @@ function connect() {
       case "progress":
         progressState = msg;
         renderMeta();
+        updateTerminalDot();
         break;
 
       /* Echec d'authentification. Deux cas se traitent sans bruit : un jeton
@@ -1081,11 +1084,11 @@ passChangeBtn.onclick = () => {
   ws.send(JSON.stringify({ t: "changePass", ancien, neuf }));
 };
 
-/* --- Menu (progression) -----------------------------------------------------
-   Ouvert depuis le bouton dedie sur la carte d'UNE classe (`renderClasses`,
-   `.classMetaBtn`), jamais depuis un point d'entree unique en haut d'ecran :
-   celui qui l'ouvre sait deja quelle classe il veut voir. `#menuClose` revient
-   au salon sans repasser par la connexion. */
+/* --- Terminal (lot H) --------------------------------------------------------
+   Point d'entree UNIQUE au salon (`#terminalBtn`), ouvert par defaut sur
+   l'arbre de sa propre classe ; les deux autres se consultent par les onglets
+   de classe de l'ecran. `#menuClose` revient au salon sans repasser par la
+   connexion. */
 function openMenuFor(clsIndex) {
   panel.hidden = true;
   menuEl.hidden = false;
@@ -1096,6 +1099,38 @@ menuCloseBtn.onclick = () => {
   menuEl.hidden = true;
   refreshPanel();
 };
+
+terminalBtn.onclick = () => {
+  const me = lobby.find(l => l.id === myId);
+  openMenuFor(me?.cls ?? CLASS_DEFAULT);
+};
+
+/* La pastille du Terminal : des noyaux DEPENSABLES, pas des noyaux tout
+   court — elle compare la bourse au moins cher des achats encore possibles
+   (prochain palier de n'importe quelle ligne, confort restant). Sans elle,
+   personne ne pense a ouvrir l'ecran ; allumee en permanence, elle ne dirait
+   plus rien. */
+function cheapestPurchase(pr) {
+  let min = Infinity;
+  for (const clsId of Object.keys(TREES)) {
+    const cp = pr.classes?.[clsId];
+    for (const line of TREES[clsId]) {
+      const n = cp?.tiers?.[line.id] | 0;
+      if (n < PROG_CFG.TIERS_MAX) min = Math.min(min, tierCost(n));
+    }
+  }
+  for (const cf of CONFORT) {
+    if (!(pr.confort ?? []).includes(cf.id)) {
+      min = Math.min(min, PROG_CFG.CONFORT_COSTS[cf.id]);
+    }
+  }
+  return min;
+}
+
+function updateTerminalDot() {
+  const pr = progressState;
+  terminalDot.hidden = !pr || pr.cores < cheapestPurchase(pr);
+}
 
 /* --- reglage du son -------------------------------------------------------
 
@@ -1361,27 +1396,11 @@ function renderClasses() {
 
     paintClassSilhouette(btn.querySelector(".classSil"), c);
 
-    /* Acces a la progression de CETTE classe (lot D), depuis sa propre
-       carte — pas un bouton unique en haut d'ecran qui forcerait a deviner
-       lequel des trois arbres il montre. Un `span` et non un bouton : le HTML
-       interdit un `<button>` dans un `<button>`. `stopPropagation` l'empeche
-       de declencher aussi `pickClass` sur la carte entiere. */
-    const metaBtn = document.createElement("span");
-    metaBtn.className = "classMetaBtn";
-    metaBtn.textContent = "Progression";
-    metaBtn.setAttribute("role", "button");
-    metaBtn.tabIndex = 0;
-    metaBtn.onclick = ev => { ev.stopPropagation(); openMenuFor(i); };
-    metaBtn.onkeydown = ev => {
-      if (ev.key !== "Enter" && ev.key !== " ") return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      openMenuFor(i);
-    };
-    // En bas de la carte, apres les competences — dernier enfant du flex
-    // column plutot qu'en tete, pour ne pas concurrencer le nom de la classe.
-    btn.appendChild(metaBtn);
-
+    /* Le bouton « Progression » par carte a disparu avec le Terminal (lot H) :
+       le point d'entree est unique au salon, et les trois arbres se
+       consultent par onglets DANS le Terminal — l'objection d'origine (« un
+       bouton unique force a deviner lequel des trois arbres il montre »)
+       tombe des lors que l'ecran les montre tous. */
     btn.onclick = () => {
       if (locked || pris) return;
       ws.send(JSON.stringify({ t: "pickClass", cls: i }));
@@ -1401,17 +1420,17 @@ function renderClasses() {
   }
 }
 
-/* --- progression permanente (lot D) ---------------------------------------------
+/* --- Terminal : progression permanente (lots D et H) -----------------------------
 
-   Le panneau vit dans le Menu, ouvert depuis la carte d'UNE classe au salon
-   (`.classMetaBtn`, `openMenuFor`). Il montre l'arbre de CETTE classe, pas
-   forcement celle deja choisie : comparer trois arbres a la fois n'aide
-   personne, mais il faut pouvoir les consulter avant de choisir, pas apres.
-   `metaClsOverride` retient laquelle entre deux rendus (un lobby broadcast
-   pendant que le Menu est ouvert rejoue `renderMeta()` sans argument). Les
-   tables viennent de `shared/progression.js` — le serveur n'envoie que
-   l'etat du compte, et il valide chaque achat de son cote : ces boutons ne
-   sont qu'une demande. */
+   Un ecran, trois niveaux d'onglets fixes : la CLASSE (les trois arbres se
+   consultent sans fermer), puis Arbre / Confort / Jalons. Les emplacements
+   sont affiches en permanence sous le titre — c'est la contrainte qui
+   structure toutes les decisions, elle ne demande jamais un clic.
+   `metaClsOverride` retient la classe montree entre deux rendus (un lobby
+   broadcast pendant que le Terminal est ouvert rejoue `renderMeta()` sans
+   argument). Les tables viennent de `shared/progression.js` — le serveur
+   n'envoie que l'etat du compte, et il valide chaque achat de son cote : ces
+   boutons ne sont qu'une demande. */
 
 const metaEl = document.getElementById("meta");
 const metaCoresEl = document.getElementById("metaCores");
@@ -1419,6 +1438,15 @@ const metaSubEl = document.getElementById("metaSub");
 const metaTreeEl = document.getElementById("metaTree");
 const metaConfortEl = document.getElementById("metaConfort");
 const metaMilestonesEl = document.getElementById("metaMilestones");
+const metaClassTabsEl = document.getElementById("metaClassTabs");
+const metaSlotsEl = document.getElementById("metaSlots");
+
+// Onglet courant du Terminal. L'arbre est l'onglet par defaut : c'est la
+// qu'on depense, les deux autres sont de la consultation.
+let metaTab = "arbre";
+for (const [id, tab] of [["metaTabArbre", "arbre"], ["metaTabConfort", "confort"], ["metaTabJalons", "jalons"]]) {
+  document.getElementById(id).onclick = () => { metaTab = tab; renderMeta(); };
+}
 
 function renderMeta(clsOverride) {
   if (clsOverride !== undefined) metaClsOverride = clsOverride;
@@ -1431,13 +1459,47 @@ function renderMeta(clsOverride) {
   const cdef = classAt(metaClsOverride ?? me?.cls ?? CLASS_DEFAULT);
   const clsId = cdef.id;
   const cp = pr.classes?.[clsId] ?? { tiers: {}, equipped: [] };
-  const slots = slotsFor(cp);
+  // `slotsFor` prend le PROFIL (lot H) : la capacite vient des jalons du
+  // compte, elle est commune aux trois classes.
+  const slots = slotsFor(pr);
   const equipped = cp.equipped ?? [];
 
   metaCoresEl.textContent = `${pr.cores} noyaux`;
-  metaSubEl.textContent =
-    `arbre du ${cdef.nom} — ${equipped.length} / ${slots} emplacements équipés · `
-    + `réattribution libre entre les manches`;
+
+  // Onglets de classe : les trois arbres, celui affiche marque `.mine` —
+  // meme langage de bascule que les onglets de connexion et le vote.
+  metaClassTabsEl.innerHTML = "";
+  for (let i = 0; i < CLASSES.length; i++) {
+    const b = document.createElement("button");
+    b.textContent = CLASSES[i].nom;
+    b.className = classAt(i).id === clsId ? "mine" : "";
+    b.onclick = () => renderMeta(i);
+    metaClassTabsEl.appendChild(b);
+  }
+
+  // Les emplacements, toujours visibles, avec la provenance de chacun : ce
+  // qui manque est une promesse — l'afficher fait partie du systeme.
+  const bosses = (pr.milestones ?? []).filter(id => id.startsWith("boss_")).length;
+  metaSlotsEl.innerHTML =
+    `<b>Emplacements ${equipped.length} / ${slots}</b> équipés sur le ${escapeHtml(cdef.nom)}`
+    + ` · réattribution libre entre les manches<br>`
+    + `<small>${PROG_CFG.SLOTS_BASE} de départ`
+    + ` · vague ${PROG_CFG.SLOTS_WAVE} ${(pr.milestones ?? []).includes("vague10") ? "✓" : "•"}`
+    + ` · ${PROG_CFG.SLOTS_BOSSES} boss différents (${Math.min(bosses, PROG_CFG.SLOTS_BOSSES)}/${PROG_CFG.SLOTS_BOSSES})`
+    + ` · ${PROG_CFG.SLOTS_RUNS} parties (${Math.min(pr.runs ?? 0, PROG_CFG.SLOTS_RUNS)}/${PROG_CFG.SLOTS_RUNS})</small>`;
+
+  // Bascule d'onglet : une seule des trois listes est visible.
+  metaTreeEl.hidden = metaTab !== "arbre";
+  metaConfortEl.hidden = metaTab !== "confort";
+  metaMilestonesEl.hidden = metaTab !== "jalons";
+  for (const [id, tab] of [["metaTabArbre", "arbre"], ["metaTabConfort", "confort"], ["metaTabJalons", "jalons"]]) {
+    document.getElementById(id).classList.toggle("mine", metaTab === tab);
+  }
+  metaSubEl.textContent = metaTab === "arbre"
+    ? `arbre du ${cdef.nom} — l'effet affiché est le TOTAL possédé`
+    : metaTab === "confort"
+      ? "confort : aucun emplacement consommé, commun aux trois classes"
+      : "les jalons débloquent cartes et emplacements — jamais des noyaux";
 
   metaTreeEl.innerHTML = "";
   for (const line of TREES[clsId] ?? []) {
@@ -1445,8 +1507,11 @@ function renderMeta(clsOverride) {
     const cost = tierCost(n);
     const isEquipped = equipped.includes(line.id);
 
+    /* Trois etats VISUELLEMENT distincts (lot H) : achete et equipe, achete
+       non equipe, non achete — trois traitements nets, pas trois gris. */
     const row = document.createElement("div");
-    row.className = "metaLine" + (isEquipped ? " equipped" : "");
+    row.className = "metaLine"
+      + (isEquipped ? " equipped" : n > 0 ? " owned" : " locked");
     row.innerHTML =
       `<span class="metaName">${escapeHtml(line.nom)}</span>` +
       `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +

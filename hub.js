@@ -101,23 +101,21 @@ export function createHub(store, log) {
       const p = state.players.get(c.id);
       if (!p || !c.profile) continue;
       const pr = c.profile;
-      let gain = shared;
+      /* Les jalons ne creditent plus AUCUN noyau (lot H) : la monnaie vient du
+         jeu repete, la capacite (emplacements, cartes) vient des jalons. Les
+         `boss_N` restent poses — ils deverrouillent les legendaires et
+         comptent pour l'emplacement « trois boss » — et `vague10` porte
+         l'emplacement du meme nom. */
+      const gain = shared;
 
-      for (const [w, bonus] of Object.entries(PROG_CFG.CORE_FIRST_WAVES)) {
-        const id = `vague${w}`;
-        if (state.wave >= Number(w) && !pr.milestones.includes(id)) {
-          pr.milestones.push(id);
-          gain += bonus;
-        }
-      }
       for (const kind of state.bossKindsKilled) {
         const id = `boss_${kind}`;
-        if (!pr.milestones.includes(id)) {
-          pr.milestones.push(id);
-          gain += PROG_CFG.CORE_FIRST_BOSS;
-        }
+        if (!pr.milestones.includes(id)) pr.milestones.push(id);
       }
       if (state.wave >= 8 && !pr.milestones.includes("vague8")) pr.milestones.push("vague8");
+      if (state.wave >= PROG_CFG.SLOTS_WAVE && !pr.milestones.includes("vague10")) {
+        pr.milestones.push("vague10");
+      }
       if (p.deaths === 0 && state.wave >= PROG_CFG.NO_DOWN_MIN_WAVE
           && !pr.milestones.includes("sans_chute")) {
         pr.milestones.push("sans_chute");
@@ -274,8 +272,10 @@ export function createHub(store, log) {
         if (pr.cores < cost) break;
         pr.cores -= cost;
         cp.tiers[line.id] = cur + 1;
+        // `slotsFor` prend le PROFIL depuis le lot H : la capacite vient des
+        // jalons du compte, plus des paliers achetes dans la classe.
         if (cur === 0 && !cp.equipped.includes(line.id)
-            && cp.equipped.length < slotsFor(cp)) {
+            && cp.equipped.length < slotsFor(pr)) {
           cp.equipped.push(line.id);
         }
         persist(client);
@@ -288,7 +288,7 @@ export function createHub(store, log) {
         if (!cp || !Array.isArray(msg.lines) || msg.lines.length > 16) break;
         const lines = [...new Set(msg.lines.filter(l => typeof l === "string"))];
         if (lines.some(l => !(cp.tiers[l] > 0))) break;
-        if (lines.length > slotsFor(cp)) break;
+        if (lines.length > slotsFor(client.profile)) break;
         cp.equipped = lines;
         persist(client);
         sendProgress(client);

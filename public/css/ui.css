@@ -409,15 +409,58 @@ button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text
 #hubStatus { min-height: var(--sp-6); font-size: var(--t-s); color: var(--text-dim); }
 #hubStatus.err { color: var(--lethal); }
 
-/* --- Menu : ecran hub entre connexion et salon -------------------------------
-   Meme famille que #gate/#panel (.overlay). Premier occupant : la
-   progression (#meta, ci-dessous), deplacee du salon. */
+/* --- Terminal (lot H) : l'ecran de la progression ---------------------------
+   Meme famille que #gate/#panel (.overlay). Trois niveaux fixes : onglets de
+   classe, ligne d'emplacements toujours visible, puis Arbre/Confort/Jalons. */
 #menuTitle {
   font-size: var(--t-l);
   font-weight: 700;
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+/* Les deux rangees d'onglets reprennent le langage du segment de vote :
+   bordures qui se touchent, `.mine` pour l'actif — un troisieme style de
+   bascule serait un de trop. */
+#metaClassTabs, #metaTabs { display: flex; gap: 0; }
+#metaClassTabs button, #metaTabs button {
+  min-width: 118px;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--t-s);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  border-radius: 0;
+  border-left-width: 0;
+}
+#metaClassTabs button:first-child, #metaTabs button:first-child {
+  border-left-width: var(--hair);
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+#metaClassTabs button:last-child, #metaTabs button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+#metaClassTabs button.mine, #metaTabs button.mine { color: var(--text); background: var(--bg-raised); }
+
+/* La contrainte du systeme, toujours sous les yeux — jamais derriere un clic. */
+#metaSlots {
+  font-size: var(--t-s);
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.6;
+}
+#metaSlots b { color: var(--text); }
+#metaSlots small { font-size: var(--t-xs); color: var(--text-faint); }
+
+/* La pastille du Terminal : des noyaux depensables attendent. */
+#terminalBtn { position: relative; }
+#terminalDot {
+  position: absolute;
+  top: -4px; right: -4px;
+  width: 10px; height: 10px;
+  background: var(--go);
+  /* pas un cercle : le seul cercle du jeu est une entite vivante */
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
 /* --- difficulte : un segment compact ---------------------------------------- */
@@ -471,7 +514,11 @@ button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text
   font-size: var(--t-xs);
 }
 .metaLine.confort { grid-template-columns: 150px 1fr 74px; }
+/* Trois etats nets (lot H) : equipe = lisere cyan plein, achete non equipe =
+   lisere clair, non achete = attenue. Pas trois gris. */
 .metaLine.equipped { border-color: var(--go); }
+.metaLine.owned { border-color: var(--text-dim); }
+.metaLine.locked { opacity: 0.62; }
 .metaName { font-weight: 700; color: var(--text); }
 .metaPips { color: var(--text-dim); letter-spacing: 2px; }
 .metaDesc { color: var(--text-dim); }
@@ -521,30 +568,6 @@ button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text
   height: var(--sp-1);
   background: currentColor;
 }
-
-/* Acces a la progression (lot D) de CETTE classe, depuis sa propre carte —
-   pas un bouton unique en haut d'ecran qui forcerait a deviner lequel des
-   trois arbres il montre. En BAS de la carte (dernier enfant du flex column,
-   `align-self: center`) : en tete il concurrencait le nom de la classe, en
-   pied c'est une action secondaire qu'on lit APRES avoir compare les trois
-   cartes. Un `span` et non un bouton imbrique : le HTML interdit un
-   `<button>` dans un `<button>`, et `stopPropagation` (client.js) l'empeche
-   de declencher aussi le choix de la classe. */
-.classMetaBtn {
-  align-self: center;
-  padding: var(--sp-1) var(--sp-3);
-  font-size: var(--t-xs);
-  font-weight: 700;
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-dim);
-  background: var(--bg-raised);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--radius);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.classMetaBtn:hover { color: var(--text); border-color: var(--text-dim); }
 
 .classHead { display: flex; align-items: center; gap: var(--sp-3); }
 .classSil { flex: 0 0 auto; }
