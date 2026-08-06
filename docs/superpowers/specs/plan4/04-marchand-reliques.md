@@ -3,9 +3,9 @@
 Dépend du lot I : payé par la monnaie de manche (les éclats), qui n'existe pas
 sans la grande arène.
 
-**Statut de la liste ci-dessous : proposition à valider carte par carte par le
-porteur du projet, comme demandé.** Rien n'est arrêté tant que ce lot n'a pas
-été relu.
+**Statut de la liste ci-dessous : validée comme liste de départ par le porteur
+du projet (2026-08-06).** Les dix reliques partent telles quelles ; ajouts et
+équilibrage viendront en jouant, mesures à l'appui.
 
 ---
 
@@ -71,7 +71,8 @@ combat de boss suivant.
 ## K4. Proposition de liste de départ
 
 Dix reliques, deux à trois par rareté, une base large pour la première
-sortie. **Chaque ligne est à valider individuellement.**
+sortie. **Liste de départ validée** — la note sur `coeur_machine` reste un
+point d'attention pour l'équilibrage, pas un blocage.
 
 ### Communes
 
@@ -143,8 +144,27 @@ client -> serveur : { t: "buyRelic", id }
 Le serveur valide le solde d'éclats et l'appartenance de la relique à l'offre
 en cours, débite, applique la relique au joueur.
 
-**Aucune persistance au-delà de la manche** : les reliques ne figurent pas dans
-`data/progress.json`, cohérent avec la monnaie qui les paie.
+**Aucune persistance au-delà de la manche** : les reliques ne touchent jamais
+la ligne Supabase du compte, cohérent avec la monnaie qui les paie. L'offre,
+le solde et la limite de légendaire vivent dans le `GameState` de la salle —
+le serveur étant multi-salons, chaque salle a son marchand, son offre et sa
+propre limite « une légendaire par manche ».
+
+Trois points d'implémentation, calés sur les patterns du dépôt :
+
+- **Les reliques vivent à côté de `p.mods`, comme les états et les
+  minuteurs** — jamais dedans : `_recomputeMods()` rejoue tout le chargement à
+  chaque carte prise, et une relique rangée dans `mods` disparaîtrait au
+  premier écran de choix. Un `p.relics` que `_playerPower()` et les points de
+  calcul de dégâts lisent explicitement.
+- **`essaim_captif` (projectile orbital) doit occuper une bande de rayon
+  libre** : les bandes existantes (`RING_*`, lames orbitales à 3,7 m, givre à
+  8 m, rempart à 8,5 m) sont exclusives — deux effets au même rayon
+  reviennent à en perdre un, l'invariant est documenté.
+- **L'écran du marchand est un message de transition du monde** : il passe
+  par `worldQueue` / `pushWorld()` comme `cards` et `roundEnd`, jamais
+  appliqué à la réception — sinon il s'ouvre par-dessus la dépouille du boss
+  110 ms avant que le client ne la dessine morte.
 
 ---
 

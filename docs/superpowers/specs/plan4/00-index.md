@@ -1,25 +1,37 @@
-# Plan v5 — index
+# Plan 4 — index
 
 Sept lots, issus de la validation en équipe du récapitulatif. Deux
 vérifications faites sur le code actuel changent la donne par rapport au
 brainstorm initial :
 
 - **Aucune caméra n'existe.** Le rendu est câblé sur l'arène entière (1600×900)
-  tenant dans un seul écran. La grande arène (lot G) demande donc un système de
+  tenant dans un seul écran. La grande arène (lot I) demande donc un système de
   caméra complet, pas un simple agrandissement de `CFG.ARENA_W/H`.
 - **Aucun mécanisme de bannissement n'existe.** Le lot J part de zéro.
+
+Deux bascules du dépôt, postérieures à la rédaction initiale, sont désormais
+intégrées dans les lots concernés :
+
+- **La persistance est passée de `data/progress.json` à Supabase** (une ligne
+  par compte, voir `LISEZMOI-BDD.md`). Toute mention de champ persistant se
+  lit « colonne ou champ du JSON de la ligne compte », toute migration se
+  fait par ligne avec un instantané de table en garde-fou.
+- **Le serveur est multi-salons** (`hub.js` / `room.js`) : chaque salle a son
+  `GameState`. Tout état de manche (éclats, offre du marchand, séquence de
+  vagues spéciales, limite de légendaire) est PAR SALLE ; seuls le compte et
+  le classement sont globaux.
 
 ## Ordre recommandé
 
 | # | lot | dépend de | pourquoi cette place |
 |---|---|---|---|
-| H | [Économie du Terminal](H-economie-terminal.md) | — | déjà cadré, aucune dépendance |
-| I | [Grande arène et caméra](I-grande-arene.md) | — | le plus gros morceau technique, à isoler tôt |
-| J | [Bannissement de cartes](J-ban-cartes.md) | — | indépendant |
-| K | [Marchand et reliques](K-marchand-reliques.md) | I | payé par la monnaie de manche du lot I |
-| L | [Vagues spéciales](L-vagues-speciales.md) | I | se déroulent sur la carte principale |
-| M | [Nouveaux ennemis](M-nouveaux-ennemis.md) | — | indépendant, peut avancer en parallèle |
-| N | [Boss final](N-boss-final.md) | tous les précédents (contenu) | doit voir passer tout le reste avant d'être calibré |
+| H | [Économie du Terminal](01-economie-terminal.md) | — | déjà cadré, aucune dépendance |
+| I | [Grande arène et caméra](02-grande-arene.md) | — | le plus gros morceau technique, à isoler tôt |
+| J | [Bannissement de cartes](03-ban-cartes.md) | — | indépendant |
+| K | [Marchand et reliques](04-marchand-reliques.md) | I | payé par la monnaie de manche du lot I |
+| L | [Vagues spéciales](05-vagues-speciales.md) | I | se déroulent sur la carte principale |
+| M | [Nouveaux ennemis](06-nouveaux-ennemis.md) | — | indépendant, peut avancer en parallèle |
+| N | [Boss final](07-boss-final.md) | tous les précédents (contenu) | doit voir passer tout le reste avant d'être calibré |
 
 **N doit être fait en dernier.** Il réutilise des patterns des cinq boss
 existants et doit être calibré une fois la difficulté des vagues (I), les
@@ -43,13 +55,26 @@ recalibrer à chaque lot suivant.
   la même phase, auquel cas il reste choisissable.
 - **Trois nouveaux types d'ennemis**, pas plus, pour cette itération.
 
+## Décisions du porteur du projet (2026-08-06)
+
+- **Lot H** : la migration se fait côté Supabase, par ligne de compte, avec
+  instantané de table préalable (section F3 mise à jour).
+- **Lot J** : le but du ban est qu'une carte précise ne revienne plus.
+  **Bannir une carte bannit aussi les cartes qui dépendent d'elle** — rien de
+  plus (section J1 mise à jour).
+- **Lot L** : quatre vagues spéciales (le titre disait trois, c'était la
+  table qui était juste) ; la réussite **relève aussi les joueurs à terre**.
+- **Lot L×N** : calendrier déterministe calé sur la cadence des boss —
+  vagues spéciales sur `vague % 5 === 3`, jamais de collision avec un boss
+  (calcul en L3). L'équilibrage fin viendra plus tard.
+- **Lot I** : approche caméra **par transform aux points de passage
+  existants** (contextes 2D + projection WebGL), pas de conversion
+  `worldToScreen` dans chaque fonction de dessin (section I2 réécrite).
+- **Lot K** : les dix reliques proposées servent de liste de départ ;
+  ajouts et équilibrage plus tard.
+
 ## Ce qui reste à valider par le porteur du projet
 
-- **La liste de reliques de départ** (lot K) — proposée ici, à valider carte
-  par carte.
-- **Le système d'activation des vagues spéciales** (lot L) — le risque de
-  fausser le classement au temps est identifié, la solution proposée est à
-  valider.
 - **La taille exacte de la grande arène** (lot I) et le rythme des points de
   récolte.
 

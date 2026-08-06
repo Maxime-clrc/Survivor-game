@@ -28,7 +28,7 @@ progresse, plus on distance les prix.
 même document annonçait « 250 à 500 noyaux par partie » et « 35 à 45 parties
 pour un arbre complet » — deux cibles que la formule contredit.
 
-### Ce que montre `data/progress.json`
+### Ce que montre `data/progress.json` (relevé historique, avant la bascule Supabase)
 
 ```json
 "runs": 1, "best": { "wave": 15 },
@@ -152,23 +152,29 @@ de moyen terme, pas des achats de la troisième partie.
 ## F3. La migration des sauvegardes
 
 **Point à ne pas rater.** Changer les coûts invalide les comptes existants : le
-joueur du fichier actuel a payé 2 630 noyaux pour six paliers qui en coûteront
-désormais 1 500.
+joueur du compte relevé en F1 a payé 2 630 noyaux pour six paliers qui en
+coûteront désormais 1 500.
 
-Migration en version 2, exécutée une fois au démarrage :
+La persistance n'est plus `data/progress.json` mais **Supabase, une ligne par
+compte** (`LISEZMOI-BDD.md`). La migration se fait donc **par ligne**, en
+version 2 du schéma de profil, exécutée une fois au chargement de chaque
+compte (au boot pour les lignes déjà en mémoire, à la première connexion pour
+les autres) :
 
-1. Pour chaque joueur, **rembourser intégralement** les noyaux dépensés selon
-   l'ancienne grille (`TIER_COSTS` v1 et `CONFORT_COSTS` v1).
+1. Pour chaque compte en version 1, **rembourser intégralement** les noyaux
+   dépensés selon l'ancienne grille (`TIER_COSTS` v1 et `CONFORT_COSTS` v1).
 2. **Remettre à zéro** `tiers`, `equipped` et `confort`.
 3. **Conserver** `cores`, `runs`, `best`, `milestones`, `unlockedCards`, `kills`.
 4. **Recalculer les emplacements** selon les nouveaux jalons.
-5. Écrire `version: 2`.
+5. Écrire `version: 2` dans le profil de la ligne.
 
 Le remboursement plutôt que l'effacement : personne ne perd de progression, et
-tout le monde repart avec un choix libre sur la nouvelle grille. Journaliser la
-migration, et **sauvegarder le fichier d'origine** en `progress.v1.json` avant
-d'écrire — une migration ratée sans copie, c'est la progression du groupe
-perdue.
+tout le monde repart avec un choix libre sur la nouvelle grille. Journaliser
+chaque migration, et **prendre un instantané de la table avant la première
+écriture migrée** (export ou table `comptes_v1` copiée côté Supabase) — une
+migration ratée sans copie, c'est la progression du groupe perdue. La
+migration est **idempotente** : une ligne déjà en version 2 ne se migre
+jamais deux fois, même si le serveur redémarre au milieu du lot.
 
 ---
 
@@ -263,8 +269,8 @@ le seul levier qui préserve l'équilibre relatif des lignes entre elles.
 
 - Une première partie ne permet plus de porter une ligne au maximum.
 - Les jalons ne créditent aucun noyau.
-- La migration v1 → v2 rembourse intégralement et conserve une copie du fichier
-  d'origine.
+- La migration v1 → v2 rembourse intégralement, est idempotente par ligne, et
+  un instantané de la table existe avant la première écriture migrée.
 - Le salon ne contient plus l'arbre de progression.
 - Le bouton Terminal signale la présence de noyaux dépensables.
 - La réattribution d'emplacements est gratuite et n'est possible qu'au salon.

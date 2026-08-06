@@ -25,7 +25,14 @@ Décisions actées par l'équipe, à ne pas rouvrir :
 
 - Le modèle de fin de vague : budget d'apparitions épuisé, puis arène vide.
 - La difficulté indexée sur `_teamPower()`.
-- Les arènes de boss (lot séparé, restent à taille actuelle).
+- Les arènes de boss (lot séparé, restent à taille actuelle). **Le mécanisme
+  est déjà dans le code** : `state.bounds` (la constriction du lot 5) est le
+  point de passage unique de la surface jouable — un combat de boss resserre
+  les bounds à la taille actuelle (1600×900) autour du point d'engagement, et
+  tout ce qui borne un déplacement suit sans une ligne de plus. Corollaire à
+  traiter : l'invariant « la géométrie des zones garde l'arène pleine »
+  (damier, couloirs, balayages calés sur `CFG.ARENA_W/H`) devient « garde les
+  bounds du combat » — sinon le damier du Ravageur se dessine sur 4800×2700.
 
 ### Change
 
@@ -63,24 +70,35 @@ Lissage exponentiel plutôt que suivi rigide — sinon chaque micro-correction d
 la prédiction locale (déjà présente pour absorber la latence réseau) se
 répercute sur la caméra et produit un tremblement perceptible.
 
-### Ce que ça implique pour le rendu
+### Ce que ça implique pour le rendu — décision actée : par transform, pas par appel
 
-**Toutes les fonctions de dessin qui reçoivent des coordonnées monde doivent
-désormais les convertir en coordonnées écran** via un unique point de passage :
+**La caméra vit dans les transformations existantes, jamais dans les fonctions
+de dessin.** Une conversion `worldToScreen()` appelée par chaque fonction de
+dessin serait des centaines de points de conversion dispersés — exactement
+l'anti-pattern que le dépôt a éradiqué avec `drawSprite` (« cinq cents appels
+vectoriels dispersés dans vingt-neuf fonctions »). Le dépôt a déjà les points
+de passage qu'il faut :
 
-```js
-function worldToScreen(x, y) {
-  return { x: x - camera.x + VIEW_W / 2, y: y - camera.y + VIEW_H / 2 };
-}
-```
-
-C'est le changement le plus large en surface de code, parce que `client.js`
-dessine aujourd'hui directement en coordonnées monde sur un canvas qui
-correspond à l'arène entière. **Chaque appel de dessin d'entité, de zone, de
-particule et de télégraphe doit passer par cette conversion.**
+- **Les deux contextes 2D** : `resize()` pose déjà un `setTransform` pour la
+  densité de pixels. La caméra s'y ajoute — une translation `-camera.x/y`
+  posée une fois par image en tête de `drawWorld()`, avant toute fonction de
+  dessin. Les deux cents fonctions de dessin continuent d'écrire en
+  coordonnées monde et ignorent que la caméra existe, exactement comme elles
+  ignorent sur quel canvas elles écrivent.
+- **La projection WebGL** (`gl.js`) : elle absorbe déjà le retournement de Y
+  et la densité ; elle absorbe l'offset caméra de la même façon. Le batcher
+  reste ignorant du jeu.
+- **La souris** : la conversion existante (`CFG.ARENA_W / rect.width`) devient
+  vue → monde, en ajoutant l'offset caméra. C'est le seul autre point à
+  toucher — `ar` et `bombRange()` fonctionnent ensuite sans changement.
+- **Le tressaillement d'écran** reste le `transform` CSS de `#arena` : il se
+  compose avec la caméra sans la connaître, les trois couches bougent
+  toujours ensemble.
 
 Le HUD (déjà en DOM depuis le lot de refonte visuelle) n'est pas concerné : il
-reste ancré à l'écran, pas au monde.
+reste ancré à l'écran, pas au monde. Les chiffres de dégâts (`dmgLayer`, en
+DOM) se positionnent en coordonnées monde : leur point de placement convertit
+via la caméra — c'est un point de passage unique, pas une dispersion.
 
 ### Le culling
 
@@ -176,10 +194,11 @@ pour ne pas réduire l'exploration à du suivi de flèche).
 ### Principe
 
 **Non persistante.** Elle n'existe que pour la partie en cours, se
-remet à zéro à chaque nouvelle manche, et ne transite jamais par
-`data/progress.json`. C'est la distinction fondamentale avec les noyaux du
-Terminal (lot H) : l'une est un investissement de session, l'autre un
-investissement de compte.
+remet à zéro à chaque nouvelle manche, et ne touche jamais la ligne Supabase
+du compte. C'est la distinction fondamentale avec les noyaux du Terminal
+(lot H) : l'une est un investissement de session, l'autre un investissement
+de compte. Elle vit dans le `GameState` de la salle — chaque salle a la
+sienne, comme tout état de manche depuis le passage multi-salons.
 
 ```js
 // dans GameState, pas dans progression.js
@@ -213,7 +232,10 @@ mais s'ils apparaissent sur une zone 9 fois plus grande, le temps pour qu'un
 joueur les rencontre tous s'allonge. `_spawnPoint()` doit continuer à générer
 des positions **autour des joueurs actifs**, pas uniformément sur toute
 l'arène — sinon la moitié du budget apparaît hors de portée et la vague traîne
-sans raison de gameplay.
+sans raison de gameplay. `_spawnSweep()` (le segment centre du joueur → point
+d'apparition, invariant du dépôt) reste valable tel quel et doit être conservé
+sur le nouveau tirage de position — c'est le filet de sécurité de toute
+apparition décalée.
 
 **Le seuil de traque des retardataires** (`WAVE_STRAGGLER_DELAY`,
 `WAVE_STRAGGLER_SPEED`) doit être revu à la baisse : un ennemi isolé sur une
@@ -237,12 +259,15 @@ WAVE_STRAGGLER_SPEED: 1.6 -> 2.0
 | durée moyenne d'une vague, avant / après | écart inférieur à 15 % |
 | taux d'exploration observé (bots simulant un comportement mixte) | à définir en jouant, pas en simulation |
 | éclats gagnés sur une manche moyenne | à calibrer une fois le lot K écrit |
+| poids d'instantané, arène pleine (coordonnées à 4 chiffres) | hausse sous le budget de 10 % du dépôt |
+| coût CPU serveur, plusieurs salles simultanées en manche | à mesurer — l'arène ×9 se paie par salle depuis le passage multi-salons |
 
 ## I8. Critères d'acceptation
 
 - Chaque client affiche sa propre vue, centrée sur sa position.
-- Aucune entité n'est dessinée en coordonnées monde brutes hors du point de
-  passage `worldToScreen`.
+- Aucune fonction de dessin ne convertit elle-même en coordonnées écran : la
+  caméra vit dans les transforms (contextes 2D, projection WebGL) et dans la
+  conversion souris — points de passage uniques.
 - Les flèches de coéquipier pointent correctement même en diagonale et près
   des coins de l'arène.
 - Le culling ne fait disparaître aucune entité de façon visible à l'œil (test
