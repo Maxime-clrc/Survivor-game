@@ -275,6 +275,10 @@
 <div id="bilan" class="overlay" hidden>
   <div id="bilanTitle"></div>
   <div id="bilanStats"></div>
+  <!-- TA build, sans avoir a cliquer. Elle etait accessible depuis une ligne du
+       tableau, mais personne n'y allait : c'est ici, le resultat sous les yeux,
+       qu'on se demande pourquoi on a fait ces degats-la. -->
+  <div id="bilanMine" hidden></div>
   <!-- De quoi l'equipe est morte, ventile par provenance. C'est la seule
        question que le tableau des scores ne traitait pas : on savait combien on
        avait encaisse, jamais de quoi. -->
@@ -380,6 +384,10 @@
 
   <div id="buildStats"></div>
   <div id="buildMods"></div>
+  <!-- Indice de puissance : le seul chiffre qui explique a la fois les PV du
+       boss et la pression des vagues. Un multiplicateur nu ne se lit pas sans
+       point de comparaison — la jauge porte les reperes MESURES. -->
+  <div id="buildPower"></div>
   <div id="buildSkills"></div>
   <div id="buildCards"></div>
   <div id="buildHint" class="hint">← → changer de joueur · <b>Échap</b> fermer</div>

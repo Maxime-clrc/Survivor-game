@@ -872,6 +872,49 @@ td.cards { text-align: left; max-width: 420px; }
 .buildMod.cout .val { color: var(--warn); }
 .buildMod.cout { border-color: var(--warn); }
 
+/* JAUGE DE PUISSANCE. Le chiffre qui pilote les PV du boss et la pression des
+   vagues, situe sur les reperes mesures. Angles durs, aucun arrondi : c'est un
+   instrument de mesure, pas un element decoratif. */
+#buildPower {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(100%, 760px);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  background: var(--bg-panel);
+}
+.pHead { display: flex; align-items: baseline; gap: var(--sp-3); }
+.pLab { color: var(--text-faint); font-size: var(--t-xs); text-transform: uppercase; }
+.pVal { font-size: var(--t-xl); font-weight: 700; letter-spacing: var(--track-title); }
+.pQual { color: var(--text-dim); font-size: var(--t-s); margin-left: auto; }
+
+.pGauge { position: relative; height: 10px; background: var(--bg-void); border: var(--hair) solid var(--line); }
+/* Cyan `--go` : c'est la couleur du « il faut y aller » de la charte, et une
+   jauge de puissance est exactement ca. Jamais de vert ici — le vert dit soin. */
+.pFill { display: block; height: 100%; background: var(--go); opacity: .55; transition: width 120ms linear; }
+/* Le genou est un TRAIT et non une zone coloree : il marque un seuil, pas un
+   danger. Violet — c'est ce qui persiste, la grammaire du depot. */
+.pKnee {
+  position: absolute; top: -3px; bottom: -3px; width: 2px;
+  background: var(--persist); transform: translateX(-1px);
+}
+.pCursor {
+  position: absolute; top: -4px; bottom: -4px; width: 3px;
+  background: var(--text); transform: translateX(-1px);
+  transition: left 120ms linear;
+}
+/* Reperes sous la jauge. `position:absolute` avec le tiret centre dessus : un
+   repere pose a cote de sa graduation ment de quelques pour cent. */
+.pMarks { position: relative; height: 14px; }
+.pMark {
+  position: absolute; top: 0; transform: translateX(-50%);
+  color: var(--text-faint); font-size: var(--t-xs); white-space: nowrap;
+}
+.pMark i { display: block; width: var(--hair); height: 3px; background: var(--line); margin: 0 auto var(--sp-1); }
+.pNote { color: var(--text-dim); font-size: var(--t-xs); }
+.pNote.gain { color: var(--gain); }
+
 #buildSkills { display: flex; flex-direction: column; gap: var(--sp-1); width: min(100%, 760px); }
 .buildSkill {
   display: flex;
@@ -1055,7 +1098,9 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 .hurtBar > i { display: block; height: 100%; background: var(--hud-low); }
 .hurtVal { flex: 0 0 40px; text-align: right; color: var(--text); font-weight: 700; }
 
-#bilanStats { display: flex; gap: var(--sp-12); }
+/* Six chiffres au lieu de quatre : `flex-wrap` plutot qu'un gap plus serre —
+   sur une fenetre etroite, six tuiles a 12 px d'ecart debordaient. */
+#bilanStats { display: flex; gap: var(--sp-12); flex-wrap: wrap; justify-content: center; }
 .bilanStat { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
 .bilanStat .val { font-size: var(--t-2xl); font-weight: 700; letter-spacing: var(--track-title); }
 .bilanStat .lab {
@@ -1064,6 +1109,34 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
   text-transform: uppercase;
   color: var(--text-faint);
 }
+
+/* TA partie. Encadre plutot que pose a plat : c'est le seul bloc de l'ecran qui
+   ne parle que de toi, entre deux blocs qui parlent de l'equipe (les chiffres
+   au-dessus, le tableau en dessous). Sans cadre les trois se confondaient. */
+#bilanMine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: min(100%, 760px);
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--line);
+  background: var(--bg-panel);
+}
+.mineHead { display: flex; align-items: baseline; gap: var(--sp-3); }
+.mineTitle {
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.mineCls { font-size: var(--t-s); font-weight: 700; letter-spacing: var(--track-title); }
+#mineOpen { margin-left: auto; }
+.mineStats { display: flex; gap: var(--sp-8); flex-wrap: wrap; justify-content: center; }
+.mineMods { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: center; }
+/* La jauge reprend le style de la fenetre de build, sans son cadre : elle est
+   deja dans celui de `#bilanMine`, et deux bordures imbriquees font une boite
+   dans une boite. */
+#minePower { display: flex; flex-direction: column; gap: var(--sp-2); }
 
 #bilanScores { font-size: var(--t-m); }
 #bilanScores td { padding: var(--sp-3); }

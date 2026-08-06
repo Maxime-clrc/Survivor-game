@@ -312,6 +312,36 @@ export const CFG = {
      c'etait compter deux fois la meme progression — mesure : 54/63/64/68 s a
      0.06 contre 51/61/71/77 s pour l'ancienne courbe, quatre boss d'affilee. */
   BOSS_GROWTH: 0.06,
+  /* GENOU DE PUISSANCE. Les PV du boss suivaient `_teamPower()` en lineaire
+     PLEIN, sans plafond : puissance x2 donnait un boss a x2 de PV, donc une
+     duree de combat rigoureusement constante. C'etait le seul systeme du jeu
+     dans ce cas — les vagues repercutent depuis toujours une PART de la
+     puissance (WAVE_HP_POWER_K, WAVE_RATE_POWER_K), jamais la totalite.
+
+     Consequence mesuree, et elle est severe : 300 manches solo tireur avec le
+     vrai systeme de tirage donnent x4,54 d'ecart de puissance entre une build
+     optimisee (5,71) et une build qui ne prend que du defensif (1,26), et
+     x2,93 par la CHANCE seule (p90/p10 a choix aleatoire). Le boss annulait
+     cet ecart a x1,00 pres, a chaque combat, pour toujours. Un mur peut se
+     fissurer sans tomber.
+
+     Un genou et non un plafond dur (`Math.min`) : un plafond cree une falaise
+     ou la carte qui fait franchir le seuil ne vaut plus rien. La forme retenue
+     est celle des vagues — plein en dessous du genou, une part au-dessus.
+
+     Le genou est pose a 2,5 et non plus bas parce que la build MEDIANE mesuree
+     vaut 2,36 : tout l'etalonnage actuel (BOSS_HP_MUL, les `hpMul` du roster,
+     les cinq durees par boss) reste donc valide tel quel, et seules les bonnes
+     builds voient une difference. Mesure a K = 0,50 : mediane inchangee a
+     70 s, build chanceuse (4,10) a 56 s, build optimisee (5,71) a 50 s — la
+     fourchette annoncee est 50-80 s, on ne peut pas en sortir meme en essayant.
+
+     La sensation reste volontairement SOUS celle des vagues (x1,39 au mieux
+     contre x1,52-1,59) : le boss est le mur de la manche, il doit recompenser
+     moins que la pietaille, sinon ce n'est plus un mur. Remettre K a 1 rend
+     exactement l'ancienne courbe. */
+  BOSS_POWER_KNEE: 2.5,
+  BOSS_POWER_K: 0.50,
   BOSS_PHASE_CD_STEP: 0.09,  // le rythme se resserre a chaque barre brisee
   BOSS_PHASE_DAMAGE_STEP: 0.14,
   /* Souffle de rupture de barre. Il ne DEPLACE plus, et il NE BLESSE PLUS. Le
@@ -630,6 +660,66 @@ export function fullMods(cards, others, cls, wave = 1) {
 
   if (mods.hpCap > 0) maxHp = Math.min(maxHp, mods.hpCap);
   return { mods, maxHp: Math.round(maxHp) };
+}
+
+/* INDICE DE PUISSANCE. Degats par seconde estimes d'un chargement, et le seul
+   chiffre du jeu qui explique a la fois les PV du boss et la pression des
+   vagues — `_teamPower()` en est la moyenne. Approximatif par construction : il
+   ne cherche pas a predire les degats reels, seulement a suivre l'ordre de
+   grandeur des cartes prises.
+
+   PUR et EXPORTE pour la meme raison que `fullMods` et `effectiveCards` : la
+   fenetre de build l'affiche au joueur, et le recoder cote client aurait donne
+   deux implementations qui divergent au premier reglage — sur precisement
+   l'ecran dont le seul but est d'expliquer un chargement.
+
+   Prend un `mods` et rien d'autre. Cote simulation on lui passe `powerMods`
+   (cartes + classe, sans la progression permanente) et non `mods` : la meta est
+   exclue de la difficulte PAR CONSTRUCTION. */
+export function powerIndex(m) {
+  // barrelDamageMul, oubli d'origine : « Second canon » ajoute un canon mais
+  // retire 18 % de degats a CHAQUE balle. Compter les canons sans la penalite
+  // surestimait la puissance de 44 % avec deux exemplaires, et le boss
+  // recevait des PV pour des degats qui n'existaient pas — mesure : 76 s au
+  // premier boss contre 172 s au troisieme, alors que la formule est censee
+  // rendre la duree constante d'un boss a l'autre.
+  let barrels = (1 + m.extraBarrels + (m.backShot ? 0.7 : 0)) * m.barrelDamageMul;
+  if (m.weapon === "dispersion") barrels = 5 * 0.55;
+  else if (m.weapon === "grenade") barrels = 4;      // degats de zone, en partie perdus sur un boss seul
+  else if (m.weapon === "railgun") barrels = 1.15;
+  // « Inertie » vaut sa decroissance moyenne sur trois ennemis traverses :
+  // sans ce terme, une equipe qui la prend affrontait des vagues calibrees
+  // pour la moitie de ses degats reels.
+  if (m.inertia) barrels *= 1.9;
+  /* « Catalyseur » ne vaut que contre une cible affectee, ce qui n'est le cas
+     ni toujours ni jamais : compte a MOITIE. L'ignorer donnerait au boss des
+     PV pour des degats qui existent (le meme oubli que barrelDamageMul), le
+     compter plein lui en donnerait pour des degats qu'on ne fait pas la
+     plupart du temps. */
+  const catalyseur = 1 + m.catalyseur * 0.5;
+  /* CRITIQUE. C'est une source de degats PERMANENTE, donc elle doit figurer
+     ici : l'oubli de `barrelDamageMul` avait triple la duree du troisieme
+     combat de boss, et une build critique complete (+38 % de chance, x2,9)
+     vaut +72 % de degats reels — le meme ordre de grandeur.
+     Valeur exacte et non estimee : l'esperance d'un tirage a deux issues est
+     `1 + chance x (multiplicateur - 1)`, et le critique s'applique a tout ce
+     qui passe par `_damage`, donc a tout ce que cette formule mesure deja.
+     Le momentum (elan, meute, carnage, dernier souffle) n'y est PAS : il est
+     transitoire par construction, et indexer la pression des vagues sur un
+     pic de quatre secondes ferait monter la difficulte au moment precis ou le
+     joueur vient de gagner son bonus. */
+  const crit = 1 + m.critChance * (m.critMul - 1);
+  return m.damageMul * barrels * catalyseur * crit
+    * (1 + m.echoChance) / m.fireIntervalMul;
+}
+
+/* Puissance vue par un BOSS : l'indice passe au genou. Pure elle aussi, pour
+   que la fenetre de build montre au joueur OU il se situe par rapport au genou
+   sans reimplementer la regle. `GameState._bossPower()` n'en est que la moyenne
+   d'equipe. */
+export function bossPower(power) {
+  if (power <= CFG.BOSS_POWER_KNEE) return power;
+  return CFG.BOSS_POWER_KNEE + CFG.BOSS_POWER_K * (power - CFG.BOSS_POWER_KNEE);
 }
 
 export class GameState {
@@ -3350,7 +3440,7 @@ export class GameState {
            triple. On evalue donc un indice de degats par seconde — degats,
            nombre de canons, cadence, arme de remplacement — sinon le troisieme
            boss tombe en quinze secondes et cesse d'etre le mur de la manche. */
-        const power = this._teamPower();
+        const power = this._bossPower();
         /* `hpMul` du roster : il compense ce que le VERBE coute en temps de
            tir, et rien d'autre. La Matriarche voit une partie des degats de
            l'equipe partir sur ses rejetons (0,85), le Metronome fait passer le
@@ -4038,7 +4128,7 @@ export class GameState {
     if (mech !== MECH_JAIL) { this._atkMarques(b); return; }
 
     const p = alive[Math.floor(Math.random() * alive.length)];
-    const hp = BOSS_CFG.JAIL_HP * this._teamPower();
+    const hp = BOSS_CFG.JAIL_HP * this._bossPower();
     this._mark({
       mech: MECH_JAIL, a: p.id, x: p.x, y: p.y, r: 46,
       t: BOSS_CFG.JAIL_TIME, hp, maxHp: hp,
@@ -4055,7 +4145,7 @@ export class GameState {
        le boss lui-meme — la mesure donnait 91 s de combat contre 49 pour le
        Ravageur, soit un combat deux fois plus long pour la meme idee. */
     if (!count) count = this.players.size >= 2 ? BOSS_CFG.CLUSTER_COUNT : 1;
-    const hp = BOSS_CFG.CLUSTER_HP * this._teamPower();
+    const hp = BOSS_CFG.CLUSTER_HP * this._bossPower();
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
       const d = 90 + Math.random() * 190;
@@ -4587,7 +4677,13 @@ export class GameState {
 
   /* Indice de degats par seconde d'un joueur. Approximatif par construction —
      il ne cherche pas a predire les degats reels, seulement a suivre l'ordre de
-     grandeur des cartes prises. */
+     grandeur des cartes prises.
+
+     Le CALCUL vit dans `powerIndex()`, fonction pure exportee : la fenetre de
+     build affiche ce chiffre au joueur, et c'est le seul du panneau qui explique
+     a la fois les PV du boss et la pression des vagues. Le recoder cote client
+     aurait donne deux implementations qui divergent au premier reglage — meme
+     raison que `fullMods` et `effectiveCards`. */
   _playerPower(p) {
     /* `powerMods` et non `mods` : la progression permanente (lot D) est exclue
        de la mesure de puissance par decision verrouillee du plan. L'indexer
@@ -4595,41 +4691,7 @@ export class GameState {
        taxerait l'arbre offensif du Tireur la ou celui du Rempart, defensif,
        passerait gratuit, sans que personne ne comprenne pourquoi. Le repli sur
        `mods` couvre un GameState d'avant le lot (script de mesure). */
-    const m = p.powerMods ?? p.mods;
-    // barrelDamageMul, oubli d'origine : « Second canon » ajoute un canon mais
-    // retire 18 % de degats a CHAQUE balle. Compter les canons sans la penalite
-    // surestimait la puissance de 44 % avec deux exemplaires, et le boss
-    // recevait des PV pour des degats qui n'existaient pas — mesure : 76 s au
-    // premier boss contre 172 s au troisieme, alors que la formule est censee
-    // rendre la duree constante d'un boss a l'autre.
-    let barrels = (1 + m.extraBarrels + (m.backShot ? 0.7 : 0)) * m.barrelDamageMul;
-    if (m.weapon === "dispersion") barrels = 5 * 0.55;
-    else if (m.weapon === "grenade") barrels = 4;      // degats de zone, en partie perdus sur un boss seul
-    else if (m.weapon === "railgun") barrels = 1.15;
-    // « Inertie » vaut sa decroissance moyenne sur trois ennemis traverses :
-    // sans ce terme, une equipe qui la prend affrontait des vagues calibrees
-    // pour la moitie de ses degats reels.
-    if (m.inertia) barrels *= 1.9;
-    /* « Catalyseur » ne vaut que contre une cible affectee, ce qui n'est le cas
-       ni toujours ni jamais : compte a MOITIE. L'ignorer donnerait au boss des
-       PV pour des degats qui existent (le meme oubli que barrelDamageMul), le
-       compter plein lui en donnerait pour des degats qu'on ne fait pas la
-       plupart du temps. */
-    const catalyseur = 1 + m.catalyseur * 0.5;
-    /* CRITIQUE. C'est une source de degats PERMANENTE, donc elle doit figurer
-       ici : l'oubli de `barrelDamageMul` avait triple la duree du troisieme
-       combat de boss, et une build critique complete (+38 % de chance, x2,9)
-       vaut +72 % de degats reels — le meme ordre de grandeur.
-       Valeur exacte et non estimee : l'esperance d'un tirage a deux issues est
-       `1 + chance x (multiplicateur - 1)`, et le critique s'applique a tout ce
-       qui passe par `_damage`, donc a tout ce que cette formule mesure deja.
-       Le momentum (elan, meute, carnage, dernier souffle) n'y est PAS : il est
-       transitoire par construction, et indexer la pression des vagues sur un
-       pic de quatre secondes ferait monter la difficulte au moment precis ou le
-       joueur vient de gagner son bonus. */
-    const crit = 1 + m.critChance * (m.critMul - 1);
-    return m.damageMul * barrels * catalyseur * crit
-      * (1 + m.echoChance) / m.fireIntervalMul;
+    return powerIndex(p.powerMods ?? p.mods);
   }
 
   /* Puissance moyenne de l'equipe. Elle calait deja les PV du boss ; elle cale
@@ -4651,6 +4713,19 @@ export class GameState {
     this._powerCache = this.players.size ? power / this.players.size : 1;
     this._powerAt = this.time;
     return this._powerCache;
+  }
+
+  /* Puissance vue par un BOSS : la meme, passee au genou (BOSS_POWER_KNEE). Une
+     methode et non trois multiplications recopiees, pour la meme raison que
+     `_hurt` ou `_damage` — les structures de mecanique (cage, grappe) doivent
+     suivre exactement la meme courbe que la reserve de vie du boss. Sans ce
+     point de passage, une build au-dessus du genou trouverait les cages
+     RELATIVEMENT plus dures que le boss lui-meme, ce qui est le contraire de
+     ce qu'on cherche : la cage est ce qu'on casse pour liberer un coequipier,
+     pas le mur. Les VAGUES ne passent pas par ici — elles ont leur propre part
+     (WAVE_HP_POWER_K), plus genereuse, et c'est voulu. */
+  _bossPower() {
+    return bossPower(this._teamPower());
   }
 
   /* Registre des FORMES. L'index circule dans le snapshot et le client le lit

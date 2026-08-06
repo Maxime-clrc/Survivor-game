@@ -16,6 +16,11 @@ import {
      implementations auraient diverge au premier reglage, sur precisement
      l'ecran dont le seul but est de verifier un chargement. */
   fullMods,
+  /* Meme raison, un cran plus loin : `powerIndex` est le chiffre qui pilote
+     REELLEMENT les PV du boss et la pression des vagues, et `bossPower` dit ou
+     le genou commence a l'absorber. Les afficher, c'est rendre visible la seule
+     regle du jeu que le joueur subissait sans jamais la voir. */
+  powerIndex, bossPower,
 } from "/shared/game_state.js";
 import {
   CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, CARD_CFG, cardDetail, computeMods,
@@ -214,6 +219,7 @@ const bilanEl = document.getElementById("bilan");
 const bilanTitle = document.getElementById("bilanTitle");
 const bilanStats = document.getElementById("bilanStats");
 const bilanHurt = document.getElementById("bilanHurt");
+const bilanMine = document.getElementById("bilanMine");
 const bilanScoresBody = document.querySelector("#bilanScores tbody");
 const bilanGo = document.getElementById("bilanGo");
 const bilanBarFill = document.querySelector("#bilanBar i");
@@ -1519,23 +1525,95 @@ function showBilan(res) {
   bilanTitle.textContent = res.wave
     ? `Partie terminée — vague ${res.wave} atteinte`
     : `Partie terminée`;
-  /* Duree et kills en gros chiffres : ce sont les deux seules mesures qui
-     valent pour la table entiere, et elles ouvrent la lecture du tableau. */
+  /* Les chiffres de la TABLE, pas ceux d'un joueur — le tableau juste dessous
+     ventile par personne. « joueurs » a saute : le tableau en donne la liste
+     nominative deux lignes plus bas, le compter etait la seule statistique de
+     l'ecran qui n'apprenait rien.
+
+     A la place, DEGATS et DPS. Ils manquaient et ce n'est pas un detail : le
+     tableau donnait des degats bruts, qu'on ne peut comparer d'une manche a
+     l'autre sans les rapporter au temps. Une manche de 4 min a 80 000 degats et
+     une de 12 min a 190 000 se lisent enfin. Deduits cote client — la somme des
+     lignes divisee par la duree — donc rien de neuf sur le reseau. */
+  const degats = res.rows.reduce((a, r) => a + (r.damage ?? 0), 0);
+  const subis = res.rows.reduce(
+    (a, r) => a + (r.hurtBy ?? []).reduce((x, y) => x + y, 0), 0);
+  const dps = res.time > 0 ? degats / res.time : 0;
   bilanStats.innerHTML =
     `<div class="bilanStat"><span class="val">${escapeHtml(fmtTime(res.time))}</span>` +
     `<span class="lab">survie</span></div>` +
     `<div class="bilanStat"><span class="val">${res.kills}</span>` +
     `<span class="lab">kills</span></div>` +
-    `<div class="bilanStat"><span class="val">${res.rows.length}</span>` +
-    `<span class="lab">joueurs</span></div>` +
+    `<div class="bilanStat"><span class="val">${fmtBig(degats)}</span>` +
+    `<span class="lab">dégâts</span></div>` +
+    `<div class="bilanStat"><span class="val">${fmtBig(Math.round(dps))}</span>` +
+    `<span class="lab">dégâts / s</span></div>` +
+    `<div class="bilanStat"><span class="val">${fmtBig(Math.round(subis))}</span>` +
+    `<span class="lab">subis</span></div>` +
     `<div class="bilanStat"><span class="val">${res.round}</span>` +
     `<span class="lab">manche</span></div>`;
+  renderBilanMine(res);
   renderHurtBy(res.rows);
   renderScores(res.rows, bilanScoresBody);
 
   clearInterval(bilanHandle);
   bilanHandle = setInterval(stepBilan, 100);
   stepBilan();
+}
+
+/* Groupement par milliers, espace insecable fin. Pas de « 80,8 k » : un bilan
+   se compare d'une manche a l'autre, et un arrondi qui mange trois chiffres
+   rend deux manches voisines identiques. */
+function fmtBig(n) {
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+/* TA build, sur l'ecran de fin. Elle existait deja — un clic sur sa ligne du
+   tableau — et c'est precisement le probleme : personne ne cliquait, donc
+   personne ne faisait le lien entre ses cartes et son resultat. Un joueur qui
+   voit « ×1,49 dégâts » sans point de comparaison en conclut que les
+   pourcentages ne fonctionnent pas ; c'est arrive, et c'est ce que la jauge de
+   puissance corrige.
+
+   Rien pour un spectateur (`played` faux) : afficher une build vide sous un
+   tableau ou l'on n'apparait pas se lirait comme un bug. */
+function renderBilanMine(res) {
+  const row = res.rows.find(r => r.id === myId);
+  if (!row || !row.played) { bilanMine.hidden = true; bilanMine.innerHTML = ""; return; }
+
+  const info = buildInfo(myId);
+  const { mods } = buildMultipliers(info);
+  const def = (info.cls === null || info.cls === undefined) ? null : classAt(info.cls);
+  const dps = res.time > 0 ? (row.damage ?? 0) / res.time : 0;
+  const subis = (row.hurtBy ?? []).reduce((a, b) => a + b, 0);
+  // Part des degats de l'equipe. En solo elle vaut toujours 100 % et n'apprend
+  // rien : on la coupe plutot que d'ecrire une evidence.
+  const total = res.rows.reduce((a, r) => a + (r.damage ?? 0), 0);
+  const part = total > 0 && res.rows.length > 1
+    ? Math.round((row.damage ?? 0) / total * 100) : null;
+
+  bilanMine.hidden = false;
+  bilanMine.innerHTML =
+    `<div class="mineHead">` +
+      `<span class="mineTitle">ta partie</span>` +
+      (def ? `<span class="mineCls" style="color:${def.couleur}">${escapeHtml(def.nom)}</span>` : "") +
+      `<button id="mineOpen" class="ghost">voir les cartes</button>` +
+    `</div>` +
+    `<div class="mineStats">` +
+      `<div class="buildStat"><span class="val">${fmtBig(row.damage ?? 0)}</span><span class="lab">dégâts</span></div>` +
+      `<div class="buildStat"><span class="val">${fmtBig(Math.round(dps))}</span><span class="lab">dégâts / s</span></div>` +
+      (part !== null
+        ? `<div class="buildStat"><span class="val">${part} %</span><span class="lab">de l'équipe</span></div>` : "") +
+      `<div class="buildStat"><span class="val">${row.kills}</span><span class="lab">kills</span></div>` +
+      `<div class="buildStat"><span class="val">${fmtBig(Math.round(subis))}</span><span class="lab">subis</span></div>` +
+      `<div class="buildStat"><span class="val">${info.counts.size}</span><span class="lab">cartes</span></div>` +
+    `</div>` +
+    `<div class="mineMods">${modsChipsHtml(mods)}</div>` +
+    `<div id="minePower">${powerBlockHtml(mods)}</div>`;
+
+  // La fenetre de build complete reste a un clic : le bilan en montre la
+  // synthese, pas la liste des cartes, qui demande la place d'un ecran entier.
+  document.getElementById("mineOpen").onclick = () => openBuild(myId);
 }
 
 /* DE QUOI L'EQUIPE EST MORTE. Une ligne de barres, une par provenance, en part
@@ -1863,6 +1941,7 @@ const buildClass = document.getElementById("buildClass");
 const buildSil = document.getElementById("buildSil");
 const buildStats = document.getElementById("buildStats");
 const buildMods = document.getElementById("buildMods");
+const buildPower = document.getElementById("buildPower");
 const buildSkills = document.getElementById("buildSkills");
 const buildCards = document.getElementById("buildCards");
 
@@ -1935,6 +2014,91 @@ const BUILD_MODS = [
   { nom: "dégâts subis", get: m => m.damageTakenMul, bas: true },
 ];
 
+/* REPERES DE PUISSANCE, mesures et non estimes : 300 manches solo tireur avec
+   le vrai systeme de tirage, `powerIndex` releve a chaque carte prise. Les
+   quatre valeurs sont la mediane a 16 cartes des politiques de choix — pire,
+   aleatoire, et gloutonne — plus le tireur nu.
+
+   Ils existent parce qu'un multiplicateur NU ne se lit pas. « ×1,49 dégâts »
+   sonne bien et vaut en realite une build faible ; le joueur n'avait aucun
+   moyen de le savoir, et concluait que les pourcentages ne marchaient pas. Un
+   chiffre qui n'a pas d'echelle n'informe personne.
+
+   A remesurer avec `power_spread.mjs` si le catalogue ou les raretes bougent —
+   ce sont des mesures, pas des constantes de reglage. */
+const POWER_MARKS = [
+  { v: 1.26, lab: "nu" },
+  { v: 2.36, lab: "médiane" },
+  { v: 4.10, lab: "forte" },
+  { v: 5.71, lab: "max" },
+];
+const POWER_SCALE_MAX = 6.5;   // au-dela la jauge sature : plus personne n'y va
+
+/* Qualificatif. On nomme la build par rapport a la population mesuree, jamais
+   dans l'absolu : « ×2,4 » ne veut rien dire, « au-dessus de la moitie des
+   builds » se comprend sans rien connaitre du jeu. */
+function powerLabel(v) {
+  if (v < 1.6) return "faible";
+  if (v < 2.36) return "sous la médiane";
+  if (v < 3.2) return "au-dessus de la médiane";
+  if (v < 4.5) return "forte";
+  return "exceptionnelle";
+}
+
+/* La jauge porte le GENOU parce qu'il change la lecture de tout le panneau :
+   sous le genou, une carte de degats est integralement absorbee par les PV du
+   boss ; au-dessus, elle commence a payer. C'etait jusqu'ici la seule regle du
+   jeu que le joueur subissait sans jamais pouvoir la voir. */
+function powerBlockHtml(mods) {
+  const v = powerIndex(mods);
+  const pct = x => Math.max(0, Math.min(100, (x - 1) / (POWER_SCALE_MAX - 1) * 100));
+  const knee = CFG.BOSS_POWER_KNEE;
+  const over = v > knee;
+
+  // Part de la puissance que le boss suit encore. Sous le genou c'est 100 % —
+  // et 100 % veut dire « le boss grandit exactement autant que toi ».
+  const suivi = Math.round(bossPower(v) / v * 100);
+
+  const marks = POWER_MARKS.map(m =>
+    `<span class="pMark" style="left:${pct(m.v)}%"><i></i>${escapeHtml(m.lab)}</span>`).join("");
+
+  return (
+    `<div class="pHead">` +
+      `<span class="pLab">puissance</span>` +
+      `<span class="pVal">${v.toFixed(2).replace(".", ",")}</span>` +
+      `<span class="pQual">${escapeHtml(powerLabel(v))}</span>` +
+    `</div>` +
+    `<div class="pGauge">` +
+      `<i class="pFill" style="width:${pct(v)}%"></i>` +
+      `<span class="pKnee" style="left:${pct(knee)}%" title="genou : au-delà, le boss ne suit plus qu'à moitié"></span>` +
+      `<span class="pCursor" style="left:${pct(v)}%"></span>` +
+    `</div>` +
+    `<div class="pMarks">${marks}</div>` +
+    `<div class="pNote${over ? " gain" : ""}">` +
+      (over
+        ? `au-delà du genou — le boss ne suit plus que ${suivi} % de ta puissance`
+        : `sous le genou (${knee.toFixed(1).replace(".", ",")}) — le boss suit ta puissance à 100 %`) +
+    `</div>`);
+}
+
+/* Les puces de multiplicateurs, en HTML plutot qu'ecrites dans un noeud : le
+   bilan les reaffiche telles quelles. Deux rendus separes auraient diverge au
+   premier reglage — c'est la meme raison qui a fait exporter `fullMods`. */
+function modsChipsHtml(mods) {
+  return BUILD_MODS.map(d => {
+    const v = d.get(mods);
+    // Vert quand c'est un gain, ambre quand c'en est un cout : la grammaire de
+    // couleur du depot, sur la seule ligne du panneau ou un chiffre peut aller
+    // dans les deux sens.
+    const bon = d.bas ? v < 0.995 : v > 1.005;
+    const mauvais = d.bas ? v > 1.005 : v < 0.995;
+    const cls = bon ? " gain" : mauvais ? " cout" : "";
+    const txt = d.fmt ? d.fmt(mods) : fmtMul(v);
+    return `<div class="buildMod${cls}"><span class="lab">${escapeHtml(d.nom)}</span>` +
+      `<span class="val">${escapeHtml(txt)}</span></div>`;
+  }).join("");
+}
+
 function renderBuild() {
   const roster = buildRoster();
   if (roster.length === 0) { closeBuild(); return; }
@@ -1968,18 +2132,8 @@ function renderBuild() {
     `<div class="buildStat"><span class="val">${escapeHtml(String(val))}</span>` +
     `<span class="lab">${escapeHtml(lab)}</span></div>`).join("");
 
-  buildMods.innerHTML = BUILD_MODS.map(d => {
-    const v = d.get(mods);
-    // Vert quand c'est un gain, ambre quand c'en est un cout : la grammaire de
-    // couleur du depot, sur la seule ligne du panneau ou un chiffre peut aller
-    // dans les deux sens.
-    const bon = d.bas ? v < 0.995 : v > 1.005;
-    const mauvais = d.bas ? v > 1.005 : v < 0.995;
-    const cls = bon ? " gain" : mauvais ? " cout" : "";
-    const txt = d.fmt ? d.fmt(mods) : fmtMul(v);
-    return `<div class="buildMod${cls}"><span class="lab">${escapeHtml(d.nom)}</span>` +
-      `<span class="val">${escapeHtml(txt)}</span></div>`;
-  }).join("");
+  buildMods.innerHTML = modsChipsHtml(mods);
+  buildPower.innerHTML = powerBlockHtml(mods);
 
   // Les deux competences de la classe, avec leur touche : la fenetre sert aussi
   // a se rappeler ce que fait la classe d'un allie qu'on ne joue jamais.

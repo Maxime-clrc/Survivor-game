@@ -564,6 +564,66 @@ Sans cette indexation, une équipe bien équipée pliait le deuxième boss en 18
 au lieu de 45 : le boss doit rester le mur de la manche, pas la récompense
 d'avoir farmé.
 
+#### Le genou de puissance
+
+Cette indexation était **linéaire pleine, sans plafond** : puissance ×2 donnait
+un boss à ×2 de PV, donc une durée de combat rigoureusement constante. C'était
+le seul système du jeu dans ce cas — les vagues ne répercutent depuis toujours
+qu'une **part** de la puissance (`WAVE_HP_POWER_K` à 0,55, `WAVE_RATE_POWER_K`
+à 0,35).
+
+Ce que ça coûtait, mesuré : **300 manches solo tireur** avec le vrai système de
+tirage, `powerIndex` relevé à chaque carte prise.
+
+| cartes | optimisé | hasard p10 / p50 / p90 | pire |
+|---|---|---|---|
+| 3 | 1,65 | 1,26 / 1,26 / 1,76 | 1,26 |
+| 6 | 2,19 | 1,26 / 1,47 / 2,32 | 1,26 |
+| 9 | 3,10 | 1,26 / 1,67 / 2,69 | 1,26 |
+| 12 | 4,00 | 1,36 / 1,89 / 3,53 | 1,26 |
+| 15 | 5,33 | 1,47 / 2,19 / 4,10 | 1,26 |
+
+À 16 cartes, **×4,54** entre une build optimisée et une qui ne prend que du
+défensif, et **×2,93** par la **chance seule** (p90/p10 à choix aléatoire). Un
+joueur pouvait faire trois fois les dégâts d'un autre au même niveau et voir
+exactement le même combat de boss. La sensation de puissance valait ×1,10 à
+×1,59 sur les vagues, et **×1,00 exactement** sur les boss.
+
+D'où un **genou** : les PV suivent la puissance en plein sous
+`BOSS_POWER_KNEE`, puis n'en prennent plus que `BOSS_POWER_K` au-dessus.
+
+| puissance | PV avant | PV après | ratio |
+|---|---|---|---|
+| 1,26 | 1512 | 1512 | ×1,000 |
+| 2,50 | 3000 | 3000 | ×1,000 |
+| 3,00 | 3600 | 3300 | ×0,917 |
+| 4,10 | 4920 | 3960 | ×0,805 |
+| 5,71 | 6852 | 4926 | ×0,719 |
+| 8,00 | 9600 | 6300 | ×0,656 |
+
+Un genou et non un plafond dur (`Math.min`) : un plafond crée une falaise où la
+carte qui fait franchir le seuil ne vaut plus rien.
+
+Le genou est à **2,5** parce que la build **médiane mesurée vaut 2,36** : tout
+l'étalonnage existant (`BOSS_HP_MUL`, les `hpMul` du roster, les cinq durées par
+boss) reste valide tel quel, et seules les bonnes builds voient une différence.
+La sensation reste volontairement **sous** celle des vagues — ×1,39 au mieux
+contre ×1,52 à ×1,59 : le boss est le mur de la manche, il doit récompenser
+moins que la piétaille. `BOSS_POWER_K = 1` rend exactement l'ancienne courbe.
+
+`_bossPower()` est le point de passage unique, et les structures de mécanique
+(cage, grappe) y passent aussi : sans ça, une build au-dessus du genou trouverait
+les cages **relativement plus dures** que le boss lui-même.
+
+**Réserve sur les durées.** Le banc de combat monté pour ce lot n'est pas
+fiable : bot immobile, renforts qui encaissent les balles à la place du boss,
+mécaniques multi-joueurs jouées en solo. Les durées par boss qui en sortent
+contiennent trop de bruit pour figurer ici. Le rapport `PV après / PV avant`
+ci-dessus, lui, est déterministe. Sur les cellules où le banc terminait, la
+baisse observée à 4,12 de puissance était de **0,76 à 0,81**, contre 0,805
+attendu — cohérent, mais à confirmer avec un vrai bot mobile qui priorise le
+boss avant de retoucher aux constantes.
+
 La base a été recalibrée de 1500 à **1200** avec la suppression des gains de
 niveau. La formule n'a pas changé, mais l'échelle de la puissance, elle, a
 changé du tout au tout : elle incluait le ×4,3 de dégâts des niveaux, elle ne
@@ -1319,6 +1379,56 @@ précisément l'écran dont le seul but est de vérifier un chargement.
 La **cadence s'affiche inversée** (`×1,8` et non l'intervalle) parce que la
 simulation raisonne en intervalle de tir : sinon ce serait la seule ligne de
 l'écran où « plus grand » voudrait dire « pire ».
+
+#### La jauge de puissance
+
+**Un multiplicateur nu ne se lit pas.** « ×1,49 dégâts » sonne bien et vaut en
+réalité une build faible ; rien à l'écran ne permettait de le savoir. Le défaut
+a été rapporté sous la forme « je fais moins de dégâts que ce qui est affiché,
+les pourcentages fonctionnent ? » — les pourcentages étaient justes, c'est
+l'**échelle** qui manquait. Un chiffre sans point de comparaison n'informe
+personne.
+
+La fenêtre affiche donc l'**indice de puissance** (`powerIndex`), situé sur une
+jauge portant quatre repères **mesurés** — nu 1,26, médiane 2,36, forte 4,10,
+max 5,71 — et un qualificatif (« sous la médiane », « forte »…). C'est le seul
+chiffre du jeu qui explique à la fois les PV du boss et la pression des vagues,
+et il était jusqu'ici entièrement invisible.
+
+`powerIndex` est **exporté en fonction pure** par `game_state.js`, pour la même
+raison que `fullMods` et `effectiveCards` : recoder la formule côté client aurait
+donné deux implémentations qui divergent au premier réglage, sur précisément
+l'écran dont le seul but est d'expliquer un chargement.
+
+La jauge porte aussi le **genou** (`BOSS_POWER_KNEE`), et c'est le point : sous
+le genou, une carte de dégâts est intégralement absorbée par les PV du boss ;
+au-dessus, elle commence à payer. Une note le dit en toutes lettres — « le boss
+ne suit plus que 77 % de ta puissance ». C'était jusqu'ici la seule règle du jeu
+que le joueur subissait sans jamais pouvoir la voir.
+
+Les repères sont des **mesures**, pas des constantes de réglage : les remesurer
+avec le script de distribution si le catalogue ou les raretés bougent.
+
+### Le bilan de fin de manche
+
+Il portait quatre chiffres d'équipe (survie, kills, joueurs, manche) et le
+tableau des scores. Deux manques :
+
+- **« joueurs » n'apprenait rien** — le tableau en donne la liste nominative deux
+  lignes plus bas. Remplacé par les **dégâts**, les **dégâts par seconde** et les
+  **dégâts subis** de l'équipe. Les dégâts bruts ne se comparent pas d'une manche
+  à l'autre sans être rapportés au temps : une manche de 4 min à 80 000 et une de
+  12 min à 190 000 se lisent enfin. Tout est **déduit côté client** — la somme des
+  lignes divisée par la durée — donc rien de neuf sur le réseau.
+- **Ta build demandait un clic**, sur ta ligne du tableau, et personne ne
+  cliquait. Un bloc « ta partie » l'affiche directement : classe, dégâts, DPS,
+  part des dégâts de l'équipe, kills, dégâts subis, nombre de cartes, les
+  multiplicateurs et la jauge de puissance. La liste des cartes reste derrière un
+  bouton — elle demande la place d'un écran entier.
+
+La part des dégâts de l'équipe est **coupée en solo** : elle y vaut toujours
+100 %, et écrire une évidence coûte une tuile de lecture. Le bloc entier ne
+s'affiche pas pour un spectateur, qui n'a pas de ligne dans le tableau.
 
 Un seul chiffre a demandé un ajout au protocole : les **dégâts cumulés** par
 joueur. Les projectiles ne portent pas leur propriétaire — un identifiant de
