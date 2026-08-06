@@ -171,14 +171,60 @@ function resize() {
   for (const c of [cv, cvUnder]) {
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   }
-  renderScale = cv.width / CFG.ARENA_W;
-  // Les DEUX couches 2D partagent la meme transformation : elles doivent
-  // coincider au pixel pres, sinon les entites glissent contre leur sol.
-  underCtx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
-  overCtx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+  // Sur la VUE et non l'arene (lot I) : le canvas affiche un ecran de
+  // 1600 x 900, l'arene fait trois fois ca dans chaque dimension et c'est la
+  // camera qui choisit le morceau. Les coordonnees monde ne changent pas.
+  renderScale = cv.width / CFG.VIEW_W;
+  applyCamera();
   // Le viewport WebGL est en pixels PHYSIQUES, deja multiplies par la densite.
   // L'oublier donne le symptome classique du rendu tasse dans un coin.
-  gl?.resize(w, h, CFG.ARENA_W, CFG.ARENA_H);
+  gl?.resize(w, h, CFG.VIEW_W, CFG.VIEW_H);
+}
+
+/* --- CAMERA (lot I) ----------------------------------------------------------
+   Chaque client suit SA position predite — l'exploration est individuelle,
+   chacun voit midi a sa porte. La camera vit dans les TRANSFORMS, jamais dans
+   les fonctions de dessin : une translation posee ici sur les deux contextes
+   2D, un offset dans la projection WebGL (gl.begin), et la conversion souris.
+   Les deux cents fonctions de dessin continuent d'ecrire en coordonnees monde
+   et ignorent qu'une camera existe — meme principe que la densite de pixels.
+
+   Lissage exponentiel et non suivi rigide : chaque micro-correction de la
+   prediction locale se repercuterait sur la camera en tremblement perceptible.
+   Recalage SEC au-dela d'un ecran d'ecart (debut de manche, engagement de
+   boss) : suivre en douceur une traversee de salle donnerait deux secondes de
+   glissade aveugle au moment ou il faut voir ou l'on est. */
+const camera = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2, x0: 0, y0: 0 };
+const CAMERA_RATE = 8;
+
+function updateCamera(dt) {
+  let t = predicted ?? latest?.players?.get(myId) ?? null;
+  // Spectateur : on suit le premier vivant plutot qu'un coin de salle vide.
+  if (!t && latest) { for (const p of latest.players.values()) { t = p; break; } }
+  const tx = t ? t.x : camera.x, ty = t ? t.y : camera.y;
+  if (Math.abs(tx - camera.x) > CFG.VIEW_W || Math.abs(ty - camera.y) > CFG.VIEW_H) {
+    camera.x = tx; camera.y = ty;
+  } else {
+    const pull = 1 - Math.exp(-CAMERA_RATE * dt);
+    camera.x += (tx - camera.x) * pull;
+    camera.y += (ty - camera.y) * pull;
+  }
+  camera.x = Math.min(Math.max(camera.x, CFG.VIEW_W / 2), CFG.ARENA_W - CFG.VIEW_W / 2);
+  camera.y = Math.min(Math.max(camera.y, CFG.VIEW_H / 2), CFG.ARENA_H - CFG.VIEW_H / 2);
+  camera.x0 = camera.x - CFG.VIEW_W / 2;
+  camera.y0 = camera.y - CFG.VIEW_H / 2;
+  applyCamera();
+  // Sous `?perf` comme le compteur d'images : la mesure du lot I demande de
+  // verifier depuis la console que la camera suit, sans outillage externe.
+  if (PERF) { window.__cam = camera; window.__pred = predicted; }
+}
+
+// Les DEUX couches 2D partagent la meme transformation : elles doivent
+// coincider au pixel pres, sinon les entites glissent contre leur sol.
+function applyCamera() {
+  const tx = -camera.x0 * renderScale, ty = -camera.y0 * renderScale;
+  underCtx.setTransform(renderScale, 0, 0, renderScale, tx, ty);
+  overCtx.setTransform(renderScale, 0, 0, renderScale, tx, ty);
 }
 
 addEventListener("resize", resize);
@@ -2648,22 +2694,33 @@ function readMove() {
   return d > 0 ? { x: x / d, y: y / d } : { x: 0, y: 0 };
 }
 
-const mouse = { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+/* La souris est memorisee en coordonnees VUE et convertie en monde a la
+   lecture : entre deux mouvements de souris, c'est la CAMERA qui bouge, et un
+   point monde fige aurait fait deriver la visee a chaque pas du personnage. */
+const mouseView = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2 };
+const mouse = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2 };
 
 function updateMouse(e) {
   const r = cv.getBoundingClientRect();
   if (r.width === 0 || r.height === 0) return;
-  // Vers les coordonnees MONDE, pas vers la memoire du canvas : depuis que
-  // celle-ci suit la densite de pixels de l'ecran, les deux ne sont plus la
-  // meme chose et viser aurait ete decale d'un facteur deux en 4K.
-  mouse.x = (e.clientX - r.left) * (CFG.ARENA_W / r.width);
-  mouse.y = (e.clientY - r.top) * (CFG.ARENA_H / r.height);
+  // Vers les coordonnees de VUE, pas vers la memoire du canvas : celle-ci
+  // suit la densite de pixels de l'ecran, et viser aurait ete decale d'un
+  // facteur deux en 4K.
+  mouseView.x = (e.clientX - r.left) * (CFG.VIEW_W / r.width);
+  mouseView.y = (e.clientY - r.top) * (CFG.VIEW_H / r.height);
 }
 addEventListener("mousemove", updateMouse);
 addEventListener("mousedown", updateMouse);
 
+// Point vise en coordonnees MONDE, a l'instant de la lecture.
+function refreshMouseWorld() {
+  mouse.x = mouseView.x + camera.x0;
+  mouse.y = mouseView.y + camera.y0;
+}
+
 function aimVector() {
-  const from = predicted ?? { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+  refreshMouseWorld();
+  const from = predicted ?? { x: camera.x, y: camera.y };
   const dx = mouse.x - from.x, dy = mouse.y - from.y;
   const d = Math.hypot(dx, dy);
   return d > 0.001 ? { ax: dx / d, ay: dy / d } : { ax: 0, ay: 0 };
@@ -2674,7 +2731,8 @@ function aimVector() {
    apercu (anneau de portee, cercle d'atterrissage) doit annoncer exactement le
    lancer qui va partir, sinon il ment sur le seul point que ce lot corrige. */
 function aimRange() {
-  const from = predicted ?? { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+  refreshMouseWorld();
+  const from = predicted ?? { x: camera.x, y: camera.y };
   return bombRange(Math.hypot(mouse.x - from.x, mouse.y - from.y));
 }
 
@@ -3467,7 +3525,8 @@ function flushSelf(now) {
     // arrondis.
     if (Math.round(a.sum) < 1) { a.at = now; continue; }
     selfAgg.delete(cle);
-    hudDamage(a.x, a.y - 26, a.sum, a.kind,
+    // Monde -> VUE ici, au point d'appel : le HUD ne connait pas la camera.
+    hudDamage(a.x - camera.x0, a.y - camera.y0 - 26, a.sum, a.kind,
               a.kind === "hurt" ? (SRC_ICON[a.src] ?? null) : null);
   }
 }
@@ -3478,7 +3537,8 @@ function flushDamage(now) {
     if (now - a.at < DMG_AGG_MS) continue;
     dmgAgg.delete(id);
     if (a.sum >= a.maxHp * DMG_THRESHOLD) {
-      hudDamage(a.x + (Math.random() - 0.5) * 18, a.y - 22, a.sum, "deal");
+      hudDamage(a.x - camera.x0 + (Math.random() - 0.5) * 18,
+                a.y - camera.y0 - 22, a.sum, "deal");
     }
   }
 }
@@ -3629,6 +3689,7 @@ function frame(now) {
     const renderTime = now - INTERP_MS;
     if (phase === PHASE_ROUND) {
       stepPrediction(dt);
+      updateCamera(dt);
       /* Diffusion des evenements sur l'horloge de RENDU et non a la reception :
          c'est ce qui fait tomber le son sur l'image et non 110 ms avant. */
       pump.pump(snapshots, renderTime);
@@ -3642,13 +3703,14 @@ function frame(now) {
     // Hors manche : le sol seul, sur la couche du dessous. Les deux autres sont
     // videes a chaque image — un canvas WebGL qu'on cesse de dessiner garde un
     // contenu indefini, et la derniere image de la manche precedente aurait pu
-    // reapparaitre par-dessous le salon.
+    // reapparaitre par-dessous le salon. La camera reste ou elle etait : le
+    // rectangle de vue est le seul morceau de salle qu'il faut peindre.
     ctx = underCtx;
     ctx.fillStyle = SURFACE.arena;
-    ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+    ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
     drawGrid();
-    overCtx.clearRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
-    gl?.begin();
+    overCtx.clearRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+    gl?.begin(null, camera.x0, camera.y0);
     gl?.end();
   }
   requestAnimationFrame(frame);
@@ -3778,27 +3840,28 @@ const GRID_FINE = 5 * PX_PER_M;     // 100 px
 const GRID_MAJOR = 20 * PX_PER_M;   // 400 px
 
 function drawGrid() {
+  // Seuls les traits du RECTANGLE DE VUE sont traces (lot I) : la grille de
+  // toute la salle, c'est trois fois plus de lignes dans chaque dimension
+  // pour des traits que personne ne voit. Les traits restent alignes sur la
+  // salle (multiples de la maille), pas sur la vue — la grille est le sol, il
+  // ne glisse pas avec la camera.
+  const vx0 = camera.x0, vx1 = camera.x0 + CFG.VIEW_W;
+  const vy0 = camera.y0, vy1 = camera.y0 + CFG.VIEW_H;
+  const lines = (step) => {
+    ctx.beginPath();
+    for (let x = Math.max(step, Math.ceil(vx0 / step) * step); x < Math.min(CFG.ARENA_W, vx1 + step); x += step) {
+      ctx.moveTo(x + .5, vy0); ctx.lineTo(x + .5, vy1);
+    }
+    for (let y = Math.max(step, Math.ceil(vy0 / step) * step); y < Math.min(CFG.ARENA_H, vy1 + step); y += step) {
+      ctx.moveTo(vx0, y + .5); ctx.lineTo(vx1, y + .5);
+    }
+    ctx.stroke();
+  };
   ctx.lineWidth = 1;
-
   ctx.strokeStyle = SURFACE.gridFine;
-  ctx.beginPath();
-  for (let x = GRID_FINE; x < CFG.ARENA_W; x += GRID_FINE) {
-    ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
-  }
-  for (let y = GRID_FINE; y < CFG.ARENA_H; y += GRID_FINE) {
-    ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
-  }
-  ctx.stroke();
-
+  lines(GRID_FINE);
   ctx.strokeStyle = SURFACE.gridMajor;
-  ctx.beginPath();
-  for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
-    ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
-  }
-  for (let y = GRID_MAJOR; y < CFG.ARENA_H; y += GRID_MAJOR) {
-    ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
-  }
-  ctx.stroke();
+  lines(GRID_MAJOR);
 
   drawGridPings();
 }
@@ -3853,16 +3916,22 @@ function drawGridPings() {
 let vignette = null;
 
 function drawVignette() {
+  // Le degrade est construit UNE fois en repere de VUE (lot I) et translate
+  // sur le rectangle courant : un vignettage est un effet d'ECRAN, il suit la
+  // camera — reconstruit a chaque image, il se voyait au profileur.
   if (!vignette) {
-    const r = Math.hypot(CFG.ARENA_W, CFG.ARENA_H) / 2;
+    const r = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2;
     vignette = ctx.createRadialGradient(
-      CFG.ARENA_W / 2, CFG.ARENA_H / 2, r * 0.42,
-      CFG.ARENA_W / 2, CFG.ARENA_H / 2, r);
+      CFG.VIEW_W / 2, CFG.VIEW_H / 2, r * 0.42,
+      CFG.VIEW_W / 2, CFG.VIEW_H / 2, r);
     vignette.addColorStop(0, alpha(SURFACE.void, 0));
     vignette.addColorStop(1, alpha(SURFACE.void, 0.55));
   }
+  ctx.save();
+  ctx.translate(camera.x0, camera.y0);
   ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  ctx.fillRect(0, 0, CFG.VIEW_W, CFG.VIEW_H);
+  ctx.restore();
 }
 
 /* UNE seule passe. La separation en deux — le monde secoue, l'interface fixe —
@@ -3876,14 +3945,16 @@ function drawVignette() {
    donc une division, et elle reste juste quelle que soit la fenetre. */
 function draw(v) {
   // Le fond n'est peint que par la couche du DESSOUS ; les deux autres doivent
-  // rester transparentes, sinon elles effacent ce qu'il y a dessous.
+  // rester transparentes, sinon elles effacent ce qu'il y a dessous. Le
+  // remplissage et le vidage couvrent le RECTANGLE DE VUE — en coordonnees
+  // monde sous la transformation camera, c'est exactement tout le canvas.
   underCtx.fillStyle = SURFACE.arena;
-  underCtx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
-  overCtx.clearRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  underCtx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+  overCtx.clearRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
   // Le lot WebGL s'ouvre autour de TOUT le monde : les quads sont accumules au
   // fil des appels et vides a la fin, donc leur ordre entre eux est celui du
   // code, mais leur position dans l'empilement est celle du canvas.
-  gl?.begin();
+  gl?.begin(null, camera.x0, camera.y0);
   drawWorld(v);
   gl?.end();
   applyShake();
@@ -3898,9 +3969,10 @@ function applyShake() {
   shakeApplied = on;
   // Le tressaillement porte sur `#arena` et non sur un canvas : les trois
   // couches doivent bouger ENSEMBLE, au sous-pixel pres.
+  // En part de la VUE : la boite de #arena fait un ecran, plus la salle.
   arenaEl.style.transform = on
-    ? `scale(1.015) translate(${(shake.x / CFG.ARENA_W * 100).toFixed(3)}%, ` +
-      `${(shake.y / CFG.ARENA_H * 100).toFixed(3)}%)`
+    ? `scale(1.015) translate(${(shake.x / CFG.VIEW_W * 100).toFixed(3)}%, ` +
+      `${(shake.y / CFG.VIEW_H * 100).toFixed(3)}%)`
     : "scale(1.015)";
 }
 
@@ -3940,7 +4012,7 @@ function drawWorld(v) {
 
   if (v.slow) {
     ctx.fillStyle = alpha(WALL.fill, 0.06);
-    ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+    ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
   }
 
   // La couronne interdite passe SOUS les zones : c'est le sol lui-meme, et une
@@ -4776,11 +4848,18 @@ function drawZonesActive(list, tm) {
   ctx.lineWidth = 3;
   const pas = 14;
   const off = (tm * 22) % pas;
-  const span = CFG.ARENA_W + CFG.ARENA_H;
+  /* Hachures limitees au RECTANGLE DE VUE (lot I) : sur la salle entiere, le
+     balayage diagonal tracait cinq cents segments par flaque et par image.
+     `t` est l'abscisse a y = 0, en multiples du pas : les traits restent
+     ANCRES AU MONDE — ancres a la vue, ils rampaient avec la camera. */
+  const hx0 = camera.x0, hy0 = camera.y0;
+  const hx1 = hx0 + CFG.VIEW_W, hy1 = hy0 + CFG.VIEW_H;
+  const dia = CFG.VIEW_H;
   ctx.beginPath();
-  for (let d = -CFG.ARENA_H; d < span; d += pas) {
-    ctx.moveTo(d + off, 0);
-    ctx.lineTo(d + off + CFG.ARENA_H, CFG.ARENA_H);
+  const base = Math.floor((hx0 - dia - hy0) / pas) * pas;
+  for (let t = base; t + hy0 < hx1; t += pas) {
+    ctx.moveTo(t + off + hy0, hy0);
+    ctx.lineTo(t + off + hy0 + dia, hy1);
   }
   ctx.stroke();
   ctx.restore();
@@ -4944,7 +5023,7 @@ function drawEffects(effects) {
     if (f.kind === 1) {
       // balayage d'arrivee du boss : voile blanc puis onde large
       ctx.fillStyle = alpha(FX.veil, f.k * 0.16);
-      ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+      ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
 
       ctx.strokeStyle = alpha(FX.flash, f.k * 0.85);
       ctx.lineWidth = 14 * f.k + 2;
@@ -5036,7 +5115,7 @@ function drawEffects(effects) {
     if (f.kind === 6) {
       // rupture d'une barre du boss : souffle blanc puis onde rouge
       ctx.fillStyle = alpha(FX.veil, f.k * 0.12);
-      ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+      ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
 
       ctx.strokeStyle = alpha(FX.elite, f.k * 0.95);
       ctx.lineWidth = 12 * f.k + 2;
