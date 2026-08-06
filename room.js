@@ -21,6 +21,7 @@
 
 import { GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL } from "./shared/game_state.js";
 import { CARD_CFG, cardBrief, banClosure } from "./shared/cards.js";
+import { RELIC_CFG, relicRerollCost } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
 import { lockedCards } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
@@ -28,6 +29,7 @@ import { prepareMessage } from "./ws_lite.js";
 export const PHASE_LOBBY = 0;
 export const PHASE_ROUND = 1;
 export const PHASE_CARDS = 2;
+export const PHASE_MERCHANT = 3;
 
 export const ROOM_MAX_PLAYERS = PLAYER_COLORS.length;
 
@@ -320,8 +322,17 @@ export class Room {
 
   loadoutPayload() {
     const byPlayer = {};
-    for (const p of this.state.players.values()) byPlayer[p.id] = this.expandCards(p);
-    return { t: "loadout", byPlayer };
+    const relics = {};
+    for (const p of this.state.players.values()) {
+      byPlayer[p.id] = this.expandCards(p);
+      /* Reliques (lot K), dans un champ SEPARE : un onglet reste sur une
+         version anterieure lit `byPlayer` comme avant et ignore `relics`
+         (cle inconnue). Elles sont la pour la fenetre de build, qui doit
+         afficher l'indice de puissance REEL — celui qui pilote les PV du
+         boss — et il inclut le flat des reliques. */
+      relics[p.id] = [...p.relics.keys()];
+    }
+    return { t: "loadout", byPlayer, relics };
   }
 
   scoreboardRows() {
@@ -395,17 +406,6 @@ export class Room {
       + `${this.state.pendingLevels > 0 ? `, ${this.state.pendingLevels} autre(s) à suivre` : ""})`);
   }
 
-  resumeRound() {
-    if (this.state.pendingLevels > 0) {
-      this.state.openCards();
-      this.enterCardPhase();
-      return;
-    }
-    this.phase = PHASE_ROUND;
-    this.state.cardOffers = new Map();
-    this.broadcast(this.loadoutPayload());
-  }
-
   forceRemainingPicks() {
     let forced = 0;
     for (const [id, offers] of this.state.cardOffers) {
@@ -417,6 +417,85 @@ export class Room {
     if (forced > 0) {
       this.hooks.log(`[${this.code}] délai de choix écoulé — ${forced} carte(s) d'office`);
     }
+  }
+
+  /* --- marchand (lot K) -------------------------------------------------------
+
+     Miroir exact de la phase cartes : l'ecran s'ouvre quand GameState pose
+     `relicPending` (pose par _endWave apres une victoire de boss), la boucle
+     s'arrete, et la phase se gere comme PHASE_CARDS — deadline comprise, sauf
+     qu'a l'echeance on ne FORCE aucun achat : on ferme. Un joueur qui ne fait
+     rien garde ses eclats, c'est la difference avec une carte qu'il faut bien
+     choisir. */
+
+  merchantPendingIds() {
+    return [...this.state.players.keys()]
+      .filter(id => this.state.relicOffers.has(id) && this.clients.has(id));
+  }
+
+  enterMerchantPhase() {
+    this.phase = PHASE_MERCHANT;
+    this.state.relicPending = false;
+    this.merchantDeadline = Date.now() + RELIC_CFG.PICK_TIME * 1000;
+
+    for (const [id, offers] of this.state.relicOffers) {
+      const c = this.clients.get(id);
+      if (!c) continue;
+      const p = this.state.players.get(id);
+      c.conn.send(JSON.stringify({
+        t: "merchant",
+        wave: this.state.wave,
+        deadline: this.merchantDeadline,
+        eclats: p ? p.eclats : 0,
+        rerollCost: relicRerollCost(this.state.wave),
+        offers,
+      }));
+    }
+    this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
+    this.hooks.log(`[${this.code}] boss vaincu — marchand ouvert`);
+  }
+
+  /* Le joueur a fini (achete ou passe). Il sort de l'attente ; quand plus
+     personne n'attend, le tick ferme et reprend la manche. */
+  merchantDone(id) {
+    this.state.relicOffers.delete(id);
+  }
+
+  /* L'offre a jour a UN joueur : apres un achat ou une relance, le solde a
+     change et la relique achetée est sortie de l'offre. */
+  merchantSend(id) {
+    const c = this.clients.get(id);
+    const p = this.state.players.get(id);
+    if (!c || !p) return;
+    const offers = this.state.relicOffers.get(id);
+    if (!offers) return;
+    c.conn.send(JSON.stringify({
+      t: "merchant",
+      wave: this.state.wave,
+      deadline: this.merchantDeadline,
+      eclats: p.eclats,
+      rerollCost: relicRerollCost(this.state.wave),
+      offers,
+    }));
+  }
+
+  forceMerchantClose() {
+    this.state.closeMerchant();
+  }
+
+  resumeRound() {
+    if (this.state.pendingLevels > 0) {
+      this.state.openCards();
+      this.enterCardPhase();
+      return;
+    }
+    if (this.state.relicPending) {
+      this.enterMerchantPhase();
+      return;
+    }
+    this.phase = PHASE_ROUND;
+    this.state.cardOffers = new Map();
+    this.broadcast(this.loadoutPayload());
   }
 
   /* --- manche ----------------------------------------------------------------- */
@@ -595,6 +674,44 @@ export class Room {
         break;
       }
 
+      /* Marchand (lot K). Memes gardes que pickCard — l'offre courante, la
+         phase ouverte — plus le solde verifie DANS le GameState (un client ne
+         peut pas tricher le montant de ses eclats, et la limite de legendaire
+         par manche y vit). Apres un achat, on renvoie l'offre a jour : le
+         solde a change, la relique achetée est sortie de l'offre. */
+      case "buyRelic": {
+        if (this.phase !== PHASE_MERCHANT) break;
+        const p = this.state.players.get(id);
+        if (!p || !this.state.relicOffers.has(id)) break;
+        if (!this.state.buyRelic(p, msg.id)) break;
+        this.merchantSend(id);
+        this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
+        break;
+      }
+
+      /* Relance de l'offre contre des eclats, cout croissant avec la vague.
+         C'est un choix de BUDGET : le cout est debite dans le GameState, et
+         une relance qui echoue (pas assez d'eclats) ne change rien. */
+      case "rerollRelic": {
+        if (this.phase !== PHASE_MERCHANT) break;
+        const p = this.state.players.get(id);
+        if (!p || !this.state.relicOffers.has(id)) break;
+        if (!this.state.rerollRelic(p)) break;
+        this.merchantSend(id);
+        this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
+        break;
+      }
+
+      /* Passer : le joueur annonce qu'il a fini. On ne force jamais d'achat —
+         a l'echeance, le serveur ferme et garde les eclats. */
+      case "skipMerchant": {
+        if (this.phase !== PHASE_MERCHANT) break;
+        if (!this.state.relicOffers.has(id)) break;
+        this.merchantDone(id);
+        this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
+        break;
+      }
+
       /* Bannissement (lot J). Memes gardes que pickCard — la carte doit
          figurer dans l'OFFRE COURANTE de ce joueur, la phase etre ouverte —
          plus l'idempotence. Bannir CONSOMME la phase : pas de selection, pas
@@ -695,7 +812,7 @@ export class Room {
       }
     } else if (this.phase === PHASE_ROUND) {
       this.acc += dt;
-      while (this.acc >= CFG.TICK && !this.state.cardsPending) {
+      while (this.acc >= CFG.TICK && !this.state.cardsPending && !this.state.relicPending) {
         this.inputs.clear();
         for (const c of this.clients.values()) if (!c.spectator) this.inputs.set(c.id, c.input);
         this.state.step(CFG.TICK, this.inputs);
@@ -716,10 +833,17 @@ export class Room {
       }
       if (this.state.gameOver) this.endRound();
       else if (this.state.cardsPending) { this.acc = 0; this.enterCardPhase(); }
+      else if (this.state.relicPending) { this.acc = 0; this.enterMerchantPhase(); }
     } else if (this.phase === PHASE_CARDS) {
       this.acc = 0;
       if (this.cardsPendingIds().length === 0 || Date.now() >= this.cardDeadline) {
         this.forceRemainingPicks();
+        this.resumeRound();
+      }
+    } else if (this.phase === PHASE_MERCHANT) {
+      this.acc = 0;
+      if (this.merchantPendingIds().length === 0 || Date.now() >= this.merchantDeadline) {
+        this.forceMerchantClose();
         this.resumeRound();
       }
     } else {
