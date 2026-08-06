@@ -61,7 +61,9 @@ public/index.html      page, chargement, salon, bilan, cartes, ossature du HUD
 public/admin.html      page d'administration autonome — servie SEULEMENT si ADMIN_KEY est posée
 public/css/tokens.css  espacement, géométrie, mouvement (aucune couleur, cf. charte)
 public/css/ui.css      les écrans hors combat
+public/css/menus.css   refonte des MENUS — additive, chargée APRÈS ui.css, ne touche aucun écran de combat
 public/css/hud.css     la couche écran pendant la manche
+public/fonts/          Chakra Petch + Barlow (sous-ensemble latin), versionnées avec le jeu
 ```
 
 `public/events.js` et `public/audio.js` ne dépendent de **rien** — ni DOM, ni
@@ -526,6 +528,10 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **`fullMods()` et `effectiveCards()` sont exportés par `game_state.js`, en fonctions pures.** La fenêtre de build affiche les multiplicateurs **réels** d'un joueur — « ×2,4 dégâts, ×1,8 cadence » explique le tableau des scores bien mieux que la liste des cartes. Recoder le repli côté client aurait donné deux implémentations qui divergent au premier réglage, sur précisément l'écran dont le seul but est de vérifier un chargement. Elles vivent dans `game_state.js` et non dans `cards.js` parce que le repli de classe a besoin de `classAt` — et `cards.js` ne doit dépendre de rien.
 
+**Le lancement attend que TOUS les présents aient confirmé, et la garde vit des DEUX côtés** (`notReady()` dans `room.js`, point de passage unique du `case "start"` et du libellé d'attente). Désarmer `#start` côté client est de l'**affichage**, pas une règle : un client modifié enverrait `{ t: "start" }` directement. Le drapeau est porté par le **client** et non par la salle — il suit le joueur, comme `cls` et `vote` — et se remet à zéro à **trois** endroits : au lancement de la manche (`startRound()` ; le salon se réaffiche entre deux manches, un `ready` hérité ferait démarrer la suivante sans que personne n'ait rien reconfirmé), à l'entrée dans une salle (`attach()` ; sinon on arriverait « prêt » dans un salon où l'on vient de mettre le pied), et à l'initialisation du client. `notReady()` **ne filtre pas les spectateurs**, contrairement à ce que la spécification de conception demandait : au salon, `spectator` dit « je n'ai pas joué la manche qui vient de finir », c'est un résidu et non une prévision — `startRound()` remet tout le monde à `spectator = false`, donc tous les présents entrent. Le bouton désarmé **nomme qui manque** (« en attente de Kiwi »), même règle que `.classOpt.taken` : un bouton qui ne répond pas passe pour une panne tant qu'on n'a pas lu pourquoi.
+
+**La latence est une propriété de la CONNEXION, pas de la partie** : `rtt` vit sur `WsConnection` et le battement de cœur (`hub.pingAll()`, 1 Hz, dans `server.js` à côté du tick mais jamais dedans — c'est du réseau, pas du jeu) est émis par le **hub**, seul émetteur de `ping()` du processus. L'horodatage voyage dans la **charge du ping** parce que la RFC 6455 impose au pair de la renvoyer à l'identique : c'est gratuit côté navigateur, et c'est ce qui rend la mesure juste quand deux pings sont en vol. Un pong de huit octets est une réponse au nôtre, toute autre longueur est un pong non sollicité qu'on ignore. **Moyenne exponentielle** et non valeur brute — un aller-retour saute de 8 à 40 ms d'une trame à l'autre, et un chiffre qui danse ne se lit pas. Il voyage dans `lobbyPayload()`, diffusé **sur événement** : le chiffre a quelques secondes au salon, ce qui est sans importance puisqu'on n'y joue pas, là où un message à 1 Hz aurait rendu bavard un salon inactif. `-1` quand aucun aller-retour n'est revenu, affiché en tiret : « 0 ms » se lirait comme une connexion parfaite, exactement le contraire de « on ne sait pas ».
+
 **Une pause n'a de sens qu'à UN SEUL joueur, et c'est le serveur qui l'accorde.** Il simule en continu : à plusieurs, un joueur figerait la partie des autres. Le client ouvre le même panneau dans les deux cas, mais `pauseReal` ne vaut vrai que sur la réponse du serveur — se fier au client ici, c'est accepter qu'un onglet modifié fige une partie à quatre. Trois refus côté serveur : hors manche, demandeur pas en jeu, et **dès qu'un second client est connecté** (les connectés, pas les vivants : un spectateur a le droit de ne pas voir l'image se figer).
 
 **La pause se lève toute seule au bout de 5 minutes ou à l'arrivée d'un second joueur** (`setPaused()`, point de passage unique des trois causes). Sans ça, un solo en pause laisse le serveur bloqué indéfiniment et personne ne peut le rejoindre — le même piège que la manche qui ne se terminait jamais quand tout le monde quittait. **Les recharges et les états ne s'écoulent pas** pendant la pause : ils vivent dans `p.timers` et `p.statuses`, qui ne descendent que dans `step()`, et il suffit donc de ne pas l'appeler. Une pause qui rendrait les compétences gratuites serait une faille, pas un confort.
@@ -642,6 +648,8 @@ Ajouter une entrée impose de traiter les deux côtés :
 | pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
 | hub des salles | messages `listRooms` · `createRoom` · `joinRoom` · `leaveRoom` (client → serveur) ; `rooms` · `roomJoined` · `joinRoomError` (motifs `pleine` · `disparue` · `motdepasse` · `plafond`) · `roomClosed` (serveur → client) — routés par `hub.js`, jamais par une salle | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité (compte + session) | messages `register` · `login` · `loginToken` · `logout` · `changePass` (client → serveur) ; `register/login/loginToken/…` dans `progress_store.js` ; réponses `welcome{pseudo,token?,dup}` · `authError{motif,fatal?}` · `passChanged` · `loggedOut` ; ni hachage ni mot de passe ne voyagent jamais vers un client | `#gate` (trois modes : reprise / connexion / création), bloc compte du hub, `survivor.token` en localStorage |
+| état prêt | message `ready{on}` (client → serveur) ; champ `ready` dans `lobbyPayload().players[]` ; `notReady()` est le point de passage unique, lu par le `case "start"` | `#readyBtn`, `.teamPip`, `#waitMsg` qui nomme qui manque, `#start` désarmé |
+| latence | `WsConnection.rtt` (`ws_lite.js`) ; horodatage dans la charge du ping, lu au pong ; `hub.pingAll()` à 1 Hz ; champ `ping` dans `lobbyPayload().players[]`, `-1` si inconnu | `.teamPing` + ses trois paliers (`good` · `fair` · `poor` · `unknown`) |
 | sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
@@ -880,6 +888,58 @@ exception.
 **Les angles sont durs** : rayon de bordure à 2 px maximum, coupes en biseau
 plutôt qu'arrondis. **Le seul cercle du jeu est une entité vivante** — un bouton
 arrondi lui volerait ce signe.
+
+**Une exception, bornée aux MENUS** (`menus.css`) : `--radius-ui: 14px` pour les
+panneaux et les cartes, `--radius-ctl: 10px` pour les champs et les boutons. La
+règle des angles durs sert la lisibilité **à un dixième de seconde** — c'est
+l'arène et le HUD, où une forme mal lue coûte une mort. Hors combat on a le
+temps, et un rayon franc sépare visiblement le poste de contrôle du jeu
+lui-même. Ne pas l'étendre : `#cards`, `#build`, `#pause`, `#hud` et
+`admin.html` gardent 2 px, et si l'un d'eux change d'aspect c'est qu'une règle
+de `menus.css` fuit. Le **biseau** (`--bevel`) reste sur la SEULE action
+principale de chaque écran — c'est ce qui la désigne, et il perd ce rôle s'il
+est partout.
+
+**Trois familles typographiques, chacune avec son rôle** — et la chasse fixe
+reste le **registre du jeu**. `--font-display` (Chakra Petch 600/700) porte les
+titres, les boutons et les noms propres ; `--font-body` (Barlow 400) porte les
+paragraphes, et **eux seuls** ; `--font` (chasse fixe) garde tous les chiffres,
+les effectifs, les pourcentages, les libellés techniques et les pastilles
+d'état. Les deux nouvelles familles n'existent que parce que la chasse fixe
+**aplatit les contrastes de forme** : en chasse fixe, un titre de 26 px et un
+paragraphe de 15 px se ressemblent bien plus que dans deux familles
+différentes, et l'écran n'avait donc aucun point d'entrée pour le regard.
+Elles sont **versionnées avec le jeu** (`public/fonts/`) et non chargées depuis
+un CDN — une dépendance à un tiers ajoute un point de panne et une latence au
+premier rendu sur un chemin critique, l'écran de connexion. Sans les fichiers,
+la page reste fonctionnelle : les deux variables retombent sur `var(--font)` et
+`system-ui`.
+
+**Trois niveaux de lecture, et un élément n'en porte qu'UN.** Le **kicker**
+(`.sectionTitle`, chasse fixe, capitales espacées, 11 px, `--go`) dit *où je
+suis* ; le **titre d'écran** (Chakra Petch, 34 px, `--text`, casse normale) dit
+*quoi* ; le **corps** (Barlow, 15 px, interligne 1,7, `--text-dim`, mesure
+≤ 62 caractères) dit *pourquoi*. `#hubTitle`, `#panelTitle` et `#bilanTitle`
+étaient en `--text-dim` **et** en capitales espacées, c'est-à-dire au même
+niveau visuel qu'un `.sectionTitle` : l'écran n'avait pas de titre, il avait
+deux sous-titres.
+
+**Les écrans d'avant-partie coulent depuis le HAUT, dans une colonne de largeur
+bornée.** `.overlay` centre son contenu verticalement, et c'était la cause
+directe de « les emplacements sont anarchiques » : tout bloc ajouté déplace
+tous les autres, donc le bouton **Lancer la manche** remontait ou descendait
+selon le nombre de joueurs connectés, la longueur de `#waitMsg` et la présence
+du tableau. Trois largeurs et pas une de plus — 960 px pour le hub (une liste),
+1200 px pour le salon (un tableau de bord), 1120 px pour le bilan (un tableau).
+`#loading` **reste centré** : c'est le seul écran qui n'a qu'une chose à dire.
+
+**L'action principale du salon est ANCRÉE en bas de fenêtre**, avec `#waitMsg`
+à sa gauche — c'est lui qui explique pourquoi le bouton ne répond pas, il
+appartient donc à la barre. La barre porte un **fond opaque et non un dégradé** :
+le contenu défile dessous, et un dégradé laisse passer assez de texte pour
+rendre le libellé du bouton illisible une ligne sur trois. Corollaire : le
+`padding-bottom` de `#panel` doit rester **≥ la hauteur réelle de la barre**,
+sinon le pied des cartes de classe passe dessous.
 
 **Rien de décoratif ne se superpose au jeu.** Tout ornement — balayage des
 légendaires, logotype — vit dans les écrans hors combat. Les transitions entre

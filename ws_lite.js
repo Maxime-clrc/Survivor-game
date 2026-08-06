@@ -58,6 +58,12 @@ export class WsConnection {
     // RSV1 reste une erreur de protocole, comme avant.
     this.deflate = deflate;
 
+    /* Aller-retour mesure, en millisecondes. `null` tant qu'aucun pong n'est
+       revenu — un zero se lirait comme « 0 ms », c'est-a-dire comme une
+       excellente connexion, exactement le contraire de « on ne sait pas ». */
+    this.rtt = null;
+    this._pingAt = 0;
+
     this._buf = Buffer.alloc(0);
     this._fragOp = 0;
     this._frags = [];
@@ -102,9 +108,17 @@ export class WsConnection {
     }
   }
 
+  /* Le ping partait avec une charge VIDE et le pong n'etait pas lu : il n'y
+     avait donc rien a mesurer. L'horodatage voyage dans la charge parce que la
+     RFC 6455 impose au pair de la renvoyer a l'identique dans le pong — c'est
+     gratuit cote navigateur, et c'est ce qui rend la mesure juste meme si deux
+     pings sont en vol (un compteur d'emission seul attribuerait le pong du
+     premier a la date du second). */
   ping() {
     if (!this.open) return;
-    try { this.socket.write(encodeFrame(OP_PING, Buffer.alloc(0))); } catch { this._shutdown(); }
+    const stamp = Buffer.alloc(8);
+    stamp.writeDoubleBE(Date.now());
+    try { this.socket.write(encodeFrame(OP_PING, stamp)); } catch { this._shutdown(); }
   }
 
   close() {
@@ -138,7 +152,24 @@ export class WsConnection {
           try { this.socket.write(encodeFrame(OP_PONG, frame.payload)); } catch { this._shutdown(); }
           break;
 
+        /* Un pong de HUIT octets est la reponse a NOTRE ping : la charge est
+           l'horodatage qu'on y a mis. Toute autre longueur est un pong non
+           sollicite, que la RFC autorise (« unidirectional heartbeat ») et
+           qu'on ignore — l'interpreter comme une mesure donnerait un aller-
+           retour fantaisiste.
+
+           Moyenne exponentielle et non valeur brute : un aller-retour saute de
+           8 a 40 ms d'une trame a l'autre selon la mise en file du systeme, et
+           un chiffre qui danse ne se lit pas. Un cinquieme de poids sur la
+           nouvelle mesure — assez pour suivre une degradation reelle en
+           quelques secondes, assez lisse pour ne pas clignoter. */
         case OP_PONG:
+          if (frame.payload.length === 8) {
+            const sample = Date.now() - frame.payload.readDoubleBE(0);
+            if (sample >= 0 && sample < 60000) {
+              this.rtt = this.rtt == null ? sample : this.rtt * 0.8 + sample * 0.2;
+            }
+          }
           break;
 
         case OP_CLOSE:

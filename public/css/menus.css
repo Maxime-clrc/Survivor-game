@@ -217,6 +217,14 @@
   background: var(--go);
   border-color: var(--go);
 }
+/* Desarme, l'action perd sa LUEUR et pas seulement son opacite. `#start` est
+   desarme tant que l'equipe n'a pas confirme, donc la plupart du temps qu'on
+   passe au salon : un halo cyan a 45 % restait l'element le plus voyant de
+   l'ecran, et il designait precisement ce sur quoi on ne peut pas cliquer. */
+#start:disabled, #go:disabled, #regGo:disabled,
+#gateContinue:disabled, #menuClose:disabled, #bilanGo:disabled {
+  box-shadow: none;
+}
 
 /* ===========================================================================
    CONNEXION — deux colonnes
@@ -298,6 +306,11 @@
   flex: 1;
   min-width: 0;
   min-height: var(--sp-8);
+  /* Le padding de `input, button` (ui.css) laissait 108 px utiles a « Créer un
+     compte » dans un etui de 296 px : le libelle passait a la ligne et les deux
+     onglets n'avaient plus la meme hauteur. `nowrap` seul aurait deborde. */
+  padding-inline: var(--sp-2);
+  white-space: nowrap;
   font-family: var(--font-display);
   font-weight: 600;
   border: 0;
@@ -475,14 +488,132 @@
    depuis le haut (classe, difficulte), l'action est ancree en bas de fenetre,
    donc toujours au meme endroit.
    =========================================================================== */
+/* Le fond de page doit degager la hauteur REELLE de la barre ancree, sinon le
+   pied des cartes de classe passe dessous : 16 px de padding, un bouton de
+   44 px, 16 px de padding, plus la marge de securite du message d'attente. */
 #panel { padding-bottom: 120px; }
 
-#classes, #vote {
-  align-items: stretch;
-  width: 100%;
+/* Deux colonnes : les CHOIX a gauche, l'ETAT a droite. La colonne d'etat est
+   bornee en largeur et non fluide — elle porte des lignes courtes (un pseudo,
+   une classe, trois chiffres), et une colonne qui s'etire les aurait
+   dispersees sur toute la largeur. */
+.panelCols {
+  display: grid;
+  /* 280 px et non 300, gouttiere de 24 et non 32 : mesure faite dans une
+     fenetre de 1344 px, ou la colonne de gauche tombait a 820 px pour trois
+     cartes de classe qui en demandent 828 (3 x 268 + 2 x 12) — la troisieme
+     passait a la ligne pour huit pixels. */
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  align-items: start;
+  gap: var(--sp-6);
   padding-inline: var(--sp-6);
 }
+.panelMain, .panelSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  min-width: 0;
+}
+/* L'etat suit le defilement : la question « qui manque » se pose pendant qu'on
+   lit les cartes de classe, c'est-a-dire en bas de la colonne de gauche. */
+.panelSide { position: sticky; top: var(--sp-6); gap: var(--sp-2); }
+
+#classes, #vote, #scoresWrap { align-items: stretch; width: 100%; padding-inline: 0; }
 #classRow { justify-content: flex-start; gap: var(--sp-3); }
+
+/* --- l'equipe ---------------------------------------------------------------
+   Une ligne par joueur : etat, pseudo, hote, classe, latence. Des lignes
+   denses et non des cartes — c'est un tableau de bord qu'on balaye du regard
+   entre deux comparaisons de classes, pas un ecran qu'on lit. */
+#team { display: flex; flex-direction: column; gap: var(--sp-1); }
+/* DEUX rangees explicites, et chaque enfant est place a la main. En placement
+   automatique, `.teamHost` prenait la troisieme colonne de la premiere rangee
+   — celle du ping — et les deux se superposaient : le pseudo etait suivi de
+   « hôte » ET de « 0 ms » au meme endroit. Cinq informations ne tiennent pas
+   sur une ligne dans une colonne de 240 px.
+
+     rangee 1 : pastille · pseudo · latence
+     rangee 2 :            classe · hôte     */
+.teamLine {
+  display: grid;
+  grid-template-columns: var(--sp-4) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius-ctl);
+  background: var(--bg-panel);
+  font-size: var(--t-xs);
+}
+.teamLine.me { border-color: var(--line); background: var(--bg-raised); }
+
+/* La pastille est un GLYPHE avant d'etre une couleur : un point vert et un
+   point ambre de 8 px ne se distinguent pas au coin de l'oeil, et un daltonien
+   doit s'en sortir. Meme regle que les marqueurs poses sur un joueur. */
+.teamPip {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  font-family: var(--font);
+  text-align: center;
+  color: var(--warn);
+}
+.teamLine.ready .teamPip { color: var(--gain); }
+
+.teamName {
+  grid-column: 2;
+  grid-row: 1;
+  font-family: var(--font-display);
+  font-size: var(--t-s);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.teamPing {
+  grid-column: 3;
+  grid-row: 1;
+  text-align: right;
+  font-family: var(--font);
+}
+.teamCls {
+  grid-column: 2;
+  grid-row: 2;
+  font-family: var(--font);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.teamHost {
+  grid-column: 3;
+  grid-row: 2;
+  font-family: var(--font);
+  text-align: right;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--go);
+}
+/* Trois paliers et non un chiffre nu : « 140 ms » ne dit rien a qui ne compare
+   pas. Ambre et non rouge — une latence elevee gene, elle n'interdit pas. */
+.teamPing.good { color: var(--gain); }
+.teamPing.fair { color: var(--text-dim); }
+.teamPing.poor { color: var(--warn); }
+.teamPing.unknown { color: var(--text-faint); }
+
+/* Le bouton de confirmation est SECONDAIRE : l'action principale du salon
+   reste le lancement, et deux boutons pleins cote a cote se seraient
+   concurrences. Une fois confirme, il porte le vert de ce qui est acquis et
+   dit comment revenir en arriere. */
+#readyBtn {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  background: var(--bg-raised);
+  border-color: var(--line);
+  color: var(--text);
+}
+#readyBtn.on { border-color: var(--gain); color: var(--gain); }
+#readyBtn.on:hover:not(:disabled) { border-color: var(--gain); background: var(--bg-raised); }
 
 /* --- cartes de classe -------------------------------------------------------
    Elles etaient les seuls elements deja corrects de l'ecran — silhouette,
@@ -535,7 +666,6 @@
 /* --- le tableau des scores --------------------------------------------------
    Au salon c'est de l'INFORMATION : ui.css l'attenuait deja a 60 %, et c'etait
    juste. Il garde son attenuation et ne gagne que le rythme des autres blocs. */
-#scoresWrap { align-items: stretch; width: 100%; padding-inline: var(--sp-6); }
 #scores { min-width: 0; width: 100%; }
 #scores td.name { font-family: var(--font-display); }
 #scores td, #scores th { font-family: var(--font); }
@@ -600,10 +730,71 @@
    =========================================================================== */
 #bilan { padding-bottom: var(--sp-12); }
 #bilanTitle { text-align: center; padding-inline: var(--sp-6); }
+/* Le `gap` de `.overlay` a saute avec le centrage vertical : sans rythme
+   explicite, les cinq blocs du bilan se touchaient et la legende des degats se
+   lisait comme l'en-tete du tableau juste en dessous. */
 #bilanStats, #bilanHurt, #bilanScores, #bilanNext { padding-inline: var(--sp-6); }
-#bilanStats { justify-content: center; flex-wrap: wrap; }
-#bilanHurt { max-width: 1120px; }
-#bilanScores { width: 100%; min-width: 0; }
+#bilanStats { justify-content: center; flex-wrap: wrap; margin-top: var(--sp-6); }
+#bilanHurt { margin-top: var(--sp-12); }
+#bilanScores { margin-top: var(--sp-12); }
+
+/* --- d'ou venaient les degats, en UNE barre ---------------------------------
+   Cinq barres alignees demandaient de comparer cinq longueurs qui ne partagent
+   pas la meme origine. Une seule barre empilee montre la repartition d'un coup
+   d'oeil, ce qui est exactement la question posee. Les parts etaient deja
+   calculees par `renderHurtBy()` : c'est de la presentation, pas une donnee de
+   plus.
+
+   Une seule teinte de danger, l'OPACITE porte le rang (posee en ligne par
+   `renderHurtBy`, parce qu'elle depend du tri et non d'une classe fixe) : une
+   couleur par provenance aurait fait croire a cinq informations differentes,
+   alors que la ligne n'en dit qu'une. */
+/* Bornee a 720 px et centree, contre les 1120 px du tableau : une repartition
+   se lit en comparant des longueurs entre elles, et une barre etiree sur toute
+   la largeur de l'ecran rend le rapport de deux segments voisins impossible a
+   estimer d'un coup d'oeil. Le tableau, lui, a besoin de ses neuf colonnes. */
+#bilanHurt { max-width: 720px; margin-inline: auto; gap: var(--sp-3); }
+.hurtStack {
+  display: flex;
+  width: 100%;
+  height: var(--sp-3);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+/* Le filet clair separe deux segments de meme teinte : sans lui, deux parts
+   voisines d'opacite proche se lisent comme une seule. Il est INTERIEUR
+   (`inset`) pour ne pas rogner la largeur, qui EST l'information. */
+.hurtStack > i {
+  display: block;
+  height: 100%;
+  min-width: var(--hair);
+  background: var(--hud-low);
+  box-shadow: inset var(--hair) 0 0 0 var(--bg-void);
+}
+.hurtStack > i:first-child { box-shadow: none; }
+
+.hurtLegend { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-6); }
+.hurtKey {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+}
+/* La legende suit l'ordre de la barre, donc les memes opacites : sans ca, le
+   quatrieme segment de la barre et la quatrieme entree de la legende n'ont
+   plus rien qui les relie que leur position. */
+.hurtLegend .hurtKey:nth-child(2) { opacity: 0.84; }
+.hurtLegend .hurtKey:nth-child(3) { opacity: 0.68; }
+.hurtLegend .hurtKey:nth-child(4) { opacity: 0.52; }
+.hurtLegend .hurtKey:nth-child(n+5) { opacity: 0.4; }
+.hurtLegend .hurtLab { flex: none; }
+.hurtLegend .hurtVal { flex: none; color: var(--text); font-weight: 700; }
+/* 960 px et non 1120 : neuf colonnes etalees sur toute la largeur eloignent le
+   pseudo de son score, qui est precisement la paire qu'on lit. */
+#bilanScores { width: 100%; min-width: 0; max-width: 960px; margin-inline: auto; }
 #bilanScores td.name { font-family: var(--font-display); }
 #bilanNext {
   display: flex;
@@ -646,6 +837,11 @@
   .gateLeft > .hint { padding: 0 var(--sp-6) var(--sp-8); }
   #audioRow, #musicRow, #status { padding-inline: var(--sp-6); }
   #hubTitle, #panelTitle, #bilanTitle, #menuTitle { font-size: var(--t-xl); padding-inline: var(--sp-4); }
+  /* Le salon repasse en une colonne : l'etat de l'equipe suit les choix au
+     lieu de les serrer. Il perd son `sticky` — coller un bloc en haut d'une
+     colonne unique le ferait recouvrir ce qu'on defile. */
+  .panelCols { grid-template-columns: 1fr; gap: var(--sp-6); padding-inline: var(--sp-4); }
+  .panelSide { position: static; }
   #panel > .row:has(#start) { justify-content: center; }
   #waitMsg { position: static; text-align: center; padding-inline: var(--sp-4); }
   #start, #go, #regGo, #bilanGo { padding-inline: var(--sp-8); }

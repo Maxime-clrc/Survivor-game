@@ -241,6 +241,13 @@ attachWebSocket(httpServer, (conn, req) => hub.handleConnection(conn, req));
    decalage des accumulateurs et l'isolation aux pannes. */
 setInterval(() => hub.tick(), 1000 / 120);
 
+/* Battement de coeur WebSocket, a part de la boucle de simulation : c'est du
+   RESEAU, pas du jeu, et la cadence n'a rien a voir. Une seconde — huit octets
+   de charge utile par socket, negligeable devant un instantané, et assez
+   frequent pour que la moyenne glissante d'aller-retour converge en quelques
+   secondes plutot qu'en une minute. */
+setInterval(() => hub.pingAll(), 1000);
+
 /* --- demarrage ----------------------------------------------------------------------- */
 
 function lanAddresses() {

@@ -200,6 +200,8 @@ const panelTitle = document.getElementById("panelTitle");
 const summary = document.getElementById("summary");
 const scoresBody = document.querySelector("#scores tbody");
 const startBtn = document.getElementById("start");
+const readyBtn = document.getElementById("readyBtn");
+const teamEl = document.getElementById("team");
 const waitMsg = document.getElementById("waitMsg");
 const voteRow = document.getElementById("voteRow");
 const voteHint = document.getElementById("voteHint");
@@ -1155,14 +1157,94 @@ function refreshPanel() {
 
   renderVote();
   renderClasses();
+  renderTeam();
   renderMeta();
 
+  /* Le lancement attend que TOUT LE MONDE ait confirme. C'est le bon choix en
+     ligne : les joueurs ne sont plus dans la meme piece, on ne peut pas
+     demander « t'es prêt ? » a voix haute, et l'hote n'a aucun autre moyen de
+     savoir si quelqu'un est encore en train de lire les cartes de classe.
+     La garde vit AUSSI dans room.js — desarmer un bouton est de l'affichage,
+     pas une regle. */
+  const manquants = lobby.filter(l => !l.ready);
+  const me = lobby.find(l => l.id === myId);
+  const jeSuisPret = !!me?.ready;
+
+  readyBtn.hidden = false;
+  readyBtn.textContent = jeSuisPret ? "Je ne suis plus prêt" : "Je suis prêt";
+  readyBtn.classList.toggle("on", jeSuisPret);
+
   startBtn.hidden = !isHost;
-  startBtn.disabled = !isHost;
-  waitMsg.textContent = isHost
-    ? "tout le monde entre en jeu, spectateurs compris"
-    : `en attente de ${hostName}…`;
+  startBtn.disabled = !isHost || manquants.length > 0;
+
+  /* Griser sans expliquer fait passer le bouton pour une panne — meme regle
+     que `.classOpt.taken`, qui nomme l'occupant au lieu de seulement griser.
+     On NOMME donc qui manque, et au-dela de deux on compte : quatre pseudos
+     dans une barre de 16 px de haut ne se lisent plus. */
+  if (manquants.length === 0) {
+    waitMsg.textContent = isHost
+      ? "tout le monde est prêt — tout le monde entre en jeu, spectateurs compris"
+      : `tout le monde est prêt — en attente de ${hostName}…`;
+  } else if (manquants.length === 1 && manquants[0].id === myId) {
+    waitMsg.textContent = "il ne manque que toi";
+  } else if (manquants.length <= 2) {
+    waitMsg.textContent = `en attente de ${manquants.map(l => l.name).join(" et ")}`;
+  } else {
+    waitMsg.textContent = `en attente de ${manquants.length} joueurs`;
+  }
 }
+
+/* L'EQUIPE : qui est la, avec quelle classe, prêt ou non, et a quelle latence.
+   Rien de tout cela n'existait, et c'est ce qui manquait le plus depuis le
+   passage du reseau local au jeu en ligne — en LAN le ping etait une
+   decoration a 8 ms pres, en ligne c'est ce qui explique pourquoi un joueur
+   « teleporte ».
+
+   La pastille de prêt est un GLYPHE et pas seulement une couleur (meme regle
+   que les marqueurs poses sur un joueur) : un daltonien doit s'en sortir, et
+   de toute facon un point vert et un point ambre de 8 px ne se distinguent pas
+   au coin de l'oeil. */
+function renderTeam() {
+  if (!teamEl) return;
+  teamEl.innerHTML = "";
+
+  for (const l of lobby) {
+    const line = document.createElement("div");
+    line.className = "teamLine";
+    line.classList.toggle("ready", !!l.ready);
+    line.classList.toggle("me", l.id === myId);
+
+    const cls = (l.cls === null || l.cls === undefined) ? null : classAt(l.cls);
+    /* Le ping vaut -1 tant qu'aucun aller-retour n'est revenu : on affiche un
+       tiret et non « 0 ms », qui se lirait comme une connexion parfaite —
+       exactement le contraire de « on ne sait pas encore ». */
+    const ms = Number(l.ping);
+    const pingTxt = Number.isFinite(ms) && ms >= 0 ? `${ms} ms` : "—";
+    const pingCls = !Number.isFinite(ms) || ms < 0 ? "unknown"
+      : ms < 80 ? "good" : ms < 180 ? "fair" : "poor";
+
+    line.innerHTML =
+      `<span class="teamPip">${l.ready ? "✓" : "…"}</span>` +
+      `<span class="teamName"></span>` +
+      (l.id === hostId ? `<span class="teamHost">hôte</span>` : "") +
+      `<span class="teamCls">${cls ? escapeHtml(cls.nom) : "—"}</span>` +
+      `<span class="teamPing ${pingCls}">${pingTxt}</span>`;
+
+    // textContent et non innerHTML : le pseudo vient d'un autre joueur.
+    line.querySelector(".teamName").textContent = l.name;
+    if (cls) line.querySelector(".teamCls").style.color = cls.couleur;
+    teamEl.appendChild(line);
+  }
+}
+
+/* Prêt : le client DEMANDE, le serveur decide et rediffuse le salon. On ne
+   bascule donc rien localement — a quatre, deux clients qui se contredisent
+   afficheraient deux salons differents. */
+readyBtn.onclick = () => {
+  if (phase !== PHASE_LOBBY) return;
+  const me = lobby.find(l => l.id === myId);
+  ws.send(JSON.stringify({ t: "ready", on: !me?.ready }));
+};
 
 /* Vote de difficulte. Chacun choisit, la majorite l'emporte, et l'egalite
    retient le mode le plus doux : personne ne doit pouvoir imposer cauchemar
@@ -1562,16 +1644,36 @@ function renderHurtBy(rows) {
     .filter(p => p.val > 0)
     .sort((a, b) => b.val - a.val);
 
-  let html = `<div class="hurtTitle">dégâts subis par l'équipe</div>`;
-  for (const p of parts) {
-    const pct = Math.round(p.val / somme * 100);
-    html += `<div class="hurtRow">` +
+  /* UNE barre empilee et non cinq barres alignees. Cinq barres demandent de
+     comparer cinq longueurs qui ne partagent pas la meme origine ; une seule
+     barre montre la repartition d'un coup d'oeil, ce qui est exactement la
+     question posee. Les parts etaient deja calculees — c'est de la
+     presentation, pas une donnee de plus.
+
+     UNE SEULE TEINTE, et l'OPACITE porte le rang. Une couleur par provenance
+     aurait fait croire a cinq informations differentes, alors que la ligne n'en
+     dit qu'une : ce sont des degats subis. Sans variation en revanche les
+     segments se fondent, d'ou l'opacite decroissante — elle suit le tri, donc
+     elle ne dit rien de plus que la longueur elle-meme. Le PLANCHER a 0,34
+     n'est pas cosmetique : sous cette valeur le dernier segment disparait dans
+     le fond du rail. */
+  const pcts = parts.map(p => Math.round(p.val / somme * 100));
+
+  let html = `<div class="hurtTitle">dégâts subis par l'équipe</div><div class="hurtStack">`;
+  parts.forEach((p, k) => {
+    const o = Math.max(0.34, 1 - k * 0.16);
+    html += `<i style="width:${pcts[k]}%;opacity:${o}" title="${escapeHtml(p.label)} — ${pcts[k]} %"></i>`;
+  });
+  html += `</div><div class="hurtLegend">`;
+  parts.forEach((p, k) => {
+    html += `<span class="hurtKey">` +
       `<span class="hurtIco"></span>` +
       `<span class="hurtLab">${escapeHtml(p.label)}</span>` +
-      `<span class="hurtBar"><i style="width:${pct}%"></i></span>` +
-      `<span class="hurtVal">${pct} %</span>` +
-    `</div>`;
-  }
+      `<b class="hurtVal">${pcts[k]} %</b>` +
+    `</span>`;
+  });
+  html += `</div>`;
+
   bilanHurt.innerHTML = html;
   // Les glyphes sont poses APRES coup : `iconImg` rend un element et non une
   // chaine, et le coller dans du HTML l'aurait fait passer par une adresse

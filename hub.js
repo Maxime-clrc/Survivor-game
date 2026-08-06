@@ -333,6 +333,11 @@ export function createHub(store, log) {
       vote: DIFF_NORMAL,
       cls: null,
       clsLocked: false,
+      /* Prêt au salon. Le SERVEUR en est proprietaire, pas le client : a
+         quatre, deux clients qui se contredisent afficheraient deux salons
+         differents. Il vit ici et non sur la Room parce qu'il suit le joueur
+         d'une salle a l'autre, exactement comme `cls` et `vote`. */
+      ready: false,
       lastListAt: 0,
       input: { x: 0, y: 0, ax: 1, ay: 0, ar: SKILL_CFG.DPS_BOMB_RANGE_MAX,
                dash: false, s1: false, s2: false, s3: false },
@@ -662,8 +667,20 @@ export function createHub(store, log) {
     return out;
   }
 
+  /* Battement de coeur WebSocket, seul emetteur de `ping()` du processus.
+     `ws_lite` savait envoyer un ping depuis toujours mais personne ne
+     l'appelait — d'ou l'absence de toute mesure d'aller-retour.
+
+     Il vit au HUB et non dans une salle : la latence est une propriete de la
+     CONNEXION, pas de la partie, et un joueur au hub a autant besoin de la
+     connaitre qu'un joueur au salon. C'est aussi ce qui garantit une seule
+     serie de pings par socket quoi qu'il arrive. */
+  function pingAll() {
+    for (const c of clients.values()) c.conn.ping();
+  }
+
   return {
-    handleConnection, tick, adminView, anyRoundRunning,
+    handleConnection, tick, pingAll, adminView, anyRoundRunning,
     kickAccounts, kickAccount, connectedKeys, rooms, clients,
   };
 }

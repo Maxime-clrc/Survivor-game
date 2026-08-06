@@ -337,32 +337,50 @@
   </div>
 </div>
 
-<!-- salon. Hierarchie imposee : l'action d'abord (le bouton), puis le choix
-     de classe, puis les reglages, puis l'information (le tableau). -->
+<!-- Salon. DEUX COLONNES : a gauche les CHOIX (classe, difficulte), a droite
+     l'ETAT (qui est la, qui est prêt, avec quelle latence). L'action de
+     lancement est ancree en bas de fenetre par menus.css et reste un enfant
+     DIRECT de #panel — c'est a ce titre que `#panel > .row:has(#start)` la
+     trouve. Sept blocs empiles au centre, c'etait l'ecran qui souffrait le
+     plus : le bouton remontait ou descendait selon le nombre de joueurs. -->
 <div id="panel" class="overlay" hidden>
   <div id="panelTitle">Salon</div>
   <div id="summary"></div>
 
-  <div id="classes">
-    <div id="classLabel" class="sectionTitle">Classe</div>
-    <div id="classRow"></div>
-    <div id="classHint"></div>
+  <div class="panelCols">
+    <div class="panelMain">
+      <div id="classes">
+        <div id="classLabel" class="sectionTitle">Classe</div>
+        <div id="classRow"></div>
+        <div id="classHint"></div>
+      </div>
+
+      <div id="vote">
+        <div id="voteLabel" class="sectionTitle">Difficulté</div>
+        <div id="voteRow"></div>
+        <div id="voteHint"></div>
+      </div>
+
+      <div id="scoresWrap">
+        <div class="sectionTitle">Table</div>
+        <table id="scores"><tbody></tbody></table>
+      </div>
+    </div>
+
+    <!-- L'equipe : qui est connecte, avec quelle classe, prêt ou non, et a
+         quelle latence. C'est l'information qu'on n'avait pas et qui manquait
+         le plus depuis le passage en ligne — les joueurs ne sont plus dans la
+         meme piece, on ne peut pas demander « t'es prêt ? » a voix haute. -->
+    <div class="panelSide">
+      <div class="sectionTitle">Équipe</div>
+      <div id="team"></div>
+    </div>
   </div>
 
-  <div id="vote">
-    <div id="voteLabel" class="sectionTitle">Difficulté</div>
-    <div id="voteRow"></div>
-    <div id="voteHint"></div>
-  </div>
-
-  <div class="row">
-    <button id="start">Lancer la manche</button>
-  </div>
   <div id="waitMsg" class="hint"></div>
-
-  <div id="scoresWrap">
-    <div class="sectionTitle">Table</div>
-    <table id="scores"><tbody></tbody></table>
+  <div class="row">
+    <button id="readyBtn">Je suis prêt</button>
+    <button id="start">Lancer la manche</button>
   </div>
 
   <!-- retour au hub (plan infra) : quitter la salle, pas la partie du reste

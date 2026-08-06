@@ -123,6 +123,10 @@ export class Room {
     // regarde, on entre a la manche suivante — comportement inchange, par
     // salle desormais.
     client.spectator = this.phase !== PHASE_LOBBY;
+    /* Entrer dans une salle, c'est repartir de zero : le drapeau vit sur le
+       CLIENT et le suivrait sinon d'une salle a l'autre — on arriverait
+       « prêt » dans un salon ou l'on vient de mettre le pied. */
+    client.ready = false;
     this.clients.set(client.id, client);
     this.knownMembers.add(client.pseudoKey);
     this.emptySince = 0;
@@ -203,6 +207,22 @@ export class Room {
     for (const c of this.clients.values()) c.clsLocked = false;
   }
 
+  /* Qui n'a pas encore confirme. Point de passage unique : la garde serveur du
+     `case "start"` et le libelle d'attente cote client doivent compter la MEME
+     chose, sinon le bouton refuse en silence un lancement que le message
+     annonce comme possible.
+
+     Aucun filtre sur `spectator`, et c'est deliberement contraire a ce que la
+     specification de conception demandait. En phase de salon, `spectator` dit
+     « je n'ai pas joue la manche qui vient de finir » : c'est un residu, pas
+     une prevision. `startRound()` remet tout le monde a `spectator = false`,
+     donc au salon TOUS les presents entrent dans la manche a venir — exclure
+     les spectateurs aurait laisse un joueur revenu du mode spectateur incapable
+     de se declarer prêt, tout en lancant sans lui. */
+  notReady() {
+    return this.joined().filter(c => !c.ready);
+  }
+
   lobbyPayload() {
     const vote = this.votedDifficulty();
     return {
@@ -225,6 +245,13 @@ export class Room {
         total: c.total,
         cls: c.cls,
         clsLocked: c.clsLocked,
+        ready: c.ready ? 1 : 0,
+        /* Le ping voyage avec le salon plutot que dans un message periodique :
+           `lobbyPayload()` n'est diffuse que sur evenement (arrivee, vote,
+           choix de classe, prêt), donc le chiffre a quelques secondes au
+           salon — sans importance, on ne joue pas. Un message a 1 Hz aurait
+           fait d'un salon inactif un salon bavard. */
+        ping: c.conn.rtt != null ? Math.round(c.conn.rtt) : -1,
       })),
     };
   }
@@ -348,6 +375,11 @@ export class Room {
       c.spectator = false;
       if (c.cls === null) c.cls = CLASS_DEFAULT;
       c.clsLocked = true;
+      /* Remise a zero AU LANCEMENT, et non a la sortie de manche : le salon se
+         reaffiche entre deux manches, et un `ready` herite ferait demarrer la
+         suivante sans que personne n'ait rien reconfirme. Meme raison que le
+         verrou de classe pose ici plutot qu'au choix. */
+      c.ready = false;
       /* Progression permanente (lot D) : la simulation recoit les lignes
          EQUIPEES de la classe jouee, les achats de confort et les cartes
          encore verrouillees. La salle LIT le profil — elle n'y ecrit jamais,
@@ -487,6 +519,17 @@ export class Room {
         break;
       }
 
+      /* Prêt. Meme forme et meme garde de phase que `vote` — c'est le meme
+         genre d'etat de salon, et la garde de phase suffit : hors salon
+         personne n'a de bouton, et au salon tout le monde entre (cf.
+         `notReady()`). */
+      case "ready": {
+        if (this.phase !== PHASE_LOBBY) break;
+        client.ready = !!msg.on;
+        this.broadcast(this.lobbyPayload());
+        break;
+      }
+
       case "pickCard": {
         if (this.phase !== PHASE_CARDS || this.cardPicked.has(id)) break;
         const offers = this.state.cardOffers.get(id);
@@ -523,6 +566,10 @@ export class Room {
       case "start": {
         if (id !== this.hostId || this.phase !== PHASE_LOBBY) break;
         if (this.joined().length === 0) break;
+        /* Desarmer le bouton cote client est de l'AFFICHAGE, pas une regle :
+           un client modifie enverrait `{ t: "start" }` directement. La garde
+           vit donc ici aussi, au meme titre que `id !== this.hostId`. */
+        if (this.notReady().length > 0) break;
         this.startRound();
         break;
       }
