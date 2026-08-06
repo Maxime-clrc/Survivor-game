@@ -189,10 +189,6 @@ const regNameInput = document.getElementById("regName");
 const regPassInput = document.getElementById("regPass");
 const regPass2Input = document.getElementById("regPass2");
 const regGoBtn = document.getElementById("regGo");
-const gateHold = document.getElementById("gateHold");
-const gateWho = document.getElementById("gateWho");
-const gateHoldMsgEl = document.getElementById("gateHoldMsg");
-const gateContinueBtn = document.getElementById("gateContinue");
 const menuEl = document.getElementById("menu");
 const menuCloseBtn = document.getElementById("menuClose");
 const panel = document.getElementById("panel");
@@ -366,19 +362,14 @@ function connect() {
            prolonge l'existant sans en changer. */
         localStorage.setItem("survivor.pseudo", msg.pseudo ?? "");
         if (msg.token) localStorage.setItem("survivor.token", msg.token);
-        // Un seul cas s'arrete sur #gate avant le hub : compte deja connecte
-        // ailleurs (a dire, pas a laisser deviner). Decide sur CE DRAPEAU,
-        // jamais sur l'ordre d'arrivee des messages.
+        // Compte deja connecte ailleurs : plus d'arret sur #gate — on entre au
+        // hub comme tout le monde, et l'avertissement s'affiche LA-BAS (a dire,
+        // pas a laisser deviner). Decide sur CE DRAPEAU, jamais sur l'ordre
+        // d'arrivee des messages.
+        gate.hidden = true;
+        enterHub();
         if (msg.dup) {
-          gateFormsEl.hidden = true;
-          gateWho.textContent = `connecté comme ${msg.pseudo}`;
-          gateHoldMsgEl.hidden = false;
-          gateHoldMsgEl.textContent =
-            "ce compte est déjà connecté ailleurs — progression temporaire sur cet onglet";
-          gateHold.hidden = false;
-        } else {
-          gate.hidden = true;
-          enterHub();
+          hubStatus("ce compte est déjà connecté ailleurs — progression temporaire sur cet onglet", true);
         }
         break;
 
@@ -694,9 +685,7 @@ function connect() {
     menuEl.hidden = true;
     // Reconnexion : on repart de l'ecran d'entree, dans le mode qui
     // correspond a la session memorisee (reprise par jeton s'il en reste un,
-    // formulaires sinon) — jamais de la pause de doublon precedente.
-    gateHold.hidden = true;
-    gateHoldMsgEl.hidden = true;
+    // formulaires sinon).
     renderGateMode();
     gate.hidden = false;
     showHud(false);
@@ -737,8 +726,6 @@ function setLoading(k, quoi) {
    silence a l'envoi. Le libelle du champ le dit, sinon un champ obligatoire
    qu'on peut laisser vide passe pour un bug. */
 function renderGateMode() {
-  // Les formulaires reviennent : seul le cas « deja connecte ailleurs »
-  // (#gateHold) les masque, et une reconnexion doit les retrouver.
   gateFormsEl.hidden = false;
   const pseudo = localStorage.getItem("survivor.pseudo") || "";
   const token = localStorage.getItem("survivor.token") || "";
@@ -872,16 +859,6 @@ passInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
 regPass2Input.onkeydown = e => { if (e.key === "Enter") regGoBtn.click(); };
 renderGateMode();
 nameInput.focus();
-
-/* --- suite de la connexion ---------------------------------------------------
-   `#gateContinue` tombe sur le HUB (la liste des salles) — ou sur le salon si
-   une auto-rejointe a abouti pendant qu'on lisait sa cle. Jamais sur le Menu,
-   qui ne s'ouvre qu'a la demande depuis la carte d'une classe au salon. */
-gateContinueBtn.onclick = () => {
-  gate.hidden = true;
-  if (inRoom) refreshPanel();
-  else enterHub();
-};
 
 /* --- hub des salles (plan infra) ---------------------------------------------- */
 
