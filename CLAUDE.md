@@ -89,9 +89,37 @@ compositeur qui travaille, pas la boucle de jeu.
 (`resize()` dans `client.js`, plafonnée à 2). C'était la cause racine du HUD
 illisible et du flou en 1440p, vue sous deux angles : une mémoire fixe de
 1600 × 900 que le CSS étire agrandit tout ce qu'on y dessine. Les coordonnées
-monde restent en 1600 × 900 — la transformation absorbe tout, et pas une ligne
-de logique de rendu ne change. Corollaire : la souris se convertit vers les
-**coordonnées monde** (`CFG.ARENA_W / rect.width`), jamais vers `cv.width`.
+monde restent en pixels de simulation — la transformation absorbe tout, et pas
+une ligne de logique de rendu ne change.
+
+**L'arène fait TROIS vues dans chaque dimension** (lot I) : `CFG.ARENA_W/H` =
+4800 × 2700, `CFG.VIEW_W/H` = 1600 × 900. La **caméra** suit la position
+prédite du joueur (lissage exponentiel, recalage sec au-delà d'un écran,
+clamp à la salle ; spectateur : premier vivant) et vit **dans les transforms,
+jamais dans les fonctions de dessin** : une translation posée par
+`applyCamera()` sur les deux contextes 2D, l'offset du coin de vue absorbé
+par la projection WebGL (`gl.begin`), et la conversion souris — mémorisée en
+coordonnées de **vue** et convertie en monde à la lecture, parce qu'entre
+deux mouvements de souris c'est la caméra qui bouge. Les deux cents fonctions
+de dessin écrivent en coordonnées monde et ignorent que la caméra existe,
+exactement comme elles ignorent la densité de pixels. Corollaire : tout ce qui
+est « plein écran » (fond, clears, voiles, vignette, grille, hachures) couvre
+le **rectangle de vue** (`camera.x0/y0` + `VIEW_W/H`), jamais l'arène ; le
+culling passe par `inView()` ; les chiffres de dégâts convertissent
+monde → vue au point d'appel (`flushDamage`/`flushSelf`), le HUD ne connaît
+pas la caméra. Les flèches de coéquipiers hors champ se dessinent après le
+vignettage — indicateurs d'écran, pas éléments du monde.
+
+**Un combat de boss resserre `state.bounds` à UNE VUE** ancrée sur le centre
+de gravité de l'équipe (`_teamCentroid`) — le mécanisme de constriction du
+lot 5, réutilisé tel quel ; `_bossDead` rouvre la salle. Toute la géométrie
+des mécaniques (mur, exaflares, croix, damier, couronne, couloirs, balayage,
+constriction) lit les **bounds**, plus jamais `CFG.ARENA_W/H` : un damier
+découpé sur la salle entière n'aurait montré qu'un carreau. Les renforts du
+boss naissent sur le bord de SES bounds — tirés autour des joueurs, ils
+mouraient dans la couronne avant d'arriver. Les tests « arène pleine »
+(`bn`, couronne des ennemis) portent sur les **quatre** côtés : une arène de
+boss collée au bord gauche de la salle a `x0 = 0`.
 
 **Le monde tient sur TROIS canvas empilés** (`#arena` dans `index.html`), et
 c'est la bascule WebGL qui l'impose : deux éléments empilés se composent
@@ -631,7 +659,9 @@ sinus (une croix qui surgit ou se coupe net au bord se lit comme un défaut).
 
 **Une zone persistante inflige `dot` dégâts par seconde par paliers de `ZONE_TICK`, jamais à chaque image**, et le tic passe `overTime = true` à `_hurt()` — même raison que la brûlure : sans ce drapeau, une mare de quinze secondes remet `hitCd` à 0,55 s quatre fois par seconde et rend sa victime immunisée au contact, aux tirs et aux autres zones. On mourait en sécurité dans une flaque.
 
-**`state.bounds` est la surface jouable ; tout ce qui borne un déplacement la lit, jamais `CFG.ARENA_W/H` en dur.** C'est le principal risque de régression de la constriction : un seul oubli laisse un joueur, un boss, une tour ou un bonus dans la couronne mortelle sans moyen d'en sortir. `_clampToBounds()` et `_dropPoint()` sont les points de passage uniques. Gardent volontairement l'arène pleine : l'apparition des ennemis (la horde traverse la couronne, c'est l'interaction recherchée), le vol des projectiles (une balle qui rebondit sur une limite invisible ne se lit pas) et la **géométrie** des zones (damier, couloirs, balayage — redécouper la grille à chaque palier changerait la taille des cases en plein combat).
+**`state.bounds` est la surface jouable ; tout ce qui borne un déplacement la lit, jamais `CFG.ARENA_W/H` en dur.** C'est le principal risque de régression de la constriction : un seul oubli laisse un joueur, un boss, une tour ou un bonus dans la couronne mortelle sans moyen d'en sortir. `_clampToBounds()` et `_dropPoint()` sont les points de passage uniques. Depuis le lot I, la **géométrie des zones** et le **rebond des balles** lisent les bounds eux aussi (une arène de boss fait une vue dans une salle trois fois plus large — un damier découpé sur la salle n'aurait montré qu'un carreau, une balle en rebond partait vivre à deux écrans du combat). Deux choses seulement gardent l'arène entière : l'**apparition des ennemis** (tirée autour de la boîte englobante des joueurs, jamais bornée aux bounds — la horde traverse la couronne, c'est l'interaction recherchée) et le **culling** des projectiles (leur durée de vie fait le vrai travail).
+
+**Les points de récolte (lot I) n'apparaissent jamais à moins de `HARVEST_PLAYER_DIST` d'un joueur vivant, ni pendant un boss.** C'est la définition de l'exploration — un point sous les yeux n'en est pas une — et une arène de boss réduite à une vue ferait d'un point extérieur une promesse inatteignable. Le cristal se détruit aux balles **hors de `_bulletHitEnemy()`**, délibérément : une structure n'a ni critique, ni vol de vie, ni compteur de touches — rien de ce que ce point de passage branche n'a de sens sur elle. Les **éclats** (`p.eclats`) sont versés à **chaque** joueur — même logique que l'expérience commune — et meurent avec le `GameState` : la monnaie de manche ne se persiste jamais.
 
 **`state.walls` bloque, il ne blesse pas.** Le verrouillage par quadrant est la seule entité du jeu qui interdit un déplacement ; d'où une couleur franchement différente de tout ce qui explose côté client. On repousse du côté **d'où l'on venait** et non du côté le plus proche : à l'esquive, un joueur traverse 162 px en trois images et se retrouverait de l'autre côté du mur. Le client rejoue exactement la même règle dans sa prédiction.
 
@@ -643,7 +673,8 @@ Ajouter une entrée impose de traiter les deux côtés :
 
 | Registre | Serveur | Client |
 |---|---|---|
-| `kind` d'effet | 0 nova · 1 balayage d'arrivée · 2 montée de niveau · 3 ricochet · 4 balise / relèvement / purification / Sentence survécue · 5 élite abattue · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart posé · 10 provocation · 11 vague de soin · 12 explosion de bombe · 13 salve verrouillée (transporte deux points de plus, comme le 3) | `drawEffects()` |
+| `kind` d'effet | 0 nova · 1 balayage d'arrivée · 2 montée de niveau · 3 ricochet · 4 balise / relèvement / purification / Sentence survécue · 5 élite abattue · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart posé · 10 provocation · 11 vague de soin · 12 explosion de bombe · 13 salve verrouillée (transporte deux points de plus, comme le 3) · 14 récolte aboutie | `drawEffects()` |
+| point de récolte | clé `hv` du snapshot (jauge en ratio) ; `p.eclats` en fin de tuple joueur | `drawHarvests()` + ligne éclats du bloc méta du HUD |
 | classe | `CLASSES` dans `classes.js` (tableau ordonné, l'index circule) | sélecteur du salon + `buildPips()` / `updatePip()` dans `hud.js` |
 | couleur d'un joueur | `assignColors()` dans `room.js`, point de passage unique ; l'index voyage dans `colorIndex` du salon | `PLAYER_COLORS` (ordre = tank, soigneur, tireur A, tireur B) via `colorOf` / `ownerColorOf` |
 | bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` (masque) | teinte du joueur, halos, icônes |
@@ -724,7 +755,7 @@ Le `kind: 3` (ricochet) est le seul effet à transporter deux points de plus dan
 
 Le tag `cadence` n'est pas décoratif : « Résonance » compte les cartes qui le portent. Une carte qui *rallonge* l'intervalle de tir (Balles lourdes) ne le porte donc pas, même si elle touche la même statistique.
 
-Les clés de vague et de progression (`wv`, `wp`, `wbs`, `wb`, `xl`, `xp`), les quatre listes de compétence (`bw` remparts, `bm` bombes, `an` ancres et `sa` sanctuaires du lot C), celles du lot 4 (`mk` marqueurs de mécanique, `bo2` second Jumeau, `sp` sol glissant), celles du lot 5 (`bn` limites d'arène et palier annoncé, `wl` murs de verrouillage) et celle du lot 6 (`bd` dégâts portés au boss depuis le dernier instantané, par joueur) sont des **clés nommées** du snapshot, pas des éléments de tableau : la règle positionnelle ne vaut qu'à l'intérieur des tableaux, et une clé inconnue est simplement ignorée par un client plus ancien. `bn` et `wl` sont **absentes** tant que l'arène ne bouge pas, c'est-à-dire quatre-vingt-dix pour cent d'une manche.
+Les clés de vague et de progression (`wv`, `wp`, `wbs`, `wb`, `xl`, `xp`), les quatre listes de compétence (`bw` remparts, `bm` bombes, `an` ancres et `sa` sanctuaires du lot C), celles du lot 4 (`mk` marqueurs de mécanique, `bo2` second Jumeau, `sp` sol glissant), celles du lot 5 (`bn` limites d'arène et palier annoncé, `wl` murs de verrouillage) celle du lot 6 (`bd` dégâts portés au boss depuis le dernier instantané, par joueur) et celle du lot I (`hv` points de récolte, jauge en ratio) sont des **clés nommées** du snapshot, pas des éléments de tableau : la règle positionnelle ne vaut qu'à l'intérieur des tableaux, et une clé inconnue est simplement ignorée par un client plus ancien. `bn` et `wl` sont **absentes** tant que l'arène ne bouge pas — depuis le lot I, `bn` est en revanche **toujours présente pendant un combat de boss**, dont l'arène est une vue resserrée. Le lot I ajoute aussi les **éclats** en fin de tuple joueur (index 32).
 
 **Les zéros de queue des tuples de zone et d'ennemi sont coupés** (`trimTail` dans `snapshot()`). La règle positionnelle interdit de *déplacer* un champ, pas d'en *omettre* à la fin : le client lit déjà tout ce qui suit l'index 6 avec un repli (`a[7] ?? 0`), le mécanisme même qui empêche un onglet resté sur une version antérieure de planter. Un tuple de zone en compte quinze et la plupart des formes n'en remplissent que douze ; un tuple d'ennemi en compte huit et son huitième champ — le compteur de touches — vaut zéro tant que rien ne l'a touché. Le `keep` d'un ennemi vaut **7 et non 6** : le client lit `a[6]` (l'orientation) sans valeur de repli, et une orientation nulle est parfaitement ordinaire.
 
