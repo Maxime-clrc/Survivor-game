@@ -53,6 +53,14 @@ cartes**.
 - La manche se joue en **vagues**. Une vague est un budget d'apparitions : elle
   se termine quand le budget est épuisé **et** que l'arène est vide. Une vague
   sur cinq est un **boss**, qui occupe la vague entière.
+- L'arène fait **trois écrans dans chaque dimension** : chacun voit sa propre
+  vue, centrée sur son personnage, avec des flèches de bord d'écran vers les
+  coéquipiers hors champ (distance en mètres ; un allié à terre pulse). Des
+  **points de récolte** dorés apparaissent au loin — un cristal se détruit en
+  tirant, un amas se canalise en restant dessus 1,5 s — et rapportent des
+  **éclats** à toute l'équipe : la monnaie de la manche en cours, perdue à sa
+  fin. Un combat de **boss** resserre l'arène à un seul écran autour de
+  l'équipe ; sa mort la rouvre.
 - **À la fin d'une vague, s'il y a eu une montée de niveau, la manche se met en
   pause** : chacun choisit une carte parmi trois, et la partie reprend quand
   tout le monde a choisi — ou au bout de 30 s, la première carte étant alors
@@ -2227,6 +2235,43 @@ et elle ne paie qu'en fin de manche chargée.
 Le total reste sous le budget de 10 % et du même ordre que le compteur de touches.
 La répartition des dégâts subis par provenance est mesurée plus haut, dans « D'où
 viennent les dégâts qu'on prend ».
+
+### Grande arène et caméra (lot I)
+
+L'arène passe de 1600 × 900 à **4800 × 2700** ; la **vue** reste 1600 × 900,
+chaque client suit sa position prédite (caméra lissée, recalage sec au-delà
+d'un écran, clamp à la salle). Les combats de boss se jouent dans des
+**bounds resserrés à une vue**, ancrés sur le centre de gravité de l'équipe —
+c'est le mécanisme de constriction du lot 5, réutilisé tel quel, et toute la
+géométrie des mécaniques (damier, exaflares, couronne…) lit désormais les
+bounds au lieu de l'arène dessinée.
+
+Coût des coordonnées à quatre chiffres, mesuré arène pleine (200 ennemis, la
+moitié touchés, 400 balles, 4 joueurs, 4 points de récolte) :
+
+| version | poids de l'instantané | hausse |
+|---|---|---|
+| même scène à l'échelle 1600 × 900 | 15 791 o | référence |
+| grande arène (coordonnées + clé `hv` + éclats) | 16 547 o | **+4,8 %** |
+
+Sous le budget de 10 %. La caméra a été vérifiée en jeu réel : le suivi
+s'arrête exactement à `ARENA_W − VIEW_W/2 = 4000` px au bord droit, et la
+conversion souris reste juste pendant le déplacement (mémorisée en vue,
+convertie en monde à la lecture).
+
+Les **points de récolte** (cristal à détruire, amas à canaliser 1,5 s)
+n'apparaissent jamais à moins de 1100 px d'un joueur vivant ni pendant un
+boss ; le rendement (15-35 **éclats**, la monnaie de manche, jamais persistée)
+est versé à chaque joueur — même logique que l'expérience commune. Les
+retardataires sont resserrés (5 s, ×2,0) : un fuyard sur une salle neuf fois
+plus grande ne se rattrapait plus. Les apparitions se tirent **autour de la
+boîte englobante des joueurs** (hors écran, écrêtée à la salle) et non plus
+sur les bords : sur une arène d'une seule vue, ce tirage redonne exactement
+les quatre bords d'avant.
+
+Restent à mesurer en conditions réelles (fenêtre visible, table à quatre) :
+les images par seconde avec culling actif — le compteur `?perf` est en place —
+et la durée moyenne d'une vague avant/après (attendu : écart sous 15 %).
 
 ### Rendu WebGL
 

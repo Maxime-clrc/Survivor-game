@@ -553,8 +553,15 @@ let dmgCount = 0;
    une fois par chiffre. Elle ne sert qu'aux degats SUBIS : sur un chiffre
    inflige, la provenance est evidente (c'est nous), et un glyphe de plus a trois
    cents impacts par minute repeindrait l'ecran. */
+/* `x`/`y` sont des coordonnees de VUE (lot I) : la conversion monde -> vue se
+   fait chez l'appelant (`flushDamage`/`flushSelf`), qui connait la camera. Le
+   HUD, lui, ne la connait pas — la boite de #dmgLayer fait exactement une vue,
+   les pourcentages se rapportent donc a VIEW_W/H. */
 export function hudDamage(x, y, val, kind = "deal", icon = null) {
   if (dmgCount >= DMG_MAX) return;
+  // Hors du rectangle de vue : un chiffre pousse contre le bord mentirait sur
+  // la position de l'impact — on le laisse tomber, l'impact est hors ecran.
+  if (x < -20 || x > CFG.VIEW_W + 20 || y < -20 || y > CFG.VIEW_H + 20) return;
   const d = document.createElement("div");
   d.className = "dmg " + kind;
   if (icon) {
@@ -564,8 +571,8 @@ export function hudDamage(x, y, val, kind = "deal", icon = null) {
   }
   d.appendChild(document.createTextNode(
     kind === "heal" ? "+" + Math.round(val) : String(Math.round(val))));
-  d.style.left = (x / CFG.ARENA_W * 100).toFixed(2) + "%";
-  d.style.top = (y / CFG.ARENA_H * 100).toFixed(2) + "%";
+  d.style.left = (x / CFG.VIEW_W * 100).toFixed(2) + "%";
+  d.style.top = (y / CFG.VIEW_H * 100).toFixed(2) + "%";
   d.addEventListener("animationend", () => { d.remove(); dmgCount--; }, { once: true });
   el.dmg.appendChild(d);
   dmgCount++;
@@ -578,7 +585,14 @@ export function updateHud(v, c) {
 
   setText(el.clock, "clk", fmtTime(v.tm));
 
-  const meta = `kills ${v.kills}\nennemis ${v.enemyList.length}\nping ${c.ping} ms`;
+  /* Les eclats (lot I) vivent dans le bloc meta, pas dans le bloc personnel :
+     c'est une monnaie d'EQUIPE versee a tous — chacun lit le meme montant. La
+     ligne n'apparait qu'une fois le premier eclat gagne : avant le premier
+     point de recolte, elle n'annoncerait qu'un zero. */
+  const me = v.playerList.find(p => p.id === c.myId);
+  const eclats = me?.eclats ?? 0;
+  const meta = `kills ${v.kills}\nennemis ${v.enemyList.length}\nping ${c.ping} ms`
+    + (eclats > 0 ? `\néclats ${eclats}` : "");
   if (memo.meta !== meta + c.difficulty + v.slow) {
     memo.meta = meta + c.difficulty + v.slow;
     el.meta.textContent = "";

@@ -57,7 +57,7 @@ import { EventPump } from "/events.js";
 /* La grille du sol est graduee en METRES : c'est ce qui rend les distances des
    descriptions de cartes lisibles a l'ecran. Seule conversion d'affichage du
    fichier, et elle passe par le point unique. */
-import { PX_PER_M } from "/shared/units.js";
+import { PX_PER_M, fmtM } from "/shared/units.js";
 /* Les glyphes sont dessines a deux endroits depuis que le HUD est sorti du
    canvas — dans l'arene et dans le DOM — d'ou un module a part plutot qu'une
    seconde copie des traces. */
@@ -171,14 +171,71 @@ function resize() {
   for (const c of [cv, cvUnder]) {
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   }
-  renderScale = cv.width / CFG.ARENA_W;
-  // Les DEUX couches 2D partagent la meme transformation : elles doivent
-  // coincider au pixel pres, sinon les entites glissent contre leur sol.
-  underCtx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
-  overCtx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+  // Sur la VUE et non l'arene (lot I) : le canvas affiche un ecran de
+  // 1600 x 900, l'arene fait trois fois ca dans chaque dimension et c'est la
+  // camera qui choisit le morceau. Les coordonnees monde ne changent pas.
+  renderScale = cv.width / CFG.VIEW_W;
+  applyCamera();
   // Le viewport WebGL est en pixels PHYSIQUES, deja multiplies par la densite.
   // L'oublier donne le symptome classique du rendu tasse dans un coin.
-  gl?.resize(w, h, CFG.ARENA_W, CFG.ARENA_H);
+  gl?.resize(w, h, CFG.VIEW_W, CFG.VIEW_H);
+}
+
+/* --- CAMERA (lot I) ----------------------------------------------------------
+   Chaque client suit SA position predite — l'exploration est individuelle,
+   chacun voit midi a sa porte. La camera vit dans les TRANSFORMS, jamais dans
+   les fonctions de dessin : une translation posee ici sur les deux contextes
+   2D, un offset dans la projection WebGL (gl.begin), et la conversion souris.
+   Les deux cents fonctions de dessin continuent d'ecrire en coordonnees monde
+   et ignorent qu'une camera existe — meme principe que la densite de pixels.
+
+   Lissage exponentiel et non suivi rigide : chaque micro-correction de la
+   prediction locale se repercuterait sur la camera en tremblement perceptible.
+   Recalage SEC au-dela d'un ecran d'ecart (debut de manche, engagement de
+   boss) : suivre en douceur une traversee de salle donnerait deux secondes de
+   glissade aveugle au moment ou il faut voir ou l'on est. */
+const camera = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2, x0: 0, y0: 0 };
+const CAMERA_RATE = 8;
+
+function updateCamera(dt) {
+  let t = predicted ?? latest?.players?.get(myId) ?? null;
+  // Spectateur : on suit le premier vivant plutot qu'un coin de salle vide.
+  if (!t && latest) { for (const p of latest.players.values()) { t = p; break; } }
+  const tx = t ? t.x : camera.x, ty = t ? t.y : camera.y;
+  if (Math.abs(tx - camera.x) > CFG.VIEW_W || Math.abs(ty - camera.y) > CFG.VIEW_H) {
+    camera.x = tx; camera.y = ty;
+  } else {
+    const pull = 1 - Math.exp(-CAMERA_RATE * dt);
+    camera.x += (tx - camera.x) * pull;
+    camera.y += (ty - camera.y) * pull;
+  }
+  camera.x = Math.min(Math.max(camera.x, CFG.VIEW_W / 2), CFG.ARENA_W - CFG.VIEW_W / 2);
+  camera.y = Math.min(Math.max(camera.y, CFG.VIEW_H / 2), CFG.ARENA_H - CFG.VIEW_H / 2);
+  camera.x0 = camera.x - CFG.VIEW_W / 2;
+  camera.y0 = camera.y - CFG.VIEW_H / 2;
+  applyCamera();
+  // Sous `?perf` comme le compteur d'images : la mesure du lot I demande de
+  // verifier depuis la console que la camera suit, sans outillage externe.
+  if (PERF) { window.__cam = camera; window.__pred = predicted; }
+}
+
+// Les DEUX couches 2D partagent la meme transformation : elles doivent
+// coincider au pixel pres, sinon les entites glissent contre leur sol.
+function applyCamera() {
+  const tx = -camera.x0 * renderScale, ty = -camera.y0 * renderScale;
+  underCtx.setTransform(renderScale, 0, 0, renderScale, tx, ty);
+  overCtx.setTransform(renderScale, 0, 0, renderScale, tx, ty);
+}
+
+/* Culling : un point est-il dans le rectangle de vue, a une marge pres ? La
+   marge par defaut couvre le plus grand sprite, son halo et son recul — une
+   entite qui apparait ou disparait au bord de l'ecran se voit, c'est le
+   critere d'acceptation du lot. Dessiner les 220 ennemis d'une salle 9 fois
+   plus grande que l'ecran, c'est payer 9 fois le monde pour une vue. */
+const CULL_MARGIN = 90;
+function inView(x, y, m = CULL_MARGIN) {
+  return x > camera.x0 - m && x < camera.x0 + CFG.VIEW_W + m
+      && y > camera.y0 - m && y < camera.y0 + CFG.VIEW_H + m;
 }
 
 addEventListener("resize", resize);
@@ -2336,6 +2393,8 @@ function ingest(msg) {
       // un serveur anterieur n'envoie rien, la pastille reste alors grisee,
       // qui est exactement l'etat « pas de carte ».
       cd3: a[30] ?? 0, skill3: a[31] ?? 0,
+      // Eclats (lot I) : la monnaie de manche. Repli 0 — serveur anterieur.
+      eclats: a[32] ?? 0,
     }])),
     /* Le champ de type porte trois informations pour n'en couter qu'une seule
        sur chacun des 200 ennemis, vingt fois par seconde : le type, le rang
@@ -2386,6 +2445,10 @@ function ingest(msg) {
       ? { x: msg.wl[0], y: msg.wl[1], t: msg.wl[2], k: msg.wl[3] }
       : null,
     powerups: msg.w.map(a => ({ id: a[0], x: a[1], y: a[2], type: a[3] })),
+    // Points de recolte (lot I) : cle nommee, absente d'un serveur anterieur —
+    // le repli est la liste vide. `k` est la jauge (PV du cristal, progression
+    // de l'amas), deja en ratio.
+    harvests: (msg.hv ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], kind: a[3], k: a[4] ?? 1 })),
     turrets: (msg.tu ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], k: a[3], ang: a[4] })),
     bulwarks: (msg.bw ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4] })),
     // Ancres et sanctuaires (lot C) : cles nommees, absentes d'un serveur
@@ -2648,22 +2711,33 @@ function readMove() {
   return d > 0 ? { x: x / d, y: y / d } : { x: 0, y: 0 };
 }
 
-const mouse = { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+/* La souris est memorisee en coordonnees VUE et convertie en monde a la
+   lecture : entre deux mouvements de souris, c'est la CAMERA qui bouge, et un
+   point monde fige aurait fait deriver la visee a chaque pas du personnage. */
+const mouseView = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2 };
+const mouse = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2 };
 
 function updateMouse(e) {
   const r = cv.getBoundingClientRect();
   if (r.width === 0 || r.height === 0) return;
-  // Vers les coordonnees MONDE, pas vers la memoire du canvas : depuis que
-  // celle-ci suit la densite de pixels de l'ecran, les deux ne sont plus la
-  // meme chose et viser aurait ete decale d'un facteur deux en 4K.
-  mouse.x = (e.clientX - r.left) * (CFG.ARENA_W / r.width);
-  mouse.y = (e.clientY - r.top) * (CFG.ARENA_H / r.height);
+  // Vers les coordonnees de VUE, pas vers la memoire du canvas : celle-ci
+  // suit la densite de pixels de l'ecran, et viser aurait ete decale d'un
+  // facteur deux en 4K.
+  mouseView.x = (e.clientX - r.left) * (CFG.VIEW_W / r.width);
+  mouseView.y = (e.clientY - r.top) * (CFG.VIEW_H / r.height);
 }
 addEventListener("mousemove", updateMouse);
 addEventListener("mousedown", updateMouse);
 
+// Point vise en coordonnees MONDE, a l'instant de la lecture.
+function refreshMouseWorld() {
+  mouse.x = mouseView.x + camera.x0;
+  mouse.y = mouseView.y + camera.y0;
+}
+
 function aimVector() {
-  const from = predicted ?? { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+  refreshMouseWorld();
+  const from = predicted ?? { x: camera.x, y: camera.y };
   const dx = mouse.x - from.x, dy = mouse.y - from.y;
   const d = Math.hypot(dx, dy);
   return d > 0.001 ? { ax: dx / d, ay: dy / d } : { ax: 0, ay: 0 };
@@ -2674,7 +2748,8 @@ function aimVector() {
    apercu (anneau de portee, cercle d'atterrissage) doit annoncer exactement le
    lancer qui va partir, sinon il ment sur le seul point que ce lot corrige. */
 function aimRange() {
-  const from = predicted ?? { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+  refreshMouseWorld();
+  const from = predicted ?? { x: camera.x, y: camera.y };
   return bombRange(Math.hypot(mouse.x - from.x, mouse.y - from.y));
 }
 
@@ -2774,6 +2849,8 @@ function interpolated(renderTime) {
     // l'interpolation serait l'identite, on prend le snapshot le plus recent.
     anchors: b.anchors,
     sancts: b.sancts,
+    // Points de recolte : immobiles eux aussi, snapshot le plus recent.
+    harvests: b.harvests ?? [],
     effects: b.effects,
     boss, boss2, marks, slip: b.slip,
     // Limites et murs : des paliers, pas des positions. Interpoler une arene qui
@@ -2804,6 +2881,7 @@ function flatten(s) {
     bulwarks: s.bulwarks ?? [],
     anchors: s.anchors ?? [],
     sancts: s.sancts ?? [],
+    harvests: s.harvests ?? [],
     effects: s.effects,
     boss: s.boss,
     boss2: s.boss2 ?? null,
@@ -3232,6 +3310,7 @@ function drawDeaths() {
     const d = deaths[i];
     const k = (now - d.at) / DEATH_MS;
     if (k >= 1) { deaths[i] = deaths[deaths.length - 1]; deaths.pop(); continue; }
+    if (!inView(d.x, d.y)) continue;
     const step = k < 0.33 ? 0 : (k < 0.66 ? 1 : 2);
     drawSprite(ctx, frameOf(`e${d.type}_die${step}`), d.x, d.y, {
       angle: d.ang,
@@ -3467,7 +3546,8 @@ function flushSelf(now) {
     // arrondis.
     if (Math.round(a.sum) < 1) { a.at = now; continue; }
     selfAgg.delete(cle);
-    hudDamage(a.x, a.y - 26, a.sum, a.kind,
+    // Monde -> VUE ici, au point d'appel : le HUD ne connait pas la camera.
+    hudDamage(a.x - camera.x0, a.y - camera.y0 - 26, a.sum, a.kind,
               a.kind === "hurt" ? (SRC_ICON[a.src] ?? null) : null);
   }
 }
@@ -3478,7 +3558,8 @@ function flushDamage(now) {
     if (now - a.at < DMG_AGG_MS) continue;
     dmgAgg.delete(id);
     if (a.sum >= a.maxHp * DMG_THRESHOLD) {
-      hudDamage(a.x + (Math.random() - 0.5) * 18, a.y - 22, a.sum, "deal");
+      hudDamage(a.x - camera.x0 + (Math.random() - 0.5) * 18,
+                a.y - camera.y0 - 22, a.sum, "deal");
     }
   }
 }
@@ -3560,6 +3641,7 @@ function drawParticles() {
      derriere un boss. */
   if (glActive()) {
     for (const p of particles) {
+      if (!inView(p.x, p.y, 40)) continue;
       const s = p.size / SPRITE_CELL;
       drawSprite(ctx, p.frame ?? fxWhite, p.x, p.y, {
         // `long` etire le long de l'axe propre de la particule : combine a
@@ -3581,6 +3663,7 @@ function drawParticles() {
      du meme ordre qu'un `fillRect`, et sans lui l'eclair de mort reste le carre
      blanc que toute cette passe est venue supprimer. */
   for (const p of particles) {
+    if (!inView(p.x, p.y, 40)) continue;
     ctx.globalAlpha = Math.max(0, p.life / p.max);
     ctx.fillStyle = p.col;
     if (p.frame === fxGlow && fxGlow) {
@@ -3629,6 +3712,7 @@ function frame(now) {
     const renderTime = now - INTERP_MS;
     if (phase === PHASE_ROUND) {
       stepPrediction(dt);
+      updateCamera(dt);
       /* Diffusion des evenements sur l'horloge de RENDU et non a la reception :
          c'est ce qui fait tomber le son sur l'image et non 110 ms avant. */
       pump.pump(snapshots, renderTime);
@@ -3642,13 +3726,14 @@ function frame(now) {
     // Hors manche : le sol seul, sur la couche du dessous. Les deux autres sont
     // videes a chaque image — un canvas WebGL qu'on cesse de dessiner garde un
     // contenu indefini, et la derniere image de la manche precedente aurait pu
-    // reapparaitre par-dessous le salon.
+    // reapparaitre par-dessous le salon. La camera reste ou elle etait : le
+    // rectangle de vue est le seul morceau de salle qu'il faut peindre.
     ctx = underCtx;
     ctx.fillStyle = SURFACE.arena;
-    ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+    ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
     drawGrid();
-    overCtx.clearRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
-    gl?.begin();
+    overCtx.clearRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+    gl?.begin(null, camera.x0, camera.y0);
     gl?.end();
   }
   requestAnimationFrame(frame);
@@ -3778,27 +3863,28 @@ const GRID_FINE = 5 * PX_PER_M;     // 100 px
 const GRID_MAJOR = 20 * PX_PER_M;   // 400 px
 
 function drawGrid() {
+  // Seuls les traits du RECTANGLE DE VUE sont traces (lot I) : la grille de
+  // toute la salle, c'est trois fois plus de lignes dans chaque dimension
+  // pour des traits que personne ne voit. Les traits restent alignes sur la
+  // salle (multiples de la maille), pas sur la vue — la grille est le sol, il
+  // ne glisse pas avec la camera.
+  const vx0 = camera.x0, vx1 = camera.x0 + CFG.VIEW_W;
+  const vy0 = camera.y0, vy1 = camera.y0 + CFG.VIEW_H;
+  const lines = (step) => {
+    ctx.beginPath();
+    for (let x = Math.max(step, Math.ceil(vx0 / step) * step); x < Math.min(CFG.ARENA_W, vx1 + step); x += step) {
+      ctx.moveTo(x + .5, vy0); ctx.lineTo(x + .5, vy1);
+    }
+    for (let y = Math.max(step, Math.ceil(vy0 / step) * step); y < Math.min(CFG.ARENA_H, vy1 + step); y += step) {
+      ctx.moveTo(vx0, y + .5); ctx.lineTo(vx1, y + .5);
+    }
+    ctx.stroke();
+  };
   ctx.lineWidth = 1;
-
   ctx.strokeStyle = SURFACE.gridFine;
-  ctx.beginPath();
-  for (let x = GRID_FINE; x < CFG.ARENA_W; x += GRID_FINE) {
-    ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
-  }
-  for (let y = GRID_FINE; y < CFG.ARENA_H; y += GRID_FINE) {
-    ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
-  }
-  ctx.stroke();
-
+  lines(GRID_FINE);
   ctx.strokeStyle = SURFACE.gridMajor;
-  ctx.beginPath();
-  for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
-    ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
-  }
-  for (let y = GRID_MAJOR; y < CFG.ARENA_H; y += GRID_MAJOR) {
-    ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
-  }
-  ctx.stroke();
+  lines(GRID_MAJOR);
 
   drawGridPings();
 }
@@ -3853,16 +3939,22 @@ function drawGridPings() {
 let vignette = null;
 
 function drawVignette() {
+  // Le degrade est construit UNE fois en repere de VUE (lot I) et translate
+  // sur le rectangle courant : un vignettage est un effet d'ECRAN, il suit la
+  // camera — reconstruit a chaque image, il se voyait au profileur.
   if (!vignette) {
-    const r = Math.hypot(CFG.ARENA_W, CFG.ARENA_H) / 2;
+    const r = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2;
     vignette = ctx.createRadialGradient(
-      CFG.ARENA_W / 2, CFG.ARENA_H / 2, r * 0.42,
-      CFG.ARENA_W / 2, CFG.ARENA_H / 2, r);
+      CFG.VIEW_W / 2, CFG.VIEW_H / 2, r * 0.42,
+      CFG.VIEW_W / 2, CFG.VIEW_H / 2, r);
     vignette.addColorStop(0, alpha(SURFACE.void, 0));
     vignette.addColorStop(1, alpha(SURFACE.void, 0.55));
   }
+  ctx.save();
+  ctx.translate(camera.x0, camera.y0);
   ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  ctx.fillRect(0, 0, CFG.VIEW_W, CFG.VIEW_H);
+  ctx.restore();
 }
 
 /* UNE seule passe. La separation en deux — le monde secoue, l'interface fixe —
@@ -3876,14 +3968,16 @@ function drawVignette() {
    donc une division, et elle reste juste quelle que soit la fenetre. */
 function draw(v) {
   // Le fond n'est peint que par la couche du DESSOUS ; les deux autres doivent
-  // rester transparentes, sinon elles effacent ce qu'il y a dessous.
+  // rester transparentes, sinon elles effacent ce qu'il y a dessous. Le
+  // remplissage et le vidage couvrent le RECTANGLE DE VUE — en coordonnees
+  // monde sous la transformation camera, c'est exactement tout le canvas.
   underCtx.fillStyle = SURFACE.arena;
-  underCtx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
-  overCtx.clearRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+  underCtx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+  overCtx.clearRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
   // Le lot WebGL s'ouvre autour de TOUT le monde : les quads sont accumules au
   // fil des appels et vides a la fin, donc leur ordre entre eux est celui du
   // code, mais leur position dans l'empilement est celle du canvas.
-  gl?.begin();
+  gl?.begin(null, camera.x0, camera.y0);
   drawWorld(v);
   gl?.end();
   applyShake();
@@ -3898,9 +3992,10 @@ function applyShake() {
   shakeApplied = on;
   // Le tressaillement porte sur `#arena` et non sur un canvas : les trois
   // couches doivent bouger ENSEMBLE, au sous-pixel pres.
+  // En part de la VUE : la boite de #arena fait un ecran, plus la salle.
   arenaEl.style.transform = on
-    ? `scale(1.015) translate(${(shake.x / CFG.ARENA_W * 100).toFixed(3)}%, ` +
-      `${(shake.y / CFG.ARENA_H * 100).toFixed(3)}%)`
+    ? `scale(1.015) translate(${(shake.x / CFG.VIEW_W * 100).toFixed(3)}%, ` +
+      `${(shake.y / CFG.VIEW_H * 100).toFixed(3)}%)`
     : "scale(1.015)";
 }
 
@@ -3940,7 +4035,7 @@ function drawWorld(v) {
 
   if (v.slow) {
     ctx.fillStyle = alpha(WALL.fill, 0.06);
-    ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+    ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
   }
 
   // La couronne interdite passe SOUS les zones : c'est le sol lui-meme, et une
@@ -3967,6 +4062,7 @@ function drawWorld(v) {
   // rien, il n'a donc rien a voir avec la couche courante.
   trackShooters(v);
 
+  drawHarvests(v.harvests ?? []);
   drawBombs(v.bombList ?? []);
   // Les marqueurs de mecanique passent SOUS les entites, comme le rempart :
   // un cercle de regroupement de 135 px de rayon dessine par-dessus masquait
@@ -4018,11 +4114,13 @@ function drawWorld(v) {
      joueurs que le lot vient de rendre identifiables. Une onde est un ornement
      de sol, un projectile est une entite — la ligne de partage est la. */
   for (const s of v.shotList) {
+    if (!inView(s.x, s.y, 40)) continue;
     // Rouge franc ET losange : deux signaux pour la meme information, parce
     // qu'aucun des deux ne suffit seul a 220 ennemis.
     drawBolt(s, CFG.SHOT_RADIUS, COMBAT.shot, shotTrail, BOLT_DIAMOND);
   }
   for (const b of v.bulletList) {
+    if (!inView(b.x, b.y, 40)) continue;
     /* La balle prend LA COULEUR DE SON TIREUR. Elle repond du meme coup a deux
        questions : « est-ce a moi que ca fait mal » et « qui a tire ca » — la
        seconde n'avait aucune reponse en cooperatif.
@@ -4065,6 +4163,58 @@ function drawWorld(v) {
   // TOUT ce qui precede : place plus tot, il aurait laisse les entites des
   // bords a pleine luminosite sur un sol deja eteint.
   drawVignette();
+  // Les fleches d'allies hors champ APRES le vignettage : ce sont des
+  // indicateurs d'ecran, pas des elements du monde — assombries, elles
+  // perdraient exactement la lisibilite qui les justifie.
+  drawAllyArrows(v.playerList);
+}
+
+/* FLECHES DE COEQUIPIER (lot I). Pour chaque allie hors du rectangle de vue,
+   une fleche au bord de l'ecran pointe vers lui, dans SA couleur, avec la
+   distance en metres — l'unite de toutes les distances affichees du jeu. La
+   position est la projection du vecteur (centre de vue -> allie) sur le
+   rectangle de vue retreci d'une marge : la fleche longe le bord, elle ne le
+   quitte jamais. Un allie a terre pulse : c'est lui qu'on va chercher. */
+const ARROW_MARGIN = 34;
+
+function drawAllyArrows(players) {
+  if (phase !== PHASE_ROUND) return;
+  const me = predicted ?? { x: camera.x, y: camera.y };
+  for (const p of players) {
+    if (p.id === myId) continue;
+    if (inView(p.x, p.y, -20)) continue;
+    const dx = p.x - camera.x, dy = p.y - camera.y;
+    const ang = Math.atan2(dy, dx);
+    const hw = CFG.VIEW_W / 2 - ARROW_MARGIN, hh = CFG.VIEW_H / 2 - ARROW_MARGIN;
+    const k = Math.min(hw / Math.max(Math.abs(dx), 1e-6),
+                       hh / Math.max(Math.abs(dy), 1e-6));
+    const ax = camera.x + dx * k, ay = camera.y + dy * k;
+    const col = colorOf(p.id);
+    const pulse = p.downed ? 0.45 + 0.4 * Math.sin(performance.now() / 160) : 1;
+
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.globalAlpha = 0.9 * pulse;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(12, 0);
+    ctx.lineTo(-7, -8);
+    ctx.lineTo(-3, 0);
+    ctx.lineTo(-7, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = col;
+    ctx.font = "700 13px ui-monospace, Menlo, Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(fmtM(Math.hypot(p.x - me.x, p.y - me.y)),
+                 ax, ay + (ay < camera.y ? 26 : -16));
+    ctx.restore();
+  }
 }
 
 /* TRAINEES DE PROJECTILE. Le sprite est etire dans son axe, plus une copie a
@@ -4776,11 +4926,18 @@ function drawZonesActive(list, tm) {
   ctx.lineWidth = 3;
   const pas = 14;
   const off = (tm * 22) % pas;
-  const span = CFG.ARENA_W + CFG.ARENA_H;
+  /* Hachures limitees au RECTANGLE DE VUE (lot I) : sur la salle entiere, le
+     balayage diagonal tracait cinq cents segments par flaque et par image.
+     `t` est l'abscisse a y = 0, en multiples du pas : les traits restent
+     ANCRES AU MONDE — ancres a la vue, ils rampaient avec la camera. */
+  const hx0 = camera.x0, hy0 = camera.y0;
+  const hx1 = hx0 + CFG.VIEW_W, hy1 = hy0 + CFG.VIEW_H;
+  const dia = CFG.VIEW_H;
   ctx.beginPath();
-  for (let d = -CFG.ARENA_H; d < span; d += pas) {
-    ctx.moveTo(d + off, 0);
-    ctx.lineTo(d + off + CFG.ARENA_H, CFG.ARENA_H);
+  const base = Math.floor((hx0 - dia - hy0) / pas) * pas;
+  for (let t = base; t + hy0 < hx1; t += pas) {
+    ctx.moveTo(t + off + hy0, hy0);
+    ctx.lineTo(t + off + hy0 + dia, hy1);
   }
   ctx.stroke();
   ctx.restore();
@@ -4944,7 +5101,7 @@ function drawEffects(effects) {
     if (f.kind === 1) {
       // balayage d'arrivee du boss : voile blanc puis onde large
       ctx.fillStyle = alpha(FX.veil, f.k * 0.16);
-      ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+      ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
 
       ctx.strokeStyle = alpha(FX.flash, f.k * 0.85);
       ctx.lineWidth = 14 * f.k + 2;
@@ -5036,7 +5193,7 @@ function drawEffects(effects) {
     if (f.kind === 6) {
       // rupture d'une barre du boss : souffle blanc puis onde rouge
       ctx.fillStyle = alpha(FX.veil, f.k * 0.12);
-      ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
+      ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
 
       ctx.strokeStyle = alpha(FX.elite, f.k * 0.95);
       ctx.lineWidth = 12 * f.k + 2;
@@ -5139,6 +5296,17 @@ function drawEffects(effects) {
       ctx.lineWidth = 7 * f.k + 2;
       ctx.beginPath();
       ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 14) {
+      // recolte aboutie (lot I) : onde doree — la teinte des legendaires, la
+      // meme que le point recolte, pour que le gain se lise d'un coup d'oeil
+      ctx.strokeStyle = alpha(HARVEST_GOLD, f.k * 0.9);
+      ctx.lineWidth = 4 * f.k + 1;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (0.2 + grow * 0.8), 0, Math.PI * 2);
       ctx.stroke();
       continue;
     }
@@ -5378,6 +5546,7 @@ function drawBombRange(x, y) {
 function drawPowerups(list) {
   const now = performance.now();
   for (const w of list) {
+    if (!inView(w.x, w.y, 60)) continue;
     const st = POWERUP_STYLE[POWERUP_TYPES[w.type]] ?? POWERUP_STYLE.heal;
     const r = CFG.POWERUP_RADIUS;
     const pulse = 1 + Math.sin(now / 260 + w.id) * 0.1;
@@ -5404,6 +5573,83 @@ function drawPowerups(list) {
     ctx.stroke();
 
     paintPowerupIcon(st, w.x, y, (r / 8.6) * pulse);
+  }
+}
+
+/* POINTS DE RECOLTE (lot I). L'or des legendaires, deliberement : la meme
+   teinte dit « rarete et valeur » dans tout le jeu, et elle n'appartient a
+   aucune couleur fonctionnelle de l'arene. Des LOSANGES et non des cercles —
+   le seul cercle du jeu est une entite vivante, un cristal est une structure.
+   Le halo pulse pour se reperer a distance : c'est le signal d'exploration,
+   il doit se voir du bord de l'ecran. */
+const HARVEST_GOLD = RARITY_COLOR[3];
+
+function drawHarvests(list) {
+  if (list.length === 0) return;
+  const now = performance.now();
+  for (const h of list) {
+    if (!inView(h.x, h.y, 120)) continue;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 300 + h.id);
+
+    // halo de reperage, large et doux
+    ctx.strokeStyle = HARVEST_GOLD;
+    ctx.globalAlpha = 0.14 + pulse * 0.18;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const hr = 30 + pulse * 6;
+    ctx.moveTo(h.x, h.y - hr); ctx.lineTo(h.x + hr, h.y);
+    ctx.lineTo(h.x, h.y + hr); ctx.lineTo(h.x - hr, h.y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    if (h.kind === 0) {
+      // cristal : un losange plein, qui s'eteint a mesure qu'on le grignote
+      const r = 14;
+      ctx.fillStyle = alpha(HARVEST_GOLD, 0.25 + 0.55 * h.k);
+      ctx.strokeStyle = HARVEST_GOLD;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(h.x, h.y - r); ctx.lineTo(h.x + r * 0.7, h.y);
+      ctx.lineTo(h.x, h.y + r); ctx.lineTo(h.x - r * 0.7, h.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // jauge de PV, comme un ennemi : meme langage, meme position
+      if (h.k < 1) {
+        ctx.fillStyle = alpha(SURFACE.shadow, 0.45);
+        ctx.fillRect(h.x - r, h.y - r - 9, r * 2, 3);
+        ctx.fillStyle = HARVEST_GOLD;
+        ctx.fillRect(h.x - r, h.y - r - 9, r * 2 * h.k, 3);
+      }
+    } else {
+      // amas : trois petits losanges, et l'anneau de canalisation en arc —
+      // c'est la jauge du geste « rester dessus », pas une barre de PV
+      for (let i = 0; i < 3; i++) {
+        const a = i * (Math.PI * 2 / 3) + 0.6;
+        const cx2 = h.x + Math.cos(a) * 9, cy2 = h.y + Math.sin(a) * 9;
+        const r = 6;
+        ctx.fillStyle = alpha(HARVEST_GOLD, 0.6);
+        ctx.beginPath();
+        ctx.moveTo(cx2, cy2 - r); ctx.lineTo(cx2 + r * 0.7, cy2);
+        ctx.lineTo(cx2, cy2 + r); ctx.lineTo(cx2 - r * 0.7, cy2);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.strokeStyle = alpha(HARVEST_GOLD, 0.35);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, CFG.HARVEST_CHANNEL_RADIUS, 0, Math.PI * 2);
+      ctx.stroke();
+      if (h.k > 0) {
+        ctx.strokeStyle = HARVEST_GOLD;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, CFG.HARVEST_CHANNEL_RADIUS, -Math.PI / 2,
+                -Math.PI / 2 + Math.PI * 2 * Math.min(1, h.k));
+        ctx.stroke();
+      }
+    }
   }
 }
 
@@ -5497,6 +5743,10 @@ function drawEnemies(list) {
   const t = performance.now();
   const ts = t / 1000;
   for (const e of list) {
+    // Culling (lot I) : hors du rectangle de vue, rien a dessiner. La marge
+    // couvre le plus grand sprite avec son halo — une entite ne doit jamais
+    // apparaitre ou disparaitre visiblement au bord de l'ecran.
+    if (!inView(e.x, e.y)) continue;
     const def = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
     const r = e.elite ? def.r * CFG.ELITE_RADIUS_MUL : def.r;
 
