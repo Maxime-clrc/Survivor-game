@@ -243,6 +243,27 @@ export const CFG = {
      les vagues et les cartes, un bonus toutes les 9 a 14 secondes et trois au
      sol en permanence rendaient le trajet gratuit. Doubler l'attente redonne sa
      valeur au deplacement : aller le chercher redevient une prise de risque. */
+  /* POINTS DE RECOLTE (lot I). Rares et interessants — un evenement, pas un
+     revenu : c'est la raison d'explorer la grande arene. Deux formes pour
+     deux gestes : le CRISTAL se detruit en tirant dessus, l'AMAS se canalise
+     en restant dessus — s'arreter plutot que tirer en passant. Le rendement
+     part en ECLATS, la monnaie de manche : versee a l'equipe entiere (meme
+     raison que l'experience commune — celui qui explore prend le risque,
+     celui qui tient la ligne ne doit pas etre taxe), jamais persistee.
+     HARVEST_PLAYER_DIST : un point n'apparait jamais a moins d'un demi-ecran
+     large d'un joueur vivant — s'il tombait sous les yeux, l'exploration
+     n'aurait pas lieu d'etre. */
+  HARVEST_MIN: 25,           // secondes entre deux apparitions
+  HARVEST_MAX: 45,
+  HARVEST_MAX_GROUND: 4,
+  HARVEST_YIELD_MIN: 15,     // eclats par point recolte
+  HARVEST_YIELD_MAX: 35,
+  HARVEST_CRYSTAL_HP: 60,
+  HARVEST_CHANNEL: 1.5,      // secondes de canalisation d'un amas
+  HARVEST_RADIUS: 16,
+  HARVEST_CHANNEL_RADIUS: 60,
+  HARVEST_PLAYER_DIST: 1100,
+
   POWERUP_MIN: 18,
   POWERUP_MAX: 26,
   POWERUP_LIFE: 22,
@@ -784,6 +805,14 @@ export class GameState {
     this.walls = null;      // { x, y, t, max }
     this.puddleSeen = false;
 
+    /* Points de recolte (lot I) : { id, x, y, kind (0 cristal, 1 amas), hp,
+       maxHp, prog }. Les eclats vivent SUR le joueur (p.eclats) et non en
+       reserve commune : le marchand du lot K vend a chacun son budget. Ils
+       meurent avec le GameState — la monnaie de manche ne se persiste pas. */
+    this.harvests = [];
+    this.harvestCd = CFG.HARVEST_MIN
+      + Math.random() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
+
     /* --- roster de boss ------------------------------------------------------
        `bossSeen` porte les INDEX du roster deja sortis dans la manche : le
        tirage est sans repetition tant que la liste n'est pas epuisee, puis elle
@@ -1004,6 +1033,7 @@ export class GameState {
       commonStreak: 0,     // boss consecutifs sans mieux qu'une commune
       damageDealt: 0,      // pour que la contribution defensive se voie ailleurs
       healDealt: 0,        // meme raison, pour le soigneur
+      eclats: 0,           // monnaie de manche (lot I) — jamais persistee
 
       /* --- competences ------------------------------------------------------
          Deux recharges seulement, quelle que soit la classe : le protocole
@@ -1255,6 +1285,7 @@ export class GameState {
     this._skills(dt);
     this._effects(dt);
     this._powerups(dt);
+    this._harvests(dt);
     this._turrets(dt);
     this._drones(dt);
     this._enemies(dt);
@@ -3158,6 +3189,96 @@ export class GameState {
       if (!taken && w.life > 0) kept.push(w);
     }
     this.powerups = kept;
+  }
+
+  /* --- points de recolte (lot I) ---------------------------------------------
+     Le cristal se detruit AUX BALLES — le test vit ici et non dans la boucle
+     de collision des ennemis : un cristal n'est pas un ennemi (pas de
+     critique, pas de vol de vie, pas de compteur de touches), et quatre
+     structures au sol contre quatre cents balles restent bon marche. L'amas
+     se CANALISE : rester dessus 1,5 s, la progression retombe lentement si
+     tout le monde s'ecarte. Le rendement est verse a CHAQUE joueur — meme
+     logique que l'experience commune, celui qui reste au contact du groupe
+     ne subit pas de penalite de revenu. */
+  _harvests(dt) {
+    // Pas d'apparition pendant un combat de boss : l'arene utile est reduite
+    // a une vue, un point pose dehors serait une promesse inatteignable.
+    this.harvestCd -= dt;
+    if (this.harvestCd <= 0) {
+      this.harvestCd = CFG.HARVEST_MIN
+        + Math.random() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
+      if (!this.boss && !this.waveBoss
+          && this.harvests.length < CFG.HARVEST_MAX_GROUND) {
+        const at = this._harvestPoint();
+        if (at) {
+          this.harvests.push({
+            id: this._nextId++,
+            x: at.x, y: at.y,
+            kind: Math.random() < 0.5 ? 0 : 1,
+            hp: CFG.HARVEST_CRYSTAL_HP, maxHp: CFG.HARVEST_CRYSTAL_HP,
+            prog: 0,
+          });
+        }
+      }
+    }
+
+    if (this.harvests.length === 0) return;
+    const kept = [];
+    for (const h of this.harvests) {
+      if (h.kind === 0) {
+        // cristal : les balles le grignotent (voir _bullets)
+        if (h.hp <= 0) { this._harvestYield(h); continue; }
+      } else {
+        let on = false;
+        for (const p of this._alivePlayers()) {
+          const r = CFG.HARVEST_CHANNEL_RADIUS;
+          if ((p.x - h.x) ** 2 + (p.y - h.y) ** 2 <= r * r) { on = true; break; }
+        }
+        // La progression retombe a mi-vitesse : lacher l'amas pour esquiver ne
+        // remet pas a zero, l'abandonner oui.
+        h.prog = on
+          ? h.prog + dt / CFG.HARVEST_CHANNEL
+          : Math.max(0, h.prog - dt * 0.5 / CFG.HARVEST_CHANNEL);
+        if (h.prog >= 1) { this._harvestYield(h); continue; }
+      }
+      kept.push(h);
+    }
+    if (kept.length !== this.harvests.length) this.harvests = kept;
+  }
+
+  /* Position d'un point de recolte : loin de TOUT joueur vivant — c'est la
+     definition meme de l'exploration — et dans les limites courantes. Vingt
+     tirages, sinon on renonce jusqu'a la prochaine echeance : une salle ou
+     l'equipe est dispersee peut ne laisser aucun coin assez lointain. */
+  _harvestPoint() {
+    const B = this.bounds;
+    const margin = 150;
+    for (let i = 0; i < 20; i++) {
+      const x = B.x0 + margin + Math.random() * Math.max(1, B.x1 - B.x0 - margin * 2);
+      const y = B.y0 + margin + Math.random() * Math.max(1, B.y1 - B.y0 - margin * 2);
+      let ok = true;
+      for (const p of this._alivePlayers()) {
+        if ((p.x - x) ** 2 + (p.y - y) ** 2 < CFG.HARVEST_PLAYER_DIST ** 2) {
+          ok = false; break;
+        }
+      }
+      if (ok) return { x, y };
+    }
+    return null;
+  }
+
+  _harvestYield(h) {
+    const gain = CFG.HARVEST_YIELD_MIN
+      + Math.floor(Math.random() * (CFG.HARVEST_YIELD_MAX - CFG.HARVEST_YIELD_MIN + 1));
+    for (const p of this.players.values()) p.eclats += gain;
+    // kind 14 : recolte aboutie — l'onde doree qui dit que l'equipe vient de
+    // gagner des eclats, meme pour ceux qui etaient a l'autre bout de la salle.
+    this.effects.push({
+      id: this._nextId++,
+      x: h.x, y: h.y, r: 90,
+      life: 0.6, max: 0.6,
+      kind: 14,
+    });
   }
 
   _applyPowerup(p, type) {
@@ -5250,6 +5371,23 @@ export class GameState {
         }
       }
 
+      /* Cristal de recolte (lot I) : la balle s'y arrete et le grignote. Hors
+         de `_bulletHitEnemy`, deliberement — un cristal n'est pas un ennemi,
+         rien de ce que ce point de passage branche (critique, vol de vie,
+         compteur de touches, execution) n'a de sens sur une structure. Le tir
+         de soin passe au travers : il ne blesse rien. */
+      if (b.life > 0 && !b.heal && this.harvests.length > 0) {
+        for (const h of this.harvests) {
+          if (h.kind !== 0 || h.hp <= 0) continue;
+          const rr = CFG.HARVEST_RADIUS + CFG.BULLET_RADIUS;
+          if ((b.x - h.x) ** 2 + (b.y - h.y) ** 2 <= rr * rr) {
+            h.hp -= b.dmg;
+            b.life = 0;    // une grenade explose sur le cristal, comme a vide
+            break;
+          }
+        }
+      }
+
       if (b.life > 0 && b.x > -50 && b.x < CFG.ARENA_W + 50
                      && b.y > -50 && b.y < CFG.ARENA_H + 50) {
         kept.push(b);
@@ -6414,6 +6552,10 @@ export class GameState {
            pastille reste grisee tant que la carte n'est pas tiree — et le
            repli a 0 d'un serveur anterieur donne exactement cet etat. */
         r1(p.cd3), p.mods.skill3,
+        /* Eclats (lot I), en fin de tableau : la monnaie de manche du joueur.
+           Un nombre par joueur, et le seul chiffre que le client ne peut pas
+           deduire — le rendement d'un point de recolte est tire au sort. */
+        p.eclats,
       ]),
       /* Le rang d'elite voyage dans le champ de type (+100) : un drapeau separe
          aurait coute un nombre de plus sur chacun des 200 ennemis. Le marquage
@@ -6483,6 +6625,12 @@ export class GameState {
                                m.a, m.b, m.need, m.cur,
                                r2(m.maxHp > 0 ? Math.max(0, m.hp) / m.maxHp : 0)]),
       w: this.powerups.map(w => [w.id, r1(w.x), r1(w.y), w.type]),
+      /* Points de recolte (lot I). Cle nommee, comme les remparts : un client
+         anterieur l'ignore et joue sans les voir. Le cinquieme champ est la
+         jauge — PV restants du cristal ou progression de l'amas — en RATIO,
+         la valeur brute n'apprendrait rien au client. */
+      hv: this.harvests.map(h => [h.id, r1(h.x), r1(h.y), h.kind,
+        r2(h.kind === 0 ? h.hp / h.maxHp : h.prog)]),
       tu: this.turrets.map(t => [t.id, r1(t.x), r1(t.y), r2(t.life / CFG.TURRET_LIFE), r2(t.ang)]),
       // Remparts et bombes : deux listes nouvelles, donc des cles nommees. Un
       // client plus ancien les ignore et joue sans les voir, ce qui reste

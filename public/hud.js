@@ -585,7 +585,14 @@ export function updateHud(v, c) {
 
   setText(el.clock, "clk", fmtTime(v.tm));
 
-  const meta = `kills ${v.kills}\nennemis ${v.enemyList.length}\nping ${c.ping} ms`;
+  /* Les eclats (lot I) vivent dans le bloc meta, pas dans le bloc personnel :
+     c'est une monnaie d'EQUIPE versee a tous — chacun lit le meme montant. La
+     ligne n'apparait qu'une fois le premier eclat gagne : avant le premier
+     point de recolte, elle n'annoncerait qu'un zero. */
+  const me = v.playerList.find(p => p.id === c.myId);
+  const eclats = me?.eclats ?? 0;
+  const meta = `kills ${v.kills}\nennemis ${v.enemyList.length}\nping ${c.ping} ms`
+    + (eclats > 0 ? `\néclats ${eclats}` : "");
   if (memo.meta !== meta + c.difficulty + v.slow) {
     memo.meta = meta + c.difficulty + v.slow;
     el.meta.textContent = "";

@@ -2393,6 +2393,8 @@ function ingest(msg) {
       // un serveur anterieur n'envoie rien, la pastille reste alors grisee,
       // qui est exactement l'etat « pas de carte ».
       cd3: a[30] ?? 0, skill3: a[31] ?? 0,
+      // Eclats (lot I) : la monnaie de manche. Repli 0 — serveur anterieur.
+      eclats: a[32] ?? 0,
     }])),
     /* Le champ de type porte trois informations pour n'en couter qu'une seule
        sur chacun des 200 ennemis, vingt fois par seconde : le type, le rang
@@ -2443,6 +2445,10 @@ function ingest(msg) {
       ? { x: msg.wl[0], y: msg.wl[1], t: msg.wl[2], k: msg.wl[3] }
       : null,
     powerups: msg.w.map(a => ({ id: a[0], x: a[1], y: a[2], type: a[3] })),
+    // Points de recolte (lot I) : cle nommee, absente d'un serveur anterieur —
+    // le repli est la liste vide. `k` est la jauge (PV du cristal, progression
+    // de l'amas), deja en ratio.
+    harvests: (msg.hv ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], kind: a[3], k: a[4] ?? 1 })),
     turrets: (msg.tu ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], k: a[3], ang: a[4] })),
     bulwarks: (msg.bw ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4] })),
     // Ancres et sanctuaires (lot C) : cles nommees, absentes d'un serveur
@@ -2843,6 +2849,8 @@ function interpolated(renderTime) {
     // l'interpolation serait l'identite, on prend le snapshot le plus recent.
     anchors: b.anchors,
     sancts: b.sancts,
+    // Points de recolte : immobiles eux aussi, snapshot le plus recent.
+    harvests: b.harvests ?? [],
     effects: b.effects,
     boss, boss2, marks, slip: b.slip,
     // Limites et murs : des paliers, pas des positions. Interpoler une arene qui
@@ -2873,6 +2881,7 @@ function flatten(s) {
     bulwarks: s.bulwarks ?? [],
     anchors: s.anchors ?? [],
     sancts: s.sancts ?? [],
+    harvests: s.harvests ?? [],
     effects: s.effects,
     boss: s.boss,
     boss2: s.boss2 ?? null,
@@ -4053,6 +4062,7 @@ function drawWorld(v) {
   // rien, il n'a donc rien a voir avec la couche courante.
   trackShooters(v);
 
+  drawHarvests(v.harvests ?? []);
   drawBombs(v.bombList ?? []);
   // Les marqueurs de mecanique passent SOUS les entites, comme le rempart :
   // un cercle de regroupement de 135 px de rayon dessine par-dessus masquait
@@ -5290,6 +5300,17 @@ function drawEffects(effects) {
       continue;
     }
 
+    if (f.kind === 14) {
+      // recolte aboutie (lot I) : onde doree — la teinte des legendaires, la
+      // meme que le point recolte, pour que le gain se lise d'un coup d'oeil
+      ctx.strokeStyle = alpha(HARVEST_GOLD, f.k * 0.9);
+      ctx.lineWidth = 4 * f.k + 1;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (0.2 + grow * 0.8), 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
     if (f.kind === 2) {
       // montee de niveau : anneau dore qui s'ouvre vers l'exterieur
       ctx.strokeStyle = alpha(FX.level, f.k * 0.9);
@@ -5552,6 +5573,83 @@ function drawPowerups(list) {
     ctx.stroke();
 
     paintPowerupIcon(st, w.x, y, (r / 8.6) * pulse);
+  }
+}
+
+/* POINTS DE RECOLTE (lot I). L'or des legendaires, deliberement : la meme
+   teinte dit « rarete et valeur » dans tout le jeu, et elle n'appartient a
+   aucune couleur fonctionnelle de l'arene. Des LOSANGES et non des cercles —
+   le seul cercle du jeu est une entite vivante, un cristal est une structure.
+   Le halo pulse pour se reperer a distance : c'est le signal d'exploration,
+   il doit se voir du bord de l'ecran. */
+const HARVEST_GOLD = RARITY_COLOR[3];
+
+function drawHarvests(list) {
+  if (list.length === 0) return;
+  const now = performance.now();
+  for (const h of list) {
+    if (!inView(h.x, h.y, 120)) continue;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 300 + h.id);
+
+    // halo de reperage, large et doux
+    ctx.strokeStyle = HARVEST_GOLD;
+    ctx.globalAlpha = 0.14 + pulse * 0.18;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const hr = 30 + pulse * 6;
+    ctx.moveTo(h.x, h.y - hr); ctx.lineTo(h.x + hr, h.y);
+    ctx.lineTo(h.x, h.y + hr); ctx.lineTo(h.x - hr, h.y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    if (h.kind === 0) {
+      // cristal : un losange plein, qui s'eteint a mesure qu'on le grignote
+      const r = 14;
+      ctx.fillStyle = alpha(HARVEST_GOLD, 0.25 + 0.55 * h.k);
+      ctx.strokeStyle = HARVEST_GOLD;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(h.x, h.y - r); ctx.lineTo(h.x + r * 0.7, h.y);
+      ctx.lineTo(h.x, h.y + r); ctx.lineTo(h.x - r * 0.7, h.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // jauge de PV, comme un ennemi : meme langage, meme position
+      if (h.k < 1) {
+        ctx.fillStyle = alpha(SURFACE.shadow, 0.45);
+        ctx.fillRect(h.x - r, h.y - r - 9, r * 2, 3);
+        ctx.fillStyle = HARVEST_GOLD;
+        ctx.fillRect(h.x - r, h.y - r - 9, r * 2 * h.k, 3);
+      }
+    } else {
+      // amas : trois petits losanges, et l'anneau de canalisation en arc —
+      // c'est la jauge du geste « rester dessus », pas une barre de PV
+      for (let i = 0; i < 3; i++) {
+        const a = i * (Math.PI * 2 / 3) + 0.6;
+        const cx2 = h.x + Math.cos(a) * 9, cy2 = h.y + Math.sin(a) * 9;
+        const r = 6;
+        ctx.fillStyle = alpha(HARVEST_GOLD, 0.6);
+        ctx.beginPath();
+        ctx.moveTo(cx2, cy2 - r); ctx.lineTo(cx2 + r * 0.7, cy2);
+        ctx.lineTo(cx2, cy2 + r); ctx.lineTo(cx2 - r * 0.7, cy2);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.strokeStyle = alpha(HARVEST_GOLD, 0.35);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, CFG.HARVEST_CHANNEL_RADIUS, 0, Math.PI * 2);
+      ctx.stroke();
+      if (h.k > 0) {
+        ctx.strokeStyle = HARVEST_GOLD;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, CFG.HARVEST_CHANNEL_RADIUS, -Math.PI / 2,
+                -Math.PI / 2 + Math.PI * 2 * Math.min(1, h.k));
+        ctx.stroke();
+      }
+    }
   }
 }
 
