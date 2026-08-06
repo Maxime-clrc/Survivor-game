@@ -11,6 +11,12 @@
      du theme sombre (`color-scheme`), et non une valeur recopiee. -->
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/ui.css">
+<!-- Refonte des menus. ADDITIVE et chargee APRES ui.css : elle surcharge les
+     ecrans d'avant-partie (#gate, #loading, #hubScreen, #panel, #bilan, #menu)
+     et ne touche pas aux ecrans de combat, qui restent sous la seule autorite
+     de ui.css et hud.css. Si un ecran de combat change d'aspect, c'est qu'une
+     regle de menus.css fuit. -->
+<link rel="stylesheet" href="/css/menus.css">
 <link rel="stylesheet" href="/css/hud.css">
 </head>
 <body>
@@ -132,12 +138,40 @@
      navigateur, « Se connecter » avec le champ mot de passe VIDE reprend la
      session memorisee. Le clic reste obligatoire dans tous les cas : c'est
      lui qui debloque le contexte audio et lance la generation des atlas. -->
+<!-- Deux colonnes : a GAUCHE l'identite et le propos (de quoi s'agit-il), a
+     DROITE le seul formulaire. Les deux conteneurs sont explicites et non un
+     placement automatique par `grid-column` : l'ordre de remplissage d'une
+     grille depend alors de l'ordre du DOM autant que des colonnes assignees,
+     donc ajouter un bloc plus tard rebattrait toute la mise en page. Aucun
+     identifiant n'est renomme — client.js les prend par `getElementById` et
+     ne parcourt jamais les enfants de `#gate`. -->
 <div id="gate" class="overlay">
+  <div class="gateLeft">
   <div id="logo">
     <span class="mark"></span>
     <span>Survivor LAN</span>
   </div>
 
+  <!-- Le propos. Un ecran d'accueil doit repondre a « de quoi s'agit-il »
+       avant de demander un pseudo ; il s'ouvrait sur un champ de saisie. -->
+    <div class="gatePitch">
+      <div class="sectionTitle">En ligne · coopératif · 4 joueurs</div>
+      <h1>Tenez la ligne jusqu'à la dernière vague.</h1>
+    </div>
+
+    <!-- Le pense-bete des touches. Cinq lignes centrees de 11 px sous le
+         formulaire : c'etait le bloc qui pesait le plus lourd pour ce qu'il
+         apporte a la connexion. Aligne a gauche, sous le propos. -->
+    <div class="hint">
+      ZQSD ou flèches pour se déplacer · la souris pour viser<br>
+      <b>Espace</b> pour esquiver — invulnérable le temps du bond<br>
+      <b>A</b> et <b>E</b> (ou <b>1</b> et <b>2</b>) pour les compétences de classe<br>
+      <b>3</b> (ou <b>R</b>, ou clic milieu) pour la troisième compétence, une fois sa carte tirée<br>
+      le tir part tout seul · relève un coéquipier en restant à côté de lui
+    </div>
+  </div>
+
+  <div class="gateRight">
   <!-- connexion / creation, en deux onglets : deux formulaires qui se
        ressemblent mais ne disent pas la meme chose — fusionnes, le joueur ne
        sait jamais s'il est en train de creer un compte ou de se tromper de
@@ -188,12 +222,6 @@
     <input id="musVol" type="range" min="0" max="100" step="5" title="volume de la musique">
     <span id="musVolVal">50 %</span>
   </div>
-  <div class="hint">
-    ZQSD ou flèches pour se déplacer · la souris pour viser<br>
-    <b>Espace</b> pour esquiver — invulnérable le temps du bond<br>
-    <b>A</b> et <b>E</b> (ou <b>1</b> et <b>2</b>) pour les compétences de classe<br>
-    <b>3</b> (ou <b>R</b>, ou clic milieu) pour la troisième compétence, une fois sa carte tirée<br>
-    le tir part tout seul · relève un coéquipier en restant à côté de lui
   </div>
 </div>
 

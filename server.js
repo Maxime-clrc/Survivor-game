@@ -50,6 +50,12 @@ const MIME = {
   ".ico":  "image/x-icon",
   ".png":  "image/png",
   ".svg":  "image/svg+xml",
+  /* Les polices des menus sont VENDUES AVEC LE JEU (public/fonts/) et non
+     chargees depuis un CDN : une dependance a un tiers ajoute un point de
+     panne et une latence au premier rendu sur un chemin critique — l'ecran de
+     connexion. Sans ce type, le repli `application/octet-stream` fonctionne
+     encore aujourd'hui pour @font-face, mais rien ne l'oblige. */
+  ".woff2": "font/woff2",
 };
 
 /* Le chemin d'une URL est toujours en barres obliques ; celui du systeme de
