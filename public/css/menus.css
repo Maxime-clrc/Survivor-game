@@ -107,6 +107,24 @@
      jamais eu besoin d'un titre de cette taille. */
   --t-hero:  clamp(var(--t-2xl), 5.4vw, calc(var(--t-3xl) * 1.5));
   --t-title: clamp(var(--t-xl), 3.6vw, var(--t-3xl));
+
+  /* --- surfaces hors combat ------------------------------------------------
+     Les jetons de `palette.js` sont regles pour l'ARENE, ou le fond est deja
+     clair (`--bg-arena`) et ou un panneau doit s'en detacher franchement.
+     Applique tel quel hors combat, `--bg-panel` (#161a24) donne un gris-bleu
+     qui flotte au-dessus du fond : chaque carte devient une boite, et un ecran
+     de six cartes devient une grille de boites grises. `--line` (#2a3140) a le
+     meme probleme : sur fond sombre, un filet a ce niveau ne souligne pas une
+     forme, il la CERNE.
+
+     La refonte veut l'inverse : des surfaces a peine detachees du fond, des
+     filets qu'on devine, et la couleur reservee a ce qui dit quelque chose.
+     D'ou ces trois valeurs DERIVEES \u2014 pas de nouvelle couleur, seulement les
+     jetons existants ramenes vers le fond par `color-mix`. Si tu changes
+     `--bg-arena` ou `--line` dans `palette.js`, elles suivent. */
+  --ui-panel: color-mix(in srgb, var(--bg-arena) 62%, var(--bg-void));
+  --ui-line:  color-mix(in srgb, var(--line) 60%, var(--bg-arena));
+  --ui-field: color-mix(in srgb, var(--bg-void) 82%, var(--bg-arena));
 }
 
 /* ---------------------------------------------------------------------------
@@ -187,13 +205,19 @@
 }
 #gate input, #hubScreen input {
   font-family: var(--font);
-  background: color-mix(in srgb, var(--bg-void) 60%, var(--bg-panel));
+  background: var(--ui-field);
+}
+/* Les champs de saisie de TOUS les ecrans hors combat prennent le meme fond :
+   plus sombre que la surface qui les porte. Un champ plus clair que son
+   panneau se lit comme un bouton — c'est le sens inverse de ce qu'il fait. */
+#panel input, #menu input, #settings input[type="text"], #settings input[type="password"] {
+  background: var(--ui-field);
 }
 #gate button:hover:not(:disabled), #hubScreen button:hover:not(:disabled),
 #panel button:hover:not(:disabled), #menu button:hover:not(:disabled),
 #bilan button:hover:not(:disabled) {
-  border-color: var(--text-dim);
-  background: var(--bg-raised);
+  border-color: color-mix(in srgb, var(--line) 90%, var(--text-dim));
+  background: color-mix(in srgb, var(--bg-raised) 55%, transparent);
 }
 
 /* L'ACTION PRINCIPALE de chaque ecran. Elle existait deja (#start,
@@ -285,7 +309,7 @@
 #gateTabs {
   gap: var(--sp-1);
   padding: var(--sp-1);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ctl);
   background: var(--bg-void);
   display: flex;
@@ -310,8 +334,8 @@
 #gateTabs button:first-child, #gateTabs button:last-child { border-radius: calc(var(--radius-ctl) - 4px); }
 #gateTabs button.mine {
   color: var(--go);
-  background: var(--bg-raised);
-  box-shadow: inset 0 0 0 var(--hair) var(--line);
+  background: color-mix(in srgb, var(--go) 10%, var(--ui-panel));
+  box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--go) 26%, transparent);
 }
 
 .gateForm { width: 100%; display: flex; flex-direction: column; gap: var(--sp-3); }
@@ -410,7 +434,7 @@
   height: var(--sp-1);
   border: 0;
   border-radius: 999px;
-  background: var(--bg-raised);
+  background: var(--ui-field);
   overflow: hidden;
 }
 #loadBar > i {
@@ -442,10 +466,13 @@
   gap: var(--sp-4);
   padding: var(--sp-4);
   border-radius: var(--radius-ui);
-  background: var(--bg-panel);
+  background: var(--ui-panel);
   transition: border-color var(--tap) linear, background var(--tap) linear;
 }
-#roomList .roomEntry:hover:not(:disabled) { border-color: var(--go); background: var(--bg-raised); }
+#roomList .roomEntry:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--go) 55%, transparent);
+  background: color-mix(in srgb, var(--go) 7%, var(--ui-panel));
+}
 /* Une salle pleine reste VISIBLE et desactivee : c'est celle ou sont les
    autres. Regle deja posee par ui.css, conservee mot pour mot. */
 #roomList .roomEntry:disabled { opacity: 0.42; }
@@ -543,7 +570,7 @@
 #voteRow {
   gap: var(--sp-1);
   padding: var(--sp-1);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ctl);
   background: var(--bg-void);
 }
@@ -555,7 +582,7 @@
   font-weight: 600;
 }
 #voteRow button:first-child, #voteRow button:last-child { border-radius: calc(var(--radius-ctl) - 4px); }
-#voteRow button.mine { background: var(--bg-raised); box-shadow: inset 0 0 0 var(--hair) var(--line); }
+#voteRow button.mine { background: color-mix(in srgb, var(--go) 10%, var(--ui-panel)); box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--go) 26%, transparent); }
 #voteRow button.winner { color: var(--go); box-shadow: inset 0 0 0 var(--hair) var(--go); }
 #voteRow .tally { font-family: var(--font); }
 
@@ -590,7 +617,7 @@
   gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-6);
   background: var(--bg-void);
-  border-top: var(--hair) solid var(--line);
+  border-top: var(--hair) solid var(--ui-line);
 }
 /* Le message d'attente (« il manque un joueur », « la manche est en cours »)
    appartient au bouton : c'est ce qui explique pourquoi il ne repond pas. Il
@@ -617,7 +644,7 @@
   color: var(--text-dim);
   font-size: var(--t-s);
 }
-#panelLeave:hover:not(:disabled) { border-color: var(--line); color: var(--text); background: none; }
+#panelLeave:hover:not(:disabled) { border-color: var(--ui-line); color: var(--text); background: none; }
 
 /* ===========================================================================
    BILAN
@@ -642,7 +669,7 @@
 #bilanScores { width: 100%; min-width: 0; }
 #bilanScores td.name { font-family: var(--font-display); }
 #bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); margin-top: var(--sp-12); }
-#bilanBar { width: min(320px, 60vw); height: var(--sp-1); border-radius: 999px; background: var(--bg-raised); overflow: hidden; }
+#bilanBar { width: min(320px, 60vw); height: var(--sp-1); border-radius: 999px; background: var(--ui-field); overflow: hidden; }
 #bilanBar > i { display: block; height: 100%; border-radius: 999px; background: var(--go); }
 
 /* --- la ventilation des degats subis ------------------------------------------
@@ -861,8 +888,8 @@
    modifie envoie `{ t: "start" }` directement. */
 #start:not(:disabled) { animation: armed 2.4s ease-in-out infinite; }
 #start:disabled {
-  background: var(--bg-panel);
-  border-color: var(--line);
+  background: var(--ui-panel);
+  border-color: var(--ui-line);
   color: var(--text-faint);
   box-shadow: none;
   opacity: 1;   /* le 45 % de ui.css le rendrait illisible a cette taille */
@@ -940,9 +967,9 @@
 }
 .buildStat {
   padding: var(--sp-4) var(--sp-3);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ui);
-  background: var(--bg-panel);
+  background: var(--ui-panel);
   min-width: 120px;
 }
 #buildStats { gap: var(--sp-3); }
@@ -1120,9 +1147,9 @@
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
+  background: var(--ui-panel);
   font-family: var(--font);
   font-size: var(--t-xs);
   letter-spacing: var(--track-title);
@@ -1179,7 +1206,7 @@
   padding: 0 var(--sp-6);
   background: color-mix(in srgb, var(--bg-void) 88%, transparent);
   backdrop-filter: blur(14px);
-  border-bottom: var(--hair) solid var(--line);
+  border-bottom: var(--hair) solid var(--ui-line);
 }
 #topbar[hidden] { display: none; }
 
@@ -1220,7 +1247,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#topCrumb::before { content: "/"; color: var(--line); }
+#topCrumb::before { content: "/"; color: var(--ui-line); }
 
 #topSpacer { flex: 1; }
 
@@ -1250,7 +1277,7 @@
 #topPing.bad .chipDot { background: var(--lethal); animation: none; }
 #topPing.bad { color: var(--lethal); }
 
-#topSep { width: var(--hair); height: 22px; background: var(--line); flex: none; }
+#topSep { width: var(--hair); height: 22px; background: var(--ui-line); flex: none; }
 
 #topUser {
   display: flex;
@@ -1270,7 +1297,7 @@
   width: 26px;
   height: 26px;
   flex: none;
-  border: var(--hair) solid color-mix(in srgb, var(--go) 30%, var(--line));
+  border: var(--hair) solid color-mix(in srgb, var(--go) 30%, var(--ui-line));
   border-radius: var(--radius-ctl);
   background: color-mix(in srgb, var(--go) 12%, transparent);
   font-family: var(--font-display);
@@ -1288,7 +1315,7 @@
   text-transform: uppercase;
   color: var(--text-dim);
 }
-#topSettings:hover:not(:disabled) { color: var(--go); border-color: var(--line); }
+#topSettings:hover:not(:disabled) { color: var(--go); border-color: var(--ui-line); }
 
 /* La barre mange 56 px : sans cela `.overlay` garde son `min-height: 100vh` et
    chaque ecran depasse d'exactement la hauteur de la barre — une bande de
@@ -1345,9 +1372,9 @@
   flex-direction: column;
   gap: var(--sp-4);
   padding: var(--sp-6);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ui);
-  background: var(--bg-panel);
+  background: var(--ui-panel);
 }
 .setRow {
   display: grid;
@@ -1379,7 +1406,7 @@
 .keyCap {
   display: inline-block;
   padding: 2px var(--sp-2);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-bottom-width: 2px;
   border-radius: var(--radius);
   background: var(--bg-void);
@@ -1462,7 +1489,7 @@
   text-transform: none;
   letter-spacing: 0;
 }
-.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text); background: none; }
+.ghost:hover:not(:disabled) { border-color: var(--ui-line); color: var(--text); background: none; }
 
 /* Le glyphe de musique n'est pas un bouton (contrairement a #mute) : il doit
    donc s'aligner sur lui sans en avoir l'air cliquable. */
@@ -1522,7 +1549,7 @@
   justify-content: center;
   gap: var(--sp-4);
   padding: var(--sp-8);
-  border-left: var(--hair) solid var(--line);
+  border-left: var(--hair) solid var(--ui-line);
   /* Un aplat opaque coupait net la grille du fond a la limite des colonnes.
      Un voile translucide la laisse traverser : les deux colonnes restent le
      meme ecran, la droite est seulement plus dense. */
@@ -1618,9 +1645,9 @@
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-6);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ui);
-  background: var(--bg-panel);
+  background: var(--ui-panel);
 }
 .hubCreate .sectionTitle, .hubCreate #hubCreateRow { padding-inline: 0; max-width: none; }
 .hubWrap #hubAccount { margin-top: 0; padding-inline: 0; }
@@ -1676,15 +1703,15 @@
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-4);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ui);
-  background: var(--bg-panel);
+  background: var(--ui-panel);
 }
 .panelCardHead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
 .panelCardHead #teamReady { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); }
 .panelWrap #classes, .panelWrap #vote, .panelWrap #scoresWrap { padding-inline: 0; }
 .panelLeaveRow #panelLeave { background: none; border-color: transparent; color: var(--text-dim); }
-.panelLeaveRow #panelLeave:hover:not(:disabled) { border-color: var(--line); color: var(--text); background: none; }
+.panelLeaveRow #panelLeave:hover:not(:disabled) { border-color: var(--ui-line); color: var(--text); background: none; }
 
 /* Une ligne d'equipe. Le fond vert dit « pret » sans qu'on ait à lire. */
 #teamList { display: flex; flex-direction: column; gap: var(--sp-1); }
@@ -1693,7 +1720,7 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3);
-  border: var(--hair) solid var(--line);
+  border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ctl);
   background: var(--bg-void);
   transition: background var(--fade) linear, border-color var(--fade) linear;
@@ -1715,7 +1742,7 @@
   color: var(--go);
 }
 /* Un CARRE et non un disque : le seul cercle du jeu est une entite vivante. */
-#teamList .teamDot { width: 8px; height: 8px; flex: none; background: var(--line); }
+#teamList .teamDot { width: 8px; height: 8px; flex: none; background: var(--ui-line); }
 #teamList .teamRow.ready .teamDot { background: var(--gain); }
 
 #readyBtn { font-family: var(--font-display); font-weight: 700; letter-spacing: var(--track-title); }
@@ -1749,7 +1776,7 @@
   z-index: 12;
   padding: var(--sp-4) var(--sp-6);
   background: var(--bg-void);
-  border-top: var(--hair) solid var(--line);
+  border-top: var(--hair) solid var(--ui-line);
 }
 .panelBarInner {
   display: flex;
@@ -1804,7 +1831,7 @@
 /* --- fenetres etroites --------------------------------------------------------- */
 @media (max-width: 900px) {
   .gateLeft, .gateRight { padding: var(--sp-6); }
-  .gateRight { border-left: 0; border-top: var(--hair) solid var(--line); }
+  .gateRight { border-left: 0; border-top: var(--hair) solid var(--ui-line); }
   .panelGrid { grid-template-columns: 1fr; }
   .panelState { position: static; }
   .panelBarInner { justify-content: center; }
