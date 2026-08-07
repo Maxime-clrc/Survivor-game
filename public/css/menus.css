@@ -247,13 +247,18 @@
   padding: 0 var(--field-pad);
 }
 /* Un curseur n'est pas un champ de saisie : il n'a ni hauteur de ligne ni
-   retrait a respecter, et les regles ci-dessus le deformeraient. */
+   retrait a respecter, et les regles ci-dessus le deformeraient.
+
+   ATTENTION : cette regle ANNULE, elle ne peint pas. Elle ne doit surtout pas
+   poser `background: none` — sa specificite (1,0,1) bat le bloc `input[type]`
+   plus bas (0,1,1), un selecteur d'attribut pesant comme une classe, et le rail
+   disparaitrait. Le fond est donc pose ICI, a la valeur du bloc curseurs. */
 #settings input[type="range"], #gate input[type="range"], #pause input[type="range"] {
   min-height: 0;
   padding: 0;
   border: 0;
-  border-radius: 0;
-  background: none;
+  border-radius: 999px;
+  background: var(--bg-raised);
 }
 #gate input, #hubScreen input {
   font-family: var(--font);
@@ -1010,7 +1015,14 @@
   letter-spacing: var(--track-title);
   text-transform: none;
   line-height: 1.25;
+  /* Centre, et borne a 720 px : c'est le seul ecran ou le regard ne balaye pas
+     une colonne mais revient au milieu entre deux cartes. Le kicker juste
+     au-dessus est centre pour la meme raison — les deux doivent s'accorder. */
+  text-align: center;
+  max-width: 720px;
+  margin-inline: auto;
 }
+#cardsKicker { text-align: center; }
 #cardsTimer { height: 6px; border-radius: 999px; overflow: hidden; }
 #cardsTimer > i { border-radius: 999px; }
 
@@ -1080,7 +1092,17 @@
   gap: var(--sp-3);
   padding: var(--sp-6);
 }
-#pauseTitle { font-family: var(--font-display); font-size: var(--t-l); }
+#pauseTitle {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  /* Centre : le panneau de pause est le seul bloc de son ecran, il n'a pas de
+     colonne a suivre. Un titre cale a gauche dans un panneau de 380 px de
+     large se lit comme le debut d'une liste. */
+  text-align: center;
+}
 #pausePanel button { border-radius: var(--radius-ctl); min-height: 44px; }
 #pauseResume {
   font-family: var(--font-display);
