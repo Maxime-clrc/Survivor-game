@@ -79,11 +79,37 @@
   /* Rayons. Les angles DURS restent la regle de l'arene et du HUD — c'est la
      ou une forme doit se lire en un dixieme de seconde. Hors combat on a le
      temps, et un rayon franc separe visiblement le poste de controle du jeu
-     lui-meme : --radius-ui pour les panneaux, --radius-ctl pour les controles.
+     lui-meme : --radius-ctl pour les controles, --radius-ui pour les panneaux.
      Le biseau (--bevel) reste sur la SEULE action principale de chaque ecran :
      c'est ce qui la designe, et il perd ce role s'il est partout. */
-  --radius-ui: 14px;
-  --radius-ctl: 10px;
+  --radius-ui: 16px;
+  --radius-ctl: 12px;
+
+  /* --- gabarits de controle ------------------------------------------------
+     Une seule definition par famille de bouton, et tout le reste s'y refere.
+     Les valeurs sont celles de la maquette RAMENEES A LA GRILLE DE 4 px de
+     `tokens.css` : la maquette tournait hors du projet et s'autorisait 17 px de
+     retrait ou 11 px de rayon, ce que la charte interdit. L'ecart est d'un
+     pixel, invisible ; l'interet de la grille, lui, se perd des la premiere
+     exception. */
+  --btn-pad:    var(--sp-4) var(--sp-6);   /* action principale : 16 / 24 */
+  --btn-pad-lg: var(--sp-4) var(--sp-12);  /* lancement de manche : 16 / 48 */
+  --btn-pad-sm: var(--sp-3) var(--sp-4);   /* action secondaire : 12 / 16 */
+  --field-pad:  var(--sp-4);
+  --field-h:    46px;
+
+  /* --- mouvement -----------------------------------------------------------
+     `--tap` (90 ms) et `--fade` (120 ms) viennent de `tokens.css` et servent
+     aux changements d'etat. L'entree en cascade est plus longue — c'est un
+     mouvement qu'on REGARDE, pas une reponse a un clic — et sa courbe sort vite
+     puis s'arrete net, sans rebond : un menu qui rebondit se remarque une fois
+     et agace les cent suivantes. */
+  --rise: 380ms;
+  --rise-lg: 440ms;
+  --ease-out: cubic-bezier(.16, .9, .3, 1);
+  --lift-1: -2px;
+  --lift-2: -3px;
+  --lift-3: -4px;
 
   /* Lueur cyan. Derivee de --go par color-mix, jamais recopiee : la charte
      n'admet qu'une source pour chaque couleur. */
@@ -201,7 +227,17 @@
 #gate input, #hubScreen input, #panel input, #menu input,
 #gate button, #hubScreen button, #panel button, #menu button, #bilan button {
   border-radius: var(--radius-ctl);
+  /* 44 px est le plancher tactile, pas la taille visee : les gabarits
+     ci-dessous portent la vraie hauteur. */
   min-height: 44px;
+  padding: var(--btn-pad-sm);
+  font-size: var(--t-s);
+  transition: border-color var(--tap) linear, background var(--tap) linear,
+              color var(--tap) linear, transform var(--tap) ease-out;
+}
+#gate input, #hubScreen input, #panel input, #menu input {
+  min-height: var(--field-h);
+  padding: 0 var(--field-pad);
 }
 #gate input, #hubScreen input {
   font-family: var(--font);
@@ -226,11 +262,12 @@
    bas. Le biseau est conserve — c'est lui qui la designe. */
 #start, #go, #regGo, #gateContinue, #menuClose, #bilanGo {
   font-family: var(--font-display);
-  font-size: var(--t-l);
+  font-size: var(--t-m);
   font-weight: 700;
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
-  padding: var(--sp-4) var(--sp-12);
+  min-height: 52px;
+  padding: var(--btn-pad-lg);
   color: var(--bg-void);
   background: var(--go);
   border-color: var(--go);
@@ -240,6 +277,10 @@
                      calc(100% - var(--bevel)) 100%, 0 100%);
   transition: filter var(--tap) linear, box-shadow var(--fade) linear;
 }
+/* Dans un formulaire, l'action principale prend TOUTE la largeur : la colonne
+   est etroite, et un bouton qui n'occupe qu'une partie de sa ligne laisse un
+   vide a droite qu'aucun autre element ne vient combler. */
+#go, #regGo, #gateContinue { width: 100%; }
 #start:hover:not(:disabled), #go:hover:not(:disabled), #regGo:hover:not(:disabled),
 #gateContinue:hover:not(:disabled), #menuClose:hover:not(:disabled), #bilanGo:hover:not(:disabled) {
   filter: brightness(1.12);
@@ -341,7 +382,7 @@
 .gateForm { width: 100%; display: flex; flex-direction: column; gap: var(--sp-3); }
 /* Un champ de 46 px n'est pas un caprice : c'est la hauteur a laquelle une
    zone de saisie se distingue d'un bouton sans avoir a lire son contenu. */
-.gateForm input { min-height: 46px; padding-inline: var(--sp-4); }
+.gateForm input { min-height: var(--field-h); padding-inline: var(--field-pad); }
 .gateForm > button { margin-top: var(--sp-2); }
 
 /* L'avertissement de creation de compte : il etait un `.hint` gris sous le
@@ -431,7 +472,7 @@
 #loadBar {
   width: min(560px, 80vw);
   max-width: none;
-  height: var(--sp-1);
+  height: 6px;
   border: 0;
   border-radius: 999px;
   background: var(--ui-field);
@@ -464,7 +505,7 @@
 #roomList .roomEntry {
   align-items: center;
   gap: var(--sp-4);
-  padding: var(--sp-4);
+  padding: var(--sp-4) var(--sp-6);
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
   transition: border-color var(--tap) linear, background var(--tap) linear;
@@ -669,7 +710,7 @@
 #bilanScores { width: 100%; min-width: 0; }
 #bilanScores td.name { font-family: var(--font-display); }
 #bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); margin-top: var(--sp-12); }
-#bilanBar { width: min(320px, 60vw); height: var(--sp-1); border-radius: 999px; background: var(--ui-field); overflow: hidden; }
+#bilanBar { width: min(320px, 60vw); height: 6px; border-radius: 999px; background: var(--ui-field); overflow: hidden; }
 #bilanBar > i { display: block; height: 100%; border-radius: 999px; background: var(--go); }
 
 /* --- la ventilation des degats subis ------------------------------------------
@@ -799,9 +840,9 @@
 #cardsRow .cardOpt,
 #buildStats .buildStat,
 #buildMods .buildMod {
-  animation: riseIn 380ms cubic-bezier(.16, .9, .3, 1) both;
+  animation: riseIn var(--rise) var(--ease-out) both;
 }
-#cardsRow .cardOpt { animation-duration: 440ms; }
+#cardsRow .cardOpt { animation-duration: var(--rise-lg); }
 
 #roomList .roomEntry:nth-child(1),
 #classRow .classOpt:nth-child(1),
@@ -857,10 +898,10 @@
 /* --- survols ----------------------------------------------------------------
    `transform` et non `translate` : voir la note sur `riseIn`. Les deux
    proprietes se composent, l'entree ne verrouille donc pas le survol. */
-#roomList .roomEntry:hover:not(:disabled) { transform: translateY(-2px); }
-.classOpt:hover:not(:disabled)            { transform: translateY(-3px); }
-#voteRow button:hover:not(:disabled)      { transform: translateY(-2px); }
-.cardOpt:hover:not(:disabled)             { transform: translateY(-4px); }
+#roomList .roomEntry:hover:not(:disabled) { transform: translateY(var(--lift-1)); }
+.classOpt:hover:not(:disabled)            { transform: translateY(var(--lift-2)); }
+#voteRow button:hover:not(:disabled)      { transform: translateY(var(--lift-1)); }
+.cardOpt:hover:not(:disabled)             { transform: translateY(var(--lift-3)); }
 
 /* --- le fond ---------------------------------------------------------------- */
 .overlay { animation: fadeIn var(--fade) ease-out, gridDrift 26s linear infinite; }
@@ -941,7 +982,7 @@
   text-transform: none;
   line-height: 1.25;
 }
-#cardsTimer { height: var(--sp-1); border-radius: 999px; overflow: hidden; }
+#cardsTimer { height: 6px; border-radius: 999px; overflow: hidden; }
 #cardsTimer > i { border-radius: 999px; }
 
 .cardOpt {
@@ -989,6 +1030,7 @@
    panneau opaque ferait croire que tout est arrete. C'est la seule raison pour
    laquelle #pause n'est pas un `.overlay`, et elle ne doit pas se perdre. */
 #pausePanel {
+  width: min(380px, 100%);
   border-radius: var(--radius-ui);
   gap: var(--sp-3);
   padding: var(--sp-6);
@@ -1146,7 +1188,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
   border: var(--hair) solid var(--ui-line);
   border-radius: 999px;
   background: var(--ui-panel);
@@ -1702,7 +1744,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  padding: var(--sp-4);
+  padding: var(--sp-6);
   border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
