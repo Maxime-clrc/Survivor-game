@@ -51,6 +51,12 @@ const MIME = {
   ".ico":  "image/x-icon",
   ".png":  "image/png",
   ".svg":  "image/svg+xml",
+  /* Les polices des menus sont VENDUES AVEC LE JEU (public/fonts/) et non
+     chargees depuis un CDN : une dependance a un tiers ajoute un point de
+     panne et une latence au premier rendu sur un chemin critique — l'ecran de
+     connexion. Sans ce type, le repli `application/octet-stream` fonctionne
+     encore aujourd'hui pour @font-face, mais rien ne l'oblige. */
+  ".woff2": "font/woff2",
 };
 
 /* Le chemin d'une URL est toujours en barres obliques ; celui du systeme de
@@ -84,6 +90,26 @@ const httpServer = createServer(async (req, res) => {
     handleAdmin(req, res, urlPath);
     return;
   }
+
+  /* Etat du service, PUBLIC et sans cle : l'ecran de connexion l'affiche avant
+     toute WebSocket. Il n'y a pas de socket a ce moment-la — elle ne s'ouvre
+     qu'au premier clic, et l'ouvrir des le chargement ferait une socket par
+     onglet laisse ouvert, comptee dans le plafond par adresse IP.
+
+     Il ne porte que ce qui est destine a etre lu sur cet ecran : le nombre de
+     salles et le numero de version. La LATENCE ne s'y trouve pas — c'est le
+     client qui chronometre l'aller-retour de cette requete, ce qui mesure
+     exactement ce qu'il veut savoir : en combien de temps le serveur repond.
+     Rien de tout cela ne se cache : la page d'accueil est publique. */
+  if (urlPath === "/etat") {
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(JSON.stringify(hub.publicInfo()));
+    return;
+  }
+
   const file = resolvePath(req.url || "/");
   if (!file) { res.writeHead(400).end("Bad request"); return; }
 
@@ -250,6 +276,13 @@ attachWebSocket(httpServer, (conn, req) => hub.handleConnection(conn, req));
 /* Un seul intervalle pour toutes les salles — voir hub.tick() pour le
    decalage des accumulateurs et l'isolation aux pannes. */
 setInterval(() => hub.tick(), 1000 / 120);
+
+/* Battement de coeur WebSocket, a part de la boucle de simulation : c'est du
+   RESEAU, pas du jeu, et la cadence n'a rien a voir. Une seconde — huit octets
+   de charge utile par socket, negligeable devant un instantané, et assez
+   frequent pour que la moyenne glissante d'aller-retour converge en quelques
+   secondes plutot qu'en une minute. */
+setInterval(() => hub.pingAll(), 1000);
 
 /* --- demarrage ----------------------------------------------------------------------- */
 

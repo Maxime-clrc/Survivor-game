@@ -46,6 +46,12 @@ const COLOR_DPS_B = 3;
 const PAUSE_MAX_MS = 5 * 60 * 1000;
 const SNAPSHOT_INTERVAL = 1 / CFG.SNAPSHOT_HZ;
 
+/* Manches conservees dans l'historique d'une salle. Huit et non « toutes » :
+   le salon est diffuse a chaque vote et a chaque choix de classe, donc une
+   soiree de trente manches ferait grossir chaque message pour une information
+   que personne ne lit au-dela des trois dernieres lignes. */
+const ROUND_HISTORY_MAX = 8;
+
 export class Room {
   /* `slot` sert au DECALAGE des accumulateurs (infra-salons.md § 6) : seize
      salles qui simulent et diffusent dans le meme tour de boucle depassent le
@@ -69,6 +75,14 @@ export class Room {
     this.state = new GameState();
     this.roundNumber = 0;
     this.hostId = 0;
+
+    /* Manches precedentes de cette salle : { at, diffIndex, wave }. Sur la
+       SALLE et non sur le client — l'historique appartient a la soiree, pas au
+       joueur, et celui qui se reconnecte doit le retrouver. Le plafond n'est
+       pas decoratif : `lobbyPayload()` est diffuse a chaque vote, et une soiree
+       de trente manches ferait grossir chaque message sans que personne ne
+       lise au-dela des trois dernieres. */
+    this.history = [];
 
     this.paused = false;
     this.pausedAt = 0;
@@ -166,6 +180,15 @@ export class Room {
       max: ROOM_MAX_PLAYERS,
       state: this.phase === PHASE_LOBBY ? 0 : 1,
       locked: this.pass ? 1 : 0,
+      /* Les deux seules choses qui permettent de choisir une salle SANS y
+         entrer, et qui existaient deja cote serveur sans jamais sortir : la
+         difficulte et l'avancement. Au salon c'est le vote qui fait foi, en
+         manche c'est la partie en cours — apres une manche `state.diffIndex`
+         est celui de la PRECEDENTE, pas celui qu'on jouerait en entrant, d'ou
+         les deux sources. Meme raison pour la vague, qui ne sort qu'en manche :
+         celle du `GameState` termine survit jusqu'au lancement du suivant. */
+      diff: this.phase === PHASE_LOBBY ? this.votedDifficulty().index : this.state.diffIndex,
+      wave: this.phase === PHASE_LOBBY ? 0 : this.state.wave,
     };
   }
 
@@ -259,6 +282,10 @@ export class Room {
     // regarde, on entre a la manche suivante — comportement inchange, par
     // salle desormais.
     client.spectator = this.phase !== PHASE_LOBBY;
+    /* Entrer dans une salle, c'est repartir de zero : le drapeau vit sur le
+       CLIENT et le suivrait sinon d'une salle a l'autre — on arriverait
+       « prêt » dans un salon ou l'on vient de mettre le pied. */
+    client.ready = false;
     this.clients.set(client.id, client);
     // APRES l'insertion : l'attribution regarde la salle entiere, l'arrivant
     // compris. Il n'a pas encore de classe, il prendra donc une teinte de
@@ -343,6 +370,40 @@ export class Room {
     for (const c of this.clients.values()) c.clsLocked = false;
   }
 
+  /* Consigne la manche qui vient de finir. Appele aux DEUX sorties de manche,
+     a cote d'`unlockClasses()` et pour la meme raison : c'est la qu'une manche
+     se termine, et un seul des deux chemins oublie laisserait un trou dans
+     l'historique une fois sur deux.
+
+     La VAGUE ATTEINTE et rien d'autre — pas de victoire ni de defaite. Le jeu
+     ne connait pas cette notion : `bilanTitle` dit « vague N atteinte », ce qui
+     est coherent avec un jeu de survie sans fin. L'introduire ici en ferait
+     une regle de game design decidee par un ecran d'interface. */
+  recordRound() {
+    this.history.push({
+      at: Date.now(),
+      diffIndex: this.state.diffIndex,
+      wave: this.state.wave,
+    });
+    if (this.history.length > ROUND_HISTORY_MAX) this.history.shift();
+  }
+
+  /* Qui n'a pas encore confirme. Point de passage unique : la garde serveur du
+     `case "start"` et le libelle d'attente cote client doivent compter la MEME
+     chose, sinon le bouton refuse en silence un lancement que le message
+     annonce comme possible.
+
+     Aucun filtre sur `spectator`, et c'est deliberement contraire a ce que la
+     specification de conception demandait. En phase de salon, `spectator` dit
+     « je n'ai pas joue la manche qui vient de finir » : c'est un residu, pas
+     une prevision. `startRound()` remet tout le monde a `spectator = false`,
+     donc au salon TOUS les presents entrent dans la manche a venir — exclure
+     les spectateurs aurait laisse un joueur revenu du mode spectateur incapable
+     de se declarer prêt, tout en lancant sans lui. */
+  notReady() {
+    return this.joined().filter(c => !c.ready);
+  }
+
   lobbyPayload() {
     /* Recalcul AVANT la diffusion, et c'est le point de passage qui rend le
        reste inutile : le salon est rediffuse a chaque changement — arrivee,
@@ -361,6 +422,11 @@ export class Room {
       difficulty: vote.index,
       tally: vote.tally,
       modes: DIFFICULTIES.map(d => d.label),
+      /* La plus RECENTE en tete : c'est celle qu'on cherche, et une liste
+         chronologique obligerait a descendre jusqu'en bas pour la trouver.
+         `slice()` avant `reverse()`, qui mute en place — l'ordre de la salle
+         est celui de l'insertion et doit le rester. */
+      history: this.history.slice().reverse(),
       players: this.joined().map(c => ({
         id: c.id,
         name: c.name,
@@ -370,6 +436,13 @@ export class Room {
         total: c.total,
         cls: c.cls,
         clsLocked: c.clsLocked,
+        ready: c.ready ? 1 : 0,
+        /* Le ping voyage avec le salon plutot que dans un message periodique :
+           `lobbyPayload()` n'est diffuse que sur evenement (arrivee, vote,
+           choix de classe, prêt), donc le chiffre a quelques secondes au
+           salon — sans importance, on ne joue pas. Un message a 1 Hz aurait
+           fait d'un salon inactif un salon bavard. */
+        ping: c.conn.rtt != null ? Math.round(c.conn.rtt) : -1,
       })),
     };
   }
@@ -581,6 +654,11 @@ export class Room {
     for (const c of this.joined()) {
       c.spectator = false;
       c.clsLocked = true;
+      /* Remise a zero AU LANCEMENT, et non a la sortie de manche : le salon se
+         reaffiche entre deux manches, et un `ready` herite ferait demarrer la
+         suivante sans que personne n'ait rien reconfirme. Meme raison que le
+         verrou de classe pose ici plutot qu'au choix. */
+      c.ready = false;
       /* Progression permanente (lot D) : la simulation recoit les lignes
          EQUIPEES de la classe jouee, les achats de confort et les cartes
          encore verrouillees. La salle LIT le profil — elle n'y ecrit jamais,
@@ -637,6 +715,7 @@ export class Room {
     this.phase = PHASE_LOBBY;
     this.setPaused(false);
     this.unlockClasses();
+    this.recordRound();
     this.hooks.log(`[${this.code}] manche ${this.roundNumber} interrompue — plus aucun joueur en jeu`);
     this.broadcast({ t: "roundAbort", round: this.roundNumber });
     this.broadcast(this.lobbyPayload());
@@ -647,6 +726,7 @@ export class Room {
     this.phase = PHASE_LOBBY;
     this.setPaused(false);
     this.unlockClasses();
+    this.recordRound();
     /* La victoire finale (lot N) est relevee AVANT `awardRun`, qui la consomme
        en l'enregistrant au classement : sans cette copie, le bilan ne saurait
        plus qu'il y a eu victoire et afficherait une fin de manche ordinaire —
@@ -739,6 +819,17 @@ export class Room {
         const v = Number(msg.v);
         if (!Number.isInteger(v) || v < 0 || v >= DIFFICULTIES.length) break;
         client.vote = v;
+        this.broadcast(this.lobbyPayload());
+        break;
+      }
+
+      /* Prêt. Meme forme et meme garde de phase que `vote` — c'est le meme
+         genre d'etat de salon, et la garde de phase suffit : hors salon
+         personne n'a de bouton, et au salon tout le monde entre (cf.
+         `notReady()`). */
+      case "ready": {
+        if (this.phase !== PHASE_LOBBY) break;
+        client.ready = !!msg.on;
         this.broadcast(this.lobbyPayload());
         break;
       }
@@ -847,6 +938,10 @@ export class Room {
       case "start": {
         if (id !== this.hostId || this.phase !== PHASE_LOBBY) break;
         if (this.joined().length === 0) break;
+        /* Desarmer le bouton cote client est de l'AFFICHAGE, pas une regle :
+           un client modifie enverrait `{ t: "start" }` directement. La garde
+           vit donc ici aussi, au meme titre que `id !== this.hostId`. */
+        if (this.notReady().length > 0) break;
         this.startRound();
         break;
       }
