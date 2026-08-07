@@ -341,6 +341,25 @@
        milieu du vide. -->
   <div class="hubWrap">
 
+    <!-- LA REPRISE, en clair. Elle partait toute seule : `welcome` proposait une
+         salle et le client y entrait sans rien demander, si bien qu'on se
+         retrouvait dans une manche en cours sans avoir clique. L'encart pose la
+         question au lieu d'y repondre — et il dit CE QU'ON REPREND (la vague,
+         l'effectif), ce qu'une redirection silencieuse ne pouvait pas dire.
+         Reste au-dessus du titre : c'est la seule chose a decider avant de lire
+         la liste. -->
+    <div id="hubResume" hidden>
+      <span id="hubResumeIcon" aria-hidden="true"></span>
+      <div id="hubResumeText">
+        <div id="hubResumeTitle"></div>
+        <div id="hubResumeSub"></div>
+      </div>
+      <div class="row">
+        <button id="hubResumeGo">Reprendre</button>
+        <button id="hubResumeStay" class="ghost">Rester ici</button>
+      </div>
+    </div>
+
     <!-- Titre et « Actualiser » sur la MEME ligne : l'actualisation est une
          action de service sur la liste, pas un bloc de plus a lire. -->
     <div class="hubHead">
@@ -349,7 +368,15 @@
         <p class="hubLead">Une salle pleine reste visible : c'est celle où sont les autres.</p>
       </div>
       <div id="hubBar" class="row">
-        <button id="hubRefresh">Actualiser</button>
+        <!-- Le glyphe est en ligne et non dans la feuille : il prend
+             `currentColor`, donc l'etat desarme du bouton l'emporte avec lui. -->
+        <button id="hubRefresh">
+          <svg viewBox="0 0 16 16" width="1em" height="1em" aria-hidden="true" focusable="false">
+            <path d="M13 8a5 5 0 1 1-1.6-3.7" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12.6 2.2v3.1H9.5z" fill="currentColor"/>
+          </svg>
+          <span>Actualiser</span>
+        </button>
       </div>
     </div>
 
@@ -360,7 +387,10 @@
          re-entre sans rien taper, et le demander d'avance a tout le monde
          punirait le cas majoritaire. -->
     <div id="hubPassAsk" hidden>
-      <div id="hubPassAskWho" class="hint"></div>
+      <div id="hubPassAskHead">
+        <div class="sectionTitle">Salle protégée</div>
+        <div id="hubPassAskWho" class="hint"></div>
+      </div>
       <div class="row">
         <input id="hubPassAskInput" type="password" maxlength="20" placeholder="mot de passe de la salle" autocomplete="off">
         <button id="hubPassAskGo">Rejoindre</button>
@@ -373,10 +403,19 @@
     <div class="hubCreate">
       <div class="sectionTitle">Créer une salle</div>
       <p class="hubLead">Tu en deviens l'hôte : la difficulté et le lancement te reviennent.</p>
+      <!-- Les champs sont ETIQUETES. Deux champs cote a cote dont le second est
+           facultatif, ca ne se devine pas d'un placeholder qui disparait des
+           qu'on tape : l'etiquette reste, le placeholder donne l'exemple. -->
       <div class="row" id="hubCreateRow">
-        <input id="roomName" maxlength="20" placeholder="nom de la salle" autocomplete="off" spellcheck="false">
-        <input id="roomPass" maxlength="20" placeholder="mot de passe (optionnel)" autocomplete="off" spellcheck="false">
-        <button id="roomCreate">Créer</button>
+        <label class="fieldWrap">
+          <span class="fieldLabel">Nom de la salle</span>
+          <input id="roomName" maxlength="20" placeholder="Vendredi soir" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="fieldWrap">
+          <span class="fieldLabel">Mot de passe — optionnel</span>
+          <input id="roomPass" maxlength="20" placeholder="Vide = salle ouverte à tous" autocomplete="off" spellcheck="false">
+        </label>
+        <button id="roomCreate">Créer la salle</button>
       </div>
     </div>
 
@@ -387,9 +426,14 @@
          partie. En PIED DE PAGE : on y touche une fois par soiree. -->
     <div id="hubAccount">
       <div class="row">
+        <!-- ETIQUETTE puis VALEUR : « Connecté comme » est le libelle, le pseudo
+             est ce qu'on vient verifier. Ils ne peuvent pas etre du meme gris.
+             Les deux actions sont des LIENS de compte, pas des refus : elles
+             prennent le cyan et disent leur action en entier — « mot de passe… »
+             ne disait pas ce qu'il allait en faire. -->
         <span id="hubWho" class="hint"></span>
-        <button id="hubLogout" class="ghost">se déconnecter</button>
-        <button id="hubPassToggle" class="ghost">mot de passe…</button>
+        <button id="hubPassToggle" class="link">Changer de mot de passe</button>
+        <button id="hubLogout" class="link">Se déconnecter</button>
       </div>
       <div id="hubPassBox" hidden>
         <div class="row">
@@ -583,11 +627,13 @@
         <h1 id="panelTitle">Salon</h1>
         <div id="summary"></div>
       </div>
-      <!-- retour au hub (plan infra) : quitter la salle, pas la partie du
-           reste de la table. Action SECONDAIRE, donc en haut a cote du titre :
-           en bas, elle concurrencerait le lancement. -->
+      <!-- Quitter la salle, pas la partie du reste de la table. Action
+           SECONDAIRE, donc en haut a cote du titre : en bas, elle
+           concurrencerait le lancement. « Quitter la salle » et non « Retour
+           aux salons » — le libelle nomme ce qu'on fait, pas l'ecran ou l'on
+           atterrit, et la barre superieure porte deja ce retour-la. -->
       <div class="row panelLeaveRow">
-        <button id="panelLeave">← Retour aux salons</button>
+        <button id="panelLeave">← Quitter la salle</button>
       </div>
     </div>
 
@@ -597,9 +643,11 @@
       <div class="panelChoices">
         <div id="classes">
           <div id="classLabel" class="sectionTitle">1 — Classe</div>
+          <!-- Le lead dit la REGLE, qui ne bouge jamais ; `#classHint`, sous les
+               cartes, dit l'ETAT. La phrase « sans choix explicite, tu entres en
+               Tireur » etait ecrite aux deux endroits, a trois lignes d'ecart. -->
           <p class="panelLead">
             Rempart et Soigneur sont uniques : un seul joueur chacun.
-            Sans choix explicite, tu entres en Tireur.
           </p>
           <div id="classRow"></div>
           <div id="classHint"></div>
@@ -654,8 +702,10 @@
         <div id="launchSummary"></div>
         <div id="waitMsg"></div>
       </div>
+      <!-- « Talents » a quitte la barre : l'arbre s'ouvre desormais SOUS la
+           carte de la classe choisie, ou l'on voit sur quoi il porte. La barre
+           ne garde que l'action principale de l'ecran. -->
       <div class="row">
-        <button id="metaOpen">Talents</button>
         <button id="start">Lancer la manche</button>
       </div>
     </div>

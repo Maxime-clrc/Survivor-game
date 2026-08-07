@@ -104,9 +104,25 @@
      mouvement qu'on REGARDE, pas une reponse a un clic — et sa courbe sort vite
      puis s'arrete net, sans rebond : un menu qui rebondit se remarque une fois
      et agace les cent suivantes. */
-  --rise: 380ms;
-  --rise-lg: 440ms;
+  /* L'ENTREE D'ECRAN. Le depot tenait le fondu a 120 ms — « un ecran qui
+     glisse fait attendre » — et c'etait la bonne regle tant qu'un ecran de
+     menu etait un formulaire. Depuis la refonte c'est un tableau de bord, et
+     120 ms de fondu plat le font apparaitre comme un rechargement de page.
+     340 ms avec une mise au point : on voit l'ecran SE POSER, ce qui est le
+     vocabulaire d'un jeu et non d'un document. Au-dela de 400 ms on attend. */
+  --screen: 340ms;
+  --rise: 440ms;
+  --rise-lg: 520ms;
   --ease-out: cubic-bezier(.16, .9, .3, 1);
+  /* La MEME courbe avec un depassement de 15 %, reservee a ce qui APPARAIT en
+     reponse a un clic : le bouton de talents sous la carte qu'on vient de
+     choisir, l'encart de reprise, la demande de mot de passe. Un element qui
+     depasse legerement sa position finale se lit comme une reaction ; le meme
+     element en `ease-out` pur se lit comme un rechargement. Deux courbes et
+     pas trois — l'entree d'ecran garde `--ease-out`, sinon toute la cascade
+     rebondirait et l'ecran aurait l'air instable. */
+  --ease-pop: cubic-bezier(.2, .9, .25, 1.15);
+  --pop: 220ms;
   --lift-1: -2px;
   --lift-2: -3px;
   --lift-3: -4px;
@@ -195,13 +211,28 @@
    vocabulaire du sol de l'arene, et c'est ce qui fait que le salon et le jeu
    appartiennent visiblement au meme objet.
    --------------------------------------------------------------------------- */
+/* LE REGISTRE PAR DEFAUT EST LA CHASSE FIXE, comme dans le jeu. Cette ligne
+   posait `--font-body` sur l'ecran entier, et c'etait la cause de la moitie des
+   defauts de police : tout ce qui n'avait pas de famille explicite — les
+   boutons, les kickers, les libelles d'equipe, l'historique, les pastilles —
+   sortait en Barlow, c'est-a-dire dans la police reservee aux PARAGRAPHES.
+   Trois familles, trois roles, et un element qui n'en declare aucune retombe
+   sur celle du jeu plutot que sur celle du texte courant. */
 #gate, #hubScreen, #panel, #bilan, #menu, #settings {
   justify-content: flex-start;
   align-items: stretch;
   gap: 0;
   padding: 0;
-  font-family: var(--font-body);
+  font-family: var(--font);
+  /* Le salon et la progression defilent sur deux ou trois hauteurs d'ecran :
+     une ancre qui saute fait perdre le fil, alors qu'un defilement continu
+     montre ce qu'on traverse. Le reglage systeme desactive ceci tout seul. */
+  scroll-behavior: smooth;
 }
+/* Les boutons portent des LIBELLES, pas de la prose : Chakra Petch, comme les
+   titres et les noms propres. */
+#gate button, #hubScreen button, #panel button,
+#menu button, #bilan button, #settings button { font-family: var(--font-display); }
 
 /* La colonne de contenu. Une largeur par ecran selon ce qu'il porte : le hub
    est une liste (960 px), le salon un tableau de bord (1200 px), le bilan un
@@ -238,16 +269,37 @@
   padding: var(--sp-8) var(--sp-6) var(--sp-2);
 }
 
-/* Niveau 3 — le corps. Barlow, interligne 1,7, largeur de mesure bornee : une
-   ligne de plus de 46 caracteres se relit mal, et `.hint` etait centre sur
-   toute la largeur de l'ecran. */
+/* Niveau 3 — le corps. Barlow, interligne 1,7, largeur de mesure bornee.
+
+   Deux tailles, et la distinction porte : le CORPS D'ECRAN est a 15 px
+   (`--t-m`), c'est la valeur de la charte et c'est ce qui separe un paragraphe
+   d'un libelle. Restent a 13 px les lignes de RETOUR — statut, attente, erreur
+   — qui ne se lisent pas mais se constatent (et `#waitMsg` vit dans la barre
+   d'action, ou 15 px pousserait le bouton), ainsi que les NOTES DE PIED de
+   section, `#classHint` et `#voteHint` : les remonter les mettait au niveau du
+   lead qu'elles commentent, et l'ecran repassait a deux niveaux au lieu de
+   trois. Les vrais corps d'ecran sont les `.*Lead`, traites plus bas. */
 #gate .hint, #hubStatus, #status, #summary, #metaSub, #classHint, #voteHint, #waitMsg {
   font-family: var(--font-body);
   font-size: var(--t-s);
   line-height: 1.7;
   color: var(--text-dim);
 }
+#summary { font-size: var(--t-m); }
 #summary, #classHint, #voteHint, #waitMsg { text-align: left; max-width: 62ch; }
+
+/* PAS DE LIGNE ORPHELINE. `text-wrap: pretty` demande au moteur d'eviter qu'un
+   paragraphe se termine sur un mot seul — c'etait le defaut le plus visible du
+   salon, ou le lead de la classe finissait sur « tu entres en Tireur. » a lui
+   tout seul. Progressif : un moteur qui ne connait pas la propriete coupe
+   comme avant, rien ne casse. Applique a la PROSE et a elle seule — un libelle
+   ou un chiffre n'a pas de veuve. */
+.gateLead, .gateFormLead, .hubLead, .panelLead, .metaLead, .setLead,
+#summary, #classHint, #voteHint, #waitMsg, .hint,
+#roomList .roomEmpty, #roomList .roomSub,
+.classRole, .voteDetail, .metaDesc, .keyDesc, .histLabel {
+  text-wrap: pretty;
+}
 #summary { padding: 0 var(--sp-6) var(--sp-6); }
 
 /* --- controles ---------------------------------------------------------------
@@ -524,14 +576,14 @@
 #roomList {
   width: 100%;
   max-height: none;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   padding-inline: var(--sp-6);
 }
 
 #roomList .roomEntry {
   align-items: center;
   gap: var(--sp-4);
-  min-height: 64px;
+  min-height: 88px;
   padding: var(--sp-4) var(--sp-6);
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
@@ -633,6 +685,7 @@
 #roomList .roomEntry .roomSub {
   display: block;
   margin-top: 3px;
+  line-height: 1.45;
   font-family: var(--font-body);
   font-size: var(--t-s);
   font-weight: 400;
@@ -641,6 +694,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* La sous-ligne commence par la difficulte, dont le libelle vit en minuscules
+   dans `DIFFICULTIES` — et il doit y rester : c'est le meme mot qui sert dans
+   « difficulté cauchemar » au fil du texte. La capitale se pose donc ici, ou
+   elle ouvre une ligne, et pas dans la table. */
+#roomList .roomEntry .roomSub::first-letter { text-transform: uppercase; }
 #roomList .roomEntry .roomLock { order: 1; font-size: var(--t-s); color: var(--text-dim); }
 /* Le cadenas est un SVG en ligne (client.js) qui prend `currentColor` et `1em`
    de la regle ci-dessus — c'est ce qui lui evite le jaune sature de l'emoji.
@@ -648,10 +706,14 @@
    la ligne de base, la rangee lui reserve un cadratin entier, et le glyphe
    flotte 3 px au-dessus du centre optique de la ligne. */
 #roomList .roomEntry .roomLock svg { display: block; }
-#roomList .roomEmpty { border-radius: var(--radius-ui); padding: var(--sp-8); }
+#roomList .roomEmpty { border-radius: var(--radius-ui); padding: var(--sp-8); font-family: var(--font-body); }
 
 /* La creation dans son propre encart : c'est une action, elle ne doit pas
    flotter au milieu de la page comme une ligne de plus. */
+/* Le bouton d'actualisation porte son glyphe : deux enfants alignes, et le
+   SVG sorti du contexte de ligne comme le cadenas. */
+#hubRefresh { display: inline-flex; align-items: center; gap: var(--sp-2); }
+#hubRefresh svg { display: block; }
 #hubScreen .sectionTitle, #hubCreateRow, #hubPassAsk {
   max-width: 960px;
   padding-inline: var(--sp-6);
@@ -668,7 +730,11 @@
   border-top: var(--hair) solid var(--line-soft);
   font-size: var(--t-xs);
 }
-#hubAccount .row { flex-wrap: wrap; justify-content: center; gap: var(--sp-3); }
+#hubAccount .row { flex-wrap: wrap; justify-content: center; gap: var(--sp-6); }
+/* L'etiquette et la valeur ne peuvent pas etre du meme gris : c'est le pseudo
+   qu'on vient verifier, pas le mot « connecté ». */
+#hubWho { color: var(--text-dim); }
+#hubWho b { font-family: var(--font-display); font-weight: 600; color: var(--text); }
 
 /* ===========================================================================
    SALON — deux colonnes, et l'action ancree
@@ -696,8 +762,11 @@
    pourquoi une carte ne repond pas. */
 .classOpt {
   border-radius: var(--radius-ui);
+  /* `background` etait absent de la liste : la teinte de la carte choisie
+     apparaissait d'un coup pendant que la bordure, elle, fondait. Un seul
+     element, deux vitesses. */
   transition: transform var(--tap) ease-out, border-color var(--tap) linear,
-              box-shadow var(--fade) linear;
+              background var(--tap) linear, box-shadow var(--fade) linear;
 }
 .classOpt.mine {
   box-shadow: 0 0 var(--sp-8) -6px currentColor;
@@ -738,7 +807,26 @@
 /* Emplacement pris : le nom barre ne suffisait pas, il faut le NOM de celui
    qui l'occupe, et en ambre — c'est un avertissement, pas une panne. */
 .classTaken { font-family: var(--font); color: var(--warn); }
-.classMetaBtn { border-radius: var(--radius); min-height: 0; }
+/* LA CELLULE. Elle porte le rang dans la grille, la carte n'est plus qu'un
+   enfant : un <button> ne peut pas en contenir un autre, et le bouton d'arbre
+   devait vivre SOUS la carte sans sortir de sa colonne. */
+.classCell { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.classCell > .classOpt { flex: 1; }
+/* Le bouton d'arbre porte la TEINTE de sa classe (`currentColor`, posee en
+   ligne) et reste en retrait : c'est une consultation, pas le choix. Il ne
+   sort que sur la carte choisie — `renderClasses` ne le cree pas ailleurs,
+   plutot que de le masquer, sinon trois boutons vivraient dans le DOM pour
+   qu'un seul se voie. */
+.classMetaBtn {
+  border-radius: var(--radius-ctl);
+  min-height: 40px;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  border-color: color-mix(in srgb, currentColor 40%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
 
 /* --- difficulte -------------------------------------------------------------
    TROIS CARTES et non un segment. Le segment etait la bonne forme tant qu'une
@@ -864,11 +952,20 @@
   justify-content: flex-end;
   padding: var(--sp-4) var(--sp-6) 0;
 }
-#panelLeave {
-  background: none;
-  border-color: transparent;
-  color: var(--text-dim);
+/* UN RETOUR EST DE LA NAVIGATION, pas une action mineure. En fantome — sans
+   bordure et en `--text-dim` — « ← Quitter la salle » se lisait comme une
+   legende posee dans un coin : rien ne disait que c'etait cliquable, et c'est
+   pourtant la seule facon de sortir de l'ecran. Il reprend donc une bordure,
+   un fond de panneau et la couleur du texte plein. Il ne concurrence pas
+   l'action principale pour autant : celle-ci est PLEINE (cyan sur fond sombre)
+   et ancree en bas, le retour reste creux et en haut. Le fantome, lui, garde
+   ce qui est vraiment mineur — se deconnecter, annuler, refuser. */
+#panelLeave, #settingsClose {
+  background: var(--ui-panel);
+  border-color: var(--ui-line);
+  color: var(--text);
   font-size: var(--t-s);
+  font-weight: 600;
 }
 
 /* ===========================================================================
@@ -978,6 +1075,36 @@
    `transform`, le `transform` de survol du meme element ne pourrait JAMAIS
    s'appliquer. En separant les deux proprietes, l'entree garde `translate` et
    le survol garde `transform`. */
+/* L'ecran arrive LEGEREMENT TROP GRAND et fait sa mise au point en
+   arrivant : c'est la mise au point d'un viseur, pas un fondu de diaporama.
+   L'echelle part de 1,015 et non de 0,985 — un element qui RETRECIT vers sa
+   place se lit comme un objet qui se pose, un element qui grandit se lit comme
+   une fenetre qui s'ouvre par-dessus, et ce n'est pas ce que fait un ecran qui
+   remplace le precedent.
+
+   `fill-mode: backwards` et JAMAIS `both`, et c'est la seule chose delicate
+   ici : `scale` comme `filter` creent un bloc conteneur pour les descendants
+   en `position: fixed`. Avec `both`, la valeur finale reste posee — donc
+   `blur(0)` et `scale(1)` restent des valeurs — et tout ce qui est fixe a
+   l'interieur se met a se positionner par rapport au wrapper. `backwards`
+   applique la premiere image AVANT le depart puis rend l'element a ses styles
+   normaux : plus aucun filtre au repos. C'est aussi pour ca que l'animation
+   porte sur le WRAPPER et pas sur `.overlay` — la barre d'action du salon est
+   `position: fixed` et enfant direct de `#panel`. */
+@keyframes screenIn {
+  from { opacity: 0; scale: 1.015; filter: blur(5px); }
+  to   { opacity: 1; scale: 1;     filter: blur(0); }
+}
+
+/* La barre d'action ARRIVE PAR LE BAS, elle. C'est la seule chose de l'ecran
+   qui soit ancree au bord, et une barre qui se pose depuis le bord dit d'ou
+   elle vient. Elle demarre un cheveu apres le corps : l'oeil lit le contenu,
+   puis l'action. */
+@keyframes barIn {
+  from { opacity: 0; translate: 0 100%; }
+  to   { opacity: 1; translate: 0 0; }
+}
+
 @keyframes riseIn {
   from { opacity: 0; translate: 0 14px; }
   to   { opacity: 1; translate: 0 0; }
@@ -999,6 +1126,14 @@
   50%      { box-shadow: 0 0 var(--sp-12) color-mix(in srgb, var(--go) 72%, transparent); }
 }
 
+/* Ce qui APPARAIT sur un clic. Plus court et plus serre que `riseIn`, qui est
+   une entree d'ecran : ici on repond a un geste, la reponse doit arriver
+   pendant que le doigt est encore sur le bouton. */
+@keyframes popIn {
+  from { opacity: 0; translate: 0 6px; scale: .96; }
+  to   { opacity: 1; translate: 0 0;   scale: 1; }
+}
+
 @keyframes pulseDot {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--gain) 50%, transparent); }
   50%      { box-shadow: 0 0 0 7px transparent; }
@@ -1013,6 +1148,32 @@
    Le pas varie avec la densite : 45 ms sur une ligne dense (talents), 90 ms sur
    un objet large (carte d'amelioration). Au-dela de six elements le delai ne
    monte plus — c'est le plafond. */
+.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, #bilan > * {
+  animation: screenIn var(--screen) var(--ease-out) backwards;
+}
+/* Le voile lui-meme ne fait qu'une OPACITE : pas d'echelle, pas de filtre —
+   voir la note ci-dessus sur le bloc conteneur. Il dure aussi longtemps que le
+   corps qu'il porte, sinon le fond est deja plein quand le contenu arrive et
+   l'ecran clignote en deux temps. */
+#gate, #hubScreen, #panel, #bilan, #menu, #settings {
+  animation: fadeIn var(--screen) var(--ease-out);
+}
+.panelBar { animation: barIn var(--screen) var(--ease-out) 80ms backwards; }
+
+/* La trame de balayage DERIVE une fois a l'arrivee, puis s'immobilise. Un
+   ecran d'instrument qui s'allume balaie ; un ecran d'instrument allume ne
+   bouge plus. C'est la meme regle que les boucles du reste de la feuille —
+   rien ne tourne en permanence sans porter une information. */
+@keyframes rasterSweep {
+  from { background-position: 0 -60px; opacity: 0; }
+  40%  { opacity: .55; }
+  to   { background-position: 0 0; opacity: .4; }
+}
+#gate::after, #hubScreen::after, #panel::after,
+#bilan::after, #menu::after, #settings::after {
+  animation: rasterSweep var(--screen) var(--ease-out) backwards;
+}
+
 #roomList .roomEntry,
 #classRow .classOpt,
 #voteRow button,
@@ -1029,7 +1190,7 @@
 #cardsRow .cardOpt { animation-duration: var(--rise-lg); }
 
 #roomList .roomEntry:nth-child(1),
-#classRow .classOpt:nth-child(1),
+#classRow > :nth-child(1) .classOpt,
 #voteRow button:nth-child(1),
 #metaTree .metaLine:nth-child(1),
 #bilanScores tbody tr:nth-child(1),
@@ -1040,7 +1201,7 @@
 #buildMods .buildMod:nth-child(1) { animation-delay: 0ms; }
 
 #roomList .roomEntry:nth-child(2),
-#classRow .classOpt:nth-child(2),
+#classRow > :nth-child(2) .classOpt,
 #voteRow button:nth-child(2),
 #metaTree .metaLine:nth-child(2),
 #bilanScores tbody tr:nth-child(2),
@@ -1048,10 +1209,10 @@
 .bilanStat:nth-child(2),
 #cardsRow .cardOpt:nth-child(2),
 #buildStats .buildStat:nth-child(2),
-#buildMods .buildMod:nth-child(2) { animation-delay: 60ms; }
+#buildMods .buildMod:nth-child(2) { animation-delay: 70ms; }
 
 #roomList .roomEntry:nth-child(3),
-#classRow .classOpt:nth-child(3),
+#classRow > :nth-child(3) .classOpt,
 #voteRow button:nth-child(3),
 #metaTree .metaLine:nth-child(3),
 #bilanScores tbody tr:nth-child(3),
@@ -1059,7 +1220,7 @@
 .bilanStat:nth-child(3),
 #cardsRow .cardOpt:nth-child(3),
 #buildStats .buildStat:nth-child(3),
-#buildMods .buildMod:nth-child(3) { animation-delay: 120ms; }
+#buildMods .buildMod:nth-child(3) { animation-delay: 140ms; }
 
 #roomList .roomEntry:nth-child(4),
 #metaTree .metaLine:nth-child(4),
@@ -1068,16 +1229,16 @@
 .bilanStat:nth-child(4),
 #cardsRow .cardOpt:nth-child(4),
 #buildStats .buildStat:nth-child(4),
-#buildMods .buildMod:nth-child(4) { animation-delay: 180ms; }
+#buildMods .buildMod:nth-child(4) { animation-delay: 210ms; }
 
 #roomList .roomEntry:nth-child(5),
 #metaTree .metaLine:nth-child(5),
 #buildStats .buildStat:nth-child(5),
-#buildMods .buildMod:nth-child(5) { animation-delay: 240ms; }
+#buildMods .buildMod:nth-child(5) { animation-delay: 280ms; }
 
 #roomList .roomEntry:nth-child(n + 6),
 #metaTree .metaLine:nth-child(n + 6),
-#buildMods .buildMod:nth-child(n + 6) { animation-delay: 300ms; }
+#buildMods .buildMod:nth-child(n + 6) { animation-delay: 350ms; }
 
 /* La cascade est une animation d'ENTREE D'ECRAN, jamais de creation de noeud —
    et trois ecrans reconstruisent leurs listes ALORS QU'ILS SONT AFFICHES : le
@@ -1103,6 +1264,22 @@
 #menu.settled #metaTree .metaLine,
 #menu.settled #metaConfort .metaLine {
   animation: none;
+}
+
+/* Trois elements n'existent que par une decision : le bouton d'arbre sous la
+   carte choisie, l'encart de reprise, la demande de mot de passe. Ils
+   surgissaient d'un coup au milieu d'une page deja posee — le pire cas, parce
+   que rien ne relie le clic a ce qui vient d'apparaitre ailleurs a l'ecran.
+
+   L'animation ne rejoue pas toute seule : `.classMetaBtn` est CREE au moment
+   du choix, et les deux encarts basculent leur attribut `hidden` — reposer
+   `hidden = false` sur un element deja visible ne modifie aucun attribut,
+   donc ne relance rien. C'est ce qui les distingue des listes du salon, qui
+   se reconstruisent a chaque diffusion et ont besoin de `.settled`. */
+.classMetaBtn,
+#hubResume:not([hidden]),
+#hubPassAsk:not([hidden]) {
+  animation: popIn var(--pop) var(--ease-pop) both;
 }
 
 /* --- survols ----------------------------------------------------------------
@@ -1191,6 +1368,21 @@
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
+  /* Ecraser les DUREES ne suffit pas pour ce qui bouge par transformation :
+     une levee au survol ou un enfoncement au clic arrivent alors instantanement
+     — donc toujours, et d'un coup, ce qui est exactement le mouvement qu'on
+     vient de demander de supprimer. On annule la transformation elle-meme ;
+     couleur et bordure continuent de repondre, elles ne declenchent rien chez
+     personne. Et le defilement doux redevient un saut, qui est le comportement
+     attendu de ce reglage. */
+  #roomList .roomEntry:hover, #classRow .classOpt:hover, #voteRow button:hover,
+  .cardOpt:hover, .metaLine:hover, [id]:hover, button:hover,
+  #roomList .roomEntry:active, #classRow .classOpt:active, #voteRow button:active,
+  .metaLine:active, button:active {
+    transform: none !important;
+    scale: none !important;
+  }
+  #gate, #hubScreen, #panel, #bilan, #menu, #settings { scroll-behavior: auto; }
 }
 
 /* ===========================================================================
@@ -1278,7 +1470,7 @@
 /* --- progression -------------------------------------------------------------
    Le montant de noyaux s'ecrit « 2 480 noyaux » : client.js rend
    `${pr.cores} noyaux`, il n'y a pas de glyphe de monnaie dans ce jeu. */
-#metaCores { font-family: var(--font-display); font-size: var(--t-xl); color: var(--go); }
+#metaCores { font-family: var(--font); font-size: var(--t-xl); font-weight: 700; color: var(--go); }
 
 /* --- pause -------------------------------------------------------------------
    Le voile reste TRANSLUCIDE : a plusieurs la partie continue derriere, et un
@@ -1730,7 +1922,7 @@
   margin: 0;
 }.setLead {
   font-family: var(--font-body);
-  font-size: var(--t-s);
+  font-size: var(--t-m);
   line-height: 1.7;
   color: var(--text-dim);
   max-width: 62ch;
@@ -1750,6 +1942,9 @@
   align-items: center;
   gap: var(--sp-4);
 }
+/* Le libelle nomme le reglage : c'est un titre de ligne, pas un releve. En
+   chasse fixe a 15 px il se lisait comme la valeur qu'il annonce. */
+.setRow > span:first-child { font-family: var(--font-display); font-weight: 600; }
 .setRow > input[type="range"] { width: 100%; }
 .setRow .setVal {
   font-family: var(--font);
@@ -1921,10 +2116,42 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 #status { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-6); text-align: left; }
 #status.err { color: var(--notice-bad-text); }
-.hint { font-size: var(--t-s); color: var(--text-dim); line-height: 1.7; }
+.hint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); line-height: 1.7; }
 .hint b { color: var(--text); font-weight: 400; }
 #gateHoldMsg:empty { display: none; }
 #key { max-width: 130px; }
+
+/* UN LIEN. Le fantome couvrait deux roles opposes : REFUSER (annuler, rester
+   ici) et OUVRIR une action de compte. Le premier doit s'effacer, le second
+   doit s'offrir — et en gris, « se déconnecter » et « mot de passe… » ne se
+   distinguaient pas du texte qui les precede, donc rien ne disait qu'on
+   pouvait cliquer. Le cyan et le souligne le disent tous les deux, et c'est
+   deja la convention de `.gateSwitch button`. Deux signaux et pas un seul :
+   la couleur seule ne suffit pas a un daltonien, le souligne le double.
+
+   Le cyan reste dans la grammaire : « il faut y aller ». Il ne va PAS sur un
+   refus, qui garde le fantome — sinon annuler pese autant qu'accepter. */
+button.link {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--go);
+  font-family: var(--font-display);
+  font-size: var(--t-s);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--go) 40%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+button.link:hover:not(:disabled) {
+  background: none;
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
 
 /* Un bouton FANTOME : action reelle mais mineure. Il doit rester lisible — pas
    un lien gris de plus au milieu du texte. */
@@ -2035,7 +2262,7 @@ tr.clickable { cursor: pointer; }
    pas, et il defile dans sa colonne de 300 px plutot que de la faire deborder
    — une table ne se comprime pas sous la largeur de son contenu. */
 #scoresWrap { display: flex; flex-direction: column; gap: var(--sp-2); }
-#panel #scoresWrap { opacity: .6; transition: opacity var(--fade) linear; overflow-x: auto; align-items: stretch; }
+#panel #scoresWrap { opacity: .6; transition: opacity var(--fade) linear; align-items: stretch; }
 #panel #scoresWrap:hover { opacity: 1; }
 
 /* --- connexion : formulaires ------------------------------------------------ */
@@ -2075,7 +2302,20 @@ tr.clickable { cursor: pointer; }
    — `#metaSub` est une ligne de CORPS sous un titre de section, pas une
      legende : il heritait du centrage de `.hint`, ce qui le detachait de la
      colonne que suit tout le reste de l'ecran. */
-#panel #scoresWrap { overflow-x: auto; align-items: stretch; }
+#panel #scoresWrap { align-items: stretch; }
+
+/* DIX colonnes dans une colonne de 300 px. Le tableau vient du bilan, ou il a
+   1120 px de large, et la refonte l'a pose dans la colonne d'etat sans le
+   retailler : 614 px de contenu pour 300 de boite, mesure, donc une barre de
+   defilement horizontale permanente sur un tableau qu'on ne pouvait de toute
+   facon pas lire.
+
+   Au salon la question tient en quatre colonnes — qui, quelle classe, quel
+   niveau, quel score. Le reste (kills, morts, degats, cartes, noyaux, cumul)
+   reste au BILAN, qui a la place de les montrer. La ligne garde son clic :
+   c'est elle qui ouvre la fenetre de build. */
+#panel #scores th:nth-child(n + 5),
+#panel #scores td:nth-child(n + 5) { display: none; }
 #metaSub { text-align: left; }
 
 #hubAccount .row { flex-wrap: wrap; justify-content: center; }
@@ -2098,8 +2338,23 @@ tr.clickable { cursor: pointer; }
   border-radius: var(--radius-ui);
   background: var(--notice-go-bg);
 }
-#hubPassAsk #hubPassAskWho { flex: 1; min-width: 200px; color: var(--notice-go-text); }
-#hubPassAsk input { flex: 1; min-width: 180px; }
+/* Le bloc de gauche porte les DEUX niveaux : le kicker dit de quoi il s'agit,
+   la phrase nomme la salle. Sans le kicker, l'encart s'ouvrait sur une phrase
+   isolee et on ne savait pas si c'etait une erreur ou une demande. */
+#hubPassAskHead { flex: 1; min-width: 220px; }
+#hubPassAsk .sectionTitle { color: var(--notice-go-text); margin-bottom: var(--sp-1); }
+#hubPassAsk .sectionTitle::before { background: var(--notice-go-text); }
+#hubPassAsk #hubPassAskWho { color: var(--text); }
+/* La rangee de droite prend la place restante, sinon elle se dimensionne sur
+   son contenu et le champ de mot de passe sort a 110 px — assez pour montrer
+   « mot de passe de la sall ». */
+#hubPassAsk .row { flex: 1 1 340px; }
+#hubPassAsk input { flex: 1; min-width: 0; }
+#hubPassAskGo {
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+}
 
 /* --- salle : une ligne, pas une carte ---------------------------------------
    `display` compris : la coupe de `ui.css` a emporte la mise en page de ces
@@ -2193,15 +2448,26 @@ tr.clickable { cursor: pointer; }
   letter-spacing: var(--track-title);
   text-transform: uppercase;
 }
-/* Le role occupe TROIS interlignes quelle que soit la largeur : les trois
-   descriptions de `classes.js` n'ont pas la meme longueur, donc sans hauteur
-   fixe les barres des trois cartes demarrent a trois hauteurs differentes. */
+/* Le role occupe un nombre FIXE d'interlignes quelle que soit la largeur : les
+   trois descriptions de `classes.js` n'ont pas la meme longueur, donc sans
+   hauteur fixe les barres des trois cartes demarrent a trois hauteurs
+   differentes.
+
+   QUATRE et non trois. Le role du Soigneur en demande quatre a la largeur
+   nominale (75 px de contenu pour 56 de boite, mesure) : il sortait coupe en
+   plein mot — « Soigne à distance, relève à » — ce qui ne se lit pas comme une
+   troncature mais comme une phrase mal ecrite. Le `line-clamp` est la pour le
+   cas qui reste : sur une fenetre etroite la coupe se VOIT, points de
+   suspension compris, au lieu de s'arreter net. */
 .classRole {
   font-family: var(--font-body);
   font-size: var(--t-s);
   line-height: 1.45;
   color: var(--text-dim);
-  height: calc(var(--t-s) * 1.45 * 3);
+  height: calc(var(--t-s) * 1.45 * 4);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
   overflow: hidden;
 }
 .classStats { display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -2262,7 +2528,9 @@ tr.clickable { cursor: pointer; }
 /* Le bouton par carte a disparu : un seul point d'entree vers la progression,
    dans la barre d'action. Trois boutons identiques sur trois cartes forcaient a
    deviner lequel des trois arbres chacun montre. */
-.classMetaBtn { display: none; }
+/* Le bouton par carte est REVENU, mais sur la seule carte choisie — voir
+   `renderClasses`. La regle qui le masquait n'a plus lieu d'etre. */
+#classRow { align-items: stretch; }
 
 /* --- difficulte -------------------------------------------------------------
    Trois cartes, meme grille que les classes : `auto-fit` les remet en colonne
@@ -2309,13 +2577,23 @@ tr.clickable { cursor: pointer; }
 .metaLine.equipped { border-color: var(--go); box-shadow: inset 0 0 0 var(--hair) var(--go); }
 .metaName { font-family: var(--font-display); font-weight: 600; color: var(--text); }
 .metaPips { font-family: var(--font); color: var(--text-dim); letter-spacing: 2px; }
-.metaDesc { font-family: var(--font-body); color: var(--text-dim); }
+.metaDesc { font-family: var(--font-body); line-height: 1.5; color: var(--text-dim); }
 .metaBuy, .metaEquip {
   min-height: 32px;
   padding: 0 var(--sp-2);
   font-size: var(--t-xs);
   border-radius: var(--radius);
 }
+/* Le prix est un chiffre, meme porte par un bouton. « équiper » reste un
+   libelle d'action et garde donc Chakra Petch. */
+.metaBuy { font-family: var(--font); }
+/* « 150 noyaux » passait a la ligne dans 84 px et faisait un bouton de 60 px de
+   haut au milieu d'une rangee de 32 : un prix se lit d'un bloc, il ne se coupe
+   pas. La colonne s'elargit au lieu de rogner le libelle — c'est le prix qui
+   commande la largeur ici, il n'y a rien d'autre a mettre dans cette colonne. */
+.metaBuy, .metaEquip { white-space: nowrap; }
+.metaLine { grid-template-columns: 130px 64px 1fr 104px 96px; }
+.metaLine.confort { grid-template-columns: 170px 1fr 104px; }
 .metaEquip.on { border-color: var(--go); color: var(--go); background: color-mix(in srgb, var(--go) 12%, transparent); }
 #metaMilestones {
   display: flex;
@@ -2326,6 +2604,12 @@ tr.clickable { cursor: pointer; }
   font-size: var(--t-xs);
   color: var(--text-faint);
 }
+/* `<small>` sans taille declaree retombe a 0,833 em, soit 9,17 px : hors des
+   sept valeurs de l'echelle et sous le plancher de lisibilite. Il n'existe pas
+   de « plus petit que 11 » dans cette interface. */
+#gate small, #hubScreen small, #panel small,
+#menu small, #bilan small, #settings small { font-size: var(--t-xs); }
+#metaMilestones .metaJalon { font-family: var(--font-body); }
 #metaMilestones .metaJalon.done { color: var(--go); }
 #metaSub { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); text-align: left; }
 
@@ -2740,6 +3024,62 @@ tr.clickable { cursor: pointer; }
 }
 
 /* --- 2. salles ---------------------------------------------------------------- */
+
+/* L'ENCART DE REPRISE. Il est cyan et non ambre : « il faut y aller » — c'est
+   la grammaire de la couleur, et une salle qui attend n'est pas un
+   avertissement. Il vit AU-DESSUS du titre parce qu'il se decide avant la
+   liste, et il est plat plutot qu'en carte flottante : c'est un bandeau de
+   contexte, pas un objet de plus a choisir. */
+#hubResume {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-6);
+  border: var(--hair) solid var(--notice-go-line);
+  border-radius: var(--radius-ui);
+  background: var(--notice-go-bg);
+}
+#hubResume[hidden] { display: none; }
+/* La fleche dans une pastille : c'est un TEMOIN, pas un bouton — le bouton est
+   a droite, et deux surfaces cliquables pour la meme action se disputeraient
+   le clic. */
+#hubResumeIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-ctl);
+  font-size: var(--t-m);
+  color: var(--bg-void);
+  background: var(--go);
+}
+#hubResumeText { flex: 1; min-width: 0; }
+#hubResumeTitle {
+  font-family: var(--font-display);
+  font-size: var(--t-m);
+  font-weight: 600;
+  color: var(--text);
+}
+#hubResumeSub {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+/* « Reprendre » porte l'accent plein : c'est l'action attendue. « Rester ici »
+   reste un fantome — refuser ne doit pas peser autant qu'accepter. */
+#hubResumeGo {
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--bg-void);
+  border-color: var(--go);
+  background: var(--go);
+}
+
 .hubWrap {
   display: flex;
   flex-direction: column;
@@ -2759,7 +3099,7 @@ tr.clickable { cursor: pointer; }
 .hubWrap #hubTitle { padding: 0 0 var(--sp-2); }
 .hubLead {
   font-family: var(--font-body);
-  font-size: var(--t-s);
+  font-size: var(--t-m);
   line-height: 1.7;
   color: var(--text-dim);
   max-width: 62ch;
@@ -2776,9 +3116,29 @@ tr.clickable { cursor: pointer; }
 }
 /* Le champ de nom prend la place, le mot de passe suit, le bouton reste a sa
    largeur : c'est l'ordre dans lequel on les remplit. */
-.hubCreate #hubCreateRow { align-items: stretch; gap: var(--sp-3); }
-.hubCreate #hubCreateRow input { flex: 1; min-width: 180px; }
-.hubCreate #hubCreateRow button { flex: none; padding-inline: var(--sp-8); }
+.hubCreate #hubCreateRow { align-items: flex-end; gap: var(--sp-3); }
+/* Le champ et son etiquette forment un bloc : c'est le BLOC qui prend la place,
+   sinon l'etiquette flotte au-dessus d'un champ qui grandit sans elle. */
+.hubCreate #hubCreateRow .fieldWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 200px;
+}
+.hubCreate #hubCreateRow input { width: 100%; }
+/* L'action de l'encart : pleine, comme « Reprendre ». C'est la seule chose a
+   faire ici, elle ne peut pas avoir l'aspect d'un champ de plus. */
+.hubCreate #hubCreateRow button {
+  flex: none;
+  padding-inline: var(--sp-8);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--bg-void);
+  border-color: var(--go);
+  background: var(--go);
+}
 .hubCreate .sectionTitle, .hubCreate #hubCreateRow { padding-inline: 0; max-width: none; }
 .hubWrap #hubAccount { margin-top: 0; padding-inline: 0; }
 
@@ -2804,7 +3164,7 @@ tr.clickable { cursor: pointer; }
 .panelWrap #summary { padding: var(--sp-2) 0 0; }
 .panelLead {
   font-family: var(--font-body);
-  font-size: var(--t-s);
+  font-size: var(--t-m);
   line-height: 1.7;
   color: var(--text-dim);
   max-width: 62ch;
@@ -2840,14 +3200,14 @@ tr.clickable { cursor: pointer; }
 .panelCardHead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
 .panelCardHead #teamReady { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); }
 .panelWrap #classes, .panelWrap #vote, .panelWrap #scoresWrap { padding-inline: 0; }
-.panelLeaveRow #panelLeave { background: none; border-color: transparent; color: var(--text-dim); }
+
 /* Une ligne d'equipe. Le fond vert dit « pret » sans qu'on ait à lire. */
-#teamList { display: flex; flex-direction: column; gap: var(--sp-1); }
+#teamList { display: flex; flex-direction: column; gap: var(--sp-2); }
 #teamList .teamRow {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
   border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ctl);
   background: var(--bg-void);
@@ -2857,8 +3217,42 @@ tr.clickable { cursor: pointer; }
   border-color: color-mix(in srgb, var(--gain) 30%, transparent);
   background: color-mix(in srgb, var(--gain) 7%, transparent);
 }
-#teamList .teamName { font-family: var(--font-display); font-size: var(--t-s); flex: 1; min-width: 0; }
-#teamList .teamCls { font-size: var(--t-xs); color: var(--text-dim); }
+/* LA PASTILLE D'INITIALE. Elle porte la couleur du JOUEUR — celle de son
+   personnage dans l'arene — posee en ligne par `renderTeam` : le fond et la
+   bordure la derivent en `currentColor`, donc une seule valeur circule. Un
+   carre, comme le temoin de droite : le seul cercle du jeu est une entite
+   vivante. */
+#teamList .teamAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-ctl);
+  font-family: var(--font-display);
+  font-size: var(--t-s);
+  font-weight: 700;
+  border: var(--hair) solid color-mix(in srgb, currentColor 45%, transparent);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+/* DEUX LIGNES : le pseudo et son statut d'hote en haut, la classe en dessous.
+   Sur une seule ligne la classe se retrouvait coincee entre le pseudo et deux
+   colonnes de chiffres, a 11 px — alors que c'est ce qu'on relit le plus. */
+#teamList .teamMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#teamList .teamTop { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+#teamList .teamName {
+  font-family: var(--font-display);
+  font-size: var(--t-s);
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#teamList .teamCls { font-family: var(--font-display); font-size: var(--t-xs); color: var(--text-dim); }
+/* Personne n'a encore choisi : c'est une attente, pas une valeur manquante. */
+#teamList .teamCls.pending { font-family: var(--font-body); color: var(--text-faint); }
 #teamList .teamPing { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
 #teamList .teamHost {
   font-family: var(--font);
@@ -2873,7 +3267,14 @@ tr.clickable { cursor: pointer; }
 #teamList .teamDot { width: 8px; height: 8px; flex: none; background: var(--ui-line); }
 #teamList .teamRow.ready .teamDot { background: var(--gain); }
 
-#readyBtn { font-family: var(--font-display); font-weight: 700; letter-spacing: var(--track-title); }
+#readyBtn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  width: 100%;
+  margin-top: var(--sp-2);
+}
 #readyBtn.on {
   color: var(--gain);
   border-color: color-mix(in srgb, var(--gain) 45%, transparent);
@@ -2891,7 +3292,11 @@ tr.clickable { cursor: pointer; }
   font-size: var(--t-xs);
 }
 #historyList .histWhen { font-family: var(--font); color: var(--text-faint); }
-#historyList .histLabel { color: var(--text-dim); }
+#historyList .histLabel { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); }
+/* La ligne ouvre sur la difficulte, dont le libelle vit en minuscules dans
+   `DIFFICULTIES` et doit y rester — c'est le meme mot que « difficulté
+   cauchemar » au fil du texte. Meme traitement que la sous-ligne des salles. */
+#historyList .histLabel::first-letter { text-transform: uppercase; }
 
 /* La barre d'action. Fond OPAQUE et non un degrade : le contenu defile
    dessous, et un degrade laisse passer assez de texte pour rendre le libelle
@@ -2948,10 +3353,10 @@ tr.clickable { cursor: pointer; }
 }
 .metaLead {
   font-family: var(--font-body);
-  font-size: var(--t-s);
+  font-size: var(--t-m);
   line-height: 1.7;
   color: var(--text-dim);
-  max-width: 70ch;
+  max-width: 62ch;
 }
 .metaWrap #meta { width: 100%; padding-inline: 0; align-items: stretch; gap: var(--sp-3); }
 .metaBack { justify-content: center; margin-top: var(--sp-6); }
@@ -3078,12 +3483,19 @@ button.danger:hover:not(:disabled) {
    Sans bordure au repos : elle APPARAIT au survol. C'est ce qui lui donne son
    affordance sans qu'il pese comme un vrai bouton le reste du temps. */
 button.ghost:hover:not(:disabled),
-#panelLeave:hover:not(:disabled),
-#settingsClose:hover:not(:disabled),
 #hubPassAskCancel:hover:not(:disabled) {
   background: none;
   border-color: var(--ui-line);
   color: var(--text);
+}
+
+/* Le survol d'un retour vire au cyan, comme toute destination : « il faut y
+   aller » est exactement ce que dit ce bouton. */
+#panelLeave:hover:not(:disabled),
+#settingsClose:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--go) 8%, var(--ui-panel));
+  border-color: color-mix(in srgb, var(--go) 45%, transparent);
+  color: var(--go);
 }
 
 /* --- 7. segments : les onglets ----------------------------------------------
@@ -3165,6 +3577,42 @@ button.ghost:hover:not(:disabled),
   color: var(--go);
 }
 
+/* --- 10 bis. LE RETOUR AU CLIC -----------------------------------------------
+   Il n'y en avait aucun : le survol levait l'element, et le clic ne repondait
+   rien du tout — l'interface ne confirmait un geste qu'une fois la page
+   suivante arrivee, ce qui est trop tard sur une action qui echoue ou qui
+   attend le serveur. L'element REDESCEND sous sa position de repos et se
+   comprime d'un cheveu, sur `--tap` (90 ms) : assez pour se sentir, trop
+   court pour se voir.
+
+   `transition-duration: 0s` a l'appui et non `--tap` : un enfoncement doit
+   etre INSTANTANE — c'est le relachement qui s'anime, et l'oeil lit alors le
+   retour a la position de repos comme la fin du geste. */
+#gate button:active:not(:disabled),
+#hubScreen button:active:not(:disabled),
+#panel button:active:not(:disabled),
+#menu button:active:not(:disabled),
+#settings button:active:not(:disabled),
+#bilan button:active:not(:disabled),
+#roomList .roomEntry:active:not(:disabled),
+#classRow .classOpt:active:not(:disabled),
+#voteRow button:active:not(:disabled),
+#metaTree .metaLine:active:not(:disabled) {
+  transform: translateY(1px) scale(.985);
+  transition-duration: 0s;
+}
+/* Le lien n'a pas de surface : il ne s'enfonce pas, il s'eclaire. */
+button.link:active:not(:disabled) { transform: none; }
+
+/* Le curseur de volume repond lui aussi : il grossit sous le doigt, ce qui le
+   rend attrapable la ou un rond de 16 px se rate d'un pixel. */
+input[type="range"]::-webkit-slider-thumb { transition: scale var(--tap) var(--ease-out), box-shadow var(--tap) linear; }
+input[type="range"]:hover::-webkit-slider-thumb { scale: 1.15; }
+input[type="range"]:active::-webkit-slider-thumb {
+  scale: 1.3;
+  box-shadow: 0 0 var(--sp-4) color-mix(in srgb, var(--go) 85%, transparent);
+}
+
 /* --- 11. champs et focus ----------------------------------------------------
    Le focus est un anneau et non une bordure : une bordure qui change d'epaisseur
    decale d'un pixel tout ce qui suit. */
@@ -3176,7 +3624,12 @@ input:focus {
 :focus-visible {
   outline: 2px solid var(--go);
   outline-offset: 2px;
+  /* L'anneau s'OUVRE depuis le bord au lieu de se poser : au clavier on
+     enchaine les elements vite, et un anneau qui se pose a l'identique sur
+     chacun ne dit pas qu'on a bouge. */
+  animation: focusRing var(--tap) var(--ease-out);
 }
+@keyframes focusRing { from { outline-offset: -2px; } to { outline-offset: 2px; } }
 /* Le clavier voit l'anneau, la souris non : un anneau qui apparait sous le
    curseur ajoute un second signal la ou le survol suffit deja. */
 :focus:not(:focus-visible) { outline: none; }

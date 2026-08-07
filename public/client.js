@@ -211,7 +211,6 @@ const teamListEl = document.getElementById("teamList");
 const teamReadyEl = document.getElementById("teamReady");
 const historyListEl = document.getElementById("historyList");
 const launchSummaryEl = document.getElementById("launchSummary");
-const metaOpenBtn = document.getElementById("metaOpen");
 // Le kicker du salon (« Salon · tu es l'hôte ») n'a pas d'identifiant : il est
 // pose par le markup et lu ici par sa position, pour ne pas ajouter un id de
 // plus a un element que seul cet ecran connait.
@@ -248,6 +247,12 @@ const roomNameInput = document.getElementById("roomName");
 const roomPassInput = document.getElementById("roomPass");
 const roomCreateBtn = document.getElementById("roomCreate");
 const hubStatusEl = document.getElementById("hubStatus");
+const hubResumeEl = document.getElementById("hubResume");
+const hubResumeIconEl = document.getElementById("hubResumeIcon");
+const hubResumeTitleEl = document.getElementById("hubResumeTitle");
+const hubResumeSubEl = document.getElementById("hubResumeSub");
+const hubResumeGoBtn = document.getElementById("hubResumeGo");
+const hubResumeStayBtn = document.getElementById("hubResumeStay");
 const hubPassAskEl = document.getElementById("hubPassAsk");
 const hubPassAskWhoEl = document.getElementById("hubPassAskWho");
 const hubPassAskInput = document.getElementById("hubPassAskInput");
@@ -412,6 +417,7 @@ function connect() {
       case "rooms":
         roomsList = msg.rooms ?? [];
         renderRooms();
+        renderResume();
         break;
 
       case "roomJoined":
@@ -442,11 +448,11 @@ function connect() {
            apparaitre le champ — jamais un champ affiche d'avance. */
         if (msg.motif === "motdepasse" && joinAttempt) {
           const retry = !hubPassAskEl.hidden;
-          hubPassAskWhoEl.textContent = `« ${joinAttempt.name} » est protégée — entre son mot de passe`;
+          hubPassAskWhoEl.textContent = `« ${joinAttempt.name} » demande un mot de passe.`;
           hubPassAskEl.hidden = false;
           hubPassAskInput.value = "";
           hubPassAskInput.focus();
-          hubStatus(retry ? "mot de passe incorrect" : "", retry);
+          hubStatus(retry ? "Mot de passe incorrect." : "", retry);
           break;
         }
         const MOTIFS = {
@@ -1199,23 +1205,68 @@ function closeSettings() {
 topSettingsBtn.onclick = openSettings;
 if (settingsCloseBtn) settingsCloseBtn.onclick = closeSettings;
 
-/* Entree en etat hub. L'auto-rejointe ne part QUE d'ici, une seule fois par
-   `welcome` : si la salle a disparu entre-temps, `joinRoomError` retombe sur
-   la liste — l'utilisateur n'a jamais a connaitre le code. */
+/* Entree en etat hub. La reprise proposee par `welcome` ne part plus toute
+   seule : elle s'affiche, et c'est le joueur qui tranche. Une redirection
+   silencieuse remettait dans une manche en cours sans rien demander, et
+   surtout sans dire CE QU'ON REPREND — la vague et l'effectif sont exactement
+   ce qui fait choisir entre revenir et rester. La proposition reste a UN COUP
+   par `welcome` : `pendingRejoin` est vide des qu'on repond. */
 function enterHub() {
   if (!connected || inRoom) return;
   hubScreenEl.hidden = false;
   hubPassAskEl.hidden = true;
   hubPassAskInput.value = "";
-  hubWhoEl.textContent = `connecté comme ${localStorage.getItem("survivor.pseudo") || "?"}`;
+  /* Etiquette et valeur separees : `textContent` sur le pseudo, qui vient du
+     compte — jamais d'interpolation dans du HTML. */
+  hubWhoEl.innerHTML = "Connecté comme <b></b>";
+  hubWhoEl.querySelector("b").textContent = localStorage.getItem("survivor.pseudo") || "?";
   renderRooms();
-  if (pendingRejoin) {
-    const { code, name } = pendingRejoin;
-    pendingRejoin = null;
-    hubStatus(`retour vers « ${name} »…`);
-    ws.send(JSON.stringify({ t: "joinRoom", code }));
-  }
+  renderResume();
 }
+
+/* La fleche de reprise. Un triangle plein, en `currentColor` : meme raison que
+   le cadenas de la liste — la feuille decide de la couleur et de la taille. */
+const PLAY_SVG =
+  `<svg viewBox="0 0 16 16" width="1em" height="1em" aria-hidden="true" focusable="false">`
+  + `<path d="M5.4 3.4 12.2 8l-6.8 4.6z" fill="currentColor"/></svg>`;
+
+function renderResume() {
+  if (!hubResumeEl) return;
+  /* La salle proposee peut avoir disparu entre le `welcome` et l'affichage :
+     on ne propose que ce que la liste confirme, sinon le bouton mene a un
+     `joinRoomError` que personne n'a demande. */
+  const salle = pendingRejoin
+    ? roomsList.find(r => r.code === pendingRejoin.code)
+    : null;
+  hubResumeEl.hidden = !salle;
+  if (!salle) return;
+
+  hubResumeIconEl.innerHTML = PLAY_SVG;
+  hubResumeTitleEl.textContent = salle.state === 1
+    ? `Une manche tourne encore dans « ${salle.name} »`
+    : `Ta salle « ${salle.name} » est toujours ouverte`;
+
+  const ou = salle.state === 1
+    ? `Vague ${Math.max(1, salle.wave || 0)} en cours`
+    : "Au salon";
+  const qui = salle.count > 0
+    ? `${salle.count} joueur${salle.count > 1 ? "s" : ""} présent${salle.count > 1 ? "s" : ""}`
+    : "personne pour l'instant";
+  hubResumeSubEl.textContent = `${ou} · ${qui} · tu reprends ta place`;
+}
+
+/* Repondre a la proposition la CONSOMME, dans les deux sens. Sans ca, revenir
+   au hub apres avoir quitte la salle rouvrirait l'encart. */
+function answerResume(reprendre) {
+  const salle = pendingRejoin;
+  pendingRejoin = null;
+  if (hubResumeEl) hubResumeEl.hidden = true;
+  if (!reprendre || !salle) return;
+  hubStatus(`Retour vers « ${salle.name} »…`);
+  ws.send(JSON.stringify({ t: "joinRoom", code: salle.code }));
+}
+if (hubResumeGoBtn) hubResumeGoBtn.onclick = () => answerResume(true);
+if (hubResumeStayBtn) hubResumeStayBtn.onclick = () => answerResume(false);
 
 /* LE CADENAS DE LA LISTE DES SALLES.
 
@@ -1246,7 +1297,7 @@ function renderRooms() {
   if (roomsList.length === 0) {
     const empty = document.createElement("div");
     empty.className = "roomEmpty";
-    empty.textContent = "aucune salle — crée la première";
+    empty.textContent = "Aucune salle ouverte — crée la première.";
     roomListEl.appendChild(empty);
     return;
   }
@@ -1258,14 +1309,18 @@ function renderRooms() {
     // autres est celle qu'on attend. La rendre cliquable pour afficher ensuite
     // un refus serait pire — le joueur apprendrait l'information deux fois.
     btn.disabled = full;
-    const lock = r.locked
+    /* Le cadenas ne sort QUE si la sous-ligne parle d'autre chose — donc en
+       manche, ou elle porte la vague. Hors manche elle dit deja « protégée par
+       mot de passe » en toutes lettres, et le glyphe repetait l'information a
+       deux centimetres d'ecart. */
+    const lock = r.locked && r.state === 1
       ? `<span class="roomLock" title="protégée par mot de passe">${LOCK_SVG}</span>` : "";
     // « En jeu » et non « manche en cours » : la pastille tient sur six
     // caracteres en capitales espacees, et la sous-ligne dit deja QUELLE vague
     // tourne — repeter « en cours » a deux centimetres d'ecart n'apprend rien.
-    const state = r.state === 1
-      ? `<span class="roomState running">En jeu</span>`
-      : `<span class="roomState">Salon</span>`;
+    const state = r.state === 1 ? `<span class="roomState running">En jeu</span>`
+      : full ? `<span class="roomState">Complète</span>`
+      : `<span class="roomState">Ouvert</span>`;
     /* Les carres d'effectif ne repetent pas « 3 / 4 » : ils le rendent
        COMPARABLE d'une ligne a l'autre sans le lire. `data-n` porte l'effectif
        present, le CSS allume — rien n'est colore ici, sinon la regle « une
@@ -1384,23 +1439,19 @@ passChangeBtn.onclick = () => {
 };
 
 /* --- Menu (progression) -----------------------------------------------------
-   UN SEUL point d'entree, le bouton « Talents » de la barre d'action, et non
-   plus un bouton par carte de classe : trois boutons pour le meme ecran, c'est
-   trois fois la meme action qui concurrence le choix de classe sur sa propre
-   carte. L'arbre montre par defaut la classe DEJA choisie — c'est celle qu'on
-   vient regarder — et `openMenuFor` garde son argument pour le jour ou l'on
-   voudra pointer un autre arbre. `#menuClose` revient au salon sans repasser
-   par la connexion. */
+   UN SEUL point d'entree a l'ecran, et il est SOUS LA CARTE DE LA CLASSE
+   CHOISIE (`renderClasses`). Les deux versions precedentes ratent chacune une
+   moitie : un bouton par carte, c'est trois fois la meme action et chacune
+   concurrence le choix de classe sur sa propre carte ; un bouton dans la barre
+   d'action, c'est un arbre detache de la classe qu'il decrit. Sur la seule
+   carte choisie, il n'y en a jamais qu'un ET on sait sur quoi il porte.
+   `openMenuFor` recoit donc toujours un index explicite. `#menuClose` revient
+   au salon sans repasser par la connexion. */
 function openMenuFor(clsIndex) {
   panel.hidden = true;
   menuEl.hidden = false;
   renderMeta(clsIndex);
 }
-
-metaOpenBtn.onclick = () => {
-  const me = lobby.find(l => l.id === myId);
-  openMenuFor(me?.cls ?? CLASS_DEFAULT);
-};
 
 menuCloseBtn.onclick = () => {
   menuEl.hidden = true;
@@ -1540,8 +1591,8 @@ function refreshPanel() {
   if (panelKicker) panelKicker.textContent = isHost ? "Salon · tu es l'hôte" : "Salon";
   panelTitle.textContent = roomNameCur || "Salon";
   summary.textContent = lobby.length > 1
-    ? `${lobby.length} joueurs connectés`
-    : "en attente de joueurs";
+    ? `${lobby.length} joueurs connectés.`
+    : "En attente de joueurs.";
   renderScores(lastResult ? lastResult.rows : lobby.map(l => ({
     id: l.id, name: l.name, colorIndex: l.colorIndex,
     score: 0, kills: 0, deaths: 0, total: l.total,
@@ -1625,10 +1676,26 @@ function renderTeam() {
     const ms = Number(l.ping);
     const pingTxt = Number.isFinite(ms) && ms >= 0 ? `${ms} ms` : "—";
 
+    /* DEUX LIGNES et une pastille d'initiale. Sur une seule ligne, le pseudo,
+       la classe, le ping et l'etat se disputaient la largeur : la classe
+       tombait a 11 px entre deux colonnes de chiffres, alors que c'est
+       l'information qu'on relit le plus au salon. La pastille porte la
+       COULEUR DU JOUEUR — celle de son personnage dans l'arene, pas celle de
+       sa classe : c'est la meme convention que le liseré autour des noms
+       pendant la manche. */
+    const teinte = PLAYER_COLORS[l.colorIndex % PLAYER_COLORS.length] ?? PLAYER_COLORS[0];
     row.innerHTML =
-      `<span class="teamName"></span>` +
-      (l.id === hostId ? `<span class="teamHost">hôte</span>` : "") +
-      `<span class="teamCls">${cls ? escapeHtml(cls.nom) : "—"}</span>` +
+      `<span class="teamAvatar"></span>` +
+      `<span class="teamMain">` +
+        `<span class="teamTop">` +
+          `<span class="teamName"></span>` +
+          (l.id === hostId ? `<span class="teamHost">hôte</span>` : "") +
+        `</span>` +
+        // « choisit sa classe… » plutot qu'un tiret : un tiret se lit comme une
+        // valeur manquante, la phrase dit que quelqu'un est en train de faire
+        // quelque chose — ce qui est exactement le cas, et ce qu'on attend.
+        `<span class="teamCls">${cls ? escapeHtml(cls.nom) : "choisit sa classe…"}</span>` +
+      `</span>` +
       `<span class="teamPing">${pingTxt}</span>` +
       // Le carre porte l'etat prêt en plus du fond de la ligne. Ce n'est pas
       // une redondance decorative : le fond vert est tres pale (7 %) pour
@@ -1638,7 +1705,11 @@ function renderTeam() {
 
     // textContent et non innerHTML : le pseudo vient d'un autre joueur.
     row.querySelector(".teamName").textContent = l.name;
+    const av = row.querySelector(".teamAvatar");
+    av.textContent = (l.name || "?").trim().charAt(0).toUpperCase() || "?";
+    av.style.color = teinte;
     if (cls) row.querySelector(".teamCls").style.color = cls.couleur;
+    else row.querySelector(".teamCls").classList.add("pending");
     teamListEl.appendChild(row);
   }
 }
@@ -1662,7 +1733,7 @@ function renderHistory() {
     const row = document.createElement("div");
     row.className = "histRow";
     row.innerHTML = `<span class="histWhen">—</span>`
-      + `<span class="histLabel">aucune manche jouée dans cette salle</span><span></span>`;
+      + `<span class="histLabel">Aucune manche jouée dans cette salle.</span><span></span>`;
     historyListEl.appendChild(row);
     return;
   }
@@ -1873,27 +1944,49 @@ function renderClasses() {
 
     paintClassSilhouette(btn.querySelector(".classSil"), c);
 
-    /* Plus de bouton « Progression » par carte : l'acces a l'arbre passe
-       desormais par le seul bouton « Talents » de la barre d'action. Un bouton
-       par carte, c'etait trois fois la meme action, et chacune concurrencait le
-       choix de classe sur sa propre carte — or la carte a un seul but, se faire
-       choisir. */
     btn.onclick = () => {
       if (locked || pris) return;
       ws.send(JSON.stringify({ t: "pickClass", cls: i }));
     };
-    classRow.appendChild(btn);
+
+    /* L'ACCES A L'ARBRE, sous la carte et sur la SEULE carte choisie.
+
+       Trois versions ont existe. Un bouton sur chacune des trois cartes :
+       trois fois la meme action, et chacune concurrencait le choix de classe
+       sur sa propre carte. Un bouton unique dans la barre d'action : plus
+       aucune ambiguite, mais l'arbre n'etait plus rattache a la classe qu'il
+       decrit. Un bouton sur la carte CHOISIE reprend les deux : il n'y en a
+       jamais qu'un a l'ecran, et on lit sur quoi il porte sans avoir a
+       l'ouvrir.
+
+       Il vit SOUS la carte et non dedans : `.classOpt` est un <button>, et un
+       bouton imbrique dans un bouton est invalide — le navigateur le sort du
+       parent et la mise en page part avec. D'ou la cellule. */
+    const cell = document.createElement("div");
+    cell.className = "classCell";
+    cell.appendChild(btn);
+
+    if (i === mine) {
+      const meta = document.createElement("button");
+      meta.className = "classMetaBtn";
+      meta.textContent = `Talents du ${c.nom}`;
+      meta.style.color = c.couleur;
+      meta.onclick = () => openMenuFor(i);
+      cell.appendChild(meta);
+    }
+    classRow.appendChild(cell);
   });
 
   if (!classHint) return;
   if (locked) {
     classHint.textContent =
-      `classe verrouillée pour la session : ${classAt(mine ?? CLASS_DEFAULT).nom}`;
+      `Classe verrouillée pour la session : ${classAt(mine ?? CLASS_DEFAULT).nom}.`;
   } else if (mine === null || mine === undefined) {
     classHint.textContent =
-      `sans choix explicite, tu entres en ${CLASSES[CLASS_DEFAULT].nom} — le choix se verrouille au lancement`;
+      `Sans choix explicite, tu entres en ${CLASSES[CLASS_DEFAULT].nom}.`
+      + " Le choix se verrouille au lancement.";
   } else {
-    classHint.textContent = "le choix se verrouille au lancement de la première manche";
+    classHint.textContent = "Le choix se verrouille au lancement de la première manche.";
   }
 }
 

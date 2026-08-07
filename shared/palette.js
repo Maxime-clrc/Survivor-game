@@ -42,10 +42,18 @@ export const SURFACE = {
 };
 
 /* --- texte ---------------------------------------------------------------- */
+/* Trois valeurs de texte, et leur ECART EST MESURE sur le fond le plus sombre
+   du jeu (`--bg-void`, #08090d) : 16,9 pour la base, 6,4 pour l'attenue, 4,6
+   pour le tres attenue. Le troisieme valait #5a6376, soit **3,3** — sous le
+   seuil AA de 4,5 pour du texte normal, et il porte des libelles reels : noms
+   de statistiques, heures de l'historique, notes de pied, etats vides. Un gris
+   qu'on ne peut pas lire ne hierarchise rien, il supprime. Il est remonte au
+   premier ton qui passe le seuil, et pas plus haut — l'ecart avec `dim` reste
+   visible, c'est tout ce qu'on lui demande. */
 export const TEXT = {
   base:  "#e9edf5",
   dim:   "#8892a6",
-  faint: "#5a6376",
+  faint: "#6f7a90",
 };
 
 /* --- la grammaire de couleurs ----------------------------------------------
