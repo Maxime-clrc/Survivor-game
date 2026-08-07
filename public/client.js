@@ -2210,6 +2210,13 @@ function paintClassSilhouette(cv2, c) {
     { scaleX: s, scaleY: s, tint: c.couleur });
 }
 
+/* La classe pour laquelle le bouton d'arbre est DEJA pose. Il ne rejoue son
+   apparition que si cette valeur change — voir le commentaire au point de
+   creation. `null` au depart et jamais remis a zero : revenir dans un salon
+   avec la meme classe fait arriver le bouton AVEC l'ecran (`screenIn`), il n'a
+   pas a se signaler une seconde fois. */
+let metaBtnCls = null;
+
 function renderClasses() {
   if (!classRow) return;
   classRow.innerHTML = "";
@@ -2287,6 +2294,15 @@ function renderClasses() {
     if (i === mine) {
       const meta = document.createElement("button");
       meta.className = "classMetaBtn";
+      /* `.fresh` porte l'apparition, et il ne se pose QUE sur un vrai
+         changement de classe. Cette fonction rejoue a chaque diffusion du
+         salon — un vote, un « prêt », l'arrivee d'un joueur — et reconstruit
+         `#classRow` a chaque fois : sans ce test, le bouton renaissait
+         identique et rejouait son `popIn`, donc il clignotait a chaque clic
+         de la page. C'est le meme defaut que les listes voisines, mais
+         `.settled` ne peut pas le couvrir : ce bouton nait d'un clic, bien
+         apres que l'ecran s'est pose. */
+      if (mine !== metaBtnCls) meta.classList.add("fresh");
       meta.textContent = `Talents du ${c.nom}`;
       meta.style.color = c.couleur;
       meta.onclick = () => openMenuFor(i);
@@ -2294,6 +2310,7 @@ function renderClasses() {
     }
     classRow.appendChild(cell);
   });
+  metaBtnCls = mine;
 
   if (!classHint) return;
   if (locked) {

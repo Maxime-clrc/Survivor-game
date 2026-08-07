@@ -1401,12 +1401,22 @@
    surgissaient d'un coup au milieu d'une page deja posee — le pire cas, parce
    que rien ne relie le clic a ce qui vient d'apparaitre ailleurs a l'ecran.
 
-   L'animation ne rejoue pas toute seule : `.classMetaBtn` est CREE au moment
-   du choix, et les deux encarts basculent leur attribut `hidden` — reposer
-   `hidden = false` sur un element deja visible ne modifie aucun attribut,
-   donc ne relance rien. C'est ce qui les distingue des listes du salon, qui
-   se reconstruisent a chaque diffusion et ont besoin de `.settled`. */
-.classMetaBtn,
+   Les deux encarts basculent leur attribut `hidden`, et reposer
+   `hidden = false` sur un element deja visible ne modifie aucun attribut :
+   leur animation ne rejoue donc pas toute seule.
+
+   `.classMetaBtn` etait dans le meme sac, et c'etait FAUX. Ce commentaire
+   affirmait qu'il n'est cree qu'au moment du choix ; en realite
+   `renderClasses()` vide `#classRow` et le reconstruit a CHAQUE diffusion du
+   salon — un vote, un « prêt », l'arrivee d'un joueur, c'est-a-dire a chaque
+   clic. Le bouton reprenait donc `popIn` a chaque fois : il clignotait.
+
+   Il est dans le meme cas que les listes voisines, mais `.settled` ne peut pas
+   le couvrir : ce bouton NAIT precisement d'un clic, et il nait bien apres que
+   l'ecran s'est pose — la classe qui coupe l'entree d'ecran couperait la seule
+   animation qu'on veut garder. C'est donc `renderClasses` qui pose `.fresh`, et
+   seulement quand la classe choisie vient de CHANGER. */
+.classMetaBtn.fresh,
 #hubResume:not([hidden]),
 #hubPassAsk:not([hidden]) {
   animation: popIn var(--pop) var(--ease-pop) both;

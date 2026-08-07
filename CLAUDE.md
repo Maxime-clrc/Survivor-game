@@ -1185,11 +1185,24 @@ donc dans le flux, et derrière un `#stage` haut de 100 % elle tombait hors
 écrans de 56 px, sans quoi leurs premiers pixels passent dessous — le kicker du
 salon disparaissait.
 
-**Un seul point d'entrée vers la progression : `#metaOpen` dans la barre
-d'action.** Il remplace le bouton par carte de classe (`.classMetaBtn`) : trois
-boutons pour le même écran, c'était trois fois la même action, et chacune
-concurrençait le choix de classe sur sa propre carte — or une carte de classe a
-un seul but, se faire choisir.
+**Un seul point d'entrée vers la progression, et il vit sur la carte CHOISIE**
+(`.classMetaBtn`, sous `.classOpt`). Il y en a eu trois — un par carte de classe
+— et c'était trois fois la même action, chacune concurrençant le choix de classe
+sur sa propre carte, or une carte de classe a un seul but : se faire choisir.
+Un seul bouton, sur la seule carte retenue, dit à la fois *où l'on va* et *sur
+quoi ça porte*. Il vit **sous** la carte et non dedans (`.classCell`) : `.classOpt`
+est un `<button>`, et un bouton imbriqué dans un bouton est sorti de son parent
+par le navigateur, emportant la mise en page.
+
+**Il ne rejoue son apparition (`popIn`) que si la classe a VRAIMENT changé**
+(`.fresh`, posé par `renderClasses`). `renderClasses()` vide `#classRow` et le
+reconstruit à **chaque** diffusion du salon — un vote, un « prêt », l'arrivée
+d'un joueur, c'est-à-dire à chaque clic de la page — donc le bouton renaissait
+identique et reprenait son animation : il clignotait. C'est le défaut que
+`.settled` corrige pour les listes voisines, mais `.settled` ne peut pas le
+couvrir : ce bouton **naît d'un clic**, bien après que l'écran s'est posé, et la
+classe qui coupe l'entrée d'écran supprimerait la seule animation qu'on veut
+garder. D'où un drapeau porté par le rendu plutôt qu'une règle de temps.
 
 **L'unité de la monnaie s'écrit en toutes lettres, jamais en glyphe** :
 « 650 noyaux », jamais « 650 ◈ ». Un signe inventé doit s'apprendre avant qu'on
