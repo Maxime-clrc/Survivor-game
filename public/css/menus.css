@@ -111,6 +111,12 @@
   --lift-2: -3px;
   --lift-3: -4px;
 
+  /* Hauteur de la barre superieure. Elle sert a DEUX endroits qui doivent
+     rester d'accord : la barre elle-meme, et le decalage des ecrans qu'elle
+     surplombe. Deux litteraux, et le jour ou la barre grandit, la moitie des
+     ecrans passe dessous sans que rien ne le signale. */
+  --topbar-h: 56px;
+
   /* Lueur cyan. Derivee de --go par color-mix, jamais recopiee : la charte
      n'admet qu'une source pour chaque couleur. */
   --glow-go: 0 0 var(--sp-8) color-mix(in srgb, var(--go) 34%, transparent);
@@ -166,7 +172,7 @@
    vocabulaire du sol de l'arene, et c'est ce qui fait que le salon et le jeu
    appartiennent visiblement au meme objet.
    --------------------------------------------------------------------------- */
-#gate, #hubScreen, #panel, #bilan, #menu {
+#gate, #hubScreen, #panel, #bilan, #menu, #settings {
   justify-content: flex-start;
   align-items: stretch;
   gap: 0;
@@ -177,7 +183,7 @@
 /* La colonne de contenu. Une largeur par ecran selon ce qu'il porte : le hub
    est une liste (960 px), le salon un tableau de bord (1200 px), le bilan un
    tableau (1120 px). Trois largeurs et pas une de plus. */
-#hubScreen > *, #bilan > *, #menu > * { max-width: 960px; width: 100%; margin-inline: auto; }
+#hubScreen > *, #bilan > *, #menu > *, #settings > * { max-width: 960px; width: 100%; margin-inline: auto; }
 #panel > * { max-width: 1200px; width: 100%; margin-inline: auto; }
 #bilan > * { max-width: 1120px; }
 
@@ -224,8 +230,9 @@
 /* --- controles ---------------------------------------------------------------
    Les champs et les boutons gardent leur structure ; ils gagnent le rayon
    d'interface, une aire de clic de 44 px minimum et un survol qui se voit. */
-#gate input, #hubScreen input, #panel input, #menu input,
-#gate button, #hubScreen button, #panel button, #menu button, #bilan button {
+#gate input, #hubScreen input, #panel input, #menu input, #settings input,
+#gate button, #hubScreen button, #panel button, #menu button, #bilan button,
+#settings button {
   border-radius: var(--radius-ctl);
   /* 44 px est le plancher tactile, pas la taille visee : les gabarits
      ci-dessous portent la vraie hauteur. */
@@ -239,6 +246,15 @@
   min-height: var(--field-h);
   padding: 0 var(--field-pad);
 }
+/* Un curseur n'est pas un champ de saisie : il n'a ni hauteur de ligne ni
+   retrait a respecter, et les regles ci-dessus le deformeraient. */
+#settings input[type="range"], #gate input[type="range"], #pause input[type="range"] {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
 #gate input, #hubScreen input {
   font-family: var(--font);
   background: var(--ui-field);
@@ -251,7 +267,7 @@
 }
 #gate button:hover:not(:disabled), #hubScreen button:hover:not(:disabled),
 #panel button:hover:not(:disabled), #menu button:hover:not(:disabled),
-#bilan button:hover:not(:disabled) {
+#bilan button:hover:not(:disabled), #settings button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--line) 90%, var(--text-dim));
   background: color-mix(in srgb, var(--bg-raised) 55%, transparent);
 }
@@ -1028,8 +1044,24 @@
 /* --- pause -------------------------------------------------------------------
    Le voile reste TRANSLUCIDE : a plusieurs la partie continue derriere, et un
    panneau opaque ferait croire que tout est arrete. C'est la seule raison pour
-   laquelle #pause n'est pas un `.overlay`, et elle ne doit pas se perdre. */
+   laquelle #pause n'est pas un `.overlay`, et elle ne doit pas se perdre.
+   Consequence a ne pas oublier : il n'herite donc PAS de `.overlay::after`, et
+   il lui faut sa propre trame. */
+#pause::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: .4;
+  background: repeating-linear-gradient(180deg,
+    transparent 0 2px,
+    rgba(0, 0, 0, .26) 3px,
+    transparent 4px);
+}
 #pausePanel {
+  position: relative;
+  z-index: 2;
   width: min(380px, 100%);
   border-radius: var(--radius-ui);
   gap: var(--sp-3);
@@ -1238,19 +1270,38 @@
    sous minuterie, tout le reste doit disparaitre).
    =========================================================================== */
 #topbar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 30;
   display: flex;
   align-items: center;
   gap: var(--sp-4);
-  height: 56px;
+  height: var(--topbar-h);
   padding: 0 var(--sp-6);
   background: color-mix(in srgb, var(--bg-void) 88%, transparent);
   backdrop-filter: blur(14px);
   border-bottom: var(--hair) solid var(--ui-line);
 }
 #topbar[hidden] { display: none; }
+
+/* La trame passe AUSSI sur la barre. Une bande lisse en haut d'un ecran
+   entierement trame se remarque immediatement — c'est le genre de detail qui
+   fait dire « ce n'est pas tout a fait le meme ecran » sans qu'on sache dire
+   pourquoi. La barre a son propre `::after` parce que son `z-index` la sort de
+   la portee de celui des `.overlay`. */
+#topbar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .4;
+  background: repeating-linear-gradient(180deg,
+    transparent 0 2px,
+    rgba(0, 0, 0, .26) 3px,
+    transparent 4px);
+}
 
 /* Le logotype est un BOUTON : c'est le retour aux salons. Un logo inerte dans
    une barre de navigation est une occasion manquee — c'est le premier endroit
@@ -1359,10 +1410,12 @@
 }
 #topSettings:hover:not(:disabled) { color: var(--go); border-color: var(--ui-line); }
 
-/* La barre mange 56 px : sans cela `.overlay` garde son `min-height: 100vh` et
-   chaque ecran depasse d'exactement la hauteur de la barre — une bande de
-   defilement qui ne contient rien. */
-#topbar:not([hidden]) ~ .overlay { min-height: calc(100vh - 56px); }
+/* LE correctif de la barre. `.overlay` est en `position: fixed; inset: 0` dans
+   `ui.css` : elle couvre donc la fenetre ENTIERE, barre comprise, et les 56
+   premiers pixels de chaque ecran passent dessous. Un `min-height` n'y change
+   rien — sur un element fixe, seule la position compte. C'est `top` qu'il faut
+   decaler, et l'`overflow-y: auto` de `ui.css` fait le reste. */
+#topbar:not([hidden]) ~ .overlay { top: var(--topbar-h); }
 
 @media (max-width: 720px) {
   /* Le fil d'ariane saute en premier : le titre de l'ecran est juste en
