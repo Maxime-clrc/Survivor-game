@@ -184,6 +184,19 @@ td.name { color: var(--text); }
 .hint.err { color: var(--lethal); }
 .hint.ok { color: var(--gain); }
 
+/* Le retour d'action. Il RESERVE sa place meme vide : sans hauteur minimale,
+   l'element passe de 0 a une ligne quand un message arrive, et tout ce qui est
+   dessous saute d'autant. Une page ou le bouton se deplace au moment ou l'on
+   vient de cliquer dessus est une page ou l'on double-clique par accident —
+   sur une page qui peut supprimer tous les comptes, c'est une raison
+   suffisante. */
+#message {
+  min-height: var(--sp-6);
+  font-size: var(--t-s);
+  line-height: var(--sp-6);
+  color: var(--text-dim);
+}
+
 /* ===========================================================================
    LES QUATRE FAMILLES RESTEES DANS LE <style> D'ADMIN.HTML
 

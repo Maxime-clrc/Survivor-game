@@ -181,6 +181,13 @@
       del.textContent = "supprimer";
       del.className = "danger";
       del.onclick = () => delCompte(c.pseudo, c.affichage);
+      /* Deux boutons separes par une espace, et PAS un `.row` — bien que la
+         feuille habille `td.actions .row`. Essaye et mesure : `.row` porte
+         `flex-wrap: wrap` et la cellule `width: 1%`, donc les deux boutons
+         s'empilent l'un sous l'autre et chaque ligne de compte double de
+         hauteur. La cellule porte deja `white-space: nowrap` et
+         `text-align: right`, qui suffisent a les tenir sur une ligne a
+         droite. */
       actions.append(rp, " ", del);
     }
   }
