@@ -133,6 +133,34 @@
      ecrans passe dessous sans que rien ne le signale. */
   --topbar-h: 56px;
 
+  /* --- LA GOUTTIERE ET LES TROIS COQUES ------------------------------------
+     La colonne de contenu etait bornee a 960 px (hub, progression), 1200 px
+     (salon), 1120 px (bilan) et 820 px (parametres) — quatre nombres pour une
+     regle qui en annoncait trois, et surtout des bornes calees sur un ecran de
+     1280 px. Sur 1920, le hub laissait 480 px de vide de CHAQUE cote pendant
+     que la barre superieure allait d'un bord a l'autre : l'ecran se lisait
+     comme un document centre dans une fenetre, pas comme l'interface d'un jeu.
+
+     Trois coques, et pas une de plus — la regle d'origine, enfin tenue :
+       --shell-narrow  une liste courte de controles (parametres) ;
+       --shell         une liste ou un tableau (hub, bilan, progression) ;
+       --shell-wide    un tableau de bord a deux colonnes (salon).
+
+     Elles restent BORNEES : au-dela, une ligne de tableau devient un trajet
+     d'oeil de trois mille pixels entre le nom et le chiffre qui le suit. Ce
+     qui protege la lecture n'est pas la coque mais la MESURE — les paragraphes
+     gardent tous leur `max-width: 62ch`, ici comme avant.
+
+     La gouttiere est FLUIDE et non plus fixe a 24 px : elle vaut le retrait de
+     la barre superieure sur une fenetre etroite, et double sur un grand ecran
+     pour que le contenu ne vienne pas lecher le bord. Un seul token, pose
+     partout — c'est lui qui fait que tous les ecrans commencent au meme
+     endroit. */
+  --gutter: clamp(var(--sp-6), 3.4vw, var(--sp-12));
+  --shell-narrow: 1080px;
+  --shell: 1440px;
+  --shell-wide: 1680px;
+
   /* Lueur cyan. Derivee de --go par color-mix, jamais recopiee : la charte
      n'admet qu'une source pour chaque couleur. */
   --glow-go: 0 0 var(--sp-8) color-mix(in srgb, var(--go) 34%, transparent);
@@ -234,12 +262,14 @@
 #gate button, #hubScreen button, #panel button,
 #menu button, #bilan button, #settings button { font-family: var(--font-display); }
 
-/* La colonne de contenu. Une largeur par ecran selon ce qu'il porte : le hub
-   est une liste (960 px), le salon un tableau de bord (1200 px), le bilan un
-   tableau (1120 px). Trois largeurs et pas une de plus. */
-#hubScreen > *, #bilan > *, #menu > *, #settings > * { max-width: 960px; width: 100%; margin-inline: auto; }
-#panel > * { max-width: 1200px; width: 100%; margin-inline: auto; }
-#bilan > * { max-width: 1120px; }
+/* La colonne de contenu, depuis les trois coques du `:root`. Ces regles-ci
+   sont celles qui DECIDENT : elles portent un identifiant, donc elles
+   l'emportent sur le `max-width` que chaque conteneur (`.hubWrap`,
+   `.panelWrap`...) se donne par ailleurs. Les deux doivent rester d'accord —
+   c'est pour ca qu'elles lisent le meme token plutot qu'un nombre. */
+#hubScreen > *, #bilan > *, #menu > * { max-width: var(--shell); width: 100%; margin-inline: auto; }
+#settings > * { max-width: var(--shell-narrow); width: 100%; margin-inline: auto; }
+#panel > * { max-width: var(--shell-wide); width: 100%; margin-inline: auto; }
 
 /* --- les trois niveaux de lecture -------------------------------------------
    Un element porte UN niveau. C'est la regle qui fait toute la difference avec
@@ -382,7 +412,15 @@
    =========================================================================== */
 #gate {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  /* L'ACCROCHE PREND PLUS DE PLACE QUE LE FORMULAIRE, et c'est la maquette qui
+     tranche : `repeat(auto-fit, minmax(420px, 1fr))` donnait un partage 50/50
+     a toute largeur, ce qui serrait le titre au point de le casser en cinq
+     lignes de deux mots pendant que la colonne de droite gardait 340 px de
+     vide autour d'un champ de 400. Un formulaire a une largeur UTILE bornee —
+     au-dela, un champ plus large ne se remplit pas mieux — alors qu'une
+     accroche vit de sa largeur. Le repli une colonne sous 900 px est plus
+     bas. */
+  grid-template-columns: 1.15fr 1fr;
   align-content: stretch;
   /* `height` et NON `min-height` : c'est le correctif le plus important de cet
      ecran. `.overlay` d'origine pose `min-height: 100vh`, donc la grille
@@ -454,6 +492,11 @@
   padding-inline: var(--sp-2);
   font-size: var(--t-s);
   letter-spacing: 0;
+  /* L'onglet AU REPOS est attenue. En `--text` plein, les deux etiquettes
+     pesaient pareil et seul le fond distinguait l'onglet courant : la maquette
+     les separe sur DEUX canaux — la couleur du texte autant que le fond. Le
+     survol le ramene a `--text`, c'est la reponse au pointeur. */
+  color: var(--text-dim);
 }
 #gateTabs button:first-child, #gateTabs button:last-child { border-radius: calc(var(--radius-ctl) - 4px); }
 #gateTabs button.mine {
@@ -1744,7 +1787,11 @@
   align-items: center;
   gap: var(--sp-4);
   height: var(--topbar-h);
-  padding: 0 var(--sp-6);
+  /* La barre reste pleine largeur — c'est du chrome, pas du contenu — mais
+     elle prend la MEME gouttiere : sur un grand ecran, un logotype colle a
+     quatre pixels du bord pendant que le contenu respire est le detail qui
+     fait « page web » au milieu d'un menu de jeu. */
+  padding: 0 var(--gutter);
   background: color-mix(in srgb, var(--bg-void) 88%, transparent);
   backdrop-filter: blur(14px);
   border-bottom: var(--hair) solid var(--ui-line);
@@ -1900,9 +1947,9 @@
   flex-direction: column;
   gap: var(--sp-6);
   width: 100%;
-  max-width: 820px;
+  max-width: var(--shell-narrow);
   margin-inline: auto;
-  padding: var(--sp-8) var(--sp-6) var(--sp-12);
+  padding: var(--sp-8) var(--gutter) var(--sp-12);
 }
 .setHead {
   display: flex;
@@ -3033,7 +3080,11 @@ tr.clickable { cursor: pointer; }
   margin-inline: auto;
   padding-inline: 0;
 }
-.gatePitch { max-width: 52ch; }
+/* Le bloc suit le TITRE, qui est la plus large de ses trois pieces ; 52ch de
+   chasse fixe (429 px) le rognaient avant meme que sa propre borne ne
+   s'applique. Le paragraphe, lui, garde la sienne juste en dessous — c'est la
+   prose qui a besoin d'une mesure, pas l'accroche. */
+.gatePitch { max-width: min(100%, 640px); }
 .gateH1 {
   font-family: var(--font-display);
   font-size: var(--t-hero);
@@ -3041,7 +3092,19 @@ tr.clickable { cursor: pointer; }
   letter-spacing: var(--track-title);
   line-height: 1.06;
   margin: var(--sp-4) 0 var(--sp-4);
-  text-wrap: balance;
+  /* LA MESURE DU TITRE EST LA SIENNE, pas celle du bloc. `.gatePitch` borne le
+     propos a 52ch de la chasse fixe — soit 429 px, alors qu'a 69 px « Tenez la
+     ligne » en fait 446 : le titre se cassait en cinq lignes de deux mots
+     quand la maquette en donne trois. Le `ch` est ici celui de la police
+     d'AFFICHAGE, donc la borne suit la taille fluide du titre au lieu de la
+     contredire.
+
+     Pas de `text-wrap: balance` : il egalise les lignes, or une accroche se
+     coupe sur le SENS. La maquette pose « Tenez la ligne / jusqu'à la /
+     dernière vague. » — trois longueurs franchement inegales, et c'est ce
+     desequilibre qui la fait lire comme une phrase et non comme un bloc. */
+  max-width: 14ch;
+  text-wrap: pretty;
 }
 .gateLead {
   font-family: var(--font-body);
@@ -3132,9 +3195,9 @@ tr.clickable { cursor: pointer; }
   flex-direction: column;
   gap: var(--sp-8);
   width: 100%;
-  max-width: 960px;
+  max-width: var(--shell);
   margin-inline: auto;
-  padding: var(--sp-8) var(--sp-6) var(--sp-12);
+  padding: var(--sp-8) var(--gutter) var(--sp-12);
 }
 .hubHead {
   display: flex;
@@ -3151,7 +3214,11 @@ tr.clickable { cursor: pointer; }
   color: var(--text-dim);
   max-width: 62ch;
 }
-.hubWrap #roomList { padding-inline: 0; }
+/* La coque est portee par `.hubWrap` : les blocs qu'elle contient n'ont plus a
+   se borner eux-memes. Sans cette neutralisation, `#hubPassAsk` gardait le cap
+   de 960 px d'avant les conteneurs et sortait plus etroit que la liste juste
+   au-dessus — decalage d'autant plus visible que la coque a grandi. */
+.hubWrap #roomList, .hubWrap #hubPassAsk { padding-inline: 0; max-width: none; }
 .hubCreate {
   display: flex;
   flex-direction: column;
@@ -3195,10 +3262,10 @@ tr.clickable { cursor: pointer; }
   flex-direction: column;
   gap: var(--sp-8);
   width: 100%;
-  max-width: 1200px;
+  max-width: var(--shell-wide);
   margin-inline: auto;
   /* ≥ la hauteur reelle de .panelBar, sinon le contenu passe dessous */
-  padding: var(--sp-8) var(--sp-6) 160px;
+  padding: var(--sp-8) var(--gutter) 160px;
 }
 .panelHead {
   display: flex;
@@ -3354,17 +3421,21 @@ tr.clickable { cursor: pointer; }
   right: 0;
   bottom: 0;
   z-index: 12;
-  padding: var(--sp-4) var(--sp-6);
+  padding: var(--sp-4) var(--gutter);
   background: var(--bg-void);
   border-top: var(--hair) solid var(--ui-line);
 }
+/* La MEME coque que `.panelWrap` : la barre est pleine largeur, mais son
+   contenu doit tomber sur la colonne du salon — un bouton de lancement decale
+   de deux cents pixels par rapport au tableau qu'il conclut se remarque
+   immediatement. */
 .panelBarInner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-4);
-  max-width: 1200px;
+  max-width: var(--shell-wide);
   margin-inline: auto;
 }
 .panelBarText { font-family: var(--font-body); font-size: var(--t-s); line-height: 1.6; color: var(--text-dim); }
@@ -3377,9 +3448,9 @@ tr.clickable { cursor: pointer; }
   flex-direction: column;
   gap: var(--sp-6);
   width: 100%;
-  max-width: 1000px;
+  max-width: var(--shell);
   margin-inline: auto;
-  padding: var(--sp-8) var(--sp-6) var(--sp-12);
+  padding: var(--sp-8) var(--gutter) var(--sp-12);
 }
 .metaHead {
   display: flex;

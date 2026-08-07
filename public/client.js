@@ -487,22 +487,25 @@ function connect() {
         // sa propre ligne. La casse canonique du compte, jamais la valeur tapee.
         myPseudo = msg.pseudo ?? "";
         if (msg.token) localStorage.setItem("survivor.token", msg.token);
-        // Compte deja connecte ailleurs : plus d'arret sur #gate — on entre au
-        // hub comme tout le monde, et l'avertissement s'affiche LA-BAS (a dire,
-        // pas a laisser deviner). Decide sur CE DRAPEAU, jamais sur l'ordre
-        // d'arrivee des messages.
-        gate.hidden = true;
-        enterHub();
+        /* Compte deja connecte ailleurs : on RESTE sur #gate, formulaire
+           compris. L'avertissement se pose DESSOUS, comme la maquette — on
+           vient de taper ses identifiants, masquer le formulaire donnerait
+           l'impression que la connexion a echoue alors qu'elle a reussi. Le
+           kicker de l'encart nomme le cas, la phrase dit la CONSEQUENCE avant
+           le clic, et « Continuer quand même » la fait assumer.
+
+           Un `gate.hidden = true` inconditionnel etait pose ici avec un `else`
+           qui le refaisait : l'encart etait bien rempli, mais sur un ecran
+           deja masque — l'avertissement n'a jamais ete visible. Decide sur CE
+           DRAPEAU, jamais sur l'ordre d'arrivee des messages. */
         if (msg.dup) {
-          gateFormsEl.hidden = true;
-          // La bascule d'onglet n'a plus de sens ici : on ne choisit plus
-          // entre se connecter et creer un compte, on decide si l'on entre
-          // malgre une session ouverte ailleurs.
-          if (gateSwitchEl) gateSwitchEl.innerHTML = "";
-          gateWho.textContent = `connecté comme ${msg.pseudo}`;
+          // Le renvoi vers la creation de compte RESTE : le formulaire est
+          // toujours la, on peut encore repartir sur un autre compte plutot
+          // que d'assumer la session temporaire.
+          // Une seule phrase dans l'encart : le kicker dit deja « compte déjà
+          // connecté ailleurs », le repeter en dessous ne dirait rien de plus.
+          gateWho.hidden = true;
           gateHoldMsgEl.hidden = false;
-          // Le kicker de l'encart dit deja « compte déjà connecté ailleurs » :
-          // ce qui reste a dire, c'est la CONSEQUENCE, avant le clic.
           gateHoldMsgEl.textContent =
             "Ta progression restera temporaire sur cet onglet : elle ne sera pas "
             + "enregistrée sur le compte.";
@@ -947,6 +950,9 @@ function setLoading(k, quoi) {
    qu'on peut laisser vide passe pour un bug. */
 function renderGateMode() {
   gateFormsEl.hidden = false;
+  // L'encart « déjà connecté ailleurs » ne survit pas a un retour sur l'ecran
+  // d'entree : il commente une connexion precise, pas la suivante.
+  gateHold.hidden = true;
   const pseudo = localStorage.getItem("survivor.pseudo") || "";
   const token = localStorage.getItem("survivor.token") || "";
   if (!nameInput.value) nameInput.value = pseudo;
@@ -954,6 +960,15 @@ function renderGateMode() {
     ? "mot de passe (vide : reprendre la session)"
     : "mot de passe";
 }
+
+/* « Continuer quand même » : le seul chemin depuis l'encart de doublon vers le
+   hub. Il etait declare et jamais branche — l'ecran d'entree n'avait donc
+   aucune sortie dans ce cas. */
+gateContinueBtn.onclick = () => {
+  gate.hidden = true;
+  if (inRoom) refreshPanel();
+  else enterHub();
+};
 
 /* L'ETAT DU SERVICE, en pied de colonne gauche. Le client ne peut deduire
    aucun des trois : le navigateur repond aux pings WebSocket sous la couche
