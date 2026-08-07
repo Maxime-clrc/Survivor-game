@@ -20,9 +20,9 @@
    SIGTERM couvre donc aussi ce qui attendait la fenetre.
    =========================================================================== */
 
-import { CFG, PLAYER_COLORS, DIFF_NORMAL } from "./shared/game_state.js";
+import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
-import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial } from "./shared/progression.js";
+import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial, recordFinal } from "./shared/progression.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
 
@@ -134,9 +134,50 @@ export function createHub(store, log) {
       pr.runs += 1;
       if (state.wave > pr.best.wave) pr.best.wave = state.wave;
       if (p.score > pr.best.score) pr.best.score = p.score;
+
+      /* CLASSEMENT AU TEMPS (lot N). La victoire sur le Noyau est portee par
+         le GameState (`finalVictory`, pose dans `_killBoss` sur `state.time`,
+         l'horloge autoritaire) : le hub ne recalcule rien, il enregistre. Le
+         record est PAR DIFFICULTE — comparer un temps de calme a un temps de
+         cauchemar n'aurait aucun sens.
+         Il est verse a CHAQUE joueur present : la victoire est celle de
+         l'equipe, et un classement qui ne crediterait que le porteur du coup
+         fatal recompenserait le hasard de la derniere balle. */
+      if (state.finalVictory) {
+        c.lastFinal = recordFinal(pr, state.finalVictory, new Date().toISOString())
+          ? "record" : "victoire";
+      }
+
       c.lastGain = gain;
       persist(c);
     }
+    /* Consommee UNE fois, apres la boucle : `awardRun` est appele une seule
+       fois par manche, mais la vider ici garantit qu'une manche relancee dans
+       la foulee ne represente pas la meme victoire. */
+    if (state.finalVictory) state.finalVictory = null;
+  }
+
+  /* Classement global au temps (lot N), toutes salles confondues, par
+     difficulte. Lu depuis la MEMOIRE du magasin — jamais une requete par
+     affichage : la Map `accounts` est deja l'etat chaud, et le classement est
+     consulte au hub, c'est-a-dire souvent.
+     Il vit au HUB et non au Terminal : le classement compare des COMPTES entre
+     eux, sa place est la ou l'on est justement hors salle, et il est ainsi
+     visible des la connexion. */
+  function leaderboard(limit = 10) {
+    const par = DIFFICULTIES.map(() => []);
+    for (const pr of store.profiles()) {
+      const bf = pr.bestFinal;
+      if (!bf) continue;
+      for (const k of Object.keys(bf)) {
+        const d = Number(k);
+        if (!par[d]) continue;
+        par[d].push({ pseudo: pr.pseudo, time: bf[k].time | 0, wave: bf[k].wave | 0 });
+      }
+    }
+    // Le TEMPS classe, et seulement lui : c'est un classement de vitesse.
+    for (const l of par) l.sort((a, b) => a.time - b.time);
+    return par.map(l => l.slice(0, limit));
   }
 
   /* Part d'un joueur qui quitte EN COURS de manche : les vagues jouees, rien
@@ -395,6 +436,18 @@ export function createHub(store, log) {
           if (now - client.lastListAt < LIST_MIN_MS) return;
           client.lastListAt = now;
           client.conn.send(JSON.stringify(roomsPayload()));
+          return;
+        }
+        /* Classement au temps (lot N). Meme frein que la liste des salles, et
+           pour la meme raison : c'est un bouton qu'on martele et le port est
+           public. Il partage `lastListAt` — les deux demandes lisent l'etat
+           chaud du hub, un frein commun suffit et evite qu'on contourne l'un
+           en alternant avec l'autre. */
+        case "leaderboard": {
+          const now = Date.now();
+          if (now - client.lastListAt < LIST_MIN_MS) return;
+          client.lastListAt = now;
+          client.conn.send(JSON.stringify({ t: "leaderboard", board: leaderboard() }));
           return;
         }
         case "createRoom": handleCreateRoom(client, msg); return;

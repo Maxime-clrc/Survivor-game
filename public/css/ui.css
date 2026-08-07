@@ -350,6 +350,41 @@ button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text
   color: var(--text-dim);
 }
 
+/* --- classement au temps (lot N) ---------------------------------------------
+   Trois colonnes fixes : rang, pseudo, chrono. Le chrono en chiffres a chasse
+   fixe (`tabular-nums`) — sans quoi les temps ne s'alignent pas verticalement
+   et la comparaison, qui est tout l'objet du tableau, demande de lire chaque
+   ligne au lieu de balayer la colonne. */
+#hubBoard {
+  width: min(560px, 92vw);
+  margin-top: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+#hubBoardTabs { justify-content: center; }
+#hubBoardList { display: flex; flex-direction: column; gap: var(--hair); }
+
+.boardRow {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr auto;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-panel);
+  border-left: var(--edge) solid transparent;
+}
+.boardRank { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.boardWho  { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.boardTime {
+  color: var(--gain);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* Sa propre ligne, reperee par un liseré : on vient consulter un classement
+   pour s'y chercher d'abord. */
+.boardRow.moi { border-left-color: var(--go); background: var(--bg-raised); }
+
 #roomList {
   display: flex;
   flex-direction: column;
@@ -651,6 +686,37 @@ td.cards { text-align: left; max-width: 420px; }
    =========================================================================== */
 
 #cards { gap: var(--sp-4); }
+
+/* --- victoire finale (lot N) -------------------------------------------------
+   Le bilan de victoire n'est pas un second ecran : c'est le meme, avec un
+   titre qui change de registre. Le TEMPS y est le chiffre le plus gros de la
+   page — c'est lui qui compte au classement, et rien d'autre.
+
+   Vert (`--gain`) et non ambre ni rouge : c'est la seule fin de manche du jeu
+   qui soit un gain. La grammaire fonctionnelle s'applique aux ecrans comme a
+   l'arene. */
+#bilan.victoire #bilanTitle {
+  color: var(--gain);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+#bilan.victoire .bilanChrono {
+  /* Le plus grand palier de l'echelle (46 px). Aucune valeur ad hoc : c'est le
+     chrono de la seule victoire du jeu, il a le droit au plus gros cran — pas
+     a un cran invente. */
+  font-size: var(--t-3xl);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  font-variant-numeric: tabular-nums;
+}
+#bilan.victoire .bilanRecord {
+  font-size: var(--t-s);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  color: var(--warn);
+}
 
 /* --- marchand de reliques (lot K) -------------------------------------------
    Meme squelette que l'ecran de cartes, a une difference pres : le titre porte

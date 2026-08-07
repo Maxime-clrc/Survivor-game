@@ -97,6 +97,22 @@ Prises au lancement des trois lots restants (K, L, N — H, I, J et M sont faits
   comptes toutes salles confondues : sa place est là où l'on est justement
   hors salle, et il est ainsi visible dès la connexion.
 
+## État d'exécution
+
+Les sept lots sont **faits**. H, I, J et M l'étaient avant cette passe ; L, K
+et N ont été exécutés dans cet ordre (2026-08-07).
+
+| lot | commit | écart notable au plan |
+|---|---|---|
+| L | `b467413` | trou d'XP corrigé (`xpWorth`), trois valeurs remplacées par des mesures, drapeau `hunt` non prévu |
+| K | `9134b92` | retrait de l'offre après achat (bug trouvé au banc), flat boss compté à ⅓ dans l'index |
+| N | `6a3a282` | `unlock` à 7 entrées et non 8 (voir ci-dessous), `floor: 0` pour le seul Noyau |
+
+**Piège trouvé au lot N, et il aurait été silencieux** : `_bossBars` plafonne
+`phase` à `bars - 1` et `bossPool` lit `unlock[0..phase-1]`. Avec huit barres,
+une huitième entrée d'`unlock` ne sort **jamais** — et c'est le sceau final qui
+y était tombé. Le Noyau a donc sept entrées, la dernière portant le sceau.
+
 ## Corrections de spec relevées à l'exécution
 
 - **`mémoire_gravee` (lot K, K4) est renommée `memoire_gravee`.** Les

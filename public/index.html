@@ -213,6 +213,16 @@
   <div id="hubTitle">Salons</div>
   <div id="hubBar" class="row">
     <button id="hubRefresh">Actualiser</button>
+    <!-- Classement au temps (lot N). Au HUB et non au Terminal : il compare des
+         COMPTES entre eux, sa place est la ou l'on est justement hors salle. -->
+    <button id="hubBoardBtn" class="ghost">Classement</button>
+  </div>
+
+  <!-- Panneau du classement, replie par defaut : c'est une consultation, pas
+       une etape du parcours vers une partie. -->
+  <div id="hubBoard" hidden>
+    <div id="hubBoardTabs" class="row"></div>
+    <div id="hubBoardList"></div>
   </div>
 
   <!-- Reprise apres rechargement. Le retour dans la salle est un GESTE, jamais

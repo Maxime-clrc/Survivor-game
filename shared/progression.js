@@ -322,5 +322,32 @@ export function newProfile(pseudo) {
        incluse a l'ecriture. Un profil sans ce champ (v4 d'avant le lot) se
        lit comme une liste vide — les lecteurs font `?? []`. */
     bannedCards: [],
+    /* Classement au temps (lot N). Le MEILLEUR temps de victoire sur le boss
+       final, PAR DIFFICULTE : comparer un temps de « calme » a un temps de
+       « cauchemar » n'aurait aucun sens, et une seule case aurait pousse tout
+       le monde a jouer en calme pour figurer au tableau. Cle = index de
+       DIFFICULTIES, valeur = { time, wave, date }.
+       Un profil sans ce champ se lit comme un objet vide — meme repli que
+       `bannedCards`, aucune migration a ecrire. */
+    bestFinal: {},
   };
+}
+
+/* Enregistre une victoire finale si elle ameliore le record de SA difficulte.
+   Fonction pure sur le profil, comme le reste du module : le hub l'appelle,
+   la salle ne connait pas la persistance. Retourne vrai si le record a bouge —
+   c'est ce qui decide d'un « nouveau record » a l'ecran. */
+export function recordFinal(profile, run, dateISO) {
+  if (!profile || !run) return false;
+  if (!profile.bestFinal) profile.bestFinal = {};
+  const k = String(run.difficulty | 0);
+  const cur = profile.bestFinal[k];
+  // Le TEMPS fait foi, et seulement lui : c'est un classement de vitesse.
+  if (cur && cur.time <= run.time) return false;
+  profile.bestFinal[k] = {
+    time: run.time | 0,
+    wave: run.wave | 0,
+    date: dateISO,
+  };
+  return true;
 }

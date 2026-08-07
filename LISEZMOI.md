@@ -76,6 +76,10 @@ cartes**.
 - Après chaque victoire de boss, le **marchand** propose trois **reliques** à
   acheter contre les éclats de la manche — valeurs brutes, budget à répartir,
   relance payante. Voir la section « Le marchand de reliques ».
+- Une fois les **cinq boss vaincus** dans la même manche, le **Noyau** arrive
+  (vague 30) : huit barres, le répertoire des cinq intensifié, deux mécaniques
+  qui n'existent nulle part ailleurs. Le vaincre termine la manche et
+  enregistre le **temps**, au classement consultable depuis le hub.
 - La manche se termine quand tout le monde est à terre. Le bilan titre sur la
   **vague atteinte** et non sur le numéro de manche : l'unité de jeu est devenue
   la vague, et lire « Manche 1 terminée » après en avoir enchaîné douze donnait
@@ -661,7 +665,8 @@ augmente surtout la durée de vie. Si une mesure montre un écart, corriger le
 ### Boss
 
 Un boss occupe **une vague sur cinq**, avec 6 % de PV en plus à chaque fois. Il
-en existe **cinq**, tirés au sort, et chacun demande **autre chose**.
+en existe **cinq**, tirés au sort, et chacun demande **autre chose** — plus un
+**sixième** qui ne se tire jamais : voir « Le Noyau » plus bas.
 
 Ses PV sont indexés sur **le nombre de joueurs et sur la puissance mesurée de
 l'équipe**, pour que la durée du combat ne dépende ni de l'un ni de l'autre.
@@ -1024,6 +1029,105 @@ Un boss démarre avec le répertoire déjà ouvert des combats précédents : au
 troisième, on ne réapprend pas le damier en deuxième barre. C'est ce qui rend le
 troisième combat plus dur que le premier sans lui ajouter de PV, qui
 n'allongeraient que sa durée.
+
+#### Le Noyau — le boss final
+
+Il ne se tire jamais au sort : **il arrive**, quand les cinq boss du roster ont
+été **vaincus** dans la même manche. Avec la cadence d'un boss toutes les cinq
+vagues, le cycle se termine vague 25 et le Noyau tombe donc **vague 30**.
+
+La condition porte sur les boss *vaincus* et non *rencontrés* : un boss croisé
+puis fui n'a rien appris à personne, et le Noyau est la synthèse de ce qu'on a
+battu. C'est aussi une condition qui **se lit** — « tu les as tous eus » — là où
+un numéro de vague fixe ne se lit pas.
+
+**Huit barres au lieu de cinq**, et 2,2 fois les PV d'un boss normal calibré
+pour la même vague. Mesuré à la vague 30 : 44 046 PV contre 20 021 à quatre
+joueurs. Réparti sur huit segments, **chaque barre coûte donc 1,37 fois une
+barre ordinaire** (5 506 contre 4 004) — les huit segments ne diluent pas le
+mur, ils le découpent plus finement pour que la progression reste lisible sur
+un combat deux fois plus long.
+
+Son répertoire **cite les cinq**, un pattern caractéristique par boss d'origine,
+et il repart de zéro : la montée par couches *est* le combat sur huit barres.
+
+| barres brisées | ce qui s'ouvre | d'où ça vient |
+|---|---|---|
+| 0 | salve · damier · exaflares · grappes · regroupement · lien | les cinq, d'emblée |
+| 1 | **couronne** | Ravageur |
+| 2 | **prison** | Matriarche |
+| 3 | **dérive** · **appâts** | Métronome |
+| 4 | **tours** · **regard** | Oracle |
+| 5 | **croix** · **verrouillage** | Jumeaux |
+| 6 | **Synthèse** | à lui |
+| 7 | **Sceau final** | à lui |
+
+Les patterns repris sont **intensifiés** plutôt que réécrits : il attaque 20 %
+plus vite et ses zones font 25 % de dégâts en plus. Deux nombres qui portent sur
+la vingtaine d'attaques d'un coup — vingt variantes à maintenir auraient dérivé
+au premier réglage, c'est le même refus de duplication que l'adaptation à
+l'effectif.
+
+**Ses deux mécaniques exclusives.**
+
+La **Synthèse** ne pose rien de neuf : elle fait tourner *ensemble* deux
+répertoires que les cinq boss ne posent jamais en même temps — le regroupement
+de l'Oracle et les exaflares du Métronome, dont l'axe traverse le cercle. Il
+faut tenir groupé *et* se déplacer d'un bloc, alors que chacune des deux prise
+seule autorise l'inverse. En solo, il ne reste que les traînées.
+
+Le **Sceau final** est la dernière barre. Des zones aux **quatre coins** de
+l'arène, à occuper **simultanément** pendant un temps **cumulé** de 4,5 s
+chacune, sur une fenêtre de 22 s. Trois choix la séparent des tours de
+l'Oracle, dont elle emprunte le squelette :
+
+- le temps est **cumulé** et non instantané — une mécanique de vingt secondes
+  qui ne regarderait que la dernière image punirait l'esquive, pas la
+  coordination ;
+- le cumul **redescend à mi-vitesse** quand on lâche : abandonner un coin pour
+  esquiver ne remet pas à zéro, c'est le même choix que la canalisation d'un
+  amas de récolte ;
+- le nombre de sceaux **suit l'effectif**. À un joueur il n'en reste qu'un : la
+  mécanique devient une occupation longue et sous le feu, ce qui est jouable
+  seul.
+
+Échouer **repose le sceau** — la dernière barre ne se franchit pas en échouant —
+et la sanction porte sur l'équipe entière : personne ne tient un sceau tout
+seul, et désigner un coupable sur une mécanique collective n'aurait rien appris.
+
+**Son identité visuelle.** Gabarit **40 % supérieur** au plus grand des cinq, et
+la seule teinte non colorée du roster — un blanc chaud : les cinq se distinguent
+les uns des autres par leur couleur, lui se distingue en n'en ayant pas. Sa
+silhouette est faite de trois couches concentriques qui tournent à des vitesses
+différentes, une par emprunt : les pointes du Ravageur, l'anneau segmenté du
+Métronome (dont le nombre de segments allumés **compte les barres restantes**),
+l'œil de l'Oracle. Son verbe de relâche lui est propre : les trois couches se
+**désalignent** au coup puis se recalent — la synthèse se défait un instant.
+
+Sa barre de vie est identifiable **sans lire le nom** : 84 % de la largeur
+d'écran au lieu de 62 %, un liseré double, une segmentation au huitième, et une
+**pulsation qui accélère** à mesure que ses PV baissent (période de 2,4 s à
+0,7 s) — un signal de progression en plus du remplissage. Son annonce d'entrée
+tient 5 s au lieu de 2,6 et le nom s'installe en s'écartant : c'est le seul
+effet d'entrée du jeu, et c'est parce qu'il est unique qu'il dit « combat
+final » sans avoir à l'écrire.
+
+#### Le classement au temps
+
+Vaincre le Noyau enregistre le **temps écoulé depuis le début de la manche**,
+lu sur l'horloge autoritaire du serveur. Le record est gardé **par difficulté** :
+comparer un temps de « calme » à un temps de « cauchemar » n'aurait aucun sens,
+et une case unique aurait poussé tout le monde à jouer en calme pour figurer au
+tableau.
+
+Il se consulte **au hub**, pas au Terminal : le classement compare des *comptes*
+entre eux, sa place est donc là où l'on est justement hors salle, et il est
+visible dès la connexion.
+
+C'est ce classement qui a imposé le **calendrier fixe des vagues spéciales** :
+si elles tombaient au hasard, deux parties identiques auraient des temps
+différents par simple chance de tirage, et la comparaison perdrait sa valeur.
+La décision du lot précédent était donc nécessaire, pas optionnelle.
 
 #### Les mécaniques
 

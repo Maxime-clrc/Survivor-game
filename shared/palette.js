@@ -285,6 +285,14 @@ export const BOSS_SKIN = [
   // bleu de l'Entrave (`twin` ci-dessus) : la couleur dit lequel on vient de
   // toucher, donc comment ne pas cumuler les deux etats par accident.
   { skin: "#ff8a3d", dark: "#8a3c05", edge: "#4d2103", bar: "#ffb782", deep: "#7a3604" },
+  /* Noyau (lot N) — BLANC CHAUD, et c'est le seul du roster. Les cinq autres
+     se distinguent les uns des autres par leur teinte ; lui se distingue en
+     n'en ayant pas. C'est la synthese des cinq, donc la somme de leurs
+     lumieres — et sur une arene ardoise, le blanc est ce qui frappe le plus
+     fort sans emprunter la couleur d'un autre.
+     Il ne peut pas non plus etre confondu avec le liseré blanc des joueurs :
+     un boss fait dix fois leur taille et porte sa propre barre. */
+  { skin: "#f4f1e8", dark: "#8d8778", edge: "#3a372f", bar: "#ffffff", deep: "#6b6558" },
 ];
 
 /* --- bonus au sol ----------------------------------------------------------

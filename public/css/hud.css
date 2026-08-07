@@ -188,6 +188,58 @@
 
 #bossPips > span.spent { background: var(--boss-empty); opacity: 0.45; }
 
+/* --- BOSS FINAL (lot N) ------------------------------------------------------
+   « Beaucoup plus imposante et impressionnante », traduit en quatre ecarts
+   mesurables plutot qu'en intention. Tous portes par UNE classe sur le bloc de
+   boss : la barre ordinaire ne bouge pas d'un pixel, et il n'y a pas deux
+   blocs a garder d'accord.
+
+   Le blanc du Noyau arrive par `--boss-low` / `--boss-deep`, poses en JS depuis
+   BOSS_SKIN comme pour les cinq autres — la regle « la barre prend la teinte de
+   la creature » ne souffre pas d'exception ici non plus. Ce que la classe
+   change, c'est la GEOMETRIE et le MOUVEMENT. */
+
+/* 1. Largeur. 62 % de l'ecran pour les cinq, 84 % pour lui — l'ecart se voit
+      sans point de comparaison a l'ecran, ce qui est tout l'objectif. */
+#boss.final { width: min(1040px, 84%); }
+
+/* 2. Hauteur et cadre. Un liseré double : la seule barre du jeu qui en ait un. */
+#boss.final #bossBar {
+  height: 36px;
+  border-color: var(--boss-low);
+  box-shadow: 0 0 0 var(--hair) color-mix(in srgb, var(--boss-low) 45%, transparent),
+              0 0 var(--sp-6) -3px var(--boss-low);
+}
+
+/* 3. Pulsation qui ACCELERE a mesure que les PV baissent. La periode vient du
+      JS (`--boss-pulse`, de 2,4 s a 0,7 s) : le CSS ne connait pas les PV. Un
+      signal de progression en plus du remplissage — et il porte sur le CADRE,
+      pas sur le remplissage, qui doit rester lisible au pixel. */
+@keyframes bossFinalPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+#boss.final #bossBar {
+  animation: bossFinalPulse var(--boss-pulse, 2.4s) ease-in-out infinite;
+}
+
+/* 4. Segmentation des huit barres, marquee. Les encoches au dixieme n'ont plus
+      de sens quand la barre compte huit segments : on passe au huitieme, et le
+      trait est plus franc — la progression doit se lire d'un coup d'oeil
+      malgre le nombre eleve de segments. */
+#boss.final #bossBar::after {
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(12.5% - 3px),
+    color-mix(in srgb, var(--bg-void) 60%, transparent) calc(12.5% - 3px) 12.5%);
+}
+
+#boss.final #bossName {
+  font-size: var(--t-xl);
+  color: var(--boss-low);
+}
+#boss.final #bossPips > span { width: 14px; height: 6px; background: var(--boss-low); }
+
 #bossUlt { margin-top: var(--sp-2); }
 
 #bossUlt > i {
@@ -378,6 +430,21 @@
 
 #hudAnnounce.phase .big { font-size: var(--t-2xl); color: var(--warn); }
 #hudAnnounce.phase .mid { color: var(--boss-warn); font-size: var(--t-m); font-weight: 400; letter-spacing: normal; }
+
+/* Annonce du BOSS FINAL (lot N). Elle tient 5 s au lieu de 2,6 (cote JS) et
+   s'installe autrement : le nom arrive en s'ECARTANT plutot qu'en apparaissant,
+   un mouvement qu'aucune autre annonce du jeu n'a. C'est le seul moment ou le
+   jeu s'autorise un effet d'entree — et c'est justement parce qu'il est unique
+   qu'il dit « combat final » sans avoir a l'ecrire. */
+@keyframes bossFinalEntry {
+  from { letter-spacing: 0; opacity: 0; }
+  to   { letter-spacing: 0.24em; opacity: 1; }
+}
+#hudAnnounce.final .big {
+  color: var(--boss-low);
+  animation: bossFinalEntry 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#hudAnnounce.final .mid { color: var(--boss-low); }
 
 /* --- bloc personnel --------------------------------------------------------
    Le plus gros element du HUD. C'est ce qu'on regarde en priorite quand ca

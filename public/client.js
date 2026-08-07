@@ -50,7 +50,8 @@ import {
   BOSS_CFG, bossAt, mechAt, ALERT_ORDER, ALERT_WARN,
   MECH_STACK, MECH_SPREAD, MECH_TOWER, MECH_COUNT, MECH_LINK, MECH_JAIL,
   MECH_CLUSTER, MECH_FEED, MECH_BAIT, MECH_SANCTUARY, MECH_PROX,
-  BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_JUMEAUX,
+  MECH_SCEAU,
+  BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_JUMEAUX, BOSS_FINAL,
 } from "/shared/bosses.js";
 import {
   initAudio, playSound, setVolume, setMuted, getVolume, isMuted, audioStats,
@@ -302,6 +303,11 @@ const volVal = document.getElementById("volVal");
 const muteBtn = document.getElementById("mute");
 const hubScreenEl = document.getElementById("hubScreen");
 const hubRefreshBtn = document.getElementById("hubRefresh");
+/* Classement au temps (lot N), au hub. */
+const hubBoardBtn = document.getElementById("hubBoardBtn");
+const hubBoardEl = document.getElementById("hubBoard");
+const hubBoardTabs = document.getElementById("hubBoardTabs");
+const hubBoardList = document.getElementById("hubBoardList");
 const hubRejoinEl = document.getElementById("hubRejoin");
 const hubRejoinWhoEl = document.getElementById("hubRejoinWho");
 const hubRejoinGoBtn = document.getElementById("hubRejoinGo");
@@ -330,6 +336,7 @@ const passMsgEl = document.getElementById("passMsg");
 
 let ws = null;
 let myId = 0;
+let myPseudo = "";          // casse canonique du compte, pour le classement
 let hostId = 0;
 let phase = PHASE_LOBBY;
 let amSpectator = false;
@@ -451,6 +458,9 @@ function connect() {
            que fraichement emis (register/login) : une reprise par jeton
            prolonge l'existant sans en changer. */
         localStorage.setItem("survivor.pseudo", msg.pseudo ?? "");
+        // Retenu pour le classement (lot N) : c'est ce qui permet de surligner
+        // sa propre ligne. La casse canonique du compte, jamais la valeur tapee.
+        myPseudo = msg.pseudo ?? "";
         if (msg.token) localStorage.setItem("survivor.token", msg.token);
         // Compte deja connecte ailleurs : plus d'arret sur #gate — on entre au
         // hub comme tout le monde, et l'avertissement s'affiche LA-BAS (a dire,
@@ -469,6 +479,14 @@ function connect() {
       case "rooms":
         roomsList = msg.rooms ?? [];
         renderRooms();
+        break;
+
+      /* Classement au temps (lot N). Message HORS-MONDE : il ne commente
+         aucune image, il s'applique donc a la reception — comme le salon et la
+         liste des salles, et contrairement a `cards` ou `merchant`. */
+      case "leaderboard":
+        boardData = msg.board ?? null;
+        renderBoard();
         break;
 
       case "roomJoined":
@@ -531,7 +549,7 @@ function connect() {
         latest = null;
         predicted = null;
         worldQueue.length = 0;
-        cardsCloseQueued = false;
+        screenCloseQueued = false;
         resetFeedback();
         closeCards();
         closeMerchant();
@@ -684,9 +702,16 @@ function connect() {
            que le monde ne reparte, et on regarde une image figee. Le drapeau
            evite d'empiler une fermeture par instantane — il en arrive vingt par
            seconde. */
-        if (cardsState && !cardsCloseQueued) {
-          cardsCloseQueued = true;
-          pushWorld(() => { cardsCloseQueued = false; closeCards(); closeMerchant(); });
+        /* La garde porte sur LES DEUX ecrans de transition, pas seulement sur
+           les cartes. Elle ne testait que `cardsState`, et le marchand (lot K)
+           s'ouvre precisement APRES la fermeture de l'ecran de cartes, qui
+           remet `cardsState` a null : la condition etait donc fausse au moment
+           ou il fallait fermer, et l'ecran du marchand restait affiche
+           par-dessus une manche qui avait repris. Le joueur ne pouvait plus
+           rien faire. */
+        if ((cardsState || merchantState) && !screenCloseQueued) {
+          screenCloseQueued = true;
+          pushWorld(() => { screenCloseQueued = false; closeCards(); closeMerchant(); });
         }
         break;
 
@@ -805,7 +830,7 @@ function connect() {
     // de cartes ou un bilan encore en attente sortirait par-dessus l'ecran de
     // reconnexion, 110 ms apres la coupure.
     worldQueue.length = 0;
-    cardsCloseQueued = false;
+    screenCloseQueued = false;
     panel.hidden = true;
     menuEl.hidden = true;
     // Reconnexion : on repart de l'ecran d'entree, dans le mode qui
@@ -1005,6 +1030,9 @@ function enterHub() {
   hubScreenEl.hidden = false;
   hubPassAskEl.hidden = true;
   hubPassAskInput.value = "";
+  // Le classement (lot N) se replie a chaque entree au hub : c'est une
+  // consultation ponctuelle, pas un etat qu'on veut retrouver ouvert.
+  hubBoardEl.hidden = true;
   hubWhoEl.textContent = `connecté comme ${localStorage.getItem("survivor.pseudo") || "?"}`;
   renderRooms();
   renderRejoin();
@@ -1079,6 +1107,54 @@ hubRefreshBtn.onclick = () => {
   hubRefreshBtn.disabled = true;
   setTimeout(() => { hubRefreshBtn.disabled = false; }, 1000);
 };
+
+/* --- classement au temps (lot N) --------------------------------------------
+   Il se DEPLIE, il n'ouvre pas d'ecran : c'est une consultation, et la sortir
+   dans un overlay aurait fait quitter la liste des salles a qui voulait juste
+   jeter un oeil avant de jouer.
+   Meme desarmement d'une seconde que l'actualisation, en miroir du frein
+   serveur — les deux partagent d'ailleurs ce frein cote hub. */
+let boardData = null;      // [difficulte][rang] -> { pseudo, time, wave }
+let boardDiff = 1;         // normal par defaut, comme le vote
+
+hubBoardBtn.onclick = () => {
+  if (!connected || inRoom) return;
+  const ouvert = !hubBoardEl.hidden;
+  hubBoardEl.hidden = ouvert;
+  if (ouvert) return;
+  ws.send(JSON.stringify({ t: "leaderboard" }));
+  hubBoardBtn.disabled = true;
+  setTimeout(() => { hubBoardBtn.disabled = false; }, 1000);
+  renderBoard();
+};
+
+function renderBoard() {
+  /* Un onglet par difficulte : comparer un temps de « calme » a un temps de
+     « cauchemar » n'aurait aucun sens, et une liste unique aurait pousse tout
+     le monde a jouer en calme pour y figurer. */
+  hubBoardTabs.innerHTML = "";
+  DIFFICULTIES.forEach((d, i) => {
+    const b = document.createElement("button");
+    b.textContent = d.label;
+    b.className = i === boardDiff ? "" : "ghost";
+    b.onclick = () => { boardDiff = i; renderBoard(); };
+    hubBoardTabs.appendChild(b);
+  });
+
+  if (!boardData) { hubBoardList.textContent = "chargement…"; return; }
+  const lignes = boardData[boardDiff] ?? [];
+  if (lignes.length === 0) {
+    hubBoardList.innerHTML =
+      `<div class="hint">personne n'a encore vaincu le Noyau à cette difficulté</div>`;
+    return;
+  }
+  hubBoardList.innerHTML = lignes.map((l, i) =>
+    `<div class="boardRow${l.pseudo === myPseudo ? " moi" : ""}">` +
+      `<span class="boardRank">${i + 1}</span>` +
+      `<span class="boardWho">${escapeHtml(l.pseudo)}</span>` +
+      `<span class="boardTime">${escapeHtml(fmtTime(l.time))}</span>` +
+    `</div>`).join("");
+}
 
 /* L'encart mot de passe d'une salle protegee : renvoie un joinRoom complet
    sur la MEME salle que le clic initial. */
@@ -1732,9 +1808,29 @@ function showBilan(res) {
      table retient de sa partie, donc c'est elle qui titre ; le numero de manche
      descend avec les autres chiffres. Repli sur le numero de manche si le
      serveur ne transmet pas la vague — un serveur anterieur au lot. */
-  bilanTitle.textContent = res.wave
-    ? `Partie terminée — vague ${res.wave} atteinte`
-    : `Partie terminée`;
+  /* VICTOIRE FINALE (lot N) : l'ecran de fin est le MEME, son titre ne l'est
+     pas. La spec demandait un ecran dedie ; en faire un second aurait donne
+     deux bilans a garder d'accord — alors que tout ce qui les distingue est le
+     titre, le temps mis en avant et le verdict personnel. C'est exactement le
+     raisonnement de la fenetre de build : un seul ecran, plusieurs entrees.
+
+     La classe `victoire` porte le traitement visuel ; le titre porte le TEMPS,
+     parce que c'est lui qui compte au classement et rien d'autre. */
+  const win = res.final ?? null;
+  bilanEl.classList.toggle("victoire", !!win);
+  const mien = res.rows.find(r => r.id === myId);
+  if (win) {
+    bilanTitle.innerHTML =
+      `LE NOYAU EST TOMBÉ` +
+      `<span class="bilanChrono">${escapeHtml(fmtTime(win.time))}</span>` +
+      (mien?.final === "record"
+        ? `<span class="bilanRecord">nouveau record personnel</span>`
+        : "");
+  } else {
+    bilanTitle.textContent = res.wave
+      ? `Partie terminée — vague ${res.wave} atteinte`
+      : `Partie terminée`;
+  }
   /* Les chiffres de la TABLE, pas ceux d'un joueur — le tableau juste dessous
      ventile par personne. « joueurs » a saute : le tableau en donne la liste
      nominative deux lignes plus bas, le compter etait la seule statistique de
@@ -1886,6 +1982,9 @@ function closeBilan() {
   bilanHandle = null;
   bilanOpen = false;
   bilanEl.hidden = true;
+  // La classe de victoire (lot N) se retire ICI : laissee en place, la manche
+  // suivante afficherait un bilan de defaite en vert.
+  bilanEl.classList.remove("victoire");
   refreshPanel();
 }
 
@@ -3325,7 +3424,12 @@ const alertQueue = [];
    ici. Les messages hors-monde — salon, choix de classe, tableau des scores,
    pause — s'appliquent a la reception : ils ne commentent aucune image. */
 const worldQueue = [];
-let cardsCloseQueued = false;
+/* Une seule fermeture d'ecran de transition en file a la fois — il arrive
+   vingt instantanes par seconde, et sans ce drapeau on en empilerait autant.
+   Il couvre les DEUX ecrans (cartes et marchand) : c'est le meme evenement de
+   reprise qui les ferme, et deux drapeaux auraient laisse passer le cas ou les
+   deux se suivent. */
+let screenCloseQueued = false;
 
 function pushWorld(fn) {
   worldQueue.push({ fn, at: performance.now() + INTERP_MS });
@@ -6327,7 +6431,12 @@ function bossPose(now) {
 }
 
 function drawBoss(b) {
-  const r = CFG.BOSS_RADIUS;
+  /* Le Noyau (lot N) fait 40 % de plus que les cinq autres. Le gabarit est le
+     seul signal d'echelle qui se lise AVANT la barre de vie et avant le nom :
+     il faut savoir qu'on n'est pas devant un boss ordinaire a l'instant ou il
+     apparait. Le facteur porte sur le RAYON, donc toute la routine de dessin
+     suit — elle travaille en unites de `r` d'un bout a l'autre. */
+  const r = CFG.BOSS_RADIUS * ((b.kind ?? 0) === BOSS_FINAL ? 1.4 : 1);
   const now = performance.now();
   const t = now / 1000;
   const wounded = 1 - b.hp / b.maxHp;
@@ -6373,6 +6482,7 @@ function drawBoss(b) {
     case BOSS_METRONOME:  drawBossMetronome(S); break;
     case BOSS_ORACLE:     drawBossOracle(S); break;
     case BOSS_JUMEAUX:    drawBossJumeaux(S); break;
+    case BOSS_FINAL:      drawBossNoyau(S); break;
     default:              drawBossRavageur(S);
   }
 
@@ -6750,6 +6860,90 @@ function drawBossJumeaux(S) {
   ctx.restore();
 }
 
+/* LE NOYAU (lot N) — synthese. Sa silhouette doit dire deux choses d'un coup :
+   qu'elle est la SOMME des cinq, et qu'elle est d'un autre ordre de grandeur.
+
+   D'ou la construction en trois couches concentriques, une par « emprunt » :
+   les pointes du Ravageur a l'exterieur, l'anneau segmente du Metronome au
+   milieu, l'oeil de l'Oracle au centre. Aucune n'est copiee — chacune est
+   citee, reduite a son signe le plus reconnaissable, et toutes tournent a des
+   vitesses differentes : c'est ce qui empeche l'ensemble de se lire comme un
+   seul disque.
+
+   Son verbe de relache lui est propre, comme pour les cinq autres : les trois
+   couches se DESALIGNENT au coup — chacune prend son a-coup dans un sens
+   different — puis se recalent. La synthese se defait un instant et se
+   reforme, ce qu'aucune des cinq ne fait. */
+function drawBossNoyau(S) {
+  const { r, t, skin, dark, edge, phase, bars, tense, burst } = S;
+
+  /* Couche 1 — les pointes du Ravageur, mais SEIZE au lieu de dix : la
+     citation doit rester lisible tout en disant « plus ». Elles tournent
+     lentement dans le sens direct. */
+  ctx.save();
+  ctx.rotate(t * 0.35 + burst * 0.30);
+  ctx.fillStyle = dark;
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const out = r + 16 - tense * 12 + burst * 24;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * out, Math.sin(a) * out);
+    ctx.lineTo(Math.cos(a + 0.11) * r * 0.94, Math.sin(a + 0.11) * r * 0.94);
+    ctx.lineTo(Math.cos(a - 0.11) * r * 0.94, Math.sin(a - 0.11) * r * 0.94);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  /* Couche 2 — l'anneau segmente du Metronome, a CONTRESENS. Le nombre de
+     segments ALLUMES compte les barres restantes : sur huit barres, c'est la
+     seule lecture de progression qu'on ait sans quitter la creature des yeux,
+     et elle double celle de la barre du HUD au lieu de la remplacer. */
+  ctx.save();
+  ctx.rotate(-t * 0.55 - burst * 0.22);
+  const reste = Math.max(0, bars - phase);
+  for (let i = 0; i < bars; i++) {
+    const a0 = (i / bars) * Math.PI * 2 + 0.05;
+    const a1 = ((i + 1) / bars) * Math.PI * 2 - 0.05;
+    ctx.strokeStyle = i < reste ? skin : alpha(edge, 0.55);
+    ctx.lineWidth = i < reste ? 5 : 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.74, a0, a1);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  /* Couche 3 — le corps et l'oeil. Le corps respire comme les cinq autres ;
+     l'oeil, lui, se DILATE au coup pendant que les couches se desalignent —
+     c'est le meme geste que l'Oracle, dont l'energie va quelque part. */
+  ctx.save();
+  ctx.rotate(S.ang);
+  const breath = 1 + Math.sin(t * 1.5) * 0.025;
+  ctx.scale(breath, 1 / breath);
+
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const rr = r * 0.62;
+    const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.34, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * (0.15 + burst * 0.10) * (1 - tense * 0.15), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 /* Marqueurs de mecanique de groupe. Une seule fonction pour les huit, avec un
    code couleur constant : CYAN = va dessus, ROUGE = sors de la, JAUNE = detruis.
    Le sens se lit a la couleur avant meme d'avoir lu le bandeau — c'est ce qui
@@ -6781,7 +6975,11 @@ function markHalo(x, y, r, col, t) {
 function drawMarkColumns(marks, t) {
   for (const m of marks) {
     if (m.mech !== MECH_TOWER && m.mech !== MECH_COUNT
-        && m.mech !== MECH_STACK && m.mech !== MECH_SANCTUARY) continue;
+        && m.mech !== MECH_STACK && m.mech !== MECH_SANCTUARY
+        // Le sceau est une zone ACCUEILLANTE : il a sa colonne comme les tours,
+        // et il en a plus besoin qu'elles — on le tient vingt secondes en
+        // regardant ailleurs.
+        && m.mech !== MECH_SCEAU) continue;
     const ok = m.mech === MECH_SANCTUARY
       || (m.mech === MECH_COUNT ? m.cur === m.need : m.cur >= 1);
     const col = ok ? MARK.ok : MARK_GO;
@@ -6829,6 +7027,36 @@ function drawMarks(marks, players) {
           ctx.beginPath(); ctx.arc(p.x, p.y, m.r / 2, 0, Math.PI * 2); ctx.stroke();
         }
         ctx.setLineDash([]);
+        break;
+      }
+      /* SCEAU (lot N). Meme grammaire que les tours — cyan, halo centripete,
+         zone accueillante — mais ce qui se remplit n'est pas un effectif, c'est
+         un TEMPS. On le dessine donc comme un ARC qui se ferme sur le pourtour
+         du disque, et non comme un chiffre : le joueur est dessus, il regarde
+         la horde, il n'a pas le temps de lire « 3,2 / 4,5 ». Un arc plein se
+         lit d'un coup d'oeil peripherique.
+         Vert quand il est tenu, comme les tours occupees : c'est la meme
+         promesse, et un second code couleur pour la meme idee serait a
+         apprendre pour rien. */
+      case MECH_SCEAU: {
+        const k = Math.max(0, Math.min(1, m.need > 0 ? m.cur / m.need : 0));
+        const ok = k >= 1;
+        const col = ok ? MARK.ok : MARK_GO;
+        ctx.fillStyle = ok ? alpha(FX.heal, 0.16) : alpha(SIGNAL.go, 0.09);
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+        markHalo(m.x, m.y, m.r, col, t);
+        // Le cercle de fond, puis l'arc de progression par-dessus.
+        ctx.strokeStyle = alpha(col, 0.30);
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
+        if (k > 0) {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = ok ? 7 : 5;
+          ctx.beginPath();
+          ctx.arc(m.x, m.y, m.r, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
+          ctx.stroke();
+        }
+        markLabel(m.x, m.y - m.r - 10, ok ? "SCEAU TENU" : "SCEAU", col);
         break;
       }
       case MECH_TOWER:

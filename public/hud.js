@@ -32,7 +32,7 @@ import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
-import { bossAt } from "/shared/bosses.js";
+import { bossAt, BOSS_FINAL } from "/shared/bosses.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, STATUS_ICON, iconImg } from "/icons.js";
 
@@ -250,8 +250,30 @@ function updateBoss(b) {
     el.boss.style.setProperty("--boss-low", K.bar);
     el.boss.style.setProperty("--boss-deep", K.deep);
   }
-  setText(el.bossName, "bn", `${def.nom.toUpperCase()} ${ROMAN[b.index] ?? b.index}`);
+  /* BOSS FINAL (lot N) : la barre est visuellement distincte, identifiable
+     sans lire le nom — c'est le critere d'acceptation N10. Une CLASSE et non
+     un second bloc DOM : la feuille de style porte la largeur accrue, la
+     pulsation qui accelere a mesure que les PV baissent et le traitement des
+     ruptures. Dupliquer le bloc aurait donne deux barres a garder d'accord.
+     Le Noyau n'a pas de numero de passage : il n'y en a qu'un. */
+  const final = kind === BOSS_FINAL;
+  setClass(el.boss, "bfin", "final", final);
+  setText(el.bossName, "bn", final
+    ? def.nom.toUpperCase()
+    : `${def.nom.toUpperCase()} ${ROMAN[b.index] ?? b.index}`);
   setText(el.bossVerb, "bv", def.verbe);
+  /* La pulsation ACCELERE quand il s'affaiblit : un signal de progression en
+     plus du remplissage, et le seul du jeu qui dise « la fin approche » sans
+     chiffre. La periode passe de 2,4 s a pleine vie a 0,7 s sur la derniere
+     barre — calculee ici parce que le CSS ne connait pas les PV. */
+  if (final) {
+    const usure = 1 - Math.max(0, Math.min(1, b.hp / b.maxHp));
+    const per = (2.4 - usure * 1.7).toFixed(2);
+    if (memo.bfp !== per) {
+      memo.bfp = per;
+      el.boss.style.setProperty("--boss-pulse", `${per}s`);
+    }
+  }
   setText(el.bossHp, "bh", `${Math.max(0, Math.round(b.hp))} / ${b.maxHp}`);
   setWidth(el.bossFill, "bf", k);
   setText(el.bossMult, "bm", `×${left}`);
@@ -520,10 +542,22 @@ function updateAnnounce(v, c, now) {
   const sinceBoss = now - c.bossAnnounce;
   const sincePhase = now - c.phaseAnnounce;
 
-  if (v.boss && sinceBoss < 2600) {
+  /* L'annonce du NOYAU (lot N) tient deux fois plus longtemps que celle des
+     cinq autres — 5 s contre 2,6 — et n'affiche pas de numero de passage : il
+     n'y en a qu'un. C'est ce premier instant qui doit installer « ceci est le
+     combat final », et une annonce de meme duree que les cinq precedentes
+     aurait dit exactement l'inverse. La classe `final` porte le traitement
+     d'apparition, comme pour la barre. */
+  const finalBoss = (v.boss?.kind ?? 0) === BOSS_FINAL;
+  const duree = finalBoss ? 5000 : 2600;
+  const plein = finalBoss ? 4200 : 2000;
+  if (v.boss && sinceBoss < duree) {
     const def = bossAt(v.boss.kind ?? 0);
-    show("boss", sinceBoss < 2000 ? 1 : 1 - (sinceBoss - 2000) / 600, false,
-      `${def.nom.toUpperCase()} ${ROMAN[v.boss.index] ?? v.boss.index}`,
+    setClass(el.announce, "anFin", "final", finalBoss);
+    show("boss",
+      sinceBoss < plein ? 1 : 1 - (sinceBoss - plein) / (duree - plein), false,
+      finalBoss ? def.nom.toUpperCase()
+        : `${def.nom.toUpperCase()} ${ROMAN[v.boss.index] ?? v.boss.index}`,
       def.verbe.toUpperCase(), def.sous);
     return;
   }
