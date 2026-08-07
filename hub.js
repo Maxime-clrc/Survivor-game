@@ -724,7 +724,16 @@ export function createHub(store, log) {
 
   function broadcastServerInfo() {
     for (const c of clients.values()) {
-      if (c.room) continue;
+      /* Hors salle, ou au SALON. Pas pendant une manche : celui qui joue
+         recoit deja un instantane vingt fois par seconde, et la barre
+         superieure ne s'affiche pas par-dessus l'arene.
+
+         Le salon en fait partie et c'est necessaire, pas confortable :
+         `lobbyPayload()` ne part que sur evenement (arrivee, vote, choix de
+         classe, prêt), donc dans un salon ou personne ne touche a rien la
+         latence resterait affichee « — » indefiniment — c'est-a-dire sur
+         l'ecran ou l'on decide precisement si la connexion tient. */
+      if (c.room && c.room.phase !== PHASE_LOBBY) continue;
       c.conn.send(JSON.stringify(serverInfoPayload(c)));
     }
   }

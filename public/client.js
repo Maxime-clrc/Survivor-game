@@ -199,6 +199,8 @@ const gateBuildEl = document.getElementById("gateBuild");
 const gateSwitchEl = document.getElementById("gateSwitch");
 const menuEl = document.getElementById("menu");
 const menuCloseBtn = document.getElementById("menuClose");
+const settingsEl = document.getElementById("settings");
+const settingsCloseBtn = document.getElementById("settingsClose");
 const panel = document.getElementById("panel");
 const panelTitle = document.getElementById("panelTitle");
 const summary = document.getElementById("summary");
@@ -547,6 +549,13 @@ function connect() {
         // c'est le repli qui compte — un serveur anterieur n'envoie rien et la
         // liste reste vide plutot que de valoir `undefined`.
         roundHistory = msg.history ?? [];
+        /* En salle, `serverInfo` ne part plus : le chiffre voyage dans le
+           salon, sur ma propre ligne d'equipe. Un seul aller-retour, deux
+           transports selon l'endroit — et la barre ne sait pas lequel. */
+        {
+          const mine = msg.players?.find(p => p.id === myId);
+          if (mine && mine.ping !== undefined) { myPing = Number(mine.ping); renderTopPing(); }
+        }
         myVote = lobby.find(l => l.id === myId)?.vote ?? myVote;
         amSpectator = lobby.find(l => l.id === myId)?.spectator ?? false;
         refreshPanel();
@@ -790,6 +799,12 @@ function renderGateMode() {
    La latence inconnue s'affiche en TIRET et non en « 0 ms », qui se lirait
    comme une connexion parfaite au moment precis ou l'on ne sait rien. */
 function renderServerInfo(info) {
+  /* La barre superieure lit la MEME mesure. `serverInfo` couvre le hub ET le
+     salon — partout ou l'on ne joue pas — et c'est la source vivante : le
+     salon, lui, ne rediffuse qu'sur evenement. */
+  myPing = info ? Number(info.rtt) : -1;
+  renderTopPing();
+
   if (!gateServerEl) return;
 
   if (!info) {
@@ -1003,6 +1018,147 @@ function hubStatus(msg, isError = false) {
   hubStatusEl.textContent = msg;
   hubStatusEl.classList.toggle("err", isError);
 }
+
+/* ===========================================================================
+   BARRE SUPERIEURE
+
+   Un seul element pour tous les ecrans hors combat : ou je suis, sous quel
+   compte, et si le serveur repond encore. Chaque ecran etait jusqu'ici une
+   page isolee — il fallait redescendre au pied de la liste des salles pour
+   retrouver son pseudo, et rien n'affichait la latence.
+
+   ELLE OBSERVE L'ETAT DES ECRANS, ELLE NE LE PILOTE PAS. La specification
+   proposait de regrouper tout l'affichage dans un `showScreen(name)` unique,
+   pour que la barre ne puisse pas apparaitre sur un ecran qu'on aurait
+   oublie. Le but est le bon, le moyen ne l'est pas ici : neuf ecrans se
+   montrent et se cachent depuis une quinzaine d'endroits — la file de
+   transitions du monde, la reconnexion, la pause, le bilan, l'ecran de
+   cartes — et les regrouper voudrait dire reecrire ces quinze chemins, dont
+   plusieurs portent des regles d'ordonnancement documentees (`worldQueue`,
+   les gardes de `refreshPanel`).
+
+   Un observateur atteint le meme resultat sans y toucher : il ne PEUT PAS
+   oublier un ecran, puisqu'il constate au lieu de decider. Le cout est nul —
+   ce sont des menus, pas la boucle de jeu, et l'observateur ne se declenche
+   qu'au changement d'un attribut `hidden`. */
+
+const topbarEl = document.getElementById("topbar");
+const topHomeBtn = document.getElementById("topHome");
+const topCrumbEl = document.getElementById("topCrumb");
+const topPingEl = document.getElementById("topPing");
+const topPingValEl = document.getElementById("topPingVal");
+const topAvatarEl = document.getElementById("topAvatar");
+const topNameEl = document.getElementById("topName");
+const topSettingsBtn = document.getElementById("topSettings");
+
+/* Ma latence, en millisecondes ; -1 tant qu'aucun aller-retour n'est revenu.
+   DEUX sources selon l'endroit, et c'est structurel : `serverInfo` n'est
+   diffuse qu'aux clients HORS salle (un joueur en manche recoit deja des
+   instantanes vingt fois par seconde), tandis qu'en salle le chiffre voyage
+   dans le salon, sur ma propre ligne d'equipe. */
+let myPing = -1;
+
+/* L'ecran a rendre quand on refermera les parametres. Memorise a l'ouverture :
+   sans lui on ressortirait toujours au hub, donc on perdrait son salon pour
+   avoir voulu baisser le son. */
+let settingsFrom = null;
+
+/* Les ecrans qui portent la barre, avec leur fil d'Ariane. L'ordre compte :
+   c'est celui de la PRIORITE d'affichage, et il suit l'empilement reel —
+   `#settings` et `#menu` passent devant le salon puisqu'ils s'ouvrent
+   depuis lui. Les ecrans absents de cette table la cachent : #gate (pas
+   encore de compte a afficher), #loading (rien a faire pendant trois
+   secondes), #cards (on choisit sous minuterie, tout le reste doit
+   disparaitre). */
+const TOPBAR_SCREENS = [
+  { el: () => settingsEl, crumb: () => "Paramètres" },
+  { el: () => menuEl, crumb: () => `Progression · ${classAt(metaClsOverride ?? CLASS_DEFAULT).nom}` },
+  { el: () => bilanEl, crumb: () => "Bilan de manche" },
+  { el: () => panel, crumb: () => roomNameCur ? `Salon · ${roomNameCur}` : "Salon" },
+  { el: () => hubScreenEl, crumb: () => "Salons" },
+];
+
+function syncTopbar() {
+  if (!topbarEl) return;
+
+  /* L'ecran de cartes et celui de chargement passent AVANT tout le reste : ils
+     se superposent, et le salon reste techniquement affiche dessous. */
+  const masque = (cardsEl && !cardsEl.hidden) || (loadingEl && !loadingEl.hidden)
+    || (gate && !gate.hidden);
+
+  const vue = masque ? null : TOPBAR_SCREENS.find(s => { const e = s.el(); return e && !e.hidden; });
+  topbarEl.hidden = !vue;
+  if (!vue) return;
+
+  topCrumbEl.textContent = vue.crumb();
+
+  /* Pas d'avatar dans ce jeu : l'initiale en capitale plutot qu'un rond vide,
+     qui serait un trou a l'endroit ou l'oeil cherche a se reconnaitre. */
+  const pseudo = localStorage.getItem("survivor.pseudo") || "";
+  topNameEl.textContent = pseudo;
+  topAvatarEl.textContent = pseudo ? pseudo[0].toUpperCase() : "?";
+
+  renderTopPing();
+}
+
+/* Trois seuils, et le rouge n'est pas cosmetique : au-dela de 140 ms on
+   tremble, et le jeu devient injouable. Autant le dire AVANT la manche.
+   La pulsation s'arrete au rouge — un temoin qui bat alors que la connexion
+   ne suit plus dit exactement le contraire de ce qu'il montre. */
+function renderTopPing() {
+  if (!topPingEl) return;
+  const ms = Number(myPing);
+  if (!Number.isFinite(ms) || ms < 0) {
+    topPingEl.className = "";
+    topPingValEl.textContent = "—";
+    return;
+  }
+  topPingEl.className = ms < 60 ? "" : ms <= 140 ? "warn" : "bad";
+  topPingValEl.textContent = `${ms} ms`;
+}
+
+/* L'observateur : neuf ecrans, un seul attribut surveille. Il constate, il ne
+   decide pas — c'est ce qui le rend incapable d'oublier un chemin d'affichage. */
+{
+  const obs = new MutationObserver(syncTopbar);
+  for (const el of [gate, loadingEl, hubScreenEl, panel, bilanEl, menuEl, cardsEl, settingsEl]) {
+    if (el) obs.observe(el, { attributes: true, attributeFilter: ["hidden"] });
+  }
+}
+
+/* Retour aux salons. En pleine manche on ne quitte pas sechement : c'est la
+   meme regle que `#pauseQuit`, qui demande confirmation pour la meme raison —
+   l'action est irreversible pour la manche en cours. */
+topHomeBtn.onclick = () => {
+  if (!connected || !inRoom) return;
+  if (phase === PHASE_ROUND && !amSpectator
+      && !confirm("Une manche est en cours. Quitter la salle et revenir aux salons ?")) {
+    return;
+  }
+  ws.send(JSON.stringify({ t: "leaveRoom" }));
+};
+
+/* Les parametres se rappellent d'ou l'on vient. `settingsFrom` retient
+   l'element a redonner, pas un nom d'ecran : c'est lui qu'on rendra, et il n'y
+   a rien a resoudre au retour. */
+function openSettings() {
+  if (!settingsEl) return;
+  settingsFrom = [hubScreenEl, panel, bilanEl, menuEl].find(e => e && !e.hidden) ?? null;
+  if (settingsFrom) settingsFrom.hidden = true;
+  settingsEl.hidden = false;
+  syncTopbar();
+}
+
+function closeSettings() {
+  if (!settingsEl) return;
+  settingsEl.hidden = true;
+  if (settingsFrom) settingsFrom.hidden = false;
+  settingsFrom = null;
+  syncTopbar();
+}
+
+topSettingsBtn.onclick = openSettings;
+if (settingsCloseBtn) settingsCloseBtn.onclick = closeSettings;
 
 /* Entree en etat hub. L'auto-rejointe ne part QUE d'ici, une seule fois par
    `welcome` : si la salle a disparu entre-temps, `joinRoomError` retombe sur

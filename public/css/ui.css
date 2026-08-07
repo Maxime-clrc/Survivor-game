@@ -101,6 +101,20 @@ html, body {
   animation: fadeIn var(--fade) ease-out;
 }
 .overlay[hidden] { display: none; }
+
+/* LA BARRE SUPERIEURE MORD SUR LES ECRANS, et il faut leur rendre la place.
+   `menus.css` la pose en `position: sticky` et borne les ecrans par
+   `min-height: calc(100vh - 56px)` — ce qui suppose des ecrans dans le FLUX.
+   Les `.overlay` d'ici sont en `position: fixed; inset: 0` : ils partent donc
+   du haut de la fenetre et leurs 56 premiers pixels passent sous la barre.
+   Symptome constate : le kicker du salon (« SALON · TU ES L'HÔTE ») disparait
+   derriere elle, et le titre le frole.
+
+   Le decalage est ecrit ICI parce que c'est ici que vit `position: fixed`, et
+   il ne s'applique QUE si la barre est visible — sur l'ecran de connexion, le
+   chargement et le choix de carte, elle est `hidden` et l'ecran reprend toute
+   la hauteur. La valeur suit celle de la feuille des menus. */
+#topbar:not([hidden]) ~ .overlay { top: 56px; }
 /* LA MEME CONTRE-REGLE, PORTEE PAR CHAQUE IDENTIFIANT. `.overlay[hidden]` pese
    0-2-0 : toute regle d'auteur qui pose un `display` sur l'un de ces ecrans par
    son identifiant (1-0-0) l'emporte, et l'ecran ne se ferme plus JAMAIS.

@@ -23,6 +23,52 @@
 </head>
 <body>
 
+<!-- BARRE SUPERIEURE. UN SEUL element, place HORS des `.overlay` et non
+     recopie dans chacun : quatre copies divergeraient au premier changement.
+     Chaque ecran hors combat etait jusqu'ici une page isolee — rien ne disait
+     ou l'on se trouve, sous quel compte, ni si le serveur repond encore, et il
+     fallait redescendre au pied de la liste des salles pour retrouver son
+     pseudo.
+
+     ELLE VIENT AVANT `#stage`, et non apres comme le proposait la
+     specification de markup. Le CSS la pose en `position: sticky; top: 0` :
+     un element sticky reste dans le FLUX, et placee derriere un `#stage` qui
+     fait 100 % de hauteur elle se retrouvait a 917 px du haut, hors de
+     l'ecran. Le selecteur `#topbar:not([hidden]) ~ .overlay` de la feuille
+     exige par ailleurs qu'elle precede les ecrans — les deux contraintes
+     tombent d'accord ici. Le decalage qu'elle impose a `#stage` n'a aucune
+     consequence visible : en manche elle est `hidden`, donc absente du flux,
+     et hors manche l'arene est masquee par un `.overlay` en `position: fixed`.
+
+     Elle apparait sur #hubScreen, #panel, #bilan, #menu et #settings ; jamais
+     sur #gate (pas encore de compte a afficher), #loading (rien a faire
+     pendant trois secondes) ni #cards (on choisit sous minuterie, tout le
+     reste doit disparaitre). `syncTopbar()` dans client.js est le point de
+     passage unique de cette regle.
+
+     `#topHome` est un BOUTON et non un logotype inerte : c'est le retour aux
+     salons, et une barre de navigation qui ne navigue pas est une occasion
+     manquee. -->
+<div id="topbar" hidden>
+  <button id="topHome" title="Retour aux salons">
+    <span class="mark"></span>
+    <span>Survivor</span>
+  </button>
+
+  <div id="topCrumb"></div>
+  <div id="topSpacer"></div>
+
+  <div id="topPing"><span class="chipDot"></span><span id="topPingVal">—</span></div>
+  <div id="topSep"></div>
+
+  <div id="topUser">
+    <span id="topAvatar"></span>
+    <span id="topName"></span>
+  </div>
+
+  <button id="topSettings">Paramètres</button>
+</div>
+
 <!-- `#frame` porte le format de l'arene (16/9) : le canvas le remplit, le HUD
      s'y superpose. C'est ce qui fait que le HUD est un FRERE du canvas et non
      son contenu — d'ou un tressaillement d'ecran qui ne le fait plus trembler,
