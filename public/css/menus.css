@@ -151,7 +151,7 @@
 
      La refonte veut l'inverse : des surfaces a peine detachees du fond, des
      filets qu'on devine, et la couleur reservee a ce qui dit quelque chose.
-     D'ou ces trois valeurs DERIVEES \u2014 pas de nouvelle couleur, seulement les
+     D'ou ces trois valeurs DERIVEES — pas de nouvelle couleur, seulement les
      jetons existants ramenes vers le fond par `color-mix`. Si tu changes
      `--bg-arena` ou `--line` dans `palette.js`, elles suivent. */
   --ui-panel: color-mix(in srgb, var(--bg-arena) 62%, var(--bg-void));
@@ -247,21 +247,13 @@
   padding: 0 var(--field-pad);
 }
 /* Un curseur n'est pas un champ de saisie : il n'a ni hauteur de ligne ni
-   retrait a respecter, et les regles ci-dessus le deformeraient.
-
-   ELLE PORTE LE RAIL, elle ne se contente pas d'annuler. Elle posait
-   `background: none`, et comme elle a un identifiant (1-0-1) elle l'emportait
-   sur le bloc `input[type="range"]` plus bas (0-1-1 — un selecteur d'attribut
-   pese comme une classe) : les six curseurs du jeu rendaient une poignee cyan
-   flottant sur du vide. Y mettre `var(--ui-line)` plutot que de retirer la
-   declaration est ce qui evite de rejouer le meme piege — `#gate input`
-   gagnerait de toute facon, et lui donne le fond des CHAMPS. */
+   retrait a respecter, et les regles ci-dessus le deformeraient. */
 #settings input[type="range"], #gate input[type="range"], #pause input[type="range"] {
   min-height: 0;
   padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: var(--ui-line);
+  border-radius: 0;
+  background: none;
 }
 #gate input, #hubScreen input {
   font-family: var(--font);
@@ -272,12 +264,6 @@
    panneau se lit comme un bouton — c'est le sens inverse de ce qu'il fait. */
 #panel input, #menu input, #settings input[type="text"], #settings input[type="password"] {
   background: var(--ui-field);
-}
-#gate button:hover:not(:disabled), #hubScreen button:hover:not(:disabled),
-#panel button:hover:not(:disabled), #menu button:hover:not(:disabled),
-#bilan button:hover:not(:disabled), #settings button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--line) 90%, var(--text-dim));
-  background: color-mix(in srgb, var(--bg-raised) 55%, transparent);
 }
 
 /* L'ACTION PRINCIPALE de chaque ecran. Elle existait deja (#start,
@@ -305,13 +291,6 @@
    est etroite, et un bouton qui n'occupe qu'une partie de sa ligne laisse un
    vide a droite qu'aucun autre element ne vient combler. */
 #go, #regGo, #gateContinue { width: 100%; }
-#start:hover:not(:disabled), #go:hover:not(:disabled), #regGo:hover:not(:disabled),
-#gateContinue:hover:not(:disabled), #menuClose:hover:not(:disabled), #bilanGo:hover:not(:disabled) {
-  filter: brightness(1.12);
-  box-shadow: var(--glow-go-hi);
-  background: var(--go);
-  border-color: var(--go);
-}
 
 /* ===========================================================================
    CONNEXION — deux colonnes
@@ -449,13 +428,6 @@
   box-shadow: none;
   clip-path: none;
 }
-#gateContinue:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--warn) 14%, transparent);
-  border-color: var(--warn);
-  color: var(--warn);
-  filter: none;
-  box-shadow: none;
-}
 
 /* Reglages du son : ils vivent bien ici (le clic debloque le contexte audio),
    mais ils flottaient entre le formulaire et le pense-bete des touches, au
@@ -533,10 +505,6 @@
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
   transition: border-color var(--tap) linear, background var(--tap) linear;
-}
-#roomList .roomEntry:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--go) 55%, transparent);
-  background: color-mix(in srgb, var(--go) 7%, var(--ui-panel));
 }
 /* Une salle pleine reste VISIBLE et desactivee : c'est celle ou sont les
    autres. Regle deja posee par ui.css, conservee mot pour mot. */
@@ -709,7 +677,6 @@
   color: var(--text-dim);
   font-size: var(--t-s);
 }
-#panelLeave:hover:not(:disabled) { border-color: var(--ui-line); color: var(--text); background: none; }
 
 /* ===========================================================================
    BILAN
@@ -754,56 +721,11 @@
    sont triees par ordre decroissant par `client.js` — donc le rang porte deja
    l'information, et la couleur peut le redire. La premiere ligne est ce qui a
    tue l'equipe, elle se lit avant les autres. */
-/* LA STRUCTURE DE LA VENTILATION, et pas seulement son habillage. La reprise
-   gardait le rayon, la hauteur et la couleur par rang, mais la mise en page
-   des lignes vivait dans `ui.css` et a disparu avec la coupe : sans `display`
-   ni `flex`, `.hurtBar` tombait a ZERO pixel de large et la barre — qui EST
-   l'information — n'existait plus. Il ne restait qu'un libelle et un
-   pourcentage, c'est-a-dire deux nombres a comparer de tete, exactement ce que
-   la barre evite. */
-#bilanHurt {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  max-width: 620px;
-  margin-inline: auto;
-}
-.hurtTitle {
-  font-family: var(--font);
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-title);
-  text-transform: uppercase;
-  color: var(--text-faint);
-  margin-bottom: var(--sp-1);
-}
-.hurtRow {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-1) 0;
-  font-size: var(--t-s);
-  color: var(--text-dim);
-}
-/* Le glyphe est sur la LIGNE qu'il decrit, pas dans une legende a apparier :
-   c'est ce qui fait lire « quelle part » et « laquelle » d'un seul coup. */
-.hurtIco { display: flex; width: 14px; height: 14px; flex: 0 0 auto; }
+#bilanHurt { max-width: 620px; margin-inline: auto; }
+.hurtRow { padding: var(--sp-1) 0; }
 .hurtLab { flex: 0 0 120px; }
-/* La gouttiere est un CREUX, donc plus sombre que la surface qui la porte —
-   jamais plus claire, ce qui la ferait lire comme un element pose dessus. */
-.hurtBar {
-  flex: 1 1 auto;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--ui-field);
-  overflow: hidden;
-}
-.hurtBar > i {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  transition: width var(--fade) ease-out;
-}
-.hurtVal { flex: 0 0 44px; text-align: right; color: var(--text); font-weight: 700; }
+.hurtBar { height: 8px; border-radius: 999px; overflow: hidden; }
+.hurtBar > i { border-radius: 999px; transition: width var(--fade) ease-out; }
 
 .hurtRow:nth-child(2) .hurtBar > i { background: var(--lethal); }
 .hurtRow:nth-child(3) .hurtBar > i { background: color-mix(in srgb, var(--lethal) 62%, var(--warn)); }
@@ -967,13 +889,51 @@
 /* --- survols ----------------------------------------------------------------
    `transform` et non `translate` : voir la note sur `riseIn`. Les deux
    proprietes se composent, l'entree ne verrouille donc pas le survol. */
-#roomList .roomEntry:hover:not(:disabled) { transform: translateY(var(--lift-1)); }
-.classOpt:hover:not(:disabled)            { transform: translateY(var(--lift-2)); }
-#voteRow button:hover:not(:disabled)      { transform: translateY(var(--lift-1)); }
-.cardOpt:hover:not(:disabled)             { transform: translateY(var(--lift-3)); }
 
 /* --- le fond ---------------------------------------------------------------- */
-.overlay { animation: fadeIn var(--fade) ease-out, gridDrift 26s linear infinite; }
+/* ===========================================================================
+   LE FOND DES ECRANS HORS COMBAT
+
+   `ui.css` peint la grille directement sur `.overlay`, en `--line-soft`
+   (#1c222d) et sans attenuation. Deux consequences visibles :
+
+     - le trait est NEUTRE et trop marque. Une grille a ce niveau de contraste
+       cesse d'etre une texture et devient un quadrillage qu'on lit — elle
+       entre en concurrence avec le contenu au lieu de le porter ;
+     - elle couvre la surface d'un bord a l'autre, a intensite constante. Rien
+       ne guide donc le regard : le coin inferieur droit d'un ecran vide est
+       aussi charge que la zone qui porte le titre.
+
+   Elle est reprise ici : meme pas de 40 px, mais TEINTEE de cyan a 5 % et
+   attenuee par un masque radial. Le cyan la rattache a la charte au lieu d'en
+   faire un gris de plus ; le masque la fait exister en haut, la ou commence la
+   lecture, et disparaitre en bas. La lueur cyan tres large par-dessus est ce
+   qui donne sa profondeur a l'ecran — sans elle, un aplat sombre reste plat.
+
+   Elle vit dans un `::before` et non dans le `background` de `.overlay` :
+   un masque applique a l'element masquerait AUSSI son contenu.
+   =========================================================================== */
+.overlay {
+  background: var(--bg-void);
+}
+.overlay::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(110% 70% at 50% -15%,
+      color-mix(in srgb, var(--go) 13%, transparent), transparent 62%),
+    repeating-linear-gradient(0deg,
+      color-mix(in srgb, var(--go) 5%, transparent) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(90deg,
+      color-mix(in srgb, var(--go) 5%, transparent) 0 1px, transparent 1px 40px);
+  -webkit-mask-image: radial-gradient(130% 100% at 50% 0%, #000 30%, transparent 85%);
+          mask-image: radial-gradient(130% 100% at 50% 0%, #000 30%, transparent 85%);
+  animation: gridDrift 26s linear infinite;
+}
+/* Le contenu passe AU-DESSUS du fond et SOUS la trame. */
+.overlay > * { position: relative; z-index: 1; }
 
 /* --- le chargement ---------------------------------------------------------- */
 #loadBar { position: relative; }
@@ -1044,22 +1004,13 @@
 }
 #cardsKicker[hidden] { display: none; }
 
-/* CENTRE et sur une mesure bornee, contrairement aux autres ecrans. Ceux-la
-   coulent depuis le haut dans une colonne et alignent tout a gauche ; celui-ci
-   n'a pas de colonne — trois ou quatre cartes centrees sous une minuterie — et
-   un titre etale sur toute la largeur oblige l'oeil a repartir de l'extreme
-   gauche entre deux lectures alors qu'on est chronometre. */
 #cardsTitle {
   font-family: var(--font-display);
   font-size: var(--t-title);
   letter-spacing: var(--track-title);
   text-transform: none;
   line-height: 1.25;
-  text-align: center;
-  max-width: 34ch;
-  margin-inline: auto;
 }
-#cardsKicker { text-align: center; }
 #cardsTimer { height: 6px; border-radius: 999px; overflow: hidden; }
 #cardsTimer > i { border-radius: 999px; }
 
@@ -1121,39 +1072,16 @@
     rgba(0, 0, 0, .26) 3px,
     transparent 4px);
 }
-/* La MISE EN PAGE du panneau vivait dans `ui.css` et a disparu avec la coupe :
-   sans `display: flex` ni `align-items: stretch`, les trois boutons prenaient
-   chacun la largeur de son libelle — 131 px pour « Reprendre », 170 pour
-   « Consulter son build » dans un panneau de 380 — et le titre se calait a
-   gauche. Un menu pause est une PILE D'ACTIONS de meme poids : elles doivent
-   faire la meme largeur, sinon leur taille se lit comme une hierarchie qui
-   n'existe pas. */
 #pausePanel {
   position: relative;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
   width: min(380px, 100%);
   border-radius: var(--radius-ui);
   gap: var(--sp-3);
   padding: var(--sp-6);
 }
-/* Centre, et a la taille d'un titre d'ecran : c'est le seul titre du panneau,
-   il n'a rien a sa gauche dont il devrait s'aligner. */
-#pauseTitle {
-  font-family: var(--font-display);
-  font-size: var(--t-xl);
-  font-weight: 700;
-  letter-spacing: var(--track-title);
-  text-align: center;
-}
-/* La pleine largeur ne vaut que pour les boutons ENFANTS DIRECTS du panneau —
-   la pile d'actions. Appliquee a tous les descendants, elle attrapait aussi le
-   bouton de coupure loge dans la rangee de volume : il prenait les 330 px et
-   chassait son curseur hors du panneau. */
+#pauseTitle { font-family: var(--font-display); font-size: var(--t-l); }
 #pausePanel button { border-radius: var(--radius-ctl); min-height: 44px; }
-#pausePanel > button { width: 100%; }
 #pauseResume {
   font-family: var(--font-display);
   font-weight: 700;
@@ -1163,16 +1091,11 @@
   background: var(--go);
   border-color: var(--go);
 }
-#pauseResume:hover:not(:disabled) { filter: brightness(1.12); background: var(--go); }
 /* La seule action letale de tous ces ecrans. */
 #pausePanel button.danger {
   color: var(--lethal);
   border-color: color-mix(in srgb, var(--lethal) 45%, transparent);
   background: color-mix(in srgb, var(--lethal) 8%, transparent);
-}
-#pausePanel button.danger:hover:not(:disabled) {
-  border-color: var(--lethal);
-  background: color-mix(in srgb, var(--lethal) 16%, transparent);
 }
 #pauseConfirm {
   display: flex;
@@ -1271,18 +1194,48 @@
 }
 
 /* La legendaire est un evenement : elle est la seule carte a se signaler
-   d'elle-meme. Teinte reprise de `--r3` — aucune valeur en dur. */
+   d'elle-meme, et c'est ce qui la fait remarquer AVANT d'etre lue.
+
+   Le jeton est `--legendaire` — pose par `client.js` depuis `RARITY_COLOR[3]`.
+   Il n'existe pas de `--r3` : `r3` est le nom de la CLASSE, pas de la couleur.
+   Une variable inconnue rend le `color-mix` invalide, ce qui fait tomber toute
+   la declaration `background` — et l'animation tourne alors sur du vide, sans
+   la moindre erreur en console. C'est le mode de panne le plus silencieux du
+   CSS : rien ne casse, il ne se passe simplement rien. */
 .cardOpt.r3::before {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
   background: linear-gradient(105deg,
-    transparent 42%,
-    color-mix(in srgb, var(--r3) 22%, transparent) 50%,
-    transparent 58%);
+    transparent 40%,
+    color-mix(in srgb, var(--legendaire) 26%, transparent) 50%,
+    transparent 60%);
   background-size: 240% 100%;
-  animation: sweepWide 3s linear infinite;
+  background-repeat: no-repeat;
+  animation: sweepWide var(--sweep, 3s) linear infinite;
+}
+/* Le contenu de la carte repasse AU-DESSUS du reflet : sinon le balayage
+   traverse le texte au lieu de glisser sous lui. */
+.cardOpt.r3 > * { position: relative; z-index: 2; }
+
+/* L'epique ne balaye pas — elle RESPIRE. Deux cartes animees dans la meme
+   rangee se disputeraient le regard, et la legendaire perdrait ce qui fait
+   justement d'elle un evenement. Une lueur qui monte et descend suffit a dire
+   « celle-ci n'est pas commune » sans reclamer l'attention. */
+@keyframes epicBreath {
+  0%, 100% { box-shadow: 0 0 var(--sp-6) -6px var(--epique); }
+  50%      { box-shadow: 0 0 var(--sp-12) -4px var(--epique); }
+}
+/* `#cardsRow .cardOpt` porte deja l'entree en cascade, et sa specificite (1,1,0)
+   battrait `.cardOpt.r2` (0,2,0) : l'animation de respiration ne s'appliquerait
+   jamais. Les deux sont donc COMPOSEES sur le meme selecteur — elles ne touchent
+   pas aux memes proprietes, l'entree bouge l'opacite et la position, la
+   respiration la lueur. */
+#cardsRow .cardOpt.r2 {
+  animation: riseIn var(--rise-lg) var(--ease-out) both,
+             epicBreath 3.6s ease-in-out infinite;
 }
 
 /* ===========================================================================
@@ -1407,7 +1360,6 @@
   color: var(--text);
   cursor: pointer;
 }
-#topHome:hover:not(:disabled) { background: none; border: 0; color: var(--go); }
 
 /* Le fil d'ariane. Il repond a « ou suis-je », question que six ecrans plein
    cadre sans reperes rendaient legitime. */
@@ -1493,7 +1445,6 @@
   text-transform: uppercase;
   color: var(--text-dim);
 }
-#topSettings:hover:not(:disabled) { color: var(--go); border-color: var(--ui-line); }
 
 /* LE correctif de la barre. `.overlay` est en `position: fixed; inset: 0` dans
    `ui.css` : elle couvre donc la fenetre ENTIERE, barre comprise, et les 56
@@ -1669,7 +1620,6 @@
   text-transform: none;
   letter-spacing: 0;
 }
-.ghost:hover:not(:disabled) { border-color: var(--ui-line); color: var(--text); background: none; }
 
 /* Le glyphe de musique n'est pas un bouton (contrairement a #mute) : il doit
    donc s'aligner sur lui sans en avoir l'air cliquable. */
@@ -1699,7 +1649,7 @@
 
    Pourquoi cette bascule. `menus.css` etait ADDITIF : il ne corrigeait que ce
    qu'il nommait, et les quelque deux cents regles de `ui.css` ecrites pour le
-   design precedent passaient a travers \u2014 tout centre, angles a 2 px, largeurs
+   design precedent passaient a travers — tout centre, angles a 2 px, largeurs
    figees (`.gateForm` a 320 px, `.classOpt` a 268 px, `#roomList` a 440 px),
    survols a --bg-raised. Chaque capture d'ecran revelait une fuite, on en
    corrigeait une, il en restait cent quatre-vingt-dix-neuf. Une feuille
@@ -1728,7 +1678,6 @@ input, button {
 }
 input:focus { border-color: var(--go); }
 button { cursor: pointer; }
-button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--line) 90%, var(--text-dim)); }
 button:disabled { opacity: 0.45; cursor: default; }
 
 .row { display: flex; align-items: center; gap: var(--sp-2); }
@@ -1740,7 +1689,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 #gateHoldMsg:empty { display: none; }
 #key { max-width: 130px; }
 
-/* Un bouton FANTOME : action reelle mais mineure. Il doit rester lisible \u2014 pas
+/* Un bouton FANTOME : action reelle mais mineure. Il doit rester lisible — pas
    un lien gris de plus au milieu du texte. */
 button.ghost {
   background: none;
@@ -1750,8 +1699,7 @@ button.ghost {
   text-transform: none;
   letter-spacing: 0;
 }
-button.ghost:hover:not(:disabled) { border-color: var(--ui-line); color: var(--text); background: none; }
-
+button
 /* Rouge : une action irreversible pour la manche en cours. C'est le seul
    endroit de l'interface hors combat qui a le droit d'en porter. */
 button.danger {
@@ -1759,22 +1707,10 @@ button.danger {
   border-color: color-mix(in srgb, var(--lethal) 45%, transparent);
   background: color-mix(in srgb, var(--lethal) 8%, transparent);
 }
-button.danger:hover:not(:disabled) {
-  border-color: var(--lethal);
-  background: color-mix(in srgb, var(--lethal) 16%, transparent);
-  color: var(--lethal);
-}
 
 /* --- curseurs ---------------------------------------------------------------
    Ils fuyaient les regles de champ (46 px de haut, retrait de 16) qui n'ont
    aucun sens pour un curseur. Traitement propre, une fois pour toutes. */
-/* Le rail prend `--ui-line` et non `--ui-field`, contrairement aux jauges.
-   La distinction n'est pas cosmetique : `#loadBar` et `#bilanBar` AFFICHENT
-   une progression, ce sont des creux et ils s'enfoncent dans la surface ; un
-   curseur est un CONTROLE, et sa piste doit se voir pour qu'on sache ou
-   glisser. A `--ui-field` sur la colonne de connexion — dont le fond est deja
-   proche du vide — le rail disparaissait et il ne restait qu'une poignee cyan
-   flottant sur du noir. */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -1783,7 +1719,9 @@ input[type="range"] {
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: var(--ui-line);
+  /* La gouttiere doit se VOIR : en `--ui-field` elle se confond avec le fond,
+     et le curseur flotte alors dans le vide, sans course lisible. */
+  background: var(--bg-raised);
   accent-color: var(--go);
   cursor: pointer;
 }
@@ -1846,7 +1784,6 @@ td.name { font-family: var(--font-display); font-weight: 700; color: var(--text)
 td.sub { color: var(--text-faint); font-size: var(--t-xs); }
 td.cards { text-align: left; max-width: 420px; }
 tr.clickable { cursor: pointer; }
-tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent); }
 
 .cardBadge {
   display: inline-block;
@@ -1860,7 +1797,7 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
 
 /* Au salon le tableau est de l'INFORMATION : attenue tant qu'on ne le regarde
    pas, et il defile dans sa colonne de 300 px plutot que de la faire deborder
-   \u2014 une table ne se comprime pas sous la largeur de son contenu. */
+   — une table ne se comprime pas sous la largeur de son contenu. */
 #scoresWrap { display: flex; flex-direction: column; gap: var(--sp-2); }
 #panel #scoresWrap { opacity: .6; transition: opacity var(--fade) linear; overflow-x: auto; align-items: stretch; }
 #panel #scoresWrap:hover { opacity: 1; }
@@ -1890,8 +1827,29 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
 #hubPassAsk #hubPassAskWho { flex: 1; min-width: 200px; }
 #hubPassAsk input { flex: 1; min-width: 180px; }
 
-/* --- salle : une ligne, pas une carte --------------------------------------- */
-#roomList .roomEntry .roomName { flex: 1; }
+/* --- salle : une ligne, pas une carte ---------------------------------------
+   `display` compris : la coupe de `ui.css` a emporte la mise en page de ces
+   elements, et une liste sans `flex-direction: column` se remet en ligne —
+   quatre salles cote a cote au lieu de quatre lignes. C'est la classe de
+   defaut a surveiller apres la coupe : un element qui perd son `display`
+   ne disparait pas, il se replie en flux normal. */
+#roomList {
+  display: flex;
+  flex-direction: column;
+}
+#roomList .roomEntry {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+}
+#roomList .roomEntry .roomName {
+  flex: 1;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 #roomList .roomEntry .roomState.running { color: var(--warn); }
 #roomList .roomEmpty {
   text-align: center;
@@ -1899,6 +1857,16 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
   font-size: var(--t-s);
   border: var(--hair) dashed var(--line-soft);
 }
+
+/* Le compte, en pied de page : une colonne centree, pas une rangee etalee sur
+   toute la largeur de l'ecran. */
+#hubAccount {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+#gateWho { color: var(--text); }
 
 /* --- choix de classe --------------------------------------------------------
    La carte etait figee a 268 px et flottait au centre d'une rangee. Elle vit
@@ -1925,10 +1893,6 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
   white-space: normal;
   background: var(--ui-panel);
   position: relative;
-}
-.classOpt:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--go) 5%, var(--ui-panel));
-  border-color: color-mix(in srgb, currentColor 45%, transparent);
 }
 /* La carte choisie porte la TEINTE DE SA CLASSE, pas un gris plus clair : c'est
    la seule chose que le survol ne peut pas dire. */
@@ -2006,7 +1970,7 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
 .classSkill b { color: var(--text); font-weight: 600; }
 
 /* Emplacement pris : grise ET BARRE, avec le nom de celui qui l'occupe. La
-   couleur seule ne suffit pas \u2014 un bouton qui ne repond pas passe pour une
+   couleur seule ne suffit pas — un bouton qui ne repond pas passe pour une
    panne tant qu'on n'a pas lu pourquoi. */
 .classOpt.taken { opacity: .42; }
 .classOpt.taken .className { text-decoration: line-through; }
@@ -2026,8 +1990,8 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
 .classMetaBtn { display: none; }
 
 /* --- difficulte -------------------------------------------------------------
-   Le segment reste un segment \u2014 c'est la bonne forme pour trois etats
-   exclusifs \u2014 mais dans un etui, comme les onglets de connexion. */
+   Le segment reste un segment — c'est la bonne forme pour trois etats
+   exclusifs — mais dans un etui, comme les onglets de connexion. */
 #vote { display: flex; flex-direction: column; gap: var(--sp-2); }
 #voteRow { display: flex; }
 #voteRow button {
@@ -2056,7 +2020,6 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
   font-size: var(--t-s);
   transition: border-color var(--tap) linear, background var(--tap) linear;
 }
-.metaLine:hover { background: color-mix(in srgb, var(--go) 5%, var(--ui-panel)); }
 .metaLine.confort { grid-template-columns: 170px 1fr 84px; }
 .metaLine.equipped { border-color: var(--go); box-shadow: inset 0 0 0 var(--hair) var(--go); }
 .metaName { font-family: var(--font-display); font-weight: 600; color: var(--text); }
@@ -2083,7 +2046,7 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
 
 /* --- choix de carte ---------------------------------------------------------
    L'ecran le plus important du jeu : la seule decision structurante de la
-   manche. Les cartes gardent leur largeur fixe \u2014 ici c'est justifie, on compare
+   manche. Les cartes gardent leur largeur fixe — ici c'est justifie, on compare
    trois objets identiques et une largeur variable rendrait la comparaison
    fausse. */
 #cards { gap: var(--sp-6); }
@@ -2102,7 +2065,6 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
   background: var(--ui-panel);
   border: var(--hair) dashed var(--ui-line);
 }
-#cardsReroll:hover:not(:disabled) { color: var(--go); border-style: solid; border-color: var(--go); }
 
 .cardOpt {
   width: 268px;
@@ -2178,7 +2140,7 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
 .cardDelta { color: var(--text); font-weight: 600; }
 
 /* Materiaux de rarete : chaque rarete a un MATERIAU et pas seulement une
-   couleur \u2014 bordure plate, bordure epaisse, lueur, degrade anime. C'est ce qui
+   couleur — bordure plate, bordure epaisse, lueur, degrade anime. C'est ce qui
    la rend reconnaissable au coin de l'oeil, avant meme d'etre lue. */
 .cardOpt.r0 { border-color: color-mix(in srgb, var(--commune) 60%, var(--ui-line)); }
 .cardOpt.r1 {
@@ -2227,7 +2189,6 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
   color: var(--text-dim);
   background: var(--ui-panel);
 }
-.buildNav:hover:not(:disabled) { color: var(--go); border-color: var(--go); }
 #buildStats { display: flex; gap: var(--sp-3); flex-wrap: wrap; justify-content: center; }
 .buildStat { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
 .buildStat .val { font-family: var(--font-display); font-size: var(--t-xl); font-weight: 700; letter-spacing: var(--track-title); }
@@ -2320,7 +2281,13 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
   animation: fadeIn var(--fade) ease-out;
 }
 #pause[hidden] { display: none; }
-#pausePanel { align-items: stretch; border: var(--hair) solid var(--ui-line); background: var(--ui-panel); }
+#pausePanel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: var(--hair) solid var(--ui-line);
+  background: var(--ui-panel);
+}
 #pauseState {
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -2369,7 +2336,11 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
 }
 .hurtRow { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--t-s); color: var(--text-dim); }
 .hurtIco { display: flex; width: 14px; height: 14px; flex: 0 0 auto; }
+.hurtLab { flex: 0 0 120px; }
+.hurtBar { flex: 1 1 auto; background: var(--ui-field); }
+.hurtBar > i { display: block; height: 100%; }
 .hurtVal { flex: 0 0 44px; text-align: right; font-family: var(--font); color: var(--text); font-weight: 700; }
+#bilanHurt { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
 
 /* --- fenetres etroites, reprise --------------------------------------------- */
 @media (max-width: 720px) {
@@ -2422,7 +2393,7 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
   /* Un aplat opaque coupait net la grille du fond a la limite des colonnes.
      Un voile translucide la laisse traverser : les deux colonnes restent le
      meme ecran, la droite est seulement plus dense. */
-  background: color-mix(in srgb, var(--bg-void) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-arena) 55%, transparent);
   min-width: 0;
   overflow-y: auto;
 }
@@ -2580,8 +2551,7 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
 .panelCardHead #teamReady { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); }
 .panelWrap #classes, .panelWrap #vote, .panelWrap #scoresWrap { padding-inline: 0; }
 .panelLeaveRow #panelLeave { background: none; border-color: transparent; color: var(--text-dim); }
-.panelLeaveRow #panelLeave:hover:not(:disabled) { border-color: var(--ui-line); color: var(--text); background: none; }
-
+.panelLeaveRow 
 /* Une ligne d'equipe. Le fond vert dit « pret » sans qu'on ait à lire. */
 #teamList { display: flex; flex-direction: column; gap: var(--sp-1); }
 #teamList .teamRow {
@@ -2706,3 +2676,205 @@ tr.clickable:hover td { background: color-mix(in srgb, var(--go) 6%, transparent
   .panelBarInner { justify-content: center; }
   .panelWrap { padding-bottom: 200px; }
 }
+
+/* ===========================================================================
+   ETATS DE SURVOL, DE FOCUS ET DESACTIVE — LA SECTION FINALE
+
+   Elle est EN DERNIER dans la feuille, et c'est deliberé. Les etats etaient
+   disperses : une regle generique dans la reprise, une regle par ecran plus
+   haut, une regle par famille de bouton au milieu. Toutes de specificite
+   voisine, donc c'est l'ORDRE qui tranchait — et l'ordre changeait a chaque
+   ajout. Resultat visible : l'action principale virait au gris au survol au
+   lieu de s'eclaircir, parce qu'une regle de fond neutre passait derniere.
+
+   Tout est ici, une famille apres l'autre, du plus general au plus precis.
+   Rien d'autre dans la feuille ne doit definir un `:hover` de bouton.
+
+   La grammaire tient en une phrase : un survol dit « je reponds », il ne dit
+   jamais autre chose. Il ne change donc PAS le sens d'un element — un bouton
+   ambre reste ambre, un bouton letal reste rouge, un bouton desactive ne
+   bouge pas du tout.
+   =========================================================================== */
+
+/* --- 1. le socle : tout ce qui est cliquable -------------------------------- */
+button, .roomEntry, .classOpt, .cardOpt, .metaLine, tr.clickable {
+  transition: background var(--tap) linear, border-color var(--tap) linear,
+              color var(--tap) linear, box-shadow var(--fade) linear,
+              transform var(--tap) ease-out, filter var(--tap) linear;
+}
+
+/* Un bouton DESACTIVE ne reagit a rien. C'est la premiere regle, et la seule
+   qui n'a pas d'exception : un element qui repond au survol mais pas au clic
+   est la pire des reponses — elle promet puis refuse. */
+button:disabled,
+button:disabled:hover,
+.roomEntry:disabled,
+.roomEntry:disabled:hover,
+.classOpt:disabled,
+.classOpt:disabled:hover {
+  opacity: .42;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+#start:disabled, #start:disabled:hover {
+  opacity: 1;   /* 45 % le rendrait illisible a cette taille */
+  background: var(--ui-panel);
+  border-color: var(--ui-line);
+  color: var(--text-faint);
+}
+
+/* --- 2. bouton ordinaire ----------------------------------------------------
+   Le cas le plus frequent : « Actualiser », « Retour », « Talents », les
+   fleches du build. Le fond s'eclaircit d'un cran et le texte passe en blanc.
+   Pas de teinte : ce sont des actions neutres, et les colorer toutes reviendrait
+   a n'en signaler aucune. */
+button:hover:not(:disabled) {
+  background: var(--bg-raised);
+  border-color: color-mix(in srgb, var(--line) 85%, var(--text-dim));
+  color: var(--text);
+}
+
+/* --- 3. l'action principale de chaque ecran --------------------------------
+   Elle est deja cyan pleine : elle ne peut pas « s'eclaircir d'un cran » comme
+   les autres. Elle monte donc en LUMIERE — teinte plus vive et lueur qui
+   double — et elle ne se leve pas. Un bouton deja cyan qui bougerait en plus
+   ferait deux signaux pour un seul etat. */
+#start:hover:not(:disabled),
+#go:hover:not(:disabled),
+#regGo:hover:not(:disabled),
+#menuClose:hover:not(:disabled),
+#bilanGo:hover:not(:disabled),
+#pauseResume:hover:not(:disabled),
+#roomCreate:hover:not(:disabled),
+#hubPassAskGo:hover:not(:disabled) {
+  background: color-mix(in srgb, #fff 14%, var(--go));
+  border-color: color-mix(in srgb, #fff 14%, var(--go));
+  color: var(--bg-void);
+  box-shadow: var(--glow-go-hi);
+  transform: none;
+  filter: none;
+}
+#start:active:not(:disabled),
+#go:active:not(:disabled),
+#regGo:active:not(:disabled),
+#menuClose:active:not(:disabled),
+#bilanGo:active:not(:disabled),
+#pauseResume:active:not(:disabled) {
+  background: var(--go);
+  box-shadow: var(--glow-go);
+}
+
+/* --- 4. l'avertissement ambre ----------------------------------------------
+   « Continuer quand meme ». Il garde sa couleur au survol : le passer au cyan
+   reviendrait a dire « vas-y » sur le seul bouton de l'ecran qui dit « lis
+   d'abord ». */
+#gateContinue:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  border-color: var(--warn);
+  color: var(--warn);
+  box-shadow: none;
+  filter: none;
+}
+
+/* --- 5. l'action letale ----------------------------------------------------- */
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--lethal) 18%, transparent);
+  border-color: var(--lethal);
+  color: var(--lethal);
+}
+
+/* --- 6. le bouton fantome ---------------------------------------------------
+   Sans bordure au repos : elle APPARAIT au survol. C'est ce qui lui donne son
+   affordance sans qu'il pese comme un vrai bouton le reste du temps. */
+button.ghost:hover:not(:disabled),
+#panelLeave:hover:not(:disabled),
+#settingsClose:hover:not(:disabled),
+#hubPassAskCancel:hover:not(:disabled) {
+  background: none;
+  border-color: var(--ui-line);
+  color: var(--text);
+}
+
+/* --- 7. segments : onglets et difficulte ------------------------------------
+   L'option ACTIVE ne repond pas au survol — on ne peut pas la choisir deux
+   fois, et un retour sur un etat deja acquis se lit comme un bug. Seules les
+   options non choisies s'eclairent. */
+#gateTabs button:hover:not(.mine):not(:disabled),
+#voteRow button:hover:not(.mine):not(:disabled) {
+  background: color-mix(in srgb, var(--go) 6%, transparent);
+  color: var(--text);
+  border-color: transparent;
+}
+#gateTabs button.mine:hover, #voteRow button.mine:hover {
+  background: color-mix(in srgb, var(--go) 10%, var(--ui-panel));
+  color: var(--go);
+}
+
+/* --- 8. les surfaces choisissables ------------------------------------------
+   Salle, classe, carte, ligne de talent. Elles se LEVENT — c'est le seul
+   groupe qui a le droit de bouger, parce que ce sont des objets qu'on prend et
+   non des commandes qu'on presse. La levee est proportionnelle au poids de
+   l'objet. */
+#roomList .roomEntry:hover:not(:disabled) {
+  transform: translateY(var(--lift-1));
+  background: color-mix(in srgb, var(--go) 7%, var(--ui-panel));
+  border-color: color-mix(in srgb, var(--go) 55%, transparent);
+}
+.classOpt:hover:not(:disabled) {
+  transform: translateY(var(--lift-2));
+  background: color-mix(in srgb, currentColor 8%, var(--ui-panel));
+  border-color: color-mix(in srgb, currentColor 55%, transparent);
+}
+.cardOpt:hover:not(:disabled):not(.picked):not(.faded) {
+  transform: translateY(var(--lift-3));
+  border-color: currentColor;
+}
+
+/* Une carte deja verrouillee ou ecartee ne bouge plus : le choix est fait. */
+.cardOpt.picked:hover, .cardOpt.faded:hover { transform: none; }
+
+/* --- 9. la barre superieure -------------------------------------------------
+   Ses boutons vivent sur un fond translucide : un fond plein au survol y ferait
+   une tache. Seule la couleur change. */
+#topHome:hover:not(:disabled) { background: none; border-color: transparent; color: var(--go); }
+#topSettings:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--go) 8%, transparent);
+  border-color: color-mix(in srgb, var(--go) 30%, transparent);
+  color: var(--go);
+}
+
+/* --- 10. relance et navigation du build ------------------------------------- */
+#cardsReroll:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--go) 7%, var(--ui-panel));
+  border-style: solid;
+  border-color: var(--go);
+  color: var(--go);
+}
+.buildNav:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--go) 8%, var(--ui-panel));
+  border-color: var(--go);
+  color: var(--go);
+}
+.metaBuy:hover:not(:disabled), .metaEquip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--go) 12%, transparent);
+  border-color: var(--go);
+  color: var(--go);
+}
+
+/* --- 11. champs et focus ----------------------------------------------------
+   Le focus est un anneau et non une bordure : une bordure qui change d'epaisseur
+   decale d'un pixel tout ce qui suit. */
+input:hover:not(:focus) { border-color: color-mix(in srgb, var(--line) 85%, var(--text-dim)); }
+input:focus {
+  border-color: var(--go);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--go) 18%, transparent);
+}
+:focus-visible {
+  outline: 2px solid var(--go);
+  outline-offset: 2px;
+}
+/* Le clavier voit l'anneau, la souris non : un anneau qui apparait sous le
+   curseur ajoute un second signal la ou le survol suffit deja. */
+:focus:not(:focus-visible) { outline: none; }
