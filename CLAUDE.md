@@ -62,6 +62,7 @@ public/admin.html      page d'administration autonome — servie SEULEMENT si AD
 public/css/tokens.css  espacement, géométrie, mouvement (aucune couleur, cf. charte)
 public/css/ui.css      les écrans hors combat
 public/css/menus.css   refonte des MENUS — additive, chargée APRÈS ui.css, ne touche aucun écran de combat
+public/css/admin.css   la SEULE feuille qui recopie la palette — admin.html ne charge pas le jeu
 public/css/hud.css     la couche écran pendant la manche
 public/fonts/          Chakra Petch + Barlow (sous-ensemble latin), versionnées avec le jeu
 ```
@@ -972,6 +973,8 @@ on enveloppe, on n'échange pas. Aucun `id` renommé, aucune classe posée par
 | `#hubScreen` | `.hubWrap` · `.hubHead` · `.hubCreate` · `.hubLead` |
 | `#panel` | `.panelWrap` · `.panelHead` · `.panelGrid` (`.panelChoices` / `.panelState`) · `.panelCard` · `.panelBar` (`.panelBarInner`, `.panelBarText`) · `.panelLead` · `.panelLeaveRow` |
 | `#menu` | `.metaWrap` · `.metaHead` · `.metaCoresBox` · `.metaLead` · `.metaBack` |
+| `#topbar` | hors des `.overlay`, avant `#stage` — `#topHome` · `#topCrumb` · `#topPing` · `#topUser` · `#topSettings` |
+| `#settings` | `.setWrap` · `.setHead` · `.setCard` · `.setRow` · `.keyRow` (`.keyCombo`, `.keyCap`, `.keyDesc`) |
 
 `#loading`, `#bilan`, `#cards`, `#build` et `#pause` marchent au **CSS seul** :
 leur markup d'origine suffit.
@@ -983,6 +986,18 @@ enfant DIRECT de `#panel`** et jamais de `.panelWrap` — elle est en
 entière, parce que c'est l'information qu'on vient chercher et non le suffixe
 d'un libellé.
 
+**La barre supérieure OBSERVE l'état des écrans, elle ne le pilote pas**
+(`syncTopbar()`, un `MutationObserver` sur le seul attribut `hidden`). Un
+`showScreen(name)` unique aurait demandé de réécrire une quinzaine de chemins
+d'affichage, dont plusieurs portent des règles d'ordonnancement documentées —
+`worldQueue`, les gardes de `refreshPanel`. Un observateur ne **peut pas**
+oublier un écran, puisqu'il constate au lieu de décider. Elle est un enfant
+direct de `<body>`, **avant `#stage`** : le CSS la pose en `position: sticky`,
+donc dans le flux, et derrière un `#stage` haut de 100 % elle tombait hors
+écran. Corollaire dans `ui.css` : `#topbar:not([hidden]) ~ .overlay` décale les
+écrans de 56 px, sans quoi leurs premiers pixels passent dessous — le kicker du
+salon disparaissait.
+
 **Un seul point d'entrée vers la progression : `#metaOpen` dans la barre
 d'action.** Il remplace le bouton par carte de classe (`.classMetaBtn`) : trois
 boutons pour le même écran, c'était trois fois la même action, et chacune
@@ -992,6 +1007,30 @@ un seul but, se faire choisir.
 **L'unité de la monnaie s'écrit en toutes lettres, jamais en glyphe** :
 « 650 noyaux », jamais « 650 ◈ ». Un signe inventé doit s'apprendre avant qu'on
 puisse lire un prix, et il n'existe nulle part ailleurs dans le jeu.
+
+**Un seul réglage, trois vues : `audioUi` est le point de passage unique.**
+Les curseurs de volume vivent sur l'accueil, la pause **et** l'écran de
+paramètres, et règlent la même valeur — trois nombres différents pour un seul
+volume seraient pires qu'un seul curseur. Le jeu des paramètres n'a
+volontairement pas de bouton de coupure : couper le son est un geste d'urgence,
+il a sa place là où l'on est déjà, pas dans un écran qu'il faut d'abord ouvrir.
+`mute` est donc optionnel dans la table. `#settings` retient l'écran d'où l'on
+vient (`settingsFrom`, l'élément et non un nom) : sans lui on ressortirait
+toujours au hub, donc on perdrait son salon pour avoir voulu baisser le son.
+
+**`admin.html` ne charge NI `client.js` NI `shared/palette.js`, et c'est ce qui
+la rend utilisable.** Elle importait `cssVars` dans un `<script type="module">`
+— or un module dont l'import échoue ne s'exécute **pas du tout** : une
+arborescence `shared/` cassée laissait une page inerte, sans bouton
+« Actualiser », c'est-à-dire sans moyen de diagnostiquer la panne qu'on vient
+constater. C'est exactement le scénario pour lequel la page existe.
+`public/css/admin.css` recopie donc la palette à la main : **seule duplication
+autorisée du dépôt**, commentée des deux côtés — une couleur changée dans
+`palette.js` s'y reporte à la main. Deux écarts voulus avec les menus : les
+angles y restent **durs** (le rayon franc dit « poste de contrôle du joueur »,
+l'angle dur dit « machinerie ») et le kicker est **ambre** et non cyan — le
+cyan dit « il faut y aller » partout ailleurs, ici il faut dire « tu es hors du
+jeu, sur un outil qui touche aux données de tout le monde ».
 
 **Rien de décoratif ne se superpose au jeu.** Tout ornement — balayage des
 légendaires, logotype — vit dans les écrans hors combat. Les transitions entre

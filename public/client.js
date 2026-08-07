@@ -807,8 +807,12 @@ function renderServerInfo(info) {
 
   if (!gateServerEl) return;
 
+  /* Les trois classes sont celles que la feuille connait — `pending`, aucune,
+     `off` — et pas un vocabulaire invente : `.online` / `.offline` n'existent
+     nulle part dans le CSS, la pastille serait restee verte et pulsante y
+     compris serveur tombe. */
   if (!info) {
-    gateServerEl.className = "gateChip offline";
+    gateServerEl.className = "gateChip off";
     gateServerEl.innerHTML = `<i class="chipDot"></i>serveur injoignable`;
     gateRoomsEl.hidden = true;
     gateBuildEl.hidden = true;
@@ -817,7 +821,7 @@ function renderServerInfo(info) {
 
   const ms = Number(info.rtt);
   const lat = Number.isFinite(ms) && ms >= 0 ? `${ms} ms` : "—";
-  gateServerEl.className = "gateChip online";
+  gateServerEl.className = "gateChip";
   gateServerEl.innerHTML = `<i class="chipDot"></i>serveur en ligne · ${escapeHtml(lat)}`;
 
   const n = info.rooms | 0;
@@ -868,9 +872,13 @@ async function pollServerInfo() {
    formulaire de creation serait un cul-de-sac. */
 function renderGateSwitch(register) {
   if (!gateSwitchEl) return;
+  /* Pas de classe sur le bouton : la feuille habille `.gateSwitch button`
+     directement. Un `.linkBtn` de plus n'aurait rien style et aurait laissé
+     croire le contraire. Un `<button>` et non un `<a>` — ca ne navigue nulle
+     part, ca bascule un onglet dans la meme page. */
   gateSwitchEl.innerHTML = register
-    ? `Tu as déjà un compte ? <button type="button" class="linkBtn" id="gateSwitchBtn">Connecte-toi.</button>`
-    : `Pas encore de compte ? <button type="button" class="linkBtn" id="gateSwitchBtn">Crée-en un en dix secondes.</button>`;
+    ? `Tu as déjà un compte ? <button type="button" id="gateSwitchBtn">Connecte-toi.</button>`
+    : `Pas encore de compte ? <button type="button" id="gateSwitchBtn">Crée-en un en dix secondes.</button>`;
   gateSwitchEl.querySelector("#gateSwitchBtn").onclick = () => activateTab(!register);
 }
 
@@ -1582,12 +1590,16 @@ function renderHistory() {
       : "—";
     const mode = DIFFICULTIES[h.diffIndex]?.label ?? "?";
 
+    /* DEUX cellules et une troisieme vide, pas trois pleines : la feuille
+       n'habille que `.histWhen` et `.histLabel`, et le mode comme la vague
+       forment une seule information — « ce qu'on a joué et jusqu'où ». Les
+       separer sur deux colonnes les faisait lire comme deux mesures. */
     const row = document.createElement("div");
     row.className = "histRow";
     row.innerHTML =
       `<span class="histWhen">${escapeHtml(heure)}</span>` +
-      `<span class="histLabel">${escapeHtml(mode)}</span>` +
-      `<span class="histWave">vague ${h.wave | 0}</span>`;
+      `<span class="histLabel">${escapeHtml(mode)} · vague ${h.wave | 0}</span>` +
+      `<span></span>`;
     historyListEl.appendChild(row);
   }
 }

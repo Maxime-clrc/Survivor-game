@@ -217,7 +217,12 @@
          La latence decide si on joue maintenant, le nombre de salles dit s'il
          y a du monde, le numero de version sert au dépannage. -->
     <div class="gateStatus">
-      <span class="gateChip" id="gateServer"><i class="chipDot"></i>connexion au serveur…</span>
+      <!-- Trois etats, et le repos est « en ligne » : `pending` (temoin ambre)
+           tant qu'on n'a pas de reponse, aucune classe une fois le serveur
+           joint (temoin vert qui pulse), `off` quand il ne repond plus (temoin
+           rouge, PULSATION COUPEE — un temoin qui bat alors que le serveur est
+           tombe est pire que pas de temoin). -->
+      <span class="gateChip pending" id="gateServer"><i class="chipDot"></i>connexion au serveur…</span>
       <span class="gateChip" id="gateRooms" hidden></span>
       <span class="gateChip" id="gateBuild" hidden></span>
     </div>
