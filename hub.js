@@ -24,6 +24,7 @@ import { CFG, PLAYER_COLORS, DIFF_NORMAL } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial } from "./shared/progression.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
+import { VERSION } from "./shared/version.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
 
 /* Surchargeables par l'environnement POUR LES TESTS uniquement (un delai de
@@ -51,7 +52,10 @@ const PSEUDO_FREEZE_MS = 10000;
    de la trouver, le code n'a pas besoin d'etre secret ni memorisable. */
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
-export function createHub(store, log) {
+/* `commit` : hash court du commit, resolu au boot par `server.js`. Chaine vide
+   quand il n'a pas pu l'etre (archive sans .git, git absent) — le hub n'a alors
+   rien a dire, et la cle ne part pas. */
+export function createHub(store, log, commit = "") {
   const clients = new Map();          // id -> client (toutes connexions, authentifiees ou non)
   const rooms = new Map();            // code -> Room
   const ipCounts = new Map();         // adresse -> connexions ouvertes
@@ -554,6 +558,18 @@ export function createHub(store, log) {
       // par jeton n'en regenere pas, elle prolonge l'existant.
       token: token ?? undefined,
       colors: PLAYER_COLORS,
+      /* La version du SERVEUR. Le client compare avec celle qu'il a lui-meme
+         importee : les fichiers sont servis en `no-store`, donc aucune requete
+         ne ramene du vieux code — mais un onglet LAISSE OUVERT pendant un
+         redeploiement continue de faire tourner celui de la veille, et c'est
+         precisement ce qui produit les rapports de defaut incomprehensibles.
+         Cle nommee, envoyee une fois par connexion : quelques octets, aucun
+         instantane touche, et un client d'avant ce lot l'ignore simplement. */
+      version: VERSION,
+      /* Le hash court, quand on a pu le resoudre. `|| undefined` et non la chaine
+         vide : une cle absente se lit « on ne sait pas », une chaine vide
+         s'afficherait comme une parenthese vide a l'ecran. */
+      commit: commit || undefined,
       dup: client.tempAccount ? 1 : 0,
       rejoin,
       cfg: {

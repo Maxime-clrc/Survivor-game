@@ -428,6 +428,14 @@
   </div>
 </div>
 
+<!-- Numéro de version, en bas à droite. FRÈRE des écrans et non leur contenu,
+     comme `#hud` est le frère de `#arena` : il doit survivre à l'écran qui
+     s'ouvre par-dessus. Masqué pendant une manche — « rien de décoratif ne se
+     superpose au jeu » — sauf menu pause, qui est justement le moment où on le
+     recopie dans un rapport de défaut. Vide au chargement : c'est `client.js`
+     qui le remplit, depuis `shared/version.js`. -->
+<div id="version" hidden></div>
+
 <script>
   // Si client.js ne se charge pas (mauvaise arborescence, ouverture en file://),
   // le bouton reste inerte sans le moindre message. On rend l'echec visible.

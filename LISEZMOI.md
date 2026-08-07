@@ -21,6 +21,25 @@ prendre un sans collision) ; pour en changer : `PORT=3000 node server.js`
 2. **Pare-feu** — autoriser Node.js en entrée.
 3. **IP changée** — relance le serveur et relis l'adresse affichée.
 
+### Le numéro en bas à droite
+
+`v0.7.0 (a1b2c3d)` : la version du jeu, et le hash du commit qui tourne sur le
+serveur. C'est ce qu'on demande en premier quand quelqu'un signale un défaut, et
+c'est là pour être recopié — il reste affiché sur l'écran d'accueil, la liste des
+salons, le salon, le bilan et le menu pause. Il disparaît **pendant** une manche :
+rien de décoratif ne se superpose au jeu.
+
+S'il passe en **ambre** avec « recharge la page », l'onglet fait tourner un code
+plus vieux que le serveur. C'est le cas qu'on cherchait à attraper : le serveur
+demande aux navigateurs de ne rien garder en cache, donc aucune requête ne
+ramène du vieux code — mais un onglet *laissé ouvert* pendant qu'on redéploie
+continue de faire tourner celui de la veille, et les défauts qu'il produit
+n'existent nulle part ailleurs. F5 suffit.
+
+Le hash n'apparaît **que** dans le cas normal. En désaccord, il serait celui du
+serveur à côté d'un numéro qui vient de l'onglet, c'est-à-dire deux codes
+différents affichés comme un seul.
+
 ## Déroulement d'une partie
 
 On entre avec un **compte** : pseudo + mot de passe, créé sur la page

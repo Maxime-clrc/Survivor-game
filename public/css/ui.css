@@ -1145,3 +1145,32 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 #bilanBar { width: 260px; height: var(--hair); background: var(--line); }
 #bilanBar > i { display: block; height: 100%; background: var(--text-faint); }
 #bilanHint { font-size: var(--t-xs); color: var(--text-faint); }
+
+/* --- numero de version -----------------------------------------------------
+   AUCUNE COULEUR ici : `--text-faint` et `--warn` viennent de `palette.js` par
+   `cssVars()`, seul sens autorise. Une couleur ecrite dans une feuille de style
+   est un bug dans ce depot.
+
+   `pointer-events: none` n'est pas une precaution de style : l'element est en
+   `position: fixed` au-dessus de tous les ecrans (z-index 25 > 20 de `#build`,
+   15 du menu pause, 10 des `.overlay`), donc sans lui il intercepterait un clic
+   destine a un bouton place dans ce coin.
+
+   Bas a DROITE : l'overlay `?perf` occupe le bas a gauche. */
+#version {
+  position: fixed;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  z-index: 25;
+  font-size: var(--t-xs);
+  color: var(--text-faint);
+  pointer-events: none;
+  user-select: none;
+}
+#version[hidden] { display: none; }
+
+/* Onglet perime. AMBRE et non rouge : c'est la couleur de l'avertissement dans
+   la grammaire du depot (« ambre : danger, sortir » — ici, sortir de cet
+   onglet), et rien n'est letal. « Jamais de rouge pour quelque chose ou il faut
+   aller », et il faut aller recharger la page. */
+#version.stale { color: var(--warn); }

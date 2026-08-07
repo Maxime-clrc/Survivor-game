@@ -12,6 +12,7 @@ Mini survivor multijoueur LAN. Serveur Node autoritaire, client navigateur, **z�
 npm start                 # lance le serveur sur le port 7777
 PORT=8123 node server.js  # autre port
 node --check server.js    # vérification syntaxique (pas de linter dans le projet)
+npm run version-check     # refuse un déploiement dont les sources ont bougé sans bump
 ```
 
 Le port par défaut est **7777** et non 8080 : derrière le proxy inverse du VPS
@@ -33,6 +34,40 @@ Les méthodes préfixées `_` (`_spawnEnemy`, `_atkDamier`, `_zoneHits`, `_bossB
 
 Pour un test bout en bout du protocole, lancer `server.js` avec un `PORT` dédié et parler WebSocket en direct (`net` + poignée de main RFC 6455) — Node 16 n'a pas de `WebSocket` global.
 
+### Comment on incrémente la version
+
+**`minor` = le plan, `patch` = le rang du lot dedans.** `plan5` occupe donc
+`0.7.x` — lot O = 0.7.0, lot P = 0.7.1 — et `plan6` ouvrira 0.8.0. La
+correspondance lettre → chiffre est **écrite** dans la table d'historique de
+`shared/version.js` et non calculée : un correctif hors lot prend le patch
+suivant comme un lot, donc la lettre ne se déduit plus du chiffre. Un quatrième
+composant (`0.7.1.1`) sortirait de semver et une pré-version (`0.7.1-fix`)
+donnerait deux formes de chaîne à comparer côté client, pour la seule
+comparaison dont dépend la détection d'onglet périmé.
+
+**Un lot livré = un bump**, dans `shared/version.js` (constante **et** ligne
+d'historique) puis dans `package.json`. La table d'historique est le
+`CHANGELOG` que le dépôt n'a pas, et elle vit là parce que c'est le seul fichier
+qu'un lot est obligé de toucher : on ne peut pas bumper sans écrire ce qu'on
+bumpe.
+
+`npm run version-check` est ce qui rend la règle tenable — il échoue si des
+sources (`.js`, `.css`, `.html`, hors `docs/` et `*.md`) ont bougé depuis le
+dernier bump sans que la constante suive, et si `package.json` diverge. Sans lui
+un lot déployé sans bump rend la mention ambre du client **silencieusement**
+inutile : le client ne compare que deux numéros, et deux codes différents
+portant le même numéro ne déclenchent rien. C'est exactement le défaut du
+`package.json` figé à 0.6.0 depuis le premier commit. Le script ne bumpe pas à
+la place — il ne saurait pas quel lot il livre, or c'est ce que la table doit
+porter.
+
+Le **hash court du commit** couvre ce que le numéro ne peut pas : deux
+déploiements par `git pull` peuvent partager un numéro, et si quelqu'un a oublié
+de bumper c'est la seule chose qui dise encore quel code tourne. Résolu une fois
+au boot (`shortCommit()` dans `server.js`, `execFileSync`), passé à
+`createHub`, transporté par le `welcome`. Absent hors dépôt git — c'est un
+confort d'exploitation, il ne bloque jamais un démarrage.
+
 ## Architecture
 
 ```
@@ -47,7 +82,9 @@ shared/statuses.js     les 4 états, la priorité de purge, les états posés pa
 shared/bosses.js       le roster des 5 boss, le registre des mécaniques, leurs seuils d'effectif
 shared/progression.js  la méta : arbres par classe, noyaux, jalons, emplacements (module pur)
 progress_store.js      persistance Supabase de la progression — serveur SEUL, mémoire + réplique
+version_check.js       garde-fou : refuse un déploiement dont les sources ont bougé sans bump
 shared/units.js        pixels → mètres, le SEUL point de conversion d'affichage
+shared/version.js      LA version — module pur d'une constante, lu par le serveur ET le navigateur
 shared/palette.js      LA CHARTE — couleurs, rampes, échelle typo, lues par le canvas ET le DOM
 public/client.js       saisie, interpolation, prédiction, rendu du MONDE
 public/sprites.js      atlas généré au chargement + `drawSprite`, LE point de passage d'entité
@@ -668,7 +705,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | façon de mourir d'un type | rien — déduit du type déjà porté par le snapshot | `DEATH_BURST` dans `client.js` : compte, taille, vitesse, durée, halo et ouverture de gerbe |
 | pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
 | hub des salles | messages `listRooms` · `createRoom` · `joinRoom` · `leaveRoom` (client → serveur) ; `rooms` · `roomJoined` · `joinRoomError` (motifs `pleine` · `disparue` · `motdepasse` · `plafond`) · `roomClosed` (serveur → client) — routés par `hub.js`, jamais par une salle | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
-| identité (compte + session) | messages `register` · `login` · `loginToken` · `logout` · `changePass` (client → serveur) ; `register/login/loginToken/…` dans `progress_store.js` ; réponses `welcome{pseudo,token?,dup}` · `authError{motif,fatal?}` · `passChanged` · `loggedOut` ; ni hachage ni mot de passe ne voyagent jamais vers un client | `#gate` (trois modes : reprise / connexion / création), bloc compte du hub, `survivor.token` en localStorage |
+| identité (compte + session) | messages `register` · `login` · `loginToken` · `logout` · `changePass` (client → serveur) ; `register/login/loginToken/…` dans `progress_store.js` ; réponses `welcome{pseudo,token?,dup,version}` · `authError{motif,fatal?}` · `passChanged` · `loggedOut` ; ni hachage ni mot de passe ne voyagent jamais vers un client | `#gate` (trois modes : reprise / connexion / création), bloc compte du hub, `survivor.token` en localStorage |
 | sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
@@ -676,6 +713,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) ; `p.hurtBy` sort au `roundEnd` | `SRC_ICON` dans `icons.js` + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
 | propriétaire d'une balle | cinquième élément du tuple `b`, ajouté **en fin** | `ownerColorOf(b.owner) ?? COMBAT.bullet` dans `drawWorld` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
+| version | `VERSION` dans `shared/version.js` (source unique, module pur, table d'historique en commentaire) ; clés `version` et `commit` du `welcome`, une fois par connexion ; `shortCommit()` au boot passé à `createHub` ; `server.js` compare `package.json` au boot et **journalise** un désaccord ; `version_check.js` le refuse avant | `#version` + `updateVersion()` dans `client.js` : `v0.7.0 (a1b2c3d)` en `--text-faint`, ambre `.stale` **sans le hash** si le serveur annonce autre chose |
 
 Six de ces registres sont **purement clients** — image de sprite, son, `kind`
 d'effet → son, glyphe posé sur un joueur, effet possédé visible en jeu, façon de

@@ -58,6 +58,11 @@ import { EventPump } from "/events.js";
    descriptions de cartes lisibles a l'ecran. Seule conversion d'affichage du
    fichier, et elle passe par le point unique. */
 import { PX_PER_M } from "/shared/units.js";
+/* La version du CODE QUE CET ONGLET EXECUTE, importee par le meme chemin que le
+   serveur. C'est la moitie client de la comparaison : l'autre arrive dans le
+   `welcome`, et leur desaccord est le seul moyen de detecter un onglet reste
+   ouvert pendant un redeploiement. */
+import { VERSION } from "/shared/version.js";
 /* Les glyphes sont dessines a deux endroits depuis que le HUD est sorti du
    canvas — dans l'arene et dans le DOM — d'ou un module a part plutot qu'une
    seconde copie des traces. */
@@ -361,6 +366,14 @@ function connect() {
         // La connexion tombe desormais sur le HUB, pas dans une partie : hote,
         // phase et statut de spectateur arriveront avec `roomJoined`.
         inRoom = false;
+        /* La version du serveur, envoyee une fois par connexion. `?? null` et
+           non `?? VERSION` : un serveur d'avant ce lot ne l'envoie pas, et
+           l'absence n'est pas un desaccord. */
+        serverVersion = msg.version ?? null;
+        // Absent quand le serveur tourne hors d'un depot git : rien a afficher,
+        // et surtout pas une parenthese vide.
+        serverCommit = msg.commit ?? "";
+        updateVersion();
         pendingRejoin = msg.rejoin ?? null;
         /* Le pseudo memorise est celui que le SERVEUR renvoie (casse
            canonique du compte), jamais la valeur tapee. Le jeton n'arrive
@@ -455,6 +468,10 @@ function connect() {
         closePause();
         showHud(false);
         panel.hidden = true;
+        // `closePause()` juste au-dessus sort a vide si le menu n'etait pas
+        // ouvert : le retour au hub depuis une manche a besoin de son propre
+        // appel, sinon le numero de version reste masque sur la liste des salles.
+        updateVersion();
         enterHub();
         if (msg.why === "erreur interne") {
           hubStatus("la salle a été fermée sur une erreur — désolé", true);
@@ -700,6 +717,10 @@ function connect() {
     closeBilan();
     closeBuild();
     closePause();
+    // Meme raison que dans `roomClosed` : une coupure en pleine manche renvoie
+    // sur `#gate`, ou le numero doit etre lisible — c'est l'ecran qu'on regarde
+    // au moment d'ecrire un rapport.
+    updateVersion();
     // `loggedOut` ferme aussi la socket : une deconnexion voulue n'est pas
     // une connexion perdue, le statut reste muet dans ce cas.
     if (localStorage.getItem("survivor.pseudo") || pendingAuth) {
@@ -1124,6 +1145,10 @@ startBtn.onclick = () => {
 /* --- salon et tableau des scores ---------------------------------------------- */
 
 function refreshPanel() {
+  /* AVANT toutes les gardes, et c'est ce qui fait de `refreshPanel` le bon
+     porteur : chacune de ses sorties precoces — hors salle, `#gate` ouvert,
+     Menu ouvert — est un ecran ou le numero de version doit rester VISIBLE. */
+  updateVersion();
   if (!connected) return;
   // Hors salle, il n'y a pas de salon : c'est le hub qui occupe l'ecran, et
   // un broadcast attarde de la salle qu'on vient de quitter ne doit pas le
@@ -2268,6 +2293,9 @@ function openPause() {
   pauseConfirm.hidden = true;
   if (!amSpectator) ws?.send(JSON.stringify({ t: "pause", on: 1 }));
   renderPauseState();
+  // Le menu pause est la seule exception au masquage en manche : c'est ici qu'on
+  // recopie un numero de version dans un rapport de defaut.
+  updateVersion();
 }
 
 function closePause() {
@@ -2278,6 +2306,7 @@ function closePause() {
   // est sans effet dans ce cas, et le tester ici aurait fait deux chemins la
   // ou un seul suffit.
   ws?.send(JSON.stringify({ t: "pause", on: 0 }));
+  updateVersion();
 }
 
 document.getElementById("pauseResume").onclick = closePause;
@@ -2292,6 +2321,69 @@ document.getElementById("pauseQuitYes").onclick = () => {
   ws?.send(JSON.stringify({ t: amSpectator ? "leaveRoom" : "leaveRound" }));
   closePause();
 };
+
+/* --- numero de version ---------------------------------------------------------
+   Un numero seul ne detecte pas le cas reel. Les fichiers sont servis en
+   `Cache-Control: no-store`, donc aucune requete ne ramene du vieux code — mais
+   un onglet LAISSE OUVERT pendant un redeploiement continue de faire tourner
+   celui de la veille, et c'est precisement ce qui produit les rapports de defaut
+   incomprehensibles. D'ou DEUX versions comparees, et c'est tout l'interet :
+   `VERSION` dit ce que cet onglet execute, `serverVersion` ce que le serveur
+   execute.
+
+   Le bloc vit ici, apres le menu pause, parce qu'`updateVersion` lit `pauseEl` :
+   place plus haut, l'appel de mise en place initiale tomberait dans la zone
+   morte de sa declaration. */
+const versionEl = document.getElementById("version");
+
+/* Null tant que le serveur n'a rien dit. L'ABSENCE N'EST PAS UN DESACCORD : un
+   serveur d'avant ce lot n'envoie pas la cle, et son client ne doit alors
+   afficher aucun avertissement. */
+let serverVersion = null;
+
+/* Hash court du commit du SERVEUR. Il n'est affiche qu'en cas d'ACCORD — voir
+   `updateVersion`, c'est le piege de cette paire. */
+let serverCommit = "";
+
+function updateVersion() {
+  /* Masque pendant une manche : « rien de decoratif ne se superpose au jeu », et
+     un numero de version est decoratif en combat. Le menu pause fait exception,
+     et ce n'est pas une entorse — c'est le seul ecran qui s'ouvre PAR-DESSUS la
+     manche, donc le seul endroit ou on lit l'ecran sans la quitter, et c'est la
+     qu'on recopie un numero dans un rapport de defaut.
+
+     `connected && inRoom` n'est pas une ceinture de securite : ni `ws.onclose`
+     ni `roomClosed` ne remettent `phase` a `PHASE_LOBBY`, donc une coupure
+     reseau ou une salle fermee EN PLEINE MANCHE renvoie sur `#gate` ou sur le
+     hub en laissant la phase a `PHASE_ROUND`. Sans ces deux termes, le numero
+     restait masque precisement sur l'ecran ou l'on vient lire ce qui s'est
+     passe. Une manche n'existe que dans une salle, et une salle qu'avec une
+     socket. */
+  versionEl.hidden = connected && inRoom && phase === PHASE_ROUND && pauseEl.hidden;
+
+  const stale = serverVersion != null && serverVersion !== VERSION;
+  /* AMBRE et non rouge — c'est la couleur de l'avertissement dans la grammaire
+     du depot, et rien n'est letal ici. La couleur vit dans `ui.css` via une
+     classe, jamais posee en style en ligne : le fichier ne connait pas de
+     couleur en dur. */
+  versionEl.classList.toggle("stale", stale);
+
+  /* LE HASH N'APPARAIT QUE DANS LE CAS D'ACCORD, et ce n'est pas un oubli dans
+     l'autre. Celui qu'on recoit est celui du SERVEUR, et un onglet ne peut pas
+     connaitre le sien sans etape de build — le depot n'en a pas. L'accoler a
+     `VERSION`, qui vient d'ici, serait donc faux exactement dans le cas ou l'on
+     regarde l'ecran : « v0.7.0 (a1b2c3d) » decrirait deux codes differents comme
+     un seul. Quand les deux versions s'accordent, c'est le meme code et le hash
+     est aussi le sien. */
+  versionEl.textContent = stale
+    ? `v${VERSION} — serveur v${serverVersion} · recharge la page`
+    : `v${VERSION}${serverCommit ? ` (${serverCommit})` : ""}`;
+}
+
+/* Mise en place immediate : au chargement, `#gate` est ouvert et personne n'a
+   encore appele `refreshPanel()`, qui sort des sa premiere garde tant qu'on
+   n'est pas connecte. */
+updateVersion();
 
 /* --- reception des snapshots --------------------------------------------------- */
 

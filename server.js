@@ -18,6 +18,7 @@
    =========================================================================== */
 
 import { createServer } from "node:http";
+import { execFileSync } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
@@ -27,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { attachWebSocket } from "./ws_lite.js";
 import { createHub } from "./hub.js";
 import { createStore } from "./progress_store.js";
+import { VERSION } from "./shared/version.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 /* 7777 et non 8080 : derriere un proxy inverse le port interne n'a plus
@@ -226,8 +228,52 @@ function log(msg) {
    chargement precede l'ecoute (`store.ready` avant listen()), et sans
    configuration le jeu reste jouable mais la progression meurt avec le
    processus. Le hub est le SEUL a ecrire dedans. */
+/* Hash court du commit, resolu UNE fois au demarrage et jamais par requete.
+   Il repond a la question que la version seule ne couvre pas : sur un VPS
+   deploye par `git pull`, deux deploiements peuvent partager le meme numero —
+   et c'est aussi le filet quand quelqu'un a oublie de bumper, cas ou le numero
+   ne dit plus rien mais ou le hash dit encore quel code tourne.
+
+   `execFileSync` et non un lancement asynchrone : dix millisecondes au boot, et
+   la version asynchrone obligerait a attendre avant de construire le hub. Pas de
+   shell (tableau d'arguments), et `stdio` muet sur l'erreur — hors d'un depot
+   git, la sortie d'erreur polluerait le journal de demarrage pour rien. */
+function shortCommit() {
+  try {
+    return execFileSync("git", ["rev-parse", "--short", "HEAD"],
+      { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    /* Deploiement depuis une archive, git absent du PATH, dossier sorti de son
+       depot : le hash est un CONFORT D'EXPLOITATION, son absence ne doit jamais
+       empecher un demarrage. Chaine vide = la cle ne part pas dans le welcome. */
+    return "";
+  }
+}
+
 const store = createStore(msg => log(msg));
-const hub = createHub(store, log);
+/* Le hash est passe A LA CONSTRUCTION, comme les `hooks` d'une Room : le hub ne
+   lit aucune variable de module posee ailleurs. */
+const hub = createHub(store, log, shortCommit());
+
+/* GARDE-FOU de version, pas une seconde source de verite : le serveur ne lit
+   jamais `package.json` pour connaitre sa version — `shared/version.js` est LA
+   source, et c'est elle que le navigateur importe. Le paquet etant `private` et
+   jamais publie, personne ne lit son champ `version` : sans ce controle il
+   mentirait en silence, et c'est exactement le genre de detail qu'on decouvre
+   en lisant un rapport de defaut.
+
+   Une ligne de journal et rien de plus. Refuser de demarrer pour un numero
+   desaccorde serait une panne auto-infligee sur une machine de joueur. Une
+   lecture de fichier au boot, jamais en regime. */
+readFile(join(ROOT, "package.json"), "utf8")
+  .then(txt => {
+    const v = JSON.parse(txt).version;
+    if (v !== VERSION) {
+      log(`ATTENTION package.json annonce ${v}, shared/version.js annonce ${VERSION}`
+        + " — c'est shared/version.js qui fait foi");
+    }
+  })
+  .catch(err => log(`package.json illisible (${err.message}) — version non verifiee`));
 
 attachWebSocket(httpServer, (conn, req) => hub.handleConnection(conn, req));
 
