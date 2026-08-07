@@ -553,13 +553,54 @@
    autres ecrans.
    =========================================================================== */
 #bilan { padding-bottom: var(--sp-12); }
-#bilanTitle { text-align: center; padding-inline: var(--sp-6); }
+
+/* Le rythme vertical du bilan. `#bilan` perd le `gap` de `.overlay` comme les
+   autres ecrans, mais lui n'a PAS de conteneur intermediaire pour le
+   reintroduire : ses cinq blocs sont des enfants directs, et sans gap ils se
+   touchent. Ils reprennent donc leur respiration un par un — et pas au meme
+   pas, parce qu'ils ne pesent pas pareil : le titre annonce, les chiffres
+   resument, le tableau est le sujet, la suite est une action. */
+#bilanTitle { text-align: center; padding: var(--sp-8) var(--sp-6) 0; }
+#bilanStats { margin-top: var(--sp-6); }
+#bilanHurt  { margin-top: var(--sp-8); }
+#bilanScores { margin-top: var(--sp-8); }
+#bilanNext  { margin-top: var(--sp-12); }
 #bilanStats, #bilanHurt, #bilanScores, #bilanNext { padding-inline: var(--sp-6); }
 #bilanScores { width: 100%; min-width: 0; }
 #bilanScores td.name { font-family: var(--font-display); }
-#bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); margin-top: var(--sp-8); }
+#bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); margin-top: var(--sp-12); }
 #bilanBar { width: min(320px, 60vw); height: var(--sp-1); border-radius: 999px; background: var(--bg-raised); overflow: hidden; }
 #bilanBar > i { display: block; height: 100%; border-radius: 999px; background: var(--go); }
+
+/* --- la ventilation des degats subis ------------------------------------------
+   La maquette montrait une BARRE EMPILEE surmontant une legende. `client.js`
+   rend autre chose : une ligne par provenance, avec son glyphe, son libelle,
+   sa barre et son pourcentage. Je garde la version du code, et ce n'est pas un
+   renoncement — c'est elle qui a raison.
+
+   Une barre empilee repond bien a « quelle est la plus grosse part », mal a
+   « laquelle est-ce », parce qu'elle renvoie l'etiquette a une legende qu'il
+   faut apparier de l'oeil. Ici il y a quatre a cinq provenances et un glyphe
+   par provenance : les mettre en ligne fait lire les deux d'un coup. La
+   maquette avait tort sur ce point precis.
+
+   Ce que le CSS livre en plus, en revanche : les barres etaient toutes de la
+   meme teinte, ce qui obligeait a comparer des LONGUEURS pour classer. Elles
+   sont triees par ordre decroissant par `client.js` — donc le rang porte deja
+   l'information, et la couleur peut le redire. La premiere ligne est ce qui a
+   tue l'equipe, elle se lit avant les autres. */
+#bilanHurt { max-width: 620px; margin-inline: auto; }
+.hurtRow { padding: var(--sp-1) 0; }
+.hurtLab { flex: 0 0 120px; }
+.hurtBar { height: 8px; border-radius: 999px; overflow: hidden; }
+.hurtBar > i { border-radius: 999px; transition: width var(--fade) ease-out; }
+
+.hurtRow:nth-child(2) .hurtBar > i { background: var(--lethal); }
+.hurtRow:nth-child(3) .hurtBar > i { background: color-mix(in srgb, var(--lethal) 62%, var(--warn)); }
+.hurtRow:nth-child(4) .hurtBar > i { background: var(--warn); }
+.hurtRow:nth-child(n + 5) .hurtBar > i { background: var(--text-faint); }
+/* `nth-child` et non `nth-of-type` : `.hurtTitle` est le premier enfant de
+   `#bilanHurt`, la premiere PROVENANCE est donc le deuxieme. */
 
 /* ===========================================================================
    MENU / PROGRESSION
@@ -776,6 +817,23 @@
    =========================================================================== */
 
 /* --- choix de carte --------------------------------------------------------- */
+
+/* Le kicker au-dessus du titre. Le titre de cet ecran est une PHRASE longue
+   — « Vague 12 terminée — niveau 7 — encore 1 choix après celui-ci » — et une
+   phrase ne dit pas de quel ecran il s'agit : elle dit ce qui vient de se
+   passer. Les deux mots qui manquent sont « choix de carte », et ils comptent
+   parce que l'ecran s'ouvre sous minuterie, sans transition, au milieu d'une
+   manche. */
+#cardsKicker {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--go);
+  margin-bottom: var(--sp-2);
+}
+#cardsKicker[hidden] { display: none; }
+
 #cardsTitle {
   font-family: var(--font-display);
   font-size: var(--t-xl);

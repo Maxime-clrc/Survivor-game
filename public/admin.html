@@ -11,42 +11,6 @@
      reporte a la main. Ni `tokens.css` ni `palette.js` ne sont charges : voir
      le commentaire du script en bas de page. -->
 <link rel="stylesheet" href="/css/admin.css">
-<style>
-  /* COMPLEMENT a admin.css, et rien de plus : les quatre familles de
-     selecteurs que la feuille livree ne couvre pas, parce qu'elles n'existent
-     que sur cette page — la liste de definitions de l'etat, la colonne
-     d'actions de la table des comptes, le bloc preforme, et les trois teintes
-     de verdict posees par le script sur des <dd>.
-
-     Elles restent ici plutot que dans admin.css pour que la feuille reste
-     exactement celle du handoff, et parce qu'elles ne decrivent aucune
-     decision de conception : ce sont des mises en forme locales. */
-  dl {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: var(--sp-1) var(--sp-4);
-  }
-  dt { color: var(--text-faint); }
-  dd { margin: 0; }
-  /* Le script pose ces trois classes sur les <dd> de l'etat ET sur #message :
-     vert « ca marche », ambre « ca marche encore mais surveille », rouge
-     « c'est casse ». Meme grammaire que le jeu. */
-  .ok { color: var(--gain); }
-  .warn { color: var(--warn); }
-  .bad { color: var(--lethal); }
-  td.actions { text-align: right; white-space: nowrap; }
-  td.actions button { padding: var(--sp-1) var(--sp-2); font-size: var(--t-xs); min-height: 0; }
-  pre {
-    background: var(--bg-void);
-    border: var(--hair) solid var(--line-soft);
-    border-radius: var(--radius);
-    padding: var(--sp-3);
-    overflow-x: auto;
-    font-size: var(--t-s);
-    max-height: 420px;
-  }
-  #message { min-height: var(--sp-6); color: var(--text-dim); }
-</style>
 </head>
 <body>
 <div class="adminWrap">

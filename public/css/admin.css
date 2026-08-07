@@ -183,3 +183,93 @@ td.name { color: var(--text); }
 .hint { font-size: var(--t-s); color: var(--text-dim); }
 .hint.err { color: var(--lethal); }
 .hint.ok { color: var(--gain); }
+
+/* ===========================================================================
+   LES QUATRE FAMILLES RESTEES DANS LE <style> D'ADMIN.HTML
+
+   Elles descendent ici pour que le fichier n'ait plus de styles en propre :
+   deux endroits ou changer une couleur, c'est un endroit ou l'oublier.
+   =========================================================================== */
+
+/* --- listes de definition : la forme juste pour « clef : valeur » -----------
+   Une paire etiquette/valeur n'est ni un tableau (il n'y a pas de colonnes a
+   comparer) ni un paragraphe. La grille a deux colonnes aligne toutes les
+   valeurs sur un meme bord gauche, ce qui permet de balayer la colonne de
+   droite sans relire les etiquettes. */
+dl {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+  font-size: var(--t-s);
+}
+dt {
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+dd { margin: 0; color: var(--text); }
+
+/* --- colonne d'actions d'un tableau ----------------------------------------
+   Elle ne se comporte pas comme une cellule de donnee : elle ne se compare
+   pas, elle ne se trie pas, et elle doit rester a largeur constante quelle que
+   soit la longueur des pseudos a sa gauche. */
+td.actions, th.actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  padding-right: 0;
+}
+td.actions .row { justify-content: flex-end; gap: var(--sp-1); }
+/* Boutons de ligne : plus petits que les boutons de section, sinon chaque
+   ligne de la table pese autant que l'action principale de la page. */
+td.actions button {
+  min-height: 30px;
+  padding: 0 var(--sp-2);
+  font-size: var(--t-xs);
+}
+
+/* --- sorties brutes ---------------------------------------------------------
+   Journaux, JSON, traces d'erreur. Le seul endroit de la page ou le texte ne
+   doit PAS etre reflowe : une trace repliee n'est plus une trace. */
+pre {
+  margin: 0;
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-void);
+  font-family: inherit;
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  color: var(--text-dim);
+  overflow-x: auto;
+  max-height: 320px;
+  overflow-y: auto;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* --- les trois etats -------------------------------------------------------
+   Memes couleurs que partout ailleurs, meme grammaire : vert = c'est bon,
+   ambre = regarde, rouge = c'est casse. Utilisables sur n'importe quel
+   element, d'ou les selecteurs nus. */
+.ok   { color: var(--gain); }
+.warn { color: var(--warn); }
+.bad  { color: var(--lethal); }
+
+/* Sur une cellule de tableau, l'etat merite une pastille : dans une colonne de
+   quarante lignes, une couleur de texte seule se perd. */
+td.ok, td.warn, td.bad {
+  font-weight: 700;
+}
+td.ok::before, td.warn::before, td.bad::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: var(--sp-2);
+  vertical-align: middle;
+  background: currentColor;
+}
