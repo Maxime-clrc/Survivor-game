@@ -2349,7 +2349,10 @@ reprise de contexte) : une seule compression par salle et par message, la même
 trame part vers toutes les sockets qui l'ont négociée. Mesuré sur un snapshot
 pire cas de 7,3 Ko : **2,8 Ko, soit 61 % de gain** — le niveau 6 n'apporte que
 3 points de plus pour bien plus de CPU. À 8 salles pleines, la bande passante
-descend d'environ 36 à 14 Mbps.
+descend d'environ 36 à 14 Mbps. Recoupé en production sur le VPS, vague 22 arène
+pleine : **9,5 Ko clair pour 3,9 Ko déflaté, 59 % de gain** — le taux tient hors
+du banc de mesure, et la compression **survit bien au proxy inverse** (`defl=n/n`
+dans la ligne de diagnostic, ce qui était la première hypothèse à écarter).
 
 Le TLS reste au proxy inverse (Caddy ou nginx) : Node parle HTTP en local, le
 client passe en `wss://` tout seul quand la page est servie en HTTPS.
@@ -2395,8 +2398,20 @@ Le correctif rend les 2,6 Hz manquants, soit 15 % de snapshots en plus, et
 ramène la tolérance à la gigue réseau de 52,6 à 60 ms. Il ne change **rien** au
 pire espacement — 57,4 ms dans les deux cas, la quantification sur la période de
 boucle est inhérente à un minuteur à 120 Hz. Autrement dit : il élargit le
-budget, il ne supprime pas la famine. Ce qui la supprime est le budget
-d'interpolation lui-même, à mesurer avant de le toucher.
+budget, il ne supprime pas la famine par construction.
+
+**Et pourtant il l'a suffi.** Les 7,4 ms récupérés sur l'espacement *moyen*
+étaient précisément ce qui manquait : le lag rapporté ne se reproduit plus à
+travers le VPS, y compris sur les vagues denses qui le déclenchaient à tous les
+coups. Deux leçons, et la seconde vaut plus que la première. Un budget qui
+« devrait » tenir en théorie et qui tient en pratique **de peu** n'est pas un
+budget confortable : la marge est passée de 52,6 à 60 ms de tolérance, soit un
+gain de 14 %, et c'est ce gain-là qui a fait basculer le ressenti. Et surtout —
+la relève de la constante d'interpolation (110 → 150 ms) qui était le correctif
+« évident » n'a **jamais eu besoin d'être faite** : elle aurait coûté 40 ms de
+latence visuelle à tout le monde, en permanence, pour masquer un compteur mal
+décrémenté. Corriger la cause a été gratuit là où traiter le symptôme se payait
+à chaque image.
 
 **Mesurer, justement.** `PERF=1` côté serveur sort une ligne par seconde et par
 salle — période réelle de la boucle, durée de tour, espacement réel de
@@ -2408,6 +2423,82 @@ min/moyenne/max, nombre d'écarts au-delà de 110 ms, **nombre d'images gelées
 faute de paire encadrante**, recalages secs, durée d'image maximale. Ces deux
 lignes existent parce qu'un lag par saccades laisse le CPU et la RAM
 parfaitement plats : sans elles, six suspects sont indiscernables.
+
+Les compteurs clients existent en **deux jeux** : ceux de la fenêtre d'une
+seconde, et des **totaux de session** qui ne se remettent jamais à zéro et que
+l'écran de bilan répète en fin de manche. La raison est pratique et vaut d'être
+dite : relever les compteurs de fenêtre demande de lire le HUD *pendant* une
+vague dense, c'est-à-dire au moment précis où l'on joue pour sa vie. Une mesure
+qu'on ne peut pas prendre n'est pas une mesure — les totaux se lisent une fois
+mort, sur n'importe quelle partie, même courte.
+
+**Un compteur doit être borné à la fenêtre où le phénomène a un sens, et le
+premier relevé client l'a appris à ses dépens.** Il donnait :
+
+```
+famine 17636 · recal 1 · >110ms 24 · max gap 56953 ms · img max 2234 ms
+```
+
+Trois de ces cinq chiffres sont faux, et ils sont faux pour la même raison. Le
+serveur **cesse de diffuser** pendant l'écran de cartes, chez le marchand,
+pendant une pause accordée, au bilan et au salon : ce sont des silences
+*protocolaires*, pas des pannes. Or `interpolated()` est appelée en dehors du
+test de phase — il faut bien peindre le sol sous le salon — donc chaque image
+passée hors combat comptait une famine. 17 636 images à 60 i/s font cinq minutes
+hors manche, ce que n'importe quelle session contient. Les 57 secondes de
+`max gap` étaient la durée d'un salon, et l'image de 2,2 s un onglet passé en
+arrière-plan, où `requestAnimationFrame` est bridé puis suspendu.
+
+Le piège se referme sur un détail de conception : le client n'a que **deux**
+phases, et l'écran de cartes vit **dans** la manche. Un test
+`phase === PHASE_ROUND` ne suffit donc pas — il faut exclure explicitement les
+quatre écrans de transition. C'est ce que fait `netPerfLive()`, point de passage
+unique des trois compteurs.
+
+**Ce qui a permis de voir que le relevé était faux, c'est l'incohérence
+interne** — pas une intuition sur les ordres de grandeur. `famine` et `recal`
+sont censés bouger *ensemble* : si le monde gèle, la prédiction locale dérive et
+finit par se faire recaler sèchement. Un rapport de 17 636 contre 1 ne décrit
+aucun phénomène physique ; il décrit deux compteurs qui ne mesurent pas la même
+chose. La leçon générale : quand on instrumente, poser **au moins deux
+compteurs liés par une relation connue** — leur désaccord est ce qui détecte
+l'erreur de mesure, et rien d'autre ne l'aurait fait.
+
+Une fois les bornes posées, les deux chiffres qui **n'étaient pas** contaminés
+donnent la lecture : `recal` est incrémenté depuis `ingest()`, qui ne tourne que
+sur un message `state` — il n'en arrive aucun hors manche, donc **un seul
+recalage sec sur toute la session**. Et `>110ms 24` se mesure entre deux `state`
+consécutifs, si bien que chaque écran de cartes y contribue exactement un écart :
+une manche jusqu'à la vague 22 en ouvre quinze à vingt. Le reste — les vrais
+décrochages réseau — tient dans une poignée. Ce qui est exactement cohérent avec
+le symptôme rapporté après B1 : plus de saccade.
+
+**Ce que la mesure en production a effectivement dit.** Une fois la remise à
+zéro rendue relative, sur le VPS derrière son proxy inverse, arène pleine
+jusqu'à la vague 22 :
+
+| grandeur | relevé | lecture |
+|---|---|---|
+| diffusions par seconde | **20** (parfois 21) | la cadence est revenue à 20 Hz |
+| espacement moyen | 49,7 à 50,3 ms | régulier, conforme |
+| `defl=3/3` | toutes les sockets | `permessage-deflate` **survit au proxy** |
+| `bloq=0 fileMax=0` | aucun | zéro saturation de socket |
+| durée de tour | 0,3 à 0,9 ms, p99 ≤ 9 ms | le CPU est très large |
+| instantané, pire cas relevé | **9,5 Ko clair, 3,9 Ko déflaté** | 59 % de gain |
+
+Trois hypothèses tombent d'un coup : le proxy ne mange pas la négociation de
+compression, il n'y a aucune contre-pression d'écriture, et le serveur ne
+manque pas de CPU. La seule anomalie qui subsiste est une **gigue du minuteur**
+propre à la machine — `periode max` monte occasionnellement à 22-30 ms au lieu
+de 8,2, ce qui pousse un espacement de diffusion à 61-73 ms une à trois fois par
+minute. C'est un hoquet de boucle d'événements de l'hôte, pas du code, et il
+reste **sous le budget d'interpolation de 110 ms**.
+
+Le poids d'instantané est au passage **deux fois plus faible que l'estimation**
+qui avait servi à raisonner (20,8 Ko clair supposés contre 9,5 Ko relevés). Elle
+avait été extrapolée d'un décompte de champs et non mesurée : c'est exactement le
+travers que la règle « remesurer plutôt qu'extrapoler » existe pour empêcher, et
+il a tenu une hypothèse de bande passante en vie pour rien.
 
 **Prédiction locale.** Ton personnage bouge immédiatement à la touche, puis est
 ramené en douceur vers la position que le serveur renvoie. Au-delà de 90 px
@@ -2492,6 +2583,12 @@ Simulation à 4 joueurs, mesurée sur ce projet :
 | pire cas | 200 (plafond) | 8,1 Ko | 163 Ko/s |
 
 430 s de jeu se simulent en 0,9 s de CPU, soit 460× le temps réel.
+
+Ces chiffres sont ceux du **banc**, arène pleine construite à la main. Le relevé
+en **production** (VPS, vague 22 atteinte en jeu réel) monte à **9,5 Ko clair,
+3,9 Ko déflaté** : la ligne « pire cas » ci-dessus n'est donc pas un plafond
+absolu, seulement le pire cas *de ce banc*. Ce qui compte est que la valeur
+transmise soit celle **déflatée** — c'est elle qui passe sur le lien.
 
 Le pire cas est mesuré arène pleine en cauchemar, avec quatre tourelles posées,
 le ricochet actif sur tout le monde et **24 zones simultanées** (un damier plus

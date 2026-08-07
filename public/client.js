@@ -637,6 +637,10 @@ function connect() {
           latest = null;
           predicted = null;
           resetFeedback();
+          // Le tampon d'espacement repart de zero avec les instantanes : sans
+          // ca, l'attente du salon entrerait dans les statistiques comme un
+          // decrochage reseau.
+          if (PERF) netPerfBoundary();
           // Une nouvelle manche remet les cartes a zero : sans ca, le tableau
           // de fin de la manche precedente resterait affiche derriere le
           // suivant, et l'ecran de choix d'un boss deja mort resterait ouvert
@@ -832,6 +836,9 @@ function connect() {
     // reconnexion, 110 ms apres la coupure.
     worldQueue.length = 0;
     screenCloseQueued = false;
+    // Une coupure de socket n'est pas un decrochage d'interpolation : sans ce
+    // bord, toute la duree de la reconnexion sortirait en `max gap`.
+    if (PERF) netPerfBoundary();
     panel.hidden = true;
     menuEl.hidden = true;
     // Reconnexion : on repart de l'ecran d'entree, dans le mode qui
@@ -3260,9 +3267,49 @@ const netPerf = {
      dense ; les totaux, eux, s'accumulent sur toutes les manches — une
      partie courte suffit, on lit les chiffres une fois mort, au bilan. */
   totGap: 0, totFamine: 0, totResnap: 0, maxGap: 0, maxFrame: 0,
+  /* Vrai le temps d'une image apres un retour d'onglet. Voir netPerfFrame. */
+  reveil: false,
 };
 
+/* TOUTE mesure de ce bloc est bornee a la MANCHE, et c'est la lecon d'un
+   premier relevé faux : « famine 17636 · recal 1 · max gap 56953 ms ». Trois
+   chiffres incoherents entre eux, donc trois fois la meme contamination.
+
+   `interpolated()` est appelé hors du test de phase (il faut bien dessiner le
+   sol sous le salon), et le serveur CESSE de diffuser pendant l'ecran de
+   cartes, le bilan et le salon — par construction, ce n'est pas une panne.
+   Chaque image passee hors manche comptait donc une famine : 17636 images a
+   60 i/s font cinq minutes hors combat, ce que n'importe quelle session
+   contient. Les 57 secondes de `max gap` etaient un salon, et l'image de
+   2,2 s un onglet en arriere-plan.
+
+   Le tell etait `recal 1` : une seule correction seche de prediction. Si le
+   monde avait vraiment gele dix-sept mille fois, la prediction aurait derive
+   a chaque fois et le compteur de recalage aurait suivi. Deux compteurs qui
+   doivent bouger ensemble et qui divergent d'un facteur dix mille ne
+   mesurent pas le meme phenomene — l'un des deux est faux.
+
+   Le test ne peut PAS se reduire a `phase === PHASE_ROUND` : il n'y a que deux
+   phases cote client, et l'ecran de cartes vit DANS la manche. Or le serveur
+   cesse de simuler — donc de diffuser — pendant le choix de cartes, chez le
+   marchand et pendant une pause reellement accordee. Ce sont trois silences
+   NORMAUX, protocolaires, qu'aucun compteur de decrochage ne doit voir. Le
+   bilan s'y ajoute : il s'ouvre avant que la phase ne retombe au salon. */
+function netPerfLive() {
+  return phase === PHASE_ROUND
+    && !cardsState && !merchantState && !pauseReal && !bilanOpen;
+}
+
+/* Appele aux DEUX bords de manche. Sans ca l'ecart entre le dernier instantane
+   d'une manche et le premier de la suivante — c'est-a-dire la duree du salon —
+   entre dans les statistiques d'espacement comme s'il etait un decrochage
+   reseau. C'est ce qui donnait un `max gap` de 57 secondes. */
+function netPerfBoundary() {
+  netPerf.lastRecv = 0;
+}
+
 function netPerfArrival(t) {
+  if (!netPerfLive()) { netPerf.lastRecv = 0; return; }
   if (netPerf.lastRecv > 0) {
     const d = t - netPerf.lastRecv;
     netPerf.esp.push(d);
@@ -3274,14 +3321,35 @@ function netPerfArrival(t) {
   netPerf.lastRecv = t;
 }
 
+/* Un onglet en arriere-plan ne recoit plus d'images : `requestAnimationFrame`
+   est bride a une par seconde, voire suspendu. La premiere image au retour
+   porte donc toute la duree de l'absence — 2,2 s au premier relevé — et
+   ecrasait `img max`, qui existe precisement pour distinguer une pause de
+   ramasse-miettes (100 a 300 ms) d'une famine d'instantane. On saute cette
+   image : sa duree ne dit rien du cout de rendu.
+
+   Le drapeau est pose sur `visibilitychange` et non teste via `document.hidden`
+   dans la boucle : au moment ou l'image longue est mesuree, l'onglet est DEJA
+   redevenu visible, donc le test direct ne verrait jamais rien. */
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) netPerf.reveil = true;
+});
+
 /* `raw` est la duree d'image NON plafonnee : `dt` est borne a 100 ms, ce qui
    masquerait exactement la pause longue qu'on cherche a distinguer d'une famine
    d'instantane. Une image de 300 ms avec des espacements d'arrivee normaux est un
    ramasse-miettes ; des images normales avec un monde fige est une famine. */
 function netPerfFrame(raw) {
-  if (raw > netPerf.frameMax) netPerf.frameMax = raw;
-  if (raw > netPerf.maxFrame) netPerf.maxFrame = raw;
-  netPerf.since += raw;
+  if (netPerf.reveil || document.hidden) {
+    // La fenetre d'une seconde avance quand meme : sans ca, un onglet laisse en
+    // arriere-plan figerait la ligne affichee sur des chiffres perimes.
+    netPerf.reveil = false;
+    netPerf.since += Math.min(raw, 1000);
+  } else {
+    if (raw > netPerf.frameMax) netPerf.frameMax = raw;
+    if (raw > netPerf.maxFrame) netPerf.maxFrame = raw;
+    netPerf.since += raw;
+  }
   if (netPerf.since < 1000) return;
   netPerf.since = 0;
 
@@ -3330,7 +3398,10 @@ function interpolated(renderTime) {
        ancien : le tampon se remplit (entree en manche, reconnexion), c'est
        benin et transitoire. Les confondre ferait lire un demarrage normal
        comme une famine. */
-    if (PERF) {
+    /* `netPerfLive` borne la mesure a la MANCHE : hors manche le serveur ne
+       diffuse rien du tout, et compter ces images ferait de l'ecran de cartes
+       la principale source de famine du jeu — c'etait le cas. */
+    if (PERF && netPerfLive()) {
       if (renderTime > snapshots[snapshots.length - 1].recvAt) {
         netPerf.famine++;
         netPerf.totFamine++;
