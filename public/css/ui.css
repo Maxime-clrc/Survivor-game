@@ -102,17 +102,12 @@ html, body {
 }
 .overlay[hidden] { display: none; }
 
-/* LA MEME CONTRE-REGLE, PORTEE PAR CHAQUE IDENTIFIANT. `.overlay[hidden]` pese
-   0-2-0 : toute regle d'auteur qui pose un `display` sur l'un de ces ecrans par
-   son identifiant (1-0-0) l'emporte, et l'ecran ne se ferme plus JAMAIS.
-   `menus.css` passe `#gate` en `display: grid` — sans cette ligne, l'ecran de
-   connexion reste affiche par-dessus le hub, le salon et la manche.
-   Elle est ecrite ici plutot que la-bas parce que c'est ui.css qui pose la
-   regle d'origine, et parce qu'elle doit couvrir la prochaine feuille qui fera
-   la meme chose sans y penser. */
-#gate[hidden], #loading[hidden], #hubScreen[hidden],
-#panel[hidden], #bilan[hidden], #menu[hidden],
-#cards[hidden], #build[hidden] { display: none; }
+/* Les contre-regles `[hidden]` PAR IDENTIFIANT vivent desormais dans
+   `menus.css`, avec les `display` qui les rendent necessaires. La regle qui
+   s'applique : qui pose un `display` possede la contre-regle `[hidden]`, dans
+   la meme feuille et au meme moment. C'est `menus.css` qui passe `#gate` en
+   grille et pose un `display` sur huit ecrans et une douzaine de blocs — les
+   garder ici revenait a tenir la garde loin de ce qu'elle protege. */
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 

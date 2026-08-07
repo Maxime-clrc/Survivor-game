@@ -157,6 +157,29 @@
   --ui-panel: color-mix(in srgb, var(--bg-arena) 62%, var(--bg-void));
   --ui-line:  color-mix(in srgb, var(--line) 60%, var(--bg-arena));
   --ui-field: color-mix(in srgb, var(--bg-void) 82%, var(--bg-arena));
+
+  /* --- encarts d'avertissement --------------------------------------------
+     Un encart INFORME, il n'alerte pas. La difference est reelle : `--warn` et
+     `--lethal` a pleine saturation sont reserves aux etats de DANGER de
+     l'arene, ou ils doivent se voir en un dixieme de seconde par-dessus deux
+     cents ennemis. Le meme rouge sur un paragraphe de trois lignes hors combat
+     crie sans rien ajouter — et une fois qu'on a crie partout, plus rien ne se
+     distingue quand il faudra vraiment crier.
+
+     Trois valeurs derivees par famille, et la meme construction a chaque fois :
+     un filet ramene vers le fond, un fond a peine teinte, un texte adouci vers
+     le gris de corps. La teinte reste reconnaissable, l'intensite descend. */
+  --notice-warn-line: color-mix(in srgb, var(--warn) 26%, var(--bg-void));
+  --notice-warn-bg:   color-mix(in srgb, var(--warn) 7%, var(--bg-void));
+  --notice-warn-text: color-mix(in srgb, var(--warn) 58%, var(--text-dim));
+
+  --notice-bad-line:  color-mix(in srgb, var(--lethal) 30%, var(--bg-void));
+  --notice-bad-bg:    color-mix(in srgb, var(--lethal) 7%, var(--bg-void));
+  --notice-bad-text:  color-mix(in srgb, var(--lethal) 62%, var(--text-dim));
+
+  --notice-go-line:   color-mix(in srgb, var(--go) 28%, var(--bg-void));
+  --notice-go-bg:     color-mix(in srgb, var(--go) 6%, var(--bg-void));
+  --notice-go-text:   color-mix(in srgb, var(--go) 55%, var(--text-dim));
 }
 
 /* ---------------------------------------------------------------------------
@@ -394,14 +417,14 @@
 .gateForm > button { margin-top: var(--sp-2); }
 
 /* L'avertissement de creation de compte : il etait un `.hint` gris sous le
-   bouton, donc invisible. En ambre et encadre — c'est un avertissement, et
-   perdre son mot de passe est irreversible ici. */
+   bouton, donc invisible. Encadre en ambre ATTENUE — il informe avant le clic,
+   il n'alerte pas : voir la famille `--notice-*`. */
 #registerForm .hint {
   padding: var(--sp-4);
-  border: var(--hair) solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border: var(--hair) solid var(--notice-warn-line);
   border-radius: var(--radius-ctl);
-  background: color-mix(in srgb, var(--warn) 8%, var(--bg-void));
-  color: var(--warn);
+  background: var(--notice-warn-bg);
+  color: var(--notice-warn-text);
   text-align: left;
   line-height: 1.55;
   margin-top: var(--sp-2);
@@ -418,17 +441,19 @@
   max-width: 400px;
   margin-inline: auto;
   padding: var(--sp-4);
-  border: var(--hair) solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border: var(--hair) solid var(--notice-warn-line);
   border-radius: var(--radius-ctl);
-  background: color-mix(in srgb, var(--warn) 8%, var(--bg-void));
+  background: var(--notice-warn-bg);
 }
 #gateHold[hidden] { display: none; }
+/* Le kicker garde la teinte PLEINE : c'est une ligne de trois mots en
+   capitales, elle a besoin du contraste que le paragraphe, lui, n'a pas. */
 #gateHold .sectionTitle { color: var(--warn); }
 #gateHold .sectionTitle::before { background: var(--warn); }
-#gateHold .hint { color: color-mix(in srgb, var(--warn) 70%, var(--text-dim)); text-align: left; }
+#gateHold .hint { color: var(--notice-warn-text); text-align: left; }
 #gateContinue {
   background: none;
-  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  border-color: var(--notice-warn-line);
   color: var(--warn);
   box-shadow: none;
   clip-path: none;
@@ -1124,9 +1149,10 @@
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-4);
-  border: var(--hair) solid color-mix(in srgb, var(--lethal) 45%, transparent);
+  border: var(--hair) solid var(--notice-bad-line);
   border-radius: var(--radius-ctl);
-  background: color-mix(in srgb, var(--lethal) 7%, transparent);
+  background: var(--notice-bad-bg);
+  color: var(--notice-bad-text);
   font-family: var(--font-body);
   font-size: var(--t-s);
   line-height: 1.55;
@@ -1309,8 +1335,8 @@
 .gateChip.pending .chipDot { background: var(--warn); }
 .gatePill.off .dot, .gateChip.off .chipDot { background: var(--lethal); animation: none; }
 .gatePill.off, .gateChip.off {
-  color: var(--lethal);
-  border-color: color-mix(in srgb, var(--lethal) 35%, transparent);
+  color: var(--notice-bad-text);
+  border-color: var(--notice-bad-line);
 }
 
 /* ===========================================================================
@@ -1705,7 +1731,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .row { display: flex; align-items: center; gap: var(--sp-2); }
 
 #status { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-6); text-align: left; }
-#status.err { color: var(--lethal); }
+#status.err { color: var(--notice-bad-text); }
 .hint { font-size: var(--t-s); color: var(--text-dim); line-height: 1.7; }
 .hint b { color: var(--text); font-weight: 400; }
 #gateHoldMsg:empty { display: none; }
@@ -1826,14 +1852,52 @@ tr.clickable { cursor: pointer; }
 
 /* --- connexion : formulaires ------------------------------------------------ */
 .gateForm[hidden], #gateForms[hidden], #hubPassBox[hidden], #hubPassAsk[hidden] { display: none; }
+
+/* ===========================================================================
+   LES CONTRE-REGLES `[hidden]` — rapatriees de `ui.css`
+
+   REGLE D'APPARTENANCE : qui pose un `display` possede la contre-regle
+   `[hidden]` qui va avec. C'est la seule facon de garder l'ensemble coherent
+   sans avoir a se souvenir de deux fichiers.
+
+   Le mecanisme : `hidden` n'est qu'une feuille de style par defaut du
+   navigateur (`[hidden] { display: none }`), de specificite (0,1,0). N'importe
+   quelle declaration d'auteur qui pose un `display` sur le meme element la bat.
+   Un ecran qui recoit `display: grid` ou `display: flex` NE SE FERME DONC PLUS,
+   et le defaut est spectaculaire : deux ecrans superposes, aucune erreur.
+
+   `menus.css` pose un `display` sur les huit ecrans et sur une douzaine de
+   blocs — il doit donc porter toutes leurs contre-regles, et non les laisser a
+   `ui.css` qui n'a plus rien a dire sur eux. */
+#gate[hidden], #loading[hidden], #hubScreen[hidden], #panel[hidden],
+#bilan[hidden], #menu[hidden], #settings[hidden], #cards[hidden],
+#build[hidden], #pause[hidden], #topbar[hidden],
+#meta[hidden], #gateHold[hidden], #cardsKicker[hidden], #pauseConfirm[hidden],
+.gatePill[hidden], .gateChip[hidden] {
+  display: none;
+}
+
+/* Deux dernieres reprises de `ui.css`, pour que le fichier n'ait plus une seule
+   opinion sur ces ecrans :
+
+   — le tableau des scores garde son plancher de 460 px (neuf colonnes serrees
+     en dessous ne se lisent plus) mais la colonne d'etat du salon n'en fait que
+     300. Il DEFILE donc dans sa colonne : `min-width: 0` seul ne suffit pas,
+     une table ne se comprime pas sous la largeur de son contenu ;
+   — `#metaSub` est une ligne de CORPS sous un titre de section, pas une
+     legende : il heritait du centrage de `.hint`, ce qui le detachait de la
+     colonne que suit tout le reste de l'ecran. */
+#panel #scoresWrap { overflow-x: auto; align-items: stretch; }
+#metaSub { text-align: left; }
+
 #hubAccount .row { flex-wrap: wrap; justify-content: center; }
 #hubPassBox { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-3); }
 #hubPassBox .row { flex-wrap: wrap; }
 #passMsg { min-height: var(--sp-6); font-size: var(--t-s); }
-#passMsg.err { color: var(--lethal); }
-#passMsg.ok { color: var(--gain); }
+#passMsg.err { color: var(--notice-bad-text); }
+#passMsg.ok { color: color-mix(in srgb, var(--gain) 62%, var(--text-dim)); }
 #hubStatus { min-height: var(--sp-6); font-size: var(--t-s); color: var(--text-dim); }
-#hubStatus.err { color: var(--lethal); }
+#hubStatus.err { color: var(--notice-bad-text); }
 #hubCreateRow input { min-width: 160px; }
 
 #hubPassAsk {
@@ -1842,11 +1906,11 @@ tr.clickable { cursor: pointer; }
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-6);
-  border: var(--hair) solid color-mix(in srgb, var(--go) 35%, var(--ui-line));
+  border: var(--hair) solid var(--notice-go-line);
   border-radius: var(--radius-ui);
-  background: var(--ui-panel);
+  background: var(--notice-go-bg);
 }
-#hubPassAsk #hubPassAskWho { flex: 1; min-width: 200px; }
+#hubPassAsk #hubPassAskWho { flex: 1; min-width: 200px; color: var(--notice-go-text); }
 #hubPassAsk input { flex: 1; min-width: 180px; }
 
 /* --- salle : une ligne, pas une carte ---------------------------------------
@@ -1872,7 +1936,7 @@ tr.clickable { cursor: pointer; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#roomList .roomEntry .roomState.running { color: var(--warn); }
+#roomList .roomEntry .roomState.running { color: var(--notice-warn-text); }
 #roomList .roomEmpty {
   text-align: center;
   color: var(--text-faint);
@@ -2149,7 +2213,7 @@ tr.clickable { cursor: pointer; }
 }
 .cardMain { font-family: var(--font-body); font-size: var(--t-m); font-weight: 600; color: var(--text); line-height: 1.35; }
 .cardCond { font-family: var(--font-body); font-size: var(--t-s); color: var(--go); line-height: 1.4; }
-.cardWarn { font-family: var(--font-body); font-size: var(--t-s); color: var(--warn); line-height: 1.4; }
+.cardWarn { font-family: var(--font-body); font-size: var(--t-s); color: var(--notice-warn-text); line-height: 1.4; }
 .cardFoot {
   display: flex;
   flex-direction: column;
@@ -2285,7 +2349,7 @@ tr.clickable { cursor: pointer; }
 .buildCardName { font-family: var(--font-display); color: var(--text); font-size: var(--t-s); font-weight: 600; }
 .buildCardTotal { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); margin-left: auto; }
 .buildCardDesc { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); }
-.buildCardWarn { font-family: var(--font-body); font-size: var(--t-xs); color: var(--warn); }
+.buildCardWarn { font-family: var(--font-body); font-size: var(--t-xs); color: var(--notice-warn-text); }
 .buildEmpty { grid-column: 1 / -1; font-size: var(--t-s); color: var(--text-faint); }
 
 /* --- pause ------------------------------------------------------------------ */
