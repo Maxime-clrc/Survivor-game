@@ -516,6 +516,62 @@ export function ramp(hex) {
   return r;
 }
 
+/* --- le pointeur de souris -------------------------------------------------
+
+   Le curseur systeme etait la derniere piece d'interface qui n'appartenait pas
+   au jeu : une fleche Windows arrondie, ombree, posee sur un poste de controle
+   qui refuse les arrondis et les ombres. Il vit donc ICI, avec le reste de la
+   charte, et pas dans une feuille de style — c'est une FORME et une COULEUR,
+   les deux choses que ce fichier tranche.
+
+   Trois regles de la charte le dessinent entierement :
+
+     - ANGLES DURS. `stroke-linejoin: miter`, aucune courbe, aucun rayon. Le
+       seul cercle du jeu est une entite vivante : un pointeur arrondi lui
+       volerait ce signe, exactement comme un bouton arrondi.
+     - LA COULEUR EST FONCTIONNELLE. Au repos le pointeur porte `--text` : il
+       ne dit rien, il montre. Au survol d'un element qui repond, il passe au
+       cyan `--go` — « il faut y aller », la meme couleur que les kickers et
+       l'action principale des menus. La forme change AUSSI (un crochet de
+       visee apparait) : la couleur ne fait que confirmer ce que la forme dit
+       deja, sinon un daltonien perd l'information.
+     - CONTOUR SYSTEMATIQUE. Le meme trace est peint deux fois, d'abord elargi
+       en `--bg-void`, ensuite plein : c'est la recette du contour des
+       creatures, pour la meme raison — sans lui le pointeur disparait sur un
+       panneau clair autant que sur le fond de l'arene.
+
+   Le crochet n'est pas un ornement : c'est le vocabulaire d'instrumentation
+   du jeu (les memes crochets d'angle cadrent les zones et les cibles), et il
+   dit « cet element est une cible » la ou la main blanche du navigateur ne
+   disait rien du systeme dans lequel on se trouve.
+
+   La pointe reste en HAUT A GAUCHE et le point actif sur elle (`2 2`) : un
+   reticule centre aurait mieux colle a l'arene, mais on vise ici des bords de
+   boutons, et deplacer le point actif d'un pointeur de menu se paie en clics
+   manques. L'arene, elle, garde son `crosshair` — c'est la que l'on vise. */
+
+const CURSOR_ARROW = "M2 2 L2 20 L6.6 15.6 L9.4 21.6 L12.6 20.1 L9.8 14.4 L16 14 Z";
+const CURSOR_HOOK = "M17.4 3 L21.5 3 L21.5 7.1";
+
+/* Un SVG en URL de donnees plutot qu'un fichier : deux requetes de moins sur
+   le chemin critique, et surtout un trace qui lit la palette au lieu de la
+   recopier — un `.cur` binaire aurait fige les couleurs hors de ce fichier. */
+function cursorUri(fill, hook) {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
+    + `<path d="${CURSOR_ARROW}" fill="${SURFACE.void}" stroke="${SURFACE.void}"`
+    + ' stroke-width="2.6" stroke-linejoin="miter"/>'
+    + `<path d="${CURSOR_ARROW}" fill="${fill}"/>`
+    + (hook
+      ? `<path d="${CURSOR_HOOK}" fill="none" stroke="${SURFACE.void}"`
+        + ' stroke-width="3.6" stroke-linejoin="miter"/>'
+        + `<path d="${CURSOR_HOOK}" fill="none" stroke="${fill}"`
+        + ' stroke-width="1.8" stroke-linejoin="miter"/>'
+      : "")
+    + "</svg>";
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 2 2`;
+}
+
 /* Les variables CSS, posees sur `:root` par le client au chargement. C'est la
    traduction de la table ci-dessus vers le DOM, et le seul sens autorise :
    recopier ces valeurs dans une feuille de style les ferait diverger a la
@@ -568,6 +624,13 @@ export function cssVars() {
     "--xp":      HUD.xp,
 
     "--downed": COMBAT.downed,
+
+    /* Le pointeur. Deux etats seulement : au repos, et sur une cible. Un
+       troisieme (« interdit ») a ete ecarte — un bouton desarme porte deja son
+       opacite et son libelle d'attente, et le pointeur systeme « sens
+       interdit » est le seul glyphe de l'interface qu'on ne dessine pas. */
+    "--cursor-ui": cursorUri(TEXT.base, false),
+    "--cursor-go": cursorUri(SIGNAL.go, true),
 
     "--t-xs":  TYPE[0] + "px",
     "--t-s":   TYPE[1] + "px",

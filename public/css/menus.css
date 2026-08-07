@@ -2110,6 +2110,51 @@ input:focus { border-color: var(--go); }
 button { cursor: pointer; }
 button:disabled { opacity: 0.45; cursor: default; }
 
+/* --- le pointeur ------------------------------------------------------------
+   Le trace vit dans `palette.js` (`--cursor-ui`, `--cursor-go`) : c'est une
+   forme et une couleur, donc de la charte, et le recopier ici en aurait fait
+   la seule valeur en dur de cette feuille. Ici on ne decide que d'UNE chose —
+   quel element porte quel etat.
+
+   La liste s'arrete a ce qu'on PARCOURT A LA SOURIS. `#pause` en fait partie
+   bien qu'il soit un ecran de combat : ouvrir le menu ARRETE le personnage
+   (`readMove()` sort a vide), donc on n'y vise plus rien — et cette feuille
+   l'habille deja entierement, du voile au panneau. `#cards` et `#build` en
+   sont dehors : ils s'ouvrent une manche en cours, la souris y garde le
+   reticule qu'elle avait une seconde avant. L'arene garde son `crosshair` —
+   c'est la qu'on vise.
+
+   Le repli est toujours le curseur systeme correspondant (`default`,
+   `pointer`) : un navigateur qui refuse les curseurs SVG garde exactement le
+   comportement d'avant, il perd le dessin et rien d'autre. */
+:is(#gate, #loading, #hubScreen, #panel, #menu, #bilan, #settings, #topbar, #pause) {
+  cursor: var(--cursor-ui), default;
+}
+
+/* Tout ce qui REPOND au clic prend le crochet de visee. `:is()` porte la
+   specificite de son argument le plus fort, donc `1-0-1` ici : ca passe
+   au-dessus du `button { cursor: pointer }` ci-dessus sans avoir a le
+   reecrire. */
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #settings, #topbar, #pause)
+  :is(button, a, summary, tr.clickable, input[type="range"]) {
+  cursor: var(--cursor-go), pointer;
+}
+
+/* Un bouton desarme n'est pas une cible : il retombe au pointeur de repos.
+   Sans cette ligne, `button:disabled { cursor: default }` rendait la fleche
+   du systeme au milieu d'un ecran qui porte la notre. */
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #settings, #topbar, #pause) button:disabled {
+  cursor: var(--cursor-ui), default;
+}
+
+/* La barre de saisie reste un I : c'est une affordance systeme que personne ne
+   gagne a redessiner, et `cursor` s'herite — sans cette regle les champs
+   auraient recu la fleche du conteneur. */
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #settings)
+  :is(input:not([type]), input[type="text"], input[type="password"], textarea) {
+  cursor: text;
+}
+
 .row { display: flex; align-items: center; gap: var(--sp-2); }
 
 #status { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-6); text-align: left; }

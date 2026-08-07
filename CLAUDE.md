@@ -1048,6 +1048,41 @@ de `menus.css` fuit. Le **biseau** (`--bevel`) reste sur la SEULE action
 principale de chaque écran — c'est ce qui la désigne, et il perd ce rôle s'il
 est partout.
 
+**Le pointeur de souris est dessiné par la charte** (`cursorUri()` dans
+`palette.js`, exposé en `--cursor-ui` et `--cursor-go`), pas hérité du système.
+C'était la dernière pièce d'interface qui n'appartenait pas au jeu : une flèche
+d'OS arrondie et ombrée posée sur un poste de contrôle qui refuse les arrondis
+et les ombres. Il vit dans `palette.js` parce que c'est une **forme et une
+couleur** — les deux choses que ce fichier tranche — et qu'un `.cur` binaire ou
+un littéral dans une feuille aurait figé la couleur hors de la charte.
+
+Les trois mêmes règles que le reste : **angles durs** (`miter`, aucune courbe —
+le seul cercle du jeu est une entité vivante) ; **couleur fonctionnelle** (au
+repos `--text`, il montre sans rien dire ; sur une cible `--go`, « il faut y
+aller », la couleur des kickers et de l'action) ; **contour systématique** (le
+tracé peint deux fois, élargi en `--bg-void` puis plein, exactement la recette
+du contour des créatures — sans lui le pointeur disparaît sur un panneau clair
+autant que sur le fond de l'arène). La forme change **en plus** de la couleur —
+un crochet de visée apparaît sur ce qui répond au clic — parce qu'une
+information portée par la seule couleur est perdue pour un daltonien.
+
+Deux états et pas trois : « interdit » n'existe pas, un bouton désarmé porte
+déjà son opacité et son libellé d'attente, et il retombe au pointeur de repos.
+Le point actif reste sur la **pointe** (`2 2`) : un réticule centré collerait
+mieux à l'arène, mais on vise ici des bords de boutons et déplacer le point
+actif d'un pointeur de menu se paie en clics manqués.
+
+La liste des écrans s'arrête à **ce qu'on parcourt à la souris**. `#pause` en
+fait partie bien qu'il soit un écran de combat : ouvrir le menu **arrête le
+personnage** (`readMove()` sort à vide), donc on n'y vise plus rien — et
+`menus.css` l'habille déjà entièrement, du voile au panneau. `#cards` et
+`#build` en sont dehors : ils s'ouvrent une manche en cours, la souris y garde
+le réticule qu'elle avait une seconde avant. L'arène garde son `crosshair` —
+c'est là qu'on vise — et `admin.html` le pointeur système, puisqu'elle ne
+charge pas `palette.js`. Le repli est toujours le curseur système
+correspondant : un navigateur qui refuse les curseurs SVG perd le dessin et
+rien d'autre.
+
 **Trois familles typographiques, chacune avec son rôle** — et la chasse fixe
 reste le **registre du jeu**. `--font-display` (Chakra Petch 600/700) porte les
 titres, les boutons et les noms propres ; `--font-body` (Barlow 400) porte les
