@@ -315,8 +315,6 @@ const bilanHurt = document.getElementById("bilanHurt");
 const bilanMine = document.getElementById("bilanMine");
 const bilanScoresBody = document.querySelector("#bilanScores tbody");
 const bilanGo = document.getElementById("bilanGo");
-const bilanBarFill = document.querySelector("#bilanBar i");
-const bilanHint = document.getElementById("bilanHint");
 const volInput = document.getElementById("vol");
 const volVal = document.getElementById("volVal");
 const muteBtn = document.getElementById("mute");
@@ -2463,17 +2461,20 @@ function renderScores(rows, body = scoresBody) {
    Deux temps, et non un seul ecran : le bilan d'abord, le salon ensuite. Le
    joueur ne lisait jamais son resultat parce que l'ecran suivant etait deja
    la — avec le tableau, les classes, la difficulte et le bouton de lancement
-   par-dessus. Le bouton « continuer » existe pour ceux qui ont deja regarde,
-   le delai pour ceux qui ont laché la souris. */
-const BILAN_MS = 8000;
+   par-dessus.
 
+   IL NE SE FERME PLUS TOUT SEUL. Une minuterie de huit secondes couvrait le
+   cas du joueur qui a lache la souris, et coutait celui — beaucoup plus
+   frequent — du joueur qui lit encore : le bilan porte desormais la
+   repartition des degats subis, la jauge de puissance et le detail de sa
+   propre partie, c'est-a-dire de quoi passer une minute dessus. Un ecran qui
+   se retire pendant qu'on le lit est le defaut meme qu'on est venu corriger en
+   le separant du salon. « Continuer » est le seul chemin, et il n'y en a
+   qu'un — donc rien a deviner. */
 let bilanOpen = false;
-let bilanFrom = 0;
-let bilanHandle = null;
 
 function showBilan(res) {
   bilanOpen = true;
-  bilanFrom = performance.now();
   bilanEl.hidden = false;
   panel.hidden = true;
 
@@ -2537,9 +2538,6 @@ function showBilan(res) {
   renderHurtBy(res.rows);
   renderScores(res.rows, bilanScoresBody);
 
-  clearInterval(bilanHandle);
-  bilanHandle = setInterval(stepBilan, 100);
-  stepBilan();
 }
 
 /* Groupement par milliers, espace insecable fin. Pas de « 80,8 k » : un bilan
@@ -2644,17 +2642,7 @@ function renderHurtBy(rows) {
   parts.forEach((p, k) => icos[k]?.appendChild(iconImg(SRC_ICON[p.i], HUD.low, 14)));
 }
 
-function stepBilan() {
-  if (!bilanOpen) return;
-  const k = Math.max(0, 1 - (performance.now() - bilanFrom) / BILAN_MS);
-  bilanBarFill.style.width = `${k * 100}%`;
-  bilanHint.textContent = `le salon s'ouvre dans ${Math.ceil(k * BILAN_MS / 1000)} s`;
-  if (k <= 0) closeBilan();
-}
-
 function closeBilan() {
-  clearInterval(bilanHandle);
-  bilanHandle = null;
   bilanOpen = false;
   bilanEl.hidden = true;
   // La classe de victoire (lot N) se retire ICI : laissee en place, la manche

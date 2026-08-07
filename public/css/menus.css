@@ -991,8 +991,6 @@
 #bilanScores { width: 100%; min-width: 0; }
 #bilanScores td.name { font-family: var(--font-display); }
 #bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); margin-top: var(--sp-12); }
-#bilanBar { width: min(320px, 60vw); height: 6px; border-radius: 999px; background: var(--ui-field); overflow: hidden; }
-#bilanBar > i { display: block; height: 100%; border-radius: 999px; background: var(--go); }
 
 /* --- la ventilation des degats subis ------------------------------------------
    La maquette montrait une BARRE EMPILEE surmontant une legende. `client.js`
@@ -2899,7 +2897,6 @@ tr.clickable { cursor: pointer; }
   color: var(--text-faint);
 }
 #bilanScores { font-size: var(--t-s); }
-#bilanHint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); }
 .hurtTitle {
   font-family: var(--font);
   font-size: var(--t-xs);
