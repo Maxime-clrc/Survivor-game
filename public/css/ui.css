@@ -1292,3 +1292,4 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 #bilanBar { width: 260px; height: var(--hair); background: var(--line); }
 #bilanBar > i { display: block; height: 100%; background: var(--text-faint); }
 #bilanHint { font-size: var(--t-xs); color: var(--text-faint); }
+#bilanPerf { font-size: var(--t-xs); color: var(--gain); text-align: center; }
