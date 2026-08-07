@@ -4,76 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Survivor — administration</title>
-<link rel="stylesheet" href="/css/tokens.css">
+<!-- La feuille de cette page est AUTONOME : elle recopie les valeurs de
+     `shared/palette.js` au lieu de les lire sur `:root`, parce que rien ici ne
+     charge le jeu. C'est la seule duplication du depot, et elle est commentee
+     comme telle dans le fichier — une couleur changee dans la palette se
+     reporte a la main. Ni `tokens.css` ni `palette.js` ne sont charges : voir
+     le commentaire du script en bas de page. -->
+<link rel="stylesheet" href="/css/admin.css">
 <style>
-  /* Page hors combat, hors jeu : elle suit la charte (palette posee par
-     cssVars(), grille de 4 px, angles durs) mais ne charge RIEN du client —
-     un operateur doit pouvoir l'ouvrir meme si le jeu est en morceaux. */
-  * { box-sizing: border-box; margin: 0; }
-  body {
-    background: var(--bg-void);
-    color: var(--text);
-    font-family: var(--font);
-    font-size: var(--t-m);
-    padding: var(--sp-8) var(--sp-4);
-  }
-  main { max-width: 720px; margin: 0 auto; display: grid; gap: var(--sp-6); }
-  h1 {
-    font-size: var(--t-l);
-    letter-spacing: var(--track-caps);
-    text-transform: uppercase;
-  }
-  section {
-    background: var(--bg-panel);
-    border: var(--hair) solid var(--line);
-    border-radius: var(--radius);
-    padding: var(--sp-4);
-    display: grid;
-    gap: var(--sp-3);
-  }
-  h2 {
-    font-size: var(--t-s);
-    letter-spacing: var(--track-caps);
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
-  .row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
-  input {
-    flex: 1;
-    min-width: 200px;
-    background: var(--bg-raised);
-    color: var(--text);
-    border: var(--hair) solid var(--line);
-    border-radius: var(--radius);
-    padding: var(--sp-2) var(--sp-3);
-    font: inherit;
-  }
-  button {
-    background: var(--bg-raised);
-    color: var(--text);
-    border: var(--hair) solid var(--line);
-    border-radius: var(--radius);
-    padding: var(--sp-2) var(--sp-4);
-    font: inherit;
-    cursor: pointer;
-    transition: border-color var(--tap);
-  }
-  button:hover { border-color: var(--text-dim); }
-  button.danger { color: var(--lethal); border-color: var(--lethal); }
+  /* COMPLEMENT a admin.css, et rien de plus : les quatre familles de
+     selecteurs que la feuille livree ne couvre pas, parce qu'elles n'existent
+     que sur cette page — la liste de definitions de l'etat, la colonne
+     d'actions de la table des comptes, le bloc preforme, et les trois teintes
+     de verdict posees par le script sur des <dd>.
+
+     Elles restent ici plutot que dans admin.css pour que la feuille reste
+     exactement celle du handoff, et parce qu'elles ne decrivent aucune
+     decision de conception : ce sont des mises en forme locales. */
   dl {
     display: grid;
     grid-template-columns: max-content 1fr;
     gap: var(--sp-1) var(--sp-4);
   }
-  table { width: 100%; border-collapse: collapse; font-size: var(--t-s); }
-  td, th { padding: var(--sp-1) var(--sp-2); border-bottom: var(--hair) solid var(--line-soft); text-align: left; }
-  td.actions { text-align: right; white-space: nowrap; }
-  td.actions button { padding: var(--sp-1) var(--sp-2); font-size: var(--t-xs); }
   dt { color: var(--text-faint); }
   dd { margin: 0; }
+  /* Le script pose ces trois classes sur les <dd> de l'etat ET sur #message :
+     vert « ca marche », ambre « ca marche encore mais surveille », rouge
+     « c'est casse ». Meme grammaire que le jeu. */
   .ok { color: var(--gain); }
   .warn { color: var(--warn); }
   .bad { color: var(--lethal); }
+  td.actions { text-align: right; white-space: nowrap; }
+  td.actions button { padding: var(--sp-1) var(--sp-2); font-size: var(--t-xs); min-height: 0; }
   pre {
     background: var(--bg-void);
     border: var(--hair) solid var(--line-soft);
@@ -87,8 +49,25 @@
 </style>
 </head>
 <body>
-<main>
-  <h1>Survivor — administration</h1>
+<div class="adminWrap">
+  <!-- Le kicker est AMBRE et non cyan, et les angles restent DURS : le cyan
+       dit « il faut y aller » partout dans le jeu, et le rayon franc des menus
+       signale « poste de controle du joueur ». Ici il faut dire l'inverse —
+       tu es hors du jeu, sur une machinerie qui touche aux donnees de tout le
+       monde et qui peut supprimer tous les comptes. -->
+  <div class="adminHead">
+    <div>
+      <div class="adminKicker">Hors jeu · accès opérateur</div>
+      <h1>Survivor — administration</h1>
+    </div>
+    <!-- Le retour vers le jeu est une NAVIGATION de page et non une action de
+         la page : d'ou `location.href` plutot qu'un des gestionnaires du
+         script. `.adminHead` est en `space-between`, il se cale a droite du
+         titre tout seul. -->
+    <div class="row">
+      <button id="adminBack" onclick="location.href='/'">← Retour</button>
+    </div>
+  </div>
 
   <section>
     <h2>Clé d'accès</h2>
@@ -106,7 +85,7 @@
 
   <section>
     <h2>Comptes</h2>
-    <p style="color: var(--text-dim);">
+    <p class="hint">
       « réinit. mdp » génère un mot de passe temporaire, affiché <strong>une
       seule fois</strong> ci-dessous — c'est le seul rattrapage d'un mot de
       passe perdu, il n'y a pas d'email. La suppression déconnecte le joueur
@@ -115,9 +94,11 @@
     <table id="comptes"><tbody></tbody></table>
   </section>
 
-  <section>
+  <!-- `.danger` porte son bord rouge en PERMANENCE et non au survol : elle doit
+       se voir depuis le haut de la page, avant qu'on y arrive par erreur. -->
+  <section class="danger">
     <h2>Zone dangereuse</h2>
-    <p style="color: var(--text-dim);">
+    <p class="hint">
       Supprime <strong>tous les comptes</strong> dans Supabase <strong>et</strong>
       la mémoire du serveur : identifiants, noyaux, arbres, jalons — tout le
       monde repart de zéro et devra recréer un compte, sans redémarrage.
@@ -127,13 +108,19 @@
       <button id="reset" class="danger">Supprimer tous les comptes</button>
     </div>
   </section>
-</main>
+</div>
 
-<script type="module">
-  import { cssVars } from "/shared/palette.js";
-  const root = document.documentElement;
-  for (const [k, v] of Object.entries(cssVars())) root.style.setProperty(k, v);
+<!-- PAS de `type="module"`, et plus aucun import. La page importait `cssVars`
+     depuis `/shared/palette.js` pour poser les couleurs, ce qui annulait en
+     pratique son autonomie : un module dont l'import echoue ne s'execute PAS
+     DU TOUT, donc une arborescence `shared/` cassee ou deplacee laissait ici
+     une page inerte — plus de bouton « Actualiser », c'est-a-dire plus aucun
+     moyen de diagnostiquer la panne qu'on vient constater. Or c'est exactement
+     le scenario pour lequel cette page existe.
 
+     Les couleurs viennent donc de `admin.css`, qui les recopie. C'est le prix
+     assume de l'autonomie, et la seule duplication du depot. -->
+<script>
   const $ = id => document.getElementById(id);
   const keyInput = $("key");
   keyInput.value = localStorage.getItem("survivor.adminKey") ?? "";
@@ -215,7 +202,9 @@
       const tr = tbody.insertRow();
       const who = tr.insertCell();
       who.textContent = c.affichage + (c.connecte ? " ●" : "");
-      if (c.connecte) who.className = "ok";
+      // `name` eclaircit le pseudo par rapport aux chiffres de la ligne : c'est
+      // lui qu'on cherche. `ok` le repasse en vert quand le joueur est en ligne.
+      who.className = c.connecte ? "ok" : "name";
       tr.insertCell().textContent = `${c.cores} noyaux`;
       tr.insertCell().textContent = `${c.runs} manche(s)`;
       tr.insertCell().textContent = `vu le ${fmtT(Date.parse(c.vuLe))}`;

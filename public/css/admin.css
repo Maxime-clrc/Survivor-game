@@ -1,0 +1,185 @@
+/* ===========================================================================
+   admin.html — la charte, pour une page qui ne charge PAS le jeu
+
+   Cette page est volontairement autonome : un operateur doit pouvoir l'ouvrir
+   meme si le jeu est casse. Elle ne charge donc ni `client.js`, ni les modules
+   de `shared/`.
+
+   Or c'est `client.js` qui pose les couleurs de `shared/palette.js` sur
+   `:root`. Sans lui, `var(--go)` et consorts sont vides, et toute la page
+   retombe sur les valeurs par defaut du navigateur.
+
+   D'ou CE FICHIER, qui recopie les valeurs de la palette a la main. C'est la
+   SEULE duplication autorisee du projet, et elle est le prix de l'autonomie de
+   la page. Si tu changes une couleur dans `shared/palette.js`, reporte-la ici.
+
+   Source : shared/palette.js — SURFACE, TEXT, SIGNAL.
+   =========================================================================== */
+:root {
+  color-scheme: dark;
+
+  /* --- SURFACE --- */
+  --bg-void:   #08090d;
+  --bg-arena:  #0f1219;
+  --bg-panel:  #161a24;
+  --bg-raised: #1e2431;
+  --line:      #2a3140;
+  --line-soft: #1c222d;
+
+  /* --- TEXT --- */
+  --text:       #e9edf5;
+  --text-dim:   #8892a6;
+  --text-faint: #5a6376;
+
+  /* --- SIGNAL --- */
+  --go:     #38bdf8;
+  --warn:   #f5a524;
+  --lethal: #ef4056;
+  --gain:   #34d399;
+
+  /* --- jetons d'interface ---
+     Repris de tokens.css, aux memes valeurs. La grille de 4 px et l'echelle
+     typographique sont celles du jeu : cette page est un ecran de moins, pas
+     un produit different. */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-6: 24px; --sp-8: 32px; --sp-12: 48px;
+  --t-xs: 11px; --t-s: 13px; --t-m: 15px; --t-l: 18px; --t-xl: 26px;
+  --hair: 1px;
+  --track-title: .18em;
+  --track-caps: .12em;
+  --font: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* Les ANGLES RESTENT DURS ici, contrairement aux menus du jeu.
+     Ce n'est pas un oubli : cette page est un outil d'exploitation, pas une
+     surface de jeu. Le rayon franc des menus signale « poste de controle du
+     joueur » ; l'angle dur signale « machinerie ». Les deux ne doivent pas se
+     confondre, surtout sur une page qui peut supprimer tous les comptes. */
+  --radius: 2px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: var(--sp-8) var(--sp-6) var(--sp-12);
+  background: var(--bg-void);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--t-m);
+  line-height: 1.6;
+}
+
+/* Une seule colonne, bornee. Une table de comptes qui s'etale sur 2000 px rend
+   chaque ligne illisible : l'oeil perd la ligne entre le pseudo et la date. */
+.adminWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  max-width: 860px;
+  margin-inline: auto;
+}
+
+.adminHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: var(--hair) solid var(--line);
+}
+
+/* Le kicker AMBRE, et non cyan. Le cyan dit « il faut y aller » dans tout le
+   jeu ; ici on veut dire « tu es hors du jeu, sur un outil qui touche aux
+   donnees de tout le monde ». L'ambre est exactement ce signal. */
+.adminKicker {
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--warn);
+  margin-bottom: var(--sp-2);
+}
+
+h1 {
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  margin: 0;
+}
+
+h2 {
+  font-size: var(--t-s);
+  font-weight: 400;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+
+/* La zone dangereuse porte son bord rouge en permanence, pas seulement au
+   survol : elle doit se voir depuis le haut de la page, avant qu'on y arrive
+   par erreur. */
+section.danger { border-color: var(--lethal); }
+section.danger h2 { color: var(--lethal); }
+
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+
+input, button {
+  font-family: inherit;
+  font-size: var(--t-m);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 40px;
+  border: var(--hair) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text);
+}
+input { flex: 1; min-width: 200px; }
+input::placeholder { color: var(--text-faint); }
+button { cursor: pointer; transition: border-color .12s linear, color .12s linear; }
+button:hover:not(:disabled) { border-color: var(--text-dim); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--go); outline-offset: 2px; }
+
+button.danger {
+  color: var(--lethal);
+  border-color: var(--lethal);
+  background: color-mix(in srgb, var(--lethal) 10%, transparent);
+  justify-self: start;
+}
+button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--lethal) 18%, transparent); }
+
+/* Les tables : des chiffres cales a droite, des noms cales a gauche. C'est ce
+   qui permet de comparer deux lignes sans les lire. */
+table { width: 100%; border-collapse: collapse; font-size: var(--t-s); }
+th {
+  text-align: left;
+  font-weight: 400;
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+td {
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 0;
+  border-bottom: var(--hair) solid var(--line-soft);
+  color: var(--text-dim);
+}
+td.num, th.num { text-align: right; padding-right: 0; }
+td.name { color: var(--text); }
+
+.hint { font-size: var(--t-s); color: var(--text-dim); }
+.hint.err { color: var(--lethal); }
+.hint.ok { color: var(--gain); }
