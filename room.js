@@ -109,6 +109,15 @@ export class Room {
       max: ROOM_MAX_PLAYERS,
       state: this.phase === PHASE_LOBBY ? 0 : 1,
       locked: this.pass ? 1 : 0,
+      /* Les deux seules choses qui permettent de choisir une salle SANS y
+         entrer, et qui existaient deja cote serveur sans jamais sortir : la
+         difficulte et l'avancement. Au salon c'est le vote qui fait foi, en
+         manche c'est la partie en cours — apres une manche `state.diffIndex`
+         est celui de la PRECEDENTE, pas celui qu'on jouerait en entrant, d'ou
+         les deux sources. Meme raison pour la vague, qui ne sort qu'en manche :
+         celle du `GameState` termine survit jusqu'au lancement du suivant. */
+      diff: this.phase === PHASE_LOBBY ? this.votedDifficulty().index : this.state.diffIndex,
+      wave: this.phase === PHASE_LOBBY ? 0 : this.state.wave,
     };
   }
 

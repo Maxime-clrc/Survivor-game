@@ -531,6 +531,7 @@
 #roomList .roomEntry {
   align-items: center;
   gap: var(--sp-4);
+  min-height: 64px;
   padding: var(--sp-4) var(--sp-6);
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
@@ -540,26 +541,113 @@
    autres. Regle deja posee par ui.css, conservee mot pour mot. */
 #roomList .roomEntry:disabled { opacity: 0.42; }
 
-#roomList .roomEntry .roomName { font-family: var(--font-display); font-size: var(--t-m); }
-/* L'effectif est un CHIFFRE : chasse fixe, et cale a droite pour que les
-   quatre lignes s'alignent. */
-#roomList .roomEntry .roomCount {
-  font-family: var(--font);
-  min-width: var(--sp-8);
-  text-align: right;
-  order: 3;
-}
-/* L'etat prend la forme d'une pastille : en ambre s'il y a une manche en cours
-   — on peut entrer, on regarde jusqu'a la suivante. */
+#roomList .roomEntry .roomName { font-family: var(--font-display); font-size: var(--t-l); font-weight: 600; }
+/* L'etat prend la forme d'une pastille, et sa COULEUR est l'information : vert
+   si la salle accepte du monde, ambre si une manche tourne \u2014 on peut entrer, on
+   regarde jusqu'a la suivante \u2014 gris si elle est pleine. En gris pour les trois
+   cas, il fallait lire trois mots pour trier quatre lignes. */
 #roomList .roomEntry .roomState {
   order: 2;
   padding: 2px var(--sp-2);
   border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: var(--t-xs);
   letter-spacing: var(--track-title);
   text-transform: uppercase;
+  color: var(--gain);
   background: color-mix(in srgb, currentColor 14%, transparent);
 }
-#roomList .roomEntry .roomLock { order: 1; }
+#roomList .roomEntry .roomState.running { color: var(--warn); }
+#roomList .roomEntry:disabled .roomState { color: var(--text-faint); }
+
+/* Le temoin qui ouvre la ligne. Il reprend la couleur de la pastille et la met
+   la ou l'oeil commence a lire : on trie la liste sans lire un mot. */
+#roomList .roomEntry::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--gain);
+  box-shadow: 0 0 var(--sp-2) var(--gain);
+}
+#roomList .roomEntry:has(.roomState.running)::before {
+  background: var(--warn);
+  box-shadow: 0 0 var(--sp-2) var(--warn);
+}
+#roomList .roomEntry:disabled::before {
+  background: var(--text-faint);
+  box-shadow: none;
+}
+
+/* L'effectif est le CHIFFRE de la ligne : chasse fixe, cale a droite pour que
+   les quatre lignes s'alignent, et assez fort pour se lire avant le nom quand
+   on cherche une place. */
+#roomList .roomEntry .roomCount {
+  order: 3;
+  font-family: var(--font);
+  font-size: var(--t-s);
+  font-weight: 700;
+  color: var(--text);
+  min-width: var(--sp-8);
+  text-align: right;
+}
+
+/* Les quatre CARRES d'effectif. Ils ne repetent pas le chiffre : ils le rendent
+   comparable d'une ligne a l'autre sans le lire. Sur quatre salles, l'oeil voit
+   d'un coup laquelle est presque pleine \u2014 ce que « 2 / 4 » et « 3 / 4 » ne
+   donnent qu'apres deux lectures.
+
+   Le markup vient de `client.js` (voir OPERATION-UI-CSS.md) : un `.roomSlots`
+   portant `data-n`, et quatre `<i>` a l'interieur. Un carre et non un disque :
+   le seul cercle du jeu est une entite vivante. */
+#roomList .roomEntry .roomSlots {
+  order: 2;
+  display: flex;
+  gap: 5px;
+  flex: none;
+}
+#roomList .roomEntry .roomSlots > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--ui-field);
+  box-shadow: inset 0 0 0 var(--hair) var(--ui-line);
+}
+#roomList .roomEntry .roomSlots[data-n="1"] > i:nth-child(-n + 1),
+#roomList .roomEntry .roomSlots[data-n="2"] > i:nth-child(-n + 2),
+#roomList .roomEntry .roomSlots[data-n="3"] > i:nth-child(-n + 3),
+#roomList .roomEntry .roomSlots[data-n="4"] > i:nth-child(-n + 4) {
+  background: var(--go);
+  box-shadow: 0 0 var(--sp-2) color-mix(in srgb, var(--go) 60%, transparent);
+}
+/* Une salle pleine n'est pas une bonne nouvelle : ses carres passent au gris
+   plutot qu'au cyan, sinon quatre carres allumes se lisent comme une invitation. */
+#roomList .roomEntry:disabled .roomSlots > i {
+  background: var(--text-faint);
+  box-shadow: none;
+}
+
+/* La ligne de sous-titre : difficulte et etat, sous le nom. C'est ce qui permet
+   de choisir une salle sans y entrer. */
+#roomList .roomEntry .roomSub {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  font-weight: 400;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#roomList .roomEntry .roomLock { order: 1; font-size: var(--t-s); color: var(--text-dim); }
+/* Le cadenas est un SVG en ligne (client.js) qui prend `currentColor` et `1em`
+   de la regle ci-dessus — c'est ce qui lui evite le jaune sature de l'emoji.
+   `display: block` le sort du contexte de ligne : pose en inline il repose sur
+   la ligne de base, la rangee lui reserve un cadratin entier, et le glyphe
+   flotte 3 px au-dessus du centre optique de la ligne. */
+#roomList .roomEntry .roomLock svg { display: block; }
 #roomList .roomEmpty { border-radius: var(--radius-ui); padding: var(--sp-8); }
 
 /* La creation dans son propre encart : c'est une action, elle ne doit pas
@@ -614,8 +702,34 @@
 .classOpt.mine {
   box-shadow: 0 0 var(--sp-8) -6px currentColor;
 }
-/* Le bandeau du haut disait deja « c'est la mienne » ; il gagne le rayon de la
-   carte pour ne pas depasser des coins. */
+/* Le bandeau du haut disait deja « c'est la mienne ». Lui donner le rayon de la
+   carte ne suffit PAS a l'empecher de deborder des coins, et il debordait — pour
+   deux raisons qui s'additionnent :
+
+     1. la carte ne porte pas ce rayon. `#panel button` (1,0,1) l'emporte sur
+        `.classOpt` (0,1,0) : le bouton sort en `--radius-ctl` (12 px) alors que
+        le bandeau demande `--radius-ui` (16 px) ;
+     2. meme au bon rayon, ca ne tiendrait pas. Le bandeau fait 4 px de haut
+        pour un rayon de 12 : le navigateur reduit TOUS les rayons d'un meme
+        facteur (4/12) des qu'ils depassent le cote, donc le bandeau se retrouve
+        avec des coins de 4 px la ou la carte en courbe 11. A 4 px du haut, le
+        bord interieur de la carte est encore rentre de plusieurs pixels — aucun
+        rayon ne rattrape ca.
+
+   C'est donc la CARTE qui doit rogner. `overflow: hidden` decoupe le bandeau
+   sur la courbe reelle, quelle que soit la valeur que le rayon finit par
+   prendre. Le rayon du bandeau devient decoratif — on le garde : il evite un
+   angle vif au ras du decoupage sur les navigateurs qui anticrenellent mal. */
+.classOpt { overflow: hidden; }
+/* Le rayon, lui, se reprend au lieu de se subir. La feuille declare DEUX fois
+   `.classOpt { border-radius: var(--radius-ui) }` et perdait les deux fois :
+   `#panel button` (1,0,1) l'emporte sur `.classOpt` (0,1,0), donc les trois
+   cartes sortaient au rayon des CONTROLES. Une carte de classe est un panneau
+   qu'on choisit, pas une commande qu'on presse — meme rayon que la carte de
+   difficulte juste en dessous, qui pose exactement la meme question. Un
+   selecteur porte par `#classRow` (1,1,0) repasse devant sans toucher a la
+   regle generale des boutons du panneau. */
+#classRow .classOpt { border-radius: var(--radius-ui); }
 .classOpt.mine::after { border-radius: var(--radius-ui) var(--radius-ui) 0 0; }
 .className { font-family: var(--font-display); font-size: var(--t-l); }
 .classRole { font-family: var(--font-body); line-height: 1.5; }
@@ -627,27 +741,76 @@
 .classMetaBtn { border-radius: var(--radius); min-height: 0; }
 
 /* --- difficulte -------------------------------------------------------------
-   Le segment reste un segment : c'est un choix entre trois etats exclusifs, et
-   c'est la bonne forme. Il gagne un etui, comme les onglets de connexion, pour
-   que les trois options se lisent comme un groupe. */
+   TROIS CARTES et non un segment. Le segment etait la bonne forme tant qu'une
+   option se resumait a son nom ; depuis qu'un mode porte ses quatre
+   multiplicateurs et son gain de noyaux, il n'y a plus de place dedans — et
+   c'est precisement ce qu'on vient comparer. Meme geometrie que les cartes de
+   classe juste au-dessus : l'ecran pose deux fois de suite la meme question
+   (« choisis parmi trois »), il doit la poser de la meme facon. */
 #voteRow {
-  gap: var(--sp-1);
-  padding: var(--sp-1);
-  border: var(--hair) solid var(--ui-line);
-  border-radius: var(--radius-ctl);
-  background: var(--bg-void);
+  gap: var(--sp-3);
+  padding: 0;
+  border: 0;
+  background: none;
 }
 #voteRow button {
-  border: 0;
-  border-radius: calc(var(--radius-ctl) - 4px);
-  background: transparent;
-  font-family: var(--font-display);
-  font-weight: 600;
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--ui-line);
+  /* Ce rayon-ci gagne parce qu'il arrive APRES `#panel button` a specificite
+     egale (1,0,1). C'est le meme piege que sur `.classOpt`, qui le perd. */
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+  text-align: left;
 }
-#voteRow button:first-child, #voteRow button:last-child { border-radius: calc(var(--radius-ctl) - 4px); }
-#voteRow button.mine { background: color-mix(in srgb, var(--go) 10%, var(--ui-panel)); box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--go) 26%, transparent); }
-#voteRow button.winner { color: var(--go); box-shadow: inset 0 0 0 var(--hair) var(--go); }
-#voteRow .tally { font-family: var(--font); }
+/* Deux etats DISTINCTS, et ils coexistent le plus souvent — j'ai vote pour
+   celui qui gagne. Ils ne peuvent donc pas se dire de la meme facon : mon vote
+   TEINTE la carte, le mode retenu la CERNE et l'eclaire. */
+#voteRow button.mine { background: color-mix(in srgb, var(--go) 8%, var(--ui-panel)); }
+#voteRow button.winner {
+  border-color: var(--go);
+  box-shadow: 0 0 var(--sp-8) -6px var(--go);
+}
+
+.voteHead { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.voteName {
+  font-family: var(--font-display);
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text);
+}
+/* La pastille du gain se REMPLIT sur le mode retenu : c'est le seul aplat cyan
+   de la rangee, donc le premier point que l'oeil trouve. */
+.voteMul {
+  flex: none;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  background: var(--ui-field);
+}
+#voteRow button.winner .voteMul { color: var(--bg-void); background: var(--go); }
+/* Le detail est du CORPS de texte, dans un bouton dont tout le reste est en
+   capitales espacees : les deux proprietes doivent etre remises a plat. */
+.voteDetail {
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  line-height: 1.5;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-dim);
+}
+#voteRow .tally {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--go);
+}
 
 /* --- le tableau des scores --------------------------------------------------
    Au salon c'est de l'INFORMATION : ui.css l'attenuait deja a 60 %, et c'etait
@@ -915,6 +1078,32 @@
 #roomList .roomEntry:nth-child(n + 6),
 #metaTree .metaLine:nth-child(n + 6),
 #buildMods .buildMod:nth-child(n + 6) { animation-delay: 300ms; }
+
+/* La cascade est une animation d'ENTREE D'ECRAN, jamais de creation de noeud —
+   et trois ecrans reconstruisent leurs listes ALORS QU'ILS SONT AFFICHES : le
+   salon a chaque diffusion (vote, classe, « prêt », arrivee), le hub a chaque
+   changement d'effectif, la progression a chaque achat. C'est-a-dire a chaque
+   clic. Mesure sur un seul clic du selecteur de difficulte : huit `riseIn`
+   relances d'un coup, donc toute la colonne qui repart d'une opacite nulle.
+   L'ecran entier clignotait.
+
+   `.settled` est pose par client.js quand la cascade d'entree est finie, et
+   retire des que l'ecran se cache : la prochaine ouverture cascade a nouveau.
+
+   La regle nomme les trois ecrans concernes plutot que de reprendre la liste
+   entiere, et ce n'est pas de la timidite : #cards, #build et #bilan ne se
+   repeignent pas a l'affiche, donc ils n'ont rien a couper — et la carte
+   legendaire de #cards porte `riseIn` ET `epicBreath` dans la MEME
+   declaration, ou un `animation: none` lui aurait aussi retire sa
+   respiration, c'est-a-dire la seule chose qui en fait un evenement. */
+#hubScreen.settled #roomList .roomEntry,
+#panel.settled #classRow .classOpt,
+#panel.settled #voteRow button,
+#panel.settled #scores tbody tr,
+#menu.settled #metaTree .metaLine,
+#menu.settled #metaConfort .metaLine {
+  animation: none;
+}
 
 /* --- survols ----------------------------------------------------------------
    `transform` et non `translate` : voir la note sur `riseIn`. Les deux
@@ -1747,7 +1936,6 @@ button.ghost {
   text-transform: none;
   letter-spacing: 0;
 }
-button
 /* Rouge : une action irreversible pour la manche en cours. C'est le seul
    endroit de l'interface hors combat qui a le droit d'en porter. */
 button.danger {
@@ -1931,7 +2119,8 @@ tr.clickable { cursor: pointer; }
 }
 #roomList .roomEntry .roomName {
   flex: 1;
-  font-weight: 700;
+  min-width: 0;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2076,14 +2265,24 @@ tr.clickable { cursor: pointer; }
 .classMetaBtn { display: none; }
 
 /* --- difficulte -------------------------------------------------------------
-   Le segment reste un segment — c'est la bonne forme pour trois etats
-   exclusifs — mais dans un etui, comme les onglets de connexion. */
+   Trois cartes, meme grille que les classes : `auto-fit` les remet en colonne
+   sur un ecran etroit sans media query. Le minimum est plus bas que celui des
+   classes (220 contre 250) — une carte de mode ne porte ni silhouette ni
+   barres, juste deux lignes de texte. */
 #vote { display: flex; flex-direction: column; gap: var(--sp-2); }
-#voteRow { display: flex; }
+#voteRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
 #voteRow button {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
   min-width: 0;
-  border-left-width: 0;
+  /* Un bouton ne renvoie pas a la ligne par defaut : sans ca le detail sort en
+     une seule ligne et deborde. */
+  white-space: normal;
   font-size: var(--t-s);
 }
 #voteHint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); }
@@ -2570,11 +2769,16 @@ tr.clickable { cursor: pointer; }
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  padding: var(--sp-6);
+  padding: clamp(var(--sp-6), 2.6vw, var(--sp-8));
   border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
 }
+/* Le champ de nom prend la place, le mot de passe suit, le bouton reste a sa
+   largeur : c'est l'ordre dans lequel on les remplit. */
+.hubCreate #hubCreateRow { align-items: stretch; gap: var(--sp-3); }
+.hubCreate #hubCreateRow input { flex: 1; min-width: 180px; }
+.hubCreate #hubCreateRow button { flex: none; padding-inline: var(--sp-8); }
 .hubCreate .sectionTitle, .hubCreate #hubCreateRow { padding-inline: 0; max-width: none; }
 .hubWrap #hubAccount { margin-top: 0; padding-inline: 0; }
 
@@ -2637,7 +2841,6 @@ tr.clickable { cursor: pointer; }
 .panelCardHead #teamReady { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); }
 .panelWrap #classes, .panelWrap #vote, .panelWrap #scoresWrap { padding-inline: 0; }
 .panelLeaveRow #panelLeave { background: none; border-color: transparent; color: var(--text-dim); }
-.panelLeaveRow 
 /* Une ligne d'equipe. Le fond vert dit « pret » sans qu'on ait à lire. */
 #teamList { display: flex; flex-direction: column; gap: var(--sp-1); }
 #teamList .teamRow {
@@ -2883,17 +3086,21 @@ button.ghost:hover:not(:disabled),
   color: var(--text);
 }
 
-/* --- 7. segments : onglets et difficulte ------------------------------------
+/* --- 7. segments : les onglets ----------------------------------------------
    L'option ACTIVE ne repond pas au survol — on ne peut pas la choisir deux
    fois, et un retour sur un etat deja acquis se lit comme un bug. Seules les
-   options non choisies s'eclairent. */
-#gateTabs button:hover:not(.mine):not(:disabled),
-#voteRow button:hover:not(.mine):not(:disabled) {
+   options non choisies s'eclairent.
+
+   La difficulte a quitte cette famille : ce ne sont plus des segments dans un
+   etui mais des cartes, donc elles survolent comme les autres surfaces
+   choisissables — section 8. Laissees ici, le `border-color: transparent`
+   ci-dessous leur effacait leur bordure au passage de la souris. */
+#gateTabs button:hover:not(.mine):not(:disabled) {
   background: color-mix(in srgb, var(--go) 6%, transparent);
   color: var(--text);
   border-color: transparent;
 }
-#gateTabs button.mine:hover, #voteRow button.mine:hover {
+#gateTabs button.mine:hover {
   background: color-mix(in srgb, var(--go) 10%, var(--ui-panel));
   color: var(--go);
 }
@@ -2912,6 +3119,15 @@ button.ghost:hover:not(:disabled),
   transform: translateY(var(--lift-2));
   background: color-mix(in srgb, currentColor 8%, var(--ui-panel));
   border-color: color-mix(in srgb, currentColor 55%, transparent);
+}
+/* La carte de difficulte se leve comme une carte de classe, d'un cran de moins
+   parce qu'elle est plus legere. Le mode DEJA retenu ne bouge pas : son liseré
+   plein dit qu'il est acquis, le lever se lirait comme une invitation a le
+   reprendre. */
+#voteRow button:hover:not(.winner) {
+  transform: translateY(var(--lift-1));
+  background: color-mix(in srgb, var(--go) 7%, var(--ui-panel));
+  border-color: color-mix(in srgb, var(--go) 55%, transparent);
 }
 .cardOpt:hover:not(:disabled):not(.picked):not(.faded) {
   transform: translateY(var(--lift-3));

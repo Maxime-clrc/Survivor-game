@@ -1125,10 +1125,41 @@ function renderTopPing() {
   topPingValEl.textContent = `${ms} ms`;
 }
 
+/* La cascade d'entree (`riseIn`, menus.css) est une animation d'ECRAN, pas de
+   creation de noeud. Or les listes du salon, du hub et de la progression sont
+   RECONSTRUITES a chaque diffusion — un vote, un choix de classe, un « prêt »,
+   l'arrivee d'un joueur — c'est-a-dire a chaque clic. Mesure sur un seul clic
+   du selecteur de difficulte : huit `riseIn` relances d'un coup, donc toute la
+   colonne qui repart d'une opacite nulle. C'etait le clignotement.
+
+   `.settled` coupe l'animation pour les rendus suivants, et se retire des que
+   l'ecran se cache : la prochaine ouverture doit cascader. Il est pose au
+   temps plutot qu'a l'evenement parce qu'une animation qu'on annule en cours
+   de route s'annule VRAIMENT — poser la classe a la fin du premier rendu
+   couperait la cascade qui vient de commencer, et l'`animationend` du premier
+   element arrive alors que le sixieme n'a pas demarre. La derive de la
+   constante est benigne : trop court, une cascade se coupe a la fin ; trop
+   long, un clic dans la premiere seconde clignote encore. */
+const SETTLE_MS = 760;      // --rise (380 ms) + le plafond de decalage (300 ms), avec de la marge
+const settleTimers = new WeakMap();
+
+function syncSettled(el) {
+  if (!el) return;
+  clearTimeout(settleTimers.get(el));
+  if (el.hidden) { el.classList.remove("settled"); return; }
+  if (el.classList.contains("settled")) return;
+  settleTimers.set(el, setTimeout(() => el.classList.add("settled"), SETTLE_MS));
+}
+
 /* L'observateur : neuf ecrans, un seul attribut surveille. Il constate, il ne
-   decide pas — c'est ce qui le rend incapable d'oublier un chemin d'affichage. */
+   decide pas — c'est ce qui le rend incapable d'oublier un chemin d'affichage.
+   Il sert les DEUX lectures de l'attribut `hidden` : le fil d'Ariane de la
+   barre, et la cascade d'entree ci-dessus. */
 {
-  const obs = new MutationObserver(syncTopbar);
+  const obs = new MutationObserver(recs => {
+    syncTopbar();
+    for (const r of recs) syncSettled(r.target);
+  });
   for (const el of [gate, loadingEl, hubScreenEl, panel, bilanEl, menuEl, cardsEl, settingsEl]) {
     if (el) obs.observe(el, { attributes: true, attributeFilter: ["hidden"] });
   }
@@ -1186,6 +1217,29 @@ function enterHub() {
   }
 }
 
+/* LE CADENAS DE LA LISTE DES SALLES.
+
+   Un SVG en ligne et non 🔒 : l'emoji sort en presentation couleur, donc en
+   jaune-orange sature, et `color: var(--text-dim)` ne l'atteint pas — c'etait
+   la seule tache saturee d'un ecran qui n'en a aucune, et le rendu changeait
+   avec la police du systeme. Pas non plus `icons.js`, qui existe pour les
+   glyphes traces a DEUX endroits (arene et HUD) et qui CUIT sa couleur dans
+   une image : la teinte serait recopiee en JS alors que `menus.css` la
+   declare deja.
+
+   `currentColor` et `1em` : la couleur et la taille restent celles que la
+   feuille pose sur `.roomLock`, sans qu'une valeur soit ecrite ici.
+
+   La forme suit la charte plutot que le pictogramme d'usage : anse a angles
+   VIFS et non arrondie, corps rectangulaire, serrure percee au trace
+   (`fill-rule: evenodd`) et non peinte par-dessus — le fond de la ligne change
+   au survol, une serrure remplie d'une couleur en dur s'y serait vue. */
+const LOCK_SVG =
+  `<svg viewBox="0 0 16 16" width="1em" height="1em" aria-hidden="true" focusable="false">`
+  + `<path d="M5.4 7V3.9h5.2V7" fill="none" stroke="currentColor" stroke-width="1.7"/>`
+  + `<path d="M2.8 6.7h10.4v6.7H2.8z M7.45 8.9h1.1v2.5H7.45z" fill="currentColor" fill-rule="evenodd"/>`
+  + `</svg>`;
+
 function renderRooms() {
   if (hubScreenEl.hidden) return;
   roomListEl.innerHTML = "";
@@ -1204,14 +1258,44 @@ function renderRooms() {
     // autres est celle qu'on attend. La rendre cliquable pour afficher ensuite
     // un refus serait pire — le joueur apprendrait l'information deux fois.
     btn.disabled = full;
-    const lock = r.locked ? `<span class="roomLock" title="protégée par mot de passe">⚿</span>` : "";
+    const lock = r.locked
+      ? `<span class="roomLock" title="protégée par mot de passe">${LOCK_SVG}</span>` : "";
+    // « En jeu » et non « manche en cours » : la pastille tient sur six
+    // caracteres en capitales espacees, et la sous-ligne dit deja QUELLE vague
+    // tourne — repeter « en cours » a deux centimetres d'ecart n'apprend rien.
     const state = r.state === 1
-      ? `<span class="roomState running">manche en cours</span>`
-      : `<span class="roomState">salon</span>`;
-    btn.innerHTML = `<span class="roomName"></span>${lock}${state}`
-      + `<span class="roomCount">${r.count}/${r.max}</span>`;
-    // textContent et non innerHTML pour le nom : il vient d'un autre joueur.
-    btn.querySelector(".roomName").textContent = r.name;
+      ? `<span class="roomState running">En jeu</span>`
+      : `<span class="roomState">Salon</span>`;
+    /* Les carres d'effectif ne repetent pas « 3 / 4 » : ils le rendent
+       COMPARABLE d'une ligne a l'autre sans le lire. `data-n` porte l'effectif
+       present, le CSS allume — rien n'est colore ici, sinon la regle « une
+       salle pleine passe au gris » vivrait a deux endroits. Autant de cases
+       que de places et non quatre en dur : quatre cases sur une salle qui en
+       accepterait six serait un mensonge. La feuille en eclaire jusqu'a
+       quatre, les deux bougent donc ensemble. */
+    const slots = `<span class="roomSlots" data-n="${r.count}">`
+      + "<i></i>".repeat(r.max) + "</span>";
+    btn.innerHTML = `<span class="roomName"><span class="roomSub"></span></span>`
+      + `${lock}${state}${slots}`
+      + `<span class="roomCount">${r.count} / ${r.max}</span>`;
+    /* Le nom vient d'un autre joueur : il s'insere en NOEUD DE TEXTE, jamais en
+       innerHTML. Il se pose AVANT `.roomSub`, qui est deja dans le `.roomName`
+       — un `textContent` sur le parent effacerait la sous-ligne. */
+    const nameEl = btn.querySelector(".roomName");
+    nameEl.insertBefore(document.createTextNode(r.name), nameEl.firstChild);
+    /* La sous-ligne dit ce que `.roomState` ne disait pas : « SALON » ne
+       reprend que le contexte de l'ecran. La difficulte et l'avancement sont
+       les deux informations qui permettent de choisir une salle SANS y entrer.
+       Le verrou n'apparait ici QUE hors manche : en manche, la vague est plus
+       utile, et le glyphe du cadenas porte deja l'information. */
+    const mode = DIFFICULTIES[r.diff]?.label ?? "normal";
+    // Une manche vient d'etre lancee et la premiere vague n'est pas encore
+    // levee (`wave` vaut 0 pendant moins d'une seconde) : « vague 0 » se lirait
+    // comme un compteur casse.
+    const etat = r.state === 1 ? `vague ${Math.max(1, r.wave || 0)} en cours`
+      : r.locked ? "protégée par mot de passe"
+      : "en attente de joueurs";
+    btn.querySelector(".roomSub").textContent = `${mode} · ${etat}`;
     btn.onclick = () => {
       // Premier essai toujours SANS mot de passe : un membre connu re-entre
       // directement, et le refus `motdepasse` ouvre l'encart de saisie.
@@ -1616,13 +1700,55 @@ readyBtn.onclick = () => {
 /* Vote de difficulte. Chacun choisit, la majorite l'emporte, et l'egalite
    retient le mode le plus doux : personne ne doit pouvoir imposer cauchemar
    a la table en etant seul de son avis. */
+/* Les quatre multiplicateurs d'un mode, COMPOSES depuis `DIFFICULTIES` et
+   jamais recopies : un texte qui recopie une constante ment des le premier
+   reglage. Meme regle que les descriptions de cartes, qui composent `fmtM(LA
+   CONSTANTE)` au lieu d'ecrire un nombre. */
+const VOTE_STATS = [
+  { nom: "PV",          val: d => d.hp },
+  { nom: "apparitions", val: d => d.spawn },
+  { nom: "dégâts",      val: d => d.dmg },
+  { nom: "boss",        val: d => d.boss },
+];
+
+// « ×1,28 » — virgule decimale et deux decimales, comme la fenetre de build.
+function mul2(v) { return "×" + v.toFixed(2).replace(".", ","); }
+// « ×1,8 » — la meme chose sans les zeros de queue, pour une pastille etroite.
+function mulCourt(v) { return "×" + String(+v.toFixed(2)).replace(".", ","); }
+
+function voteDetail(d) {
+  /* Le mode de reference n'a que des ×1,00. Quatre fois le meme nombre est une
+     ligne qu'on ne lit pas : autant dire ce qu'elle veut dire. */
+  if (VOTE_STATS.every(s => s.val(d) === 1)) {
+    return "L'équilibrage de référence : tous les multiplicateurs à ×1,00";
+  }
+  return VOTE_STATS.map(s => `${s.nom} ${mul2(s.val(d))}`).join(" · ");
+}
+
 function renderVote() {
   voteRow.innerHTML = "";
 
   DIFFICULTIES.forEach((d, i) => {
     const btn = document.createElement("button");
     const n = tally[i] ?? 0;
-    btn.innerHTML = `${d.label}` + (n > 0 ? ` <span class="tally">${n}</span>` : "");
+    /* Le gain de noyaux est une VRAIE valeur de la meta (`PROG_CFG.DIFF_MUL`),
+       pas un indice de difficulte agrege pour l'occasion : c'est ce qu'on gagne
+       a jouer plus dur, et c'est la seule chose que les quatre multiplicateurs
+       ci-dessous ne disent pas. Le mot « noyaux » est ECRIT et vient EN TETE —
+       un « ×1,8 » nu se confondrait avec les multiplicateurs de la ligne du
+       dessous, qui ne parlent pas de la meme chose, et « ×1,8 noyaux » se lit
+       comme une quantite alors que c'est un multiplicateur sur le gain. */
+    const noyaux = PROG_CFG.DIFF_MUL[i] ?? 1;
+    btn.innerHTML =
+      `<span class="voteHead"><span class="voteName"></span>`
+      + `<span class="voteMul">noyaux ${mulCourt(noyaux)}</span></span>`
+      + `<span class="voteDetail"></span>`
+      + (n > 0 ? `<span class="tally"></span>` : "");
+    btn.querySelector(".voteName").textContent = d.label;
+    btn.querySelector(".voteDetail").textContent = voteDetail(d);
+    // Le decompte reste sur la CARTE et pas seulement au pied : a quatre, ce
+    // qu'on veut voir c'est la repartition, pas seulement le vainqueur.
+    if (n > 0) btn.querySelector(".tally").textContent = `${n} voix`;
     btn.classList.toggle("mine", i === myVote);
     btn.classList.toggle("winner", i === difficulty);
     btn.onclick = () => {
@@ -1635,9 +1761,13 @@ function renderVote() {
   });
 
   const retenu = DIFFICULTIES[difficulty]?.label ?? "normal";
+  /* Deux regles reelles, chacune la ou elle sert : a plusieurs, la seule
+     question est ce qui arrive en cas d'egalite ; seul, elle ne se pose pas et
+     ce qui compte est que le vote se ferme au lancement. */
   voteHint.textContent = lobby.length > 1
-    ? `mode retenu : ${retenu} — à égalité, le plus doux l'emporte`
-    : `mode retenu : ${retenu}`;
+    ? `Mode retenu : ${retenu} (${tally[difficulty] ?? 0} voix sur ${lobby.length}).`
+      + ` À égalité, le plus doux l'emporte.`
+    : `Mode retenu : ${retenu}. Le vote se verrouille au lancement.`;
 }
 
 /* Choix de classe. Les emplacements uniques deja pris sont grises : le serveur
