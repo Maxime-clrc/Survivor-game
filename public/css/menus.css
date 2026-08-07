@@ -2559,7 +2559,12 @@ tr.clickable { cursor: pointer; }
    Des lignes denses et non des cartes : c'est un magasin qu'on relit a chaque
    salon, pas un choix sous pression. */
 #meta { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; }
-#metaTree, #metaConfort { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
+#metaTree, #metaConfort, #metaBans { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
+/* QUI POSE UN `display` PORTE SA CONTRE-REGLE. Les quatre listes du Terminal
+   se replient par l'attribut `hidden`, et un `display` d'auteur le neutralise
+   — sans ces lignes, l'arbre restait affiche sous l'onglet « Bannies », qui
+   n'affichait donc rien de plus. Meme piege que `#authed` sur la page admin. */
+#metaTree[hidden], #metaConfort[hidden], #metaBans[hidden], #metaMilestones[hidden] { display: none; }
 #metaConfort { margin-top: var(--sp-2); }
 .metaLine {
   display: grid;
@@ -3372,6 +3377,274 @@ tr.clickable { cursor: pointer; }
 }
 
 /* ===========================================================================
+   LES SIX ECRANS DU PLAN 4
+
+   Ils sont arrives pendant que la refonte se faisait ailleurs : ils
+   fonctionnent, mais ils sortaient au style d'origine, c'est-a-dire au milieu
+   d'une interface qui avait change de vocabulaire.
+
+   Deux familles, et la ligne de partage est la meme que partout : un ecran
+   qu'on lit SOUS MINUTERIE — marchand, choix de carte, fenetre de build —
+   suit le vocabulaire des cartes ; un ecran qu'on lit HORS PRESSION —
+   classement, Terminal, bilan — suit celui des menus. Rien de neuf n'est
+   invente ici : on reutilise les formes deja posees, c'est tout l'interet
+   d'avoir un vocabulaire.
+   =========================================================================== */
+
+/* --- 1. le marchand de reliques (lot K) --------------------------------------
+   Meme ecran que le choix de carte, a la lettre : titre centre borne a 720 px,
+   minuterie en rail arrondi, message d'attente en pied. Les reliques SONT des
+   `.cardOpt` — elles heritent donc des raretes, des materiaux et de la levee
+   au survol sans une ligne de plus. */
+#merchant { padding: var(--sp-8) var(--sp-6); }
+#merchantTitle {
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  /* Casse NORMALE, comme les six autres titres d'ecran. Il heritait des
+     capitales du socle et sortait en « MARCHAND » : un titre d'ecran en
+     capitales retombe au niveau du kicker, et l'ecran n'a plus de titre. */
+  text-transform: none;
+  line-height: 1.25;
+  text-align: center;
+  max-width: 720px;
+  margin-inline: auto;
+}
+/* Le solde est un CHIFFRE : chasse fixe, et vert — c'est un gain. */
+#merchantTitle .merchantEclats {
+  font-family: var(--font);
+  font-size: var(--t-l);
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--gain);
+}
+#merchantTimer { height: 6px; border-radius: 999px; overflow: hidden; }
+#merchantTimer > i { border-radius: 999px; }
+#merchantWaitMsg {
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  line-height: 1.7;
+  color: var(--text-faint);
+  text-align: center;
+}
+/* Le prix vit dans le pied de la carte, la ou les cartes de niveau mettent
+   leur categorie : meme place, meme taille, donc meme lecture. */
+.merchantPrix { font-family: var(--font); font-size: var(--t-xs); color: var(--gain); }
+
+/* --- 2. le bannissement (lot J) ----------------------------------------------
+   Une action RARE et IRREVERSIBLE posee sur une carte qu'on est en train de
+   choisir : elle doit rester lisible sans jamais concurrencer le choix. D'ou
+   un pied de carte discret qui ne vire au rouge qu'au survol — un rouge
+   permanent sur les trois cartes serait un signal criard, et la grammaire
+   reserve le rouge au danger. */
+.cardBan {
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  transition: color var(--tap) linear, border-color var(--tap) linear,
+              background var(--tap) linear;
+}
+/* La liste des bannies, au Terminal : consultation seule, donc une ligne plate
+   et non une carte. `.metaLine` porte deja la forme ; le nom barre dit que la
+   carte ne sortira plus, la pastille dit pourquoi. */
+.metaBanTag {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--lethal);
+}
+.metaLine.banned { opacity: .75; }
+.metaLine.banned .metaName { text-decoration: line-through; }
+
+/* --- 3. le classement au temps (lot N) ---------------------------------------
+   Un panneau du hub, donc au vocabulaire du hub : rayon d'interface, fond de
+   panneau, et le meme etui d'onglets que le vote de difficulte — un troisieme
+   style de bascule serait un de trop. */
+#hubBoard {
+  /* Toute la colonne, et non les 560 px centres que posait ui.css : dans le
+     hub refondu il est un panneau de plus, entre la liste et l'encart de
+     creation, et un bloc plus etroit que ses voisins se lit comme flottant. */
+  width: 100%;
+  margin-top: 0;
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+#hubBoard[hidden] { display: none; }
+#hubBoardTabs { gap: var(--sp-1); }
+#hubBoardTabs button {
+  min-height: 32px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--radius-ctl);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+}
+/* L'onglet ACTIF n'est pas fantome : c'est la difficulte qu'on regarde. */
+#hubBoardTabs button:not(.ghost) {
+  color: var(--go);
+  border-color: color-mix(in srgb, var(--go) 45%, transparent);
+  background: color-mix(in srgb, var(--go) 10%, transparent);
+}
+#hubBoardList { gap: 0; }
+.boardRow {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius);
+  border-top: var(--hair) solid var(--line-soft);
+}
+.boardRow:first-child { border-top: 0; }
+/* Chiffres a chasse fixe ET a chasse TABULAIRE : sans quoi les temps ne
+   s'alignent pas en colonne, et comparer — le seul objet du tableau — demande
+   de lire chaque ligne au lieu de la balayer. */
+.boardRank, .boardTime { font-family: var(--font); font-variant-numeric: tabular-nums; }
+.boardRank { font-size: var(--t-xs); color: var(--text-faint); }
+.boardWho { font-family: var(--font-display); font-weight: 600; color: var(--text); }
+.boardTime { font-size: var(--t-s); font-weight: 700; color: var(--text); }
+/* Ma ligne : TEINTEE et pas seulement bordee. Sur dix lignes, un liseré de
+   1 px se cherche au lieu de se voir. */
+.boardRow.moi {
+  background: color-mix(in srgb, var(--go) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--go);
+}
+.boardRow.moi .boardWho, .boardRow.moi .boardTime { color: var(--go); }
+
+/* --- 4. les onglets du Terminal (lot H) --------------------------------------
+   Deux rangees de bascule, et elles reprennent l'etui du vote : bordures qui
+   se touchent, `.mine` pour l'actif. La rangee de CLASSE dit quel arbre on
+   regarde, la rangee de CONTENU ce qu'on y regarde — deux questions, donc deux
+   rangees, et jamais une seule qui melangerait les deux. */
+#metaClassTabs, #metaTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ctl);
+  background: var(--bg-void);
+}
+#metaClassTabs button, #metaTabs button {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  border: 0;
+  border-radius: calc(var(--radius-ctl) - 4px);
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+#metaClassTabs button.mine, #metaTabs button.mine {
+  color: var(--go);
+  background: color-mix(in srgb, var(--go) 10%, var(--ui-panel));
+  box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--go) 26%, transparent);
+}
+/* La ligne d'emplacements est la CONTRAINTE qui structure toutes les decisions
+   de l'ecran : elle reste visible en permanence, et son chiffre se detache du
+   reste comme un chiffre doit le faire. */
+#metaSlots {
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  line-height: 1.6;
+  color: var(--text-dim);
+  text-align: center;
+}
+#metaSlots b { font-family: var(--font); font-weight: 700; color: var(--text); }
+#metaSlots small { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
+/* La pastille de noyaux depensables sur le bouton du Terminal. Un POINT et non
+   un nombre : le nombre est dans l'ecran, ici il ne s'agit que de dire qu'il y
+   a quelque chose a y faire. */
+#terminalBtn { position: relative; }
+#terminalDot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--go);
+  box-shadow: 0 0 var(--sp-2) var(--go);
+}
+#terminalDot[hidden] { display: none; }
+
+/* --- 5. la jauge de puissance (lot H) ----------------------------------------
+   Un INSTRUMENT DE MESURE : on n'y choisit rien, on y lit un cadran. */
+#buildPower {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+/* Dans le bilan, la jauge est deja dans le cadre de `#bilanMine` : deux
+   bordures imbriquees font une boite dans une boite. */
+#minePower { display: flex; flex-direction: column; gap: var(--sp-2); }
+.pLab {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.pVal { font-family: var(--font); font-size: var(--t-xl); font-weight: 700; color: var(--text); }
+.pQual { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); }
+.pGauge { border-radius: var(--radius); overflow: hidden; }
+.pNote { font-family: var(--font-body); font-size: var(--t-xs); line-height: 1.6; }
+.pMark { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
+
+/* --- 6. le bilan de victoire (lot N) -----------------------------------------
+   Ce n'est pas un second ecran : c'est le meme, avec un titre qui change de
+   registre. Le TEMPS y est le chiffre le plus gros de la page — c'est lui qui
+   compte au classement, et rien d'autre. Vert et non ambre ni rouge : c'est la
+   seule fin de manche du jeu qui soit un gain, et la grammaire fonctionnelle
+   vaut pour les ecrans comme pour l'arene. */
+#bilan.victoire #bilanTitle { color: var(--gain); }
+.bilanChrono {
+  display: block;
+  font-family: var(--font);
+  font-size: var(--t-hero);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  color: var(--gain);
+}
+.bilanRecord {
+  display: block;
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--gain);
+}
+/* TA partie : le seul bloc de l'ecran qui ne parle que de toi, entre deux qui
+   parlent de l'equipe. Encadre, sinon les trois se confondent. */
+#bilanMine {
+  padding: var(--sp-6);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+.mineTitle {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--go);
+}
+.mineCls { font-family: var(--font-display); font-size: var(--t-s); font-weight: 700; }
+#mineOpen { min-height: 32px; }
+
+/* ===========================================================================
    ETATS DE SURVOL, DE FOCUS ET DESACTIVE — LA SECTION FINALE
 
    Elle est EN DERNIER dans la feuille, et c'est deliberé. Les etats etaient
@@ -3577,6 +3850,27 @@ button.ghost:hover:not(:disabled),
   color: var(--go);
 }
 
+/* --- 9 bis. les six ecrans du plan 4 -----------------------------------------
+   Chacun rejoint la famille de survol qui lui correspond, plutot que d'en
+   inventer une : les onglets se comportent comme des onglets, la ligne de
+   classement comme une ligne de salle, le bannissement comme la seule action
+   letale de la feuille. */
+#hubBoardTabs button.ghost:hover:not(:disabled),
+#metaClassTabs button:hover:not(.mine):not(:disabled),
+#metaTabs button:hover:not(.mine):not(:disabled) {
+  background: color-mix(in srgb, var(--go) 6%, transparent);
+  color: var(--text);
+}
+.boardRow:hover { background: color-mix(in srgb, var(--go) 5%, transparent); }
+/* Le rouge n'arrive QU'au survol : un pied de carte rouge en permanence serait
+   un signal criard sur les trois cartes, et la grammaire reserve le rouge au
+   danger. */
+.cardBan:hover {
+  color: var(--lethal);
+  border-color: var(--lethal);
+  background: color-mix(in srgb, var(--lethal) 10%, transparent);
+}
+
 /* --- 10 bis. LE RETOUR AU CLIC -----------------------------------------------
    Il n'y en avait aucun : le survol levait l'element, et le clic ne repondait
    rien du tout — l'interface ne confirmait un geste qu'une fois la page
@@ -3588,6 +3882,9 @@ button.ghost:hover:not(:disabled),
    `transition-duration: 0s` a l'appui et non `--tap` : un enfoncement doit
    etre INSTANTANE — c'est le relachement qui s'anime, et l'oeil lit alors le
    retour a la position de repos comme la fin du geste. */
+#hubBoardTabs button:active:not(:disabled),
+#metaClassTabs button:active:not(:disabled),
+#metaTabs button:active:not(:disabled),
 #gate button:active:not(:disabled),
 #hubScreen button:active:not(:disabled),
 #panel button:active:not(:disabled),
