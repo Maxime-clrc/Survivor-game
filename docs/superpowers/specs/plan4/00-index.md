@@ -1,5 +1,17 @@
 # Plan 4 — index
 
+> **PARTIELLEMENT ANNULÉ PAR [`plan5`](../plan5/00-index.md).** La décision
+> *« le modèle de vague actuel (budget puis nettoyage) est conservé »* (section
+> « Décisions actées ») est **renversée** : `plan5` remplace les vagues par une
+> chronologie scriptée de six segments. Sont également touchés le calendrier
+> `vague % 5 === 3` du lot L (le calendrier devient explicite) et le classement au
+> temps du lot N (sous horloge de horde fixe, le temps pour *atteindre* le boss
+> final est constant).
+>
+> Ce qui reste valide et est **repris** par `plan5` : lot M (nouveaux ennemis) au
+> lot S, lot L (vagues spéciales) au lot U, lot N (boss final) au lot W. Les lots
+> H, I, J et K ne sont pas traités par `plan5`.
+
 Sept lots, issus de la validation en équipe du récapitulatif. Deux
 vérifications faites sur le code actuel changent la donne par rapport au
 brainstorm initial :
