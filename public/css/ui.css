@@ -115,6 +115,16 @@ html, body {
    chargement et le choix de carte, elle est `hidden` et l'ecran reprend toute
    la hauteur. La valeur suit celle de la feuille des menus. */
 #topbar:not([hidden]) ~ .overlay { top: 56px; }
+
+/* `#settings` COULE DEPUIS LE HAUT, comme les cinq autres ecrans hors combat.
+   La feuille des menus les enumere un par un (`#gate, #hubScreen, #panel,
+   #bilan, #menu`) et celui-ci manque a la liste : il gardait donc le
+   `justify-content: center` de `.overlay`, et son contenu — plus haut que la
+   fenetre des qu'on ajoute le pense-bete des touches — debordait par le HAUT,
+   ou un conteneur flex centre le rend inatteignable au defilement. Symptome
+   mesure : l'en-tete de l'ecran a `y = -12 px`, titre et bouton de retour
+   invisibles. C'est exactement le defaut que la refonte corrige ailleurs. */
+#settings { justify-content: flex-start; align-items: stretch; gap: 0; padding: 0; }
 /* LA MEME CONTRE-REGLE, PORTEE PAR CHAQUE IDENTIFIANT. `.overlay[hidden]` pese
    0-2-0 : toute regle d'auteur qui pose un `display` sur l'un de ces ecrans par
    son identifiant (1-0-0) l'emporte, et l'ecran ne se ferme plus JAMAIS.

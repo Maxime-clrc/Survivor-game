@@ -469,6 +469,101 @@
   </div>
 </div>
 
+<!-- PARAMETRES. Les reglages vivaient a DEUX endroits qui ne se parlaient
+     pas — l'ecran de connexion et le menu pause — donc impossible de baisser
+     la musique depuis un salon, et le pense-bete des touches n'etait
+     consultable qu'AVANT de s'etre connecte, c'est-a-dire au seul moment ou
+     l'on ne s'en sert pas.
+
+     Les trois jeux de curseurs reglent la MEME valeur (`#vol` / `#pauseVol` /
+     `#setVol`, et leurs trois equivalents musique) : `audioUi` dans client.js
+     est le point de passage unique qui les tient synchronises, libelle de
+     pourcentage compris. Trois curseurs qui afficheraient trois nombres
+     differents pour un seul volume seraient pires qu'un seul. -->
+<div id="settings" class="overlay" hidden>
+  <div class="setWrap">
+
+    <div class="setHead">
+      <div>
+        <div class="sectionTitle">Réglages de cette machine</div>
+        <h1 id="settingsTitle">Paramètres</h1>
+      </div>
+      <div class="row">
+        <button id="settingsClose">← Retour</button>
+      </div>
+    </div>
+
+    <p class="setLead">
+      Ces réglages sont enregistrés sur cette machine, pour toutes tes parties.
+    </p>
+
+    <section class="setCard">
+      <div class="sectionTitle">Audio</div>
+      <div class="setRow">
+        <span>Effets sonores</span>
+        <input id="setVol" type="range" min="0" max="100" step="5">
+        <span class="setVal" id="setVolVal">70 %</span>
+      </div>
+      <div class="setRow">
+        <span>Musique</span>
+        <input id="setMusVol" type="range" min="0" max="100" step="5">
+        <span class="setVal" id="setMusVolVal">50 %</span>
+      </div>
+    </section>
+
+    <!-- Le pense-bete des touches, STATIQUE : rien a brancher, le markup
+         porte les libelles. Il vivait sur l'ecran de connexion et n'y servait
+         a rien ; il devient consultable en cours de partie. -->
+    <section class="setCard">
+      <div class="sectionTitle">Contrôles</div>
+      <p class="setLead">Disposition AZERTY. La souris sert toujours à viser.</p>
+
+      <div class="keyRow">
+        <span class="keyCombo">
+          <span class="keyCap">Z</span><span class="keyCap">Q</span>
+          <span class="keyCap">S</span><span class="keyCap">D</span>
+        </span>
+        <span class="keyDesc">Se déplacer — les flèches fonctionnent aussi</span>
+      </div>
+      <div class="keyRow">
+        <span class="keyCombo"><span class="keyCap">Souris</span></span>
+        <span class="keyDesc">Viser. Le tir part tout seul, tu n'as rien à cliquer.</span>
+      </div>
+      <div class="keyRow">
+        <span class="keyCombo"><span class="keyCap">Espace</span></span>
+        <span class="keyDesc">Esquiver — tu es invulnérable pendant le bond</span>
+      </div>
+      <div class="keyRow">
+        <span class="keyCombo"><span class="keyCap">A</span><span class="keyCap">1</span></span>
+        <span class="keyDesc">Première compétence de classe</span>
+      </div>
+      <div class="keyRow">
+        <span class="keyCombo"><span class="keyCap">E</span><span class="keyCap">2</span></span>
+        <span class="keyDesc">Deuxième compétence de classe</span>
+      </div>
+      <div class="keyRow">
+        <span class="keyCombo">
+          <span class="keyCap">3</span><span class="keyCap">R</span><span class="keyCap">Clic milieu</span>
+        </span>
+        <span class="keyDesc">Troisième compétence, une fois sa carte tirée</span>
+      </div>
+      <div class="keyRow">
+        <span class="keyCombo"><span class="keyCap">Tab</span></span>
+        <span class="keyDesc">Consulter son build en cours de manche</span>
+      </div>
+      <div class="keyRow">
+        <span class="keyCombo"><span class="keyCap">Échap</span></span>
+        <span class="keyDesc">Menu pause</span>
+      </div>
+      <div class="keyRow">
+        <span class="keyCombo"><span class="keyCap">Proximité</span></span>
+        <span class="keyDesc">Relève un coéquipier en restant simplement à côté de lui</span>
+      </div>
+    </section>
+
+  </div>
+</div>
+
 <!-- Salon. C'etait l'ecran qui souffrait le plus : sept blocs empiles au
      centre, dont un bouton de lancement qui remontait ou descendait selon le
      nombre de joueurs. Desormais DEUX COLONNES — les CHOIX a gauche (classe,

@@ -1317,11 +1317,16 @@ menuCloseBtn.onclick = () => {
 
 /* --- reglage du son -------------------------------------------------------
 
-   DEUX jeux de controles pour un seul reglage : celui de l'ecran d'accueil et
-   celui du menu pause. Une liste et une boucle plutot que deux copies des trois
-   gestionnaires — le second jeu aurait sinon oublie de se remettre a jour quand
-   on touche au premier, et on aurait vu deux volumes differents affiches en
-   meme temps. */
+   TROIS jeux de controles pour un seul reglage : l'ecran d'accueil, le menu
+   pause et l'ecran de parametres. Une liste et une boucle plutot que trois
+   copies des gestionnaires — sans ca, un jeu oublierait de se remettre a jour
+   quand on touche a un autre, et on verrait trois volumes differents affiches
+   en meme temps pour une seule valeur, ce qui est pire que n'en avoir qu'un.
+
+   Le jeu des parametres n'a PAS de bouton de coupure, et c'est voulu : la
+   coupure est un geste d'urgence (« quelqu'un entre dans la piece »), elle a sa
+   place la ou l'on est deja — l'accueil et la pause — pas dans un ecran qu'il
+   faut d'abord ouvrir. `mute` est donc optionnel dans la table. */
 const audioUi = [
   { vol: volInput, val: volVal, mute: muteBtn,
     mus: document.getElementById("musVol"),
@@ -1333,7 +1338,13 @@ const audioUi = [
     mus: document.getElementById("pauseMusVol"),
     musVal: document.getElementById("pauseMusVolVal"),
   },
-];
+  {
+    vol: document.getElementById("setVol"),
+    val: document.getElementById("setVolVal"),
+    mus: document.getElementById("setMusVol"),
+    musVal: document.getElementById("setMusVolVal"),
+  },
+].filter(u => u.vol);
 
 function refreshAudioUi() {
   const pct = Math.round(getVolume() * 100);
@@ -1341,9 +1352,11 @@ function refreshAudioUi() {
   for (const u of audioUi) {
     u.vol.value = String(pct);
     u.val.textContent = `${pct} %`;
-    u.mute.textContent = isMuted() ? "✕" : "♪";
-    u.mute.classList.toggle("off", isMuted());
-    u.mute.title = isMuted() ? "rétablir le son" : "couper le son";
+    if (u.mute) {
+      u.mute.textContent = isMuted() ? "✕" : "♪";
+      u.mute.classList.toggle("off", isMuted());
+      u.mute.title = isMuted() ? "rétablir le son" : "couper le son";
+    }
     if (u.mus) {
       u.mus.value = String(mus);
       u.musVal.textContent = `${mus} %`;
@@ -1360,14 +1373,16 @@ for (const u of audioUi) {
     refreshAudioUi();
   };
 
-  u.mute.onclick = () => {
-    // Le bouton sert aussi de bouton de test : il debloque le contexte au
-    // premier clic, avant meme d'avoir rejoint.
-    initAudio();
-    setMuted(!isMuted());
-    refreshAudioUi();
-    if (!isMuted()) playSound("bonus");
-  };
+  if (u.mute) {
+    u.mute.onclick = () => {
+      // Le bouton sert aussi de bouton de test : il debloque le contexte au
+      // premier clic, avant meme d'avoir rejoint.
+      initAudio();
+      setMuted(!isMuted());
+      refreshAudioUi();
+      if (!isMuted()) playSound("bonus");
+    };
+  }
 
   // Volume de la MUSIQUE, separe : a zero, la bande son se tait sans toucher
   // aux signaux du jeu — c'est le bouton « je joue sans musique ».
