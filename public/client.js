@@ -2962,6 +2962,7 @@ function ingest(msg) {
   latest = snap;
   snapshots.push(snap);
   while (snapshots.length > 40) snapshots.shift();
+  if (PERF) netPerfArrival(now);
 
   /* La fenetre de build reste VIVANTE quand elle est ouverte en jeu : les
      degats et les kills montent pendant qu'on la lit. Deux fois par seconde et
@@ -2992,8 +2993,12 @@ function ingest(msg) {
     // Pendant une esquive, l'ecart avec le serveur depasse volontairement le
     // seuil de recalage : recaler la ferait avorter a mi-course.
     const dashing = dash.t > 0 || me.dashing;
-    if (!predicted || me.downed
-        || (!dashing && Math.hypot(me.x - predicted.x, me.y - predicted.y) > SNAP_THRESHOLD)) {
+    const loin = !!predicted && !dashing
+      && Math.hypot(me.x - predicted.x, me.y - predicted.y) > SNAP_THRESHOLD;
+    if (!predicted || me.downed || loin) {
+      // Le recalage SEC est le second symptome rapporte : il doit correler avec
+      // le compteur de famine, une image figee laissant la prediction deriver.
+      if (PERF && loin) netPerf.resnap++;
       predicted = { x: me.x, y: me.y };
     }
   } else {
@@ -3222,6 +3227,67 @@ setInterval(() => {
   ws.send(JSON.stringify(msg));
 }, 1000 / INPUT_HZ);
 
+/* --- diagnostic reseau (?perf) -----------------------------------------------------
+   Les suspects du lag rapporte — gigue de diffusion, bande passante, pauses de
+   ramasse-miettes, cout de rendu — produisent tous le MEME graphe CPU plat.
+   Sans ces compteurs on ne peut pas dire lequel decroche.
+
+   Le plus important est `famine` : il compte les images ou l'interpolation n'a
+   plus de couple encadrant et retombe sur le dernier instantane recu, donc les
+   images ou le monde est FIGE a l'ecran. C'est le symptome rapporte, mesure
+   directement plutot que deduit.
+
+   La condition de famine n'est pas « moins de deux instantanes de marge », comme
+   on pourrait le lire dans le LISEZMOI : il suffit qu'UNE paire encadre
+   `renderTime`, donc que l'ecart depuis le dernier recu depasse INTERP_MS. C'est
+   cet ecart qu'on mesure, et rien d'autre — d'ou le seuil de `gapBig`. */
+const netPerf = {
+  esp: [], gapBig: 0, famine: 0, remplissage: 0, resnap: 0, frameMax: 0,
+  lastRecv: 0, since: 0, txt: "",
+};
+
+function netPerfArrival(t) {
+  if (netPerf.lastRecv > 0) {
+    const d = t - netPerf.lastRecv;
+    netPerf.esp.push(d);
+    // Au-dela d'INTERP_MS l'image gele par construction : ce compteur et
+    // `famine` doivent bouger ensemble, sinon l'analyse est fausse.
+    if (d > INTERP_MS) netPerf.gapBig++;
+  }
+  netPerf.lastRecv = t;
+}
+
+/* `raw` est la duree d'image NON plafonnee : `dt` est borne a 100 ms, ce qui
+   masquerait exactement la pause longue qu'on cherche a distinguer d'une famine
+   d'instantane. Une image de 300 ms avec des espacements d'arrivee normaux est un
+   ramasse-miettes ; des images normales avec un monde fige est une famine. */
+function netPerfFrame(raw) {
+  if (raw > netPerf.frameMax) netPerf.frameMax = raw;
+  netPerf.since += raw;
+  if (netPerf.since < 1000) return;
+  netPerf.since = 0;
+
+  const v = netPerf.esp;
+  let min = 0, max = 0, moy = 0;
+  if (v.length > 0) {
+    min = Infinity; max = -Infinity;
+    let sum = 0;
+    for (const x of v) { if (x < min) min = x; if (x > max) max = x; sum += x; }
+    moy = sum / v.length;
+  }
+  netPerf.txt = `arr n=${v.length} ${moy.toFixed(1)}/${min === Infinity ? 0 : min.toFixed(1)}`
+    + `/${max === -Infinity ? 0 : max.toFixed(1)} ms`
+    + ` · famine ${netPerf.famine} · >${INTERP_MS}ms ${netPerf.gapBig}`
+    + ` · recal ${netPerf.resnap} · img max ${netPerf.frameMax.toFixed(0)} ms`;
+
+  v.length = 0;
+  netPerf.gapBig = 0;
+  netPerf.famine = 0;
+  netPerf.remplissage = 0;
+  netPerf.resnap = 0;
+  netPerf.frameMax = 0;
+}
+
 /* --- interpolation ----------------------------------------------------------------- */
 
 function interpolated(renderTime) {
@@ -3236,7 +3302,19 @@ function interpolated(renderTime) {
       break;
     }
   }
-  if (!a) return flatten(snapshots[snapshots.length - 1]);
+  if (!a) {
+    /* Deux causes passent par ici et elles ne disent PAS la meme chose.
+       `renderTime` au-dela du plus recent : plus rien n'arrive, le monde est
+       fige a l'ecran — c'est le defaut traque. `renderTime` avant le plus
+       ancien : le tampon se remplit (entree en manche, reconnexion), c'est
+       benin et transitoire. Les confondre ferait lire un demarrage normal
+       comme une famine. */
+    if (PERF) {
+      if (renderTime > snapshots[snapshots.length - 1].recvAt) netPerf.famine++;
+      else netPerf.remplissage++;
+    }
+    return flatten(snapshots[snapshots.length - 1]);
+  }
 
   const span = b.recvAt - a.recvAt;
   const k = span > 0 ? (renderTime - a.recvAt) / span : 0;
@@ -4178,8 +4256,10 @@ const PERF = location.search.includes("perf");
 let fps = 0;
 
 function frame(now) {
-  const dt = Math.min((now - lastFrame) / 1000, 0.1);
+  const raw = now - lastFrame;
+  const dt = Math.min(raw / 1000, 0.1);
   lastFrame = now;
+  if (PERF) netPerfFrame(raw);
   // Moyenne glissante sur environ une seconde : l'inverse du dt brut saute de
   // 45 a 75 d'une image a l'autre et ne se lit pas.
   if (PERF && dt > 0) fps += (1 / dt - fps) * Math.min(1, dt * 1.5);
@@ -4509,6 +4589,7 @@ function drawScreen(v) {
     renderer: glActive() ? "GL" : "2D",
     draws: gl?.draws ?? 0, quads: gl?.quads ?? 0,
     voices: st ? st.active : 0, peak: st ? st.peak : 0,
+    net: netPerf.txt,
   });
 }
 

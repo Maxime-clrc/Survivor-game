@@ -25,6 +25,7 @@ import { RELIC_CFG, relicRerollCost } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
 import { lockedCards } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
+import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 
 export const PHASE_LOBBY = 0;
 export const PHASE_ROUND = 1;
@@ -79,6 +80,23 @@ export class Room {
     this.staggerFrac = (slot % 16) / 16;
     this.acc = 0;
     this.sinceSnapshot = -this.staggerFrac * SNAPSHOT_INTERVAL;
+
+    /* Diagnostic, allumable a chaud depuis la page admin. L'espacement de
+       diffusion se mesure sur l'horloge monotone et non sur `sinceSnapshot` :
+       c'est justement la valeur dont on soupconne qu'elle ne dit pas la verite.
+
+       L'etat est alloue meme quand la mesure est eteinte — deux tableaux vides
+       par salle. Le conditionner laisserait `null` pour toujours dans une salle
+       creee avant qu'on allume. */
+    this.perf = { esp: new Sampler(), lastSend: 0, clair: 0, defl: 0 };
+  }
+
+  /* Remise a zero a l'allumage, appelee par le hub. */
+  perfArm() {
+    this.perf.esp.reset();
+    this.perf.lastSend = 0;
+    this.perf.clair = 0;
+    this.perf.defl = 0;
   }
 
   /* --- diffusion ------------------------------------------------------------- */
@@ -88,7 +106,49 @@ export class Room {
      salle et non une par client. */
   broadcast(obj) {
     const prep = prepareMessage(JSON.stringify(obj));
+    /* Diagnostic : on retient le MAXIMUM de la fenetre et non la derniere
+       valeur. Les alertes passent par le meme chemin et font une centaine
+       d'octets — la derniere valeur ecraserait le poids de l'instantane, qui
+       est justement la seule qu'on vient lire ici. */
+    if (PERF_ON) {
+      if (prep.plain.length > this.perf.clair) this.perf.clair = prep.plain.length;
+      const dl = prep.deflated ? prep.deflated.length : 0;
+      if (dl > this.perf.defl) this.perf.defl = dl;
+    }
     for (const c of this.clients.values()) c.conn.sendPrepared(prep);
+  }
+
+  /* Une ligne de journal par salle et par seconde, appelee par le hub (PERF=1).
+
+     `defl=n/n` est la mesure la plus importante du lot : elle dit si
+     permessage-deflate a bien ete negocie de bout en bout. Un proxy inverse
+     qui supprime l'en-tete `Sec-WebSocket-Extensions` fait partir les
+     instantanes en clair — ~2,5 fois la bande passante — sans que rien cote
+     serveur ne s'en plaigne, et c'est un defaut VPS-seulement.
+
+     `bloq` et `fileMax` repondent a l'autre hypothese : il n'y a AUCUNE
+     backpressure dans ws_lite (le retour de socket.write est ignore), donc un
+     lien sature empile en silence dans le tampon interne de Node. */
+  perfReport() {
+    if (!PERF_ON || this.phase !== PHASE_ROUND) return;
+    const p = this.perf;
+    const e = p.esp.stats();
+    let deflate = 0, bloq = 0, fileMax = 0;
+    for (const c of this.clients.values()) {
+      if (c.conn.deflate) deflate++;
+      bloq += c.conn.perfBlocked;
+      if (c.conn.perfQueueMax > fileMax) fileMax = c.conn.perfQueueMax;
+      c.conn.perfBlocked = 0;
+      c.conn.perfQueueMax = 0;
+    }
+    console.log(`[perf] salle=${this.code} v${this.state.wave}`
+      + ` | diff n=${e.n} esp moy=${f1(e.moy)} min=${f1(e.min)} max=${f1(e.max)} ms`
+      + ` | snap clair=${p.clair} defl=${p.defl}`
+      + ` | conn=${this.clients.size} defl=${deflate}/${this.clients.size}`
+      + ` bloq=${bloq} fileMax=${fileMax}`);
+    p.esp.reset();
+    p.clair = 0;
+    p.defl = 0;
   }
 
   joined() {
@@ -881,10 +941,36 @@ export class Room {
 
     this.sinceSnapshot += dt;
     if (this.sinceSnapshot >= SNAPSHOT_INTERVAL) {
-      // Remise a zero RELATIVE et non absolue : conserver le decalage de
-      // diffusion pose a la creation, sinon toutes les salles reconvergent
-      // vers le meme instant d'envoi au premier ralentissement.
-      this.sinceSnapshot = 0;
+      /* Remise a zero RELATIVE et non absolue : conserver le decalage de
+         diffusion pose a la creation, sinon toutes les salles reconvergent
+         vers le meme instant d'envoi au premier ralentissement.
+
+         Le code faisait `= 0` malgre ce commentaire, et ca coutait cher :
+         l'absolue jette le depassement, donc la periode de diffusion se
+         QUANTIFIE sur un multiple de la periode de la boucle partagee. Mesure
+         sur ce VPS : `setInterval(1000/120)` reveille toutes les 8,2 ms en
+         moyenne (min 7,1, max 9,3) et non 8,333 — donc 6 tours font 49,2 ms,
+         soit moins de 50, et il en fallait SEPT. Resultat simule sur 60 s a
+         periode constante : 17,40 Hz au lieu de 20, espacement 57,4 ms.
+         En relatif le residu s'accumule et la cadence revient a 19,98 Hz.
+
+         Ce que ca ne corrige PAS, mesure aussi : le PIRE espacement ne bouge
+         pas (58,7 ms en relatif contre 59,1 en absolu, avec la gigue reelle du
+         minuteur). C'est lui qui affame l'interpolation du client, pas la
+         moyenne — on rachete ~7 ms de tolerance a la gigue reseau, pas plus.
+
+         Un `if` et non un `while` : un retard de plus d'une periode ne se
+         rattrape pas, deux instantanes emis dans le meme tour porteraient
+         exactement le meme etat puisque la simulation n'a tourne qu'une fois.
+         Le cas se produit vraiment — `dt` est borne a 0,25 s par le hub, soit
+         cinq periodes d'un coup apres un hoquet. */
+      this.sinceSnapshot -= SNAPSHOT_INTERVAL;
+      if (this.sinceSnapshot >= SNAPSHOT_INTERVAL) this.sinceSnapshot = 0;
+      if (PERF_ON) {
+        const t = nowMs();
+        if (this.perf.lastSend > 0) this.perf.esp.add(t - this.perf.lastSend);
+        this.perf.lastSend = t;
+      }
       if (this.clients.size > 0 && this.phase === PHASE_ROUND) {
         const snap = this.state.snapshot();
         snap.ph = this.phase;

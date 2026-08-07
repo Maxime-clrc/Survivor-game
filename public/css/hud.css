@@ -617,6 +617,11 @@
   bottom: 140px;
   font-size: var(--t-xs);
   color: var(--gain);
+  /* Le bloc porte deux lignes depuis l'ajout du diagnostic reseau : rendu
+     dans une seule chaine memoisee, donc le retour a la ligne doit venir du
+     style. `pre-line` et non `pre` : on veut le saut de ligne, pas la
+     preservation des espaces d'indentation du gabarit. */
+  white-space: pre-line;
 }
 
 #hudPerf.low { color: var(--lethal); }

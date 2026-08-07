@@ -2365,10 +2365,49 @@ Le serveur simule à 60 Hz et diffuse l'état à 20 Hz.
 
 ### Trois choses côté client
 
-**Interpolation.** L'affichage a 110 ms de retard sur le dernier snapshot, soit
-deux snapshots de marge, et interpole entre les deux états qui encadrent
-l'instant affiché. Sans ça, le mouvement serait saccadé à 20 Hz sur un écran
-qui en affiche 60 ou 144.
+**Interpolation.** L'affichage a 110 ms de retard sur le dernier snapshot et
+interpole entre les deux états qui encadrent l'instant affiché. Sans ça, le
+mouvement serait saccadé à 20 Hz sur un écran qui en affiche 60 ou 144.
+
+Ce paragraphe disait « soit deux snapshots de marge », et c'était une lecture
+fausse de la condition — assez fausse pour avoir orienté un diagnostic de lag
+dans la mauvaise direction. Le client cherche une **paire** qui encadre
+l'instant affiché : il lui suffit que l'écart depuis le dernier snapshot reçu
+reste **sous 110 ms**, soit une marge supérieure à *un* snapshot, pas à deux.
+Au-delà, il n'y a plus de paire et l'affichage **gèle sur le dernier état reçu**
+au lieu d'extrapoler — d'où une saccade, puis un recalage sec de la prédiction
+quand le gel a dépassé les 90 px. La bonne façon de lire le budget est donc :
+à 50 ms d'espacement, il reste **60 ms** de tolérance à la gigue du réseau.
+
+**Et l'espacement n'était pas de 50 ms.** Le compteur de diffusion se remettait
+à **zéro** au lieu d'être décrémenté de sa période, ce qui jette le dépassement
+et quantifie la cadence sur un multiple de la période de la boucle partagée.
+Celle-ci ne vaut pas 8,333 ms mais **8,2 ms mesurés** (min 7,1, max 9,3) : six
+tours font 49,2 ms, donc moins de 50, et il en fallait sept. Mesuré en A/B sur
+une vraie `Room`, 30 s à 8,2 ms de période :
+
+| remise à zéro | cadence | espacement moyen | min | max |
+|---|---|---|---|---|
+| absolue (avant) | **17,40 Hz** | 57,40 ms | 57,4 | 57,4 |
+| relative (après) | **20,00 Hz** | 49,99 ms | 49,2 | **57,4** |
+
+Le correctif rend les 2,6 Hz manquants, soit 15 % de snapshots en plus, et
+ramène la tolérance à la gigue réseau de 52,6 à 60 ms. Il ne change **rien** au
+pire espacement — 57,4 ms dans les deux cas, la quantification sur la période de
+boucle est inhérente à un minuteur à 120 Hz. Autrement dit : il élargit le
+budget, il ne supprime pas la famine. Ce qui la supprime est le budget
+d'interpolation lui-même, à mesurer avant de le toucher.
+
+**Mesurer, justement.** `PERF=1` côté serveur sort une ligne par seconde et par
+salle — période réelle de la boucle, durée de tour, espacement réel de
+diffusion, poids d'instantané clair et déflaté, et surtout `defl=n/n`, qui dit
+si `permessage-deflate` a bien survécu au proxy inverse (s'il tombe, les
+snapshots partent en clair, soit ~2,5 fois la bande passante). `?perf` dans
+l'adresse ajoute au HUD la ligne symétrique côté client : espacement d'arrivée
+min/moyenne/max, nombre d'écarts au-delà de 110 ms, **nombre d'images gelées
+faute de paire encadrante**, recalages secs, durée d'image maximale. Ces deux
+lignes existent parce qu'un lag par saccades laisse le CPU et la RAM
+parfaitement plats : sans elles, six suspects sont indiscernables.
 
 **Prédiction locale.** Ton personnage bouge immédiatement à la touche, puis est
 ramené en douceur vers la position que le serveur renvoie. Au-delà de 90 px

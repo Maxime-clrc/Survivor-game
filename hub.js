@@ -25,6 +25,10 @@ import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial, recordFinal } from "./shared/progression.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
+/* `nowMs` est importe sous un autre nom : `tick()` declare deja un
+   `const nowMs = Date.now()` local, qui shadowerait l'import sur toute la
+   fonction et le ferait echouer en zone morte temporelle. */
+import { PERF_ON, PERF_REPORT_S, Sampler, nowMs as perfNow, f1 } from "./perf.js";
 
 /* Surchargeables par l'environnement POUR LES TESTS uniquement (un delai de
    grace de 60 s rendrait le test de destruction interminable) — en production
@@ -638,11 +642,36 @@ export function createHub(store, log) {
      avant le refactor, une exception dans une partie tombait tout le serveur. */
   let lastTick = process.hrtime.bigint();
 
+  /* Diagnostic (PERF=1). Deux mesures distinctes qu'on confond facilement :
+     `perfPeriode` est l'espacement REEL entre deux reveils du setInterval —
+     nominalement 8,333 ms, jamais exactement ca — et `perfTour` est le temps
+     passe DANS le tour. La premiere explique la quantification de la cadence
+     de diffusion, la seconde repond au budget de 8,3 ms. Un tour court avec
+     une periode longue est un probleme de minuteur, pas de charge. */
+  const perfPeriode = new Sampler();
+  const perfTour = new Sampler();
+  let perfSince = 0;
+  let perfEtait = false;
+
   function tick() {
     const now = process.hrtime.bigint();
     let elapsed = Number(now - lastTick) / 1e9;
     lastTick = now;
     if (elapsed > 0.25) elapsed = 0.25;
+
+    /* Allumage a chaud : on repart de zero. Sans ca, la premiere ligne
+       melangerait les echantillons d'avant l'extinction avec ceux d'apres, et
+       `lastSend` des salles produirait un espacement absurde. */
+    if (PERF_ON !== perfEtait) {
+      perfEtait = PERF_ON;
+      perfPeriode.reset();
+      perfTour.reset();
+      perfSince = 0;
+      for (const room of rooms.values()) room.perfArm();
+    }
+
+    const t0 = PERF_ON ? perfNow() : 0;
+    if (PERF_ON) perfPeriode.add(elapsed * 1000);
 
     const nowMs = Date.now();
     for (const room of [...rooms.values()]) {
@@ -665,6 +694,24 @@ export function createHub(store, log) {
         rooms.delete(room.code);
         broadcastRooms();
         log(`salle ${room.code} détruite — vide depuis ${Math.round(ROOM_GRACE_MS / 1000)} s`);
+      }
+    }
+
+    if (PERF_ON) {
+      perfTour.add(perfNow() - t0);
+      perfSince += elapsed;
+      if (perfSince >= PERF_REPORT_S) {
+        perfSince = 0;
+        const pe = perfPeriode.stats(), to = perfTour.stats();
+        console.log(`[perf] boucle n=${pe.n}`
+          + ` periode moy=${f1(pe.moy)} min=${f1(pe.min)} max=${f1(pe.max)}`
+          + ` | tour moy=${f1(to.moy)} p99=${f1(to.p99)} max=${f1(to.max)} ms`);
+        perfPeriode.reset();
+        perfTour.reset();
+        /* Chaque salle rapporte sa propre ligne : l'espacement de diffusion et
+           le poids d'instantane sont des grandeurs PAR SALLE, et les agreger
+           masquerait exactement la salle qui decroche. */
+        for (const room of rooms.values()) room.perfReport();
       }
     }
   }

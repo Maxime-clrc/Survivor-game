@@ -112,6 +112,21 @@
   </section>
 
   <section>
+    <h2>Diagnostic</h2>
+    <p style="color: var(--text-dim);">
+      Mesure serveur allumée à chaud, sans redémarrage : durée de tour, cadence
+      réelle de diffusion, poids d'instantané, compression réellement négociée,
+      saturation de socket. Tant qu'elle est active, le journal sort une ligne
+      <code>[perf]</code> par salle et par seconde. À couper une fois la partie
+      diagnostiquée.
+    </p>
+    <div class="row">
+      <button id="perf">Activer</button>
+      <span id="perfState" class="warn">éteint</span>
+    </div>
+  </section>
+
+  <section>
     <h2>Salles</h2>
     <table id="salles"><tbody></tbody></table>
   </section>
@@ -176,9 +191,10 @@
     }
     if (r.status === 401) { $("authed").hidden = true; return say("clé invalide", "bad"); }
     if (!r.ok) return say(`erreur HTTP ${r.status}`, "bad");
-    const { status, probe, salles, connectes, comptes } = await r.json();
+    const { status, probe, salles, connectes, comptes, perf } = await r.json();
     // La cle vient d'etre acceptee : les sections sensibles apparaissent.
     $("authed").hidden = false;
+    renderPerf(!!perf);
 
     let html = "";
     html += line("configuration", status.configured
@@ -279,6 +295,24 @@
     if (out.error) { say(out.error, "warn"); return null; }
     return out;
   }
+
+  /* Le bouton de diagnostic. L'etat vient du serveur (champ `perf` de l'etat),
+     jamais d'une copie locale : un onglet coupe pendant qu'un autre a allume
+     doit le dire. `on` porte le FUTUR etat, pas le courant — un appui sur le
+     bouton demande l'inverse de ce qui est affiche. */
+  let perfOn = false;
+  function renderPerf(on) {
+    perfOn = on;
+    $("perf").textContent = on ? "Couper" : "Activer";
+    const st = $("perfState");
+    st.textContent = on ? "actif — lignes [perf] dans le journal" : "éteint";
+    st.className = on ? "ok" : "warn";
+  }
+  $("perf").addEventListener("click", async () => {
+    const out = await adminPost("/admin/api/perf", { on: !perfOn }, "bascule du diagnostic…");
+    if (!out) return;
+    renderPerf(!!out.on);
+  });
 
   async function passReset(pseudo, affichage) {
     if (!confirm(`Réinitialiser le mot de passe de « ${affichage} » ? `

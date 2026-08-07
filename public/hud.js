@@ -81,6 +81,36 @@ const annBig = el.announce.querySelector(".big");
 const annMid = el.announce.querySelector(".mid");
 const annSub = el.announce.querySelector(".sub");
 
+/* Les six lignes du bloc meta, construites UNE fois.
+
+   Elles etaient recomposees en une chaine unique dont la signature contenait
+   le compte d'ennemis : pendant une apparition de vague ce compte change a
+   chaque image, donc le sous-arbre entier etait detruit (`textContent = ""`)
+   puis reconstruit — trois a cinq `createElement` soixante fois par seconde,
+   au moment precis ou l'arene est la plus chargee. La table `memo` existe pour
+   empecher exactement ca, et cette seule chaine la desarmait.
+
+   Les trois lignes conditionnelles (eclats, difficulte, temps ralenti) sont
+   MASQUEES et non creees ni detruites : un `hidden` memoise ne coute rien, une
+   creation de noeud fait recalculer la mise en page. */
+const metaLine = cls => {
+  const d = document.createElement("div");
+  if (cls) d.className = cls;
+  el.meta.appendChild(d);
+  return d;
+};
+const metaKills = metaLine("");
+const metaEnem  = metaLine("");
+const metaPing  = metaLine("");
+const metaEcl   = metaLine("");
+const metaDiff  = metaLine("warn");
+const metaSlow  = metaLine("slow");
+metaSlow.textContent = "temps ralenti";
+/* Masques des la construction : `updateHud` les corrigera, mais il ne tourne
+   qu'en manche — sans ca, la premiere image apres `showHud(true)` montrerait
+   deux lignes vides le temps d'un tour. */
+metaEcl.hidden = metaDiff.hidden = metaSlow.hidden = true;
+
 /* Memoire des dernieres valeurs ecrites. Une seule table plate : la question
    posee a chaque champ est « est-ce la meme chaine qu'a l'image precedente »,
    et une table plate y repond sans allouer. */
@@ -634,26 +664,21 @@ export function updateHud(v, c) {
      point de recolte, elle n'annoncerait qu'un zero. */
   const me = v.playerList.find(p => p.id === c.myId);
   const eclats = me?.eclats ?? 0;
-  const meta = `kills ${v.kills}\nennemis ${v.enemyList.length}\nping ${c.ping} ms`
-    + (eclats > 0 ? `\néclats ${eclats}` : "");
-  if (memo.meta !== meta + c.difficulty + v.slow) {
-    memo.meta = meta + c.difficulty + v.slow;
-    el.meta.textContent = "";
-    for (const line of meta.split("\n")) {
-      el.meta.appendChild(Object.assign(document.createElement("div"), { textContent: line }));
-    }
-    if (c.difficulty !== 1) {
-      const d = document.createElement("div");
-      d.className = "warn";
-      d.textContent = DIFFICULTIES[c.difficulty]?.label ?? "";
-      d.style.color = c.difficulty > 1 ? BOSS.barLow : SIGNAL.gain;
-      el.meta.appendChild(d);
-    }
-    if (v.slow) {
-      el.meta.appendChild(Object.assign(document.createElement("div"),
-        { className: "slow", textContent: "temps ralenti" }));
-    }
+
+  setText(metaKills, "mKills", `kills ${v.kills}`);
+  setText(metaEnem, "mEnem", `ennemis ${v.enemyList.length}`);
+  setText(metaPing, "mPing", `ping ${c.ping} ms`);
+
+  setHidden(metaEcl, "mEclH", eclats === 0);
+  if (eclats > 0) setText(metaEcl, "mEcl", `éclats ${eclats}`);
+
+  setHidden(metaDiff, "mDiffH", c.difficulty === 1);
+  if (c.difficulty !== 1) {
+    setText(metaDiff, "mDiff", DIFFICULTIES[c.difficulty]?.label ?? "");
+    setStyle(metaDiff, "mDiffC", "color", c.difficulty > 1 ? BOSS.barLow : SIGNAL.gain);
   }
+
+  setHidden(metaSlow, "mSlowH", !v.slow);
 
   updateWave(v);
   updateBoss(v.boss);
@@ -669,10 +694,16 @@ export function updateHud(v, c) {
     /* Les APPELS DE DESSIN sont la mesure qui compte pour le batcher : un lot
        vide a chaque sprite donne des centaines d'appels pour exactement la meme
        image, et rien a l'ecran ne le dit. On en attend deux a quatre. */
+    /* La seconde ligne est le diagnostic RESEAU, et c'est elle qu'on vient lire
+       ici : `famine` compte les images ou le monde est fige faute d'instantane
+       encadrant. Elle passe dans la meme chaine et le meme accesseur memoise —
+       un second bloc d'affichage serait un second chemin a maintenir pour la
+       meme information. Le retour a la ligne est rendu par `white-space`. */
     setText(el.perf, "pf",
       `${c.fps.toFixed(0)} i/s · ${c.particles} frag · ${v.enemyList.length} ennemis · ` +
       `${c.renderer} ${c.draws} appels / ${c.quads} quads · ` +
-      `${c.voices} voix (pic ${c.peak})`);
+      `${c.voices} voix (pic ${c.peak})`
+      + (c.net ? `\n${c.net}` : ""));
     setClass(el.perf, "pfl", "low", c.fps < 55);
   }
 }
