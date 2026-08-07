@@ -404,6 +404,31 @@ export const MARK = {
   ok:    SIGNAL.gain,     // condition remplie
 };
 
+/* --- provenance des degats subis -------------------------------------------
+   Une teinte par entree de `DAMAGE_SOURCES` (game_state.js), DANS LE MEME
+   ORDRE : l'index circule dans l'instantane, une couleur inseree au milieu
+   ferait mentir toute la ventilation du bilan d'un coup. Meme invariant que
+   `SRC_ICON` dans `icons.js`, qui est la liste jumelle.
+
+   Aucune valeur neuve : chacune est deja la couleur de la chose dans l'arene,
+   et c'est ce qui rend la legende lisible sans l'avoir apprise — on reconnait
+   la teinte de ce qui vient de nous tuer.
+
+     contact     la horde, danger letal au corps a corps ;
+     projectile  le tir ennemi, deja un rouge franc et non un ambre ;
+     zone        elle PERSISTE, c'est le sens du violet dans la charte ;
+     mecanique   elle s'annonce, et une annonce est ambre ;
+     brulure     le feu du jeu, celui de la grenade et de la bombe ;
+     explosion   le souffle d'une zone, sa propre teinte de detonation. */
+export const SRC_TINT = [
+  SIGNAL.lethal,
+  COMBAT.shot,
+  SIGNAL.persist,
+  SIGNAL.warn,
+  FX.bombFill,
+  ZONE.blast,
+];
+
 /* --- HUD -------------------------------------------------------------------
    Seuils de barre de vie. Le passage a l'ambre puis au rouge se lit sans
    compter les pixels, ce qu'une barre d'une seule couleur ne permet pas. */

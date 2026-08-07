@@ -46,6 +46,15 @@ const COLOR_DPS_B = 3;
 const PAUSE_MAX_MS = 5 * 60 * 1000;
 const SNAPSHOT_INTERVAL = 1 / CFG.SNAPSHOT_HZ;
 
+/* ECHAUFFEMENT au lancement d'une manche : le temps du briefing de classe.
+   La simulation TOURNE — on ferme l'ecran et on se deplace — mais la vague est
+   retenue (`state.warmup`, game_state.js). Une seule valeur, envoyee dans le
+   message `round` : le client n'en garde aucune copie, sinon deux nombres a
+   tenir d'accord et un compte a rebours qui ment des que l'un bouge. Elle est
+   la MEME pour toute la salle — un joueur dont la vague partirait avant celle
+   des autres jouerait une manche differente. */
+const WARMUP_S = 20;
+
 /* Manches conservees dans l'historique d'une salle. Huit et non « toutes » :
    le salon est diffuse a chaque vote et a chaque choix de classe, donc une
    soiree de trente manches ferait grossir chaque message pour une information
@@ -482,6 +491,12 @@ export class Room {
         kills: p ? p.kills : 0,
         deaths: p ? p.deaths : 0,
         damage: p ? Math.round(p.damageDealt) : 0,
+        /* Les SOINS rendus, a cote des degats. La simulation les comptait deja
+           (`p.healDealt`, meme raison que `damageDealt`) mais ils ne sortaient
+           nulle part : le soigneur lisait donc son bilan sur la seule colonne
+           ou il est structurellement dernier. Un champ de plus dans un message
+           envoye UNE fois par manche — rien a voir avec l'instantane. */
+        heal: p ? Math.round(p.healDealt) : 0,
         hurtBy: p ? p.hurtBy.map(v => Math.round(v)) : [],
         cards: p ? this.expandCards(p) : [],
         total: c.total,
@@ -699,16 +714,30 @@ export class Room {
       c.input.x = 0; c.input.y = 0; c.input.dash = false;
       c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
     }
+    /* La manche demarre TOUT DE SUITE : les joueurs se deplacent des la
+       premiere image, l'ecran de briefing est un voile qu'on ferme quand on
+       veut. C'est `state.warmup` qui retient la vague, pas la phase — une
+       phase a part aurait fige la simulation, donc interdit le deplacement que
+       le bouton « continuer » est justement la pour rendre. */
+    this.state.warmup = WARMUP_S;
     this.phase = PHASE_ROUND;
     // Repartir la simulation sur le cycle de la boucle : la manche demarre au
     // clic de l'hote, mais deux salles lancees dans la meme seconde ne doivent
     // pas simuler dans le meme tour (infra-salons.md § 6).
     this.acc = -this.staggerFrac * CFG.TICK;
-    this.broadcast({ t: "round", round: this.roundNumber, difficulty: diff });
+    this.broadcast({
+      t: "round",
+      round: this.roundNumber,
+      difficulty: diff,
+      // En SECONDES et depuis le serveur : le client n'a aucune constante de
+      // duree a lui, il ne fait qu'afficher celle-ci.
+      warmup: WARMUP_S,
+    });
     this.broadcast(this.lobbyPayload());
     this.hooks.occupancy(this);
     this.hooks.log(`[${this.code}] manche ${this.roundNumber} lancée — `
-      + `${this.state.players.size} joueur(s), difficulté ${DIFFICULTIES[diff].label}`);
+      + `${this.state.players.size} joueur(s), difficulté ${DIFFICULTIES[diff].label}`
+      + `, ${WARMUP_S} s d'échauffement`);
   }
 
   abortRound() {

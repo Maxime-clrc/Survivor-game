@@ -171,6 +171,13 @@ export const CLASSES = [
     id: "tank", nom: "Rempart", hp: 150, damageMul: 0.80, speedMul: 0.92,
     unique: true,
     desc: "150 PV, −20 % de dégâts. Encaisse et déplace la horde.",
+    /* La MISSION, pour l'écran de briefing. Elle ne répète pas `desc` — celle-ci
+       dit ce que la classe EST, celle-là dit quoi faire des trente premières
+       secondes. Deux phrases : ce qui n'arrivera pas sans toi, puis le geste
+       concret. Plus long, personne ne le lit avant que la manche ne démarre. */
+    mission: "Tu décides où la horde se trouve, personne d'autre ne le fera. "
+      + "Va la chercher, ramène-la loin des tiens, et pose ton Rempart avant "
+      + "d'encaisser — pas après.",
     couleur: CLASS_COLOR.tank,
     skills: [
       { nom: "Rempart", touche: "A/1",
@@ -183,6 +190,9 @@ export const CLASSES = [
     id: "soigneur", nom: "Soigneur", hp: 100, damageMul: 0.85, speedMul: 1.00,
     unique: true,
     desc: "100 PV, −15 % de dégâts. Soigne à distance, relève à distance.",
+    mission: "Tu relèves les tiens, personne d'autre ne le fera. En mode soin "
+      + "tes tirs ne blessent plus mais s'arrêtent quand même sur les ennemis : "
+      + "trouve l'angle avant d'en avoir besoin.",
     couleur: CLASS_COLOR.soigneur,
     skills: [
       { nom: "Mode soin", touche: "A/1", desc: "bascule : les tirs soignent au lieu de blesser" },
@@ -194,6 +204,9 @@ export const CLASSES = [
     id: "dps", nom: "Tireur", hp: 85, damageMul: 1.20, speedMul: 1.04,
     unique: false,
     desc: "85 PV, +20 % de dégâts. Fragile, et c'est lui qui vide les vagues.",
+    mission: "Tu vides les vagues, personne d'autre ne le fera. Reste derrière "
+      + "le Rempart, garde tes distances, et lance ta bombe sur les groupes "
+      + "serrés plutôt que sur l'ennemi le plus proche.",
     couleur: CLASS_COLOR.dps,
     skills: [
       { nom: "Bombe", touche: "A/1",

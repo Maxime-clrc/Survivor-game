@@ -1032,51 +1032,19 @@
    =========================================================================== */
 #bilan { padding-bottom: var(--sp-12); }
 
-/* Le rythme vertical du bilan. `#bilan` perd le `gap` de `.overlay` comme les
-   autres ecrans, mais lui n'a PAS de conteneur intermediaire pour le
-   reintroduire : ses cinq blocs sont des enfants directs, et sans gap ils se
-   touchent. Ils reprennent donc leur respiration un par un — et pas au meme
-   pas, parce qu'ils ne pesent pas pareil : le titre annonce, les chiffres
-   resument, le tableau est le sujet, la suite est une action. */
-#bilanTitle { text-align: center; padding: var(--sp-8) var(--sp-6) 0; }
-#bilanStats { margin-top: var(--sp-6); }
-#bilanHurt  { margin-top: var(--sp-8); }
-#bilanScores { margin-top: var(--sp-8); }
-#bilanNext  { margin-top: var(--sp-12); }
-#bilanStats, #bilanHurt, #bilanScores, #bilanNext { padding-inline: var(--sp-6); }
-#bilanScores { width: 100%; min-width: 0; }
-#bilanScores td.name { font-family: var(--font-display); }
-#bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); margin-top: var(--sp-12); }
+/* Le rythme vertical du bilan vit desormais sur `.bilanWrap` (plus bas), qui
+   porte un `gap` unique : ses blocs etaient des enfants directs de `#bilan` et
+   reglaient chacun sa propre marge, ce qui faisait cinq nombres a garder
+   d'accord pour un ecran qui n'a qu'un rythme.
 
-/* --- la ventilation des degats subis ------------------------------------------
-   La maquette montrait une BARRE EMPILEE surmontant une legende. `client.js`
-   rend autre chose : une ligne par provenance, avec son glyphe, son libelle,
-   sa barre et son pourcentage. Je garde la version du code, et ce n'est pas un
-   renoncement — c'est elle qui a raison.
-
-   Une barre empilee repond bien a « quelle est la plus grosse part », mal a
-   « laquelle est-ce », parce qu'elle renvoie l'etiquette a une legende qu'il
-   faut apparier de l'oeil. Ici il y a quatre a cinq provenances et un glyphe
-   par provenance : les mettre en ligne fait lire les deux d'un coup. La
-   maquette avait tort sur ce point precis.
-
-   Ce que le CSS livre en plus, en revanche : les barres etaient toutes de la
-   meme teinte, ce qui obligeait a comparer des LONGUEURS pour classer. Elles
-   sont triees par ordre decroissant par `client.js` — donc le rang porte deja
-   l'information, et la couleur peut le redire. La premiere ligne est ce qui a
-   tue l'equipe, elle se lit avant les autres. */
-#bilanHurt { max-width: 620px; margin-inline: auto; }
-.hurtRow { padding: var(--sp-1) 0; }
-.hurtLab { flex: 0 0 120px; }
-.hurtBar { height: 8px; border-radius: 999px; overflow: hidden; }
-.hurtBar > i { border-radius: 999px; transition: width var(--fade) ease-out; }
-
-.hurtRow:nth-child(2) .hurtBar > i { background: var(--lethal); }
-.hurtRow:nth-child(3) .hurtBar > i { background: color-mix(in srgb, var(--lethal) 62%, var(--warn)); }
-.hurtRow:nth-child(4) .hurtBar > i { background: var(--warn); }
-.hurtRow:nth-child(n + 5) .hurtBar > i { background: var(--text-faint); }
-/* `nth-child` et non `nth-of-type` : `.hurtTitle` est le premier enfant de
-   `#bilanHurt`, la premiere PROVENANCE est donc le deuxieme. */
+   La VENTILATION passe a la barre empilee de la maquette, contre l'avis qui
+   etait ecrit ici. L'argument d'alors — « une barre empilee dit mal LAQUELLE,
+   parce qu'elle renvoie a une legende qu'il faut apparier de l'oeil » — tombe
+   avec `SRC_TINT` : chaque provenance porte maintenant la couleur qu'elle a
+   dans l'arene, donc la pastille de la legende et son segment se relient sans
+   effort. Ce qu'on gagne en echange est ce que quatre barres separees ne
+   pouvaient pas donner : ce sont les parts d'un MEME total, et empilees la
+   comparaison ne demande plus rien. */
 
 /* ===========================================================================
    MENU / PROGRESSION
@@ -1224,14 +1192,15 @@
    retrait, un element sans fill-mode s'affiche a ses styles normaux, donc
    l'ecran entrant apparaitrait en pleine opacite avant de repartir a zero — un
    clignotement, exactement ce qu'on vient corriger. */
-.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, #bilan > * {
+.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, .briefWrap,
+#bilan > * {
   animation: screenIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
 /* Le voile lui-meme ne fait qu'une OPACITE : pas d'echelle, pas de filtre —
    voir la note ci-dessus sur le bloc conteneur. Il dure aussi longtemps que le
    corps qu'il porte, sinon le fond est deja plein quand le contenu arrive et
    l'ecran clignote en deux temps. */
-#gate, #hubScreen, #panel, #bilan, #menu, #settings {
+#gate, #hubScreen, #panel, #bilan, #menu, #settings, #brief {
   animation: fadeIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
 .panelBar {
@@ -1271,7 +1240,7 @@
    `prefers-reduced-motion` est deja traite plus haut : la regle globale ecrase
    `animation-duration`, l'ecran part en 0,01 ms et l'on retrouve la coupure —
    qui est le comportement attendu de ce reglage. */
-:is(#gate, #loading, #hubScreen, #panel, #bilan, #menu, #settings, #pause)[hidden].leaving {
+:is(#gate, #loading, #hubScreen, #panel, #bilan, #menu, #settings, #pause, #brief)[hidden].leaving {
   display: flex;
   pointer-events: none;
   animation: screenOut var(--screen-out) var(--ease-in) forwards;
@@ -1285,7 +1254,7 @@
    dans la meme direction. Les deux ecrans traversent donc dans le meme sens —
    c'est ce qui se lit comme un passage plutot que comme deux fondus
    independants. */
-.leaving :is(.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight),
+.leaving :is(.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, .briefWrap),
 #bilan.leaving > * {
   animation: contentOut var(--screen-out) var(--ease-in) forwards;
 }
@@ -2943,18 +2912,62 @@ tr.clickable { cursor: pointer; }
 
 /* --- build ------------------------------------------------------------------ */
 #build { z-index: 20; gap: var(--sp-6); justify-content: flex-start; }
-#buildHead { display: flex; align-items: center; gap: var(--sp-6); width: min(100%, 860px); margin-inline: auto; }
-#buildWho { display: flex; align-items: center; gap: var(--sp-4); flex: 1; }
-#buildClass { font-family: var(--font); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: var(--track-caps); }
+/* La fenetre de build coule dans une colonne, comme les autres ecrans hors
+   combat. Elle etait une suite de blocs centres a la main, chacun redisant sa
+   propre largeur (`min(100%, 860px)`) — cinq endroits a garder d'accord. */
+.buildWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  width: 100%;
+  max-width: var(--shell-narrow);
+  margin-inline: auto;
+  padding: var(--sp-8) var(--gutter) var(--sp-12);
+}
+/* L'identite est CENTREE entre les deux fleches : c'est le sujet de la
+   fenetre, et les fleches sont ce qui le change. */
+#buildHead { display: flex; align-items: center; gap: var(--sp-6); }
+#buildIdent { flex: 1; text-align: center; min-width: 0; }
+#buildName {
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  line-height: 1.1;
+}
+#buildClass {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+}
 .buildNav {
+  flex: none;
+  min-width: 44px;
   font-family: var(--font);
   font-size: var(--t-l);
   color: var(--text-dim);
   background: var(--ui-panel);
 }
-#buildStats { display: flex; gap: var(--sp-3); flex-wrap: wrap; justify-content: center; }
-.buildStat { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
-.buildStat .val { font-family: var(--font-display); font-size: var(--t-xl); font-weight: 700; letter-spacing: var(--track-title); }
+/* Cinq tuiles de largeur EGALE. En `flex` elles se dimensionnaient sur leur
+   contenu, donc « 186 420 » faisait une tuile deux fois plus large que « 2 » —
+   or ce sont cinq mesures de meme rang, elles doivent peser pareil. */
+#buildStats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--sp-3);
+}
+.buildStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+.buildStat .val { font-family: var(--font); font-size: var(--t-l); font-weight: 700; letter-spacing: var(--track-title); color: var(--text); }
 .buildStat .lab {
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -2962,7 +2975,7 @@ tr.clickable { cursor: pointer; }
   text-transform: uppercase;
   color: var(--text-faint);
 }
-#buildMods { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: center; }
+#buildMods { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .buildMod {
   display: flex;
   align-items: baseline;
@@ -2979,8 +2992,12 @@ tr.clickable { cursor: pointer; }
 .buildMod.gain { border-color: color-mix(in srgb, var(--gain) 45%, transparent); }
 .buildMod.cout .val { color: var(--warn); }
 .buildMod.cout { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
-#buildSkills { display: flex; flex-direction: column; gap: var(--sp-1); width: min(100%, 860px); margin-inline: auto; }
+#buildSkills { display: flex; flex-direction: column; gap: var(--sp-2); }
 .buildSkill { display: flex; gap: var(--sp-3); align-items: flex-start; font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); }
+/* La troisieme competence NON TIREE : attenuee, mais presente. Elle dit ce qui
+   pourrait s'ajouter, comme la pastille grisee du HUD. */
+.buildSkill.off { opacity: .5; }
+.buildSkill.off .key { background: var(--ui-field); color: var(--text-faint); }
 .buildSkill .key {
   min-width: var(--sp-6);
   padding: 2px var(--sp-2);
@@ -2994,12 +3011,13 @@ tr.clickable { cursor: pointer; }
   color: var(--go);
 }
 .buildSkill b { color: var(--text); font-weight: 600; }
+/* DEUX colonnes fixes, et non `auto-fit` : une build de quinze cartes se lit
+   d'un coup, la ou une colonne obligeait a defiler. Le rang de rarete traverse
+   la grille (`grid-column: 1 / -1`) — c'est un titre, pas une carte. */
 #buildCards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: var(--sp-1) var(--sp-4);
-  width: min(100%, 860px);
-  margin-inline: auto;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-2) var(--sp-3);
   align-content: start;
 }
 .buildRarity {
@@ -3013,21 +3031,252 @@ tr.clickable { cursor: pointer; }
 }
 .buildCard {
   display: flex;
-  gap: var(--sp-3);
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
   padding: var(--sp-3) var(--sp-4);
   border-left: 3px solid currentColor;
   border-radius: 0 var(--radius-ctl) var(--radius-ctl) 0;
   background: var(--ui-panel);
 }
-.buildCardIcon { width: var(--sp-6); height: var(--sp-6); flex: none; }
-.buildCardIcon svg { width: 100%; height: 100%; }
-.buildCardBody { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+/* Le nom prend la place, le nombre d'exemplaires se cale a droite : c'est
+   l'ordre dans lequel on les lit, et le ×N reste alignable d'une carte a
+   l'autre. */
 .buildCardHead { display: flex; gap: var(--sp-3); align-items: baseline; }
-.buildCardName { font-family: var(--font-display); color: var(--text); font-size: var(--t-s); font-weight: 600; }
-.buildCardTotal { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); margin-left: auto; }
+.buildCardName { flex: 1; min-width: 0; font-family: var(--font-display); color: var(--text); font-size: var(--t-s); font-weight: 600; }
+.buildCardMul { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
 .buildCardDesc { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); }
 .buildCardWarn { font-family: var(--font-body); font-size: var(--t-xs); color: var(--notice-warn-text); }
 .buildEmpty { grid-column: 1 / -1; font-size: var(--t-s); color: var(--text-faint); }
+
+/* Le pied : la sortie a gauche, le rappel des touches a cote. Il etait un
+   simple `.hint` centre, donc rien ne fermait la fenetre a la souris — il
+   fallait connaitre Echap. */
+#buildFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+}
+#buildFoot #buildHint { margin: 0; }
+
+@media (max-width: 720px) {
+  #buildStats { grid-template-columns: repeat(2, 1fr); }
+  #buildCards { grid-template-columns: 1fr; }
+}
+
+/* --- briefing de classe -------------------------------------------------------
+   Vingt secondes AVANT la manche, et c'est la seule raison pour laquelle cet
+   ecran a le droit d'exister : le joueur n'a rien d'autre a faire, donc on peut
+   lui demander de lire. Tout y est centre — c'est le seul ecran hors combat qui
+   ne coule pas depuis le haut, parce qu'il n'a ni liste ni tableau, seulement
+   une chose a dire et un compte a rebours pour la dire.
+
+   `--tint` porte la teinte de la classe, posee sur `.briefWrap` par client.js
+   depuis `CLASSES[].couleur`. Titre, touches et liseres des cartes la lisent en
+   `currentColor` ou en `color-mix` : une seule valeur a poser, aucune couleur
+   en dur ici. */
+#brief { justify-content: center; align-items: center; padding: var(--gutter); }
+.briefWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-6);
+  width: 100%;
+  /* La coque ETROITE, pas celle du hub : cet ecran n'a ni liste ni tableau,
+     seulement deux cartes et un paragraphe. A 1440 px les descriptions de
+     competence flottent au milieu de leur carte et la mission tient sur une
+     demi-ligne — c'est exactement le defaut que la mesure bornee evite
+     ailleurs. */
+  max-width: var(--shell-narrow);
+  color: var(--tint, var(--text));
+}
+
+#briefName {
+  font-family: var(--font-display);
+  font-size: var(--t-hero);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--tint);
+  /* La lueur EST le signal : c'est la seule chose de l'ecran qui dise « voila
+     ce que tu joues », et elle porte la teinte de la classe. */
+  text-shadow: 0 0 var(--sp-8) color-mix(in srgb, var(--tint) 45%, transparent);
+}
+#briefKicker { color: var(--text-faint); }
+#briefKicker::before { display: none; }
+
+/* Les DEUX competences, cote a cote. Une grille et non un flex : les deux
+   cartes doivent faire la meme largeur quelle que soit la longueur des
+   descriptions — sinon la classe dont la premiere competence a trois lignes
+   se lit comme si elle etait deux fois plus importante. */
+#briefSkills {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-6);
+  width: 100%;
+}
+.briefSkill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  border: var(--hair) solid color-mix(in srgb, var(--tint) 38%, transparent);
+  border-radius: var(--radius-ui);
+  background: color-mix(in srgb, var(--tint) 5%, var(--ui-panel));
+  box-shadow: 0 0 var(--sp-12) color-mix(in srgb, var(--tint) 12%, transparent);
+  text-align: center;
+}
+.briefKeys { display: flex; align-items: center; gap: var(--sp-2); }
+/* La touche est un CAPUCHON, comme dans `#settings` : c'est la meme chose,
+   elle doit se reconnaitre d'un ecran a l'autre. En plus gros ici — c'est
+   l'information qu'on vient chercher. */
+.briefKey {
+  min-width: 52px;
+  padding: var(--sp-3) var(--sp-4);
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  color: var(--tint);
+  border: var(--hair) solid color-mix(in srgb, var(--tint) 55%, transparent);
+  border-radius: var(--radius-ctl);
+  background: color-mix(in srgb, var(--tint) 10%, var(--ui-field));
+  box-shadow: 0 0 var(--sp-6) color-mix(in srgb, var(--tint) 25%, transparent);
+}
+.briefOr {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.briefSkillName {
+  font-family: var(--font-display);
+  font-size: var(--t-l);
+  font-weight: 700;
+  color: var(--text);
+}
+.briefSkillDesc {
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-width: 42ch;
+}
+
+/* La mission : un encart a part, en retrait de teinte. C'est le seul bloc de
+   PROSE de l'ecran, il porte donc la police de corps et une mesure bornee. */
+#briefMission {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-6);
+  border: var(--hair) solid color-mix(in srgb, var(--tint) 24%, transparent);
+  border-radius: var(--radius-ui);
+  background: color-mix(in srgb, var(--tint) 3%, var(--ui-panel));
+}
+#briefMission .sectionTitle { color: var(--text-faint); }
+#briefMission .sectionTitle::before { background: color-mix(in srgb, var(--tint) 60%, transparent); }
+#briefMissionText {
+  font-family: var(--font-body);
+  font-size: var(--t-m);
+  line-height: 1.7;
+  color: var(--text);
+  max-width: 78ch;
+  margin: 0;
+}
+
+/* La troisieme competence : une LIGNE et non une troisieme carte. Le kicker
+   dit « tes deux compétences », et une carte de plus aurait fait croire qu'on
+   l'a deja — or c'est precisement ce qu'on n'a pas encore. */
+#briefThird {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) dashed color-mix(in srgb, var(--tint) 30%, transparent);
+  border-radius: var(--radius-ctl);
+  color: var(--text-faint);
+}
+#briefThird[hidden] { display: none; }
+.briefThirdText { font-family: var(--font-body); font-size: var(--t-s); }
+.briefThirdText b { color: var(--text-dim); font-weight: 700; }
+.briefKey.small {
+  min-width: 32px;
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--t-m);
+  box-shadow: none;
+}
+
+/* L'action principale de l'ecran. Elle ne LANCE rien — la manche tourne deja —
+   elle retire le voile, d'ou un libelle qui ne promet aucun demarrage. */
+#briefGo {
+  min-width: 220px;
+  padding: var(--btn-pad);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--bg-void);
+  border-color: var(--go);
+  background: var(--go);
+  box-shadow: var(--glow-go);
+}
+
+#briefBasics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-6);
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+#briefBasics b { color: var(--text-dim); font-weight: 700; }
+
+/* La barre se REMPLIT — elle mesure ce qui est ecoule, pas ce qui reste. Un
+   compte a rebours qui se vide dit « tu perds du temps » ; une barre qui se
+   remplit dit « on y arrive », et c'est ce qu'on veut a l'entree d'une manche.
+   Elle est CYAN et non a la teinte de la classe : c'est le seul element de
+   l'ecran qui parle du JEU et non du role — `--go`, « il faut y aller ». */
+#briefBar {
+  width: 100%;
+  height: var(--sp-2);
+  border-radius: var(--radius-ctl);
+  background: var(--ui-field);
+  overflow: hidden;
+}
+#briefBar > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--go);
+  box-shadow: 0 0 var(--sp-6) color-mix(in srgb, var(--go) 55%, transparent);
+  /* Le pas du compte a rebours est la SECONDE : sans transition la barre
+     avancerait par a-coups d'un vingtieme de sa largeur. */
+  transition: width 1s linear;
+}
+#briefCount {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+#briefCount b { color: var(--go); font-weight: 700; }
+
+@media (max-width: 720px) {
+  #briefSkills { grid-template-columns: 1fr; }
+}
 
 /* --- pause ------------------------------------------------------------------ */
 #pause {
@@ -3063,23 +3312,61 @@ tr.clickable { cursor: pointer; }
 #pauseConfirm .row { justify-content: center; }
 #pauseConfirm .row button { flex: 1; }
 
-/* --- bilan ------------------------------------------------------------------ */
+/* --- bilan ------------------------------------------------------------------
+   L'ecran est CENTRE et non aligne a gauche comme le hub ou le salon : il ne
+   porte ni liste a parcourir ni action a preparer, seulement un resultat qu'on
+   regarde. C'est la meme exception que `#loading` et `#brief`.
+
+   Il a ete ramene a ce que la maquette montre, ni plus ni moins : quatre
+   chiffres de table, la ventilation des degats subis, le tableau, deux sorties.
+   Le bloc « ta partie » — multiplicateurs, jauge de puissance, cartes — a
+   disparu : il repondait a une question (« pourquoi ces degats-la ») que la
+   fenetre de build traite deja mieux, et qui s'ouvre d'un clic sur sa ligne. */
+.bilanWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-6);
+  width: 100%;
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding: var(--sp-8) var(--gutter) var(--sp-12);
+}
+#bilanKicker { color: var(--warn); align-self: center; }
+#bilanKicker::before { display: none; }
+#bilanKicker:empty { display: none; }
+.bilanWrap #bilanTitle {
+  text-align: center;
+  padding: 0;
+  font-size: var(--t-title);
+  text-wrap: balance;
+}
+#bilanLead {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  color: var(--text-dim);
+  text-align: center;
+}
+
 #bilanStats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--sp-3);
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-4);
+  width: 100%;
 }
 .bilanStat {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   padding: var(--sp-6);
   border: var(--hair) solid var(--ui-line);
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
 }
-.bilanStat .val { font-family: var(--font-display); font-size: var(--t-2xl); font-weight: 700; letter-spacing: var(--track-title); color: var(--go); line-height: 1; }
+/* Le LIBELLE d'abord, la valeur ensuite — l'ordre de la maquette et le bon :
+   on lit ce qu'on regarde avant de lire combien. */
 .bilanStat .lab {
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -3087,22 +3374,131 @@ tr.clickable { cursor: pointer; }
   text-transform: uppercase;
   color: var(--text-faint);
 }
-#bilanScores { font-size: var(--t-s); }
-.hurtTitle {
+.bilanStat .val {
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  color: var(--go);
+  line-height: 1;
+}
+
+/* La ventilation : UNE barre empilee et une legende. Quatre barres tracees
+   chacune sur toute la largeur demandaient de comparer des longueurs de l'oeil,
+   alors que ce sont les parts d'un meme total — empilees, la comparaison ne
+   demande plus rien. */
+#bilanHurt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-6);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+#bilanHurt:empty { display: none; }
+.hurtTitle { color: var(--text-faint); }
+.hurtTitle::before { display: none; }
+.hurtStack {
+  display: flex;
+  height: var(--sp-2);
+  border-radius: var(--radius-ctl);
+  overflow: hidden;
+  background: var(--ui-field);
+}
+.hurtStack > i { display: block; height: 100%; }
+.hurtLegend { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-6); }
+.hurtItem { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--t-s); }
+/* La pastille est CARREE : le seul cercle du jeu est une entite vivante. */
+.hurtItem > i { width: var(--sp-2); height: var(--sp-2); flex: none; }
+.hurtLab { color: var(--text); }
+.hurtVal { font-family: var(--font); color: var(--text-dim); }
+
+/* Le tableau : sept colonnes, la classe rejoint le nom. `JOUEUR` est la seule
+   colonne alignee a gauche — tout le reste est un nombre, et un nombre se
+   compare a droite. */
+#bilanTableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+#bilanScores { font-size: var(--t-s); width: 100%; margin: 0; }
+#bilanScores th, #bilanScores td { padding: var(--sp-4) var(--sp-6); }
+#bilanScores th { text-align: right; }
+#bilanScores th:first-child { text-align: left; }
+#bilanScores td.num { text-align: right; font-family: var(--font); color: var(--text-dim); }
+/* SA propre ligne de score en cyan : c'est le seul chiffre qu'on cherche
+   d'abord, et le tableau est trie dessus. */
+#bilanScores td.num.mine { color: var(--go); font-weight: 700; }
+#bilanScores td.who { display: flex; align-items: center; gap: var(--sp-3); }
+.whoDot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  font-family: var(--font-display);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  border: var(--hair) solid currentColor;
+  border-radius: var(--radius-ctl);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.whoText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.whoName { font-family: var(--font-display); font-weight: 700; color: var(--text); }
+.whoCls { font-size: var(--t-xs); color: var(--text-faint); }
+
+/* LE PIED. Il avait perdu ses regles de disposition dans la refonte du bilan et
+   n'en avait recu aucune : ses trois enfants s'empilaient en bloc, sans
+   gouttiere, et la barre — large de 60 % de la ligne — se calait a GAUCHE sous
+   le bouton. C'etait le losange sombre qui depassait sous « Continuer ». */
+#bilanNext {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+}
+#bilanNext .row { justify-content: center; }
+
+/* PAS DE BISEAU SUR CE BOUTON, et ce n'est pas un oubli. `clip-path` clippe
+   aussi la LUEUR : le bouton declarait un halo qu'il ne montrait nulle part.
+   Et une coupe de 10 px dans un rayon de 12 ne fait pas un biseau, elle fait
+   une entaille — le coin sale de la capture. La maquette montre un bouton rond
+   qui rayonne ; c'est la lueur qui designe l'action ici, et elle le fait mieux
+   que le biseau puisqu'elle, on la voit. */
+#bilanGo { clip-path: none; }
+
+/* Le compte a rebours du retour au salon. La barre se VIDE — c'est un delai
+   qui s'epuise, pas une progression qu'on accomplit ; l'inverse du briefing,
+   et pour la raison inverse. */
+#bilanBar {
+  width: min(320px, 100%);
+  height: 3px;
+  border-radius: var(--radius-ctl);
+  background: var(--ui-field);
+  overflow: hidden;
+}
+#bilanBar > i {
+  display: block;
+  height: 100%;
+  background: var(--go);
+  transition: width 1s linear;
+}
+#bilanHint {
   font-family: var(--font);
   font-size: var(--t-xs);
-  letter-spacing: var(--track-title);
-  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
   color: var(--text-faint);
-  margin-bottom: var(--sp-2);
 }
-.hurtRow { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--t-s); color: var(--text-dim); }
-.hurtIco { display: flex; width: 14px; height: 14px; flex: 0 0 auto; }
-.hurtLab { flex: 0 0 120px; }
-.hurtBar { flex: 1 1 auto; background: var(--ui-field); }
-.hurtBar > i { display: block; height: 100%; }
-.hurtVal { flex: 0 0 44px; text-align: right; font-family: var(--font); color: var(--text); font-weight: 700; }
-#bilanHurt { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
+#bilanHint:empty { display: none; }
+
+@media (max-width: 720px) {
+  #bilanStats { grid-template-columns: repeat(2, 1fr); }
+}
 
 /* --- fenetres etroites, reprise --------------------------------------------- */
 @media (max-width: 720px) {
@@ -3838,23 +4234,12 @@ tr.clickable { cursor: pointer; }
   text-transform: uppercase;
   color: var(--gain);
 }
-/* TA partie : le seul bloc de l'ecran qui ne parle que de toi, entre deux qui
-   parlent de l'equipe. Encadre, sinon les trois se confondent. */
-#bilanMine {
-  padding: var(--sp-6);
-  border: var(--hair) solid var(--ui-line);
-  border-radius: var(--radius-ui);
-  background: var(--ui-panel);
-}
-.mineTitle {
-  font-family: var(--font);
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--go);
-}
-.mineCls { font-family: var(--font-display); font-size: var(--t-s); font-weight: 700; }
-#mineOpen { min-height: 32px; }
+/* Le bloc « ta partie » a ete RETIRE du bilan : multiplicateurs, jauge de
+   puissance et compteur de cartes repondaient a « pourquoi ces degats-la »,
+   question que la fenetre de build traite deja — et mieux, puisqu'elle la
+   traite pour n'importe quel joueur du tableau. Un clic sur sa ligne l'ouvre,
+   et la phrase sous le titre le dit. Ses regles ont disparu avec lui ; celles
+   de `#minePower` restent, la jauge servant toujours dans `#build`. */
 /* Le diagnostic reseau (PERF=1) : une ligne de RELEVE, donc chasse fixe, et en
    vert parce qu'elle ne dit rien de mauvais — c'est une mesure, pas une
    alerte. Elle ferme l'ecran, sous le bouton : on ne la lit que si on la

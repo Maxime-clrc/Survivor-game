@@ -468,25 +468,44 @@
 <!-- bilan de fin de manche. Ecran a part du salon : tant que le salon suivant
      etait affiche en dessous, le joueur ne lisait jamais son bilan. -->
 <div id="bilan" class="overlay" hidden>
-  <div id="bilanTitle"></div>
-  <div id="bilanStats"></div>
-  <!-- TA build, sans avoir a cliquer. Elle etait accessible depuis une ligne du
-       tableau, mais personne n'y allait : c'est ici, le resultat sous les yeux,
-       qu'on se demande pourquoi on a fait ces degats-la. -->
-  <div id="bilanMine" hidden></div>
-  <!-- De quoi l'equipe est morte, ventile par provenance. C'est la seule
-       question que le tableau des scores ne traitait pas : on savait combien on
-       avait encaisse, jamais de quoi. -->
-  <div id="bilanHurt"></div>
-  <!-- Diagnostic reseau (?perf) : les totaux de SESSION se lisent ici, mort
-       ou vivant — pas besoin de survivre jusqu'aux vagues denses. Vide sinon. -->
-  <div id="bilanPerf" hidden></div>
-  <table id="bilanScores"><tbody></tbody></table>
-  <!-- Plus de barre ni de compte a rebours : le bilan ne se ferme plus tout
-       seul. Une jauge qui se vide sous un bouton dit « depeche-toi », ce qui
-       est l'inverse de ce que cet ecran demande. -->
-  <div id="bilanNext">
-    <button id="bilanGo">Continuer</button>
+  <div class="bilanWrap">
+    <!-- OU l'on etait : nom de la salle et difficulte. C'est la seule chose de
+         l'ecran qui situe la partie plutot que de la mesurer. -->
+    <div id="bilanKicker" class="sectionTitle"></div>
+    <div id="bilanTitle"></div>
+    <p id="bilanLead">Clique sur une ligne du tableau pour ouvrir le build de ce joueur.</p>
+
+    <!-- QUATRE chiffres de table, pas un de plus. Survie et kills disent
+         comment la manche s'est passee, l'effectif et le numero de manche la
+         situent. Tout le reste — degats, DPS, subis — est dans le tableau,
+         ventile par joueur, ou il veut dire quelque chose. -->
+    <div id="bilanStats"></div>
+
+    <!-- De quoi l'equipe est morte, ventile par provenance. C'est la seule
+         question que le tableau des scores ne traite pas : on sait combien on
+         a encaisse, jamais de quoi. -->
+    <div id="bilanHurt"></div>
+
+    <!-- Diagnostic reseau (?perf) : les totaux de SESSION se lisent ici, mort
+         ou vivant — pas besoin de survivre jusqu'aux vagues denses. Vide sinon. -->
+    <div id="bilanPerf" hidden></div>
+
+    <div id="bilanTableWrap">
+      <table id="bilanScores"><tbody></tbody></table>
+    </div>
+
+    <!-- DEUX sorties : reprendre au salon, ou remonter au hub. Le salon
+         s'ouvre tout seul a l'echeance — le bilan est court, on le lit en
+         quelques secondes, et une table de quatre n'a pas a attendre celui
+         qui a lache sa souris. -->
+    <div id="bilanNext">
+      <div class="row">
+        <button id="bilanGo">Continuer</button>
+        <button id="bilanLeave" class="ghost">Retour aux salons</button>
+      </div>
+      <div id="bilanBar"><i></i></div>
+      <div id="bilanHint"></div>
+    </div>
   </div>
 </div>
 
@@ -752,6 +771,51 @@
   </div>
 </div>
 
+<!-- BRIEFING DE CLASSE. Il s'intercale entre le salon et la manche, et c'est
+     une vraie phase SERVEUR (`PHASE_BRIEF`) : la simulation n'a pas commence,
+     donc « entrée en jeu dans N s » dit la verite au lieu de recouvrir une
+     manche qui tourne deja. Tout son contenu se deduit de `CLASSES` — nom,
+     touches, competences, mission — donc aucun de ces textes ne voyage sur le
+     reseau : le client importe le meme module que le serveur.
+
+     La teinte de la classe est posee en variable (`--tint`) sur le conteneur,
+     depuis `couleur` : un seul point d'entree pour le titre, les touches et le
+     lisere des cartes. -->
+<div id="brief" class="overlay" hidden>
+  <div class="briefWrap">
+    <div id="briefName"></div>
+    <div id="briefKicker" class="sectionTitle">tes deux compétences et leurs touches</div>
+
+    <div id="briefSkills"></div>
+
+    <!-- La TROISIEME competence. Elle n'existe que par une carte, et c'est
+         justement pour ca qu'il faut l'annoncer ici : sans cette ligne, la
+         touche 3 ne se decouvre qu'en tirant la carte, c'est-a-dire au pire
+         moment. Remplie par client.js — le nom depend de la classe. -->
+    <div id="briefThird"></div>
+
+    <div id="briefMission">
+      <div class="sectionTitle">Ta mission</div>
+      <p id="briefMissionText"></p>
+    </div>
+
+    <!-- Le rappel des trois touches de base. STATIQUE : il ne depend pas de la
+         classe, et le markup porte les libelles comme dans `#settings`. -->
+    <div id="briefBasics">
+      <span class="briefBasic"><b>ZQSD</b> se déplacer</span>
+      <span class="briefBasic"><b>Souris</b> viser</span>
+      <span class="briefBasic"><b>Espace</b> esquiver</span>
+    </div>
+
+    <!-- « Continuer » RETIRE LE VOILE, il ne lance rien : la manche tourne
+         deja dessous, on peut se placer sur la carte pendant que la vague est
+         retenue. Le compte a rebours continue donc de courir sans l'ecran. -->
+    <button id="briefGo">Continuer</button>
+    <div id="briefBar"><i></i></div>
+    <div id="briefCount">première vague dans <b id="briefLeft">—</b> s</div>
+  </div>
+</div>
+
 <!-- ecran de choix de carte, a chaque niveau d'equipe -->
 <div id="cards" class="overlay" hidden>
   <!-- Le titre de cet ecran est une PHRASE — « Vague 12 terminée — niveau 7 —
@@ -786,27 +850,39 @@
      liste des cartes, qu'il faut lire ligne a ligne pour en tirer la meme
      chose. -->
 <div id="build" class="overlay" hidden>
-  <div id="buildHead">
-    <button id="buildPrev" class="buildNav" title="joueur précédent">◀</button>
-    <div id="buildWho">
-      <canvas id="buildSil"></canvas>
+  <div class="buildWrap">
+    <!-- L'identite est le NOM et la CLASSE, rien d'autre. La silhouette a
+         disparu : elle repetait ce que le libelle de classe dit deja, et elle
+         etait la seule piece de l'ecran a demander un canvas et un repaint a
+         chaque changement de joueur. -->
+    <div id="buildHead">
+      <button id="buildPrev" class="buildNav" title="joueur précédent">◀</button>
       <div id="buildIdent">
         <div id="buildName"></div>
         <div id="buildClass"></div>
       </div>
+      <button id="buildNext" class="buildNav" title="joueur suivant">▶</button>
     </div>
-    <button id="buildNext" class="buildNav" title="joueur suivant">▶</button>
-  </div>
 
-  <div id="buildStats"></div>
-  <div id="buildMods"></div>
-  <!-- Indice de puissance : le seul chiffre qui explique a la fois les PV du
-       boss et la pression des vagues. Un multiplicateur nu ne se lit pas sans
-       point de comparaison — la jauge porte les reperes MESURES. -->
-  <div id="buildPower"></div>
-  <div id="buildSkills"></div>
-  <div id="buildCards"></div>
-  <div id="buildHint" class="hint">← → changer de joueur · <b>Échap</b> fermer</div>
+    <div id="buildStats"></div>
+
+    <!-- Trois sections nommees. Elles etaient trois blocs qui se suivaient sans
+         rien dire : on lisait des puces, des lignes et des cartes sans savoir
+         ou l'une finissait. -->
+    <div id="buildModsTitle" class="sectionTitle">Multiplicateurs</div>
+    <div id="buildMods"></div>
+
+    <div id="buildSkillsTitle" class="sectionTitle">Compétences</div>
+    <div id="buildSkills"></div>
+
+    <div id="buildCardsTitle" class="sectionTitle">Cartes</div>
+    <div id="buildCards"></div>
+
+    <div id="buildFoot">
+      <button id="buildBack" class="ghost">← Fermer</button>
+      <div id="buildHint" class="hint">← → changer de joueur · <b>Échap</b> fermer</div>
+    </div>
+  </div>
 </div>
 
 <!-- Menu pause. Il n'est PAS un `.overlay` : a plusieurs la partie continue

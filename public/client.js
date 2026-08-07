@@ -33,7 +33,7 @@ import {
   RELICS, RELIC_RARITY, relicById, relicPrice, relicRerollCost,
 } from "/shared/reliques.js";
 import {
-  CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange,
+  CLASSES, CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt, bombRange,
   SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE,
 } from "/shared/classes.js";
 import {
@@ -94,7 +94,7 @@ import { createGL } from "/gl.js";
    `:root` par `applyPalette()` juste en dessous. */
 import {
   SURFACE, TEXT, SIGNAL, CLASS_COLOR, COMBAT, ENEMY, ZONE, WALL, BOSS, BOSS_SKIN,
-  POWERUP_COLOR, EFFECT_COLOR, OWNED, FX, MARK, HUD, CARD_CATEGORY_COLOR,
+  POWERUP_COLOR, EFFECT_COLOR, OWNED, FX, MARK, HUD, CARD_CATEGORY_COLOR, SRC_TINT,
   alpha, cssVars,
 } from "/shared/palette.js";
 
@@ -313,9 +313,12 @@ const bilanTitle = document.getElementById("bilanTitle");
 const bilanStats = document.getElementById("bilanStats");
 const bilanHurt = document.getElementById("bilanHurt");
 const bilanPerf = document.getElementById("bilanPerf");
-const bilanMine = document.getElementById("bilanMine");
 const bilanScoresBody = document.querySelector("#bilanScores tbody");
 const bilanGo = document.getElementById("bilanGo");
+const bilanKicker = document.getElementById("bilanKicker");
+const bilanLeaveBtn = document.getElementById("bilanLeave");
+const bilanBarFill = document.querySelector("#bilanBar > i");
+const bilanHint = document.getElementById("bilanHint");
 const volInput = document.getElementById("vol");
 const volVal = document.getElementById("volVal");
 const muteBtn = document.getElementById("mute");
@@ -499,6 +502,13 @@ function connect() {
            deja masque — l'avertissement n'a jamais ete visible. Decide sur CE
            DRAPEAU, jamais sur l'ordre d'arrivee des messages. */
         if (msg.dup) {
+          /* LE GATE DOIT ETRE REAFFICHE. `bootOnce()` le cache pour montrer le
+             chargement et ne le rend plus — ce sont les chemins de sortie qui
+             s'en chargent. Le doublon est le seul chemin de SUCCES qui reste
+             sur cet ecran, et l'oublier donnait un ecran entierement noir :
+             plus de gate, pas encore de hub. */
+          loadingEl.hidden = true;
+          gate.hidden = false;
           // Le renvoi vers la creation de compte RESTE : le formulaire est
           // toujours la, on peut encore repartir sur un autre compte plutot
           // que d'assumer la session temporaire.
@@ -595,6 +605,7 @@ function connect() {
         worldQueue.length = 0;
         screenCloseQueued = false;
         resetFeedback();
+        closeBrief();
         closeCards();
         closeMerchant();
         closeBilan();
@@ -715,6 +726,11 @@ function connect() {
           closeBuild();
           closePause();
           refreshPanel();
+          /* Le briefing s'ouvre APRES `refreshPanel` : c'est un voile pose sur
+             une manche qui tourne deja, pas un ecran qui la remplace. Le HUD
+             est donc en place dessous, et le bouton « continuer » n'a qu'a
+             retirer le voile pour rendre l'arene. */
+          openBrief(msg.warmup);
         });
         break;
 
@@ -726,6 +742,10 @@ function connect() {
           latest = null;
           predicted = null;
           resetFeedback();
+          // Une manche peut s'interrompre PENDANT le briefing : le dernier
+          // joueur quitte, la salle revient au salon, et l'ecran resterait a
+          // compter vers une entree en jeu qui n'aura pas lieu.
+          closeBrief();
           closeCards();
           closeMerchant();
           closeBilan();
@@ -744,6 +764,7 @@ function connect() {
           // du retard d'interpolation serait sortie au debut de la manche
           // SUIVANTE, sur un combat qui n'a rien a voir.
           resetFeedback();
+          closeBrief();
           closeCards();
           closeMerchant();
           closeBuild();
@@ -1276,8 +1297,12 @@ function syncTopbar() {
 
   /* L'ecran de cartes et celui de chargement passent AVANT tout le reste : ils
      se superposent, et le salon reste techniquement affiche dessous. */
+  /* `#brief` masque la barre au meme titre que `#cards` : on lit son role sous
+     minuterie, un fil d'Ariane et un bouton de reglages n'ont rien a faire
+     par-dessus. */
   const masque = (cardsEl && !cardsEl.hidden) || (loadingEl && !loadingEl.hidden)
-    || (gate && !gate.hidden);
+    || (gate && !gate.hidden)
+    || (document.getElementById("brief")?.hidden === false);
 
   const vue = masque ? null : TOPBAR_SCREENS.find(s => { const e = s.el(); return e && !e.hidden; });
   topbarEl.hidden = !vue;
@@ -1393,7 +1418,8 @@ function syncLeaving(el) {
   /* `#pause` se prend par le document et non par `pauseEl` : cette constante-la
      est declaree bien plus bas, donc encore en zone morte ici. */
   const screens = [gate, loadingEl, hubScreenEl, panel, bilanEl, menuEl, cardsEl,
-                   settingsEl, document.getElementById("pause")];
+                   settingsEl, document.getElementById("pause"),
+                   document.getElementById("brief")];
   for (const el of screens) {
     if (el) {
       obs.observe(el, { attributes: true, attributeFilter: ["hidden"], attributeOldValue: true });
@@ -1872,6 +1898,144 @@ startBtn.onclick = () => {
   ws.send(JSON.stringify({ t: "start" }));
 };
 
+/* --- briefing de classe --------------------------------------------------------
+
+   Vingt secondes entre le clic de l'hote et la premiere vague. La phase est
+   SERVEUR (`PHASE_BRIEF`, room.js) : rien ne tourne derriere, le compte a
+   rebours ne recouvre donc pas une manche deja lancee.
+
+   Aucun texte ne voyage sur le reseau : le client importe `CLASSES` — le meme
+   module que le serveur — et y lit le nom, la teinte, les deux competences avec
+   leurs touches, et la mission. Le message `brief` ne porte que la duree, et
+   c'est la seule chose que le client ne peut pas deduire. */
+const briefEl = document.getElementById("brief");
+const briefNameEl = document.getElementById("briefName");
+const briefSkillsEl = document.getElementById("briefSkills");
+const briefMissionTextEl = document.getElementById("briefMissionText");
+const briefBarFill = document.querySelector("#briefBar > i");
+const briefLeftEl = document.getElementById("briefLeft");
+const briefThirdEl = document.getElementById("briefThird");
+const briefGoBtn = document.getElementById("briefGo");
+let briefTimer = 0;
+
+function openBrief(dur) {
+  if (!briefEl) return;
+  /* La classe VERROUILLEE par le serveur, relue dans le salon : `startRound`
+     retombe sur le tireur pour qui n'a rien choisi, et c'est cette valeur-la
+     qu'il faut annoncer — pas le `null` que le joueur a laisse. */
+  const me = lobby.find(l => l.id === myId);
+  const c = classAt(me?.cls ?? CLASS_DEFAULT);
+
+  briefEl.querySelector(".briefWrap").style.setProperty("--tint", c.couleur);
+  briefNameEl.textContent = c.nom;
+  briefMissionTextEl.textContent = c.mission ?? c.desc;
+
+  briefSkillsEl.textContent = "";
+  for (const s of c.skills) {
+    const card = document.createElement("div");
+    card.className = "briefSkill";
+
+    const keys = document.createElement("div");
+    keys.className = "briefKeys";
+    /* `touche` s'ecrit « A/1 » : deux capuchons separes par « ou ». La barre
+       oblique est une notation de table, pas quelque chose qu'on montre a un
+       joueur qui cherche quelle touche presser. */
+    const parts = String(s.touche).split("/");
+    parts.forEach((k, i) => {
+      if (i > 0) {
+        const ou = document.createElement("span");
+        ou.className = "briefOr";
+        ou.textContent = "ou";
+        keys.appendChild(ou);
+      }
+      const cap = document.createElement("span");
+      cap.className = "briefKey";
+      cap.textContent = k;
+      keys.appendChild(cap);
+    });
+
+    const nom = document.createElement("div");
+    nom.className = "briefSkillName";
+    nom.textContent = s.nom;
+
+    const desc = document.createElement("div");
+    desc.className = "briefSkillDesc";
+    desc.textContent = s.desc;
+
+    card.append(keys, nom, desc);
+    briefSkillsEl.appendChild(card);
+  }
+
+  /* LA TROISIEME COMPETENCE, annoncee avec sa touche. Elle n'existe que si une
+     carte l'accorde, et sans cette ligne la touche 3 se decouvrait en tirant la
+     carte — c'est-a-dire au milieu d'une vague, au pire moment pour apprendre
+     une commande. On la nomme et on donne sa touche des le briefing ; ce qui
+     manque, c'est la carte, pas l'information. */
+  const nom3 = SKILL3_NAME[c.id];
+  briefThirdEl.textContent = "";
+  briefThirdEl.hidden = !nom3;
+  if (nom3) {
+    const keys = document.createElement("span");
+    keys.className = "briefKeys";
+    ["3", "R"].forEach((k, i) => {
+      if (i > 0) {
+        const ou = document.createElement("span");
+        ou.className = "briefOr";
+        ou.textContent = "ou";
+        keys.appendChild(ou);
+      }
+      const cap = document.createElement("span");
+      cap.className = "briefKey small";
+      cap.textContent = k;
+      keys.appendChild(cap);
+    });
+    const txt = document.createElement("span");
+    txt.className = "briefThirdText";
+    txt.innerHTML = `<b>${escapeHtml(nom3)}</b> — troisième compétence, `
+      + `une carte peut te l'accorder en cours de partie`;
+    briefThirdEl.append(keys, txt);
+  }
+
+  briefEl.hidden = false;
+
+  /* Le compte a rebours suit `state.warmup` cote serveur, qui retient la vague.
+     Il n'a rien a declencher : quand il atteint zero, le voile se retire s'il
+     est encore la — et la vague part de toute facon, que l'ecran soit ouvert ou
+     non. Un ecart d'une fraction de seconde ne fait donc rien de faux. */
+  const total = Number(dur) > 0 ? Number(dur) : 20;
+  const fin = performance.now() + total * 1000;
+  clearInterval(briefTimer);
+  const tick = () => {
+    const reste = Math.max(0, (fin - performance.now()) / 1000);
+    briefLeftEl.textContent = String(Math.ceil(reste));
+    briefBarFill.style.width = `${(1 - reste / total) * 100}%`;
+    // A l'echeance le voile se retire tout seul : celui qui n'a pas clique
+    // « continuer » ne doit pas decouvrir la premiere vague a travers un
+    // panneau.
+    if (reste <= 0) closeBrief();
+  };
+  // La barre part de zero SANS transition, sinon elle glisserait depuis la
+  // largeur du briefing precedent.
+  briefBarFill.style.transition = "none";
+  briefBarFill.style.width = "0%";
+  briefBarFill.offsetWidth;                 // force le recalcul avant de rendre la transition
+  briefBarFill.style.transition = "";
+  tick();
+  briefTimer = setInterval(tick, 250);
+}
+
+/* Le voile se retire, le compte a rebours MEURT avec lui. Il n'a rien a
+   declencher — c'est `state.warmup` cote serveur qui retient la vague, et il
+   court que l'ecran soit ouvert ou non. */
+function closeBrief() {
+  if (!briefEl) return;
+  clearInterval(briefTimer);
+  briefTimer = 0;
+  briefEl.hidden = true;
+}
+
+if (briefGoBtn) briefGoBtn.onclick = closeBrief;
+
 /* --- salon et tableau des scores ---------------------------------------------- */
 
 function refreshPanel() {
@@ -1890,6 +2054,9 @@ function refreshPanel() {
   // ne doit pas rouvrir le salon dessous. `menuCloseBtn` cache #menu AVANT
   // d'appeler refreshPanel(), donc le retour volontaire n'est pas bloque ici.
   if (!menuEl.hidden) return;
+  /* Pas de garde pour le briefing : il n'est plus un ecran qui remplace le
+     salon mais un VOILE pose sur une manche qui tourne. Le HUD doit vivre
+     dessous — c'est lui qu'on decouvre en cliquant « continuer ». */
   // Le HUD ne vit que pendant la manche. Il est en DOM : laisse affiche sous le
   // salon, il aurait montre une barre de vie et un chronometre figes.
   showHud(phase === PHASE_ROUND);
@@ -2623,27 +2790,33 @@ function showBilan(res) {
      l'autre sans les rapporter au temps. Une manche de 4 min a 80 000 degats et
      une de 12 min a 190 000 se lisent enfin. Deduits cote client — la somme des
      lignes divisee par la duree — donc rien de neuf sur le reseau. */
-  const degats = res.rows.reduce((a, r) => a + (r.damage ?? 0), 0);
-  const subis = res.rows.reduce(
-    (a, r) => a + (r.hurtBy ?? []).reduce((x, y) => x + y, 0), 0);
-  const dps = res.time > 0 ? degats / res.time : 0;
-  bilanStats.innerHTML =
-    `<div class="bilanStat"><span class="val">${escapeHtml(fmtTime(res.time))}</span>` +
-    `<span class="lab">survie</span></div>` +
-    `<div class="bilanStat"><span class="val">${res.kills}</span>` +
-    `<span class="lab">kills</span></div>` +
-    `<div class="bilanStat"><span class="val">${fmtBig(degats)}</span>` +
-    `<span class="lab">dégâts</span></div>` +
-    `<div class="bilanStat"><span class="val">${fmtBig(Math.round(dps))}</span>` +
-    `<span class="lab">dégâts / s</span></div>` +
-    `<div class="bilanStat"><span class="val">${fmtBig(Math.round(subis))}</span>` +
-    `<span class="lab">subis</span></div>` +
-    `<div class="bilanStat"><span class="val">${res.round}</span>` +
-    `<span class="lab">manche</span></div>`;
-  renderBilanMine(res);
-  renderHurtBy(res.rows);
-  renderScores(res.rows, bilanScoresBody);
+  /* OU l'on etait. Le nom de la salle et la difficulte ne se lisent nulle part
+     ailleurs une fois la manche finie, et ce sont les deux choses qui
+     distinguent deux bilans par ailleurs identiques. */
+  if (bilanKicker) {
+    const mode = DIFFICULTIES[difficulty]?.label ?? "";
+    bilanKicker.textContent = [roomNameCur, mode].filter(Boolean).join(" · ");
+  }
 
+  /* QUATRE chiffres, et ce sont ceux de la TABLE. Il y en avait six, dont
+     trois — degats, degats/s, subis — qui ne disent rien au niveau collectif :
+     le tableau juste dessous les ventile par joueur, ou ils se comparent. Les
+     quatre qui restent repondent chacun a une question qu'aucune ligne du
+     tableau ne pose : combien de temps, combien de morts en face, combien
+     etions-nous, laquelle des manches de la soiree. */
+  const joueurs = res.rows.filter(r => r.played).length || res.rows.length;
+  bilanStats.innerHTML =
+    `<div class="bilanStat"><span class="lab">survie</span>` +
+    `<span class="val">${escapeHtml(fmtTime(res.time))}</span></div>` +
+    `<div class="bilanStat"><span class="lab">kills</span>` +
+    `<span class="val">${res.kills}</span></div>` +
+    `<div class="bilanStat"><span class="lab">joueurs</span>` +
+    `<span class="val">${joueurs}</span></div>` +
+    `<div class="bilanStat"><span class="lab">manche</span>` +
+    `<span class="val">${res.round}</span></div>`;
+  renderHurtBy(res.rows);
+  renderBilanScores(res.rows);
+  startBilanCountdown();
 }
 
 /* Groupement par milliers, espace insecable fin. Pas de « 80,8 k » : un bilan
@@ -2653,53 +2826,94 @@ function fmtBig(n) {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
-/* TA build, sur l'ecran de fin. Elle existait deja — un clic sur sa ligne du
-   tableau — et c'est precisement le probleme : personne ne cliquait, donc
-   personne ne faisait le lien entre ses cartes et son resultat. Un joueur qui
-   voit « ×1,49 dégâts » sans point de comparaison en conclut que les
-   pourcentages ne fonctionnent pas ; c'est arrive, et c'est ce que la jauge de
-   puissance corrige.
+/* LE TABLEAU DU BILAN, distinct de celui du salon. Les deux partageaient
+   `renderScores`, et c'est ce qui avait fait grossir celui du bilan a dix
+   colonnes : chacune servait a l'un des deux ecrans. Ici sept, et chacune
+   repond a « qui a fait quoi » — la classe rejoint le nom (c'est une identite,
+   pas une mesure), le niveau et le cumul de session sortent (ils appartiennent
+   au salon), les pastilles de cartes sortent aussi : la build s'ouvre d'un clic
+   sur la ligne, et c'est ce que dit le texte sous le titre. */
+const BILAN_COLS = [
+  { lab: "score",  val: r => fmtBig(r.score ?? 0),   mine: true },
+  { lab: "kills",  val: r => String(r.kills ?? 0) },
+  { lab: "morts",  val: r => String(r.deaths ?? 0) },
+  { lab: "dégâts", val: r => fmtBig(r.damage ?? 0) },
+  // Un TIRET et non zero : le tireur ne soigne pas, il n'a pas rate quelque
+  // chose. Zero se lirait comme un resultat.
+  { lab: "soins",  val: r => (r.heal ?? 0) > 0 ? fmtBig(r.heal) : "—" },
+  { lab: "noyaux", val: r => r.cores !== undefined ? String(r.cores) : "—" },
+];
 
-   Rien pour un spectateur (`played` faux) : afficher une build vide sous un
-   tableau ou l'on n'apparait pas se lirait comme un bug. */
-function renderBilanMine(res) {
-  const row = res.rows.find(r => r.id === myId);
-  if (!row || !row.played) { bilanMine.hidden = true; bilanMine.innerHTML = ""; return; }
+function renderBilanScores(rows) {
+  bilanScoresBody.innerHTML = "";
+  const head = document.createElement("tr");
+  head.innerHTML = `<th>joueur</th>`
+    + BILAN_COLS.map(c => `<th>${c.lab}</th>`).join("");
+  bilanScoresBody.appendChild(head);
 
-  const info = buildInfo(myId);
-  const { mods } = buildMultipliers(info);
-  const flat = relicFlatOf(myId);
-  const def = (info.cls === null || info.cls === undefined) ? null : classAt(info.cls);
-  const dps = res.time > 0 ? (row.damage ?? 0) / res.time : 0;
-  const subis = (row.hurtBy ?? []).reduce((a, b) => a + b, 0);
-  // Part des degats de l'equipe. En solo elle vaut toujours 100 % et n'apprend
-  // rien : on la coupe plutot que d'ecrire une evidence.
-  const total = res.rows.reduce((a, r) => a + (r.damage ?? 0), 0);
-  const part = total > 0 && res.rows.length > 1
-    ? Math.round((row.damage ?? 0) / total * 100) : null;
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const cdef = (r.cls === null || r.cls === undefined) ? null : classAt(r.cls);
+    // La pastille porte la TEINTE DE CLASSE, pas celle du joueur : sur un
+    // ecran de fin on lit des roles, plus des positions dans l'arene.
+    const col = cdef ? cdef.couleur : PLAYER_COLORS[r.colorIndex % PLAYER_COLORS.length];
+    const ini = (r.name || "?")[0].toUpperCase();
 
-  bilanMine.hidden = false;
-  bilanMine.innerHTML =
-    `<div class="mineHead">` +
-      `<span class="mineTitle">ta partie</span>` +
-      (def ? `<span class="mineCls" style="color:${def.couleur}">${escapeHtml(def.nom)}</span>` : "") +
-      `<button id="mineOpen" class="ghost">voir les cartes</button>` +
-    `</div>` +
-    `<div class="mineStats">` +
-      `<div class="buildStat"><span class="val">${fmtBig(row.damage ?? 0)}</span><span class="lab">dégâts</span></div>` +
-      `<div class="buildStat"><span class="val">${fmtBig(Math.round(dps))}</span><span class="lab">dégâts / s</span></div>` +
-      (part !== null
-        ? `<div class="buildStat"><span class="val">${part} %</span><span class="lab">de l'équipe</span></div>` : "") +
-      `<div class="buildStat"><span class="val">${row.kills}</span><span class="lab">kills</span></div>` +
-      `<div class="buildStat"><span class="val">${fmtBig(Math.round(subis))}</span><span class="lab">subis</span></div>` +
-      `<div class="buildStat"><span class="val">${info.counts.size}</span><span class="lab">cartes</span></div>` +
-    `</div>` +
-    `<div class="mineMods">${modsChipsHtml(mods)}</div>` +
-    `<div id="minePower">${powerBlockHtml(mods, flat)}</div>`;
+    tr.innerHTML =
+      `<td class="who">` +
+        `<span class="whoDot" style="color:${col}">${escapeHtml(ini)}</span>` +
+        `<span class="whoText">` +
+          `<span class="whoName">${escapeHtml(r.name)}</span>` +
+          `<span class="whoCls">${cdef ? escapeHtml(cdef.nom) : "—"}</span>` +
+        `</span>` +
+      `</td>`
+      + BILAN_COLS.map(c =>
+          `<td class="num${c.mine && r.id === myId ? " mine" : ""}">${c.val(r)}</td>`).join("");
 
-  // La fenetre de build complete reste a un clic : le bilan en montre la
-  // synthese, pas la liste des cartes, qui demande la place d'un ecran entier.
-  document.getElementById("mineOpen").onclick = () => openBuild(myId);
+    /* La LIGNE ouvre la fenetre de build — c'est ce que la phrase sous le titre
+       annonce, et c'est la seule chose qu'on puisse faire d'une ligne. */
+    tr.className = "clickable";
+    tr.onclick = () => openBuild(r.id);
+    bilanScoresBody.appendChild(tr);
+  }
+}
+
+/* LE SALON S'OUVRE TOUT SEUL. Il l'a fait, puis on l'a retire — le bilan
+   portait alors la build, la jauge de puissance et le detail personnel, donc
+   « de quoi passer une minute dessus », et un ecran qui se retire pendant
+   qu'on le lit est un defaut. Il redevient ce qu'il etait : quatre chiffres,
+   une ventilation et un tableau, soit quelques secondes de lecture. Une table
+   de quatre n'a pas a attendre celui qui a lache sa souris.
+
+   Les deux boutons restent la sortie EXPLICITE, et un clic n'importe ou dans
+   le bilan suspend le compte a rebours : celui qui lit encore n'a rien a
+   faire pour qu'on l'attende. */
+const BILAN_AUTO_S = 12;
+let bilanTimer = 0;
+
+function startBilanCountdown() {
+  clearInterval(bilanTimer);
+  if (!bilanBarFill || !bilanHint) return;
+  const fin = performance.now() + BILAN_AUTO_S * 1000;
+  const tick = () => {
+    const reste = Math.max(0, (fin - performance.now()) / 1000);
+    bilanHint.textContent = `le salon s'ouvre dans ${Math.ceil(reste)} s`;
+    bilanBarFill.style.width = `${(reste / BILAN_AUTO_S) * 100}%`;
+    if (reste <= 0) { clearInterval(bilanTimer); bilanTimer = 0; closeBilan(); }
+  };
+  bilanBarFill.style.transition = "none";
+  bilanBarFill.style.width = "100%";
+  bilanBarFill.offsetWidth;
+  bilanBarFill.style.transition = "";
+  tick();
+  bilanTimer = setInterval(tick, 250);
+}
+
+function stopBilanCountdown() {
+  clearInterval(bilanTimer);
+  bilanTimer = 0;
+  if (bilanHint) bilanHint.textContent = "";
+  if (bilanBarFill) bilanBarFill.style.width = "0%";
 }
 
 /* DE QUOI L'EQUIPE EST MORTE. Une ligne de barres, une par provenance, en part
@@ -2730,17 +2944,27 @@ function renderHurtBy(rows) {
     .filter(p => p.val > 0)
     .sort((a, b) => b.val - a.val);
 
-  let html = `<div class="hurtTitle">dégâts subis par l'équipe</div>`;
-  for (const p of parts) {
-    const pct = Math.round(p.val / somme * 100);
-    html += `<div class="hurtRow">` +
-      `<span class="hurtIco"></span>` +
-      `<span class="hurtLab">${escapeHtml(p.label)}</span>` +
-      `<span class="hurtBar"><i style="width:${pct}%"></i></span>` +
-      `<span class="hurtVal">${pct} %</span>` +
+  /* UNE SEULE BARRE EMPILEE, et une legende dessous. Il y avait une barre par
+     provenance, chacune tracee sur toute la largeur : quatre barres a comparer
+     de l'oeil alors qu'elles sont les parts d'un meme total. Empilees, la
+     comparaison ne demande plus rien — c'est la forme meme de la question.
+
+     Les couleurs viennent de la rampe des degats subis (`SRC_TINT`), donc de
+     la charte : la legende n'a plus besoin du glyphe de provenance, la pastille
+     suffit a relier un segment a son nom. */
+  const segs = parts.map(p => ({ ...p, pct: Math.round(p.val / somme * 100) }));
+  bilanHurt.innerHTML =
+    `<div class="hurtTitle sectionTitle">dégâts subis par l'équipe</div>` +
+    `<div class="hurtStack">` +
+      segs.map(p => `<i style="width:${p.pct}%;background:${SRC_TINT[p.i]}"></i>`).join("") +
+    `</div>` +
+    `<div class="hurtLegend">` +
+      segs.map(p => `<span class="hurtItem">` +
+        `<i style="background:${SRC_TINT[p.i]}"></i>` +
+        `<span class="hurtLab">${escapeHtml(p.label)}</span>` +
+        `<span class="hurtVal">${p.pct} %</span>` +
+      `</span>`).join("") +
     `</div>`;
-  }
-  bilanHurt.innerHTML = html;
   // Diagnostic reseau : les totaux de SESSION se lisent ici, sans avoir a
   // viser une vague dense — la partie jouee, quelle qu'elle soit, suffit.
   // Apres roundEnd il n'arrive plus d'instantane, les totaux sont figes.
@@ -2751,14 +2975,10 @@ function renderHurtBy(rows) {
       + ` · >${INTERP_MS}ms ${netPerf.totGap} · max gap ${netPerf.maxGap.toFixed(0)} ms`
       + ` · img max ${netPerf.maxFrame.toFixed(0)} ms`;
   }
-  // Les glyphes sont poses APRES coup : `iconImg` rend un element et non une
-  // chaine, et le coller dans du HTML l'aurait fait passer par une adresse
-  // `data:` recopiee cinq fois au lieu d'une image mise en cache.
-  const icos = bilanHurt.querySelectorAll(".hurtIco");
-  parts.forEach((p, k) => icos[k]?.appendChild(iconImg(SRC_ICON[p.i], HUD.low, 14)));
 }
 
 function closeBilan() {
+  stopBilanCountdown();
   bilanOpen = false;
   bilanEl.hidden = true;
   // La classe de victoire (lot N) se retire ICI : laissee en place, la manche
@@ -2768,6 +2988,25 @@ function closeBilan() {
 }
 
 bilanGo.onclick = closeBilan;
+
+/* Remonter au HUB depuis le bilan. Il fallait sinon fermer le bilan, attendre
+   le salon, puis le quitter — trois gestes pour dire « j'arrete ». */
+if (bilanLeaveBtn) {
+  bilanLeaveBtn.onclick = () => {
+    if (!connected || !inRoom) return;
+    closeBilan();
+    ws.send(JSON.stringify({ t: "leaveRoom" }));
+  };
+}
+
+/* Un clic DANS le bilan suspend l'echeance. Celui qui lit encore n'a rien a
+   faire pour qu'on l'attende, et celui qui ne fait rien passe au salon : les
+   deux comportements sont servis sans bouton de plus. Le survol ne suffirait
+   pas — la souris traverse l'ecran pour atteindre « Continuer ». */
+bilanEl.addEventListener("click", ev => {
+  if (ev.target.closest("#bilanNext")) return;   // les boutons ont deja leur effet
+  if (bilanTimer) stopBilanCountdown();
+});
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
@@ -3204,12 +3443,12 @@ function updateCardsTimer() {
 const buildEl = document.getElementById("build");
 const buildName = document.getElementById("buildName");
 const buildClass = document.getElementById("buildClass");
-const buildSil = document.getElementById("buildSil");
 const buildStats = document.getElementById("buildStats");
 const buildMods = document.getElementById("buildMods");
-const buildPower = document.getElementById("buildPower");
 const buildSkills = document.getElementById("buildSkills");
+const buildSkillsTitle = document.getElementById("buildSkillsTitle");
 const buildCards = document.getElementById("buildCards");
+const buildBackBtn = document.getElementById("buildBack");
 
 let buildTarget = 0;
 let buildPaintedAt = 0;
@@ -3330,6 +3569,13 @@ function relicFlatOf(playerId) {
   return s;
 }
 
+/* PLUS AUCUN ECRAN NE RENDLA JAUGE. La maquette du bilan comme celle de la
+   fenetre de build s'arretent aux multiplicateurs, et les deux appels ont donc
+   disparu. Le code reste : l'indice de puissance repond a un vrai defaut
+   rapporte — « ×1,49 dégâts » sonne bien et vaut une build faible, d'ou « les
+   pourcentages ne fonctionnent pas » — et le remettre est une ligne dans
+   `renderBuild`. Le supprimer serait une decision de conception, pas un
+   nettoyage. */
 function powerBlockHtml(mods, flat = 0) {
   /* `flat` : les degats bruts des reliques (lot K). Le chiffre affiche est
      celui qui pilote REELLEMENT les PV du boss — il inclut le flat cote
@@ -3393,38 +3639,62 @@ function renderBuild() {
   const def = classAt(info.cls ?? CLASS_DEFAULT);
   const { mods, maxHp } = buildMultipliers(info);
 
+  const sansClasse = info.cls === null || info.cls === undefined;
   buildName.textContent = info.name;
-  buildName.style.color = col;
+  /* CYAN QUAND C'EST TOI, ta teinte de joueur sinon. C'est la lecture des deux
+     maquettes — au bilan, c'est ton score qui est en cyan — et elle rend le
+     bandeau bicolore : le nom ne redit plus la couleur du libelle de classe
+     juste dessous, qui la porte deja. */
+  buildName.style.color = buildTarget === myId ? SIGNAL.go : col;
   // `cls` peut etre nul : un joueur qui n'a jamais joue n'a pas de classe, et
   // lui en afficher une serait mentir.
-  buildClass.textContent = info.cls === null || info.cls === undefined
-    ? "sans classe" : def.nom;
-  const sansClasse = info.cls === null || info.cls === undefined;
+  buildClass.textContent = sansClasse ? "sans classe" : def.nom;
   buildClass.style.color = sansClasse ? "" : def.couleur;
-  /* Meme sprite que dans l'arene, par `drawSprite` comme toute entite : un
-     dessin a part aurait menti au premier reglage. Cachee quand le joueur n'a
-     pas de classe — `classAt` se replie sur le tireur, et dessiner un tireur
-     sous un libelle « sans classe » aurait ete la seule ligne fausse de
-     l'ecran. */
-  buildSil.hidden = sansClasse;
-  if (!sansClasse) paintClassSilhouette(buildSil, def);
 
+  // Les grands nombres sont GROUPES : « 186420 » ne se lit pas, et le bilan
+  // juste a cote les groupe deja.
   buildStats.innerHTML = [
     ["score", info.score], ["kills", info.kills],
     ["morts", info.deaths], ["dégâts", info.damage], ["PV max", maxHp],
   ].map(([lab, val]) =>
-    `<div class="buildStat"><span class="val">${escapeHtml(String(val))}</span>` +
+    `<div class="buildStat"><span class="val">${escapeHtml(fmtBig(val))}</span>` +
     `<span class="lab">${escapeHtml(lab)}</span></div>`).join("");
 
   buildMods.innerHTML = modsChipsHtml(mods);
-  buildPower.innerHTML = powerBlockHtml(mods, relicFlatOf(buildTarget));
 
-  // Les deux competences de la classe, avec leur touche : la fenetre sert aussi
-  // a se rappeler ce que fait la classe d'un allie qu'on ne joue jamais.
-  buildSkills.innerHTML = sansClasse ? "" :
-    def.skills.map(s =>
+  /* LES TROIS COMPETENCES, avec leur touche : la fenetre sert aussi a se
+     rappeler ce que fait la classe d'un allie qu'on ne joue jamais.
+
+     La TROISIEME n'existe que par sa carte, et c'est justement pour ca qu'elle
+     doit figurer meme quand elle manque : la pastille grisee du HUD dit deja
+     « il y a quelque chose a obtenir ici », et une fenetre de build qui n'en
+     parlerait pas serait le seul endroit du jeu ou l'on ne peut pas savoir ce
+     qui pourrait s'ajouter. Sa description est celle de la CARTE tiree — les
+     trois paliers ne disent pas la meme chose, et la recopier ici l'aurait
+     figee au premier reglage. */
+  let skills = "";
+  if (!sansClasse) {
+    skills = def.skills.map(s =>
       `<div class="buildSkill"><span class="key">${escapeHtml(s.touche)}</span>` +
       `<span><b>${escapeHtml(s.nom)}</b> — ${escapeHtml(s.desc)}</span></div>`).join("");
+
+    const nom3 = SKILL3_NAME[def.id];
+    if (nom3) {
+      // La carte qui l'accorde porte `excl: "skill3"` — c'est ce marqueur qui
+      // l'identifie, pas son identifiant : il y en a trois par classe.
+      const carte3 = [...info.counts.keys()].find(
+        id => CARD_BY_ID.get(id)?.excl === "skill3");
+      const desc3 = carte3 ? (cardDetail(carte3, info.counts)?.desc ?? "") : "";
+      skills +=
+        `<div class="buildSkill${carte3 ? "" : " off"}">` +
+        `<span class="key">3/R</span>` +
+        `<span><b>${escapeHtml(nom3)}</b> — ` +
+        `${escapeHtml(carte3 ? desc3 : "carte non tirée, la compétence reste indisponible")}` +
+        `</span></div>`;
+    }
+  }
+  buildSkills.innerHTML = skills;
+  buildSkillsTitle.hidden = skills === "";
 
   renderBuildCards(info.counts);
 }
@@ -3464,23 +3734,21 @@ function renderBuildCards(counts) {
     const d = cardDetail(id, counts);
     const row = document.createElement("div");
     row.className = "buildCard";
-    // La couleur de rarete est posee sur la LIGNE : le filet de gauche et
-    // l'icone la prennent en `currentColor`, une seule source par ligne.
+    // La couleur de rarete est posee sur la LIGNE : le filet de gauche la prend
+    // en `currentColor`, une seule source par carte.
     row.style.color = col;
-    /* Le TOTAL cumule et non le gain unitaire : c'est la question a laquelle ce
-       panneau repond. « Affûtage ×3 » ne disait pas +36 %, et il fallait faire
-       la multiplication de tete au milieu d'une vague. */
-    const total = card.stack ? card.stack(n) : "";
+    /* Le NOMBRE d'exemplaires a droite, la description en dessous. Le glyphe de
+       famille a saute : a cette taille il redisait la categorie que la
+       description donne en toutes lettres, et il volait la place qui manquait
+       pour passer a deux colonnes — or c'est le passage a deux colonnes qui
+       rend une build de quinze cartes lisible sans defiler. */
     row.innerHTML =
-      `<span class="buildCardIcon">${familyIcon(d?.familleId)}</span>` +
-      `<div class="buildCardBody">` +
-        `<div class="buildCardHead">` +
-          `<span class="buildCardName">${escapeHtml(card.nom)}${n > 1 ? ` ×${n}` : ""}</span>` +
-          (total ? `<span class="buildCardTotal">${escapeHtml(total)}</span>` : "") +
-        `</div>` +
-        `<div class="buildCardDesc">${escapeHtml(d?.desc ?? "")}</div>` +
-        (d?.avertissement ? `<div class="buildCardWarn">${escapeHtml(d.avertissement)}</div>` : "") +
-      `</div>`;
+      `<div class="buildCardHead">` +
+        `<span class="buildCardName">${escapeHtml(card.nom)}</span>` +
+        (n > 1 ? `<span class="buildCardMul">×${n}</span>` : "") +
+      `</div>` +
+      `<div class="buildCardDesc">${escapeHtml(d?.desc ?? "")}</div>` +
+      (d?.avertissement ? `<div class="buildCardWarn">${escapeHtml(d.avertissement)}</div>` : "");
     buildCards.appendChild(row);
   }
 }
@@ -3489,11 +3757,18 @@ function openBuild(id) {
   const roster = buildRoster();
   if (roster.length === 0) return;
   buildTarget = roster.includes(id) ? id : roster[0];
+  /* Le bouton de sortie NOMME l'ecran d'ou l'on vient. La fenetre s'ouvre
+     depuis trois endroits — le bilan, le salon, la touche Tab en jeu — et
+     « Retour au bilan » aurait menti dans deux cas sur trois. */
+  if (buildBackBtn) {
+    buildBackBtn.textContent = bilanOpen ? "← Retour au bilan" : "← Fermer";
+  }
   buildEl.hidden = false;
   renderBuild();
 }
 
 function closeBuild() { buildEl.hidden = true; }
+if (buildBackBtn) buildBackBtn.onclick = closeBuild;
 
 function cycleBuild(step) {
   if (buildEl.hidden) return;

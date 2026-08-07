@@ -440,30 +440,7 @@ html, body {
    sur une fenetre etroite, six tuiles a 12 px d'ecart debordaient. */
 #bilanStats { display: flex; gap: var(--sp-12); flex-wrap: wrap; justify-content: center; }
 
-/* TA partie. Encadre plutot que pose a plat : c'est le seul bloc de l'ecran qui
-   ne parle que de toi, entre deux blocs qui parlent de l'equipe (les chiffres
-   au-dessus, le tableau en dessous). Sans cadre les trois se confondaient. */
-#bilanMine {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  width: min(100%, 760px);
-  padding: var(--sp-4);
-  border: var(--hair) solid var(--line);
-  background: var(--bg-panel);
-}
-.mineHead { display: flex; align-items: baseline; gap: var(--sp-3); }
-.mineTitle {
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.mineCls { font-size: var(--t-s); font-weight: 700; letter-spacing: var(--track-title); }
-#mineOpen { margin-left: auto; }
-.mineStats { display: flex; gap: var(--sp-8); flex-wrap: wrap; justify-content: center; }
-.mineMods { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: center; }
-/* La jauge reprend le style de la fenetre de build, sans son cadre : elle est
-   deja dans celui de `#bilanMine`, et deux bordures imbriquees font une boite
-   dans une boite. */
+/* Le bloc « ta partie » (`#bilanMine`) a ete retire du bilan — voir
+   `menus.css`. La jauge de puissance garde ses regles : elle sert toujours
+   dans la fenetre de build. */
 #minePower { display: flex; flex-direction: column; gap: var(--sp-2); }

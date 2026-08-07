@@ -1067,6 +1067,19 @@ export class GameState {
        a l'apparition REELLE d'un ennemi et non a l'echeance du debit : sinon
        une vague lancee alors que l'arene est deja pleine (MAX_ENEMIES) brulait
        son budget sans rien faire sortir, et se terminait a vide. */
+    /* ECHAUFFEMENT (briefing de classe). Secondes pendant lesquelles la
+       simulation tourne — les joueurs se deplacent, visent, testent leurs
+       competences — mais ou la VAGUE est retenue : ni compte a rebours de
+       repit, ni apparition. Tenir la vague plutot que la simulation entiere est
+       ce qui permet a l'ecran de briefing d'avoir un bouton « continuer » : on
+       le ferme, on marche sur la carte, et la manche commence quand elle doit.
+
+       `this.time` ne court pas non plus : c'est l'horloge de la manche, celle
+       du bilan et du CLASSEMENT au temps du boss final. Vingt secondes de
+       promenade comptees comme de la survie rendraient deux parties
+       incomparables — exactement ce que le classement mesure. */
+    this.warmup = 0;
+
     this.wave = 0;                 // 0 = pas encore commencee, _wave la leve a 1
     this.waveBudget = 0;
     this.waveSpawned = 0;
@@ -1458,7 +1471,13 @@ export class GameState {
 
   step(dt, inputs) {
     if (this.gameOver) return;
-    this.time += dt;
+
+    /* ECHAUFFEMENT : tout tourne SAUF la vague et l'horloge de manche. Les
+       joueurs bougent donc pendant le briefing, mais rien n'apparait et le
+       chronometre ne demarre pas — voir `warmup` dans le constructeur. */
+    const echauffement = this.warmup > 0;
+    if (echauffement) this.warmup = Math.max(0, this.warmup - dt);
+    else this.time += dt;
 
     this.slow = Math.max(0, this.slow - dt);
     this.slipT = Math.max(0, this.slipT - dt);
@@ -1472,8 +1491,12 @@ export class GameState {
     // d'autre ne blesse — sinon un joueur peut tomber au contact dans l'image ou
     // sa Sentence allait justement expirer sans dommage.
     this._statuses(dt);
-    this._waveTick(dt);
-    this._spawner(dt);
+    // Les deux seules choses que l'echauffement retient : ce qui DECIDE d'une
+    // vague, et ce qui fait sortir ses ennemis.
+    if (!echauffement) {
+      this._waveTick(dt);
+      this._spawner(dt);
+    }
     // Les competences tournent avant les ennemis : une bombe qui explose doit
     // le faire sur les positions de l'image precedente, celles que le joueur
     // avait a l'ecran quand il l'a lancee.
@@ -1756,7 +1779,16 @@ export class GameState {
          soustrait bien de l'intervalle. */
       interval = Math.max(CFG.FIRE_INTERVAL_MIN, interval + this._relicSum(p, "rateFlat"));
 
-      if (p.fireCd <= 0) {
+      /* PAS DE TIR PENDANT L'ECHAUFFEMENT. Le tir part tout seul — c'est la
+         regle du jeu — donc sans cette garde le briefing se lisait derriere une
+         arene ou quatre joueurs arrosaient le vide en continu : du bruit, des
+         projectiles plein l'ecran et pas une seule cible. L'echauffement sert a
+         se placer, pas a vider son chargeur.
+
+         La recharge, elle, continue de descendre juste au-dessus : on entre en
+         vague l'arme prete, jamais avec un temps mort qu'on n'aurait pas
+         choisi. */
+      if (p.fireCd <= 0 && this.warmup <= 0) {
         p.fireCd = interval;
         if (p.healMode) this._fireHeal(p);
         else this._shoot(p);

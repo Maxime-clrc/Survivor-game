@@ -579,6 +579,14 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **Le lancement attend que TOUS les présents aient confirmé, et la garde vit des DEUX côtés** (`notReady()` dans `room.js`, point de passage unique du `case "start"` et du libellé d'attente). Désarmer `#start` côté client est de l'**affichage**, pas une règle : un client modifié enverrait `{ t: "start" }` directement. Le drapeau est porté par le **client** et non par la salle — il suit le joueur, comme `cls` et `vote` — et se remet à zéro à **trois** endroits : au lancement de la manche (`startRound()` ; le salon se réaffiche entre deux manches, un `ready` hérité ferait démarrer la suivante sans que personne n'ait rien reconfirmé), à l'entrée dans une salle (`attach()` ; sinon on arriverait « prêt » dans un salon où l'on vient de mettre le pied), et à l'initialisation du client. `notReady()` **ne filtre pas les spectateurs**, contrairement à ce que la spécification de conception demandait : au salon, `spectator` dit « je n'ai pas joué la manche qui vient de finir », c'est un résidu et non une prévision — `startRound()` remet tout le monde à `spectator = false`, donc tous les présents entrent. Le bouton désarmé **nomme qui manque** (« en attente de Kiwi »), même règle que `.classOpt.taken` : un bouton qui ne répond pas passe pour une panne tant qu'on n'a pas lu pourquoi.
 
+**Le briefing de classe retient la VAGUE, pas la simulation** (`state.warmup`, 20 s). Une phase serveur à part avait été essayée et c'était le mauvais découpage : elle figeait `step()`, donc personne ne pouvait bouger, et le bouton « Continuer » — qui ferme le voile pour aller se placer sur la carte — n'avait plus rien à découvrir. La manche démarre donc **tout de suite** ; `step()` tourne, les joueurs se déplacent, visent, testent leurs compétences, et seules **trois** choses sont retenues : `_waveTick()` (ce qui décide d'une vague), `_spawner()` (ce qui en fait sortir les ennemis) et le **tir automatique**. Ce dernier n'est pas un détail de confort : le tir part tout seul, c'est la règle du jeu, donc sans garde le briefing se lisait derrière une arène où quatre joueurs arrosaient le vide en continu. La **recharge**, elle, continue de descendre — on entre en vague l'arme prête, jamais avec un temps mort qu'on n'a pas choisi.
+
+**`this.time` ne court pas non plus pendant l'échauffement.** C'est l'horloge de la manche, celle du bilan et du **classement au temps** du boss final : vingt secondes de promenade comptées comme de la survie rendraient deux parties incomparables, ce que le classement est précisément là pour mesurer. Vérifié : une manche de 15 s après échauffement affiche `00:15`, pas `00:35`.
+
+**Aucun texte du briefing ne voyage sur le réseau.** Nom, teinte, deux compétences avec leurs touches et **mission** vivent dans `CLASSES` (`shared/classes.js`), que le client importe comme le serveur — le message `round` ne porte que `warmup`, la seule chose qu'un client ne peut pas déduire, et elle n'existe qu'à un endroit (`WARMUP_S`). La `mission` ne répète pas `desc` : celle-ci dit ce que la classe **est**, celle-là quoi faire des trente premières secondes. La **troisième compétence est annoncée avec sa touche** bien qu'elle n'existe pas encore : sans cette ligne, la touche 3 se découvre en tirant la carte, c'est-à-dire au milieu d'une vague — le pire moment pour apprendre une commande. Une ligne et non une troisième carte : le kicker dit « tes deux compétences », et une carte de plus ferait croire qu'on l'a déjà.
+
+**Le voile n'est qu'un voile.** `openBrief()` s'ouvre **après** `refreshPanel()`, sur un HUD déjà en place ; « Continuer » ne fait que le retirer, le compte à rebours court avec ou sans lui, et il se referme tout seul à l'échéance — celui qui n'a pas cliqué ne doit pas découvrir la première vague à travers un panneau.
+
 **L'historique appartient à la SALLE, pas au joueur** (`room.history`) : celui
 qui se reconnecte doit le retrouver, et quatre clients qui tiendraient chacun le
 leur en afficheraient quatre versions. Il est rempli par `recordRound()`, appelé
@@ -655,7 +663,7 @@ serveur serait faux pour tout le monde sauf lui.
 
 **Le compte est pseudo + MOT DE PASSE choisi, la session est un JETON.** Trois portes dans `hub.js` — `register` (page de création), `login`, `loginToken` (reprise silencieuse) — qui aboutissent toutes à `finishAuth`, seul endroit qui fabrique un client authentifié. Le mot de passe est haché scrypt avec sel par compte (`node:crypto`, dans `progress_store.js`, jamais dans `shared/` que le navigateur importe) et **n'est JAMAIS normalisé** — la normalisation (majuscules, tirets retirés) était faite pour une clé recopiée d'un papier ; appliquée à un mot de passe choisi, « MonPass » vaudrait « monpass ». Au login réussi le serveur émet 32 octets aléatoires, n'en garde que le **hachage sha256** (suffisant pour un secret à haute entropie, et gratuit là où scrypt bloque ~50 ms) avec une expiration **glissante** de 30 jours ; le client range le jeton en `localStorage` — **jamais le mot de passe** : un jeton volé ouvre ce jeu, un mot de passe volé ouvre tout ce que le joueur protège avec le même. Le jeton vit dans la ligne du compte, donc **il survit au redéploiement** ; chaque `login` le régénère — le dernier login gagne, la réponse au double onglet. **L'oracle de présence a disparu volontairement** : « ce pseudo est déjà pris » est la réponse normale d'une inscription, c'est le compromis de tout système à page de création ; en échange, `login` répond `ok:false` sans jamais dire lequel des deux cloche. Un échec de `loginToken` est un cas NORMAL (jeton expiré, login plus récent ailleurs) : ni compteur ni gel, un jeton de 256 bits ne se devine pas. Deux freins sur `login` : cinq essais par connexion (`fatal:1` au-delà — socket neuve obligatoire), et un **gel de 10 s par pseudo cible** après cinq échecs, testé AVANT scrypt — depuis que se reconnecter est gratuit, le frein par connexion seul se contournait en rouvrant une socket, et c'est aussi ce qui borne le coût CPU d'une rafale. Le contrôle « déjà connecté ailleurs » se fait après l'authentification ; la session dupliquée reçoit une copie détachée (`structuredClone`), jamais rangée dans le magasin — `store.save()` l'ignore tout seul, les noyaux ne se comptent jamais en double. **Un mot de passe perdu n'a qu'un filet : l'opérateur** (`adminPassReset`, page admin) — pas d'email, donc pas de réinitialisation autonome, assumé dans `LISEZMOI-BDD.md`. `changePass` exige l'ancien mot de passe et **le jeton actif survit** — c'est celui qui change le mot de passe qui tient la session, le déconnecter n'aurait puni que lui.
 
-**`#gate` n'a qu'un chemin de connexion, et le Menu est un écran à part du Salon.** Deux onglets (`#gateForms` : connexion, création — fusionnés, le joueur ne sait jamais s'il crée un compte ou se trompe de mot de passe), pas de bouton de reprise à part : la session mémorisée s'absorbe dans « Se connecter » — pseudo prérempli, et un champ mot de passe laissé **VIDE** part en `loginToken` quand `survivor.token` existe pour ce pseudo, comme l'ancienne clé relue en silence à l'envoi. Le placeholder du champ le dit (`renderGateMode()`) — un champ obligatoire qu'on peut laisser vide passerait pour un bug. Jeton expiré → `authError{motif:"jeton"}` → « session expirée — tape ton mot de passe », sans compteur d'échec. Le clic reste obligatoire dans tous les cas : c'est lui qui débloque le contexte audio et lance `bootOnce()` (atlas + batcher, une seule fois quel que soit le bouton). Sur `"welcome"`, le client ne cache `#gate` que dans le cas normal (`gate.hidden = true; enterHub();`) ; le drapeau `dup` porté par le `welcome` lui-même (jamais l'ordre d'arrivée des messages) le fait au contraire **rester sur `#gate`, formulaire compris**, et révéler `#gateHold` en dessous : on vient de taper ses identifiants, masquer le formulaire donnerait l'impression que la connexion a échoué alors qu'elle a réussi. Le kicker de l'encart nomme le cas, sa phrase dit la **conséquence** (progression temporaire, non enregistrée) avant le clic, et `#gateContinue` la fait assumer — c'est la seule sortie de cet état, le renvoi vers la création restant affiché pour repartir sur un autre compte. Un `gate.hidden = true` inconditionnel avait été posé avant ce test, avec un `else` qui le refaisait : l'encart était rempli mais sur un écran déjà masqué, et `#gateContinue` n'avait plus de gestionnaire — l'avertissement n'a jamais été visible et l'écran n'avait aucune sortie dans ce cas. Un `authError` reçu CONNECTÉ ne peut venir que du changement de mot de passe : il s'affiche dans l'encart compte du hub (`passMsg`), jamais sur l'écran d'entrée. La déconnexion est un aller-retour (`logout` → `loggedOut` → purge du localStorage → fermeture) : purger d'abord laisserait un jeton valide de trente jours orphelin côté serveur. Le Menu, lui, ne s'ouvre plus depuis la connexion : chaque carte de classe du salon (`#classes`) porte son propre bouton (`.classMetaBtn`), qui appelle `openMenuFor(clsIndex)` — un joueur consulte les trois arbres avant de choisir sa classe, `#menuClose` referme vers le salon. `refreshPanel()` refuse de toucher `#panel`/le HUD tant que `#gate` ou `#menu` ne sont pas cachés (mêmes gardes, `!gate.hidden` puis `!menuEl.hidden`) : sans ça, un `"lobby"` broadcast — qui arrive presque tout de suite après n'importe quelle connexion — repeindrait le salon par-dessus, `#panel` étant plus loin dans le DOM que les deux autres, même z-index.
+**`#gate` n'a qu'un chemin de connexion, et le Menu est un écran à part du Salon.** Deux onglets (`#gateForms` : connexion, création — fusionnés, le joueur ne sait jamais s'il crée un compte ou se trompe de mot de passe), pas de bouton de reprise à part : la session mémorisée s'absorbe dans « Se connecter » — pseudo prérempli, et un champ mot de passe laissé **VIDE** part en `loginToken` quand `survivor.token` existe pour ce pseudo, comme l'ancienne clé relue en silence à l'envoi. Le placeholder du champ le dit (`renderGateMode()`) — un champ obligatoire qu'on peut laisser vide passerait pour un bug. Jeton expiré → `authError{motif:"jeton"}` → « session expirée — tape ton mot de passe », sans compteur d'échec. Le clic reste obligatoire dans tous les cas : c'est lui qui débloque le contexte audio et lance `bootOnce()` (atlas + batcher, une seule fois quel que soit le bouton). Sur `"welcome"`, le client ne cache `#gate` que dans le cas normal (`gate.hidden = true; enterHub();`) ; le drapeau `dup` porté par le `welcome` lui-même (jamais l'ordre d'arrivée des messages) le fait au contraire **rester sur `#gate`, formulaire compris**, et révéler `#gateHold` en dessous : on vient de taper ses identifiants, masquer le formulaire donnerait l'impression que la connexion a échoué alors qu'elle a réussi. Le kicker de l'encart nomme le cas, sa phrase dit la **conséquence** (progression temporaire, non enregistrée) avant le clic, et `#gateContinue` la fait assumer — c'est la seule sortie de cet état, le renvoi vers la création restant affiché pour repartir sur un autre compte. Un `gate.hidden = true` inconditionnel avait été posé avant ce test, avec un `else` qui le refaisait : l'encart était rempli mais sur un écran déjà masqué, et `#gateContinue` n'avait plus de gestionnaire — l'avertissement n'a jamais été visible et l'écran n'avait aucune sortie dans ce cas. **Corollaire de la sortie d'écran** : depuis que `bootOnce()` ne réaffiche plus `#gate`, la branche `dup` doit le faire elle-même — c'est le seul chemin de SUCCÈS qui reste sur cet écran, et l'oublier donnait un écran entièrement noir (plus de gate, pas encore de hub). Un `authError` reçu CONNECTÉ ne peut venir que du changement de mot de passe : il s'affiche dans l'encart compte du hub (`passMsg`), jamais sur l'écran d'entrée. La déconnexion est un aller-retour (`logout` → `loggedOut` → purge du localStorage → fermeture) : purger d'abord laisserait un jeton valide de trente jours orphelin côté serveur. Le Menu, lui, ne s'ouvre plus depuis la connexion : chaque carte de classe du salon (`#classes`) porte son propre bouton (`.classMetaBtn`), qui appelle `openMenuFor(clsIndex)` — un joueur consulte les trois arbres avant de choisir sa classe, `#menuClose` referme vers le salon. `refreshPanel()` refuse de toucher `#panel`/le HUD tant que `#gate` ou `#menu` ne sont pas cachés (mêmes gardes, `!gate.hidden` puis `!menuEl.hidden`) : sans ça, un `"lobby"` broadcast — qui arrive presque tout de suite après n'importe quelle connexion — repeindrait le salon par-dessus, `#panel` étant plus loin dans le DOM que les deux autres, même z-index.
 
 **Le boss passe par `_bossPower()`, les vagues par `_teamPower()` — jamais l'inverse.** Le boss suivait la puissance en linéaire **plein**, donc une durée de combat rigoureusement constante : ×1,00 de sensation de puissance, à chaque combat, pour un écart de build mesuré à **×4,54** (300 manches solo, `powerIndex` relevé à chaque carte ; ×2,93 par la chance seule). Les PV suivent désormais en plein sous `BOSS_POWER_KNEE` (2,5, soit au-dessus de la build médiane mesurée à 2,36, donc l'étalonnage existant est intact) puis n'en prennent plus que `BOSS_POWER_K` (0,50). Un **genou** et non un `Math.min` : un plafond dur crée une falaise où la carte qui fait franchir le seuil ne vaut plus rien. Les structures de mécanique (cage, grappe) passent par le **même** point de passage, sinon une build au-dessus du genou trouve les cages relativement plus dures que le boss. Les vagues gardent leur propre part (`WAVE_HP_POWER_K`, plus généreuse) : la sensation sur le boss doit rester **sous** celle des vagues — c'est le mur de la manche, il récompense moins que la piétaille. `BOSS_POWER_K = 1` rend exactement l'ancienne courbe.
 
@@ -762,9 +770,11 @@ Ajouter une entrée impose de traiter les deux côtés :
 | historique des manches | `room.history` (`{at, diffIndex, wave}`, plafonné à `ROUND_HISTORY_MAX`), rempli par `recordRound()` aux DEUX sorties de manche ; champ `history` dans `lobbyPayload()`, plus récent en tête | `renderHistory()` → `#historyList .histRow` (`.histWhen` · `.histLabel` · `.histWave`) |
 | sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
+| briefing de classe | `state.warmup` dans `game_state.js` (retient `_waveTick` et `_spawner`, gèle `time`), `WARMUP_S` dans `room.js`, champ `warmup` du message `round` | `#brief`, `openBrief()` / `closeBrief()` — textes lus dans `CLASSES`, rien ne voyage |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
 | point d'impact sur le boss | quatrième et cinquième éléments d'un tuple `bd`, ajoutés **en fin** — n'existe que pour les Jumeaux | `diffSnapshots()` : `mine[3] ?? b.boss.x` |
-| provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) — **six** entrées depuis le lot M (`explosion`) | `SRC_ICON` dans `icons.js` + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
+| provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) — **six** entrées depuis le lot M (`explosion`) | `SRC_ICON` dans `icons.js` + `SRC_TINT` dans `palette.js` (mêmes six entrées, même ordre) + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
+| soins rendus | `p.healDealt` dans `game_state.js`, champ `heal` de `scoreboardRows()` — hors instantané, une fois par manche | colonne « soins » de `renderBilanScores()` |
 | lien de soin du medic | neuvième élément du tuple ennemi (index 8, coupé quand nul) | `drawHealLinks()` par-dessus la horde |
 | propriétaire d'une balle | cinquième élément du tuple `b`, ajouté **en fin** | `ownerColorOf(b.owner) ?? COMBAT.bullet` dans `drawWorld` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
@@ -1047,6 +1057,14 @@ lui-même. Ne pas l'étendre : `#cards`, `#build`, `#pause`, `#hud` et
 de `menus.css` fuit. Le **biseau** (`--bevel`) reste sur la SEULE action
 principale de chaque écran — c'est ce qui la désigne, et il perd ce rôle s'il
 est partout.
+
+**Une exception à l'exception : `#bilanGo` n'a pas de biseau**, et c'est le
+`clip-path` qui l'impose. Il clippe aussi la **lueur** — le bouton déclarait un
+halo qu'il ne montrait nulle part — et une coupe de 10 px dans un rayon de 12 ne
+fait pas un biseau mais une **entaille**. Sur cet écran c'est donc la lueur qui
+désigne l'action, et elle le fait mieux puisqu'on la voit. Toute action
+principale qui porte à la fois `--bevel` et `--glow-go` a le même arbitrage à
+faire : les deux ne coexistent pas.
 
 **Le pointeur de souris est dessiné par la charte** (`cursorUri()` dans
 `palette.js`, exposé en `--cursor-ui` et `--cursor-go`), pas hérité du système.
@@ -1346,7 +1364,37 @@ Il porte aussi la **répartition des dégâts subis** par provenance, agrégée 
 l'**équipe** et non par joueur : cinq colonnes de plus dans le tableau des scores
 l'auraient rendu illisible à quatre, alors que la question — « qu'est-ce qui nous a
 tués » — se pose au collectif. Rien ne s'affiche si personne n'a rien pris : une
-rangée de zéros n'est pas une information.
+rangée de zéros n'est pas une information. Elle se lit en **une barre empilée**
+et une légende, pas en une barre par provenance : ce sont les parts d'un même
+total, et empilées la comparaison ne demande plus rien. C'est `SRC_TINT`
+(`palette.js`, ordre de `DAMAGE_SOURCES`) qui rend la légende lisible sans
+l'avoir apprise — chaque provenance porte la couleur qu'elle a dans l'arène, et
+la pastille se relie à son segment sans effort. L'objection d'origine à la barre
+empilée (« elle dit mal LAQUELLE ») tombait avec elle.
+
+**Le bilan ne montre QUE ce que la maquette montre** : le kicker (salle ·
+difficulté), le titre, quatre chiffres de table (survie, kills, joueurs,
+manche), la ventilation, le tableau à sept colonnes, deux sorties. Trois blocs
+en sont sortis, et pour la même raison à chaque fois — ils répondaient à une
+question qu'un autre écran traite mieux. Les tuiles **dégâts / dégâts par
+seconde / subis** : le tableau les ventile par joueur, où elles se comparent ;
+au niveau collectif elles ne disent rien. Le bloc **« ta partie »**
+(multiplicateurs, jauge de puissance, compteur de cartes) : la fenêtre de build
+répond déjà à « pourquoi ces dégâts-là », et pour **n'importe quel** joueur du
+tableau — d'où la phrase sous le titre, qui dit qu'un clic sur une ligne
+l'ouvre. Les colonnes **niveau, cartes et cumul de session** : le niveau est
+commun à l'équipe, le cumul appartient au salon, et les pastilles de cartes
+étaient la version illisible de la fenêtre de build. La classe rejoint le nom
+dans la colonne joueur : c'est une identité, pas une mesure.
+
+**Le salon s'ouvre tout seul au bout de 12 s, et c'est un retour en arrière
+assumé.** L'échéance avait été retirée parce que le bilan portait alors la
+build et la jauge de puissance — « de quoi passer une minute dessus », et un
+écran qui se retire pendant qu'on le lit est un défaut. Le bilan étant revenu à
+quelques secondes de lecture, l'échéance redevient juste. Un **clic n'importe
+où dans le bilan la suspend** : celui qui lit encore n'a rien à faire pour qu'on
+l'attende, celui qui ne fait rien passe au salon — les deux comportements sans
+bouton de plus.
 
 **La fenêtre de build est UN écran pour trois entrées** : Tab en jeu, un clic
 sur une ligne du bilan, un clic sur une ligne du salon. Deux fenêtres qui
@@ -1364,6 +1412,41 @@ liste de cartes demande de la reconstituer de tête. Un multiplicateur se lit
 d'expliquer — et la **cadence s'affiche inversée** parce que la simulation
 raisonne en intervalle : sinon ce serait la seule ligne de l'écran où « plus
 grand » voudrait dire « pire ».
+
+**Trois sections NOMMÉES** — multiplicateurs, compétences, cartes. C'étaient
+trois blocs qui se suivaient sans rien dire : on lisait des puces, des lignes
+puis des cartes sans savoir où l'une finissait. Les cartes passent en **deux
+colonnes** : une build de quinze cartes se lit alors d'un coup, là où une
+colonne obligeait à défiler. Le glyphe de famille a sauté avec elles — à cette
+taille il redisait la catégorie que la description donne en toutes lettres, et
+il prenait la place qui manquait pour la seconde colonne.
+
+**La TROISIÈME compétence figure toujours, même absente.** Elle n'existe que par
+sa carte, et c'est précisément pour ça : la pastille grisée du HUD dit déjà
+« il y a quelque chose à obtenir ici », et une fenêtre de build qui n'en
+parlerait pas serait le seul endroit du jeu où l'on ne peut pas savoir ce qui
+pourrait s'ajouter. Sa description est celle de la **carte tirée** (repérée par
+`excl: "skill3"`, marqueur partagé par les trois paliers) : les trois ne disent
+pas la même chose, et la recopier ici l'aurait figée au premier réglage.
+
+**Le cyan dit « c'est toi », dans les deux écrans** : le nom en tête de la
+fenêtre de build, la colonne score de sa propre ligne au bilan. Ailleurs le nom
+porte la teinte de joueur — qui est celle de la classe, donc la même que le
+libellé juste dessous : le bandeau était monochrome et le nom ne se détachait
+pas.
+
+**La jauge de puissance n'est plus rendue nulle part.** Les deux maquettes —
+bilan et build — s'arrêtent aux multiplicateurs, et les deux appels ont disparu.
+`powerBlockHtml` reste dans `client.js` avec ses repères : l'indice répond à un
+défaut réellement rapporté (« ×1,49 dégâts » sonne bien et vaut une build
+faible, d'où « les pourcentages ne fonctionnent pas »), et le remettre est une
+ligne dans `renderBuild`. Le supprimer serait une décision de conception, pas un
+nettoyage.
+
+**La silhouette a quitté l'en-tête.** Elle répétait ce que le libellé de classe
+dit déjà, et elle était la seule pièce de l'écran à demander un canvas et un
+repaint à chaque changement de joueur. `paintClassSilhouette` reste : les cartes
+de classe du salon s'en servent toujours.
 
 **Le menu pause n'est pas un `.overlay`.** À plusieurs la partie continue
 derrière et le voile doit rester translucide pour qu'on la voie ; un panneau
