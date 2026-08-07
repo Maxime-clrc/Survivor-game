@@ -312,6 +312,7 @@ const bilanEl = document.getElementById("bilan");
 const bilanTitle = document.getElementById("bilanTitle");
 const bilanStats = document.getElementById("bilanStats");
 const bilanHurt = document.getElementById("bilanHurt");
+const bilanPerf = document.getElementById("bilanPerf");
 const bilanMine = document.getElementById("bilanMine");
 const bilanScoresBody = document.querySelector("#bilanScores tbody");
 const bilanGo = document.getElementById("bilanGo");
@@ -2635,6 +2636,16 @@ function renderHurtBy(rows) {
     `</div>`;
   }
   bilanHurt.innerHTML = html;
+  // Diagnostic reseau : les totaux de SESSION se lisent ici, sans avoir a
+  // viser une vague dense — la partie jouee, quelle qu'elle soit, suffit.
+  // Apres roundEnd il n'arrive plus d'instantane, les totaux sont figes.
+  if (PERF) {
+    bilanPerf.hidden = false;
+    bilanPerf.textContent =
+      `diagnostic réseau — famine ${netPerf.totFamine} · recal ${netPerf.totResnap}`
+      + ` · >${INTERP_MS}ms ${netPerf.totGap} · max gap ${netPerf.maxGap.toFixed(0)} ms`
+      + ` · img max ${netPerf.maxFrame.toFixed(0)} ms`;
+  }
   // Les glyphes sont poses APRES coup : `iconImg` rend un element et non une
   // chaine, et le coller dans du HTML l'aurait fait passer par une adresse
   // `data:` recopiee cinq fois au lieu d'une image mise en cache.
@@ -3661,7 +3672,7 @@ function ingest(msg) {
     if (!predicted || me.downed || loin) {
       // Le recalage SEC est le second symptome rapporte : il doit correler avec
       // le compteur de famine, une image figee laissant la prediction deriver.
-      if (PERF && loin) netPerf.resnap++;
+      if (PERF && loin) { netPerf.resnap++; netPerf.totResnap++; }
       predicted = { x: me.x, y: me.y };
     }
   } else {
@@ -3907,15 +3918,21 @@ setInterval(() => {
 const netPerf = {
   esp: [], gapBig: 0, famine: 0, remplissage: 0, resnap: 0, frameMax: 0,
   lastRecv: 0, since: 0, txt: "",
+  /* Totaux de SESSION, jamais remis a zero. Les compteurs de fenetre se
+     vident chaque seconde, ce qui exige de lire le bloc PENDANT la vague
+     dense ; les totaux, eux, s'accumulent sur toutes les manches — une
+     partie courte suffit, on lit les chiffres une fois mort, au bilan. */
+  totGap: 0, totFamine: 0, totResnap: 0, maxGap: 0, maxFrame: 0,
 };
 
 function netPerfArrival(t) {
   if (netPerf.lastRecv > 0) {
     const d = t - netPerf.lastRecv;
     netPerf.esp.push(d);
+    if (d > netPerf.maxGap) netPerf.maxGap = d;
     // Au-dela d'INTERP_MS l'image gele par construction : ce compteur et
     // `famine` doivent bouger ensemble, sinon l'analyse est fausse.
-    if (d > INTERP_MS) netPerf.gapBig++;
+    if (d > INTERP_MS) { netPerf.gapBig++; netPerf.totGap++; }
   }
   netPerf.lastRecv = t;
 }
@@ -3926,6 +3943,7 @@ function netPerfArrival(t) {
    ramasse-miettes ; des images normales avec un monde fige est une famine. */
 function netPerfFrame(raw) {
   if (raw > netPerf.frameMax) netPerf.frameMax = raw;
+  if (raw > netPerf.maxFrame) netPerf.maxFrame = raw;
   netPerf.since += raw;
   if (netPerf.since < 1000) return;
   netPerf.since = 0;
@@ -3941,7 +3959,10 @@ function netPerfFrame(raw) {
   netPerf.txt = `arr n=${v.length} ${moy.toFixed(1)}/${min === Infinity ? 0 : min.toFixed(1)}`
     + `/${max === -Infinity ? 0 : max.toFixed(1)} ms`
     + ` · famine ${netPerf.famine} · >${INTERP_MS}ms ${netPerf.gapBig}`
-    + ` · recal ${netPerf.resnap} · img max ${netPerf.frameMax.toFixed(0)} ms`;
+    + ` · recal ${netPerf.resnap} · img max ${netPerf.frameMax.toFixed(0)} ms`
+    + `\n· TOT famine ${netPerf.totFamine} · recal ${netPerf.totResnap}`
+    + ` · >${INTERP_MS}ms ${netPerf.totGap} · max gap ${netPerf.maxGap.toFixed(0)}`
+    + ` · img max ${netPerf.maxFrame.toFixed(0)} ms`;
 
   v.length = 0;
   netPerf.gapBig = 0;
@@ -3973,8 +3994,10 @@ function interpolated(renderTime) {
        benin et transitoire. Les confondre ferait lire un demarrage normal
        comme une famine. */
     if (PERF) {
-      if (renderTime > snapshots[snapshots.length - 1].recvAt) netPerf.famine++;
-      else netPerf.remplissage++;
+      if (renderTime > snapshots[snapshots.length - 1].recvAt) {
+        netPerf.famine++;
+        netPerf.totFamine++;
+      } else netPerf.remplissage++;
     }
     return flatten(snapshots[snapshots.length - 1]);
   }

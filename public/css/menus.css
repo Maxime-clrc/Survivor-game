@@ -3640,6 +3640,18 @@ tr.clickable { cursor: pointer; }
 }
 .mineCls { font-family: var(--font-display); font-size: var(--t-s); font-weight: 700; }
 #mineOpen { min-height: 32px; }
+/* Le diagnostic reseau (PERF=1) : une ligne de RELEVE, donc chasse fixe, et en
+   vert parce qu'elle ne dit rien de mauvais — c'est une mesure, pas une
+   alerte. Elle ferme l'ecran, sous le bouton : on ne la lit que si on la
+   cherche. */
+#bilanPerf {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  line-height: 1.6;
+  color: var(--gain);
+  text-align: center;
+}
+#bilanPerf[hidden] { display: none; }
 
 /* ===========================================================================
    ETATS DE SURVOL, DE FOCUS ET DESACTIVE — LA SECTION FINALE
