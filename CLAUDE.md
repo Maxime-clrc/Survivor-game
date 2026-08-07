@@ -1219,9 +1219,55 @@ l'angle dur dit « machinerie ») et le kicker est **ambre** et non cyan — le
 cyan dit « il faut y aller » partout ailleurs, ici il faut dire « tu es hors du
 jeu, sur un outil qui touche aux données de tout le monde ».
 
+**Un changement d'écran est un CROISEMENT, jamais une coupure.** L'entrée était
+soignée (`screenIn` : l'écran arrive à 1,015, descend de 18 px et fait sa mise
+au point, comme un viseur) mais la sortie n'existait pas — `hidden` retire
+l'écran en **une image**, et l'œil voit le fond nu pendant que le suivant
+commence son fondu. Trois durées, et elles se lisent ensemble : sortie
+**280 ms** sur `--ease-in` (on ne lit pas ce qui part), entrée **380 ms** sur
+`--ease-out`, et surtout un retrait `--screen-hold` de **120 ms** avant
+l'entrée. Ce retrait est ce qui rend la transition VISIBLE : sans lui les deux
+animations partaient ensemble, et la courbe `--ease-out` amène l'entrant à 90 %
+d'opacité en 140 ms — tout était fini avant qu'on ait vu quoi que ce soit.
+Mesuré sur salon → hub : le sortant est seul jusqu'à 140 ms, les deux se
+croisent de 140 à 320 ms (0,79 / 0,46 puis 0,29 / 0,88), l'écran est posé à
+450 ms. Le contenu **glisse dans le même sens** aux deux bouts — l'entrant
+descend de 18 px, le sortant est poussé de 12 px vers le haut — pour que l'œil
+suive un mouvement continu au lieu de deux fondus sans rapport.
+
+**Aucun appelant ne change, et c'est la condition.** Les quinze chemins qui
+posent `hidden` portent des règles d'ordonnancement documentées (`worldQueue`,
+les gardes de `refreshPanel`, l'ordre bilan/salon) : c'est `client.js` qui pose
+`.leaving` depuis le `MutationObserver` **déjà en place** (celui du fil d'Ariane
+et de la cascade), et `menus.css` qui maintient l'écran affiché le temps de son
+animation. Il constate, il ne décide pas — c'est ce qui le rend incapable
+d'oublier un chemin. Une classe plutôt que `transition-behavior:
+allow-discrete`, qui fait la même chose en CSS pur : le repli de ce mot-clé sur
+un navigateur qui l'ignore est la coupure nette, c'est-à-dire aucune animation
+et aucun moyen de s'en apercevoir à la lecture.
+
+**Un enregistrement de mutation ne veut PAS dire un changement.** Le DOM en
+produit un à chaque *écriture* d'attribut, même quand la valeur ne bouge pas, et
+plusieurs chemins reposent `hidden = true` sur un écran déjà caché — le
+`welcome` le fait sur `#gate` que `bootOnce` vient de retirer. Sans comparer
+`oldValue` à l'état courant, la sortie repartait pour un tour : l'écran
+**réapparaissait à pleine opacité** avant de refondre. Corollaire côté
+`bootOnce` : il ne réaffiche plus `#gate` en fin de chargement (c'était quatre
+animations d'affilée sur la toute première impression du jeu), et ce sont les
+trois chemins d'échec — `authError`, `onerror`, `onclose` — qui le rappellent.
+
+Trois pièges de composition, tous vérifiés : le voile ne fait qu'une
+**opacité** (`scale`, `translate` et `filter` créent un bloc conteneur pour les
+descendants en `position: fixed`, et `.panelBar` est un enfant direct de
+`#panel` — elle sauterait à chaque changement ; l'opacité ne crée qu'un contexte
+d'empilement, mesuré : la barre ne bouge pas d'un pixel) ; le glissement et le
+flou vivent sur le **wrapper**, là où `screenIn` les met déjà ; et
+`pointer-events: none` sur le sortant, qui reste affiché et avalerait les clics
+destinés au suivant.
+
 **Rien de décoratif ne se superpose au jeu.** Tout ornement — balayage des
 légendaires, logotype — vit dans les écrans hors combat. Les transitions entre
-écrans sont des **fondus de 120 ms**, jamais des glissements. La grille et le
+écrans sont des **fondus**, jamais des glissements. La grille et le
 vignettage de l'arène font exception et n'en sont pas une : ce ne sont pas des
 ornements mais le **sol**, gradué en mètres (5 m fin, 20 m marqué) pour que les
 distances des descriptions de cartes veuillent dire quelque chose à l'écran. Le

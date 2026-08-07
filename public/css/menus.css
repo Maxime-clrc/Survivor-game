@@ -110,10 +110,23 @@
      120 ms de fondu plat le font apparaitre comme un rechargement de page.
      340 ms avec une mise au point : on voit l'ecran SE POSER, ce qui est le
      vocabulaire d'un jeu et non d'un document. Au-dela de 400 ms on attend. */
-  --screen: 340ms;
+  --screen: 380ms;
+  /* LA SORTIE EST PLUS COURTE QUE L'ENTREE, et sur une courbe qui ACCELERE :
+     on ne lit pas ce qui part. */
+  --screen-out: 280ms;
+  /* L'ENTREE ATTEND QUE LA SORTIE SOIT ENGAGEE. Sans ce retrait, les deux
+     animations partaient ensemble : la courbe `--ease-out` amene l'entrant a
+     90 % d'opacite en 140 ms, donc tout etait fini avant qu'on ait vu quoi que
+     ce soit — « soit les transitions ne sont pas visibles, soit elles sont
+     beaucoup trop rapides », et c'etait exact. Le sortant est a mi-course
+     quand l'entrant demarre : on lit un passage, pas un remplacement. */
+  --screen-hold: 120ms;
   --rise: 440ms;
   --rise-lg: 520ms;
   --ease-out: cubic-bezier(.16, .9, .3, 1);
+  /* La symetrique de `--ease-out` : lente au depart, franche a la fin. Elle ne
+     sert QU'A la sortie — rien ne doit jamais arriver sur cette courbe. */
+  --ease-in: cubic-bezier(.45, 0, .85, .35);
   /* La MEME courbe avec un depassement de 15 %, reservee a ce qui APPARAIT en
      reponse a un clic : le bouton de talents sous la carte qu'on vient de
      choisir, l'encart de reprise, la demande de mot de passe. Un element qui
@@ -1133,8 +1146,26 @@
    porte sur le WRAPPER et pas sur `.overlay` — la barre d'action du salon est
    `position: fixed` et enfant direct de `#panel`. */
 @keyframes screenIn {
-  from { opacity: 0; scale: 1.015; filter: blur(5px); }
-  to   { opacity: 1; scale: 1;     filter: blur(0); }
+  /* Le `translate` s'ajoute a l'echelle et au flou : l'ecran DESCEND de 18 px
+     en se posant. Sans lui la mise au point etait juste mais immobile, et deux
+     ecrans qui se succedent sans direction commune se lisent comme deux fondus
+     sans rapport. La sortie pousse dans le MEME sens (voir `contentOut`), donc
+     l'oeil suit un mouvement continu d'un ecran a l'autre. */
+  from { opacity: 0; scale: 1.015; filter: blur(5px); translate: 0 18px; }
+  to   { opacity: 1; scale: 1;     filter: blur(0);   translate: 0 0; }
+}
+
+/* Le voile qui part : une opacite, et rien d'autre — voir la note de la sortie
+   d'ecran sur le bloc conteneur. */
+@keyframes screenOut {
+  to { opacity: 0; }
+}
+
+/* Le contenu qui part : il continue le mouvement au lieu de s'evanouir sur
+   place. Douze pixels contre dix-huit a l'entree — ce qui part n'a pas a se
+   faire remarquer autant que ce qui arrive. */
+@keyframes contentOut {
+  to { opacity: 0; scale: .99; filter: blur(4px); translate: 0 -12px; }
 }
 
 /* La barre d'action ARRIVE PAR LE BAS, elle. C'est la seule chose de l'ecran
@@ -1189,17 +1220,75 @@
    Le pas varie avec la densite : 45 ms sur une ligne dense (talents), 90 ms sur
    un objet large (carte d'amelioration). Au-dela de six elements le delai ne
    monte plus — c'est le plafond. */
+/* `--screen-hold` de retrait, et `backwards` devient OBLIGATOIRE : pendant le
+   retrait, un element sans fill-mode s'affiche a ses styles normaux, donc
+   l'ecran entrant apparaitrait en pleine opacite avant de repartir a zero — un
+   clignotement, exactement ce qu'on vient corriger. */
 .hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, #bilan > * {
-  animation: screenIn var(--screen) var(--ease-out) backwards;
+  animation: screenIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
 /* Le voile lui-meme ne fait qu'une OPACITE : pas d'echelle, pas de filtre —
    voir la note ci-dessus sur le bloc conteneur. Il dure aussi longtemps que le
    corps qu'il porte, sinon le fond est deja plein quand le contenu arrive et
    l'ecran clignote en deux temps. */
 #gate, #hubScreen, #panel, #bilan, #menu, #settings {
-  animation: fadeIn var(--screen) var(--ease-out);
+  animation: fadeIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
-.panelBar { animation: barIn var(--screen) var(--ease-out) 80ms backwards; }
+.panelBar {
+  animation: barIn var(--screen) var(--ease-out) calc(var(--screen-hold) + 80ms) backwards;
+}
+
+/* --- LA SORTIE D'ECRAN -------------------------------------------------------
+   L'entree etait soignee, la sortie n'existait pas : `hidden` retire l'ecran en
+   UNE image, et l'oeil voit le fond nu pendant que le suivant commence son
+   fondu. C'est ce trou d'une frame qui fait « saut de page » au milieu d'une
+   interface ou tout le reste est anime.
+
+   Aucun appelant ne change, et c'est la condition : les quinze chemins qui
+   posent `hidden` portent des regles d'ordonnancement documentees (`worldQueue`,
+   les gardes de `refreshPanel`, l'ordre bilan/salon). C'est `client.js` qui pose
+   `.leaving` depuis l'observateur d'attribut DEJA en place — celui qui sert le
+   fil d'Ariane et la cascade. Il CONSTATE que `hidden` vient d'etre pose, il ne
+   decide de rien : c'est ce qui le rend incapable d'oublier un chemin.
+
+   Pourquoi une classe et pas `transition-behavior: allow-discrete`, qui fait
+   exactement ca en CSS pur : le repli d'`allow-discrete` sur un navigateur qui
+   l'ignore est la coupure nette, c'est-a-dire aucune animation du tout et aucun
+   moyen de s'en apercevoir a la lecture du code. Une classe et une animation
+   marchent partout, sans condition.
+
+   Le voile ne fait qu'une OPACITE. Ni `scale` ni `translate` ni `filter` ici :
+   ils creent un bloc conteneur pour les descendants en `position: fixed`, et
+   `.panelBar` est un enfant DIRECT de `#panel` — elle sauterait a chaque
+   changement d'ecran. L'opacite, elle, ne cree qu'un contexte d'empilement. Le
+   glissement et le flou vivent donc sur le WRAPPER, exactement la ou `screenIn`
+   les met deja, et la barre suit l'opacite de son parent sans qu'on ait rien a
+   lui dire.
+
+   `pointer-events: none` n'est pas un detail : l'ecran sortant reste AFFICHE
+   le temps de son animation et avalerait les clics destines au suivant.
+
+   `prefers-reduced-motion` est deja traite plus haut : la regle globale ecrase
+   `animation-duration`, l'ecran part en 0,01 ms et l'on retrouve la coupure —
+   qui est le comportement attendu de ce reglage. */
+:is(#gate, #loading, #hubScreen, #panel, #bilan, #menu, #settings, #pause)[hidden].leaving {
+  display: flex;
+  pointer-events: none;
+  animation: screenOut var(--screen-out) var(--ease-in) forwards;
+}
+/* `#gate` est la seule des huit a etre une grille : lui rendre `flex` casserait
+   ses deux colonnes le temps de la sortie. */
+#gate[hidden].leaving { display: grid; }
+
+/* Le contenu GLISSE vers le haut et se defocalise pendant que le voile
+   s'efface : l'entree le fait descendre de 18 px, la sortie le pousse de 12 px
+   dans la meme direction. Les deux ecrans traversent donc dans le meme sens —
+   c'est ce qui se lit comme un passage plutot que comme deux fondus
+   independants. */
+.leaving :is(.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight),
+#bilan.leaving > * {
+  animation: contentOut var(--screen-out) var(--ease-in) forwards;
+}
 
 /* La trame de balayage DERIVE une fois a l'arrivee, puis s'immobilise. Un
    ecran d'instrument qui s'allume balaie ; un ecran d'instrument allume ne

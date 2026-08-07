@@ -634,6 +634,10 @@ function connect() {
           passMsg(msg.msg ?? "refusé", true);
           break;
         }
+        // Meme raison que dans `onerror` : le gate ne se reaffiche plus a la
+        // fin du chargement, c'est le chemin d'echec qui le rappelle.
+        loadingEl.hidden = true;
+        gate.hidden = false;
         renderGateMode();
         setStatus(msg.motif === "jeton"
           ? "session expirée — tape ton mot de passe" : (msg.msg ?? ""),
@@ -874,8 +878,13 @@ function connect() {
   };
 
   ws.onerror = () => {
+    // Le gate ne revient plus tout seul apres le chargement : sans ca, un
+    // serveur injoignable laisse un ecran noir et un message que personne ne
+    // voit.
+    loadingEl.hidden = true;
+    gate.hidden = false;
     setStatus("serveur injoignable", true);
-    goBtn.disabled = false;
+    setGateBusy(false);
   };
 
   ws.onclose = () => {
@@ -1129,8 +1138,14 @@ async function bootOnce() {
     document.body.appendChild(bosses);
   }
 
+  /* L'ecran d'entree NE REVIENT PAS ici. Il le faisait, et la premiere
+     connexion enchainait alors quatre animations : gate qui part, chargement,
+     gate qui revient pour deux cent quarante millisecondes, gate qui repart
+     vers le hub. Un battement, sur la toute premiere impression du jeu.
+     `sendAuth` part juste apres, donc l'ecran suivant est soit le hub, soit le
+     gate rendu par un echec — et les trois chemins d'echec le reaffichent
+     eux-memes (`authError`, `onerror`, `onclose`). */
   loadingEl.hidden = true;
-  gate.hidden = false;
 }
 
 /* Connexion : le mot de passe part vers le serveur et n'est range NULLE part.
@@ -1321,17 +1336,68 @@ function syncSettled(el) {
   settleTimers.set(el, setTimeout(() => el.classList.add("settled"), SETTLE_MS));
 }
 
+/* LA SORTIE D'ECRAN. `hidden` retire l'ecran en une image ; `.leaving` le
+   maintient affiche le temps de son animation (menus.css), puis se retire. La
+   classe est posee ICI et non chez les quinze appelants de `hidden` : plusieurs
+   portent des regles d'ordonnancement documentees (`worldQueue`, les gardes de
+   `refreshPanel`, l'ordre bilan/salon), et un chemin oublie serait invisible.
+   L'observateur, lui, constate.
+
+   La duree est LUE dans la feuille plutot que recopiee : deux nombres a garder
+   d'accord divergent a la premiere retouche, et celui-ci ne se verrait qu'a
+   l'usage — un ecran qui disparait avant la fin de son fondu. La marge de 40 ms
+   couvre l'arrondi et la derniere image. */
+const LEAVE_MS = (() => {
+  const v = getComputedStyle(document.documentElement).getPropertyValue("--screen-out").trim();
+  const n = parseFloat(v);
+  if (!Number.isFinite(n)) return 320;
+  return (v.endsWith("ms") ? n : n * 1000) + 40;
+})();
+const leaveTimers = new WeakMap();
+
+function syncLeaving(el) {
+  if (!el) return;
+  clearTimeout(leaveTimers.get(el));
+  /* Reaffiche : on retire la classe tout de suite. Un aller-retour plus rapide
+     que l'animation (rouvrir l'ecran qu'on vient de fermer) doit repartir sur
+     l'entree, pas finir une sortie qui n'a plus lieu d'etre. */
+  if (!el.hidden) { el.classList.remove("leaving"); return; }
+  el.classList.add("leaving");
+  leaveTimers.set(el, setTimeout(() => el.classList.remove("leaving"), LEAVE_MS));
+}
+
 /* L'observateur : neuf ecrans, un seul attribut surveille. Il constate, il ne
    decide pas — c'est ce qui le rend incapable d'oublier un chemin d'affichage.
-   Il sert les DEUX lectures de l'attribut `hidden` : le fil d'Ariane de la
-   barre, et la cascade d'entree ci-dessus. */
+   Il sert les TROIS lectures de l'attribut `hidden` : le fil d'Ariane de la
+   barre, la cascade d'entree, et la sortie ci-dessus. */
 {
   const obs = new MutationObserver(recs => {
     syncTopbar();
-    for (const r of recs) syncSettled(r.target);
+    for (const r of recs) {
+      /* UN ENREGISTREMENT NE VEUT PAS DIRE UN CHANGEMENT. Le DOM en produit un
+         a chaque ECRITURE d'attribut, meme quand la valeur ne bouge pas — et
+         plusieurs chemins reposent `hidden = true` sur un ecran deja cache : le
+         `welcome` le fait sur `#gate` que `bootOnce` vient de retirer. Sans
+         cette comparaison, la sortie repartait pour un tour, donc l'ecran
+         REAPPARAISSAIT a pleine opacite avant de refondre — le battement exact
+         qu'on est venu supprimer.
+
+         `oldValue` non nul = l'attribut etait deja pose, donc l'ecran etait
+         deja cache. Si cet etat vaut le nouveau, rien n'a change. */
+      const etaitCache = r.oldValue !== null;
+      if (etaitCache === r.target.hidden) continue;
+      syncSettled(r.target);
+      syncLeaving(r.target);
+    }
   });
-  for (const el of [gate, loadingEl, hubScreenEl, panel, bilanEl, menuEl, cardsEl, settingsEl]) {
-    if (el) obs.observe(el, { attributes: true, attributeFilter: ["hidden"] });
+  /* `#pause` se prend par le document et non par `pauseEl` : cette constante-la
+     est declaree bien plus bas, donc encore en zone morte ici. */
+  const screens = [gate, loadingEl, hubScreenEl, panel, bilanEl, menuEl, cardsEl,
+                   settingsEl, document.getElementById("pause")];
+  for (const el of screens) {
+    if (el) {
+      obs.observe(el, { attributes: true, attributeFilter: ["hidden"], attributeOldValue: true });
+    }
   }
 }
 
