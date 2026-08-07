@@ -218,6 +218,15 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
   align-content: stretch;
+  /* `height` et NON `min-height` : c'est le correctif le plus important de cet
+     ecran. `.overlay` d'origine pose `min-height: 100vh`, donc la grille
+     grandit avec son contenu — et comme la colonne de gauche repartit ses
+     trois blocs par `space-between`, cette hauteur excedentaire se transforme
+     en vide entre le logo, le propos et le pense-bete, pendant que le
+     formulaire de droite flotte seul au milieu. La colonne doit tenir dans la
+     fenetre et defiler par elle-meme si elle deborde. */
+  height: 100dvh;
+  max-height: 100dvh;
   overflow-y: auto;
 }
 
@@ -863,6 +872,249 @@
 #pauseConfirm[hidden] { display: none; }
 
 /* ===========================================================================
+   LES SCANLINES ET LE BALAYAGE
+
+   Ce sont eux qui donnent le grain « terminal ». Sans eux les ecrans sont des
+   aplats propres, corrects mais muets — c'est la difference entre « moderne »
+   et « moderne ET c'est ce jeu-la ».
+
+   Trois effets, trois roles distincts, et aucun n'est decoratif :
+     - les SCANLINES posent la matiere sur tout l'ecran ;
+     - la LUEUR de titre donne du relief au seul mot d'accroche ;
+     - le BALAYAGE ne parcourt QUE ce qui est actionnable maintenant.
+   =========================================================================== */
+
+@keyframes sweep {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(420%); }
+}
+
+/* Balayage large, pour une surface entiere (la carte legendaire). */
+@keyframes sweepWide {
+  0%   { background-position: -140% 0; }
+  100% { background-position: 240% 0; }
+}
+
+/* --- scanlines ---------------------------------------------------------------
+   Une trame de 4 px sur TOUT l'ecran, boutons compris. C'est ce qui manque le
+   plus quand on ne l'a pas : sans elle, un aplat cyan de 400 px de large est
+   juste un aplat cyan.
+
+   `position: fixed` et non `absolute` : la trame doit rester solidaire de
+   l'ECRAN et non du document, sinon elle defile avec le contenu et devient un
+   motif qui bouge au lieu d'une matiere.
+
+   `pointer-events: none` est obligatoire — sans lui, plus aucun bouton ne
+   repond. */
+.overlay::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: .4;
+  background: repeating-linear-gradient(180deg,
+    transparent 0 2px,
+    rgba(0, 0, 0, .26) 3px,
+    transparent 4px);
+}
+
+/* La grille du fond doit rester SOUS le contenu. Sans z-index explicite, un
+   `::before` de fond peut passer au-dessus des enfants du meme conteneur. */
+.overlay > * { position: relative; z-index: 1; }
+
+/* --- lueur de titre ----------------------------------------------------------
+   Uniquement sur l'accroche de la connexion. Un titre qui rayonne partout ne
+   rayonne nulle part. */
+.gateH1 {
+  text-shadow: 0 0 var(--sp-8) color-mix(in srgb, var(--go) 22%, transparent);
+}
+
+/* --- balayage ----------------------------------------------------------------
+   Il ne parcourt QUE ce qui est actionnable maintenant : le bouton de
+   lancement une fois arme, et la carte legendaire. Un balayage sur un bouton
+   desarme dirait « clique ici » a propos de quelque chose qui ne repond pas.
+
+   Il faut `position: relative` + `overflow: hidden` sur le bouton, sinon la
+   bande deborde et traverse la page entiere. */
+#start, #gateContinue, .cardOpt { position: relative; overflow: hidden; }
+
+#start:not(:disabled)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255, 255, 255, .45),
+    transparent);
+  animation: sweep 3.2s ease-in-out infinite;
+}
+
+/* La legendaire est un evenement : elle est la seule carte a se signaler
+   d'elle-meme. Teinte reprise de `--r3` — aucune valeur en dur. */
+.cardOpt.r3::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+    transparent 42%,
+    color-mix(in srgb, var(--r3) 22%, transparent) 50%,
+    transparent 58%);
+  background-size: 240% 100%;
+  animation: sweepWide 3s linear infinite;
+}
+
+/* ===========================================================================
+   PASTILLES D'ETAT — le pied de la colonne de connexion
+
+   Elles repondent aux trois questions qu'on se pose AVANT de taper son
+   pseudo : est-ce que le serveur repond, est-ce qu'il y a du monde, et sur
+   quelle version je suis. Les chercher apres s'etre connecte, c'est les
+   chercher trop tard — et la version est la premiere chose qu'on demande a
+   quelqu'un qui signale un bug.
+
+   Les valeurs viennent de `client.js`, voir MARKUP.md § 1 bis.
+   =========================================================================== */
+.gateStatusRow, .gateStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.gatePill, .gateChip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.gatePill[hidden], .gateChip[hidden] { display: none; }
+/* Le seul disque de toute l'interface hors combat. Il est justifie ici : c'est
+   un temoin, pas un element de jeu, et il pulse pour dire que la mesure est
+   VIVANTE et non figee au chargement. */
+.gatePill .dot, .gateChip .chipDot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--gain);
+  animation: pulseDot 2.4s ease-in-out infinite;
+}
+/* Trois etats, trois couleurs — et le temoin cesse de pulser des qu'il n'y a
+   plus rien a mesurer. Une pastille qui bat alors que le serveur est tombe est
+   pire que pas de pastille du tout. */
+.gateChip.pending .chipDot { background: var(--warn); }
+.gatePill.off .dot, .gateChip.off .chipDot { background: var(--lethal); animation: none; }
+.gatePill.off, .gateChip.off {
+  color: var(--lethal);
+  border-color: color-mix(in srgb, var(--lethal) 35%, transparent);
+}
+
+/* ===========================================================================
+   L'INTERIEUR DU FORMULAIRE
+
+   Les deux formulaires portent desormais un titre, un propos et des libelles
+   de champ. C'est ce qui leve la confusion que les onglets seuls ne levaient
+   pas : deux formulaires identiques au pixel pres qui ne font pas la meme
+   chose. Encore faut-il que ces elements soient HABILLES — sans regle, un
+   `h2` prend la taille par defaut du navigateur et le titre de formulaire pese
+   plus lourd que le titre de l'ecran.
+   =========================================================================== */
+.gateFormHead { display: flex; flex-direction: column; gap: var(--sp-1); margin-bottom: var(--sp-2); }
+.gateFormTitle {
+  font-family: var(--font-display);
+  font-size: var(--t-l);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  color: var(--text);
+  margin: 0;
+}
+.gateFormLead {
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* Un libelle AU-DESSUS du champ, et pas seulement un texte d'invite : le
+   placeholder disparait des qu'on tape, et l'ecran ne dit plus ce qu'on
+   remplit. */
+.fieldLabel {
+  display: block;
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: calc(var(--sp-1) * -1);
+}
+
+/* Le rappel sous le bouton. Les onglets sont en haut de l'encart, donc hors du
+   champ de vision de quelqu'un qui vient de lire le formulaire jusqu'au bout —
+   et c'est precisement la qu'on se rend compte qu'on n'a pas de compte. */
+.gateSwitch {
+  margin: var(--sp-2) 0 0;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  color: var(--text-dim);
+}
+.gateSwitch button, .gateSwitch a {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--go);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Un bouton FANTOME : une action reelle mais mineure (annuler, se deconnecter).
+   Il doit rester lisible — pas un lien gris de plus au milieu du texte. */
+.ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text); background: none; }
+
+/* Le glyphe de musique n'est pas un bouton (contrairement a #mute) : il doit
+   donc s'aligner sur lui sans en avoir l'air cliquable. */
+.musGlyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  color: var(--text-faint);
+}
+#audioRow, #musicRow { display: flex; align-items: center; gap: var(--sp-3); }
+#audioRow #mute { min-height: 34px; width: 34px; padding: 0; border-radius: var(--radius-ctl); }
+#volVal, #musVolVal {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+  min-width: 44px;
+  text-align: right;
+}
+
+/* ===========================================================================
    LES CONTENEURS DE MARKUP.md
 
    Ces regles n'ont d'effet QUE si les conteneurs decrits dans `MARKUP.md` ont
@@ -881,19 +1133,32 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: var(--sp-12);
-  padding: var(--sp-12);
+  /* Plafond de respiration. `space-between` distribue deja tout l'espace
+     disponible ; un `gap` fixe de 48 px en plus ecarte les blocs deux fois sur
+     un grand ecran. Le `gap` n'est la que comme plancher quand la fenetre est
+     basse et que `space-between` n'a plus rien a distribuer. */
+  gap: var(--sp-6);
+  padding: var(--sp-8) var(--sp-12);
   min-width: 0;
+  overflow-y: auto;
 }
+/* Le propos est le SUJET de la colonne : il prend l'espace, les deux autres
+   blocs se calent aux extremites. Sans cela les trois blocs pesent pareil et
+   le titre se retrouve a flotter au tiers de la hauteur. */
+.gateLeft .gatePitch { margin-block: auto; }
 .gateRight {
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: var(--sp-4);
-  padding: var(--sp-12) var(--sp-8);
+  padding: var(--sp-8);
   border-left: var(--hair) solid var(--line);
-  background: var(--bg-arena);
+  /* Un aplat opaque coupait net la grille du fond a la limite des colonnes.
+     Un voile translucide la laisse traverser : les deux colonnes restent le
+     meme ecran, la droite est seulement plus dense. */
+  background: color-mix(in srgb, var(--bg-void) 55%, transparent);
   min-width: 0;
+  overflow-y: auto;
 }
 /* Les enfants de #gate sont desormais DEUX. La repartition par `grid-column`
    plus haut devient inutile et doit etre neutralisee, sinon elle renvoie les
@@ -939,6 +1204,7 @@
   width: 100%;
   max-width: 360px;
   margin-inline: auto;
+  margin-top: var(--sp-2);
   padding-top: var(--sp-4);
   border-top: var(--hair) solid var(--line-soft);
 }
@@ -1165,201 +1431,4 @@
   .panelState { position: static; }
   .panelBarInner { justify-content: center; }
   .panelWrap { padding-bottom: 200px; }
-}
-
-/* ===========================================================================
-   ECRAN DE CONNEXION — LA MAQUETTE COMPLETE
-
-   Ajout POSTERIEUR a la livraison, ecrit ici plutot que dans le corps de la
-   feuille pour que la separation reste lisible : rien au-dessus de cette ligne
-   n'a bouge. Le rendu de reference va plus loin que ce que la feuille couvrait
-   — libelles de champ, titre par formulaire, encart de doublon redige, bascule
-   en toutes lettres, etat du service en pied de colonne.
-
-   Deux ecarts avec le corps de la feuille, tous deux voulus :
-
-     - le formulaire n'est PLUS dans un encart. La colonne de droite porte deja
-       son propre fond et son filet de separation ; un panneau dans un panneau
-       ajoutait une bordure qui ne separait rien.
-     - le logotype et le titre reprennent l'echelle du rendu de reference
-       (19 px et 46 px) au lieu de partager la meme valeur.
-   =========================================================================== */
-
-/* --- colonne de gauche --------------------------------------------------------- */
-
-/* Le logotype est une SIGNATURE, pas un titre : c'est le titre de propos qui
-   doit tirer le regard en premier. A 34 px les deux se disputaient la place. */
-#gate #logo { font-size: var(--t-l); }
-
-/* Le titre porte tout le poids de l'ecran. */
-.gateH1 { font-size: var(--t-3xl); }
-
-/* Les pastilles d'etat vont en pied de colonne — `.gateLeft` est deja en
-   `space-between`, elles s'y posent d'elles-memes. */
-.gateStatus {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
-/* Une pastille par FAIT. Trois faits sans lien entre eux — la latence, le
-   monde present, la version — qu'un paragraphe aurait fait lire dans l'ordre
-   alors qu'on ne vient en chercher qu'un. */
-.gateChip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--line);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-panel) 70%, transparent);
-  font-family: var(--font);
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-title);
-  text-transform: uppercase;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-.gateChip[hidden] { display: none; }
-
-/* Le temoin de service. VERT quand la socket repond — c'est un gain, pas une
-   consigne — et il pulse : un point fixe ne se distingue pas d'une decoration,
-   un point qui bat dit que la mesure est vivante. Ambre a la coupure : on peut
-   encore lire l'ecran, on ne peut simplement pas entrer. Jamais rouge, qui
-   dirait « danger » sur un ecran ou il n'y a rien a fuir. */
-.chipDot {
-  width: 7px;
-  height: 7px;
-  flex: none;
-  border-radius: 999px;
-  background: var(--text-faint);
-}
-#gateServer.online { color: var(--text); border-color: color-mix(in srgb, var(--gain) 32%, var(--line)); }
-#gateServer.online .chipDot { background: var(--gain); animation: pulseDot 2.4s ease-in-out infinite; }
-#gateServer.offline { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
-#gateServer.offline .chipDot { background: var(--warn); }
-
-/* --- colonne de droite --------------------------------------------------------- */
-
-/* Le formulaire perd son encart : la colonne EST le panneau. Une bordure dans
-   une bordure separait le formulaire de son propre fond. */
-#gate #gateForms {
-  width: 100%;
-  max-width: 400px;
-  padding: 0;
-  border: 0;
-  background: none;
-  gap: var(--sp-6);
-}
-#gate #status, #gate #gateHold, #gate .gateSwitch, #gate .gateAudio {
-  width: 100%;
-  max-width: 400px;
-  margin-inline: auto;
-}
-
-/* Les onglets prennent toute la largeur du formulaire : un segment de 296 px
-   dans une colonne de 400 laissait a droite un vide qui se lisait comme un
-   troisieme onglet manquant. */
-#gateTabs { width: 100%; }
-#gateTabs button { padding-inline: var(--sp-2); white-space: nowrap; font-size: var(--t-s); }
-
-/* Le titre du formulaire dit LEQUEL des deux on remplit. Deux formulaires qui
-   se ressemblent au pixel pres et ne font pas la meme chose, c'est exactement
-   la confusion que les onglets sont censes lever. */
-.gateFormHead { display: flex; flex-direction: column; gap: var(--sp-2); }
-.gateFormTitle {
-  font-family: var(--font-display);
-  font-size: var(--t-xl);
-  font-weight: 700;
-  letter-spacing: var(--track-title);
-  color: var(--text);
-}
-.gateFormLead {
-  font-family: var(--font-body);
-  font-size: var(--t-s);
-  line-height: 1.6;
-  color: var(--text-dim);
-  max-width: 46ch;
-}
-
-/* Un LIBELLE au-dessus du champ, pas seulement un texte d'invite : un
-   placeholder disparait des que l'on tape, et l'ecran cesse alors de dire ce
-   qu'on est en train de remplir. Il garde la chasse fixe et les capitales
-   espacees — c'est un libelle technique, le registre du jeu. La marge negative
-   le recolle a son champ : sans elle, le `gap` du formulaire l'en separait
-   autant que du champ precedent, et on ne savait plus lequel il nomme. */
-.fieldLabel {
-  font-family: var(--font);
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-faint);
-  margin-bottom: calc(var(--sp-2) * -1);
-}
-.gateForm { gap: var(--sp-3); }
-.gateForm input { min-height: 48px; padding-inline: var(--sp-4); }
-.gateForm #go, .gateForm #regGo { width: 100%; margin-top: var(--sp-2); }
-
-/* La bascule vers l'autre onglet, redite sous le bouton. Les deux onglets sont
-   en haut du formulaire, donc hors du champ de vision de quelqu'un qui vient
-   de le lire jusqu'au bout — et c'est precisement la qu'on se rend compte
-   qu'on n'a pas de compte. */
-.gateSwitch {
-  font-family: var(--font-body);
-  font-size: var(--t-s);
-  text-align: center;
-  color: var(--text-dim);
-}
-.gateSwitch:empty { display: none; }
-/* Un bouton qui se PRESENTE comme un lien : c'est une navigation dans la page,
-   pas une action, et lui donner l'aspect d'un bouton l'aurait mis en
-   concurrence avec « Se connecter » juste au-dessus. Un bouton et non un `<a>` :
-   il n'y a pas d'adresse derriere. */
-.linkBtn {
-  font: inherit;
-  padding: 0;
-  min-height: 0;
-  border: 0;
-  background: none;
-  color: var(--go);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.linkBtn:hover { color: var(--text); background: none; border: 0; }
-
-/* L'encart de doublon : AMBRE, avec son motif ecrit. La consequence — la
-   progression ne sera pas enregistree — doit se lire avant le clic et non se
-   deviner apres, d'ou un bouton qui dit « quand meme » plutot que « continuer ». */
-#gate #gateHold {
-  align-items: stretch;
-  padding: var(--sp-4);
-  border: var(--hair) solid color-mix(in srgb, var(--warn) 45%, transparent);
-  border-radius: var(--radius-ui);
-  background: color-mix(in srgb, var(--warn) 8%, var(--bg-void));
-  gap: var(--sp-3);
-}
-#gate #gateHold .sectionTitle { color: var(--warn); }
-#gate #gateHold .sectionTitle::before { background: var(--warn); }
-#gate #gateHold .hint { text-align: left; color: var(--text-dim); }
-#gate #gateWho { color: var(--text); }
-/* Il ne prend NI le cyan NI le biseau de l'action principale : ce n'est pas le
-   chemin qu'on recommande, c'est celui qu'on autorise. */
-#gate #gateContinue {
-  width: 100%;
-  font-size: var(--t-s);
-  color: var(--warn);
-  background: var(--bg-void);
-  border: var(--hair) solid color-mix(in srgb, var(--warn) 45%, transparent);
-  box-shadow: none;
-  clip-path: none;
-}
-#gate #gateContinue:hover:not(:disabled) {
-  color: var(--bg-void);
-  background: var(--warn);
-  border-color: var(--warn);
-  box-shadow: none;
-}
-
-@media (max-width: 900px) {
-  .gateH1 { font-size: var(--t-2xl); }
 }
