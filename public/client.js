@@ -549,7 +549,7 @@ function connect() {
         latest = null;
         predicted = null;
         worldQueue.length = 0;
-        cardsCloseQueued = false;
+        screenCloseQueued = false;
         resetFeedback();
         closeCards();
         closeMerchant();
@@ -702,9 +702,16 @@ function connect() {
            que le monde ne reparte, et on regarde une image figee. Le drapeau
            evite d'empiler une fermeture par instantane — il en arrive vingt par
            seconde. */
-        if (cardsState && !cardsCloseQueued) {
-          cardsCloseQueued = true;
-          pushWorld(() => { cardsCloseQueued = false; closeCards(); closeMerchant(); });
+        /* La garde porte sur LES DEUX ecrans de transition, pas seulement sur
+           les cartes. Elle ne testait que `cardsState`, et le marchand (lot K)
+           s'ouvre precisement APRES la fermeture de l'ecran de cartes, qui
+           remet `cardsState` a null : la condition etait donc fausse au moment
+           ou il fallait fermer, et l'ecran du marchand restait affiche
+           par-dessus une manche qui avait repris. Le joueur ne pouvait plus
+           rien faire. */
+        if ((cardsState || merchantState) && !screenCloseQueued) {
+          screenCloseQueued = true;
+          pushWorld(() => { screenCloseQueued = false; closeCards(); closeMerchant(); });
         }
         break;
 
@@ -823,7 +830,7 @@ function connect() {
     // de cartes ou un bilan encore en attente sortirait par-dessus l'ecran de
     // reconnexion, 110 ms apres la coupure.
     worldQueue.length = 0;
-    cardsCloseQueued = false;
+    screenCloseQueued = false;
     panel.hidden = true;
     menuEl.hidden = true;
     // Reconnexion : on repart de l'ecran d'entree, dans le mode qui
@@ -3417,7 +3424,12 @@ const alertQueue = [];
    ici. Les messages hors-monde — salon, choix de classe, tableau des scores,
    pause — s'appliquent a la reception : ils ne commentent aucune image. */
 const worldQueue = [];
-let cardsCloseQueued = false;
+/* Une seule fermeture d'ecran de transition en file a la fois — il arrive
+   vingt instantanes par seconde, et sans ce drapeau on en empilerait autant.
+   Il couvre les DEUX ecrans (cartes et marchand) : c'est le meme evenement de
+   reprise qui les ferme, et deux drapeaux auraient laisse passer le cas ou les
+   deux se suivent. */
+let screenCloseQueued = false;
 
 function pushWorld(fn) {
   worldQueue.push({ fn, at: performance.now() + INTERP_MS });
