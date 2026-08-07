@@ -20,6 +20,8 @@
    SIGTERM couvre donc aussi ce qui attendait la fenetre.
    =========================================================================== */
 
+import { readFileSync } from "node:fs";
+
 import { CFG, PLAYER_COLORS, DIFF_NORMAL } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial } from "./shared/progression.js";
@@ -37,6 +39,20 @@ const ROOM_MAX = Number(process.env.ROOM_MAX) || 16;
    le serveur de sockets mortes. */
 const IP_CONN_MAX = 8;
 const LIST_MIN_MS = 1000;   // une demande de liste par seconde et par client
+
+/* Numero de version affiche sur l'ecran de connexion. Il est LU dans
+   package.json et non recopie ici : deux litteraux divergent au premier
+   `npm version`, et un numero faux sur un ecran de depannage est pire que pas
+   de numero du tout. Lecture unique au chargement du module — le fichier ne
+   change pas en cours d'execution — et repli silencieux : le jeu doit
+   demarrer meme lance depuis une arborescence incomplete. */
+const BUILD = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version || "";
+  } catch {
+    return "";
+  }
+})();
 
 /* Frein par PSEUDO CIBLE, en plus des cinq essais par connexion : depuis que
    se reconnecter est gratuit (plus de place de partie a occuper), le frein
@@ -344,6 +360,12 @@ export function createHub(store, log) {
       total: { score: 0, kills: 0, deaths: 0, rounds: 0 },
     };
     clients.set(id, client);
+
+    /* Un premier etat tout de suite, sans attendre le battement de coeur : la
+       latence est encore inconnue (`-1`, affichee en tiret) mais le nombre de
+       salles et la version le sont, et l'ecran de connexion cesse de dire
+       « connexion au serveur… » des la premiere image. */
+    conn.send(JSON.stringify(serverInfoPayload(client)));
 
     conn.onmessage = raw => {
       let msg;
@@ -677,10 +699,50 @@ export function createHub(store, log) {
      serie de pings par socket quoi qu'il arrive. */
   function pingAll() {
     for (const c of clients.values()) c.conn.ping();
+    broadcastServerInfo();
+  }
+
+  /* L'etat du SERVICE, pour l'ecran de connexion et le hub : la latence, le
+     nombre de salles ouvertes, la version. Trois faits que le client ne peut
+     pas deduire — il ne voit pas les pongs (le navigateur y repond sous la
+     couche JS) et il ne connait pas les salles avant d'etre authentifie.
+
+     Envoye a 1 Hz, mais SEULEMENT aux clients hors salle. C'est l'exception a
+     la regle qui a fait passer le ping du salon dans `lobbyPayload()` plutot
+     que dans un message periodique : ici le chiffre EST ce qu'on regarde, et
+     celui qui le lit ne recoit aucun instantane par ailleurs. Une soixantaine
+     d'octets par seconde et par spectateur, contre 7 Ko vingt fois par seconde
+     pour un joueur en manche — qui, lui, ne le recoit pas. */
+  function serverInfoPayload(c) {
+    return {
+      t: "serverInfo",
+      rtt: c.conn.rtt != null ? Math.round(c.conn.rtt) : -1,
+      rooms: rooms.size,
+      build: BUILD,
+    };
+  }
+
+  function broadcastServerInfo() {
+    for (const c of clients.values()) {
+      if (c.room) continue;
+      c.conn.send(JSON.stringify(serverInfoPayload(c)));
+    }
+  }
+
+  /* La MEME information, avant toute WebSocket. L'ecran de connexion l'affiche
+     alors que la socket n'est pas encore ouverte — elle ne l'est qu'au premier
+     clic, et l'ouvrir des le chargement ferait une socket par onglet laisse
+     ouvert, comptee dans le plafond par adresse IP.
+
+     Elle ne porte NI la latence (le client la mesure lui-meme, en chronometrant
+     l'aller-retour de la requete) NI rien qui ne soit deja destine a etre lu
+     sur l'ecran d'accueil : un nombre de salles et un numero de version. */
+  function publicInfo() {
+    return { rooms: rooms.size, build: BUILD };
   }
 
   return {
-    handleConnection, tick, pingAll, adminView, anyRoundRunning,
+    handleConnection, tick, pingAll, publicInfo, adminView, anyRoundRunning,
     kickAccounts, kickAccount, connectedKeys, rooms, clients,
   };
 }

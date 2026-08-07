@@ -165,15 +165,15 @@
       </p>
     </div>
 
-    <!-- Le pense-bete des touches. Cinq lignes centrees de 11 px sous le
-         formulaire : c'etait le bloc qui pesait le plus lourd pour ce qu'il
-         apporte a la connexion. Aligne a gauche, sous le propos. -->
-    <div class="hint gateKeys">
-      ZQSD ou flèches pour se déplacer · la souris pour viser<br>
-      <b>Espace</b> pour esquiver — invulnérable le temps du bond<br>
-      <b>A</b> et <b>E</b> (ou <b>1</b> et <b>2</b>) pour les compétences de classe<br>
-      <b>3</b> (ou <b>R</b>, ou clic milieu) pour la troisième compétence, une fois sa carte tirée<br>
-      le tir part tout seul · relève un coéquipier en restant à côté de lui
+    <!-- L'ETAT DU SERVICE, en pied de colonne. Trois pastilles et pas une
+         phrase : ce sont trois faits sans lien entre eux, et un paragraphe les
+         aurait fait lire dans l'ordre alors qu'on ne vient en chercher qu'un.
+         La latence decide si on joue maintenant, le nombre de salles dit s'il
+         y a du monde, le numero de version sert au dépannage. -->
+    <div class="gateStatus">
+      <span class="gateChip" id="gateServer"><i class="chipDot"></i>connexion au serveur…</span>
+      <span class="gateChip" id="gateRooms" hidden></span>
+      <span class="gateChip" id="gateBuild" hidden></span>
     </div>
   </div>
 
@@ -188,16 +188,35 @@
       <button id="tabRegister">Créer un compte</button>
     </div>
 
+    <!-- Chaque formulaire porte son propre TITRE et son propre propos. Deux
+         formulaires qui se ressemblent au pixel pres et ne font pas la meme
+         chose, c'est exactement la confusion que les onglets sont censes
+         lever — le titre la leve pour de bon. Les champs prennent un LIBELLE
+         au-dessus plutot qu'un simple texte d'invite : un placeholder
+         disparait des qu'on tape, et l'ecran ne dit plus ce qu'on remplit. -->
     <div class="gateForm" id="loginForm">
+      <div class="gateFormHead">
+        <h2 class="gateFormTitle">Content de te revoir</h2>
+        <p class="gateFormLead">Laisse le mot de passe vide pour reprendre la session mémorisée sur ce navigateur.</p>
+      </div>
+      <label class="fieldLabel" for="name">Pseudo</label>
       <input id="name" maxlength="14" placeholder="ton pseudo" autocomplete="username" spellcheck="false">
+      <label class="fieldLabel" for="pass">Mot de passe</label>
       <input id="pass" type="password" maxlength="72" placeholder="mot de passe" autocomplete="current-password">
       <button id="go">Se connecter</button>
     </div>
 
     <div class="gateForm" id="registerForm" hidden>
-      <input id="regName" maxlength="14" placeholder="choisis un pseudo (3 à 14 caractères)" autocomplete="username" spellcheck="false">
-      <input id="regPass" type="password" maxlength="72" placeholder="mot de passe (8 caractères minimum)" autocomplete="new-password">
-      <input id="regPass2" type="password" maxlength="72" placeholder="confirme le mot de passe" autocomplete="new-password">
+      <div class="gateFormHead">
+        <h2 class="gateFormTitle">Crée ton compte</h2>
+        <p class="gateFormLead">Un pseudo, un mot de passe, et la progression te suit d'une soirée à l'autre.</p>
+      </div>
+      <label class="fieldLabel" for="regName">Pseudo</label>
+      <input id="regName" maxlength="14" placeholder="3 à 14 caractères" autocomplete="username" spellcheck="false">
+      <label class="fieldLabel" for="regPass">Mot de passe</label>
+      <input id="regPass" type="password" maxlength="72" placeholder="8 caractères minimum" autocomplete="new-password">
+      <label class="fieldLabel" for="regPass2">Confirmation</label>
+      <input id="regPass2" type="password" maxlength="72" placeholder="retape le mot de passe" autocomplete="new-password">
       <button id="regGo">Créer le compte</button>
       <div class="hint">pas de récupération par email — note ton mot de passe quelque part</div>
     </div>
@@ -205,13 +224,21 @@
   <div id="status"></div>
 
   <!-- Pause forcee sur CETTE page dans un seul cas : compte deja connecte
-       ailleurs (progression temporaire sur cet onglet — a dire, pas a
-       laisser deviner). -->
+       ailleurs. Encart AMBRE avec son motif ecrit : c'est un avertissement,
+       et la consequence — la progression ne sera pas enregistree — doit se
+       lire avant le clic, pas se deviner apres. -->
   <div id="gateHold" hidden>
+    <div class="sectionTitle">Compte déjà connecté ailleurs</div>
     <div id="gateWho" class="hint"></div>
     <div id="gateHoldMsg" class="hint" hidden></div>
-    <button id="gateContinue">Continuer</button>
+    <button id="gateContinue">Continuer quand même</button>
   </div>
+
+  <!-- Le passage d'un onglet a l'autre, redit en toutes lettres sous le
+       bouton. Les deux onglets sont en haut de l'encart, donc hors du champ
+       de vision de quelqu'un qui vient de lire le formulaire jusqu'au bout —
+       et c'est precisement la qu'on se rend compte qu'on n'a pas de compte. -->
+  <p class="gateSwitch" id="gateSwitch"></p>
 
   <!-- Reglage du son. Il vit ICI parce que le clic « Rejoindre » est le geste
        utilisateur qui debloque le contexte audio des navigateurs : regler avant

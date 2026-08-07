@@ -1166,3 +1166,200 @@
   .panelBarInner { justify-content: center; }
   .panelWrap { padding-bottom: 200px; }
 }
+
+/* ===========================================================================
+   ECRAN DE CONNEXION — LA MAQUETTE COMPLETE
+
+   Ajout POSTERIEUR a la livraison, ecrit ici plutot que dans le corps de la
+   feuille pour que la separation reste lisible : rien au-dessus de cette ligne
+   n'a bouge. Le rendu de reference va plus loin que ce que la feuille couvrait
+   — libelles de champ, titre par formulaire, encart de doublon redige, bascule
+   en toutes lettres, etat du service en pied de colonne.
+
+   Deux ecarts avec le corps de la feuille, tous deux voulus :
+
+     - le formulaire n'est PLUS dans un encart. La colonne de droite porte deja
+       son propre fond et son filet de separation ; un panneau dans un panneau
+       ajoutait une bordure qui ne separait rien.
+     - le logotype et le titre reprennent l'echelle du rendu de reference
+       (19 px et 46 px) au lieu de partager la meme valeur.
+   =========================================================================== */
+
+/* --- colonne de gauche --------------------------------------------------------- */
+
+/* Le logotype est une SIGNATURE, pas un titre : c'est le titre de propos qui
+   doit tirer le regard en premier. A 34 px les deux se disputaient la place. */
+#gate #logo { font-size: var(--t-l); }
+
+/* Le titre porte tout le poids de l'ecran. */
+.gateH1 { font-size: var(--t-3xl); }
+
+/* Les pastilles d'etat vont en pied de colonne — `.gateLeft` est deja en
+   `space-between`, elles s'y posent d'elles-memes. */
+.gateStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+/* Une pastille par FAIT. Trois faits sans lien entre eux — la latence, le
+   monde present, la version — qu'un paragraphe aurait fait lire dans l'ordre
+   alors qu'on ne vient en chercher qu'un. */
+.gateChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hair) solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-panel) 70%, transparent);
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.gateChip[hidden] { display: none; }
+
+/* Le temoin de service. VERT quand la socket repond — c'est un gain, pas une
+   consigne — et il pulse : un point fixe ne se distingue pas d'une decoration,
+   un point qui bat dit que la mesure est vivante. Ambre a la coupure : on peut
+   encore lire l'ecran, on ne peut simplement pas entrer. Jamais rouge, qui
+   dirait « danger » sur un ecran ou il n'y a rien a fuir. */
+.chipDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--text-faint);
+}
+#gateServer.online { color: var(--text); border-color: color-mix(in srgb, var(--gain) 32%, var(--line)); }
+#gateServer.online .chipDot { background: var(--gain); animation: pulseDot 2.4s ease-in-out infinite; }
+#gateServer.offline { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+#gateServer.offline .chipDot { background: var(--warn); }
+
+/* --- colonne de droite --------------------------------------------------------- */
+
+/* Le formulaire perd son encart : la colonne EST le panneau. Une bordure dans
+   une bordure separait le formulaire de son propre fond. */
+#gate #gateForms {
+  width: 100%;
+  max-width: 400px;
+  padding: 0;
+  border: 0;
+  background: none;
+  gap: var(--sp-6);
+}
+#gate #status, #gate #gateHold, #gate .gateSwitch, #gate .gateAudio {
+  width: 100%;
+  max-width: 400px;
+  margin-inline: auto;
+}
+
+/* Les onglets prennent toute la largeur du formulaire : un segment de 296 px
+   dans une colonne de 400 laissait a droite un vide qui se lisait comme un
+   troisieme onglet manquant. */
+#gateTabs { width: 100%; }
+#gateTabs button { padding-inline: var(--sp-2); white-space: nowrap; font-size: var(--t-s); }
+
+/* Le titre du formulaire dit LEQUEL des deux on remplit. Deux formulaires qui
+   se ressemblent au pixel pres et ne font pas la meme chose, c'est exactement
+   la confusion que les onglets sont censes lever. */
+.gateFormHead { display: flex; flex-direction: column; gap: var(--sp-2); }
+.gateFormTitle {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  color: var(--text);
+}
+.gateFormLead {
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-width: 46ch;
+}
+
+/* Un LIBELLE au-dessus du champ, pas seulement un texte d'invite : un
+   placeholder disparait des que l'on tape, et l'ecran cesse alors de dire ce
+   qu'on est en train de remplir. Il garde la chasse fixe et les capitales
+   espacees — c'est un libelle technique, le registre du jeu. La marge negative
+   le recolle a son champ : sans elle, le `gap` du formulaire l'en separait
+   autant que du champ precedent, et on ne savait plus lequel il nomme. */
+.fieldLabel {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: calc(var(--sp-2) * -1);
+}
+.gateForm { gap: var(--sp-3); }
+.gateForm input { min-height: 48px; padding-inline: var(--sp-4); }
+.gateForm #go, .gateForm #regGo { width: 100%; margin-top: var(--sp-2); }
+
+/* La bascule vers l'autre onglet, redite sous le bouton. Les deux onglets sont
+   en haut du formulaire, donc hors du champ de vision de quelqu'un qui vient
+   de le lire jusqu'au bout — et c'est precisement la qu'on se rend compte
+   qu'on n'a pas de compte. */
+.gateSwitch {
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  text-align: center;
+  color: var(--text-dim);
+}
+.gateSwitch:empty { display: none; }
+/* Un bouton qui se PRESENTE comme un lien : c'est une navigation dans la page,
+   pas une action, et lui donner l'aspect d'un bouton l'aurait mis en
+   concurrence avec « Se connecter » juste au-dessus. Un bouton et non un `<a>` :
+   il n'y a pas d'adresse derriere. */
+.linkBtn {
+  font: inherit;
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  background: none;
+  color: var(--go);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.linkBtn:hover { color: var(--text); background: none; border: 0; }
+
+/* L'encart de doublon : AMBRE, avec son motif ecrit. La consequence — la
+   progression ne sera pas enregistree — doit se lire avant le clic et non se
+   deviner apres, d'ou un bouton qui dit « quand meme » plutot que « continuer ». */
+#gate #gateHold {
+  align-items: stretch;
+  padding: var(--sp-4);
+  border: var(--hair) solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: var(--radius-ui);
+  background: color-mix(in srgb, var(--warn) 8%, var(--bg-void));
+  gap: var(--sp-3);
+}
+#gate #gateHold .sectionTitle { color: var(--warn); }
+#gate #gateHold .sectionTitle::before { background: var(--warn); }
+#gate #gateHold .hint { text-align: left; color: var(--text-dim); }
+#gate #gateWho { color: var(--text); }
+/* Il ne prend NI le cyan NI le biseau de l'action principale : ce n'est pas le
+   chemin qu'on recommande, c'est celui qu'on autorise. */
+#gate #gateContinue {
+  width: 100%;
+  font-size: var(--t-s);
+  color: var(--warn);
+  background: var(--bg-void);
+  border: var(--hair) solid color-mix(in srgb, var(--warn) 45%, transparent);
+  box-shadow: none;
+  clip-path: none;
+}
+#gate #gateContinue:hover:not(:disabled) {
+  color: var(--bg-void);
+  background: var(--warn);
+  border-color: var(--warn);
+  box-shadow: none;
+}
+
+@media (max-width: 900px) {
+  .gateH1 { font-size: var(--t-2xl); }
+}

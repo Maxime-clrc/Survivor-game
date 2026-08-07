@@ -193,6 +193,10 @@ const gateHold = document.getElementById("gateHold");
 const gateWho = document.getElementById("gateWho");
 const gateHoldMsgEl = document.getElementById("gateHoldMsg");
 const gateContinueBtn = document.getElementById("gateContinue");
+const gateServerEl = document.getElementById("gateServer");
+const gateRoomsEl = document.getElementById("gateRooms");
+const gateBuildEl = document.getElementById("gateBuild");
+const gateSwitchEl = document.getElementById("gateSwitch");
 const menuEl = document.getElementById("menu");
 const menuCloseBtn = document.getElementById("menuClose");
 const panel = document.getElementById("panel");
@@ -382,10 +386,17 @@ function connect() {
         // jamais sur l'ordre d'arrivee des messages.
         if (msg.dup) {
           gateFormsEl.hidden = true;
+          // La bascule d'onglet n'a plus de sens ici : on ne choisit plus
+          // entre se connecter et creer un compte, on decide si l'on entre
+          // malgre une session ouverte ailleurs.
+          if (gateSwitchEl) gateSwitchEl.innerHTML = "";
           gateWho.textContent = `connecté comme ${msg.pseudo}`;
           gateHoldMsgEl.hidden = false;
+          // Le kicker de l'encart dit deja « compte déjà connecté ailleurs » :
+          // ce qui reste a dire, c'est la CONSEQUENCE, avant le clic.
           gateHoldMsgEl.textContent =
-            "ce compte est déjà connecté ailleurs — progression temporaire sur cet onglet";
+            "Ta progression restera temporaire sur cet onglet : elle ne sera pas "
+            + "enregistrée sur le compte.";
           gateHold.hidden = false;
         } else {
           gate.hidden = true;
@@ -518,6 +529,10 @@ function connect() {
         localStorage.removeItem("survivor.token");
         localStorage.removeItem("survivor.pseudo");
         ws.close();
+        break;
+
+      case "serverInfo":
+        renderServerInfo(msg);
         break;
 
       case "lobby":
@@ -710,6 +725,12 @@ function connect() {
     gateHold.hidden = true;
     gateHoldMsgEl.hidden = true;
     renderGateMode();
+    // La bascule d'onglet revient avec les formulaires : `dup` l'avait videe.
+    renderGateSwitch(!registerFormEl.hidden);
+    // La pastille passe en ambre : celui qui revient sur cet ecran apres une
+    // coupure doit voir POURQUOI le bouton ne mene nulle part, sans avoir a
+    // l'essayer. Ambre et non rouge — il n'y a rien a fuir, juste a attendre.
+    renderServerInfo(null);
     gate.hidden = false;
     showHud(false);
     setGateBusy(false);
@@ -758,6 +779,84 @@ function renderGateMode() {
   passInput.placeholder = pseudo && token
     ? "mot de passe (vide : reprendre la session)"
     : "mot de passe";
+}
+
+/* L'ETAT DU SERVICE, en pied de colonne gauche. Le client ne peut deduire
+   aucun des trois : le navigateur repond aux pings WebSocket sous la couche
+   JS, donc la latence lui echappe, et les salles comme la version ne sont
+   connues que du serveur. D'ou le message `serverInfo`, seul message
+   periodique du jeu hors instantane — et il ne part qu'aux clients hors salle.
+
+   La latence inconnue s'affiche en TIRET et non en « 0 ms », qui se lirait
+   comme une connexion parfaite au moment precis ou l'on ne sait rien. */
+function renderServerInfo(info) {
+  if (!gateServerEl) return;
+
+  if (!info) {
+    gateServerEl.className = "gateChip offline";
+    gateServerEl.innerHTML = `<i class="chipDot"></i>serveur injoignable`;
+    gateRoomsEl.hidden = true;
+    gateBuildEl.hidden = true;
+    return;
+  }
+
+  const ms = Number(info.rtt);
+  const lat = Number.isFinite(ms) && ms >= 0 ? `${ms} ms` : "—";
+  gateServerEl.className = "gateChip online";
+  gateServerEl.innerHTML = `<i class="chipDot"></i>serveur en ligne · ${escapeHtml(lat)}`;
+
+  const n = info.rooms | 0;
+  gateRoomsEl.hidden = false;
+  gateRoomsEl.textContent = n === 0
+    ? "aucune salle ouverte"
+    : `${n} salle${n > 1 ? "s" : ""} ouverte${n > 1 ? "s" : ""}`;
+
+  // La version disparait plutot que d'afficher « build — » : une pastille vide
+  // n'apprend rien et occupe la place des deux qui, elles, disent quelque chose.
+  gateBuildEl.hidden = !info.build;
+  if (info.build) gateBuildEl.textContent = `build ${info.build}`;
+}
+
+/* Avant la WebSocket, l'etat vient d'une requete HTTP — la socket ne s'ouvre
+   qu'au premier clic, et l'ouvrir des le chargement ferait une socket par
+   onglet laisse ouvert, comptee dans le plafond par adresse du serveur.
+
+   La LATENCE se mesure ici, en chronometrant l'aller-retour : c'est exactement
+   ce que la pastille annonce — en combien de temps le serveur repond. Elle est
+   un peu plus haute qu'un ping WebSocket (une requete HTTP porte ses en-tetes),
+   et c'est honnete : c'est le temps que met le service a repondre, pas une
+   valeur de laboratoire.
+
+   Le sondage s'arrete des que la socket prend le relais (`serverInfo` a 1 Hz,
+   avec le vrai aller-retour WebSocket) et des que l'ecran d'entree est ferme :
+   personne ne regarde ces pastilles depuis une manche. */
+const GATE_POLL_MS = 5000;
+let gatePollTimer = 0;
+
+async function pollServerInfo() {
+  if (!gate.hidden && (!ws || ws.readyState !== WebSocket.OPEN)) {
+    const t0 = performance.now();
+    try {
+      const r = await fetch("/etat", { cache: "no-store" });
+      const info = await r.json();
+      renderServerInfo({ ...info, rtt: Math.round(performance.now() - t0) });
+    } catch {
+      renderServerInfo(null);
+    }
+  }
+  clearTimeout(gatePollTimer);
+  gatePollTimer = setTimeout(pollServerInfo, GATE_POLL_MS);
+}
+
+/* La bascule d'onglet, redite sous le bouton. Le libelle depend de l'onglet
+   ACTIF : proposer « crée un compte » a quelqu'un qui est deja sur le
+   formulaire de creation serait un cul-de-sac. */
+function renderGateSwitch(register) {
+  if (!gateSwitchEl) return;
+  gateSwitchEl.innerHTML = register
+    ? `Tu as déjà un compte ? <button type="button" class="linkBtn" id="gateSwitchBtn">Connecte-toi.</button>`
+    : `Pas encore de compte ? <button type="button" class="linkBtn" id="gateSwitchBtn">Crée-en un en dix secondes.</button>`;
+  gateSwitchEl.querySelector("#gateSwitchBtn").onclick = () => activateTab(!register);
 }
 
 function setGateBusy(busy) {
@@ -873,6 +972,7 @@ function activateTab(register) {
   tabRegisterBtn.classList.toggle("mine", register);
   loginFormEl.hidden = register;
   registerFormEl.hidden = !register;
+  renderGateSwitch(register);
   setStatus("");
   (register ? regNameInput : nameInput).focus();
 }
@@ -883,6 +983,8 @@ nameInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
 passInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
 regPass2Input.onkeydown = e => { if (e.key === "Enter") regGoBtn.click(); };
 renderGateMode();
+renderGateSwitch(false);
+pollServerInfo();
 nameInput.focus();
 
 /* --- suite de la connexion ---------------------------------------------------
