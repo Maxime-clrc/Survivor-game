@@ -247,13 +247,21 @@
   padding: 0 var(--field-pad);
 }
 /* Un curseur n'est pas un champ de saisie : il n'a ni hauteur de ligne ni
-   retrait a respecter, et les regles ci-dessus le deformeraient. */
+   retrait a respecter, et les regles ci-dessus le deformeraient.
+
+   ELLE PORTE LE RAIL, elle ne se contente pas d'annuler. Elle posait
+   `background: none`, et comme elle a un identifiant (1-0-1) elle l'emportait
+   sur le bloc `input[type="range"]` plus bas (0-1-1 — un selecteur d'attribut
+   pese comme une classe) : les six curseurs du jeu rendaient une poignee cyan
+   flottant sur du vide. Y mettre `var(--ui-line)` plutot que de retirer la
+   declaration est ce qui evite de rejouer le meme piege — `#gate input`
+   gagnerait de toute facon, et lui donne le fond des CHAMPS. */
 #settings input[type="range"], #gate input[type="range"], #pause input[type="range"] {
   min-height: 0;
   padding: 0;
   border: 0;
-  border-radius: 0;
-  background: none;
+  border-radius: 999px;
+  background: var(--ui-line);
 }
 #gate input, #hubScreen input {
   font-family: var(--font);
@@ -746,11 +754,56 @@
    sont triees par ordre decroissant par `client.js` — donc le rang porte deja
    l'information, et la couleur peut le redire. La premiere ligne est ce qui a
    tue l'equipe, elle se lit avant les autres. */
-#bilanHurt { max-width: 620px; margin-inline: auto; }
-.hurtRow { padding: var(--sp-1) 0; }
+/* LA STRUCTURE DE LA VENTILATION, et pas seulement son habillage. La reprise
+   gardait le rayon, la hauteur et la couleur par rang, mais la mise en page
+   des lignes vivait dans `ui.css` et a disparu avec la coupe : sans `display`
+   ni `flex`, `.hurtBar` tombait a ZERO pixel de large et la barre — qui EST
+   l'information — n'existait plus. Il ne restait qu'un libelle et un
+   pourcentage, c'est-a-dire deux nombres a comparer de tete, exactement ce que
+   la barre evite. */
+#bilanHurt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-width: 620px;
+  margin-inline: auto;
+}
+.hurtTitle {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: var(--sp-1);
+}
+.hurtRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  font-size: var(--t-s);
+  color: var(--text-dim);
+}
+/* Le glyphe est sur la LIGNE qu'il decrit, pas dans une legende a apparier :
+   c'est ce qui fait lire « quelle part » et « laquelle » d'un seul coup. */
+.hurtIco { display: flex; width: 14px; height: 14px; flex: 0 0 auto; }
 .hurtLab { flex: 0 0 120px; }
-.hurtBar { height: 8px; border-radius: 999px; overflow: hidden; }
-.hurtBar > i { border-radius: 999px; transition: width var(--fade) ease-out; }
+/* La gouttiere est un CREUX, donc plus sombre que la surface qui la porte —
+   jamais plus claire, ce qui la ferait lire comme un element pose dessus. */
+.hurtBar {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ui-field);
+  overflow: hidden;
+}
+.hurtBar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width var(--fade) ease-out;
+}
+.hurtVal { flex: 0 0 44px; text-align: right; color: var(--text); font-weight: 700; }
 
 .hurtRow:nth-child(2) .hurtBar > i { background: var(--lethal); }
 .hurtRow:nth-child(3) .hurtBar > i { background: color-mix(in srgb, var(--lethal) 62%, var(--warn)); }
@@ -991,13 +1044,22 @@
 }
 #cardsKicker[hidden] { display: none; }
 
+/* CENTRE et sur une mesure bornee, contrairement aux autres ecrans. Ceux-la
+   coulent depuis le haut dans une colonne et alignent tout a gauche ; celui-ci
+   n'a pas de colonne — trois ou quatre cartes centrees sous une minuterie — et
+   un titre etale sur toute la largeur oblige l'oeil a repartir de l'extreme
+   gauche entre deux lectures alors qu'on est chronometre. */
 #cardsTitle {
   font-family: var(--font-display);
   font-size: var(--t-title);
   letter-spacing: var(--track-title);
   text-transform: none;
   line-height: 1.25;
+  text-align: center;
+  max-width: 34ch;
+  margin-inline: auto;
 }
+#cardsKicker { text-align: center; }
 #cardsTimer { height: 6px; border-radius: 999px; overflow: hidden; }
 #cardsTimer > i { border-radius: 999px; }
 
@@ -1059,16 +1121,39 @@
     rgba(0, 0, 0, .26) 3px,
     transparent 4px);
 }
+/* La MISE EN PAGE du panneau vivait dans `ui.css` et a disparu avec la coupe :
+   sans `display: flex` ni `align-items: stretch`, les trois boutons prenaient
+   chacun la largeur de son libelle — 131 px pour « Reprendre », 170 pour
+   « Consulter son build » dans un panneau de 380 — et le titre se calait a
+   gauche. Un menu pause est une PILE D'ACTIONS de meme poids : elles doivent
+   faire la meme largeur, sinon leur taille se lit comme une hierarchie qui
+   n'existe pas. */
 #pausePanel {
   position: relative;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   width: min(380px, 100%);
   border-radius: var(--radius-ui);
   gap: var(--sp-3);
   padding: var(--sp-6);
 }
-#pauseTitle { font-family: var(--font-display); font-size: var(--t-l); }
+/* Centre, et a la taille d'un titre d'ecran : c'est le seul titre du panneau,
+   il n'a rien a sa gauche dont il devrait s'aligner. */
+#pauseTitle {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+  text-align: center;
+}
+/* La pleine largeur ne vaut que pour les boutons ENFANTS DIRECTS du panneau —
+   la pile d'actions. Appliquee a tous les descendants, elle attrapait aussi le
+   bouton de coupure loge dans la rangee de volume : il prenait les 330 px et
+   chassait son curseur hors du panneau. */
 #pausePanel button { border-radius: var(--radius-ctl); min-height: 44px; }
+#pausePanel > button { width: 100%; }
 #pauseResume {
   font-family: var(--font-display);
   font-weight: 700;
@@ -1683,6 +1768,13 @@ button.danger:hover:not(:disabled) {
 /* --- curseurs ---------------------------------------------------------------
    Ils fuyaient les regles de champ (46 px de haut, retrait de 16) qui n'ont
    aucun sens pour un curseur. Traitement propre, une fois pour toutes. */
+/* Le rail prend `--ui-line` et non `--ui-field`, contrairement aux jauges.
+   La distinction n'est pas cosmetique : `#loadBar` et `#bilanBar` AFFICHENT
+   une progression, ce sont des creux et ils s'enfoncent dans la surface ; un
+   curseur est un CONTROLE, et sa piste doit se voir pour qu'on sache ou
+   glisser. A `--ui-field` sur la colonne de connexion — dont le fond est deja
+   proche du vide — le rail disparaissait et il ne restait qu'une poignee cyan
+   flottant sur du noir. */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -1691,7 +1783,7 @@ input[type="range"] {
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: var(--ui-field);
+  background: var(--ui-line);
   accent-color: var(--go);
   cursor: pointer;
 }
