@@ -30,7 +30,8 @@ import {
   MECH_QUADRANT, MECH_CROSS, MECH_CONVERGE, MECH_DODGE,
   MECH_SHRINK, MECH_PUDDLE, MECH_SAFE,
   MECH_BREATH, MECH_BROOD, MECH_REVERSE, MECH_SWAP,
-  BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME,
+  MECH_SYNTHESE, MECH_SCEAU,
+  BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_FINAL,
 } from "./bosses.js";
 
 export { CARD_CFG };
@@ -372,6 +373,23 @@ export const CFG = {
      vient du temps passe a esquiver plutot qu'a tirer. */
   BOSS_BARS: 5,
   BOSS_HP_MUL: 2.6,
+
+  /* --- boss final (lot N) ---------------------------------------------------
+     Le nombre de barres et le multiplicateur de PV vivent sur l'ENTREE DU
+     ROSTER (`bars`, `hpMul`, `atkCdMul`, `zoneMul`) et non ici : ce sont des
+     caracteristiques d'un boss, comme le `hpMul` des cinq autres, pas des
+     reglages globaux. Ne restent dans CFG que les deux constantes qui parlent
+     du SCEAU — la mecanique exclusive de la derniere barre.
+
+     Le sceau demande d'occuper des zones aux quatre coins pendant un temps
+     CUMULE, pas continu : lacher un coin pour esquiver ne remet pas a zero,
+     l'abandonner oui. C'est le meme choix que la canalisation d'un amas de
+     recolte, et pour la meme raison — une mecanique qui punit l'esquive est
+     punitive, pas difficile. */
+  SEAL_RADIUS: 120,
+  SEAL_HOLD: 4.5,            // secondes CUMULEES par sceau
+  SEAL_WARN: 22,             // duree de la fenetre : large, c'est un marathon
+  SEAL_DECAY: 0.5,           // le cumul redescend a mi-vitesse quand on lache
   /* Croissance d'un boss au suivant. Elle etait a 45 % quand le combat durait
      25 s ; sur une base de 50 s, le troisieme boss aurait depasse la minute
      quarante. La difficulte des combats tardifs vient maintenant des
@@ -1023,6 +1041,17 @@ export class GameState {
        de boss dont le repit se termine pendant qu'une autre commence) ouvrirait
        deux ecrans d'affilee. Pose par _killBoss, consomme par openMerchant. */
     this.relicBossDue = false;
+
+    /* --- boss final (lot N) --------------------------------------------------
+       `finalDone` : le Noyau ne revient jamais, meme si la manche continue
+       apres sa mort — sans lui, `_rosterCleared()` reste vrai et toute vague
+       de boss suivante le rappellerait.
+       `finalVictory` : l'entree du classement au temps, posee a sa mort et lue
+       UNE fois par la salle (qui la persiste puis la vide). Elle vit ici et non
+       dans la Room parce que c'est `state.time` qui fait foi — l'horloge
+       autoritaire de la simulation, pas celle du serveur. */
+    this.finalDone = false;
+    this.finalVictory = null;
 
     this.time = 0;
     this.spawnAcc = 0;
@@ -4124,8 +4153,20 @@ export class GameState {
      de cohesion pour le rendre jouable seul. Un Oracle a un joueur, c'est le
      boss de la coordination sans equipe — il ne reste que la punition. */
   _pickBoss(alive) {
+    /* BOSS FINAL (lot N). Il ne se tire pas : il ARRIVE, une fois que les cinq
+       boss normaux ont ete VAINCUS dans la manche en cours. La condition porte
+       sur `bossKindsKilled` et non sur `bossSeen` — un boss croise puis fui
+       (manche abandonnee, joueur reconnecte) n'a rien appris a personne, et le
+       Noyau est la synthese de ce qu'on a battu.
+       Une seule fois par manche : `finalDone` l'empeche de revenir si la
+       manche continue apres sa mort. */
+    if (!this.finalDone && this._rosterCleared()) return BOSS_FINAL;
+
     const eligible = [];
-    for (let i = 0; i < BOSS_ROSTER.length; i++) {
+    /* Le boss final est HORS du tirage ordinaire : la boucle s'arrete avant
+       lui. Sans cette borne il sortirait au hasard des la premiere vague de
+       boss, ce qui viderait de sens la condition ci-dessus. */
+    for (let i = 0; i < BOSS_FINAL; i++) {
       if (BOSS_ROSTER[i].minPlayers <= alive) eligible.push(i);
     }
     if (eligible.length === 0) return 0;
@@ -4136,6 +4177,17 @@ export class GameState {
     const kind = pool[Math.floor(Math.random() * pool.length)];
     this.bossSeen.push(kind);
     return kind;
+  }
+
+  /* Le cycle du roster est-il boucle ? Les CINQ boss normaux vaincus dans la
+     manche en cours. Point de passage unique : le client rejoue la meme
+     question pour annoncer « le Noyau approche » au salon, et deux copies
+     divergeraient. */
+  _rosterCleared() {
+    for (let i = 0; i < BOSS_FINAL; i++) {
+      if (!this.bossKindsKilled.has(i)) return false;
+    }
+    return true;
   }
 
   /* Tout ce qui frappe « le boss » doit considerer les DEUX Jumeaux : ils
@@ -4215,6 +4267,14 @@ export class GameState {
         const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
           * (1 + (this.bossCount - 1) * CFG.BOSS_GROWTH)
           * power * CFG.BOSS_HP_MUL * this.diff.boss * def.hpMul;
+        /* Le nombre de barres vient du ROSTER quand il y est (le Noyau du lot N
+           en a huit), sinon du reglage commun. Mesure : 2,20 fois les PV d'un
+           boss normal repartis sur 8 barres au lieu de 5, donc chaque barre du
+           Noyau coute 1,37 fois une barre ordinaire. Le combat est plus long ET
+           chaque segment l'est aussi — les huit barres ne diluent pas le mur,
+           elles le decoupent plus finement pour que la progression reste
+           lisible sur un combat deux fois plus long. */
+        const bars = def.bars ?? CFG.BOSS_BARS;
         /* Le boss apparait sur un BORD de son arene, pas via `_spawnPoint` :
            le tirage autour des joueurs peut sortir loin des bounds resserres,
            et `_bossMove` l'y aurait recale d'un coup sec a la premiere image. */
@@ -4232,8 +4292,8 @@ export class GameState {
           kind,
           x: pos.x, y: pos.y,
           hp, maxHp: hp,
-          bars: CFG.BOSS_BARS,
-          barHp: hp / CFG.BOSS_BARS,
+          bars,
+          barHp: hp / bars,
           phase: 0,               // nombre de barres deja brisees
           ang: 0,
           attackCd: 4,
@@ -4246,7 +4306,13 @@ export class GameState {
              avec le repertoire deja ouvert des combats precedents. C'est ce
              qui le rend plus dur d'un boss a l'autre sans lui ajouter des PV,
              qui n'allongent que la duree. */
-          floor: Math.min(this.bossCount - 1, CFG.BOSS_BARS - 1),
+          /* Le Noyau (lot N) fait EXCEPTION et repart de zero : la montee en
+             repertoire par barre est tout son combat sur huit barres, et le
+             `bossCount` vaut 6 a ce stade — il aurait ouvert d'emblee les
+             quatre premieres couches et rendu muettes la moitie des ruptures. */
+          floor: kind === BOSS_FINAL
+            ? 0
+            : Math.min(this.bossCount - 1, CFG.BOSS_BARS - 1),
           spiral: null,
           hunt: null,
           /* Mecaniques propres a un boss : elles vivent toutes sur l'entite et
@@ -4258,6 +4324,10 @@ export class GameState {
           ult: 0,                // jauge d'ultime de l'Oracle, 0 a 1
           miasmaCd: STATUS_CFG.BOSS_MIASMA_EVERY,
           converge: 0,           // Jumeaux : derniere barre, ils se rejoignent
+          /* Noyau (lot N) : le sceau ne se pose qu'UNE fois, sur la derniere
+             barre. Sans ce drapeau le tirage d'attaque le relancerait toutes
+             les trois secondes et la fenetre de 22 s ne se refermerait jamais. */
+          sealDone: 0,
         };
 
         /* Les Jumeaux : deux entites, UNE reserve de vie. `boss` reste la
@@ -4332,7 +4402,13 @@ export class GameState {
     b.attackCd -= dt;
     if (b.attackCd <= 0) {
       // Le rythme se resserre a chaque barre brisee
-      b.attackCd = CFG.BOSS_ATTACK_CD * Math.max(0.55, 1 - CFG.BOSS_PHASE_CD_STEP * b.phase);
+      /* `atkCdMul` du roster (lot N) : second point d'intensification, en
+         miroir de `zoneMul`. Le plancher de 0,55 s'applique AVANT le
+         multiplicateur — le Noyau descend donc sous lui, delibere : c'est ce
+         qui fait qu'il ne laisse pas souffler. */
+      b.attackCd = CFG.BOSS_ATTACK_CD
+        * Math.max(0.55, 1 - CFG.BOSS_PHASE_CD_STEP * b.phase)
+        * (bossAt(b.kind).atkCdMul ?? 1);
       this._bossAttack(b, dx / d, dy / d);
     }
   }
@@ -4490,6 +4566,50 @@ export class GameState {
         return;
       }
 
+      /* Noyau (lot N) : son verbe est la SYNTHESE, donc sa rupture emprunte
+         celle du boss dont il vient d'ouvrir le repertoire. Une variante par
+         barre plutot qu'une variante fixe — c'est la seule rupture du jeu qui
+         raconte une progression, et sur huit barres une rupture identique huit
+         fois aurait cesse d'etre lue des la troisieme.
+         `phase` vient d'etre incrementee par `_bossBars`, elle vaut donc le
+         numero de la barre qu'on vient de casser. */
+      case BOSS_FINAL: {
+        switch (b.phase) {
+          case 1: this._alert(MECH_BREATH, 2); return;          // Ravageur
+          case 2: {                                             // Matriarche
+            for (let i = 0; i < BOSS_CFG.BROOD_COUNT; i++) {
+              if (this.enemies.length >= CFG.MAX_ENEMIES) break;
+              const a = Math.random() * Math.PI * 2;
+              this._spawnEnemy(1, b.x + Math.cos(a) * 130, b.y + Math.sin(a) * 130);
+            }
+            this._alert(MECH_BROOD, 2);
+            return;
+          }
+          case 3: {                                             // Metronome
+            let n = 0;
+            for (const z of this.zones) {
+              if (z.follow || (!z.vx && !z.vy)) continue;
+              z.vx = -z.vx; z.vy = -z.vy;
+              n++;
+            }
+            this._alert(n > 0 ? MECH_REVERSE : MECH_BREATH, 2);
+            return;
+          }
+          case 4: {                                             // Oracle
+            for (const p of this._alivePlayers()) {
+              this._applyStatus(p, STATUS_VULN, BOSS_CFG.MECH_VULN);
+            }
+            this._alert(MECH_MIASMA, 0);
+            return;
+          }
+          /* Les barres 5 a 7 sont les siennes : plus d'emprunt, le souffle
+             seul — a ce stade le combat n'a plus rien a citer, il conclut. */
+          default:
+            this._alert(MECH_BREATH, 2);
+            return;
+        }
+      }
+
       // Ravageur, et repli de tout boss ajoute plus tard : le souffle seul.
       default:
         this._alert(MECH_BREATH, 2);
@@ -4552,6 +4672,8 @@ export class GameState {
       case "cone":         this._atkCone(b); break;
       case "pacman":       this._atkPacman(b); break;
       case "constriction": this._atkConstriction(b); break;
+      case "synthese":     this._atkSynthese(b); break;
+      case "sceau":        this._atkSceau(b); break;
       default:             this._atkMarques(b); break;
     }
   }
@@ -5042,6 +5164,146 @@ export class GameState {
     this._alert(MECH_EXAFLARE, BOSS_CFG.EXAFLARE_WARN);
   }
 
+  /* ===========================================================================
+     LES DEUX MECANIQUES EXCLUSIVES DU BOSS FINAL (lot N)
+     ======================================================================== */
+
+  /* SYNTHESE — la premiere. Elle ne pose rien de neuf : elle fait tourner
+     ENSEMBLE deux repertoires que les cinq boss ne posent jamais en meme temps,
+     le regroupement de l'Oracle et les exaflares du Metronome. C'est la
+     definition meme du verbe du Noyau, et c'est ce qui la rend inedite sans
+     une ligne de geometrie nouvelle : l'equipe doit tenir groupee (Oracle) tout
+     en se deplacant ensemble le long d'un axe (Metronome), alors que chacune
+     des deux mecaniques prise seule autorise l'inverse.
+
+     L'axe des exaflares passe PAR le cercle de regroupement, jamais a cote :
+     une synthese ou les deux moities ne se croisent pas serait deux mecaniques
+     l'une apres l'autre, ce qu'on a deja cinq fois. */
+  _atkSynthese(b) {
+    const alive = this._alivePlayers();
+    const mech = adaptMech(MECH_SYNTHESE, alive.length);
+    // Solo : le regroupement n'a pas de sens, il ne reste que les trainees.
+    // `adaptMech` renvoie MECH_DODGE, exactement comme pour le rassemblement.
+    if (mech !== MECH_SYNTHESE || alive.length === 0) {
+      this._atkExaflare(b);
+      return;
+    }
+
+    const p = alive[Math.floor(Math.random() * alive.length)];
+    this._mark({
+      mech: MECH_STACK, a: p.id, x: p.x, y: p.y,
+      r: BOSS_CFG.STACK_RADIUS, t: BOSS_CFG.STACK_WARN,
+    });
+
+    /* Les exaflares partent d'un bord et traversent le point de regroupement.
+       On calcule l'axe DEPUIS le porteur, donc la trainee arrive sur lui :
+       le groupe doit se former puis se decaler d'un bloc. */
+    const B = this.bounds;
+    const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
+    const a = Math.random() * Math.PI * 2;
+    b.flare = {
+      x: p.x - Math.cos(a) * bw * 0.45,
+      y: p.y - Math.sin(a) * bh * 0.45,
+      dx: Math.cos(a) * BOSS_CFG.EXAFLARE_R * 1.55,
+      dy: Math.sin(a) * BOSS_CFG.EXAFLARE_R * 1.55,
+      left: BOSS_CFG.EXAFLARE_STEPS, t: 0, first: 1,
+    };
+    this._alert(MECH_SYNTHESE, BOSS_CFG.STACK_WARN);
+  }
+
+  /* SCEAU FINAL — la seconde, et la derniere barre du jeu. Quatre zones aux
+     coins de l'arene, a occuper SIMULTANEMENT pendant un temps CUMULE.
+
+     Trois choix qui la separent des tours de l'Oracle, dont elle emprunte le
+     squelette (un groupe de marqueurs, un meneur qui resout) :
+       - le temps est CUMULE et non instantane : les tours se resolvent a
+         l'echeance sur un instantane de position, le sceau se remplit tant
+         qu'on est dessus. Une mecanique de vingt secondes qui ne regarderait
+         que la derniere image punirait l'esquive au lieu de la coordination ;
+       - le cumul REDESCEND quand on lache, a mi-vitesse (`SEAL_DECAY`) :
+         lacher un coin pour esquiver une trainee ne remet pas a zero, c'est le
+         meme choix que la canalisation d'un amas de recolte ;
+       - le nombre de sceaux suit l'effectif par `towerCount`, comme les tours.
+         A un joueur il n'en reste qu'un : la mecanique devient une occupation
+         longue et sous le feu, ce qui est jouable seul — la spec demandait
+         explicitement l'adaptation par seuil plutot qu'une variante solo. */
+  _atkSceau(b) {
+    if (b.sealDone) { this._atkMarques(b); return; }
+    const alive = this._alivePlayers();
+    if (alive.length === 0) { this._atkMarques(b); return; }
+    b.sealDone = 1;
+
+    const grp = this._nextId++;
+    const B = this.bounds;
+    const n = towerCount(alive.length);
+    /* Aux COINS et non sur un cercle, contrairement aux tours : c'est ce qui
+       en fait la dispersion maximale du jeu. L'inset garde le disque entier
+       dans les bounds — un sceau a cheval sur la couronne serait inoccupable,
+       donc un echec force. */
+    const inset = CFG.SEAL_RADIUS + 40;
+    const coins = [
+      { x: B.x0 + inset, y: B.y0 + inset },
+      { x: B.x1 - inset, y: B.y0 + inset },
+      { x: B.x1 - inset, y: B.y1 - inset },
+      { x: B.x0 + inset, y: B.y1 - inset },
+    ];
+    for (let i = 0; i < n; i++) {
+      this._mark({
+        mech: MECH_SCEAU, grp, lead: i === 0 ? 1 : 0,
+        x: coins[i].x, y: coins[i].y,
+        r: CFG.SEAL_RADIUS, t: CFG.SEAL_WARN,
+        // `cur` porte le cumul en secondes, `need` la cible : le client dessine
+        // deja `cur / need` pour le denombrement, il n'y a rien a ajouter au
+        // protocole.
+        need: CFG.SEAL_HOLD, cur: 0,
+      });
+    }
+    this._alert(MECH_SCEAU, CFG.SEAL_WARN);
+  }
+
+  /* Le cumul d'un sceau, appele a chaque image par `_markTick`. */
+  _sealTick(m, dt) {
+    const on = this._countIn(m) > 0;
+    m.cur = on
+      ? Math.min(m.need, m.cur + dt)
+      : Math.max(0, m.cur - dt * CFG.SEAL_DECAY);
+  }
+
+  /* Resolution, par le seul meneur — comme les tours, sinon la sanction serait
+     comptee autant de fois qu'il y a de sceaux. */
+  _resolveSceau(lead) {
+    const group = this.marks.filter(m => m.grp === lead.grp);
+    let rates = 0;
+    for (const m of group) if (m.cur < m.need) rates++;
+
+    if (rates === 0) {
+      /* Sceau tenu : la derniere barre s'ouvre pour de bon. On ne donne pas de
+         degats au boss — la recompense d'une mecanique reussie est de pouvoir
+         continuer a tirer, pas un cadeau — mais on efface les projectiles en
+         vol, comme une rupture de barre : l'equipe vient de passer vingt
+         secondes dispersee, elle se retrouve sous une pluie qu'elle n'a pas pu
+         lire. */
+      this.shots = [];
+      const B = this.bounds;
+      this.effects.push({
+        id: this._nextId++,
+        x: (B.x0 + B.x1) / 2, y: (B.y0 + B.y1) / 2,
+        r: CFG.BOSS_BREAK_RADIUS, life: 0.9, max: 0.9, kind: 6,
+      });
+      return;
+    }
+
+    /* Echec : la sanction porte sur l'EQUIPE et non sur les seuls joueurs qui
+       n'etaient pas sur leur sceau — personne ne tient un sceau tout seul, et
+       designer un coupable sur une mecanique collective est exactement ce que
+       le depot refuse. Elle passe par `_mechHit`, donc le plafond « ne tue
+       jamais un joueur a pleine vie » et le cumul de Vulnerabilite valent. */
+    const part = rates / Math.max(1, group.length);
+    for (const p of this._alivePlayers()) this._mechHit(p, part);
+    // Le sceau se REPOSE : la derniere barre ne se franchit pas en echouant.
+    if (this.boss) this.boss.sealDone = 0;
+  }
+
   _flare(b, dt) {
     const f = b.flare;
     if (!f) return;
@@ -5230,6 +5492,13 @@ export class GameState {
       case MECH_COUNT:
         m.cur = this._countIn(m);
         break;
+      /* Sceau (lot N) : `cur` porte un CUMUL en secondes, pas un effectif
+         instantane. C'est toute la difference avec les tours au-dessus, et
+         c'est pour ca qu'il a son propre cas plutot que de rejoindre le
+         leur. */
+      case MECH_SCEAU:
+        this._sealTick(m, dt);
+        break;
       case MECH_LINK: {
         const a = this.players.get(m.a), c = this.players.get(m.b);
         // Lien orphelin : un joueur qui se deconnecte ou tombe ne doit pas
@@ -5314,6 +5583,10 @@ export class GameState {
         // Seul le meneur resout, pour tout le groupe : compter trois fois la
         // meme repartition aurait triple la sanction.
         if (m.lead) this._resolveTowers(m);
+        break;
+      // Meme regle de meneur unique, meme raison (lot N).
+      case MECH_SCEAU:
+        if (m.lead) this._resolveSceau(m);
         break;
       case MECH_PROX: this._resolveProx(m); break;
       case MECH_LINK: {
@@ -5715,7 +5988,12 @@ export class GameState {
   }
 
   _zoneDamage(b) {
-    return CFG.ZONE_DAMAGE * (1 + CFG.BOSS_PHASE_DAMAGE_STEP * b.phase);
+    /* `zoneMul` du roster (lot N) : c'est ICI que les patterns repris par le
+       Noyau sont intensifies, et non dans chacune des vingt attaques. Un
+       champ absent vaut 1 — les cinq boss normaux ne changent pas d'un
+       cheveu. */
+    const mul = bossAt(b.kind).zoneMul ?? 1;
+    return CFG.ZONE_DAMAGE * (1 + CFG.BOSS_PHASE_DAMAGE_STEP * b.phase) * mul;
   }
 
   /* ===========================================================================
@@ -7030,10 +7308,26 @@ export class GameState {
     if (this.boss) this.bossKindsKilled.add(this.boss.kind);
     this.bossKills++;
     /* Le marchand (lot K) se cale sur la FIN DE VAGUE, pas ici — mais c'est
-       ici qu'on sait QUELLE vague vient de se terminer : le boss final (lot N)
-       aura son propre traitement de victoire, les cinq boss normaux ouvrent
-       le marchand. */
-    if (this.boss && this.boss.kind < BOSS_ROSTER.length) this._merchantDue();
+       ici qu'on sait QUELLE vague vient de se terminer. Les cinq boss normaux
+       l'ouvrent ; le Noyau (lot N) a son propre traitement de victoire et
+       n'ouvre rien : il n'y a plus de vague suivante a preparer. */
+    const final = this.boss && this.boss.kind === BOSS_FINAL;
+    if (this.boss && !final) this._merchantDue();
+
+    /* VICTOIRE FINALE (lot N). L'entree du classement au temps est posee ici,
+       au seul endroit qui sait que le Noyau vient de tomber. `state.time` est
+       l'horloge AUTORITAIRE de la simulation : le serveur ne recalcule rien,
+       il persiste ce chiffre — c'est ce qui rend le classement verifiable.
+       `finalDone` ferme la porte : la manche peut continuer (l'equipe est
+       vivante), mais le Noyau ne reviendra pas. */
+    if (final) {
+      this.finalDone = true;
+      this.finalVictory = {
+        time: Math.round(this.time),
+        wave: this.wave,
+        difficulty: this.diffIndex,
+      };
+    }
     this.boss = null;
     this.boss2 = null;
     this.shots = [];

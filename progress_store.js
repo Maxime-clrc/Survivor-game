@@ -590,9 +590,22 @@ export function createStore(log = console.log) {
     wait();
   }
 
+  /* Les PROFILS seuls, jamais les lignes de compte : ni hachage, ni sel, ni
+     jeton n'en sortent. Un iterateur et non une copie de tableau — le
+     classement (lot N) le parcourt a chaque affichage du hub, et copier
+     plusieurs milliers de profils pour en garder dix serait absurde.
+     Les comptes GELES (version inconnue) sont exclus : on ne lit pas un
+     profil qu'on ne sait pas interpreter. */
+  function* profiles() {
+    for (const acc of accounts.values()) {
+      if (acc.frozen || !acc.profile) continue;
+      yield acc.profile;
+    }
+  }
+
   return {
     ready, save, flush, status, probe, reset,
     register, login, loginToken, logout, changePass,
-    listAccounts, deleteAccount, adminPassReset,
+    listAccounts, deleteAccount, adminPassReset, profiles,
   };
 }

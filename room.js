@@ -353,6 +353,12 @@ export class Room {
         cards: p ? this.expandCards(p) : [],
         total: c.total,
         cores: c.lastGain ?? 0,
+        /* Verdict personnel de la victoire finale (lot N) : « record » si le
+           temps ameliore le meilleur de CE compte a cette difficulte,
+           « victoire » sinon. Pose par le hub dans `awardRun`, nul hors
+           victoire — c'est ce qui permet a chacun de lire son propre resultat
+           sur un ecran commun. */
+        final: c.lastFinal ?? null,
       };
     }).sort((a, b) => b.score - a.score);
   }
@@ -547,6 +553,10 @@ export class Room {
         };
       }
       c.rerollUsed = false;
+      /* Verdict de victoire finale (lot N) remis a zero au LANCEMENT et non a
+         la fin : le bilan le lit apres `endRound`, l'effacer la-bas l'aurait
+         efface avant qu'il ne serve. */
+      c.lastFinal = null;
       this.state.addPlayer(c.id, c.name, c.colorIndex, c.cls, meta);
       c.input.x = 0; c.input.y = 0; c.input.dash = false;
       c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
@@ -577,6 +587,11 @@ export class Room {
     this.phase = PHASE_LOBBY;
     this.setPaused(false);
     this.unlockClasses();
+    /* La victoire finale (lot N) est relevee AVANT `awardRun`, qui la consomme
+       en l'enregistrant au classement : sans cette copie, le bilan ne saurait
+       plus qu'il y a eu victoire et afficherait une fin de manche ordinaire —
+       exactement l'ecran que la spec demande de distinguer. */
+    const final = this.state.finalVictory;
     /* Les noyaux se versent AVANT le tableau : `scoreboardRows` lit `lastGain`
        pour afficher le gain de chacun. C'est le hub qui ecrit — la salle emet
        l'evenement, la persistance ne la concerne pas. */
@@ -598,6 +613,13 @@ export class Room {
       kills: this.state.totalKills,
       host: this.hostId,
       rows,
+      /* Victoire finale (lot N) : cle ABSENTE dans le cas ordinaire — un
+         onglet reste sur une version anterieure ne la lit pas et affiche le
+         bilan normal, ce qui reste juste. Chaque client y trouve aussi son
+         propre verdict (`record` ou `victoire`), pose par le hub. */
+      ...(final ? {
+        final: { time: final.time, wave: final.wave, difficulty: final.difficulty },
+      } : {}),
     });
     this.broadcast(this.lobbyPayload());
     // Le solde de compte part APRES le bilan : voir awardRun cote hub.
@@ -831,7 +853,14 @@ export class Room {
         for (const a of this.state.alerts) this.broadcast({ t: "alert", ...a });
         this.state.alerts.length = 0;
       }
-      if (this.state.gameOver) this.endRound();
+      /* VICTOIRE FINALE (lot N) : la manche s'arrete sur la mort du Noyau, elle
+         ne se poursuit pas en vague 31. C'est la fin du contenu — laisser la
+         boucle continuer aurait transforme le combat final en simple etape, et
+         le classement au temps n'aurait plus rien mesure.
+         Teste AVANT `gameOver` : une equipe qui tombe dans la meme image que le
+         coup fatal a gagne, pas perdu. */
+      if (this.state.finalVictory) this.endRound();
+      else if (this.state.gameOver) this.endRound();
       else if (this.state.cardsPending) { this.acc = 0; this.enterCardPhase(); }
       else if (this.state.relicPending) { this.acc = 0; this.enterMerchantPhase(); }
     } else if (this.phase === PHASE_CARDS) {
