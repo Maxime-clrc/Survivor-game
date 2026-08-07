@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url";
 import { attachWebSocket } from "./ws_lite.js";
 import { createHub } from "./hub.js";
 import { createStore } from "./progress_store.js";
+import { setPerf, PERF_ON } from "./perf.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 /* 7777 et non 8080 : derriere un proxy inverse le port interne n'a plus
@@ -173,8 +174,23 @@ function handleAdmin(req, res, urlPath) {
         status: store.status(),
         probe,
         ...hub.adminView(),
+        perf: PERF_ON,
         comptes: store.listAccounts().map(a => ({ ...a, connecte: connectes.has(a.pseudo) ? 1 : 0 })),
       });
+    });
+    return;
+  }
+
+  /* Allumage de la mesure de diagnostic, a chaud — voir perf.js. Un
+     operateur qui diagnostique une partie l'allume par ce bouton et le coupe
+     ensuite : eteinte, la mesure coute un test de booleen par tour de boucle,
+     et les echantillonneurs resident chez leurs proprietaires pour que
+     l'allumage en cours de route fonctionne. */
+  if (req.method === "POST" && urlPath === "/admin/api/perf") {
+    readJson(req, body => {
+      const on = setPerf(body?.on);
+      log(`diagnostic ${on ? "activé" : "coupé"} depuis la page admin`);
+      sendJson({ ok: 1, on });
     });
     return;
   }

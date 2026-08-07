@@ -118,14 +118,31 @@ export const CARD_CATEGORY_COLOR = {
 };
 
 /* --- classes ---------------------------------------------------------------
-   Couleur d'IDENTITE et non de signal : elle dit « qui », pas « quoi ». Elle
-   vit ici parce que le salon, le tableau des scores et le rendu du personnage
-   la lisent tous les trois, et que `classes.js` doit rester une table de
-   reglages sans valeur d'affichage en dur. */
+   LA COULEUR DIT LA CLASSE. C'est l'inverse de la regle d'origine — « la forme
+   dit la classe, la couleur dit le joueur » — et le renversement est
+   deliberé : a la table, la question posee vingt fois par manche est « ou est
+   le soigneur », pas « lequel de ces deux points est Paul ». La silhouette
+   continue de dire la classe, elle aussi ; les deux se renforcent au lieu de
+   se partager le travail.
+
+   Le Rempart est BLEU, le Soigneur VERT, le Tireur AMBRE ou VIOLET. Deux
+   teintes de tireur parce que c'est la seule classe non unique : `tank` et
+   `soigneur` portent `unique: true` dans `classes.js`, donc au plus un de
+   chaque, alors qu'une table de quatre peut aligner quatre tireurs.
+
+   Ces quatre valeurs sont AUSSI les quatre couleurs de joueur : voir
+   `PLAYER_COLORS` dans `game_state.js`, qui les reprend dans cet ordre plutot
+   que de recopier des litteraux. */
 export const CLASS_COLOR = {
   tank:     "#7fd8e8",
   soigneur: "#8ef0c8",
   dps:      "#f4d35e",
+  /* Seconde teinte de tireur. Violet, et non un second ambre : `bullet` et
+     `shot` etaient deux ambres voisins et c'est le pire cas connu de ce
+     depot — deux tireurs en ambre voisin auraient refait la meme erreur, entre
+     coequipiers cette fois. Le violet est deja prouve comme couleur de joueur,
+     c'etait la troisieme de l'ancienne table. */
+  dps2:     "#d98cf0",
 };
 
 /* --- combat ----------------------------------------------------------------
@@ -141,8 +158,9 @@ export const CLASS_COLOR = {
      - les balles prennent la COULEUR DE LEUR TIREUR (les quatre couleurs de
        joueur existent deja), ce qui repond du meme coup a « qui a tire ca » ;
      - les projectiles ennemis passent au ROUGE FRANC. Le rouge et non un autre
-       ambre : la quatrieme couleur de joueur (#f0a95a) est un orange, un tir
-       ennemi ambre l'aurait croisee ;
+       ambre : le TIREUR est ambre (#f4d35e), un tir ennemi ambre aurait croise
+       sa couleur — et depuis que la teinte dit la classe, c'est meme la couleur
+       de la classe qui tire le plus ;
      - le tir hostile change de FORME (losange etire, cf. `drawBolt` cote
        client). La couleur se perd dans le chaos, la forme non — c'est la seule
        distinction qui survit a la saturation.
@@ -181,7 +199,16 @@ export const COMBAT = {
    les cinq a la main pour cinq types, c'etait vingt-cinq valeurs a garder
    coherentes — et un decalage de teinte dans l'ombre qu'on finit par oublier. */
 export const ENEMY = {
-  TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899"],
+  /* Lot M, trois entrees EN FIN : le kamikaze en vermillon criard — le plus
+     chaud de la table, c'est une alarme qui court ; le bulwark en bronze
+     terne — du metal porte, mat, qui recule visuellement comme le tank ; le
+     medic en VERT — la seule entorse assumee a la table chaude, parce que la
+     mecanique passe avant la charte : « couper le soin » doit se reperer
+     d'un coup d'oeil, et un vert franc au milieu des rouges est exactement
+     ce signal. Distinct du vert HEAL (#6fe3a0) et du soigneur (#8ef0c8) :
+     plus sombre, plus sature — il dit « soin ENNEMI ». */
+  TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899",
+         "#ff4d21", "#a1662f", "#1fab68"],
 
   // Rang d'elite : or. Retardataire : halo froid — il ne se defend pas, il fuit.
   elite:      "#ffd76e",
@@ -266,6 +293,14 @@ export const BOSS_SKIN = [
   // bleu de l'Entrave (`twin` ci-dessus) : la couleur dit lequel on vient de
   // toucher, donc comment ne pas cumuler les deux etats par accident.
   { skin: "#ff8a3d", dark: "#8a3c05", edge: "#4d2103", bar: "#ffb782", deep: "#7a3604" },
+  /* Noyau (lot N) — BLANC CHAUD, et c'est le seul du roster. Les cinq autres
+     se distinguent les uns des autres par leur teinte ; lui se distingue en
+     n'en ayant pas. C'est la synthese des cinq, donc la somme de leurs
+     lumieres — et sur une arene ardoise, le blanc est ce qui frappe le plus
+     fort sans emprunter la couleur d'un autre.
+     Il ne peut pas non plus etre confondu avec le liseré blanc des joueurs :
+     un boss fait dix fois leur taille et porte sa propre barre. */
+  { skin: "#f4f1e8", dark: "#8d8778", edge: "#3a372f", bar: "#ffffff", deep: "#6b6558" },
 ];
 
 /* --- bonus au sol ----------------------------------------------------------

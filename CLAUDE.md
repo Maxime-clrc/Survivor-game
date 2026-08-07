@@ -92,9 +92,37 @@ compositeur qui travaille, pas la boucle de jeu.
 (`resize()` dans `client.js`, plafonnée à 2). C'était la cause racine du HUD
 illisible et du flou en 1440p, vue sous deux angles : une mémoire fixe de
 1600 × 900 que le CSS étire agrandit tout ce qu'on y dessine. Les coordonnées
-monde restent en 1600 × 900 — la transformation absorbe tout, et pas une ligne
-de logique de rendu ne change. Corollaire : la souris se convertit vers les
-**coordonnées monde** (`CFG.ARENA_W / rect.width`), jamais vers `cv.width`.
+monde restent en pixels de simulation — la transformation absorbe tout, et pas
+une ligne de logique de rendu ne change.
+
+**L'arène fait TROIS vues dans chaque dimension** (lot I) : `CFG.ARENA_W/H` =
+4800 × 2700, `CFG.VIEW_W/H` = 1600 × 900. La **caméra** suit la position
+prédite du joueur (lissage exponentiel, recalage sec au-delà d'un écran,
+clamp à la salle ; spectateur : premier vivant) et vit **dans les transforms,
+jamais dans les fonctions de dessin** : une translation posée par
+`applyCamera()` sur les deux contextes 2D, l'offset du coin de vue absorbé
+par la projection WebGL (`gl.begin`), et la conversion souris — mémorisée en
+coordonnées de **vue** et convertie en monde à la lecture, parce qu'entre
+deux mouvements de souris c'est la caméra qui bouge. Les deux cents fonctions
+de dessin écrivent en coordonnées monde et ignorent que la caméra existe,
+exactement comme elles ignorent la densité de pixels. Corollaire : tout ce qui
+est « plein écran » (fond, clears, voiles, vignette, grille, hachures) couvre
+le **rectangle de vue** (`camera.x0/y0` + `VIEW_W/H`), jamais l'arène ; le
+culling passe par `inView()` ; les chiffres de dégâts convertissent
+monde → vue au point d'appel (`flushDamage`/`flushSelf`), le HUD ne connaît
+pas la caméra. Les flèches de coéquipiers hors champ se dessinent après le
+vignettage — indicateurs d'écran, pas éléments du monde.
+
+**Un combat de boss resserre `state.bounds` à UNE VUE** ancrée sur le centre
+de gravité de l'équipe (`_teamCentroid`) — le mécanisme de constriction du
+lot 5, réutilisé tel quel ; `_bossDead` rouvre la salle. Toute la géométrie
+des mécaniques (mur, exaflares, croix, damier, couronne, couloirs, balayage,
+constriction) lit les **bounds**, plus jamais `CFG.ARENA_W/H` : un damier
+découpé sur la salle entière n'aurait montré qu'un carreau. Les renforts du
+boss naissent sur le bord de SES bounds — tirés autour des joueurs, ils
+mouraient dans la couronne avant d'arriver. Les tests « arène pleine »
+(`bn`, couronne des ennemis) portent sur les **quatre** côtés : une arène de
+boss collée au bord gauche de la salle a `x0 = 0`.
 
 **Le monde tient sur TROIS canvas empilés** (`#arena` dans `index.html`), et
 c'est la bascule WebGL qui l'impose : deux éléments empilés se composent
@@ -435,7 +463,7 @@ Le canal `alert`, qui arrive hors du snapshot donc sans ce retard, est mis en
 file et sorti sur la même horloge — même raison.
 
 **On secoue le monde, pas l'interface.** `draw()` fait deux passes : `drawWorld()`
-sous la translation du tressaillement, `drawHud()` en dehors. Tout dans la même
+sous la translation du tressaillement, `drawScreen()` en dehors. Tout dans la même
 passe, la secousse rendait illisibles la barre de vie, la barre de boss et le
 bandeau d'alerte — c'est-à-dire exactement ce qu'il faut lire quand quelque
 chose explose.
@@ -451,14 +479,34 @@ ambre : sortir. Cyan : il faut y être. Blanc : ça concerne un allié. Violet :
 persistant, ça restera là après (liseré seulement — le remplissage garde la
 couleur du danger, une couleur ne dit qu'une chose).
 
-**Le tir allié porte la couleur de son tireur, le tir hostile est rouge ET
-losange.** `bullet` et `shot` étaient deux ambres voisins, le pire cas possible :
-on ne distinguait plus ce qu'on tire de ce qu'on reçoit. Le rouge franc et non un
-autre ambre parce que la quatrième couleur de joueur est un orange ; la **forme**
-en plus de la couleur parce que la couleur se perd dans le chaos et qu'un
-daltonien doit s'en sortir — même règle que pour les marqueurs posés sur un
-joueur. Le tir du soigneur garde son vert : il ne dit pas *qui* tire mais *ce
-que* le tir fait.
+**Trois silhouettes de projectile, jamais trois couleurs seules** (`BOLT_CAPSULE`
+· `BOLT_DIAMOND` · `BOLT_CROSS`, paramètre `shape` de `drawBolt`) : capsule pour
+le tir allié de dégâts, losange pour le tir hostile, **croix** pour le tir de
+soin.
+
+`bullet` et `shot` étaient deux ambres voisins, le pire cas possible : on ne
+distinguait plus ce qu'on tire de ce qu'on reçoit. Le rouge franc et non un autre
+ambre parce que le **Tireur est ambre** — et c'est la classe qui tire le plus ;
+la **forme** en
+plus de la couleur parce que la couleur se perd dans le chaos et qu'un daltonien
+doit s'en sortir — même règle que pour les marqueurs posés sur un joueur.
+
+**La croix est née du même défaut, une seconde fois.** Le tir de soin ne se
+distinguait que par sa couleur, ce qui tenait tant que le soigneur portait la
+teinte de son joueur : tir de dégâts magenta, tir de soin vert. Depuis que la
+couleur dit la classe, le soigneur est vert en permanence et ses deux tirs sont
+devenus deux verts voisins — exactement le cas que `bullet` et `shot` avaient
+créé. Même réponse, pour la même raison. La croix n'est pas un dessin inventé
+pour l'occasion : c'est le signe du soin, déjà porté par le bonus au sol, les
+croix du sanctuaire et le HUD.
+
+Deux détails qui se paient si on les oublie. La croix est **orientée dans l'axe
+de vol**, comme les deux autres : figée à l'horizontale, elle devient un X sur un
+tir en diagonale, donc une forme différente selon la direction. Et elle est
+tracée en **deux `fill()`** et non en un tracé à deux sous-tracés — deux contours
+en sens contraires annulent leur zone commune sous la règle non nulle, et le
+centre de la croix, qui est exactement leur intersection, deviendrait un trou.
+C'est le bug documenté pour `mirrored()` dans `sprites.js`.
 
 **Les marqueurs posés sur un joueur sont des glyphes distincts en silhouette**,
 jamais différenciés par la seule couleur : un daltonien doit s'en sortir, et de
@@ -583,13 +631,39 @@ serveur serait faux pour tout le monde sauf lui.
 
 **Le serveur valide qu'une carte choisie figure bien dans les trois offertes à ce joueur pour ce tour de choix.** Sans ça, n'importe quel client s'octroie une légendaire. Les tours s'enchaînent : `resumeRound()` rouvre un écran tant que `state.pendingLevels > 0` au lieu de reprendre la manche.
 
-**La progression permanente (lot D) est EXCLUE de la difficulté par construction.** `_recomputeMods()` garde dans `p.powerMods` le résultat de `fullMods` (cartes + classe) et applique la méta (`applyMeta`, `shared/progression.js`) sur une **copie** qui devient `p.mods` ; `_playerPower()` lit `p.powerMods` et rien d'autre. Les cartes restent absorbées par les vagues et les boss, la méta est un gain net borné par les emplacements. Corollaires : le serveur valide tout achat (`metaBuy`/`metaEquip`/`metaConfort`, traités par le hub — valides au hub et au salon d'une salle, jamais pendant une manche), les cartes verrouillées par jalons ne sortent jamais d'un tirage (`locked` dans `eligibleCards`), la monnaie se verse **à parts égales** en fin de manche (`awardRun`), et les écritures de PROGRESSION n'ont lieu qu'au salon, en fin de manche et au départ d'un joueur — jamais pendant une vague (les écritures d'AUTHENTIFICATION — login, jeton, changement de mot de passe — partent quand elles arrivent : un upsert par ligne est atomique et ne touche pas la progression d'un autre compte). **Supabase est la SEULE persistance — il n'y a plus de fichier local.** Une table `comptes`, **UNE LIGNE PAR COMPTE**, portant l'authentification en colonnes et la progression en jsonb (`data`) — jamais l'inverse : un hachage dans le jsonb finirait par voyager avec le profil. L'état chaud vit en mémoire (la Map `accounts` du magasin) ; la configuration passe par `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` et rien d'autre — sans elles le jeu reste jouable en LAN mais les comptes meurent avec le processus, et le journal le dit au boot. Les écritures sont **CIBLÉES et REGROUPÉES** : `save(pseudoLower)` marque un compte sale, la fenêtre de 2 s (dans le magasin, pas dans le hub) agrège, l'envoi est un seul upsert multi-lignes des seuls comptes sales, à la sérialisation défensive — un upsert multi-lignes échoue en bloc, une ligne malade s'écarte en journalisant. Le chargement est **PAGINÉ** (en-tête `Range`, PostgREST plafonne à 1000 lignes) — un chargement silencieusement tronqué est le bug qu'on ne débogue pas. Les protections nées de l'absence de copie disque sont conservées : **le chargement précède l'écoute** (`store.ready` avant `listen()`, résolue dès la première tentative) ; **l'écriture est suspendue tant qu'aucune lecture n'a réussi** ; une ligne de **version inconnue est GELÉE** (`frozen`) — ni adoptée, ni jamais réécrite, pseudo indisponible ; **un envoi raté se réessaie tout seul** (10 s) ; et **l'arrêt du processus vide la file** (`flush()` sur SIGTERM/SIGINT, court-circuite la fenêtre de regroupement). **La page admin (`/admin`) n'existe que si `ADMIN_KEY` est posée** — sinon 404, page comprise ; la clé voyage dans l'en-tête `x-admin-key` (jamais l'URL), comparée en `timingSafeEqual`. Elle liste les comptes (depuis la mémoire — jamais un hachage ni un jeton), réinitialise un mot de passe (`adminPassReset` : temporaire affiché UNE fois, jeton invalidé — le titulaire légitime est peut-être celui qui a perdu l'accès), supprime un compte (`deleteAccount` : le connecté est déconnecté D'ABORD, sinon son profil en mémoire repart au prochain save) et remet tout à zéro (`store.reset()`, refusée dès qu'une salle est en manche) : les DEUX moitiés ou rien, après attente de l'envoi en vol — dont le corps déjà sérialisé ressusciterait les lignes — puis les connectés sont **déconnectés** (`kickAccounts`) : un mot de passe ne se recrée pas d'office comme l'était une clé générée, chacun repasse par l'écran de création. La récupération tardive n'adopte une ligne distante que si le local est **vierge** (`pristine()`) — un profil qui a déjà progressé a raison, comme avant. Appels REST en `node:https` natif — pas de `fetch` en Node 16, pas de dépendance.
+**Le marchand de reliques (lot K) emprunte le mécanisme des cartes, sauf l'exclusivité.** `_endWave` ouvre `openMerchant()` quand `relicBossDue` est vrai (posé par `_killBoss`, uniquement pour les cinq boss normaux — le boss final a son propre traitement au lot N), `relicPending` stoppe la boucle comme `cardsPending`, et la salle a sa `PHASE_MERCHANT` calquée sur `PHASE_CARDS`. Les différences tiennent au modèle d'achat : les achats sont **indépendants** (un joueur achète zéro, une ou trois reliques — c'est un budget à répartir, jamais un choix exclusif), l'échéance **ferme sans forcer** (on ne force pas d'achat, on garde les éclats), et la relique achetée **sort de l'offre courante** — sans cette retraite, un solde généreux permettait d'acheter la même relique trois fois et les PV bruts se cumulaient sur la jauge.
+
+**Les reliques vivent dans `p.relics`, à côté de `p.mods` et des minuteurs** — jamais dedans : `_recomputeMods()` rejoue tout le chargement à chaque carte prise, et une relique rangée dans `mods` disparaîtrait au premier écran de choix. Leurs effets sont lus **par les points d'application** : le flat des dégâts dans `_shoot()` (avant les multiplicateurs — « +8 dégâts » vaut autant pour le Rempart à ×0,80 que pour le Tireur, c'est l'axe de puissance neuf des cartes), le flat contre les boss dans `_damage()` (sur la cible **avant** la redirection des Jumeaux), le flat des PV dans `_recomputeMods()` (le delta rend la jauge tout de suite), la cadence dans `_players()`, la vitesse fixée en remplaçant `speedMul` (jamais en le multipliant), l'essaim en ajoutant un drone au compte `mods.swarm` (le drone est déjà une entité du snapshot — rien à transmettre de plus).
+
+**`powerIndex` a un second paramètre, `flat`, et les deux côtés le passent.** La fenêtre de build affiche le chiffre qui pilote réellement les PV du boss : sans le flat, la jauge et la simulation divergeraient au premier réglage. Le flat du « Cœur de Ravageur » (boss uniquement) compte à **un tiers** — la part du temps passé contre les boss — sur le précédent du catalyseur (moitié pour une cible affectée) : le compter plein sur-calibrerait les vagues, ne pas le compter sous-calibrerait les boss. Les reliques voyagent au client dans le **champ `relics` du message `loadout`**, séparé de `byPlayer` : un onglet ancien ignore la clé et continue de jouer.
+
+**Une relique à contrepartie l'affiche en évidence** (`.cardWarn`), jamais en petit texte — elle se refuse pour ce qu'elle coûte, pas pour ce qu'elle donne.
+
+**Le boss final (lot N) est la SIXIÈME entrée du roster, et il n'est jamais tiré.** `_pickBoss` le rend quand `_rosterCleared()` est vrai — les cinq boss normaux **vaincus** (`bossKindsKilled`, pas `bossSeen` : un boss croisé puis fui n'a rien appris à personne) — et la boucle du tirage ordinaire s'arrête à `BOSS_FINAL`, sinon il sortirait au hasard dès la première vague de boss. `finalDone` l'empêche de revenir si la manche continue.
+
+**Ses patterns repris sont intensifiés par DEUX champs de roster, pas par vingt variantes** : `atkCdMul` dans le calcul de `attackCd` et `zoneMul` dans `_zoneDamage()`, les deux points de passage uniques. Un champ absent vaut 1 — les cinq boss normaux ne bougent pas d'un cheveu. C'est le même raisonnement qu'`adaptMech` : on refuse la duplication des combats.
+
+**Le compte de `unlock` est de `bars - 1`, jamais `bars`.** `_bossBars` plafonne `phase` à `bars - 1`, et `bossPool` lit `unlock[0..phase-1]` : avec huit barres, une huitième entrée ne sortirait **jamais** — et c'est le sceau qui y serait tombé. Le Noyau a donc **sept** entrées. Il est aussi le seul boss à garder `floor: 0` : la montée en répertoire par barre est tout son combat, et le `bossCount` (5 à ce stade) aurait ouvert d'emblée les quatre premières couches.
+
+**Le sceau se pose UNE fois** (`b.sealDone`) : sans ce drapeau, le tirage d'attaque le relancerait toutes les trois secondes et sa fenêtre de 22 s ne se refermerait jamais. Un échec le **repose** — la dernière barre ne se franchit pas en échouant. Son cumul est un **temps** (`m.cur` en secondes, pas un effectif) qui **redescend à mi-vitesse** quand on lâche : une mécanique de vingt secondes qui ne regarderait que la dernière image punirait l'esquive au lieu de la coordination.
+
+**La victoire finale vit dans `state.finalVictory`, posée sur `state.time`** — l'horloge autoritaire de la simulation. Le serveur ne recalcule rien, il persiste ce chiffre : c'est ce qui rend le classement vérifiable. Elle est relevée par `endRound()` **avant** `awardRun`, qui la consomme, et le record est **par difficulté** (`bestFinal`, clé = index de `DIFFICULTIES`) : une case unique aurait poussé tout le monde à jouer en calme pour figurer au tableau. Le classement se consulte au **hub** et non au Terminal — il compare des comptes entre eux, sa place est là où l'on est justement hors salle.
+
+**Le bannissement (lot J) emprunte le mécanisme des jalons.** `bannedCards` (profil, à plat) s'unit à `lockedCards()` dans le `meta.locked` que la salle construit : le filtre « n'apparaît jamais dans un tirage » existait déjà, en amont du tirage. Bannir **consomme la phase** (mêmes gardes que `pickCard` : offre courante, phase ouverte, idempotence), écrit **immédiatement** (hook `persist` — l'écran de cartes est une pause entre deux vagues, pas une vague), et la **clôture de dépendances** (`banClosure`, champ déclaratif `dependsOn` dans `cards.js` — aucune carte n'en porte aujourd'hui) s'écrit à plat : le tirage n'a jamais un graphe à résoudre. `p.locked` est mis à jour dans la foulée pour les écrans suivants de la même manche. Pas de débannissement ; l'onglet Bannies du Terminal est de la consultation seule. Un pool vidé par les bans retombe sur la carte de secours (`ravitaillement`) — testé jusqu'au ban total.
+
+**La progression permanente (lot D) est EXCLUE de la difficulté par construction.** `_recomputeMods()` garde dans `p.powerMods` le résultat de `fullMods` (cartes + classe) et applique la méta (`applyMeta`, `shared/progression.js`) sur une **copie** qui devient `p.mods` ; `_playerPower()` lit `p.powerMods` et rien d'autre. Les cartes restent absorbées par les vagues et les boss, la méta est un gain net borné par les emplacements. Corollaires : le serveur valide tout achat (`metaBuy`/`metaEquip`/`metaConfort`, traités par le hub — valides au hub et au salon d'une salle, jamais pendant une manche), les cartes verrouillées par jalons ne sortent jamais d'un tirage (`locked` dans `eligibleCards`), la monnaie se verse **à parts égales** en fin de manche (`awardRun`), et les écritures de PROGRESSION n'ont lieu qu'au salon — voir plus bas. **L'économie du lot H** : le revenu est **linéaire et plafonné** (`coresForRun` = vague atteinte × `CORE_WAVE` + boss × `CORE_BOSS`, plafond `CORE_RUN_CAP` — l'ancienne somme des vagues croissait au carré et une bonne première partie payait un arbre entier), **les jalons ne créditent jamais de noyaux** (la monnaie vient du jeu répété, la capacité vient des jalons), et **les emplacements se gagnent aux jalons du compte** (`slotsFor(profile)` : 3 de départ, vague 10, trois `boss_N`, 25 parties — plus jamais aux paliers achetés, qui cumulaient les deux avantages sur la même tête). L'écran est le **Terminal** (`#menu`, point d'entrée unique `#terminalBtn` au salon, pastille quand des noyaux sont dépensables — `cheapestPurchase`) : onglets de classe, ligne d'emplacements toujours visible, onglets Arbre/Confort/Jalons, trois états visuels par ligne (équipée, achetée, non achetée). **Migration v4 SÈCHE** (`adoptRow`) : une ligne de version **antérieure** repart sur `newProfile` — l'authentification vit dans les colonnes, elle traverse intacte ; une version **future** reste gelée. Les écritures de PROGRESSION n'ont lieu qu'au salon, en fin de manche et au départ d'un joueur — jamais pendant une vague (les écritures d'AUTHENTIFICATION — login, jeton, changement de mot de passe — partent quand elles arrivent : un upsert par ligne est atomique et ne touche pas la progression d'un autre compte). **Supabase est la SEULE persistance — il n'y a plus de fichier local.** Une table `comptes`, **UNE LIGNE PAR COMPTE**, portant l'authentification en colonnes et la progression en jsonb (`data`) — jamais l'inverse : un hachage dans le jsonb finirait par voyager avec le profil. L'état chaud vit en mémoire (la Map `accounts` du magasin) ; la configuration passe par `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` et rien d'autre — sans elles le jeu reste jouable en LAN mais les comptes meurent avec le processus, et le journal le dit au boot. Les écritures sont **CIBLÉES et REGROUPÉES** : `save(pseudoLower)` marque un compte sale, la fenêtre de 2 s (dans le magasin, pas dans le hub) agrège, l'envoi est un seul upsert multi-lignes des seuls comptes sales, à la sérialisation défensive — un upsert multi-lignes échoue en bloc, une ligne malade s'écarte en journalisant. Le chargement est **PAGINÉ** (en-tête `Range`, PostgREST plafonne à 1000 lignes) — un chargement silencieusement tronqué est le bug qu'on ne débogue pas. Les protections nées de l'absence de copie disque sont conservées : **le chargement précède l'écoute** (`store.ready` avant `listen()`, résolue dès la première tentative) ; **l'écriture est suspendue tant qu'aucune lecture n'a réussi** ; une ligne de **version inconnue est GELÉE** (`frozen`) — ni adoptée, ni jamais réécrite, pseudo indisponible ; **un envoi raté se réessaie tout seul** (10 s) ; et **l'arrêt du processus vide la file** (`flush()` sur SIGTERM/SIGINT, court-circuite la fenêtre de regroupement). **La page admin (`/admin`) n'existe que si `ADMIN_KEY` est posée** — sinon 404, page comprise ; la clé voyage dans l'en-tête `x-admin-key` (jamais l'URL), comparée en `timingSafeEqual`. Elle liste les comptes (depuis la mémoire — jamais un hachage ni un jeton), réinitialise un mot de passe (`adminPassReset` : temporaire affiché UNE fois, jeton invalidé — le titulaire légitime est peut-être celui qui a perdu l'accès), supprime un compte (`deleteAccount` : le connecté est déconnecté D'ABORD, sinon son profil en mémoire repart au prochain save) et remet tout à zéro (`store.reset()`, refusée dès qu'une salle est en manche) : les DEUX moitiés ou rien, après attente de l'envoi en vol — dont le corps déjà sérialisé ressusciterait les lignes — puis les connectés sont **déconnectés** (`kickAccounts`) : un mot de passe ne se recrée pas d'office comme l'était une clé générée, chacun repasse par l'écran de création. La récupération tardive n'adopte une ligne distante que si le local est **vierge** (`pristine()`) — un profil qui a déjà progressé a raison, comme avant. Appels REST en `node:https` natif — pas de `fetch` en Node 16, pas de dépendance.
 
 **Le compte est pseudo + MOT DE PASSE choisi, la session est un JETON.** Trois portes dans `hub.js` — `register` (page de création), `login`, `loginToken` (reprise silencieuse) — qui aboutissent toutes à `finishAuth`, seul endroit qui fabrique un client authentifié. Le mot de passe est haché scrypt avec sel par compte (`node:crypto`, dans `progress_store.js`, jamais dans `shared/` que le navigateur importe) et **n'est JAMAIS normalisé** — la normalisation (majuscules, tirets retirés) était faite pour une clé recopiée d'un papier ; appliquée à un mot de passe choisi, « MonPass » vaudrait « monpass ». Au login réussi le serveur émet 32 octets aléatoires, n'en garde que le **hachage sha256** (suffisant pour un secret à haute entropie, et gratuit là où scrypt bloque ~50 ms) avec une expiration **glissante** de 30 jours ; le client range le jeton en `localStorage` — **jamais le mot de passe** : un jeton volé ouvre ce jeu, un mot de passe volé ouvre tout ce que le joueur protège avec le même. Le jeton vit dans la ligne du compte, donc **il survit au redéploiement** ; chaque `login` le régénère — le dernier login gagne, la réponse au double onglet. **L'oracle de présence a disparu volontairement** : « ce pseudo est déjà pris » est la réponse normale d'une inscription, c'est le compromis de tout système à page de création ; en échange, `login` répond `ok:false` sans jamais dire lequel des deux cloche. Un échec de `loginToken` est un cas NORMAL (jeton expiré, login plus récent ailleurs) : ni compteur ni gel, un jeton de 256 bits ne se devine pas. Deux freins sur `login` : cinq essais par connexion (`fatal:1` au-delà — socket neuve obligatoire), et un **gel de 10 s par pseudo cible** après cinq échecs, testé AVANT scrypt — depuis que se reconnecter est gratuit, le frein par connexion seul se contournait en rouvrant une socket, et c'est aussi ce qui borne le coût CPU d'une rafale. Le contrôle « déjà connecté ailleurs » se fait après l'authentification ; la session dupliquée reçoit une copie détachée (`structuredClone`), jamais rangée dans le magasin — `store.save()` l'ignore tout seul, les noyaux ne se comptent jamais en double. **Un mot de passe perdu n'a qu'un filet : l'opérateur** (`adminPassReset`, page admin) — pas d'email, donc pas de réinitialisation autonome, assumé dans `LISEZMOI-BDD.md`. `changePass` exige l'ancien mot de passe et **le jeton actif survit** — c'est celui qui change le mot de passe qui tient la session, le déconnecter n'aurait puni que lui.
 
 **`#gate` n'a qu'un chemin de connexion, et le Menu est un écran à part du Salon.** Deux onglets (`#gateForms` : connexion, création — fusionnés, le joueur ne sait jamais s'il crée un compte ou se trompe de mot de passe), pas de bouton de reprise à part : la session mémorisée s'absorbe dans « Se connecter » — pseudo prérempli, et un champ mot de passe laissé **VIDE** part en `loginToken` quand `survivor.token` existe pour ce pseudo, comme l'ancienne clé relue en silence à l'envoi. Le placeholder du champ le dit (`renderGateMode()`) — un champ obligatoire qu'on peut laisser vide passerait pour un bug. Jeton expiré → `authError{motif:"jeton"}` → « session expirée — tape ton mot de passe », sans compteur d'échec. Le clic reste obligatoire dans tous les cas : c'est lui qui débloque le contexte audio et lance `bootOnce()` (atlas + batcher, une seule fois quel que soit le bouton). Sur `"welcome"`, le client ne cache `#gate` que dans le cas normal (`gate.hidden = true; enterHub();`) ; le drapeau `dup` porté par le `welcome` lui-même (jamais l'ordre d'arrivée des messages) le fait au contraire rester sur `#gateHold` — compte déjà connecté ailleurs, à dire avant qu'un clic sur `#gateContinue` ne poursuive. Un `authError` reçu CONNECTÉ ne peut venir que du changement de mot de passe : il s'affiche dans l'encart compte du hub (`passMsg`), jamais sur l'écran d'entrée. La déconnexion est un aller-retour (`logout` → `loggedOut` → purge du localStorage → fermeture) : purger d'abord laisserait un jeton valide de trente jours orphelin côté serveur. Le Menu, lui, ne s'ouvre plus depuis la connexion : chaque carte de classe du salon (`#classes`) porte son propre bouton (`.classMetaBtn`), qui appelle `openMenuFor(clsIndex)` — un joueur consulte les trois arbres avant de choisir sa classe, `#menuClose` referme vers le salon. `refreshPanel()` refuse de toucher `#panel`/le HUD tant que `#gate` ou `#menu` ne sont pas cachés (mêmes gardes, `!gate.hidden` puis `!menuEl.hidden`) : sans ça, un `"lobby"` broadcast — qui arrive presque tout de suite après n'importe quelle connexion — repeindrait le salon par-dessus, `#panel` étant plus loin dans le DOM que les deux autres, même z-index.
 
-**Les PV du boss ET la pression des vagues sont indexés sur `_teamPower()`**, pour que la difficulté suive la puissance réelle de l'équipe et non le temps écoulé. Toute nouvelle source de dégâts permanente doit être prise en compte dans `_playerPower`, sinon le boss redevient une formalité en fin de manche — et toute pénalité qui accompagne un gain doit y figurer aussi : oublier `barrelDamageMul` faisait surestimer la puissance de 44 % et triplait la durée du troisième combat.
+**Le boss passe par `_bossPower()`, les vagues par `_teamPower()` — jamais l'inverse.** Le boss suivait la puissance en linéaire **plein**, donc une durée de combat rigoureusement constante : ×1,00 de sensation de puissance, à chaque combat, pour un écart de build mesuré à **×4,54** (300 manches solo, `powerIndex` relevé à chaque carte ; ×2,93 par la chance seule). Les PV suivent désormais en plein sous `BOSS_POWER_KNEE` (2,5, soit au-dessus de la build médiane mesurée à 2,36, donc l'étalonnage existant est intact) puis n'en prennent plus que `BOSS_POWER_K` (0,50). Un **genou** et non un `Math.min` : un plafond dur crée une falaise où la carte qui fait franchir le seuil ne vaut plus rien. Les structures de mécanique (cage, grappe) passent par le **même** point de passage, sinon une build au-dessus du genou trouve les cages relativement plus dures que le boss. Les vagues gardent leur propre part (`WAVE_HP_POWER_K`, plus généreuse) : la sensation sur le boss doit rester **sous** celle des vagues — c'est le mur de la manche, il récompense moins que la piétaille. `BOSS_POWER_K = 1` rend exactement l'ancienne courbe.
+
+**`powerIndex()` et `bossPower()` sont exportés en fonctions pures**, comme `fullMods` et `effectiveCards` et pour la même raison : la fenêtre de build affiche l'indice de puissance au joueur, et le recoder côté client donnerait deux implémentations qui divergent au premier réglage. `_playerPower()` n'est plus qu'un appel à `powerIndex(p.powerMods ?? p.mods)` — le choix de `powerMods` (méta exclue) reste dans la méthode, pas dans la fonction pure.
+
+**Un multiplicateur affiché sans échelle n'informe personne.** « ×1,49 dégâts » sonne bien et vaut une build faible ; le défaut a été rapporté comme « les pourcentages ne fonctionnent pas ». La fenêtre de build et le bilan situent donc la puissance sur des repères **mesurés** (`POWER_MARKS` dans `client.js`) et affichent le genou. Ce sont des mesures, pas des constantes de réglage : les remesurer si le catalogue ou les raretés bougent.
+
+**L'indexation elle-même reste la règle** : la difficulté suit la puissance réelle de l'équipe et non le temps écoulé. Toute nouvelle source de dégâts permanente doit être prise en compte dans `powerIndex`, sinon le boss redevient une formalité en fin de manche — et toute pénalité qui accompagne un gain doit y figurer aussi : oublier `barrelDamageMul` faisait surestimer la puissance de 44 % et triplait la durée du troisième combat.
 
 **L'indexation porte sur la puissance mesurée, jamais sur la composition de l'équipe.** Ajuster la difficulté selon les rôles présents revient à facturer le soigneur à sa table : celui qui le choisit rend la partie plus dure pour tout le monde, et plus personne ne le choisit.
 
@@ -598,6 +672,20 @@ serveur serait faux pour tout le monde sauf lui.
 **Une vague se termine quand le budget est épuisé ET l'arène vide.** Le budget se décrémente à l'apparition *réelle* d'un ennemi, jamais à l'échéance du débit : sinon une vague lancée arène pleine (`MAX_ENEMIES`) brûle son budget sans rien faire sortir. Les ennemis hors budget — renforts du boss, nuées des pondeuses — ne décomptent pas mais comptent bien pour « arène vide ».
 
 **Ne jamais écrire dans `ENEMY_TYPES`.** La table est partagée, exportée et lue par le client. Les retardataires copient `standoff` sur l'ennemi (`e.standoff`) au lieu de modifier son type, qui désarmerait les tireurs pour tout le processus.
+
+**Une vague spéciale remplace la COMPOSITION d'une vague, jamais son cycle** (lot L). Le modèle budget-puis-nettoyage est conservé tel quel : seuls le `pool`, le budget, les PV et le débit changent, et c'est ce qui permet de n'ajouter aucune condition de fin de vague. Cinq règles indissociables :
+
+- **L'activation est DÉTERMINISTE** (`specialForWave()`, point de passage unique) : `vague % 5 === 3`. Ce n'est pas un choix esthétique — le classement au temps du boss final (lot N) compare des parties entre elles, et deux parties qui n'auraient pas tiré les mêmes vagues spéciales ne seraient plus comparables. Le module tient les trois garanties par **arithmétique** et non par une liste d'exceptions : jamais de collision avec un boss (`% 5 === 0`, boss final compris), jamais deux spéciales consécutives, et un motif identique dans chaque tranche de cinq. La proposition initiale (3, 6, 9, 12 puis cycle) retombait sur 15 et 20 dès le premier cycle.
+- **L'ordre de `SPECIAL_WAVES` EST la séquence.** Pas de constante `SPECIAL_SEQUENCE` à côté : deux listes à garder d'accord divergent à la première retouche, et c'est l'index qui circule. On ajoute à la fin.
+- **Les quotas de part (`share`) sont contournés**, délibérément. Une nuée de runners dépasse largement les 45 % qu'un runner s'autorise en vague normale — c'est exactement ce qui en fait une nuée. Le garde-fou existe pour qu'une vague *normale* ne s'appauvrisse pas ; une spéciale est définie par son appauvrissement.
+- **La clôture rend 100 % des PV et du bouclier, et relève les joueurs à terre.** Sans condition : un cas « relevé mais pas soigné » serait illisible au moment précis où l'équipe cherche à comprendre ce qu'elle vient de gagner. C'est aussi ce qui paie l'asymétrie — un siège de tanks paraît plus dangereux qu'une vague normale, et sans récompense nette la bonne réponse serait de le fuir.
+- **L'annonce se fait à la clôture de la vague PRÉCÉDENTE**, pas au démarrage : le répit est le seul moment où l'équipe a le temps de lire. Troisième variante du canal d'alerte (`{special}`), à côté de la mécanique et de l'identité du boss — aucune entrée de `MECHS` ne lui correspond, et en fabriquer une mélangerait le registre des mécaniques de boss avec celui des compositions de vague.
+
+**Le gibier de « Chasse » porte deux drapeaux, et ils disent deux choses différentes.** `noExec` l'exclut du seuil d'exécution exactement comme le boss — un seuil de 10 % appliqué à une réserve de vie de vague entière fait disparaître le dernier quart de la **vague** en un tir. `hunt` le protège du marquage de retardataire : une chasse dure par construction plus que `WAVE_STRAGGLER_DELAY`, et le ×2 de vitesse ferait du gibier le chasseur. Ses PV dérivent du budget que la vague **aurait eu** (`CHASSE_HP_SHARE`) et jamais d'un nombre fixe, qui ne suivrait ni l'effectif, ni la difficulté, ni le numéro de vague.
+
+**Une mort vaut `xpWorth` apparitions et `scoreWorth` fois son score**, tous deux à 1 sur un ennemi ordinaire. Deux champs et non un parce que ce sont deux monnaies : l'expérience se compte par apparition, le score en points. Sans eux, une vague de chasse verse **1** point d'expérience là où une vague 18 en verse 116 — le joueur perdait purement et simplement une carte à chaque chasse.
+
+**Les trois types du lot M sont des COMPORTEMENTS, branchés aux points de passage** (indices 5 kamikaze, 6 bulwark, 7 medic — en fin de table). Le **kamikaze** explose à sa mort dans `_killEnemy()`, le point unique où toute mort passe — tir, zone, brûlure, couronne, la cause ne compte pas — via une **zone** à annonce courte (0,15 s) qui porte sa provenance (`z.src` = `SRC_BLAST`, sixième entrée de `DAMAGE_SOURCES`, ajoutée en fin comme promis) et mord aussi les ennemis (`z.foe`, résolu dans `_zoneApply` ; deux kamikazes voisins se déclenchent en chaîne à une image d'écart, sans récursion). Le **bulwark** absorbe les balles de face dans `_bulletHitEnemy()`, AVANT tout — grenade comprise — sinon le balayage d'apparition divergerait de la boucle de collision ; l'absorption incrémente `hitSeq` sans dégât, c'est l'éclair blanc qui rend la mécanique lisible ; sa rotation est plafonnée (`shieldTurnRate`), c'est toute la mécanique. Le **medic** lit la pression sur le compteur de touches existant (aucun branchement dans `_damage`) : plus d'une seconde de tirs soutenus rompt le lien et le fait fuir ; son soin est un **chemin dédié**, jamais un `_damage` négatif — vol de vie, critiques et compteur de touches n'ont aucun sens sur un soin. Sa cible voyage en **neuvième élément** du tuple ennemi (index 8, coupé quand nul — seuls les medics actifs le paient) et porte le filet lumineux dessiné PAR-DESSUS la horde.
 
 **Le sanctuaire se reconnaît à ses CROIX QUI MONTENT**, pas à sa couleur. Un
 disque vert clair et un disque bleu clair posés au sol se distinguent mal en
@@ -626,7 +714,9 @@ sinus (une croix qui surgit ou se coupe net au bord se lit comme un défaut).
 
 **Une zone persistante inflige `dot` dégâts par seconde par paliers de `ZONE_TICK`, jamais à chaque image**, et le tic passe `overTime = true` à `_hurt()` — même raison que la brûlure : sans ce drapeau, une mare de quinze secondes remet `hitCd` à 0,55 s quatre fois par seconde et rend sa victime immunisée au contact, aux tirs et aux autres zones. On mourait en sécurité dans une flaque.
 
-**`state.bounds` est la surface jouable ; tout ce qui borne un déplacement la lit, jamais `CFG.ARENA_W/H` en dur.** C'est le principal risque de régression de la constriction : un seul oubli laisse un joueur, un boss, une tour ou un bonus dans la couronne mortelle sans moyen d'en sortir. `_clampToBounds()` et `_dropPoint()` sont les points de passage uniques. Gardent volontairement l'arène pleine : l'apparition des ennemis (la horde traverse la couronne, c'est l'interaction recherchée), le vol des projectiles (une balle qui rebondit sur une limite invisible ne se lit pas) et la **géométrie** des zones (damier, couloirs, balayage — redécouper la grille à chaque palier changerait la taille des cases en plein combat).
+**`state.bounds` est la surface jouable ; tout ce qui borne un déplacement la lit, jamais `CFG.ARENA_W/H` en dur.** C'est le principal risque de régression de la constriction : un seul oubli laisse un joueur, un boss, une tour ou un bonus dans la couronne mortelle sans moyen d'en sortir. `_clampToBounds()` et `_dropPoint()` sont les points de passage uniques. Depuis le lot I, la **géométrie des zones** et le **rebond des balles** lisent les bounds eux aussi (une arène de boss fait une vue dans une salle trois fois plus large — un damier découpé sur la salle n'aurait montré qu'un carreau, une balle en rebond partait vivre à deux écrans du combat). Deux choses seulement gardent l'arène entière : l'**apparition des ennemis** (tirée autour de la boîte englobante des joueurs, jamais bornée aux bounds — la horde traverse la couronne, c'est l'interaction recherchée) et le **culling** des projectiles (leur durée de vie fait le vrai travail).
+
+**Les points de récolte (lot I) n'apparaissent jamais à moins de `HARVEST_PLAYER_DIST` d'un joueur vivant, ni pendant un boss.** C'est la définition de l'exploration — un point sous les yeux n'en est pas une — et une arène de boss réduite à une vue ferait d'un point extérieur une promesse inatteignable. Le cristal se détruit aux balles **hors de `_bulletHitEnemy()`**, délibérément : une structure n'a ni critique, ni vol de vie, ni compteur de touches — rien de ce que ce point de passage branche n'a de sens sur elle. Les **éclats** (`p.eclats`) sont versés à **chaque** joueur — même logique que l'expérience commune — et meurent avec le `GameState` : la monnaie de manche ne se persiste jamais.
 
 **`state.walls` bloque, il ne blesse pas.** Le verrouillage par quadrant est la seule entité du jeu qui interdit un déplacement ; d'où une couleur franchement différente de tout ce qui explose côté client. On repousse du côté **d'où l'on venait** et non du côté le plus proche : à l'esquive, un joueur traverse 162 px en trois images et se retrouverait de l'autre côté du mur. Le client rejoue exactement la même règle dans sa prédiction.
 
@@ -638,21 +728,25 @@ Ajouter une entrée impose de traiter les deux côtés :
 
 | Registre | Serveur | Client |
 |---|---|---|
-| `kind` d'effet | 0 nova · 1 balayage d'arrivée · 2 montée de niveau · 3 ricochet · 4 balise / relèvement / purification / Sentence survécue · 5 élite abattue · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart posé · 10 provocation · 11 vague de soin · 12 explosion de bombe · 13 salve verrouillée (transporte deux points de plus, comme le 3) | `drawEffects()` |
-| classe | `CLASSES` dans `classes.js` (tableau ordonné, l'index circule) | sélecteur du salon + `drawSkillPip()` |
+| `kind` d'effet | 0 nova · 1 balayage d'arrivée · 2 montée de niveau · 3 ricochet · 4 balise / relèvement / purification / Sentence survécue · 5 élite abattue · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart posé · 10 provocation · 11 vague de soin · 12 explosion de bombe · 13 salve verrouillée (transporte deux points de plus, comme le 3) · 14 récolte aboutie | `drawEffects()` |
+| point de récolte | clé `hv` du snapshot (jauge en ratio) ; `p.eclats` en fin de tuple joueur | `drawHarvests()` + ligne éclats du bloc méta du HUD |
+| classe | `CLASSES` dans `classes.js` (tableau ordonné, l'index circule) | sélecteur du salon + `buildPips()` / `updatePip()` dans `hud.js` |
+| couleur d'un joueur | `assignColors()` dans `room.js`, point de passage unique ; l'index voyage dans `colorIndex` du salon | `PLAYER_COLORS` (ordre = tank, soigneur, tireur A, tireur B) via `colorOf` / `ownerColorOf` |
 | bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` (masque) | teinte du joueur, halos, icônes |
-| états | `STATUSES` dans `statuses.js` (tableau ordonné, l'index sert de bit dans `stMask`) | `STATUS_ICON` + halo joueur + cadre d'équipe |
+| états | `STATUSES` dans `statuses.js` (tableau ordonné, l'index sert de bit dans le masque produit par `_statusMask()`, champ `statuses` du tuple joueur) | `STATUS_ICON` + halo joueur + cadre d'équipe |
 | `shape` de zone | 0 disque · 1 rectangle orienté · 2 anneau · 3 cône · 4 Pac-Man · 5 croix | `zonePath()` / `zoneSubPath()` + `_zoneHits()` |
 | bits de buff | `BUFF_DAMAGE` … `BUFF_RICOCHET` (masque) | anneaux joueur + bandeau HUD |
 | bonus | `_applyPowerup()` | `POWERUP_ICON` + `POWERUP_STYLE` |
 | clés de `mods` liées aux états | `statusTimeMul`, `catalyseur` dans `cards.js` | rien |
 | clés de `mods` | `defaultMods()` dans `cards.js`, lues par la simulation | rien — les effets ne traversent pas le réseau |
 | tags de carte | `tags` dans la table de `cards.js` (`off`, `def`, `coop`, `cadence`) | rien |
-| phase de vague | `wavePhase` : 0 apparition · 1 nettoyage · 2 répit | `drawWaveBanner()` |
+| phase de vague | `wavePhase` : 0 apparition · 1 nettoyage · 2 répit | `updateWave()` dans `hud.js` |
+| vague spéciale | `SPECIAL_WAVES` dans `game_state.js` (tableau ordonné, **l'ordre EST la séquence**, l'index circule dans `wsp` et dans le canal d'alerte) | `specialAt()` dans `updateWave()` (`hud.js`) + `applyAlert()` (`client.js`) + `#waveName.special` |
 | boss | `BOSS_ROSTER` dans `bosses.js` (tableau ordonné, l'index circule dans `bo[9]`) | `drawBoss*()` (une routine par boss) + `BOSS_SKIN` dans `palette.js` + barre du HUD + annonce d'entrée + `phaseUnlockText()` |
 | mécanique | `MECHS` dans `bosses.js` (tableau ordonné, l'index circule dans le canal d'alerte et dans `mk`) | `drawMarks()` + `pushAlert()` |
+| classement au temps | `bestFinal` du profil (clé = index de `DIFFICULTIES`), `recordFinal()` dans `progression.js`, message `leaderboard` du hub | `#hubBoard`, `renderBoard()` |
 | clé d'attaque de boss | chaînes du `base`/`unlock` d'un boss, dispatchées par `_atk()` | `ATTACK_LABEL` (texte de barre brisée) — **ne circule pas** |
-| niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` dans `bosses.js` | `drawAlerts()` : consigne cyan avec compte à rebours · avertissement ambre · information blanche |
+| niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` dans `bosses.js` | `updateAlerts()` dans `hud.js` : consigne cyan avec compte à rebours · avertissement ambre · information blanche |
 | type d'événement | rien — déduit des snapshots | `diffSnapshots()` dans `events.js`, consommé par `handleEvent()` |
 | image de sprite | rien | `plan()` dans `sprites.js` : `e{type}_{idle,walkA,walkB,open,die0..2}` et `c_{classe}_{idle,move,shoot,down}`, adressées par NOM via `frameOf()` |
 | son | rien | `PALETTE` dans `audio.js` + `SOUND_GAIN` (hiérarchie de volume) |
@@ -670,7 +764,8 @@ Ajouter une entrée impose de traiter les deux côtés :
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
 | point d'impact sur le boss | quatrième et cinquième éléments d'un tuple `bd`, ajoutés **en fin** — n'existe que pour les Jumeaux | `diffSnapshots()` : `mine[3] ?? b.boss.x` |
-| provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) ; `p.hurtBy` sort au `roundEnd` | `SRC_ICON` dans `icons.js` + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
+| provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) — **six** entrées depuis le lot M (`explosion`) | `SRC_ICON` dans `icons.js` + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
+| lien de soin du medic | neuvième élément du tuple ennemi (index 8, coupé quand nul) | `drawHealLinks()` par-dessus la horde |
 | propriétaire d'une balle | cinquième élément du tuple `b`, ajouté **en fin** | `ownerColorOf(b.owner) ?? COMBAT.bullet` dans `drawWorld` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
 
@@ -721,7 +816,7 @@ Le `kind: 3` (ricochet) est le seul effet à transporter deux points de plus dan
 
 Le tag `cadence` n'est pas décoratif : « Résonance » compte les cartes qui le portent. Une carte qui *rallonge* l'intervalle de tir (Balles lourdes) ne le porte donc pas, même si elle touche la même statistique.
 
-Les clés de vague et de progression (`wv`, `wp`, `wbs`, `wb`, `xl`, `xp`), les quatre listes de compétence (`bw` remparts, `bm` bombes, `an` ancres et `sa` sanctuaires du lot C), celles du lot 4 (`mk` marqueurs de mécanique, `bo2` second Jumeau, `sp` sol glissant), celles du lot 5 (`bn` limites d'arène et palier annoncé, `wl` murs de verrouillage) et celle du lot 6 (`bd` dégâts portés au boss depuis le dernier instantané, par joueur) sont des **clés nommées** du snapshot, pas des éléments de tableau : la règle positionnelle ne vaut qu'à l'intérieur des tableaux, et une clé inconnue est simplement ignorée par un client plus ancien. `bn` et `wl` sont **absentes** tant que l'arène ne bouge pas, c'est-à-dire quatre-vingt-dix pour cent d'une manche.
+Les clés de vague et de progression (`wv`, `wp`, `wbs`, `wb`, `xl`, `xp`), les quatre listes de compétence (`bw` remparts, `bm` bombes, `an` ancres et `sa` sanctuaires du lot C), celles du lot 4 (`mk` marqueurs de mécanique, `bo2` second Jumeau, `sp` sol glissant), celles du lot 5 (`bn` limites d'arène et palier annoncé, `wl` murs de verrouillage) celle du lot 6 (`bd` dégâts portés au boss depuis le dernier instantané, par joueur) celle du lot I (`hv` points de récolte, jauge en ratio) et celle du lot L (`wsp` index de la vague spéciale en cours, **absente** les seize vagues sur vingt où il n'y a rien à dire — même raison que `bn` et `wl`) sont des **clés nommées** du snapshot, pas des éléments de tableau : la règle positionnelle ne vaut qu'à l'intérieur des tableaux, et une clé inconnue est simplement ignorée par un client plus ancien. `bn` et `wl` sont **absentes** tant que l'arène ne bouge pas — depuis le lot I, `bn` est en revanche **toujours présente pendant un combat de boss**, dont l'arène est une vue resserrée. Le lot I ajoute aussi les **éclats** en fin de tuple joueur (index 32).
 
 **Les zéros de queue des tuples de zone et d'ennemi sont coupés** (`trimTail` dans `snapshot()`). La règle positionnelle interdit de *déplacer* un champ, pas d'en *omettre* à la fin : le client lit déjà tout ce qui suit l'index 6 avec un repli (`a[7] ?? 0`), le mécanisme même qui empêche un onglet resté sur une version antérieure de planter. Un tuple de zone en compte quinze et la plupart des formes n'en remplissent que douze ; un tuple d'ennemi en compte huit et son huitième champ — le compteur de touches — vaut zéro tant que rien ne l'a touché. Le `keep` d'un ennemi vaut **7 et non 6** : le client lit `a[6]` (l'orientation) sans valeur de repli, et une orientation nulle est parfaitement ordinaire.
 
@@ -819,12 +914,49 @@ n'appellent que `moveTo`, `lineTo` et `closePath`, donc un enregistreur suffit.
 On retient la **plus petite** des deux dimensions, jamais la plus grande ni la
 diagonale : c'est l'épaisseur qui dit combien de place il y a pour modeler.
 
-**La forme dit la classe, la couleur dit le joueur.** Les quatre couleurs de
-joueur sont déjà prises par l'identité individuelle : faire porter la classe par
-la couleur rendrait soit deux tanks identiques, soit deux joueurs confondus. Les
-sprites de classe sont donc cuits dans une rampe neutre et teintés à la volée.
-Le mode soin est la seule exception, et c'est voulu — c'est une information
-tactique pour toute l'équipe.
+**La couleur dit la classe, et la forme aussi.** C'est le **renversement** de la
+règle d'origine (« la forme dit la classe, la couleur dit le joueur »), qui
+tenait tant que les quatre teintes servaient à distinguer Paul de Marie. À
+l'usage, la question posée vingt fois par manche est « où est le soigneur », pas
+« lequel de ces deux points est Paul ». Les deux canaux disent donc la même chose
+et se renforcent, au lieu de se partager le travail. Les sprites de classe
+restent cuits dans une rampe neutre et teintés à la volée — rien ne change à ce
+niveau.
+
+**Rempart bleu, Soigneur vert, Tireur ambre ou violet.** Deux teintes de tireur
+parce que c'est la seule classe non unique. `PLAYER_COLORS` (dans
+`game_state.js`) n'est plus quatre littéraux mais quatre renvois vers
+`CLASS_COLOR`, et son ordre **est** celui de l'attribution : 0 tank, 1 soigneur,
+2 tireur A, 3 tireur B.
+
+**`assignColors()` dans `room.js` est le point de passage unique**, et trois
+choses y sont indissociables :
+
+- **Deux teintes de tireur ne suffisent pas toujours.** `unique: true` veut dire
+  « au plus un », pas « exactement un » : une table de quatre où personne ne
+  prend le tank ni le soigneur aligne **quatre tireurs**. Les tireurs puisent
+  donc dans leurs deux teintes puis **empruntent** les couleurs de classe unique
+  restées libres. La règle du dessus n'en souffre jamais — si un tank est là, le
+  bleu est à lui, donc il n'est pas empruntable.
+- **Le tri est par identifiant**, pas par ordre d'itération de la `Map` : sans
+  lui, un tireur change de teinte parce qu'un *autre* joueur a quitté le salon.
+- **Jamais en pleine manche** (`phase !== PHASE_LOBBY` sort immédiatement). Le
+  calcul dépend de la salle entière : une déconnexion recolorerait des joueurs
+  vivants au milieu d'un combat, or la couleur est précisément ce qui sert à se
+  repérer. `startRound()` appelle la méthode **avant** de basculer la phase ;
+  un arrivant en cours de manche garde la teinte que `freeColor()` lui a donnée.
+
+Le recalcul se fait **à la diffusion** (`lobbyPayload()`) plutôt qu'à chaque
+mutation : le salon est rediffusé à toute arrivée, tout départ et tout choix de
+classe, donc il n'y a aucun point de mutation à ne pas oublier de brancher.
+
+**Corollaire : le mode soin a perdu son signal de couleur.** La bascule se lisait
+au passage de la couleur de joueur au vert du soigneur ; le soigneur étant
+désormais vert en permanence, il ne restait qu'un vert pâle virant au vert
+saturé. Un **anneau pulsant** l'a remplacé, dans la même bande `RING_SKILL` que
+la provocation et la surcharge — troisième classe, et les trois ne coexistent
+jamais sur un personnage. Le mouvement se lit à travers la horde là où deux verts
+voisins ne se lisent plus.
 
 **Le Soigneur a été refait, pour la même raison que le Rempart au lot 6 et
 constaté sur la même planche** : c'était un polygone à quatorze côtés de rayon
@@ -1076,7 +1208,7 @@ zone »). Sans ça, chaque tirage se lit isolément et la build se construit par
 accident — le joueur qui a six cartes offensives et zéro défensive ne s'en aperçoit
 qu'au tableau de fin. Ne pas confondre avec les **familles** : une famille est un
 axe sur quatre paliers de rareté et c'est une règle de *tirage* ; une catégorie
-couvre les 107 cartes et ne sert qu'à l'*affichage*. Elle est **déduite des `tags`**
+couvre les 116 cartes et ne sert qu'à l'*affichage*. Elle est **déduite des `tags`**
 (`cardCategory()`, point de passage unique) plutôt que recopiée sur tout le
 catalogue, avec un `cat` explicite pour les seules cartes de zone. L'ordre de
 priorité compte : `coop` → soutien, puis `off`, puis `def`, sinon utilitaire — on

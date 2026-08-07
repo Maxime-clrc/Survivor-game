@@ -22,11 +22,15 @@
 
 import { readFileSync } from "node:fs";
 
-import { CFG, PLAYER_COLORS, DIFF_NORMAL } from "./shared/game_state.js";
+import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
-import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial } from "./shared/progression.js";
+import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial, recordFinal } from "./shared/progression.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
+/* `nowMs` est importe sous un autre nom : `tick()` declare deja un
+   `const nowMs = Date.now()` local, qui shadowerait l'import sur toute la
+   fonction et le ferait echouer en zone morte temporelle. */
+import { PERF_ON, PERF_REPORT_S, Sampler, nowMs as perfNow, f1 } from "./perf.js";
 
 /* Surchargeables par l'environnement POUR LES TESTS uniquement (un delai de
    grace de 60 s rendrait le test de destruction interminable) — en production
@@ -98,6 +102,9 @@ export function createHub(store, log) {
       kills: pr.kills,
       classes: pr.classes,
       confort: pr.confort,
+      // Lot J : la liste des cartes bannies — le Terminal l'affiche, le
+      // repli couvre les profils v4 d'avant le lot.
+      bannedCards: pr.bannedCards ?? [],
       pseudo: pr.pseudo ?? "",
       gained: c.lastGain ?? 0,
     };
@@ -117,23 +124,21 @@ export function createHub(store, log) {
       const p = state.players.get(c.id);
       if (!p || !c.profile) continue;
       const pr = c.profile;
-      let gain = shared;
+      /* Les jalons ne creditent plus AUCUN noyau (lot H) : la monnaie vient du
+         jeu repete, la capacite (emplacements, cartes) vient des jalons. Les
+         `boss_N` restent poses — ils deverrouillent les legendaires et
+         comptent pour l'emplacement « trois boss » — et `vague10` porte
+         l'emplacement du meme nom. */
+      const gain = shared;
 
-      for (const [w, bonus] of Object.entries(PROG_CFG.CORE_FIRST_WAVES)) {
-        const id = `vague${w}`;
-        if (state.wave >= Number(w) && !pr.milestones.includes(id)) {
-          pr.milestones.push(id);
-          gain += bonus;
-        }
-      }
       for (const kind of state.bossKindsKilled) {
         const id = `boss_${kind}`;
-        if (!pr.milestones.includes(id)) {
-          pr.milestones.push(id);
-          gain += PROG_CFG.CORE_FIRST_BOSS;
-        }
+        if (!pr.milestones.includes(id)) pr.milestones.push(id);
       }
       if (state.wave >= 8 && !pr.milestones.includes("vague8")) pr.milestones.push("vague8");
+      if (state.wave >= PROG_CFG.SLOTS_WAVE && !pr.milestones.includes("vague10")) {
+        pr.milestones.push("vague10");
+      }
       if (p.deaths === 0 && state.wave >= PROG_CFG.NO_DOWN_MIN_WAVE
           && !pr.milestones.includes("sans_chute")) {
         pr.milestones.push("sans_chute");
@@ -149,9 +154,50 @@ export function createHub(store, log) {
       pr.runs += 1;
       if (state.wave > pr.best.wave) pr.best.wave = state.wave;
       if (p.score > pr.best.score) pr.best.score = p.score;
+
+      /* CLASSEMENT AU TEMPS (lot N). La victoire sur le Noyau est portee par
+         le GameState (`finalVictory`, pose dans `_killBoss` sur `state.time`,
+         l'horloge autoritaire) : le hub ne recalcule rien, il enregistre. Le
+         record est PAR DIFFICULTE — comparer un temps de calme a un temps de
+         cauchemar n'aurait aucun sens.
+         Il est verse a CHAQUE joueur present : la victoire est celle de
+         l'equipe, et un classement qui ne crediterait que le porteur du coup
+         fatal recompenserait le hasard de la derniere balle. */
+      if (state.finalVictory) {
+        c.lastFinal = recordFinal(pr, state.finalVictory, new Date().toISOString())
+          ? "record" : "victoire";
+      }
+
       c.lastGain = gain;
       persist(c);
     }
+    /* Consommee UNE fois, apres la boucle : `awardRun` est appele une seule
+       fois par manche, mais la vider ici garantit qu'une manche relancee dans
+       la foulee ne represente pas la meme victoire. */
+    if (state.finalVictory) state.finalVictory = null;
+  }
+
+  /* Classement global au temps (lot N), toutes salles confondues, par
+     difficulte. Lu depuis la MEMOIRE du magasin — jamais une requete par
+     affichage : la Map `accounts` est deja l'etat chaud, et le classement est
+     consulte au hub, c'est-a-dire souvent.
+     Il vit au HUB et non au Terminal : le classement compare des COMPTES entre
+     eux, sa place est la ou l'on est justement hors salle, et il est ainsi
+     visible des la connexion. */
+  function leaderboard(limit = 10) {
+    const par = DIFFICULTIES.map(() => []);
+    for (const pr of store.profiles()) {
+      const bf = pr.bestFinal;
+      if (!bf) continue;
+      for (const k of Object.keys(bf)) {
+        const d = Number(k);
+        if (!par[d]) continue;
+        par[d].push({ pseudo: pr.pseudo, time: bf[k].time | 0, wave: bf[k].wave | 0 });
+      }
+    }
+    // Le TEMPS classe, et seulement lui : c'est un classement de vitesse.
+    for (const l of par) l.sort((a, b) => a.time - b.time);
+    return par.map(l => l.slice(0, limit));
   }
 
   /* Part d'un joueur qui quitte EN COURS de manche : les vagues jouees, rien
@@ -170,6 +216,11 @@ export function createHub(store, log) {
     awardRun,
     awardPartial,
     sendProgress,
+    /* Lot J : le bannissement s'ecrit IMMEDIATEMENT — il ne doit pas se
+       perdre si le serveur redemarre avant la fin de la manche. La salle
+       emet, le hub ecrit, comme pour tout le reste de la progression ;
+       l'ecran de cartes est une pause entre deux vagues, pas une vague. */
+    persist,
   };
 
   function roomsPayload() {
@@ -290,8 +341,10 @@ export function createHub(store, log) {
         if (pr.cores < cost) break;
         pr.cores -= cost;
         cp.tiers[line.id] = cur + 1;
+        // `slotsFor` prend le PROFIL depuis le lot H : la capacite vient des
+        // jalons du compte, plus des paliers achetes dans la classe.
         if (cur === 0 && !cp.equipped.includes(line.id)
-            && cp.equipped.length < slotsFor(cp)) {
+            && cp.equipped.length < slotsFor(pr)) {
           cp.equipped.push(line.id);
         }
         persist(client);
@@ -304,7 +357,7 @@ export function createHub(store, log) {
         if (!cp || !Array.isArray(msg.lines) || msg.lines.length > 16) break;
         const lines = [...new Set(msg.lines.filter(l => typeof l === "string"))];
         if (lines.some(l => !(cp.tiers[l] > 0))) break;
-        if (lines.length > slotsFor(cp)) break;
+        if (lines.length > slotsFor(client.profile)) break;
         cp.equipped = lines;
         persist(client);
         sendProgress(client);
@@ -416,12 +469,30 @@ export function createHub(store, log) {
           client.conn.send(JSON.stringify(roomsPayload()));
           return;
         }
+        /* Classement au temps (lot N). Meme frein que la liste des salles, et
+           pour la meme raison : c'est un bouton qu'on martele et le port est
+           public. Il partage `lastListAt` — les deux demandes lisent l'etat
+           chaud du hub, un frein commun suffit et evite qu'on contourne l'un
+           en alternant avec l'autre. */
+        case "leaderboard": {
+          const now = Date.now();
+          if (now - client.lastListAt < LIST_MIN_MS) return;
+          client.lastListAt = now;
+          client.conn.send(JSON.stringify({ t: "leaderboard", board: leaderboard() }));
+          return;
+        }
         case "createRoom": handleCreateRoom(client, msg); return;
         case "joinRoom":   handleJoinRoom(client, msg); return;
         case "leaveRoom": {
           const room = client.room;
           if (!room) return;
           try { room.detach(client); } catch { client.room = null; }
+          /* Sortie VOLONTAIRE : on oublie la salle. `lastRoomOf` ne sert qu'a
+             proposer un retour apres un rechargement ou une coupure ; le
+             garder ici rendrait la salle qu'on vient de quitter a chaque
+             reconnexion, c'est-a-dire exactement le contraire de ce qui vient
+             d'etre demande. */
+          lastRoomOf.delete(client.pseudoKey);
           returnToHub(client, "quitté");
           return;
         }
@@ -598,11 +669,36 @@ export function createHub(store, log) {
      avant le refactor, une exception dans une partie tombait tout le serveur. */
   let lastTick = process.hrtime.bigint();
 
+  /* Diagnostic (PERF=1). Deux mesures distinctes qu'on confond facilement :
+     `perfPeriode` est l'espacement REEL entre deux reveils du setInterval —
+     nominalement 8,333 ms, jamais exactement ca — et `perfTour` est le temps
+     passe DANS le tour. La premiere explique la quantification de la cadence
+     de diffusion, la seconde repond au budget de 8,3 ms. Un tour court avec
+     une periode longue est un probleme de minuteur, pas de charge. */
+  const perfPeriode = new Sampler();
+  const perfTour = new Sampler();
+  let perfSince = 0;
+  let perfEtait = false;
+
   function tick() {
     const now = process.hrtime.bigint();
     let elapsed = Number(now - lastTick) / 1e9;
     lastTick = now;
     if (elapsed > 0.25) elapsed = 0.25;
+
+    /* Allumage a chaud : on repart de zero. Sans ca, la premiere ligne
+       melangerait les echantillons d'avant l'extinction avec ceux d'apres, et
+       `lastSend` des salles produirait un espacement absurde. */
+    if (PERF_ON !== perfEtait) {
+      perfEtait = PERF_ON;
+      perfPeriode.reset();
+      perfTour.reset();
+      perfSince = 0;
+      for (const room of rooms.values()) room.perfArm();
+    }
+
+    const t0 = PERF_ON ? perfNow() : 0;
+    if (PERF_ON) perfPeriode.add(elapsed * 1000);
 
     const nowMs = Date.now();
     for (const room of [...rooms.values()]) {
@@ -625,6 +721,24 @@ export function createHub(store, log) {
         rooms.delete(room.code);
         broadcastRooms();
         log(`salle ${room.code} détruite — vide depuis ${Math.round(ROOM_GRACE_MS / 1000)} s`);
+      }
+    }
+
+    if (PERF_ON) {
+      perfTour.add(perfNow() - t0);
+      perfSince += elapsed;
+      if (perfSince >= PERF_REPORT_S) {
+        perfSince = 0;
+        const pe = perfPeriode.stats(), to = perfTour.stats();
+        console.log(`[perf] boucle n=${pe.n}`
+          + ` periode moy=${f1(pe.moy)} min=${f1(pe.min)} max=${f1(pe.max)}`
+          + ` | tour moy=${f1(to.moy)} p99=${f1(to.p99)} max=${f1(to.max)} ms`);
+        perfPeriode.reset();
+        perfTour.reset();
+        /* Chaque salle rapporte sa propre ligne : l'espacement de diffusion et
+           le poids d'instantane sont des grandeurs PAR SALLE, et les agreger
+           masquerait exactement la salle qui decroche. */
+        for (const room of rooms.values()) room.perfReport();
       }
     }
   }

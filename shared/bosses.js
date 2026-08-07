@@ -20,6 +20,13 @@ export const BOSS_MATRIARCHE = 1;
 export const BOSS_METRONOME = 2;
 export const BOSS_ORACLE = 3;
 export const BOSS_JUMEAUX = 4;
+/* Le boss FINAL (lot N), en SIXIEME position — ajoute a la fin, comme le veut
+   l'invariant : un onglet reste sur une version anterieure lit `bo[9] = 5`,
+   ne trouve rien et retombe sur le Ravageur (cf. `bossAt`). Il ne se tire
+   jamais au hasard : `_pickBoss` ne le rend qu'apres un cycle complet du
+   roster, ce qui le sort du filtre par effectif comme du tirage sans
+   repetition. */
+export const BOSS_FINAL = 5;
 
 /* Identifiants de MECANIQUE. Ordonnes eux aussi : l'index circule dans le
    canal d'alerte (`{t:"alert", mech, ...}`) et dans la liste `mk` du snapshot.
@@ -63,6 +70,10 @@ export const MECH_BREATH = 24;      // Ravageur : souffle qui repousse
 export const MECH_BROOD = 25;       // Matriarche : nuee de rejetons
 export const MECH_REVERSE = 26;     // Metronome : les motifs s'inversent
 export const MECH_SWAP = 27;        // Jumeaux : ils echangent leurs places
+/* Les deux mecaniques EXCLUSIVES du boss final (lot N). Ajoutees a la fin,
+   l'index circule — meme invariant que le reste du registre. */
+export const MECH_SYNTHESE = 28;    // exaflares traversant une zone de regroupement
+export const MECH_SCEAU = 29;       // les quatre coins, tenus simultanement
 
 /* Niveaux d'alerte. `consigne` demande une action immediate, `avertissement`
    previent d'un danger, `information` raconte. Le client n'affiche jamais deux
@@ -149,6 +160,26 @@ export const MECHS = [
     level: ALERT_WARN, texte: "les motifs repartent en sens inverse" },
   { id: MECH_SWAP, key: "swap", nom: "Échange", minPlayers: 1, fallback: -1,
     level: ALERT_WARN, texte: "ils viennent d'échanger leurs places" },
+
+  /* Les deux mecaniques EXCLUSIVES du boss final (lot N).
+
+     La synthese COMBINE deux repertoires au lieu de les enchainer : une zone
+     de regroupement de l'Oracle que des exaflares du Metronome traversent. Le
+     groupe doit tenir ensemble ET bouger ensemble, ce qu'aucun des cinq boss
+     ne demande — chacun ne pose qu'une moitie de la question. Repli solo :
+     l'esquive seule, comme le regroupement.
+
+     Le sceau est la mecanique de la DERNIERE barre. Les quatre coins tenus
+     simultanement pendant un temps CUMULE : c'est le seul endroit du jeu ou
+     l'equipe doit se disperser au maximum tout en restant coordonnee, et le
+     nombre de zones suit l'effectif par `adaptMech` — a un joueur il n'en
+     reste qu'une, ce qui en fait une occupation simple, longue et sous le feu.
+     Pas de `fallback` vers une autre mecanique : c'est le sceau ou rien, il
+     porte la fin du combat. */
+  { id: MECH_SYNTHESE, key: "synthese", nom: "Synthèse", minPlayers: 2, fallback: MECH_DODGE,
+    level: ALERT_ORDER, texte: "RESTEZ groupés ET fuyez les traînées" },
+  { id: MECH_SCEAU, key: "sceau", nom: "Sceau final", minPlayers: 1, fallback: -1,
+    level: ALERT_ORDER, texte: "TENEZ les sceaux jusqu'à la rupture" },
 ];
 
 export function mechAt(id) { return MECHS[id] ?? null; }
@@ -252,6 +283,71 @@ export const BOSS_ROSTER = [
       ["damier"],
       ["prison"],
       ["croixdurable"],
+    ],
+  },
+
+  /* --- LE NOYAU (lot N) -----------------------------------------------------
+
+     Boss FINAL. Il n'apparait qu'apres un cycle complet du roster — les cinq
+     boss rencontres dans la meme manche — et pas a un numero de vague fixe :
+     la condition se lit (« tu les as tous vus »), un numero ne se lit pas. Avec
+     la cadence des boss (une vague sur cinq), le cycle se termine vague 25 et
+     le Noyau tombe donc vague 30.
+
+     Son repertoire pioche dans les CINQ, un pattern caracteristique par boss —
+     c'est la synthese que le combat raconte — plus ses deux mecaniques
+     propres. Les patterns repris ne sont pas reecrits : ils sont INTENSIFIES
+     par deux champs lus aux points de passage uniques (`atkCdMul` sur la
+     cadence d'attaque, `zoneMul` sur les degats de zone). Vingt attaques
+     intensifiees par deux nombres plutot que vingt variantes a maintenir —
+     c'est la meme raison qui a fait `adaptMech` au lieu d'une variante de
+     combat par effectif.
+
+     HUIT barres et non cinq (`bars`), pour marquer l'echelle : cinq pour les
+     patterns repris, deux pour la synthese, une pour le sceau.
+
+     ATTENTION au compte de `unlock` : une barre rompue incremente `phase`, et
+     `_bossBars` plafonne `phase` a `bars - 1`. Avec huit barres, la phase monte
+     donc de 0 a 7 et `bossPool` lit `unlock[0..6]` — SEPT entrees, pas huit.
+     Une huitieme ne sortirait jamais, et c'est le sceau qui y serait tombe.
+
+     `floor` reste a ZERO pour lui, contrairement aux cinq autres : la montee en
+     repertoire par barre EST le combat sur huit barres. Le laisser au niveau
+     du `bossCount` (5 a ce stade de la manche) aurait ouvert d'emblee les
+     quatre premieres couches et rendu muettes la moitie des ruptures. */
+  {
+    id: BOSS_FINAL, key: "noyau", nom: "Noyau", verbe: "synthèse",
+    /* `minPlayers: 1` : le combat final ne peut pas etre interdit a un solo qui
+       a fait tout le chemin. Ses deux mecaniques exclusives ont leur propre
+       adaptation d'effectif, comme partout ailleurs. */
+    minPlayers: 1,
+    /* 2,2 fois un boss normal calibre pour la meme vague. Mesure a la vague 30,
+       bossCount 6 : 44 046 PV contre 20 021 a quatre joueurs, soit exactement
+       le rapport annonce. Reparti sur huit barres et non cinq, chaque barre
+       coute donc 1,37 fois une barre ordinaire (5 506 PV contre 4 004) — les
+       huit segments ne diluent pas le mur, ils le decoupent plus finement pour
+       que la progression reste lisible sur un combat deux fois plus long. */
+    hpMul: 2.2,
+    bars: 8,
+    /* Intensification des patterns repris. 0,80 sur la cadence (il attaque un
+       cinquieme plus vite) et 1,25 sur les degats de zone : deux nombres qui
+       portent sur les vingt attaques d'un coup, aux deux points de passage. */
+    atkCdMul: 0.80,
+    zoneMul: 1.25,
+    sous: "tout ce qu'ils t'ont appris",
+    /* Repertoire d'entree : un pattern par boss d'origine. Le damier vient du
+       Ravageur, les grappes de la Matriarche, les exaflares du Metronome, le
+       regroupement de l'Oracle, le lien des Jumeaux. Un joueur qui a fait le
+       cycle les reconnait tous les cinq des la premiere barre. */
+    base: ["salve", "damier", "exaflare", "grappes", "rassemblement", "lien"],
+    unlock: [
+      ["couronne"],              // barre 1 — Ravageur
+      ["prison"],                // barre 2 — Matriarche
+      ["derive", "appat"],       // barre 3 — Metronome
+      ["tours", "regard"],       // barre 4 — Oracle
+      ["croix", "quadrant"],     // barre 5 — Jumeaux
+      ["synthese"],              // barre 6 — premiere exclusive
+      ["sceau"],                 // barre 7 — le sceau, derniere barre
     ],
   },
 ];

@@ -35,7 +35,7 @@ priorité de cible, ce qu'aucun ennemi actuel ne demande.
 
 ```
 key: "medic"
-from: 130 s              // apparait a partir de ce palier
+from: 11                 // numero de VAGUE — `from` est en vagues dans ENEMY_TYPES, pas en secondes
 weight: 0.28
 hpMul: 0.9
 speed: 68
@@ -72,7 +72,7 @@ mêlée, qui permet au joueur de le repérer et de couper le soin en priorité.
 
 ```
 key: "bulwark"
-from: 100 s
+from: 9                  // numero de vague
 weight: 0.30
 hpMul: 2.2
 speed: 58
@@ -113,7 +113,7 @@ lui — une tension qui n'existe pas aujourd'hui.
 
 ```
 key: "kamikaze"
-from: 70 s
+from: 7                  // numero de vague
 weight: 0.22
 hpMul: 0.5
 speed: 118
@@ -134,9 +134,11 @@ danger, cohérent avec le principe de télégraphe déjà appliqué au brood
 
 ## M5. Quotas et intégration au tirage
 
-Comme pour les cinq types existants, chaque nouveau type doit avoir un quota
-`share` dans le tirage pondéré, pour éviter qu'il ne sature les vagues (défaut
-déjà rencontré et corrigé pour le shooter par le passé).
+`ENEMY_TYPES` porte déjà les deux champs qu'il faut, avec des rôles
+distincts : `weight` est le poids dans le tirage pondéré, `share` le plafond
+de population (`share × MAX_ENEMIES` simultanés). Chaque nouveau type
+renseigne les deux — le `weight` figure dans les statistiques ci-dessus,
+les `share` :
 
 ```
 medic:    share 0.12
@@ -147,6 +149,44 @@ kamikaze: share 0.18
 Le soigneur ennemi doit rester rare relativement aux autres — c'est un
 multiplicateur de menace pour le reste de la horde, pas un ennemi qu'on veut
 voir en nombre.
+
+Deux contraintes de registre, non négociables :
+
+- **Les trois types s'ajoutent en FIN d'`ENEMY_TYPES`** (indices 5, 6, 7) :
+  le tableau est ordonné et l'index circule dans les snapshots — insérer au
+  milieu réécrirait le sens des types pour tout onglet resté ouvert.
+  Compatible avec l'encodage d'élite et de retardataire (`+100` / `+200`),
+  qui suppose seulement des indices sous 100.
+- **Ne jamais écrire dans `ENEMY_TYPES`** : le comportement de fuite du
+  soigneur, comme le `standoff` des retardataires, se copie sur l'ennemi
+  (`e.standoff`), jamais sur son type.
+
+## M5 bis. Points de passage obligatoires
+
+Trois branchements que la spec initiale ne disait pas, tous imposés par des
+invariants du dépôt :
+
+- **L'absorption du bouclier frontal vit dans `_bulletHitEnemy()`**, le point
+  de passage unique de la balle qui touche. La boucle de collision ET le
+  balayage d'apparition l'appellent : une absorption testée ailleurs ferait
+  qu'une balle née à bout portant traverse le bouclier qu'une balle tirée à
+  dix mètres respecte.
+- **L'explosion du kamikaze se branche au point unique de mort de l'ennemi**
+  (là où `_damage()` constate la mort), pas dans un chemin particulier —
+  c'est ce qui garantit le critère « quelle que soit la cause » (tir, zone,
+  brûlure, contact). Les dégâts aux joueurs passent par `_hurt()` avec une
+  **nouvelle provenance ajoutée en FIN de `DAMAGE_SOURCES`** (registre
+  ordonné, l'index circule) et son glyphe dans `SRC_ICON` côté client.
+- **Le soin du medic est un chemin neuf, pas un `_damage()` négatif** :
+  `_damage()` porte le vol de vie, les critiques, le compteur de touches —
+  aucun n'a de sens sur un soin. Une petite routine dédiée qui borne aux PV
+  max du type suffit ; elle ne passe pas par les compteurs d'impact.
+
+Côté client : trois silhouettes nouvelles dans l'atlas (`e5_*`, `e6_*`,
+`e7_*` — membres, marche, étapes de mort), soumises au test de la planche
+`?planche` comme tout le monde. Le lien de soin et l'éclat d'absorption sont
+des dessins d'arène, pas des images d'atlas (règle du budget : ne pas stocker
+en image ce qu'un tracé peut faire).
 
 ---
 

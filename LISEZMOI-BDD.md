@@ -204,6 +204,14 @@ le SQL Editor. Une ligne de `comptes` portant une version **future** (serveur
 en retard sur la donnée) est **gelée** : ni adoptée, ni jamais réécrite, et son
 pseudo reste indisponible jusqu'à mise à jour du serveur.
 
+**Économie refaite (version 3 → 4, lot H)** : rien à faire côté Supabase. Au
+chargement, une ligne en version antérieure repart sur un **profil neuf** —
+arbres, noyaux et jalons remis à zéro — mais le **compte est conservé** :
+pseudo, mot de passe et session vivent dans les colonnes de la ligne, pas
+dans le profil, et traversent intacts. Chaque remise à neuf est journalisée
+au boot. Décision assumée : le jeu est en développement, pas de
+remboursement.
+
 ## Comptes joueurs (pseudo + mot de passe)
 
 Le système habituel : une page de **création** (pseudo, mot de passe et sa

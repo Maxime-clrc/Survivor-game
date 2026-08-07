@@ -568,6 +568,160 @@ function broodAccents(swell) {
   };
 }
 
+/* KAMIKAZE (lot M) — l'alarme qui court. Corps rond crante herisse de pointes
+   courtes — une meche, pas une couronne — avec UNE pointe longue vers l'avant :
+   l'asymetrie structurelle, toujours au meme endroit. Le gonflement est le
+   parametre de pose : c'est la charge qui se lit, et le client l'amplifie a
+   mesure que les PV tombent — le telegraphe du brood, applique a la mort. */
+function kamikazePath(k) {
+  const swell = k.swell ?? 0;
+  return g => {
+    const pts = 9;
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const r = 8.5 + swell * 2 + (i % 2 ? 1.4 : -0.6);
+      const px = Math.cos(a) * r, py = Math.sin(a) * r;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.closePath();
+    // Pointes radiales en sous-traces : la longue est DEVANT, c'est elle qui
+    // donne une direction a une forme sinon radiale.
+    const spikes = [[0, 13], [1.55, 7.5], [2.9, 6.5], [4.2, 7.5], [5.45, 6.5]];
+    for (const [a, len] of spikes) {
+      g.moveTo(Math.cos(a - 0.3) * 8, Math.sin(a - 0.3) * 8);
+      g.lineTo(Math.cos(a) * (8 + len + swell), Math.sin(a) * (8 + len + swell));
+      g.lineTo(Math.cos(a + 0.3) * 8, Math.sin(a + 0.3) * 8);
+      g.closePath();
+    }
+  };
+}
+
+function kamikazeAccents(k) {
+  const swell = k.swell ?? 0;
+  return (g, R) => {
+    // Le coeur : la charge. Il grossit avec le gonflement — meme information
+    // dans la silhouette et dans l'accent, elle doit se lire aux deux echelles.
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.arc(0, 0, 3.4 + swell * 1.6, 0, 7); g.fill();
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(0.8, 0, 1.9 + swell * 0.8, 0, 7); g.fill();
+  };
+}
+
+/* BULWARK (lot M) — le metal porte. La PLAQUE frontale est la silhouette :
+   large, plate, detachee du corps par ses deux bras porteurs. Le corps est
+   trapu et court — c'est un porteur, pas un tank — et la plaque est plus
+   longue en bas qu'en haut : l'asymetrie, toujours du meme cote. */
+function bulwarkPath(k) {
+  const step = k.step ?? 0;
+  const brace = k.brace ?? 0;
+  return g => {
+    // corps trapu
+    g.moveTo(8, -9);
+    g.lineTo(-6, -11);
+    g.lineTo(-12, -5);
+    g.lineTo(-12, 5);
+    g.lineTo(-6, 11);
+    g.lineTo(8, 9);
+    g.closePath();
+
+    // LA PLAQUE : un sous-trace a part, en avant du corps. `brace` la pousse
+    // vers l'avant — l'anticipation du blocage, lisible de loin.
+    const px = 12 + brace * 2.5;
+    g.moveTo(px, -12);
+    g.lineTo(px + 5, -10);
+    g.lineTo(px + 5, 12);
+    g.lineTo(px, 14);
+    g.closePath();
+
+    // les deux bras porteurs, en sous-traces miroir
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[4, 5], [px + 1, 8], [px + 1, 11], [2, 8.5]]);
+    }
+
+    // pattes courtes alternees, comme le grunt
+    for (const s of [-1, 1]) {
+      for (let i = 0; i < 2; i++) {
+        const bx = -9 + i * 6;
+        const alt = (i + (s > 0 ? 0 : 1) + (step < 0 ? 1 : 0)) & 1;
+        const ext = 3 + (alt && step !== 0 ? 3 : 0);
+        mirrored(g, s, [[bx - 2, 9.5], [bx + 0.5, 11.5 + ext], [bx + 3, 9.5]]);
+      }
+    }
+  };
+}
+
+function bulwarkAccents(k) {
+  return (g, R) => {
+    // Trois rivets sur la plaque : c'est du metal ASSEMBLE, pas une carapace.
+    const px = 14.5 + (k.brace ?? 0) * 2.5;
+    g.fillStyle = R.contour;
+    for (const ry of [-7, 1, 9]) {
+      g.beginPath(); g.arc(px, ry, 1.5, 0, 7); g.fill();
+    }
+    // un seul oeil, bas et enfonce derriere la plaque
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(5, 3, 2.4, 0, 7); g.fill();
+  };
+}
+
+/* MEDIC (lot M) — le soigneur ennemi. Corps mou en goutte, DEUX tentacules
+   avant levees — les emetteurs du lien — et une antenne dorsale d'un seul
+   cote : l'asymetrie structurelle que les cinq autres ont tous. Rien qui
+   ressemble a un canon : il soigne, il ne perce pas. Le vert fait le reste. */
+function medicPath(k) {
+  const sway = k.sway ?? 0;
+  const spread = k.spread ?? 0;
+  return g => {
+    // goutte molle, pointe vers l'arriere, ventre bas
+    const pts = 10;
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const back = Math.cos(a) < 0 ? -Math.cos(a) * 2.5 : 0;
+      const r = 10.5 + back + (i % 2 ? 1 : -0.7) + Math.sin(a - 2.4) * 1.4;
+      const px = Math.cos(a) * r, py = Math.sin(a) * r * 0.92;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.closePath();
+
+    // les deux tentacules emettrices, levees vers l'avant, en sous-traces ;
+    // `spread` les ecarte (la rupture du lien, la fuite), `sway` les balance
+    for (const s of [-1, 1]) {
+      const tip = 15 + spread * 3;
+      const lift = 6.5 + sway * s * 1.6 + spread * 2.5;
+      mirrored(g, s, [[6, 3.5], [tip, lift], [tip + 2.5, lift + 3], [4, 7.5]]);
+    }
+
+    // antenne dorsale, UN seul cote
+    g.moveTo(-5, -8);
+    g.lineTo(-10, -14.5);
+    g.lineTo(-3.5, -9.5);
+    g.closePath();
+
+    // deux petites pattes arriere
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[-8, 8], [-7, 11.5], [-4.5, 8.5]]);
+    }
+  };
+}
+
+function medicAccents(k) {
+  return (g, R) => {
+    // L'orbe emettrice : le point d'ou part le filet de soin — le client le
+    // dessine depuis le centre, l'accent doit dire d'ou il sort.
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.arc(5, 0, 3.6, 0, 7); g.fill();
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(5.5, 0, 1.8, 0, 7); g.fill();
+    // un point sur chaque tentacule : le lien se prepare la
+    g.fillStyle = R.accent;
+    const tip = 15 + (k.spread ?? 0) * 3;
+    for (const s of [-1, 1]) {
+      g.beginPath(); g.arc(tip, s * (7.5 + (k.sway ?? 0) * s * 1.6), 1.4, 0, 7); g.fill();
+    }
+  };
+}
+
 /* --- les trois classes -----------------------------------------------------
    LA FORME DIT LA CLASSE, LA COULEUR DIT LE JOUEUR. Les quatre couleurs de
    joueur sont deja prises par l'identite individuelle : si la classe passait
@@ -646,7 +800,9 @@ function tankClassShadow(g, R) {
    orientation lisible en silhouette — et c'etait la seule des trois classes
    dans ce cas, le Rempart ayant son arc de bouclier et le DPS son dard.
 
-   Or la charte dit « la forme dit la classe, la couleur dit le joueur » : un
+   Or la charte disait alors « la forme dit la classe, la couleur dit le
+   joueur » — elle a depuis ete renversee, la couleur dit la classe elle aussi,
+   mais la silhouette reste et doit porter la meme information : un
    soigneur qui ne tient que par sa teinte fait exactement porter la classe par
    la couleur, alors que les quatre couleurs sont deja prises par l'identite des
    joueurs. Sur la planche en noir uni, ses quatre cases etaient des ronds
@@ -738,6 +894,16 @@ function plan() {
       shapes: [{ recoil: 0 }, { recoil: 0.3 }, { recoil: -1 }, { recoil: 1 }] },
     { path: broodPath,   accents: null, edge: 2, floats: false,
       shapes: [{ swell: 0 }, { swell: 0.35 }, { swell: -0.25 }, { swell: 1.3 }] },
+    /* Lot M, dans l'ordre d'ENEMY_TYPES : kamikaze (5), bulwark (6),
+       medic (7). Leurs accents dependent de la pose — meme signature de
+       fabrique `accents(k)` que le grunt et le brood, servie par la branche
+       generique du ternaire ci-dessous. */
+    { path: kamikazePath, accents: kamikazeAccents, edge: 2, floats: false,
+      shapes: [{ swell: 0 }, { swell: 0.5 }, { swell: -0.3 }, { swell: 1.4 }] },
+    { path: bulwarkPath, accents: bulwarkAccents, edge: 3, floats: false,
+      shapes: [{ step: 0 }, { step: 1 }, { step: -1 }, { step: 0, brace: 1 }] },
+    { path: medicPath,   accents: medicAccents, edge: 2, floats: false,
+      shapes: [{ sway: 0 }, { sway: 0.8 }, { sway: -0.8 }, { spread: 1 }] },
   ];
 
   enemies.forEach((def, t) => {

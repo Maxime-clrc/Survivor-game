@@ -57,11 +57,33 @@ cartes**.
 - La manche se joue en **vagues**. Une vague est un budget d'apparitions : elle
   se termine quand le budget est épuisé **et** que l'arène est vide. Une vague
   sur cinq est un **boss**, qui occupe la vague entière.
+- L'arène fait **trois écrans dans chaque dimension** : chacun voit sa propre
+  vue, centrée sur son personnage, avec des flèches de bord d'écran vers les
+  coéquipiers hors champ (distance en mètres ; un allié à terre pulse). Des
+  **points de récolte** dorés apparaissent au loin — un cristal se détruit en
+  tirant, un amas se canalise en restant dessus 1,5 s — et rapportent des
+  **éclats** à toute l'équipe : la monnaie de la manche en cours, perdue à sa
+  fin. Un combat de **boss** resserre l'arène à un seul écran autour de
+  l'équipe ; sa mort la rouvre.
 - **À la fin d'une vague, s'il y a eu une montée de niveau, la manche se met en
   pause** : chacun choisit une carte parmi trois, et la partie reprend quand
   tout le monde a choisi — ou au bout de 30 s, la première carte étant alors
   attribuée d'office. Deux niveaux gagnés dans la même vague donnent deux choix
   d'affilée.
+- Les manches rapportent des **noyaux** — la vague atteinte et les boss
+  vaincus, versés à parts égales, plafonnés par partie — à dépenser dans le
+  **Terminal** (bouton au salon, pastille quand un achat est possible) :
+  les trois arbres de classe par onglets, le confort, les jalons. Les
+  **emplacements** (3 à 6) se gagnent aux jalons du compte — vague 10, trois
+  boss différents, 25 parties — et la réattribution est libre entre les
+  manches.
+- Après chaque victoire de boss, le **marchand** propose trois **reliques** à
+  acheter contre les éclats de la manche — valeurs brutes, budget à répartir,
+  relance payante. Voir la section « Le marchand de reliques ».
+- Une fois les **cinq boss vaincus** dans la même manche, le **Noyau** arrive
+  (vague 30) : huit barres, le répertoire des cinq intensifié, deux mécaniques
+  qui n'existent nulle part ailleurs. Le vaincre termine la manche et
+  enregistre le **temps**, au classement consultable depuis le hub.
 - La manche se termine quand tout le monde est à terre. Le bilan titre sur la
   **vague atteinte** et non sur le numéro de manche : l'unité de jeu est devenue
   la vague, et lire « Manche 1 terminée » après en avoir enchaîné douze donnait
@@ -301,6 +323,93 @@ se termine d'elle-même.
 
 Une vague sur cinq est un **boss**. Son budget d'apparitions est nul : il occupe
 la vague entière et seuls ses propres renforts sortent.
+
+### Vagues spéciales
+
+Une vague sur cinq, elle aussi, mais décalée : **les vagues 3, 8, 13, 18, 23…**
+remplacent le tirage normal par une composition imposée. Quatre types, dans un
+cycle fixe.
+
+| vague | type | composition | ce que ça demande |
+|---|---|---|---|
+| 3, 23, … | **Nuée** | uniquement des runners, nombreux et fragiles | ne pas se laisser encercler |
+| 8, 28, … | **Tir croisé** | shooters en majorité, quelques grunts pour pousser | fermer la distance |
+| 13, 33, … | **Siège** | uniquement des tanks, lents et coriaces | tenir la position |
+| 18, 38, … | **Chasse** | un seul gibier, énorme, et rien d'autre | un duel |
+
+**Terminer une vague spéciale rend 100 % des PV et du bouclier à toute
+l'équipe, et relève ceux qui sont à terre.** Sans condition. C'est la seule
+clôture de vague qui fasse mieux que les 18 PV du répit, et c'est elle qui paie
+l'asymétrie : un siège de tanks *paraît* plus dangereux qu'une vague ordinaire,
+et sans récompense nette la bonne réponse serait de le fuir.
+
+Chaque vague spéciale est **annoncée pendant le répit qui la précède** — pas au
+moment où elle démarre. Le bandeau de vague porte ensuite son nom en ambre tant
+qu'elle dure : la question « qu'est-ce que je suis en train de combattre » se
+pose encore trente secondes après le début, quand la consigne a disparu.
+
+**Pourquoi un calendrier fixe plutôt que le hasard.** Le classement au temps du
+boss final compare des parties entre elles. Si les vagues spéciales tombaient au
+hasard, deux parties identiques en tout point auraient des temps différents
+parce que l'une aurait tiré une vague qui la ralentit et l'autre non — le
+classement perdrait sa valeur de comparaison. `vague % 5 === 3` donne les trois
+garanties d'un coup, **par arithmétique et non par une liste à maintenir** :
+
+- `3 % 5 ≠ 0` : jamais de collision avec un boss (vagues 5, 10, 15…), ni avec le
+  boss final (vague 30) ;
+- cinq vagues d'écart : jamais deux spéciales d'affilée ;
+- chaque tranche de cinq a le même motif — trois normales, une spéciale, un
+  boss.
+
+La première proposition (3, 6, 9, 12 puis cycle) retombait sur 15 et 20 dès le
+premier cycle. Le compromis assumé est la perte de la surprise : en échange, un
+joueur sait qu'à la vague 13 vient un siège et peut orienter ses choix de cartes
+dans les vagues précédentes. C'est une couche de décision à moyen terme plutôt
+qu'un événement ponctuel.
+
+**Le gibier de la Chasse est le seul ennemi du jeu exclu du seuil
+d'exécution**, avec le boss et les structures de mécanique. Il porte à lui seul
+les PV de toute une vague : un seuil de 10 % appliqué là-dessus ferait
+disparaître le dernier quart de la vague en un tir pour quiconque a la carte
+« Achèvement ». Il est aussi le seul à ne jamais être marqué retardataire — une
+chasse dure par construction plus que les 8 s du délai, et le ×1,6 de vitesse en
+ferait le chasseur.
+
+Ses PV ne sont pas un nombre écrit quelque part : ils **dérivent du budget que
+la vague aurait eu**, donc ils suivent l'effectif, la difficulté et le numéro de
+vague sans qu'aucune valeur ne soit à maintenir en face. Même raisonnement pour
+ce qu'il rapporte — il vaut le nombre d'apparitions qu'il remplace, sinon une
+vague de chasse verserait **1** point d'expérience là où une vague 18 en verse
+116, et le joueur perdrait une carte à chaque chasse.
+
+#### Mesures relevées
+
+Durée d'une vague spéciale rapportée à celle de la vague **normale qui la
+précède**, compte neuf, difficulté normale. Le témoin est la vague `N−1` et non
+la même vague neutralisée : le budget se calcule au démarrage, le neutraliser
+après coup ne le rattrape pas. Biais connus du banc, tous deux notés parce
+qu'ils changent le chiffre — le bulwark est retiré du tirage (son bouclier
+frontal rend le bot incapable de le tuer, et le banc bloquait dès la vague 9),
+et le bot frappe ×6 pour que la durée mesurée soit celle de la vague et non de
+son adresse.
+
+| vague | type | 1 joueur | 4 joueurs | budget (1 j.) | pic simultané (4 j.) |
+|---|---|---|---|---|---|
+| 3 | Nuée | ×1,19 | ×1,22 | 44 runners | 39 |
+| 8 | Tir croisé | ×1,23 | ×1,12 | 56 | 134 |
+| 13 | Siège | ×1,08 | ×0,89 | 26 tanks | 72 |
+| 18 | Chasse | ×0,64 | ×0,68 | 1 gibier | 1 |
+
+La chasse est **délibérément la plus courte**, et c'est le seul écart marqué de
+la table : un ennemi unique ne peut ni encercler, ni couper une retraite, ni
+tirer depuis trois directions. Une durée égale à celle d'une vague normale en
+aurait fait un marathon contre une éponge — 200 s en solo à la vague 18, mesuré.
+
+Trois réglages sont venus de ces mesures et non du plan : la nuée est passée de
+×2,2 à ×1,7 de budget (elle sortait à ×1,5 de durée), le tir croisé de ×0,85 à
+×1,0 (×0,80, trop expédié), et les PV du gibier de 0,55 à 0,75 part de budget
+(×0,44, il tombait deux fois trop vite). Le siège n'a pas bougé : la première
+mesure le donnait à ×2,4, mais c'était le témoin qui était faux.
 
 ### Niveaux
 
@@ -560,13 +669,74 @@ augmente surtout la durée de vie. Si une mesure montre un écart, corriger le
 ### Boss
 
 Un boss occupe **une vague sur cinq**, avec 6 % de PV en plus à chaque fois. Il
-en existe **cinq**, tirés au sort, et chacun demande **autre chose**.
+en existe **cinq**, tirés au sort, et chacun demande **autre chose** — plus un
+**sixième** qui ne se tire jamais : voir « Le Noyau » plus bas.
 
 Ses PV sont indexés sur **le nombre de joueurs et sur la puissance mesurée de
 l'équipe**, pour que la durée du combat ne dépende ni de l'un ni de l'autre.
 Sans cette indexation, une équipe bien équipée pliait le deuxième boss en 18 s
 au lieu de 45 : le boss doit rester le mur de la manche, pas la récompense
 d'avoir farmé.
+
+#### Le genou de puissance
+
+Cette indexation était **linéaire pleine, sans plafond** : puissance ×2 donnait
+un boss à ×2 de PV, donc une durée de combat rigoureusement constante. C'était
+le seul système du jeu dans ce cas — les vagues ne répercutent depuis toujours
+qu'une **part** de la puissance (`WAVE_HP_POWER_K` à 0,55, `WAVE_RATE_POWER_K`
+à 0,35).
+
+Ce que ça coûtait, mesuré : **300 manches solo tireur** avec le vrai système de
+tirage, `powerIndex` relevé à chaque carte prise.
+
+| cartes | optimisé | hasard p10 / p50 / p90 | pire |
+|---|---|---|---|
+| 3 | 1,65 | 1,26 / 1,26 / 1,76 | 1,26 |
+| 6 | 2,19 | 1,26 / 1,47 / 2,32 | 1,26 |
+| 9 | 3,10 | 1,26 / 1,67 / 2,69 | 1,26 |
+| 12 | 4,00 | 1,36 / 1,89 / 3,53 | 1,26 |
+| 15 | 5,33 | 1,47 / 2,19 / 4,10 | 1,26 |
+
+À 16 cartes, **×4,54** entre une build optimisée et une qui ne prend que du
+défensif, et **×2,93** par la **chance seule** (p90/p10 à choix aléatoire). Un
+joueur pouvait faire trois fois les dégâts d'un autre au même niveau et voir
+exactement le même combat de boss. La sensation de puissance valait ×1,10 à
+×1,59 sur les vagues, et **×1,00 exactement** sur les boss.
+
+D'où un **genou** : les PV suivent la puissance en plein sous
+`BOSS_POWER_KNEE`, puis n'en prennent plus que `BOSS_POWER_K` au-dessus.
+
+| puissance | PV avant | PV après | ratio |
+|---|---|---|---|
+| 1,26 | 1512 | 1512 | ×1,000 |
+| 2,50 | 3000 | 3000 | ×1,000 |
+| 3,00 | 3600 | 3300 | ×0,917 |
+| 4,10 | 4920 | 3960 | ×0,805 |
+| 5,71 | 6852 | 4926 | ×0,719 |
+| 8,00 | 9600 | 6300 | ×0,656 |
+
+Un genou et non un plafond dur (`Math.min`) : un plafond crée une falaise où la
+carte qui fait franchir le seuil ne vaut plus rien.
+
+Le genou est à **2,5** parce que la build **médiane mesurée vaut 2,36** : tout
+l'étalonnage existant (`BOSS_HP_MUL`, les `hpMul` du roster, les cinq durées par
+boss) reste valide tel quel, et seules les bonnes builds voient une différence.
+La sensation reste volontairement **sous** celle des vagues — ×1,39 au mieux
+contre ×1,52 à ×1,59 : le boss est le mur de la manche, il doit récompenser
+moins que la piétaille. `BOSS_POWER_K = 1` rend exactement l'ancienne courbe.
+
+`_bossPower()` est le point de passage unique, et les structures de mécanique
+(cage, grappe) y passent aussi : sans ça, une build au-dessus du genou trouverait
+les cages **relativement plus dures** que le boss lui-même.
+
+**Réserve sur les durées.** Le banc de combat monté pour ce lot n'est pas
+fiable : bot immobile, renforts qui encaissent les balles à la place du boss,
+mécaniques multi-joueurs jouées en solo. Les durées par boss qui en sortent
+contiennent trop de bruit pour figurer ici. Le rapport `PV après / PV avant`
+ci-dessus, lui, est déterministe. Sur les cellules où le banc terminait, la
+baisse observée à 4,12 de puissance était de **0,76 à 0,81**, contre 0,805
+attendu — cohérent, mais à confirmer avec un vrai bot mobile qui priorise le
+boss avant de retoucher aux constantes.
 
 La base a été recalibrée de 1500 à **1200** avec la suppression des gains de
 niveau. La formule n'a pas changé, mais l'échelle de la puissance, elle, a
@@ -864,6 +1034,105 @@ troisième, on ne réapprend pas le damier en deuxième barre. C'est ce qui rend
 troisième combat plus dur que le premier sans lui ajouter de PV, qui
 n'allongeraient que sa durée.
 
+#### Le Noyau — le boss final
+
+Il ne se tire jamais au sort : **il arrive**, quand les cinq boss du roster ont
+été **vaincus** dans la même manche. Avec la cadence d'un boss toutes les cinq
+vagues, le cycle se termine vague 25 et le Noyau tombe donc **vague 30**.
+
+La condition porte sur les boss *vaincus* et non *rencontrés* : un boss croisé
+puis fui n'a rien appris à personne, et le Noyau est la synthèse de ce qu'on a
+battu. C'est aussi une condition qui **se lit** — « tu les as tous eus » — là où
+un numéro de vague fixe ne se lit pas.
+
+**Huit barres au lieu de cinq**, et 2,2 fois les PV d'un boss normal calibré
+pour la même vague. Mesuré à la vague 30 : 44 046 PV contre 20 021 à quatre
+joueurs. Réparti sur huit segments, **chaque barre coûte donc 1,37 fois une
+barre ordinaire** (5 506 contre 4 004) — les huit segments ne diluent pas le
+mur, ils le découpent plus finement pour que la progression reste lisible sur
+un combat deux fois plus long.
+
+Son répertoire **cite les cinq**, un pattern caractéristique par boss d'origine,
+et il repart de zéro : la montée par couches *est* le combat sur huit barres.
+
+| barres brisées | ce qui s'ouvre | d'où ça vient |
+|---|---|---|
+| 0 | salve · damier · exaflares · grappes · regroupement · lien | les cinq, d'emblée |
+| 1 | **couronne** | Ravageur |
+| 2 | **prison** | Matriarche |
+| 3 | **dérive** · **appâts** | Métronome |
+| 4 | **tours** · **regard** | Oracle |
+| 5 | **croix** · **verrouillage** | Jumeaux |
+| 6 | **Synthèse** | à lui |
+| 7 | **Sceau final** | à lui |
+
+Les patterns repris sont **intensifiés** plutôt que réécrits : il attaque 20 %
+plus vite et ses zones font 25 % de dégâts en plus. Deux nombres qui portent sur
+la vingtaine d'attaques d'un coup — vingt variantes à maintenir auraient dérivé
+au premier réglage, c'est le même refus de duplication que l'adaptation à
+l'effectif.
+
+**Ses deux mécaniques exclusives.**
+
+La **Synthèse** ne pose rien de neuf : elle fait tourner *ensemble* deux
+répertoires que les cinq boss ne posent jamais en même temps — le regroupement
+de l'Oracle et les exaflares du Métronome, dont l'axe traverse le cercle. Il
+faut tenir groupé *et* se déplacer d'un bloc, alors que chacune des deux prise
+seule autorise l'inverse. En solo, il ne reste que les traînées.
+
+Le **Sceau final** est la dernière barre. Des zones aux **quatre coins** de
+l'arène, à occuper **simultanément** pendant un temps **cumulé** de 4,5 s
+chacune, sur une fenêtre de 22 s. Trois choix la séparent des tours de
+l'Oracle, dont elle emprunte le squelette :
+
+- le temps est **cumulé** et non instantané — une mécanique de vingt secondes
+  qui ne regarderait que la dernière image punirait l'esquive, pas la
+  coordination ;
+- le cumul **redescend à mi-vitesse** quand on lâche : abandonner un coin pour
+  esquiver ne remet pas à zéro, c'est le même choix que la canalisation d'un
+  amas de récolte ;
+- le nombre de sceaux **suit l'effectif**. À un joueur il n'en reste qu'un : la
+  mécanique devient une occupation longue et sous le feu, ce qui est jouable
+  seul.
+
+Échouer **repose le sceau** — la dernière barre ne se franchit pas en échouant —
+et la sanction porte sur l'équipe entière : personne ne tient un sceau tout
+seul, et désigner un coupable sur une mécanique collective n'aurait rien appris.
+
+**Son identité visuelle.** Gabarit **40 % supérieur** au plus grand des cinq, et
+la seule teinte non colorée du roster — un blanc chaud : les cinq se distinguent
+les uns des autres par leur couleur, lui se distingue en n'en ayant pas. Sa
+silhouette est faite de trois couches concentriques qui tournent à des vitesses
+différentes, une par emprunt : les pointes du Ravageur, l'anneau segmenté du
+Métronome (dont le nombre de segments allumés **compte les barres restantes**),
+l'œil de l'Oracle. Son verbe de relâche lui est propre : les trois couches se
+**désalignent** au coup puis se recalent — la synthèse se défait un instant.
+
+Sa barre de vie est identifiable **sans lire le nom** : 84 % de la largeur
+d'écran au lieu de 62 %, un liseré double, une segmentation au huitième, et une
+**pulsation qui accélère** à mesure que ses PV baissent (période de 2,4 s à
+0,7 s) — un signal de progression en plus du remplissage. Son annonce d'entrée
+tient 5 s au lieu de 2,6 et le nom s'installe en s'écartant : c'est le seul
+effet d'entrée du jeu, et c'est parce qu'il est unique qu'il dit « combat
+final » sans avoir à l'écrire.
+
+#### Le classement au temps
+
+Vaincre le Noyau enregistre le **temps écoulé depuis le début de la manche**,
+lu sur l'horloge autoritaire du serveur. Le record est gardé **par difficulté** :
+comparer un temps de « calme » à un temps de « cauchemar » n'aurait aucun sens,
+et une case unique aurait poussé tout le monde à jouer en calme pour figurer au
+tableau.
+
+Il se consulte **au hub**, pas au Terminal : le classement compare des *comptes*
+entre eux, sa place est donc là où l'on est justement hors salle, et il est
+visible dès la connexion.
+
+C'est ce classement qui a imposé le **calendrier fixe des vagues spéciales** :
+si elles tombaient au hasard, deux parties identiques auraient des temps
+différents par simple chance de tirage, et la comparaison perdrait sa valeur.
+La décision du lot précédent était donc nécessaire, pas optionnelle.
+
 #### Les mécaniques
 
 Elles reposent sur six formes de zone — disque, rectangle orienté, anneau,
@@ -1054,6 +1323,77 @@ chevauchent, un trait par mare redessinait chaque cercle à l'intérieur de la
 tache et on ne voyait plus où finissait la surface dangereuse. Le rendu est
 plafonné à **40 zones**, les plus urgentes d'abord.
 
+### Le marchand de reliques
+
+Après chaque victoire de boss (les cinq boss normaux — le boss final a son
+propre traitement), un **marchand** propose **trois reliques à acheter** contre
+des éclats, la monnaie de récolte du lot I. L'écran s'ouvre après la fin de la
+vague, comme celui des cartes, et chacun repart avec ce qu'il s'est offert.
+
+La différence fondamentale avec les cartes :
+
+| | cartes | reliques |
+|---|---|---|
+| monnaie | gratuites, tirage | éclats, achat |
+| effet | presque toujours en % | **valeur brute** |
+| fréquence | à chaque niveau | après chaque boss |
+| choix | une parmi trois, obligatoire | **budget à répartir** — zéro, une ou trois |
+| relance | une fois par manche, gratuite | payante, coût croissant avec la vague |
+
+**La valeur brute est le cœur de la relique.** « +8 dégâts » reste utile sur
+une build qui n'a pris aucune carte de dégâts — c'est un axe de puissance qui
+ne dépend d'aucun autre choix, ce qu'aucune carte ne permet. À l'inverse, une
+relique ne cumule pas son pourcentage avec les autres : elle ajoute, elle ne
+multiplie pas.
+
+Quatre raretés, comme les cartes, à des prix croissants. La légendaire est
+**limitée à une par manche, tous marchands confondus** : sans cette borne, une
+manche généreuse en éclats cumulerait plusieurs effets exceptionnels et
+déséquilibrerait le combat suivant.
+
+Les dix reliques de départ — la liste est validée, l'équilibrage fin viendra
+en jouant :
+
+| rareté | relique | effet |
+|---|---|---|
+| commune | Éclat dur | +6 dégâts bruts sur chaque tir |
+| commune | Plaque rouillée | +25 PV bruts |
+| commune | Ressort usé | −0,03 s d'intervalle de tir |
+| rare | Noyau instable | +18 dégâts bruts, **mais −10 PV bruts** |
+| rare | Filtre purifiant | retire un état toutes les 10 s, sans action |
+| rare | Batterie de secours | le bouclier, une fois vide, se recharge une fois à 50 % (une fois par manche) |
+| épique | Cœur de Ravageur | +35 dégâts bruts contre les boss uniquement |
+| épique | Essaim captif | un projectile supplémentaire orbite en permanence |
+| épique | Mémoire gravée | la première compétence utilisée à chaque vague a sa recharge réinitialisée |
+| légendaire | Cœur-machine | +50 dégâts bruts, +80 PV bruts, **mais la vitesse est fixée à sa valeur de base** |
+
+Les contreparties sont affichées en évidence, pas en petit texte : une relique
+se refuse pour ce qu'elle coûte, pas pour ce qu'elle donne. La relance de
+l'offre se paie (6 éclats + 2 par vague) — un coût fixe se banaliserait en fin
+de manche quand les éclats abondent.
+
+Les reliques **entrent dans le calcul de puissance** de l'équipe : les vagues
+et les boss qui suivent le marchand sont calibrés sur les dégâts réels, pas
+sur un chargement qui les ignorerait. Le « Cœur de Ravageur », qui ne frappe
+que les boss, y compte au tiers — la part du temps passé contre eux.
+
+#### Mesures relevées
+
+Éclats accumulés à l'arrivée du premier marchand (vague 5), compte neuf,
+difficulté normale, bots qui explorent et récoltent :
+
+| effectif | éclats par joueur | temps |
+|---|---|---|
+| 1 joueur | ~98 | 148 s |
+| 4 joueurs | ~95 | 161 s |
+
+Le budget du premier marchand permet environ **deux communes et demie** (25
+éclats pièce), ou une épique, ou une rare plus une commune — pas la légendaire
+(150), qui reste un objectif de fin de manche. L'écart de puissance mesuré
+après un achat : **×1,5 d'indice pour une commune de dégâts** (`+6` sur une
+base de 12) — délibéré, c'est le prix de la valeur brute prise tôt, et
+l'indexation absorbe le reste de la manche.
+
 ### Cartes d'amélioration
 
 À chaque niveau d'équipe gagné, chacun choisit **une carte parmi trois**, tirées
@@ -1082,7 +1422,7 @@ Le jalon se déclenche au premier écran ouvert **à partir de** la vague 10, et
 non pendant cette vague exactement : une vague où personne ne monte de niveau
 n'ouvre aucun écran, et la garantie sautait alors une fois sur deux.
 
-Les 106 cartes vivent dans `shared/cards.js`, avec leurs valeurs. Les communes
+Les 116 cartes vivent dans `shared/cards.js`, avec leurs valeurs. Les communes
 sont des gains de nombres ; les rares modifient une mécanique ; les épiques
 définissent une orientation de build ; trois des légendaires **remplacent
 l'arme** et s'excluent entre elles.
@@ -1162,7 +1502,7 @@ endroit, il nomme la seule famille d'effet que la grammaire appelle « dégâts 
 
 **Ne pas confondre catégorie et famille.** Une famille est un axe décliné sur
 quatre paliers de rareté et ne concerne que vingt cartes : c'est une règle de
-*tirage*. Une catégorie couvre les 107 cartes et ne sert qu'à l'*affichage*. Elle
+*tirage*. Une catégorie couvre les 116 cartes et ne sert qu'à l'*affichage*. Elle
 est **déduite des tags** existants plutôt qu'écrite cent sept fois — les tags sont
 déjà tenus à jour puisque « Résonance » compte `cadence` et « Symbiose » compte
 `def` — avec un champ explicite pour les seules cartes de zone, que les tags ne
@@ -1324,6 +1664,56 @@ La **cadence s'affiche inversée** (`×1,8` et non l'intervalle) parce que la
 simulation raisonne en intervalle de tir : sinon ce serait la seule ligne de
 l'écran où « plus grand » voudrait dire « pire ».
 
+#### La jauge de puissance
+
+**Un multiplicateur nu ne se lit pas.** « ×1,49 dégâts » sonne bien et vaut en
+réalité une build faible ; rien à l'écran ne permettait de le savoir. Le défaut
+a été rapporté sous la forme « je fais moins de dégâts que ce qui est affiché,
+les pourcentages fonctionnent ? » — les pourcentages étaient justes, c'est
+l'**échelle** qui manquait. Un chiffre sans point de comparaison n'informe
+personne.
+
+La fenêtre affiche donc l'**indice de puissance** (`powerIndex`), situé sur une
+jauge portant quatre repères **mesurés** — nu 1,26, médiane 2,36, forte 4,10,
+max 5,71 — et un qualificatif (« sous la médiane », « forte »…). C'est le seul
+chiffre du jeu qui explique à la fois les PV du boss et la pression des vagues,
+et il était jusqu'ici entièrement invisible.
+
+`powerIndex` est **exporté en fonction pure** par `game_state.js`, pour la même
+raison que `fullMods` et `effectiveCards` : recoder la formule côté client aurait
+donné deux implémentations qui divergent au premier réglage, sur précisément
+l'écran dont le seul but est d'expliquer un chargement.
+
+La jauge porte aussi le **genou** (`BOSS_POWER_KNEE`), et c'est le point : sous
+le genou, une carte de dégâts est intégralement absorbée par les PV du boss ;
+au-dessus, elle commence à payer. Une note le dit en toutes lettres — « le boss
+ne suit plus que 77 % de ta puissance ». C'était jusqu'ici la seule règle du jeu
+que le joueur subissait sans jamais pouvoir la voir.
+
+Les repères sont des **mesures**, pas des constantes de réglage : les remesurer
+avec le script de distribution si le catalogue ou les raretés bougent.
+
+### Le bilan de fin de manche
+
+Il portait quatre chiffres d'équipe (survie, kills, joueurs, manche) et le
+tableau des scores. Deux manques :
+
+- **« joueurs » n'apprenait rien** — le tableau en donne la liste nominative deux
+  lignes plus bas. Remplacé par les **dégâts**, les **dégâts par seconde** et les
+  **dégâts subis** de l'équipe. Les dégâts bruts ne se comparent pas d'une manche
+  à l'autre sans être rapportés au temps : une manche de 4 min à 80 000 et une de
+  12 min à 190 000 se lisent enfin. Tout est **déduit côté client** — la somme des
+  lignes divisée par la durée — donc rien de neuf sur le réseau.
+- **Ta build demandait un clic**, sur ta ligne du tableau, et personne ne
+  cliquait. Un bloc « ta partie » l'affiche directement : classe, dégâts, DPS,
+  part des dégâts de l'équipe, kills, dégâts subis, nombre de cartes, les
+  multiplicateurs et la jauge de puissance. La liste des cartes reste derrière un
+  bouton — elle demande la place d'un écran entier.
+
+La part des dégâts de l'équipe est **coupée en solo** : elle y vaut toujours
+100 %, et écrire une évidence coûte une tuile de lecture. Le bloc entier ne
+s'affiche pas pour un spectateur, qui n'a pas de ligne dans le tableau.
+
 Un seul chiffre a demandé un ajout au protocole : les **dégâts cumulés** par
 joueur. Les projectiles ne portent pas leur propriétaire — un identifiant de
 plus sur chacune des quatre cents balles en vol, vingt fois par seconde — donc
@@ -1346,6 +1736,16 @@ joueur figerait la partie des autres.
 Le panneau donne : reprendre, le volume et la coupure du son, la fenêtre de
 build, et quitter la manche avec confirmation — qui rend spectateur jusqu'à la
 manche suivante, exactement comme quelqu'un qui arrive en cours de partie.
+
+Pour un **spectateur**, le même bouton dit « quitter la salle » et renvoie au
+hub : pendant une manche le salon est caché, donc le menu pause est sa seule
+porte de sortie. Sans ce cas, quelqu'un arrivé en cours de partie y restait
+enfermé jusqu'à la fin de la manche — et recharger la page ne l'en sortait pas
+non plus, puisque le client reprenait sa salle tout seul. La reprise est
+désormais un **geste** : le hub propose « tu étais dans *nom* — reprendre »,
+il ne téléporte plus. Quitter volontairement efface la proposition côté
+serveur (`lastRoomOf`), sinon la salle qu'on vient de fuir revenait à chaque
+reconnexion.
 
 Trois points de vigilance, tous réglés côté serveur :
 
@@ -1439,11 +1839,13 @@ Critère : il doit être identifiable **à sa masse seule**, sans détail intern
 polygone à quatorze côtés de rayon 13 — un **cercle**. Aucun appendice, aucune
 pointe, donc aucune orientation lisible en silhouette, et il était la seule des
 trois classes dans ce cas : le Rempart a son arc de bouclier, le DPS son dard.
-Or la charte dit « la forme dit la classe, la couleur dit le joueur » ; un
-soigneur qui ne tient que par sa teinte fait porter la classe par la couleur,
-alors que les quatre couleurs sont déjà prises par l'identité des joueurs. Sur la
-planche en noir uni, ses quatre cases étaient des ronds pleins qu'on ne pouvait
-ni orienter ni distinguer l'un de l'autre.
+Or la charte disait alors « la forme dit la classe, la couleur dit le joueur » ;
+un soigneur qui ne tient que par sa teinte fait porter la classe par la couleur,
+alors que les quatre couleurs étaient déjà prises par l'identité des joueurs. Sur
+la planche en noir uni, ses quatre cases étaient des ronds pleins qu'on ne
+pouvait ni orienter ni distinguer l'un de l'autre. (La règle a depuis été
+renversée — voir plus bas — mais la silhouette reste, et elle porte désormais la
+même information que la couleur au lieu de la remplacer.)
 
 Trois ajouts, et **pas un canon** — il soigne, il ne perce pas : un corps en
 **œuf** pointé vers l'avant, qui garde la masse ronde le séparant de l'hexagone
@@ -1744,13 +2146,18 @@ Trois correctifs, et il fallait les trois — chacun seul est insuffisant :
 
 - **Les balles prennent la couleur de leur tireur.** Les quatre couleurs de
   joueur existaient déjà, et ça répond du même coup à « qui a tiré ça », qui
-  n'avait aucune réponse en coopératif. Le tir du soigneur garde son vert : il ne
-  dit pas *qui* tire mais *ce que* le tir fait, et c'est l'information la plus
-  utile à la table.
+  n'avait aucune réponse en coopératif. Depuis que la couleur dit la **classe**,
+  elle répond en plus à « qui, dans l'équipe, tire ça ».
 - **Les projectiles ennemis passent au rouge franc** (`#ff3b5c`) et deviennent
   des **losanges étirés** dans leur axe. Le rouge et non un autre ambre parce que
-  la quatrième couleur de joueur est un orange ; la forme parce que la couleur se
-  perd dans le chaos et qu'un daltonien doit s'en sortir.
+  le **Tireur est ambre**, et c'est la classe qui tire le plus ; la forme parce
+  que la couleur se perd dans le chaos et qu'un daltonien doit s'en sortir.
+- **Le tir de soin porte une croix** — troisième silhouette. Il ne se
+  distinguait que par son vert, ce qui suffisait tant que le soigneur portait la
+  teinte de son joueur. Le soigneur étant vert en permanence, ses deux tirs
+  seraient devenus deux verts voisins : exactement le défaut du dessus, une
+  seconde fois. Même réponse, et la croix est déjà le signe du soin partout
+  ailleurs.
 - **Un liseré clair permanent sur les joueurs**, et c'est le plus rentable des
   trois : rien ne distinguait un personnage d'un monstre en priorité
   d'affichage. Ce n'est pas un tracé — les entités passent par `drawSprite` — mais
@@ -1806,6 +2213,49 @@ de vie** : triangle pour « viens ici », deux anneaux reliés pour un lien à
 rompre, carré barré pour une cage, croix pour une cible. **Distincts en
 silhouette et pas seulement par la couleur** — un daltonien doit s'en sortir, et
 de toute façon la couleur se noie dans le chaos.
+
+### La couleur dit la classe
+
+C'est le **renversement** de la règle d'origine, « la forme dit la classe, la
+couleur dit le joueur ». Elle tenait tant que les quatre teintes servaient à
+distinguer Paul de Marie. À l'usage, la question posée vingt fois par manche est
+« où est le soigneur », pas « lequel de ces deux points est Paul ». Les deux
+canaux disent donc la même chose et se renforcent, au lieu de se partager le
+travail — la silhouette continue de dire la classe, elle aussi.
+
+**Rempart bleu, Soigneur vert, Tireur ambre ou violet.** Deux teintes de tireur
+parce que c'est la seule classe non unique.
+
+Trois choses rendent la règle tenable, et aucune n'est décorative :
+
+**Deux teintes de tireur ne suffisent pas toujours.** « Au plus un tank et un
+soigneur » ne veut pas dire « exactement un » : une table de quatre où personne ne
+prend ces deux rôles aligne **quatre tireurs**, et deux d'entre eux seraient
+identiques. Les tireurs puisent donc dans leurs deux teintes, puis **empruntent**
+les couleurs de classe unique restées libres. La règle du dessus n'en souffre
+jamais : si un Rempart est là, le bleu est à lui, donc il n'est pas empruntable.
+
+**L'attribution est triée par identifiant**, pas laissée à l'ordre d'itération.
+Sans ça, un tireur change de teinte parce qu'un *autre* joueur a quitté le
+salon — le genre de scintillement qu'on ne remarque qu'en partie.
+
+**Elle ne tourne jamais en pleine manche.** Le calcul dépend de la salle entière :
+une déconnexion recolorerait des joueurs vivants au milieu d'un combat, alors que
+la couleur est précisément ce qui sert à se repérer. Le lancement de manche
+attribue avant de basculer la phase ; un arrivant en cours de partie garde la
+teinte reçue à l'entrée jusqu'au salon suivant.
+
+Le recalcul se fait **à la diffusion du salon** plutôt qu'à chaque changement : le
+salon est rediffusé à toute arrivée, tout départ et tout choix de classe, donc il
+n'y a aucun point de mutation à ne pas oublier de brancher.
+
+**Ce que ça a coûté : le mode soin a perdu son signal de couleur.** La bascule se
+lisait au passage de la couleur de joueur au vert du soigneur. Le soigneur étant
+maintenant vert en permanence, il ne restait qu'un vert pâle virant au vert
+saturé — presque rien. Un **anneau pulsant** l'a remplacé, dans la même bande que
+la provocation du Rempart et la surcharge du Tireur : trois compétences, trois
+classes, elles ne coexistent jamais sur un même personnage. Le mouvement se lit à
+travers la horde là où deux verts voisins ne se lisent plus.
 
 ### Un seul vert pour le soin
 
@@ -1919,10 +2369,49 @@ Le serveur simule à 60 Hz et diffuse l'état à 20 Hz.
 
 ### Trois choses côté client
 
-**Interpolation.** L'affichage a 110 ms de retard sur le dernier snapshot, soit
-deux snapshots de marge, et interpole entre les deux états qui encadrent
-l'instant affiché. Sans ça, le mouvement serait saccadé à 20 Hz sur un écran
-qui en affiche 60 ou 144.
+**Interpolation.** L'affichage a 110 ms de retard sur le dernier snapshot et
+interpole entre les deux états qui encadrent l'instant affiché. Sans ça, le
+mouvement serait saccadé à 20 Hz sur un écran qui en affiche 60 ou 144.
+
+Ce paragraphe disait « soit deux snapshots de marge », et c'était une lecture
+fausse de la condition — assez fausse pour avoir orienté un diagnostic de lag
+dans la mauvaise direction. Le client cherche une **paire** qui encadre
+l'instant affiché : il lui suffit que l'écart depuis le dernier snapshot reçu
+reste **sous 110 ms**, soit une marge supérieure à *un* snapshot, pas à deux.
+Au-delà, il n'y a plus de paire et l'affichage **gèle sur le dernier état reçu**
+au lieu d'extrapoler — d'où une saccade, puis un recalage sec de la prédiction
+quand le gel a dépassé les 90 px. La bonne façon de lire le budget est donc :
+à 50 ms d'espacement, il reste **60 ms** de tolérance à la gigue du réseau.
+
+**Et l'espacement n'était pas de 50 ms.** Le compteur de diffusion se remettait
+à **zéro** au lieu d'être décrémenté de sa période, ce qui jette le dépassement
+et quantifie la cadence sur un multiple de la période de la boucle partagée.
+Celle-ci ne vaut pas 8,333 ms mais **8,2 ms mesurés** (min 7,1, max 9,3) : six
+tours font 49,2 ms, donc moins de 50, et il en fallait sept. Mesuré en A/B sur
+une vraie `Room`, 30 s à 8,2 ms de période :
+
+| remise à zéro | cadence | espacement moyen | min | max |
+|---|---|---|---|---|
+| absolue (avant) | **17,40 Hz** | 57,40 ms | 57,4 | 57,4 |
+| relative (après) | **20,00 Hz** | 49,99 ms | 49,2 | **57,4** |
+
+Le correctif rend les 2,6 Hz manquants, soit 15 % de snapshots en plus, et
+ramène la tolérance à la gigue réseau de 52,6 à 60 ms. Il ne change **rien** au
+pire espacement — 57,4 ms dans les deux cas, la quantification sur la période de
+boucle est inhérente à un minuteur à 120 Hz. Autrement dit : il élargit le
+budget, il ne supprime pas la famine. Ce qui la supprime est le budget
+d'interpolation lui-même, à mesurer avant de le toucher.
+
+**Mesurer, justement.** `PERF=1` côté serveur sort une ligne par seconde et par
+salle — période réelle de la boucle, durée de tour, espacement réel de
+diffusion, poids d'instantané clair et déflaté, et surtout `defl=n/n`, qui dit
+si `permessage-deflate` a bien survécu au proxy inverse (s'il tombe, les
+snapshots partent en clair, soit ~2,5 fois la bande passante). `?perf` dans
+l'adresse ajoute au HUD la ligne symétrique côté client : espacement d'arrivée
+min/moyenne/max, nombre d'écarts au-delà de 110 ms, **nombre d'images gelées
+faute de paire encadrante**, recalages secs, durée d'image maximale. Ces deux
+lignes existent parce qu'un lag par saccades laisse le CPU et la RAM
+parfaitement plats : sans elles, six suspects sont indiscernables.
 
 **Prédiction locale.** Ton personnage bouge immédiatement à la touche, puis est
 ramené en douceur vers la position que le serveur renvoie. Au-delà de 90 px
@@ -2062,6 +2551,67 @@ Le total reste sous le budget de 10 % et du même ordre que le compteur de touch
 La répartition des dégâts subis par provenance est mesurée plus haut, dans « D'où
 viennent les dégâts qu'on prend ».
 
+### Grande arène et caméra (lot I)
+
+L'arène passe de 1600 × 900 à **4800 × 2700** ; la **vue** reste 1600 × 900,
+chaque client suit sa position prédite (caméra lissée, recalage sec au-delà
+d'un écran, clamp à la salle). Les combats de boss se jouent dans des
+**bounds resserrés à une vue**, ancrés sur le centre de gravité de l'équipe —
+c'est le mécanisme de constriction du lot 5, réutilisé tel quel, et toute la
+géométrie des mécaniques (damier, exaflares, couronne…) lit désormais les
+bounds au lieu de l'arène dessinée.
+
+Coût des coordonnées à quatre chiffres, mesuré arène pleine (200 ennemis, la
+moitié touchés, 400 balles, 4 joueurs, 4 points de récolte) :
+
+| version | poids de l'instantané | hausse |
+|---|---|---|
+| même scène à l'échelle 1600 × 900 | 15 791 o | référence |
+| grande arène (coordonnées + clé `hv` + éclats) | 16 547 o | **+4,8 %** |
+
+Sous le budget de 10 %. La caméra a été vérifiée en jeu réel : le suivi
+s'arrête exactement à `ARENA_W − VIEW_W/2 = 4000` px au bord droit, et la
+conversion souris reste juste pendant le déplacement (mémorisée en vue,
+convertie en monde à la lecture).
+
+Les **points de récolte** (cristal à détruire, amas à canaliser 1,5 s)
+n'apparaissent jamais à moins de 1100 px d'un joueur vivant ni pendant un
+boss ; le rendement (15-35 **éclats**, la monnaie de manche, jamais persistée)
+est versé à chaque joueur — même logique que l'expérience commune. Les
+retardataires sont resserrés (5 s, ×2,0) : un fuyard sur une salle neuf fois
+plus grande ne se rattrapait plus. Les apparitions se tirent **autour de la
+boîte englobante des joueurs** (hors écran, écrêtée à la salle) et non plus
+sur les bords : sur une arène d'une seule vue, ce tirage redonne exactement
+les quatre bords d'avant.
+
+Restent à mesurer en conditions réelles (fenêtre visible, table à quatre) :
+les images par seconde avec culling actif — le compteur `?perf` est en place —
+et la durée moyenne d'une vague avant/après (attendu : écart sous 15 %).
+
+### Économie du Terminal (lot H)
+
+Le revenu devient **linéaire et plafonné** — on paie la vague atteinte, plus
+la somme des vagues traversées, qui croissait au carré : une seule bonne
+partie payait une ligne entière au palier maximal (≈ 3 100 noyaux mesurés,
+dont deux tiers de primes de première fois, supprimées avec le lot). Les
+coûts deviennent géométriques (200 → 3 600, 6 900 la ligne), les emplacements
+se gagnent aux **jalons du compte** et plus aux achats. Cibles du spec F5,
+vérifiées avec les fonctions réelles :
+
+| mesure | attendu | relevé |
+|---|---|---|
+| vague 12, normal, 2 boss | 250 à 350 | **280** |
+| vague 20, cauchemar, 4 boss | plafonné à 600 | **600** |
+| parties pour un premier palier | 1 | **1** (200 ◈, ~280-378/partie) |
+| parties pour une ligne complète | 16 à 20 | **18,3** |
+| parties pour trois lignes complètes | 50 à 60 | **54,8** |
+| emplacements compte neuf → maximal | 3 → 6 | **3 → 6** (jalons) |
+
+Vérifié en jeu réel : une manche vague 1 en normal verse exactement 14 noyaux
+(10 × 1 × 1,4). L'écart compte neuf / compte maximal reste à remesurer en
+simulation complète (attendu sous 1,5 vague — les valeurs des lignes n'ont
+pas changé, seuls le rythme d'acquisition et la capacité ont bougé).
+
 ### Rendu WebGL
 
 Mesuré dans Chrome sans tête, sur un banc synthétique qui reproduit le pire cas
@@ -2133,7 +2683,9 @@ huit du plan, et c'est le levier qui reste si le chiffre doit encore monter.
 
 Aucune case de secours (Ravitaillement) n'a été servie sur les 200 manches, là
 où le pool d'avant en servait : c'est l'effet secondaire attendu d'un catalogue
-passé de 77 à 106 cartes.
+passé de 77 à 106 cartes. **Mesure prise à 106 cartes** — le catalogue en compte
+116 depuis, et l'effet ne peut qu'avoir grandi. Le chiffre n'est pas mis à jour
+ici : une mesure se remesure, elle ne se réécrit pas.
 
 ### Vagues et progression
 
@@ -2763,12 +3315,17 @@ Composition des vagues, dans `ENEMY_TYPES` : `from` (moment d'apparition),
 
 ## Limites connues
 
-- `ws_lite.js` couvre le nécessaire, pas plus : pas de compression, pas de TLS.
-  Parfait en LAN, à ne pas exposer sur Internet.
-- Pas de reprise de connexion : une coupure renvoie à l'écran de connexion.
+- `ws_lite.js` couvre le nécessaire, pas plus : **pas de TLS**, qui est le
+  travail du proxy inverse. Il fait en revanche la compression
+  (`permessage-deflate`) depuis le lot infra.
 - L'évitement entre ennemis reste en O(n²). À 180 c'est négligeable ; au-delà de
   400, il faudrait une grille spatiale.
-- Une seule partie à la fois, pas de gestionnaire de salons.
+- Pas de reprise de partie : une coupure en pleine manche fait perdre la place
+  dans la salle en cours. La **session**, elle, se reprend toute seule
+  (`loginToken`) — on ne retape pas son mot de passe.
+- Pas de récupération de mot de passe autonome : sans email, seul l'opérateur
+  peut réinitialiser (`adminPassReset`). Assumé, documenté dans
+  `LISEZMOI-BDD.md`.
 - Les collisions sont testées par distance, sans balayage continu **en vol** :
   une balle très rapide pourrait traverser un ennemi très fin. Aux vitesses
   actuelles le cas ne se produit pas. Seule l'**apparition** est balayée en

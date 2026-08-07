@@ -9,7 +9,11 @@
      charge le jeu. C'est la seule duplication du depot, et elle est commentee
      comme telle dans le fichier — une couleur changee dans la palette se
      reporte a la main. Ni `tokens.css` ni `palette.js` ne sont charges : voir
-     le commentaire du script en bas de page. -->
+     le commentaire du script en bas de page.
+
+     C'est aussi pourquoi le <style> en ligne de `develop` ne revient pas : il
+     lisait `tokens.css`, dont les couleurs sont posees par `cssVars()` — donc
+     par le jeu, que cette page refuse justement de charger. -->
 <link rel="stylesheet" href="/css/admin.css">
 </head>
 <body>
@@ -42,9 +46,30 @@
     <div id="message"></div>
   </section>
 
+  <div id="authed" hidden>
   <section>
     <h2>État</h2>
     <dl id="status"><dt>—</dt><dd>pas encore interrogé</dd></dl>
+  </section>
+
+  <section>
+    <h2>Diagnostic</h2>
+    <p style="color: var(--text-dim);">
+      Mesure serveur allumée à chaud, sans redémarrage : durée de tour, cadence
+      réelle de diffusion, poids d'instantané, compression réellement négociée,
+      saturation de socket. Tant qu'elle est active, le journal sort une ligne
+      <code>[perf]</code> par salle et par seconde. À couper une fois la partie
+      diagnostiquée.
+    </p>
+    <div class="row">
+      <button id="perf">Activer</button>
+      <span id="perfState" class="warn">éteint</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Salles</h2>
+    <table id="salles"><tbody></tbody></table>
   </section>
 
   <section>
@@ -112,9 +137,12 @@
     } catch {
       return say("serveur injoignable", "bad");
     }
-    if (r.status === 401) return say("clé invalide", "bad");
+    if (r.status === 401) { $("authed").hidden = true; return say("clé invalide", "bad"); }
     if (!r.ok) return say(`erreur HTTP ${r.status}`, "bad");
-    const { status, probe, salles, connectes, comptes } = await r.json();
+    const { status, probe, salles, connectes, comptes, perf } = await r.json();
+    // La cle vient d'etre acceptee : les sections sensibles apparaissent.
+    $("authed").hidden = false;
+    renderPerf(!!perf);
 
     let html = "";
     html += line("configuration", status.configured
@@ -129,25 +157,37 @@
     html += line("mémoire du serveur", `${status.players} compte(s)`
       + (status.frozen ? ` — ${status.frozen} gelé(s), version inconnue` : "")
       + (status.pushing || status.pending ? " — envoi en attente" : ""));
-    // La page supposait une partie unique ; elle liste desormais les salles.
     html += line("connectés", `${connectes} client(s)`);
-    if (!salles || salles.length === 0) {
-      html += line("salles", "aucune");
-    } else {
-      for (const s of salles) {
-        html += line(`salle ${s.code}`,
-          `« ${s.nom} » — ${s.joueurs}/${s.max}, ${PHASES[s.phase] ?? s.phase}`
-          + (s.phase === 1 ? ` (manche ${s.manche}, vague ${s.vague})` : ""));
-      }
-    }
     html += line("dernier échange réussi", fmtT(status.lastOkAt));
     if (status.lastError) {
       html += line("dernier échec", `${status.lastError} (${fmtT(status.lastErrorAt)})`, "warn");
     }
     $("status").innerHTML = html;
 
+    renderSalles(salles ?? []);
     renderComptes(comptes ?? []);
     say("");
+  }
+
+  /* Les noms de salle viennent des joueurs, comme les pseudos : textContent,
+     jamais innerHTML — la ligne `salle` de l'etat les injectait en HTML. */
+  function renderSalles(salles) {
+    const tbody = $("salles").querySelector("tbody");
+    tbody.textContent = "";
+    if (salles.length === 0) {
+      const td = tbody.insertRow().insertCell();
+      td.colSpan = 4;
+      td.textContent = "aucune salle";
+      return;
+    }
+    for (const s of salles) {
+      const tr = tbody.insertRow();
+      tr.insertCell().textContent = s.code;
+      tr.insertCell().textContent = `« ${s.nom} »`;
+      tr.insertCell().textContent = `${s.joueurs}/${s.max}`;
+      tr.insertCell().textContent = (PHASES[s.phase] ?? s.phase)
+        + (s.phase === 1 ? ` (manche ${s.manche}, vague ${s.vague})` : "");
+    }
   }
 
   /* La table des comptes vient de la MEMOIRE du serveur — jamais un hachage
@@ -207,11 +247,29 @@
       say("serveur injoignable", "bad");
       return null;
     }
-    if (r.status === 401) { say("clé invalide", "bad"); return null; }
+    if (r.status === 401) { $("authed").hidden = true; say("clé invalide", "bad"); return null; }
     const out = await r.json();
     if (out.error) { say(out.error, "warn"); return null; }
     return out;
   }
+
+  /* Le bouton de diagnostic. L'etat vient du serveur (champ `perf` de l'etat),
+     jamais d'une copie locale : un onglet coupe pendant qu'un autre a allume
+     doit le dire. `on` porte le FUTUR etat, pas le courant — un appui sur le
+     bouton demande l'inverse de ce qui est affiche. */
+  let perfOn = false;
+  function renderPerf(on) {
+    perfOn = on;
+    $("perf").textContent = on ? "Couper" : "Activer";
+    const st = $("perfState");
+    st.textContent = on ? "actif — lignes [perf] dans le journal" : "éteint";
+    st.className = on ? "ok" : "warn";
+  }
+  $("perf").addEventListener("click", async () => {
+    const out = await adminPost("/admin/api/perf", { on: !perfOn }, "bascule du diagnostic…");
+    if (!out) return;
+    renderPerf(!!out.on);
+  });
 
   async function passReset(pseudo, affichage) {
     if (!confirm(`Réinitialiser le mot de passe de « ${affichage} » ? `

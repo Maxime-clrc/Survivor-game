@@ -5,56 +5,68 @@ côté serveur comme côté client.
 
 ---
 
-## J1. La règle, telle qu'actée par l'équipe
+## J1. La règle — tranchée par le porteur du projet
+
+Le but du ban est simple : **qu'une carte précise ne revienne plus jamais sur
+ce compte.**
 
 - Bannir une carte proposée la retire **définitivement** du pool de tirage de
   ce compte pour toutes les parties futures.
+- **Bannir une carte bannit aussi les cartes qui dépendent d'elle.** Une carte
+  dont l'effet est inopérant sans la carte bannie n'a plus de raison
+  d'apparaître — la proposer serait offrir une carte morte. Rien de plus :
+  pas de cascade sur la famille, pas de règle de palier.
 - **Bannir consomme la phase de choix en cours** : le joueur ne peut pas
   sélectionner une autre carte à la place lors de cette même phase.
-- **Exception** : si la phase de choix comporte plusieurs paliers de rareté
-  visibles simultanément (par exemple une offre normale et une offre de palier
-  supérieur liée à un jalon), le joueur reste libre de choisir une carte dans
-  un palier différent de celui où il a banni.
-
-Cette dernière règle demande de bien définir ce qu'est un « palier » dans le
-système actuel, avant de coder quoi que ce soit.
+- L'exception « palier différent visible dans la même phase » discutée en
+  équipe est traitée comme une **clause anticipée** : le tirage actuel est à
+  offre unique (trois cartes, une sélection), aucun palier multiple simultané
+  n'existe. La clause ne s'activera que si un tel système apparaît un jour.
 
 ---
 
-## J2. Vérification du modèle de tirage actuel
+## J2. La dépendance entre cartes, concrètement
 
-Le tirage de cartes fonctionne aujourd'hui par offre unique : trois cartes
-proposées, une sélection, la phase se termine. **Aucune notion de palier
-multiple simultané n'existe.**
+Le catalogue actuel n'a **pas de champ de dépendance** : les paliers d'une
+famille sont indépendants au tirage (un palier supérieur possédé retire les
+inférieurs, mais aucun palier n'exige d'en posséder un autre), et les
+exclusions passent par `incompatible`, qui est une relation symétrique, pas
+une dépendance.
 
-L'exception actée par l'équipe ne peut donc s'appliquer que si le jeu propose
-déjà, ou proposera par ailleurs, plusieurs paliers dans une même phase — ce qui
-n'est pas le cas dans le code présent. Deux options :
+L'implémentation ajoute donc un champ déclaratif dans la table de `cards.js` :
 
-- **Traiter l'exception comme une clause anticipée**, qui ne s'active que si un
-  futur système de paliers multiples est introduit. Dans l'état actuel du jeu,
-  bannir consomme donc systématiquement la phase.
-- **Ou considérer que la phase de troisième compétence** (offre séparée,
-  filtrée par classe) constitue déjà un « palier différent » au sens de la
-  règle, si elle tombe sur la même vague qu'une offre normale.
+```js
+dependsOn: ["id_de_la_carte_socle"]
+```
 
-**Point à trancher avec le porteur du projet avant implémentation** : la
-seconde option demande de vérifier si les deux phases (carte normale et
-troisième compétence) peuvent effectivement coïncider sur la même vague dans
-le système actuel.
+posé uniquement sur les cartes dont l'effet est réellement inopérant sans une
+autre (exemple type : une carte qui modifie un effet qu'une seule autre carte
+peut poser). Le ban ferme la **clôture transitive** : bannir la carte socle
+bannit toute carte qui en dépend, directement ou par chaîne. Les cartes
+dépendantes rejoignent `bannedCards` explicitement à l'écriture — le tirage
+n'a ainsi qu'une liste plate à filtrer, jamais un graphe à résoudre.
+
+**Cas des trois variantes de troisième compétence** (par classe, mutuellement
+`incompatible`) : ce sont des variantes, pas des dépendances — bannir l'une
+laisse les deux autres disponibles. Mais bannir **les trois** prive le compte
+de `s3` pour toujours : la fenêtre de confirmation doit l'annoncer quand la
+dernière variante est en jeu.
 
 ---
 
 ## J3. Stockage
 
-Liste de cartes bannies, par compte, dans `data/progress.json` :
+Liste de cartes bannies, par compte, dans le **profil de la ligne Supabase**
+(la persistance n'est plus `data/progress.json`, voir `LISEZMOI-BDD.md`) :
 
 ```json
 "bannedCards": ["symbiose", "dette"]
 ```
 
-Ajout **en fin** du schéma existant, migration triviale : un compte sans ce
-champ est traité comme une liste vide.
+Champ ajouté au schéma de profil existant, migration triviale : un compte sans
+ce champ est traité comme une liste vide. Les identifiants y figurent à plat,
+cartes dépendantes incluses (cf. J2) — relire la liste suffit, aucun recalcul
+de dépendances au chargement.
 
 ---
 
@@ -92,10 +104,10 @@ Le serveur valide :
 - la carte n'est pas déjà bannie (idempotence) ;
 - la phase de choix pour ce joueur est encore ouverte.
 
-Réponse : la carte rejoint `bannedCards`, la phase se ferme pour ce joueur sans
-sélection (sauf clause d'exception du lot J1, si applicable), écriture
-immédiate dans la sauvegarde — le bannissement ne doit pas se perdre si le
-serveur redémarre avant la fin de la manche.
+Réponse : la carte **et sa clôture de dépendances** rejoignent `bannedCards`,
+la phase se ferme pour ce joueur sans sélection, écriture immédiate dans la
+sauvegarde — le bannissement ne doit pas se perdre si le serveur redémarre
+avant la fin de la manche.
 
 ---
 
@@ -111,6 +123,12 @@ serveur redémarre avant la fin de la manche.
 - Rappel explicite dans la fenêtre de confirmation : « cette carte ne sera plus
   jamais proposée sur ce compte, et vous ne recevrez pas de carte de
   remplacement pour cette apparition ».
+- La confirmation **liste les cartes entraînées** par la clôture de
+  dépendances (cf. J2), le cas échéant — bannir une carte socle sans savoir ce
+  qu'elle emporte serait une irréversibilité cachée.
+- Cas particulier affiché en évidence : bannir la **dernière variante de
+  troisième compétence** disponible pour une classe prive ce compte de `s3`
+  sur cette classe, définitivement.
 
 ---
 
@@ -137,7 +155,9 @@ Critères d'acceptation :
 
 - Une carte bannie n'apparaît plus jamais dans aucun tirage pour ce compte,
   y compris après redémarrage du serveur.
-- Bannir ferme la phase de choix sans sélection, sauf cas d'exception validé.
+- Bannir une carte bannit sa clôture de dépendances, et la confirmation
+  l'affiche avant l'action.
+- Bannir ferme la phase de choix sans sélection.
 - Le serveur rejette toute tentative de bannir une carte hors de l'offre
   actuelle du joueur.
 - L'action est confirmée explicitement avant d'être exécutée.

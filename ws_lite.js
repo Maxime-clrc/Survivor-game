@@ -17,6 +17,7 @@
 
 import { createHash } from "node:crypto";
 import { deflateRawSync, inflateRawSync, constants as zconst } from "node:zlib";
+import { PERF_ON } from "./perf.js";
 
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -64,6 +65,12 @@ export class WsConnection {
     this.rtt = null;
     this._pingAt = 0;
 
+    /* Compteurs de diagnostic, remis a zero a chaque rapport par la salle.
+       Deux entiers par connexion : ils sont poses inconditionnellement parce
+       qu'un champ absent coute plus a tester qu'a initialiser. */
+    this.perfBlocked = 0;
+    this.perfQueueMax = 0;
+
     this._buf = Buffer.alloc(0);
     this._fragOp = 0;
     this._frags = [];
@@ -102,7 +109,20 @@ export class WsConnection {
   sendPrepared(prep) {
     if (!this.open) return;
     try {
-      this.socket.write(this.deflate && prep.deflated ? prep.deflated : prep.plain);
+      const ok = this.socket.write(this.deflate && prep.deflated ? prep.deflated : prep.plain);
+      /* Le retour de write() est IGNORE en production : il n'y a aucune
+         backpressure dans ce module, un lien sature empile dans le tampon
+         interne de Node — illimite, le highWaterMark de 16 Ko n'est qu'un
+         signal. On se contente de le COMPTER (PERF=1) : c'est la mesure qui
+         dit si la latence observee vient de la file d'envoi ou d'ailleurs.
+         `writableLength` est releve meme quand write() a rendu true, sinon on
+         ne verrait pas une file qui grossit sous le seuil. */
+      if (PERF_ON) {
+        if (!ok) this.perfBlocked++;
+        if (this.socket.writableLength > this.perfQueueMax) {
+          this.perfQueueMax = this.socket.writableLength;
+        }
+      }
     } catch {
       this._shutdown();
     }

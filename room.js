@@ -20,16 +20,28 @@
    =========================================================================== */
 
 import { GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL } from "./shared/game_state.js";
-import { CARD_CFG, cardBrief } from "./shared/cards.js";
+import { CARD_CFG, cardBrief, banClosure } from "./shared/cards.js";
+import { RELIC_CFG, relicRerollCost } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
 import { lockedCards } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
+import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 
 export const PHASE_LOBBY = 0;
 export const PHASE_ROUND = 1;
 export const PHASE_CARDS = 2;
+export const PHASE_MERCHANT = 3;
 
 export const ROOM_MAX_PLAYERS = PLAYER_COLORS.length;
+
+/* Index dans `PLAYER_COLORS`, dont l'ordre EST celui des classes. Nommer les
+   quatre plutot que d'ecrire 0..3 dans `assignColors` : c'est la seule chose
+   qui relie ce fichier a l'ordre de la table, et un nombre nu s'y trompe en
+   silence. */
+const COLOR_TANK  = 0;
+const COLOR_HEAL  = 1;
+const COLOR_DPS_A = 2;
+const COLOR_DPS_B = 3;
 
 const PAUSE_MAX_MS = 5 * 60 * 1000;
 const SNAPSHOT_INTERVAL = 1 / CFG.SNAPSHOT_HZ;
@@ -82,6 +94,23 @@ export class Room {
     this.staggerFrac = (slot % 16) / 16;
     this.acc = 0;
     this.sinceSnapshot = -this.staggerFrac * SNAPSHOT_INTERVAL;
+
+    /* Diagnostic, allumable a chaud depuis la page admin. L'espacement de
+       diffusion se mesure sur l'horloge monotone et non sur `sinceSnapshot` :
+       c'est justement la valeur dont on soupconne qu'elle ne dit pas la verite.
+
+       L'etat est alloue meme quand la mesure est eteinte — deux tableaux vides
+       par salle. Le conditionner laisserait `null` pour toujours dans une salle
+       creee avant qu'on allume. */
+    this.perf = { esp: new Sampler(), lastSend: 0, clair: 0, defl: 0 };
+  }
+
+  /* Remise a zero a l'allumage, appelee par le hub. */
+  perfArm() {
+    this.perf.esp.reset();
+    this.perf.lastSend = 0;
+    this.perf.clair = 0;
+    this.perf.defl = 0;
   }
 
   /* --- diffusion ------------------------------------------------------------- */
@@ -91,7 +120,49 @@ export class Room {
      salle et non une par client. */
   broadcast(obj) {
     const prep = prepareMessage(JSON.stringify(obj));
+    /* Diagnostic : on retient le MAXIMUM de la fenetre et non la derniere
+       valeur. Les alertes passent par le meme chemin et font une centaine
+       d'octets — la derniere valeur ecraserait le poids de l'instantane, qui
+       est justement la seule qu'on vient lire ici. */
+    if (PERF_ON) {
+      if (prep.plain.length > this.perf.clair) this.perf.clair = prep.plain.length;
+      const dl = prep.deflated ? prep.deflated.length : 0;
+      if (dl > this.perf.defl) this.perf.defl = dl;
+    }
     for (const c of this.clients.values()) c.conn.sendPrepared(prep);
+  }
+
+  /* Une ligne de journal par salle et par seconde, appelee par le hub (PERF=1).
+
+     `defl=n/n` est la mesure la plus importante du lot : elle dit si
+     permessage-deflate a bien ete negocie de bout en bout. Un proxy inverse
+     qui supprime l'en-tete `Sec-WebSocket-Extensions` fait partir les
+     instantanes en clair — ~2,5 fois la bande passante — sans que rien cote
+     serveur ne s'en plaigne, et c'est un defaut VPS-seulement.
+
+     `bloq` et `fileMax` repondent a l'autre hypothese : il n'y a AUCUNE
+     backpressure dans ws_lite (le retour de socket.write est ignore), donc un
+     lien sature empile en silence dans le tampon interne de Node. */
+  perfReport() {
+    if (!PERF_ON || this.phase !== PHASE_ROUND) return;
+    const p = this.perf;
+    const e = p.esp.stats();
+    let deflate = 0, bloq = 0, fileMax = 0;
+    for (const c of this.clients.values()) {
+      if (c.conn.deflate) deflate++;
+      bloq += c.conn.perfBlocked;
+      if (c.conn.perfQueueMax > fileMax) fileMax = c.conn.perfQueueMax;
+      c.conn.perfBlocked = 0;
+      c.conn.perfQueueMax = 0;
+    }
+    console.log(`[perf] salle=${this.code} v${this.state.wave}`
+      + ` | diff n=${e.n} esp moy=${f1(e.moy)} min=${f1(e.min)} max=${f1(e.max)} ms`
+      + ` | snap clair=${p.clair} defl=${p.defl}`
+      + ` | conn=${this.clients.size} defl=${deflate}/${this.clients.size}`
+      + ` bloq=${bloq} fileMax=${fileMax}`);
+    p.esp.reset();
+    p.clair = 0;
+    p.defl = 0;
   }
 
   joined() {
@@ -123,10 +194,71 @@ export class Room {
 
   /* --- entrees / sorties ------------------------------------------------------ */
 
+  /* Premiere couleur libre. Ce n'est plus la regle generale — voir
+     `assignColors` juste en dessous — mais c'est le filet de l'arrivee EN COURS
+     DE MANCHE, ou l'attribution par classe refuse de toucher a quoi que ce
+     soit. Sans lui, un spectateur arriverait sans couleur du tout. */
   freeColor() {
     const used = new Set(this.joined().map(c => c.colorIndex));
     for (let i = 0; i < PLAYER_COLORS.length; i++) if (!used.has(i)) return i;
     return 0;
+  }
+
+  /* LA COULEUR SUIT LA CLASSE, et c'est ici qu'elle est attribuee — nulle part
+     ailleurs. Le Rempart est toujours bleu, le Soigneur toujours vert : a la
+     table, la question posee vingt fois par manche est « ou est le soigneur »,
+     et une teinte tiree au sort a l'arrivee n'y repondait jamais.
+
+     Ce n'etait pas gratuit a obtenir. `freeColor()` attribuait la premiere
+     couleur libre A L'ARRIVEE dans la salle, donc AVANT tout choix de classe, et
+     ne la revoyait plus jamais. La couleur devant maintenant suivre un choix qui
+     change au salon, elle se RECALCULE a chaque diffusion plutot que de se poser
+     une fois : c'est idempotent, ca coute une boucle sur quatre clients, et il
+     n'y a aucun point de mutation a ne pas oublier de brancher.
+
+     LE TIREUR A DEUX TEINTES ET ELLES NE SUFFISENT PAS TOUJOURS. `unique: true`
+     sur le tank et le soigneur veut dire « au plus un », pas « exactement un » :
+     une table de quatre ou personne ne prend ces deux roles aligne QUATRE
+     tireurs, et deux d'entre eux seraient identiques. Les tireurs puisent donc
+     d'abord dans leurs deux teintes, puis EMPRUNTENT les couleurs de classe
+     unique restees libres. La regle du dessus n'en souffre jamais : si un tank
+     est la, le bleu est a lui, donc il n'est pas empruntable. */
+  assignColors() {
+    /* JAMAIS EN PLEINE MANCHE. Le recalcul depend de la salle entiere : si un
+       tireur se deconnecte, les tireurs suivants remontent d'un cran dans le
+       pool et changeraient de couleur SOUS LES YEUX des autres, au milieu d'un
+       combat, alors que la couleur est precisement ce qui sert a se reperer.
+       `startRound()` appelle cette methode avant de basculer la phase, donc
+       l'attribution de depart passe ; tout ce qui arrive apres attend le salon
+       suivant. Un arrivant en cours de manche garde la teinte que `freeColor()`
+       lui a donnee a l'entree. */
+    if (this.phase !== PHASE_LOBBY) return;
+    // Tri par identifiant : l'ordre d'iteration d'une Map suffirait aujourd'hui,
+    // mais l'attribution doit etre STABLE — un tireur qui change de teinte parce
+    // qu'un autre joueur a quitte le salon est exactement le genre de scintillement
+    // qu'on ne remarque qu'en partie.
+    const list = [...this.joined()].sort((a, b) => a.id - b.id);
+    const pris = new Set();
+
+    for (const c of list) {
+      const id = c.cls === null || c.cls === undefined ? null : CLASSES[c.cls]?.id;
+      if (id === "tank" && !pris.has(COLOR_TANK)) {
+        c.colorIndex = COLOR_TANK; pris.add(COLOR_TANK);
+      } else if (id === "soigneur" && !pris.has(COLOR_HEAL)) {
+        c.colorIndex = COLOR_HEAL; pris.add(COLOR_HEAL);
+      } else {
+        // Tireur, sans classe, ou doublon d'une classe unique que le serveur
+        // aurait laisse passer : traite au second tour.
+        c.colorIndex = -1;
+      }
+    }
+
+    const pool = [COLOR_DPS_A, COLOR_DPS_B, COLOR_TANK, COLOR_HEAL]
+      .filter(i => !pris.has(i));
+    let k = 0;
+    for (const c of list) {
+      if (c.colorIndex === -1) c.colorIndex = pool[k++] ?? COLOR_DPS_A;
+    }
   }
 
   /* L'hote est le plus ancien client encore present. S'il part, le suivant
@@ -141,6 +273,10 @@ export class Room {
 
   attach(client) {
     client.room = this;
+    /* Teinte provisoire : la premiere libre, comme avant. Elle ne sert qu'a
+       couvrir l'arrivee EN COURS DE MANCHE, ou `assignColors()` refuse de
+       toucher a quoi que ce soit — sans elle, un spectateur arriverait sans
+       couleur du tout. Au salon, elle est ecrasee deux lignes plus bas. */
     client.colorIndex = this.freeColor();
     // Arriver en cours de manche ne coupe pas la partie des autres : on
     // regarde, on entre a la manche suivante — comportement inchange, par
@@ -151,6 +287,10 @@ export class Room {
        « prêt » dans un salon ou l'on vient de mettre le pied. */
     client.ready = false;
     this.clients.set(client.id, client);
+    // APRES l'insertion : l'attribution regarde la salle entiere, l'arrivant
+    // compris. Il n'a pas encore de classe, il prendra donc une teinte de
+    // tireur — et changera des qu'il choisira, comme tout le monde.
+    this.assignColors();
     this.knownMembers.add(client.pseudoKey);
     this.emptySince = 0;
 
@@ -265,6 +405,11 @@ export class Room {
   }
 
   lobbyPayload() {
+    /* Recalcul AVANT la diffusion, et c'est le point de passage qui rend le
+       reste inutile : le salon est rediffuse a chaque changement — arrivee,
+       depart, choix de classe — donc la couleur suit la classe sans qu'aucun
+       de ces trois endroits ait a y penser. Idempotent, quatre clients au plus. */
+    this.assignColors();
     const vote = this.votedDifficulty();
     return {
       t: "lobby",
@@ -310,8 +455,17 @@ export class Room {
 
   loadoutPayload() {
     const byPlayer = {};
-    for (const p of this.state.players.values()) byPlayer[p.id] = this.expandCards(p);
-    return { t: "loadout", byPlayer };
+    const relics = {};
+    for (const p of this.state.players.values()) {
+      byPlayer[p.id] = this.expandCards(p);
+      /* Reliques (lot K), dans un champ SEPARE : un onglet reste sur une
+         version anterieure lit `byPlayer` comme avant et ignore `relics`
+         (cle inconnue). Elles sont la pour la fenetre de build, qui doit
+         afficher l'indice de puissance REEL — celui qui pilote les PV du
+         boss — et il inclut le flat des reliques. */
+      relics[p.id] = [...p.relics.keys()];
+    }
+    return { t: "loadout", byPlayer, relics };
   }
 
   scoreboardRows() {
@@ -332,6 +486,12 @@ export class Room {
         cards: p ? this.expandCards(p) : [],
         total: c.total,
         cores: c.lastGain ?? 0,
+        /* Verdict personnel de la victoire finale (lot N) : « record » si le
+           temps ameliore le meilleur de CE compte a cette difficulte,
+           « victoire » sinon. Pose par le hub dans `awardRun`, nul hors
+           victoire — c'est ce qui permet a chacun de lire son propre resultat
+           sur un ecran commun. */
+        final: c.lastFinal ?? null,
       };
     }).sort((a, b) => b.score - a.score);
   }
@@ -385,17 +545,6 @@ export class Room {
       + `${this.state.pendingLevels > 0 ? `, ${this.state.pendingLevels} autre(s) à suivre` : ""})`);
   }
 
-  resumeRound() {
-    if (this.state.pendingLevels > 0) {
-      this.state.openCards();
-      this.enterCardPhase();
-      return;
-    }
-    this.phase = PHASE_ROUND;
-    this.state.cardOffers = new Map();
-    this.broadcast(this.loadoutPayload());
-  }
-
   forceRemainingPicks() {
     let forced = 0;
     for (const [id, offers] of this.state.cardOffers) {
@@ -409,6 +558,85 @@ export class Room {
     }
   }
 
+  /* --- marchand (lot K) -------------------------------------------------------
+
+     Miroir exact de la phase cartes : l'ecran s'ouvre quand GameState pose
+     `relicPending` (pose par _endWave apres une victoire de boss), la boucle
+     s'arrete, et la phase se gere comme PHASE_CARDS — deadline comprise, sauf
+     qu'a l'echeance on ne FORCE aucun achat : on ferme. Un joueur qui ne fait
+     rien garde ses eclats, c'est la difference avec une carte qu'il faut bien
+     choisir. */
+
+  merchantPendingIds() {
+    return [...this.state.players.keys()]
+      .filter(id => this.state.relicOffers.has(id) && this.clients.has(id));
+  }
+
+  enterMerchantPhase() {
+    this.phase = PHASE_MERCHANT;
+    this.state.relicPending = false;
+    this.merchantDeadline = Date.now() + RELIC_CFG.PICK_TIME * 1000;
+
+    for (const [id, offers] of this.state.relicOffers) {
+      const c = this.clients.get(id);
+      if (!c) continue;
+      const p = this.state.players.get(id);
+      c.conn.send(JSON.stringify({
+        t: "merchant",
+        wave: this.state.wave,
+        deadline: this.merchantDeadline,
+        eclats: p ? p.eclats : 0,
+        rerollCost: relicRerollCost(this.state.wave),
+        offers,
+      }));
+    }
+    this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
+    this.hooks.log(`[${this.code}] boss vaincu — marchand ouvert`);
+  }
+
+  /* Le joueur a fini (achete ou passe). Il sort de l'attente ; quand plus
+     personne n'attend, le tick ferme et reprend la manche. */
+  merchantDone(id) {
+    this.state.relicOffers.delete(id);
+  }
+
+  /* L'offre a jour a UN joueur : apres un achat ou une relance, le solde a
+     change et la relique achetée est sortie de l'offre. */
+  merchantSend(id) {
+    const c = this.clients.get(id);
+    const p = this.state.players.get(id);
+    if (!c || !p) return;
+    const offers = this.state.relicOffers.get(id);
+    if (!offers) return;
+    c.conn.send(JSON.stringify({
+      t: "merchant",
+      wave: this.state.wave,
+      deadline: this.merchantDeadline,
+      eclats: p.eclats,
+      rerollCost: relicRerollCost(this.state.wave),
+      offers,
+    }));
+  }
+
+  forceMerchantClose() {
+    this.state.closeMerchant();
+  }
+
+  resumeRound() {
+    if (this.state.pendingLevels > 0) {
+      this.state.openCards();
+      this.enterCardPhase();
+      return;
+    }
+    if (this.state.relicPending) {
+      this.enterMerchantPhase();
+      return;
+    }
+    this.phase = PHASE_ROUND;
+    this.state.cardOffers = new Map();
+    this.broadcast(this.loadoutPayload());
+  }
+
   /* --- manche ----------------------------------------------------------------- */
 
   startRound() {
@@ -417,9 +645,14 @@ export class Room {
     const diff = this.votedDifficulty().index;
     this.state = new GameState(diff);
     this.cardPicked.clear();
+    /* Les classes non choisies retombent sur le tireur AVANT l'attribution des
+       couleurs, et l'attribution avant `addPlayer` : elle depend de la classe,
+       et un `null` ne dirait pas quelle teinte prendre. Deux passes plutot
+       qu'une, pour cette seule raison. */
+    for (const c of this.joined()) if (c.cls === null) c.cls = CLASS_DEFAULT;
+    this.assignColors();
     for (const c of this.joined()) {
       c.spectator = false;
-      if (c.cls === null) c.cls = CLASS_DEFAULT;
       c.clsLocked = true;
       /* Remise a zero AU LANCEMENT, et non a la sortie de manche : le salon se
          reaffiche entre deux manches, et un `ready` herite ferait demarrer la
@@ -447,10 +680,21 @@ export class Room {
             ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
             quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
           },
-          locked: lockedCards(c.profile.milestones),
+          locked: (() => {
+            /* Le ban (lot J) emprunte le mecanisme des jalons : `locked` est
+               deja le filtre « n'apparait jamais dans un tirage », en amont
+               du tirage — exactement la garantie que le ban demande. */
+            const locked = lockedCards(c.profile.milestones);
+            for (const bid of c.profile.bannedCards ?? []) locked.add(bid);
+            return locked;
+          })(),
         };
       }
       c.rerollUsed = false;
+      /* Verdict de victoire finale (lot N) remis a zero au LANCEMENT et non a
+         la fin : le bilan le lit apres `endRound`, l'effacer la-bas l'aurait
+         efface avant qu'il ne serve. */
+      c.lastFinal = null;
       this.state.addPlayer(c.id, c.name, c.colorIndex, c.cls, meta);
       c.input.x = 0; c.input.y = 0; c.input.dash = false;
       c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
@@ -483,6 +727,11 @@ export class Room {
     this.setPaused(false);
     this.unlockClasses();
     this.recordRound();
+    /* La victoire finale (lot N) est relevee AVANT `awardRun`, qui la consomme
+       en l'enregistrant au classement : sans cette copie, le bilan ne saurait
+       plus qu'il y a eu victoire et afficherait une fin de manche ordinaire —
+       exactement l'ecran que la spec demande de distinguer. */
+    const final = this.state.finalVictory;
     /* Les noyaux se versent AVANT le tableau : `scoreboardRows` lit `lastGain`
        pour afficher le gain de chacun. C'est le hub qui ecrit — la salle emet
        l'evenement, la persistance ne la concerne pas. */
@@ -504,6 +753,13 @@ export class Room {
       kills: this.state.totalKills,
       host: this.hostId,
       rows,
+      /* Victoire finale (lot N) : cle ABSENTE dans le cas ordinaire — un
+         onglet reste sur une version anterieure ne la lit pas et affiche le
+         bilan normal, ce qui reste juste. Chaque client y trouve aussi son
+         propre verdict (`record` ou `victoire`), pose par le hub. */
+      ...(final ? {
+        final: { time: final.time, wave: final.wave, difficulty: final.difficulty },
+      } : {}),
     });
     this.broadcast(this.lobbyPayload());
     // Le solde de compte part APRES le bilan : voir awardRun cote hub.
@@ -591,6 +847,74 @@ export class Room {
         break;
       }
 
+      /* Marchand (lot K). Memes gardes que pickCard — l'offre courante, la
+         phase ouverte — plus le solde verifie DANS le GameState (un client ne
+         peut pas tricher le montant de ses eclats, et la limite de legendaire
+         par manche y vit). Apres un achat, on renvoie l'offre a jour : le
+         solde a change, la relique achetée est sortie de l'offre. */
+      case "buyRelic": {
+        if (this.phase !== PHASE_MERCHANT) break;
+        const p = this.state.players.get(id);
+        if (!p || !this.state.relicOffers.has(id)) break;
+        if (!this.state.buyRelic(p, msg.id)) break;
+        this.merchantSend(id);
+        this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
+        break;
+      }
+
+      /* Relance de l'offre contre des eclats, cout croissant avec la vague.
+         C'est un choix de BUDGET : le cout est debite dans le GameState, et
+         une relance qui echoue (pas assez d'eclats) ne change rien. */
+      case "rerollRelic": {
+        if (this.phase !== PHASE_MERCHANT) break;
+        const p = this.state.players.get(id);
+        if (!p || !this.state.relicOffers.has(id)) break;
+        if (!this.state.rerollRelic(p)) break;
+        this.merchantSend(id);
+        this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
+        break;
+      }
+
+      /* Passer : le joueur annonce qu'il a fini. On ne force jamais d'achat —
+         a l'echeance, le serveur ferme et garde les eclats. */
+      case "skipMerchant": {
+        if (this.phase !== PHASE_MERCHANT) break;
+        if (!this.state.relicOffers.has(id)) break;
+        this.merchantDone(id);
+        this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
+        break;
+      }
+
+      /* Bannissement (lot J). Memes gardes que pickCard — la carte doit
+         figurer dans l'OFFRE COURANTE de ce joueur, la phase etre ouverte —
+         plus l'idempotence. Bannir CONSOMME la phase : pas de selection, pas
+         de carte de remplacement. La cloture de dependances est calculee ici
+         et ecrite a plat ; `p.locked` est mis a jour dans la foulee pour que
+         le prochain ecran de la meme manche ne re-propose jamais la carte. */
+      case "banCard": {
+        if (this.phase !== PHASE_CARDS || this.cardPicked.has(id)) break;
+        const offers = this.state.cardOffers.get(id);
+        const p = this.state.players.get(id);
+        if (!offers || !p || !offers.includes(msg.id)) break;
+        if (!client.profile) break;
+        const pr = client.profile;
+        pr.bannedCards ??= [];
+        if (pr.bannedCards.includes(msg.id)) break;
+
+        const closure = banClosure(msg.id).filter(bid => !pr.bannedCards.includes(bid));
+        pr.bannedCards.push(...closure);
+        p.locked ??= new Set();
+        for (const bid of closure) p.locked.add(bid);
+        this.hooks.persist(client);
+        this.hooks.sendProgress(client);
+
+        this.cardPicked.add(id);
+        this.broadcast({ t: "cardsWait", pending: this.cardsPendingIds() });
+        this.hooks.log(`[${this.code}] ${client.name} bannit ${msg.id}`
+          + (closure.length > 1 ? ` (+${closure.length - 1} dépendante(s))` : ""));
+        break;
+      }
+
       case "pause": {
         if (this.phase !== PHASE_ROUND) break;
         const on = !!msg.on;
@@ -665,7 +989,7 @@ export class Room {
       }
     } else if (this.phase === PHASE_ROUND) {
       this.acc += dt;
-      while (this.acc >= CFG.TICK && !this.state.cardsPending) {
+      while (this.acc >= CFG.TICK && !this.state.cardsPending && !this.state.relicPending) {
         this.inputs.clear();
         for (const c of this.clients.values()) if (!c.spectator) this.inputs.set(c.id, c.input);
         this.state.step(CFG.TICK, this.inputs);
@@ -684,12 +1008,26 @@ export class Room {
         for (const a of this.state.alerts) this.broadcast({ t: "alert", ...a });
         this.state.alerts.length = 0;
       }
-      if (this.state.gameOver) this.endRound();
+      /* VICTOIRE FINALE (lot N) : la manche s'arrete sur la mort du Noyau, elle
+         ne se poursuit pas en vague 31. C'est la fin du contenu — laisser la
+         boucle continuer aurait transforme le combat final en simple etape, et
+         le classement au temps n'aurait plus rien mesure.
+         Teste AVANT `gameOver` : une equipe qui tombe dans la meme image que le
+         coup fatal a gagne, pas perdu. */
+      if (this.state.finalVictory) this.endRound();
+      else if (this.state.gameOver) this.endRound();
       else if (this.state.cardsPending) { this.acc = 0; this.enterCardPhase(); }
+      else if (this.state.relicPending) { this.acc = 0; this.enterMerchantPhase(); }
     } else if (this.phase === PHASE_CARDS) {
       this.acc = 0;
       if (this.cardsPendingIds().length === 0 || Date.now() >= this.cardDeadline) {
         this.forceRemainingPicks();
+        this.resumeRound();
+      }
+    } else if (this.phase === PHASE_MERCHANT) {
+      this.acc = 0;
+      if (this.merchantPendingIds().length === 0 || Date.now() >= this.merchantDeadline) {
+        this.forceMerchantClose();
         this.resumeRound();
       }
     } else {
@@ -698,10 +1036,36 @@ export class Room {
 
     this.sinceSnapshot += dt;
     if (this.sinceSnapshot >= SNAPSHOT_INTERVAL) {
-      // Remise a zero RELATIVE et non absolue : conserver le decalage de
-      // diffusion pose a la creation, sinon toutes les salles reconvergent
-      // vers le meme instant d'envoi au premier ralentissement.
-      this.sinceSnapshot = 0;
+      /* Remise a zero RELATIVE et non absolue : conserver le decalage de
+         diffusion pose a la creation, sinon toutes les salles reconvergent
+         vers le meme instant d'envoi au premier ralentissement.
+
+         Le code faisait `= 0` malgre ce commentaire, et ca coutait cher :
+         l'absolue jette le depassement, donc la periode de diffusion se
+         QUANTIFIE sur un multiple de la periode de la boucle partagee. Mesure
+         sur ce VPS : `setInterval(1000/120)` reveille toutes les 8,2 ms en
+         moyenne (min 7,1, max 9,3) et non 8,333 — donc 6 tours font 49,2 ms,
+         soit moins de 50, et il en fallait SEPT. Resultat simule sur 60 s a
+         periode constante : 17,40 Hz au lieu de 20, espacement 57,4 ms.
+         En relatif le residu s'accumule et la cadence revient a 19,98 Hz.
+
+         Ce que ca ne corrige PAS, mesure aussi : le PIRE espacement ne bouge
+         pas (58,7 ms en relatif contre 59,1 en absolu, avec la gigue reelle du
+         minuteur). C'est lui qui affame l'interpolation du client, pas la
+         moyenne — on rachete ~7 ms de tolerance a la gigue reseau, pas plus.
+
+         Un `if` et non un `while` : un retard de plus d'une periode ne se
+         rattrape pas, deux instantanes emis dans le meme tour porteraient
+         exactement le meme etat puisque la simulation n'a tourne qu'une fois.
+         Le cas se produit vraiment — `dt` est borne a 0,25 s par le hub, soit
+         cinq periodes d'un coup apres un hoquet. */
+      this.sinceSnapshot -= SNAPSHOT_INTERVAL;
+      if (this.sinceSnapshot >= SNAPSHOT_INTERVAL) this.sinceSnapshot = 0;
+      if (PERF_ON) {
+        const t = nowMs();
+        if (this.perf.lastSend > 0) this.perf.esp.add(t - this.perf.lastSend);
+        this.perf.lastSend = t;
+      }
       if (this.clients.size > 0 && this.phase === PHASE_ROUND) {
         const snap = this.state.snapshot();
         snap.ph = this.phase;

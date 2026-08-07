@@ -341,6 +341,15 @@
        milieu du vide. -->
   <div class="hubWrap">
 
+    <!-- Classement au temps (lot N). Au HUB et non au Terminal : il compare des
+         COMPTES entre eux, sa place est la ou l'on est justement hors salle.
+         Replie par defaut — c'est une consultation, pas une etape du parcours
+         vers une partie. -->
+    <div id="hubBoard" hidden>
+      <div id="hubBoardTabs" class="row"></div>
+      <div id="hubBoardList"></div>
+    </div>
+
     <!-- LA REPRISE, en clair. Elle partait toute seule : `welcome` proposait une
          salle et le client y entrait sans rien demander, si bien qu'on se
          retrouvait dans une manche en cours sans avoir clique. L'encart pose la
@@ -377,6 +386,10 @@
           </svg>
           <span>Actualiser</span>
         </button>
+        <!-- Classement au temps (lot N). Il vit dans la barre de la liste et
+             non dans le Terminal : il compare des COMPTES entre eux, sa place
+             est la ou l'on est justement hors salle. -->
+        <button id="hubBoardBtn">Classement</button>
       </div>
     </div>
 
@@ -453,6 +466,10 @@
 <div id="bilan" class="overlay" hidden>
   <div id="bilanTitle"></div>
   <div id="bilanStats"></div>
+  <!-- TA build, sans avoir a cliquer. Elle etait accessible depuis une ligne du
+       tableau, mais personne n'y allait : c'est ici, le resultat sous les yeux,
+       qu'on se demande pourquoi on a fait ces degats-la. -->
+  <div id="bilanMine" hidden></div>
   <!-- De quoi l'equipe est morte, ventile par provenance. C'est la seule
        question que le tableau des scores ne traitait pas : on savait combien on
        avait encaisse, jamais de quoi. -->
@@ -465,11 +482,13 @@
   </div>
 </div>
 
-<!-- Menu : ecran de progression, ouvert depuis le bouton dedie sur la carte
-     d'UNE classe au salon (#classes) — jamais impose apres la connexion, qui
-     tombe direct sur le salon. Premier et seul occupant : la progression
-     permanente (lot D), qui n'a pas sa place dans un ecran dont le seul but
-     est de preparer une manche. -->
+<!-- TERMINAL (lot H) : l'ecran de la progression permanente, plein ecran,
+     ouvert depuis le bouton unique du salon. Les trois arbres se consultent
+     par onglets de classe ; les emplacements — la contrainte qui structure
+     toutes les decisions — restent visibles en permanence, jamais derriere
+     un clic. Confort et jalons passent en onglets plutot qu'en empilement.
+     Les tables viennent de shared/progression.js, le serveur n'envoie que
+     l'etat du compte et valide chaque achat de son cote. -->
 <div id="menu" class="overlay" hidden>
   <div class="metaWrap">
 
@@ -495,20 +514,31 @@
       individuels.
     </p>
 
-    <!-- progression permanente (lot D). L'arbre affiche est celui de la classe
-         choisie au salon (renderMeta(clsIndex)). Les tables viennent de
-         shared/progression.js, le serveur n'envoie que l'etat du compte et
-         valide chaque achat de son cote. -->
+    <!-- progression permanente (lot D), devenue le TERMINAL au lot H. La
+         coquille — tete, lead, bouton de retour — vient de la refonte ; les
+         onglets, la ligne d'emplacements et les cartes bannies viennent du
+         plan 4. Les deux repondent a la meme objection par des moyens
+         differents : « quel arbre montre ce bouton » se resout par l'entree
+         (sous la carte choisie) ET par les onglets, une fois dedans. -->
+    <div id="metaClassTabs"></div>
+    <div id="metaSlots"></div>
+
+    <div id="metaTabs">
+      <button id="metaTabArbre" class="mine">Arbre</button>
+      <button id="metaTabConfort">Confort</button>
+      <button id="metaTabJalons">Jalons</button>
+      <button id="metaTabBans">Bannies</button>
+    </div>
+
+    <!-- Plus de kicker par liste : les onglets ci-dessus les nomment deja, et
+         un titre de section reste visible quand sa liste est repliee — on
+         lisait « Tronc de confort » au-dessus de l'arbre. -->
     <div id="meta" hidden>
-      <div class="sectionTitle">Paliers</div>
       <div id="metaSub" class="hint"></div>
       <div id="metaTree"></div>
-
-      <div class="sectionTitle">Tronc de confort</div>
-      <div id="metaConfort"></div>
-
-      <div class="sectionTitle">Jalons</div>
-      <div id="metaMilestones"></div>
+      <div id="metaConfort" hidden></div>
+      <div id="metaMilestones" hidden></div>
+      <div id="metaBans" hidden></div>
     </div>
 
     <div class="row metaBack">
@@ -702,10 +732,12 @@
         <div id="launchSummary"></div>
         <div id="waitMsg"></div>
       </div>
-      <!-- « Talents » a quitte la barre : l'arbre s'ouvre desormais SOUS la
-           carte de la classe choisie, ou l'on voit sur quoi il porte. La barre
-           ne garde que l'action principale de l'ecran. -->
+      <!-- Le Terminal garde son bouton de barre pour sa PASTILLE : elle
+           s'allume quand des noyaux sont depensables, et sans elle personne ne
+           pense a ouvrir l'ecran. Le bouton sous la carte de classe choisie,
+           lui, dit QUEL arbre il ouvre. -->
       <div class="row">
+        <button id="terminalBtn">Terminal<i id="terminalDot" hidden></i></button>
         <button id="start">Lancer la manche</button>
       </div>
     </div>
@@ -724,6 +756,16 @@
   <div id="cardsTimer"><i></i></div>
   <div id="cardsRow"></div>
   <div id="cardsWaitMsg"></div>
+</div>
+
+<!-- Marchand de reliques (lot K) : apres chaque victoire de boss, 3 reliques
+     a acheter contre des eclats — ce n'est PAS un choix exclusif comme les
+     cartes, c'est un budget a repartir. La relance se paie. -->
+<div id="merchant" class="overlay" hidden>
+  <div id="merchantTitle"></div>
+  <div id="merchantTimer"><i></i></div>
+  <div id="merchantRow"></div>
+  <div id="merchantWaitMsg"></div>
 </div>
 
 <!-- Fenetre de BUILD. Un seul ecran pour trois entrees : Tab en jeu, un clic sur
@@ -750,6 +792,10 @@
 
   <div id="buildStats"></div>
   <div id="buildMods"></div>
+  <!-- Indice de puissance : le seul chiffre qui explique a la fois les PV du
+       boss et la pression des vagues. Un multiplicateur nu ne se lit pas sans
+       point de comparaison — la jauge porte les reperes MESURES. -->
+  <div id="buildPower"></div>
   <div id="buildSkills"></div>
   <div id="buildCards"></div>
   <div id="buildHint" class="hint">← → changer de joueur · <b>Échap</b> fermer</div>
@@ -781,7 +827,7 @@
     <button id="pauseQuit" class="danger">Quitter la manche</button>
 
     <div id="pauseConfirm" hidden>
-      <div>Quitter la manche en cours ? Tu redeviens spectateur jusqu'à la suivante.</div>
+      <div id="pauseQuitAsk">Quitter la manche en cours ? Tu redeviens spectateur jusqu'à la suivante.</div>
       <div class="row">
         <button id="pauseQuitYes" class="danger">Oui, quitter</button>
         <button id="pauseQuitNo">Annuler</button>

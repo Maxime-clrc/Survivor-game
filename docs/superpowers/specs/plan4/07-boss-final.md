@@ -35,10 +35,13 @@ avant d'affronter leur synthèse.
 FINAL_BOSS_AFTER_FULL_ROSTER: true
 ```
 
-Vérification nécessaire avec le lot L (vagues spéciales) : s'assurer que le
-cycle de boss et le cycle de vagues spéciales ne se chevauchent jamais sur le
-même numéro de vague, pour ne pas cumuler deux événements majeurs sur une
-seule vague.
+**Le calcul, fait avec le lot L** : les boss occupent les vagues multiples de
+5 (`WAVE_BOSS_EVERY: 5`), le roster compte cinq boss — le cycle complet se
+termine vague 25, le boss final tombe donc **vague 30**. Les vagues spéciales
+occupent `vague % 5 === 3` (lot L) : aucune ne peut coïncider avec un boss ni
+avec le boss final, par arithmétique — il n'y a pas de liste d'exceptions à
+maintenir. La vague 28 (tir croisé) est la dernière spéciale avant le combat
+final.
 
 ---
 
@@ -165,9 +168,13 @@ complète lorsqu'un joueur atteint le boss final »*.
 }
 ```
 
-Dans `data/progress.json`, par compte, avec un classement global consultable
-depuis le Terminal ou le salon (à trancher au moment de l'implémentation selon
-ce qui existe alors dans l'interface).
+Dans le profil de la ligne Supabase du compte (la persistance n'est plus
+`data/progress.json`), avec un classement global consultable depuis le
+Terminal ou le salon (à trancher au moment de l'implémentation selon ce qui
+existe alors dans l'interface). Le serveur étant multi-salons, le temps
+enregistré est celui du `GameState` de la salle (`state.t`, autoritaire) ; le
+classement compare des comptes, toutes salles confondues, **par difficulté**
+— le champ y est.
 
 ### Dépendance critique avec le lot L
 
@@ -197,4 +204,5 @@ vagues spéciales rencontrées en chemin.
 - Au moins deux mécaniques n'existent nulle part ailleurs dans le jeu.
 - Le temps de complétion enregistré au classement correspond au temps réel
   écoulé depuis le début de la manche, vérifiable côté serveur.
-- Aucune vague spéciale ne peut coïncider avec l'apparition du boss final.
+- Aucune vague spéciale ne peut coïncider avec l'apparition du boss final
+  (garanti par l'arithmétique du lot L : `% 5 === 3` contre `% 5 === 0`).
