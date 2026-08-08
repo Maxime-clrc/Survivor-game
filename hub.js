@@ -350,6 +350,43 @@ export function createHub(store, log, commit = "") {
     room.attach(client);
   }
 
+  /* --- journal d'erreur client ---------------------------------------------
+
+     Le navigateur n'a pas de journal qu'on relise : la console est ouverte ou
+     elle ne l'est pas, et personne ne joue avec les outils de developpement
+     affiches. Une erreur non rattrapee dans la boucle de rendu disparait donc
+     sans laisser de trace, alors que c'est precisement ce qu'on veut apres une
+     fusion — un ecran qui ne s'ouvre plus jette, et la pile d'appel dit ou.
+
+     PLAFONNE PAR CONNEXION, et ce n'est pas une precaution de style : une erreur
+     dans la boucle de rendu se REPETE soixante fois par seconde. Sans plafond,
+     un seul defaut noierait le journal du serveur en quelques secondes et
+     emporterait tout ce qu'il y avait autour — c'est-a-dire exactement le
+     contexte qu'on est venu chercher. Une meme signature n'est journalisee
+     qu'une fois : la deuxieme occurrence n'apprend rien que la premiere n'ait
+     deja dit. */
+  const ERR_MAX = 12;              // par connexion, tout le reste est jete
+
+  function propre(v, max) {
+    // Les retours a la ligne sont remplaces et non retires : sans separateur
+    // visible, une pile d'appel devient une bouillie de noms colles.
+    return String(v ?? "").slice(0, max).replace(/[\r\n\t]+/g, " ⏎ ");
+  }
+
+  function logClientError(client, msg) {
+    client.errSeen ??= new Set();
+    if (client.errSeen.size >= ERR_MAX) return;
+    const ou = propre(msg.ou, 60);
+    const quoi = propre(msg.message, 200);
+    const signature = ou + "|" + quoi;
+    if (client.errSeen.has(signature)) return;
+    client.errSeen.add(signature);
+
+    const qui = client.name || "anonyme";
+    const pile = propre(msg.pile, 400);
+    log(`[client] ${qui} — ${ou} : ${quoi}${pile ? ` — ${pile}` : ""}`);
+  }
+
   /* Achats et reattributions de la progression permanente. Ils vivent au HUB —
      seul ecrivain — et restent refuses pendant une manche : depuis le hub ou
      depuis le salon d'une salle, jamais en jeu. */
@@ -532,6 +569,24 @@ export function createHub(store, log, commit = "") {
         case "metaEquip":
         case "metaConfort":
           if (metaAllowed(client)) handleMeta(client, msg);
+          return;
+
+        /* JOURNAL D'ERREUR CLIENT. Traite au HUB et non dans la salle, parce
+           qu'une erreur de navigateur ne connait pas l'etat du joueur : elle
+           arrive aussi bien sur l'ecran de connexion, au salon qu'en manche, et
+           la router vers la salle l'aurait perdue dans les deux premiers cas.
+
+           Elle existe parce que le serveur est le SEUL journal qu'on regarde. Un
+           defaut de rendu ou un ecran qui ne s'ouvre plus se manifeste dans la
+           console du navigateur, que personne n'a ouverte pendant qu'il joue —
+           et une pile d'appel perdue est un bug qu'on debogue a l'aveugle.
+
+           LE CONTENU EST HOSTILE PAR CONSTRUCTION : c'est une chaine choisie par
+           le client. Elle est donc tronquee, et ses retours a la ligne sont
+           APLATIS — sans ca, un client modifie ecrirait de fausses lignes de
+           journal, ce qui est le seul moyen de mentir a l'operateur ici. */
+        case "clientError":
+          logClientError(client, msg);
           return;
       }
 

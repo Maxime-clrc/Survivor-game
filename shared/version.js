@@ -54,6 +54,9 @@
                    profit de U, S et W, qui font la meme chose en mieux integre.
                    Economie : forme du lot H (lineaire, plafonnee) sur l'unite du
                    plan 5 (le niveau). Profil v5, migration en chaine.
+     0.7.10 remontee d'erreur client : le navigateur n'a pas de journal qu'on
+                   relise, le serveur si — une erreur non rattrapee y arrive
+                   desormais, dedupliquee et aplatie
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -63,4 +66,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.7.9";
+export const VERSION = "0.7.10";

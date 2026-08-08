@@ -426,6 +426,61 @@ const passMsgEl = document.getElementById("passMsg");
 /* --- etat local ------------------------------------------------------------- */
 
 let ws = null;
+
+/* --- REMONTEE D'ERREUR ------------------------------------------------------
+
+   La console du navigateur n'est ouverte que si quelqu'un a pense a l'ouvrir, et
+   personne ne joue avec les outils de developpement affiches. Une erreur non
+   rattrapee dans la boucle de rendu disparait donc sans laisser de trace — or
+   c'est exactement ce qu'on veut savoir : un ecran qui ne s'ouvre plus jette, et
+   la pile d'appel dit ou.
+
+   Elle part par la socket DEJA OUVERTE et non par une requete a part : il n'y a
+   ni route a ajouter cote serveur, ni second chemin a garder d'accord, et le
+   serveur sait deja qui parle. Corollaire assume : une erreur survenue AVANT la
+   connexion n'est pas remontee — on la met en attente, et elle part a
+   l'ouverture si elle a lieu.
+
+   Le seuil est cote CLIENT en plus du plafond serveur : une erreur dans la
+   boucle de rendu se repete soixante fois par seconde, et il ne s'agit pas de
+   faire confiance au serveur pour absorber une rafale qu'on peut ne pas
+   emettre. */
+const errVues = new Set();
+const errFile = [];
+const ERR_MAX = 12;
+
+function signalerErreur(ou, message, pile) {
+  const signature = ou + "|" + String(message).slice(0, 200);
+  if (errVues.has(signature) || errVues.size >= ERR_MAX) return;
+  errVues.add(signature);
+  const paquet = { t: "clientError", ou, message: String(message).slice(0, 200),
+                   pile: String(pile ?? "").slice(0, 400) };
+  // La console reste servie : elle est le journal de qui a les outils ouverts,
+  // et le serveur celui de qui ne les a pas.
+  console.error("[" + ou + "]", message, pile ?? "");
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(paquet));
+  else if (errFile.length < ERR_MAX) errFile.push(paquet);
+}
+
+// Vidage a l'ouverture : ce qui a casse pendant le chargement est justement ce
+// qu'on ne verrait jamais autrement.
+function viderErreurs() {
+  if (!ws || ws.readyState !== 1) return;
+  while (errFile.length) ws.send(JSON.stringify(errFile.shift()));
+}
+
+window.addEventListener("error", e => {
+  const ou = e.filename
+    ? `${e.filename.split("/").pop()}:${e.lineno}` : "inconnu";
+  signalerErreur(ou, e.message, e.error?.stack);
+});
+/* Les promesses rejetees passent par un canal SEPARE et ne declenchent pas
+   `error` : `buildAtlas` est un `await`, et une panne de generation d'atlas —
+   soit tout le rendu — n'aurait produit aucune trace sans cette ligne. */
+window.addEventListener("unhandledrejection", e => {
+  const r = e.reason;
+  signalerErreur("promesse", r?.message ?? String(r), r?.stack);
+});
 let myId = 0;
 let myPseudo = "";          // casse canonique du compte, pour le classement
 let hostId = 0;
@@ -536,7 +591,12 @@ function connect() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}`);
 
-  ws.onopen = () => { if (pendingAuth) ws.send(JSON.stringify(pendingAuth)); };
+  ws.onopen = () => {
+    if (pendingAuth) ws.send(JSON.stringify(pendingAuth));
+    // Ce qui a casse avant la connexion part maintenant : le chargement est
+    // justement le moment ou personne ne regarde la console.
+    viderErreurs();
+  };
 
   ws.onmessage = ev => {
     let msg;
@@ -1318,6 +1378,16 @@ async function bootOnce() {
                 `${atlasStats().mo.toFixed(1)} Mo — rendu : ` +
                 `${gl?.ok ? "WebGL2" : "canvas 2D"}`);
   }
+  /* ETAT DE DEMARRAGE, remonte UNE fois. Ce n'est pas une erreur, et ca emprunte
+     pourtant le meme canal : ce sont les trois choses qu'on demande toujours en
+     premier quand un joueur dit « c'est bizarre chez moi » — quel chemin de
+     rendu, quelle densite de pixels, quelle version d'onglet. Les redemander par
+     message revient a attendre une reponse ; les avoir dans le journal revient a
+     les lire. Une ligne par connexion, jamais plus. */
+  signalerErreur("demarrage",
+    `rendu ${gl?.ok ? "WebGL2" : "canvas 2D"}, atlas ${stats.frames} images `
+    + `${stats.w}x${stats.h}, densite ${window.devicePixelRatio ?? 1}, v${VERSION}`,
+    "");
 
   /* `?planche` sort la planche de silhouettes en noir uni sur fond blanc.
      Ce n'est pas un gadget : c'est le CRITERE D'ACCEPTATION des silhouettes.
