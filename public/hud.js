@@ -25,7 +25,7 @@
    =========================================================================== */
 
 import {
-  CFG, PLAYER_COLORS, DIFFICULTIES, specialAt,
+  CFG, PLAYER_COLORS, DIFFICULTIES,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,

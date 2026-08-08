@@ -807,66 +807,6 @@ export function traitsOf(diffIndex, type) {
    reexport en tete de fichier. `from` (la vague d'apparition) y a ete remplace
    par `minLevel` / `fallback` : il n'y a plus de vague, et D3 indexe l'acces aux
    types sur le niveau d'equipe. `this.tier` n'a donc plus aucun lecteur. */
-
-/* Vagues speciales (lot L). Une vague speciale remplace le TIRAGE d'une vague
-   entiere — sa composition, rien d'autre : le modele budget-puis-nettoyage est
-   conserve tel quel, et c'est ce qui permet de n'ajouter aucune condition de
-   fin de vague.
-
-   L'ORDRE DU TABLEAU EST LA SEQUENCE. Il n'y a pas de constante
-   `SPECIAL_SEQUENCE` a cote : deux listes a garder d'accord divergent a la
-   premiere retouche, et c'est l'index qui circule dans le snapshot — le
-   reordonner ferait annoncer « Siege » a un onglet reste sur une version
-   anterieure pendant qu'il affronte une nuee. On ajoute a la FIN.
-
-   `pool` remplace `_pickType` : les quotas de part (`share`) y sont
-   volontairement contournes. Une nuee de runners depasse largement la part de
-   45 % qu'un runner s'autorise en vague normale, et c'est exactement ce qui en
-   fait une nuee.
-
-   Les trois multiplicateurs sont indexes sur `_teamPower()` comme les vagues
-   normales — ils portent sur le budget, les PV et le debit, pas sur la courbe
-   de puissance, qui reste commune. Valeurs de DEPART : la spec demande de les
-   mesurer par type, il n'y a pas de cible a priori. */
-export const SPECIAL_WAVES = [
-  /* Nuee — beaucoup, faibles, vite. Le budget double et les PV baissent : le
-     danger n'est pas la resistance, c'est de se faire encercler. */
-  { key: "nuee", nom: "Nuée", sous: "ne te laisse pas encercler",
-    pool: [{ type: 1, weight: 1 }],
-    budgetMul: 1.7, hpMul: 0.75, spawnMul: 1.8 },
-  /* Tir croise — les shooters dominent, les grunts poussent en avant. Sans les
-     grunts, il suffirait de reculer : c'est le melange qui oblige a fermer la
-     distance plutot qu'a la subir. */
-  { key: "croise", nom: "Tir croisé", sous: "ferme la distance",
-    pool: [{ type: 3, weight: 0.75 }, { type: 0, weight: 0.25 }],
-    budgetMul: 1.0, hpMul: 0.9, spawnMul: 1.0 },
-  /* Siege — que des tanks. Peu nombreux, lents, coriaces : la vague dure
-     longtemps par construction, d'ou un budget nettement reduit. */
-  { key: "siege", nom: "Siège", sous: "ils ne reculeront pas",
-    pool: [{ type: 2, weight: 1 }],
-    budgetMul: 0.30, hpMul: 0.85, spawnMul: 1.0 },
-  /* Chasse — un seul gibier, aucun autre ennemi. Le tank pour son gabarit,
-     deja le plus grand du bestiaire ; le bulwark est le candidat evident a la
-     variete une fois la vague mesuree, mais son bouclier frontal sur une cible
-     unique a PV de boss risque de rendre la chasse injouable en solo, et ca se
-     mesure avant de se decider. Le brood est exclu par construction : un gibier
-     qui se scinde contredit « aucun autre ennemi ». */
-  { key: "chasse", nom: "Chasse", sous: "un seul, et il te cherche",
-    pool: null, quarry: 2,
-    budgetMul: 0, hpMul: 1, spawnMul: 1 },
-];
-
-export function specialAt(i) { return SPECIAL_WAVES[i] ?? null; }
-
-/* Quelle vague speciale pour la vague `w`, ou -1. Point de passage unique :
-   la regle vit ici, jamais recopiee chez un appelant — le client la rejoue
-   pour annoncer la prochaine, et deux copies divergeraient. */
-export function specialForWave(w) {
-  if (w % CFG.SPECIAL_WAVE_MOD !== CFG.SPECIAL_WAVE_REM) return -1;
-  const n = Math.floor((w - CFG.SPECIAL_WAVE_REM) / CFG.SPECIAL_WAVE_MOD);
-  return n < 0 ? -1 : n % SPECIAL_WAVES.length;
-}
-
 /* L'ordre fait foi : le snapshot ne transmet que l'index. On ajoute donc a la
    fin, jamais au milieu — et on ne REORDONNE pas davantage, y compris pour
    sortir une entree de la rotation : `damage`, `rate`, `double` et `pierce` en
@@ -3547,22 +3487,6 @@ export class GameState {
      periodiquement l'arene, donc un type qui meurt rarement s'y accumule
      jusqu'a la fin de la manche. */
   _pickType() {
-    /* Vague speciale (lot L) : sa composition REMPLACE le tirage, quotas de
-       part compris. Le garde-fou ci-dessous existe pour qu'une vague normale ne
-       s'appauvrisse pas ; une vague speciale est justement definie par son
-       appauvrissement, l'y soumettre reviendrait a la refuser. */
-    const sp = specialAt(this.waveSpecial);
-    if (sp && sp.pool) {
-      let total = 0;
-      for (const e of sp.pool) total += e.weight;
-      let roll = Math.random() * total;
-      for (const e of sp.pool) {
-        roll -= e.weight;
-        if (roll <= 0) return ENEMY_TYPES[e.type];
-      }
-      return ENEMY_TYPES[sp.pool[0].type];
-    }
-
     const counts = new Array(ENEMY_TYPES.length).fill(0);
     for (const e of this.enemies) counts[e.type]++;
 

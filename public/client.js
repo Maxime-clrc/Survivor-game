@@ -21,9 +21,6 @@ import {
      le genou commence a l'absorber. Les afficher, c'est rendre visible la seule
      regle du jeu que le joueur subissait sans jamais la voir. */
   powerIndex, bossPower,
-  // Lot L : le nom et le sous-titre d'une vague speciale. Comme pour les boss,
-  // seul l'index circule — le libelle se lit dans la table partagee.
-  specialAt,
 } from "/shared/game_state.js";
 import {
   CARDS, CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, CARD_CFG, cardDetail, computeMods,
@@ -9420,9 +9417,9 @@ function drawMarkColumns(marks, t) {
     if (m.mech !== MECH_TOWER && m.mech !== MECH_COUNT
         && m.mech !== MECH_STACK && m.mech !== MECH_SANCTUARY
         // Le sceau est une zone ACCUEILLANTE : il a sa colonne comme les tours,
-        // et il en a plus besoin qu'elles — on le tient vingt secondes en
-        // regardant ailleurs.
-        && m.mech !== MECH_SCEAU) continue;
+        // et il en a plus besoin qu'elles — on le tient six secondes en
+        // regardant ailleurs, a l'autre bout de l'arene.
+        && m.mech !== MECH_SEAL) continue;
     const ok = m.mech === MECH_SANCTUARY
       || (m.mech === MECH_COUNT ? m.cur === m.need : m.cur >= 1);
     const col = ok ? MARK.ok : MARK_GO;
