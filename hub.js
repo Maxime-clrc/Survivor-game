@@ -20,7 +20,10 @@
    SIGTERM couvre donc aussi ce qui attendait la fenetre.
    =========================================================================== */
 
-import { CFG, PLAYER_COLORS, DIFF_NORMAL } from "./shared/game_state.js";
+import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES } from "./shared/game_state.js";
+// Le boss final (lot W) : son jalon paie trois fois plus, et c'est le seul
+// endroit du hub qui ait besoin de savoir lequel des six vient de tomber.
+import { BOSS_FINAL } from "./shared/bosses.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial } from "./shared/progression.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
@@ -98,18 +101,22 @@ export function createHub(store, log, commit = "") {
   /* Versement de fin de manche — port de l'awardRun d'avant, par salle. La
      salle emet, le hub ecrit : c'est ce qui fait disparaitre les ecritures
      concurrentes par construction. */
+  /* Tout est indexe sur le NIVEAU D'EQUIPE (D3). Le numero de vague n'existe
+     plus, et le segment atteint ne dirait rien : toutes les equipes voient les
+     six memes segments. Le niveau, lui, se gagne — c'est ce que le lot Q rend
+     vrai — donc c'est lui qui paie. */
   function awardRun(room) {
     const state = room.state;
-    const shared = coresForRun(state.wave, state.bossKills, state.diffIndex);
+    const shared = coresForRun(state.level, state.bossKills, state.diffIndex);
     for (const c of room.joined()) {
       const p = state.players.get(c.id);
       if (!p || !c.profile) continue;
       const pr = c.profile;
       let gain = shared;
 
-      for (const [w, bonus] of Object.entries(PROG_CFG.CORE_FIRST_WAVES)) {
-        const id = `vague${w}`;
-        if (state.wave >= Number(w) && !pr.milestones.includes(id)) {
+      for (const [n, bonus] of Object.entries(PROG_CFG.CORE_FIRST_LEVELS)) {
+        const id = `niveau${n}`;
+        if (state.level >= Number(n) && !pr.milestones.includes(id)) {
           pr.milestones.push(id);
           gain += bonus;
         }
@@ -118,11 +125,16 @@ export function createHub(store, log, commit = "") {
         const id = `boss_${kind}`;
         if (!pr.milestones.includes(id)) {
           pr.milestones.push(id);
-          gain += PROG_CFG.CORE_FIRST_BOSS;
+          // Le boss final paie trois fois plus (lot W). C'est la seule
+          // recompense de PUISSANCE de l'evenement : les cartes passent par le
+          // jalon, jamais par la bourse.
+          gain += kind === BOSS_FINAL
+            ? PROG_CFG.CORE_FINAL_BOSS
+            : PROG_CFG.CORE_FIRST_BOSS;
         }
       }
-      if (state.wave >= 8 && !pr.milestones.includes("vague8")) pr.milestones.push("vague8");
-      if (p.deaths === 0 && state.wave >= PROG_CFG.NO_DOWN_MIN_WAVE
+      if (state.level >= 10 && !pr.milestones.includes("niveau10")) pr.milestones.push("niveau10");
+      if (p.deaths === 0 && state.level >= PROG_CFG.NO_DOWN_MIN_LEVEL
           && !pr.milestones.includes("sans_chute")) {
         pr.milestones.push("sans_chute");
       }
@@ -135,18 +147,47 @@ export function createHub(store, log, commit = "") {
 
       pr.cores += gain;
       pr.runs += 1;
-      if (state.wave > pr.best.wave) pr.best.wave = state.wave;
+      /* `best.wave` n'est plus jamais ecrit : c'est le record historique du
+         modele par vagues, il reste lisible tel quel. Les deux records du
+         nouveau modele vivent a cote — le niveau dit la build, le segment dit
+         jusqu'ou l'equipe est allee dans le script. */
+      if (state.level > (pr.best.level | 0)) pr.best.level = state.level;
+      if (state.segment > (pr.best.segment | 0)) pr.best.segment = state.segment;
       if (p.score > pr.best.score) pr.best.score = p.score;
+
+      /* MEILLEURE COURSE FINALE (lot W). Le temps du COMBAT FINAL SEUL — pas
+         celui pour l'atteindre, qui est une constante sous D1 et ne
+         distinguerait personne.
+
+         Les quatre champs de contexte sont OBLIGATOIRES et c'est tout l'interet
+         de l'enregistrement : un temps n'est comparable qu'a variante, biome,
+         difficulte et effectif egaux. Le meilleur temps ne remplace le
+         precedent que s'il est plus court, mais le contexte du NOUVEAU
+         l'accompagne — comparer deux records de contextes differents est le
+         travail du lot X, pas celui de cette ligne. */
+      if (state.finalKill > 0
+          && (!pr.bestFinalRun || state.finalKill < pr.bestFinalRun.kill)) {
+        pr.bestFinalRun = {
+          kill: state.finalKill,
+          total: Math.round(state.time),
+          level: state.level,
+          difficulty: state.diffIndex,
+          variant: DIFFICULTIES[state.diffIndex]?.script ?? "normal",
+          biome: state.biomeIndex,
+          players: room.joined().length,
+          date: new Date().toISOString(),
+        };
+      }
       c.lastGain = gain;
       persist(c);
     }
   }
 
-  /* Part d'un joueur qui quitte EN COURS de manche : les vagues jouees, rien
+  /* Part d'un joueur qui quitte EN COURS de manche : les niveaux atteints, rien
      d'autre. Appele AVANT que le joueur ne sorte de state.players. */
   function awardPartial(c, room) {
     if (room.phase === PHASE_LOBBY || !c.profile || !room.state.players.has(c.id)) return;
-    c.profile.cores += coresPartial(room.state.wave, room.state.diffIndex);
+    c.profile.cores += coresPartial(room.state.level, room.state.diffIndex);
     persist(c);
   }
 
@@ -635,7 +676,7 @@ export function createHub(store, log, commit = "") {
         max: ROOM_MAX_PLAYERS,
         phase: r.phase,
         manche: r.roundNumber,
-        vague: r.phase === PHASE_ROUND ? r.state.wave : 0,
+        vague: r.phase === PHASE_ROUND ? r.state.segment : 0,
       })),
       connectes: [...clients.values()].filter(c => c.joined).length,
     };

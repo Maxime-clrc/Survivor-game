@@ -28,11 +28,60 @@ import {
   MECH_EXAFLARE, MECH_BAIT, MECH_DRIFT, MECH_SANCTUARY, MECH_SLIP,
   MECH_QUADRANT, MECH_CROSS, MECH_CONVERGE, MECH_DODGE,
   MECH_SHRINK, MECH_PUDDLE, MECH_SAFE,
-  MECH_BREATH, MECH_BROOD, MECH_REVERSE, MECH_SWAP,
+  MECH_BREATH, MECH_BROOD, MECH_REVERSE, MECH_SWAP, MECH_ENRAGE,
+  MECH_SYNTH, MECH_SEAL,
   BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME,
+  BOSS_FINAL, BOSS_POOL_COUNT,
 } from "./bosses.js";
+import {
+  TL_CFG, SCRIPTS, EVENTS, beatAt, adaptEntry, adaptEvent, eventAt, verifierScript,
+  EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE,
+} from "./timeline.js";
+import {
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait, traitBit,
+  TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
+} from "./enemies.js";
+import {
+  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor,
+  biomeAt, hazardAt, weatherAt, verifierBiomes,
+  HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
+  WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
+} from "./biomes.js";
 
 export { CARD_CFG };
+/* Le bestiaire est SORTI de ce fichier au lot S, mais il continue d'en etre
+   exporte : `client.js`, `hud.js` et les scripts de mesure importent
+   `ENEMY_TYPES` d'ici depuis toujours, et un lot qui deplace une table n'a
+   aucune raison de faire bouger ses appelants.
+
+   `traitsOf` et `typesFor` ne sont PAS reexportes : ils ne viennent plus
+   d'`enemies.js`, ils sont definis ici avec les profils (lot T). */
+export {
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait,
+  TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
+};
+export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
+export { EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE };
+/* Le biome est reexporte pour la MEME raison que le bestiaire : `client.js`
+   regenere la geometrie de son cote a partir de `(biome, graine)`, et il importe
+   deja `game_state.js`. Une seconde porte d'entree pour la meme table aurait
+   donne deux chemins d'import a garder d'accord. */
+export {
+  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor,
+  biomeAt, hazardAt, weatherAt, verifierBiomes,
+  HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
+  WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
+};
+
+/* Raccourcis de masque, pour que la table des profils se lise. `DASH | TRAIL`
+   est ce qu'on veut voir sur la ligne du grunt ; `1 << TRAIT_DASH | 1 <<
+   TRAIT_TRAIL` ne se relit pas. */
+const DASH = traitBit(TRAIT_DASH);
+const TRAIL = traitBit(TRAIT_TRAIL);
+const VOLLEY = traitBit(TRAIT_VOLLEY);
+const FRENZY = traitBit(TRAIT_FRENZY);
+const SPORE = traitBit(TRAIT_SPORE);
+const AURA = traitBit(TRAIT_AURA);
 export { CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt };
 export { STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOOM };
 export { BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, mechAt };
@@ -121,19 +170,31 @@ export const CFG = {
      rallongeait la survie que de quelques secondes, c'est la densite qui tue,
      pas la resistance.
 
-     Les rampes sont indexees sur le NUMERO DE VAGUE et non plus sur le temps
-     ecoule. Sur une horloge, une equipe qui nettoie vite affrontait la vague 6
-     avec la pression de la vague 3, et une equipe lente l'inverse : la vague
-     cessait d'etre une unite de difficulte comparable d'une partie a l'autre.
-     Conversion depuis l'ancienne courbe temporelle a duree de vague egale
-     (~55 s) : 0.16 PV/s -> 9 PV/vague, 0.08 -> 4, et le debit ramene a un gain
-     par vague au lieu des 7,7 apparitions/s que l'ancienne rampe atteignait a
-     600 s — ou seul MAX_ENEMIES l'arretait encore. */
+     Les rampes sont indexees sur la MINUTE DE HORDE. Elles l'etaient sur le
+     numero de vague, qui n'existe plus : le script (`timeline.js`) envoie la
+     meme chose a la meme minute pour toutes les equipes, donc la minute EST
+     l'unite de difficulte comparable — c'est exactement la propriete qu'on
+     cherchait en quittant l'horloge, et elle est desormais gratuite.
+     Conversion a l'identique : un beat dure 60 s la ou une vague durait ~55 s,
+     donc 9 PV/vague -> 9 PV/minute et 4 -> 4. A la minute 15, les PV de base
+     valent 151 comme a la vague 16 de l'ancienne courbe.
+     Le DEBIT, lui, ne se derive plus d'une rampe : il est ECRIT, beat par beat,
+     dans SCRIPT. */
+  /* 13 et non 9 depuis que la puissance n'entre plus dans les PV (D2) : les PV
+     doivent porter SEULS ce que la rampe et le terme de puissance portaient a
+     deux. Derivation : a la vague 16 — la fin de manche de l'ancien modele — un
+     grunt avait 16 + 9 x 15 = 151 PV de base, que la puissance mediane (2,36,
+     absorbee a 0,55) portait a ~264 PV effectifs, et l'equilibrage y etait juge
+     correct. La manche est deux fois plus longue et l'equipe deux fois plus
+     chargee, d'ou une cible d'environ 420 PV a la minute 30 : (420 - 16) / 30
+     donne 13,5.
+     Le critere qui compte n'est pas cette valeur mais le TEMPS DE MISE A MORT
+     d'un grunt, qui doit rester entre 0,15 et 0,50 s pour une build mediane du
+     debut a la fin — c'est lui qui fait que « 120 ennemis » veut dire la meme
+     chose a la minute 5 et a la minute 25. */
   ENEMY_HP_BASE: 16,
-  ENEMY_HP_WAVE_RAMP: 9,     // PV gagnes par vague
-  ENEMY_SPEED_WAVE_RAMP: 4,
-  SPAWN_BASE: 0.8,           // apparitions par seconde a la vague 1
-  SPAWN_WAVE_RAMP: 0.15,     // apparitions par seconde gagnees par vague
+  ENEMY_HP_MIN_RAMP: 13,     // PV gagnes par minute de horde
+  ENEMY_SPEED_MIN_RAMP: 4,
 
   // Reanimation volontairement rapide : a 3 s, relever quelqu'un au milieu
   // d'une vague etait impossible, on restait immobile bien trop longtemps.
@@ -159,68 +220,108 @@ export const CFG = {
      probleme entierement et donne une barre de progression partagee.
 
      Les paliers sont NORMALISES sur l'effectif, avec le meme exposant que le
-     budget de vague. Une jauge commune a paliers fixes donnait quatre fois plus
+     debit du script. Une jauge commune a paliers fixes donnait quatre fois plus
      de cartes a quatre joueurs qu'a un seul, alors que les deux tables voient
-     exactement les memes vagues : le solo terminait la manche avec trois cartes
-     et se faisait ecraser par une vague 8 calibree pour une equipe qui en avait
-     douze. Le gain est donc divise par joueurs^WAVE_CROWD_EXP, ce qui rend le
-     rythme des cartes identique quel que soit l'effectif.
+     exactement la meme horde : le solo terminait la manche avec trois cartes
+     et se faisait ecraser par une pression calibree pour une equipe qui en
+     avait douze. Le gain est donc divise par joueurs^WAVE_CROWD_EXP, ce qui
+     rend le rythme des cartes identique quel que soit l'effectif.
 
-     Courbe remesuree apres la suppression des gains automatiques : a 1.35 de
-     croissance, le palier 6 coutait deja 129 kills normalises et l'equipe
-     mourait vague 4 avec deux cartes. Il fallait que les cartes arrivent au
-     rythme des vagues, sinon rien ne reprend les x4,3 de degats disparus. */
+     L'UNITE A CHANGE : un kill ne vaut plus 1, il vaut les PV MAX de la cible.
+     Applique a la lettre, « de l'experience uniquement en tuant » s'annulait
+     tout seul — les PV des ennemis montent sur l'horloge, donc un grunt de la
+     minute 30 coute une vingtaine de fois plus de degats qu'un grunt de la
+     minute 1 et rapportait exactement les memes 10 points. L'experience par
+     minute s'effondrait au fil de la partie, la ou elle devait s'ouvrir.
+
+     Aux PV max, l'experience par minute devient proportionnelle aux DEGATS PAR
+     SECONDE de l'equipe, ce qui est exactement l'effet recherche. Quatre
+     proprietes tombent sans une ligne de code : pas de dernier coup a voler
+     (la valeur ne depend pas de qui acheve), une elite vaut son x3 de PV, un
+     tank vaut ses 4,5 grunts, et la rampe de PV ne dilue plus rien.
+
+     `score` ne bouge pas et ne doit pas etre confondu : il dit la valeur
+     TACTIQUE d'une cible (un tireur vaut plus qu'un grunt a surface egale) et
+     n'est lu que par le tableau des scores. Les PV disent la valeur ECONOMIQUE.
+
+     LA BOUCLE NE S'EMBALLE PAS, et le frein etait deja ecrit : un palier coute
+     18 % de plus que le precedent (GROWTH) quand une carte rapporte de l'ordre
+     de +9 % de puissance (mesure : puissance mediane 2,36 pour ~13 cartes).
+     1,18 / 1,09 = 1,08 — chaque niveau prend 8 % de temps de plus que le
+     precedent, donc la courbe decelere d'elle-meme, sans plafond dur ni
+     falaise. Meme raisonnement que le genou des PV de boss. */
   LEVEL_MAX: 30,             // plafond haut : un niveau = une carte
-  LEVEL_KILLS_BASE: 15,      // kills normalises du 1er palier
-  LEVEL_KILLS_GROWTH: 1.18,  // chaque palier coute 18 % de plus
-  WAVE_XP_BONUS: 12,         // en equivalent kills, verse a la fin d'une vague
+  /* MESURE, pas conversion. La conversion arithmetique donnait 240 — les 15
+     kills normalises du 1er palier x 16 PV d'un grunt du debut — et elle est
+     fausse d'un facteur trente : elle suppose que le nombre de kills ne bouge
+     pas, alors qu'une manche de trente minutes en compte des milliers ET que
+     les PV de chaque cible montent avec la manche. A 240, la table plafonnait
+     au niveau 30 a mi-parcours et repartait avec 34 cartes par joueur.
 
-  /* Vagues. Une vague est un BUDGET d'apparitions : elle se termine quand le
-     budget est epuise ET que l'arene est vide. Le flux continu ne laissait
-     jamais respirer et rendait impossible de donner une carte ailleurs qu'a la
-     mort d'un boss — soit toutes les 180 s, sur une survie moyenne de 182 s.
-     La plupart des parties ne voyaient qu'un seul choix de carte. */
-  WAVE_BUDGET_BASE: 14,      // apparitions de la vague 1
-  WAVE_BUDGET_RAMP: 6,       // apparitions ajoutees par vague
-  // 0.75 donne x2,8 a quatre joueurs contre x2 pour le sqrt(joueurs) d'avant :
-  // la difficulte a effectif eleve etait trop molle.
+     Balaye a plafond REEL (le calibrage a plafond leve est invalide : sans
+     plafond, la boucle puissance -> PV des ennemis -> experience diverge, et la
+     base « necessaire » varie d'un facteur sept d'un effectif a l'autre).
+     Cartes par joueur, moyenne sur 4 a 6 manches completes par point :
+     24000 -> 14, 8000 -> 21,5, 7000 -> 27,2, 6000 -> 27,8, 2000 -> plafond.
+
+     7500 est le MILIEU des deux points qui encadrent la cible (24 a 26), et
+     c'est tout ce que la mesure autorise a dire : l'ecart-type est de l'ordre
+     de six cartes d'une manche a l'autre a reglage identique, donc plus grand
+     que l'ecart entre 7000 et 8000. Cette dispersion vient de la boucle que le
+     lot R coupe (WAVE_HP_POWER_K : une build forte fait monter les PV, donc
+     l'experience) — c'est apres lui que le reglage se resserre. */
+  LEVEL_XP_BASE: 6000,       // PV detruits, normalises, du 1er palier
+  LEVEL_XP_GROWTH: 1.18,     // chaque palier coute 18 % de plus
+  /* Les degats portes au BOSS creditent, mais a 35 %. A plein, les quelques
+     milliers de PV d'un boss feraient de lui la source principale d'experience
+     et la horde ne servirait plus qu'a passer le temps — l'inverse exact de ce
+     que le script raconte. A 35 % il avance la build sans la porter. */
+  BOSS_XP_K: 0.35,
+
+  /* Normalisation d'effectif. Elle survit a la disparition des vagues : c'est
+     elle qui porte la parite mesuree entre une table d'un et de quatre joueurs
+     (15,8 contre 16,0 vagues atteintes), sur le debit comme sur les paliers
+     d'experience. 0.75 donne x2,8 a quatre joueurs contre x2 pour le
+     sqrt(joueurs) d'avant : la difficulte a effectif eleve etait trop molle. */
   WAVE_CROWD_EXP: 0.75,
-  WAVE_BREATHER: 4,          // secondes de repit entre deux vagues
-  WAVE_BOSS_EVERY: 5,        // la vague 5, 10, 15... est un boss
-
-  /* Soin de fin de vague. Il ne figurait pas au plan du lot, et son absence
-     s'est vue a la premiere mesure : la suppression des gains de niveau avait
-     emporte LEVEL_HEAL (10 PV par palier) sans rien mettre a la place, et il ne
-     restait plus AUCUNE source de recuperation entre deux vagues — seule la
-     mort d'un boss en donnait, soit une fois toutes les cinq vagues. Les bots
-     mouraient vague 4 avec des PV qui ne remontaient jamais. Le repit doit
-     rendre des PV, sinon ce n'est pas un repit, c'est un compte a rebours. */
-  WAVE_HEAL: 18,
   // Les elites montent en PROPORTION avec l'effectif, pas seulement en nombre
-  // absolu : a quatre joueurs le budget triple, et sans ca on croisait la meme
+  // absolu : a quatre joueurs le debit triple, et sans ca on croisait la meme
   // densite d'elites dans une foule trois fois plus dense.
   WAVE_ELITE_CROWD_EXP: 0.4,
 
-  /* Retardataires. C'est le point faible du modele « nettoyage » : shooters et
-     runners fuient, et traquer les six derniers a travers 1600 x 900 est
-     fastidieux — mesure a plus de 40 s sur une vague qui en dure 50. Passe le
-     delai, les restants recoivent un halo, accelerent, et les tireurs perdent
-     leur distance de securite : ils viennent au contact et la vague se termine
-     d'elle-meme en quelques secondes. */
-  WAVE_STRAGGLER_DELAY: 8,
-  WAVE_STRAGGLER_SPEED: 1.6,
+  /* PLUS AUCUN SCALING DE PUISSANCE (D2). Les deux termes valaient 0,55 et 0,35
+     et repercutaient la puissance mesuree de l'equipe sur les PV des ennemis et
+     sur le debit d'apparition. A zero, le facteur `(1 + K * (power - 1))` vaut
+     exactement 1 et le terme s'evanouit : pas une ligne de logique ne change,
+     et revenir en arriere est un changement de constante.
 
-  /* Difficulte indexee sur la PUISSANCE MESUREE de l'equipe, jamais sur sa
-     composition. La tentation etait d'ajuster selon les roles presents — plus
-     de PV aux monstres s'il y a un soigneur. C'est le mecanisme qui a tue les
-     roles de soutien dans beaucoup de jeux cooperatifs : celui qui choisit le
-     soigneur rend la partie plus dure pour tout le monde, et plus personne ne
-     le choisit. Une equipe avec soigneur a mecaniquement moins de degats bruts,
-     donc une puissance mesuree plus faible, donc des vagues un peu plus
-     tendres : l'ajustement se fait tout seul, sans que personne ne se sente
-     taxe. */
-  WAVE_HP_POWER_K: 0.55,     // part de la puissance repercutee sur les PV
-  WAVE_RATE_POWER_K: 0.35,   // ... et sur le debit d'apparition
+     La raison de fond n'est pas de doctrine : un scaler dont l'entree est sa
+     propre sortie n'est PAS MESURABLE, et ce depot ne se pilote que par la
+     mesure. Il se ressent aussi — le joueur qui reussit voit le mur monter,
+     c'est le defaut classique de l'ajustement dynamique.
+
+     L'ancien argument reste vrai et n'est plus le sujet : indexer sur la
+     puissance MESUREE plutot que sur la composition evitait de taxer le
+     soigneur. Ne jamais rouvrir cette porte-la en remettant un terme de
+     composition a la place de celui qu'on retire ici.
+
+     Ce que ca coute est ecrit et repare au meme endroit : la duree d'un combat
+     de boss devient inversement proportionnelle a la build (131 s a 29 s), d'ou
+     le plancher de barre et l'enrage dans `BOSS_CFG`. */
+  WAVE_HP_POWER_K: 0,        // etait 0.55 — les PV d'ennemi ne suivent plus la puissance
+  WAVE_RATE_POWER_K: 0,      // etait 0.35 — le debit non plus
+  /* Les PV du boss se calent sur la build MEDIANE mesuree, une fois pour
+     toutes. Une reference explicite et non `bossPower()` avec un K nul : avec
+     `BOSS_POWER_K = 0`, `bossPower(p)` rend le genou au-dessus du genou mais
+     rend `p` EN DESSOUS — une build faible garderait donc un boss aux PV
+     reduits, c'est-a-dire un scaling residuel. Et un genou a zero rendrait un
+     boss sans PV. */
+  BOSS_POWER_REF: 2.36,
+  // Delai avant qu'une baisse d'effectif vivant ne descende la pression : voir
+  // `aliveCrowd()`. Assez long pour couvrir un relevement, assez court pour
+  // qu'une equipe reellement decimee ne se batte pas longtemps contre un boss
+  // calibre pour l'effectif complet.
+  CROWD_HYSTERESIS: 8,
 
   SHOT_SPEED: 235,
   SHOT_RADIUS: 6,
@@ -274,9 +375,9 @@ export const CFG = {
      divise par deux les degats de l'equipe a l'arrivee du premier boss. A
      2800, le premier combat passait de 51 s a 94 s et le troisieme depassait
      les deux minutes trente. */
-  // BOSS_FIRST et BOSS_EVERY (180 s chacun) ont ete remplaces par
-  // WAVE_BOSS_EVERY : le boss occupe une vague entiere au lieu d'interrompre
-  // une horloge. `bossCount` reste, il sert a la croissance des PV.
+  // BOSS_FIRST et BOSS_EVERY (180 s chacun) ont disparu : le boss clot un
+  // SEGMENT, et son combat est HORS de l'horloge de horde (D1). `bossCount`
+  // reste, il sert a la croissance des PV.
   /* Recalibre de 1500 a 1200 avec la suppression des gains de niveau. Le boss
      n'a pas change de formule — ses PV restent indexes sur la puissance de
      l'equipe — mais l'echelle de cette puissance, elle, a change du tout au
@@ -474,6 +575,21 @@ export const SRC_SHOT = 1;
 export const SRC_ZONE = 2;
 export const SRC_MECH = 3;
 export const SRC_BURN = 4;
+/* SIXIEME source, AJOUTEE EN FIN au lot S : l'explosion du kamikaze. Elle en
+   merite une a elle seule alors qu'elle passe techniquement par une zone —
+   c'est tout l'interet du registre. Un joueur qui voit « zone au sol : 40 % de
+   nos degats » au bilan cherche des flaques de boss ; ce qui l'a tue, c'est
+   d'etre reste au contact d'un type qu'il aurait fallu abattre a distance. La
+   conduite a tenir differe, donc la provenance aussi. */
+export const SRC_BLAST = 5;
+/* SEPTIEME source, AJOUTEE EN FIN au lot V : l'environnement. Meme argument que
+   l'explosion du kamikaze — un geyser et une flaque de Matriarche passent tous
+   deux par des degats de sol, mais la conduite a tenir n'a rien a voir : l'une
+   se fuit, l'autre s'apprend et ne se retrouve jamais ailleurs qu'au meme
+   endroit. « 18 % de nos degats viennent de l'environnement » est precisement ce
+   qu'il faut savoir pour decider si le biome est decoratif ou s'il est le
+   probleme. */
+export const SRC_ENV = 6;
 
 export const DAMAGE_SOURCES = [
   { key: "contact",    label: "contact" },
@@ -481,6 +597,8 @@ export const DAMAGE_SOURCES = [
   { key: "zone",       label: "zone au sol" },
   { key: "mech",       label: "mécanique" },
   { key: "burn",       label: "brûlure" },
+  { key: "blast",      label: "explosion" },
+  { key: "env",        label: "environnement" },
 ];
 
 /* Les options d'un echec de mecanique, ecrites UNE FOIS. Trois appels les
@@ -490,33 +608,157 @@ export const DAMAGE_SOURCES = [
    silence. L'objet est constant et partage : `_hurt` ne le modifie pas. */
 const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
 
-/* Difficultes. Tout passe par des multiplicateurs sur la courbe de pression,
-   qui vit desormais dans CFG : rien n'est duplique, et un reglage ajuste
-   automatiquement les trois modes. L'ordre fait foi, l'index circule sur le
-   reseau. */
+/* --- PROFILS DE DIFFICULTE (lot T) ---------------------------------------------
+
+   Une difficulte etait QUATRE NOMBRES. L'argument d'origine reste vrai — « tout
+   passe par des multiplicateurs sur la courbe de pression, rien n'est duplique,
+   un reglage ajuste les trois modes d'un coup » — mais il produisait trois modes
+   qui ne se distinguaient par rien d'autre qu'une echelle. Les multiplicateurs
+   cessent donc d'etre l'IDENTITE du mode pour n'en etre plus que le RESIDU.
+
+   Un profil porte quatre axes et un residu :
+
+     script  — quelle table de beats (`timeline.js`), donc ou sont les SILENCES
+     roster  — quels types peuvent sortir, EN PLUS des `minLevel` du lot S
+     traits  — l'attachement (type -> masque de traits), lot S
+     resume  — ce que le mode change, en trois lignes, pour le salon
+     residu  — hp / spawn / dmg / boss
+
+   Deux axes du plan manquent encore et c'est normal : `events` (lot U) et
+   `biome` (lot V). Ils s'ajouteront comme des cles de plus — un profil est un
+   objet, pas un tuple positionnel.
+
+   `DIFFICULTIES` reste un TABLEAU ORDONNE dont l'index circule (le salon envoie
+   `diffIndex`) : ne jamais inserer au milieu.
+
+   TROIS REFUS EXPLICITES, chacun evitant une duplication que le depot a deja
+   refusee ailleurs :
+     - les BOSS n'ont pas de variante par difficulte — trois variantes de six
+       boss, c'est dix-huit combats a equilibrer et la derive au premier reglage ;
+     - les MECANIQUES non plus — `adaptMech` adapte deja a l'effectif, un second
+       axe rendrait la table d'adaptation illisible, or c'est elle qui rend le
+       systeme tenable ;
+     - les STATISTIQUES de type non plus — PV, vitesse et degats restent ceux
+       d'`ENEMY_TYPES`, le residu porte tout l'ajustement chiffre.
+
+   OU EST LA QUANTITE DE PRESSION. Le plan demandait des « debits abaisses » en
+   calme et « releves » en cauchemar, EN PLUS du residu `spawn`. Ce serait deux
+   boutons sur la meme grandeur, et le depot a deja tranche ce cas exact pour
+   l'effectif : `adaptEntry` « ne change que la FORME de la pression, jamais sa
+   quantite ». Les variantes de script changent donc la forme — ou sont les
+   silences, quelle geometrie d'apparition — et `spawn` reste le seul reglage de
+   quantite. Ce n'est pas un affaiblissement : le nombre de silences est la piece
+   porteuse du modele continu, six silences contre un font deux jeux differents
+   bien plus surement que 20 % de debit. */
 export const DIFFICULTIES = [
-  { key: "calme",     label: "calme",     hp: 0.78, spawn: 0.80, dmg: 0.80, boss: 0.75 },
-  { key: "normal",    label: "normal",    hp: 1.00, spawn: 1.00, dmg: 1.00, boss: 1.00 },
-  { key: "cauchemar", label: "cauchemar", hp: 1.35, spawn: 1.28, dmg: 1.25, boss: 1.25 },
+  {
+    key: "calme", label: "calme",
+    /* UN SILENCE PAR SEGMENT. C'est le mode qui enseigne l'espace : le
+       deplacement, la distance, la lecture des zones. La respiration doit y etre
+       reguliere et previsible. */
+    script: "calme",
+    // Les cinq types d'origine seulement. Ni medic, ni bulwark, ni choeur : ce
+    // sont les trois qui demandent de CHOISIR SA CIBLE, et ce n'est pas la
+    // competence que ce mode a a enseigner.
+    roster: [0, 1, 2, 3, 4],
+    // Aucun trait. Le mode qui enseigne les types les montre NUS.
+    traits: {},
+    resume: [
+      "les cinq types d'origine, rien de plus",
+      "aucun comportement particulier : ils avancent et ils frappent",
+      "un silence par segment — le sol ne fait jamais rien",
+    ],
+    hp: 0.78, spawn: 0.80, dmg: 0.80, boss: 0.75,
+  },
+  {
+    key: "normal", label: "normal",
+    script: "normal",
+    /* `kamikaze` et `bulwark` sont les deux types qui font passer le mode de
+       « tirer sur ce qui approche » a « tirer sur le bon d'abord, sous le bon
+       angle ». C'est le saut que normal doit produire. */
+    roster: [0, 1, 2, 3, 4, 5, 6],
+    traits: {
+      grunt: DASH,
+      runner: FRENZY,
+      tank: AURA,
+      shooter: VOLLEY,
+      brood: SPORE,
+      kamikaze: FRENZY,
+    },
+    resume: [
+      "kamikaze et porte-bouclier en plus : il faut choisir sa cible et son angle",
+      "les grunts chargent, les tireurs envoient des salves de trois",
+      "quatre silences sur la manche — le sol ne blesse pas",
+    ],
+    hp: 1.00, spawn: 1.00, dmg: 1.00, boss: 1.00,
+  },
+  {
+    key: "cauchemar", label: "cauchemar",
+    // UN SEUL silence sur toute la manche, au segment 6.
+    script: "cauchemar",
+    roster: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    /* Le mode se distingue moins par ses chiffres que par le fait que LE SOL
+       PARTICIPE : entre les trainees des grunts et les spores des broods, la
+       surface jouable se reduit en permanence — un chronometre deguise, ce que
+       le depot trouve deja bien plus lisible qu'un enrage brutal. */
+    traits: {
+      grunt: DASH | TRAIL,
+      runner: DASH | FRENZY,
+      tank: AURA | TRAIL,
+      shooter: VOLLEY,
+      brood: SPORE | FRENZY,
+      kamikaze: FRENZY | TRAIL,
+      bulwark: AURA,
+      medic: FRENZY,
+      /* Le choeur n'a PAS `TRAIT_AURA` : la sienne est intrinseque et plus
+         large, c'est son identite entiere. La lui donner en double aurait fait
+         croire a un cumul qui n'existe pas. */
+    },
+    resume: [
+      "les neuf types, soigneurs et choeurs compris — un paquet couvert est un mur",
+      "les grunts chargent ET brûlent le sol derrière eux, les broods sporulent",
+      "un seul silence sur la manche : le sol se referme en permanence",
+    ],
+    hp: 1.35, spawn: 1.28, dmg: 1.25, boss: 1.25,
+  },
 ];
 export const DIFF_NORMAL = 1;
 
-/* Types d'ennemis. `from` est la VAGUE a partir de laquelle le type peut
-   sortir, `weight` son poids dans le tirage. Les multiplicateurs portent sur
-   les PV de base, qui montent d'une vague a l'autre.
+/* Attachement resolu UNE FOIS au chargement : `{ grunt: DASH }` devient un
+   tableau indexe par type. L'ecriture par CLE est ce qu'on veut lire dans le
+   profil — une colonne de masques alignes ne dit pas de quel type on parle — et
+   l'index est ce que la boucle veut lire deux cents fois par image. Resoudre au
+   chargement donne les deux sans avoir a choisir.
 
-   `from` etait un instant en secondes (0 / 40 / 80 / 115 / 150). Sur une
-   horloge, la composition d'une vague dependait de la vitesse a laquelle
-   l'equipe avait nettoye les precedentes : deux tables affrontaient la « meme »
-   vague 4 avec des bestiaires differents. Conversion faite a duree de vague
-   moyenne mesuree (~55 s), en gardant l'ordre d'apparition d'origine. */
-export const ENEMY_TYPES = [
-  { key: "grunt",   from: 1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10 },
-  { key: "runner",  from: 2, weight: 0.55, share: 0.45, hpMul: 0.45, speed: 188, dmg: 12, r: 9,  score: 14 },
-  { key: "tank",    from: 3, weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30 },
-  { key: "shooter", from: 4, weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25, shootCd: 2.6, standoff: 170 },
-  { key: "brood",   from: 6, weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20, splits: 3 },
-];
+   Une cle inconnue est ignoree en silence : c'est le seul cas ou ce serait un
+   defaut, mais l'alternative — jeter au chargement — casserait le jeu entier
+   pour une faute de frappe dans un mode qu'on ne joue pas. */
+const TRAIT_BY_TYPE = DIFFICULTIES.map(d => {
+  const row = new Array(ENEMY_TYPES.length).fill(0);
+  for (const [key, mask] of Object.entries(d.traits)) {
+    const i = ENEMY_TYPES.findIndex(t => t.key === key);
+    if (i >= 0) row[i] = mask;
+  }
+  return row;
+});
+
+/* Les deux lectures du profil dont le CLIENT a besoin, exportees en fonctions
+   pures — meme raison que `fullMods` et `powerIndex` : le client recalcule les
+   traits de chaque ennemi pour les dessiner, et deux implementations auraient
+   diverge au premier reglage. Un couple hors table rend le mode normal plutot
+   qu'`undefined` : une partie qui deborde sa table doit continuer de tourner. */
+export function typesFor(diffIndex) {
+  return (DIFFICULTIES[diffIndex] ?? DIFFICULTIES[DIFF_NORMAL]).roster;
+}
+
+export function traitsOf(diffIndex, type) {
+  return TRAIT_BY_TYPE[diffIndex]?.[type] ?? 0;
+}
+
+/* Le bestiaire vit desormais dans `shared/enemies.js` — voir l'import et le
+   reexport en tete de fichier. `from` (la vague d'apparition) y a ete remplace
+   par `minLevel` / `fallback` : il n'y a plus de vague, et D3 indexe l'acces aux
+   types sur le niveau d'equipe. `this.tier` n'a donc plus aucun lecteur. */
 
 /* L'ordre fait foi : le snapshot ne transmet que l'index. On ajoute donc a la
    fin, jamais au milieu — et on ne REORDONNE pas davantage, y compris pour
@@ -616,15 +858,15 @@ export function effectiveCards(cards, others = []) {
    plus voulu dire grand-chose passe la vague 8. Consequence voulue :
    `_playerPower` lit `damageMul`, donc la puissance d'equipe integre la classe
    sans une ligne de plus, et la pression des vagues suit. */
-export function fullMods(cards, others, cls, wave = 1) {
+export function fullMods(cards, others, cls, level = 1) {
   const mods = computeMods(effectiveCards(cards, others));
 
-  /* « Coeur de forge » : la seule carte dont la valeur depend du TEMPS.
-     `computeMods` est une fonction de la seule liste de cartes possedees — la
-     vague n'y a rien a faire, sinon elle cesse d'etre rejouable telle quelle
-     dans un script de mesure. La part de vague est donc ajoutee ici. */
-  if (mods.damagePerWave > 0) {
-    mods.damageMul += mods.damagePerWave * Math.max(0, wave - 1);
+  /* « Coeur de forge » : la seule carte dont la valeur depend de l'AVANCEMENT.
+     `computeMods` est une fonction de la seule liste de cartes possedees — le
+     niveau n'y a rien a faire, sinon elle cesse d'etre rejouable telle quelle
+     dans un script de mesure. La part de niveau est donc ajoutee ici. */
+  if (mods.damagePerLevel > 0) {
+    mods.damageMul += mods.damagePerLevel * Math.max(0, level - 1);
   }
 
   const def = classAt(cls);
@@ -723,9 +965,46 @@ export function bossPower(power) {
 }
 
 export class GameState {
-  constructor(difficulty = DIFF_NORMAL) {
+  /* `biomeIndex` et `seed` sont OPTIONNELS et tires au hasard s'ils manquent :
+     `new GameState(1)` reste la ligne des scripts de mesure, et un lot qui
+     ajoute un axe n'a aucune raison de casser tous les scripts jetables du
+     depot. La salle, elle, les passe explicitement — c'est elle qui les annonce
+     au salon, et le client en regenere la geometrie a l'identique. */
+  constructor(difficulty = DIFF_NORMAL, biomeIndex = null, seed = null) {
     this.diffIndex = Math.min(Math.max(difficulty | 0, 0), DIFFICULTIES.length - 1);
     this.diff = DIFFICULTIES[this.diffIndex];
+
+    /* --- BIOME (lot V) ------------------------------------------------------
+       La geometrie est posee ICI, a la construction, et ne bouge plus. Trois
+       raisons, toutes deja ecrites ailleurs dans le depot : la prediction locale
+       rejoue la regle des murs cote client et un obstacle apparu sous un joueur
+       en pleine esquive le teleporterait (162 px en trois images) ; la geometrie
+       des zones de boss garde volontairement l'arene pleine, et un damier
+       calcule sur une surface libre qui change n'est plus lisible ; et
+       `_dropPoint` doit pouvoir poser un bonus ailleurs que dans un mur, ce
+       qu'il ne peut pas faire contre une geometrie mouvante.
+
+       Ce qui PEUT naitre en cours de manche : les zones — traversables, donc
+       elles ne cassent ni la prediction ni le placement. */
+    this.biomeIndex = biomeIndex === null
+      ? Math.floor(Math.random() * BIOMES.length)
+      : Math.min(Math.max(biomeIndex | 0, 0), BIOMES.length - 1);
+    this.seed = (seed === null ? Math.floor(Math.random() * 0x7fffffff) : seed | 0) >>> 0;
+    this.biome = buildBiome(this.biomeIndex, this.diffIndex, this.seed,
+      CFG.ARENA_W, CFG.ARENA_H);
+    this.obstacles = this.biome.obstacles;
+    this.hazards = this.biome.hazards;
+    /* Minuteur de degats des dangers, UN SEUL pour tous et non un par danger :
+       ils infligent tous par paliers de `ZONE_TICK`, et quatre horloges qui
+       battent a la meme cadence avec des origines differentes auraient fait
+       clignoter les chiffres sans rien changer au total. */
+    this.hazardTick = 0;
+    /* METEO du segment. Un MODIFICATEUR GLOBAL, jamais une entite : elle n'a pas
+       de position. Elle ne circule pas — elle se deduit de `(graine, segment)`,
+       que le client a deja — mais elle s'ANNONCE, parce qu'un changement muet
+       surprend au lieu d'informer. */
+    this.weather = null;
+
     this.players = new Map();
     this.enemies = [];
     this.bullets = [];
@@ -739,6 +1018,20 @@ export class GameState {
     this.anchors = [];      // ancres du tank (3e competence, lot C)
     this.sancts = [];       // sanctuaires du soigneur (3e competence, lot C)
     this.effects = [];      // purement visuel : ondes de choc
+    /* Ennemis en anticipation de ruee (lot S). Une liste d'identifiants, videe
+       et reconstruite a chaque tick par `_enemies`, envoyee telle quelle dans la
+       cle nommee `wu`. Une liste plutot qu'un champ par ennemi : ce serait un
+       huitieme element paye sur les deux cents, vingt fois par seconde, pour une
+       information qui concerne trois entites — c'est le raisonnement du rang
+       d'elite encode dans le champ de type. */
+    this.windup = [];
+    /* EVENEMENT en cours (lot U), ou `null`. Un objet plutot que trois champs
+       sur l'instance : « pas d'evenement » doit etre UNE valeur, pas trois
+       valeurs qu'il faut garder coherentes. `quarry` est l'identifiant du gibier
+       de `chasse`, 0 quand il n'y en a pas — un identifiant et non l'entite, qui
+       disparait de `enemies` a sa mort. */
+    this.event = null;
+    this.quarry = 0;
 
     /* Provocation : un etat GLOBAL et non une cible par ennemi. Les ennemis
        choisissent leur proie dans `_nearestPlayer`, qui consulte ce champ ;
@@ -793,6 +1086,10 @@ export class GameState {
        mais c'est la simulation qui sait qui est mort. */
     this.bossKills = 0;
     this.bossKindsKilled = new Set();
+    /* Duree du combat contre le BOSS FINAL, en secondes, ou 0 s'il n'a pas ete
+       vaincu (lot W). Sur `GameState` et non sur l'entite : elle doit survivre a
+       la mort du boss, c'est justement le moment ou elle devient interessante. */
+    this.finalKill = 0;
 
     /* Marqueurs de mecanique de groupe : cercles de regroupement, tours, liens,
        cages, grappes, sanctuaires. Une liste unique plutot qu'un champ par
@@ -838,10 +1135,10 @@ export class GameState {
     this.cardsPending = false;
     this.cardOffers = new Map();   // playerId -> [3 ids]
     this.cardsQuality = 1;         // qualite du tirage en cours
-    /* Jalons de legendaire deja honores. Un jalon vaut une fois par vague et
-       pour toute la table : c'est ce qui empeche trois niveaux gagnes dans la
-       vague 10 de donner trois legendaires. */
-    this.legendaryWaveDone = new Set();
+    /* Jalons de legendaire deja honores. Un jalon vaut une fois et pour toute
+       la table : c'est ce qui empeche trois niveaux gagnes d'affilee de donner
+       trois legendaires. */
+    this.legendaryLevelDone = new Set();
 
     this.time = 0;
     this.spawnAcc = 0;
@@ -852,24 +1149,46 @@ export class GameState {
     this.gameOver = false;
     this._nextId = 1;
 
-    /* --- vagues -------------------------------------------------------------
-       `wavePhase` : 0 apparition, 1 nettoyage, 2 repit. Le budget se decremente
-       a l'apparition REELLE d'un ennemi et non a l'echeance du debit : sinon
-       une vague lancee alors que l'arene est deja pleine (MAX_ENEMIES) brulait
-       son budget sans rien faire sortir, et se terminait a vide. */
-    this.wave = 0;                 // 0 = pas encore commencee, _wave la leve a 1
-    this.waveBudget = 0;
-    this.waveSpawned = 0;
-    this.wavePhase = 2;
-    // Repit initial court : quatre secondes d'arene vide au lancement de la
-    // manche donnaient l'impression que le serveur n'avait pas demarre.
-    this.waveTimer = 1.5;
-    this.waveBoss = false;
-    // Le boss apparait dans _boss, qui tourne APRES _wave dans le meme tick.
-    // Sans ce drapeau, _wave voyait un budget nul et basculait en nettoyage
-    // avant que le boss n'existe : l'arene etant vide, la vague de boss se
-    // terminait immediatement et le boss ne sortait jamais.
-    this.waveBossPending = false;
+    /* --- segments ------------------------------------------------------------
+       LA MANCHE EST UNE CHRONOLOGIE, plus un enchainement de vagues. Six
+       segments de TL_CFG.SEGMENT_TIME secondes de horde, cinq beats de 60 s
+       par segment, le tout ecrit dans `timeline.js`.
+
+       `hordeTime` ne compte QUE la horde : elle s'arrete pendant le combat de
+       boss et pendant l'ecran de cartes (D1). C'est ce qui rend deux manches
+       comparables minute par minute, quelle que soit la duree des combats.
+
+       `tier`, l'index global du beat, A DISPARU au lot S. Le lot Q avait
+       reindexe tout ce qui s'appuyait dessus sur le niveau d'equipe et lui
+       avait laisse un seul lecteur — les seuils d'apparition des types
+       (`ENEMY_TYPES.from`) ; le bestiaire les porte desormais en `minLevel`, et
+       un champ que personne ne lit est un champ qu'on finira par croire vrai.
+       `beatIndex()` reste dans `timeline.js` pour qui en aurait besoin. */
+    this.segment = 1;
+    this.hordeTime = 0;
+    this.beat = 0;
+    // La meteo du premier segment est posee ici et non annoncee : personne n'est
+    // encore en jeu pour lire un bandeau, et le salon dit deja le biome. Les
+    // suivantes passent par `_nextSegment`, qui annonce.
+    this.weather = weatherFor(this.diffIndex, this.seed, 1);
+    // Bord courant des geometries `front` et `pince`, et compteur de paquet de
+    // `quatre-fronts` : tires au changement de beat, pas a chaque apparition —
+    // un bord retire a chaque ennemi redonnerait la pression diffuse.
+    this.beatSide = 0;
+    this.packLeft = 0;
+    this.packSide = 0;
+    // Le boss sort dans `_boss`, qui tourne APRES `_segmentTick` dans le meme
+    // tick. Le drapeau porte l'attente entre les deux.
+    this.bossPending = false;
+    this._beatCache = null;
+    // Effectif de pression retenu et date de sa derniere baisse : voir
+    // `aliveCrowd()`.
+    this._crowdHeld = 1;
+    this._crowdAt = 0;
+    // Une manche va au bout de son script : six boss vaincus, la manche est
+    // GAGNEE. Sans ce drapeau, le segment 7 n'aurait plus de script et la
+    // horde tournerait sur un repli jusqu'a ce que quelqu'un tombe.
+    this.victory = false;
 
     /* --- progression d'equipe -----------------------------------------------
        Commune, et non par joueur : voir le commentaire de LEVEL_MAX. Les
@@ -879,9 +1198,15 @@ export class GameState {
     this.xp = 0;
     this.level = 1;
     this.levelFrom = 0;
-    this.levelStep = CFG.LEVEL_KILLS_BASE;
-    this.levelAt = CFG.LEVEL_KILLS_BASE;
+    this.levelStep = CFG.LEVEL_XP_BASE;
+    this.levelAt = CFG.LEVEL_XP_BASE;
     this.pendingLevels = 0;
+
+    // Le premier beat n'est jamais « atteint » par le tick — il est deja
+    // courant au premier pas. Sans cet appel, son bord d'apparition resterait
+    // celui du constructeur et un premier beat silencieux ne forcerait aucun
+    // bonus.
+    this._startBeat();
   }
 
   /* `meta` (lot D) : ce que la progression permanente change pour CE joueur —
@@ -1093,19 +1418,19 @@ export class GameState {
       + (onBossWave ? CARD_CFG.BOSS_QUALITY : 0) + 1;
   }
 
-  offerCards(p, quality = this.cardsQuality, forceRare = false, wave = 0) {
+  offerCards(p, quality = this.cardsQuality, forceRare = false, jalon = 0) {
     // La classe filtre le pool : quatre cartes n'existent que pour elle, et
     // les huit autres n'ont jamais a apparaitre dans son tirage.
-    // `wave` ne vaut autre chose que 0 qu'au premier ecran d'une vague de jalon
-    // — c'est lui qui declenche la legendaire garantie.
-    // `this.wave` est la vague COURANTE, passee a chaque tirage : c'est elle
-    // qui tient la troisieme competence hors des premiers ecrans (`minWave`).
-    // A ne pas confondre avec `wave`, qui ne sert qu'au jalon de legendaire.
+    // `jalon` ne vaut autre chose que 0 qu'au premier ecran atteint a partir
+    // d'un niveau de jalon — c'est lui qui declenche la legendaire garantie.
+    // `this.level` est le niveau COURANT, passe a chaque tirage : c'est lui qui
+    // tient la troisieme competence hors des premiers ecrans (`minLevel`). A ne
+    // pas confondre avec `jalon`, qui ne sert qu'a la legendaire garantie.
     // Lot D : les cartes encore verrouillees par les jalons du compte ne sont
     // jamais tirees, et la « Quatrieme offre » du tronc de confort elargit
     // l'ecran a quatre cases.
     const picks = drawCards(p.cards, quality, forceRare || p.commonStreak >= 2,
-      classAt(p.cls).id, Math.random, wave, this.wave,
+      classAt(p.cls).id, Math.random, jalon, this.level,
       { locked: p.locked, count: p.meta?.confort?.quatrieme ? 4 : 3 });
     return picks.map(c => c.id);
   }
@@ -1168,12 +1493,12 @@ export class GameState {
      suite, pas au prochain soin. */
   /* Tout le calcul vit dans `fullMods`, en fonction pure et exportee : la
      fenetre de build du client affiche les MEMES multiplicateurs que ceux dont
-     la simulation se sert. `_waveStart` rappelle ce recalcul a chaque vague,
-     sinon le « Cœur de forge » resterait fige a la vague ou la carte a ete
+     la simulation se sert. `_startBeat` rappelle ce recalcul a chaque palier,
+     sinon le « Cœur de forge » resterait fige au palier ou la carte a ete
      prise. */
   _recomputeMods(p) {
     const before = p.maxHp;
-    const r = fullMods(p.cards, this._otherCards(p), p.cls, this.wave);
+    const r = fullMods(p.cards, this._otherCards(p), p.cls, this.level);
     /* PROGRESSION PERMANENTE (lot D). `powerMods` garde le resultat de
        fullMods — cartes et classe, rien d'autre — et c'est LUI que lit
        `_playerPower` : la meta est exclue de la difficulte PAR CONSTRUCTION,
@@ -1211,6 +1536,38 @@ export class GameState {
     return n;
   }
 
+  /* EFFECTIF DE PRESSION — point de passage unique, comme `assignColors()` en a
+     un et pour la meme raison : sinon chaque appel refait le test a sa maniere.
+
+     Les termes de pression comptent les joueurs VIVANTS. `_teamPower()` etait
+     une moyenne sur tous les joueurs, a terre compris, et les PV de boss
+     suivaient `players.size` : une equipe de quatre dont deux sont morts
+     affrontait un boss calibre pour quatre. Sur une manche de trois minutes
+     c'etait du bruit ; sur trente minutes et six boss, c'est structurel.
+
+     HYSTERESIS de quelques secondes : une mise a terre de deux secondes ne doit
+     pas faire osciller la formule, et un compte qui remonte au relevement ferait
+     grossir le boss en pleine phase. On ne descend donc qu'apres un delai, mais
+     on remonte IMMEDIATEMENT — le sens sur est celui qui ne rend pas le jeu
+     plus facile par accident.
+
+     PIEGE SYMETRIQUE, a ne pas confondre : la normalisation de l'EXPERIENCE
+     (`joueurs^WAVE_CROWD_EXP` dans `_addXp`) compte les joueurs CONNECTES et
+     non les vivants. Sinon une equipe qui perd deux joueurs voit ses paliers
+     baisser au moment ou elle tue moins — un cadeau exactement au mauvais
+     moment, et une boucle de retroaction que D2 refuse. */
+  aliveCrowd() {
+    const n = Math.max(1, this.aliveCount());
+    if (n >= this._crowdHeld) {
+      this._crowdHeld = n;
+      this._crowdAt = this.time;
+    } else if (this.time - this._crowdAt >= CFG.CROWD_HYSTERESIS) {
+      this._crowdHeld = n;
+      this._crowdAt = this.time;
+    }
+    return this._crowdHeld;
+  }
+
   step(dt, inputs) {
     if (this.gameOver) return;
     this.time += dt;
@@ -1227,7 +1584,7 @@ export class GameState {
     // d'autre ne blesse — sinon un joueur peut tomber au contact dans l'image ou
     // sa Sentence allait justement expirer sans dommage.
     this._statuses(dt);
-    this._waveTick(dt);
+    this._segmentTick(dt);
     this._spawner(dt);
     // Les competences tournent avant les ennemis : une bombe qui explose doit
     // le faire sur les positions de l'image precedente, celles que le joueur
@@ -1238,6 +1595,9 @@ export class GameState {
     this._turrets(dt);
     this._drones(dt);
     this._enemies(dt);
+    // Les dangers du biome APRES les ennemis et avant le boss : ils lisent des
+    // positions deja resolues pour cette image, comme les zones.
+    this._hazards(dt);
     this._boss(dt);
     this._orbiters(dt);
     this._bullets(dt);
@@ -1252,6 +1612,9 @@ export class GameState {
   /* --- joueurs ------------------------------------------------------------- */
 
   _players(dt, inputs) {
+    // Une seule lecture de la meteo pour toute la passe : elle est globale, la
+    // relire par joueur ne dirait rien de plus.
+    const gust = this._gust(dt);
     for (const p of this.players.values()) {
       p.hitCd = Math.max(0, p.hitCd - dt);
       p.buffDamage = Math.max(0, p.buffDamage - dt);
@@ -1439,15 +1802,24 @@ export class GameState {
         // Entrave : -40 % de vitesse. Elle porte sur le DEPLACEMENT et pas sur
         // l'esquive, qui reste la reponse a tout — un etat qui coupe aussi
         // l'esquive ne se subit pas, il se regarde.
+        /* ETAT DU SOL (lot V). Le ralentissement multiplie la vitesse, le
+           glissement change la FORMULE — on rejoint la consigne au lieu de la
+           prendre. Les deux se lisent ici, une seule fois, et le client rejoue
+           exactement les memes lignes dans sa prediction. */
+        const g = this.hazards.length ? this._ground(p.x, p.y) : null;
         const sp = CFG.PLAYER_SPEED * p.mods.speedMul
-          * (p.statuses.has(STATUS_ROOT) ? 1 - STATUS_CFG.ROOT_SLOW : 1);
-        if (this.slipT > 0) {
+          * (p.statuses.has(STATUS_ROOT) ? 1 - STATUS_CFG.ROOT_SLOW : 1)
+          * (g ? g.slow : 1);
+        if (this.slipT > 0 || (g && g.slip)) {
           /* Sol glissant du Metronome : la vitesse REJOINT la consigne au lieu
              de la prendre. Un facteur applique a la position aurait glisse sans
              qu'on puisse l'anticiper ; avec une vitesse portee, on lance son
              deplacement a l'avance, ce qui est une competence et pas une taxe.
              La prediction du client rejoue exactement la meme formule. */
-          const k = Math.min(1, BOSS_CFG.SLIP_ACCEL * dt);
+          // Le sol du biome glisse MOINS que celui du Metronome : le sien dure
+          // douze secondes et se subit, celui-ci est permanent sur sa flaque et
+          // doit rester traversable a volonte.
+          const k = Math.min(1, (this.slipT > 0 ? BOSS_CFG.SLIP_ACCEL : BIOME_CFG.SLIP_ACCEL) * dt);
           p.vx += (inp.x * sp - p.vx) * k;
           p.vy += (inp.y * sp - p.vy) * k;
           p.x += p.vx * dt;
@@ -1458,10 +1830,14 @@ export class GameState {
           p.y += inp.y * sp * dt;
         }
       }
+      // Bourrasque : dans la passe de deplacement, avant les limites et avant
+      // les obstacles — appliquee apres, elle aurait pousse dans les piliers.
+      if (gust && !p.downed) { p.x += gust.x; p.y += gust.y; }
       // Les limites viennent de `bounds` et non de CFG.ARENA_W/H : pendant une
       // constriction, l'arene jouable est plus petite que l'arene dessinee.
       this._clampToBounds(p, CFG.PLAYER_RADIUS);
       this._wallBlock(p, wasX, wasY, CFG.PLAYER_RADIUS);
+      if (this.obstacles.length) this._obstacleBlock(p, wasX, wasY, CFG.PLAYER_RADIUS);
 
       /* Historique de position, pour les appats du Metronome. Enregistre
          UNIQUEMENT pendant son combat : soixante entrees par joueur et par
@@ -2278,6 +2654,17 @@ export class GameState {
        d'entre eux pendant quatre secondes, ne se justifiait pas. Le lot 3
        reprendra cet etat avec son icone et sa purge. */
     if (target.vulnUntil > this.time) amount *= CARD_CFG.VULNERABLE_MUL;
+    /* AURA (lot S). La reduction est relevee une fois par tick par `_auraPass`
+       et lue ICI, au point de passage unique — comme la Vulnerabilite juste
+       au-dessus, comme le critique et le vol de vie juste en dessous. Une nova,
+       une lame orbitale et une balle sont donc toutes les trois absorbees sans
+       qu'aucune ne le sache. Le boss n'a pas le champ, donc il ne paie rien. */
+    if (target.aura > 0) amount *= 1 - target.aura;
+    /* Instant du dernier degat DIRECT, pour la rupture de soin du medic. Un
+       champ ecrit sur les seuls ennemis qui en ont un — le test coute une
+       lecture de propriete absente ailleurs, la ou une liste des touches
+       recentes aurait coute une allocation par impact. */
+    if (target.hitAt !== undefined && !overTime) target.hitAt = this.time;
     const owner = this.players.get(ownerId);
     /* COUP CRITIQUE. Le tirage se fait ICI et nulle part ailleurs, pour la meme
        raison que le vol de vie : une nova, une lame orbitale et une balle
@@ -2333,7 +2720,69 @@ export class GameState {
       if (owner.mods.lifesteal > 0) this._lifesteal(owner, amount * owner.mods.lifesteal);
     }
 
+    /* EXPERIENCE DU BOSS. La horde credite ses PV a la mort ; le boss ne meurt
+       qu'une fois et vaut plusieurs milliers de PV, donc il credite EN CONTINU,
+       a `BOSS_XP_K` (35 %) des degats portes. A plein il deviendrait la source
+       principale d'experience et la horde ne servirait plus qu'a passer le
+       temps. Le surplus du coup fatal ne compte pas — on ne credite que ce qui
+       reste a entamer, sinon une nova de fin de combat vaudrait un palier.
+
+       Ici et non chez les appelants, comme le cumul de `bossDmg` juste au-dessus
+       et pour la meme raison : une nouvelle source de degats est comptee sans
+       qu'on y pense. Hors du test `if (owner)` : un degat sans proprietaire
+       compte aussi, exactement comme un kill sans proprietaire. Les structures
+       de mecanique (cage, grappe) n'en sont pas — elles ne sont pas `this.boss`. */
+    if (target === this.boss) {
+      this._addXp(Math.min(amount, Math.max(0, target.hp)) * CFG.BOSS_XP_K);
+    }
+
     target.hp -= amount;
+
+    /* PLANCHER DE BARRE — la moitie qui manque au minuteur de `_bossBars`.
+       Retarder la RUPTURE ne suffit pas : les PV, eux, continuaient de descendre
+       et le boss mourait avant d'avoir joue son repertoire — mesure a puissance
+       5,71 : des combats de 27 s et trois barres sur cinq seulement.
+
+       Les PV sont donc BORNES au plancher de la barre courante et l'exces est
+       MIS DE COTE, jamais perdu : il s'applique d'un coup a l'echeance, quand
+       `_bossBars` casse la barre. Rien ne disparait, la rupture est differee —
+       c'est la difference entre « le boss encaisse moins » et « le boss encaisse
+       plus tard », et seule la seconde est honnete envers le joueur.
+
+       La DERNIERE barre n'est jamais bornee : sinon le boss serait immortel. */
+    if (target === this.boss) {
+      // Dernier a l'avoir touche : c'est lui qui recevra le credit si le boss
+      // tombe sur les degats mis de cote, resolus dans `_bossBars`.
+      target.lastHitBy = ownerId;
+      if (target.phase < target.bars - 1) {
+        const plancher = target.maxHp - (target.phase + 1) * target.barHp;
+        if (target.hp < plancher) {
+          target.bank = (target.bank ?? 0) + (plancher - target.hp);
+          target.hp = plancher;
+        }
+      } else if (target.kind === BOSS_FINAL
+                 && target.fightT - target.lastBreak < BOSS_CFG.FINAL_BAR_DWELL) {
+        /* LA DERNIERE BARRE DU FINAL A UN PLANCHER ELLE AUSSI (lot W), et c'est
+           le seul boss du jeu dans ce cas.
+
+           Sans lui, une build forte tuait le boss DANS la rupture de la septieme
+           barre — la banque s'y vide en entier — et la huitieme couche de
+           repertoire, c'est-a-dire le SCEAU, la seule mecanique inedite du
+           combat, ne jouait jamais. Mesure : 11 s de combat a x20 de degats,
+           une couche vue sur huit.
+
+           Le boss n'est pas invulnerable : les degats sont mis de cote comme sur
+           les sept autres barres et tombent d'un bloc a l'echeance. Ce qu'on
+           achete, ce sont les dix secondes pendant lesquelles le sceau se pose,
+           s'annonce et se resout. C'est la meme promesse que le plancher de lot
+           R, tenue jusqu'au bout du combat au lieu de s'arreter une barre trop
+           tot. */
+        if (target.hp < 1) {
+          target.bank = (target.bank ?? 0) + (1 - target.hp);
+          target.hp = 1;
+        }
+      }
+    }
 
     /* COMPTEUR DE TOUCHES. Le client deduisait le flash d'impact d'une variation
        de PV entre deux instantanes : a 20 Hz, un joueur a cadence elevee place
@@ -2382,7 +2831,14 @@ export class GameState {
       if (target.hp <= 0) this._killBoss(ownerId);
       return;
     }
-    if (target.hp > 0 && owner && owner.mods.execThreshold > 0
+    /* `noExec` : le GIBIER de `chasse` est exclu du seuil d'execution, comme le
+       boss juste au-dessus et comme les structures de mecanique. Le piege est le
+       meme et il etait identifie avant d'etre ecrit : un seuil applique a une
+       grosse reserve de vie en supprime le dernier quart d'un coup, et
+       l'evenement se terminerait sur un tir qui n'a rien coute. Un drapeau sur
+       l'entite et non un test de type — c'est la fonction de la cible qui
+       compte, pas son espece. */
+    if (target.hp > 0 && owner && owner.mods.execThreshold > 0 && !target.noExec
         && target.maxHp > 0 && target.hp <= target.maxHp * owner.mods.execThreshold) {
       target.hp = 0;
       if (owner.mods.execHeal > 0 && !owner.downed) {
@@ -2777,40 +3233,64 @@ export class GameState {
 
   /* --- apparition des ennemis ----------------------------------------------- */
 
-  /* Chaque type a un quota exprime en part du plafond. Sans ce garde-fou, les
-     types qui se font rarement tuer finissent par occuper toutes les places et
-     la composition des vagues s'appauvrit. */
+  /* Trois filtres, dans cet ordre, et aucun n'est facultatif.
+
+     LA DIFFICULTE dit quels types EXISTENT (`typesFor`) : le mode calme ne voit
+     ni medic, ni bulwark, ni choeur, parce que ce sont les trois types qui
+     demandent de choisir sa cible et que c'est la competence qu'il n'a pas a
+     enseigner.
+
+     LE NIVEAU D'EQUIPE dit lesquels sont deverrouilles (`minLevel`, D3). Le
+     repli n'intervient pas ici — un type hors de portee est simplement absent du
+     tirage ; `adaptType` sert aux apparitions EXPLICITES, ou l'appelant a nomme
+     un type qu'il faut bien remplacer par quelque chose.
+
+     LE QUOTA (`share`) plafonne la population par type. Il devient PLUS critique
+     en modele continu qu'il ne l'etait avec les vagues : plus rien ne vide
+     periodiquement l'arene, donc un type qui meurt rarement s'y accumule
+     jusqu'a la fin de la manche. */
   _pickType() {
     const counts = new Array(ENEMY_TYPES.length).fill(0);
     for (const e of this.enemies) counts[e.type]++;
 
-    let avail = ENEMY_TYPES.filter((t, i) =>
-      this.wave >= t.from && counts[i] < t.share * CFG.MAX_ENEMIES);
-    if (avail.length === 0) avail = [ENEMY_TYPES[0]];
+    const pool = typesFor(this.diffIndex);
+    let avail = pool.filter(i =>
+      this.level >= ENEMY_TYPES[i].minLevel
+      && counts[i] < ENEMY_TYPES[i].share * CFG.MAX_ENEMIES);
+    if (avail.length === 0) avail = [0];
     let total = 0;
-    for (const t of avail) total += t.weight;
+    for (const i of avail) total += ENEMY_TYPES[i].weight;
     let roll = Math.random() * total;
-    for (const t of avail) {
-      roll -= t.weight;
-      if (roll <= 0) return t;
+    for (const i of avail) {
+      roll -= ENEMY_TYPES[i].weight;
+      if (roll <= 0) return ENEMY_TYPES[i];
     }
     return ENEMY_TYPES[0];
   }
 
-  _spawnEnemy(typeIndex = -1, x = null, y = null, elite = false) {
+  _spawnEnemy(typeIndex = -1, x = null, y = null, elite = false, geom = "bords") {
     if (this.enemies.length >= CFG.MAX_ENEMIES) return null;
-    const t = typeIndex >= 0 ? ENEMY_TYPES[typeIndex] : this._pickType();
-    const ti = ENEMY_TYPES.indexOf(t);
+    /* Apparition EXPLICITE : l'appelant a nomme un type (la nuee d'une pondeuse,
+       un script de mesure). C'est le cas d'`adaptType` — une pondeuse qui creve
+       au niveau 1 liberait des runners que l'equipe n'a pas encore le droit de
+       voir. Le grunt est le plancher : c'est le seul type sans seuil. */
+    let ti = typeIndex;
+    if (ti >= 0) {
+      ti = adaptType(ti, this.level);
+      if (ti < 0 || !typesFor(this.diffIndex).includes(ti)) ti = 0;
+    }
+    const t = ti >= 0 ? ENEMY_TYPES[ti] : this._pickType();
+    if (ti < 0) ti = ENEMY_TYPES.indexOf(t);
 
-    /* PV indexes sur la vague ET sur la puissance mesuree de l'equipe. Les PV
-       du boss l'etaient deja, mais pas la pression des vagues, qui suivait une
-       rampe purement temporelle : avec quinze cartes au lieu de quatre, les
-       vagues seraient devenues triviales pendant que le boss restait calibre. */
-    const past = Math.max(0, this.wave - 1);
-    const baseHp = (CFG.ENEMY_HP_BASE + past * CFG.ENEMY_HP_WAVE_RAMP)
+    /* PV indexes sur la MINUTE DE HORDE et sur la puissance mesuree de l'equipe.
+       La minute est continue et non le palier de beat : une marche de 9 PV
+       toutes les soixante secondes se sentirait, alors que la rampe doit se
+       subir sans qu'on puisse la dater. */
+    const past = this.hordeMinutes();
+    const baseHp = (CFG.ENEMY_HP_BASE + past * CFG.ENEMY_HP_MIN_RAMP)
       * (1 + CFG.WAVE_HP_POWER_K * (this._teamPower() - 1))
       * this.diff.hp;
-    const pos = x === null ? this._spawnPoint() : { x, y };
+    const pos = x === null ? this._spawnPoint(geom, t.r) : { x, y };
     const hp = baseHp * t.hpMul * (elite ? CFG.ELITE_HP_MUL : 1);
     const e = {
       id: this._nextId++,
@@ -2820,16 +3300,42 @@ export class GameState {
       y: pos.y,
       hp,
       maxHp: hp,
-      speed: (t.speed * (0.9 + Math.random() * 0.2) + past * CFG.ENEMY_SPEED_WAVE_RAMP)
+      speed: (t.speed * (0.9 + Math.random() * 0.2) + past * CFG.ENEMY_SPEED_MIN_RAMP)
         * (elite ? CFG.ELITE_SPEED_MUL : 1),
       r: elite ? t.r * CFG.ELITE_RADIUS_MUL : t.r,
-      ang: 0,
+      /* Oriente vers le CENTRE de l'arene et non a zero. Sans interet pour les
+         huit types dont `ang` est recalcule des le premier tick — decisif pour
+         le bulwark, dont l'orientation est limitee en vitesse : ne un bouclier
+         vers la droite au bord droit, il entrait dans l'arene a reculons et
+         mettait deux secondes a se retourner. */
+      ang: Math.atan2(CFG.ARENA_H / 2 - pos.y, CFG.ARENA_W / 2 - pos.x),
       shootCd: t.shootCd ? t.shootCd * (0.5 + Math.random()) : 0,
-      // Marquage de retardataire, pose par _wave. `standoff` est une COPIE de
-      // celui du type : les retardataires le mettent a zero, et ecrire dans
-      // ENEMY_TYPES aurait desarme les tireurs pour tout le processus.
-      straggler: 0,
+      // `standoff` reste une COPIE de celui du type et non une lecture directe :
+      // ecrire dans ENEMY_TYPES desarmerait les tireurs pour tout le processus.
+      // Le lot S rouvre exactement ce piege avec les traits — d'ou `traits`,
+      // `shieldArc` et `aura` copies ici eux aussi.
       standoff: t.standoff ?? 200,
+      /* MASQUE DES TRAITS, resolu une fois a l'apparition. La difficulte ne
+         change jamais en cours de manche, donc le recalculer a chaque image
+         serait un appel de fonction par ennemi et par tick pour une valeur
+         constante — et le client, lui, le recalcule de son cote sans qu'un seul
+         octet ne circule. */
+      traits: traitsOf(this.diffIndex, ti),
+      /* Etat des traits et des comportements de type. Tous a zero par defaut,
+         donc gratuits pour les types qui ne s'en servent pas : la boucle des
+         ennemis teste un nombre, elle n'appelle rien. */
+      dashCd: TRAIT_CFG.DASH_CD * (0.4 + Math.random()),
+      dashWarn: 0,      // preavis en cours (transmis par `wu`)
+      dashT: 0,         // ruee en cours
+      trailAt: 0,       // distance restante avant le prochain depot
+      aura: 0,          // reduction de degats recue, relevee une fois par tick
+      // Bouclier frontal : l'ANGLE est sur l'entite parce que le bulwark est le
+      // seul ennemi dont `e.ang` ne suit pas sa cible a l'image.
+      shieldArc: t.shieldArc ? (t.shieldArc * Math.PI) / 180 : 0,
+      healT: t.healInterval ?? 0,
+      fireT: 0,         // temps passe sous le feu (medic)
+      fleeT: 0,         // fuite en cours (medic)
+      hitAt: -99,       // instant du dernier degat direct (medic)
       // Compteur de touches, transmis dans l'instantane : voir `_damage`. Il
       // n'existe QUE sur les ennemis — le boss a ses propres chiffres de degats
       // et sa barre, il n'a besoin ni de l'un ni de l'autre.
@@ -2844,119 +3350,272 @@ export class GameState {
     return e;
   }
 
-  /* --- vagues -----------------------------------------------------------------
+  /* --- segments ---------------------------------------------------------------
 
      Le cycle complet :
 
-       vague N -> budget epuise -> arene vide
-               -> si niveaux en attente : le serveur ouvre l'ecran de cartes
-                  (autant de choix que de niveaux)
-               -> repit WAVE_BREATHER
-               -> vague N+1
+       segment N -> 300 s de horde scriptee, cinq beats de 60 s
+                 -> le cinquieme beat est le CRESCENDO, debit le plus haut
+                 -> BOSS (l'horloge de horde s'arrete, D1)
+                 -> sa mort ouvre autant d'ecrans de cartes qu'il y a de
+                    niveaux en attente
+                 -> segment N+1
 
-     Une vague de boss n'a pas de budget : le boss occupe la vague entiere et
-     seuls ses propres renforts sortent.
+     Rien ne se « nettoie » : la horde ne s'arrete jamais d'elle-meme, c'est le
+     script qui la fait respirer par ses SILENCES. Le seul balayage restant est
+     celui de l'arrivee du boss, et il ne credite ni score ni experience — sans
+     quoi arreter de jouer a 4 min 30 d'un segment serait strictement optimal.
 
-     `_waveTick` et non `_wave` : l'onde blanche des cartes s'appelle deja
-     `_wave(x, y, r, dmg, owner)`. Deux methodes de meme nom dans un corps de
-     classe ne sont pas une erreur en JavaScript — la DERNIERE ecrase la
-     precedente en silence. Le pulsar, la riposte et l'onde de mort appelaient
-     donc la gestion de vague avec une abscisse en guise de `dt` : aucun degat
-     inflige, et un `waveTimer` avance de plusieurs centaines de secondes qui
-     marquait toute l'arene comme retardataire au premier kill. */
-  _waveTick(dt) {
-    if (this.wavePhase === 2) {
-      // Repit. Il continue de courir meme sans joueur vivant : la condition de
-      // fin de manche est ailleurs, et figer la vague ici bloquerait le serveur
-      // dans une phase dont plus rien ne le sortirait.
-      this.waveTimer -= dt;
-      if (this.waveTimer <= 0) this._startWave();
-      return;
+     `_segmentTick` et non `_segment` : l'onde blanche des cartes s'appelle deja
+     `_wave(x, y, r, dmg, owner)`, et la gestion de vague qu'elle a ecrasee en
+     silence s'appelait `_wave` elle aussi. Deux methodes de meme nom dans un
+     corps de classe ne sont pas une erreur en JavaScript — la DERNIERE ecrase
+     la precedente. Le bug a coute des degats nuls sur le pulsar, la riposte et
+     l'onde de mort ; le prefixe est ce qui empeche de le refaire. */
+  _segmentTick(dt) {
+    /* L'HORLOGE NE COMPTE QUE LA HORDE. Elle s'arrete pendant le combat de boss
+       et pendant l'attente d'un boss ; l'ecran de cartes, lui, arrete step()
+       cote serveur, donc il n'y a rien a faire pour lui ici. Sans cet arret, la
+       duree d'un combat — de 29 a 131 s selon la build sous D2 — mangerait une
+       part variable du segment suivant, et deux manches cesseraient d'etre
+       comparables. */
+    if (this.boss || this.bossPending) return;
+
+    this.hordeTime += dt;
+
+    /* L'evenement descend sur la MEME horloge que la horde, donc il s'arrete
+       lui aussi pendant un boss : sans ca, une chasse ouverte juste avant la fin
+       d'un segment expirerait pendant le combat, sur un compte a rebours que
+       personne ne voit. */
+    if (this.event) {
+      this.event.t -= dt;
+      /* `chasse` se termine a la MORT DU GIBIER et non a l'echeance. Le test
+         porte sur l'identifiant : l'entite a disparu de `enemies`, et la
+         chercher a chaque image couterait une boucle sur deux cents corps pour
+         une comparaison de nombre. `_killEnemy` remet `quarry` a zero. */
+      if (this.event.id === EV_CHASSE && this.quarry === 0) this._closeEvent(true);
     }
 
-    if (this.wavePhase === 0) {
-      // Apparition. On passe au nettoyage des que le budget est consomme — et,
-      // sur une vague de boss, pas avant que le boss ne soit effectivement
-      // sorti : son budget etant nul, la bascule aurait sinon lieu au tick qui
-      // precede son apparition.
-      if (this.waveSpawned >= this.waveBudget && !this.waveBossPending) {
-        this.wavePhase = 1;
-        this.waveTimer = 0;
-      }
-      return;
-    }
+    const b = Math.min(TL_CFG.BEATS - 1, Math.floor(this.hordeTime / TL_CFG.BEAT_TIME));
+    if (b !== this.beat) { this.beat = b; this._startBeat(); }
 
-    /* Nettoyage. La vague se termine quand l'arene est vide — boss compris.
-       Les renforts du boss et les nuees liberees par les pondeuses ne comptent
-       PAS dans le budget (ils ne sont pas des apparitions de vague) mais
-       comptent bien ici : sinon la vague se terminait avec trente ennemis a
-       l'ecran. */
-    this.waveTimer += dt;
-    if (this.enemies.length === 0 && !this.boss) { this._endWave(); return; }
-
-    /* Retardataires. Passe le delai, on les rend traquables au lieu de les
-       laisser fuir : halo, vitesse x1.6 et, pour les tireurs, plus de distance
-       de securite. Sans ca, traquer les six derniers shooters a travers
-       1600 x 900 prenait plus longtemps que la vague elle-meme. */
-    if (this.waveTimer >= CFG.WAVE_STRAGGLER_DELAY) {
-      for (const e of this.enemies) {
-        if (e.straggler) continue;
-        e.straggler = 1;
-        // Applique UNE fois : e.speed est un champ stocke, le multiplier a
-        // chaque tick l'aurait fait diverger en une seconde.
-        e.speed *= CFG.WAVE_STRAGGLER_SPEED;
-        // Jamais sur ENEMY_TYPES : la table est partagee, exportee, et lue par
-        // le client. La muter aurait supprime la distance de securite des
-        // tireurs pour tout le reste du processus.
-        e.standoff = 0;
-      }
-    }
+    if (this.hordeTime >= TL_CFG.SEGMENT_TIME) this._endSegment();
   }
 
-  _startWave() {
-    this.wave++;
-    this.waveBoss = this.wave % CFG.WAVE_BOSS_EVERY === 0;
-    this.waveBossPending = this.waveBoss;
-    this.wavePhase = 0;
-    this.waveSpawned = 0;
-    this.waveTimer = 0;
+  /* Minutes de horde ECOULEES depuis le debut de la manche, boss et ecrans de
+     cartes exclus. C'est l'axe de difficulte du lot : deux equipes a la meme
+     minute voient exactement la meme pression, quelle que soit la duree de
+     leurs combats. */
+  hordeMinutes() {
+    return ((this.segment - 1) * TL_CFG.SEGMENT_TIME + this.hordeTime) / 60;
+  }
+
+  /* Le beat courant, deja adapte a l'effectif VIVANT. Point de passage unique :
+     le debit, la geometrie et le silence se lisent tous ici.
+
+     MEMORISE, parce qu'`adaptEntry` alloue quand il replie et que ceci est
+     appele a chaque tick par le spawner et vingt fois par seconde par le
+     snapshot. La cle est l'effectif vivant : c'est la seule chose qui puisse
+     changer le resultat sans changer de beat. */
+  _beat() {
+    const alive = Math.max(1, this.aliveCount());
+    const c = this._beatCache;
+    if (c && c.alive === alive && c.seg === this.segment && c.beat === this.beat) {
+      return c.entry;
+    }
+    // La VARIANTE vient du profil de difficulte (lot T) : c'est elle qui dit ou
+    // sont les silences et quelle geometrie sort. Un profil sans `script` — un
+    // GameState construit a la main dans un script de mesure — retombe sur la
+    // table de reference.
+    const entry = adaptEntry(beatAt(this.diff.script, this.segment, this.beat), alive);
+    this._beatCache = { alive, seg: this.segment, beat: this.beat, entry };
+    return entry;
+  }
+
+  _startBeat() {
     this.spawnAcc = 0;
+    this.packLeft = 0;
+    // Bord tire une fois par beat : `front` et `pince` ne veulent rien dire si
+    // le cote change a chaque ennemi.
+    this.beatSide = Math.floor(Math.random() * 4);
 
-    /* « Coeur de forge » gagne 5 % de degats par vague survecue : c'est le seul
-       mod indexe sur le temps, et il ne bouge qu'ici. Le recalcul est complet
-       (`_recomputeMods` rejoue tout depuis zero) donc il ne derive pas, et il
-       est bon marche : une fois par vague, pas une fois par image. */
-    for (const p of this.players.values()) {
-      if (p.mods.damagePerWave > 0) this._recomputeMods(p);
-    }
+    /* Un silence force un bonus au sol des son ouverture. Le minuteur de
+       `_powerups` existe deja, il suffit de l'echoir : le silence est la
+       fenetre de repositionnement et de lecture du HUD, et un repit qui ne rend
+       rien n'est pas un repit, c'est un compte a rebours — c'est la seule chose
+       qui ait jamais rallonge la survie a la mesure. */
+    if (this._beat().silence) this.powerupCd = 0;
 
-    const crowd = Math.max(1, this.players.size);
-    this.waveBudget = this.waveBoss
-      ? 0
-      : Math.round((CFG.WAVE_BUDGET_BASE + CFG.WAVE_BUDGET_RAMP * (this.wave - 1))
-          * Math.pow(crowd, CFG.WAVE_CROWD_EXP) * this.diff.spawn);
+    // Le beat change : l'evenement du beat precedent s'acheve, celui du nouveau
+    // s'ouvre. Deux appels et non un test disperse — c'est le seul endroit du
+    // fichier ou un beat commence.
+    this._closeEvent(true);
+    this._openEvent();
   }
 
-  _endWave() {
-    // L'experience de fin de vague recompense le nettoyage lui-meme, pas
-    // seulement les kills : sans elle, une vague de tanks lents rapportait
-    // moins qu'une vague de grunts alors qu'elle prend plus longtemps.
-    this._addXp(CFG.WAVE_XP_BONUS);
+  /* --- evenements (lot U) ---------------------------------------------------
 
-    // Respiration. Les joueurs a terre n'en profitent pas : c'est la
-    // reanimation qui les releve, sinon la fin de vague annulerait toute la
-    // tension d'un coequipier au sol.
-    for (const p of this.players.values()) {
-      if (!p.downed) p.hp = Math.min(p.maxHp, p.hp + CFG.WAVE_HEAL);
+     Un evenement N'EST PAS un second systeme : c'est une colonne du script,
+     resolue au changement de beat et nulle part ailleurs. Il n'y a donc aucun
+     tirage en cours de manche, et deux parties lancees avec la meme variante,
+     la meme difficulte et le meme effectif voient exactement la meme sequence —
+     c'est ce qui rend un temps de completion comparable, donc classable.
+
+     L'etat tient dans un objet ou `null` : identifiant, temps restant, duree.
+     Un objet plutot que trois champs sur l'instance parce que « pas
+     d'evenement » doit etre UNE valeur et non trois valeurs coherentes entre
+     elles. */
+  _openEvent() {
+    const entry = this._beat();
+    if (entry.event === undefined) return;
+    const id = adaptEvent(entry.event, Math.max(1, this.aliveCount()));
+    if (id < 0) return;
+    const def = eventAt(id);
+    if (!def) return;
+
+    this.event = { id, t: TL_CFG.BEAT_TIME, max: TL_CFG.BEAT_TIME };
+    /* ANNONCE OBLIGATOIRE, au niveau porte par la table : une consigne demande
+       une action immediate (`chasse` : concentrez le feu), un avertissement
+       previent d'un danger, une information raconte. Pas de surprise
+       silencieuse — c'est le principe deja etabli pour les mecaniques, et le
+       bandeau disparait avant la resolution par le meme mecanisme cote client. */
+    this.alerts.push({ event: id, level: def.level, dur: TL_CFG.EVENT_ANNOUNCE });
+    if (this.alerts.length > 16) this.alerts.shift();
+
+    /* `chasse` : un seul gibier, aucun autre ennemi. Le balayage est le meme
+       qu'a l'arrivee d'un boss et pour la meme raison — la cible se perdrait
+       dans la masse — et comme lui il ne credite NI score NI experience : il
+       passe par `enemies = []` et pas par `_killEnemy`. */
+    if (id === EV_CHASSE) {
+      this.enemies = [];
+      this.effects.push({
+        id: this._nextId++,
+        x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2,
+        r: Math.hypot(CFG.ARENA_W, CFG.ARENA_H) / 2, life: 0.6, max: 0.6, kind: 1,
+      });
+      this._spawnQuarry();
     }
+  }
 
-    this.wavePhase = 2;
-    this.waveTimer = CFG.WAVE_BREATHER;
+  /* Le GIBIER. Un elite au gabarit tres augmente — l'echelle est un facteur de
+     PLUS que le rang d'elite, pas a la place : un gibier doit rester
+     reconnaissable comme une elite, en beaucoup plus gros.
 
-    /* Les niveaux gagnes pendant la vague se consomment MAINTENANT, tous
-       d'affilee. Le drapeau part au serveur, qui enchaine autant d'ecrans de
-       choix qu'il y a de niveaux en attente. */
-    if (this.pendingLevels > 0) this.openCards();
+     Ses PV suivent l'effectif (`aliveCrowd`) mais PAS la puissance : c'est D2, et
+     `chasse` est justement l'endroit ou le grand ecart doit se voir. Une build
+     optimisee l'expedie en quelques secondes et gagne sa remise a plein tres
+     vite ; c'est la recompense la plus lisible du jeu pour une bonne build, et
+     c'est deliberement sans plancher de duree — le plancher de barre des boss
+     protege une choregraphie, celui-ci n'en a pas. */
+  _spawnQuarry() {
+    const e = this._spawnEnemy(2, CFG.ARENA_W / 2, 120, true, "bords");
+    if (!e) return;
+    /* SES PV SONT UNE FRACTION DE CEUX D'UN BOSS, et non un multiple de ceux
+       d'un tank elite. C'est le seul ancrage qui tienne : le gibier est un
+       demi-boss, il doit durer une fraction d'un combat de boss, et la formule
+       de boss porte deja l'effectif, le segment et la difficulte. Un multiple
+       d'elite aurait derive du boss au premier reglage de l'un des deux —
+       mesure a l'appui, un tank elite fait 3 726 PV quand le boss du segment 5
+       en fait 6 627 en solo et 32 635 a quatre : les deux echelles n'ont pas la
+       meme pente en effectif (1,15 contre l'exposant de horde).
+
+       La PUISSANCE n'y entre pas, contrairement au boss : c'est D2, et `chasse`
+       est justement l'endroit ou le grand ecart doit se voir. */
+    const crowd = this.aliveCrowd();
+    const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
+      * (1 + (this.segment - 1) * CFG.BOSS_GROWTH)
+      * CFG.BOSS_HP_MUL * this.diff.boss * TL_CFG.QUARRY_HP_MUL;
+    e.hp = e.maxHp = hp;
+    e.r *= TL_CFG.QUARRY_SIZE_MUL;
+    e.speed *= TL_CFG.QUARRY_SPEED_MUL;
+    /* EXCLU DU SEUIL D'EXECUTION, comme le boss et les structures de mecanique.
+       Le piege est le meme : un seuil applique a une grosse reserve de vie en
+       supprime le dernier quart d'un coup, et l'evenement se termine sur un tir
+       qui n'a rien coute. `_damage` lit ce drapeau au point de passage unique. */
+    e.noExec = 1;
+    this.quarry = e.id;
+  }
+
+  /* Fin d'un evenement. `parBeat` distingue les deux sorties : l'echeance du
+     beat (l'evenement a ete TENU) et l'annulation (fin de segment, arrivee du
+     boss, manche terminee). Seule la premiere recompense.
+
+     Definition de « terminer » en modele continu : un evenement a une DUREE, pas
+     une condition de nettoyage — sauf `chasse`, qui se termine a la mort du
+     gibier et ne rend RIEN si le gibier survit a son beat. Sans cette exception,
+     il suffirait de fuir soixante secondes pour encaisser la remise a plein. */
+  _closeEvent(parBeat) {
+    if (!this.event) return;
+    const id = this.event.id;
+    const gagne = parBeat && (id !== EV_CHASSE || this.quarry === 0);
+    this.event = null;
+    this.quarry = 0;
+    if (gagne) this._eventReward();
+  }
+
+  /* REUSSIR UN EVENEMENT REMET L'EQUIPE DEBOUT : 100 % des PV, 100 % du
+     bouclier, et les joueurs a terre sont releves. Une seule regle et sans
+     condition — un cas « releve mais pas soigne » ou « soigne mais reste a
+     terre » serait illisible.
+
+     Son poids a AUGMENTE depuis que `WAVE_HEAL` a disparu au lot P : les
+     evenements et les boss sont desormais les deux seules sources garanties de
+     remise a plein, et la mesure du depot est formelle — ni plus de cartes ni
+     moins de pression n'ont jamais rallonge la survie, une source de
+     recuperation si. */
+  _eventReward() {
+    for (const p of this.players.values()) {
+      p.hp = p.maxHp;
+      // `shieldPool` est LA reserve de bouclier du chargement — la meme que
+      // relit la regeneration de `_players`. Un joueur sans carte de bouclier
+      // n'en gagne donc pas ici : la remise a plein rend ce qu'on avait, elle
+      // n'offre rien de neuf.
+      if (p.mods.shieldPool > p.shield) p.shield = p.mods.shieldPool;
+      if (p.downed) { p.downed = false; p.revive = 0; }
+      // Meme effet visuel que le relevement par balise : c'est la meme promesse,
+      // elle doit se lire pareil.
+      this.effects.push({
+        id: this._nextId++,
+        x: p.x, y: p.y, r: 70, life: 0.5, max: 0.5, kind: 4,
+      });
+    }
+  }
+
+  _endSegment() {
+    // L'horloge se fige sur la fin du segment : le client affiche « 0:00 » le
+    // temps que le boss sorte, au lieu de repartir de 300 s.
+    this.hordeTime = TL_CFG.SEGMENT_TIME;
+    this.bossPending = true;
+    /* L'evenement est ANNULE, pas termine : le boss arrive, il n'y a rien a
+       recompenser. Le calendrier ne place aucun evenement sur le dernier beat —
+       le crescendo EST l'evenement — donc ce chemin ne sert qu'aux sorties
+       anormales, mais il doit exister : un evenement qui survit a son segment
+       ferait descendre son compte a rebours pendant le combat de boss. */
+    this._closeEvent(false);
+  }
+
+  /* Fin d'un segment cote boss : appele par `_killBoss`, jamais ailleurs. Le
+     segment 6 clot la manche par une VICTOIRE — c'est la premiere fois que le
+     jeu peut se gagner, et sans ca le segment 7 tournerait sur un script
+     inexistant. */
+  _nextSegment() {
+    if (this.segment >= TL_CFG.SEGMENTS) {
+      this.victory = true;
+      this.gameOver = true;
+      return;
+    }
+    this.segment++;
+    this.hordeTime = 0;
+    this.beat = 0;
+    /* METEO DU SEGMENT (lot V). Elle se DEDUIT de `(graine, segment)` des deux
+       cotes et ne circule donc pas — mais elle s'ANNONCE, au niveau
+       `ALERT_INFO` : une modification globale muette surprend au lieu
+       d'informer, exactement le reproche fait a une mecanique punitive. C'est la
+       regle deja posee pour les variantes de rupture de barre et pour l'enrage. */
+    const avant = this.weather?.id ?? -1;
+    this.weather = weatherFor(this.diffIndex, this.seed, this.segment);
+    if (this.weather && this.weather.id !== avant) this._alertWeather(this.weather.id);
+    this._startBeat();
   }
 
   /* Prepare une offre pour chacun. Appelable plusieurs fois de suite : le
@@ -2965,37 +3624,63 @@ export class GameState {
      progression alors que la jauge, elle, est commune. */
   openCards() {
     this.pendingLevels--;
-    this.cardsQuality = this.drawQuality(this.waveBoss);
+    // Tous les ecrans de choix suivent desormais un boss — c'est la seule
+    // interruption de la horde — donc le bonus de qualite de boss s'applique
+    // toujours. Le lot Q remesurera la courbe : elle est plus genereuse qu'avant
+    // a nombre d'ecrans egal, mais les ecrans sont six fois plus rares.
+    this.cardsQuality = this.drawQuality(true);
 
-    /* Jalon de legendaire. Il se declenche au premier ecran ATTEINT A PARTIR de
-       la vague du jalon, et non pendant cette vague exactement : une vague ou
-       personne ne monte de niveau n'ouvre aucun ecran, et la garantie sautait
-       purement et simplement — mesure : elle ne tombait qu'une fois sur deux.
+    /* Jalon de legendaire. Il se declenche au premier ecran ATTEINT A PARTIR du
+       NIVEAU du jalon, et non pendant ce niveau exactement : un niveau qui
+       n'ouvre pas d'ecran ferait sauter la garantie purement et simplement —
+       c'est le defaut mesure de l'ancienne version indexee sur la vague, elle
+       ne tombait qu'une fois sur deux. Le changement d'unite ne rend pas ce
+       correctif inutile : les ecrans sont desormais groupes apres un boss,
+       donc plusieurs niveaux passent SANS ecran, ce qui est exactement le cas
+       qui cassait la garantie.
        Honore une seule fois, meme si trois niveaux sont gagnes d'affilee : le
        plafond (LEGENDARY_MAX) n'aurait rattrape que la troisieme.
-       `legendaryWaveDone` vit ici et non dans `cards.js`, qui doit rester une
+       `legendaryLevelDone` vit ici et non dans `cards.js`, qui doit rester une
        fonction de ses arguments. */
-    const jalon = CARD_CFG.LEGENDARY_WAVES
-      .find(w => this.wave >= w && !this.legendaryWaveDone.has(w));
-    if (jalon !== undefined) this.legendaryWaveDone.add(jalon);
+    const jalon = CARD_CFG.LEGENDARY_LEVELS
+      .find(n => this.level >= n && !this.legendaryLevelDone.has(n));
+    if (jalon !== undefined) this.legendaryLevelDone.add(jalon);
 
     this.cardOffers = new Map();
     for (const p of this.players.values()) {
       this.cardOffers.set(p.id,
-        this.offerCards(p, this.cardsQuality, this.waveBoss, jalon ?? 0));
+        this.offerCards(p, this.cardsQuality, true, jalon ?? 0));
     }
     this.cardsPending = true;
   }
 
   _spawner(dt) {
     // Pendant un combat de boss, c'est lui qui gere le rythme : il appelle ses
-    // propres renforts. Rien ne sort non plus pendant le nettoyage ni le repit,
-    // c'est tout l'interet du modele : l'arene finit par se vider.
-    if (this.boss || this.wavePhase !== 0) return;
-    if (this.waveSpawned >= this.waveBudget) return;
+    // propres renforts. Rien ne sort non plus entre la fin d'un segment et
+    // l'arrivee du boss — ce serait remplir l'arene juste avant qu'il ne la
+    // balaie.
+    if (this.boss || this.bossPending) return;
 
-    const crowd = Math.max(1, this.players.size);
-    const rate = (CFG.SPAWN_BASE + (this.wave - 1) * CFG.SPAWN_WAVE_RAMP)
+    const entry = this._beat();
+    /* EVENEMENT EN COURS (lot U) : il remplace la COMPOSITION du beat et
+       multiplie son debit, il ne remplace pas le beat. La geometrie, l'effectif
+       et la difficulte continuent de s'appliquer — un evenement dit QUOI arrive,
+       le beat dit combien et par ou.
+
+       `rateMul: 0` (`chasse`) coupe les apparitions net : le gibier est seul
+       dans l'arene, c'est toute la mecanique. */
+    const ev = this.event ? eventAt(this.event.id) : null;
+    if (ev && ev.rateMul <= 0) return;
+
+    // Effectif VIVANT (lot R) : une table a moitie a terre ne doit pas recevoir
+    // le debit d'une table complete. Voir `aliveCrowd()` pour l'hysteresis.
+    const crowd = this.aliveCrowd();
+    // Le debit n'est plus derive d'une rampe : il est ECRIT, beat par beat. Les
+    // deux facteurs qui restent sont ceux qu'on ne veut surtout pas toucher —
+    // la normalisation d'effectif, qui porte la parite 1 / 4 joueurs, et la
+    // difficulte choisie a la table.
+    const rate = entry.rate
+      * (ev ? ev.rateMul : 1)
       * Math.pow(crowd, CFG.WAVE_CROWD_EXP)
       * (1 + CFG.WAVE_RATE_POWER_K * (this._teamPower() - 1))
       * this.diff.spawn;
@@ -3008,13 +3693,22 @@ export class GameState {
     this.spawnAcc += rate * dt;
     while (this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
+      /* SATURATION. Passe le plafond, les apparitions sont silencieusement
+         jetees : c'est une misericorde involontaire — la difficulte plafonne au
+         moment precis ou l'equipe est en train de perdre. On ne la corrige pas
+         par du debit (la mesure dit que ce n'est pas le levier) mais par de
+         l'INFORMATION : le client affiche le taux d'occupation, qu'il deduit de
+         la longueur de la liste sans qu'on paie un champ de plus. */
       if (this.enemies.length >= CFG.MAX_ENEMIES) { this.spawnAcc = 0; break; }
-      const e = this._spawnEnemy(-1, null, null, eliteDue);
+      /* La composition d'un evenement passe par le meme argument que la nuee
+         d'une pondeuse : un type NOMME. Elle traverse donc `adaptType` et le
+         roster de difficulte comme tout le reste — une nuee au niveau 1 sort en
+         grunts plutot qu'en runners, ce qui est exactement ce qu'on veut. */
+      const type = ev && ev.types.length > 0
+        ? ev.types[Math.floor(Math.random() * ev.types.length)]
+        : -1;
+      const e = this._spawnEnemy(type, null, null, eliteDue, entry.geom);
       if (!e) break;
-      // Le budget se decremente sur l'apparition REELLE : compter a l'echeance
-      // du debit videment le budget sans rien faire sortir quand l'arene est
-      // pleine, et la vague se terminait alors avant d'avoir commence.
-      this.waveSpawned++;
       if (eliteDue) {
         eliteDue = false;
         // La cadence d'elite se resserre avec l'effectif : a quatre joueurs le
@@ -3023,18 +3717,81 @@ export class GameState {
         const k = Math.pow(crowd, CFG.WAVE_ELITE_CROWD_EXP);
         this.eliteCd = (CFG.ELITE_MIN + Math.random() * (CFG.ELITE_MAX - CFG.ELITE_MIN)) / k;
       }
-      if (this.waveSpawned >= this.waveBudget) break;
     }
   }
 
-  _spawnPoint() {
-    const m = 60;
-    switch (Math.floor(Math.random() * 4)) {
+  // Un point sur le bord `side` (0 nord, 1 sud, 2 ouest, 3 est), hors champ.
+  _edgePoint(side) {
+    const m = TL_CFG.SPAWN_MARGIN;
+    switch (side & 3) {
       case 0:  return { x: Math.random() * CFG.ARENA_W, y: -m };
       case 1:  return { x: Math.random() * CFG.ARENA_W, y: CFG.ARENA_H + m };
       case 2:  return { x: -m, y: Math.random() * CFG.ARENA_H };
       default: return { x: CFG.ARENA_W + m, y: Math.random() * CFG.ARENA_H };
     }
+  }
+
+  /* GEOMETRIE D'APPARITION. Une seule geometrie pour toute la partie, c'etait
+     une pression uniformement diffuse — rien ne distinguait un mur de runners
+     arrivant du nord d'un grignotage general. Le script en nomme une par beat.
+
+     `bords` diffus, `front` un seul cote (on recule), `pince` deux cotes
+     opposes (on ne peut plus reculer, il faut percer), `quatre-fronts` par
+     paquets (a trois joueurs et plus : on se repartit), `anneau` un cercle
+     autour du centre (encerclement, reserve aux evenements). */
+  _spawnPoint(geom = "bords", r = 12) {
+    switch (geom) {
+      case "front":
+        return this._edgePoint(this.beatSide);
+      case "pince":
+        // Les cotes opposes vont par paires (0/1 et 2/3) : le XOR est la paire.
+        return this._edgePoint(Math.random() < 0.5 ? this.beatSide : this.beatSide ^ 1);
+      case "quatre-fronts": {
+        // Par PAQUETS : quatre bords alimentes un ennemi a la fois donnent
+        // quatre filets, pas quatre fronts.
+        if (this.packLeft <= 0) {
+          this.packLeft = TL_CFG.PACK;
+          this.packSide = (this.packSide + 1) & 3;
+        }
+        this.packLeft--;
+        return this._edgePoint(this.packSide);
+      }
+      case "anneau":
+        return this._ringPoint(r);
+      default:
+        return this._edgePoint(Math.floor(Math.random() * 4));
+    }
+  }
+
+  /* La SEULE geometrie qui fait naitre un ennemi a l'INTERIEUR des limites,
+     donc la seule qui puisse le deposer dans le disque de 16 px autour d'un
+     joueur ou il serait strictement invulnerable a son porteur — les balles
+     naissent a 16 px du centre, un runner a 9 px de rayon et une balle 4, donc
+     la collision se fait a 13 px. C'est le bug documente de la separation
+     ennemi / joueur, et il se reproduirait exactement ici.
+
+     On tire donc jusqu'a trouver un point degage, et on retombe sur un bord si
+     l'arene est trop encombree : un ennemi qui n'apparait pas vaut mieux qu'un
+     ennemi invulnerable, et un bord est toujours sur. */
+  _ringPoint(r) {
+    const cx = (this.bounds.x0 + this.bounds.x1) / 2;
+    const cy = (this.bounds.y0 + this.bounds.y1) / 2;
+    const rad = ((this.bounds.y1 - this.bounds.y0) / 2) * TL_CFG.RING_RATIO;
+    for (let i = 0; i < TL_CFG.RING_TRIES; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const x = cx + Math.cos(a) * rad;
+      const y = cy + Math.sin(a) * rad;
+      const clear = TL_CFG.RING_CLEAR + r;
+      // Un ennemi ne nait pas DANS un pilier : la separation le ferait ressortir
+      // d'un cote imprevisible, et le meme tirage sait deja se recommencer.
+      if (this._inObstacle(x, y, r)) continue;
+      let ok = true;
+      for (const p of this.players.values()) {
+        if ((p.x - x) ** 2 + (p.y - y) ** 2 < clear * clear) { ok = false; break; }
+      }
+      if (ok) return { x, y };
+    }
+    return this._edgePoint(Math.floor(Math.random() * 4));
   }
 
   /* --- bonus au sol ---------------------------------------------------------- */
@@ -3070,12 +3827,21 @@ export class GameState {
       // une constriction demandait d'aller mourir pour le ramasser.
       const margin = 90;
       const B = this.bounds;
+      // `_dropPoint` et non les limites brutes : c'est lui qui sait ecarter un
+      // obstacle de biome, et un bonus pose dans un pilier est un bonus perdu.
+      const pt = this._dropPoint(
+        B.x0 + margin + Math.random() * Math.max(1, B.x1 - B.x0 - margin * 2),
+        B.y0 + margin + Math.random() * Math.max(1, B.y1 - B.y0 - margin * 2),
+        margin);
       this.powerups.push({
         id: this._nextId++,
         type: this._randomPowerupType(),
-        x: B.x0 + margin + Math.random() * Math.max(1, B.x1 - B.x0 - margin * 2),
-        y: B.y0 + margin + Math.random() * Math.max(1, B.y1 - B.y0 - margin * 2),
-        life: CFG.POWERUP_LIFE,
+        x: pt.x, y: pt.y,
+        /* CENDRES (lot V) : le bonus ne dure plus. La meteo ne change ni le
+           tirage, ni la frequence, ni l'effet — elle change le TEMPS QU'ON A
+           pour aller le chercher, ce qui est une decision de trajet et non un
+           affaiblissement. */
+        life: this.weather?.id === WX_CENDRES ? BIOME_CFG.ASH_LIFE : CFG.POWERUP_LIFE,
       });
     }
 
@@ -3232,6 +3998,17 @@ export class GameState {
     for (const p of this.players.values()) {
       if (p.mods.frostRadius > 0 && !p.downed) frost.push(p);
     }
+    this._auraPass();
+    /* Liste des ennemis en ANTICIPATION, reconstruite a chaque tick. Elle part
+       dans la cle nommee `wu` du snapshot, et c'est la seule information de
+       trait qui circule : une position ne dit pas qu'un mouvement se prepare —
+       c'est exactement la limite deja notee pour la cadence des tireurs, ou
+       « un telegraphe qui devine serait pire que pas de telegraphe ».
+       Courte par construction : la recharge est de 6 s et le preavis de 0,5 s,
+       donc quelques ennemis sur deux cents, et vide la plupart du temps. */
+    this.windup.length = 0;
+    // La bourrasque est globale : une seule lecture pour les deux cents.
+    const gust = this._gust(dt);
 
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
@@ -3268,6 +4045,11 @@ export class GameState {
           break;
         }
       }
+      /* Champ de ralentissement du biome (lot V). Il porte sur les ennemis comme
+         sur les joueurs : un champ qui ne ralentirait que le joueur serait une
+         taxe deguisee en mecanique, et le depot les refuse. Le test ne coute que
+         dans les modes qui en posent — `hazards` est vide en calme. */
+      if (this.hazards.length) mul *= this._ground(e.x, e.y).slow;
       /* Ancre (lot C) : ralentissement dans le rayon, comme le givre — et
          comme lui, deux ancres ne se cumulent pas. La laisse, elle, vit dans
          `_skills` : elle est une contrainte de position, pas de vitesse. */
@@ -3277,7 +4059,56 @@ export class GameState {
           break;
         }
       }
-      e.ang = Math.atan2(dy, dx);   // sert au rendu oriente cote client
+      /* Orientation. Elle sert au rendu cote client pour huit types sur neuf, et
+         elle EST la mecanique du neuvieme : le bouclier du bulwark protege ce
+         qu'il regarde, donc sa rotation est limitee en vitesse. Un bouclier qui
+         se retourne a l'image rend le flanc inatteignable, c'est-a-dire le type
+         injouable — « il faut gagner l'angle » ne veut plus rien dire. */
+      const want = Math.atan2(dy, dx);
+      if (e.shieldArc > 0) {
+        let turn = want - e.ang;
+        while (turn > Math.PI) turn -= Math.PI * 2;
+        while (turn < -Math.PI) turn += Math.PI * 2;
+        const max = def.shieldTurnRate * dt;
+        e.ang += turn > max ? max : turn < -max ? -max : turn;
+      } else {
+        e.ang = want;
+      }
+
+      /* FRENESIE. La vitesse monte a mesure que les PV descendent. C'est le seul
+         trait qui rende un ennemi plus dangereux quand on l'a presque tue, donc
+         le seul qui punisse de laisser un blesse derriere soi. */
+      if (hasTrait(e.traits, TRAIT_FRENZY) && e.maxHp > 0) {
+        const missing = 1 - e.hp / e.maxHp;
+        const k = Math.min(1, missing / (1 - TRAIT_CFG.FRENZY_AT));
+        mul *= 1 + (TRAIT_CFG.FRENZY_MAX - 1) * k;
+      }
+
+      /* RUEE. Trois temps, et le premier n'est pas facultatif : sans preavis
+         visible, une ruee est une teleportation. Il se voit de DEUX facons — la
+         creature se ramasse (le client l'ecrase par `scale`, informe par `wu`)
+         et elle RALENTIT. Le ralentissement compte autant que l'ecrasement : il
+         est lisible meme quand la creature est cachee par la masse.
+         Elle ne se declenche qu'a portee : une ruee lancee de l'autre bout de
+         l'arene se termine dans le vide et le joueur ne la relie jamais a
+         l'anticipation qu'il a vue. */
+      if (hasTrait(e.traits, TRAIT_DASH)) {
+        if (e.dashT > 0) {
+          e.dashT -= dt;
+          mul *= TRAIT_CFG.DASH_MUL;
+        } else if (e.dashWarn > 0) {
+          e.dashWarn -= dt;
+          mul *= TRAIT_CFG.DASH_GATHER;
+          this.windup.push(e.id);
+          if (e.dashWarn <= 0) e.dashT = TRAIT_CFG.DASH_TIME;
+        } else {
+          e.dashCd -= dt;
+          if (e.dashCd <= 0 && d < TRAIT_CFG.DASH_RANGE) {
+            e.dashCd = TRAIT_CFG.DASH_CD;
+            e.dashWarn = TRAIT_CFG.DASH_WARN;
+          }
+        }
+      }
 
       if (def.shootCd) {
         // Les tireurs gardent leurs distances et arrosent de loin
@@ -3289,22 +4120,60 @@ export class GameState {
         e.y += (dy / d) * e.speed * mul * approach * dt;
         if (e.shootCd <= 0 && d < 520) {
           e.shootCd = def.shootCd;
-          this.shots.push({
-            id: this._nextId++,
-            x: e.x, y: e.y,
-            vx: (dx / d) * CFG.SHOT_SPEED,
-            vy: (dy / d) * CFG.SHOT_SPEED,
-            life: CFG.SHOT_LIFE,
-          });
+          /* SALVE : trois projectiles en eventail au lieu d'un, a cadence
+             INCHANGEE. Ce qui change est la couverture, pas le debit de degats —
+             un tireur qui tirerait trois fois plus fort au meme rythme serait un
+             reglage de statistique, pas un comportement. */
+          const fan = hasTrait(e.traits, TRAIT_VOLLEY) ? TRAIT_CFG.VOLLEY_COUNT : 1;
+          const base = Math.atan2(dy, dx) - ((fan - 1) / 2) * TRAIT_CFG.VOLLEY_SPREAD;
+          for (let i = 0; i < fan; i++) {
+            const a = base + i * TRAIT_CFG.VOLLEY_SPREAD;
+            this.shots.push({
+              id: this._nextId++,
+              x: e.x, y: e.y,
+              vx: Math.cos(a) * CFG.SHOT_SPEED,
+              vy: Math.sin(a) * CFG.SHOT_SPEED,
+              life: CFG.SHOT_LIFE,
+            });
+          }
         }
+      } else if (def.heal) {
+        /* MEDIC. Il garde ses distances comme un tireur, et il FUIT quand on
+           s'acharne sur lui : `standoff` est le meme champ, seule la consigne
+           change. */
+        const want2 = e.fleeT > 0 ? e.standoff * 1.6 : e.standoff;
+        const approach = d > want2 ? 1 : -0.6;
+        e.x += (dx / d) * e.speed * mul * approach * dt;
+        e.y += (dy / d) * e.speed * mul * approach * dt;
+        this._medic(e, def, dt);
       } else {
         e.x += (dx / d) * e.speed * mul * dt;
         e.y += (dy / d) * e.speed * mul * dt;
       }
 
+      /* TRAINEE, posee a la DISTANCE parcourue et non au temps ecoule. Sur une
+         cadence, un ennemi arrete continuerait de paver le sol sous lui, et un
+         runner a 188 px/s en poserait deux fois moins qu'un grunt pour le double
+         de terrain couvert. */
+      if (hasTrait(e.traits, TRAIT_TRAIL)) {
+        e.trailAt -= Math.hypot(e.x - wasX, e.y - wasY);
+        if (e.trailAt <= 0) {
+          e.trailAt = TRAIT_CFG.TRAIL_STEP;
+          this._groundZone(e.x, e.y, TRAIT_CFG.TRAIL_R, TRAIT_CFG.TRAIL_DOT,
+            TRAIT_CFG.TRAIL_LIFE);
+        }
+      }
+
+      // Bourrasque : elle pousse les DEUX camps, sinon c'est une taxe.
+      if (gust) { e.x += gust.x; e.y += gust.y; }
+
       // Le test ne coute que pendant les vingt secondes d'un verrouillage : hors
       // de la, `walls` est nul et l'appel sort a la premiere ligne.
       if (this.walls) this._wallBlock(e, wasX, wasY, e.r);
+      /* Obstacles du biome. Le repoussage par axe fait glisser le long du mur :
+         sans lui, deux cents ennemis restaient plaques contre un pilier sans
+         jamais le contourner, et la population montait jusqu'au plafond. */
+      if (this.obstacles.length) this._obstacleBlock(e, wasX, wasY, e.r);
     }
 
     // La brulure a pu en tuer : on nettoie avant l'evitement mutuel, sinon des
@@ -3331,6 +4200,101 @@ export class GameState {
     }
 
     this._separateFromPlayers();
+  }
+
+  /* AURA — relevee UNE FOIS par tick, exactement comme les auras de givre et
+     pour la meme raison : la lire dans `_damage` reviendrait a parcourir les
+     deux cents ennemis a chaque impact, soit quelques centaines de fois par
+     seconde en fin de manche. Ici on paie porteurs x population, et les
+     porteurs sont rares par construction (`share: 0.08` pour le choeur).
+
+     ELLE NE SE CUMULE JAMAIS : deux porteurs sur la meme cible appliquent la
+     MEILLEURE reduction, jamais le produit. C'est la meme regle que le Voeu
+     partage et que les auras de givre, et sans elle trois porteurs groupes
+     rendaient un paquet strictement increvable.
+
+     Un porteur se couvre lui-meme — il est a distance nulle de sa propre aura.
+     Ce n'est pas un oubli : le choeur est un ennemi qu'on doit vouloir tuer en
+     premier, et une cible qui resiste un peu plus est ce qui rend ce choix
+     couteux au lieu d'evident. */
+  _auraPass() {
+    const src = [];
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      e.aura = 0;
+      const def = ENEMY_TYPES[e.type];
+      if (def.auraRadius) src.push({ e, r: def.auraRadius, k: def.auraReduction });
+      else if (hasTrait(e.traits, TRAIT_AURA)) {
+        src.push({ e, r: TRAIT_CFG.AURA_RADIUS, k: TRAIT_CFG.AURA_REDUCTION });
+      }
+    }
+    if (src.length === 0) return;
+    for (const s of src) {
+      const r2 = s.r * s.r;
+      for (const e of this.enemies) {
+        if (e.hp <= 0 || e.aura >= s.k) continue;
+        if ((e.x - s.e.x) ** 2 + (e.y - s.e.y) ** 2 <= r2) e.aura = s.k;
+      }
+    }
+  }
+
+  /* MEDIC. Le soin est un CHEMIN NEUF et non un `_damage()` negatif : cette
+     methode porte le vol de vie, les critiques, l'execution et le compteur de
+     touches, dont aucun n'a le moindre sens sur un soin — et un montant negatif
+     les traverserait tous.
+
+     La rupture se mesure en temps passe SOUS LE FEU (`fireT`) et non en « touche
+     recemment » : une balle perdue ne coupe pas un soin, s'acharner une seconde
+     le coupe. La jauge redescend deux fois moins vite qu'elle ne monte, sinon un
+     tir intermittent ne la faisait jamais atteindre son seuil. */
+  _medic(e, def, dt) {
+    if (this.time - e.hitAt < def.fireWindow) e.fireT += dt;
+    else e.fireT = Math.max(0, e.fireT - dt * 0.5);
+
+    if (e.fireT >= def.breakTime) { e.fireT = 0; e.fleeT = def.fleeTime; }
+    if (e.fleeT > 0) { e.fleeT -= dt; return; }
+
+    e.healT -= dt;
+    if (e.healT > 0) return;
+    e.healT = def.healInterval;
+
+    // Le voisin blesse le plus proche, et JAMAIS lui-meme : un medic qui se
+    // soigne est le mur increvable que la rupture existe precisement pour
+    // empecher.
+    let best = null, bd = def.healRange * def.healRange;
+    for (const o of this.enemies) {
+      if (o === e || o.hp <= 0 || o.hp >= o.maxHp) continue;
+      const d2 = (o.x - e.x) ** 2 + (o.y - e.y) ** 2;
+      if (d2 < bd) { bd = d2; best = o; }
+    }
+    if (best) best.hp = Math.min(best.maxHp, best.hp + def.heal);
+  }
+
+  /* Zone posee par la HORDE : trainee, spores. Elle passe par `_zone` comme
+     tout le reste — donc par `_zoneApply`, donc par `_hurt` — mais avec un
+     PLAFOND GLOBAL, et il n'est pas indicatif. Le depot a deja rencontre le
+     piege avec les flaques de la Matriarche : sans lui, une fin de segment a
+     deux cents ennemis pave le sol, l'instantane enfle et la mecanique devient
+     illisible avant d'etre difficile.
+
+     La zone la plus ANCIENNE cede sa place, on ne refuse jamais la nouvelle :
+     un refus silencieux aurait fige le sol autour du premier ennemi arrive pour
+     tout le reste de la manche. */
+  _groundZone(x, y, r, dot, life) {
+    let oldest = -1;
+    let count = 0;
+    for (let i = 0; i < this.zones.length; i++) {
+      if (!this.zones[i].horde) continue;
+      count++;
+      if (oldest < 0) oldest = i;
+    }
+    if (count >= TRAIT_CFG.TRAIL_MAX && oldest >= 0) this.zones.splice(oldest, 1);
+    this._zone({
+      x, y, r, dot, life,
+      // Aucune annonce : la zone EST derriere la creature qui vient de passer,
+      // et un telegraphe sur une trainee ferait clignoter la moitie de l'arene.
+      warn: 0, tick: CFG.ZONE_TICK, horde: 1,
+    });
   }
 
   /* Separation ennemi / joueur. Elle n'existait pas : `ENEMY_SEPARATION` ne
@@ -3379,9 +4343,20 @@ export class GameState {
      mecaniques sont individuelles par nature, plutot que de denaturer un combat
      de cohesion pour le rendre jouable seul. Un Oracle a un joueur, c'est le
      boss de la coordination sans equipe — il ne reste que la punition. */
+  /* Tirage des boss INTERMEDIAIRES. Le final n'y entre jamais : il clot le
+     segment 6, par construction, et c'est ce qui rend inutile toute
+     arithmetique de « cycle complet du roster ».
+
+     La borne est `BOSS_POOL_COUNT` et non `BOSS_ROSTER.length` — ecrite dans
+     `bosses.js` a cote de la table. Deduire la longueur ferait entrer
+     silencieusement dans le deck tout boss ajoute plus tard, y compris le final.
+
+     Depuis le lot W, les cinq sont eligibles a TOUT effectif : le deck se
+     distribue donc exactement, cinq boss pour cinq places, sans repetition et
+     quel que soit le nombre de joueurs. */
   _pickBoss(alive) {
     const eligible = [];
-    for (let i = 0; i < BOSS_ROSTER.length; i++) {
+    for (let i = 0; i < BOSS_POOL_COUNT && i < BOSS_ROSTER.length; i++) {
       if (BOSS_ROSTER[i].minPlayers <= alive) eligible.push(i);
     }
     if (eligible.length === 0) return 0;
@@ -3405,13 +4380,14 @@ export class GameState {
 
   _boss(dt) {
     if (!this.boss) {
-      // Le boss sort a l'ENTREE d'une vague de boss, et non a une echeance de
-      // l'horloge. Il occupe la vague entiere : budget nul, seuls ses renforts
-      // sortent, et c'est sa mort qui vide l'arene donc qui termine la vague.
-      if (this.waveBossPending) {
-        this.waveBossPending = false;
+      // Le boss CLOT un segment : il sort quand l'horloge de horde atteint
+      // TL_CFG.SEGMENT_TIME, et son combat est hors de cette horloge (D1). Le
+      // spawner est muet pendant ce temps ; c'est sa mort qui ouvre le segment
+      // suivant.
+      if (this.bossPending) {
+        this.bossPending = false;
         this.bossCount++;
-        const crowd = Math.max(1, this.players.size);
+        const crowd = this.aliveCrowd();
 
         /* Le boss balaie l'arene en arrivant. Sans ca il debarquait au milieu
            de 200 ennemis deja presents : sa silhouette, ses zones et sa barre
@@ -3429,37 +4405,48 @@ export class GameState {
           kind: 1,
         });
 
-        // PV cales sur le nombre de joueurs : la duree du combat reste la meme
-        // a un ou a quatre, avec un leger supplement pour les groupes.
-        // Cales aussi sur le niveau moyen de l'equipe, pour la meme raison :
-        // sans ca, une equipe niveau 8 pliait le second boss en 18 s au lieu
-        // de 45. Le boss doit rester le mur de la manche, pas la recompense
-        // d'avoir bien farme.
-        /* La puissance ne peut plus se lire sur le seul niveau : avec les
-           cartes, deux equipes de meme niveau peuvent infliger le simple et le
-           triple. On evalue donc un indice de degats par seconde — degats,
-           nombre de canons, cadence, arme de remplacement — sinon le troisieme
-           boss tombe en quinze secondes et cesse d'etre le mur de la manche. */
-        const power = this._bossPower();
+        /* PV cales sur l'effectif vivant, le segment, la difficulte et le
+           `hpMul` du roster — ET SUR RIEN D'AUTRE (D2). Ils suivaient la
+           puissance mesuree de l'equipe, ce qui donnait une duree de combat
+           rigoureusement constante : x1,00 de sensation de puissance pour un
+           ecart de build mesure a x4,54. Le genou etait la premiere moitie du
+           chemin, la reference fixe est la seconde.
+           `_bossPower()` reste dans le code et alimente encore la fenetre de
+           build : revenir en arriere est un changement de constante. */
+        const power = CFG.BOSS_POWER_REF;
         /* `hpMul` du roster : il compense ce que le VERBE coute en temps de
            tir, et rien d'autre. La Matriarche voit une partie des degats de
            l'equipe partir sur ses rejetons (0,85), le Metronome fait passer le
            combat a courir (0,90), l'Oracle donne a une equipe coordonnee des
            fenetres de degats franches (1,10). */
-        const kind = this._pickBoss(this.players.size);
+        /* LE BOSS FINAL CLOT LE SEGMENT 6, et rien d'autre ne le fait sortir.
+           C'est la simplification du lot W : le plan precedent devait prouver
+           « apres un cycle complet du roster » par arithmetique, la structure en
+           segments rend la garantie vraie par construction. Les cinq
+           intermediaires ont donc ete vus une fois chacun quand il arrive, le
+           deck se distribuant exactement. */
+        const kind = this.segment >= TL_CFG.SEGMENTS
+          ? BOSS_FINAL
+          : this._pickBoss(this.players.size);
         this.lastBossKind = kind;
         const def = bossAt(kind);
         const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
           * (1 + (this.bossCount - 1) * CFG.BOSS_GROWTH)
-          * power * CFG.BOSS_HP_MUL * this.diff.boss * def.hpMul;
+          * power * CFG.BOSS_HP_MUL * this.diff.boss * def.hpMul
+          // Le final porte huit barres au lieu de cinq : ses PV suivent, et
+          // au-dela du simple rapport 8/5 — voir `FINAL_HP_MUL`.
+          * (kind === BOSS_FINAL ? BOSS_CFG.FINAL_HP_MUL : 1);
+        // `bars` vient du ROSTER depuis le lot W, avec la constante globale en
+        // repli : un boss qui suit la regle commune n'a rien a declarer.
+        const bars = def.bars ?? CFG.BOSS_BARS;
         const pos = this._spawnPoint();
         this.boss = {
           id: this._nextId++,
           kind,
           x: pos.x, y: pos.y,
           hp, maxHp: hp,
-          bars: CFG.BOSS_BARS,
-          barHp: hp / CFG.BOSS_BARS,
+          bars,
+          barHp: hp / bars,
           phase: 0,               // nombre de barres deja brisees
           ang: 0,
           attackCd: 4,
@@ -3471,8 +4458,21 @@ export class GameState {
           /* Le boss N n'a pas a reapprendre le damier en barre 2 : il demarre
              avec le repertoire deja ouvert des combats precedents. C'est ce
              qui le rend plus dur d'un boss a l'autre sans lui ajouter des PV,
-             qui n'allongent que la duree. */
-          floor: Math.min(this.bossCount - 1, CFG.BOSS_BARS - 1),
+             qui n'allongent que la duree.
+             Indexe sur le SEGMENT et non sur `bossCount` : les deux coincident
+             en pratique, mais le segment est le meme pour toutes les equipes,
+             donc la choregraphie du segment 4 est apprenable et racontable.
+             L'ecrire ainsi supprime la possibilite qu'ils divergent — un boss
+             non tue, une reprise, un evenement. */
+          /* Le final ne commence PAS avec un repertoire deja ouvert : `floor` a
+             zero. Les cinq intermediaires demarrent au niveau du segment parce
+             qu'ils rejouent un repertoire qu'on connait ; le final, lui, raconte
+             une progression — une barre, un boss d'origine — et la faire sauter
+             reviendrait a supprimer la seule chose qui distingue sa premiere
+             moitie d'un medley. */
+          floor: kind === BOSS_FINAL
+            ? 0
+            : Math.min(this.segment - 1, bars - 1),
           spiral: null,
           hunt: null,
           /* Mecaniques propres a un boss : elles vivent toutes sur l'entite et
@@ -3484,6 +4484,18 @@ export class GameState {
           ult: 0,                // jauge d'ultime de l'Oracle, 0 a 1
           miasmaCd: STATUS_CFG.BOSS_MIASMA_EVERY,
           converge: 0,           // Jumeaux : derniere barre, ils se rejoignent
+          // Lot R : duree du combat, date de la derniere rupture de barre et
+          // paliers d'enrage franchis. Tous sur l'ENTITE et non sur GameState,
+          // comme les autres minuteurs de boss : ils disparaissent avec lui.
+          fightT: 0,
+          lastBreak: 0,
+          enrage: 0,
+          bank: 0,               // degats mis de cote par le plancher de barre
+          // Attaques differees en attente (lot W) : la seconde moitie d'une
+          // synthese, l'ouverture d'une barre. Sur l'entite comme tous les
+          // minuteurs de boss — elles disparaissent avec lui, et une moitie qui
+          // se resoudrait apres sa mort poserait des zones sans boss.
+          defer: [],
         };
 
         /* Les Jumeaux : deux entites, UNE reserve de vie. `boss` reste la
@@ -3526,6 +4538,13 @@ export class GameState {
       if (!this.boss) return;      // la brulure peut l'achever
     }
 
+    b.fightT += dt;
+    this._bossEnrage(b);
+    // Seconde moitie d'une synthese (lot W) : elle tombe `SYNTH_GAP` apres la
+    // premiere, jamais dans la meme image — deux annonces simultanees ne se
+    // lisent ni l'une ni l'autre.
+    this._bossDefer(b, dt);
+
     this._spiral(b, dt);
     this._hunt(b, dt);
     this._marks(dt);
@@ -3544,10 +4563,36 @@ export class GameState {
 
     b.attackCd -= dt;
     if (b.attackCd <= 0) {
-      // Le rythme se resserre a chaque barre brisee
-      b.attackCd = CFG.BOSS_ATTACK_CD * Math.max(0.55, 1 - CFG.BOSS_PHASE_CD_STEP * b.phase);
+      // Le rythme se resserre a chaque barre brisee, et une seconde fois a
+      // chaque palier d'enrage — deux planchers distincts, le second plus bas :
+      // l'enrage est une sortie, il a le droit d'etre plus violent que la
+      // progression normale du combat.
+      const phase = Math.max(0.55, 1 - CFG.BOSS_PHASE_CD_STEP * b.phase);
+      const rage = Math.max(BOSS_CFG.ENRAGE_CD_FLOOR, 1 - BOSS_CFG.ENRAGE_CD * b.enrage);
+      b.attackCd = CFG.BOSS_ATTACK_CD * phase * rage;
       this._bossAttack(b, dx / d, dy / d);
     }
+  }
+
+  /* ENRAGE. Le combat s'eternise : le boss frappe plus fort et plus vite, par
+     paliers, et CHAQUE PALIER S'ANNONCE. Une variante muette surprend au lieu
+     d'informer, ce qui est exactement le reproche fait a une mecanique
+     punitive — meme regle que les variantes de rupture de barre.
+
+     Il ne contourne aucun invariant : il ne fait que monter des degats de zone
+     et une cadence, donc tout passe par `_hurt`, donc sous le plafond « une
+     mecanique ratee ne tue jamais un joueur a pleine vie ». */
+  _bossEnrage(b) {
+    /* Le seuil du FINAL est le sien : sa mediane attendue est deux fois celle
+       d'un boss ordinaire, et au seuil commun la moitie des combats medians
+       enrageraient — un garde-fou deviendrait une mecanique de phase. C'est le
+       RAPPORT (environ deux fois la mediane) qu'on conserve, pas la valeur. */
+    const seuil = b.kind === BOSS_FINAL ? BOSS_CFG.FINAL_ENRAGE_AT : BOSS_CFG.ENRAGE_AT;
+    if (b.fightT < seuil) return;
+    const palier = 1 + Math.floor((b.fightT - seuil) / BOSS_CFG.ENRAGE_STEP);
+    if (palier <= b.enrage) return;
+    b.enrage = palier;
+    this._alert(MECH_ENRAGE, 2);
   }
 
   /* Deplacement d'UNE entite de boss. Extrait de `_boss` parce que les Jumeaux
@@ -3609,9 +4654,109 @@ export class GameState {
      s'annonce pas surprend au lieu d'informer, ce qui est precisement ce qu'on
      reproche a une mecanique punitive. */
   _bossBars(b) {
-    const broken = Math.min(b.bars - 1, Math.floor((b.maxHp - b.hp) / b.barHp));
-    while (b.phase < broken) {
+    /* LA BANQUE EST LE SIGNAL, pas le quotient des PV. Le compte de barres se
+       deduisait d'une division — `floor((maxHp - hp) / barHp)` — et depuis que
+       le plancher borne les PV, ce quotient vaut 1 a un cheveu pres : du mauvais
+       cote, `floor` rend 0 et AUCUNE barre ne casse. Le boss restait alors fige
+       a un cheveu de sa rupture, la reserve montait a cent mille PV et le combat
+       ne se terminait jamais — mesure : les Jumeaux survivaient a treize minutes
+       de tir continu, les quatre autres boss tombant en une minute.
+
+       Un epsilon aurait deplace le probleme sans le supprimer : rien ne garantit
+       l'ecart, et il s'est avere valoir plusieurs PV et non un ulp. Or la
+       reserve dit DEJA, par construction, que la barre est epuisee — elle ne se
+       remplit que quand le plancher a mordu. On teste donc ca, et le quotient ne
+       sert plus que de filet pour le cas ou la barre serait franchie sans que le
+       plancher ait eu a border quoi que ce soit. */
+    while (b.phase < b.bars - 1
+           && (b.bank > 0 || b.hp <= b.maxHp - (b.phase + 1) * b.barHp + 1e-6)) {
+      /* PLANCHER DE BARRE (lot R). Sous D2, un combat de 29 s traverse les cinq
+         barres sans laisser sortir la moitie du repertoire — or chaque barre
+         ouvre une couche de repertoire, et c'est lui qui fait la difficulte des
+         combats tardifs a la place des PV. On perdrait du contenu au moment
+         precis ou l'on recompense le joueur.
+
+         Les degats en exces ne sont PAS perdus : `broken` se deduit des PV a
+         chaque image, donc la rupture est seulement DIFFEREE. Un `while` qui
+         sort au lieu d'un `continue` — la barre suivante attendra son tour.
+
+         Le test `if (!this.boss) return` plus bas reste bien qu'il soit devenu
+         theoriquement inatteignable : le plancher supprime le cas de deux
+         barres traversees dans la meme image, mais un test qui ne coute rien et
+         qui protege la prochaine mecanique se garde. */
+      // Le plancher du final est le sien : huit barres a franchir, et c'est lui
+      // qui garantit que les huit couches de repertoire passent a l'ecran.
+      const dwell = b.kind === BOSS_FINAL ? BOSS_CFG.FINAL_BAR_DWELL : BOSS_CFG.BAR_DWELL;
+      if (b.fightT - b.lastBreak < dwell) return;
+      b.lastBreak = b.fightT;
       b.phase++;
+      /* Les degats mis de cote par le plancher s'appliquent MAINTENANT. Ils
+         peuvent traverser la barre suivante d'un coup — c'est voulu, une equipe
+         qui frappe trois fois trop fort doit le voir — mais le `while` sera
+         bloque par le delai au tour suivant, donc une seule rupture par
+         echeance.
+
+         LA MORT SE TESTE ICI, et c'est le seul endroit du jeu hors `_damage`
+         qui retire des PV : sans ce test le boss tombait a des PV negatifs et y
+         RESTAIT — plus aucun coup ne pouvait le tuer puisque `_damage` clampait
+         a nouveau, et le combat ne se terminait jamais. Mesure avant correctif :
+         zero boss abattu en dix minutes de combat. */
+      /* La banque se vide BARRE PAR BARRE et non d'un coup, et c'est le
+         correctif qui rend le plancher vrai (lot W).
+
+         Elle se vidait entierement a la premiere rupture. Contre une build tres
+         forte, l'excedent accumule pendant les dix secondes du palier depassait
+         la reserve restante et le boss mourait DANS sa premiere rupture :
+         mesure sur le final a x20 de degats, 11 s de combat et une seule couche
+         de repertoire vue sur huit. Le plancher differait la rupture sans jamais
+         differer la MORT — c'est-a-dire qu'il ne protegeait rien.
+
+         On n'applique donc que ce qui mene au plancher de la barre SUIVANTE ; le
+         reste attend la prochaine echeance. Aucun degat n'est perdu, la promesse
+         de lot R est intacte, et le combat dure desormais au moins
+         (barres - 1) x DWELL quelle que soit la build. Sur la DERNIERE barre il
+         n'y a plus de plancher : tout s'applique, et le boss peut mourir la —
+         c'est le seul endroit ou il le doit. */
+      if (b.bank > 0) {
+        /* Le plancher a viser apres CETTE rupture. Sur une barre ordinaire c'est
+           celui de la suivante ; sur la derniere il n'y en a pas — sauf pour le
+           final, dont la derniere barre en a un a 1 PV, le temps que le sceau se
+           joue. Sans cette exception, la banque videe a la septieme rupture
+           tuait le boss dans l'image meme ou sa huitieme barre s'ouvrait. */
+        const dernier = b.phase >= b.bars - 1;
+        const plancher = dernier
+          ? (b.kind === BOSS_FINAL ? 1 : 0)
+          : b.maxHp - (b.phase + 1) * b.barHp;
+        const prise = Math.min(b.bank, Math.max(0, b.hp - plancher));
+        b.hp -= prise;
+        b.bank -= prise;
+        if (b.hp <= 0) { this._killBoss(b.lastHitBy ?? 0); return; }
+      }
+
+      /* CHAQUE BARRE DU BOSS FINAL OUVRE SUR LE PATRON QU'ELLE VIENT DE
+         DEBLOQUER, il n'est pas tire au sort.
+
+         Laisse au tirage, le patron d'une couche n'est qu'une chance sur dix a
+         chaque attaque d'une barre qui dure dix secondes, soit trois ou quatre
+         tirages : le sceau — seule mecanique inedite du combat — pouvait ne
+         jamais sortir, et la synthese non plus. C'est exactement le defaut que le
+         plancher de barre existe pour corriger, perdre du contenu au moment ou
+         l'on recompense, et le plancher seul n'y suffisait pas.
+
+         C'est aussi ce qui rend la structure du combat LISIBLE : la barre 1
+         s'ouvre sur le damier du Ravageur, la 2 sur les grappes de la Matriarche,
+         la 8 sur le sceau. Le joueur entend la citation au moment ou elle est
+         faite au lieu de la rencontrer trois attaques plus tard, melangee au
+         reste.
+
+         Ca passe par la file d'attaques differees plutot que d'etre pose ici : la
+         rupture vient d'effacer les projectiles et de relever `attackCd`, et une
+         consigne lancee dans la meme image que le souffle serait annoncee
+         par-dessus lui. */
+      if (b.kind === BOSS_FINAL) {
+        const couche = bossAt(BOSS_FINAL).unlock[b.phase - 1];
+        if (couche && couche.length) this._deferAtk(b, couche[0], 1.2);
+      }
       b.attackCd = Math.max(b.attackCd, 1.6);   // respiration avant la suite
       this.shots = [];
 
@@ -3629,6 +4774,18 @@ export class GameState {
       // qui a pu disparaitre entre deux tours de boucle.
       if (!this.boss) return;
     }
+
+    /* ECHEANCE DE LA DERNIERE BARRE DU FINAL. Le `while` ci-dessus ne tourne que
+       tant qu'il reste une barre a rompre ; la derniere n'en est pas une, elle
+       est la mort. Les degats mis de cote pendant ses dix secondes tombent donc
+       ici, une fois le delai passe — sans cette ligne, ils resteraient en banque
+       et le boss vivrait a 1 PV indefiniment. */
+    if (b.kind === BOSS_FINAL && b.phase >= b.bars - 1 && b.bank > 0
+        && b.fightT - b.lastBreak >= BOSS_CFG.FINAL_BAR_DWELL) {
+      b.hp -= b.bank;
+      b.bank = 0;
+      if (b.hp <= 0) this._killBoss(b.lastHitBy ?? 0);
+    }
   }
 
   /* La variante de rupture, par boss. Extraite pour que `_bossBars` reste le
@@ -3642,15 +4799,9 @@ export class GameState {
          comptent bien pour « arene vide ». Le plafond d'arene est respecte —
          sans lui, une derniere barre cassee arene pleine ne faisait rien
          apparaitre et l'annonce mentait. */
-      case BOSS_MATRIARCHE: {
-        for (let i = 0; i < BOSS_CFG.BROOD_COUNT; i++) {
-          if (this.enemies.length >= CFG.MAX_ENEMIES) break;
-          const a = Math.random() * Math.PI * 2;
-          this._spawnEnemy(1, b.x + Math.cos(a) * 130, b.y + Math.sin(a) * 130);
-        }
-        this._alert(MECH_BROOD, 2);
+      case BOSS_MATRIARCHE:
+        this._finalBrood(b);
         return;
-      }
 
       /* Metronome : il n'attaque pas, il occupe l'espace — donc on renverse
          l'espace. Toutes les zones EN COURS repartent dans l'autre sens : les
@@ -3659,20 +4810,9 @@ export class GameState {
          exactement la question que ce combat pose.
          Les zones qui POURSUIVENT un joueur (`follow`) en sont exclues : une
          poursuite inversee devient une fuite, c'est-a-dire plus rien. */
-      case BOSS_METRONOME: {
-        let n = 0;
-        for (const z of this.zones) {
-          if (z.follow) continue;
-          if (!z.vx && !z.vy) continue;
-          z.vx = -z.vx; z.vy = -z.vy;
-          n++;
-        }
-        // On n'annonce que s'il y avait quelque chose a inverser : une consigne
-        // qui ne correspond a rien a l'ecran est pire que pas de consigne.
-        if (n > 0) this._alert(MECH_REVERSE, 2);
-        else this._alert(MECH_BREATH, 2);
+      case BOSS_METRONOME:
+        this._finalReverse();
         return;
-      }
 
       /* Oracle : il regarde, il ordonne, il ne touche pas. Sa rupture est donc
          la seule qui laisse une TRACE durable, et c'est un cumul de
@@ -3681,13 +4821,9 @@ export class GameState {
          Sentence en equipe sans soigneur et la duree d'etat des cartes sont
          respectees sans qu'on y pense. Le Miasme dit deja cette phrase : on
          reutilise son annonce plutot que d'en ecrire une seconde. */
-      case BOSS_ORACLE: {
-        for (const p of this._alivePlayers()) {
-          this._applyStatus(p, STATUS_VULN, BOSS_CFG.MECH_VULN);
-        }
-        this._alert(MECH_MIASMA, 0);
+      case BOSS_ORACLE:
+        this._finalVuln();
         return;
-      }
 
       /* Jumeaux : leur verbe est la separation. Ils echangent leurs places, donc
          l'equipe qui venait de se repartir entre les deux se retrouve du mauvais
@@ -3703,10 +4839,70 @@ export class GameState {
         return;
       }
 
+      /* LE BOSS FINAL (lot W). Sa rupture est une synthese, comme le reste de
+         lui : chaque barre rejoue la rupture du boss dont elle vient d'ouvrir le
+         patron. La barre 1 souffle comme le Ravageur, la 2 lache une nuee comme
+         la Matriarche, la 3 inverse les motifs comme le Metronome, la 4 pose un
+         cumul comme l'Oracle.
+
+         L'echange des Jumeaux n'y figure PAS, et c'est le seul trou de la
+         serie : il permute deux positions, et le final n'a pas de moitie. Une
+         rupture qui n'aurait rien permute aurait annonce un echange sans
+         echange — exactement le defaut qu'on reproche a une variante muette,
+         mais a l'envers.
+
+         A partir de la barre 5 il rejoue DEUX variantes a la fois, ce qui est
+         son verbe. Deux annonces et non une troisieme entree de table : les deux
+         phrases existent, elles sont exactes, et en ecrire une nouvelle qui dise
+         « les deux precedentes » aurait fait trois libelles a garder d'accord. */
+      case BOSS_FINAL: {
+        if (b.phase <= 1) { this._alert(MECH_BREATH, 2); return; }
+        if (b.phase === 2) { this._finalBrood(b); return; }
+        if (b.phase === 3) { this._finalReverse(); return; }
+        if (b.phase === 4) { this._finalVuln(); return; }
+        this._finalBrood(b);
+        this._finalVuln();
+        return;
+      }
+
       // Ravageur, et repli de tout boss ajoute plus tard : le souffle seul.
       default:
         this._alert(MECH_BREATH, 2);
     }
+  }
+
+  /* Les deux variantes de rupture que le final REJOUE, extraites pour qu'elles
+     ne soient ecrites qu'une fois. Elles sont volontairement identiques a celles
+     de la Matriarche et de l'Oracle — un final qui les jouerait « un peu
+     autrement » perdrait la citation, qui est tout l'effet recherche. */
+  _finalBrood(b) {
+    for (let i = 0; i < BOSS_CFG.BROOD_COUNT; i++) {
+      if (this.enemies.length >= CFG.MAX_ENEMIES) break;
+      const a = Math.random() * Math.PI * 2;
+      this._spawnEnemy(1, b.x + Math.cos(a) * 130, b.y + Math.sin(a) * 130);
+    }
+    this._alert(MECH_BROOD, 2);
+  }
+
+  _finalVuln() {
+    for (const p of this._alivePlayers()) {
+      this._applyStatus(p, STATUS_VULN, BOSS_CFG.MECH_VULN);
+    }
+    this._alert(MECH_MIASMA, 0);
+  }
+
+  _finalReverse() {
+    let n = 0;
+    for (const z of this.zones) {
+      if (z.follow) continue;
+      if (!z.vx && !z.vy) continue;
+      z.vx = -z.vx; z.vy = -z.vy;
+      n++;
+    }
+    // On n'annonce l'inversion que s'il y avait quelque chose a inverser : une
+    // consigne sans rien a l'ecran est pire que pas de consigne.
+    if (n > 0) this._alert(MECH_REVERSE, 2);
+    else this._alert(MECH_BREATH, 2);
   }
 
   /* Repertoire d'attaques. Il n'est plus commun : c'est ce qui change d'un boss
@@ -3765,8 +4961,132 @@ export class GameState {
       case "cone":         this._atkCone(b); break;
       case "pacman":       this._atkPacman(b); break;
       case "constriction": this._atkConstriction(b); break;
+      // Les trois exclusives du boss final (lot W).
+      case "synthese":     this._atkSynthese(b, 0); break;
+      case "entrelacs":    this._atkSynthese(b, 1); break;
+      case "sceau":        this._atkSceau(b); break;
       default:             this._atkMarques(b); break;
     }
+  }
+
+  /* SYNTHESE (lot W, boss final). Elle ne cree AUCUNE geometrie a elle : elle
+     superpose deux patrons que le joueur connait deja, avec un decalage.
+
+     C'est tout l'interet du boss final tel qu'il est ecrit. Un huitieme patron
+     inedit aurait ete un patron de plus a apprendre ; deux patrons connus joues
+     ensemble demandent de tenir DEUX lectures a la fois, ce qu'aucun des cinq
+     combats ne demande — et ca ne coute pas une ligne de geometrie nouvelle.
+
+     Le decalage n'est pas cosmetique : sans lui les deux annonces tombent dans
+     la meme image et le joueur n'en lit aucune. Avec, il lit la premiere, se
+     place, et doit relire pendant qu'il tient sa position.
+
+     `_atk` est rappele plutot que la methode visee directement : le decalage
+     passe par la meme file d'attaques differees que le reste, et une variante
+     ajoutee plus tard n'aura rien a rebrancher. */
+  _atkSynthese(b, variante) {
+    /* Les deux combinaisons sont choisies pour se CONTREDIRE, jamais pour
+       s'additionner. La premiere demande de se rassembler pendant qu'une ligne
+       d'exaflares traverse : on doit tenir un point ET s'ecarter d'un axe. La
+       seconde demande de lire une couronne (rentrer, puis ressortir) pendant que
+       des disques derivent : deux horloges qui ne battent pas ensemble.
+       Deux patrons qui demanderaient la meme chose ne seraient qu'un patron
+       joue deux fois plus fort. */
+    if (variante === 0) {
+      this._atkRassemblement(b);
+      this._deferAtk(b, "exaflare", BOSS_CFG.SYNTH_GAP);
+    } else {
+      this._atkCouronne(b);
+      this._deferAtk(b, "derive", BOSS_CFG.SYNTH_GAP);
+    }
+    this._alert(MECH_SYNTH, BOSS_CFG.SYNTH_GAP);
+  }
+
+  /* File d'attaques DIFFEREES, portee par l'ENTITE — comme tous les minuteurs de
+     boss, elle disparait donc avec lui : une seconde moitie de synthese qui se
+     resoudrait apres sa mort poserait des zones dans une arene sans boss.
+
+     UNE LISTE et non un emplacement unique, et le bug qui l'a impose vaut d'etre
+     ecrit : a un seul emplacement, la synthese tiree par le pool de la huitieme
+     barre ECRASAIT le sceau que la rupture venait d'y mettre. La seule mecanique
+     inedite du combat disparaissait donc une fois sur deux, sans trace, au profit
+     d'un patron que le joueur venait deja de voir. Mesure : sceau absent a tous
+     les niveaux de degats testes.
+
+     Deux entrees au plus en pratique — la moitie d'une synthese et l'ouverture
+     d'une barre — donc la liste ne se plafonne pas : la borner aurait fait
+     reapparaitre le meme probleme sous un autre nom. */
+  _deferAtk(b, key, delay) {
+    (b.defer ??= []).push({ key, t: delay });
+  }
+
+  _bossDefer(b, dt) {
+    if (!b.defer || b.defer.length === 0) return;
+    const restants = [];
+    for (const d of b.defer) {
+      d.t -= dt;
+      if (d.t > 0) { restants.push(d); continue; }
+      this._atk(d.key, b, Math.cos(b.ang), Math.sin(b.ang));
+    }
+    b.defer = restants;
+  }
+
+  /* LE SCEAU — huitieme barre, la derniere mecanique du jeu.
+
+     Il reutilise `towerCount(alive)` et NON un second calcul d'effectif : une
+     zone en solo (sinon la mecanique est une taxe), deux a deux, autant que de
+     vivants au-dela — c'est la que « repartir l'equipe » devient une decision.
+     Ecrire un second calcul aurait donne deux regles a garder d'accord pour la
+     meme question.
+
+     Trois choses le distinguent des tours de l'Oracle, et les trois sont
+     necessaires pour qu'il soit lisible comme autre chose :
+       - la fenetre est LONGUE (6 s contre 4,2) : il faut traverser l'arene, pas
+         se decaler ;
+       - les foyers sont poses plus LOIN du centre : le sceau demande de se
+         repartir sur toute la surface, pas autour du boss ;
+       - la sanction est PLEINE et frappe TOUTE l'equipe, un seul foyer vide
+         suffit. Les tours sanctionnent au prorata ; le sceau est tout ou rien,
+         c'est ce qui en fait la derniere marche. */
+  _atkSceau(b) {
+    const alive = this._alivePlayers();
+    if (alive.length === 0) return;
+    const grp = this._nextId++;
+    const B = this.bounds;
+    const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
+    const rad = Math.min(B.x1 - B.x0, B.y1 - B.y0) * BOSS_CFG.SEAL_SPREAD;
+    const base = Math.random() * Math.PI * 2;
+    const n = towerCount(alive.length);
+
+    for (let i = 0; i < n; i++) {
+      const a = base + (i / n) * Math.PI * 2;
+      this._mark({
+        mech: MECH_SEAL, grp, lead: i === 0 ? 1 : 0,
+        x: cx + Math.cos(a) * rad, y: cy + Math.sin(a) * rad,
+        r: BOSS_CFG.SEAL_RADIUS, t: BOSS_CFG.SEAL_WARN, need: 1,
+      });
+    }
+    this._alert(MECH_SEAL, BOSS_CFG.SEAL_WARN);
+  }
+
+  /* Resolution du sceau : TOUT OU RIEN. Un seul foyer vide et l'equipe entiere
+     prend la sanction pleine — la meme que l'ultime de l'Oracle, qui est le seul
+     autre endroit du jeu ou reussir une mecanique achete quelque chose plutot
+     que d'eviter une punition.
+     Le requis est plafonne aux joueurs REELLEMENT vivants, comme pour les tours :
+     un joueur qui se deconnecte ne doit pas rendre le sceau impossible et bloquer
+     la derniere barre du dernier boss. */
+  _resolveSceau(lead) {
+    const group = this.marks.filter(m => m.grp === lead.grp);
+    const alive = this._alivePlayers();
+    if (alive.length === 0) return;
+    const foyers = Math.min(group.length, alive.length);
+    let tenus = 0;
+    for (const m of group) {
+      if (this._countIn(m) >= 1) tenus++;
+    }
+    if (tenus >= foyers) return;         // reussi : aucune sanction
+    for (const p of alive) this._mechHit(p, BOSS_CFG.SEAL_RATIO);
   }
 
   /* Spirale : trois bras de projectiles qui tournent lentement. Contrairement
@@ -3917,6 +5237,21 @@ export class GameState {
     this.alerts.push({ mech, level: def.level, dur: Math.round(dur * 100) / 100 });
     // Borne de securite : si personne ne vide la file (test hors serveur), elle
     // ne doit pas croitre indefiniment sur une manche de dix minutes.
+    if (this.alerts.length > 16) this.alerts.shift();
+  }
+
+  /* ANNONCE DE METEO (lot V). Troisieme entree du canal d'alerte apres les
+     mecaniques et les evenements, et pour la meme raison qu'eux : deux tables,
+     UN SEUL chemin d'annonce. `applyAlert` cote client consulte l'une ou l'autre
+     selon la cle presente, et tout le reste — file, horloge de rendu, retrait de
+     250 ms — reste commun.
+     `dur` a 0 : une meteo dure un segment entier, ce n'est pas un compte a
+     rebours avant impact mais le titre de ce qui commence. Le client tient alors
+     le bandeau 1,5 s, comme le Miasme. */
+  _alertWeather(id) {
+    const def = weatherAt(id);
+    if (!def) return;
+    this.alerts.push({ meteo: id, level: ALERT_INFO, dur: 0 });
     if (this.alerts.length > 16) this.alerts.shift();
   }
 
@@ -4423,6 +5758,9 @@ export class GameState {
       }
       case MECH_TOWER:
       case MECH_COUNT:
+      // Le sceau se compte comme une tour : c'est la meme question — combien de
+      // joueurs sont dedans — et le client dessine la meme jauge.
+      case MECH_SEAL:
         m.cur = this._countIn(m);
         break;
       case MECH_LINK: {
@@ -4509,6 +5847,11 @@ export class GameState {
         // Seul le meneur resout, pour tout le groupe : compter trois fois la
         // meme repartition aurait triple la sanction.
         if (m.lead) this._resolveTowers(m);
+        break;
+      // Meme regle de meneur unique, resolution differente : le sceau est tout
+      // ou rien la ou les tours sanctionnent au prorata.
+      case MECH_SEAL:
+        if (m.lead) this._resolveSceau(m);
         break;
       case MECH_PROX: this._resolveProx(m); break;
       case MECH_LINK: {
@@ -4753,6 +6096,13 @@ export class GameState {
       // gratuits pour les quinze zones qui ne s'en servent pas.
       vx: 0, vy: 0, left: 0, period: 0.5,
       life: 0, dot: 0, tick: 0, prox: 0, follow: 0, chase: 0, puddle: 0,
+      /* PROVENANCE des degats de la zone, et marquage HORDE. Le premier existe
+         parce que l'explosion du kamikaze passe par une zone tout en devant se
+         compter comme une explosion au bilan : sans lui, `_zoneApply` etait le
+         seul point du jeu ou la source etait ecrite en dur. Le second sert au
+         plafond de `_groundZone` — une zone de boss et une trainee ne se
+         comptent pas dans le meme budget. */
+      src: SRC_ZONE, horde: 0,
       ...z,
     };
     zone.warn0 = zone.warn;
@@ -4885,8 +6235,14 @@ export class GameState {
     }
   }
 
+  /* Point de passage unique des degats de zone du boss — d'ou l'enrage se
+     branche ici et nulle part ailleurs : une mecanique ajoutee plus tard en
+     herite sans qu'on y pense, exactement comme elle herite du palier de
+     barre. */
   _zoneDamage(b) {
-    return CFG.ZONE_DAMAGE * (1 + CFG.BOSS_PHASE_DAMAGE_STEP * b.phase);
+    return CFG.ZONE_DAMAGE
+      * (1 + CFG.BOSS_PHASE_DAMAGE_STEP * b.phase)
+      * (1 + BOSS_CFG.ENRAGE_DAMAGE * (b.enrage ?? 0));
   }
 
   /* ===========================================================================
@@ -4927,10 +6283,25 @@ export class GameState {
   // depose jamais dans la couronne mortelle ce qu'il faudra aller chercher.
   _dropPoint(x, y, margin = 40) {
     const B = this.bounds;
-    return {
+    const pt = {
       x: Math.min(Math.max(x, B.x0 + margin), B.x1 - margin),
       y: Math.min(Math.max(y, B.y0 + margin), B.y1 - margin),
     };
+    if (!this.obstacles.length) return pt;
+    /* Un bonus pose DANS un pilier est un bonus supprime, et c'est exactement la
+       raison pour laquelle la geometrie ne bouge jamais en cours de manche :
+       `_dropPoint` ne peut pas verifier une geometrie qui change. On ressort par
+       le cote le moins enfonce — le meme calcul que `_obstacleBlock`, sans
+       memoire du sens puisqu'un point ne vient de nulle part. */
+    for (const b of this.obstacles) {
+      if (b.maxHp > 0 && b.hp <= 0) continue;
+      const hw = b.w / 2 + CFG.POWERUP_RADIUS, hh = b.h / 2 + CFG.POWERUP_RADIUS;
+      const dx = pt.x - b.x, dy = pt.y - b.y;
+      if (Math.abs(dx) >= hw || Math.abs(dy) >= hh) continue;
+      if (hw - Math.abs(dx) <= hh - Math.abs(dy)) pt.x = b.x + (dx < 0 ? -hw : hw);
+      else pt.y = b.y + (dy < 0 ? -hh : hh);
+    }
+    return this._clampToBounds(pt, margin);
   }
 
   /* Murs de verrouillage. On repousse du COTE D'OU L'ON VENAIT plutot que du
@@ -4943,6 +6314,142 @@ export class GameState {
     const t = BOSS_CFG.QUAD_THICK / 2 + radius;
     if (Math.abs(o.x - W.x) < t) o.x = wasX <= W.x ? W.x - t : W.x + t;
     if (Math.abs(o.y - W.y) < t) o.y = wasY <= W.y ? W.y - t : W.y + t;
+  }
+
+  /* OBSTACLES DE BIOME (lot V). Meme regle que les murs de verrouillage, et
+     c'est deliberement le meme code a une boucle pres : on repousse DU COTE D'OU
+     L'ON VENAIT et non du cote le plus proche. A l'esquive, un joueur traverse
+     162 px en trois images et se retrouverait de l'autre cote du pilier.
+
+     Le repoussage est PAR AXE, ce qui donne le glissement le long d'un mur sans
+     une ligne de plus : l'axe qui penetre le moins est corrige, l'autre continue
+     son chemin. C'est ce qui empeche deux cents ennemis de rester colles a un
+     pilier sans jamais le contourner — ils longent.
+
+     Le BOSS n'y passe pas, et c'est assume : il fait jusqu'a 90 px de rayon,
+     ses mecaniques le deplacent d'autorite (`_atkBond`, les Jumeaux) et un boss
+     coince derriere une cuve rendrait le combat injouable. Ni lui ni les
+     structures de mecanique — cage, grappe, tour — n'ont a connaitre le biome. */
+  _obstacleBlock(o, wasX, wasY, radius = 0) {
+    for (const b of this.obstacles) {
+      if (b.maxHp > 0 && b.hp <= 0) continue;    // couverture abattue
+      const hw = b.w / 2 + radius, hh = b.h / 2 + radius;
+      const dx = o.x - b.x, dy = o.y - b.y;
+      if (Math.abs(dx) >= hw || Math.abs(dy) >= hh) continue;
+      // Profondeur de penetration sur chaque axe : on ressort par le moins
+      // enfonce, en gardant le SENS d'ou l'on venait.
+      const px = hw - Math.abs(dx), py = hh - Math.abs(dy);
+      if (px <= py) o.x = wasX <= b.x ? b.x - hw : b.x + hw;
+      else o.y = wasY <= b.y ? b.y - hh : b.y + hh;
+    }
+  }
+
+  // Un point est-il dans un obstacle. Sert au placement (bonus au sol, anneau
+  // d'apparition) : poser un bonus dans un pilier revient a le supprimer.
+  _inObstacle(x, y, margin = 0) {
+    for (const b of this.obstacles) {
+      if (b.maxHp > 0 && b.hp <= 0) continue;
+      if (Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(y - b.y) < b.h / 2 + margin) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /* Un projectile touche-t-il un obstacle. `dmg` positif vient d'un JOUEUR et
+     entame la couverture destructible ; un tir ennemi s'arrete dessus sans rien
+     lui faire. C'est la premiere des trois decisions du mur destructible : deux
+     cents monstres abattraient la couverture en dix secondes, et un mur qui
+     disparait sans qu'on sache pourquoi est un bug de retour, pas une
+     difficulte.
+
+     Le mur ne passe PAS par `_damage()` : ce point de passage porte le vol de
+     vie, les critiques, l'execution et le compteur de touches, dont aucun n'a de
+     sens ici — et l'execution en supprimerait un d'un seul tir. Meme
+     raisonnement que « le soin du medic est un chemin neuf, pas un `_damage()`
+     negatif ». Il ne rend NI SCORE NI EXPERIENCE : le credit vaut les PV max
+     d'un ennemi TUE, une couverture n'en est pas un. */
+  _obstacleHit(x, y, dmg = 0) {
+    for (const b of this.obstacles) {
+      if (b.maxHp > 0 && b.hp <= 0) continue;
+      if (Math.abs(x - b.x) >= b.w / 2 || Math.abs(y - b.y) >= b.h / 2) continue;
+      if (dmg > 0 && b.maxHp > 0) b.hp = Math.max(0, b.hp - dmg);
+      return true;
+    }
+    return false;
+  }
+
+  /* ETAT DU SOL SOUS UN POINT. Un seul balayage pour les deux effets qui ne
+     blessent pas — le ralentissement et le glissement — parce qu'ils se lisent
+     au meme endroit, dans la passe de deplacement, et qu'un second parcours de
+     la meme liste de cinq elements ne se justifie pas.
+
+     LES DEUX PORTENT SUR LES ENNEMIS AUSSI (le ralentissement, du moins) : un
+     champ qui ne toucherait que le joueur serait une taxe deguisee en mecanique,
+     et le depot les refuse — c'est l'argument qui a fait retirer les degats de
+     rupture de barre. Le glissement, lui, ne concerne que les joueurs : les
+     ennemis n'ont pas d'inertie a rejouer, ils n'ont qu'une vitesse. */
+  _ground(x, y) {
+    let slow = 1, slip = false;
+    for (const h of this.hazards) {
+      if (h.kind !== HZ_SLOW && h.kind !== HZ_SLIP) continue;
+      if ((x - h.x) ** 2 + (y - h.y) ** 2 > h.r * h.r) continue;
+      // Deux champs ne se cumulent JAMAIS : on prend le meilleur. Meme regle que
+      // les auras de givre, le Voeu partage et l'aura du choeur — sans elle,
+      // deux disques qui se recouvrent immobilisent.
+      if (h.kind === HZ_SLOW) slow = Math.min(slow, BIOME_CFG.SLOW_MUL);
+      else slip = true;
+    }
+    return { slow, slip };
+  }
+
+  /* DEGATS DES DANGERS. Par paliers de `ZONE_TICK` et jamais a chaque image, et
+     avec `overTime: true` — les deux sont indissociables et le depot a deja paye
+     l'oubli du second : sans ce drapeau, un danger permanent remet `hitCd` a
+     0,55 s quatre fois par seconde et rend sa victime immunisee au contact, aux
+     tirs et aux zones. On mourait en securite dans une flaque.
+
+     `hazardState` est le point de passage unique de la lecture : le client
+     dessine le jet a partir de la meme fonction, donc un joueur ne peut pas
+     prendre des degats d'un geyser qu'il voit eteint. */
+  _hazards(dt) {
+    if (this.hazards.length === 0) return;
+    this.hazardTick -= dt;
+    if (this.hazardTick > 0) return;
+    this.hazardTick = CFG.ZONE_TICK;
+
+    for (const h of this.hazards) {
+      const def = hazardAt(h.kind);
+      if (!def || !def.hurts) continue;
+      const st = hazardState(h, this.time);
+      if (!st.on) continue;
+      // Meme tolerance que les zones, et dans le meme sens : le client affiche
+      // avec 110 ms de retard, donc le bord qui blesse est plus petit que le
+      // bord dessine.
+      const r = h.r * CFG.ZONE_FORGIVE;
+      for (const p of this._alivePlayers()) {
+        if ((p.x - st.x) ** 2 + (p.y - st.y) ** 2 > r * r) continue;
+        this._hurt(p, h.dot * CFG.ZONE_TICK, { overTime: true, src: SRC_ENV });
+      }
+    }
+  }
+
+  /* METEO. Un modificateur global, valable un segment, cauchemar seulement. Elle
+     n'est ni une entite ni une zone — elle n'a pas de position — donc elle ne
+     s'ajoute a aucune liste et ne coute rien a dessiner.
+
+     La bourrasque pousse LES DEUX CAMPS. Ne pousser que le joueur en ferait une
+     taxe, et sa direction est deterministe (`weatherFor`) pour que la prediction
+     locale du client la rejoue au pixel pres.
+
+     Elle rend un DEPLACEMENT et ne l'applique pas : le decalage doit tomber
+     DANS la passe de deplacement, avant les limites et avant les obstacles.
+     Applique apres coup, il aurait pousse joueurs et ennemis a l'interieur des
+     piliers une image sur deux. */
+  _gust(dt) {
+    const w = this.weather;
+    if (!w || w.id !== WX_BOURRASQUE) return null;
+    return { x: w.dx * BIOME_CFG.GUST_PUSH * dt, y: w.dy * BIOME_CFG.GUST_PUSH * dt };
   }
 
   _arena(dt) {
@@ -5119,6 +6626,18 @@ export class GameState {
         }
       }
 
+      /* COUVERTURE (lot V). Une balle s'arrete sur un obstacle, et c'est ce qui
+         fait d'un pilier une couverture plutot qu'un decor : le tir ennemi s'y
+         arrete aussi (`_shots`), donc se placer derriere protege. Seul le tir du
+         JOUEUR entame un mur destructible — voir `_obstacleHit`. */
+      if (this.obstacles.length && this._obstacleHit(b.x, b.y, b.dmg)) {
+        // Une grenade explose sur le mur : elle a touche quelque chose, et une
+        // grenade qui s'eteint sans souffle contre un obstacle se lit comme un
+        // tir perdu.
+        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner);
+        continue;
+      }
+
       if (b.life > 0 && b.x > -50 && b.x < CFG.ARENA_W + 50
                      && b.y > -50 && b.y < CFG.ARENA_H + 50) {
         kept.push(b);
@@ -5151,6 +6670,9 @@ export class GameState {
         }
         if (absorbed) continue;
       }
+      // Un tir hostile s'arrete sur un obstacle sans l'entamer : la couverture
+      // protege dans les deux sens, mais deux cents monstres ne l'abattent pas.
+      if (this.obstacles.length && this._obstacleHit(s.x, s.y, 0)) continue;
       if (s.life > 0 && s.x > -60 && s.x < CFG.ARENA_W + 60
                      && s.y > -60 && s.y < CFG.ARENA_H + 60) { kept.push(s); continue; }
       /* Flaques de la Matriarche : le tir qui S'ETEINT laisse sa mare, pas
@@ -5247,7 +6769,7 @@ export class GameState {
          0,55 s quatre fois par seconde et rendait sa victime immunisee a tout
          le reste — le contact, les tirs, les autres zones. On mourait en
          securite dans une flaque. C'est exactement le bug de la brulure. */
-      this._hurt(p, dmg, { ignoreCooldown: true, fromZone: true, overTime, src: SRC_ZONE });
+      this._hurt(p, dmg, { ignoreCooldown: true, fromZone: true, overTime, src: z.src });
     }
   }
 
@@ -5688,6 +7210,37 @@ export class GameState {
       return true;
     }
 
+    /* BOUCLIER FRONTAL du bulwark. Il vit ICI et nulle part ailleurs, et c'est
+       un point de passage OBLIGATOIRE : la boucle de collision appelle cette
+       methode, mais le balayage a l'apparition aussi — sans ca, une balle nee a
+       bout portant traverserait le bouclier qu'une balle tiree a dix metres
+       respecte, ce qui est exactement le bug de l'ennemi colle intouchable pris
+       par l'autre bout.
+
+       L'ANGLE est mesure depuis le CENTRE de l'ennemi vers le point d'impact et
+       non depuis le tireur : une balle perforante qui traverse le groupe touche
+       le bulwark par ou elle arrive, pas par ou elle est partie.
+
+       La balle est CONSOMMEE, perforation comprise : un bouclier qui laisserait
+       passer les charges de perforation ne serait plus un angle a gagner, juste
+       une carte a prendre. */
+    if (e.shieldArc > 0) {
+      let off = Math.atan2(iy - e.y, ix - e.x) - e.ang;
+      while (off > Math.PI) off -= Math.PI * 2;
+      while (off < -Math.PI) off += Math.PI * 2;
+      if (Math.abs(off) <= e.shieldArc / 2) {
+        /* L'absorption DOIT se voir : sans retour, le joueur ne comprend pas
+           pourquoi ses tirs frontaux ne font rien et conclut a un bug. Un `kind`
+           a lui plutot qu'un flash generique — c'est le seul evenement du jeu
+           qui dise « ce tir etait juste mal place ». */
+        this.effects.push({
+          id: this._nextId++,
+          x: ix, y: iy, r: 14, life: 0.18, max: 0.18, kind: 14,
+        });
+        return true;
+      }
+    }
+
     this._damage(e, b.dmg, b.owner, b.burn);
     /* « Sentence capitale » : un critique traverse. Le drapeau est relu ICI,
        immediatement apres l'appel, parce que `_damage` ne rend rien — il est
@@ -5933,11 +7486,12 @@ export class GameState {
 
   /* Un kill credite le tueur et peut declencher plusieurs paliers d'un coup :
      une nova qui balaie l'ecran doit pouvoir faire monter de deux niveaux. */
+  /* Le SCORE seulement. L'experience ne passe plus par ici : elle vaut les PV
+     max de la cible et se verse dans `_killEnemy`, avant tout test de
+     proprietaire — une mort par brulure sans proprietaire, ou le kill d'un
+     joueur deconnecte entre-temps, ne doit pas disparaitre de la progression
+     commune. Les degats au boss, eux, creditent en continu depuis `_damage`. */
   _credit(owner, score) {
-    // L'experience est versee que le kill soit attribue ou non : une mort par
-    // brulure sans proprietaire, ou le kill d'un joueur deconnecte entre-temps,
-    // faisait autrement disparaitre de la progression commune.
-    this._addXp(1);
     if (!owner) return;
     owner.kills++;
     owner.score += Math.round(score * owner.mods.scoreMul);
@@ -5953,20 +7507,29 @@ export class GameState {
   }
 
   /* Jauge commune. Un palier franchi ne donne RIEN d'autre qu'un choix de carte
-     mis en file : ni degats, ni PV, ni soin. Le choix se consomme a la fin de
-     la vague, pas ici — voir _endWave. */
+     mis en file : ni degats, ni PV, ni soin. Le choix se consomme a la mort du
+     boss qui clot le segment, pas ici — voir _killBoss. */
   _addXp(amount) {
-    // Normalisation sur l'effectif : voir le commentaire de LEVEL_KILLS_BASE.
+    // Normalisation sur l'effectif : voir le commentaire de LEVEL_XP_BASE.
     // Sans elle, quatre joueurs franchissaient les paliers 2,8 fois plus vite
-    // qu'un seul pour des vagues identiques.
+    // qu'un seul pour une horde identique.
     this.xp += amount / Math.pow(Math.max(1, this.players.size), CFG.WAVE_CROWD_EXP);
 
     while (this.level < CFG.LEVEL_MAX && this.xp >= this.levelAt) {
       this.level++;
       this.pendingLevels++;
       this.levelFrom = this.levelAt;
-      this.levelStep = Math.round(this.levelStep * CFG.LEVEL_KILLS_GROWTH * this._xpCostMul());
+      this.levelStep = Math.round(this.levelStep * CFG.LEVEL_XP_GROWTH * this._xpCostMul());
       this.levelAt = this.levelFrom + this.levelStep;
+
+      /* « Coeur de forge » gagne 5 % de degats par NIVEAU d'equipe, et c'est
+         ici qu'il bouge — il suivait le changement de beat, mais son unite est
+         desormais le niveau. Le recalcul est complet (`_recomputeMods` rejoue
+         tout depuis zero) donc il ne derive pas, et il est bon marche : une
+         vingtaine de fois par manche. */
+      for (const p of this.players.values()) {
+        if (p.mods.damagePerLevel > 0) this._recomputeMods(p);
+      }
 
       // L'onde de montee de niveau part du centre de l'arene et non d'un
       // joueur : la jauge n'appartient plus a personne en particulier.
@@ -5995,8 +7558,20 @@ export class GameState {
 
   _killEnemy(e, ownerId) {
     this.totalKills++;
+    /* Le GIBIER est tombe : `_segmentTick` le constate au tick suivant et cloture
+       l'evenement. Ici on se contente d'oublier l'identifiant — cloturer depuis
+       la mort d'un ennemi ferait partir la remise a plein au milieu de la boucle
+       de collision, c'est-a-dire pendant que `_damage` tourne encore. */
+    if (this.quarry === e.id) this.quarry = 0;
     const def = ENEMY_TYPES[e.type];
     const owner = this.players.get(ownerId);
+    /* L'EXPERIENCE VAUT LES PV MAX DE LA CIBLE — voir LEVEL_XP_BASE. Elle est
+       versee ici, avant `_credit`, donc quel que soit l'auteur du dernier coup
+       et meme s'il n'y en a pas. Un ennemi qui DISPARAIT sans mourir (balayage
+       d'arrivee du boss) ne passe pas par cette methode et ne credite donc
+       rien : c'est la meme regle que pour le score, et c'est ce qui empeche
+       d'arreter de jouer en fin de segment. */
+    this._addXp(e.maxHp);
     this._credit(owner, e.elite ? Math.round(def.score * CFG.ELITE_SCORE_MUL) : def.score);
 
     if (owner) {
@@ -6078,6 +7653,38 @@ export class GameState {
         this._spawnEnemy(1, e.x + Math.cos(a) * 22, e.y + Math.sin(a) * 22);
       }
     }
+
+    /* EXPLOSION DU KAMIKAZE, branchee au point UNIQUE de mort. C'est ce qui
+       garantit « quelle que soit la cause » : tir, zone, brulure, execution,
+       onde de mort — aucune n'a a savoir que ce type existe.
+
+       Elle est posee comme une ZONE de 0,15 s d'annonce et non resolue seche.
+       Deux raisons. Le depot n'a pas d'autre facon de dire « ca va exploser
+       la » au client, et un dommage instantane sur la mort d'un ennemi qu'on
+       vient de tuer se lit comme un bug. Et le delai court — un dixieme de ce
+       qu'annonce une mecanique de boss — laisse une chance de sortie sans rendre
+       l'explosion gratuite : c'est un ennemi ordinaire, pas une mecanique.
+
+       `src: SRC_BLAST` : elle passe par une zone, elle ne se compte pas comme
+       une zone. Au bilan, « zone au sol » envoie chercher des flaques de boss ;
+       ce qui a tue, c'est d'etre reste au contact. */
+    if (def.blastRadius) {
+      this._zone({
+        x: e.x, y: e.y,
+        r: def.blastRadius,
+        warn: def.blastDelay,
+        dmg: def.blastDamage,
+        src: SRC_BLAST,
+      });
+    }
+
+    /* SPORES : petite zone remanente a la mort. Elle passe par le MEME plafond
+       que les trainees — c'est la meme surface au sol, et le budget porte sur ce
+       que le joueur doit lire, pas sur la mecanique qui l'a pose. */
+    if (hasTrait(e.traits, TRAIT_SPORE)) {
+      this._groundZone(e.x, e.y, TRAIT_CFG.SPORE_R, TRAIT_CFG.SPORE_DOT,
+        TRAIT_CFG.SPORE_LIFE);
+    }
   }
 
   _killBoss(ownerId) {
@@ -6086,6 +7693,17 @@ export class GameState {
     // Lot D : la monnaie et les jalons de premiere victoire se constatent a la
     // fin de manche, mais c'est ICI qu'on sait quel boss vient de tomber.
     if (this.boss) this.bossKindsKilled.add(this.boss.kind);
+    /* DUREE DU COMBAT FINAL (lot W). Relevee ici et nulle part ailleurs : c'est
+       le seul instant ou l'on a encore l'entite, et `fightT` meurt avec elle.
+
+       C'est ce chiffre-la qui est classe, et non le temps pour ATTEINDRE le boss
+       final : sous D1 celui-ci vaut 1800 s de horde plus la duree des cinq
+       combats precedents, donc il est domine par une constante et deux equipes
+       tres differentes afficheraient des temps voisins. Le record perdrait
+       l'essentiel de son sens. */
+    if (this.boss && this.boss.kind === BOSS_FINAL) {
+      this.finalKill = Math.round(this.boss.fightT * 10) / 10;
+    }
     this.bossKills++;
     this.boss = null;
     this.boss2 = null;
@@ -6110,11 +7728,23 @@ export class GameState {
       if (!p.downed) p.hp = Math.min(p.maxHp, p.hp + 40 + p.mods.healPerBoss);
     }
 
-    /* Plus de pause de choix ICI. Les cartes ne tombent plus a la mort d'un
-       boss mais a la fin de la vague, et seulement s'il reste des niveaux en
-       attente — sans quoi la vague de boss aurait ouvert deux ecrans d'affilee,
-       le sien et celui de la fin de vague. La mort du boss vide l'arene, ce qui
-       termine la vague au tick suivant : c'est _endWave qui decide. */
+    /* La mort du boss est le SEUL moment ou la horde s'interrompt, donc le seul
+       ou un ecran de choix peut s'ouvrir sans etre une punition — c'est
+       l'argument qui tenait deja pour la fin de vague. Les niveaux gagnes
+       pendant le segment se consomment tous d'affilee ; le serveur enchaine
+       autant d'ecrans que `pendingLevels` en compte.
+
+       UNE CARTE EST GARANTIE PAR BOSS, en plus des niveaux en attente : six
+       boss, six choix qui ne dependent pas de la jauge. C'est ce qui fait du
+       boss un point d'etape de progression et pas seulement un mur de PV — le
+       role que `BOSS_QUALITY` tenait deja pour la qualite du tirage. Un
+       `pendingLevels++` plutot qu'un appel special : l'enchainement des ecrans
+       (`resumeRound` rouvre tant qu'il en reste) marche alors sans rien
+       changer, et le compteur reste la seule verite sur le nombre d'ecrans. */
+    this._nextSegment();
+    if (this.gameOver) return;
+    this.pendingLevels++;
+    this.openCards();
   }
 
   /* --- reanimation -------------------------------------------------------------------- */
@@ -6186,6 +7816,20 @@ export class GameState {
     let mask = 0;
     for (const id of p.statuses.keys()) mask |= statusBit(id);
     return mask;
+  }
+
+  /* Etat des couvertures destructibles, ou `null`. L'INDEX dans la liste
+     d'obstacles fait office d'identifiant : les deux cotes construisent la meme
+     liste dans le meme ordre a partir de la meme graine, donc un identifiant
+     transmis n'apprendrait rien de plus et couterait un nombre de plus. */
+  _coverState() {
+    let out = null;
+    for (let i = 0; i < this.obstacles.length; i++) {
+      const b = this.obstacles[i];
+      if (b.maxHp <= 0 || b.hp >= b.maxHp) continue;
+      (out ??= []).push([i, Math.round(b.hp / b.maxHp * 100) / 100]);
+    }
+    return out;
   }
 
   snapshot() {
@@ -6282,12 +7926,11 @@ export class GameState {
         r1(p.cd3), p.mods.skill3,
       ]),
       /* Le rang d'elite voyage dans le champ de type (+100) : un drapeau separe
-         aurait coute un nombre de plus sur chacun des 200 ennemis. Le marquage
-         de retardataire s'y ajoute (+200) pour la meme raison — un huitieme
-         element paye sur tous les ennemis, vingt fois par seconde, pour une
-         information qui ne concerne que les dernieres secondes d'une vague.
-         Decodage cote client : type = a[5] % 100, elite = a[5] % 200 >= 100,
-         retardataire = a[5] >= 200. */
+         aurait coute un nombre de plus sur chacun des 200 ennemis. Decodage
+         cote client : type = a[5] % 100, elite = a[5] >= 100. Le marquage de
+         retardataire (+200) a disparu avec les vagues — il n'existait que pour
+         rendre traquables les derniers fuyards d'un nettoyage, et il n'y a plus
+         rien a nettoyer. */
       /* Huitieme element, AJOUT EN FIN de tuple : le compteur de touches. C'est
          le seul chiffre du retour d'impact que le client ne peut pas deduire —
          a 20 Hz, deux a quatre balles tombent entre deux instantanes et une
@@ -6303,7 +7946,7 @@ export class GameState {
          rien. `keep` vaut 7 et non 6 : le client lit `a[6]` (l'orientation) sans
          valeur de repli, et une orientation nulle est parfaitement ordinaire. */
       e: this.enemies.map(e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
-                                e.type + (e.elite ? 100 : 0) + (e.straggler ? 200 : 0),
+                                e.type + (e.elite ? 100 : 0),
                                 r2(e.ang), e.hitSeq], 7)),
       /* Quatrieme element : projectile de soin. Ajout en fin de tuple, repli 0
          cote client — la balle reste dessinee, simplement dans la couleur du
@@ -6380,16 +8023,44 @@ export class GameState {
         : [f.id, r1(f.x), r1(f.y), Math.round(f.r), r2(f.life / f.max), f.kind ?? 0]),
       sl: this.slow > 0 ? 1 : 0,
       df: this.diffIndex,
-      /* Vague et progression commune. Ce sont des cles NOMMEES du snapshot et
-         non des elements de tableau : la regle positionnelle ne vaut qu'a
-         l'interieur des tableaux, une cle inconnue est simplement ignoree par
-         un client plus ancien. `wp` : 0 apparition, 1 nettoyage, 2 repit.
-         `wb` est l'avancement du budget, deja calcule ici pour que le client
-         n'ait pas a connaitre la formule. */
-      wv: this.wave,
-      wp: this.wavePhase,
-      wbs: this.waveBoss ? 1 : 0,
-      wb: this.waveBudget > 0 ? r2(Math.min(1, this.waveSpawned / this.waveBudget)) : 1,
+      /* ANTICIPATION DE RUEE (lot S). Cle NOMMEE et ABSENTE la plupart du temps,
+         exactement comme `bn` et `wl` : la recharge est de six secondes et le
+         preavis d'une demi-seconde, donc la liste est vide neuf fois sur dix et
+         courte le reste du temps.
+
+         C'est le SEUL octet de trait qui circule, et il circule parce qu'il ne
+         se deduit pas : une position ne dit pas qu'un mouvement se prepare —
+         c'est la limite deja notee pour la cadence des tireurs. Tout le reste
+         (quel ennemi porte quel trait) se recalcule cote client a partir de
+         `(df, type)`, que le client a deja.
+
+         Pas un champ par ennemi : ce serait un huitieme element paye sur les
+         deux cents, vingt fois par seconde, pour une information qui concerne
+         trois entites. */
+      wu: this.windup.length > 0 ? [...this.windup] : null,
+      /* EVENEMENT ACTIF (lot U) : index et temps restant. Cle NOMMEE et ABSENTE
+         hors evenement — cinq minutes sur trente en portent un. Deux nombres, et
+         l'index circule : `EVENTS` est un tableau ordonne, ne jamais inserer au
+         milieu.
+
+         Le NOM et le texte n'y sont pas : le client a la meme table, il n'a
+         besoin que de l'index — meme raison que les mecaniques, les boss et les
+         etats. Le temps restant, lui, ne se deduit pas : il faudrait connaitre
+         l'instant d'ouverture, que le client n'a pas s'il rejoint en cours. */
+      ev: this.event ? [this.event.id, r1(Math.max(0, this.event.t))] : null,
+      /* Segment et progression commune. Cles NOMMEES du snapshot et non des
+         elements de tableau : la regle positionnelle ne vaut qu'a l'interieur
+         des tableaux, une cle inconnue est simplement ignoree par un client
+         plus ancien — et `wv`/`wp`/`wbs`/`wb`, qui disparaissent ici, sont lues
+         avec un repli cote client.
+
+         `sg` : segment sur TL_CFG.SEGMENTS, secondes de horde RESTANTES dans le
+         segment, index du beat, et si le beat courant est un silence. Le taux
+         d'occupation de l'arene N'Y EST PAS : il se deduit de la longueur de la
+         liste d'ennemis, que le client a deja — meme regle que la cadence des
+         tireurs et la direction des projectiles. */
+      sg: [this.segment, r1(Math.max(0, TL_CFG.SEGMENT_TIME - this.hordeTime)),
+           this.beat, this._beat().silence ? 1 : 0],
       xl: this.level,
       xp: this.level >= CFG.LEVEL_MAX
         ? 1
@@ -6403,7 +8074,14 @@ export class GameState {
            Math.round(this.boss.hp), Math.round(this.boss.maxHp),
            r2(this.boss.ang), this.bossCount,
            this.boss.bars, this.boss.phase,
-           this.boss.kind, r2(this.boss.ult)]
+           this.boss.kind, r2(this.boss.ult),
+           /* Douzieme element, AJOUT EN FIN de tuple : le palier d'enrage. Le
+              canal d'alerte l'annonce a chaque palier, mais une annonce dure
+              deux secondes et l'enrage dure tout le reste du combat — sans un
+              etat permanent, le joueur qui a rate le bandeau ne sait plus
+              pourquoi il fond. Un client anterieur lit un tuple plus court et
+              retombe sur zero, donc sur l'affichage d'avant. */
+           this.boss.enrage ?? 0]
         : null,
       /* Second Jumeau. Cle nommee et non un second element de `bo` : c'est un
          cas qui ne concerne qu'un boss sur cinq, et le tuple principal aurait
@@ -6447,6 +8125,21 @@ export class GameState {
         ? [r1(this.walls.x), r1(this.walls.y), BOSS_CFG.QUAD_THICK,
            r2(this.walls.t / this.walls.max)]
         : null,
+      /* BIOME (lot V) — et c'est tout ce qu'il coute au reseau.
+
+         Ni la geometrie, ni les dangers, ni la meteo ne circulent : le client
+         les REGENERE a partir de `(biome, graine)`, envoyes une fois dans le
+         payload de salon, et l'etat d'un danger est une fonction de `tm`, que le
+         snapshot porte deja. C'est le meme raisonnement que les traits du lot S,
+         pousse un cran plus loin — la, il restait l'anticipation de ruee, qui ne
+         se deduisait d'aucune position ; ici, il ne reste rien.
+
+         SEULE EXCEPTION : les PV d'un mur destructible. Ils dependent de ce que
+         les joueurs ont fait et ne se deduisent d'aucune horloge. Liste CREUSE
+         de paires (index, part de PV) et ABSENTE tant que rien n'a ete touche —
+         c'est-a-dire la plupart d'une manche, et la totalite de deux biomes sur
+         trois, qui n'ont aucune couverture destructible. */
+      ob: this._coverState(),
     };
   }
 }

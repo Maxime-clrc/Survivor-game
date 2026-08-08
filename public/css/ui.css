@@ -438,6 +438,24 @@ button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text
 #voteRow .tally { color: var(--text-faint); font-size: var(--t-xs); }
 #voteHint { font-size: var(--t-xs); color: var(--text-faint); }
 
+/* Ce que le mode change (lot T). Trois lignes, hauteur FIXE : le survol les
+   remplace, et un bloc qui grandit ou retrecit sous le curseur ferait sauter
+   tout le salon a chaque passage de souris. */
+#voteDetail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 520px;
+  min-height: calc(3 * 1.45em);
+  text-align: center;
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+/* Mode survole qui n'est pas le mode retenu : c'est une projection, pas l'etat
+   courant, et il faut que ca se voie sans lire. */
+#voteDetail.preview { color: var(--text-faint); font-style: italic; }
+
 /* --- progression permanente (lot D) ------------------------------------------
    Le panneau du compte : l'arbre de la classe selectionnee, le tronc de
    confort, les jalons. Des lignes denses et non des cartes — c'est un magasin
@@ -1065,6 +1083,37 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
 }
+
+/* VICTOIRE (lot W). Le plan demandait un ECRAN de fin dedie ; c'est le bilan qui
+   change de tete, et le refus est le meme que celui qui a fait sortir le bilan
+   du salon — mais dans l'autre sens. Un troisieme ecran affichant les memes
+   chiffres retarderait ceux-ci d'un clic, or « tant que le salon suivant etait
+   affiche dessous, personne ne lisait son bilan » : la lecon etait qu'il faut
+   MOINS d'ecrans entre le joueur et ses chiffres, pas plus.
+
+   Le titre passe donc a l'echelle superieure — 34 px, une valeur de l'echelle
+   fixe et non une taille ad hoc — et prend la teinte de gain. Rien d'autre ne
+   bouge : les angles restent durs, aucun ornement ne s'ajoute, et la seule
+   animation est celle du liseré, qui s'allume une fois et s'arrete. Une victoire
+   qui clignoterait en boucle deviendrait un ornement superpose au jeu. */
+#bilan.win #bilanTitle {
+  font-size: var(--t-2xl);
+  color: var(--gain);
+  border-bottom: 2px solid var(--gain);
+  padding-bottom: var(--sp-2);
+  animation: sacre 900ms ease-out 1;
+}
+
+@keyframes sacre {
+  0%   { opacity: 0; letter-spacing: 0.35em; }
+  100% { opacity: 1; letter-spacing: var(--track-caps); }
+}
+
+/* La tuile de mise a mort du final est la seule du bilan qui se CLASSE : sous
+   D1, le temps pour atteindre le boss final est une constante, celui-ci ne l'est
+   pas. Elle se distingue donc du reste des chiffres, qui ne sont que des
+   compteurs. */
+.bilanStat.final .val { color: var(--gain); }
 
 /* DE QUOI L'EQUIPE EST MORTE. Des barres et non des nombres : c'est une
    REPARTITION, et une proportion se compare a l'oeil alors que cinq nombres

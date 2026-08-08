@@ -44,8 +44,8 @@ export { RARITY_COLOR };
    de cartes distribuees, et la proportion de legendaires explose — mesure a
    1,80 legendaire par manche en solo contre 0,72 a quatre. Le correctif ne
    porte pas sur les poids par effectif, qui n'auraient fait que deplacer le
-   probleme : la legendaire devient GARANTIE a des jalons de vague fixes
-   (CARD_CFG.LEGENDARY_WAVES) et plafonnee (LEGENDARY_MAX). Le hasard du
+   probleme : la legendaire devient GARANTIE a des jalons de NIVEAU
+   (CARD_CFG.LEGENDARY_LEVELS) et plafonnee (LEGENDARY_MAX). Le hasard du
    roguelike reste entier — c'est *laquelle* qui tombe qui compte, pas *si*.
 
    Ce sont les epiques qui absorbent l'augmentation du nombre de cartes, et
@@ -78,11 +78,16 @@ export const CARD_CFG = {
 
   /* Legendaires : garanties a des jalons, plafonnees, quasi introuvables au
      hasard entre les deux (poids 1 contre 60, sans derive). Le jalon vaut par
-     JOUEUR et par vague : le premier ecran de la vague 10 en offre une, les
-     ecrans suivants de la meme vague n'en re-offrent pas — sinon trois niveaux
-     gagnes dans la meme vague donnaient trois legendaires d'un coup, ce que le
-     plafond seul aurait laisse passer jusqu'a deux. */
-  LEGENDARY_WAVES: [10, 20],
+     JOUEUR et par NIVEAU d'equipe : le premier ecran atteint a partir du niveau
+     12 en offre une, les ecrans suivants du meme niveau n'en re-offrent pas —
+     sinon trois niveaux gagnes d'affilee donnaient trois legendaires d'un coup,
+     ce que le plafond seul aurait laisse passer jusqu'a deux.
+
+     Le jalon etait sur la VAGUE (10 et 20). La vague n'existe plus, et le
+     niveau est desormais gagne — c'est tout l'objet du lot : deux equipes ne
+     l'atteignent plus au meme instant. 12 et 22 sur un objectif de 22 a 26 au
+     bout de la manche, soit la meme place relative qu'avant. */
+  LEGENDARY_LEVELS: [12, 22],
   LEGENDARY_MAX: 2,          // plafond dur par manche et par joueur
 
   BURN_TIME: 3,
@@ -218,7 +223,10 @@ export const CARD_CFG = {
      Les quatre constantes ci-dessous appartiennent aux legendaires de famille,
      seules cartes de leur famille a ne pas se resumer a un nombre. Les paliers
      0 a 2 n'ont rien a mettre ici : leur valeur EST leur effet. */
-  FORGE_PER_WAVE: 0.05,      // « Coeur de forge » : degats en plus par vague survecue
+  // « Coeur de forge » : degats en plus par NIVEAU d'equipe. C'etait par vague
+  // survecue ; la vague n'existe plus, et le niveau dit mieux ce que la carte
+  // recompense — la carte du temps devient la carte de la progression.
+  FORGE_PER_LEVEL: 0.05,
   CONSTITUTION_REGEN: 2,     // PV par seconde
   CELERITE_DASH_CD: 0.20,    // « Celerite » : reduction de recharge d'esquive
   VIF_ARGENT_DAMAGE: 45,     // trainee d'esquive, une fois par ennemi et par esquive
@@ -308,7 +316,10 @@ export const CARD_CFG = {
      son reglage doit etre lisible a cote de la table qui la decrit.
      Le palier circule dans `mods.skill3` (0 = pas de carte, 1..3), et l'index
      dans ces tableaux est `palier - 1`. */
-  SKILL3_MIN_WAVE: 4,        // jamais avant : elle ecraserait le reste du build
+  // Jamais avant le niveau 5 : obtenue plus tot elle ecraserait le reste du
+  // build. Le seuil etait la vague 4 ; le niveau 5 est le meme moment relatif
+  // sur la nouvelle courbe (22 a 26 niveaux sur une manche complete).
+  SKILL3_MIN_LEVEL: 5,
   SKILL3_ANCRE: [
     { r: 120, time: 4,   cd: 26, vuln: 0 },
     { r: 160, time: 5.5, cd: 22, vuln: 0 },
@@ -1164,19 +1175,19 @@ export const CARDS = [
 
      Le sommet de chaque famille. Toutes a exemplaire unique : elles ne sont plus
      un nombre qu'on empile mais une regle qui change, et deux exemplaires d'une
-     regle ne veulent rien dire. Elles ne sortent qu'aux jalons de vague
-     (LEGENDARY_WAVES) ou par un coup de chance a poids 1 — c'est ce qui fait
-     qu'atteindre la vague 10 est devenu un objectif en soi. --- */
+     regle ne veulent rien dire. Elles ne sortent qu'aux jalons de NIVEAU
+     (LEGENDARY_LEVELS) ou par un coup de chance a poids 1 — c'est ce qui fait
+     qu'atteindre le niveau 12 est devenu un objectif en soi. --- */
   {
-    /* Le seul mod du jeu dont la valeur depend du TEMPS et non du chargement.
-       Il ne peut donc pas etre resolu dans `computeMods`, qui est une fonction
-       de la seule liste de cartes possedees : c'est `_recomputeMods` cote
-       GameState qui ajoute la part de vague, et qui rejoue le calcul a chaque
-       debut de vague. */
+    /* Le seul mod du jeu dont la valeur depend de l'AVANCEMENT et non du
+       chargement. Il ne peut donc pas etre resolu dans `computeMods`, qui est
+       une fonction de la seule liste de cartes possedees : c'est
+       `_recomputeMods` cote GameState qui ajoute la part de niveau, et qui
+       rejoue le calcul a chaque montee de niveau. */
     id: "coeur_forge", nom: "Cœur de forge", rarity: 3, max: 1, tags: ["off"],
     family: "degats", tier: 3,
-    desc: "+80 % de dégâts, et +5 % de plus par vague survécue",
-    apply(m) { m.damageMul += 0.80; m.damagePerWave += CARD_CFG.FORGE_PER_WAVE; },
+    desc: "+80 % de dégâts, et +5 % de plus par niveau d'équipe",
+    apply(m) { m.damageMul += 0.80; m.damagePerLevel += CARD_CFG.FORGE_PER_LEVEL; },
   },
   {
     id: "chaine_assaut", nom: "Chaîne d'assaut", rarity: 3, max: 1, tags: ["off", "cadence"],
@@ -1335,7 +1346,7 @@ export const CARDS = [
 
      Le seul endroit du jeu ou une carte change ce qu'on FAIT, pas seulement les
      nombres. Trois regles, portees par trois champs :
-       - `minWave` : jamais avant la vague 4 — obtenue trop tot, elle ecrase le
+       - `minLevel` : jamais avant le niveau 5 — obtenue trop tot, elle ecrase le
          reste du build, et le joueur n'a pas encore assimile ses deux premieres
          competences ;
        - `incompatible` mutuel : PAS de cumul — une fois un palier obtenu, les
@@ -1351,21 +1362,21 @@ export const CARDS = [
      un texte qui recopie un nombre ment des le premier reglage. */
   {
     id: "ancre", nom: "Ancre", rarity: 1, max: 1, tags: ["def", "coop"],
-    cls: "tank", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "tank", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["ancre_lourde", "ancre_souveraine"],
     desc: skill3Ancre(0),
     apply(m) { m.skill3 = Math.max(m.skill3, 1); },
   },
   {
     id: "ancre_lourde", nom: "Ancre lourde", rarity: 2, max: 1, tags: ["def", "coop"],
-    cls: "tank", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "tank", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["ancre", "ancre_souveraine"],
     desc: skill3Ancre(1),
     apply(m) { m.skill3 = Math.max(m.skill3, 2); },
   },
   {
     id: "ancre_souveraine", nom: "Ancre souveraine", rarity: 3, max: 1, tags: ["def", "coop"],
-    cls: "tank", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "tank", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["ancre", "ancre_lourde"],
     desc: skill3Ancre(2) + " — les ennemis retenus sont Vulnérables",
     apply(m) { m.skill3 = Math.max(m.skill3, 3); },
@@ -1377,21 +1388,21 @@ export const CARDS = [
      rattrapage. */
   {
     id: "sanctuaire", nom: "Sanctuaire", rarity: 1, max: 1, tags: ["coop", "def"],
-    cls: "soigneur", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "soigneur", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["grand_sanctuaire", "sanctuaire_absolu"],
     desc: skill3Sanctuaire(0),
     apply(m) { m.skill3 = Math.max(m.skill3, 1); },
   },
   {
     id: "grand_sanctuaire", nom: "Grand sanctuaire", rarity: 2, max: 1, tags: ["coop", "def"],
-    cls: "soigneur", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "soigneur", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["sanctuaire", "sanctuaire_absolu"],
     desc: skill3Sanctuaire(1),
     apply(m) { m.skill3 = Math.max(m.skill3, 2); },
   },
   {
     id: "sanctuaire_absolu", nom: "Sanctuaire absolu", rarity: 3, max: 1, tags: ["coop", "def"],
-    cls: "soigneur", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "soigneur", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["sanctuaire", "grand_sanctuaire"],
     desc: skill3Sanctuaire(2) + " — purge un état à l'entrée",
     apply(m) { m.skill3 = Math.max(m.skill3, 3); },
@@ -1402,21 +1413,21 @@ export const CARDS = [
      manuelle : le verrouillage touche a coup sur. */
   {
     id: "salve", nom: "Salve", rarity: 1, max: 1, tags: ["off"],
-    cls: "dps", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "dps", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["salve_etendue", "salve_totale"],
     desc: skill3Salve(0),
     apply(m) { m.skill3 = Math.max(m.skill3, 1); },
   },
   {
     id: "salve_etendue", nom: "Salve étendue", rarity: 2, max: 1, tags: ["off"],
-    cls: "dps", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "dps", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["salve", "salve_totale"],
     desc: skill3Salve(1),
     apply(m) { m.skill3 = Math.max(m.skill3, 2); },
   },
   {
     id: "salve_totale", nom: "Salve totale", rarity: 3, max: 1, tags: ["off"],
-    cls: "dps", excl: "skill3", minWave: CARD_CFG.SKILL3_MIN_WAVE,
+    cls: "dps", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["salve", "salve_etendue"],
     desc: skill3Salve(2) + " — cibles rendues Vulnérables",
     apply(m) { m.skill3 = Math.max(m.skill3, 3); },
@@ -1491,13 +1502,13 @@ export function defaultMods() {
     inertia: 0,
 
     /* --- paliers hauts des familles (lot 2 du plan v2) ----------------------
-       `damagePerWave` et `sharedSupport` ne sont PAS resolus par computeMods :
+       `damagePerLevel` et `sharedSupport` ne sont PAS resolus par computeMods :
        l'un depend du temps, l'autre du chargement des coequipiers, et cette
        fonction ne connait qu'une liste de cartes. Ils sont lus par
        `_recomputeMods` cote GameState, qui a acces aux deux. La cle existe
        quand meme ici, comme toutes les autres : un mod absent donne NaN au
        premier calcul plutot qu'une valeur neutre. */
-    damagePerWave: 0,
+    damagePerLevel: 0,
     noOverheat: 0,           // leve le plancher de cadence, pas le plancher dur
     hpRegen: 0,              // PV par seconde
     dashCdMul: 1,
@@ -1707,7 +1718,7 @@ function topTiers(owned) {
    le seul endroit du depot ou une classe est designee par son nom, et c'est
    volontaire, une carte doit rester lisible sans compter les colonnes d'un
    tableau exporte ailleurs. */
-export function eligibleCards(owned, cls = null, waveNow = 0, locked = null) {
+export function eligibleCards(owned, cls = null, levelNow = 0, locked = null) {
   const blocked = new Set();
   for (const id of owned.keys()) {
     const card = CARD_BY_ID.get(id);
@@ -1727,10 +1738,10 @@ export function eligibleCards(owned, cls = null, waveNow = 0, locked = null) {
     // non a l'affichage : une carte visible mais impossible a prendre est pire
     // qu'une carte absente.
     if (c.cls && c.cls !== cls) return false;
-    /* Troisieme competence : jamais avant sa vague seuil. Le defaut de
-       `waveNow` (0) FILTRE ces cartes — un appelant qui ne connait pas la
-       vague n'a pas a les offrir, c'est le sens sur de l'oubli. */
-    if (c.minWave && waveNow < c.minWave) return false;
+    /* Troisieme competence : jamais avant son niveau seuil. Le defaut de
+       `levelNow` (0) FILTRE ces cartes — un appelant qui ne connait pas le
+       niveau n'a pas a les offrir, c'est le sens sur de l'oubli. */
+    if (c.minLevel && levelNow < c.minLevel) return false;
     /* Deblocage par jalons (lot D) : une carte encore verrouillee pour ce
        compte n'apparait JAMAIS dans un tirage. Le filtre est ici, avec les
        autres, et non a l'affichage. */
@@ -1752,14 +1763,14 @@ export const FALLBACK_CARD = CARDS.find(c => c.fallback);
    manche au lieu de quatre. Indexer la derive sur le nombre de boss aurait fige
    la qualite des tirages a celle du premier quart de la manche.
 
-   `wave` ne sert QU'A la garantie de legendaire, et vaut 0 partout ailleurs.
-   L'appelant ne la passe qu'au PREMIER ecran d'une vague de jalon : trois
-   niveaux gagnes dans la meme vague ne doivent pas donner trois legendaires.
-   C'est GameState qui tient ce compte, pas cette fonction — elle doit rester
-   une fonction de ses arguments, rejouable telle quelle dans un script de
-   mesure. */
+   `jalon` ne sert QU'A la garantie de legendaire, et vaut 0 partout ailleurs.
+   L'appelant ne le passe qu'au PREMIER ecran atteint a partir d'un niveau de
+   jalon : trois niveaux gagnes d'affilee ne doivent pas donner trois
+   legendaires. C'est GameState qui tient ce compte, pas cette fonction — elle
+   doit rester une fonction de ses arguments, rejouable telle quelle dans un
+   script de mesure. */
 export function drawCards(owned, quality, forceRare = false, cls = null,
-                          rng = Math.random, wave = 0, waveNow = 0, opts = {}) {
+                          rng = Math.random, jalon = 0, levelNow = 0, opts = {}) {
   /* `opts.locked` : cartes verrouillees par la progression (lot D), jamais
      tirees. `opts.count` : nombre de cartes offertes — 3 partout, 4 pour la
      « Quatrieme offre » du tronc de confort. */
@@ -1768,7 +1779,7 @@ export function drawCards(owned, quality, forceRare = false, cls = null,
      toute mesure d'equilibrage inutilisable : la puissance de la table ne
      depend plus alors du systeme mais d'un tirage. */
   const capped = legendaryCount(owned) >= CARD_CFG.LEGENDARY_MAX;
-  const pool = eligibleCards(owned, cls, waveNow, opts.locked ?? null)
+  const pool = eligibleCards(owned, cls, levelNow, opts.locked ?? null)
     .filter(c => !(capped && c.rarity === RARITY.LEGENDAIRE));
   const weights = rarityWeights(quality);
   const out = [];
@@ -1807,7 +1818,7 @@ export function drawCards(owned, quality, forceRare = false, cls = null,
   /* Garantie de jalon. Elle passe AVANT `forceRare`, qu'elle satisfait au
      passage : une legendaire est une rare au sens de la garantie
      anti-frustration. */
-  if (wave > 0 && CARD_CFG.LEGENDARY_WAVES.includes(wave) && !capped) {
+  if (jalon > 0 && CARD_CFG.LEGENDARY_LEVELS.includes(jalon) && !capped) {
     const c = pickFrom(restant().filter(x => x.rarity === RARITY.LEGENDAIRE));
     if (c) push(c);
   }

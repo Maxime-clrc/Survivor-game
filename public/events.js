@@ -30,6 +30,12 @@ export const EVENT_GAP_MS = 500;
 const MAX_IMPACT = 48;
 const MAX_DEATH = 40;
 
+/* Distance sous laquelle la disparition d'un bonus est un RAMASSAGE et non une
+   expiration. Genereuse : la portee de base est de 26 px et « Poches larges »
+   la porte a 60. Dans le doute on sonne le ramassage — un bonus muet pour qui a
+   la carte serait pire qu'un son de trop. */
+const PICKUP_NEAR = 80;
+
 /* Rend la liste des evenements survenus ENTRE deux snapshots consecutifs.
    `a` est le plus ancien, `b` le plus recent. `opts.myId` sert a n'extraire
    que ses propres degats sur le boss — le seul chiffre qu'on affiche. */
@@ -183,16 +189,86 @@ export function diffSnapshots(a, b, opts = {}) {
   }
 
   /* --- bonus ramasses -----------------------------------------------------
-     Un bonus disparait quand il est ramasse, jamais autrement. Pas besoin de
-     tester la distance a un joueur : le serveur ne les fait pas expirer. */
+     Un bonus disparait pour DEUX raisons : ramasse, ou expire. Il fallait les
+     distinguer depuis la meteo de cendres (lot V), qui raccourcit fortement leur
+     duree de vie : sans ce test, une pluie de cendres faisait sonner le
+     ramassage d'un bonus que personne n'avait pris, ce qui est un bug de retour
+     — le son affirme une action qui n'a pas eu lieu.
+
+     Le test est une distance au joueur le plus proche et non un champ transmis :
+     un bonus ramasse l'est forcement A BOUT TOUCHANT, le serveur n'a donc rien
+     de plus a dire. Le seuil est genereux (« Poches larges » elargit la portee
+     de ramassage jusqu'a 60 px) — dans le doute on prefere sonner un ramassage
+     qui n'en etait pas, l'inverse rendrait le bonus muet pour qui a la carte. */
   const wb = new Set(b.powerups.map(w => w.id));
   for (const w of a.powerups) {
-    if (!wb.has(w.id)) out.push({ t: "bonus", x: w.x, y: w.y, type: w.type });
+    if (wb.has(w.id)) continue;
+    let near = false;
+    for (const [, p] of b.players) {
+      if ((p.x - w.x) ** 2 + (p.y - w.y) ** 2 < PICKUP_NEAR * PICKUP_NEAR) { near = true; break; }
+    }
+    if (near) out.push({ t: "bonus", x: w.x, y: w.y, type: w.type });
+  }
+
+  /* --- biome (lot V) ------------------------------------------------------
+     Deux evenements, et aucun des deux ne circule : ils se DEDUISENT, comme tout
+     le reste de ce module.
+
+     Un mur abattu se lit dans la liste creuse `ob` : une part de PV qui tombe a
+     zero. C'est la seule chose du biome que le serveur transmette, et elle sert
+     donc deux fois — l'affichage et le son.
+
+     Un geyser qui souffle se deduit du TEMPS. `opts.hazards` est la geometrie
+     que le client vient de regenerer : le module reste pur, il recoit la liste
+     au lieu d'importer quoi que ce soit, exactement comme il recoit `myId`. Sans
+     cette liste il n'aurait aucun moyen de savoir qu'un danger existe — le
+     snapshot n'en dit pas un mot, et c'est tout l'interet du lot. */
+  const covA = new Map((a.cover ?? []).map(c => [c[0], c[1]]));
+  for (const c of b.cover ?? []) {
+    if (c[1] > 0 || (covA.get(c[0]) ?? 1) <= 0) continue;
+    out.push({ t: "murDetruit", index: c[0] });
+  }
+
+  if (opts.hazards && opts.hazardState) {
+    for (const h of opts.hazards) {
+      // Un seul front montant par danger et par intervalle : on ne teste que les
+      // deux bornes, un geyser dont la fenetre entiere tiendrait entre deux
+      // instantanes de 50 ms n'existe pas.
+      const wasOn = opts.hazardState(h, a.tm).on;
+      const st = opts.hazardState(h, b.tm);
+      if (!wasOn && st.on) out.push({ t: "danger", kind: h.kind, x: st.x, y: st.y });
+    }
   }
 
   /* --- progression commune ------------------------------------------------ */
   if ((b.teamLevel ?? 1) > (a.teamLevel ?? 1)) {
     out.push({ t: "niveau", level: b.teamLevel });
+  }
+
+  /* --- script -------------------------------------------------------------
+     Segment et beat sont DEDUITS d'un snapshot a l'autre, comme le reste de ce
+     module : le serveur n'envoie aucun message pour eux. Le beat porte le
+     silence, qui est ce qui merite d'etre entendu — un changement de debit sans
+     rien pour le marquer se subit au lieu de se lire. */
+  if ((b.segment ?? 0) > (a.segment ?? 0)) {
+    out.push({ t: "segment", segment: b.segment });
+  } else if ((b.beat ?? 0) !== (a.beat ?? 0)) {
+    out.push({ t: "beat", beat: b.beat, silence: !!b.silence });
+  }
+
+  /* DEBUT ET FIN D'EVENEMENT (lot U), DEDUITS de la cle `ev` et non transmis.
+     Le serveur envoie deja l'ouverture par le canal d'alerte — c'est elle qui
+     porte le nom et le niveau — mais rien ne dit la FIN, et c'est justement le
+     moment qui compte : c'est la que l'equipe est remise a plein. Une
+     comparaison de deux instantanes suffit, comme pour le beat juste au-dessus.
+
+     La fin est emise avec l'identifiant de l'evenement qui vient de se terminer,
+     pas avec `null` : le consommateur veut savoir CE QUI s'achève. */
+  const avant = a.event ? a.event.id : -1;
+  const apres = b.event ? b.event.id : -1;
+  if (avant !== apres) {
+    if (avant >= 0) out.push({ t: "evenementFin", event: avant });
+    if (apres >= 0) out.push({ t: "evenementDebut", event: apres });
   }
 
   return out;

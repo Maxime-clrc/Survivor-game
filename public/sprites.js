@@ -36,11 +36,18 @@
       d'interface, pas de fabrique, pas de gestionnaire de ressources — ce
       serait de l'ingenierie anticipee pour un besoin sans date.
 
-   BUDGET REEL : 5 types x 7 images (4 formes + 3 morts) + 3 classes x 4 = 47
-   images de 60 px logiques. A une densite de 2, l'atlas fait 840 x 840 px, soit
-   2,8 Mo — tres en dessous du plafond de 12 Mo et de la limite de 4096 px de
-   cote, sure partout. Le boss n'y est pas : il est unique a l'ecran, son cout
-   est negligeable, et il gagne a etre anime en continu au trace.
+   BUDGET REEL : 9 types x 7 images (4 formes + 3 morts) + 3 classes x 4 + 3
+   particules = 78 cases de 60 px logiques (64 avec la gouttiere). A une densite
+   de 2, l'atlas fait 1152 x 1152 px, soit 10,6 Mo planche de silhouettes
+   comprise — sous le plafond de 12 Mo, et tres loin de la limite de 4096 px de
+   cote. Le lot S l'a fait passer de 50 a 78 cases : c'est le poste qui a le plus
+   grossi, et c'est aussi celui ou la regle de budget est la plus rentable — les
+   quatre nouveaux types n'ont pas paye une seule image pour leur anticipation de
+   ruee, leur pulsation d'imminence ni leur rang d'elite, qui sont des `scale`.
+   `COLS` est passe de 7 a 9 pour garder la planche a peu pres carree : a sept
+   colonnes elle faisait 896 x 1536, soit la meme surface repartie moins bien.
+   Le boss n'y est pas : il est unique a l'ecran, son cout est negligeable, et il
+   gagne a etre anime en continu au trace.
    =========================================================================== */
 
 import { ENEMY, COMBAT, ramp } from "/shared/palette.js";
@@ -51,7 +58,7 @@ import { parseColor, BLEND_NORMAL, BLEND_ADD } from "/gl.js";
    3,5 px : 60 laisse la marge qu'il faut sans gaspiller de texture. */
 const CELL = 60;
 const HALF = CELL / 2;
-const COLS = 7;
+const COLS = 9;
 
 /* GOUTTIERE TRANSPARENTE autour de chaque case. Invisible en canvas 2D — un
    `drawImage` lit exactement le rectangle qu'on lui donne — mais SYSTEMATIQUE
@@ -568,6 +575,232 @@ function broodAccents(swell) {
   };
 }
 
+/* KAMIKAZE — la charge. Corps rond COMPACT herisse de pointes radiales
+   courtes, plus une meche recourbee a l'arriere. Le herissement est
+   l'information : c'est la seule silhouette du jeu dont le contour est
+   discontinu sur tout son pourtour, et ca se lit comme « ne pas toucher » avant
+   qu'on ait identifie quoi que ce soit.
+
+   Les pointes sont des sous-traces INDEPENDANTS, chacun ferme, et elles sont
+   toutes construites par ROTATION du meme triangle : une rotation preserve le
+   sens de parcours, donc aucune ne peut percer le corps — c'est le piege de
+   `mirrored()` evite par construction plutot que par mesure. */
+function kamikazePath(k) {
+  const bristle = k.bristle ?? 0;
+  return g => {
+    const pts = 9;
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const px = Math.cos(a) * 11, py = Math.sin(a) * 11.5;
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+    g.closePath();
+
+    // Huit pointes. Elles sortent avec le herissement — c'est le seul changement
+    // de FORME du type ; la pulsation d'imminence, elle, est un `scale`.
+    const spikes = 8;
+    for (let i = 0; i < spikes; i++) {
+      const a = (i / spikes) * Math.PI * 2 + 0.22;
+      const len = 15 + bristle * 5 + (i === 2 ? 3.5 : 0);   // asymetrie : une pointe plus longue
+      const w = 0.16;
+      g.moveTo(Math.cos(a - w) * 10, Math.sin(a - w) * 10);
+      g.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+      g.lineTo(Math.cos(a + w) * 10, Math.sin(a + w) * 10);
+      g.closePath();
+    }
+
+    // Meche, a l'arriere et TOUJOURS du meme cote : elle donne un avant et un
+    // arriere a une forme qui, autrement, serait radialement symetrique.
+    g.moveTo(-10, -4);
+    g.lineTo(-19, -12 - bristle * 2);
+    g.lineTo(-15, -14 - bristle * 2);
+    g.lineTo(-7, -6);
+    g.closePath();
+  };
+}
+
+function kamikazeAccents(bristle) {
+  return (g, R) => {
+    // Noyau instable : il grossit avec le herissement, donc avec l'imminence.
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.arc(0, 0, 4.2 + bristle * 1.8, 0, 7); g.fill();
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(0, 0, 2.2 + bristle, 0, 7); g.fill();
+  };
+}
+
+/* BULWARK — l'angle a gagner. Une PLAQUE FRONTALE large et droite devant un
+   corps ramasse. C'est la seule silhouette du bestiaire dont l'avant est une
+   ligne droite : rien d'autre dans le jeu, monstre ou joueur, n'a d'arete
+   franche de trente pixels. Le bouclier du joueur Rempart en est proche mais il
+   est en ARC et il est teinte a la couleur du joueur.
+
+   La plaque est dans la SILHOUETTE et non en accent : c'est elle qui porte
+   l'information mecanique — d'ou vient la protection — et un accent peint
+   par-dessus disparait sur un corps sombre. C'est la lecon du grunt, dont les
+   mandibules avaient du y entrer pour la meme raison. */
+function bulwarkPath(k) {
+  const brace = k.brace ?? 0;      // ecartement des retours de plaque
+  const step = k.step ?? 0;
+  return g => {
+    // Corps ramasse, nettement plus petit que la plaque : la masse est DEVANT.
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      const px = Math.cos(a) * 13 - 4, py = Math.sin(a) * 12;
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+    g.closePath();
+
+    // LA plaque. Droite, large, epaisse — et asymetrique : elle deborde d'un
+    // cran de plus vers le haut, toujours du meme cote.
+    g.moveTo(12, -18);
+    g.lineTo(20, -15.5);
+    g.lineTo(20, 14.5);
+    g.lineTo(12, 17);
+    g.closePath();
+
+    // Retours de plaque, en sous-traces MIROIR : c'est exactement le cas ou
+    // `mirrored()` est obligatoire — ils chevauchent la plaque, et un sens de
+    // parcours inverse y percerait un trou transparent qui se lirait comme une
+    // meurtriere volontaire.
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[11, 13], [16 + brace, 16], [16 + brace, 21 + brace * 2], [7, 15]]);
+    }
+
+    // Deux pattes courtes, alternees : le type marche, il ne flotte pas.
+    for (const s of [-1, 1]) {
+      const alt = (s > 0 ? 0 : 1) + (step < 0 ? 1 : 0);
+      const ext = 3 + ((alt & 1) && step !== 0 ? 3.5 : 0);
+      mirrored(g, s, [[-11, 9], [-8, 11 + ext], [-5, 9]]);
+    }
+  };
+}
+
+function bulwarkAccents(g, R) {
+  // Fente d'observation dans la plaque : elle dit qu'il y a quelqu'un derriere,
+  // et elle donne l'echelle qu'un aplat de trente pixels perd.
+  g.fillStyle = R.contour;
+  g.fillRect(14, -8, 4.5, 16);
+  // Trois rivets, decales vers le haut — la meme asymetrie que la plaque.
+  g.fillStyle = R.ombre;
+  for (const ry of [-14, -2, 11]) {
+    g.beginPath(); g.arc(16, ry, 1.7, 0, 7); g.fill();
+  }
+  g.fillStyle = R.accent;
+  g.beginPath(); g.arc(-6, 0, 2.6, 0, 7); g.fill();
+}
+
+/* MEDIC — le soutien. La silhouette la plus HAUTE et la plus fine du bestiaire :
+   corps menu et MAT DORSAL qui monte a vingt-six pixels, termine par un crochet
+   emetteur. Toutes les autres creatures sont plus larges que hautes ; celle-la
+   est l'inverse, et c'est ce qui la fait ressortir d'une melee ou tout est bas
+   et ramasse. C'est exactement la lecture qu'on veut : le joueur doit pouvoir la
+   trouver derriere la horde.
+
+   Pas de croix : la croix est LE signe du soin cote joueur (bonus au sol,
+   sanctuaire, tir du soigneur, HUD), et la coller sur un ennemi ferait mentir le
+   seul glyphe du jeu qui promet un gain. Le lien de soin, lui, part du crochet
+   et se dessine dans la teinte du type, jamais en `HEAL`. */
+function medicPath(k) {
+  const lean = k.lean ?? 0;
+  return g => {
+    // Corps menu, legerement pointe vers l'avant.
+    const pts = 12;
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const r = 9.5 + Math.cos(a) * 2.2;
+      const px = Math.cos(a) * r, py = Math.sin(a) * r * 0.92;
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+    g.closePath();
+
+    /* Mat dorsal, en SOUS-TRACE. Il s'incline vers l'arriere quand il se
+       deplace : c'est le seul changement de forme de son cycle, tout le reste
+       (respiration, etirement) etant des transformations. */
+    g.moveTo(-1, -7);
+    g.lineTo(-3.5 - lean * 3, -24);
+    g.lineTo(1.5 - lean * 3, -25);
+    g.lineTo(3.5, -7);
+    g.closePath();
+
+    // Crochet emetteur au sommet du mat, penche du MEME cote a chaque image.
+    g.moveTo(1.5 - lean * 3, -25);
+    g.lineTo(10 - lean * 3, -22.5);
+    g.lineTo(9 - lean * 3, -18.5);
+    g.lineTo(0.5 - lean * 3, -21);
+    g.closePath();
+
+    // Deux pattes filiformes : le type ne pese rien, il se replie.
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[-4, 7], [-6, 13], [-3, 8]]);
+      mirrored(g, s, [[4, 7], [6, 13], [7, 8]]);
+    }
+  };
+}
+
+function medicAccents(lean) {
+  return (g, R) => {
+    // Point emetteur : c'est de LA que part le lien de soin dessine par le
+    // client, et les deux doivent coincider.
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(8.5 - lean * 3, -21, 2.6, 0, 7); g.fill();
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.arc(3, 0, 3.2, 0, 7); g.fill();
+  };
+}
+
+/* CHOEUR — la couverture. COURONNE de trois pointes dressees vers le haut et
+   deux rubans qui trainent a l'arriere. Le seul type dont la silhouette est
+   ouverte vers le haut : les huit autres sont fermes, et la couronne se lit
+   comme quelque chose qui EMET.
+
+   Son aura est dessinee sur les ennemis COUVERTS (un lisere) et pas au sol : un
+   grand disque de plus entrerait en concurrence avec les zones de boss et le
+   rempart, et le budget de lisibilite est deja depense. La silhouette doit donc
+   porter seule l'identite du porteur. */
+function choeurPath(k) {
+  const call = k.call ?? 0;        // hauteur des pointes de couronne
+  return g => {
+    // Corps allonge verticalement, pointe legere vers l'avant.
+    const pts = 10;
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const px = Math.cos(a) * 12.5, py = Math.sin(a) * 14;
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+    g.closePath();
+
+    // Couronne : trois pointes dressees, de hauteurs INEGALES — l'asymetrie
+    // structurelle, toujours du meme cote.
+    const crown = [[-7, 9 + call * 4], [1, 13 + call * 5], [8, 10.5 + call * 4]];
+    for (const [cx, h] of crown) {
+      g.moveTo(cx - 3, -10);
+      g.lineTo(cx + 0.6, -10 - h);
+      g.lineTo(cx + 3, -10);
+      g.closePath();
+    }
+
+    // Deux rubans a l'arriere, en miroir : ils donnent une direction a une forme
+    // qui, sans eux, n'aurait pas d'arriere.
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[-9, 3], [-20, 7 + call * 2], [-18, 11 + call * 2], [-7, 8]]);
+    }
+  };
+}
+
+function choeurAccents(call) {
+  return (g, R) => {
+    // Un point lumineux au sommet de chaque pointe : c'est ce qui fait lire la
+    // couronne comme un emetteur plutot que comme des cornes.
+    g.fillStyle = R.accent;
+    for (const [cx, h] of [[-7, 9 + call * 4], [1, 13 + call * 5], [8, 10.5 + call * 4]]) {
+      g.beginPath(); g.arc(cx + 0.6, -10 - h, 2, 0, 7); g.fill();
+    }
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.ellipse(3, 1, 4.5, 6, 0, 0, 7); g.fill();
+  };
+}
+
 /* --- les trois classes -----------------------------------------------------
    LA FORME DIT LA CLASSE, LA COULEUR DIT LE JOUEUR. Les quatre couleurs de
    joueur sont deja prises par l'identite individuelle : si la classe passait
@@ -740,6 +973,20 @@ function plan() {
       shapes: [{ recoil: 0 }, { recoil: 0.3 }, { recoil: -1 }, { recoil: 1 }] },
     { path: broodPath,   accents: null, edge: 2, floats: false,
       shapes: [{ swell: 0 }, { swell: 0.35 }, { swell: -0.25 }, { swell: 1.3 }] },
+    // Les quatre du lot S, EN FIN comme dans `ENEMY_TYPES` : l'index du type
+    // sert a nommer la case (`e5_idle`...), donc les deux tables ne peuvent pas
+    // diverger sans que ca se voie immediatement a l'ecran.
+    { path: kamikazePath, accents: k => kamikazeAccents(k.bristle ?? 0), edge: 2, floats: false,
+      shapes: [{ bristle: 0 }, { bristle: 0.3 }, { bristle: -0.2 }, { bristle: 1 }] },
+    // Contour a 3 px, comme le tank : le poids du trait dit le blindage avant la
+    // taille.
+    { path: bulwarkPath, accents: () => bulwarkAccents, edge: 3, floats: false,
+      shapes: [{ brace: 0, step: 0 }, { brace: 0, step: 1 }, { brace: 0, step: -1 },
+               { brace: 1.2, step: 0 }] },
+    { path: medicPath,   accents: k => medicAccents(k.lean ?? 0), edge: 1.8, floats: false,
+      shapes: [{ lean: 0 }, { lean: 0.5 }, { lean: -0.3 }, { lean: 1.2 }] },
+    { path: choeurPath,  accents: k => choeurAccents(k.call ?? 0), edge: 2, floats: false,
+      shapes: [{ call: 0 }, { call: 0.25 }, { call: -0.2 }, { call: 1 }] },
   ];
 
   enemies.forEach((def, t) => {

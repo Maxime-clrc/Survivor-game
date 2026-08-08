@@ -69,19 +69,19 @@ cartes**.
   bouton automatiquement.
 - Qui se connecte **pendant** une manche est **spectateur** : il voit la partie
   en direct et entre en jeu à la manche suivante.
-- La manche se joue en **vagues**. Une vague est un budget d'apparitions : elle
-  se termine quand le budget est épuisé **et** que l'arène est vide. Une vague
-  sur cinq est un **boss**, qui occupe la vague entière.
-- **À la fin d'une vague, s'il y a eu une montée de niveau, la manche se met en
+- La manche se joue en **six segments**. Un segment, c'est **300 secondes de
+  horde** écrites d'avance — cinq beats d'une minute, dont certains sont des
+  **accalmies** — puis un **boss**. Voir « Segments » plus bas.
+- **À la mort d'un boss, s'il y a eu des montées de niveau, la manche se met en
   pause** : chacun choisit une carte parmi trois, et la partie reprend quand
   tout le monde a choisi — ou au bout de 30 s, la première carte étant alors
-  attribuée d'office. Deux niveaux gagnés dans la même vague donnent deux choix
+  attribuée d'office. Trois niveaux gagnés dans le segment donnent trois choix
   d'affilée.
-- La manche se termine quand tout le monde est à terre. Le bilan titre sur la
-  **vague atteinte** et non sur le numéro de manche : l'unité de jeu est devenue
-  la vague, et lire « Manche 1 terminée » après en avoir enchaîné douze donnait
-  l'impression d'un compteur cassé. Le numéro de manche descend avec les autres
-  chiffres, où il est juste et sans ambiguïté.
+- La manche se termine quand tout le monde est à terre — ou par une **victoire**,
+  quand le sixième boss tombe. Le bilan titre sur le **segment atteint** et non
+  sur le numéro de manche : lire « Manche 1 terminée » après une demi-heure de
+  jeu donnait l'impression d'un compteur cassé. Le numéro de manche descend avec
+  les autres chiffres, où il est juste et sans ambiguïté.
 
 ## Commandes
 
@@ -153,36 +153,212 @@ Chaque joueur vote au salon ; la majorité l'emporte et, **à égalité, le mode
 plus doux gagne** — personne ne doit pouvoir imposer cauchemar à la table en
 étant seul de son avis.
 
-| mode | PV ennemis | débit | dégâts subis | PV du boss |
-|---|---|---|---|---|
-| calme | ×0,78 | ×0,80 | ×0,80 | ×0,75 |
-| normal | ×1 | ×1 | ×1 | ×1 |
-| cauchemar | ×1,35 | ×1,28 | ×1,25 | ×1,25 |
+Une difficulté était **quatre nombres** — PV, débit, dégâts, boss. Le mécanisme
+était sain et il reste : rien n'est dupliqué, et un réglage ajuste les trois
+modes d'un coup. Mais il produisait trois modes qui ne se distinguaient par rien
+d'autre qu'une échelle. Les multiplicateurs ne sont donc plus l'**identité** du
+mode, seulement son **résidu** : un mode est désormais un **profil** — un
+bestiaire, des traits, un script et un sol.
 
-Tout passe par des multiplicateurs sur la courbe de pression, qui vit dans
-`CFG` : rien n'est dupliqué, et un réglage ajuste les trois modes d'un coup. Le
-multiplicateur de dégâts subis s'applique **dans `_hurt`**, seul passage obligé
+#### Calme — apprendre l'espace
+
+- **Les cinq types d'origine**, rien de plus. Ni medic, ni bulwark, ni choeur :
+  ce sont les trois qui demandent de choisir sa cible, et ce n'est pas la
+  compétence que ce mode a à enseigner. Il enseigne le déplacement, la distance
+  et la lecture des zones.
+- **Aucun trait.** Le mode qui enseigne les types les montre nus.
+- **Un silence par segment**, toujours au quatrième beat : la respiration doit y
+  être régulière et prévisible.
+- Géométries `bords` et `front` seulement — une menace qui arrive d'un côté se
+  lit.
+- Sol ardoise franchement froid, grille régulière, vignettage léger.
+- Résidu : PV ×0,78 · débit ×0,80 · dégâts ×0,80 · boss ×0,75.
+- Du biome, **la géométrie seule** : les piliers sont là, le sol ne fait rien.
+
+#### Normal — apprendre à choisir sa cible
+
+- Les cinq d'origine **plus le kamikaze et le porte-bouclier**. Ce sont les deux
+  types qui font passer le mode de « tirer sur ce qui approche » à « tirer sur le
+  bon d'abord, sous le bon angle ». C'est le saut que normal doit produire.
+- Les grunts **chargent**, les tireurs envoient des **salves de trois**, les
+  tanks portent une **aura**, les broods laissent des **spores**.
+- **Quatre silences** sur la manche, jamais deux segments de suite sans — sauf le
+  segment 3, qui n'en a aucun : c'est la crise.
+- Du biome, deux **champs de ralentissement** et rien d'autre : le sol gêne, il
+  ne blesse pas.
+- Résidu : ×1 partout. C'est la référence.
+
+#### Cauchemar — le sol participe
+
+- **Les neuf types**, soigneurs et choeurs compris. Un paquet couvert par un
+  choeur est un mur : il faut le tuer en premier.
+- Les grunts chargent **et brûlent le sol derrière eux**, les runners chargent en
+  frénésie, les tanks traînent, les broods sporulent.
+- **Un seul silence** sur toute la manche, au segment 6.
+- Géométries durcies : `pince`, `quatre-fronts`.
+- Sol viré au brun, **une ligne de grille fine sur trois éteinte**, vignettage
+  fort et **pulsant lentement**.
+- Du biome, **tout** : geysers, flaques, braises, sol glissant — plus une
+  **météo** par segment, deux fois sur trois.
+- Résidu : PV ×1,35 · débit ×1,28 · dégâts ×1,25 · boss ×1,25.
+
+Le mode se distingue moins par ses chiffres que par le fait que **le sol
+participe** : entre les traînées des grunts et les spores des broods, la surface
+jouable se réduit en permanence — un chronomètre déguisé, ce que le dépôt trouve
+déjà bien plus lisible qu'un enrage brutal.
+
+#### Ce que la difficulté ne change pas
+
+Trois refus, chacun contre une duplication que le dépôt a déjà refusée ailleurs.
+Les **boss** n'ont aucune variante par difficulté — trois variantes de six boss,
+c'est dix-huit combats à équilibrer. Les **mécaniques** non plus : `adaptMech`
+adapte déjà à l'effectif, et un second axe rendrait illisible la table qui rend
+justement le système tenable. Les **statistiques de type** non plus : PV, vitesse
+et dégâts restent ceux du bestiaire, le résidu porte tout l'ajustement chiffré.
+
+Et les **créatures gardent leur teinte** dans les trois modes. La difficulté ne
+change pas les monstres, elle change la machine : les teinter détruirait la seule
+chose qui les rend lisibles à deux cents à l'écran. Les six rôles du code couleur
+sont identiques partout, et la grille reste graduée en mètres — les sections
+éteintes de cauchemar ne touchent que les traits fins, jamais les traits marqués
+tous les 20 m.
+
+#### Une seule chose règle la quantité
+
+Le plan demandait des débits abaissés en calme et relevés en cauchemar, **en plus
+du résidu**. Ce serait deux boutons sur la même grandeur, et un jour on règle
+l'un en croyant régler l'autre. Les variantes de script changent donc la **forme**
+de la pression — où sont les silences, quelle géométrie — et `spawn` reste le
+seul réglage de quantité. C'est exactement la règle déjà écrite pour l'effectif.
+
+Ce n'est pas un affaiblissement : le nombre de silences est la pièce porteuse du
+modèle continu. Six contre un font deux jeux différents bien plus sûrement que
+20 % de débit. Débit cumulé sur les trente beats : **68,5** en calme, **74,9** en
+normal, **79,2** en cauchemar — puis ×0,80 / ×1 / ×1,28, soit un rapport final de
+**1 à 1,85** entre les deux extrêmes.
+
+Les trois variantes sont **dérivées** de la table de référence et non recopiées.
+Trois tables de trente beats écrites à la main auraient divergé au premier
+réglage — précisément le défaut qu'on vient de décrire.
+
+Le multiplicateur de dégâts subis s'applique **dans `_hurt`**, seul passage obligé
 de tout ce qui blesse un joueur : une nouvelle attaque du boss est couverte sans
 qu'on ait à y penser. Le poser aux points d'appel revenait à parier qu'on n'en
 oublierait jamais un — pari déjà perdu une fois pendant l'écriture.
 
+#### Le salon dit ce que le mode change
+
+Trois lignes sous le sélecteur, tirées du profil lui-même. Depuis qu'un mode est
+un bestiaire, des traits et un sol, voter sur le seul mot « cauchemar » est voter
+à l'aveugle. Le survol d'un bouton affiche les lignes du mode survolé sans qu'on
+ait à voter pour les lire.
+
 ### Types d'ennemis
 
-Ils arrivent progressivement et se mélangent, chacun avec un quota.
+**Neuf types**, dans `shared/enemies.js`. Ils se déverrouillent au **niveau
+d'équipe** et se mélangent, chacun avec un quota.
 
-| type | apparaît | PV | vitesse | particularité |
+| type | à partir du niveau | PV | vitesse | particularité |
 |---|---|---|---|---|
-| grunt | 0 s | ×1 | 95 | la masse de base |
-| runner | 40 s | ×0,45 | 188 | rapide et fragile, prend à revers |
-| tank | 80 s | ×4,5 | 52 | lent, encaisse, frappe fort |
-| shooter | 115 s | ×1,3 | 62 | garde ses distances et tire |
-| brood | 150 s | ×1,8 | 78 | libère 3 runners en mourant |
+| grunt | 1 | ×1 | 95 | la masse de base |
+| runner | 2 | ×0,45 | 188 | rapide et fragile, prend à revers |
+| tank | 5 | ×4,5 | 52 | lent, encaisse, frappe fort |
+| shooter | 7 | ×1,3 | 62 | garde ses distances et tire |
+| brood | 9 | ×1,8 | 78 | libère 3 runners en mourant |
+| kamikaze | 11 | ×0,5 | 118 | **explose à la mort**, quelle qu'en soit la cause |
+| bulwark | 13 | ×2,2 | 58 | **bouclier frontal de 100°** : il faut gagner l'angle |
+| medic | 15 | ×0,9 | 68 | **soigne son voisin blessé**, rompt s'il est visé 1 s |
+| choeur | 17 | ×1,6 | 70 | **couvre le paquet** : −35 % de dégâts subis dans 6,5 m |
+
+Le seuil est en **niveau** et non en temps de jeu : c'est la décision D3 du
+plan 5. Une équipe qui progresse vite voit le bestiaire complet plus tôt, une
+équipe en retard n'affronte pas des tanks avec les dégâts du niveau 4. Et le
+repli est **écrit** — `adaptType` remplace un type hors de portée par un seul
+cran en dessous, jamais deux : un repli qui replie serait illisible dans la
+table, qui est précisément ce qui rend le système tenable.
+
+C'est **la seule boucle de rétroaction du design** qui subsiste après D2 (« plus
+rien n'indexe la difficulté sur la puissance »), et elle est asymétrique : elle
+aide une équipe en retard, elle ne punit jamais celle qui avance. Effet
+secondaire, le même que pour les cartes verrouillées par jalons : un nouveau
+joueur découvre un pool plus simple, c'est de l'onboarding sans une ligne de
+tutoriel.
+
+**Trois types ne sortent jamais en calme** — le medic, le bulwark et le choeur.
+Ce sont les trois qui demandent de **choisir sa cible**, et c'est exactement la
+compétence que le mode calme n'a pas à enseigner. Le kamikaze et le bulwark
+arrivent en normal, le medic et le choeur sont réservés au cauchemar.
 
 **Le quota par type est le garde-fou important.** Sans lui, les shooters — qui
 restent hors du corps à corps et meurent rarement — finissaient par occuper
 117 des 180 places : les vagues ne contenaient plus que des tireurs et toute la
-variété disparaissait. Chaque type est maintenant borné à une part du plafond
-(16 % pour les shooters, 22 % pour les tanks).
+variété disparaissait. Chaque type est borné à une part du plafond (16 % pour
+les shooters, 22 % pour les tanks, **8 % pour le choeur**, le plus bas du
+bestiaire). Il compte **davantage** depuis que les vagues ont disparu : plus
+rien ne vide périodiquement l'arène, donc un type qui meurt rarement s'y
+accumule jusqu'à la fin de la manche. Mesuré sur 900 s en cauchemar à quatre
+joueurs, aucun type ne dépasse son quota — trois l'atteignent exactement (tank
+44/44, shooter 32/32, medic 18/18), ce qui est le comportement voulu.
+
+### Les traits : un ennemi joue différemment selon le mode
+
+Un **trait** est un module de comportement attaché à un couple
+*(type, difficulté)*. Le grunt **court** en calme, **charge** en normal, **charge
+et laisse une traînée** en cauchemar. Un seul type, une seule table de
+statistiques, un comportement écrit une fois.
+
+| trait | effet | valeurs |
+|---|---|---|
+| Ruée | préavis puis charge | préavis 0,5 s, ×2,5 pendant 0,35 s, recharge 6 s, portée 21 m |
+| Traînée | zone persistante derrière lui | 4 s, 14 dégâts/s, rayon 1,3 m, tous les 2,3 m parcourus |
+| Salve | 3 projectiles en éventail | demi-ouverture 0,22 rad, **cadence inchangée** |
+| Frénésie | accélère à mesure que ses PV descendent | jusqu'à ×1,6 à 10 % de PV |
+| Spores | petite zone rémanente à la mort | 3 s, 10 dégâts/s, rayon 1,1 m |
+| Aura | −35 % de dégâts subis dans 4,5 m | ne se cumule **jamais** |
+
+| | calme | normal | cauchemar |
+|---|---|---|---|
+| grunt | — | Ruée | Ruée + Traînée |
+| runner | — | Frénésie | Ruée + Frénésie |
+| tank | — | Aura | Aura + Traînée |
+| shooter | — | Salve | Salve |
+| brood | — | Spores | Spores + Frénésie |
+| kamikaze | — | Frénésie | Frénésie + Traînée |
+| bulwark | — | — | Aura |
+| medic | — | — | Frénésie |
+
+Trois choix qui portent tout le système.
+
+**Zéro octet de réseau.** La difficulté voyage déjà dans le salon, le type est
+déjà dans l'instantané : le client **déduit** les traits de chaque ennemi. Un
+système de comportements entier ne coûte donc rien au protocole — c'est la même
+règle que la cadence des tireurs, la direction des projectiles et le déplacement
+d'un joueur. Une seule exception : **l'anticipation de la ruée**, qui ne se
+déduit pas d'une position. Elle passe par la clé `wu` du snapshot, mesurée à
+**0,14 %** du poids d'instantané (budget : 1 %).
+
+**Le plafond des traînées n'est pas indicatif.** À 18 zones simultanées, spores
+comprises, la plus ancienne cède sa place. Sans lui, une fin de segment à deux
+cents ennemis pave le sol : c'est exactement le piège déjà rencontré avec les
+flaques de la Matriarche. Surface couverte au plafond : **2,7 %** de l'arène.
+
+**L'aura ne se cumule jamais.** Deux porteurs sur la même cible appliquent la
+**meilleure** réduction, jamais le produit — même règle que le Vœu partagé et
+que les auras de givre. Mesuré : percer un paquet de 12 grunts coûte 264 points
+de dégâts bruts sans choeur, **408 avec**, soit un facteur **×1,55** (cible :
+1,5 à 2).
+
+**Le bouclier du bulwark absorbe exactement son arc.** Mesuré sur 20 000 tirs
+d'angles aléatoires : **100 %** des tirs de flanc passent, **0 %** des tirs de
+face, et la part absorbée toutes directions confondues vaut **27,9 %** —
+c'est-à-dire 100° sur 360°, l'arc déclaré. L'absorption vit dans
+`_bulletHitEnemy()`, donc le balayage à l'apparition la respecte aussi : une
+balle née à bout portant ne traverse pas un bouclier qu'une balle tirée à dix
+mètres respecte.
+
+**Coût mesuré**, cauchemar, quatre joueurs, 900 s, arène pleine : **0,017 ms par
+tick en moyenne**, p99 **0,117 ms**, pointe **1,70 ms** (budget : 1 ms de
+moyenne, 8 ms de p99).
 
 **Un monstre ne se superpose jamais à un joueur**, et cette règle a corrigé un
 bug qu'on croyait être un problème de vitesse. Un runner rapide qui se collait
@@ -289,33 +465,435 @@ Les trois derniers posent chacun une décision plutôt qu'un gain :
   infinie : sans mémoire des ennemis déjà touchés, deux voisins se renvoient
   l'arc indéfiniment.
 
-### Vagues
+### Segments
 
-Le jeu était un **flux continu** : les ennemis arrivaient sans interruption et
-la seule respiration venait de la mort d'un boss, toutes les trois minutes. Sur
-une survie moyenne de 182 s, **la plupart des parties ne voyaient qu'un seul
-choix de carte**, parfois zéro.
+**La pression est écrite, la progression est gagnée.**
 
-Une vague est maintenant un **budget d'apparitions**. Elle passe par trois
-phases : *apparition* (le budget se consomme), *nettoyage* (plus rien ne sort,
-il reste à finir le travail), *répit* (4 s, et 18 PV rendus à tout le monde).
+Le jeu a connu deux modèles avant celui-ci. Un **flux continu**, où la seule
+respiration venait de la mort d'un boss toutes les trois minutes : sur une
+survie moyenne de 182 s, la plupart des parties ne voyaient qu'un seul choix de
+carte. Puis des **vagues à budget**, qui ont réglé ce défaut et en ont produit
+quatre autres, tous mesurés : toutes les parties se ressemblaient (15,8 à 18,0
+vagues en 900 s quel que soit l'effectif), une bonne équipe ne progressait pas
+plus vite (×1,00 de sensation de puissance pour un écart de build de ×4,54), le
+rythme était haché (traquer les six derniers fuyards prenait plus de 40 s sur
+une vague qui en durait 50), et les difficultés n'étaient que quatre
+multiplicateurs.
+
+Une manche est maintenant une **chronologie fixe**, identique d'une partie à
+l'autre :
 
 ```
-budget de la vague N = (14 + 6 × (N−1)) × joueurs^0,75
+manche = 6 SEGMENTS
+segment = 300 s de horde -> crescendo -> boss (hors horloge) -> cartes -> suivant
 ```
 
-L'exposant 0,75 donne ×2,8 à quatre joueurs, là où l'ancien `√joueurs` donnait
-×2 : la difficulté à effectif élevé était trop molle.
+Soit **1800 s de horde** que toutes les équipes voient à l'identique, plus le
+temps de six combats de boss. Ce qui varie d'une table à l'autre, c'est ce
+qu'elle en fait — pas ce qu'on lui envoie.
 
-**Les retardataires.** C'est le point faible du modèle : shooters et runners
-fuient, et traquer les six derniers à travers 1600 × 900 prenait plus longtemps
-que la vague elle-même. Passé **8 s** après l'épuisement du budget, les ennemis
-restants reçoivent un **halo bleu**, leur vitesse est multipliée par 1,6 et les
-tireurs perdent leur distance de sécurité : ils viennent au contact et la vague
-se termine d'elle-même.
+**L'horloge de segment s'arrête pendant le boss et pendant l'écran de cartes.**
+Elle ne mesure que la horde. Sans cela, la durée d'un combat — qui dépend
+entièrement de la build — mangerait une part variable du segment suivant, et
+deux manches cesseraient d'être comparables minute par minute.
 
-Une vague sur cinq est un **boss**. Son budget d'apparitions est nul : il occupe
-la vague entière et seuls ses propres renforts sortent.
+Cinq beats de 60 s par segment. Le débit est en apparitions par seconde, **avant**
+effectif et difficulté (`joueurs^0,75 × diff.spawn` s'appliquent par-dessus) :
+
+| segment | intention | b1 | b2 | b3 | b4 | b5 crescendo |
+|---|---|---|---|---|---|---|
+| 1 | installation | 0,6 | 0,9 | 1,2 | **0,5** accalmie | 1,8 |
+| 2 | on domine | 1,4 | 1,7 | 2,0 | **0,7** accalmie | 2,6 |
+| 3 | la crise | 2,0 | 2,4 | 2,2 | 2,8 | 3,2 |
+| 4 | chaos maîtrisé | 2,2 | **0,8** accalmie | 2,9 | 3,3 | 3,8 |
+| 5 | pression maximale | 3,0 | 3,4 | 3,2 | 3,9 | 4,4 |
+| 6 | apothéose | 3,4 | **1,0** accalmie longue | 4,0 | 4,6 | 5,0 |
+
+Repères : la vague 1 de l'ancien modèle valait 0,8/s, la vague 16 valait 3,05/s.
+Le script part plus bas et finit plus haut, avec des creux que le modèle
+précédent n'avait jamais eus ailleurs qu'entre deux vagues.
+
+**La courbe n'est pas monotone dans un segment** — 2,4 puis 2,2 au segment 3,
+3,4 puis 3,2 au segment 5. Ce n'est pas une coquille : une rampe strictement
+croissante se lit comme un *état*, un resserrement qui relâche puis reprend se
+lit comme une *respiration*. C'est le raisonnement déjà écrit pour la posture
+des boss. Et le point bas de la partie est délibérément au segment 4, pas au 5 :
+une courbe qui ne fait que monter n'a pas de sommet.
+
+#### L'accalmie est la pièce porteuse, pas un ornement
+
+C'est le principal danger technique de la refonte, et il faut le nommer. Sans
+nettoyage de vague, dans une arène d'un seul écran, avec un plafond de 200
+ennemis et **aucune caméra**, la population tend vers son plafond et **y reste**.
+Le jeu devient « toujours 200 ennemis », c'est-à-dire l'inverse exact de la
+courbe recherchée. La phase de nettoyage *était* ce qui créait la respiration ;
+en la retirant, il faut l'écrire.
+
+Une accalmie est un beat à débit très bas (0,5 à 1,0/s). La horde présente se
+fait détruire, un **bonus au sol est forcé** à son ouverture, et c'est la fenêtre
+de repositionnement et de lecture du HUD. Trois par manche au minimum, jamais
+deux segments de suite sans — **sauf le segment 3, qui n'en a aucune**. C'est la
+crise.
+
+#### Le crescendo, et pourquoi le balayage ne récompense rien
+
+L'arrivée d'un boss vide l'arène, et c'est justifié : sans cela il débarquait au
+milieu de 200 ennemis et sa silhouette se perdait dans la masse. Mais en modèle
+continu, cette suppression devient une **récompense pour avoir arrêté de jouer** :
+à 4 min 30 d'un segment, ne plus tirer et attendre le balayage serait strictement
+optimal.
+
+Correction en deux parties indissociables : la **dernière minute de chaque
+segment est un crescendo** (le débit le plus haut du segment), et le balayage qui
+suit ne crédite **ni score ni expérience**. L'équipe qui tue le crescendo gagne
+souvent un niveau ; celle qui tourne en rond le perd.
+
+#### Cinq géométries d'apparition
+
+Une seule géométrie pour toute la partie, c'était une pression uniformément
+diffuse : rien ne distinguait un mur de runners arrivant du nord d'un grignotage
+général. Le script en nomme une par beat.
+
+| géométrie | ce qu'elle demande |
+|---|---|
+| `bords` | rien de particulier — pression diffuse, le défaut |
+| `front` | un seul bord : on recule |
+| `pince` | deux bords opposés : on ne peut plus reculer, il faut percer |
+| `quatre-fronts` | quatre bords par paquets : on se répartit (3-4 joueurs) |
+| `anneau` | un cercle autour du centre : encerclement (réservé aux événements) |
+
+**À budget constant, l'effectif change la forme et non la quantité.** Une petite
+table reçoit `front` ou `pince` — on résout par le positionnement ; une grande
+reçoit `quatre-fronts` — on résout par la coordination. Les exposants qui
+donnent la parité mesurée entre un et quatre joueurs (`joueurs^0,75` sur le débit
+et l'expérience, `^0,4` sur la cadence d'élite, `^1,15` sur les PV de boss) ne
+bougent pas : ils produisent un résultat quasi identique à un et à quatre, et
+c'est le but.
+
+`anneau` est la seule géométrie qui fait naître un ennemi **à l'intérieur** des
+limites, donc la seule qui puisse le déposer dans le disque de 16 px autour d'un
+joueur où il serait strictement invulnérable à son porteur. Elle tire donc
+jusqu'à trouver un point dégagé et retombe sur un bord si l'arène est trop
+encombrée : un ennemi qui n'apparaît pas vaut mieux qu'un ennemi invulnérable.
+
+#### La saturation remplace le scaling — par de l'information
+
+Quand une équipe faible accumule jusqu'au plafond, les apparitions en trop sont
+**silencieusement jetées**. C'est une miséricorde involontaire : la difficulté
+plafonne au moment précis où l'équipe est en train de perdre, et rien à l'écran
+ne le dit. Le HUD affiche donc le **taux d'occupation de l'arène** à partir de
+70 %. Une équipe à 100 % pendant dix secondes est en train de perdre, et le sait.
+
+Cette information **ne traverse pas le réseau** : elle se déduit du nombre
+d'ennemis, que le client a déjà — même règle que la cadence des tireurs, la
+direction des projectiles et le déplacement d'un joueur.
+
+#### Ce que le lot a supprimé
+
+Le système de **retardataires** n'existait que parce qu'il fallait nettoyer une
+vague. Halo bleu, vitesse ×1,6, distance de sécurité annulée, marquage `+200`
+dans le champ de type du snapshot : tout est retiré, pas laissé dormant. La
+condition de déclenchement serait devenue indéfinie sans son minuteur, et le
+dépôt a déjà connu ce bug exact — un compteur avancé de plusieurs centaines de
+secondes marquait toute l'arène comme retardataire au premier kill.
+
+Le **soin de fin de vague** (18 PV) disparaît avec les vagues. C'est la seule
+chose qui ait jamais rallongé la survie à la mesure, et son remplacement est un
+chantier ouvert : l'économie de récupération est traitée à part.
+
+#### Mesures relevées
+
+Quatre joueurs, difficulté normale, compte neuf, **quatre manches complètes**,
+DPS d'équipe simulé montant avec le niveau, joueurs invulnérables — on mesure le
+**flux**, pas la survie.
+
+| mesure | attendu | relevé |
+|---|---|---|
+| manche complète | 6 segments, 6 boss | victoire à chaque fois, **31,2 à 31,6 min** dont 1,2 à 1,6 min de boss |
+| population moyenne hors boss | 90 à 140 | **49 à 98** |
+| plus longue série à 200 ennemis avant le segment 5 | < 30 s | **0,0 à 1,4 s** |
+| CPU par tick | moyenne < 1 ms, p99 < 8 ms | **0,021 à 0,157 ms** et **0,109 à 0,856 ms** |
+| population au fond des accalmies | < 25 | 0 · 0 · 0 à 25 · **15 à 94** |
+
+Trois choses à retenir de ces chiffres.
+
+**Le CPU n'est pas un sujet.** C'était le seul chiffre sans précédent rassurant —
+l'évitement mutuel des ennemis est en O(n²) et la population moyenne devait
+doubler. Elle reste à un ordre de grandeur du budget de 16,7 ms, et la grille
+spatiale n'a pas lieu d'être.
+
+**La dernière accalmie ne fait pas son travail.** À 1,0/s pendant une minute,
+le segment 6 ne vide pas ce que le beat précédent a laissé : entre 15 et 94
+ennemis au fond, contre moins de 25 attendus. C'est un réglage de débit ou de
+durée à reprendre au recalibrage, pas un défaut de structure — les trois
+premières accalmies descendent à zéro.
+
+**L'écart entre manches est le résultat le plus intéressant** : de 49 à 98 de
+population moyenne, pour un script rigoureusement identique. Il ne vient que des
+cartes tirées, qui font varier les dégâts de l'équipe — et, par
+`WAVE_HP_POWER_K` et `WAVE_RATE_POWER_K`, la pression qu'elle reçoit en retour.
+C'est exactement la boucle que le lot suivant supprime : sous un script fixe,
+une bonne équipe doit voir la même horde et la traverser plus vite, pas voir une
+horde différente.
+
+**Toutes les valeurs de ce script sont des points de départ dérivés des mesures
+existantes, pas des réglages validés.**
+
+### Événements
+
+Cinq fois par manche, une minute entière change de nature. Un **événement**
+remplace la composition du beat : ce n'est pas un ajout par-dessus la horde,
+c'est la horde qui devient autre chose.
+
+| événement | ce qui arrive | ce que ça demande |
+|---|---|---|
+| **Nuée** | uniquement des runners, en nombre | tenir une position, dégâts de zone |
+| **Tir croisé** | forte proportion de tireurs | fermer la distance — l'exact inverse de la nuée |
+| **Siège** | uniquement des tanks, lents et coriaces | patience, cadence, ne pas se laisser encercler |
+| **Chasse** | un seul gibier énorme, **aucun autre ennemi** | concentrer le feu |
+
+Calendrier, identique dans les trois modes : **2.3 nuée · 3.2 tir croisé ·
+4.3 siège · 5.2 chasse · 6.3 nuée**.
+
+#### Un événement est une entrée du script, pas un second système
+
+La tentation était un tirage au hasard tournant en parallèle. Deux autorités sur
+la même horloge produisent des collisions — un événement pendant un crescendo,
+deux à la fois, un pendant un combat de boss — et surtout une partie **non
+reproductible**, donc non classable.
+
+Le calendrier est donc une **colonne de la table de script**. Les garanties se
+**lisent** au lieu de se **prouver** : `plan4` avait dû inventer une arithmétique
+(`vague % 5 === 3`) pour éviter les collisions sans liste d'exceptions à
+maintenir. C'était la bonne solution au problème posé ; le problème a disparu. On
+place désormais un événement là où le rythme le demande, pas là où le modulo le
+permet — et `verifierScript()` contrôle les quatre règles (pas sur un crescendo,
+pas sur un silence, jamais deux consécutifs, pas d'index inconnu) sur les trois
+variantes d'un coup. **Zéro collision** mesurée.
+
+Vérifié aussi : deux parties lancées avec la même variante produisent la
+**même séquence**, à l'identique. C'est le test de non-régression du classement.
+
+La prévisibilité est **voulue** : un joueur qui sait qu'un siège de tanks arrive
+au segment 4 ajuste ses choix de cartes. C'est une couche de décision à moyen
+terme, pas une information qu'on cache.
+
+#### Réussir un événement remet l'équipe debout
+
+**100 % des PV, 100 % du bouclier, et les joueurs à terre sont relevés.** Une
+seule règle, sans condition — un cas « relevé mais pas soigné » serait illisible.
+
+Ce n'est pas une récompense décorative. Depuis que la fin de vague a disparu, les
+événements et les boss sont les **deux seules sources garanties** de remise à
+plein, et le dépôt a mesuré que c'est le seul levier qui ait jamais rallongé la
+survie : ni plus de cartes ni moins de pression n'y ont rien changé.
+
+« Terminer » veut dire atteindre l'échéance du beat — **sauf la chasse**, qui se
+termine à la mort du gibier et ne rend **rien** s'il survit à sa minute. Sans
+cette exception, il suffirait de fuir soixante secondes pour encaisser la remise
+à plein.
+
+#### La chasse, et le grand écart assumé
+
+Le gibier est un tank élite agrandi deux fois et demie, seul dans une arène
+balayée à son arrivée. Ses PV sont **une fraction de ceux d'un boss** du même
+segment, jamais un multiple de ceux d'un tank élite : les deux échelles n'ont pas
+la même pente en effectif — un tank élite fait 3 726 PV quand le boss du
+segment 5 en fait 6 627 en solo et 32 635 à quatre — et un multiple d'élite aurait
+dérivé du boss au premier réglage.
+
+Deux pièges, tous deux connus avant d'être écrits. Le gibier est **exclu du seuil
+d'exécution**, comme le boss et les structures de mécanique : un seuil appliqué à
+une grosse réserve en supprime le dernier quart d'un tir. Et ses PV **ne suivent
+pas la puissance de l'équipe** — c'est D2, et mesuré :
+
+| puissance | durée de la chasse |
+|---|---|
+| build de référence (~220 dps) | **21,7 s** |
+| ×2 | 10,8 s |
+| ×4 | 5,4 s |
+| ×8 | **2,7 s** |
+
+C'est **assumé, sans plancher de durée**. Le plancher de barre des boss existe
+pour protéger une chorégraphie ; la chasse n'en a pas. C'est au contraire le
+meilleur endroit du jeu pour montrer qu'une bonne build est une bonne build : la
+récompense y est immédiate et strictement proportionnelle aux dégâts.
+
+#### Ce que les événements coûtent
+
+Mesuré à quatre joueurs, niveau 20, mode normal, sur une minute :
+
+| beat | population moyenne | mises à terre |
+|---|---|---|
+| ordinaire 2.2 | 86 | 28 |
+| **nuée** 2.3 | 166 | **0** |
+| ordinaire 3.1 | 116 | 10 |
+| **tir croisé** 3.2 | 128 | **35** |
+| ordinaire 4.2 | 39 | 9 |
+| **siège** 4.3 | 91 | **22** |
+| ordinaire 5.1 | 154 | 15 |
+| **chasse** 5.2 | 1 | **0** |
+
+Deux lectures. Le **tir croisé** est l'événement le plus dangereux, et c'est
+cohérent : les tireurs frappent à distance, un bot qui kite ne leur échappe pas.
+La **nuée** est trivial pour ce pilote — zéro mise à terre contre 28 sur un beat
+ordinaire — parce qu'un runner meurt en un tir et qu'un joueur qui recule en
+permanence ne les laisse jamais l'entourer. À relever avec de vrais joueurs au
+lot X : la nuée est censée punir précisément ce qu'un bot ne fait pas, rester
+immobile.
+
+Côté réseau, un événement coûte **une clé nommée de deux nombres**, absente hors
+événement : **+0,35 %** de poids d'instantané pendant les cinq minutes concernées.
+Le nom, le texte et le niveau d'alerte vivent dans la table que le client importe
+déjà.
+
+### Le lieu : trois biomes
+
+Une manche se joue quelque part. Le **biome** est tiré avant la manche, annoncé
+au salon, et il apporte trois choses : une **géométrie d'obstacles**, un **jeu de
+dangers** et une **teinte de sol**.
+
+| biome | géométrie | dangers, en cauchemar |
+|---|---|---|
+| **Usine** | six piliers en grille régulière, couloirs francs | trois geysers aux intersections, deux plaques de sol glissant |
+| **Fonderie** | deux cuves centrales, ouvertures larges | deux flaques corrompues, deux braises qui dérivent sur un rail |
+| **Friche** | obstacles épars, asymétrique | trois zones corrompues, et **trois couvertures destructibles** |
+
+**La géométrie est la même dans les trois modes.** Un joueur qui connaît l'usine
+en calme la reconnaît en cauchemar ; seuls les dangers changent. C'est ce qui rend
+la montée en difficulté *apprenable* au lieu d'en faire un autre jeu.
+
+| mode | ce qui est actif |
+|---|---|
+| calme | la géométrie seule — **aucun danger** |
+| normal | deux champs de ralentissement, **rien qui blesse** |
+| cauchemar | la table ci-dessus, plus une **météo** par segment |
+
+#### Un danger est du sol, pas un télégraphe
+
+C'est la règle qui a cadré tout le lot, et elle vient d'un constat : à deux cents
+ennemis, plus les zones de boss, plus les marqueurs, plus les chiffres de dégâts,
+plus les traînées — **le budget de lisibilité est déjà dépensé**.
+
+Un geyser annoncé par un cercle ambre qui se remplit en 1,4 s serait
+indistinguable d'une zone de Ravageur, et le joueur cesserait de savoir lequel des
+deux il regarde. Le canal du télégraphe instantané appartient au boss et **ne se
+partage pas**.
+
+Un danger d'environnement s'annonce donc par sa **géométrie permanente** : la
+bouche du geyser est visible en permanence, seul son jet est intermittent ; le
+rail de la braise est tracé en entier, la braise n'est que ce qui le parcourt. On
+apprend la carte, on ne lit pas un compte à rebours.
+
+Second garde-fou, chiffré : **l'ensemble des dangers actifs ne couvre jamais plus
+de 12 % de l'arène**, traînées et spores comprises. Le repère est celui que le
+dépôt avait déjà posé pour la constriction (`SHRINK_MIN: 0.45`, « en dessous, la
+horde de 200 ennemis ne tient plus »). Le plafond est **strict** : la génération
+*jette* les dangers qui le franchissent, un plafond qu'on vérifie après coup est
+un plafond qu'on dépasse.
+
+#### Le seul concept nouveau : un mur qui a des PV
+
+Tout le reste se construit avec ce qui existait — `state.walls` bloque déjà,
+`_zone` blesse déjà par paliers, `state.bounds` borne déjà. La couverture
+destructible de la friche est la seule pièce neuve, et elle tient en trois
+décisions :
+
+- elle ne cède qu'au **tir du joueur**. Pas aux dégâts d'ennemis : deux cents
+  monstres l'abattraient en dix secondes, et un mur qui disparaît sans qu'on sache
+  pourquoi est un bug de retour, pas une difficulté ;
+- elle ne rend **ni score ni expérience** — l'expérience vaut les PV max d'un
+  *ennemi tué*, une couverture n'en est pas un ;
+- elle ne passe **pas** par le point de passage des dégâts infligés, qui porte le
+  vol de vie, les critiques et l'exécution : cette dernière en supprimerait une
+  d'un seul tir.
+
+Mesuré : **26 tirs** à 40 de dégâts pour abattre un mur de 900 PV, soit quelques
+secondes de feu soutenu. Un tir ennemi s'y arrête sans l'entamer — la couverture
+protège dans les deux sens.
+
+#### La météo est un modificateur, pas une entité
+
+Cauchemar seulement, un segment sur trois sans. Elle n'a pas de position, donc
+elle n'entre dans aucune liste.
+
+| météo | effet |
+|---|---|
+| **Brume** | les bords de l'arène s'assombrissent, le **centre reste net** |
+| **Bourrasque** | tout est poussé dans une direction — **joueurs et ennemis** |
+| **Cendres** | les bonus au sol ne durent plus que 11 s au lieu de leur durée normale |
+
+Deux contraintes non négociables. La brume ne doit **jamais** masquer un
+télégraphe de boss ni un marqueur posé sur un joueur : elle renforce le vignettage
+des bords, où rien d'important ne se joue, et *recule* le départ du dégradé.
+Sans ça, elle devient une difficulté artificielle qui punit la lecture — l'inverse
+exact de ce que le dépôt mesure comme « difficile ». Et la bourrasque pousse
+**les deux camps** : ne pousser que le joueur en ferait une taxe.
+
+#### Le biome ne coûte rien au réseau
+
+C'est le résultat le plus utile du lot, et il dépasse celui des traits.
+
+**Deux nombres voyagent, une fois** — l'index du biome et une graine, dans le
+message de salon. La géométrie se **régénère à l'identique des deux côtés** : le
+générateur est écrit à la main (mulberry32, trente lignes) précisément pour que
+Node et le navigateur produisent la même suite. Et l'état d'un danger est une
+**fonction du temps de manche**, que l'instantané porte déjà : un geyser qui
+souffle 1,9 s toutes les 7 s, c'est `((tm / 7) + phase) % 1 < 1,9 / 7`. Le serveur
+en tire ses dégâts, le client son jet, et c'est la même ligne — ils ne peuvent pas
+diverger. La météo suit la même règle, direction de bourrasque comprise, ce qui
+permet à la prédiction locale de la rejouer au pixel près.
+
+Seule exception : les **PV d'une couverture entamée**, qui dépendent de ce que les
+joueurs ont fait et ne se déduisent d'aucune horloge. Liste creuse, absente tant
+que rien n'a été touché — donc toujours, dans deux biomes sur trois. Coût mesuré
+avec les trois murs de la friche à mi-vie : **+1,2 %** de poids d'instantané, sous
+le budget de 3 %.
+
+La règle à retenir avant d'ajouter quoi que ce soit : **avant d'ouvrir une clé
+d'instantané, chercher si la valeur est une fonction de ce que le client a déjà.**
+
+#### Mesures du lot, et ce qui reste à faire
+
+Surface couverte, cauchemar, pire cas (tous dangers actifs *et* plafond de
+traînées atteint) :
+
+| biome | dangers | + traînées | total | obstacles |
+|---|---|---|---|---|
+| usine | 7,14 % | 2,65 % | **9,80 %** | 3,52 % |
+| fonderie | 4,47 % | 2,65 % | **7,13 %** | 4,17 % |
+| friche | 4,73 % | 2,65 % | **7,38 %** | 4,71 % |
+
+Sous le plafond de 12 % dans les trois cas. Un passage traversable dans le carré
+central minimal est vérifié par script (`verifierBiomes()`, remplissage sur les
+deux axes, obstacles dilatés du rayon du personnage) pour les trois biomes, les
+trois modes et trois graines.
+
+Coût processeur, cauchemar, 198 ennemis, quatre joueurs, tous dangers actifs :
+**0,047 ms** par tick en moyenne, **0,132 ms** au 99ᵉ centile. Budgets : 1 ms et
+8 ms.
+
+**Ce qui ne tient pas encore la cible.** La part des dégâts venant de
+l'environnement est mesurée à **0,16 % (usine) · 0,59 % (fonderie) · 0,71 %
+(friche)** sur dix minutes de cauchemar, soit **2,4 à 11,3 dégâts par minute** —
+là où le lot visait 10 à 20 %. Deux choses à savoir avant de conclure :
+
+- le dénominateur est faux dans le sens qui écrase le chiffre. Le bot de mesure est
+  immortel et reste collé à la horde : il encaisse une trentaine de dégâts de
+  contact par seconde, ce qu'aucun joueur vivant n'approche. Un bot qui *fuit* a
+  été essayé et donne pire — il se fait acculer dans un coin et prend des totaux
+  absurdes ;
+- le **coût d'une exposition**, lui, est significatif : un jet de geyser entier
+  vaut **49 PV** sur les 100 de base, une flaque 11 PV/s, une braise 16 PV/s. Ce
+  n'est pas décoratif pour qui marche dedans ; c'est simplement rare, ce qui est
+  exactement ce que « on apprend la carte » veut dire.
+
+La cible de 10–20 % et le plafond de 12 % de surface sont **en tension** : avec
+7 % de l'arène couverte, atteindre 10 % des dégâts demanderait des valeurs qui
+tueraient net à la première erreur. Le plafond gagne — c'est un critère
+d'acceptation, pas un réglage. Les valeurs de dégâts restent donc dans la famille
+de celles du sol déjà existant (mare de Matriarche 20/s, traînée 14/s) et le
+recalibrage est renvoyé au lot X, avec un profil de jeu réaliste.
 
 ### Niveaux
 
@@ -332,15 +910,123 @@ cartes, moins il tue. C'est une spirale, et elle rend les rôles de soutien
 injouables.
 
 Les paliers sont **normalisés sur l'effectif** (divisés par `joueurs^0,75`, le
-même exposant que le budget de vague). Une jauge commune à paliers fixes donnait
+même exposant que le débit du script). Une jauge commune à paliers fixes donnait
 quatre fois plus de cartes à quatre joueurs qu'à un seul, alors que les deux
-tables voient exactement les mêmes vagues.
+tables voient exactement la même horde.
 
-Base **15 kills normalisés** pour le niveau 2, puis **×1,18** à chaque palier,
-plafond au niveau 30. La fin de vague verse en prime l'équivalent de 12 kills.
-Les montées se **mettent en file** et se consomment à la fin de la vague, jamais
-en plein combat : un écran de choix qui s'ouvre pendant qu'on esquive n'est pas
-un choix, c'est une punition.
+#### L'expérience vaut les PV détruits
+
+> **L'expérience créditée à la mort d'un ennemi vaut ses PV max.**
+
+Le brief demandait « de l'expérience uniquement en éliminant des ennemis ».
+Appliqué à la lettre avec l'ancienne valeur — 10 à 30 points selon le type — le
+système **s'annulait tout seul** : les PV des ennemis montent sur l'horloge, donc
+un grunt de la minute 30 coûte une vingtaine de fois plus de dégâts qu'un grunt
+de la minute 1 et rapportait exactement les mêmes 10 points. L'expérience par
+minute s'effondrait au fil de la partie, là où la courbe de cartes devait
+s'ouvrir — et une équipe efficace tuait surtout plus d'ennemis *faciles*, au
+début, pas plus d'ennemis tard, quand ça compte.
+
+Aux PV max, l'expérience par minute devient proportionnelle aux **dégâts par
+seconde de l'équipe**, ce qui est exactement l'effet recherché. Quatre propriétés
+tombent sans une ligne de code de plus : pas de dernier coup à voler (la valeur
+ne dépend pas de qui achève, et la jauge est commune), une élite vaut son ×3 de
+PV, un tank vaut ses 4,5 grunts, et la rampe de PV ne dilue plus rien.
+
+`score` ne bouge pas, et il ne faut pas confondre les deux nombres : le score dit
+la valeur **tactique** d'une cible (un tireur vaut plus qu'un grunt à surface
+égale) et n'est lu que par le tableau ; les PV disent la valeur **économique** —
+ce que la cible a coûté en dégâts.
+
+**La boucle ne s'emballe pas, et le frein était déjà écrit.** Un palier coûte
+18 % de plus que le précédent, quand une carte rapporte de l'ordre de +9 % de
+puissance (mesuré : puissance médiane 2,36 pour ~13 cartes). 1,18 / 1,09 ≈ 1,08 :
+chaque niveau prend 8 % de temps de plus que le précédent, donc la courbe
+décélère d'elle-même, sans plafond dur ni falaise. C'est le même raisonnement que
+le genou des PV de boss, et il tient parce que le facteur qui décélère est déjà
+plus raide que celui qui accélère.
+
+**Le boss crédite ses dégâts, à 35 %.** Il ne meurt qu'une fois et vaut plusieurs
+milliers de PV : le créditer à la mort ferait sauter un palier entier d'un coup,
+et le créditer à plein ferait de lui la source principale d'expérience — la horde
+ne servirait plus qu'à passer le temps, l'inverse de ce que le script raconte. Le
+surplus du coup fatal ne compte pas : on ne crédite que ce qui restait à entamer.
+
+Base **7500 PV normalisés** pour le niveau 2, puis **×1,18** à chaque palier,
+plafond au niveau 30. Cette base est **mesurée et non convertie** : la conversion
+arithmétique donnait 240 (les 15 kills de l'ancienne courbe × les 16 PV d'un
+grunt du début) et se trompait d'un facteur trente — elle suppose que le nombre
+de kills ne bouge pas, alors qu'une manche de trente minutes en compte des
+milliers *et* que les PV de chaque cible montent avec la manche. À 240, la table
+plafonnait au niveau 30 à mi-parcours et repartait avec 34 cartes par joueur.
+
+Cartes par joueur, moyenne sur 4 à 6 manches complètes par point, effectifs 1 et
+4 confondus, DPS du bot indexé sur la puissance mesurée de l'équipe :
+
+| base | 24000 | 8000 | **7500** | 7000 | 6000 | 2000 |
+|---|---|---|---|---|---|---|
+| cartes / joueur | 14 | 21,5 | *interpolé* | 27,2 | 27,8 | plafond atteint |
+
+7500 est le **milieu des deux points qui encadrent la cible** (24 à 26 cartes), et
+c'est tout ce que la mesure autorise à dire : l'écart-type est de l'ordre de six
+cartes d'une manche à l'autre **à réglage identique** — de 17 à 25 cartes à 8000,
+de 18 à 34 à 7000 — donc plus grand que l'écart entre les deux réglages. Cette
+dispersion n'est pas du bruit de mesure : elle vient de la boucle que le lot
+suivant coupe (les PV des ennemis suivent la puissance de l'équipe, donc une
+build forte gagne de l'expérience plus vite, donc devient plus forte). Le réglage
+se resserrera après, pas avant.
+
+Le calibrage a d'abord été tenté **plafond levé**, et il est invalide : sans le
+plafond de niveau 30, cette même boucle diverge et la base « nécessaire » varie
+d'un facteur sept d'un effectif à l'autre (56 000 à quatre joueurs, 417 000 à
+deux). Mesurer le système tel qu'il tourne, pas tel qu'on l'imagine.
+
+Les montées se **mettent en file** et se consomment à la mort du boss qui clôt le
+segment, jamais en plein combat : un écran de choix qui s'ouvre pendant qu'on
+esquive n'est pas un choix, c'est une punition. **Chaque boss donne en plus une
+carte garantie**, indépendante de la jauge — c'est ce qui fait de lui un point
+d'étape de progression et pas seulement un mur de PV.
+
+#### Tout s'indexe désormais sur le niveau
+
+La vague servait d'unité à une dizaine de seuils. Elle n'existe plus, et le
+segment ne la remplace pas : toutes les équipes voient les six mêmes segments,
+donc un seuil de segment ne distinguerait personne. Le **niveau**, lui, se gagne
+— c'est tout l'objet de ce lot.
+
+| ce qui était indexé sur la vague | l'est sur le niveau |
+|---|---|
+| légendaire garantie (vagues 10 et 20) | niveaux **12 et 22** |
+| troisième compétence (vague 4 minimum) | niveau **5** |
+| noyaux gagnés par manche (4 × vague) | 4 × **niveau** |
+| bonus de première fois (vagues 5/10/15/20) | niveaux **6/12/18/24** |
+| « sans être mis à terre » (vague 5+) | niveau **6+** |
+| jalon « atteindre la vague 8 » | « atteindre le **niveau 10** » |
+| « Cœur de forge », +5 % par vague survécue | +5 % par **niveau d'équipe** |
+
+Le mécanisme du jalon de légendaire est conservé intégralement, correctif
+compris : il se déclenche au premier écran atteint **à partir du** niveau seuil et
+non pendant ce niveau exactement, et une seule fois même si trois niveaux tombent
+d'affilée. Ce correctif existe parce que la garantie sautait une fois sur deux, et
+le changement d'unité le rend *plus* nécessaire : les écrans sont maintenant
+groupés après un boss, donc plusieurs niveaux passent sans ouvrir d'écran.
+
+**Deux mesures qui n'étaient pas prévues.** L'expérience venant du boss ne pèse
+que **0,1 à 1,9 %** du total, alors que le garde-fou du plan portait sur le risque
+inverse (« si le boss dépasse 25 %, baisser `BOSS_XP_K` »). La crainte était mal
+placée : un boss vaut quelques milliers de PV quand cinq minutes de horde en
+valent des centaines de milliers, donc aucun réglage de ce coefficient ne peut en
+faire une source significative. Il sert à ce que la jauge ne se fige pas pendant
+un combat — c'est tout, et c'est déjà utile. Et le **sixième boss ne donne pas de
+carte** : sa mort est la victoire, l'écran s'ouvrirait sur une manche terminée.
+Il y a donc cinq cartes de boss, pas six.
+
+Les profils sauvegardés passent en **version 4**. Les identifiants de jalon sont
+renommés à rang égal (un compte qui avait « vague8 » garde ses cartes), et
+`best.wave` est **conservé tel quel sous son ancien nom** : c'est le record du
+modèle par vagues, il n'est pas convertible en niveau — les deux ne mesurent pas
+la même chose, et une mesure se remesure, elle ne se réécrit pas. `best.level` et
+`best.segment` démarrent à zéro.
 
 > **Ce qui suit décrit l'ancien système et n'a pas été remesuré.** La lecture de
 > fond reste juste — c'est le produit des PV et du débit qui écrase le joueur —
@@ -368,11 +1054,17 @@ Le correctif est réparti pour qu'aucun levier ne porte seul : dégâts par nive
 Depuis, la cadence de tir est devenue **fixe** et ne s'obtient plus que par les
 cartes — le bonus au sol de cadence a été retiré de la rotation, comme les trois
 autres qui faisaient doublon avec une carte permanente — puis les rampes de
-pression sont passées du temps
-écoulé au **numéro de vague** : sur une horloge, une équipe qui nettoyait vite
-affrontait la vague 6 avec la pression de la vague 3, et la vague cessait d'être
-une unité de difficulté comparable d'une partie à l'autre. Les PV montent
-maintenant de 9 par vague et le débit de 0,15 apparition/s par vague.
+pression sont passées du temps écoulé au **numéro de vague** : sur une horloge,
+une équipe qui nettoyait vite affrontait la vague 6 avec la pression de la
+vague 3, et la vague cessait d'être une unité de difficulté comparable d'une
+partie à l'autre.
+
+Avec les segments, elles sont revenues au temps — mais à la **minute de horde**,
+qui n'est pas l'horloge murale : elle s'arrête pendant les boss et les écrans de
+cartes. Le script envoie la même chose à la même minute pour toutes les équipes,
+donc la minute *est* devenue l'unité comparable qu'on cherchait, et elle est
+gratuite. Les PV montent de 9 par minute et la vitesse de 4 ; le débit, lui, ne
+se dérive plus d'une rampe du tout — il est écrit beat par beat.
 
 ### Classes et compétences
 
@@ -552,7 +1244,143 @@ gros, sur le joueur concerné comme dans le cadre. Quand l'arène contient 200
 ennemis, chercher visuellement qui est bas est impossible, et une icône seule ne
 se voit pas.
 
-### Difficulté indexée sur la puissance de l'équipe
+### Plus rien n'indexe la difficulté sur la puissance — et ce que ça coûte
+
+> **La pression est écrite, la progression est gagnée.**
+
+C'est le renversement d'une décision que ce document défendait, et la raison de
+fond n'est pas de doctrine : **un scaler dont l'entrée est sa propre sortie n'est
+pas mesurable**, et ce projet ne se pilote que par la mesure. Il se ressent
+aussi — le joueur qui réussit voit le mur monter, ce qui est le défaut classique
+de l'ajustement dynamique de difficulté.
+
+Trois constantes, **pas une ligne de logique** : `WAVE_HP_POWER_K` et
+`WAVE_RATE_POWER_K` passent de 0,55 et 0,35 à **0** (le facteur
+`1 + K × (puissance − 1)` vaut alors exactement 1 et le terme s'évanouit), et les
+PV du boss lisent `BOSS_POWER_REF = 2,36` — la build médiane mesurée — au lieu de
+la puissance réelle de l'équipe. Une **référence explicite** et non le genou mis
+à zéro : `bossPower(p)` avec un `K` nul rend le genou au-dessus du genou mais
+rend `p` *en dessous*, donc une build faible garderait un boss aux PV réduits,
+c'est-à-dire un scaling résiduel.
+
+**L'échappatoire reste écrite.** `powerIndex()`, `bossPower()`, `_teamPower()` et
+`p.powerMods` restent dans le code : ils alimentent la fenêtre de build, qui
+affiche l'indice de puissance au joueur. Revenir en arrière est un changement de
+trois constantes.
+
+Corollaire agréable : la règle « la progression permanente est exclue de la
+difficulté par construction » devient triviale. Plus rien n'est indexé sur les
+mods, donc `p.powerMods` n'est plus qu'un chiffre d'affichage.
+
+#### Ce que ça casse, et les deux garde-fous
+
+La durée d'un combat de boss devient **inversement proportionnelle à la build**.
+C'est le grand écart demandé, et il casse deux choses aux deux bouts.
+
+**En bas, on perdait du contenu.** Un boss a cinq barres et chaque rupture ouvre
+une couche de répertoire — c'est ce qui fait la difficulté des combats tardifs à
+la place des PV. Une équipe très forte traversait les cinq barres avant que la
+moitié des mécaniques n'ait eu le temps de sortir : on perd du contenu au moment
+précis où l'on récompense le joueur. Une barre ne peut donc plus se rompre moins
+de **8 s** après la précédente, et — c'est la moitié qui compte — les PV sont
+**bornés au plancher de la barre courante**, l'excès étant **mis de côté** et
+appliqué d'un coup à l'échéance. Retarder la rupture sans borner les PV ne
+suffisait pas : le boss mourait quand même avant d'avoir joué, mesuré à 27 s et
+trois barres sur cinq. Rien n'est perdu, tout est différé — c'est la différence
+entre « le boss encaisse moins » et « le boss encaisse plus tard », et seule la
+seconde est honnête.
+
+**En haut, le combat ne finissait jamais.** Une build faible bloquait l'horloge
+de horde indéfiniment. Passé **150 s**, le boss gagne un palier d'**emportement**
+toutes les 30 s : +25 % de dégâts de zone et une cadence resserrée par palier.
+Chaque palier **s'annonce** — une variante muette surprend au lieu d'informer, ce
+qui est exactement le reproche fait à une mécanique punitive — et le nom du boss
+clignote lentement tant qu'il dure, parce qu'une annonce dure deux secondes quand
+l'emportement dure tout le reste du combat. L'équipe perd sur un pic qu'elle a vu
+venir.
+
+L'emportement ne contourne aucun invariant : il ne touche que des dégâts de zone
+et une cadence, donc tout passe par `_hurt()`, donc sous le plafond « une
+mécanique ratée ne tue jamais un joueur à pleine vie ».
+
+#### La pression compte les vivants, l'expérience les connectés
+
+`_teamPower()` était une moyenne sur tous les joueurs, à terre compris, et les PV
+de boss suivaient le nombre de joueurs *connectés* : une équipe de quatre dont
+deux sont morts affrontait un boss calibré pour quatre. Sur une manche de trois
+minutes c'était du bruit ; sur trente minutes et six boss, c'est structurel. Le
+débit du script et les PV de boss comptent donc les **vivants**, avec une
+hystérésis de 8 s — on descend après un délai, on remonte immédiatement, le sens
+sûr étant celui qui ne rend pas le jeu plus facile par accident.
+
+**Le piège symétrique** : la normalisation de l'expérience compte les joueurs
+**connectés**, pas les vivants. Sinon une équipe qui perd deux joueurs voit ses
+paliers *baisser* au moment où elle tue moins — un cadeau exactement au mauvais
+moment, et une boucle de rétroaction que tout ce lot refuse.
+
+#### Deux pièges rencontrés en implémentant, et ils sont instructifs
+
+Le premier est une **égalité flottante**. Depuis que le plancher borne les PV,
+ils valent *exactement* `maxHp − (barre + 1) × barHp` : la division qui compte les
+barres rompues rend donc 1 à un ulp près, et du mauvais côté une fois sur deux.
+`floor(0,999...)` valant 0, aucune barre ne cassait — le boss restait figé à un
+cheveu de sa rupture, la réserve mise de côté montait à 190 000 PV et le combat
+ne se terminait jamais. Même famille que la morsure d'un pixel de
+`PLAYER_SEPARATION` : une égalité flottante exacte n'existe pas.
+
+Le second est un **boss zombie**. Les dégâts mis de côté s'appliquent dans
+`_bossBars`, qui est devenu le seul endroit du jeu hors `_damage` à retirer des
+PV — et il ne testait pas la mort. Le boss tombait à des PV négatifs et y
+restait : plus aucun coup ne pouvait le tuer, puisque `_damage` le bornait à
+nouveau. Tout endroit qui retire des PV doit tester la mort au même endroit.
+
+La correction du premier mérite d'être écrite, parce que l'évidence était le
+mauvais réflexe : un epsilon dans la division aurait déplacé le problème sans le
+supprimer — rien ne garantit l'écart, et il s'est avéré valoir plusieurs PV et
+non un ulp. Or la **réserve mise de côté dit déjà, par construction, que la
+barre est épuisée** : elle ne se remplit que quand le plancher a mordu. C'est
+elle qu'on teste, et le quotient ne sert plus que de filet.
+
+#### Mesures relevées
+
+Quatre joueurs, difficulté normale, un boss forcé (le Ravageur) pour isoler la
+durée du reste du roster, quatre combats par point.
+
+| puissance de l'équipe | durée à `DWELL = 8` | à `DWELL = 10` |
+|---|---|---|
+| 1,26 — défensive et malchanceuse | 65 à 150 s | **74 à 119 s** |
+| 2,36 — médiane (la référence) | **44 à 82 s** | — |
+| 4,10 — chanceuse | 32 à 49 s | — |
+| 5,71 — optimisée | 32 à 38 s | **40 s, quatre fois sur quatre** |
+
+Le grand écart annoncé (131 s → 29 s) est là, et il est **jouable aux deux
+bouts**. Le plancher tient, et il a révélé une erreur d'arithmétique du plan :
+cinq barres ne font pas cinq délais mais **quatre**, la première barre étant
+entamée dès le premier tir. Le plancher vaut donc `4 × DWELL` — 32 s à 8, d'où
+le passage à 10 pour atteindre les 40 s visées. À 10, une build optimisée tombe
+sur le plancher **au dixième de seconde près**, quatre combats sur quatre : c'est
+exactement ce qu'un plancher doit faire.
+
+**Le modèle de mesure lui-même a dû être refait, et c'est instructif.** La
+première version donnait des combats cinq fois trop courts : elle prêtait 220
+dégâts par seconde et par point de puissance au bot, là où le code en donne 70
+(14 dégâts toutes les 0,16 s pour une puissance de 1,26) — et surtout elle
+supposait un tir continu. Un joueur esquive et se replace ; à **60 %**
+d'occupation, un boss solo de build médiane tombe en 74 s contre **70 s mesurées
+sur le jeu réel** avant la refonte. C'est cette coïncidence qui valide le
+modèle, pas le raisonnement qui l'a produit.
+
+**Deux boss résistent au bot de mesure, et pour la bonne raison.** La Matriarche
+se **nourrit de ses rejetons** : tant que le bot envoyait tout son feu sur elle,
+elle se soignait plus vite qu'il ne la blessait — il faut lui répartir 35 % du
+feu sur les adds pour qu'elle tombe. Les Jumeaux se **soignent mutuellement**
+tant qu'ils sont proches (`TWIN_HEAL`, 0,8 % de leurs PV max par seconde) : un
+bot qui ne les sépare jamais ne les tue jamais, quelle que soit sa puissance.
+Ce ne sont pas des défauts, ce sont leurs verbes — mais **sous D2, ils deviennent
+des murs durs** pour une équipe qui ne lit pas la mécanique, là où l'ancien
+scaling les rendait mécaniquement franchissables. À surveiller au recalibrage.
+
+### Difficulté indexée sur la puissance de l'équipe *(historique — décision renversée ci-dessus)*
 
 Les PV du boss étaient déjà calés sur la puissance mesurée de l'équipe, mais
 **pas la pression des vagues**, qui suivait une rampe purement temporelle. Avec
@@ -574,8 +1402,9 @@ augmente surtout la durée de vie. Si une mesure montre un écart, corriger le
 
 ### Boss
 
-Un boss occupe **une vague sur cinq**, avec 6 % de PV en plus à chaque fois. Il
-en existe **cinq**, tirés au sort, et chacun demande **autre chose**.
+Un boss **clôt un segment**, avec 6 % de PV en plus à chaque fois. Il en existe
+**cinq**, tirés au sort, et chacun demande **autre chose**. Son combat est hors
+de l'horloge de horde : elle est arrêtée tant qu'il est là.
 
 Ses PV sont indexés sur **le nombre de joueurs et sur la puissance mesurée de
 l'équipe**, pour que la durée du combat ne dépende ni de l'un ni de l'autre.
@@ -660,13 +1489,27 @@ devenu un, sans être réécrit.
 | **Ravageur** | positionnement | 1+ | ×1,00 | lire le sol |
 | **Matriarche** | gestion de cibles | 1+ | ×0,85 | choisir sa cible plutôt que taper fort |
 | **Métronome** | mouvement | 1+ | ×0,90 | ne jamais s'arrêter |
-| **Oracle** | cohésion | 2+ | ×0,95 | se coordonner |
-| **Jumeaux** | séparation | 2+ | ×1,00 | se séparer quand tout pousse à se grouper |
+| **Oracle** | cohésion | 1+ | ×0,95 | se coordonner |
+| **Jumeaux** | séparation | 1+ | ×1,00 | se séparer quand tout pousse à se grouper |
 
-Le tirage est **sans répétition tant que la liste n'est pas épuisée**, filtré par
-effectif. En solo on tire donc parmi les trois boss dont les mécaniques sont
-individuelles par nature : un Oracle à un joueur, c'est le boss de la
-coordination sans équipe — il ne resterait que la punition.
+Le tirage est **sans répétition tant que la liste n'est pas épuisée**. Cinq boss
+pour cinq places : le deck se distribue **exactement**, et c'est 120 permutations
+de rejouabilité gratuites.
+
+Il l'était moins avant : l'Oracle et les Jumeaux demandaient deux joueurs, donc
+en solo le pool tombait à trois pour cinq places et deux combats se répétaient —
+visible et pauvre. Les trois options étaient répéter, écrire deux boss solo
+dédiés, ou **adapter**. L'adaptation gagne parce que le mécanisme existe déjà,
+est testé et sert onze mécaniques : le regroupement retombe sur une zone à
+éviter, le dénombrement sur des tours ordinaires, la prison sur une grappe à
+détruire. Les deux mécaniques qui n'ont aucun sens seul — dispersion, lien —
+sortent simplement du répertoire, et leurs attaques retombent sur les marques.
+
+La réserve reste honnête et elle est écrite : *un Oracle solo, c'est le boss de
+la cohésion sans équipe*. Le critère de révocation est **chiffré** — si l'écart
+entre un joueur qui lit les annonces et un joueur qui les ignore tombe sous 40 %
+en solo sur ces deux combats, on revient à des boss solo dédiés. C'est une mesure
+à faire, pas une opinion à avoir.
 
 Son nom et son verbe sont annoncés à l'entrée et rappelés dans la barre haute.
 C'est ce qui permet de savoir comment se placer avant la première mécanique.
@@ -693,6 +1536,137 @@ leur mécanique de soin mutuel lisible **sans lire la barre**.
 Une couleur dominante par boss, distincte des cinq teintes d'ennemis, et **la
 barre de vie prend la teinte de la créature** : deux informations sur le même
 adversaire ne peuvent pas être de deux couleurs différentes.
+
+#### L'Amalgame — le boss final
+
+Le segment 6 se termine par un sixième boss, qui n'entre jamais dans le tirage
+des cinq : **il clôt la manche**. Quand il arrive, les cinq autres ont donc été
+vus une fois chacun — par construction, sans qu'aucun compteur ait à le garantir.
+
+Il n'a pas de sixième verbe : il est la **synthèse** des cinq, et toute sa
+structure en découle.
+
+| barre | ce qui s'ouvre |
+|---|---|
+| 1 | le damier du **Ravageur** |
+| 2 | les grappes de la **Matriarche** |
+| 3 | les exaflares du **Métronome** |
+| 4 | le regroupement et le regard de l'**Oracle** |
+| 5 | la croix des **Jumeaux** |
+| 6 | **synthèse I** — regroupement *et* exaflares |
+| 7 | **synthèse II** — couronne *et* disques à la dérive |
+| 8 | le **sceau** |
+
+Les cinq premières barres ne contiennent **rien d'inédit**, et c'est délibéré :
+c'est l'inverse exact de ce qu'on attend d'un boss final, et c'est ce qui fait
+de la sixième barre un événement. Son répertoire d'entrée est le plus banal du
+roster — salve, marques, charge — pour la même raison : un boss qui ouvrirait
+sur sa pièce la plus rare n'aurait plus rien à montrer à la fin.
+
+**Chaque barre ouvre sur le patron qu'elle vient de débloquer**, ce n'est pas
+tiré au sort. Laissé au hasard, un patron n'est qu'une chance sur dix à chaque
+attaque d'une barre qui dure dix secondes : le sceau pouvait ne jamais sortir.
+En prime, la citation s'entend au moment où elle est faite.
+
+**La synthèse** ne crée aucune géométrie nouvelle : elle superpose deux patrons
+connus, décalés de 0,9 s. Sans ce décalage les deux annonces tombent dans la même
+image et on n'en lit aucune ; avec, on lit la première, on se place, et il faut
+relire pendant qu'on tient sa position. Les deux combinaisons se **contredisent**
+plutôt que de s'additionner — tenir un point tout en s'écartant d'un axe, lire
+une couronne pendant que des disques dérivent. Deux patrons qui demanderaient la
+même chose ne seraient qu'un patron joué deux fois plus fort.
+
+**Le sceau** est la dernière mécanique du jeu : tous les foyers tenus en même
+temps, un seul vide et toute l'équipe encaisse la sanction pleine. Il réutilise
+le calcul de répartition des tours — une zone en solo, deux à deux, autant que de
+vivants au-delà — et non un second calcul d'effectif. Trois choses le distinguent
+des tours de l'Oracle : la fenêtre est longue (on traverse l'arène, on ne se
+décale pas), les foyers sont posés plus loin du centre (on se répartit sur la
+surface, pas autour du boss), et la sanction est **tout ou rien** là où les tours
+sanctionnent au prorata.
+
+**Sa silhouette est la seule composée du roster** : cinq fragments qui gravitent
+autour d'un noyau vide, un par boss d'origine — une pointe, une poche, un anneau
+ouvert, un glyphe, un demi-disque. Le nombre de fragments **éveillés** suit la
+barre : un seul au début, tous les cinq à la cinquième. La silhouette raconte donc
+la même chose que le répertoire, sans un mot. Sa teinte est un blanc-os presque
+désaturé — la seule créature du jeu sans couleur franche, parce qu'il n'a pas de
+gamme à lui : il prend celle des autres.
+
+**Son verbe est l'absorption.** Au moment du coup, sa masse se contracte vers son
+centre au lieu de se détendre, et ce qu'il envoie semble arraché à lui-même.
+Rejouant les patrons des cinq, la tentation était de rejouer leurs verbes : il en
+aurait eu cinq, donc aucun. L'absorption est le seul qui soit cohérent avec « il
+est la synthèse des cinq », et il reste distinct de la Matriarche, qui se vide
+vers l'**extérieur**.
+
+##### Ce que le plancher de barre a coûté à écrire
+
+Deux défauts sont sortis à la mesure, et les deux menaçaient la même chose : voir
+le contenu qu'on vient de gagner.
+
+Le premier était **arithmétique**. Huit barres ne font pas huit ruptures mais
+**sept** — la première barre est ouverte dès le premier tir. La table de
+déblocage écrite avec huit entrées mettait donc la huitième, c'est-à-dire le
+sceau, dans du code mort : jamais posé, quel que soit le niveau de dégâts. C'est
+exactement l'erreur déjà commise sur le délai entre deux barres, et déjà écrite
+dans le dépôt à l'époque.
+
+Le second était plus vicieux. Le plancher de barre met de côté les dégâts en
+excès pour différer une rupture ; cette **banque se vidait en entier** à la
+rupture suivante. Contre une build forte, l'excédent dépassait la réserve
+restante et le boss mourait *dans* sa propre rupture — mesuré : **11 s** de
+combat à ×20 de dégâts, **une** couche de répertoire vue sur huit. Le plancher
+différait la rupture sans jamais différer la mort, donc il ne protégeait rien.
+
+La banque se vide désormais **barre par barre**, et la dernière barre du final a
+un plancher elle aussi — le seul boss dans ce cas, sans quoi la huitième couche
+ne joue jamais. Rien n'est perdu : les dégâts tombent d'un bloc à l'échéance. Ce
+qu'on achète, ce sont les dix secondes pendant lesquelles le sceau se pose,
+s'annonce et se résout.
+
+Résultat mesuré, trois joueurs, dégâts de référence ×1, ×4 et ×20 :
+
+| dégâts | durée du combat | sceau posé | couches vues |
+|---|---|---|---|
+| ×1 | 128 s | oui | 8 / 8 |
+| ×4 | **80,1 s** | oui | 8 / 8 |
+| ×20 | **80,1 s** | oui | 8 / 8 |
+
+Huit barres × 10 s : le plancher est atteint exactement, et il tient quelle que
+soit la build.
+
+##### Le reste, en bref
+
+- **Enrage décalé.** Le seuil commun est calé sur une médiane de ~70 s ; le final
+  a une médiane vers 120 s. Au même seuil, la moitié des combats médians
+  enrageraient et un garde-fou deviendrait une mécanique de phase. C'est le
+  **rapport** — environ deux fois la médiane — qu'on conserve, pas la valeur.
+- **La barre est reconnaissable sans lire le nom** : plus large, plus épaisse,
+  huit encoches au lieu de dix, et une pulsation qui **accélère** à mesure que
+  les barres tombent (2,6 s à la première, 0,9 s à la dernière). Tout vit en CSS
+  et le HUD n'écrit qu'au changement de barre — huit fois dans tout le combat.
+- **Le temps enregistré est celui du combat final seul.** Le temps pour
+  l'*atteindre* est une constante — 1800 s de horde plus les cinq combats
+  précédents — donc deux équipes très différentes afficheraient des temps
+  voisins. Le record porte en plus la variante, le biome, la difficulté et
+  l'effectif : un temps n'est comparable qu'à contexte égal.
+- **La victoire change la tête du bilan, elle n'ouvre pas un écran de plus.** Le
+  plan demandait un écran dédié ; la leçon qui avait fait sortir le bilan du
+  salon était qu'il faut *moins* d'écrans entre le joueur et ses chiffres, pas
+  plus.
+- **Récompense** : le jalon « vaincre l'Amalgame » débloque les deux paquets de
+  cartes d'arme d'un coup — les seules autres routes vers elles sont « terminer
+  sans être mis à terre » et « 500 kills » — et paie **900 noyaux**, trois fois
+  un boss ordinaire. Les cartes passent par le jalon, jamais par la bourse : deux
+  systèmes qui puiseraient dans la même monnaie feraient acheter la puissance
+  d'abord et ne montrer les nouvelles cartes jamais.
+
+Coût mesuré du combat, quatre joueurs, barres de synthèse : **0,007 ms** de
+processeur par tick en moyenne (0,048 ms au 99ᵉ centile), **35,5 Ko/s** par
+joueur d'instantanés non compressés, **0,59** marqueur en moyenne. Budgets
+respectifs : 1 ms, 8 ms, 160 Ko/s, et une référence de 0,0 à 2,5 marqueurs pour
+les cinq autres boss.
 
 #### La posture d'attaque, et pourquoi elle a été refaite
 
@@ -982,13 +1956,13 @@ Sans ce nettoyage, le boss débarquait au milieu de **plus de 200 ennemis déjà
 présents** : sa silhouette, ses zones télégraphiées et sa barre de vie se
 perdaient dans la masse, et concentrer son feu sur lui était impossible.
 
-Pendant le combat, **les vagues normales sont coupées**. C'est lui qui gère le
-rythme : il appelle ses propres renforts toutes les 15 s (3 + un par joueur),
-plafonnés à 55 ennemis pour que le combat reste lisible.
+Pendant le combat, **la horde est coupée** et son horloge arrêtée. C'est lui qui
+gère le rythme : il appelle ses propres renforts toutes les 15 s (3 + un par
+joueur), plafonnés à 55 ennemis pour que le combat reste lisible.
 
-Le tuer rapporte 500 points et rend 40 PV à tout le monde, puis les vagues
-normales reprennent — l'arène se remplit à nouveau en une quarantaine de
-secondes. Son armure se fissure visuellement à mesure qu'il encaisse.
+Le tuer rapporte 500 points, rend 40 PV à tout le monde, ouvre les choix de
+cartes en attente, puis le segment suivant démarre — l'arène se remplit à
+nouveau en une quarantaine de secondes. Son armure se fissure visuellement à mesure qu'il encaisse.
 
 Ses PV sont calés sur le nombre de joueurs (`BOSS_HP_BASE × joueurs^1,15`), de
 sorte que le combat dure à peu près aussi longtemps à un qu'à quatre, avec un
@@ -1132,30 +2106,32 @@ plafonné à **40 zones**, les plus urgentes d'abord.
 ### Cartes d'amélioration
 
 À chaque niveau d'équipe gagné, chacun choisit **une carte parmi trois**, tirées
-indépendamment pour chaque joueur. Le choix se fait à la **fin de la vague**, pas
-au moment de la montée : un écran qui s'ouvre pendant qu'on esquive n'est pas un
-choix. Elles sont **permanentes** jusqu'à la fin de la manche. Les joueurs à
+indépendamment pour chaque joueur. Le choix se fait à la **mort du boss qui clôt
+le segment**, pas au moment de la montée : un écran qui s'ouvre pendant qu'on
+esquive n'est pas un choix, et c'est désormais la seule interruption de la horde. Elles sont **permanentes** jusqu'à la fin de la manche. Les joueurs à
 terre choisissent aussi : sinon un joueur malchanceux décroche définitivement.
 
 Quatre raretés — commune, rare, épique, légendaire — dont les poids dérivent
 avec la **qualité de tirage** (`épique ×1,18`, `commune ×0,92`), plafonnée à
 6 crans. Sans dérive, une épique à 10 contre 60 ne sort jamais d'une manche ;
 sans plafond, elle sort trois fois sur quatre — voir « Mesures relevées ». La
-qualité monte d'un cran tous les quatre niveaux d'équipe, plus **4 crans sur une
-vague de boss**, qui garantit en outre une rare dans les trois offertes.
+qualité monte d'un cran tous les quatre niveaux d'équipe, plus **4 crans après un
+boss**, qui garantissent en outre une rare dans les trois offertes — et comme
+tout écran suit désormais un boss, ce bonus s'applique à chaque fois.
 
 **La légendaire, elle, ne dérive plus du tout** (`×1,0`, poids de base 1). Elle
-est **garantie aux vagues 10 et 20** — `CARD_CFG.LEGENDARY_WAVES` — et
+est **garantie aux paliers 10 et 20** — `CARD_CFG.LEGENDARY_WAVES`, un palier
+valant une minute de horde — et
 **plafonnée à deux par manche et par joueur** (`LEGENDARY_MAX`). La calibration
 précédente avait été faite à un seul effectif et laissait passer jusqu'à **trois
 légendaires** chez un joueur chanceux : assez fréquente pour ne plus surprendre,
 pas assez pour structurer une build, c'est-à-dire le pire des deux mondes. Le
 hasard du roguelike reste entier — c'est *laquelle* qui tombe qui compte, pas
-*si*. Et atteindre la vague 10 devient un objectif en soi.
+*si*. Et atteindre le palier 10 devient un objectif en soi.
 
-Le jalon se déclenche au premier écran ouvert **à partir de** la vague 10, et
-non pendant cette vague exactement : une vague où personne ne monte de niveau
-n'ouvre aucun écran, et la garantie sautait alors une fois sur deux.
+Le jalon se déclenche au premier écran ouvert **à partir du** palier 10, et non
+pendant ce palier exactement : un palier où personne ne monte de niveau n'ouvre
+aucun écran, et la garantie sautait alors une fois sur deux.
 
 Les 116 cartes vivent dans `shared/cards.js`, avec leurs valeurs. Les communes
 sont des gains de nombres ; les rares modifient une mécanique ; les épiques
@@ -1285,8 +2261,8 @@ pas :
 
 - **Cœur de forge** est le seul mod indexé sur le **temps** et non sur le
   chargement. `computeMods()` doit rester une fonction de la seule liste de
-  cartes possédées, donc la part de vague est ajoutée par `_recomputeMods()`,
-  rejoué à chaque début de vague.
+  cartes possédées, donc la part de palier est ajoutée par `_recomputeMods()`,
+  rejoué à chaque changement de beat, soit une fois par minute de horde.
 - **Chaîne d'assaut** lève le plancher de cadence (`FIRE_INTERVAL_FLOOR`) mais
   pas le plancher **dur** (`FIRE_INTERVAL_HARD_FLOOR`) : sans plancher du tout,
   l'intervalle tend vers zéro, c'est-à-dire une balle par image.
@@ -1622,10 +2598,10 @@ commune : un liseré identique sur les cinq les aurait rapprochés à moyenne
 distance, ce que toute la charte refuse. Très clair mais désaturé — un
 contre-jour est une valeur, pas une couleur.
 
-### Les cinq types ne mouraient pas différemment
+### Les types ne mouraient pas différemment
 
 Le seul branchement de la mort était le rang d'élite : même compte de fragments,
-même taille, même vitesse pour les cinq. Un tank de 42 px de large se
+même taille, même vitesse pour tous. Un tank de 42 px de large se
 désagrégeait donc en la même poussière qu'un runner de 21 — ce qui gaspille la
 seule information gratuite qu'on ait, puisque le joueur **sait** déjà ce qu'il
 vient de tuer et que la mort doit le lui confirmer.
@@ -1637,6 +2613,10 @@ vient de tuer et que la mort doit le lui confirmer.
 | **tank** | gros morceaux, lents, peu nombreux, et ils **traînent** | une masse ne se pulvérise pas, elle se casse — la durée plus longue fait qu'on voit les morceaux se poser |
 | **tireur** | débris mous, sans élan propre | il flottait |
 | **brood** | beaucoup, minuscules, vifs | ce qui sortait d'elle était le danger : sa mort se lit comme une dispersion, pas comme l'éclatement d'un corps |
+| **kamikaze** | beaucoup d'éclats très rapides, très brefs, et l'éclat lumineux le plus fort du bestiaire | c'est la seule mort du jeu qui soit elle-même une menace : elle doit se lire comme un départ d'explosion, pas comme une fin |
+| **bulwark** | peu de morceaux, gros et lents, comme le tank | une armure ne se pulvérise pas — un cran plus rapides quand même, ce qui part en premier est une plaque tendue |
+| **medic** | peu de matière, fragments fins, éclat discret | il s'effondre plus qu'il n'éclate : sa mort est un soulagement tactique, pas un événement |
+| **choeur** | beaucoup de fragments lents qui **traînent** | ce qui meurt est la couverture d'un paquet entier, et c'est la seule mort qu'on veut voir de loin — elle dit à l'équipe que le mur vient de tomber |
 
 Le rang d'élite reste **orthogonal** au type : il multiplie le compte et la
 taille, il ne choisit pas une autre façon de mourir. Un tank élite doit mourir
@@ -1854,12 +2834,26 @@ gauche du chiffre rouge :
 | zone au sol | tout ce qui explose ou persiste par terre |
 | mécanique | un échec de mécanique de groupe |
 | brûlure | l'état, en dégât continu |
+| explosion | le kamikaze, à sa mort |
+| environnement | le biome : geyser, flaque corrompue, braise |
 
-Cinq et non six : le plan en prévoyait une sixième, « souffle », pour la rupture
-de barre de boss — le même lot vient justement de lui retirer ses dégâts, et plus
-rien du jeu n'inflige de souffle à un joueur. Une entrée toujours nulle dans un
-registre partagé est du poids mort ; elle s'ajoutera **en fin** le jour où une
-mécanique en aura besoin.
+Cinq à l'origine, **six depuis le lot S**, et l'histoire de la sixième dit
+exactement à quoi sert le registre. Le plan initial en prévoyait une, « souffle »,
+pour la rupture de barre de boss ; le lot qui l'annonçait venait justement de
+retirer ses dégâts à cette rupture, et une entrée toujours nulle dans un registre
+partagé est du poids mort — elle n'a donc pas été écrite. L'explosion du
+kamikaze, elle, l'a été **en fin de table** : elle passe techniquement par une
+zone, mais lire « zone au sol : 40 % » au bilan envoie chercher des flaques de
+boss, alors que ce qui a tué, c'est d'être resté au contact d'un type qu'il
+fallait abattre à distance. **Deux provenances distinctes parce que la conduite à
+tenir diffère** — c'est le seul critère.
+
+La **septième**, « environnement », est arrivée au lot V par exactement le même
+raisonnement une troisième fois. Un geyser et une flaque de Matriarche blessent
+tous deux par le sol ; mais l'un fait partie de la carte et sera encore au même
+endroit dans dix minutes, l'autre est posé par un combat qui finira. « 18 % de nos
+dégâts viennent de l'environnement » est précisément ce qu'il faut savoir pour
+décider si le biome est décoratif ou s'il est le problème.
 
 Le bilan de fin de partie en donne la **répartition sur l'équipe**, en barres.
 C'est accessoirement le meilleur outil d'équilibrage du dépôt : il distingue
@@ -2058,6 +3052,7 @@ hub.js                 registre des salles, comptes, progression — seul à éc
 room.js                une partie : GameState, clients, phases, tick
 ws_lite.js             implémentation WebSocket minimale (RFC 6455 + permessage-deflate)
 shared/game_state.js   LOGIQUE PURE — importée par le serveur ET le navigateur
+shared/biomes.js       LE LIEU — trois biomes, cinq dangers, trois météos, générateur déterministe
 public/index.html      page, hub, salon, tableau des scores
 public/client.js       saisie, interpolation, prédiction, rendu
 public/events.js       diffusion des snapshots en événements typés
@@ -2141,7 +3136,11 @@ monde, et son écran resterait ouvert sur une offre morte pendant qu'il se fait
 dévorer.
 
 `alert` est **ponctuel** et vit hors du snapshot : `{t:"alert", mech, level, dur}`
-au moment de l'annonce d'une mécanique, `{t:"alert", boss}` à l'entrée d'un boss.
+au moment de l'annonce d'une mécanique, `{t:"alert", event, …}` à l'ouverture d'un
+événement, `{t:"alert", meteo, …}` au changement de météo, `{t:"alert", boss}` à
+l'entrée d'un boss. Trois tables consultées, **un seul chemin d'annonce** : même
+file, même horloge de rendu, même retrait avant résolution. C'est ce qui a évité
+d'ouvrir un message réseau de plus à chaque fois.
 Une consigne répétée vingt fois par seconde ne serait plus une consigne. La
 simulation empile dans `state.alerts`, le serveur vide après chaque tick — elle
 ne connaît toujours pas le réseau.
@@ -2152,6 +3151,12 @@ information que le client ne peut pas déduire — les projectiles ne transporte
 pas leur propriétaire, donc personne ne peut savoir localement quels dégâts sont
 les siens. Chaque client n'y lit que sa propre ligne. Absente hors combat de
 boss, c'est-à-dire l'essentiel d'une manche.
+
+Le **biome**, lui, ne passe pas du tout par le snapshot : deux nombres dans le
+message `lobby` — l'index du lieu et une graine — suffisent au client pour
+régénérer la géométrie entière, et l'état de chaque danger se déduit du temps de
+manche que l'instantané porte déjà. Seule la clé `ob` circule, et seulement
+lorsqu'une couverture destructible a été entamée.
 
 Les snapshots sont sérialisés en tableaux de nombres plutôt qu'en objets nommés,
 ce qui divise leur poids par trois environ. **Ces tableaux sont positionnels :
@@ -2321,6 +3326,69 @@ où le pool d'avant en servait : c'est l'effet secondaire attendu d'un catalogue
 passé de 77 à 106 cartes. **Mesure prise à 106 cartes** — le catalogue en compte
 116 depuis, et l'effet ne peut qu'avoir grandi. Le chiffre n'est pas mis à jour
 ici : une mesure se remesure, elle ne se réécrit pas.
+
+### Les trois modes, mesurés séparément
+
+C'est le lot où la mesure par mode devient **obligatoire** : depuis que la
+difficulté n'est plus un facteur d'échelle, elle ne se déduit plus d'un
+multiplicateur.
+
+Protocole : quatre joueurs, **immortels**, 300 s de horde à segment fixe,
+niveau 20 (bestiaire complet déverrouillé), compte neuf. Le bot est le même dans
+les trois modes — il vise le plus proche, s'écarte de la masse et esquive dès que
+la recharge est prête. Ce n'est pas un joueur ; l'écart entre modes est la mesure,
+la valeur absolue ne l'est pas. Les joueurs sont immortels parce qu'avec un bot
+les trois modes meurent au **même mur** — le premier boss, qui est identique
+partout — et la survie brute ne mesurait alors que ce mur.
+
+| segment | mode | population moyenne | dégâts subis / min | CPU moyen | p99 |
+|---|---|---|---|---|---|
+| 1 | calme | 11 | 58 | 0,006 ms | 0,033 ms |
+| 1 | normal | 66 | 1 944 | 0,023 ms | 0,116 ms |
+| 1 | cauchemar | 130 | 1 415 | 0,062 ms | 0,201 ms |
+| 3 | calme | 175 | 698 | 0,058 ms | 0,143 ms |
+| 3 | normal | 183 | 2 019 | 0,075 ms | 0,178 ms |
+| 3 | cauchemar | 189 | 2 688 | 0,095 ms | 0,211 ms |
+| 5 | calme | 187 | 1 177 | 0,062 ms | 0,148 ms |
+| 5 | normal | 191 | 2 754 | 0,074 ms | 0,169 ms |
+| 5 | cauchemar | 194 | 3 033 | 0,085 ms | 0,190 ms |
+
+Quatre lectures, dont deux sont des avertissements.
+
+**Les modes se séparent au segment 1 et se rejoignent après.** 11 / 66 / 130 en
+population au segment 1, puis 187 / 191 / 194 au segment 5 : la population sature
+contre `MAX_ENEMIES` dans les trois modes dès qu'on ne meurt pas. C'est une limite
+du protocole — des bots immortels ne tuent pas assez — et pas un défaut des modes,
+mais elle dit quelque chose de vrai : **c'est le début de manche qui porte
+l'identité du mode**, la fin les rapproche mécaniquement par le plafond.
+
+**Les dégâts subis se classent correctement à partir du segment 3** (698 / 2 019 /
+2 688, puis 1 177 / 2 754 / 3 033) mais **pas au segment 1**, où cauchemar (1 415)
+passe sous normal (1 944). Ce n'est pas une erreur de mesure : en cauchemar les
+quotas font entrer des medics et des choeurs, qui n'infligent rien eux-mêmes et
+prennent la place de types qui frappent — et l'aura du choeur allonge la durée de
+vie de tout le paquet, donc réduit le nombre de kamikazes qui arrivent au bout de
+leur course. Un mode plus dur qui fait *moins* mal la première minute est un
+résultat contre-intuitif à surveiller au lot X ; il n'est pas absurde — un mur qui
+ne se perce pas est une autre façon d'être dur.
+
+**La part de zone reste quasi nulle partout** (0,3 % au mieux) alors que les
+traînées de cauchemar plafonnent bien à 18 zones. Deux causes : un bot qui kite en
+permanence est précisément le joueur qui ne met jamais le pied dans une flaque, et
+surtout **le biome n'existe pas encore** — c'est le lot V qui porte la promesse
+« le sol participe ». La cible du plan (« cauchemar doit montrer une part de zone
+nettement plus élevée ») n'est donc pas atteignable à ce lot, et c'est attendu.
+
+**Le coût CPU reste très en dessous du budget** : 0,095 ms de moyenne et 0,211 ms
+de p99 dans le pire cas mesuré, contre 1 ms et 8 ms de budget. Les neuf types, les
+six traits et les trois profils ne coûtent rien.
+
+Mesure complémentaire, joueurs **mortels** cette fois, cinq essais par mode, à
+quatre : survie médiane **307 s** en calme, **298 s** en normal, **236 s** en
+cauchemar, soit un facteur **1,30**. Sous la cible de 1,5 à 2,5 — mais les trois
+médianes tombent au même endroit, l'arrivée du premier boss à 300 s, ce qui
+signifie que la mesure est saturée par le mur du boss et non par le mode. À
+refaire au lot X avec un pilote capable de passer un boss.
 
 ### Vagues et progression
 

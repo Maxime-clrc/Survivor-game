@@ -41,6 +41,54 @@ export const SURFACE = {
   shadow:   "#000000",
 };
 
+/* --- DECOR PAR DIFFICULTE (lot T) ------------------------------------------
+   Le joueur doit comprendre IMMEDIATEMENT ou il se trouve. Une variante par
+   mode, ici et jamais ailleurs — « une couleur en dur dans `client.js` ou dans
+   une feuille de style est un bug », et `cssVars()` la pousse sur `:root`.
+
+   LA REGLE QUI CONTRAINT TOUT LE RESTE : la difficulte ne change pas les
+   creatures, elle change LA MACHINE. Le contraste de la direction est conserve
+   sans exception — decor froid, precis, saturation sous 18 % ; creatures
+   chaudes, organiques, saturees. Teinter les monstres en cauchemar detruirait la
+   seule chose qui les rend lisibles a deux cents a l'ecran, et casserait au
+   passage l'identite par type.
+
+   Corollaire : ces trois variantes ne touchent QUE le sol, la grille et le
+   vignettage. Aucune ne reattribue un des six roles de la grammaire (cyan « il
+   faut y aller », ambre « sortir », rouge « letal », blanc « un allie », violet
+   « persistant », vert « gain ») — une seule exception et le joueur cesse de
+   faire confiance au code couleur, donc lit tout au cas par cas.
+
+   `skip` : une ligne de grille fine sur N est ETEINTE en cauchemar. C'est
+   visuel et jamais un trou dans la graduation — la grille reste graduee en
+   metres dans les trois modes, sinon « rayon 6 m » cesse de vouloir dire quelque
+   chose a l'ecran, ce qui est sa seule raison d'exister.
+
+   TABLEAU ORDONNE, index = celui de `DIFFICULTIES`. */
+export const DECOR = [
+  {
+    // Calme — ardoise franchement froide, grille reguliere, vignettage leger.
+    // Rien ne distrait : c'est le mode qui enseigne a lire l'espace.
+    arena: "#0e1219", gridFine: "#171d28", gridMajor: "#232c3d",
+    vignette: 0.40, vignetteFrom: 0.46, skip: 0, pulse: 0,
+  },
+  {
+    // Normal — la reference. C'est l'arene que le depot a toujours eue.
+    arena: SURFACE.arena, gridFine: SURFACE.gridFine, gridMajor: SURFACE.gridMajor,
+    vignette: 0.55, vignetteFrom: 0.42, skip: 0, pulse: 0,
+  },
+  {
+    /* Cauchemar — l'ardoise vire au brun, la grille perd une ligne sur trois et
+       le vignettage pulse lentement. La machine est abimee, et c'est le seul
+       endroit ou on a le droit de le dire : le sol PARTICIPE dans ce mode, il
+       doit en avoir l'air avant meme la premiere trainee. */
+    arena: "#130f10", gridFine: "#1f1a19", gridMajor: "#2e2624",
+    vignette: 0.68, vignetteFrom: 0.34, skip: 3, pulse: 0.06,
+  },
+];
+
+export function decorAt(diffIndex) { return DECOR[diffIndex] ?? DECOR[1]; }
+
 /* --- texte ---------------------------------------------------------------- */
 export const TEXT = {
   base:  "#e9edf5",
@@ -190,12 +238,33 @@ export const COMBAT = {
    (ombre, base, lumiere, accent, contour) sont derivees par `ramp()`. Ecrire
    les cinq a la main pour cinq types, c'etait vingt-cinq valeurs a garder
    coherentes — et un decalage de teinte dans l'ombre qu'on finit par oublier. */
-export const ENEMY = {
-  TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899"],
+/* Les QUATRE teintes du lot S sont ajoutees EN FIN, comme les types eux-memes.
+   Elles ont ete choisies contre les cinq existantes et non dans l'absolu : la
+   gamme chaude (cramoisi, orange, lie-de-vin, violet, rose) etait pleine, et une
+   sixieme creature chaude aurait ete la sixieme tache rouge d'un ecran qui en
+   compte deja deux cents.
 
-  // Rang d'elite : or. Retardataire : halo froid — il ne se defend pas, il fuit.
+     kamikaze — vert acide. Instable, toxique, et surtout la SEULE teinte du jeu
+       qui ne ressemble a rien d'autre : c'est le type qu'il ne faut pas laisser
+       arriver au contact, il doit se voir arriver.
+     bulwark  — ocre brule. Meme famille que l'orange du runner mais deux crans
+       plus sombre et desature : la masse recule visuellement, comme le
+       lie-de-vin du tank.
+     medic    — jade. La seule creature FROIDE du bestiaire, et c'est assume :
+       c'est le type dont le reperage instantane dans une melee chaude est toute
+       la mecanique. Deliberement PAS le vert `HEAL` (#34d399), qui veut dire
+       « ceci te soigne » — celui-la soigne quelqu'un d'autre.
+     choeur   — indigo profond. Voisin du violet du tireur en teinte, tres loin
+       en valeur et en saturation ; le tireur est clair et vif, le choeur sombre
+       et dense. */
+export const ENEMY = {
+  TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899",
+         "#84cc16", "#a16207", "#2dd4bf", "#4f46e5"],
+
+  // Rang d'elite : or. Le halo froid des retardataires a disparu avec eux —
+  // ils n'existaient que pour rendre traquables les derniers fuyards d'un
+  // nettoyage de vague, et il n'y a plus de vague a nettoyer.
   elite:      "#ffd76e",
-  straggler:  "#7fd8e8",
   base:       "#e05263",   // teinte de repli d'un type inconnu
 };
 
@@ -218,6 +287,35 @@ export const ZONE = {
 /* Murs de verrouillage. Ils BLOQUENT et ne blessent pas : d'ou une teinte
    franchement etrangere a tout ce qui explose. */
 export const WALL = { fill: "#7896ff", edge: "#aac3ff" };
+
+/* --- BIOME (lot V) ---------------------------------------------------------
+   Deux familles, et la separation est la meme que celle de `WALL` ci-dessus :
+   ce qui BLOQUE et ce qui BLESSE ne partagent pas une couleur.
+
+   Un OBSTACLE est de la matiere : gris de machine, franchement etranger a tout
+   ce qui explose et distinct du bleu du verrouillage — celui-la est temporaire
+   et pose par un boss, celui-ci fait partie de la carte. Un mur DESTRUCTIBLE
+   reste un mur : il ne devient pas ambre parce qu'on peut le casser, un lisere
+   suffit a dire qu'il cede.
+
+   Un DANGER suit la grammaire fonctionnelle et rien d'autre : ambre pour ce
+   dont il faut sortir, violet pour ce qui persiste. Il n'a PAS le rouge des
+   zones de boss, et c'est le point le plus important de la table — le canal du
+   telegraphe instantane appartient au boss et ne se partage pas. Un danger
+   d'environnement est du SOL, pas une annonce.
+
+   Le champ de ralentissement ne blesse pas : il est cyan-gris, la seule teinte
+   de la table qui ne dise pas « sortir ». */
+export const BIOME = {
+  block:     "#5b6472",   // obstacle plein
+  blockEdge: "#8b96a8",   // son arete, cote lumiere
+  cover:     "#6d6152",   // couverture destructible : la meme matiere, plus tiede
+  coverEdge: "#c9a86a",   // son lisere — c'est lui qui dit « ca cede »
+  hazard:    "#e8912f",   // danger actif : l'ambre de la grammaire
+  hazardIdle:"#6a5334",   // sa geometrie PERMANENTE, eteinte
+  slow:      "#7fa8b8",   // champ de ralentissement : il ne blesse pas
+  slip:      "#8fb6c9",   // sol glissant
+};
 
 /* --- boss ------------------------------------------------------------------
    Le boss garde sa propre gamme de rouges : c'est la seule entite du jeu assez
@@ -276,6 +374,16 @@ export const BOSS_SKIN = [
   // bleu de l'Entrave (`twin` ci-dessus) : la couleur dit lequel on vient de
   // toucher, donc comment ne pas cumuler les deux etats par accident.
   { skin: "#ff8a3d", dark: "#8a3c05", edge: "#4d2103", bar: "#ffb782", deep: "#7a3604" },
+  /* Amalgame — le boss final (lot W). PAS une sixieme teinte du meme genre : un
+     blanc-os presque desature, la seule creature du jeu qui ne porte aucune
+     couleur franche. C'est ce qui le distingue le mieux des cinq, parce qu'il
+     est fait d'eux : leur donner une sixieme teinte vive l'aurait aligne avec
+     eux au lieu de le poser au-dessus.
+
+     Et c'est le seul boss dont la teinte ne peut pas mentir sur son verbe : il
+     n'a pas de gamme a lui, il prend celle des autres — la barre en garde une
+     lueur froide pour rester distincte de tout le HUD. */
+  { skin: "#e8e4dc", dark: "#6f6a63", edge: "#2f2c28", bar: "#f4f1ea", deep: "#5b5750" },
 ];
 
 /* --- bonus au sol ----------------------------------------------------------
@@ -495,10 +603,17 @@ export function ramp(hex) {
    traduction de la table ci-dessus vers le DOM, et le seul sens autorise :
    recopier ces valeurs dans une feuille de style les ferait diverger a la
    premiere retouche. */
-export function cssVars() {
+/* `diffIndex` (lot T) : le DECOR seul en depend — sol, grille, vignettage. Tout
+   le reste de la table est identique dans les trois modes, et c'est un critere
+   d'acceptation : la grammaire fonctionnelle, les raretes, les classes et les
+   teintes de creature ne bougent pas d'un mode a l'autre. Par defaut normal,
+   pour que l'appel du chargement — qui a lieu AVANT qu'on sache dans quelle
+   salle on va entrer — rende exactement l'ancienne palette. */
+export function cssVars(diffIndex = 1) {
+  const D = decorAt(diffIndex);
   return {
     "--bg-void":   SURFACE.void,
-    "--bg-arena":  SURFACE.arena,
+    "--bg-arena":  D.arena,
     "--bg-panel":  SURFACE.panel,
     "--bg-raised": SURFACE.raised,
     "--line":      SURFACE.line,

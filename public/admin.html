@@ -222,7 +222,7 @@
       tr.insertCell().textContent = `« ${s.nom} »`;
       tr.insertCell().textContent = `${s.joueurs}/${s.max}`;
       tr.insertCell().textContent = (PHASES[s.phase] ?? s.phase)
-        + (s.phase === 1 ? ` (manche ${s.manche}, vague ${s.vague})` : "");
+        + (s.phase === 1 ? ` (manche ${s.manche}, segment ${s.vague})` : "");
     }
   }
 

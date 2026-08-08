@@ -377,6 +377,47 @@ export const SRC_ICON = [
     g.bezierCurveTo(-4, 5.4, -4.4, -1, 0, -6.4);
     g.closePath(); g.fill();
   },
+  /* Explosion (lot S). Une etoile a huit branches inegales — c'est la seule
+     forme du registre dont le contour part dans toutes les directions, et elle
+     se distingue du disque a plat de la zone au sol, qui est justement la
+     provenance avec laquelle on risquait de la confondre. Les branches sont
+     inegales et TOUJOURS les memes : une etoile reguliere se lit comme un
+     symbole, une etoile irreguliere comme un eclatement. */
+  g => {
+    // Huit pointes, donc SEIZE sommets : une pointe et un creux en alternance.
+    // Sans les creux, les rayons inegaux ne donnent qu'un polygone bosselé.
+    const tips = [6.9, 5.6, 7.2, 5.9, 6.6, 5.4, 7, 6];
+    g.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 - Math.PI / 2;
+      const r = i % 2 === 0 ? tips[i / 2] : 2.6;
+      const px = Math.cos(a) * r, py = Math.sin(a) * r;
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+    g.closePath(); g.fill();
+  },
+  /* Environnement (lot V). Un JET qui monte entre deux levres — la bouche du
+     geyser vue de cote. C'est la seule forme du registre qui pointe VERS LE
+     HAUT, et c'est ce qui la separe du disque a plat de la zone au sol, la
+     provenance avec laquelle on la confondrait sinon : l'une est une flaque
+     posee par un boss, l'autre fait partie de la carte et sera encore la au
+     meme endroit dans dix minutes. La conduite a tenir differe, donc le glyphe
+     aussi. */
+  g => {
+    g.lineWidth = 2; g.lineCap = "round";
+    // Les deux levres, en bas : c'est la geometrie PERMANENTE, celle qu'on
+    // apprend a reconnaitre au sol.
+    g.beginPath();
+    g.moveTo(-6.5, 5.5); g.lineTo(-3, 2.5);
+    g.moveTo(6.5, 5.5); g.lineTo(3, 2.5);
+    g.stroke();
+    // Le jet, en trois traits qui s'ecartent vers le haut.
+    g.beginPath();
+    g.moveTo(0, 4); g.lineTo(0, -6.5);
+    g.moveTo(-2.6, 1.5); g.lineTo(-4, -4.5);
+    g.moveTo(2.6, 1.5); g.lineTo(4, -4.5);
+    g.stroke();
+  },
 ];
 
 /* Pose un glyphe centre sur (x, y) dans le contexte fourni. Point de passage

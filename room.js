@@ -19,7 +19,9 @@
    C'est aussi ce qui rend une salle testable sans serveur ni base.
    =========================================================================== */
 
-import { GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL } from "./shared/game_state.js";
+import {
+  GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL, BIOMES,
+} from "./shared/game_state.js";
 import { CARD_CFG, cardBrief } from "./shared/cards.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
 import { lockedCards } from "./shared/progression.js";
@@ -63,7 +65,14 @@ export class Room {
     this.emptySince = 0;             // 0 = occupee ; sinon Date.now() du dernier depart
 
     this.phase = PHASE_LOBBY;
-    this.state = new GameState();
+    /* BIOME ET GRAINE (lot V). Tires AVANT la manche et non pendant : le salon
+       les annonce, et un salon qui annoncerait un biome que `startRound`
+       retirerait ensuite mentirait sur la seule information qu'il donne. Ils se
+       retirent a la fin de chaque manche — deux manches de suite dans la meme
+       usine seraient deux fois la meme partie, alors que le biome est justement
+       ce qui les distingue. */
+    this.drawBiome();
+    this.state = new GameState(DIFF_NORMAL, this.biomeIndex, this.seed);
     this.roundNumber = 0;
     this.hostId = 0;
 
@@ -281,6 +290,13 @@ export class Room {
     for (const c of this.clients.values()) c.clsLocked = false;
   }
 
+  // Le biome de la PROCHAINE manche. Deux nombres, et c'est tout ce que le lot V
+  // coute au reseau : le client en regenere la geometrie entiere.
+  drawBiome() {
+    this.biomeIndex = Math.floor(Math.random() * BIOMES.length);
+    this.seed = Math.floor(Math.random() * 0x7fffffff);
+  }
+
   lobbyPayload() {
     /* Recalcul AVANT la diffusion, et c'est le point de passage qui rend le
        reste inutile : le salon est rediffuse a chaque changement — arrivee,
@@ -299,6 +315,28 @@ export class Room {
       difficulty: vote.index,
       tally: vote.tally,
       modes: DIFFICULTIES.map(d => d.label),
+      /* La VARIANTE DE SCRIPT retenue (lot T). Le client la connait deja par
+         `DIFFICULTIES[difficulty].script` — il importe la meme table — mais elle
+         voyage quand meme : c'est le serveur qui decide de la manche, et le jour
+         ou une variante se tirera au hasard (A/B/C) le champ sera deja la et le
+         client n'aura rien a changer. Un nom et non un index : la table des
+         variantes n'est pas un tableau ordonne dont l'index circule. */
+      script: DIFFICULTIES[vote.index]?.script ?? "normal",
+      /* LE BIOME ET SA GRAINE (lot V). Deux nombres, envoyes une fois — c'est
+         TOUT ce que le lot coute au reseau : le client en regenere la geometrie
+         a l'identique (`buildBiome`, module pur, meme generateur des deux cotes)
+         et deduit l'etat des dangers du temps de manche, deja present dans le
+         snapshot. Meme raisonnement que les traits du lot S, sans meme
+         l'exception de l'anticipation de ruee.
+
+         Ils accompagnent le salon et non le message `round` : le salon est
+         rediffuse a toute arrivee, donc un joueur qui rejoint EN COURS DE MANCHE
+         recoit la geometrie sans qu'on ait a la lui renvoyer a part. Ils sont
+         portes par la SALLE et non par `state` — un `null` avant la premiere
+         manche dirait qu'il n'y a pas encore de biome, ce qui est faux : il y en
+         a un des la construction, il n'est simplement pas encore joue. */
+      biome: this.biomeIndex,
+      seed: this.seed,
       players: this.joined().map(c => ({
         id: c.id,
         name: c.name,
@@ -379,8 +417,11 @@ export class Room {
       c.conn.send(JSON.stringify({
         t: "cards",
         reroll: c.profile?.confort.includes("relance") && !c.rerollUsed ? 1 : 0,
-        wave: this.state.wave,
-        bossWave: this.state.waveBoss ? 1 : 0,
+        // Tout ecran de choix suit desormais un boss : c'est la seule
+        // interruption de la horde. `bossWave` reste dans le message parce que
+        // le titre client s'en sert, il ne vaut simplement plus jamais 0.
+        segment: this.state.segment,
+        bossWave: 1,
         boss: this.state.bossCount,
         bossKind: this.state.lastBossKind,
         more: this.state.pendingLevels,
@@ -390,7 +431,7 @@ export class Room {
       }));
     }
     this.broadcast({ t: "cardsWait", pending: this.cardsPendingIds() });
-    this.hooks.log(`[${this.code}] vague ${this.state.wave} terminée — choix de cartes`
+    this.hooks.log(`[${this.code}] segment ${this.state.segment - 1} terminé — choix de cartes`
       + ` (niveau ${this.state.level}`
       + `${this.state.pendingLevels > 0 ? `, ${this.state.pendingLevels} autre(s) à suivre` : ""})`);
   }
@@ -425,7 +466,7 @@ export class Room {
     this.roundNumber++;
     this.setPaused(false);
     const diff = this.votedDifficulty().index;
-    this.state = new GameState(diff);
+    this.state = new GameState(diff, this.biomeIndex, this.seed);
     this.cardPicked.clear();
     /* Les classes non choisies retombent sur le tireur AVANT l'attribution des
        couleurs, et l'attribution avant `addPlayer` : elle depend de la classe,
@@ -481,6 +522,7 @@ export class Room {
     this.phase = PHASE_LOBBY;
     this.setPaused(false);
     this.unlockClasses();
+    this.drawBiome();
     this.hooks.log(`[${this.code}] manche ${this.roundNumber} interrompue — plus aucun joueur en jeu`);
     this.broadcast({ t: "roundAbort", round: this.roundNumber });
     this.broadcast(this.lobbyPayload());
@@ -491,6 +533,10 @@ export class Room {
     this.phase = PHASE_LOBBY;
     this.setPaused(false);
     this.unlockClasses();
+    // Le biome de la manche SUIVANTE se tire ici, avant la diffusion du salon :
+    // c'est lui que l'ecran de salon doit annoncer, pas celui qu'on vient de
+    // finir. `abortRound` fait de meme.
+    this.drawBiome();
     /* Les noyaux se versent AVANT le tableau : `scoreboardRows` lit `lastGain`
        pour afficher le gain de chacun. C'est le hub qui ecrit — la salle emet
        l'evenement, la persistance ne la concerne pas. */
@@ -507,7 +553,26 @@ export class Room {
     this.broadcast({
       t: "roundEnd",
       round: this.roundNumber,
-      wave: this.state.wave,
+      segment: this.state.segment,
+      // Le NIVEAU atteint est desormais le resultat qui distingue deux manches :
+      // le segment est le meme pour tout le monde par construction, le niveau
+      // se gagne. Il paie la monnaie et il titre le bilan.
+      level: this.state.level,
+      // Une manche peut desormais se GAGNER : six segments, six boss. Le bilan
+      // ne peut pas le deduire — un segment 6 atteint et un script termine se
+      // ressemblent — donc le drapeau voyage.
+      victory: this.state.victory ? 1 : 0,
+      /* Le biome JOUE, et non celui que le salon vient de tirer pour la manche
+         suivante. Sans lui, deux temps ne sont pas comparables — c'est la seule
+         raison pour laquelle il figure au bilan, et c'est ce que le lot X
+         enregistrera avec le score. */
+      biome: this.state.biomeIndex,
+      /* Duree du COMBAT FINAL seul (lot W), 0 s'il n'a pas ete vaincu. C'est le
+         chiffre qui se classe : le temps pour ATTEINDRE le boss final est une
+         constante sous D1 — 1800 s de horde plus les cinq combats — donc il ne
+         distinguerait aucune equipe. Le bilan l'affiche pour la meme raison
+         qu'il affiche la victoire : il ne se deduit d'aucun autre champ. */
+      finalKill: this.state.finalKill,
       time: Math.round(this.state.time),
       kills: this.state.totalKills,
       host: this.hostId,
@@ -626,8 +691,8 @@ export class Room {
         client.conn.send(JSON.stringify({
           t: "cards",
           reroll: 0,
-          wave: this.state.wave,
-          bossWave: this.state.waveBoss ? 1 : 0,
+          segment: this.state.segment,
+          bossWave: 1,
           boss: this.state.bossCount,
           bossKind: this.state.lastBossKind,
           more: this.state.pendingLevels,

@@ -32,7 +32,15 @@ export const PROG_CFG = {
   /* 3 : comptes pseudo+mot de passe, une ligne Supabase par compte — le
      profil ne porte plus de champ `code` (l'authentification vit dans les
      colonnes de la table, jamais dans le jsonb de progression). */
-  VERSION: 3,
+  /* 4 : la vague n'existe plus. Les jalons et la monnaie s'indexent sur le
+     NIVEAU d'equipe, et `best` porte `level` et `segment` a cote de l'ancien
+     `wave`. La migration se fait par ligne, dans `progress_store.js` ; une
+     ligne de version inconnue reste GELEE, jamais adoptee en silence. */
+  /* 5 : le boss final (lot W). `bestFinalRun` s'ajoute au profil. La migration
+     est la plus simple de toutes — un champ neuf a `null` — mais elle DOIT
+     exister quand meme : sans elle, une ligne de version 4 serait gelee, donc un
+     pseudo indisponible, pour l'ajout d'un champ vide. */
+  VERSION: 5,
 
   /* Emplacements. On debloque definitivement, on equipe partiellement : c'est
      ce qui distingue ce systeme d'une simple echelle — apres cent parties, la
@@ -45,16 +53,29 @@ export const PROG_CFG = {
   TIER_COSTS: [150, 260, 420, 650, 1000],
 
   /* La monnaie : les NOYAUX, extraits des creatures. Jamais sur les kills
-     individuels — vague atteinte et boss vaincus, verses a parts egales. */
-  CORE_WAVE: 4,              // par vague atteinte : 4 x numero de la vague
+     individuels — NIVEAU atteint et boss vaincus, verses a parts egales.
+
+     C'etait la vague atteinte, qui ne veut plus rien dire : toutes les equipes
+     voient la meme horde et le meme nombre de segments. Le niveau, lui, se
+     GAGNE — c'est tout l'objet du lot Q — donc il paie ce qu'il mesure. Les
+     seuils suivent la nouvelle courbe (22 a 26 niveaux sur une manche
+     complete) au lieu des vagues 5 a 20. */
+  CORE_LEVEL: 4,             // par niveau atteint : 4 x niveau
   CORE_BOSS: 120,
-  CORE_FIRST_WAVES: { 5: 200, 10: 400, 15: 800, 20: 1500 },
+  CORE_FIRST_LEVELS: { 6: 200, 12: 400, 18: 800, 24: 1500 },
   CORE_FIRST_BOSS: 300,
+  /* Premiere victoire sur le BOSS FINAL (lot W). Trois fois le bonus d'un boss
+     ordinaire, et c'est la seule recompense de puissance de l'evenement : les
+     cartes, elles, passent par le JALON. Le depot separe les deux depuis
+     toujours — « les cartes se debloquent par JALONS, pas par monnaie ; deux
+     systemes qui puiseraient dans la meme bourse feraient acheter la puissance
+     d'abord et ne montrer les nouvelles cartes jamais ». */
+  CORE_FINAL_BOSS: 900,
   DIFF_MUL: [1, 1.35, 1.8],  // meme ordre que DIFFICULTIES
 
   /* Jalons de deblocage de cartes. */
   KILLS_MILESTONE: 500,      // kills cumules avec une meme classe
-  NO_DOWN_MIN_WAVE: 5,       // « sans etre mis a terre » ne vaut qu'a partir de la
+  NO_DOWN_MIN_LEVEL: 6,      // « sans etre mis a terre » ne vaut qu'a partir de la
 
   /* Le tronc de confort : non-puissance, coût fixe, ne consomme AUCUN
      emplacement. */
@@ -159,7 +180,7 @@ export const CONFORT = [
   { id: "quatrieme", nom: "Quatrième offre",
     desc: "quatre cartes proposées au lieu de trois" },
   { id: "ravitaillement", nom: "Ravitaillement initial",
-    desc: "un bonus au sol dès la vague 1" },
+    desc: "un bonus au sol dès le début de la manche" },
 ];
 
 /* --- application des paliers equipes -------------------------------------------
@@ -224,18 +245,42 @@ const conditionnelles = CARDS
   .filter(c => c.applyAfter && c.rarity !== RARITY.LEGENDAIRE && !c.remplaceArme)
   .map(c => c.id);
 
-// Les legendaires se repartissent sur les cinq boss, en tourniquet : chaque
-// premiere victoire en libere deux ou trois, et l'ordre des combats n'a pas
-// d'importance.
-const legendairesDuBoss = i => legendaires.filter((_, k) => k % BOSS_ROSTER.length === i);
+/* Les legendaires se repartissent sur les cinq boss INTERMEDIAIRES, en
+   tourniquet : chaque premiere victoire en libere deux ou trois, et l'ordre des
+   combats n'a pas d'importance.
+
+   Le diviseur est GELE a cinq et ne suit pas `BOSS_ROSTER.length`, qui vaut six
+   depuis le lot W. Ce n'est pas une commodite : le partage decide quelles cartes
+   un compte a deja debloquees, et passer de cinq a six paquets aurait REVERROUILLE
+   des cartes chez tout le monde — un compte qui avait battu les boss 0, 1 et 2
+   detenait les paquets 0, 1, 2 d'un partage en cinq, qui ne sont pas les paquets
+   0, 1, 2 d'un partage en six. Une table de deblocage ne se reordonne pas plus
+   qu'un tableau dont l'index circule. */
+const LEGENDARY_SPLIT = 5;
+const legendairesDuBoss = i => legendaires.filter((_, k) => k % LEGENDARY_SPLIT === i);
 
 export const MILESTONES = [
-  { id: "vague8", label: "atteindre la vague 8", unlocks: conditionnelles },
+  // L'identifiant a change avec l'unite (« vague8 » -> « niveau10 ») : la
+  // migration de version 4 le reecrit dans les profils, sinon un compte qui
+  // avait deja le jalon perdait ses cartes conditionnelles.
+  { id: "niveau10", label: "atteindre le niveau 10", unlocks: conditionnelles },
+  /* Un jalon par boss, l'identifiant portant son INDEX de roster : `boss_5` est
+     donc le boss final depuis le lot W, et il arrive sans migration puisque
+     personne ne l'avait.
+
+     Sa recompense n'est pas un sixieme paquet de legendaires — il n'en reste
+     aucun, le partage est gele a cinq — mais LES DEUX PAQUETS D'ARMES d'un coup,
+     que `sans_chute` et `kills500` se partagent autrement. C'est cohérent avec ce
+     qu'il est : le seul accomplissement du jeu plus dur que les deux autres
+     reunis, et une troisieme route vers les memes cartes plutot qu'un quatrieme
+     lot a inventer. Aucun compte existant n'y perd quoi que ce soit — un jalon
+     n'ajoute que des deblocages. */
   ...BOSS_ROSTER.map((b, i) => ({
-    id: `boss_${i}`, label: `vaincre ${b.nom}`, unlocks: legendairesDuBoss(i),
+    id: `boss_${i}`, label: `vaincre ${b.nom}`,
+    unlocks: i < LEGENDARY_SPLIT ? legendairesDuBoss(i) : armes,
   })),
   { id: "sans_chute",
-    label: `terminer une manche (vague ${PROG_CFG.NO_DOWN_MIN_WAVE}+) sans être mis à terre`,
+    label: `terminer une manche (niveau ${PROG_CFG.NO_DOWN_MIN_LEVEL}+) sans être mis à terre`,
     unlocks: armes.filter((_, k) => k % 2 === 0) },
   { id: "kills500",
     label: `tuer ${PROG_CFG.KILLS_MILESTONE} ennemis avec une même classe`,
@@ -257,18 +302,18 @@ export function lockedCards(milestonesDone = []) {
 
 /* --- monnaie --------------------------------------------------------------------
 
-   La somme des vagues est fermee : Σ 4w pour w = 1..W vaut 2 W (W+1). Verse a
+   La somme des niveaux est fermee : Σ 4n pour n = 1..N vaut 2 N (N+1). Verse a
    parts EGALES : la fonction ne prend rien d'individuel, et c'est voulu. */
-export function coresForRun(wave, bossKills, diffIndex) {
-  const base = PROG_CFG.CORE_WAVE * wave * (wave + 1) / 2
+export function coresForRun(level, bossKills, diffIndex) {
+  const base = PROG_CFG.CORE_LEVEL * level * (level + 1) / 2
     + PROG_CFG.CORE_BOSS * bossKills;
   return Math.round(base * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1));
 }
 
-// Part d'un joueur qui quitte en cours de manche : les vagues jouees, rien
+// Part d'un joueur qui quitte en cours de manche : les niveaux atteints, rien
 // d'autre — ni boss ni jalons, qui se constatent a la fin.
-export function coresPartial(wave, diffIndex) {
-  return Math.round(PROG_CFG.CORE_WAVE * wave * (wave + 1) / 2
+export function coresPartial(level, diffIndex) {
+  return Math.round(PROG_CFG.CORE_LEVEL * level * (level + 1) / 2
     * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1));
 }
 
@@ -283,7 +328,25 @@ export function newProfile(pseudo) {
     pseudo,
     cores: 0,
     runs: 0,
-    best: { wave: 0, score: 0 },
+    /* `wave` reste, VIDE de sens desormais mais jamais reecrit : c'est le
+       record historique du modele par vagues, et une mesure se remesure, elle
+       ne se convertit pas. Les deux nouvelles unites demarrent a zero. */
+    best: { wave: 0, level: 0, segment: 0, score: 0 },
+    /* MEILLEURE COURSE FINALE (lot W). Le temps enregistre est celui du COMBAT
+       FINAL SEUL et non celui pour l'atteindre : sous D1, atteindre le segment 6
+       coute 1800 s de horde plus la duree des cinq combats precedents, donc un
+       chiffre domine par une constante ou deux equipes tres differentes
+       afficheraient des temps voisins.
+
+       Les quatre derniers champs sont OBLIGATOIRES et c'est le cœur de
+       l'enregistrement : un temps n'est comparable qu'a variante, biome,
+       difficulte et effectif EGAUX. Sans eux, le classement compare des parties
+       qui n'ont rien a voir — c'est la preoccupation deja ecrite dans plan4,
+       « deux parties identiques en tout point peuvent avoir des temps
+       differents », et le lot X en fait un critere d'acceptation.
+       `null` tant que le boss final n'est pas tombé : un objet a zero se lirait
+       comme un record de zero seconde. */
+    bestFinalRun: null,
     milestones: [],
     kills: {},           // clsId -> kills cumules
     classes: {},         // clsId -> { tiers: { ligne -> palier }, equipped: [lignes] }

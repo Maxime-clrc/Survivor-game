@@ -30,6 +30,24 @@
    ce qu'on bumpe. Un fichier a part se serait desynchronise au deuxieme lot.
 
      0.7.0  lot O  numero de version affiche, detection d'onglet perime
+     0.7.1  lot P  segments et horloge : les vagues disparaissent au profit
+                   d'un script fixe de six segments de 300 s de horde
+     0.7.2  lot Q  l'experience vaut les PV detruits ; tout se reindexe sur le
+                   niveau d'equipe ; une carte garantie par boss (profil v4)
+     0.7.3  lot R  script strictement fixe (D2) : plus aucun scaling de
+                   puissance, plancher de barre de boss et enrage
+     0.7.4  lot S  bestiaire et traits : `shared/enemies.js`, neuf types,
+                   six traits attaches par difficulte, `adaptType`
+     0.7.5  lot T  profils de difficulte : script, roster, traits et decor par
+                   mode ; les multiplicateurs ne sont plus qu'un residu
+     0.7.6  lot U  evenements : une colonne du script, quatre familles, remise
+                   a plein a la reussite
+     0.7.7  lot V  environnement et biomes : `shared/biomes.js`, trois lieux,
+                   cinq dangers, meteo, couverture destructible — et RIEN sur le
+                   reseau, la geometrie se regenere des deux cotes
+     0.7.8  lot W  boss final : l'Amalgame, huit barres, synthese et sceau ;
+                   Oracle et Jumeaux ouverts au solo ; le plancher de barre tient
+                   jusqu'au bout et la banque se vide barre par barre
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -39,4 +57,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.7.0";
+export const VERSION = "0.7.8";

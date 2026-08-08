@@ -32,6 +32,38 @@ import {
 import {
   STATUSES, STATUS_VULN, STATUS_DOOM, statusBit,
 } from "/shared/statuses.js";
+/* Bestiaire et TRAITS (lot S). Le client importe la table et RECALCULE les
+   traits de chaque ennemi a partir de `(diffIndex, type)`, deux informations
+   qu'il a deja : c'est ce qui fait qu'un systeme de comportements entier ne
+   coute pas un octet de reseau. Meme regle que la cadence des tireurs, la
+   direction des projectiles et le deplacement d'un joueur — a la seule exception
+   de l'anticipation de ruee, qui ne se deduit pas d'une position. */
+import { TRAIT_CFG, hasTrait, TRAIT_AURA } from "/shared/enemies.js";
+/* `traitsOf` vient de `game_state.js` et non d'`enemies.js` : depuis le lot T,
+   l'attachement des traits est une ligne du PROFIL DE DIFFICULTE, et le profil
+   vit avec la simulation. `enemies.js` dit comment un trait fonctionne, le
+   profil dit qui l'a — et les deux endroits serait le bug. */
+import { traitsOf } from "/shared/game_state.js";
+/* `EVENTS` et `eventAt` (lot U). Le snapshot ne transporte qu'un INDEX et un
+   compte a rebours : le nom, le texte et le niveau d'alerte vivent dans la table
+   que le client importe, comme pour les mecaniques, les boss et les etats. */
+import { eventAt } from "/shared/timeline.js";
+/* BIOME (lot V). Le client REGENERE la geometrie entiere — obstacles, dangers —
+   a partir de `(biome, graine)`, deux nombres recus une fois dans le payload de
+   salon, et deduit l'etat de chaque danger du temps de manche que le snapshot
+   porte deja. C'est le meme raisonnement que les traits du lot S, sans meme
+   l'exception de l'anticipation de ruee : il ne circule RIEN d'autre que les PV
+   d'un mur destructible, qui ne se deduisent d'aucune horloge.
+
+   `hazardState` et `weatherFor` sont les points de passage uniques de cette
+   deduction, partages avec la simulation : deux implementations auraient diverge
+   au premier reglage de periode, et le desaccord serait reste invisible jusqu'a
+   ce qu'un joueur prenne des degats d'un geyser qu'il voit eteint. */
+import {
+  BIOME_CFG, buildBiome, hazardState, weatherFor, biomeAt, hazardAt, weatherAt,
+  HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
+  WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
+} from "/shared/game_state.js";
 /* Progression permanente (lot D). Le client importe les TABLES — arbres,
    couts, jalons — et ne recoit du serveur que l'etat du compte : deux copies
    des tables auraient diverge au premier reglage, exactement comme les
@@ -40,10 +72,10 @@ import {
   PROG_CFG, TREES, CONFORT, MILESTONES, slotsFor, tierCost,
 } from "/shared/progression.js";
 import {
-  BOSS_CFG, bossAt, mechAt, ALERT_ORDER, ALERT_WARN,
+  BOSS_CFG, bossAt, mechAt, ALERT_ORDER, ALERT_WARN, ALERT_INFO,
   MECH_STACK, MECH_SPREAD, MECH_TOWER, MECH_COUNT, MECH_LINK, MECH_JAIL,
-  MECH_CLUSTER, MECH_FEED, MECH_BAIT, MECH_SANCTUARY, MECH_PROX,
-  BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_JUMEAUX,
+  MECH_CLUSTER, MECH_FEED, MECH_BAIT, MECH_SANCTUARY, MECH_PROX, MECH_SEAL,
+  BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_JUMEAUX, BOSS_FINAL,
 } from "/shared/bosses.js";
 import {
   initAudio, playSound, setVolume, setMuted, getVolume, isMuted, audioStats,
@@ -52,6 +84,7 @@ import {
 /* La bande son vit dans son propre module, sur le modele d'audio.js : elle ne
    depend ni du DOM ni du reseau, et elle emprunte le contexte et le bus
    d'audio.js — la coupure et le volume globaux l'emportent donc toujours. */
+import { TL_CFG } from "/shared/timeline.js";
 import { startMusic, setMusicIntensity } from "/music.js";
 import { EventPump } from "/events.js";
 /* La grille du sol est graduee en METRES : c'est ce qui rend les distances des
@@ -91,17 +124,59 @@ import { createGL } from "/gl.js";
    `:root` par `applyPalette()` juste en dessous. */
 import {
   SURFACE, TEXT, SIGNAL, CLASS_COLOR, COMBAT, ENEMY, ZONE, WALL, BOSS, BOSS_SKIN,
-  POWERUP_COLOR, EFFECT_COLOR, OWNED, FX, MARK, HUD, CARD_CATEGORY_COLOR,
-  alpha, cssVars,
+  POWERUP_COLOR, EFFECT_COLOR, OWNED, FX, MARK, HUD, CARD_CATEGORY_COLOR, BIOME,
+  alpha, cssVars, decorAt,
 } from "/shared/palette.js";
 
 /* Les variables CSS viennent de `palette.js` et n'existent nulle part ailleurs :
    `tokens.css` ne contient aucune couleur, precisement pour qu'il n'y ait pas
    deux listes a tenir. Pose des le chargement du module, donc avant la premiere
    image et avant que le salon ne s'affiche. */
-function applyPalette() {
+/* `decor` est LE decor courant, relu par le fond d'arene, la grille et le
+   vignettage. Une variable et non une lecture de `DECOR[difficulty]` a chaque
+   image : le mode ne change qu'entre deux manches, et trois fonctions de dessin
+   qui refont l'indexation soixante fois par seconde finiraient par diverger le
+   jour ou l'une d'elles lira la mauvaise source. */
+let decor = decorAt(1);
+
+/* Declare ICI et non a cote de `drawVignette` : `applyPalette()` s'execute au
+   chargement du module, donc avant la ligne ou vivait ce `let` — et un `let`
+   lu avant sa declaration jette. Le degrade est mis en cache parce que le
+   reconstruire soixante fois par seconde se voit au profileur. */
+let vignette = null;
+
+/* --- BIOME (lot V) ---------------------------------------------------------
+   `biome` est la geometrie REGENEREE, jamais recue : `buildBiome` est le meme
+   module pur des deux cotes, appele avec les memes arguments. Une variable et
+   non un appel par image, exactement comme `decor` — la geometrie ne change
+   qu'entre deux manches, et une fonction de dessin qui la reconstruirait
+   soixante fois par seconde jetterait 200 objets par seconde pour rien.
+
+   `biomeSeed` et `biomeIndex` sont gardes a part : le salon les envoie AVANT
+   que la difficulte ne soit connue de la manche, et les trois ensemble decident
+   de ce qu'il y a au sol. */
+let biomeIndex = 0;
+let biomeSeed = 1;
+let biome = buildBiome(0, 1, 1, CFG.ARENA_W, CFG.ARENA_H);
+// Meteo courante, deduite de `(graine, segment)` comme le reste. `null` hors
+// cauchemar et un segment sur trois.
+let weather = null;
+let weatherSeg = 0;
+
+function rebuildBiome(diffIndex = 1) {
+  biome = buildBiome(biomeIndex, diffIndex, biomeSeed, CFG.ARENA_W, CFG.ARENA_H);
+  weather = null;
+  weatherSeg = 0;
+  vignette = null;
+}
+
+function applyPalette(diffIndex = 1) {
+  decor = decorAt(diffIndex);
   const root = document.documentElement.style;
-  for (const [k, v] of Object.entries(cssVars())) root.setProperty(k, v);
+  for (const [k, v] of Object.entries(cssVars(diffIndex))) root.setProperty(k, v);
+  // Le vignettage est un degrade MIS EN CACHE : sans cette remise a zero, le
+  // mode change partout sauf la ou il se voit le plus.
+  vignette = null;
 }
 applyPalette();
 
@@ -209,6 +284,7 @@ const startBtn = document.getElementById("start");
 const waitMsg = document.getElementById("waitMsg");
 const voteRow = document.getElementById("voteRow");
 const voteHint = document.getElementById("voteHint");
+const voteDetail = document.getElementById("voteDetail");
 const classRow = document.getElementById("classRow");
 const classHint = document.getElementById("classHint");
 const nameInput = document.getElementById("name");
@@ -277,6 +353,10 @@ let pendingRejoin = null;   // { code, name } propose par welcome apres recharge
 let joinAttempt = null;     // { code, name } de la derniere salle cliquee — pour l'encart mot de passe
 let lastResult = null;
 let difficulty = 1;        // mode retenu par le vote
+/* Set vide PARTAGE. La cle `wu` est absente neuf instantanes sur dix, et lui
+   allouer un Set neuf a chaque fois ferait travailler le ramasse-miettes vingt
+   fois par seconde pour un objet toujours vide. Jamais ecrit. */
+const EMPTY_SET = new Set();
 let tally = [0, 0, 0];
 let myVote = 1;
 
@@ -532,6 +612,19 @@ function connect() {
         roundNumber = msg.round;
         roomNameCur = msg.roomName ?? roomNameCur;
         difficulty = msg.difficulty ?? difficulty;
+        /* BIOME (lot V). Recu au salon et regenere ici : c'est tout ce que le
+           lot coute au reseau. Le salon est rediffuse a toute arrivee, donc un
+           joueur qui rejoint EN COURS DE MANCHE obtient la geometrie sans qu'on
+           ait a la lui renvoyer a part — c'est pour ca qu'elle voyage avec lui
+           plutot qu'avec le message `round`. */
+        if (msg.biome !== undefined) {
+          biomeIndex = msg.biome;
+          biomeSeed = msg.seed ?? biomeSeed;
+          // La difficulte du SALON et non celle de la manche en cours : au
+          // salon, c'est la seule qu'on ait, et `round` rejouera le calcul avec
+          // la bonne au lancement.
+          rebuildBiome(phase === PHASE_ROUND ? difficulty : msg.difficulty ?? difficulty);
+        }
         tally = msg.tally ?? tally;
         myVote = lobby.find(l => l.id === myId)?.vote ?? myVote;
         amSpectator = lobby.find(l => l.id === myId)?.spectator ?? false;
@@ -542,6 +635,15 @@ function connect() {
         pushWorld(() => {
           roundNumber = msg.round;
           difficulty = msg.difficulty ?? difficulty;
+          /* Le DECOR suit le mode (lot T). Applique ici et pas au salon : le
+             salon montre l'arene en fond, et la repeindre au fil des votes
+             ferait clignoter la page a chaque clic d'un coequipier. Le mode ne
+             devient une realite qu'au lancement. */
+          applyPalette(difficulty);
+          /* La geometrie se REGENERE avec la bonne difficulte : c'est elle qui
+             decide des dangers (aucun en calme, aucun qui blesse en normal), pas
+             le biome seul. Au salon on ne connaissait que le mode vote. */
+          rebuildBiome(difficulty);
           phase = PHASE_ROUND;
           amSpectator = false;
           lastResult = null;
@@ -633,7 +735,7 @@ function connect() {
       case "cards":
         pushWorld(() => {
           cardsState = {
-            wave: msg.wave, bossWave: msg.bossWave === 1, boss: msg.boss ?? 0,
+            segment: msg.segment ?? 0, bossWave: msg.bossWave === 1, boss: msg.boss ?? 0,
             bossKind: msg.bossKind ?? 0,
             level: msg.level, more: msg.more ?? 0,
             deadline: msg.deadline, offers: msg.offers,
@@ -1217,6 +1319,12 @@ function renderVote() {
       ws.send(JSON.stringify({ t: "vote", v: i }));
       renderVote();
     };
+    /* Le survol ne repeint QUE les trois lignes, jamais le selecteur : le
+       redessiner remplacerait le bouton sous le curseur par un bouton neuf,
+       donc rejouerait l'entree de pointeur sur un noeud qui vient d'apparaitre.
+       C'est la meme raison qui fait que le HUD n'ecrit que ce qui a change. */
+    btn.onpointerenter = () => { voteHover = i; renderVoteDetail(); };
+    btn.onpointerleave = () => { voteHover = null; renderVoteDetail(); };
     voteRow.appendChild(btn);
   });
 
@@ -1224,6 +1332,51 @@ function renderVote() {
   voteHint.textContent = lobby.length > 1
     ? `mode retenu : ${retenu} — à égalité, le plus doux l'emporte`
     : `mode retenu : ${retenu}`;
+
+  /* CE QUE LE MODE CHANGE, en trois lignes (lot T). Depuis que la difficulte
+     n'est plus quatre multiplicateurs mais un bestiaire, des traits et un sol,
+     un joueur qui vote sur le seul mot « cauchemar » vote a l'aveugle. Les trois
+     lignes viennent du PROFIL (`resume`) et non d'une table cote client : deux
+     descriptions du meme mode auraient diverge au premier reglage, et celle que
+     le joueur lit serait la fausse.
+
+     C'est le mode SURVOLE qui s'affiche, le retenu par defaut : comparer deux
+     modes demande de les lire l'un apres l'autre sans avoir a voter pour ca. */
+  renderVoteDetail();
+}
+
+/* Mode survole dans le selecteur, `null` quand la souris est ailleurs. Un etat
+   de module et non une classe CSS : les trois lignes sont du texte, pas un
+   style, et le survol doit les remplacer sans repeindre le reste du salon. */
+let voteHover = null;
+
+function renderVoteDetail() {
+  const i = voteHover ?? difficulty;
+  const detail = DIFFICULTIES[i]?.resume ?? [];
+  voteDetail.innerHTML = "";
+  voteDetail.classList.toggle("preview", voteHover !== null && voteHover !== difficulty);
+  for (const ligne of detail) {
+    const li = document.createElement("li");
+    li.textContent = ligne;
+    voteDetail.appendChild(li);
+  }
+  /* LE BIOME DE LA PROCHAINE MANCHE (lot V), en derniere ligne du resume de
+     mode. Il y est parce que c'est la difficulte qui decide de ce qu'il fait :
+     la GEOMETRIE est la meme dans les trois modes — un joueur qui connait
+     l'usine en calme la reconnait en cauchemar, c'est ce qui rend la montee en
+     difficulte apprenable — et seuls les dangers changent. Les deux
+     informations se lisent donc ensemble ou pas du tout.
+
+     Il suit le survol de mode comme le reste du resume : passer la souris sur
+     « cauchemar » montre ce que le meme lieu y devient. */
+  const b = biomeAt(biomeIndex);
+  const li = document.createElement("li");
+  li.textContent = i === 0
+    ? `${b.nom} — ${b.resume} · aucun danger`
+    : i === 1
+      ? `${b.nom} — ${b.resume} · rien qui blesse`
+      : `${b.nom} — ${b.resume} · dangers actifs et météo`;
+  voteDetail.appendChild(li);
 }
 
 /* Choix de classe. Les emplacements uniques deja pris sont grises : le serveur
@@ -1541,15 +1694,23 @@ function showBilan(res) {
   bilanEl.hidden = false;
   panel.hidden = true;
 
-  /* LE TITRE PARLE DE VAGUES. « Manche 1 terminée » apres douze vagues
-     enchainees se lisait comme un compteur casse : le numero de manche etait
-     juste, c'est l'unite de jeu qui a change. La vague atteinte est ce que la
-     table retient de sa partie, donc c'est elle qui titre ; le numero de manche
-     descend avec les autres chiffres. Repli sur le numero de manche si le
-     serveur ne transmet pas la vague — un serveur anterieur au lot. */
-  bilanTitle.textContent = res.wave
-    ? `Partie terminée — vague ${res.wave} atteinte`
-    : `Partie terminée`;
+  /* LE TITRE PARLE DU SCRIPT. « Manche 1 terminée » apres une demi-heure de jeu
+     se lisait comme un compteur casse : le numero de manche etait juste, c'est
+     l'unite de jeu qui a change. Le segment atteint est ce que la table retient
+     de sa partie, donc c'est lui qui titre ; le numero de manche descend avec
+     les autres chiffres.
+
+     Et une manche peut desormais se GAGNER — six segments, six boss. C'est la
+     seule chose que ce titre doit dire quand elle arrive. */
+  const niv = res.level ? ` — niveau ${res.level}` : "";
+  // La victoire change la TETE du bilan, elle n'ouvre pas un ecran de plus :
+  // voir `#bilan.win` dans la feuille de style.
+  bilanEl.classList.toggle("win", !!res.victory);
+  bilanTitle.textContent = res.victory
+    ? `Victoire — les six segments franchis${niv}`
+    : res.segment
+      ? `Partie terminée — segment ${res.segment}/${TL_CFG.SEGMENTS}${niv}`
+      : `Partie terminée`;
   /* Les chiffres de la TABLE, pas ceux d'un joueur — le tableau juste dessous
      ventile par personne. « joueurs » a saute : le tableau en donne la liste
      nominative deux lignes plus bas, le compter etait la seule statistique de
@@ -1576,7 +1737,17 @@ function showBilan(res) {
     `<div class="bilanStat"><span class="val">${fmtBig(Math.round(subis))}</span>` +
     `<span class="lab">subis</span></div>` +
     `<div class="bilanStat"><span class="val">${res.round}</span>` +
-    `<span class="lab">manche</span></div>`;
+    `<span class="lab">manche</span></div>` +
+    /* MISE A MORT DU BOSS FINAL (lot W). Elle ne s'affiche que si elle a eu
+       lieu : une tuile a zero sur les quatre-vingt-dix-neuf manches qui
+       n'atteignent pas le segment 6 aurait ete un rappel d'echec a chaque bilan.
+       C'est le seul chiffre de cet ecran qui se CLASSE — le temps pour atteindre
+       le final est une constante sous D1, celui-ci depend entierement de
+       l'equipe. */
+    (res.finalKill > 0
+      ? `<div class="bilanStat final"><span class="val">${escapeHtml(fmtTime(res.finalKill))}</span>` +
+        `<span class="lab">mise à mort du final</span></div>`
+      : "");
   renderBilanMine(res);
   renderHurtBy(res.rows);
   renderScores(res.rows, bilanScoresBody);
@@ -1800,18 +1971,17 @@ function renderCards() {
   if (!cardsState) { cardsEl.hidden = true; return; }
   cardsEl.hidden = false;
 
-  /* Le titre dit d'ou vient le choix. Les cartes ne tombent plus a la mort d'un
-     boss mais a chaque niveau d'equipe, en fin de vague : sans cette mention,
-     l'ecran s'ouvrait sans qu'on sache ce qui l'avait declenche.
-     `more` compte les choix qui suivent celui-ci — l'annoncer evite qu'on
-     prenne le second ecran pour un bug d'affichage du premier. */
+  /* Le titre dit d'ou vient le choix. Tous les ecrans suivent desormais un boss
+     — c'est la seule interruption de la horde — mais `more` reste indispensable :
+     il compte les choix qui suivent celui-ci, et sans lui on prend le second
+     ecran pour un bug d'affichage du premier. */
   const suite = cardsState.more > 0
     ? ` — encore ${cardsState.more} choix après celui-ci`
     : "";
   cardsTitle.textContent = cardsState.bossWave
     ? `${bossAt(cardsState.bossKind).nom.toUpperCase()} ${ROMAN[cardsState.boss] ?? cardsState.boss}`
       + ` vaincu — niveau ${cardsState.level}${suite}`
-    : `Vague ${cardsState.wave} terminée — niveau ${cardsState.level}${suite}`;
+    : `Segment ${cardsState.segment} — niveau ${cardsState.level}${suite}`;
 
   /* La carte dit son effet, ce qu'on en possede deja, et ce que l'exemplaire
      suivant y ajoute. Sans les deux dernieres lignes, un joueur qui a deux
@@ -2006,14 +2176,20 @@ function buildInfo(id) {
 
 /* Les multiplicateurs EFFECTIFS, calcules par la meme fonction que la
    simulation (`fullMods`, exportee par game_state) : Vœu partagé compris, part
-   de vague du « Cœur de forge » comprise, repli de classe compris. Recoder ce
+   de palier du « Cœur de forge » comprise, repli de classe compris. Recoder ce
    calcul ici aurait donne deux resultats differents sur l'ecran dont le seul
-   but est de verifier un chargement. */
+   but est de verifier un chargement.
+
+   Le palier se DEDUIT du segment et du beat, comme la saturation se deduit de
+   la liste d'ennemis : le serveur l'a deja envoye sous une autre forme, le
+   retransmettre serait payer deux fois. */
 function buildMultipliers(info) {
   const others = [];
   for (const id of buildRoster()) if (id !== info.id) others.push(ownedCounts(id));
-  const wave = latest?.wave ?? 1;
-  return fullMods(info.counts, others, info.cls ?? CLASS_DEFAULT, wave);
+  const tier = latest?.segment
+    ? ((latest.segment - 1) * TL_CFG.BEATS + (latest.beat ?? 0)) + 1
+    : 1;
+  return fullMods(info.counts, others, info.cls ?? CLASS_DEFAULT, tier);
 }
 
 /* Un multiplicateur se lit « ×1,84 » et non « +84 % » : c'est la forme sous
@@ -2058,6 +2234,11 @@ const POWER_MARKS = [
   { v: 5.71, lab: "max" },
 ];
 const POWER_SCALE_MAX = 6.5;   // au-dela la jauge sature : plus personne n'y va
+/* Duree d'un combat de boss a la build de REFERENCE (`BOSS_POWER_REF`), en
+   secondes. Mesuree et non estimee, et elle sert uniquement a donner une
+   echelle au joueur : depuis que les PV du boss ne suivent plus la puissance,
+   la duree d'un combat EST la lecture de la puissance. */
+const BOSS_MEDIAN_FIGHT = 95;
 
 /* Qualificatif. On nomme la build par rapport a la population mesuree, jamais
    dans l'absolu : « ×2,4 » ne veut rien dire, « au-dessus de la moitie des
@@ -2070,22 +2251,34 @@ function powerLabel(v) {
   return "exceptionnelle";
 }
 
-/* La jauge porte le GENOU parce qu'il change la lecture de tout le panneau :
-   sous le genou, une carte de degats est integralement absorbee par les PV du
-   boss ; au-dessus, elle commence a payer. C'etait jusqu'ici la seule regle du
-   jeu que le joueur subissait sans jamais pouvoir la voir. */
+/* LE GENOU A DISPARU DU PANNEAU, et c'est le lot R qui l'a emporte : plus rien
+   n'indexe la difficulte sur la puissance, donc « le boss suit ta puissance a
+   100 % » est devenu faux. Le laisser aurait ete pire que de ne rien dire — un
+   panneau qui explique une regle qui n'existe plus.
+
+   Ce qui le remplace dit la meme chose renversee, et c'est la promesse du plan :
+   la puissance ne change plus ce qu'on affronte, elle change la VITESSE a
+   laquelle on le traverse. La note porte donc la duree estimee d'un combat de
+   boss, qui est desormais inversement proportionnelle a la puissance — c'est le
+   seul chiffre qui rende l'echelle concrete.
+
+   `bossPower()` et `BOSS_POWER_KNEE` restent dans le code : si la mesure du
+   lot X dit que le grand ecart est intenable, le retour est un changement de
+   trois constantes, et ce panneau redevient juste. */
 function powerBlockHtml(mods) {
   const v = powerIndex(mods);
   const pct = x => Math.max(0, Math.min(100, (x - 1) / (POWER_SCALE_MAX - 1) * 100));
-  const knee = CFG.BOSS_POWER_KNEE;
-  const over = v > knee;
-
-  // Part de la puissance que le boss suit encore. Sous le genou c'est 100 % —
-  // et 100 % veut dire « le boss grandit exactement autant que toi ».
-  const suivi = Math.round(bossPower(v) / v * 100);
+  const ref = CFG.BOSS_POWER_REF;
 
   const marks = POWER_MARKS.map(m =>
     `<span class="pMark" style="left:${pct(m.v)}%"><i></i>${escapeHtml(m.lab)}</span>`).join("");
+
+  /* Un combat de boss dure `BOSS_MEDIAN_FIGHT` a la build de reference ; la
+     duree suit l'inverse de la puissance, et le plancher de barre la borne en
+     bas (cinq barres qui ne peuvent pas se rompre a moins de BAR_DWELL). */
+  const brut = BOSS_MEDIAN_FIGHT * ref / Math.max(0.1, v);
+  const plancher = CFG.BOSS_BARS * BOSS_CFG.BAR_DWELL;
+  const duree = Math.max(plancher, brut);
 
   return (
     `<div class="pHead">` +
@@ -2095,14 +2288,14 @@ function powerBlockHtml(mods) {
     `</div>` +
     `<div class="pGauge">` +
       `<i class="pFill" style="width:${pct(v)}%"></i>` +
-      `<span class="pKnee" style="left:${pct(knee)}%" title="genou : au-delà, le boss ne suit plus qu'à moitié"></span>` +
+      `<span class="pKnee" style="left:${pct(ref)}%" title="build de référence : c'est sur elle que les boss sont calibrés"></span>` +
       `<span class="pCursor" style="left:${pct(v)}%"></span>` +
     `</div>` +
     `<div class="pMarks">${marks}</div>` +
-    `<div class="pNote${over ? " gain" : ""}">` +
-      (over
-        ? `au-delà du genou — le boss ne suit plus que ${suivi} % de ta puissance`
-        : `sous le genou (${knee.toFixed(1).replace(".", ",")}) — le boss suit ta puissance à 100 %`) +
+    `<div class="pNote${v > ref ? " gain" : ""}">` +
+      `les boss ne suivent plus ta puissance — un combat te prend environ ` +
+      `${Math.round(duree)} s` +
+      (duree <= plancher ? ` (plancher : le répertoire doit passer)` : "") +
     `</div>`);
 }
 
@@ -2429,13 +2622,16 @@ function ingest(msg) {
       // qui est exactement l'etat « pas de carte ».
       cd3: a[30] ?? 0, skill3: a[31] ?? 0,
     }])),
-    /* Le champ de type porte trois informations pour n'en couter qu'une seule
-       sur chacun des 200 ennemis, vingt fois par seconde : le type, le rang
-       d'elite (+100) et le marquage de retardataire (+200). L'ordre du decodage
-       compte — `elite` doit retirer les 200 avant de tester les 100. */
+    /* Le champ de type porte deux informations pour n'en couter qu'une seule
+       sur chacun des 200 ennemis, vingt fois par seconde : le type et le rang
+       d'elite (+100). Le marquage de retardataire (+200) a disparu avec les
+       vagues — il n'existait que pour rendre traquables les derniers fuyards
+       d'un nettoyage. Un serveur anterieur au lot P peut encore l'envoyer :
+       le modulo le decode alors comme le type, ce qui serait faux, d'ou le
+       `% 100` applique aussi a l'elite. */
     enemies: new Map(msg.e.map(a => [a[0], {
       id: a[0], x: a[1], y: a[2], hp: a[3], maxHp: a[4],
-      type: a[5] % 100, elite: a[5] % 200 >= 100, straggler: a[5] >= 200, ang: a[6],
+      type: a[5] % 100, elite: a[5] % 200 >= 100, ang: a[6],
       // Compteur de touches, ajout en fin de tuple. Repli a 0 : un serveur
       // anterieur ne l'envoie pas, le compteur reste constant, et le module
       // d'evenements retombe alors sur l'ancien comportement — un flash par
@@ -2477,6 +2673,11 @@ function ingest(msg) {
     walls: msg.wl
       ? { x: msg.wl[0], y: msg.wl[1], t: msg.wl[2], k: msg.wl[3] }
       : null,
+    /* COUVERTURE ENTAMEE (lot V) : la seule chose du biome qui circule, parce
+       qu'elle depend de ce que les joueurs ont fait et ne se deduit d'aucune
+       horloge. Liste creuse (index, part de PV), absente tant que rien n'a ete
+       touche. Elle n'est PAS interpolee : c'est un etat, pas une position. */
+    cover: msg.ob ?? null,
     powerups: msg.w.map(a => ({ id: a[0], x: a[1], y: a[2], type: a[3] })),
     turrets: (msg.tu ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], k: a[3], ang: a[4] })),
     bulwarks: (msg.bw ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4] })),
@@ -2507,7 +2708,10 @@ function ingest(msg) {
           // Ajouts en fin de tuple : l'index du roster et la jauge d'ultime.
           // Repli sur le Ravageur, qui est le boss d'origine — un serveur
           // anterieur au lot 4 n'en envoyait pas d'autre.
-          kind: msg.bo[9] ?? 0, ult: msg.bo[10] ?? 0 }
+          kind: msg.bo[9] ?? 0, ult: msg.bo[10] ?? 0,
+          // Palier d'enrage, ajout en fin de tuple. Repli 0 : un serveur
+          // anterieur au lot n'en envoie pas et la barre reste normale.
+          enrage: msg.bo[11] ?? 0 }
       : null,
     // Second Jumeau : cle nommee, absente pour les quatre autres boss.
     boss2: msg.bo2
@@ -2524,14 +2728,29 @@ function ingest(msg) {
       a: a[6], b: a[7], need: a[8], cur: a[9], hp: a[10],
     })),
     slip: msg.sp === 1,
-    // Vague et progression commune. Cles nommees : un serveur anterieur qui ne
-    // les envoie pas laisse simplement les replis en place.
-    wave: msg.wv ?? 0,
-    wavePhase: msg.wp ?? 0,
-    waveBoss: msg.wbs === 1,
-    waveProgress: msg.wb ?? 0,
+    /* Segment et progression commune. Cles nommees : un serveur anterieur qui
+       ne les envoie pas laisse simplement les replis en place — le bandeau
+       reste alors cache, ce qui est degrade mais jamais menteur.
+       La SATURATION n'est pas ici : elle se deduit de la liste d'ennemis. */
+    segment: msg.sg ? msg.sg[0] : 0,
+    hordeLeft: msg.sg ? msg.sg[1] : 0,
+    beat: msg.sg ? msg.sg[2] : 0,
+    silence: msg.sg ? msg.sg[3] === 1 : false,
     teamLevel: msg.xl ?? 1,
     teamProgress: msg.xp ?? 0,
+    /* Difficulte de la manche EN COURS. Elle est deja connue par le salon, mais
+       c'est celle du snapshot qui fait foi pour deduire les traits : un
+       spectateur arrive en cours de manche a la valeur du vote suivant, pas
+       celle du combat qu'il regarde. */
+    diff: msg.df ?? difficulty,
+    /* ENNEMIS EN ANTICIPATION. Un Set et non un tableau : `drawEnemies` le
+       consulte une fois par ennemi, soit deux cents fois par image. Cle absente
+       la plupart du temps — un Set vide coute une allocation par instantane, pas
+       par image. */
+    windup: msg.wu ? new Set(msg.wu) : EMPTY_SET,
+    /* EVENEMENT ACTIF (lot U). Cle nommée, absente hors événement — un serveur
+       antérieur n'en envoie pas et le bandeau reste simplement caché. */
+    event: msg.ev ? { id: msg.ev[0], t: msg.ev[1] } : null,
   };
 
   latest = snap;
@@ -2872,12 +3091,21 @@ function interpolated(renderTime) {
     // se referme donnerait une limite a mi-chemin, c'est-a-dire une limite qui
     // ment sur l'endroit exact ou l'on prend des degats.
     bounds: b.bounds, walls: b.walls,
-    // Etat de vague : pris tel quel sur le snapshot le plus recent, jamais
-    // interpole. Ce sont des paliers, pas des positions — un numero de vague
-    // a mi-chemin entre 6 et 7 n'aurait aucun sens.
-    wave: b.wave, wavePhase: b.wavePhase, waveBoss: b.waveBoss,
-    waveProgress: b.waveProgress,
+    // Couverture entamee : un etat, comme les murs. Le plus recent fait foi.
+    cover: b.cover,
+    // Etat de segment : pris tel quel sur le snapshot le plus recent, jamais
+    // interpole. Ce sont des paliers, pas des positions — un numero de segment
+    // a mi-chemin entre 3 et 4 n'aurait aucun sens. Le temps restant, lui,
+    // pourrait s'interpoler ; il ne le vaut pas, la barre a deja sa transition
+    // CSS et le HUD n'ecrit que si la valeur a change.
+    segment: b.segment, hordeLeft: b.hordeLeft, beat: b.beat, silence: b.silence,
     teamLevel: b.teamLevel, teamProgress: b.teamProgress,
+    // Difficulte et anticipations : des ETATS, jamais des positions. Un ennemi
+    // a moitie en train de se ramasser n'existe pas.
+    diff: b.diff, windup: b.windup,
+    // Evenement : un ETAT et un compte a rebours, jamais interpole — un
+    // evenement a moitie ouvert n'existe pas.
+    event: b.event,
   };
 }
 
@@ -2903,9 +3131,11 @@ function flatten(s) {
     slip: s.slip ?? false,
     bounds: s.bounds ?? { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H, warn: 0 },
     walls: s.walls ?? null,
-    wave: s.wave, wavePhase: s.wavePhase, waveBoss: s.waveBoss,
-    waveProgress: s.waveProgress,
+    cover: s.cover ?? null,
+    segment: s.segment, hordeLeft: s.hordeLeft, beat: s.beat, silence: s.silence,
     teamLevel: s.teamLevel, teamProgress: s.teamProgress,
+    diff: s.diff ?? difficulty, windup: s.windup ?? EMPTY_SET,
+    event: s.event ?? null,
   };
 }
 
@@ -3019,21 +3249,50 @@ function applyAlert(msg, now) {
     bossCue = null;
     return;
   }
-  const def = mechAt(msg.mech);
+  /* ANNONCE D'EVENEMENT (lot U). Elle emprunte exactement le meme chemin qu'une
+     mecanique de boss — meme file, meme horloge de rendu, meme retrait de 250 ms
+     avant la resolution — parce que c'est la meme chose du point de vue du
+     joueur : quelque chose est annonce, puis arrive. Seule la table consultee
+     change, et c'est pour ca que `MECHS` n'a pas recu d'entree d'evenement :
+     deux tables, un seul chemin. */
+  /* ANNONCE DE METEO (lot V). Troisieme table consultee par le meme chemin,
+     apres les mecaniques et les evenements — deux tables, puis trois, mais
+     TOUJOURS un seul chemin d'annonce : meme file, meme horloge de rendu, meme
+     retrait avant resolution. C'est ce qui a evite d'ouvrir un message reseau de
+     plus a chaque fois. */
+  const def = msg.meteo !== undefined ? weatherAt(msg.meteo)
+    : msg.event !== undefined ? eventAt(msg.event) : mechAt(msg.mech);
   if (!def) return;
+  // La meteo n'a pas de niveau d'alerte dans sa table : elle est TOUJOURS une
+  // information. Elle ne precede aucun coup — elle dure un segment entier.
+  const level = msg.meteo !== undefined ? ALERT_INFO : def.level;
   /* Le bandeau DISPARAIT AVANT la resolution, et non une seconde apres comme
      il le faisait : un texte encore affiche au moment de l'impact masque
      exactement ce qu'il faut regarder, c'est-a-dire la zone qui explose. Les
      annonces sans duree (Miasme, ultime) tiennent 1,5 s. */
   const dur = msg.dur > 0 ? Math.max(800, msg.dur * 1000 - 250) : 1500;
   const entry = { nom: def.nom, texte: def.texte, from: now, until: now + dur };
-  if (def.level === ALERT_ORDER) alertOrder = entry;
-  else if (def.level === ALERT_WARN) alertWarn = entry;
+  if (level === ALERT_ORDER) alertOrder = entry;
+  else if (level === ALERT_WARN) alertWarn = entry;
   else alertInfo = entry;
+  /* La meteo emprunte le son d'evenement, jamais un son a elle. Elle occupe
+     exactement la meme place dans la vie du joueur — quelque chose d'annonce qui
+     commence et qui dure — et une entree de plus dans `PALETTE` n'aurait dit
+     qu'une chose que le bandeau dit deja. `haut` est faux : c'est une
+     information, pas une consigne. */
+  if (msg.meteo !== undefined) { playSound("evenement", { haut: false }); return; }
   /* La posture du corps se cale sur la RESOLUTION, pas sur le bandeau : d'ou la
      duree brute et non celle, amputee de 250 ms, du texte. Seules la consigne et
      l'avertissement en posent une — une information ne precede aucun coup, et
      faire se ramasser le boss dessus mentirait sur ce qui arrive. */
+  /* Le boss ne se ramasse QUE pour ses propres annonces. Un evenement de horde
+     n'est pas un coup qu'il prepare : lui faire prendre la posture d'anticipation
+     sur une nuee mentirait sur ce qui arrive, et c'est exactement pour ca que la
+     posture est calee sur la resolution et pas sur le bandeau. */
+  if (msg.event !== undefined) {
+    playSound("evenement", { haut: def.level === ALERT_ORDER });
+    return;
+  }
   if (def.level === ALERT_ORDER || def.level === ALERT_WARN) {
     bossCue = { from: now, impact: now + (msg.dur > 0 ? msg.dur * 1000 : 1500) };
   }
@@ -3070,7 +3329,16 @@ const shake = { x: 0, y: 0, mag: 0 };
 
 // `myId` n'est pas encore connu a la construction : un accesseur plutot qu'une
 // copie, sinon la diffusion resterait sur l'identifiant 0 toute la partie.
-const pump = new EventPump(handleEvent, { get myId() { return myId; } });
+/* `hazards` et `hazardState` sont PASSES au lieu d'etre importes par
+   `events.js` : le module ne depend de rien et doit le rester — c'est ce qui
+   permet de le charger dans un script de mesure sans DOM ni contexte audio. Des
+   accesseurs et non des valeurs : la geometrie se regenere entre deux manches,
+   et une liste capturee une fois serait celle du biome precedent. */
+const pump = new EventPump(handleEvent, {
+  get myId() { return myId; },
+  get hazards() { return biome.hazards; },
+  hazardState,
+});
 
 /* Remise a zero entre deux manches. Sans elle, le premier snapshot d'une
    nouvelle manche se comparait au dernier de la precedente : deux cents morts
@@ -3128,6 +3396,12 @@ const EFFECT_SOUND = {
   // Salve (lot C) : un impact aigu par cible, jamais de tressaillement — une
   // volee de huit ne doit pas secouer l'ecran huit fois.
   13: { son: "impact", pitch: 1.4, force: 0.5, shake: 0 },
+  /* Absorption du bouclier (lot S). Un impact GRAVE et etouffe, sans
+     tressaillement : le son doit dire « ca a tape sur du dur » et se distinguer
+     de l'impact ordinaire, qui est le retour d'un tir REUSSI. Il sort a la
+     cadence du tir tant qu'on reste de face, donc il ne peut ni secouer l'ecran
+     ni sonner fort. */
+  14: { son: "impact", pitch: 0.55, force: 0.45, shake: 0 },
 };
 
 function handleEvent(e) {
@@ -3165,6 +3439,20 @@ function handleEvent(e) {
       aggregateSelf("heal", e);
       break;
 
+    /* BIOME (lot V). Un geyser qui souffle et un mur qui cede sont les deux
+       seuls moments ou l'environnement fait quelque chose ; le reste du temps il
+       est la, et c'est precisement ce qu'on lui demande.
+       AUCUN TRESSAILLEMENT : « le tressaillement ne sort que sur les gros
+       evenements », et un geyser qui souffle toutes les sept secondes au meme
+       endroit n'en est pas un — l'ecran ne se serait jamais immobilise. */
+    case "danger":
+      playSound("geyser");
+      break;
+
+    case "murDetruit":
+      playSound("mur");
+      break;
+
     case "mort":
       // La hauteur varie avec le type : c'est gratuit et ca suffit a entendre
       // la difference entre la pietaille et un gros.
@@ -3179,6 +3467,43 @@ function handleEvent(e) {
 
     case "bonus": playSound("bonus"); break;
     case "niveau": playSound("niveau"); break;
+
+    /* Segment et accalmie passent par le bandeau d'INFORMATION, jamais par une
+       consigne : ils ne demandent rien, ils situent. Le silence est la seule
+       respiration du modele continu — non annonce, il se subit comme un creux
+       de difficulte inexplique au lieu de se lire comme une fenetre. */
+    case "segment": {
+      const now = performance.now();
+      alertInfo = { nom: `SEGMENT ${e.segment}`, texte: "la horde reprend",
+                    from: now, until: now + 2500 };
+      break;
+    }
+    case "beat":
+      if (e.silence) {
+        const now = performance.now();
+        alertInfo = { nom: "ACCALMIE", texte: "reprends du terrain",
+                      from: now, until: now + 2500 };
+      }
+      break;
+
+    /* FIN D'EVENEMENT (lot U). L'ouverture a son annonce, envoyee par le canal
+       d'alerte ; la CLOTURE n'a rien, et c'est pourtant le moment ou l'equipe
+       est remise a plein. Sans ce retour, la remise a plein arrive sans cause
+       visible — on se retrouve soigne sans savoir pourquoi, ce qui est
+       exactement le defaut de lisibilite que le registre des provenances a
+       corrige pour les degats.
+
+       Le son du relevement et non un son neuf : c'est la meme promesse, elle
+       doit s'entendre pareil. Et aucun tressaillement — rien n'a explose. */
+    case "evenementFin": {
+      const now = performance.now();
+      const def = eventAt(e.event);
+      alertInfo = { nom: (def?.nom ?? "ÉVÉNEMENT").toUpperCase(),
+                    texte: "terminé — équipe remise à plein",
+                    from: now, until: now + 2500 };
+      playSound("releve");
+      break;
+    }
     case "aterre": playSound("aterre"); break;
     case "releve": playSound("releve"); break;
 
@@ -3366,6 +3691,26 @@ const DEATH_BURST = [
      le danger, et sa mort doit se lire comme une dispersion de ce qu'elle
      portait, pas comme l'eclatement d'un corps. */
   { n: 1.70, size: 1.8, sp: 95, spread: 175, life: 0.35, flash: 0.85, cone: 7 },
+  /* kamikaze — il ne se casse pas, il DETONE. Beaucoup d'eclats, tres rapides,
+     tres brefs, et l'eclat lumineux le plus fort du bestiaire : c'est la seule
+     mort du jeu qui soit elle-meme une menace, et elle doit se lire comme un
+     depart d'explosion et non comme une fin. La zone de souffle qui suit a son
+     propre telegraphe — la gerbe l'annonce, elle ne la remplace pas. */
+  { n: 1.60, size: 2.2, sp: 190, spread: 240, life: 0.26, flash: 1.8, cone: 7 },
+  /* bulwark — la plaque cede. Peu de morceaux, GROS et lents, comme le tank
+     dont il partage la masse : une armure ne se pulverise pas. Un cran plus
+     rapides que ceux du tank quand meme, parce que ce qui part en premier est
+     une plaque tendue et non une carapace. */
+  { n: 0.55, size: 4.6, sp: 50, spread: 85, life: 0.60, flash: 1.25, cone: 7 },
+  /* medic — frele. Peu de matiere, des fragments fins, une duree moyenne : il
+     s'effondre plus qu'il n'eclate, et l'eclat reste discret — sa mort est un
+     soulagement tactique, pas un evenement. */
+  { n: 0.85, size: 2.0, sp: 80, spread: 130, life: 0.42, flash: 0.8, cone: 7 },
+  /* choeur — l'aura RETOMBE. Beaucoup de fragments lents qui trainent : ce qui
+     meurt est la couverture d'un paquet entier, et une dispersion qui s'attarde
+     est ce qui le dit. C'est la seule mort qu'on veut voir de loin, parce
+     qu'elle dit a toute l'equipe que le mur vient de tomber. */
+  { n: 1.35, size: 2.4, sp: 45, spread: 95, life: 0.60, flash: 1.15, cone: 7 },
 ];
 
 function spawnDeath(x, y, type, elite, ang = 0) {
@@ -3736,7 +4081,7 @@ function frame(now) {
     // contenu indefini, et la derniere image de la manche precedente aurait pu
     // reapparaitre par-dessous le salon.
     ctx = underCtx;
-    ctx.fillStyle = SURFACE.arena;
+    ctx.fillStyle = decor.arena;
     ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
     drawGrid();
     overCtx.clearRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
@@ -3746,6 +4091,25 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+/* Etat du sol sous un point, cote client. Le JUMEAU EXACT de `_ground()` cote
+   simulation, et il vaut mieux qu'il le reste : les deux repondent a la meme
+   question sur la meme geometrie, et un desaccord se paierait en recalage
+   permanent de la prediction. Le recopier plutot que de l'exporter serait le
+   defaut ; il n'est ici que parce que `_ground` est une methode d'instance, donc
+   inatteignable sans un GameState — ce que le client n'a pas. */
+function groundAt(x, y) {
+  let slow = 1, slip = false;
+  for (const h of biome.hazards) {
+    if (h.kind !== HZ_SLOW && h.kind !== HZ_SLIP) continue;
+    if ((x - h.x) ** 2 + (y - h.y) ** 2 > h.r * h.r) continue;
+    // Deux champs ne se cumulent jamais : on prend le meilleur. Meme regle que
+    // les auras de givre et le Voeu partage.
+    if (h.kind === HZ_SLOW) slow = Math.min(slow, BIOME_CFG.SLOW_MUL);
+    else slip = true;
+  }
+  return { slow, slip };
+}
 
 function stepPrediction(dt) {
   dash.cd = Math.max(0, dash.cd - dt);
@@ -3780,20 +4144,37 @@ function stepPrediction(dt) {
     predicted.y += dash.y * CFG.DASH_SPEED * dt;
   } else {
     const m = readMove();
-    if (latest.slip) {
+    /* SOL DU BIOME (lot V). Le client REJOUE la meme lecture que `_players` — le
+       ralentissement multiplie la vitesse, le glissement change la formule. Il
+       ne demande rien au serveur : la geometrie est regeneree et un disque ne
+       bouge pas. Sans ce rejeu, marcher dans un champ de ralentissement faisait
+       diverger la prediction jusqu'au recalage sec, c'est-a-dire exactement le
+       bafouillage que la prediction existe pour supprimer. */
+    const g = groundAt(predicted.x, predicted.y);
+    const sp = CFG.PLAYER_SPEED * g.slow;
+    if (latest.slip || g.slip) {
       // Meme formule que `_players` cote serveur : la vitesse REJOINT la
       // consigne au lieu de la prendre.
-      const k = Math.min(1, BOSS_CFG.SLIP_ACCEL * dt);
-      slipV.x += (m.x * CFG.PLAYER_SPEED - slipV.x) * k;
-      slipV.y += (m.y * CFG.PLAYER_SPEED - slipV.y) * k;
+      const k = Math.min(1, (latest.slip ? BOSS_CFG.SLIP_ACCEL : BIOME_CFG.SLIP_ACCEL) * dt);
+      slipV.x += (m.x * sp - slipV.x) * k;
+      slipV.y += (m.y * sp - slipV.y) * k;
       predicted.x += slipV.x * dt;
       predicted.y += slipV.y * dt;
     } else {
-      slipV.x = m.x * CFG.PLAYER_SPEED;
-      slipV.y = m.y * CFG.PLAYER_SPEED;
-      predicted.x += m.x * CFG.PLAYER_SPEED * dt;
-      predicted.y += m.y * CFG.PLAYER_SPEED * dt;
+      slipV.x = m.x * sp;
+      slipV.y = m.y * sp;
+      predicted.x += m.x * sp * dt;
+      predicted.y += m.y * sp * dt;
     }
+  }
+
+  /* BOURRASQUE. Sa direction est deterministe (`weatherFor`), donc la prediction
+     la rejoue au pixel pres. Elle s'applique DANS la passe de deplacement, avant
+     les limites et avant les obstacles — c'est l'ordre du serveur, et l'inverser
+     pousserait le personnage dans les piliers une image sur deux. */
+  if (weather?.id === WX_BOURRASQUE) {
+    predicted.x += weather.dx * BIOME_CFG.GUST_PUSH * dt;
+    predicted.y += weather.dy * BIOME_CFG.GUST_PUSH * dt;
   }
 
   /* Les memes limites que le serveur, et le meme blocage sur les murs. Sans ca,
@@ -3810,6 +4191,19 @@ function stepPrediction(dt) {
     if (Math.abs(predicted.x - W.x) < t) predicted.x = wasX <= W.x ? W.x - t : W.x + t;
     if (Math.abs(predicted.y - W.y) < t) predicted.y = wasY <= W.y ? W.y - t : W.y + t;
   }
+  /* Obstacles du biome : meme regle rejouee que `_obstacleBlock`, repoussage par
+     axe et du cote d'ou l'on venait. C'est le plus gros risque de recalage
+     permanent du lot — un pilier que le serveur bloque et que la prediction
+     traverse ramene le personnage en arriere a chaque image. */
+  for (let i = 0; i < biome.obstacles.length; i++) {
+    const o = biome.obstacles[i];
+    if (o.maxHp > 0 && (latest.cover?.find(c => c[0] === i)?.[1] ?? 1) <= 0) continue;
+    const hw = o.w / 2 + r, hh = o.h / 2 + r;
+    const dx = predicted.x - o.x, dy = predicted.y - o.y;
+    if (Math.abs(dx) >= hw || Math.abs(dy) >= hh) continue;
+    if (hw - Math.abs(dx) <= hh - Math.abs(dy)) predicted.x = wasX <= o.x ? o.x - hw : o.x + hw;
+    else predicted.y = wasY <= o.y ? o.y - hh : o.y + hh;
+  }
 
   // Pendant l'esquive, on relache le rappel vers la position serveur : le
   // dash local est en avance d'un aller-retour, le corriger en direct
@@ -3820,15 +4214,20 @@ function stepPrediction(dt) {
 }
 
 /* Ce que le jeu dit a la musique : un seul nombre entre 0 et 1. Tres doux au
-   salon, montee avec les vagues, souffle pendant le repit, pic sur le boss —
+   salon, montee avec le script, souffle pendant les silences, pic sur le boss —
    qui se tend encore a mesure que ses barres tombent, parce que la fin d'un
    combat est son moment le plus dangereux. Les coefficients sont des reglages
-   d'oreille, pas de la simulation : ils n'ont rien a faire dans CFG. */
+   d'oreille, pas de la simulation : ils n'ont rien a faire dans CFG.
+
+   La montee suit le PALIER (segment et beat) et non l'horloge : c'est ce que
+   suit la pression, et une intensite indexee sur le temps reel monterait
+   pendant les combats de boss, ou l'horloge de horde est justement arretee. */
 function gameIntensity() {
   if (phase !== PHASE_ROUND || !latest) return 0.05;
   const v = latest;
-  let i = 0.20 + Math.min(0.45, (v.wave ?? 1) * 0.04);
-  if (v.wavePhase === 2) i -= 0.18;              // repit : la musique souffle
+  const palier = ((v.segment ?? 1) - 1) * TL_CFG.BEATS + (v.beat ?? 0);
+  let i = 0.20 + Math.min(0.45, palier * 0.02);
+  if (v.silence) i -= 0.18;                      // accalmie : la musique souffle
   if (v.boss) {
     const bars = v.boss.bars ?? 1;
     i = Math.max(i, 0.72) + (CFG.BOSS_BARS - bars) * 0.05;
@@ -3872,17 +4271,29 @@ const GRID_MAJOR = 20 * PX_PER_M;   // 400 px
 function drawGrid() {
   ctx.lineWidth = 1;
 
-  ctx.strokeStyle = SURFACE.gridFine;
+  /* SECTIONS ETEINTES (lot T, cauchemar) : une ligne FINE sur `skip` n'est pas
+     tracee. C'est purement visuel — la machine est abimee — et jamais un trou
+     dans la graduation : les traits MARQUES tous les 20 m sont tous la, dans les
+     trois modes. Sans eux, « rayon 6 m » cesserait de vouloir dire quelque chose
+     a l'ecran, ce qui est la seule raison d'etre de la grille.
+     Deterministe et non aleatoire : une grille qui scintille d'une image a
+     l'autre attire l'oeil sur le decor, exactement l'inverse du but. */
+  const skip = decor.skip;
+  ctx.strokeStyle = decor.gridFine;
   ctx.beginPath();
-  for (let x = GRID_FINE; x < CFG.ARENA_W; x += GRID_FINE) {
+  let n = 0;
+  for (let x = GRID_FINE; x < CFG.ARENA_W; x += GRID_FINE, n++) {
+    if (skip && n % skip === 1) continue;
     ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
   }
-  for (let y = GRID_FINE; y < CFG.ARENA_H; y += GRID_FINE) {
+  n = 0;
+  for (let y = GRID_FINE; y < CFG.ARENA_H; y += GRID_FINE, n++) {
+    if (skip && n % skip === 2) continue;
     ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
   }
   ctx.stroke();
 
-  ctx.strokeStyle = SURFACE.gridMajor;
+  ctx.strokeStyle = decor.gridMajor;
   ctx.beginPath();
   for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
     ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
@@ -3940,18 +4351,40 @@ function drawGridPings() {
 /* VIGNETTAGE. Il concentre le regard et masque les apparitions hors champ.
    Peint APRES le monde et avant rien d'autre : c'est du decor, il ne doit
    jamais passer devant une consigne — mais celles-ci sont dans le DOM, donc
-   au-dessus par construction. Le degrade est mis en cache, le reconstruire
-   soixante fois par seconde se voit au profileur. */
-let vignette = null;
+   au-dessus par construction. Son degrade est mis en cache (`vignette`, declare
+   tout en haut du module avec `decor`).
 
+   SA FORCE ET SON ETENDUE VIENNENT DU MODE (lot T) : leger en calme, fort en
+   cauchemar. Et en cauchemar seulement, il PULSE lentement — c'est la seule
+   animation d'ambiance du jeu, et elle est volontairement sous le seuil de la
+   conscience : on la sent respirer, on ne la regarde pas. Une pulsation lisible
+   serait un ornement superpose au jeu, ce que la charte refuse.
+
+   La pulsation interdit le cache : le degrade change a chaque image. Elle ne
+   coute que dans le mode qui la demande — les deux autres gardent le cache. */
 function drawVignette() {
-  if (!vignette) {
+  const puls = decor.pulse > 0
+    ? 1 + decor.pulse * Math.sin(performance.now() / 2600)
+    : 1;
+  /* BRUME (lot V). LE PIEGE DU LOT, et il tient en une ligne : une meteo qui
+     touche la visibilite ne doit JAMAIS masquer un telegraphe de boss ni un
+     marqueur pose sur un joueur. Elle assombrit donc les BORDS — ou rien
+     d'important ne se joue — et RECULE le depart du degrade, ce qui laisse le
+     centre strictement aussi net qu'avant. Sans cette contrainte, la brume
+     devient une difficulte artificielle qui punit la lecture, c'est-a-dire
+     l'inverse exact de ce que le depot mesure comme « difficile ».
+     Elle interdit le cache tant qu'elle dure, comme la pulsation de cauchemar :
+     c'est le seul mode qui le paie, et il le paie deja. */
+  const fog = weather?.id === WX_BRUME;
+  if (!vignette || decor.pulse > 0 || fog) {
     const r = Math.hypot(CFG.ARENA_W, CFG.ARENA_H) / 2;
+    const from = decor.vignetteFrom + (fog ? BIOME_CFG.FOG_FROM : 0);
+    const amt = decor.vignette * puls * (fog ? BIOME_CFG.FOG_VIGNETTE : 1);
     vignette = ctx.createRadialGradient(
-      CFG.ARENA_W / 2, CFG.ARENA_H / 2, r * 0.42,
+      CFG.ARENA_W / 2, CFG.ARENA_H / 2, r * Math.min(0.9, from),
       CFG.ARENA_W / 2, CFG.ARENA_H / 2, r);
     vignette.addColorStop(0, alpha(SURFACE.void, 0));
-    vignette.addColorStop(1, alpha(SURFACE.void, 0.55));
+    vignette.addColorStop(1, alpha(SURFACE.void, Math.min(1, amt)));
   }
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
@@ -3967,9 +4400,19 @@ function drawVignette() {
    qui fait exactement la taille de l'arene : la conversion monde -> ecran est
    donc une division, et elle reste juste quelle que soit la fenetre. */
 function draw(v) {
+  /* METEO (lot V) : DEDUITE de `(graine, segment)` et non recue. Elle est
+     recalculee au CHANGEMENT DE SEGMENT et pas a chaque image — c'est la meme
+     fonction pure que le serveur, mais elle tire un generateur, et la rejouer
+     soixante fois par seconde pour une valeur constante sur cinq minutes n'a pas
+     de sens. Le segment vient de la cle `sg`, que le client a deja. */
+  if ((v.segment ?? 0) !== weatherSeg) {
+    weatherSeg = v.segment ?? 0;
+    weather = weatherFor(v.diff ?? difficulty, biomeSeed, weatherSeg);
+    vignette = null;
+  }
   // Le fond n'est peint que par la couche du DESSOUS ; les deux autres doivent
   // rester transparentes, sinon elles effacent ce qu'il y a dessous.
-  underCtx.fillStyle = SURFACE.arena;
+  underCtx.fillStyle = decor.arena;
   underCtx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
   overCtx.clearRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
   // Le lot WebGL s'ouvre autour de TOUT le monde : les quads sont accumules au
@@ -4009,6 +4452,12 @@ function drawScreen(v) {
   const st = PERF ? audioStats() : null;
   updateHud(v, {
     now, myId, lobby, ping, difficulty, amSpectator,
+    /* BIOME et METEO (lot V). Deux chaines et non deux index : le HUD n'a pas a
+       importer une table de plus pour afficher un nom, et c'est le client qui
+       tient deja la geometrie. La meteo est absente hors cauchemar et un segment
+       sur trois — le HUD n'ecrit alors rien du tout. */
+    biomeNom: biomeAt(biomeIndex).nom,
+    meteoNom: weather ? weatherAt(weather.id)?.nom ?? "" : "",
     myColor: colorOf(myId),
     dashCd: myDashCd,
     counts: ownedCounts(myId),
@@ -4039,7 +4488,19 @@ function drawWorld(v) {
   // annonce dessinee dessous serait invisible exactement la ou il faut encore
   // pouvoir la lire — au moment ou on court pour rentrer.
   drawArenaBounds(v.bounds);
+  /* BIOME (lot V). Les dangers passent SOUS les zones de boss, et c'est impose :
+     un danger d'environnement est du SOL (regle 1 du lot), une zone de boss est
+     une annonce. Dessine par-dessus, un geyser masquerait exactement ce qu'il
+     faut regarder — c'est le raisonnement deja tenu pour `drawEffects`, qui
+     reste volontairement sous les entites. */
+  drawHazards(v.tm);
   drawZones(v.zones, v.tm);
+  /* Les obstacles APRES les zones : ils sont de la matiere pleine, et une
+     annonce de boss peinte par-dessus un pilier laisserait croire qu'on peut y
+     entrer. Ils restent sur `#cvUnder` avec le reste du lot — c'est un critere
+     d'acceptation, et ils ne peuvent de toute facon jamais recouvrir une entite,
+     qui n'entre pas dedans. */
+  drawObstacles(v.cover);
   // Le rempart passe SOUS les entites : c'est un marquage de sol, et il occupe
   // 6,5 m de rayon (11 m ancre) — dessine par-dessus, il masquait exactement
   // les ennemis qu'il attire.
@@ -4067,7 +4528,7 @@ function drawWorld(v) {
   // Les depouilles passent SOUS les vivants : une sequence de mort dessinee
   // par-dessus la horde qui avance masquerait ce qui arrive.
   drawDeaths();
-  drawEnemies(v.enemyList);
+  drawEnemies(v.enemyList, v);
 
   /* BASCULE VERS LA COUCHE DU DESSUS. Tout ce qui suit passait deja par-dessus
      les monstres dans l'ordre de dessin d'origine : boss, drones, anneaux de
@@ -4935,6 +5396,140 @@ function drawArenaBounds(b) {
 /* Murs de verrouillage. Ils BLOQUENT et ne blessent pas : d'ou une couleur
    franchement differente de tout ce qui explose, et un aplat plein plutot
    qu'un contour — on doit lire « obstacle », jamais « zone a esquiver ». */
+/* --- BIOME (lot V) : obstacles et dangers -----------------------------------
+
+   Tout ce qui suit vit sur `#cvUnder`, le canvas 2D du bas. C'est un critere
+   d'acceptation et non une preference : un danger d'environnement est du SOL, et
+   le mettre sur `#cv` le ferait passer AU-DESSUS des entites — un geyser
+   dessine par-dessus la horde masquerait exactement ce qu'il faut voir. Meme
+   raisonnement que `drawEffects`.
+
+   LA REGLE 1 EST DANS CE DESSIN, pas seulement dans la simulation : un danger
+   d'environnement s'annonce par sa GEOMETRIE PERMANENTE, jamais par un compte a
+   rebours. La bouche du geyser est donc toujours visible ; seul son jet est
+   intermittent. Le canal du telegraphe instantane appartient au boss et ne se
+   partage pas — un cercle ambre qui se remplit en 1,4 s est indistinguable
+   d'une zone de Ravageur, et le joueur cesserait de savoir lequel il regarde. */
+function drawObstacles(cover) {
+  const list = biome.obstacles;
+  if (!list.length) return;
+  for (let i = 0; i < list.length; i++) {
+    const o = list[i];
+    // `cover` est une liste CREUSE : la plupart des obstacles n'y figurent pas,
+    // et deux biomes sur trois n'ont aucune couverture destructible.
+    const k = o.maxHp > 0 ? (cover?.find(c => c[0] === i)?.[1] ?? 1) : 1;
+    if (o.maxHp > 0 && k <= 0) continue;      // abattu : il n'existe plus
+    const x = o.x - o.w / 2, y = o.y - o.h / 2;
+
+    ctx.fillStyle = o.maxHp > 0 ? BIOME.cover : BIOME.block;
+    ctx.fillRect(x, y, o.w, o.h);
+    /* Arete haut-gauche eclairee : la meme direction de lumiere que les
+       creatures (`sprites.js`), sinon le decor et les monstres semblent eclaires
+       par deux soleils. Deux traits et non un degrade — c'est du decor, il ne
+       doit pas attirer l'oeil. */
+    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : BIOME.blockEdge, 0.55);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y + o.h); ctx.lineTo(x, y); ctx.lineTo(x + o.w, y);
+    ctx.stroke();
+
+    /* Un mur destructible RESTE un mur : il ne devient pas ambre parce qu'on
+       peut le casser — un lisere suffit a dire qu'il cede, et changer sa couleur
+       l'aurait fait entrer dans la grammaire du danger, ou il n'a rien a faire.
+       Le lisere se CREUSE a mesure qu'il encaisse : c'est la seule jauge du jeu
+       qui n'est pas une barre, parce qu'un mur n'est pas une entite. */
+    if (o.maxHp > 0) {
+      ctx.strokeStyle = alpha(BIOME.coverEdge, 0.85);
+      ctx.lineWidth = 2;
+      ctx.setLineDash([Math.max(3, 14 * k), 6]);
+      ctx.strokeRect(x + 1, y + 1, o.w - 2, o.h - 2);
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function drawHazards(tm) {
+  const list = biome.hazards;
+  if (!list.length) return;
+
+  for (const h of list) {
+    const st = hazardState(h, tm);
+
+    /* CHAMPS QUI NE BLESSENT PAS. Ni ambre ni rouge : ils ne disent pas
+       « sortir », ils disent « ici ca traine ». Un disque teinte SANS anneau —
+       la bande de rayon autour d'un personnage est deja saturee, et un anneau de
+       plus au sol se serait confondu avec un rempart. */
+    if (h.kind === HZ_SLOW || h.kind === HZ_SLIP) {
+      const col = h.kind === HZ_SLOW ? BIOME.slow : BIOME.slip;
+      ctx.fillStyle = alpha(col, 0.10);
+      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2); ctx.fill();
+      /* Hachures pour le glissant, points pour le ralentissement : la SIGNATURE
+         avant la couleur, comme pour les zones. Deux disques bleu-gris voisins
+         ne se distingueraient pas en pleine melee. */
+      ctx.strokeStyle = alpha(col, 0.22);
+      ctx.lineWidth = 1;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2); ctx.clip();
+      if (h.kind === HZ_SLIP) {
+        for (let d = -h.r; d <= h.r; d += 13) {
+          ctx.beginPath();
+          ctx.moveTo(h.x + d, h.y - h.r); ctx.lineTo(h.x + d + h.r, h.y + h.r);
+          ctx.stroke();
+        }
+      } else {
+        for (let d = -h.r; d <= h.r; d += 16) {
+          ctx.beginPath();
+          ctx.moveTo(h.x - h.r, h.y + d); ctx.lineTo(h.x + h.r, h.y + d);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+      continue;
+    }
+
+    /* GEOMETRIE PERMANENTE. Elle est dessinee QUE LE DANGER SOIT ACTIF OU NON,
+       et c'est toute la regle 1 : on apprend la carte, on ne lit pas un compte a
+       rebours. Un anneau eteint pour la bouche du geyser, le RAIL entier pour la
+       braise — sans le rail, une braise qui derive redevient une zone mobile de
+       boss, c'est-a-dire le vocabulaire qu'on refuse. */
+    if (h.kind === HZ_EMBER) {
+      ctx.strokeStyle = alpha(BIOME.hazardIdle, 0.75);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(h.x - h.dx * h.span, h.y - h.dy * h.span);
+      ctx.lineTo(h.x + h.dx * h.span, h.y + h.dy * h.span);
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = alpha(BIOME.hazardIdle, 0.9);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    if (!st.on) continue;
+
+    /* PARTIE ACTIVE. `st.k` porte la montee et la retombee du jet : c'est du
+       DESSIN et rien d'autre, la zone qui blesse est pleine des la premiere
+       image. `ZONE_FORGIVE` est le seul endroit du jeu autorise a faire differer
+       l'affiche et la logique, et il pardonne dans l'autre sens. */
+    const k = st.k;
+    ctx.fillStyle = alpha(BIOME.hazard, 0.20 * k);
+    ctx.beginPath(); ctx.arc(st.x, st.y, h.r * k, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(BIOME.hazard, 0.75 * k);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    /* Le geyser PULSE, la flaque non. Le premier est intermittent et sa
+       pulsation dit « c'est en train de souffler » ; la seconde est permanente et
+       une pulsation lui donnerait un rythme qu'elle n'a pas. C'est la meme
+       distinction que les signatures de zone du lot E. */
+    if (h.kind === HZ_GEYSER) {
+      const puls = 0.5 + 0.5 * Math.sin(tm * 9);
+      ctx.fillStyle = alpha(BIOME.hazard, 0.28 * k * puls);
+      ctx.beginPath(); ctx.arc(st.x, st.y, h.r * 0.55 * k, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
 function drawWalls(w) {
   if (!w) return;
   const t = w.t;
@@ -5095,6 +5690,28 @@ function drawEffects(effects) {
       ctx.lineTo(f.x, f.y + s);
       ctx.lineTo(f.x - s, f.y);
       ctx.closePath();
+      ctx.stroke();
+      continue;
+    }
+
+    if (f.kind === 14) {
+      /* ABSORPTION DU BOUCLIER (lot S). Sans ce retour, le joueur qui tire de
+         face sur un bulwark ne voit strictement rien se passer et conclut a un
+         bug — c'est la raison d'etre de l'effet, pas un ornement.
+
+         Il est pose au POINT D'IMPACT, qui est deja sur le bouclier : la
+         position dit donc a elle seule de quel cote la protection se trouve, et
+         il n'y a aucune direction a transmettre. Teinte du type et non blanc
+         generique, pour qu'on relie l'echec a son porteur — un flash blanc de
+         plus dans une melee ne veut rien dire.
+
+         Bref (0,18 s) et petit : il se produit a la cadence du tir, donc
+         plusieurs fois par seconde, et tout ce qui se repete a cette frequence
+         doit rester sous le seuil du tressaillement. */
+      ctx.strokeStyle = alpha(ENEMY_TINT[6], f.k);
+      ctx.lineWidth = 3 * f.k + 1;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (0.35 + grow * 0.65), 0, Math.PI * 2);
       ctx.stroke();
       continue;
     }
@@ -5500,10 +6117,6 @@ function drawPowerups(list) {
 }
 
 const ELITE_GOLD = ENEMY.elite;
-// Halo des retardataires. Volontairement froid, la ou l'elite est doree : les
-// deux marquages peuvent porter sur le meme ennemi, ils doivent rester lisibles
-// l'un sur l'autre.
-const STRAGGLER_HALO = ENEMY.straggler;
 
 /* Trois principes d'animation, choisis pour leur rapport effet / effort. Aucun
    ne coute une image d'atlas de plus.
@@ -5559,12 +6172,30 @@ function trackShooters(v) {
 const SHOOTER_AIM = 400;         // duree de la visee, en millisecondes
 const SHOOTER_RECOIL = 160;      // duree de la pose de tir
 
-function enemyFrame(e, t, def) {
+function enemyFrame(e, t, def, ctxInfo) {
   const base = `e${e.type}_`;
 
   // Le brood gonfle avant d'eclater : c'est l'anticipation la plus utile du
   // jeu, elle vaut un avertissement.
   if (e.type === 4 && e.hp / e.maxHp < 0.12) return frameOf(base + "open");
+
+  /* KAMIKAZE : les pointes se deploient sous 40 % de PV. Il explose a la mort
+     quelle qu'en soit la cause, donc « bas en PV » EST l'imminence — c'est la
+     meme lecture que le gonflement du brood, et elle se deduit des PV que le
+     snapshot porte deja. */
+  if (e.type === 5 && e.hp / e.maxHp < 0.4) return frameOf(base + "open");
+
+  /* BULWARK : la plaque se cale quand le joueur local est REELLEMENT dans
+     l'angle protege. Deduit et non transmis — le client a la position, l'angle
+     et l'ouverture du bouclier, exactement les trois valeurs dont le serveur se
+     sert dans `_bulletHitEnemy`. C'est le seul retour qui dise « ton tir ne
+     passera pas d'ici » AVANT d'avoir tire. */
+  if (e.type === 6 && ctxInfo?.blocked) return frameOf(base + "open");
+
+  /* CHOEUR : la couronne se dresse quand il couvre reellement quelqu'un. Un
+     porteur isole garde sa couronne baissee, ce qui rend lisible d'un coup d'oeil
+     lequel des deux choeurs est en train de tenir le paquet. */
+  if (e.type === 8 && ctxInfo?.covering) return frameOf(base + "open");
 
   if (e.type === 3) {
     const last = shooterFire.get(e.id);
@@ -5585,9 +6216,95 @@ function enemyFrame(e, t, def) {
   return frameOf(base + (step ? "walkA" : "walkB"));
 }
 
-function drawEnemies(list) {
+/* COUVERTURE D'AURA, deduite et non transmise. Le serveur la releve une fois par
+   tick dans `_auraPass` ; le client refait exactement le meme calcul a partir de
+   ce qu'il a deja — les positions, les types, et la difficulte. Zero octet de
+   reseau pour un effet qui concerne potentiellement toute la horde, ce qui est
+   precisement l'argument du systeme de traits.
+
+   Rend un Set d'identifiants couverts et un Set de porteurs ACTIFS (ceux qui
+   couvrent au moins un autre). Le second sert a dresser la couronne du choeur :
+   un porteur isole ne doit pas se vanter. */
+const auraCovered = new Set();
+const auraActive = new Set();
+
+function auraPass(list, diff) {
+  auraCovered.clear();
+  auraActive.clear();
+  const src = [];
+  for (const e of list) {
+    const def = ENEMY_TYPES[e.type];
+    if (!def) continue;
+    if (def.auraRadius) src.push({ e, r: def.auraRadius });
+    else if (hasTrait(traitsOf(diff, e.type), TRAIT_AURA)) {
+      src.push({ e, r: TRAIT_CFG.AURA_RADIUS });
+    }
+  }
+  if (src.length === 0) return;
+  for (const s of src) {
+    const r2 = s.r * s.r;
+    for (const e of list) {
+      if (e === s.e) continue;
+      if ((e.x - s.e.x) ** 2 + (e.y - s.e.y) ** 2 > r2) continue;
+      auraCovered.add(e.id);
+      auraActive.add(s.e.id);
+    }
+  }
+}
+
+/* LIEN DE SOIN DU MEDIC. Deduit lui aussi : le client cherche le voisin blesse
+   le plus proche dans la portee du type, c'est-a-dire la meme regle que
+   `_medic`. Un desaccord ponctuel avec le serveur ne coute rien — ce filet dit
+   « il y a un soigneur la-bas », pas « c'est exactement cette cible ».
+
+   Il se coupe quand le medic vient d'etre touche, et le client sait le dire sans
+   qu'on lui transmette quoi que ce soit : `hits` porte deja les impacts, deduits
+   du compteur de touches. C'est le retour visible de la rupture de soin — sans
+   lui, s'acharner sur un medic ne produirait aucun signe.
+
+   Il est trace dans la TEINTE DU TYPE et jamais en `HEAL` : le vert du soin
+   promet un gain au joueur, et celui-la soigne l'adversaire. */
+function drawMedicLinks(list, now) {
+  for (const m of list) {
+    if (m.type !== 7) continue;
+    if (hits.has(m.id)) continue;
+    const def = ENEMY_TYPES[7];
+    let best = null, bd = def.healRange * def.healRange;
+    for (const o of list) {
+      if (o === m || o.hp >= o.maxHp) continue;
+      const d2 = (o.x - m.x) ** 2 + (o.y - m.y) ** 2;
+      if (d2 < bd) { bd = d2; best = o; }
+    }
+    if (!best) continue;
+    // Depart au CROCHET du mat et non au centre du corps : c'est la que le
+    // sprite pose son point emetteur, et deux origines differentes se verraient.
+    const ca = Math.cos(m.ang ?? 0), sa = Math.sin(m.ang ?? 0);
+    const ox = m.x + 8.5 * ca - (-21) * sa;
+    const oy = m.y + 8.5 * sa + (-21) * ca;
+    const flow = (now / 260) % 1;
+    ctx.strokeStyle = ENEMY_TINT[7];
+    ctx.globalAlpha = 0.45 + 0.25 * Math.sin(now / 130);
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([6, 5]);
+    ctx.lineDashOffset = -flow * 11;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.lineTo(best.x, best.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawEnemies(list, view) {
   const t = performance.now();
   const ts = t / 1000;
+  const diff = view?.diff ?? difficulty;
+  const windup = view?.windup ?? EMPTY_SET;
+  auraPass(list, diff);
+  drawMedicLinks(list, t);
+  const me = view?.playerList?.find(p => p.id === myId);
+
   for (const e of list) {
     const def = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
     const r = e.elite ? def.r * CFG.ELITE_RADIUS_MUL : def.r;
@@ -5600,20 +6317,6 @@ function drawEnemies(list) {
     const flash = hit ? Math.max(0, (hit.until - t) / (HIT_FLASH * 1000)) : 0;
     const kx = flash > 0 ? hit.dx * HIT_KICK * flash : 0;
     const ky = flash > 0 ? hit.dy * HIT_KICK * flash : 0;
-
-    /* Retardataire. Le halo n'est pas decoratif : il dit au joueur que ces
-       ennemis-la sont les derniers de la vague, qu'ils foncent desormais sur
-       lui et qu'il n'a plus a les chercher. Sans ce signal, l'acceleration
-       soudaine des fuyards passait pour une irregularite du jeu.
-       Dessine AVANT le halo d'elite, en cercle plein et large, pour que les
-       deux se distinguent : celui-ci marque une position, celui-la un rang. */
-    if (e.straggler) {
-      const pulse = 0.5 + 0.5 * Math.sin(t / 160 + e.id);
-      ctx.fillStyle = STRAGGLER_HALO;
-      ctx.globalAlpha = 0.10 + pulse * 0.14;
-      ctx.beginPath(); ctx.arc(e.x, e.y, r + 13 + pulse * 4, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-    }
 
     // L'elite doit se reperer dans une foule de deux cents silhouettes : un
     // halo qui pulse et un lisere dore, lisibles meme au milieu de la masse.
@@ -5630,17 +6333,74 @@ function drawEnemies(list) {
        budget d'atlas ne paie QUE les changements de forme. Le dephasage par
        identifiant est indispensable — en phase, deux cents creatures pulsent
        ensemble et l'arene respire comme un seul organisme. */
-    const breath = 1 + 0.03 * Math.sin(ts * BREATH_HZ * Math.PI * 2 + e.id * 1.7);
-    const squash = flash > 0 ? 0.12 * flash : 0;
+    let breath = 1 + 0.03 * Math.sin(ts * BREATH_HZ * Math.PI * 2 + e.id * 1.7);
+    let squash = flash > 0 ? 0.12 * flash : 0;
+
+    /* AURA RECUE : un lisere, jamais un disque au sol. Un grand disque de plus
+       entrerait en concurrence avec les zones de boss et le rempart, et le
+       budget de lisibilite est deja depense a deux cents ennemis. Le lisere se
+       lit sur la creature elle-meme — c'est ELLE qui encaisse moins, l'endroit
+       ou l'information compte est sur son corps.
+
+       BANDE DE RAYON EXCLUSIVE, comme tout ce qui s'enroule autour d'une
+       entite : `r + 10`, au-dela du halo d'elite qui vit entre `r + 6` et
+       `r + 8`. Deux anneaux au meme rayon reviennent a en perdre un, et une
+       elite couverte est precisement la cible dont on veut lire les deux
+       informations. */
+    if (auraCovered.has(e.id)) {
+      const pulse = 0.5 + 0.5 * Math.sin(t / 380 + e.id);
+      ctx.strokeStyle = ENEMY_TINT[8];
+      ctx.globalAlpha = 0.3 + pulse * 0.25;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(e.x, e.y, r + 10, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    /* ANTICIPATION DE RUEE. La creature se RAMASSE : ecrasee dans l'axe de sa
+       course et etiree en travers, ce qui est exactement l'inverse de la pose de
+       detente — c'est le vocabulaire deja etabli pour les boss (« le brood
+       gonfle avant d'eclater, le tireur recule son canon, le tank rentre ses
+       plaques »). Un `scale` et aucune image d'atlas : ne pas stocker en image
+       ce qu'une transformation sait faire.
+
+       C'est la SEULE information de trait qui vienne du reseau (`wu`), et elle y
+       vient parce qu'une position ne dit pas qu'un mouvement se prepare. */
+    if (windup.has(e.id)) {
+      const gather = 0.55 + 0.45 * Math.sin(t / 60);
+      squash = 0;
+      breath *= 1 + 0.06 * gather;
+    }
+
+    /* KAMIKAZE : la pulsation ACCELERE a mesure que ses PV descendent. Un indice
+       progressif de danger plutot qu'un seuil — le joueur doit sentir qu'il
+       s'approche du point de rupture, pas le decouvrir a l'instant ou il y
+       arrive. Deduit des PV, comme le gonflement du brood. */
+    if (e.type === 5) {
+      const ready = 1 - Math.min(1, e.hp / Math.max(1, e.maxHp));
+      breath *= 1 + 0.09 * ready * (0.5 + 0.5 * Math.sin(t / (140 - ready * 95)));
+    }
+
     // Le rang d'elite est une ECHELLE et un contour, pas une image de plus :
     // la taille est le signal le plus rapide a lire dans une foule de deux
     // cents, et les collisions restent sur le rayon logique.
     const gain = (e.elite ? CFG.ELITE_RADIUS_MUL : 1) * breath;
 
-    drawSprite(ctx, enemyFrame(e, ts, def), e.x + kx, e.y + ky, {
+    /* Le joueur local est-il DANS l'angle du bouclier ? La meme mesure que
+       `_bulletHitEnemy` cote serveur, refaite ici : angle du centre de l'ennemi
+       vers le joueur, replie dans [-pi, pi], compare a la demi-ouverture. */
+    let blocked = false;
+    if (e.type === 6 && me) {
+      let off = Math.atan2(me.y - e.y, me.x - e.x) - (e.ang ?? 0);
+      while (off > Math.PI) off -= Math.PI * 2;
+      while (off < -Math.PI) off += Math.PI * 2;
+      blocked = Math.abs(off) <= (def.shieldArc * Math.PI) / 360;
+    }
+
+    drawSprite(ctx, enemyFrame(e, ts, def, { blocked, covering: auraActive.has(e.id) }),
+      e.x + kx, e.y + ky, {
       angle: e.ang ?? 0,
-      scaleX: gain * (1 + squash * 0.5),
-      scaleY: gain * (1 - squash),
+      scaleX: gain * (1 + squash * 0.5) * (windup.has(e.id) ? 0.86 : 1),
+      scaleY: gain * (1 - squash) * (windup.has(e.id) ? 1.14 : 1),
       flash,
     });
 
@@ -5757,9 +6517,24 @@ function drawBoss(b) {
      et se dilate d'un coup a la relache. C'est le seul element de la creature
      visible A TRAVERS la horde quand elle est collee au boss — le corps, lui,
      est masque par les monstres exactement au moment ou l'on voudrait le lire. */
-  ctx.fillStyle = alpha(skin, 0.10 + burst * 0.10);
+  /* ABSORPTION (lot W). Le boss final va A CONTRESENS de la relache commune :
+     sa masse se CONTRACTE sur le coup au lieu de se detendre, et ce qu'il envoie
+     semble arrache a lui-meme.
+
+     C'est son VERBE, et il en faut un : les cinq autres en ont chacun un —
+     les pointes du Ravageur jaillissent, les poches de la Matriarche se vident,
+     les anneaux du Metronome recoivent un a-coup proportionnel a leur vitesse,
+     les glyphes de l'Oracle s'eteignent, l'oscillation des Jumeaux enfle. Le
+     final rejouant leurs patrons, la tentation etait de rejouer leurs verbes :
+     il en aurait eu cinq, donc aucun.
+
+     L'absorption est le seul verbe coherent avec « il est la synthese des
+     cinq », et il est distinct de la Matriarche — qui se vide vers l'EXTERIEUR —
+     comme des quatre autres, qui poussent. Une ligne, deux signes inverses. */
+  const dedans = kind === BOSS_FINAL;
+  ctx.fillStyle = alpha(skin, 0.10 + burst * (dedans ? -0.04 : 0.10));
   ctx.beginPath();
-  ctx.arc(b.x, b.y, r + 22 - gather * 10 + burst * 26, 0, Math.PI * 2);
+  ctx.arc(b.x, b.y, r + 22 - gather * 10 + burst * (dedans ? -18 : 26), 0, Math.PI * 2);
   ctx.fill();
 
   /* Ecrasement : -9 % au ramasse, +12 % a la detente. L'asymetrie est voulue —
@@ -5767,7 +6542,7 @@ function drawBoss(b) {
      comme un coup porte, et c'est precisement l'instant qu'on cherche a rendre
      lisible. Les deux restent trop faibles pour qu'on croie que le boss recule
      ou grandit. */
-  const squash = 1 - gather * 0.09 + burst * 0.12;
+  const squash = 1 - gather * 0.09 + burst * (dedans ? -0.10 : 0.12);
 
   ctx.save();
   ctx.translate(b.x, b.y);
@@ -5781,6 +6556,7 @@ function drawBoss(b) {
     case BOSS_METRONOME:  drawBossMetronome(S); break;
     case BOSS_ORACLE:     drawBossOracle(S); break;
     case BOSS_JUMEAUX:    drawBossJumeaux(S); break;
+    case BOSS_FINAL:      drawBossFinal(S); break;
     default:              drawBossRavageur(S);
   }
 
@@ -5804,7 +6580,9 @@ function drawBoss(b) {
 function bossSheet() {
   const r = CFG.BOSS_RADIUS;
   const pas = (r + 26) * 2;
-  const poses = [0, 1, 2, 3, 4, 4];       // les Jumeaux comptent pour deux
+  // Les Jumeaux comptent pour deux, et le final ferme la planche : c'est lui
+  // qu'on regarde en premier pour verifier qu'il ne ressemble a aucun des cinq.
+  const poses = [0, 1, 2, 3, 4, 4, 5];
   const c = document.createElement("canvas");
   c.width = pas * poses.length;
   c.height = pas;
@@ -5821,8 +6599,12 @@ function bossSheet() {
   poses.forEach((kind, i) => {
     drawBoss({
       kind, x: pas * i + pas / 2, y: pas / 2, ang: 0,
-      hp: 100, maxHp: 100, bars: 4, phase: 0,
-      twin: kind === 4 && i === poses.length - 1 ? 1 : 0,
+      hp: 100, maxHp: 100, bars: 4,
+      // Le final est sorti a MI-COMBAT (trois barres brisees) : a `phase: 0` un
+      // seul de ses cinq fragments serait eveille et la planche mentirait sur sa
+      // silhouette, qui est justement d'etre composee.
+      phase: kind === BOSS_FINAL ? 4 : 0,
+      twin: kind === BOSS_JUMEAUX && i === 5 ? 1 : 0,
     });
   });
   ctx = garde;
@@ -6158,6 +6940,95 @@ function drawBossJumeaux(S) {
   ctx.restore();
 }
 
+/* AMALGAME — le boss final (lot W). Il n'a pas de forme a lui : il est fait de
+   CINQ FRAGMENTS, un par boss d'origine, qui gravitent autour d'un noyau vide.
+
+   C'est le seul choix de silhouette qui tienne la promesse du combat. Une
+   sixieme creature dessinee comme les cinq autres aurait ete un sixieme boss ;
+   celle-ci se reconnait au premier coup d'oeil sur la planche parce qu'elle est
+   la SEULE composee — cinq eclats distincts, aucun corps continu. Le test de
+   silhouette la separe donc des cinq sans qu'on ait a lire une couleur.
+
+   Chaque fragment cite la forme de son boss : une pointe (Ravageur), une poche
+   (Matriarche), un anneau ouvert (Metronome), un glyphe (Oracle), un demi-disque
+   (Jumeaux). Ils ne sont pas dessines en detail — a ce rayon, une citation de
+   trois traits se lit mieux qu'une reproduction.
+
+   Le nombre de fragments EVEILLES suit la barre : le combat commence avec un
+   seul actif et les allume un par un. La cinquieme barre les a tous, et les
+   trois dernieres — synthese, synthese, sceau — les font tourner ensemble. La
+   silhouette raconte donc la meme chose que le repertoire, sans un mot. */
+function drawBossFinal(S) {
+  const { r, t, skin, dark, edge, tense, burst, phase } = S;
+
+  /* L'absorption se lit DEUX FOIS : dans l'ecrasement commun, deja inverse par
+     `drawBoss`, et ici dans le rayon d'orbite. Les fragments plongent vers le
+     noyau au moment du coup au lieu de s'en ecarter — c'est le mouvement
+     secondaire, celui qui distingue un objet articule d'un bloc redimensionne. */
+  const orbite = r * (1.02 + tense * 0.10 - Math.max(0, burst) * 0.34);
+  // Eveilles : un de plus par barre brisee, cinq au maximum. Le fragment
+  // endormi reste dessine — en creux — sinon la silhouette changerait de forme
+  // en cours de combat et cesserait d'etre reconnaissable.
+  const eveilles = Math.max(1, Math.min(5, phase + 1));
+
+  ctx.save();
+  ctx.rotate(S.ang * 0.35 + t * 0.22);
+
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const on = i < eveilles;
+    ctx.save();
+    ctx.translate(Math.cos(a) * orbite, Math.sin(a) * orbite);
+    ctx.rotate(a + Math.PI / 2);
+    ctx.fillStyle = on ? skin : dark;
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 2.5;
+    const f = r * 0.34;
+
+    ctx.beginPath();
+    switch (i) {
+      case 0:   // Ravageur : une pointe
+        ctx.moveTo(0, -f * 1.25); ctx.lineTo(f * 0.62, f * 0.7); ctx.lineTo(-f * 0.62, f * 0.7);
+        ctx.closePath();
+        break;
+      case 1:   // Matriarche : une poche
+        ctx.ellipse(0, 0, f * 0.72, f * 1.05, 0, 0, Math.PI * 2);
+        break;
+      case 2:   // Metronome : un anneau ouvert
+        ctx.arc(0, 0, f * 0.9, 0.6, Math.PI * 2 - 0.6);
+        break;
+      case 3:   // Oracle : un glyphe, losange evide
+        ctx.moveTo(0, -f); ctx.lineTo(f * 0.7, 0); ctx.lineTo(0, f); ctx.lineTo(-f * 0.7, 0);
+        ctx.closePath();
+        break;
+      default:  // Jumeaux : un demi-disque
+        ctx.arc(0, 0, f * 0.95, -Math.PI / 2, Math.PI / 2);
+        ctx.closePath();
+    }
+    // L'anneau du Metronome est le seul tracé OUVERT : le remplir donnerait un
+    // disque, c'est-a-dire la citation du mauvais boss.
+    if (i !== 2 && on) ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  /* Le NOYAU est un vide cercle de sombre : le boss final n'a pas de corps
+     propre, et c'est exactement ce qu'il faut voir. Il s'illumine BREVEMENT sur
+     le coup — ce que les fragments viennent de perdre, il l'a pris. */
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.52, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  const eclat = Math.max(0, burst);
+  ctx.fillStyle = alpha(skin, 0.18 + eclat * 0.72);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * (0.16 + tense * 0.10 + eclat * 0.28), 0, Math.PI * 2);
+  ctx.fill();
+}
+
 /* Marqueurs de mecanique de groupe. Une seule fonction pour les huit, avec un
    code couleur constant : CYAN = va dessus, ROUGE = sors de la, JAUNE = detruis.
    Le sens se lit a la couleur avant meme d'avoir lu le bandeau — c'est ce qui
@@ -6239,6 +7110,15 @@ function drawMarks(marks, players) {
         ctx.setLineDash([]);
         break;
       }
+      /* LE SCEAU (lot W) partage le dessin des tours, et c'est voulu : il pose
+         la meme question — « quelqu'un est-il dedans » — et lui inventer une
+         signature l'aurait rendu illisible au moment precis ou l'equipe n'a
+         jamais eu si peu de temps pour lire. Ce qui le distingue est PORTE PAR
+         LE LIBELLE et par sa geometrie : des foyers plus petits, plus ecartes,
+         et une fenetre deux fois plus longue.
+         Un liseré continu et epais en plus : c'est la derniere barre du dernier
+         boss, elle a le droit d'etre la marque la plus voyante du jeu. */
+      case MECH_SEAL:
       case MECH_TOWER:
       case MECH_COUNT: {
         const ok = m.mech === MECH_COUNT ? m.cur === m.need : m.cur >= 1;
@@ -6261,6 +7141,12 @@ function drawMarks(marks, players) {
         ctx.strokeText(compte, m.x, m.y + 9);
         ctx.fillStyle = col;
         ctx.fillText(compte, m.x, m.y + 9);
+        if (m.mech === MECH_SEAL) {
+          ctx.strokeStyle = alpha(col, 0.5 + 0.5 * pulse);
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 9, 0, Math.PI * 2); ctx.stroke();
+          markLabel(m.x, m.y - m.r - 18, "SCEAU", col);
+        }
         break;
       }
       case MECH_LINK: {
@@ -6896,6 +7782,18 @@ const ATTACK_LABEL = {
   regard: "regard — ne visez plus le boss",
   lien: "lien — éloignez-vous pour le rompre",
   croix: "croix — l'intersection est mortelle",
+  // Les trois exclusives du boss final (lot W). `croixdurable`, `cone`,
+  // `pacman` et `constriction` manquaient deja : `phaseUnlockText` retombe sur
+  // la cle brute, ce qui est degrade mais jamais faux — on les ajoute au
+  // passage, l'ecran de phase du final serait sinon le seul a montrer un
+  // identifiant nu.
+  croixdurable: "croix durable — tiens ton quadrant huit secondes",
+  cone: "cône — esquive latéralement",
+  pacman: "secteur sûr — place-toi derrière la seule direction épargnée",
+  constriction: "constriction — l'arène se referme",
+  synthese: "synthèse — regroupement ET exaflares, en même temps",
+  entrelacs: "entrelacs — couronne ET disques à la dérive",
+  sceau: "SCEAU — tous les foyers tenus en même temps",
 };
 
 function phaseUnlockText(kind, phase) {

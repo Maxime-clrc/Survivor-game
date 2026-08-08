@@ -261,10 +261,59 @@ export function createStore(log = console.log) {
 
   /* --- chargement ---------------------------------------------------------------- */
 
+  /* MIGRATION 3 -> 4 (lot Q) : la vague n'existe plus, tout ce qui s'y indexait
+     passe au niveau d'equipe. Elle se fait PAR LIGNE, a l'adoption, et la ligne
+     migree est marquee sale pour etre reecrite en version 4.
+
+     Deux choses seulement, et aucune n'est une conversion de mesure :
+
+     - les identifiants de JALON changent d'unite. Un compte qui avait deja
+       « vague8 » perdrait ses cartes conditionnelles, et un compte qui avait
+       deja paye le bonus de « vague10 » le recevrait une seconde fois. On les
+       renomme donc a rang egal — le seuil bouge, l'acquis reste.
+     - `best.wave` est CONSERVE TEL QUEL, sous son ancien nom. Il n'est pas
+       convertible : une vague et un niveau ne mesurent pas la meme chose, et
+       une mesure se remesure, elle ne se reecrit pas. `best.level` et
+       `best.segment` demarrent a zero.
+
+     Rend vrai si la ligne a ete migree. */
+  const JALONS_V3 = new Map([
+    ["vague8", "niveau10"],
+    ["vague5", "niveau6"], ["vague10", "niveau12"],
+    ["vague15", "niveau18"], ["vague20", "niveau24"],
+  ]);
+
+  /* Les migrations s'ENCHAINENT au lieu de se remplacer : une ligne de version 3
+     traverse 3 -> 4 puis 4 -> 5 dans le meme appel. Ecrire `from !== 4` aurait
+     gele toutes les lignes restees en version 3, c'est-a-dire condamne les
+     comptes qui ne se sont pas connectes depuis le lot Q — le gel est fait pour
+     les versions INCONNUES, pas pour les anciennes. */
+  function migrate(profile, from) {
+    if (!profile || typeof profile !== "object") return false;
+    if (from === PROG_CFG.VERSION) return false;
+    if (from !== 3 && from !== 4) return false;
+
+    if (from === 3) {
+      if (Array.isArray(profile.milestones)) {
+        profile.milestones = [...new Set(profile.milestones
+          .map(id => JALONS_V3.get(id) ?? id))];
+      }
+      const best = profile.best ?? (profile.best = {});
+      if (best.level === undefined) best.level = 0;
+      if (best.segment === undefined) best.segment = 0;
+    }
+
+    /* 4 -> 5 (lot W) : le champ neuf du boss final. `null` et non un objet a
+       zero — un record de zero seconde se lirait comme un record. */
+    if (profile.bestFinalRun === undefined) profile.bestFinalRun = null;
+    return true;
+  }
+
   function adoptRow(row) {
     const lower = String(row.pseudo ?? "").toLowerCase();
     if (!lower) return 0;
-    if (row.version !== PROG_CFG.VERSION) {
+    const migre = migrate(row.data, row.version);
+    if (!migre && row.version !== PROG_CFG.VERSION) {
       frozen.add(lower);
       return 0;
     }
@@ -280,6 +329,11 @@ export function createStore(log = console.log) {
       creeLe: row.cree_le ?? new Date().toISOString(),
       vuLe: row.vu_le ?? new Date().toISOString(),
     });
+    // Une ligne migree doit repartir : sinon elle serait relue dans son ancienne
+    // version au prochain demarrage, donc migree a chaque fois — et gelee le
+    // jour ou cette version sortira de la chaine de migration, alors qu'elle est
+    // parfaitement lisible.
+    if (migre) save(lower);
     return 1;
   }
 

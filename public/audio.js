@@ -297,6 +297,51 @@ const PALETTE = {
     return { end: a.end + 0.30, stop: a.stop };
   },
 
+  /* OUVERTURE D'EVENEMENT (lot U). Une quinte montante, tenue, avec un souffle
+     dessous : c'est un TITRE, pas un impact — un evenement dure une minute, il
+     ne commente rien de ponctuel. Il devait se distinguer d'`annonce`, qui est
+     un compte a rebours avant coup, et de `boss`, qui est une entree ; d'ou le
+     sens MONTANT, le seul des trois.
+
+     `haut` distingue les deux familles sans ouvrir une entree par evenement :
+     une consigne (`chasse`) sonne une quarte plus haut qu'un avertissement, ce
+     qui suffit a dire « celle-la demande une action » sans quatre sons a
+     equilibrer. */
+  evenement: (o) => {
+    const f = o.haut ? 220 : 165;
+    const a = tone({ freq: f, to: f * 1.5, dur: 0.5, type: "triangle",
+                     gain: SOUND_GAIN.alerte * 0.55 });
+    tone({ freq: f * 2, dur: 0.4, type: "sine",
+           gain: SOUND_GAIN.alerte * 0.3, delay: 0.12 });
+    noise({ dur: 0.5, type: "lowpass", freq: 700, to: 240,
+            gain: SOUND_GAIN.mort * 0.45 });
+    return { end: a.end + 0.2, stop: a.stop };
+  },
+
+  /* GEYSER (lot V). Un souffle qui MONTE, la ou l'explosion descend : c'est la
+     seule chose qui les distingue a l'oreille, et il le faut — un geyser qui
+     sonnerait comme une detonation de zone ferait chercher un boss. Il vit dans
+     la hierarchie des BONUS et non des alertes : il est previsible, on l'a vu
+     venir, et le rappeler au volume d'une consigne serait mentir sur son
+     importance. */
+  geyser: () => {
+    const a = noise({ dur: 0.42, type: "bandpass", freq: 380, to: 1500,
+                      gain: SOUND_GAIN.bonus * 0.5 });
+    tone({ freq: 90, to: 210, dur: 0.34, type: "sine", gain: SOUND_GAIN.mort * 0.5 });
+    return { end: a.end, stop: a.stop };
+  },
+
+  /* MUR ABATTU (lot V). Sec, mat, sans queue : de la matiere qui cede. Il ne
+     doit surtout pas ressembler a une mort d'ennemi — on vient de detruire du
+     decor, pas de tuer quelque chose, et confondre les deux ferait croire a un
+     kill qui n'a rapporte ni score ni experience. */
+  mur: () => {
+    const a = noise({ dur: 0.20, type: "lowpass", freq: 1400, to: 300,
+                      gain: SOUND_GAIN.mort * 0.9 });
+    tone({ freq: 140, to: 70, dur: 0.14, type: "square", gain: SOUND_GAIN.mort * 0.45 });
+    return { end: a.end, stop: a.stop };
+  },
+
   // Souffle passe-bas de 300 ms, plus un coup grave : c'est ce qui donne le
   // poids d'une detonation de zone.
   explosion: (o) => {

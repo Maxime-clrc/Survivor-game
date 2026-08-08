@@ -20,6 +20,19 @@ export const BOSS_MATRIARCHE = 1;
 export const BOSS_METRONOME = 2;
 export const BOSS_ORACLE = 3;
 export const BOSS_JUMEAUX = 4;
+/* AJOUT EN FIN DE TABLE (lot W) : le boss final. Il ne se tire jamais avec les
+   cinq autres — il CLOT le segment 6, par construction, ce qui supprime la
+   constante `FINAL_BOSS_AFTER_FULL_ROSTER` du plan precedent et l'arithmetique
+   qui allait avec (« les boss occupent les vagues multiples de 5, le roster en
+   compte cinq, donc le cycle se termine vague 25 »). Le segment 6 EST cet
+   instant : la garantie reste, le calcul disparait. */
+export const BOSS_FINAL = 5;
+
+/* Nombre de boss INTERMEDIAIRES, c'est-a-dire ceux que `_pickBoss` tire. Ecrit
+   et non deduit de `BOSS_ROSTER.length` : le final est dans le roster (son index
+   circule) mais il n'entre jamais dans le tirage, et deduire ferait qu'ajouter
+   un septieme boss un jour le mettrait silencieusement dans le deck. */
+export const BOSS_POOL_COUNT = 5;
 
 /* Identifiants de MECANIQUE. Ordonnes eux aussi : l'index circule dans le
    canal d'alerte (`{t:"alert", mech, ...}`) et dans la liste `mk` du snapshot.
@@ -63,6 +76,26 @@ export const MECH_BREATH = 24;      // Ravageur : souffle qui repousse
 export const MECH_BROOD = 25;       // Matriarche : nuee de rejetons
 export const MECH_REVERSE = 26;     // Metronome : les motifs s'inversent
 export const MECH_SWAP = 27;        // Jumeaux : ils echangent leurs places
+/* AJOUT EN FIN DE TABLE, jamais au milieu : l'index circule dans le canal
+   d'alerte et dans `mk`, l'inserer ailleurs reecrirait en silence le sens de
+   toutes les annonces d'un onglet reste sur une version anterieure. */
+export const MECH_ENRAGE = 28;      // le combat s'eternise : le boss s'emporte
+/* Les DEUX mecaniques exclusives du boss final (lot W), en fin de table comme
+   tout le reste. Le critere d'acceptation demandait « au moins deux mecaniques
+   qui n'existent nulle part ailleurs » : sans elles, le combat final ne serait
+   qu'un medley et le joueur qui a vu les cinq boss n'y decouvrirait rien.
+
+   La SYNTHESE n'est pas un patron de plus : c'est la superposition de deux
+   patrons deja connus, et son annonce doit dire exactement ca — le joueur sait
+   deja lire chacun des deux, la difficulte est de les lire ensemble.
+
+   Le SCEAU est la derniere barre. Il reutilise `towerCount(alive)` et non un
+   second calcul d'effectif, et il est le seul du jeu a exiger que TOUTES les
+   zones soient tenues a l'echeance, sous peine de sanction pleine sur toute
+   l'equipe : c'est la mecanique de coordination la plus exigeante du dépôt,
+   et elle n'a lieu qu'une fois par manche. */
+export const MECH_SYNTH = 29;       // deux patrons a la fois
+export const MECH_SEAL = 30;        // le sceau : toutes les zones, en meme temps
 
 /* Niveaux d'alerte. `consigne` demande une action immediate, `avertissement`
    previent d'un danger, `information` raconte. Le client n'affiche jamais deux
@@ -149,6 +182,26 @@ export const MECHS = [
     level: ALERT_WARN, texte: "les motifs repartent en sens inverse" },
   { id: MECH_SWAP, key: "swap", nom: "Échange", minPlayers: 1, fallback: -1,
     level: ALERT_WARN, texte: "ils viennent d'échanger leurs places" },
+  /* ALERT_WARN et non ALERT_ORDER : le joueur n'a RIEN a faire d'un enrage, il
+     a besoin de savoir ce qui vient de changer. Une consigne cyan lui ferait
+     chercher un endroit ou aller. `minPlayers: 1` — l'enrage ne s'adapte pas a
+     l'effectif, c'est une horloge. */
+  { id: MECH_ENRAGE, key: "enrage", nom: "Emportement", minPlayers: 1, fallback: -1,
+    level: ALERT_WARN, texte: "le combat s'éternise — il frappe plus fort" },
+
+  /* Les deux exclusives du boss final. `minPlayers: 1` et SANS repli pour les
+     deux, et ce n'est pas une facilite : une mecanique de derniere barre qu'on
+     ne pourrait pas poser laisserait le combat sans fin, puisque c'est elle qui
+     occupe la huitieme couche du repertoire. Elles s'adaptent donc a l'effectif
+     PAR LEUR CONTENU — `towerCount(alive)` pour le sceau — et non par un repli.
+
+     La synthese est un AVERTISSEMENT et non une consigne : le joueur n'a pas
+     une action a faire, il a deux lectures a tenir en meme temps. Le sceau, lui,
+     est une consigne au sens plein. */
+  { id: MECH_SYNTH, key: "synth", nom: "Synthèse", minPlayers: 1, fallback: -1,
+    level: ALERT_WARN, texte: "deux motifs à la fois — lisez les deux" },
+  { id: MECH_SEAL, key: "seal", nom: "Sceau", minPlayers: 1, fallback: -1,
+    level: ALERT_ORDER, texte: "TENEZ tous les foyers en même temps" },
 ];
 
 export function mechAt(id) { return MECHS[id] ?? null; }
@@ -178,15 +231,38 @@ export function towerCount(alive) {
   return alive;
 }
 
-/* Les cinq boss. `hpMul` compense ce que le verbe coute en temps de tir : la
-   Matriarche voit une partie des degats partir sur ses rejetons, le Metronome
-   fait passer le combat a courir. `minPlayers` interdit un combat plutot que de
-   le denaturer — un Oracle solo, c'est le boss de la cohesion sans equipe.
+/* Les cinq boss, plus le final. `hpMul` compense ce que le verbe coute en temps
+   de tir : la Matriarche voit une partie des degats partir sur ses rejetons, le
+   Metronome fait passer le combat a courir.
 
    `base` est le repertoire d'entree, `unlock[i]` ce que la barre i+1 ajoute :
    on apprend le combat par couches au lieu de tout subir d'un coup. Les cles
    sont des CHAINES et non des index : elles ne circulent pas sur le reseau,
-   elles ne sont lues que par le repartiteur `_atk`. */
+   elles ne sont lues que par le repartiteur `_atk`.
+
+   `bars` est une propriete du ROSTER depuis le lot W et non plus la constante
+   globale `CFG.BOSS_BARS` : le final en a huit, les cinq autres cinq. Absente,
+   elle retombe sur la constante — un boss ajoute plus tard n'a rien a declarer
+   s'il suit la regle commune.
+
+   `minPlayers: 2` A DISPARU de l'Oracle et des Jumeaux (lot W). La raison est
+   arithmetique avant d'etre esthetique : cinq boss intermediaires pour cinq
+   places, tires sans repetition, c'est un deck qui se distribue EXACTEMENT et
+   cent vingt permutations gratuites. En solo, le pool tombait a trois pour cinq
+   places, donc deux combats se repetaient — visible et pauvre.
+
+   Les trois options etaient : repeter, ecrire deux boss solo dedies, ou ADAPTER.
+   L'adaptation gagne parce que le mecanisme existe deja, est teste, documente et
+   utilise par onze mecaniques : `MECH_STACK` retombe sur `MECH_DODGE`,
+   `MECH_COUNT` sur `MECH_TOWER`, `MECH_JAIL` sur `MECH_CLUSTER`. Les deux
+   mecaniques sans repli — `MECH_SPREAD` pour l'Oracle, `MECH_LINK` pour les
+   Jumeaux — sortent simplement du repertoire solo : leurs attaques retombent sur
+   les marques, ce que `_atkDispersion` et `_atkLien` font deja.
+
+   La reserve du depot reste ecrite et elle est honnete : « un Oracle solo, c'est
+   le boss de la cohesion sans equipe ». Le critere de revocation est chiffre —
+   si l'ecart lit / ignore tombe sous 40 % en solo sur ces deux combats, on
+   revient aux boss solo dedies. C'est une mesure du lot X, pas une opinion. */
 export const BOSS_ROSTER = [
   {
     id: BOSS_RAVAGEUR, key: "ravageur", nom: "Ravageur", verbe: "positionnement",
@@ -232,7 +308,7 @@ export const BOSS_ROSTER = [
        Ravageur. Le Regard fait cesser le tir deux secondes a chaque pose et les
        tours eloignent du boss : le combat coute deja du temps de tir sans
        qu'on ait a le payer une seconde fois en PV. Ramene a 0,95. */
-    minPlayers: 2, hpMul: 0.95,
+    minPlayers: 1, hpMul: 0.95,
     sous: "jouez ensemble",
     base: ["rassemblement", "dispersion", "regard", "cone"],
     unlock: [
@@ -244,7 +320,7 @@ export const BOSS_ROSTER = [
   },
   {
     id: BOSS_JUMEAUX, key: "jumeaux", nom: "Jumeaux", verbe: "séparation",
-    minPlayers: 2, hpMul: 1.00,
+    minPlayers: 1, hpMul: 1.00,
     sous: "séparez-vous",
     base: ["salve", "croix", "marques"],
     unlock: [
@@ -252,6 +328,48 @@ export const BOSS_ROSTER = [
       ["damier"],
       ["prison"],
       ["croixdurable"],
+    ],
+  },
+  /* LE BOSS FINAL (lot W). Il n'est pas un sixieme verbe : il est LA SYNTHESE
+     des cinq, et c'est ce qui dicte sa structure.
+
+     Barres 1 a 5 : un patron repris a chacun des cinq boss, dans l'ordre du
+     roster. Le joueur reconnait ce qu'il a appris, et le reconnait au bon
+     moment — la premiere barre rend le damier du Ravageur, la deuxieme les
+     grappes de la Matriarche, et ainsi de suite. Aucune n'est inedite : c'est
+     precisement l'inverse de ce qu'on attend d'un boss final, et c'est ce qui
+     fait de la sixieme barre un evenement.
+
+     Barres 6 et 7 : la SYNTHESE, deux patrons superposes. C'est la que le
+     combat cesse d'etre un medley.
+
+     Barre 8 : le SCEAU, inedit, a haute exigence de coordination.
+
+     SEPT ENTREES D'`unlock` POUR HUIT BARRES, et c'est la meme erreur
+     d'arithmetique que celle deja ecrite pour `BAR_DWELL` : huit barres ne font
+     pas huit ruptures mais SEPT — la premiere barre est ouverte des le premier
+     tir. `bossPool` empile `unlock[i]` pour `i < phase`, et `phase` plafonne a
+     `bars - 1` : une huitieme entree n'aurait JAMAIS ete atteinte. Ecrite comme
+     le plan le demandait, elle mettait le sceau — la seule mecanique inedite du
+     combat — dans du code mort. Mesure avant correctif : sceau jamais pose, quel
+     que soit le niveau de degats.
+
+     Le damier du Ravageur est donc dans `base`, ce qui n'est pas un pis-aller :
+     le Ravageur EST le boss d'origine du depot, et sa figure la plus connue a sa
+     place dans le repertoire d'entree du boss qui les resume. */
+  {
+    id: BOSS_FINAL, key: "final", nom: "Amalgame", verbe: "synthèse",
+    minPlayers: 1, hpMul: 1.00, bars: 8,
+    sous: "tout ce qu'ils t'ont appris",
+    base: ["salve", "marques", "charge", "damier"],   // barre 1 — Ravageur
+    unlock: [
+      ["grappes"],                      // barre 2 — Matriarche
+      ["exaflare"],                     // barre 3 — Metronome
+      ["rassemblement", "regard"],      // barre 4 — Oracle
+      ["croix"],                        // barre 5 — Jumeaux
+      ["synthese"],                     // barre 6 — synthese I
+      ["entrelacs"],                    // barre 7 — synthese II
+      ["sceau"],                        // barre 8 — le sceau
     ],
   },
 ];
@@ -269,6 +387,53 @@ export function bossPool(kind, phase) {
 }
 
 export const BOSS_CFG = {
+  /* --- plancher de barre (lot R) -------------------------------------------
+     Sous D2 les PV du boss ne suivent plus la puissance de l'equipe : la duree
+     d'un combat devient inversement proportionnelle a la build, de 131 s a 29 s
+     selon les mesures. C'est le grand ecart demande, et il casse une chose : un
+     combat de 29 s traverse les cinq barres sans laisser sortir la moitie du
+     repertoire, alors que chaque barre brisee est precisement ce qui ouvre du
+     repertoire (`unlock[i]`). On perd du CONTENU au moment ou l'on recompense.
+
+     Une barre ne peut donc pas se rompre moins de DWELL secondes apres la
+     precedente, et les PV sont BORNES au plancher de la barre courante : les
+     degats en exces sont mis de cote et s'appliquent a l'echeance. Retarder la
+     rupture sans borner les PV ne suffisait pas — le boss mourait quand meme
+     avant d'avoir joue, mesure a 27 s et trois barres sur cinq.
+
+     10 et non 8, et c'est une erreur d'arithmetique qu'il vaut mieux ecrire :
+     cinq barres ne font pas cinq delais mais QUATRE — la premiere barre commence
+     entamee des le premier tir. Le plancher vaut donc 4 x DWELL, soit 32 s a 8
+     et 40 s a 10. Mesure a 8 : les combats les plus courts tombaient a 32 s,
+     sous les 40 s visees. */
+  BAR_DWELL: 10,
+
+  /* --- enrage (lot R) ------------------------------------------------------
+     L'autre bout du grand ecart : a 131 s, et bien au-dela si la build est pire
+     que la pire mesuree, le boss bloque l'horloge de horde indefiniment. Il
+     faut une sortie, et elle ne doit pas etre une mort seche — d'ou des paliers
+     qui montent, chacun ANNONCE par le canal d'alerte. L'equipe perd sur un pic
+     qu'elle a vu venir (« nous n'etions pas assez forts ») et non sur un
+     compteur invisible.
+
+     L'enrage ne contourne aucun invariant : il passe par `_zoneDamage` et par
+     la cadence d'attaque, donc par `_hurt`, donc sous le plafond « une
+     mecanique ratee ne tue jamais un joueur a pleine vie ». */
+  ENRAGE_AT: 150,            // secondes de combat avant le premier palier
+  ENRAGE_STEP: 30,           // un palier de plus toutes les 30 s
+  /* Le boss FINAL a son propre seuil, et c'est une necessite arithmetique et non
+     un confort. `ENRAGE_AT: 150` est cale sur un boss normal, dont la mediane
+     mesuree est a ~70 s : le garde-fou se declenche a deux fois la mediane, donc
+     presque jamais en jeu normal. Le final a une mediane attendue autour de
+     155 s ; au meme seuil, LA MOITIE des combats medians enrageraient, ce qui
+     transformerait une sortie de secours en mecanique de phase.
+     C'est le RAPPORT qu'il faut conserver (environ deux fois la mediane), pas la
+     valeur — a remesurer une fois `FINAL_HP_MUL` cale. */
+  FINAL_ENRAGE_AT: 300,
+  ENRAGE_DAMAGE: 0.25,       // degats de zone en plus par palier
+  ENRAGE_CD: 0.12,           // cadence d'attaque resserree par palier
+  ENRAGE_CD_FLOOR: 0.45,     // ... sans descendre sous cette part de la cadence
+
   /* --- rupture de barre ----------------------------------------------------
      Elle NE FAIT PLUS DE DEGATS. Casser une barre est une reussite, et le jeu
      la punissait cinq fois par combat : c'est devenu une recompense — le souffle
@@ -427,4 +592,45 @@ export const BOSS_CFG = {
   CROSSD_WARN: 2.2,
   CROSSD_LIFE: 8,
   CROSSD_DOT: 26,            // degats par seconde
+
+  /* --- BOSS FINAL (lot W) --------------------------------------------------
+
+     `FINAL_HP_MUL` multiplie les PV par-dessus tout le reste. 2,2 pour huit
+     barres et non 8/5 = 1,6 : les barres tardives sont plus dangereuses que les
+     premieres — le repertoire y est complet, l'attaque plus rapide — donc une
+     barre du final ne vaut pas une barre d'un boss ordinaire. La valeur est un
+     POINT DE DEPART derive des mesures existantes, comme tout ce plan, et le
+     lot X la recalera sur la mediane visee (~155 s).
+
+     Le PLANCHER DE BARRE compte double ici, et il compte HUIT FOIS et non sept :
+     la derniere barre du final en a un elle aussi, ce qu'aucun autre boss n'a.
+     C'est ce qui donne les 80 s de combat minimum — huit barres x 10 s — et
+     surtout ce qui garantit que la HUITIEME couche joue : sans plancher sur la
+     derniere barre, une build forte tuait le boss dans la rupture de la
+     septieme et le sceau, seule mecanique inedite du combat, ne sortait jamais.
+     Mesure avant correctif : 44 s a x4 de degats, 11 s a x20, une couche vue
+     sur huit. On perdait le contenu au moment precis ou l'on recompense. */
+  FINAL_HP_MUL: 2.2,
+  FINAL_BAR_DWELL: 10,
+
+  /* Le SCEAU. Fenetre plus longue que les tours ordinaires (4,2 s) : il faut
+     traverser l'arene, pas se decaler. La sanction est PLEINE, comme l'ultime de
+     l'Oracle — c'est la derniere barre du dernier boss, et une sanction partielle
+     en ferait une formalite. Elle met a terre et ne tue pas, comme toute
+     mecanique : le plafond de `_hurt` s'applique.
+
+     Les foyers sont poses plus LOIN du centre que les tours (0,40 contre 0,32 de
+     la plus petite dimension) : le sceau demande de se repartir sur toute
+     l'arene, pas autour du boss. */
+  SEAL_RADIUS: 88,
+  SEAL_WARN: 6.0,
+  SEAL_RATIO: 1.0,
+  SEAL_SPREAD: 0.40,
+
+  /* La SYNTHESE. Elle ne cree aucune geometrie a elle : elle superpose deux
+     patrons existants, avec un DECALAGE — le second part `SYNTH_GAP` secondes
+     apres le premier. Sans ce decalage les deux annonces tombent dans la meme
+     image et le joueur n'en lit aucune ; avec, il lit la premiere, se place, et
+     doit relire pendant qu'il tient sa position. */
+  SYNTH_GAP: 0.9,
 };

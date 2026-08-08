@@ -58,11 +58,11 @@
         <div id="hudMeta"></div>
       </div>
 
-      <!-- haut centre : vague, puis boss -->
-      <div id="hudWave" hidden>
-        <div id="waveName"></div>
-        <div id="waveBar"><i></i></div>
-        <div id="waveState"></div>
+      <!-- haut centre : segment, puis boss -->
+      <div id="hudSegment" hidden>
+        <div id="segName"></div>
+        <div id="segBar"><i></i></div>
+        <div id="segState"></div>
       </div>
 
       <div id="hudBoss" hidden>
@@ -333,6 +333,10 @@
     <div id="voteLabel" class="sectionTitle">Difficulté</div>
     <div id="voteRow"></div>
     <div id="voteHint"></div>
+    <!-- Ce que le mode change, en trois lignes (lot T). Rempli depuis le PROFIL
+         de difficulte : depuis qu'un mode est un bestiaire, des traits et un
+         sol, voter sur le seul mot « cauchemar » est voter a l'aveugle. -->
+    <ul id="voteDetail"></ul>
   </div>
 
   <div class="row">

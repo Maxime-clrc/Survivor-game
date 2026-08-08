@@ -53,11 +53,14 @@
 #hudMeta .warn  { color: var(--warn); }
 #hudMeta .slow  { color: var(--persist); }
 
-/* --- haut centre : la vague ------------------------------------------------
-   C'est devenu l'information principale de la manche : le chronometre ne dit
-   plus rien de la difficulte, c'est le numero de vague qui la porte. */
+/* --- haut centre : le segment ----------------------------------------------
+   C'est l'information principale de la manche : le chronometre ne dit rien de
+   la difficulte, c'est la position dans le script qui la porte. La barre se
+   VIDE — elle compte le temps de horde restant avant le boss, et une jauge qui
+   se remplit se lirait comme une progression a faire plutot que comme un
+   compte a rebours. */
 
-#hudWave {
+#hudSegment {
   position: absolute;
   top: var(--sp-3);
   left: 50%;
@@ -66,21 +69,21 @@
   text-align: center;
 }
 
-#waveName {
+#segName {
   font-size: var(--t-l);
   font-weight: 600;
   letter-spacing: var(--track-title);
 }
 
-#waveName.boss { color: var(--lethal); }
+#segName.crescendo { color: var(--warn); }
 
-#waveBar {
+#segBar {
   margin-top: var(--sp-2);
   height: 5px;
   background: var(--line-soft);
 }
 
-#waveBar > i {
+#segBar > i {
   display: block;
   height: 100%;
   width: 0;
@@ -88,7 +91,7 @@
   transition: width var(--fade) linear;
 }
 
-#waveState {
+#segState {
   margin-top: var(--sp-1);
   font-size: var(--t-xs);
   color: var(--text-dim);
@@ -120,6 +123,17 @@
   font-weight: 700;
   letter-spacing: var(--track-title);
   color: var(--lethal);
+}
+
+/* Enrage : le seul clignotement du HUD, et il est lent. Le nom du boss est deja
+   rouge — une seconde couleur ne dirait rien de plus — donc c'est le MOUVEMENT
+   qui porte l'information, comme les croix du sanctuaire se lisent par leur
+   montee et non par leur teinte. */
+#bossName.enrage { animation: enrage 1.4s ease-in-out infinite; }
+
+@keyframes enrage {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
 }
 
 #bossVerb { color: var(--text-dim); font-size: var(--t-xs); }
@@ -181,6 +195,54 @@
 }
 
 #bossPips > span.spent { background: var(--boss-empty); opacity: 0.45; }
+
+/* --- BOSS FINAL (lot W) -----------------------------------------------------
+   Sa barre doit etre identifiable SANS LIRE LE NOM. Quatre differences, et
+   chacune ne coute rien a la boucle de jeu : c'est le compositeur qui travaille,
+   le HUD ne pose qu'une classe, une fois, au changement de boss.
+
+   L'echelle typographique reste FIXE — 11 / 13 / 15 / 19 / 26 / 34 / 46 — donc
+   le nom passe de `--t-m` (15) a `--t-l` (19) et non a une valeur ad hoc. Les
+   angles restent DURS : aucun rayon n'est ajoute, « le seul cercle du jeu est
+   une entite vivante » et une barre finale arrondie lui volerait ce signe. */
+#hudBoss.final { width: min(1000px, 78%); }
+
+#hudBoss.final #bossName {
+  font-size: var(--t-l);
+  color: var(--boss-low);
+}
+
+#hudBoss.final #bossBar {
+  height: 34px;
+  border-width: 3px;
+  border-color: var(--boss-low);
+}
+
+/* Les huit barres se lisent sur le fond raye : les encoches passent au huitieme
+   au lieu du dixieme, sinon la segmentation visible ne correspondrait a rien de
+   ce que la barre mesure. */
+#hudBoss.final #bossBar::after {
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(12.5% - 2px),
+    color-mix(in srgb, var(--bg-void) 75%, transparent) calc(12.5% - 2px) 12.5%);
+}
+
+/* La pulsation ACCELERE a mesure que les PV baissent, et elle vit entierement
+   ici : une animation pilotee par `requestAnimationFrame` aurait fait ecrire le
+   HUD a chaque image, ce qui est exactement le cout qu'on a supprime en sortant
+   du canvas. La duree est portee par une variable, posee par le HUD une seule
+   fois par palier de barre. */
+#hudBoss.final #bossBar {
+  animation: sceau var(--final-pulse, 2.6s) ease-in-out infinite;
+}
+
+@keyframes sceau {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--boss-low) 0%, transparent); }
+  50%      { box-shadow: 0 0 12px 2px color-mix(in srgb, var(--boss-low) 45%, transparent); }
+}
+
+#hudBoss.final #bossPips > span { width: 13px; height: 5px; }
 
 #bossUlt { margin-top: var(--sp-2); }
 

@@ -32,7 +32,8 @@ import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
-import { bossAt } from "/shared/bosses.js";
+import { bossAt, ALERT_ORDER, BOSS_FINAL } from "/shared/bosses.js";
+import { TL_CFG, eventAt } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, STATUS_ICON, iconImg } from "/icons.js";
 
@@ -42,10 +43,10 @@ const el = {
   root:     $("hud"),
   clock:    $("hudClock"),
   meta:     $("hudMeta"),
-  wave:     $("hudWave"),
-  waveName: $("waveName"),
-  waveBar:  $("waveBar").firstElementChild,
-  waveState: $("waveState"),
+  seg:      $("hudSegment"),
+  segName:  $("segName"),
+  segBar:   $("segBar").firstElementChild,
+  segState: $("segState"),
   boss:     $("hudBoss"),
   bossName: $("bossName"),
   bossVerb: $("bossVerb"),
@@ -249,8 +250,24 @@ function updateBoss(b) {
     const K = BOSS_SKIN[kind] ?? BOSS_SKIN[0];
     el.boss.style.setProperty("--boss-low", K.bar);
     el.boss.style.setProperty("--boss-deep", K.deep);
+    /* BARRE DU BOSS FINAL (lot W). Une classe posee UNE FOIS, au changement de
+       boss — tout le reste (largeur, nom plus gros, pulsation) vit en CSS. La
+       pulsation ne peut pas etre pilotee ici : le HUD n'ecrit dans le DOM que si
+       la valeur a change, et une animation par image reprendrait exactement le
+       cout qu'on est venu chercher en sortant du canvas. C'est le compositeur
+       qui travaille, pas la boucle de jeu. */
+    el.boss.classList.toggle("final", kind === BOSS_FINAL);
   }
-  setText(el.bossName, "bn", `${def.nom.toUpperCase()} ${ROMAN[b.index] ?? b.index}`);
+  /* ENRAGE. Le canal d'alerte annonce chaque palier, mais une annonce dure deux
+     secondes et l'enrage dure tout le reste du combat : sans etat permanent, le
+     joueur qui a rate le bandeau ne sait plus pourquoi il fond. Le nom du boss
+     le porte — c'est deja l'element qui dit QUI frappe, il dit maintenant
+     comment. Le palier est ecrit en chiffres : le deuxieme fait deux fois plus
+     mal que le premier, et le taire donnerait une menace sans echelle. */
+  const rage = b.enrage ?? 0;
+  setText(el.bossName, "bn", `${def.nom.toUpperCase()} ${ROMAN[b.index] ?? b.index}`
+    + (rage > 0 ? ` — EMPORTEMENT ${ROMAN[rage] ?? rage}` : ""));
+  setClass(el.bossName, "bnr", "enrage", rage > 0);
   setText(el.bossVerb, "bv", def.verbe);
   setText(el.bossHp, "bh", `${Math.max(0, Math.round(b.hp))} / ${b.maxHp}`);
   setWidth(el.bossFill, "bf", k);
@@ -266,6 +283,15 @@ function updateBoss(b) {
   if (memo.bpl !== left) {
     memo.bpl = left;
     for (let i = 0; i < bars; i++) el.bossPips.children[i].classList.toggle("spent", i >= left);
+    /* La pulsation du boss final ACCELERE a mesure que les barres tombent, et
+       elle est ecrite ICI — au changement de barre, soit huit fois dans tout le
+       combat — et non par image : c'est une variable CSS que le compositeur
+       consomme ensuite tout seul. De 2,6 s a la premiere barre a 0,9 s a la
+       derniere. */
+    if (kind === BOSS_FINAL) {
+      const k = bars > 1 ? (bars - left) / (bars - 1) : 1;
+      el.boss.style.setProperty("--final-pulse", `${(2.6 - k * 1.7).toFixed(2)}s`);
+    }
   }
 
   /* Jauge d'ultime de l'Oracle. Elle ne s'affiche que si elle existe : c'est le
@@ -281,28 +307,76 @@ function updateBoss(b) {
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 
-/* --- bandeau de vague ------------------------------------------------------
+/* --- bandeau de segment ----------------------------------------------------
    Il s'efface quand le boss est la : deux barres centrees l'une sous l'autre
-   ne se lisent pas, et pendant un boss c'est la sienne qui compte. */
-function updateWave(v) {
-  if (!v.wave || v.boss) { setHidden(el.wave, "wvOn", true); return; }
-  setHidden(el.wave, "wvOn", false);
+   ne se lisent pas, et pendant un boss c'est la sienne qui compte.
 
-  const nom = v.boss ? bossAt(v.boss.kind ?? 0).nom.toUpperCase() : "BOSS";
-  setText(el.waveName, "wvn",
-    v.waveBoss ? `VAGUE ${v.wave} — ${nom}` : `Vague ${v.wave}`);
-  setClass(el.waveName, "wvb", "boss", !!v.waveBoss);
+   Trois informations, et la troisieme est nouvelle : la SATURATION de l'arene.
+   Sans nettoyage de vague, la population tend vers son plafond et les
+   apparitions en trop sont silencieusement jetees — la difficulte plafonne au
+   moment precis ou l'equipe est en train de perdre, et rien a l'ecran ne le
+   disait. Elle ne traverse PAS le reseau : elle se deduit de la liste
+   d'ennemis, que le client a deja. */
+function updateSegment(v, c = {}) {
+  if (!v.segment || v.boss) { setHidden(el.seg, "sgOn", true); return; }
+  setHidden(el.seg, "sgOn", false);
 
-  // Le repit affiche une barre PLEINE et non un compte a rebours : ce qui
-  // compte est « la vague est finie », pas « il reste 2,4 s ».
-  let etat = "", frac = v.waveProgress, couleur = TEXT.dim;
-  if (v.wavePhase === 2)      { etat = "répit"; frac = 1; couleur = SIGNAL.gain; }
-  else if (v.wavePhase === 1) { etat = "nettoyage"; frac = 1; couleur = HUD.xp; }
+  const dernier = v.beat >= TL_CFG.BEATS - 1;
+  /* LE BIOME ET LA METEO SE GREFFENT SUR LA LIGNE DE SEGMENT, ils n'ouvrent pas
+     une ligne a eux (lot V). C'est exactement l'arbitrage deja fait pour les
+     evenements : le bandeau dit « ou l'on en est », et le lieu en fait partie.
+     Une troisieme ligne aurait ete un element de plus a chercher au moment ou
+     l'ecran est le plus charge — et le biome, lui, ne change jamais en cours de
+     manche : on le lit une fois, il n'a pas a se disputer l'attention ensuite.
 
-  setWidth(el.waveBar, "wvf", frac);
-  setStyle(el.waveBar, "wvc", "background", couleur);
-  setText(el.waveState, "wvs", etat);
-  setStyle(el.waveState, "wvsc", "color", couleur);
+     La meteo s'affiche a cote parce qu'elle change AVEC le segment : les deux
+     repondent a la meme question et se lisent d'un seul coup d'oeil. Hors
+     cauchemar il n'y en a jamais, et la ligne redevient celle d'avant. */
+  const lieu = c.biomeNom ? ` · ${c.biomeNom}` : "";
+  const meteo = c.meteoNom ? ` · ${c.meteoNom}` : "";
+  setText(el.segName, "sgn",
+    `Segment ${v.segment}/${TL_CFG.SEGMENTS}${lieu}${meteo}`);
+  setClass(el.segName, "sgb", "crescendo", dernier);
+
+  // La barre se VIDE : c'est le temps de horde restant avant le boss, pas une
+  // progression a accomplir.
+  const frac = Math.max(0, Math.min(1, v.hordeLeft / TL_CFG.SEGMENT_TIME));
+  /* L'EVENEMENT prend la place de l'etat, il n'ajoute pas une ligne (lot U). Le
+     bandeau de segment dit deja « ou en est la minute » ; un evenement EST cette
+     reponse tant qu'il dure, et une seconde ligne aurait ete un element de plus
+     a chercher au moment ou l'ecran est le plus charge.
+
+     Sa couleur suit la grammaire par le niveau d'alerte de la table : une
+     consigne est cyan (il faut y aller — concentrer le feu), un avertissement
+     ambre (danger). Le nom vient de `EVENTS`, que le client importe : le
+     snapshot ne transporte qu'un index et un compte a rebours. */
+  let etat, couleur;
+  const ev = v.event ? eventAt(v.event.id) : null;
+  if (ev)             { etat = `${ev.nom} · ${mmss(v.event.t)}`;
+                        couleur = ev.level === ALERT_ORDER ? SIGNAL.go : SIGNAL.warn; }
+  else if (v.silence) { etat = "accalmie"; couleur = SIGNAL.gain; }
+  else if (dernier)   { etat = "crescendo"; couleur = SIGNAL.warn; }
+  else                { etat = mmss(v.hordeLeft); couleur = TEXT.dim; }
+
+  /* La saturation ne s'affiche qu'a partir du seuil ou elle veut dire quelque
+     chose : en permanence, elle deviendrait un chiffre de fond qu'on ne lit
+     plus, et c'est justement au moment ou elle grimpe qu'il faut la voir. */
+  const sat = v.enemyList.length / CFG.MAX_ENEMIES;
+  if (sat >= 0.7) {
+    etat += ` · arène ${Math.round(sat * 100)} %`;
+    if (sat >= 0.98) couleur = SIGNAL.lethal;
+    else if (!v.silence) couleur = SIGNAL.warn;
+  }
+
+  setWidth(el.segBar, "sgf", frac);
+  setStyle(el.segBar, "sgc", "background", couleur);
+  setText(el.segState, "sgs", etat);
+  setStyle(el.segState, "sgsc", "color", couleur);
+}
+
+function mmss(s) {
+  const t = Math.max(0, Math.round(s));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
 }
 
 /* --- pastilles de competence ------------------------------------------------
@@ -598,7 +672,7 @@ export function updateHud(v, c) {
     }
   }
 
-  updateWave(v);
+  updateSegment(v, c);
   updateBoss(v.boss);
   updateTeam(v, c);
   updateSelf(v, c);

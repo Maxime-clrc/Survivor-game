@@ -204,6 +204,20 @@ le SQL Editor. Une ligne de `comptes` portant une version **future** (serveur
 en retard sur la donnée) est **gelée** : ni adoptée, ni jamais réécrite, et son
 pseudo reste indisponible jusqu'à mise à jour du serveur.
 
+**Passage 3 → 4 (les vagues remplacées par les segments).** Celle-là est une
+vraie **migration, faite par ligne au chargement** : la progression s'indexe
+désormais sur le niveau d'équipe, donc les identifiants de jalon changent d'unité
+(`vague8` → `niveau10`, `vague5/10/15/20` → `niveau6/12/18/24`). Ils sont
+**renommés à rang égal** — un compte qui avait déjà le jalon garde ses cartes, et
+un compte qui avait déjà touché le bonus ne le retouche pas. La ligne migrée est
+aussitôt marquée sale et repart en version 4 ; rien à faire dans le SQL Editor.
+
+`best.wave` est **conservé tel quel, sous son ancien nom, et n'est plus jamais
+écrit** : c'est le record du modèle par vagues, il n'est pas convertible en
+niveau — les deux ne mesurent pas la même chose. `best.level` et `best.segment`
+démarrent à zéro. **Prendre un instantané de la table avant de déployer**, comme
+pour toute migration.
+
 ## Comptes joueurs (pseudo + mot de passe)
 
 Le système habituel : une page de **création** (pseudo, mot de passe et sa
