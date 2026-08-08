@@ -61,6 +61,9 @@
                    le module jetait A L'EVALUATION, donc tout ce qui suit restait
                    en zone morte — d'ou le second symptome, `PARTICLE_GL`
                    inaccessible au clic. UNE cause, DEUX erreurs de console
+     0.7.12 correctif de fusion : `updateWave()` retire du HUD. Le bandeau de
+                   vague a ete remplace par celui de segment ; l'appel etait
+                   reste, et il jetait a CHAQUE IMAGE d'une manche
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -70,4 +73,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.7.11";
+export const VERSION = "0.7.12";

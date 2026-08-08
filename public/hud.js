@@ -733,10 +733,11 @@ export function updateHud(v, c) {
     setStyle(metaDiff, "mDiffC", "color", c.difficulty > 1 ? BOSS.barLow : SIGNAL.gain);
   }
 
+  // `updateSegment` a REMPLACE `updateWave` : le bandeau ne compte plus des
+  // vagues, il dit ou l'on en est dans le script. Un seul appel, jamais les deux.
   updateSegment(v, c);
   setHidden(metaSlow, "mSlowH", !v.slow);
 
-  updateWave(v);
   updateBoss(v.boss);
   updateTeam(v, c);
   updateSelf(v, c);

@@ -454,15 +454,17 @@ const errVues = new Set();
 const errFile = [];
 const ERR_MAX = 12;
 
-function signalerErreur(ou, message, pile) {
+function signalerErreur(ou, message, pile, grave = true) {
   const signature = ou + "|" + String(message).slice(0, 200);
   if (errVues.has(signature) || errVues.size >= ERR_MAX) return;
   errVues.add(signature);
   const paquet = { t: "clientError", ou, message: String(message).slice(0, 200),
                    pile: String(pile ?? "").slice(0, 400) };
-  // La console reste servie : elle est le journal de qui a les outils ouverts,
-  // et le serveur celui de qui ne les a pas.
-  console.error("[" + ou + "]", message, pile ?? "");
+  /* La console reste servie : elle est le journal de qui a les outils ouverts,
+     et le serveur celui de qui ne les a pas. `grave` distingue les deux
+     usages du canal — une ligne d'etat affichee en ROUGE se lit comme une
+     panne, et on cesse alors de regarder les vraies. */
+  (grave ? console.error : console.info)("[" + ou + "]", message, pile ?? "");
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(paquet));
   else if (errFile.length < ERR_MAX) errFile.push(paquet);
 }
@@ -1392,7 +1394,7 @@ async function bootOnce() {
   signalerErreur("demarrage",
     `rendu ${gl?.ok ? "WebGL2" : "canvas 2D"}, atlas ${stats.frames} images `
     + `${stats.w}x${stats.h}, densite ${window.devicePixelRatio ?? 1}, v${VERSION}`,
-    "");
+    "", false);
 
   /* `?planche` sort la planche de silhouettes en noir uni sur fond blanc.
      Ce n'est pas un gadget : c'est le CRITERE D'ACCEPTATION des silhouettes.
