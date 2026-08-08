@@ -271,8 +271,6 @@ const menuEl = document.getElementById("menu");
 const menuCloseBtn = document.getElementById("menuClose");
 const settingsEl = document.getElementById("settings");
 const settingsCloseBtn = document.getElementById("settingsClose");
-const terminalBtn = document.getElementById("terminalBtn");
-const terminalDot = document.getElementById("terminalDot");
 const panel = document.getElementById("panel");
 const panelTitle = document.getElementById("panelTitle");
 const summary = document.getElementById("summary");
@@ -1971,10 +1969,12 @@ passChangeBtn.onclick = () => {
    `openMenuFor` recoit donc toujours un index explicite. `#menuClose` revient
    au salon sans repasser par la connexion. */
 /* --- Terminal (lot H) --------------------------------------------------------
-   Point d'entree UNIQUE au salon (`#terminalBtn`), ouvert par defaut sur
-   l'arbre de sa propre classe ; les deux autres se consultent par les onglets
-   de classe de l'ecran. `#menuClose` revient au salon sans repasser par la
-   connexion. */
+   Point d'entree UNIQUE au salon, et c'est maintenant vrai a la lettre : le
+   bouton « Terminal » de la barre d'action a ete retire, il ouvrait le MEME
+   ecran que celui de la carte de classe sans dire sur quel arbre. Reste donc
+   `.classMetaBtn`, sous la carte choisie, qui le dit. Les deux autres classes
+   se consultent par les onglets de l'ecran ; `#menuClose` revient au salon sans
+   repasser par la connexion. */
 function openMenuFor(clsIndex) {
   panel.hidden = true;
   menuEl.hidden = false;
@@ -1986,16 +1986,16 @@ menuCloseBtn.onclick = () => {
   refreshPanel();
 };
 
-terminalBtn.onclick = () => {
-  const me = lobby.find(l => l.id === myId);
-  openMenuFor(me?.cls ?? CLASS_DEFAULT);
-};
-
-/* La pastille du Terminal : des noyaux DEPENSABLES, pas des noyaux tout
+/* La pastille de progression : des noyaux DEPENSABLES, pas des noyaux tout
    court — elle compare la bourse au moins cher des achats encore possibles
    (prochain palier de n'importe quelle ligne, confort restant). Sans elle,
    personne ne pense a ouvrir l'ecran ; allumee en permanence, elle ne dirait
-   plus rien. */
+   plus rien.
+
+   Elle a SUIVI le bouton : elle vivait sur le « Terminal » de la barre
+   d'action, elle est desormais sur `.classMetaBtn`. C'etait la seule chose que
+   ce bouton apportait, et la perdre aurait rendu la progression invisible a
+   qui n'y pense pas. */
 function cheapestPurchase(pr) {
   let min = Infinity;
   for (const clsId of Object.keys(TREES)) {
@@ -2013,9 +2013,16 @@ function cheapestPurchase(pr) {
   return min;
 }
 
+/* La pastille vit sur un bouton que `renderClasses()` reconstruit a chaque
+   diffusion du salon : on ne peut donc pas la poser une fois pour toutes. Le
+   drapeau est memorise ici, et c'est le rendu des classes qui le lit. */
+let metaSpendable = false;
+
 function updateTerminalDot() {
   const pr = progressState;
-  terminalDot.hidden = !pr || pr.cores < cheapestPurchase(pr);
+  metaSpendable = !!pr && pr.cores >= cheapestPurchase(pr);
+  const dot = classRow?.querySelector(".classMetaBtn .metaDot");
+  if (dot) dot.hidden = !metaSpendable;
 }
 
 /* --- reglage du son -------------------------------------------------------
@@ -2842,6 +2849,14 @@ function renderClasses() {
       if (mine !== metaBtnCls) meta.classList.add("fresh");
       meta.textContent = `Talents du ${c.nom}`;
       meta.style.color = c.couleur;
+      /* La pastille des noyaux depensables, reposee a chaque rendu : ce bouton
+         est reconstruit a chaque diffusion du salon, elle ne peut pas survivre
+         toute seule. Un POINT et non un nombre — le nombre est dans l'ecran,
+         ici il ne s'agit que de dire qu'il y a quelque chose a y faire. */
+      const dot = document.createElement("i");
+      dot.className = "metaDot";
+      dot.hidden = !metaSpendable;
+      meta.appendChild(dot);
       meta.onclick = () => openMenuFor(i);
       cell.appendChild(meta);
     }

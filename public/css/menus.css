@@ -4300,21 +4300,29 @@ tr.clickable { cursor: pointer; }
 }
 #metaSlots b { font-family: var(--font); font-weight: 700; color: var(--text); }
 #metaSlots small { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
-/* La pastille de noyaux depensables sur le bouton du Terminal. Un POINT et non
-   un nombre : le nombre est dans l'ecran, ici il ne s'agit que de dire qu'il y
-   a quelque chose a y faire. */
-#terminalBtn { position: relative; }
-#terminalDot {
+/* La pastille de noyaux depensables. Un POINT et non un nombre : le nombre est
+   dans l'ecran, ici il ne s'agit que de dire qu'il y a quelque chose a y faire.
+
+   Elle vivait sur `#terminalBtn`, retire depuis — il ouvrait le meme ecran que
+   le bouton de la carte de classe, sans dire quel arbre. Elle l'a suivi sur
+   `.classMetaBtn`, ou elle garde exactement le meme role.
+
+   En CYAN : « il faut y aller », c'est litteralement ce qu'elle dit. Et en
+   LOSANGE et non en rond — la charte est explicite, le seul cercle du jeu est
+   une entite vivante. La regle d'origine (`ui.css`) l'avait bien ecrit ; la
+   version `border-radius: 50%` qui vivait ici la contredisait en silence,
+   puisque cette feuille est chargee apres. */
+.classMetaBtn { position: relative; }
+.metaDot {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  width: 9px;
+  height: 9px;
   background: var(--go);
-  box-shadow: 0 0 var(--sp-2) var(--go);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
-#terminalDot[hidden] { display: none; }
+.metaDot[hidden] { display: none; }
 
 /* --- 5. la jauge de puissance (lot H) ----------------------------------------
    Un INSTRUMENT DE MESURE : on n'y choisit rien, on y lit un cadran. */

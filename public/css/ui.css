@@ -305,16 +305,11 @@ input, textarea, [contenteditable] {
 #metaSlots b { color: var(--text); }
 #metaSlots small { font-size: var(--t-xs); color: var(--text-faint); }
 
-/* La pastille du Terminal : des noyaux depensables attendent. */
-#terminalBtn { position: relative; }
-#terminalDot {
-  position: absolute;
-  top: -4px; right: -4px;
-  width: 10px; height: 10px;
-  background: var(--go);
-  /* pas un cercle : le seul cercle du jeu est une entite vivante */
-  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-}
+/* La pastille de noyaux depensables a suivi son bouton : `#terminalBtn` a ete
+   retire du salon — il ouvrait le meme ecran que celui de la carte de classe,
+   sans dire quel arbre — et elle vit desormais sur `.classMetaBtn`, dans
+   `menus.css`. Le LOSANGE, lui, est conserve tel quel : le seul cercle du jeu
+   est une entite vivante. */
 
 
 #metaBans {

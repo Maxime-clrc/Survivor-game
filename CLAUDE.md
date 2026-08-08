@@ -1560,6 +1560,23 @@ point de passage de la **sortie**, là où `goHome()` est celui du **geste** : u
 écran de salle laissé ouvert par l'un des autres chemins produirait exactement le
 même écran mort.
 
+**Le bouton « Terminal » de la barre d'action a été retiré, et la règle du seul
+point d'entrée redevient vraie à la lettre.** Il ouvrait exactement le même écran
+que celui de la carte de classe, sans dire sur quel arbre — un second chemin vers
+la même destination, moins informatif que le premier. Sa **pastille** de noyaux
+dépensables l'a suivi sur `.classMetaBtn` : c'était la seule chose qu'il
+apportait, et la perdre aurait rendu la progression invisible à qui n'y pense
+pas. Elle est reposée **à chaque rendu** — `renderClasses()` reconstruit ce
+bouton à chaque diffusion du salon, elle ne peut pas survivre seule — d'où le
+drapeau `metaSpendable` que `updateTerminalDot()` tient et que le rendu lit.
+
+La pastille reste un **losange**, jamais un rond : `ui.css` l'avait écrit dès
+l'origine (« le seul cercle du jeu est une entité vivante ») et une règle
+`border-radius: 50%` de `menus.css` — chargée après — le contredisait en silence.
+Corollaire : un joueur qui n'a **pas encore choisi** de classe n'a plus d'accès à
+la progression, puisque le bouton naît sur la carte choisie. C'est assumé — on
+choisit sa classe, puis on regarde ses talents.
+
 **Un seul point d'entrée vers la progression, et il vit sur la carte CHOISIE**
 (`.classMetaBtn`, sous `.classOpt`). Il y en a eu trois — un par carte de classe
 — et c'était trois fois la même action, chacune concurrençant le choix de classe

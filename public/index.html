@@ -764,12 +764,12 @@
         <div id="launchSummary"></div>
         <div id="waitMsg"></div>
       </div>
-      <!-- Le Terminal garde son bouton de barre pour sa PASTILLE : elle
-           s'allume quand des noyaux sont depensables, et sans elle personne ne
-           pense a ouvrir l'ecran. Le bouton sous la carte de classe choisie,
-           lui, dit QUEL arbre il ouvre. -->
+      <!-- UN SEUL point d'entree vers la progression, et il vit sous la carte
+           de classe choisie : il dit du meme coup QUEL arbre il ouvre. Le
+           bouton « Terminal » de cette barre faisait doublon — meme ecran, sans
+           cette precision. Sa pastille de noyaux depensables l'a suivi la-bas,
+           c'etait la seule chose qu'il apportait. -->
       <div class="row">
-        <button id="terminalBtn">Terminal<i id="terminalDot" hidden></i></button>
         <button id="start">Lancer la manche</button>
       </div>
     </div>
