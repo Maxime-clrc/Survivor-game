@@ -95,6 +95,11 @@ import { EventPump } from "/events.js";
    descriptions de cartes lisibles a l'ecran. Seule conversion d'affichage du
    fichier, et elle passe par le point unique. */
 import { PX_PER_M, fmtM } from "/shared/units.js";
+/* La version du CODE QUE CET ONGLET EXECUTE, importee par le meme chemin que le
+   serveur. C'est la moitie client de la comparaison : l'autre arrive dans le
+   `welcome`, et leur desaccord est le seul moyen de detecter un onglet reste
+   ouvert pendant un redeploiement. */
+import { VERSION } from "/shared/version.js";
 /* Les glyphes sont dessines a deux endroits depuis que le HUD est sorti du
    canvas — dans l'arene et dans le DOM — d'ou un module a part plutot qu'une
    seconde copie des traces. */

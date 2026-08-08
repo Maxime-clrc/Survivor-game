@@ -57,6 +57,10 @@
      0.7.10 remontee d'erreur client : le navigateur n'a pas de journal qu'on
                    relise, le serveur si — une erreur non rattrapee y arrive
                    desormais, dedupliquee et aplatie
+     0.7.11 correctif de fusion : `VERSION` reimporte dans `client.js`. Sans lui
+                   le module jetait A L'EVALUATION, donc tout ce qui suit restait
+                   en zone morte — d'ou le second symptome, `PARTICLE_GL`
+                   inaccessible au clic. UNE cause, DEUX erreurs de console
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -66,4 +70,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.7.10";
+export const VERSION = "0.7.11";
