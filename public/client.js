@@ -611,6 +611,15 @@ function connect() {
         closePause();
         showHud(false);
         panel.hidden = true;
+        /* Le Terminal et les Parametres se ferment ICI aussi, et ce n'est pas
+           une redite de `goHome()` : on sort d'une salle par bien d'autres
+           chemins — `#panelLeave`, le bouton du bilan, une salle fermee sur
+           erreur, une exclusion. Tous aboutissent a ce message, et aucun ne
+           doit laisser un ecran de salle peint par-dessus le hub. `settingsFrom`
+           part avec eux : il pointe sur le salon qu'on vient de quitter. */
+        if (menuEl) menuEl.hidden = true;
+        if (settingsEl) settingsEl.hidden = true;
+        settingsFrom = null;
         enterHub();
         if (msg.why === "erreur interne") {
           hubStatus("la salle a été fermée sur une erreur — désolé", true);
@@ -1610,17 +1619,41 @@ document.addEventListener("pointerdown", e => {
   playSound(uiSoundFor(cible));
 });
 
-/* Retour aux salons. En pleine manche on ne quitte pas sechement : c'est la
-   meme regle que `#pauseQuit`, qui demande confirmation pour la meme raison —
-   l'action est irreversible pour la manche en cours. */
-topHomeBtn.onclick = () => {
-  if (!connected || !inRoom) return;
-  if (phase === PHASE_ROUND && !amSpectator
+/* RETOUR AUX SALONS. Un bouton « accueil » promet UNE chose : d'ou qu'on
+   clique, on arrive au hub. Le sien n'y arrivait que depuis le salon.
+
+   Trois defauts, tous vus a l'usage. Il sortait immediatement quand `!inRoom`,
+   donc au hub avec le Terminal ou les Parametres ouverts par-dessus il ne
+   faisait RIEN — c'est le « ne marche pas tout le temps ». Depuis une salle
+   avec un de ces deux ecrans ouverts, il envoyait `leaveRoom` sans les fermer :
+   or `#menu` et `#settings` viennent APRES `#hubScreen` dans le document, a
+   z-index egal, donc ils restaient peints par-dessus le hub — on quittait la
+   salle et on regardait un ecran mort. Et depuis les Parametres, `settingsFrom`
+   pointait sur le salon qu'on venait de quitter : le refermer ressuscitait le
+   salon d'une salle ou l'on n'etait plus.
+
+   D'ou un point de passage unique. La confirmation vient EN PREMIER — annuler
+   ne doit rien avoir referme — puis on ferme ce qui se superpose, sans rien
+   restaurer : la destination est le hub, pas ce que l'ecran recouvrait. */
+function goHome() {
+  if (!connected) return;
+  // En pleine manche on ne quitte pas sechement : meme regle que `#pauseQuit`,
+  // l'action est irreversible pour la manche en cours.
+  if (inRoom && phase === PHASE_ROUND && !amSpectator
       && !confirm("Une manche est en cours. Quitter la salle et revenir aux salons ?")) {
     return;
   }
+  if (settingsEl && !settingsEl.hidden) { settingsEl.hidden = true; settingsFrom = null; }
+  if (menuEl && !menuEl.hidden) menuEl.hidden = true;
+  closeBuild();
+  /* Deja au hub : il n'y a rien a quitter, on vient seulement de refermer ce
+     qui le recouvrait. Sans cette branche le bouton restait inerte, ce qui est
+     precisement ce qu'on corrige. */
+  if (!inRoom) { enterHub(); syncTopbar(); return; }
   ws.send(JSON.stringify({ t: "leaveRoom" }));
-};
+}
+
+topHomeBtn.onclick = goHome;
 
 /* Les parametres se rappellent d'ou l'on vient. `settingsFrom` retient
    l'element a redonner, pas un nom d'ecran : c'est lui qu'on rendra, et il n'y
@@ -3530,7 +3563,41 @@ function pickCard(id) {
   cardsState.picked = true;
   cardsState.pickedId = id;
   ws.send(JSON.stringify({ t: "pickCard", id }));
-  renderCards();
+  markCardPicked(id);
+}
+
+/* LA SELECTION MUTE LA RANGEE, ELLE NE LA RECONSTRUIT PAS.
+
+   `pickCard` appelait `renderCards()`, qui vide `cardsRow.innerHTML` et recree
+   les trois boutons. Or `#cardsRow .cardOpt` porte `riseIn` en `both`, avec des
+   delais de 0, 70 et 140 ms : les trois cartes repartaient donc d'une opacite
+   NULLE au moment ou l'on venait d'en choisir une. C'etait le clignotement, et
+   c'est exactement le defaut que `.settled` corrige ailleurs.
+
+   `.settled` ne pouvait pas servir ici, et le depot le disait deja : la carte
+   epique porte `riseIn` ET `epicBreath` dans la MEME declaration, donc un
+   `animation: none` lui aurait aussi retire sa respiration — c'est-a-dire la
+   seule chose qui en fait un evenement. La bonne correction est en amont : on
+   ne detruit pas ce qui n'a pas change. Trois classes, un `disabled` et deux
+   retraits suffisent a dire « c'est joue ».
+
+   `renderCards()` reste le chemin des vrais changements d'offre — nouveau
+   tirage, relance, tour suivant — ou reconstruire est correct. */
+function markCardPicked(id) {
+  for (const btn of cardsRow.querySelectorAll(".cardOpt")) {
+    const mienne = btn.dataset.card === String(id);
+    btn.disabled = true;
+    btn.classList.toggle("picked", mienne);
+    btn.classList.toggle("faded", !mienne);
+    // Le ban n'a plus de sens une fois la carte prise : il disparaissait deja
+    // dans l'ancien rendu, faute d'etre recree.
+    btn.querySelector(".cardBan")?.remove();
+  }
+  // `hidden` plutot que `remove()` : meme resultat a l'ecran, et le noeud reste
+  // la si un nouveau tirage le reactive.
+  const rb = cardsRow.querySelector("#cardsReroll");
+  if (rb) { rb.disabled = true; rb.hidden = true; }
+  renderCardsWait();
 }
 
 /* Bannissement (lot J). Irreversible et sans carte de remplacement : la
@@ -3605,6 +3672,9 @@ function renderCards() {
        detail vit dans `ui.css`, a cote des autres regles de rendu. */
     btn.className = `cardOpt r${c.rarity ?? 0}`;
     btn.style.color = col;
+    // L'identifiant est pose sur le noeud : c'est ce qui permet a la selection
+    // de retrouver SA carte sans reconstruire la rangee. Voir `markCardPicked`.
+    btn.dataset.card = c.id;
     btn.disabled = cardsState.picked;
     /* Selection : la carte prise se verrouille, les deux autres s'estompent.
        Le joueur doit voir ce qu'il a ECARTE — c'est la moitie de la decision,

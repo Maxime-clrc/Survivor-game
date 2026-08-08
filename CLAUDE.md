@@ -1537,6 +1537,29 @@ donc dans le flux, et derrière un `#stage` haut de 100 % elle tombait hors
 écrans de 56 px, sans quoi leurs premiers pixels passent dessous — le kicker du
 salon disparaissait.
 
+**Le bouton d'accueil promet UNE chose : d'où qu'on clique, on arrive au hub**
+(`goHome()`, point de passage unique). Le sien n'y arrivait que depuis le salon,
+et les trois défauts se voyaient à l'usage. Il sortait immédiatement sur
+`!inRoom`, donc **au hub** avec le Terminal ou les Paramètres ouverts par-dessus
+il ne faisait rien — le « il ne marche pas tout le temps ». Depuis une salle avec
+l'un de ces écrans ouvert, il envoyait `leaveRoom` sans les fermer : or `#menu`
+(4ᵉ `.overlay`) et `#settings` (5ᵉ) viennent **après** `#hubScreen` (2ᵉ) dans le
+document, à z-index égal — ils restaient donc peints par-dessus le hub, et l'on
+regardait un écran mort. Et depuis les Paramètres, `settingsFrom` pointait sur le
+salon qu'on venait de quitter : le refermer **ressuscitait** le salon d'une salle
+où l'on n'était plus.
+
+L'ordre compte : la **confirmation d'abord** — annuler ne doit rien avoir
+refermé — puis on ferme ce qui se superpose **sans rien restaurer**, la
+destination étant le hub et non ce que l'écran recouvrait.
+
+**`roomClosed` ferme les mêmes écrans, et ce n'est pas une redite.** On sort
+d'une salle par bien d'autres chemins que ce bouton — `#panelLeave`, la sortie du
+bilan, une salle fermée sur erreur — et tous aboutissent à ce message. C'est le
+point de passage de la **sortie**, là où `goHome()` est celui du **geste** : un
+écran de salle laissé ouvert par l'un des autres chemins produirait exactement le
+même écran mort.
+
 **Un seul point d'entrée vers la progression, et il vit sur la carte CHOISIE**
 (`.classMetaBtn`, sous `.classOpt`). Il y en a eu trois — un par carte de classe
 — et c'était trois fois la même action, chacune concurrençant le choix de classe
@@ -1704,6 +1727,37 @@ et un total sous le seuil est **reporté** sur la fenêtre suivante, jamais jet�
 chiffre infligé la provenance est évidente — c'est nous — et un glyphe de plus à
 trois cents impacts par minute repeindrait l'écran. Le glyphe est dans la couleur
 du texte : c'est la même information, elle ne peut pas être de deux couleurs.
+
+**Choisir une carte MUTE la rangée, ça ne la reconstruit pas.** `pickCard`
+appelait `renderCards()`, qui vide `#cardsRow` et recrée les trois boutons — or
+`#cardsRow .cardOpt` porte `riseIn` en `both`, avec des délais de 0, 70 et
+140 ms. Les trois cartes repartaient donc d'une **opacité nulle** au moment
+précis où l'on venait d'en choisir une (mesuré : 0,44 / 0,44 / 0,00 à 60 ms).
+C'est le clignotement, et c'est le défaut que `.settled` corrige ailleurs —
+sauf que `.settled` ne pouvait pas servir ici, la carte épique portant `riseIn`
+**et** `epicBreath` dans la même déclaration. La bonne correction est en amont :
+on ne détruit pas ce qui n'a pas changé. `renderCards()` reste le chemin des
+vrais changements d'offre — nouveau tirage, relance, tour suivant.
+
+**Corollaire découvert en corrigeant : `.faded` n'avait jamais fonctionné.**
+`riseIn` est en `fill-mode: both`, donc il **retient** sa valeur finale
+(`opacity: 1`) une fois terminé — et une animation l'emporte sur une déclaration
+auteur normale, quelle que soit la spécificité. Les deux cartes écartées
+restaient donc pleines, alors que voir ce qu'on a **écarté** est la moitié de la
+décision que cet écran sert à prendre. C'est le piège déjà documenté pour
+`translate` / `transform`, vu par l'autre bout : là il fallait séparer deux
+propriétés pour que le survol survive à l'entrée, ici il faut **arrêter**
+l'entrée pour que l'état vive.
+
+Deux pièges de cascade dans la foulée, tous deux vérifiés à l'écran. Le sélecteur
+doit reprendre `#cardsRow` — `#cardsRow .cardOpt` pèse (1,1,0) et `.cardOpt.faded`
+(0,2,0) ne peut pas gagner, c'est exactement ce qui est déjà écrit pour
+`.cardOpt.r2` ; sans lui la règle est simplement inerte. Et la carte **choisie**
+doit reprendre `opacity: 1` : elle est `disabled`, donc le `opacity: .45` des
+boutons désarmés s'appliquait dès que l'animation cessait de le masquer, et la
+carte qu'on vient de prendre devenait plus pâle que le reste de l'écran — même
+arbitrage que `#start:disabled`. Résultat mesuré : écartées à **0,30**, choisie à
+**1,00**, aucune animation relancée.
 
 **Sur l'écran de cartes, l'effet est la ligne la plus grosse, pas le nom.** C'est
 ce qu'on compare en trente secondes ; le nom ne sert qu'à reconnaître la carte

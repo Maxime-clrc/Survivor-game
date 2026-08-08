@@ -3010,6 +3010,39 @@ tr.clickable { cursor: pointer; }
 }
 .cardOpt.faded { opacity: .3; }
 
+/* L'ENTREE DOIT MOURIR POUR QUE L'ETAT S'APPLIQUE. `#cardsRow .cardOpt` porte
+   `riseIn` en `fill-mode: both`, donc l'animation RETIENT sa valeur finale
+   (`opacity: 1`) une fois terminee — et une animation l'emporte sur une
+   declaration auteur normale, quelle que soit la specificite. `.faded` posait
+   donc un `opacity: .3` qui n'a jamais rien fait : les deux cartes ecartees
+   restaient pleines, alors que voir ce qu'on a ECARTE est la moitie de la
+   decision que cet ecran sert a prendre.
+
+   C'est le meme piege que celui deja documente pour `translate` et `transform`
+   plus haut dans cette feuille, vu par l'autre bout : la, il fallait separer
+   deux proprietes pour que le survol survive a l'entree ; ici, il faut arreter
+   l'entree pour que l'etat vive.
+
+   `animation: none` et non `!important` : le depot n'en emploie nulle part, et
+   la carte epique perd sa respiration en meme temps — ce qui est juste, une
+   carte verrouillee ou ecartee n'est plus un evenement.
+
+   Le selecteur reprend `#cardsRow`, et ce n'est pas decoratif : c'est le meme
+   piege que `.cardOpt.r2` quelques regles plus haut. `#cardsRow .cardOpt` pese
+   (1,1,0), donc `.cardOpt.faded` (0,2,0) ne peut pas gagner — l'identifiant
+   l'emporte sur le nombre de classes. Ecrit sans lui, la regle est simplement
+   inerte, ce qui ne se voit qu'a l'usage. */
+#cardsRow .cardOpt.picked, #cardsRow .cardOpt.faded { animation: none; }
+
+/* Et la carte CHOISIE reprend son opacite pleine. Elle est `disabled` — plus
+   rien a cliquer — donc le `opacity: .45` des boutons desarmes s'appliquait des
+   que l'animation cessait de le masquer : la carte qu'on vient de prendre
+   devenait plus pale que le reste de l'ecran, avec son bandeau « verrouillée »
+   a moitie efface. C'est le meme arbitrage que `#start:disabled`, qui reprend
+   deja son opacite pour la meme raison. Les ECARTEES, elles, gardent leurs
+   30 % : c'est precisement ce qu'on veut leur voir dire. */
+#cardsRow .cardOpt.picked { opacity: 1; }
+
 /* --- build ------------------------------------------------------------------ */
 #build { z-index: 20; gap: var(--sp-6); justify-content: flex-start; }
 /* La fenetre de build coule dans une colonne, comme les autres ecrans hors
