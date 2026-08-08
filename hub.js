@@ -20,15 +20,18 @@
    SIGTERM couvre donc aussi ce qui attendait la fenetre.
    =========================================================================== */
 
+import { readFileSync } from "node:fs";
+
 import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES } from "./shared/game_state.js";
-// Le boss final (lot W) : son jalon paie trois fois plus, et c'est le seul
-// endroit du hub qui ait besoin de savoir lequel des six vient de tomber.
-import { BOSS_FINAL } from "./shared/bosses.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
-import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial } from "./shared/progression.js";
+import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial, recordFinal } from "./shared/progression.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { VERSION } from "./shared/version.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
+/* `nowMs` est importe sous un autre nom : `tick()` declare deja un
+   `const nowMs = Date.now()` local, qui shadowerait l'import sur toute la
+   fonction et le ferait echouer en zone morte temporelle. */
+import { PERF_ON, PERF_REPORT_S, Sampler, nowMs as perfNow, f1 } from "./perf.js";
 
 /* Surchargeables par l'environnement POUR LES TESTS uniquement (un delai de
    grace de 60 s rendrait le test de destruction interminable) — en production
@@ -41,6 +44,20 @@ const ROOM_MAX = Number(process.env.ROOM_MAX) || 16;
    le serveur de sockets mortes. */
 const IP_CONN_MAX = 8;
 const LIST_MIN_MS = 1000;   // une demande de liste par seconde et par client
+
+/* Numero de version affiche sur l'ecran de connexion. Il est LU dans
+   package.json et non recopie ici : deux litteraux divergent au premier
+   `npm version`, et un numero faux sur un ecran de depannage est pire que pas
+   de numero du tout. Lecture unique au chargement du module — le fichier ne
+   change pas en cours d'execution — et repli silencieux : le jeu doit
+   demarrer meme lance depuis une arborescence incomplete. */
+const BUILD = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version || "";
+  } catch {
+    return "";
+  }
+})();
 
 /* Frein par PSEUDO CIBLE, en plus des cinq essais par connexion : depuis que
    se reconnecter est gratuit (plus de place de partie a occuper), le frein
@@ -89,6 +106,9 @@ export function createHub(store, log, commit = "") {
       kills: pr.kills,
       classes: pr.classes,
       confort: pr.confort,
+      // Lot J : la liste des cartes bannies — le Terminal l'affiche, le
+      // repli couvre les profils v4 d'avant le lot.
+      bannedCards: pr.bannedCards ?? [],
       pseudo: pr.pseudo ?? "",
       gained: c.lastGain ?? 0,
     };
@@ -112,28 +132,29 @@ export function createHub(store, log, commit = "") {
       const p = state.players.get(c.id);
       if (!p || !c.profile) continue;
       const pr = c.profile;
-      let gain = shared;
+      /* Les jalons ne creditent plus AUCUN noyau (lot H) : la monnaie vient du
+         jeu repete, la capacite (emplacements, cartes) vient des jalons. Les
+         `boss_N` restent poses — ils deverrouillent les legendaires et
+         comptent pour l'emplacement « trois boss » — et `vague10` porte
+         l'emplacement du meme nom. */
+      const gain = shared;
 
-      for (const [n, bonus] of Object.entries(PROG_CFG.CORE_FIRST_LEVELS)) {
-        const id = `niveau${n}`;
-        if (state.level >= Number(n) && !pr.milestones.includes(id)) {
-          pr.milestones.push(id);
-          gain += bonus;
-        }
-      }
       for (const kind of state.bossKindsKilled) {
         const id = `boss_${kind}`;
-        if (!pr.milestones.includes(id)) {
-          pr.milestones.push(id);
-          // Le boss final paie trois fois plus (lot W). C'est la seule
-          // recompense de PUISSANCE de l'evenement : les cartes passent par le
-          // jalon, jamais par la bourse.
-          gain += kind === BOSS_FINAL
-            ? PROG_CFG.CORE_FINAL_BOSS
-            : PROG_CFG.CORE_FIRST_BOSS;
-        }
+        if (!pr.milestones.includes(id)) pr.milestones.push(id);
       }
-      if (state.level >= 10 && !pr.milestones.includes("niveau10")) pr.milestones.push("niveau10");
+      /* Les jalons de NIVEAU et non de vague : celle-ci n'existe plus. Ils ne
+         paient AUCUNE prime — le lot H les a retirees apres avoir mesure
+         qu'elles faisaient les deux tiers du revenu — ils ne font que debloquer
+         des cartes et, pour le jalon d'emplacement, une ligne de plus a
+         equiper. */
+      if (state.level >= 10 && !pr.milestones.includes("niveau10")) {
+        pr.milestones.push("niveau10");
+      }
+      if (state.level >= PROG_CFG.SLOTS_LEVEL
+          && !pr.milestones.includes(`niveau${PROG_CFG.SLOTS_LEVEL}`)) {
+        pr.milestones.push(`niveau${PROG_CFG.SLOTS_LEVEL}`);
+      }
       if (p.deaths === 0 && state.level >= PROG_CFG.NO_DOWN_MIN_LEVEL
           && !pr.milestones.includes("sans_chute")) {
         pr.milestones.push("sans_chute");
@@ -155,32 +176,60 @@ export function createHub(store, log, commit = "") {
       if (state.segment > (pr.best.segment | 0)) pr.best.segment = state.segment;
       if (p.score > pr.best.score) pr.best.score = p.score;
 
-      /* MEILLEURE COURSE FINALE (lot W). Le temps du COMBAT FINAL SEUL — pas
-         celui pour l'atteindre, qui est une constante sous D1 et ne
-         distinguerait personne.
+      /* CLASSEMENT AU TEMPS. Le hub ENREGISTRE, il ne recalcule rien : la duree
+         du combat final est relevee par la simulation (`_killBoss`, seul instant
+         ou l'entite existe encore) et le contexte vient du salon.
 
-         Les quatre champs de contexte sont OBLIGATOIRES et c'est tout l'interet
-         de l'enregistrement : un temps n'est comparable qu'a variante, biome,
-         difficulte et effectif egaux. Le meilleur temps ne remplace le
-         precedent que s'il est plus court, mais le contexte du NOUVEAU
-         l'accompagne — comparer deux records de contextes differents est le
-         travail du lot X, pas celui de cette ligne. */
-      if (state.finalKill > 0
-          && (!pr.bestFinalRun || state.finalKill < pr.bestFinalRun.kill)) {
-        pr.bestFinalRun = {
-          kill: state.finalKill,
+         Le record est PAR DIFFICULTE — comparer un temps de calme a un temps de
+         cauchemar n'aurait aucun sens — et il est verse a CHAQUE joueur present :
+         la victoire est celle de l'equipe, et un classement qui ne crediterait
+         que le porteur du coup fatal recompenserait le hasard de la derniere
+         balle.
+
+         Le temps est celui du COMBAT FINAL SEUL. Celui pour l'atteindre vaut
+         1800 s de horde plus les cinq combats precedents : domine par une
+         constante, il ne distinguerait personne. */
+      if (state.victory && state.finalKill > 0) {
+        c.lastFinal = recordFinal(pr, {
+          time: state.finalKill,
           total: Math.round(state.time),
           level: state.level,
           difficulty: state.diffIndex,
           variant: DIFFICULTIES[state.diffIndex]?.script ?? "normal",
           biome: state.biomeIndex,
           players: room.joined().length,
-          date: new Date().toISOString(),
-        };
+        }, new Date().toISOString()) ? "record" : "victoire";
       }
+
       c.lastGain = gain;
       persist(c);
     }
+    /* Consommee UNE fois, apres la boucle : `awardRun` est appele une seule
+       fois par manche, mais la vider ici garantit qu'une manche relancee dans
+       la foulee ne represente pas la meme victoire. */
+  }
+
+  /* Classement global au temps (lot N), toutes salles confondues, par
+     difficulte. Lu depuis la MEMOIRE du magasin — jamais une requete par
+     affichage : la Map `accounts` est deja l'etat chaud, et le classement est
+     consulte au hub, c'est-a-dire souvent.
+     Il vit au HUB et non au Terminal : le classement compare des COMPTES entre
+     eux, sa place est la ou l'on est justement hors salle, et il est ainsi
+     visible des la connexion. */
+  function leaderboard(limit = 10) {
+    const par = DIFFICULTIES.map(() => []);
+    for (const pr of store.profiles()) {
+      const bf = pr.bestFinal;
+      if (!bf) continue;
+      for (const k of Object.keys(bf)) {
+        const d = Number(k);
+        if (!par[d]) continue;
+        par[d].push({ pseudo: pr.pseudo, time: bf[k].time | 0, wave: bf[k].wave | 0 });
+      }
+    }
+    // Le TEMPS classe, et seulement lui : c'est un classement de vitesse.
+    for (const l of par) l.sort((a, b) => a.time - b.time);
+    return par.map(l => l.slice(0, limit));
   }
 
   /* Part d'un joueur qui quitte EN COURS de manche : les niveaux atteints, rien
@@ -199,6 +248,11 @@ export function createHub(store, log, commit = "") {
     awardRun,
     awardPartial,
     sendProgress,
+    /* Lot J : le bannissement s'ecrit IMMEDIATEMENT — il ne doit pas se
+       perdre si le serveur redemarre avant la fin de la manche. La salle
+       emet, le hub ecrit, comme pour tout le reste de la progression ;
+       l'ecran de cartes est une pause entre deux vagues, pas une vague. */
+    persist,
   };
 
   function roomsPayload() {
@@ -319,8 +373,10 @@ export function createHub(store, log, commit = "") {
         if (pr.cores < cost) break;
         pr.cores -= cost;
         cp.tiers[line.id] = cur + 1;
+        // `slotsFor` prend le PROFIL depuis le lot H : la capacite vient des
+        // jalons du compte, plus des paliers achetes dans la classe.
         if (cur === 0 && !cp.equipped.includes(line.id)
-            && cp.equipped.length < slotsFor(cp)) {
+            && cp.equipped.length < slotsFor(pr)) {
           cp.equipped.push(line.id);
         }
         persist(client);
@@ -333,7 +389,7 @@ export function createHub(store, log, commit = "") {
         if (!cp || !Array.isArray(msg.lines) || msg.lines.length > 16) break;
         const lines = [...new Set(msg.lines.filter(l => typeof l === "string"))];
         if (lines.some(l => !(cp.tiers[l] > 0))) break;
-        if (lines.length > slotsFor(cp)) break;
+        if (lines.length > slotsFor(client.profile)) break;
         cp.equipped = lines;
         persist(client);
         sendProgress(client);
@@ -378,12 +434,23 @@ export function createHub(store, log, commit = "") {
       vote: DIFF_NORMAL,
       cls: null,
       clsLocked: false,
+      /* Prêt au salon. Le SERVEUR en est proprietaire, pas le client : a
+         quatre, deux clients qui se contredisent afficheraient deux salons
+         differents. Il vit ici et non sur la Room parce qu'il suit le joueur
+         d'une salle a l'autre, exactement comme `cls` et `vote`. */
+      ready: false,
       lastListAt: 0,
       input: { x: 0, y: 0, ax: 1, ay: 0, ar: SKILL_CFG.DPS_BOMB_RANGE_MAX,
                dash: false, s1: false, s2: false, s3: false },
       total: { score: 0, kills: 0, deaths: 0, rounds: 0 },
     };
     clients.set(id, client);
+
+    /* Un premier etat tout de suite, sans attendre le battement de coeur : la
+       latence est encore inconnue (`-1`, affichee en tiret) mais le nombre de
+       salles et la version le sont, et l'ecran de connexion cesse de dire
+       « connexion au serveur… » des la premiere image. */
+    conn.send(JSON.stringify(serverInfoPayload(client)));
 
     conn.onmessage = raw => {
       let msg;
@@ -432,6 +499,18 @@ export function createHub(store, log, commit = "") {
           if (now - client.lastListAt < LIST_MIN_MS) return;
           client.lastListAt = now;
           client.conn.send(JSON.stringify(roomsPayload()));
+          return;
+        }
+        /* Classement au temps (lot N). Meme frein que la liste des salles, et
+           pour la meme raison : c'est un bouton qu'on martele et le port est
+           public. Il partage `lastListAt` — les deux demandes lisent l'etat
+           chaud du hub, un frein commun suffit et evite qu'on contourne l'un
+           en alternant avec l'autre. */
+        case "leaderboard": {
+          const now = Date.now();
+          if (now - client.lastListAt < LIST_MIN_MS) return;
+          client.lastListAt = now;
+          client.conn.send(JSON.stringify({ t: "leaderboard", board: leaderboard() }));
           return;
         }
         case "createRoom": handleCreateRoom(client, msg); return;
@@ -634,11 +713,36 @@ export function createHub(store, log, commit = "") {
      avant le refactor, une exception dans une partie tombait tout le serveur. */
   let lastTick = process.hrtime.bigint();
 
+  /* Diagnostic (PERF=1). Deux mesures distinctes qu'on confond facilement :
+     `perfPeriode` est l'espacement REEL entre deux reveils du setInterval —
+     nominalement 8,333 ms, jamais exactement ca — et `perfTour` est le temps
+     passe DANS le tour. La premiere explique la quantification de la cadence
+     de diffusion, la seconde repond au budget de 8,3 ms. Un tour court avec
+     une periode longue est un probleme de minuteur, pas de charge. */
+  const perfPeriode = new Sampler();
+  const perfTour = new Sampler();
+  let perfSince = 0;
+  let perfEtait = false;
+
   function tick() {
     const now = process.hrtime.bigint();
     let elapsed = Number(now - lastTick) / 1e9;
     lastTick = now;
     if (elapsed > 0.25) elapsed = 0.25;
+
+    /* Allumage a chaud : on repart de zero. Sans ca, la premiere ligne
+       melangerait les echantillons d'avant l'extinction avec ceux d'apres, et
+       `lastSend` des salles produirait un espacement absurde. */
+    if (PERF_ON !== perfEtait) {
+      perfEtait = PERF_ON;
+      perfPeriode.reset();
+      perfTour.reset();
+      perfSince = 0;
+      for (const room of rooms.values()) room.perfArm();
+    }
+
+    const t0 = PERF_ON ? perfNow() : 0;
+    if (PERF_ON) perfPeriode.add(elapsed * 1000);
 
     const nowMs = Date.now();
     for (const room of [...rooms.values()]) {
@@ -661,6 +765,24 @@ export function createHub(store, log, commit = "") {
         rooms.delete(room.code);
         broadcastRooms();
         log(`salle ${room.code} détruite — vide depuis ${Math.round(ROOM_GRACE_MS / 1000)} s`);
+      }
+    }
+
+    if (PERF_ON) {
+      perfTour.add(perfNow() - t0);
+      perfSince += elapsed;
+      if (perfSince >= PERF_REPORT_S) {
+        perfSince = 0;
+        const pe = perfPeriode.stats(), to = perfTour.stats();
+        console.log(`[perf] boucle n=${pe.n}`
+          + ` periode moy=${f1(pe.moy)} min=${f1(pe.min)} max=${f1(pe.max)}`
+          + ` | tour moy=${f1(to.moy)} p99=${f1(to.p99)} max=${f1(to.max)} ms`);
+        perfPeriode.reset();
+        perfTour.reset();
+        /* Chaque salle rapporte sa propre ligne : l'espacement de diffusion et
+           le poids d'instantane sont des grandeurs PAR SALLE, et les agreger
+           masquerait exactement la salle qui decroche. */
+        for (const room of rooms.values()) room.perfReport();
       }
     }
   }
@@ -725,8 +847,69 @@ export function createHub(store, log, commit = "") {
     return out;
   }
 
+  /* Battement de coeur WebSocket, seul emetteur de `ping()` du processus.
+     `ws_lite` savait envoyer un ping depuis toujours mais personne ne
+     l'appelait — d'ou l'absence de toute mesure d'aller-retour.
+
+     Il vit au HUB et non dans une salle : la latence est une propriete de la
+     CONNEXION, pas de la partie, et un joueur au hub a autant besoin de la
+     connaitre qu'un joueur au salon. C'est aussi ce qui garantit une seule
+     serie de pings par socket quoi qu'il arrive. */
+  function pingAll() {
+    for (const c of clients.values()) c.conn.ping();
+    broadcastServerInfo();
+  }
+
+  /* L'etat du SERVICE, pour l'ecran de connexion et le hub : la latence, le
+     nombre de salles ouvertes, la version. Trois faits que le client ne peut
+     pas deduire — il ne voit pas les pongs (le navigateur y repond sous la
+     couche JS) et il ne connait pas les salles avant d'etre authentifie.
+
+     Envoye a 1 Hz, mais SEULEMENT aux clients hors salle. C'est l'exception a
+     la regle qui a fait passer le ping du salon dans `lobbyPayload()` plutot
+     que dans un message periodique : ici le chiffre EST ce qu'on regarde, et
+     celui qui le lit ne recoit aucun instantane par ailleurs. Une soixantaine
+     d'octets par seconde et par spectateur, contre 7 Ko vingt fois par seconde
+     pour un joueur en manche — qui, lui, ne le recoit pas. */
+  function serverInfoPayload(c) {
+    return {
+      t: "serverInfo",
+      rtt: c.conn.rtt != null ? Math.round(c.conn.rtt) : -1,
+      rooms: rooms.size,
+      build: BUILD,
+    };
+  }
+
+  function broadcastServerInfo() {
+    for (const c of clients.values()) {
+      /* Hors salle, ou au SALON. Pas pendant une manche : celui qui joue
+         recoit deja un instantane vingt fois par seconde, et la barre
+         superieure ne s'affiche pas par-dessus l'arene.
+
+         Le salon en fait partie et c'est necessaire, pas confortable :
+         `lobbyPayload()` ne part que sur evenement (arrivee, vote, choix de
+         classe, prêt), donc dans un salon ou personne ne touche a rien la
+         latence resterait affichee « — » indefiniment — c'est-a-dire sur
+         l'ecran ou l'on decide precisement si la connexion tient. */
+      if (c.room && c.room.phase !== PHASE_LOBBY) continue;
+      c.conn.send(JSON.stringify(serverInfoPayload(c)));
+    }
+  }
+
+  /* La MEME information, avant toute WebSocket. L'ecran de connexion l'affiche
+     alors que la socket n'est pas encore ouverte — elle ne l'est qu'au premier
+     clic, et l'ouvrir des le chargement ferait une socket par onglet laisse
+     ouvert, comptee dans le plafond par adresse IP.
+
+     Elle ne porte NI la latence (le client la mesure lui-meme, en chronometrant
+     l'aller-retour de la requete) NI rien qui ne soit deja destine a etre lu
+     sur l'ecran d'accueil : un nombre de salles et un numero de version. */
+  function publicInfo() {
+    return { rooms: rooms.size, build: BUILD };
+  }
+
   return {
-    handleConnection, tick, adminView, anyRoundRunning,
+    handleConnection, tick, pingAll, publicInfo, adminView, anyRoundRunning,
     kickAccounts, kickAccount, connectedKeys, rooms, clients,
   };
 }

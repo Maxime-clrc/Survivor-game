@@ -1,7 +1,11 @@
-# Survivor LAN
+# Survivor
 
-Survivor coopératif jouable à 4 sur un réseau local. Un joueur lance le serveur,
-les autres ouvrent une URL. Aucune installation côté joueurs.
+Survivor coopératif jouable à 4, en ligne ou sur un réseau local. Un joueur
+lance le serveur, les autres ouvrent une URL. Aucune installation côté joueurs.
+
+Le jeu s'appelait « Survivor LAN » : le nom a perdu son suffixe le jour où il
+est passé en ligne, derrière un proxy inverse et un hub de salles. Le réseau
+local reste un mode de jeu, il n'est plus le seul.
 
 ## Lancer
 
@@ -82,6 +86,25 @@ cartes**.
   sur le numéro de manche : lire « Manche 1 terminée » après une demi-heure de
   jeu donnait l'impression d'un compteur cassé. Le numéro de manche descend avec
   les autres chiffres, où il est juste et sans ambiguïté.
+- Les manches rapportent des **noyaux** — la vague atteinte et les boss
+  vaincus, versés à parts égales, plafonnés par partie — à dépenser dans le
+  **Terminal** (bouton au salon, pastille quand un achat est possible) :
+  les trois arbres de classe par onglets, le confort, les jalons. Les
+  **emplacements** (3 à 6) se gagnent aux jalons du compte — vague 10, trois
+  boss différents, 25 parties — et la réattribution est libre entre les
+  manches.
+- Après chaque victoire de boss, le **marchand** propose trois **reliques** à
+  acheter contre les éclats de la manche — valeurs brutes, budget à répartir,
+  relance payante. Voir la section « Le marchand de reliques ».
+- Une fois les **cinq boss vaincus** dans la même manche, le **Noyau** arrive
+  (vague 30) : huit barres, le répertoire des cinq intensifié, deux mécaniques
+  qui n'existent nulle part ailleurs. Le vaincre termine la manche et
+  enregistre le **temps**, au classement consultable depuis le hub.
+- La manche se termine quand tout le monde est à terre. Le bilan titre sur la
+  **vague atteinte** et non sur le numéro de manche : l'unité de jeu est devenue
+  la vague, et lire « Manche 1 terminée » après en avoir enchaîné douze donnait
+  l'impression d'un compteur cassé. Le numéro de manche descend avec les autres
+  chiffres, où il est juste et sans ambiguïté.
 
 ## Commandes
 
@@ -894,6 +917,93 @@ tueraient net à la première erreur. Le plafond gagne — c'est un critère
 d'acceptation, pas un réglage. Les valeurs de dégâts restent donc dans la famille
 de celles du sol déjà existant (mare de Matriarche 20/s, traînée 14/s) et le
 recalibrage est renvoyé au lot X, avec un profil de jeu réaliste.
+
+### Vagues spéciales
+
+Une vague sur cinq, elle aussi, mais décalée : **les vagues 3, 8, 13, 18, 23…**
+remplacent le tirage normal par une composition imposée. Quatre types, dans un
+cycle fixe.
+
+| vague | type | composition | ce que ça demande |
+|---|---|---|---|
+| 3, 23, … | **Nuée** | uniquement des runners, nombreux et fragiles | ne pas se laisser encercler |
+| 8, 28, … | **Tir croisé** | shooters en majorité, quelques grunts pour pousser | fermer la distance |
+| 13, 33, … | **Siège** | uniquement des tanks, lents et coriaces | tenir la position |
+| 18, 38, … | **Chasse** | un seul gibier, énorme, et rien d'autre | un duel |
+
+**Terminer une vague spéciale rend 100 % des PV et du bouclier à toute
+l'équipe, et relève ceux qui sont à terre.** Sans condition. C'est la seule
+clôture de vague qui fasse mieux que les 18 PV du répit, et c'est elle qui paie
+l'asymétrie : un siège de tanks *paraît* plus dangereux qu'une vague ordinaire,
+et sans récompense nette la bonne réponse serait de le fuir.
+
+Chaque vague spéciale est **annoncée pendant le répit qui la précède** — pas au
+moment où elle démarre. Le bandeau de vague porte ensuite son nom en ambre tant
+qu'elle dure : la question « qu'est-ce que je suis en train de combattre » se
+pose encore trente secondes après le début, quand la consigne a disparu.
+
+**Pourquoi un calendrier fixe plutôt que le hasard.** Le classement au temps du
+boss final compare des parties entre elles. Si les vagues spéciales tombaient au
+hasard, deux parties identiques en tout point auraient des temps différents
+parce que l'une aurait tiré une vague qui la ralentit et l'autre non — le
+classement perdrait sa valeur de comparaison. `vague % 5 === 3` donne les trois
+garanties d'un coup, **par arithmétique et non par une liste à maintenir** :
+
+- `3 % 5 ≠ 0` : jamais de collision avec un boss (vagues 5, 10, 15…), ni avec le
+  boss final (vague 30) ;
+- cinq vagues d'écart : jamais deux spéciales d'affilée ;
+- chaque tranche de cinq a le même motif — trois normales, une spéciale, un
+  boss.
+
+La première proposition (3, 6, 9, 12 puis cycle) retombait sur 15 et 20 dès le
+premier cycle. Le compromis assumé est la perte de la surprise : en échange, un
+joueur sait qu'à la vague 13 vient un siège et peut orienter ses choix de cartes
+dans les vagues précédentes. C'est une couche de décision à moyen terme plutôt
+qu'un événement ponctuel.
+
+**Le gibier de la Chasse est le seul ennemi du jeu exclu du seuil
+d'exécution**, avec le boss et les structures de mécanique. Il porte à lui seul
+les PV de toute une vague : un seuil de 10 % appliqué là-dessus ferait
+disparaître le dernier quart de la vague en un tir pour quiconque a la carte
+« Achèvement ». Il est aussi le seul à ne jamais être marqué retardataire — une
+chasse dure par construction plus que les 8 s du délai, et le ×1,6 de vitesse en
+ferait le chasseur.
+
+Ses PV ne sont pas un nombre écrit quelque part : ils **dérivent du budget que
+la vague aurait eu**, donc ils suivent l'effectif, la difficulté et le numéro de
+vague sans qu'aucune valeur ne soit à maintenir en face. Même raisonnement pour
+ce qu'il rapporte — il vaut le nombre d'apparitions qu'il remplace, sinon une
+vague de chasse verserait **1** point d'expérience là où une vague 18 en verse
+116, et le joueur perdrait une carte à chaque chasse.
+
+#### Mesures relevées
+
+Durée d'une vague spéciale rapportée à celle de la vague **normale qui la
+précède**, compte neuf, difficulté normale. Le témoin est la vague `N−1` et non
+la même vague neutralisée : le budget se calcule au démarrage, le neutraliser
+après coup ne le rattrape pas. Biais connus du banc, tous deux notés parce
+qu'ils changent le chiffre — le bulwark est retiré du tirage (son bouclier
+frontal rend le bot incapable de le tuer, et le banc bloquait dès la vague 9),
+et le bot frappe ×6 pour que la durée mesurée soit celle de la vague et non de
+son adresse.
+
+| vague | type | 1 joueur | 4 joueurs | budget (1 j.) | pic simultané (4 j.) |
+|---|---|---|---|---|---|
+| 3 | Nuée | ×1,19 | ×1,22 | 44 runners | 39 |
+| 8 | Tir croisé | ×1,23 | ×1,12 | 56 | 134 |
+| 13 | Siège | ×1,08 | ×0,89 | 26 tanks | 72 |
+| 18 | Chasse | ×0,64 | ×0,68 | 1 gibier | 1 |
+
+La chasse est **délibérément la plus courte**, et c'est le seul écart marqué de
+la table : un ennemi unique ne peut ni encercler, ni couper une retraite, ni
+tirer depuis trois directions. Une durée égale à celle d'une vague normale en
+aurait fait un marathon contre une éponge — 200 s en solo à la vague 18, mesuré.
+
+Trois réglages sont venus de ces mesures et non du plan : la nuée est passée de
+×2,2 à ×1,7 de budget (elle sortait à ×1,5 de durée), le tir croisé de ×0,85 à
+×1,0 (×0,80, trop expédié), et les PV du gibier de 0,55 à 0,75 part de budget
+(×0,44, il tombait deux fois trop vite). Le siège n'a pas bougé : la première
+mesure le donnait à ×2,4, mais c'était le témoin qui était faux.
 
 ### Niveaux
 
@@ -1913,6 +2023,105 @@ troisième, on ne réapprend pas le damier en deuxième barre. C'est ce qui rend
 troisième combat plus dur que le premier sans lui ajouter de PV, qui
 n'allongeraient que sa durée.
 
+#### Le Noyau — le boss final
+
+Il ne se tire jamais au sort : **il arrive**, quand les cinq boss du roster ont
+été **vaincus** dans la même manche. Avec la cadence d'un boss toutes les cinq
+vagues, le cycle se termine vague 25 et le Noyau tombe donc **vague 30**.
+
+La condition porte sur les boss *vaincus* et non *rencontrés* : un boss croisé
+puis fui n'a rien appris à personne, et le Noyau est la synthèse de ce qu'on a
+battu. C'est aussi une condition qui **se lit** — « tu les as tous eus » — là où
+un numéro de vague fixe ne se lit pas.
+
+**Huit barres au lieu de cinq**, et 2,2 fois les PV d'un boss normal calibré
+pour la même vague. Mesuré à la vague 30 : 44 046 PV contre 20 021 à quatre
+joueurs. Réparti sur huit segments, **chaque barre coûte donc 1,37 fois une
+barre ordinaire** (5 506 contre 4 004) — les huit segments ne diluent pas le
+mur, ils le découpent plus finement pour que la progression reste lisible sur
+un combat deux fois plus long.
+
+Son répertoire **cite les cinq**, un pattern caractéristique par boss d'origine,
+et il repart de zéro : la montée par couches *est* le combat sur huit barres.
+
+| barres brisées | ce qui s'ouvre | d'où ça vient |
+|---|---|---|
+| 0 | salve · damier · exaflares · grappes · regroupement · lien | les cinq, d'emblée |
+| 1 | **couronne** | Ravageur |
+| 2 | **prison** | Matriarche |
+| 3 | **dérive** · **appâts** | Métronome |
+| 4 | **tours** · **regard** | Oracle |
+| 5 | **croix** · **verrouillage** | Jumeaux |
+| 6 | **Synthèse** | à lui |
+| 7 | **Sceau final** | à lui |
+
+Les patterns repris sont **intensifiés** plutôt que réécrits : il attaque 20 %
+plus vite et ses zones font 25 % de dégâts en plus. Deux nombres qui portent sur
+la vingtaine d'attaques d'un coup — vingt variantes à maintenir auraient dérivé
+au premier réglage, c'est le même refus de duplication que l'adaptation à
+l'effectif.
+
+**Ses deux mécaniques exclusives.**
+
+La **Synthèse** ne pose rien de neuf : elle fait tourner *ensemble* deux
+répertoires que les cinq boss ne posent jamais en même temps — le regroupement
+de l'Oracle et les exaflares du Métronome, dont l'axe traverse le cercle. Il
+faut tenir groupé *et* se déplacer d'un bloc, alors que chacune des deux prise
+seule autorise l'inverse. En solo, il ne reste que les traînées.
+
+Le **Sceau final** est la dernière barre. Des zones aux **quatre coins** de
+l'arène, à occuper **simultanément** pendant un temps **cumulé** de 4,5 s
+chacune, sur une fenêtre de 22 s. Trois choix la séparent des tours de
+l'Oracle, dont elle emprunte le squelette :
+
+- le temps est **cumulé** et non instantané — une mécanique de vingt secondes
+  qui ne regarderait que la dernière image punirait l'esquive, pas la
+  coordination ;
+- le cumul **redescend à mi-vitesse** quand on lâche : abandonner un coin pour
+  esquiver ne remet pas à zéro, c'est le même choix que la canalisation d'un
+  amas de récolte ;
+- le nombre de sceaux **suit l'effectif**. À un joueur il n'en reste qu'un : la
+  mécanique devient une occupation longue et sous le feu, ce qui est jouable
+  seul.
+
+Échouer **repose le sceau** — la dernière barre ne se franchit pas en échouant —
+et la sanction porte sur l'équipe entière : personne ne tient un sceau tout
+seul, et désigner un coupable sur une mécanique collective n'aurait rien appris.
+
+**Son identité visuelle.** Gabarit **40 % supérieur** au plus grand des cinq, et
+la seule teinte non colorée du roster — un blanc chaud : les cinq se distinguent
+les uns des autres par leur couleur, lui se distingue en n'en ayant pas. Sa
+silhouette est faite de trois couches concentriques qui tournent à des vitesses
+différentes, une par emprunt : les pointes du Ravageur, l'anneau segmenté du
+Métronome (dont le nombre de segments allumés **compte les barres restantes**),
+l'œil de l'Oracle. Son verbe de relâche lui est propre : les trois couches se
+**désalignent** au coup puis se recalent — la synthèse se défait un instant.
+
+Sa barre de vie est identifiable **sans lire le nom** : 84 % de la largeur
+d'écran au lieu de 62 %, un liseré double, une segmentation au huitième, et une
+**pulsation qui accélère** à mesure que ses PV baissent (période de 2,4 s à
+0,7 s) — un signal de progression en plus du remplissage. Son annonce d'entrée
+tient 5 s au lieu de 2,6 et le nom s'installe en s'écartant : c'est le seul
+effet d'entrée du jeu, et c'est parce qu'il est unique qu'il dit « combat
+final » sans avoir à l'écrire.
+
+#### Le classement au temps
+
+Vaincre le Noyau enregistre le **temps écoulé depuis le début de la manche**,
+lu sur l'horloge autoritaire du serveur. Le record est gardé **par difficulté** :
+comparer un temps de « calme » à un temps de « cauchemar » n'aurait aucun sens,
+et une case unique aurait poussé tout le monde à jouer en calme pour figurer au
+tableau.
+
+Il se consulte **au hub**, pas au Terminal : le classement compare des *comptes*
+entre eux, sa place est donc là où l'on est justement hors salle, et il est
+visible dès la connexion.
+
+C'est ce classement qui a imposé le **calendrier fixe des vagues spéciales** :
+si elles tombaient au hasard, deux parties identiques auraient des temps
+différents par simple chance de tirage, et la comparaison perdrait sa valeur.
+La décision du lot précédent était donc nécessaire, pas optionnelle.
+
 #### Les mécaniques
 
 Elles reposent sur six formes de zone — disque, rectangle orienté, anneau,
@@ -2102,6 +2311,77 @@ par dilatation plutôt que par un trait par zone. Sur douze mares qui se
 chevauchent, un trait par mare redessinait chaque cercle à l'intérieur de la
 tache et on ne voyait plus où finissait la surface dangereuse. Le rendu est
 plafonné à **40 zones**, les plus urgentes d'abord.
+
+### Le marchand de reliques
+
+Après chaque victoire de boss (les cinq boss normaux — le boss final a son
+propre traitement), un **marchand** propose **trois reliques à acheter** contre
+des éclats, la monnaie de récolte du lot I. L'écran s'ouvre après la fin de la
+vague, comme celui des cartes, et chacun repart avec ce qu'il s'est offert.
+
+La différence fondamentale avec les cartes :
+
+| | cartes | reliques |
+|---|---|---|
+| monnaie | gratuites, tirage | éclats, achat |
+| effet | presque toujours en % | **valeur brute** |
+| fréquence | à chaque niveau | après chaque boss |
+| choix | une parmi trois, obligatoire | **budget à répartir** — zéro, une ou trois |
+| relance | une fois par manche, gratuite | payante, coût croissant avec la vague |
+
+**La valeur brute est le cœur de la relique.** « +8 dégâts » reste utile sur
+une build qui n'a pris aucune carte de dégâts — c'est un axe de puissance qui
+ne dépend d'aucun autre choix, ce qu'aucune carte ne permet. À l'inverse, une
+relique ne cumule pas son pourcentage avec les autres : elle ajoute, elle ne
+multiplie pas.
+
+Quatre raretés, comme les cartes, à des prix croissants. La légendaire est
+**limitée à une par manche, tous marchands confondus** : sans cette borne, une
+manche généreuse en éclats cumulerait plusieurs effets exceptionnels et
+déséquilibrerait le combat suivant.
+
+Les dix reliques de départ — la liste est validée, l'équilibrage fin viendra
+en jouant :
+
+| rareté | relique | effet |
+|---|---|---|
+| commune | Éclat dur | +6 dégâts bruts sur chaque tir |
+| commune | Plaque rouillée | +25 PV bruts |
+| commune | Ressort usé | −0,03 s d'intervalle de tir |
+| rare | Noyau instable | +18 dégâts bruts, **mais −10 PV bruts** |
+| rare | Filtre purifiant | retire un état toutes les 10 s, sans action |
+| rare | Batterie de secours | le bouclier, une fois vide, se recharge une fois à 50 % (une fois par manche) |
+| épique | Cœur de Ravageur | +35 dégâts bruts contre les boss uniquement |
+| épique | Essaim captif | un projectile supplémentaire orbite en permanence |
+| épique | Mémoire gravée | la première compétence utilisée à chaque vague a sa recharge réinitialisée |
+| légendaire | Cœur-machine | +50 dégâts bruts, +80 PV bruts, **mais la vitesse est fixée à sa valeur de base** |
+
+Les contreparties sont affichées en évidence, pas en petit texte : une relique
+se refuse pour ce qu'elle coûte, pas pour ce qu'elle donne. La relance de
+l'offre se paie (6 éclats + 2 par vague) — un coût fixe se banaliserait en fin
+de manche quand les éclats abondent.
+
+Les reliques **entrent dans le calcul de puissance** de l'équipe : les vagues
+et les boss qui suivent le marchand sont calibrés sur les dégâts réels, pas
+sur un chargement qui les ignorerait. Le « Cœur de Ravageur », qui ne frappe
+que les boss, y compte au tiers — la part du temps passé contre eux.
+
+#### Mesures relevées
+
+Éclats accumulés à l'arrivée du premier marchand (vague 5), compte neuf,
+difficulté normale, bots qui explorent et récoltent :
+
+| effectif | éclats par joueur | temps |
+|---|---|---|
+| 1 joueur | ~98 | 148 s |
+| 4 joueurs | ~95 | 161 s |
+
+Le budget du premier marchand permet environ **deux communes et demie** (25
+éclats pièce), ou une épique, ou une rare plus une commune — pas la légendaire
+(150), qui reste un objectif de fin de manche. L'écart de puissance mesuré
+après un achat : **×1,5 d'indice pour une commune de dégâts** (`+6` sur une
+base de 12) — délibéré, c'est le prix de la valeur brute prise tôt, et
+l'indexation absorbe le reste de la manche.
 
 ### Cartes d'amélioration
 
@@ -3083,7 +3363,10 @@ reprise de contexte) : une seule compression par salle et par message, la même
 trame part vers toutes les sockets qui l'ont négociée. Mesuré sur un snapshot
 pire cas de 7,3 Ko : **2,8 Ko, soit 61 % de gain** — le niveau 6 n'apporte que
 3 points de plus pour bien plus de CPU. À 8 salles pleines, la bande passante
-descend d'environ 36 à 14 Mbps.
+descend d'environ 36 à 14 Mbps. Recoupé en production sur le VPS, vague 22 arène
+pleine : **9,5 Ko clair pour 3,9 Ko déflaté, 59 % de gain** — le taux tient hors
+du banc de mesure, et la compression **survit bien au proxy inverse** (`defl=n/n`
+dans la ligne de diagnostic, ce qui était la première hypothèse à écarter).
 
 Le TLS reste au proxy inverse (Caddy ou nginx) : Node parle HTTP en local, le
 client passe en `wss://` tout seul quand la page est servie en HTTPS.
@@ -3099,10 +3382,137 @@ Le serveur simule à 60 Hz et diffuse l'état à 20 Hz.
 
 ### Trois choses côté client
 
-**Interpolation.** L'affichage a 110 ms de retard sur le dernier snapshot, soit
-deux snapshots de marge, et interpole entre les deux états qui encadrent
-l'instant affiché. Sans ça, le mouvement serait saccadé à 20 Hz sur un écran
-qui en affiche 60 ou 144.
+**Interpolation.** L'affichage a 110 ms de retard sur le dernier snapshot et
+interpole entre les deux états qui encadrent l'instant affiché. Sans ça, le
+mouvement serait saccadé à 20 Hz sur un écran qui en affiche 60 ou 144.
+
+Ce paragraphe disait « soit deux snapshots de marge », et c'était une lecture
+fausse de la condition — assez fausse pour avoir orienté un diagnostic de lag
+dans la mauvaise direction. Le client cherche une **paire** qui encadre
+l'instant affiché : il lui suffit que l'écart depuis le dernier snapshot reçu
+reste **sous 110 ms**, soit une marge supérieure à *un* snapshot, pas à deux.
+Au-delà, il n'y a plus de paire et l'affichage **gèle sur le dernier état reçu**
+au lieu d'extrapoler — d'où une saccade, puis un recalage sec de la prédiction
+quand le gel a dépassé les 90 px. La bonne façon de lire le budget est donc :
+à 50 ms d'espacement, il reste **60 ms** de tolérance à la gigue du réseau.
+
+**Et l'espacement n'était pas de 50 ms.** Le compteur de diffusion se remettait
+à **zéro** au lieu d'être décrémenté de sa période, ce qui jette le dépassement
+et quantifie la cadence sur un multiple de la période de la boucle partagée.
+Celle-ci ne vaut pas 8,333 ms mais **8,2 ms mesurés** (min 7,1, max 9,3) : six
+tours font 49,2 ms, donc moins de 50, et il en fallait sept. Mesuré en A/B sur
+une vraie `Room`, 30 s à 8,2 ms de période :
+
+| remise à zéro | cadence | espacement moyen | min | max |
+|---|---|---|---|---|
+| absolue (avant) | **17,40 Hz** | 57,40 ms | 57,4 | 57,4 |
+| relative (après) | **20,00 Hz** | 49,99 ms | 49,2 | **57,4** |
+
+Le correctif rend les 2,6 Hz manquants, soit 15 % de snapshots en plus, et
+ramène la tolérance à la gigue réseau de 52,6 à 60 ms. Il ne change **rien** au
+pire espacement — 57,4 ms dans les deux cas, la quantification sur la période de
+boucle est inhérente à un minuteur à 120 Hz. Autrement dit : il élargit le
+budget, il ne supprime pas la famine par construction.
+
+**Et pourtant il l'a suffi.** Les 7,4 ms récupérés sur l'espacement *moyen*
+étaient précisément ce qui manquait : le lag rapporté ne se reproduit plus à
+travers le VPS, y compris sur les vagues denses qui le déclenchaient à tous les
+coups. Deux leçons, et la seconde vaut plus que la première. Un budget qui
+« devrait » tenir en théorie et qui tient en pratique **de peu** n'est pas un
+budget confortable : la marge est passée de 52,6 à 60 ms de tolérance, soit un
+gain de 14 %, et c'est ce gain-là qui a fait basculer le ressenti. Et surtout —
+la relève de la constante d'interpolation (110 → 150 ms) qui était le correctif
+« évident » n'a **jamais eu besoin d'être faite** : elle aurait coûté 40 ms de
+latence visuelle à tout le monde, en permanence, pour masquer un compteur mal
+décrémenté. Corriger la cause a été gratuit là où traiter le symptôme se payait
+à chaque image.
+
+**Mesurer, justement.** `PERF=1` côté serveur sort une ligne par seconde et par
+salle — période réelle de la boucle, durée de tour, espacement réel de
+diffusion, poids d'instantané clair et déflaté, et surtout `defl=n/n`, qui dit
+si `permessage-deflate` a bien survécu au proxy inverse (s'il tombe, les
+snapshots partent en clair, soit ~2,5 fois la bande passante). `?perf` dans
+l'adresse ajoute au HUD la ligne symétrique côté client : espacement d'arrivée
+min/moyenne/max, nombre d'écarts au-delà de 110 ms, **nombre d'images gelées
+faute de paire encadrante**, recalages secs, durée d'image maximale. Ces deux
+lignes existent parce qu'un lag par saccades laisse le CPU et la RAM
+parfaitement plats : sans elles, six suspects sont indiscernables.
+
+Les compteurs clients existent en **deux jeux** : ceux de la fenêtre d'une
+seconde, et des **totaux de session** qui ne se remettent jamais à zéro et que
+l'écran de bilan répète en fin de manche. La raison est pratique et vaut d'être
+dite : relever les compteurs de fenêtre demande de lire le HUD *pendant* une
+vague dense, c'est-à-dire au moment précis où l'on joue pour sa vie. Une mesure
+qu'on ne peut pas prendre n'est pas une mesure — les totaux se lisent une fois
+mort, sur n'importe quelle partie, même courte.
+
+**Un compteur doit être borné à la fenêtre où le phénomène a un sens, et le
+premier relevé client l'a appris à ses dépens.** Il donnait :
+
+```
+famine 17636 · recal 1 · >110ms 24 · max gap 56953 ms · img max 2234 ms
+```
+
+Trois de ces cinq chiffres sont faux, et ils sont faux pour la même raison. Le
+serveur **cesse de diffuser** pendant l'écran de cartes, chez le marchand,
+pendant une pause accordée, au bilan et au salon : ce sont des silences
+*protocolaires*, pas des pannes. Or `interpolated()` est appelée en dehors du
+test de phase — il faut bien peindre le sol sous le salon — donc chaque image
+passée hors combat comptait une famine. 17 636 images à 60 i/s font cinq minutes
+hors manche, ce que n'importe quelle session contient. Les 57 secondes de
+`max gap` étaient la durée d'un salon, et l'image de 2,2 s un onglet passé en
+arrière-plan, où `requestAnimationFrame` est bridé puis suspendu.
+
+Le piège se referme sur un détail de conception : le client n'a que **deux**
+phases, et l'écran de cartes vit **dans** la manche. Un test
+`phase === PHASE_ROUND` ne suffit donc pas — il faut exclure explicitement les
+quatre écrans de transition. C'est ce que fait `netPerfLive()`, point de passage
+unique des trois compteurs.
+
+**Ce qui a permis de voir que le relevé était faux, c'est l'incohérence
+interne** — pas une intuition sur les ordres de grandeur. `famine` et `recal`
+sont censés bouger *ensemble* : si le monde gèle, la prédiction locale dérive et
+finit par se faire recaler sèchement. Un rapport de 17 636 contre 1 ne décrit
+aucun phénomène physique ; il décrit deux compteurs qui ne mesurent pas la même
+chose. La leçon générale : quand on instrumente, poser **au moins deux
+compteurs liés par une relation connue** — leur désaccord est ce qui détecte
+l'erreur de mesure, et rien d'autre ne l'aurait fait.
+
+Une fois les bornes posées, les deux chiffres qui **n'étaient pas** contaminés
+donnent la lecture : `recal` est incrémenté depuis `ingest()`, qui ne tourne que
+sur un message `state` — il n'en arrive aucun hors manche, donc **un seul
+recalage sec sur toute la session**. Et `>110ms 24` se mesure entre deux `state`
+consécutifs, si bien que chaque écran de cartes y contribue exactement un écart :
+une manche jusqu'à la vague 22 en ouvre quinze à vingt. Le reste — les vrais
+décrochages réseau — tient dans une poignée. Ce qui est exactement cohérent avec
+le symptôme rapporté après B1 : plus de saccade.
+
+**Ce que la mesure en production a effectivement dit.** Une fois la remise à
+zéro rendue relative, sur le VPS derrière son proxy inverse, arène pleine
+jusqu'à la vague 22 :
+
+| grandeur | relevé | lecture |
+|---|---|---|
+| diffusions par seconde | **20** (parfois 21) | la cadence est revenue à 20 Hz |
+| espacement moyen | 49,7 à 50,3 ms | régulier, conforme |
+| `defl=3/3` | toutes les sockets | `permessage-deflate` **survit au proxy** |
+| `bloq=0 fileMax=0` | aucun | zéro saturation de socket |
+| durée de tour | 0,3 à 0,9 ms, p99 ≤ 9 ms | le CPU est très large |
+| instantané, pire cas relevé | **9,5 Ko clair, 3,9 Ko déflaté** | 59 % de gain |
+
+Trois hypothèses tombent d'un coup : le proxy ne mange pas la négociation de
+compression, il n'y a aucune contre-pression d'écriture, et le serveur ne
+manque pas de CPU. La seule anomalie qui subsiste est une **gigue du minuteur**
+propre à la machine — `periode max` monte occasionnellement à 22-30 ms au lieu
+de 8,2, ce qui pousse un espacement de diffusion à 61-73 ms une à trois fois par
+minute. C'est un hoquet de boucle d'événements de l'hôte, pas du code, et il
+reste **sous le budget d'interpolation de 110 ms**.
+
+Le poids d'instantané est au passage **deux fois plus faible que l'estimation**
+qui avait servi à raisonner (20,8 Ko clair supposés contre 9,5 Ko relevés). Elle
+avait été extrapolée d'un décompte de champs et non mesurée : c'est exactement le
+travers que la règle « remesurer plutôt qu'extrapoler » existe pour empêcher, et
+il a tenu une hypothèse de bande passante en vie pour rien.
 
 **Prédiction locale.** Ton personnage bouge immédiatement à la touche, puis est
 ramené en douceur vers la position que le serveur renvoie. Au-delà de 90 px
@@ -3198,6 +3608,12 @@ Simulation à 4 joueurs, mesurée sur ce projet :
 
 430 s de jeu se simulent en 0,9 s de CPU, soit 460× le temps réel.
 
+Ces chiffres sont ceux du **banc**, arène pleine construite à la main. Le relevé
+en **production** (VPS, vague 22 atteinte en jeu réel) monte à **9,5 Ko clair,
+3,9 Ko déflaté** : la ligne « pire cas » ci-dessus n'est donc pas un plafond
+absolu, seulement le pire cas *de ce banc*. Ce qui compte est que la valeur
+transmise soit celle **déflatée** — c'est elle qui passe sur le lien.
+
 Le pire cas est mesuré arène pleine en cauchemar, avec quatre tourelles posées,
 le ricochet actif sur tout le monde et **24 zones simultanées** (un damier plus
 un balayage). Les tourelles coûtent 5 nombres chacune, une zone 12 : le poste
@@ -3251,6 +3667,67 @@ et elle ne paie qu'en fin de manche chargée.
 Le total reste sous le budget de 10 % et du même ordre que le compteur de touches.
 La répartition des dégâts subis par provenance est mesurée plus haut, dans « D'où
 viennent les dégâts qu'on prend ».
+
+### Grande arène et caméra (lot I)
+
+L'arène passe de 1600 × 900 à **4800 × 2700** ; la **vue** reste 1600 × 900,
+chaque client suit sa position prédite (caméra lissée, recalage sec au-delà
+d'un écran, clamp à la salle). Les combats de boss se jouent dans des
+**bounds resserrés à une vue**, ancrés sur le centre de gravité de l'équipe —
+c'est le mécanisme de constriction du lot 5, réutilisé tel quel, et toute la
+géométrie des mécaniques (damier, exaflares, couronne…) lit désormais les
+bounds au lieu de l'arène dessinée.
+
+Coût des coordonnées à quatre chiffres, mesuré arène pleine (200 ennemis, la
+moitié touchés, 400 balles, 4 joueurs, 4 points de récolte) :
+
+| version | poids de l'instantané | hausse |
+|---|---|---|
+| même scène à l'échelle 1600 × 900 | 15 791 o | référence |
+| grande arène (coordonnées + clé `hv` + éclats) | 16 547 o | **+4,8 %** |
+
+Sous le budget de 10 %. La caméra a été vérifiée en jeu réel : le suivi
+s'arrête exactement à `ARENA_W − VIEW_W/2 = 4000` px au bord droit, et la
+conversion souris reste juste pendant le déplacement (mémorisée en vue,
+convertie en monde à la lecture).
+
+Les **points de récolte** (cristal à détruire, amas à canaliser 1,5 s)
+n'apparaissent jamais à moins de 1100 px d'un joueur vivant ni pendant un
+boss ; le rendement (15-35 **éclats**, la monnaie de manche, jamais persistée)
+est versé à chaque joueur — même logique que l'expérience commune. Les
+retardataires sont resserrés (5 s, ×2,0) : un fuyard sur une salle neuf fois
+plus grande ne se rattrapait plus. Les apparitions se tirent **autour de la
+boîte englobante des joueurs** (hors écran, écrêtée à la salle) et non plus
+sur les bords : sur une arène d'une seule vue, ce tirage redonne exactement
+les quatre bords d'avant.
+
+Restent à mesurer en conditions réelles (fenêtre visible, table à quatre) :
+les images par seconde avec culling actif — le compteur `?perf` est en place —
+et la durée moyenne d'une vague avant/après (attendu : écart sous 15 %).
+
+### Économie du Terminal (lot H)
+
+Le revenu devient **linéaire et plafonné** — on paie la vague atteinte, plus
+la somme des vagues traversées, qui croissait au carré : une seule bonne
+partie payait une ligne entière au palier maximal (≈ 3 100 noyaux mesurés,
+dont deux tiers de primes de première fois, supprimées avec le lot). Les
+coûts deviennent géométriques (200 → 3 600, 6 900 la ligne), les emplacements
+se gagnent aux **jalons du compte** et plus aux achats. Cibles du spec F5,
+vérifiées avec les fonctions réelles :
+
+| mesure | attendu | relevé |
+|---|---|---|
+| vague 12, normal, 2 boss | 250 à 350 | **280** |
+| vague 20, cauchemar, 4 boss | plafonné à 600 | **600** |
+| parties pour un premier palier | 1 | **1** (200 ◈, ~280-378/partie) |
+| parties pour une ligne complète | 16 à 20 | **18,3** |
+| parties pour trois lignes complètes | 50 à 60 | **54,8** |
+| emplacements compte neuf → maximal | 3 → 6 | **3 → 6** (jalons) |
+
+Vérifié en jeu réel : une manche vague 1 en normal verse exactement 14 noyaux
+(10 × 1 × 1,4). L'écart compte neuf / compte maximal reste à remesurer en
+simulation complète (attendu sous 1,5 vague — les valeurs des lignes n'ont
+pas changé, seuls le rythme d'acquisition et la capacité ont bougé).
 
 ### Rendu WebGL
 

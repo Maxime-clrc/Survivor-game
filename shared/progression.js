@@ -32,54 +32,99 @@ export const PROG_CFG = {
   /* 3 : comptes pseudo+mot de passe, une ligne Supabase par compte — le
      profil ne porte plus de champ `code` (l'authentification vit dans les
      colonnes de la table, jamais dans le jsonb de progression). */
-  /* 4 : la vague n'existe plus. Les jalons et la monnaie s'indexent sur le
-     NIVEAU d'equipe, et `best` porte `level` et `segment` a cote de l'ancien
-     `wave`. La migration se fait par ligne, dans `progress_store.js` ; une
-     ligne de version inconnue reste GELEE, jamais adoptee en silence. */
-  /* 5 : le boss final (lot W). `bestFinalRun` s'ajoute au profil. La migration
-     est la plus simple de toutes — un champ neuf a `null` — mais elle DOIT
-     exister quand meme : sans elle, une ligne de version 4 serait gelee, donc un
-     pseudo indisponible, pour l'ajout d'un champ vide. */
+  /* 4 (lot H) : economie refaite — revenu lineaire plafonne, primes de
+     premiere fois supprimees, emplacements par jalons, couts geometriques.
+     Migration SECHE cote store : une ligne de version anterieure repart sur
+     un profil neuf, l'authentification (colonnes) est conservee — decision du
+     porteur, le jeu est en developpement. */
+  /* 5 : la vague n'existe plus (plan 5). Les jalons et la monnaie s'indexent
+     sur le NIVEAU d'equipe, et `best` porte `level` et `segment` a cote de
+     l'ancien `wave`. La migration se fait par ligne, dans `progress_store.js`.
+
+     DEUX branches ont ecrit une « version 4 » differente — le lot H d'un cote,
+     le lot Q de l'autre — et c'est exactement le piege que la version est censee
+     eviter : deux profils incompatibles portant le meme numero. La fusion tranche
+     en montant a 5, et la migration reconnait les deux v4 par leurs CHAMPS
+     (`best.level` pour celle du lot Q, son absence pour celle du lot H) plutot
+     que par leur numero, qui ne les distingue pas. */
   VERSION: 5,
 
   /* Emplacements. On debloque definitivement, on equipe partiellement : c'est
      ce qui distingue ce systeme d'une simple echelle — apres cent parties, la
-     decision existe toujours, et deux tanks peuvent etre joues differemment. */
+     decision existe toujours, et deux tanks peuvent etre joues differemment.
+     Gagnes aux JALONS et plus aux achats (lot H) : avec des couts
+     geometriques, « +1 tous les 12 paliers » devenait inatteignable, et lier
+     la capacite a la depense cumulait les deux avantages sur la meme tete —
+     celui qui a le plus de noyaux avait aussi le plus d'emplacements. */
   SLOTS_BASE: 3,
   SLOTS_MAX: 6,
-  SLOTS_STEP: 12,            // +1 emplacement tous les 12 paliers achetes dans la classe
+  SLOTS_BOSSES: 3,           // +1 : trois boss differents vaincus
+  SLOTS_RUNS: 25,            // +1 : 25 parties jouees
+  // +1 au jalon de NIVEAU (`niveau12`) et non de vague : les vagues n'existent
+  // plus, et le niveau est justement ce qui se gagne desormais.
+  SLOTS_LEVEL: 12,
 
   TIERS_MAX: 5,
-  TIER_COSTS: [150, 260, 420, 650, 1000],
+  /* Geometriques (lot H) : 6 900 la ligne complete. Le revenu etant lineaire,
+     c'est la grille qui porte la duree de progression — premier palier a la
+     premiere partie, ligne complete vers la dix-huitieme. */
+  TIER_COSTS: [200, 420, 880, 1800, 3600],
 
   /* La monnaie : les NOYAUX, extraits des creatures. Jamais sur les kills
      individuels — NIVEAU atteint et boss vaincus, verses a parts egales.
 
-     C'etait la vague atteinte, qui ne veut plus rien dire : toutes les equipes
-     voient la meme horde et le meme nombre de segments. Le niveau, lui, se
-     GAGNE — c'est tout l'objet du lot Q — donc il paie ce qu'il mesure. Les
-     seuils suivent la nouvelle courbe (22 a 26 niveaux sur une manche
-     complete) au lieu des vagues 5 a 20. */
-  CORE_LEVEL: 4,             // par niveau atteint : 4 x niveau
-  CORE_BOSS: 120,
-  CORE_FIRST_LEVELS: { 6: 200, 12: 400, 18: 800, 24: 1500 },
-  CORE_FIRST_BOSS: 300,
-  /* Premiere victoire sur le BOSS FINAL (lot W). Trois fois le bonus d'un boss
-     ordinaire, et c'est la seule recompense de puissance de l'evenement : les
-     cartes, elles, passent par le JALON. Le depot separe les deux depuis
-     toujours — « les cartes se debloquent par JALONS, pas par monnaie ; deux
+     DEUX REFONTES SE SONT CROISEES ICI, et la synthese garde le meilleur des
+     deux. Le lot H a mesure que le revenu ne devait etre ni cumulatif ni assorti
+     de primes : l'ancienne formule sommait les paliers traverses, donc croissait
+     au CARRE — 3 100 noyaux des la premiere bonne partie, les deux tiers venant
+     des primes de premiere fois — pendant que les couts, eux, sont geometriques.
+     Le plan 5 a change l'UNITE : la vague ne veut plus rien dire, toutes les
+     equipes voient la meme horde et les six memes segments, alors que le niveau
+     se GAGNE.
+
+     On garde donc la FORME du lot H — lineaire, plafonnee, sans prime — et
+     l'UNITE du plan 5. La formule du plan 5 etait triangulaire, c'est-a-dire
+     exactement ce que le lot H venait de retirer : sa critique valait pour elle
+     aussi, changer d'unite ne l'en exemptait pas.
+
+     ETALONNAGE, et il tient au PLAFOND autant qu'aux coefficients. Le lot H
+     visait ~290 noyaux bruts pour une bonne partie (vague 17, trois boss). Une
+     manche de plan 5 atteint le niveau 15 a 20 en median et 22 a 26 pour une
+     manche complete — soit une echelle presque double, parce qu'une manche dure
+     desormais trente-sept minutes.
+
+     Les coefficients sont donc RABAISSES pour que le plafond garde son role. A
+     10 et 30, une victoire complete en NORMAL donnait deja 616 : le plafond
+     mordait sur le cas nominal, ce qui revient a supprimer la difference entre
+     une bonne partie et une partie parfaite. A 8 et 25 :
+
+       mediane normal    18 x 8 + 3 x 25 = 219, x1,4 =  307
+       complete normal   26 x 8 + 6 x 25 = 358, x1,4 =  501
+       complete cauchemar                  358, x2   =  716 -> PLAFONNEE a 600
+
+     Le plafond ne mord plus que sur la victoire complete en cauchemar, ce qui
+     est exactement la « soiree exceptionnelle » qu'il est cense borner.
+
+     LES PRIMES DE PREMIERE FOIS ONT DISPARU, y compris celle du boss final que
+     le lot W avait ecrite (900). Ce n'est pas une perte : le boss final garde sa
+     recompense la ou le depot la met depuis toujours, dans le JALON qui debloque
+     des cartes. « Les cartes se debloquent par JALONS, pas par monnaie » — deux
      systemes qui puiseraient dans la meme bourse feraient acheter la puissance
-     d'abord et ne montrer les nouvelles cartes jamais ». */
-  CORE_FINAL_BOSS: 900,
-  DIFF_MUL: [1, 1.35, 1.8],  // meme ordre que DIFFICULTIES
+     d'abord et ne montrer les nouvelles cartes jamais. */
+  CORE_LEVEL: 8,             // x niveau atteint, sans cumul
+  CORE_BOSS: 25,
+  CORE_RUN_CAP: 600,         // plafond par partie
+  DIFF_MUL: [1, 1.4, 2],     // meme ordre que DIFFICULTIES — la difficulte pese plus
 
   /* Jalons de deblocage de cartes. */
   KILLS_MILESTONE: 500,      // kills cumules avec une meme classe
   NO_DOWN_MIN_LEVEL: 6,      // « sans etre mis a terre » ne vaut qu'a partir de la
 
   /* Le tronc de confort : non-puissance, coût fixe, ne consomme AUCUN
-     emplacement. */
-  CONFORT_COSTS: { relance: 800, quatrieme: 1500, ravitaillement: 600 },
+     emplacement. Les achats les plus puissants du systeme — la quatrieme
+     offre ameliore TOUTES les parties futures — donc des objectifs de moyen
+     terme, pas des achats de la troisieme partie. */
+  CONFORT_COSTS: { relance: 1200, quatrieme: 2500, ravitaillement: 900 },
 
   /* Constantes des lignes qui ne se resument pas a un mod existant. */
   CATALYSE_TIME: 3,          // secondes de bonus sur la cible soignee
@@ -208,14 +253,21 @@ export function applyMeta(mods, maxHp, clsId, lines) {
   return { mods: m, maxHp: hp };
 }
 
-/* Emplacements disponibles pour un profil de classe : la base, plus un tous
-   les SLOTS_STEP paliers achetes dans CETTE classe — ameliorer le tank ne
-   benefice pas au tireur, l'emplacement non plus. */
-export function slotsFor(clsProfile) {
-  let bought = 0;
-  for (const v of Object.values(clsProfile?.tiers ?? {})) bought += v | 0;
-  return Math.min(PROG_CFG.SLOTS_MAX,
-    PROG_CFG.SLOTS_BASE + Math.floor(bought / PROG_CFG.SLOTS_STEP));
+/* Emplacements disponibles : la base, plus les JALONS du compte (lot H) —
+   vague 10 atteinte, trois boss differents vaincus, 25 parties jouees. La
+   fonction prend desormais le PROFIL entier et non le profil de classe : la
+   capacite est une propriete du compte, les listes equipees restent par
+   classe. Les jalons de boss sont COMPTES depuis les jalons `boss_N` deja
+   poses pour les legendaires — pas de second marqueur a synchroniser. */
+export function slotsFor(profile) {
+  const ms = profile?.milestones ?? [];
+  let n = PROG_CFG.SLOTS_BASE;
+  if (ms.includes(`niveau${PROG_CFG.SLOTS_LEVEL}`)) n++;
+  let bosses = 0;
+  for (const id of ms) if (id.startsWith("boss_")) bosses++;
+  if (bosses >= PROG_CFG.SLOTS_BOSSES) n++;
+  if ((profile?.runs | 0) >= PROG_CFG.SLOTS_RUNS) n++;
+  return Math.min(PROG_CFG.SLOTS_MAX, n);
 }
 
 export function tierCost(currentTier) {
@@ -302,19 +354,22 @@ export function lockedCards(milestonesDone = []) {
 
 /* --- monnaie --------------------------------------------------------------------
 
-   La somme des niveaux est fermee : Σ 4n pour n = 1..N vaut 2 N (N+1). Verse a
-   parts EGALES : la fonction ne prend rien d'individuel, et c'est voulu. */
+   LINEAIRE (lot H) et indexee sur le NIVEAU (plan 5) : on paie le niveau
+   ATTEINT, pas la somme des niveaux traverses — une somme croit au carre et
+   distance des couts geometriques. Verse a parts EGALES : la fonction ne prend
+   rien d'individuel, et c'est voulu. Le plafond s'applique au TOTAL multiplie :
+   une soiree exceptionnelle ne doit pas effacer un mois de progression. */
 export function coresForRun(level, bossKills, diffIndex) {
-  const base = PROG_CFG.CORE_LEVEL * level * (level + 1) / 2
-    + PROG_CFG.CORE_BOSS * bossKills;
-  return Math.round(base * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1));
+  const base = PROG_CFG.CORE_LEVEL * level + PROG_CFG.CORE_BOSS * bossKills;
+  return Math.min(PROG_CFG.CORE_RUN_CAP,
+    Math.round(base * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)));
 }
 
-// Part d'un joueur qui quitte en cours de manche : les niveaux atteints, rien
-// d'autre — ni boss ni jalons, qui se constatent a la fin.
+// Part d'un joueur qui quitte en cours de manche : le niveau atteint, rien
+// d'autre — ni boss ni jalons, qui se constatent a la fin. Meme plafond.
 export function coresPartial(level, diffIndex) {
-  return Math.round(PROG_CFG.CORE_LEVEL * level * (level + 1) / 2
-    * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1));
+  return Math.min(PROG_CFG.CORE_RUN_CAP,
+    Math.round(PROG_CFG.CORE_LEVEL * level * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)));
 }
 
 /* Profil neuf. Le champ `version` vit sur le FICHIER (progress_store), pas sur
@@ -332,24 +387,62 @@ export function newProfile(pseudo) {
        record historique du modele par vagues, et une mesure se remesure, elle
        ne se convertit pas. Les deux nouvelles unites demarrent a zero. */
     best: { wave: 0, level: 0, segment: 0, score: 0 },
-    /* MEILLEURE COURSE FINALE (lot W). Le temps enregistre est celui du COMBAT
-       FINAL SEUL et non celui pour l'atteindre : sous D1, atteindre le segment 6
-       coute 1800 s de horde plus la duree des cinq combats precedents, donc un
-       chiffre domine par une constante ou deux equipes tres differentes
-       afficheraient des temps voisins.
-
-       Les quatre derniers champs sont OBLIGATOIRES et c'est le cœur de
-       l'enregistrement : un temps n'est comparable qu'a variante, biome,
-       difficulte et effectif EGAUX. Sans eux, le classement compare des parties
-       qui n'ont rien a voir — c'est la preoccupation deja ecrite dans plan4,
-       « deux parties identiques en tout point peuvent avoir des temps
-       differents », et le lot X en fait un critere d'acceptation.
-       `null` tant que le boss final n'est pas tombé : un objet a zero se lirait
-       comme un record de zero seconde. */
-    bestFinalRun: null,
     milestones: [],
     kills: {},           // clsId -> kills cumules
     classes: {},         // clsId -> { tiers: { ligne -> palier }, equipped: [lignes] }
     confort: [],         // identifiants de CONFORT achetes
+    /* Cartes bannies (lot J) : identifiants a plat, cloture de dependances
+       incluse a l'ecriture. Un profil sans ce champ (v4 d'avant le lot) se
+       lit comme une liste vide — les lecteurs font `?? []`. */
+    bannedCards: [],
+    /* CLASSEMENT AU TEMPS. Deux branches ont ecrit ce record separement et la
+       fusion garde les deux arguments, qui portent sur des axes differents.
+
+       PAR DIFFICULTE (lot N) : comparer un temps de « calme » a un temps de
+       « cauchemar » n'a aucun sens, et une case unique aurait pousse tout le
+       monde a jouer en calme pour figurer au tableau. Cle = index de
+       DIFFICULTIES.
+
+       AVEC SON CONTEXTE (lot W) : la difficulte ne suffit pas. Un temps n'est
+       comparable qu'a VARIANTE de script, BIOME et EFFECTIF egaux — c'est la
+       preoccupation deja ecrite dans plan4, « deux parties identiques en tout
+       point peuvent avoir des temps differents », et le lot X en fait un critere
+       d'acceptation. Les champs accompagnent donc le record au lieu d'etre
+       perdus.
+
+       Et c'est le temps du COMBAT FINAL SEUL, jamais celui pour l'atteindre :
+       sous D1 ce dernier vaut 1800 s de horde plus les cinq combats precedents,
+       donc il est domine par une constante et ne distinguerait personne.
+
+       Un profil sans ce champ se lit comme un objet vide — meme repli que
+       `bannedCards`, aucune migration a ecrire. */
+    bestFinal: {},
   };
+}
+
+/* Enregistre une victoire finale si elle ameliore le record de SA difficulte.
+   Fonction pure sur le profil, comme le reste du module : le hub l'appelle,
+   la salle ne connait pas la persistance. Retourne vrai si le record a bouge —
+   c'est ce qui decide d'un « nouveau record » a l'ecran. */
+export function recordFinal(profile, run, dateISO) {
+  if (!profile || !run) return false;
+  if (!profile.bestFinal) profile.bestFinal = {};
+  const k = String(run.difficulty | 0);
+  const cur = profile.bestFinal[k];
+  // Le TEMPS fait foi, et seulement lui : c'est un classement de vitesse. Le
+  // contexte accompagne le record, il n'entre jamais dans la comparaison — deux
+  // biomes differents ne se departagent pas, ils se LISENT.
+  if (cur && cur.time <= run.time) return false;
+  profile.bestFinal[k] = {
+    time: Math.round((run.time ?? 0) * 10) / 10,
+    // Le NIVEAU et non la vague : c'est l'unite du plan 5, et la seule des deux
+    // qui distingue encore deux equipes.
+    level: run.level | 0,
+    total: run.total | 0,
+    variant: run.variant ?? "",
+    biome: run.biome | 0,
+    players: run.players | 0,
+    date: dateISO,
+  };
+  return true;
 }

@@ -1451,6 +1451,32 @@ export const CARDS = [
 
 export const CARD_BY_ID = new Map(CARDS.map(c => [c.id, c]));
 
+/* --- bannissement (lot J) ---------------------------------------------------
+   Bannir une carte bannit aussi les cartes qui DEPENDENT d'elle — une carte
+   dont l'effet est inoperant sans la bannie n'a plus de raison d'apparaitre.
+   La dependance est declarative : un champ `dependsOn: ["id"]` sur la carte
+   dependante, pose UNIQUEMENT quand l'effet est reellement mort sans l'autre.
+   Aucune carte du catalogue actuel n'en porte — les paliers d'une famille
+   sont independants au tirage et les variantes de troisieme competence sont
+   des variantes, pas des dependances — mais le mecanisme est la : la cloture
+   est calculee ICI et ecrite A PLAT dans `bannedCards`, le tirage n'a jamais
+   un graphe a resoudre. */
+export function banClosure(rootId) {
+  const banned = new Set([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of CARDS) {
+      if (banned.has(c.id)) continue;
+      if ((c.dependsOn ?? []).some(d => banned.has(d))) {
+        banned.add(c.id);
+        grew = true;
+      }
+    }
+  }
+  return [...banned];
+}
+
 /* --- mods ------------------------------------------------------------------ */
 
 export function defaultMods() {

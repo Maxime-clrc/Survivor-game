@@ -48,6 +48,12 @@
      0.7.8  lot W  boss final : l'Amalgame, huit barres, synthese et sceau ;
                    Oracle et Jumeaux ouverts au solo ; le plancher de barre tient
                    jusqu'au bout et la banque se vide barre par barre
+     0.7.9  fusion plan5 <- develop : la grande arene et la camera (lot I), la
+                   refonte des menus, les reliques (K) et le bannissement (J)
+                   entrent dans le plan 5 ; les lots L, M et N sont abandonnes au
+                   profit de U, S et W, qui font la meme chose en mieux integre.
+                   Economie : forme du lot H (lineaire, plafonnee) sur l'unite du
+                   plan 5 (le niveau). Profil v5, migration en chaine.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -57,4 +63,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.7.8";
+export const VERSION = "0.7.9";

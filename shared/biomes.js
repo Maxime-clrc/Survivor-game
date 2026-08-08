@@ -364,28 +364,63 @@ const HZ_CAUCHEMAR = {
    images, et la prediction locale rejoue la regle des murs), rendrait le damier
    du Ravageur illisible et empecherait `_dropPoint` de poser un bonus. Seules
    les ZONES peuvent naitre en cours de route : elles sont traversables. */
-export function buildBiome(biomeIndex, diffIndex, seed = 1, arenaW = 1600, arenaH = 900) {
+export function buildBiome(biomeIndex, diffIndex, seed = 1,
+                           arenaW = 1600, arenaH = 900,
+                           viewW = 1600, viewH = 900) {
   const def = biomeAt(biomeIndex);
   const rand = rng(seed);
   const surface = arenaW * arenaH;
 
+  /* LE MOTIF EST DEFINI PAR VUE ET REPETE, jamais etire sur la salle. C'est la
+     reconciliation avec la grande arene du lot I, et elle etait obligatoire :
+     les tables ci-dessus ecrivent des parts (0,20 ; 0,50 ; 0,80) qui, projetees
+     sur 4800 x 2700, donnaient des piliers de 276 px et six obstacles pour neuf
+     millions de pixels carres. Les dangers, eux, gardaient leur rayon absolu et
+     retombaient a 0,79 % de surface couverte — le biome devenait exactement le
+     decor que le lot V refuse d'etre.
+
+     Ce qui compte est la densite DANS LE CHAMP : un joueur voit une vue a la
+     fois, et c'est sur une vue que les mesures du lot V ont ete faites. On pave
+     donc la salle de cellules d'une vue et on repose le motif dans chacune. Les
+     parts de surface sont alors identiques a celles mesurees, quelle que soit la
+     taille de la salle, et le script n'a pas une valeur a rerégler.
+
+     Chaque cellule est MIROITEE selon sa position, de facon deterministe : sans
+     ca, neuf copies rigoureusement identiques se lisent comme un defaut de
+     generation, et un joueur qui traverse la salle a l'impression de tourner en
+     rond. Un miroir et non une rotation : la geometrie doit rester
+     RECONNAISSABLE — « un joueur qui connait l'usine la reconnait » — et une
+     rotation de 90 degres d'une grille de piliers ne se reconnait plus. */
+  const cols = Math.max(1, Math.round(arenaW / viewW));
+  const rows = Math.max(1, Math.round(arenaH / viewH));
+  const cw = arenaW / cols, ch = arenaH / rows;
+
   const obstacles = [];
   let obsArea = 0;
-  for (const o of OBSTACLES[def.key] ?? []) {
-    // La friche gigue, les deux autres non : leur lisibilite tient a leur
-    // regularite, et une grille de piliers qui tremble n'est plus une grille.
-    const j = def.key === "friche" ? 40 : 0;
-    const w = o.w * arenaW, h = o.h * arenaH;
-    const area = w * h;
-    if ((obsArea + area) / surface > BIOME_CFG.OBSTACLE_SURFACE_MAX) continue;
-    obsArea += area;
-    obstacles.push({
-      x: o.x * arenaW + (rand() - 0.5) * 2 * j,
-      y: o.y * arenaH + (rand() - 0.5) * 2 * j,
-      w, h,
-      maxHp: o.hp ? BIOME_CFG.COVER_HP : 0,
-      hp: o.hp ? BIOME_CFG.COVER_HP : 0,
-    });
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      // Miroir deterministe par cellule. Le damier (`(cx + cy) & 1`) plutot
+      // qu'un tirage : deux cellules voisines ne sont jamais identiques, et la
+      // salle reste la meme d'une partie a l'autre pour une graine donnee.
+      const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
+      for (const o of OBSTACLES[def.key] ?? []) {
+        // La friche gigue, les deux autres non : leur lisibilite tient a leur
+        // regularite, et une grille de piliers qui tremble n'est plus une grille.
+        const j = def.key === "friche" ? 40 : 0;
+        const w = o.w * cw, h = o.h * ch;
+        const area = w * h;
+        if ((obsArea + area) / surface > BIOME_CFG.OBSTACLE_SURFACE_MAX) continue;
+        obsArea += area;
+        const fx = mx ? 1 - o.x : o.x, fy = my ? 1 - o.y : o.y;
+        obstacles.push({
+          x: cx * cw + fx * cw + (rand() - 0.5) * 2 * j,
+          y: cy * ch + fy * ch + (rand() - 0.5) * 2 * j,
+          w, h,
+          maxHp: o.hp ? BIOME_CFG.COVER_HP : 0,
+          hp: o.hp ? BIOME_CFG.COVER_HP : 0,
+        });
+      }
+    }
   }
 
   /* Les dangers par mode. Le tableau vide de `calme` n'est pas un oubli : c'est
@@ -396,26 +431,38 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1, arenaW = 1600, arena
 
   const hazards = [];
   let hzArea = 0;
-  for (const h of table) {
-    const d = hazardAt(h.kind);
-    if (!d) continue;
-    const r = h.r ?? d.r;
-    const area = Math.PI * r * r;
-    /* PLAFOND STRICT. On JETTE plutot que de laisser passer : un plafond qu'on
-       verifie apres coup est un plafond qu'on depasse, et le depot a deja paye
-       ce prix avec les mares de la Matriarche. */
-    if ((hzArea + area) / surface > BIOME_CFG.HAZARD_SURFACE_MAX) continue;
-    hzArea += area;
-    hazards.push({
-      kind: h.kind, r,
-      x: h.x * arenaW, y: h.y * arenaH,
-      dot: h.dot ?? d.dot,
-      period: h.period ?? (h.kind === HZ_EMBER ? BIOME_CFG.EMBER_PERIOD : BIOME_CFG.GEYSER_PERIOD),
-      active: h.active ?? BIOME_CFG.GEYSER_ACTIVE,
-      phase: h.phase ?? 0,
-      dx: h.dx ?? 0, dy: h.dy ?? 0,
-      span: h.span ?? BIOME_CFG.EMBER_SPAN,
-    });
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
+      for (const h of table) {
+        const d = hazardAt(h.kind);
+        if (!d) continue;
+        const r = h.r ?? d.r;
+        const area = Math.PI * r * r;
+        /* PLAFOND STRICT. On JETTE plutot que de laisser passer : un plafond
+           qu'on verifie apres coup est un plafond qu'on depasse, et le depot a
+           deja paye ce prix avec les mares de la Matriarche. */
+        if ((hzArea + area) / surface > BIOME_CFG.HAZARD_SURFACE_MAX) continue;
+        hzArea += area;
+        const fx = mx ? 1 - h.x : h.x, fy = my ? 1 - h.y : h.y;
+        hazards.push({
+          kind: h.kind, r,
+          x: cx * cw + fx * cw, y: cy * ch + fy * ch,
+          dot: h.dot ?? d.dot,
+          period: h.period ?? (h.kind === HZ_EMBER ? BIOME_CFG.EMBER_PERIOD : BIOME_CFG.GEYSER_PERIOD),
+          active: h.active ?? BIOME_CFG.GEYSER_ACTIVE,
+          /* La phase est DECALEE par cellule : sans ca, tous les geysers de la
+             salle souffleraient a l'unisson et l'arene entiere respirerait comme
+             un seul organisme — le defaut deja corrige pour la respiration des
+             creatures et pour les croix du sanctuaire. */
+          phase: ((h.phase ?? 0) + (cy * cols + cx) * 0.37) % 1,
+          // Le rail d'une braise se retourne avec sa cellule, sinon la braise
+          // partirait du mauvais bout de son propre trace.
+          dx: (h.dx ?? 0) * (mx ? -1 : 1), dy: (h.dy ?? 0) * (my ? -1 : 1),
+          span: h.span ?? BIOME_CFG.EMBER_SPAN,
+        });
+      }
+    }
   }
 
   return {
@@ -499,14 +546,15 @@ export function weatherFor(diffIndex, seed, segment) {
    Le passage se verifie par remplissage sur une grille, obstacles DILATES du
    rayon du personnage : un couloir de 30 px est traversable sur le papier et
    infranchissable en jeu. */
-export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900) {
+export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
+                               viewW = 1600, viewH = 900) {
   const soucis = [];
   const budget = BIOME_CFG.HAZARD_SURFACE_MAX;
 
   for (let bi = 0; bi < BIOMES.length; bi++) {
     for (let di = 0; di < 3; di++) {
       for (const seed of seeds) {
-        const b = buildBiome(bi, di, seed, arenaW, arenaH);
+        const b = buildBiome(bi, di, seed, arenaW, arenaH, viewW, viewH);
         const ou = `${b.key}/${["calme", "normal", "cauchemar"][di]}/${seed}`;
 
         if (b.hazardSurface > budget + 1e-9) {
@@ -521,7 +569,7 @@ export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900) 
         if (di === 1 && b.hazards.some(h => hazardAt(h.kind).hurts)) {
           soucis.push(`${ou} : normal ne doit avoir aucun danger qui blesse`);
         }
-        if (!coeurTraversable(b, arenaW, arenaH)) {
+        if (!coeurTraversable(b, arenaW, arenaH, viewW, viewH)) {
           soucis.push(`${ou} : le carre central minimal n'est pas traversable`);
         }
       }
@@ -530,9 +578,27 @@ export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900) 
   return soucis;
 }
 
-function coeurTraversable(b, arenaW, arenaH) {
-  const cw = arenaW * BIOME_CFG.CORE_RATIO, ch = arenaH * BIOME_CFG.CORE_RATIO;
-  const x0 = (arenaW - cw) / 2, y0 = (arenaH - ch) / 2;
+/* Le carre central minimal se mesure sur une CELLULE DE VUE et non sur la
+   salle : c est la vue qui se referme pendant la constriction du Ravageur
+   (`_atkConstriction` borne sur `CFG.VIEW_*` depuis la grande arene), et un
+   carre central de 2160 x 1215 ne dirait rien de ce qui se passe a l ecran.
+   On verifie CHAQUE cellule, pas seulement celle du milieu : le combat de boss
+   s ancre sur l equipe, donc n importe laquelle peut devenir l arene. */
+function coeurTraversable(b, arenaW, arenaH, viewW, viewH) {
+  const cols = Math.max(1, Math.round(arenaW / viewW));
+  const rows = Math.max(1, Math.round(arenaH / viewH));
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      if (!celluleTraversable(b, arenaW / cols, arenaH / rows,
+                              (i * arenaW) / cols, (j * arenaH) / rows)) return false;
+    }
+  }
+  return true;
+}
+
+function celluleTraversable(b, vw, vh, ox, oy) {
+  const cw = vw * BIOME_CFG.CORE_RATIO, ch = vh * BIOME_CFG.CORE_RATIO;
+  const x0 = ox + (vw - cw) / 2, y0 = oy + (vh - ch) / 2;
   const step = 10;
   const cols = Math.floor(cw / step), rows = Math.floor(ch / step);
   const c = BIOME_CFG.CORE_CLEARANCE;

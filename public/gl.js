@@ -261,7 +261,13 @@ export function createGL(canvas, opts = {}) {
     r.world = { w: worldW, h: worldH };
   };
 
-  r.begin = (bg = null) => {
+  /* La CAMERA (lot I) entre ici et nulle part ailleurs : la projection est un
+     simple scale+offset, et soustraire le coin de vue revient a decaler
+     l'offset — clip = (p - cam) * s + (-1, 1) = p * s + ((-1, 1) - cam * s).
+     Le batcher continue d'ignorer le jeu : il recoit un coin de vue, pas une
+     entite. camX/camY sont le coin HAUT-GAUCHE de la vue en coordonnees
+     monde ; a (0, 0), la projection est exactement celle d'avant le lot. */
+  r.begin = (bg = null, camX = 0, camY = 0) => {
     if (!r.ok) return false;
     n = 0;
     blend = BLEND_NORMAL;
@@ -278,7 +284,7 @@ export function createGL(canvas, opts = {}) {
     gl.uniform3f(uFlashColor, flashColor[0], flashColor[1], flashColor[2]);
     const w = r.world?.w ?? 1600, h = r.world?.h ?? 900;
     gl.uniform2f(uScale, 2 / w, -2 / h);
-    gl.uniform2f(uOffset, -1, 1);
+    gl.uniform2f(uOffset, -1 - camX * (2 / w), 1 + camY * (2 / h));
     applyBlend();
     return true;
   };

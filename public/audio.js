@@ -37,6 +37,12 @@ export const SOUND_GAIN = {
   bonus: 0.6,
   mort: 0.4,
   impact: 0.25,
+  /* L'INTERFACE est basse par construction : c'est le seul son du jeu qui se
+     declenche sans qu'on ait rien fait — traverser un ecran de haut en bas en
+     survole une dizaine. Au niveau d'un impact il deviendrait le son le plus
+     present d'une soiree ; sous le tir il ne s'entendrait plus hors combat, ou
+     il est seul. Entre les deux, donc. */
+  menu: 0.18,
   tir: 0.15,
 };
 
@@ -201,18 +207,24 @@ function makeNoise(context) {
    Briques
    --------------------------------------------------------------------------- */
 
-// Un oscillateur, une enveloppe, une eventuelle glissade de hauteur.
-function tone({ freq, to = 0, dur, type = "sine", gain, delay = 0 }) {
+/* Un oscillateur, une enveloppe, une eventuelle glissade de hauteur.
+
+   `attack` par defaut a 4 ms : a zero on entend le clic de discontinuite,
+   au-dela de 10 ms un tir de 25 ms n'a plus de percussion du tout. C'est le bon
+   reglage pour tout ce qui FRAPPE — donc pour tout le combat. Un son doux va
+   dans l'autre sens : une attaque de 4 ms sur une sinusoide s'entend encore
+   comme un coup d'ongle, et c'est exactement ce qu'on ne veut pas d'un retour
+   de menu. Le parametre est donc ouvert, comme celui de `noise`, plutot que
+   d'ecrire une seconde brique. */
+function tone({ freq, to = 0, dur, type = "sine", gain, delay = 0, attack = 0.004 }) {
   const t0 = ac.currentTime + delay;
   const osc = ac.createOscillator();
   const g = ac.createGain();
   osc.type = type;
   osc.frequency.setValueAtTime(freq, t0);
   if (to > 0) osc.frequency.exponentialRampToValueAtTime(Math.max(20, to), t0 + dur);
-  // Attaque de 4 ms : a zero on entend le clic de discontinuite, au-dela de
-  // 10 ms un tir de 25 ms n'a plus de percussion du tout.
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + 0.004);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + attack);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   osc.connect(g); g.connect(master);
   osc.start(t0);
@@ -220,9 +232,16 @@ function tone({ freq, to = 0, dur, type = "sine", gain, delay = 0 }) {
   return { end: t0 + dur, stop: () => fadeOut(g, osc, t0) };
 }
 
-// Du bruit blanc passe dans un filtre. Le filtre EST le timbre : passe-bande
-// aigu pour un impact sec, passe-bas pour un souffle d'explosion.
-function noise({ dur, type = "bandpass", freq, to = 0, q = 1, gain, delay = 0 }) {
+/* Du bruit blanc passe dans un filtre. Le filtre EST le timbre : passe-bande
+   aigu pour un impact sec, passe-bas pour un souffle d'explosion.
+
+   `attack` etend la brique au lieu d'ouvrir une seconde fonction : a zero — le
+   defaut, donc tous les appelants d'avant — le bruit part a plein volume, ce
+   qui est exactement ce qu'on veut d'un impact ou d'une detonation. Un SOUFFLE
+   va dans l'autre sens : il s'ouvre. Sans montee, le souffle de lancement
+   commencait par un claquement, c'est-a-dire par le contraire de ce qu'il
+   annonce. */
+function noise({ dur, type = "bandpass", freq, to = 0, q = 1, gain, delay = 0, attack = 0 }) {
   const t0 = ac.currentTime + delay;
   const src = ac.createBufferSource();
   src.buffer = noiseBuf;
@@ -233,7 +252,12 @@ function noise({ dur, type = "bandpass", freq, to = 0, q = 1, gain, delay = 0 })
   f.frequency.setValueAtTime(freq, t0);
   if (to > 0) f.frequency.exponentialRampToValueAtTime(Math.max(30, to), t0 + dur);
   const g = ac.createGain();
-  g.gain.setValueAtTime(Math.max(0.0002, gain), t0);
+  if (attack > 0) {
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + attack);
+  } else {
+    g.gain.setValueAtTime(Math.max(0.0002, gain), t0);
+  }
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   src.connect(f); f.connect(g); g.connect(master);
   src.start(t0);
@@ -371,6 +395,126 @@ const PALETTE = {
     const a = tone({ freq: 147, dur: 0.5, type: "sawtooth", gain: SOUND_GAIN.boss * 0.5 });
     tone({ freq: 220, dur: 0.5, type: "sawtooth", gain: SOUND_GAIN.boss * 0.35 });
     noise({ dur: 0.35, type: "lowpass", freq: 1600, to: 200, gain: SOUND_GAIN.boss * 0.4 });
+    return { end: a.end, stop: a.stop };
+  },
+
+  /* LE SURVOL. Un clic sec et rien d'autre : 18 ms de bruit passe-bande etroit
+     (Q eleve), sans aucune composante tonale. Une note, meme courte, se lit
+     comme une reponse — or survoler n'est pas agir, et un carillon a chaque
+     bouton traverse fatigue en une soiree. Un tick dit « ceci est une cible »
+     et se laisse oublier, ce qui est precisement le role d'un retour de
+     survol. La descente de hauteur (3400 → 2200) evite le sifflement d'un
+     bruit filtre a hauteur fixe, qu'on entend comme une tonalite. */
+  survol: () => noise({ dur: 0.018, type: "bandpass", freq: 3400, to: 2200,
+                        q: 6, gain: SOUND_GAIN.menu }),
+
+  /* LA SELECTION. Une note ronde qui MONTE, et AUCUN bruit.
+
+     Un twang de blaster avait ete essaye : descente de 1750 a 180 Hz en dent de
+     scie, carre une octave dessous, bruit passe-bande par-dessus. Il etait juste
+     techniquement — c'est bien ce son-la — et desagreable a l'usage, pour deux
+     raisons qui valent regle. Le BRUIT d'abord : filtre etroit et bref, il rape,
+     et on le declenche a chaque clic d'un ecran qu'on parcourt pendant une
+     minute — ce qui passe une fois par combat ne passe pas trente fois par
+     menu. La DESCENTE ensuite : une hauteur qui tombe se lit comme une perte
+     (c'est `aterre`, mot pour mot), or selectionner est un gain.
+
+     Donc l'inverse, terme a terme. Trois sinus, aucune source de bruit : la
+     sinusoide est la seule forme d'onde sans harmonique, donc la seule qui ne
+     puisse pas raper. La hauteur MONTE d'un ton (740 → 880) plutot que de sauter
+     — un intervalle franc sonne comme une alerte, une inflexion sonne comme un
+     acquiescement. L'octave superieure, a un quart du volume, donne le brillant
+     qui fait qu'on l'entend par-dessus le reste sans avoir a monter le gain ; la
+     quarte grave en dessous donne le corps, sans quoi il ne reste qu'un bip de
+     montre.
+
+     Attaque de 12 ms et non 4 : sur une sinusoide, 4 ms s'entend encore comme
+     un coup d'ongle. C'est le seul reglage qui separe « rond » de « sec », et
+     c'est pour lui que `tone` a gagne son parametre.
+
+     ×1,3 sur le survol — c'est une REPONSE, elle doit passer devant la
+     signalisation — et 110 ms, parce qu'on enchaine les clics dans un menu. */
+  selection: () => {
+    const a = tone({ freq: 740, to: 880, dur: 0.11, type: "sine",
+                     gain: SOUND_GAIN.menu * 1.3, attack: 0.012 });
+    tone({ freq: 1480, to: 1760, dur: 0.08, type: "sine",
+           gain: SOUND_GAIN.menu * 0.32, attack: 0.012 });
+    tone({ freq: 370, to: 440, dur: 0.13, type: "triangle",
+           gain: SOUND_GAIN.menu * 0.4, attack: 0.016 });
+    return { end: a.end + 0.05, stop: a.stop };
+  },
+
+  /* SE DECLARER PRET. La meme matiere que `selection` — sinus, montee, attaque
+     ronde — mais un INTERVALLE et non une inflexion : deux notes distinctes,
+     une tierce majeure (587 → 740), la seconde a peine posee sur la premiere.
+     C'est ce qui separe « j'ai choisi » de « je m'engage » : une inflexion
+     acquiesce, deux notes qui montent affirment. Elles se recouvrent de 30 ms
+     au lieu de s'enchainer proprement — jointes, on entend un accord et non une
+     progression, espacees, on entend un carillon.
+
+     Le grave a l'octave n'est pas decoratif : c'est ce qui fait qu'on le sent
+     dans un salon a quatre ou tout le monde clique en meme temps. */
+  pret: () => {
+    const a = tone({ freq: 587, dur: 0.10, type: "sine",
+                     gain: SOUND_GAIN.menu * 1.3, attack: 0.012 });
+    tone({ freq: 740, to: 784, dur: 0.16, type: "sine",
+           gain: SOUND_GAIN.menu * 1.2, attack: 0.014, delay: 0.07 });
+    tone({ freq: 294, dur: 0.14, type: "triangle",
+           gain: SOUND_GAIN.menu * 0.42, attack: 0.018 });
+    return { end: a.end + 0.20, stop: a.stop };
+  },
+
+  /* SE RETIRER. Le meme geste a l'envers, et il DOIT sonner autrement : le
+     bouton est une bascule, et deux etats opposes qui rendent le meme son
+     apprennent au joueur a ne plus l'ecouter. Meme tierce, jouee en descendant
+     et plus courte, sans le renfort grave — c'est un retrait, il n'a pas a
+     occuper la piece. C'est la regle du depot appliquee telle quelle : une
+     hauteur qui monte est un gain, une hauteur qui tombe est une perte. */
+  pretAnnule: () => {
+    const a = tone({ freq: 740, dur: 0.08, type: "sine",
+                     gain: SOUND_GAIN.menu * 0.9, attack: 0.012 });
+    tone({ freq: 587, to: 554, dur: 0.12, type: "sine",
+           gain: SOUND_GAIN.menu * 0.8, attack: 0.014, delay: 0.06 });
+    return { end: a.end + 0.14, stop: a.stop };
+  },
+
+  /* LANCER LA MANCHE. Le troisieme degre de la meme famille : trois notes, un
+     accord majeur qui monte et RESOUT a l'octave (392 · 494 · 784). Les deux
+     precedents ne resolvent pas — ils repondent a un geste, et la partie
+     continue ; celui-ci ferme le salon, donc il se termine.
+
+     Il n'est pas le souffle de `lancement`, et les deux ne se genent pas : le
+     clic part de la main de l'hote, le souffle part du message `round` un
+     aller-retour serveur plus tard, et ils vivent dans deux registres — accord
+     medium et court ici, sous-grave long la-bas. L'un annonce, l'autre
+     accomplit. */
+  lancer: () => {
+    const a = tone({ freq: 392, dur: 0.12, type: "sine",
+                     gain: SOUND_GAIN.menu * 1.2, attack: 0.012 });
+    tone({ freq: 494, dur: 0.14, type: "sine",
+           gain: SOUND_GAIN.menu * 1.1, attack: 0.012, delay: 0.06 });
+    tone({ freq: 784, to: 830, dur: 0.26, type: "sine",
+           gain: SOUND_GAIN.menu * 1.3, attack: 0.016, delay: 0.13 });
+    tone({ freq: 196, dur: 0.30, type: "triangle",
+           gain: SOUND_GAIN.menu * 0.5, attack: 0.020 });
+    return { end: a.end + 0.32, stop: a.stop };
+  },
+
+  /* LE LANCEMENT. Un souffle grave qui s'ouvre — la seule recette du jeu a
+     monter avant de descendre (`attack`), et c'est ce qui la separe de
+     `explosion` : une detonation frappe, un lancement se met en route.
+     Trois couches, chacune pour une raison : le bruit passe-bas qui s'effondre
+     de 900 a 60 Hz porte le souffle, le sinus a 80 Hz porte le POIDS (un
+     souffle seul reste un bruit de vent, sans masse), et la quinte a 120 Hz
+     l'ancre sur une hauteur — sans elle, le grave est du sous-grave qu'une
+     enceinte d'ordinateur portable ne restitue pas du tout.
+     Il dure 1,1 s, ce qui est long pour ce depot : c'est le seul son declenche
+     une fois par manche, il n'a personne a bousculer. */
+  lancement: () => {
+    const a = noise({ dur: 1.1, type: "lowpass", freq: 900, to: 60, attack: 0.12,
+                      gain: SOUND_GAIN.boss * 0.5 });
+    tone({ freq: 80, to: 44, dur: 0.9, type: "sine", gain: SOUND_GAIN.boss * 0.55 });
+    tone({ freq: 120, to: 66, dur: 0.7, type: "triangle", gain: SOUND_GAIN.boss * 0.22 });
     return { end: a.end, stop: a.stop };
   },
 

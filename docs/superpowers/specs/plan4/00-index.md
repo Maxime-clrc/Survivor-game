@@ -69,8 +69,11 @@ recalibrer à chaque lot suivant.
 
 ## Décisions du porteur du projet (2026-08-06)
 
-- **Lot H** : la migration se fait côté Supabase, par ligne de compte, avec
-  instantané de table préalable (section F3 mise à jour).
+- **Lot H** : jeu en développement, impact joueurs accepté — pas de
+  remboursement ni d'instantané : **reset de progression, comptes
+  conservés** (profil neuf v4 pour toute version antérieure, auth et session
+  intactes ; section F3 mise à jour). Rien à faire côté Supabase au
+  déploiement.
 - **Lot J** : le but du ban est qu'une carte précise ne revienne plus.
   **Bannir une carte bannit aussi les cartes qui dépendent d'elle** — rien de
   plus (section J1 mise à jour).
@@ -84,6 +87,50 @@ recalibrer à chaque lot suivant.
   `worldToScreen` dans chaque fonction de dessin (section I2 réécrite).
 - **Lot K** : les dix reliques proposées servent de liste de départ ;
   ajouts et équilibrage plus tard.
+
+## Décisions du porteur du projet (2026-08-06, seconde passe)
+
+Prises au lancement des trois lots restants (K, L, N — H, I, J et M sont faits).
+
+- **Ordre d'exécution** : L, puis K, puis N, avec une validation entre chaque.
+  L ne crée aucun écran et se mesure seul ; K a besoin des éclats (I, fait) ;
+  N a besoin des deux, et la spec dit elle-même qu'il se calibre en dernier.
+- **Lot K, section K2** (question laissée ouverte par la spec) : **oui, une
+  relance de l'offre contre des éclats**, à coût **croissant avec la vague** —
+  la proposition par défaut. Une relance à coût fixe se banalise en fin de
+  manche, quand les éclats abondent, et le marchand n'offre plus de choix.
+- **Lot N, section N4** : les **deux** mécaniques exclusives proposées sont
+  retenues telles quelles — phase de synthèse (exaflares du Métronome
+  traversant une zone de regroupement de l'Oracle) et sceau final (les joueurs
+  vivants occupent simultanément des zones distinctes aux quatre coins,
+  nombre adapté à l'effectif par `adaptMech`).
+- **Lot N, section N8** : le classement au temps se consulte depuis le **hub
+  des salles**, pas depuis le Terminal ni le salon. Le classement compare des
+  comptes toutes salles confondues : sa place est là où l'on est justement
+  hors salle, et il est ainsi visible dès la connexion.
+
+## État d'exécution
+
+Les sept lots sont **faits**. H, I, J et M l'étaient avant cette passe ; L, K
+et N ont été exécutés dans cet ordre (2026-08-07).
+
+| lot | commit | écart notable au plan |
+|---|---|---|
+| L | `b467413` | trou d'XP corrigé (`xpWorth`), trois valeurs remplacées par des mesures, drapeau `hunt` non prévu |
+| K | `9134b92` | retrait de l'offre après achat (bug trouvé au banc), flat boss compté à ⅓ dans l'index |
+| N | `6a3a282` | `unlock` à 7 entrées et non 8 (voir ci-dessous), `floor: 0` pour le seul Noyau |
+
+**Piège trouvé au lot N, et il aurait été silencieux** : `_bossBars` plafonne
+`phase` à `bars - 1` et `bossPool` lit `unlock[0..phase-1]`. Avec huit barres,
+une huitième entrée d'`unlock` ne sort **jamais** — et c'est le sceau final qui
+y était tombé. Le Noyau a donc sept entrées, la dernière portant le sceau.
+
+## Corrections de spec relevées à l'exécution
+
+- **`mémoire_gravee` (lot K, K4) est renommée `memoire_gravee`.** Les
+  identifiants du dépôt sont en français **sans accents** ; seules les chaînes
+  affichées au joueur en portent. L'identifiant circule dans le protocole
+  d'achat, et un accent y aurait été le premier du dépôt.
 
 ## Ce qui reste à valider par le porteur du projet
 

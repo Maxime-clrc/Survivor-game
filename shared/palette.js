@@ -90,10 +90,18 @@ export const DECOR = [
 export function decorAt(diffIndex) { return DECOR[diffIndex] ?? DECOR[1]; }
 
 /* --- texte ---------------------------------------------------------------- */
+/* Trois valeurs de texte, et leur ECART EST MESURE sur le fond le plus sombre
+   du jeu (`--bg-void`, #08090d) : 16,9 pour la base, 6,4 pour l'attenue, 4,6
+   pour le tres attenue. Le troisieme valait #5a6376, soit **3,3** — sous le
+   seuil AA de 4,5 pour du texte normal, et il porte des libelles reels : noms
+   de statistiques, heures de l'historique, notes de pied, etats vides. Un gris
+   qu'on ne peut pas lire ne hierarchise rien, il supprime. Il est remonte au
+   premier ton qui passe le seuil, et pas plus haut — l'ecart avec `dim` reste
+   visible, c'est tout ce qu'on lui demande. */
 export const TEXT = {
   base:  "#e9edf5",
   dim:   "#8892a6",
-  faint: "#5a6376",
+  faint: "#6f7a90",
 };
 
 /* --- la grammaire de couleurs ----------------------------------------------
@@ -487,6 +495,31 @@ export const MARK = {
   ok:    SIGNAL.gain,     // condition remplie
 };
 
+/* --- provenance des degats subis -------------------------------------------
+   Une teinte par entree de `DAMAGE_SOURCES` (game_state.js), DANS LE MEME
+   ORDRE : l'index circule dans l'instantane, une couleur inseree au milieu
+   ferait mentir toute la ventilation du bilan d'un coup. Meme invariant que
+   `SRC_ICON` dans `icons.js`, qui est la liste jumelle.
+
+   Aucune valeur neuve : chacune est deja la couleur de la chose dans l'arene,
+   et c'est ce qui rend la legende lisible sans l'avoir apprise — on reconnait
+   la teinte de ce qui vient de nous tuer.
+
+     contact     la horde, danger letal au corps a corps ;
+     projectile  le tir ennemi, deja un rouge franc et non un ambre ;
+     zone        elle PERSISTE, c'est le sens du violet dans la charte ;
+     mecanique   elle s'annonce, et une annonce est ambre ;
+     brulure     le feu du jeu, celui de la grenade et de la bombe ;
+     explosion   le souffle d'une zone, sa propre teinte de detonation. */
+export const SRC_TINT = [
+  SIGNAL.lethal,
+  COMBAT.shot,
+  SIGNAL.persist,
+  SIGNAL.warn,
+  FX.bombFill,
+  ZONE.blast,
+];
+
 /* --- HUD -------------------------------------------------------------------
    Seuils de barre de vie. Le passage a l'ambre puis au rouge se lit sans
    compter les pixels, ce qu'une barre d'une seule couleur ne permet pas. */
@@ -505,8 +538,22 @@ export const HUD = {
    au premier reglage.
 
    Le HUD dessine dans le canvas n'y est PAS encore aligne : il sort du canvas
-   au lot 4, et le realigner deux fois n'aurait servi a rien. */
-export const TYPE = [11, 13, 15, 19, 26, 34, 46];
+   au lot 4, et le realigner deux fois n'aurait servi a rien.
+
+   ELLE A ETE MONTEE D'UN CRAN — 11/13/15/19/26/34/46 avant. L'echelle d'origine
+   etait calee sur un ecran de 1280 et se lisait comme une interface de bureau ;
+   sur les 1440p et 1920 d'aujourd'hui, tout paraissait petit. Le grief portait
+   sur l'ensemble et pas sur un ecran : le premier cran est le plus employe du
+   depot (90 declarations sur 240), donc c'est lui qui donnait le ton.
+
+   Les RAPPORTS sont conserves — autour de 1,2 dans le bas de l'echelle, 1,3
+   dans le haut — parce que c'est eux qui font la hierarchie, pas les valeurs
+   absolues. Monter les tailles en gardant les memes rapports, c'est la meme
+   composition vue de plus pres ; les changer aurait redessine tous les ecrans.
+
+   Les quatre PLANCHERS du HUD suivent mecaniquement, et c'est voulu : ce sont
+   des minimums (« on ne descend pas en dessous »), pas des valeurs cibles. */
+export const TYPE = [13, 15, 18, 22, 29, 38, 50];
 
 /* Teinte d'une couleur avec un alpha. Remplace les `rgba(...)` en dur : la
    valeur reste dans la table, seule l'opacite varie au point d'appel.
@@ -599,6 +646,62 @@ export function ramp(hex) {
   return r;
 }
 
+/* --- le pointeur de souris -------------------------------------------------
+
+   Le curseur systeme etait la derniere piece d'interface qui n'appartenait pas
+   au jeu : une fleche Windows arrondie, ombree, posee sur un poste de controle
+   qui refuse les arrondis et les ombres. Il vit donc ICI, avec le reste de la
+   charte, et pas dans une feuille de style — c'est une FORME et une COULEUR,
+   les deux choses que ce fichier tranche.
+
+   Trois regles de la charte le dessinent entierement :
+
+     - ANGLES DURS. `stroke-linejoin: miter`, aucune courbe, aucun rayon. Le
+       seul cercle du jeu est une entite vivante : un pointeur arrondi lui
+       volerait ce signe, exactement comme un bouton arrondi.
+     - LA COULEUR EST FONCTIONNELLE. Au repos le pointeur porte `--text` : il
+       ne dit rien, il montre. Au survol d'un element qui repond, il passe au
+       cyan `--go` — « il faut y aller », la meme couleur que les kickers et
+       l'action principale des menus. La forme change AUSSI (un crochet de
+       visee apparait) : la couleur ne fait que confirmer ce que la forme dit
+       deja, sinon un daltonien perd l'information.
+     - CONTOUR SYSTEMATIQUE. Le meme trace est peint deux fois, d'abord elargi
+       en `--bg-void`, ensuite plein : c'est la recette du contour des
+       creatures, pour la meme raison — sans lui le pointeur disparait sur un
+       panneau clair autant que sur le fond de l'arene.
+
+   Le crochet n'est pas un ornement : c'est le vocabulaire d'instrumentation
+   du jeu (les memes crochets d'angle cadrent les zones et les cibles), et il
+   dit « cet element est une cible » la ou la main blanche du navigateur ne
+   disait rien du systeme dans lequel on se trouve.
+
+   La pointe reste en HAUT A GAUCHE et le point actif sur elle (`2 2`) : un
+   reticule centre aurait mieux colle a l'arene, mais on vise ici des bords de
+   boutons, et deplacer le point actif d'un pointeur de menu se paie en clics
+   manques. L'arene, elle, garde son `crosshair` — c'est la que l'on vise. */
+
+const CURSOR_ARROW = "M2 2 L2 20 L6.6 15.6 L9.4 21.6 L12.6 20.1 L9.8 14.4 L16 14 Z";
+const CURSOR_HOOK = "M17.4 3 L21.5 3 L21.5 7.1";
+
+/* Un SVG en URL de donnees plutot qu'un fichier : deux requetes de moins sur
+   le chemin critique, et surtout un trace qui lit la palette au lieu de la
+   recopier — un `.cur` binaire aurait fige les couleurs hors de ce fichier. */
+function cursorUri(fill, hook) {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
+    + `<path d="${CURSOR_ARROW}" fill="${SURFACE.void}" stroke="${SURFACE.void}"`
+    + ' stroke-width="2.6" stroke-linejoin="miter"/>'
+    + `<path d="${CURSOR_ARROW}" fill="${fill}"/>`
+    + (hook
+      ? `<path d="${CURSOR_HOOK}" fill="none" stroke="${SURFACE.void}"`
+        + ' stroke-width="3.6" stroke-linejoin="miter"/>'
+        + `<path d="${CURSOR_HOOK}" fill="none" stroke="${fill}"`
+        + ' stroke-width="1.8" stroke-linejoin="miter"/>'
+      : "")
+    + "</svg>";
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 2 2`;
+}
+
 /* Les variables CSS, posees sur `:root` par le client au chargement. C'est la
    traduction de la table ci-dessus vers le DOM, et le seul sens autorise :
    recopier ces valeurs dans une feuille de style les ferait diverger a la
@@ -658,6 +761,13 @@ export function cssVars(diffIndex = 1) {
     "--xp":      HUD.xp,
 
     "--downed": COMBAT.downed,
+
+    /* Le pointeur. Deux etats seulement : au repos, et sur une cible. Un
+       troisieme (« interdit ») a ete ecarte — un bouton desarme porte deja son
+       opacite et son libelle d'attente, et le pointeur systeme « sens
+       interdit » est le seul glyphe de l'interface qu'on ne dessine pas. */
+    "--cursor-ui": cursorUri(TEXT.base, false),
+    "--cursor-go": cursorUri(SIGNAL.go, true),
 
     "--t-xs":  TYPE[0] + "px",
     "--t-s":   TYPE[1] + "px",

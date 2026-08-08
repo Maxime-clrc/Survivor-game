@@ -217,6 +217,13 @@ aussitôt marquée sale et repart en version 4 ; rien à faire dans le SQL Edito
 niveau — les deux ne mesurent pas la même chose. `best.level` et `best.segment`
 démarrent à zéro. **Prendre un instantané de la table avant de déployer**, comme
 pour toute migration.
+**Économie refaite (version 3 → 4, lot H)** : rien à faire côté Supabase. Au
+chargement, une ligne en version antérieure repart sur un **profil neuf** —
+arbres, noyaux et jalons remis à zéro — mais le **compte est conservé** :
+pseudo, mot de passe et session vivent dans les colonnes de la ligne, pas
+dans le profil, et traversent intacts. Chaque remise à neuf est journalisée
+au boot. Décision assumée : le jeu est en développement, pas de
+remboursement.
 
 ## Comptes joueurs (pseudo + mot de passe)
 

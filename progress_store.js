@@ -286,54 +286,91 @@ export function createStore(log = console.log) {
   /* Les migrations s'ENCHAINENT au lieu de se remplacer : une ligne de version 3
      traverse 3 -> 4 puis 4 -> 5 dans le meme appel. Ecrire `from !== 4` aurait
      gele toutes les lignes restees en version 3, c'est-a-dire condamne les
-     comptes qui ne se sont pas connectes depuis le lot Q — le gel est fait pour
-     les versions INCONNUES, pas pour les anciennes. */
+     comptes qui ne se sont pas connectes depuis deux lots — le gel est fait pour
+     les versions INCONNUES, pas pour les anciennes.
+
+     LE CAS TORDU, et il vient de la fusion : DEUX branches ont ecrit une
+     « version 4 » differente. Celle du lot H (economie du Terminal) porte
+     `bannedCards` et `bestFinal` mais pas `best.level` ; celle du lot Q (plan 5)
+     porte `best.level` et `best.segment` mais aucune des deux autres. Le NUMERO
+     ne les distingue donc pas, et c'est exactement ce que le numero est cense
+     empecher. On les reconnait a leurs CHAMPS, ce qui est la seule information
+     fiable dont on dispose — et la migration est de toute facon idempotente : ce
+     qui manque est ajoute, ce qui est la n'est pas touche. */
   function migrate(profile, from) {
     if (!profile || typeof profile !== "object") return false;
     if (from === PROG_CFG.VERSION) return false;
     if (from !== 3 && from !== 4) return false;
 
-    if (from === 3) {
-      if (Array.isArray(profile.milestones)) {
-        profile.milestones = [...new Set(profile.milestones
-          .map(id => JALONS_V3.get(id) ?? id))];
-      }
-      const best = profile.best ?? (profile.best = {});
-      if (best.level === undefined) best.level = 0;
-      if (best.segment === undefined) best.segment = 0;
+    // 3 -> 4 : les jalons changent d'unite, la vague devient le niveau.
+    if (from === 3 && Array.isArray(profile.milestones)) {
+      profile.milestones = [...new Set(profile.milestones
+        .map(id => JALONS_V3.get(id) ?? id))];
     }
 
-    /* 4 -> 5 (lot W) : le champ neuf du boss final. `null` et non un objet a
-       zero — un record de zero seconde se lirait comme un record. */
-    if (profile.bestFinalRun === undefined) profile.bestFinalRun = null;
+    /* -> 5. Tout ce qui suit est un ajout de champ manquant, donc sans risque
+       quelle que soit la v4 d'origine. `best.wave` n'est JAMAIS converti : une
+       vague et un niveau ne mesurent pas la meme chose, et une mesure se
+       remesure — elle ne se reecrit pas. */
+    const best = profile.best ?? (profile.best = {});
+    if (best.level === undefined) best.level = 0;
+    if (best.segment === undefined) best.segment = 0;
+    if (!Array.isArray(profile.bannedCards)) profile.bannedCards = [];
+    if (!profile.bestFinal || typeof profile.bestFinal !== "object") profile.bestFinal = {};
     return true;
   }
 
   function adoptRow(row) {
     const lower = String(row.pseudo ?? "").toLowerCase();
     if (!lower) return 0;
-    const migre = migrate(row.data, row.version);
-    if (!migre && row.version !== PROG_CFG.VERSION) {
+    /* DEUX DIRECTIONS, DEUX CONDUITES, et la fusion garde la regle du lot H
+       pour l'une et la migration du plan 5 pour l'autre.
+
+       Une version FUTURE — serveur en retard sur la donnee — reste GELEE : ni
+       adoptee, ni jamais reecrite. Ecraser un format qu'on ne sait pas lire est
+       la perte qu'on ne rattrape plus, et c'est la seule regle qui protege un
+       deploiement partiel.
+
+       Une version ANTERIEURE connue est MIGREE et non remise a neuf. Le lot H
+       avait tranche pour le reset sec, argument valable : le jeu est en
+       developpement. Mais la migration existe, elle est ecrite, elle est
+       idempotente et elle ne fait qu'ajouter des champs manquants — remettre a
+       zero la progression de tout le monde alors qu'on sait la relire serait
+       une perte gratuite. Le reset reste le repli des versions qu'on ne sait
+       PAS migrer. */
+    const connue = row.version === 3 || row.version === 4;
+    if (typeof row.version !== "number" || row.version > PROG_CFG.VERSION) {
       frozen.add(lower);
       return 0;
     }
+    const migre = connue && migrate(row.data, row.version);
+    // Ce qu'on ne sait ni lire ni migrer repart sur un profil neuf, comptes
+    // conserves : l'authentification vit dans les COLONNES de la ligne, elle
+    // traverse intacte (pseudo, mot de passe, jeton de session).
+    const reset = row.version < PROG_CFG.VERSION && !migre;
     const cur = accounts.get(lower);
     if (cur && !pristine(cur.profile)) return 0;   // le local qui a progresse a raison
+    const affichage = typeof row.affichage === "string" && row.affichage ? row.affichage : lower;
     accounts.set(lower, {
-      affichage: typeof row.affichage === "string" && row.affichage ? row.affichage : lower,
+      affichage,
       passSalt: row.pass_salt,
       passHash: row.pass_hash,
       jetonHash: row.jeton_hash ?? null,
       jetonExp: row.jeton_exp ? Date.parse(row.jeton_exp) || 0 : 0,
-      profile: row.data,
+      profile: reset ? newProfile(affichage) : row.data,
       creeLe: row.cree_le ?? new Date().toISOString(),
       vuLe: row.vu_le ?? new Date().toISOString(),
     });
-    // Une ligne migree doit repartir : sinon elle serait relue dans son ancienne
-    // version au prochain demarrage, donc migree a chaque fois — et gelee le
-    // jour ou cette version sortira de la chaine de migration, alors qu'elle est
-    // parfaitement lisible.
-    if (migre) save(lower);
+    /* Une ligne migree OU remise a neuf doit repartir : sinon elle serait relue
+       dans son ancienne version au prochain demarrage, donc retraitee a chaque
+       fois — et gelee le jour ou cette version sortira de la chaine de
+       migration, alors qu'elle etait parfaitement lisible. */
+    if (reset) {
+      log(`compte ${lower} : profil v${row.version} remis a neuf en v${PROG_CFG.VERSION}`);
+      dirty.add(lower);
+    } else if (migre) {
+      dirty.add(lower);
+    }
     return 1;
   }
 
@@ -630,9 +667,22 @@ export function createStore(log = console.log) {
     wait();
   }
 
+  /* Les PROFILS seuls, jamais les lignes de compte : ni hachage, ni sel, ni
+     jeton n'en sortent. Un iterateur et non une copie de tableau — le
+     classement (lot N) le parcourt a chaque affichage du hub, et copier
+     plusieurs milliers de profils pour en garder dix serait absurde.
+     Les comptes GELES (version inconnue) sont exclus : on ne lit pas un
+     profil qu'on ne sait pas interpreter. */
+  function* profiles() {
+    for (const acc of accounts.values()) {
+      if (acc.frozen || !acc.profile) continue;
+      yield acc.profile;
+    }
+  }
+
   return {
     ready, save, flush, status, probe, reset,
     register, login, loginToken, logout, changePass,
-    listAccounts, deleteAccount, adminPassReset,
+    listAccounts, deleteAccount, adminPassReset, profiles,
   };
 }

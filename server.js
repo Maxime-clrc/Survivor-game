@@ -29,6 +29,7 @@ import { attachWebSocket } from "./ws_lite.js";
 import { createHub } from "./hub.js";
 import { createStore } from "./progress_store.js";
 import { VERSION } from "./shared/version.js";
+import { setPerf, PERF_ON } from "./perf.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 /* 7777 et non 8080 : derriere un proxy inverse le port interne n'a plus
@@ -52,6 +53,12 @@ const MIME = {
   ".ico":  "image/x-icon",
   ".png":  "image/png",
   ".svg":  "image/svg+xml",
+  /* Les polices des menus sont VENDUES AVEC LE JEU (public/fonts/) et non
+     chargees depuis un CDN : une dependance a un tiers ajoute un point de
+     panne et une latence au premier rendu sur un chemin critique — l'ecran de
+     connexion. Sans ce type, le repli `application/octet-stream` fonctionne
+     encore aujourd'hui pour @font-face, mais rien ne l'oblige. */
+  ".woff2": "font/woff2",
 };
 
 /* Le chemin d'une URL est toujours en barres obliques ; celui du systeme de
@@ -85,6 +92,26 @@ const httpServer = createServer(async (req, res) => {
     handleAdmin(req, res, urlPath);
     return;
   }
+
+  /* Etat du service, PUBLIC et sans cle : l'ecran de connexion l'affiche avant
+     toute WebSocket. Il n'y a pas de socket a ce moment-la — elle ne s'ouvre
+     qu'au premier clic, et l'ouvrir des le chargement ferait une socket par
+     onglet laisse ouvert, comptee dans le plafond par adresse IP.
+
+     Il ne porte que ce qui est destine a etre lu sur cet ecran : le nombre de
+     salles et le numero de version. La LATENCE ne s'y trouve pas — c'est le
+     client qui chronometre l'aller-retour de cette requete, ce qui mesure
+     exactement ce qu'il veut savoir : en combien de temps le serveur repond.
+     Rien de tout cela ne se cache : la page d'accueil est publique. */
+  if (urlPath === "/etat") {
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(JSON.stringify(hub.publicInfo()));
+    return;
+  }
+
   const file = resolvePath(req.url || "/");
   if (!file) { res.writeHead(400).end("Bad request"); return; }
 
@@ -149,8 +176,23 @@ function handleAdmin(req, res, urlPath) {
         status: store.status(),
         probe,
         ...hub.adminView(),
+        perf: PERF_ON,
         comptes: store.listAccounts().map(a => ({ ...a, connecte: connectes.has(a.pseudo) ? 1 : 0 })),
       });
+    });
+    return;
+  }
+
+  /* Allumage de la mesure de diagnostic, a chaud — voir perf.js. Un
+     operateur qui diagnostique une partie l'allume par ce bouton et le coupe
+     ensuite : eteinte, la mesure coute un test de booleen par tour de boucle,
+     et les echantillonneurs resident chez leurs proprietaires pour que
+     l'allumage en cours de route fonctionne. */
+  if (req.method === "POST" && urlPath === "/admin/api/perf") {
+    readJson(req, body => {
+      const on = setPerf(body?.on);
+      log(`diagnostic ${on ? "activé" : "coupé"} depuis la page admin`);
+      sendJson({ ok: 1, on });
     });
     return;
   }
@@ -280,6 +322,13 @@ attachWebSocket(httpServer, (conn, req) => hub.handleConnection(conn, req));
 /* Un seul intervalle pour toutes les salles — voir hub.tick() pour le
    decalage des accumulateurs et l'isolation aux pannes. */
 setInterval(() => hub.tick(), 1000 / 120);
+
+/* Battement de coeur WebSocket, a part de la boucle de simulation : c'est du
+   RESEAU, pas du jeu, et la cadence n'a rien a voir. Une seconde — huit octets
+   de charge utile par socket, negligeable devant un instantané, et assez
+   frequent pour que la moyenne glissante d'aller-retour converge en quelques
+   secondes plutot qu'en une minute. */
+setInterval(() => hub.pingAll(), 1000);
 
 /* --- demarrage ----------------------------------------------------------------------- */
 

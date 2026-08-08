@@ -17,6 +17,7 @@
 
 import { createHash } from "node:crypto";
 import { deflateRawSync, inflateRawSync, constants as zconst } from "node:zlib";
+import { PERF_ON } from "./perf.js";
 
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -58,6 +59,18 @@ export class WsConnection {
     // RSV1 reste une erreur de protocole, comme avant.
     this.deflate = deflate;
 
+    /* Aller-retour mesure, en millisecondes. `null` tant qu'aucun pong n'est
+       revenu — un zero se lirait comme « 0 ms », c'est-a-dire comme une
+       excellente connexion, exactement le contraire de « on ne sait pas ». */
+    this.rtt = null;
+    this._pingAt = 0;
+
+    /* Compteurs de diagnostic, remis a zero a chaque rapport par la salle.
+       Deux entiers par connexion : ils sont poses inconditionnellement parce
+       qu'un champ absent coute plus a tester qu'a initialiser. */
+    this.perfBlocked = 0;
+    this.perfQueueMax = 0;
+
     this._buf = Buffer.alloc(0);
     this._fragOp = 0;
     this._frags = [];
@@ -96,15 +109,36 @@ export class WsConnection {
   sendPrepared(prep) {
     if (!this.open) return;
     try {
-      this.socket.write(this.deflate && prep.deflated ? prep.deflated : prep.plain);
+      const ok = this.socket.write(this.deflate && prep.deflated ? prep.deflated : prep.plain);
+      /* Le retour de write() est IGNORE en production : il n'y a aucune
+         backpressure dans ce module, un lien sature empile dans le tampon
+         interne de Node — illimite, le highWaterMark de 16 Ko n'est qu'un
+         signal. On se contente de le COMPTER (PERF=1) : c'est la mesure qui
+         dit si la latence observee vient de la file d'envoi ou d'ailleurs.
+         `writableLength` est releve meme quand write() a rendu true, sinon on
+         ne verrait pas une file qui grossit sous le seuil. */
+      if (PERF_ON) {
+        if (!ok) this.perfBlocked++;
+        if (this.socket.writableLength > this.perfQueueMax) {
+          this.perfQueueMax = this.socket.writableLength;
+        }
+      }
     } catch {
       this._shutdown();
     }
   }
 
+  /* Le ping partait avec une charge VIDE et le pong n'etait pas lu : il n'y
+     avait donc rien a mesurer. L'horodatage voyage dans la charge parce que la
+     RFC 6455 impose au pair de la renvoyer a l'identique dans le pong — c'est
+     gratuit cote navigateur, et c'est ce qui rend la mesure juste meme si deux
+     pings sont en vol (un compteur d'emission seul attribuerait le pong du
+     premier a la date du second). */
   ping() {
     if (!this.open) return;
-    try { this.socket.write(encodeFrame(OP_PING, Buffer.alloc(0))); } catch { this._shutdown(); }
+    const stamp = Buffer.alloc(8);
+    stamp.writeDoubleBE(Date.now());
+    try { this.socket.write(encodeFrame(OP_PING, stamp)); } catch { this._shutdown(); }
   }
 
   close() {
@@ -138,7 +172,24 @@ export class WsConnection {
           try { this.socket.write(encodeFrame(OP_PONG, frame.payload)); } catch { this._shutdown(); }
           break;
 
+        /* Un pong de HUIT octets est la reponse a NOTRE ping : la charge est
+           l'horodatage qu'on y a mis. Toute autre longueur est un pong non
+           sollicite, que la RFC autorise (« unidirectional heartbeat ») et
+           qu'on ignore — l'interpreter comme une mesure donnerait un aller-
+           retour fantaisiste.
+
+           Moyenne exponentielle et non valeur brute : un aller-retour saute de
+           8 a 40 ms d'une trame a l'autre selon la mise en file du systeme, et
+           un chiffre qui danse ne se lit pas. Un cinquieme de poids sur la
+           nouvelle mesure — assez pour suivre une degradation reelle en
+           quelques secondes, assez lisse pour ne pas clignoter. */
         case OP_PONG:
+          if (frame.payload.length === 8) {
+            const sample = Date.now() - frame.payload.readDoubleBE(0);
+            if (sample >= 0 && sample < 60000) {
+              this.rtt = this.rtt == null ? sample : this.rtt * 0.8 + sample * 0.2;
+            }
+          }
           break;
 
         case OP_CLOSE:

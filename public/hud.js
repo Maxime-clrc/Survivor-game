@@ -25,7 +25,7 @@
    =========================================================================== */
 
 import {
-  CFG, PLAYER_COLORS, DIFFICULTIES,
+  CFG, PLAYER_COLORS, DIFFICULTIES, specialAt,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
@@ -81,6 +81,36 @@ const orderCd  = el.order.querySelector(".cd > i");
 const annBig = el.announce.querySelector(".big");
 const annMid = el.announce.querySelector(".mid");
 const annSub = el.announce.querySelector(".sub");
+
+/* Les six lignes du bloc meta, construites UNE fois.
+
+   Elles etaient recomposees en une chaine unique dont la signature contenait
+   le compte d'ennemis : pendant une apparition de vague ce compte change a
+   chaque image, donc le sous-arbre entier etait detruit (`textContent = ""`)
+   puis reconstruit — trois a cinq `createElement` soixante fois par seconde,
+   au moment precis ou l'arene est la plus chargee. La table `memo` existe pour
+   empecher exactement ca, et cette seule chaine la desarmait.
+
+   Les trois lignes conditionnelles (eclats, difficulte, temps ralenti) sont
+   MASQUEES et non creees ni detruites : un `hidden` memoise ne coute rien, une
+   creation de noeud fait recalculer la mise en page. */
+const metaLine = cls => {
+  const d = document.createElement("div");
+  if (cls) d.className = cls;
+  el.meta.appendChild(d);
+  return d;
+};
+const metaKills = metaLine("");
+const metaEnem  = metaLine("");
+const metaPing  = metaLine("");
+const metaEcl   = metaLine("");
+const metaDiff  = metaLine("warn");
+const metaSlow  = metaLine("slow");
+metaSlow.textContent = "temps ralenti";
+/* Masques des la construction : `updateHud` les corrigera, mais il ne tourne
+   qu'en manche — sans ca, la premiere image apres `showHud(true)` montrerait
+   deux lignes vides le temps d'un tour. */
+metaEcl.hidden = metaDiff.hidden = metaSlow.hidden = true;
 
 /* Memoire des dernieres valeurs ecrites. Une seule table plate : la question
    posee a chaque champ est « est-ce la meme chaine qu'a l'image precedente »,
@@ -269,6 +299,18 @@ function updateBoss(b) {
     + (rage > 0 ? ` — EMPORTEMENT ${ROMAN[rage] ?? rage}` : ""));
   setClass(el.bossName, "bnr", "enrage", rage > 0);
   setText(el.bossVerb, "bv", def.verbe);
+  /* La pulsation ACCELERE quand il s'affaiblit : un signal de progression en
+     plus du remplissage, et le seul du jeu qui dise « la fin approche » sans
+     chiffre. La periode passe de 2,4 s a pleine vie a 0,7 s sur la derniere
+     barre — calculee ici parce que le CSS ne connait pas les PV. */
+  if (final) {
+    const usure = 1 - Math.max(0, Math.min(1, b.hp / b.maxHp));
+    const per = (2.4 - usure * 1.7).toFixed(2);
+    if (memo.bfp !== per) {
+      memo.bfp = per;
+      el.boss.style.setProperty("--boss-pulse", `${per}s`);
+    }
+  }
   setText(el.bossHp, "bh", `${Math.max(0, Math.round(b.hp))} / ${b.maxHp}`);
   setWidth(el.bossFill, "bf", k);
   setText(el.bossMult, "bm", `×${left}`);
@@ -585,10 +627,22 @@ function updateAnnounce(v, c, now) {
   const sinceBoss = now - c.bossAnnounce;
   const sincePhase = now - c.phaseAnnounce;
 
-  if (v.boss && sinceBoss < 2600) {
+  /* L'annonce du NOYAU (lot N) tient deux fois plus longtemps que celle des
+     cinq autres — 5 s contre 2,6 — et n'affiche pas de numero de passage : il
+     n'y en a qu'un. C'est ce premier instant qui doit installer « ceci est le
+     combat final », et une annonce de meme duree que les cinq precedentes
+     aurait dit exactement l'inverse. La classe `final` porte le traitement
+     d'apparition, comme pour la barre. */
+  const finalBoss = (v.boss?.kind ?? 0) === BOSS_FINAL;
+  const duree = finalBoss ? 5000 : 2600;
+  const plein = finalBoss ? 4200 : 2000;
+  if (v.boss && sinceBoss < duree) {
     const def = bossAt(v.boss.kind ?? 0);
-    show("boss", sinceBoss < 2000 ? 1 : 1 - (sinceBoss - 2000) / 600, false,
-      `${def.nom.toUpperCase()} ${ROMAN[v.boss.index] ?? v.boss.index}`,
+    setClass(el.announce, "anFin", "final", finalBoss);
+    show("boss",
+      sinceBoss < plein ? 1 : 1 - (sinceBoss - plein) / (duree - plein), false,
+      finalBoss ? def.nom.toUpperCase()
+        : `${def.nom.toUpperCase()} ${ROMAN[v.boss.index] ?? v.boss.index}`,
       def.verbe.toUpperCase(), def.sous);
     return;
   }
@@ -627,8 +681,15 @@ let dmgCount = 0;
    une fois par chiffre. Elle ne sert qu'aux degats SUBIS : sur un chiffre
    inflige, la provenance est evidente (c'est nous), et un glyphe de plus a trois
    cents impacts par minute repeindrait l'ecran. */
+/* `x`/`y` sont des coordonnees de VUE (lot I) : la conversion monde -> vue se
+   fait chez l'appelant (`flushDamage`/`flushSelf`), qui connait la camera. Le
+   HUD, lui, ne la connait pas — la boite de #dmgLayer fait exactement une vue,
+   les pourcentages se rapportent donc a VIEW_W/H. */
 export function hudDamage(x, y, val, kind = "deal", icon = null) {
   if (dmgCount >= DMG_MAX) return;
+  // Hors du rectangle de vue : un chiffre pousse contre le bord mentirait sur
+  // la position de l'impact — on le laisse tomber, l'impact est hors ecran.
+  if (x < -20 || x > CFG.VIEW_W + 20 || y < -20 || y > CFG.VIEW_H + 20) return;
   const d = document.createElement("div");
   d.className = "dmg " + kind;
   if (icon) {
@@ -638,8 +699,8 @@ export function hudDamage(x, y, val, kind = "deal", icon = null) {
   }
   d.appendChild(document.createTextNode(
     kind === "heal" ? "+" + Math.round(val) : String(Math.round(val))));
-  d.style.left = (x / CFG.ARENA_W * 100).toFixed(2) + "%";
-  d.style.top = (y / CFG.ARENA_H * 100).toFixed(2) + "%";
+  d.style.left = (x / CFG.VIEW_W * 100).toFixed(2) + "%";
+  d.style.top = (y / CFG.VIEW_H * 100).toFixed(2) + "%";
   d.addEventListener("animationend", () => { d.remove(); dmgCount--; }, { once: true });
   el.dmg.appendChild(d);
   dmgCount++;
@@ -652,27 +713,30 @@ export function updateHud(v, c) {
 
   setText(el.clock, "clk", fmtTime(v.tm));
 
-  const meta = `kills ${v.kills}\nennemis ${v.enemyList.length}\nping ${c.ping} ms`;
-  if (memo.meta !== meta + c.difficulty + v.slow) {
-    memo.meta = meta + c.difficulty + v.slow;
-    el.meta.textContent = "";
-    for (const line of meta.split("\n")) {
-      el.meta.appendChild(Object.assign(document.createElement("div"), { textContent: line }));
-    }
-    if (c.difficulty !== 1) {
-      const d = document.createElement("div");
-      d.className = "warn";
-      d.textContent = DIFFICULTIES[c.difficulty]?.label ?? "";
-      d.style.color = c.difficulty > 1 ? BOSS.barLow : SIGNAL.gain;
-      el.meta.appendChild(d);
-    }
-    if (v.slow) {
-      el.meta.appendChild(Object.assign(document.createElement("div"),
-        { className: "slow", textContent: "temps ralenti" }));
-    }
+  /* Les eclats (lot I) vivent dans le bloc meta, pas dans le bloc personnel :
+     c'est une monnaie d'EQUIPE versee a tous — chacun lit le meme montant. La
+     ligne n'apparait qu'une fois le premier eclat gagne : avant le premier
+     point de recolte, elle n'annoncerait qu'un zero. */
+  const me = v.playerList.find(p => p.id === c.myId);
+  const eclats = me?.eclats ?? 0;
+
+  setText(metaKills, "mKills", `kills ${v.kills}`);
+  setText(metaEnem, "mEnem", `ennemis ${v.enemyList.length}`);
+  setText(metaPing, "mPing", `ping ${c.ping} ms`);
+
+  setHidden(metaEcl, "mEclH", eclats === 0);
+  if (eclats > 0) setText(metaEcl, "mEcl", `éclats ${eclats}`);
+
+  setHidden(metaDiff, "mDiffH", c.difficulty === 1);
+  if (c.difficulty !== 1) {
+    setText(metaDiff, "mDiff", DIFFICULTIES[c.difficulty]?.label ?? "");
+    setStyle(metaDiff, "mDiffC", "color", c.difficulty > 1 ? BOSS.barLow : SIGNAL.gain);
   }
 
   updateSegment(v, c);
+  setHidden(metaSlow, "mSlowH", !v.slow);
+
+  updateWave(v);
   updateBoss(v.boss);
   updateTeam(v, c);
   updateSelf(v, c);
@@ -686,10 +750,16 @@ export function updateHud(v, c) {
     /* Les APPELS DE DESSIN sont la mesure qui compte pour le batcher : un lot
        vide a chaque sprite donne des centaines d'appels pour exactement la meme
        image, et rien a l'ecran ne le dit. On en attend deux a quatre. */
+    /* La seconde ligne est le diagnostic RESEAU, et c'est elle qu'on vient lire
+       ici : `famine` compte les images ou le monde est fige faute d'instantane
+       encadrant. Elle passe dans la meme chaine et le meme accesseur memoise —
+       un second bloc d'affichage serait un second chemin a maintenir pour la
+       meme information. Le retour a la ligne est rendu par `white-space`. */
     setText(el.perf, "pf",
       `${c.fps.toFixed(0)} i/s · ${c.particles} frag · ${v.enemyList.length} ennemis · ` +
       `${c.renderer} ${c.draws} appels / ${c.quads} quads · ` +
-      `${c.voices} voix (pic ${c.peak})`);
+      `${c.voices} voix (pic ${c.peak})`
+      + (c.net ? `\n${c.net}` : ""));
     setClass(el.perf, "pfl", "low", c.fps < 55);
   }
 }

@@ -27,6 +27,28 @@ html, body {
   overflow: hidden;
 }
 
+/* RIEN NE SE SELECTIONNE, sauf ce qu'on ecrit. Un jeu n'est pas un document :
+   le geste qui sert a viser, a traverser une liste de salles ou a insister sur
+   un bouton laissait derriere lui des pans de texte en surbrillance — un
+   double-clic sur « Continuer » selectionne le mot, un glisser sur le tableau
+   des scores en bleuit trois lignes. C'est le seul residu d'interface qui ne
+   soit voulu par personne, et il survit a l'ecran suivant.
+
+   L'exception n'est pas negociable : dans un CHAMP, la selection est le seul
+   moyen de corriger ce qu'on a tape. Elle couvre aussi `contenteditable`, qui
+   n'existe pas dans le jeu aujourd'hui mais coute une ligne a couvrir.
+
+   Pose sur `html` plutot que sur `*` : la propriete s'herite, une regle
+   universelle aurait ecrase l'exception au lieu de la laisser gagner. */
+html {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 #stage { height: 100%; display: flex; align-items: center; justify-content: center; }
 
 /* Le cadre porte le FORMAT de l'arene, et le canvas comme le HUD le
@@ -101,6 +123,13 @@ html, body {
   animation: fadeIn var(--fade) ease-out;
 }
 .overlay[hidden] { display: none; }
+
+/* Les contre-regles `[hidden]` PAR IDENTIFIANT vivent desormais dans
+   `menus.css`, avec les `display` qui les rendent necessaires. La regle qui
+   s'applique : qui pose un `display` possede la contre-regle `[hidden]`, dans
+   la meme feuille et au meme moment. C'est `menus.css` qui passe `#gate` en
+   grille et pose un `display` sur huit ecrans et une douzaine de blocs — les
+   garder ici revenait a tenir la garde loin de ce qu'elle protege. */
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -182,252 +211,78 @@ html, body {
   color: var(--go);
 }
 
-/* --- controles -------------------------------------------------------------- */
 
-.row { display: flex; gap: var(--sp-2); }
+/* ===========================================================================
+   LES ECRANS QUE LA REFONTE N'A PAS ENCORE VUS
 
-input, button {
-  font: inherit;
-  font-size: var(--t-m);
-  padding: var(--sp-3) var(--sp-4);
-  border: var(--hair) solid var(--line);
-  background: var(--bg-panel);
-  color: var(--text);
-  border-radius: var(--radius);
-  outline: none;
-  transition: border-color var(--tap) linear, background var(--tap) linear;
-}
-input:focus { border-color: var(--go); }
-button { cursor: pointer; background: var(--bg-raised); }
-button:hover:not(:disabled) { border-color: var(--text-dim); }
-button:disabled { opacity: 0.45; cursor: default; }
+   Tout ce qui precede est le SOL du jeu : la scene, l'arene, le voile des
+   ecrans, le logotype, la barre de chargement. Le reste des ecrans hors
+   combat est passe sous `menus.css` (« menus.css devient proprietaire des
+   ecrans hors combat »), et ui.css n'a plus d'opinion dessus.
 
-/* Le bouton de lancement est l'element le plus voyant de l'ecran : c'est la
-   seule ACTION du salon, tout le reste est un reglage ou de l'information.
-   `#go` (se connecter -> hub) et `#menuClose` (retour au salon depuis
-   la progression d'une classe) portent la meme grammaire : chacun est aussi
-   LA seule action de son ecran. */
-#start, #go, #menuClose {
-  font-size: var(--t-l);
-  font-weight: 700;
-  letter-spacing: var(--track-title);
-  text-transform: uppercase;
-  padding: var(--sp-4) var(--sp-12);
-  color: var(--bg-void);
-  background: var(--go);
-  border-color: var(--go);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--bevel)),
-                     calc(100% - var(--bevel)) 100%, 0 100%);
-}
-#start:hover:not(:disabled), #go:hover:not(:disabled), #menuClose:hover:not(:disabled) {
-  filter: brightness(1.12);
-}
+   Ce qui suit est l'exception, et elle est DATEE : ce sont les regles que le
+   plan 4 a ajoutees ici pendant que la refonte se faisait ailleurs —
+   classement au temps, Terminal et ses onglets, bannissement de cartes,
+   marchand de reliques, jauge de puissance, bilan de victoire. `menus.css` ne
+   connait AUCUN de ces selecteurs : sans ce bloc, six ecrans neufs sortent
+   sans la moindre mise en page.
 
-#status { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); text-align: center; }
-#status.err { color: var(--lethal); }
-.hint { font-size: var(--t-xs); color: var(--text-dim); line-height: 1.7; text-align: center; }
-.hint b { color: var(--text); }
+   Elles vivent donc ici a titre de SOCLE, exactement comme le reste avant la
+   refonte, et elles en sortiront ecran par ecran a mesure que `menus.css` les
+   reprendra. Ne pas y ajouter de regle nouvelle : un ecran neuf se style dans
+   `menus.css`, c'est lui le proprietaire.
+   =========================================================================== */
 
-/* Clé courte (XXXX-XXXX) : pas besoin de toute la largeur du pseudo, et une
-   ligne pseudo+cle+bouton qui deborde sur mobile serait pire que deux tailles
-   differentes. */
-#key { max-width: 130px; }
-
-/* --- reglage du son --------------------------------------------------------- */
-#audioRow { display: flex; align-items: center; gap: var(--sp-3); }
-#audioRow button { padding: var(--sp-2) var(--sp-3); font-size: var(--t-s); min-width: var(--sp-8); }
-#audioRow button.off { color: var(--text-faint); }
-#vol { padding: 0; width: 150px; accent-color: var(--go); cursor: pointer; }
-#volVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
-
-/* Volume de la musique : la meme rangee que le son, un glyphe a la place du
-   bouton — la musique n'a pas de coupure propre, zero suffit. */
-#musicRow, #pauseMusic { display: flex; align-items: center; gap: var(--sp-3); }
-#pauseMusic { justify-content: center; }
-.musGlyph {
-  min-width: var(--sp-8);
-  text-align: center;
-  font-size: var(--t-s);
-  color: var(--text-dim);
-}
-#musVol, #pauseMusVol { padding: 0; width: 150px; accent-color: var(--go); cursor: pointer; }
-#musVolVal, #pauseMusVolVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
-
-/* --- tableau des scores -----------------------------------------------------
-   De l'INFORMATION, pas une action : au salon il est atténué et passe apres le
-   choix de classe. Au bilan de fin de manche, c'est l'inverse — il y est le
-   sujet de l'ecran, et `#bilan` le remonte. */
-table { border-collapse: collapse; font-size: var(--t-s); min-width: 460px; }
-th {
-  font-weight: 400;
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-title);
-  text-transform: uppercase;
-  color: var(--text-faint);
-  text-align: right;
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: var(--hair) solid var(--line);
-}
-th:first-child, td:first-child { text-align: left; }
-td {
-  padding: var(--sp-2) var(--sp-3);
-  text-align: right;
-  border-bottom: var(--hair) solid var(--line-soft);
-}
-td.name { font-weight: 700; }
-td.sub { color: var(--text-dim); font-size: var(--t-xs); }
-
-/* Au salon, le tableau est de l'information : il passe APRES l'action et le
-   choix de classe, et il est attenue tant qu'on ne le regarde pas. */
-#scoresWrap { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
-#panel #scoresWrap { opacity: 0.6; transition: opacity var(--fade) linear; }
-#panel #scoresWrap:hover { opacity: 1; }
-
-#summary { font-size: var(--t-s); color: var(--text-dim); }
-#panelTitle {
-  font-size: var(--t-l);
-  font-weight: 700;
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-/* --- ecran de connexion : comptes pseudo + mot de passe ----------------------
-   Trois modes qui s'excluent : reprise par jeton, connexion, creation. Les
-   onglets reprennent le langage du segment de vote (bordures qui se touchent,
-   `.mine` pour l'actif) — un troisieme style de bascule serait un de trop. */
-#gateTabs { display: flex; gap: 0; }
-#gateTabs button {
-  min-width: 150px;
-  padding: var(--sp-2) var(--sp-3);
-  font-size: var(--t-s);
-  background: var(--bg-panel);
-  color: var(--text-dim);
-  border-radius: 0;
-  border-left-width: 0;
-}
-#gateTabs button:first-child { border-left-width: var(--hair); border-radius: var(--radius) 0 0 var(--radius); }
-#gateTabs button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-#gateTabs button.mine { color: var(--text); background: var(--bg-raised); }
-
-#gateForms { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
-.gateForm { display: flex; flex-direction: column; gap: var(--sp-2); width: min(320px, 86vw); }
-.gateForm input { width: 100%; }
-/* Un `display` d'auteur ecrase le display:none de l'attribut hidden — meme
-   piege que `.overlay[hidden]`, meme contre-regle. Sans elle, les deux
-   formulaires (connexion, creation) s'affichent TOUS LES DEUX a la fois, et
-   le bloc entier reste visible sous la pause « deja connecte ailleurs ». */
-#gateForms[hidden], .gateForm[hidden] { display: none; }
-
-/* Bouton discret : une action secondaire qui ne doit pas concurrencer la
-   principale (« se déconnecter » au hub). */
-button.ghost {
-  background: none;
-  border-color: transparent;
-  color: var(--text-dim);
-  font-size: var(--t-xs);
-}
-button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text); }
-
-#hubAccount { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
-#hubAccount .row { align-items: center; }
-#hubPassBox { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
-#hubPassBox[hidden] { display: none; }
-#passMsg { min-height: var(--sp-5); }
-#passMsg.err { color: var(--lethal); }
-#passMsg.ok { color: var(--gain); }
-
-/* --- hub des salles (plan infra) ---------------------------------------------
-   L'ecran d'avant le salon : la liste des salles, la creation. Chaque entree
-   est un bouton — une entree 4/4 est desactivee, jamais masquee (la salle ou
-   sont les autres est celle qu'on attend). L'etat et l'effectif sont dans la
-   ligne, pas dans un texte a analyser. */
-#hubTitle {
-  font-size: var(--t-l);
-  font-weight: 700;
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-#roomList {
+/* --- classement au temps (lot N) ---------------------------------------------
+   Trois colonnes fixes : rang, pseudo, chrono. Le chrono en chiffres a chasse
+   fixe (`tabular-nums`) — sans quoi les temps ne s'alignent pas verticalement
+   et la comparaison, qui est tout l'objet du tableau, demande de lire chaque
+   ligne au lieu de balayer la colonne. */
+#hubBoard {
+  width: min(560px, 92vw);
+  margin-top: var(--sp-3);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  width: min(440px, 90vw);
-  max-height: 40vh;
-  overflow-y: auto;
 }
+#hubBoardTabs { justify-content: center; }
+#hubBoardList { display: flex; flex-direction: column; gap: var(--hair); }
 
-#roomList .roomEntry {
-  display: flex;
+.boardRow {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr auto;
   align-items: baseline;
   gap: var(--sp-3);
-  width: 100%;
-  text-align: left;
-  padding: var(--sp-3) var(--sp-4);
-}
-
-#roomList .roomEntry .roomName {
-  flex: 1;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#roomList .roomEntry .roomCount { font-size: var(--t-s); color: var(--text-dim); }
-#roomList .roomEntry .roomState { font-size: var(--t-xs); color: var(--text-faint); }
-/* La manche en cours se signale en ambre : on peut entrer, mais on regarde
-   jusqu'a la suivante — c'est un avertissement, pas un interdit. */
-#roomList .roomEntry .roomState.running { color: var(--warn); }
-#roomList .roomEntry .roomLock { font-size: var(--t-s); color: var(--text-dim); }
-
-#roomList .roomEmpty {
-  text-align: center;
-  color: var(--text-faint);
-  font-size: var(--t-s);
-  padding: var(--sp-4);
-  border: var(--hair) dashed var(--line-soft);
-  border-radius: var(--radius);
-}
-
-#hubCreateRow input { min-width: 150px; }
-
-#hubPassAsk {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
   background: var(--bg-panel);
+  border-left: var(--edge) solid transparent;
 }
-/* meme contre-regle que .gateForm : un display d'auteur ecrase `hidden` */
-#hubPassAsk[hidden] { display: none; }
-#hubStatus { min-height: var(--sp-6); font-size: var(--t-s); color: var(--text-dim); }
-#hubStatus.err { color: var(--lethal); }
-
-/* --- Menu : ecran hub entre connexion et salon -------------------------------
-   Meme famille que #gate/#panel (.overlay). Premier occupant : la
-   progression (#meta, ci-dessous), deplacee du salon. */
-#menuTitle {
-  font-size: var(--t-l);
+.boardRank { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.boardWho  { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.boardTime {
+  color: var(--gain);
   font-weight: 700;
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
+/* Sa propre ligne, reperee par un liseré : on vient consulter un classement
+   pour s'y chercher d'abord. */
+.boardRow.moi { border-left-color: var(--go); background: var(--bg-raised); }
 
-/* --- difficulte : un segment compact ---------------------------------------- */
-#vote { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
-#voteRow { display: flex; gap: 0; }
-#voteRow button {
+
+/* --- Terminal (lot H) : l'ecran de la progression ---------------------------
+   Meme famille que #gate/#panel (.overlay). Trois niveaux fixes : onglets de
+   classe, ligne d'emplacements toujours visible, puis Arbre/Confort/Jalons. */
+
+/* Les deux rangees d'onglets reprennent le langage du segment de vote :
+   bordures qui se touchent, `.mine` pour l'actif — un troisieme style de
+   bascule serait un de trop. */
+#metaClassTabs, #metaTabs { display: flex; gap: 0; }
+#metaClassTabs button, #metaTabs button {
   min-width: 118px;
   padding: var(--sp-2) var(--sp-3);
   font-size: var(--t-s);
   background: var(--bg-panel);
+  color: var(--text-dim);
   border-radius: 0;
   border-left-width: 0;
 }
@@ -467,172 +322,91 @@ button.ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text
   align-items: center;
   gap: var(--sp-2);
   width: min(720px, 92vw);
+#metaClassTabs button:first-child, #metaTabs button:first-child {
+  border-left-width: var(--hair);
+  border-radius: var(--radius) 0 0 var(--radius);
 }
-#metaCores { color: var(--text); text-transform: none; letter-spacing: 0; }
-#metaSub { font-size: var(--t-xs); color: var(--text-faint); }
-#metaTree, #metaConfort {
+#metaClassTabs button:last-child, #metaTabs button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+#metaClassTabs button.mine, #metaTabs button.mine { color: var(--text); background: var(--bg-raised); }
+
+/* La contrainte du systeme, toujours sous les yeux — jamais derriere un clic. */
+#metaSlots {
+  font-size: var(--t-s);
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.6;
+}
+#metaSlots b { color: var(--text); }
+#metaSlots small { font-size: var(--t-xs); color: var(--text-faint); }
+
+/* La pastille de noyaux depensables a suivi son bouton : `#terminalBtn` a ete
+   retire du salon — il ouvrait le meme ecran que celui de la carte de classe,
+   sans dire quel arbre — et elle vit desormais sur `.classMetaBtn`, dans
+   `menus.css`. Le LOSANGE, lui, est conserve tel quel : le seul cercle du jeu
+   est une entite vivante. */
+
+
+#metaBans {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
   width: 100%;
-}
-#metaConfort { margin-top: var(--sp-2); }
-.metaLine {
-  display: grid;
-  grid-template-columns: 110px 64px 1fr 74px 74px;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-2);
-  background: var(--bg-panel);
-  border: var(--hair) solid var(--line-soft);
-  border-radius: var(--radius);
-  font-size: var(--t-xs);
-}
-.metaLine.confort { grid-template-columns: 150px 1fr 74px; }
-.metaLine.equipped { border-color: var(--go); }
-.metaName { font-weight: 700; color: var(--text); }
-.metaPips { color: var(--text-dim); letter-spacing: 2px; }
-.metaDesc { color: var(--text-dim); }
-.metaBuy, .metaEquip {
-  padding: 2px var(--sp-1);
-  font-size: var(--t-xs);
-  background: var(--bg-raised);
-}
-.metaEquip.on { border-color: var(--go); color: var(--go); }
-#metaMilestones {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--sp-1) var(--sp-3);
   margin-top: var(--sp-2);
-  font-size: var(--t-xs);
-  color: var(--text-faint);
 }
-#metaMilestones .metaJalon.done { color: var(--go); }
+.metaLine.banned { opacity: 0.75; }
+.metaBanTag {
+  font-size: var(--t-xs);
+  color: var(--lethal);
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+}
+/* Trois etats nets (lot H) : equipe = lisere cyan plein, achete non equipe =
+   lisere clair, non achete = attenue. Pas trois gris. */
+.metaLine.equipped { border-color: var(--go); }
+.metaLine.owned { border-color: var(--text-dim); }
+.metaLine.locked { opacity: 0.62; }
 
-/* --- choix de classe --------------------------------------------------------
-   Les panneaux MONTRENT : silhouette a l'echelle du jeu, statistiques en barres
-   comparatives, competences avec leur touche. Trois pourcentages en texte
-   demandaient de comparer trois nombres de tete pour choisir. */
-#classes { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
-#classRow { display: flex; gap: var(--sp-3); flex-wrap: wrap; justify-content: center; }
+/* --- victoire finale (lot N) -------------------------------------------------
+   Le bilan de victoire n'est pas un second ecran : c'est le meme, avec un
+   titre qui change de registre. Le TEMPS y est le chiffre le plus gros de la
+   page — c'est lui qui compte au classement, et rien d'autre.
 
-.classOpt {
-  width: 268px;
+   Vert (`--gain`) et non ambre ni rouge : c'est la seule fin de manche du jeu
+   qui soit un gain. La grammaire fonctionnelle s'applique aux ecrans comme a
+   l'arene. */
+#bilan.victoire #bilanTitle {
+  color: var(--gain);
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  text-align: left;
-  border-width: var(--edge);
-  white-space: normal;
-  background: var(--bg-panel);
-  position: relative;
+  align-items: center;
+  gap: var(--sp-1);
 }
-.classOpt:hover:not(:disabled) { transform: translateY(-2px); background: var(--bg-raised); }
-.classOpt.mine { background: var(--bg-raised); }
-.classOpt.mine::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; top: 0;
-  height: var(--sp-1);
-  background: currentColor;
-}
-
-/* Acces a la progression (lot D) de CETTE classe, depuis sa propre carte —
-   pas un bouton unique en haut d'ecran qui forcerait a deviner lequel des
-   trois arbres il montre. En BAS de la carte (dernier enfant du flex column,
-   `align-self: center`) : en tete il concurrencait le nom de la classe, en
-   pied c'est une action secondaire qu'on lit APRES avoir compare les trois
-   cartes. Un `span` et non un bouton imbrique : le HTML interdit un
-   `<button>` dans un `<button>`, et `stopPropagation` (client.js) l'empeche
-   de declencher aussi le choix de la classe. */
-.classMetaBtn {
-  align-self: center;
-  padding: var(--sp-1) var(--sp-3);
-  font-size: var(--t-xs);
+#bilan.victoire .bilanChrono {
+  /* Le plus grand palier de l'echelle (46 px). Aucune valeur ad hoc : c'est le
+     chrono de la seule victoire du jeu, il a le droit au plus gros cran — pas
+     a un cran invente. */
+  font-size: var(--t-3xl);
   font-weight: 700;
+  letter-spacing: var(--track-title);
+  font-variant-numeric: tabular-nums;
+}
+#bilan.victoire .bilanRecord {
+  font-size: var(--t-s);
+  text-transform: uppercase;
   letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-dim);
-  background: var(--bg-raised);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--radius);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.classMetaBtn:hover { color: var(--text); border-color: var(--text-dim); }
-
-.classHead { display: flex; align-items: center; gap: var(--sp-3); }
-.classSil { flex: 0 0 auto; }
-.className {
-  font-size: var(--t-m);
-  font-weight: 700;
-  letter-spacing: var(--track-title);
-  text-transform: uppercase;
-}
-.classRole { font-size: var(--t-xs); color: var(--text-dim); }
-
-/* Trois barres comparatives, normalisees sur la meilleure des trois classes :
-   c'est une comparaison, pas une mesure absolue. */
-.classStats { display: flex; flex-direction: column; gap: var(--sp-1); }
-.statRow { display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: var(--sp-2); }
-.statName { font-size: var(--t-xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: var(--track-title); }
-.statBar { height: var(--sp-1); background: var(--line-soft); position: relative; }
-.statBar > i { position: absolute; inset: 0 auto 0 0; background: currentColor; display: block; }
-.statVal { font-size: var(--t-xs); color: var(--text-dim); }
-
-.classSkill {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  font-size: var(--t-xs);
-  color: var(--text-dim);
-  line-height: 1.4;
-}
-.classSkill .key {
-  flex: 0 0 auto;
-  font-weight: 700;
-  color: var(--text);
-  border: var(--hair) solid var(--line);
-  padding: 0 var(--sp-1);
-}
-.classSkill b { color: var(--text); font-weight: 700; }
-
-/* Emplacement pris : grise ET BARRE, avec le nom de celui qui l'occupe. La
-   couleur seule ne suffit pas — un bouton qui ne repond pas passe pour une
-   panne tant qu'on n'a pas lu pourquoi. */
-.classOpt.taken { opacity: 0.42; }
-.classOpt.taken .className { text-decoration: line-through; }
-.classTaken {
-  font-size: var(--t-xs);
   color: var(--warn);
-  text-transform: uppercase;
-  letter-spacing: var(--track-title);
-}
-#classHint { font-size: var(--t-xs); color: var(--text-faint); }
-
-/* --- pastilles de cartes, au bilan ------------------------------------------ */
-td.cards { text-align: left; max-width: 420px; }
-.cardBadge {
-  display: inline-block;
-  border: var(--hair) solid currentColor;
-  border-radius: var(--radius);
-  padding: 0 var(--sp-1);
-  margin: 1px var(--sp-1) 1px 0;
-  font-size: var(--t-xs);
-  white-space: nowrap;
 }
 
-/* ===========================================================================
-   ECRAN DE CHOIX DE CARTE — l'ecran le plus important du jeu.
-   C'est la seule decision structurante de la manche.
-   =========================================================================== */
+/* --- marchand de reliques (lot K) -------------------------------------------
+   Meme squelette que l'ecran de cartes, a une difference pres : le titre porte
+   le solde d'eclats — la question que l'ecran pose est « qu'est-ce que je peux
+   m'offrir », et le solde est la reponse avant meme de lire les reliques. */
+#merchant { gap: var(--sp-4); }
 
-#cards { gap: var(--sp-4); }
-
-#cardsTitle {
+#merchantTitle {
   font-size: var(--t-l);
   font-weight: 700;
   letter-spacing: var(--track-title);
@@ -640,255 +414,36 @@ td.cards { text-align: left; max-width: 420px; }
   text-align: center;
   max-width: 720px;
 }
+.merchantEclats { color: var(--gain); letter-spacing: var(--track-caps); }
 
-/* Le compte a rebours du choix d'office est un FILET qui se vide sous le titre,
-   et non un chiffre isole : un nombre demande d'etre lu et compare, un filet se
-   voit sans quitter les cartes des yeux. */
-#cardsTimer { width: 720px; max-width: 100%; height: var(--sp-1); background: var(--line-soft); }
-#cardsTimer > i { display: block; height: 100%; background: var(--go); transition: width 250ms linear; }
-#cardsTimer.urgent > i { background: var(--warn); }
+#merchantTimer { width: 720px; max-width: 100%; height: var(--sp-1); background: var(--line-soft); }
+#merchantTimer > i { display: block; height: 100%; background: var(--go); transition: width 250ms linear; }
+#merchantTimer.urgent > i { background: var(--warn); }
 
-#cardsRow { display: flex; gap: var(--sp-4); flex-wrap: wrap; justify-content: center; }
+#merchantRow { display: flex; gap: var(--sp-4); flex-wrap: wrap; justify-content: center; }
 
-/* « Relance » (lot D) : une colonne etroite au bout de la rangee, jamais une
-   carte de plus — elle ne doit pas se confondre avec une offre. */
-#cardsReroll {
-  width: 92px;
-  min-height: 260px;
-  font-size: var(--t-s);
-  color: var(--text-dim);
-  background: var(--bg-panel);
-  border: var(--hair) dashed var(--line);
+/* Le prix d'une relique est le pied de carte, dans la couleur du gain : il se
+   compare au solde du titre sans quitter les reliques des yeux. */
+.merchantPrix { color: var(--gain); font-weight: 600; }
+
+#merchantWaitMsg { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); }
+
+
+/* Bouton de BAN (lot J) : une action rare et irreversible — discrete, en pied
+   de carte, elle ne concurrence jamais le choix. Le rouge n'arrive qu'au
+   survol : la grammaire l'associe au danger, et un pied de carte rouge en
+   permanence serait un signal criard sur les trois cartes. */
+.cardBan {
+  align-self: center;
+  padding: 2px var(--sp-2);
+  font-size: var(--t-xs);
+  color: var(--text-faint);
+  border: var(--hair) solid transparent;
   border-radius: var(--radius);
-}
-#cardsReroll:hover:not(:disabled) { color: var(--text); border-style: solid; }
-
-.cardOpt {
-  width: 268px;
-  min-height: 260px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0;
-  padding: 0;
-  text-align: left;
-  border-width: var(--hair);
-  white-space: normal;
-  background: var(--bg-panel);
-  position: relative;
-  overflow: hidden;
-  transition: transform var(--tap) ease-out, border-color var(--tap) linear,
-              opacity var(--fade) linear;
-}
-.cardOpt:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--text); }
-
-.cardTop {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-3) var(--sp-1);
-}
-.cardIcon { flex: 0 0 auto; width: 18px; height: 18px; color: inherit; }
-.cardIcon svg { display: block; width: 100%; height: 100%; }
-.cardName {
-  font-size: var(--t-s);
-  font-weight: 700;
-  letter-spacing: var(--track-title);
-  text-transform: uppercase;
-  color: var(--text);
-}
-.cardMeta {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-3) var(--sp-3);
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-title);
-  text-transform: uppercase;
-}
-.cardFamily { color: var(--text-faint); }
-
-/* CATEGORIE ET RANG DANS LA BUILD. Une ligne de plus, et c'est celle qui dit
-   « qu'est-ce que j'ai deja empile » — la seule information que l'ecran ne
-   donnait pas et qu'on ne peut pas reconstituer de tete en trente secondes.
-
-   La pastille de couleur porte la grammaire fonctionnelle, la couleur est donc
-   posee en ligne depuis `palette.js` : cinq classes CSS de plus auraient recopie
-   cinq couleurs que la charte tient deja. Le rang reste en teinte neutre — c'est
-   un chiffre, pas un signal, et deux couleurs sur la meme ligne se seraient
-   concurrencees. */
-.cardCat {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-3) var(--sp-3);
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-title);
-}
-/* Un carre et non un disque : le seul cercle du jeu est une entite vivante. */
-.catDot { width: 7px; height: 7px; flex: 0 0 auto; }
-.catName { text-transform: uppercase; font-weight: 700; }
-.catRank { margin-left: auto; color: var(--text-dim); }
-
-/* Le corps : l'effet principal est la LIGNE LA PLUS GROSSE de la carte, pas le
-   nom. C'est ce qu'on compare entre trois cartes en trente secondes. */
-.cardBody {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  border-top: var(--hair) solid var(--line);
-  border-bottom: var(--hair) solid var(--line);
-}
-.cardMain { font-size: var(--t-m); font-weight: 700; color: var(--text); line-height: 1.35; }
-.cardCond { font-size: var(--t-xs); color: var(--go); line-height: 1.4; }
-.cardWarn { font-size: var(--t-xs); color: var(--warn); line-height: 1.4; }
-
-/* Le pied dit l'ETAT : ce qu'on possede deja, et ce que l'exemplaire suivant y
-   ajoute. C'est la ligne qui rend le choix decidable. */
-.cardFoot {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-3);
-  font-size: var(--t-xs);
-  color: var(--text-dim);
-}
-.cardDelta { color: var(--text); font-weight: 700; }
-
-/* --- materiaux de rarete ----------------------------------------------------
-   Chaque rarete a un MATERIAU et pas seulement une couleur : bordure plate,
-   bordure epaisse, lueur, degrade anime. C'est ce qui la rend reconnaissable au
-   coin de l'oeil, avant meme d'etre lue. */
-.cardOpt.r0 { border-color: var(--commune); }
-.cardOpt.r1 { border-width: var(--edge); border-color: var(--rare); background: var(--bg-raised); }
-.cardOpt.r2 {
-  border-width: var(--edge);
-  border-color: var(--epique);
-  box-shadow: 0 0 var(--sp-6) -2px var(--epique);
-}
-
-/* La legendaire est la SEULE a porter une animation : c'est ce qui en fait un
-   evenement. Elle doit se remarquer avant d'etre lue. */
-.cardOpt.r3 {
-  border-width: var(--edge);
-  border-color: var(--legendaire);
-  background: linear-gradient(160deg, var(--bg-raised) 0%, var(--bg-panel) 62%);
-  box-shadow: 0 0 var(--sp-6) -4px var(--legendaire);
-}
-.cardOpt.r3::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(105deg, transparent 42%,
-              color-mix(in srgb, var(--legendaire) 22%, transparent) 50%, transparent 58%);
-  transform: translateX(-100%);
-  animation: sweep var(--sweep) linear infinite;
-}
-@keyframes sweep {
-  0%   { transform: translateX(-100%); }
-  55%  { transform: translateX(100%); }
-  100% { transform: translateX(100%); }
-}
-
-/* Selection : la carte choisie se VERROUILLE et les deux autres s'estompent. Le
-   joueur doit voir ce qu'il a ecarte — sinon l'ecran se ferme sans qu'il sache
-   ce qu'il vient de refuser. */
-.cardOpt.picked { border-color: var(--go); transform: none; }
-.cardOpt.picked::after {
-  content: "verrouillée";
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: var(--sp-1);
-  text-align: center;
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--bg-void);
-  background: var(--go);
-}
-.cardOpt.faded { opacity: 0.3; }
-
-#cardsWaitMsg { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); }
-
-/* ===========================================================================
-   FENETRE DE BUILD
-   Trois entrees, un seul ecran : Tab en jeu, un clic sur une ligne du bilan, un
-   clic sur une ligne du salon. Elle passe DEVANT les deux autres overlays
-   (z-index plus eleve) puisqu'elle s'ouvre depuis eux — la refermer doit rendre
-   l'ecran d'ou l'on vient, pas le remplacer.
-   =========================================================================== */
-
-#build { z-index: 20; gap: var(--sp-4); justify-content: flex-start; }
-
-#buildHead {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-6);
-  width: min(100%, 760px);
-}
-#buildWho { display: flex; align-items: center; gap: var(--sp-4); flex: 1; }
-#buildName {
-  font-size: var(--t-xl);
-  font-weight: 700;
-  letter-spacing: var(--track-title);
-}
-#buildClass {
-  font-size: var(--t-xs);
-  text-transform: uppercase;
-  letter-spacing: var(--track-caps);
-}
-
-/* Les fleches sont des boutons a part entiere et pas seulement un rappel du
-   clavier : la fenetre s'ouvre aussi au clic depuis un tableau, et on y arrive
-   donc souvent la main sur la souris. */
-.buildNav {
-  font-family: var(--font);
-  font-size: var(--t-l);
-  padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-panel);
-  color: var(--text-dim);
   cursor: pointer;
 }
-.buildNav:hover { color: var(--text); border-color: var(--text-dim); }
+.cardBan:hover { color: var(--lethal); border-color: var(--lethal); }
 
-/* --- statistiques et multiplicateurs --------------------------------------- */
-
-#buildStats { display: flex; gap: var(--sp-8); flex-wrap: wrap; justify-content: center; }
-.buildStat { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
-.buildStat .val { font-size: var(--t-l); font-weight: 700; letter-spacing: var(--track-title); }
-.buildStat .lab {
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
-/* La ligne la plus interessante des cinq : « ×2,4 dégâts » explique le tableau
-   des scores bien mieux que la liste de cartes. D'ou un traitement plus fort
-   que celui des statistiques brutes juste au-dessus. */
-#buildMods { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: center; }
-.buildMod {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  border: var(--hair) solid var(--line);
-  background: var(--bg-panel);
-  font-size: var(--t-s);
-}
-.buildMod .lab { color: var(--text-faint); font-size: var(--t-xs); text-transform: uppercase; }
-.buildMod .val { font-weight: 700; letter-spacing: var(--track-title); }
-/* Vert « gain », ambre « coût » : la grammaire de couleur du depot. Le neutre
-   reste en texte ordinaire — un ×1,00 n'a rien a signaler. */
-.buildMod.gain .val { color: var(--gain); }
-.buildMod.gain { border-color: var(--gain); }
-.buildMod.cout .val { color: var(--warn); }
-.buildMod.cout { border-color: var(--warn); }
 
 /* JAUGE DE PUISSANCE. Le chiffre qui pilote les PV du boss et la pression des
    vagues, situe sur les reperes mesures. Angles durs, aucun arrondi : c'est un
@@ -1150,41 +705,10 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 /* Six chiffres au lieu de quatre : `flex-wrap` plutot qu'un gap plus serre —
    sur une fenetre etroite, six tuiles a 12 px d'ecart debordaient. */
 #bilanStats { display: flex; gap: var(--sp-12); flex-wrap: wrap; justify-content: center; }
-.bilanStat { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
-.bilanStat .val { font-size: var(--t-2xl); font-weight: 700; letter-spacing: var(--track-title); }
-.bilanStat .lab {
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
 
-/* TA partie. Encadre plutot que pose a plat : c'est le seul bloc de l'ecran qui
-   ne parle que de toi, entre deux blocs qui parlent de l'equipe (les chiffres
-   au-dessus, le tableau en dessous). Sans cadre les trois se confondaient. */
-#bilanMine {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  width: min(100%, 760px);
-  padding: var(--sp-4);
-  border: var(--hair) solid var(--line);
-  background: var(--bg-panel);
-}
-.mineHead { display: flex; align-items: baseline; gap: var(--sp-3); }
-.mineTitle {
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.mineCls { font-size: var(--t-s); font-weight: 700; letter-spacing: var(--track-title); }
-#mineOpen { margin-left: auto; }
-.mineStats { display: flex; gap: var(--sp-8); flex-wrap: wrap; justify-content: center; }
-.mineMods { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: center; }
-/* La jauge reprend le style de la fenetre de build, sans son cadre : elle est
-   deja dans celui de `#bilanMine`, et deux bordures imbriquees font une boite
-   dans une boite. */
+/* Le bloc « ta partie » (`#bilanMine`) a ete retire du bilan — voir
+   `menus.css`. La jauge de puissance garde ses regles : elle sert toujours
+   dans la fenetre de build. */
 #minePower { display: flex; flex-direction: column; gap: var(--sp-2); }
 
 #bilanScores { font-size: var(--t-m); }

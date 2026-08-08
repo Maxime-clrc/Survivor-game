@@ -97,6 +97,39 @@
   color: var(--text-dim);
 }
 
+/* --- l'attente du briefing ---------------------------------------------------
+   Sous le bandeau de vague, parce qu'elle explique precisement pourquoi il ne
+   se passe rien. En BLANC : la grammaire dit « blanc = ca concerne un allie »,
+   et c'est litteralement le cas — quelqu'un lit encore. Ni cyan (rien a faire,
+   on ne va nulle part), ni ambre (rien de dangereux, et un avertissement pour
+   un coequipier qui prend son temps serait un reproche).
+
+   Elle PULSE tres doucement plutot que de rester fixe : c'est un etat qui dure
+   et qui va se terminer tout seul, et un texte immobile dans un HUD immobile se
+   confond avec le decor. Une seconde par battement — au-dela on ne le remarque
+   plus, en deca ca presse. */
+#hudBrief {
+  position: absolute;
+  top: calc(var(--sp-3) + 74px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px;
+  text-align: center;
+  font-size: var(--t-s);
+  color: var(--text);
+  text-shadow: 0 0 var(--sp-4) var(--bg-void);
+  animation: briefWait 1s ease-in-out infinite;
+}
+#hudBrief b { font-weight: 700; }
+/* Le compte a rebours en chasse fixe, comme tous les chiffres du jeu : sans ca
+   il saute d'un pixel a chaque seconde qui change. */
+#hudBrief i { font-style: normal; font-family: var(--font); color: var(--text-dim); }
+
+@keyframes briefWait {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+
 /* --- barre de boss ---------------------------------------------------------
    Le seul element du HUD qui a le droit d'etre voyant : c'est le moment le plus
    important de la manche. Elle remplace le bandeau de vague, elle ne s'y
@@ -435,6 +468,21 @@
 #hudAnnounce.phase .big { font-size: var(--t-2xl); color: var(--warn); }
 #hudAnnounce.phase .mid { color: var(--boss-warn); font-size: var(--t-m); font-weight: 400; letter-spacing: normal; }
 
+/* Annonce du BOSS FINAL (lot N). Elle tient 5 s au lieu de 2,6 (cote JS) et
+   s'installe autrement : le nom arrive en s'ECARTANT plutot qu'en apparaissant,
+   un mouvement qu'aucune autre annonce du jeu n'a. C'est le seul moment ou le
+   jeu s'autorise un effet d'entree — et c'est justement parce qu'il est unique
+   qu'il dit « combat final » sans avoir a l'ecrire. */
+@keyframes bossFinalEntry {
+  from { letter-spacing: 0; opacity: 0; }
+  to   { letter-spacing: 0.24em; opacity: 1; }
+}
+#hudAnnounce.final .big {
+  color: var(--boss-low);
+  animation: bossFinalEntry 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#hudAnnounce.final .mid { color: var(--boss-low); }
+
 /* --- bloc personnel --------------------------------------------------------
    Le plus gros element du HUD. C'est ce qu'on regarde en priorite quand ca
    tourne mal, donc il est en bas a gauche, la ou le personnage n'est presque
@@ -606,6 +654,11 @@
   bottom: 140px;
   font-size: var(--t-xs);
   color: var(--gain);
+  /* Le bloc porte deux lignes depuis l'ajout du diagnostic reseau : rendu
+     dans une seule chaine memoisee, donc le retour a la ligne doit venir du
+     style. `pre-line` et non `pre` : on veut le saut de ligne, pas la
+     preservation des espaces d'indentation du gabarit. */
+  white-space: pre-line;
 }
 
 #hudPerf.low { color: var(--lethal); }
