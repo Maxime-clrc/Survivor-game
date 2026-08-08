@@ -726,6 +726,12 @@ function connect() {
           closeBuild();
           closePause();
           refreshPanel();
+          /* LE SOUFFLE DE LANCEMENT. Il part d'ici et non du clic sur « Lancer
+             la manche » : le clic n'appartient qu'a l'hote, alors que le
+             lancement est ce que TOUTE la table vit au meme instant. Il est
+             donc dans la file du monde comme le reste de la transition, et il
+             sonne sur l'image qu'il commente et non 110 ms avant. */
+          playSound("lancement");
           /* Le briefing s'ouvre APRES `refreshPanel` : c'est un voile pose sur
              une manche qui tourne deja, pas un ecran qui la remplace. Le HUD
              est donc en place dessous, et le bouton « continuer » n'a qu'a
@@ -1353,11 +1359,28 @@ function renderTopPing() {
 const SETTLE_MS = 760;      // --rise (380 ms) + le plafond de decalage (300 ms), avec de la marge
 const settleTimers = new WeakMap();
 
+/* LE RETRAIT EST DIFFERE, ET C'EST LA SORTIE D'ECRAN QUI L'IMPOSE. `.settled`
+   se retirait des que `hidden` etait pose — ce qui etait juste tant qu'un ecran
+   cache disparaissait dans la meme image. Depuis `.leaving`, il reste AFFICHE
+   `LEAVE_MS` de plus, et la classe qu'on vient de lui retirer est exactement
+   celle qui pose `animation: none` sur ses listes : les huit lignes du salon
+   repartaient donc d'une opacite nulle avec leurs decalages `nth-child`,
+   PENDANT que l'ecran s'en va. C'est le clignotement de depart, remis en scene
+   par la sortie — tout l'ecran qui part se rallume ligne par ligne.
+   On attend donc la fin de la sortie pour reamorcer la cascade suivante. */
 function syncSettled(el) {
   if (!el) return;
   clearTimeout(settleTimers.get(el));
-  if (el.hidden) { el.classList.remove("settled"); return; }
-  if (el.classList.contains("settled")) return;
+  if (el.hidden) {
+    settleTimers.set(el, setTimeout(() => el.classList.remove("settled"), LEAVE_MS));
+    return;
+  }
+  /* Une reouverture DOIT cascader, et elle peut arriver avant l'echeance
+     ci-dessus (aller-retour plus rapide que la sortie). Le retrait est donc
+     refait ici, sans condition : l'observateur ne rappelle cette fonction qu'au
+     CHANGEMENT de `hidden`, donc un appel a decouvert est toujours une vraie
+     ouverture. */
+  el.classList.remove("settled");
   settleTimers.set(el, setTimeout(() => el.classList.add("settled"), SETTLE_MS));
 }
 
@@ -1426,6 +1449,115 @@ function syncLeaving(el) {
     }
   }
 }
+
+/* --- LE RETOUR SONORE DE L'INTERFACE ------------------------------------------
+
+   Un clic sec au survol de ce qui repond au clic. C'est ce qui separe un jeu
+   d'un site : dans un jeu, l'interface est une machine qu'on manipule, et une
+   machine fait du bruit quand on pose la main dessus.
+
+   LA CIBLE EST CELLE DU POINTEUR, exactement. La feuille decide deja de « ce
+   qui repond au clic » — c'est la regle qui pose `--cursor-go`, le crochet de
+   visee — et le son reprend sa liste plutot que d'en tenir une seconde : ce
+   qui montre le crochet sonne, ce qui ne le montre pas est muet. Un bouton
+   DESARME ne sonne donc pas, pour la meme raison qu'il retombe au pointeur de
+   repos : il n'est pas une cible, et un retour qui pretend le contraire est
+   pire que pas de retour du tout. La duplication du selecteur est assumee et
+   commentee des deux cotes (menus.css, « Tout ce qui REPOND au clic ») — un
+   selecteur CSS ne se lit pas depuis JavaScript sans supposer la structure de
+   la feuille, ce qui serait une dependance bien plus fragile que deux listes
+   voisines.
+
+   Delegation sur `document` et non un ecouteur par bouton : les listes du
+   salon, du hub et de la progression sont RECONSTRUITES a chaque diffusion,
+   donc chaque rendu aurait a rebrancher ses noeuds — c'est le meme piege que
+   `.settled`, et il se serait paye en ecouteurs fuites. */
+const UI_SOUND_SCREENS = "#gate, #hubScreen, #panel, #menu, #bilan, #settings, #topbar, #pause";
+const UI_SOUND_TARGETS = 'button, a, summary, tr.clickable, input[type="range"]';
+/* LA SELECTION PORTE PLUS LOIN QUE LE SURVOL, et c'est la seule difference
+   entre les deux listes. Le survol suit le POINTEUR, donc il suit exactement la
+   regle du curseur — qui exclut `#cards` et `#build` parce qu'ils s'ouvrent une
+   manche en cours et gardent le reticule. La selection, elle, suit l'ACTION, et
+   choisir une carte est le geste le plus important du jeu : c'est precisement
+   celui qu'il ne faut pas laisser muet. */
+const UI_CLICK_SCREENS = `${UI_SOUND_SCREENS}, #cards, #build`;
+/* Deux gardes, et elles couvrent deux choses differentes. `lastHovered` evite
+   la repetition : `pointerover` se declenche pour CHAQUE descendant survole, et
+   un bouton qui porte trois `<span>` sonnerait quatre fois. Le delai, lui,
+   borne le BALAYAGE — traverser une liste de huit entrees en un geste tirerait
+   huit ticks en trois cents millisecondes, ce qui s'entend comme une
+   mitraillette et non comme un retour. 70 ms laisse passer un deplacement
+   volontaire d'un bouton a l'autre et coupe le survol accidentel. */
+const UI_SOUND_GAP = 70;
+let lastHovered = null;
+let lastHoverAt = 0;
+
+document.addEventListener("pointerover", e => {
+  // Le survol n'existe pas au doigt : sans ce filtre, chaque tap sonnerait
+  // deux fois — une fois comme survol, une fois comme clic.
+  if (e.pointerType && e.pointerType !== "mouse") return;
+  const cible = e.target?.closest?.(UI_SOUND_TARGETS) ?? null;
+  const vise = cible && cible.closest(UI_SOUND_SCREENS)
+    && !cible.disabled && cible.getAttribute("aria-disabled") !== "true";
+  if (!vise) { lastHovered = null; return; }
+  if (cible === lastHovered) return;
+  lastHovered = cible;
+  const now = performance.now();
+  if (now - lastHoverAt < UI_SOUND_GAP) return;
+  lastHoverAt = now;
+  playSound("survol");
+});
+
+/* LA SELECTION SONNE A L'APPUI, pas au clic. Un retour doit arriver pendant que
+   le doigt est encore sur le bouton — c'est deja la regle ecrite pour `popIn`
+   dans `menus.css` — et `click` n'arrive qu'au relachement, soit cinquante a
+   cent millisecondes plus tard sur un clic ordinaire. Le prix est un appui
+   annule (on presse, on sort du bouton, on relache) qui sonne quand meme : il
+   est rarissime, et le geste a bel et bien eu lieu.
+
+   Memes gardes que le survol pour la cible et le desarmement, mais AUCUNE garde
+   de delai en propre : un clic est volontaire par definition, il n'y a pas de
+   « balayage de clics » a borner, et deux clics sur deux options doivent rendre
+   deux sons. La recharge du limiteur (40 ms) suffit, et elle passe sous tout
+   geste humain — mesure : deux appuis a 45 ms rendent bien deux sons, seuls
+   deux appuis dans la MEME image n'en rendent qu'un.
+
+   Le filtre tactile du survol n'a pas d'equivalent ici, et c'est voulu : au
+   doigt il n'y a pas de survol, donc `pointerdown` est le seul retour possible
+   — un tap rend un son, pas deux.
+
+   Le tout premier bouton de la session reste muet : c'est lui qui cree le
+   contexte audio, qui n'existe donc pas encore quand il sonne. */
+/* DEUX BOUTONS SORTENT DE `selection`, et ce sont les deux qui ENGAGENT : se
+   déclarer prêt, lancer la manche. Tout le reste du salon choisit — une classe,
+   une difficulté, un onglet — et se defait d'un second clic ; ces deux-la
+   avancent la table vers la manche, et l'oreille doit faire la difference sans
+   qu'on regarde ce qu'on vient de presser. Meme famille de son, trois degres :
+   une inflexion pour un choix, deux notes pour un engagement, un accord resolu
+   pour le depart.
+
+   Une table par identifiant plutot qu'un `onclick` sur chacun : les deux
+   boutons ont deja leur gestionnaire, qui envoie au serveur, et y greffer du
+   son melangerait le retour sensoriel au protocole. La delegation reste le
+   point de passage unique — un bouton absent de la table sonne `selection`,
+   c'est-a-dire le comportement par defaut, et l'oubli est impossible.
+
+   `#readyBtn` est une BASCULE : `.on` dit qu'on est deja pret, donc que ce clic
+   RETIRE. Deux etats opposes qui rendraient le meme son apprennent au joueur a
+   ne plus l'ecouter — la classe est lue a l'appui, avant que `refreshPanel` ne
+   la retourne. */
+function uiSoundFor(el) {
+  if (el.id === "start") return "lancer";
+  if (el.id === "readyBtn") return el.classList.contains("on") ? "pretAnnule" : "pret";
+  return "selection";
+}
+
+document.addEventListener("pointerdown", e => {
+  const cible = e.target?.closest?.(UI_SOUND_TARGETS) ?? null;
+  if (!cible || !cible.closest(UI_CLICK_SCREENS)) return;
+  if (cible.disabled || cible.getAttribute("aria-disabled") === "true") return;
+  playSound(uiSoundFor(cible));
+});
 
 /* Retour aux salons. En pleine manche on ne quitte pas sechement : c'est la
    meme regle que `#pauseQuit`, qui demande confirmation pour la meme raison —

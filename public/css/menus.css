@@ -114,6 +114,15 @@
   /* LA SORTIE EST PLUS COURTE QUE L'ENTREE, et sur une courbe qui ACCELERE :
      on ne lit pas ce qui part. */
   --screen-out: 280ms;
+  /* LE CONTENU PART AVANT SON VOILE. Le croisement des voiles est ce qui donne
+     la continuite — sans lui on retrouve la coupure d'une image. Le croisement
+     des CONTENUS, lui, est une double exposition : mesure sur la courbe de
+     sortie, le sortant est encore a 0,88 d'opacite quand l'entrant demarre a
+     `--screen-hold`, et les deux titres se lisent l'un sur l'autre entre 140 et
+     320 ms. Le contenu sortant est donc rendu a zero avant que l'entrant ne
+     devienne lisible ; le voile, lui, garde sa duree pleine et le fond ne se
+     decouvre jamais. */
+  --content-out: 160ms;
   /* L'ENTREE ATTEND QUE LA SORTIE SOIT ENGAGEE. Sans ce retrait, les deux
      animations partaient ensemble : la courbe `--ease-out` amene l'entrant a
      90 % d'opacite en 140 ms, donc tout etait fini avant qu'on ait vu quoi que
@@ -1256,7 +1265,7 @@
    independants. */
 .leaving :is(.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, .briefWrap),
 #bilan.leaving > * {
-  animation: contentOut var(--screen-out) var(--ease-in) forwards;
+  animation: contentOut var(--content-out) var(--ease-in) forwards;
 }
 
 /* La trame de balayage DERIVE une fois a l'arrivee, puis s'immobilise. Un

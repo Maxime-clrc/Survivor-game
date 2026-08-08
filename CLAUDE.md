@@ -513,6 +513,102 @@ jamais différenciés par la seule couleur : un daltonien doit s'en sortir, et d
 toute façon la couleur se noie dans le chaos. La couleur ne fait que confirmer
 ce que la forme dit déjà.
 
+**L'interface sonne au SURVOL, et la cible est celle du pointeur — exactement.**
+C'est ce qui sépare un jeu d'un site : dans un jeu, l'interface est une machine
+qu'on manipule, et une machine fait du bruit quand on pose la main dessus. La
+liste de « ce qui répond au clic » existe déjà — c'est la règle qui pose
+`--cursor-go`, le crochet de visée — et le son la reprend au lieu d'en tenir une
+seconde : **ce qui montre le crochet sonne, ce qui ne le montre pas est muet**.
+Un bouton **désarmé** ne sonne donc pas, pour la même raison qu'il retombe au
+pointeur de repos : il n'est pas une cible, et un retour qui prétend le
+contraire est pire que pas de retour. Délégation sur `document` et non un
+écouteur par bouton — les listes du salon, du hub et de la progression sont
+reconstruites à chaque diffusion, donc chaque rendu aurait eu à rebrancher ses
+nœuds, avec les fuites qui vont avec.
+
+Trois gardes, trois causes distinctes, toutes vérifiées : `lastHovered`
+(`pointerover` se déclenche pour **chaque** descendant, un bouton à trois
+`<span>` sonnerait quatre fois), `UI_SOUND_GAP` de 70 ms (traverser huit entrées
+d'un geste tirerait huit ticks en trois cents millisecondes — une mitraillette,
+pas un retour ; mesuré : cinq boutons balayés à 25 ms d'écart ne rendent qu'**un**
+son), et `pointerType !== "mouse"` (le survol n'existe pas au doigt, chaque tap
+sonnerait deux fois).
+
+**Le survol est un TICK, jamais une note.** `survol` est 18 ms de bruit
+passe-bande étroit, sans aucune composante tonale : une note, même courte, se lit
+comme une réponse — or survoler n'est pas agir, et un carillon à chaque bouton
+traversé fatigue en une soirée. Il est bas par construction (`SOUND_GAIN.menu`,
+entre le tir et l'impact) : c'est le seul son du jeu qui part sans qu'on ait rien
+fait.
+
+**La sélection sonne à l'APPUI, et elle porte plus loin que le survol.** À
+l'appui (`pointerdown`) et non au clic : un retour doit arriver pendant que le
+doigt est encore sur le bouton — c'est déjà la règle écrite pour `popIn` — et
+`click` n'arrive qu'au relâchement, cinquante à cent millisecondes plus tard. Le
+prix est l'appui annulé qui sonne quand même, rarissime, et le geste a bien eu
+lieu. Plus loin, parce que le survol suit le **pointeur** (donc exactement la
+règle du curseur, qui exclut `#cards` et `#build` — ils s'ouvrent une manche en
+cours et gardent le réticule) alors que la sélection suit l'**action** : choisir
+une carte est le geste le plus important du jeu, c'est celui qu'il ne faut
+surtout pas laisser muet. Aucune garde de délai en propre — un clic est
+volontaire, il n'y a pas de balayage à borner, et la recharge du limiteur (40 ms)
+passe sous tout geste humain : mesuré, deux appuis à 45 ms rendent deux sons,
+seuls deux appuis dans la même image n'en rendent qu'un. Pas de filtre tactile
+non plus, contrairement au survol : au doigt il n'y a pas de survol, donc un tap
+rend un son et non deux.
+
+**`selection` MONTE, et ne contient aucun bruit.** Un twang de blaster avait été
+essayé — descente 1750 → 180 Hz, dent de scie plus carré plus bruit
+passe-bande — et rejeté à l'écoute. Deux raisons, et elles valent règle pour tout
+son d'interface qu'on ajoutera. Le **bruit** : filtré étroit et bref, il râpe, et
+un son de menu se déclenche trente fois par minute là où un son de combat passe
+une fois — ce qu'un impact peut se permettre, un clic ne le peut pas. La
+**descente** : une hauteur qui tombe se lit comme une perte, c'est `aterre` mot
+pour mot, or sélectionner est un gain.
+
+Donc l'inverse terme à terme : trois **sinus** (seule forme d'onde sans
+harmonique, donc la seule qui ne puisse pas râper), une hauteur qui monte d'un
+**ton** (740 → 880) plutôt qu'un intervalle franc — un saut sonne comme une
+alerte, une inflexion comme un acquiescement — l'octave supérieure au quart du
+volume pour le brillant, la quarte grave pour le corps (sans elle il ne reste
+qu'un bip de montre). Attaque de **12 ms** et non 4 : sur une sinusoïde, 4 ms
+s'entend encore comme un coup d'ongle, et c'est le seul réglage qui sépare
+« rond » de « sec ». C'est pour lui que `tone` a gagné un paramètre `attack`,
+comme `noise` avant lui — défaut inchangé, donc aucun son de combat ne bouge.
+
+**Trois degrés dans la même famille, et ils disent l'ENGAGEMENT.** Tout le salon
+choisit — une classe, une difficulté, un onglet — et se défait d'un second clic ;
+deux boutons seulement avancent la table vers la manche, et l'oreille doit les
+distinguer sans qu'on regarde ce qu'on vient de presser. Même matière à chaque
+fois (sinus, montée, attaque ronde), l'ampleur seule change : une **inflexion**
+pour un choix (`selection`), **deux notes** pour un engagement (`pret`, tierce
+majeure 587 → 740, recouvertes de 30 ms — jointes on entend un accord, espacées
+un carillon), un **accord résolu à l'octave** pour le départ (`lancer`,
+392 · 494 · 784). Les deux premiers ne résolvent pas : ils répondent à un geste
+et la partie continue. Le troisième ferme le salon, donc il se termine.
+
+**Une bascule ne rend jamais le même son dans ses deux sens.** `#readyBtn` porte
+`.on` quand on est déjà prêt, donc quand le clic **retire** : `pretAnnule` est la
+même tierce jouée en descendant, plus courte et sans renfort grave — un retrait
+n'a pas à occuper la pièce. Deux états opposés qui sonneraient pareil
+apprendraient au joueur à ne plus écouter. La classe est lue **à l'appui**, avant
+que `refreshPanel` ne la retourne.
+
+Le branchement passe par `uiSoundFor()`, une table par identifiant consultée dans
+la délégation — pas un `onclick` sur chaque bouton : les deux en ont déjà un, qui
+parle au serveur, et y greffer du son mélangerait le retour sensoriel au
+protocole. Un bouton absent de la table rend `selection`, donc l'oubli est
+impossible.
+
+**Le souffle de lancement part du message `round`, pas du clic de l'hôte.** Le
+clic n'appartient qu'à une personne ; le lancement est ce que toute la table vit
+au même instant. Il passe donc par la file du monde comme le reste de la
+transition, et sonne sur l'image qu'il commente. `lancement` est la seule recette
+du dépôt à **monter avant de descendre** (paramètre `attack` de `noise`, ajouté à
+la brique plutôt qu'en seconde fonction) : c'est ce qui le sépare d'`explosion`
+— une détonation frappe, un lancement se met en route, et sans montée le souffle
+commençait par un claquement, c'est-à-dire par le contraire de ce qu'il annonce.
+
 **Le bandeau d'alerte disparaît AVANT la résolution de la mécanique** (durée
 d'annonce moins 250 ms). Un texte encore affiché au moment de l'impact masque
 exactement ce qu'il faut regarder.
@@ -758,6 +854,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | type d'événement | rien — déduit des snapshots | `diffSnapshots()` dans `events.js`, consommé par `handleEvent()` |
 | image de sprite | rien | `plan()` dans `sprites.js` : `e{type}_{idle,walkA,walkB,open,die0..2}` et `c_{classe}_{idle,move,shoot,down}`, adressées par NOM via `frameOf()` |
 | son | rien | `PALETTE` dans `audio.js` + `SOUND_GAIN` (hiérarchie de volume) |
+| cible d'un son d'interface | rien | `UI_SOUND_SCREENS` / `UI_SOUND_TARGETS` dans `client.js` — **miroir** de la règle `--cursor-go` de `menus.css`, commentée des deux côtés |
 | `kind` d'effet → son | rien | `EFFECT_SOUND` dans `client.js` : son et amplitude de tressaillement par `kind` |
 | glyphe posé sur un joueur | `a` / `b` d'une entrée de `state.marks` | `PLAYER_MARK` + `paintMarkGlyph()` |
 | effet possédé visible en jeu | rien — déduit de la liste de cartes | `EFFECT_BADGES` dans `client.js` : bande d'effets actifs du HUD |
@@ -1260,11 +1357,25 @@ commence son fondu. Trois durées, et elles se lisent ensemble : sortie
 l'entrée. Ce retrait est ce qui rend la transition VISIBLE : sans lui les deux
 animations partaient ensemble, et la courbe `--ease-out` amène l'entrant à 90 %
 d'opacité en 140 ms — tout était fini avant qu'on ait vu quoi que ce soit.
-Mesuré sur salon → hub : le sortant est seul jusqu'à 140 ms, les deux se
-croisent de 140 à 320 ms (0,79 / 0,46 puis 0,29 / 0,88), l'écran est posé à
-450 ms. Le contenu **glisse dans le même sens** aux deux bouts — l'entrant
-descend de 18 px, le sortant est poussé de 12 px vers le haut — pour que l'œil
-suive un mouvement continu au lieu de deux fondus sans rapport.
+Le contenu **glisse dans le même sens** aux deux bouts — l'entrant descend de
+18 px, le sortant est poussé de 12 px vers le haut — pour que l'œil suive un
+mouvement continu au lieu de deux fondus sans rapport.
+
+**Ce sont les VOILES qui se croisent, jamais les contenus** (`--content-out`,
+160 ms contre 280 ms pour le voile). Le croisement des voiles est ce qui donne
+la continuité ; celui des contenus est une **double exposition** — deux titres
+et deux tableaux lisibles l'un sur l'autre, rapporté à l'usage comme « l'ancienne
+page se superpose avec la nouvelle ». Cause mesurée : la courbe de sortie est
+lente au départ, donc le sortant est encore à **0,88** d'opacité à l'instant où
+`--screen-hold` lance l'entrant, et les deux restaient lisibles de 140 à 320 ms.
+Le contenu sortant est donc rendu à zéro **avant** que l'entrant ne devienne
+lisible, et le voile garde sa durée pleine : le fond ne se découvre jamais.
+Remesuré sur `#gate` → hub, à la milliseconde : contenu sortant 0,61 à 126 ms,
+0,22 à 160 ms, **0 à 201 ms** ; contenu entrant 0,38 à 160 ms, 0,69 à 201 ms ;
+les voiles, eux, se croisent toujours (0,67 / 0,69 à 201 ms). La fenêtre où deux
+contenus se lisent ensemble tombe de 180 ms à **40 ms**, et l'écran est posé à
+450 ms comme avant. Raccourcir la sortie du **voile** aurait rendu le fond nu ;
+allonger `--screen-hold` aurait supprimé le croisement qu'on est venu chercher.
 
 **Aucun appelant ne change, et c'est la condition.** Les quinze chemins qui
 posent `hidden` portent des règles d'ordonnancement documentées (`worldQueue`,
@@ -1276,6 +1387,23 @@ d'oublier un chemin. Une classe plutôt que `transition-behavior:
 allow-discrete`, qui fait la même chose en CSS pur : le repli de ce mot-clé sur
 un navigateur qui l'ignore est la coupure nette, c'est-à-dire aucune animation
 et aucun moyen de s'en apercevoir à la lecture.
+
+**`.settled` ne se retire qu'à la FIN de la sortie, jamais à la pose de
+`hidden`.** La règle d'origine était juste tant qu'un écran caché disparaissait
+dans la même image ; depuis `.leaving` il reste **affiché** `LEAVE_MS` de plus,
+et `.settled` est précisément la classe qui pose `animation: none` sur les
+listes du salon, du hub et de la progression. La retirer réarme `riseIn`
+(`both`, opacité 0 → 1, décalages `nth-child` jusqu'à 300 ms) : mesuré sur une
+liste de six entrées, la cinquième ligne de l'écran **sortant** repartait à
+**0,00** d'opacité et n'était encore qu'à **0,14** à 300 ms — c'est-à-dire que
+toute la page qui s'en va se rallume ligne par ligne pendant qu'elle s'efface.
+C'est le clignotement que `.settled` existait pour supprimer, remis en scène par
+la sortie d'écran. Après correction, `animation: none` et l'opacité 1 tiennent
+sur toute la sortie (46 → 301 ms), et le retrait tombe à 360 ms sur un écran
+déjà en `display: none`. Corollaire : une **réouverture** doit rejouer la
+cascade, donc `.settled` est aussi retiré sans condition à découvert — un
+aller-retour plus rapide que la sortie annule le retrait différé, et sans ce
+second retrait l'écran rouvrirait sans cascade.
 
 **Un enregistrement de mutation ne veut PAS dire un changement.** Le DOM en
 produit un à chaque *écriture* d'attribut, même quand la valeur ne bouge pas, et
