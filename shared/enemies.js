@@ -131,10 +131,32 @@ export const TRAIT_CFG = {
    d'elite encode a +100). On ajoute EN FIN, jamais au milieu — les quatre
    nouveaux occupent donc les index 5 a 8.
 
-   `from` a disparu. Il disait la VAGUE a partir de laquelle un type pouvait
-   sortir, et il n'y a plus de vague : `minLevel` / `fallback` le remplacent,
-   avec la MEME signature que `minPlayers` / `fallback` de `MECHS`. Voir
-   `adaptType` plus bas — c'est la seule boucle de retroaction du design.
+   `minMin` est la MINUTE DE HORDE a partir de laquelle un type peut sortir.
+
+   Il a remplace deux choses successivement, et le detour vaut d'etre garde.
+   D'abord `from`, qui disait la VAGUE — il n'y a plus de vague. Puis `minLevel`,
+   qui disait le NIVEAU D'EQUIPE, au nom de D3 : « une equipe en retard arrivee a
+   la minute 12 au niveau 4 n'a pas les degats pour des tanks ».
+
+   LA MESURE A TRANCHE CONTRE `minLevel`. En calme solo, le niveau 2 arrive a la
+   DIXIEME MINUTE — 468 grunts a tuer pour le premier palier — donc le runner
+   sortait a la minute 10, le tank jamais, et une partie entiere se jouait contre
+   un seul type. Un verrou cense proteger une equipe en retard bloquait en fait
+   tout le monde : il indexait le CONTENU sur une courbe de progression qui n'est
+   pas faite pour ca.
+
+   Le temps, lui, est la seule chose que toutes les equipes partagent — c'est
+   D1 : « toutes les equipes voient la meme quantite de horde ». Un type qui sort
+   a la minute 5 sort a la minute 5 pour tout le monde, et c'est ce qui rend la
+   manche RACONTABLE, au meme titre que la choregraphie du segment 4.
+
+   C'est aussi plus fidele a D2 qu'auparavant. `adaptType` etait decrit comme
+   « la seule boucle de retroaction du design qui survit a D2 » ; sur le temps,
+   il n'y a plus de boucle du tout — la pression est ECRITE, point. Ce qui reste
+   d'`adaptType` est le repli de la table, qui n'a jamais lu une performance.
+
+   `fallback` garde exactement le meme role et la meme signature que
+   `minPlayers` / `fallback` de `MECHS`.
 
    `weight` est le poids dans le tirage, `share` le plafond de population
    (`share x MAX_ENEMIES` simultanes). La somme des `share` peut depasser 1 sans
@@ -146,12 +168,12 @@ export const TRAIT_CFG = {
    client : `standoff` est COPIE sur l'ennemi (`e.standoff`), et tout ce que le
    comportement d'un individu modifie doit l'etre aussi. */
 export const ENEMY_TYPES = [
-  { key: "grunt",   minLevel: 1,  fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10 },
-  { key: "runner",  minLevel: 2,  fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.45, speed: 188, dmg: 12, r: 9,  score: 14 },
-  { key: "tank",    minLevel: 5,  fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30 },
-  { key: "shooter", minLevel: 7,  fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25,
+  { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10 },
+  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.45, speed: 188, dmg: 12, r: 9,  score: 14 },
+  { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30 },
+  { key: "shooter", minMin: 7,   fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25,
     shootCd: 2.6, standoff: 170 },
-  { key: "brood",   minLevel: 9,  fallback: 1,  weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20,
+  { key: "brood",   minMin: 9,   fallback: 1,  weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20,
     splits: 3 },
 
   /* KAMIKAZE (plan4 lot M, repris tel quel). Il punit le corps-a-corps et rend
@@ -169,7 +191,7 @@ export const ENEMY_TYPES = [
      autre) qu'il aurait fallu brider comme l'onde de mort, et surtout une facon
      de faire nettoyer la horde par la horde — c'est-a-dire de recompenser le
      fait de ne pas jouer, ce que tout le lot P s'emploie a interdire. */
-  { key: "kamikaze", minLevel: 11, fallback: 1, weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8, r: 10, score: 18,
+  { key: "kamikaze", minMin: 12, fallback: 1, weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8, r: 10, score: 18,
     blastRadius: 90, blastDamage: 45, blastDelay: 0.15 },
 
   /* BULWARK. Bouclier frontal : il faut GAGNER L'ANGLE. Deux consequences
@@ -180,7 +202,7 @@ export const ENEMY_TYPES = [
      suivre sa cible a l'image : un bouclier qui se retourne instantanement rend
      le flanc inatteignable, donc le type injouable. C'est le seul ennemi du jeu
      dont `e.ang` n'est pas l'angle vers sa cible. */
-  { key: "bulwark",  minLevel: 13, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 58, dmg: 22, r: 15, score: 32,
+  { key: "bulwark",  minMin: 15, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 58, dmg: 22, r: 15, score: 32,
     shieldArc: 100, shieldTurnRate: 2.4 },
 
   /* MEDIC. Le seul type qui force explicitement une priorite de cible. Il reste
@@ -194,7 +216,7 @@ export const ENEMY_TYPES = [
 
      `share: 0.09`, parmi les plus bas : c'est un multiplicateur de menace pour
      le reste de la horde, pas un ennemi qu'on veut voir en nombre. */
-  { key: "medic",    minLevel: 15, fallback: 3, weight: 0.28, share: 0.09, hpMul: 0.9, speed: 68, dmg: 10, r: 13, score: 28,
+  { key: "medic",    minMin: 19, fallback: 3, weight: 0.28, share: 0.09, hpMul: 0.9, speed: 68, dmg: 10, r: 13, score: 28,
     standoff: 240, heal: 6, healInterval: 1.2, healRange: 190,
     /* `fireWindow` : delai au-dela duquel on cesse de le considerer « sous le
        feu ». Le critere est le temps passe SOUS LE FEU et non « touche
@@ -210,7 +232,7 @@ export const ENEMY_TYPES = [
 
      `share: 0.08`, le plus bas du bestiaire : deux choeurs qui se couvrent
      mutuellement sont un mur, et il faut que ce cas reste rare et intentionnel. */
-  { key: "choeur",   minLevel: 17, fallback: 4, weight: 0.20, share: 0.08, hpMul: 1.6, speed: 70, dmg: 12, r: 15, score: 30,
+  { key: "choeur",   minMin: 23, fallback: 4, weight: 0.20, share: 0.08, hpMul: 1.6, speed: 70, dmg: 12, r: 15, score: 30,
     auraRadius: 130, auraReduction: 0.35 },
 ];
 
@@ -235,33 +257,36 @@ export function typeAt(index) { return ENEMY_TYPES[index] ?? ENEMY_TYPES[0]; }
 
 export function hasTrait(mask, id) { return (mask & traitBit(id)) !== 0; }
 
-/* --- adaptType : LA seule boucle de retroaction du design -----------------------
+/* --- adaptType : le CALENDRIER des types ----------------------------------------
 
-   Le script nomme la pression de chaque beat, mais D3 indexe l'acces aux types
-   sur le NIVEAU D'EQUIPE : une equipe en retard arrivee a la minute 12 au niveau
-   4 n'a pas les degats pour des tanks. `minLevel` / `fallback` repondent
-   exactement comme `minPlayers` / `fallback` repondent a l'effectif, et le point
-   de passage est le jumeau d'`adaptMech`.
+   Le script nomme la pression de chaque beat ; ce point de passage nomme le
+   moment ou chaque type entre dans la partie. L'argument est la MINUTE DE HORDE,
+   plus le niveau d'equipe.
 
-   Elle est AUTHORED (une table, pas une formule qui lit une performance),
-   ASYMETRIQUE (elle n'aide qu'une equipe en retard, elle ne punit jamais celle
-   qui avance) et LISIBLE (un seuil par type). C'est ce qui la rend compatible
-   avec D2, qui refuse tout scaler dont l'entree est sa propre sortie.
+   IL N'Y A PLUS DE BOUCLE DE RETROACTION. C'etait sa description precedente —
+   « la seule qui survit a D2 » — et elle est tombee a la mesure : indexer le
+   contenu sur le niveau bloquait la partie sur un seul type pendant dix minutes,
+   parce que la courbe de progression n'est pas faite pour porter le rythme du
+   bestiaire. Le calendrier est desormais ECRIT, comme le debit et la geometrie,
+   ce qui rend le systeme strictement conforme a D2 au lieu d'y faire exception.
 
-   UN SEUL NIVEAU DE REPLI, comme `adaptMech` : un repli qui replie serait
-   impossible a lire dans la table, qui est justement ce qui rend le systeme
-   tenable. Rend -1 quand meme le repli est hors de portee — l'appelant retombe
-   alors sur le grunt, seul type sans seuil.
+   Il garde en revanche exactement la meme FORME, et c'est ce qui compte : une
+   table (jamais une formule qui lit une performance), un seuil par type
+   (lisible), UN SEUL NIVEAU DE REPLI comme `adaptMech` — un repli qui replie
+   serait impossible a lire dans la table, qui est justement ce qui rend le
+   systeme tenable. Rend -1 quand meme le repli est hors de portee : l'appelant
+   retombe alors sur le grunt, seul type sans seuil.
 
-   Effet secondaire precieux, le meme que celui deja note pour les cartes
-   verrouillees par jalons : un nouveau joueur decouvre un pool plus simple,
-   c'est de l'onboarding sans une ligne de tutoriel. */
-export function adaptType(index, level) {
+   Effet secondaire conserve, le meme que celui deja note pour les cartes
+   verrouillees par jalons : les premieres minutes offrent un pool plus simple,
+   c'est de l'onboarding sans une ligne de tutoriel — a ceci pres qu'il dure
+   maintenant une minute et non une partie entiere. */
+export function adaptType(index, minute) {
   const def = ENEMY_TYPES[index];
   if (!def) return -1;
-  if (level >= def.minLevel) return index;
+  if (minute >= def.minMin) return index;
   const back = def.fallback ?? -1;
   if (back < 0) return -1;
   const bd = ENEMY_TYPES[back];
-  return bd && level >= bd.minLevel ? back : -1;
+  return bd && minute >= bd.minMin ? back : -1;
 }

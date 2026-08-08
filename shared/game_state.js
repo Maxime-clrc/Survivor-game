@@ -667,7 +667,7 @@ const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
    Un profil porte quatre axes et un residu :
 
      script  — quelle table de beats (`timeline.js`), donc ou sont les SILENCES
-     roster  — quels types peuvent sortir, EN PLUS des `minLevel` du lot S
+     roster  — quels types peuvent sortir, EN PLUS du calendrier `minMin`
      traits  — l'attachement (type -> masque de traits), lot S
      resume  — ce que le mode change, en trois lignes, pour le salon
      residu  — hp / spawn / dmg / boss
@@ -805,8 +805,8 @@ export function traitsOf(diffIndex, type) {
 
 /* Le bestiaire vit desormais dans `shared/enemies.js` — voir l'import et le
    reexport en tete de fichier. `from` (la vague d'apparition) y a ete remplace
-   par `minLevel` / `fallback` : il n'y a plus de vague, et D3 indexe l'acces aux
-   types sur le niveau d'equipe. `this.tier` n'a donc plus aucun lecteur. */
+   par `minMin` / `fallback` : il n'y a plus de vague, et le calendrier des types
+   suit la MINUTE DE HORDE. `this.tier` n'a donc plus aucun lecteur. */
 /* L'ordre fait foi : le snapshot ne transmet que l'index. On ajoute donc a la
    fin, jamais au milieu — et on ne REORDONNE pas davantage, y compris pour
    sortir une entree de la rotation : `damage`, `rate`, `double` et `pierce` en
@@ -1249,8 +1249,9 @@ export class GameState {
        `tier`, l'index global du beat, A DISPARU au lot S. Le lot Q avait
        reindexe tout ce qui s'appuyait dessus sur le niveau d'equipe et lui
        avait laisse un seul lecteur — les seuils d'apparition des types
-       (`ENEMY_TYPES.from`) ; le bestiaire les porte desormais en `minLevel`, et
-       un champ que personne ne lit est un champ qu'on finira par croire vrai.
+       (`ENEMY_TYPES.from`) ; le bestiaire les porte desormais en `minMin`, sur
+       la minute de horde, et un champ que personne ne lit est un champ qu'on
+       finira par croire vrai.
        `beatIndex()` reste dans `timeline.js` pour qui en aurait besoin. */
     /* ECHAUFFEMENT (briefing de classe). Secondes pendant lesquelles la
        simulation tourne — les joueurs se deplacent, visent, testent leurs
@@ -3477,10 +3478,14 @@ export class GameState {
      demandent de choisir sa cible et que c'est la competence qu'il n'a pas a
      enseigner.
 
-     LE NIVEAU D'EQUIPE dit lesquels sont deverrouilles (`minLevel`, D3). Le
-     repli n'intervient pas ici — un type hors de portee est simplement absent du
-     tirage ; `adaptType` sert aux apparitions EXPLICITES, ou l'appelant a nomme
-     un type qu'il faut bien remplacer par quelque chose.
+     LA MINUTE DE HORDE dit lesquels sont ENTRES EN JEU (`minMin`). C'etait le
+     niveau d'equipe, et la mesure a tranche contre : le niveau 2 arrivant a la
+     dixieme minute en calme solo, une partie entiere se jouait contre des
+     grunts. Le temps est la seule chose que toutes les equipes partagent — c'est
+     D1 — donc la seule qui puisse porter le rythme du bestiaire.
+     Le repli n'intervient pas ici : un type pas encore entre est simplement
+     absent du tirage. `adaptType` sert aux apparitions EXPLICITES, ou l'appelant
+     a nomme un type qu'il faut bien remplacer par quelque chose.
 
      LE QUOTA (`share`) plafonne la population par type. Il devient PLUS critique
      en modele continu qu'il ne l'etait avec les vagues : plus rien ne vide
@@ -3490,9 +3495,10 @@ export class GameState {
     const counts = new Array(ENEMY_TYPES.length).fill(0);
     for (const e of this.enemies) counts[e.type]++;
 
+    const minute = this.hordeMinutes();
     const pool = typesFor(this.diffIndex);
     let avail = pool.filter(i =>
-      this.level >= ENEMY_TYPES[i].minLevel
+      minute >= ENEMY_TYPES[i].minMin
       && counts[i] < ENEMY_TYPES[i].share * CFG.MAX_ENEMIES);
     if (avail.length === 0) avail = [0];
     let total = 0;
@@ -3509,11 +3515,11 @@ export class GameState {
     if (this.enemies.length >= CFG.MAX_ENEMIES) return null;
     /* Apparition EXPLICITE : l'appelant a nomme un type (la nuee d'une pondeuse,
        un script de mesure). C'est le cas d'`adaptType` — une pondeuse qui creve
-       au niveau 1 liberait des runners que l'equipe n'a pas encore le droit de
-       voir. Le grunt est le plancher : c'est le seul type sans seuil. */
+       a la premiere minute liberait des runners qui ne sont pas encore entres en
+       jeu. Le grunt est le plancher : c'est le seul type sans seuil. */
     let ti = typeIndex;
     if (ti >= 0) {
-      ti = adaptType(ti, this.level);
+      ti = adaptType(ti, this.hordeMinutes());
       if (ti < 0 || !typesFor(this.diffIndex).includes(ti)) ti = 0;
     }
     const t = ti >= 0 ? ENEMY_TYPES[ti] : this._pickType();

@@ -73,4 +73,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.7.12";
+export const VERSION = "0.7.13";
