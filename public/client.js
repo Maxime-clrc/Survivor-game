@@ -2029,7 +2029,8 @@ window.addEventListener("keydown", e => {
   if (e.key !== "m" && e.key !== "M") return;
   // Jamais pendant une saisie : l'ecran d'entree et le hub sont pleins de
   // champs (pseudo, mots de passe, nom de salle) ou un « m » est une lettre.
-  if (document.activeElement?.tagName === "INPUT") return;
+  // Meme test que les trois autres gestionnaires depuis qu'il existe.
+  if (enSaisie()) return;
   setMuted(!isMuted());
   refreshAudioUi();
 });
@@ -4294,11 +4295,50 @@ function requestSkill(n) {
   else skills.s3 = true;
 }
 
+/* --- « SUIS-JE EN TRAIN D'ECRIRE ? » ------------------------------------------
+
+   Point de passage unique des quatre gestionnaires de touches. La garde etait
+   `document.activeElement !== nameInput`, c'est-a-dire UN champ nomme — celui du
+   pseudo, le seul qui existait quand elle a ete ecrite. Depuis, la page en porte
+   une dizaine : nom de salle, mot de passe de salle, mot de passe de compte,
+   ancien et nouveau mot de passe. Dans tous ceux-la, Espace etait avale par
+   `preventDefault` et declenchait une esquive au lieu d'ecrire — on ne pouvait
+   donc pas nommer une salle « Vendredi soir » — et les fleches ne deplacaient
+   pas le curseur.
+
+   Le test porte sur le TYPE de champ et non sur `tagName === "INPUT"`, et c'est
+   la subtilite qui compte : un `input[type="range"]` est un INPUT, mais Espace
+   et les fleches y sont des commandes de JEU qu'on ne veut pas perdre. Le menu
+   pause porte deux curseurs de volume ; si l'un d'eux garde le focus apres
+   qu'on a referme le menu, une garde trop large rendrait l'esquive muette pour
+   le reste de la manche. On ne s'efface donc que devant une saisie de TEXTE.
+
+   `type` absent vaut « text » — c'est le cas de `#roomName`, qui n'en declare
+   pas. */
+const SAISIE_TEXTE = new Set(["", "text", "password", "search", "email", "url", "tel", "number"]);
+
+function enSaisie() {
+  const el = document.activeElement;
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  if (el.tagName === "TEXTAREA") return true;
+  if (el.tagName !== "INPUT") return false;
+  return SAISIE_TEXTE.has((el.getAttribute("type") ?? "").toLowerCase());
+}
+
 addEventListener("keydown", e => {
+  /* On sort AVANT `keys.add`, et pas seulement avant `preventDefault`. Le jeu
+     range les touches enfoncees dans `keys`, d'ou il lit le deplacement et les
+     competences : taper « q » dans un nom de salle y laissait KeyQ, donc une
+     lettre du nom faisait marcher le personnage et lancait une competence. Le
+     `preventDefault` n'etait que la moitie visible du probleme — celle qui
+     mangeait l'espace. */
+  if (enSaisie()) return;
   const repeat = keys.has(e.code);
   keys.add(e.code);
-  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)
-      && document.activeElement !== nameInput) e.preventDefault();
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
+    e.preventDefault();
+  }
 
   if (e.code === "Space" && !repeat && !e.repeat) requestDash();
   /* Digit1/Digit2 et non la touche imprimee : sur un clavier AZERTY, les
@@ -4342,10 +4382,11 @@ addEventListener("blur", () => keys.clear());
 // Tab affiche les cartes possedees. Le navigateur s'en sert par defaut pour
 // deplacer le focus — sans preventDefault il fait aussi defiler la page une
 // fois le focus sorti des champs, ce qui n'a aucun sens plein ecran. On laisse
-// en revanche le comportement natif quand le pseudo est en cours de saisie,
-// sinon impossible de tabuler jusqu'au bouton "Rejoindre".
+// en revanche le comportement natif pendant une SAISIE, sinon impossible de
+// tabuler d'un champ au bouton qui le suit — pseudo, mot de passe, nom de
+// salle.
 addEventListener("keydown", e => {
-  if (e.code !== "Tab" || document.activeElement === nameInput) return;
+  if (e.code !== "Tab" || enSaisie()) return;
   e.preventDefault();
   if (cardsState) return;
   // La fenetre s'ouvre SUR SOI et se parcourt ensuite : c'est sa propre build
@@ -4388,7 +4429,7 @@ addEventListener("keydown", e => {
    ouvert, ce qui produit exactement cet enchainement sans qu'aucun des deux ne
    connaisse l'autre. */
 addEventListener("keydown", e => {
-  if (e.code !== "Escape" || document.activeElement === nameInput) return;
+  if (e.code !== "Escape" || enSaisie()) return;
   if (phase !== PHASE_ROUND) return;
   e.preventDefault();
   if (pauseEl.hidden) openPause(); else closePause();
@@ -5611,7 +5652,30 @@ function frame(now) {
      concerne. Ici on ne fait que dire au juke-box a quel point ca chauffe. */
   setMusicIntensity(gameIntensity());
 
-  if (connected && latest) {
+  /* L'ARENE NE SE MONTRE QUE PENDANT LA MANCHE, et c'est la boucle qui en
+     decide — pas un des quinze chemins qui posent `hidden` sur un ecran.
+
+     Les trois canvas sont sous les menus depuis toujours, et les menus sont
+     opaques : tant qu'un seul est affiche, rien ne se voit. Mais une TRANSITION
+     croise deux voiles a opacite partielle, et deux couches a 0,67 et 0,69 ne
+     valent que 0,90 d'opacite composee — la grille du sol transparait donc
+     pendant les trois cents millisecondes du passage, ce qui se lit exactement
+     comme « la map du jeu apparait ».
+
+     Le defaut avait deux moitiés, et masquer les traite d'un coup. La grille
+     seule dans le cas ordinaire ; mais `latest` n'est PAS vide apres une fin de
+     manche — seul `round` le remet a zero — donc la branche du dessus etait
+     prise au salon et au bilan, et c'est le MONDE de la derniere image qui se
+     redessinait en boucle dessous. `phase` entre donc aussi dans la condition
+     de dessin : hors manche, on retombe sur le sol seul.
+
+     `visibility` et non `hidden` : `resize()` lit `clientWidth` sur ces canvas,
+     et un `display: none` les rendrait larges de zero le jour ou la fenetre
+     change de taille pendant qu'on est au menu. */
+  const enJeu = phase === PHASE_ROUND;
+  arenaEl.style.visibility = enJeu ? "" : "hidden";
+
+  if (connected && latest && enJeu) {
     const renderTime = now - INTERP_MS;
     if (phase === PHASE_ROUND) {
       stepPrediction(dt);

@@ -163,6 +163,28 @@ trembler avec lui, et la séparation du rendu en deux passes n'a plus lieu
 d'être. `#arena` porte un `scale(1.015)` permanent pour qu'une secousse ne
 découvre pas une bande de page derrière l'arène.
 
+**L'arène ne se montre que pendant la manche**, et c'est la **boucle de rendu**
+qui en décide — pas un des quinze chemins qui posent `hidden` sur un écran. Les
+trois canvas vivent sous les menus depuis toujours, et les menus sont opaques :
+tant qu'un seul est affiché, rien ne se voit. Mais une **transition** croise deux
+voiles à opacité partielle, et deux couches à 0,67 et 0,69 ne composent que 0,90 —
+la grille du sol transparaît donc pendant les trois cents millisecondes du
+passage, ce qui se lit exactement comme « la map du jeu apparaît ». Vérifié en
+retirant un voile au hub : le sol, sa grille en mètres et la boîte de l'arène
+étaient là, en entier.
+
+Le défaut avait **deux moitiés**, et la même correction les traite ensemble. La
+grille dans le cas ordinaire ; mais `latest` **n'est pas vidé** à la fin d'une
+manche — seul `round` le remet à zéro — donc la branche de dessin du monde était
+prise au salon et au bilan, et c'est la dernière image de la manche qui se
+redessinait en boucle dessous. `phase` entre donc aussi dans la condition de
+dessin, pas seulement dans la visibilité.
+
+`visibility` et non `hidden` : `resize()` lit `clientWidth` sur ces canvas, et un
+`display: none` les rendrait larges de zéro le jour où la fenêtre change de
+taille pendant qu'on est au menu. Mesuré après correction : `visibility: hidden`,
+canvas toujours à 1504 × 846 en CSS et 1527 × 859 en mémoire.
+
 **Seul `#cvUnder` peint un fond.** Les deux autres se vident (`clearRect`,
 `gl.clear`) à chaque image — un canvas WebGL qu'on cesse de dessiner garde un
 contenu indéfini, et la dernière image d'une manche pouvait réapparaître sous le
@@ -1654,6 +1676,35 @@ touches sont posés sur le **même** nœud (`window`), et `stopPropagation` ne
 bloque que les nœuds suivants. Le bug a existé : Échap fermait la build et
 ouvrait la pause dans la même frappe, si bien que le menu paraissait ne
 s'ouvrir qu'une fois sur deux.
+
+**« Suis-je en train d'écrire » est un test, pas un nom de champ** (`enSaisie()`,
+point de passage unique des quatre gestionnaires de touches). La garde s'écrivait
+`document.activeElement !== nameInput` — **un** champ nommé, le seul qui existât
+quand elle a été écrite. La page en porte une dizaine depuis : nom de salle, mot
+de passe de salle, mot de passe de compte, ancien et nouveau mot de passe. Dans
+tous ceux-là, Espace était mangé par `preventDefault` et déclenchait une esquive
+au lieu d'écrire — on ne pouvait donc pas nommer une salle « Vendredi soir » — et
+les flèches ne déplaçaient pas le curseur.
+
+**On sort avant `keys.add`, pas seulement avant `preventDefault`.** Le jeu range
+les touches enfoncées dans `keys`, d'où il lit le déplacement et les
+compétences : taper « q » dans un nom de salle y laissait `KeyQ`, donc une lettre
+du nom faisait marcher le personnage et lançait une compétence. L'espace mangé
+n'était que la moitié visible du défaut.
+
+**Le test porte sur le TYPE de champ, jamais sur `tagName === "INPUT"`.** Un
+`input[type="range"]` est un INPUT, mais Espace et les flèches y sont des
+commandes de **jeu** : le menu pause porte deux curseurs de volume, et si l'un
+d'eux garde le focus après qu'on a refermé le menu, une garde trop large rendrait
+l'esquive muette pour le reste de la manche. On ne s'efface que devant une saisie
+de **texte** — et un `type` absent vaut « text », ce qui est le cas de
+`#roomName`. Vérifié champ par champ : Espace, flèches, Tab, Échap et les lettres
+reviennent aux champs de texte, Espace reste au jeu sur un curseur de volume et
+hors de tout champ.
+
+Côté serveur, `sanitizeRoomName()` acceptait les espaces depuis toujours : il
+normalise les suites d'espaces en un seul et rogne les bords, il n'en retire
+aucun. Le défaut était entièrement dans la saisie.
 
 ## Équilibrage
 
