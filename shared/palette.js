@@ -447,8 +447,22 @@ export const HUD = {
    au premier reglage.
 
    Le HUD dessine dans le canvas n'y est PAS encore aligne : il sort du canvas
-   au lot 4, et le realigner deux fois n'aurait servi a rien. */
-export const TYPE = [11, 13, 15, 19, 26, 34, 46];
+   au lot 4, et le realigner deux fois n'aurait servi a rien.
+
+   ELLE A ETE MONTEE D'UN CRAN — 11/13/15/19/26/34/46 avant. L'echelle d'origine
+   etait calee sur un ecran de 1280 et se lisait comme une interface de bureau ;
+   sur les 1440p et 1920 d'aujourd'hui, tout paraissait petit. Le grief portait
+   sur l'ensemble et pas sur un ecran : le premier cran est le plus employe du
+   depot (90 declarations sur 240), donc c'est lui qui donnait le ton.
+
+   Les RAPPORTS sont conserves — autour de 1,2 dans le bas de l'echelle, 1,3
+   dans le haut — parce que c'est eux qui font la hierarchie, pas les valeurs
+   absolues. Monter les tailles en gardant les memes rapports, c'est la meme
+   composition vue de plus pres ; les changer aurait redessine tous les ecrans.
+
+   Les quatre PLANCHERS du HUD suivent mecaniquement, et c'est voulu : ce sont
+   des minimums (« on ne descend pas en dessous »), pas des valeurs cibles. */
+export const TYPE = [13, 15, 18, 22, 29, 38, 50];
 
 /* Teinte d'une couleur avec un alpha. Remplace les `rgba(...)` en dur : la
    valeur reste dans la table, seule l'opacite varie au point d'appel.

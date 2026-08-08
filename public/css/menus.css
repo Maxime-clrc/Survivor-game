@@ -13,8 +13,8 @@
         taille, meme gris. On ne savait pas ou lire. Trois niveaux desormais,
         et un seul par element : le KICKER (capitales espacees, cyan, 11 px)
         dit ou on est, le TITRE (Chakra Petch, 26-34 px) dit quoi, le CORPS
-        (Barlow, 15 px, gris-bleu) explique. Un element ne porte jamais deux
-        niveaux a la fois.
+        (Space Grotesk, 15 px, gris-bleu) explique. Un element ne porte jamais
+        deux niveaux a la fois.
 
      2. LES ECRANS NE SONT PLUS CENTRES A LA VERTICALE. `.overlay` centrait
         tout, donc la position d'un bloc dependait du nombre de blocs presents
@@ -43,9 +43,25 @@
    D'ou DEUX familles de plus, et pas une de moins :
      --font-display  Chakra Petch — titres, boutons, noms propres. Technique et
                      etroite, elle appartient au meme monde que la chasse fixe.
-     --font-body     Barlow — les paragraphes, et eux seuls. Une chasse
+     --font-body     Space Grotesk — les paragraphes, et eux seuls. Une chasse
                      proportionnelle rend une phrase de trois lignes lisible,
                      ce qu'une chasse fixe ne fait pas.
+
+   BARLOW A ETE REMPLACE, et la raison n'est pas le gout. C'etait la seule des
+   trois familles qui ne DISAIT rien : une grotesque neutre, dessinee pour ne
+   pas se faire remarquer, entre une chasse fixe qui signe « poste de controle »
+   et une Chakra Petch qui signe « technique ». Le corps de texte etait donc le
+   seul endroit de l'ecran ou le jeu ressemblait a un site. Space Grotesk vient
+   du meme monde que les deux autres — terminaisons coupees NET, « g » a un seul
+   etage, chiffres anguleux — sans copier Chakra Petch : celle-ci est etroite et
+   titree, celle-la est large et se lit en petit corps.
+
+   Elle est VARIABLE, et c'est ce qui corrige la lisibilite au passage. Un texte
+   clair sur fond sombre s'amincit optiquement : a graisse egale, il paraît plus
+   fin que le meme texte en sombre sur clair. Barlow n'avait que son Regular
+   versionne, donc rien a faire — monter a 500 aurait produit un faux gras.
+   L'axe de graisse permet un poids INTERMEDIAIRE (450, voir « le corps » plus
+   bas) qui compense exactement cet amincissement, pour un seul fichier.
      --font          la chasse fixe d'origine — tout le reste, inchange.
 
    Elles sont **vendues avec le jeu** et non chargees depuis Google : une
@@ -65,16 +81,24 @@
   font-weight: 600;
   font-display: swap;
 }
+/* Une PLAGE de graisses et non une valeur : le fichier porte l'axe, et c'est
+   cette declaration qui autorise le navigateur a interpoler. Ecrire
+   `font-weight: 400` ici rendrait tout poids intermediaire en faux gras — le
+   defaut meme qu'on est venu supprimer. */
 @font-face {
-  font-family: "Barlow";
-  src: url("/fonts/Barlow-Regular.woff2") format("woff2");
-  font-weight: 400;
+  font-family: "Space Grotesk";
+  src: url("/fonts/SpaceGrotesk-Variable.woff2") format("woff2");
+  font-weight: 300 700;
   font-display: swap;
 }
 
 :root {
   --font-display: "Chakra Petch", var(--font);
-  --font-body: "Barlow", system-ui, sans-serif;
+  --font-body: "Space Grotesk", system-ui, sans-serif;
+  /* La graisse du corps, une seule fois. 450 et non 400 : voir l'en-tete —
+     l'amincissement optique du clair sur sombre. Un seul jeton parce que six
+     blocs de prose la portent, et qu'ils doivent bouger ensemble. */
+  --weight-body: 450;
 
   /* Rayons. Les angles DURS restent la regle de l'arene et du HUD — c'est la
      ou une forme doit se lire en un dixieme de seconde. Hors combat on a le
@@ -123,6 +147,11 @@
      devienne lisible ; le voile, lui, garde sa duree pleine et le fond ne se
      decouvre jamais. */
   --content-out: 160ms;
+  /* Le voile du briefing, seul fondu d'entree du depot a n'avoir AUCUN retard :
+     il ne succede pas a un ecran, il couvre une arene qui vient de s'allumer.
+     Court pour la meme raison — chaque milliseconde passee sous 1 est une
+     milliseconde ou la carte transparait. */
+  --brief-in: 180ms;
   /* L'ENTREE ATTEND QUE LA SORTIE SOIT ENGAGEE. Sans ce retrait, les deux
      animations partaient ensemble : la courbe `--ease-out` amene l'entrant a
      90 % d'opacite en 140 ms, donc tout etait fini avant qu'on ait vu quoi que
@@ -265,7 +294,7 @@
    posait `--font-body` sur l'ecran entier, et c'etait la cause de la moitie des
    defauts de police : tout ce qui n'avait pas de famille explicite — les
    boutons, les kickers, les libelles d'equipe, l'historique, les pastilles —
-   sortait en Barlow, c'est-a-dire dans la police reservee aux PARAGRAPHES.
+   sortait dans la police de CORPS, celle qui est reservee aux PARAGRAPHES.
    Trois familles, trois roles, et un element qui n'en declare aucune retombe
    sur celle du jeu plutot que sur celle du texte courant. */
 #gate, #hubScreen, #panel, #bilan, #menu, #settings {
@@ -321,7 +350,15 @@
   padding: var(--sp-8) var(--sp-6) var(--sp-2);
 }
 
-/* Niveau 3 — le corps. Barlow, interligne 1,7, largeur de mesure bornee.
+/* Niveau 3 — le corps. Space Grotesk, graisse 450, interligne 1,6, largeur de
+   mesure bornee.
+
+   L'INTERLIGNE A ETE RESSERRE de 1,7 a 1,6 en meme temps que la famille, et les
+   deux vont ensemble : 1,7 etait juste pour Barlow, dont la hauteur d'x est
+   basse. Space Grotesk a une hauteur d'x nettement plus grande — les minuscules
+   occupent plus de place dans la ligne — donc le meme 1,7 delite le paragraphe
+   au lieu de l'aerer. Un bloc de prose doit se lire comme un BLOC ; a 1,7 il se
+   lisait comme une liste de lignes.
 
    Deux tailles, et la distinction porte : le CORPS D'ECRAN est a 15 px
    (`--t-m`), c'est la valeur de la charte et c'est ce qui separe un paragraphe
@@ -333,8 +370,9 @@
    trois. Les vrais corps d'ecran sont les `.*Lead`, traites plus bas. */
 #gate .hint, #hubStatus, #status, #summary, #metaSub, #classHint, #voteHint, #waitMsg {
   font-family: var(--font-body);
+  font-weight: var(--weight-body);
   font-size: var(--t-s);
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--text-dim);
 }
 #summary { font-size: var(--t-m); }
@@ -400,8 +438,22 @@
 
 /* L'ACTION PRINCIPALE de chaque ecran. Elle existait deja (#start,
    #gateContinue, #menuClose) ; elle gagne la lueur cyan et le balayage, et
-   surtout elle ne bouge plus : elle est ancree en bas de l'ecran, cf. plus
-   bas. Le biseau est conserve — c'est lui qui la designe. */
+   surtout elle ne bouge plus : elle est ancree en bas de l'ecran, cf. plus bas.
+
+   LE BISEAU A ETE RETIRE, et c'est l'arbitrage deja ecrit pour `#bilanGo`
+   applique a toute la famille : `--bevel` et `--glow-go` NE COEXISTENT PAS.
+
+   Deux raisons, toutes deux visibles a l'ecran. Un `clip-path` clippe aussi le
+   `box-shadow`, qui est une lueur EXTERIEURE : le bouton declarait donc un halo
+   qu'il ne montrait nulle part, et `armed` animait une pulsation invisible. Et
+   une coupe de 10 px dans un rayon de 12 ne fait pas un biseau mais une
+   ENTAILLE — le polygone a des angles vifs la ou le fond est arrondi, si bien
+   que les coins se lisent comme un contour clair mal fini. C'est exactement ce
+   qui a ete rapporte : « le tour du bouton, les arrondis ne sont pas nets ».
+
+   Ce qui DESIGNE l'action principale reste donc la lueur, et elle le fait mieux
+   puisqu'on la voit. `--bevel` n'a plus d'usage dans la feuille ; le jeton reste
+   dans `tokens.css` pour qui voudra un biseau sur un element SANS lueur. */
 #start, #go, #regGo, #gateContinue, #menuClose, #bilanGo {
   font-family: var(--font-display);
   font-size: var(--t-m);
@@ -415,8 +467,6 @@
   border-color: var(--go);
   border-radius: var(--radius-ctl);
   box-shadow: var(--glow-go);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--bevel)),
-                     calc(100% - var(--bevel)) 100%, 0 100%);
   transition: filter var(--tap) linear, box-shadow var(--fade) linear;
 }
 /* Dans un formulaire, l'action principale prend TOUTE la largeur : la colonne
@@ -1209,11 +1259,31 @@
    voir la note ci-dessus sur le bloc conteneur. Il dure aussi longtemps que le
    corps qu'il porte, sinon le fond est deja plein quand le contenu arrive et
    l'ecran clignote en deux temps. */
-#gate, #hubScreen, #panel, #bilan, #menu, #settings, #brief {
+#gate, #hubScreen, #panel, #bilan, #menu, #settings {
   animation: fadeIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
 .panelBar {
   animation: barIn var(--screen) var(--ease-out) calc(var(--screen-hold) + 80ms) backwards;
+}
+
+/* LE BRIEFING EST HORS DE CE GROUPE, et c'est structurel : ce n'est pas l'ecran
+   SUIVANT d'un croisement, c'est un VOILE pose sur une manche qui tourne deja.
+
+   `--screen-hold` existe pour qu'un entrant laisse voir le sortant partir. Ici
+   le sortant est le salon, mais ce qu'il decouvre en s'effacant n'est pas un
+   fond neutre : c'est l'arene, qui devient visible a l'instant meme ou la phase
+   passe en manche. Pendant les 120 ms de retrait le voile etait donc a zero et
+   le salon deja descendu vers 0,90 — on voyait la carte avant le briefing.
+
+   Donc AUCUN retard, et un fondu court : le salon est encore proche de 1 quand
+   le voile est deja loin, et les deux couches composees ne laissent jamais
+   passer plus de quelques pour cent. La SORTIE, elle, ne change pas — decouvrir
+   l'arene progressivement en fermant le briefing est exactement ce qu'on veut.
+
+   Le contenu (`.briefWrap`) garde son `screenIn` retarde du groupe ci-dessus :
+   il se pose sur un voile deja opaque, ce qui est le bon ordre. */
+#brief {
+  animation: fadeIn var(--brief-in) var(--ease-out) backwards;
 }
 
 /* --- LA SORTIE D'ECRAN -------------------------------------------------------
@@ -1471,6 +1541,26 @@
    La garde doit exister aussi dans `case "start"` de room.js, sinon un client
    modifie envoie `{ t: "start" }` directement. */
 #start:not(:disabled) { animation: armed 2.4s ease-in-out infinite; }
+
+/* LE BOUTON QUI RETIENT. Pendant les trois secondes du compte a rebours,
+   `#start` cesse de lancer et se met a annuler — il change donc de couleur,
+   parce qu'un bouton qui fait l'inverse de ce qu'il faisait une seconde plus
+   tot ne peut pas garder son apparence.
+
+   AMBRE et non rouge : la grammaire reserve le rouge au letal, et l'ambre dit
+   « attention, ceci interrompt ». Le cyan est exclu — il dit « il faut y
+   aller », c'est-a-dire exactement le contraire.
+
+   La PULSATION s'arrete : `armed` respire pour attirer sur une action qu'on
+   attend, or ici c'est le compte a rebours qui court. Deux choses qui battent
+   au meme endroit, dont une qu'on ne peut pas suivre, se lisent comme du
+   bruit. */
+#start.cancel, #start.cancel:not(:disabled) {
+  animation: none;
+  background: var(--warn);
+  border-color: var(--warn);
+  box-shadow: 0 0 var(--sp-8) color-mix(in srgb, var(--warn) 45%, transparent);
+}
 #start:disabled {
   background: var(--ui-panel);
   border-color: var(--ui-line);
@@ -2044,8 +2134,9 @@
   margin: 0;
 }.setLead {
   font-family: var(--font-body);
+  font-weight: var(--weight-body);
   font-size: var(--t-m);
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--text-dim);
   max-width: 62ch;
 }
@@ -3283,6 +3374,26 @@ tr.clickable { cursor: pointer; }
 }
 #briefCount b { color: var(--go); font-weight: 700; }
 
+/* LES CINQ DERNIERES SECONDES PASSENT A L'AMBRE. Le cyan dit « il faut y
+   aller », ce qui est juste tant qu'il reste du temps pour lire ; sous cinq
+   secondes il ne s'agit plus d'aller quelque part mais de se preparer a
+   encaisser, et c'est exactement ce que l'ambre dit ailleurs dans le jeu.
+
+   La BARRE suit, sinon les deux temoins du meme compte a rebours se
+   contrediraient — une barre cyan sous un chiffre ambre.
+
+   Le chiffre PULSE en plus de changer de couleur : c'est la meme regle que les
+   marqueurs poses sur un joueur — une information portee par la seule couleur
+   est perdue pour un daltonien. Une seconde par battement, cale sur la seconde
+   qui s'ecoule. */
+#briefCount.urgent b { color: var(--warn); animation: briefTick 1s steps(1, end) infinite; }
+#brief.urgent #briefBar > i { background: var(--warn); }
+
+@keyframes briefTick {
+  0%, 60% { opacity: 1; }
+  61%, 100% { opacity: .55; }
+}
+
 @media (max-width: 720px) {
   #briefSkills { grid-template-columns: 1fr; }
 }
@@ -3473,37 +3584,14 @@ tr.clickable { cursor: pointer; }
 }
 #bilanNext .row { justify-content: center; }
 
-/* PAS DE BISEAU SUR CE BOUTON, et ce n'est pas un oubli. `clip-path` clippe
-   aussi la LUEUR : le bouton declarait un halo qu'il ne montrait nulle part.
-   Et une coupe de 10 px dans un rayon de 12 ne fait pas un biseau, elle fait
-   une entaille — le coin sale de la capture. La maquette montre un bouton rond
-   qui rayonne ; c'est la lueur qui designe l'action ici, et elle le fait mieux
-   que le biseau puisqu'elle, on la voit. */
-#bilanGo { clip-path: none; }
+/* La contre-regle qui vivait ici (`#bilanGo { clip-path: none }`) a disparu
+   avec ce qu'elle annulait : le biseau a ete retire de TOUTE la famille des
+   actions principales — voir la regle groupee en tete de feuille. Ce bouton
+   avait constate le defaut le premier ; il n'a plus rien de particulier. */
 
-/* Le compte a rebours du retour au salon. La barre se VIDE — c'est un delai
-   qui s'epuise, pas une progression qu'on accomplit ; l'inverse du briefing,
-   et pour la raison inverse. */
-#bilanBar {
-  width: min(320px, 100%);
-  height: 3px;
-  border-radius: var(--radius-ctl);
-  background: var(--ui-field);
-  overflow: hidden;
-}
-#bilanBar > i {
-  display: block;
-  height: 100%;
-  background: var(--go);
-  transition: width 1s linear;
-}
-#bilanHint {
-  font-family: var(--font);
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  color: var(--text-faint);
-}
-#bilanHint:empty { display: none; }
+/* `#bilanBar` et `#bilanHint` ont ete SUPPRIMES avec l'echeance automatique du
+   bilan — leurs regles partent avec eux plutot que de rester a habiller un
+   markup qui n'existe plus. */
 
 @media (max-width: 720px) {
   #bilanStats { grid-template-columns: repeat(2, 1fr); }
@@ -3612,6 +3700,7 @@ tr.clickable { cursor: pointer; }
 }
 .gateLead {
   font-family: var(--font-body);
+  font-weight: var(--weight-body);
   font-size: var(--t-l);
   line-height: 1.65;
   color: var(--text-dim);
@@ -3713,8 +3802,9 @@ tr.clickable { cursor: pointer; }
 .hubWrap #hubTitle { padding: 0 0 var(--sp-2); }
 .hubLead {
   font-family: var(--font-body);
+  font-weight: var(--weight-body);
   font-size: var(--t-m);
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--text-dim);
   max-width: 62ch;
 }
@@ -3782,8 +3872,9 @@ tr.clickable { cursor: pointer; }
 .panelWrap #summary { padding: var(--sp-2) 0 0; }
 .panelLead {
   font-family: var(--font-body);
+  font-weight: var(--weight-body);
   font-size: var(--t-m);
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--text-dim);
   max-width: 62ch;
   margin: var(--sp-2) 0 var(--sp-4);
@@ -3975,8 +4066,9 @@ tr.clickable { cursor: pointer; }
 }
 .metaLead {
   font-family: var(--font-body);
+  font-weight: var(--weight-body);
   font-size: var(--t-m);
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--text-dim);
   max-width: 62ch;
 }
@@ -4349,6 +4441,30 @@ button:hover:not(:disabled) {
 #pauseResume:active:not(:disabled) {
   background: var(--go);
   box-shadow: var(--glow-go);
+}
+
+/* LE BOUTON QUI RETIENT GARDE SON AMBRE AU SURVOL, et ces deux lignes ne sont
+   pas cosmetiques : sans elles, le compte a rebours de lancement changeait de
+   couleur « parfois oui, parfois non ».
+
+   Les deux regles du dessus posent le cyan et vivent PLUS BAS dans la feuille
+   que `#start.cancel`, a specificite egale (0,3,0) — donc elles gagnent. Or au
+   moment ou le compte a rebours s'arme, la souris est encore sur le bouton
+   qu'on vient de cliquer : le bouton restait cyan tant qu'on ne bougeait pas,
+   et virait a l'ambre des qu'on s'ecartait. C'est toute la loterie.
+
+   Meme raison de fond que `#gateContinue` juste en dessous : passer au cyan un
+   bouton qui INTERROMPT reviendrait a lui faire dire « vas-y ». Il monte donc
+   en lumiere dans SA teinte, comme les autres montent dans la leur. */
+#start.cancel:hover:not(:disabled) {
+  background: color-mix(in srgb, #fff 14%, var(--warn));
+  border-color: color-mix(in srgb, #fff 14%, var(--warn));
+  color: var(--bg-void);
+  box-shadow: 0 0 var(--sp-12) color-mix(in srgb, var(--warn) 60%, transparent);
+}
+#start.cancel:active:not(:disabled) {
+  background: var(--warn);
+  box-shadow: 0 0 var(--sp-8) color-mix(in srgb, var(--warn) 45%, transparent);
 }
 
 /* --- 4. l'avertissement ambre ----------------------------------------------

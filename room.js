@@ -55,6 +55,18 @@ const SNAPSHOT_INTERVAL = 1 / CFG.SNAPSHOT_HZ;
    des autres jouerait une manche differente. */
 const WARMUP_S = 20;
 
+/* LE COMPTE A REBOURS DE LANCEMENT. Trois secondes entre le clic de l'hote et
+   la manche, pendant lesquelles n'importe qui peut faire machine arriere.
+
+   Trois et pas cinq : le delai doit couvrir le clic regrette — « attends, je
+   n'ai pas pris ma classe » — sans devenir une attente qu'on subit a chaque
+   manche. C'est la meme echelle que le retrait d'un envoi dans une messagerie,
+   et pour la meme raison.
+
+   Il vit cote SERVEUR comme le reste : un client modifie qui enverrait `start`
+   ne se lancerait pas plus vite pour autant. */
+const LAUNCH_DELAY_MS = 3000;
+
 /* Manches conservees dans l'historique d'une salle. Huit et non « toutes » :
    le salon est diffuse a chaque vote et a chaque choix de classe, donc une
    soiree de trente manches ferait grossir chaque message pour une information
@@ -100,6 +112,11 @@ export class Room {
        et non sur le client : c'est un etat de la manche — « la vague est
        retenue » — la ou `client.briefDone` dit ce que chacun a fait. */
     this.briefOpen = false;
+
+    /* Echeance du lancement, 0 quand aucun n'est engage. Sur la salle : le
+       compte a rebours appartient a la table, pas a celui qui a clique — et
+       c'est ce qui permet a n'importe qui de l'interrompre. */
+    this.launchAt = 0;
 
     this.cardDeadline = 0;
     this.cardPicked = new Set();
@@ -427,6 +444,54 @@ export class Room {
      de se declarer prêt, tout en lancant sans lui. */
   notReady() {
     return this.joined().filter(c => !c.ready);
+  }
+
+  /* LE LANCEMENT DIFFERE, et son annulation. Le message porte un DELAI en
+     secondes et non une echeance : les deux horloges n'ont aucune raison d'etre
+     d'accord, et un `Date.now()` serveur affiche tel quel chez le client donne
+     un compte a rebours faux de plusieurs secondes.
+
+     `why` n'existe que pour les annulations SUBIES — quelqu'un s'est dé-prêt,
+     quelqu'un est parti. Une annulation volontaire n'a rien a expliquer : celui
+     qui vient de cliquer sait pourquoi, et les autres ont vu le bouton. */
+  launchPayload(why = "") {
+    const reste = this.launchAt ? Math.max(0, this.launchAt - Date.now()) : 0;
+    return { t: "launch", delay: +(reste / 1000).toFixed(2), why };
+  }
+
+  cancelLaunch(why = "") {
+    if (!this.launchAt) return;
+    this.launchAt = 0;
+    this.broadcast(this.launchPayload(why));
+    this.hooks.log(`[${this.code}] lancement annulé${why ? ` — ${why}` : ""}`);
+  }
+
+  /* Les CONDITIONS du lancement sont revalidees a chaque tick, et pas seulement
+     au clic. Sans ca, les trois secondes ouvrent une fenetre ou la garde du
+     `case "start"` ne vaut plus rien : il suffit de se dé-prêt juste apres pour
+     entrer dans une manche qu'on n'a pas confirmee. C'est le meme raisonnement
+     que la garde serveur elle-meme — desarmer le bouton est de l'affichage. */
+  tickLaunch() {
+    if (!this.launchAt) return;
+    /* UN DEPART N'ANNULE PAS, et c'est delibere : celui qui part etait prêt,
+       ceux qui restent le sont toujours, et la manche part avec eux. Annuler
+       aurait donne a n'importe qui le pouvoir d'interrompre la table en
+       fermant son onglet — alors que le bouton d'annulation est deja la pour
+       ceux qui veulent vraiment le dire. Une salle VIDEE, elle, annule : il
+       n'y a plus personne pour jouer. */
+    if (this.phase !== PHASE_LOBBY || this.joined().length === 0) {
+      this.cancelLaunch("la salle a changé d'état");
+      return;
+    }
+    const manquants = this.notReady();
+    if (manquants.length > 0) {
+      this.cancelLaunch(`${manquants[0].name} n'est plus prêt`);
+      return;
+    }
+    if (Date.now() >= this.launchAt) {
+      this.launchAt = 0;
+      this.startRound();
+    }
   }
 
   /* Qui est encore DANS le briefing. Meme role que `notReady()` et meme raison
@@ -1061,7 +1126,27 @@ export class Room {
            un client modifie enverrait `{ t: "start" }` directement. La garde
            vit donc ici aussi, au meme titre que `id !== this.hostId`. */
         if (this.notReady().length > 0) break;
-        this.startRound();
+        // Idempotence : un second clic pendant le compte a rebours ne le
+        // raccourcit pas et ne le relance pas non plus.
+        if (this.launchAt) break;
+        this.launchAt = Date.now() + LAUNCH_DELAY_MS;
+        this.broadcast(this.launchPayload());
+        this.hooks.log(`[${this.code}] lancement dans ${LAUNCH_DELAY_MS / 1000} s`);
+        break;
+      }
+
+      /* N'IMPORTE QUI ANNULE, pas seulement l'hote. Le compte a rebours existe
+         pour rattraper une erreur, et l'erreur n'est pas toujours celle de
+         l'hote : c'est aussi « attends, je me suis trompe de classe ». Trois
+         secondes pour dire non a une manche qu'on va jouer, c'est un droit qui
+         appartient a la table. La garde d'hote reste sur le LANCEMENT, ou elle
+         a un sens — decider quand on part. */
+      case "cancelStart": {
+        if (this.phase !== PHASE_LOBBY || !this.launchAt) break;
+        /* Pas de `lobbyPayload()` derriere : rien du salon n'a change, et le
+           renvoyer ferait reecrire par `refreshPanel()` la ligne d'attente que
+           le message d'annulation vient de poser. */
+        this.cancelLaunch(`annulé par ${client.name}`);
         break;
       }
 
@@ -1095,6 +1180,9 @@ export class Room {
   /* Un pas de la boucle partagee. `dt` est deja borne par le hub (0,25 s max) :
      chaque salle garde son propre accumulateur, mais l'horloge est commune. */
   tick(dt) {
+    // Hors de la chaine ci-dessous : le compte a rebours de lancement vit en
+    // phase de SALON, la seule que cette chaine ne traite pas.
+    this.tickLaunch();
     if (this.phase !== PHASE_LOBBY && this.state.players.size === 0) {
       this.abortRound();
     } else if (this.phase === PHASE_ROUND && this.paused) {

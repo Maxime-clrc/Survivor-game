@@ -317,8 +317,6 @@ const bilanScoresBody = document.querySelector("#bilanScores tbody");
 const bilanGo = document.getElementById("bilanGo");
 const bilanKicker = document.getElementById("bilanKicker");
 const bilanLeaveBtn = document.getElementById("bilanLeave");
-const bilanBarFill = document.querySelector("#bilanBar > i");
-const bilanHint = document.getElementById("bilanHint");
 const volInput = document.getElementById("vol");
 const volVal = document.getElementById("volVal");
 const muteBtn = document.getElementById("mute");
@@ -675,35 +673,58 @@ function connect() {
         renderServerInfo(msg);
         break;
 
-      case "lobby":
-        lobby = msg.players;
-        hostId = msg.host;
-        phase = msg.phase;
-        roundNumber = msg.round;
-        roomNameCur = msg.roomName ?? roomNameCur;
-        difficulty = msg.difficulty ?? difficulty;
-        tally = msg.tally ?? tally;
-        // Une cle inconnue d'un client anterieur est simplement ignoree ; ici
-        // c'est le repli qui compte — un serveur anterieur n'envoie rien et la
-        // liste reste vide plutot que de valoir `undefined`.
-        roundHistory = msg.history ?? [];
-        /* En salle, `serverInfo` ne part plus : le chiffre voyage dans le
-           salon, sur ma propre ligne d'equipe. Un seul aller-retour, deux
-           transports selon l'endroit — et la barre ne sait pas lequel. */
-        {
+      /* LE SALON PORTE LA PHASE, DONC IL DECRIT LE MONDE — et une transition en
+         attente doit passer avant lui.
+
+         `endRound()` diffuse `roundEnd` puis le salon. Le premier passe par la
+         file et sort 110 ms plus tard ; le second s'appliquait a la reception,
+         donc il posait `phase = PHASE_LOBBY` alors que `bilanOpen` etait encore
+         faux — et `refreshPanel()` ouvrait le SALON pour 110 ms, jusqu'a ce que
+         le bilan le recouvre. C'est ce qu'on voyait en fin de manche.
+
+         La regle du depot dit que ce qui commente le monde se consomme depuis la
+         timeline. Le salon n'en fait pas partie la plupart du temps — un vote,
+         un « prêt », une arrivee ne commentent aucune image et doivent sortir
+         tout de suite. Mais quand il ACCOMPAGNE une transition, il en fait
+         partie : d'ou le test sur la file plutot qu'un `pushWorld` systematique,
+         qui aurait retarde tout le salon de 110 ms pour rien. L'ordre de la file
+         fait le reste — pousse apres `roundEnd`, il sort apres lui. */
+      case "lobby": {
+        const appliquer = () => {
+          lobby = msg.players;
+          hostId = msg.host;
+          phase = msg.phase;
+          roundNumber = msg.round;
+          roomNameCur = msg.roomName ?? roomNameCur;
+          difficulty = msg.difficulty ?? difficulty;
+          tally = msg.tally ?? tally;
+          // Une cle inconnue d'un client anterieur est simplement ignoree ; ici
+          // c'est le repli qui compte — un serveur anterieur n'envoie rien et la
+          // liste reste vide plutot que de valoir `undefined`.
+          roundHistory = msg.history ?? [];
+          /* En salle, `serverInfo` ne part plus : le chiffre voyage dans le
+             salon, sur ma propre ligne d'equipe. Un seul aller-retour, deux
+             transports selon l'endroit — et la barre ne sait pas lequel. */
           const mine = msg.players?.find(p => p.id === myId);
           if (mine && mine.ping !== undefined) { myPing = Number(mine.ping); renderTopPing(); }
-        }
-        myVote = lobby.find(l => l.id === myId)?.vote ?? myVote;
-        amSpectator = lobby.find(l => l.id === myId)?.spectator ?? false;
-        refreshPanel();
+          myVote = lobby.find(l => l.id === myId)?.vote ?? myVote;
+          amSpectator = lobby.find(l => l.id === myId)?.spectator ?? false;
+          refreshPanel();
+        };
+        if (worldQueue.length > 0) pushWorld(appliquer);
+        else appliquer();
         break;
+      }
 
       case "round":
         pushWorld(() => {
           roundNumber = msg.round;
           difficulty = msg.difficulty ?? difficulty;
           phase = PHASE_ROUND;
+          // Le compte a rebours a rempli son office : sans cette remise a zero,
+          // le salon de la manche SUIVANTE rouvrirait sur un bouton « Lancement… »
+          // desarme.
+          launchEndsAt = 0;
           amSpectator = false;
           lastResult = null;
           snapshots = [];
@@ -746,6 +767,21 @@ function connect() {
          d'interpolation n'a rien a lui apporter, et le faire attendre 110 ms
          n'aurait fait que retarder la disparition de l'attente au moment ou la
          vague part. */
+      /* LE COMPTE A REBOURS DE LANCEMENT. A la reception, sans passer par la
+         file : il ne commente aucune image — il annonce une manche qui n'a pas
+         commence, et le retard d'interpolation ne ferait que raccourcir le
+         delai d'annulation de 110 ms.
+
+         `delay` est une DUREE et non une echeance ; elle est convertie ici en
+         horloge locale. `why` n'accompagne que les annulations subies. */
+      case "launch": {
+        const d = Number(msg.delay) || 0;
+        launchEndsAt = d > 0 ? performance.now() + d * 1000 : 0;
+        renderLaunch();
+        if (!d && msg.why) waitMsg.textContent = `Lancement annulé — ${msg.why}.`;
+        break;
+      }
+
       case "briefState":
         briefWaiting = Array.isArray(msg.waiting) ? msg.waiting : [];
         renderBriefWait();
@@ -1558,7 +1594,11 @@ document.addEventListener("pointerover", e => {
    ne plus l'ecouter — la classe est lue a l'appui, avant que `refreshPanel` ne
    la retourne. */
 function uiSoundFor(el) {
-  if (el.id === "start") return "lancer";
+  /* `#start` porte DEUX actions opposees pendant les trois secondes du compte a
+     rebours, et le son suit l'action et non le bouton — même règle que
+     `#readyBtn` : deux gestes contraires qui sonneraient pareil apprennent à ne
+     plus écouter. On lit la classe à l'appui, avant que le serveur ne réponde. */
+  if (el.id === "start") return el.classList.contains("cancel") ? "pretAnnule" : "lancer";
   if (el.id === "readyBtn") return el.classList.contains("on") ? "pretAnnule" : "pret";
   return "selection";
 }
@@ -2037,8 +2077,72 @@ window.addEventListener("keydown", e => {
 
 refreshAudioUi();
 
+/* --- le lancement differe -------------------------------------------------------
+
+   Trois secondes entre le clic et la manche, pendant lesquelles on peut faire
+   machine arriere. Le delai vient du SERVEUR (message `launch`) et l'echeance
+   est recalculee en horloge LOCALE : les deux horloges n'ont aucune raison
+   d'etre d'accord, et afficher un `Date.now()` serveur donnerait un compte a
+   rebours faux de plusieurs secondes.
+
+   Le meme bouton lance et annule. Deux boutons auraient demande de la place a
+   cote d'une action principale qui en occupe deja toute la largeur, et surtout
+   « Annuler » n'a de sens que la ou etait « Lancer » — c'est le geste qu'on
+   defait, on le defait au meme endroit.
+
+   N'IMPORTE QUI annule, pas seulement l'hote : le compte a rebours existe pour
+   rattraper une erreur, et l'erreur n'est pas toujours celle de l'hote — c'est
+   aussi « attends, je me suis trompe de classe ». Le bouton est donc rendu a
+   tous pendant le decompte, alors qu'il n'appartient qu'a l'hote le reste du
+   temps. */
+let launchEndsAt = 0;      // horloge locale, 0 = aucun lancement engage
+let launchTimer = 0;
+
+function launchPending() { return launchEndsAt > performance.now(); }
+
+function renderLaunch() {
+  if (!startBtn) return;
+
+  if (launchEndsAt === 0) {
+    clearInterval(launchTimer);
+    launchTimer = 0;
+    startBtn.textContent = "Lancer la manche";
+    startBtn.classList.remove("cancel");
+    return;                   // `refreshPanel` a deja pose `hidden` et `disabled`
+  }
+
+  /* ECHEANCE PASSEE mais toujours au salon : le compte a rebours local est
+     epuise et le `round` du serveur n'est pas encore arrive — quelques dizaines
+     de millisecondes d'aller-retour. Rendre le bouton a « Lancer la manche »
+     ici le rearmerait juste avant qu'il ne disparaisse, et un bouton qui
+     clignote a l'instant du lancement est exactement le genre de detail qui
+     fait brouillon. On desarme et on annonce, sans rien re-rendre d'autre. */
+  if (!launchPending()) {
+    clearInterval(launchTimer);
+    launchTimer = 0;
+    startBtn.disabled = true;
+    startBtn.classList.remove("cancel");
+    startBtn.textContent = "Lancement…";
+    return;
+  }
+
+  /* Pendant le decompte, le bouton est a TOUT LE MONDE et toujours actif : il
+     ne lance plus, il retient. Le desarmer pour les non-hotes retirerait le
+     seul recours de celui qui vient de voir sa classe partir. */
+  startBtn.hidden = false;
+  startBtn.disabled = false;
+  startBtn.classList.add("cancel");
+  const reste = Math.max(0, Math.ceil((launchEndsAt - performance.now()) / 1000));
+  startBtn.textContent = `Annuler le lancement — ${reste} s`;
+  waitMsg.textContent = "La manche démarre. Un clic pour tout arrêter.";
+
+  if (!launchTimer) launchTimer = setInterval(renderLaunch, 200);
+}
+
 startBtn.onclick = () => {
-  if (myId !== hostId || phase !== PHASE_LOBBY) return;
+  if (phase !== PHASE_LOBBY) return;
+  if (launchPending()) { ws.send(JSON.stringify({ t: "cancelStart" })); return; }
+  if (myId !== hostId) return;
   ws.send(JSON.stringify({ t: "start" }));
 };
 
@@ -2060,7 +2164,12 @@ const briefBarFill = document.querySelector("#briefBar > i");
 const briefLeftEl = document.getElementById("briefLeft");
 const briefThirdEl = document.getElementById("briefThird");
 const briefGoBtn = document.getElementById("briefGo");
+const briefCountEl = document.getElementById("briefCount");
 const hudBriefEl = document.getElementById("hudBrief");
+/* Sous ce seuil, le compte a rebours passe a l'ambre. Cinq secondes : c'est le
+   temps qu'il faut pour lever les yeux et se placer, pas pour lire — donc le
+   moment ou l'ecran cesse d'informer et se met a prevenir. */
+const BRIEF_URGENT_S = 5;
 let briefTimer = 0;
 /* Echeance du briefing, en horloge locale. Elle survit a la fermeture du voile
    parce que l'attente affichee dans le HUD la reutilise : celui qui a ferme doit
@@ -2167,6 +2276,17 @@ function openBrief(dur) {
     const reste = Math.max(0, (fin - performance.now()) / 1000);
     briefLeftEl.textContent = String(Math.ceil(reste));
     briefBarFill.style.width = `${(1 - reste / total) * 100}%`;
+    /* LES CINQ DERNIERES SECONDES passent a l'ambre. Le cyan dit « il faut y
+       aller », ce qui est juste tant qu'il reste du temps pour lire ; sous cinq
+       secondes il ne s'agit plus d'aller quelque part mais de se preparer a
+       encaisser. La classe est posee sur le CONTENEUR et non sur le chiffre :
+       la barre la lit aussi, et deux temoins du meme compte a rebours ne
+       peuvent pas se contredire. Le seuil est teste sur la valeur AFFICHEE
+       (`Math.ceil`) — sinon le passage a l'ambre arrive une seconde avant que
+       le chiffre ne montre 5, et l'un dementirait l'autre. */
+    const urgent = Math.ceil(reste) <= BRIEF_URGENT_S && reste > 0;
+    briefCountEl?.classList.toggle("urgent", urgent);
+    briefEl.classList.toggle("urgent", urgent);
     // A l'echeance le voile se retire tout seul : celui qui n'a pas clique
     // « continuer » ne doit pas decouvrir la premiere vague a travers un
     // panneau.
@@ -2190,6 +2310,10 @@ function closeBrief() {
   clearInterval(briefTimer);
   briefTimer = 0;
   briefEl.hidden = true;
+  // L'urgence meurt avec le voile : sans ca, le briefing de la manche suivante
+  // rouvrirait en ambre sur ses vingt secondes.
+  briefEl.classList.remove("urgent");
+  briefCountEl?.classList.remove("urgent");
   renderBriefWait();
 }
 
@@ -2341,6 +2465,11 @@ function refreshPanel() {
   } else {
     waitMsg.textContent = `En attente de ${manquants.length} joueurs.`;
   }
+
+  /* EN DERNIER, et c'est la condition pour qu'il gagne : `renderLaunch()`
+     ecrase le libelle du bouton et la ligne d'attente quand un compte a rebours
+     court. Place plus haut, tout ce qui precede le reecrirait. */
+  renderLaunch();
 }
 
 /* L'EQUIPE : qui est la, avec quelle classe, prêt ou non, et a quelle latence.
@@ -3024,7 +3153,6 @@ function showBilan(res) {
     `<span class="val">${res.round}</span></div>`;
   renderHurtBy(res.rows);
   renderBilanScores(res.rows);
-  startBilanCountdown();
 }
 
 /* Groupement par milliers, espace insecable fin. Pas de « 80,8 k » : un bilan
@@ -3086,43 +3214,22 @@ function renderBilanScores(rows) {
   }
 }
 
-/* LE SALON S'OUVRE TOUT SEUL. Il l'a fait, puis on l'a retire — le bilan
-   portait alors la build, la jauge de puissance et le detail personnel, donc
-   « de quoi passer une minute dessus », et un ecran qui se retire pendant
-   qu'on le lit est un defaut. Il redevient ce qu'il etait : quatre chiffres,
-   une ventilation et un tableau, soit quelques secondes de lecture. Une table
-   de quatre n'a pas a attendre celui qui a lache sa souris.
+/* LE BILAN NE SE FERME PLUS TOUT SEUL, et les deux boutons sont sa seule
+   sortie. L'echeance de douze secondes a existe, a ete retiree, est revenue,
+   et repart pour de bon — l'aller-retour vaut d'etre ecrit.
 
-   Les deux boutons restent la sortie EXPLICITE, et un clic n'importe ou dans
-   le bilan suspend le compte a rebours : celui qui lit encore n'a rien a
-   faire pour qu'on l'attende. */
-const BILAN_AUTO_S = 12;
-let bilanTimer = 0;
+   L'argument pour : le bilan est court — quatre chiffres, une ventilation, un
+   tableau — et une table de quatre n'a pas a attendre celui qui a lache sa
+   souris. L'argument contre l'emporte : un ecran qui se retire pendant qu'on
+   le lit est un defaut, et le remede — un compte a rebours affiche, suspendu
+   au premier clic — mettait la lecture SOUS MINUTERIE pour l'annoncer. Or on
+   ne lit pas de la meme facon quand un chiffre descend a cote du texte : c'est
+   le defaut qu'on croyait corriger qui se deplacait dans l'oeil du lecteur.
 
-function startBilanCountdown() {
-  clearInterval(bilanTimer);
-  if (!bilanBarFill || !bilanHint) return;
-  const fin = performance.now() + BILAN_AUTO_S * 1000;
-  const tick = () => {
-    const reste = Math.max(0, (fin - performance.now()) / 1000);
-    bilanHint.textContent = `le salon s'ouvre dans ${Math.ceil(reste)} s`;
-    bilanBarFill.style.width = `${(reste / BILAN_AUTO_S) * 100}%`;
-    if (reste <= 0) { clearInterval(bilanTimer); bilanTimer = 0; closeBilan(); }
-  };
-  bilanBarFill.style.transition = "none";
-  bilanBarFill.style.width = "100%";
-  bilanBarFill.offsetWidth;
-  bilanBarFill.style.transition = "";
-  tick();
-  bilanTimer = setInterval(tick, 250);
-}
-
-function stopBilanCountdown() {
-  clearInterval(bilanTimer);
-  bilanTimer = 0;
-  if (bilanHint) bilanHint.textContent = "";
-  if (bilanBarFill) bilanBarFill.style.width = "0%";
-}
+   Ce qui reste de l'ancien mecanisme : rien. Pas de minuteur suspendu, pas de
+   barre a zero, pas de gestionnaire de clic pour l'interrompre — les trois
+   n'existaient que pour lui. Celui qui veut repartir clique « Continuer »,
+   comme partout ailleurs dans le jeu. */
 
 /* DE QUOI L'EQUIPE EST MORTE. Une ligne de barres, une par provenance, en part
    du total encaisse par la table.
@@ -3186,7 +3293,6 @@ function renderHurtBy(rows) {
 }
 
 function closeBilan() {
-  stopBilanCountdown();
   bilanOpen = false;
   bilanEl.hidden = true;
   // La classe de victoire (lot N) se retire ICI : laissee en place, la manche
@@ -3206,15 +3312,6 @@ if (bilanLeaveBtn) {
     ws.send(JSON.stringify({ t: "leaveRoom" }));
   };
 }
-
-/* Un clic DANS le bilan suspend l'echeance. Celui qui lit encore n'a rien a
-   faire pour qu'on l'attende, et celui qui ne fait rien passe au salon : les
-   deux comportements sont servis sans bouton de plus. Le survol ne suffirait
-   pas — la souris traverse l'ecran pour atteindre « Continuer ». */
-bilanEl.addEventListener("click", ev => {
-  if (ev.target.closest("#bilanNext")) return;   // les boutons ont deja leur effet
-  if (bilanTimer) stopBilanCountdown();
-});
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>

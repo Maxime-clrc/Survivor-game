@@ -27,6 +27,28 @@ html, body {
   overflow: hidden;
 }
 
+/* RIEN NE SE SELECTIONNE, sauf ce qu'on ecrit. Un jeu n'est pas un document :
+   le geste qui sert a viser, a traverser une liste de salles ou a insister sur
+   un bouton laissait derriere lui des pans de texte en surbrillance — un
+   double-clic sur « Continuer » selectionne le mot, un glisser sur le tableau
+   des scores en bleuit trois lignes. C'est le seul residu d'interface qui ne
+   soit voulu par personne, et il survit a l'ecran suivant.
+
+   L'exception n'est pas negociable : dans un CHAMP, la selection est le seul
+   moyen de corriger ce qu'on a tape. Elle couvre aussi `contenteditable`, qui
+   n'existe pas dans le jeu aujourd'hui mais coute une ligne a couvrir.
+
+   Pose sur `html` plutot que sur `*` : la propriete s'herite, une regle
+   universelle aurait ecrase l'exception au lieu de la laisser gagner. */
+html {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 #stage { height: 100%; display: flex; align-items: center; justify-content: center; }
 
 /* Le cadre porte le FORMAT de l'arene, et le canvas comme le HUD le

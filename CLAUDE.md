@@ -64,7 +64,7 @@ public/css/ui.css      les écrans hors combat
 public/css/menus.css   refonte des MENUS — additive, chargée APRÈS ui.css, ne touche aucun écran de combat
 public/css/admin.css   la SEULE feuille qui recopie la palette — admin.html ne charge pas le jeu
 public/css/hud.css     la couche écran pendant la manche
-public/fonts/          Chakra Petch + Barlow (sous-ensemble latin), versionnées avec le jeu
+public/fonts/          Chakra Petch + Space Grotesk (sous-ensemble latin), versionnées avec le jeu
 ```
 
 `public/events.js` et `public/audio.js` ne dépendent de **rien** — ni DOM, ni
@@ -697,11 +697,101 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **Le lancement attend que TOUS les présents aient confirmé, et la garde vit des DEUX côtés** (`notReady()` dans `room.js`, point de passage unique du `case "start"` et du libellé d'attente). Désarmer `#start` côté client est de l'**affichage**, pas une règle : un client modifié enverrait `{ t: "start" }` directement. Le drapeau est porté par le **client** et non par la salle — il suit le joueur, comme `cls` et `vote` — et se remet à zéro à **trois** endroits : au lancement de la manche (`startRound()` ; le salon se réaffiche entre deux manches, un `ready` hérité ferait démarrer la suivante sans que personne n'ait rien reconfirmé), à l'entrée dans une salle (`attach()` ; sinon on arriverait « prêt » dans un salon où l'on vient de mettre le pied), et à l'initialisation du client. `notReady()` **ne filtre pas les spectateurs**, contrairement à ce que la spécification de conception demandait : au salon, `spectator` dit « je n'ai pas joué la manche qui vient de finir », c'est un résidu et non une prévision — `startRound()` remet tout le monde à `spectator = false`, donc tous les présents entrent. Le bouton désarmé **nomme qui manque** (« en attente de Kiwi »), même règle que `.classOpt.taken` : un bouton qui ne répond pas passe pour une panne tant qu'on n'a pas lu pourquoi.
 
+**Le lancement est DIFFÉRÉ de trois secondes, et n'importe qui les interrompt.**
+`case "start"` n'ouvre plus la manche : il arme `room.launchAt` et diffuse
+`launch`, la boucle fait le reste. Trois secondes et pas cinq — le délai doit
+couvrir le clic regretté (« attends, je n'ai pas pris ma classe ») sans devenir
+une attente qu'on subit à chaque manche ; c'est l'échelle du retrait d'un envoi
+dans une messagerie, et pour la même raison.
+
+**La garde d'hôte reste sur le lancement, jamais sur l'annulation.** Décider
+quand on part appartient à l'hôte ; trois secondes pour dire non à une manche
+qu'on va jouer appartiennent à la table — l'erreur n'est pas toujours celle de
+l'hôte. Le bouton est donc rendu à tous et réarmé pendant le décompte, alors
+qu'il n'appartient qu'à l'hôte le reste du temps.
+
+**Les conditions sont revalidées à chaque tick, pas seulement au clic**
+(`tickLaunch`). Sans ça, les trois secondes ouvrent une fenêtre où la garde du
+`case "start"` ne vaut plus rien : il suffirait de se dé-prêt juste après pour
+entrer dans une manche qu'on n'a pas confirmée. Un **départ**, lui, n'annule
+pas — celui qui part était prêt, ceux qui restent le sont toujours, et annuler
+donnerait à n'importe qui le pouvoir d'interrompre la table en fermant son
+onglet. Une salle **vidée** annule : il n'y a plus personne pour jouer.
+
+**Le message porte une DURÉE, jamais une échéance.** Les deux horloges n'ont
+aucune raison d'être d'accord, et un `Date.now()` serveur affiché tel quel donne
+un compte à rebours faux de plusieurs secondes ; le client reconvertit en horloge
+locale. `why` n'accompagne que les annulations **subies** — une annulation
+volontaire n'a rien à expliquer, celui qui vient de cliquer sait pourquoi.
+Corollaire : `cancelStart` ne rediffuse pas le salon, qui réécrirait par
+`refreshPanel()` la ligne d'attente que le message d'annulation vient de poser.
+
+**Un même bouton, deux actions opposées — donc deux couleurs et deux sons.**
+`#start` passe en **ambre** (`.cancel`) : la grammaire réserve le rouge au létal
+et le cyan dit « il faut y aller », c'est-à-dire l'inverse de ce que le bouton
+fait alors. Sa **pulsation s'arrête** — `armed` respire pour attirer sur une
+action qu'on attend, or ici c'est le compte à rebours qui court, et deux choses
+qui battent au même endroit se lisent comme du bruit. Le son suit l'action et non
+le bouton (`uiSoundFor` lit `.cancel`), exactement comme pour la bascule
+`#readyBtn`.
+
+**Un état de couleur ne vaut que s'il couvre AUSSI le survol et l'appui.** Le
+bouton changeait « parfois oui, parfois non » : les règles génériques
+`#start:hover:not(:disabled)` et `#start:active:not(:disabled)` reposent le cyan,
+vivent **plus bas** dans la feuille que `#start.cancel` et ont la **même**
+spécificité (0,3,0) — donc elles gagnaient. Or à l'instant où le décompte s'arme,
+la souris est encore sur le bouton qu'on vient de cliquer : il restait cyan tant
+qu'on ne bougeait pas et virait à l'ambre dès qu'on s'écartait. C'est toute la
+loterie. Les deux états sont donc redéclarés en `.cancel` — même raison de fond
+que `#gateContinue`, qui garde son ambre au survol : passer au cyan un bouton qui
+**interrompt** reviendrait à lui faire dire « vas-y ». Vérifié au survol réel :
+`color(srgb 0.966 0.696 0.261)`, l'ambre monté en lumière, et non le cyan.
+
+**Le rendu du décompte ne repasse PAS par le salon.** `renderLaunch()` ne touche
+que le libellé du bouton et la ligne d'attente ; il est appelé **en dernier** par
+`refreshPanel()` — placé plus haut, tout ce qui suit le réécrirait. Un
+`refreshPanel()` complet toutes les 200 ms aurait reconstruit les listes de
+classes et d'équipe, c'est-à-dire rejoué la cascade d'entrée : le salon aurait
+bougé pendant qu'on lit le compte à rebours. À l'**échéance locale**, le bouton
+se désarme sur « Lancement… » au lieu de revenir à « Lancer la manche » — le
+`round` du serveur arrive quelques dizaines de millisecondes plus tard, et un
+bouton qui se réarme juste avant de disparaître est exactement ce qui fait
+brouillon.
+
 **Le briefing de classe retient la VAGUE, pas la simulation** (`state.warmup`, 20 s). Une phase serveur à part avait été essayée et c'était le mauvais découpage : elle figeait `step()`, donc personne ne pouvait bouger, et le bouton « Continuer » — qui ferme le voile pour aller se placer sur la carte — n'avait plus rien à découvrir. La manche démarre donc **tout de suite** ; `step()` tourne, les joueurs se déplacent, visent, testent leurs compétences, et seules **trois** choses sont retenues : `_waveTick()` (ce qui décide d'une vague), `_spawner()` (ce qui en fait sortir les ennemis) et le **tir automatique**. Ce dernier n'est pas un détail de confort : le tir part tout seul, c'est la règle du jeu, donc sans garde le briefing se lisait derrière une arène où quatre joueurs arrosaient le vide en continu. La **recharge**, elle, continue de descendre — on entre en vague l'arme prête, jamais avec un temps mort qu'on n'a pas choisi.
 
 **`this.time` ne court pas non plus pendant l'échauffement.** C'est l'horloge de la manche, celle du bilan et du **classement au temps** du boss final : vingt secondes de promenade comptées comme de la survie rendraient deux parties incomparables, ce que le classement est précisément là pour mesurer. Vérifié : une manche de 15 s après échauffement affiche `00:15`, pas `00:35`.
 
 **Aucun texte du briefing ne voyage sur le réseau.** Nom, teinte, deux compétences avec leurs touches et **mission** vivent dans `CLASSES` (`shared/classes.js`), que le client importe comme le serveur — le message `round` ne porte que `warmup`, la seule chose qu'un client ne peut pas déduire, et elle n'existe qu'à un endroit (`WARMUP_S`). La `mission` ne répète pas `desc` : celle-ci dit ce que la classe **est**, celle-là quoi faire des trente premières secondes. La **troisième compétence est annoncée avec sa touche** bien qu'elle n'existe pas encore : sans cette ligne, la touche 3 se découvre en tirant la carte, c'est-à-dire au milieu d'une vague — le pire moment pour apprendre une commande. Une ligne et non une troisième carte : le kicker dit « tes deux compétences », et une carte de plus ferait croire qu'on l'a déjà.
+
+**Le voile du briefing n'attend PAS `--screen-hold`, et c'est le seul fondu
+d'entrée du dépôt dans ce cas.** Le retrait existe pour qu'un écran entrant
+laisse voir le sortant partir — il suppose que ce qui apparaît entre les deux est
+un fond neutre. Ici le sortant est le salon, et ce qu'il découvre en s'effaçant
+est l'**arène**, qui devient visible à l'instant même où la phase passe en
+manche : pendant les 120 ms de retrait le voile était à zéro et le salon déjà
+descendu, donc on voyait la carte avant le briefing. Aucun retard, donc, et un
+fondu court (`--brief-in`, 180 ms) : le salon est encore proche de 1 quand le
+voile est déjà loin. Mesuré sur la séquence réelle, en composant les deux
+couches — fuite maximale **0,4 % à 83 ms**, nulle dès 164 ms, contre **11,7 % à
+162 ms** avec le retrait. La **sortie** ne change pas : découvrir l'arène
+progressivement en fermant le briefing est exactement ce qu'on veut. Le contenu
+(`.briefWrap`) garde son `screenIn` retardé — il se pose sur un voile déjà
+opaque, ce qui est le bon ordre.
+
+**Les cinq dernières secondes du briefing passent à l'AMBRE.** Le cyan dit « il
+faut y aller », ce qui est juste tant qu'il reste du temps pour lire ; sous cinq
+secondes il ne s'agit plus d'aller quelque part mais de se préparer à encaisser,
+et c'est ce que l'ambre dit partout ailleurs dans le jeu. Trois détails qui se
+paient si on les oublie : la classe est posée sur le **conteneur** et non sur le
+chiffre — la barre la lit aussi, et deux témoins du même compte à rebours ne
+peuvent pas se contredire ; le seuil est testé sur la valeur **affichée**
+(`Math.ceil`), sinon la couleur bascule une seconde avant que le chiffre ne
+montre 5 et l'un dément l'autre ; et le chiffre **pulse** en plus de changer de
+couleur, parce qu'une information portée par la seule couleur est perdue pour un
+daltonien — même règle que les marqueurs posés sur un joueur. `closeBrief()`
+retire l'urgence, sinon le briefing de la manche suivante rouvrirait en ambre
+sur ses vingt secondes.
 
 **Le voile n'est qu'un voile.** `openBrief()` s'ouvre **après** `refreshPanel()`, sur un HUD déjà en place ; « Continuer » retire le voile et rien d'autre à l'écran, le compte à rebours court avec ou sans lui, et il se referme tout seul à l'échéance — celui qui n'a pas cliqué ne doit pas découvrir la première vague à travers un panneau.
 
@@ -944,6 +1034,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
 | hub des salles | messages `listRooms` · `createRoom` · `joinRoom` · `leaveRoom` (client → serveur) ; `rooms` · `roomJoined` · `joinRoomError` (motifs `pleine` · `disparue` · `motdepasse` · `plafond`) · `roomClosed` (serveur → client) — routés par `hub.js`, jamais par une salle | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité (compte + session) | messages `register` · `login` · `loginToken` · `logout` · `changePass` (client → serveur) ; `register/login/loginToken/…` dans `progress_store.js` ; réponses `welcome{pseudo,token?,dup}` · `authError{motif,fatal?}` · `passChanged` · `loggedOut` ; ni hachage ni mot de passe ne voyagent jamais vers un client | `#gate` (trois modes : reprise / connexion / création), bloc compte du hub, `survivor.token` en localStorage |
+| lancement différé | messages `start` · `cancelStart` (client → serveur) ; `room.launchAt`, `launchPayload()`, `cancelLaunch()`, `tickLaunch()` dans `room.js` ; message `launch{delay,why}` (serveur → tous) | `#start` (+ `.cancel`), `renderLaunch()`, `launchEndsAt` |
 | état prêt | message `ready{on}` (client → serveur) ; champ `ready` dans `lobbyPayload().players[]` ; `notReady()` est le point de passage unique, lu par le `case "start"` | `#readyBtn` (+ `.on`), `.teamRow.ready`, `#teamReady`, `#waitMsg` qui nomme qui manque, `#start` désarmé |
 | latence | `WsConnection.rtt` (`ws_lite.js`) ; horodatage dans la charge du ping, lu au pong ; `hub.pingAll()` à 1 Hz ; champ `ping` dans `lobbyPayload().players[]`, `-1` si inconnu | `.teamPing`, tiret quand inconnu |
 | historique des manches | `room.history` (`{at, diffIndex, wave}`, plafonné à `ROUND_HISTORY_MAX`), rempli par `recordRound()` aux DEUX sorties de manche ; champ `history` dans `lobbyPayload()`, plus récent en tête | `renderHistory()` → `#historyList .histRow` (`.histWhen` · `.histLabel` · `.histWave`) |
@@ -1040,6 +1131,20 @@ l'ordre d'arrivée est préservé et il n'y a aucun minuteur dispersé à annule
 `resetFeedback`, qui ne doit surtout pas la vider). Les messages **hors-monde**
 — salon, choix de classe, tableau des scores, pause — s'appliquent à la
 réception : ils ne commentent aucune image.
+
+**Sauf quand le salon ACCOMPAGNE une transition — alors il en fait partie.**
+`endRound()` diffuse `roundEnd` puis le salon. Le premier passe par la file et
+sort 110 ms plus tard ; le second s'appliquait à la réception, or il porte
+`phase` : il posait donc `PHASE_LOBBY` alors que `bilanOpen` était encore faux,
+et `refreshPanel()` ouvrait **le salon pendant 110 ms** avant que le bilan ne le
+recouvre. C'est ce qu'on voyait en fin de manche, et c'est la même famille de
+défaut que l'écran de cartes ouvert par-dessus des ennemis encore vivants.
+
+Le remède est un **test sur la file**, pas un `pushWorld` systématique : un vote,
+un « prêt », une arrivée ne commentent aucune image et doivent sortir tout de
+suite — les différer aurait ajouté 110 ms à chaque clic du salon pour rien. Quand
+la file n'est pas vide, le salon y entre à son tour, et l'ordre d'arrivée fait le
+reste : poussé après `roundEnd`, il sort après lui.
 
 **Le canal d'alerte est ponctuel, hors du snapshot.** `state.alerts` est une file que la simulation empile et que le serveur vide après chaque tick (`{t:"alert", mech, level, dur}`, ou `{t:"alert", boss}` pour l'identité à l'entrée). Une consigne répétée vingt fois par seconde ne serait plus une consigne. GameState ne connaît toujours pas le réseau : il empile, il ne diffuse pas.
 
@@ -1213,12 +1318,26 @@ bordure épaisse, lueur externe, dégradé balayé. C'est ce qui la rend
 reconnaissable au coin de l'œil, avant d'être lue. La légendaire est la **seule**
 à porter une animation — c'est ce qui en fait un événement.
 
-**Échelle typographique fixe : 11 / 13 / 15 / 19 / 26 / 34 / 46.** Aucune valeur
+**Échelle typographique fixe : 13 / 15 / 18 / 22 / 29 / 38 / 50.** Aucune valeur
 ad hoc. Le HUD est en DOM et la respecte entièrement. Quatre **planchers** ne se
 descendent pas, ce sont les quatre choses qu'on lit en combat sans avoir le
-temps de les chercher : PV 15 px, touches 13 px gras, noms d'équipe 13 px,
-chronomètre 26 px. Ce sont des pixels CSS, donc la même taille quelle que soit
-la fenêtre — c'est tout l'intérêt d'avoir sorti le HUD du canvas.
+temps de les chercher : PV, touches en gras, noms d'équipe, chronomètre. Ce sont
+des pixels CSS, donc la même taille quelle que soit la fenêtre — c'est tout
+l'intérêt d'avoir sorti le HUD du canvas.
+
+**Elle a été montée d'un cran** (11 / 13 / 15 / 19 / 26 / 34 / 46 avant).
+L'échelle d'origine était calée sur un écran de 1280 et se lisait comme une
+interface de bureau ; sur les 1440p et 1920 d'aujourd'hui, tout paraissait petit.
+Le grief portait sur l'ensemble et pas sur un écran, ce qui se vérifie dans le
+CSS : le premier cran est le plus employé du dépôt — **90 déclarations sur
+240** — donc c'est lui qui donnait le ton. Les **rapports** sont conservés (≈ 1,2
+en bas d'échelle, ≈ 1,3 en haut) parce que ce sont eux qui font la hiérarchie,
+pas les valeurs absolues : monter les tailles à rapports constants, c'est la même
+composition vue de plus près, alors que les changer aurait redessiné tous les
+écrans. Les planchers du HUD suivent mécaniquement, et c'est voulu — ce sont des
+minimums, pas des cibles. Vérifié après coup sur les dix écrans et le HUD, à
+1536, 1280 et 375 px de large : **aucun débordement**, ni de page ni d'élément
+hors de son parent.
 
 **Espacement sur une grille de 4 px** : 4 / 8 / 12 / 16 / 24 / 32 / 48, sans
 exception.
@@ -1227,24 +1346,30 @@ exception.
 plutôt qu'arrondis. **Le seul cercle du jeu est une entité vivante** — un bouton
 arrondi lui volerait ce signe.
 
-**Une exception, bornée aux MENUS** (`menus.css`) : `--radius-ui: 14px` pour les
-panneaux et les cartes, `--radius-ctl: 10px` pour les champs et les boutons. La
+**Une exception, bornée aux MENUS** (`menus.css`) : `--radius-ui: 16px` pour les
+panneaux et les cartes, `--radius-ctl: 12px` pour les champs et les boutons. La
 règle des angles durs sert la lisibilité **à un dixième de seconde** — c'est
 l'arène et le HUD, où une forme mal lue coûte une mort. Hors combat on a le
 temps, et un rayon franc sépare visiblement le poste de contrôle du jeu
 lui-même. Ne pas l'étendre : `#cards`, `#build`, `#pause`, `#hud` et
 `admin.html` gardent 2 px, et si l'un d'eux change d'aspect c'est qu'une règle
-de `menus.css` fuit. Le **biseau** (`--bevel`) reste sur la SEULE action
-principale de chaque écran — c'est ce qui la désigne, et il perd ce rôle s'il
-est partout.
+de `menus.css` fuit.
 
-**Une exception à l'exception : `#bilanGo` n'a pas de biseau**, et c'est le
-`clip-path` qui l'impose. Il clippe aussi la **lueur** — le bouton déclarait un
-halo qu'il ne montrait nulle part — et une coupe de 10 px dans un rayon de 12 ne
-fait pas un biseau mais une **entaille**. Sur cet écran c'est donc la lueur qui
-désigne l'action, et elle le fait mieux puisqu'on la voit. Toute action
-principale qui porte à la fois `--bevel` et `--glow-go` a le même arbitrage à
-faire : les deux ne coexistent pas.
+**Le biseau a disparu des actions principales : `--bevel` et `--glow-go` ne
+coexistent pas.** L'arbitrage avait été fait pour `#bilanGo` seul, il vaut pour
+toute la famille — `#start`, `#go`, `#regGo`, `#gateContinue`, `#menuClose`.
+Deux raisons, l'une et l'autre visibles à l'écran. Un `clip-path` clippe aussi le
+`box-shadow`, or la lueur est **extérieure** : le bouton déclarait un halo qu'il
+ne montrait nulle part, et `armed` animait une pulsation invisible. Et une coupe
+de 10 px dans un rayon de 12 ne fait pas un biseau mais une **entaille** — le
+polygone a des angles vifs là où le fond est arrondi, si bien que les coins se
+lisent comme un contour clair mal fini. C'est ce qui a été rapporté : « le tour
+du bouton, les arrondis ne sont pas nets ».
+
+Ce qui **désigne** l'action principale est donc la lueur, et elle le fait mieux
+puisqu'on la voit. `--bevel` n'a plus d'usage dans la feuille ; le jeton reste
+dans `tokens.css` pour qui voudra un biseau sur un élément **sans** lueur — c'est
+la seule condition.
 
 **Le pointeur de souris est dessiné par la charte** (`cursorUri()` dans
 `palette.js`, exposé en `--cursor-ui` et `--cursor-go`), pas hérité du système.
@@ -1283,7 +1408,7 @@ rien d'autre.
 
 **Trois familles typographiques, chacune avec son rôle** — et la chasse fixe
 reste le **registre du jeu**. `--font-display` (Chakra Petch 600/700) porte les
-titres, les boutons et les noms propres ; `--font-body` (Barlow 400) porte les
+titres, les boutons et les noms propres ; `--font-body` (Space Grotesk, variable) porte les
 paragraphes, et **eux seuls** ; `--font` (chasse fixe) garde tous les chiffres,
 les effectifs, les pourcentages, les libellés techniques et les pastilles
 d'état. Les deux nouvelles familles n'existent que parce que la chasse fixe
@@ -1296,10 +1421,39 @@ premier rendu sur un chemin critique, l'écran de connexion. Sans les fichiers,
 la page reste fonctionnelle : les deux variables retombent sur `var(--font)` et
 `system-ui`.
 
+**La police de corps doit DIRE quelque chose, elle aussi.** Barlow tenait ce
+rôle et a été remplacée — pas par goût : c'était la seule des trois familles qui
+ne signait rien. Une grotesque neutre, dessinée pour ne pas se faire remarquer,
+coincée entre une chasse fixe qui dit « poste de contrôle » et une Chakra Petch
+qui dit « technique » ; le corps de texte était donc le seul endroit de l'écran
+où le jeu ressemblait à un site. Space Grotesk vient du même monde que les deux
+autres — terminaisons coupées net, `g` à un seul étage, chiffres anguleux — sans
+copier Chakra Petch, qui est étroite et titrée là où elle est large et lisible
+en petit corps.
+
+**Le fichier est VARIABLE, et c'est ce qui corrige la lisibilité.** Un texte
+clair sur fond sombre s'amincit optiquement : à graisse égale, il paraît plus fin
+que le même texte en sombre sur clair — c'est ce qui faisait lire les leads comme
+« pas très lisibles » alors que leur contraste (`--text-dim`, mesuré à 6,36:1)
+passe largement le seuil AA. Barlow n'avait que son Regular versionné, donc rien
+à faire : demander 500 aurait produit un faux gras. L'axe de graisse rend un
+poids **intermédiaire** possible — `--weight-body: 450`, un seul jeton parce que
+six blocs de prose le portent et doivent bouger ensemble — pour un seul fichier.
+Le `@font-face` déclare une **plage** (`font-weight: 300 700`) et non une valeur :
+écrire `400` y rendrait tout poids intermédiaire en faux gras, c'est-à-dire
+exactement le défaut qu'on vient de supprimer.
+
+**L'interligne des paragraphes suit la hauteur d'x, pas une habitude.** Il passe
+de 1,7 à **1,6** avec la famille, et les deux vont ensemble : 1,7 était juste
+pour Barlow, dont la hauteur d'x est basse. Space Grotesk la porte nettement plus
+haut — mesurée à 8 px pour un corps de 15 — donc le même 1,7 délite le paragraphe
+au lieu de l'aérer. Un bloc de prose doit se lire comme un **bloc** ; à 1,7 il se
+lisait comme une liste de lignes.
+
 **Trois niveaux de lecture, et un élément n'en porte qu'UN.** Le **kicker**
 (`.sectionTitle`, chasse fixe, capitales espacées, 11 px, `--go`) dit *où je
 suis* ; le **titre d'écran** (Chakra Petch, 34 px, `--text`, casse normale) dit
-*quoi* ; le **corps** (Barlow, 15 px, interligne 1,7, `--text-dim`, mesure
+*quoi* ; le **corps** (Space Grotesk, 15 px, graisse 450, interligne 1,6, `--text-dim`, mesure
 ≤ 62 caractères) dit *pourquoi*. `#hubTitle`, `#panelTitle` et `#bilanTitle`
 étaient en `--text-dim` **et** en capitales espacées, c'est-à-dire au même
 niveau visuel qu'un `.sectionTitle` : l'écran n'avait pas de titre, il avait
@@ -1507,6 +1661,16 @@ flou vivent sur le **wrapper**, là où `screenIn` les met déjà ; et
 `pointer-events: none` sur le sortant, qui reste affiché et avalerait les clics
 destinés au suivant.
 
+**Rien ne se sélectionne, sauf ce qu'on écrit.** Un jeu n'est pas un document :
+le geste qui sert à viser, à traverser une liste de salles ou à insister sur un
+bouton laissait derrière lui des pans de texte en surbrillance — un double-clic
+sur « Continuer » sélectionne le mot, un glisser sur le tableau des scores en
+bleuit trois lignes. C'est le seul résidu d'interface que personne n'a voulu, et
+il survit à l'écran suivant. L'exception n'est pas négociable : dans un **champ**,
+la sélection est le seul moyen de corriger ce qu'on a tapé. La règle est posée
+sur `html` et non sur `*` — la propriété s'hérite, et une règle universelle
+écraserait l'exception au lieu de la laisser gagner.
+
 **Rien de décoratif ne se superpose au jeu.** Tout ornement — balayage des
 légendaires, logotype — vit dans les écrans hors combat. Les transitions entre
 écrans sont des **fondus**, jamais des glissements. La grille et le
@@ -1598,14 +1762,21 @@ commun à l'équipe, le cumul appartient au salon, et les pastilles de cartes
 étaient la version illisible de la fenêtre de build. La classe rejoint le nom
 dans la colonne joueur : c'est une identité, pas une mesure.
 
-**Le salon s'ouvre tout seul au bout de 12 s, et c'est un retour en arrière
-assumé.** L'échéance avait été retirée parce que le bilan portait alors la
-build et la jauge de puissance — « de quoi passer une minute dessus », et un
-écran qui se retire pendant qu'on le lit est un défaut. Le bilan étant revenu à
-quelques secondes de lecture, l'échéance redevient juste. Un **clic n'importe
-où dans le bilan la suspend** : celui qui lit encore n'a rien à faire pour qu'on
-l'attende, celui qui ne fait rien passe au salon — les deux comportements sans
-bouton de plus.
+**Le bilan ne se ferme plus tout seul, et les deux boutons sont sa seule
+sortie.** L'échéance de douze secondes a existé, a été retirée, est revenue, et
+repart pour de bon — l'aller-retour vaut d'être écrit. L'argument pour : le bilan
+est court — quatre chiffres, une ventilation, un tableau — et une table de quatre
+n'a pas à attendre celui qui a lâché sa souris. L'argument contre l'emporte : un
+écran qui se retire pendant qu'on le lit est un défaut, et le remède — un compte
+à rebours affiché, suspendu au premier clic — mettait la lecture **sous
+minuterie** pour l'annoncer. On ne lit pas de la même façon quand un chiffre
+descend à côté du texte : le défaut qu'on croyait corriger se déplaçait dans
+l'œil du lecteur.
+
+Il ne reste **rien** de l'ancien mécanisme : ni minuteur, ni barre qui se vide
+(`#bilanBar`), ni ligne d'annonce (`#bilanHint`), ni gestionnaire de clic pour
+l'interrompre — les quatre n'existaient que pour lui, et leurs règles CSS partent
+avec eux plutôt que d'habiller un markup disparu.
 
 **La fenêtre de build est UN écran pour trois entrées** : Tab en jeu, un clic
 sur une ligne du bilan, un clic sur une ligne du salon. Deux fenêtres qui

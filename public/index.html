@@ -500,17 +500,16 @@
       <table id="bilanScores"><tbody></tbody></table>
     </div>
 
-    <!-- DEUX sorties : reprendre au salon, ou remonter au hub. Le salon
-         s'ouvre tout seul a l'echeance — le bilan est court, on le lit en
-         quelques secondes, et une table de quatre n'a pas a attendre celui
-         qui a lache sa souris. -->
+    <!-- DEUX sorties, et RIEN D'AUTRE : reprendre au salon, ou remonter au
+         hub. L'echeance automatique a ete retiree — voir client.js. Un ecran
+         qui se retire tout seul pendant qu'on le lit est un defaut, et le
+         compte a rebours qui l'annoncait mettait la lecture sous minuterie
+         pour rien. -->
     <div id="bilanNext">
       <div class="row">
         <button id="bilanGo">Continuer</button>
         <button id="bilanLeave" class="ghost">Retour aux salons</button>
       </div>
-      <div id="bilanBar"><i></i></div>
-      <div id="bilanHint"></div>
     </div>
   </div>
 </div>
