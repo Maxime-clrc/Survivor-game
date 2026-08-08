@@ -64,6 +64,9 @@
      0.7.12 correctif de fusion : `updateWave()` retire du HUD. Le bandeau de
                    vague a ete remplace par celui de segment ; l'appel etait
                    reste, et il jetait a CHAQUE IMAGE d'une manche
+     0.7.13 les types d'ennemi entrent en jeu a la MINUTE DE HORDE et non au
+                   niveau d'equipe : le niveau 2 arrivait a la dixieme minute,
+                   donc une partie entiere se jouait contre des grunts
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
