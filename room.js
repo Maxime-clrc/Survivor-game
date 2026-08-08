@@ -96,6 +96,11 @@ export class Room {
     this.paused = false;
     this.pausedAt = 0;
 
+    /* Le briefing de manche est-il encore ouvert pour QUELQU'UN. Sur la salle
+       et non sur le client : c'est un etat de la manche — « la vague est
+       retenue » — la ou `client.briefDone` dit ce que chacun a fait. */
+    this.briefOpen = false;
+
     this.cardDeadline = 0;
     this.cardPicked = new Set();
 
@@ -295,6 +300,11 @@ export class Room {
        CLIENT et le suivrait sinon d'une salle a l'autre — on arriverait
        « prêt » dans un salon ou l'on vient de mettre le pied. */
     client.ready = false;
+    /* Meme raison, meme endroit : sans remise a zero, celui qui a ferme le
+       briefing d'une salle arriverait « briefing lu » dans la suivante. Il ne
+       sert a rien avant la manche, mais il vit sur le CLIENT — donc il voyage
+       avec lui. */
+    client.briefDone = false;
     this.clients.set(client.id, client);
     // APRES l'insertion : l'attribution regarde la salle entiere, l'arrivant
     // compris. Il n'a pas encore de classe, il prendra donc une teinte de
@@ -340,6 +350,12 @@ export class Room {
       // pas la partie — le hub fait le menage a l'echeance.
       this.emptySince = Date.now();
     } else {
+      /* Un partant sort de `state.players` juste au-dessus, donc de la liste
+         d'attente du briefing. Sans ce recompte, une deconnexion pendant les
+         vingt secondes retient la vague jusqu'a l'echeance pour quelqu'un qui
+         n'est plus la — c'est le cas que `briefWaiting()` est ecrit pour
+         couvrir, encore faut-il le lui demander. */
+      this.syncBrief();
       const changed = this.refreshHost();
       this.broadcast(this.lobbyPayload());
       if (changed && this.hostId) {
@@ -411,6 +427,53 @@ export class Room {
      de se declarer prêt, tout en lancant sans lui. */
   notReady() {
     return this.joined().filter(c => !c.ready);
+  }
+
+  /* Qui est encore DANS le briefing. Meme role que `notReady()` et meme raison
+     d'etre un point de passage unique : la decision de lancer la vague et le
+     libelle d'attente affiche a ceux qui ont deja ferme doivent compter la meme
+     chose, sinon l'un attend quelqu'un que l'autre ne nomme pas.
+
+     Le filtre est `state.players`, et lui seul. C'est la verite de « qui joue » :
+     un spectateur n'y est pas, un arrivant en cours de manche non plus, et un
+     joueur A TERRE y est — il lit son briefing comme les autres. Corollaire
+     essentiel : un joueur qui se DECONNECTE en sort tout seul, donc il ne peut
+     pas retenir la vague vingt secondes pour rien. C'est la meme regle qu'un
+     marqueur de mecanique dont le porteur disparait. */
+  briefWaiting() {
+    return this.joined().filter(c => this.state.players.has(c.id) && !c.briefDone);
+  }
+
+  /* L'ECHAUFFEMENT SE TERMINE AU PREMIER DES DEUX : tout le monde a ferme le
+     briefing, ou l'echeance tombe. L'echeance n'est pas un doublon — c'est le
+     filet qui empeche un joueur parti se faire un cafe de retenir la table,
+     exactement comme la pause qui se leve seule au bout de cinq minutes.
+
+     `briefOpen` existe pour que cette methode soit appelable de partout sans
+     rien diffuser en trop : la fin est un evenement unique, et les appelants
+     sont quatre (une confirmation, un depart de manche, une deconnexion, et
+     l'echeance vue par la boucle). */
+  syncBrief() {
+    /* La phase est testee ICI plutot que remise a zero dans `endRound` ET
+       `abortRound` : deux sorties de manche a ne pas oublier, c'est exactement
+       le trou qui se paie une fois sur deux. Une manche qui s'interrompt pendant
+       le briefing laisse donc `briefOpen` a vrai — sans consequence, puisque
+       `startRound` le repose et que plus personne ne peut le lire. */
+    if (!this.briefOpen || this.phase !== PHASE_ROUND) return;
+    const attente = this.briefWaiting();
+    if (attente.length > 0 && this.state.warmup > 0) {
+      this.broadcast({ t: "briefState", waiting: attente.map(c => c.name) });
+      return;
+    }
+    this.briefOpen = false;
+    if (this.state.warmup > 0) {
+      // Couper `warmup` relance d'un coup les vagues, le tir automatique et
+      // l'horloge de manche : c'est le seul champ a toucher, `step()` fait le
+      // reste tout seul.
+      this.state.warmup = 0;
+      this.hooks.log(`[${this.code}] briefing fermé par tous — la vague part`);
+    }
+    this.broadcast({ t: "briefState", waiting: [] });
   }
 
   lobbyPayload() {
@@ -674,6 +737,11 @@ export class Room {
          suivante sans que personne n'ait rien reconfirme. Meme raison que le
          verrou de classe pose ici plutot qu'au choix. */
       c.ready = false;
+      /* Le briefing de la manche PRECEDENTE ne vaut pas pour celle-ci : sans
+         cette ligne, la deuxieme manche partirait sans que personne n'ait eu le
+         temps de lire quoi que ce soit. Meme endroit et meme raison que
+         `ready` — au lancement, jamais a la sortie de manche. */
+      c.briefDone = false;
       /* Progression permanente (lot D) : la simulation recoit les lignes
          EQUIPEES de la classe jouee, les achats de confort et les cartes
          encore verrouillees. La salle LIT le profil — elle n'y ecrit jamais,
@@ -720,6 +788,10 @@ export class Room {
        phase a part aurait fige la simulation, donc interdit le deplacement que
        le bouton « continuer » est justement la pour rendre. */
     this.state.warmup = WARMUP_S;
+    /* Le briefing est OUVERT pour la salle tant que quelqu'un ne l'a pas ferme.
+       Il se referme au premier des deux : `syncBrief()` sur la derniere
+       confirmation, ou l'echeance vue par la boucle. */
+    this.briefOpen = true;
     this.phase = PHASE_ROUND;
     // Repartir la simulation sur le cycle de la boucle : la manche demarre au
     // clic de l'hote, mais deux salles lancees dans la meme seconde ne doivent
@@ -952,6 +1024,20 @@ export class Room {
         break;
       }
 
+      /* LE BRIEFING FERME. Il ne lance rien a lui seul : il retire une voix de
+         la liste d'attente, et c'est `syncBrief()` qui decide. Trois gardes, les
+         memes que partout ailleurs — la phase, le fait d'etre reellement en jeu
+         (un spectateur n'a pas de briefing a fermer, et le compter aurait retenu
+         la vague pour quelqu'un qui regarde), et l'idempotence : deux clics ou
+         un client modifie ne doivent pas rediffuser l'etat pour rien. */
+      case "briefDone": {
+        if (this.phase !== PHASE_ROUND || !this.state.players.has(id)) break;
+        if (client.briefDone) break;
+        client.briefDone = true;
+        this.syncBrief();
+        break;
+      }
+
       case "leaveRound": {
         if (this.phase === PHASE_LOBBY || !this.state.players.has(id)) break;
         this.hooks.awardPartial(client, this);
@@ -959,6 +1045,10 @@ export class Room {
         this.hooks.sendProgress(client);
         client.spectator = true;
         this.setPaused(false, "le joueur a quitté la manche");
+        // Il vient de sortir de `state.players`, donc de la liste d'attente :
+        // sans ce recompte, les autres attendraient le briefing d'un joueur qui
+        // n'est plus dans la manche.
+        this.syncBrief();
         this.broadcast(this.lobbyPayload());
         this.hooks.log(`[${this.code}] ${client.name} quitte la manche ${this.roundNumber}`);
         break;
@@ -1037,6 +1127,12 @@ export class Room {
         for (const a of this.state.alerts) this.broadcast({ t: "alert", ...a });
         this.state.alerts.length = 0;
       }
+      /* L'ECHEANCE, vue par la boucle. C'est le quatrieme et dernier appelant de
+         `syncBrief()`, et le seul qui ne soit pas un evenement : `warmup`
+         descend dans `step()`, personne ne previent quand il touche zero. Le
+         test est deux comparaisons par tick tant que le briefing est ouvert, et
+         plus rien du tout ensuite. */
+      if (this.briefOpen && this.state.warmup <= 0) this.syncBrief();
       /* VICTOIRE FINALE (lot N) : la manche s'arrete sur la mort du Noyau, elle
          ne se poursuit pas en vague 31. C'est la fin du contenu — laisser la
          boucle continuer aurait transforme le combat final en simple etape, et

@@ -100,6 +100,39 @@
   color: var(--text-dim);
 }
 
+/* --- l'attente du briefing ---------------------------------------------------
+   Sous le bandeau de vague, parce qu'elle explique precisement pourquoi il ne
+   se passe rien. En BLANC : la grammaire dit « blanc = ca concerne un allie »,
+   et c'est litteralement le cas — quelqu'un lit encore. Ni cyan (rien a faire,
+   on ne va nulle part), ni ambre (rien de dangereux, et un avertissement pour
+   un coequipier qui prend son temps serait un reproche).
+
+   Elle PULSE tres doucement plutot que de rester fixe : c'est un etat qui dure
+   et qui va se terminer tout seul, et un texte immobile dans un HUD immobile se
+   confond avec le decor. Une seconde par battement — au-dela on ne le remarque
+   plus, en deca ca presse. */
+#hudBrief {
+  position: absolute;
+  top: calc(var(--sp-3) + 74px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px;
+  text-align: center;
+  font-size: var(--t-s);
+  color: var(--text);
+  text-shadow: 0 0 var(--sp-4) var(--bg-void);
+  animation: briefWait 1s ease-in-out infinite;
+}
+#hudBrief b { font-weight: 700; }
+/* Le compte a rebours en chasse fixe, comme tous les chiffres du jeu : sans ca
+   il saute d'un pixel a chaque seconde qui change. */
+#hudBrief i { font-style: normal; font-family: var(--font); color: var(--text-dim); }
+
+@keyframes briefWait {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+
 /* --- barre de boss ---------------------------------------------------------
    Le seul element du HUD qui a le droit d'etre voyant : c'est le moment le plus
    important de la manche. Elle remplace le bandeau de vague, elle ne s'y

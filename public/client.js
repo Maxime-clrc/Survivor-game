@@ -740,6 +740,17 @@ function connect() {
         });
         break;
 
+      /* QUI LIT ENCORE. Applique A LA RECEPTION et non par `worldQueue` : ce
+         message ne commente aucune image — il dit ou en sont les autres dans un
+         menu, comme le salon ou le tableau des scores. Le retard
+         d'interpolation n'a rien a lui apporter, et le faire attendre 110 ms
+         n'aurait fait que retarder la disparition de l'attente au moment ou la
+         vague part. */
+      case "briefState":
+        briefWaiting = Array.isArray(msg.waiting) ? msg.waiting : [];
+        renderBriefWait();
+        break;
+
       case "roundAbort":
         pushWorld(() => {
           phase = PHASE_LOBBY;
@@ -2048,7 +2059,18 @@ const briefBarFill = document.querySelector("#briefBar > i");
 const briefLeftEl = document.getElementById("briefLeft");
 const briefThirdEl = document.getElementById("briefThird");
 const briefGoBtn = document.getElementById("briefGo");
+const hudBriefEl = document.getElementById("hudBrief");
 let briefTimer = 0;
+/* Echeance du briefing, en horloge locale. Elle survit a la fermeture du voile
+   parce que l'attente affichee dans le HUD la reutilise : celui qui a ferme doit
+   savoir combien de temps il attend au pire, sinon « en attente de Kiwi » se lit
+   comme un blocage sans issue. */
+let briefEndsAt = 0;
+/* Qui n'a pas encore ferme, tel que le serveur le voit. Une liste et non un
+   compte : le HUD nomme les gens, comme `#waitMsg` au salon — un bouton ou une
+   attente qui ne dit pas QUI passe pour une panne. */
+let briefWaiting = [];
+let briefWaitTimer = 0;
 
 function openBrief(dur) {
   if (!briefEl) return;
@@ -2136,6 +2158,9 @@ function openBrief(dur) {
      non. Un ecart d'une fraction de seconde ne fait donc rien de faux. */
   const total = Number(dur) > 0 ? Number(dur) : 20;
   const fin = performance.now() + total * 1000;
+  briefEndsAt = fin;
+  briefWaiting = [];
+  renderBriefWait();
   clearInterval(briefTimer);
   const tick = () => {
     const reste = Math.max(0, (fin - performance.now()) / 1000);
@@ -2164,9 +2189,59 @@ function closeBrief() {
   clearInterval(briefTimer);
   briefTimer = 0;
   briefEl.hidden = true;
+  renderBriefWait();
 }
 
-if (briefGoBtn) briefGoBtn.onclick = closeBrief;
+/* « Continuer » ne retire plus seulement le voile : il DIT au serveur qu'on a
+   fini. C'est la derniere confirmation qui lance la vague, sans attendre les
+   vingt secondes — la table n'a plus a regarder un compte a rebours dont plus
+   personne n'a besoin.
+
+   L'envoi est ici et pas dans `closeBrief()`, qui a trois autres appelants —
+   l'echeance du compte a rebours, `roundAbort` et `roundEnd`. Aucun des trois
+   n'est une confirmation : a l'echeance le serveur coupe deja tout seul, et les
+   deux autres ferment un briefing dont la manche n'existe plus. Un `briefDone`
+   parti de la ne dirait rien de vrai. */
+if (briefGoBtn) {
+  briefGoBtn.onclick = () => {
+    closeBrief();
+    if (connected && phase === PHASE_ROUND) ws.send(JSON.stringify({ t: "briefDone" }));
+  };
+}
+
+/* L'ATTENTE, pour celui qui a deja ferme. Rien tant que le voile est ouvert :
+   celui qui lit voit deja son propre compte a rebours, et lui apprendre que
+   d'autres lisent aussi ne lui sert a rien — pire, ca le presserait.
+
+   Le compte a rebours est REPRIS ici, et c'est ce qui empeche l'attente de se
+   lire comme un blocage : « en attente de Kiwi » seul ne dit pas si l'on est
+   parti pour deux secondes ou pour la soiree. Il descend en meme temps que le
+   sien, sur la meme horloge locale. */
+function renderBriefWait() {
+  if (!hudBriefEl) return;
+  const montre = briefWaiting.length > 0 && briefEl?.hidden !== false
+    && phase === PHASE_ROUND;
+  hudBriefEl.hidden = !montre;
+  if (!montre) {
+    clearInterval(briefWaitTimer);
+    briefWaitTimer = 0;
+    return;
+  }
+  /* Son propre battement : `briefTimer` est mort avec le voile, et c'est
+     precisement pendant l'attente qu'il faut continuer a compter. Il se cree au
+     premier affichage et meurt avec lui — jamais deux, la fonction est appelee
+     a chaque `briefState` recu. */
+  if (!briefWaitTimer) briefWaitTimer = setInterval(renderBriefWait, 250);
+  /* Les noms tant qu'il y en a deux, le compte au-dela : a quatre joueurs,
+     trois noms font une phrase plus longue que le bandeau de vague, et on ne
+     lit pas une liste pendant qu'on se place sur la carte. Meme regle qu'au
+     salon, meme seuil. */
+  const qui = briefWaiting.length <= 2
+    ? briefWaiting.map(escapeHtml).map(n => `<b>${n}</b>`).join(" et ")
+    : `<b>${briefWaiting.length} joueurs</b>`;
+  const reste = Math.max(0, Math.ceil((briefEndsAt - performance.now()) / 1000));
+  hudBriefEl.innerHTML = `En attente de ${qui} — briefing <i>${reste} s</i>`;
+}
 
 /* --- salon et tableau des scores ---------------------------------------------- */
 

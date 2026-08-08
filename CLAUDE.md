@@ -681,7 +681,67 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **Aucun texte du briefing ne voyage sur le réseau.** Nom, teinte, deux compétences avec leurs touches et **mission** vivent dans `CLASSES` (`shared/classes.js`), que le client importe comme le serveur — le message `round` ne porte que `warmup`, la seule chose qu'un client ne peut pas déduire, et elle n'existe qu'à un endroit (`WARMUP_S`). La `mission` ne répète pas `desc` : celle-ci dit ce que la classe **est**, celle-là quoi faire des trente premières secondes. La **troisième compétence est annoncée avec sa touche** bien qu'elle n'existe pas encore : sans cette ligne, la touche 3 se découvre en tirant la carte, c'est-à-dire au milieu d'une vague — le pire moment pour apprendre une commande. Une ligne et non une troisième carte : le kicker dit « tes deux compétences », et une carte de plus ferait croire qu'on l'a déjà.
 
-**Le voile n'est qu'un voile.** `openBrief()` s'ouvre **après** `refreshPanel()`, sur un HUD déjà en place ; « Continuer » ne fait que le retirer, le compte à rebours court avec ou sans lui, et il se referme tout seul à l'échéance — celui qui n'a pas cliqué ne doit pas découvrir la première vague à travers un panneau.
+**Le voile n'est qu'un voile.** `openBrief()` s'ouvre **après** `refreshPanel()`, sur un HUD déjà en place ; « Continuer » retire le voile et rien d'autre à l'écran, le compte à rebours court avec ou sans lui, et il se referme tout seul à l'échéance — celui qui n'a pas cliqué ne doit pas découvrir la première vague à travers un panneau.
+
+**L'échauffement se termine au PREMIER DES DEUX : tout le monde a fermé, ou
+l'échéance tombe.** Vingt secondes imposées à une table qui a fini de lire sont
+vingt secondes à regarder un compte à rebours dont personne n'a besoin ;
+l'échéance reste malgré tout, et ce n'est pas un doublon — c'est le filet qui
+empêche un joueur parti se faire un café de retenir la table, exactement comme
+la pause qui se lève seule au bout de cinq minutes. Couper `state.warmup` est le
+**seul** champ à toucher : `step()` relance les vagues, le tir automatique et
+l'horloge de manche tout seul.
+
+`briefWaiting()` est le point de passage unique, sur le modèle de `notReady()` et
+pour la même raison — la décision de lancer la vague et le libellé affiché à ceux
+qui ont déjà fermé doivent compter la même chose, sinon l'un attend quelqu'un que
+l'autre ne nomme pas. Il filtre sur **`state.players` et rien d'autre** : c'est
+la vérité de « qui joue », un spectateur n'y est pas, un arrivant en cours de
+manche non plus, et un joueur **à terre** y est — il lit son briefing comme les
+autres. Corollaire essentiel : un joueur qui se **déconnecte** en sort tout seul,
+donc il ne peut pas retenir la vague vingt secondes pour rien, c'est la même
+règle qu'un marqueur de mécanique dont le porteur disparaît.
+
+`syncBrief()` a **quatre** appelants, et un seul n'est pas un événement : une
+confirmation, un départ de manche, une déconnexion, et l'échéance vue par la
+boucle — `warmup` descend dans `step()`, personne ne prévient quand il touche
+zéro. Le drapeau `briefOpen` (sur la **salle** : c'est un état de la manche, là
+où `client.briefDone` dit ce que chacun a fait) rend la méthode appelable de
+partout sans rien diffuser en trop. La phase est testée **dans** `syncBrief()`
+plutôt que remise à zéro dans `endRound` **et** `abortRound` : deux sorties de
+manche à ne pas oublier, c'est le trou qui se paie une fois sur deux.
+
+`client.briefDone` se remet à zéro aux **deux** mêmes endroits que `ready`, et
+pour les mêmes raisons : à `startRound()` — sans quoi la deuxième manche
+partirait sans que personne ait eu le temps de lire — et à `attach()`, sinon on
+arriverait « briefing lu » dans une salle où l'on vient de mettre le pied.
+
+**L'attente ne s'affiche qu'à celui qui a DÉJÀ fermé** (`#hudBrief`). Celui qui
+lit voit son propre compte à rebours ; lui apprendre que d'autres lisent aussi ne
+lui sert à rien et le presserait. Elle **nomme qui manque** — même règle que
+`#waitMsg` au salon, et même seuil : les noms jusqu'à deux, le compte au-delà,
+parce qu'à quatre joueurs trois noms font une phrase plus longue que le bandeau
+de vague et qu'on ne lit pas une liste en se plaçant sur la carte. Elle **reprend
+le compte à rebours**, et c'est ce qui l'empêche de se lire comme un blocage :
+« en attente de Kiwi » seul ne dit pas si l'on est parti pour deux secondes ou
+pour la soirée. En **blanc** — la grammaire dit « blanc = ça concerne un allié »,
+et c'est littéralement le cas ; ni cyan (on ne va nulle part), ni ambre (un
+avertissement pour un coéquipier qui prend son temps serait un reproche).
+
+**`briefState` s'applique à la RÉCEPTION, pas par `worldQueue`.** Il ne commente
+aucune image : il dit où en sont les autres dans un menu, comme le salon ou le
+tableau des scores. Le retard d'interpolation n'aurait fait que retarder la
+disparition de l'attente à l'instant où la vague part. Symétriquement, le
+`briefDone` part du **bouton** et non de `closeBrief()`, qui a trois autres
+appelants — l'échéance, `roundAbort`, `roundEnd` — dont aucun n'est une
+confirmation.
+
+Mesuré sur une `Room` sans serveur ni base : à deux joueurs, `warmup` reste à 20
+après une confirmation (attente diffusée `["J2"]`) et tombe à 0 après la seconde ;
+deux clics du même joueur ne diffusent qu'une fois et ne lancent rien ; le départ
+de l'autre libère la vague ; personne ne cliquant, la boucle coupe seule à
+l'échéance en une unique diffusion ; et l'horloge de manche affiche `0.00`
+pendant le briefing puis `2.02` deux secondes après sa fermeture.
 
 **L'historique appartient à la SALLE, pas au joueur** (`room.history`) : celui
 qui se reconnecte doit le retrouver, et quatre clients qui tiendraient chacun le
@@ -868,6 +928,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | sortie de manche | message `leaveRound` : `removePlayer` + spectateur jusqu'à la manche suivante | bouton du menu pause, avec confirmation |
 | transition de manche | messages `round` · `roundAbort` · `roundEnd` · `cards` · `cardsWait` | `pushWorld()` / `worldQueue` — jamais appliqués à la réception |
 | briefing de classe | `state.warmup` dans `game_state.js` (retient `_waveTick` et `_spawner`, gèle `time`), `WARMUP_S` dans `room.js`, champ `warmup` du message `round` | `#brief`, `openBrief()` / `closeBrief()` — textes lus dans `CLASSES`, rien ne voyage |
+| briefing fermé | message `briefDone` (client → serveur) ; `client.briefDone`, `room.briefOpen`, `briefWaiting()` et `syncBrief()` dans `room.js` ; message `briefState{waiting:[noms]}` (serveur → tous) | `#hudBrief`, `renderBriefWait()`, `briefWaiting` / `briefEndsAt` |
 | part critique des dégâts | troisième élément d'un tuple `bd`, ajouté **en fin** | `pushDamage()` → classe `.dmg.crit` (ambre, un cran plus gros) |
 | point d'impact sur le boss | quatrième et cinquième éléments d'un tuple `bd`, ajoutés **en fin** — n'existe que pour les Jumeaux | `diffSnapshots()` : `mine[3] ?? b.boss.x` |
 | provenance d'un dégât subi | `DAMAGE_SOURCES` dans `game_state.js` (tableau ordonné, l'index circule en fin du tuple joueur) — **six** entrées depuis le lot M (`explosion`) | `SRC_ICON` dans `icons.js` + `SRC_TINT` dans `palette.js` (mêmes six entrées, même ordre) + `hudDamage(…, icon)` + `renderHurtBy()` au bilan |
