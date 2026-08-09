@@ -206,6 +206,29 @@
                    depot, client ET `shared/`. Un controle partiel donne surtout
                    de la confiance
 
+     0.8.4 equilibrage : LE RUNNER RATTRAPE ENFIN. Rapporte en partie — « les
+                   ennemis semblent apparaitre depuis la ou on regarde, si
+                   j'avance en reculant je n'ai jamais d'ennemis derriere moi ».
+                   L'APPARITION N'Y EST POUR RIEN : mesuree a 20 000 tirages par
+                   cas, elle rend 25 % par cote a un dixieme pres, et ZERO
+                   apparition dans le champ — au centre comme colle a un mur.
+                   Rien dans ce code ne lit la camera ni la visee ; `beatSide`
+                   est tire au hasard par beat.
+                   La cause est la VITESSE. Le joueur va a 260 px/s, le runner —
+                   le plus rapide du bestiaire — a 188. Aucun type ne pouvait
+                   donc rejoindre une cible en mouvement ; la rampe de 4 px/s par
+                   minute finissait par le faire, mais seulement a la minute 13
+                   contre un Rempart et 21 contre un Tireur, soit apres la moitie
+                   d'une manche de trente minutes. Le runner passe a 245 : au-
+                   dessus du Rempart des la premiere minute, du Tireur vers la
+                   sixieme, et les cartes de vitesse le repoussent ensuite —
+                   c'est ce qu'elles achetent.
+                   Second enseignement de la mesure, garde par ecrit : l'arene
+                   est FINIE. Un joueur qui fuit tout droit atteint un mur en
+                   dix-huit secondes et se fait rejoindre — 3,5 % des ennemis nes
+                   derriere atteignaient deja le contact, 5,5 % desormais. On ne
+                   distance jamais indefiniment, on distance jusqu'au mur
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -214,4 +237,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.3";
+export const VERSION = "0.8.4";

@@ -197,7 +197,35 @@ export const TRAIT_CFG = {
    comportement d'un individu modifie doit l'etre aussi. */
 export const ENEMY_TYPES = [
   { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10, xp: 10 },
-  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.45, speed: 188, dmg: 12, r: 9,  score: 14, xp: 6 },
+  /* LE RUNNER EST LE SEUL POURSUIVANT DU BESTIAIRE, et il ne poursuivait rien.
+     A 188 il etait sous les 260 du joueur : un runner ne derriere une cible qui
+     se deplace perdait 72 px/s et ne revenait jamais. La rampe de vitesse
+     (`ENEMY_SPEED_MIN_RAMP`, 4 px/s par minute de horde) finissait par le
+     rattraper — minute 13 contre un Rempart, 18 contre un Soigneur, 21 contre un
+     Tireur — donc sur une manche de trente minutes, la moitie du temps rien ne
+     pouvait toucher un joueur en mouvement. Aucun autre type n'y arrive JAMAIS :
+     le kamikaze, deuxieme plus rapide a 118, demanderait 35 minutes.
+
+     A 245 il passe au-dessus du Rempart (239) des la premiere minute, du
+     Soigneur vers la minute 4 et du Tireur vers la minute 6. Les cartes de
+     vitesse (+7, +14, +22 %) le repoussent ensuite exactement comme prevu : une
+     build orientee vitesse le distance jusqu'a la fin de manche, et c'est ce
+     qu'elle achete.
+
+     La valeur est calee sur la classe la PLUS LENTE et non sur la moyenne : on
+     veut qu'un joueur sans amelioration soit rattrape, pas que le bestiaire
+     depasse tout le monde d'emblee. Ses PV restent a 0,45 — c'est ce qui empeche
+     un poursuivant permanent de devenir un mur.
+
+     Mesure, marche en ligne droite, 600 s, trois manches : la part des ennemis
+     nes DERRIERE qui atteignent le contact passe de 3,5 % a 5,5 %. Elle n'etait
+     pas nulle avant, et c'est le second enseignement de la mesure — l'arene est
+     FINIE, donc un joueur qui fuit tout droit atteint un mur en dix-huit
+     secondes et se fait rejoindre. On ne distance jamais indefiniment ; on
+     distance jusqu'au mur. L'effet sur la survie reste dans le bruit a ce nombre
+     de manches (245 s contre 230 en solo, 283 contre 318 a quatre) : c'est la
+     poursuite qu'on corrige, pas la difficulte. */
+  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.45, speed: 245, dmg: 12, r: 9,  score: 14, xp: 6 },
   { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30, xp: 32 },
   { key: "shooter", minMin: 7,   fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25, xp: 14,
     shootCd: 2.6, standoff: 170 },
