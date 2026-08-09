@@ -2882,7 +2882,26 @@ tr.clickable { cursor: pointer; }
    trois objets identiques et une largeur variable rendrait la comparaison
    fausse. */
 #cards { gap: var(--sp-6); }
-#cardsRow { display: flex; gap: var(--sp-4); flex-wrap: wrap; justify-content: center; }
+/* LA RANGEE PREND LA LARGEUR DISPONIBLE, elle ne se reduit pas a son contenu.
+   `.overlay` est une colonne en `align-items: center`, donc ses enfants sont
+   dimensionnes sur leur contenu ; une rangee `flex-wrap` ainsi contrainte
+   retombe a sa largeur MINIMALE des que la place manque — c'est-a-dire a UNE
+   carte par ligne, au lieu de deux puis une. Le marchand le montrait le premier
+   (trois reliques empilees a la verticale), mais l'ecran de cartes a exactement
+   le meme defaut : trois cartes de 268 px plus leurs gouttieres demandent
+   836 px, et en dessous les deux ecrans s'effondrent en colonne.
+
+   `width: 100%` remet la rangee sur la largeur du conteneur ; `max-width` la
+   borne pour qu'elle ne s'etale pas sur un ecran large. */
+#cardsRow,
+#merchantRow {
+  width: 100%;
+  max-width: var(--shell);
+  display: flex;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  justify-content: center;
+}
 #cardsTimer { width: 720px; max-width: 100%; background: var(--ui-field); }
 #cardsTimer > i { display: block; height: 100%; background: var(--go); transition: width 250ms linear; }
 #cardsTimer.urgent > i { background: var(--warn); }

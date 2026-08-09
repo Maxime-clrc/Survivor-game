@@ -229,6 +229,27 @@
                    derriere atteignaient deja le contact, 5,5 % desormais. On ne
                    distance jamais indefiniment, on distance jusqu'au mur
 
+     0.8.5 deux correctifs rapportes en partie.
+                   LES RELIQUES S'AFFICHAIENT EN COLONNE. `.overlay` est une
+                   colonne en `align-items: center`, donc ses enfants sont
+                   dimensionnes sur leur contenu ; une rangee `flex-wrap` ainsi
+                   contrainte retombe a sa largeur MINIMALE des que la place
+                   manque — une carte par ligne au lieu de deux puis une. Trois
+                   cartes de 268 px et leurs gouttieres demandent 836 px.
+                   `#cardsRow` avait exactement le meme defaut : l'ecran de
+                   cartes s'effondrait pareil sous cette largeur, personne ne
+                   l'avait encore vu. Les deux prennent desormais la largeur du
+                   conteneur, bornee par `--shell`.
+                   LE SON DE GEYSER EST RETIRE. Aucun filtrage de distance :
+                   l'usine en cauchemar pose VINGT-SEPT geysers sur la salle, de
+                   periodes 5,4 a 7 s, soit quatre a cinq declenchements par
+                   seconde — dont la quasi-totalite pour des bouches situees a
+                   deux ecrans de la. Retire plutot que borne a la vue, parce que
+                   la regle du lot V dit deja pourquoi : un danger d'environnement
+                   est du SOL, il s'annonce par sa geometrie permanente, et un son
+                   n'ajoute rien a ce que l'oeil voit deja partir. Le mur qui cede
+                   garde le sien — il n'arrive qu'une fois
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -237,4 +258,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.4";
+export const VERSION = "0.8.5";

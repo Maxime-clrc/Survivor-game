@@ -120,8 +120,18 @@ function handleEvent(e) {
        AUCUN TRESSAILLEMENT : « le tressaillement ne sort que sur les gros
        evenements », et un geyser qui souffle toutes les sept secondes au meme
        endroit n'en est pas un — l'ecran ne se serait jamais immobilise. */
+    /* PAS DE SON. Il y en avait un, et il etait intenable : l'usine en cauchemar
+       pose VINGT-SEPT geysers sur la salle, de periodes 5,4 a 7 s, et rien ne
+       filtrait la distance — quatre a cinq declenchements par seconde, dont la
+       quasi-totalite pour des bouches situees a deux ecrans de la.
+
+       Le retirer plutot que le borner a la vue, parce que la regle du lot V dit
+       deja pourquoi : un danger d'environnement est du SOL, il s'annonce par sa
+       GEOMETRIE PERMANENTE — la bouche est visible en continu, le jet se voit
+       partir. « On apprend la carte, on ne lit pas un compte a rebours », et un
+       son n'ajoute rien a ce que l'oeil a deja. Le mur qui cede garde le sien :
+       il n'arrive qu'une fois. */
     case "danger":
-      playSound("geyser");
       break;
 
     case "murDetruit":
