@@ -300,18 +300,23 @@ function updateBoss(b) {
     + (rage > 0 ? ` — EMPORTEMENT ${ROMAN[rage] ?? rage}` : ""));
   setClass(el.bossName, "bnr", "enrage", rage > 0);
   setText(el.bossVerb, "bv", def.verbe);
-  /* La pulsation ACCELERE quand il s'affaiblit : un signal de progression en
-     plus du remplissage, et le seul du jeu qui dise « la fin approche » sans
-     chiffre. La periode passe de 2,4 s a pleine vie a 0,7 s sur la derniere
-     barre — calculee ici parce que le CSS ne connait pas les PV. */
-  if (final) {
-    const usure = 1 - Math.max(0, Math.min(1, b.hp / b.maxHp));
-    const per = (2.4 - usure * 1.7).toFixed(2);
-    if (memo.bfp !== per) {
-      memo.bfp = per;
-      el.boss.style.setProperty("--boss-pulse", `${per}s`);
-    }
-  }
+  /* Ici vivait un second calcul de pulsation, et il etait faux de trois facons
+     a la fois — depuis le lot N, donc pendant tout ce temps la barre de boss ne
+     se mettait plus a jour d'un combat a l'autre.
+
+     Il testait `final`, qui n'a JAMAIS ete declare : ReferenceError a chaque
+     image d'un combat de boss, donc `updateHud` mourait avant d'ecrire les PV.
+     Le seul motif pour lequel ca ne se voyait pas plus tot est que la boucle de
+     rendu rattrape les exceptions depuis la 0.7.16 — un defaut permanent
+     deguise en « la barre du boss ne bouge pas ».
+
+     Il ecrivait `--boss-pulse`, que AUCUNE feuille ne lit : seul
+     `--final-pulse` existe, pose plus bas au changement de barre.
+
+     Et il contredisait la regle ecrite vingt lignes plus haut — la pulsation ne
+     se pilote pas par image, sinon on reprend exactement le cout qu'on est venu
+     chercher en sortant du canvas. La bonne implementation est deja la, au
+     changement de barre : huit ecritures pour tout le combat. */
   /* Les PV AFFICHES retranchent la reserve : c'est le chiffre que le joueur
      verifie quand la barre ne bouge pas, et lui montrer les PV bornes le ferait
      mentir exactement comme elle. Il peut donc descendre sous le seuil de la

@@ -189,6 +189,23 @@
                    couvre ce que ni `node --check` ni le linker ne voient. Il
                    passe a zero sur les 18 modules
 
+     0.8.3 fix : LA BARRE DE BOSS. `updateBoss` testait `final`, un identifiant
+                   JAMAIS declare — ReferenceError a chaque image d'un combat,
+                   donc `updateHud` mourait avant d'ecrire les PV, le nom et les
+                   pastilles de barre. Le defaut date du lot N et ne se voyait
+                   pas parce que la boucle de rendu rattrape les exceptions
+                   depuis la 0.7.16 : un defaut permanent deguise en « la vie du
+                   boss ne s'affiche pas ».
+                   Le bloc etait mort de toute facon — il ecrivait
+                   `--boss-pulse`, qu'aucune feuille ne lit, et contredisait la
+                   regle ecrite vingt lignes plus haut (la pulsation ne se pilote
+                   pas par image). La vraie implementation, au changement de
+                   barre, etait deja la.
+                   Le controle d'identifiants libres ne couvrait que les 18
+                   modules issus du decoupage : il couvre desormais les 38 du
+                   depot, client ET `shared/`. Un controle partiel donne surtout
+                   de la confiance
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -197,4 +214,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.2";
+export const VERSION = "0.8.3";
