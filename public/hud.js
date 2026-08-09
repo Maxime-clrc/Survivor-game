@@ -33,7 +33,7 @@ import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
 import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
 import { bossAt, ALERT_ORDER, BOSS_FINAL } from "/shared/bosses.js";
-import { TL_CFG, eventAt } from "/shared/timeline.js";
+import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, STATUS_ICON, iconImg } from "/icons.js";
 
@@ -52,6 +52,7 @@ const el = {
   bossVerb: $("bossVerb"),
   bossHp:   $("bossHp"),
   bossFill: $("bossBar").firstElementChild,
+  bossBank: $("bossBank"),
   bossMult: $("bossMult"),
   bossPips: $("bossPips"),
   bossUlt:  $("bossUlt"),
@@ -311,8 +312,19 @@ function updateBoss(b) {
       el.boss.style.setProperty("--boss-pulse", `${per}s`);
     }
   }
-  setText(el.bossHp, "bh", `${Math.max(0, Math.round(b.hp))} / ${b.maxHp}`);
+  /* Les PV AFFICHES retranchent la reserve : c'est le chiffre que le joueur
+     verifie quand la barre ne bouge pas, et lui montrer les PV bornes le ferait
+     mentir exactement comme elle. Il peut donc descendre sous le seuil de la
+     barre courante — c'est vrai, la rupture n'attend qu'une echeance. */
+  const bank = Math.max(0, b.bank ?? 0);
+  setText(el.bossHp, "bh",
+    `${Math.max(0, Math.round(b.hp - bank))} / ${b.maxHp}`);
   setWidth(el.bossFill, "bf", k);
+  /* La part en attente se pose SUR le remplissage, collee a son bord droit :
+     `left` la fait commencer la ou les PV tomberont, `width` dit combien. */
+  const bf = Math.max(0, Math.min(k, bank / Math.max(1, b.maxHp)));
+  setStyle(el.bossBank, "bkl", "left", `${(k - bf) * 100}%`);
+  setStyle(el.bossBank, "bkw", "width", `${bf * 100}%`);
   setText(el.bossMult, "bm", `×${left}`);
   setClass(el.bossMult, "bml", "last", left <= 1);
 
@@ -376,8 +388,12 @@ function updateSegment(v, c = {}) {
      cauchemar il n'y en a jamais, et la ligne redevient celle d'avant. */
   const lieu = c.biomeNom ? ` · ${c.biomeNom}` : "";
   const meteo = c.meteoNom ? ` · ${c.meteoNom}` : "";
+  /* L'ETAPE PORTE SON NOM (lot X). « Segment 3/6 » est une coordonnee : il dit
+     ou l'on est dans une liste, jamais ce qui s'y passe. Le numero reste a cote
+     — les deux repondent a des questions differentes, et l'un ne remplace pas
+     l'autre : le nom situe dans l'histoire, le numero dans la duree. */
   setText(el.segName, "sgn",
-    `Segment ${v.segment}/${TL_CFG.SEGMENTS}${lieu}${meteo}`);
+    `${segmentName(v.segment)} · ${v.segment}/${TL_CFG.SEGMENTS}${lieu}${meteo}`);
   setClass(el.segName, "sgb", "crescendo", dernier);
 
   // La barre se VIDE : c'est le temps de horde restant avant le boss, pas une
@@ -396,7 +412,6 @@ function updateSegment(v, c = {}) {
   const ev = v.event ? eventAt(v.event.id) : null;
   if (ev)             { etat = `${ev.nom} · ${mmss(v.event.t)}`;
                         couleur = ev.level === ALERT_ORDER ? SIGNAL.go : SIGNAL.warn; }
-  else if (v.silence) { etat = "accalmie"; couleur = SIGNAL.gain; }
   else if (dernier)   { etat = "crescendo"; couleur = SIGNAL.warn; }
   else                { etat = mmss(v.hordeLeft); couleur = TEXT.dim; }
 
@@ -407,7 +422,7 @@ function updateSegment(v, c = {}) {
   if (sat >= 0.7) {
     etat += ` · arène ${Math.round(sat * 100)} %`;
     if (sat >= 0.98) couleur = SIGNAL.lethal;
-    else if (!v.silence) couleur = SIGNAL.warn;
+    else couleur = SIGNAL.warn;
   }
 
   setWidth(el.segBar, "sgf", frac);

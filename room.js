@@ -23,6 +23,9 @@ import {
   GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL, BIOMES,
 } from "./shared/game_state.js";
 import { CARD_CFG, cardBrief, banClosure } from "./shared/cards.js";
+// Le nom de l'etape, pour le journal du serveur : « Crise » se retrouve dans
+// un journal, « segment 3 » demande d'ouvrir la table pour savoir ou on en est.
+import { segmentName } from "./shared/timeline.js";
 import { RELIC_CFG, relicRerollCost } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
 import { lockedCards } from "./shared/progression.js";
@@ -714,11 +717,13 @@ export class Room {
       c.conn.send(JSON.stringify({
         t: "cards",
         reroll: c.profile?.confort.includes("relance") && !c.rerollUsed ? 1 : 0,
-        // Tout ecran de choix suit desormais un boss : c'est la seule
-        // interruption de la horde. `bossWave` reste dans le message parce que
-        // le titre client s'en sert, il ne vaut simplement plus jamais 0.
+        /* `bossWave` redevient une VRAIE question depuis le lot X : un ecran
+           s'ouvre a chaque niveau, en pleine horde, et seuls ceux qui suivent un
+           combat portent le nom du boss vaincu. `relicBossDue` est le drapeau
+           exact — pose a la mort du boss, efface par l'ouverture du marchand,
+           donc vrai pendant toute la file d'ecrans qui les separe. */
         segment: this.state.segment,
-        bossWave: 1,
+        bossWave: this.state.relicBossDue ? 1 : 0,
         boss: this.state.bossCount,
         bossKind: this.state.lastBossKind,
         more: this.state.pendingLevels,
@@ -728,7 +733,7 @@ export class Room {
       }));
     }
     this.broadcast({ t: "cardsWait", pending: this.cardsPendingIds() });
-    this.hooks.log(`[${this.code}] segment ${this.state.segment - 1} terminé — choix de cartes`
+    this.hooks.log(`[${this.code}] ${segmentName(this.state.segment)} — choix de cartes`
       + ` (niveau ${this.state.level}`
       + `${this.state.pendingLevels > 0 ? `, ${this.state.pendingLevels} autre(s) à suivre` : ""})`);
   }
@@ -810,16 +815,15 @@ export class Room {
     this.state.closeMerchant();
   }
 
+  /* La salle ne connait plus l'ORDRE des ecrans — cartes puis marchand — elle
+     demande le suivant. `openNextScreen()` est le point de passage unique cote
+     simulation (lot X) : il etait disperse ici, dans `_killBoss` et dans
+     `_addXp`, et le marchand y avait purement disparu depuis que `_endWave`
+     n'existe plus. */
   resumeRound() {
-    if (this.state.pendingLevels > 0) {
-      this.state.openCards();
-      this.enterCardPhase();
-      return;
-    }
-    if (this.state.relicPending) {
-      this.enterMerchantPhase();
-      return;
-    }
+    const ecran = this.state.openNextScreen();
+    if (ecran === "cards") { this.enterCardPhase(); return; }
+    if (ecran === "merchant") { this.enterMerchantPhase(); return; }
     this.phase = PHASE_ROUND;
     this.state.cardOffers = new Map();
     this.broadcast(this.loadoutPayload());

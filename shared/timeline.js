@@ -28,20 +28,6 @@ export const TL_CFG = {
   BEATS: 5,
   BEAT_TIME: 60,
 
-  /* Population visee au fond d'un silence. Ce n'est pas un plafond applique par
-     la simulation — rien ne supprime d'ennemi — mais le critere d'acceptation
-     du lot : un silence dont la population ne descend pas sous ce seuil n'est
-     pas un silence, c'est un ralentissement, et la respiration ne se lit pas. */
-  SILENCE_POP: 25,
-
-  /* Debit d'un beat promu silence dans une variante (lot T), en part de son
-     debit d'origine, et plancher absolu. Les deux ensemble : la fraction seule
-     donnerait 1,5/s a un silence tardif de cauchemar, ce qui n'est pas une
-     respiration ; le plancher seul rendrait les silences du segment 1 aussi
-     charges que les beats ordinaires qui les entourent. */
-  SILENCE_FRAC: 0.28,
-  SILENCE_MAX: 1.0,
-
   /* Marge d'apparition hors des bords, en pixels. Un ennemi nait dehors et
      entre dans le champ : il ne se materialise jamais sous les yeux. */
   SPAWN_MARGIN: 60,
@@ -93,7 +79,48 @@ export const TL_CFG = {
   QUARRY_HP_MUL: 0.8,
   QUARRY_SIZE_MUL: 2.5,
   QUARRY_SPEED_MUL: 0.72,
+
+  /* Ce que le gibier vaut a la jauge, en grunts. Il REMPLACE un beat entier —
+     aucune autre apparition pendant sa minute — donc paye au tarif d'un tank
+     elite, le joueur perdrait une carte a chaque chasse. Quarante est l'ordre de
+     grandeur de ce qu'une minute ordinaire rapporte a mi-partie : on ne perd
+     rien a chasser, on n'y gagne pas non plus une prime. */
+  QUARRY_XP_WORTH: 40,
 };
+
+/* LES SIX ETAPES ONT UN NOM (lot X). « Segment 3/6 » est une coordonnee, pas une
+   information : il dit ou l'on est dans une liste, jamais ce qui s'y passe. Le
+   mot etait un terme d'implementation — la structure de donnees s'appelle un
+   segment — et il avait fini au HUD, sur l'ecran de cartes et sur le bilan, ou
+   personne ne parle comme ca. Un joueur dit « on est morts a la Crise », pas
+   « on est morts au segment 3 ».
+
+   Les identifiants du code gardent `segment` : c'est bien le nom de la
+   structure, et le renommer aurait touche deux mille lignes pour un mot que
+   seul l'affichage montre. Le nom vit donc ici, a cote du script qu'il decrit,
+   et le numero reste affiche a cote — « Crise · 3/6 » : le nom situe dans
+   l'histoire, le numero situe dans la duree, les deux repondent a des questions
+   differentes.
+
+   Un seul mot chacun, et c'est une contrainte de HUD : la ligne porte deja le
+   biome et la meteo, et le nom se lit d'un coup d'oeil ou ne se lit pas.
+   L'intention de chaque etape est celle du script ci-dessous, mot pour mot —
+   Ressac remplace « chaos maitrise » depuis que les accalmies ont disparu : la
+   pression y reflue avant de revenir, elle ne s'y arrete plus. */
+export const SEGMENT_NAMES = [
+  "Installation",   // 1 — on apprend l'espace
+  "Emprise",        // 2 — on domine
+  "Crise",          // 3 — le point bas de la partie
+  "Ressac",         // 4 — ca reflue, puis ca revient
+  "Étau",           // 5 — pression maximale
+  "Apothéose",      // 6 — le final
+];
+
+/* Le nom d'une etape, bornes comprises. Hors table — une manche qui deborde son
+   script — on rend le numero : mieux vaut une coordonnee qu'une chaine vide. */
+export function segmentName(segment) {
+  return SEGMENT_NAMES[segment - 1] ?? `Segment ${segment}`;
+}
 
 /* --- LES EVENEMENTS (lot U) -----------------------------------------------------
 
@@ -197,11 +224,42 @@ export const GEOMETRIES = ["bords", "front", "pince", "quatre-fronts", "anneau"]
    Le point bas de la partie est au segment 4 et non au 5 : une courbe qui ne
    fait que monter n'a pas de sommet.
 
-   `silence` : beat a debit tres bas ou la horde presente se fait detruire et un
-   bonus au sol est force. C'est la PIECE PORTEUSE du modele continu, pas un
-   ornement — sans nettoyage de vague, dans un ecran fixe et sans camera, la
-   population tend vers MAX_ENEMIES et y reste. Trois au minimum, jamais deux
-   segments de suite sans, SAUF le segment 3 qui n'en a aucun : c'est la crise.
+   AVERTISSEMENT MESURE (lot X) — CES DEBITS SONT INOPERANTS DES LA 5e MINUTE.
+   La population bute sur `CFG.MAX_ENEMIES` des la CINQUIEME minute de horde en
+   cauchemar a deux joueurs et plus, la huitieme en normal, la neuvieme ou
+   dixieme en calme — et y reste les deux tiers du temps ; passe le plafond,
+   `_spawnEnemy` rend `null` et les apparitions sont jetees en silence. Ecrire 4,6 ou 5,0 dans les derniers beats ne change donc
+   RIEN a ce qui arrive a l'ecran, et le residu `spawn` du profil de difficulte
+   (x0,80 / x1,00 / x1,28) n'y change rien non plus — trois modes qui butent sur
+   le meme plafond envoient la meme quantite.
+
+   C'est un choix ASSUME et non un defaut a corriger : le plafond est une
+   contrainte de performance, un monstre tue libere une place, et ce qui
+   differencie les modes doit etre le COMPORTEMENT (traits, patterns d'attaque
+   et de mouvement, roster) et non la quantite. La consequence pratique : ne pas
+   passer une soiree a regler un debit tardif en croyant changer la difficulte.
+   Le levier est dans `DIFFICULTIES[i].traits` et `.roster`.
+
+   LES ACCALMIES ONT DISPARU (lot X), et l'argument qui les portait est mort
+   avec sa premisse. Il etait ecrit ici meme : « sans nettoyage de vague, dans un
+   ECRAN FIXE et SANS CAMERA, la population tend vers MAX_ENEMIES et y reste ».
+   Le lot I a donne au jeu une arene de 4800 x 2700 pour une vue de 1600 x 900 et
+   une camera qui suit le joueur — neuf fois la surface, et la possibilite de
+   se decrocher d'un paquet au lieu d'attendre qu'il se vide. La respiration ne
+   vient plus d'un trou dans le debit, elle vient du DEPLACEMENT.
+
+   Ce qu'un beat de silence portait en plus est repris ailleurs, sans quoi on
+   perdrait deux choses au lieu d'en retirer une :
+     - la fenetre de recuperation -> l'ecran de cartes, qui s'ouvre desormais a
+       chaque niveau (lot X) et arrete la simulation le temps du choix ;
+     - le bonus au sol force -> `CFG.POWERUP_*`, seul reglage de cadence des
+       bonus, et le premier levier de la table de recuperation du lot X.
+
+   Les quatre beats concernes reprennent leur PLACE SUR LA COURBE — la moyenne de
+   leurs voisins, exactement la regle que `comble()` appliquait aux variantes.
+   Garder leur debit d'origine (0,5 la ou les voisins font 1,2 et 1,8) aurait
+   donne le pire des deux mondes : une accalmie qu'on ne lit plus mais qui vide
+   quand meme l'arene.
 
    `minPlayers` / `fallback` : la MEME signature que `MECHS`, et pour la meme
    raison. A budget constant, une petite equipe recoit moins de menaces mais
@@ -214,7 +272,7 @@ export const SCRIPT = [
     { rate: 0.6, geom: "bords" },
     { rate: 0.9, geom: "bords" },
     { rate: 1.2, geom: "front" },
-    { rate: 0.5, geom: "bords", silence: true },
+    { rate: 1.5, geom: "bords" },
     { rate: 1.8, geom: "pince" },
   ],
   // segment 2 — on domine
@@ -222,10 +280,10 @@ export const SCRIPT = [
     { rate: 1.4, geom: "bords" },
     { rate: 1.7, geom: "front" },
     { rate: 2.0, geom: "pince", event: EV_NUEE },
-    { rate: 0.7, geom: "bords", silence: true },
+    { rate: 2.3, geom: "bords" },
     { rate: 2.6, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
   ],
-  // segment 3 — la crise : aucun silence, deliberement
+  // segment 3 — la crise : le point bas de la partie
   [
     { rate: 2.0, geom: "front" },
     { rate: 2.4, geom: "pince", event: EV_CROISE },
@@ -233,15 +291,15 @@ export const SCRIPT = [
     { rate: 2.8, geom: "quatre-fronts", minPlayers: 3, fallback: "front" },
     { rate: 3.2, geom: "pince" },
   ],
-  // segment 4 — chaos maitrise
+  // segment 4 — ressac : ca reflue, puis ca revient
   [
     { rate: 2.2, geom: "bords" },
-    { rate: 0.8, geom: "bords", silence: true },
+    { rate: 2.5, geom: "bords" },
     { rate: 2.9, geom: "front", event: EV_SIEGE },
     { rate: 3.3, geom: "pince" },
     { rate: 3.8, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
   ],
-  // segment 5 — pression maximale
+  // segment 5 — l'etau : pression maximale
   [
     { rate: 3.0, geom: "pince" },
     { rate: 3.4, geom: "quatre-fronts", minPlayers: 3, fallback: "front", event: EV_CHASSE },
@@ -252,7 +310,7 @@ export const SCRIPT = [
   // segment 6 — apotheose
   [
     { rate: 3.4, geom: "front" },
-    { rate: 1.0, geom: "bords", silence: true },
+    { rate: 3.7, geom: "bords" },
     { rate: 4.0, geom: "pince", event: EV_NUEE },
     { rate: 4.6, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
     { rate: 5.0, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
@@ -261,18 +319,21 @@ export const SCRIPT = [
 
 /* --- LES TROIS VARIANTES (lot T) ------------------------------------------------
 
-   Une difficulte choisit sa table par nom (`profil.script`). Les trois se
-   distinguent par LA FORME de la pression et par elle seule :
+   Une difficulte choisit sa table par nom (`profil.script`). Depuis que les
+   accalmies ont disparu (lot X), il ne reste qu'UN axe ici, et il faut le dire
+   franchement plutot que de laisser croire qu'il y en a deux :
 
-     - OU SONT LES SILENCES. C'est la piece porteuse du modele continu, pas un
-       ornement : sans nettoyage de vague, dans un ecran fixe et sans camera, la
-       population tend vers `MAX_ENEMIES` et y reste. Calme en a UN PAR SEGMENT
-       (six), la reference en a quatre, cauchemar UN SEUL sur toute la manche.
-       Six silences contre un font deux jeux differents bien plus surement que
-       20 % de debit.
      - QUELLE GEOMETRIE. Calme reste sur `bords` et `front` — une menace qui
        arrive d'un cote se lit ; cauchemar prend `pince`, `quatre-fronts` et
        `anneau`, qui demandent de tenir plusieurs directions a la fois.
+
+   L'axe perdu etait « OU SONT LES SILENCES », et c'etait le plus fort des deux :
+   six accalmies contre une faisaient deux jeux differents. Il n'a PAS ete
+   remplace par un equivalent dans cette table, et c'est volontaire — le seul
+   substitut a portee de main etait un debit propre a chaque variante, or c'est
+   exactement le second bouton sur la meme grandeur que le paragraphe suivant
+   refuse. Ce que le mode change se lit ailleurs, et y est deja plus lisible : le
+   roster, les traits attaches et le residu du profil (`game_state.js`).
 
    LA QUANTITE N'EST PAS ICI. Les debits sont IDENTIQUES d'une variante a
    l'autre : c'est `diff.spawn` (0,80 / 1,00 / 1,28) qui la porte, et lui seul.
@@ -285,23 +346,7 @@ export const SCRIPT = [
    Les variantes sont DERIVEES de la reference et non recopiees : trois tables de
    trente beats ecrites a la main auraient diverge au premier reglage de debit,
    ce qui est precisement le defaut qu'on vient de decrire. On decrit ce qui
-   CHANGE — quels beats sont des silences, quelle geometrie — et le reste suit. */
-
-/* Beats declares silencieux, par variante, en index global (segment - 1) * 5 +
-   beat. Ecrire les positions plutot que les tables entieres est ce qui garantit
-   qu'un reglage de debit se propage aux trois modes. */
-const SILENCES = {
-  // Un par segment, toujours au quatrieme beat : la respiration doit y etre
-  // REGULIERE et previsible, c'est le mode qui enseigne l'espace.
-  calme: [3, 8, 13, 18, 23, 28],
-  // La reference : quatre, jamais deux segments de suite sans, SAUF le segment
-  // 3 qui n'en a aucun — c'est la crise, et c'est le point bas de la partie.
-  normal: [3, 8, 16, 26],
-  // UN SEUL, au segment 6. Le sol se referme en permanence et ne rouvre qu'une
-  // fois : c'est la promesse du mode, et c'est le seul endroit du script ou elle
-  // s'ecrit.
-  cauchemar: [26],
-};
+   CHANGE — la geometrie — et le reste suit. */
 
 /* Geometrie par variante. Une fonction du beat de reference plutot qu'une table
    : calme RETOMBE sur la geometrie la plus lisible quand la reference en demande
@@ -311,55 +356,13 @@ const GEOM_CALME = { pince: "front", "quatre-fronts": "front", anneau: "bords" }
 const GEOM_CAUCHEMAR = { bords: "front", front: "pince", pince: "quatre-fronts" };
 
 function derive(nom) {
-  const silences = SILENCES[nom] ?? SILENCES.normal;
   const dur = nom === "cauchemar";
   const doux = nom === "calme";
-  return SCRIPT.map((seg, s) => seg.map((b, i) => {
-    const idx = s * TL_CFG.BEATS + i;
-    const silence = silences.includes(idx);
+  return SCRIPT.map(seg => seg.map(b => {
     let geom = b.geom;
     if (doux) geom = GEOM_CALME[geom] ?? geom;
     else if (dur) geom = GEOM_CAUCHEMAR[geom] ?? geom;
-    /* UN SILENCE EST TOUJOURS `bords`, quel que soit le mode et quel que soit le
-       beat qu'il remplace. Les quatre silences de la reference le sont deja, et
-       ce n'est pas un hasard : une respiration qui arrive par quatre fronts n'en
-       est pas une, on la passe a courir d'un coin a l'autre. Sans cette ligne,
-       promouvoir le beat 3.4 de calme — `quatre-fronts` dans la reference —
-       aurait fabrique le seul silence du jeu qu'on ne peut pas vivre a l'arret.
-
-       Son DEBIT, lui, n'est recalcule que s'il est promu : un silence de la
-       reference porte deja le sien, mesure et ecrit a la main, et le derouler une
-       seconde fois le diviserait encore par trois. */
-    if (silence) {
-      return {
-        ...b, geom: "bords", silence: true,
-        rate: b.silence ? b.rate : silenceRate(b),
-        // Une geometrie unique n'a pas de repli a adapter.
-        minPlayers: 0, fallback: null,
-        /* LE SILENCE GAGNE sur l'evenement. Le cas ne se produit avec aucune des
-           trois variantes actuelles — les positions sont choisies pour ne jamais
-           se croiser, et `verifierScript()` le controle — mais la regle doit
-           exister avant qu'on ait besoin d'y penser : un silence est la piece
-           porteuse du modele continu, un evenement de composition ne l'est pas.
-           Superposer les deux donnerait de toute facon un silence qui n'en est
-           pas, c'est-a-dire les defauts des deux sans les qualites de l'un. */
-        event: undefined,
-      };
-    }
-    /* Beat qui ETAIT un silence de la reference et qui ne l'est plus. Son debit
-       ne peut pas rester celui d'origine : les quatre silences de la reference
-       portent un debit ecrit A LA MAIN et tres bas (0,5 la ou les voisins font
-       1,2 et 1,8). Le garder produirait le pire des deux mondes — un beat calme
-       qui n'a plus le drapeau, donc plus de bonus force ni de respiration lue,
-       mais qui laisse quand meme la horde se vider. Cauchemar y aurait perdu
-       trois minutes de pression en croyant en gagner.
-
-       Il reprend donc SA PLACE SUR LA COURBE : la moyenne de ses voisins dans le
-       segment. Deduit et non ecrit, pour la meme raison que tout le reste de
-       cette fonction — une quatrieme table de trente valeurs aurait derive au
-       premier reglage. */
-    const out = { ...b, geom, silence: false };
-    if (b.silence) out.rate = comble(seg, i);
+    const out = { ...b, geom };
     /* Un repli de geometrie perd son sens quand la geometrie a change : la table
        `minPlayers` / `fallback` de la reference dit « a moins de trois joueurs,
        quatre-fronts devient pince ». En calme quatre-fronts n'existe deja plus,
@@ -369,27 +372,6 @@ function derive(nom) {
       : out.fallback;
     return out;
   }));
-}
-
-/* Debit d'un beat promu silence. Il n'est pas recopie d'une table : il se DEDUIT
-   du beat, a `SILENCE_FRAC` de son debit d'origine. Les silences de la reference
-   valent 0,5 sur 1,2 au segment 1 et 1,0 sur 4,6 au segment 6 — soit un tiers
-   qui se resserre a mesure que la manche monte, ce qu'un facteur unique rendrait
-   faux aux deux bouts. On garde donc le PLUS BAS des deux : la fraction, ou le
-   plancher absolu sous lequel un silence n'est plus une respiration mais un
-   arret. */
-function silenceRate(b) {
-  return Math.min(b.rate * TL_CFG.SILENCE_FRAC, TL_CFG.SILENCE_MAX);
-}
-
-/* Debit d'un beat de reference qu'on RETIRE des silences. La moyenne de ses
-   voisins non silencieux dans le segment — en bord de segment, le seul voisin
-   disponible. Rien ne peut manquer : aucun segment n'est fait que de silences. */
-function comble(seg, i) {
-  const g = seg[i - 1], d = seg[i + 1];
-  const vals = [g, d].filter(b => b && !b.silence).map(b => b.rate);
-  if (vals.length === 0) return seg[i].rate;
-  return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
 export const SCRIPTS = {
@@ -448,13 +430,15 @@ export function adaptEvent(id, alive) {
    critere d'acceptation du lot, et il ne vaut que s'il est rejouable. Il rend la
    liste des collisions trouvees, vide quand tout va bien.
 
-   Quatre regles, et les quatre etaient des GARANTIES A PROUVER du temps du
+   Trois regles, et les trois etaient des GARANTIES A PROUVER du temps du
    modulo de plan4 ; elles se LISENT desormais dans la table, ce qui est tout
    l'interet du calendrier explicite :
      - pas d'evenement sur un beat de crescendo (le crescendo EST l'evenement) ;
-     - pas d'evenement sur un silence (voir `derive`, ou le silence gagne) ;
      - jamais deux evenements sur des beats consecutifs ;
      - pas d'evenement inconnu.
+   La quatrieme — pas d'evenement sur un silence — est partie avec les accalmies
+   au lot X. Elle n'a pas de successeur : plus rien dans la table n'a priorite
+   sur un evenement.
    La collision avec un BOSS ne se teste pas : l'horloge de horde est arretee
    pendant un combat, donc aucun beat ne tourne — la question ne se pose plus. */
 export function verifierScript() {
@@ -466,7 +450,6 @@ export function verifierScript() {
       if (b.event === undefined) return;
       if (!EVENTS[b.event]) soucis.push(`${ou} : evenement inconnu ${b.event}`);
       if (i === TL_CFG.BEATS - 1) soucis.push(`${ou} : evenement sur un crescendo`);
-      if (b.silence) soucis.push(`${ou} : evenement sur un silence`);
       const idx = s * TL_CFG.BEATS + i;
       if (idx - precedent < 2) soucis.push(`${ou} : deux evenements consecutifs`);
       precedent = idx;

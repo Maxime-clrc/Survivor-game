@@ -131,7 +131,10 @@
           <span id="bossVerb"></span>
           <span id="bossHp"></span>
         </div>
-        <div id="bossBar"><i></i><b id="bossMult"></b></div>
+        <!-- `<u>` : les degats MIS DE COTE par le plancher de barre. Sans lui
+             la barre reste figee pendant tout un palier — mesure : 46 a 60 % du
+             combat — et le joueur ne sait pas si ses tirs entrent. -->
+        <div id="bossBar"><i></i><u id="bossBank"></u><b id="bossMult"></b></div>
         <div id="bossPips"></div>
         <div id="bossUlt" hidden><i></i><span>ULTIME — tenez les tours pour la faire descendre</span></div>
       </div>
@@ -761,6 +764,8 @@
          de difficulte : depuis qu'un mode est un bestiaire, des traits et un
          sol, voter sur le seul mot « cauchemar » est voter a l'aveugle. -->
     <ul id="voteDetail"></ul>
+  </div>
+
   <!-- BARRE D'ACTION FIXE — enfant DIRECT de #panel et non de .panelWrap :
        elle est en `position: fixed` et heriterait sinon de la largeur de la
        colonne. `#waitMsg` y vit, a gauche du bouton : c'est lui qui explique

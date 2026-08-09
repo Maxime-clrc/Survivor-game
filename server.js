@@ -21,6 +21,9 @@ import { createServer } from "node:http";
 import { execFileSync } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
+// Synchrones, et uniquement pour le journal : voir `log()` plus bas — la
+// derniere ligne avant un plantage doit etre sur le disque, pas dans un tampon.
+import { appendFileSync, existsSync, statSync, writeFileSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -261,9 +264,40 @@ function readJson(req, done) {
 
 /* --- cablage ------------------------------------------------------------------- */
 
+/* LE JOURNAL VA AUSSI SUR DISQUE, et c'est ce qui manquait pour deboguer une
+   panne rapportee apres coup. Tout partait dans stdout : une erreur client
+   remontee par `clientError`, une salle fermee sur exception, un demarrage
+   rate — rien de tout ca ne survivait a la fermeture du terminal, et « je viens
+   d'avoir un plantage » restait sans trace.
+
+   Un seul fichier, en AJOUT, jamais relu par le jeu : c'est un journal
+   d'operateur, pas un magasin. `data/serveur.log` parce que `data/` existe deja
+   et n'est pas servi au navigateur — `resolvePath()` route `/shared/*` depuis la
+   racine et tout le reste depuis `public/`, donc rien sous `data/` n'est
+   joignable par une adresse.
+
+   Ecriture SYNCHRONE et volontairement : le journal doit contenir la derniere
+   ligne AVANT le plantage, ce qu'un flush asynchrone ne garantit pas — et c'est
+   precisement la ligne qu'on vient lire. Le cout est une poignee d'ecritures par
+   minute en regime normal, sans commune mesure avec le tick.
+
+   PLAFOND SIMPLE : au-dela de LOG_MAX octets le fichier est reparti a zero.
+   Une rotation a deux fichiers serait plus soignee ; un disque plein sur un VPS
+   arrete le jeu, et c'est le risque qu'on refuse. Une erreur d'ecriture est
+   avalee — un journal ne doit jamais etre la cause d'une panne. */
+const LOG_FILE = join(ROOT, "data", "serveur.log");
+const LOG_MAX = 4 * 1024 * 1024;
+
 function log(msg) {
   const t = new Date().toTimeString().slice(0, 8);
   console.log(`[${t}] ${msg}`);
+  try {
+    const d = new Date().toISOString().slice(0, 19).replace("T", " ");
+    if (existsSync(LOG_FILE) && statSync(LOG_FILE).size > LOG_MAX) {
+      writeFileSync(LOG_FILE, `[${d}] journal remis a zero (plafond atteint)\n`);
+    }
+    appendFileSync(LOG_FILE, `[${d}] ${msg}\n`);
+  } catch { /* un journal ne fait jamais tomber le serveur */ }
 }
 
 /* Le magasin vit en memoire et Supabase est sa seule persistance. Le

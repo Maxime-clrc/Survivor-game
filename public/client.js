@@ -88,7 +88,7 @@ import {
 /* La bande son vit dans son propre module, sur le modele d'audio.js : elle ne
    depend ni du DOM ni du reseau, et elle emprunte le contexte et le bus
    d'audio.js — la coupure et le volume globaux l'emportent donc toujours. */
-import { TL_CFG } from "/shared/timeline.js";
+import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { startMusic, setMusicIntensity } from "/music.js";
 import { EventPump } from "/events.js";
 /* La grille du sol est graduee en METRES : c'est ce qui rend les distances des
@@ -2855,7 +2855,7 @@ function mulCourt(v) { return "×" + String(+v.toFixed(2)).replace(".", ","); }
    PROFIL et non les quatre multiplicateurs.
 
    La raison est celle du lot T : une difficulte n'est plus quatre nombres. Elle
-   choisit un script — donc ou sont les silences —, un roster, un attachement de
+   choisit un script — donc quelle geometrie —, un roster, un attachement de
    traits et un decor ; les multiplicateurs n'en sont plus que le RESIDU. Les
    afficher seuls redonnait au joueur exactement l'impression que le lot T a
    corrigee, celle de trois modes qui ne different que par une echelle. La
@@ -3357,20 +3357,26 @@ function showBilan(res) {
 
   /* LE TITRE PARLE DU SCRIPT. « Manche 1 terminée » apres une demi-heure de jeu
      se lisait comme un compteur casse : le numero de manche etait juste, c'est
-     l'unite de jeu qui a change. Le segment atteint est ce que la table retient
-     de sa partie, donc c'est lui qui titre ; le numero de manche descend avec
+     l'unite de jeu qui a change. L'etape atteinte est ce que la table retient
+     de sa partie, donc c'est elle qui titre ; le numero de manche descend avec
      les autres chiffres.
 
-     Et une manche peut desormais se GAGNER — six segments, six boss. C'est la
+     Elle est NOMMEE depuis le lot X, et c'est le titre qui en profite le plus :
+     « morts à la Crise » est une phrase qu'une table se redit, « morts au
+     segment 3 » est une coordonnee qu'il faut traduire. Le numero reste a cote,
+     il dit la distance parcourue.
+
+     Et une manche peut desormais se GAGNER — six etapes, six boss. C'est la
      seule chose que ce titre doit dire quand elle arrive. */
   const niv = res.level ? ` — niveau ${res.level}` : "";
   // La victoire change la TETE du bilan, elle n'ouvre pas un ecran de plus :
   // voir `#bilan.win` dans la feuille de style.
   bilanEl.classList.toggle("win", !!res.victory);
   bilanTitle.textContent = res.victory
-    ? `Victoire — les six segments franchis${niv}`
+    ? `Victoire — les six étapes franchies${niv}`
     : res.segment
-      ? `Partie terminée — segment ${res.segment}/${TL_CFG.SEGMENTS}${niv}`
+      ? `Partie terminée — ${segmentName(res.segment)}`
+        + ` (${res.segment}/${TL_CFG.SEGMENTS})${niv}`
       : `Partie terminée`;
   /* Les chiffres de la TABLE, pas ceux d'un joueur — le tableau juste dessous
      ventile par personne. « joueurs » a saute : le tableau en donne la liste
@@ -3860,17 +3866,18 @@ function renderCards() {
   if (!cardsState) { cardsEl.hidden = true; return; }
   cardsEl.hidden = false;
 
-  /* Le titre dit d'ou vient le choix. Tous les ecrans suivent desormais un boss
-     — c'est la seule interruption de la horde — mais `more` reste indispensable :
-     il compte les choix qui suivent celui-ci, et sans lui on prend le second
-     ecran pour un bug d'affichage du premier. */
+  /* Le titre dit D'OU VIENT LE CHOIX, et les deux cas existent a nouveau depuis
+     le lot X : un ecran s'ouvre a chaque niveau, en pleine horde, et seuls ceux
+     qui suivent un combat portent le nom du boss vaincu. `more` compte les choix
+     qui suivent celui-ci — sans lui on prend le second ecran pour un bug
+     d'affichage du premier. */
   const suite = cardsState.more > 0
     ? ` — encore ${cardsState.more} choix après celui-ci`
     : "";
   cardsTitle.textContent = cardsState.bossWave
     ? `${bossAt(cardsState.bossKind).nom.toUpperCase()} ${ROMAN[cardsState.boss] ?? cardsState.boss}`
       + ` vaincu — niveau ${cardsState.level}${suite}`
-    : `Segment ${cardsState.segment} — niveau ${cardsState.level}${suite}`;
+    : `${segmentName(cardsState.segment)} — niveau ${cardsState.level}${suite}`;
 
   /* La carte dit son effet, ce qu'on en possede deja, et ce que l'exemplaire
      suivant y ajoute. Sans les deux dernieres lignes, un joueur qui a deux
@@ -4655,7 +4662,11 @@ function ingest(msg) {
           kind: msg.bo[9] ?? 0, ult: msg.bo[10] ?? 0,
           // Palier d'enrage, ajout en fin de tuple. Repli 0 : un serveur
           // anterieur au lot n'en envoie pas et la barre reste normale.
-          enrage: msg.bo[11] ?? 0 }
+          enrage: msg.bo[11] ?? 0,
+          // Degats mis de cote par le plancher de barre, ajout en fin de tuple.
+          // Repli 0 : un serveur anterieur n'en envoie pas, la barre se dessine
+          // alors comme avant — figee, mais sans mentir davantage.
+          bank: msg.bo[12] ?? 0 }
       : null,
     // Second Jumeau : cle nommee, absente pour les quatre autres boss.
     boss2: msg.bo2
@@ -4679,7 +4690,6 @@ function ingest(msg) {
     segment: msg.sg ? msg.sg[0] : 0,
     hordeLeft: msg.sg ? msg.sg[1] : 0,
     beat: msg.sg ? msg.sg[2] : 0,
-    silence: msg.sg ? msg.sg[3] === 1 : false,
     teamLevel: msg.xl ?? 1,
     teamProgress: msg.xp ?? 0,
     /* Difficulte de la manche EN COURS. Elle est deja connue par le salon, mais
@@ -5250,7 +5260,7 @@ function interpolated(renderTime) {
     // a mi-chemin entre 3 et 4 n'aurait aucun sens. Le temps restant, lui,
     // pourrait s'interpoler ; il ne le vaut pas, la barre a deja sa transition
     // CSS et le HUD n'ecrit que si la valeur a change.
-    segment: b.segment, hordeLeft: b.hordeLeft, beat: b.beat, silence: b.silence,
+    segment: b.segment, hordeLeft: b.hordeLeft, beat: b.beat,
     teamLevel: b.teamLevel, teamProgress: b.teamProgress,
     // Difficulte et anticipations : des ETATS, jamais des positions. Un ennemi
     // a moitie en train de se ramasser n'existe pas.
@@ -5285,7 +5295,7 @@ function flatten(s) {
     bounds: s.bounds ?? { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H, warn: 0 },
     walls: s.walls ?? null,
     cover: s.cover ?? null,
-    segment: s.segment, hordeLeft: s.hordeLeft, beat: s.beat, silence: s.silence,
+    segment: s.segment, hordeLeft: s.hordeLeft, beat: s.beat,
     teamLevel: s.teamLevel, teamProgress: s.teamProgress,
     diff: s.diff ?? difficulty, windup: s.windup ?? EMPTY_SET,
     event: s.event ?? null,
@@ -5377,9 +5387,28 @@ function pushWorld(fn) {
 }
 
 /* Jamais vide par `resetFeedback` : les transitions APPELLENT `resetFeedback`,
-   une file videe depuis son propre element courant se perdrait elle-meme. */
+   une file videe depuis son propre element courant se perdrait elle-meme.
+
+   CHAQUE CALLBACK EST ISOLE, et ce n'est pas de la prudence gratuite : cette
+   file porte l'ouverture de l'ecran de cartes, celle du marchand, le bilan et
+   la fin de manche — c'est-a-dire tout ce qui CHANGE D'ECRAN. Elle est videe
+   depuis `frame()`, en amont du `requestAnimationFrame` qui reamorce la boucle :
+   une seule exception dans une transition tuait donc la boucle de rendu POUR DE
+   BON, et le symptome n'etait pas une erreur visible mais « l'ecran de cartes
+   n'apparait pas — et la pause non plus », puisque plus rien ne se redessinait
+   ensuite. Un defaut passager devenait une panne definitive.
+
+   Isole, le pire cas redevient ce qu'il devrait etre : une transition ratee,
+   signalee au serveur, et le jeu continue. */
 function flushWorld(now) {
-  while (worldQueue.length > 0 && worldQueue[0].at <= now) worldQueue.shift().fn();
+  while (worldQueue.length > 0 && worldQueue[0].at <= now) {
+    const item = worldQueue.shift();
+    try {
+      item.fn();
+    } catch (err) {
+      signalerErreur("transition", err?.message ?? String(err), err?.stack);
+    }
+  }
 }
 
 function pushAlert(msg) {
@@ -5494,7 +5523,7 @@ const shake = { x: 0, y: 0, mag: 0 };
    et une liste capturee une fois serait celle du biome precedent. */
 const pump = new EventPump(handleEvent, {
   get myId() { return myId; },
-  get hazards() { return biome.hazards; },
+  get hazards() { return hazardsActifs(); },
   hazardState,
 });
 
@@ -5626,23 +5655,21 @@ function handleEvent(e) {
     case "bonus": playSound("bonus"); break;
     case "niveau": playSound("niveau"); break;
 
-    /* Segment et accalmie passent par le bandeau d'INFORMATION, jamais par une
-       consigne : ils ne demandent rien, ils situent. Le silence est la seule
-       respiration du modele continu — non annonce, il se subit comme un creux
-       de difficulte inexplique au lieu de se lire comme une fenetre. */
+    /* L'etape passe par le bandeau d'INFORMATION, jamais par une consigne : elle
+       ne demande rien, elle situe. Elle porte son NOM depuis le lot X — c'est le
+       seul endroit du jeu ou l'etape s'annonce, et « SEGMENT 3 » n'annoncait
+       rien du tout.
+
+       Le beat, lui, n'a plus d'annonce : la seule qui existait etait celle de
+       l'accalmie, et un changement de debit ordinaire ne se commente pas — il se
+       ressent, ou il n'a pas lieu d'etre dans le script. */
     case "segment": {
       const now = performance.now();
-      alertInfo = { nom: `SEGMENT ${e.segment}`, texte: "la horde reprend",
+      alertInfo = { nom: segmentName(e.segment).toUpperCase(),
+                    texte: "la horde reprend",
                     from: now, until: now + 2500 };
       break;
     }
-    case "beat":
-      if (e.silence) {
-        const now = performance.now();
-        alertInfo = { nom: "ACCALMIE", texte: "reprends du terrain",
-                      from: now, until: now + 2500 };
-      }
-      break;
 
     /* FIN D'EVENEMENT (lot U). L'ouverture a son annonce, envoyee par le canal
        d'alerte ; la CLOTURE n'a rien, et c'est pourtant le moment ou l'equipe
@@ -6208,7 +6235,27 @@ let lastFrame = performance.now();
 const PERF = location.search.includes("perf");
 let fps = 0;
 
+/* LA BOUCLE NE MEURT PLUS SUR UNE EXCEPTION. `requestAnimationFrame` ne se
+   reamorce qu'a la fin du corps : n'importe quel jet en cours de route arretait
+   le rendu DEFINITIVEMENT, et le joueur ne voyait pas une erreur mais un jeu qui
+   ne repond plus — ecran de cartes qui n'apparait pas, pause qui n'ouvre pas,
+   HUD fige. Le pire rapport entre la gravite de la cause et celle du symptome.
+
+   Le reamorcage vit donc dans un `finally`, et l'erreur part par le canal deja
+   en place (`signalerErreur`, dedupliquee par signature — une erreur de rendu se
+   repete soixante fois par seconde, elle ne doit remonter qu'une). Une image
+   perdue se voit a peine ; une boucle morte ne se recupere qu'en rechargeant. */
 function frame(now) {
+  try {
+    frameBody(now);
+  } catch (err) {
+    signalerErreur("rendu", err?.message ?? String(err), err?.stack);
+  } finally {
+    requestAnimationFrame(frame);
+  }
+}
+
+function frameBody(now) {
   const raw = now - lastFrame;
   const dt = Math.min(raw / 1000, 0.1);
   lastFrame = now;
@@ -6278,7 +6325,6 @@ function frame(now) {
     gl?.begin(null, camera.x0, camera.y0);
     gl?.end();
   }
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
@@ -6288,9 +6334,32 @@ requestAnimationFrame(frame);
    permanent de la prediction. Le recopier plutot que de l'exporter serait le
    defaut ; il n'est ici que parce que `_ground` est une methode d'instance, donc
    inatteignable sans un GameState — ce que le client n'a pas. */
+/* L'ARENE DE BOSS EST NUE — le JUMEAU EXACT des accesseurs `obstacles` et
+   `hazards` de `game_state.js`, et il vaut mieux qu'il le reste : le serveur
+   cesse de bloquer sur les piliers pendant un combat, et une prediction qui
+   continuerait de s'y cogner ramenerait le personnage en arriere a chaque image.
+   C'est le plus gros risque de recalage permanent du lot V, deja note la-bas.
+
+   DEDUIT, jamais transmis. Le serveur eteint la geometrie des que `bossPending`
+   est pose — donc avant que l'entite n'existe — et le client ne connait pas ce
+   drapeau. Mais il connait les BOUNDS, et la constriction a une vue est
+   exactement ce qui accompagne l'arrivee du boss : « boss present OU salle
+   resserree » rend la meme reponse des deux cotes, sans une cle de plus. C'est
+   la regle du depot appliquee telle quelle — avant d'ouvrir un champ, chercher
+   si la valeur est une fonction de ce que le client a deja. */
+const VIDE = Object.freeze([]);
+
+function biomeNu() {
+  if (latest?.boss) return true;
+  const b = latest?.bounds;
+  return !!b && (b.x1 - b.x0) < CFG.ARENA_W - 1;
+}
+function obstaclesActifs() { return biomeNu() ? VIDE : biome.obstacles; }
+function hazardsActifs() { return biomeNu() ? VIDE : biome.hazards; }
+
 function groundAt(x, y) {
   let slow = 1, slip = false;
-  for (const h of biome.hazards) {
+  for (const h of hazardsActifs()) {
     if (h.kind !== HZ_SLOW && h.kind !== HZ_SLIP) continue;
     if ((x - h.x) ** 2 + (y - h.y) ** 2 > h.r * h.r) continue;
     // Deux champs ne se cumulent jamais : on prend le meilleur. Meme regle que
@@ -6385,8 +6454,9 @@ function stepPrediction(dt) {
      axe et du cote d'ou l'on venait. C'est le plus gros risque de recalage
      permanent du lot — un pilier que le serveur bloque et que la prediction
      traverse ramene le personnage en arriere a chaque image. */
-  for (let i = 0; i < biome.obstacles.length; i++) {
-    const o = biome.obstacles[i];
+  const obs = obstaclesActifs();
+  for (let i = 0; i < obs.length; i++) {
+    const o = obs[i];
     if (o.maxHp > 0 && (latest.cover?.find(c => c[0] === i)?.[1] ?? 1) <= 0) continue;
     const hw = o.w / 2 + r, hh = o.h / 2 + r;
     const dx = predicted.x - o.x, dy = predicted.y - o.y;
@@ -6404,7 +6474,7 @@ function stepPrediction(dt) {
 }
 
 /* Ce que le jeu dit a la musique : un seul nombre entre 0 et 1. Tres doux au
-   salon, montee avec le script, souffle pendant les silences, pic sur le boss —
+   salon, montee avec le script, pic sur le boss —
    qui se tend encore a mesure que ses barres tombent, parce que la fin d'un
    combat est son moment le plus dangereux. Les coefficients sont des reglages
    d'oreille, pas de la simulation : ils n'ont rien a faire dans CFG.
@@ -6417,7 +6487,6 @@ function gameIntensity() {
   const v = latest;
   const palier = ((v.segment ?? 1) - 1) * TL_CFG.BEATS + (v.beat ?? 0);
   let i = 0.20 + Math.min(0.45, palier * 0.02);
-  if (v.silence) i -= 0.18;                      // accalmie : la musique souffle
   if (v.boss) {
     const bars = v.boss.bars ?? 1;
     i = Math.max(i, 0.72) + (CFG.BOSS_BARS - bars) * 0.05;
@@ -7699,7 +7768,7 @@ function drawArenaBounds(b) {
    partage pas — un cercle ambre qui se remplit en 1,4 s est indistinguable
    d'une zone de Ravageur, et le joueur cesserait de savoir lequel il regarde. */
 function drawObstacles(cover) {
-  const list = biome.obstacles;
+  const list = obstaclesActifs();
   if (!list.length) return;
   for (let i = 0; i < list.length; i++) {
     const o = list[i];
@@ -7737,7 +7806,7 @@ function drawObstacles(cover) {
 }
 
 function drawHazards(tm) {
-  const list = biome.hazards;
+  const list = hazardsActifs();
   if (!list.length) return;
 
   for (const h of list) {

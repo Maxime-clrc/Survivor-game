@@ -187,6 +187,32 @@
   transition: width 160ms linear;
 }
 
+/* LES DEGATS EN ATTENTE. Le plancher de barre borne les PV du boss au seuil de
+   la barre courante et met l'exces de cote : pendant tout le palier, la barre ne
+   bouge plus d'un pixel — mesure a deux joueurs, 46 % du combat a degats
+   nominaux et 60 % a x4. Le joueur tire, ses degats entrent, et rien ne le dit.
+
+   La reserve se dessine donc en AMBRE sur la portion de barre qu'elle va
+   emporter, collee au bord droit du remplissage. Ambre et non rouge : la
+   grammaire reserve le rouge au letal, et ceci n'est pas un danger — c'est un
+   acquis en attente d'echeance. Elle est TRANSLUCIDE et posee PAR-DESSUS le
+   remplissage plutot qu'a cote : la barre garde sa longueur, ce qui bouge est
+   la couleur, et on lit « cette part est deja a moi » et non « la barre a
+   grandi ».
+
+   Pas de transition sur `left` : la reserve monte par a-coups a chaque tir, et
+   une interpolation de 160 ms en ferait une bouillie a cadence elevee. Le
+   remplissage garde la sienne, lui ne saute qu'aux ruptures. */
+#bossBank {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--warn) 55%, transparent);
+  border-right: var(--edge) solid var(--warn);
+}
+
 /* Encoches tous les dixiemes : on lit la progression d'un coup d'oeil, sans
    compter. Un fond raye plutot que dix elements — c'est dix noeuds de DOM en
    moins pour exactement le meme dessin. */

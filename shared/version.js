@@ -67,6 +67,57 @@
      0.7.13 les types d'ennemi entrent en jeu a la MINUTE DE HORDE et non au
                    niveau d'equipe : le niveau 2 arrivait a la dixieme minute,
                    donc une partie entiere se jouait contre des grunts
+     0.7.14 lot X  la boucle de progression se reserre : UN NIVEAU OUVRE SON
+                   ECRAN DE CARTES, la carte gratuite du boss disparait,
+                   `LEVEL_XP_BASE` tombe de 6000 a 1800 (mesure : 11 -> 24
+                   cartes par manche), les ACCALMIES sont retirees du script, et
+                   les six etapes portent un NOM. Au passage : le marchand de
+                   reliques ne s'ouvrait plus depuis le lot P — `openMerchant()`
+                   etait branche sur `_endWave`, disparu avec les vagues
+     0.7.15 fix : les ennemis ne se materialisent plus SOUS LES YEUX du joueur.
+                   `_spawnBox` est ecretee aux bords de la salle, donc colle a un
+                   mur le cote correspondant tombait a portee de vue — et la
+                   camera etant clampee elle aussi, on regardait pile l'endroit
+                   ou ca sortait. Mesure : 15 % des apparitions dans le champ en
+                   solo, 34 % a quatre, et tres asymetriques (1901 a l'est contre
+                   346 a l'ouest) — d'ou « ils sortent tous du meme cote ».
+                   Zero apres correctif, hors nuees de pondeuse qui doivent
+                   naitre pres de leur mere
+     0.7.16 l'experience change d'unite une SECONDE fois : une valeur ECRITE par
+                   type (`ENEMY_TYPES[i].xp`) multipliee par une courbe indexee
+                   sur le niveau d'equipe. Les PV max reglaient l'effondrement de
+                   fin de partie et creaient le symetrique — un grunt vaut 16 PV
+                   au debut, donc le premier palier ne se remplissait pas.
+                   Mesure : niveau 2 a 32-50 s contre « moins de la moitie apres
+                   une minute ». Plus deux correctifs d'exploitation : la BOUCLE
+                   DE RENDU ne meurt plus sur une exception (elle mourait
+                   definitivement, d'ou « l'ecran de cartes ne s'affiche pas, ni
+                   la pause » — un defaut passager devenait une panne), et le
+                   journal serveur va sur DISQUE (`data/serveur.log`)
+     0.7.17 fix : UNE BALISE. `#vote` n'etait jamais ferme dans `index.html`,
+                   donc le parseur adoptait tout ce qui suivait — `#brief`,
+                   `#cards`, `#build` et `#pause` devenaient des ENFANTS de
+                   `#panel`, masque pendant une manche. Les quatre ecrans de
+                   combat etaient donc invisibles depuis toujours, sans une seule
+                   erreur : le DOM disait `display: flex`, mais un enfant d'un
+                   parent en `display: none` n'a pas de boite (rect 0x0)
+     0.7.18 quatre correctifs rapportes en partie.
+                   LE CRISTAL DE RECOLTE se detruit a nouveau aux balles : le
+                   code de collision avait purement disparu a la fusion —
+                   `_harvests` renvoyait encore a « voir _bullets » et plus rien
+                   n'y touchait `h.hp`, donc les tirs le traversaient et la
+                   moitie des points de recolte etait injouable.
+                   UN POINT DE RECOLTE ne nait plus dans un pilier : la marge est
+                   son rayon PLUS celui du personnage, il ne suffit pas que le
+                   centre soit dehors, il faut pouvoir venir se tenir dessus.
+                   LA BARRE DE BOSS ne ment plus : le plancher borne les PV et
+                   met l'exces de cote, donc elle restait FIGEE 46 a 60 % du
+                   combat — la reserve est desormais transmise (13e element de
+                   `bo`) et dessinee en attente, en ambre.
+                   L'ARENE DE BOSS EST NUE : obstacles et dangers du biome
+                   s'eteignent le temps du combat, des deux cotes. La geometrie
+                   des mecaniques est calculee sur les bounds et ne les evite
+                   pas, et le boss lui-meme ne collisionne pas avec eux
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -76,4 +127,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.7.13";
+export const VERSION = "0.7.18";

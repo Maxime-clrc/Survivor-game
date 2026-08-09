@@ -73,14 +73,15 @@ cartes**.
   bouton automatiquement.
 - Qui se connecte **pendant** une manche est **spectateur** : il voit la partie
   en direct et entre en jeu à la manche suivante.
-- La manche se joue en **six segments**. Un segment, c'est **300 secondes de
-  horde** écrites d'avance — cinq beats d'une minute, dont certains sont des
-  **accalmies** — puis un **boss**. Voir « Segments » plus bas.
-- **À la mort d'un boss, s'il y a eu des montées de niveau, la manche se met en
-  pause** : chacun choisit une carte parmi trois, et la partie reprend quand
-  tout le monde a choisi — ou au bout de 30 s, la première carte étant alors
-  attribuée d'office. Trois niveaux gagnés dans le segment donnent trois choix
-  d'affilée.
+- La manche se joue en **six étapes** — Installation, Emprise, Crise, Ressac,
+  Étau, Apothéose. Une étape, c'est **300 secondes de horde** écrites d'avance —
+  cinq beats d'une minute — puis un **boss**. Voir « Segments » plus bas.
+- **À chaque montée de niveau, la manche se met en pause** : chacun choisit une
+  carte parmi trois, et la partie reprend quand tout le monde a choisi — ou au
+  bout de 30 s, la première carte étant alors attribuée d'office. Pendant un
+  combat de boss, les niveaux se mettent en file et sortent à sa mort.
+- **À la mort d'un boss** : les cartes en attente, puis le **marchand de
+  reliques**.
 - La manche se termine quand tout le monde est à terre — ou par une **victoire**,
   quand le sixième boss tombe. Le bilan titre sur le **segment atteint** et non
   sur le numéro de manche : lire « Manche 1 terminée » après une demi-heure de
@@ -190,10 +191,8 @@ bestiaire, des traits, un script et un sol.
   compétence que ce mode a à enseigner. Il enseigne le déplacement, la distance
   et la lecture des zones.
 - **Aucun trait.** Le mode qui enseigne les types les montre nus.
-- **Un silence par segment**, toujours au quatrième beat : la respiration doit y
-  être régulière et prévisible.
-- Géométries `bords` et `front` seulement — une menace qui arrive d'un côté se
-  lit.
+- **La horde arrive d'un seul côté** : géométries `bords` et `front` seulement —
+  une menace qui vient d'une direction se lit, et c'est ce que ce mode enseigne.
 - Sol ardoise franchement froid, grille régulière, vignettage léger.
 - Résidu : PV ×0,78 · débit ×0,80 · dégâts ×0,80 · boss ×0,75.
 - Du biome, **la géométrie seule** : les piliers sont là, le sol ne fait rien.
@@ -205,8 +204,8 @@ bestiaire, des traits, un script et un sol.
   bon d'abord, sous le bon angle ». C'est le saut que normal doit produire.
 - Les grunts **chargent**, les tireurs envoient des **salves de trois**, les
   tanks portent une **aura**, les broods laissent des **spores**.
-- **Quatre silences** sur la manche, jamais deux segments de suite sans — sauf le
-  segment 3, qui n'en a aucun : c'est la crise.
+- **Pinces et quatre fronts sur les crescendos** : la dernière minute d'une étape
+  demande de tenir deux directions.
 - Du biome, deux **champs de ralentissement** et rien d'autre : le sol gêne, il
   ne blesse pas.
 - Résidu : ×1 partout. C'est la référence.
@@ -217,8 +216,9 @@ bestiaire, des traits, un script et un sol.
   choeur est un mur : il faut le tuer en premier.
 - Les grunts chargent **et brûlent le sol derrière eux**, les runners chargent en
   frénésie, les tanks traînent, les broods sporulent.
-- **Un seul silence** sur toute la manche, au segment 6.
-- Géométries durcies : `pince`, `quatre-fronts`.
+- **Plusieurs directions en permanence** : géométries durcies d'un cran partout,
+  `pince` et `quatre-fronts`. Ce qui est un crescendo ailleurs est ici
+  l'ordinaire.
 - Sol viré au brun, **une ligne de grille fine sur trois éteinte**, vignettage
   fort et **pulsant lentement**.
 - Du biome, **tout** : geysers, flaques, braises, sol glissant — plus une
@@ -251,14 +251,17 @@ tous les 20 m.
 Le plan demandait des débits abaissés en calme et relevés en cauchemar, **en plus
 du résidu**. Ce serait deux boutons sur la même grandeur, et un jour on règle
 l'un en croyant régler l'autre. Les variantes de script changent donc la **forme**
-de la pression — où sont les silences, quelle géométrie — et `spawn` reste le
-seul réglage de quantité. C'est exactement la règle déjà écrite pour l'effectif.
+de la pression — la géométrie — et `spawn` reste le seul réglage de quantité.
+C'est exactement la règle déjà écrite pour l'effectif.
 
-Ce n'est pas un affaiblissement : le nombre de silences est la pièce porteuse du
-modèle continu. Six contre un font deux jeux différents bien plus sûrement que
-20 % de débit. Débit cumulé sur les trente beats : **68,5** en calme, **74,9** en
-normal, **79,2** en cauchemar — puis ×0,80 / ×1 / ×1,28, soit un rapport final de
-**1 à 1,85** entre les deux extrêmes.
+**C'est devenu un axe faible, et il faut le dire.** La variante portait aussi le
+nombre d'accalmies (six en calme, une en cauchemar), qui distinguait les modes
+bien mieux que la géométrie ; les accalmies ont disparu et rien ne les a
+remplacées dans la table de script. Le débit cumulé sur les trente beats est
+désormais **identique** dans les trois variantes — **81,9** — et tout l'écart
+tient dans le résidu ×0,80 / ×1 / ×1,28, soit un rapport de **1 à 1,6**. Ce qui
+sépare réellement les trois modes vit ailleurs : roster, traits, dangers du
+biome. Si la mesure dit qu'ils se ressemblent trop, le levier est là.
 
 Les trois variantes sont **dérivées** de la table de référence et non recopiées.
 Trois tables de trente beats écrites à la main auraient divergé au premier
@@ -523,14 +526,23 @@ deux manches cesseraient d'être comparables minute par minute.
 Cinq beats de 60 s par segment. Le débit est en apparitions par seconde, **avant**
 effectif et difficulté (`joueurs^0,75 × diff.spawn` s'appliquent par-dessus) :
 
-| segment | intention | b1 | b2 | b3 | b4 | b5 crescendo |
-|---|---|---|---|---|---|---|
-| 1 | installation | 0,6 | 0,9 | 1,2 | **0,5** accalmie | 1,8 |
-| 2 | on domine | 1,4 | 1,7 | 2,0 | **0,7** accalmie | 2,6 |
-| 3 | la crise | 2,0 | 2,4 | 2,2 | 2,8 | 3,2 |
-| 4 | chaos maîtrisé | 2,2 | **0,8** accalmie | 2,9 | 3,3 | 3,8 |
-| 5 | pression maximale | 3,0 | 3,4 | 3,2 | 3,9 | 4,4 |
-| 6 | apothéose | 3,4 | **1,0** accalmie longue | 4,0 | 4,6 | 5,0 |
+| segment | nom | intention | b1 | b2 | b3 | b4 | b5 crescendo |
+|---|---|---|---|---|---|---|---|
+| 1 | **Installation** | on apprend l'espace | 0,6 | 0,9 | 1,2 | 1,5 | 1,8 |
+| 2 | **Emprise** | on domine | 1,4 | 1,7 | 2,0 | 2,3 | 2,6 |
+| 3 | **Crise** | le point bas de la partie | 2,0 | 2,4 | 2,2 | 2,8 | 3,2 |
+| 4 | **Ressac** | ça reflue, puis ça revient | 2,2 | 2,5 | 2,9 | 3,3 | 3,8 |
+| 5 | **Étau** | pression maximale | 3,0 | 3,4 | 3,2 | 3,9 | 4,4 |
+| 6 | **Apothéose** | le final | 3,4 | 3,7 | 4,0 | 4,6 | 5,0 |
+
+**Chaque étape porte un nom, et c'est ce que le jeu affiche.** « Segment 3/6 »
+est une coordonnée : elle dit où l'on est dans une liste, jamais ce qui s'y
+passe. Le mot était un terme d'implémentation — la structure de données est bien
+un segment — et il avait fini au HUD, sur l'écran de cartes et sur le bilan, là
+où personne ne parle comme ça. Une table dit « on est morts à la Crise », pas
+« on est morts au segment 3 ». Le numéro reste affiché à côté du nom : le nom
+situe dans l'histoire, le numéro situe dans la durée. Dans le code, `segment`
+n'a pas bougé.
 
 Repères : la vague 1 de l'ancien modèle valait 0,8/s, la vague 16 valait 3,05/s.
 Le script part plus bas et finit plus haut, avec des creux que le modèle
@@ -543,20 +555,48 @@ lit comme une *respiration*. C'est le raisonnement déjà écrit pour la posture
 des boss. Et le point bas de la partie est délibérément au segment 4, pas au 5 :
 une courbe qui ne fait que monter n'a pas de sommet.
 
-#### L'accalmie est la pièce porteuse, pas un ornement
+#### L'accalmie a été retirée, et l'argument qui la portait est mort avec sa prémisse
 
-C'est le principal danger technique de la refonte, et il faut le nommer. Sans
-nettoyage de vague, dans une arène d'un seul écran, avec un plafond de 200
-ennemis et **aucune caméra**, la population tend vers son plafond et **y reste**.
-Le jeu devient « toujours 200 ennemis », c'est-à-dire l'inverse exact de la
-courbe recherchée. La phase de nettoyage *était* ce qui créait la respiration ;
-en la retirant, il faut l'écrire.
+Le raisonnement d'origine tenait en une phrase, et il est conservé ici parce
+qu'il est juste — pour le jeu qu'il décrivait :
 
-Une accalmie est un beat à débit très bas (0,5 à 1,0/s). La horde présente se
-fait détruire, un **bonus au sol est forcé** à son ouverture, et c'est la fenêtre
-de repositionnement et de lecture du HUD. Trois par manche au minimum, jamais
-deux segments de suite sans — **sauf le segment 3, qui n'en a aucune**. C'est la
-crise.
+> Sans nettoyage de vague, dans une arène **d'un seul écran**, avec un plafond de
+> 200 ennemis et **aucune caméra**, la population tend vers son plafond et y
+> reste. Le jeu devient « toujours 200 ennemis ».
+
+Une accalmie était donc un beat à débit très bas (0,5 à 1,0/s) : la horde
+présente se faisait détruire, un bonus au sol était forcé, et c'était la fenêtre
+de repositionnement. Trois par manche au minimum, jamais deux segments de suite
+sans — sauf le segment 3.
+
+**Les deux conditions de la prémisse ont disparu.** L'arène fait 4800 × 2700
+pour une vue de 1600 × 900 — neuf fois la surface — et la caméra suit le joueur.
+On se décroche d'un paquet en courant ; on n'attend plus qu'il se vide. La
+respiration vient du **déplacement**, et un trou dans le débit ne fait plus que
+supprimer une minute de jeu sur cinq.
+
+Ce que l'accalmie portait *en plus* du rythme a été repris ailleurs, sans quoi on
+aurait perdu deux choses en croyant en retirer une :
+
+- la **fenêtre de récupération** → l'écran de cartes, qui s'ouvre désormais à
+  chaque niveau (voir « Niveaux ») et arrête la simulation le temps du choix ;
+- le **bonus au sol forcé** → `POWERUP_MIN` / `POWERUP_MAX`, seul réglage de
+  cadence des bonus, et premier levier de la table de récupération.
+
+Les quatre beats concernés reprennent leur place sur la courbe (la moyenne de
+leurs voisins). Mesuré sur 1800 s de horde, solo, normal, bot invulnérable :
+la population moyenne **baisse** de 123 à 106, et la part du temps passée au
+plafond de 200 tombe de **41 % à 25 %**. Contre-intuitif, et l'explication est
+ailleurs que dans le débit : les cartes arrivent deux fois plus vite, donc
+l'équipe tue plus, donc l'arène se vide — c'est la boucle « expérience = PV
+détruits » qui travaille.
+
+**Ce que ça a coûté**, et il faut l'écrire aussi : les trois variantes de script
+se distinguaient d'abord par *le nombre d'accalmies* (six en calme, une en
+cauchemar). Il ne leur reste que la géométrie d'apparition, ce qui est un axe
+faible. Ce qui sépare réellement les trois modes vit maintenant dans le roster,
+les traits et le résidu du profil — et si la mesure dit que calme et normal se
+ressemblent trop, le levier est là, jamais un débit par variante.
 
 #### Le crescendo, et pourquoi le balayage ne récompense rien
 
@@ -599,6 +639,40 @@ joueur où il serait strictement invulnérable à son porteur. Elle tire donc
 jusqu'à trouver un point dégagé et retombe sur un bord si l'arène est trop
 encombrée : un ennemi qui n'apparaît pas vaut mieux qu'un ennemi invulnérable.
 
+#### « Ils sortent tous du même côté » — un bug qui a duré
+
+Rapporté à l'usage, et la mesure lui a donné raison au-delà de ce qu'il disait :
+**15 % des apparitions naissaient dans le champ du joueur en solo, 34 % à quatre
+joueurs**, et de façon très asymétrique — 1901 côté est contre 346 côté ouest sur
+une partie. Or l'invariant est écrit depuis le début, à côté de `SPAWN_MARGIN` :
+*« un ennemi naît dehors et entre dans le champ ; il ne se matérialise jamais
+sous les yeux »*.
+
+La cause tient en deux clampages qui se rencontrent. La boîte d'apparition est
+**écrêtée aux bords de la salle** — au-delà il n'y a plus de terrain — donc collé
+à un mur, le côté correspondant de la boîte se retrouve à quelques dizaines de
+pixels du joueur au lieu d'une demi-vue. Et la caméra est **clampée elle aussi** :
+près d'un mur, le joueur n'est plus au centre de son écran, il regarde justement
+vers ce mur. Les deux effets se composent exactement au mauvais endroit.
+
+La correction distingue deux choses qui étaient confondues : **le côté appartient
+au script, la distance appartient à la lisibilité**. On ne change donc jamais de
+bord — `front` et `pince` perdraient tout leur sens — on **repousse** le point le
+long de l'axe de son bord jusqu'à sortir de toutes les vues, quitte à le poser
+hors de la salle : rien n'y borne un ennemi, il entre en marchant.
+
+Après correctif : **zéro apparition de script dans le champ**. Ce qui reste — 6 à
+10 % du total — sont les **nuées de pondeuse**, qui naissent à côté de leur mère
+et doivent le faire : c'est la mécanique, pas un défaut.
+
+Deux détails qui se paient si on les oublie. Le rectangle de vue doit être
+**reconstruit** comme le client le calcule (centré sur le joueur *puis* clampé à
+la salle) et non supposé centré — c'est précisément près des murs que les deux
+diffèrent, donc précisément là où le problème se pose ; une première mesure faite
+avec l'hypothèse « toujours centré » annonçait 42 % au lieu de 17 %. Et `anneau`
+est exempt du garde-fou : c'est la seule géométrie qui fait naître à l'intérieur,
+délibérément, et elle a déjà sa propre distance de garde.
+
 #### La saturation remplace le scaling — par de l'information
 
 Quand une équipe faible accumule jusqu'au plafond, les apparitions en trop sont
@@ -624,7 +698,12 @@ Le **soin de fin de vague** (18 PV) disparaît avec les vagues. C'est la seule
 chose qui ait jamais rallongé la survie à la mesure, et son remplacement est un
 chantier ouvert : l'économie de récupération est traitée à part.
 
-#### Mesures relevées
+#### Mesures relevées *(modèle avec accalmies — conservées, datées)*
+
+Ces chiffres ont été relevés **avant le retrait des accalmies** et avant la
+refonte de la courbe d'expérience. Ils ne se réécrivent pas : une mesure se
+remesure. La ligne « population au fond des accalmies » n'a plus d'objet ; les
+autres sont à reprendre au recalibrage.
 
 Quatre joueurs, difficulté normale, compte neuf, **quatre manches complètes**,
 DPS d'équipe simulé montant avec le niveau, joueurs invulnérables — on mesure le
@@ -662,6 +741,163 @@ horde différente.
 **Toutes les valeurs de ce script sont des points de départ dérivés des mesures
 existantes, pas des réglages validés.**
 
+#### Mesures du lot X — la campagne complète *(2026-08-09, v0.7.14)*
+
+Grille difficulté × effectif, compte neuf, biome usine, 1800 s de horde, trois
+essais par case, bot invulnérable et boss expédié : on mesure le **flux**.
+
+| diff | j | niveau | cartes | distinctes | légend. | pop.moy | temps au plafond | CPU p99 |
+|---|---|---|---|---|---|---|---|---|
+| calme | 1 | 18,3 | 17,3 | 39,3 | 1,33 | 102,9 | 29,0 % | 0,240 ms |
+| calme | 2 | 25,0 | 24,0 | 74,3 | 2,00 | 88,5 | 20,8 % | 1,019 ms |
+| calme | 3 | 20,0 | 19,0 | 79,3 | 1,44 | 64,2 | 4,5 % | 0,862 ms |
+| calme | 4 | 25,7 | 24,7 | 92,3 | 2,00 | 56,4 | 3,4 % | 0,858 ms |
+| normal | 1 | 19,7 | 18,7 | 42,0 | 1,33 | 92,0 | 31,8 % | 0,801 ms |
+| normal | 2 | 20,7 | 19,7 | 67,0 | 1,50 | 131,4 | 43,8 % | 1,123 ms |
+| normal | 3 | 22,7 | 21,7 | 83,7 | 1,67 | 123,0 | 35,5 % | 1,376 ms |
+| normal | 4 | 23,3 | 22,3 | 93,7 | 1,67 | 142,5 | 55,6 % | 1,600 ms |
+| cauchemar | 1 | 21,0 | 20,0 | 43,3 | 1,33 | 119,6 | 39,1 % | 1,409 ms |
+| cauchemar | 2 | 19,0 | 18,0 | 65,7 | 1,50 | 152,3 | 63,5 % | 1,370 ms |
+| cauchemar | 3 | 25,3 | 24,3 | 87,0 | 1,78 | 145,6 | 52,9 % | 1,668 ms |
+| cauchemar | 4 | 22,3 | 21,3 | 88,0 | 1,42 | 142,6 | 53,3 % | 1,816 ms |
+
+Cinq choses à retenir.
+
+**Le plafond de 200 ennemis est le vrai régulateur de la fin de manche, et
+c'est un défaut.** Il est atteint entre 3 % et 64 % du temps, par séries de deux
+à quatre minutes. Passé lui les apparitions sont jetées en silence : les débits
+des derniers beats des segments 5 et 6 **ne veulent plus rien dire**. Ce n'est
+pas un problème d'effectif — c'est un rapport entre le débit et ce que l'équipe
+sait nettoyer, d'où 3,4 % en calme à quatre contre 63,5 % en cauchemar à deux.
+**Et ce n'est pas un phénomène de fin de partie.** Profil minute par minute de
+horde (`.` sous 2 % du temps au plafond, `-` jusqu'à 25 %, `o` jusqu'à 60 %,
+`#` au-delà) :
+
+```
+min           1234567890123456789012345678901
+              |seg1||seg2||seg3||seg4||seg5||seg6|
+calme     1j  .......-o-...oo...o#.......-..    1re minute saturée :  9
+calme     2j  .......--o.................--o                         10
+calme     4j  .......--o....-...--...--..---                         10
+normal    1j  .......o##..###.-###...##.####                          8
+normal    2j  .......oo#.o###.o###-.-##-####                          8
+normal    4j  .......oo#.-ooo.####o.ooo-ooo#                          8
+cauchemar 1j  .......###.o###.o###..-##-####                          8
+cauchemar 2j  ....o.-###-####.o###-.o##-####                          5
+cauchemar 4j  ....o.####-####-####o.o#######                          5
+```
+
+Le plafond lâche après chaque boss — le clean vide l'arène — puis se recolle en
+deux ou trois minutes.
+
+**Arbitrage rendu : on garde le plafond.** C'est une contrainte de performance,
+pas un réglage d'équilibrage — un monstre tué libère une place, la place est
+réutilisée, la limite est nécessaire. Ce qui différenciera les modes, ce sont
+**les patterns d'attaque et de mouvement**, donc les traits et le roster.
+
+Conséquence à écrire, et elle est écrite en tête de la table de débits : les
+débits au-delà de ces minutes-là **et** le résidu `spawn` du profil de difficulté
+(×0,80 / ×1,00 / ×1,28) sont **inopérants** dans les fenêtres saturées. Trois
+modes qui butent sur le même plafond envoient la même quantité. Personne ne doit
+passer une soirée à régler l'un ou l'autre en croyant changer la difficulté.
+
+La preuve en creux est dans le tableau : `cauchemar 1j` sature à la 8ᵉ minute
+comme `normal 1j`, avec exactement le même débit — ce qui les sépare est le
+résidu `hp` et le roster, pas la quantité.
+
+**Le CPU n'est toujours pas un sujet** : 1,8 ms au p99 dans le pire cas mesuré,
+sur un budget de 16,7. L'O(n²) de l'évitement mutuel, qui était le seul chiffre
+sans précédent rassurant du plan, a neuf fois de marge. La grille spatiale n'a
+pas lieu d'être.
+
+**La courbe de cartes tient en normal et rend moins en calme** : 18,7 cartes en
+normal solo contre 17,3 en calme solo, et 22,3 contre 24,7 à quatre. Calme
+détruit ~37 % de PV en moins (`hp: 0,78`, `spawn: 0,80`), donc gagne moins
+d'expérience. C'est cohérent — le mode qui enseigne n'est pas celui qui
+récompense — et la base ne bouge pas pour ça.
+
+**Le boss ne porte pas la progression** : 1,6 à 12,8 % de l'expérience totale,
+très loin du quart qu'on s'autorisait. `BOSS_XP_K` à 0,35 est même plutôt
+généreux sur le papier ; en pratique 1800 s de horde écrasent six réserves de
+boss.
+
+**La parité d'effectif n'est pas tranchée** : +42 % de cartes de 1 à 4 joueurs
+en calme, +20 % en normal, +7 % en cauchemar, pour une cible de ±10 %. Trois
+essais par case et un écart-type historique de six cartes : c'est du même ordre
+que le bruit, et retoucher `WAVE_CROWD_EXP` là-dessus serait exactement l'erreur
+que la campagne existe pour éviter.
+
+##### La horde ne tue pas — le boss, si
+
+Second régime : bot **vulnérable**, boss expédiés. Il isole « jusqu'où la horde
+seule porte une équipe ».
+
+| diff | 1 joueur | 2 joueurs | 4 joueurs |
+|---|---|---|---|
+| calme | segment 3 | segment **6** | segment **6** |
+| normal | segment 2 | segment 2 | segment 4 |
+| cauchemar | segment 2 | segment 2 | segment 1 |
+
+Distribution du segment de la mort, normal, 15 manches : **seg 2 : 8 · seg 3 : 2
+· seg 4 : 2 · seg 5 : 1 · seg 6 : 2**. Ni bimodale ni plate — un mur net au
+segment 2, puis une queue. C'est la pire forme : le mur arrive *avant* que la
+build existe.
+
+**Et avec les boss réellement combattus, le bot meurt au premier, cinq fois sur
+cinq, dans les neuf configurations** — alors qu'il traverse les 300 s de horde
+du segment 1 sans une mort. Il faut lire ce chiffre pour ce qu'il est : le bot
+ne joue **aucune** compétence, n'occupe aucune tour et ne relève personne. Il
+mesure « un joueur qui ignore toutes les mécaniques », ce qui répond très bien à
+une autre question (voir ci-dessous) et ne répond pas du tout à « le jeu est-il
+trop dur ».
+
+**La provenance des dégâts confirme un réglage et en infirme un autre.**
+L'environnement pèse **0 % en normal et 15,3 à 17,6 % en cauchemar**, ce qui est
+exactement la cible du lot V. En revanche la part du **contact monte** de calme
+à cauchemar (60-75 % → 68-79 %) là où elle devait baisser — conséquence
+mécanique des morts précoces : on ne vit pas assez longtemps pour que les traits
+et les dangers pèsent.
+
+##### Lire les annonces vaut le double
+
+Deux bots identiques, sauf qu'un seul s'écarte des zones : **100,5 contre 212,9
+points de dégâts de zone et de mécanique**, soit **+112 %** pour celui qui
+ignore. La cible était 40 %. C'est la mesure qui dit qu'une mécanique est
+difficile et non punitive, et elle passe largement.
+
+##### Le plancher de barre tient au chiffre près
+
+Durée d'un combat de boss selon le multiplicateur de dégâts (normal, 2 joueurs) :
+
+| ×dégâts | ×0,5 | ×1 | ×2 | ×4 | ×8 | ×20 |
+|---|---|---|---|---|---|---|
+| durée minimale | 40 s | 60 s | 40 s | 40 s | 40 s | 40 s |
+| durées typiques | 40-600 | 60-205 | 40-57 | 40 | 40 | 40-49 |
+
+**Jamais un combat sous 40 s, y compris à ×20 de dégâts** : c'est
+`(barres − 1) × BAR_DWELL` exactement, la promesse du lot R vérifiée. Le boss
+final tient son propre plancher de la même façon — 87 et 424 s à build médiane,
+83 · 80 · 80 · 80 s au-delà, **jamais sous 80 s**, soit
+`7 × BAR_DWELL + FINAL_BAR_DWELL`. En revanche la médiane de 155 s annoncée par
+le lot W **n'est pas confirmée** et la cible est retirée : à build médiane, deux
+manches ont donné 87 s et 424 s. Le plancher est ce qui tient ; la médiane était
+dérivée, jamais mesurée.
+
+##### Réseau : le gain de 61 % est retrouvé au dixième
+
+Pire cas réel (cauchemar, 4 joueurs, biome friche, 200 ennemis) :
+
+| | clair | après deflate niveau 1 |
+|---|---|---|
+| instantané moyen | 3 818 o | **1 487 o** (−61,0 %) |
+| instantané pire | 9 438 o | **3 776 o** |
+| bande passante par joueur | 74,6 / 179,5 Ko/s | **29,1 / 73,8 Ko/s** |
+
+En clair le pire cas dépasserait le budget de 160 Ko/s ; c'est la mauvaise
+mesure. Permessage-deflate est négocié sans reprise de contexte, `prepareMessage()`
+comprime **une fois par diffusion**, et c'est la trame compressée qui part sur
+le fil.
+
 ### Événements
 
 Cinq fois par manche, une minute entière change de nature. Un **événement**
@@ -690,9 +926,11 @@ Le calendrier est donc une **colonne de la table de script**. Les garanties se
 (`vague % 5 === 3`) pour éviter les collisions sans liste d'exceptions à
 maintenir. C'était la bonne solution au problème posé ; le problème a disparu. On
 place désormais un événement là où le rythme le demande, pas là où le modulo le
-permet — et `verifierScript()` contrôle les quatre règles (pas sur un crescendo,
-pas sur un silence, jamais deux consécutifs, pas d'index inconnu) sur les trois
-variantes d'un coup. **Zéro collision** mesurée.
+permet — et `verifierScript()` contrôle les trois règles restantes (pas sur un
+crescendo, jamais deux consécutifs, pas d'index inconnu) sur les trois variantes
+d'un coup. **Zéro collision** mesurée. La quatrième — pas d'événement sur une
+accalmie — est partie avec les accalmies, sans successeur : plus rien dans la
+table n'a priorité sur un événement.
 
 Vérifié aussi : deux parties lancées avec la même variante produisent la
 **même séquence**, à l'identique. C'est le test de non-régression du classement.
@@ -1062,8 +1300,35 @@ et le créditer à plein ferait de lui la source principale d'expérience — la
 ne servirait plus qu'à passer le temps, l'inverse de ce que le script raconte. Le
 surplus du coup fatal ne compte pas : on ne crédite que ce qui restait à entamer.
 
-Base **7500 PV normalisés** pour le niveau 2, puis **×1,18** à chaque palier,
-plafond au niveau 30. Cette base est **mesurée et non convertie** : la conversion
+Base **1800 PV normalisés** pour le niveau 2, puis **×1,18** à chaque palier,
+plafond au niveau 30.
+
+> **La base valait 7500 puis 6000, et le raisonnement de l'époque suit
+> ci-dessous.** Il reste juste — il répondait simplement à une autre question :
+> six cartes de boss gratuites s'ajoutaient alors aux niveaux, et un niveau
+> n'ouvrait d'écran qu'à la mort du boss suivant. Les deux ont disparu (voir plus
+> bas), donc la totalité des cartes passe par la jauge, et la même base rendait
+> **11 cartes** là où la cible en demande 25.
+>
+> Le défaut vécu était pire que le total : le **premier palier coûtait 375 grunts**
+> de début de manche, soit une première carte à la minute 4 ou 5 d'une partie qui
+> en compte trente. Un jeu de ce genre se juge sur sa première minute, et la
+> première minute ne donnait rien.
+>
+> Balayage à modèle complet (bot invulnérable, boss expédié au crédit exact de
+> `BOSS_XP_K`, 1800 s de horde, 3 à 4 manches par point) :
+>
+> | base | 4500 | 3500 | 2500 | 2200 | **1800** | 1500 |
+> |---|---|---|---|---|---|---|
+> | cartes / joueur | 16,7 | 19,7 | 20,3 | 22,0 | **23,8** | 28,0 |
+>
+> À 1800, en solo : niveau 27, 26 cartes, et **un niveau par minute sur les neuf
+> premières** — c'est cette rampe-là qu'on est venu chercher. Parité d'effectif
+> conservée (26 / 22 / 24 cartes à 1, 2 et 4 joueurs, sous l'écart-type de six
+> cartes du dispositif). `GROWTH` ne bouge pas : le frein reste intact, et le seul
+> rôle de la base était de fixer *où* la courbe commence.
+
+Cette base est **mesurée et non convertie** : la conversion
 arithmétique donnait 240 (les 15 kills de l'ancienne courbe × les 16 PV d'un
 grunt du début) et se trompait d'un facteur trente — elle suppose que le nombre
 de kills ne bouge pas, alors qu'une manche de trente minutes en compte des
@@ -1071,13 +1336,14 @@ milliers *et* que les PV de chaque cible montent avec la manche. À 240, la tabl
 plafonnait au niveau 30 à mi-parcours et repartait avec 34 cartes par joueur.
 
 Cartes par joueur, moyenne sur 4 à 6 manches complètes par point, effectifs 1 et
-4 confondus, DPS du bot indexé sur la puissance mesurée de l'équipe :
+4 confondus, DPS du bot indexé sur la puissance mesurée de l'équipe — **mesure de
+l'époque à six cartes de boss gratuites, à ne pas comparer au balayage ci-dessus** :
 
 | base | 24000 | 8000 | **7500** | 7000 | 6000 | 2000 |
 |---|---|---|---|---|---|---|
 | cartes / joueur | 14 | 21,5 | *interpolé* | 27,2 | 27,8 | plafond atteint |
 
-7500 est le **milieu des deux points qui encadrent la cible** (24 à 26 cartes), et
+7500 était le **milieu des deux points qui encadrent la cible** (24 à 26 cartes), et
 c'est tout ce que la mesure autorise à dire : l'écart-type est de l'ordre de six
 cartes d'une manche à l'autre **à réglage identique** — de 17 à 25 cartes à 8000,
 de 18 à 34 à 7000 — donc plus grand que l'écart entre les deux réglages. Cette
@@ -1091,11 +1357,44 @@ plafond de niveau 30, cette même boucle diverge et la base « nécessaire » va
 d'un facteur sept d'un effectif à l'autre (56 000 à quatre joueurs, 417 000 à
 deux). Mesurer le système tel qu'il tourne, pas tel qu'on l'imagine.
 
-Les montées se **mettent en file** et se consomment à la mort du boss qui clôt le
-segment, jamais en plein combat : un écran de choix qui s'ouvre pendant qu'on
-esquive n'est pas un choix, c'est une punition. **Chaque boss donne en plus une
-carte garantie**, indépendante de la jauge — c'est ce qui fait de lui un point
-d'étape de progression et pas seulement un mur de PV.
+#### Un niveau ouvre son écran de cartes
+
+> **Un niveau donne une carte, tout de suite.**
+
+Les montées se mettaient en file et se consommaient à la mort du boss qui clôt le
+segment. L'intention était bonne — ne jamais couper la horde — et l'effet vécu ne
+l'était pas : un niveau **ne donnait rien** au moment où on le gagnait, juste une
+promesse à encaisser cinq minutes plus tard, et plusieurs niveaux se cumulaient en
+une file d'écrans identiques où plus personne ne se rappelait ce qui les avait
+ouverts. Une progression qu'on ne touche pas quand on la gagne n'est pas ressentie
+comme une progression.
+
+L'écran arrête la simulation le temps du choix, donc il ne s'ouvre jamais « pendant
+qu'on esquive » : c'est aussi ce qui en fait la fenêtre de respiration que
+l'accalmie assurait avant.
+
+**Une seule exception, le combat de boss** : on ne le coupe pas en deux. Les
+niveaux gagnés pendant restent en file et sortent tous à sa mort — c'est
+exactement l'ancien comportement, réduit à son seul cas justifié.
+
+**La carte garantie par boss a disparu.** Son argument — « faire du boss un point
+d'étape de progression et pas seulement un mur de PV » — tenait tant que le boss
+était le *seul* endroit où un écran pouvait s'ouvrir. La garder en plus aurait
+ajouté six choix à une courbe qu'on vient d'accélérer, et surtout elle rendait la
+récompense du boss indépendante de ce qu'on y avait fait. Le boss reste un point
+d'étape par la **qualité** de son tirage (`BOSS_QUALITY`, qui redevient un vrai
+bonus puisque les autres écrans ne l'ont plus) et par le **marchand de reliques**.
+
+L'ordre après un boss est donc : **cartes en attente, puis marchand**. Les cartes
+changent la puissance, donc ce qu'on veut acheter ; l'inverse ferait choisir ses
+reliques avant de savoir ce qu'on a.
+
+> **Correctif au passage** : le marchand ne s'ouvrait plus du tout. `openMerchant()`
+> était appelé depuis `_endWave`, supprimé avec les vagues — aucune ligne n'était
+> fausse, l'appelant avait simplement disparu, et les reliques n'apparaissaient dans
+> aucune manche depuis. L'enchaînement des écrans a maintenant un point de passage
+> unique (`openNextScreen()`), ce qui est la vraie correction : il était dispersé
+> entre la mort du boss, la montée de niveau et la salle.
 
 #### Tout s'indexe désormais sur le niveau
 

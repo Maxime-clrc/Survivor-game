@@ -164,16 +164,44 @@ export const TRAIT_CFG = {
    moitie de l'arene — sans ce garde-fou, les tireurs, qui restent hors du corps
    a corps et meurent rarement, finissaient par occuper 117 des 180 places.
 
+   `score` et `xp` sont DEUX MONNAIES et ne se confondent jamais. `score` dit la
+   valeur TACTIQUE d'une cible et n'est lu que par le tableau des scores ; `xp`
+   dit sa valeur ECONOMIQUE et alimente la seule progression du jeu. Un tireur
+   vaut plus au tableau qu'un grunt a surface egale, un tank vaut plus a la jauge
+   parce qu'il coute plus de degats — ce ne sont pas les memes classements.
+
+   `xp` a remplace les PV MAX comme unite de progression, et l'aller-retour vaut
+   d'etre garde. Le modele d'origine payait un score fixe (10 a 30 points) : les
+   PV des ennemis montant x20 sur la manche, un grunt de la minute 30 coutait
+   vingt fois plus de degats pour la meme recompense, et l'experience par minute
+   s'effondrait la ou la courbe devait s'ouvrir. Le lot Q a donc paye les PV MAX,
+   ce qui reglait exactement ce defaut — et en creait le symetrique : au debut un
+   grunt vaut 16 PV, donc le PREMIER palier ne se remplissait pas. Mesure : apres
+   une minute en solo, on n'avait pas la moitie du niveau 1.
+
+   La reponse tient les deux bouts : une valeur ECRITE par type, multipliee par
+   une courbe indexee sur le NIVEAU D'EQUIPE (`CFG.XP_LEVEL_GROWTH`). Le debut
+   paie tout de suite parce que la valeur ne depend plus des PV ; la fin ne
+   s'effondre pas parce que la courbe suit la progression. Et surtout la valeur
+   est un REGLAGE et non une consequence : on peut rendre un bulwark plus payant
+   qu'un tank sans toucher a ses PV.
+
+   Les valeurs sont calees sur le grunt a 10, et refletent le COUT EN DEGATS
+   plutot que la menace : le runner meurt en un tir malgre sa vitesse, le
+   kamikaze a la moitie des PV d'un grunt. C'est ce qui evite la boucle que le
+   depot refuse — payer la menace reviendrait a recompenser le fait de laisser
+   vivre ce qui fait mal.
+
    NE JAMAIS ECRIRE DANS CETTE TABLE. Elle est partagee, exportee et lue par le
    client : `standoff` est COPIE sur l'ennemi (`e.standoff`), et tout ce que le
    comportement d'un individu modifie doit l'etre aussi. */
 export const ENEMY_TYPES = [
-  { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10 },
-  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.45, speed: 188, dmg: 12, r: 9,  score: 14 },
-  { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30 },
-  { key: "shooter", minMin: 7,   fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25,
+  { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10, xp: 10 },
+  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.45, speed: 188, dmg: 12, r: 9,  score: 14, xp: 6 },
+  { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30, xp: 32 },
+  { key: "shooter", minMin: 7,   fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25, xp: 14,
     shootCd: 2.6, standoff: 170 },
-  { key: "brood",   minMin: 9,   fallback: 1,  weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20,
+  { key: "brood",   minMin: 9,   fallback: 1,  weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20, xp: 18,
     splits: 3 },
 
   /* KAMIKAZE (plan4 lot M, repris tel quel). Il punit le corps-a-corps et rend
@@ -191,7 +219,7 @@ export const ENEMY_TYPES = [
      autre) qu'il aurait fallu brider comme l'onde de mort, et surtout une facon
      de faire nettoyer la horde par la horde — c'est-a-dire de recompenser le
      fait de ne pas jouer, ce que tout le lot P s'emploie a interdire. */
-  { key: "kamikaze", minMin: 12, fallback: 1, weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8, r: 10, score: 18,
+  { key: "kamikaze", minMin: 12, fallback: 1, weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8, r: 10, score: 18, xp: 8,
     blastRadius: 90, blastDamage: 45, blastDelay: 0.15 },
 
   /* BULWARK. Bouclier frontal : il faut GAGNER L'ANGLE. Deux consequences
@@ -202,7 +230,7 @@ export const ENEMY_TYPES = [
      suivre sa cible a l'image : un bouclier qui se retourne instantanement rend
      le flanc inatteignable, donc le type injouable. C'est le seul ennemi du jeu
      dont `e.ang` n'est pas l'angle vers sa cible. */
-  { key: "bulwark",  minMin: 15, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 58, dmg: 22, r: 15, score: 32,
+  { key: "bulwark",  minMin: 15, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 58, dmg: 22, r: 15, score: 32, xp: 22,
     shieldArc: 100, shieldTurnRate: 2.4 },
 
   /* MEDIC. Le seul type qui force explicitement une priorite de cible. Il reste
@@ -216,7 +244,7 @@ export const ENEMY_TYPES = [
 
      `share: 0.09`, parmi les plus bas : c'est un multiplicateur de menace pour
      le reste de la horde, pas un ennemi qu'on veut voir en nombre. */
-  { key: "medic",    minMin: 19, fallback: 3, weight: 0.28, share: 0.09, hpMul: 0.9, speed: 68, dmg: 10, r: 13, score: 28,
+  { key: "medic",    minMin: 19, fallback: 3, weight: 0.28, share: 0.09, hpMul: 0.9, speed: 68, dmg: 10, r: 13, score: 28, xp: 14,
     standoff: 240, heal: 6, healInterval: 1.2, healRange: 190,
     /* `fireWindow` : delai au-dela duquel on cesse de le considerer « sous le
        feu ». Le critere est le temps passe SOUS LE FEU et non « touche
@@ -232,7 +260,7 @@ export const ENEMY_TYPES = [
 
      `share: 0.08`, le plus bas du bestiaire : deux choeurs qui se couvrent
      mutuellement sont un mur, et il faut que ce cas reste rare et intentionnel. */
-  { key: "choeur",   minMin: 23, fallback: 4, weight: 0.20, share: 0.08, hpMul: 1.6, speed: 70, dmg: 12, r: 15, score: 30,
+  { key: "choeur",   minMin: 23, fallback: 4, weight: 0.20, share: 0.08, hpMul: 1.6, speed: 70, dmg: 12, r: 15, score: 30, xp: 20,
     auraRadius: 130, auraReduction: 0.35 },
 ];
 

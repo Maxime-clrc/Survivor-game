@@ -246,14 +246,16 @@ export function diffSnapshots(a, b, opts = {}) {
   }
 
   /* --- script -------------------------------------------------------------
-     Segment et beat sont DEDUITS d'un snapshot a l'autre, comme le reste de ce
-     module : le serveur n'envoie aucun message pour eux. Le beat porte le
-     silence, qui est ce qui merite d'etre entendu — un changement de debit sans
-     rien pour le marquer se subit au lieu de se lire. */
+     Le segment est DEDUIT d'un snapshot a l'autre, comme le reste de ce module :
+     le serveur n'envoie aucun message pour lui.
+
+     LE BEAT N'EST PLUS EMIS (lot X). Il ne l'etait que pour son drapeau de
+     silence — le seul changement de beat qui meritait d'etre entendu — et les
+     accalmies ont disparu. Emettre les quatre autres n'aurait rien appris :
+     personne ne doit reagir a « le debit passe de 2,2 a 2,8 », qui se ressent ou
+     n'a pas lieu d'etre dans le script. */
   if ((b.segment ?? 0) > (a.segment ?? 0)) {
     out.push({ t: "segment", segment: b.segment });
-  } else if ((b.beat ?? 0) !== (a.beat ?? 0)) {
-    out.push({ t: "beat", beat: b.beat, silence: !!b.silence });
   }
 
   /* DEBUT ET FIN D'EVENEMENT (lot U), DEDUITS de la cle `ev` et non transmis.

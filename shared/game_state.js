@@ -88,6 +88,13 @@ export { STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOO
 export { BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, mechAt };
 export { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost };
 
+/* Liste vide PARTAGEE, rendue par les accesseurs `obstacles` et `hazards` quand
+   l'arene de boss est nue. Une constante et non un `[]` par appel : ces deux
+   accesseurs sont lus par la boucle de deplacement de chacun des 200 ennemis, a
+   chaque image — allouer un tableau la serait deux cents allocations par image
+   pour un tableau que personne n'ecrit. */
+const EMPTY_LIST = Object.freeze([]);
+
 export const CFG = {
   /* GRANDE ARENE (lot I). L'arene fait TROIS fois la vue dans chaque
      dimension : l'exploration devient un vrai deplacement, pas un pas de
@@ -279,14 +286,80 @@ export const CFG = {
      de six cartes d'une manche a l'autre a reglage identique, donc plus grand
      que l'ecart entre 7000 et 8000. Cette dispersion vient de la boucle que le
      lot R coupe (WAVE_HP_POWER_K : une build forte fait monter les PV, donc
-     l'experience) — c'est apres lui que le reglage se resserre. */
-  LEVEL_XP_BASE: 6000,       // PV detruits, normalises, du 1er palier
+     l'experience) — c'est apres lui que le reglage se resserre.
+
+     REMESURE AU LOT X, et le chiffre tombe de 6000 a 1800. Les deux mesures
+     sont justes, elles ne repondent simplement plus a la meme question : celle
+     de 6000 comptait SIX CARTES DE BOSS gratuites en plus des niveaux, et un
+     niveau n'ouvrait un ecran qu'a la mort du boss suivant. Les deux ont
+     disparu — un niveau ouvre son ecran, le boss ne donne plus de carte — donc
+     la totalite des cartes passe par la jauge, et la meme base rendait onze
+     cartes la ou la cible en demande vingt-cinq.
+
+     Le defaut vecu etait pire que le total : le PREMIER palier coutait 375
+     grunts de debut de manche, soit une premiere carte a la minute 4 ou 5 dans
+     une partie qui en compte trente. Un jeu de ce genre se juge sur sa premiere
+     minute, et la premiere minute ne donnait rien.
+
+     Balayage a modele complet (bot invulnerable, boss expedie au credit exact
+     de `BOSS_XP_K`, 1800 s de horde, moyenne de 3 a 4 manches par point) :
+       4500 -> 16,7 cartes  ·  3500 -> 19,7  ·  2500 -> 20,3
+       2200 -> 22,0  ·  1800 -> 23,8  ·  1500 -> 28,0 (plafond atteint min 28)
+     A 1800, en solo : niveau 27, 26 cartes, un niveau par minute sur les neuf
+     premieres — c'est cette rampe-la qu'on est venu chercher. Parite
+     d'effectif inchangee (26 / 22 / 24 cartes a 1, 2 et 4 joueurs, sous
+     l'ecart-type de six cartes du dispositif).
+
+     GROWTH ne bouge pas : le frein est intact (1,18 / 1,09 = 1,08, chaque
+     niveau prend 8 % de temps de plus) et c'etait le seul role de la base que
+     de fixer OU la courbe commence. */
+  /* --- L'UNITE A CHANGE UNE SECONDE FOIS, et l'aller-retour est instructif.
+
+     Les PV max reglaient le defaut du score fixe (l'experience par minute
+     s'effondrait quand les PV montaient x20) et en creaient le symetrique : au
+     debut un grunt vaut SEIZE PV, donc le premier palier ne se remplissait pas.
+     Mesure : apres une minute en solo, moins de la moitie du niveau 1 — a
+     0,6 apparition/s, une minute ne produit que 36 grunts a ~16 PV.
+
+     Un jeu de ce genre se juge sur sa premiere minute, et la premiere minute ne
+     donnait rien.
+
+     La valeur vient donc du BESTIAIRE (`ENEMY_TYPES[i].xp`, ecrite par type) et
+     la croissance d'une COURBE indexee sur le niveau d'equipe. Le debut paie
+     immediatement — la valeur ne depend plus des PV — et la fin ne s'effondre
+     pas, la courbe suivant la progression. Surtout, la valeur redevient un
+     REGLAGE : on peut rendre un bulwark plus payant qu'un tank sans toucher a
+     ses PV, ce qui etait impossible tant que l'un decoulait de l'autre. */
+
+  /* Cout du PREMIER palier. Ecrit pour que le niveau 2 tombe autour de la
+     quarantaine de secondes en solo : la premiere minute doit donner une carte,
+     c'est elle qui dit au joueur que la progression existe. */
+  LEVEL_XP_BASE: 200,
   LEVEL_XP_GROWTH: 1.18,     // chaque palier coute 18 % de plus
-  /* Les degats portes au BOSS creditent, mais a 35 %. A plein, les quelques
-     milliers de PV d'un boss feraient de lui la source principale d'experience
-     et la horde ne servirait plus qu'a passer le temps — l'inverse exact de ce
-     que le script raconte. A 35 % il avance la build sans la porter. */
-  BOSS_XP_K: 0.35,
+
+  /* Croissance de la VALEUR d'un kill, par niveau d'equipe. Le rapport avec
+     GROWTH est le seul chiffre qui compte ici : 1,18 / 1,09 = 1,08, donc chaque
+     palier prend 8 % de temps de plus que le precedent A CADENCE DE KILLS
+     CONSTANTE. La cadence, elle, monte avec le debit du script et avec la build,
+     ce qui compense en partie — c'est voulu, et c'est ce qui remplace la rampe
+     de PV comme moteur de fin de partie.
+
+     Ne pas monter ce chiffre au-dessus de GROWTH : la courbe s'inverserait, les
+     paliers tardifs deviendraient plus rapides que les premiers, et la
+     progression n'aurait plus de fin. */
+  XP_LEVEL_GROWTH: 1.09,
+
+  /* Valeur totale d'un BOSS, dans la meme unite, avant la courbe de niveau.
+     Elle est CREDITEE EN CONTINU au prorata des degats (voir `_damage`) et non
+     a la mort : un palier entier qui saute d'un coup se lit comme un bug, et le
+     surplus du coup fatal ne doit rien rapporter.
+
+     300 = trente grunts du debut. Le boss ne doit pas porter la progression —
+     mesure du lot X sous l'ancienne regle : il pesait 1,6 a 12,8 % de
+     l'experience totale, pour un plafond qu'on s'etait fixe a 25 %. On reste
+     dans le meme ordre : six boss valent cent quatre-vingts grunts, la horde en
+     fournit des milliers. */
+  BOSS_XP_BASE: 300,
 
   /* Normalisation d'effectif. Elle survit a la disparition des vagues : c'est
      elle qui porte la parite mesuree entre une table d'un et de quatre joueurs
@@ -666,7 +739,7 @@ const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
 
    Un profil porte quatre axes et un residu :
 
-     script  — quelle table de beats (`timeline.js`), donc ou sont les SILENCES
+     script  — quelle table de beats (`timeline.js`), donc quelle GEOMETRIE
      roster  — quels types peuvent sortir, EN PLUS du calendrier `minMin`
      traits  — l'attachement (type -> masque de traits), lot S
      resume  — ce que le mode change, en trois lignes, pour le salon
@@ -693,17 +766,23 @@ const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
    calme et « releves » en cauchemar, EN PLUS du residu `spawn`. Ce serait deux
    boutons sur la meme grandeur, et le depot a deja tranche ce cas exact pour
    l'effectif : `adaptEntry` « ne change que la FORME de la pression, jamais sa
-   quantite ». Les variantes de script changent donc la forme — ou sont les
-   silences, quelle geometrie d'apparition — et `spawn` reste le seul reglage de
-   quantite. Ce n'est pas un affaiblissement : le nombre de silences est la piece
-   porteuse du modele continu, six silences contre un font deux jeux differents
-   bien plus surement que 20 % de debit. */
+   quantite ». Les variantes de script changent donc la forme — la geometrie
+   d'apparition — et `spawn` reste le seul reglage de quantite.
+
+   C'EST DEVENU UN AXE FAIBLE, et il faut l'ecrire. La variante portait aussi le
+   nombre d'accalmies, qui les distinguait bien mieux que la geometrie ; les
+   accalmies ont disparu au lot X et rien ne les a remplacees dans `timeline.js`.
+   Ce qui separe reellement les trois modes vit desormais dans les trois autres
+   axes — roster, traits, residu — et c'est defendable : ce sont ceux que le
+   joueur peut nommer apres une manche. Si la mesure du lot X dit que calme et
+   normal se ressemblent trop, le levier est le ROSTER ou les TRAITS, jamais un
+   debit par variante. */
 export const DIFFICULTIES = [
   {
     key: "calme", label: "calme",
-    /* UN SILENCE PAR SEGMENT. C'est le mode qui enseigne l'espace : le
-       deplacement, la distance, la lecture des zones. La respiration doit y etre
-       reguliere et previsible. */
+    /* La horde arrive d'UN SEUL COTE. C'est le mode qui enseigne l'espace : le
+       deplacement, la distance, la lecture des zones — et on ne lit pas d'ou ca
+       vient quand ca vient de partout. */
     script: "calme",
     // Les cinq types d'origine seulement. Ni medic, ni bulwark, ni choeur : ce
     // sont les trois qui demandent de CHOISIR SA CIBLE, et ce n'est pas la
@@ -714,7 +793,7 @@ export const DIFFICULTIES = [
     resume: [
       "les cinq types d'origine, rien de plus",
       "aucun comportement particulier : ils avancent et ils frappent",
-      "un silence par segment — le sol ne fait jamais rien",
+      "la horde arrive d'un seul côté — le sol ne fait jamais rien",
     ],
     hp: 0.78, spawn: 0.80, dmg: 0.80, boss: 0.75,
   },
@@ -736,13 +815,14 @@ export const DIFFICULTIES = [
     resume: [
       "kamikaze et porte-bouclier en plus : il faut choisir sa cible et son angle",
       "les grunts chargent, les tireurs envoient des salves de trois",
-      "quatre silences sur la manche — le sol ne blesse pas",
+      "pinces et quatre fronts sur les crescendos — le sol ne blesse pas",
     ],
     hp: 1.00, spawn: 1.00, dmg: 1.00, boss: 1.00,
   },
   {
     key: "cauchemar", label: "cauchemar",
-    // UN SEUL silence sur toute la manche, au segment 6.
+    // Plusieurs directions en PERMANENCE : ce qui est un crescendo ailleurs est
+    // ici l'ordinaire.
     script: "cauchemar",
     roster: [0, 1, 2, 3, 4, 5, 6, 7, 8],
     /* Le mode se distingue moins par ses chiffres que par le fait que LE SOL
@@ -765,7 +845,7 @@ export const DIFFICULTIES = [
     resume: [
       "les neuf types, soigneurs et choeurs compris — un paquet couvert est un mur",
       "les grunts chargent ET brûlent le sol derrière eux, les broods sporulent",
-      "un seul silence sur la manche : le sol se referme en permanence",
+      "plusieurs directions en permanence : le sol se referme derrière eux",
     ],
     hp: 1.35, spawn: 1.28, dmg: 1.25, boss: 1.25,
   },
@@ -1045,8 +1125,30 @@ export class GameState {
     this.seed = (seed === null ? Math.floor(Math.random() * 0x7fffffff) : seed | 0) >>> 0;
     this.biome = buildBiome(this.biomeIndex, this.diffIndex, this.seed,
       CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
-    this.obstacles = this.biome.obstacles;
-    this.hazards = this.biome.hazards;
+    /* L'ARENE DE BOSS EST NUE, et c'est un POINT DE PASSAGE UNIQUE plutot qu'un
+       test disperse. Un combat se joue dans une vue resserree ancree sur
+       l'equipe ; la geometrie du biome, elle, est posee sur la salle entiere et
+       ne sait rien de cette boite. Selon l'endroit ou l'equipe se trouvait quand
+       le boss est sorti, on se battait donc contre deux ou trois piliers plantes
+       au milieu de la choregraphie — le damier, la croix et les couloirs sont
+       calcules sur les bounds et ne les evitent pas, et le boss lui-meme ne
+       collisionne pas avec les obstacles (il fait jusqu'a 90 px de rayon).
+       L'arene de boss est un lieu a part : elle doit se presenter nue.
+
+       DES LISTES VIDES plutot qu'un drapeau lu partout : tous les consommateurs
+       testent deja `this.obstacles.length &&` avant de boucler, donc ils
+       s'eteignent tous seuls — deplacement des joueurs, deplacement des ennemis,
+       arret des balles, arret des tirs ennemis, sol glissant, ralentissement,
+       placement des bonus et des points de recolte. Un test de plus a chacun de
+       ces endroits, c'est un oubli garanti au prochain ajout.
+
+       La geometrie n'est pas DETRUITE : `this.biome` la garde, et elle revient
+       intacte a la mort du boss. Rien a regenerer, rien a resynchroniser — le
+       client applique la meme regle a partir de la meme information (`bo` dans
+       l'instantane), exactement comme il rejoue deja la constriction des
+       bounds. */
+    this._biomeObstacles = this.biome.obstacles;
+    this._biomeHazards = this.biome.hazards;
     /* Minuteur de degats des dangers, UN SEUL pour tous et non un par danger :
        ils infligent tous par paliers de `ZONE_TICK`, et quatre horloges qui
        battent a la meme cadence avec des origines differentes auraient fait
@@ -2951,20 +3053,26 @@ export class GameState {
       if (owner.mods.lifesteal > 0) this._lifesteal(owner, amount * owner.mods.lifesteal);
     }
 
-    /* EXPERIENCE DU BOSS. La horde credite ses PV a la mort ; le boss ne meurt
-       qu'une fois et vaut plusieurs milliers de PV, donc il credite EN CONTINU,
-       a `BOSS_XP_K` (35 %) des degats portes. A plein il deviendrait la source
-       principale d'experience et la horde ne servirait plus qu'a passer le
-       temps. Le surplus du coup fatal ne compte pas — on ne credite que ce qui
-       reste a entamer, sinon une nova de fin de combat vaudrait un palier.
+    /* EXPERIENCE DU BOSS. Un ennemi credite sa valeur a la mort ; le boss ne
+       meurt qu'une fois, donc il credite EN CONTINU, AU PRORATA DES DEGATS —
+       `BOSS_XP_BASE` reparti sur sa reserve de vie. Un palier entier qui saute
+       d'un coup a la mort se lirait comme un bug, et le surplus du coup fatal ne
+       doit rien rapporter : sinon une nova de fin de combat vaudrait un niveau.
+
+       LE PRORATA, ET NON UNE FRACTION DES PV. C'etait `35 % des degats portes`,
+       ce qui marchait tant que l'experience se comptait en PV ; dans la nouvelle
+       unite ca ferait du boss la seule source qui compte — quelques milliers de
+       PV contre une dizaine de points par grunt. La valeur est donc ECRITE et
+       repartie, exactement comme celle d'un type l'est dans le bestiaire.
 
        Ici et non chez les appelants, comme le cumul de `bossDmg` juste au-dessus
        et pour la meme raison : une nouvelle source de degats est comptee sans
        qu'on y pense. Hors du test `if (owner)` : un degat sans proprietaire
        compte aussi, exactement comme un kill sans proprietaire. Les structures
        de mecanique (cage, grappe) n'en sont pas — elles ne sont pas `this.boss`. */
-    if (target === this.boss) {
-      this._addXp(Math.min(amount, Math.max(0, target.hp)) * CFG.BOSS_XP_K);
+    if (target === this.boss && target.maxHp > 0) {
+      const part = Math.min(amount, Math.max(0, target.hp)) / target.maxHp;
+      this._addXp(part * CFG.BOSS_XP_BASE * this._xpLevelMul());
     }
 
     target.hp -= amount;
@@ -3636,8 +3744,11 @@ export class GameState {
                     niveaux en attente
                  -> segment N+1
 
-     Rien ne se « nettoie » : la horde ne s'arrete jamais d'elle-meme, c'est le
-     script qui la fait respirer par ses SILENCES. Le seul balayage restant est
+     Rien ne se « nettoie » et la horde ne s'arrete JAMAIS d'elle-meme. Elle le
+     faisait aux accalmies, qui ont disparu au lot X : la respiration vient
+     desormais du DEPLACEMENT — arene de neuf vues, camera qui suit — et des
+     ecrans de cartes, qui arretent la simulation a chaque niveau. Le seul
+     balayage restant est
      celui de l'arrivee du boss, et il ne credite ni score ni experience — sans
      quoi arreter de jouer a 4 min 30 d'un segment serait strictement optimal.
 
@@ -3681,12 +3792,19 @@ export class GameState {
      cartes exclus. C'est l'axe de difficulte du lot : deux equipes a la meme
      minute voient exactement la meme pression, quelle que soit la duree de
      leurs combats. */
+  /* L'arene de boss est nue : voir le constructeur. `bossPending` compte aussi —
+     l'arene se resserre et se balaie AVANT que l'entite n'existe, et laisser les
+     piliers une seconde de plus les ferait disparaitre sous les yeux. */
+  get biomeNu() { return !!this.boss || this.bossPending; }
+  get obstacles() { return this.biomeNu ? EMPTY_LIST : this._biomeObstacles; }
+  get hazards() { return this.biomeNu ? EMPTY_LIST : this._biomeHazards; }
+
   hordeMinutes() {
     return ((this.segment - 1) * TL_CFG.SEGMENT_TIME + this.hordeTime) / 60;
   }
 
   /* Le beat courant, deja adapte a l'effectif VIVANT. Point de passage unique :
-     le debit, la geometrie et le silence se lisent tous ici.
+     le debit, la geometrie et l'evenement se lisent tous ici.
 
      MEMORISE, parce qu'`adaptEntry` alloue quand il replie et que ceci est
      appele a chaque tick par le spawner et vingt fois par seconde par le
@@ -3699,7 +3817,7 @@ export class GameState {
       return c.entry;
     }
     // La VARIANTE vient du profil de difficulte (lot T) : c'est elle qui dit ou
-    // sont les silences et quelle geometrie sort. Un profil sans `script` — un
+    // quelle geometrie sort. Un profil sans `script` — un
     // GameState construit a la main dans un script de mesure — retombe sur la
     // table de reference.
     const entry = adaptEntry(beatAt(this.diff.script, this.segment, this.beat), alive);
@@ -3714,12 +3832,13 @@ export class GameState {
     // le cote change a chaque ennemi.
     this.beatSide = Math.floor(Math.random() * 4);
 
-    /* Un silence force un bonus au sol des son ouverture. Le minuteur de
-       `_powerups` existe deja, il suffit de l'echoir : le silence est la
-       fenetre de repositionnement et de lecture du HUD, et un repit qui ne rend
-       rien n'est pas un repit, c'est un compte a rebours — c'est la seule chose
-       qui ait jamais rallonge la survie a la mesure. */
-    if (this._beat().silence) this.powerupCd = 0;
+    /* PLUS DE BONUS FORCE ICI (lot X). Un silence en echoyait un des son
+       ouverture ; les silences ont disparu, et le bonus ne pouvait pas les
+       suivre — accroche a un beat quelconque il aurait rendu la cadence des
+       bonus dependante d'un decoupage que le joueur ne voit pas. La cadence a
+       un seul reglage, `CFG.POWERUP_MIN` / `POWERUP_MAX`, et c'est aussi le
+       premier levier de la table de recuperation du lot X : s'il faut rendre
+       des PV plus souvent, c'est la que ca se regle, en un endroit et en clair. */
 
     // Le beat change : l'evenement du beat precedent s'acheve, celui du nouveau
     // s'ouvre. Deux appels et non un test disperse — c'est le seul endroit du
@@ -3808,6 +3927,14 @@ export class GameState {
        supprime le dernier quart d'un coup, et l'evenement se termine sur un tir
        qui n'a rien coute. `_damage` lit ce drapeau au point de passage unique. */
     e.noExec = 1;
+    /* IL VAUT UN BEAT ENTIER, parce qu'il en remplace un. `chasse` supprime
+       toute autre apparition pendant sa minute : paye au tarif d'un tank elite,
+       le joueur perdrait une carte a chaque chasse — c'est le defaut exact que
+       `xpWorth` avait ete ecrit pour corriger du temps ou l'experience se
+       comptait en kills, et qui revient avec la nouvelle unite. Quarante
+       grunts : l'ordre de grandeur de ce qu'une minute ordinaire rapporte a
+       mi-partie, sans en faire une prime a la chasse. */
+    e.xpWorth = TL_CFG.QUARRY_XP_WORTH;
     this.quarry = e.id;
   }
 
@@ -3897,22 +4024,27 @@ export class GameState {
      serveur la rappelle pour chaque niveau en attente. Les joueurs a terre
      tirent aussi — sans ca, un joueur malchanceux decroche definitivement de la
      progression alors que la jauge, elle, est commune. */
-  openCards() {
+  openCards(apresBoss = false) {
     this.pendingLevels--;
-    // Tous les ecrans de choix suivent desormais un boss — c'est la seule
-    // interruption de la horde — donc le bonus de qualite de boss s'applique
-    // toujours. Le lot Q remesurera la courbe : elle est plus genereuse qu'avant
-    // a nombre d'ecrans egal, mais les ecrans sont six fois plus rares.
-    this.cardsQuality = this.drawQuality(true);
+    /* LE BONUS DE QUALITE REDEVIENT CELUI DU BOSS (lot X). Il s'appliquait a
+       tous les ecrans depuis le lot P, et l'argument tenait tant que tous les
+       ecrans suivaient un boss : il n'y en avait pas d'autre. Un niveau ouvre
+       desormais son propre ecran en pleine horde, et le lui donner reviendrait a
+       supprimer `BOSS_QUALITY` en le generalisant — un bonus que tout le monde a
+       tout le temps n'est plus un bonus, c'est la valeur de base ecrite deux
+       fois. Le boss redevient donc un point d'etape de QUALITE, ce qu'il etait a
+       l'origine, faute d'etre encore un point d'etape de QUANTITE : sa carte
+       garantie a disparu au meme lot. */
+    this.cardsQuality = this.drawQuality(apresBoss);
 
     /* Jalon de legendaire. Il se declenche au premier ecran ATTEINT A PARTIR du
        NIVEAU du jalon, et non pendant ce niveau exactement : un niveau qui
        n'ouvre pas d'ecran ferait sauter la garantie purement et simplement —
        c'est le defaut mesure de l'ancienne version indexee sur la vague, elle
-       ne tombait qu'une fois sur deux. Le changement d'unite ne rend pas ce
-       correctif inutile : les ecrans sont desormais groupes apres un boss,
-       donc plusieurs niveaux passent SANS ecran, ce qui est exactement le cas
-       qui cassait la garantie.
+       ne tombait qu'une fois sur deux. Le correctif reste ecrit ainsi bien qu'un
+       niveau ouvre desormais son ecran (lot X) : le cas subsiste pour les
+       niveaux gagnes PENDANT un combat de boss, qui sont mis en file et
+       consommes ensemble a sa mort.
        Honore une seule fois, meme si trois niveaux sont gagnes d'affilee : le
        plafond (LEGENDARY_MAX) n'aurait rattrape que la troisieme.
        `legendaryLevelDone` vit ici et non dans `cards.js`, qui doit rester une
@@ -3927,6 +4059,34 @@ export class GameState {
         this.offerCards(p, this.cardsQuality, true, jalon ?? 0));
     }
     this.cardsPending = true;
+  }
+
+  /* L'ENCHAINEMENT DES ECRANS A UN POINT DE PASSAGE UNIQUE (lot X). Trois
+     appelants — la mort du boss, la montee de niveau, et la salle qui vient de
+     fermer un ecran — posaient chacun leur bout de la sequence, et le marchand
+     n'etait plus appele du tout : `openMerchant()` etait branche sur `_endWave`,
+     que le lot P a supprime avec les vagues. Les reliques n'apparaissaient donc
+     dans aucune manche depuis, sans qu'une seule ligne ne soit fausse — c'est le
+     defaut classique du chainage disperse, et la raison de cette methode.
+
+     L'ORDRE EST UNE REGLE : les cartes d'abord, le marchand ensuite. Les cartes
+     changent la puissance, donc ce qu'on veut acheter ; l'inverse ferait choisir
+     ses reliques avant de savoir ce qu'on a. Et le marchand ferme la sequence
+     parce qu'il ne se rouvre pas — un seul par boss, la ou les cartes
+     s'enchainent tant qu'il reste des niveaux en attente.
+
+     Rend le nom de l'ecran ouvert, ou `null` si la manche peut reprendre. La
+     salle n'a plus a connaitre l'ordre : elle demande le suivant. */
+  openNextScreen() {
+    if (this.pendingLevels > 0) {
+      this.openCards(this.relicBossDue);
+      return "cards";
+    }
+    if (this.relicBossDue) {
+      this.openMerchant();
+      return "merchant";
+    }
+    return null;
   }
 
   /* --- marchand de reliques (lot K) -----------------------------------------
@@ -4146,12 +4306,57 @@ export class GameState {
 
   _edgePoint(side) {
     const B = this._spawnBox();
-    switch (side & 3) {
-      case 0:  return { x: B.x0 + Math.random() * (B.x1 - B.x0), y: B.y0 };
-      case 1:  return { x: B.x0 + Math.random() * (B.x1 - B.x0), y: B.y1 };
-      case 2:  return { x: B.x0, y: B.y0 + Math.random() * (B.y1 - B.y0) };
-      default: return { x: B.x1, y: B.y0 + Math.random() * (B.y1 - B.y0) };
+    const s = side & 3;
+    let pt;
+    switch (s) {
+      case 0:  pt = { x: B.x0 + Math.random() * (B.x1 - B.x0), y: B.y0 }; break;
+      case 1:  pt = { x: B.x0 + Math.random() * (B.x1 - B.x0), y: B.y1 }; break;
+      case 2:  pt = { x: B.x0, y: B.y0 + Math.random() * (B.y1 - B.y0) }; break;
+      default: pt = { x: B.x1, y: B.y0 + Math.random() * (B.y1 - B.y0) };
     }
+    return this._pushOffScreen(pt, s);
+  }
+
+  /* JAMAIS SOUS LES YEUX. `_spawnBox` ecrete aux bords de la salle — « au-dela
+     il n'y a plus de terrain » — et c'est ce qui cassait l'invariant ecrit a
+     cote de `SPAWN_MARGIN` : colle a un mur, le cote correspondant de la boite
+     tombe A PORTEE DE VUE, et la camera etant clampee a la salle elle aussi, le
+     joueur regarde exactement l'endroit ou ca sort. Mesure avant correctif :
+     15 % des apparitions dans le champ en solo, 34 % a quatre joueurs, et
+     fortement asymetriques (1901 a l'est contre 346 a l'ouest) — c'est-a-dire
+     lisible comme « ils sortent tous du meme cote », qui est le defaut
+     rapporte.
+
+     LE COTE APPARTIENT AU SCRIPT, LA DISTANCE A LA LISIBILITE. On ne change
+     donc pas de bord — `front` et `pince` perdraient tout leur sens — on
+     REPOUSSE le point le long de l'axe de son bord jusqu'a sortir de toutes les
+     vues. Sortir de la salle est acceptable et c'est deja ce que la marge fait :
+     rien n'y borne un ennemi, il entre en marchant. Le contraire — se
+     materialiser a l'ecran — est ce qu'on refuse.
+
+     Le rectangle de vue est RECONSTRUIT comme le client le calcule (centre sur
+     le joueur, clampe a la salle) et non suppose centre : c'est precisement
+     pres des murs que les deux different, donc precisement la ou le probleme se
+     pose. O(joueurs) par apparition, quatre au plus, quelques apparitions par
+     seconde — negligeable devant la boucle d'evitement.
+
+     `anneau` n'y passe pas : c'est la seule geometrie qui fait naitre DANS les
+     limites, deliberement, et elle a sa propre distance de garde. */
+  _pushOffScreen(pt, side) {
+    const m = TL_CFG.SPAWN_MARGIN;
+    for (const p of this.players.values()) {
+      if (p.downed) continue;
+      const vx = Math.max(0, Math.min(CFG.ARENA_W - CFG.VIEW_W, p.x - CFG.VIEW_W / 2));
+      const vy = Math.max(0, Math.min(CFG.ARENA_H - CFG.VIEW_H, p.y - CFG.VIEW_H / 2));
+      if (pt.x < vx || pt.x > vx + CFG.VIEW_W || pt.y < vy || pt.y > vy + CFG.VIEW_H) continue;
+      switch (side) {
+        case 0:  pt.y = Math.min(pt.y, vy - m); break;
+        case 1:  pt.y = Math.max(pt.y, vy + CFG.VIEW_H + m); break;
+        case 2:  pt.x = Math.min(pt.x, vx - m); break;
+        default: pt.x = Math.max(pt.x, vx + CFG.VIEW_W + m);
+      }
+    }
+    return pt;
   }
 
   /* GEOMETRIE D'APPARITION. Une seule geometrie pour toute la partie, c'etait
@@ -4362,6 +4567,25 @@ export class GameState {
       for (const p of this._alivePlayers()) {
         if ((p.x - x) ** 2 + (p.y - y) ** 2 < CFG.HARVEST_PLAYER_DIST ** 2) {
           ok = false; break;
+        }
+      }
+      /* JAMAIS DANS UN OBSTACLE (lot V oublie ici). Le tirage ne connaissait que
+         les joueurs et les bornes : un cristal pouvait naitre dans un pilier,
+         donc a moitie enfoui — et alors inatteignable, la balle mourant sur le
+         mur avant de l'atteindre. Un amas, lui, restait canalisable en se
+         collant au pilier, mais illisible.
+
+         La marge est le rayon du point PLUS celui du personnage : il ne suffit
+         pas que le centre soit dehors, il faut pouvoir venir se tenir dessus
+         pour canaliser. C'est la meme distinction qu'entre `_obstacleHit` (un
+         point) et `_obstacleBlock` (un corps qui a un rayon). */
+      if (ok && this.obstacles.length) {
+        const m = CFG.HARVEST_RADIUS + CFG.PLAYER_RADIUS;
+        for (const b of this.obstacles) {
+          if (b.maxHp > 0 && b.hp <= 0) continue;
+          if (Math.abs(x - b.x) < b.w / 2 + m && Math.abs(y - b.y) < b.h / 2 + m) {
+            ok = false; break;
+          }
         }
       }
       if (ok) return { x, y };
@@ -7001,6 +7225,25 @@ export class GameState {
      raisonnement que « le soin du medic est un chemin neuf, pas un `_damage()`
      negatif ». Il ne rend NI SCORE NI EXPERIENCE : le credit vaut les PV max
      d'un ennemi TUE, une couverture n'en est pas un. */
+  /* Une balle touche-t-elle un cristal ? Rend vrai si elle s'y arrete. Seuls
+     les cristaux (`kind === 0`) encaissent : l'amas se canalise en se tenant
+     dessus, lui tirer dessus n'aurait aucun sens — et le traverser est
+     precisement ce qu'il faut pouvoir faire pour aller le canaliser.
+
+     Aucun credit d'experience ni de score : une structure n'est pas un ennemi
+     tue, c'est la meme regle que le mur destructible. Le rendement se verse
+     dans `_harvestYield`, a la destruction, et il va a TOUTE l'equipe. */
+  _harvestHit(x, y, dmg = 0) {
+    for (const h of this.harvests) {
+      if (h.kind !== 0 || h.hp <= 0) continue;
+      const r = CFG.HARVEST_RADIUS + CFG.BULLET_RADIUS;
+      if ((x - h.x) ** 2 + (y - h.y) ** 2 > r * r) continue;
+      if (dmg > 0) h.hp = Math.max(0, h.hp - dmg);
+      return true;
+    }
+    return false;
+  }
+
   _obstacleHit(x, y, dmg = 0) {
     for (const b of this.obstacles) {
       if (b.maxHp > 0 && b.hp <= 0) continue;
@@ -7266,6 +7509,27 @@ export class GameState {
              situation ou on la prend. Le rebond borne empeche la boucle. */
           if (b.hits) b.hits.clear(); else b.hit = null;
         }
+      }
+
+      /* LE CRISTAL DE RECOLTE (lot I). Il se detruit AUX BALLES, et ce code
+         avait purement disparu a la fusion du plan 5 : `_harvests` renvoyait
+         encore a « voir `_bullets` », mais plus rien n'y touchait `h.hp`. Le
+         cristal etait donc indestructible et les tirs le traversaient — la
+         moitie des points de recolte du jeu etait injouable, sans une seule
+         erreur pour le dire.
+
+         HORS DE `_bulletHitEnemy()`, et c'est delibere : ce point de passage
+         porte le critique, le vol de vie, l'execution et le compteur de touches,
+         dont aucun n'a de sens sur une structure — l'execution en supprimerait
+         un d'un seul tir. Meme raisonnement que « le soin du medic est un chemin
+         neuf, pas un `_damage()` negatif ».
+
+         AVANT l'obstacle : un cristal pose contre un pilier resterait sinon
+         inatteignable, la balle mourant sur le mur un pixel avant lui. C'est le
+         defaut jumeau de celui du placement, corrige dans `_harvestPoint`. */
+      if (this.harvests.length && this._harvestHit(b.x, b.y, b.dmg)) {
+        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner);
+        continue;
       }
 
       /* COUVERTURE (lot V). Une balle s'arrete sur un obstacle, et c'est ce qui
@@ -8188,13 +8452,41 @@ export class GameState {
     }
   }
 
-  /* Jauge commune. Un palier franchi ne donne RIEN d'autre qu'un choix de carte
-     mis en file : ni degats, ni PV, ni soin. Le choix se consomme a la mort du
-     boss qui clot le segment, pas ici — voir _killBoss. */
+  /* Jauge commune. Un palier franchi ne donne RIEN d'autre qu'un choix de carte :
+     ni degats, ni PV, ni soin.
+
+     LE CHOIX S'OUVRE TOUT DE SUITE (lot X). Il attendait la mort du boss qui
+     clot le segment, et l'intention etait bonne — ne jamais couper la horde —
+     mais l'effet vecu ne l'etait pas : un niveau ne donnait RIEN au moment ou on
+     le gagnait, juste une promesse a encaisser cinq minutes plus tard, et
+     plusieurs niveaux se cumulaient en une file d'ecrans identiques ou plus
+     personne ne se rappelait ce qui les avait ouverts. Une progression qu'on ne
+     touche pas quand on la gagne n'est pas ressentie comme une progression.
+
+     UNE SEULE EXCEPTION, et c'est le combat de boss : on ne le coupe pas en
+     deux. Les niveaux gagnes pendant restent en file et sortent a sa mort, ce
+     qui est exactement l'ancien comportement — il n'a pas disparu, il s'est
+     reduit a son seul cas justifie. Un ecran deja ouvert (cartes ou marchand) ne
+     s'empile pas non plus : la salle rappelle `openNextScreen()` en fermant. */
   _addXp(amount) {
-    // Normalisation sur l'effectif : voir le commentaire de LEVEL_XP_BASE.
-    // Sans elle, quatre joueurs franchissaient les paliers 2,8 fois plus vite
-    // qu'un seul pour une horde identique.
+    /* LE COUT D'UN PALIER SUIT L'EFFECTIF, et c'est ce que cette division
+       exprime. A quatre joueurs le debit du script est multiplie par
+       `4^0,75 = 2,83` : sans normalisation, la meme jauge se remplirait 2,83
+       fois plus vite pour une horde qui n'est pas plus dure par tete, et le solo
+       finirait la partie avec trois cartes contre douze.
+
+       DIVISER LE GAIN plutot que MULTIPLIER LE SEUIL — les deux sont
+       arithmetiquement equivalents, un seul est stable. `levelAt` est un cumul
+       ABSOLU : multiplier les seuils par l'effectif les ferait tous bouger quand
+       quelqu'un se deconnecte en pleine partie, donc la jauge sauterait en
+       arriere ou se remplirait d'un coup. En divisant le gain, ce qui est deja
+       acquis reste acquis et seul le rythme change — ce qui est exactement ce
+       qu'on veut dire.
+
+       Les CONNECTES et non les vivants : une equipe a moitie morte tue moins,
+       et baisser ses paliers au meme moment serait un cadeau au pire moment,
+       c'est-a-dire la boucle de retroaction que D2 refuse. Ne pas confondre avec
+       `aliveCrowd()`, qui porte la PRESSION. */
     this.xp += amount / Math.pow(Math.max(1, this.players.size), CFG.WAVE_CROWD_EXP);
 
     while (this.level < CFG.LEVEL_MAX && this.xp >= this.levelAt) {
@@ -8227,6 +8519,39 @@ export class GameState {
         kind: 2,
       });
     }
+
+    /* L'ecran s'ouvre APRES la boucle et non dedans : deux paliers franchis dans
+       la meme image (une nova qui balaie l'ecran) doivent donner deux cartes,
+       pas deux ecrans concurrents. `openCards` decremente `pendingLevels`, la
+       salle rouvre tant qu'il en reste. */
+    if (this.pendingLevels > 0 && !this.boss && !this.bossPending
+      && !this.cardsPending && !this.relicPending) {
+      this.openCards(false);
+    }
+  }
+
+  /* VALEUR D'UN KILL, point de passage unique. La valeur de base vient du
+     bestiaire, la courbe du niveau d'equipe, et le rang d'elite multiplie —
+     une elite coute son x3 de PV, elle doit payer en proportion.
+
+     `xpWorth` etait un champ mort depuis le lot Q : il comptait des
+     « apparitions representees » du temps ou l'experience se comptait en kills,
+     puis les PV max l'ont rendu inutile et personne ne l'a retire. Il reprend
+     exactement son role d'origine, qui redevient le bon : le gibier de `chasse`
+     remplace a lui seul la composition d'un beat entier, donc il doit valoir
+     autre chose qu'un tank. */
+  _xpValue(e) {
+    const def = ENEMY_TYPES[e.type];
+    const base = (def?.xp ?? 10) * (e.elite ? CFG.ELITE_SCORE_MUL : 1);
+    return base * (e.xpWorth ?? 1) * this._xpLevelMul();
+  }
+
+  /* La courbe, isolee parce que le boss la lit aussi. `level` est le niveau
+     d'equipe COURANT : un kill vaut ce qu'il vaut a l'instant ou il tombe, pas
+     ce qu'il valait a l'apparition — sinon un ennemi laisse en vie deviendrait
+     un placement financier. */
+  _xpLevelMul() {
+    return Math.pow(CFG.XP_LEVEL_GROWTH, Math.max(0, this.level - 1));
   }
 
   /* Surcout de « Dette ». Le PLUS ELEVE de la table, jamais le cumul : a quatre
@@ -8257,7 +8582,7 @@ export class GameState {
        d'arrivee du boss) ne passe pas par cette methode et ne credite donc
        rien : c'est la meme regle que pour le score, et c'est ce qui empeche
        d'arreter de jouer en fin de segment. */
-    this._addXp(e.maxHp);
+    this._addXp(this._xpValue(e));
     this._credit(owner, e.elite ? Math.round(def.score * CFG.ELITE_SCORE_MUL) : def.score);
 
     if (owner) {
@@ -8435,23 +8760,22 @@ export class GameState {
       if (!p.downed) p.hp = Math.min(p.maxHp, p.hp + 40 + p.mods.healPerBoss);
     }
 
-    /* La mort du boss est le SEUL moment ou la horde s'interrompt, donc le seul
-       ou un ecran de choix peut s'ouvrir sans etre une punition — c'est
-       l'argument qui tenait deja pour la fin de vague. Les niveaux gagnes
-       pendant le segment se consomment tous d'affilee ; le serveur enchaine
-       autant d'ecrans que `pendingLevels` en compte.
+    /* LA CARTE GARANTIE PAR BOSS A DISPARU (lot X). Elle etait un
+       `pendingLevels++` pose ici, et son argument — « faire du boss un point
+       d'etape de progression et pas seulement un mur de PV » — tenait tant que
+       le boss etait le SEUL endroit ou un ecran pouvait s'ouvrir. Un niveau
+       ouvre desormais le sien ; garder la carte gratuite en plus aurait ajoute
+       six choix a une courbe qu'on vient justement d'accelerer, et surtout elle
+       aurait rendu la recompense du boss independante de ce qu'on y a fait. Le
+       boss reste un point d'etape par sa QUALITE de tirage (`BOSS_QUALITY`) et
+       par le marchand ; ce qu'on y gagne en cartes, on l'a gagne en tuant.
 
-       UNE CARTE EST GARANTIE PAR BOSS, en plus des niveaux en attente : six
-       boss, six choix qui ne dependent pas de la jauge. C'est ce qui fait du
-       boss un point d'etape de progression et pas seulement un mur de PV — le
-       role que `BOSS_QUALITY` tenait deja pour la qualite du tirage. Un
-       `pendingLevels++` plutot qu'un appel special : l'enchainement des ecrans
-       (`resumeRound` rouvre tant qu'il en reste) marche alors sans rien
-       changer, et le compteur reste la seule verite sur le nombre d'ecrans. */
+       Ce qui reste ici est donc la CONSOMMATION de la file : les niveaux gagnes
+       pendant le combat n'ont pas pu ouvrir d'ecran — on ne coupe pas un boss en
+       deux — et ils sortent tous a sa mort, le marchand derriere. */
     this._nextSegment();
     if (this.gameOver) return;
-    this.pendingLevels++;
-    this.openCards();
+    this.openNextScreen();
   }
 
   /* --- reanimation -------------------------------------------------------------------- */
@@ -8777,12 +9101,17 @@ export class GameState {
          avec un repli cote client.
 
          `sg` : segment sur TL_CFG.SEGMENTS, secondes de horde RESTANTES dans le
-         segment, index du beat, et si le beat courant est un silence. Le taux
-         d'occupation de l'arene N'Y EST PAS : il se deduit de la longueur de la
-         liste d'ennemis, que le client a deja — meme regle que la cadence des
-         tireurs et la direction des projectiles. */
+         segment, index du beat. Le taux d'occupation de l'arene N'Y EST PAS : il
+         se deduit de la longueur de la liste d'ennemis, que le client a deja —
+         meme regle que la cadence des tireurs et la direction des projectiles.
+
+         Le QUATRIEME element disait « le beat courant est un silence » ; il est
+         parti avec les accalmies (lot X). Retirer le DERNIER element d'un
+         tableau positionnel est le seul retrait autorise, et c'est exactement ce
+         que `trimTail` fait ailleurs : un onglet reste sur une version
+         anterieure lit `undefined`, donc « pas de silence », ce qui est vrai. */
       sg: [this.segment, r1(Math.max(0, TL_CFG.SEGMENT_TIME - this.hordeTime)),
-           this.beat, this._beat().silence ? 1 : 0],
+           this.beat],
       xl: this.level,
       xp: this.level >= CFG.LEVEL_MAX
         ? 1
@@ -8803,7 +9132,24 @@ export class GameState {
               etat permanent, le joueur qui a rate le bandeau ne sait plus
               pourquoi il fond. Un client anterieur lit un tuple plus court et
               retombe sur zero, donc sur l'affichage d'avant. */
-           this.boss.enrage ?? 0]
+           this.boss.enrage ?? 0,
+           /* TREIZIEME element, ajout EN FIN : les degats MIS DE COTE par le
+              plancher de barre. Sans lui la barre de boss ment.
+
+              Le plancher borne les PV au seuil de la barre courante et banque
+              l'exces (voir `_damage`) : pendant tout le palier, `hp` ne descend
+              plus D'UN POINT. Mesure a deux joueurs, trois combats par point :
+              la barre est FIGEE 46 % du combat a degats nominaux, 60 % a x4. Le
+              joueur tire, les degats entrent, et rien ne bouge — rapporte comme
+              « je ne sais pas si le boss est bugue ou si c'est visuel », ce qui
+              est exactement le doute qu'une barre est censee lever.
+
+              On transmet donc la reserve pour que le client la dessine comme une
+              part EN ATTENTE : les degats se voient arriver, et la rupture qui
+              suit se lit comme une echeance plutot que comme un a-coup. La
+              mecanique ne change pas d'un cheveu — c'est un defaut de lecture,
+              pas de simulation, et on le corrige la ou il est. */
+           Math.round(this.boss.bank ?? 0)]
         : null,
       /* Second Jumeau. Cle nommee et non un second element de `bo` : c'est un
          cas qui ne concerne qu'un boss sur cinq, et le tuple principal aurait
