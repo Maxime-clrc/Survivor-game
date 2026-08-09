@@ -8,7 +8,7 @@
 import { BOSS_CFG } from "/shared/bosses.js";
 import { CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, cardDetail } from "/shared/cards.js";
 import { CLASS_DEFAULT, SKILL3_NAME, classAt } from "/shared/classes.js";
-import { CFG, PLAYER_COLORS } from "/shared/game_state.js";
+import { CFG, PLAYER_COLORS, fullMods, powerIndex } from "/shared/game_state.js";
 import { SIGNAL } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
 import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, myId, ownedCounts, phase, skills } from "../core/state.js";

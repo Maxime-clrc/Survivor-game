@@ -167,6 +167,28 @@
                    une ombre portee pour le poser au sol. Aucune collision ne
                    bouge : la face du sol reste sur la boite de simulation
 
+     0.8.2 fix : SIX IMPORTS MANQUANTS, dont deux qui manquaient DEJA avant le
+                   decoupage. Symptome rapporte : `fxShard is not defined` au
+                   clic de connexion.
+                   Cause de l'outillage : `let fxWhite = 0, fxShard = 0,
+                   fxGlow = 0;` — une ligne, trois declarateurs, et l'analyse
+                   s'arretait au premier. `fxShard` et `fxGlow` n'existaient donc
+                   pour personne (ni export, ni import, ni setter), et le linker
+                   ES ne dit rien : il ne verifie que ce qu'on lui demande
+                   d'importer. L'erreur n'arrive qu'a l'APPEL.
+                   Cause jumelle : l'extraction des imports coupait sur les
+                   commentaires ecrits DANS un bloc `import`, d'ou la perte de
+                   `DAMAGE_SOURCES`, `fullMods` et `powerIndex`.
+                   Et `SRC_TINT` n'etait importe NULLE PART dans le client
+                   d'origine : la ventilation des degats subis du bilan jetait a
+                   chaque fin de manche, depuis toujours, sans que personne l'ait
+                   relie a un import.
+                   Le garde-fou qui manquait : un controle d'IDENTIFIANTS LIBRES
+                   sur les modules emis — reference quelque part, declaree nulle
+                   part, importee par personne. C'est la seule verification qui
+                   couvre ce que ni `node --check` ni le linker ne voient. Il
+                   passe a zero sur les 18 modules
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -175,4 +197,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.1";
+export const VERSION = "0.8.2";

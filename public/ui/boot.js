@@ -11,7 +11,7 @@ import { VERSION } from "/shared/version.js";
 import { atlasStats, bindGL, buildAtlas, frameOf, glActive, silhouetteSheet } from "/sprites.js";
 import { PERF, inRoom, sendAuth, signalerErreur, ws } from "../core/state.js";
 import { bossSheet } from "../render/boss.js";
-import { PARTICLE_GL, PARTICLE_MAX, fxWhite, setFxWhite, setPARTICLE_MAX } from "../render/fx.js";
+import { PARTICLE_GL, PARTICLE_MAX, fxWhite, setFxGlow, setFxShard, setFxWhite, setPARTICLE_MAX } from "../render/fx.js";
 import { gl, overCtx, resize, underCtx } from "../render/stage.js";
 import { escapeHtml, gate, gateBuildEl, gateContinueBtn, gateFormsEl, gateHold, gateRoomsEl, gateServerEl, gateSwitchEl, goBtn, loadingEl, loginFormEl, nameInput, passInput, regGoBtn, regNameInput, regPass2Input, regPassInput, registerFormEl, setGateBusy, setLoading, setStatus, tabLoginBtn, tabRegisterBtn } from "./dom.js";
 import { enterHub, myPing, refreshPanel, renderTopPing, setMyPing } from "./screens.js";
@@ -159,8 +159,8 @@ async function bootOnce() {
   if (glActive()) {
     setPARTICLE_MAX(PARTICLE_GL);
     setFxWhite(frameOf("fx_white"));
-    fxShard = frameOf("fx_shard");
-    fxGlow = frameOf("fx_glow");
+    setFxShard(frameOf("fx_shard"));
+    setFxGlow(frameOf("fx_glow"));
   }
 
   setLoading(1, "prêt");

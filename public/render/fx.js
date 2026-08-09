@@ -756,4 +756,6 @@ export const lastBossPos = { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
    C'est ce qui rend l'ecriture de cet etat cherchable en un grep. */
 export function setPARTICLE_MAX(v) { PARTICLE_MAX = v; }
 export function setFxWhite(v) { fxWhite = v; }
+export function setFxShard(v) { fxShard = v; }
+export function setFxGlow(v) { fxGlow = v; }
 export function setZoneFx(v) { zoneFx = v; }

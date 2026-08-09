@@ -12,7 +12,7 @@ import { BOSS, CLASS_COLOR, ENEMY, FX, OWNED, SURFACE, ZONE, alpha } from "/shar
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
-import { BURST_MAX, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, hits, particles, setZoneFx, zoneFx } from "./fx.js";
+import { BURST_MAX, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
 import { ELITE_GOLD, camera, ctx, inView, ownerColorOf } from "./stage.js";
 
 /* FLECHES DE COEQUIPIER (lot I). Pour chaque allie hors du rectangle de vue,
