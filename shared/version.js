@@ -119,6 +119,27 @@
                    des mecaniques est calculee sur les bounds et ne les evite
                    pas, et le boss lui-meme ne collisionne pas avec eux
 
+   --- plan6 : le client se decoupe, puis les cartes se redessinent -------------
+     0.8.0 lot A  LE CLIENT PASSE DE 1 FICHIER A 17, EN COUCHES. `client.js`
+                   faisait 10 311 lignes et melangeait trois couches sans
+                   rapport : 3 000 lignes de menus DOM, 1 000 de reseau et de
+                   saisie, 4 800 de rendu du monde. Il n'en reste que 44 —
+                   l'amorce, comme `server.js`. La regle posee est plus forte
+                   que « pas de cycle » : un module n'importe QUE des modules
+                   d'indice inferieur. Mesure au moment du decoupage : 39 cycles
+                   existaient, tous nes de declarations ecrites la ou elles
+                   servaient et non la ou elles sont lues — 22 des 25 violations
+                   venaient a elles seules de `resetFeedback` et de la boucle de
+                   rendu, ecrites au milieu des effets.
+                   AUCUN CHANGEMENT DE COMPORTEMENT : les lectures d'etat n'ont
+                   pas bouge d'une ligne (une liaison de module ES est vivante),
+                   seules les 152 ECRITURES croisees passent par un setter.
+                   Trois criteres rejouables : zero violation de couche, zero
+                   ligne perdue, et le graphe entier se charge dans Node derriere
+                   un faux DOM — ce dernier verifie que chaque import nomme
+                   existe a l'export, c'est-a-dire toute la classe de defauts que
+                   la balise `#vote` non fermee avait illustree
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -127,4 +148,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.7.18";
+export const VERSION = "0.8.0";

@@ -89,7 +89,23 @@ shared/biomes.js       LE LIEU — trois biomes, cinq dangers, trois météos, g
 shared/units.js        pixels → mètres, le SEUL point de conversion d'affichage
 shared/version.js      LA version — module pur d'une constante, lu par le serveur ET le navigateur
 shared/palette.js      LA CHARTE — couleurs, rampes, échelle typo, lues par le canvas ET le DOM
-public/client.js       saisie, interpolation, prédiction, rendu du MONDE
+public/client.js       AMORCE : importe tout, câble, lance la boucle — rien d'autre (44 lignes)
+public/core/state.js   COUCHE 0 : état de session et de partie, n'importe RIEN du client
+public/ui/dom.js       TOUTE référence DOM du jeu, plus les helpers de texte
+public/render/stage.js canvas, `ctx` courant, caméra, gl, décor de mode, biome, souris → monde
+public/net/interp.js   horloge de rendu, interpolation, files `worldQueue` / `alertQueue`
+public/render/fx.js    particules, impacts, morts, chiffres de dégâts, tressaillement
+public/render/decor.js LE SOL : grille, vignettage, obstacles, dangers — la couche des CARTES
+public/render/actors.js zones, projectiles, structures, ennemis, bonus
+public/render/boss.js  boss, marques de mécanique, joueurs
+public/render/world.js ORCHESTRATION : ordre de dessin, boucle, prédiction, `resetFeedback`
+public/ui/build.js     fenêtre de build
+public/ui/screens.js   barre, hub, salon, cartes, marchand, bilan, progression
+public/ui/pause.js     menu pause
+public/input.js        clavier, souris, envoi des intentions à 30 Hz
+public/ui/boot.js      écran de chargement et d'entrée
+public/net/ingest.js   réception des instantanés
+public/net/router.js   la socket et le routage des messages
 public/sprites.js      atlas généré au chargement + `drawSprite`, LE point de passage d'entité
 public/gl.js           batcher de quads WebGL2 — ne connaît ni le jeu ni l'atlas
 public/hud.js          le HUD, en DOM : la couche ÉCRAN
@@ -107,8 +123,62 @@ public/css/hud.css     la couche écran pendant la manche
 public/fonts/          Chakra Petch + Space Grotesk (sous-ensemble latin), versionnées avec le jeu
 ```
 
+### La règle des couches, côté client
+
+**Un module n'importe QUE des modules d'indice strictement inférieur.** L'ordre
+est celui de la liste ci-dessus, et il n'est pas cosmétique : c'est l'ordre
+d'évaluation. `client.js` est en haut — il importe tout, n'est importé par
+personne, et ne contient que du **câblage**, exactement le rôle de `server.js`
+côté serveur.
+
+C'est plus fort que « pas de cycle », et c'est délibéré : *pas de cycle* est une
+propriété qu'on vérifie, *les couches* est une propriété qu'on lit. Le dépôt
+interdit les cycles depuis toujours (« un cycle d'import casserait le chargement
+dans le navigateur ») ; le client de 10 311 lignes les rendait simplement
+invisibles, et la mesure au moment du découpage en a trouvé **39**.
+
+Aucun n'était un vrai enchevêtrement. Ils venaient tous de déclarations écrites
+là où elles **servaient** le plus, et non là où elles sont **lues** — et elles le
+sont partout. Trois familles, et la correction est la même à chaque fois :
+déplacer, jamais abstraire.
+
+- **L'orchestration au milieu des effets.** `resetFeedback` touche les caches de
+  toutes les couches de rendu et la boucle les appelle toutes ; écrites dans
+  `fx`, elles faisaient remonter une arête depuis chaque couche supérieure. À
+  elles seules, **22 des 25** violations mesurées. D'où `render/world.js`.
+- **L'état partagé rangé chez son plus gros consommateur** : `phase`, `keys`,
+  `PERF`, `bilanOpen`, `pauseReal` vivaient dans cinq fichiers différents. Ils
+  sont descendus en couche 0.
+- **Le nom ambigu.** `frame` était à la fois la boucle de rendu et le nom local
+  d'une image de sprite dans une trentaine de fonctions. L'ambiguïté n'est pas
+  théorique : elle empêche de distinguer un vrai besoin d'un simple masquage,
+  donc de *garantir* l'absence de cycle. Renommée `boucleDeRendu`.
+
+**Une seule arête ne se résout pas par un déplacement**, et elle a un crochet :
+`sendAuth` (couche 0) rappelait `connect()` (couche 15). L'amorce pose
+`setReconnecter(connect)`, sur le modèle des `hooks` passés à `createHub`.
+
+**Écrire dans l'état d'un autre module passe par un setter, et par rien
+d'autre.** Une liaison de module ES est **vivante en lecture** — l'importateur
+voit toujours la valeur courante, donc les milliers de sites de *lecture* n'ont
+pas bougé d'une ligne — mais elle est en lecture seule. 62 identifiants ont donc
+un `setX()`, et c'est un gain en soi : l'écriture de `phase` ou de `latest` se
+trouve désormais en un grep, là où elle était noyée dans dix mille lignes.
+
+**Le découpage a été fait par un outil, pas à la main**, et c'est ce qui le rend
+vérifiable : assignation des 674 blocs, calcul des imports et des exports,
+réécriture des 152 affectations croisées. Trois critères d'acceptation rejouables
+— **zéro violation de couche**, **zéro ligne perdue** (chaque ligne non vide de
+la source se retrouve dans exactement un module), et le **chargement complet du
+graphe dans Node derrière un faux DOM**. Ce dernier est le plus utile : le
+linker ES vérifie que chaque import nommé existe réellement à l'export, ce qui
+couvre d'un coup toute la classe « j'ai oublié d'exporter » — invisible autrement
+jusqu'à ce qu'un joueur ouvre l'écran concerné. C'est exactement le défaut de la
+balise `#vote` non fermée, qui a rendu quatre écrans de combat invisibles sans
+une seule erreur.
+
 `public/events.js` et `public/audio.js` ne dépendent de **rien** — ni DOM, ni
-canvas, ni réseau : `client.js` les importe, jamais l'inverse. C'est ce qui
+canvas, ni réseau : le client les importe, jamais l'inverse. C'est ce qui
 permet de les charger dans un script de mesure avec un faux `AudioContext`,
 comme on charge `game_state.js` pour mesurer l'équilibrage.
 
@@ -118,9 +188,9 @@ La question n'est pas « canvas ou CSS » mais **où vit l'élément**.
 
 | couche | contenu | technologie |
 |---|---|---|
-| **Monde** | entités, projectiles, zones, sol, particules | canvas (`client.js`, `sprites.js`, `gl.js`) |
+| **Monde** | entités, projectiles, zones, sol, particules | canvas (`render/*`, `sprites.js`, `gl.js`) |
 | **Écran** | HUD, barres, recharges, consignes, chiffres de dégâts | DOM + CSS (`hud.js`) |
-| **Menus** | chargement, salon, cartes, bilan, build, pause | DOM + CSS (`client.js`, `ui.css`) |
+| **Menus** | chargement, salon, cartes, bilan, build, pause | DOM + CSS (`ui/*`, `ui.css`) |
 
 Le monde reste au canvas parce que 220 ennemis repositionnés à chaque image,
 ce sont 220 couches composées en DOM. L'écran passe en DOM parce qu'une
@@ -129,7 +199,7 @@ recharge en `conic-gradient`, une barre avec `transition` et un voile en
 compositeur qui travaille, pas la boucle de jeu.
 
 **Le canvas a une mémoire qui suit la densité de pixels de l'écran**
-(`resize()` dans `client.js`, plafonnée à 2). C'était la cause racine du HUD
+(`resize()` dans `render/stage.js`, plafonnée à 2). C'était la cause racine du HUD
 illisible et du flou en 1440p, vue sous deux angles : une mémoire fixe de
 1600 × 900 que le CSS étire agrandit tout ce qu'on y dessine. Les coordonnées
 monde restent en pixels de simulation — la transformation absorbe tout, et pas
@@ -184,7 +254,7 @@ une onde de 250 px de rayon dessinée par-dessus masquerait exactement les joueu
 que le liseré vient de rendre identifiables. Une onde est un ornement de sol, un
 projectile est une entité — la ligne de partage est là.
 
-`ctx` dans `client.js` est une **variable** et non une constante : `drawWorld()`
+`ctx` dans `render/stage.js` est une **variable** et non une constante : `drawWorld()`
 la bascule de `underCtx` à `overCtx` une seule fois, juste après les monstres.
 Les deux cents fonctions de dessin ignorent donc sur quel canvas elles écrivent,
 exactement comme `drawSprite` ne dit pas à ses appelants s'il passe par WebGL.
@@ -385,7 +455,7 @@ parcourus dans le sens positif, ce qui est le cas des trois concernés.
 négligeable, et il gagne à être animé en continu au tracé.
 
 **La posture du boss est une TIMELINE en trois temps, et son horloge n'est pas
-celle du bandeau** (`bossCue`, `bossPose` dans `client.js`). Les deux règles se
+celle du bandeau** (`bossCue` dans `net/interp.js`, `bossPose` dans `render/boss.js`). Les deux règles se
 contredisent : le bandeau s'efface 250 ms **avant** la résolution, alors que le
 corps doit rester ramassé jusqu'au coup et se détendre **dessus**. Déduire la
 posture de la durée du bandeau, ce qu'on faisait, détendait donc le boss un quart
@@ -439,7 +509,7 @@ type dans `ENEMY_TYPES`, comme `shootCd`, `standoff` et `splits` l'ont toujours
 fait.
 
 **`game_state.js` RÉEXPORTE `ENEMY_TYPES`.** La table en est sortie au lot S,
-mais `client.js` et les scripts de mesure l'importaient de là depuis toujours :
+mais le client et les scripts de mesure l'importaient de là depuis toujours :
 un lot qui déplace une table n'a aucune raison de faire bouger ses appelants.
 
 Un seul port sert les fichiers **et** les WebSocket. `resolvePath()` dans `server.js` route `/shared/*` depuis la racine du dépôt et tout le reste depuis `public/` — c'est ce qui permet au navigateur d'importer le même module que le serveur.
@@ -698,7 +768,7 @@ exactement ce qu'il faut regarder.
 
 **Les distances s'affichent en mètres, la simulation reste en pixels.** `shared/units.js` (`PX_PER_M = 20`, `toM`, `fmtM`) est le seul point de conversion, et il ne sert **qu'à écrire un texte destiné à un joueur** : descriptions de `cards.js`, `classes.js` et `bosses.js`, libellés du salon, écran de cartes, écran de fin. Le pixel n'est pas une unité de jeu — il dépend de la résolution et ne se compare à rien. **Ne jamais convertir** une constante de `CFG`, `CARD_CFG`, `SKILL_CFG`, `STATUS_CFG` ou `BOSS_CFG`, ni les commentaires techniques, ni les mesures du `LISEZMOI` : ce sont des valeurs de simulation, et une conversion appliquée là casserait tout l'équilibrage d'un coup. Une description qui cite un rayon compose `fmtM(LA_CONSTANTE)` plutôt que de recopier un nombre — un texte qui recopie une constante ment dès le premier réglage.
 
-**Chaque effet dessiné autour d'un personnage occupe une bande de rayon exclusive** (`RING_SHIELD`, `RING_STATUS`, `RING_SKILL`, `RING_BUFF0` dans `client.js`, puis 3,7 m pour les lames orbitales, 8 m pour le givre, 8,5 m pour le rempart). **La règle vaut aussi autour d'un ENNEMI** : le halo d'élite occupe `r + 6` à `r + 8`, le liseré d'aura `r + 10` — une élite couverte est précisément la cible dont on veut lire les deux informations. Deux effets au même rayon reviennent à en perdre un : les lames orbitales disparaissaient dans l'anneau du champ de givre, et le joueur ignorait qu'il avait la carte. Les lames se dessinent en **passe séparée, par-dessus tout** (`drawOrbiters`), et le givre est un disque teinté **sans anneau**.
+**Chaque effet dessiné autour d'un personnage occupe une bande de rayon exclusive** (`RING_SHIELD`, `RING_STATUS`, `RING_SKILL`, `RING_BUFF0` dans `render/boss.js`, puis 3,7 m pour les lames orbitales, 8 m pour le givre, 8,5 m pour le rempart). **La règle vaut aussi autour d'un ENNEMI** : le halo d'élite occupe `r + 6` à `r + 8`, le liseré d'aura `r + 10` — une élite couverte est précisément la cible dont on veut lire les deux informations. Deux effets au même rayon reviennent à en perdre un : les lames orbitales disparaissaient dans l'anneau du champ de givre, et le joueur ignorait qu'il avait la carte. Les lames se dessinent en **passe séparée, par-dessus tout** (`drawOrbiters`), et le givre est un disque teinté **sans anneau**.
 
 **Les snapshots sont des tableaux positionnels.** On ajoute des champs **à la fin, jamais au milieu**, et le client les lit avec une valeur de repli (`a[16] ?? 0`). Un onglet resté sur une version antérieure continue de fonctionner.
 
@@ -1073,7 +1143,7 @@ serveur serait faux pour tout le monde sauf lui.
 
 **`powerIndex()` et `bossPower()` sont exportés en fonctions pures**, comme `fullMods` et `effectiveCards` et pour la même raison : la fenêtre de build affiche l'indice de puissance au joueur, et le recoder côté client donnerait deux implémentations qui divergent au premier réglage. `_playerPower()` n'est plus qu'un appel à `powerIndex(p.powerMods ?? p.mods)` — le choix de `powerMods` (méta exclue) reste dans la méthode, pas dans la fonction pure.
 
-**Un multiplicateur affiché sans échelle n'informe personne.** « ×1,49 dégâts » sonne bien et vaut une build faible ; le défaut a été rapporté comme « les pourcentages ne fonctionnent pas ». La fenêtre de build et le bilan situent donc la puissance sur des repères **mesurés** (`POWER_MARKS` dans `client.js`) et affichent le genou. Ce sont des mesures, pas des constantes de réglage : les remesurer si le catalogue ou les raretés bougent.
+**Un multiplicateur affiché sans échelle n'informe personne.** « ×1,49 dégâts » sonne bien et vaut une build faible ; le défaut a été rapporté comme « les pourcentages ne fonctionnent pas ». La fenêtre de build et le bilan situent donc la puissance sur des repères **mesurés** (`POWER_MARKS` dans `ui/build.js`) et affichent le genou. Ce sont des mesures, pas des constantes de réglage : les remesurer si le catalogue ou les raretés bougent.
 
 **L'indexation elle-même reste la règle** : la difficulté suit la puissance réelle de l'équipe et non le temps écoulé. Toute nouvelle source de dégâts permanente doit être prise en compte dans `powerIndex`, sinon le boss redevient une formalité en fin de manche — et toute pénalité qui accompagne un gain doit y figurer aussi : oublier `barrelDamageMul` faisait surestimer la puissance de 44 % et triplait la durée du troisième combat.
 
@@ -1178,9 +1248,9 @@ Ajouter une entrée impose de traiter les deux côtés :
 |---|---|---|
 | `kind` d'effet | 0 nova · 1 balayage d'arrivée · 2 montée de niveau · 3 ricochet · 4 balise / relèvement / purification / Sentence survécue · 5 élite abattue · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart posé · 10 provocation · 11 vague de soin · 12 explosion de bombe · 13 salve verrouillée (transporte deux points de plus, comme le 3) · 14 absorption du bouclier | `drawEffects()` |
 | type d'ennemi | `ENEMY_TYPES` dans `enemies.js` (tableau ordonné, l'index circule dans le champ de type, rang d'élite encodé à +100) | `ENEMY.TINT` dans `palette.js` + `plan()` dans `sprites.js` (`e{type}_*`) + `DEATH_BURST` + `enemyFrame()` |
-| trait | `TRAITS` + `TRAIT_CFG` dans `enemies.js` (les valeurs) ; l'**attachement** dans `DIFFICULTIES[i].traits` — **l'index ne circule pas**, tout se déduit de `(diffIndex, type)` | `traitsOf()` (importé de `game_state.js`) dans `client.js` : anticipation par `scale`, liseré d'aura, lien de soin |
+| trait | `TRAITS` + `TRAIT_CFG` dans `enemies.js` (les valeurs) ; l'**attachement** dans `DIFFICULTIES[i].traits` — **l'index ne circule pas**, tout se déduit de `(diffIndex, type)` | `traitsOf()` (importé de `game_state.js`) dans `render/actors.js` : anticipation par `scale`, liseré d'aura, lien de soin |
 | profil de difficulté | `DIFFICULTIES` dans `game_state.js` (tableau ordonné, l'index circule dans le salon) : `script`, `roster`, `traits`, `resume`, résidu | `renderVoteDetail()` (les trois lignes du salon) + `applyPalette(diffIndex)` |
-| décor de mode | `DECOR` dans `palette.js` (tableau ordonné, index = celui de `DIFFICULTIES`) — **ne circule pas**, déduit du `diffIndex` du salon | `decor` dans `client.js` : fond d'arène, `drawGrid()`, `drawVignette()` |
+| décor de mode | `DECOR` dans `palette.js` (tableau ordonné, index = celui de `DIFFICULTIES`) — **ne circule pas**, déduit du `diffIndex` du salon | `decor` dans `render/stage.js`, lu par `render/decor.js` : fond d'arène, `drawGrid()`, `drawVignette()` |
 | classe | `CLASSES` dans `classes.js` (tableau ordonné, l'index circule) | sélecteur du salon + `buildPips()` / `updatePip()` dans `hud.js` |
 | couleur d'un joueur | `assignColors()` dans `room.js`, point de passage unique ; l'index voyage dans `colorIndex` du salon | `PLAYER_COLORS` (ordre = tank, soigneur, tireur A, tireur B) via `colorOf` / `ownerColorOf` |
 | bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` (masque) | teinte du joueur, halos, icônes |
@@ -1196,7 +1266,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | boss | `BOSS_ROSTER` dans `bosses.js` (tableau ordonné, l'index circule dans `bo[9]`) ; `bars` y est une propriété du roster, `BOSS_POOL_COUNT` borne le tirage | `drawBoss*()` (une routine par boss) + `BOSS_SKIN` dans `palette.js` + barre du HUD (`#hudBoss.final`) + annonce d'entrée + `phaseUnlockText()` |
 | mécanique | `MECHS` dans `bosses.js` (tableau ordonné, l'index circule dans le canal d'alerte et dans `mk`) | `drawMarks()` + `pushAlert()` |
 | événement de horde | `EVENTS` dans `timeline.js` (tableau ordonné, l'index circule dans le canal d'alerte et dans `ev`) ; la colonne `event` des beats en est le CALENDRIER | `eventAt()` dans `applyAlert()` + bandeau de segment dans `hud.js` + `evenementDebut`/`evenementFin` dans `events.js` |
-| biome | `BIOMES` dans `biomes.js` (tableau ordonné, l'index circule UNE fois, dans le payload de salon, avec la graine) ; `buildBiome()` pose la géométrie à la construction | `buildBiome()` **rejoué à l'identique** dans `client.js` + `drawObstacles()` / `drawHazards()` sur `#cvUnder` + ligne de segment du HUD + résumé de mode au salon |
+| biome | `BIOMES` dans `biomes.js` (tableau ordonné, l'index circule UNE fois, dans le payload de salon, avec la graine) ; `buildBiome()` pose la géométrie à la construction | `buildBiome()` **rejoué à l'identique** dans `render/stage.js` + `drawObstacles()` / `drawHazards()` sur `#cvUnder` + ligne de segment du HUD + résumé de mode au salon |
 | danger d'environnement | `HAZARDS` + `BIOME_CFG` dans `biomes.js` — **l'index ne circule pas**, la liste se régénère ; `hazardState(h, t)` en est le point de passage unique | `drawHazards()` (géométrie permanente + partie active) + `groundAt()` dans la prédiction + `danger` dans `events.js` → son `geyser` |
 | couverture destructible | `maxHp` sur une entrée d'obstacle ; `_obstacleHit()` ; clé **creuse** `ob` du snapshot (index, part de PV), absente tant que rien n'est touché | liseré tireté de `drawObstacles()` + blocage rejoué dans la prédiction + `murDetruit` dans `events.js` → son `mur` |
 | météo | `WEATHERS` dans `biomes.js` (tableau ordonné, l'index circule dans le canal d'alerte) ; `weatherFor(diff, graine, segment)` — **ne circule pas dans le snapshot**, déduit | `weatherAt()` dans `applyAlert()` + `drawVignette()` (brume) + `stepPrediction()` (bourrasque) + ligne de segment du HUD |
@@ -1205,12 +1275,12 @@ Ajouter une entrée impose de traiter les deux côtés :
 | type d'événement | rien — déduit des snapshots | `diffSnapshots()` dans `events.js`, consommé par `handleEvent()` |
 | image de sprite | rien | `plan()` dans `sprites.js` : `e{type}_{idle,walkA,walkB,open,die0..2}` et `c_{classe}_{idle,move,shoot,down}`, adressées par NOM via `frameOf()` |
 | son | rien | `PALETTE` dans `audio.js` + `SOUND_GAIN` (hiérarchie de volume) |
-| cible d'un son d'interface | rien | `UI_SOUND_SCREENS` / `UI_SOUND_TARGETS` dans `client.js` — **miroir** de la règle `--cursor-go` de `menus.css`, commentée des deux côtés |
-| `kind` d'effet → son | rien | `EFFECT_SOUND` dans `client.js` : son et amplitude de tressaillement par `kind` |
+| cible d'un son d'interface | rien | `UI_SOUND_SCREENS` / `UI_SOUND_TARGETS` dans `ui/screens.js` — **miroir** de la règle `--cursor-go` de `menus.css`, commentée des deux côtés |
+| `kind` d'effet → son | rien | `EFFECT_SOUND` dans `render/fx.js` : son et amplitude de tressaillement par `kind` |
 | son d'événement | rien — déduit du niveau d'alerte de la table | `evenement` dans `PALETTE` (`audio.js`), une quinte montante ; `haut` distingue consigne et avertissement sans ouvrir une entrée par événement |
 | glyphe posé sur un joueur | `a` / `b` d'une entrée de `state.marks` | `PLAYER_MARK` + `paintMarkGlyph()` |
-| effet possédé visible en jeu | rien — déduit de la liste de cartes | `EFFECT_BADGES` dans `client.js` : bande d'effets actifs du HUD |
-| façon de mourir d'un type | rien — déduit du type déjà porté par le snapshot | `DEATH_BURST` dans `client.js` : compte, taille, vitesse, durée, halo et ouverture de gerbe |
+| effet possédé visible en jeu | rien — déduit de la liste de cartes | `EFFECT_BADGES` dans `icons.js`, posé par `ui/screens.js` : bande d'effets actifs du HUD |
+| façon de mourir d'un type | rien — déduit du type déjà porté par le snapshot | `DEATH_BURST` dans `render/fx.js` : compte, taille, vitesse, durée, halo et ouverture de gerbe |
 | pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
 | hub des salles | messages `listRooms` · `createRoom` · `joinRoom` · `leaveRoom` (client → serveur) ; `rooms` · `roomJoined` · `joinRoomError` (motifs `pleine` · `disparue` · `motdepasse` · `plafond`) · `roomClosed` (serveur → client) — routés par `hub.js`, jamais par une salle | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité (compte + session) | messages `register` · `login` · `loginToken` · `logout` · `changePass` (client → serveur) ; `register/login/loginToken/…` dans `progress_store.js` ; réponses `welcome{pseudo,token?,dup}` · `authError{motif,fatal?}` · `passChanged` · `loggedOut` ; ni hachage ni mot de passe ne voyagent jamais vers un client | `#gate` (trois modes : reprise / connexion / création), bloc compte du hub, `survivor.token` en localStorage |
@@ -1230,7 +1300,7 @@ Ajouter une entrée impose de traiter les deux côtés :
 | lien de soin du medic | neuvième élément du tuple ennemi (index 8, coupé quand nul) | `drawHealLinks()` par-dessus la horde |
 | propriétaire d'une balle | cinquième élément du tuple `b`, ajouté **en fin** | `ownerColorOf(b.owner) ?? COMBAT.bullet` dans `drawWorld` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
-| version | `VERSION` dans `shared/version.js` (source unique, module pur, table d'historique en commentaire) ; clés `version` et `commit` du `welcome`, une fois par connexion ; `shortCommit()` au boot passé à `createHub` ; `server.js` compare `package.json` au boot et **journalise** un désaccord ; `version_check.js` le refuse avant | `#version` + `updateVersion()` dans `client.js` : `v0.7.8 (a1b2c3d)` en `--text-faint`, ambre `.stale` **sans le hash** si le serveur annonce autre chose |
+| version | `VERSION` dans `shared/version.js` (source unique, module pur, table d'historique en commentaire) ; clés `version` et `commit` du `welcome`, une fois par connexion ; `shortCommit()` au boot passé à `createHub` ; `server.js` compare `package.json` au boot et **journalise** un désaccord ; `version_check.js` le refuse avant | `#version` + `updateVersion()` dans `ui/dom.js` : `v0.7.8 (a1b2c3d)` en `--text-faint`, ambre `.stale` **sans le hash** si le serveur annonce autre chose |
 
 Six de ces registres sont **purement clients** — image de sprite, son, `kind`
 d'effet → son, glyphe posé sur un joueur, effet possédé visible en jeu, façon de
@@ -1322,7 +1392,7 @@ la piétaille l'information n'a aucune valeur.
 
 **Tout message ponctuel qui décrit un changement du MONDE se consomme depuis la
 timeline interpolée, jamais à la réception.** `worldQueue` / `pushWorld()` dans
-`client.js` est le point de passage unique, sur le modèle d'`alertQueue` :
+`net/interp.js` est le point de passage unique, sur le modèle d'`alertQueue` :
 `round`, `roundAbort`, `roundEnd`, `cards`, `cardsWait` et la fermeture de
 l'écran de cartes y passent. Le serveur envoie `cards` à l'instant où il
 constate l'arène vide ; le client dessine encore l'état d'il y a 110 ms, où deux
@@ -1491,9 +1561,9 @@ cents créatures pulsent ensemble et l'arène respire comme un seul organisme.
 
 **Une seule source de vérité pour les couleurs : `shared/palette.js`.** Le canvas
 et le DOM ont besoin des mêmes valeurs ; deux listes divergent au premier
-réglage. `client.js` pose les variables CSS sur `:root` depuis `cssVars()` au
+réglage. `render/stage.js` pose les variables CSS sur `:root` depuis `cssVars()` au
 chargement — **jamais l'inverse**, et `public/css/tokens.css` ne contient donc
-aucune couleur. Une couleur en dur dans `client.js` ou dans une feuille de style
+aucune couleur. Une couleur en dur dans un module de rendu ou dans une feuille de style
 est un bug. L'échelle typographique (`TYPE`) suit la même règle, pour la même
 raison : le canvas écrit du texte lui aussi.
 
@@ -1721,7 +1791,7 @@ d'origine sur quoi les accrocher. Un premier essai a posé la feuille sur
 à rien — seuls les rayons et quelques couleurs sont passés. Les conteneurs sont
 donc **ajoutés dans `index.html`**, et de façon strictement **additive** :
 on enveloppe, on n'échange pas. Aucun `id` renommé, aucune classe posée par
-`client.js` (`.mine`, `.winner`, `.taken`, `.running`, `.err`, `.equipped`,
+`ui/screens.js` (`.mine`, `.winner`, `.taken`, `.running`, `.err`, `.equipped`,
 `.r0`–`.r3`, `.picked`, `.faded`) touchée.
 
 | Écran | Conteneurs |
@@ -1828,7 +1898,7 @@ il a sa place là où l'on est déjà, pas dans un écran qu'il faut d'abord ouv
 vient (`settingsFrom`, l'élément et non un nom) : sans lui on ressortirait
 toujours au hub, donc on perdrait son salon pour avoir voulu baisser le son.
 
-**`admin.html` ne charge NI `client.js` NI `shared/palette.js`, et c'est ce qui
+**`admin.html` ne charge NI le client NI `shared/palette.js`, et c'est ce qui
 la rend utilisable.** Elle importait `cssVars` dans un `<script type="module">`
 — or un module dont l'import échoue ne s'exécute **pas du tout** : une
 arborescence `shared/` cassée laissait une page inerte, sans bouton
@@ -1874,7 +1944,7 @@ allonger `--screen-hold` aurait supprimé le croisement qu'on est venu chercher.
 
 **Aucun appelant ne change, et c'est la condition.** Les quinze chemins qui
 posent `hidden` portent des règles d'ordonnancement documentées (`worldQueue`,
-les gardes de `refreshPanel`, l'ordre bilan/salon) : c'est `client.js` qui pose
+les gardes de `refreshPanel`, l'ordre bilan/salon) : c'est `ui/screens.js` qui pose
 `.leaving` depuis le `MutationObserver` **déjà en place** (celui du fil d'Ariane
 et de la cascade), et `menus.css` qui maintient l'écran affiché le temps de son
 animation. Il constate, il ne décide pas — c'est ce qui le rend incapable
@@ -2120,7 +2190,7 @@ pas.
 
 **La jauge de puissance n'est plus rendue nulle part.** Les deux maquettes —
 bilan et build — s'arrêtent aux multiplicateurs, et les deux appels ont disparu.
-`powerBlockHtml` reste dans `client.js` avec ses repères : l'indice répond à un
+`powerBlockHtml` reste dans `ui/build.js` avec ses repères : l'indice répond à un
 défaut réellement rapporté (« ×1,49 dégâts » sonne bien et vaut une build
 faible, d'où « les pourcentages ne fonctionnent pas »), et le remettre est une
 ligne dans `renderBuild`. Le supprimer serait une décision de conception, pas un
