@@ -241,20 +241,20 @@ export const BIOMES = [
     resume: "piliers en grille, couloirs francs",
     // Ardoise a peine plus bleue et grille dense : c'est le biome le plus
     // lisible, celui qui ressemble le plus a l'arene nue du depot.
-    tint: "#0f141c", grid: "#1a2130", skip: 0,
+    tint: "#0b1626", grid: "#1a2740", skip: 0,
   },
   {
     key: "fonderie", nom: "Fonderie",
     resume: "ouvertures larges, deux cuves centrales",
     // Le sol tire vers l'orange brule : c'est le biome ou quelque chose chauffe.
-    tint: "#161110", grid: "#241b18", skip: 4,
+    tint: "#1e1010", grid: "#33201c", skip: 4,
   },
   {
     key: "friche", nom: "Friche",
     resume: "obstacles épars, couverture destructible",
     // Vert eteint, presque gris : rien n'y fonctionne plus, d'ou la couverture
     // qu'on peut casser.
-    tint: "#101410", grid: "#1a221b", skip: 3,
+    tint: "#0d1a0d", grid: "#18291a", skip: 3,
   },
 ];
 
@@ -266,6 +266,13 @@ export function biomeAt(i) { return BIOMES[i] ?? BIOMES[0]; }
    dans Node et dans le navigateur — c'est toute l'exigence. `Math.random()` ne
    pouvait pas servir : la geometrie doit se regenerer a l'identique des deux
    cotes a partir de la seule graine. */
+/* EXPORTE depuis le plan6 : la matiere du sol (`render/material.js`) doit tirer
+   la MEME suite que la geometrie, sinon deux graines coexistent pour un seul
+   biome. Une deuxieme implementation aurait diverge au premier reglage — c'est
+   l'argument deja tenu pour `hazardState`, qui est partage entre la simulation
+   et le rendu pour exactement cette raison. */
+export function mulberry32(seed) { return rng(seed); }
+
 function rng(seed) {
   let a = (seed >>> 0) || 1;
   return function () {
@@ -321,10 +328,38 @@ const OBSTACLES = {
    `normal` a la meme table dans les trois biomes : deux champs de
    ralentissement, rien qui blesse. C'est deliberement le mode ou le biome n'est
    qu'une FORME, pour qu'on l'apprenne avant qu'il ne morde. */
-const HZ_NORMAL = [
-  { kind: HZ_SLOW, x: 0.28, y: 0.58 },
-  { kind: HZ_SLOW, x: 0.74, y: 0.36 },
-];
+/* UNE TABLE PAR BIOME, et non une seule pour les trois. C'etait un defaut
+   MESURE : deux couples de coordonnees ecrits une fois valaient pour trois
+   geometries differentes, et ils tombaient sur les piliers. Comptage sur
+   4800 x 2700 avant correctif — 18 dangers sur 18 recouvraient un obstacle a
+   l'usine et a la fonderie, 17 sur 18 a la friche. Un disque de ralentissement
+   dessine sous un pilier n'est ni lisible ni evitable : c'est exactement ce
+   qu'un joueur voit comme « des formes qui se chevauchent ».
+
+   LES POSITIONS DE `normal` SONT CELLES DE `cauchemar`, deliberement. Le mode
+   ou le biome n'est qu'une forme est aussi celui ou on l'APPREND : un champ de
+   ralentissement pose la ou soufflera un geyser enseigne la carte avant qu'elle
+   ne morde. C'est la meme raison que « la geometrie est la meme dans les trois
+   modes » — la montee en difficulte doit etre apprenable, pas etre un autre
+   jeu. */
+const HZ_NORMAL = {
+  // Aux intersections des couloirs, la ou seront les geysers.
+  usine: [
+    { kind: HZ_SLOW, x: 0.35, y: 0.50 },
+    { kind: HZ_SLOW, x: 0.65, y: 0.50 },
+  ],
+  // Au pied des cuves, la ou seront les flaques — jamais dessus.
+  fonderie: [
+    { kind: HZ_SLOW, x: 0.35, y: 0.24 },
+    { kind: HZ_SLOW, x: 0.65, y: 0.76 },
+  ],
+  // La friche gigue de 40 px : ses champs se posent dans les deux vides les
+  // plus larges, avec de la marge pour la gigue.
+  friche: [
+    { kind: HZ_SLOW, x: 0.10, y: 0.55 },
+    { kind: HZ_SLOW, x: 0.56, y: 0.84 },
+  ],
+};
 
 const HZ_CAUCHEMAR = {
   // Geysers aux INTERSECTIONS des couloirs, exactement la ou l'on passe. Trois
@@ -347,7 +382,9 @@ const HZ_CAUCHEMAR = {
   // rien de mobile, il y aurait deux choses a lire au meme endroit.
   friche: [
     { kind: HZ_POOL, x: 0.18, y: 0.68 },
-    { kind: HZ_POOL, x: 0.55, y: 0.28 },
+    // Etait en (0,55 ; 0,28), c'est-a-dire sous l'obstacle de (0,62 ; 0,18) une
+    // fois la gigue appliquee. Descendue dans le vide bas-centre.
+    { kind: HZ_POOL, x: 0.50, y: 0.86 },
     { kind: HZ_POOL, x: 0.82, y: 0.80 },
   ],
 };
@@ -426,7 +463,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   /* Les dangers par mode. Le tableau vide de `calme` n'est pas un oubli : c'est
      LE critere d'acceptation du mode. */
   let table = [];
-  if (diffIndex === 1) table = HZ_NORMAL;
+  if (diffIndex === 1) table = HZ_NORMAL[def.key] ?? [];
   else if (diffIndex >= 2) table = HZ_CAUCHEMAR[def.key] ?? [];
 
   const hazards = [];
@@ -534,14 +571,19 @@ export function weatherFor(diffIndex, seed, segment) {
    c'est le CRITERE D'ACCEPTATION du lot, et il ne vaut que s'il est rejouable.
    Rend la liste des soucis, vide quand tout va bien.
 
-   Quatre regles :
+   Cinq regles :
      - la surface des dangers actifs ne depasse jamais le plafond ;
      - la surface d'obstacles non plus ;
      - un passage traversable existe DANS LE CARRE CENTRAL MINIMAL, de bord a
        bord, dans les deux axes — c'est la constriction du Ravageur qui l'impose,
        un obstacle qui enferme un joueur dans un coin de l'arene reduite est un
        piege mortel involontaire ;
-     - `normal` n'a aucun danger qui blesse.
+     - `normal` n'a aucun danger qui blesse ;
+     - AUCUN DANGER NE RECOUVRE UN OBSTACLE. Regle ajoutee au plan6 apres
+       comptage : 53 recouvrements sur 54 dangers en `normal`, parce qu'une
+       table unique de coordonnees servait a trois geometries. Un disque pose
+       sous un pilier n'est ni lisible ni evitable, et rien ne le signalait —
+       les quatre regles precedentes passaient toutes.
 
    Le passage se verifie par remplissage sur une grille, obstacles DILATES du
    rayon du personnage : un couloir de 30 px est traversable sur le papier et
@@ -572,10 +614,29 @@ export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
         if (!coeurTraversable(b, arenaW, arenaH, viewW, viewH)) {
           soucis.push(`${ou} : le carre central minimal n'est pas traversable`);
         }
+        const chevauche = comptePosesSurObstacle(b);
+        if (chevauche > 0) {
+          soucis.push(`${ou} : ${chevauche} danger(s) poses sur un obstacle`);
+        }
       }
     }
   }
   return soucis;
+}
+
+/* Distance disque -> rectangle : on ramene le centre sur le rectangle avant de
+   mesurer. Pas de marge de tolerance — un danger qui affleure un pilier reste
+   lisible, c'est le recouvrement qui ne l'est pas. */
+function comptePosesSurObstacle(b) {
+  let n = 0;
+  for (const h of b.hazards) {
+    for (const o of b.obstacles) {
+      const cx = Math.max(o.x - o.w / 2, Math.min(h.x, o.x + o.w / 2));
+      const cy = Math.max(o.y - o.h / 2, Math.min(h.y, o.y + o.h / 2));
+      if (Math.hypot(h.x - cx, h.y - cy) < h.r) { n++; break; }
+    }
+  }
+  return n;
 }
 
 /* Le carre central minimal se mesure sur une CELLULE DE VUE et non sur la

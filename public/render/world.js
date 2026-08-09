@@ -22,9 +22,9 @@ import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty,
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
 import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_CROSS, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawHealLinks, drawPowerups, drawSancts, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, lastPlayerPos } from "./boss.js";
-import { drawArenaBounds, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls } from "./decor.js";
+import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls } from "./decor.js";
 import { deaths, dmgAgg, drawBursts, drawDeaths, drawParticles, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pump, selfAgg, setZoneFx, shake, stepFeedback, zoneFx } from "./fx.js";
-import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
+import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, readMove } from "../ui/dom.js";
 
 /* Remise a zero entre deux manches. Sans elle, le premier snapshot d'une
@@ -308,7 +308,7 @@ function draw(v) {
   // monde sous la transformation camera, c'est exactement tout le canvas.
   // La TEINTE vient du decor de mode (lot T) : elle dit dans quelle difficulte
   // on joue avant meme le premier monstre.
-  underCtx.fillStyle = decor.arena;
+  underCtx.fillStyle = sol.arena;
   underCtx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
   overCtx.clearRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
   // Le lot WebGL s'ouvre autour de TOUT le monde : les quads sont accumules au
@@ -371,6 +371,10 @@ function drawWorld(v) {
      telegraphes, projectiles, marqueurs. Elle bascule une seule fois, juste
      apres les monstres — voir plus bas. */
   setCtx(underCtx);
+  /* La MATIERE d'abord, la graduation par-dessus. L'ordre n'est pas indifferent :
+     la grille existe pour rendre les distances lisibles, le sol pour dire ou
+     l'on est — un decor pose sur une graduation supprime la graduation. */
+  drawFloor();
   drawGrid();
 
   if (v.slow) {

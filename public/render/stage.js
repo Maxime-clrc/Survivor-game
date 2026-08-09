@@ -11,8 +11,8 @@
 
 import { createGL } from "/gl.js";
 import { bombRange } from "/shared/classes.js";
-import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, buildBiome } from "/shared/game_state.js";
-import { ENEMY, cssVars, decorAt } from "/shared/palette.js";
+import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, biomeAt, buildBiome } from "/shared/game_state.js";
+import { ENEMY, cssVars, decorAt, teinter } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { reuploadAtlas } from "/sprites.js";
 import { PERF, latest, lobby, myId, predicted } from "../core/state.js";
@@ -50,12 +50,42 @@ let biome = buildBiome(0, 1, 1, CFG.ARENA_W, CFG.ARENA_H);
 // cauchemar et un segment sur trois.
 export let weather = null;
 export let weatherSeg = 0;
+/* LE SOL : la valeur vient du MODE, la teinte vient du BIOME.
+
+   `BIOMES[i].tint` et `.grid` etaient DECLARES DEPUIS LE LOT V ET LUS PAR
+   PERSONNE — verifie en un grep, aucun appelant. Le sol ne portait donc que le
+   mode, et les trois lieux se ressemblaient parce qu'ils avaient litteralement
+   la meme couleur. C'est la moitie du grief « les trois modes se ressemblent ».
+
+   Un MELANGE et non un remplacement : le mode doit rester lisible d'un coup
+   d'oeil — c'est la regle du lot T, la difficulte se voit sur la machine — et
+   une teinte de biome qui l'ecraserait ferait perdre l'information la plus
+   importante des deux. La part reste donc minoritaire ; c'est une inflexion,
+   pas un changement de gamme. */
+const PART_BIOME = 0.75;        // sur le fond
+const PART_BIOME_GRILLE = 0.8;  // sur la grille fine, ou l'ecart se voit moins
+
+export let sol = { arena: "#0b0e14", gridFine: "#151b26", gridMajor: "#232c3d" };
+
+function refreshSol() {
+  const b = biomeAt(biomeIndex);
+  sol = {
+    arena: teinter(decor.arena, b.tint, PART_BIOME),
+    gridFine: teinter(decor.gridFine, b.grid, PART_BIOME_GRILLE),
+    // La grille MARQUEE ne bouge pas : c'est la graduation en metres, elle doit
+    // se lire pareil dans les neuf combinaisons.
+    gridMajor: decor.gridMajor,
+  };
+  vignette = null;
+}
+
 export function rebuildBiome(diffIndex = 1) {
   biome = buildBiome(biomeIndex, diffIndex, biomeSeed,
     CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
   weather = null;
   weatherSeg = 0;
   vignette = null;
+  refreshSol();
 }
 export function applyPalette(diffIndex = 1) {
   decor = decorAt(diffIndex);
@@ -64,6 +94,7 @@ export function applyPalette(diffIndex = 1) {
   // Le vignettage est un degrade MIS EN CACHE : sans cette remise a zero, le
   // mode change partout sauf la ou il se voit le plus.
   vignette = null;
+  refreshSol();
 }
 applyPalette();
 export const underCtx = cvUnder.getContext("2d");
@@ -99,7 +130,10 @@ export const gl = rendererFlag() === "webgl"
    et pas une ligne de logique de rendu ne change. Le plafond a 2 est
    DELIBERE — au-dela, on quadruple le cout de remplissage pour un gain que
    personne ne voit. */
-let renderScale = 1;
+/* Exporte : la matiere du sol se cuit a la densite de l'ecran, comme l'atlas.
+   Une tuile cuite en densite 1 puis etiree en 1440p rendrait exactement le flou
+   que le lot I a supprime. */
+export let renderScale = 1;
 export function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const r = cv.getBoundingClientRect();
@@ -285,7 +319,7 @@ export const ELITE_GOLD = ENEMY.elite;
    voit toujours la valeur courante — mais elle est en lecture seule. Ecrire
    depuis un autre module demande donc de passer par ici, et par rien d'autre.
    C'est ce qui rend l'ecriture de cet etat cherchable en un grep. */
-export function setBiomeIndex(v) { biomeIndex = v; }
+export function setBiomeIndex(v) { biomeIndex = v; refreshSol(); }
 export function setBiomeSeed(v) { biomeSeed = v; }
 export function setCtx(v) { ctx = v; }
 export function setVignette(v) { vignette = v; }

@@ -5,10 +5,27 @@
    la geometrie vient de `buildBiome`, l'etat d'un danger de `hazardState`.
    =========================================================================== */
 
-import { BIOME_CFG, CFG, HZ_EMBER, HZ_GEYSER, HZ_SLIP, HZ_SLOW, WX_BRUME, hazardState } from "/shared/game_state.js";
+import { BIOME_CFG, CFG, HZ_EMBER, HZ_GEYSER, HZ_SLIP, HZ_SLOW, WX_BRUME, biomeAt, hazardState } from "/shared/game_state.js";
 import { BIOME, BOSS, SURFACE, WALL, ZONE, alpha } from "/shared/palette.js";
+import { difficulty } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
-import { GRID_FINE, GRID_MAJOR, camera, ctx, decor, hazardsActifs, obstaclesActifs, setVignette, vignette, weather } from "./stage.js";
+import { floorPattern } from "./material.js";
+import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, obstaclesActifs, renderScale, setVignette, sol, vignette, weather } from "./stage.js";
+
+/* LA MATIERE, sous la grille et sur la teinte de mode. Un `fillRect` du
+   rectangle de vue avec un motif repete : le sol a une matiere pour le prix
+   d'un remplissage, et la cuisson est payee une fois au chargement.
+
+   Peinte AVANT la grille, jamais apres : la grille est de l'instrumentation
+   (elle gradue en metres, c'est sa seule raison d'etre), la matiere est du
+   decor. Un decor par-dessus une graduation, c'est une graduation qu'on ne lit
+   plus. */
+export function drawFloor() {
+  const p = floorPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale);
+  if (!p) return;
+  ctx.fillStyle = p;
+  ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+}
 
 export function drawGrid() {
   // Seuls les traits du RECTANGLE DE VUE sont traces (lot I) : la grille de
@@ -38,7 +55,7 @@ export function drawGrid() {
      Deterministe et non aleatoire : une grille qui scintille d'une image a
      l'autre attire l'oeil sur le decor, exactement l'inverse du but. */
   const skip = decor.skip;
-  ctx.strokeStyle = decor.gridFine;
+  ctx.strokeStyle = sol.gridFine;
   ctx.beginPath();
   let n = 0;
   for (let x = GRID_FINE; x < CFG.ARENA_W; x += GRID_FINE, n++) {
@@ -52,7 +69,7 @@ export function drawGrid() {
   }
   ctx.stroke();
 
-  ctx.strokeStyle = decor.gridMajor;
+  ctx.strokeStyle = sol.gridMajor;
   ctx.beginPath();
   for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
     ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
@@ -160,40 +177,143 @@ export function drawArenaBounds(b) {
    intermittent. Le canal du telegraphe instantane appartient au boss et ne se
    partage pas — un cercle ambre qui se remplit en 1,4 s est indistinguable
    d'une zone de Ravageur, et le joueur cesserait de savoir lequel il regarde. */
+/* UN OBSTACLE A UNE SILHOUETTE, ET ELLE APPARTIENT A SON BIOME.
+
+   Les trois biomes dessinaient le meme `fillRect` gris : la geometrie changeait,
+   la MATIERE non, et c'est ce qui faisait lire les trois cartes comme la meme
+   carte a piliers deplaces. On applique donc au decor la regle deja tenue pour
+   le bestiaire — le test de la silhouette : un lecteur doit reconnaitre le lieu
+   sans lire une couleur. Pilier d'acier chanfreine a l'usine, cuve a pans coupes
+   a la fonderie, bloc de beton ebreche a la friche.
+
+   LE VOLUME EST UNE FACE SUPERIEURE DECALEE VERS LE CENTRE DE LA VUE. C'est du
+   2,5D gratuit : on ne stocke aucune image, on ne change aucune collision — la
+   boite reste exactement celle de la simulation, et c'est elle qu'on trace en
+   dernier. Le decalage suit la CAMERA, donc les piliers « s'ouvrent » quand on
+   traverse la salle, ce qui est precisement ce qui donne du relief a un plan
+   vu de dessus. Il est PLAFONNE : au-dela de quelques pixels la face haute
+   sortirait de la boite qui bloque, et le joueur ne saurait plus ou est le mur.
+
+   L'OMBRE PORTEE POSE L'OBJET SUR LE SOL. Sans elle, un rectangle uni sur une
+   matiere texturee flotte — c'etait deja vrai avant, mais un sol plat le
+   masquait. Elle part a l'oppose de la lumiere (haut-gauche), comme partout
+   ailleurs dans le jeu.
+
+   Les angles restent DURS : la charte reserve le cercle au vivant, et un pilier
+   arrondi entrerait en concurrence avec les creatures a la lecture rapide. */
+const OBST_RELIEF = 7;          // px, plafond du decalage de la face haute
+const OBST_OMBRE = 9;           // px, longueur de l'ombre portee
+
+function silhouette(g, o, biome) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const c = Math.min(9, w * 0.22, h * 0.22);
+  g.beginPath();
+  if (biome === "fonderie") {
+    // Cuve : pans coupes aux quatre angles, franchement — la masse est ce qui
+    // la distingue, et un octogone se lit comme un contenant.
+    g.moveTo(x + c, y); g.lineTo(x + w - c, y);
+    g.lineTo(x + w, y + c); g.lineTo(x + w, y + h - c);
+    g.lineTo(x + w - c, y + h); g.lineTo(x + c, y + h);
+    g.lineTo(x, y + h - c); g.lineTo(x, y + c);
+  } else if (biome === "friche") {
+    /* Bloc ebreche : deux angles entames, les deux autres nets. L'asymetrie est
+       la meme idee que celle des creatures — c'est elle qui fait qu'on reconnait
+       la friche sans la nommer. Deterministe par position : un bloc qui change
+       de forme d'une image a l'autre serait un scintillement. */
+    const e = Math.min(11, w * 0.26, h * 0.26);
+    const pair = ((o.x + o.y) | 0) % 2 === 0;
+    g.moveTo(x + (pair ? e : 0), y);
+    g.lineTo(x + w, y);
+    g.lineTo(x + w, y + h - (pair ? 0 : e));
+    g.lineTo(x + w - (pair ? 0 : e), y + h);
+    g.lineTo(x, y + h);
+    g.lineTo(x, y + (pair ? e : 0));
+  } else {
+    // Pilier d'acier : chanfrein leger sur les deux angles de la lumiere. On
+    // reste tres proche du rectangle — c'est le biome de la regularite.
+    g.moveTo(x + c, y); g.lineTo(x + w, y);
+    g.lineTo(x + w, y + h); g.lineTo(x, y + h); g.lineTo(x, y + c);
+  }
+  g.closePath();
+}
+
 export function drawObstacles(cover) {
   const list = obstaclesActifs();
   if (!list.length) return;
+  const biome = biomeAt(biomeIndex).key;
+  // Le relief s'ouvre depuis le centre de la VUE : c'est la position de l'oeil.
+  const ox = camera.x0 + CFG.VIEW_W / 2, oy = camera.y0 + CFG.VIEW_H / 2;
+
   for (let i = 0; i < list.length; i++) {
     const o = list[i];
     // `cover` est une liste CREUSE : la plupart des obstacles n'y figurent pas,
     // et deux biomes sur trois n'ont aucune couverture destructible.
     const k = o.maxHp > 0 ? (cover?.find(c => c[0] === i)?.[1] ?? 1) : 1;
     if (o.maxHp > 0 && k <= 0) continue;      // abattu : il n'existe plus
-    const x = o.x - o.w / 2, y = o.y - o.h / 2;
 
+    const dx = o.x - ox, dy = o.y - oy;
+    const d = Math.hypot(dx, dy) || 1;
+    const rx = (dx / d) * OBST_RELIEF, ry = (dy / d) * OBST_RELIEF;
+
+    // 1. L'ombre, a l'oppose de la lumiere haut-gauche.
+    ctx.save();
+    ctx.translate(o.x + OBST_OMBRE * 0.6, o.y + OBST_OMBRE * 0.7);
+    silhouette(ctx, o, biome);
+    ctx.fillStyle = alpha("#000000", 0.34);
+    ctx.fill();
+    ctx.restore();
+
+    // 2. La face HAUTE, decalee : c'est elle qui donne l'epaisseur.
+    ctx.save();
+    ctx.translate(o.x + rx, o.y + ry);
+    silhouette(ctx, o, biome);
     ctx.fillStyle = o.maxHp > 0 ? BIOME.cover : BIOME.block;
-    ctx.fillRect(x, y, o.w, o.h);
+    ctx.fill();
+    ctx.restore();
+
+    // 3. La face du SOL, a la place exacte de la boite de collision. Plus
+    //    sombre : c'est le flanc, il ne recoit pas la lumiere. C'est aussi elle
+    //    qui dit la verite au joueur — ce qu'il touche est ici.
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    silhouette(ctx, o, biome);
+    ctx.fillStyle = alpha(o.maxHp > 0 ? BIOME.cover : BIOME.block, 0.55);
+    ctx.fill();
     /* Arete haut-gauche eclairee : la meme direction de lumiere que les
        creatures (`sprites.js`), sinon le decor et les monstres semblent eclaires
-       par deux soleils. Deux traits et non un degrade — c'est du decor, il ne
-       doit pas attirer l'oeil. */
-    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : BIOME.blockEdge, 0.55);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x, y + o.h); ctx.lineTo(x, y); ctx.lineTo(x + o.w, y);
+       par deux soleils. Un contour ferme et non deux traits : la silhouette
+       n'est plus un rectangle, et un L trace a la main ne suivrait plus ses
+       pans coupes. */
+    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : BIOME.blockEdge, 0.45);
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+    ctx.restore();
+
+    // 4. Le liseré de lumiere sur la face haute, du cote haut-gauche seulement.
+    ctx.save();
+    ctx.translate(o.x + rx, o.y + ry);
+    silhouette(ctx, o, biome);
+    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : BIOME.blockEdge, 0.7);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
 
     /* Un mur destructible RESTE un mur : il ne devient pas ambre parce qu'on
        peut le casser — un lisere suffit a dire qu'il cede, et changer sa couleur
        l'aurait fait entrer dans la grammaire du danger, ou il n'a rien a faire.
        Le lisere se CREUSE a mesure qu'il encaisse : c'est la seule jauge du jeu
-       qui n'est pas une barre, parce qu'un mur n'est pas une entite. */
+       qui n'est pas une barre, parce qu'un mur n'est pas une entite. Il est pose
+       sur la face HAUTE : c'est celle qu'on regarde. */
     if (o.maxHp > 0) {
+      ctx.save();
+      ctx.translate(o.x + rx, o.y + ry);
+      silhouette(ctx, o, biome);
       ctx.strokeStyle = alpha(BIOME.coverEdge, 0.85);
       ctx.lineWidth = 2;
       ctx.setLineDash([Math.max(3, 14 * k), 6]);
-      ctx.strokeRect(x + 1, y + 1, o.w - 2, o.h - 2);
+      ctx.stroke();
       ctx.setLineDash([]);
+      ctx.restore();
     }
   }
 }

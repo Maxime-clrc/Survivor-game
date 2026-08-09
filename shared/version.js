@@ -140,6 +140,33 @@
                    existe a l'export, c'est-a-dire toute la classe de defauts que
                    la balise `#vote` non fermee avait illustree
 
+     0.8.1 lot B  LES CARTES SE REDESSINENT. Trois defauts, tous mesures avant
+                   correction, aucun visible dans le code isolement.
+                   CHEVAUCHEMENT : `HZ_NORMAL` etait UNE table de coordonnees
+                   pour TROIS geometries, et elle tombait sur les piliers — 53
+                   dangers sur 54 recouvraient un obstacle en `normal`. Table
+                   par biome, positions calees sur celles de `cauchemar` (le
+                   mode qui enseigne la carte pose ses champs la ou souffleront
+                   les geysers), et 5e regle d'acceptation dans
+                   `verifierBiomes()` : 53/54 -> 0.
+                   COULEUR : `BIOMES[].tint` et `.grid` etaient declares depuis
+                   le lot V et LUS PAR PERSONNE, donc les trois lieux d'un meme
+                   mode avaient la meme couleur (dE 0,00) ; et `calme` se
+                   separait de `normal` de dE 0,36 malgre « ardoise franchement
+                   froide » ecrit dans la table. Les deux axes se disputaient la
+                   teinte : le mode passe sur la CLARTE, le biome garde la
+                   teinte (`teinter()`, chroma importee a clarte constante).
+                   Reglage cherche par balayage — dE 3,64 entre modes, 3,42
+                   entre biomes, 4,94 entre le sol et sa grille.
+                   MATIERE ET SILHOUETTE : `render/material.js` cuit une tuile
+                   de 400 px (= `GRID_MAJOR`) par (biome, mode, graine) —
+                   transparente, figee, en cache, donc UN `fillRect` par image
+                   la ou la grille coutait des centaines de traces. Et un
+                   obstacle a enfin une silhouette par biome, avec une face
+                   superieure decalee vers le centre de la vue pour le volume et
+                   une ombre portee pour le poser au sol. Aucune collision ne
+                   bouge : la face du sol reste sur la boite de simulation
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -148,4 +175,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.0";
+export const VERSION = "0.8.1";

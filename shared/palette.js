@@ -67,9 +67,19 @@ export const SURFACE = {
    TABLEAU ORDONNE, index = celui de `DIFFICULTIES`. */
 export const DECOR = [
   {
-    // Calme — ardoise franchement froide, grille reguliere, vignettage leger.
-    // Rien ne distrait : c'est le mode qui enseigne a lire l'espace.
-    arena: "#0e1219", gridFine: "#171d28", gridMajor: "#232c3d",
+    /* Calme — l'arene la plus CLAIRE des trois, grille reguliere, vignettage
+       leger. Rien ne distrait : c'est le mode qui enseigne a lire l'espace.
+
+       LE MODE EST PASSE SUR LA CLARTE au plan6, et c'est ce qui a debloque le
+       reste. Les trois modes se distinguaient auparavant par leur TEINTE, comme
+       les trois biomes — deux informations sur une seule dimension. Mesure :
+       `calme` et `normal` se separaient de dE 0,36 sur le sol, c'est-a-dire
+       rien, alors que le commentaire annonce « ardoise franchement froide »
+       depuis le lot T. Un axe chacun : le mode dit A QUEL POINT c'est sombre,
+       le biome dit VERS QUOI ca tire (`teinter`, qui importe la chroma en
+       gardant la clarte). Ecart minimal apres reglage : dE 3,64 entre modes a
+       biome fixe, dE 3,42 entre biomes a mode fixe. */
+    arena: "#181d28", gridFine: "#252c3b", gridMajor: "#38455f",
     vignette: 0.40, vignetteFrom: 0.46, skip: 0, pulse: 0,
   },
   {
@@ -78,11 +88,16 @@ export const DECOR = [
     vignette: 0.55, vignetteFrom: 0.42, skip: 0, pulse: 0,
   },
   {
-    /* Cauchemar — l'ardoise vire au brun, la grille perd une ligne sur trois et
-       le vignettage pulse lentement. La machine est abimee, et c'est le seul
-       endroit ou on a le droit de le dire : le sol PARTICIPE dans ce mode, il
-       doit en avoir l'air avant meme la premiere trainee. */
-    arena: "#130f10", gridFine: "#1f1a19", gridMajor: "#2e2624",
+    /* Cauchemar — l'arene la plus SOMBRE, presque eteinte ; la grille perd une
+       ligne sur trois, vire au brun et le vignettage pulse lentement. La machine
+       est abimee, et c'est le seul endroit ou on a le droit de le dire : le sol
+       PARTICIPE dans ce mode, il doit en avoir l'air avant meme la premiere
+       trainee.
+
+       Le brun est passe du fond a la GRILLE : depuis que le mode porte la
+       clarte, le fond doit rester neutre pour laisser la teinte du biome
+       s'exprimer — sinon les trois lieux redeviennent le meme brun. */
+    arena: "#0a0a0e", gridFine: "#1c1719", gridMajor: "#2e2624",
     vignette: 0.68, vignetteFrom: 0.34, skip: 3, pulse: 0.06,
   },
 ];
@@ -572,6 +587,56 @@ export function alpha(hex, a) {
     RGB_CACHE.set(hex, t);
   }
   return `rgba(${t[0]},${t[1]},${t[2]},${a})`;
+}
+
+/* MELANGE de deux teintes, rendu en `#rrggbb`. Il sert au SOL, et il y sert
+   pour une raison de fond : le MODE dit la valeur (a quel point c'est sombre,
+   combien de vignettage), le BIOME dit la teinte (ou l'on est). Deux
+   informations sur la meme surface, et il faut bien les composer quelque part.
+
+   Ici et pas dans le rendu : « une seule source de verite pour les couleurs »,
+   et un melange calcule cote canvas serait exactement la deuxieme liste que ce
+   fichier existe pour empecher. */
+export function melange(a, b, k) {
+  const A = rgbDe(a), B = rgbDe(b);
+  const m = (i) => Math.round(clamp255(A[i] + (B[i] - A[i]) * k)).toString(16).padStart(2, "0");
+  return `#${m(0)}${m(1)}${m(2)}`;
+}
+
+/* TEINTER, et non melanger : on importe la CHROMA de `teinte` en gardant la
+   CLARTE de `base`. C'est ce que demande le sol — le mode dit a quel point
+   c'est sombre, le biome dit vers quoi ca tire — et un melange ordinaire ne
+   sait pas faire les deux : les teintes de biome sont presque noires, donc
+   melanger revenait a assombrir. Mesure a l'appui, en dE76 : melange simple a
+   42 %, les trois biomes d'un mode se separaient de 1,35 seulement, et calme se
+   confondait avec normal (dE 0,00) parce que la teinte ecrasait le mode.
+
+   La normalisation se fait sur la luminance perceptuelle (Rec. 709) et non sur
+   la moyenne des canaux : le vert pese six fois le bleu a l'oeil, et une
+   moyenne rendrait la friche nettement plus claire que l'usine a reglage egal. */
+export function teinter(base, teinte, k) {
+  const A = rgbDe(base), B = rgbDe(teinte);
+  const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  const la = lum(A), lb = lum(B);
+  // Une teinte de luminance nulle n'a pas de chroma a preter : on ne fait rien
+  // plutot que de diviser par zero.
+  if (lb < 1) return base;
+  const f = la / lb;
+  const m = (i) => Math.round(clamp255(A[i] + (B[i] * f - A[i]) * k)).toString(16).padStart(2, "0");
+  return `#${m(0)}${m(1)}${m(2)}`;
+}
+
+const clamp255 = (v) => Math.max(0, Math.min(255, v));
+
+function rgbDe(hex) {
+  let t = RGB_CACHE.get(hex);
+  if (!t) {
+    t = [parseInt(hex.slice(1, 3), 16),
+         parseInt(hex.slice(3, 5), 16),
+         parseInt(hex.slice(5, 7), 16)];
+    RGB_CACHE.set(hex, t);
+  }
+  return t;
 }
 
 /* --- rampes de valeurs -----------------------------------------------------
