@@ -108,8 +108,16 @@ cauchemar: { hp: 1.25, spawn: 1.28, dmg: 1.25, boss: 1.25, speed: 1.12 },
 
 ### 3. La doctrine de plafond ??? la décision qui compte
 
-> **Aucun type de horde ne dépasse 90 % de `PLAYER_SPEED` à aucun moment de la
-> manche, dans aucune difficulté.**
+> **Aucun type de horde ne dépasse 90 % de la vitesse de la CLASSE MÉDIANE
+> (Soigneur, `speedMul 1,00`, soit 260 px/s) à aucun moment de la manche, dans
+> aucune difficulté.**
+
+**La classe médiane, et non `PLAYER_SPEED` nu — décision D14.** Le Rempart
+(`speedMul 0,92`, 239 px/s) n'est donc **pas** couvert par la garantie : à la
+minute 30, un runner à 234 px/s est à 98 % de sa vitesse. C'est assumé. Un tank
+ne répond pas à la horde en fuyant : il a 150 PV, une provocation avec 1,2 s
+d'invulnérabilité, un rempart, et **des coéquipiers**. Voir le lot I pour la
+sous-vérification qui accompagne ce choix (le cas du tank solo).
 
 C'est la règle qui garantit qu'il reste toujours quelque chose à semer. Elle ne
 s'applique **pas** aux boss ni aux invocations de mécanique, qui doivent pouvoir

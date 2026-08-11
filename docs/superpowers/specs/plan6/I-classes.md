@@ -11,7 +11,11 @@
 | Soigneur | 100 | 0,85 | 1,00 | 260 | 234 = 90 % ✔ |
 | Tireur | 85 | 1,20 | 1,04 | 270 | 234 = 87 % ✔ |
 
-Trois issues, à trancher (**D14**) :
+**D14 est tranchée : (b) — la classe médiane.** Un tank est lent, mais il a des
+options de défense, et c'est aux autres joueurs de l'aider. Ce qui suit garde les
+trois issues pour mémoire, la retenue étant la (b).
+
+Trois issues (**D14 — retenue : b**) :
 
 - **(a)** mesurer la doctrine contre la **classe la plus lente** : plafond à
   `0,90 × 239 = 215`, donc runner de base à **159** au lieu de 196. Le plus
@@ -21,9 +25,21 @@ Trois issues, à trancher (**D14**) :
   et un rempart. Sa réponse à la horde n'est pas la fuite ;
 - **(c)** relever `speedMul` du tank de 0,92 à 1,00 et lui retirer ailleurs.
 
-**Ma recommandation : (b)**, en l'écrivant explicitement dans la doctrine —
-« 90 % de la vitesse de la classe médiane » — plutôt qu'en le laissant implicite.
-Une garantie qui a une exception non écrite est une garantie fausse.
+**Retenu : (b)**, écrit explicitement dans la doctrine du lot B — « 90 % de la
+vitesse de la classe médiane » — et non laissé implicite. Une garantie qui a une
+exception non écrite est une garantie fausse.
+
+> ⚠ **Sous-vérification obligatoire : le tank SOLO.** Le raisonnement de (b) est
+> coopératif — « c'est aux autres de l'aider » — et il est juste à 2, 3 et 4
+> joueurs. **En solo, personne n'aide.** Un Rempart seul est donc la seule
+> configuration du jeu où la garantie de fuite ne s'applique ni par la vitesse ni
+> par l'équipe.
+>
+> **Critère :** un Rempart solo à P0 doit atteindre le taux de réussite de la
+> matrice en `calme` (20-30 %), comme les deux autres classes. S'il est
+> nettement en dessous, le correctif porte sur ses **compétences** (portée ou
+> recharge de la provocation, durée du rempart) et **jamais** sur `speedMul` —
+> qui rouvrirait D14.
 
 ## Constat 2 — la comparaison des classes n'a jamais été faite
 

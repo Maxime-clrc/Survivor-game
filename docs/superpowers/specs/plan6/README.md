@@ -17,6 +17,9 @@ les lettres `A`-`X` déjà consommées appartiennent aux plans précédents.
 | **[I](I-classes.md)** | classes, compétences, compositions | — (bloque la clôture de B) | l'équilibre des trois rôles |
 | **[J](J-traits.md)** | traits, élites, bonus au sol | **A** | le levier « comportement » que A et C invoquent |
 
+**[EXECUTION.md](EXECUTION.md)** — le mode d'emploi : ordre linéaire, scripts
+attendus par lot, interruptions volontaires, critère de clôture.
+
 **[PERIMETRE.md](PERIMETRE.md)** — la carte de ce que le plan couvre et de ce
 qu'il ne couvre pas, et pourquoi.
 
@@ -75,6 +78,15 @@ Un critère de **plancher** se mesure à P0, un critère d'**étalonnage** à P1
 voir [PROFILS.md](PROFILS.md).
 
 ---
+
+## Exigence transversale — le script avec le lot
+
+**Chaque lot livre son script de vérification en même temps que son code**, sur
+le modèle de `verifierScript()` et `verifierBiomes()`. Les valeurs écrites dans
+les lots sont des estimations tant que les sept mesures de `DECISIONS.md` n'ont
+pas été faites ; sans scripts, dix lots enchaînés donnent un jeu déséquilibré
+dont on ne saura pas démêler les causes. Détail par lot dans
+[EXECUTION.md](EXECUTION.md).
 
 ## Ordre d'exécution
 

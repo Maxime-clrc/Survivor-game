@@ -34,70 +34,106 @@ nominal, l'ajustement porte sur **`CORE_LEVEL` (8 → 7)**, jamais sur
 
 ---
 
-## G-2 · La magnitude de la méta — le vrai sujet
+## G-2 · La magnitude et la structure de la méta
 
-### Constat
+### L'incohérence, révélée par la matrice
 
-| | gain de puissance | parties nécessaires |
-|---|---|---|
-| premier palier des 6 lignes | ×1,08 | 4 |
-| trois paliers partout | ×1,25 | ~30 |
-| **compte complet (1 classe)** | **×1,45** | **~135** |
+La matrice de `PROFILS.md` demande que le taux de réussite en `normal` passe de
+**5 % (P0) à 45-60 % (P1)**. Or P1, c'est ~30 parties, soit **×1,25 de
+puissance** dans le système actuel.
 
-À comparer avec ce qu'une manche donne elle-même : 26 cartes valent **×4 à ×5**.
+**Un multiplicateur de 1,25 ne fait pas passer un taux de réussite de 5 % à
+50 %.** C'est l'incohérence de fond : la matrice décrit un saut de nature, et
+l'arbre ne propose qu'un saut de degré.
 
-**La méta pèse donc environ un dixième de ce que pèse une partie.** Si l'intention
-est « les améliorations permanentes sont ce qui finit par ouvrir la fin », elle
-est **sous-dimensionnée pour ce rôle** : à ×1,45 au bout de cent trente parties,
-c'est l'habileté et la chance de tirage qui décident, pas le compte.
+Elle se résout en séparant les deux moitiés de la progression :
 
-Point de comparaison utile : dans Vampire Survivors, la boutique donne largement
-plus que +45 %, et surtout elle donne **deux résurrections** et **un projectile
-supplémentaire** — des changements de nature, pas des pourcentages.
+> **Le saut P0 → P1 se paie en QUALITATIF** (secondes chances, qualité des
+> choix). **Le saut P1 → P2 se paie en POURCENTAGES**, dont la queue est longue
+> et sert `cauchemar`.
 
-### Décision — élargir par le QUALITATIF, pas par le pourcentage
+C'est ce que font Vampire Survivors (Revival, Amount) et Halls of Torment
+(boutique globale puis traits). Ce n'est pas un emprunt de forme, c'est la seule
+structure qui produit la matrice qu'on s'est donnée.
 
-Monter les pourcentages est la mauvaise réponse : ça rend le compte complet
-trivial en normal sans rien changer au compte neuf, puisque le problème du
-débutant n'est pas de manquer 20 % de dégâts, c'est de mourir au segment 3 sans
-recours.
+### Le second problème : le budget ne tenait pas
 
-**Trois ajouts, tous qualitatifs.**
+`TIER_COSTS` totalise 6 900 par ligne, six lignes par classe = **41 400 noyaux**,
+soit **135 parties** à 307/manche. Mais `cauchemar` est conçu pour P2. Si P2
+demande 135 parties, personne ne l'atteint et le mode est décoratif.
 
-**1. Un tronc commun de secours** — nouvelle ligne, disponible aux trois classes :
+Le calibrage écrit dans le dépôt (« ligne complète vers la dix-huitième partie »)
+était juste — **pour une ligne**. Personne n'avait multiplié par six.
+
+### La structure retenue
+
+Quatre familles, au lieu d'une seule grille cloisonnée par classe.
+
+| famille | lignes | portée | rôle |
+|---|---|---|---|
+| **`CONFORT`** | 5 entrées uniques | compte | la qualité des choix — le vrai levier P0→P1 |
+| **`SECOURS`** | 1 ligne, 5 paliers | compte | la clémence : `sursis`, relèvement automatique au palier 5 |
+| **tronc commun** | 3 lignes | compte | PV, foulée, portée de ramassage — achetés une fois pour **toutes** les classes |
+| **lignes de classe** | 6 lignes | par classe | l'existant, inchangé dans son contenu |
+
+**`CONFORT` passe de 3 à 5 entrées** : relance, quatrième offre, ravitaillement
+(existants), plus **bannissement** (le champ `bannedCards` existe déjà dans le
+profil) et **seconde relance**. C'est la famille la moins chère et la plus forte :
+la qualité d'une build tient au nombre de choix, pas au nombre de pourcentages.
+
+**`SECOURS` est neuf.** Au palier 5, `sursis` donne **un relèvement automatique
+par manche** — le `Revival` de Vampire Survivors. `selfRevive` existe déjà comme
+mod de carte : rien de neuf à écrire côté simulation. C'est l'achat qui change
+l'issue d'une partie, là où +20 % de dégâts n'en change que la marge.
+
+**Le tronc commun règle le cloisonnement** (décision D10) : aujourd'hui, le
+joueur qui dépanne en soigneur repart de zéro, ce qui est une taxe sur la
+polyvalence dans un jeu où l'on change de rôle selon la table.
+
+### Le budget, dérivé à rebours de la matrice
 
 ```js
-SECOURS = [
-  { id: "sursis",    step: 1,    desc: n => n >= 5 ? "un relèvement automatique par manche" : `−${8*n} % de temps à terre` },
-  { id: "paquetage", step: 0.10, desc: n => `+${pct(0.10*n)} de PV au début de la manche, sous forme de bouclier` },
-]
+CONFORT_COSTS: [250, 450, 500, 700, 900],   //  2 800  relance, 4e offre, ravito, bannissement, 2e relance
+SECOURS_COSTS: [200, 400, 700, 1100, 1600], //  4 000  la ligne la plus chère : la plus forte
+TRONC_COSTS:   [120, 220, 400, 700, 1160],  //  2 600  x3 lignes =  7 800
+TIER_COSTS:    [100, 180, 320, 560, 840],   //  2 000  x6 lignes = 12 000  (était 6 900)
 ```
 
-`sursis` au palier 5 donne **une seconde chance par manche**. C'est le
-`Revival` de Vampire Survivors, et c'est précisément le genre d'achat qui change
-l'issue d'une partie au lieu d'en changer la marge. `selfRevive` existe déjà
-comme mod de carte — rien de neuf à écrire côté simulation.
+**Total pour un compte complet sur une classe : 26 600 noyaux.**
 
-**2. Élargir `CONFORT`, qui est la meilleure valeur du jeu et ne compte que trois
-entrées.** « Quatrième offre » vaut à elle seule plus que trois paliers d'arbre :
-la qualité d'une build tient au nombre de choix, pas au nombre de pourcentages.
-Deux entrées à ajouter :
+Vérification contre la matrice, à ~420 noyaux par manche (mélange de manches
+médianes et complètes, post-D — valeur à confirmer par **M4**) :
 
-- **bannissement** — retirer définitivement une carte de ses tirages (le champ
-  `bannedCards` existe déjà dans le profil) ;
-- **seconde relance** — la relance de tirage passe à deux par manche.
+| profil | contenu acquis | coût | parties |
+|---|---|---|---|
+| **P1** | `CONFORT` complet + `SECOURS` complet + paliers 1-3 partout | 12 620 | **30** ✔ |
+| **P2** | tout | 26 600 | **63** ✔ |
 
-**3. Un tronc commun de puissance, partagé entre les classes.** Aujourd'hui
-l'arbre est **cloisonné par classe** : 41 400 noyaux par classe, soit ~400 parties
-pour les trois. Dans un jeu coopératif où l'on change de rôle selon la table,
-c'est une taxe sur la polyvalence — le joueur qui dépanne en soigneur repart de
-zéro.
+P1 tombe à trente parties, ce qui est exactement la définition du profil. Et P1
+possède alors **toute la partie qualitative** — les cinq conforts et le
+relèvement automatique — plus des statistiques moyennes. C'est ce profil-là qui
+doit gagner `normal` une fois sur deux, et c'est le relèvement automatique, pas
+les +18 % de dégâts, qui produit ce chiffre.
 
-Deux ou trois lignes communes (PV, vitesse, portée de ramassage), achetées une
-fois pour toutes les classes. C'est la distinction que fait Halls of Torment entre
-sa boutique globale et ses traits par personnage.
+### Ordre d'achat induit — et pourquoi il est bon
 
----
+Les coûts font que le joueur achète naturellement `CONFORT` d'abord (250 pour la
+relance dès la première partie), puis `SECOURS`, puis les statistiques. **C'est
+l'ordre qui aide le plus tôt un joueur qui perd**, et il tombe tout seul : aucun
+tutoriel, aucune recommandation à écrire.
+
+### Garde-fou de puissance
+
+Le tronc commun ajoute trois lignes, donc de la puissance. Le total pour un
+compte complet passe de ×1,45 à environ **×1,65**. Cela reste **sous le plafond
+de ×1,8** fixé aux critères d'acceptation : au-delà, `cauchemar` deviendrait
+facile pour P2 et il faudrait un quatrième mode.
+
+⚠ **Dépendance non vérifiée, à revoir en premier après les premiers retours :**
+tout ce budget suppose **~420 noyaux par manche** et un public qui joue une
+soixantaine de parties. Si vos sessions LAN sont plus courtes, il faut comprimer
+davantage ; si le jeu se joue au long cours, on peut relâcher. C'est le seul
+endroit du plan où une hypothèse sur le public détermine des nombres.
 
 ## G-3 · Les jalons de niveau, après D
 

@@ -55,24 +55,38 @@ compléter une classe. Le premier palier des six lignes coûte 1 200, soit
 C'est le « juste milieu » : chaque difficulté est **résolue à un profil donné**,
 et l'échelle des trois modes épouse l'échelle des trois profils.
 
+**Exprimée en TAUX DE RÉUSSITE**, et non en « segment atteint ». C'est la seule
+forme qui capture l'intention : calme doit être **possible sans être fiable**
+pour un compte neuf. Un taux se mesure ; « termine en jouant bien » ne se mesure
+pas.
+
 | | calme | normal | cauchemar |
 |---|---|---|---|
-| **P0** | **termine si le joueur joue bien** | segment 3-4 | segment 2 |
-| **P1** | termine confortablement | **termine** ← la cible du jeu | segment 4 |
-| **P2** | trivial | termine confortablement | **termine** |
+| **P0** compte neuf | **20-30 %** | 5 % | ~0 % |
+| **P1** ~30 parties | 70 % | **45-60 %** | 5-10 % |
+| **P2** compte complet | 90 % | 75 % | **25-35 %** |
+
+*(cellules en gras : la case pour laquelle chaque difficulté est conçue)*
 
 Trois lectures à en tirer.
 
-**Calme est le mode qui ne demande pas de méta.** Un joueur habile doit pouvoir
-terminer sans avoir rien acheté. C'est l'issue de secours du genre : sans elle,
-les cinq premières heures sont une punition sans porte de sortie.
+**Calme ne demande aucune méta, mais demande de bien jouer ET d'avoir un bon
+build.** Les 20-30 % sont le chiffre qui dit exactement ça : un bon joueur sans
+un seul noyau dépensé y arrive, mais pas à tous les coups — il lui faut aussi
+que les tirages coopèrent. C'est l'issue de secours du genre : sans elle, les
+premières heures sont une punition sans porte de sortie. Au-dessus de 40 %, la
+progression permanente perd sa raison d'être ; en dessous de 15 %, un débutant ne
+voit jamais la fin de rien.
 
-**Normal est la cible.** Il est calibré pour P1, c'est-à-dire pour un joueur
-d'une trentaine de parties. Un compte neuf n'a pas vocation à le terminer, et ce
-n'est pas un défaut à corriger — c'est l'intention.
+**Normal est le mode où les améliorations deviennent nécessaires.** Un compte
+neuf y plafonne à 5 % — assez pour que ce ne soit pas un mur absolu, trop peu
+pour en faire le mode d'entrée. C'est là que la boucle « je perds, j'achète, je
+reviens plus fort » prend son sens.
 
-**Cauchemar est le contenu de fin.** Réservé à P2, et il n'a pas à être équilibré
-pour qui que ce soit d'autre.
+**Cauchemar est le vrai défi, et il le reste même à P2.** 25-35 % pour un compte
+complet : la progression permanente ouvre la porte, elle ne garantit pas la
+victoire. Un mode que le compte complet gagnerait à 80 % ne serait plus un défi,
+ce serait une formalité avec un temps d'attente.
 
 ---
 
@@ -80,6 +94,7 @@ pour qui que ce soit d'autre.
 
 | lot | critère | profil | pourquoi |
 |---|---|---|---|
+| — | **taux de réussite de la matrice** | les trois | le critère de clôture du plan |
 | A | parité de cartes 1↔4 joueurs (±2) | **P1** | le cas nominal |
 | A | temps de première saturation > min 12 | indifférent | ne dépend pas du joueur |
 | B | doctrine des 90 % de `PLAYER_SPEED` | indifférent | c'est une propriété des monstres |

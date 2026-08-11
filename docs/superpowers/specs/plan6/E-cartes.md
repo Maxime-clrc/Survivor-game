@@ -172,21 +172,33 @@ C'est l'évolution de VS obtenue avec le code déjà présent, et ça rend les
 communes intéressantes : elles cessent d'être un gain pour devenir un
 **investissement**. Cinq familles existent, soit cinq chaînes.
 
-### 2. Une arme accessible tôt
+### 2. Les cartes de dégâts d'arme exigent l'arme — décision D3, TRANCHÉE
 
-Un premier choix d'arme **garanti au niveau 4**, entre trois armes de base non
-verrouillées par les jalons. Les builds divergent dès la minute 3-4, ce qui est
-le rythme de Halls of Torment. Les trois armes légendaires actuelles
-(`dispersion`, `railgun`, `grenade`) restent où elles sont : elles deviennent le
-**palier supérieur** de ce choix, pas son unique porte d'entrée.
+**Le tableau `armes` ne bouge pas.** La proposition initiale (sortir une arme du
+pool légendaire pour un choix garanti au niveau 4) est **abandonnée** : elle
+décalait le partage par parité d'index qui alimente `sans_chute` et `kills500`,
+et aurait reverrouillé des cartes chez tous les comptes existants.
 
-> ⚠ **Conflit à trancher — voir DECISIONS.md.** Les armes alimentent les jalons
-> de compte : `boss_5` débloque toutes les `armes`, `sans_chute` et `kills500` se
-> partagent la liste par parité d'index. Ajouter des armes de départ dans le même
-> tableau **décale ce partage et reverrouille des cartes chez les comptes
-> existants**. La correction propre est de marquer les armes de départ d'un
-> drapeau qui les **exclut de la liste `armes`** consommée par les jalons — le
-> champ `fallback` joue déjà ce rôle d'exclusion ailleurs. À valider avant écriture.
+À la place, l'exigence est celle du **filtre `requires` de E-1**, appliqué aux
+cartes qui bonifient une arme :
+
+```js
+{ id: "surchauffe_dispersion", requires: ["dispersion"], ... }
+{ id: "focalisation_railgun",  requires: ["railgun"],    ... }
+// etc. — une carte de dégâts d'arme ne sort JAMAIS sans l'arme
+```
+
+C'est le même défaut que `Surcharge orbitale`, et donc le même remède. **Zéro
+risque de migration** : aucun index ne bouge, aucun jalon n'est touché.
+
+**Conséquence assumée :** l'identité de build côté *arme* ne diverge toujours
+qu'au niveau 12. C'est la chaîne `family`/`tier` ci-dessus qui porte seule la
+divergence précoce — dès le niveau 1, ce qui suffit.
+
+**Audit obligatoire dans le même geste :** lister **toutes** les cartes qui
+bonifient une arme spécifique et vérifier qu'aucune n'échappe au filtre. C'est
+la classe de défaut la plus probable du catalogue, puisqu'elle s'est déjà
+produite deux fois (`Surcharge orbitale`, et les cartes d'arme).
 
 ---
 
