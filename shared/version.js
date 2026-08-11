@@ -349,6 +349,90 @@
                    c'est le defaut ouvert du lot X, l'evitement ne le touche pas.
                    `ENEMY_AVOID_TURN` a 0 restitue l'ancien comportement
 
+     0.8.6 detail visuel : LES TROIS CLASSES SONT ENRICHIES a partir d'une
+                   planche de reference generee (docs/refs/classes.png,
+                   spritecook — voir aussi bestiaire-socle.png, bestiaire-lot-s.png
+                   et boss.png pour le reste du bestiaire, non encore porte).
+                   Le lot 6 avait deja corrige la silhouette (masse du Rempart,
+                   coque en oeuf du Soigneur, dard du Tireur) ; elle restait
+                   plate — deux nervures, un embleme, un highlight. Tout
+                   l'ajout vit en ACCENT et non dans le trace (hexagone de
+                   plaque inscrit, rivets, collier de canon, coutures de
+                   coque, bille d'antenne) : sur la rampe NEUTRE et claire des
+                   classes, un detail sombre se voit sans avoir a entrer dans
+                   la silhouette. Seule exception, en silhouette : un aileron
+                   arriere D'UN SEUL COTE sur le Tireur, seule classe encore
+                   sans irregularite structurelle asymetrique (le Soigneur a
+                   son antenne depuis le lot 6, le bouclier du Rempart doit
+                   rester symetrique par construction — il porte desormais son
+                   irregularite en accent, un voyant de coeur d'un seul cote).
+                   Aucun changement de proportions, de couleur ni de reseau.
+
+     0.8.7 detail visuel, suite : LE BESTIAIRE ET LES BOSS SONT PASSES EN REVUE
+                   contre les memes planches (docs/refs/bestiaire-socle.png,
+                   bestiaire-lot-s.png, boss.png), et le verdict n'est PAS le
+                   meme que pour les classes. Sept des neuf types (grunt,
+                   runner, brood, kamikaze, bulwark, medic, choeur) et les six
+                   boss collaient deja a la reference — le bestiaire etait deja
+                   au niveau, contrairement aux classes qui n'avaient qu'un
+                   accent chacune. Deux ecarts reels, corriges :
+                   LE TANK gagne une ligne de plaque frontale et deux rivets
+                   d'epaule (accent seul, comme le Rempart).
+                   LE SHOOTER gagne un vrai CANON PROEMINENT — un epaulement
+                   puis un tube fin — la ou le trace precedent n'etait qu'un
+                   museau tapere ; `shooterAccents` prend desormais `recoil`
+                   en parametre, sur le meme modele que `medicAccents` et
+                   `choeurAccents`, pour qu'un reflet de canon suive le recul.
+                   LES SIX BOSS NE BOUGENT PAS. `render/boss.js` est un systeme
+                   different et deja plus mature : animation procedurale,
+                   posture d'annonce en trois temps, asymetrie deja encodee ou
+                   elle sert (pattes de la Matriarche, moities des Jumeaux,
+                   cinq citations de l'Amalgame). Le fichier dit lui-meme sa
+                   philosophie — « une citation de trois traits se lit mieux
+                   qu'une reproduction » — et le Ravageur porte la mention
+                   « l'original, conserve ». Y superposer le detail organique
+                   de la reference aurait contredit l'abstraction geometrique
+                   qui fait deja tout le travail. Verifie via `?planche` : les
+                   deux types touches restent sans trou ni artefact, la barre
+                   des sept boss est inchangee.
+     0.8.8 BANDE SON EN FICHIERS, a cote de la synthese et jamais a sa place.
+                   `public/tracks.js` : deux platines `<audio>` dans le bus de
+                   musique existant, fondu croise a PUISSANCE CONSTANTE de 2 s,
+                   quatre pistes de horde en rotation et une piste de boss en
+                   boucle. La SCENE (menu / horde / boss) est poussee par la
+                   boucle de rendu comme l'intensite l'est deja : une piste ne
+                   se dose pas, elle se remplace.
+                   `music.js` devient l'AIGUILLAGE — le reste du client ne
+                   connait toujours que `startMusic` / `setMusicIntensity` /
+                   `setMusicScene` et ignore laquelle des deux joue.
+                   LES PISTES NE JOUENT QU'EN MANCHE : hors manche la synthese
+                   reprend, y compris en source « pistes ». Elle a ete ecrite
+                   pour ce moment-la et ne se repete pas, la ou un morceau
+                   compose veut etre entendu — on passe plus de temps a lire un
+                   salon qu'a traverser un segment.
+                   UN SEUL reglage (`survivor.audio.source`, tenu par
+                   `audio.js`) commande la musique ET le son de tir : le laser
+                   echantillonne remplace le carre synthetise dans la meme
+                   bascule, parce que les deux sont le meme essai — revenir en
+                   arriere doit tout rendre a la synthese, pas la moitie.
+                   Les FICHIERS sont le DEFAUT, et ils ne peuvent l'etre que
+                   parce que le repli est automatique des deux cotes :
+                   l'echantillon par son test sur le tampon charge, la musique
+                   par le rappel d'echec de `tracks.js` que `music.js` pose
+                   (`setTrackFallback`, modele de `setReconnecter`). Un
+                   deploiement sans `public/assets/` sonne donc comme avant.
+                   LA MUSIQUE S'ETOUFFE (0,45, soit ~ −7 dB) des qu'un menu
+                   s'ouvre par-dessus la partie — cartes, marchand, pause,
+                   build : ce sont les moments ou l'on lit, et la bande son y
+                   restait au niveau qu'elle avait sous les explosions. Sur le
+                   BUS, donc les deux sources sont couvertes sans rien savoir.
+                   Le fondu n'est arme qu'a `canplay` (sinon l'ancienne piste
+                   descend pendant que la nouvelle telecharge : un trou de deux
+                   secondes), le differe de coupure verifie que la platine n'a
+                   pas ete reprise entre-temps, et les assets audio sont la
+                   seule chose du depot mise en cache — `no-store` sur un mp3
+                   de six mega-octets le retelechargerait a chaque enchainement.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.

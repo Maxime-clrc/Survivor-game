@@ -11,7 +11,7 @@
 
 import { audioStats } from "/audio.js";
 import { resetHud, updateHud } from "/hud.js";
-import { setMusicIntensity } from "/music.js";
+import { setMusicIntensity, setMusicScene } from "/music.js";
 import { BOSS_CFG, MECH_JAIL } from "/shared/bosses.js";
 import { BIOME_CFG, CFG, WX_BOURRASQUE, biomeAt, weatherAt, weatherFor } from "/shared/game_state.js";
 import { COMBAT, WALL, alpha } from "/shared/palette.js";
@@ -107,6 +107,17 @@ function frameBody(now) {
      et chaque couche (kick, basse, charleys, acide) nait au seuil qui la
      concerne. Ici on ne fait que dire au juke-box a quel point ca chauffe. */
   setMusicIntensity(gameIntensity());
+  /* LA SCENE, pour la bande son en fichiers : trois valeurs discretes la ou
+     l'intensite est continue, parce qu'une piste ne se dose pas — elle se
+     remplace. Meme source (`phase` et `latest`), donc les deux ne peuvent pas
+     se contredire, et l'aiguillage de `music.js` en ignore une des deux.
+
+     « menu » couvre tout ce qui n'est pas une manche — hub, salon, bilan — et
+     y ramene la synthese meme en source « pistes » : un morceau compose veut
+     etre entendu, ce qui est faux d'un fond de salon. La decision vit dans
+     `music.js` ; ici on ne fait que dire ou l'on est. */
+  setMusicScene(phase !== PHASE_ROUND || !latest ? "menu"
+    : latest.boss ? "boss" : "horde");
 
   /* L'ARENE NE SE MONTRE QUE PENDANT LA MANCHE, et c'est la boucle qui en
      decide — pas un des quinze chemins qui posent `hidden` sur un ecran.

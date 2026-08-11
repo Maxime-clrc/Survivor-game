@@ -27,12 +27,28 @@
    riser annonce la reprise quand la pression est haute. Une musique qui ne
    s'arrete jamais cesse d'etre entendue ; c'est la pause qui rend le retour
    du kick physique.
+
+   ---------------------------------------------------------------------------
+   CE MODULE EST AUSSI L'AIGUILLAGE de la bande son. Depuis que les pistes en
+   fichiers existent (`tracks.js`), il y a DEUX bandes son pour un seul
+   reglage : `startMusic`, `stopMusic`, `setMusicIntensity` et `setMusicScene`
+   restent le point de passage unique du reste du client, qui n'a donc jamais a
+   savoir laquelle joue. Un aiguillage ici plutot qu'un `if` chez chacun des
+   appelants — meme raison que `_hurt()` cote simulation.
+
+   Les deux entrees ne portent pas la meme information, et ce n'est pas une
+   maladresse : la synthese lit une INTENSITE continue (elle empile des
+   couches), les pistes lisent une SCENE discrete (elles changent de morceau).
+   Un fichier ne sait pas retirer son kick, et une intensite ne dit pas quel
+   morceau mettre. Le client pousse les deux a chaque image ; celle qui ne
+   concerne pas la bande son active est ignoree sans rien couter.
    =========================================================================== */
 
 /* Relatif et non absolu : le navigateur resout les deux pareil (les modules
    publics sont servis a la racine), mais seul le relatif permet d'importer ce
    fichier dans un script de mesure Node avec un faux AudioContext. */
-import { audioContext, musicBus } from "./audio.js";
+import { audioContext, getAudioSource, musicBus } from "./audio.js";
+import { setTrackFallback, setTrackScene, startTracks, stopTracks } from "./tracks.js";
 
 export const MUSIC_CFG = {
   BPM: 122,              // le pas de la techno — il ne change JAMAIS
@@ -91,11 +107,92 @@ export function getMusicIntensity() { return level; }
 
 export function musicStats() { return { running, level, target, scheduled, step }; }
 
+/* --- l'aiguillage -----------------------------------------------------------
+   Quatre fonctions publiques, deux bandes son. Rien d'autre du client ne
+   connait `tracks.js`. */
+
+let scene = "horde";     // la scene courante, poussee par la boucle de rendu
+let started = false;     // la bande son a-t-elle ete demandee
+
+/* Une piste introuvable rend la main a la synthese. C'est ce qui permet aux
+   fichiers d'etre le DEFAUT : un deploiement sans `public/assets/` sonne
+   comme avant au lieu de se taire, et le joueur n'a rien a comprendre.
+
+   Le drapeau tient pour la SESSION : sans lui, la prochaine entree en manche
+   retenterait les platines, echouerait de la meme facon, et le joueur y
+   perdrait deux secondes de silence a chaque fois — un dossier absent au
+   premier essai l'est encore au deuxieme. Le REGLAGE, lui, n'est pas reecrit :
+   c'est un repli, pas un choix ; un rechargement de page retente. */
+let tracksBroken = false;
+setTrackFallback(() => {
+  tracksBroken = true;
+  if (started) startSynth();
+});
+
+export function startMusic() {
+  started = true;
+  route();
+  return true;
+}
+
+export function stopMusic() {
+  started = false;
+  stopSynth();
+  stopTracks();
+}
+
+/* LA SCENE : « menu », « horde » ou « boss ». Poussee a chaque image par la
+   boucle de rendu, comme l'intensite — d'ou la sortie immediate a scene
+   inchangee, qui est le chemin normal. */
+export function setMusicScene(name) {
+  const s = name === "boss" ? "boss" : name === "menu" ? "menu" : "horde";
+  if (s === scene) return;
+  scene = s;
+  if (started) route();
+}
+
+/* Bascule de source, depuis les reglages. `route()` arrete lui-meme celle qui
+   ne doit pas jouer : sans ca, un aller-retour dans le menu laisserait les
+   deux jouer ensemble, et rien dans le module ne les separerait ensuite. */
+export function refreshMusicSource() {
+  if (started) route();
+  else { stopSynth(); stopTracks(); }
+}
+
+/* L'AIGUILLAGE PROPREMENT DIT, seul endroit qui decide laquelle joue.
+
+   LES PISTES NE JOUENT QU'EN MANCHE. Hors manche — hub, salon, bilan — c'est
+   la synthese qui reprend, y compris en source « pistes ». Ce n'est pas une
+   exception decorative : la synthese a ete ECRITE pour ce moment-la (nappe
+   seule, acide clairseme, aucune percussion sous 0,15 d'intensite), elle
+   s'installe sans jamais demander qu'on l'ecoute, et elle ne se repete pas —
+   on passe bien plus de temps a lire un salon qu'a traverser un segment. Une
+   piste composee, elle, veut etre entendue : elle a un debut, un refrain et
+   une fin, et elle les rejoue en boucle pendant qu'on choisit sa classe.
+
+   Le croisement est gratuit et c'est ce qui le rend acceptable : les notes
+   deja planifiees par le sequenceur finissent seules (une mesure au plus, soit
+   deux secondes, exactement la duree du fondu d'entree des pistes), et
+   `stopTracks` rend la main en une seconde pendant que la nappe s'installe sur
+   son attaque lente. Aucune des deux ne coupe l'autre net. */
+function route() {
+  const pistes = getAudioSource() === "pistes" && !tracksBroken;
+  if (!pistes || scene === "menu") {
+    stopTracks();
+    startSynth();
+    return;
+  }
+  stopSynth();
+  // `startTracks` rend false s'il tourne deja : c'est alors un simple
+  // changement de morceau (horde <-> boss), pas un demarrage.
+  if (!startTracks(scene)) setTrackScene(scene);
+}
+
 /* Demarre le sequenceur. Appele apres initAudio(), donc apres le geste
    utilisateur qui debloque le contexte — le clic « Rejoindre » est deja au bon
    endroit. Sans contexte, on ne fait rien : la musique n'est jamais une raison
    de bloquer le jeu. */
-export function startMusic() {
+function startSynth() {
   const ac = audioContext();
   if (!ac || running) return running;
   running = true;
@@ -106,7 +203,7 @@ export function startMusic() {
   return true;
 }
 
-export function stopMusic() {
+function stopSynth() {
   if (!running) return;
   running = false;
   clearInterval(timer);

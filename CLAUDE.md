@@ -112,8 +112,9 @@ public/gl.js           batcher de quads WebGL2 — ne connaît ni le jeu ni l'at
 public/hud.js          le HUD, en DOM : la couche ÉCRAN
 public/icons.js        glyphes de bonus, d'effets et d'états — dessinés dans l'arène ET dans le HUD
 public/events.js       diffusion des snapshots en événements typés (module pur)
-public/audio.js        synthèse WebAudio, palette sonore, limitation de voix, réglages
-public/music.js        bande son séquencée en WebAudio — emprunte le contexte et le bus d'audio.js, trois humeurs (calme, vague, boss)
+public/music.js        bande son séquencée en WebAudio — emprunte le contexte et le bus d'audio.js, trois humeurs (calme, vague, boss) ; c'est AUSSI l'AIGUILLAGE entre les deux bandes son, donc le seul à importer tracks.js
+public/tracks.js       la bande son EN FICHIERS (`public/assets/musics/`) — deux platines `<audio>` et un fondu croisé, alternative à la synthèse, jamais son remplacement ; n'importe qu'audio.js
+public/audio.js        synthèse WebAudio, palette sonore, limitation de voix, réglages, échantillons
 public/index.html      page, chargement, salon, bilan, cartes, ossature du HUD
 public/admin.html      page d'administration autonome — servie SEULEMENT si ADMIN_KEY est posée
 public/css/tokens.css  espacement, géométrie, mouvement (aucune couleur, cf. charte)
@@ -664,6 +665,91 @@ C'est le bug documenté pour `mirrored()` dans `sprites.js`.
 jamais différenciés par la seule couleur : un daltonien doit s'en sortir, et de
 toute façon la couleur se noie dans le chaos. La couleur ne fait que confirmer
 ce que la forme dit déjà.
+
+**LA BANDE SON A DEUX SOURCES ET UN SEUL RÉGLAGE** (`survivor.audio.source`,
+tenu par `audio.js`) : `pistes` — les fichiers de `public/assets/musics/`, le
+défaut — ou `synthe`, tout est calculé. Le réglage commande la **musique et le
+son de tir** ensemble, parce que ce sont deux moitiés du même essai : revenir en
+arrière doit tout rendre à la synthèse, pas la moitié.
+
+**Les fichiers ne peuvent être le défaut que parce que le repli est
+AUTOMATIQUE**, et les deux moitiés l'ont chacune : un échantillon absent ou mal
+décodé retombe sur sa recette synthétisée (le test porte sur le **tampon
+chargé**, jamais sur le réglage), et une piste introuvable rend la main à la
+synthèse par le rappel d'échec de `tracks.js` — posé par `music.js`
+(`setTrackFallback`), sur le modèle de `setReconnecter(connect)` et pour la même
+raison : un module bas ne rappelle pas un module haut. Sans eux, un déploiement
+sans `public/assets/` serait **muet**, ce que la règle « le dépôt doit sonner
+entier sans un seul asset » interdit. Le repli ne réécrit pas le réglage — c'est
+un repli de session, pas un choix : le jour où les fichiers arrivent, la
+bascule reprend d'elle-même.
+
+**`music.js` est l'aiguillage, et le reste du client ne connaît pas
+`tracks.js`.** Quatre fonctions publiques — `startMusic`, `stopMusic`,
+`setMusicIntensity`, `setMusicScene` — et personne d'autre n'a à savoir laquelle
+des deux bandes son joue. Les deux entrées ne portent pas la même information et
+c'est délibéré : la synthèse lit une **intensité continue** (elle empile des
+couches), les pistes lisent une **scène discrète** (elles changent de morceau).
+Un fichier ne sait pas retirer son kick, et une intensité ne dit pas quel
+morceau mettre. La boucle de rendu pousse les deux à chaque image depuis la
+**même** source (`phase`, `latest`), donc elles ne peuvent pas se contredire.
+
+**LES PISTES NE JOUENT QU'EN MANCHE** (`route()`, point de passage unique).
+Hors manche — hub, salon, bilan — la synthèse reprend, y compris en source
+`pistes` ; la scène `menu` est là pour ça. La synthèse a été **écrite** pour ce
+moment (nappe seule, acide clairsemé, aucune percussion sous 0,15 d'intensité) :
+elle s'installe sans jamais demander qu'on l'écoute et elle ne se répète pas, or
+on passe bien plus de temps à lire un salon qu'à traverser un segment. Une piste
+composée veut être entendue — elle a un début, un refrain et une fin, et elle
+les rejoue en boucle pendant qu'on choisit sa classe. Le croisement est gratuit,
+et c'est ce qui rend l'échange acceptable : les notes déjà planifiées finissent
+seules (une mesure, soit deux secondes — exactement le fondu d'entrée des
+pistes), et `stopTracks` rend la main en une seconde pendant que la nappe
+s'installe sur son attaque lente. Aucune des deux ne coupe l'autre net.
+
+**Le fondu croisé est à PUISSANCE CONSTANTE et n'est armé qu'à `canplay`.** Deux
+rampes linéaires creusent un trou de 3 dB au milieu du croisement (d'où sin/cos,
+somme des carrés vérifiée à 1,000) ; et armer les rampes à l'instant du
+basculement fait descendre l'ancienne piste pendant que la nouvelle télécharge
+— un silence de deux secondes, c'est-à-dire exactement la coupure que le fondu
+existe pour supprimer. Deux corollaires mesurés : un compteur de séquence
+protège l'enchaînement rapide (une entrée de boss pendant qu'une rotation
+s'arme ferait monter **deux** platines sans que rien ne les sépare ensuite), et
+le différé de coupure vérifie que la platine sortante n'a pas été **reprise**
+entre-temps — il n'y en a que deux, donc deux croisements espacés de moins de
+deux secondes la ramènent en position active.
+
+**LA MUSIQUE S'ÉTOUFFE quand un menu s'ouvre par-dessus la partie** — choix de
+carte, marchand, pause, fenêtre de build. Ce sont les moments où l'on **lit**,
+et la bande son y devient le seul son présent : le combat s'est tu, elle reste
+au niveau qu'elle avait sous les explosions. `AUDIO_CFG.MUSIC_DUCK` vaut 0,45
+(≈ −7 dB) : un étouffement, pas une coupure — elle doit continuer de tenir la
+tension pendant qu'on choisit, sinon la manche se coupe en deux. Descente
+franche (0,30 s), remontée lente (0,70 s), même asymétrie que le lissage
+d'intensité et pour la même raison.
+
+Il vit sur le **bus de musique** (`setMusicDuck`, `audio.js`) et non dans une
+des deux bandes son : c'est la seule façon qu'il couvre la synthèse **et** les
+pistes sans qu'aucune ait à le savoir — un séquenceur ne sait pas baisser des
+notes déjà planifiées. Une **rampe** et non une affectation, sinon le bus saute
+en une image et s'entend comme un décrochage. Il n'est jamais mémorisé : c'est
+un état de l'instant, pas un réglage, et il se compose avec le volume musique
+(`musicVolume × duck`) — bouger le curseur pendant qu'on est étouffé ne doit
+pas annuler l'étouffement.
+
+Le déclencheur est un **second `MutationObserver`**, à part de celui de la barre
+supérieure : la liste n'est pas la même, et surtout celui-là porte
+`syncSettled` / `syncLeaving`, qu'on ne veut pas appliquer à `#build`. Il
+constate au lieu de décider, pour la raison déjà écrite pour la barre — les
+quatre écrans s'ouvrent depuis une dizaine de chemins (montée de niveau, mort
+de boss, Tab, Échap, clic sur une ligne du bilan), et un observateur ne peut pas
+en oublier un.
+
+**Les assets audio sont la SEULE chose du dépôt mise en cache HTTP.**
+`Cache-Control: no-store` sur un mp3 de six mégaoctets le fait retélécharger à
+chaque enchaînement, soit toutes les trois minutes et par client. Le risque
+habituel du cache — un onglet qui tourne sur du code périmé — ne les concerne
+pas : ils ne portent aucune logique, et une piste remplacée change de nom.
 
 **L'interface sonne au SURVOL, et la cible est celle du pointeur — exactement.**
 C'est ce qui sépare un jeu d'un site : dans un jeu, l'interface est une machine
@@ -1292,6 +1378,8 @@ Ajouter une entrée impose de traiter les deux côtés :
 | type d'événement | rien — déduit des snapshots | `diffSnapshots()` dans `events.js`, consommé par `handleEvent()` |
 | image de sprite | rien | `plan()` dans `sprites.js` : `e{type}_{idle,walkA,walkB,open,die0..2}` et `c_{classe}_{idle,move,shoot,down}`, adressées par NOM via `frameOf()` |
 | son | rien | `PALETTE` dans `audio.js` + `SOUND_GAIN` (hiérarchie de volume) |
+| échantillon | rien | `SAMPLES` dans `audio.js` : URL, décalage, durée et gain **mesurés sur le fichier** — le repli sur la recette synthétisée est inconditionnel |
+| piste audio | rien | `TRACKS` dans `tracks.js` : manifeste **écrit**, un navigateur ne sait pas lister un dossier ; on ajoute la ligne en déposant le fichier |
 | cible d'un son d'interface | rien | `UI_SOUND_SCREENS` / `UI_SOUND_TARGETS` dans `ui/screens.js` — **miroir** de la règle `--cursor-go` de `menus.css`, commentée des deux côtés |
 | `kind` d'effet → son | rien | `EFFECT_SOUND` dans `render/fx.js` : son et amplitude de tressaillement par `kind` |
 | son d'événement | rien — déduit du niveau d'alerte de la table | `evenement` dans `PALETTE` (`audio.js`), une quinte montante ; `haut` distingue consigne et avertissement sans ouvrir une entrée par événement |
@@ -1321,10 +1409,10 @@ Ajouter une entrée impose de traiter les deux côtés :
 | catégorie de carte | `CATEGORIES` + `cardCategory()` dans `cards.js` — **ne circule pas**, déduit des `tags` avec `cat` explicite pour les zones | `CARD_CATEGORY_COLOR` dans `palette.js` + `.cardCat` |
 | version | `VERSION` dans `shared/version.js` (source unique, module pur, table d'historique en commentaire) ; clés `version` et `commit` du `welcome`, une fois par connexion ; `shortCommit()` au boot passé à `createHub` ; `server.js` compare `package.json` au boot et **journalise** un désaccord ; `version_check.js` le refuse avant | `#version` + `updateVersion()` dans `ui/dom.js` : `v0.7.8 (a1b2c3d)` en `--text-faint`, ambre `.stale` **sans le hash** si le serveur annonce autre chose |
 
-Six de ces registres sont **purement clients** — image de sprite, son, `kind`
-d'effet → son, glyphe posé sur un joueur, effet possédé visible en jeu, façon de
-mourir d'un type — auxquels s'ajoutent la **catégorie de carte** et, depuis le
-lot S, les **traits** : un son, un
+Huit de ces registres sont **purement clients** — image de sprite, son,
+échantillon, piste audio, `kind` d'effet → son, glyphe posé sur un joueur, effet
+possédé visible en jeu, façon de mourir d'un type — auxquels s'ajoutent la
+**catégorie de carte** et, depuis le lot S, les **traits** : un son, un
 glyphe, une icône d'effet et une image de sprite ne traversent pas le réseau, ils
 se déduisent de ce que le snapshot — ou la liste de cartes, déjà diffusée — dit
 déjà. Une nouvelle mécanique ne demande donc pas d'ajouter un message : seulement

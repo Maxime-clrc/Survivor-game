@@ -24,6 +24,19 @@ export const AUDIO_CFG = {
   // troncature s'entend plus que le son lui-meme.
   STEAL_FADE: 0.025,
   MASTER: 0.55,
+  /* ETOUFFEMENT DE LA MUSIQUE quand un menu s'ouvre PAR-DESSUS la partie —
+     choix de carte, marchand, pause, fenetre de build. Ce sont les moments ou
+     l'on LIT, et la bande son y devient le seul son present : le combat s'est
+     tu, elle reste au niveau qu'elle avait sous les explosions.
+     0,45, soit environ −7 dB : « un peu », pas une coupure — la musique doit
+     continuer de tenir la tension pendant qu'on choisit, sinon la manche se
+     coupe en deux.
+     Descente franche et remontee lente, comme le lissage d'intensite et pour
+     la meme raison : on veut que le menu se pose tout de suite, et que le
+     retour au jeu ne claque pas. */
+  MUSIC_DUCK: 0.45,
+  DUCK_DOWN: 0.30,
+  DUCK_UP: 0.70,
 };
 
 /* Hierarchie de volume. Les annonces de mecanique et l'alerte de boss passent
@@ -111,11 +124,32 @@ let muted = readNumber("survivor.audio.mute", 0) === 1;
    volume globaux emportent donc aussi la musique, jamais l'inverse. */
 let musicVolume = readNumber("survivor.audio.musicVol", 0.5);
 
+/* LA SOURCE AUDIO : « pistes » (les fichiers de `public/assets/musics/`, le
+   defaut) ou « synthe » (tout est calcule, le chemin d'origine). Un seul
+   reglage pour les DEUX familles — la bande son de `tracks.js` et les
+   echantillons de cette palette — parce qu'ils forment un meme essai : revenir
+   en arriere doit se faire d'un clic et tout rendre a la synthese, pas la
+   moitie.
+
+   Le defaut est « pistes » PARCE QUE le repli est automatique : un fichier
+   absent ou illisible ramene la synthese tout seul — l'echantillon par son
+   test sur le tampon charge, la musique par le rappel d'echec de `tracks.js`.
+   Sans ce repli, un defaut sur les fichiers rendrait le jeu muet chez qui ne
+   deploie pas `public/assets/`, ce que la regle « le depot doit sonner entier
+   sans un seul asset » interdit. */
+let source = readText("survivor.audio.source", "pistes") === "synthe"
+  ? "synthe" : "pistes";
+
 function readNumber(key, fallback) {
   if (typeof localStorage === "undefined") return fallback;
   const raw = localStorage.getItem(key);
   const n = raw === null ? NaN : Number(raw);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function readText(key, fallback) {
+  if (typeof localStorage === "undefined") return fallback;
+  return localStorage.getItem(key) ?? fallback;
 }
 
 function store(key, value) {
@@ -137,13 +171,83 @@ export function initAudio() {
     master.gain.value = muted ? 0 : volume * AUDIO_CFG.MASTER;
     master.connect(ac.destination);
     musicG = ac.createGain();
-    musicG.gain.value = musicVolume;
+    musicG.gain.value = musicVolume * duck;
     musicG.connect(master);
     noiseBuf = makeNoise(ac);
   }
   if (ac.state === "suspended" && ac.resume) ac.resume();
+  if (source === "pistes") loadSamples();
   return true;
 }
+
+/* ---------------------------------------------------------------------------
+   Echantillons
+   La regle « aucun fichier » du module portait sur le zero dependance et le
+   zero build, et elle tient toujours : un echantillon est un fichier SERVI
+   TEL QUEL, il n'ajoute ni paquet ni etape. Ce qu'elle protege vraiment, c'est
+   qu'un chargement rate ne fasse jamais taire le jeu — d'ou le repli
+   systematique sur la recette synthetisee, ici comme en cas d'echec.
+
+   Les trois nombres de `SAMPLES` sont MESURES sur le fichier, pas devines :
+   `laser shot.wav` dure 925 ms dont 40 ms de silence en tete et plus rien
+   d'audible apres 260 ms, avec une crete a −9 dBFS. Le decalage evite un tir
+   qui repond quarante millisecondes trop tard — c'est perceptible sur une
+   cadence a six coups par seconde ; la coupure evite que six queues de laser
+   se recouvrent en permanence ; le gain compense l'ecart de crete avec le
+   carre synthetise, sans quoi le tir en fichier s'entendrait trois fois moins
+   fort a reglage identique. */
+export const SAMPLES = {
+  tir: { url: "/assets/musics/effects/laser shot.wav",
+         offset: 0.035, dur: 0.26, gain: 2.4 },
+};
+
+const buffers = new Map();
+const loading = new Set();
+
+export function loadSamples() {
+  if (!ac || typeof fetch !== "function") return;
+  for (const [name, spec] of Object.entries(SAMPLES)) {
+    if (buffers.has(name) || loading.has(name)) continue;
+    loading.add(name);
+    fetch(spec.url)
+      .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+      .then(buf => ac.decodeAudioData(buf))
+      .then(decoded => { buffers.set(name, decoded); })
+      .catch(() => { /* fichier absent : la recette synthetisee reprend la main */ })
+      .finally(() => loading.delete(name));
+  }
+}
+
+export function sampleReady(name) { return buffers.has(name); }
+
+/* Un echantillon suit exactement le contrat des autres briques : il rend
+   { end, stop }, donc le plafond de voix et la recharge par nom s'appliquent
+   sans une ligne de plus. La queue courte (`fadeOut` sur les 30 derniers
+   millisecondes) n'est pas decorative : couper un PCM net produit un clic de
+   discontinuite, exactement celui que `STEAL_FADE` evite ailleurs. */
+function sample(name, gain) {
+  const buf = buffers.get(name);
+  const spec = SAMPLES[name];
+  const t0 = ac.currentTime;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  const dur = Math.min(spec.dur, Math.max(0.02, buf.duration - spec.offset));
+  g.gain.setValueAtTime(Math.max(0.0002, gain), t0);
+  g.gain.setValueAtTime(Math.max(0.0002, gain), t0 + Math.max(0, dur - 0.03));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(g); g.connect(master);
+  src.start(t0, spec.offset, dur + 0.02);
+  return { end: t0 + dur, stop: () => fadeOut(g, src, t0) };
+}
+
+export function setAudioSource(kind) {
+  source = kind === "pistes" ? "pistes" : "synthe";
+  store("survivor.audio.source", source);
+  if (source === "pistes") loadSamples();
+}
+
+export function getAudioSource() { return source; }
 
 /* Acces du module de musique, et de lui seul : le contexte et le bus dedie.
    `music.js` construit ses propres oscillateurs mais ne possede ni contexte ni
@@ -155,10 +259,42 @@ export function musicBus() { return musicG; }
 export function setMusicVolume(v) {
   musicVolume = Math.max(0, Math.min(1, v));
   store("survivor.audio.musicVol", musicVolume);
-  if (musicG) musicG.gain.value = musicVolume;
+  applyMusicGain(0);
 }
 
 export function getMusicVolume() { return musicVolume; }
+
+/* L'etouffement vit sur le BUS de musique et non dans une des deux bandes son :
+   c'est la seule facon qu'il couvre la synthese ET les pistes sans qu'aucune
+   des deux ait a le savoir — un sequenceur ne sait pas baisser des notes deja
+   planifiees, et un `<audio>` a son propre volume qu'on ne veut pas melanger
+   au reglage du joueur. Il n'est PAS memorise : c'est un etat de l'instant,
+   pas un reglage. */
+let duck = 1;
+
+export function setMusicDuck(on) {
+  const k = on ? AUDIO_CFG.MUSIC_DUCK : 1;
+  if (k === duck) return;
+  const monte = k > duck;
+  duck = k;
+  applyMusicGain(monte ? AUDIO_CFG.DUCK_UP : AUDIO_CFG.DUCK_DOWN);
+}
+
+export function getMusicDuck() { return duck; }
+
+/* Une RAMPE et non une affectation : un bus de musique qui saute de 0,5 a 0,22
+   en une image s'entend comme un decrochage, exactement le clic de troncature
+   que `STEAL_FADE` evite sur une voix. Duree nulle pour le curseur de volume,
+   qu'on veut voir repondre au doigt. */
+function applyMusicGain(dur) {
+  if (!musicG) return;
+  const cible = musicVolume * duck;
+  if (!ac || dur <= 0) { musicG.gain.value = cible; return; }
+  const now = ac.currentTime;
+  musicG.gain.cancelScheduledValues(now);
+  musicG.gain.setValueAtTime(musicG.gain.value, now);
+  musicG.gain.linearRampToValueAtTime(cible, now + dur);
+}
 
 export function audioReady() { return ac !== null; }
 
@@ -281,9 +417,16 @@ function fadeOut(g, node, t0) {
    --------------------------------------------------------------------------- */
 
 const PALETTE = {
-  // Impulsion carree tres courte. C'est le son le plus frequent du jeu, donc
-  // le plus bas de la hierarchie : on doit le sentir sans jamais l'ecouter.
-  tir: () => tone({ freq: 900, to: 700, dur: 0.025, type: "square", gain: SOUND_GAIN.tir }),
+  /* Impulsion carree tres courte. C'est le son le plus frequent du jeu, donc
+     le plus bas de la hierarchie : on doit le sentir sans jamais l'ecouter.
+
+     En source « pistes », l'echantillon de laser prend sa place — et seulement
+     s'il est CHARGE : le test porte sur le tampon et non sur le reglage, sinon
+     un fichier absent ou un decodage rate rendrait le tir muet, c'est-a-dire
+     supprimerait le retour du geste le plus frequent du jeu. */
+  tir: () => (source === "pistes" && buffers.has("tir"))
+    ? sample("tir", SOUND_GAIN.tir * SAMPLES.tir.gain)
+    : tone({ freq: 900, to: 700, dur: 0.025, type: "square", gain: SOUND_GAIN.tir }),
 
   // Bruit filtre de 40 ms : la confirmation d'impact. Sans elle, tirer dans la
   // foule ne donne aucun retour et on ne sait pas si on touche.
