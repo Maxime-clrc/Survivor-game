@@ -32,7 +32,9 @@ export const RELIC_CFG = {
      c'est un budget a repartir : un joueur en achete zero, une, deux ou les
      trois s'il a assez d'eclats.
 
-     La relance (reroll) se paie en eclats, a un cout CROISSANT avec la vague :
+     La relance (reroll) se paie en eclats, a un cout CROISSANT avec le NIVEAU
+     D'EQUIPE (la vague, au lot K — le lot P l'a supprimee et D3 a fait du
+     niveau son successeur pour tout ce qui s'indexait dessus) :
      un cout fixe se banalise en fin de manche quand les eclats abondent, et
      une relance systematique viderait le marchand de son interet — ce serait
      quatre tirages au lieu d'un, a prix constant. La spec laissait la
@@ -44,7 +46,7 @@ export const RELIC_CFG = {
   PICK_TIME: 30,           // delai de l'ecran, en secondes — au bout, on ferme
                            // sans forcer d'achat (contrairement aux cartes)
   REROLL_BASE: 6,          // cout de la premiere relance, en eclats
-  REROLL_WAVE: 2,          // eclats ajoutes par vague ecoulee (croissance)
+  REROLL_LEVEL: 2,         // eclats ajoutes par niveau d'equipe (croissance)
   PRICE: [25, 45, 80, 150], // par palier de rarete — ordre = RELIC_RARITY
   /* La relique se revent-elle ? Non. Pas de debannissement, pas de revente :
      le marchand est une decision, pas un marche. */
@@ -118,7 +120,7 @@ export const RELICS = [
   {
     id: "memoire_gravee", nom: "Mémoire gravée", tier: 2,
     mode: "memoire",
-    desc: "la première compétence utilisée à chaque vague a sa recharge immédiatement réinitialisée",
+    desc: "la première compétence utilisée à chaque minute de horde a sa recharge immédiatement réinitialisée",
   },
 
   /* --- Legendaire --- */
@@ -140,7 +142,10 @@ export function relicPrice(r) {
   return RELIC_CFG.PRICE[r.tier] ?? 0;
 }
 
-/* Cout d'une relance de l'offre, croissant avec la vague. */
+/* Cout d'une relance de l'offre, croissant avec le niveau d'equipe. Le
+   parametre s'est toujours appele `niveau` ; c'est l'APPELANT qui lui passait
+   `this.wave`, champ disparu au lot P — donc NaN, donc un marchand grise pour
+   le reste de la manche. Corrige en 0.8.6, cf. `rerollRelic`. */
 export function relicRerollCost(niveau) {
-  return Math.round(RELIC_CFG.REROLL_BASE + RELIC_CFG.REROLL_WAVE * Math.max(0, niveau - 1));
+  return Math.round(RELIC_CFG.REROLL_BASE + RELIC_CFG.REROLL_LEVEL * Math.max(0, niveau - 1));
 }

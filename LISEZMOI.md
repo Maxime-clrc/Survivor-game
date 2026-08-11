@@ -272,6 +272,29 @@ de tout ce qui blesse un joueur : une nouvelle attaque du boss est couverte sans
 qu'on ait à y penser. Le poser aux points d'appel revenait à parier qu'on n'en
 oublierait jamais un — pari déjà perdu une fois pendant l'écriture.
 
+#### En solo, on ne se déclare pas prêt à soi-même
+
+Le lancement attend que **tous les présents** aient confirmé : en ligne, on ne
+peut pas demander « t'es prêt ? » à voix haute, et l'hôte n'a aucun autre moyen
+de savoir si quelqu'un lit encore les cartes de classe. À un seul joueur, cette
+mécanique n'a plus de destinataire : elle ajoutait un clic entre le joueur et sa
+partie, et la barre annonçait « 1 joueur sur 1 est prêt », ce qui se lit comme un
+compteur cassé.
+
+`notReady()` rend donc une liste vide dès que la salle compte un seul client. La
+règle vit **là et nulle part ailleurs** — la garde du `case "start"` et la
+revalidation par tick en héritent sans être touchées — et le client la recopie à
+l'identique, comme il le fait pour tout ce qui décide des deux côtés : `#readyBtn`
+disparaît, la pastille « N / M prêts » se tait, et la ligne d'attente devient
+« Tu joues seul. Lance quand tu veux. » Le bouton disparaît au lieu de rester
+inerte : le dépôt refuse un contrôle qui répond au clic sans rien changer.
+
+Un effet de bord est assumé et nommé : un deuxième joueur qui arrive pendant les
+trois secondes du décompte fait repasser la salle en règle multi, donc annule le
+lancement. Le message dit **l'arrivée** et non « X n'est plus prêt » — personne ne
+s'était jamais déclaré, et accuser l'hôte enverrait chercher un bug là où il n'y
+en a pas.
+
 #### Le salon dit ce que le mode change
 
 Trois lignes sous le sélecteur, tirées du profil lui-même. Depuis qu'un mode est
@@ -1091,6 +1114,47 @@ Sans ça, elle devient une difficulté artificielle qui punit la lecture — l'i
 exact de ce que le dépôt mesure comme « difficile ». Et la bourrasque pousse
 **les deux camps** : ne pousser que le joueur en ferait une taxe.
 
+#### Les ennemis contournent les obstacles
+
+Le repoussage par axe (`_obstacleBlock`) corrige une position **déjà** fautive :
+il fait glisser le long du mur, ce qui évite le placage pur, mais le chemin reste
+une ligne droite vers le joueur. La horde rase donc la géométrie au lieu de
+l'éviter. Depuis 0.8.8 le vecteur est **braqué** sur un préavis, avant le
+déplacement, avec une force proportionnelle à la pénétration d'une sonde placée
+`e.r + ENEMY_AVOID_LOOK` devant — même patron que `ENEMY_SEPARATION`, rien de
+stocké sur l'entité, une passe par tick, **rien sur le réseau** (les ennemis sont
+interpolés côté client, il n'y a rien à changer là-bas).
+
+Mesuré, cauchemar, graine 1, deux joueurs, 600 s simulées. Un ennemi est compté
+« plaqué » s'il a parcouru moins de 20 % de ce que sa vitesse permettait sur la
+dernière seconde **alors qu'un obstacle est entre lui et sa cible** — la seconde
+condition sépare « bloqué par la géométrie » de « ralenti par un champ ».
+
+| biome | `TURN` | pop. moyenne | % au plafond | % plaqués (n) | CPU p99 |
+|---|---|---|---|---|---|
+| usine (54 obstacles) | 0 | 106,0 | 27,0 | 12,9 % (1322) | 2,47 ms |
+| usine | 1,4 | 107,2 | 27,8 | **9,9 % (870)** | 1,54 ms |
+| friche (63, dont 27 destructibles) | 0 | 105,7 | 28,4 | 48,9 % (3599) | 2,14 ms |
+| friche | 1,4 | 106,8 | 28,2 | **34,5 % (2734)** | 2,03 ms |
+
+Le chiffre le plus parlant n'est pas le taux mais le **nombre d'échantillons** :
+un tiers d'ennemis en moins se retrouvent derrière la géométrie. Le CPU ne monte
+pas — la sonde s'arrête au premier obstacle touché, et il y a moins de corps
+empilés à séparer.
+
+Ce que l'évitement **ne change pas**, et il faut le dire : la population moyenne
+et le temps passé au plafond sont identiques. Le plateau est réglé par le débit
+face à ce que l'équipe sait nettoyer, pas par les obstacles — c'est le défaut
+ouvert relevé au lot X, et ce lot ne le touche pas.
+
+Le réglage a été **cherché par balayage** (friche, 300 s) et non deviné : à
+`LOOK = 46`, le taux de plaqués vaut 63,8 % pour `TURN = 0`, 42,0 % à 0,8,
+**0,1 % à 1,4** et 6,4 % à 2,0 — au-delà, le braquage devient si large que les
+créatures repassent devant d'autres obstacles. `LOOK` à 30 ou 70 dégrade
+également (17,6 % et 31,7 %). Aucun ennemi ne sort de l'arène dans aucune
+configuration, ce qui était le risque : contrairement aux joueurs, les ennemis ne
+sont jamais bornés.
+
 #### Le biome ne coûte rien au réseau
 
 C'est le résultat le plus utile du lot, et il dépasse celui des traits.
@@ -1886,6 +1950,47 @@ niveau. La formule n'a pas changé, mais l'échelle de la puissance, elle, a
 changé du tout au tout : elle incluait le ×4,3 de dégâts des niveaux, elle ne
 reflète plus que les cartes.
 
+#### Le balayage d'arrivée ne coûte plus la cadence
+
+Le boss vide l'arène en arrivant — sinon sa silhouette, ses zones et sa barre se
+perdent dans deux cents monstres. Ce balayage passe volontairement **à côté** de
+`_killEnemy` : un ennemi qui disparaît n'a pas été tué, il ne crédite ni score ni
+expérience, et sans cette règle il suffirait d'arrêter de jouer à quatre minutes
+trente d'un segment.
+
+Le prix caché, jusqu'à la version 0.8.6 : `_killEnemy` est aussi le **seul**
+émetteur des cumuls de kill. Un joueur qui entrait en combat avec trente cumuls
+de Frénésie — soit +60 % de cadence — les perdait trois secondes plus tard,
+faute de la moindre cible, et le premier renfort du boss n'arrive qu'à la
+quinzième seconde. Mesuré, solo, cumuls plafonnés avant le balayage :
+
+| t (s) | avant 0.8.6 | après 0.8.6 |
+|---|---|---|
+| 1 | 30 cumuls · 0,100 s | 30 cumuls · 0,100 s |
+| 3 | **0 · 0,160 s** | 30 · 0,100 s |
+| 15 | 0 · 0,160 s | 30 · 0,100 s |
+| 18 | 0 · 0,160 s | 0 · 0,160 s |
+
+Le remède est un **sursis** et non un gel : `CFG.SWEEP_STACK_GRACE` (18 s =
+`BOSS_SUMMON_EVERY` + la décroissance normale) prolonge une fois les minuteurs
+des cumuls dont le kill est la seule source. Un gel aurait rendu le bonus
+permanent pour les quatre à six minutes du combat, ce qui contredit le contrat de
+la carte, et aurait demandé un drapeau à lever à la mort du boss — un drapeau
+qu'on oublie. Ici le premier renfort tué réécrit le minuteur à sa valeur normale
+et le contrat reprend tout seul. À **0**, la constante restitue le comportement
+d'avant.
+
+Deux endroits vidaient l'arène à la main, le boss et l'événement `chasse`, avec
+le même défaut : ils passent désormais par `_sweepEnemies()`, qui emporte aussi
+les points de récolte (voir plus haut).
+
+**« Meute » comptait zéro contre les boss.** La carte compte les ennemis proches
+en parcourant `state.enemies` ; le boss vit dans `state.boss`, et l'arène vient
+justement d'être balayée. Elle rendait donc 0 pendant tout le début du combat,
+alors que la puissance s'applique bel et bien aux dégâts du boss. Le boss compte
+désormais pour un, via `_bossTargets()` — donc deux pour les Jumeaux, comme
+partout ailleurs.
+
 #### Cinq boss, un verbe chacun
 
 Plutôt qu'empiler des mécaniques sur un boss unique — ce qu'on avait, et qui
@@ -2626,7 +2731,7 @@ La différence fondamentale avec les cartes :
 | effet | presque toujours en % | **valeur brute** |
 | fréquence | à chaque niveau | après chaque boss |
 | choix | une parmi trois, obligatoire | **budget à répartir** — zéro, une ou trois |
-| relance | une fois par manche, gratuite | payante, coût croissant avec la vague |
+| relance | une fois par manche, gratuite | payante, coût croissant avec le niveau d'équipe |
 
 **La valeur brute est le cœur de la relique.** « +8 dégâts » reste utile sur
 une build qui n'a pris aucune carte de dégâts — c'est un axe de puissance qui
@@ -2652,13 +2757,34 @@ en jouant :
 | rare | Batterie de secours | le bouclier, une fois vide, se recharge une fois à 50 % (une fois par manche) |
 | épique | Cœur de Ravageur | +35 dégâts bruts contre les boss uniquement |
 | épique | Essaim captif | un projectile supplémentaire orbite en permanence |
-| épique | Mémoire gravée | la première compétence utilisée à chaque vague a sa recharge réinitialisée |
+| épique | Mémoire gravée | la première compétence utilisée à chaque minute de horde a sa recharge réinitialisée |
 | légendaire | Cœur-machine | +50 dégâts bruts, +80 PV bruts, **mais la vitesse est fixée à sa valeur de base** |
 
 Les contreparties sont affichées en évidence, pas en petit texte : une relique
 se refuse pour ce qu'elle coûte, pas pour ce qu'elle donne. La relance de
-l'offre se paie (6 éclats + 2 par vague) — un coût fixe se banaliserait en fin
-de manche quand les éclats abondent.
+l'offre se paie (6 éclats + 2 par **niveau d'équipe**) — un coût fixe se
+banaliserait en fin de manche quand les éclats abondent.
+
+Deux défauts de cette section ont vécu du lot P à la version 0.8.6, et ils
+avaient la même cause : le modèle par vagues a disparu, les lectures non. La
+relance facturait `relicRerollCost(this.wave)`, champ inexistant, donc un coût
+`NaN` : la garde de solde ne bloquait plus rien (`x < NaN` est faux), le solde
+devenait `NaN` définitivement, et comme `JSON.stringify(NaN)` vaut `"null"` le
+client lisait **0 éclat** — la ligne du HUD disparaissait et tous les boutons du
+marchand restaient grisés pour le reste de la manche. Le prix *affiché*, lui, se
+calculait déjà sur le niveau : les deux ne portaient pas sur la même grandeur.
+« Mémoire gravée » remettait son drapeau à zéro dans `_startWave`, disparu avec
+les vagues : l'épique à 45 éclats ne servait donc qu'**une fois par manche**.
+Elle se recharge désormais à chaque beat (`_startBeat`) — donc une fois par
+minute de horde, et une fois par combat de boss, l'horloge de horde y étant
+figée.
+
+**Les points de récolte se tarissaient au premier boss.** Un cristal n'a aucune
+durée de vie et le balayage d'arrivée du boss ne les emportait pas : quatre
+cristaux nés avant le combat saturaient `HARVEST_MAX_GROUND` pour toute la
+manche, et plus aucun point ne pouvait apparaître. Mesuré sur 1800 s (calme,
+usine, graine 7, cinq boss traversés, aucun cristal détruit) : **4 points
+apparus avant correctif, 25 après**.
 
 Les reliques **entrent dans le calcul de puissance** de l'équipe : les vagues
 et les boss qui suivent le marchand sont calibrés sur les dégâts réels, pas
@@ -2982,6 +3108,32 @@ que le joueur subissait sans jamais pouvoir la voir.
 
 Les repères sont des **mesures**, pas des constantes de réglage : les remesurer
 avec le script de distribution si le catalogue ou les raretés bougent.
+
+### L'écran de fin de manche
+
+Une manche se terminait sur l'apparition d'un tableau de scores : la seule chose
+que le joueur voulait savoir — je suis tombé, ou j'ai gagné, et jusqu'où — se
+lisait en cherchant un titre au-dessus d'une grille. `#fin` s'intercale donc
+avant le bilan, avec le verdict, l'étape atteinte, le niveau, le temps de survie,
+et **une** action : « Voir les stats ».
+
+Il ne transporte rien de neuf — tout vient du `roundEnd` que le bilan lit déjà —
+et **il ne se ferme pas tout seul**. Un compte à rebours en ferait le voile qu'on
+traverse sans lire, ce que le bilan a précisément fini par refuser.
+
+Le dépôt avait pourtant écrit l'inverse au lot W, en refusant un écran de
+victoire dédié : « la leçon était qu'il faut MOINS d'écrans entre le joueur et
+ses chiffres, pas plus ». Cette version ne la renverse pas, elle la précise. Le
+défaut d'origine était **deux écrans en concurrence** — le salon restait visible
+sous le bilan et lui volait l'attention — pas un écran de plus. `#fin` est seul,
+ne répète aucun chiffre du bilan, et son unique bouton mène là où l'on allait
+déjà. La règle à retenir n'est donc pas « jamais d'écran de plus » mais
+**« jamais deux écrans qui se disputent le même instant »**.
+
+Il croise le salon comme un écran ordinaire, et non comme le voile du briefing :
+`#brief` sort du groupe de transition parce que ce qu'il découvre en s'effaçant
+est l'**arène** ; ici la phase est déjà repassée au salon, donc l'arène est déjà
+masquée.
 
 ### Le bilan de fin de manche
 
@@ -3489,6 +3641,17 @@ refusé de transmettre le propriétaire d'une balle, et la raison était bonne :
 ne servait qu'à attribuer des dégâts, ce que `bd` résout côté boss sans rien
 payer par balle. Ce qui a changé, c'est l'usage — la lisibilité, qu'aucune
 déduction locale ne peut retrouver.
+
+**34ᵉ champ du tuple joueur : l'intervalle de tir EFFECTIF** (0.8.6). Coût
+mesuré arène pleine, quatre joueurs : **+0,25 %** — vingt octets, quatre nombres
+là où la liste d'ennemis en compte seize cents. Il est là parce que le client ne
+peut pas le refaire : frénésie, adrénaline, surcharge, bascule vive et le
+`rateFlat` des reliques ne circulent pas, et la surcharge ne voyage que comme un
+bit de masque. La fenêtre de build n'affichait donc que la part **cartes**, une
+ligne qui ne bougeait jamais en combat — et c'est précisément elle qui a masqué
+pendant six lots la perte de cadence à l'entrée en combat de boss. Un client
+antérieur lit 0, ce qui se traite comme « inconnu » et retombe sur la part
+cartes.
 
 ### Grammaire de marqueurs
 

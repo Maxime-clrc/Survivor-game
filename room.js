@@ -464,8 +464,24 @@ export class Room {
      une prevision. `startRound()` remet tout le monde a `spectator = false`,
      donc au salon TOUS les presents entrent dans la manche a venir — exclure
      les spectateurs aurait laisse un joueur revenu du mode spectateur incapable
-     de se declarer prêt, tout en lancant sans lui. */
+     de se declarer prêt, tout en lancant sans lui.
+
+     A UN SEUL JOUEUR, PERSONNE NE MANQUE JAMAIS. Se declarer pret a soi-meme est
+     une formalite sans destinataire : le bouton n'informait personne et
+     n'attendait personne, il ajoutait un clic entre le joueur et sa partie. La
+     regle vit ICI et pas dans les deux appelants — la garde du `case "start"` et
+     la revalidation par tick de `tickLaunch()` en heritent sans etre touchees,
+     et deux tests separes auraient diverge au premier changement.
+
+     EFFET DE BORD ASSUME : un deuxieme joueur qui arrive pendant les trois
+     secondes d'un lancement solo fait basculer la salle en regle multi, et
+     `attach()` le pose a `ready = false` — `tickLaunch` annule donc avec « X
+     n'est plus pret ». C'est le bon comportement : la manche qui allait partir
+     n'est plus la meme partie, et le message nomme la raison. Partir a deux dont
+     un qui n'a rien confirme est precisement ce que la revalidation par tick
+     existe pour empecher. */
   notReady() {
+    if (this.joined().length <= 1) return [];
     return this.joined().filter(c => !c.ready);
   }
 
@@ -508,7 +524,17 @@ export class Room {
     }
     const manquants = this.notReady();
     if (manquants.length > 0) {
-      this.cancelLaunch(`${manquants[0].name} n'est plus prêt`);
+      /* Deux motifs, parce que ce ne sont pas les memes faits. Le cas ordinaire
+         est quelqu'un qui se dé-prêt pendant le decompte. Mais depuis que le
+         « prêt » ne vaut plus rien en solo, un lancement solo peut aussi etre
+         annule par une ARRIVEE : personne ne s'est alors dé-prêt, personne n'a
+         jamais eu a se declarer prêt, et accuser l'hote de « n'est plus prêt »
+         serait faux — c'est le genre de message qui fait chercher un bug la ou
+         il n'y en a pas. */
+      const arrivee = this.joined().length === 2 && !this.joined().some(c => c.ready);
+      this.cancelLaunch(arrivee
+        ? "un joueur vient d'arriver — confirmez pour lancer"
+        : `${manquants[0].name} n'est plus prêt`);
       return;
     }
     if (Date.now() >= this.launchAt) {
@@ -951,9 +977,10 @@ export class Room {
        l'enregistrant au classement : sans cette copie, le bilan ne saurait plus
        qu'il y a eu victoire et afficherait une fin de manche ordinaire —
        exactement l'ecran qu'on cherche a distinguer.
-       `state.victory` (plan 5) et non `finalVictory` : la victoire est posee par
+       `state.victory` (plan 5) est la SEULE source : elle est posee par
        `_nextSegment` quand les six segments sont franchis, et elle est deja ce
-       que le `roundEnd` transporte. */
+       que le `roundEnd` transporte. (Un `state.finalVictory` a coexiste ici de
+       fait, sans lecteur ; retire en 0.8.6.) */
     const final = this.state.victory;
     /* Les noyaux se versent AVANT le tableau : `scoreboardRows` lit `lastGain`
        pour afficher le gain de chacun. C'est le hub qui ecrit — la salle emet

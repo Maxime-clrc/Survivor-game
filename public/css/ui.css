@@ -316,12 +316,33 @@ input, textarea, [contenteditable] {
    confort, les jalons. Des lignes denses et non des cartes — c'est un magasin
    qu'on relit a chaque salon, pas un choix sous pression. Aucune couleur en
    dur : tout vient des variables posees par client.js depuis la charte. */
+/* ACCOLADE FERMEE EN 0.8.7, et c'est le correctif le plus cher du lot pour un
+   caractere. Elle manquait depuis le lot D : un parseur CSS qui rencontre un
+   bloc non ferme AVALE tout ce qui suit sans une seule erreur, donc le
+   navigateur ne lisait que 40 des 137 regles de cette feuille — tout ce qui
+   vient apres cette ligne etait mort depuis six lots.
+
+   Personne ne l'a vu parce que `menus.css`, ecrit APRES et charge apres, a
+   redeclare 65 de ces 97 regles : les ecrans avaient l'air habilles. Les 32
+   autres n'ont jamais rien habille du tout — le titre de victoire et son
+   animation, la barre des provenances de degats du bilan, la pastille de
+   version et sa mention ambre, le survol des lignes du tableau, la liste de
+   cartes de la fenetre de build, les lignes du Terminal.
+
+   C'est aussi la vraie cause du « bannir » coupe : `.cardBan` perdait son
+   `align-self: center` et son remplissage, se retrouvait large comme la carte
+   et colle au bord, donc l'ecretage arrondi le rognait. Mesure : texte coupe
+   sur 16 px avant, 0 apres, sans toucher a la carte.
+
+   Meme famille que la balise `#vote` non fermee qui avait rendu quatre ecrans
+   de combat invisibles : une erreur de syntaxe qui ne produit aucune erreur. */
 #meta {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
   width: min(720px, 92vw);
+}
 #metaClassTabs button:first-child, #metaTabs button:first-child {
   border-left-width: var(--hair);
   border-radius: var(--radius) 0 0 var(--radius);
@@ -370,35 +391,18 @@ input, textarea, [contenteditable] {
 .metaLine.locked { opacity: 0.62; }
 
 /* --- victoire finale (lot N) -------------------------------------------------
-   Le bilan de victoire n'est pas un second ecran : c'est le meme, avec un
-   titre qui change de registre. Le TEMPS y est le chiffre le plus gros de la
-   page — c'est lui qui compte au classement, et rien d'autre.
+   Le bilan de victoire n'est pas un second ecran : c'est le meme, avec un titre
+   qui change de registre. Vert (`--gain`) et non ambre ni rouge : c'est la
+   seule fin de manche du jeu qui soit un gain, et la grammaire fonctionnelle
+   vaut pour les ecrans comme pour l'arene.
 
-   Vert (`--gain`) et non ambre ni rouge : c'est la seule fin de manche du jeu
-   qui soit un gain. La grammaire fonctionnelle s'applique aux ecrans comme a
-   l'arene. */
-#bilan.victoire #bilanTitle {
-  color: var(--gain);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-1);
-}
-#bilan.victoire .bilanChrono {
-  /* Le plus grand palier de l'echelle (46 px). Aucune valeur ad hoc : c'est le
-     chrono de la seule victoire du jeu, il a le droit au plus gros cran — pas
-     a un cran invente. */
-  font-size: var(--t-3xl);
-  font-weight: 700;
-  letter-spacing: var(--track-title);
-  font-variant-numeric: tabular-nums;
-}
-#bilan.victoire .bilanRecord {
-  font-size: var(--t-s);
-  text-transform: uppercase;
-  letter-spacing: var(--track-caps);
-  color: var(--warn);
-}
+   La classe s'appelle `win` — c'est celle que `showBilan` pose. Trois regles
+   ecrites pour une classe `victoire` vivaient ici, plus un chrono geant et une
+   mention de record : AUCUN chemin ne les posait, et l'accolade non fermee de
+   `#meta` les rendait de toute facon inertes. Supprimees en 0.8.7 plutot que
+   gardees « au cas ou » — du CSS qui decrit un ecran inexistant est un piege de
+   lecture, et il a deja fait croire que le titre de victoire etait habille.
+   La regle vivante est plus bas, avec le reste du bilan (« VICTOIRE (lot W) »). */
 
 /* --- marchand de reliques (lot K) -------------------------------------------
    Meme squelette que l'ecran de cartes, a une difference pres : le titre porte
@@ -646,6 +650,15 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
    affiche dessous, personne ne lisait son bilan » : la lecon etait qu'il faut
    MOINS d'ecrans entre le joueur et ses chiffres, pas plus.
 
+   0.8.7 ajoute pourtant `#fin`, et ne renverse pas cette lecon — elle la
+   PRECISE. Le defaut d'origine etait DEUX ECRANS EN CONCURRENCE, pas un ecran
+   de plus : le salon volait l'attention du bilan parce qu'il etait visible
+   dessous en meme temps. `#fin` est seul, il ne repete aucun chiffre du bilan,
+   et son unique action mene exactement la ou l'on allait deja. Ce qu'il ajoute
+   est une PONCTUATION : sans lui, une manche se termine sur l'apparition d'un
+   tableau de scores. La regle a retenir n'est donc pas « jamais d'ecran de
+   plus » mais « jamais deux ecrans qui se disputent le meme instant ».
+
    Le titre passe donc a l'echelle superieure — 34 px, une valeur de l'echelle
    fixe et non une taille ad hoc — et prend la teinte de gain. Rien d'autre ne
    bouge : les angles restent durs, aucun ornement ne s'ajoute, et la seule
@@ -715,9 +728,10 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 #bilanScores td { padding: var(--sp-3); }
 
 #bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
-#bilanBar { width: 260px; height: var(--hair); background: var(--line); }
-#bilanBar > i { display: block; height: 100%; background: var(--text-faint); }
-#bilanHint { font-size: var(--t-xs); color: var(--text-faint); }
+/* `#bilanBar` et `#bilanHint` habillaient l'echeance automatique du bilan,
+   retiree « pour de bon » : un ecran qui se retire pendant qu'on le lit est un
+   defaut, et le remede — un compte a rebours affiche — mettait la lecture sous
+   minuterie pour l'annoncer. Leurs regles partent en 0.8.7 avec le markup. */
 
 /* --- numero de version -----------------------------------------------------
    AUCUNE COULEUR ici : `--text-faint` et `--warn` viennent de `palette.js` par

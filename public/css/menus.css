@@ -2,10 +2,16 @@
    MENUS — refonte des ecrans d'avant-partie.
 
    Feuille ADDITIVE, chargee APRES ui.css. Aucun identifiant n'est renomme,
-   aucun element n'est ajoute, aucune ligne de client.js ne change : cette
-   feuille ne fait que rehabiller #gate, #loading, #hubScreen, #panel, #bilan
-   et #menu. Les ecrans DE COMBAT (#cards, #build, #pause, #hud) ne sont pas
-   touches — ils restent sous la seule autorite de ui.css et hud.css.
+   aucune classe posee par le client n'est touchee : cette feuille rehabille
+   #gate, #loading, #hubScreen, #panel, #bilan, #fin et #menu — et, depuis les
+   lots J et K, les ECRANS DE CHOIX : #cards et #merchant, dont elle porte
+   desormais le socle entier (ui.css n'a plus une seule regle sur eux, inutile
+   d'y chercher). Ce sont des panneaux qu'on LIT, pas des instruments qu'on lit
+   en un dixieme de seconde : meme rayon que les menus, pour la meme raison.
+   L'en-tete affirmait le contraire jusqu'en 0.8.7 ; c'etait faux et verifiable
+   en un grep.
+   #build, #pause et #hud, eux, restent sous la seule autorite de ui.css et
+   hud.css — et la, un changement d'aspect signalerait bien une fuite.
 
    Ce qui est corrige, dans l'ordre d'importance :
 
@@ -454,7 +460,7 @@
    Ce qui DESIGNE l'action principale reste donc la lueur, et elle le fait mieux
    puisqu'on la voit. `--bevel` n'a plus d'usage dans la feuille ; le jeton reste
    dans `tokens.css` pour qui voudra un biseau sur un element SANS lueur. */
-#start, #go, #regGo, #gateContinue, #menuClose, #bilanGo {
+#start, #go, #regGo, #gateContinue, #menuClose, #bilanGo, #finGo {
   font-family: var(--font-display);
   font-size: var(--t-m);
   font-weight: 700;
@@ -1131,7 +1137,7 @@
   #hubTitle, #panelTitle, #bilanTitle, #menuTitle { padding-inline: var(--sp-4); }
   #panel > .row:has(#start) { justify-content: center; }
   #waitMsg { position: static; text-align: center; padding-inline: var(--sp-4); }
-  #start, #go, #regGo, #bilanGo { padding-inline: var(--sp-8); }
+  #start, #go, #regGo, #bilanGo, #finGo { padding-inline: var(--sp-8); }
 }
 
 /* ===========================================================================
@@ -1252,14 +1258,14 @@
    l'ecran entrant apparaitrait en pleine opacite avant de repartir a zero — un
    clignotement, exactement ce qu'on vient corriger. */
 .hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, .briefWrap,
-#bilan > * {
+.finWrap, #bilan > * {
   animation: screenIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
 /* Le voile lui-meme ne fait qu'une OPACITE : pas d'echelle, pas de filtre —
    voir la note ci-dessus sur le bloc conteneur. Il dure aussi longtemps que le
    corps qu'il porte, sinon le fond est deja plein quand le contenu arrive et
    l'ecran clignote en deux temps. */
-#gate, #hubScreen, #panel, #bilan, #menu, #settings {
+#gate, #hubScreen, #panel, #bilan, #fin, #menu, #settings {
   animation: fadeIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
 .panelBar {
@@ -1319,7 +1325,7 @@
    `prefers-reduced-motion` est deja traite plus haut : la regle globale ecrase
    `animation-duration`, l'ecran part en 0,01 ms et l'on retrouve la coupure —
    qui est le comportement attendu de ce reglage. */
-:is(#gate, #loading, #hubScreen, #panel, #bilan, #menu, #settings, #pause, #brief)[hidden].leaving {
+:is(#gate, #loading, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #pause, #brief)[hidden].leaving {
   display: flex;
   pointer-events: none;
   animation: screenOut var(--screen-out) var(--ease-in) forwards;
@@ -1333,7 +1339,7 @@
    dans la meme direction. Les deux ecrans traversent donc dans le meme sens —
    c'est ce qui se lit comme un passage plutot que comme deux fondus
    independants. */
-.leaving :is(.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, .briefWrap),
+.leaving :is(.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, .briefWrap, .finWrap),
 #bilan.leaving > * {
   animation: contentOut var(--content-out) var(--ease-in) forwards;
 }
@@ -2342,7 +2348,7 @@ button:disabled { opacity: 0.45; cursor: default; }
    Le repli est toujours le curseur systeme correspondant (`default`,
    `pointer`) : un navigateur qui refuse les curseurs SVG garde exactement le
    comportement d'avant, il perd le dessin et rien d'autre. */
-:is(#gate, #loading, #hubScreen, #panel, #menu, #bilan, #settings, #topbar, #pause) {
+:is(#gate, #loading, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause) {
   cursor: var(--cursor-ui), default;
 }
 
@@ -2350,7 +2356,7 @@ button:disabled { opacity: 0.45; cursor: default; }
    specificite de son argument le plus fort, donc `1-0-1` ici : ca passe
    au-dessus du `button { cursor: pointer }` ci-dessus sans avoir a le
    reecrire. */
-:is(#gate, #hubScreen, #panel, #menu, #bilan, #settings, #topbar, #pause)
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause)
   :is(button, a, summary, tr.clickable, input[type="range"]) {
   cursor: var(--cursor-go), pointer;
 }
@@ -2358,7 +2364,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 /* Un bouton desarme n'est pas une cible : il retombe au pointeur de repos.
    Sans cette ligne, `button:disabled { cursor: default }` rendait la fleche
    du systeme au milieu d'un ecran qui porte la notre. */
-:is(#gate, #hubScreen, #panel, #menu, #bilan, #settings, #topbar, #pause) button:disabled {
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause) button:disabled {
   cursor: var(--cursor-ui), default;
 }
 
@@ -2543,7 +2549,7 @@ tr.clickable { cursor: pointer; }
    blocs — il doit donc porter toutes leurs contre-regles, et non les laisser a
    `ui.css` qui n'a plus rien a dire sur eux. */
 #gate[hidden], #loading[hidden], #hubScreen[hidden], #panel[hidden],
-#bilan[hidden], #menu[hidden], #settings[hidden], #cards[hidden],
+#bilan[hidden], #fin[hidden], #menu[hidden], #settings[hidden], #cards[hidden],
 #build[hidden], #pause[hidden], #topbar[hidden],
 #meta[hidden], #gateHold[hidden], #cardsKicker[hidden], #pauseConfirm[hidden],
 .gatePill[hidden], .gateChip[hidden] {
@@ -2871,7 +2877,7 @@ tr.clickable { cursor: pointer; }
    sept valeurs de l'echelle et sous le plancher de lisibilite. Il n'existe pas
    de « plus petit que 11 » dans cette interface. */
 #gate small, #hubScreen small, #panel small,
-#menu small, #bilan small, #settings small { font-size: var(--t-xs); }
+#menu small, #bilan small, #fin small, #settings small { font-size: var(--t-xs); }
 #metaMilestones .metaJalon { font-family: var(--font-body); }
 #metaMilestones .metaJalon.done { color: var(--go); }
 #metaSub { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); text-align: left; }
@@ -2917,6 +2923,12 @@ tr.clickable { cursor: pointer; }
   border: var(--hair) dashed var(--ui-line);
 }
 
+/* `padding: 0` : chaque enfant porte sa propre gouttiere. C'est `ui.css` qui
+   decolle `.cardBan` du bas de la carte (`align-self: center`, plus son
+   remplissage), et c'est bien ce qu'il faut — voir le pave de `#meta` la-bas :
+   ces declarations etaient MORTES, avalees par une accolade non fermee, et
+   c'est ce qui faisait sortir « bannir » coupe par l'arc de l'ecretage. La
+   carte n'a rien a corriger ici. */
 .cardOpt {
   width: 268px;
   min-height: 280px;
@@ -3649,6 +3661,88 @@ tr.clickable { cursor: pointer; }
   #bilanStats { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* --- l'ecran de fin de manche (0.8.7) ----------------------------------------
+   Il precede le bilan et ne le double pas : trois chiffres et une action. Il est
+   CENTRE, comme `#loading` et pour la meme raison — c'est le second ecran du jeu
+   qui n'a qu'une chose a dire, et la regle « les ecrans d'avant-partie coulent
+   depuis le haut » existe contre les blocs qui se deplacent les uns les autres.
+   Ici il n'y en a qu'un, et sa position ne depend de rien.
+
+   Il est DANS le groupe de transition d'ecran, contrairement a `#brief`. Celui-la
+   en sort parce que ce qu'il decouvre en s'effacant est l'ARENE, visible a
+   l'instant ou la phase passe en manche. Ici c'est l'inverse : `roundEnd` pose
+   `PHASE_LOBBY`, et la boucle de rendu masque l'arene des que la phase n'est plus
+   la manche. Il ne se pose donc sur aucune image de jeu — c'est un ecran, il
+   croise le salon comme les sept autres. */
+#fin {
+  justify-content: center;
+  align-items: center;
+}
+.finWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-6);
+  width: min(var(--shell-narrow), 100%);
+  padding-inline: var(--gutter);
+  text-align: center;
+}
+/* Le titre porte le VERDICT, donc il prend le cran au-dessus de celui du bilan :
+   c'est la seule ligne de l'ecran qu'on lit sans la chercher. */
+#finTitle {
+  font-family: var(--font-display);
+  font-size: var(--t-3xl);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+}
+/* La victoire prend la teinte de gain, et RIEN d'autre : le liseré et
+   l'animation `sacre` appartiennent au bilan, qui arrive juste apres. Les
+   rejouer ici ferait sonner deux fois la meme nouvelle. */
+#fin.win #finTitle { color: var(--gain); }
+
+#finStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  width: 100%;
+}
+/* Meme materiau que les tuiles du bilan — c'est le meme moment, on ne change pas
+   de vocabulaire entre deux ecrans qui s'enchainent. La VALEUR passe devant le
+   libelle, a l'inverse du bilan : la-bas on parcourt quatre mesures, ici on lit
+   trois reponses. */
+.finStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+.finStat .val {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text);
+}
+.finStat .lab {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+@media (max-width: 720px) {
+  /* Trois tuiles cote a cote sous 720 px donnent des colonnes de 90 px, ou
+     « étape atteinte » se coupe en trois lignes. */
+  #finStats { grid-template-columns: 1fr; }
+  #finTitle { font-size: var(--t-2xl); }
+}
+
 /* --- fenetres etroites, reprise --------------------------------------------- */
 @media (max-width: 720px) {
   .metaLine { grid-template-columns: 1fr auto; gap: var(--sp-2); }
@@ -4372,29 +4466,15 @@ tr.clickable { cursor: pointer; }
 
 /* --- 6. le bilan de victoire (lot N) -----------------------------------------
    Ce n'est pas un second ecran : c'est le meme, avec un titre qui change de
-   registre. Le TEMPS y est le chiffre le plus gros de la page — c'est lui qui
-   compte au classement, et rien d'autre. Vert et non ambre ni rouge : c'est la
-   seule fin de manche du jeu qui soit un gain, et la grammaire fonctionnelle
-   vaut pour les ecrans comme pour l'arene. */
-#bilan.victoire #bilanTitle { color: var(--gain); }
-.bilanChrono {
-  display: block;
-  font-family: var(--font);
-  font-size: var(--t-hero);
-  font-weight: 700;
-  letter-spacing: var(--track-title);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.05;
-  color: var(--gain);
-}
-.bilanRecord {
-  display: block;
-  font-family: var(--font);
-  font-size: var(--t-xs);
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--gain);
-}
+   registre. Vert et non ambre ni rouge : c'est la seule fin de manche du jeu
+   qui soit un gain, et la grammaire fonctionnelle vaut pour les ecrans comme
+   pour l'arene.
+
+   La classe est `win`, celle que `showBilan` pose. Trois regles ecrites pour une
+   classe `victoire`, plus un chrono geant et une mention de record, vivaient ici
+   et dans `ui.css` sans qu'aucun chemin ne les pose : supprimees en 0.8.7. La
+   police du titre vient de `#bilanTitle` juste au-dessus, sa teinte et son
+   liseré de `ui.css`. */
 /* Le bloc « ta partie » a ete RETIRE du bilan : multiplicateurs, jauge de
    puissance et compteur de cartes repondaient a « pourquoi ces degats-la »,
    question que la fenetre de build traite deja — et mieux, puisqu'elle la
@@ -4483,6 +4563,7 @@ button:hover:not(:disabled) {
 #regGo:hover:not(:disabled),
 #menuClose:hover:not(:disabled),
 #bilanGo:hover:not(:disabled),
+#finGo:hover:not(:disabled),
 #pauseResume:hover:not(:disabled),
 #roomCreate:hover:not(:disabled),
 #hubPassAskGo:hover:not(:disabled) {
@@ -4498,6 +4579,7 @@ button:hover:not(:disabled) {
 #regGo:active:not(:disabled),
 #menuClose:active:not(:disabled),
 #bilanGo:active:not(:disabled),
+#finGo:active:not(:disabled),
 #pauseResume:active:not(:disabled) {
   background: var(--go);
   box-shadow: var(--glow-go);

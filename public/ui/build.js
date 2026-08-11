@@ -7,10 +7,9 @@
 
 import { BOSS_CFG } from "/shared/bosses.js";
 import { CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, cardDetail } from "/shared/cards.js";
-import { CLASS_DEFAULT, SKILL3_NAME, classAt } from "/shared/classes.js";
+import { CLASS_DEFAULT, SKILL3_NAME, SKILL_HEAL_MODE, classAt } from "/shared/classes.js";
 import { CFG, PLAYER_COLORS, fullMods, powerIndex } from "/shared/game_state.js";
 import { SIGNAL } from "/shared/palette.js";
-import { TL_CFG } from "/shared/timeline.js";
 import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, myId, ownedCounts, phase, skills } from "../core/state.js";
 import { deaths } from "../render/fx.js";
 import { nameOf } from "../render/stage.js";
@@ -45,6 +44,11 @@ function buildInfo(id) {
     kills: live?.kills ?? row?.kills ?? 0,
     deaths: live?.deaths ?? row?.deaths ?? 0,
     damage: Math.round(live?.damage ?? row?.damage ?? 0),
+    /* L'intervalle de tir EFFECTIF, et l'etat qui dit s'il est comparable.
+       Il n'existe qu'en jeu — au salon et au bilan on retombe sur la part
+       cartes, faute d'instant a decrire. */
+    fireInterval: live?.fireInterval ?? 0,
+    healMode: !!(live?.skillFlags & SKILL_HEAL_MODE),
   };
 }
 /* Les multiplicateurs EFFECTIFS, calcules par la meme fonction que la
@@ -53,16 +57,19 @@ function buildInfo(id) {
    calcul ici aurait donne deux resultats differents sur l'ecran dont le seul
    but est de verifier un chargement.
 
-   Le palier se DEDUIT du segment et du beat, comme la saturation se deduit de
-   la liste d'ennemis : le serveur l'a deja envoye sous une autre forme, le
-   retransmettre serait payer deux fois. */
+   LE NIVEAU D'EQUIPE, tel quel. Il etait DEDUIT — segment x beats + beat — et
+   la deduction ne pouvait pas tomber juste : le niveau se GAGNE a l'experience
+   (D3), il n'a aucun rapport avec la position dans le script. « Cœur de forge »
+   (+degats par niveau) s'affichait donc faux sur le seul ecran dont le but est
+   de verifier un chargement. Le serveur l'envoie deja dans l'instantane (cle
+   `xl`), et le bilan le porte aussi — rien a ajouter au reseau. */
 function buildMultipliers(info) {
   const others = [];
   for (const id of buildRoster()) if (id !== info.id) others.push(ownedCounts(id));
-  const tier = latest?.segment
-    ? ((latest.segment - 1) * TL_CFG.BEATS + (latest.beat ?? 0)) + 1
-    : 1;
-  return fullMods(info.counts, others, info.cls ?? CLASS_DEFAULT, tier);
+  const niveau = phase === PHASE_ROUND
+    ? (latest?.teamLevel ?? 1)
+    : (lastResult?.level ?? 1);
+  return fullMods(info.counts, others, info.cls ?? CLASS_DEFAULT, niveau);
 }
 /* Un multiplicateur se lit « ×1,84 » et non « +84 % » : c'est la forme sous
    laquelle on compare deux joueurs d'un coup d'oeil, et celle du tableau des
@@ -78,7 +85,9 @@ function fmtMul(v) {
    juge sur sa chance ET sur son multiplicateur, et « ×1,38 » cache les deux. */
 const BUILD_MODS = [
   { nom: "dégâts", get: m => m.damageMul },
-  { nom: "cadence", get: m => 1 / Math.max(0.01, m.fireIntervalMul) },
+  // `live` : cette ligne peut etre remplacee par la valeur mesuree du tick, cf.
+  // `modsChipsHtml`. C'est la seule dont la part cartes ne dit pas la verite.
+  { nom: "cadence", get: m => 1 / Math.max(0.01, m.fireIntervalMul), live: true },
   { nom: "critique", get: m => 1 + m.critChance * (m.critMul - 1),
     fmt: m => `${Math.round(m.critChance * 100)} % · ${fmtMul(m.critMul)}` },
   { nom: "rayon", get: m => m.areaMul },
@@ -169,9 +178,22 @@ function powerBlockHtml(mods) {
 /* Les puces de multiplicateurs, en HTML plutot qu'ecrites dans un noeud : le
    bilan les reaffiche telles quelles. Deux rendus separes auraient diverge au
    premier reglage — c'est la meme raison qui a fait exporter `fullMods`. */
-function modsChipsHtml(mods) {
+function modsChipsHtml(mods, live) {
   return BUILD_MODS.map(d => {
-    const v = d.get(mods);
+    let v = d.get(mods);
+    /* CADENCE : l'intervalle REELLEMENT applique quand on l'a. La part cartes
+       seule ignorait frenesie, adrenaline, surcharge, bascule vive et le
+       `rateFlat` des reliques — c'est-a-dire tout ce qui bouge en combat, et
+       c'est cette ligne muette qui a masque pendant six lots la perte de
+       cadence a l'entree en combat de boss.
+       MODE SOIN EXCLU : sa cadence a sa propre base (`HEAL_MODE_INTERVAL`),
+       donc son rapport a `FIRE_INTERVAL` ne se lirait pas comme un
+       multiplicateur de cadence de tir. On retombe alors sur la part cartes,
+       qui est ce que la ligne a toujours montre. Meme repli quand le chiffre
+       manque (hors manche, ou serveur anterieur : `fireInterval` vaut 0). */
+    if (d.live && live?.fireInterval > 0 && !live.healMode) {
+      v = CFG.FIRE_INTERVAL / live.fireInterval;
+    }
     // Vert quand c'est un gain, ambre quand c'en est un cout : la grammaire de
     // couleur du depot, sur la seule ligne du panneau ou un chiffre peut aller
     // dans les deux sens.
@@ -214,7 +236,7 @@ export function renderBuild() {
     `<div class="buildStat"><span class="val">${escapeHtml(fmtBig(val))}</span>` +
     `<span class="lab">${escapeHtml(lab)}</span></div>`).join("");
 
-  buildMods.innerHTML = modsChipsHtml(mods);
+  buildMods.innerHTML = modsChipsHtml(mods, info);
 
   /* LES TROIS COMPETENCES, avec leur touche : la fenetre sert aussi a se
      rappeler ce que fait la classe d'un allie qu'on ne joue jamais.

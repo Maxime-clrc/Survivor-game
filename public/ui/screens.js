@@ -15,13 +15,13 @@ import { CONFORT, MILESTONES, PROG_CFG, TREES, slotsFor, tierCost } from "/share
 import { RELIC_RARITY, relicById, relicPrice } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { drawSprite, frameOf } from "/sprites.js";
-import { INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, amSpectator, bilanOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, tally, ws } from "../core/state.js";
+import { INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, tally, ws } from "../core/state.js";
 import { netPerf } from "../net/interp.js";
 import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaMilestonesEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaMilestonesEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 /* --- hub des salles (plan infra) ---------------------------------------------- */
 
@@ -61,8 +61,12 @@ function syncTopbar() {
   /* `#brief` masque la barre au meme titre que `#cards` : on lit son role sous
      minuterie, un fil d'Ariane et un bouton de reglages n'ont rien a faire
      par-dessus. */
+  /* `#fin` masque la barre pour la meme raison que `#cards` et `#brief` : on y
+     lit un verdict, un fil d'Ariane et un bouton de reglages par-dessus
+     donneraient une sortie laterale a un ecran qui n'en a qu'une. */
   const masque = (cardsEl && !cardsEl.hidden) || (loadingEl && !loadingEl.hidden)
     || (gate && !gate.hidden)
+    || (finEl && !finEl.hidden)
     || (document.getElementById("brief")?.hidden === false);
 
   const vue = masque ? null : TOPBAR_SCREENS.find(s => { const e = s.el(); return e && !e.hidden; });
@@ -189,7 +193,7 @@ function syncLeaving(el) {
   });
   /* `#pause` se prend par le document et non par `pauseEl` : cette constante-la
      est declaree bien plus bas, donc encore en zone morte ici. */
-  const screens = [gate, loadingEl, hubScreenEl, panel, bilanEl, menuEl, cardsEl,
+  const screens = [gate, loadingEl, hubScreenEl, panel, bilanEl, finEl, menuEl, cardsEl,
                    settingsEl, document.getElementById("pause"),
                    document.getElementById("brief")];
   for (const el of screens) {
@@ -220,7 +224,7 @@ function syncLeaving(el) {
    salon, du hub et de la progression sont RECONSTRUITES a chaque diffusion,
    donc chaque rendu aurait a rebrancher ses noeuds — c'est le meme piege que
    `.settled`, et il se serait paye en ecouteurs fuites. */
-const UI_SOUND_SCREENS = "#gate, #hubScreen, #panel, #menu, #bilan, #settings, #topbar, #pause";
+const UI_SOUND_SCREENS = "#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause";
 const UI_SOUND_TARGETS = 'button, a, summary, tr.clickable, input[type="range"]';
 /* LA SELECTION PORTE PLUS LOIN QUE LE SURVOL, et c'est la seule difference
    entre les deux listes. Le survol suit le POINTEUR, donc il suit exactement la
@@ -402,8 +406,10 @@ export function renderResume() {
     ? `Une manche tourne encore dans « ${salle.name} »`
     : `Ta salle « ${salle.name} » est toujours ouverte`;
 
+  // Meme correctif que la liste des salles : `info()` envoie `segment`, jamais
+  // `wave` — l'encart annonçait « Vague 1 en cours » a toute manche en cours.
   const ou = salle.state === 1
-    ? `Vague ${Math.max(1, salle.wave || 0)} en cours`
+    ? `Étape ${Math.max(1, salle.segment || 0)}/6 en cours`
     : "Au salon";
   const qui = salle.count > 0
     ? `${salle.count} joueur${salle.count > 1 ? "s" : ""} présent${salle.count > 1 ? "s" : ""}`
@@ -494,13 +500,16 @@ export function renderRooms() {
     /* La sous-ligne dit ce que `.roomState` ne disait pas : « SALON » ne
        reprend que le contexte de l'ecran. La difficulte et l'avancement sont
        les deux informations qui permettent de choisir une salle SANS y entrer.
-       Le verrou n'apparait ici QUE hors manche : en manche, la vague est plus
+       Le verrou n'apparait ici QUE hors manche : en manche, l'etape est plus
        utile, et le glyphe du cadenas porte deja l'information. */
     const mode = DIFFICULTIES[r.diff]?.label ?? "normal";
-    // Une manche vient d'etre lancee et la premiere vague n'est pas encore
-    // levee (`wave` vaut 0 pendant moins d'une seconde) : « vague 0 » se lirait
-    // comme un compteur casse.
-    const etat = r.state === 1 ? `vague ${Math.max(1, r.wave || 0)} en cours`
+    // L'ETAPE et non la vague : `info()` envoie `segment` depuis le lot P,
+    // `wave` n'existe plus — la ligne affichait donc « vague 1 » pour toutes
+    // les salles en manche, quelle que soit leur avancee. Le `Math.max(1, …)`
+    // reste, pour une autre raison : `info()` met `segment` a 0 hors manche, et
+    // une salle qui bascule en manche a l'instant du rendu afficherait
+    // « étape 0 », ce qui se lit comme un compteur casse.
+    const etat = r.state === 1 ? `étape ${Math.max(1, r.segment || 0)}/6 en cours`
       : r.locked ? "protégée par mot de passe"
       : "en attente de joueurs";
     btn.querySelector(".roomSub").textContent = `${mode} · ${etat}`;
@@ -531,7 +540,7 @@ hubRefreshBtn.onclick = () => {
    jeter un oeil avant de jouer.
    Meme desarmement d'une seconde que l'actualisation, en miroir du frein
    serveur — les deux partagent d'ailleurs ce frein cote hub. */
-export let boardData = null;      // [difficulte][rang] -> { pseudo, time, wave }
+export let boardData = null;      // [difficulte][rang] -> { pseudo, time }
 let boardDiff = 1;         // normal par defaut, comme le vote
 hubBoardBtn.onclick = () => {
   if (!connected || inRoom) return;
@@ -1067,7 +1076,10 @@ export function refreshPanel() {
   showHud(phase === PHASE_ROUND);
   // Le bilan passe DEVANT le salon et non par-dessus : tant que les deux
   // etaient le meme ecran, le joueur ne lisait jamais le sien.
-  if (phase === PHASE_ROUND || bilanOpen) { panel.hidden = true; return; }
+  // `finOpen` compte au meme titre que `bilanOpen` : le salon arrive avec le
+  // `roundEnd` et se peindrait dessous, ce qui est exactement le defaut qui
+  // avait fait sortir le bilan du salon.
+  if (phase === PHASE_ROUND || bilanOpen || finOpen) { panel.hidden = true; return; }
   panel.hidden = false;
 
   const isHost = myId === hostId;
@@ -1098,11 +1110,17 @@ export function refreshPanel() {
      savoir si quelqu'un est encore en train de lire les cartes de classe.
      La garde vit AUSSI dans room.js — desarmer un bouton est de l'affichage,
      pas une regle. */
-  const manquants = lobby.filter(l => !l.ready);
+  /* EN SOLO, PERSONNE NE MANQUE — et la regle est celle de `notReady()` cote
+     serveur, recopiee ici parce que les deux cotes doivent compter la MEME
+     chose. Le bouton disparait plutot que de rester sans effet : le depot refuse
+     un controle qui repond au clic sans rien changer, et « 1 joueur sur 1 est
+     prêt » se lit comme un compteur casse. */
+  const solo = lobby.length <= 1;
+  const manquants = solo ? [] : lobby.filter(l => !l.ready);
   const me = lobby.find(l => l.id === myId);
   const jeSuisPret = !!me?.ready;
 
-  readyBtn.hidden = false;
+  readyBtn.hidden = solo;
   readyBtn.textContent = jeSuisPret ? "Je ne suis plus prêt" : "Je suis prêt";
   readyBtn.classList.toggle("on", jeSuisPret);
 
@@ -1119,15 +1137,21 @@ export function refreshPanel() {
   const maClasse = classAt(me?.cls ?? CLASS_DEFAULT).nom;
   const mode = DIFFICULTIES[difficulty]?.label ?? "normal";
   const prets = lobby.length - manquants.length;
-  launchSummaryEl.textContent =
-    `${maClasse} · difficulté ${mode} · ${prets} joueur${prets > 1 ? "s" : ""}`
-    + ` sur ${lobby.length} ${prets > 1 ? "sont prêts" : "est prêt"}`;
+  launchSummaryEl.textContent = solo
+    ? `${maClasse} · difficulté ${mode} · en solo`
+    : `${maClasse} · difficulté ${mode} · ${prets} joueur${prets > 1 ? "s" : ""}`
+      + ` sur ${lobby.length} ${prets > 1 ? "sont prêts" : "est prêt"}`;
 
   /* Griser sans expliquer fait passer le bouton pour une panne — meme regle
      que `.classOpt.taken`, qui nomme l'occupant au lieu de seulement griser.
      On NOMME donc qui manque, et au-dela de deux on compte : quatre pseudos
      dans une barre de 16 px de haut ne se lisent plus. */
-  if (manquants.length === 0) {
+  if (solo) {
+    // Branche SOLO en premier : sans elle, la branche « personne ne manque »
+    // annoncerait « tout le monde est prêt, spectateurs compris » a un joueur
+    // seul — une phrase qui parle d'une table qui n'existe pas.
+    waitMsg.textContent = "Tu joues seul. Lance quand tu veux.";
+  } else if (manquants.length === 0) {
     waitMsg.textContent = isHost
       ? "Tout le monde est prêt. Tout le monde entre en jeu, spectateurs compris."
       : `Tout le monde est prêt. En attente de ${hostName}…`;
@@ -1153,15 +1177,21 @@ function renderTeam() {
   if (!teamListEl) return;
   teamListEl.innerHTML = "";
 
+  /* Le decompte des prets suit le BOUTON : en solo il n'y en a plus, donc la
+     pastille se tait au lieu d'annoncer « 0 / 1 prêts » pour un etat que plus
+     rien ne permet de changer. Meme raison pour le liseré `.ready` des lignes —
+     la ligne d'equipe ne peut pas contredire un controle absent. */
+  const solo = lobby.length <= 1;
   const prets = lobby.filter(l => l.ready).length;
   if (teamReadyEl) {
-    teamReadyEl.textContent =
-      `${prets} / ${lobby.length} prêt${lobby.length > 1 ? "s" : ""}`;
+    teamReadyEl.textContent = solo
+      ? ""
+      : `${prets} / ${lobby.length} prêt${lobby.length > 1 ? "s" : ""}`;
   }
 
   for (const l of lobby) {
     const row = document.createElement("div");
-    row.className = "teamRow" + (l.ready ? " ready" : "");
+    row.className = "teamRow" + (!solo && l.ready ? " ready" : "");
 
     const cls = (l.cls === null || l.cls === undefined) ? null : classAt(l.cls);
     /* Le ping vaut -1 tant qu'aucun aller-retour n'est revenu : on affiche un
@@ -1239,14 +1269,23 @@ function renderHistory() {
     const mode = DIFFICULTIES[h.diffIndex]?.label ?? "?";
 
     /* DEUX cellules et une troisieme vide, pas trois pleines : la feuille
-       n'habille que `.histWhen` et `.histLabel`, et le mode comme la vague
+       n'habille que `.histWhen` et `.histLabel`, et le mode comme l'etape
        forment une seule information — « ce qu'on a joué et jusqu'où ». Les
-       separer sur deux colonnes les faisait lire comme deux mesures. */
+       separer sur deux colonnes les faisait lire comme deux mesures.
+
+       L'ETAPE et non la vague. La ligne lisait `h.wave`, champ que
+       `recordRound()` n'ecrit plus depuis le lot P : TOUTES les lignes de
+       l'historique affichaient « vague 0 » — le compteur casse que ce meme
+       commentaire redoutait ailleurs. Le NOM en plus du numero, comme le
+       bilan : « Crise » se redit, « 3/6 » se traduit.
+       Repli en tiret et non « étape 0 » : `history` vient du serveur, qui peut
+       etre reste sur une version anterieure pendant un deploiement. */
+    const etape = h.segment > 0 ? `${segmentName(h.segment)} (${h.segment}/6)` : "—";
     const row = document.createElement("div");
     row.className = "histRow";
     row.innerHTML =
       `<span class="histWhen">${escapeHtml(heure)}</span>` +
-      `<span class="histLabel">${escapeHtml(mode)} · vague ${h.wave | 0}</span>` +
+      `<span class="histLabel">${escapeHtml(mode)} · ${escapeHtml(etape)}</span>` +
       `<span></span>`;
     historyListEl.appendChild(row);
   }
@@ -1725,6 +1764,80 @@ function renderScores(rows, body = scoresBody) {
     body.appendChild(tr);
   }
 }
+/* --- l'ecran de fin de manche (0.8.7) ----------------------------------------
+   Ce qui vient d'arriver, AVANT les chiffres. Une manche se terminait sur
+   l'apparition d'un tableau de scores : la seule chose que le joueur voulait
+   savoir — je suis tombe, ou j'ai gagne, et jusqu'ou — se lisait en cherchant
+   un titre au-dessus d'une grille.
+
+   Le lot W refusait un ecran de victoire dedie, au nom de « moins d'ecrans
+   entre le joueur et ses chiffres ». Le defaut d'origine etait pourtant autre
+   chose : le salon restait affiche SOUS le bilan et lui volait l'attention —
+   deux ecrans se disputaient le meme instant. Ici il n'y a aucune concurrence,
+   `#fin` est seul, il porte trois chiffres a grande echelle et UNE action
+   nommee qui mene exactement la ou l'on allait deja.
+
+   Rien ne voyage : tout vient du `roundEnd` que le bilan lit deja. Et AUCUN
+   compte a rebours — un ecran qui se ferme tout seul redeviendrait le voile
+   qu'on traverse sans lire, ce que le bilan a fini par refuser pour de bon.
+   Corollaire : pas de minuteur, donc rien a nettoyer dans `closeFin`. */
+export function openFin(res) {
+  if (!finEl) return;
+  setFinOpen(true);
+  finEl.hidden = false;
+  panel.hidden = true;
+  bilanEl.hidden = true;
+
+  // OU l'on etait, comme le kicker du bilan — et pour la meme raison : ce sont
+  // les deux choses qui distinguent deux fins par ailleurs identiques.
+  if (finKicker) {
+    const mode = DIFFICULTIES[difficulty]?.label ?? "";
+    finKicker.textContent = [roomNameCur, mode].filter(Boolean).join(" · ");
+  }
+
+  /* Le verdict, en une phrase. « Tu es tombé » et non « Partie terminée » :
+     l'ecran ne resume pas, il dit ce qui vient de se passer a CELUI qui le
+     lit. Le bilan, juste apres, garde son titre descriptif. */
+  finEl.classList.toggle("win", !!res.victory);
+  finTitle.textContent = res.victory ? "Victoire" : "Tu es tombé";
+
+  /* TROIS chiffres, et pas un de plus : l'etape atteinte, le niveau, le temps
+     de survie. Ce sont ceux qu'on cite en se retournant vers la table. Tout le
+     reste — kills, degats, ventilation, tableau nominatif — est a un clic, et
+     c'est precisement le role du bouton. */
+  const etape = res.segment
+    ? `${segmentName(res.segment)} (${res.segment}/${TL_CFG.SEGMENTS})`
+    : "—";
+  finStats.innerHTML = [
+    ["étape atteinte", etape],
+    ["niveau", String(res.level ?? 1)],
+    ["survie", fmtTime(res.time)],
+  ].map(([lab, val]) =>
+    `<div class="finStat"><span class="val">${escapeHtml(val)}</span>` +
+    `<span class="lab">${escapeHtml(lab)}</span></div>`).join("");
+}
+export function closeFin() {
+  if (!finEl) return;
+  setFinOpen(false);
+  finEl.hidden = true;
+  // Meme piege que la classe de victoire du bilan : laissee en place, la manche
+  // suivante ouvrirait sur une fin de defaite habillee en gain.
+  finEl.classList.remove("win");
+}
+/* L'ENCHAINEMENT VERS LE BILAN VIT DANS LE CLIC, jamais dans `closeFin()`.
+   C'est exactement le piege deja documente pour `#brief`, dont le `briefDone`
+   part du bouton et non de `closeBrief()` : `closeFin` a quatre autres
+   appelants — manche interrompue, nouvelle manche, salle fermee, deconnexion —
+   dont aucun n'est une confirmation, et qui ne doivent surtout pas ouvrir le
+   bilan. */
+if (finGo) {
+  finGo.onclick = () => {
+    closeFin();
+    if (lastResult) showBilan(lastResult);
+    refreshPanel();
+  };
+}
+
 export function showBilan(res) {
   setBilanOpen(true);
   bilanEl.hidden = false;
@@ -1920,9 +2033,14 @@ function renderHurtBy(rows) {
 export function closeBilan() {
   setBilanOpen(false);
   bilanEl.hidden = true;
-  // La classe de victoire (lot N) se retire ICI : laissee en place, la manche
-  // suivante afficherait un bilan de defaite en vert.
-  bilanEl.classList.remove("victoire");
+  /* La classe de victoire (lot N) se retire ICI : laissee en place, la manche
+     suivante afficherait un bilan de defaite en vert. Elle s'appelle `win` —
+     c'est le nom que `showBilan` pose. Cette ligne retirait `victoire`, classe
+     qu'aucun chemin n'ajoutait : elle ne faisait rien, et les regles CSS ecrites
+     pour elle n'ont jamais eu de porteur. Le `toggle` de `showBilan` couvrait le
+     retrait, donc rien ne se voyait — c'est exactement le genre de faux filet
+     qu'on prend pour une securite. */
+  bilanEl.classList.remove("win");
   refreshPanel();
 }
 bilanGo.onclick = closeBilan;

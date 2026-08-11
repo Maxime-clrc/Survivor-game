@@ -183,6 +183,11 @@ export function sendAuth(msg) {
    le separant du salon. « Continuer » est le seul chemin, et il n'y en a
    qu'un — donc rien a deviner. */
 export let bilanOpen = false;
+/* L'ECRAN DE FIN, qui precede le bilan. Meme role que `bilanOpen` et pour la
+   meme raison : `refreshPanel()` doit tenir le salon ferme tant qu'il est la,
+   sinon le salon se peint dessous — c'est le defaut qui avait fait sortir le
+   bilan du salon. */
+export let finOpen = false;
 /* --- cartes d'amelioration ------------------------------------------------- */
 
 // Pastilles compactes pour le tableau de fin : une par carte distincte, avec
@@ -293,6 +298,7 @@ export function setBilanOpen(v) { bilanOpen = v; }
 export function setBombReadyAt(v) { bombReadyAt = v; }
 export function setBombStockSeen(v) { bombStockSeen = v; }
 export function setCardsPending(v) { cardsPending = v; }
+export function setFinOpen(v) { finOpen = v; }
 export function setCardsState(v) { cardsState = v; }
 export function setCardsTimerHandle(v) { cardsTimerHandle = v; }
 export function setConnected(v) { connected = v; }

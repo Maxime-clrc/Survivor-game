@@ -15,7 +15,7 @@ import { renderGateMode, renderGateSwitch, renderServerInfo } from "../ui/boot.j
 import { closeBuild } from "../ui/build.js";
 import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, pauseEl, registerFormEl, setGateBusy, setStatus, settingsEl, updateVersion, waitMsg } from "../ui/dom.js";
 import { closePause, renderPauseState } from "../ui/pause.js";
-import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderMeta, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
+import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderMeta, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
 
 export function connect() {
   setStatus("connexion…");
@@ -182,6 +182,7 @@ export function connect() {
         closeCards();
         closeMerchant();
         closeBilan();
+        closeFin();
         closeBuild();
         closePause();
         showHud(false);
@@ -361,6 +362,7 @@ export function connect() {
           closeCards();
           closeMerchant();
           closeBilan();
+          closeFin();
           closeBuild();
           closePause();
           refreshPanel();
@@ -419,6 +421,7 @@ export function connect() {
           closeCards();
           closeMerchant();
           closeBilan();
+          closeFin();
           closeBuild();
           closePause();
           refreshPanel();
@@ -439,9 +442,12 @@ export function connect() {
           closeMerchant();
           closeBuild();
           closePause();
-          // Le bilan s'ouvre AVANT `refreshPanel` : c'est lui qui tient le salon
-          // ferme tant qu'il est a l'ecran.
-          showBilan(msg);
+          /* L'ECRAN DE FIN s'ouvre AVANT `refreshPanel` — c'est lui qui tient
+             desormais le salon ferme, exactement comme le bilan le faisait.
+             Il prend sa place ici et pas ailleurs : dans le MEME `pushWorld`,
+             donc sur l'image qu'il commente, et le salon pousse derriere sort
+             apres lui. Le bilan, lui, s'ouvre au clic de « Voir les stats ». */
+          openFin(msg);
           refreshPanel();
         });
         break;
@@ -615,6 +621,7 @@ export function connect() {
     closeCards();
     closeMerchant();
     closeBilan();
+    closeFin();
     closeBuild();
     closePause();
     // Meme raison que dans `roomClosed` : une coupure en pleine manche renvoie

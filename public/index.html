@@ -517,6 +517,29 @@
   </div>
 </div>
 
+<!-- FIN DE MANCHE : ce qui vient d'arriver, avant les chiffres.
+     Une manche se terminait sur l'apparition d'un tableau de scores : la seule
+     chose que le joueur voulait savoir — je suis tombe, ou j'ai gagne, et
+     jusqu'ou — se lisait en cherchant un titre au-dessus d'une grille.
+
+     Ce que le lot W refusait, c'est DEUX ECRANS EN CONCURRENCE : le salon
+     restait affiche sous le bilan et lui volait l'attention. Ici il n'y a
+     aucune concurrence — cet ecran est seul, il porte trois chiffres et UNE
+     action, qui mene exactement la ou l'on allait deja.
+
+     Aucun message serveur nouveau : tout vient du `roundEnd` que le bilan lit
+     deja. Et AUCUN compte a rebours — un ecran qui se ferme tout seul
+     redeviendrait le voile qu'on traverse sans lire, ce que le bilan a
+     precisement fini par refuser. -->
+<div id="fin" class="overlay" hidden>
+  <div class="finWrap">
+    <div id="finKicker" class="sectionTitle"></div>
+    <h2 id="finTitle"></h2>
+    <div id="finStats"></div>
+    <button id="finGo">Voir les stats</button>
+  </div>
+</div>
+
 <!-- TERMINAL (lot H) : l'ecran de la progression permanente, plein ecran,
      ouvert depuis le bouton unique du salon. Les trois arbres se consultent
      par onglets de classe ; les emplacements — la contrainte qui structure

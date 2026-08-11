@@ -249,6 +249,105 @@
                    est du SOL, il s'annonce par sa geometrie permanente, et un son
                    n'ajoute rien a ce que l'oeil voit deja partir. Le mur qui cede
                    garde le sien — il n'arrive qu'une fois
+     0.8.6 quatre correctifs de simulation, plus l'ecran qui les rendait
+                   invisibles. Trois d'entre eux ont la MEME racine : le lot P a
+                   supprime le modele par vagues, mais sept lectures de champs
+                   disparus lui ont survecu. Elles ne plantaient pas, elles se
+                   taisaient — `undefined`, donc NaN, donc du silence.
+                   LES ECLATS RESTAIENT A ZERO APRES UNE RELANCE : `rerollRelic`
+                   facturait sur `this.wave`, donc un cout NaN — la garde de
+                   solde ne bloquait rien, le solde devenait NaN, et
+                   `JSON.stringify(NaN)` valant "null" le client lisait 0 et
+                   grisait tout le marchand pour le reste de la manche. Le prix
+                   AFFICHE se calculait deja sur le niveau : les deux ne
+                   portaient pas sur la meme grandeur. Meme racine :
+                   `finalVictory`, objet que personne ne lisait, portait
+                   `wave: undefined` — retire ; et trois libelles qui disaient
+                   encore « vague » (historique du salon fige a « vague 0 »,
+                   liste des salles et encart de reprise a « vague 1 »).
+                   LE BONUS DE CADENCE SURVIT AUX BOSS. Le balayage d'arrivee
+                   (`enemies = []`, sans passer par `_killEnemy`) faisait tomber
+                   30 cumuls de frenesie — +60 % de cadence — trois secondes
+                   apres le debut du combat, pour un premier renfort a la
+                   quinzieme. Mesure : intervalle 0,100 s puis 0,160 s des t=3 s
+                   avant, 0,100 s jusqu'a t=18 s apres. Les cumuls de kill
+                   recoivent un SURSIS, pas un gel : le contrat de la carte
+                   reprend des le premier renfort tue. Le balayage passe par un
+                   point unique, `_sweepEnemies` — l'autre site, l'evenement
+                   `chasse`, avait exactement le meme defaut.
+                   LES RECOLTES partent avec le reste : un cristal n'a aucune
+                   duree de vie, donc quatre nes avant un boss saturaient le
+                   plafond au sol pour toute la manche. Mesure sur 1800 s : 4
+                   points apparus avant, 25 apres, cinq boss traverses.
+                   « MEMOIRE GRAVEE » retrouve son unite — son drapeau etait
+                   remis a zero dans `_startWave`, disparu au lot P, donc
+                   l'epique a 45 eclats ne servait qu'UNE fois par manche. Elle
+                   se recharge par beat, dans `_startBeat`.
+                   « MEUTE » compte le boss (via `_bossTargets`) : elle rendait
+                   zero pendant tout le debut d'un combat, alors que la
+                   puissance s'applique bien aux degats du boss.
+                   Et la FENETRE DE BUILD cesse de mentir sur deux lignes : le
+                   niveau d'equipe est celui du snapshot (cle `xl`) au lieu
+                   d'une deduction impossible, et la cadence est l'intervalle
+                   EFFECTIF releve par le serveur (34e champ du tuple joueur,
+                   +0,25 % de poids d'instantane arene pleine). C'est cette
+                   ligne muette qui avait masque la perte de cadence
+     0.8.7 trois correctifs d'interface, et le plus cher tient en un caractere.
+                   L'ACCOLADE DE `#meta` N'ETAIT PAS FERMEE dans `ui.css`,
+                   depuis le lot D : un parseur CSS qui rencontre un bloc non
+                   ferme avale tout ce qui suit SANS une seule erreur, donc le
+                   navigateur ne lisait que 40 des 137 regles de la feuille.
+                   Personne ne l'avait vu parce que `menus.css`, ecrit apres et
+                   charge apres, en redeclare 65 : les ecrans avaient l'air
+                   habilles. Les 32 autres n'habillaient rien — titre de
+                   victoire et son animation, barre des provenances de degats du
+                   bilan, pastille de version et sa mention ambre, survol des
+                   lignes du tableau, liste de cartes de la fenetre de build.
+                   Meme famille que la balise `#vote` non fermee qui avait rendu
+                   quatre ecrans invisibles.
+                   C'etait aussi la vraie cause du « BANNIR » COUPE : `.cardBan`
+                   perdait son `align-self` et son remplissage, se retrouvait
+                   large comme la carte et colle au bord, donc l'ecretage
+                   arrondi le rognait. Texte coupe sur 16 px avant, 0 apres,
+                   sans toucher a la carte. Les regles mortes PAR DECISION
+                   partent avec (echeance de bilan, classe `victoire` que rien
+                   ne pose) plutot que de ressusciter un ecran qui n'existe pas.
+                   LE BOUTON « PRET » DISPARAIT EN SOLO : se declarer pret a
+                   soi-meme est un clic sans destinataire, et « 1 joueur sur 1
+                   est prêt » se lit comme un compteur casse. La regle vit dans
+                   `notReady()`, dont heritent la garde du `start` et la
+                   revalidation par tick. L'arrivee d'un deuxieme joueur pendant
+                   les trois secondes annule en NOMMANT la vraie raison — pas
+                   « X n'est plus prêt », personne ne s'etant jamais declare.
+                   UN ECRAN DE FIN DE MANCHE, avant le bilan : tombe ou
+                   victoire, l'etape, le niveau, le temps. Purement client,
+                   aucun message nouveau, aucun compte a rebours. Ce que le lot
+                   W refusait etait DEUX ECRANS EN CONCURRENCE — le salon sous
+                   le bilan — pas un ecran de plus
+     0.8.8 LES ENNEMIS CONTOURNENT LES OBSTACLES. Le repoussage par axe corrige
+                   une position deja fautive : il fait glisser le long du mur,
+                   mais le chemin reste une ligne droite vers le joueur, donc la
+                   horde rase la geometrie au lieu de l'eviter. Le vecteur est
+                   desormais BRAQUE sur un preavis, avant le deplacement, avec
+                   une force proportionnelle a la penetration de la sonde — meme
+                   patron que `ENEMY_SEPARATION`, rien de stocke sur l'entite,
+                   une passe par tick, rien au reseau. Le vecteur est
+                   renormalise (sinon on contourne plus vite qu'on avance), le
+                   cote se choisit du bord ou l'ennemi se trouve deja, et la
+                   parite de l'identifiant departage les arrivees frontales : la
+                   horde se separe en deux flux. Pas d'evitement en RECUL — un
+                   vecteur braque parcouru a l'envers ramenerait le tireur vers
+                   l'obstacle. `e.ang` n'est pas touche : le bouclier du bulwark
+                   protege ce qu'il regarde.
+                   Mesures, cauchemar, graine 1, deux joueurs, 600 s : taux de
+                   plaques 48,9 -> 34,5 % sur la friche et 12,9 -> 9,9 % sur
+                   l'usine, et surtout un tiers d'ennemis en moins se retrouvent
+                   derriere la geometrie (3599 -> 2734 echantillons). CPU p99
+                   2,1 -> 2,0 ms, sous le budget de 8. Population moyenne et
+                   temps au plafond INCHANGES : le plateau est regle par le
+                   debit face a ce que l'equipe nettoie, pas par les obstacles —
+                   c'est le defaut ouvert du lot X, l'evitement ne le touche pas.
+                   `ENEMY_AVOID_TURN` a 0 restitue l'ancien comportement
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -258,4 +357,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.5";
+export const VERSION = "0.8.8";

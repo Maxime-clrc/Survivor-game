@@ -89,6 +89,12 @@ export const bilanScoresBody = document.querySelector("#bilanScores tbody");
 export const bilanGo = document.getElementById("bilanGo");
 export const bilanKicker = document.getElementById("bilanKicker");
 export const bilanLeaveBtn = document.getElementById("bilanLeave");
+/* L'ECRAN DE FIN (0.8.7), qui precede le bilan. */
+export const finEl = document.getElementById("fin");
+export const finKicker = document.getElementById("finKicker");
+export const finTitle = document.getElementById("finTitle");
+export const finStats = document.getElementById("finStats");
+export const finGo = document.getElementById("finGo");
 export const volInput = document.getElementById("vol");
 export const volVal = document.getElementById("volVal");
 export const muteBtn = document.getElementById("mute");

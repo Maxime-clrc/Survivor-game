@@ -771,6 +771,8 @@ exactement ce qu'il faut regarder.
 
 **Chaque effet dessiné autour d'un personnage occupe une bande de rayon exclusive** (`RING_SHIELD`, `RING_STATUS`, `RING_SKILL`, `RING_BUFF0` dans `render/boss.js`, puis 3,7 m pour les lames orbitales, 8 m pour le givre, 8,5 m pour le rempart). **La règle vaut aussi autour d'un ENNEMI** : le halo d'élite occupe `r + 6` à `r + 8`, le liseré d'aura `r + 10` — une élite couverte est précisément la cible dont on veut lire les deux informations. Deux effets au même rayon reviennent à en perdre un : les lames orbitales disparaissaient dans l'anneau du champ de givre, et le joueur ignorait qu'il avait la carte. Les lames se dessinent en **passe séparée, par-dessus tout** (`drawOrbiters`), et le givre est un disque teinté **sans anneau**.
 
+**UN CHAMP DONT LA SEULE LECTURE EST MORTE SE SUPPRIME, IL NE SE RÉPARE PAS.** Le lot P a retiré le modèle par vagues et sept lectures de champs disparus lui ont survécu jusqu'en 0.8.6 — `this.wave`, `waveBoss`, `_startWave`. Aucune ne plantait : en JavaScript un champ absent rend `undefined`, donc `NaN` en arithmétique, donc du **silence**. Le coût réel a été un marchand grisé pour toute une manche, une relique épique réduite à un usage unique, et trois libellés d'interface figés sur une valeur fausse. Chercher les lectures orphelines fait partie de la suppression d'un système, et un `grep` du champ retiré est le seul moyen de le prouver.
+
 **Les snapshots sont des tableaux positionnels.** On ajoute des champs **à la fin, jamais au milieu**, et le client les lit avec une valeur de repli (`a[16] ?? 0`). Un onglet resté sur une version antérieure continue de fonctionner.
 
 **Les tableaux exportés sont ordonnés et l'index circule sur le réseau** : `POWERUP_TYPES`, `ENEMY_TYPES`, `DIFFICULTIES`, `CLASSES`, `STATUSES`, `BOSS_ROSTER`, `MECHS`. Insérer une entrée au milieu réécrit silencieusement le sens de tous les snapshots.
@@ -877,7 +879,7 @@ Trois règles indissociables : la constante est **dédiée** (la répulsion cont
 
 **`fullMods()` et `effectiveCards()` sont exportés par `game_state.js`, en fonctions pures.** La fenêtre de build affiche les multiplicateurs **réels** d'un joueur — « ×2,4 dégâts, ×1,8 cadence » explique le tableau des scores bien mieux que la liste des cartes. Recoder le repli côté client aurait donné deux implémentations qui divergent au premier réglage, sur précisément l'écran dont le seul but est de vérifier un chargement. Elles vivent dans `game_state.js` et non dans `cards.js` parce que le repli de classe a besoin de `classAt` — et `cards.js` ne doit dépendre de rien.
 
-**Le lancement attend que TOUS les présents aient confirmé, et la garde vit des DEUX côtés** (`notReady()` dans `room.js`, point de passage unique du `case "start"` et du libellé d'attente). Désarmer `#start` côté client est de l'**affichage**, pas une règle : un client modifié enverrait `{ t: "start" }` directement. Le drapeau est porté par le **client** et non par la salle — il suit le joueur, comme `cls` et `vote` — et se remet à zéro à **trois** endroits : au lancement de la manche (`startRound()` ; le salon se réaffiche entre deux manches, un `ready` hérité ferait démarrer la suivante sans que personne n'ait rien reconfirmé), à l'entrée dans une salle (`attach()` ; sinon on arriverait « prêt » dans un salon où l'on vient de mettre le pied), et à l'initialisation du client. `notReady()` **ne filtre pas les spectateurs**, contrairement à ce que la spécification de conception demandait : au salon, `spectator` dit « je n'ai pas joué la manche qui vient de finir », c'est un résidu et non une prévision — `startRound()` remet tout le monde à `spectator = false`, donc tous les présents entrent. Le bouton désarmé **nomme qui manque** (« en attente de Kiwi »), même règle que `.classOpt.taken` : un bouton qui ne répond pas passe pour une panne tant qu'on n'a pas lu pourquoi.
+**Le lancement attend que TOUS les présents aient confirmé, et la garde vit des DEUX côtés** (`notReady()` dans `room.js`, point de passage unique du `case "start"` et du libellé d'attente). Désarmer `#start` côté client est de l'**affichage**, pas une règle : un client modifié enverrait `{ t: "start" }` directement. Le drapeau est porté par le **client** et non par la salle — il suit le joueur, comme `cls` et `vote` — et se remet à zéro à **trois** endroits : au lancement de la manche (`startRound()` ; le salon se réaffiche entre deux manches, un `ready` hérité ferait démarrer la suivante sans que personne n'ait rien reconfirmé), à l'entrée dans une salle (`attach()` ; sinon on arriverait « prêt » dans un salon où l'on vient de mettre le pied), et à l'initialisation du client. `notReady()` **ne filtre pas les spectateurs**, contrairement à ce que la spécification de conception demandait : au salon, `spectator` dit « je n'ai pas joué la manche qui vient de finir », c'est un résidu et non une prévision — `startRound()` remet tout le monde à `spectator = false`, donc tous les présents entrent. Le bouton désarmé **nomme qui manque** (« en attente de Kiwi »), même règle que `.classOpt.taken` : un bouton qui ne répond pas passe pour une panne tant qu'on n'a pas lu pourquoi. **À UN SEUL JOUEUR, `notReady()` rend une liste vide** : se déclarer prêt à soi-même est un clic sans destinataire. La règle vit dans `notReady()` et nulle part ailleurs — le `case "start"` et `tickLaunch()` en héritent — et le client la recopie à l'identique (`lobby.length <= 1`) pour cacher `#readyBtn`, taire `#teamReady` et écrire une ligne d'attente qui parle d'un joueur seul. Effet de bord assumé : un deuxième joueur qui arrive pendant les trois secondes fait repasser la salle en règle multi et annule le lancement — en nommant **l'arrivée**, jamais un « X n'est plus prêt » que personne n'a jamais été.
 
 **Le lancement est DIFFÉRÉ de trois secondes, et n'importe qui les interrompt.**
 `case "start"` n'ouvre plus la manche : il arme `room.launchAt` et diffuse
@@ -1087,7 +1089,7 @@ serveur serait faux pour tout le monde sauf lui.
 
 **L'ENCHAÎNEMENT DES ÉCRANS A UN POINT DE PASSAGE UNIQUE : `openNextScreen()`.** Cartes tant qu'il reste des niveaux, **puis** le marchand — les cartes changent la puissance, donc ce qu'on veut acheter. Trois appelants (`_killBoss`, `_addXp`, `resumeRound`) posaient chacun leur bout de la séquence, et le marchand n'était plus appelé **du tout** : `openMerchant()` était branché sur `_endWave`, disparu avec les vagues au lot P — les reliques n'apparaissaient dans aucune manche depuis, sans qu'une seule ligne soit fausse. C'est le défaut classique du chaînage dispersé, et la raison de la méthode.
 
-**`computeMods()` ne connaît qu'un chargement et qu'un instant.** Ce qui dépend du temps (« Cœur de forge », +5 % par vague) ou des autres joueurs (« Vœu partagé ») est résolu par `_recomputeMods()` côté `GameState`, jamais là-bas — sinon la fonction cesse d'être rejouable telle quelle dans un script de mesure. Corollaire : `_startWave()` rejoue les mods des porteurs de « Cœur de forge », et toute prise de carte rejoue **toute la table** quand un « Vœu partagé » est en jeu.
+**`computeMods()` ne connaît qu'un chargement et qu'un instant.** Ce qui dépend du temps (« Cœur de forge », +5 % par vague) ou des autres joueurs (« Vœu partagé ») est résolu par `_recomputeMods()` côté `GameState`, jamais là-bas — sinon la fonction cesse d'être rejouable telle quelle dans un script de mesure. Corollaire : la montée de NIVEAU rejoue les mods des porteurs de « Cœur de forge » (`_addXp`, son unité depuis D3), et toute prise de carte rejoue **toute la table** quand un « Vœu partagé » est en jeu.
 
 **`computeMods()` fait deux passes.** `apply(m, n)` d'abord, puis `applyAfter(m, n, ctx)` pour les cartes conditionnelles, dont la valeur dépend du reste du chargement. Une carte conditionnelle évaluée dans la première passe verrait un `mods` à moitié construit : sa valeur dépendrait de l'ordre d'insertion dans la Map, donc de l'ordre dans lequel le joueur a pris ses cartes.
 
@@ -1112,7 +1114,7 @@ serveur serait faux pour tout le monde sauf lui.
 
 **Le sceau se pose UNE fois** (`b.sealDone`) : sans ce drapeau, le tirage d'attaque le relancerait toutes les trois secondes et sa fenêtre de 22 s ne se refermerait jamais. Un échec le **repose** — la dernière barre ne se franchit pas en échouant. Son cumul est un **temps** (`m.cur` en secondes, pas un effectif) qui **redescend à mi-vitesse** quand on lâche : une mécanique de vingt secondes qui ne regarderait que la dernière image punirait l'esquive au lieu de la coordination.
 
-**La victoire finale vit dans `state.finalVictory`, posée sur `state.time`** — l'horloge autoritaire de la simulation. Le serveur ne recalcule rien, il persiste ce chiffre : c'est ce qui rend le classement vérifiable. Elle est relevée par `endRound()` **avant** `awardRun`, qui la consomme, et le record est **par difficulté** (`bestFinal`, clé = index de `DIFFICULTIES`) : une case unique aurait poussé tout le monde à jouer en calme pour figurer au tableau. Le classement se consulte au **hub** et non au Terminal — il compare des comptes entre eux, sa place est là où l'on est justement hors salle.
+**La victoire finale vit dans `state.victory` et l'instant de la mise à mort dans `state.finalKill`**, tous deux posés sur `state.time` — l'horloge autoritaire de la simulation. Le serveur ne recalcule rien, il persiste ces chiffres : c'est ce qui rend le classement vérifiable. (Un `state.finalVictory` a coexisté sans jamais être lu, et portait de surcroît un `wave: undefined` : retiré en 0.8.6.) La victoire est relevée par `endRound()` **avant** `awardRun`, qui la consomme, et le record est **par difficulté** (`bestFinal`, clé = index de `DIFFICULTIES`) : une case unique aurait poussé tout le monde à jouer en calme pour figurer au tableau. Le classement se consulte au **hub** et non au Terminal — il compare des comptes entre eux, sa place est là où l'on est justement hors salle.
 
 **Le bannissement (lot J) emprunte le mécanisme des jalons.** `bannedCards` (profil, à plat) s'unit à `lockedCards()` dans le `meta.locked` que la salle construit : le filtre « n'apparaît jamais dans un tirage » existait déjà, en amont du tirage. Bannir **consomme la phase** (mêmes gardes que `pickCard` : offre courante, phase ouverte, idempotence), écrit **immédiatement** (hook `persist` — l'écran de cartes est une pause entre deux vagues, pas une vague), et la **clôture de dépendances** (`banClosure`, champ déclaratif `dependsOn` dans `cards.js` — aucune carte n'en porte aujourd'hui) s'écrit à plat : le tirage n'a jamais un graphe à résoudre. `p.locked` est mis à jour dans la foulée pour les écrans suivants de la même manche. Pas de débannissement ; l'onglet Bannies du Terminal est de la consultation seule. Un pool vidé par les bans retombe sur la carte de secours (`ravitaillement`) — testé jusqu'au ban total.
 
@@ -1296,6 +1298,8 @@ Ajouter une entrée impose de traiter les deux côtés :
 | glyphe posé sur un joueur | `a` / `b` d'une entrée de `state.marks` | `PLAYER_MARK` + `paintMarkGlyph()` |
 | effet possédé visible en jeu | rien — déduit de la liste de cartes | `EFFECT_BADGES` dans `icons.js`, posé par `ui/screens.js` : bande d'effets actifs du HUD |
 | façon de mourir d'un type | rien — déduit du type déjà porté par le snapshot | `DEATH_BURST` dans `render/fx.js` : compte, taille, vitesse, durée, halo et ouverture de gerbe |
+| intervalle de tir effectif | `p.fireInterval`, écrit par `_players()` au point de calcul unique ; **34ᵉ** élément du tuple joueur, ajouté en fin | `fireInterval` dans `ingest.js` + ligne « cadence » de `ui/build.js` (repli sur la part cartes si absent ou en mode soin) |
+| écran de fin de manche | rien — déduit du `roundEnd` que le bilan lit déjà | `#fin`, `openFin()` / `closeFin()`, `finOpen` dans `core/state.js`, garde de `refreshPanel()` |
 | pause | message `pause` (client → serveur), `paused` (serveur → tous) ; `setPaused()` est le point de passage unique | `#pause`, `pauseReal`, `renderPauseState()` |
 | hub des salles | messages `listRooms` · `createRoom` · `joinRoom` · `leaveRoom` (client → serveur) ; `rooms` · `roomJoined` · `joinRoomError` (motifs `pleine` · `disparue` · `motdepasse` · `plafond`) · `roomClosed` (serveur → client) — routés par `hub.js`, jamais par une salle | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité (compte + session) | messages `register` · `login` · `loginToken` · `logout` · `changePass` (client → serveur) ; `register/login/loginToken/…` dans `progress_store.js` ; réponses `welcome{pseudo,token?,dup}` · `authError{motif,fatal?}` · `passChanged` · `loggedOut` ; ni hachage ni mot de passe ne voyagent jamais vers un client | `#gate` (trois modes : reprise / connexion / création), bloc compte du hub, `survivor.token` en localStorage |
@@ -1654,9 +1658,25 @@ panneaux et les cartes, `--radius-ctl: 12px` pour les champs et les boutons. La
 règle des angles durs sert la lisibilité **à un dixième de seconde** — c'est
 l'arène et le HUD, où une forme mal lue coûte une mort. Hors combat on a le
 temps, et un rayon franc sépare visiblement le poste de contrôle du jeu
-lui-même. Ne pas l'étendre : `#cards`, `#build`, `#pause`, `#hud` et
-`admin.html` gardent 2 px, et si l'un d'eux change d'aspect c'est qu'une règle
-de `menus.css` fuit.
+lui-même.
+
+**L'exception couvre aussi les écrans de CHOIX** — `#cards` et `#merchant` —
+et cette phrase corrige la précédente, qui affirmait le contraire et était
+vérifiée fausse : `menus.css` restyle `#cards` sur six blocs, `#merchant`
+réutilise `.cardOpt` à la lettre, et `ui.css` n'a plus une seule règle sur eux.
+Ce ne sont pas des instruments qu'on lit en un dixième de seconde mais des
+panneaux qu'on lit — la même raison que les menus, donc le même rayon.
+`#hud`, `#build`, `#pause` et `admin.html`, eux, gardent 2 px, et **là** un
+changement d'aspect signalerait bien une fuite.
+
+**Corollaire appris à la dure : un changement d'aspect inexpliqué peut ne rien
+devoir à la cascade.** L'accolade de `#meta` n'était pas fermée dans `ui.css`
+depuis le lot D, si bien que le navigateur ne lisait que 40 de ses 137 règles —
+tout ce qui suivait était mort, sans une seule erreur. On cherchait la fuite du
+mauvais côté : ce n'était pas `menus.css` qui débordait, c'était `ui.css` qui
+se taisait. Même famille que la balise `#vote` non fermée. Avant d'accuser une
+feuille d'en écraser une autre, **compter les règles réellement parsées**
+(`document.styleSheets[i].cssRules.length`) : c'est une mesure, pas une lecture.
 
 **Le biseau a disparu des actions principales : `--bevel` et `--glow-go` ne
 coexistent pas.** L'arbitrage avait été fait pour `#bilanGo` seul, il vaut pour
@@ -1926,6 +1946,24 @@ angles y restent **durs** (le rayon franc dit « poste de contrôle du joueur »
 l'angle dur dit « machinerie ») et le kicker est **ambre** et non cyan — le
 cyan dit « il faut y aller » partout ailleurs, ici il faut dire « tu es hors du
 jeu, sur un outil qui touche aux données de tout le monde ».
+
+**UN NOUVEL ÉCRAN S'ENREGISTRE À NEUF ENDROITS, et aucun n'est facultatif.**
+La liste a été reconstituée deux fois par lecture — pour `#brief`, puis pour
+`#fin` — et un oubli ne produit jamais d'erreur : il produit un écran qui ne
+sort pas en fondu, qui garde la barre supérieure par-dessus un verdict, ou qui
+reste peint sous le suivant.
+
+| Où | Quoi |
+|---|---|
+| `public/index.html` | le markup, plus le commentaire de la barre supérieure s'il la masque |
+| `ui/dom.js` | les nœuds, en `const` exportées |
+| `core/state.js` | le drapeau d'ouverture (`xOpen`) **et** son setter |
+| `ui/screens.js`, tableau `screens` | l'observateur qui pose `.settled` et `.leaving` |
+| `ui/screens.js`, `TOPBAR_SCREENS` **ou** `masque` | il porte le fil d'Ariane, ou il cache la barre — jamais les deux |
+| `ui/screens.js`, `UI_SOUND_SCREENS` | sans quoi ses boutons sont muets |
+| `ui/screens.js`, `refreshPanel()` | la garde, si l'écran doit tenir le salon fermé |
+| `menus.css` | `fadeIn`, `screenIn` sur le wrapper, `[hidden].leaving`, `contentOut`, `[hidden] { display: none }` |
+| `menus.css` | les deux listes de curseur, et la liste `#… small` |
 
 **Un changement d'écran est un CROISEMENT, jamais une coupure.** L'entrée était
 soignée (`screenIn` : l'écran arrive à 1,015, descend de 18 px et fait sa mise

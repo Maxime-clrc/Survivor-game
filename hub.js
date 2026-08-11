@@ -224,7 +224,10 @@ export function createHub(store, log, commit = "") {
       for (const k of Object.keys(bf)) {
         const d = Number(k);
         if (!par[d]) continue;
-        par[d].push({ pseudo: pr.pseudo, time: bf[k].time | 0, wave: bf[k].wave | 0 });
+        // `wave` a voyage ici jusqu'en 0.8.6 : `recordFinal` ne l'ecrit pas
+        // (il classe sur le niveau) et `renderBoard` ne le lit pas — un champ
+        // mort qui transportait `0` a chaque ligne.
+        par[d].push({ pseudo: pr.pseudo, time: bf[k].time | 0 });
       }
     }
     // Le TEMPS classe, et seulement lui : c'est un classement de vitesse.

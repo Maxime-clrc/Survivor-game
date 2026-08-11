@@ -57,6 +57,10 @@ export function ingest(msg) {
       cd3: a[30] ?? 0, skill3: a[31] ?? 0,
       // Eclats (lot I) : la monnaie de manche. Repli 0 — serveur anterieur.
       eclats: a[32] ?? 0,
+      // Intervalle de tir EFFECTIF, frenesie et reliques comprises. Le repli 0
+      // se lit « inconnu » et non « instantane » : la fenetre de build teste
+      // `> 0` et retombe sur la part cartes, ce qu'elle a toujours montre.
+      fireInterval: a[33] ?? 0,
     }])),
     /* Le champ de type porte deux informations pour n'en couter qu'une seule
        sur chacun des 200 ennemis, vingt fois par seconde : le type et le rang

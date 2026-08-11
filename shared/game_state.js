@@ -166,6 +166,16 @@ export const CFG = {
      cessait alors de faire mal, ce qui est le bug inverse. */
   PLAYER_SEPARATION: 1,
   PLAYER_BITE: 1,
+  /* EVITEMENT DES OBSTACLES. Deux constantes dediees, pour la meme raison que
+     `PLAYER_SEPARATION` juste au-dessus : ce n'est ni la repulsion souple du
+     troupeau ni la contrainte contre un joueur, c'est un braquage ANTICIPE — il
+     agit avant le contact, pas apres.
+     `LOOK` est le preavis devant le rayon de la creature ; `TURN` la force
+     maximale du braquage (atan 1,4 = 54 degres). A 0, on retrouve exactement le
+     comportement d'avant 0.8.8, ce qui rend la mesure comparable dans les deux
+     sens. Voir `_enemies`. */
+  ENEMY_AVOID_LOOK: 46,
+  ENEMY_AVOID_TURN: 1.4,
   MAX_ENEMIES: 200,
 
   /* Elites. Cadences par un minuteur et non par un tirage a chaque
@@ -494,6 +504,12 @@ export const CFG = {
   BOSS_CONTACT_DAMAGE: 30,
   BOSS_ATTACK_CD: 3.2,
   BOSS_SUMMON_EVERY: 15,     // le boss appelle lui-meme ses renforts
+  /* Sursis accorde aux cumuls de KILL quand l'arene est balayee d'un coup —
+     arrivee d'un boss, evenement `chasse`. Voir `_sweepEnemies`. La valeur est
+     `BOSS_SUMMON_EVERY` plus la decroissance normale : a l'arrivee des renforts
+     le joueur retrouve exactement la fenetre qu'il aurait eue en horde. A 0,
+     on retrouve le comportement d'avant 0.8.6. */
+  SWEEP_STACK_GRACE: 18,
   BOSS_SUMMON_BASE: 3,
   BOSS_ADD_CAP: 55,          // plafond des renforts : garde le combat lisible
   BOSS_SWEEP_R: 1000,
@@ -1323,12 +1339,14 @@ export class GameState {
        `finalDone` : le Noyau ne revient jamais, meme si la manche continue
        apres sa mort — sans lui, `_rosterCleared()` reste vrai et toute vague
        de boss suivante le rappellerait.
-       `finalVictory` : l'entree du classement au temps, posee a sa mort et lue
-       UNE fois par la salle (qui la persiste puis la vide). Elle vit ici et non
-       dans la Room parce que c'est `state.time` qui fait foi — l'horloge
-       autoritaire de la simulation, pas celle du serveur. */
+       Il a existe a cote un `finalVictory`, cense porter l'entree du classement
+       au temps. RETIRE en 0.8.6 : personne ne le lisait — le hub enregistre
+       depuis `state.victory` et `state.finalKill`, et `recordFinal` classe sur
+       le NIVEAU — et il portait `wave: this.wave`, donc `undefined`, seconde
+       lecture du champ disparu au lot P. Un champ mort qui transporte en plus
+       une valeur fausse est pire qu'un champ absent : il se supprime, il ne se
+       repare pas. */
     this.finalDone = false;
-    this.finalVictory = null;
 
     this.time = 0;
     this.spawnAcc = 0;
@@ -1448,6 +1466,11 @@ export class GameState {
       downed: false,
       revive: 0,
       fireCd: 0,
+      /* Intervalle de tir EFFECTIF du dernier tick, ecrit par `_players` au
+         point de calcul unique et lu par la fenetre de build. Declare ici avec
+         sa valeur nue pour que la forme d'objet reste stable pour V8, comme les
+         champs du medic ailleurs. */
+      fireInterval: CFG.FIRE_INTERVAL,
       hitCd: 0,
       dashCd: 0,
       dashT: 0,        // temps d'esquive restant, aussi les images d'invulnerabilite
@@ -1522,10 +1545,12 @@ export class GameState {
       rageStacks: 0,       // « Carnage »
       rageT: 0,
       pacteUsed: 0,        // « Pacte de fer » : le bouclier a deja ete donne
-      /* Reliques (lot K) — drapeaux d'usage unique par manche, meme rege que
-         `pacteUsed` : `relicBatteryUsed` (Batterie de secours, une recharge),
-         `relicMemoireUsed` (Memoire gravee, une competence par VAGUE — le
-         drapeau se remet a zero dans _startWave, pas ici). */
+      /* Reliques (lot K), meme forme que `pacteUsed`. `relicBatteryUsed`
+         (Batterie de secours) est un usage unique PAR MANCHE, par contrat
+         ecrit. `relicMemoireUsed` (Memoire gravee) ne l'est pas : il se remet a
+         zero a chaque beat, dans `_startBeat` — il l'etait dans `_startWave`,
+         disparu au lot P, ce qui avait silencieusement transforme une epique a
+         45 eclats en usage unique. */
       relicBatteryUsed: 0,
       relicMemoireUsed: 0,
 
@@ -2143,6 +2168,16 @@ export class GameState {
          soustrait bien de l'intervalle. */
       interval = Math.max(CFG.FIRE_INTERVAL_MIN, interval + this._relicSum(p, "rateFlat"));
 
+      /* L'intervalle EFFECTIF est retenu ici, au point de calcul unique, parce
+         que le client ne peut pas le refaire : frenesie, adrenaline, surcharge,
+         bascule vive et `rateFlat` de relique ne circulent pas — la surcharge
+         ne voyage que comme un bit de masque. La fenetre de build n'affichait
+         donc que la part CARTES, ce qui a masque pendant six lots la perte de
+         cadence a l'entree en combat de boss : la ligne ne bougeait pas, donc
+         rien ne paraissait casse. Un nombre par joueur, soit quatre par
+         instantane la ou la liste d'ennemis en compte seize cents. */
+      p.fireInterval = interval;
+
       /* PAS DE TIR PENDANT L'ECHAUFFEMENT. Le tir part tout seul — c'est la
          regle du jeu — donc sans cette garde le briefing se lisait derriere une
          arene ou quatre joueurs arrosaient le vide en continu : du bruit, des
@@ -2280,11 +2315,10 @@ export class GameState {
      ---------------------------------------------------------------------- */
 
   /* Relique « Memoire gravee » (lot K) : la PREMIERE competence utilisee a
-     chaque vague a sa recharge immediatement reinitialisee. Le drapeau est
-     leve ici et remis a zero dans `_startWave` — une vague est la frontiere
-     naturelle, pas un temps fixe. La recharge depend de la classe :
-     le Rempart reprend son rempart, le Soigneur rebascule a volonte, le
-     Tireur retrouve sa charge de bombe. */
+     chaque MINUTE DE HORDE a sa recharge immediatement reinitialisee. Le
+     drapeau est leve ici et remis a zero dans `_startBeat`. La recharge depend
+     de la classe : le Rempart reprend son rempart, le Soigneur rebascule a
+     volonte, le Tireur retrouve sa charge de bombe. */
   _relicMemoire(p) {
     if (p.relicMemoireUsed || !p.relics.has("memoire_gravee")) return;
     p.relicMemoireUsed = 1;
@@ -3228,6 +3262,20 @@ export class GameState {
         if (e.hp <= 0) continue;
         if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= r2) near++;
       }
+      /* Le BOSS compte comme un ennemi proche, via `_bossTargets()` — les
+         Jumeaux comptent donc pour deux, comme partout ailleurs. Il vit dans
+         `this.boss` et non dans `this.enemies`, si bien que « Meute » rendait
+         zero pendant tout le debut d'un combat : l'arene vient d'etre balayee
+         et les renforts n'arrivent qu'a la quinzieme seconde, alors que
+         `p.power` est bel et bien applique aux degats du boss. Une carte qui
+         promet « plus d'ennemis autour, plus de degats » et qui rend zero quand
+         une masse de 90 px de rayon est collee au joueur ne se lit pas comme un
+         reglage, elle se lit comme une panne.
+         UN par entite, jamais un poids selon le gabarit : un poids serait un
+         chiffre que la carte n'annonce pas. */
+      for (const b of this._bossTargets()) {
+        if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 <= r2) near++;
+      }
       bonus += Math.min(m.packMax, m.packStep * near);
     }
     if (p.rageStacks > 0) bonus += m.ragePerKill * p.rageStacks;
@@ -3840,6 +3888,21 @@ export class GameState {
        premier levier de la table de recuperation du lot X : s'il faut rendre
        des PV plus souvent, c'est la que ca se regle, en un endroit et en clair. */
 
+    /* « Memoire gravee » (lot K) se recharge ICI. Son unite etait la VAGUE et
+       son drapeau etait remis a zero dans `_startWave`, disparu au lot P :
+       depuis, la relique s'utilisait UNE fois par manche au lieu d'une fois par
+       vague — une epique a 45 eclats reduite a un usage unique, sans que rien
+       ne le dise.
+       Le beat et non le segment : une vague durait moins d'une minute, un
+       segment en dure cinq plus un combat de boss, donc le segment aurait
+       divise sa valeur par cinq. Et le beat est le seul decoupage a avoir un
+       point de passage unique — celui-ci, `_nextSegment` y passant aussi.
+       Corollaire : pendant un combat de boss aucun beat ne commence (l'horloge
+       de horde est figee), donc la relique reste a un usage PAR COMBAT — ce qui
+       est exactement ce que « a chaque vague » voulait dire quand la vague
+       etait un boss. */
+    for (const p of this.players.values()) p.relicMemoireUsed = 0;
+
     // Le beat change : l'evenement du beat precedent s'acheve, celui du nouveau
     // s'ouvre. Deux appels et non un test disperse — c'est le seul endroit du
     // fichier ou un beat commence.
@@ -3878,10 +3941,12 @@ export class GameState {
 
     /* `chasse` : un seul gibier, aucun autre ennemi. Le balayage est le meme
        qu'a l'arrivee d'un boss et pour la meme raison — la cible se perdrait
-       dans la masse — et comme lui il ne credite NI score NI experience : il
-       passe par `enemies = []` et pas par `_killEnemy`. */
+       dans la masse — donc il passe par le MEME point, `_sweepEnemies` : il ne
+       credite ni score ni experience, et il accorde le meme sursis aux cumuls
+       de kill. Les deux sites l'ecrivaient a la main, et les deux perdaient la
+       cadence de la meme facon. */
     if (id === EV_CHASSE) {
-      this.enemies = [];
+      this._sweepEnemies();
       this.effects.push({
         id: this._nextId++,
         x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2,
@@ -4173,9 +4238,24 @@ export class GameState {
     return true;
   }
 
-  /* Relance de l'offre contre des eclats, cout croissant avec la vague. */
+  /* Relance de l'offre contre des eclats, cout croissant avec le NIVEAU
+     D'EQUIPE.
+
+     Il facturait sur `this.wave` — un champ que le lot P a supprime avec le
+     modele par vagues, et dont il restait deux lectures. Le defaut ne plantait
+     pas, il se taisait : `undefined - 1` donne NaN, `p.eclats < NaN` est FAUX
+     donc la garde de solde ne bloquait rien, et `p.eclats -= NaN` rendait le
+     solde definitivement NaN. `JSON.stringify(NaN)` valant "null", le snapshot
+     transportait null, le client lisait 0, masquait la ligne des eclats et
+     grisait tous les boutons du marchand — une seule relance fermait l'ecran
+     pour le reste de la manche.
+
+     La salle AFFICHAIT deja le bon prix (`relicRerollCost(state.level)`, deux
+     appels dans `room.js`) : le prix montre et le prix facture n'etaient pas
+     calcules sur la meme chose, et c'est ce qui designe le coupable. Le
+     parametre de la fonction s'appelle `niveau` depuis le debut. */
   rerollRelic(p) {
-    const cost = relicRerollCost(this.wave);
+    const cost = relicRerollCost(this.level);
     if (p.eclats < cost) return false;
     p.eclats -= cost;
     this.relicOffers.set(p.id, this._offerRelics(p));
@@ -4508,13 +4588,20 @@ export class GameState {
      logique que l'experience commune, celui qui reste au contact du groupe
      ne subit pas de penalite de revenu. */
   _harvests(dt) {
-    // Pas d'apparition pendant un combat de boss : l'arene utile est reduite
-    // a une vue, un point pose dehors serait une promesse inatteignable.
+    /* Pas d'apparition quand l'arene est NUE : l'arene utile est reduite a une
+       vue, un point pose dehors serait une promesse inatteignable.
+       `biomeNu` et non `this.boss`, pour deux raisons. Il couvre `bossPending`,
+       et l'ordre de `step()` le rend necessaire : `_segmentTick` tourne AVANT
+       `_harvests`, donc un point pouvait naitre dans l'image meme ou l'arene
+       allait se resserrer. Et le test portait `!this.waveBoss`, champ qui n'a
+       jamais existe apres le lot P — une garde morte a cote d'une garde vraie,
+       ce qui la faisait lire comme suffisante. Un seul accesseur, celui qui
+       eteint deja les obstacles et les dangers pour la meme raison. */
     this.harvestCd -= dt;
     if (this.harvestCd <= 0) {
       this.harvestCd = CFG.HARVEST_MIN
         + Math.random() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
-      if (!this.boss && !this.waveBoss
+      if (!this.biomeNu
           && this.harvests.length < CFG.HARVEST_MAX_GROUND) {
         const at = this._harvestPoint();
         if (at) {
@@ -4851,14 +4938,71 @@ export class GameState {
         }
       }
 
+      /* EVITEMENT ANTICIPE DES OBSTACLES (0.8.8).
+
+         `_obstacleBlock`, plus bas, corrige une position DEJA fautive : il fait
+         glisser le long du mur, ce qui evite le placage — c'est ecrit la-bas,
+         « deux cents ennemis restaient plaques contre un pilier sans le
+         contourner et la population montait au plafond ». Mais il ne se
+         declenche qu'AU CONTACT : le chemin reste une ligne droite vers le
+         joueur, donc la horde passe son temps a raser la geometrie au lieu de
+         la contourner. C'est le defaut rapporte.
+
+         On braque donc le VECTEUR, sur un preavis, avant de bouger. Meme patron
+         de gain que `ENEMY_SEPARATION` : une correction proportionnelle a la
+         penetration, une seule iteration par tick, et RIEN de stocke sur
+         l'entite — `_spawnEnemy` ne change pas, la forme d'objet reste stable
+         pour V8. `e.ang` ne pouvait de toute facon pas servir de memoire de
+         braquage : il est recalcule a chaque tick depuis la cible.
+
+         `e.ang` n'est PAS touche, et c'est une decision de mecanique : le
+         bouclier du bulwark protege ce qu'il regarde. Il continue donc de faire
+         face au joueur tout en longeant l'obstacle — un pas de cote, pas une
+         ouverture de garde.
+
+         Le vecteur est RENORMALISE : sans ca la vitesse monterait avec l'angle,
+         et un ennemi irait plus vite en contournant qu'en ligne droite.
+         `ENEMY_AVOID_TURN` a 0 restitue exactement le comportement d'avant. */
+      let sx = dx / d, sy = dy / d;
+      if (this.obstacles.length) {
+        const look = e.r + CFG.ENEMY_AVOID_LOOK;
+        const px = e.x + sx * look, py = e.y + sy * look;
+        const b = this._obstacleAt(px, py, e.r);
+        if (b) {
+          const hw = b.w / 2 + e.r, hh = b.h / 2 + e.r;
+          const pen = Math.min(hw - Math.abs(px - b.x), hh - Math.abs(py - b.y));
+          /* Le cote se choisit au produit vectoriel, donc du bord ou l'ennemi se
+             trouve DEJA — c'est aussi l'arete la plus proche, donc le detour le
+             plus court. Arrive pile sur le centre, la parite de l'identifiant
+             tranche : la horde se separe alors en deux flux autour du pilier au
+             lieu de choisir tous le meme bord et de faire la queue. */
+          const rx = e.x - b.x, ry = e.y - b.y;
+          const cross = sx * ry - sy * rx;
+          const gauche = Math.abs(cross) > 1e-6 ? cross > 0 : (e.id & 1) === 0;
+          const tx = gauche ? -sy : sy;
+          const ty = gauche ? sx : -sx;
+          const k = CFG.ENEMY_AVOID_TURN * Math.min(1, pen / look);
+          sx += tx * k; sy += ty * k;
+          const n = Math.hypot(sx, sy) || 1;
+          sx /= n; sy /= n;
+        }
+      }
+
       if (def.shootCd) {
         // Les tireurs gardent leurs distances et arrosent de loin
         e.shootCd -= dt;
         // e.standoff et non def.standoff : un retardataire l'a mis a zero pour
         // lui seul, il vient donc au contact au lieu de reculer.
         const approach = d > e.standoff ? 1 : -0.35;
-        e.x += (dx / d) * e.speed * mul * approach * dt;
-        e.y += (dy / d) * e.speed * mul * approach * dt;
+        /* PAS D'EVITEMENT EN RECUL : sous son `standoff`, le tireur parcourt le
+           vecteur A L'ENVERS, et un vecteur braque parcouru a l'envers l'envoie
+           vers l'obstacle au lieu de l'en ecarter. Quelques images a vitesse
+           negative sont exactement le cas que le repoussage par axe traite
+           bien — on lui laisse. Meme raison pour le medic qui fuit. */
+        const ux = approach > 0 ? sx : dx / d;
+        const uy = approach > 0 ? sy : dy / d;
+        e.x += ux * e.speed * mul * approach * dt;
+        e.y += uy * e.speed * mul * approach * dt;
         if (e.shootCd <= 0 && d < 520) {
           e.shootCd = def.shootCd;
           /* SALVE : trois projectiles en eventail au lieu d'un, a cadence
@@ -4884,12 +5028,14 @@ export class GameState {
            change. */
         const want2 = e.fleeT > 0 ? e.standoff * 1.6 : e.standoff;
         const approach = d > want2 ? 1 : -0.6;
-        e.x += (dx / d) * e.speed * mul * approach * dt;
-        e.y += (dy / d) * e.speed * mul * approach * dt;
+        const ux = approach > 0 ? sx : dx / d;
+        const uy = approach > 0 ? sy : dy / d;
+        e.x += ux * e.speed * mul * approach * dt;
+        e.y += uy * e.speed * mul * approach * dt;
         this._medic(e, def, dt);
       } else {
-        e.x += (dx / d) * e.speed * mul * dt;
-        e.y += (dy / d) * e.speed * mul * dt;
+        e.x += sx * e.speed * mul * dt;
+        e.y += sy * e.speed * mul * dt;
       }
 
       /* TRAINEE, posee a la DISTANCE parcourue et non au temps ecoule. Sur une
@@ -5154,10 +5300,9 @@ export class GameState {
            de 200 ennemis deja presents : sa silhouette, ses zones et sa barre
            de vie se perdaient dans la masse, et personne ne pouvait concentrer
            son feu sur lui. Ce nettoyage cree la respiration qui manquait.
-           Aucun point n'est credite : ce n'est pas un cadeau de score. */
-        this.enemies = [];
-        this.shots = [];
-        this.zones = [];
+           Aucun point n'est credite : ce n'est pas un cadeau de score — mais
+           les cumuls de kill recoivent un sursis, voir `_sweepEnemies`. */
+        this._sweepEnemies();
 
         /* ARENE DE BOSS (lot I). Le combat se joue dans des bounds resserres
            a la taille d'UNE VUE, ancres sur le centre de gravite de l'equipe :
@@ -5166,7 +5311,7 @@ export class GameState {
            fait le reste — la horde des renforts la traverse, les joueurs non.
            Les joueurs eloignes sont RAMENES au bord : le combat commence, il
            n'attend personne. C'est le mecanisme de constriction du lot 5,
-           reutilise tel quel — `_bossDead` rouvre l'arene entiere. */
+           reutilise tel quel — `_killBoss` rouvre l'arene entiere. */
         const c = this._teamCentroid();
         const bw = CFG.VIEW_W, bh = CFG.VIEW_H;
         const bcx = Math.min(Math.max(c.x, bw / 2), CFG.ARENA_W - bw / 2);
@@ -7202,14 +7347,22 @@ export class GameState {
 
   // Un point est-il dans un obstacle. Sert au placement (bonus au sol, anneau
   // d'apparition) : poser un bonus dans un pilier revient a le supprimer.
-  _inObstacle(x, y, margin = 0) {
+  /* Quel obstacle VIVANT contient ce point, dilate d'une marge. Rend la boite ou
+     `null`. Un seul test AABB dans le fichier : `_inObstacle` n'est plus que sa
+     forme booleenne, et l'evitement du lot 0.8.8 a besoin de la boite elle-meme
+     — sans elle il faudrait un second parcours pour retrouver ce qu'on vient de
+     toucher. */
+  _obstacleAt(x, y, margin = 0) {
     for (const b of this.obstacles) {
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(y - b.y) < b.h / 2 + margin) {
-        return true;
+        return b;
       }
     }
-    return false;
+    return null;
+  }
+  _inObstacle(x, y, margin = 0) {
+    return !!this._obstacleAt(x, y, margin);
   }
 
   /* Un projectile touche-t-il un obstacle. `dmg` positif vient d'un JOUEUR et
@@ -8567,6 +8720,56 @@ export class GameState {
     return worst;
   }
 
+  /* BALAYAGE DE L'ARENE. Point de passage unique des deux endroits qui vident
+     la horde d'un coup : l'arrivee d'un boss et l'evenement `chasse`. Les deux
+     le faisaient a la main, et les deux avaient exactement le meme defaut.
+
+     Aucun credit — ni score, ni experience : c'est la regle ecrite dans
+     `_killEnemy`, un ennemi qui DISPARAIT n'a pas ete tue, et sans elle il
+     suffirait d'arreter de jouer en fin de segment. Mais les CUMULS
+     TRANSITOIRES ne sont pas un cadeau : le joueur les avait deja gagnes, et il
+     les perdait parce qu'on lui retirait toute cible.
+
+     Mesure du defaut : frenesie a 30 cumuls (+60 % de cadence), minuteur de
+     `FRENZY_DECAY` = 3 s, premier renfort du boss a `BOSS_SUMMON_EVERY` = 15 s.
+     La cadence tombait donc douze secondes avant qu'un seul kill ne redevienne
+     possible — « certains bonus de cartes ne sont plus appliques a l'entree en
+     combat de boss », et l'exemple rapporte etait la cadence de tir.
+
+     Un SURSIS et non un GEL. Un gel rendrait le cumul permanent pour les
+     quatre a six minutes du combat, ce qui contredit le contrat de la carte
+     (« retombe des qu'on arrete ») et demanderait un drapeau a lever dans
+     `_killBoss` — c'est-a-dire un drapeau qu'on oublie de lever. Ici il n'y a
+     rien a defaire : le premier renfort tue reecrit le minuteur a sa valeur
+     normale par `_killEnemy`, et le contrat reprend tout seul.
+
+     On ne prolonge QUE ce dont le kill est la seule source. `hpPerKill`,
+     `cdPerKill`, `mods.harvest` et l'onde de mort sont instantanes, il n'y a
+     rien a garder ; `elanT` MONTE (temps sans avoir ete touche) ; « Dernier
+     souffle » est indexe sur les PV. `p.power` est recalcule chaque tick par
+     `_momentum` et RELIT `rageStacks`, donc prolonger `rageT` corrige aussi la
+     part carnage de la puissance sans y toucher. */
+  _sweepEnemies() {
+    this.enemies = [];
+    this.shots = [];
+    this.zones = [];
+    /* Les recoltes partent avec le reste, et c'est un CORRECTIF, pas une
+       symetrie decorative : un cristal n'a aucune duree de vie. Quatre cristaux
+       nes avant un boss saturaient `HARVEST_MAX_GROUND` pour le reste de la
+       manche — plus aucun point ne pouvait naitre, donc plus un seul eclat — et
+       ils etaient de toute facon hors des bornes resserrees, donc injouables. */
+    this.harvests = [];
+
+    for (const p of this.players.values()) {
+      if (p.frenzyStacks > 0) {
+        p.timers.frenzy = Math.max(p.timers.frenzy, CFG.SWEEP_STACK_GRACE);
+      }
+      if (p.rageStacks > 0) {
+        p.rageT = Math.max(p.rageT, CFG.SWEEP_STACK_GRACE);
+      }
+    }
+  }
+
   _killEnemy(e, ownerId) {
     this.totalKills++;
     /* Le GIBIER est tombe : `_segmentTick` le constate au tick suivant et cloture
@@ -8723,20 +8926,15 @@ export class GameState {
     const final = this.boss && this.boss.kind === BOSS_FINAL;
     if (this.boss && !final) this._merchantDue();
 
-    /* VICTOIRE FINALE (lot N). L'entree du classement au temps est posee ici,
-       au seul endroit qui sait que le Noyau vient de tomber. `state.time` est
-       l'horloge AUTORITAIRE de la simulation : le serveur ne recalcule rien,
-       il persiste ce chiffre — c'est ce qui rend le classement verifiable.
-       `finalDone` ferme la porte : la manche peut continuer (l'equipe est
-       vivante), mais le Noyau ne reviendra pas. */
-    if (final) {
-      this.finalDone = true;
-      this.finalVictory = {
-        time: Math.round(this.time),
-        wave: this.wave,
-        difficulty: this.diffIndex,
-      };
-    }
+    /* VICTOIRE FINALE (lot N). `finalDone` ferme la porte : la manche peut
+       continuer (l'equipe est vivante), mais le Noyau ne reviendra pas.
+
+       L'entree de classement qui vivait ici a ete RETIREE en 0.8.6 : elle
+       n'avait aucun lecteur. Le hub enregistre depuis `state.victory` et
+       `state.finalKill` (`awardRun`), et `recordFinal` classe sur le niveau.
+       Elle portait de plus `wave: this.wave` — le champ disparu au lot P, donc
+       `undefined` — si bien que le seul contenu qui lui restait etait faux. */
+    if (final) this.finalDone = true;
     this.boss = null;
     this.boss2 = null;
     this.shots = [];
@@ -8959,6 +9157,14 @@ export class GameState {
            Un nombre par joueur, et le seul chiffre que le client ne peut pas
            deduire — le rendement d'un point de recolte est tire au sort. */
         p.eclats,
+        /* Intervalle de tir EFFECTIF, en fin de tableau. Le client ne peut pas
+           le refaire : frenesie, adrenaline, surcharge, bascule vive et
+           `rateFlat` de relique ne circulent pas, et la fenetre de build
+           n'affichait donc que la part cartes — c'est cette ligne muette qui a
+           masque la perte de cadence a l'entree en combat de boss. Un nombre
+           par joueur, quatre par instantane. Jamais nul, donc `trimTail` ne le
+           rogne pas ; un client anterieur lit 0 et retombe sur la part cartes. */
+        r2(p.fireInterval),
       ]),
       /* Le rang d'elite voyage dans le champ de type (+100) : un drapeau separe
          aurait coute un nombre de plus sur chacun des 200 ennemis. Decodage
