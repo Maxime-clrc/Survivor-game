@@ -323,6 +323,16 @@
       <input id="musVol" type="range" min="0" max="100" step="5" title="volume de la musique">
       <span id="musVolVal">50 %</span>
     </div>
+    <!-- LA SOURCE AUDIO. Le choix vit ICI, sur l'ecran d'entree, parce que
+         c'est le seul moment ou l'on regle avant d'entendre quoi que ce soit —
+         exactement l'argument des deux curseurs au-dessus. Le meme bouton
+         existe dans les Parametres et dans le menu pause : `audioUi` dans
+         `ui/screens.js` les tient synchronises, comme les volumes.
+         UN SEUL reglage pour la musique ET le son de tir : les deux sont le
+         meme essai, revenir en arriere doit tout rendre a la synthese. -->
+    <div id="musicSrcRow">
+      <button id="musSrc" title="basculer entre la bande son calculée et les pistes audio">Bande son : pistes</button>
+    </div>
   </div>
   </div>
 </div>
@@ -622,6 +632,11 @@
         <span>Musique</span>
         <input id="setMusVol" type="range" min="0" max="100" step="5">
         <span class="setVal" id="setMusVolVal">50 %</span>
+      </div>
+      <div class="setRow">
+        <span>Bande son</span>
+        <button id="setSrc" class="srcBtn">Pistes</button>
+        <span class="setVal" id="setSrcVal">fichiers</span>
       </div>
     </section>
 
@@ -923,6 +938,9 @@
       <span class="musGlyph" title="musique">♫</span>
       <input id="pauseMusVol" type="range" min="0" max="100" step="5" title="volume de la musique">
       <span id="pauseMusVolVal">50 %</span>
+    </div>
+    <div id="pauseSource">
+      <button id="pauseSrc" title="basculer entre la bande son calculée et les pistes audio">Bande son : pistes</button>
     </div>
 
     <button id="pauseBuild">Consulter son build</button>

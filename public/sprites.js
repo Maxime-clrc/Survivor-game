@@ -483,6 +483,18 @@ function tankAccents(g, R) {
   g.moveTo(-9, -11); g.lineTo(-9, 11);
   g.moveTo(3, -13);  g.lineTo(3, 13);
   g.stroke();
+
+  // Ligne de plaque frontale et deux rivets d'epaule : la carapace lit comme
+  // des plaques rapportees plutot qu'une coque pleine — reference :
+  // docs/refs/bestiaire-socle.png.
+  g.strokeStyle = R.ombre;
+  g.lineWidth = 1.4;
+  g.beginPath(); g.moveTo(11, -12); g.lineTo(11, 12); g.stroke();
+  g.fillStyle = R.ombre;
+  for (const s of [-1, 1]) {
+    g.beginPath(); g.arc(-9, 9 * s, 1.4, 0, 7); g.fill();
+  }
+
   // Un seul point chaud, dans le museau : petit, parce que la tete est enfoncee.
   g.fillStyle = R.accent;
   g.beginPath(); g.arc(19, 0, 2.8, 0, 7); g.fill();
@@ -495,12 +507,20 @@ function tankAccents(g, R) {
 function shooterPath(k) {
   const recoil = k.recoil ?? 0;   // -1 vise (canon recule), +1 tire (avance)
   return g => {
-    // Trois segments empiles, du plus gros au plus petit vers l'arriere.
+    /* Trois segments empiles, du plus gros au plus petit vers l'arriere, puis un
+       CANON qui proemine vraiment plutot qu'un simple museau tapere — reference :
+       docs/refs/bestiaire-socle.png, qui montre un long appendice frontal. Un
+       epaulement (17+recoil*2.5) casse la largeur avant le tube fin : c'est ce
+       qui fait lire « un canon sort d'un corps » plutot que « le corps s'amincit ».
+       Le tube reste sous 30 (HALF) meme a pleine detente (recoil=1 -> 28), la
+       marge que la case de 60 laisse deja au Rempart. */
     g.moveTo(9, -9);
-    g.lineTo(13 + recoil * 3, -3.5);
-    g.lineTo(22 + recoil * 4, -3);   // canon
-    g.lineTo(22 + recoil * 4, 3);
-    g.lineTo(13 + recoil * 3, 3.5);
+    g.lineTo(13 + recoil * 2.5, -3.5);
+    g.lineTo(17 + recoil * 2.5, -3.2);
+    g.lineTo(25 + recoil * 3, -1.5);
+    g.lineTo(25 + recoil * 3, 1.5);
+    g.lineTo(17 + recoil * 2.5, 3.2);
+    g.lineTo(13 + recoil * 2.5, 3.5);
     g.lineTo(9, 9);
     g.lineTo(-2, 12);
     g.lineTo(-9, 7);
@@ -511,13 +531,25 @@ function shooterPath(k) {
   };
 }
 
-function shooterAccents(g, R) {
-  // Oeil cyclopeen : le seul type a n'en avoir qu'un, et c'est ce qui le
-  // distingue du grunt a douze pixels.
-  g.fillStyle = R.contour;
-  g.beginPath(); g.arc(1, 0, 6.4, 0, 7); g.fill();
-  g.fillStyle = R.accent;
-  g.beginPath(); g.arc(2, 0, 3.8, 0, 7); g.fill();
+function shooterAccents(recoil) {
+  return (g, R) => {
+    // Oeil cyclopeen : le seul type a n'en avoir qu'un, et c'est ce qui le
+    // distingue du grunt a douze pixels.
+    g.fillStyle = R.contour;
+    g.beginPath(); g.arc(1, 0, 6.4, 0, 7); g.fill();
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(2, 0, 3.8, 0, 7); g.fill();
+
+    // Reflet de canon : une ligne claire qui suit le tube, pour le lire comme
+    // du metal plutot qu'un simple museau — reference : docs/refs/bestiaire-socle.png.
+    g.strokeStyle = R.lumiere;
+    g.lineWidth = 1;
+    g.globalAlpha = 0.6;
+    g.beginPath();
+    g.moveTo(17 + recoil * 2.5, -0.8); g.lineTo(24 + recoil * 3, -0.8);
+    g.stroke();
+    g.globalAlpha = 1;
+  };
 }
 
 function shooterShadow(g, R) {
@@ -945,6 +977,20 @@ function dpsClassPath(k) {
     g.lineTo(24, 2);
     g.lineTo(24, -2);
     g.lineTo(6, -3);
+    g.closePath();
+
+    /* Aileron arriere, UN SEUL cote : l'asymetrie structurelle que les neuf
+       monstres portent tous et qu'aucune des trois classes n'avait avant le
+       Soigneur (antenne dorsale, lot 6) — meme raisonnement, applique ici.
+       Sous-trace independant, ferme par son propre `closePath` : enchaine au
+       dard en `lineTo` il en creuserait une entaille, le bug documente pour
+       le grunt et le tank. Un seul cote, donc pas de `mirrored()` a faire —
+       rien ne le recouvre, la regle de l'aire signee ne s'applique qu'aux
+       appendices EN PAIRE. */
+    g.moveTo(-9, 0);
+    g.lineTo(-15, 9);
+    g.lineTo(-9, 6);
+    g.closePath();
   };
 }
 
@@ -954,11 +1000,30 @@ const ENEMY_SHAPES = ["idle", "walkA", "walkB", "open"];
 const DEATH_STEPS = ["die0", "die1", "die2"];
 const CLASS_SHAPES = ["idle", "move", "shoot", "down"];
 
+/* EXPERIENCE JETABLE — sprites raster pour les 3 classes, a la demande de
+   l'utilisateur, pour juger du style en jeu avant de decider quoi que ce soit.
+   Pas destinee a rester : aucun appelant hors `buildAtlas` ne doit dependre de
+   ce mecanisme, et il disparait avec le test. Voir `public/assets/raster_test/`. */
+function rasterTestPaint(img, k) {
+  return g => {
+    if (k.down) g.globalAlpha = 0.55;
+    // 0.78 et non 0.92 : c'est le taux de remplissage du Rempart VECTORIEL
+    // (diametre ~48 sur une case de 60). Le lisere permanent (`paintOutline`,
+    // x1.16) scale avec le sprite qu'on lui donne — un raster plus gros que le
+    // vectoriel dans sa case fait un halo plus epais en pixels ecran, meme a
+    // ratio 1.16 identique.
+    const scale = Math.min((CELL * 0.78) / img.width, (CELL * 0.78) / img.height);
+    const w = img.width * scale, h = img.height * scale;
+    g.drawImage(img, -w / 2, -h / 2, w, h);
+    g.globalAlpha = 1;
+  };
+}
+
 /* Table de generation. Une entree par case de l'atlas : son nom, et la fonction
    qui la peint. Elle est construite avant tout dessin pour que la taille de
    l'atlas soit connue d'un coup — recompter les cases en cours de route
    demanderait de tout redessiner. */
-function plan() {
+function plan(raster) {
   const jobs = [];
 
   const enemies = [
@@ -969,7 +1034,7 @@ function plan() {
     { path: tankPath,    accents: () => tankAccents, edge: 3, floats: false,
       shapes: [{ plates: 1, step: 0 }, { plates: 1, step: 1 }, { plates: 1, step: -1 },
                { plates: 0, step: 0 }] },
-    { path: shooterPath, accents: () => shooterAccents, edge: 2, floats: true,
+    { path: shooterPath, accents: k => shooterAccents(k.recoil ?? 0), edge: 2, floats: true,
       shapes: [{ recoil: 0 }, { recoil: 0.3 }, { recoil: -1 }, { recoil: 1 }] },
     { path: broodPath,   accents: null, edge: 2, floats: false,
       shapes: [{ swell: 0 }, { swell: 0.35 }, { swell: -0.25 }, { swell: 1.3 }] },
@@ -1024,12 +1089,13 @@ function plan() {
   ];
 
   classes.forEach(def => {
+    const rImg = raster?.[def.id];
     CLASS_SHAPES.forEach((nom, i) => {
       const k = { move: i === 1 ? 1.5 : 0, shoot: i === 2, down: i === 3 };
       const path = def.path(k);
       jobs.push({
         name: `c_${def.id}_${nom}`,
-        paint: g => {
+        paint: rImg ? rasterTestPaint(rImg, k) : g => {
           if (k.down) g.globalAlpha = 0.55;
           if (def.shadow) def.shadow(g, NEUTRAL);
           bake(g, NEUTRAL, path, def.accents(k), def.edge);
@@ -1107,6 +1173,13 @@ function plan() {
   return jobs;
 }
 
+/* Detail ajoute a partir d'une planche de reference generee (docs/refs/classes.png) :
+   la silhouette du lot 6 etait deja juste (masse, arc de bouclier, canon
+   court) mais restait plate — deux nervures et un point de tir. Tout l'ajout
+   vit en ACCENT et non dans le trace : le Rempart est en rampe NEUTRE claire,
+   un detail sombre s'y voit sans avoir a entrer dans la silhouette,
+   contrairement aux mandibules du grunt qui disparaissaient sur un corps deja
+   fonce. */
 function tankClassAccents(k) {
   return (g, R) => {
     // Deux nervures verticales plutot qu'une : elles decoupent le corps en
@@ -1117,6 +1190,40 @@ function tankClassAccents(k) {
     g.moveTo(-8, -11); g.lineTo(-8, 11);
     g.moveTo(-1, -13); g.lineTo(-1, 13);
     g.stroke();
+
+    // Plaque centrale INSCRITE : un hexagone concentrique, plus petit, fait
+    // lire la coque comme des plaques rapportees plutot qu'un bloc plein —
+    // exactement ce que la reference montre et que la silhouette seule ne dit
+    // pas.
+    g.strokeStyle = R.ombre;
+    g.lineWidth = 1.6;
+    g.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const px = Math.cos(a) * 10, py = Math.sin(a) * 8.8;
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+    g.closePath();
+    g.stroke();
+
+    // Rivets aux deux racines de brace : la jointure visible du bouclier.
+    g.fillStyle = R.contour;
+    for (const s of [-1, 1]) {
+      g.beginPath(); g.arc(8.5, 13 * s, 1.6, 0, 7); g.fill();
+    }
+
+    // Collier de canon : deux troncons plutot qu'un tube plein.
+    g.strokeStyle = R.ombre;
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(17, -6); g.lineTo(17, 6); g.stroke();
+
+    // Voyant de coeur, asymetrique — TOUJOURS du meme cote, comme le reste du
+    // bestiaire. Le bouclier lui-meme reste symetrique par construction (il
+    // protege les deux flancs) ; c'est ici, en accent, que le Rempart porte sa
+    // seule irregularite structurelle.
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(-8.5, -13, 1.8, 0, 7); g.fill();
+
     if (k.shoot) {
       g.fillStyle = R.accent;
       g.beginPath(); g.arc(24, 0, 4.5, 0, 7); g.fill();
@@ -1125,12 +1232,34 @@ function tankClassAccents(k) {
 }
 
 function healClassAccents(k) {
+  const move = k.move ?? 0;
   return (g, R) => {
     // Embleme en CROIX : c'est le seul signe du jeu qui dit « celui-la soigne »,
     // et il doit se lire sans couleur — un daltonien doit s'en sortir.
     g.fillStyle = R.contour;
     g.fillRect(-2.4, -8, 4.8, 16);
     g.fillRect(-8, -2.4, 16, 4.8);
+
+    // Coutures de coque : deux arcs qui traversent le corps, pour lire des
+    // panneaux rapportes plutot qu'une capsule pleine — meme raisonnement que
+    // le hexagone inscrit du Rempart, sur la meme reference (docs/refs/classes.png).
+    g.strokeStyle = R.ombre;
+    g.lineWidth = 1.4;
+    g.beginPath();
+    g.moveTo(-3, -12.5); g.quadraticCurveTo(-4, 0, -3, 12.5);
+    g.moveTo(4, -12.8); g.quadraticCurveTo(5, 0, 4, 12.8);
+    g.stroke();
+
+    // Bille au bout de l'antenne : le joint que le trace plat n'a pas. Suit le
+    // meme `move` que l'antenne elle-meme, pour rester soudee a sa pointe.
+    g.fillStyle = R.contour;
+    g.beginPath(); g.arc(9.5 - move * 3, -21, 2, 0, 7); g.fill();
+
+    // Collerette a la base de l'embouchure.
+    g.strokeStyle = R.ombre;
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(17, -5.6); g.lineTo(17, 5.6); g.stroke();
+
     if (k.shoot) {
       // Faisceau a la place du canon en mode soin : le mode doit se voir de
       // loin, c'est une information tactique pour toute l'equipe.
@@ -1150,6 +1279,22 @@ function dpsClassAccents(k) {
     g.beginPath();
     g.moveTo(12, 0); g.lineTo(-2, -4.5); g.lineTo(-5, 0); g.lineTo(-2, 4.5);
     g.closePath(); g.fill();
+
+    // Facette de plaque : une ligne qui suit le bord du dard des deux cotes,
+    // pour lire deux plaques rapportees plutot qu'une pointe pleine —
+    // reference : docs/refs/classes.png.
+    g.strokeStyle = R.ombre;
+    g.lineWidth = 1.3;
+    g.beginPath();
+    g.moveTo(9, -3); g.lineTo(-3, -7);
+    g.moveTo(9, 3); g.lineTo(-3, 7);
+    g.stroke();
+
+    // Collier de canon, a mi-longueur.
+    g.strokeStyle = R.ombre;
+    g.lineWidth = 1.3;
+    g.beginPath(); g.moveTo(15, -2.6); g.lineTo(15, 2.6); g.stroke();
+
     if (k.shoot) {
       g.fillStyle = R.accent;
       g.beginPath(); g.arc(25, 0, 3.4, 0, 7); g.fill();
@@ -1163,7 +1308,21 @@ function dpsClassAccents(k) {
    disparaitre. */
 export async function buildAtlas(onProgress) {
   if (atlas) return atlasStats();   // une seule generation par session
-  const jobs = plan();
+
+  // EXPERIENCE JETABLE : precharge les 3 rasters de classe si le dossier de
+  // test existe, sinon `raster` reste vide et `plan()` retombe sur le trace
+  // vectoriel comme toujours. Echec de chargement = silencieux, pas de
+  // garde-fou a construire pour un test qu'on retire ensuite.
+  const raster = {};
+  await Promise.all([["tank", "rempart"], ["soigneur", "soigneur"], ["dps", "tireur"]]
+    .map(([id, file]) => new Promise(res => {
+      const img = new Image();
+      img.onload = () => { raster[id] = img; res(); };
+      img.onerror = () => res();
+      img.src = `/assets/raster_test/${file}.png`;
+    })));
+
+  const jobs = plan(raster);
   const rows = Math.ceil(jobs.length / COLS);
 
   atlas = document.createElement("canvas");

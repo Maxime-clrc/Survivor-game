@@ -4,8 +4,9 @@
    parce que le compositeur y travaille a la place de la boucle de jeu.
    =========================================================================== */
 
-import { getMusicVolume, getVolume, initAudio, isMuted, playSound, setMusicVolume, setMuted, setVolume } from "/audio.js";
+import { getAudioSource, getMusicVolume, getVolume, initAudio, isMuted, playSound, setAudioSource, setMusicDuck, setMusicVolume, setMuted, setVolume } from "/audio.js";
 import { showHud } from "/hud.js";
+import { refreshMusicSource } from "/music.js";
 import { bossAt } from "/shared/bosses.js";
 import { CARDS, CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, banClosure, cardDetail } from "/shared/cards.js";
 import { CLASSES, CLASS_DEFAULT, SKILL3_NAME, classAt } from "/shared/classes.js";
@@ -166,7 +167,8 @@ function syncLeaving(el) {
 /* L'observateur : neuf ecrans, un seul attribut surveille. Il constate, il ne
    decide pas — c'est ce qui le rend incapable d'oublier un chemin d'affichage.
    Il sert les TROIS lectures de l'attribut `hidden` : le fil d'Ariane de la
-   barre, la cascade d'entree, et la sortie ci-dessus. */
+   barre, la cascade d'entree, et la sortie ci-dessus. Un SECOND observateur,
+   sur une autre liste, sert la quatrieme : l'etouffement de la musique. */
 {
   const obs = new MutationObserver(recs => {
     syncTopbar();
@@ -197,6 +199,26 @@ function syncLeaving(el) {
       obs.observe(el, { attributes: true, attributeFilter: ["hidden"], attributeOldValue: true });
     }
   }
+
+  /* ETOUFFEMENT DE LA MUSIQUE — un observateur A PART, et pas une ligne de
+     plus dans celui du dessus : la liste n'est pas la meme (le marchand et la
+     fenetre de build n'ont ni fil d'Ariane ni cascade) et surtout `screens`
+     porte `syncSettled` / `syncLeaving`, qu'on ne veut surtout pas appliquer a
+     `#build` — il a sa propre animation d'ouverture.
+
+     Il CONSTATE au lieu de decider, comme la barre superieure et pour la meme
+     raison : les quatre ecrans s'ouvrent depuis une dizaine de chemins
+     differents (montee de niveau, mort de boss, touche Tab, Echap, clic sur
+     une ligne du bilan), et un observateur ne peut pas en oublier un. */
+  const etouffants = [cardsEl, merchantEl,
+                      document.getElementById("pause"),
+                      document.getElementById("build")].filter(Boolean);
+  const syncDuck = () => setMusicDuck(etouffants.some(el => !el.hidden));
+  const obsDuck = new MutationObserver(syncDuck);
+  for (const el of etouffants) {
+    obsDuck.observe(el, { attributes: true, attributeFilter: ["hidden"] });
+  }
+  syncDuck();
 }
 /* --- LE RETOUR SONORE DE L'INTERFACE ------------------------------------------
 
@@ -703,24 +725,29 @@ export function updateTerminalDot() {
 const audioUi = [
   { vol: volInput, val: volVal, mute: muteBtn,
     mus: document.getElementById("musVol"),
-    musVal: document.getElementById("musVolVal") },
+    musVal: document.getElementById("musVolVal"),
+    src: document.getElementById("musSrc") },
   {
     vol: document.getElementById("pauseVol"),
     val: document.getElementById("pauseVolVal"),
     mute: document.getElementById("pauseMute"),
     mus: document.getElementById("pauseMusVol"),
     musVal: document.getElementById("pauseMusVolVal"),
+    src: document.getElementById("pauseSrc"),
   },
   {
     vol: document.getElementById("setVol"),
     val: document.getElementById("setVolVal"),
     mus: document.getElementById("setMusVol"),
     musVal: document.getElementById("setMusVolVal"),
+    src: document.getElementById("setSrc"),
+    srcVal: document.getElementById("setSrcVal"),
   },
 ].filter(u => u.vol);
 function refreshAudioUi() {
   const pct = Math.round(getVolume() * 100);
   const mus = Math.round(getMusicVolume() * 100);
+  const pistes = getAudioSource() === "pistes";
   for (const u of audioUi) {
     u.vol.value = String(pct);
     u.val.textContent = `${pct} %`;
@@ -732,6 +759,19 @@ function refreshAudioUi() {
     if (u.mus) {
       u.mus.value = String(mus);
       u.musVal.textContent = `${mus} %`;
+    }
+    /* Le libelle dit l'ETAT COURANT, jamais l'action a venir. Un bouton dont
+       le texte annonce ce qu'il fera se lit a l'envers une fois sur deux,
+       et il n'y a rien ici pour lever le doute — c'est le titre (`title`) qui
+       porte l'action. Meme raison que `#readyBtn` et sa classe `.on`.
+       Le troisieme jeu vit dans une `.setRow` de trois colonnes, ou le libelle
+       est deja a gauche : le bouton n'y repete pas « Bande son ». */
+    if (u.src) {
+      u.src.textContent = u.srcVal
+        ? (pistes ? "Pistes" : "Synthé")
+        : (pistes ? "Bande son : pistes" : "Bande son : synthé");
+      u.src.classList.toggle("on", pistes);
+      if (u.srcVal) u.srcVal.textContent = pistes ? "fichiers" : "calculée";
     }
   }
 }
@@ -760,6 +800,24 @@ for (const u of audioUi) {
   if (u.mus) {
     u.mus.oninput = () => {
       setMusicVolume(Number(u.mus.value) / 100);
+      refreshAudioUi();
+    };
+  }
+
+  /* La bascule de source. Deux appels et non un : `audio.js` tient le reglage
+     (il en a besoin pour le son de tir), `music.js` tient les deux bandes son
+     et doit arreter l'une avant de lancer l'autre. Les fusionner ferait
+     dependre `audio.js` de `music.js`, donc un cycle — et `audio.js` ne
+     depend de RIEN, c'est ce qui permet de le charger dans un script de
+     mesure avec un faux AudioContext.
+     `initAudio()` d'abord : sur l'ecran d'entree, le contexte n'est pas encore
+     debloque, et sans lui la bascule ne pourrait ni charger l'echantillon ni
+     demarrer une piste. */
+  if (u.src) {
+    u.src.onclick = () => {
+      initAudio();
+      setAudioSource(getAudioSource() === "pistes" ? "synthe" : "pistes");
+      refreshMusicSource();
       refreshAudioUi();
     };
   }

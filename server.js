@@ -38,7 +38,7 @@ const ROOT = fileURLToPath(new URL(".", import.meta.url));
 /* 7777 et non 8080 : derriere un proxy inverse le port interne n'a plus
    d'importance, autant en prendre un sans collision sur une machine de
    developpeur. */
-const PORT = Number(process.env.PORT) || 7777;
+const PORT = Number(process.env.PORT) || 7776;
 
 /* Cle de la page admin. Meme modele que la configuration Supabase : une
    variable d'environnement, rien d'autre. ABSENTE = admin coupe, tout /admin
@@ -62,6 +62,13 @@ const MIME = {
      connexion. Sans ce type, le repli `application/octet-stream` fonctionne
      encore aujourd'hui pour @font-face, mais rien ne l'oblige. */
   ".woff2": "font/woff2",
+  /* Les pistes audio et les echantillons (`public/assets/musics/`). Sans le
+     bon type, Safari refuse de lire un `<audio>` servi en
+     `application/octet-stream` — Chrome et Firefox reniflent le contenu, lui
+     non, et la panne est silencieuse : l'element reste a `readyState` 0. */
+  ".mp3":  "audio/mpeg",
+  ".wav":  "audio/wav",
+  ".ogg":  "audio/ogg",
 };
 
 /* Le chemin d'une URL est toujours en barres obliques ; celui du systeme de
@@ -120,9 +127,17 @@ const httpServer = createServer(async (req, res) => {
 
   try {
     const data = await readFile(file);
+    const ext = extname(file);
+    /* Les PISTES AUDIO sont la seule chose du depot qu'on met en cache, et il
+       le faut : `no-store` sur un mp3 de six mega-octets le fait retelecharger
+       a CHAQUE fondu enchaine, soit toutes les trois minutes et par client.
+       Le risque habituel du cache — un onglet qui tourne sur du code perime —
+       ne les concerne pas : elles ne portent aucune logique, et une piste
+       remplacee change de nom de fichier. */
+    const audio = ext === ".mp3" || ext === ".wav" || ext === ".ogg";
     res.writeHead(200, {
-      "Content-Type": MIME[extname(file)] || "application/octet-stream",
-      "Cache-Control": "no-store",
+      "Content-Type": MIME[ext] || "application/octet-stream",
+      "Cache-Control": audio ? "public, max-age=86400" : "no-store",
     });
     res.end(data);
   } catch {
