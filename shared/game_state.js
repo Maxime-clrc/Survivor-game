@@ -95,7 +95,9 @@ export const CFG = {
   PLAYER_BITE: 1,
   ENEMY_AVOID_LOOK: 46,
   ENEMY_AVOID_TURN: 1.4,
-  MAX_ENEMIES: 200,
+  MAX_ENEMIES_BASE: 220,
+  MAX_ENEMIES_DIFF: [0.80, 1.00, 1.45],
+  MAX_ENEMIES_HARD_CAP: 900,
 
   ELITE_FROM: 40,
   ELITE_MIN: 22,
@@ -345,6 +347,13 @@ export function typesFor(diffIndex) {
 
 export function traitsOf(diffIndex, type) {
   return TRAIT_BY_TYPE[diffIndex]?.[type] ?? 0;
+}
+
+export function enemyCap(diffIndex, joueurs) {
+  const d = CFG.MAX_ENEMIES_DIFF[diffIndex] ?? 1;
+  const crowd = Math.pow(Math.max(1, joueurs), CFG.WAVE_CROWD_EXP);
+  return Math.min(CFG.MAX_ENEMIES_HARD_CAP,
+    Math.round(CFG.MAX_ENEMIES_BASE * d * crowd));
 }
 
 export const POWERUP_TYPES = [
@@ -1901,15 +1910,20 @@ export class GameState {
   }
 
 
+  _enemyCap() {
+    return enemyCap(this.diffIndex, this.players.size);
+  }
+
   _pickType() {
     const counts = new Array(ENEMY_TYPES.length).fill(0);
     for (const e of this.enemies) counts[e.type]++;
 
     const minute = this.hordeMinutes();
     const pool = typesFor(this.diffIndex);
+    const cap = this._enemyCap();
     let avail = pool.filter(i =>
       minute >= ENEMY_TYPES[i].minMin
-      && counts[i] < ENEMY_TYPES[i].share * CFG.MAX_ENEMIES);
+      && counts[i] < ENEMY_TYPES[i].share * cap);
     if (avail.length === 0) avail = [0];
     let total = 0;
     for (const i of avail) total += ENEMY_TYPES[i].weight;
@@ -1922,7 +1936,7 @@ export class GameState {
   }
 
   _spawnEnemy(typeIndex = -1, x = null, y = null, elite = false, geom = "bords") {
-    if (this.enemies.length >= CFG.MAX_ENEMIES) return null;
+    if (this.enemies.length >= this._enemyCap()) return null;
     let ti = typeIndex;
     if (ti >= 0) {
       ti = adaptType(ti, this.hordeMinutes());
@@ -2221,10 +2235,11 @@ export class GameState {
     this.eliteCd -= dt;
     let eliteDue = this.eliteCd <= 0;
 
+    const cap = this._enemyCap();
     this.spawnAcc += rate * dt;
     while (this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
-      if (this.enemies.length >= CFG.MAX_ENEMIES) { this.spawnAcc = 0; break; }
+      if (this.enemies.length >= cap) { this.spawnAcc = 0; break; }
       const type = ev && ev.types.length > 0
         ? ev.types[Math.floor(Math.random() * ev.types.length)]
         : -1;
@@ -2705,25 +2720,78 @@ export class GameState {
 
     this.enemies = this.enemies.filter(e => e.hp > 0);
 
-    const n = this.enemies.length;
+    this._separateEnemies();
+    this._separateFromPlayers();
+  }
+
+  _grille() {
+    const list = this.enemies, n = list.length;
+    let maxR = CFG.PLAYER_RADIUS;
+    for (let i = 0; i < n; i++) if (list[i].r > maxR) maxR = list[i].r;
+    const cell = maxR * 2;
+    const cols = Math.max(1, Math.ceil(CFG.ARENA_W / cell));
+    const rows = Math.max(1, Math.ceil(CFG.ARENA_H / cell));
+    const cells = cols * rows;
+
+    if (!this._gStart || this._gStart.length < cells + 1) {
+      this._gStart = new Int32Array(cells + 1);
+      this._gCur = new Int32Array(cells);
+    } else {
+      this._gStart.fill(0, 0, cells + 1);
+    }
+    if (!this._gItems || this._gItems.length < n) {
+      this._gItems = new Int32Array(n);
+      this._gAt = new Int32Array(n);
+    }
+    const start = this._gStart, cur = this._gCur;
+    const items = this._gItems, at = this._gAt;
+
     for (let i = 0; i < n; i++) {
-      const a = this.enemies[i];
-      for (let j = i + 1; j < n; j++) {
-        const b = this.enemies[j];
-        const min = a.r + b.r;
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d2 = dx * dx + dy * dy;
-        if (d2 > 0.01 && d2 < min * min) {
-          const d = Math.sqrt(d2);
-          const push = (min - d) * CFG.ENEMY_SEPARATION;
-          const ux = (dx / d) * push, uy = (dy / d) * push;
-          a.x -= ux; a.y -= uy;
-          b.x += ux; b.y += uy;
+      const e = list[i];
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor(e.x / cell)));
+      const cy = Math.min(rows - 1, Math.max(0, Math.floor(e.y / cell)));
+      at[i] = cy * cols + cx;
+      start[at[i] + 1]++;
+    }
+    for (let c = 0; c < cells; c++) start[c + 1] += start[c];
+    cur.set(start.subarray(0, cells));
+    for (let i = 0; i < n; i++) items[cur[at[i]]++] = i;
+
+    return { cell, cols, rows, start, items, at };
+  }
+
+  _separateEnemies() {
+    const list = this.enemies, n = list.length;
+    if (n < 2) return;
+    const { cols, rows, start, items, at } = this._grille();
+
+    for (let i = 0; i < n; i++) {
+      const a = list[i];
+      const cx = at[i] % cols, cy = (at[i] - cx) / cols;
+      const y0 = cy > 0 ? cy - 1 : 0, y1 = cy + 1 < rows ? cy + 1 : rows - 1;
+      const x0 = cx > 0 ? cx - 1 : 0, x1 = cx + 1 < cols ? cx + 1 : cols - 1;
+      for (let gy = y0; gy <= y1; gy++) {
+        const base = gy * cols;
+        for (let gx = x0; gx <= x1; gx++) {
+          const c = base + gx;
+          for (let k = start[c]; k < start[c + 1]; k++) {
+            const j = items[k];
+            if (j <= i) continue;
+            const b = list[j];
+            const min = a.r + b.r;
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 > 0.01 && d2 < min * min) {
+              const d = Math.sqrt(d2);
+              const push = (min - d) * CFG.ENEMY_SEPARATION;
+              const ux = (dx / d) * push, uy = (dy / d) * push;
+              a.x -= ux; a.y -= uy;
+              b.x += ux; b.y += uy;
+            }
+          }
         }
       }
     }
-
-    this._separateFromPlayers();
   }
 
   _auraPass() {
@@ -2783,19 +2851,34 @@ export class GameState {
   }
 
   _separateFromPlayers() {
+    const list = this.enemies;
+    if (list.length === 0) return;
+    const { cell, cols, rows, start, items } = this._grille();
+
     for (const p of this.players.values()) {
       if (p.downed) continue;
-      for (const e of this.enemies) {
-        const min = e.r + CFG.PLAYER_RADIUS - CFG.PLAYER_BITE;
-        const dx = e.x - p.x, dy = e.y - p.y;
-        const d2 = dx * dx + dy * dy;
-        if (d2 >= min * min) continue;
-        const d = Math.sqrt(d2) || 0.0001;
-        const push = (min - d) * CFG.PLAYER_SEPARATION;
-        const ux = d2 > 0.000001 ? dx / d : 1;
-        const uy = d2 > 0.000001 ? dy / d : 0;
-        e.x += ux * push;
-        e.y += uy * push;
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor(p.x / cell)));
+      const cy = Math.min(rows - 1, Math.max(0, Math.floor(p.y / cell)));
+      const y0 = cy > 0 ? cy - 1 : 0, y1 = cy + 1 < rows ? cy + 1 : rows - 1;
+      const x0 = cx > 0 ? cx - 1 : 0, x1 = cx + 1 < cols ? cx + 1 : cols - 1;
+      for (let gy = y0; gy <= y1; gy++) {
+        const base = gy * cols;
+        for (let gx = x0; gx <= x1; gx++) {
+          const c = base + gx;
+          for (let k = start[c]; k < start[c + 1]; k++) {
+            const e = list[items[k]];
+            const min = e.r + CFG.PLAYER_RADIUS - CFG.PLAYER_BITE;
+            const dx = e.x - p.x, dy = e.y - p.y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 >= min * min) continue;
+            const d = Math.sqrt(d2) || 0.0001;
+            const push = (min - d) * CFG.PLAYER_SEPARATION;
+            const ux = d2 > 0.000001 ? dx / d : 1;
+            const uy = d2 > 0.000001 ? dy / d : 0;
+            e.x += ux * push;
+            e.y += uy * push;
+          }
+        }
       }
     }
   }
@@ -3091,7 +3174,7 @@ export class GameState {
 
   _finalBrood(b) {
     for (let i = 0; i < BOSS_CFG.BROOD_COUNT; i++) {
-      if (this.enemies.length >= CFG.MAX_ENEMIES) break;
+      if (this.enemies.length >= this._enemyCap()) break;
       const a = Math.random() * Math.PI * 2;
       this._spawnEnemy(1, b.x + Math.cos(a) * 130, b.y + Math.sin(a) * 130);
     }
@@ -5327,4 +5410,141 @@ export class GameState {
       ob: this._coverState(),
     };
   }
+}
+
+const chrono = () => globalThis.performance?.now?.() ?? Date.now();
+
+function botInput(g, p) {
+  let cible = null, bd = Infinity;
+  for (const e of g.enemies) {
+    const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+    if (d < bd) { bd = d; cible = e; }
+  }
+  if (!cible && g.boss) { cible = g.boss; bd = (g.boss.x - p.x) ** 2 + (g.boss.y - p.y) ** 2; }
+
+  let ax = 1, ay = 0;
+  if (cible) {
+    const d = Math.hypot(cible.x - p.x, cible.y - p.y) || 1;
+    ax = (cible.x - p.x) / d; ay = (cible.y - p.y) / d;
+  }
+
+  const b = g.bounds;
+  let x = 0, y = 0;
+  if (cible && bd < 260 * 260) { x = -ax; y = -ay; }
+  else {
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    const d = Math.hypot(cx - p.x, cy - p.y);
+    if (d > 60) { x = (cx - p.x) / d; y = (cy - p.y) / d; }
+  }
+  return { x, y, ax, ay, ar: 1, dash: false, s1: false, s2: false, s3: false };
+}
+
+export function mesurePopulation(diffIndex, joueurs, minutes = 30, invulnerable = true) {
+  const g = new GameState(diffIndex);
+  for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+  g.warmup = 0;
+
+  const cap = enemyCap(diffIndex, joueurs);
+  const inputs = new Map();
+  const images = Math.round(minutes * 60 / CFG.TICK);
+  const somme = new Array(TL_CFG.SEGMENTS).fill(0);
+  const compte = new Array(TL_CFG.SEGMENTS).fill(0);
+  const ms = [];
+  let saturation = null, pointe = 0, tempsPlein = 0;
+
+  for (let k = 0; k < images && !g.gameOver && !g.victory; k++) {
+    if (g.cardsPending) {
+      for (const [id, offres] of g.cardOffers) {
+        const p = g.players.get(id);
+        if (p && offres.length) g.takeCard(p, offres[0]);
+      }
+      g.cardsPending = false;
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+    if (g.relicPending) {
+      g.closeMerchant();
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+
+    inputs.clear();
+    for (const p of g.players.values()) inputs.set(p.id, botInput(g, p));
+
+    const t0 = chrono();
+    g.step(CFG.TICK, inputs);
+    ms.push(chrono() - t0);
+
+    if (invulnerable) {
+      for (const p of g.players.values()) {
+        p.hp = p.maxHp;
+        p.downed = false;
+        p.revive = 0;
+      }
+      if (!g.victory) g.gameOver = false;
+    }
+
+    const n = g.enemies.length;
+    if (n > pointe) pointe = n;
+    if (n >= cap) {
+      tempsPlein += CFG.TICK;
+      if (saturation === null) saturation = g.time;
+    }
+    const s = Math.min(TL_CFG.SEGMENTS, g.segment) - 1;
+    somme[s] += n; compte[s]++;
+  }
+
+  ms.sort((a, b) => a - b);
+  let tues = 0;
+  for (const p of g.players.values()) tues += p.kills;
+  return {
+    diffIndex, joueurs, cap,
+    saturation, pointe, tempsPlein,
+    parSegment: somme.map((v, i) => (compte[i] ? v / compte[i] : 0)),
+    niveau: g.level, segment: g.segment, tues,
+    msMedian: ms.length ? ms[Math.floor(ms.length / 2)] : 0,
+    msP99: ms.length ? ms[Math.floor(ms.length * 0.99)] : 0,
+    msMax: ms.length ? ms[ms.length - 1] : 0,
+  };
+}
+
+export function verifierPopulation(minutes = 30, effectifs = [1, 2, 4], budgetMs = 16) {
+  const soucis = [];
+  const niveaux = new Map();
+
+  for (let di = 0; di < DIFFICULTIES.length; di++) {
+    for (const n of effectifs) {
+      const r = mesurePopulation(di, n, minutes);
+      const ou = `${DIFFICULTIES[di].key}/${n}j`;
+      niveaux.set(ou, r);
+
+      if (r.saturation !== null && r.saturation < 12 * 60) {
+        soucis.push(`${ou} : plafond atteint a ${(r.saturation / 60).toFixed(1)} min`);
+      }
+      for (let s = 1; s < r.parSegment.length; s++) {
+        if (r.parSegment[s] > 0 && r.parSegment[s] < r.parSegment[s - 1]) {
+          soucis.push(`${ou} : population en baisse au segment ${s + 1}`
+            + ` (${r.parSegment[s - 1].toFixed(0)} -> ${r.parSegment[s].toFixed(0)})`);
+        }
+      }
+      if (r.msP99 > budgetMs) {
+        soucis.push(`${ou} : ${r.msP99.toFixed(1)} ms au p99 pour un budget de ${budgetMs}`);
+      }
+    }
+  }
+
+  for (let di = 0; di < DIFFICULTIES.length; di++) {
+    const vus = effectifs
+      .map(n => niveaux.get(`${DIFFICULTIES[di].key}/${n}j`))
+      .filter(Boolean)
+      .map(r => r.niveau);
+    if (vus.length > 1 && Math.max(...vus) - Math.min(...vus) > 2) {
+      soucis.push(`${DIFFICULTIES[di].key} : ${Math.min(...vus)} a ${Math.max(...vus)}`
+        + ` cartes selon l'effectif`);
+    }
+  }
+
+  return soucis;
 }

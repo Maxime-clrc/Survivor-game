@@ -1,8 +1,9 @@
 
 import {
-  CFG, PLAYER_COLORS, DIFFICULTIES,
+  CFG, PLAYER_COLORS, DIFFICULTIES, enemyCap,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
+import { difficulty } from "/core/state.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";
@@ -277,7 +278,7 @@ function updateSegment(v, c = {}) {
   else if (dernier)   { etat = "crescendo"; couleur = SIGNAL.warn; }
   else                { etat = mmss(v.hordeLeft); couleur = TEXT.dim; }
 
-  const sat = v.enemyList.length / CFG.MAX_ENEMIES;
+  const sat = v.enemyList.length / enemyCap(difficulty, v.playerList.length);
   if (sat >= 0.7) {
     etat += ` · arène ${Math.round(sat * 100)} %`;
     if (sat >= 0.98) couleur = SIGNAL.lethal;
