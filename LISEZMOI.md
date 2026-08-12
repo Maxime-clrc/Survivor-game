@@ -8,6 +8,98 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Traits, élites et bonus au sol (lot J du plan d'équilibrage)
+
+Protocole : neuf cas (trois modes × 1, 2 et 4 joueurs), 37 min de jeu simulé,
+bots immortels, échantillonnage à 6 Hz.
+
+**Aucun des deux plafonds de traits n'en était encore un.**
+
+| | plafond de traînée | saturé | préavis de ruée à l'écran |
+|---|---|---|---|
+| avant — cauchemar 1 / 2 / 4 j | 18 | 80 / 79 / 84 % | 31 / 11 / 22 |
+| après — cauchemar 1 / 2 / 4 j | 81 | 18 / 41 / 48 % | 8 / 8 / 8 |
+
+**La demande naturelle de traînée est de 200 à 400 zones.** Plafond levé, en
+cauchemar : 397 (1 j), 268 (2 j), 200 (4 j) zones vivantes pour **18 places**.
+Chaque porteur en tenait donc moins d'un vingtième : le trait n'existait pas. Et
+il couvrait alors **19 à 27 % d'une vue en moyenne, jusqu'à 165 %** — le double
+du budget de sol déjà écrit dans le dépôt (`HAZARD_SURFACE_MAX`, 12 %).
+
+**Le plafond se dérive de l'ÉCRAN, pas de la population.** `trailMax()` rend ce
+qui remplit 12 % d'une vue à `TRAIL_R = 26`, soit **81**. Le plan proposait
+`_enemyCap() × 0,09`, qui vaut exactement 81 au plafond de cauchemar à quatre —
+même nombre, mais indexé sur une grandeur qui bouge : à un joueur il serait tombé
+à 29 alors que la horde entière tient sur le seul écran de ce joueur. La
+lisibilité est une propriété de la vue, pas de l'effectif.
+
+**Le plafond seul ne suffisait pas** : 200 à 400 de demande contre 81 places, il
+serait resté saturé en permanence, donc constante et non plafond. L'empreinte par
+porteur (`TRAIL_LIFE × vitesse / TRAIL_STEP`) valait 8,7 zones vivantes ; elle
+est ramenée à 2,1 par `TRAIL_LIFE 4 → 1`, avec `TRAIL_DOT 14 → 26` pour rendre en
+intensité ce que la durée perd. Le pas ne bouge pas : une traînée reste continue,
+elle s'efface en une seconde.
+
+**Le préavis de ruée devient un budget par VUE, pas une recharge.** Porteurs à
+portée de ruée d'un joueur, selon le cas : **17 à 283**. Tenir « huit préavis à
+l'écran » par la recharge aurait demandé un `DASH_CD` de 2,6 à 14 s selon le cas,
+à re-régler à chaque changement de plafond. `DASH_WARN_MAX = 8` est le critère
+lui-même, appliqué à l'octroi : mesuré à **8 exactement** dans les neuf cas, et un
+préavis refusé ne consomme pas sa recharge.
+
+**Le levier « comportement » se lit au nombre de traits par corps, pas à la part
+de porteurs.**
+
+| | traits par corps | part de horde porteuse |
+|---|---|---|
+| calme | 0,00 | 0 % |
+| normal | 0,90 | 89 à 91 % |
+| cauchemar | 1,66 | 97 à 99 % |
+
+Le critère du plan — facteur 2 de `calme` à `cauchemar` — est vrai **par
+construction**, `calme` n'attachant aucun trait : il ne dit rien. Le chiffre qui
+dit quelque chose est le nombre de traits par corps, **×1,85 de normal à
+cauchemar**, et c'est celui-là que `verifierTraits()` surveille, en croissance
+stricte d'un mode au suivant.
+
+**Les élites diluaient avec l'effectif.** `WAVE_ELITE_CROWD_EXP` valait 0,4 face
+au 0,75 de `WAVE_CROWD_EXP` : la part d'élites décroissait en `joueurs^-0,35`.
+Porté à **0,75** — même exposant des deux côtés, comme le plafond de population du
+lot A.
+
+| part des corps | 1 j | 2 j | 4 j | élites vues sur la manche |
+|---|---|---|---|---|
+| avant, calme | 2,5 % | 1,5 % | 1,3 % | 63 / 83 / 109 |
+| après, calme | 2,3 % | 2,1 % | 1,9 % | 63 / 106 / 173 |
+| après, normal | 2,2 % | 2,6 % | 1,7 % | 63 / 105 / 176 |
+
+Le rapport 4 j / 1 j passe de 0,52 à 0,80 ; le reste est dans le bruit (±0,4 point
+entre deux essais identiques). Une élite reste rare — 1 à 2 corps sur cent — donc
+identifiable, ce que « Curée » (lot E-7) suppose.
+
+**Les bonus au sol ne se mesurent pas sans pilote.** Le bot ne va pas les
+chercher : 1 à 12 % ramassés, tout le reste périmé. Le seul chiffre
+pilote-indépendant est l'occupation du sol, **1,1 à 2,9 bonus en permanence** pour
+un `POWERUP_MAX_GROUND` de 2 — le générateur est donc bloqué la plupart du temps
+par des bonus que personne n'a pris, et les dépouilles de `_killEnemy` passent
+au-dessus du plafond. Aucune valeur touchée : la clémence des bonus est un critère
+de profil, et le protocole du dépôt n'a pas de pilote.
+
+**Le critère de composition sans tank sort rouge, et c'est le protocole.**
+Dégâts subis par joueur et par minute, 12 min, trois essais :
+
+| | avec tank | sans tank | écart |
+|---|---|---|---|
+| normal, rien neutralisé | 578 | 265 | 0,46× |
+| normal, `dash` neutralisé | 406 | 350 | 0,86× |
+| normal, `trail` neutralisé | 283 | 277 | 0,98× |
+
+**Aucun type ne porte `trail` en normal** : neutraliser un trait absent déplace le
+chiffre d'un facteur deux. La mesure est dominée par le bruit, et augmenter les
+essais n'y changerait rien — le bot n'utilise ni Rempart ni Provocation, les deux
+seules choses qui font un tank. `mesureComposition()` est livrée avec le lot ; le
+critère est renvoyé au lot I, qui a besoin d'un pilote (même réserve qu'au lot B).
+
 ### Vitesse et bestiaire (lot B du plan d'équilibrage)
 
 **Le décrochage n'existait pas.** Distance au poursuivant le plus proche, joueur

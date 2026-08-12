@@ -24,11 +24,12 @@ export const TRAIT_CFG = {
   DASH_CD: 6,
   DASH_GATHER: 0.25,
   DASH_RANGE: 420,
+  DASH_WARN_MAX: 8,
 
-  TRAIL_LIFE: 4,
-  TRAIL_DOT: 14,
+  TRAIL_LIFE: 1,
+  TRAIL_DOT: 26,
   TRAIL_R: 26,
-  TRAIL_MAX: 18,
+  TRAIL_SURFACE: 0.12,
   TRAIL_STEP: 46,
 
   VOLLEY_COUNT: 3,
@@ -67,6 +68,11 @@ export const ENEMY_TYPES = [
   { key: "choeur",   minMin: 23, fallback: 4, weight: 0.20, share: 0.08, hpMul: 1.6, speed: 70, dmg: 12, r: 15, score: 30, xp: 20,
     auraRadius: 130, auraReduction: 0.35 },
 ];
+
+export function trailMax(aireVue) {
+  return Math.round(aireVue * TRAIT_CFG.TRAIL_SURFACE
+    / (Math.PI * TRAIT_CFG.TRAIL_R * TRAIT_CFG.TRAIL_R));
+}
 
 export function typeAt(index) { return ENEMY_TYPES[index] ?? ENEMY_TYPES[0]; }
 

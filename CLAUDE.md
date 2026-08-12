@@ -333,7 +333,8 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_applyStatus()` / `_purgeStatus()` | pose et retrait d'état |
 | `_killEnemy()` | **toute** mort d'ennemi : XP, explosion du kamikaze, cumuls |
 | `_bulletHitEnemy()` | une balle qui touche — appelé par la boucle de collision **et** le balayage à l'apparition |
-| `_groundZone()` | toute zone posée par la horde, plafond global `TRAIL_MAX` |
+| `_groundZone()` | toute zone posée par la horde, plafond global `trailMax()` |
+| `_windupSature()` / `_windupCompte()` | budget de préavis de ruée, par vue |
 | `_wave(x, y, r, dmg, owner)` | l'onde blanche des cartes (l'horloge de manche s'appelle `_segmentTick(dt)` — deux méthodes de même nom s'écrasent en silence) |
 | `_spawnPoint(geom, r)` / `_pushOffScreen` / `_edgePoint` | apparition et repoussage hors vue |
 | `_grille()` | voisinage spatial : séparation entre ennemis **et** ennemi/joueur |
@@ -489,9 +490,21 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **L'aura ne se cumule jamais** : meilleure réduction, jamais le produit.
   Relevée une fois par tick (`_auraPass`), lue dans `_damage()`. Même règle pour
   le Vœu partagé, les auras de givre et les champs de ralentissement.
-- **`_groundZone()` porte un plafond global** (`TRAIL_MAX`, traînées et spores
+- **`_groundZone()` porte un plafond global** (`trailMax()`, traînées et spores
   confondues, la plus ancienne cède). La traînée se pose à la **distance
   parcourue**, pas au temps.
+- **Les deux plafonds de traits se dérivent de l'ÉCRAN, jamais de la
+  population.** `trailMax()` = ce qui remplit `TRAIL_SURFACE` (12 %, le budget de
+  `HAZARD_SURFACE_MAX`) d'**une vue** ; `DASH_WARN_MAX` = les préavis de ruée
+  simultanés qu'**une vue** peut porter. Un plafond indexé sur `enemyCap()`
+  suivrait la densité que la lisibilité, elle, ne suit pas.
+- **Le budget de préavis se compte à la POSITION DE L'ENNEMI**, pas à celle de sa
+  cible (un ennemi lancé sur A s'affiche sur l'écran de B), et **un préavis
+  accordé s'inscrit dans les DEUX tables** (`_windupCompte`) — la table de
+  l'image, et celle qui la reporte à la suivante. Sans le second appel, le
+  plafond effectif double exactement.
+- **Un préavis refusé ne consomme pas la recharge** : `dashCd` reste à zéro et
+  l'ennemi réessaie à l'image suivante.
 - **Les systèmes lisent `p.mods`, jamais la liste de cartes.** Les minuteurs
   (`p.timers`), les états (`p.statuses`) et les reliques (`p.relics`) vivent **à
   côté** : un recalcul de mods ne doit pas les effacer.

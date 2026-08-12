@@ -31,7 +31,7 @@ import {
   EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE,
 } from "./timeline.js";
 import {
-  ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait, traitBit,
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait, traitBit, trailMax,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 } from "./enemies.js";
 import {
@@ -43,7 +43,7 @@ import {
 
 export { CARD_CFG };
 export {
-  ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait,
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait, trailMax,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 };
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
@@ -126,7 +126,7 @@ export const CFG = {
   BOSS_XP_BASE: 300,
 
   WAVE_CROWD_EXP: 0.75,
-  WAVE_ELITE_CROWD_EXP: 0.4,
+  WAVE_ELITE_CROWD_EXP: 0.75,
 
   WAVE_HP_POWER_K: 0,
   WAVE_RATE_POWER_K: 0,
@@ -475,6 +475,8 @@ export class GameState {
     this.sancts = [];
     this.effects = [];
     this.windup = [];
+    this.windupCibles = new Map();
+    this.windupBudget = new Map();
     this.event = null;
     this.quarry = 0;
 
@@ -2588,6 +2590,10 @@ export class GameState {
     }
     this._auraPass();
     this.windup.length = 0;
+    const budget = this.windupBudget;
+    budget.clear();
+    for (const [id, n] of this.windupCibles) budget.set(id, n);
+    this.windupCibles.clear();
     const gust = this._gust(dt);
 
     for (const e of this.enemies) {
@@ -2646,10 +2652,13 @@ export class GameState {
           e.dashWarn -= dt;
           mul *= TRAIT_CFG.DASH_GATHER;
           this.windup.push(e.id);
+          this._windupCompte(e, this.windupCibles);
           if (e.dashWarn <= 0) e.dashT = TRAIT_CFG.DASH_TIME;
         } else {
           e.dashCd -= dt;
-          if (e.dashCd <= 0 && d < TRAIT_CFG.DASH_RANGE) {
+          if (e.dashCd <= 0 && d < TRAIT_CFG.DASH_RANGE && !this._windupSature(e, budget)) {
+            this._windupCompte(e, budget);
+            this._windupCompte(e, this.windupCibles);
             e.dashCd = TRAIT_CFG.DASH_CD;
             e.dashWarn = TRAIT_CFG.DASH_WARN;
           }
@@ -2843,6 +2852,21 @@ export class GameState {
     if (best) best.hp = Math.min(best.maxHp, best.hp + def.heal);
   }
 
+  _windupSature(e, budget) {
+    for (const q of this.players.values()) {
+      if (Math.abs(q.x - e.x) > CFG.VIEW_W / 2 || Math.abs(q.y - e.y) > CFG.VIEW_H / 2) continue;
+      if ((budget.get(q.id) ?? 0) >= TRAIT_CFG.DASH_WARN_MAX) return true;
+    }
+    return false;
+  }
+
+  _windupCompte(e, table) {
+    for (const q of this.players.values()) {
+      if (Math.abs(q.x - e.x) > CFG.VIEW_W / 2 || Math.abs(q.y - e.y) > CFG.VIEW_H / 2) continue;
+      table.set(q.id, (table.get(q.id) ?? 0) + 1);
+    }
+  }
+
   _groundZone(x, y, r, dot, life) {
     let oldest = -1;
     let count = 0;
@@ -2851,7 +2875,7 @@ export class GameState {
       count++;
       if (oldest < 0) oldest = i;
     }
-    if (count >= TRAIT_CFG.TRAIL_MAX && oldest >= 0) this.zones.splice(oldest, 1);
+    if (count >= trailMax(CFG.VIEW_W * CFG.VIEW_H) && oldest >= 0) this.zones.splice(oldest, 1);
     this._zone({
       x, y, r, dot, life,
       warn: 0, tick: CFG.ZONE_TICK, horde: 1,
@@ -5638,4 +5662,211 @@ export function verifierPopulation(minutes = 45, effectifs = [1, 2, 4], budgetMs
   }
 
   return soucis;
+}
+
+export function mesureTraits(diffIndex, joueurs, minutes = 37, pas = 10) {
+  const g = new GameState(diffIndex);
+  for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+  g.warmup = 0;
+
+  const inputs = new Map();
+  const images = Math.round(minutes * 60 / CFG.TICK);
+  const porteurs = new Array(minutes).fill(0);
+  const corps = new Array(minutes).fill(0);
+  const vies = new Map();
+  const demiW = CFG.VIEW_W / 2, demiH = CFG.VIEW_H / 2;
+  const plafond = trailMax(CFG.VIEW_W * CFG.VIEW_H);
+  let elites = 0, somme = 0, pleins = 0, mesures = 0, bits = 0;
+  let wuMax = 0, wuVueMax = 0, porteeMax = 0, poses = 0, perimes = 0, ramasses = 0;
+  let couverture = 0, couvertureMax = 0, vues = 0, sol = 0;
+  const elitesVus = new Set();
+
+  for (let k = 0; k < images && !g.gameOver && !g.victory; k++) {
+    if (g.cardsPending) {
+      for (const [id, offres] of g.cardOffers) {
+        const p = g.players.get(id);
+        if (p && offres.length) g.takeCard(p, offres[0]);
+      }
+      g.cardsPending = false;
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+    if (g.relicPending) {
+      g.closeMerchant();
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+
+    inputs.clear();
+    for (const p of g.players.values()) inputs.set(p.id, botInput(g, p));
+    g.step(CFG.TICK, inputs);
+    for (const p of g.players.values()) {
+      p.hp = p.maxHp; p.downed = false; p.revive = 0;
+    }
+    if (!g.victory) g.gameOver = false;
+
+    const vus = new Set();
+    for (const w of g.powerups) {
+      vus.add(w.id);
+      if (!vies.has(w.id)) poses++;
+      vies.set(w.id, w.life);
+    }
+    for (const [id, vie] of vies) {
+      if (vus.has(id)) continue;
+      if (vie <= CFG.TICK) perimes++; else ramasses++;
+      vies.delete(id);
+    }
+
+    if (k % pas) continue;
+    mesures++;
+    const min = Math.min(minutes - 1, Math.floor(g.time / 60));
+    let wu = 0;
+    for (const e of g.enemies) {
+      corps[min]++;
+      if (e.traits) { porteurs[min]++; bits += popcount(e.traits); }
+      if (e.elite) { elites++; elitesVus.add(e.id); }
+      if (e.dashWarn > 0) wu++;
+    }
+    if (wu > wuMax) wuMax = wu;
+    for (const p of g.players.values()) {
+      let vue = 0, portee = 0;
+      for (const e of g.enemies) {
+        if (e.dashWarn > 0 && Math.abs(e.x - p.x) <= demiW && Math.abs(e.y - p.y) <= demiH) vue++;
+        if (hasTrait(e.traits, TRAIT_DASH)
+          && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < TRAIT_CFG.DASH_RANGE ** 2) portee++;
+      }
+      if (vue > wuVueMax) wuVueMax = vue;
+      if (portee > porteeMax) porteeMax = portee;
+    }
+    let zh = 0;
+    for (const z of g.zones) if (z.horde) zh++;
+    if (zh >= plafond) pleins++;
+    somme += zh;
+
+    for (const p of g.players.values()) {
+      let aire = 0;
+      for (const z of g.zones) {
+        if (!z.horde) continue;
+        const dx = Math.max(0, Math.abs(z.x - p.x) - demiW);
+        const dy = Math.max(0, Math.abs(z.y - p.y) - demiH);
+        if (dx * dx + dy * dy < z.r * z.r) aire += Math.PI * z.r * z.r;
+      }
+      const part = aire / (CFG.VIEW_W * CFG.VIEW_H);
+      couverture += part;
+      if (part > couvertureMax) couvertureMax = part;
+    }
+    vues += g.players.size;
+    sol += g.powerups.length;
+  }
+
+  const total = corps.reduce((a, b) => a + b, 0);
+  return {
+    diffIndex, joueurs, plafond,
+    part: total ? porteurs.reduce((a, b) => a + b, 0) / total : 0,
+    traitsMoyens: total ? bits / total : 0,
+    parMinute: corps.map((n, i) => (n ? porteurs[i] / n : 0)),
+    partElite: total ? elites / total : 0,
+    elitesVus: elitesVus.size,
+    bonusSol: mesures ? sol / mesures : 0,
+    trailMoyen: mesures ? somme / mesures : 0,
+    trailPlein: mesures ? pleins / mesures : 0,
+    couverture: vues ? couverture / vues : 0,
+    couvertureMax,
+    wuMax, wuVueMax, porteeMax,
+    poses, ramasses, perimes,
+    niveau: g.level, segment: g.segment, duree: g.time,
+  };
+}
+
+function popcount(n) {
+  let c = 0;
+  for (let m = n; m; m &= m - 1) c++;
+  return c;
+}
+
+export const TRAIT_SAT_MAX = 0.5;
+
+export function verifierTraits(effectifs = [1, 2, 4], minutes = 37) {
+  const soucis = [];
+  const portage = [];
+
+  for (let di = 0; di < DIFFICULTIES.length; di++) {
+    let pire = 0;
+    for (const n of effectifs) {
+      const r = mesureTraits(di, n, minutes);
+      const ou = `${DIFFICULTIES[di].key}/${n}j`;
+      if (r.traitsMoyens > pire) pire = r.traitsMoyens;
+
+      if (r.trailPlein > TRAIT_SAT_MAX) {
+        soucis.push(`${ou} : plafond de trainee sature ${(r.trailPlein * 100).toFixed(0)} %`
+          + ` du temps — ce n'est plus un plafond, c'est une constante`);
+      }
+      // le budget se pose a l'octroi : un joueur qui avance peut decouvrir un preavis de plus
+      if (r.wuVueMax > TRAIT_CFG.DASH_WARN_MAX + 1) {
+        soucis.push(`${ou} : ${r.wuVueMax} preavis de ruee simultanes a l'ecran`
+          + ` pour un budget de ${TRAIT_CFG.DASH_WARN_MAX}`);
+      }
+      if (r.couvertureMax > TRAIT_CFG.TRAIL_SURFACE * 1.1) {
+        soucis.push(`${ou} : le sol de horde couvre ${(r.couvertureMax * 100).toFixed(0)} %`
+          + ` d'une vue pour un budget de ${(TRAIT_CFG.TRAIL_SURFACE * 100).toFixed(0)} %`);
+      }
+    }
+    portage.push(pire);
+  }
+
+  for (let di = 1; di < portage.length; di++) {
+    if (portage[di] <= portage[di - 1]) {
+      soucis.push(`${DIFFICULTIES[di].key} : ${portage[di].toFixed(2)} trait par corps`
+        + ` contre ${portage[di - 1].toFixed(2)} en ${DIFFICULTIES[di - 1].key}`
+        + ` — le levier du comportement ne monte pas avec le mode`);
+    }
+  }
+  return soucis;
+}
+
+export function mesureComposition(diffIndex, classes, minutes = 12) {
+  const g = new GameState(diffIndex);
+  classes.forEach((cls, i) => g.addPlayer(i + 1, `bot${i + 1}`, i, cls));
+  g.warmup = 0;
+
+  const inputs = new Map();
+  const images = Math.round(minutes * 60 / CFG.TICK);
+
+  for (let k = 0; k < images && !g.victory; k++) {
+    if (g.cardsPending) {
+      for (const [id, offres] of g.cardOffers) {
+        const p = g.players.get(id);
+        if (p && offres.length) g.takeCard(p, offres[0]);
+      }
+      g.cardsPending = false;
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+    if (g.relicPending) {
+      g.closeMerchant();
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+
+    inputs.clear();
+    for (const p of g.players.values()) inputs.set(p.id, botInput(g, p));
+    g.step(CFG.TICK, inputs);
+    for (const p of g.players.values()) {
+      p.hp = p.maxHp; p.downed = false; p.revive = 0;
+    }
+    g.gameOver = false;
+  }
+
+  let subis = 0;
+  for (const p of g.players.values()) {
+    for (const v of p.hurtBy) subis += v;
+  }
+  return {
+    subis: subis / (classes.length * Math.max(1, g.time / 60)),
+    niveau: g.level, duree: g.time,
+  };
 }

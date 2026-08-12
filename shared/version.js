@@ -552,6 +552,65 @@
                    pare pas, n'esquive pas, n'utilise aucune de ses deux
                    competences. Un critere de survie a besoin d'un pilote
 
+     0.8.12 equilibrage, lot J  LES DEUX PLAFONDS DE TRAITS SE DERIVENT DE
+                   L'ECRAN. Ni l'un ni l'autre n'en etait encore un.
+                   `TRAIL_MAX = 18` etait ecrit pour deux cents ennemis ; la
+                   demande naturelle, plafond leve, est de 200 a 400 zones
+                   vivantes en cauchemar, et elle couvrait alors 19 a 27 % d'une
+                   vue en moyenne et jusqu'a 165 % — le double du budget de sol
+                   deja ecrit au depot (`HAZARD_SURFACE_MAX`, 12 %). Le trait
+                   n'existait donc pas : dix-huit places pour quarante porteurs.
+                   `trailMax()` rend ce qui remplit 12 % d'UNE VUE, soit 81. Le
+                   plan proposait `_enemyCap() x 0,09` — exactement 81 au plafond
+                   de cauchemar a quatre, mais indexe sur une grandeur qui bouge :
+                   a un joueur il serait tombe a 29 alors que la horde entiere
+                   tient sur le seul ecran de ce joueur. LA LISIBILITE EST UNE
+                   PROPRIETE DE LA VUE, PAS DE L'EFFECTIF.
+                   Le plafond seul ne suffisait pas — 200 a 400 de demande contre
+                   81 places restait sature, donc constant. L'empreinte par
+                   porteur (`TRAIL_LIFE x vitesse / TRAIL_STEP`) passe de 8,7 a
+                   2,1 zones vivantes : `TRAIL_LIFE 4 -> 1`, et `TRAIL_DOT
+                   14 -> 26` rend en intensite ce que la duree perd. Le pas ne
+                   bouge pas, une trainee reste continue. Saturation mesuree :
+                   80/79/84 % avant, 18/41/48 % apres.
+                   LE PREAVIS DE RUEE DEVIENT UN BUDGET PAR VUE, PAS UNE
+                   RECHARGE. Le plan proposait `DASH_CD` par difficulte ; mesure,
+                   les porteurs a portee vont de 17 a 283 selon le cas, ce qui
+                   demanderait un `DASH_CD` de 2,6 a 14 s, a re-regler a chaque
+                   changement de plafond. `DASH_WARN_MAX = 8` EST le critere,
+                   applique a l'octroi : 31/11/22 preavis simultanes avant, 8
+                   exactement dans les neuf cas apres. Un preavis refuse ne
+                   consomme pas sa recharge. Deux pieges payes : le budget se
+                   compte a la position de l'ENNEMI et non de sa cible (un ennemi
+                   lance sur A s'affiche sur l'ecran de B), et un preavis accorde
+                   doit s'inscrire dans les DEUX tables — celle de l'image et
+                   celle qui la reporte a la suivante. Sans le second appel, le
+                   plafond effectif double exactement : 16 pour 8.
+                   LE LEVIER « COMPORTEMENT » SE LIT AU NOMBRE DE TRAITS PAR
+                   CORPS. Le critere du plan (facteur 2 de calme a cauchemar) est
+                   vrai par construction, calme n'attachant aucun trait : il ne
+                   dit rien. Traits par corps : 0,00 / 0,90 / 1,66, soit x1,85 de
+                   normal a cauchemar. C'est cette croissance stricte que
+                   `verifierTraits()` surveille, avec la saturation des plafonds
+                   et les preavis a l'ecran.
+                   LES ELITES DILUAIENT AVEC L'EFFECTIF :
+                   `WAVE_ELITE_CROWD_EXP` valait 0,4 face au 0,75 de
+                   `WAVE_CROWD_EXP`, donc une part d'elites en `joueurs^-0,35`.
+                   Porte a 0,75, meme exposant des deux cotes comme le plafond de
+                   population du lot A. Rapport 4 j / 1 j : 0,52 -> 0,80, le reste
+                   dans le bruit. Une elite reste a 1-2 corps sur cent.
+                   DEUX RELEVES SANS DECISION, faute de pilote. Les bonus au sol :
+                   le bot ne va pas les chercher, 1 a 12 % ramasses, mais le sol
+                   porte 1,1 a 2,9 bonus en permanence pour un
+                   `POWERUP_MAX_GROUND` de 2 — le generateur est bloque par des
+                   bonus que personne ne prend, et les depouilles passent
+                   au-dessus du plafond. Et le critere de composition sans tank :
+                   neutraliser `trail` en normal, ou AUCUN type ne le porte,
+                   deplace le chiffre d'un facteur deux. La mesure est dominee par
+                   le bruit et le bot n'utilise ni Rempart ni Provocation, les
+                   deux seules choses qui font un tank. `mesureComposition()` est
+                   livree, le critere est renvoye au lot I
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -560,4 +619,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.11";
+export const VERSION = "0.8.12";
