@@ -3,7 +3,7 @@ import {
   CFG, PLAYER_COLORS, DIFFICULTIES, enemyCap,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
-import { difficulty } from "/core/state.js";
+import { difficulty } from "./core/state.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";

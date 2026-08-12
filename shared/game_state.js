@@ -5510,7 +5510,7 @@ export function mesurePopulation(diffIndex, joueurs, minutes = 30, invulnerable 
   };
 }
 
-export function verifierPopulation(minutes = 30, effectifs = [1, 2, 4], budgetMs = 16) {
+export function verifierPopulation(minutes = 45, effectifs = [1, 2, 4], budgetMs = 16) {
   const soucis = [];
   const niveaux = new Map();
 

@@ -458,6 +458,60 @@
                    50 643. `cartes-ameliorations.md` disparait, ses valeurs sont
                    dans `cards.js` depuis longtemps
 
+   --- plan d'equilibrage (docs/superpowers/specs/plan6) ---------------------
+   Ses lots portent les memes LETTRES que ceux du decoupage client ci-dessus.
+   La table est la seule correspondance qui fasse foi : 0.8.0 = lot A du
+   decoupage, 0.8.10 = lot A de l'equilibrage. Rien ne se deduit de la lettre.
+
+     0.8.10 equilibrage, lot A  LE PLAFOND DE POPULATION DEVIENT UNE FONCTION.
+                   `MAX_ENEMIES: 200` etait une constante, et une fois atteinte
+                   `_spawnEnemy` rendait `null` : TROIS systemes s'eteignaient
+                   ensemble — les debits 2,2 a 5,0 des segments 4/5/6, le
+                   `diff.spawn` des trois modes, et surtout `WAVE_CROWD_EXP`,
+                   qui n'etait eteint que D'UN COTE. `_addXp` divisait toujours
+                   le gain par `joueurs^0,75` alors que la contrepartie — une
+                   horde 2,83 fois plus dense — n'arrivait jamais. Jouer a
+                   quatre etait une taxe sur la progression.
+                   `enemyCap(diffIndex, joueurs)` porte le MEME exposant que la
+                   division d'experience : la horde grossit exactement de ce que
+                   la normalisation retire. 176 a 900 corps selon mode et
+                   effectif. Mesure, tues divises par `joueurs^0,75` a 1, 2 et 4
+                   joueurs : 100 / 100 / 104 % en calme, 100 / 98 / 95 % en
+                   normal, contre 26 / 22 / 24 cartes avant.
+                   LE PREREQUIS ETAIT UNE GRILLE SPATIALE, et il n'existait pas.
+                   Les deux separations (entre ennemis, et ennemi/joueur)
+                   etaient en O(n²) et en O(joueurs × ennemis) — 193 000 paires
+                   par image a 622 corps. `_grille()` : tri par comptage dans
+                   des `Int32Array` reutilises, cellule = deux fois le plus
+                   grand rayon, voisinage 3×3. C'est la TAILLE DE CELLULE qui
+                   prouve la couverture — deux corps qui se chevauchent sont a
+                   moins d'une cellule — et l'ecretage des coordonnees est
+                   1-lipschitzien, donc un corps repousse hors salle ne perd pas
+                   ses voisins.
+                   Profilage, arene forcee pleine : 3,56 ms au p99 a 900 corps,
+                   7,04 a 1600, 14,58 a 2000 pour un budget de 16. Le plafond de
+                   900 garde donc 1,8× de marge en nombre de corps ; c'est elle
+                   que B et J depenseront. En jeu, le plafond ne mord plus que
+                   dans trois cas sur neuf, tous apres la minute 9 : le
+                   regulateur de fin de manche n'est plus lui mais le debit face
+                   a ce que l'equipe nettoie.
+                   A-2, LA DETTE DU LOT : les debits des segments 4/5/6, ecrits
+                   en sachant qu'ils etaient inoperants, sont remesures. Un beat
+                   a 5,0/s remplit le plafond en 44 s sur les 300 du segment, et
+                   le temps est le MEME a 1, 2 et 4 joueurs — meme exposant des
+                   deux cotes. La montee reste un gradient : un beat d'ouverture
+                   de segment 4 ne remplit que 60 % du plafond. Les deux autres
+                   dettes ecrites au plan (traversabilite de la horde,
+                   `TRAIL_MAX`) appartiennent aux lots B et J.
+                   `verifierPopulation()` livre avec le lot, sur le modele de
+                   `verifierScript()` et `verifierBiomes()`. Deux reserves
+                   ecrites dans `LISEZMOI.md`, toutes deux sur le PROTOCOLE :
+                   cauchemar en solo est degenere (les bots immortels restent
+                   bloques quarante minutes sur le premier boss), et la
+                   croissance de population n'est pas monotone au segment 3 —
+                   la puissance de l'equipe y monte plus vite que le script,
+                   ce qui se regle au lot C et non en relevant le plafond
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -466,4 +520,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.9";
+export const VERSION = "0.8.10";

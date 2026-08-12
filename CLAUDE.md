@@ -336,6 +336,8 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_groundZone()` | toute zone posée par la horde, plafond global `TRAIL_MAX` |
 | `_wave(x, y, r, dmg, owner)` | l'onde blanche des cartes (l'horloge de manche s'appelle `_segmentTick(dt)` — deux méthodes de même nom s'écrasent en silence) |
 | `_spawnPoint(geom, r)` / `_pushOffScreen` / `_edgePoint` | apparition et repoussage hors vue |
+| `_grille()` | voisinage spatial : séparation entre ennemis **et** ennemi/joueur |
+| `enemyCap(diffIndex, joueurs)` / `_enemyCap()` | plafond de population, serveur **et** HUD |
 | `_clampToBounds()` / `_dropPoint()` | tout ce qui borne un déplacement ou pose un objet |
 | `_bossTargets()` | tout ce qui frappe « le boss » en zone |
 | `_ground()` / `groundAt()` | champs de ralentissement, serveur et client |
@@ -453,6 +455,13 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   joueur n'est **jamais** déplacé en retour, le contact garde une **morsure d'un
   pixel** (`PLAYER_BITE`). `_spawnSweep()` teste le segment centre du joueur →
   point d'apparition, dans l'ordre où la balle le parcourt.
+- **Les deux séparations passent par la GRILLE** (`_grille()`) : tri par comptage
+  dans des `Int32Array` réutilisés, cellule = `2 × max(rayon, PLAYER_RADIUS)`,
+  voisinage 3×3, coordonnées de cellule **écrêtées** (un corps repoussé hors salle
+  retombe dans une cellule de bord — l'écrêtage est 1-lipschitzien, donc il ne
+  sépare jamais deux corps qui se touchent). La taille de cellule est ce qui
+  **prouve** la couverture : deux corps qui se chevauchent sont à moins d'une
+  cellule, donc dans le voisinage. La toucher casse la preuve.
 - **L'état de provocation est global** (`state.taunt = {id, until, x, y}`), lu par
   `_nearestPlayer()`.
 - **Le mode soin est la seule chose où une balle teste les joueurs**
@@ -485,9 +494,16 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   venait** (une esquive traverse 162 px en trois images). Le client rejoue la
   règle. Les obstacles de biome repoussent **par axe** (glissement). Le **boss**
   n'y passe pas.
-- **La saturation ne traverse pas le réseau** : passé `MAX_ENEMIES`,
+- **Le plafond de population est une FONCTION, pas une constante** :
+  `enemyCap(diffIndex, joueurs)` = `MAX_ENEMIES_BASE × MAX_ENEMIES_DIFF[i] ×
+  joueurs^WAVE_CROWD_EXP`, borné par `MAX_ENEMIES_HARD_CAP`. Le **même exposant**
+  que la division d'XP de `_addXp` : la horde grossit exactement de ce que la
+  normalisation retire. `MAX_ENEMIES_HARD_CAP` est une limite de **moteur** — la
+  seule valeur du dépôt qu'on règle au profileur et non en jouant.
+- **La saturation ne traverse pas le réseau** : passé `_enemyCap()`,
   `_spawnEnemy` rend `null` en silence. La réponse est de l'**information** (taux
-  d'occupation au HUD, déduit de `enemies.length`).
+  d'occupation au HUD, déduit de `enemies.length` — le client rejoue `enemyCap()`
+  à partir de la difficulté et de la longueur de `playerList`).
 - **UN ENNEMI NE SE MATÉRIALISE JAMAIS SOUS LES YEUX** (`_pushOffScreen`). Le
   **côté appartient au script, la distance à la lisibilité** : on ne change jamais
   de bord, on repousse le long de l'axe du bord, quitte à sortir de la salle. Le
@@ -1163,9 +1179,10 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
 - **Toute mesure précise son profil de compte** : *compte neuf* (un `GameState`
   sans `meta`) et *compte maximal*. Écart attendu **sous 1,5 vague** ; s'il
   dépasse, réduire le **nombre d'emplacements**, jamais les valeurs.
-- **Défaut ouvert** : `MAX_ENEMIES` est le vrai régulateur de fin de manche
-  (atteint 3 % à 64 % du temps selon mode et effectif). Contrainte = lisibilité,
-  pas CPU. Arbitrage non tranché.
+- **Le plafond n'est plus le régulateur de fin de manche** (lot A) : il ne mord
+  plus que dans trois cas sur neuf, tous après la minute 9. Ce qui règle le
+  plateau est le **débit face à ce que l'équipe nettoie**. Contrainte =
+  lisibilité, pas CPU — le moteur tient 1600 corps sous les 16 ms.
 - Les chiffres relevés vivent dans `LISEZMOI.md` ; le chantier d'équilibrage en
   cours dans `docs/superpowers/specs/plan6/`.
 

@@ -8,6 +8,85 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Plafond de population et grille spatiale (lot A du plan d'équilibrage)
+
+Protocole : bots immortels, 45 min de jeu simulé, trois essais par case, les six
+segments traversés dans les 27 cas. Population moyenne par segment, temps de
+première saturation, ms de simulation par image.
+
+| | plafond | population par segment | 1ʳᵉ saturation | ms méd. / p99 |
+|---|---|---|---|---|
+| calme 1j | 176 | 5 12 21 27 35 37 | 35 min (1 essai/3) | 0,06 / 0,20 |
+| calme 2j | 296 | 6 20 21 33 44 48 | 35 min (1/3) | 0,07 / 0,26 |
+| calme 4j | 498 | 10 24 20 26 36 43 | jamais | 0,13 / 0,59 |
+| normal 1j | 220 | 6 19 24 32 37 28 | jamais | 0,09 / 0,32 |
+| normal 2j | 370 | 9 29 35 34 80 86 | jamais | 0,12 / 1,29 |
+| normal 4j | 622 | 17 67 45 125 166 100 | 31 min (1/3) | 0,17 / 4,55 |
+| cauchemar 1j | 319 | dégénéré — voir plus bas | 9,6 min (1/3) | 0,04 / 0,97 |
+| cauchemar 2j | 536 | 15 109 75 96 95 108 | 9,1 min (2/3) | 0,21 / 3,71 |
+| cauchemar 4j | 900 | 20 52 34 67 70 82 | jamais | 0,19 / 2,26 |
+
+**La parité d'effectif est le résultat principal**, et elle ne se lit pas sur le
+niveau atteint (écrêté par `LEVEL_MAX = 30`, et bruyant à ±5 niveaux entre deux
+essais identiques) mais sur les **tués**, une fois divisés par `joueurs^0,75` —
+la division exacte que `_addXp` applique à l'expérience :
+
+| | 1j | 2j | 4j | ÷ `joueurs^0,75` |
+|---|---|---|---|---|
+| calme | 4 889 | 8 220 | 14 350 | 4 889 / 4 887 / 5 074 |
+| normal | 6 066 | 10 041 | 16 282 | 6 066 / 5 970 / 5 757 |
+
+Soit **95 à 104 %**. C'est ce que le lot achetait : le plafond porte le **même
+exposant** que la division d'expérience, donc la horde grossit exactement de ce
+que la normalisation retire. Avant, la division s'appliquait seule.
+
+**Le plafond ne mord presque plus.** Trois cases seulement saturent, toutes après
+la minute 9, et jamais dans les trois essais. Le régulateur de fin de manche
+n'est plus le plafond mais le **débit face à ce que l'équipe nettoie**.
+
+**Le moteur tient bien plus que le plafond.** Arène forcée pleine, bots au repos,
+60 s par palier :
+
+| corps | médiane | p99 |
+|---|---|---|
+| 220 | 0,18 ms | 0,95 ms |
+| 622 | 0,73 ms | 1,77 ms |
+| 900 | 2,00 ms | 3,56 ms |
+| 1600 | 4,98 ms | 7,04 ms |
+| 2000 | 8,75 ms | 14,58 ms |
+
+`MAX_ENEMIES_HARD_CAP = 900` coûte donc 3,6 ms au p99 sur un budget de 16, et le
+budget ne casse qu'entre 1600 et 2000 corps. **La marge est de 1,8× en nombre de
+corps** — c'est elle que les lots B et J dépensent s'ils alourdissent le coût par
+ennemi. Le plafond de 900 ne mord au demeurant qu'en cauchemar à quatre, où la
+valeur naturelle est 902.
+
+**Les débits du script sont redevenus opérants** (A-2). Temps qu'un beat met à
+remplir le plafond, horde jamais nettoyée :
+
+| beat | débit | calme | normal | cauchemar |
+|---|---|---|---|---|
+| segment 4 beat 1 | 2,2/s | 60 % en 60 s | 60 % en 60 s | 53 % en 60 s |
+| segment 4 beat 5 | 3,8/s | 58 s | 58 s | 91 % en 60 s |
+| segment 5 beat 5 | 4,4/s | 50 s | 50 s | 57 s |
+| segment 6 beat 5 | 5,0/s | 44 s | 44 s | 50 s |
+
+**Le temps est le même à 1, 2 et 4 joueurs**, au dixième de seconde : plafond et
+débit portent le même exposant d'effectif, donc l'un ne peut pas rattraper
+l'autre. Et la montée reste un gradient et non une marche — un beat d'ouverture
+de segment 4 ne remplit que 60 % du plafond, le crescendo du segment 6 le remplit
+en 44 s sur les 300 du segment.
+
+Deux réserves écrites, parce qu'elles portent sur le protocole et non sur le lot :
+
+- **cauchemar en solo est dégénéré** : les bots immortels restent bloqués sur le
+  premier boss quarante minutes (segment 1 ou 2 atteint sur trois essais). Ses
+  chiffres ne veulent rien dire, dans aucun sens.
+- **la croissance de population n'est pas monotone** sur huit cases : creux au
+  segment 3 partout, et au segment 6 en normal. La quantité écrite au script
+  monte bien ; c'est la **puissance de l'équipe** qui monte plus vite qu'elle sur
+  ces deux fenêtres. Ça se règle en C (PV et TTK), pas en relevant le plafond.
+
 Simulation à 4 joueurs, mesurée sur ce projet :
 
 | t | ennemis | snapshot | bande passante / joueur |
@@ -811,7 +890,9 @@ WAVE_XP_BONUS: 12       // équivalent kills versé à la fin d'une vague
 LEVEL_MAX: 30           // plafond — un niveau = une carte
 POWERUP_MIN / MAX: 18-26 // secondes entre deux bonus au sol
 POWERUP_MAX_GROUND: 2   // bonus présents au sol simultanément
-MAX_ENEMIES: 200        // plafond dur
+MAX_ENEMIES_BASE: 220   // plafond de reference, solo, normal
+MAX_ENEMIES_DIFF: [0.80, 1.00, 1.45]  // par mode
+MAX_ENEMIES_HARD_CAP: 900             // limite du MOTEUR, reglee au profileur
 ENEMY_HP_WAVE_RAMP: 9   // PV gagnés par les ennemis, par vague
 SPAWN_WAVE_RAMP: 0.15   // apparitions par seconde gagnées par vague
 TURRET_LIFE / RANGE: 20 s / 350 px
@@ -910,8 +991,9 @@ Composition des vagues, dans `ENEMY_TYPES` : `from` (moment d'apparition),
 - `ws_lite.js` couvre le nécessaire, pas plus : **pas de TLS**, qui est le
   travail du proxy inverse. Il fait en revanche la compression
   (`permessage-deflate`) depuis le lot infra.
-- L'évitement entre ennemis reste en O(n²). À 180 c'est négligeable ; au-delà de
-  400, il faudrait une grille spatiale.
+- L'évitement entre ennemis passe par une grille spatiale depuis le lot A du plan
+  d'équilibrage (`_grille()`). C'est ce qui a permis de relever le plafond de
+  population de 200 à 176-900 selon mode et effectif.
 - Pas de reprise de partie : une coupure en pleine manche fait perdre la place
   dans la salle en cours. La **session**, elle, se reprend toute seule
   (`loginToken`) — on ne retape pas son mot de passe.
@@ -923,9 +1005,10 @@ Composition des vagues, dans `ENEMY_TYPES` : `from` (moment d'apparition),
   actuelles le cas ne se produit pas. Seule l'**apparition** est balayée en
   continu, parce que là le cas se produisait vraiment — voir la séparation
   ennemi/joueur.
-- L'évitement ennemi/joueur est lui aussi en O(joueurs × ennemis), soit 800
-  tests par image au pire. Négligeable à côté des 20 000 de l'évitement mutuel,
-  et il tomberait avec la même grille spatiale.
+- L'évitement ennemi/joueur passe par la même grille, qu'il reconstruit lui-même
+  — il est appelé depuis deux endroits (la boucle des ennemis et `_areaPull`), et
+  une grille périmée séparerait mal. Deux passes en O(n) contre une passe en
+  O(joueurs × ennemis) : le compte y est dès la centaine d'ennemis.
 - Les fragments passent **sous** le boss et les barres de vie depuis la bascule
   WebGL, là où le chemin canvas 2D les mettait au-dessus de tout. Les remonter
   demanderait un second contexte WebGL par-dessus la couche 2D supérieure — un
