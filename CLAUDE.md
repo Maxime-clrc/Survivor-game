@@ -338,6 +338,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_spawnPoint(geom, r)` / `_pushOffScreen` / `_edgePoint` | apparition et repoussage hors vue |
 | `_grille()` | voisinage spatial : séparation entre ennemis **et** ennemi/joueur |
 | `enemyCap(diffIndex, joueurs)` / `_enemyCap()` | plafond de population, serveur **et** HUD |
+| `enemySpeed(type, minute, diff, tirage, elite)` | vitesse d'un ennemi — apparition **et** vérificateur |
 | `_clampToBounds()` / `_dropPoint()` | tout ce qui borne un déplacement ou pose un objet |
 | `_bossTargets()` | tout ce qui frappe « le boss » en zone |
 | `_ground()` / `groundAt()` | champs de ralentissement, serveur et client |
@@ -455,6 +456,16 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   joueur n'est **jamais** déplacé en retour, le contact garde une **morsure d'un
   pixel** (`PLAYER_BITE`). `_spawnSweep()` teste le segment centre du joueur →
   point d'apparition, dans l'ordre où la balle le parcourt.
+- **AUCUN TYPE DE HORDE NE DÉPASSE 90 % DE LA VITESSE DE LA CLASSE MÉDIANE**
+  (`SPEED_DOCTRINE`, Soigneur à `CFG.PLAYER_SPEED`), à aucune minute, dans aucune
+  difficulté, **tirage de vitesse compris**. C'est ce qui garantit qu'il reste
+  toujours quelque chose à semer. Le Rempart (`speedMul 0,92`) n'est pas couvert :
+  un tank ne répond pas à la horde en fuyant. Ne s'applique **ni aux boss ni aux
+  invocations de mécanique**, qui doivent pouvoir rattraper.
+- **La rampe de vitesse est MULTIPLICATIVE** (`ENEMY_SPEED_RAMP_PCT`) : une rampe
+  additive uniforme est mathématiquement une compression du bestiaire — elle
+  rapproche tout le monde de la moyenne. Le rapport lent/rapide est donc
+  **invariant par minute** ; il a un plancher, `SPEED_SPREAD_MIN`.
 - **Les deux séparations passent par la GRILLE** (`_grille()`) : tri par comptage
   dans des `Int32Array` réutilisés, cellule = `2 × max(rayon, PLAYER_RADIUS)`,
   voisinage 3×3, coordonnées de cellule **écrêtées** (un corps repoussé hors salle
@@ -561,8 +572,8 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   sont une **fraction de ceux d'un boss** du même segment, et ne suivent pas la
   puissance.
 - **UNE DIFFICULTÉ EST UN PROFIL** : `script`, `roster`, `traits`, `resume`, puis
-  le **résidu** `hp`/`spawn`/`dmg`/`boss`. Ni `events` ni `biome` n'y ouvrent de
-  clé.
+  le **résidu** `hp`/`spawn`/`dmg`/`boss`/`speed`. Ni `events` ni `biome` n'y
+  ouvrent de clé.
 - **Trois refus explicites** : pas de variante de boss par difficulté, pas de
   variante de mécanique par difficulté, pas de statistique de type par difficulté
   (le résidu porte tout l'ajustement chiffré).

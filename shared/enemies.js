@@ -47,8 +47,8 @@ export const TRAIT_CFG = {
 
 export const ENEMY_TYPES = [
   { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10, xp: 10 },
-  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.45, speed: 245, dmg: 12, r: 9,  score: 14, xp: 6 },
-  { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30, xp: 32 },
+  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.40, speed: 156, dmg: 7,  r: 9,  score: 14, xp: 6 },
+  { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 44,  dmg: 30, r: 21, score: 30, xp: 32 },
   { key: "shooter", minMin: 7,   fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25, xp: 14,
     shootCd: 2.6, standoff: 170 },
   { key: "brood",   minMin: 9,   fallback: 1,  weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20, xp: 18,
@@ -57,7 +57,7 @@ export const ENEMY_TYPES = [
   { key: "kamikaze", minMin: 12, fallback: 1, weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8, r: 10, score: 18, xp: 8,
     blastRadius: 90, blastDamage: 45, blastDelay: 0.15 },
 
-  { key: "bulwark",  minMin: 15, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 58, dmg: 22, r: 15, score: 32, xp: 22,
+  { key: "bulwark",  minMin: 15, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 50, dmg: 22, r: 15, score: 32, xp: 22,
     shieldArc: 100, shieldTurnRate: 2.4 },
 
   { key: "medic",    minMin: 19, fallback: 3, weight: 0.28, share: 0.09, hpMul: 0.9, speed: 68, dmg: 10, r: 13, score: 28, xp: 14,

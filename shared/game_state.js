@@ -109,7 +109,7 @@ export const CFG = {
 
   ENEMY_HP_BASE: 16,
   ENEMY_HP_MIN_RAMP: 13,
-  ENEMY_SPEED_MIN_RAMP: 4,
+  ENEMY_SPEED_RAMP_PCT: 0.007,
 
   REVIVE_RADIUS: 96,
   REVIVE_TIME: 1.0,
@@ -287,7 +287,7 @@ export const DIFFICULTIES = [
       "aucun comportement particulier : ils avancent et ils frappent",
       "la horde arrive d'un seul côté — le sol ne fait jamais rien",
     ],
-    hp: 0.78, spawn: 0.80, dmg: 0.80, boss: 0.75,
+    hp: 0.78, spawn: 0.80, dmg: 0.80, boss: 0.75, speed: 0.85,
   },
   {
     key: "normal", label: "normal",
@@ -306,7 +306,7 @@ export const DIFFICULTIES = [
       "les grunts chargent, les tireurs envoient des salves de trois",
       "pinces et quatre fronts sur les crescendos — le sol ne blesse pas",
     ],
-    hp: 1.00, spawn: 1.00, dmg: 1.00, boss: 1.00,
+    hp: 1.00, spawn: 1.00, dmg: 1.00, boss: 1.00, speed: 1.00,
   },
   {
     key: "cauchemar", label: "cauchemar",
@@ -327,7 +327,7 @@ export const DIFFICULTIES = [
       "les grunts chargent ET brûlent le sol derrière eux, les broods sporulent",
       "plusieurs directions en permanence : le sol se referme derrière eux",
     ],
-    hp: 1.35, spawn: 1.28, dmg: 1.25, boss: 1.25,
+    hp: 1.35, spawn: 1.28, dmg: 1.25, boss: 1.25, speed: 1.12,
   },
 ];
 export const DIFF_NORMAL = 1;
@@ -347,6 +347,15 @@ export function typesFor(diffIndex) {
 
 export function traitsOf(diffIndex, type) {
   return TRAIT_BY_TYPE[diffIndex]?.[type] ?? 0;
+}
+
+export function enemySpeed(typeIndex, minute, diffIndex, roll = 1, elite = false) {
+  const t = ENEMY_TYPES[typeIndex];
+  if (!t) return 0;
+  return t.speed * roll
+    * (1 + minute * CFG.ENEMY_SPEED_RAMP_PCT)
+    * (DIFFICULTIES[diffIndex]?.speed ?? 1)
+    * (elite ? CFG.ELITE_SPEED_MUL : 1);
 }
 
 export function enemyCap(diffIndex, joueurs) {
@@ -1959,8 +1968,7 @@ export class GameState {
       y: pos.y,
       hp,
       maxHp: hp,
-      speed: (t.speed * (0.9 + Math.random() * 0.2) + past * CFG.ENEMY_SPEED_MIN_RAMP)
-        * (elite ? CFG.ELITE_SPEED_MUL : 1),
+      speed: enemySpeed(ti, past, this.diffIndex, 0.9 + Math.random() * 0.2, elite),
       r: elite ? t.r * CFG.ELITE_RADIUS_MUL : t.r,
       ang: Math.atan2(CFG.ARENA_H / 2 - pos.y, CFG.ARENA_W / 2 - pos.x),
       shootCd: t.shootCd ? t.shootCd * (0.5 + Math.random()) : 0,
@@ -5503,11 +5511,94 @@ export function mesurePopulation(diffIndex, joueurs, minutes = 30, invulnerable 
     diffIndex, joueurs, cap,
     saturation, pointe, tempsPlein,
     parSegment: somme.map((v, i) => (compte[i] ? v / compte[i] : 0)),
-    niveau: g.level, segment: g.segment, tues,
+    niveau: g.level, segment: g.segment, tues, duree: g.time,
     msMedian: ms.length ? ms[Math.floor(ms.length / 2)] : 0,
     msP99: ms.length ? ms[Math.floor(ms.length * 0.99)] : 0,
     msMax: ms.length ? ms[ms.length - 1] : 0,
   };
+}
+
+export const SPEED_DOCTRINE = 0.90;
+export const SPEED_SPREAD_MIN = 3.5;
+
+export function verifierVitesses(minutes = 30, roll = 1.1) {
+  const soucis = [];
+  const plafond = CFG.PLAYER_SPEED * SPEED_DOCTRINE;
+
+  for (let di = 0; di < DIFFICULTIES.length; di++) {
+    let pire = 0, pireOu = "";
+    for (const ti of typesFor(di)) {
+      const v = enemySpeed(ti, minutes, di, roll);
+      if (v > pire) { pire = v; pireOu = ENEMY_TYPES[ti].key; }
+    }
+    if (pire > plafond) {
+      soucis.push(`${DIFFICULTIES[di].key} : ${pireOu} a ${pire.toFixed(0)} px/s`
+        + ` a la minute ${minutes}, plafond ${plafond.toFixed(0)}`);
+    }
+
+    const vues = typesFor(di).map(ti => enemySpeed(ti, minutes, di, 1));
+    const spread = Math.max(...vues) / Math.min(...vues);
+    if (spread < SPEED_SPREAD_MIN) {
+      soucis.push(`${DIFFICULTIES[di].key} : rapport lent/rapide a ${spread.toFixed(2)}x`
+        + ` a la minute ${minutes}, plancher ${SPEED_SPREAD_MIN}x`);
+    }
+  }
+  return soucis;
+}
+
+export function mesureEncerclement(diffIndex, joueurs, distance = 600, limite = 40) {
+  const g = new GameState(diffIndex);
+  for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+  g.warmup = 0;
+  g.segment = TL_CFG.SEGMENTS;
+  g.hordeTime = 3 * TL_CFG.BEAT_TIME;
+  g._biomeObstacles = [];
+  g._biomeHazards = [];
+
+  const meneur = [...g.players.values()][0];
+  const rayon = distance * 0.75;
+  const cap = enemyCap(diffIndex, joueurs);
+  while (g.enemies.length < cap) {
+    const a = Math.random() * Math.PI * 2;
+    const d = Math.sqrt(Math.random()) * rayon;
+    if (!g._spawnEnemy(-1, meneur.x + Math.cos(a) * d, meneur.y + Math.sin(a) * d)) break;
+  }
+
+  const inputs = new Map();
+  const x0 = meneur.x, y0 = meneur.y;
+  const vers = { x: x0 < CFG.ARENA_W / 2 ? 1 : -1, y: 0 };
+  for (const p of g.players.values()) {
+    inputs.set(p.id, { x: vers.x, y: vers.y, ax: vers.x, ay: vers.y, ar: 1, dash: false });
+  }
+
+  for (let k = 0; k < limite / CFG.TICK; k++) {
+    g.step(CFG.TICK, inputs);
+    for (const p of g.players.values()) {
+      p.hp = p.maxHp; p.downed = false; p.fireCd = 999;
+    }
+    g.gameOver = false;
+    if (Math.hypot(meneur.x - x0, meneur.y - y0) >= distance) {
+      return { cap, corps: g.enemies.length, t: (k + 1) * CFG.TICK };
+    }
+  }
+  return { cap, corps: g.enemies.length, t: null };
+}
+
+export function verifierEncerclement(effectifs = [1, 2, 4], marge = 3) {
+  const soucis = [];
+  const libre = 600 / CFG.PLAYER_SPEED;
+  for (let di = 0; di < DIFFICULTIES.length; di++) {
+    for (const n of effectifs) {
+      const r = mesureEncerclement(di, n);
+      const ou = `${DIFFICULTIES[di].key}/${n}j`;
+      if (r.t === null) soucis.push(`${ou} : pas de sortie en 40 s, ${r.corps} corps`);
+      else if (r.t > libre * marge) {
+        soucis.push(`${ou} : sortie en ${r.t.toFixed(1)} s contre ${libre.toFixed(1)} s a vide`
+          + ` (${(r.t / libre).toFixed(1)}x, plafond ${marge}x)`);
+      }
+    }
+  }
+  return soucis;
 }
 
 export function verifierPopulation(minutes = 45, effectifs = [1, 2, 4], budgetMs = 16) {

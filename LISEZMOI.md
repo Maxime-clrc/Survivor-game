@@ -8,6 +8,73 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Vitesse et bestiaire (lot B du plan d'équilibrage)
+
+**Le décrochage n'existait pas.** Distance au poursuivant le plus proche, joueur
+sans aucune carte de mobilité, fuite en ligne droite, paquet de 40 corps, sans
+réapprovisionnement :
+
+| | 5 s | 10 s | 15 s |
+|---|---|---|---|
+| avant, les trois modes, toutes les minutes | 22 px | 22 px | 22 px |
+| après — calme, minute 25 | 387 | 765 | 1 144 px |
+| après — normal, minute 25 | 264 | 503 | 726 px |
+| après — cauchemar, minute 25 | 171 | 268 | 365 px |
+
+22 px est exactement `r_runner + PLAYER_RADIUS - PLAYER_BITE`, la distance de
+séparation : le poursuivant était **collé**, indéfiniment, dans les neuf cas.
+
+**La rampe additive effaçait le bestiaire.** `ENEMY_SPEED_MIN_RAMP = 4` px/s par
+minute, identique pour tous, était mathématiquement une compression : le rapport
+lent/rapide tombait de 4,7× à 2,1× sur une manche. La rampe multiplicative
+(`ENEMY_SPEED_RAMP_PCT = 0,007`) le rend **invariant par minute** : 3,55×, à la
+minute 0 comme à la minute 30, dans les trois modes.
+
+**La table du plan cassait sa propre doctrine.** Écrite pour un runner à 196, elle
+oubliait deux facteurs — le `speed` de difficulté qu'elle introduisait elle-même,
+et le tirage ±10 % qui existait déjà. Vitesse du runner à la minute 30 :
+
+| | nominale | haut de tirage | plafond |
+|---|---|---|---|
+| normal | 237 | 261 | 234 |
+| cauchemar | 266 | 292 | 234 |
+
+`196 × 1,21 = 237` : la base cassait la doctrine **avant** tout multiplicateur de
+mode. Résolu sur le pire cas réel (haut de tirage, cauchemar, minute 30) :
+runner **156**. Ce qui faisait tomber le rapport lent/rapide à 3,0×, d'où deux
+fiches touchées hors plan pour tenir le plancher de 3,5× — **tank 52 → 44** et
+**bulwark 58 → 50**. Le pire cas mesuré est à 233 px/s pour un plafond de 234.
+
+**Le mur de corps n'en est pas un.** Temps pour parcourir 600 px depuis le centre
+d'un encerclement, arène au plafond, biome nu :
+
+| | corps | sortie |
+|---|---|---|
+| à vide | 0 | 2,31 s |
+| calme / normal, tout effectif | 176 à 622 | 2,3 s |
+| cauchemar 4 joueurs | 900 | 2,3 à 2,5 s |
+
+C'est la réponse à la question laissée ouverte par le lot A (« à 622, personne ne
+sait ») et elle tient dans un invariant déjà écrit : `_separateFromPlayers` ne
+déplace **jamais** le joueur, seulement l'ennemi. Traverser neuf cents corps coûte
+donc des **dégâts de contact**, pas du temps. `verifierEncerclement()` reste comme
+garde-fou : le jour où un corps repoussera un joueur, il le dira.
+
+**La mort médiane solo ne franchit pas le seuil demandé.** Neuf essais, bot
+mortel :
+
+| | avant | après |
+|---|---|---|
+| calme | 5,3 min | 5,3 min |
+| normal | 4,8 min | 5,3 min |
+| cauchemar | 2,7 min | 3,7 min |
+
+Le critère visait le segment 3, soit dix minutes ; aucun mode n'y arrive, ni avant
+ni après. **Ce chiffre mesure le bot, pas le jeu** : il ne pare pas, n'esquive pas
+et n'utilise aucune de ses deux compétences. Le seul enseignement exploitable est
+l'écart, +37 % en cauchemar. Un critère de survie a besoin d'un pilote, et le
+protocole du dépôt n'en a pas.
+
 ### Plafond de population et grille spatiale (lot A du plan d'équilibrage)
 
 Protocole : bots immortels, 45 min de jeu simulé, trois essais par case, les six

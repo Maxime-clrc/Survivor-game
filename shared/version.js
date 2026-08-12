@@ -512,6 +512,46 @@
                    la puissance de l'equipe y monte plus vite que le script,
                    ce qui se regle au lot C et non en relevant le plafond
 
+     0.8.11 equilibrage, lot B  ON PEUT ENFIN SEMER LA HORDE. Mesure avant
+                   correction : le poursuivant le plus proche est a 22 px — soit
+                   exactement la distance de separation — a 5, 10 et 15 s de
+                   fuite en ligne droite, dans les trois modes et a toutes les
+                   minutes. Pas « difficile a distancer » : colle, indefiniment.
+                   Apres, a la minute 25 et sans aucune carte de mobilite, 1144
+                   px en calme, 726 en normal, 365 en cauchemar.
+                   LA RAMPE DE VITESSE DEVIENT MULTIPLICATIVE.
+                   `ENEMY_SPEED_MIN_RAMP = 4` px/s par minute s'appliquait
+                   IDENTIQUEMENT a tous les types, donc +231 % au tank et +49 %
+                   au runner : une rampe additive uniforme est mathematiquement
+                   une compression du bestiaire. Le rapport lent/rapide tombait
+                   de 4,7x a 2,1x sur une manche, un tank finissait plus rapide
+                   qu'un grunt du debut. `ENEMY_SPEED_RAMP_PCT = 0,007` le rend
+                   invariant par minute : 3,55x partout.
+                   LA DOCTRINE DES 90 % est ecrite dans le code
+                   (`verifierVitesses()`, `SPEED_DOCTRINE`) : aucun type de
+                   horde ne depasse 90 % de la vitesse de la classe medIane, a
+                   aucune minute, dans aucune difficulte, TIRAGE COMPRIS.
+                   La table du plan cassait sa propre doctrine — ecrite pour un
+                   runner a 196, elle oubliait le `speed` de difficulte qu'elle
+                   introduisait et le tirage +-10 % deja present : 196 x 1,21 =
+                   237 pour un plafond de 234, avant tout multiplicateur de
+                   mode. Resolu sur le pire cas reel : runner 156. Le rapport
+                   lent/rapide tombant alors a 3,0x, deux fiches sont touchees
+                   hors plan pour tenir le plancher de 3,5x — tank 52 -> 44 et
+                   bulwark 58 -> 50. Pire cas mesure : 233 px/s pour 234.
+                   LE MUR DE CORPS N'EN EST PAS UN, et c'est la reponse a la
+                   question laissee ouverte par le lot A. Traverser 900 corps
+                   depuis le centre d'un encerclement coute 2,3 s contre 2,31 s
+                   a vide, parce qu'un invariant deja ecrit le dit :
+                   `_separateFromPlayers` ne deplace jamais le joueur. Le prix
+                   d'une traversee est en DEGATS DE CONTACT, pas en temps.
+                   `verifierEncerclement()` reste comme garde-fou.
+                   UN CRITERE SORT ROUGE : la mort mediane en solo devait passer
+                   le segment 3, elle est a 3,7 min en cauchemar (2,7 avant) et
+                   5,3 ailleurs. Le chiffre mesure le BOT et non le jeu — il ne
+                   pare pas, n'esquive pas, n'utilise aucune de ses deux
+                   competences. Un critere de survie a besoin d'un pilote
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -520,4 +560,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.10";
+export const VERSION = "0.8.11";
