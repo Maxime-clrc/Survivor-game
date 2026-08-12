@@ -4,34 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Survivor — administration</title>
-<!-- La feuille de cette page est AUTONOME : elle recopie les valeurs de
-     `shared/palette.js` au lieu de les lire sur `:root`, parce que rien ici ne
-     charge le jeu. C'est la seule duplication du depot, et elle est commentee
-     comme telle dans le fichier — une couleur changee dans la palette se
-     reporte a la main. Ni `tokens.css` ni `palette.js` ne sont charges : voir
-     le commentaire du script en bas de page.
-
-     C'est aussi pourquoi le <style> en ligne de `develop` ne revient pas : il
-     lisait `tokens.css`, dont les couleurs sont posees par `cssVars()` — donc
-     par le jeu, que cette page refuse justement de charger. -->
 <link rel="stylesheet" href="/css/admin.css">
 </head>
 <body>
 <div class="adminWrap">
-  <!-- Le kicker est AMBRE et non cyan, et les angles restent DURS : le cyan
-       dit « il faut y aller » partout dans le jeu, et le rayon franc des menus
-       signale « poste de controle du joueur ». Ici il faut dire l'inverse —
-       tu es hors du jeu, sur une machinerie qui touche aux donnees de tout le
-       monde et qui peut supprimer tous les comptes. -->
   <div class="adminHead">
     <div>
       <div class="adminKicker">Hors jeu · accès opérateur</div>
       <h1>Survivor — administration</h1>
     </div>
-    <!-- Le retour vers le jeu est une NAVIGATION de page et non une action de
-         la page : d'ou `location.href` plutot qu'un des gestionnaires du
-         script. `.adminHead` est en `space-between`, il se cale a droite du
-         titre tout seul. -->
     <div class="row">
       <button id="adminBack" onclick="location.href='/'">← Retour</button>
     </div>
@@ -83,8 +64,6 @@
     <table id="comptes"><tbody></tbody></table>
   </section>
 
-  <!-- `.danger` porte son bord rouge en PERMANENCE et non au survol : elle doit
-       se voir depuis le haut de la page, avant qu'on y arrive par erreur. -->
   <section class="danger">
     <h2>Zone dangereuse</h2>
     <p class="hint">
@@ -99,16 +78,6 @@
   </section>
 </div>
 
-<!-- PAS de `type="module"`, et plus aucun import. La page importait `cssVars`
-     depuis `/shared/palette.js` pour poser les couleurs, ce qui annulait en
-     pratique son autonomie : un module dont l'import echoue ne s'execute PAS
-     DU TOUT, donc une arborescence `shared/` cassee ou deplacee laissait ici
-     une page inerte — plus de bouton « Actualiser », c'est-a-dire plus aucun
-     moyen de diagnostiquer la panne qu'on vient constater. Or c'est exactement
-     le scenario pour lequel cette page existe.
-
-     Les couleurs viennent donc de `admin.css`, qui les recopie. C'est le prix
-     assume de l'autonomie, et la seule duplication du depot. -->
 <script>
   const $ = id => document.getElementById(id);
   const keyInput = $("key");
@@ -140,7 +109,6 @@
     if (r.status === 401) { $("authed").hidden = true; return say("clé invalide", "bad"); }
     if (!r.ok) return say(`erreur HTTP ${r.status}`, "bad");
     const { status, probe, salles, connectes, comptes, perf } = await r.json();
-    // La cle vient d'etre acceptee : les sections sensibles apparaissent.
     $("authed").hidden = false;
     renderPerf(!!perf);
 
@@ -169,8 +137,6 @@
     say("");
   }
 
-  /* Les noms de salle viennent des joueurs, comme les pseudos : textContent,
-     jamais innerHTML — la ligne `salle` de l'etat les injectait en HTML. */
   function renderSalles(salles) {
     const tbody = $("salles").querySelector("tbody");
     tbody.textContent = "";
@@ -190,9 +156,6 @@
     }
   }
 
-  /* La table des comptes vient de la MEMOIRE du serveur — jamais un hachage
-     ni un jeton. Les pseudos viennent des joueurs : textContent, pas
-     innerHTML. */
   function renderComptes(comptes) {
     const tbody = $("comptes").querySelector("tbody");
     tbody.textContent = "";
@@ -206,8 +169,6 @@
       const tr = tbody.insertRow();
       const who = tr.insertCell();
       who.textContent = c.affichage + (c.connecte ? " ●" : "");
-      // `name` eclaircit le pseudo par rapport aux chiffres de la ligne : c'est
-      // lui qu'on cherche. `ok` le repasse en vert quand le joueur est en ligne.
       who.className = c.connecte ? "ok" : "name";
       tr.insertCell().textContent = `${c.cores} noyaux`;
       tr.insertCell().textContent = `${c.runs} manche(s)`;
@@ -221,13 +182,6 @@
       del.textContent = "supprimer";
       del.className = "danger";
       del.onclick = () => delCompte(c.pseudo, c.affichage);
-      /* Deux boutons separes par une espace, et PAS un `.row` — bien que la
-         feuille habille `td.actions .row`. Essaye et mesure : `.row` porte
-         `flex-wrap: wrap` et la cellule `width: 1%`, donc les deux boutons
-         s'empilent l'un sous l'autre et chaque ligne de compte double de
-         hauteur. La cellule porte deja `white-space: nowrap` et
-         `text-align: right`, qui suffisent a les tenir sur une ligne a
-         droite. */
       actions.append(rp, " ", del);
     }
   }
@@ -253,10 +207,6 @@
     return out;
   }
 
-  /* Le bouton de diagnostic. L'etat vient du serveur (champ `perf` de l'etat),
-     jamais d'une copie locale : un onglet coupe pendant qu'un autre a allume
-     doit le dire. `on` porte le FUTUR etat, pas le courant — un appui sur le
-     bouton demande l'inverse de ce qui est affiche. */
   let perfOn = false;
   function renderPerf(on) {
     perfOn = on;
@@ -276,8 +226,6 @@
       + "Sa session en cours sera invalidée.")) return;
     const out = await adminPost("/admin/api/passreset", { pseudo }, "réinitialisation…");
     if (!out) return;
-    // Le temporaire ne s'affiche qu'UNE fois : le serveur n'en garde qu'un
-    // hachage, exactement comme un mot de passe choisi.
     say(`mot de passe temporaire de ${affichage} : ${out.temp} — notez-le, il ne sera plus affiché`, "ok");
   }
 

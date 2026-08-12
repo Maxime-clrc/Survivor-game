@@ -433,6 +433,31 @@
                    seule chose du depot mise en cache — `no-store` sur un mp3
                    de six mega-octets le retelechargerait a chaque enchainement.
 
+     0.8.9 LE DEPOT PERD SES COMMENTAIRES. Nouvelle regle de convention : le
+                   minimum possible, par defaut aucun — un commentaire se paie
+                   a chaque lecture du fichier, et le depot est lu bien plus
+                   souvent qu'il n'est ecrit. Ce qui explique un CHOIX DE
+                   CONCEPTION vit dans `CLAUDE.md` et `LISEZMOI.md`, ou il est
+                   ecrit une fois et relu quand on le cherche.
+                   4705 commentaires retires, 16 581 lignes sur 41 000. Fait
+                   par un scanner a etats (chaines, gabarits imbriques, regex)
+                   et non par expression reguliere, avec pour critere la
+                   RECONSTRUCTION EXACTE de chaque source en reinjectant les
+                   coupes — donc la garantie que rien d'autre qu'un commentaire
+                   n'a bouge. `node --check` sur les 52 modules, simulation et
+                   demarrage serveur verifies apres coup.
+                   QUATRE EXCEPTIONS, chacune pour la meme raison — l'info
+                   n'existe nulle part ailleurs : cette table (le CHANGELOG du
+                   depot), la note de duplication de palette d'`admin.css`, et
+                   le miroir `--cursor-go` entre `menus.css` et `ui/screens.js`,
+                   commente des deux cotes.
+                   LA DOCUMENTATION SUIT. `CLAUDE.md` est injecte a chaque
+                   session : 262 962 -> 76 472 caracteres, une ligne par regle,
+                   zero recit. `LISEZMOI.md` est reduit a ce qui ne se relit pas
+                   dans le code — mesures, reglages, limites : 292 705 ->
+                   50 643. `cartes-ameliorations.md` disparait, ses valeurs sont
+                   dans `cards.js` depuis longtemps
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -441,4 +466,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.8";
+export const VERSION = "0.8.9";

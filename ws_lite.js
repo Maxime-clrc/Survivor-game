@@ -1,19 +1,3 @@
-/* ===========================================================================
-   WebSocket minimal (RFC 6455 + RFC 7692), sans dependance externe.
-   Node n'expose pas de serveur WebSocket natif : plutot que d'imposer un
-   npm install, on implemente le strict necessaire — poignee de main,
-   lecture des trames masquees, ecriture des trames serveur, ping/pong,
-   et permessage-deflate. Suffisant pour du JSON. Pas de TLS : le chiffrement
-   est le travail du proxy inverse, pas celui de ce module.
-
-   La compression est negociee SANS reprise de contexte des deux cotes
-   (no_context_takeover) : chaque message se compresse et se decompresse
-   seul. C'est ce qui permet de compresser un broadcast UNE fois et d'ecrire
-   la meme trame sur toutes les sockets — un flux zlib par connexion aurait
-   impose une compression par client, soit exactement le cout qu'on refuse
-   (mesure : 0,31 ms par compression, une par salle et non une par joueur).
-   Le prix est ~3 % de taux en moins, tres loin de justifier l'etat partage.
-   =========================================================================== */
 
 import { createHash } from "node:crypto";
 import { deflateRawSync, inflateRawSync, constants as zconst } from "node:zlib";
@@ -28,22 +12,14 @@ const OP_CLOSE = 0x8;
 const OP_PING  = 0x9;
 const OP_PONG  = 0xa;
 
-const MAX_MESSAGE = 1 << 20;   // 1 Mo, garde-fou
+const MAX_MESSAGE = 1 << 20;
 
-/* Sous ce poids, la compression coute plus qu'elle ne rapporte : l'en-tete
-   deflate et l'appel zlib ne se remboursent que sur les gros messages — en
-   pratique les snapshots (7 Ko), qui sont precisement ce qu'on vise. */
 const COMPRESS_MIN = 256;
 
-/* Queue de vidage sync (RFC 7692 § 7.2.1) : l'emetteur la retire, le
-   recepteur la remet avant d'inflater. */
 const FLUSH_TAIL = Buffer.from([0x00, 0x00, 0xff, 0xff]);
 
 function compressPayload(payload) {
   const out = deflateRawSync(payload, { level: 1, finishFlush: zconst.Z_SYNC_FLUSH });
-  // Le vidage sync termine toujours par 00 00 ff ff ; on le retire comme
-  // l'impose la RFC. S'il manque (jamais observe), on envoie non compresse
-  // plutot que d'emettre une trame que le navigateur refusera.
   if (out.length < 4 || !out.subarray(out.length - 4).equals(FLUSH_TAIL)) return null;
   return out.subarray(0, out.length - 4);
 }
@@ -54,20 +30,11 @@ export class WsConnection {
     this.open = true;
     this.onmessage = null;
     this.onclose = null;
-    // Vrai si permessage-deflate a ete negocie a la poignee de main. Les
-    // trames RSV1 ne sont acceptees que dans ce cas — hors negociation,
-    // RSV1 reste une erreur de protocole, comme avant.
     this.deflate = deflate;
 
-    /* Aller-retour mesure, en millisecondes. `null` tant qu'aucun pong n'est
-       revenu — un zero se lirait comme « 0 ms », c'est-a-dire comme une
-       excellente connexion, exactement le contraire de « on ne sait pas ». */
     this.rtt = null;
     this._pingAt = 0;
 
-    /* Compteurs de diagnostic, remis a zero a chaque rapport par la salle.
-       Deux entiers par connexion : ils sont poses inconditionnellement parce
-       qu'un champ absent coute plus a tester qu'a initialiser. */
     this.perfBlocked = 0;
     this.perfQueueMax = 0;
 
@@ -80,13 +47,6 @@ export class WsConnection {
     socket.on("data", chunk => this._onData(chunk));
     socket.on("error", () => this._shutdown());
     socket.on("close", () => this._shutdown());
-    /* 'end' aussi, et ce n'est pas de la ceinture-bretelles : une socket
-       d'upgrade HTTP ne re-emet pas toujours 'close' apres le FIN du pair
-       (mesure : un client qui detruit sa connexion sans trame de fermeture ne
-       produisait QUE 'end'). Un pair qui a dit FIN n'enverra plus jamais de
-       trame — c'est une fin de connexion. Sans ca, le serveur gardait un
-       client fantome jusqu'a la prochaine ecriture echouee, et le compteur de
-       connexions par adresse IP ne redescendait jamais. */
     socket.on("end", () => this._shutdown());
   }
 
@@ -104,19 +64,10 @@ export class WsConnection {
     }
   }
 
-  /* Ecrit un message prepare par `prepareMessage` : la serialisation ET la
-     compression ont deja eu lieu, une seule fois pour tout le broadcast. */
   sendPrepared(prep) {
     if (!this.open) return;
     try {
       const ok = this.socket.write(this.deflate && prep.deflated ? prep.deflated : prep.plain);
-      /* Le retour de write() est IGNORE en production : il n'y a aucune
-         backpressure dans ce module, un lien sature empile dans le tampon
-         interne de Node — illimite, le highWaterMark de 16 Ko n'est qu'un
-         signal. On se contente de le COMPTER (PERF=1) : c'est la mesure qui
-         dit si la latence observee vient de la file d'envoi ou d'ailleurs.
-         `writableLength` est releve meme quand write() a rendu true, sinon on
-         ne verrait pas une file qui grossit sous le seuil. */
       if (PERF_ON) {
         if (!ok) this.perfBlocked++;
         if (this.socket.writableLength > this.perfQueueMax) {
@@ -128,12 +79,6 @@ export class WsConnection {
     }
   }
 
-  /* Le ping partait avec une charge VIDE et le pong n'etait pas lu : il n'y
-     avait donc rien a mesurer. L'horodatage voyage dans la charge parce que la
-     RFC 6455 impose au pair de la renvoyer a l'identique dans le pong — c'est
-     gratuit cote navigateur, et c'est ce qui rend la mesure juste meme si deux
-     pings sont en vol (un compteur d'emission seul attribuerait le pong du
-     premier a la date du second). */
   ping() {
     if (!this.open) return;
     const stamp = Buffer.alloc(8);
@@ -146,14 +91,14 @@ export class WsConnection {
     try {
       this.socket.write(encodeFrame(OP_CLOSE, Buffer.alloc(0)));
       this.socket.end();
-    } catch { /* ignore */ }
+    } catch {  }
     this._shutdown();
   }
 
   _shutdown() {
     if (!this.open) return;
     this.open = false;
-    try { this.socket.destroy(); } catch { /* ignore */ }
+    try { this.socket.destroy(); } catch {  }
     if (this.onclose) this.onclose();
   }
 
@@ -162,8 +107,8 @@ export class WsConnection {
 
     while (this.open) {
       const frame = decodeFrame(this._buf, this.deflate);
-      if (frame === null) break;                 // trame incomplete, on attend la suite
-      if (frame === false) { this.close(); return; }  // trame invalide
+      if (frame === null) break;
+      if (frame === false) { this.close(); return; }
 
       this._buf = this._buf.subarray(frame.consumed);
 
@@ -172,17 +117,6 @@ export class WsConnection {
           try { this.socket.write(encodeFrame(OP_PONG, frame.payload)); } catch { this._shutdown(); }
           break;
 
-        /* Un pong de HUIT octets est la reponse a NOTRE ping : la charge est
-           l'horodatage qu'on y a mis. Toute autre longueur est un pong non
-           sollicite, que la RFC autorise (« unidirectional heartbeat ») et
-           qu'on ignore — l'interpreter comme une mesure donnerait un aller-
-           retour fantaisiste.
-
-           Moyenne exponentielle et non valeur brute : un aller-retour saute de
-           8 a 40 ms d'une trame a l'autre selon la mise en file du systeme, et
-           un chiffre qui danse ne se lit pas. Un cinquieme de poids sur la
-           nouvelle mesure — assez pour suivre une degradation reelle en
-           quelques secondes, assez lisse pour ne pas clignoter. */
         case OP_PONG:
           if (frame.payload.length === 8) {
             const sample = Date.now() - frame.payload.readDoubleBE(0);
@@ -204,8 +138,6 @@ export class WsConnection {
             this._fragOp = frame.opcode;
             this._frags = [frame.payload];
             this._fragLen = frame.payload.length;
-            // RSV1 ne se pose que sur la PREMIERE trame d'un message (RFC
-            // 7692) : on le retient ici pour la livraison finale.
             this._fragCompressed = frame.rsv1;
           }
           break;
@@ -237,10 +169,6 @@ export class WsConnection {
   _deliver(opcode, payload, compressed) {
     if (opcode !== OP_TEXT || !this.onmessage) return;
     if (compressed) {
-      /* no_context_takeover cote client aussi : chaque message s'inflate
-         seul, aucun flux a maintenir. `maxOutputLength` borne la detente —
-         sans elle, un message d'un kilo-octet pourrait se gonfler en
-         gigaoctets (bombe zip) et le garde-fou MAX_MESSAGE ne verrait rien. */
       try {
         payload = inflateRawSync(Buffer.concat([payload, FLUSH_TAIL]), {
           finishFlush: zconst.Z_SYNC_FLUSH,
@@ -255,10 +183,6 @@ export class WsConnection {
   }
 }
 
-/* Serialise un message UNE fois pour un broadcast : la trame claire toujours,
-   la trame compressee seulement si elle en vaut la peine. `sendPrepared`
-   choisit ensuite par connexion selon ce qui a ete negocie — c'est ce qui
-   donne « une seule compression par salle, pas une par client ». */
 export function prepareMessage(str) {
   const payload = Buffer.from(str, "utf8");
   const prep = { plain: encodeFrame(OP_TEXT, payload), deflated: null };
@@ -282,11 +206,9 @@ function decodeFrame(buf, allowDeflate = false) {
   let len = b1 & 0x7f;
   let offset = 2;
 
-  if (rsv23 !== 0) return false;        // RSV2/RSV3 : aucune extension ne les pose
-  // RSV1 n'est licite que si permessage-deflate a ete negocie, et seulement
-  // sur une trame de donnees (jamais sur un ping ni une continuation).
+  if (rsv23 !== 0) return false;
   if (rsv1 && (!allowDeflate || (opcode !== OP_TEXT && opcode !== OP_BIN))) return false;
-  if (!masked) return false;            // un client DOIT masquer ses trames
+  if (!masked) return false;
 
   if (len === 126) {
     if (buf.length < offset + 2) return null;
@@ -328,13 +250,11 @@ function encodeFrame(opcode, payload, rsv1 = false) {
     header[1] = 127;
     header.writeBigUInt64BE(BigInt(len), 2);
   }
-  // FIN + RSV1 eventuel + opcode, pas de masque cote serveur
   header[0] = 0x80 | (rsv1 ? 0x40 : 0) | opcode;
 
   return Buffer.concat([header, payload], header.length + len);
 }
 
-/* Branche la gestion des upgrades WebSocket sur un serveur HTTP existant. */
 export function attachWebSocket(httpServer, onConnection) {
   httpServer.on("upgrade", (req, socket) => {
     const upgrade = String(req.headers.upgrade || "").toLowerCase();
@@ -346,11 +266,6 @@ export function attachWebSocket(httpServer, onConnection) {
       return;
     }
 
-    /* Negociation permessage-deflate. On repond SANS reprise de contexte des
-       deux cotes, quelles que soient les options offertes — c'est toujours une
-       reponse licite a une offre permessage-deflate (RFC 7692 § 7.1.1), et
-       c'est la condition du broadcast compresse une seule fois. Un client qui
-       n'offre rien garde le protocole nu d'avant, trame pour trame. */
     const offers = String(req.headers["sec-websocket-extensions"] || "");
     const deflate = /(^|,)\s*permessage-deflate\b/.test(offers);
 
@@ -366,7 +281,7 @@ export function attachWebSocket(httpServer, onConnection) {
         : "") +
       "\r\n"
     );
-    socket.setNoDelay(true);   // desactive Nagle : indispensable pour du temps reel
+    socket.setNoDelay(true);
 
     onConnection(new WsConnection(socket, deflate), req);
   });

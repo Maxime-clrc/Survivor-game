@@ -1,21 +1,6 @@
-/* ===========================================================================
-   INTERFACE — ecrans hors combat.
-
-   Direction : SIGNAL ET INSTRUMENTATION. L'interface est un poste de controle.
-   Trois regles qui tranchent chaque decision :
-     - rien de decoratif ne se superpose au jeu, tout ornement vit ici ;
-     - la couleur est fonctionnelle, jamais esthetique ;
-     - les angles sont durs, et le seul cercle du jeu est une entite vivante.
-
-   Aucune valeur en dur : couleurs depuis `shared/palette.js` (posees sur
-   `:root` par le client), tailles et espacements depuis `tokens.css`.
-   =========================================================================== */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* Les variables de couleur n'existent qu'une fois `client.js` charge. Le repli
-   est la couleur SYSTEME du theme sombre et non une valeur recopiee : recopier
-   `#08090d` ici, c'est accepter qu'il diverge de `palette.js` un jour. */
 :root { color-scheme: dark; }
 
 html, body {
@@ -27,19 +12,6 @@ html, body {
   overflow: hidden;
 }
 
-/* RIEN NE SE SELECTIONNE, sauf ce qu'on ecrit. Un jeu n'est pas un document :
-   le geste qui sert a viser, a traverser une liste de salles ou a insister sur
-   un bouton laissait derriere lui des pans de texte en surbrillance — un
-   double-clic sur « Continuer » selectionne le mot, un glisser sur le tableau
-   des scores en bleuit trois lignes. C'est le seul residu d'interface qui ne
-   soit voulu par personne, et il survit a l'ecran suivant.
-
-   L'exception n'est pas negociable : dans un CHAMP, la selection est le seul
-   moyen de corriger ce qu'on a tape. Elle couvre aussi `contenteditable`, qui
-   n'existe pas dans le jeu aujourd'hui mais coute une ligne a couvrir.
-
-   Pose sur `html` plutot que sur `*` : la propriete s'herite, une regle
-   universelle aurait ecrase l'exception au lieu de la laisser gagner. */
 html {
   -webkit-user-select: none;
   user-select: none;
@@ -51,31 +23,15 @@ input, textarea, [contenteditable] {
 
 #stage { height: 100%; display: flex; align-items: center; justify-content: center; }
 
-/* Le cadre porte le FORMAT de l'arene, et le canvas comme le HUD le
-   remplissent. Sans lui, le HUD aurait ete positionne contre la fenetre et
-   n'aurait plus coincide avec l'arene des que celle-ci cesse de la remplir. */
 #frame {
   position: relative;
   aspect-ratio: 1600 / 900;
-  /* La largeur porte TOUTE la contrainte, et la hauteur en decoule. Un
-     `max-height` sur un element flexible ne redonne pas sa largeur au format :
-     le cadre depassait alors la fenetre par le bas, et le bloc personnel du HUD
-     — l'element le plus important de l'ecran — sortait du champ. */
   width: min(100%, calc(100vh * 16 / 9));
 }
 
-/* Les TROIS couches de l'arene occupent la meme boite. `#arena` porte le
-   tressaillement pour toutes les trois d'un coup : trois `transform` separes
-   auraient pu diverger d'un sous-pixel, et on aurait vu les entites glisser
-   contre leur propre sol. */
 #arena {
   position: absolute;
   inset: 0;
-  /* Le tressaillement d'ecran est un `transform` CSS depuis que le HUD est le
-     FRERE du canvas et non son contenu : il n'y a plus rien a separer en deux
-     passes de rendu. Le leger agrandissement permanent evite qu'une secousse ne
-     decouvre une bande de page derriere l'arene — dix pixels sur seize cents,
-     soit largement moins que le 1,5 % de marge. */
   transform: scale(1.015);
   will-change: transform;
 }
@@ -86,24 +42,12 @@ input, textarea, [contenteditable] {
   display: block;
   width: 100%;
   height: 100%;
-  /* Le fond de l'arene est peint par la couche du DESSOUS, pas par le CSS :
-     les deux couches superieures doivent rester transparentes, sinon elles
-     effacent tout ce qui est dessous. */
   background: transparent;
   cursor: crosshair;
 }
 
-/* Seule la couche du dessous porte le fond : c'est le repli quand WebGL n'est
-   pas disponible et que `#cvGl` reste vide. Selecteur descendant et non
-   `#cvUnder` seul : la regle ci-dessus porte un identifiant ET un element, elle
-   l'emporterait sinon sur specificite. */
 #arena > #cvUnder { background: var(--bg-arena); }
 
-/* --- fond des ecrans hors combat -------------------------------------------
-   Grille tres faible et vignettage : l'ecran ne doit JAMAIS etre du noir plat.
-   C'est le meme vocabulaire que le sol de l'arene, en beaucoup plus discret —
-   ce qui fait que le salon et le jeu appartiennent visiblement au meme
-   objet. */
 .overlay {
   position: fixed;
   inset: 0;
@@ -124,19 +68,9 @@ input, textarea, [contenteditable] {
 }
 .overlay[hidden] { display: none; }
 
-/* Les contre-regles `[hidden]` PAR IDENTIFIANT vivent desormais dans
-   `menus.css`, avec les `display` qui les rendent necessaires. La regle qui
-   s'applique : qui pose un `display` possede la contre-regle `[hidden]`, dans
-   la meme feuille et au meme moment. C'est `menus.css` qui passe `#gate` en
-   grille et pose un `display` sur huit ecrans et une douzaine de blocs — les
-   garder ici revenait a tenir la garde loin de ce qu'elle protege. */
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* --- vocabulaire de poste de controle --------------------------------------
-   Un titre de section est en capitales espacees, precede d'un filet court. Le
-   filet ne decore pas : il dit « une nouvelle zone commence », ce qu'une simple
-   marge ne dit pas quand tout l'ecran est en chasse fixe. */
 .sectionTitle {
   display: flex;
   align-items: center;
@@ -154,9 +88,6 @@ input, textarea, [contenteditable] {
   background: var(--line);
 }
 
-/* --- logotype ---------------------------------------------------------------
-   Le nom en capitales espacees et un glyphe simple. Meme minimal, il transforme
-   l'ecran d'accueil : sans lui, la page s'ouvre sur un champ de saisie. */
 #logo {
   display: flex;
   align-items: center;
@@ -171,8 +102,6 @@ input, textarea, [contenteditable] {
   width: var(--sp-8);
   height: var(--sp-8);
   border: var(--edge) solid var(--go);
-  /* Coupe en biseau, pas un arrondi : c'est la regle des angles durs, et le
-     glyphe la porte le premier. */
   clip-path: polygon(0 0, 100% 0, 100% 60%, 60% 100%, 0 100%);
   position: relative;
 }
@@ -183,10 +112,6 @@ input, textarea, [contenteditable] {
   background: var(--go);
   clip-path: polygon(0 0, 100% 0, 0 100%);
 }
-/* --- ecran de chargement -----------------------------------------------------
-   Le seul ecran du jeu ou l'on peut prendre trois secondes. La barre dit ce
-   qu'elle fait : un pourcentage sans libelle laisse croire a un telechargement,
-   alors que tout est genere sur place. */
 
 #loadBar {
   width: 320px;
@@ -212,32 +137,7 @@ input, textarea, [contenteditable] {
 }
 
 
-/* ===========================================================================
-   LES ECRANS QUE LA REFONTE N'A PAS ENCORE VUS
 
-   Tout ce qui precede est le SOL du jeu : la scene, l'arene, le voile des
-   ecrans, le logotype, la barre de chargement. Le reste des ecrans hors
-   combat est passe sous `menus.css` (« menus.css devient proprietaire des
-   ecrans hors combat »), et ui.css n'a plus d'opinion dessus.
-
-   Ce qui suit est l'exception, et elle est DATEE : ce sont les regles que le
-   plan 4 a ajoutees ici pendant que la refonte se faisait ailleurs —
-   classement au temps, Terminal et ses onglets, bannissement de cartes,
-   marchand de reliques, jauge de puissance, bilan de victoire. `menus.css` ne
-   connait AUCUN de ces selecteurs : sans ce bloc, six ecrans neufs sortent
-   sans la moindre mise en page.
-
-   Elles vivent donc ici a titre de SOCLE, exactement comme le reste avant la
-   refonte, et elles en sortiront ecran par ecran a mesure que `menus.css` les
-   reprendra. Ne pas y ajouter de regle nouvelle : un ecran neuf se style dans
-   `menus.css`, c'est lui le proprietaire.
-   =========================================================================== */
-
-/* --- classement au temps (lot N) ---------------------------------------------
-   Trois colonnes fixes : rang, pseudo, chrono. Le chrono en chiffres a chasse
-   fixe (`tabular-nums`) — sans quoi les temps ne s'alignent pas verticalement
-   et la comparaison, qui est tout l'objet du tableau, demande de lire chaque
-   ligne au lieu de balayer la colonne. */
 #hubBoard {
   width: min(560px, 92vw);
   margin-top: var(--sp-3);
@@ -264,18 +164,10 @@ input, textarea, [contenteditable] {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-/* Sa propre ligne, reperee par un liseré : on vient consulter un classement
-   pour s'y chercher d'abord. */
 .boardRow.moi { border-left-color: var(--go); background: var(--bg-raised); }
 
 
-/* --- Terminal (lot H) : l'ecran de la progression ---------------------------
-   Meme famille que #gate/#panel (.overlay). Trois niveaux fixes : onglets de
-   classe, ligne d'emplacements toujours visible, puis Arbre/Confort/Jalons. */
 
-/* Les deux rangees d'onglets reprennent le langage du segment de vote :
-   bordures qui se touchent, `.mine` pour l'actif — un troisieme style de
-   bascule serait un de trop. */
 #metaClassTabs, #metaTabs { display: flex; gap: 0; }
 #metaClassTabs button, #metaTabs button {
   min-width: 118px;
@@ -293,9 +185,6 @@ input, textarea, [contenteditable] {
 #voteRow .tally { color: var(--text-faint); font-size: var(--t-xs); }
 #voteHint { font-size: var(--t-xs); color: var(--text-faint); }
 
-/* Ce que le mode change (lot T). Trois lignes, hauteur FIXE : le survol les
-   remplace, et un bloc qui grandit ou retrecit sous le curseur ferait sauter
-   tout le salon a chaque passage de souris. */
 #voteDetail {
   list-style: none;
   margin: 0;
@@ -307,35 +196,8 @@ input, textarea, [contenteditable] {
   color: var(--text-dim);
   line-height: 1.45;
 }
-/* Mode survole qui n'est pas le mode retenu : c'est une projection, pas l'etat
-   courant, et il faut que ca se voie sans lire. */
 #voteDetail.preview { color: var(--text-faint); font-style: italic; }
 
-/* --- progression permanente (lot D) ------------------------------------------
-   Le panneau du compte : l'arbre de la classe selectionnee, le tronc de
-   confort, les jalons. Des lignes denses et non des cartes — c'est un magasin
-   qu'on relit a chaque salon, pas un choix sous pression. Aucune couleur en
-   dur : tout vient des variables posees par client.js depuis la charte. */
-/* ACCOLADE FERMEE EN 0.8.7, et c'est le correctif le plus cher du lot pour un
-   caractere. Elle manquait depuis le lot D : un parseur CSS qui rencontre un
-   bloc non ferme AVALE tout ce qui suit sans une seule erreur, donc le
-   navigateur ne lisait que 40 des 137 regles de cette feuille — tout ce qui
-   vient apres cette ligne etait mort depuis six lots.
-
-   Personne ne l'a vu parce que `menus.css`, ecrit APRES et charge apres, a
-   redeclare 65 de ces 97 regles : les ecrans avaient l'air habilles. Les 32
-   autres n'ont jamais rien habille du tout — le titre de victoire et son
-   animation, la barre des provenances de degats du bilan, la pastille de
-   version et sa mention ambre, le survol des lignes du tableau, la liste de
-   cartes de la fenetre de build, les lignes du Terminal.
-
-   C'est aussi la vraie cause du « bannir » coupe : `.cardBan` perdait son
-   `align-self: center` et son remplissage, se retrouvait large comme la carte
-   et colle au bord, donc l'ecretage arrondi le rognait. Mesure : texte coupe
-   sur 16 px avant, 0 apres, sans toucher a la carte.
-
-   Meme famille que la balise `#vote` non fermee qui avait rendu quatre ecrans
-   de combat invisibles : une erreur de syntaxe qui ne produit aucune erreur. */
 #meta {
   display: flex;
   flex-direction: column;
@@ -352,7 +214,6 @@ input, textarea, [contenteditable] {
 }
 #metaClassTabs button.mine, #metaTabs button.mine { color: var(--text); background: var(--bg-raised); }
 
-/* La contrainte du systeme, toujours sous les yeux — jamais derriere un clic. */
 #metaSlots {
   font-size: var(--t-s);
   color: var(--text-dim);
@@ -362,11 +223,6 @@ input, textarea, [contenteditable] {
 #metaSlots b { color: var(--text); }
 #metaSlots small { font-size: var(--t-xs); color: var(--text-faint); }
 
-/* La pastille de noyaux depensables a suivi son bouton : `#terminalBtn` a ete
-   retire du salon — il ouvrait le meme ecran que celui de la carte de classe,
-   sans dire quel arbre — et elle vit desormais sur `.classMetaBtn`, dans
-   `menus.css`. Le LOSANGE, lui, est conserve tel quel : le seul cercle du jeu
-   est une entite vivante. */
 
 
 #metaBans {
@@ -384,30 +240,11 @@ input, textarea, [contenteditable] {
   text-transform: uppercase;
   letter-spacing: var(--track-caps);
 }
-/* Trois etats nets (lot H) : equipe = lisere cyan plein, achete non equipe =
-   lisere clair, non achete = attenue. Pas trois gris. */
 .metaLine.equipped { border-color: var(--go); }
 .metaLine.owned { border-color: var(--text-dim); }
 .metaLine.locked { opacity: 0.62; }
 
-/* --- victoire finale (lot N) -------------------------------------------------
-   Le bilan de victoire n'est pas un second ecran : c'est le meme, avec un titre
-   qui change de registre. Vert (`--gain`) et non ambre ni rouge : c'est la
-   seule fin de manche du jeu qui soit un gain, et la grammaire fonctionnelle
-   vaut pour les ecrans comme pour l'arene.
 
-   La classe s'appelle `win` — c'est celle que `showBilan` pose. Trois regles
-   ecrites pour une classe `victoire` vivaient ici, plus un chrono geant et une
-   mention de record : AUCUN chemin ne les posait, et l'accolade non fermee de
-   `#meta` les rendait de toute facon inertes. Supprimees en 0.8.7 plutot que
-   gardees « au cas ou » — du CSS qui decrit un ecran inexistant est un piege de
-   lecture, et il a deja fait croire que le titre de victoire etait habille.
-   La regle vivante est plus bas, avec le reste du bilan (« VICTOIRE (lot W) »). */
-
-/* --- marchand de reliques (lot K) -------------------------------------------
-   Meme squelette que l'ecran de cartes, a une difference pres : le titre porte
-   le solde d'eclats — la question que l'ecran pose est « qu'est-ce que je peux
-   m'offrir », et le solde est la reponse avant meme de lire les reliques. */
 #merchant { gap: var(--sp-4); }
 
 #merchantTitle {
@@ -426,17 +263,11 @@ input, textarea, [contenteditable] {
 
 #merchantRow { display: flex; gap: var(--sp-4); flex-wrap: wrap; justify-content: center; }
 
-/* Le prix d'une relique est le pied de carte, dans la couleur du gain : il se
-   compare au solde du titre sans quitter les reliques des yeux. */
 .merchantPrix { color: var(--gain); font-weight: 600; }
 
 #merchantWaitMsg { font-size: var(--t-s); color: var(--text-dim); min-height: var(--sp-4); }
 
 
-/* Bouton de BAN (lot J) : une action rare et irreversible — discrete, en pied
-   de carte, elle ne concurrence jamais le choix. Le rouge n'arrive qu'au
-   survol : la grammaire l'associe au danger, et un pied de carte rouge en
-   permanence serait un signal criard sur les trois cartes. */
 .cardBan {
   align-self: center;
   padding: 2px var(--sp-2);
@@ -449,9 +280,6 @@ input, textarea, [contenteditable] {
 .cardBan:hover { color: var(--lethal); border-color: var(--lethal); }
 
 
-/* JAUGE DE PUISSANCE. Le chiffre qui pilote les PV du boss et la pression des
-   vagues, situe sur les reperes mesures. Angles durs, aucun arrondi : c'est un
-   instrument de mesure, pas un element decoratif. */
 #buildPower {
   display: flex;
   flex-direction: column;
@@ -467,11 +295,7 @@ input, textarea, [contenteditable] {
 .pQual { color: var(--text-dim); font-size: var(--t-s); margin-left: auto; }
 
 .pGauge { position: relative; height: 10px; background: var(--bg-void); border: var(--hair) solid var(--line); }
-/* Cyan `--go` : c'est la couleur du « il faut y aller » de la charte, et une
-   jauge de puissance est exactement ca. Jamais de vert ici — le vert dit soin. */
 .pFill { display: block; height: 100%; background: var(--go); opacity: .55; transition: width 120ms linear; }
-/* Le genou est un TRAIT et non une zone coloree : il marque un seuil, pas un
-   danger. Violet — c'est ce qui persiste, la grammaire du depot. */
 .pKnee {
   position: absolute; top: -3px; bottom: -3px; width: 2px;
   background: var(--persist); transform: translateX(-1px);
@@ -481,8 +305,6 @@ input, textarea, [contenteditable] {
   background: var(--text); transform: translateX(-1px);
   transition: left 120ms linear;
 }
-/* Reperes sous la jauge. `position:absolute` avec le tiret centre dessus : un
-   repere pose a cote de sa graduation ment de quelques pour cent. */
 .pMarks { position: relative; height: 14px; }
 .pMark {
   position: absolute; top: 0; transform: translateX(-50%);
@@ -511,11 +333,6 @@ input, textarea, [contenteditable] {
 }
 .buildSkill b { color: var(--text); }
 
-/* --- cartes ----------------------------------------------------------------
-   Groupees par rarete DECROISSANTE : une legendaire perdue au milieu de dix
-   communes ne se remarque pas, alors qu'elle est precisement ce qu'on cherche.
-   Deux colonnes quand la place le permet — une liste de quinze cartes en une
-   seule colonne demande de faire defiler pour comparer deux paliers. */
 #buildCards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -544,23 +361,13 @@ input, textarea, [contenteditable] {
 .buildCardHead { display: flex; gap: var(--sp-3); align-items: baseline; }
 .buildCardName { color: var(--text); font-size: var(--t-s); font-weight: 700; }
 .buildCardTotal { font-size: var(--t-xs); color: var(--text-dim); margin-left: auto; }
-/* L'EFFET est ce qu'on lit, pas le nom : meme regle que l'ecran de choix. */
 .buildCardDesc { font-size: var(--t-s); color: var(--text-dim); }
 .buildCardWarn { font-size: var(--t-xs); color: var(--warn); }
 .buildEmpty { grid-column: 1 / -1; font-size: var(--t-s); color: var(--text-faint); }
 
-/* Une ligne de tableau qui ouvre la fenetre. Le survol le dit — sans lui,
-   personne ne devine qu'un tableau est cliquable. */
 tr.clickable { cursor: pointer; }
 tr.clickable:hover td { background: var(--bg-panel); }
 
-/* ===========================================================================
-   MENU PAUSE
-   Ce n'est PAS un `.overlay`, et c'est la seule difference qui compte : a
-   plusieurs la partie continue derriere, donc le voile doit rester translucide
-   pour qu'on la voie. Un panneau opaque aurait fait croire que tout est arrete,
-   ce qui est exactement le malentendu que le libelle est la pour eviter.
-   =========================================================================== */
 
 #pause {
   position: fixed;
@@ -569,8 +376,6 @@ tr.clickable:hover td { background: var(--bg-panel); }
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Assez sombre pour que le panneau se lise, assez clair pour qu'on voie
-     qu'il se passe encore quelque chose derriere. */
   background: color-mix(in srgb, var(--bg-void) 72%, transparent);
   animation: fadeIn var(--fade) ease-out;
 }
@@ -595,9 +400,6 @@ tr.clickable:hover td { background: var(--bg-panel); }
   text-align: center;
 }
 
-/* Le libelle d'etat porte toute l'explication : « la partie continue — pause
-   indisponible à plusieurs ». Ambre dans ce cas — c'est un avertissement, pas
-   une information neutre — et gris quand la simulation est vraiment figee. */
 #pauseState {
   font-size: var(--t-xs);
   text-align: center;
@@ -611,8 +413,6 @@ tr.clickable:hover td { background: var(--bg-panel); }
 #pauseAudio button.off { color: var(--text-faint); }
 #pauseVolVal { font-size: var(--t-xs); color: var(--text-dim); min-width: var(--sp-12); }
 
-/* Rouge : une action irreversible pour la manche en cours. C'est le seul
-   endroit de l'interface hors combat qui a le droit d'en porter. */
 button.danger { color: var(--lethal); border-color: var(--lethal); }
 button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--lethal); }
 
@@ -628,11 +428,6 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 #pauseConfirm .row { justify-content: center; }
 #pauseConfirm[hidden] { display: none; }
 
-/* ===========================================================================
-   BILAN DE FIN DE MANCHE
-   Ecran a part, et non le salon avec un titre different : tant que le salon
-   suivant etait deja affiche dessous, personne ne lisait son bilan.
-   =========================================================================== */
 
 #bilan { gap: var(--sp-4); }
 
@@ -643,27 +438,6 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
   text-transform: uppercase;
 }
 
-/* VICTOIRE (lot W). Le plan demandait un ECRAN de fin dedie ; c'est le bilan qui
-   change de tete, et le refus est le meme que celui qui a fait sortir le bilan
-   du salon — mais dans l'autre sens. Un troisieme ecran affichant les memes
-   chiffres retarderait ceux-ci d'un clic, or « tant que le salon suivant etait
-   affiche dessous, personne ne lisait son bilan » : la lecon etait qu'il faut
-   MOINS d'ecrans entre le joueur et ses chiffres, pas plus.
-
-   0.8.7 ajoute pourtant `#fin`, et ne renverse pas cette lecon — elle la
-   PRECISE. Le defaut d'origine etait DEUX ECRANS EN CONCURRENCE, pas un ecran
-   de plus : le salon volait l'attention du bilan parce qu'il etait visible
-   dessous en meme temps. `#fin` est seul, il ne repete aucun chiffre du bilan,
-   et son unique action mene exactement la ou l'on allait deja. Ce qu'il ajoute
-   est une PONCTUATION : sans lui, une manche se termine sur l'apparition d'un
-   tableau de scores. La regle a retenir n'est donc pas « jamais d'ecran de
-   plus » mais « jamais deux ecrans qui se disputent le meme instant ».
-
-   Le titre passe donc a l'echelle superieure — 34 px, une valeur de l'echelle
-   fixe et non une taille ad hoc — et prend la teinte de gain. Rien d'autre ne
-   bouge : les angles restent durs, aucun ornement ne s'ajoute, et la seule
-   animation est celle du liseré, qui s'allume une fois et s'arrete. Une victoire
-   qui clignoterait en boucle deviendrait un ornement superpose au jeu. */
 #bilan.win #bilanTitle {
   font-size: var(--t-2xl);
   color: var(--gain);
@@ -677,17 +451,8 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
   100% { opacity: 1; letter-spacing: var(--track-caps); }
 }
 
-/* La tuile de mise a mort du final est la seule du bilan qui se CLASSE : sous
-   D1, le temps pour atteindre le boss final est une constante, celui-ci ne l'est
-   pas. Elle se distingue donc du reste des chiffres, qui ne sont que des
-   compteurs. */
 .bilanStat.final .val { color: var(--gain); }
 
-/* DE QUOI L'EQUIPE EST MORTE. Des barres et non des nombres : c'est une
-   REPARTITION, et une proportion se compare a l'oeil alors que cinq nombres
-   demandent d'etre additionnes de tete. Elles restent en teinte de danger — la
-   ligne parle de degats subis, une teinte par provenance aurait fait croire a
-   cinq informations differentes. */
 #bilanHurt {
   display: flex;
   flex-direction: column;
@@ -715,35 +480,15 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 .hurtBar > i { display: block; height: 100%; background: var(--hud-low); }
 .hurtVal { flex: 0 0 40px; text-align: right; color: var(--text); font-weight: 700; }
 
-/* Six chiffres au lieu de quatre : `flex-wrap` plutot qu'un gap plus serre —
-   sur une fenetre etroite, six tuiles a 12 px d'ecart debordaient. */
 #bilanStats { display: flex; gap: var(--sp-12); flex-wrap: wrap; justify-content: center; }
 
-/* Le bloc « ta partie » (`#bilanMine`) a ete retire du bilan — voir
-   `menus.css`. La jauge de puissance garde ses regles : elle sert toujours
-   dans la fenetre de build. */
 #minePower { display: flex; flex-direction: column; gap: var(--sp-2); }
 
 #bilanScores { font-size: var(--t-m); }
 #bilanScores td { padding: var(--sp-3); }
 
 #bilanNext { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
-/* `#bilanBar` et `#bilanHint` habillaient l'echeance automatique du bilan,
-   retiree « pour de bon » : un ecran qui se retire pendant qu'on le lit est un
-   defaut, et le remede — un compte a rebours affiche — mettait la lecture sous
-   minuterie pour l'annoncer. Leurs regles partent en 0.8.7 avec le markup. */
 
-/* --- numero de version -----------------------------------------------------
-   AUCUNE COULEUR ici : `--text-faint` et `--warn` viennent de `palette.js` par
-   `cssVars()`, seul sens autorise. Une couleur ecrite dans une feuille de style
-   est un bug dans ce depot.
-
-   `pointer-events: none` n'est pas une precaution de style : l'element est en
-   `position: fixed` au-dessus de tous les ecrans (z-index 25 > 20 de `#build`,
-   15 du menu pause, 10 des `.overlay`), donc sans lui il intercepterait un clic
-   destine a un bouton place dans ce coin.
-
-   Bas a DROITE : l'overlay `?perf` occupe le bas a gauche. */
 #version {
   position: fixed;
   right: var(--sp-2);
@@ -756,8 +501,4 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 }
 #version[hidden] { display: none; }
 
-/* Onglet perime. AMBRE et non rouge : c'est la couleur de l'avertissement dans
-   la grammaire du depot (« ambre : danger, sortir » — ici, sortir de cet
-   onglet), et rien n'est letal. « Jamais de rouge pour quelque chose ou il faut
-   aller », et il faut aller recharger la page. */
 #version.stale { color: var(--warn); }

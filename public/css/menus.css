@@ -1,80 +1,4 @@
-/* ===========================================================================
-   MENUS — refonte des ecrans d'avant-partie.
 
-   Feuille ADDITIVE, chargee APRES ui.css. Aucun identifiant n'est renomme,
-   aucune classe posee par le client n'est touchee : cette feuille rehabille
-   #gate, #loading, #hubScreen, #panel, #bilan, #fin et #menu — et, depuis les
-   lots J et K, les ECRANS DE CHOIX : #cards et #merchant, dont elle porte
-   desormais le socle entier (ui.css n'a plus une seule regle sur eux, inutile
-   d'y chercher). Ce sont des panneaux qu'on LIT, pas des instruments qu'on lit
-   en un dixieme de seconde : meme rayon que les menus, pour la meme raison.
-   L'en-tete affirmait le contraire jusqu'en 0.8.7 ; c'etait faux et verifiable
-   en un grep.
-   #build, #pause et #hud, eux, restent sous la seule autorite de ui.css et
-   hud.css — et la, un changement d'aspect signalerait bien une fuite.
-
-   Ce qui est corrige, dans l'ordre d'importance :
-
-     1. UNE SEULE HIERARCHIE. Tout etait au meme ton : meme graisse, meme
-        taille, meme gris. On ne savait pas ou lire. Trois niveaux desormais,
-        et un seul par element : le KICKER (capitales espacees, cyan, 11 px)
-        dit ou on est, le TITRE (Chakra Petch, 26-34 px) dit quoi, le CORPS
-        (Space Grotesk, 15 px, gris-bleu) explique. Un element ne porte jamais
-        deux niveaux a la fois.
-
-     2. LES ECRANS NE SONT PLUS CENTRES A LA VERTICALE. `.overlay` centrait
-        tout, donc la position d'un bloc dependait du nombre de blocs presents
-        — le bouton « Lancer » remontait et descendait selon le nombre de
-        joueurs connectes, et rien n'etait jamais au meme endroit d'un ecran
-        au suivant. Les ecrans coulent maintenant depuis le HAUT, dans une
-        colonne de largeur fixe, et l'action principale est ANCREE en bas.
-
-     3. TROIS FAMILLES, UNE COULEUR CHACUNE, reprises de palette.js sans
-        exception : --go pour l'action et la position courante, --warn pour ce
-        qui avertit sans interdire (« en jeu », « emplacement pris »), --gain
-        pour ce qui est prêt. Le rouge reste hors de ces ecrans.
-
-   Aucune valeur en dur : couleurs depuis palette.js via les variables posees
-   sur :root par client.js, tailles et espacements depuis tokens.css.
-   =========================================================================== */
-
-/* --- typographie -----------------------------------------------------------
-   La chasse fixe reste le REGISTRE du jeu — elle porte tous les chiffres, les
-   libelles techniques et les capitales espacees. Mais elle portait aussi les
-   titres et les paragraphes, et c'est la que le ton uniforme se jouait : en
-   chasse fixe, un titre de 26 px et un paragraphe de 15 px se ressemblent
-   davantage que dans deux familles differentes, parce que la chasse fixe
-   aplatit les contrastes de forme.
-
-   D'ou DEUX familles de plus, et pas une de moins :
-     --font-display  Chakra Petch — titres, boutons, noms propres. Technique et
-                     etroite, elle appartient au meme monde que la chasse fixe.
-     --font-body     Space Grotesk — les paragraphes, et eux seuls. Une chasse
-                     proportionnelle rend une phrase de trois lignes lisible,
-                     ce qu'une chasse fixe ne fait pas.
-
-   BARLOW A ETE REMPLACE, et la raison n'est pas le gout. C'etait la seule des
-   trois familles qui ne DISAIT rien : une grotesque neutre, dessinee pour ne
-   pas se faire remarquer, entre une chasse fixe qui signe « poste de controle »
-   et une Chakra Petch qui signe « technique ». Le corps de texte etait donc le
-   seul endroit de l'ecran ou le jeu ressemblait a un site. Space Grotesk vient
-   du meme monde que les deux autres — terminaisons coupees NET, « g » a un seul
-   etage, chiffres anguleux — sans copier Chakra Petch : celle-ci est etroite et
-   titree, celle-la est large et se lit en petit corps.
-
-   Elle est VARIABLE, et c'est ce qui corrige la lisibilite au passage. Un texte
-   clair sur fond sombre s'amincit optiquement : a graisse egale, il paraît plus
-   fin que le meme texte en sombre sur clair. Barlow n'avait que son Regular
-   versionne, donc rien a faire — monter a 500 aurait produit un faux gras.
-   L'axe de graisse permet un poids INTERMEDIAIRE (450, voir « le corps » plus
-   bas) qui compense exactement cet amincissement, pour un seul fichier.
-     --font          la chasse fixe d'origine — tout le reste, inchange.
-
-   Elles sont **vendues avec le jeu** et non chargees depuis Google : une
-   dependance a un tiers ajoute un point de panne et une latence au premier
-   rendu sur un chemin critique — l'ecran de connexion. Sans les fichiers, la
-   page reste fonctionnelle : `--font-display` et `--font-body` retombent sur
-   `var(--font)` et `system-ui`. */
 @font-face {
   font-family: "Chakra Petch";
   src: url("/fonts/ChakraPetch-Bold.woff2") format("woff2");
@@ -87,10 +11,6 @@
   font-weight: 600;
   font-display: swap;
 }
-/* Une PLAGE de graisses et non une valeur : le fichier porte l'axe, et c'est
-   cette declaration qui autorise le navigateur a interpoler. Ecrire
-   `font-weight: 400` ici rendrait tout poids intermediaire en faux gras — le
-   defaut meme qu'on est venu supprimer. */
 @font-face {
   font-family: "Space Grotesk";
   src: url("/fonts/SpaceGrotesk-Variable.woff2") format("woff2");
@@ -101,175 +21,49 @@
 :root {
   --font-display: "Chakra Petch", var(--font);
   --font-body: "Space Grotesk", system-ui, sans-serif;
-  /* La graisse du corps, une seule fois. 450 et non 400 : voir l'en-tete —
-     l'amincissement optique du clair sur sombre. Un seul jeton parce que six
-     blocs de prose la portent, et qu'ils doivent bouger ensemble. */
   --weight-body: 450;
 
-  /* Rayons. Les angles DURS restent la regle de l'arene et du HUD — c'est la
-     ou une forme doit se lire en un dixieme de seconde. Hors combat on a le
-     temps, et un rayon franc separe visiblement le poste de controle du jeu
-     lui-meme : --radius-ctl pour les controles, --radius-ui pour les panneaux.
-     Le biseau (--bevel) reste sur la SEULE action principale de chaque ecran :
-     c'est ce qui la designe, et il perd ce role s'il est partout. */
   --radius-ui: 16px;
   --radius-ctl: 12px;
 
-  /* --- gabarits de controle ------------------------------------------------
-     Une seule definition par famille de bouton, et tout le reste s'y refere.
-     Les valeurs sont celles de la maquette RAMENEES A LA GRILLE DE 4 px de
-     `tokens.css` : la maquette tournait hors du projet et s'autorisait 17 px de
-     retrait ou 11 px de rayon, ce que la charte interdit. L'ecart est d'un
-     pixel, invisible ; l'interet de la grille, lui, se perd des la premiere
-     exception. */
-  --btn-pad:    var(--sp-4) var(--sp-6);   /* action principale : 16 / 24 */
-  --btn-pad-lg: var(--sp-4) var(--sp-12);  /* lancement de manche : 16 / 48 */
-  --btn-pad-sm: var(--sp-3) var(--sp-4);   /* action secondaire : 12 / 16 */
+  --btn-pad:    var(--sp-4) var(--sp-6);   
+  --btn-pad-lg: var(--sp-4) var(--sp-12);  
+  --btn-pad-sm: var(--sp-3) var(--sp-4);   
   --field-pad:  var(--sp-4);
   --field-h:    46px;
 
-  /* --- mouvement -----------------------------------------------------------
-     `--tap` (90 ms) et `--fade` (120 ms) viennent de `tokens.css` et servent
-     aux changements d'etat. L'entree en cascade est plus longue — c'est un
-     mouvement qu'on REGARDE, pas une reponse a un clic — et sa courbe sort vite
-     puis s'arrete net, sans rebond : un menu qui rebondit se remarque une fois
-     et agace les cent suivantes. */
-  /* L'ENTREE D'ECRAN. Le depot tenait le fondu a 120 ms — « un ecran qui
-     glisse fait attendre » — et c'etait la bonne regle tant qu'un ecran de
-     menu etait un formulaire. Depuis la refonte c'est un tableau de bord, et
-     120 ms de fondu plat le font apparaitre comme un rechargement de page.
-     340 ms avec une mise au point : on voit l'ecran SE POSER, ce qui est le
-     vocabulaire d'un jeu et non d'un document. Au-dela de 400 ms on attend. */
   --screen: 380ms;
-  /* LA SORTIE EST PLUS COURTE QUE L'ENTREE, et sur une courbe qui ACCELERE :
-     on ne lit pas ce qui part. */
   --screen-out: 280ms;
-  /* LE CONTENU PART AVANT SON VOILE. Le croisement des voiles est ce qui donne
-     la continuite — sans lui on retrouve la coupure d'une image. Le croisement
-     des CONTENUS, lui, est une double exposition : mesure sur la courbe de
-     sortie, le sortant est encore a 0,88 d'opacite quand l'entrant demarre a
-     `--screen-hold`, et les deux titres se lisent l'un sur l'autre entre 140 et
-     320 ms. Le contenu sortant est donc rendu a zero avant que l'entrant ne
-     devienne lisible ; le voile, lui, garde sa duree pleine et le fond ne se
-     decouvre jamais. */
   --content-out: 160ms;
-  /* Le voile du briefing, seul fondu d'entree du depot a n'avoir AUCUN retard :
-     il ne succede pas a un ecran, il couvre une arene qui vient de s'allumer.
-     Court pour la meme raison — chaque milliseconde passee sous 1 est une
-     milliseconde ou la carte transparait. */
   --brief-in: 180ms;
-  /* L'ENTREE ATTEND QUE LA SORTIE SOIT ENGAGEE. Sans ce retrait, les deux
-     animations partaient ensemble : la courbe `--ease-out` amene l'entrant a
-     90 % d'opacite en 140 ms, donc tout etait fini avant qu'on ait vu quoi que
-     ce soit — « soit les transitions ne sont pas visibles, soit elles sont
-     beaucoup trop rapides », et c'etait exact. Le sortant est a mi-course
-     quand l'entrant demarre : on lit un passage, pas un remplacement. */
   --screen-hold: 120ms;
   --rise: 440ms;
   --rise-lg: 520ms;
   --ease-out: cubic-bezier(.16, .9, .3, 1);
-  /* La symetrique de `--ease-out` : lente au depart, franche a la fin. Elle ne
-     sert QU'A la sortie — rien ne doit jamais arriver sur cette courbe. */
   --ease-in: cubic-bezier(.45, 0, .85, .35);
-  /* La MEME courbe avec un depassement de 15 %, reservee a ce qui APPARAIT en
-     reponse a un clic : le bouton de talents sous la carte qu'on vient de
-     choisir, l'encart de reprise, la demande de mot de passe. Un element qui
-     depasse legerement sa position finale se lit comme une reaction ; le meme
-     element en `ease-out` pur se lit comme un rechargement. Deux courbes et
-     pas trois — l'entree d'ecran garde `--ease-out`, sinon toute la cascade
-     rebondirait et l'ecran aurait l'air instable. */
   --ease-pop: cubic-bezier(.2, .9, .25, 1.15);
   --pop: 220ms;
   --lift-1: -2px;
   --lift-2: -3px;
   --lift-3: -4px;
 
-  /* Hauteur de la barre superieure. Elle sert a DEUX endroits qui doivent
-     rester d'accord : la barre elle-meme, et le decalage des ecrans qu'elle
-     surplombe. Deux litteraux, et le jour ou la barre grandit, la moitie des
-     ecrans passe dessous sans que rien ne le signale. */
   --topbar-h: 56px;
 
-  /* --- LA GOUTTIERE ET LES TROIS COQUES ------------------------------------
-     La colonne de contenu etait bornee a 960 px (hub, progression), 1200 px
-     (salon), 1120 px (bilan) et 820 px (parametres) — quatre nombres pour une
-     regle qui en annoncait trois, et surtout des bornes calees sur un ecran de
-     1280 px. Sur 1920, le hub laissait 480 px de vide de CHAQUE cote pendant
-     que la barre superieure allait d'un bord a l'autre : l'ecran se lisait
-     comme un document centre dans une fenetre, pas comme l'interface d'un jeu.
-
-     Trois coques, et pas une de plus — la regle d'origine, enfin tenue :
-       --shell-narrow  une liste courte de controles (parametres) ;
-       --shell         une liste ou un tableau (hub, bilan, progression) ;
-       --shell-wide    un tableau de bord a deux colonnes (salon).
-
-     Elles restent BORNEES : au-dela, une ligne de tableau devient un trajet
-     d'oeil de trois mille pixels entre le nom et le chiffre qui le suit. Ce
-     qui protege la lecture n'est pas la coque mais la MESURE — les paragraphes
-     gardent tous leur `max-width: 62ch`, ici comme avant.
-
-     La gouttiere est FLUIDE et non plus fixe a 24 px : elle vaut le retrait de
-     la barre superieure sur une fenetre etroite, et double sur un grand ecran
-     pour que le contenu ne vienne pas lecher le bord. Un seul token, pose
-     partout — c'est lui qui fait que tous les ecrans commencent au meme
-     endroit. */
   --gutter: clamp(var(--sp-6), 3.4vw, var(--sp-12));
   --shell-narrow: 1080px;
   --shell: 1440px;
   --shell-wide: 1680px;
 
-  /* Lueur cyan. Derivee de --go par color-mix, jamais recopiee : la charte
-     n'admet qu'une source pour chaque couleur. */
   --glow-go: 0 0 var(--sp-8) color-mix(in srgb, var(--go) 34%, transparent);
   --glow-go-hi: 0 0 var(--sp-12) color-mix(in srgb, var(--go) 52%, transparent);
 
-  /* --- deux tailles FLUIDES, et pourquoi il en fallait ---------------------
-     L'echelle de `palette.js` va de 11 a 46 px (TYPE = [11,13,15,19,26,34,46]).
-     Elle est juste pour le HUD, ou tout doit se lire vite a taille fixe ; elle
-     ne suffit pas hors combat, ou un ecran d'accueil dispose de toute la
-     fenetre et doit hierarchiser sur quatre niveaux au lieu de deux.
-
-     Le titre d'accueil en `--t-2xl` (34 px) pesait a peine plus que le corps :
-     c'est le probleme d'origine — « tout est sur le meme ton » — reproduit une
-     marche plus haut.
-
-     Les DEUX BORNES sont prises dans l'echelle, jamais inventees : c'est la
-     regle du projet, et une taille fluide qui part et arrive sur des valeurs de
-     la table reste dans la table entre les deux. Seul le facteur de la borne
-     haute du titre d'accueil sort du lot, parce qu'aucun ecran de jeu n'avait
-     jamais eu besoin d'un titre de cette taille. */
   --t-hero:  clamp(var(--t-2xl), 5.4vw, calc(var(--t-3xl) * 1.5));
   --t-title: clamp(var(--t-xl), 3.6vw, var(--t-3xl));
 
-  /* --- surfaces hors combat ------------------------------------------------
-     Les jetons de `palette.js` sont regles pour l'ARENE, ou le fond est deja
-     clair (`--bg-arena`) et ou un panneau doit s'en detacher franchement.
-     Applique tel quel hors combat, `--bg-panel` (#161a24) donne un gris-bleu
-     qui flotte au-dessus du fond : chaque carte devient une boite, et un ecran
-     de six cartes devient une grille de boites grises. `--line` (#2a3140) a le
-     meme probleme : sur fond sombre, un filet a ce niveau ne souligne pas une
-     forme, il la CERNE.
-
-     La refonte veut l'inverse : des surfaces a peine detachees du fond, des
-     filets qu'on devine, et la couleur reservee a ce qui dit quelque chose.
-     D'ou ces trois valeurs DERIVEES — pas de nouvelle couleur, seulement les
-     jetons existants ramenes vers le fond par `color-mix`. Si tu changes
-     `--bg-arena` ou `--line` dans `palette.js`, elles suivent. */
   --ui-panel: color-mix(in srgb, var(--bg-arena) 62%, var(--bg-void));
   --ui-line:  color-mix(in srgb, var(--line) 60%, var(--bg-arena));
   --ui-field: color-mix(in srgb, var(--bg-void) 82%, var(--bg-arena));
 
-  /* --- encarts d'avertissement --------------------------------------------
-     Un encart INFORME, il n'alerte pas. La difference est reelle : `--warn` et
-     `--lethal` a pleine saturation sont reserves aux etats de DANGER de
-     l'arene, ou ils doivent se voir en un dixieme de seconde par-dessus deux
-     cents ennemis. Le meme rouge sur un paragraphe de trois lignes hors combat
-     crie sans rien ajouter — et une fois qu'on a crie partout, plus rien ne se
-     distingue quand il faudra vraiment crier.
-
-     Trois valeurs derivees par famille, et la meme construction a chaque fois :
-     un filet ramene vers le fond, un fond a peine teinte, un texte adouci vers
-     le gris de corps. La teinte reste reconnaissable, l'intensite descend. */
   --notice-warn-line: color-mix(in srgb, var(--warn) 26%, var(--bg-void));
   --notice-warn-bg:   color-mix(in srgb, var(--warn) 7%, var(--bg-void));
   --notice-warn-text: color-mix(in srgb, var(--warn) 58%, var(--text-dim));
@@ -283,68 +77,27 @@
   --notice-go-text:   color-mix(in srgb, var(--go) 55%, var(--text-dim));
 }
 
-/* ---------------------------------------------------------------------------
-   LE FOND, ET LA FIN DU CENTRAGE VERTICAL
-
-   `.overlay` centre son contenu et l'espace par un `gap` unique. C'etait la
-   cause directe de « les emplacements sont anarchiques » : tout bloc ajoute
-   deplace tous les autres, et deux ecrans qui n'ont pas le meme nombre de blocs
-   ne partagent aucun repere. Les ecrans d'avant-partie coulent donc depuis le
-   haut, dans une colonne, et gardent leur propre rythme interne.
-
-   Le vignettage et la grille de 40 px sont CONSERVES tels quels : c'est le
-   vocabulaire du sol de l'arene, et c'est ce qui fait que le salon et le jeu
-   appartiennent visiblement au meme objet.
-   --------------------------------------------------------------------------- */
-/* LE REGISTRE PAR DEFAUT EST LA CHASSE FIXE, comme dans le jeu. Cette ligne
-   posait `--font-body` sur l'ecran entier, et c'etait la cause de la moitie des
-   defauts de police : tout ce qui n'avait pas de famille explicite — les
-   boutons, les kickers, les libelles d'equipe, l'historique, les pastilles —
-   sortait dans la police de CORPS, celle qui est reservee aux PARAGRAPHES.
-   Trois familles, trois roles, et un element qui n'en declare aucune retombe
-   sur celle du jeu plutot que sur celle du texte courant. */
 #gate, #hubScreen, #panel, #bilan, #menu, #settings {
   justify-content: flex-start;
   align-items: stretch;
   gap: 0;
   padding: 0;
   font-family: var(--font);
-  /* Le salon et la progression defilent sur deux ou trois hauteurs d'ecran :
-     une ancre qui saute fait perdre le fil, alors qu'un defilement continu
-     montre ce qu'on traverse. Le reglage systeme desactive ceci tout seul. */
   scroll-behavior: smooth;
 }
-/* Les boutons portent des LIBELLES, pas de la prose : Chakra Petch, comme les
-   titres et les noms propres. */
 #gate button, #hubScreen button, #panel button,
 #menu button, #bilan button, #settings button { font-family: var(--font-display); }
 
-/* La colonne de contenu, depuis les trois coques du `:root`. Ces regles-ci
-   sont celles qui DECIDENT : elles portent un identifiant, donc elles
-   l'emportent sur le `max-width` que chaque conteneur (`.hubWrap`,
-   `.panelWrap`...) se donne par ailleurs. Les deux doivent rester d'accord —
-   c'est pour ca qu'elles lisent le meme token plutot qu'un nombre. */
 #hubScreen > *, #bilan > *, #menu > * { max-width: var(--shell); width: 100%; margin-inline: auto; }
 #settings > * { max-width: var(--shell-narrow); width: 100%; margin-inline: auto; }
 #panel > * { max-width: var(--shell-wide); width: 100%; margin-inline: auto; }
 
-/* --- les trois niveaux de lecture -------------------------------------------
-   Un element porte UN niveau. C'est la regle qui fait toute la difference avec
-   l'ecran d'avant, ou un titre de section, un titre d'ecran et un libelle de
-   bouton avaient la meme graisse et la meme couleur. */
 
-/* Niveau 1 — le kicker : ou suis-je. Capitales espacees, cyan, 11 px. Il
-   reprend `.sectionTitle` de ui.css (filet court compris) et n'en change que
-   la couleur : le filet gris disait « une zone commence » sans dire laquelle
-   comptait. */
 #panel .sectionTitle, #hubScreen .sectionTitle, #menu .sectionTitle { color: var(--go); }
 #panel .sectionTitle::before, #hubScreen .sectionTitle::before, #menu .sectionTitle::before {
   background: var(--go);
 }
 
-/* Niveau 2 — le titre d'ecran. Il etait en `--text-dim` et en capitales
-   espacees, c'est-a-dire au meme niveau qu'un titre de section : l'ecran
-   n'avait pas de titre, il avait deux sous-titres. */
 #hubTitle, #panelTitle, #bilanTitle, #menuTitle {
   font-family: var(--font-display);
   font-size: var(--t-title);
@@ -356,24 +109,6 @@
   padding: var(--sp-8) var(--sp-6) var(--sp-2);
 }
 
-/* Niveau 3 — le corps. Space Grotesk, graisse 450, interligne 1,6, largeur de
-   mesure bornee.
-
-   L'INTERLIGNE A ETE RESSERRE de 1,7 a 1,6 en meme temps que la famille, et les
-   deux vont ensemble : 1,7 etait juste pour Barlow, dont la hauteur d'x est
-   basse. Space Grotesk a une hauteur d'x nettement plus grande — les minuscules
-   occupent plus de place dans la ligne — donc le meme 1,7 delite le paragraphe
-   au lieu de l'aerer. Un bloc de prose doit se lire comme un BLOC ; a 1,7 il se
-   lisait comme une liste de lignes.
-
-   Deux tailles, et la distinction porte : le CORPS D'ECRAN est a 15 px
-   (`--t-m`), c'est la valeur de la charte et c'est ce qui separe un paragraphe
-   d'un libelle. Restent a 13 px les lignes de RETOUR — statut, attente, erreur
-   — qui ne se lisent pas mais se constatent (et `#waitMsg` vit dans la barre
-   d'action, ou 15 px pousserait le bouton), ainsi que les NOTES DE PIED de
-   section, `#classHint` et `#voteHint` : les remonter les mettait au niveau du
-   lead qu'elles commentent, et l'ecran repassait a deux niveaux au lieu de
-   trois. Les vrais corps d'ecran sont les `.*Lead`, traites plus bas. */
 #gate .hint, #hubStatus, #status, #summary, #metaSub, #classHint, #voteHint, #waitMsg {
   font-family: var(--font-body);
   font-weight: var(--weight-body);
@@ -384,12 +119,6 @@
 #summary { font-size: var(--t-m); }
 #summary, #classHint, #voteHint, #waitMsg { text-align: left; max-width: 62ch; }
 
-/* PAS DE LIGNE ORPHELINE. `text-wrap: pretty` demande au moteur d'eviter qu'un
-   paragraphe se termine sur un mot seul — c'etait le defaut le plus visible du
-   salon, ou le lead de la classe finissait sur « tu entres en Tireur. » a lui
-   tout seul. Progressif : un moteur qui ne connait pas la propriete coupe
-   comme avant, rien ne casse. Applique a la PROSE et a elle seule — un libelle
-   ou un chiffre n'a pas de veuve. */
 .gateLead, .gateFormLead, .hubLead, .panelLead, .metaLead, .setLead,
 #summary, #classHint, #voteHint, #waitMsg, .hint,
 #roomList .roomEmpty, #roomList .roomSub,
@@ -398,15 +127,10 @@
 }
 #summary { padding: 0 var(--sp-6) var(--sp-6); }
 
-/* --- controles ---------------------------------------------------------------
-   Les champs et les boutons gardent leur structure ; ils gagnent le rayon
-   d'interface, une aire de clic de 44 px minimum et un survol qui se voit. */
 #gate input, #hubScreen input, #panel input, #menu input, #settings input,
 #gate button, #hubScreen button, #panel button, #menu button, #bilan button,
 #settings button {
   border-radius: var(--radius-ctl);
-  /* 44 px est le plancher tactile, pas la taille visee : les gabarits
-     ci-dessous portent la vraie hauteur. */
   min-height: 44px;
   padding: var(--btn-pad-sm);
   font-size: var(--t-s);
@@ -417,13 +141,6 @@
   min-height: var(--field-h);
   padding: 0 var(--field-pad);
 }
-/* Un curseur n'est pas un champ de saisie : il n'a ni hauteur de ligne ni
-   retrait a respecter, et les regles ci-dessus le deformeraient.
-
-   ATTENTION : cette regle ANNULE, elle ne peint pas. Elle ne doit surtout pas
-   poser `background: none` — sa specificite (1,0,1) bat le bloc `input[type]`
-   plus bas (0,1,1), un selecteur d'attribut pesant comme une classe, et le rail
-   disparaitrait. Le fond est donc pose ICI, a la valeur du bloc curseurs. */
 #settings input[type="range"], #gate input[type="range"], #pause input[type="range"] {
   min-height: 0;
   padding: 0;
@@ -435,31 +152,10 @@
   font-family: var(--font);
   background: var(--ui-field);
 }
-/* Les champs de saisie de TOUS les ecrans hors combat prennent le meme fond :
-   plus sombre que la surface qui les porte. Un champ plus clair que son
-   panneau se lit comme un bouton — c'est le sens inverse de ce qu'il fait. */
 #panel input, #menu input, #settings input[type="text"], #settings input[type="password"] {
   background: var(--ui-field);
 }
 
-/* L'ACTION PRINCIPALE de chaque ecran. Elle existait deja (#start,
-   #gateContinue, #menuClose) ; elle gagne la lueur cyan et le balayage, et
-   surtout elle ne bouge plus : elle est ancree en bas de l'ecran, cf. plus bas.
-
-   LE BISEAU A ETE RETIRE, et c'est l'arbitrage deja ecrit pour `#bilanGo`
-   applique a toute la famille : `--bevel` et `--glow-go` NE COEXISTENT PAS.
-
-   Deux raisons, toutes deux visibles a l'ecran. Un `clip-path` clippe aussi le
-   `box-shadow`, qui est une lueur EXTERIEURE : le bouton declarait donc un halo
-   qu'il ne montrait nulle part, et `armed` animait une pulsation invisible. Et
-   une coupe de 10 px dans un rayon de 12 ne fait pas un biseau mais une
-   ENTAILLE — le polygone a des angles vifs la ou le fond est arrondi, si bien
-   que les coins se lisent comme un contour clair mal fini. C'est exactement ce
-   qui a ete rapporte : « le tour du bouton, les arrondis ne sont pas nets ».
-
-   Ce qui DESIGNE l'action principale reste donc la lueur, et elle le fait mieux
-   puisqu'on la voit. `--bevel` n'a plus d'usage dans la feuille ; le jeton reste
-   dans `tokens.css` pour qui voudra un biseau sur un element SANS lueur. */
 #start, #go, #regGo, #gateContinue, #menuClose, #bilanGo, #finGo {
   font-family: var(--font-display);
   font-size: var(--t-m);
@@ -475,46 +171,17 @@
   box-shadow: var(--glow-go);
   transition: filter var(--tap) linear, box-shadow var(--fade) linear;
 }
-/* Dans un formulaire, l'action principale prend TOUTE la largeur : la colonne
-   est etroite, et un bouton qui n'occupe qu'une partie de sa ligne laisse un
-   vide a droite qu'aucun autre element ne vient combler. */
 #go, #regGo, #gateContinue { width: 100%; }
 
-/* ===========================================================================
-   CONNEXION — deux colonnes
-
-   L'ecran s'ouvrait sur un champ de saisie centre, sans rien dire du jeu. Il
-   se lit maintenant en deux temps : a gauche l'identite et l'etat du reseau,
-   a droite le seul formulaire. Deux colonnes et non un empilement centre —
-   c'est ce qui donne enfin un point de depart au regard.
-   =========================================================================== */
 #gate {
   display: grid;
-  /* L'ACCROCHE PREND PLUS DE PLACE QUE LE FORMULAIRE, et c'est la maquette qui
-     tranche : `repeat(auto-fit, minmax(420px, 1fr))` donnait un partage 50/50
-     a toute largeur, ce qui serrait le titre au point de le casser en cinq
-     lignes de deux mots pendant que la colonne de droite gardait 340 px de
-     vide autour d'un champ de 400. Un formulaire a une largeur UTILE bornee —
-     au-dela, un champ plus large ne se remplit pas mieux — alors qu'une
-     accroche vit de sa largeur. Le repli une colonne sous 900 px est plus
-     bas. */
   grid-template-columns: 1.15fr 1fr;
   align-content: stretch;
-  /* `height` et NON `min-height` : c'est le correctif le plus important de cet
-     ecran. `.overlay` d'origine pose `min-height: 100vh`, donc la grille
-     grandit avec son contenu — et comme la colonne de gauche repartit ses
-     trois blocs par `space-between`, cette hauteur excedentaire se transforme
-     en vide entre le logo, le propos et le pense-bete, pendant que le
-     formulaire de droite flotte seul au milieu. La colonne doit tenir dans la
-     fenetre et defiler par elle-meme si elle deborde. */
   height: 100dvh;
   max-height: 100dvh;
   overflow-y: auto;
 }
 
-/* Colonne de gauche : le logotype, le propos, l'etat du serveur. Les trois
-   premiers enfants de #gate y sont regroupes par `display: contents` cote
-   markup — voir README-integration.md, section « deux div de plus ». */
 #gate #logo {
   font-family: var(--font-display);
   font-size: var(--t-2xl);
@@ -522,15 +189,6 @@
   padding: var(--sp-12) var(--sp-12) 0;
 }
 
-/* Colonne de droite : le formulaire, sur son propre fond. La separation par un
-   filet et un fond legerement different fait plus pour la lisibilite que
-   n'importe quel encadrement du formulaire lui-meme. */
-/* Colonne de droite : le formulaire. Il n'est PAS dans une carte — la colonne
-   EST deja la surface : son fond et son filet de gauche la separent de
-   l'accroche. Un encart borde par-dessus ferait une boite dans une boite, et
-   c'est exactement ce qui redonne l'air « formulaire pose au milieu du vide »
-   qu'on cherche a corriger. Seuls les ONGLETS ont un etui, parce qu'eux sont un
-   choix entre deux et doivent se lire comme un groupe. */
 #gateForms {
   align-self: center;
   justify-self: center;
@@ -544,8 +202,6 @@
   background: none;
 }
 
-/* Les onglets gardent la grammaire du segment de vote, dans un etui : un
-   segment pose a plat sur le fond ne dit pas qu'il est un choix entre deux. */
 #gateTabs {
   gap: var(--sp-1);
   padding: var(--sp-1);
@@ -563,17 +219,10 @@
   border: 0;
   border-radius: calc(var(--radius-ctl) - 4px);
   background: transparent;
-  /* Deux lignes pour « Créer un compte » cassaient la symetrie des deux
-     onglets et faisaient grandir tout l'etui. Un onglet est une etiquette, il
-     tient sur une ligne — quitte a resserrer la chasse. */
   white-space: nowrap;
   padding-inline: var(--sp-2);
   font-size: var(--t-s);
   letter-spacing: 0;
-  /* L'onglet AU REPOS est attenue. En `--text` plein, les deux etiquettes
-     pesaient pareil et seul le fond distinguait l'onglet courant : la maquette
-     les separe sur DEUX canaux — la couleur du texte autant que le fond. Le
-     survol le ramene a `--text`, c'est la reponse au pointeur. */
   color: var(--text-dim);
 }
 #gateTabs button:first-child, #gateTabs button:last-child { border-radius: calc(var(--radius-ctl) - 4px); }
@@ -584,14 +233,9 @@
 }
 
 .gateForm { width: 100%; display: flex; flex-direction: column; gap: var(--sp-3); }
-/* Un champ de 46 px n'est pas un caprice : c'est la hauteur a laquelle une
-   zone de saisie se distingue d'un bouton sans avoir a lire son contenu. */
 .gateForm input { min-height: var(--field-h); padding-inline: var(--field-pad); }
 .gateForm > button { margin-top: var(--sp-2); }
 
-/* L'avertissement de creation de compte : il etait un `.hint` gris sous le
-   bouton, donc invisible. Encadre en ambre ATTENUE — il informe avant le clic,
-   il n'alerte pas : voir la famille `--notice-*`. */
 #registerForm .hint {
   padding: var(--sp-4);
   border: var(--hair) solid var(--notice-warn-line);
@@ -603,9 +247,6 @@
   margin-top: var(--sp-2);
 }
 
-/* Le meme encart ambre, pour la pause forcee « compte deja connecte ailleurs ».
-   Meme motif, meme couleur : les deux disent « lis avant de cliquer », et une
-   seule forme pour un seul sens. */
 #gateHold {
   display: flex;
   flex-direction: column;
@@ -619,8 +260,6 @@
   background: var(--notice-warn-bg);
 }
 #gateHold[hidden] { display: none; }
-/* Le kicker garde la teinte PLEINE : c'est une ligne de trois mots en
-   capitales, elle a besoin du contraste que le paragraphe, lui, n'a pas. */
 #gateHold .sectionTitle { color: var(--warn); }
 #gateHold .sectionTitle::before { background: var(--warn); }
 #gateHold .hint { color: var(--notice-warn-text); text-align: left; }
@@ -632,10 +271,6 @@
   clip-path: none;
 }
 
-/* Reglages du son : ils vivent bien ici (le clic debloque le contexte audio),
-   mais ils flottaient entre le formulaire et le pense-bete des touches, au
-   meme niveau visuel que les deux. Ils passent au pied de la colonne de
-   droite, separes par un filet. */
 #audioRow, #musicRow {
   grid-column: 2;
   justify-self: center;
@@ -645,10 +280,6 @@
 #audioRow { padding-top: var(--sp-4); border-top: var(--hair) solid var(--line-soft); margin-top: var(--sp-2); }
 #vol, #musVol { flex: 1; width: auto; }
 
-/* Le pense-bete des touches. Cinq lignes centrees de 11 px : c'est le bloc qui
-   pesait le plus lourd pour ce qu'il apporte a la connexion. Il passe a
-   gauche, aligne a gauche, sous le propos — et sa version complete vit dans
-   les parametres. */
 #gate > .hint:last-of-type {
   grid-column: 1;
   align-self: end;
@@ -661,11 +292,6 @@
 
 #status { text-align: left; padding-inline: var(--sp-8); grid-column: 2; }
 
-/* ===========================================================================
-   CHARGEMENT
-   Le seul ecran ou l'on peut prendre trois secondes. Il reste centre — c'est
-   le seul, et il n'a qu'une chose a dire.
-   =========================================================================== */
 #loading { justify-content: center; align-items: center; gap: var(--sp-6); }
 #loading #logo { font-family: var(--font-display); }
 #loadBar {
@@ -685,15 +311,6 @@
 #loadPct { font-family: var(--font); }
 #loadWhat { font-family: var(--font); letter-spacing: var(--track-title); text-transform: uppercase; font-size: var(--t-xs); }
 
-/* ===========================================================================
-   SALLES
-
-   La liste etait le seul contenu de l'ecran et occupait 440 px au centre, avec
-   « Actualiser » au-dessus, la creation au-dessous et le compte en pied — cinq
-   blocs empiles, tous de la meme importance. Ils prennent maintenant trois
-   rangs : la liste (le sujet), la creation (une action secondaire, dans son
-   propre encart), le compte (un pied de page).
-   =========================================================================== */
 #roomList {
   width: 100%;
   max-height: none;
@@ -710,15 +327,9 @@
   background: var(--ui-panel);
   transition: border-color var(--tap) linear, background var(--tap) linear;
 }
-/* Une salle pleine reste VISIBLE et desactivee : c'est celle ou sont les
-   autres. Regle deja posee par ui.css, conservee mot pour mot. */
 #roomList .roomEntry:disabled { opacity: 0.42; }
 
 #roomList .roomEntry .roomName { font-family: var(--font-display); font-size: var(--t-l); font-weight: 600; }
-/* L'etat prend la forme d'une pastille, et sa COULEUR est l'information : vert
-   si la salle accepte du monde, ambre si une manche tourne \u2014 on peut entrer, on
-   regarde jusqu'a la suivante \u2014 gris si elle est pleine. En gris pour les trois
-   cas, il fallait lire trois mots pour trier quatre lignes. */
 #roomList .roomEntry .roomState {
   order: 2;
   padding: 2px var(--sp-2);
@@ -733,8 +344,6 @@
 #roomList .roomEntry .roomState.running { color: var(--warn); }
 #roomList .roomEntry:disabled .roomState { color: var(--text-faint); }
 
-/* Le temoin qui ouvre la ligne. Il reprend la couleur de la pastille et la met
-   la ou l'oeil commence a lire : on trie la liste sans lire un mot. */
 #roomList .roomEntry::before {
   content: "";
   width: 8px;
@@ -753,9 +362,6 @@
   box-shadow: none;
 }
 
-/* L'effectif est le CHIFFRE de la ligne : chasse fixe, cale a droite pour que
-   les quatre lignes s'alignent, et assez fort pour se lire avant le nom quand
-   on cherche une place. */
 #roomList .roomEntry .roomCount {
   order: 3;
   font-family: var(--font);
@@ -766,14 +372,6 @@
   text-align: right;
 }
 
-/* Les quatre CARRES d'effectif. Ils ne repetent pas le chiffre : ils le rendent
-   comparable d'une ligne a l'autre sans le lire. Sur quatre salles, l'oeil voit
-   d'un coup laquelle est presque pleine \u2014 ce que « 2 / 4 » et « 3 / 4 » ne
-   donnent qu'apres deux lectures.
-
-   Le markup vient de `client.js` (voir OPERATION-UI-CSS.md) : un `.roomSlots`
-   portant `data-n`, et quatre `<i>` a l'interieur. Un carre et non un disque :
-   le seul cercle du jeu est une entite vivante. */
 #roomList .roomEntry .roomSlots {
   order: 2;
   display: flex;
@@ -794,15 +392,11 @@
   background: var(--go);
   box-shadow: 0 0 var(--sp-2) color-mix(in srgb, var(--go) 60%, transparent);
 }
-/* Une salle pleine n'est pas une bonne nouvelle : ses carres passent au gris
-   plutot qu'au cyan, sinon quatre carres allumes se lisent comme une invitation. */
 #roomList .roomEntry:disabled .roomSlots > i {
   background: var(--text-faint);
   box-shadow: none;
 }
 
-/* La ligne de sous-titre : difficulte et etat, sous le nom. C'est ce qui permet
-   de choisir une salle sans y entrer. */
 #roomList .roomEntry .roomSub {
   display: block;
   margin-top: 3px;
@@ -815,24 +409,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* La sous-ligne commence par la difficulte, dont le libelle vit en minuscules
-   dans `DIFFICULTIES` — et il doit y rester : c'est le meme mot qui sert dans
-   « difficulté cauchemar » au fil du texte. La capitale se pose donc ici, ou
-   elle ouvre une ligne, et pas dans la table. */
 #roomList .roomEntry .roomSub::first-letter { text-transform: uppercase; }
 #roomList .roomEntry .roomLock { order: 1; font-size: var(--t-s); color: var(--text-dim); }
-/* Le cadenas est un SVG en ligne (client.js) qui prend `currentColor` et `1em`
-   de la regle ci-dessus — c'est ce qui lui evite le jaune sature de l'emoji.
-   `display: block` le sort du contexte de ligne : pose en inline il repose sur
-   la ligne de base, la rangee lui reserve un cadratin entier, et le glyphe
-   flotte 3 px au-dessus du centre optique de la ligne. */
 #roomList .roomEntry .roomLock svg { display: block; }
 #roomList .roomEmpty { border-radius: var(--radius-ui); padding: var(--sp-8); font-family: var(--font-body); }
 
-/* La creation dans son propre encart : c'est une action, elle ne doit pas
-   flotter au milieu de la page comme une ligne de plus. */
-/* Le bouton d'actualisation porte son glyphe : deux enfants alignes, et le
-   SVG sorti du contexte de ligne comme le cadenas. */
 #hubRefresh { display: inline-flex; align-items: center; gap: var(--sp-2); }
 #hubRefresh svg { display: block; }
 #hubScreen .sectionTitle, #hubCreateRow, #hubPassAsk {
@@ -843,8 +424,6 @@
 #hubCreateRow input { flex: 1; min-width: 200px; }
 #hubPassAsk { border-radius: var(--radius-ui); padding: var(--sp-4); }
 
-/* Le compte est un PIED DE PAGE : il etait au meme niveau que la creation
-   d'une salle, alors qu'on le touche une fois par soiree. */
 #hubAccount {
   margin-top: var(--sp-12);
   padding: var(--sp-4) var(--sp-6) var(--sp-8);
@@ -852,21 +431,9 @@
   font-size: var(--t-xs);
 }
 #hubAccount .row { flex-wrap: wrap; justify-content: center; gap: var(--sp-6); }
-/* L'etiquette et la valeur ne peuvent pas etre du meme gris : c'est le pseudo
-   qu'on vient verifier, pas le mot « connecté ». */
 #hubWho { color: var(--text-dim); }
 #hubWho b { font-family: var(--font-display); font-weight: 600; color: var(--text); }
 
-/* ===========================================================================
-   SALON — deux colonnes, et l'action ancree
-
-   C'est l'ecran qui souffrait le plus : sept blocs empiles au centre, dont un
-   bouton de lancement qui remontait ou descendait selon le nombre de joueurs,
-   et un tableau des scores en pied que personne ne lisait. Deux colonnes
-   desormais — les CHOIX a gauche (classe, difficulte), l'ETAT a droite
-   (l'equipe, l'historique) — et l'action ancree en bas de fenetre, donc
-   toujours au meme endroit.
-   =========================================================================== */
 #panel { padding-bottom: 120px; }
 
 #classes, #vote {
@@ -876,68 +443,24 @@
 }
 #classRow { justify-content: flex-start; gap: var(--sp-3); }
 
-/* --- cartes de classe -------------------------------------------------------
-   Elles etaient les seuls elements deja corrects de l'ecran — silhouette,
-   barres comparatives, competences avec leur touche. On ne touche donc qu'a
-   trois choses : le rayon, la lueur de la carte choisie, et le PIED qui dit
-   pourquoi une carte ne repond pas. */
 .classOpt {
   border-radius: var(--radius-ui);
-  /* `background` etait absent de la liste : la teinte de la carte choisie
-     apparaissait d'un coup pendant que la bordure, elle, fondait. Un seul
-     element, deux vitesses. */
   transition: transform var(--tap) ease-out, border-color var(--tap) linear,
               background var(--tap) linear, box-shadow var(--fade) linear;
 }
 .classOpt.mine {
   box-shadow: 0 0 var(--sp-8) -6px currentColor;
 }
-/* Le bandeau du haut disait deja « c'est la mienne ». Lui donner le rayon de la
-   carte ne suffit PAS a l'empecher de deborder des coins, et il debordait — pour
-   deux raisons qui s'additionnent :
-
-     1. la carte ne porte pas ce rayon. `#panel button` (1,0,1) l'emporte sur
-        `.classOpt` (0,1,0) : le bouton sort en `--radius-ctl` (12 px) alors que
-        le bandeau demande `--radius-ui` (16 px) ;
-     2. meme au bon rayon, ca ne tiendrait pas. Le bandeau fait 4 px de haut
-        pour un rayon de 12 : le navigateur reduit TOUS les rayons d'un meme
-        facteur (4/12) des qu'ils depassent le cote, donc le bandeau se retrouve
-        avec des coins de 4 px la ou la carte en courbe 11. A 4 px du haut, le
-        bord interieur de la carte est encore rentre de plusieurs pixels — aucun
-        rayon ne rattrape ca.
-
-   C'est donc la CARTE qui doit rogner. `overflow: hidden` decoupe le bandeau
-   sur la courbe reelle, quelle que soit la valeur que le rayon finit par
-   prendre. Le rayon du bandeau devient decoratif — on le garde : il evite un
-   angle vif au ras du decoupage sur les navigateurs qui anticrenellent mal. */
 .classOpt { overflow: hidden; }
-/* Le rayon, lui, se reprend au lieu de se subir. La feuille declare DEUX fois
-   `.classOpt { border-radius: var(--radius-ui) }` et perdait les deux fois :
-   `#panel button` (1,0,1) l'emporte sur `.classOpt` (0,1,0), donc les trois
-   cartes sortaient au rayon des CONTROLES. Une carte de classe est un panneau
-   qu'on choisit, pas une commande qu'on presse — meme rayon que la carte de
-   difficulte juste en dessous, qui pose exactement la meme question. Un
-   selecteur porte par `#classRow` (1,1,0) repasse devant sans toucher a la
-   regle generale des boutons du panneau. */
 #classRow .classOpt { border-radius: var(--radius-ui); }
 .classOpt.mine::after { border-radius: var(--radius-ui) var(--radius-ui) 0 0; }
 .className { font-family: var(--font-display); font-size: var(--t-l); }
 .classRole { font-family: var(--font-body); line-height: 1.5; }
 .classSkill { font-family: var(--font-body); }
 .classSkill .key { font-family: var(--font); border-radius: var(--radius); }
-/* Emplacement pris : le nom barre ne suffisait pas, il faut le NOM de celui
-   qui l'occupe, et en ambre — c'est un avertissement, pas une panne. */
 .classTaken { font-family: var(--font); color: var(--warn); }
-/* LA CELLULE. Elle porte le rang dans la grille, la carte n'est plus qu'un
-   enfant : un <button> ne peut pas en contenir un autre, et le bouton d'arbre
-   devait vivre SOUS la carte sans sortir de sa colonne. */
 .classCell { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
 .classCell > .classOpt { flex: 1; }
-/* Le bouton d'arbre porte la TEINTE de sa classe (`currentColor`, posee en
-   ligne) et reste en retrait : c'est une consultation, pas le choix. Il ne
-   sort que sur la carte choisie — `renderClasses` ne le cree pas ailleurs,
-   plutot que de le masquer, sinon trois boutons vivraient dans le DOM pour
-   qu'un seul se voie. */
 .classMetaBtn {
   border-radius: var(--radius-ctl);
   min-height: 40px;
@@ -949,13 +472,6 @@
   background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
-/* --- difficulte -------------------------------------------------------------
-   TROIS CARTES et non un segment. Le segment etait la bonne forme tant qu'une
-   option se resumait a son nom ; depuis qu'un mode porte ses quatre
-   multiplicateurs et son gain de noyaux, il n'y a plus de place dedans — et
-   c'est precisement ce qu'on vient comparer. Meme geometrie que les cartes de
-   classe juste au-dessus : l'ecran pose deux fois de suite la meme question
-   (« choisis parmi trois »), il doit la poser de la meme facon. */
 #voteRow {
   gap: var(--sp-3);
   padding: 0;
@@ -965,15 +481,10 @@
 #voteRow button {
   padding: var(--sp-4);
   border: var(--hair) solid var(--ui-line);
-  /* Ce rayon-ci gagne parce qu'il arrive APRES `#panel button` a specificite
-     egale (1,0,1). C'est le meme piege que sur `.classOpt`, qui le perd. */
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
   text-align: left;
 }
-/* Deux etats DISTINCTS, et ils coexistent le plus souvent — j'ai vote pour
-   celui qui gagne. Ils ne peuvent donc pas se dire de la meme facon : mon vote
-   TEINTE la carte, le mode retenu la CERNE et l'eclaire. */
 #voteRow button.mine { background: color-mix(in srgb, var(--go) 8%, var(--ui-panel)); }
 #voteRow button.winner {
   border-color: var(--go);
@@ -989,8 +500,6 @@
   text-transform: uppercase;
   color: var(--text);
 }
-/* La pastille du gain se REMPLIT sur le mode retenu : c'est le seul aplat cyan
-   de la rangee, donc le premier point que l'oeil trouve. */
 .voteMul {
   flex: none;
   padding: 2px var(--sp-2);
@@ -1003,8 +512,6 @@
   background: var(--ui-field);
 }
 #voteRow button.winner .voteMul { color: var(--bg-void); background: var(--go); }
-/* Le detail est du CORPS de texte, dans un bouton dont tout le reste est en
-   capitales espacees : les deux proprietes doivent etre remises a plat. */
 .voteDetail {
   font-family: var(--font-body);
   font-size: var(--t-s);
@@ -1021,25 +528,11 @@
   color: var(--go);
 }
 
-/* --- le tableau des scores --------------------------------------------------
-   Au salon c'est de l'INFORMATION : ui.css l'attenuait deja a 60 %, et c'etait
-   juste. Il passe simplement dans la colonne de droite, sous l'equipe, et
-   garde son attenuation. */
 #scoresWrap { align-items: stretch; width: 100%; padding-inline: var(--sp-6); }
 #scores { min-width: 0; width: 100%; }
 #scores td.name { font-family: var(--font-display); }
 #scores td, #scores th { font-family: var(--font); }
 
-/* --- l'action, ancree ------------------------------------------------------
-   Le correctif le plus rentable de la refonte : le bouton ne bouge plus. Il
-   etait le sixieme d'une pile de sept blocs centres verticalement, donc sa
-   position dependait de tout le reste — du nombre de joueurs, de la longueur
-   du message d'attente, de la presence du tableau. Ancre en bas de fenetre, il
-   est au meme pixel a chaque fois qu'on entre dans un salon.
-
-   La barre porte un fond opaque et non un degrade : le contenu defile
-   dessous, et un degrade laisse passer assez de texte pour rendre le libelle
-   du bouton illisible une ligne sur trois. */
 #panel > .row:has(#start) {
   position: fixed;
   left: 0;
@@ -1054,9 +547,6 @@
   background: var(--bg-void);
   border-top: var(--hair) solid var(--ui-line);
 }
-/* Le message d'attente (« il manque un joueur », « la manche est en cours »)
-   appartient au bouton : c'est ce qui explique pourquoi il ne repond pas. Il
-   remonte donc dans la barre, a gauche de l'action. */
 #waitMsg {
   position: fixed;
   left: var(--sp-6);
@@ -1065,22 +555,11 @@
   max-width: 52ch;
   text-align: left;
 }
-/* Le retour au hub est une action secondaire : elle ne doit pas concurrencer
-   le lancement, et elle vit donc en HAUT de l'ecran, a cote du titre — pas en
-   bas, ou l'oeil cherche l'action principale. */
 #panel > .row:has(#panelLeave) {
   order: -1;
   justify-content: flex-end;
   padding: var(--sp-4) var(--sp-6) 0;
 }
-/* UN RETOUR EST DE LA NAVIGATION, pas une action mineure. En fantome — sans
-   bordure et en `--text-dim` — « ← Quitter la salle » se lisait comme une
-   legende posee dans un coin : rien ne disait que c'etait cliquable, et c'est
-   pourtant la seule facon de sortir de l'ecran. Il reprend donc une bordure,
-   un fond de panneau et la couleur du texte plein. Il ne concurrence pas
-   l'action principale pour autant : celle-ci est PLEINE (cyan sur fond sombre)
-   et ancree en bas, le retour reste creux et en haut. Le fantome, lui, garde
-   ce qui est vraiment mineur — se deconnecter, annuler, refuser. */
 #panelLeave, #settingsClose {
   background: var(--ui-panel);
   border-color: var(--ui-line);
@@ -1089,33 +568,9 @@
   font-weight: 600;
 }
 
-/* ===========================================================================
-   BILAN
-   Le tableau y est le SUJET de l'ecran, et non plus de l'information de pied
-   de page : ui.css le remontait deja, on ne fait que lui donner le rythme des
-   autres ecrans.
-   =========================================================================== */
 #bilan { padding-bottom: var(--sp-12); }
 
-/* Le rythme vertical du bilan vit desormais sur `.bilanWrap` (plus bas), qui
-   porte un `gap` unique : ses blocs etaient des enfants directs de `#bilan` et
-   reglaient chacun sa propre marge, ce qui faisait cinq nombres a garder
-   d'accord pour un ecran qui n'a qu'un rythme.
 
-   La VENTILATION passe a la barre empilee de la maquette, contre l'avis qui
-   etait ecrit ici. L'argument d'alors — « une barre empilee dit mal LAQUELLE,
-   parce qu'elle renvoie a une legende qu'il faut apparier de l'oeil » — tombe
-   avec `SRC_TINT` : chaque provenance porte maintenant la couleur qu'elle a
-   dans l'arene, donc la pastille de la legende et son segment se relient sans
-   effort. Ce qu'on gagne en echange est ce que quatre barres separees ne
-   pouvaient pas donner : ce sont les parts d'un MEME total, et empilees la
-   comparaison ne demande plus rien. */
-
-/* ===========================================================================
-   MENU / PROGRESSION
-   Les lignes denses sont le bon format — c'est un magasin qu'on relit, pas un
-   choix sous pression. Elles gagnent le rayon d'interface et rien d'autre.
-   =========================================================================== */
 #meta { width: min(960px, 92vw); align-items: stretch; padding-inline: var(--sp-6); }
 .metaLine { border-radius: var(--radius-ctl); padding: var(--sp-2) var(--sp-3); }
 .metaLine.equipped { box-shadow: inset 0 0 0 var(--hair) var(--go); }
@@ -1123,13 +578,6 @@
 .metaDesc { font-family: var(--font-body); }
 .metaBuy, .metaEquip { border-radius: var(--radius); min-height: 0; }
 
-/* ===========================================================================
-   FENETRES ETROITES
-   En dessous de 900 px les deux colonnes du salon et de la connexion se
-   remettent en une seule, et la barre d'action reprend toute la largeur : une
-   colonne de 420 px dans une fenetre de 700 px laisse le formulaire a droite
-   d'un vide.
-   =========================================================================== */
 @media (max-width: 900px) {
   #gate { grid-template-columns: 1fr; }
   #gate #logo { padding: var(--sp-8) var(--sp-6) 0; }
@@ -1140,71 +588,20 @@
   #start, #go, #regGo, #bilanGo, #finGo { padding-inline: var(--sp-8); }
 }
 
-/* ===========================================================================
-   ANIMATIONS
 
-   Tout ce qui bouge est ICI, et rien n'est laisse a l'interpretation : les
-   valeurs de ce bloc SONT la conception, pas une approximation de celle-ci.
-
-   Trois garde-fous gouvernent l'ensemble :
-     - la courbe sort vite et s'arrete NET, sans rebond. Un menu qui rebondit se
-       remarque une fois et agace les cent suivantes ;
-     - le decalage cumule d'une cascade est plafonne, sinon une liste longue
-       fait attendre sa derniere ligne ;
-     - rien ne boucle en permanence sauf ce qui porte une INFORMATION (le bouton
-       arme, les rayures de chargement, la carte legendaire).
-   =========================================================================== */
-
-/* L'entree anime `translate` et NON `transform`. Ce sont deux proprietes
-   distinctes qui se composent, et c'est ce qui resout le conflit central :
-   `riseIn` se termine sur une valeur retenue par `fill-mode: both`, or une
-   animation l'emporte sur une declaration auteur normale. Si l'entree animait
-   `transform`, le `transform` de survol du meme element ne pourrait JAMAIS
-   s'appliquer. En separant les deux proprietes, l'entree garde `translate` et
-   le survol garde `transform`. */
-/* L'ecran arrive LEGEREMENT TROP GRAND et fait sa mise au point en
-   arrivant : c'est la mise au point d'un viseur, pas un fondu de diaporama.
-   L'echelle part de 1,015 et non de 0,985 — un element qui RETRECIT vers sa
-   place se lit comme un objet qui se pose, un element qui grandit se lit comme
-   une fenetre qui s'ouvre par-dessus, et ce n'est pas ce que fait un ecran qui
-   remplace le precedent.
-
-   `fill-mode: backwards` et JAMAIS `both`, et c'est la seule chose delicate
-   ici : `scale` comme `filter` creent un bloc conteneur pour les descendants
-   en `position: fixed`. Avec `both`, la valeur finale reste posee — donc
-   `blur(0)` et `scale(1)` restent des valeurs — et tout ce qui est fixe a
-   l'interieur se met a se positionner par rapport au wrapper. `backwards`
-   applique la premiere image AVANT le depart puis rend l'element a ses styles
-   normaux : plus aucun filtre au repos. C'est aussi pour ca que l'animation
-   porte sur le WRAPPER et pas sur `.overlay` — la barre d'action du salon est
-   `position: fixed` et enfant direct de `#panel`. */
 @keyframes screenIn {
-  /* Le `translate` s'ajoute a l'echelle et au flou : l'ecran DESCEND de 18 px
-     en se posant. Sans lui la mise au point etait juste mais immobile, et deux
-     ecrans qui se succedent sans direction commune se lisent comme deux fondus
-     sans rapport. La sortie pousse dans le MEME sens (voir `contentOut`), donc
-     l'oeil suit un mouvement continu d'un ecran a l'autre. */
   from { opacity: 0; scale: 1.015; filter: blur(5px); translate: 0 18px; }
   to   { opacity: 1; scale: 1;     filter: blur(0);   translate: 0 0; }
 }
 
-/* Le voile qui part : une opacite, et rien d'autre — voir la note de la sortie
-   d'ecran sur le bloc conteneur. */
 @keyframes screenOut {
   to { opacity: 0; }
 }
 
-/* Le contenu qui part : il continue le mouvement au lieu de s'evanouir sur
-   place. Douze pixels contre dix-huit a l'entree — ce qui part n'a pas a se
-   faire remarquer autant que ce qui arrive. */
 @keyframes contentOut {
   to { opacity: 0; scale: .99; filter: blur(4px); translate: 0 -12px; }
 }
 
-/* La barre d'action ARRIVE PAR LE BAS, elle. C'est la seule chose de l'ecran
-   qui soit ancree au bord, et une barre qui se pose depuis le bord dit d'ou
-   elle vient. Elle demarre un cheveu apres le corps : l'oeil lit le contenu,
-   puis l'action. */
 @keyframes barIn {
   from { opacity: 0; translate: 0 100%; }
   to   { opacity: 1; translate: 0 0; }
@@ -1215,25 +612,15 @@
   to   { opacity: 1; translate: 0 0; }
 }
 
-/* La grille du fond derive tres lentement : assez pour que l'ecran ne soit
-   jamais mort, pas assez pour qu'on la regarde. */
 @keyframes gridDrift { to { background-position: 40px 40px, 40px 40px; } }
 
-/* Rayures du chargement : elles disent que quelque chose TRAVAILLE meme quand
-   le pourcentage stagne, ce qu'une barre lisse ne dit pas. */
 @keyframes stripes { to { background-position: 28px 0; } }
 
-/* Le bouton de lancement ne respire QUE lorsqu'il est arme. C'est ce qui
-   signale le passage de « bloque » a « on peut y aller », et c'est la seule
-   raison pour laquelle cette boucle existe. */
 @keyframes armed {
   0%, 100% { box-shadow: 0 0 var(--sp-8) color-mix(in srgb, var(--go) 38%, transparent); }
   50%      { box-shadow: 0 0 var(--sp-12) color-mix(in srgb, var(--go) 72%, transparent); }
 }
 
-/* Ce qui APPARAIT sur un clic. Plus court et plus serre que `riseIn`, qui est
-   une entree d'ecran : ici on repond a un geste, la reponse doit arriver
-   pendant que le doigt est encore sur le bouton. */
 @keyframes popIn {
   from { opacity: 0; translate: 0 6px; scale: .96; }
   to   { opacity: 1; translate: 0 0;   scale: 1; }
@@ -1244,27 +631,10 @@
   50%      { box-shadow: 0 0 0 7px transparent; }
 }
 
-/* --- la cascade -------------------------------------------------------------
-   Une liste qui apparait d'un bloc se lit comme une image ; decalee de quelques
-   dizaines de millisecondes par ligne, elle se lit comme une LISTE — l'oeil
-   suit l'ordre au lieu de le chercher. C'est le gain le plus important du lot,
-   et il ne coute rien : `:nth-child` suffit, aucun script.
-
-   Le pas varie avec la densite : 45 ms sur une ligne dense (talents), 90 ms sur
-   un objet large (carte d'amelioration). Au-dela de six elements le delai ne
-   monte plus — c'est le plafond. */
-/* `--screen-hold` de retrait, et `backwards` devient OBLIGATOIRE : pendant le
-   retrait, un element sans fill-mode s'affiche a ses styles normaux, donc
-   l'ecran entrant apparaitrait en pleine opacite avant de repartir a zero — un
-   clignotement, exactement ce qu'on vient corriger. */
 .hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, .briefWrap,
 .finWrap, #bilan > * {
   animation: screenIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
-/* Le voile lui-meme ne fait qu'une OPACITE : pas d'echelle, pas de filtre —
-   voir la note ci-dessus sur le bloc conteneur. Il dure aussi longtemps que le
-   corps qu'il porte, sinon le fond est deja plein quand le contenu arrive et
-   l'ecran clignote en deux temps. */
 #gate, #hubScreen, #panel, #bilan, #fin, #menu, #settings {
   animation: fadeIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
@@ -1272,82 +642,22 @@
   animation: barIn var(--screen) var(--ease-out) calc(var(--screen-hold) + 80ms) backwards;
 }
 
-/* LE BRIEFING EST HORS DE CE GROUPE, et c'est structurel : ce n'est pas l'ecran
-   SUIVANT d'un croisement, c'est un VOILE pose sur une manche qui tourne deja.
-
-   `--screen-hold` existe pour qu'un entrant laisse voir le sortant partir. Ici
-   le sortant est le salon, mais ce qu'il decouvre en s'effacant n'est pas un
-   fond neutre : c'est l'arene, qui devient visible a l'instant meme ou la phase
-   passe en manche. Pendant les 120 ms de retrait le voile etait donc a zero et
-   le salon deja descendu vers 0,90 — on voyait la carte avant le briefing.
-
-   Donc AUCUN retard, et un fondu court : le salon est encore proche de 1 quand
-   le voile est deja loin, et les deux couches composees ne laissent jamais
-   passer plus de quelques pour cent. La SORTIE, elle, ne change pas — decouvrir
-   l'arene progressivement en fermant le briefing est exactement ce qu'on veut.
-
-   Le contenu (`.briefWrap`) garde son `screenIn` retarde du groupe ci-dessus :
-   il se pose sur un voile deja opaque, ce qui est le bon ordre. */
 #brief {
   animation: fadeIn var(--brief-in) var(--ease-out) backwards;
 }
 
-/* --- LA SORTIE D'ECRAN -------------------------------------------------------
-   L'entree etait soignee, la sortie n'existait pas : `hidden` retire l'ecran en
-   UNE image, et l'oeil voit le fond nu pendant que le suivant commence son
-   fondu. C'est ce trou d'une frame qui fait « saut de page » au milieu d'une
-   interface ou tout le reste est anime.
-
-   Aucun appelant ne change, et c'est la condition : les quinze chemins qui
-   posent `hidden` portent des regles d'ordonnancement documentees (`worldQueue`,
-   les gardes de `refreshPanel`, l'ordre bilan/salon). C'est `client.js` qui pose
-   `.leaving` depuis l'observateur d'attribut DEJA en place — celui qui sert le
-   fil d'Ariane et la cascade. Il CONSTATE que `hidden` vient d'etre pose, il ne
-   decide de rien : c'est ce qui le rend incapable d'oublier un chemin.
-
-   Pourquoi une classe et pas `transition-behavior: allow-discrete`, qui fait
-   exactement ca en CSS pur : le repli d'`allow-discrete` sur un navigateur qui
-   l'ignore est la coupure nette, c'est-a-dire aucune animation du tout et aucun
-   moyen de s'en apercevoir a la lecture du code. Une classe et une animation
-   marchent partout, sans condition.
-
-   Le voile ne fait qu'une OPACITE. Ni `scale` ni `translate` ni `filter` ici :
-   ils creent un bloc conteneur pour les descendants en `position: fixed`, et
-   `.panelBar` est un enfant DIRECT de `#panel` — elle sauterait a chaque
-   changement d'ecran. L'opacite, elle, ne cree qu'un contexte d'empilement. Le
-   glissement et le flou vivent donc sur le WRAPPER, exactement la ou `screenIn`
-   les met deja, et la barre suit l'opacite de son parent sans qu'on ait rien a
-   lui dire.
-
-   `pointer-events: none` n'est pas un detail : l'ecran sortant reste AFFICHE
-   le temps de son animation et avalerait les clics destines au suivant.
-
-   `prefers-reduced-motion` est deja traite plus haut : la regle globale ecrase
-   `animation-duration`, l'ecran part en 0,01 ms et l'on retrouve la coupure —
-   qui est le comportement attendu de ce reglage. */
 :is(#gate, #loading, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #pause, #brief)[hidden].leaving {
   display: flex;
   pointer-events: none;
   animation: screenOut var(--screen-out) var(--ease-in) forwards;
 }
-/* `#gate` est la seule des huit a etre une grille : lui rendre `flex` casserait
-   ses deux colonnes le temps de la sortie. */
 #gate[hidden].leaving { display: grid; }
 
-/* Le contenu GLISSE vers le haut et se defocalise pendant que le voile
-   s'efface : l'entree le fait descendre de 18 px, la sortie le pousse de 12 px
-   dans la meme direction. Les deux ecrans traversent donc dans le meme sens —
-   c'est ce qui se lit comme un passage plutot que comme deux fondus
-   independants. */
 .leaving :is(.hubWrap, .panelWrap, .metaWrap, .setWrap, .gateLeft, .gateRight, .briefWrap, .finWrap),
 #bilan.leaving > * {
   animation: contentOut var(--content-out) var(--ease-in) forwards;
 }
 
-/* La trame de balayage DERIVE une fois a l'arrivee, puis s'immobilise. Un
-   ecran d'instrument qui s'allume balaie ; un ecran d'instrument allume ne
-   bouge plus. C'est la meme regle que les boucles du reste de la feuille —
-   rien ne tourne en permanence sans porter une information. */
 @keyframes rasterSweep {
   from { background-position: 0 -60px; opacity: 0; }
   40%  { opacity: .55; }
@@ -1424,23 +734,6 @@
 #metaTree .metaLine:nth-child(n + 6),
 #buildMods .buildMod:nth-child(n + 6) { animation-delay: 350ms; }
 
-/* La cascade est une animation d'ENTREE D'ECRAN, jamais de creation de noeud —
-   et trois ecrans reconstruisent leurs listes ALORS QU'ILS SONT AFFICHES : le
-   salon a chaque diffusion (vote, classe, « prêt », arrivee), le hub a chaque
-   changement d'effectif, la progression a chaque achat. C'est-a-dire a chaque
-   clic. Mesure sur un seul clic du selecteur de difficulte : huit `riseIn`
-   relances d'un coup, donc toute la colonne qui repart d'une opacite nulle.
-   L'ecran entier clignotait.
-
-   `.settled` est pose par client.js quand la cascade d'entree est finie, et
-   retire des que l'ecran se cache : la prochaine ouverture cascade a nouveau.
-
-   La regle nomme les trois ecrans concernes plutot que de reprendre la liste
-   entiere, et ce n'est pas de la timidite : #cards, #build et #bilan ne se
-   repeignent pas a l'affiche, donc ils n'ont rien a couper — et la carte
-   legendaire de #cards porte `riseIn` ET `epicBreath` dans la MEME
-   declaration, ou un `animation: none` lui aurait aussi retire sa
-   respiration, c'est-a-dire la seule chose qui en fait un evenement. */
 #hubScreen.settled #roomList .roomEntry,
 #panel.settled #classRow .classOpt,
 #panel.settled #voteRow button,
@@ -1450,59 +743,13 @@
   animation: none;
 }
 
-/* Trois elements n'existent que par une decision : le bouton d'arbre sous la
-   carte choisie, l'encart de reprise, la demande de mot de passe. Ils
-   surgissaient d'un coup au milieu d'une page deja posee — le pire cas, parce
-   que rien ne relie le clic a ce qui vient d'apparaitre ailleurs a l'ecran.
-
-   Les deux encarts basculent leur attribut `hidden`, et reposer
-   `hidden = false` sur un element deja visible ne modifie aucun attribut :
-   leur animation ne rejoue donc pas toute seule.
-
-   `.classMetaBtn` etait dans le meme sac, et c'etait FAUX. Ce commentaire
-   affirmait qu'il n'est cree qu'au moment du choix ; en realite
-   `renderClasses()` vide `#classRow` et le reconstruit a CHAQUE diffusion du
-   salon — un vote, un « prêt », l'arrivee d'un joueur, c'est-a-dire a chaque
-   clic. Le bouton reprenait donc `popIn` a chaque fois : il clignotait.
-
-   Il est dans le meme cas que les listes voisines, mais `.settled` ne peut pas
-   le couvrir : ce bouton NAIT precisement d'un clic, et il nait bien apres que
-   l'ecran s'est pose — la classe qui coupe l'entree d'ecran couperait la seule
-   animation qu'on veut garder. C'est donc `renderClasses` qui pose `.fresh`, et
-   seulement quand la classe choisie vient de CHANGER. */
 .classMetaBtn.fresh,
 #hubResume:not([hidden]),
 #hubPassAsk:not([hidden]) {
   animation: popIn var(--pop) var(--ease-pop) both;
 }
 
-/* --- survols ----------------------------------------------------------------
-   `transform` et non `translate` : voir la note sur `riseIn`. Les deux
-   proprietes se composent, l'entree ne verrouille donc pas le survol. */
 
-/* --- le fond ---------------------------------------------------------------- */
-/* ===========================================================================
-   LE FOND DES ECRANS HORS COMBAT
-
-   `ui.css` peint la grille directement sur `.overlay`, en `--line-soft`
-   (#1c222d) et sans attenuation. Deux consequences visibles :
-
-     - le trait est NEUTRE et trop marque. Une grille a ce niveau de contraste
-       cesse d'etre une texture et devient un quadrillage qu'on lit — elle
-       entre en concurrence avec le contenu au lieu de le porter ;
-     - elle couvre la surface d'un bord a l'autre, a intensite constante. Rien
-       ne guide donc le regard : le coin inferieur droit d'un ecran vide est
-       aussi charge que la zone qui porte le titre.
-
-   Elle est reprise ici : meme pas de 40 px, mais TEINTEE de cyan a 5 % et
-   attenuee par un masque radial. Le cyan la rattache a la charte au lieu d'en
-   faire un gris de plus ; le masque la fait exister en haut, la ou commence la
-   lecture, et disparaitre en bas. La lueur cyan tres large par-dessus est ce
-   qui donne sa profondeur a l'ecran — sans elle, un aplat sombre reste plat.
-
-   Elle vit dans un `::before` et non dans le `background` de `.overlay` :
-   un masque applique a l'element masquerait AUSSI son contenu.
-   =========================================================================== */
 .overlay {
   background: var(--bg-void);
 }
@@ -1522,10 +769,8 @@
           mask-image: radial-gradient(130% 100% at 50% 0%, #000 30%, transparent 85%);
   animation: gridDrift 26s linear infinite;
 }
-/* Le contenu passe AU-DESSUS du fond et SOUS la trame. */
 .overlay > * { position: relative; z-index: 1; }
 
-/* --- le chargement ---------------------------------------------------------- */
 #loadBar { position: relative; }
 #loadBar::after {
   content: "";
@@ -1537,30 +782,8 @@
   animation: stripes 700ms linear infinite;
 }
 
-/* --- le lancement ------------------------------------------------------------
-   `#start` est DESARME tant que l'equipe n'est pas prete. Griser sans expliquer
-   fait passer un bouton pour une panne — c'est la regle que ui.css applique
-   deja a `.classOpt.taken`, qui nomme l'occupant au lieu de seulement griser.
-   `#waitMsg` porte donc « En attente de Kiwi », a cote du bouton.
-
-   ATTENTION : desarmer le bouton cote client est de l'AFFICHAGE, pas une regle.
-   La garde doit exister aussi dans `case "start"` de room.js, sinon un client
-   modifie envoie `{ t: "start" }` directement. */
 #start:not(:disabled) { animation: armed 2.4s ease-in-out infinite; }
 
-/* LE BOUTON QUI RETIENT. Pendant les trois secondes du compte a rebours,
-   `#start` cesse de lancer et se met a annuler — il change donc de couleur,
-   parce qu'un bouton qui fait l'inverse de ce qu'il faisait une seconde plus
-   tot ne peut pas garder son apparence.
-
-   AMBRE et non rouge : la grammaire reserve le rouge au letal, et l'ambre dit
-   « attention, ceci interrompt ». Le cyan est exclu — il dit « il faut y
-   aller », c'est-a-dire exactement le contraire.
-
-   La PULSATION s'arrete : `armed` respire pour attirer sur une action qu'on
-   attend, or ici c'est le compte a rebours qui court. Deux choses qui battent
-   au meme endroit, dont une qu'on ne peut pas suivre, se lisent comme du
-   bruit. */
 #start.cancel, #start.cancel:not(:disabled) {
   animation: none;
   background: var(--warn);
@@ -1572,23 +795,15 @@
   border-color: var(--ui-line);
   color: var(--text-faint);
   box-shadow: none;
-  opacity: 1;   /* le 45 % de ui.css le rendrait illisible a cette taille */
+  opacity: 1;   
 }
 
-/* --- accessibilite ---------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
-  /* Ecraser les DUREES ne suffit pas pour ce qui bouge par transformation :
-     une levee au survol ou un enfoncement au clic arrivent alors instantanement
-     — donc toujours, et d'un coup, ce qui est exactement le mouvement qu'on
-     vient de demander de supprimer. On annule la transformation elle-meme ;
-     couleur et bordure continuent de repondre, elles ne declenchent rien chez
-     personne. Et le defilement doux redevient un saut, qui est le comportement
-     attendu de ce reglage. */
   #roomList .roomEntry:hover, #classRow .classOpt:hover, #voteRow button:hover,
   .cardOpt:hover, .metaLine:hover, [id]:hover, button:hover,
   #roomList .roomEntry:active, #classRow .classOpt:active, #voteRow button:active,
@@ -1599,26 +814,8 @@
   #gate, #hubScreen, #panel, #bilan, #menu, #settings { scroll-behavior: auto; }
 }
 
-/* ===========================================================================
-   ECRANS RESTANTS — cartes, build, progression, pause
 
-   Ils etaient hors perimetre du premier lot. Ils y entrent parce que le
-   prototype les montre : livrer une capture sans le CSS correspondant force
-   celui qui integre a inventer, et c'est exactement ce qu'on veut eviter.
 
-   Les angles durs restent la regle du HUD (`hud.css`) et de l'arene. Ces
-   quatre-la sont des ecrans hors combat au meme titre que le salon : ils
-   prennent les memes rayons.
-   =========================================================================== */
-
-/* --- choix de carte --------------------------------------------------------- */
-
-/* Le kicker au-dessus du titre. Le titre de cet ecran est une PHRASE longue
-   — « Vague 12 terminée — niveau 7 — encore 1 choix après celui-ci » — et une
-   phrase ne dit pas de quel ecran il s'agit : elle dit ce qui vient de se
-   passer. Les deux mots qui manquent sont « choix de carte », et ils comptent
-   parce que l'ecran s'ouvre sous minuterie, sans transition, au milieu d'une
-   manche. */
 #cardsKicker {
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -1635,9 +832,6 @@
   letter-spacing: var(--track-title);
   text-transform: none;
   line-height: 1.25;
-  /* Centre, et borne a 720 px : c'est le seul ecran ou le regard ne balaye pas
-     une colonne mais revient au milieu entre deux cartes. Le kicker juste
-     au-dessus est centre pour la meme raison — les deux doivent s'accorder. */
   text-align: center;
   max-width: 720px;
   margin-inline: auto;
@@ -1654,12 +848,9 @@
 .cardName { font-family: var(--font-display); font-size: var(--t-s); }
 .cardMain { font-family: var(--font-body); font-size: var(--t-m); line-height: 1.4; }
 .cardFoot, .cardCond, .cardWarn { font-family: var(--font-body); line-height: 1.5; }
-/* Le bandeau « verrouillee » suit le rayon de la carte, sinon il deborde des
-   coins arrondis. */
 .cardOpt.picked::after { border-radius: 0 0 var(--radius-ui) var(--radius-ui); }
 #cardsReroll { border-radius: var(--radius-ui); }
 
-/* --- build ------------------------------------------------------------------- */
 #buildName { font-family: var(--font-display); font-size: var(--t-xl); }
 .buildNav {
   border-radius: var(--radius-ctl);
@@ -1681,17 +872,8 @@
 .buildCardName { font-family: var(--font-display); }
 .buildCardDesc { font-family: var(--font-body); }
 
-/* --- progression -------------------------------------------------------------
-   Le montant de noyaux s'ecrit « 2 480 noyaux » : client.js rend
-   `${pr.cores} noyaux`, il n'y a pas de glyphe de monnaie dans ce jeu. */
 #metaCores { font-family: var(--font); font-size: var(--t-xl); font-weight: 700; color: var(--go); }
 
-/* --- pause -------------------------------------------------------------------
-   Le voile reste TRANSLUCIDE : a plusieurs la partie continue derriere, et un
-   panneau opaque ferait croire que tout est arrete. C'est la seule raison pour
-   laquelle #pause n'est pas un `.overlay`, et elle ne doit pas se perdre.
-   Consequence a ne pas oublier : il n'herite donc PAS de `.overlay::after`, et
-   il lui faut sa propre trame. */
 #pause::after {
   content: "";
   position: fixed;
@@ -1718,9 +900,6 @@
   font-weight: 700;
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
-  /* Centre : le panneau de pause est le seul bloc de son ecran, il n'a pas de
-     colonne a suivre. Un titre cale a gauche dans un panneau de 380 px de
-     large se lit comme le debut d'une liste. */
   text-align: center;
 }
 #pausePanel button { border-radius: var(--radius-ctl); min-height: 44px; }
@@ -1733,7 +912,6 @@
   background: var(--go);
   border-color: var(--go);
 }
-/* La seule action letale de tous ces ecrans. */
 #pausePanel button.danger {
   color: var(--lethal);
   border-color: color-mix(in srgb, var(--lethal) 45%, transparent);
@@ -1754,41 +932,17 @@
 }
 #pauseConfirm[hidden] { display: none; }
 
-/* ===========================================================================
-   LES SCANLINES ET LE BALAYAGE
-
-   Ce sont eux qui donnent le grain « terminal ». Sans eux les ecrans sont des
-   aplats propres, corrects mais muets — c'est la difference entre « moderne »
-   et « moderne ET c'est ce jeu-la ».
-
-   Trois effets, trois roles distincts, et aucun n'est decoratif :
-     - les SCANLINES posent la matiere sur tout l'ecran ;
-     - la LUEUR de titre donne du relief au seul mot d'accroche ;
-     - le BALAYAGE ne parcourt QUE ce qui est actionnable maintenant.
-   =========================================================================== */
 
 @keyframes sweep {
   0%   { transform: translateX(-120%); }
   100% { transform: translateX(420%); }
 }
 
-/* Balayage large, pour une surface entiere (la carte legendaire). */
 @keyframes sweepWide {
   0%   { background-position: -140% 0; }
   100% { background-position: 240% 0; }
 }
 
-/* --- scanlines ---------------------------------------------------------------
-   Une trame de 4 px sur TOUT l'ecran, boutons compris. C'est ce qui manque le
-   plus quand on ne l'a pas : sans elle, un aplat cyan de 400 px de large est
-   juste un aplat cyan.
-
-   `position: fixed` et non `absolute` : la trame doit rester solidaire de
-   l'ECRAN et non du document, sinon elle defile avec le contenu et devient un
-   motif qui bouge au lieu d'une matiere.
-
-   `pointer-events: none` est obligatoire — sans lui, plus aucun bouton ne
-   repond. */
 .overlay::after {
   content: "";
   position: fixed;
@@ -1802,24 +956,12 @@
     transparent 4px);
 }
 
-/* La grille du fond doit rester SOUS le contenu. Sans z-index explicite, un
-   `::before` de fond peut passer au-dessus des enfants du meme conteneur. */
 .overlay > * { position: relative; z-index: 1; }
 
-/* --- lueur de titre ----------------------------------------------------------
-   Uniquement sur l'accroche de la connexion. Un titre qui rayonne partout ne
-   rayonne nulle part. */
 .gateH1 {
   text-shadow: 0 0 var(--sp-8) color-mix(in srgb, var(--go) 22%, transparent);
 }
 
-/* --- balayage ----------------------------------------------------------------
-   Il ne parcourt QUE ce qui est actionnable maintenant : le bouton de
-   lancement une fois arme, et la carte legendaire. Un balayage sur un bouton
-   desarme dirait « clique ici » a propos de quelque chose qui ne repond pas.
-
-   Il faut `position: relative` + `overflow: hidden` sur le bouton, sinon la
-   bande deborde et traverse la page entiere. */
 #start, #gateContinue, .cardOpt { position: relative; overflow: hidden; }
 
 #start:not(:disabled)::before {
@@ -1836,15 +978,6 @@
   animation: sweep 3.2s ease-in-out infinite;
 }
 
-/* La legendaire est un evenement : elle est la seule carte a se signaler
-   d'elle-meme, et c'est ce qui la fait remarquer AVANT d'etre lue.
-
-   Le jeton est `--legendaire` — pose par `client.js` depuis `RARITY_COLOR[3]`.
-   Il n'existe pas de `--r3` : `r3` est le nom de la CLASSE, pas de la couleur.
-   Une variable inconnue rend le `color-mix` invalide, ce qui fait tomber toute
-   la declaration `background` — et l'animation tourne alors sur du vide, sans
-   la moindre erreur en console. C'est le mode de panne le plus silencieux du
-   CSS : rien ne casse, il ne se passe simplement rien. */
 .cardOpt.r3::before {
   content: "";
   position: absolute;
@@ -1859,39 +992,17 @@
   background-repeat: no-repeat;
   animation: sweepWide var(--sweep, 3s) linear infinite;
 }
-/* Le contenu de la carte repasse AU-DESSUS du reflet : sinon le balayage
-   traverse le texte au lieu de glisser sous lui. */
 .cardOpt.r3 > * { position: relative; z-index: 2; }
 
-/* L'epique ne balaye pas — elle RESPIRE. Deux cartes animees dans la meme
-   rangee se disputeraient le regard, et la legendaire perdrait ce qui fait
-   justement d'elle un evenement. Une lueur qui monte et descend suffit a dire
-   « celle-ci n'est pas commune » sans reclamer l'attention. */
 @keyframes epicBreath {
   0%, 100% { box-shadow: 0 0 var(--sp-6) -6px var(--epique); }
   50%      { box-shadow: 0 0 var(--sp-12) -4px var(--epique); }
 }
-/* `#cardsRow .cardOpt` porte deja l'entree en cascade, et sa specificite (1,1,0)
-   battrait `.cardOpt.r2` (0,2,0) : l'animation de respiration ne s'appliquerait
-   jamais. Les deux sont donc COMPOSEES sur le meme selecteur — elles ne touchent
-   pas aux memes proprietes, l'entree bouge l'opacite et la position, la
-   respiration la lueur. */
 #cardsRow .cardOpt.r2 {
   animation: riseIn var(--rise-lg) var(--ease-out) both,
              epicBreath 3.6s ease-in-out infinite;
 }
 
-/* ===========================================================================
-   PASTILLES D'ETAT — le pied de la colonne de connexion
-
-   Elles repondent aux trois questions qu'on se pose AVANT de taper son
-   pseudo : est-ce que le serveur repond, est-ce qu'il y a du monde, et sur
-   quelle version je suis. Les chercher apres s'etre connecte, c'est les
-   chercher trop tard — et la version est la premiere chose qu'on demande a
-   quelqu'un qui signale un bug.
-
-   Les valeurs viennent de `client.js`, voir MARKUP.md § 1 bis.
-   =========================================================================== */
 .gateStatusRow, .gateStatus {
   display: flex;
   flex-wrap: wrap;
@@ -1913,9 +1024,6 @@
   white-space: nowrap;
 }
 .gatePill[hidden], .gateChip[hidden] { display: none; }
-/* Le seul disque de toute l'interface hors combat. Il est justifie ici : c'est
-   un temoin, pas un element de jeu, et il pulse pour dire que la mesure est
-   VIVANTE et non figee au chargement. */
 .gatePill .dot, .gateChip .chipDot {
   width: 6px;
   height: 6px;
@@ -1924,9 +1032,6 @@
   background: var(--gain);
   animation: pulseDot 2.4s ease-in-out infinite;
 }
-/* Trois etats, trois couleurs — et le temoin cesse de pulser des qu'il n'y a
-   plus rien a mesurer. Une pastille qui bat alors que le serveur est tombe est
-   pire que pas de pastille du tout. */
 .gateChip.pending .chipDot { background: var(--warn); }
 .gatePill.off .dot, .gateChip.off .chipDot { background: var(--lethal); animation: none; }
 .gatePill.off, .gateChip.off {
@@ -1934,22 +1039,6 @@
   border-color: var(--notice-bad-line);
 }
 
-/* ===========================================================================
-   LA BARRE SUPERIEURE
-
-   Elle n'existait pas. Chaque ecran hors combat etait une page isolee : rien ne
-   disait ou l'on se trouvait, sous quel compte, ni si le serveur repondait
-   toujours — il fallait redescendre au pied de la liste des salles pour
-   retrouver son pseudo, et rien du tout pour la latence.
-
-   Elle est SOLIDAIRE DE L'ECRAN et non des ecrans : un seul element, place hors
-   des `.overlay`, qu'on montre ou qu'on cache. Une barre recopiee dans chaque
-   ecran divergerait au premier changement.
-
-   Elle NE PARAIT PAS sur `#gate` (pas encore de compte a afficher), ni sur
-   `#loading` (rien a faire pendant trois secondes), ni sur `#cards` (on choisit
-   sous minuterie, tout le reste doit disparaitre).
-   =========================================================================== */
 #topbar {
   position: fixed;
   top: 0;
@@ -1960,10 +1049,6 @@
   align-items: center;
   gap: var(--sp-4);
   height: var(--topbar-h);
-  /* La barre reste pleine largeur — c'est du chrome, pas du contenu — mais
-     elle prend la MEME gouttiere : sur un grand ecran, un logotype colle a
-     quatre pixels du bord pendant que le contenu respire est le detail qui
-     fait « page web » au milieu d'un menu de jeu. */
   padding: 0 var(--gutter);
   background: color-mix(in srgb, var(--bg-void) 88%, transparent);
   backdrop-filter: blur(14px);
@@ -1971,11 +1056,6 @@
 }
 #topbar[hidden] { display: none; }
 
-/* La trame passe AUSSI sur la barre. Une bande lisse en haut d'un ecran
-   entierement trame se remarque immediatement — c'est le genre de detail qui
-   fait dire « ce n'est pas tout a fait le meme ecran » sans qu'on sache dire
-   pourquoi. La barre a son propre `::after` parce que son `z-index` la sort de
-   la portee de celui des `.overlay`. */
 #topbar::after {
   content: "";
   position: absolute;
@@ -1988,9 +1068,6 @@
     transparent 4px);
 }
 
-/* Le logotype est un BOUTON : c'est le retour aux salons. Un logo inerte dans
-   une barre de navigation est une occasion manquee — c'est le premier endroit
-   ou l'on clique pour revenir au debut. */
 #topHome {
   display: flex;
   align-items: center;
@@ -2008,8 +1085,6 @@
   cursor: pointer;
 }
 
-/* Le fil d'ariane. Il repond a « ou suis-je », question que six ecrans plein
-   cadre sans reperes rendaient legitime. */
 #topCrumb {
   display: flex;
   align-items: center;
@@ -2028,8 +1103,6 @@
 
 #topSpacer { flex: 1; }
 
-/* La latence. UN seul chiffre, celui de ma connexion — pas un par salle : le
-   temps d'aller-retour depend de qui regarde, pas de la salle regardee. */
 #topPing {
   display: flex;
   align-items: center;
@@ -2047,8 +1120,6 @@
   background: var(--gain);
   animation: pulseDot 2.4s ease-in-out infinite;
 }
-/* Trois seuils, et le rouge n'est pas cosmetique : au-dela on tremble, et le
-   jeu devient injouable. Autant le dire avant la manche. */
 #topPing.warn .chipDot { background: var(--warn); }
 #topPing.warn { color: var(--warn); }
 #topPing.bad .chipDot { background: var(--lethal); animation: none; }
@@ -2066,8 +1137,6 @@
   color: var(--text);
   white-space: nowrap;
 }
-/* L'initiale plutot qu'une image : il n'y a pas d'avatar dans ce jeu, et un
-   rond vide serait un trou. */
 #topAvatar {
   display: grid;
   place-items: center;
@@ -2093,28 +1162,13 @@
   color: var(--text-dim);
 }
 
-/* LE correctif de la barre. `.overlay` est en `position: fixed; inset: 0` dans
-   `ui.css` : elle couvre donc la fenetre ENTIERE, barre comprise, et les 56
-   premiers pixels de chaque ecran passent dessous. Un `min-height` n'y change
-   rien — sur un element fixe, seule la position compte. C'est `top` qu'il faut
-   decaler, et l'`overflow-y: auto` de `ui.css` fait le reste. */
 #topbar:not([hidden]) ~ .overlay { top: var(--topbar-h); }
 
 @media (max-width: 720px) {
-  /* Le fil d'ariane saute en premier : le titre de l'ecran est juste en
-     dessous, il dit deja la meme chose. */
   #topCrumb, #topSep { display: none; }
   #topbar { gap: var(--sp-3); padding-inline: var(--sp-4); }
 }
 
-/* ===========================================================================
-   PARAMETRES
-
-   Les reglages vivaient a deux endroits qui ne se parlaient pas : la connexion
-   et le menu pause. Impossible de baisser la musique depuis un salon, et le
-   pense-bete des touches n'etait consultable qu'avant de s'etre connecte —
-   c'est-a-dire au seul moment ou on ne s'en sert pas.
-   =========================================================================== */
 .setWrap {
   display: flex;
   flex-direction: column;
@@ -2161,8 +1215,6 @@
   align-items: center;
   gap: var(--sp-4);
 }
-/* Le libelle nomme le reglage : c'est un titre de ligne, pas un releve. En
-   chasse fixe a 15 px il se lisait comme la valeur qu'il annonce. */
 .setRow > span:first-child { font-family: var(--font-display); font-weight: 600; }
 .setRow > input[type="range"] { width: 100%; }
 .setRow .setVal {
@@ -2173,8 +1225,6 @@
   text-align: right;
 }
 
-/* Le pense-bete des touches. Une TOUCHE se dessine comme une touche : c'est ce
-   qui permet de la reconnaitre sans lire la phrase autour. */
 .keyRow {
   display: grid;
   grid-template-columns: minmax(190px, auto) 1fr;
@@ -2199,16 +1249,6 @@
 }
 .keyDesc { font-family: var(--font-body); font-size: var(--t-s); line-height: 1.55; color: var(--text-dim); }
 
-/* ===========================================================================
-   L'INTERIEUR DU FORMULAIRE
-
-   Les deux formulaires portent desormais un titre, un propos et des libelles
-   de champ. C'est ce qui leve la confusion que les onglets seuls ne levaient
-   pas : deux formulaires identiques au pixel pres qui ne font pas la meme
-   chose. Encore faut-il que ces elements soient HABILLES — sans regle, un
-   `h2` prend la taille par defaut du navigateur et le titre de formulaire pese
-   plus lourd que le titre de l'ecran.
-   =========================================================================== */
 .gateFormHead { display: flex; flex-direction: column; gap: var(--sp-1); margin-bottom: var(--sp-2); }
 .gateFormTitle {
   font-family: var(--font-display);
@@ -2226,9 +1266,6 @@
   margin: 0;
 }
 
-/* Un libelle AU-DESSUS du champ, et pas seulement un texte d'invite : le
-   placeholder disparait des qu'on tape, et l'ecran ne dit plus ce qu'on
-   remplit. */
 .fieldLabel {
   display: block;
   font-family: var(--font);
@@ -2239,10 +1276,6 @@
   margin-bottom: calc(var(--sp-1) * -1);
 }
 
-/* Le rappel sous le bouton. Les onglets sont en haut de l'encart, donc hors du
-   champ de vision de quelqu'un qui vient de lire le formulaire jusqu'au bout —
-   et c'est precisement la qu'on se rend compte qu'on n'a pas de compte.
-   Il appartient au formulaire : il se colle a lui, pas au milieu du vide. */
 .gateSwitch {
   margin: 0;
   text-align: center;
@@ -2262,8 +1295,6 @@
   text-underline-offset: 3px;
 }
 
-/* Un bouton FANTOME : une action reelle mais mineure (annuler, se deconnecter).
-   Il doit rester lisible — pas un lien gris de plus au milieu du texte. */
 .ghost {
   background: none;
   border-color: transparent;
@@ -2272,8 +1303,6 @@
   letter-spacing: 0;
 }
 
-/* Le glyphe de musique n'est pas un bouton (contrairement a #mute) : il doit
-   donc s'aligner sur lui sans en avoir l'air cliquable. */
 .musGlyph {
   display: grid;
   place-items: center;
@@ -2284,13 +1313,6 @@
 }
 #audioRow, #musicRow { display: flex; align-items: center; gap: var(--sp-3); }
 
-/* LA SOURCE DE BANDE SON. Un bouton pleine largeur et non un troisieme
-   curseur : ce n'est pas une grandeur, c'est un aiguillage a deux positions.
-   Il porte l'ETAT et non l'action, donc il doit se voir actif — le vert de
-   `--gain` comme `#readyBtn.on`, pour la meme raison : c'est un etat qu'on a
-   choisi, pas un avertissement. Il n'occupe pas la couleur d'action (`--go`),
-   qui dit « il faut y aller » et appartient au bouton de connexion juste
-   au-dessus. */
 #musicSrcRow, #pauseSource { display: flex; }
 #musSrc, #pauseSrc { flex: 1; font-size: var(--t-xs); }
 #musSrc.on, #pauseSrc.on, .srcBtn.on {
@@ -2298,9 +1320,6 @@
   border-color: color-mix(in srgb, var(--gain) 45%, transparent);
   background: color-mix(in srgb, var(--gain) 14%, transparent);
 }
-/* Dans les Parametres, le bouton vit dans la colonne du milieu d'une
-   `.setRow` — celle des curseurs. Il ne s'etire donc pas : un bouton large de
-   toute une ligne se lirait comme l'action principale de l'ecran. */
 .srcBtn { justify-self: start; font-size: var(--t-xs); }
 #audioRow #mute { min-height: 34px; width: 34px; padding: 0; border-radius: var(--radius-ctl); }
 #volVal, #musVolVal {
@@ -2311,29 +1330,7 @@
   text-align: right;
 }
 
-/* ===========================================================================
-   REPRISE DE UI.CSS — les ecrans hors combat n'ont plus qu'un seul proprietaire
 
-   Tout ce qui suit remplace les lignes 196 a 1104 de `ui.css`, a supprimer.
-   Voir AUDIT.md.
-
-   Pourquoi cette bascule. `menus.css` etait ADDITIF : il ne corrigeait que ce
-   qu'il nommait, et les quelque deux cents regles de `ui.css` ecrites pour le
-   design precedent passaient a travers — tout centre, angles a 2 px, largeurs
-   figees (`.gateForm` a 320 px, `.classOpt` a 268 px, `#roomList` a 440 px),
-   survols a --bg-raised. Chaque capture d'ecran revelait une fuite, on en
-   corrigeait une, il en restait cent quatre-vingt-dix-neuf. Une feuille
-   additive ne peut pas gagner contre une feuille complete qui dit le
-   contraire.
-
-   `ui.css` garde ses 195 premieres lignes : l'arene, le cadre, les canvas,
-   `.overlay`, `.sectionTitle`, `#logo`, `#loadBar`. Ce sont les primitives
-   partagees, elles ne portent aucune opinion de mise en page.
-   =========================================================================== */
-
-/* --- controles de base ------------------------------------------------------
-   Ils valaient pour TOUS les ecrans, y compris ceux du jeu. On les garde donc
-   au meme niveau de generalite, avec les nouveaux rayons. */
 input, button {
   font: inherit;
   font-size: var(--t-s);
@@ -2350,46 +1347,22 @@ input:focus { border-color: var(--go); }
 button { cursor: pointer; }
 button:disabled { opacity: 0.45; cursor: default; }
 
-/* --- le pointeur ------------------------------------------------------------
-   Le trace vit dans `palette.js` (`--cursor-ui`, `--cursor-go`) : c'est une
-   forme et une couleur, donc de la charte, et le recopier ici en aurait fait
-   la seule valeur en dur de cette feuille. Ici on ne decide que d'UNE chose —
-   quel element porte quel etat.
-
-   La liste s'arrete a ce qu'on PARCOURT A LA SOURIS. `#pause` en fait partie
-   bien qu'il soit un ecran de combat : ouvrir le menu ARRETE le personnage
-   (`readMove()` sort a vide), donc on n'y vise plus rien — et cette feuille
-   l'habille deja entierement, du voile au panneau. `#cards` et `#build` en
-   sont dehors : ils s'ouvrent une manche en cours, la souris y garde le
-   reticule qu'elle avait une seconde avant. L'arene garde son `crosshair` —
-   c'est la qu'on vise.
-
-   Le repli est toujours le curseur systeme correspondant (`default`,
-   `pointer`) : un navigateur qui refuse les curseurs SVG garde exactement le
-   comportement d'avant, il perd le dessin et rien d'autre. */
 :is(#gate, #loading, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause) {
   cursor: var(--cursor-ui), default;
 }
 
-/* Tout ce qui REPOND au clic prend le crochet de visee. `:is()` porte la
-   specificite de son argument le plus fort, donc `1-0-1` ici : ca passe
-   au-dessus du `button { cursor: pointer }` ci-dessus sans avoir a le
-   reecrire. */
+/* Ce qui REPOND au clic prend le crochet de visee. Selecteur duplique dans
+   `ui/screens.js` (UI_SOUND_SCREENS / UI_SOUND_TARGETS) : ce qui montre le
+   crochet est exactement ce qui sonne au survol. Bouger l'un, bouger l'autre. */
 :is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause)
   :is(button, a, summary, tr.clickable, input[type="range"]) {
   cursor: var(--cursor-go), pointer;
 }
 
-/* Un bouton desarme n'est pas une cible : il retombe au pointeur de repos.
-   Sans cette ligne, `button:disabled { cursor: default }` rendait la fleche
-   du systeme au milieu d'un ecran qui porte la notre. */
 :is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause) button:disabled {
   cursor: var(--cursor-ui), default;
 }
 
-/* La barre de saisie reste un I : c'est une affordance systeme que personne ne
-   gagne a redessiner, et `cursor` s'herite — sans cette regle les champs
-   auraient recu la fleche du conteneur. */
 :is(#gate, #hubScreen, #panel, #menu, #bilan, #settings)
   :is(input:not([type]), input[type="text"], input[type="password"], textarea) {
   cursor: text;
@@ -2404,16 +1377,6 @@ button:disabled { opacity: 0.45; cursor: default; }
 #gateHoldMsg:empty { display: none; }
 #key { max-width: 130px; }
 
-/* UN LIEN. Le fantome couvrait deux roles opposes : REFUSER (annuler, rester
-   ici) et OUVRIR une action de compte. Le premier doit s'effacer, le second
-   doit s'offrir — et en gris, « se déconnecter » et « mot de passe… » ne se
-   distinguaient pas du texte qui les precede, donc rien ne disait qu'on
-   pouvait cliquer. Le cyan et le souligne le disent tous les deux, et c'est
-   deja la convention de `.gateSwitch button`. Deux signaux et pas un seul :
-   la couleur seule ne suffit pas a un daltonien, le souligne le double.
-
-   Le cyan reste dans la grammaire : « il faut y aller ». Il ne va PAS sur un
-   refus, qui garde le fantome — sinon annuler pese autant qu'accepter. */
 button.link {
   min-height: 0;
   padding: 0;
@@ -2436,8 +1399,6 @@ button.link:hover:not(:disabled) {
   text-decoration-color: currentColor;
 }
 
-/* Un bouton FANTOME : action reelle mais mineure. Il doit rester lisible — pas
-   un lien gris de plus au milieu du texte. */
 button.ghost {
   background: none;
   border-color: transparent;
@@ -2446,17 +1407,12 @@ button.ghost {
   text-transform: none;
   letter-spacing: 0;
 }
-/* Rouge : une action irreversible pour la manche en cours. C'est le seul
-   endroit de l'interface hors combat qui a le droit d'en porter. */
 button.danger {
   color: var(--lethal);
   border-color: color-mix(in srgb, var(--lethal) 45%, transparent);
   background: color-mix(in srgb, var(--lethal) 8%, transparent);
 }
 
-/* --- curseurs ---------------------------------------------------------------
-   Ils fuyaient les regles de champ (46 px de haut, retrait de 16) qui n'ont
-   aucun sens pour un curseur. Traitement propre, une fois pour toutes. */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -2465,8 +1421,6 @@ input[type="range"] {
   padding: 0;
   border: 0;
   border-radius: 999px;
-  /* La gouttiere doit se VOIR : en `--ui-field` elle se confond avec le fond,
-     et le curseur flotte alors dans le vide, sans course lisible. */
   background: var(--bg-raised);
   accent-color: var(--go);
   cursor: pointer;
@@ -2505,9 +1459,6 @@ input[type="range"]::-moz-range-thumb {
 #audioRow button.off, #pauseAudio button.off { color: var(--text-faint); }
 #pauseAudio, #pauseMusic { display: flex; align-items: center; gap: var(--sp-3); }
 
-/* --- tableaux ---------------------------------------------------------------
-   Des chiffres cales a droite, des noms cales a gauche : c'est ce qui permet de
-   comparer deux lignes sans les lire. */
 table { border-collapse: collapse; font-family: var(--font); font-size: var(--t-s); min-width: 460px; }
 th {
   font-weight: 400;
@@ -2541,32 +1492,12 @@ tr.clickable { cursor: pointer; }
   white-space: nowrap;
 }
 
-/* Au salon le tableau est de l'INFORMATION : attenue tant qu'on ne le regarde
-   pas, et il defile dans sa colonne de 300 px plutot que de la faire deborder
-   — une table ne se comprime pas sous la largeur de son contenu. */
 #scoresWrap { display: flex; flex-direction: column; gap: var(--sp-2); }
 #panel #scoresWrap { opacity: .6; transition: opacity var(--fade) linear; align-items: stretch; }
 #panel #scoresWrap:hover { opacity: 1; }
 
-/* --- connexion : formulaires ------------------------------------------------ */
 .gateForm[hidden], #gateForms[hidden], #hubPassBox[hidden], #hubPassAsk[hidden] { display: none; }
 
-/* ===========================================================================
-   LES CONTRE-REGLES `[hidden]` — rapatriees de `ui.css`
-
-   REGLE D'APPARTENANCE : qui pose un `display` possede la contre-regle
-   `[hidden]` qui va avec. C'est la seule facon de garder l'ensemble coherent
-   sans avoir a se souvenir de deux fichiers.
-
-   Le mecanisme : `hidden` n'est qu'une feuille de style par defaut du
-   navigateur (`[hidden] { display: none }`), de specificite (0,1,0). N'importe
-   quelle declaration d'auteur qui pose un `display` sur le meme element la bat.
-   Un ecran qui recoit `display: grid` ou `display: flex` NE SE FERME DONC PLUS,
-   et le defaut est spectaculaire : deux ecrans superposes, aucune erreur.
-
-   `menus.css` pose un `display` sur les huit ecrans et sur une douzaine de
-   blocs — il doit donc porter toutes leurs contre-regles, et non les laisser a
-   `ui.css` qui n'a plus rien a dire sur eux. */
 #gate[hidden], #loading[hidden], #hubScreen[hidden], #panel[hidden],
 #bilan[hidden], #fin[hidden], #menu[hidden], #settings[hidden], #cards[hidden],
 #build[hidden], #pause[hidden], #topbar[hidden],
@@ -2575,28 +1506,8 @@ tr.clickable { cursor: pointer; }
   display: none;
 }
 
-/* Deux dernieres reprises de `ui.css`, pour que le fichier n'ait plus une seule
-   opinion sur ces ecrans :
-
-   — le tableau des scores garde son plancher de 460 px (neuf colonnes serrees
-     en dessous ne se lisent plus) mais la colonne d'etat du salon n'en fait que
-     300. Il DEFILE donc dans sa colonne : `min-width: 0` seul ne suffit pas,
-     une table ne se comprime pas sous la largeur de son contenu ;
-   — `#metaSub` est une ligne de CORPS sous un titre de section, pas une
-     legende : il heritait du centrage de `.hint`, ce qui le detachait de la
-     colonne que suit tout le reste de l'ecran. */
 #panel #scoresWrap { align-items: stretch; }
 
-/* DIX colonnes dans une colonne de 300 px. Le tableau vient du bilan, ou il a
-   1120 px de large, et la refonte l'a pose dans la colonne d'etat sans le
-   retailler : 614 px de contenu pour 300 de boite, mesure, donc une barre de
-   defilement horizontale permanente sur un tableau qu'on ne pouvait de toute
-   facon pas lire.
-
-   Au salon la question tient en quatre colonnes — qui, quelle classe, quel
-   niveau, quel score. Le reste (kills, morts, degats, cartes, noyaux, cumul)
-   reste au BILAN, qui a la place de les montrer. La ligne garde son clic :
-   c'est elle qui ouvre la fenetre de build. */
 #panel #scores th:nth-child(n + 5),
 #panel #scores td:nth-child(n + 5) { display: none; }
 #metaSub { text-align: left; }
@@ -2621,16 +1532,10 @@ tr.clickable { cursor: pointer; }
   border-radius: var(--radius-ui);
   background: var(--notice-go-bg);
 }
-/* Le bloc de gauche porte les DEUX niveaux : le kicker dit de quoi il s'agit,
-   la phrase nomme la salle. Sans le kicker, l'encart s'ouvrait sur une phrase
-   isolee et on ne savait pas si c'etait une erreur ou une demande. */
 #hubPassAskHead { flex: 1; min-width: 220px; }
 #hubPassAsk .sectionTitle { color: var(--notice-go-text); margin-bottom: var(--sp-1); }
 #hubPassAsk .sectionTitle::before { background: var(--notice-go-text); }
 #hubPassAsk #hubPassAskWho { color: var(--text); }
-/* La rangee de droite prend la place restante, sinon elle se dimensionne sur
-   son contenu et le champ de mot de passe sort a 110 px — assez pour montrer
-   « mot de passe de la sall ». */
 #hubPassAsk .row { flex: 1 1 340px; }
 #hubPassAsk input { flex: 1; min-width: 0; }
 #hubPassAskGo {
@@ -2639,12 +1544,6 @@ tr.clickable { cursor: pointer; }
   text-transform: uppercase;
 }
 
-/* --- salle : une ligne, pas une carte ---------------------------------------
-   `display` compris : la coupe de `ui.css` a emporte la mise en page de ces
-   elements, et une liste sans `flex-direction: column` se remet en ligne —
-   quatre salles cote a cote au lieu de quatre lignes. C'est la classe de
-   defaut a surveiller apres la coupe : un element qui perd son `display`
-   ne disparait pas, il se replie en flux normal. */
 #roomList {
   display: flex;
   flex-direction: column;
@@ -2671,8 +1570,6 @@ tr.clickable { cursor: pointer; }
   border: var(--hair) dashed var(--line-soft);
 }
 
-/* Le compte, en pied de page : une colonne centree, pas une rangee etalee sur
-   toute la largeur de l'ecran. */
 #hubAccount {
   display: flex;
   flex-direction: column;
@@ -2681,11 +1578,6 @@ tr.clickable { cursor: pointer; }
 }
 #gateWho { color: var(--text); }
 
-/* --- choix de classe --------------------------------------------------------
-   La carte etait figee a 268 px et flottait au centre d'une rangee. Elle vit
-   desormais dans une grille qui remplit la colonne : trois cartes cote a cote
-   sur un ecran large, une seule sur une fenetre etroite, sans valeur de
-   largeur ecrite nulle part. */
 #classes { display: flex; flex-direction: column; gap: var(--sp-2); }
 #classRow {
   display: grid;
@@ -2707,8 +1599,6 @@ tr.clickable { cursor: pointer; }
   background: var(--ui-panel);
   position: relative;
 }
-/* La carte choisie porte la TEINTE DE SA CLASSE, pas un gris plus clair : c'est
-   la seule chose que le survol ne peut pas dire. */
 .classOpt.mine {
   background: color-mix(in srgb, currentColor 8%, var(--ui-panel));
   border-color: currentColor;
@@ -2731,17 +1621,6 @@ tr.clickable { cursor: pointer; }
   letter-spacing: var(--track-title);
   text-transform: uppercase;
 }
-/* Le role occupe un nombre FIXE d'interlignes quelle que soit la largeur : les
-   trois descriptions de `classes.js` n'ont pas la meme longueur, donc sans
-   hauteur fixe les barres des trois cartes demarrent a trois hauteurs
-   differentes.
-
-   QUATRE et non trois. Le role du Soigneur en demande quatre a la largeur
-   nominale (75 px de contenu pour 56 de boite, mesure) : il sortait coupe en
-   plein mot — « Soigne à distance, relève à » — ce qui ne se lit pas comme une
-   troncature mais comme une phrase mal ecrite. Le `line-clamp` est la pour le
-   cas qui reste : sur une fenetre etroite la coupe se VOIT, points de
-   suspension compris, au lieu de s'arreter net. */
 .classRole {
   font-family: var(--font-body);
   font-size: var(--t-s);
@@ -2766,9 +1645,6 @@ tr.clickable { cursor: pointer; }
 .statBar > i { position: absolute; inset: 0 auto 0 0; background: currentColor; display: block; border-radius: 999px; }
 .statVal { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); }
 
-/* Le bloc de competences absorbe la difference de hauteur entre les cartes, le
-   pied est plaque en bas. Sans cela le pied de chaque carte tombe la ou son
-   contenu s'arrete, et les trois ne s'alignent jamais. */
 .classSkills, .classOpt > .classSkill:first-of-type { margin-top: auto; }
 .classSkill {
   display: flex;
@@ -2793,9 +1669,6 @@ tr.clickable { cursor: pointer; }
 }
 .classSkill b { color: var(--text); font-weight: 600; }
 
-/* Emplacement pris : grise ET BARRE, avec le nom de celui qui l'occupe. La
-   couleur seule ne suffit pas — un bouton qui ne repond pas passe pour une
-   panne tant qu'on n'a pas lu pourquoi. */
 .classOpt.taken { opacity: .42; }
 .classOpt.taken .className { text-decoration: line-through; }
 .classTaken {
@@ -2808,18 +1681,8 @@ tr.clickable { cursor: pointer; }
   letter-spacing: var(--track-title);
 }
 #classHint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); }
-/* Le bouton par carte a disparu : un seul point d'entree vers la progression,
-   dans la barre d'action. Trois boutons identiques sur trois cartes forcaient a
-   deviner lequel des trois arbres chacun montre. */
-/* Le bouton par carte est REVENU, mais sur la seule carte choisie — voir
-   `renderClasses`. La regle qui le masquait n'a plus lieu d'etre. */
 #classRow { align-items: stretch; }
 
-/* --- difficulte -------------------------------------------------------------
-   Trois cartes, meme grille que les classes : `auto-fit` les remet en colonne
-   sur un ecran etroit sans media query. Le minimum est plus bas que celui des
-   classes (220 contre 250) — une carte de mode ne porte ni silhouette ni
-   barres, juste deux lignes de texte. */
 #vote { display: flex; flex-direction: column; gap: var(--sp-2); }
 #voteRow {
   display: grid;
@@ -2831,22 +1694,13 @@ tr.clickable { cursor: pointer; }
   align-items: stretch;
   gap: var(--sp-2);
   min-width: 0;
-  /* Un bouton ne renvoie pas a la ligne par defaut : sans ca le detail sort en
-     une seule ligne et deborde. */
   white-space: normal;
   font-size: var(--t-s);
 }
 #voteHint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); }
 
-/* --- progression ------------------------------------------------------------
-   Des lignes denses et non des cartes : c'est un magasin qu'on relit a chaque
-   salon, pas un choix sous pression. */
 #meta { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; }
 #metaTree, #metaConfort, #metaBans { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
-/* QUI POSE UN `display` PORTE SA CONTRE-REGLE. Les quatre listes du Terminal
-   se replient par l'attribut `hidden`, et un `display` d'auteur le neutralise
-   — sans ces lignes, l'arbre restait affiche sous l'onglet « Bannies », qui
-   n'affichait donc rien de plus. Meme piege que `#authed` sur la page admin. */
 #metaTree[hidden], #metaConfort[hidden], #metaBans[hidden], #metaMilestones[hidden] { display: none; }
 #metaConfort { margin-top: var(--sp-2); }
 .metaLine {
@@ -2872,13 +1726,7 @@ tr.clickable { cursor: pointer; }
   font-size: var(--t-xs);
   border-radius: var(--radius);
 }
-/* Le prix est un chiffre, meme porte par un bouton. « équiper » reste un
-   libelle d'action et garde donc Chakra Petch. */
 .metaBuy { font-family: var(--font); }
-/* « 150 noyaux » passait a la ligne dans 84 px et faisait un bouton de 60 px de
-   haut au milieu d'une rangee de 32 : un prix se lit d'un bloc, il ne se coupe
-   pas. La colonne s'elargit au lieu de rogner le libelle — c'est le prix qui
-   commande la largeur ici, il n'y a rien d'autre a mettre dans cette colonne. */
 .metaBuy, .metaEquip { white-space: nowrap; }
 .metaLine { grid-template-columns: 130px 64px 1fr 104px 96px; }
 .metaLine.confort { grid-template-columns: 170px 1fr 104px; }
@@ -2892,32 +1740,13 @@ tr.clickable { cursor: pointer; }
   font-size: var(--t-xs);
   color: var(--text-faint);
 }
-/* `<small>` sans taille declaree retombe a 0,833 em, soit 9,17 px : hors des
-   sept valeurs de l'echelle et sous le plancher de lisibilite. Il n'existe pas
-   de « plus petit que 11 » dans cette interface. */
 #gate small, #hubScreen small, #panel small,
 #menu small, #bilan small, #fin small, #settings small { font-size: var(--t-xs); }
 #metaMilestones .metaJalon { font-family: var(--font-body); }
 #metaMilestones .metaJalon.done { color: var(--go); }
 #metaSub { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); text-align: left; }
 
-/* --- choix de carte ---------------------------------------------------------
-   L'ecran le plus important du jeu : la seule decision structurante de la
-   manche. Les cartes gardent leur largeur fixe — ici c'est justifie, on compare
-   trois objets identiques et une largeur variable rendrait la comparaison
-   fausse. */
 #cards { gap: var(--sp-6); }
-/* LA RANGEE PREND LA LARGEUR DISPONIBLE, elle ne se reduit pas a son contenu.
-   `.overlay` est une colonne en `align-items: center`, donc ses enfants sont
-   dimensionnes sur leur contenu ; une rangee `flex-wrap` ainsi contrainte
-   retombe a sa largeur MINIMALE des que la place manque — c'est-a-dire a UNE
-   carte par ligne, au lieu de deux puis une. Le marchand le montrait le premier
-   (trois reliques empilees a la verticale), mais l'ecran de cartes a exactement
-   le meme defaut : trois cartes de 268 px plus leurs gouttieres demandent
-   836 px, et en dessous les deux ecrans s'effondrent en colonne.
-
-   `width: 100%` remet la rangee sur la largeur du conteneur ; `max-width` la
-   borne pour qu'elle ne s'etale pas sur un ecran large. */
 #cardsRow,
 #merchantRow {
   width: 100%;
@@ -2942,12 +1771,6 @@ tr.clickable { cursor: pointer; }
   border: var(--hair) dashed var(--ui-line);
 }
 
-/* `padding: 0` : chaque enfant porte sa propre gouttiere. C'est `ui.css` qui
-   decolle `.cardBan` du bas de la carte (`align-self: center`, plus son
-   remplissage), et c'est bien ce qu'il faut — voir le pave de `#meta` la-bas :
-   ces declarations etaient MORTES, avalees par une accolade non fermee, et
-   c'est ce qui faisait sortir « bannir » coupe par l'arc de l'ecretage. La
-   carte n'a rien a corriger ici. */
 .cardOpt {
   width: 268px;
   min-height: 280px;
@@ -2992,12 +1815,9 @@ tr.clickable { cursor: pointer; }
   font-size: var(--t-xs);
   letter-spacing: var(--track-title);
 }
-/* Un carre et non un disque : le seul cercle du jeu est une entite vivante. */
 .catDot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 2px; }
 .catName { text-transform: uppercase; font-weight: 700; }
 .catRank { margin-left: auto; color: var(--text-dim); }
-/* L'effet principal est la LIGNE LA PLUS GROSSE de la carte, pas le nom. C'est
-   ce qu'on compare entre trois cartes en trente secondes. */
 .cardBody {
   flex: 1 1 auto;
   display: flex;
@@ -3021,9 +1841,6 @@ tr.clickable { cursor: pointer; }
 }
 .cardDelta { color: var(--text); font-weight: 600; }
 
-/* Materiaux de rarete : chaque rarete a un MATERIAU et pas seulement une
-   couleur — bordure plate, bordure epaisse, lueur, degrade anime. C'est ce qui
-   la rend reconnaissable au coin de l'oeil, avant meme d'etre lue. */
 .cardOpt.r0 { border-color: color-mix(in srgb, var(--commune) 60%, var(--ui-line)); }
 .cardOpt.r1 {
   border-width: var(--edge);
@@ -3060,44 +1877,11 @@ tr.clickable { cursor: pointer; }
 }
 .cardOpt.faded { opacity: .3; }
 
-/* L'ENTREE DOIT MOURIR POUR QUE L'ETAT S'APPLIQUE. `#cardsRow .cardOpt` porte
-   `riseIn` en `fill-mode: both`, donc l'animation RETIENT sa valeur finale
-   (`opacity: 1`) une fois terminee — et une animation l'emporte sur une
-   declaration auteur normale, quelle que soit la specificite. `.faded` posait
-   donc un `opacity: .3` qui n'a jamais rien fait : les deux cartes ecartees
-   restaient pleines, alors que voir ce qu'on a ECARTE est la moitie de la
-   decision que cet ecran sert a prendre.
-
-   C'est le meme piege que celui deja documente pour `translate` et `transform`
-   plus haut dans cette feuille, vu par l'autre bout : la, il fallait separer
-   deux proprietes pour que le survol survive a l'entree ; ici, il faut arreter
-   l'entree pour que l'etat vive.
-
-   `animation: none` et non `!important` : le depot n'en emploie nulle part, et
-   la carte epique perd sa respiration en meme temps — ce qui est juste, une
-   carte verrouillee ou ecartee n'est plus un evenement.
-
-   Le selecteur reprend `#cardsRow`, et ce n'est pas decoratif : c'est le meme
-   piege que `.cardOpt.r2` quelques regles plus haut. `#cardsRow .cardOpt` pese
-   (1,1,0), donc `.cardOpt.faded` (0,2,0) ne peut pas gagner — l'identifiant
-   l'emporte sur le nombre de classes. Ecrit sans lui, la regle est simplement
-   inerte, ce qui ne se voit qu'a l'usage. */
 #cardsRow .cardOpt.picked, #cardsRow .cardOpt.faded { animation: none; }
 
-/* Et la carte CHOISIE reprend son opacite pleine. Elle est `disabled` — plus
-   rien a cliquer — donc le `opacity: .45` des boutons desarmes s'appliquait des
-   que l'animation cessait de le masquer : la carte qu'on vient de prendre
-   devenait plus pale que le reste de l'ecran, avec son bandeau « verrouillée »
-   a moitie efface. C'est le meme arbitrage que `#start:disabled`, qui reprend
-   deja son opacite pour la meme raison. Les ECARTEES, elles, gardent leurs
-   30 % : c'est precisement ce qu'on veut leur voir dire. */
 #cardsRow .cardOpt.picked { opacity: 1; }
 
-/* --- build ------------------------------------------------------------------ */
 #build { z-index: 20; gap: var(--sp-6); justify-content: flex-start; }
-/* La fenetre de build coule dans une colonne, comme les autres ecrans hors
-   combat. Elle etait une suite de blocs centres a la main, chacun redisant sa
-   propre largeur (`min(100%, 860px)`) — cinq endroits a garder d'accord. */
 .buildWrap {
   display: flex;
   flex-direction: column;
@@ -3107,8 +1891,6 @@ tr.clickable { cursor: pointer; }
   margin-inline: auto;
   padding: var(--sp-8) var(--gutter) var(--sp-12);
 }
-/* L'identite est CENTREE entre les deux fleches : c'est le sujet de la
-   fenetre, et les fleches sont ce qui le change. */
 #buildHead { display: flex; align-items: center; gap: var(--sp-6); }
 #buildIdent { flex: 1; text-align: center; min-width: 0; }
 #buildName {
@@ -3132,9 +1914,6 @@ tr.clickable { cursor: pointer; }
   color: var(--text-dim);
   background: var(--ui-panel);
 }
-/* Cinq tuiles de largeur EGALE. En `flex` elles se dimensionnaient sur leur
-   contenu, donc « 186 420 » faisait une tuile deux fois plus large que « 2 » —
-   or ce sont cinq mesures de meme rang, elles doivent peser pareil. */
 #buildStats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -3177,8 +1956,6 @@ tr.clickable { cursor: pointer; }
 .buildMod.cout { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
 #buildSkills { display: flex; flex-direction: column; gap: var(--sp-2); }
 .buildSkill { display: flex; gap: var(--sp-3); align-items: flex-start; font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); }
-/* La troisieme competence NON TIREE : attenuee, mais presente. Elle dit ce qui
-   pourrait s'ajouter, comme la pastille grisee du HUD. */
 .buildSkill.off { opacity: .5; }
 .buildSkill.off .key { background: var(--ui-field); color: var(--text-faint); }
 .buildSkill .key {
@@ -3194,9 +1971,6 @@ tr.clickable { cursor: pointer; }
   color: var(--go);
 }
 .buildSkill b { color: var(--text); font-weight: 600; }
-/* DEUX colonnes fixes, et non `auto-fit` : une build de quinze cartes se lit
-   d'un coup, la ou une colonne obligeait a defiler. Le rang de rarete traverse
-   la grille (`grid-column: 1 / -1`) — c'est un titre, pas une carte. */
 #buildCards {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -3222,9 +1996,6 @@ tr.clickable { cursor: pointer; }
   border-radius: 0 var(--radius-ctl) var(--radius-ctl) 0;
   background: var(--ui-panel);
 }
-/* Le nom prend la place, le nombre d'exemplaires se cale a droite : c'est
-   l'ordre dans lequel on les lit, et le ×N reste alignable d'une carte a
-   l'autre. */
 .buildCardHead { display: flex; gap: var(--sp-3); align-items: baseline; }
 .buildCardName { flex: 1; min-width: 0; font-family: var(--font-display); color: var(--text); font-size: var(--t-s); font-weight: 600; }
 .buildCardMul { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
@@ -3232,9 +2003,6 @@ tr.clickable { cursor: pointer; }
 .buildCardWarn { font-family: var(--font-body); font-size: var(--t-xs); color: var(--notice-warn-text); }
 .buildEmpty { grid-column: 1 / -1; font-size: var(--t-s); color: var(--text-faint); }
 
-/* Le pied : la sortie a gauche, le rappel des touches a cote. Il etait un
-   simple `.hint` centre, donc rien ne fermait la fenetre a la souris — il
-   fallait connaitre Echap. */
 #buildFoot {
   display: flex;
   flex-wrap: wrap;
@@ -3250,17 +2018,6 @@ tr.clickable { cursor: pointer; }
   #buildCards { grid-template-columns: 1fr; }
 }
 
-/* --- briefing de classe -------------------------------------------------------
-   Vingt secondes AVANT la manche, et c'est la seule raison pour laquelle cet
-   ecran a le droit d'exister : le joueur n'a rien d'autre a faire, donc on peut
-   lui demander de lire. Tout y est centre — c'est le seul ecran hors combat qui
-   ne coule pas depuis le haut, parce qu'il n'a ni liste ni tableau, seulement
-   une chose a dire et un compte a rebours pour la dire.
-
-   `--tint` porte la teinte de la classe, posee sur `.briefWrap` par client.js
-   depuis `CLASSES[].couleur`. Titre, touches et liseres des cartes la lisent en
-   `currentColor` ou en `color-mix` : une seule valeur a poser, aucune couleur
-   en dur ici. */
 #brief { justify-content: center; align-items: center; padding: var(--gutter); }
 .briefWrap {
   display: flex;
@@ -3268,11 +2025,6 @@ tr.clickable { cursor: pointer; }
   align-items: center;
   gap: var(--sp-6);
   width: 100%;
-  /* La coque ETROITE, pas celle du hub : cet ecran n'a ni liste ni tableau,
-     seulement deux cartes et un paragraphe. A 1440 px les descriptions de
-     competence flottent au milieu de leur carte et la mission tient sur une
-     demi-ligne — c'est exactement le defaut que la mesure bornee evite
-     ailleurs. */
   max-width: var(--shell-narrow);
   color: var(--tint, var(--text));
 }
@@ -3285,17 +2037,11 @@ tr.clickable { cursor: pointer; }
   text-transform: uppercase;
   line-height: 1;
   color: var(--tint);
-  /* La lueur EST le signal : c'est la seule chose de l'ecran qui dise « voila
-     ce que tu joues », et elle porte la teinte de la classe. */
   text-shadow: 0 0 var(--sp-8) color-mix(in srgb, var(--tint) 45%, transparent);
 }
 #briefKicker { color: var(--text-faint); }
 #briefKicker::before { display: none; }
 
-/* Les DEUX competences, cote a cote. Une grille et non un flex : les deux
-   cartes doivent faire la meme largeur quelle que soit la longueur des
-   descriptions — sinon la classe dont la premiere competence a trois lignes
-   se lit comme si elle etait deux fois plus importante. */
 #briefSkills {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -3315,9 +2061,6 @@ tr.clickable { cursor: pointer; }
   text-align: center;
 }
 .briefKeys { display: flex; align-items: center; gap: var(--sp-2); }
-/* La touche est un CAPUCHON, comme dans `#settings` : c'est la meme chose,
-   elle doit se reconnaitre d'un ecran a l'autre. En plus gros ici — c'est
-   l'information qu'on vient chercher. */
 .briefKey {
   min-width: 52px;
   padding: var(--sp-3) var(--sp-4);
@@ -3353,8 +2096,6 @@ tr.clickable { cursor: pointer; }
   max-width: 42ch;
 }
 
-/* La mission : un encart a part, en retrait de teinte. C'est le seul bloc de
-   PROSE de l'ecran, il porte donc la police de corps et une mesure bornee. */
 #briefMission {
   width: 100%;
   display: flex;
@@ -3376,9 +2117,6 @@ tr.clickable { cursor: pointer; }
   margin: 0;
 }
 
-/* La troisieme competence : une LIGNE et non une troisieme carte. Le kicker
-   dit « tes deux compétences », et une carte de plus aurait fait croire qu'on
-   l'a deja — or c'est precisement ce qu'on n'a pas encore. */
 #briefThird {
   display: flex;
   align-items: center;
@@ -3398,8 +2136,6 @@ tr.clickable { cursor: pointer; }
   box-shadow: none;
 }
 
-/* L'action principale de l'ecran. Elle ne LANCE rien — la manche tourne deja —
-   elle retire le voile, d'ou un libelle qui ne promet aucun demarrage. */
 #briefGo {
   min-width: 220px;
   padding: var(--btn-pad);
@@ -3425,11 +2161,6 @@ tr.clickable { cursor: pointer; }
 }
 #briefBasics b { color: var(--text-dim); font-weight: 700; }
 
-/* La barre se REMPLIT — elle mesure ce qui est ecoule, pas ce qui reste. Un
-   compte a rebours qui se vide dit « tu perds du temps » ; une barre qui se
-   remplit dit « on y arrive », et c'est ce qu'on veut a l'entree d'une manche.
-   Elle est CYAN et non a la teinte de la classe : c'est le seul element de
-   l'ecran qui parle du JEU et non du role — `--go`, « il faut y aller ». */
 #briefBar {
   width: 100%;
   height: var(--sp-2);
@@ -3444,8 +2175,6 @@ tr.clickable { cursor: pointer; }
   border-radius: inherit;
   background: var(--go);
   box-shadow: 0 0 var(--sp-6) color-mix(in srgb, var(--go) 55%, transparent);
-  /* Le pas du compte a rebours est la SECONDE : sans transition la barre
-     avancerait par a-coups d'un vingtieme de sa largeur. */
   transition: width 1s linear;
 }
 #briefCount {
@@ -3457,18 +2186,6 @@ tr.clickable { cursor: pointer; }
 }
 #briefCount b { color: var(--go); font-weight: 700; }
 
-/* LES CINQ DERNIERES SECONDES PASSENT A L'AMBRE. Le cyan dit « il faut y
-   aller », ce qui est juste tant qu'il reste du temps pour lire ; sous cinq
-   secondes il ne s'agit plus d'aller quelque part mais de se preparer a
-   encaisser, et c'est exactement ce que l'ambre dit ailleurs dans le jeu.
-
-   La BARRE suit, sinon les deux temoins du meme compte a rebours se
-   contrediraient — une barre cyan sous un chiffre ambre.
-
-   Le chiffre PULSE en plus de changer de couleur : c'est la meme regle que les
-   marqueurs poses sur un joueur — une information portee par la seule couleur
-   est perdue pour un daltonien. Une seconde par battement, cale sur la seconde
-   qui s'ecoule. */
 #briefCount.urgent b { color: var(--warn); animation: briefTick 1s steps(1, end) infinite; }
 #brief.urgent #briefBar > i { background: var(--warn); }
 
@@ -3481,7 +2198,6 @@ tr.clickable { cursor: pointer; }
   #briefSkills { grid-template-columns: 1fr; }
 }
 
-/* --- pause ------------------------------------------------------------------ */
 #pause {
   position: fixed;
   inset: 0;
@@ -3490,8 +2206,6 @@ tr.clickable { cursor: pointer; }
   align-items: center;
   justify-content: center;
   padding: var(--sp-6);
-  /* Assez sombre pour que le panneau se lise, assez clair pour qu'on voie
-     qu'il se passe encore quelque chose derriere. */
   background: color-mix(in srgb, var(--bg-void) 72%, transparent);
   animation: fadeIn var(--fade) ease-out;
 }
@@ -3515,16 +2229,6 @@ tr.clickable { cursor: pointer; }
 #pauseConfirm .row { justify-content: center; }
 #pauseConfirm .row button { flex: 1; }
 
-/* --- bilan ------------------------------------------------------------------
-   L'ecran est CENTRE et non aligne a gauche comme le hub ou le salon : il ne
-   porte ni liste a parcourir ni action a preparer, seulement un resultat qu'on
-   regarde. C'est la meme exception que `#loading` et `#brief`.
-
-   Il a ete ramene a ce que la maquette montre, ni plus ni moins : quatre
-   chiffres de table, la ventilation des degats subis, le tableau, deux sorties.
-   Le bloc « ta partie » — multiplicateurs, jauge de puissance, cartes — a
-   disparu : il repondait a une question (« pourquoi ces degats-la ») que la
-   fenetre de build traite deja mieux, et qui s'ouvre d'un clic sur sa ligne. */
 .bilanWrap {
   display: flex;
   flex-direction: column;
@@ -3568,8 +2272,6 @@ tr.clickable { cursor: pointer; }
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
 }
-/* Le LIBELLE d'abord, la valeur ensuite — l'ordre de la maquette et le bon :
-   on lit ce qu'on regarde avant de lire combien. */
 .bilanStat .lab {
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -3586,10 +2288,6 @@ tr.clickable { cursor: pointer; }
   line-height: 1;
 }
 
-/* La ventilation : UNE barre empilee et une legende. Quatre barres tracees
-   chacune sur toute la largeur demandaient de comparer des longueurs de l'oeil,
-   alors que ce sont les parts d'un meme total — empilees, la comparaison ne
-   demande plus rien. */
 #bilanHurt {
   display: flex;
   flex-direction: column;
@@ -3613,14 +2311,10 @@ tr.clickable { cursor: pointer; }
 .hurtStack > i { display: block; height: 100%; }
 .hurtLegend { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-6); }
 .hurtItem { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--t-s); }
-/* La pastille est CARREE : le seul cercle du jeu est une entite vivante. */
 .hurtItem > i { width: var(--sp-2); height: var(--sp-2); flex: none; }
 .hurtLab { color: var(--text); }
 .hurtVal { font-family: var(--font); color: var(--text-dim); }
 
-/* Le tableau : sept colonnes, la classe rejoint le nom. `JOUEUR` est la seule
-   colonne alignee a gauche — tout le reste est un nombre, et un nombre se
-   compare a droite. */
 #bilanTableWrap {
   width: 100%;
   overflow-x: auto;
@@ -3633,8 +2327,6 @@ tr.clickable { cursor: pointer; }
 #bilanScores th { text-align: right; }
 #bilanScores th:first-child { text-align: left; }
 #bilanScores td.num { text-align: right; font-family: var(--font); color: var(--text-dim); }
-/* SA propre ligne de score en cyan : c'est le seul chiffre qu'on cherche
-   d'abord, et le tableau est trie dessus. */
 #bilanScores td.num.mine { color: var(--go); font-weight: 700; }
 #bilanScores td.who { display: flex; align-items: center; gap: var(--sp-3); }
 .whoDot {
@@ -3654,10 +2346,6 @@ tr.clickable { cursor: pointer; }
 .whoName { font-family: var(--font-display); font-weight: 700; color: var(--text); }
 .whoCls { font-size: var(--t-xs); color: var(--text-faint); }
 
-/* LE PIED. Il avait perdu ses regles de disposition dans la refonte du bilan et
-   n'en avait recu aucune : ses trois enfants s'empilaient en bloc, sans
-   gouttiere, et la barre — large de 60 % de la ligne — se calait a GAUCHE sous
-   le bouton. C'etait le losange sombre qui depassait sous « Continuer ». */
 #bilanNext {
   display: flex;
   flex-direction: column;
@@ -3667,32 +2355,12 @@ tr.clickable { cursor: pointer; }
 }
 #bilanNext .row { justify-content: center; }
 
-/* La contre-regle qui vivait ici (`#bilanGo { clip-path: none }`) a disparu
-   avec ce qu'elle annulait : le biseau a ete retire de TOUTE la famille des
-   actions principales — voir la regle groupee en tete de feuille. Ce bouton
-   avait constate le defaut le premier ; il n'a plus rien de particulier. */
 
-/* `#bilanBar` et `#bilanHint` ont ete SUPPRIMES avec l'echeance automatique du
-   bilan — leurs regles partent avec eux plutot que de rester a habiller un
-   markup qui n'existe plus. */
 
 @media (max-width: 720px) {
   #bilanStats { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* --- l'ecran de fin de manche (0.8.7) ----------------------------------------
-   Il precede le bilan et ne le double pas : trois chiffres et une action. Il est
-   CENTRE, comme `#loading` et pour la meme raison — c'est le second ecran du jeu
-   qui n'a qu'une chose a dire, et la regle « les ecrans d'avant-partie coulent
-   depuis le haut » existe contre les blocs qui se deplacent les uns les autres.
-   Ici il n'y en a qu'un, et sa position ne depend de rien.
-
-   Il est DANS le groupe de transition d'ecran, contrairement a `#brief`. Celui-la
-   en sort parce que ce qu'il decouvre en s'effacant est l'ARENE, visible a
-   l'instant ou la phase passe en manche. Ici c'est l'inverse : `roundEnd` pose
-   `PHASE_LOBBY`, et la boucle de rendu masque l'arene des que la phase n'est plus
-   la manche. Il ne se pose donc sur aucune image de jeu — c'est un ecran, il
-   croise le salon comme les sept autres. */
 #fin {
   justify-content: center;
   align-items: center;
@@ -3706,8 +2374,6 @@ tr.clickable { cursor: pointer; }
   padding-inline: var(--gutter);
   text-align: center;
 }
-/* Le titre porte le VERDICT, donc il prend le cran au-dessus de celui du bilan :
-   c'est la seule ligne de l'ecran qu'on lit sans la chercher. */
 #finTitle {
   font-family: var(--font-display);
   font-size: var(--t-3xl);
@@ -3715,9 +2381,6 @@ tr.clickable { cursor: pointer; }
   line-height: 1.1;
   color: var(--text);
 }
-/* La victoire prend la teinte de gain, et RIEN d'autre : le liseré et
-   l'animation `sacre` appartiennent au bilan, qui arrive juste apres. Les
-   rejouer ici ferait sonner deux fois la meme nouvelle. */
 #fin.win #finTitle { color: var(--gain); }
 
 #finStats {
@@ -3726,10 +2389,6 @@ tr.clickable { cursor: pointer; }
   gap: var(--sp-4);
   width: 100%;
 }
-/* Meme materiau que les tuiles du bilan — c'est le meme moment, on ne change pas
-   de vocabulaire entre deux ecrans qui s'enchainent. La VALEUR passe devant le
-   libelle, a l'inverse du bilan : la-bas on parcourt quatre mesures, ici on lit
-   trois reponses. */
 .finStat {
   display: flex;
   flex-direction: column;
@@ -3756,13 +2415,10 @@ tr.clickable { cursor: pointer; }
 }
 
 @media (max-width: 720px) {
-  /* Trois tuiles cote a cote sous 720 px donnent des colonnes de 90 px, ou
-     « étape atteinte » se coupe en trois lignes. */
   #finStats { grid-template-columns: 1fr; }
   #finTitle { font-size: var(--t-2xl); }
 }
 
-/* --- fenetres etroites, reprise --------------------------------------------- */
 @media (max-width: 720px) {
   .metaLine { grid-template-columns: 1fr auto; gap: var(--sp-2); }
   .metaLine .metaPips, .metaLine .metaDesc { grid-column: 1 / -1; }
@@ -3771,37 +2427,16 @@ tr.clickable { cursor: pointer; }
   table { min-width: 0; }
 }
 
-/* ===========================================================================
-   LES CONTENEURS DE MARKUP.md
 
-   Ces regles n'ont d'effet QUE si les conteneurs decrits dans `MARKUP.md` ont
-   ete ajoutes a `public/index.html`. C'est volontaire : la mise en page de
-   cette refonte ne peut pas etre produite par du CSS seul — il n'y a rien dans
-   le markup d'origine sur quoi accrocher deux colonnes, une barre fixe ou un
-   panneau lateral.
-
-   Elles PRIMENT sur les regles plus haut, qui restent en place comme repli
-   degrade : sans les conteneurs, on obtient au moins la typographie et les
-   couleurs.
-   =========================================================================== */
-
-/* --- 1. connexion ------------------------------------------------------------ */
 .gateLeft {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  /* Plafond de respiration. `space-between` distribue deja tout l'espace
-     disponible ; un `gap` fixe de 48 px en plus ecarte les blocs deux fois sur
-     un grand ecran. Le `gap` n'est la que comme plancher quand la fenetre est
-     basse et que `space-between` n'a plus rien a distribuer. */
   gap: var(--sp-6);
   padding: var(--sp-8) var(--sp-12);
   min-width: 0;
   overflow-y: auto;
 }
-/* Le propos est le SUJET de la colonne : il prend l'espace, les deux autres
-   blocs se calent aux extremites. Sans cela les trois blocs pesent pareil et
-   le titre se retrouve a flotter au tiers de la hauteur. */
 .gateLeft .gatePitch { margin-block: auto; }
 .gateRight {
   display: flex;
@@ -3810,22 +2445,11 @@ tr.clickable { cursor: pointer; }
   gap: var(--sp-4);
   padding: var(--sp-8);
   border-left: var(--hair) solid var(--ui-line);
-  /* Un aplat opaque coupait net la grille du fond a la limite des colonnes.
-     Un voile translucide la laisse traverser : les deux colonnes restent le
-     meme ecran, la droite est seulement plus dense. */
   background: color-mix(in srgb, var(--bg-arena) 55%, transparent);
   min-width: 0;
   overflow-y: auto;
 }
-/* Les blocs de la colonne ne s'ETIRENT PAS. Sans cela ils se partagent la
-   hauteur restante et le formulaire, le rappel de bascule et les curseurs se
-   retrouvent separes par 80 px de vide chacun — alors qu'ils forment un seul
-   groupe qu'il faut lire d'affilee. `justify-content: center` ne centre le
-   groupe que si ses membres gardent leur hauteur naturelle. */
 .gateRight > * { flex: 0 0 auto; }
-/* Les enfants de #gate sont desormais DEUX. La repartition par `grid-column`
-   plus haut devient inutile et doit etre neutralisee, sinon elle renvoie les
-   deux colonnes au meme endroit. */
 #gate > * { grid-column: auto; }
 #gate #logo { align-self: flex-start; padding: 0; }
 #gate #gateForms, #gate #status, #gate #audioRow, #gate #musicRow {
@@ -3837,10 +2461,6 @@ tr.clickable { cursor: pointer; }
   margin-inline: auto;
   padding-inline: 0;
 }
-/* Le bloc suit le TITRE, qui est la plus large de ses trois pieces ; 52ch de
-   chasse fixe (429 px) le rognaient avant meme que sa propre borne ne
-   s'applique. Le paragraphe, lui, garde la sienne juste en dessous — c'est la
-   prose qui a besoin d'une mesure, pas l'accroche. */
 .gatePitch { max-width: min(100%, 640px); }
 .gateH1 {
   font-family: var(--font-display);
@@ -3849,17 +2469,6 @@ tr.clickable { cursor: pointer; }
   letter-spacing: var(--track-title);
   line-height: 1.06;
   margin: var(--sp-4) 0 var(--sp-4);
-  /* LA MESURE DU TITRE EST LA SIENNE, pas celle du bloc. `.gatePitch` borne le
-     propos a 52ch de la chasse fixe — soit 429 px, alors qu'a 69 px « Tenez la
-     ligne » en fait 446 : le titre se cassait en cinq lignes de deux mots
-     quand la maquette en donne trois. Le `ch` est ici celui de la police
-     d'AFFICHAGE, donc la borne suit la taille fluide du titre au lieu de la
-     contredire.
-
-     Pas de `text-wrap: balance` : il egalise les lignes, or une accroche se
-     coupe sur le SENS. La maquette pose « Tenez la ligne / jusqu'à la /
-     dernière vague. » — trois longueurs franchement inegales, et c'est ce
-     desequilibre qui la fait lire comme une phrase et non comme un bloc. */
   max-width: 14ch;
   text-wrap: pretty;
 }
@@ -3872,12 +2481,6 @@ tr.clickable { cursor: pointer; }
   max-width: 46ch;
   text-wrap: pretty;
 }
-/* Le pense-bete des touches N'A PLUS SA PLACE ICI. Il vivait sur l'ecran de
-   connexion parce qu'il n'y avait nulle part ailleurs ou le mettre — c'est-a-
-   dire au seul moment ou l'on ne s'en sert pas. Il est desormais dans
-   `#settings`, consultable en cours de partie. Le retirer de `#gate` libere le
-   bas de la colonne pour les trois pastilles d'etat, qui elles repondent a une
-   question qu'on se pose vraiment avant de taper son pseudo. */
 .gateKeys, #gate > .hint:last-of-type { display: none; }
 .gateAudio {
   display: flex;
@@ -3891,13 +2494,7 @@ tr.clickable { cursor: pointer; }
   border-top: var(--hair) solid var(--line-soft);
 }
 
-/* --- 2. salles ---------------------------------------------------------------- */
 
-/* L'ENCART DE REPRISE. Il est cyan et non ambre : « il faut y aller » — c'est
-   la grammaire de la couleur, et une salle qui attend n'est pas un
-   avertissement. Il vit AU-DESSUS du titre parce qu'il se decide avant la
-   liste, et il est plat plutot qu'en carte flottante : c'est un bandeau de
-   contexte, pas un objet de plus a choisir. */
 #hubResume {
   display: flex;
   align-items: center;
@@ -3908,9 +2505,6 @@ tr.clickable { cursor: pointer; }
   background: var(--notice-go-bg);
 }
 #hubResume[hidden] { display: none; }
-/* La fleche dans une pastille : c'est un TEMOIN, pas un bouton — le bouton est
-   a droite, et deux surfaces cliquables pour la meme action se disputeraient
-   le clic. */
 #hubResumeIcon {
   display: flex;
   align-items: center;
@@ -3937,8 +2531,6 @@ tr.clickable { cursor: pointer; }
   color: var(--text-dim);
   margin-top: 2px;
 }
-/* « Reprendre » porte l'accent plein : c'est l'action attendue. « Rester ici »
-   reste un fantome — refuser ne doit pas peser autant qu'accepter. */
 #hubResumeGo {
   font-weight: 700;
   letter-spacing: var(--track-title);
@@ -3973,10 +2565,6 @@ tr.clickable { cursor: pointer; }
   color: var(--text-dim);
   max-width: 62ch;
 }
-/* La coque est portee par `.hubWrap` : les blocs qu'elle contient n'ont plus a
-   se borner eux-memes. Sans cette neutralisation, `#hubPassAsk` gardait le cap
-   de 960 px d'avant les conteneurs et sortait plus etroit que la liste juste
-   au-dessus — decalage d'autant plus visible que la coque a grandi. */
 .hubWrap #roomList, .hubWrap #hubPassAsk { padding-inline: 0; max-width: none; }
 .hubCreate {
   display: flex;
@@ -3987,11 +2575,7 @@ tr.clickable { cursor: pointer; }
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
 }
-/* Le champ de nom prend la place, le mot de passe suit, le bouton reste a sa
-   largeur : c'est l'ordre dans lequel on les remplit. */
 .hubCreate #hubCreateRow { align-items: flex-end; gap: var(--sp-3); }
-/* Le champ et son etiquette forment un bloc : c'est le BLOC qui prend la place,
-   sinon l'etiquette flotte au-dessus d'un champ qui grandit sans elle. */
 .hubCreate #hubCreateRow .fieldWrap {
   display: flex;
   flex-direction: column;
@@ -4000,8 +2584,6 @@ tr.clickable { cursor: pointer; }
   min-width: 200px;
 }
 .hubCreate #hubCreateRow input { width: 100%; }
-/* L'action de l'encart : pleine, comme « Reprendre ». C'est la seule chose a
-   faire ici, elle ne peut pas avoir l'aspect d'un champ de plus. */
 .hubCreate #hubCreateRow button {
   flex: none;
   padding-inline: var(--sp-8);
@@ -4015,7 +2597,6 @@ tr.clickable { cursor: pointer; }
 .hubCreate .sectionTitle, .hubCreate #hubCreateRow { padding-inline: 0; max-width: none; }
 .hubWrap #hubAccount { margin-top: 0; padding-inline: 0; }
 
-/* --- 3. salon ----------------------------------------------------------------- */
 .panelWrap {
   display: flex;
   flex-direction: column;
@@ -4023,7 +2604,6 @@ tr.clickable { cursor: pointer; }
   width: 100%;
   max-width: var(--shell-wide);
   margin-inline: auto;
-  /* ≥ la hauteur reelle de .panelBar, sinon le contenu passe dessous */
   padding: var(--sp-8) var(--gutter) 160px;
 }
 .panelHead {
@@ -4045,9 +2625,6 @@ tr.clickable { cursor: pointer; }
   margin: var(--sp-2) 0 var(--sp-4);
 }
 
-/* Les CHOIX a gauche, l'ETAT a droite. C'est la separation qui manquait le
-   plus : sept blocs empiles au centre ne disent pas ce qui se decide et ce qui
-   s'observe. */
 .panelGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
@@ -4075,7 +2652,6 @@ tr.clickable { cursor: pointer; }
 .panelCardHead #teamReady { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); }
 .panelWrap #classes, .panelWrap #vote, .panelWrap #scoresWrap { padding-inline: 0; }
 
-/* Une ligne d'equipe. Le fond vert dit « pret » sans qu'on ait à lire. */
 #teamList { display: flex; flex-direction: column; gap: var(--sp-2); }
 #teamList .teamRow {
   display: flex;
@@ -4091,11 +2667,6 @@ tr.clickable { cursor: pointer; }
   border-color: color-mix(in srgb, var(--gain) 30%, transparent);
   background: color-mix(in srgb, var(--gain) 7%, transparent);
 }
-/* LA PASTILLE D'INITIALE. Elle porte la couleur du JOUEUR — celle de son
-   personnage dans l'arene — posee en ligne par `renderTeam` : le fond et la
-   bordure la derivent en `currentColor`, donc une seule valeur circule. Un
-   carre, comme le temoin de droite : le seul cercle du jeu est une entite
-   vivante. */
 #teamList .teamAvatar {
   display: flex;
   align-items: center;
@@ -4110,9 +2681,6 @@ tr.clickable { cursor: pointer; }
   border: var(--hair) solid color-mix(in srgb, currentColor 45%, transparent);
   background: color-mix(in srgb, currentColor 16%, transparent);
 }
-/* DEUX LIGNES : le pseudo et son statut d'hote en haut, la classe en dessous.
-   Sur une seule ligne la classe se retrouvait coincee entre le pseudo et deux
-   colonnes de chiffres, a 11 px — alors que c'est ce qu'on relit le plus. */
 #teamList .teamMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 #teamList .teamTop { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 #teamList .teamName {
@@ -4125,7 +2693,6 @@ tr.clickable { cursor: pointer; }
   white-space: nowrap;
 }
 #teamList .teamCls { font-family: var(--font-display); font-size: var(--t-xs); color: var(--text-dim); }
-/* Personne n'a encore choisi : c'est une attente, pas une valeur manquante. */
 #teamList .teamCls.pending { font-family: var(--font-body); color: var(--text-faint); }
 #teamList .teamPing { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
 #teamList .teamHost {
@@ -4137,7 +2704,6 @@ tr.clickable { cursor: pointer; }
   background: color-mix(in srgb, var(--go) 16%, transparent);
   color: var(--go);
 }
-/* Un CARRE et non un disque : le seul cercle du jeu est une entite vivante. */
 #teamList .teamDot { width: 8px; height: 8px; flex: none; background: var(--ui-line); }
 #teamList .teamRow.ready .teamDot { background: var(--gain); }
 
@@ -4167,14 +2733,8 @@ tr.clickable { cursor: pointer; }
 }
 #historyList .histWhen { font-family: var(--font); color: var(--text-faint); }
 #historyList .histLabel { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); }
-/* La ligne ouvre sur la difficulte, dont le libelle vit en minuscules dans
-   `DIFFICULTIES` et doit y rester — c'est le meme mot que « difficulté
-   cauchemar » au fil du texte. Meme traitement que la sous-ligne des salles. */
 #historyList .histLabel::first-letter { text-transform: uppercase; }
 
-/* La barre d'action. Fond OPAQUE et non un degrade : le contenu defile
-   dessous, et un degrade laisse passer assez de texte pour rendre le libelle
-   illisible une ligne sur trois. */
 .panelBar {
   position: fixed;
   left: 0;
@@ -4185,10 +2745,6 @@ tr.clickable { cursor: pointer; }
   background: var(--bg-void);
   border-top: var(--hair) solid var(--ui-line);
 }
-/* La MEME coque que `.panelWrap` : la barre est pleine largeur, mais son
-   contenu doit tomber sur la colonne du salon — un bouton de lancement decale
-   de deux cents pixels par rapport au tableau qu'il conclut se remarque
-   immediatement. */
 .panelBarInner {
   display: flex;
   flex-wrap: wrap;
@@ -4202,7 +2758,6 @@ tr.clickable { cursor: pointer; }
 .panelBarText #launchSummary { color: var(--text); }
 .panelBar #waitMsg { position: static; padding: 0; text-align: left; max-width: 62ch; }
 
-/* --- 4. progression ------------------------------------------------------------ */
 .metaWrap {
   display: flex;
   flex-direction: column;
@@ -4240,7 +2795,6 @@ tr.clickable { cursor: pointer; }
 .metaWrap #meta { width: 100%; padding-inline: 0; align-items: stretch; gap: var(--sp-3); }
 .metaBack { justify-content: center; margin-top: var(--sp-6); }
 
-/* --- fenetres etroites --------------------------------------------------------- */
 @media (max-width: 900px) {
   .gateLeft, .gateRight { padding: var(--sp-6); }
   .gateRight { border-left: 0; border-top: var(--hair) solid var(--ui-line); }
@@ -4250,42 +2804,19 @@ tr.clickable { cursor: pointer; }
   .panelWrap { padding-bottom: 200px; }
 }
 
-/* ===========================================================================
-   LES SIX ECRANS DU PLAN 4
 
-   Ils sont arrives pendant que la refonte se faisait ailleurs : ils
-   fonctionnent, mais ils sortaient au style d'origine, c'est-a-dire au milieu
-   d'une interface qui avait change de vocabulaire.
-
-   Deux familles, et la ligne de partage est la meme que partout : un ecran
-   qu'on lit SOUS MINUTERIE — marchand, choix de carte, fenetre de build —
-   suit le vocabulaire des cartes ; un ecran qu'on lit HORS PRESSION —
-   classement, Terminal, bilan — suit celui des menus. Rien de neuf n'est
-   invente ici : on reutilise les formes deja posees, c'est tout l'interet
-   d'avoir un vocabulaire.
-   =========================================================================== */
-
-/* --- 1. le marchand de reliques (lot K) --------------------------------------
-   Meme ecran que le choix de carte, a la lettre : titre centre borne a 720 px,
-   minuterie en rail arrondi, message d'attente en pied. Les reliques SONT des
-   `.cardOpt` — elles heritent donc des raretes, des materiaux et de la levee
-   au survol sans une ligne de plus. */
 #merchant { padding: var(--sp-8) var(--sp-6); }
 #merchantTitle {
   font-family: var(--font-display);
   font-size: var(--t-title);
   font-weight: 700;
   letter-spacing: var(--track-title);
-  /* Casse NORMALE, comme les six autres titres d'ecran. Il heritait des
-     capitales du socle et sortait en « MARCHAND » : un titre d'ecran en
-     capitales retombe au niveau du kicker, et l'ecran n'a plus de titre. */
   text-transform: none;
   line-height: 1.25;
   text-align: center;
   max-width: 720px;
   margin-inline: auto;
 }
-/* Le solde est un CHIFFRE : chasse fixe, et vert — c'est un gain. */
 #merchantTitle .merchantEclats {
   font-family: var(--font);
   font-size: var(--t-l);
@@ -4302,16 +2833,8 @@ tr.clickable { cursor: pointer; }
   color: var(--text-faint);
   text-align: center;
 }
-/* Le prix vit dans le pied de la carte, la ou les cartes de niveau mettent
-   leur categorie : meme place, meme taille, donc meme lecture. */
 .merchantPrix { font-family: var(--font); font-size: var(--t-xs); color: var(--gain); }
 
-/* --- 2. le bannissement (lot J) ----------------------------------------------
-   Une action RARE et IRREVERSIBLE posee sur une carte qu'on est en train de
-   choisir : elle doit rester lisible sans jamais concurrencer le choix. D'ou
-   un pied de carte discret qui ne vire au rouge qu'au survol — un rouge
-   permanent sur les trois cartes serait un signal criard, et la grammaire
-   reserve le rouge au danger. */
 .cardBan {
   border-radius: var(--radius);
   font-family: var(--font);
@@ -4321,9 +2844,6 @@ tr.clickable { cursor: pointer; }
   transition: color var(--tap) linear, border-color var(--tap) linear,
               background var(--tap) linear;
 }
-/* La liste des bannies, au Terminal : consultation seule, donc une ligne plate
-   et non une carte. `.metaLine` porte deja la forme ; le nom barre dit que la
-   carte ne sortira plus, la pastille dit pourquoi. */
 .metaBanTag {
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -4334,14 +2854,7 @@ tr.clickable { cursor: pointer; }
 .metaLine.banned { opacity: .75; }
 .metaLine.banned .metaName { text-decoration: line-through; }
 
-/* --- 3. le classement au temps (lot N) ---------------------------------------
-   Un panneau du hub, donc au vocabulaire du hub : rayon d'interface, fond de
-   panneau, et le meme etui d'onglets que le vote de difficulte — un troisieme
-   style de bascule serait un de trop. */
 #hubBoard {
-  /* Toute la colonne, et non les 560 px centres que posait ui.css : dans le
-     hub refondu il est un panneau de plus, entre la liste et l'encart de
-     creation, et un bloc plus etroit que ses voisins se lit comme flottant. */
   width: 100%;
   margin-top: 0;
   padding: var(--sp-4);
@@ -4359,7 +2872,6 @@ tr.clickable { cursor: pointer; }
   letter-spacing: var(--track-title);
   text-transform: uppercase;
 }
-/* L'onglet ACTIF n'est pas fantome : c'est la difficulte qu'on regarde. */
 #hubBoardTabs button:not(.ghost) {
   color: var(--go);
   border-color: color-mix(in srgb, var(--go) 45%, transparent);
@@ -4372,26 +2884,16 @@ tr.clickable { cursor: pointer; }
   border-top: var(--hair) solid var(--line-soft);
 }
 .boardRow:first-child { border-top: 0; }
-/* Chiffres a chasse fixe ET a chasse TABULAIRE : sans quoi les temps ne
-   s'alignent pas en colonne, et comparer — le seul objet du tableau — demande
-   de lire chaque ligne au lieu de la balayer. */
 .boardRank, .boardTime { font-family: var(--font); font-variant-numeric: tabular-nums; }
 .boardRank { font-size: var(--t-xs); color: var(--text-faint); }
 .boardWho { font-family: var(--font-display); font-weight: 600; color: var(--text); }
 .boardTime { font-size: var(--t-s); font-weight: 700; color: var(--text); }
-/* Ma ligne : TEINTEE et pas seulement bordee. Sur dix lignes, un liseré de
-   1 px se cherche au lieu de se voir. */
 .boardRow.moi {
   background: color-mix(in srgb, var(--go) 10%, transparent);
   box-shadow: inset 2px 0 0 var(--go);
 }
 .boardRow.moi .boardWho, .boardRow.moi .boardTime { color: var(--go); }
 
-/* --- 4. les onglets du Terminal (lot H) --------------------------------------
-   Deux rangees de bascule, et elles reprennent l'etui du vote : bordures qui
-   se touchent, `.mine` pour l'actif. La rangee de CLASSE dit quel arbre on
-   regarde, la rangee de CONTENU ce qu'on y regarde — deux questions, donc deux
-   rangees, et jamais une seule qui melangerait les deux. */
 #metaClassTabs, #metaTabs {
   display: flex;
   flex-wrap: wrap;
@@ -4420,9 +2922,6 @@ tr.clickable { cursor: pointer; }
   background: color-mix(in srgb, var(--go) 10%, var(--ui-panel));
   box-shadow: inset 0 0 0 var(--hair) color-mix(in srgb, var(--go) 26%, transparent);
 }
-/* La ligne d'emplacements est la CONTRAINTE qui structure toutes les decisions
-   de l'ecran : elle reste visible en permanence, et son chiffre se detache du
-   reste comme un chiffre doit le faire. */
 #metaSlots {
   font-family: var(--font-body);
   font-size: var(--t-s);
@@ -4432,18 +2931,6 @@ tr.clickable { cursor: pointer; }
 }
 #metaSlots b { font-family: var(--font); font-weight: 700; color: var(--text); }
 #metaSlots small { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
-/* La pastille de noyaux depensables. Un POINT et non un nombre : le nombre est
-   dans l'ecran, ici il ne s'agit que de dire qu'il y a quelque chose a y faire.
-
-   Elle vivait sur `#terminalBtn`, retire depuis — il ouvrait le meme ecran que
-   le bouton de la carte de classe, sans dire quel arbre. Elle l'a suivi sur
-   `.classMetaBtn`, ou elle garde exactement le meme role.
-
-   En CYAN : « il faut y aller », c'est litteralement ce qu'elle dit. Et en
-   LOSANGE et non en rond — la charte est explicite, le seul cercle du jeu est
-   une entite vivante. La regle d'origine (`ui.css`) l'avait bien ecrit ; la
-   version `border-radius: 50%` qui vivait ici la contredisait en silence,
-   puisque cette feuille est chargee apres. */
 .classMetaBtn { position: relative; }
 .metaDot {
   position: absolute;
@@ -4456,8 +2943,6 @@ tr.clickable { cursor: pointer; }
 }
 .metaDot[hidden] { display: none; }
 
-/* --- 5. la jauge de puissance (lot H) ----------------------------------------
-   Un INSTRUMENT DE MESURE : on n'y choisit rien, on y lit un cadran. */
 #buildPower {
   display: flex;
   flex-direction: column;
@@ -4467,8 +2952,6 @@ tr.clickable { cursor: pointer; }
   border-radius: var(--radius-ui);
   background: var(--ui-panel);
 }
-/* Dans le bilan, la jauge est deja dans le cadre de `#bilanMine` : deux
-   bordures imbriquees font une boite dans une boite. */
 #minePower { display: flex; flex-direction: column; gap: var(--sp-2); }
 .pLab {
   font-family: var(--font);
@@ -4483,27 +2966,6 @@ tr.clickable { cursor: pointer; }
 .pNote { font-family: var(--font-body); font-size: var(--t-xs); line-height: 1.6; }
 .pMark { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
 
-/* --- 6. le bilan de victoire (lot N) -----------------------------------------
-   Ce n'est pas un second ecran : c'est le meme, avec un titre qui change de
-   registre. Vert et non ambre ni rouge : c'est la seule fin de manche du jeu
-   qui soit un gain, et la grammaire fonctionnelle vaut pour les ecrans comme
-   pour l'arene.
-
-   La classe est `win`, celle que `showBilan` pose. Trois regles ecrites pour une
-   classe `victoire`, plus un chrono geant et une mention de record, vivaient ici
-   et dans `ui.css` sans qu'aucun chemin ne les pose : supprimees en 0.8.7. La
-   police du titre vient de `#bilanTitle` juste au-dessus, sa teinte et son
-   liseré de `ui.css`. */
-/* Le bloc « ta partie » a ete RETIRE du bilan : multiplicateurs, jauge de
-   puissance et compteur de cartes repondaient a « pourquoi ces degats-la »,
-   question que la fenetre de build traite deja — et mieux, puisqu'elle la
-   traite pour n'importe quel joueur du tableau. Un clic sur sa ligne l'ouvre,
-   et la phrase sous le titre le dit. Ses regles ont disparu avec lui ; celles
-   de `#minePower` restent, la jauge servant toujours dans `#build`. */
-/* Le diagnostic reseau (PERF=1) : une ligne de RELEVE, donc chasse fixe, et en
-   vert parce qu'elle ne dit rien de mauvais — c'est une mesure, pas une
-   alerte. Elle ferme l'ecran, sous le bouton : on ne la lit que si on la
-   cherche. */
 #bilanPerf {
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -4513,35 +2975,13 @@ tr.clickable { cursor: pointer; }
 }
 #bilanPerf[hidden] { display: none; }
 
-/* ===========================================================================
-   ETATS DE SURVOL, DE FOCUS ET DESACTIVE — LA SECTION FINALE
 
-   Elle est EN DERNIER dans la feuille, et c'est deliberé. Les etats etaient
-   disperses : une regle generique dans la reprise, une regle par ecran plus
-   haut, une regle par famille de bouton au milieu. Toutes de specificite
-   voisine, donc c'est l'ORDRE qui tranchait — et l'ordre changeait a chaque
-   ajout. Resultat visible : l'action principale virait au gris au survol au
-   lieu de s'eclaircir, parce qu'une regle de fond neutre passait derniere.
-
-   Tout est ici, une famille apres l'autre, du plus general au plus precis.
-   Rien d'autre dans la feuille ne doit definir un `:hover` de bouton.
-
-   La grammaire tient en une phrase : un survol dit « je reponds », il ne dit
-   jamais autre chose. Il ne change donc PAS le sens d'un element — un bouton
-   ambre reste ambre, un bouton letal reste rouge, un bouton desactive ne
-   bouge pas du tout.
-   =========================================================================== */
-
-/* --- 1. le socle : tout ce qui est cliquable -------------------------------- */
 button, .roomEntry, .classOpt, .cardOpt, .metaLine, tr.clickable {
   transition: background var(--tap) linear, border-color var(--tap) linear,
               color var(--tap) linear, box-shadow var(--fade) linear,
               transform var(--tap) ease-out, filter var(--tap) linear;
 }
 
-/* Un bouton DESACTIVE ne reagit a rien. C'est la premiere regle, et la seule
-   qui n'a pas d'exception : un element qui repond au survol mais pas au clic
-   est la pire des reponses — elle promet puis refuse. */
 button:disabled,
 button:disabled:hover,
 .roomEntry:disabled,
@@ -4555,28 +2995,18 @@ button:disabled:hover,
   box-shadow: none;
 }
 #start:disabled, #start:disabled:hover {
-  opacity: 1;   /* 45 % le rendrait illisible a cette taille */
+  opacity: 1;   
   background: var(--ui-panel);
   border-color: var(--ui-line);
   color: var(--text-faint);
 }
 
-/* --- 2. bouton ordinaire ----------------------------------------------------
-   Le cas le plus frequent : « Actualiser », « Retour », « Talents », les
-   fleches du build. Le fond s'eclaircit d'un cran et le texte passe en blanc.
-   Pas de teinte : ce sont des actions neutres, et les colorer toutes reviendrait
-   a n'en signaler aucune. */
 button:hover:not(:disabled) {
   background: var(--bg-raised);
   border-color: color-mix(in srgb, var(--line) 85%, var(--text-dim));
   color: var(--text);
 }
 
-/* --- 3. l'action principale de chaque ecran --------------------------------
-   Elle est deja cyan pleine : elle ne peut pas « s'eclaircir d'un cran » comme
-   les autres. Elle monte donc en LUMIERE — teinte plus vive et lueur qui
-   double — et elle ne se leve pas. Un bouton deja cyan qui bougerait en plus
-   ferait deux signaux pour un seul etat. */
 #start:hover:not(:disabled),
 #go:hover:not(:disabled),
 #regGo:hover:not(:disabled),
@@ -4604,19 +3034,6 @@ button:hover:not(:disabled) {
   box-shadow: var(--glow-go);
 }
 
-/* LE BOUTON QUI RETIENT GARDE SON AMBRE AU SURVOL, et ces deux lignes ne sont
-   pas cosmetiques : sans elles, le compte a rebours de lancement changeait de
-   couleur « parfois oui, parfois non ».
-
-   Les deux regles du dessus posent le cyan et vivent PLUS BAS dans la feuille
-   que `#start.cancel`, a specificite egale (0,3,0) — donc elles gagnent. Or au
-   moment ou le compte a rebours s'arme, la souris est encore sur le bouton
-   qu'on vient de cliquer : le bouton restait cyan tant qu'on ne bougeait pas,
-   et virait a l'ambre des qu'on s'ecartait. C'est toute la loterie.
-
-   Meme raison de fond que `#gateContinue` juste en dessous : passer au cyan un
-   bouton qui INTERROMPT reviendrait a lui faire dire « vas-y ». Il monte donc
-   en lumiere dans SA teinte, comme les autres montent dans la leur. */
 #start.cancel:hover:not(:disabled) {
   background: color-mix(in srgb, #fff 14%, var(--warn));
   border-color: color-mix(in srgb, #fff 14%, var(--warn));
@@ -4628,10 +3045,6 @@ button:hover:not(:disabled) {
   box-shadow: 0 0 var(--sp-8) color-mix(in srgb, var(--warn) 45%, transparent);
 }
 
-/* --- 4. l'avertissement ambre ----------------------------------------------
-   « Continuer quand meme ». Il garde sa couleur au survol : le passer au cyan
-   reviendrait a dire « vas-y » sur le seul bouton de l'ecran qui dit « lis
-   d'abord ». */
 #gateContinue:hover:not(:disabled) {
   background: color-mix(in srgb, var(--warn) 16%, transparent);
   border-color: var(--warn);
@@ -4640,16 +3053,12 @@ button:hover:not(:disabled) {
   filter: none;
 }
 
-/* --- 5. l'action letale ----------------------------------------------------- */
 button.danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--lethal) 18%, transparent);
   border-color: var(--lethal);
   color: var(--lethal);
 }
 
-/* --- 6. le bouton fantome ---------------------------------------------------
-   Sans bordure au repos : elle APPARAIT au survol. C'est ce qui lui donne son
-   affordance sans qu'il pese comme un vrai bouton le reste du temps. */
 button.ghost:hover:not(:disabled),
 #hubPassAskCancel:hover:not(:disabled) {
   background: none;
@@ -4657,8 +3066,6 @@ button.ghost:hover:not(:disabled),
   color: var(--text);
 }
 
-/* Le survol d'un retour vire au cyan, comme toute destination : « il faut y
-   aller » est exactement ce que dit ce bouton. */
 #panelLeave:hover:not(:disabled),
 #settingsClose:hover:not(:disabled) {
   background: color-mix(in srgb, var(--go) 8%, var(--ui-panel));
@@ -4666,15 +3073,6 @@ button.ghost:hover:not(:disabled),
   color: var(--go);
 }
 
-/* --- 7. segments : les onglets ----------------------------------------------
-   L'option ACTIVE ne repond pas au survol — on ne peut pas la choisir deux
-   fois, et un retour sur un etat deja acquis se lit comme un bug. Seules les
-   options non choisies s'eclairent.
-
-   La difficulte a quitte cette famille : ce ne sont plus des segments dans un
-   etui mais des cartes, donc elles survolent comme les autres surfaces
-   choisissables — section 8. Laissees ici, le `border-color: transparent`
-   ci-dessous leur effacait leur bordure au passage de la souris. */
 #gateTabs button:hover:not(.mine):not(:disabled) {
   background: color-mix(in srgb, var(--go) 6%, transparent);
   color: var(--text);
@@ -4685,11 +3083,6 @@ button.ghost:hover:not(:disabled),
   color: var(--go);
 }
 
-/* --- 8. les surfaces choisissables ------------------------------------------
-   Salle, classe, carte, ligne de talent. Elles se LEVENT — c'est le seul
-   groupe qui a le droit de bouger, parce que ce sont des objets qu'on prend et
-   non des commandes qu'on presse. La levee est proportionnelle au poids de
-   l'objet. */
 #roomList .roomEntry:hover:not(:disabled) {
   transform: translateY(var(--lift-1));
   background: color-mix(in srgb, var(--go) 7%, var(--ui-panel));
@@ -4700,10 +3093,6 @@ button.ghost:hover:not(:disabled),
   background: color-mix(in srgb, currentColor 8%, var(--ui-panel));
   border-color: color-mix(in srgb, currentColor 55%, transparent);
 }
-/* La carte de difficulte se leve comme une carte de classe, d'un cran de moins
-   parce qu'elle est plus legere. Le mode DEJA retenu ne bouge pas : son liseré
-   plein dit qu'il est acquis, le lever se lirait comme une invitation a le
-   reprendre. */
 #voteRow button:hover:not(.winner) {
   transform: translateY(var(--lift-1));
   background: color-mix(in srgb, var(--go) 7%, var(--ui-panel));
@@ -4714,12 +3103,8 @@ button.ghost:hover:not(:disabled),
   border-color: currentColor;
 }
 
-/* Une carte deja verrouillee ou ecartee ne bouge plus : le choix est fait. */
 .cardOpt.picked:hover, .cardOpt.faded:hover { transform: none; }
 
-/* --- 9. la barre superieure -------------------------------------------------
-   Ses boutons vivent sur un fond translucide : un fond plein au survol y ferait
-   une tache. Seule la couleur change. */
 #topHome:hover:not(:disabled) { background: none; border-color: transparent; color: var(--go); }
 #topSettings:hover:not(:disabled) {
   background: color-mix(in srgb, var(--go) 8%, transparent);
@@ -4727,7 +3112,6 @@ button.ghost:hover:not(:disabled),
   color: var(--go);
 }
 
-/* --- 10. relance et navigation du build ------------------------------------- */
 #cardsReroll:hover:not(:disabled) {
   background: color-mix(in srgb, var(--go) 7%, var(--ui-panel));
   border-style: solid;
@@ -4745,11 +3129,6 @@ button.ghost:hover:not(:disabled),
   color: var(--go);
 }
 
-/* --- 9 bis. les six ecrans du plan 4 -----------------------------------------
-   Chacun rejoint la famille de survol qui lui correspond, plutot que d'en
-   inventer une : les onglets se comportent comme des onglets, la ligne de
-   classement comme une ligne de salle, le bannissement comme la seule action
-   letale de la feuille. */
 #hubBoardTabs button.ghost:hover:not(:disabled),
 #metaClassTabs button:hover:not(.mine):not(:disabled),
 #metaTabs button:hover:not(.mine):not(:disabled) {
@@ -4757,26 +3136,12 @@ button.ghost:hover:not(:disabled),
   color: var(--text);
 }
 .boardRow:hover { background: color-mix(in srgb, var(--go) 5%, transparent); }
-/* Le rouge n'arrive QU'au survol : un pied de carte rouge en permanence serait
-   un signal criard sur les trois cartes, et la grammaire reserve le rouge au
-   danger. */
 .cardBan:hover {
   color: var(--lethal);
   border-color: var(--lethal);
   background: color-mix(in srgb, var(--lethal) 10%, transparent);
 }
 
-/* --- 10 bis. LE RETOUR AU CLIC -----------------------------------------------
-   Il n'y en avait aucun : le survol levait l'element, et le clic ne repondait
-   rien du tout — l'interface ne confirmait un geste qu'une fois la page
-   suivante arrivee, ce qui est trop tard sur une action qui echoue ou qui
-   attend le serveur. L'element REDESCEND sous sa position de repos et se
-   comprime d'un cheveu, sur `--tap` (90 ms) : assez pour se sentir, trop
-   court pour se voir.
-
-   `transition-duration: 0s` a l'appui et non `--tap` : un enfoncement doit
-   etre INSTANTANE — c'est le relachement qui s'anime, et l'oeil lit alors le
-   retour a la position de repos comme la fin du geste. */
 #hubBoardTabs button:active:not(:disabled),
 #metaClassTabs button:active:not(:disabled),
 #metaTabs button:active:not(:disabled),
@@ -4793,11 +3158,8 @@ button.ghost:hover:not(:disabled),
   transform: translateY(1px) scale(.985);
   transition-duration: 0s;
 }
-/* Le lien n'a pas de surface : il ne s'enfonce pas, il s'eclaire. */
 button.link:active:not(:disabled) { transform: none; }
 
-/* Le curseur de volume repond lui aussi : il grossit sous le doigt, ce qui le
-   rend attrapable la ou un rond de 16 px se rate d'un pixel. */
 input[type="range"]::-webkit-slider-thumb { transition: scale var(--tap) var(--ease-out), box-shadow var(--tap) linear; }
 input[type="range"]:hover::-webkit-slider-thumb { scale: 1.15; }
 input[type="range"]:active::-webkit-slider-thumb {
@@ -4805,9 +3167,6 @@ input[type="range"]:active::-webkit-slider-thumb {
   box-shadow: 0 0 var(--sp-4) color-mix(in srgb, var(--go) 85%, transparent);
 }
 
-/* --- 11. champs et focus ----------------------------------------------------
-   Le focus est un anneau et non une bordure : une bordure qui change d'epaisseur
-   decale d'un pixel tout ce qui suit. */
 input:hover:not(:focus) { border-color: color-mix(in srgb, var(--line) 85%, var(--text-dim)); }
 input:focus {
   border-color: var(--go);
@@ -4816,12 +3175,7 @@ input:focus {
 :focus-visible {
   outline: 2px solid var(--go);
   outline-offset: 2px;
-  /* L'anneau s'OUVRE depuis le bord au lieu de se poser : au clavier on
-     enchaine les elements vite, et un anneau qui se pose a l'identique sur
-     chacun ne dit pas qu'on a bouge. */
   animation: focusRing var(--tap) var(--ease-out);
 }
 @keyframes focusRing { from { outline-offset: -2px; } to { outline-offset: 2px; } }
-/* Le clavier voit l'anneau, la souris non : un anneau qui apparait sous le
-   curseur ajoute un second signal la ou le survol suffit deja. */
 :focus:not(:focus-visible) { outline: none; }

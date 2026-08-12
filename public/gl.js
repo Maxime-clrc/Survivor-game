@@ -1,42 +1,10 @@
-/* ===========================================================================
-   GL — le batcher de quads textures.
 
-   Ecrit a la main, en WebGL2, sans bibliotheque. La raison n'est pas
-   ideologique, elle est architecturale : PixiJS et ses equivalents sont des
-   moteurs a GRAPHE DE SCENE, en mode retenu — on cree des objets persistants
-   qu'on modifie. Le jeu, lui, est en MODE IMMEDIAT : il redessine tout a chaque
-   image a partir d'un instantane interpole, sans aucun etat de rendu
-   persistant. Marier les deux voudrait dire maintenir un objet d'affichage par
-   entite, gerer sa creation et sa destruction au rythme des identifiants du
-   serveur, et synchroniser deux sources de verite — plus de travail que le
-   batcher lui-meme, et toute une classe de bugs (objets fantomes, fuites) qui
-   n'existe pas aujourd'hui.
-
-   Les besoins sont etroits : des quads textures, une teinte, un eclair blanc,
-   deux modes de melange. Ce fichier, et rien de plus.
-
-   CE QUE LA BASCULE N'APPORTE PAS : de la fluidite. A ~800 sprites par image le
-   canvas 2D accelere tient largement. Ce qu'elle apporte, ce sont des CAPACITES
-   que le 2D ne sait pas produire — teinte par sprite gratuite, melange additif,
-   et des milliers de particules la ou on en plafonnait trois cents.
-   =========================================================================== */
-
-/* Plafond de quads par lot. Les indices sont en Uint16, donc la limite dure est
-   16 383 quads (65 536 / 4 sommets) : au-dela les indices debordent et la
-   geometrie se corrompt en silence. On se tient tres en dessous — 800 sprites
-   plus 3 000 particules au pire cas — et on vide le lot avant d'atteindre le
-   plafond plutot que de le decouvrir. */
 const MAX_QUADS = 8192;
-const VERT_STRIDE = 24;          // 2 f32 position + 2 f32 uv + 4 u8 teinte + 4 u8 eclair
+const VERT_STRIDE = 24;
 
 export const BLEND_NORMAL = 0;
 export const BLEND_ADD = 1;
 
-/* Le retournement de l'axe Y est ABSORBE PAR LA PROJECTION : WebGL a Y vers le
-   haut, le canvas 2D vers le bas. Le code de jeu continue donc de travailler en
-   coordonnees monde 1600 x 900 avec Y vers le bas, et pas un appelant ne
-   change. Une paire (echelle, decalage) plutot qu'une matrice 4x4 : c'est la
-   meme transformation, en deux uniformes au lieu de seize. */
 const VS = `#version 300 es
 in vec2 aPos;
 in vec2 aUV;
@@ -54,19 +22,6 @@ void main() {
   gl_Position = vec4(aPos * uScale + uOffset, 0.0, 1.0);
 }`;
 
-/* `mediump` suffit et reste rapide sur les GPU integres ; `highp` n'apporte
-   rien ici.
-
-   La teinte est MULTIPLICATIVE sur une texture premultipliee : le canal alpha
-   module deja rgb, on multiplie donc les quatre canaux. Ecrite autrement, la
-   teinte donne un additif deux fois trop lumineux — c'est le piege le plus
-   frequent de la bascule, avec l'alpha non premultiplie lui-meme.
-
-   L'ECLAIR BLANC ne peut pas venir de la teinte : un multiplicatif ne sait pas
-   eclaircir. Il est donc un attribut de sommet et un `mix` — un attribut de
-   plus, mais qui reste dans le MEME appel de dessin. L'autre option (redessiner
-   le sprite en additif) doublait le nombre de quads pour les entites touchees,
-   c'est-a-dire des dizaines a la fois pendant une nova. */
 const FS = `#version 300 es
 precision mediump float;
 in vec2 vUV;
@@ -94,23 +49,13 @@ function compile(gl, type, src) {
   return sh;
 }
 
-/* Cree le renderer, ou rend `null` si WebGL2 n'est pas disponible. Le repli
-   vers le chemin canvas 2D n'est PAS optionnel et il est de toute facon
-   gratuit : le chemin 2D existe deja et reste vivant. */
 export function createGL(canvas, opts = {}) {
   const gl = canvas.getContext("webgl2", {
     alpha: true,
-    // Le canvas WebGL est la couche du DESSOUS : il porte le fond de l'arene,
-    // donc il n'a pas besoin d'etre transparent au compositeur — mais on le
-    // laisse en alpha pour que le fond reste une couleur de la charte et non
-    // une valeur figee dans le contexte.
     premultipliedAlpha: true,
     antialias: false,
     depth: false,
     stencil: false,
-    /* Pas de `desynchronized` : il decouple la presentation du canvas de celle
-       de la page, ce qui est exactement ce qu'on ne veut pas quand trois
-       canvas empiles doivent montrer la MEME image de jeu. */
     powerPreference: "high-performance",
   });
   if (!gl) return null;
@@ -121,19 +66,10 @@ export function createGL(canvas, opts = {}) {
     ok: false,
     lost: false,
     onRestore: opts.onRestore ?? null,
-    // mesures, lues par `?perf` : un rendu qui vide son lot a chaque sprite
-    // fait des centaines d'appels de dessin, et rien ne le dit a l'ecran.
     draws: 0,
     quads: 0,
   };
 
-  /* --- perte de contexte ---------------------------------------------------
-     Ce n'est pas un cas d'ecole : bascule de GPU sur un portable, mise en
-     veille, redemarrage de pilote. Non gere, c'est un ECRAN NOIR DEFINITIF et
-     le joueur doit recharger la page.
-
-     `preventDefault` n'est pas facultatif — sans lui le contexte n'est JAMAIS
-     restaure, et l'evenement de restauration n'arrive pas. */
   canvas.addEventListener("webglcontextlost", e => {
     e.preventDefault();
     r.lost = true;
@@ -151,15 +87,11 @@ export function createGL(canvas, opts = {}) {
   let prog = null, vao = null, vbo = null, ibo = null, tex = null;
   let uScale = null, uOffset = null, uAtlas = null, uFlashColor = null;
 
-  // Un seul tampon dynamique, attributs entrelaces. Deux vues sur le MEME
-  // ArrayBuffer : les flottants pour la position et les coordonnees de texture,
-  // les octets pour la teinte et l'eclair. Deux tableaux separes auraient
-  // demande deux tampons et deux transferts.
   const bytes = new ArrayBuffer(MAX_QUADS * 4 * VERT_STRIDE);
   const f32 = new Float32Array(bytes);
   const u8 = new Uint8Array(bytes);
 
-  let n = 0;                 // quads dans le lot courant
+  let n = 0;
   let blend = BLEND_NORMAL;
   let flashColor = [1, 1, 1];
 
@@ -204,10 +136,6 @@ export function createGL(canvas, opts = {}) {
     gl.enableVertexAttribArray(aFx);
     gl.vertexAttribPointer(aFx, 4, gl.UNSIGNED_BYTE, true, VERT_STRIDE, 20);
 
-    /* Indices STATIQUES : quatre sommets et six indices par quad, toujours les
-       memes. Les televerser une fois pour toutes evite de les repousser a
-       chaque image — c'est la moitie du trafic du batcher, pour une geometrie
-       qui ne change jamais. */
     const idx = new Uint16Array(MAX_QUADS * 6);
     for (let i = 0, v = 0; i < MAX_QUADS; i++, v += 4) {
       const o = i * 6;
@@ -225,15 +153,6 @@ export function createGL(canvas, opts = {}) {
     r.ok = true;
   }
 
-  /* Atlas. `UNPACK_PREMULTIPLY_ALPHA_WEBGL` est le point de defaillance visuelle
-     le plus frequent de la bascule : sans lui, chaque sprite obtient un LISERE
-     SOMBRE sur ses bords transparents et le melange additif est faux. Le canvas
-     2D est premultiplie en interne, mais `texImage2D` le lit demultiplie — il
-     faut donc redemander la premultiplication ici.
-
-     `CLAMP_TO_EDGE` sur les deux axes et `LINEAR` dans les deux sens. Pas de
-     mipmaps : les sprites sont dessines a leur echelle native ou tout pres, et
-     une chaine de mipmaps melangerait en plus les cases voisines. */
   r.setAtlas = img => {
     if (!r.ok || !img) return;
     if (!tex) tex = gl.createTexture();
@@ -249,10 +168,6 @@ export function createGL(canvas, opts = {}) {
 
   r.setFlashColor = (cr, cg, cb) => { flashColor = [cr, cg, cb]; };
 
-  /* Le viewport est en pixels PHYSIQUES, donc deja multiplies par la densite —
-     l'oublier donne le symptome classique du rendu tasse dans un coin. Les
-     coordonnees monde, elles, restent en 1600 x 900 : c'est la projection qui
-     absorbe tout, et le facteur de densite avec. */
   r.resize = (pxW, pxH, worldW, worldH) => {
     if (!r.ok) return;
     canvas.width = pxW;
@@ -261,12 +176,6 @@ export function createGL(canvas, opts = {}) {
     r.world = { w: worldW, h: worldH };
   };
 
-  /* La CAMERA (lot I) entre ici et nulle part ailleurs : la projection est un
-     simple scale+offset, et soustraire le coin de vue revient a decaler
-     l'offset — clip = (p - cam) * s + (-1, 1) = p * s + ((-1, 1) - cam * s).
-     Le batcher continue d'ignorer le jeu : il recoit un coin de vue, pas une
-     entite. camX/camY sont le coin HAUT-GAUCHE de la vue en coordonnees
-     monde ; a (0, 0), la projection est exactement celle d'avant le lot. */
   r.begin = (bg = null, camX = 0, camY = 0) => {
     if (!r.ok) return false;
     n = 0;
@@ -290,17 +199,10 @@ export function createGL(canvas, opts = {}) {
   };
 
   function applyBlend() {
-    // Alpha PREMULTIPLIE des deux cotes : c'est ce qui rend le mode additif
-    // simplement `ONE, ONE` au lieu d'une formule qui depend de l'alpha source.
     if (blend === BLEND_ADD) gl.blendFunc(gl.ONE, gl.ONE);
     else gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   }
 
-  /* Un lot ne se vide QUE sur un changement d'etat : mode de melange, plafond
-     atteint, fin d'image. Le vider a chaque sprite donnerait des centaines
-     d'appels de dessin pour le meme resultat — c'est le piege qui annule tout
-     l'interet du batcher, et il ne se voit pas a l'ecran. En pratique on tient
-     l'image en deux appels, un normal et un additif. */
   r.setBlend = mode => {
     if (mode === blend) return;
     r.flush();
@@ -324,12 +226,6 @@ export function createGL(canvas, opts = {}) {
     gl.bindVertexArray(null);
   };
 
-  /* Ecriture d'un quad. La rotation et l'echelle sont appliquees COTE CPU, a
-     l'ecriture des quatre sommets : c'est plus rapide que de passer une matrice
-     par sprite, et ca garde le shader trivial.
-
-     `halfW`/`halfH` sont les demi-cotes en unites monde, `cr/cg/cb/ca` la teinte
-     en 0..255 DEJA premultipliee par l'alpha (voir le commentaire du shader). */
   r.quad = (u0, v0, u1, v1, x, y, halfW, halfH, angle, cr, cg, cb, ca, flash) => {
     if (!r.ok) return;
     if (n >= MAX_QUADS) r.flush();
@@ -354,21 +250,17 @@ export function createGL(canvas, opts = {}) {
     let fo = o >> 2;
     const fl = flash;
 
-    // sommet 0 — haut gauche
     f32[fo] = x0; f32[fo + 1] = y0; f32[fo + 2] = u0; f32[fo + 3] = v0;
     u8[o + 16] = cr; u8[o + 17] = cg; u8[o + 18] = cb; u8[o + 19] = ca;
     u8[o + 20] = fl;
-    // sommet 1 — haut droite
     o += VERT_STRIDE; fo = o >> 2;
     f32[fo] = x1; f32[fo + 1] = y1; f32[fo + 2] = u1; f32[fo + 3] = v0;
     u8[o + 16] = cr; u8[o + 17] = cg; u8[o + 18] = cb; u8[o + 19] = ca;
     u8[o + 20] = fl;
-    // sommet 2 — bas droite
     o += VERT_STRIDE; fo = o >> 2;
     f32[fo] = x2; f32[fo + 1] = y2; f32[fo + 2] = u1; f32[fo + 3] = v1;
     u8[o + 16] = cr; u8[o + 17] = cg; u8[o + 18] = cb; u8[o + 19] = ca;
     u8[o + 20] = fl;
-    // sommet 3 — bas gauche
     o += VERT_STRIDE; fo = o >> 2;
     f32[fo] = x3; f32[fo + 1] = y3; f32[fo + 2] = u0; f32[fo + 3] = v1;
     u8[o + 16] = cr; u8[o + 17] = cg; u8[o + 18] = cb; u8[o + 19] = ca;
@@ -381,11 +273,6 @@ export function createGL(canvas, opts = {}) {
   return r.ok || r.lost ? r : null;
 }
 
-/* Conversion d'une couleur CSS en trois octets, MEMORISEE. Les teintes du jeu
-   sont une poignee de chaines constantes (quatre couleurs de joueur, cinq
-   types, une poignee de signaux) relues a chaque sprite et a chaque image :
-   les reparser soixante fois par seconde pour deux cents entites serait le seul
-   endroit du rendu ou l'on paierait une analyse de chaine. */
 const colorCache = new Map();
 
 export function parseColor(css) {
@@ -401,9 +288,6 @@ export function parseColor(css) {
         v = [parseInt(s[1] + s[1], 16), parseInt(s[2] + s[2], 16), parseInt(s[3] + s[3], 16)];
       }
     } else {
-      // `rgba(r, g, b, a)` : la seule autre forme produite par `alpha()` dans la
-      // charte. L'alpha y est deja porte par le parametre `alpha` de
-      // `drawSprite`, on ne lit donc que les trois premieres composantes.
       const m = s.match(/-?\d+(\.\d+)?/g);
       if (m && m.length >= 3) v = [+m[0] | 0, +m[1] | 0, +m[2] | 0];
     }

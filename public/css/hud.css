@@ -1,25 +1,8 @@
-/* ===========================================================================
-   HUD — la couche ECRAN.
-
-   Elle est sortie du canvas : dessine dedans, le HUD retrecissait avec lui, et
-   aucun reglage de taille de police ne corrigeait ca — c'etait la meme cause
-   racine que le flou en 1440p. Ici, une taille en pixels CSS est une taille en
-   pixels CSS, quelle que soit la fenetre.
-
-   Aucune valeur en dur : couleurs depuis `shared/palette.js` (posees sur
-   `:root` par le client), tailles et espacements depuis `tokens.css`.
-
-   Tailles PLANCHER, a ne pas descendre : PV 15 px, touches 13 px gras, noms
-   d'equipe 13 px, chronometre 26 px. Ce sont les quatre choses qu'on lit en
-   combat sans avoir le temps de les chercher.
-   =========================================================================== */
 
 #hud {
   position: absolute;
   inset: 0;
   z-index: 5;
-  /* Le HUD ne prend jamais le clic : le curseur est un reticule, et une
-     pastille de competence qui avale un tir est un bug de jeu. */
   pointer-events: none;
   font-family: var(--font);
   color: var(--text);
@@ -28,7 +11,6 @@
 
 #hud[hidden] { display: none; }
 
-/* --- haut gauche : chronometre et compteurs -------------------------------- */
 
 #hudRun {
   position: absolute;
@@ -37,7 +19,7 @@
 }
 
 #hudClock {
-  font-size: var(--t-xl);      /* 26 px, plancher */
+  font-size: var(--t-xl);      
   font-weight: 700;
   letter-spacing: var(--track-title);
   line-height: 1;
@@ -53,12 +35,6 @@
 #hudMeta .warn  { color: var(--warn); }
 #hudMeta .slow  { color: var(--persist); }
 
-/* --- haut centre : le segment ----------------------------------------------
-   C'est l'information principale de la manche : le chronometre ne dit rien de
-   la difficulte, c'est la position dans le script qui la porte. La barre se
-   VIDE — elle compte le temps de horde restant avant le boss, et une jauge qui
-   se remplit se lirait comme une progression a faire plutot que comme un
-   compte a rebours. */
 
 #hudSegment {
   position: absolute;
@@ -97,17 +73,6 @@
   color: var(--text-dim);
 }
 
-/* --- l'attente du briefing ---------------------------------------------------
-   Sous le bandeau de vague, parce qu'elle explique precisement pourquoi il ne
-   se passe rien. En BLANC : la grammaire dit « blanc = ca concerne un allie »,
-   et c'est litteralement le cas — quelqu'un lit encore. Ni cyan (rien a faire,
-   on ne va nulle part), ni ambre (rien de dangereux, et un avertissement pour
-   un coequipier qui prend son temps serait un reproche).
-
-   Elle PULSE tres doucement plutot que de rester fixe : c'est un etat qui dure
-   et qui va se terminer tout seul, et un texte immobile dans un HUD immobile se
-   confond avec le decor. Une seconde par battement — au-dela on ne le remarque
-   plus, en deca ca presse. */
 #hudBrief {
   position: absolute;
   top: calc(var(--sp-3) + 74px);
@@ -121,8 +86,6 @@
   animation: briefWait 1s ease-in-out infinite;
 }
 #hudBrief b { font-weight: 700; }
-/* Le compte a rebours en chasse fixe, comme tous les chiffres du jeu : sans ca
-   il saute d'un pixel a chaque seconde qui change. */
 #hudBrief i { font-style: normal; font-family: var(--font); color: var(--text-dim); }
 
 @keyframes briefWait {
@@ -130,10 +93,6 @@
   50%      { opacity: 1; }
 }
 
-/* --- barre de boss ---------------------------------------------------------
-   Le seul element du HUD qui a le droit d'etre voyant : c'est le moment le plus
-   important de la manche. Elle remplace le bandeau de vague, elle ne s'y
-   ajoute pas — deux barres centrees l'une sous l'autre ne se lisent pas. */
 
 #hudBoss {
   position: absolute;
@@ -158,10 +117,6 @@
   color: var(--lethal);
 }
 
-/* Enrage : le seul clignotement du HUD, et il est lent. Le nom du boss est deja
-   rouge — une seconde couleur ne dirait rien de plus — donc c'est le MOUVEMENT
-   qui porte l'information, comme les croix du sanctuaire se lisent par leur
-   montee et non par leur teinte. */
 #bossName.enrage { animation: enrage 1.4s ease-in-out infinite; }
 
 @keyframes enrage {
@@ -187,22 +142,6 @@
   transition: width 160ms linear;
 }
 
-/* LES DEGATS EN ATTENTE. Le plancher de barre borne les PV du boss au seuil de
-   la barre courante et met l'exces de cote : pendant tout le palier, la barre ne
-   bouge plus d'un pixel — mesure a deux joueurs, 46 % du combat a degats
-   nominaux et 60 % a x4. Le joueur tire, ses degats entrent, et rien ne le dit.
-
-   La reserve se dessine donc en AMBRE sur la portion de barre qu'elle va
-   emporter, collee au bord droit du remplissage. Ambre et non rouge : la
-   grammaire reserve le rouge au letal, et ceci n'est pas un danger — c'est un
-   acquis en attente d'echeance. Elle est TRANSLUCIDE et posee PAR-DESSUS le
-   remplissage plutot qu'a cote : la barre garde sa longueur, ce qui bouge est
-   la couleur, et on lit « cette part est deja a moi » et non « la barre a
-   grandi ».
-
-   Pas de transition sur `left` : la reserve monte par a-coups a chaque tir, et
-   une interpolation de 160 ms en ferait une bouillie a cadence elevee. Le
-   remplissage garde la sienne, lui ne saute qu'aux ruptures. */
 #bossBank {
   position: absolute;
   top: 0;
@@ -213,9 +152,6 @@
   border-right: var(--edge) solid var(--warn);
 }
 
-/* Encoches tous les dixiemes : on lit la progression d'un coup d'oeil, sans
-   compter. Un fond raye plutot que dix elements — c'est dix noeuds de DOM en
-   moins pour exactement le meme dessin. */
 #bossBar::after {
   content: "";
   position: absolute;
@@ -227,7 +163,6 @@
     color-mix(in srgb, var(--bg-void) 75%, transparent) calc(10% - 2px) 10%);
 }
 
-/* Multiplicateur facon jeu de combat : gros, colle a la barre. */
 #bossMult {
   position: absolute;
   left: calc(100% + var(--sp-3));
@@ -255,15 +190,6 @@
 
 #bossPips > span.spent { background: var(--boss-empty); opacity: 0.45; }
 
-/* --- BOSS FINAL (lot W) -----------------------------------------------------
-   Sa barre doit etre identifiable SANS LIRE LE NOM. Quatre differences, et
-   chacune ne coute rien a la boucle de jeu : c'est le compositeur qui travaille,
-   le HUD ne pose qu'une classe, une fois, au changement de boss.
-
-   L'echelle typographique reste FIXE — 11 / 13 / 15 / 19 / 26 / 34 / 46 — donc
-   le nom passe de `--t-m` (15) a `--t-l` (19) et non a une valeur ad hoc. Les
-   angles restent DURS : aucun rayon n'est ajoute, « le seul cercle du jeu est
-   une entite vivante » et une barre finale arrondie lui volerait ce signe. */
 #hudBoss.final { width: min(1000px, 78%); }
 
 #hudBoss.final #bossName {
@@ -277,9 +203,6 @@
   border-color: var(--boss-low);
 }
 
-/* Les huit barres se lisent sur le fond raye : les encoches passent au huitieme
-   au lieu du dixieme, sinon la segmentation visible ne correspondrait a rien de
-   ce que la barre mesure. */
 #hudBoss.final #bossBar::after {
   background: repeating-linear-gradient(
     90deg,
@@ -287,11 +210,6 @@
     color-mix(in srgb, var(--bg-void) 75%, transparent) calc(12.5% - 2px) 12.5%);
 }
 
-/* La pulsation ACCELERE a mesure que les PV baissent, et elle vit entierement
-   ici : une animation pilotee par `requestAnimationFrame` aurait fait ecrire le
-   HUD a chaque image, ce qui est exactement le cout qu'on a supprime en sortant
-   du canvas. La duree est portee par une variable, posee par le HUD une seule
-   fois par palier de barre. */
 #hudBoss.final #bossBar {
   animation: sceau var(--final-pulse, 2.6s) ease-in-out infinite;
 }
@@ -323,9 +241,6 @@
   color: var(--boss-ult-soft);
 }
 
-/* --- cadre d'equipe --------------------------------------------------------
-   Une barre se lit sans etre lue. Chercher « 34 pv » dans une colonne de
-   chiffres, avec 200 ennemis a l'ecran, demande de s'arreter sur chaque ligne. */
 
 #hudTeam {
   position: absolute;
@@ -340,7 +255,7 @@
 .teamRow { display: grid; grid-template-columns: 1fr auto; gap: 0 var(--sp-2); }
 
 .teamRow .nom {
-  font-size: var(--t-s);            /* 13 px, plancher */
+  font-size: var(--t-s);            
   letter-spacing: var(--track-title);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -365,8 +280,6 @@
   transition: width var(--tap) linear;
 }
 
-/* Bouclier SUPERPOSE et non accole : accole, il faussait la lecture de la vie
-   elle-meme. */
 .teamRow .bar > u {
   position: absolute;
   top: 0;
@@ -390,9 +303,6 @@
 .teamRow .tags .stack { font-weight: 700; font-size: var(--t-xs); }
 .teamRow .tags canvas { display: block; }
 
-/* --- consignes -------------------------------------------------------------
-   Trois niveaux, chacun sur sa ligne : une information ne doit jamais chasser
-   une consigne. */
 
 #hudAlerts {
   position: absolute;
@@ -428,11 +338,6 @@
   letter-spacing: var(--track-caps);
 }
 
-/* Compte a rebours en BARRE et non en anneau : le bandeau est un rectangle
-   large, un anneau a cote aurait demande de regarder un second endroit pour
-   lire le meme temps. Il dit combien de temps il reste pour executer la
-   consigne, ce qui est toute la difference entre une consigne et une
-   decoration. */
 #alertOrder .cd {
   margin: var(--sp-2) calc(var(--sp-4) * -1) calc(var(--sp-2) * -1);
   height: 3px;
@@ -459,7 +364,6 @@
   opacity: 0.8;
 }
 
-/* --- annonces plein ecran -------------------------------------------------- */
 
 #hudAnnounce {
   position: absolute;
@@ -494,11 +398,6 @@
 #hudAnnounce.phase .big { font-size: var(--t-2xl); color: var(--warn); }
 #hudAnnounce.phase .mid { color: var(--boss-warn); font-size: var(--t-m); font-weight: 400; letter-spacing: normal; }
 
-/* Annonce du BOSS FINAL (lot N). Elle tient 5 s au lieu de 2,6 (cote JS) et
-   s'installe autrement : le nom arrive en s'ECARTANT plutot qu'en apparaissant,
-   un mouvement qu'aucune autre annonce du jeu n'a. C'est le seul moment ou le
-   jeu s'autorise un effet d'entree — et c'est justement parce qu'il est unique
-   qu'il dit « combat final » sans avoir a l'ecrire. */
 @keyframes bossFinalEntry {
   from { letter-spacing: 0; opacity: 0; }
   to   { letter-spacing: 0.24em; opacity: 1; }
@@ -509,10 +408,6 @@
 }
 #hudAnnounce.final .mid { color: var(--boss-low); }
 
-/* --- bloc personnel --------------------------------------------------------
-   Le plus gros element du HUD. C'est ce qu'on regarde en priorite quand ca
-   tourne mal, donc il est en bas a gauche, la ou le personnage n'est presque
-   jamais. */
 
 #hudSelf {
   position: absolute;
@@ -560,7 +455,7 @@
 #selfText { min-width: 96px; }
 
 #selfHpText {
-  font-size: var(--t-m);            /* 15 px, plancher */
+  font-size: var(--t-m);            
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -577,10 +472,6 @@
 
 #selfLevel small { display: block; font-size: var(--t-xs); font-weight: 400; color: var(--text-dim); }
 
-/* --- pastilles de competence -----------------------------------------------
-   Carrees, et non rondes : le seul cercle du jeu est une entite vivante. La
-   recharge est un secteur `conic-gradient` — trois lignes de CSS contre trente
-   au canvas, et c'est le compositeur qui travaille. */
 
 #selfPips { display: flex; gap: var(--sp-2); }
 
@@ -597,14 +488,13 @@
   place-items: center;
   background: color-mix(in srgb, var(--bg-void) 80%, transparent);
   border: var(--edge) solid var(--line-soft);
-  font-size: var(--t-s);            /* 13 px gras, plancher */
+  font-size: var(--t-s);            
   font-weight: 700;
 }
 
 .pip.ready .box { border-color: var(--pip); color: var(--pip); }
 .pip .box { color: var(--text-faint); }
 
-/* Le voile de recharge : un secteur qui se vide dans le sens horaire. */
 .pip .box::before {
   content: "";
   position: absolute;
@@ -615,12 +505,8 @@
 
 .pip.ready .box::before { display: none; }
 
-/* Un etat ACTIF (mode soin, provocation, surcharge) se signale par un fond
-   plein : la recharge dit « quand », l'etat dit « maintenant ». */
 .pip.active .box { background: color-mix(in srgb, var(--pip) 28%, transparent); }
 
-/* Eclat au retour a disponibilite : une image de plus a regarder, mais c'est
-   celle qui evite d'appuyer dans le vide. */
 .pip.flash .box { animation: pipFlash 240ms ease-out; }
 @keyframes pipFlash {
   from { box-shadow: 0 0 0 0 var(--pip); }
@@ -645,9 +531,6 @@
   color: var(--pip);
 }
 
-/* Troisieme competence non obtenue (lot C) : grisee ET barree — la couleur
-   seule ne suffit jamais. L'emplacement reste visible des le debut de la
-   partie, c'est ce qui rend la carte desirable avant meme de la connaitre. */
 .pip.locked { opacity: 0.45; }
 .pip.locked .box::before { display: none; }
 .pip.locked .box::after {
@@ -661,7 +544,6 @@
   pointer-events: none;
 }
 
-/* --- divers ---------------------------------------------------------------- */
 
 #hudSpectator {
   position: absolute;
@@ -680,19 +562,11 @@
   bottom: 140px;
   font-size: var(--t-xs);
   color: var(--gain);
-  /* Le bloc porte deux lignes depuis l'ajout du diagnostic reseau : rendu
-     dans une seule chaine memoisee, donc le retour a la ligne doit venir du
-     style. `pre-line` et non `pre` : on veut le saut de ligne, pas la
-     preservation des espaces d'indentation du gabarit. */
   white-space: pre-line;
 }
 
 #hudPerf.low { color: var(--lethal); }
 
-/* --- chiffres de degats ----------------------------------------------------
-   Positionnes en POURCENTAGE du cadre : c'est la conversion monde -> ecran la
-   moins chere qui existe, et elle ne demande pas de relire la geometrie de la
-   page a chaque image. */
 
 #dmgLayer { position: absolute; inset: 0; }
 
@@ -709,16 +583,8 @@
 
 .dmg.hurt { font-size: var(--t-l); color: var(--lethal); }
 .dmg.heal { color: var(--gain); }
-/* Le glyphe de PROVENANCE, a gauche du nombre. Il n'existe que sur les degats
-   subis : sur un chiffre inflige la provenance est evidente, c'est nous.
-   `display: flex` seulement quand il y a une icone — sinon `translate(-50%)`
-   centrerait une boite de largeur differente et les chiffres sans glyphe se
-   decaleraient de quelques pixels par rapport aux autres. */
 .dmg.hurt:has(img) { display: flex; align-items: center; gap: 3px; }
 .dmg img { display: block; width: 12px; height: 12px; }
-/* Critique : un cran plus gros que le chiffre ordinaire, en ambre. La taille
-   fait autant que la couleur — le chiffre doit se distinguer au coin de l'oeil,
-   sans etre lu, et un daltonien doit s'en sortir. */
 .dmg.crit { font-size: var(--t-m); color: var(--warn); }
 .dmg.deal { color: var(--boss-eye); }
 

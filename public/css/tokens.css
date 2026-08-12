@@ -1,34 +1,11 @@
-/* ===========================================================================
-   JETONS — tout ce que l'interface a le droit d'utiliser.
-
-   AUCUNE COULEUR ICI. Elles vivent dans `shared/palette.js` et sont posees sur
-   `:root` par `applyPalette()` au chargement de `client.js` : le canvas et le
-   DOM ont besoin des memes valeurs, et deux listes divergent au premier
-   reglage. On trouve donc ici --text, --bg-panel, --legendaire… a l'usage,
-   mais leur definition est ailleurs, et c'est voulu.
-
-   Une valeur qui n'est pas dans ce fichier n'a pas le droit d'exister dans une
-   feuille de style : pas de 17 px, pas de 6 px de marge, pas de rayon a 8.
-   =========================================================================== */
 
 :root {
-  /* --- typographie ---------------------------------------------------------
-     Deux familles, pas plus — et c'est la meme : la chasse fixe en corps de
-     texte est un choix ASSUME, elle appuie le registre instrumentation. Les
-     titres se distinguent par la graisse et l'interlettrage, pas par une
-     seconde police. */
   --font: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  /* L'echelle FIXE — 11 / 13 / 15 / 19 / 26 / 34 / 46 — n'est pas declaree ici
-     mais dans `palette.js` (`TYPE`), pour la meme raison que les couleurs : le
-     canvas ecrit du texte lui aussi. `--t-xs` … `--t-3xl` sont posees sur
-     `:root` par le client. Aucune taille hors de ces sept valeurs. */
 
-  --track-caps: 0.18em;   /* capitales espacees : titres de section */
-  --track-title: 0.08em;  /* titres et chiffres */
+  --track-caps: 0.18em;   
+  --track-title: 0.08em;  
 
-  /* --- espacement ----------------------------------------------------------
-     Grille de 4 px. Tout espacement est un multiple, sans exception. */
   --sp-1:  4px;
   --sp-2:  8px;
   --sp-3:  12px;
@@ -37,20 +14,12 @@
   --sp-8:  32px;
   --sp-12: 48px;
 
-  /* --- geometrie -----------------------------------------------------------
-     Les angles sont DURS : 2 px maximum, et une coupe en biseau plutot qu'un
-     arrondi quand une forme doit se distinguer. Le seul cercle du jeu est une
-     entite vivante — un bouton arrondi lui volerait ce signe. */
   --radius: 2px;
-  --bevel: 10px;          /* profondeur de la coupe d'angle */
+  --bevel: 10px;          
   --hair: 1px;
   --edge: 2px;
 
-  /* --- mouvement -----------------------------------------------------------
-     Rapide et sec. Les transitions d'ecran sont des FONDUS de 120 ms, jamais
-     des glissements : un ecran qui glisse fait attendre, un ecran qui apparait
-     est deja lisible. */
   --fade: 120ms;
   --tap: 90ms;
-  --sweep: 3s;            /* balayage de la legendaire */
+  --sweep: 3s;            
 }

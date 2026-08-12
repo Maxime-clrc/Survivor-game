@@ -3,52 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- « Survivor » et non « Survivor LAN » : le jeu est passe en ligne, et le
-     kicker de l'ecran de connexion dit « En ligne · coopératif · 4 joueurs »
-     juste sous le logotype. Le nom ne peut pas dire le contraire. -->
 <title>Survivor</title>
-<!-- Les jetons d'abord, l'interface ensuite. Aucune couleur dans ces deux
-     fichiers : elles sont posees sur :root par client.js depuis
-     shared/palette.js, qui est la seule source de verite du canvas comme du
-     DOM. Le fond de repli des premieres millisecondes est la couleur systeme
-     du theme sombre (`color-scheme`), et non une valeur recopiee. -->
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/ui.css">
-<!-- Refonte des menus. ADDITIVE et chargee APRES ui.css : elle surcharge les
-     ecrans d'avant-partie et les ecrans hors combat. Le HUD reste sous la
-     seule autorite de hud.css — c'est la qu'une forme doit se lire en un
-     dixieme de seconde, et les angles y restent durs. -->
 <link rel="stylesheet" href="/css/menus.css">
 <link rel="stylesheet" href="/css/hud.css">
 </head>
 <body>
 
-<!-- BARRE SUPERIEURE. UN SEUL element, place HORS des `.overlay` et non
-     recopie dans chacun : quatre copies divergeraient au premier changement.
-     Chaque ecran hors combat etait jusqu'ici une page isolee — rien ne disait
-     ou l'on se trouve, sous quel compte, ni si le serveur repond encore, et il
-     fallait redescendre au pied de la liste des salles pour retrouver son
-     pseudo.
-
-     ELLE VIENT AVANT `#stage`, et non apres comme le proposait la
-     specification de markup. Le CSS la pose en `position: sticky; top: 0` :
-     un element sticky reste dans le FLUX, et placee derriere un `#stage` qui
-     fait 100 % de hauteur elle se retrouvait a 917 px du haut, hors de
-     l'ecran. Le selecteur `#topbar:not([hidden]) ~ .overlay` de la feuille
-     exige par ailleurs qu'elle precede les ecrans — les deux contraintes
-     tombent d'accord ici. Le decalage qu'elle impose a `#stage` n'a aucune
-     consequence visible : en manche elle est `hidden`, donc absente du flux,
-     et hors manche l'arene est masquee par un `.overlay` en `position: fixed`.
-
-     Elle apparait sur #hubScreen, #panel, #bilan, #menu et #settings ; jamais
-     sur #gate (pas encore de compte a afficher), #loading (rien a faire
-     pendant trois secondes) ni #cards (on choisit sous minuterie, tout le
-     reste doit disparaitre). `syncTopbar()` dans client.js est le point de
-     passage unique de cette regle.
-
-     `#topHome` est un BOUTON et non un logotype inerte : c'est le retour aux
-     salons, et une barre de navigation qui ne navigue pas est une occasion
-     manquee. -->
 <div id="topbar" hidden>
   <button id="topHome" title="Retour aux salons">
     <span class="mark"></span>
@@ -69,60 +31,27 @@
   <button id="topSettings">Paramètres</button>
 </div>
 
-<!-- `#frame` porte le format de l'arene (16/9) : le canvas le remplit, le HUD
-     s'y superpose. C'est ce qui fait que le HUD est un FRERE du canvas et non
-     son contenu — d'ou un tressaillement d'ecran qui ne le fait plus trembler,
-     et une taille de texte qui ne retrecit plus avec la fenetre. -->
 <div id="stage">
   <div id="frame">
-    <!-- TROIS COUCHES EMPILEES, exactement dans cet ordre.
-
-         `#cvUnder` — le sol : grille, vignette de constriction, zones,
-                      telegraphes, remparts, tourelles, projectiles, marqueurs.
-         `#cvGl`    — les ENTITES : monstres, joueurs, depouilles, particules.
-                      WebGL quand il est disponible, vide sinon.
-         `#cv`      — ce qui passe par-dessus les entites : boss, drones,
-                      anneaux de joueur, barres, noms, murs, vignettage.
-
-         Pourquoi trois et non deux : tout ce qui est en canvas 2D passe
-         forcement AU-DESSUS de tout ce qui est en WebGL, puisque ce sont deux
-         elements empiles. Or l'ordre de dessin du jeu intercale du 2D avant ET
-         apres les entites — la grille dessinee par-dessus les monstres est
-         immediatement visible. Une couche intercalee est donc la seule facon de
-         garder l'image identique au pixel pres, ce qui est le critere
-         d'acceptation de la bascule.
-
-         Ils portent tous la meme taille et la meme densite de pixels, et c'est
-         `#arena` qui porte le tressaillement — un `transform` par canvas les
-         aurait fait diverger d'un sous-pixel a chaque secousse. -->
     <div id="arena">
       <canvas id="cvUnder"></canvas>
       <canvas id="cvGl"></canvas>
       <canvas id="cv"></canvas>
     </div>
 
-    <!-- HUD. Tout est en elements CSS : une recharge en `conic-gradient`, une
-         barre avec `transition`, un voile en `opacity`, c'est le compositeur
-         qui travaille et non la boucle de jeu. -->
     <div id="hud" hidden>
 
-      <!-- haut gauche : chronometre et compteurs de manche -->
       <div id="hudRun">
         <div id="hudClock">00:00</div>
         <div id="hudMeta"></div>
       </div>
 
-      <!-- haut centre : segment, puis boss -->
       <div id="hudSegment" hidden>
         <div id="segName"></div>
         <div id="segBar"><i></i></div>
         <div id="segState"></div>
       </div>
 
-      <!-- L'ATTENTE DU BRIEFING. Elle vit a cote de la vague et non ailleurs :
-           ce qu'elle dit, c'est pourquoi la vague ne part pas. Elle ne concerne
-           que celui qui a DEJA ferme son briefing — les autres ont le voile
-           sous les yeux et n'ont rien a apprendre. -->
       <div id="hudBrief" hidden></div>
 
       <div id="hudBoss" hidden>
@@ -131,19 +60,13 @@
           <span id="bossVerb"></span>
           <span id="bossHp"></span>
         </div>
-        <!-- `<u>` : les degats MIS DE COTE par le plancher de barre. Sans lui
-             la barre reste figee pendant tout un palier — mesure : 46 a 60 % du
-             combat — et le joueur ne sait pas si ses tirs entrent. -->
         <div id="bossBar"><i></i><u id="bossBank"></u><b id="bossMult"></b></div>
         <div id="bossPips"></div>
         <div id="bossUlt" hidden><i></i><span>ULTIME — tenez les tours pour la faire descendre</span></div>
       </div>
 
-      <!-- haut droite : le cadre d'equipe. Indispensable au soigneur. -->
       <div id="hudTeam"></div>
 
-      <!-- tiers superieur : les consignes. Elles vivent la et non en haut de
-           l'ecran — pendant une mecanique on regarde son personnage. -->
       <div id="hudAlerts">
         <div id="alertOrder" hidden>
           <div class="txt"></div>
@@ -154,14 +77,12 @@
         <div id="alertInfo" hidden></div>
       </div>
 
-      <!-- annonces plein ecran : arrivee de boss, barre brisee -->
       <div id="hudAnnounce" hidden>
         <div class="big"></div>
         <div class="mid"></div>
         <div class="sub"></div>
       </div>
 
-      <!-- bas gauche : le bloc personnel, l'element le plus gros du HUD -->
       <div id="hudSelf">
         <div id="selfEffects"></div>
         <div id="selfBuffs"></div>
@@ -182,39 +103,19 @@
       <div id="hudSpectator" hidden>SPECTATEUR — tu entres à la manche suivante</div>
       <div id="hudPerf" hidden></div>
 
-      <!-- chiffres de degats : des elements DOM, plafonnes. Ils recuperent
-           gratuitement le contour de texte, l'assouplissement et le fondu. -->
       <div id="dmgLayer"></div>
     </div>
   </div>
 </div>
 
-<!-- ecran de connexion. Identite = compte pseudo + mot de passe (le systeme
-     habituel : une page de creation, une page de connexion). La SESSION est
-     un jeton range en localStorage — jamais le mot de passe : sur le meme
-     navigateur, « Se connecter » avec le champ mot de passe VIDE reprend la
-     session memorisee. Le clic reste obligatoire dans tous les cas : c'est
-     lui qui debloque le contexte audio et lance la generation des atlas. -->
 <div id="gate" class="overlay">
 
-  <!-- DEUX COLONNES EXPLICITES. Sans elles, menus.css place les enfants de
-       #gate en colonne 1 ou 2 par `grid-column`, ce qui suppose un ordre et un
-       nombre d'enfants precis : des qu'un bloc bouge, tout se decale et le
-       formulaire flotte a droite au milieu du vide. Le markup est ADDITIF —
-       aucun identifiant n'est renomme, client.js trouve tout ce qu'il
-       cherche. -->
   <div class="gateLeft">
-    <!-- Le nom COMPLET, ici et seulement ici. C'est l'ecran d'entree : il
-         nomme le jeu une fois, en entier. La barre superieure et l'ecran de
-         chargement gardent « Survivor » court — un logotype de chrome se
-         reduit, un logotype d'accueil s'annonce. -->
     <div id="logo">
       <span class="mark"></span>
       <span>Survivor LAN</span>
     </div>
 
-    <!-- Le propos. Un ecran d'accueil doit repondre a « de quoi s'agit-il »
-         avant de demander un pseudo ; il s'ouvrait sur un champ de saisie. -->
     <div class="gatePitch">
       <div class="sectionTitle">En ligne · coopératif · 4 joueurs</div>
       <h1 class="gateH1">Tenez la ligne jusqu'à la dernière vague.</h1>
@@ -224,17 +125,7 @@
       </p>
     </div>
 
-    <!-- L'ETAT DU SERVICE, en pied de colonne. Trois pastilles et pas une
-         phrase : ce sont trois faits sans lien entre eux, et un paragraphe les
-         aurait fait lire dans l'ordre alors qu'on ne vient en chercher qu'un.
-         La latence decide si on joue maintenant, le nombre de salles dit s'il
-         y a du monde, le numero de version sert au dépannage. -->
     <div class="gateStatus">
-      <!-- Trois etats, et le repos est « en ligne » : `pending` (temoin ambre)
-           tant qu'on n'a pas de reponse, aucune classe une fois le serveur
-           joint (temoin vert qui pulse), `off` quand il ne repond plus (temoin
-           rouge, PULSATION COUPEE — un temoin qui bat alors que le serveur est
-           tombe est pire que pas de temoin). -->
       <span class="gateChip pending" id="gateServer"><i class="chipDot"></i>connexion au serveur…</span>
       <span class="gateChip" id="gateRooms" hidden></span>
       <span class="gateChip" id="gateBuild" hidden></span>
@@ -242,22 +133,12 @@
   </div>
 
   <div class="gateRight">
-  <!-- connexion / creation, en deux onglets : deux formulaires qui se
-       ressemblent mais ne disent pas la meme chose — fusionnes, le joueur ne
-       sait jamais s'il est en train de creer un compte ou de se tromper de
-       mot de passe. -->
   <div id="gateForms">
     <div id="gateTabs">
       <button id="tabLogin" class="mine">Se connecter</button>
       <button id="tabRegister">Créer un compte</button>
     </div>
 
-    <!-- Chaque formulaire porte son propre TITRE et son propre propos. Deux
-         formulaires qui se ressemblent au pixel pres et ne font pas la meme
-         chose, c'est exactement la confusion que les onglets sont censes
-         lever — le titre la leve pour de bon. Les champs prennent un LIBELLE
-         au-dessus plutot qu'un simple texte d'invite : un placeholder
-         disparait des qu'on tape, et l'ecran ne dit plus ce qu'on remplit. -->
     <div class="gateForm" id="loginForm">
       <div class="gateFormHead">
         <h2 class="gateFormTitle">Content de te revoir</h2>
@@ -287,10 +168,6 @@
   </div>
   <div id="status"></div>
 
-  <!-- Pause forcee sur CETTE page dans un seul cas : compte deja connecte
-       ailleurs. Encart AMBRE avec son motif ecrit : c'est un avertissement,
-       et la consequence — la progression ne sera pas enregistree — doit se
-       lire avant le clic, pas se deviner apres. -->
   <div id="gateHold" hidden>
     <div class="sectionTitle">Compte déjà connecté ailleurs</div>
     <div id="gateWho" class="hint"></div>
@@ -298,38 +175,19 @@
     <button id="gateContinue">Continuer quand même</button>
   </div>
 
-  <!-- Le passage d'un onglet a l'autre, redit en toutes lettres sous le
-       bouton. Les deux onglets sont en haut de l'encart, donc hors du champ
-       de vision de quelqu'un qui vient de lire le formulaire jusqu'au bout —
-       et c'est precisement la qu'on se rend compte qu'on n'a pas de compte. -->
   <p class="gateSwitch" id="gateSwitch"></p>
 
-  <!-- Reglage du son. Il vit ICI parce que le clic « Rejoindre » est le geste
-       utilisateur qui debloque le contexte audio des navigateurs : regler avant
-       d'entrer evite d'avoir a ressortir du jeu pour baisser le volume. Au PIED
-       de la colonne de droite, separe par un filet : les deux rangees
-       flottaient entre le formulaire et le pense-bete, au meme niveau visuel
-       que les deux. -->
   <div class="gateAudio">
     <div id="audioRow">
       <button id="mute" title="couper le son">♪</button>
       <input id="vol" type="range" min="0" max="100" step="5" title="volume">
       <span id="volVal">70 %</span>
     </div>
-    <!-- Volume de la MUSIQUE, separe des sons de jeu : la bande son est un fond
-         qu'on regle — ou qu'on coupe a zero — sans toucher aux signaux. -->
     <div id="musicRow">
       <span class="musGlyph" title="musique">♫</span>
       <input id="musVol" type="range" min="0" max="100" step="5" title="volume de la musique">
       <span id="musVolVal">50 %</span>
     </div>
-    <!-- LA SOURCE AUDIO. Le choix vit ICI, sur l'ecran d'entree, parce que
-         c'est le seul moment ou l'on regle avant d'entendre quoi que ce soit —
-         exactement l'argument des deux curseurs au-dessus. Le meme bouton
-         existe dans les Parametres et dans le menu pause : `audioUi` dans
-         `ui/screens.js` les tient synchronises, comme les volumes.
-         UN SEUL reglage pour la musique ET le son de tir : les deux sont le
-         meme essai, revenir en arriere doit tout rendre a la synthese. -->
     <div id="musicSrcRow">
       <button id="musSrc" title="basculer entre la bande son calculée et les pistes audio">Bande son : pistes</button>
     </div>
@@ -337,10 +195,6 @@
   </div>
 </div>
 
-<!-- ecran de chargement. Le clic « Rejoindre » debloque deja le contexte audio ;
-     c'est le meme moment et la meme barre pour la generation des atlas. C'est
-     aussi le seul ecran du jeu ou l'on peut prendre trois secondes, donc le seul
-     endroit ou un logotype a sa place. -->
 <div id="loading" class="overlay" hidden>
   <div id="logo">
     <span class="mark"></span>
@@ -351,26 +205,9 @@
   <div id="loadWhat" class="hint">génération des sprites</div>
 </div>
 
-<!-- ecran de HUB (plan infra) : la liste des salles, avant le salon. Une
-     entree 4/4 est DESACTIVEE, jamais masquee — la salle ou sont les autres
-     est precisement celle qu'on attend, la faire disparaitre laisserait le
-     joueur sans savoir s'il doit patienter ou creer la sienne. Le bouton
-     d'actualisation se desarme une seconde apres un clic, en miroir de la
-     limite serveur : un bouton qui accepte le clic pendant que le serveur
-     l'ignore laisse croire que la liste est a jour. -->
 <div id="hubScreen" class="overlay" hidden>
-  <!-- `.hubWrap` porte la colonne : sans conteneur de largeur, le contenu
-       s'etale sur toute la fenetre et le pied de page se centre tout seul au
-       milieu du vide. -->
   <div class="hubWrap">
 
-    <!-- LA REPRISE, en clair. Elle partait toute seule : `welcome` proposait une
-         salle et le client y entrait sans rien demander, si bien qu'on se
-         retrouvait dans une manche en cours sans avoir clique. L'encart pose la
-         question au lieu d'y repondre — et il dit CE QU'ON REPREND (la vague,
-         l'effectif), ce qu'une redirection silencieuse ne pouvait pas dire.
-         Reste au-dessus du titre : c'est la seule chose a decider avant de lire
-         la liste. -->
     <div id="hubResume" hidden>
       <span id="hubResumeIcon" aria-hidden="true"></span>
       <div id="hubResumeText">
@@ -383,16 +220,12 @@
       </div>
     </div>
 
-    <!-- Titre et « Actualiser » sur la MEME ligne : l'actualisation est une
-         action de service sur la liste, pas un bloc de plus a lire. -->
     <div class="hubHead">
       <div>
         <h1 id="hubTitle">Salons</h1>
         <p class="hubLead">Une salle pleine reste visible : c'est celle où sont les autres.</p>
       </div>
       <div id="hubBar" class="row">
-        <!-- Le glyphe est en ligne et non dans la feuille : il prend
-             `currentColor`, donc l'etat desarme du bouton l'emporte avec lui. -->
         <button id="hubRefresh">
           <svg viewBox="0 0 16 16" width="1em" height="1em" aria-hidden="true" focusable="false">
             <path d="M13 8a5 5 0 1 1-1.6-3.7" fill="none" stroke="currentColor" stroke-width="1.7"/>
@@ -400,17 +233,10 @@
           </svg>
           <span>Actualiser</span>
         </button>
-        <!-- Classement au temps (lot N). Il vit dans la barre de la liste et
-             non dans le Terminal : il compare des COMPTES entre eux, sa place
-             est la ou l'on est justement hors salle. -->
         <button id="hubBoardBtn">Classement</button>
       </div>
     </div>
 
-    <!-- Classement au temps (lot N). Au HUB et non au Terminal : il compare des
-         COMPTES entre eux, sa place est la ou l'on est justement hors salle.
-         Replie par defaut — c'est une consultation, pas une etape du parcours
-         vers une partie. -->
     <div id="hubBoard" hidden>
       <div id="hubBoardTabs" class="row"></div>
       <div id="hubBoardList"></div>
@@ -418,10 +244,6 @@
 
     <div id="roomList"></div>
 
-    <!-- demande de mot de passe d'une salle protegee. L'encart n'apparait
-         QU'APRES un refus `motdepasse` : un membre connu (rechargement de page)
-         re-entre sans rien taper, et le demander d'avance a tout le monde
-         punirait le cas majoritaire. -->
     <div id="hubPassAsk" hidden>
       <div id="hubPassAskHead">
         <div class="sectionTitle">Salle protégée</div>
@@ -434,14 +256,9 @@
       </div>
     </div>
 
-    <!-- La creation dans son propre encart : c'est une action, elle ne doit pas
-         flotter au milieu de la page comme une ligne de plus. -->
     <div class="hubCreate">
       <div class="sectionTitle">Créer une salle</div>
       <p class="hubLead">Tu en deviens l'hôte : la difficulté et le lancement te reviennent.</p>
-      <!-- Les champs sont ETIQUETES. Deux champs cote a cote dont le second est
-           facultatif, ca ne se devine pas d'un placeholder qui disparait des
-           qu'on tape : l'etiquette reste, le placeholder donne l'exemple. -->
       <div class="row" id="hubCreateRow">
         <label class="fieldWrap">
           <span class="fieldLabel">Nom de la salle</span>
@@ -457,16 +274,8 @@
 
     <div id="hubStatus"></div>
 
-    <!-- le compte : qui je suis, en sortir, changer le mot de passe. Au hub et
-         pas au salon — c'est l'ecran d'identite, le salon est l'ecran d'une
-         partie. En PIED DE PAGE : on y touche une fois par soiree. -->
     <div id="hubAccount">
       <div class="row">
-        <!-- ETIQUETTE puis VALEUR : « Connecté comme » est le libelle, le pseudo
-             est ce qu'on vient verifier. Ils ne peuvent pas etre du meme gris.
-             Les deux actions sont des LIENS de compte, pas des refus : elles
-             prennent le cyan et disent leur action en entier — « mot de passe… »
-             ne disait pas ce qu'il allait en faire. -->
         <span id="hubWho" class="hint"></span>
         <button id="hubPassToggle" class="link">Changer de mot de passe</button>
         <button id="hubLogout" class="link">Se déconnecter</button>
@@ -484,40 +293,22 @@
   </div>
 </div>
 
-<!-- bilan de fin de manche. Ecran a part du salon : tant que le salon suivant
-     etait affiche en dessous, le joueur ne lisait jamais son bilan. -->
 <div id="bilan" class="overlay" hidden>
   <div class="bilanWrap">
-    <!-- OU l'on etait : nom de la salle et difficulte. C'est la seule chose de
-         l'ecran qui situe la partie plutot que de la mesurer. -->
     <div id="bilanKicker" class="sectionTitle"></div>
     <div id="bilanTitle"></div>
     <p id="bilanLead">Clique sur une ligne du tableau pour ouvrir le build de ce joueur.</p>
 
-    <!-- QUATRE chiffres de table, pas un de plus. Survie et kills disent
-         comment la manche s'est passee, l'effectif et le numero de manche la
-         situent. Tout le reste — degats, DPS, subis — est dans le tableau,
-         ventile par joueur, ou il veut dire quelque chose. -->
     <div id="bilanStats"></div>
 
-    <!-- De quoi l'equipe est morte, ventile par provenance. C'est la seule
-         question que le tableau des scores ne traite pas : on sait combien on
-         a encaisse, jamais de quoi. -->
     <div id="bilanHurt"></div>
 
-    <!-- Diagnostic reseau (?perf) : les totaux de SESSION se lisent ici, mort
-         ou vivant — pas besoin de survivre jusqu'aux vagues denses. Vide sinon. -->
     <div id="bilanPerf" hidden></div>
 
     <div id="bilanTableWrap">
       <table id="bilanScores"><tbody></tbody></table>
     </div>
 
-    <!-- DEUX sorties, et RIEN D'AUTRE : reprendre au salon, ou remonter au
-         hub. L'echeance automatique a ete retiree — voir client.js. Un ecran
-         qui se retire tout seul pendant qu'on le lit est un defaut, et le
-         compte a rebours qui l'annoncait mettait la lecture sous minuterie
-         pour rien. -->
     <div id="bilanNext">
       <div class="row">
         <button id="bilanGo">Continuer</button>
@@ -527,20 +318,6 @@
   </div>
 </div>
 
-<!-- FIN DE MANCHE : ce qui vient d'arriver, avant les chiffres.
-     Une manche se terminait sur l'apparition d'un tableau de scores : la seule
-     chose que le joueur voulait savoir — je suis tombe, ou j'ai gagne, et
-     jusqu'ou — se lisait en cherchant un titre au-dessus d'une grille.
-
-     Ce que le lot W refusait, c'est DEUX ECRANS EN CONCURRENCE : le salon
-     restait affiche sous le bilan et lui volait l'attention. Ici il n'y a
-     aucune concurrence — cet ecran est seul, il porte trois chiffres et UNE
-     action, qui mene exactement la ou l'on allait deja.
-
-     Aucun message serveur nouveau : tout vient du `roundEnd` que le bilan lit
-     deja. Et AUCUN compte a rebours — un ecran qui se ferme tout seul
-     redeviendrait le voile qu'on traverse sans lire, ce que le bilan a
-     precisement fini par refuser. -->
 <div id="fin" class="overlay" hidden>
   <div class="finWrap">
     <div id="finKicker" class="sectionTitle"></div>
@@ -550,20 +327,9 @@
   </div>
 </div>
 
-<!-- TERMINAL (lot H) : l'ecran de la progression permanente, plein ecran,
-     ouvert depuis le bouton unique du salon. Les trois arbres se consultent
-     par onglets de classe ; les emplacements — la contrainte qui structure
-     toutes les decisions — restent visibles en permanence, jamais derriere
-     un clic. Confort et jalons passent en onglets plutot qu'en empilement.
-     Les tables viennent de shared/progression.js, le serveur n'envoie que
-     l'etat du compte et valide chaque achat de son cote. -->
 <div id="menu" class="overlay" hidden>
   <div class="metaWrap">
 
-    <!-- `#metaCores` sort de `.sectionTitle` pour devenir un chiffre a part
-         entiere : c'est l'information qu'on vient chercher, elle ne doit pas
-         etre le suffixe d'un libelle. Unite en toutes lettres — client.js rend
-         `${pr.cores} noyaux`, jamais un glyphe de monnaie. -->
     <div class="metaHead">
       <div>
         <div class="sectionTitle">Progression permanente</div>
@@ -582,12 +348,6 @@
       individuels.
     </p>
 
-    <!-- progression permanente (lot D), devenue le TERMINAL au lot H. La
-         coquille — tete, lead, bouton de retour — vient de la refonte ; les
-         onglets, la ligne d'emplacements et les cartes bannies viennent du
-         plan 4. Les deux repondent a la meme objection par des moyens
-         differents : « quel arbre montre ce bouton » se resout par l'entree
-         (sous la carte choisie) ET par les onglets, une fois dedans. -->
     <div id="metaClassTabs"></div>
     <div id="metaSlots"></div>
 
@@ -598,9 +358,6 @@
       <button id="metaTabBans">Bannies</button>
     </div>
 
-    <!-- Plus de kicker par liste : les onglets ci-dessus les nomment deja, et
-         un titre de section reste visible quand sa liste est repliee — on
-         lisait « Tronc de confort » au-dessus de l'arbre. -->
     <div id="meta" hidden>
       <div id="metaSub" class="hint"></div>
       <div id="metaTree"></div>
@@ -616,17 +373,6 @@
   </div>
 </div>
 
-<!-- PARAMETRES. Les reglages vivaient a DEUX endroits qui ne se parlaient
-     pas — l'ecran de connexion et le menu pause — donc impossible de baisser
-     la musique depuis un salon, et le pense-bete des touches n'etait
-     consultable qu'AVANT de s'etre connecte, c'est-a-dire au seul moment ou
-     l'on ne s'en sert pas.
-
-     Les trois jeux de curseurs reglent la MEME valeur (`#vol` / `#pauseVol` /
-     `#setVol`, et leurs trois equivalents musique) : `audioUi` dans client.js
-     est le point de passage unique qui les tient synchronises, libelle de
-     pourcentage compris. Trois curseurs qui afficheraient trois nombres
-     differents pour un seul volume seraient pires qu'un seul. -->
 <div id="settings" class="overlay" hidden>
   <div class="setWrap">
 
@@ -663,9 +409,6 @@
       </div>
     </section>
 
-    <!-- Le pense-bete des touches, STATIQUE : rien a brancher, le markup
-         porte les libelles. Il vivait sur l'ecran de connexion et n'y servait
-         a rien ; il devient consultable en cours de partie. -->
     <section class="setCard">
       <div class="sectionTitle">Contrôles</div>
       <p class="setLead">Disposition AZERTY. La souris sert toujours à viser.</p>
@@ -716,11 +459,6 @@
   </div>
 </div>
 
-<!-- Salon. C'etait l'ecran qui souffrait le plus : sept blocs empiles au
-     centre, dont un bouton de lancement qui remontait ou descendait selon le
-     nombre de joueurs. Desormais DEUX COLONNES — les CHOIX a gauche (classe,
-     difficulte), l'ETAT a droite (equipe, historique, table) — et l'action
-     ancree en bas de fenetre, donc toujours au meme pixel. -->
 <div id="panel" class="overlay" hidden>
   <div class="panelWrap">
 
@@ -730,25 +468,16 @@
         <h1 id="panelTitle">Salon</h1>
         <div id="summary"></div>
       </div>
-      <!-- Quitter la salle, pas la partie du reste de la table. Action
-           SECONDAIRE, donc en haut a cote du titre : en bas, elle
-           concurrencerait le lancement. « Quitter la salle » et non « Retour
-           aux salons » — le libelle nomme ce qu'on fait, pas l'ecran ou l'on
-           atterrit, et la barre superieure porte deja ce retour-la. -->
       <div class="row panelLeaveRow">
         <button id="panelLeave">← Quitter la salle</button>
       </div>
     </div>
 
-    <!-- DEUX COLONNES : les CHOIX à gauche, l'ÉTAT à droite -->
     <div class="panelGrid">
 
       <div class="panelChoices">
         <div id="classes">
           <div id="classLabel" class="sectionTitle">1 — Classe</div>
-          <!-- Le lead dit la REGLE, qui ne bouge jamais ; `#classHint`, sous les
-               cartes, dit l'ETAT. La phrase « sans choix explicite, tu entres en
-               Tireur » etait ecrite aux deux endroits, a trois lignes d'ecart. -->
           <p class="panelLead">
             Rempart et Soigneur sont uniques : un seul joueur chacun.
           </p>
@@ -767,10 +496,6 @@
       </div>
 
       <aside class="panelState">
-        <!-- L'EQUIPE : qui est la, avec quelle classe, prêt ou non, et a quelle
-             latence. Rien de tout cela n'existait, et c'est ce qui manquait le
-             plus depuis le passage du reseau local au jeu en ligne — on ne peut
-             plus demander « t'es prêt ? » a voix haute. -->
         <section class="panelCard">
           <div class="panelCardHead">
             <span class="sectionTitle">Équipe</span>
@@ -798,28 +523,15 @@
     <div id="voteLabel" class="sectionTitle">Difficulté</div>
     <div id="voteRow"></div>
     <div id="voteHint"></div>
-    <!-- Ce que le mode change, en trois lignes (lot T). Rempli depuis le PROFIL
-         de difficulte : depuis qu'un mode est un bestiaire, des traits et un
-         sol, voter sur le seul mot « cauchemar » est voter a l'aveugle. -->
     <ul id="voteDetail"></ul>
   </div>
 
-  <!-- BARRE D'ACTION FIXE — enfant DIRECT de #panel et non de .panelWrap :
-       elle est en `position: fixed` et heriterait sinon de la largeur de la
-       colonne. `#waitMsg` y vit, a gauche du bouton : c'est lui qui explique
-       pourquoi `#start` ne repond pas, et un bouton grise sans explication
-       passe pour une panne. -->
   <div class="panelBar">
     <div class="panelBarInner">
       <div class="panelBarText">
         <div id="launchSummary"></div>
         <div id="waitMsg"></div>
       </div>
-      <!-- UN SEUL point d'entree vers la progression, et il vit sous la carte
-           de classe choisie : il dit du meme coup QUEL arbre il ouvre. Le
-           bouton « Terminal » de cette barre faisait doublon — meme ecran, sans
-           cette precision. Sa pastille de noyaux depensables l'a suivi la-bas,
-           c'etait la seule chose qu'il apportait. -->
       <div class="row">
         <button id="start">Lancer la manche</button>
       </div>
@@ -827,16 +539,6 @@
   </div>
 </div>
 
-<!-- BRIEFING DE CLASSE. Il s'intercale entre le salon et la manche, et c'est
-     une vraie phase SERVEUR (`PHASE_BRIEF`) : la simulation n'a pas commence,
-     donc « entrée en jeu dans N s » dit la verite au lieu de recouvrir une
-     manche qui tourne deja. Tout son contenu se deduit de `CLASSES` — nom,
-     touches, competences, mission — donc aucun de ces textes ne voyage sur le
-     reseau : le client importe le meme module que le serveur.
-
-     La teinte de la classe est posee en variable (`--tint`) sur le conteneur,
-     depuis `couleur` : un seul point d'entree pour le titre, les touches et le
-     lisere des cartes. -->
 <div id="brief" class="overlay" hidden>
   <div class="briefWrap">
     <div id="briefName"></div>
@@ -844,10 +546,6 @@
 
     <div id="briefSkills"></div>
 
-    <!-- La TROISIEME competence. Elle n'existe que par une carte, et c'est
-         justement pour ca qu'il faut l'annoncer ici : sans cette ligne, la
-         touche 3 ne se decouvre qu'en tirant la carte, c'est-a-dire au pire
-         moment. Remplie par client.js — le nom depend de la classe. -->
     <div id="briefThird"></div>
 
     <div id="briefMission">
@@ -855,30 +553,19 @@
       <p id="briefMissionText"></p>
     </div>
 
-    <!-- Le rappel des trois touches de base. STATIQUE : il ne depend pas de la
-         classe, et le markup porte les libelles comme dans `#settings`. -->
     <div id="briefBasics">
       <span class="briefBasic"><b>ZQSD</b> se déplacer</span>
       <span class="briefBasic"><b>Souris</b> viser</span>
       <span class="briefBasic"><b>Espace</b> esquiver</span>
     </div>
 
-    <!-- « Continuer » RETIRE LE VOILE, il ne lance rien : la manche tourne
-         deja dessous, on peut se placer sur la carte pendant que la vague est
-         retenue. Le compte a rebours continue donc de courir sans l'ecran. -->
     <button id="briefGo">Continuer</button>
     <div id="briefBar"><i></i></div>
     <div id="briefCount">première vague dans <b id="briefLeft">—</b> s</div>
   </div>
 </div>
 
-<!-- ecran de choix de carte, a chaque niveau d'equipe -->
 <div id="cards" class="overlay" hidden>
-  <!-- Le titre de cet ecran est une PHRASE — « Vague 12 terminée — niveau 7 —
-       encore 1 choix après celui-ci » — et une phrase ne dit pas de quel ecran
-       il s'agit : elle dit ce qui vient de se passer. Les deux mots qui
-       manquent comptent parce que l'ecran s'ouvre sous minuterie, sans
-       transition, au milieu d'une manche. Statique, rien a brancher. -->
   <div id="cardsKicker">Choix de carte</div>
   <div id="cardsTitle"></div>
   <div id="cardsTimer"><i></i></div>
@@ -886,9 +573,6 @@
   <div id="cardsWaitMsg"></div>
 </div>
 
-<!-- Marchand de reliques (lot K) : apres chaque victoire de boss, 3 reliques
-     a acheter contre des eclats — ce n'est PAS un choix exclusif comme les
-     cartes, c'est un budget a repartir. La relance se paie. -->
 <div id="merchant" class="overlay" hidden>
   <div id="merchantTitle"></div>
   <div id="merchantTimer"><i></i></div>
@@ -896,21 +580,8 @@
   <div id="merchantWaitMsg"></div>
 </div>
 
-<!-- Fenetre de BUILD. Un seul ecran pour trois entrees : Tab en jeu, un clic sur
-     une ligne du bilan, un clic sur une ligne du salon. Le panneau d'inventaire
-     du lot 1 en etait deja la moitie — il ne manquait que la selection du
-     joueur, d'ou les fleches et non une seconde fenetre.
-
-     La ligne des MULTIPLICATEURS est la plus interessante des cinq : « ×2,4
-     dégâts, ×1,8 cadence » explique le tableau des scores bien mieux que la
-     liste des cartes, qu'il faut lire ligne a ligne pour en tirer la meme
-     chose. -->
 <div id="build" class="overlay" hidden>
   <div class="buildWrap">
-    <!-- L'identite est le NOM et la CLASSE, rien d'autre. La silhouette a
-         disparu : elle repetait ce que le libelle de classe dit deja, et elle
-         etait la seule piece de l'ecran a demander un canvas et un repaint a
-         chaque changement de joueur. -->
     <div id="buildHead">
       <button id="buildPrev" class="buildNav" title="joueur précédent">◀</button>
       <div id="buildIdent">
@@ -922,9 +593,6 @@
 
     <div id="buildStats"></div>
 
-    <!-- Trois sections nommees. Elles etaient trois blocs qui se suivaient sans
-         rien dire : on lisait des puces, des lignes et des cartes sans savoir
-         ou l'une finissait. -->
     <div id="buildModsTitle" class="sectionTitle">Multiplicateurs</div>
     <div id="buildMods"></div>
 
@@ -941,10 +609,6 @@
   </div>
 </div>
 
-<!-- Menu pause. Il n'est PAS un `.overlay` : a plusieurs la partie continue
-     derriere, et le voile doit donc rester translucide pour qu'on la voie. Le
-     libellé dit pourquoi — un panneau identique qui met en pause ici et pas là
-     passerait pour un bug. -->
 <div id="pause" hidden>
   <div id="pausePanel">
     <div id="pauseTitle">Pause</div>
@@ -979,17 +643,9 @@
   </div>
 </div>
 
-<!-- Numéro de version, en bas à droite. FRÈRE des écrans et non leur contenu,
-     comme `#hud` est le frère de `#arena` : il doit survivre à l'écran qui
-     s'ouvre par-dessus. Masqué pendant une manche — « rien de décoratif ne se
-     superpose au jeu » — sauf menu pause, qui est justement le moment où on le
-     recopie dans un rapport de défaut. Vide au chargement : c'est `client.js`
-     qui le remplit, depuis `shared/version.js`. -->
 <div id="version" hidden></div>
 
 <script>
-  // Si client.js ne se charge pas (mauvaise arborescence, ouverture en file://),
-  // le bouton reste inerte sans le moindre message. On rend l'echec visible.
   window.addEventListener("error", e => {
     const s = document.getElementById("status");
     if (!s || window.__clientReady) return;

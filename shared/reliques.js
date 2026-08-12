@@ -1,77 +1,16 @@
-/* ===========================================================================
-   RELIQUES (lot K) — module pur, comme cards.js : il ne depend de RIEN,
-   game_state.js l'importe, jamais l'inverse (un cycle d'import casserait le
-   chargement dans le navigateur).
 
-   Une relique s'ACHETE au marchand contre des eclats (la monnaie de manche du
-   lot I), apres chaque victoire de boss. Trois differences fondamentales avec
-   les cartes :
-
-     - monnaie   : une carte est gratuite (tirage), une relique se paie ;
-     - effet     : une carte est presque toujours en %, une relique en VALEUR
-       BRUTE — « +8 degats » reste utile sur une build qui n'a pris aucune
-       autre carte de degats, c'est un axe de puissance qui ne depend d'aucun
-       autre choix ;
-     - duree     : l'une et l'autre tiennent une manche, et meurent avec le
-       GameState — jamais de persistance (p.eclats ne se persiste pas).
-
-   Une relique a valeur brute s'applique en AMONT du calcul de puissance, pas
-   en facteur : voir _playerPower() et les points de calcul de degats.
-   =========================================================================== */
-
-/* Paliers de rarete. Meme structure que les cartes, quatre prix croissants.
-   La contrainte « une seule legendaire par manche » evite qu'une manche
-   tres genereuse en eclats cumule plusieurs effets exceptionnels et
-   desequilibre le combat de boss suivant : elle vit dans le GameState de la
-   salle (une par manche, pas par compte), jamais ici. */
 export const RELIC_RARITY = ["commune", "rare", "epique", "legendaire"];
 
 export const RELIC_CFG = {
-  /* L'offre du marchand (lot K). Trois reliques proposees, achats
-     INDEPENDANTS — contrairement aux cartes ce n'est pas un choix exclusif,
-     c'est un budget a repartir : un joueur en achete zero, une, deux ou les
-     trois s'il a assez d'eclats.
-
-     La relance (reroll) se paie en eclats, a un cout CROISSANT avec le NIVEAU
-     D'EQUIPE (la vague, au lot K — le lot P l'a supprimee et D3 a fait du
-     niveau son successeur pour tout ce qui s'indexait dessus) :
-     un cout fixe se banalise en fin de manche quand les eclats abondent, et
-     une relance systematique viderait le marchand de son interet — ce serait
-     quatre tirages au lieu d'un, a prix constant. La spec laissait la
-     question ouverte ; decision du porteur (2026-08-06) : oui, cout croissant.
-
-     Les prix sont la valeur de DEPART de la liste validee par le porteur
-     (2026-08-06) ; l'equilibrage fin viendra en jouant, mesures a l'appui. */
   OFFER_COUNT: 3,
-  PICK_TIME: 30,           // delai de l'ecran, en secondes — au bout, on ferme
-                           // sans forcer d'achat (contrairement aux cartes)
-  REROLL_BASE: 6,          // cout de la premiere relance, en eclats
-  REROLL_LEVEL: 2,         // eclats ajoutes par niveau d'equipe (croissance)
-  PRICE: [25, 45, 80, 150], // par palier de rarete — ordre = RELIC_RARITY
-  /* La relique se revent-elle ? Non. Pas de debannissement, pas de revente :
-     le marchand est une decision, pas un marche. */
+  PICK_TIME: 30,
+  REROLL_BASE: 6,
+  REROLL_LEVEL: 2,
+  PRICE: [25, 45, 80, 150],
 };
 
-/* --- les dix reliques ------------------------------------------------------
-
-   Chaque relique declare ce qu'elle fait sous forme de CLES que la simulation
-   lit : `flatDamage` (ajoute aux degats d'un tir, avant les multiplicateurs),
-   `flatHp` (ajoute aux PV max), `rateFlat` (intervalle de tir en secondes,
-   SOUSTRAIT), ou un `mode` special pour les comportements que des chiffres ne
-   suffisent pas a dire (filtre, batterie, essaim, memoire, coeur-machine).
-
-   Convention d'identifiants : francais SANS accents (comme partout dans le
-   depot — seules les chaines affichees au joueur portent des accents).
-   `mémoire_gravee` de la spec est donc `memoire_gravee` ici : l'identifiant
-   circule dans le protocole d'achat, et un accent y aurait ete le premier du
-   depot.
-
-   La note sur `coeur_machine` de la spec reste d'actualite : c'est la seule
-   relique a contrepartie, et la contrepartie (vitesse fixee a la base) est le
-   candidat le plus probable a retravailler en jouant. */
 
 export const RELICS = [
-  /* --- Communes --- */
   {
     id: "eclat_dur", nom: "Éclat dur", tier: 0,
     flatDamage: 6,
@@ -88,7 +27,6 @@ export const RELICS = [
     desc: "−0,03 s d'intervalle de tir",
   },
 
-  /* --- Rares --- */
   {
     id: "noyau_instable", nom: "Noyau instable", tier: 1,
     flatDamage: 18, flatHp: -10,
@@ -106,7 +44,6 @@ export const RELICS = [
     desc: "le bouclier, une fois vide, se recharge une fois à 50 % de sa jauge (une fois par manche)",
   },
 
-  /* --- Epiques --- */
   {
     id: "coeur_de_ravageur", nom: "Cœur de Ravageur", tier: 2,
     bossDamage: 35,
@@ -123,7 +60,6 @@ export const RELICS = [
     desc: "la première compétence utilisée à chaque minute de horde a sa recharge immédiatement réinitialisée",
   },
 
-  /* --- Legendaire --- */
   {
     id: "coeur_machine", nom: "Cœur-machine", tier: 3,
     flatDamage: 50, flatHp: 80, speedFixed: true,
@@ -137,15 +73,10 @@ export function relicById(id) {
   return null;
 }
 
-/* Prix d'une relique, en eclats. */
 export function relicPrice(r) {
   return RELIC_CFG.PRICE[r.tier] ?? 0;
 }
 
-/* Cout d'une relance de l'offre, croissant avec le niveau d'equipe. Le
-   parametre s'est toujours appele `niveau` ; c'est l'APPELANT qui lui passait
-   `this.wave`, champ disparu au lot P — donc NaN, donc un marchand grise pour
-   le reste de la manche. Corrige en 0.8.6, cf. `rerollRelic`. */
 export function relicRerollCost(niveau) {
   return Math.round(RELIC_CFG.REROLL_BASE + RELIC_CFG.REROLL_LEVEL * Math.max(0, niveau - 1));
 }

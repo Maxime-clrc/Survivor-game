@@ -1,49 +1,4 @@
-/* LE BESTIAIRE — module PUR, aucune dependance.
 
-   `game_state.js` l'importe, jamais l'inverse : un cycle d'import casserait le
-   chargement dans le navigateur, exactement comme pour `statuses.js`,
-   `bosses.js`, `cards.js` et `timeline.js`.
-
-   Il sort `ENEMY_TYPES` de `game_state.js`, et ce n'est pas un refactor gratuit :
-   le fichier de simulation fait pres de sept mille lignes, le bestiaire passe de
-   cinq a NEUF types avec des comportements propres, et les quatre autres tables
-   de contenu (etats, cartes, classes, boss) en sont deja sorties pour cette
-   raison exacte. C'etait la derniere.
-
-   Les constantes de comportement des TRAITS vivent ici, a cote de leur table, et
-   jamais dans `CFG` : meme regle que `CARD_CFG`, `SKILL_CFG`, `STATUS_CFG`,
-   `BOSS_CFG` et `TL_CFG`. Celles qui appartiennent a UN type (portee du
-   bouclier, rayon d'explosion, aura du choeur) restent sur la ligne du type,
-   comme `shootCd`, `standoff` et `splits` l'ont toujours fait.
-
-   ---------------------------------------------------------------------------
-   LE PRINCIPE : DES MODULES, PAS DES VARIANTES.
-
-   La demande etait « un ennemi qui court en calme, charge en normal, laisse une
-   trainee en cauchemar ». Trois bestiaires distincts auraient commis l'erreur
-   que le depot refuse explicitement depuis `adaptMech` : cinq variantes de cinq
-   boss auraient derive au premier reglage. Un TRAIT est un module de
-   comportement attache a un couple (type, difficulte) — un seul type, une seule
-   table de statistiques, un comportement qu'on ecrit une fois et qu'on attache
-   ou l'on veut.
-
-   ZERO OCTET DE RESEAU. La difficulte voyage deja dans le salon, le type est
-   deja dans l'instantane : le client DEDUIT l'ensemble des traits d'un ennemi de
-   `(diffIndex, type)`. Meme regle que la cadence des tireurs, la direction des
-   projectiles et le deplacement d'un joueur. La seule exception est
-   l'anticipation de la ruee, qui ne se deduit pas d'une position — elle passe
-   par la cle nommee `wu` du snapshot, courte par construction. */
-
-/* --- les traits --------------------------------------------------------------
-
-   TABLEAU ORDONNE, mais son index NE CIRCULE PAS : c'est un registre purement
-   client au meme titre que le son, le glyphe et l'image de sprite. On peut donc
-   le reordonner sans rien casser — c'est l'exception, pas la regle.
-
-   Les identifiants sont des INDEX ; le masque porte par un ennemi est fait de
-   bits (`traitBit`). Un masque et non une liste : c'est un nombre par ennemi,
-   teste par un `&` dans une boucle qui tourne sur deux cents corps a soixante
-   images par seconde. */
 export const TRAIT_DASH = 0;
 export const TRAIT_TRAIL = 1;
 export const TRAIT_VOLLEY = 2;
@@ -63,168 +18,35 @@ export const TRAITS = [
 export function traitBit(id) { return 1 << id; }
 
 export const TRAIT_CFG = {
-  /* RUEE. Le preavis n'est pas negociable : un dash sans anticipation visible
-     est une teleportation, et l'anticipation NE SE DEDUIT PAS d'une position —
-     c'est exactement la limite deja notee pour la cadence des tireurs. D'ou la
-     cle `wu` du snapshot. */
   DASH_WARN: 0.5,
   DASH_MUL: 2.5,
   DASH_TIME: 0.35,
   DASH_CD: 6,
-  /* Vitesse PENDANT le preavis. L'anticipation doit se lire de deux facons —
-     l'ecrasement du sprite, que le client tire de `wu`, et le ralentissement,
-     qui reste lisible quand la creature est cachee par la masse. Une seule des
-     deux et l'ennemi enseveli sous vingt corps ruait sans prevenir. */
   DASH_GATHER: 0.25,
-  /* Portee de declenchement. Une ruee lancee de l'autre bout de l'arene se
-     termine dans le vide, et le joueur ne la relie jamais a l'anticipation qu'il
-     a vue passer six secondes plus tot. */
   DASH_RANGE: 420,
 
-  /* TRAINEE. Le plafond n'est PAS indicatif. Le depot a deja rencontre le piege
-     avec les flaques de la Matriarche : sans lui, une fin de combat a deux cents
-     ennemis pavait le sol, l'instantane enflait et la mecanique devenait
-     illisible avant d'etre difficile. `PUDDLE_MAX: 25` est le precedent, et deux
-     cents ennemis a trainee sont un cas bien plus dense qu'un combat de boss.
-     La zone la PLUS ANCIENNE cede sa place — pas de refus silencieux, sinon la
-     trainee du premier ennemi arrive fige le sol pour toute la manche.
-
-     `TRAIL_STEP` est la distance parcourue entre deux depots. Sans elle, un
-     ennemi a 95 px/s poserait soixante zones par seconde et mangerait le plafond
-     a lui tout seul. */
   TRAIL_LIFE: 4,
   TRAIL_DOT: 14,
   TRAIL_R: 26,
   TRAIL_MAX: 18,
   TRAIL_STEP: 46,
 
-  /* SALVE. Trois projectiles au lieu d'un, meme cadence : c'est la couverture
-     qui change, pas le debit de degats par tir. */
   VOLLEY_COUNT: 3,
   VOLLEY_SPREAD: 0.22,
 
-  /* FRENESIE. La vitesse monte a mesure que les PV descendent, jusqu'a x1,6 a
-     10 % de PV. C'est le seul trait qui rende un ennemi PLUS dangereux quand on
-     l'a presque tue — donc le seul qui punisse de laisser un blesse derriere. */
   FRENZY_MAX: 1.6,
   FRENZY_AT: 0.1,
 
-  /* SPORES. Petite zone remanente a la mort. Elle compte dans `TRAIL_MAX` :
-     c'est la meme surface au sol, et le plafond porte sur ce que le joueur doit
-     lire, pas sur la mecanique qui l'a pose. */
   SPORE_LIFE: 3,
   SPORE_DOT: 10,
   SPORE_R: 22,
 
-  /* AURA. Reduction des degats SUBIS par les ennemis proches. Elle ne se cumule
-     jamais : deux porteurs sur la meme cible appliquent la MEILLEURE reduction,
-     jamais le produit — meme regle que le Voeu partage et que les auras de
-     givre. Sans cette regle, trois porteurs groupes rendaient un paquet
-     strictement increvable. */
   AURA_RADIUS: 90,
   AURA_REDUCTION: 0.35,
 };
 
-/* --- les neuf types -----------------------------------------------------------
-
-   L'ORDRE FAIT FOI : l'index circule dans l'instantane (champ de type, rang
-   d'elite encode a +100). On ajoute EN FIN, jamais au milieu — les quatre
-   nouveaux occupent donc les index 5 a 8.
-
-   `minMin` est la MINUTE DE HORDE a partir de laquelle un type peut sortir.
-
-   Il a remplace deux choses successivement, et le detour vaut d'etre garde.
-   D'abord `from`, qui disait la VAGUE — il n'y a plus de vague. Puis `minLevel`,
-   qui disait le NIVEAU D'EQUIPE, au nom de D3 : « une equipe en retard arrivee a
-   la minute 12 au niveau 4 n'a pas les degats pour des tanks ».
-
-   LA MESURE A TRANCHE CONTRE `minLevel`. En calme solo, le niveau 2 arrive a la
-   DIXIEME MINUTE — 468 grunts a tuer pour le premier palier — donc le runner
-   sortait a la minute 10, le tank jamais, et une partie entiere se jouait contre
-   un seul type. Un verrou cense proteger une equipe en retard bloquait en fait
-   tout le monde : il indexait le CONTENU sur une courbe de progression qui n'est
-   pas faite pour ca.
-
-   Le temps, lui, est la seule chose que toutes les equipes partagent — c'est
-   D1 : « toutes les equipes voient la meme quantite de horde ». Un type qui sort
-   a la minute 5 sort a la minute 5 pour tout le monde, et c'est ce qui rend la
-   manche RACONTABLE, au meme titre que la choregraphie du segment 4.
-
-   C'est aussi plus fidele a D2 qu'auparavant. `adaptType` etait decrit comme
-   « la seule boucle de retroaction du design qui survit a D2 » ; sur le temps,
-   il n'y a plus de boucle du tout — la pression est ECRITE, point. Ce qui reste
-   d'`adaptType` est le repli de la table, qui n'a jamais lu une performance.
-
-   `fallback` garde exactement le meme role et la meme signature que
-   `minPlayers` / `fallback` de `MECHS`.
-
-   `weight` est le poids dans le tirage, `share` le plafond de population
-   (`share x MAX_ENEMIES` simultanes). La somme des `share` peut depasser 1 sans
-   probleme ; ce qu'aucun type ne doit pouvoir faire, c'est occuper seul la
-   moitie de l'arene — sans ce garde-fou, les tireurs, qui restent hors du corps
-   a corps et meurent rarement, finissaient par occuper 117 des 180 places.
-
-   `score` et `xp` sont DEUX MONNAIES et ne se confondent jamais. `score` dit la
-   valeur TACTIQUE d'une cible et n'est lu que par le tableau des scores ; `xp`
-   dit sa valeur ECONOMIQUE et alimente la seule progression du jeu. Un tireur
-   vaut plus au tableau qu'un grunt a surface egale, un tank vaut plus a la jauge
-   parce qu'il coute plus de degats — ce ne sont pas les memes classements.
-
-   `xp` a remplace les PV MAX comme unite de progression, et l'aller-retour vaut
-   d'etre garde. Le modele d'origine payait un score fixe (10 a 30 points) : les
-   PV des ennemis montant x20 sur la manche, un grunt de la minute 30 coutait
-   vingt fois plus de degats pour la meme recompense, et l'experience par minute
-   s'effondrait la ou la courbe devait s'ouvrir. Le lot Q a donc paye les PV MAX,
-   ce qui reglait exactement ce defaut — et en creait le symetrique : au debut un
-   grunt vaut 16 PV, donc le PREMIER palier ne se remplissait pas. Mesure : apres
-   une minute en solo, on n'avait pas la moitie du niveau 1.
-
-   La reponse tient les deux bouts : une valeur ECRITE par type, multipliee par
-   une courbe indexee sur le NIVEAU D'EQUIPE (`CFG.XP_LEVEL_GROWTH`). Le debut
-   paie tout de suite parce que la valeur ne depend plus des PV ; la fin ne
-   s'effondre pas parce que la courbe suit la progression. Et surtout la valeur
-   est un REGLAGE et non une consequence : on peut rendre un bulwark plus payant
-   qu'un tank sans toucher a ses PV.
-
-   Les valeurs sont calees sur le grunt a 10, et refletent le COUT EN DEGATS
-   plutot que la menace : le runner meurt en un tir malgre sa vitesse, le
-   kamikaze a la moitie des PV d'un grunt. C'est ce qui evite la boucle que le
-   depot refuse — payer la menace reviendrait a recompenser le fait de laisser
-   vivre ce qui fait mal.
-
-   NE JAMAIS ECRIRE DANS CETTE TABLE. Elle est partagee, exportee et lue par le
-   client : `standoff` est COPIE sur l'ennemi (`e.standoff`), et tout ce que le
-   comportement d'un individu modifie doit l'etre aussi. */
 export const ENEMY_TYPES = [
   { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10, xp: 10 },
-  /* LE RUNNER EST LE SEUL POURSUIVANT DU BESTIAIRE, et il ne poursuivait rien.
-     A 188 il etait sous les 260 du joueur : un runner ne derriere une cible qui
-     se deplace perdait 72 px/s et ne revenait jamais. La rampe de vitesse
-     (`ENEMY_SPEED_MIN_RAMP`, 4 px/s par minute de horde) finissait par le
-     rattraper — minute 13 contre un Rempart, 18 contre un Soigneur, 21 contre un
-     Tireur — donc sur une manche de trente minutes, la moitie du temps rien ne
-     pouvait toucher un joueur en mouvement. Aucun autre type n'y arrive JAMAIS :
-     le kamikaze, deuxieme plus rapide a 118, demanderait 35 minutes.
-
-     A 245 il passe au-dessus du Rempart (239) des la premiere minute, du
-     Soigneur vers la minute 4 et du Tireur vers la minute 6. Les cartes de
-     vitesse (+7, +14, +22 %) le repoussent ensuite exactement comme prevu : une
-     build orientee vitesse le distance jusqu'a la fin de manche, et c'est ce
-     qu'elle achete.
-
-     La valeur est calee sur la classe la PLUS LENTE et non sur la moyenne : on
-     veut qu'un joueur sans amelioration soit rattrape, pas que le bestiaire
-     depasse tout le monde d'emblee. Ses PV restent a 0,45 — c'est ce qui empeche
-     un poursuivant permanent de devenir un mur.
-
-     Mesure, marche en ligne droite, 600 s, trois manches : la part des ennemis
-     nes DERRIERE qui atteignent le contact passe de 3,5 % a 5,5 %. Elle n'etait
-     pas nulle avant, et c'est le second enseignement de la mesure — l'arene est
-     FINIE, donc un joueur qui fuit tout droit atteint un mur en dix-huit
-     secondes et se fait rejoindre. On ne distance jamais indefiniment ; on
-     distance jusqu'au mur. L'effet sur la survie reste dans le bruit a ce nombre
-     de manches (245 s contre 230 en solo, 283 contre 318 a quatre) : c'est la
-     poursuite qu'on corrige, pas la difficulte. */
   { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.45, speed: 245, dmg: 12, r: 9,  score: 14, xp: 6 },
   { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 52,  dmg: 30, r: 21, score: 30, xp: 32 },
   { key: "shooter", minMin: 7,   fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25, xp: 14,
@@ -232,111 +54,25 @@ export const ENEMY_TYPES = [
   { key: "brood",   minMin: 9,   fallback: 1,  weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20, xp: 18,
     splits: 3 },
 
-  /* KAMIKAZE (plan4 lot M, repris tel quel). Il punit le corps-a-corps et rend
-     les cartes de degats de zone du joueur risquees a bout portant — une tension
-     qui n'existait nulle part.
-
-     L'explosion se branche au POINT UNIQUE DE MORT (`_killEnemy`) : c'est ce qui
-     garantit « quelle que soit la cause », brulure et zone comprises. Elle est
-     posee comme une zone de 0,15 s d'annonce plutot que resolue seche : le depot
-     n'a pas d'autre facon de dire « ca va exploser la » au client, et le delai
-     court laisse une chance de sortie sans rendre l'explosion gratuite.
-
-     Elle ne blesse QUE les joueurs. `plan4` la voulait aussi sur les ennemis
-     voisins ; ca ouvrait une reaction en chaine (un kamikaze qui en tue un
-     autre) qu'il aurait fallu brider comme l'onde de mort, et surtout une facon
-     de faire nettoyer la horde par la horde — c'est-a-dire de recompenser le
-     fait de ne pas jouer, ce que tout le lot P s'emploie a interdire. */
   { key: "kamikaze", minMin: 12, fallback: 1, weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8, r: 10, score: 18, xp: 8,
     blastRadius: 90, blastDamage: 45, blastDelay: 0.15 },
 
-  /* BULWARK. Bouclier frontal : il faut GAGNER L'ANGLE. Deux consequences
-     indissociables. L'absorption vit dans `_bulletHitEnemy()` — la boucle de
-     collision ET le balayage d'apparition l'appellent, sinon une balle nee a
-     bout portant traverse le bouclier qu'une balle tiree a dix metres respecte.
-     Et son orientation est LIMITEE EN VITESSE (`shieldTurnRate`) au lieu de
-     suivre sa cible a l'image : un bouclier qui se retourne instantanement rend
-     le flanc inatteignable, donc le type injouable. C'est le seul ennemi du jeu
-     dont `e.ang` n'est pas l'angle vers sa cible. */
   { key: "bulwark",  minMin: 15, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 58, dmg: 22, r: 15, score: 32, xp: 22,
     shieldArc: 100, shieldTurnRate: 2.4 },
 
-  /* MEDIC. Le seul type qui force explicitement une priorite de cible. Il reste
-     en retrait (meme logique de `standoff` que le tireur), soigne le voisin
-     blesse, et ROMPT son soin s'il est vise plus d'une seconde — sans quoi il
-     serait un mur qui regenere tout seul indefiniment.
-
-     Son soin est un CHEMIN NEUF et non un `_damage()` negatif : `_damage` porte
-     le vol de vie, les critiques et le compteur de touches, dont aucun n'a de
-     sens sur un soin.
-
-     `share: 0.09`, parmi les plus bas : c'est un multiplicateur de menace pour
-     le reste de la horde, pas un ennemi qu'on veut voir en nombre. */
   { key: "medic",    minMin: 19, fallback: 3, weight: 0.28, share: 0.09, hpMul: 0.9, speed: 68, dmg: 10, r: 13, score: 28, xp: 14,
     standoff: 240, heal: 6, healInterval: 1.2, healRange: 190,
-    /* `fireWindow` : delai au-dela duquel on cesse de le considerer « sous le
-       feu ». Le critere est le temps passe SOUS LE FEU et non « touche
-       recemment » — une balle perdue ne doit pas couper un soin, s'acharner
-       une seconde doit le couper. */
     fireWindow: 0.35, breakTime: 1.0, fleeTime: 3.0 },
 
-  /* CHOEUR — le seul type inedit de ce plan. Le medic pose une priorite de cible
-     sur un INDIVIDU ; le choeur la pose sur un GROUPE : il accorde l'aura a tous
-     les ennemis dans son rayon, plus large que celui de `TRAIT_AURA`. Le tuer
-     d'abord debloque le paquet ; l'ignorer rend une foule ordinaire pres de deux
-     fois plus longue a percer.
-
-     `share: 0.08`, le plus bas du bestiaire : deux choeurs qui se couvrent
-     mutuellement sont un mur, et il faut que ce cas reste rare et intentionnel. */
   { key: "choeur",   minMin: 23, fallback: 4, weight: 0.20, share: 0.08, hpMul: 1.6, speed: 70, dmg: 12, r: 15, score: 30, xp: 20,
     auraRadius: 130, auraReduction: 0.35 },
 ];
 
 export function typeAt(index) { return ENEMY_TYPES[index] ?? ENEMY_TYPES[0]; }
 
-/* --- ou vit l'ATTACHEMENT des traits --------------------------------------------
-
-   PAS ICI, et c'est une decision du lot T. Ce module repond a « comment un dash
-   fonctionne » ; le PROFIL DE DIFFICULTE (`DIFFICULTIES` dans `game_state.js`)
-   repond a « qui l'a ». La table d'attachement a vecu ici le temps du lot S,
-   quand le profil n'existait pas encore ; l'avoir aux deux endroits serait le
-   bug — c'est exactement la duplication que le depot refuse partout ailleurs.
-
-   La regle est celle du depot : les VALEURS d'un comportement vivent a cote de
-   leur table (`CARD_CFG`, `SKILL_CFG`, `STATUS_CFG`, `BOSS_CFG`, `TRAIT_CFG`),
-   son ATTACHEMENT vit la ou se prend la decision. Une difficulte EST un choix
-   d'attachement — c'est meme a peu pres tout ce qu'elle est depuis le lot T.
-
-   Meme raison pour le ROSTER (quels types sortent dans quel mode) : il etait ici
-   sous le nom de `DIFF_TYPES`, il est desormais une ligne du profil.
-   `typesFor()` et `traitsOf()` sont exportes par `game_state.js`. */
 
 export function hasTrait(mask, id) { return (mask & traitBit(id)) !== 0; }
 
-/* --- adaptType : le CALENDRIER des types ----------------------------------------
-
-   Le script nomme la pression de chaque beat ; ce point de passage nomme le
-   moment ou chaque type entre dans la partie. L'argument est la MINUTE DE HORDE,
-   plus le niveau d'equipe.
-
-   IL N'Y A PLUS DE BOUCLE DE RETROACTION. C'etait sa description precedente —
-   « la seule qui survit a D2 » — et elle est tombee a la mesure : indexer le
-   contenu sur le niveau bloquait la partie sur un seul type pendant dix minutes,
-   parce que la courbe de progression n'est pas faite pour porter le rythme du
-   bestiaire. Le calendrier est desormais ECRIT, comme le debit et la geometrie,
-   ce qui rend le systeme strictement conforme a D2 au lieu d'y faire exception.
-
-   Il garde en revanche exactement la meme FORME, et c'est ce qui compte : une
-   table (jamais une formule qui lit une performance), un seuil par type
-   (lisible), UN SEUL NIVEAU DE REPLI comme `adaptMech` — un repli qui replie
-   serait impossible a lire dans la table, qui est justement ce qui rend le
-   systeme tenable. Rend -1 quand meme le repli est hors de portee : l'appelant
-   retombe alors sur le grunt, seul type sans seuil.
-
-   Effet secondaire conserve, le meme que celui deja note pour les cartes
-   verrouillees par jalons : les premieres minutes offrent un pool plus simple,
-   c'est de l'onboarding sans une ligne de tutoriel — a ceci pres qu'il dure
-   maintenant une minute et non une partie entiere. */
 export function adaptType(index, minute) {
   const def = ENEMY_TYPES[index];
   if (!def) return -1;
