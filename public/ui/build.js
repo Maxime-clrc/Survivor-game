@@ -57,16 +57,16 @@ const BUILD_MODS = [
 ];
 const POWER_MARKS = [
   { v: 1.26, lab: "nu" },
-  { v: 2.36, lab: "médiane" },
+  { v: CFG.BOSS_POWER_REF, lab: "médiane" },
   { v: 4.10, lab: "forte" },
   { v: 5.71, lab: "max" },
 ];
 const POWER_SCALE_MAX = 6.5;
-const BOSS_MEDIAN_FIGHT = 95;
+const BOSS_MEDIAN_FIGHT = 70;
 function powerLabel(v) {
   if (v < 1.6) return "faible";
-  if (v < 2.36) return "sous la médiane";
-  if (v < 3.2) return "au-dessus de la médiane";
+  if (v < CFG.BOSS_POWER_REF) return "sous la médiane";
+  if (v < 3.7) return "au-dessus de la médiane";
   if (v < 4.5) return "forte";
   return "exceptionnelle";
 }

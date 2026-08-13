@@ -108,7 +108,7 @@ export const CFG = {
   ELITE_RADIUS_MUL: 1.18,
 
   ENEMY_HP_BASE: 16,
-  ENEMY_HP_MIN_RAMP: 13,
+  ENEMY_HP_MIN_RAMP: 7,
   ENEMY_SPEED_RAMP_PCT: 0.007,
 
   REVIVE_RADIUS: 96,
@@ -130,7 +130,7 @@ export const CFG = {
 
   WAVE_HP_POWER_K: 0,
   WAVE_RATE_POWER_K: 0,
-  BOSS_POWER_REF: 2.36,
+  BOSS_POWER_REF: 2.89,
   CROWD_HYSTERESIS: 8,
 
   SHOT_SPEED: 235,
@@ -5869,4 +5869,151 @@ export function mesureComposition(diffIndex, classes, minutes = 12) {
     subis: subis / (classes.length * Math.max(1, g.time / 60)),
     niveau: g.level, duree: g.time,
   };
+}
+
+function mediane(xs) {
+  if (!xs.length) return null;
+  const t = [...xs].sort((a, b) => a - b);
+  const i = t.length >> 1;
+  return t.length % 2 ? t[i] : (t[i - 1] + t[i]) / 2;
+}
+
+export const TTK_MIN = 0.15;
+export const TTK_MAX = 0.60;
+export const BOSS_FIGHT_MIN = 50;
+export const BOSS_FIGHT_MAX = 90;
+
+export function gruntHp(diffIndex, minute) {
+  return (CFG.ENEMY_HP_BASE + minute * CFG.ENEMY_HP_MIN_RAMP)
+    * DIFFICULTIES[diffIndex].hp * ENEMY_TYPES[0].hpMul;
+}
+
+// `powerIndex` EST le multiplicateur de dps : le dps nu est une cadence de base.
+export function ttk(diffIndex, minute, puissance) {
+  const dps = (CFG.BULLET_DAMAGE / CFG.FIRE_INTERVAL) * puissance;
+  return gruntHp(diffIndex, minute) / dps;
+}
+
+// `botInput` visait le corps le plus proche, donc les renforts et jamais le boss :
+// un combat de boss ne se terminait pas. Fonction locale pour ne pas deplacer les
+// mesures des lots precedents.
+function botVersBoss(g, p) {
+  const i = botInput(g, p);
+  const b = g.boss;
+  if (!b) return i;
+  const d = Math.hypot(b.x - p.x, b.y - p.y) || 1;
+  i.ax = (b.x - p.x) / d;
+  i.ay = (b.y - p.y) / d;
+  return i;
+}
+
+export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes = 42) {
+  const g = new GameState(diffIndex);
+  for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+  g.warmup = 0;
+
+  const puissance = () => mediane([...g.players.values()].map(p => g._playerPower(p)));
+  const inputs = new Map();
+  const images = Math.round(minutes * 60 / CFG.TICK);
+  const releves = new Map();
+  const combats = [];
+  const attente = jalons.slice();
+  let vu = null;
+
+  for (let k = 0; k < images && !g.victory; k++) {
+    if (g.cardsPending) {
+      for (const [id, offres] of g.cardOffers) {
+        const p = g.players.get(id);
+        if (p && offres.length) {
+          g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
+        }
+      }
+      g.cardsPending = false;
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+    if (g.relicPending) {
+      g.closeMerchant();
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+
+    inputs.clear();
+    for (const p of g.players.values()) inputs.set(p.id, botVersBoss(g, p));
+    g.step(CFG.TICK, inputs);
+    for (const p of g.players.values()) {
+      p.hp = p.maxHp; p.downed = false; p.revive = 0;
+    }
+    if (!g.victory) g.gameOver = false;
+
+    if (g.boss) {
+      vu = {
+        segment: g.segment, kind: g.boss.kind,
+        duree: g.boss.fightT, puissance: puissance(),
+      };
+    } else if (vu) {
+      combats.push(vu);
+      vu = null;
+    }
+
+    const m = g.hordeMinutes();
+    while (attente.length && m >= attente[0]) {
+      const jalon = attente.shift();
+      const pw = puissance();
+      releves.set(jalon, { puissance: pw, ttk: ttk(diffIndex, jalon, pw) });
+    }
+  }
+
+  return {
+    diffIndex, joueurs, releves, combats,
+    niveau: g.level, segment: g.segment, duree: g.time,
+    victoire: !!g.victory,
+  };
+}
+
+export function verifierTTK(effectifs = [1, 4], manches = 3, jalons = [1, 10, 20, 30]) {
+  const soucis = [];
+
+  for (let di = 0; di < DIFFICULTIES.length; di++) {
+    for (const n of effectifs) {
+      const ou = `${DIFFICULTIES[di].key}/${n}j`;
+      const parJalon = new Map(jalons.map(j => [j, []]));
+      const durees = [];
+
+      for (let r = 0; r < manches; r++) {
+        const m = mesureTTK(di, n, jalons);
+        for (const [j, v] of m.releves) parJalon.get(j).push(v.ttk);
+        for (const c of m.combats) durees.push(c.duree);
+      }
+
+      for (const j of jalons) {
+        const v = mediane(parJalon.get(j));
+        if (v === null) {
+          soucis.push(`${ou} : la minute ${j} n'est jamais atteinte`);
+        } else if (v < TTK_MIN || v > TTK_MAX) {
+          soucis.push(`${ou} : ttk de ${v.toFixed(2)} s a la minute ${j}`
+            + ` hors de [${TTK_MIN}, ${TTK_MAX}]`);
+        }
+      }
+
+      const d = mediane(durees);
+      if (d === null) soucis.push(`${ou} : aucun boss abattu`);
+      else if (d < BOSS_FIGHT_MIN || d > BOSS_FIGHT_MAX) {
+        soucis.push(`${ou} : combat de boss median de ${d.toFixed(0)} s`
+          + ` hors de [${BOSS_FIGHT_MIN}, ${BOSS_FIGHT_MAX}]`);
+      }
+    }
+  }
+  return soucis;
+}
+
+export function mesurePuissanceBoss(joueurs = 1, manches = 6, diffIndex = DIFF_NORMAL) {
+  const releves = [];
+  for (let r = 0; r < manches; r++) {
+    const m = mesureTTK(diffIndex, joueurs, []);
+    for (const c of m.combats) releves.push(c.puissance);
+  }
+  return { n: releves.length, mediane: mediane(releves), releves };
 }

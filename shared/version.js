@@ -611,6 +611,43 @@
                    deux seules choses qui font un tank. `mesureComposition()` est
                    livree, le critere est renvoye au lot I
 
+     0.8.13 equilibrage, lot C  LES PV DE HORDE CESSENT DE COURIR APRES LA
+                   PUISSANCE. `ENEMY_HP_MIN_RAMP = 13` faisait x25 sur une manche
+                   quand la build fait x3 : le ttk d'un grunt passait de 0,40 s a
+                   la minute 1 a 2,15 s a la minute 30, du spongieux et non du
+                   difficile — et l'experience valant les PV detruits, la boucle
+                   se bouchait elle-meme. Porte a 7 : 0,34 -> 0,87 s.
+                   LE CRITERE SORT ROUGE PASSE LA MINUTE 20 et le refus d'un
+                   troisieme aller-retour sur la rampe est ecrit dans le plan. La
+                   cible de 0,60 s est tenue partout jusqu'a la minute 10, cassee
+                   dans deux cas sur six a la minute 20 et dans quatre a la minute
+                   30. Ce n'est pas la rampe : la puissance mediane REELLE est
+                   mesuree entre 2,7 et 3,2 la ou le plan la supposait a 4,7. Le
+                   niveau 30 tombe vers la minute 20 et la build s'arrete la.
+                   L'ecart appartient au lot D.
+                   `BOSS_POWER_REF` 2,36 -> 2,89, ET LA MESURE EST SON PROPRE
+                   POINT FIXE. La valeur datait d'un modele a ~13 cartes.
+                   `_playerPower()` releve a la mort de chaque boss, en normal —
+                   le seul mode ou `diff.boss` vaut 1 : 3,06 en solo, 2,72 a
+                   quatre. Reinjectee, elle se remesure a 2,92 : une iteration a
+                   suffi. A 2,36 la moitie des combats tombaient sur le PLANCHER
+                   DE BARRE (40 s) — le boss mourait de la vitesse a laquelle les
+                   barres consentent a casser, pas de ses PV, symptome exact d'une
+                   reference perimee. Durees medianes apres : 43 a 85 s.
+                   UN ARTEFACT DE MESURE PAYE : `botInput` vise le corps le plus
+                   proche, donc les renforts et jamais le boss. Un combat de boss
+                   ne se terminait pas et la moitie des manches restaient au
+                   segment 1, horloge de horde a l'arret. `botVersBoss` corrige,
+                   local au lot pour ne pas deplacer les mesures des lots B et J.
+                   La carte est desormais tiree AU HASARD parmi les trois offertes
+                   et non prise en premiere : « build mediane » n'a de sens que
+                   sur un tirage neutre.
+                   LE CRITERE DE NON-REGRESSION N'EST PAS MESURABLE, troisieme
+                   lot de suite. Les quinze manches non immortelles meurent au
+                   premier boss, au segment 1, avant et apres : ce n'est pas la
+                   horde qui tue le bot, donc baisser ses PV ne peut rien
+                   deplacer. Il faut un pilote
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -619,4 +656,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.12";
+export const VERSION = "0.8.13";

@@ -8,6 +8,63 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### PV, temps de mise à mort et référence de boss (lot C du plan d'équilibrage)
+
+Protocole : six cas (trois modes × 1 et 4 joueurs), manche complète, bots
+immortels, **carte tirée au hasard parmi les trois offertes** (le bot des lots
+précédents prenait toujours la première, ce qui n'est pas une build médiane),
+médiane sur 6 manches. `mesureTTK()` / `verifierTTK()`.
+
+TTK = PV d'un grunt ÷ (`BULLET_DAMAGE / FIRE_INTERVAL` × `powerIndex`) : la
+puissance EST le multiplicateur de dps, le dps nu est une cadence de base.
+
+| ttk d'un grunt | min 1 | min 10 | min 20 | min 30 |
+|---|---|---|---|---|
+| avant — normal 1 j | 0,40 | 0,91 | 1,46 | 2,15 |
+| après — normal 1 j | 0,34 | 0,58 | 0,71 | **0,87** |
+| après — normal 4 j | 0,32 | 0,44 | 0,54 | **0,79** |
+| après — calme 1 / 4 j | 0,26 / 0,25 | 0,25 / 0,35 | 0,32 / 0,45 | 0,46 / **0,63** |
+| après — cauchemar 1 / 4 j | 0,42 / 0,45 | 0,51 / 0,54 | 0,51 / **0,74** | 0,60 / **0,99** |
+
+**Le critère sort rouge en fin de manche, et le plan le prévoyait à moitié.**
+`ENEMY_HP_MIN_RAMP` passe de 13 à 7 comme décidé, ce qui divise l'écart par plus
+de deux : la cible de 0,60 s est tenue partout jusqu'à la minute 10, cassée dans
+deux cas sur six à la minute 20 et dans quatre à la minute 30. La cause
+n'est pas la rampe : c'est la **puissance médiane réelle**. Le plan la supposait à
+×4,7 en fin de manche, elle est mesurée entre **2,7 et 3,2** — le niveau 30 est
+atteint vers la minute 20 et la build cesse alors de progresser. Un troisième
+aller-retour sur la rampe est explicitement refusé ; l'écart appartient au lot D.
+
+**`BOSS_POWER_REF` : 2,36 → 2,89, et la valeur converge.** Relevé de
+`_playerPower()` à la mort de chaque boss, en normal (le seul mode où
+`diff.boss` vaut 1) : médiane 3,06 en solo et 2,72 à quatre, soit 2,89. Réinjectée,
+elle se remesure à 2,65 / 3,18, médiane **2,92** — la mesure est son propre point
+fixe, une seule itération a suffi.
+
+| durée médiane d'un combat de boss | calme | normal | cauchemar |
+|---|---|---|---|
+| `BOSS_POWER_REF` 2,36 — 1 / 4 j | 41 / 47 | 65 / 74 | 62 / 51 |
+| `BOSS_POWER_REF` 2,89 — 1 / 4 j | 43 / 59 | **85 / 60** | 76 / 82 |
+
+À 2,36 la moitié des combats tombaient sur le **plancher de barre** (40 s,
+`BOSS_BARS × BAR_DWELL`) : le boss ne mourait pas de ses PV mais de la vitesse à
+laquelle les barres consentent à casser, ce qui est le symptôme exact d'une
+référence périmée. Seul calme solo reste sous la fourchette de 50-90 s, à 43 s,
+et c'est cohérent : `diff.boss` y vaut 0,75.
+
+**Le critère de non-régression n'est pas mesurable avec ce bot.** Survie médiane
+d'une équipe qui joue mal, `ENEMY_HP_MIN_RAMP` 13 puis 7 : 5,0 → 5,3 min en
+normal solo, 5,3 → 5,3 à quatre, 5,3 → 5,3 en calme. Les quinze manches meurent
+au **premier boss**, au segment 1 : le bot ne pare pas, n'esquive pas et
+n'utilise aucune compétence. Ce n'est pas la horde qui le tue, donc baisser les
+PV de horde ne peut pas déplacer le chiffre. Même limite qu'aux lots B et J.
+
+**Un artefact de mesure trouvé en chemin :** `botInput` vise le corps le plus
+proche, donc les renforts et jamais le boss — un combat de boss ne se terminait
+pas et la moitié des manches restaient bloquées au segment 1, horloge de horde à
+l'arrêt. `botVersBoss` corrige, localement au lot C pour ne pas déplacer les
+mesures des lots précédents.
+
 ### Traits, élites et bonus au sol (lot J du plan d'équilibrage)
 
 Protocole : neuf cas (trois modes × 1, 2 et 4 joueurs), 37 min de jeu simulé,
