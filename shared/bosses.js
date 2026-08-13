@@ -322,7 +322,7 @@ export const BOSS_CFG = {
   CROSSD_LIFE: 8,
   CROSSD_DOT: 26,
 
-  FINAL_HP_MUL: 2.2,
+  FINAL_HP_MUL: 1.3,
   FINAL_BAR_DWELL: 10,
 
   SEAL_RADIUS: 88,

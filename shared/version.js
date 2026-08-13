@@ -691,6 +691,45 @@
                    L'exposant est verrouille sur celui du plafond de population du
                    lot A — ca ne se corrige pas depuis ce lot
 
+     0.8.15 equilibrage, lot H  LES PV DE BOSS QUITTENT LE COMPTEUR POUR LA
+                   MINUTE. `BOSS_GROWTH` donnait +6 % par boss, soit x1,30 sur la
+                   manche contre x2,6 de puissance joueur : la duree des combats
+                   DECROISSAIT d'un facteur deux a trois (147 -> 40 s en solo). Le
+                   sixieme boss etait proportionnellement deux fois plus facile que
+                   le premier. `BOSS_HP_MINUTE_RAMP = 0,055` compose : derive
+                   -73 % -> -5 % en solo, -58 % -> -19 % a quatre, a douze manches.
+                   LA RAMPE EST COMPOSEE ET LA TABLE DU LOT ETAIT FAUSSE : le
+                   document ecrivait `pow(1 + 0,055, minutes)` mais chiffrait x1,28
+                   a la minute 5 et x2,65 a la minute 30, donc du lineaire. Les
+                   deux formes mesurees : en lineaire la duree redecroit de 32 a
+                   49 %, la rampe ne suit pas la puissance. C'est la formule qui
+                   est juste.
+                   `BOSS_HP_BASE` 1200 -> 520, pas 918. Le document demandait de
+                   diviser par le facteur de la minute 5 « pour que le premier boss
+                   ne change pas » — sauf que le premier boss durait 147 s, tres
+                   au-dessus de la fourchette 50-90 s du lot C.
+                   `FINAL_HP_MUL` 2,2 -> 1,3 : a la minute 30 la rampe vaut x4,98
+                   contre x1,30 pour l'ancien compteur, et le boss final passait de
+                   106 a 232 s. Ses barres sont intouchables par ce lot, donc la
+                   compensation passe par ses PV. Apres : 107 et 108 s.
+                   LE PLAFOND DE RENFORTS NE MORDAIT JAMAIS. La population moyenne
+                   pendant un combat est de 3 a 4 corps pour un plafond de 55 : ce
+                   qui reglait la densite etait le COMPTE d'invocations,
+                   `BOSS_SUMMON_BASE + joueurs`, soit 4 renforts par joueur en solo
+                   contre 1,75 a quatre. Porte a `BOSS_SUMMON_BASE x
+                   joueurs^WAVE_CROWD_EXP`. Debit par joueur 0,300/s en solo contre
+                   0,178/s a quatre : 19 % d'ecart une fois l'exposant retire,
+                   contre 62 % avant. Le plafond devient `BOSS_ADD_CAP_BASE = 42`
+                   fois le meme exposant, borne par `_enemyCap()`.
+                   LA DENSITE EN CORPS VIVANTS NE PEUT PAS S'EGALISER (3,6 contre
+                   1,4) : un renfort meurt quatre fois plus vite face a quatre
+                   joueurs. Le reglage controle un DEBIT, pas une population.
+                   DEUX CRITERES NE SE MESURENT PAS ICI : en calme les boss
+                   ordinaires tombent au plancher de barre (40-47 s), c'est
+                   `diff.boss` qui regle et pas la courbe ; et la matrice de
+                   coherence demande les trois profils de compte, que le bot n'a
+                   pas
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -699,4 +738,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.14";
+export const VERSION = "0.8.15";

@@ -8,6 +8,66 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Boss : courbe de PV et densité de renforts (lot H du plan d'équilibrage)
+
+Protocole du lot D (graines écrites), `mesureBoss()` / `verifierBoss()`, durées
+médianes **par segment**, dix à douze manches par cas.
+
+**Les PV de boss s'indexaient sur le COMPTEUR de boss, pas sur la minute** : +6 %
+par boss, soit ×1,30 sur la manche pendant que la puissance joueur fait ×2,6. La
+durée des combats décroissait donc d'un facteur deux à trois.
+
+| durée médiane par segment | s1 | s2 | s3 | s4 | s5 | s6 (final) |
+|---|---|---|---|---|---|---|
+| avant — normal 1 j | 147 | 87 | 70 | 47 | 40 | 106 |
+| après — normal 1 j | **79** | 41 | 40 | 57 | **75** | 107 |
+| avant — normal 4 j | 128 | 76 | 71 | 60 | 54 | 138 |
+| après — normal 4 j | **69** | 53 | 41 | 48 | **56** | 108 |
+| après — cauchemar 4 j | **81** | 60 | 55 | 71 | **77** | 145 |
+
+Dérive du premier au dernier boss ordinaire : **−73 % → −5 %** en solo, **−58 % →
+−19 %** à quatre, −5 % en cauchemar. Emportement : 4 à 7 % des combats, pour un
+plafond de 25 %. Aucun combat ne dépasse `_enemyCap()` en population.
+
+**La rampe est COMPOSÉE, et son taux se lit sur la puissance mesurée.** Le
+document du lot écrivait `pow(1 + 0,055, minutes)` mais chiffrait ×1,28 à la
+minute 5 et ×2,65 à la minute 30, c'est-à-dire du **linéaire**. Les deux formes
+ont été mesurées : linéaire, la durée des combats redécroît de 32 à 49 % — la
+rampe ne suit pas la puissance. Composée à 5,5 %, elle la suit (dérive sous 20 %
+dans les deux effectifs, à douze manches). C'est donc la formule qui est juste et
+la table qui est fausse.
+
+**`BOSS_HP_BASE` 1200 → 520, et pas seulement du facteur de la minute 5.** Le
+document demandait de diviser par ×1,28 pour que « le premier boss ne change pas »
+— sauf que le premier boss durait **147 s**, très au-dessus de la fourchette
+50-90 s du lot C. Il fallait donc descendre 2,3 fois, pas 1,28.
+
+**`FINAL_HP_MUL` 2,2 → 1,3.** À la minute 30 la rampe vaut ×4,98 là où l'ancien
+compteur valait ×1,30 : le boss final passait de 106 à 232 s. Son nombre de
+barres est intouchable par ce lot, donc la compensation passe par son
+multiplicateur de PV — 107 et 108 s après, soit la durée d'avant.
+
+**Le plafond de renforts ne mordait jamais** : la population moyenne pendant un
+combat est de **3 à 4 corps** pour un plafond de 55. Ce qui règle la densité est
+le **compte d'invocations**, `BOSS_SUMMON_BASE + joueurs` : 4 renforts par joueur
+en solo contre 1,75 à quatre. Porté à `BOSS_SUMMON_BASE × joueurs^WAVE_CROWD_EXP`,
+même exposant que la horde. Débit mesuré par joueur : 0,300/s en solo, 0,178/s à
+quatre, soit **19 % d'écart une fois l'exposant retiré** contre 62 % avant — le
+critère demande 15 %, et le reste vient des invocations de **mécanique**, qui ne
+suivent aucun effectif et que ce lot ne touche pas. `verifierBoss([1, 4], 6)`
+passe à ses valeurs par défaut ; l'écart est donc à la limite de la tolérance, pas
+franchement dedans.
+
+**La densité par joueur en CORPS VIVANTS ne peut pas s'égaliser** (3,6 en solo
+contre 1,4 à quatre) : un renfort meurt quatre fois plus vite face à quatre
+joueurs. Ce que le réglage contrôle est le **débit**, pas la population — d'où le
+choix de mesurer le débit.
+
+**Deux critères ne se mesurent pas ici.** En calme les boss ordinaires tombent au
+**plancher de barre** (40 à 47 s) : `diff.boss` vaut 0,75 et c'est lui qui règle,
+pas la courbe. Et la matrice de cohérence sur les boss demande les trois profils
+de compte — le bot n'en a aucun, il est immortel et sans méta.
+
 ### Expérience indexée sur la minute (lot D du plan d'équilibrage)
 
 Protocole du lot C, plus une **graine écrite par manche** (`Math.random` remplacé

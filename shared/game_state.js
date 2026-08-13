@@ -181,15 +181,15 @@ export const CFG = {
   NOVA_BOSS_DAMAGE: 220,
   NOVA_PUSH: 95,
 
-  BOSS_HP_BASE: 1200,
+  BOSS_HP_BASE: 520,
   BOSS_RADIUS: 34,
   BOSS_SPEED: 44,
   BOSS_CONTACT_DAMAGE: 30,
   BOSS_ATTACK_CD: 3.2,
   BOSS_SUMMON_EVERY: 15,
   SWEEP_STACK_GRACE: 18,
-  BOSS_SUMMON_BASE: 3,
-  BOSS_ADD_CAP: 55,
+  BOSS_SUMMON_BASE: 4,
+  BOSS_ADD_CAP_BASE: 42,
   BOSS_SWEEP_R: 1000,
 
   BOSS_BARS: 5,
@@ -199,7 +199,8 @@ export const CFG = {
   SEAL_HOLD: 4.5,
   SEAL_WARN: 22,
   SEAL_DECAY: 0.5,
-  BOSS_GROWTH: 0.06,
+  BOSS_GROWTH: 0,
+  BOSS_HP_MINUTE_RAMP: 0.055,
   BOSS_POWER_KNEE: 2.5,
   BOSS_POWER_K: 0.50,
   BOSS_PHASE_CD_STEP: 0.09,
@@ -2078,7 +2079,7 @@ export class GameState {
     if (!e) return;
     const crowd = this.aliveCrowd();
     const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
-      * (1 + (this.segment - 1) * CFG.BOSS_GROWTH)
+      * this._bossHpRamp()
       * CFG.BOSS_HP_MUL * this.diff.boss * TL_CFG.QUARRY_HP_MUL;
     e.hp = e.maxHp = hp;
     e.r *= TL_CFG.QUARRY_SIZE_MUL;
@@ -2978,7 +2979,7 @@ export class GameState {
         this.lastBossKind = kind;
         const def = bossAt(kind);
         const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
-          * (1 + (this.bossCount - 1) * CFG.BOSS_GROWTH)
+          * this._bossHpRamp()
           * power * CFG.BOSS_HP_MUL * this.diff.boss * def.hpMul
           * (kind === BOSS_FINAL ? BOSS_CFG.FINAL_HP_MUL : 1);
         const bars = def.bars ?? CFG.BOSS_BARS;
@@ -3064,8 +3065,8 @@ export class GameState {
     b.summonCd -= dt;
     if (b.summonCd <= 0) {
       b.summonCd = CFG.BOSS_SUMMON_EVERY;
-      if (this.enemies.length < CFG.BOSS_ADD_CAP) {
-        const count = CFG.BOSS_SUMMON_BASE + Math.max(1, this.players.size);
+      if (this.enemies.length < this._bossAddCap()) {
+        const count = this._bossSummonCount();
         const B = this.bounds;
         for (let i = 0; i < count; i++) {
           const side = Math.floor(Math.random() * 4);
@@ -4106,6 +4107,28 @@ export class GameState {
 
   _bossPower() {
     return bossPower(this._teamPower());
+  }
+
+  // COMPOSE, et le taux se lit sur la croissance de puissance mesuree (x2,6 du
+  // premier au dernier boss) : lineaire, la duree des combats redecroit de 40 %.
+  _bossHpRamp() {
+    return Math.pow(1 + CFG.BOSS_HP_MINUTE_RAMP, this.hordeMinutes())
+      * (1 + (this.bossCount - 1) * CFG.BOSS_GROWTH);
+  }
+
+  // borne par le plafond de horde : deux plafonds ne reglent pas la meme grandeur
+  _bossAddCap() {
+    const n = Math.max(1, this.players.size);
+    return Math.min(this._enemyCap(),
+      Math.round(CFG.BOSS_ADD_CAP_BASE * Math.pow(n, CFG.WAVE_CROWD_EXP)));
+  }
+
+  // mesure : le plafond ne mord jamais, c'est CE compte qui fait la densite.
+  // `BOSS_SUMMON_BASE + joueurs` donnait 4 renforts par joueur en solo contre 1,75
+  // a quatre ; meme exposant que la horde, meme raison.
+  _bossSummonCount() {
+    const n = Math.max(1, this.players.size);
+    return Math.max(1, Math.round(CFG.BOSS_SUMMON_BASE * Math.pow(n, CFG.WAVE_CROWD_EXP)));
   }
 
   _zone(z) {
@@ -5958,12 +5981,25 @@ export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes 
     if (!g.victory) g.gameOver = false;
 
     if (g.boss) {
+      // la horde est suspendue pendant un boss : toute hausse d'effectif est un renfort
+      const venus = vu ? Math.max(0, g.enemies.length - vu.dernier) : 0;
       vu = {
         segment: g.segment, kind: g.boss.kind,
         duree: g.boss.fightT, puissance: puissance(),
+        enrage: g.boss.enrage ?? 0,
+        renforts: (vu?.renforts ?? 0) + venus,
+        dernier: g.enemies.length,
+        corps: (vu?.corps ?? 0) + g.enemies.length,
+        images: (vu?.images ?? 0) + 1,
+        pointe: Math.max(vu?.pointe ?? 0, g.enemies.length),
+        plafond: g._bossAddCap(), capHorde: g._enemyCap(),
       };
     } else if (vu) {
-      combats.push(vu);
+      combats.push({
+        ...vu,
+        debit: vu.duree > 0 ? vu.renforts / vu.duree / joueurs : null,
+        vivants: vu.corps / vu.images / joueurs,
+      });
       vu = null;
     }
 
@@ -6081,6 +6117,102 @@ export function mesureProgression(diffIndex, joueurs, manches = 6, minutes = 60)
       return ap !== null && av !== null && ap > av ? t / (ap - av) : null;
     }),
   };
+}
+
+export const BOSS_DRIFT_MAX = 0.20;
+export const BOSS_DENSITY_TOL = 0.15;
+export const BOSS_ENRAGE_MAX = 0.25;
+
+export function mesureBoss(diffIndex, joueurs, manches = 6, minutes = 60) {
+  const combats = [];
+  const alea = Math.random;
+  try {
+    for (let r = 1; r <= manches; r++) {
+      Math.random = grainer(r * 7919);
+      combats.push(...mesureTTK(diffIndex, joueurs, [], minutes).combats);
+    }
+  } finally {
+    Math.random = alea;
+  }
+  const parSegment = new Map();
+  for (const c of combats) {
+    if (!parSegment.has(c.segment)) parSegment.set(c.segment, []);
+    parSegment.get(c.segment).push(c);
+  }
+  return {
+    diffIndex, joueurs, combats,
+    duree: new Map([...parSegment].map(([s, cs]) => [s, mediane(cs.map(c => c.duree))])),
+    debit: mediane(combats.map(c => c.debit).filter(v => v !== null)),
+    vivants: mediane(combats.map(c => c.vivants)),
+    enrages: combats.length
+      ? combats.filter(c => c.enrage > 0).length / combats.length : null,
+    debordements: combats.filter(c => c.pointe > c.capHorde).length,
+  };
+}
+
+export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_NORMAL) {
+  const soucis = [];
+  const densites = [];
+
+  for (const n of effectifs) {
+    const r = mesureBoss(diffIndex, n, manches);
+    const ou = `${DIFFICULTIES[diffIndex].key}/${n}j`;
+    densites.push(r.debit);
+
+    // la derive se lit sur les boss ORDINAIRES : le final a huit barres, donc un
+    // plancher de sejour de 70 s, et la fourchette 50-90 lui est inaccessible sans
+    // toucher a son nombre de barres — ce que ce lot ne fait pas.
+    const ordinaire = TL_CFG.SEGMENTS - 1;
+    const premier = r.duree.get(1), dernier = r.duree.get(ordinaire);
+    if (premier === undefined || dernier === undefined) {
+      soucis.push(`${ou} : le segment 1 ou ${ordinaire} ne porte aucun boss abattu`
+        + ` — la derive ne se mesure pas`);
+    } else {
+      if (Math.abs(dernier - premier) / premier > BOSS_DRIFT_MAX) {
+        soucis.push(`${ou} : ${premier.toFixed(0)} s au premier boss contre`
+          + ` ${dernier.toFixed(0)} s au dernier ordinaire, pour une derive de`
+          + ` ${(BOSS_DRIFT_MAX * 100).toFixed(0)} % au plus`);
+      }
+      for (const [s, v] of [[1, premier], [ordinaire, dernier]]) {
+        if (v < BOSS_FIGHT_MIN || v > BOSS_FIGHT_MAX) {
+          soucis.push(`${ou} : boss du segment ${s} en ${v.toFixed(0)} s,`
+            + ` hors de [${BOSS_FIGHT_MIN}, ${BOSS_FIGHT_MAX}]`);
+        }
+      }
+    }
+
+    const final = r.duree.get(TL_CFG.SEGMENTS);
+    const plancher = ((bossAt(BOSS_FINAL).bars ?? CFG.BOSS_BARS) - 1)
+      * BOSS_CFG.FINAL_BAR_DWELL;
+    if (final !== undefined && (final < plancher || final > 2 * BOSS_FIGHT_MAX)) {
+      soucis.push(`${ou} : boss final en ${final.toFixed(0)} s, hors de`
+        + ` [${plancher}, ${2 * BOSS_FIGHT_MAX}]`);
+    }
+
+    if (r.enrages !== null && r.enrages > BOSS_ENRAGE_MAX) {
+      soucis.push(`${ou} : ${(r.enrages * 100).toFixed(0)} % des combats partent`
+        + ` en emportement pour un plafond de ${(BOSS_ENRAGE_MAX * 100).toFixed(0)} %`);
+    }
+    if (r.debordements > 0) {
+      soucis.push(`${ou} : ${r.debordements} combats depassent le plafond de horde`);
+    }
+  }
+
+  // la densite par joueur ne PEUT pas etre egale : la doctrine du lot A la fait
+  // suivre `joueurs^WAVE_CROWD_EXP`, donc decroitre en `joueurs^-0,25`. On compare
+  // ce que l'exposant laisse, pas la densite brute.
+  if (densites.length > 1 && densites.every(d => d !== null)) {
+    const norm = densites.map((d, i) =>
+      d * Math.pow(effectifs[i], 1 - CFG.WAVE_CROWD_EXP));
+    const ecart = Math.max(...norm) / Math.min(...norm) - 1;
+    if (ecart > BOSS_DENSITY_TOL) {
+      soucis.push(`${DIFFICULTIES[diffIndex].key} : debit de renforts par joueur de`
+        + ` ${Math.min(...densites).toFixed(2)} a ${Math.max(...densites).toFixed(2)}`
+        + ` par seconde selon l'effectif, soit ${(ecart * 100).toFixed(0)} % d'ecart`
+        + ` une fois l'exposant retire`);
+    }
+  }
+  return soucis;
 }
 
 export function verifierProgression(effectifs = [1, 4], manches = 6, diffIndex = DIFF_NORMAL) {
