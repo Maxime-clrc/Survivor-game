@@ -648,6 +648,49 @@
                    horde qui tue le bot, donc baisser ses PV ne peut rien
                    deplacer. Il faut un pilote
 
+     0.8.14 equilibrage, lot D  LA VALEUR D'UN KILL QUITTE LA JAUGE QU'ELLE
+                   REMPLIT. `XP_LEVEL_GROWTH` indexait l'experience sur le NIVEAU
+                   D'EQUIPE, c'est-a-dire sur la sortie de la jauge qu'elle
+                   alimente : boucle amortie (1,09 < 1,18) donc convergente, mais
+                   NON MESURABLE — et c'etait la cause de l'ecart-type de six
+                   cartes que le lot X constatait sans l'expliquer.
+                   `XP_MINUTE_GROWTH = 1,055` sur la minute de horde,
+                   `_xpLevelMul` renomme `_xpTimeMul` (deux appels).
+                   DEUX CONSTANTES DE COUT BOUGENT, HORS PLAN, et la mesure y
+                   force : le cout d'un palier croissait de 1,18 par niveau contre
+                   un revenu de 1,055 par minute, et a `LEVEL_XP_BASE` fixe aucune
+                   valeur ne tient les deux bornes — la tranche du milieu demande
+                   une base basse, celle de la fin une base haute, d'un facteur
+                   deux. Onze couples mesures : 200/1,18 donne 13/25,5/30 pour une
+                   cible de 10/20/27, 270/1,12 donne 11/23/28, 355/1,08 donne
+                   10/23,5/28,5. Retenu 330/1,10 : 10/21/25,5, 26,6 cartes.
+                   LES GRAINES SONT ECRITES, sans quoi rien n'etait decidable :
+                   `Math.random` remplace par un mulberry32 derive du numero de
+                   manche, deux reglages compares sur LES MEMES manches. Non
+                   apparie, le meme couple rendait 18 puis 23 au niveau de la
+                   minute 20 et 4/6 puis 1/6 sur les victoires. Tout ce qui
+                   ressemblait a une regression du lot C etait du bruit : boss 88
+                   -> 87 s en solo a graines appariees, et le ttk de fin de manche
+                   S'AMELIORE, 1,08 -> 0,47 s.
+                   LE PLAFOND DE NIVEAU MORDAIT et falsifiait le critere : la
+                   moitie des manches finissaient collees a `LEVEL_MAX`, 29 cartes
+                   exactement, ce qui ecrasait l'ecart-type par le haut. Apres, la
+                   fin de manche est a 25,5-26,6 et le plafond ne borne plus rien.
+                   LE CRITERE DE DISPERSION RESTE ROUGE ET MESURE LA MAUVAISE
+                   CHOSE : 5,0 -> 3,1 cartes en solo pour un plafond de 3, mais ce
+                   qu'il capture est la LONGUEUR de manche (3 manches sur 8 se
+                   terminent en solo, 7 sur 8 a quatre). La dispersion propre a la
+                   courbe se lit a minute fixe, et la elle est franche : +-1,5 ->
+                   +-0,6 au niveau de la minute 8.
+                   LE GARDE-FOU DEVIENT MESURABLE : la cadence en minutes par
+                   niveau doit rester croissante par tranche, a 10 % pres
+                   (`CADENCE_TOL`). Apres : 0,89 / 1,09 / 2,67 en solo. A QUATRE
+                   ELLE SE RESSERRE (0,89 puis 0,71) et la minute 20 monte a 27
+                   pour une cible de 20 : quatre joueurs tuent bien plus de quatre
+                   fois plus vite et `joueurs^WAVE_CROWD_EXP` ne reprend pas tout.
+                   L'exposant est verrouille sur celui du plafond de population du
+                   lot A — ca ne se corrige pas depuis ce lot
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -656,4 +699,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.13";
+export const VERSION = "0.8.14";

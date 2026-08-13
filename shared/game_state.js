@@ -118,10 +118,11 @@ export const CFG = {
 
   LEVEL_MAX: 30,
 
-  LEVEL_XP_BASE: 200,
-  LEVEL_XP_GROWTH: 1.18,
+  LEVEL_XP_BASE: 330,
+  LEVEL_XP_GROWTH: 1.10,
 
-  XP_LEVEL_GROWTH: 1.09,
+  XP_LEVEL_GROWTH: 1.0,
+  XP_MINUTE_GROWTH: 1.055,
 
   BOSS_XP_BASE: 300,
 
@@ -1557,7 +1558,7 @@ export class GameState {
 
     if (target === this.boss && target.maxHp > 0) {
       const part = Math.min(amount, Math.max(0, target.hp)) / target.maxHp;
-      this._addXp(part * CFG.BOSS_XP_BASE * this._xpLevelMul());
+      this._addXp(part * CFG.BOSS_XP_BASE * this._xpTimeMul());
     }
 
     target.hp -= amount;
@@ -5115,11 +5116,12 @@ export class GameState {
   _xpValue(e) {
     const def = ENEMY_TYPES[e.type];
     const base = (def?.xp ?? 10) * (e.elite ? CFG.ELITE_SCORE_MUL : 1);
-    return base * (e.xpWorth ?? 1) * this._xpLevelMul();
+    return base * (e.xpWorth ?? 1) * this._xpTimeMul();
   }
 
-  _xpLevelMul() {
-    return Math.pow(CFG.XP_LEVEL_GROWTH, Math.max(0, this.level - 1));
+  _xpTimeMul() {
+    return Math.pow(CFG.XP_MINUTE_GROWTH, this.hordeMinutes())
+      * Math.pow(CFG.XP_LEVEL_GROWTH, Math.max(0, this.level - 1));
   }
 
   _xpCostMul() {
@@ -5883,6 +5885,11 @@ export const TTK_MAX = 0.60;
 export const BOSS_FIGHT_MIN = 50;
 export const BOSS_FIGHT_MAX = 90;
 
+export const LEVEL_MARKS = [[8, 10], [20, 20], [32, 27]];
+export const LEVEL_MARK_TOL = 1;
+export const CARD_SD_MAX = 3;
+export const CADENCE_TOL = 0.9;
+
 export function gruntHp(diffIndex, minute) {
   return (CFG.ENEMY_HP_BASE + minute * CFG.ENEMY_HP_MIN_RAMP)
     * DIFFICULTIES[diffIndex].hp * ENEMY_TYPES[0].hpMul;
@@ -5917,7 +5924,9 @@ export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes 
   const images = Math.round(minutes * 60 / CFG.TICK);
   const releves = new Map();
   const combats = [];
+  const niveaux = new Map();
   const attente = jalons.slice();
+  const attenteN = LEVEL_MARKS.map(m => m[0]);
   let vu = null;
 
   for (let k = 0; k < images && !g.victory; k++) {
@@ -5964,11 +5973,16 @@ export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes 
       const pw = puissance();
       releves.set(jalon, { puissance: pw, ttk: ttk(diffIndex, jalon, pw) });
     }
+    // les tranches du lot D se lisent sur l'horloge de la MANCHE, pas de la horde :
+    // leur derniere borne (32 min) depasse les 30 min de horde d'une manche entiere.
+    while (attenteN.length && g.time / 60 >= attenteN[0]) {
+      niveaux.set(attenteN.shift(), g.level);
+    }
   }
 
   return {
-    diffIndex, joueurs, releves, combats,
-    niveau: g.level, segment: g.segment, duree: g.time,
+    diffIndex, joueurs, releves, combats, niveaux,
+    niveau: g.level, cartes: g.level - 1, segment: g.segment, duree: g.time,
     victoire: !!g.victory,
   };
 }
@@ -6016,4 +6030,94 @@ export function mesurePuissanceBoss(joueurs = 1, manches = 6, diffIndex = DIFF_N
     for (const c of m.combats) releves.push(c.puissance);
   }
   return { n: releves.length, mediane: mediane(releves), releves };
+}
+
+// LA GRAINE EST ECRITE, sinon rien n'est decidable : deux reglages doivent se
+// comparer sur les MEMES manches. Non appariee, la meme courbe rendait 18 puis 23
+// au niveau de la minute 20. Meme generateur que `buildBiome`.
+function grainer(g) {
+  let a = g | 0;
+  return () => {
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// fenetre plus large que celle du ttk : un compte de cartes ne veut rien dire sur
+// une manche tronquee, et un combat de boss long repousse la fin bien apres 42 min.
+export function mesureProgression(diffIndex, joueurs, manches = 6, minutes = 60) {
+  const cartes = [], parMarque = new Map(LEVEL_MARKS.map(m => [m[0], []]));
+  const alea = Math.random;
+  let finies = 0;
+  try {
+    for (let r = 1; r <= manches; r++) {
+      Math.random = grainer(r * 7919);
+      const m = mesureTTK(diffIndex, joueurs, [], minutes);
+      cartes.push(m.cartes);
+      if (m.victoire) finies++;
+      for (const [min, niv] of m.niveaux) parMarque.get(min)?.push(niv);
+    }
+  } finally {
+    Math.random = alea;
+  }
+  const moy = cartes.reduce((a, b) => a + b, 0) / cartes.length;
+  const ecart = Math.sqrt(cartes.reduce((a, b) => a + (b - moy) ** 2, 0) / cartes.length);
+  const sd = xs => {
+    const m = xs.reduce((a, b) => a + b, 0) / xs.length;
+    return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length);
+  };
+  return {
+    diffIndex, joueurs, cartes, moyenne: moy, ecart, finies,
+    niveaux: new Map([...parMarque].map(([min, v]) => [min, mediane(v)])),
+    // a minute fixe : la dispersion de la COURBE, sans celle de la duree de manche
+    ecartNiveau: new Map([...parMarque].map(([min, v]) =>
+      [min, v.length ? sd(v) : null])),
+    cadence: LEVEL_MARKS.map(([min, _], i) => {
+      const av = i ? mediane(parMarque.get(LEVEL_MARKS[i - 1][0])) : 1;
+      const ap = mediane(parMarque.get(min));
+      const t = min - (i ? LEVEL_MARKS[i - 1][0] : 0);
+      return ap !== null && av !== null && ap > av ? t / (ap - av) : null;
+    }),
+  };
+}
+
+export function verifierProgression(effectifs = [1, 4], manches = 6, diffIndex = DIFF_NORMAL) {
+  const soucis = [];
+  const vus = [];
+
+  for (const n of effectifs) {
+    const r = mesureProgression(diffIndex, n, manches);
+    const ou = `${DIFFICULTIES[diffIndex].key}/${n}j`;
+    vus.push(r.moyenne);
+
+    if (r.ecart > CARD_SD_MAX) {
+      soucis.push(`${ou} : ecart-type de ${r.ecart.toFixed(1)} carte`
+        + ` pour un plafond de ${CARD_SD_MAX}`);
+    }
+    // le garde-fou qui remplace « ne pas monter au-dessus de LEVEL_XP_GROWTH » :
+    // une cadence qui se resserre en fin de manche est une progression sans fin.
+    for (let i = 1; i < r.cadence.length; i++) {
+      const av = r.cadence[i - 1], ap = r.cadence[i];
+      if (av !== null && ap !== null && ap < av * CADENCE_TOL) {
+        soucis.push(`${ou} : cadence de ${av.toFixed(2)} puis ${ap.toFixed(2)} min`
+          + ` par niveau — les paliers tardifs vont plus vite que les premiers`);
+      }
+    }
+    for (const [min, cible] of LEVEL_MARKS) {
+      const v = r.niveaux.get(min);
+      if (v === null || v === undefined) {
+        soucis.push(`${ou} : la minute ${min} n'est jamais atteinte`);
+      } else if (Math.abs(v - cible) > LEVEL_MARK_TOL) {
+        soucis.push(`${ou} : niveau ${v} a la minute ${min} pour une cible de ${cible}`);
+      }
+    }
+  }
+
+  if (vus.length > 1 && Math.max(...vus) - Math.min(...vus) > 2) {
+    soucis.push(`${DIFFICULTIES[diffIndex].key} : ${Math.min(...vus).toFixed(1)} a`
+      + ` ${Math.max(...vus).toFixed(1)} cartes selon l'effectif`);
+  }
+  return soucis;
 }

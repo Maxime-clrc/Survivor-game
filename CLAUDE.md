@@ -676,10 +676,14 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **Les légendaires sont garanties à des jalons et plafonnées**
   (`LEGENDARY_LEVELS`, `LEGENDARY_MAX`) ; le jalon se déclenche au premier écran
   ouvert **à partir du** niveau seuil. `legendaryLevelDone` vit dans `GameState`.
-- **L'EXPÉRIENCE VAUT LES PV MAX DE LA CIBLE**, versée dans `_killEnemy` **avant**
-  tout test de propriétaire. Le **boss crédite en continu** depuis `_damage()`
-  (`BOSS_XP_K`), sans le surplus du coup fatal. Un ennemi **supprimé** ne crédite
-  rien. `score` = valeur tactique, PV = valeur économique.
+- **L'EXPÉRIENCE EST UNE VALEUR ÉCRITE PAR TYPE** (`ENEMY_TYPES[i].xp`), versée
+  dans `_killEnemy` **avant** tout test de propriétaire. Le **boss crédite en
+  continu** depuis `_damage()` (`BOSS_XP_BASE`), sans le surplus du coup fatal. Un
+  ennemi **supprimé** ne crédite rien. `score` = valeur tactique.
+- **LA VALEUR D'UN KILL S'INDEXE SUR LA MINUTE DE HORDE, jamais sur le niveau
+  d'équipe** (`_xpTimeMul()`, `XP_MINUTE_GROWTH`) : indexer l'entrée d'une jauge
+  sur sa propre sortie donne une boucle amortie mais **non mesurable**.
+  `XP_LEVEL_GROWTH` reste à 1 — la clé documente le refus.
 - **UN NIVEAU OUVRE SON ÉCRAN DE CARTES.** Seule exception : le **combat de
   boss**, où les niveaux restent en file. Pas de carte gratuite par boss ; le boss
   reste un point d'étape par la **qualité** de tirage (`BOSS_QUALITY`) et le

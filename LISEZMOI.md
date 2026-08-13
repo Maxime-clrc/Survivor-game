@@ -8,6 +8,76 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Expérience indexée sur la minute (lot D du plan d'équilibrage)
+
+Protocole du lot C, plus une **graine écrite par manche** (`Math.random` remplacé
+par un mulberry32 dérivé du numéro de manche, restauré en `finally`) : deux
+réglages se comparent alors sur les **mêmes** manches, et le vérificateur est
+**rejouable** — deux appels rendent la même liste. Sans ça rien n'était décidable
+— voir plus bas. `mesureProgression()` / `verifierProgression()`, huit manches,
+normal.
+
+`XP_LEVEL_GROWTH` faisait dépendre la valeur d'un kill du **niveau d'équipe**,
+c'est-à-dire de la sortie de la jauge qu'il alimente. Remplacé par
+`XP_MINUTE_GROWTH = 1,055` sur la **minute de horde** (`_xpTimeMul()`, renommé
+depuis `_xpLevelMul`).
+
+| niveau atteint, mêmes graines | min 8 | min 20 | min 32 | cartes | écart-type |
+|---|---|---|---|---|---|
+| avant — 1 j | 13 ±1,5 | 25,5 ±5,6 | 30 ±5,7 | 26,3 | 5,0 |
+| après — 1 j | **10 ±0,6** | 21 ±3,6 | 25,5 ±4,2 | 26,6 | **3,1** |
+| avant — 4 j | 14,5 ±2,2 | 26 ±6,0 | 27,5 ±5,3 | 24,9 | 4,5 |
+| après — 4 j | **10 ±1,2** | 27 ±5,3 | 30 ±5,3 | 26,1 | 4,3 |
+
+Cible : 10 / 20 / 27. **Le début se cale exactement et sa dispersion est divisée
+par deux et demi** ; le milieu et la fin restent au-dessus à quatre joueurs.
+
+Verdict de `verifierProgression([1, 4], 8)`, rejouable tel quel : solo, l'écart
+-type des cartes est à 3,1 pour un plafond de 3 et la minute 32 à 25,5 pour 27 —
+les deux autres marques passent. À quatre, la minute 20 est à 27 pour 20, la
+minute 32 au plafond de niveau, et **la cadence se resserre au milieu** (0,89 puis
+0,71 min par niveau). La cause n'est pas la courbe mais la **normalisation par
+l'effectif** : quatre joueurs tuent bien plus de quatre fois plus vite, et
+`joueurs^WAVE_CROWD_EXP` ne reprend pas tout. L'exposant est **verrouillé** sur
+celui du plafond de population (lot A) : il ne se corrige pas depuis ce lot.
+
+**Deux constantes de coût bougent, et ce n'est pas dans le plan.** Le coût d'un
+palier croissait de **1,18 par niveau** contre un revenu de 1,055 par minute : à
+`LEVEL_XP_BASE` fixé, aucune valeur ne tient les deux bornes à la fois — la
+tranche du milieu demande une base basse, celle de la fin une base haute, et
+l'écart entre les deux demandes est d'un facteur deux. Mesuré sur onze couples,
+`LEVEL_XP_GROWTH 1,18 -> 1,10` avec `LEVEL_XP_BASE 200 -> 330` est le seul
+attelage qui cale le début, garde 26-27 cartes et resserre la dispersion. Les
+onze couples sont dans l'historique de `shared/version.js`.
+
+**Le plafond de niveau mordait.** À l'ancienne courbe la moitié des manches
+finissaient collées à `LEVEL_MAX` (29 cartes), ce qui écrasait artificiellement
+l'écart-type par le haut. Après, la fin de manche est à 25,5-26,6 : le plafond ne
+borne plus rien, et l'écart-type mesure enfin la courbe.
+
+**Le critère de dispersion reste rouge, et il mesure la mauvaise chose.**
+L'écart-type du nombre de cartes par manche tombe de 5,0 à 3,1 en solo pour un
+plafond de 3, mais ce qu'il capture surtout est la **longueur de manche** : 3
+manches sur 8 se terminent en solo contre 7 sur 8 à quatre. La dispersion propre
+à la courbe se lit à minute fixe, et là elle est franche : ±1,5 → ±0,6 à la
+minute 8. Un critère d'écart-type sur une grandeur de fin de manche a besoin que
+les manches se terminent — c'est-à-dire du lot H.
+
+**Garde-fou remplacé et mesurable** (`verifierProgression`) : la cadence en
+minutes par niveau doit rester **croissante** par tranche, à 10 % près
+(`CADENCE_TOL` — sans tolérance, deux manches suffisent à retourner le signe).
+Après : 0,89 / 1,09 / 2,67. Une cadence qui se resserrerait en fin de manche
+serait une progression sans fin, et c'est ce que l'ancien garde-fou (« ne pas
+monter au-dessus de `LEVEL_XP_GROWTH` ») disait sans pouvoir se vérifier.
+
+**Rien de ce que le lot C avait réglé ne recule**, vérifié à graines appariées en
+normal : durée médiane d'un combat de boss 88 → 87 s en solo et 74 → 83 s à
+quatre, victoires 4/8 → 3/8 et 7/8 → 7/8 (dans le bruit). Le ttk de fin de manche
+**s'améliore** au passage, 1,08 → **0,47 s** en solo, parce que la courbe plate
+place les derniers niveaux là où l'ancienne les rendait inatteignables. Un relevé
+non apparié donnait 4/6 → 1/6 sur les victoires : c'était du bruit, et c'est
+exactement pour ça que les graines sont écrites.
+
 ### PV, temps de mise à mort et référence de boss (lot C du plan d'équilibrage)
 
 Protocole : six cas (trois modes × 1 et 4 joueurs), manche complète, bots
