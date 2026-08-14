@@ -267,6 +267,10 @@ export const SRC_BURN = 4;
 export const SRC_BLAST = 5;
 export const SRC_ENV = 6;
 
+const PARTAGEABLES = new Set([
+  "heal", "damage", "rate", "double", "pierce", "ricochet", "shield", "fragment",
+]);
+
 export const DAMAGE_SOURCES = [
   { key: "contact",    label: "contact" },
   { key: "projectile", label: "projectile" },
@@ -627,6 +631,9 @@ export class GameState {
       eclats: 0,
       relics: new Map(),
 
+      rally: 1,
+      oathT: 0,
+      oathMul: 0,
       cd1: 0,
       cd2: 0,
       cd3: 0,
@@ -844,6 +851,10 @@ export class GameState {
 
       p.cd2 = Math.max(0, p.cd2 - dt);
       p.cd3 = Math.max(0, p.cd3 - dt);
+      if (p.oathT > 0) {
+        p.oathT = Math.max(0, p.oathT - dt);
+        if (p.oathT === 0) p.oathMul = 0;
+      }
       p.catalyseT = Math.max(0, p.catalyseT - dt);
       if (p.catalyseT <= 0) p.catalyseMul = 1;
       p.healSwapCd = Math.max(0, p.healSwapCd - dt);
@@ -903,7 +914,7 @@ export class GameState {
       if (p.mods.shieldPool > 0 && !p.downed
           && T.shieldRegen <= 0 && p.shield < p.mods.shieldPool
           && !(p.mods.noShieldRegen && p.pacteUsed)) {
-        p.shield = p.mods.shieldPool;
+        this._grantShield(p, p.mods.shieldPool - p.shield, p.mods.shieldPool);
         if (p.mods.noShieldRegen) p.pacteUsed = 1;
       }
 
@@ -955,7 +966,8 @@ export class GameState {
         if (p.mods.dashTrail > 0) this._dashTrail(p);
       } else if (inp) {
         const g = this.hazards.length ? this._ground(p.x, p.y) : null;
-        const speedMul = p.relics.has("coeur_machine") ? 1 : p.mods.speedMul;
+        const speedMul = (p.relics.has("coeur_machine") ? 1 : p.mods.speedMul)
+          * (p.rally ?? 1);
         const sp = CFG.PLAYER_SPEED * speedMul
           * (p.statuses.has(STATUS_ROOT) ? 1 - STATUS_CFG.ROOT_SLOW : 1)
           * (g ? g.slow : 1);
@@ -1295,7 +1307,7 @@ export class GameState {
     const over = amount - healed;
     if (over > 0) {
       const cap = target.mods.shieldPool + SKILL_CFG.HEAL_MODE_SHIELD_CAP;
-      target.shield = Math.min(cap, target.shield + over);
+      this._grantShield(target, over, cap);
     }
 
     healer.healDealt += amount;
@@ -1384,7 +1396,7 @@ export class GameState {
         }
         if (!inside && !carapace) continue;
         const cap = p.mods.shieldPool + SKILL_CFG.TANK_BULWARK_SHIELD_CAP;
-        if (p.shield < cap) p.shield = Math.min(cap, p.shield + gain);
+        this._grantShield(p, gain, cap);
       }
 
       if (bw.life > 0) kept.push(bw);
@@ -1556,6 +1568,14 @@ export class GameState {
       const owner = this.players.get(ownerId);
       if (owner) amount += this._relicSum(owner, "bossDamage");
     }
+    if ((struck === this.boss || struck === this.boss2) && ownerId) {
+      const owner = this.players.get(ownerId);
+      if (owner) {
+        amount *= Math.min(CARD_CFG.BOSS_DAMAGE_CAP,
+          owner.mods.bossDamageMul
+          + owner.mods.bossDamagePerBar * (this.boss?.phase ?? 0));
+      }
+    }
     if (this.boss2 && target === this.boss2) target = this.boss;
     if (target.vulnUntil > this.time) amount *= CARD_CFG.VULNERABLE_MUL;
     if (target.aura > 0) amount *= 1 - target.aura;
@@ -1642,8 +1662,10 @@ export class GameState {
   _momentum(p) {
     const m = p.mods;
     const cata = p.catalyseT > 0 ? p.catalyseMul : 1;
+    p.rally = 1;
     if (m.elanStep === 0 && m.packStep === 0 && m.ragePerKill === 0
-        && m.lowHpDamage === 0) {
+        && m.lowHpDamage === 0 && m.allyDamageStep === 0 && m.downedRally === 0
+        && p.oathT <= 0) {
       p.power = cata;
       return;
     }
@@ -1665,7 +1687,53 @@ export class GameState {
     if (m.lowHpDamage > 0 && p.hp <= p.maxHp * CARD_CFG.SOUFFLE_HP) {
       bonus += m.lowHpDamage;
     }
+    if (m.allyDamageStep > 0) {
+      bonus += m.allyDamageStep * this._alliesNear(p);
+    }
+    // le ralliement porte la VITESSE aussi : `p.rally` est relu par `_players`
+    if (m.downedRally > 0 && this._someoneDowned(p)) {
+      bonus += m.downedRally;
+      p.rally = 1 + m.downedRally;
+    }
+    if (p.oathT > 0) bonus += p.oathMul;
     p.power = (1 + bonus) * cata;
+  }
+
+  // point de passage unique du BOUCLIER GAGNE : « Bouclier partage » s'y branche,
+  // et le partage ne se repartage pas (`relais` a false)
+  _grantShield(p, amount, cap, relais = true) {
+    if (amount <= 0) return 0;
+    const gain = Math.max(0, Math.min(cap - p.shield, amount));
+    if (gain <= 0) return 0;
+    p.shield += gain;
+    if (relais && p.mods.shieldShare > 0) {
+      let cible = null, best = Infinity;
+      for (const o of this.players.values()) {
+        if (o === p || o.downed) continue;
+        const d = (o.x - p.x) ** 2 + (o.y - p.y) ** 2;
+        if (d < best) { best = d; cible = o; }
+      }
+      if (cible) {
+        const capAllie = cible.mods.shieldPool + SKILL_CFG.HEAL_MODE_SHIELD_CAP;
+        this._grantShield(cible, gain * p.mods.shieldShare, capAllie, false);
+      }
+    }
+    return gain;
+  }
+
+  _alliesNear(p) {
+    const r2 = CARD_CFG.ALLY_RADIUS ** 2;
+    let near = 0;
+    for (const o of this.players.values()) {
+      if (o === p || o.downed) continue;
+      if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 <= r2) near++;
+    }
+    return near;
+  }
+
+  _someoneDowned(p) {
+    for (const o of this.players.values()) if (o !== p && o.downed) return true;
+    return false;
   }
 
   _lifesteal(p, amount) {
@@ -2514,20 +2582,23 @@ export class GameState {
     });
   }
 
-  _applyPowerup(p, type) {
+  _applyPowerup(p, type, part = 1) {
+    const T = CFG.BUFF_TIME * part;
     switch (POWERUP_TYPES[type]) {
-      case "heal":   p.hp = Math.min(p.maxHp, p.hp + CFG.HEAL_AMOUNT); break;
-      case "damage": p.buffDamage = CFG.BUFF_TIME; break;
-      case "rate":   p.buffRate = CFG.BUFF_TIME; break;
-      case "double": p.buffDouble = CFG.BUFF_TIME; break;
-      case "pierce": p.buffPierce = CFG.BUFF_TIME; break;
-      case "ricochet": p.buffRicochet = CFG.BUFF_TIME; break;
+      case "heal":   p.hp = Math.min(p.maxHp, p.hp + CFG.HEAL_AMOUNT * part); break;
+      case "damage": p.buffDamage = Math.max(p.buffDamage, T); break;
+      case "rate":   p.buffRate = Math.max(p.buffRate, T); break;
+      case "double": p.buffDouble = Math.max(p.buffDouble, T); break;
+      case "pierce": p.buffPierce = Math.max(p.buffPierce, T); break;
+      case "ricochet": p.buffRicochet = Math.max(p.buffRicochet, T); break;
       case "beacon": this._beacon(p); break;
       case "turret": this._turret(p); break;
-      case "shield": p.shield = CFG.SHIELD_POOL; break;
+      case "shield":
+        this._grantShield(p, CFG.SHIELD_POOL * part, CFG.SHIELD_POOL);
+        break;
       case "slow":   this.slow = CFG.SLOW_TIME; break;
       case "nova":   this._nova(p); break;
-      case "fragment": p.hp = Math.min(p.maxHp, p.hp + CARD_CFG.HARVEST_HEAL); return;
+      case "fragment": p.hp = Math.min(p.maxHp, p.hp + CARD_CFG.HARVEST_HEAL * part); return;
       case "purification":
         this._purgeAll(p);
         this.effects.push({
@@ -2535,7 +2606,14 @@ export class GameState {
         });
         break;
     }
-    p.score += Math.round(15 * p.mods.scoreMul);
+    // ne se partage que ce qui est PERSONNEL : ni le ralentissement global, ni ce
+    // qui fait naitre une entite (balise, tourelle, nova, purification)
+    if (part === 1 && p.mods.powerupShare > 0 && PARTAGEABLES.has(POWERUP_TYPES[type])) {
+      for (const o of this.players.values()) {
+        if (o !== p && !o.downed) this._applyPowerup(o, type, p.mods.powerupShare);
+      }
+    }
+    if (part === 1) p.score += Math.round(15 * p.mods.scoreMul);
   }
 
   _beacon(p) {
@@ -3187,6 +3265,7 @@ export class GameState {
         kind: 6,
       });
 
+      this._breakRefresh();
       this._bossBreak(b);
       if (!this.boss) return;
     }
@@ -3196,6 +3275,22 @@ export class GameState {
       b.hp -= b.bank;
       b.bank = 0;
       if (b.hp <= 0) this._killBoss(b.lastHitBy ?? 0);
+    }
+  }
+
+  // « Briseur » : la rupture de barre est le seul moment ou une recharge se remet a
+  // zero sans qu'un joueur ait agi. Deuxieme palier : un cinquieme de bouclier.
+  _breakRefresh() {
+    for (const p of this.players.values()) {
+      const n = p.mods.breakRefresh;
+      if (!(n > 0) || p.downed) continue;
+      p.cd1 = 0; p.cd2 = 0; p.cd3 = 0;
+      if (n >= 2 && p.mods.shieldPool > 0) {
+        this._grantShield(p, p.mods.shieldPool * 0.2, p.mods.shieldPool);
+      }
+      this.effects.push({
+        id: this._nextId++, x: p.x, y: p.y, r: 70, life: 0.4, max: 0.4, kind: 4,
+      });
     }
   }
 
@@ -4818,6 +4913,15 @@ export class GameState {
         break;
       }
     }
+    // phalange : la reduction vaut pour TOUTE l'equipe, et comme toute aura elle ne
+    // se cumule pas — meilleure valeur, jamais le produit
+    let phalange = 0;
+    for (const o of this.players.values()) {
+      if (o.downed || !(o.mods.phalanxStep > 0)) continue;
+      const r = o.mods.phalanxStep * this._alliesNear(o);
+      if (r > phalange) phalange = r;
+    }
+    if (phalange > 0) amount *= 1 - phalange;
     const vuln = p.statuses.get(STATUS_VULN);
     if (vuln) amount *= 1 + STATUS_CFG.VULN_PER_STACK * vuln.stacks;
     if (p.tauntT > 0) amount *= SKILL_CFG.TANK_TAUNT_REDUCTION;
@@ -4861,7 +4965,7 @@ export class GameState {
       amount -= absorbed;
       if (p.shield === 0 && !p.relicBatteryUsed && p.relics.has("battery_secours")) {
         p.relicBatteryUsed = 1;
-        p.shield = p.mods.shieldPool * 0.5;
+        this._grantShield(p, p.mods.shieldPool * 0.5, p.mods.shieldPool);
       }
       if (amount <= 0) return;
     }
@@ -5324,6 +5428,7 @@ export class GameState {
       let rate = 0;
       let ratio = CFG.REVIVE_HP_RATIO;
       let bonus = 0;
+      let jureur = null;
       for (const o of this.players.values()) {
         if (o.id === p.id || o.downed) continue;
         const r = CFG.REVIVE_RADIUS * o.mods.reviveRadiusMul;
@@ -5331,6 +5436,7 @@ export class GameState {
         rate += o.mods.reviveSpeedMul;
         if (o.mods.reviveHpRatio > ratio) ratio = o.mods.reviveHpRatio;
         if ((o.mods.reviveHpBonus ?? 0) > bonus) bonus = o.mods.reviveHpBonus;
+        if (o.mods.oathDamage > (jureur?.mods.oathDamage ?? 0)) jureur = o;
       }
 
       if (rate > 0) {
@@ -5340,6 +5446,16 @@ export class GameState {
           p.hp = Math.min(p.maxHp, Math.round(p.maxHp * ratio) + bonus);
           p.revive = 0;
           p.hitCd = CFG.PLAYER_HIT_CD;
+          if (jureur) {
+            for (const q of [p, jureur]) {
+              q.oathT = CARD_CFG.SERMENT_TIME;
+              q.oathMul = Math.max(q.oathMul, jureur.mods.oathDamage);
+            }
+            this.effects.push({
+              id: this._nextId++, x: p.x, y: p.y, r: 90,
+              life: 0.5, max: 0.5, kind: 4,
+            });
+          }
         }
       } else {
         p.revive = Math.max(0, p.revive - dt * CFG.REVIVE_DECAY);

@@ -8,6 +8,66 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Axes coopération et boss (lot E, vague 2)
+
+Neuf cartes, **en fin de tableau** (règle append-only) : six de coopération, trois
+de boss. Le jeu est coopératif et n'avait que six cartes de coopération sur 116 ;
+les boss occupent un cinquième de la manche et n'en avaient qu'une.
+
+Les six cartes de coop portent `minPlayers: 2` — **le premier usage réel des
+filtres de contexte de la vague 1** : zéro offerte en solo, six à deux joueurs.
+
+| carte | rareté | mesure de contrôle |
+|---|---|---|
+| `cordee` | C ×4 | +4 % par allié proche → puissance 1,08 à deux stacks, un allié |
+| `relais` | R ×2 | allié à terre → puissance **et** vitesse ×1,30 |
+| `bouclier_partage` | R ×2 | 40 de bouclier gagné → 10 à l'allié le plus proche |
+| `serment` | E | relève → 8 s de +45 % **aux deux** |
+| `porte_voix` | E | bonus de 14 s chez le porteur, 8,4 s chez l'allié |
+| `phalange` | L | 100 de dégâts subis → 92 avec un allié proche, 100 sans |
+| `reperes` | C ×4 | +12 % de dégâts de boss par palier |
+| `briseur` | R ×2 | rupture de barre → les trois recharges à zéro |
+| `traqueur` | E | +25 % de boss, +10 % par barre brisée |
+
+**`Repères` passe de +7 % à +12 %, et la mesure l'imposait.** À +7 %, une commune
+qui ne vaut que contre les boss était **moins bonne qu'une commune de dégâts
+génériques** (+12 à 14 %) : un tirage aléatoire y perdait ses offres, et la dérive
+des durées de boss en solo est partie à **+141 %** (les combats de fin
+s'allongeant faute de puissance). À parité, elle retombe à **+5 %**.
+
+**Un plafond neuf, `BOSS_DAMAGE_CAP = 1,6`**, sur le modèle de
+`CRIT_CHANCE_CAP` : `Repères` pleine plus `Traqueur` à quatre barres cumulent
+×2,13, et à quatre porteurs le boss fondait.
+
+**Un critère du lot H repasse rouge à quatre joueurs, et ce n'est pas un défaut
+de ces cartes.** Dérive du premier au dernier boss ordinaire, douze manches :
+
+| | solo | quatre joueurs |
+|---|---|---|
+| avant la vague | −4 % | −14 % |
+| après | **+5 %** | **−37 %** |
+
+`verifierBoss` à ses valeurs par défaut (six graines) sort les deux effectifs
+rouges, et **plus fort dans les deux sens** : +117 % en solo, −26 % à quatre. Six
+manches ne suffisent pas à cette statistique — les durées par segment portent
+quatre à douze combats chacune, contre le plancher de barre de 40 s qui tronque la
+distribution par le bas.
+
+La cause est `cordee` : les bots se **regroupent** pendant un combat de boss —
+ils visent tous la même cible — et se dispersent pendant la horde. Une carte qui
+paie le regroupement paie donc exactement la situation que le lot H mesure. Le
+levier est la rampe de PV de boss ou `diff.boss`, pas la valeur de la carte :
+re-régler H depuis E serait rouvrir un lot livré sans mandat.
+
+**Un point de passage neuf : `_grantShield(p, montant, plafond)`.** Le bouclier
+se gagnait à cinq endroits (régénération, rempart, surplus de soin, bonus au sol,
+relique de secours) ; `Bouclier partagé` avait besoin d'un seul. Le partage ne se
+repartage pas.
+
+**Le partage de bonus ne concerne que le PERSONNEL** : ni le ralentissement
+global, ni ce qui fait naître une entité (balise, tourelle, nova, purification).
+Sans cette liste, un bonus ramassé posait quatre tourelles.
+
 ### Conditionnement du tirage et audit du catalogue (lot E, vague 1)
 
 Le lot E s'écrit en **trois vagues** (décision D12), avec une mesure entre

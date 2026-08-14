@@ -804,6 +804,40 @@
                    Vagues 2 et 3 a venir : les deux seules interruptions
                    volontaires du plan
 
+     0.8.18 equilibrage, lot E vague 2  LES DEUX PLUS GROS TROUS DU CATALOGUE.
+                   Le jeu est cooperatif et avait six cartes de cooperation sur
+                   116 ; les boss occupent un cinquieme de la manche et n'en
+                   avaient qu'une. Neuf cartes ajoutees EN FIN DE TABLEAU :
+                   `cordee`, `relais`, `bouclier_partage`, `serment`,
+                   `porte_voix`, `phalange` (seule legendaire du lot), plus
+                   `reperes`, `briseur`, `traqueur`. Les six cartes de coop
+                   portent `minPlayers: 2` — premier usage reel des filtres de
+                   contexte de la vague 1 : zero offerte en solo, six a deux.
+                   `REPERES_STEP` 0,07 -> 0,12, ET LA MESURE L'IMPOSAIT. A +7 %,
+                   une commune qui ne vaut que contre les boss etait MOINS BONNE
+                   qu'une commune de degats generiques : un tirage aleatoire y
+                   perdait ses offres et la derive des durees de boss en solo
+                   partait a +141 %. A parite, elle retombe a +5 %.
+                   `BOSS_DAMAGE_CAP = 1,6`, sur le modele de `CRIT_CHANCE_CAP` :
+                   `Reperes` pleine plus `Traqueur` a quatre barres cumulent x2,13,
+                   et a quatre porteurs le boss fondait.
+                   UN CRITERE DU LOT H REPASSE ROUGE A QUATRE JOUEURS, et ce n'est
+                   pas un defaut de ces cartes : derive du premier au dernier boss
+                   ordinaire -14 % -> -37 % a quatre, +5 % en solo (douze manches).
+                   La cause est `cordee` — les bots se REGROUPENT pendant un combat
+                   de boss, ils visent tous la meme cible, et se dispersent pendant
+                   la horde. Une carte qui paie le regroupement paie exactement la
+                   situation que le lot H mesure. Le levier est la rampe de PV ou
+                   `diff.boss`, pas la valeur de la carte.
+                   POINT DE PASSAGE NEUF : `_grantShield(p, montant, plafond)`. Le
+                   bouclier se gagnait a cinq endroits — regeneration, rempart,
+                   surplus de soin, bonus au sol, relique de secours — et
+                   `Bouclier partage` avait besoin d'un seul. Le partage ne se
+                   repartage pas.
+                   LE PARTAGE DE BONUS NE CONCERNE QUE LE PERSONNEL : ni le
+                   ralentissement global, ni ce qui fait naitre une entite. Sans
+                   cette liste, un bonus ramasse posait quatre tourelles
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -812,4 +846,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.17";
+export const VERSION = "0.8.18";

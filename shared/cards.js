@@ -145,6 +145,18 @@ export const CARD_CFG = {
   PACK_STEP: 0.03,
   PACK_MAX: 0.30,
   PACK_RADIUS: 160,
+  ALLY_RADIUS: 160,
+  CORDEE_STEP: 0.04,
+  RELAIS_STEP: 0.30,
+  SHIELD_SHARE: 0.25,
+  SERMENT_MUL: 0.45,
+  SERMENT_TIME: 8,
+  PORTE_VOIX_SHARE: 0.60,
+  PHALANGE_STEP: 0.08,
+  REPERES_STEP: 0.12,
+  BOSS_DAMAGE_CAP: 1.6,
+  TRAQUEUR_BASE: 0.25,
+  TRAQUEUR_PER_BAR: 0.10,
   RAGE_STEP: 0.01,
   RAGE_MAX: 30,
   RAGE_TIME: 4,
@@ -998,6 +1010,73 @@ export const CARDS = [
     desc: "soin complet et +200 points",
     apply() {},
   },
+
+  {
+    id: "reperes", nom: "Repères", rarity: 0, max: 4, tags: ["off"],
+    desc: `+${num(CARD_CFG.REPERES_STEP * 100)} % de dégâts contre les boss`,
+    stack: n => pctAdd(CARD_CFG.REPERES_STEP, n),
+    apply(m, n) { m.bossDamageMul += CARD_CFG.REPERES_STEP * n; },
+  },
+  {
+    id: "cordee", nom: "Cordée", rarity: 0, max: 4, tags: ["coop"],
+    minPlayers: 2,
+    desc: `+${num(CARD_CFG.CORDEE_STEP * 100)} % de dégâts par allié vivant`
+      + ` à moins de ${fmtM(CARD_CFG.ALLY_RADIUS)}`,
+    stack: n => `${pctAdd(CARD_CFG.CORDEE_STEP, n)} par allié`,
+    apply(m, n) { m.allyDamageStep += CARD_CFG.CORDEE_STEP * n; },
+  },
+  {
+    id: "briseur", nom: "Briseur", rarity: 1, max: 2, tags: ["off", "cadence"],
+    desc: "briser une barre de boss recharge instantanément tes compétences",
+    stack: n => n > 1 ? "et rend 20 % de bouclier" : "recharge immédiate",
+    apply(m, n) { m.breakRefresh = n; },
+  },
+  {
+    id: "relais", nom: "Relais", rarity: 1, max: 2, tags: ["coop"],
+    minPlayers: 2,
+    desc: `allié à terre : +${num(CARD_CFG.RELAIS_STEP * 100)} % de dégâts`
+      + " et de vitesse jusqu'à la relève",
+    stack: n => pctAdd(CARD_CFG.RELAIS_STEP, n),
+    apply(m, n) { m.downedRally += CARD_CFG.RELAIS_STEP * n; },
+  },
+  {
+    id: "bouclier_partage", nom: "Bouclier partagé", rarity: 1, max: 2, tags: ["coop", "def"],
+    minPlayers: 2,
+    desc: `${num(CARD_CFG.SHIELD_SHARE * 100)} % du bouclier gagné va aussi`
+      + " à l'allié le plus proche",
+    stack: n => pctAdd(CARD_CFG.SHIELD_SHARE, n),
+    apply(m, n) { m.shieldShare += CARD_CFG.SHIELD_SHARE * n; },
+  },
+  {
+    id: "traqueur", nom: "Traqueur", rarity: 2, max: 1, tags: ["off"],
+    desc: `+${num(CARD_CFG.TRAQUEUR_BASE * 100)} % de dégâts contre les boss,`
+      + ` +${num(CARD_CFG.TRAQUEUR_PER_BAR * 100)} % de plus par barre brisée`,
+    apply(m) {
+      m.bossDamageMul += CARD_CFG.TRAQUEUR_BASE;
+      m.bossDamagePerBar += CARD_CFG.TRAQUEUR_PER_BAR;
+    },
+  },
+  {
+    id: "serment", nom: "Serment", rarity: 2, max: 1, tags: ["coop"],
+    minPlayers: 2,
+    desc: `relever un allié donne aux deux +${num(CARD_CFG.SERMENT_MUL * 100)} %`
+      + ` de dégâts pendant ${num(CARD_CFG.SERMENT_TIME)} s`,
+    apply(m) { m.oathDamage = CARD_CFG.SERMENT_MUL; },
+  },
+  {
+    id: "porte_voix", nom: "Porte-voix", rarity: 2, max: 1, tags: ["coop"],
+    minPlayers: 2,
+    desc: `tes bonus ramassés s'appliquent à l'équipe, à`
+      + ` ${num(CARD_CFG.PORTE_VOIX_SHARE * 100)} %`,
+    apply(m) { m.powerupShare = CARD_CFG.PORTE_VOIX_SHARE; },
+  },
+  {
+    id: "phalange", nom: "Phalange", rarity: 3, max: 1, tags: ["coop", "def"],
+    minPlayers: 2,
+    desc: `chaque allié à moins de ${fmtM(CARD_CFG.ALLY_RADIUS)} donne à l'équipe`
+      + ` −${num(CARD_CFG.PHALANGE_STEP * 100)} % de dégâts subis`,
+    apply(m) { m.phalanxStep = CARD_CFG.PHALANGE_STEP; },
+  },
 ];
 
 export const CARD_BY_ID = new Map(CARDS.map(c => [c.id, c]));
@@ -1034,6 +1113,15 @@ export function defaultMods() {
     damageTakenMul: 1,
     pickupRadius: 0,
     pickupRadiusMul: 1,
+    allyDamageStep: 0,
+    downedRally: 0,
+    shieldShare: 0,
+    oathDamage: 0,
+    powerupShare: 0,
+    phalanxStep: 0,
+    bossDamageMul: 1,
+    bossDamagePerBar: 0,
+    breakRefresh: 0,
     scoreMul: 1,
     shardMul: 1,
     healPerBoss: 0,
