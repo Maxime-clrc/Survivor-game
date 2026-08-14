@@ -15,10 +15,12 @@ uniform vec2 uOffset;
 out vec2 vUV;
 out vec4 vTint;
 out float vFlash;
+out vec3 vFlashCol;
 void main() {
   vUV = aUV;
   vTint = aTint;
   vFlash = aFx.x;
+  vFlashCol = aFx.yzw;
   gl_Position = vec4(aPos * uScale + uOffset, 0.0, 1.0);
 }`;
 
@@ -27,14 +29,14 @@ precision mediump float;
 in vec2 vUV;
 in vec4 vTint;
 in float vFlash;
+in vec3 vFlashCol;
 uniform sampler2D uAtlas;
-uniform vec3 uFlashColor;
 out vec4 fragColor;
 void main() {
   vec4 c = texture(uAtlas, vUV) * vTint;
   // Melange vers la couleur d'eclair, en gardant l'alpha premultiplie : la
-  // cible est donc uFlashColor * c.a et non uFlashColor tel quel.
-  fragColor = vec4(mix(c.rgb, uFlashColor * c.a, vFlash), c.a);
+  // cible est donc vFlashCol * c.a et non vFlashCol tel quel.
+  fragColor = vec4(mix(c.rgb, vFlashCol * c.a, vFlash), c.a);
 }`;
 
 function compile(gl, type, src) {
@@ -85,7 +87,7 @@ export function createGL(canvas, opts = {}) {
   });
 
   let prog = null, vao = null, vbo = null, ibo = null, tex = null;
-  let uScale = null, uOffset = null, uAtlas = null, uFlashColor = null;
+  let uScale = null, uOffset = null, uAtlas = null;
 
   const bytes = new ArrayBuffer(MAX_QUADS * 4 * VERT_STRIDE);
   const f32 = new Float32Array(bytes);
@@ -93,7 +95,7 @@ export function createGL(canvas, opts = {}) {
 
   let n = 0;
   let blend = BLEND_NORMAL;
-  let flashColor = [1, 1, 1];
+  let fdr = 255, fdg = 255, fdb = 255;
 
   function init() {
     const vs = compile(gl, gl.VERTEX_SHADER, VS);
@@ -114,7 +116,6 @@ export function createGL(canvas, opts = {}) {
     uScale = gl.getUniformLocation(prog, "uScale");
     uOffset = gl.getUniformLocation(prog, "uOffset");
     uAtlas = gl.getUniformLocation(prog, "uAtlas");
-    uFlashColor = gl.getUniformLocation(prog, "uFlashColor");
 
     vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -166,7 +167,12 @@ export function createGL(canvas, opts = {}) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   };
 
-  r.setFlashColor = (cr, cg, cb) => { flashColor = [cr, cg, cb]; };
+  // teinte d'eclair par DEFAUT : un quad qui n'en passe pas la reprend. Elle est
+  // un attribut de sommet et non un uniforme — deux couleurs d'eclair dans la
+  // meme image ne coutent donc aucun vidage supplementaire.
+  r.setFlashColor = (cr, cg, cb) => {
+    fdr = (cr * 255) | 0; fdg = (cg * 255) | 0; fdb = (cb * 255) | 0;
+  };
 
   r.resize = (pxW, pxH, worldW, worldH) => {
     if (!r.ok) return;
@@ -190,7 +196,6 @@ export function createGL(canvas, opts = {}) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(uAtlas, 0);
-    gl.uniform3f(uFlashColor, flashColor[0], flashColor[1], flashColor[2]);
     const w = r.world?.w ?? 1600, h = r.world?.h ?? 900;
     gl.uniform2f(uScale, 2 / w, -2 / h);
     gl.uniform2f(uOffset, -1 - camX * (2 / w), 1 + camY * (2 / h));
@@ -226,7 +231,8 @@ export function createGL(canvas, opts = {}) {
     gl.bindVertexArray(null);
   };
 
-  r.quad = (u0, v0, u1, v1, x, y, halfW, halfH, angle, cr, cg, cb, ca, flash) => {
+  r.quad = (u0, v0, u1, v1, x, y, halfW, halfH, angle, cr, cg, cb, ca, flash,
+            fr, fg, fb) => {
     if (!r.ok) return;
     if (n >= MAX_QUADS) r.flush();
 
@@ -249,22 +255,25 @@ export function createGL(canvas, opts = {}) {
     let o = n * 4 * VERT_STRIDE;
     let fo = o >> 2;
     const fl = flash;
+    const kr = fr === undefined ? fdr : fr;
+    const kg = fg === undefined ? fdg : fg;
+    const kb = fb === undefined ? fdb : fb;
 
     f32[fo] = x0; f32[fo + 1] = y0; f32[fo + 2] = u0; f32[fo + 3] = v0;
     u8[o + 16] = cr; u8[o + 17] = cg; u8[o + 18] = cb; u8[o + 19] = ca;
-    u8[o + 20] = fl;
+    u8[o + 20] = fl; u8[o + 21] = kr; u8[o + 22] = kg; u8[o + 23] = kb;
     o += VERT_STRIDE; fo = o >> 2;
     f32[fo] = x1; f32[fo + 1] = y1; f32[fo + 2] = u1; f32[fo + 3] = v0;
     u8[o + 16] = cr; u8[o + 17] = cg; u8[o + 18] = cb; u8[o + 19] = ca;
-    u8[o + 20] = fl;
+    u8[o + 20] = fl; u8[o + 21] = kr; u8[o + 22] = kg; u8[o + 23] = kb;
     o += VERT_STRIDE; fo = o >> 2;
     f32[fo] = x2; f32[fo + 1] = y2; f32[fo + 2] = u1; f32[fo + 3] = v1;
     u8[o + 16] = cr; u8[o + 17] = cg; u8[o + 18] = cb; u8[o + 19] = ca;
-    u8[o + 20] = fl;
+    u8[o + 20] = fl; u8[o + 21] = kr; u8[o + 22] = kg; u8[o + 23] = kb;
     o += VERT_STRIDE; fo = o >> 2;
     f32[fo] = x3; f32[fo + 1] = y3; f32[fo + 2] = u0; f32[fo + 3] = v1;
     u8[o + 16] = cr; u8[o + 17] = cg; u8[o + 18] = cb; u8[o + 19] = ca;
-    u8[o + 20] = fl;
+    u8[o + 20] = fl; u8[o + 21] = kr; u8[o + 22] = kg; u8[o + 23] = kb;
 
     n++;
   };

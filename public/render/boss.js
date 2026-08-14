@@ -9,7 +9,7 @@ import { drawSprite, frameOf } from "/sprites.js";
 import { amSpectator, dash, myId, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
-import { lastBossPos } from "./fx.js";
+import { bossFlash, bossHit, lastBossPos } from "./fx.js";
 import { aimVector, colorOf, ctx, mouse, nameOf, setCtx, underCtx } from "./stage.js";
 
 
@@ -58,13 +58,18 @@ export function drawBoss(b) {
   ctx.scale(squash, squash);
   const S = { r, t, skin, dark, edge, wounded, ang: b.ang ?? 0,
               phase: b.phase ?? 0, bars: b.bars ?? 4, tense: gather, burst, twin };
-  switch (kind) {
-    case BOSS_MATRIARCHE: drawBossMatriarche(S); break;
-    case BOSS_METRONOME:  drawBossMetronome(S); break;
-    case BOSS_ORACLE:     drawBossOracle(S); break;
-    case BOSS_JUMEAUX:    drawBossJumeaux(S); break;
-    case BOSS_FINAL:      drawBossFinal(S); break;
-    default:              drawBossRavageur(S);
+  peindreBoss(kind, S);
+
+  // [27] la meme silhouette, rejouee en clair par-dessus : c'est l'equivalent
+  // exact du `flashAtlas` de la horde, pour un corps qui n'est pas dans l'atlas.
+  const eclair = bossFlash(now);
+  if (eclair > 0) {
+    ctx.save();
+    ctx.globalAlpha = eclair * 0.8;
+    ctx.globalCompositeOperation = "lighter";
+    peindreBoss(kind, { ...S, skin: COMBAT.flash, dark: COMBAT.flash,
+                        edge: COMBAT.flash });
+    ctx.restore();
   }
 
   if (wounded > 0.2) {
@@ -75,6 +80,16 @@ export function drawBoss(b) {
     ctx.stroke();
   }
   ctx.restore();
+}
+function peindreBoss(kind, S) {
+  switch (kind) {
+    case BOSS_MATRIARCHE: drawBossMatriarche(S); break;
+    case BOSS_METRONOME:  drawBossMetronome(S); break;
+    case BOSS_ORACLE:     drawBossOracle(S); break;
+    case BOSS_JUMEAUX:    drawBossJumeaux(S); break;
+    case BOSS_FINAL:      drawBossFinal(S); break;
+    default:              drawBossRavageur(S);
+  }
 }
 export function bossSheet() {
   const r = CFG.BOSS_RADIUS;
@@ -89,6 +104,8 @@ export function bossSheet() {
   setCtx(g);
   const gardeCue = bossCue;
   setBossCue(null);
+  const gardeHit = bossHit.at;
+  bossHit.at = 0;
   poses.forEach((kind, i) => {
     drawBoss({
       kind, x: pas * i + pas / 2, y: pas / 2, ang: 0,
@@ -99,6 +116,7 @@ export function bossSheet() {
   });
   setCtx(garde);
   setBossCue(gardeCue);
+  bossHit.at = gardeHit;
 
   g.globalCompositeOperation = "source-atop";
   g.fillStyle = "#000000";

@@ -4,12 +4,12 @@ import { EventPump } from "/events.js";
 import { hudDamage } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
 import { CFG, hazardState } from "/shared/game_state.js";
-import { COMBAT, SIGNAL, alpha } from "/shared/palette.js";
+import { COMBAT, FX, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
 import { eventAt, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
 import { latest, myId } from "../core/state.js";
 import { ENEMY_TINT, alertInfo, setAlertInfo } from "../net/interp.js";
-import { ELITE_GOLD, GRID_FINE, camera, ctx, hazardsActifs, inView } from "./stage.js";
+import { ELITE_GOLD, GRID_FINE, camera, ctx, hazardsActifs, inView, ownerColorOf } from "./stage.js";
 
 
 const PARTICLE_2D = 300;
@@ -21,6 +21,24 @@ const SHAKE_MAX = 10;
 export const particles = [];
 export const hits = new Map();
 export const shake = { x: 0, y: 0, mag: 0 };
+
+// [6] LE HITSTOP N'EXISTE QUE POUR LES BARRES DE BOSS. Dans un survivor la
+// fluidite du deplacement EST le jeu : on gele l'horloge de RENDU, pas la
+// simulation, et on rattrape le retard a mi-vitesse pour ne pas payer le gel en
+// latence permanente.
+export const timeWarp = { stop: 0, held: 0, count: 0 };
+export function addHitstop(s) {
+  if (timeWarp.stop <= 0) timeWarp.count++;
+  timeWarp.stop = Math.max(timeWarp.stop, s);
+}
+function stepTimeWarp(dt) {
+  if (timeWarp.stop > 0) {
+    timeWarp.stop -= dt;
+    timeWarp.held += dt;
+  } else if (timeWarp.held > 0) {
+    timeWarp.held = Math.max(0, timeWarp.held - dt * 0.5);
+  }
+}
 export const pump = new EventPump(handleEvent, {
   get myId() { return myId; },
   get hazards() { return hazardsActifs(); },
@@ -38,6 +56,16 @@ const EFFECT_SOUND = {
   13: { son: "impact", pitch: 1.4, force: 0.5, shake: 0 },
   14: { son: "impact", pitch: 0.55, force: 0.45, shake: 0 },
 };
+
+// les quatre souffles, et LEUR MATIERE. `n` est le nombre de tues : il met a
+// l'echelle la duree, la taille et la gravite du son.
+const BLAST_STYLE = {
+  0:  { coeur: COMBAT.flash, feu: FX.novaSoft, bord: FX.nova, debris: FX.nova },
+  7:  { coeur: COMBAT.flash, feu: FX.blastEdge, bord: FX.blastFill, debris: FX.blastFill },
+  8:  { coeur: COMBAT.flash, feu: FX.wave, bord: FX.waveSoft, debris: FX.waveSoft },
+  12: { coeur: COMBAT.flash, feu: FX.bombEdge, bord: FX.bombFill, debris: FX.bombFill },
+};
+
 function handleEvent(e) {
   switch (e.t) {
     case "tir":
@@ -45,8 +73,12 @@ function handleEvent(e) {
       break;
 
     case "impact":
-      playSound("impact");
-      if (!e.boss) { registerHit(e); aggregateDamage(e); }
+      // [26d] le critique PREND la place de la touche dans le limiteur : le
+      // nombre de voix par seconde ne bouge pas d'un cran.
+      if (e.crits > 0) playSound("critique", { key: "impact" });
+      else playSound("impact");
+      if (e.boss) bossHit.at = performance.now();
+      else { registerHit(e); aggregateDamage(e); }
       break;
 
     case "blesse":
@@ -64,14 +96,24 @@ function handleEvent(e) {
       playSound("mur");
       break;
 
-    case "mort":
-      playSound("mort", { pitch: e.elite ? 0.6 : 1.3 - Math.min(0.6, e.type * 0.12) });
-      spawnDeath(e.x, e.y, e.type, e.elite, e.ang ?? 0);
+    case "mort": {
+      const base = e.elite ? 0.6 : 1.3 - Math.min(0.6, e.type * 0.12);
+      playSound("mort", { pitch: base * chainPitch() });
+      spawnDeath(e.x, e.y, e.type, e.elite, e.ang ?? 0, e.crit, e.owner);
+      spawnXpStream(e.x, e.y);
       if (e.dmg > 0) aggregateDamage(e);
       break;
+    }
 
     case "bonus": playSound("bonus"); break;
-    case "niveau": playSound("niveau"); break;
+
+    case "recolte": playSound("recolte", { k: e.k }); break;
+    case "recolteFin": playSound("recolteFin"); break;
+
+    case "niveau":
+      playSound("niveau");
+      addPulse(SIGNAL.gain, 0.9);
+      break;
 
     case "segment": {
       const now = performance.now();
@@ -91,7 +133,13 @@ function handleEvent(e) {
       break;
     }
     case "aterre": playSound("aterre"); break;
-    case "releve": playSound("releve"); break;
+
+    // [21] le relevement d'un allie : flash, grave, et l'invulnerabilite se voit.
+    case "releve":
+      playSound("relevement");
+      addPulse(SIGNAL.ally, 0.7);
+      spawnRevive(e.x, e.y, ownerColorOf(e.id) ?? SIGNAL.ally);
+      break;
 
     case "explosion": {
       const k = Math.max(0.35, Math.min(1.4, e.r / 150));
@@ -104,6 +152,8 @@ function handleEvent(e) {
     case "barre":
       playSound("barre");
       addShake(SHAKE_MAX);
+      addHitstop(0.10);
+      addPulse(SIGNAL.warn, 0.5);
       addGridPing(lastBossPos.x, lastBossPos.y, 260);
       break;
 
@@ -113,10 +163,25 @@ function handleEvent(e) {
 
     case "degats":
       pushDamage(e.x, e.y, e.dmg, e.crit);
+      // [29] l'etincelle nait la ou la balle a touche, dans l'axe du tir, et
+      // reutilise les eclats du critique : aucun asset de plus.
+      spawnCritShards(e.x, e.y, e.x - lastBossPos.x, e.y - lastBossPos.y);
+      bossHit.at = performance.now();
       break;
 
     case "effet": {
       const d = EFFECT_SOUND[e.kind];
+      const S = BLAST_STYLE[e.kind];
+      if (S) {
+        // [8] l'intensite MET TOUT A L'ECHELLE : trente tues et trois ne
+        // produisent plus la meme image ni le meme son.
+        const ampleur = Math.min(1, (e.n ?? 0) / 12);
+        spawnBlast(e.x, e.y, e.r || 90, ampleur, S);
+        playSound("explosion", { force: (d?.force ?? 1) * (0.75 + 0.75 * ampleur) });
+        addShake((d?.shake ?? 4) * (0.7 + 0.6 * ampleur));
+        addGridPing(e.x, e.y, Math.max(70, e.r || 0));
+        break;
+      }
       if (!d) break;
       playSound(d.son, d);
       if (d.shake) {
@@ -126,6 +191,19 @@ function handleEvent(e) {
       break;
     }
   }
+}
+
+// [1] LE RETOUR N'EST PAS SUR LA MORT, IL EST SUR LA CADENCE DES MORTS. Chaque
+// tue dans la fenetre monte d'un demi-ton, plafonne a l'octave ; la chaine
+// cassee redescend au sol. La hauteur est gratuite : aucune voix de plus.
+const CHAIN_WINDOW = 0.4;
+const CHAIN_MAX = 12;
+const chain = { at: 0, n: 0 };
+function chainPitch() {
+  const now = performance.now() / 1000;
+  chain.n = now - chain.at < CHAIN_WINDOW ? Math.min(CHAIN_MAX, chain.n + 1) : 0;
+  chain.at = now;
+  return Math.pow(2, chain.n / 12);
 }
 function registerHit(e) {
   let dx = 0, dy = 0;
@@ -143,15 +221,28 @@ function registerHit(e) {
   const n = Math.max(1, Math.min(HIT_BURST_MAX, e.hits ?? 1));
   const span = 1000 / CFG.SNAPSHOT_HZ;
   const step = Math.max(HIT_FLASH * 1000, span / n);
+  // la teinte de l'allie qui tire : on voit ce que font les autres sans quitter
+  // son propre ecran. Elle est un attribut de sommet, donc gratuite.
+  const col = e.owner && e.owner !== myId ? ownerColorOf(e.owner) : null;
+  let restants = e.crits ?? 0;
   for (let i = 0; i < n; i++) {
-    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy);
-    else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy });
+    const crit = restants-- > 0;
+    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col);
+    else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy, crit, col });
   }
 }
 const HIT_BURST_MAX = 4;
 export const hitQueue = [];
-function applyHit(id, x, y, dx, dy) {
-  hits.set(id, { until: performance.now() + HIT_FLASH * 1000, dx, dy });
+const CRIT_FLASH = 0.13;
+function applyHit(id, x, y, dx, dy, crit = false, col = null) {
+  const now = performance.now();
+  hits.set(id, {
+    until: now + (crit ? CRIT_FLASH : HIT_FLASH) * 1000,
+    dx, dy, col: crit ? SIGNAL.warn : col,
+    // [26c] le coup de zoom porte la reponse sur LA CIBLE et non sur la camera :
+    // dans une foule de 400 corps, c'est le seul endroit ou elle se lit.
+    punch: crit ? now + CRIT_PUNCH * 1000 : 0,
+  });
 
   for (let i = 0; i < 2 && particles.length < PARTICLE_MAX; i++) {
     const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.6;
@@ -162,13 +253,28 @@ function applyHit(id, x, y, dx, dy) {
       ang: a, long: 3.4,
     });
   }
+  if (crit) spawnCritShards(x, y, dx, dy);
+}
+export const CRIT_PUNCH = 0.05;
+// [26e] des ECLATS, pas un disque : la forme doit dire « perforation ».
+export function spawnCritShards(x, y, dx, dy) {
+  const a0 = Math.atan2(dy, dx);
+  for (let i = 0; i < 3 && particles.length < PARTICLE_MAX; i++) {
+    const a = a0 + (i - 1) * 0.30 + (Math.random() - 0.5) * 0.14;
+    const sp = 240 + Math.random() * 180;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.22, max: 0.22, col: SIGNAL.warn, size: 3.4,
+      frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 6,
+    });
+  }
 }
 function flushHitQueue(now) {
   for (let i = hitQueue.length - 1; i >= 0; i--) {
     if (hitQueue[i].at > now) continue;
     const h = hitQueue[i];
     hitQueue.splice(i, 1);
-    applyHit(h.id, h.x, h.y, h.dx, h.dy);
+    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col);
   }
 }
 export const deaths = [];
@@ -202,7 +308,7 @@ const DEATH_BURST = [
   { n: 0.85, size: 2.0, sp: 80, spread: 130, life: 0.42, flash: 0.8, cone: 7 },
   { n: 1.35, size: 2.4, sp: 45, spread: 95, life: 0.60, flash: 1.15, cone: 7 },
 ];
-function spawnDeath(x, y, type, elite, ang = 0) {
+function spawnDeath(x, y, type, elite, ang = 0, crit = false, owner = 0) {
   if (deaths.length < DEATH_MAX) {
     deaths.push({
       x, y, type, at: performance.now(),
@@ -214,12 +320,13 @@ function spawnDeath(x, y, type, elite, ang = 0) {
   const col = ENEMY_TINT[type] ?? ENEMY_TINT[0];
   const dense = glActive();
   const D = DEATH_BURST[type] ?? DEATH_BURST[0];
-  const n = Math.round((elite ? (dense ? 22 : 10) : (dense ? 14 : 7)) * D.n);
+  const gros = crit ? 1.6 : 1;
+  const n = Math.round((elite ? (dense ? 22 : 10) : (dense ? 14 : 7)) * D.n * gros);
   const grow = elite ? 1.4 : 1;
   for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
     const a = D.cone >= 7 ? Math.random() * Math.PI * 2
                           : ang + (Math.random() - 0.5) * D.cone;
-    const sp = D.sp + Math.random() * D.spread;
+    const sp = (D.sp + Math.random() * D.spread) * gros;
     particles.push({
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       life: D.life, max: D.life, col, size: D.size * grow,
@@ -230,12 +337,171 @@ function spawnDeath(x, y, type, elite, ang = 0) {
   if (particles.length < PARTICLE_MAX) {
     particles.push({
       x, y, vx: 0, vy: 0, life: 0.12, max: 0.12,
-      col: COMBAT.flash, size: (elite ? 20 : 13) * D.flash, frame: fxGlow,
+      col: crit ? SIGNAL.warn : (owner && owner !== myId ? ownerColorOf(owner) ?? COMBAT.flash
+                                                        : COMBAT.flash),
+      size: (elite ? 20 : 13) * D.flash * gros, frame: fxGlow,
     });
+  }
+  // [26f] le critique qui TUE monte d'un palier : il emprunte un fragment de
+  // l'onde de choc du souffle.
+  if (crit && bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: 8, max: 62, life: 0.26, t: 0.26, col: SIGNAL.warn, w: 2.4 });
   }
   if (elite && bursts.length < BURST_MAX) {
     bursts.push({ x, y, r: 20, max: 74, life: 0.35, t: 0.35, col: ELITE_GOLD });
   }
+}
+
+// [4] LE FLUX D'XP. Aucune entite, aucun ramassage, aucun changement de jeu :
+// l'experience reste instantanee. Un filet part du cadavre vers le joueur, et
+// c'est la premiere fois que le partage d'equipe se voit.
+const XP_LIFE = 0.55;
+function spawnXpStream(x, y) {
+  if (!latest || particles.length > PARTICLE_MAX * 0.6) return;
+  let cible = null, bd = Infinity;
+  for (const p of latest.players.values()) {
+    if (p.downed) continue;
+    const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+    if (d < bd) { bd = d; cible = p; }
+  }
+  if (!cible || bd > 900 * 900) return;
+  const n = glActive() ? 2 : 1;
+  for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 40 + Math.random() * 60;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: XP_LIFE, max: XP_LIFE, col: SIGNAL.gain, size: 2.6,
+      frame: fxGlow, vers: cible.id, drag: 1,
+    });
+  }
+}
+
+// [9][10][11] LE SOUFFLE EN COUCHES : chacune a SA constante de temps. Si tout
+// s'estompe sur la meme courbe, ca reste un element d'interface.
+export function spawnBlast(x, y, r, ampleur, S) {
+  const dense = glActive();
+
+  // noyau : il NAIT a sa taille maximale — une montee progressive fait
+  // « animation » la ou une detonation fait « matiere ».
+  if (particles.length < PARTICLE_MAX) {
+    particles.push({ x, y, vx: 0, vy: 0, life: 0.034, max: 0.034,
+                     col: S.coeur, size: r * 0.85, frame: fxGlow, drag: 1 });
+  }
+
+  // boule de feu : trois quads decales, blanc -> feu -> bord. Un cercle parfait
+  // se lit comme de l'interface, une forme irreguliere comme de la matiere.
+  const boules = [
+    { c: S.coeur, s: 0.62, l: 0.10 },
+    { c: S.feu,   s: 0.92, l: 0.14 + 0.06 * ampleur },
+    { c: S.bord,  s: 1.20, l: 0.17 + 0.09 * ampleur },
+  ];
+  for (const b of boules) {
+    if (particles.length >= PARTICLE_MAX) break;
+    const a = Math.random() * Math.PI * 2;
+    const off = r * 0.13;
+    particles.push({
+      x: x + Math.cos(a) * off, y: y + Math.sin(a) * off,
+      vx: 0, vy: 0, life: b.l, max: b.l, col: b.c,
+      size: r * b.s * (0.9 + 0.35 * ampleur), frame: fxGlow,
+      ang: Math.random() * Math.PI * 2, grow: r * 0.5, drag: 1,
+    });
+  }
+
+  // onde de choc : elle DEPASSE le remplissage, sinon elle disparait dedans.
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: r * 0.35, max: r * (1.5 + 0.5 * ampleur),
+                  life: 0.25, t: 0.25, col: S.bord, w: 2 + 2.5 * ampleur });
+  }
+
+  // debris
+  const nd = Math.round((dense ? 7 : 3) + (dense ? 8 : 3) * ampleur);
+  for (let i = 0; i < nd && particles.length < PARTICLE_MAX; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 180 + Math.random() * (260 + 320 * ampleur);
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.5 + Math.random() * 0.25, max: 0.75,
+      col: S.debris, size: 2.6 + 2 * Math.random(),
+      frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 16,
+    });
+  }
+
+  // fumee : la meme case que le halo, distinguee par son COMPORTEMENT — grosse,
+  // tres transparente, lente, et elle grandit.
+  const nf = dense ? 3 + Math.round(2 * ampleur) : 1;
+  for (let i = 0; i < nf && particles.length < PARTICLE_MAX; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 22 + Math.random() * 30;
+    particles.push({
+      x: x + Math.cos(a) * r * 0.3, y: y + Math.sin(a) * r * 0.3,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.9 + 0.5 * ampleur, max: 0.9 + 0.5 * ampleur,
+      col: SURFACE.line, size: r * 0.55, frame: fxGlow,
+      grow: r * 0.5, a0: 0.34, drag: 0.985,
+    });
+  }
+
+  if (blastMarks.length >= BLAST_MARK_MAX) blastMarks.shift();
+  blastMarks.push({ x, y, r: r * 0.8, at: performance.now(), dur: 1600 + 900 * ampleur });
+}
+
+// la marque au sol : SOUS tout le reste, et elle s'efface lentement.
+const BLAST_MARK_MAX = 14;
+export const blastMarks = [];
+export function drawBlastMarks() {
+  if (blastMarks.length === 0) return;
+  const now = performance.now();
+  for (let i = blastMarks.length - 1; i >= 0; i--) {
+    const m = blastMarks[i];
+    const k = (now - m.at) / m.dur;
+    if (k >= 1) { blastMarks[i] = blastMarks[blastMarks.length - 1]; blastMarks.pop(); continue; }
+    if (!inView(m.x, m.y, m.r)) continue;
+    ctx.fillStyle = alpha(SURFACE.void, 0.34 * (1 - k));
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r * (0.85 + 0.15 * k), 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// [21] l'invulnerabilite breve d'un releve doit SE VOIR.
+function spawnRevive(x, y, col) {
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: 10, max: 150, life: 0.55, t: 0.55, col, w: 3.5 });
+  }
+  for (let i = 0; i < 14 && particles.length < PARTICLE_MAX; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const d = 40 + Math.random() * 90;
+    const sp = 120 + Math.random() * 90;
+    particles.push({
+      x: x + Math.cos(a) * d, y: y + Math.sin(a) * d,
+      vx: -Math.cos(a) * sp, vy: -Math.sin(a) * sp,
+      life: 0.5, max: 0.5, col, size: 3.2, frame: fxGlow, drag: 0.94,
+    });
+  }
+}
+
+// [20] LE POULS D'EQUIPE : la jauge d'XP est deja commune, rien ne celebrait la
+// montee de niveau comme un evenement partage. Quatre ecrans, un seul instant.
+export const pulse = { t: 0, max: 0, col: SIGNAL.gain };
+export function addPulse(col, dur) {
+  pulse.col = col;
+  pulse.max = dur;
+  pulse.t = dur;
+}
+export function drawPulse() {
+  if (pulse.t <= 0) return;
+  const k = pulse.t / pulse.max;
+  const bord = Math.min(CFG.VIEW_W, CFG.VIEW_H) * 0.34;
+  const g = ctx.createRadialGradient(
+    camera.x0 + CFG.VIEW_W / 2, camera.y0 + CFG.VIEW_H / 2,
+    Math.max(1, Math.min(CFG.VIEW_W, CFG.VIEW_H) / 2 - bord * k),
+    camera.x0 + CFG.VIEW_W / 2, camera.y0 + CFG.VIEW_H / 2,
+    Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2);
+  g.addColorStop(0, alpha(pulse.col, 0));
+  g.addColorStop(1, alpha(pulse.col, 0.30 * k * k));
+  ctx.fillStyle = g;
+  ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
 }
 export const bursts = [];
 export const BURST_MAX = 24;
@@ -246,17 +512,21 @@ function stepBursts(dt) {
   }
 }
 export function drawBursts() {
+  if (bursts.length === 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
   for (const b of bursts) {
     const k = 1 - b.t / b.life;
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
+    // l'anneau part vite et freine : c'est ce profil qui le fait lire comme un
+    // souffle et non comme un cercle qui grandit.
+    const e = 1 - (1 - k) * (1 - k);
     ctx.strokeStyle = alpha(b.col, (1 - k) * 0.75);
-    ctx.lineWidth = 3 * (1 - k) + 1;
+    ctx.lineWidth = (b.w ?? 3) * (1 - k) + 1;
     ctx.beginPath();
-    ctx.arc(b.x, b.y, b.r + (b.max - b.r) * k, 0, Math.PI * 2);
+    ctx.arc(b.x, b.y, b.r + (b.max - b.r) * e, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.restore();
   }
+  ctx.restore();
 }
 function pushDamage(x, y, dmg, crit = false) {
   hudDamage(x + (Math.random() - 0.5) * 40, y - 30, dmg, crit ? "crit" : "deal");
@@ -309,6 +579,9 @@ export function flushDamage(now) {
   }
 }
 export function stepFeedback(dt) {
+  stepTimeWarp(dt);
+  if (pulse.t > 0) pulse.t = Math.max(0, pulse.t - dt);
+
   if (shake.mag > 0.05) {
     shake.mag *= Math.pow(0.004, dt / 0.2);
     shake.x = (Math.random() - 0.5) * 2 * shake.mag;
@@ -317,6 +590,7 @@ export function stepFeedback(dt) {
     shake.mag = 0; shake.x = 0; shake.y = 0;
   }
 
+  const joueurs = latest?.players;
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.life -= dt;
@@ -326,8 +600,20 @@ export function stepFeedback(dt) {
       particles.pop();
       continue;
     }
+    if (p.vers && joueurs) {
+      const c = joueurs.get(p.vers);
+      if (c) {
+        const dx = c.x - p.x, dy = c.y - p.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const pull = 1900 * (1 - p.life / p.max);
+        p.vx += (dx / d) * pull * dt;
+        p.vy += (dy / d) * pull * dt;
+        if (d < 26) p.life = Math.min(p.life, 0.06);
+      }
+    }
     p.x += p.vx * dt; p.y += p.vy * dt;
-    p.vx *= 0.90; p.vy *= 0.90;
+    const drag = Math.pow(p.drag ?? 0.90, dt * 60);
+    p.vx *= drag; p.vy *= drag;
     if (p.lift) p.vy -= p.lift * dt;
     if (p.spin) p.ang += p.spin * dt;
     if (p.grow) p.size += p.grow * dt;
@@ -351,16 +637,21 @@ export function drawParticles() {
         scaleY: s,
         angle: p.ang ?? 0,
         tint: p.col,
-        alpha: Math.max(0, p.life / p.max),
+        alpha: Math.max(0, p.life / p.max) * (p.a0 ?? 1),
         additive: true,
       });
     }
     return;
   }
 
+  // [7] LE MELANGE ADDITIF. Une explosion en alpha classique est un disque
+  // gris ; en additif, c'est de la lumiere. Le chemin WebGL le fait par
+  // `BLEND_ADD` ; le chemin 2D ne le faisait pas du tout.
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
   for (const p of particles) {
     if (!inView(p.x, p.y, 40)) continue;
-    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.globalAlpha = Math.max(0, p.life / p.max) * (p.a0 ?? 1);
     ctx.fillStyle = p.col;
     if (p.frame === fxGlow && fxGlow) {
       ctx.beginPath();
@@ -370,6 +661,7 @@ export function drawParticles() {
       ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
     }
   }
+  ctx.restore();
   ctx.globalAlpha = 1;
 }
 export const gridPings = [];
@@ -411,6 +703,18 @@ export function drawGridPings() {
 export const ZONE_FX_MAX = 600;
 export let zoneFx = 0;
 export const lastBossPos = { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
+
+// [27] LE RETOUR DE TOUCHE DU BOSS. L'eclair blanc de la horde vit dans
+// `flashAtlas` ; le boss est trace a la main, hors atlas, donc il n'en avait
+// aucun equivalent. Ce n'etait pas un reglage trop discret, c'etait un canal
+// absent — et le choix de rendu, lui, etait bon.
+export const bossHit = { at: 0 };
+export const BOSS_FLASH_MS = 80;
+export function bossFlash(now) {
+  if (bossHit.at <= 0) return 0;
+  const k = 1 - (now - bossHit.at) / BOSS_FLASH_MS;
+  return k > 0 ? k : 0;
+}
 
 export function setPARTICLE_MAX(v) { PARTICLE_MAX = v; }
 export function setFxWhite(v) { fxWhite = v; }

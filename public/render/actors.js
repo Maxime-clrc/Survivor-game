@@ -8,7 +8,7 @@ import { BOSS, CLASS_COLOR, ENEMY, FX, OWNED, SURFACE, ZONE, alpha } from "/shar
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
-import { BURST_MAX, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
+import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
 import { ELITE_GOLD, camera, ctx, inView, ownerColorOf } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
@@ -548,6 +548,12 @@ export function drawDrones(list) {
     ctx.restore();
   }
 }
+const BLAST_TINT = {
+  0:  [FX.nova, FX.novaSoft],
+  7:  [FX.blastFill, FX.blastEdge],
+  8:  [FX.waveSoft, FX.wave],
+  12: [FX.bombFill, FX.bombEdge],
+};
 export function drawEffects(effects) {
   for (const f of effects) {
     const grow = 1 - f.k;
@@ -571,33 +577,22 @@ export function drawEffects(effects) {
     }
 
     if (f.kind === 3) {
-      const mx = (f.x + f.x2) / 2, my = (f.y + f.y2) / 2;
-      const nx = -(f.y2 - f.y), ny = f.x2 - f.x;
-      const nd = Math.hypot(nx, ny) || 1;
-      const off = 14 * (1 - f.k);
-
-      ctx.strokeStyle = alpha(FX.ricochet, f.k);
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(f.x, f.y);
-      ctx.lineTo(mx + (nx / nd) * off, my + (ny / nd) * off);
-      ctx.lineTo(f.x2, f.y2);
-      ctx.stroke();
-
-      ctx.fillStyle = alpha(FX.ricochetCore, f.k * 0.9);
-      ctx.beginPath(); ctx.arc(f.x2, f.y2, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = f.k;
+      drawArc(`r${f.id}`, f.x, f.y, f.x2, f.y2, {
+        col: FX.ricochet, coeur: FX.ricochetCore, amp: 0.09, width: 2.2,
+        branches: 2, cut: 0.45,
+      });
+      ctx.globalAlpha = 1;
       continue;
     }
 
     if (f.kind === 13) {
-      ctx.strokeStyle = alpha(CLASS_COLOR.dps, f.k * 0.8);
-      ctx.lineWidth = 2;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(f.x2, f.y2);
-      ctx.lineTo(f.x, f.y);
-      ctx.stroke();
+      ctx.globalAlpha = f.k;
+      drawArc(`s${f.id}`, f.x2, f.y2, f.x, f.y, {
+        col: CLASS_COLOR.dps, coeur: FX.levelSoft, amp: 0.04, width: 1.9,
+        branches: 1, cut: 0.2,
+      });
+      ctx.globalAlpha = 1;
 
       const s = 6 + 6 * f.k;
       ctx.strokeStyle = alpha(CLASS_COLOR.dps, f.k);
@@ -663,31 +658,21 @@ export function drawEffects(effects) {
       continue;
     }
 
-    if (f.kind === 7) {
-      ctx.fillStyle = alpha(FX.blastFill, f.k * 0.35);
+    // [10] LES QUATRE SOUFFLES NAISSENT A LEUR TAILLE MAXIMALE. Un disque qui
+    // grandit fait « animation » ; une detonation fait « matiere ». La croissance
+    // appartient a la seule onde de choc, qui DEPASSE le remplissage
+    // (`bursts`, dans fx.js), et les couches chaudes aux particules.
+    const B = BLAST_TINT[f.kind];
+    if (B) {
+      ctx.fillStyle = alpha(B[0], f.k * f.k * 0.34);
       ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = alpha(FX.blastEdge, f.k * 0.9);
-      ctx.lineWidth = 5 * f.k + 1.5;
+      ctx.strokeStyle = alpha(B[1], f.k * 0.8);
+      ctx.lineWidth = 5 * f.k + 1;
       ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
-      ctx.stroke();
-      continue;
-    }
-
-    if (f.kind === 8) {
-      ctx.strokeStyle = alpha(FX.wave, f.k * 0.85);
-      ctx.lineWidth = 4 * f.k + 1;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.strokeStyle = alpha(BOSS.twin, f.k * 0.5);
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r * grow * 0.85, 0, Math.PI * 2);
+      ctx.arc(f.x, f.y, f.r * (1 - 0.06 * (1 - f.k)), 0, Math.PI * 2);
       ctx.stroke();
       continue;
     }
@@ -722,18 +707,6 @@ export function drawEffects(effects) {
 
       ctx.strokeStyle = alpha(FX.heal, f.k * 0.9);
       ctx.lineWidth = 5 * f.k + 1.5;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
-      ctx.stroke();
-      continue;
-    }
-
-    if (f.kind === 12) {
-      ctx.fillStyle = alpha(FX.bombFill, f.k * 0.42);
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2); ctx.fill();
-
-      ctx.strokeStyle = alpha(FX.bombEdge, f.k * 0.95);
-      ctx.lineWidth = 7 * f.k + 2;
       ctx.beginPath();
       ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
       ctx.stroke();
@@ -986,39 +959,134 @@ export function drawHarvests(list) {
     }
   }
 }
-export function drawHealLinks(list) {
-  let byId = null;
-  const t = performance.now() / 1000;
-  for (const e of list) {
-    if (!e.healTarget) continue;
-    if (byId === null) {
-      byId = new Map();
-      for (const o of list) byId.set(o.id, o);
-    }
-    const target = byId.get(e.healTarget);
-    if (!target) continue;
-    if (!inView(e.x, e.y, 200) && !inView(target.x, target.y, 200)) continue;
+// ============================ L'ARC ============================
+// Une seule fonction pour tout ce qui RELIE deux points : ricochet, salve, lien
+// du soigneur, lien du medic ennemi. Quatre regles, et aucune n'est facultative.
+//
+//  - deplacement de POINT MILIEU, amplitude divisee a chaque niveau : une
+//    amplitude constante donne du bruit, pas un arc ;
+//  - DOUBLE COUCHE additive, coeur clair fin + halo large a faible alpha. C'est
+//    ce doublage, et rien d'autre, qui separe « une ligne bleue » de « de
+//    l'electricite » — la surexposition au centre est la signature de tout ce
+//    qui est tres lumineux ;
+//  - une ou deux BRANCHES MORTES qui ne menent nulle part. Un arc sans branche
+//    ressemble a un laser ;
+//  - regeneration entre 15 et 20 Hz. A 60 Hz c'est un scintillement illisible,
+//    et un trace fige parait mort.
+const ARC_HZ = 17;
+const ARC_CACHE_MAX = 320;
+const arcCache = new Map();
+let arcSeed = 1;
 
-    const dx = target.x - e.x, dy = target.y - e.y;
-    const d = Math.hypot(dx, dy) || 1;
-    const nx = -dy / d, ny = dx / d;
-    ctx.strokeStyle = alpha(ENEMY_TINT[7] ?? ENEMY.base, 0.7);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(e.x, e.y);
-    const STEPS = 8;
-    for (let i = 1; i <= STEPS; i++) {
-      const k = i / STEPS;
-      const wob = Math.sin(k * Math.PI * 3 + t * 6 + e.id) * 5 * Math.sin(k * Math.PI);
-      ctx.lineTo(e.x + dx * k + nx * wob, e.y + dy * k + ny * wob);
+function arcBuild(x0, y0, x1, y1, o) {
+  const rnd = mulberry32((arcSeed = (arcSeed * 1664525 + 1013904223) >>> 0));
+  const dx = x1 - x0, dy = y1 - y0;
+  const d = Math.hypot(dx, dy) || 1;
+  const nx = -dy / d, ny = dx / d;
+
+  let pts = [[0, 0], [1, 0]];
+  let amp = o.amp;
+  for (let lvl = 0; lvl < 3; lvl++) {
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      out.push([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + (rnd() - 0.5) * amp]);
+      out.push(b);
     }
-    ctx.stroke();
-    ctx.fillStyle = alpha(ENEMY_TINT[7] ?? ENEMY.base, 0.85);
+    pts = out;
+    amp *= 0.5;
+  }
+
+  const abs = pts.map(([k, w]) => {
+    const att = o.pinch ? Math.sin(k * Math.PI) : 1;
+    return [x0 + dx * k + nx * w * d * att, y0 + dy * k + ny * w * d * att];
+  });
+
+  const branches = [];
+  const nb = o.branches;
+  for (let i = 0; i < nb; i++) {
+    const at = 1 + Math.floor(rnd() * (abs.length - 2));
+    const a0 = Math.atan2(dy, dx) + (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd() * 0.8);
+    const seg = [abs[at]];
+    let px = abs[at][0], py = abs[at][1], ang = a0;
+    for (let s = 0; s < 3; s++) {
+      const len = d * (0.05 + rnd() * 0.09);
+      ang += (rnd() - 0.5) * 0.9;
+      px += Math.cos(ang) * len; py += Math.sin(ang) * len;
+      seg.push([px, py]);
+    }
+    branches.push(seg);
+  }
+
+  const cut = o.cut > 0 && rnd() < o.cut
+    ? 1 + Math.floor(rnd() * (abs.length - 3))
+    : -1;
+
+  return { abs, branches, cut, at: performance.now() };
+}
+
+function arcTrace(pts, saut) {
+  ctx.beginPath();
+  let pose = false;
+  for (let i = 0; i < pts.length; i++) {
+    if (i === saut) { pose = false; continue; }
+    if (!pose) { ctx.moveTo(pts[i][0], pts[i][1]); pose = true; }
+    else ctx.lineTo(pts[i][0], pts[i][1]);
+  }
+  ctx.stroke();
+}
+
+export function drawArc(key, x0, y0, x1, y1, {
+  col, coeur, amp = 0.06, width = 1.8, branches = 1, cut = 0, pinch = true,
+} = {}) {
+  const now = performance.now();
+  let a = arcCache.get(key);
+  if (!a || now - a.at > 1000 / ARC_HZ) {
+    if (arcCache.size > ARC_CACHE_MAX) arcCache.clear();
+    a = arcBuild(x0, y0, x1, y1, { amp, branches, cut, pinch });
+    arcCache.set(key, a);
+  } else {
+    // la geometrie tient 55 ms, mais ses extremites suivent leurs porteurs
+    const p = a.abs, n = p.length - 1;
+    const ox = p[0][0], oy = p[0][1], ex = p[n][0], ey = p[n][1];
+    if (ox !== x0 || oy !== y0 || ex !== x1 || ey !== y1) {
+      a = arcBuild(x0, y0, x1, y1, { amp, branches, cut, pinch });
+      arcCache.set(key, a);
+    }
+  }
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  ctx.strokeStyle = alpha(col, 0.20);
+  ctx.lineWidth = width * 3.6;
+  arcTrace(a.abs, a.cut);
+
+  for (const b of a.branches) {
+    ctx.strokeStyle = alpha(col, 0.14);
+    ctx.lineWidth = width * 1.6;
+    arcTrace(b, -1);
+    ctx.strokeStyle = alpha(coeur, 0.35);
+    ctx.lineWidth = width * 0.6;
+    arcTrace(b, -1);
+  }
+
+  ctx.strokeStyle = alpha(coeur, 0.92);
+  ctx.lineWidth = width;
+  arcTrace(a.abs, a.cut);
+
+  // les deux points brillants ANCRENT l'arc sur ce qu'il relie
+  ctx.fillStyle = alpha(coeur, 0.9);
+  for (const [px, py] of [[x0, y0], [x1, y1]]) {
     ctx.beginPath();
-    ctx.arc(target.x, target.y, 3.5 + Math.sin(t * 8 + e.id) * 1, 0, Math.PI * 2);
+    ctx.arc(px, py, width * 1.5, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
 }
+
 const BREATH_HZ = 1.2;
 export const shooterFire = new Map();
 export const seenShots = new Set();
@@ -1093,7 +1161,7 @@ function auraPass(list, diff) {
     }
   }
 }
-function drawMedicLinks(list, now) {
+function drawMedicLinks(list) {
   for (const m of list) {
     if (m.type !== 7) continue;
     if (hits.has(m.id)) continue;
@@ -1105,21 +1173,14 @@ function drawMedicLinks(list, now) {
       if (d2 < bd) { bd = d2; best = o; }
     }
     if (!best) continue;
+    if (!inView(m.x, m.y, 200) && !inView(best.x, best.y, 200)) continue;
     const ca = Math.cos(m.ang ?? 0), sa = Math.sin(m.ang ?? 0);
     const ox = m.x + 8.5 * ca - (-21) * sa;
     const oy = m.y + 8.5 * sa + (-21) * ca;
-    const flow = (now / 260) % 1;
-    ctx.strokeStyle = ENEMY_TINT[7];
-    ctx.globalAlpha = 0.45 + 0.25 * Math.sin(now / 130);
-    ctx.lineWidth = 1.8;
-    ctx.setLineDash([6, 5]);
-    ctx.lineDashOffset = -flow * 11;
-    ctx.beginPath();
-    ctx.moveTo(ox, oy);
-    ctx.lineTo(best.x, best.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
+    drawArc(`m${m.id}`, ox, oy, best.x, best.y, {
+      col: ENEMY_TINT[7], coeur: FX.healSoft, amp: 0.05, width: 1.6,
+      branches: 1, cut: 0.3,
+    });
   }
 }
 export function drawEnemies(list, view) {
@@ -1128,7 +1189,7 @@ export function drawEnemies(list, view) {
   const diff = view?.diff ?? difficulty;
   const windup = view?.windup ?? EMPTY_SET;
   auraPass(list, diff);
-  drawMedicLinks(list, t);
+  drawMedicLinks(list);
   const me = view?.playerList?.find(p => p.id === myId);
 
   for (const e of list) {
@@ -1140,6 +1201,11 @@ export function drawEnemies(list, view) {
     const flash = hit ? Math.max(0, (hit.until - t) / (HIT_FLASH * 1000)) : 0;
     const kx = flash > 0 ? hit.dx * HIT_KICK * flash : 0;
     const ky = flash > 0 ? hit.dy * HIT_KICK * flash : 0;
+    // [26c] ×1,15 sur deux ou trois images, retour elastique : la reponse est
+    // portee par la CIBLE et non par la camera.
+    const punch = hit && hit.punch > t
+      ? 1 + 0.15 * Math.min(1, (hit.punch - t) / (CRIT_PUNCH * 1000))
+      : 1;
 
     if (e.elite) {
       const pulse = 0.5 + 0.5 * Math.sin(t / 240 + e.id);
@@ -1190,9 +1256,10 @@ export function drawEnemies(list, view) {
     drawSprite(ctx, enemyFrame(e, ts, def, { blocked, covering: auraActive.has(e.id) }),
       e.x + kx, e.y + ky, {
       angle: e.ang ?? 0,
-      scaleX: gain * (1 + squash * 0.5) * (windup.has(e.id) ? 0.86 : 1),
-      scaleY: gain * (1 - squash) * (windup.has(e.id) ? 1.14 : 1),
+      scaleX: gain * punch * (1 + squash * 0.5) * (windup.has(e.id) ? 0.86 : 1),
+      scaleY: gain * punch * (1 - squash) * (windup.has(e.id) ? 1.14 : 1),
       flash,
+      flashTint: hit?.col ?? null,
     });
 
     if (e.hp < e.maxHp) {

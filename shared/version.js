@@ -953,6 +953,81 @@
                    la matrice de `PROFILS.md` reste le critere de CLOTURE du plan.
                    Ce qui se mesure ici est le relatif, a graines appariees
 
+   --- plan7 : le ressenti ------------------------------------------------------
+     0.9.0 lot L1  LE RETOUR DE COMBAT SE HIERARCHISE PAR LA FREQUENCE. Un jeu
+                   de combat, c'est cinq impacts par seconde : chacun peut etre un
+                   evenement. Un survivor a la minute 25, c'est vingt a soixante
+                   MORTS par seconde — si chaque mort est un evenement, plus rien
+                   n'en est un, et le limiteur de voix `admit` existe parce que ce
+                   mur avait deja ete rencontre. La regle du lot : la frequence
+                   d'un evenement determine INVERSEMENT son budget de retour.
+                   LE CLIENT SAVAIT CE QUI ARRIVAIT, JAMAIS COMBIEN. Une grenade
+                   qui fauchait trente ennemis produisait exactement la meme image
+                   et le meme son qu'une grenade dans le vide. Les quatre souffles
+                   (nova, grenade, onde, bombe) portent desormais leur nombre de
+                   tues en clef `n`, coupee par `trimTail` quand elle est nulle :
+                   duree, taille, gravite du sub et amplitude de l'anneau s'y
+                   mettent a l'echelle.
+                   LE CRITIQUE EXISTE ENFIN POUR LA HORDE. `crit` ne partait que
+                   pour les boss, et sous forme agregee. Un second compteur
+                   CYCLIQUE de 0 a 9 sur l'ennemi (`critSeq`, meme forme que
+                   `hitSeq`) suffit, et le critique QUI TUE — qui ne laisse aucune
+                   trace, le corps ayant disparu avec son compteur — vit sur le
+                   TUEUR (`p.critKills`). Le retour est differencie par la couleur
+                   et la hauteur, jamais par la taille et le volume : le son de
+                   critique PREND la place de la touche dans le limiteur, donc le
+                   nombre de voix par seconde ne bouge pas d'un cran.
+                   L'ECLAIR CHANGE DE COULEUR SANS COUTER UN VIDAGE. `aFx` avait
+                   quatre octets par sommet et n'en utilisait qu'un : la teinte
+                   d'eclair devient un attribut de sommet, la ou l'uniforme global
+                   aurait impose un lot de dessin par couleur. La touche d'un
+                   allie sort donc a SA couleur, et le critique en ambre.
+                   LES SOUFFLES SE COMPOSENT EN COUCHES, chacune avec sa propre
+                   constante de temps : noyau de deux images, boule de feu, onde
+                   de choc qui DEPASSE le remplissage, debris, fumee, marque au
+                   sol. Le noyau NAIT a sa taille maximale — la montee progressive
+                   est ce qui fait « animation » plutot que « detonation ».
+                   LA MATIERE BOUGE (`_blastPush`) : impulsion radiale decroissante
+                   avec la distance, integree comme une VITESSE qui retombe et non
+                   comme une teleportation. En vue de dessus, rien d'autre ne dit
+                   la puissance — quinze ennemis chasses vers l'exterieur se
+                   voient, quinze qui disparaissent non. Le trou ouvert supprime
+                   localement les apparitions pendant 1,1 s (`_dansUnTrou`), sans
+                   quoi il se comble avant d'avoir ete vu. La bombe devient un
+                   outil de POSITIONNEMENT : c'est signale a l'equilibrage.
+                   TIRER SUR UN BOSS NE PRODUISAIT AUCUN RETOUR, et ce n'etait pas
+                   un reglage trop discret mais un canal ABSENT : l'eclair blanc
+                   vit dans `flashAtlas`, le boss est trace a la main hors atlas.
+                   Sa silhouette est rejouee en clair par-dessus, 80 ms. Le point
+                   d'impact, prevu dans `bossDmg` depuis toujours, n'etait rempli
+                   que pour les Jumeaux — `_damage` prend deux coordonnees
+                   optionnelles et les ramene sur la silhouette, donc chiffres et
+                   etincelles naissent la ou la balle a touche. La barre garde son
+                   segment perdu en clair 300 ms : une barre qui glisse en continu
+                   ne se voit pas.
+                   L'ARC EST UNE FONCTION, PAS UN TRAIT. Deplacement de point
+                   milieu a amplitude decroissante, double couche additive (coeur
+                   clair fin plus halo large), une a deux branches MORTES,
+                   regeneration a 17 Hz. Ricochet, salve et lien du soigneur ennemi
+                   y passent. Trois champs morts partent avec : `healTarget`,
+                   `drawHealLinks`, `healCd`, `pressT` et `lastSeq` — le client
+                   DEDUIT deja le lien du medic, la clef reseau ne servait a
+                   personne.
+                   LE RESTE : echelle de tonalite sur les kills en chaine (un
+                   demi-ton par tue dans 0,4 s, plafonne a l'octave — la hauteur
+                   est gratuite, aucune voix de plus), explosion en trois couches
+                   d'oscillateurs, canalisation de recolte en huit paliers montants
+                   puis accord de liberation, pouls d'equipe a la montee de niveau,
+                   relevement d'un allie au plus gros budget du jeu, flux d'XP du
+                   cadavre vers le joueur (aucune entite, aucun ramassage), hitstop
+                   de 100 ms RESERVE aux barres de boss et rattrape a mi-vitesse,
+                   melange additif enfin applique au chemin canvas 2D, et fusion
+                   des chiffres proches avant que le plafond de quarante elements
+                   DOM ne morde a quatre joueurs sur un boss.
+                   Deux defauts trouves en chemin : `SRC_TINT` avait six entrees
+                   pour sept provenances, et l'amortissement des particules etait
+                   indexe sur l'IMAGE et non sur le temps
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -961,4 +1036,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.21";
+export const VERSION = "0.9.0";

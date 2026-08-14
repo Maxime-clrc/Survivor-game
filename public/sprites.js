@@ -907,6 +907,7 @@ export function drawSprite(g, frame, x, y, {
   tint = null,
   alpha = 1,
   flash = 0,
+  flashTint = null,
   additive = false,
 } = {}) {
   if (!atlas) return;
@@ -916,13 +917,15 @@ export function drawSprite(g, frame, x, y, {
   if (renderer && renderer.ok && targets.has(g)) {
     renderer.setBlend(additive ? BLEND_ADD : BLEND_NORMAL);
     const [tr, tg, tb] = tint ? parseColor(tint) : WHITE;
+    const F = flashTint ? parseColor(flashTint) : null;
     const a = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha;
     renderer.quad(
       sx / atlas.width, sy / atlas.height,
       (sx + PX) / atlas.width, (sy + PX) / atlas.height,
       x, y, HALF * scaleX, HALF * scaleY, angle,
       (tr * a) | 0, (tg * a) | 0, (tb * a) | 0, (a * 255) | 0,
-      flash > 0 ? Math.min(255, (flash * 255) | 0) : 0);
+      flash > 0 ? Math.min(255, (flash * 255) | 0) : 0,
+      F?.[0], F?.[1], F?.[2]);
     return;
   }
 
@@ -949,7 +952,20 @@ export function drawSprite(g, frame, x, y, {
 
   if (flash > 0) {
     g.globalAlpha *= Math.min(1, flash);
-    g.drawImage(flashAtlas, sx, sy, PX, PX, -HALF, -HALF, CELL, CELL);
+    if (flashTint) {
+      const s = scratchCtx();
+      s.clearRect(0, 0, PX, PX);
+      s.drawImage(flashAtlas, sx, sy, PX, PX, 0, 0, PX, PX);
+      s.globalCompositeOperation = "multiply";
+      s.fillStyle = flashTint;
+      s.fillRect(0, 0, PX, PX);
+      s.globalCompositeOperation = "destination-in";
+      s.drawImage(flashAtlas, sx, sy, PX, PX, 0, 0, PX, PX);
+      s.globalCompositeOperation = "source-over";
+      g.drawImage(scratch, 0, 0, PX, PX, -HALF, -HALF, CELL, CELL);
+    } else {
+      g.drawImage(flashAtlas, sx, sy, PX, PX, -HALF, -HALF, CELL, CELL);
+    }
   }
 
   g.restore();

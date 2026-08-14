@@ -152,6 +152,17 @@
   border-right: var(--edge) solid var(--warn);
 }
 
+/* le RESIDU : le segment qu'on vient de retirer reste en clair puis se resorbe.
+   Une barre qui glisse en continu ne se voit pas ; celle-ci montre la salve. */
+#bossLoss {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--boss-warn) 70%, transparent);
+}
+
 #bossBar::after {
   content: "";
   position: absolute;

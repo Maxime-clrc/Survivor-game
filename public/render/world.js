@@ -10,10 +10,10 @@ import { fmtM } from "/shared/units.js";
 import { glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myDashCd, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
-import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_CROSS, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawHealLinks, drawPowerups, drawSancts, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
+import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_CROSS, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawPowerups, drawSancts, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, lastPlayerPos } from "./boss.js";
 import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls } from "./decor.js";
-import { deaths, dmgAgg, drawBursts, drawDeaths, drawParticles, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pump, selfAgg, setZoneFx, shake, stepFeedback, zoneFx } from "./fx.js";
+import { blastMarks, bursts, deaths, dmgAgg, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, readMove } from "../ui/dom.js";
 
@@ -22,6 +22,10 @@ export function resetFeedback() {
   particles.length = 0;
   deaths.length = 0;
   gridPings.length = 0;
+  bursts.length = 0;
+  blastMarks.length = 0;
+  pulse.t = 0;
+  timeWarp.stop = 0; timeWarp.held = 0;
   shooterFire.clear();
   seenShots.clear();
   dmgAgg.clear();
@@ -71,7 +75,9 @@ function frameBody(now) {
   arenaEl.style.visibility = enJeu ? "" : "hidden";
 
   if (connected && latest && enJeu) {
-    const renderTime = now - INTERP_MS;
+    // le hitstop est un RETARD supplementaire de l'horloge de rendu : la
+    // simulation ne s'arrete jamais, c'est l'image qui tient.
+    const renderTime = now - INTERP_MS - timeWarp.held * 1000;
     if (phase === PHASE_ROUND) {
       stepPrediction(dt);
       updateCamera(dt);
@@ -231,6 +237,7 @@ function drawWorld(v) {
   setCtx(underCtx);
   drawFloor();
   drawGrid();
+  drawBlastMarks();
 
   if (v.slow) {
     ctx.fillStyle = alpha(WALL.fill, 0.06);
@@ -258,8 +265,6 @@ function drawWorld(v) {
   drawEnemies(v.enemyList, v);
 
   setCtx(overCtx);
-
-  drawHealLinks(v.enemyList);
 
   if (v.boss) {
     if (v.boss.id !== lastBossId) {
@@ -298,6 +303,7 @@ function drawWorld(v) {
   drawBursts();
 
   drawVignette();
+  drawPulse();
   drawAllyArrows(v.playerList);
 }
 function drawAllyArrows(players) {

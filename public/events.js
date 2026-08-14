@@ -5,6 +5,7 @@ const MAX_IMPACT = 48;
 const MAX_DEATH = 40;
 
 const PICKUP_NEAR = 80;
+const BULLET_CLAIM = 90;
 
 export function diffSnapshots(a, b, opts = {}) {
   const out = [];
@@ -17,24 +18,62 @@ export function diffSnapshots(a, b, opts = {}) {
   }
   if (firstNew) out.push({ t: "tir", x: firstNew.x, y: firstNew.y });
 
+  // [22] a QUI est ce coup. Rien ne le transporte : une balle disparue pres du
+  // point d'impact le dit aussi bien, et ne coute pas un octet de reseau.
+  const eteintes = [];
+  for (const [id, bu] of a.bullets) {
+    if (bu.heal) continue;
+    if (!b.bullets.has(id)) eteintes.push(bu);
+  }
+  const auteurDe = (x, y) => {
+    let best = 0, bd = BULLET_CLAIM * BULLET_CLAIM;
+    for (const bu of eteintes) {
+      const d = (bu.x - x) ** 2 + (bu.y - y) ** 2;
+      if (d < bd) { bd = d; best = bu.owner ?? 0; }
+    }
+    return best;
+  };
+
+  // [26f] combien de mes critiques ont TUE pendant ce pas. Le compteur vit sur
+  // le joueur : la victime, elle, a disparu de l'instantane.
+  const moiA = opts.myId !== undefined ? a.players.get(opts.myId) : null;
+  const moiB = opts.myId !== undefined ? b.players.get(opts.myId) : null;
+  let critKills = moiA && moiB
+    ? ((moiB.critKills ?? 0) - (moiA.critKills ?? 0) + 10) % 10
+    : 0;
+  const morts = [];
+
   let nImpact = 0, nDeath = 0;
   for (const [id, eb] of b.enemies) {
     if (nImpact >= MAX_IMPACT) break;
     const ea = a.enemies.get(id);
     if (!ea) continue;
     const hits = ((eb.hitSeq ?? 0) - (ea.hitSeq ?? 0) + 10) % 10;
+    const crits = ((eb.critSeq ?? 0) - (ea.critSeq ?? 0) + 10) % 10;
     const lost = ea.hp - eb.hp;
     if (hits === 0 && lost <= 0) continue;
     out.push({ t: "impact", id, x: eb.x, y: eb.y, dmg: Math.max(0, lost),
-               hits: Math.max(1, hits), type: eb.type, maxHp: eb.maxHp });
+               hits: Math.max(1, hits), crits, type: eb.type, maxHp: eb.maxHp,
+               ang: eb.ang, owner: auteurDe(eb.x, eb.y) });
     nImpact++;
   }
   for (const [id, ea] of a.enemies) {
     if (nDeath >= MAX_DEATH) break;
     if (b.enemies.has(id)) continue;
-    out.push({ t: "mort", id, x: ea.x, y: ea.y, type: ea.type, elite: ea.elite,
-               ang: ea.ang, dmg: Math.max(0, ea.hp), maxHp: ea.maxHp });
+    const m = { t: "mort", id, x: ea.x, y: ea.y, type: ea.type, elite: ea.elite,
+                ang: ea.ang, dmg: Math.max(0, ea.hp), maxHp: ea.maxHp, crit: false,
+                owner: auteurDe(ea.x, ea.y) };
+    morts.push(m);
+    out.push(m);
     nDeath++;
+  }
+  if (critKills > 0 && morts.length > 0 && moiB) {
+    morts.sort((m, n) => ((m.x - moiB.x) ** 2 + (m.y - moiB.y) ** 2)
+                       - ((n.x - moiB.x) ** 2 + (n.y - moiB.y) ** 2));
+    for (const m of morts) {
+      if (critKills-- <= 0) break;
+      m.crit = true;
+    }
   }
 
   if (b.boss) {
@@ -82,7 +121,8 @@ export function diffSnapshots(a, b, opts = {}) {
   const fa = new Set(a.effects.map(f => f.id));
   for (const f of b.effects) {
     if (fa.has(f.id)) continue;
-    out.push({ t: "effet", kind: f.kind ?? 0, x: f.x, y: f.y, r: f.r ?? 0 });
+    out.push({ t: "effet", kind: f.kind ?? 0, x: f.x, y: f.y, r: f.r ?? 0,
+               n: f.n ?? 0 });
   }
 
   const wb = new Set(b.powerups.map(w => w.id));
@@ -93,6 +133,22 @@ export function diffSnapshots(a, b, opts = {}) {
       if ((p.x - w.x) ** 2 + (p.y - w.y) ** 2 < PICKUP_NEAR * PICKUP_NEAR) { near = true; break; }
     }
     if (near) out.push({ t: "bonus", x: w.x, y: w.y, type: w.type });
+  }
+
+  // [3] la canalisation de recolte : une hauteur qui monte par paliers, puis
+  // l'accord de liberation. Huit paliers — un son continu serait un mur.
+  const hvA = new Map((a.harvests ?? []).map(h => [h.id, h]));
+  for (const h of b.harvests ?? []) {
+    if (h.kind !== 1) continue;
+    const was = hvA.get(h.id);
+    if (!was) continue;
+    if (Math.floor(h.k * 8) > Math.floor(was.k * 8)) {
+      out.push({ t: "recolte", x: h.x, y: h.y, k: h.k });
+    }
+  }
+  for (const [id, h] of hvA) {
+    if ((b.harvests ?? []).some(o => o.id === id)) continue;
+    if (h.kind === 1 && h.k > 0.5) out.push({ t: "recolteFin", x: h.x, y: h.y });
   }
 
   const covA = new Map((a.cover ?? []).map(c => [c[0], c[1]]));

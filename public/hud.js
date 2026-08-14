@@ -28,6 +28,7 @@ const el = {
   bossVerb: $("bossVerb"),
   bossHp:   $("bossHp"),
   bossFill: $("bossBar").firstElementChild,
+  bossLoss: $("bossLoss"),
   bossBank: $("bossBank"),
   bossMult: $("bossMult"),
   bossPips: $("bossPips"),
@@ -115,6 +116,8 @@ export function showHud(on) {
 export function resetHud() {
   el.dmg.textContent = "";
   dmgCount = 0;
+  dmgLive.length = 0;
+  residu.k = 1;
   for (const k of Object.keys(memo)) delete memo[k];
 }
 
@@ -201,14 +204,30 @@ function updateTeam(v, c) {
   }
 }
 
-function updateBoss(b) {
-  if (!b) { setHidden(el.boss, "bossOn", true); return; }
+// [30] une balle retire une fraction infime de la barre, et une barre qui
+// glisse en continu ne se voit pas. Le segment perdu RESTE affiche en clair et
+// rattrape en ~300 ms : c'est la salve qui devient visible, pas le total.
+const residu = { k: 1, at: 0 };
+const RESIDU_MS = 300;
+
+function updateBoss(b, now) {
+  if (!b) { setHidden(el.boss, "bossOn", true); residu.k = 1; return; }
   setHidden(el.boss, "bossOn", false);
 
   const bars = Math.max(1, b.bars ?? 1);
   const barHp = b.maxHp / bars;
   const left = Math.max(1, Math.min(bars, Math.ceil(b.hp / barHp)));
   const k = Math.max(0, Math.min(1, (b.hp - (left - 1) * barHp) / barHp));
+
+  if (k >= residu.k) residu.k = k;
+  else {
+    const dt = Math.min(100, now - (residu.at || now));
+    residu.k = k + (residu.k - k) * Math.pow(0.02, dt / RESIDU_MS);
+    if (residu.k - k < 0.002) residu.k = k;
+  }
+  residu.at = now;
+  setStyle(el.bossLoss, "blx", "left", `${(k * 100).toFixed(2)}%`);
+  setStyle(el.bossLoss, "blw", "width", `${((residu.k - k) * 100).toFixed(2)}%`);
 
   const kind = b.kind ?? 0;
   const def = bossAt(kind);
@@ -500,21 +519,46 @@ function updateAnnounce(v, c, now) {
 const DMG_MAX = 40;
 let dmgCount = 0;
 
+// A quatre joueurs sur un boss, quarante elements DOM MORDENT. On fusionne les
+// chiffres proches plutot que d'en perdre au hasard : un chiffre jete ment sur
+// les degats, un chiffre fusionne non.
+const DMG_MERGE_PX = 34;
+const DMG_MERGE_MS = 420;
+const dmgLive = [];
+
 export function hudDamage(x, y, val, kind = "deal", icon = null) {
-  if (dmgCount >= DMG_MAX) return;
   if (x < -20 || x > CFG.VIEW_W + 20 || y < -20 || y > CFG.VIEW_H + 20) return;
+
+  const now = performance.now();
+  for (let i = dmgLive.length - 1; i >= 0; i--) {
+    const o = dmgLive[i];
+    if (!o.node.isConnected || now - o.at > DMG_MERGE_MS) {
+      dmgLive[i] = dmgLive[dmgLive.length - 1];
+      dmgLive.pop();
+      continue;
+    }
+    if (o.kind !== kind || o.icon !== icon) continue;
+    if (Math.abs(o.x - x) > DMG_MERGE_PX || Math.abs(o.y - y) > DMG_MERGE_PX) continue;
+    o.val += val;
+    o.txt.nodeValue = kind === "heal" ? "+" + Math.round(o.val) : String(Math.round(o.val));
+    return;
+  }
+
+  if (dmgCount >= DMG_MAX) return;
   const d = document.createElement("div");
   d.className = "dmg " + kind;
   if (icon) {
     d.appendChild(iconImg(icon, HUD.low, 12));
   }
-  d.appendChild(document.createTextNode(
-    kind === "heal" ? "+" + Math.round(val) : String(Math.round(val))));
+  const txt = document.createTextNode(
+    kind === "heal" ? "+" + Math.round(val) : String(Math.round(val)));
+  d.appendChild(txt);
   d.style.left = (x / CFG.VIEW_W * 100).toFixed(2) + "%";
   d.style.top = (y / CFG.VIEW_H * 100).toFixed(2) + "%";
   d.addEventListener("animationend", () => { d.remove(); dmgCount--; }, { once: true });
   el.dmg.appendChild(d);
   dmgCount++;
+  dmgLive.push({ node: d, txt, x, y, val, kind, icon, at: now });
 }
 
 
@@ -542,7 +586,7 @@ export function updateHud(v, c) {
   updateSegment(v, c);
   setHidden(metaSlow, "mSlowH", !v.slow);
 
-  updateBoss(v.boss);
+  updateBoss(v.boss, now);
   updateTeam(v, c);
   updateSelf(v, c);
   updateAlerts(c, now);

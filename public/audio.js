@@ -293,10 +293,14 @@ const PALETTE = {
     return { end: a.end + 0.18, stop: a.stop };
   },
 
+  // la jauge est COMMUNE : la montee de niveau est un evenement d'equipe, et le
+  // fondamental grave est ce qui la fait sonner comme tel.
   niveau: () => {
     const a = tone({ freq: 523, dur: 0.10, type: "triangle", gain: SOUND_GAIN.niveau });
     tone({ freq: 659, dur: 0.10, type: "triangle", gain: SOUND_GAIN.niveau, delay: 0.09 });
     tone({ freq: 880, dur: 0.16, type: "triangle", gain: SOUND_GAIN.niveau, delay: 0.18 });
+    tone({ freq: 131, dur: 0.46, type: "sine", gain: SOUND_GAIN.niveau * 0.55 });
+    tone({ freq: 1760, dur: 0.34, type: "sine", gain: SOUND_GAIN.niveau * 0.22, delay: 0.20 });
     return { end: a.end + 0.34, stop: a.stop };
   },
 
@@ -333,12 +337,58 @@ const PALETTE = {
     return { end: a.end, stop: a.stop };
   },
 
+  // TROIS COUCHES, et c'est l'ampleur du grave qui dit combien elle a fauche :
+  // un transitoire claquant (haut), un corps de bruit filtre (medium), un sub
+  // qui balaie vers le bas. `force` vient du nombre de tues.
   explosion: (o) => {
-    const k = Math.max(0.4, Math.min(1.4, o.force ?? 1));
-    const a = noise({ dur: 0.30, type: "lowpass", freq: 900 * k, to: 90,
-                      gain: SOUND_GAIN.mort * 1.5 * k });
-    tone({ freq: 110 * k, to: 45, dur: 0.22, type: "sine", gain: SOUND_GAIN.mort * k });
-    return { end: a.end, stop: a.stop };
+    const k = Math.max(0.4, Math.min(1.6, o.force ?? 1));
+    const gros = Math.max(0, Math.min(1, (k - 0.7) / 0.9));
+    noise({ dur: 0.035, type: "highpass", freq: 3600, q: 0.7,
+            gain: SOUND_GAIN.mort * 1.1 });
+    const a = noise({ dur: 0.16 + 0.20 * gros, type: "lowpass",
+                      freq: 1500 - 700 * gros, to: 110,
+                      gain: SOUND_GAIN.mort * 1.4 * k });
+    tone({ freq: 150 - 70 * gros, to: 34 - 12 * gros, dur: 0.14 + 0.16 * gros,
+           type: "sine", gain: SOUND_GAIN.mort * (0.7 + 0.6 * gros) });
+    if (gros > 0.35) {
+      tone({ freq: 62, to: 30, dur: 0.42, type: "sine",
+             gain: SOUND_GAIN.mort * 0.55 * gros, delay: 0.02 });
+    }
+    return { end: a.end + 0.2, stop: a.stop };
+  },
+
+  // [26d] le critique ne monte PAS le volume : il ajoute un transitoire aigu au
+  // son de touche, et il lui prend sa place dans le limiteur (meme cle).
+  critique: () => {
+    const a = noise({ dur: 0.04, freq: 2400, to: 1200, q: 1.2, gain: SOUND_GAIN.impact });
+    tone({ freq: 2960, to: 3520, dur: 0.055, type: "triangle",
+           gain: SOUND_GAIN.impact * 0.85, attack: 0.002 });
+    return { end: a.end + 0.02, stop: a.stop };
+  },
+
+  // [3] tension puis relachement : la hauteur monte avec la canalisation.
+  recolte: (o) => {
+    const k = Math.max(0, Math.min(1, o.k ?? 0));
+    return tone({ freq: 330 * Math.pow(2, k), dur: 0.06, type: "triangle",
+                  gain: SOUND_GAIN.bonus * (0.35 + 0.3 * k), attack: 0.005 });
+  },
+
+  recolteFin: () => {
+    const a = tone({ freq: 523, dur: 0.16, type: "triangle", gain: SOUND_GAIN.bonus });
+    tone({ freq: 784, dur: 0.20, type: "triangle", gain: SOUND_GAIN.bonus * 0.8, delay: 0.03 });
+    tone({ freq: 1046, dur: 0.26, type: "sine", gain: SOUND_GAIN.bonus * 0.6, delay: 0.07 });
+    return { end: a.end + 0.30, stop: a.stop };
+  },
+
+  // [21] le moment le plus tendu du jeu merite le plus gros budget.
+  relevement: () => {
+    const a = tone({ freq: 74, to: 148, dur: 0.5, type: "sine", gain: SOUND_GAIN.boss * 0.7 });
+    tone({ freq: 392, to: 587, dur: 0.34, type: "triangle",
+           gain: SOUND_GAIN.niveau * 0.8, delay: 0.06, attack: 0.02 });
+    tone({ freq: 784, dur: 0.30, type: "sine", gain: SOUND_GAIN.niveau * 0.5, delay: 0.18 });
+    noise({ dur: 0.4, type: "bandpass", freq: 300, to: 1800, q: 1.4,
+            gain: SOUND_GAIN.mort * 0.4 });
+    return { end: a.end + 0.2, stop: a.stop };
   },
 
   aterre: () => tone({ freq: 520, to: 120, dur: 0.42, type: "sawtooth",

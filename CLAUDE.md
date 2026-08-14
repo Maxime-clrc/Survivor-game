@@ -200,7 +200,7 @@ pleine » portent sur les **quatre** côtés.
 
 **Monstres, joueurs, silhouettes du salon, particules : tout passe par
 `drawSprite`** (`public/sprites.js`). Un cas qui ne rentre pas dans la signature
-(`angle`, `scaleX`, `scaleY`, `tint`, `alpha`, `flash`, `additive`) étend la
+(`angle`, `scaleX`, `scaleY`, `tint`, `alpha`, `flash`, `flashTint`, `additive`) étend la
 **signature**, jamais une exception.
 
 - **Le liseré permanent des joueurs** est la silhouette blanche cuite dans
@@ -255,8 +255,12 @@ jeu est en **mode immédiat**, les moteurs à graphe de scène sont en mode rete
 
 - **Alpha prémultiplié partout** (`UNPACK_PREMULTIPLY_ALPHA_WEBGL`). La teinte
   multiplie les **quatre** canaux.
-- **L'éclair blanc est un attribut de sommet et un `mix`**, pas la teinte : un
-  multiplicatif ne sait pas éclaircir.
+- **L'éclair est un attribut de sommet et un `mix`**, pas la teinte : un
+  multiplicatif ne sait pas éclaircir. **Sa COULEUR aussi** (`aFx.yzw`, les trois
+  octets qui restaient libres) : un uniforme global aurait imposé un lot de dessin
+  par teinte, alors que quatre joueurs et le critique en demandent cinq. La
+  couleur par défaut vient de `setFlashColor`, un quad qui n'en passe pas la
+  reprend.
 - **Le retournement de Y est absorbé par la projection.**
 - **Le viewport est en pixels physiques.**
 - **Un lot ne se vide qu'au changement d'état** (mélange, plafond, fin d'image).
@@ -329,7 +333,10 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | point | ce qui y est branché |
 |---|---|
 | `_hurt(p, d, opts)` | **tout** ce qui blesse un joueur ; multiplicateur de difficulté **ici et nulle part ailleurs** ; plafond de mécanique ; provenance |
-| `_damage()` | **tout** ce qui blesse un ennemi ou le boss ; vol de vie, critique, momentum, exécution, brûlure, `hitSeq`, redirection Jumeaux, crédit XP du boss |
+| `_damage()` | **tout** ce qui blesse un ennemi ou le boss ; vol de vie, critique, momentum, exécution, brûlure, `hitSeq`, `critSeq`, point d'impact du boss, redirection Jumeaux, crédit XP du boss |
+| `_blastPush(x, y, r, force)` | **toute** impulsion radiale d'un souffle, et le trou d'apparition qui va avec (`_dansUnTrou`) |
+| `drawArc(clef, x0, y0, x1, y1, opts)` | **tout** ce qui relie deux points par un arc : ricochet, salve, lien de soin |
+| `spawnBlast(x, y, r, ampleur, style)` | les couches chaudes d'un souffle, mises à l'échelle par la magnitude |
 | `_applyStatus()` / `_purgeStatus()` | pose et retrait d'état |
 | `_killEnemy()` | **toute** mort d'ennemi : XP, explosion du kamikaze, cumuls |
 | `_bulletHitEnemy()` | une balle qui touche — appelé par la boucle de collision **et** le balayage à l'apparition |
@@ -400,17 +407,21 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **Le rang d'élite est encodé dans le champ de type** (`+100`) :
   `type = a[5] % 100`, `elite = a[5] % 200 >= 100`. Le `% 200` tolère encore le
   `+200` disparu (retardataire).
-- **Le compteur de touches (`hitSeq`) est CYCLIQUE de 0 à 9** : le client ne lit
-  qu'une différence entre deux instantanés.
+- **Les compteurs de touches sont CYCLIQUES de 0 à 9** : le client ne lit qu'une
+  différence entre deux instantanés. `hitSeq` compte les touches, `critSeq` les
+  critiques. Un critique qui **tue** ne laisse rien sur la victime — il compte sur
+  le TUEUR (`p.critKills`, même forme cyclique).
 - **Clés NOMMÉES du snapshot** (ignorées par un client ancien) : `sg`, `xl`,
   `xp`, `bw`, `bm`, `an`, `sa`, `mk`, `bo2`, `sp`, `bn`, `wl`, `bd`, `wu`, `ev`,
   `ob`. `bn`, `wl`, `wu`, `ev`, `ob` sont **absentes** la plupart du temps.
 - **Avant d'ouvrir une clé de snapshot, chercher si la valeur est une fonction de
   ce que le client a déjà** : la géométrie d'une graine, l'état d'un danger du
   temps, la météo du segment, un trait de `(diffIndex, type)`.
-- **Trois informations sont DÉDUITES** côté client : cadence des tireurs
-  (observée au second tir, repos avant), direction des projectiles (image
-  précédente), déplacement d'un joueur (deux images, **seuil non nul**).
+- **Cinq informations sont DÉDUITES** côté client : cadence des tireurs (observée
+  au second tir, repos avant), direction des projectiles (image précédente),
+  déplacement d'un joueur (deux images, **seuil non nul**), cible du soigneur
+  ennemi (`drawMedicLinks` rejoue le choix du serveur), et **auteur d'une touche**
+  (la balle éteinte la plus proche du point d'impact, `BULLET_CLAIM`).
 - **Le canal d'alerte est ponctuel, hors snapshot** : `state.alerts` est une file
   que la simulation empile et que le serveur vide après chaque tick. GameState ne
   diffuse pas.
@@ -879,7 +890,8 @@ Ajouter une entrée impose de traiter les deux côtés.
 | niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` | `updateAlerts()` : consigne cyan à rebours · avertissement ambre · info blanche |
 | provenance d'un dégât | `DAMAGE_SOURCES` (`game_state.js`), **sept** entrées, index en fin du tuple joueur | `SRC_ICON` (`icons.js`) + `SRC_TINT` (`palette.js`) + `hudDamage()` + `renderHurtBy()` |
 | soins rendus | `p.healDealt`, champ `heal` de `scoreboardRows()` | colonne « soins » du bilan |
-| lien de soin | 9ᵉ élément du tuple ennemi (index 8, coupé si nul) | `drawHealLinks()` |
+| magnitude d'un souffle | `n` sur l'effet, 9ᵉ élément (index 8, coupé si nul) — nova, grenade, onde, bombe | `BLAST_STYLE` + `spawnBlast()` + force du son |
+| critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats |
 | propriétaire d'une balle | 5ᵉ élément du tuple `b` | `ownerColorOf(b.owner) ?? COMBAT.bullet` |
 | intervalle de tir | `p.fireInterval`, 34ᵉ élément du tuple joueur | `fireInterval` (`ingest.js`) + ligne « cadence » de `ui/build.js` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` — **ne circule pas** | `CARD_CATEGORY_COLOR` + `.cardCat` |
@@ -911,11 +923,45 @@ l'orientation voyage avec la mort), cible d'un son d'interface
 
 ## Retour sensoriel
 
+**LA FRÉQUENCE D'UN ÉVÉNEMENT DÉTERMINE INVERSEMENT SON BUDGET DE RETOUR.** La
+satisfaction ne vient pas de l'impact individuel, elle vient de la forme de la
+masse — à la minute 25 il meurt 20 à 60 ennemis par seconde, et si chaque mort
+est un événement, plus rien n'en est un. Quatre paliers, et chaque retour déclare
+le sien :
+
+| palier | fréquence | budget |
+|---|---|---|
+| 0 · touche | centaines/s | l'éclair d'une image, rien de plus |
+| 1 · mort d'un ennemi | 20-60/s | **jamais individuel** : le retour porte sur la CADENCE (échelle de tonalité), pas sur la mort |
+| 2 · fait notable (critique, élite, récolte, touche de boss) | quelques/s | différencié par **couleur et hauteur**, jamais par taille et volume |
+| 3 · moment de manche (niveau, barre de boss, relèvement) | ~30/manche | tout le budget : pouls, hitstop, tressaillement plein |
+
 - **Tout se déclenche depuis la timeline interpolée, jamais depuis `latest`.**
   `EventPump` (`events.js`) ne diffuse un snapshot que lorsque l'horloge de rendu
   l'a franchi. Le canal `alert` est mis en file et sorti sur la même horloge.
 - **Le tressaillement ne sort que sur les gros événements** (détonation, onde de
   choc, rupture de barre, bombe), jamais sur un impact ordinaire.
+- **Le hitstop n'existe QUE pour les barres de boss** (`addHitstop`, 100 ms, au
+  plus 30 par manche) : dans un survivor la fluidité du déplacement **est** le
+  jeu. Il gèle l'horloge de **rendu** (`timeWarp.held`, retiré de `renderTime`),
+  jamais la simulation, et se rattrape à **mi-vitesse** pour ne pas payer le gel
+  en latence permanente.
+- **Un souffle se compose en COUCHES à constantes de temps distinctes** : noyau
+  (2 images, né à sa taille maximale), boule de feu, onde de choc qui **dépasse**
+  le remplissage, débris, fumée, marque au sol. Une montée progressive fait
+  « animation », une naissance à pleine taille fait « détonation ». Tout est mis à
+  l'échelle par la **magnitude** (`n`, le nombre de tués).
+- **La matière qui bouge est ce qui dit la puissance** en vue de dessus
+  (`_blastPush`) : l'impulsion est une **vitesse qui retombe**, jamais une
+  téléportation, et le trou qu'elle ouvre suspend les apparitions 1,1 s.
+- **Un arc est un tracé par déplacement de point milieu** (`drawArc`) : amplitude
+  **décroissante** à chaque niveau, **double couche additive** (cœur clair fin +
+  halo large — c'est ce doublage qui sépare « une ligne bleue » de « de
+  l'électricité »), une à deux **branches mortes**, régénération à **17 Hz**, et un
+  point brillant à chaque extrémité.
+- **Le boss flashe par REJEU de sa silhouette** (`bossFlash`, 80 ms) : il est
+  tracé à la main, hors de l'atlas, donc l'éclair du `flashAtlas` ne l'atteint
+  pas. `bossSheet()` le neutralise comme il neutralise `bossCue`.
 - **Le bandeau d'alerte disparaît AVANT la résolution** (durée d'annonce −250 ms).
 - **Les chiffres de dégâts sont agrégés sur 200 ms et seuillés à 5 % des PV max**
   de la cible. **Ceux qui concernent un JOUEUR sont agrégés aussi**

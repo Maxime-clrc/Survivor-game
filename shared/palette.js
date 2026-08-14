@@ -194,6 +194,8 @@ export const MARK = {
   ok:    SIGNAL.gain,
 };
 
+// une entree par DAMAGE_SOURCES : sept, pas six. La ventilation du bilan lit
+// cette table par index — une entree manquante donne une couleur `undefined`.
 export const SRC_TINT = [
   SIGNAL.lethal,
   COMBAT.shot,
@@ -201,6 +203,7 @@ export const SRC_TINT = [
   SIGNAL.warn,
   FX.bombFill,
   ZONE.blast,
+  BIOME.hazard,
 ];
 
 export const HUD = {

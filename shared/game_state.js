@@ -185,6 +185,13 @@ export const CFG = {
   NOVA_BOSS_DAMAGE: 220,
   NOVA_PUSH: 95,
 
+  BLAST_KNOCK: 620,
+  BLAST_KNOCK_DECAY: 0.0012,
+  BLAST_KNOCK_MIN: 8,
+  BLAST_HOLE_TIME: 1.1,
+  BLAST_HOLE_MUL: 0.8,
+  BLAST_HOLE_MAX: 6,
+
   BOSS_HP_BASE: 520,
   BOSS_RADIUS: 34,
   BOSS_SPEED: 44,
@@ -484,6 +491,7 @@ export class GameState {
     this.anchors = [];
     this.sancts = [];
     this.effects = [];
+    this.blastHoles = [];
     this.windup = [];
     this.windupCibles = new Map();
     this.windupBudget = new Map();
@@ -634,6 +642,7 @@ export class GameState {
       commonStreak: 0,
       damageDealt: 0,
       healDealt: 0,
+      critKills: 0,
       eclats: 0,
       relics: new Map(),
 
@@ -1517,9 +1526,9 @@ export class GameState {
     const r = SKILL_CFG.DPS_BOMB_RADIUS
       * (owner ? owner.mods.areaMul * (owner.mods.bombRadiusMul ?? 1) : 1);
 
-    this.effects.push({
-      id: this._nextId++, x: bo.x, y: bo.y, r, life: 0.4, max: 0.4, kind: 12,
-    });
+    const souffle = { id: this._nextId++, x: bo.x, y: bo.y, r,
+                      life: 0.4, max: 0.4, kind: 12, n: 0 };
+    this.effects.push(souffle);
     this._areaPull(bo.x, bo.y, r, bo.owner);
 
     const near = [];
@@ -1531,16 +1540,20 @@ export class GameState {
     near.sort((a, b) => a.d2 - b.d2);
 
     const vulnerable = owner && owner.mods.bombVulnerable > 0;
+    let fauches = 0;
     for (let i = 0; i < near.length && i < SKILL_CFG.DPS_BOMB_MAX_TARGETS; i++) {
       if (vulnerable) near[i].e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
       this._damage(near[i].e, dmg, bo.owner);
+      if (near[i].e.hp <= 0) fauches++;
     }
 
     for (const boss of this._bossTargets()) {
       if ((boss.x - bo.x) ** 2 + (boss.y - bo.y) ** 2 > r * r) continue;
       if (vulnerable) boss.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
-      this._damage(boss, dmg * SKILL_CFG.DPS_BOMB_BOSS_MUL, bo.owner);
+      this._damage(boss, dmg * SKILL_CFG.DPS_BOMB_BOSS_MUL, bo.owner, 0, false, bo.x, bo.y);
     }
+    souffle.n = fauches;
+    this._blastPush(bo.x, bo.y, r, 1);
     this._hitMarks(bo.x, bo.y, r, dmg);
 
     if (owner && owner.mods.bombShards > 0) {
@@ -1609,7 +1622,10 @@ export class GameState {
     this.turrets = kept;
   }
 
-  _damage(target, amount, ownerId, burn = 0, overTime = false) {
+  // `hx`/`hy` : le POINT TOUCHE. Sur un boss il est ramene sur la silhouette,
+  // sinon chiffres et etincelles naissent au centre d'un corps de 34 px de rayon
+  // et le retour cesse de designer ce que la balle a fait.
+  _damage(target, amount, ownerId, burn = 0, overTime = false, hx, hy) {
     if (!target || amount <= 0) return;
     const struck = target;
     if ((struck === this.boss || struck === this.boss2) && ownerId) {
@@ -1660,8 +1676,9 @@ export class GameState {
         if (!cumul) this.bossDmg.set(ownerId, cumul = { d: 0, crit: 0, x: 0, y: 0 });
         cumul.d += amount;
         if (this.lastCrit) cumul.crit += amount;
-        cumul.x = struck.x;
-        cumul.y = struck.y;
+        const pt = this._surfacePoint(struck, hx, hy);
+        cumul.x = pt.x;
+        cumul.y = pt.y;
       }
       if (owner.mods.lifesteal > 0) this._lifesteal(owner, amount * owner.mods.lifesteal);
     }
@@ -1692,6 +1709,9 @@ export class GameState {
 
     if (!overTime && target.hitSeq !== undefined) {
       target.hitSeq = (target.hitSeq + 1) % 10;
+      if (this.lastCrit && target.critSeq !== undefined) {
+        target.critSeq = (target.critSeq + 1) % 10;
+      }
     }
 
     if (burn > 0) {
@@ -1718,6 +1738,50 @@ export class GameState {
       this._killEnemy(target, ownerId);
       this.lastCrit = crit;
     }
+  }
+
+  _surfacePoint(cible, hx, hy) {
+    if (hx === undefined || hy === undefined) return { x: cible.x, y: cible.y };
+    const dx = hx - cible.x, dy = hy - cible.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1) return { x: cible.x, y: cible.y };
+    const k = Math.min(1, (CFG.BOSS_RADIUS * 0.86) / d);
+    return { x: cible.x + dx * k, y: cible.y + dy * k };
+  }
+
+  // [13] LA MATIERE BOUGE. En vue de dessus rien d'autre ne dit la puissance :
+  // quinze ennemis chasses vers l'exterieur se voient, quinze qui disparaissent
+  // non. L'impulsion est une VITESSE qui retombe, pas une teleportation — c'est
+  // elle qui tient le trou ouvert le temps qu'on le voie.
+  _blastPush(x, y, r, force = 1) {
+    const r2 = r * r;
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      const dx = e.x - x, dy = e.y - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r2) continue;
+      const d = Math.sqrt(d2) || 1;
+      const k = 1 - d / r;
+      const v = CFG.BLAST_KNOCK * force * k * k;
+      e.kx += (dx / d) * v;
+      e.ky += (dy / d) * v;
+    }
+    if (this.blastHoles.length >= CFG.BLAST_HOLE_MAX) this.blastHoles.shift();
+    this.blastHoles.push({
+      x, y, r: r * CFG.BLAST_HOLE_MUL, until: this.time + CFG.BLAST_HOLE_TIME,
+    });
+  }
+
+  // [14] le trou dans la foule EST la recompense : aux debits du lot A il se
+  // comble avant d'avoir ete vu. Ne concerne que ce qui NAIT dedans, jamais ce
+  // qui y revient a pied.
+  _dansUnTrou(x, y) {
+    for (let i = this.blastHoles.length - 1; i >= 0; i--) {
+      const h = this.blastHoles[i];
+      if (h.until <= this.time) { this.blastHoles.splice(i, 1); continue; }
+      if ((x - h.x) ** 2 + (y - h.y) ** 2 <= h.r * h.r) return true;
+    }
+    return false;
   }
 
   _momentum(p) {
@@ -1827,25 +1891,29 @@ export class GameState {
   _explode(x, y, dmg, ownerId) {
     const owner = this.players.get(ownerId);
     const r = CARD_CFG.GRENADE_RADIUS * (owner ? owner.mods.areaMul : 1);
-    this.effects.push({
-      id: this._nextId++,
-      x, y, r, life: 0.35, max: 0.35, kind: 7,
-    });
+    const souffle = { id: this._nextId++, x, y, r, life: 0.35, max: 0.35, kind: 7, n: 0 };
+    this.effects.push(souffle);
 
     this._areaPull(x, y, r, ownerId);
     const r2 = r * r;
+    let fauches = 0;
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) {
         this._damage(e, dmg, ownerId);
+        if (e.hp <= 0) fauches++;
         this._blastAfter(owner, e);
       }
     }
     for (const boss of this._bossTargets()) {
-      if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) this._damage(boss, dmg, ownerId);
+      if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) {
+        this._damage(boss, dmg, ownerId, 0, false, x, y);
+      }
     }
+    souffle.n = fauches;
     this._hitMarks(x, y, r, dmg, ownerId);
     this._blastGround(owner, x, y, r);
+    this._blastPush(x, y, r, 0.7);
     this.enemies = this.enemies.filter(e => e.hp > 0);
   }
 
@@ -1878,24 +1946,28 @@ export class GameState {
   _wave(x, y, radius, dmg, ownerId) {
     const owner = this.players.get(ownerId);
     if (owner) radius *= owner.mods.areaMul;
-    this.effects.push({
-      id: this._nextId++,
-      x, y, r: radius, life: 0.35, max: 0.35, kind: 8,
-    });
+    const onde = { id: this._nextId++, x, y, r: radius, life: 0.35, max: 0.35, kind: 8, n: 0 };
+    this.effects.push(onde);
 
     const r2 = radius * radius;
+    let fauches = 0;
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) {
         this._damage(e, dmg, ownerId);
+        if (e.hp <= 0) fauches++;
         this._blastAfter(owner, e);
       }
     }
     for (const boss of this._bossTargets()) {
-      if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) this._damage(boss, dmg, ownerId);
+      if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) {
+        this._damage(boss, dmg, ownerId, 0, false, x, y);
+      }
     }
+    onde.n = fauches;
     this._hitMarks(x, y, radius, dmg, ownerId);
     this._blastGround(owner, x, y, radius);
+    this._blastPush(x, y, radius, 0.55);
     this.enemies = this.enemies.filter(e => e.hp > 0);
   }
 
@@ -1919,7 +1991,7 @@ export class GameState {
       if (p.dashHits.has(boss.id)) continue;
       if ((boss.x - p.x) ** 2 + (boss.y - p.y) ** 2 > rb * rb) continue;
       p.dashHits.add(boss.id);
-      this._damage(boss, dmg, p.id);
+      this._damage(boss, dmg, p.id, 0, false, p.x, p.y);
     }
     this.enemies = this.enemies.filter(e => e.hp > 0);
   }
@@ -1979,7 +2051,7 @@ export class GameState {
           const rr = CFG.BOSS_RADIUS + 10;
           if ((boss.x - bx) ** 2 + (boss.y - by) ** 2 <= rr * rr) {
             p.orbitHits.set(boss.id, CARD_CFG.ORBIT_HIT_CD);
-            this._damage(boss, dmg, p.id);
+            this._damage(boss, dmg, p.id, 0, false, bx, by);
           }
         }
       }
@@ -2181,12 +2253,10 @@ export class GameState {
       fleeT: 0,
       hitAt: -99,
       hitSeq: 0,
+      critSeq: 0,
+      kx: 0,
+      ky: 0,
       statusAt: 0,
-      healCd: t.healInterval ?? 0,
-      healTarget: 0,
-      pressT: 0,
-      fleeT: 0,
-      lastSeq: 0,
       noExec: 0,
       hunt: 0,
       xpWorth: 1,
@@ -2525,6 +2595,15 @@ export class GameState {
   }
 
   _spawnPoint(geom = "bords", r = 12) {
+    if (this.blastHoles.length === 0) return this._spawnGeom(geom, r);
+    for (let i = 0; i < 4; i++) {
+      const pt = this._spawnGeom(geom, r);
+      if (!this._dansUnTrou(pt.x, pt.y)) return pt;
+    }
+    return this._spawnGeom(geom, r);
+  }
+
+  _spawnGeom(geom, r) {
     switch (geom) {
       case "front":
         return this._edgePoint(this.beatSide);
@@ -2794,14 +2873,11 @@ export class GameState {
 
   _nova(p) {
     const R = CFG.NOVA_RADIUS * p.mods.areaMul;
-    this.effects.push({
-      id: this._nextId++,
-      x: p.x, y: p.y,
-      r: R,
-      life: 0.45, max: 0.45,
-      kind: 0,
-    });
+    const onde = { id: this._nextId++, x: p.x, y: p.y, r: R,
+                   life: 0.45, max: 0.45, kind: 0, n: 0 };
+    this.effects.push(onde);
 
+    let fauches = 0;
     for (const e of this.enemies) {
       const dx = e.x - p.x, dy = e.y - p.y;
       const d = Math.hypot(dx, dy);
@@ -2810,12 +2886,14 @@ export class GameState {
       e.x += ux * CFG.NOVA_PUSH;
       e.y += uy * CFG.NOVA_PUSH;
       this._damage(e, CFG.NOVA_DAMAGE, p.id);
+      if (e.hp <= 0) fauches++;
     }
+    onde.n = fauches;
     this.enemies = this.enemies.filter(e => e.hp > 0);
 
     for (const boss of this._bossTargets()) {
       const d = Math.hypot(boss.x - p.x, boss.y - p.y);
-      if (d <= R) this._damage(boss, CFG.NOVA_BOSS_DAMAGE, p.id);
+      if (d <= R) this._damage(boss, CFG.NOVA_BOSS_DAMAGE, p.id, 0, false, p.x, p.y);
     }
 
     this.shots = this.shots.filter(sh =>
@@ -2980,6 +3058,14 @@ export class GameState {
       }
 
       if (gust) { e.x += gust.x; e.y += gust.y; }
+
+      if (e.kx || e.ky) {
+        e.x += e.kx * dt;
+        e.y += e.ky * dt;
+        const k = Math.pow(CFG.BLAST_KNOCK_DECAY, dt);
+        e.kx *= k; e.ky *= k;
+        if (Math.abs(e.kx) + Math.abs(e.ky) < CFG.BLAST_KNOCK_MIN) { e.kx = 0; e.ky = 0; }
+      }
 
       if (this.walls) this._wallBlock(e, wasX, wasY, e.r);
       if (this.obstacles.length) this._obstacleBlock(e, wasX, wasY, e.r);
@@ -5287,7 +5373,7 @@ export class GameState {
             this._explode(b.x, b.y, b.boom, b.owner);
             hit = true;
           } else {
-            this._damage(boss, b.dmg, b.owner, b.burn);
+            this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y);
             if (b.pierce > 0) {
               b.pierce--;
               if (b.hits) b.hits.add(boss.id); else b.hit = boss.id;
@@ -5487,6 +5573,10 @@ export class GameState {
     this._credit(owner, e.elite ? Math.round(def.score * CFG.ELITE_SCORE_MUL) : def.score);
 
     if (owner) {
+      // [26f] un critique QUI TUE ne laisse aucune trace dans l'instantane : le
+      // corps a disparu avec son compteur. Le compteur vit donc sur le TUEUR.
+      if (this.lastCrit) owner.critKills = (owner.critKills + 1) % 10;
+
       if (owner.mods.frenzy) {
         const cap = Math.round(CARD_CFG.FRENZY_MAX / CARD_CFG.FRENZY_STEP);
         owner.frenzyStacks = Math.min(cap, owner.frenzyStacks + 1);
@@ -5734,10 +5824,11 @@ export class GameState {
         r1(p.cd3), p.mods.skill3,
         p.eclats,
         r2(p.fireInterval),
+        p.critKills,
       ]),
       e: this.enemies.map(e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
                                 e.type + (e.elite ? 100 : 0),
-                                r2(e.ang), e.hitSeq], 7)),
+                                r2(e.ang), e.hitSeq, e.critSeq], 7)),
       b: this.bullets.map(b => [b.id, r1(b.x), r1(b.y), b.heal > 0 ? 1 : 0, b.owner]),
       s: this.shots.map(s => [s.id, r1(s.x), r1(s.y)]),
       z: this.zones.map(z => trimTail([
@@ -5763,7 +5854,8 @@ export class GameState {
         .map(d => [d.id, r1(d.x), r1(d.y), r2(d.ang), d.kind, d.owner]),
       f: this.effects.map(f => f.kind === 3 || f.kind === 13
         ? [f.id, r1(f.x), r1(f.y), Math.round(f.r ?? 0), r2(f.life / f.max), f.kind, r1(f.x2), r1(f.y2)]
-        : [f.id, r1(f.x), r1(f.y), Math.round(f.r), r2(f.life / f.max), f.kind ?? 0]),
+        : trimTail([f.id, r1(f.x), r1(f.y), Math.round(f.r), r2(f.life / f.max), f.kind ?? 0,
+                    0, 0, f.n ?? 0], 6)),
       sl: this.slow > 0 ? 1 : 0,
       df: this.diffIndex,
       wu: this.windup.length > 0 ? [...this.windup] : null,

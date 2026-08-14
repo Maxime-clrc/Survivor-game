@@ -34,12 +34,13 @@ export function ingest(msg) {
       cd3: a[30] ?? 0, skill3: a[31] ?? 0,
       eclats: a[32] ?? 0,
       fireInterval: a[33] ?? 0,
+      critKills: a[34] ?? 0,
     }])),
     enemies: new Map(msg.e.map(a => [a[0], {
       id: a[0], x: a[1], y: a[2], hp: a[3], maxHp: a[4],
       type: a[5] % 100, elite: a[5] % 200 >= 100, ang: a[6],
       hitSeq: a[7] ?? 0,
-      healTarget: a[8] ?? 0,
+      critSeq: a[8] ?? 0,
     }])),
     bullets: new Map(msg.b.map(a => [a[0], {
       id: a[0], x: a[1], y: a[2], heal: a[3] ?? 0, owner: a[4] ?? 0,
@@ -72,7 +73,7 @@ export function ingest(msg) {
     drones: new Map((msg.dr ?? []).map(a => [a[0], { id: a[0], x: a[1], y: a[2], ang: a[3], kind: a[4], owner: a[5] ?? 0 }])),
     effects: (msg.f ?? []).map(a => ({
       id: a[0], x: a[1], y: a[2], r: a[3], k: a[4], kind: a[5] ?? 0,
-      x2: a[6], y2: a[7],
+      x2: a[6], y2: a[7], n: a[8] ?? 0,
     })),
     boss: msg.bo
       ? { id: msg.bo[0], x: msg.bo[1], y: msg.bo[2], hp: msg.bo[3],
