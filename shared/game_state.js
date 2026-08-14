@@ -632,6 +632,8 @@ export class GameState {
       relics: new Map(),
 
       rally: 1,
+      dashCrits: 0,
+      dashSeen: 0,
       oathT: 0,
       oathMul: 0,
       cd1: 0,
@@ -851,6 +853,10 @@ export class GameState {
 
       p.cd2 = Math.max(0, p.cd2 - dt);
       p.cd3 = Math.max(0, p.cd3 - dt);
+      if (p.dashSeen && p.dashT <= 0) {
+        p.dashSeen = 0;
+        if (p.mods.dashCrit > 0) p.dashCrits = p.mods.dashCrit;
+      }
       if (p.oathT > 0) {
         p.oathT = Math.max(0, p.oathT - dt);
         if (p.oathT === 0) p.oathMul = 0;
@@ -964,14 +970,18 @@ export class GameState {
         p.x += p.dashX * CFG.DASH_SPEED * dt;
         p.y += p.dashY * CFG.DASH_SPEED * dt;
         if (p.mods.dashTrail > 0) this._dashTrail(p);
+        if (p.mods.dashVuln > 0) this._dashVuln(p);
+        p.dashSeen = 1;
       } else if (inp) {
         const g = this.hazards.length ? this._ground(p.x, p.y) : null;
         const speedMul = (p.relics.has("coeur_machine") ? 1 : p.mods.speedMul)
           * (p.rally ?? 1);
+        const resist = p.mods.groundResist;
+        const slow = g ? 1 - (1 - g.slow) * (1 - resist) : 1;
         const sp = CFG.PLAYER_SPEED * speedMul
           * (p.statuses.has(STATUS_ROOT) ? 1 - STATUS_CFG.ROOT_SLOW : 1)
-          * (g ? g.slow : 1);
-        if (this.slipT > 0 || (g && g.slip)) {
+          * slow;
+        if (this.slipT > 0 || (g && g.slip && resist < 1)) {
           const k = Math.min(1, (this.slipT > 0 ? BOSS_CFG.SLIP_ACCEL : BIOME_CFG.SLIP_ACCEL) * dt);
           p.vx += (inp.x * sp - p.vx) * k;
           p.vy += (inp.y * sp - p.vy) * k;
@@ -1578,13 +1588,21 @@ export class GameState {
     }
     if (this.boss2 && target === this.boss2) target = this.boss;
     if (target.vulnUntil > this.time) amount *= CARD_CFG.VULNERABLE_MUL;
+    if ((target.rootUntil ?? 0) > this.time && ownerId) {
+      const o = this.players.get(ownerId);
+      if (o && o.mods.rootDamage > 0) amount *= 1 + o.mods.rootDamage;
+    }
     if (target.aura > 0) amount *= 1 - target.aura;
     if (target.hitAt !== undefined && !overTime) target.hitAt = this.time;
     const owner = this.players.get(ownerId);
     this.lastCrit = false;
     if (owner) {
       amount *= owner.power;
-      if (!overTime && Math.random() < owner.mods.critChance) {
+      if (!overTime && owner.dashCrits > 0) {
+        owner.dashCrits--;
+        this.lastCrit = true;
+        amount *= owner.mods.critMul;
+      } else if (!overTime && Math.random() < owner.mods.critChance) {
         this.lastCrit = true;
         amount *= owner.mods.critMul;
         if (owner.mods.critVuln) target.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
@@ -1665,7 +1683,7 @@ export class GameState {
     p.rally = 1;
     if (m.elanStep === 0 && m.packStep === 0 && m.ragePerKill === 0
         && m.lowHpDamage === 0 && m.allyDamageStep === 0 && m.downedRally === 0
-        && p.oathT <= 0) {
+        && m.eventDamage === 0 && p.oathT <= 0) {
       p.power = cata;
       return;
     }
@@ -1696,6 +1714,7 @@ export class GameState {
       p.rally = 1 + m.downedRally;
     }
     if (p.oathT > 0) bonus += p.oathMul;
+    if (m.eventDamage > 0 && this.event) bonus += m.eventDamage;
     p.power = (1 + bonus) * cata;
   }
 
@@ -1774,13 +1793,43 @@ export class GameState {
     const r2 = r * r;
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
-      if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) this._damage(e, dmg, ownerId);
+      if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) {
+        this._damage(e, dmg, ownerId);
+        this._blastAfter(owner, e);
+      }
     }
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) this._damage(boss, dmg, ownerId);
     }
     this._hitMarks(x, y, r, dmg);
+    this._blastGround(owner, x, y, r);
     this.enemies = this.enemies.filter(e => e.hp > 0);
+  }
+
+  // « Etau » et « Terrain conquis » se branchent sur les DEUX souffles du joueur,
+  // l'explosion et l'onde. Le plan demandait un `requires` de zone : aucune carte
+  // n'en cree, elles viennent des competences et de l'arme.
+  _blastAfter(owner, e) {
+    if (owner && owner.mods.blastRoot > 0) this._rootEnemy(e, owner.mods.blastRoot);
+  }
+
+  _blastGround(owner, x, y, r) {
+    if (!owner || !(owner.mods.blastGround > 0)) return;
+    this._groundZone(x, y, r * 0.7, CARD_CFG.TERRAIN_DOT, owner.mods.blastGround);
+  }
+
+  _dashVuln(p) {
+    const r = (CFG.PLAYER_RADIUS + 6) * p.mods.dashVuln;
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      const d = e.r + r;
+      if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 > d * d) continue;
+      e.vulnUntil = Math.max(e.vulnUntil ?? 0, this.time + CARD_CFG.CONTRE_PIED_TIME);
+    }
+  }
+
+  _rootEnemy(e, time) {
+    e.rootUntil = Math.max(e.rootUntil ?? 0, this.time + time);
   }
 
   _wave(x, y, radius, dmg, ownerId) {
@@ -1794,12 +1843,16 @@ export class GameState {
     const r2 = radius * radius;
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
-      if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) this._damage(e, dmg, ownerId);
+      if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) {
+        this._damage(e, dmg, ownerId);
+        this._blastAfter(owner, e);
+      }
     }
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) this._damage(boss, dmg, ownerId);
     }
     this._hitMarks(x, y, radius, dmg);
+    this._blastGround(owner, x, y, radius);
     this.enemies = this.enemies.filter(e => e.hp > 0);
   }
 
@@ -2571,8 +2624,27 @@ export class GameState {
   _harvestYield(h) {
     const gain = CFG.HARVEST_YIELD_MIN
       + Math.floor(Math.random() * (CFG.HARVEST_YIELD_MAX - CFG.HARVEST_YIELD_MIN + 1));
+    let soin = 0, encore = 0;
     for (const p of this.players.values()) {
-      p.eclats += Math.round(gain * p.mods.shardMul);
+      const bonus = this.event ? p.mods.eventShard : 0;
+      p.eclats += Math.round(gain * (p.mods.shardMul + bonus));
+      if (p.mods.harvestHeal > soin) soin = p.mods.harvestHeal;
+      if (p.mods.harvestAgain > encore) encore = p.mods.harvestAgain;
+    }
+    if (soin > 0) {
+      for (const p of this.players.values()) {
+        if (!p.downed) p.hp = Math.min(p.maxHp, p.hp + soin);
+      }
+    }
+    if (encore > 0 && Math.random() < encore
+        && this.harvests.length < CFG.HARVEST_MAX_GROUND) {
+      this.harvests.push({
+        id: this._nextId++,
+        x: h.x, y: h.y,
+        kind: Math.random() < 0.5 ? 0 : 1,
+        hp: CFG.HARVEST_CRYSTAL_HP, maxHp: CFG.HARVEST_CRYSTAL_HP,
+        prog: 0,
+      });
     }
     this.effects.push({
       id: this._nextId++,
@@ -2732,6 +2804,7 @@ export class GameState {
         }
       }
       if (this.hazards.length) mul *= this._ground(e.x, e.y).slow;
+      if ((e.rootUntil ?? 0) > this.time) mul = 0;
       for (const an of this.anchors) {
         if ((e.x - an.x) ** 2 + (e.y - an.y) ** 2 <= an.r * an.r) {
           mul *= CARD_CFG.SKILL3_ANCRE_SLOW;
@@ -4492,12 +4565,28 @@ export class GameState {
     if (this.hazardTick > 0) return;
     this.hazardTick = CFG.ZONE_TICK;
 
+    let conducteur = null;
+    for (const p of this.players.values()) {
+      if (p.mods.hazardDps > (conducteur?.mods.hazardDps ?? 0)) conducteur = p;
+    }
+
     for (const h of this.hazards) {
       const def = hazardAt(h.kind);
-      if (!def || !def.hurts) continue;
       const st = hazardState(h, this.time);
       if (!st.on) continue;
       const r = h.r * CFG.ZONE_FORGIVE;
+
+      // « Conducteur » : tout danger du sol, meme celui qui ne blesse pas un joueur
+      if (conducteur) {
+        const dmg = conducteur.mods.hazardDps * CFG.ZONE_TICK;
+        for (const e of this.enemies) {
+          if (e.hp <= 0) continue;
+          if ((e.x - st.x) ** 2 + (e.y - st.y) ** 2 > r * r) continue;
+          this._damage(e, dmg, conducteur.id, 0, true);
+        }
+      }
+
+      if (!def || !def.hurts) continue;
       for (const p of this._alivePlayers()) {
         if ((p.x - st.x) ** 2 + (p.y - st.y) ** 2 > r * r) continue;
         this._hurt(p, h.dot * CFG.ZONE_TICK, { overTime: true, src: SRC_ENV });
@@ -5050,7 +5139,12 @@ export class GameState {
     }
 
     this._damage(e, b.dmg, b.owner, b.burn);
-    const critPierce = this.lastCrit && this.players.get(b.owner)?.mods.critVuln;
+    const tireur = this.players.get(b.owner);
+    if (tireur && tireur.mods.rootChance > 0
+        && Math.random() < tireur.mods.rootChance) {
+      this._rootEnemy(e, CARD_CFG.FILINS_TIME);
+    }
+    const critPierce = this.lastCrit && tireur?.mods.critVuln;
     if (b.arc > 0 && Math.random() < b.arc) this._arc(e, b.dmg, b.owner);
     if (e.hp <= 0 && b.chain > 0) this._ricochet(e, b);
 
@@ -5359,6 +5453,16 @@ export class GameState {
         x: pt.x, y: pt.y,
         life: CFG.POWERUP_LIFE,
       });
+      // une elite en larguait DEJA un : la carte en donne un second
+      if (owner && owner.mods.eliteDrop > 0) {
+        const pt2 = this._dropPoint(e.x, e.y);
+        this.powerups.push({
+          id: this._nextId++,
+          type: this._randomPowerupType(),
+          x: pt2.x, y: pt2.y,
+          life: CFG.POWERUP_LIFE,
+        });
+      }
       this.effects.push({
         id: this._nextId++,
         x: e.x, y: e.y, r: 90, life: 0.5, max: 0.5, kind: 5,

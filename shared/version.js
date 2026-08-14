@@ -838,6 +838,38 @@
                    ralentissement global, ni ce qui fait naitre une entite. Sans
                    cette liste, un bonus ramasse posait quatre tourelles
 
+     0.8.19 equilibrage, lot E vague 3  LES CINQ AXES ORPHELINS. Douze cartes en
+                   fin de tableau, catalogue 116 -> 137. Environnement
+                   (`crampons`, `conducteur`, `terrain_conquis`) : cinq dangers du
+                   sol pour une seule carte. Entrave (`filins`, `etau`, `nasse`) :
+                   `STATUS_ROOT` existait, etait reseau, etait rendu, et AUCUN
+                   joueur ne pouvait entraver. Evenements (`opportuniste`,
+                   `curee`) : quatre familles, zero carte. Recolte
+                   (`prospecteur`, `filon`) et esquive (`contre_pied`,
+                   `sillage`). `appel_du_vide` reste ecartee (D6).
+                   UN CONSTAT DU PLAN EST FAUX : les elites larguent DEJA un bonus,
+                   inconditionnellement, dans `_killEnemy`. `curee` telle qu'ecrite
+                   etait morte a l'ecriture ; elle en donne un SECOND.
+                   L'ENTRAVE D'UN ENNEMI NE TRAVERSE PAS LE RESEAU. Les ennemis ne
+                   portent pas la `Map` de statuts des joueurs mais des champs
+                   (`burn`, `vulnUntil`) ; `rootUntil` en est un de plus, et
+                   l'immobilite EST le retour visuel.
+                   `etau` et `terrain_conquis` se branchent sur les DEUX souffles du
+                   joueur, l'explosion et l'onde (`_blastAfter`, `_blastGround`).
+                   Le plan demandait un `requires` de zone : aucune carte n'en cree,
+                   elles viennent de l'arme et de la competence. `crampons` porte
+                   `requiresSystem` en plus de `teamUnique` — sans dangers, en
+                   calme, elle ne fait rien.
+                   LE CRITERE DE DERIVE DES BOSS EST TROP BRUITE POUR ATTRIBUER UNE
+                   VAGUE : +5 % apres la vague 2, +42 % apres la vague 3 en solo ;
+                   -37 % puis -14 % a quatre. Le plancher de barre tronque la
+                   distribution, et UNE GRAINE CESSE D'ETRE APPARIEE des que le
+                   catalogue change — le tirage ne consomme plus le meme nombre de
+                   nombres aleatoires. Trancher demande un pilote qui CHOISIT.
+                   PIEGE PAYE : un releve non graine a rendu « puissance mediane
+                   1,70, une victoire sur six » puis « 3,94, trois sur six » au
+                   MEME code. Un releve non graine est du bruit
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -846,4 +878,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.18";
+export const VERSION = "0.8.19";

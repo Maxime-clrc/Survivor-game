@@ -155,6 +155,20 @@ export const CARD_CFG = {
   PHALANGE_STEP: 0.08,
   REPERES_STEP: 0.12,
   BOSS_DAMAGE_CAP: 1.6,
+  CRAMPONS_STEP: 0.25,
+  CONDUCTEUR_DPS: 14,
+  TERRAIN_LIFE: 4,
+  TERRAIN_DOT: 18,
+  FILINS_CHANCE: 0.12,
+  FILINS_TIME: 1,
+  ETAU_TIME: 0.8,
+  NASSE_MUL: 0.40,
+  OPPORTUNISTE_DMG: 0.20,
+  OPPORTUNISTE_SHARD: 0.30,
+  PROSPECTEUR_HEAL: 25,
+  FILON_CHANCE: 1 / 3,
+  CONTRE_PIED_TIME: 3,
+  SILLAGE_HITS: 3,
   TRAQUEUR_BASE: 0.25,
   TRAQUEUR_PER_BAR: 0.10,
   RAGE_STEP: 0.01,
@@ -1071,6 +1085,87 @@ export const CARDS = [
     apply(m) { m.powerupShare = CARD_CFG.PORTE_VOIX_SHARE; },
   },
   {
+    id: "crampons", nom: "Crampons", rarity: 0, max: 3, tags: ["def", "util"],
+    teamUnique: true,
+    requiresSystem: "hasards_actifs",
+    desc: `−${num(CARD_CFG.CRAMPONS_STEP * 100)} % de l'effet des sols glissants`
+      + " et ralentissants",
+    stack: n => pctCut(1 - CARD_CFG.CRAMPONS_STEP, n),
+    apply(m, n) { m.groundResist = 1 - Math.pow(1 - CARD_CFG.CRAMPONS_STEP, n); },
+  },
+  {
+    id: "conducteur", nom: "Conducteur", rarity: 1, max: 2, tags: ["off", "util"],
+    requiresSystem: "hasards_actifs",
+    desc: `les ennemis qui traversent un danger du sol subissent`
+      + ` ${num(CARD_CFG.CONDUCTEUR_DPS)} dégâts/s`,
+    stack: n => `${num(CARD_CFG.CONDUCTEUR_DPS * n)} dégâts/s`,
+    apply(m, n) { m.hazardDps += CARD_CFG.CONDUCTEUR_DPS * n; },
+  },
+  {
+    id: "filins", nom: "Filins", rarity: 1, max: 2, tags: ["off"],
+    desc: `${num(CARD_CFG.FILINS_CHANCE * 100)} % de chance qu'une balle entrave`
+      + ` sa cible ${num(CARD_CFG.FILINS_TIME)} s`,
+    stack: n => `${num(CARD_CFG.FILINS_CHANCE * n * 100)} % de chance`,
+    apply(m, n) { m.rootChance += CARD_CFG.FILINS_CHANCE * n; },
+  },
+  {
+    id: "etau", nom: "Étau", rarity: 1, max: 2, tags: ["off"],
+    desc: `tes explosions et tes ondes entravent ${num(CARD_CFG.ETAU_TIME)} s`,
+    stack: n => `${num(CARD_CFG.ETAU_TIME * n)} s`,
+    apply(m, n) { m.blastRoot += CARD_CFG.ETAU_TIME * n; },
+  },
+  {
+    id: "opportuniste", nom: "Opportuniste", rarity: 1, max: 2, tags: ["off", "util"],
+    desc: `pendant un événement, +${num(CARD_CFG.OPPORTUNISTE_DMG * 100)} % de dégâts`
+      + ` et +${num(CARD_CFG.OPPORTUNISTE_SHARD * 100)} % d'éclats`,
+    stack: n => pctAdd(CARD_CFG.OPPORTUNISTE_DMG, n),
+    apply(m, n) {
+      m.eventDamage += CARD_CFG.OPPORTUNISTE_DMG * n;
+      m.eventShard += CARD_CFG.OPPORTUNISTE_SHARD * n;
+    },
+  },
+  {
+    id: "prospecteur", nom: "Prospecteur", rarity: 1, max: 2, tags: ["coop", "util"],
+    desc: `récolter un point rend ${num(CARD_CFG.PROSPECTEUR_HEAL)} PV à toute l'équipe`,
+    stack: n => `${num(CARD_CFG.PROSPECTEUR_HEAL * n)} PV`,
+    apply(m, n) { m.harvestHeal += CARD_CFG.PROSPECTEUR_HEAL * n; },
+  },
+  {
+    id: "contre_pied", nom: "Contre-pied", rarity: 1, max: 2, tags: ["off", "util"],
+    desc: `traverser un ennemi en esquivant le rend vulnérable`
+      + ` ${num(CARD_CFG.CONTRE_PIED_TIME)} s`,
+    stack: n => n > 1 ? "rayon doublé" : `${num(CARD_CFG.CONTRE_PIED_TIME)} s`,
+    apply(m, n) { m.dashVuln = n; },
+  },
+  {
+    id: "terrain_conquis", nom: "Terrain conquis", rarity: 2, max: 1, tags: ["off"],
+    desc: `tes explosions et tes ondes laissent un sol brûlant`
+      + ` ${num(CARD_CFG.TERRAIN_LIFE)} s`,
+    apply(m) { m.blastGround = CARD_CFG.TERRAIN_LIFE; },
+  },
+  {
+    id: "nasse", nom: "Nasse", rarity: 2, max: 1, tags: ["off"],
+    requires: ["filins", "etau"],
+    desc: `les ennemis entravés subissent +${num(CARD_CFG.NASSE_MUL * 100)} % de dégâts`,
+    apply(m) { m.rootDamage = CARD_CFG.NASSE_MUL; },
+  },
+  {
+    id: "curee", nom: "Curée", rarity: 2, max: 1, tags: ["util"],
+    desc: "les élites laissent un bonus au sol de plus en mourant",
+    apply(m) { m.eliteDrop = 1; },
+  },
+  {
+    id: "filon", nom: "Filon", rarity: 2, max: 1, tags: ["util"],
+    desc: "un point de récolte sur trois en laisse un second à sa place",
+    apply(m) { m.harvestAgain = CARD_CFG.FILON_CHANCE; },
+  },
+  {
+    id: "sillage", nom: "Sillage", rarity: 2, max: 1, tags: ["off"],
+    desc: `les ${num(CARD_CFG.SILLAGE_HITS)} coups qui suivent une esquive`
+      + " sont des coups critiques",
+    apply(m) { m.dashCrit = CARD_CFG.SILLAGE_HITS; },
+  },
+  {
     id: "phalange", nom: "Phalange", rarity: 3, max: 1, tags: ["coop", "def"],
     minPlayers: 2,
     desc: `chaque allié à moins de ${fmtM(CARD_CFG.ALLY_RADIUS)} donne à l'équipe`
@@ -1113,6 +1208,19 @@ export function defaultMods() {
     damageTakenMul: 1,
     pickupRadius: 0,
     pickupRadiusMul: 1,
+    groundResist: 0,
+    hazardDps: 0,
+    blastGround: 0,
+    blastRoot: 0,
+    rootChance: 0,
+    rootDamage: 0,
+    eventDamage: 0,
+    eventShard: 0,
+    eliteDrop: 0,
+    harvestHeal: 0,
+    harvestAgain: 0,
+    dashVuln: 0,
+    dashCrit: 0,
     allyDamageStep: 0,
     downedRally: 0,
     shieldShare: 0,

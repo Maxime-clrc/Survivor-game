@@ -8,6 +8,56 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Environnement, entrave, événements, récolte, esquive (lot E, vague 3)
+
+Douze cartes, en fin de tableau. `appel_du_vide` reste écartée (décision D6). Le
+catalogue passe de 116 à **137 cartes**.
+
+| axe | cartes | ce qui manquait |
+|---|---|---|
+| environnement | `crampons`, `conducteur`, `terrain_conquis` | cinq dangers du sol pour **une** carte |
+| entrave | `filins`, `etau`, `nasse` | `STATUS_ROOT` existait, **aucun joueur ne pouvait entraver** |
+| événements | `opportuniste`, `curee` | quatre familles d'événements, **zéro** carte |
+| récolte | `prospecteur`, `filon` | deux cartes, toutes deux épiques |
+| esquive | `contre_pied`, `sillage` | une commune et une légendaire, rien entre |
+
+**Un constat du plan est faux : les élites larguent DÉJÀ un bonus** (`_killEnemy`,
+inconditionnel). `curee` telle qu'écrite aurait été morte à l'écriture ; elle en
+donne donc un **second** — mesuré 1 bonus sans la carte, 2 avec.
+
+**L'entrave d'un ennemi ne traverse pas le réseau.** Les ennemis ne portent pas la
+`Map` de statuts des joueurs mais des champs (`burn`, `vulnUntil`) ; `rootUntil`
+en est un de plus, et l'immobilité **est** le retour visuel — la règle du dépôt
+dit de chercher d'abord si la valeur est une fonction de ce que le client a déjà.
+
+**`etau` et `terrain_conquis` se branchent sur les deux souffles du joueur**,
+l'explosion et l'onde, via `_blastAfter` et `_blastGround`. Le plan demandait un
+`requires` de zone : **aucune carte n'en crée** — les explosions viennent de
+l'arme et de la compétence de classe, les ondes des cartes défensives. Un
+`requires` aurait été impossible à écrire.
+
+`crampons` porte `requiresSystem: "hasards_actifs"` **en plus de `teamUnique`** :
+sans dangers, en calme, la carte ne fait rien. Même défaut que `Surcharge
+orbitale`, même remède.
+
+Contrôles : `groundResist` 0,438 à deux paliers · entrave de 0,80 s par explosion
+· `nasse` 140 dégâts contre 100 · une zone brûlante posée par onde · 20 récoltes
+doublées sur 60 pour `filon` (cible ⅓) · éclats 21 → 30 pendant un événement ·
+3,5 dégâts par palier de `ZONE_TICK` à un ennemi dans un danger.
+
+**Le critère de dérive des boss est trop bruité pour attribuer une vague.**
+Relevés graînés successifs, douze manches, solo : **+5 %** après la vague 2,
+**+42 %** après la vague 3 ; à quatre, −37 % puis −14 %. Deux raisons : le
+plancher de barre à 40 s tronque la distribution, et **une graine cesse d'être
+appariée dès que le catalogue change** — le tirage ne consomme plus le même
+nombre de nombres aléatoires. Trancher demanderait un pilote qui choisit, pas un
+qui tire au hasard.
+
+**Piège de mesure payé** : deux scripts d'atelier existaient, l'un graîné
+(`mesureBoss`) et l'autre non. Le non graîné a rendu « puissance médiane 1,70,
+une victoire sur six » puis « 3,94, trois sur six » **au même code**. Toute
+conclusion tirée d'un relevé non graîné est du bruit.
+
 ### Axes coopération et boss (lot E, vague 2)
 
 Neuf cartes, **en fin de tableau** (règle append-only) : six de coopération, trois
