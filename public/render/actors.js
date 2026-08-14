@@ -4,7 +4,7 @@ import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { CFG, ENEMY_TYPES, POWERUP_TYPES, traitsOf } from "/shared/game_state.js";
-import { BOSS, CLASS_COLOR, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
+import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
@@ -627,6 +627,17 @@ export function drawEffects(effects) {
       ctx.lineWidth = 3 * f.k + 1;
       ctx.beginPath();
       ctx.arc(f.x, f.y, f.r * (0.2 + grow * 0.8), 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
+
+    // 15 : l'ENTREE du palier. `kind: 6` marque sa fin ; il en fallait un a
+    // l'ouverture, et il est blanc comme l'enveloppe qu'il annonce.
+    if (f.kind === 15) {
+      ctx.strokeStyle = alpha(COMBAT.flash, f.k * 0.85);
+      ctx.lineWidth = 6 * f.k + 1.5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * (1 - f.k * 0.55), 0, Math.PI * 2);
       ctx.stroke();
       continue;
     }

@@ -72,6 +72,31 @@ export function drawBoss(b) {
     ctx.restore();
   }
 
+  ctx.restore();
+
+  // le PALIER : aucune invulnerabilite invisible. L'enveloppe blanche pulse sur
+  // toute sa duree — le blanc ne dit que ca.
+  const pal = b.palier ?? 0;
+  if (pal > 0) {
+    const puls = 0.55 + 0.45 * Math.sin(t * 7.5);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = alpha(COMBAT.flash, 0.30 + 0.35 * puls);
+    ctx.lineWidth = 3 + puls * 2.5;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r + 14 + puls * 5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = alpha(COMBAT.flash, 0.12 + 0.10 * puls);
+    ctx.lineWidth = 12;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r + 22 + puls * 6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.scale(squash, squash);
   if (wounded > 0.2) {
     ctx.strokeStyle = alpha(BOSS.crack, Math.min(1, wounded));
     ctx.lineWidth = 2;

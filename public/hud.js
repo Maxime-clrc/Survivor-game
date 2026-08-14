@@ -243,13 +243,14 @@ function updateBoss(b, now) {
     + (rage > 0 ? ` — EMPORTEMENT ${ROMAN[rage] ?? rage}` : ""));
   setClass(el.bossName, "bnr", "enrage", rage > 0);
   setText(el.bossVerb, "bv", def.verbe);
-  const bank = Math.max(0, b.bank ?? 0);
-  setText(el.bossHp, "bh",
-    `${Math.max(0, Math.round(b.hp - bank))} / ${b.maxHp}`);
+  // la barre en cours devient BLANCHE et se vide sur le palier : le temps
+  // restant se lit sur l'objet que le joueur regarde deja.
+  const palier = Math.max(0, Math.min(1, b.palier ?? 0));
+  setText(el.bossHp, "bh", `${Math.max(0, Math.round(b.hp))} / ${b.maxHp}`);
   setWidth(el.bossFill, "bf", k);
-  const bf = Math.max(0, Math.min(k, bank / Math.max(1, b.maxHp)));
-  setStyle(el.bossBank, "bkl", "left", `${(k - bf) * 100}%`);
-  setStyle(el.bossBank, "bkw", "width", `${bf * 100}%`);
+  setClass(el.boss, "bpl", "palier", palier > 0);
+  setStyle(el.bossBank, "bkl", "left", "0%");
+  setStyle(el.bossBank, "bkw", "width", `${palier * 100}%`);
   setText(el.bossMult, "bm", `×${left}`);
   setClass(el.bossMult, "bml", "last", left <= 1);
 

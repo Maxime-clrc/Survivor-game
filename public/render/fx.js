@@ -55,6 +55,7 @@ const EFFECT_SOUND = {
   12: { son: "explosion", force: 1.35, shake: 9 },
   13: { son: "impact", pitch: 1.4, force: 0.5, shake: 0 },
   14: { son: "impact", pitch: 0.55, force: 0.45, shake: 0 },
+  15: { son: "impact", pitch: 0.9, force: 0.7, shake: 0 },
 };
 
 // les quatre souffles, et LEUR MATIERE. `n` est le nombre de tues : il met a
@@ -168,6 +169,24 @@ function handleEvent(e) {
       spawnCritShards(e.x, e.y, e.x - lastBossPos.x, e.y - lastBossPos.y);
       bossHit.at = performance.now();
       break;
+
+    // le palier ne ment pas : la touche existe, elle ne compte pas. Etincelle
+    // renvoyee vers l'EXTERIEUR, son mat, aucun chiffre.
+    case "ricochet": {
+      const dx = e.x - (e.cx ?? e.x), dy = e.y - (e.cy ?? e.y);
+      const a0 = Math.atan2(dy, dx) || Math.random() * Math.PI * 2;
+      for (let i = 0; i < 2 && particles.length < PARTICLE_MAX; i++) {
+        const a = a0 + (i - 0.5) * 0.9 + (Math.random() - 0.5) * 0.5;
+        const sp = 130 + Math.random() * 110;
+        particles.push({
+          x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+          life: 0.18, max: 0.18, col: COMBAT.flash, size: 2.6,
+          frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 5,
+        });
+      }
+      playSound("impact", { pitch: 0.5, force: 0.35 });
+      break;
+    }
 
     case "effet": {
       const d = EFFECT_SOUND[e.kind];

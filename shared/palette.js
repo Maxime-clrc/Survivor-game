@@ -367,6 +367,7 @@ export function cssVars(diffIndex = 1) {
     "--xp":      HUD.xp,
 
     "--downed": COMBAT.downed,
+    "--flash":  COMBAT.flash,
 
     "--cursor-ui": cursorUri(TEXT.base, false),
     "--cursor-go": cursorUri(SIGNAL.go, true),

@@ -1707,6 +1707,18 @@ export class GameState {
       if (owner.mods.catalyseur > 0 && enemyStatusMask(target, this.time) !== 0) {
         amount *= 1 + owner.mods.catalyseur;
       }
+    }
+
+    // LE DPS EXCEDENTAIRE EST PERDU. Il etait mis en banque, donc rendu a la
+    // rupture : le palier cadencait la mort du boss sans jamais la retarder, et
+    // les couches tardives ne se jouaient pas. Ce qui depasse le plancher ne
+    // compte nulle part — ni en PV, ni en credit, ni en experience.
+    if (target === this.boss) {
+      const plancher = this._bossFloor(target);
+      if (plancher !== null) amount = Math.max(0, Math.min(amount, target.hp - plancher));
+    }
+
+    if (owner) {
       owner.damageDealt += amount;
       if (target === this.boss) {
         let cumul = this.bossDmg.get(ownerId);
@@ -1727,22 +1739,7 @@ export class GameState {
 
     target.hp -= amount;
 
-    if (target === this.boss) {
-      target.lastHitBy = ownerId;
-      if (target.phase < target.bars - 1) {
-        const plancher = target.maxHp - (target.phase + 1) * target.barHp;
-        if (target.hp < plancher) {
-          target.bank = (target.bank ?? 0) + (plancher - target.hp);
-          target.hp = plancher;
-        }
-      } else if (target.kind === BOSS_FINAL
-                 && target.fightT - target.lastBreak < BOSS_CFG.FINAL_BAR_DWELL) {
-        if (target.hp < 1) {
-          target.bank = (target.bank ?? 0) + (1 - target.hp);
-          target.hp = 1;
-        }
-      }
-    }
+    if (target === this.boss) target.lastHitBy = ownerId;
 
     if (!overTime && target.hitSeq !== undefined) {
       target.hitSeq = (target.hitSeq + 1) % 10;
@@ -3384,7 +3381,8 @@ export class GameState {
           fightT: 0,
           lastBreak: 0,
           enrage: 0,
-          bank: 0,
+          palier: 0,
+          palierOuvert: 0,
           defer: [],
         };
 
@@ -3495,51 +3493,58 @@ export class GameState {
     b.y = Math.min(Math.max(b.y, B.y0 - 80), B.y1 + 80);
   }
 
+  // le plancher de la barre courante. Y toucher, c'est rendre au DPS le pouvoir
+  // de sauter des phases : `_damage` s'y arrete, `_bossBars` l'attend.
+  _bossFloor(b) {
+    if (b.phase < b.bars - 1) return b.maxHp - (b.phase + 1) * b.barHp;
+    if (b.kind === BOSS_FINAL && b.fightT - b.lastBreak < BOSS_CFG.FINAL_BAR_DWELL) return 1;
+    return null;
+  }
+
   _bossBars(b) {
-    while (b.phase < b.bars - 1
-           && (b.bank > 0 || b.hp <= b.maxHp - (b.phase + 1) * b.barHp + 1e-6)) {
-      const dwell = b.kind === BOSS_FINAL ? BOSS_CFG.FINAL_BAR_DWELL : BOSS_CFG.BAR_DWELL;
-      if (b.fightT - b.lastBreak < dwell) return;
-      b.lastBreak = b.fightT;
-      b.phase++;
-      if (b.bank > 0) {
-        const dernier = b.phase >= b.bars - 1;
-        const plancher = dernier
-          ? (b.kind === BOSS_FINAL ? 1 : 0)
-          : b.maxHp - (b.phase + 1) * b.barHp;
-        const prise = Math.min(b.bank, Math.max(0, b.hp - plancher));
-        b.hp -= prise;
-        b.bank -= prise;
-        if (b.hp <= 0) { this._killBoss(b.lastHitBy ?? 0); return; }
-      }
+    const dwell = b.kind === BOSS_FINAL ? BOSS_CFG.FINAL_BAR_DWELL : BOSS_CFG.BAR_DWELL;
+    const plancher = this._bossFloor(b);
+    const auPlancher = plancher !== null && b.hp <= plancher + 1e-6;
+    const reste = dwell - (b.fightT - b.lastBreak);
 
-      if (b.kind === BOSS_FINAL) {
-        const couche = bossAt(BOSS_FINAL).unlock[b.phase - 1];
-        if (couche && couche.length) this._deferAtk(b, couche[0], 1.2);
-      }
-      b.attackCd = Math.max(b.attackCd, 1.6);
-      this.shots = [];
-
+    // le palier est la fenetre ou le boss est DE FAIT invulnerable. Il se voit
+    // (enveloppe, barre blanche, ricochets) et il est OCCUPE : la mecanique de
+    // la phase suivante s'y joue, ce qui en fait le sommet de la phase.
+    b.palier = auPlancher && reste > 0 ? reste / dwell : 0;
+    if (b.palier > 0 && !b.palierOuvert) {
+      b.palierOuvert = 1;
       this.effects.push({
-        id: this._nextId++,
-        x: b.x, y: b.y,
-        r: CFG.BOSS_BREAK_RADIUS,
-        life: 0.8, max: 0.8,
-        kind: 6,
+        id: this._nextId++, x: b.x, y: b.y,
+        r: CFG.BOSS_BREAK_RADIUS * 0.55, life: 0.55, max: 0.55, kind: 15,
       });
-
-      this.barsBroken++;
-      this._breakRefresh();
-      this._bossBreak(b);
-      if (!this.boss) return;
+      if (b.phase < b.bars - 1) {
+        const couche = bossAt(b.kind).unlock[b.phase];
+        if (couche && couche.length) {
+          this._deferAtk(b, couche[Math.floor(Math.random() * couche.length)], 0.9);
+        }
+      }
     }
 
-    if (b.kind === BOSS_FINAL && b.phase >= b.bars - 1 && b.bank > 0
-        && b.fightT - b.lastBreak >= BOSS_CFG.FINAL_BAR_DWELL) {
-      b.hp -= b.bank;
-      b.bank = 0;
-      if (b.hp <= 0) this._killBoss(b.lastHitBy ?? 0);
-    }
+    if (!auPlancher || reste > 0 || b.phase >= b.bars - 1) return;
+
+    b.lastBreak = b.fightT;
+    b.palier = 0;
+    b.palierOuvert = 0;
+    b.phase++;
+    b.attackCd = Math.max(b.attackCd, 1.6);
+    this.shots = [];
+
+    this.effects.push({
+      id: this._nextId++,
+      x: b.x, y: b.y,
+      r: CFG.BOSS_BREAK_RADIUS,
+      life: 0.8, max: 0.8,
+      kind: 6,
+    });
+
+    this.barsBroken++;
+    this._breakRefresh();
+    this._bossBreak(b);
   }
 
   // « Briseur » : la rupture de barre est le seul moment ou une recharge se remet a
@@ -5902,7 +5907,7 @@ export class GameState {
            this.boss.bars, this.boss.phase,
            this.boss.kind, r2(this.boss.ult),
            this.boss.enrage ?? 0,
-           Math.round(this.boss.bank ?? 0)]
+           r2(this.boss.palier ?? 0)]
         : null,
       bo2: this.boss2
         ? [this.boss2.id, r1(this.boss2.x), r1(this.boss2.y), r2(this.boss2.ang)]

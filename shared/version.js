@@ -1108,6 +1108,36 @@
                    espaces. Mesure : un coup vidant le bouclier toutes les 7 s
                    plafonne a 55,6 % du pool, contre 100 % avant
 
+     0.10.1 lot 02 LA BANQUE DE DEGATS DISPARAIT — LE DPS EXCEDENTAIRE EST
+                   PERDU. Ce qui depassait le plancher d'une barre etait mis de
+                   cote puis RENDU a la rupture : le palier cadencait la mort du
+                   boss sans jamais la retarder. D'ou les deux symptomes a la
+                   fois — « ils meurent trop vite » (plusieurs barres tombaient
+                   d'un coup, en boucle) et « on ne fait plus de degats » (les PV
+                   affiches restaient colles au plancher pendant que la banque se
+                   remplissait). Le second etait le pire : la fenetre n'etait pas
+                   seulement invisible, elle MENTAIT, puisque les degats
+                   comptaient vraiment.
+                   `_bossFloor` est le plancher, et il est unique : `_damage` s'y
+                   arrete, `_bossBars` l'attend. La boucle `while` devient un
+                   passage : UNE barre par palier, jamais avant la fin du delai.
+                   Mesure : 40,6 s de combat a 1500 dps, 40,2 s a 6000 — le
+                   plancher `(bars - 1) x BAR_DWELL` est desormais REEL, et la
+                   phase 4 est atteinte dans les deux cas. Les couches `unlock[2]`
+                   et `unlock[3]`, jamais jouees jusqu'ici, sortent enfin :
+                   douze cles d'attaque distinctes sur un seul combat contre
+                   quatre avant.
+                   LE PALIER SE VOIT ET IL EST OCCUPE. Enveloppe blanche pulsee,
+                   barre de vie qui passe au blanc et se vide sur la duree,
+                   ricochets sans chiffre (une touche sans degat porte le point
+                   d'impact et rien d'autre), effet d'ENTREE (`kind: 15`) la ou
+                   `kind: 6` marquait la sortie. Et la mecanique de la phase
+                   suivante s'y joue : ce que `_deferAtk` faisait pour l'Amalgame
+                   vaut pour les cinq autres. La transition cesse d'etre un temps
+                   mort pour devenir le sommet de la phase.
+                   Le champ `bank` du tuple de boss, dont la lecture est morte,
+                   est remplace par `palier` — la part de palier restante
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1116,4 +1146,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.10.0";
+export const VERSION = "0.10.1";

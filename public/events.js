@@ -92,6 +92,10 @@ export function diffSnapshots(a, b, opts = {}) {
     if (mine && mine[1] > 0) {
       out.push({ t: "degats", x: mine[3] ?? b.boss.x, y: mine[4] ?? b.boss.y,
                  dmg: mine[1], crit: (mine[2] ?? 0) > 0 });
+    } else if (mine) {
+      // une touche sans degat : le palier. Elle RICOCHE, elle ne chiffre pas.
+      out.push({ t: "ricochet", x: mine[3] ?? b.boss.x, y: mine[4] ?? b.boss.y,
+                 cx: b.boss.x, cy: b.boss.y });
     }
   }
 

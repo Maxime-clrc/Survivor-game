@@ -142,15 +142,21 @@
   transition: width 160ms linear;
 }
 
+/* le PALIER : le blanc dit l'invulnerabilite du boss, et rien d'autre. La barre
+   se vide sur la duree du palier — le temps restant se lit sur l'objet que le
+   joueur regarde deja. */
 #bossBank {
   position: absolute;
   top: 0;
   height: 100%;
   width: 0;
   pointer-events: none;
-  background: color-mix(in srgb, var(--warn) 55%, transparent);
-  border-right: var(--edge) solid var(--warn);
+  background: color-mix(in srgb, var(--flash) 62%, transparent);
+  border-right: var(--edge) solid var(--flash);
 }
+
+#boss.palier #bossBar { border-color: var(--flash); }
+#boss.palier #bossBar > i { filter: saturate(0.25) brightness(1.35); }
 
 /* le RESIDU : le segment qu'on vient de retirer reste en clair puis se resorbe.
    Une barre qui glisse en continu ne se voit pas ; celle-ci montre la salve. */
