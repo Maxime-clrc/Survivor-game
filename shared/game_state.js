@@ -3386,6 +3386,18 @@ export class GameState {
           defer: [],
         };
 
+        // ANCRE : il s'encastre dans un bord tire au sort, et il y reste.
+        if (def.archetype === "ancre") {
+          const B = this.bounds;
+          const bord = Math.floor(Math.random() * 4);
+          const marge = CFG.BOSS_RADIUS * 0.6;
+          this.boss.bord = bord;
+          if (bord === 0) { this.boss.x = (B.x0 + B.x1) / 2; this.boss.y = B.y0 + marge; }
+          else if (bord === 1) { this.boss.x = (B.x0 + B.x1) / 2; this.boss.y = B.y1 - marge; }
+          else if (bord === 2) { this.boss.x = B.x0 + marge; this.boss.y = (B.y0 + B.y1) / 2; }
+          else { this.boss.x = B.x1 - marge; this.boss.y = (B.y0 + B.y1) / 2; }
+        }
+
         if (kind === BOSS_JUMEAUX) {
           const g = BOSS_CFG.TWIN_GAP / 2;
           const B = this.bounds;
@@ -3479,6 +3491,35 @@ export class GameState {
   }
 
   _bossMove(b, dt) {
+    const arche = bossAt(b.kind).archetype;
+    // ANCRE : il ne se deplace plus du tout. Un cote de l'arene devient
+    // dangereux en permanence, l'autre est un refuge, et la distance devient un
+    // arbitrage constant au lieu d'etre imposee par un boss qui suit.
+    if (arche === "ancre") {
+      const t = this._nearestPlayer(b.x, b.y);
+      if (t) b.ang = Math.atan2(t.y - b.y, t.x - b.x);
+      return;
+    }
+    // FIXE : il ne marche pas, il se TELEPORTE. L'espace est neutre, tout est
+    // dans la lecture du sol.
+    if (arche === "fixe") {
+      const t = this._nearestPlayer(b.x, b.y);
+      if (t) b.ang = Math.atan2(t.y - b.y, t.x - b.x);
+      b.blinkCd = (b.blinkCd ?? BOSS_CFG.BLINK_EVERY) - dt;
+      if (b.blinkCd > 0) return;
+      b.blinkCd = BOSS_CFG.BLINK_EVERY;
+      if (!t) return;
+      const a = Math.random() * Math.PI * 2;
+      const pt = this._clampPoint(t.x + Math.cos(a) * BOSS_CFG.BLINK_DIST,
+                                  t.y + Math.sin(a) * BOSS_CFG.BLINK_DIST);
+      this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
+                          r: 120, life: 0.35, max: 0.35, kind: 14 });
+      b.x = pt.x; b.y = pt.y;
+      this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
+                          r: 120, life: 0.35, max: 0.35, kind: 14 });
+      return;
+    }
+
     let tx, ty;
     if (this.boss.converge > 0 && this.boss2) {
       tx = (this.bounds.x0 + this.bounds.x1) / 2;
@@ -3575,6 +3616,12 @@ export class GameState {
   }
 
   _bossBreak(b) {
+    // CONSTRICTEUR : la constriction cesse d'etre une attaque pour devenir
+    // l'ETAT du combat. A chaque rupture l'arene perd un cran et ne le reprend
+    // pas — un soft-enrage entierement spatial, sans compte a rebours, et bien
+    // plus lisible qu'un multiplicateur de degats.
+    if (bossAt(b.kind).archetype === "constricteur") this._atkConstriction(b);
+
     switch (b.kind) {
       case BOSS_MATRIARCHE:
         this._finalBrood(b);
@@ -4432,8 +4479,27 @@ export class GameState {
     return p.trail[p.trail.length - 1];
   }
 
+  // DIFFUS : la horde est son corps. Elle se soigne de TOUTE la foule proche,
+  // pas seulement de ses rejetons ; tant qu'elle est entouree, la blesser ne
+  // sert presque a rien. Le combat devient « nettoyer autour d'elle pour ouvrir
+  // une fenetre » — le seul boss qui UTILISE la horde au lieu de la subir.
+  _diffus(b, dt) {
+    if (bossAt(b.kind).archetype !== "diffus") return;
+    const R = BOSS_CFG.DIFFUS_RANGE;
+    let n = 0;
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      if ((e.x - b.x) ** 2 + (e.y - b.y) ** 2 > R * R) continue;
+      if (++n >= BOSS_CFG.DIFFUS_CAP) break;
+    }
+    b.essaim = n;
+    if (n <= 0) return;
+    b.hp = Math.min(b.maxHp, b.hp + b.maxHp * BOSS_CFG.DIFFUS_HEAL * n * dt);
+  }
+
   _bossPassives(b, dt) {
     this._flare(b, dt);
+    this._diffus(b, dt);
 
     if (b.gazeWarn > 0) {
       b.gazeWarn -= dt;
@@ -4833,12 +4899,18 @@ export class GameState {
 
     const B = this.bounds;
     if (B.x0 > 0 || B.y0 > 0 || B.x1 < CFG.ARENA_W || B.y1 < CFG.ARENA_H) {
+      // la couronne REPOUSSE la horde, elle ne la tue pas : une arene qui se
+      // referme en permanence (archetype constricteur) deviendrait sinon un
+      // outil de nettoyage gratuit, credite en experience par-dessus le marche.
+      const pas = BOSS_CFG.CROWN_PUSH * dt;
       for (const e of this.enemies) {
         if (e.hp <= 0) continue;
         if (e.x >= B.x0 && e.x <= B.x1 && e.y >= B.y0 && e.y <= B.y1) continue;
-        this._damage(e, BOSS_CFG.CROWN_DPS * dt, 0, 0, true);
+        if (e.x < B.x0) e.x = Math.min(B.x0, e.x + pas);
+        else if (e.x > B.x1) e.x = Math.max(B.x1, e.x - pas);
+        if (e.y < B.y0) e.y = Math.min(B.y0, e.y + pas);
+        else if (e.y > B.y1) e.y = Math.max(B.y1, e.y - pas);
       }
-      this.enemies = this.enemies.filter(e => e.hp > 0);
     }
 
     if (this.walls) {

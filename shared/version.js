@@ -1195,6 +1195,34 @@
                    chemin 2D de repli, sur la surface la plus regardee du jeu,
                    pour un gain qu'aucun critere d'acceptation du lot ne demande
 
+     0.10.4 lot 06 LES SIX BOSS ETAIENT DES MONSTRES QUI SE DEPLACENT. Le verbe
+                   les differenciait sur le papier, l'espace non — et c'est
+                   l'espace que le joueur ressent : cinq boss qui l'occupent de
+                   la meme facon se vivent comme UN boss a cinq jeux de
+                   telegraphes. Six archetypes, un par boss, `verifierArchetypes`
+                   refuse le partage.
+                   ANCRE (Oracle) : il s'encastre dans un bord tire au sort et ne
+                   bouge plus — mesure : 0 px parcouru en 25 s, contre 1100 pour
+                   les autres. Aucune de ses mecaniques n'avait besoin qu'il se
+                   deplace : c'est un archetype gagne sans en reecrire une seule.
+                   Un cote de l'arene devient dangereux en permanence, l'autre
+                   est un refuge, et la distance redevient un arbitrage.
+                   CONSTRICTEUR (Ravageur) : la constriction cesse d'etre une
+                   attaque pour devenir l'ETAT du combat — un cran par rupture,
+                   jamais repris. Mesure : 100 % puis 76 % de surface sur deux
+                   ruptures. Un soft-enrage entierement spatial, sans compte a
+                   rebours. LA COURONNE REPOUSSE, ELLE NE TUE PLUS (`CROWN_PUSH`
+                   remplace `CROWN_DPS`) : une arene qui se referme en permanence
+                   aurait fait du nettoyage gratuit, credite en experience.
+                   DIFFUS (Matriarche) : elle se soigne de TOUTE la foule proche,
+                   plafonnee a douze corps. Le seul boss qui utilise la horde au
+                   lieu de la subir — donc impossible dans un survivor solo.
+                   MULTIPLE (Jumeaux) : `TWIN_HEAL` passe de 0,008 a 0,022 et le
+                   lien est visible EN PERMANENCE, plus seulement pendant
+                   `MECH_LINK`. Le joueur doit voir POURQUOI il faut les separer.
+                   FIXE (Amalgame) : il ne marche plus, il se teleporte.
+                   MOBILE (Metronome) : il le garde, et il est desormais le seul
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1203,4 +1231,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.10.3";
+export const VERSION = "0.10.4";

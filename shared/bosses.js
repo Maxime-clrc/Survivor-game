@@ -196,6 +196,36 @@ export function verifierGrammaire() {
   return { ok: err.length === 0, err, formes: [...parForme].map(([f, k]) => [f, k.length]) };
 }
 
+// CE QUI DIFFERENCIE DEUX BOSS N'EST NI LEUR SILHOUETTE NI LEUR LISTE
+// D'ATTAQUES, C'EST LA FACON DONT ILS DEFORMENT L'ARENE. Six boss, six
+// archetypes, et AU PLUS UN garde « mobile » : quand cinq boss occupent
+// l'espace de la meme facon, le joueur les vit comme un seul boss a cinq jeux
+// de telegraphes.
+export const ARCHETYPES = {
+  ancre:         "il occupe un bord, l'arene devient asymetrique",
+  constricteur:  "l'espace disponible diminue et ne revient pas",
+  diffus:        "la horde est son corps",
+  multiple:      "l'equipe doit se diviser dans l'espace",
+  mobile:        "l'espace se deplace avec lui",
+  fixe:          "l'espace est neutre, tout est dans la lecture du sol",
+};
+
+export function verifierArchetypes() {
+  const err = [];
+  const vus = new Map();
+  for (const b of BOSS_ROSTER) {
+    const a = b.archetype;
+    if (!a) { err.push(`${b.key} : pas d'archetype`); continue; }
+    if (!ARCHETYPES[a]) { err.push(`${b.key} : archetype inconnu « ${a} »`); continue; }
+    if (!vus.has(a)) vus.set(a, []);
+    vus.get(a).push(b.key);
+  }
+  for (const [a, keys] of vus) {
+    if (keys.length > 1) err.push(`archetype ${a} partage : ${keys.join(", ")}`);
+  }
+  return { ok: err.length === 0, err };
+}
+
 export function adaptMech(id, alive) {
   const def = MECHS[id];
   if (!def) return -1;
@@ -215,7 +245,7 @@ export function towerCount(alive) {
 export const BOSS_ROSTER = [
   {
     id: BOSS_RAVAGEUR, key: "ravageur", nom: "Ravageur", verbe: "positionnement",
-    minPlayers: 1, hpMul: 1.00,
+    minPlayers: 1, hpMul: 1.00, archetype: "constricteur",
     sous: "lis le sol",
     base: ["salve", "marques", "charge"],
     unlock: [
@@ -227,7 +257,7 @@ export const BOSS_ROSTER = [
   },
   {
     id: BOSS_MATRIARCHE, key: "matriarche", nom: "Matriarche", verbe: "gestion de cibles",
-    minPlayers: 1, hpMul: 0.85,
+    minPlayers: 1, hpMul: 0.85, archetype: "diffus",
     sous: "choisis ta cible",
     base: ["salve", "grappes", "marques"],
     unlock: [
@@ -239,7 +269,7 @@ export const BOSS_ROSTER = [
   },
   {
     id: BOSS_METRONOME, key: "metronome", nom: "Métronome", verbe: "mouvement",
-    minPlayers: 1, hpMul: 0.90,
+    minPlayers: 1, hpMul: 0.90, archetype: "mobile",
     sous: "ne t'arrête jamais",
     base: ["exaflare", "appat", "derive"],
     unlock: [
@@ -251,7 +281,7 @@ export const BOSS_ROSTER = [
   },
   {
     id: BOSS_ORACLE, key: "oracle", nom: "Oracle", verbe: "cohésion",
-    minPlayers: 1, hpMul: 0.95,
+    minPlayers: 1, hpMul: 0.95, archetype: "ancre",
     sous: "jouez ensemble",
     base: ["rassemblement", "dispersion", "regard", "cone"],
     unlock: [
@@ -263,7 +293,7 @@ export const BOSS_ROSTER = [
   },
   {
     id: BOSS_JUMEAUX, key: "jumeaux", nom: "Jumeaux", verbe: "séparation",
-    minPlayers: 1, hpMul: 1.00,
+    minPlayers: 1, hpMul: 1.00, archetype: "multiple",
     sous: "séparez-vous",
     base: ["salve", "croix", "marques"],
     unlock: [
@@ -275,7 +305,7 @@ export const BOSS_ROSTER = [
   },
   {
     id: BOSS_FINAL, key: "final", nom: "Amalgame", verbe: "synthèse",
-    minPlayers: 1, hpMul: 1.00, bars: 8,
+    minPlayers: 1, hpMul: 1.00, archetype: "fixe", bars: 8,
     sous: "tout ce qu'ils t'ont appris",
     base: ["salve", "marques", "charge", "damier"],
     unlock: [
@@ -316,6 +346,13 @@ export const BOSS_CFG = {
   ENRAGE_DAMAGE: 0.25,
   ENRAGE_CD: 0.12,
   ENRAGE_CD_FLOOR: 0.45,
+
+  DIFFUS_RANGE: 420,
+  DIFFUS_HEAL: 0.0012,
+  DIFFUS_CAP: 12,
+
+  BLINK_EVERY: 3.6,
+  BLINK_DIST: 300,
 
   METRO_BEAT: 0.8,
   METRO_MEASURE: 4,
@@ -390,7 +427,7 @@ export const BOSS_CFG = {
   SHRINK_MIN: 0.45,
   SHRINK_WARN: WARN_LECTURE,
   SHRINK_RATIO: 0.5,
-  CROWN_DPS: 60,
+  CROWN_PUSH: 260,
 
   CONE_R: 640,
   CONE_SPREAD: 0.40,
@@ -404,7 +441,7 @@ export const BOSS_CFG = {
   ULT_RATIO: 1.0,
 
   TWIN_HEAL_RANGE: 400,
-  TWIN_HEAL: 0.008,
+  TWIN_HEAL: 0.022,
   TWIN_GAP: 520,
   TWIN_BLAST_RATIO: 0.75,
   TWIN_STATUS_CD: 5,

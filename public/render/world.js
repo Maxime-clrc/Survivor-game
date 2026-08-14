@@ -4,13 +4,13 @@ import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
 import { BOSS_CFG, MECH_JAIL } from "/shared/bosses.js";
 import { BIOME_CFG, CFG, WX_BOURRASQUE, biomeAt, weatherAt, weatherFor } from "/shared/game_state.js";
-import { COMBAT, WALL, alpha } from "/shared/palette.js";
+import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
 import { fmtM } from "/shared/units.js";
 import { drawSprite, glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myDashCd, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
-import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
+import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, lastPlayerPos } from "./boss.js";
 import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls } from "./decor.js";
 import { blastMarks, bursts, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, stepFeedback, timeWarp, zoneFx } from "./fx.js";
@@ -280,6 +280,7 @@ function drawWorld(v) {
     if (v.boss2) {
       drawBoss({ ...v.boss2, kind: v.boss.kind, phase: v.boss.phase, bars: v.boss.bars,
                  hp: v.boss.hp, maxHp: v.boss.maxHp, twin: 1 }, v.tm ?? 0);
+      drawTwinLink(v.boss, v.boss2);
     }
   }
   drawDrones(v.droneList);
@@ -311,6 +312,18 @@ function drawWorld(v) {
 // `?repere` : la MEME croix posee aux memes coordonnees monde sur les trois
 // couches. Elles se superposent, ou la bascule WebGL a une transformation a
 // elle. Seul critere rejouable de l'alignement, densite de pixels comprise.
+// MULTIPLE : le lien des Jumeaux est visible EN PERMANENCE, pas seulement
+// pendant `MECH_LINK`. Le joueur doit voir POURQUOI il faut les separer sans
+// qu'on le lui dise — et il se coupe des qu'ils sont assez loin.
+function drawTwinLink(a, b) {
+  const d = Math.hypot(a.x - b.x, a.y - b.y);
+  if (d > BOSS_CFG.TWIN_HEAL_RANGE) return;
+  const k = 1 - d / BOSS_CFG.TWIN_HEAL_RANGE;
+  drawArc("twin", a.x, a.y, b.x, b.y, {
+    col: BOSS.twinEdge, coeur: COMBAT.flash,
+    amp: 0.05 + 0.05 * k, width: 1.6 + 2.6 * k, branches: 1, cut: 0,
+  });
+}
 const REPERE = location.search.includes("repere");
 function drawRepere() {
   const pas = 400;
