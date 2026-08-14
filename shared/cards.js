@@ -281,10 +281,10 @@ export const CARDS = [
     apply(m) { m.pickupRadius = Math.max(m.pickupRadius, 120); },
   },
   {
-    id: "bourse", nom: "Bourse", rarity: 0, max: 3, tags: [],
-    desc: "+20 % de score gagné",
-    stack: n => pctAdd(0.20, n),
-    apply(m, n) { m.scoreMul += 0.20 * n; },
+    id: "bourse", nom: "Bourse", rarity: 0, max: 3, tags: ["util"],
+    desc: "+25 % d'éclats récoltés",
+    stack: n => pctAdd(0.25, n),
+    apply(m, n) { m.shardMul += 0.25 * n; },
   },
 
   {
@@ -359,10 +359,10 @@ export const CARDS = [
     apply(m, n) { m.bulletLifeMul += 0.10 * n; m.bulletSpeedMul += 0.08 * n; },
   },
   {
-    id: "ferraille", nom: "Ferraille", rarity: 0, max: 4, tags: [],
-    desc: "+12 % de score et +1 PV par ennemi tué",
-    stack: n => `${pctAdd(0.12, n)} de score, +${n} PV par kill`,
-    apply(m, n) { m.scoreMul += 0.12 * n; m.hpPerKill += n; },
+    id: "ferraille", nom: "Ferraille", rarity: 0, max: 4, tags: ["def", "util"],
+    desc: "+1 PV par ennemi tué et +15 % de portée de ramassage",
+    stack: n => `+${n} PV par kill, ${pctAdd(0.15, n)} de portée`,
+    apply(m, n) { m.hpPerKill += n; m.pickupRadiusMul += 0.15 * n; },
   },
 
   {
@@ -415,6 +415,7 @@ export const CARDS = [
 
   {
     id: "perforation", nom: "Perforation", rarity: 1, max: 2, tags: ["off"],
+    incompatible: ["railgun"],
     desc: "les balles traversent 1 ennemi de plus",
     stack: n => `${plur(n, "ennemi")} de plus`,
     apply(m, n) { m.pierce += n; },
@@ -570,6 +571,7 @@ export const CARDS = [
   },
   {
     id: "surcharge_orbitale", nom: "Surcharge orbitale", rarity: 1, max: 2, tags: ["off"],
+    requires: ["orbiteurs"],
     desc: "+60 % aux dégâts des lames orbitales",
     stack: n => pctAdd(0.60, n),
     apply(m, n) { m.orbiterDamageMul += 0.60 * n; },
@@ -756,7 +758,7 @@ export const CARDS = [
     id: "railgun", nom: "Railgun", rarity: 3, max: 1, tags: ["off"],
     desc: "remplace le tir : traverse tout, ×3 dégâts, cadence divisée par 2,5",
     remplaceArme: true,
-    incompatible: ["dispersion", "grenade", "perforation"],
+    incompatible: ["dispersion", "grenade", "perforation", "inertie"],
     apply(m) { m.weapon = "railgun"; m.damageMul += 2; m.fireIntervalMul *= 2.5; m.bulletSpeedMul += 1; },
   },
   {
@@ -829,7 +831,6 @@ export const CARDS = [
     id: "voeu_partage", nom: "Vœu partagé", rarity: 3, max: 1, tags: ["coop"],
     family: "soutien", tier: 3,
     desc: "vos cartes de soutien profitent aussi à toute l'équipe",
-    apply(m) { m.sharedSupport = 1; },
   },
 
 
@@ -1032,7 +1033,9 @@ export function defaultMods() {
     reviveHpRatio: 0,
     damageTakenMul: 1,
     pickupRadius: 0,
+    pickupRadiusMul: 1,
     scoreMul: 1,
+    shardMul: 1,
     healPerBoss: 0,
     pierce: 0,
     extraBarrels: 0,
@@ -1068,7 +1071,6 @@ export function defaultMods() {
     hpRegen: 0,
     dashCdMul: 1,
     dashTrail: 0,
-    sharedSupport: 0,
     statusTimeMul: 1,
     catalyseur: 0,
     xpCostMul: 1,
@@ -1141,7 +1143,7 @@ export function computeMods(owned) {
   const m = defaultMods();
   for (const [id, n] of owned) {
     const card = CARD_BY_ID.get(id);
-    if (card && n > 0) card.apply(m, n);
+    if (card && n > 0) card.apply?.(m, n);
   }
 
   const ctx = cardContext(owned);
@@ -1190,7 +1192,11 @@ function topTiers(owned) {
   return top;
 }
 
-export function eligibleCards(owned, cls = null, levelNow = 0, locked = null) {
+export const POOL_MIN = 6;
+
+// `ctx` : { players, teamOwned:Set, systems:Set }. Absent, les trois filtres de
+// contexte laissent tout passer — un script de mesure n'a rien a construire.
+export function eligibleCards(owned, cls = null, levelNow = 0, locked = null, ctx = null) {
   const blocked = new Set();
   for (const id of owned.keys()) {
     const card = CARD_BY_ID.get(id);
@@ -1204,8 +1210,25 @@ export function eligibleCards(owned, cls = null, levelNow = 0, locked = null) {
     if (c.minLevel && levelNow < c.minLevel) return false;
     if (locked && locked.has(c.id)) return false;
     if (blocked.has(c.id)) return false;
+    if (c.requires && !c.requires.some(id => (owned.get(id) || 0) > 0)) return false;
+    if (c.minPlayers && (ctx?.players ?? 1) < c.minPlayers) return false;
+    // le porteur continue de l'empiler, la table ne la revoit plus
+    if (c.teamUnique && ctx?.teamOwned?.has(c.id) && !(owned.get(c.id) > 0)) return false;
+    if (c.requiresSystem && !(ctx?.systems?.has(c.requiresSystem))) return false;
     return (owned.get(c.id) || 0) < c.max;
   });
+}
+
+export function poolCounts(pool) {
+  const counts = [0, 0, 0, 0];
+  for (const c of pool) counts[c.rarity]++;
+  return counts;
+}
+
+export function poolThin(pool, min = POOL_MIN) {
+  return poolCounts(pool)
+    .map((n, rarity) => ({ rarity, n }))
+    .filter(x => x.n < min);
 }
 
 export const FALLBACK_CARD = CARDS.find(c => c.fallback);
@@ -1214,7 +1237,7 @@ export function drawCards(owned, quality, forceRare = false, cls = null,
                           rng = Math.random, jalon = 0, levelNow = 0, opts = {}) {
   const count = opts.count ?? 3;
   const capped = legendaryCount(owned) >= CARD_CFG.LEGENDARY_MAX;
-  const pool = eligibleCards(owned, cls, levelNow, opts.locked ?? null)
+  const pool = eligibleCards(owned, cls, levelNow, opts.locked ?? null, opts.ctx ?? null)
     .filter(c => !(capped && c.rarity === RARITY.LEGENDAIRE));
   const weights = rarityWeights(quality);
   const out = [];

@@ -8,6 +8,65 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Conditionnement du tirage et audit du catalogue (lot E, vague 1)
+
+Le lot E s'écrit en **trois vagues** (décision D12), avec une mesure entre
+chacune. Vague 1 : le conditionnement et le retrait de `scoreMul`, **aucune carte
+neuve**. `verifierCartes()` est le critère rejouable.
+
+**Quatre filtres de tirage**, dans `eligibleCards(owned, cls, niveau, locked,
+ctx)` : `requires` (au moins un prérequis possédé), `minPlayers`, `teamUnique`
+(le porteur continue d'empiler, la table ne la revoit plus) et `requiresSystem`
+(`hasards_actifs` déduit de `state.hazards`). `ctx` absent = tout passe, un script
+de mesure n'a rien à construire.
+
+**Les trois filtres de contexte sont inertes jusqu'à la vague 2** : 99 cartes
+éligibles en solo comme à quatre, aucune carte du catalogue actuel ne les
+déclare. Seul `requires` mord aujourd'hui, sur `Surcharge orbitale`.
+
+**`Surcharge orbitale` ne requiert que `orbiteurs`, pas `essaim`.** Le plan
+écrivait `requires: ["orbiteurs", "essaim"]` ; `orbiterDamageMul` n'est lu qu'à un
+seul endroit de la simulation, la boucle des lames — les mini-drones d'`Essaim`
+ne le lisent pas. Avec `essaim` dans la liste, la carte serait restée morte sur
+une build d'essaim.
+
+**Trois défauts trouvés par l'audit, tous réels.**
+
+1. **`railgun` déclarait une incompatibilité avec `perforation` que `perforation`
+   ne déclarait pas**, et l'inverse pour `inertie` : deux paires à moitié
+   écrites, donc contournables selon l'ordre de tirage. Les deux sens sont
+   désormais écrits.
+2. **`sharedSupport` était un champ mort** : posé par `Vœu partagé`, lu nulle
+   part — le système lit l'identifiant de carte (`_hasSharedSupport()`), pas le
+   mod. Supprimé, `apply` devient optionnel.
+3. Aucun autre mod n'est mort : `noOverheat` est lu dans `cards.js` même.
+
+**Il n'y a pas de genou de plafonnement additif**, contrairement au constat du
+plan (« la 20ᵉ carte de dégâts vaut bien moins que la 3ᵉ »). Gain marginal de
+puissance en empilant les dix sources additives de `damageMul` dans l'ordre :
+
+| carte | 1ʳᵉ | 6ᵉ | 15ᵉ | 25ᵉ |
+|---|---|---|---|---|
+| gain marginal | 12,0 % | 7,5 % | 9,2 % | 9,2 % |
+
+La dilution existe **à l'intérieur** d'une pile (`affûtage` va de 12 à 7,5 % sur
+ses six paliers) mais le pas d'une autre famille la remet à 12 %. Le pool de
+communes n'a donc pas besoin de se vider plus tôt. Deux valeurs sortent
+**négatives** — `balles lourdes` et `railgun` — parce que leur pénalité de
+cadence coûte plus que leurs dégâts n'apportent, au moment où on les prend.
+
+**`scoreMul` n'est plus une cible de carte** et reste dans `defaultMods()` et
+`_credit` : le score garde son rôle de classement. `Bourse` devient `+25 %
+d'éclats` (monnaie de manche, boucle fermée sur le marchand) et `Ferraille` garde
+sa moitié utile plus `pickupRadiusMul` — une **seconde clé** appliquée en aval,
+`Poches larges` gardant sa sémantique de plancher.
+
+**Le garde-fou de pool journalise une fois par rareté et par manche** — sans le
+drapeau, c'est à chaque niveau.
+
+**La brume ne ment plus** (décision D4b) : « on ne voit plus venir » au lieu de
+« les bords de l'arène se ferment », que rien n'implémentait.
+
 ### Progression de compte (lot G du plan d'équilibrage)
 
 Protocole du lot D (graines écrites), `mesureRevenu()` / `verifierMeta()`, huit

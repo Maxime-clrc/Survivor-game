@@ -1,6 +1,7 @@
 
 import {
-  CARD_BY_ID, CARD_CFG, computeMods, defaultMods, drawCards,
+  CARD_BY_ID, CARD_CFG, CARDS, computeMods, defaultMods, drawCards,
+  eligibleCards, poolThin, POOL_MIN,
 } from "./cards.js";
 import {
   CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange, bombFlight,
@@ -514,6 +515,7 @@ export class GameState {
     this.cardOffers = new Map();
     this.cardsQuality = 1;
     this.legendaryLevelDone = new Set();
+    this._poolSeen = new Set();
 
     this.relicPending = false;
     this.relicOffers = new Map();
@@ -679,11 +681,36 @@ export class GameState {
       + (onBossWave ? CARD_CFG.BOSS_QUALITY : 0) + 1;
   }
 
+  _cardCtx() {
+    const teamOwned = new Set();
+    for (const o of this.players.values()) {
+      for (const [id, n] of o.cards) if (n > 0) teamOwned.add(id);
+    }
+    const systems = new Set();
+    if (this.hazards.length > 0) systems.add("hasards_actifs");
+    return { players: this.players.size, teamOwned, systems };
+  }
+
   offerCards(p, quality = this.cardsQuality, forceRare = false, jalon = 0) {
+    const ctx = this._cardCtx();
     const picks = drawCards(p.cards, quality, forceRare || p.commonStreak >= 2,
       classAt(p.cls).id, Math.random, jalon, this.level,
-      { locked: p.locked, count: p.meta?.confort?.quatrieme ? 4 : 3 });
+      { locked: p.locked, count: p.meta?.confort?.quatrieme ? 4 : 3, ctx });
+    this._poolWarn(p, ctx);
     return picks.map(c => c.id);
+  }
+
+  // quatre filtres qui se cumulent peuvent vider une rarete : on le journalise une
+  // fois par rarete et par manche, sinon c'est a chaque niveau
+  _poolWarn(p, ctx) {
+    const maigres = poolThin(
+      eligibleCards(p.cards, classAt(p.cls).id, this.level, p.locked, ctx));
+    for (const { rarity, n } of maigres) {
+      if (this._poolSeen.has(rarity)) continue;
+      this._poolSeen.add(rarity);
+      console.warn(`[cartes] rarete ${rarity} : ${n} cartes eligibles`
+        + ` sous le seuil de ${POOL_MIN}`);
+    }
   }
 
   takeCard(p, id) {
@@ -2393,7 +2420,8 @@ export class GameState {
       let taken = false;
       for (const p of this.players.values()) {
         if (p.downed) continue;
-        const reach = CFG.PLAYER_RADIUS + CFG.POWERUP_RADIUS + p.mods.pickupRadius;
+        const reach = (CFG.PLAYER_RADIUS + CFG.POWERUP_RADIUS + p.mods.pickupRadius)
+          * p.mods.pickupRadiusMul;
         if ((p.x - w.x) ** 2 + (p.y - w.y) ** 2 <= reach * reach) {
           this._applyPowerup(p, w.type);
           taken = true;
@@ -2475,7 +2503,9 @@ export class GameState {
   _harvestYield(h) {
     const gain = CFG.HARVEST_YIELD_MIN
       + Math.floor(Math.random() * (CFG.HARVEST_YIELD_MAX - CFG.HARVEST_YIELD_MIN + 1));
-    for (const p of this.players.values()) p.eclats += gain;
+    for (const p of this.players.values()) {
+      p.eclats += Math.round(gain * p.mods.shardMul);
+    }
     this.effects.push({
       id: this._nextId++,
       x: h.x, y: h.y, r: 90,
@@ -6118,6 +6148,60 @@ export function mesureProgression(diffIndex, joueurs, manches = 6, minutes = 60)
       return ap !== null && av !== null && ap > av ? t / (ap - av) : null;
     }),
   };
+}
+
+export function verifierCartes() {
+  const soucis = [];
+  const byId = new Map(CARDS.map(c => [c.id, c]));
+
+  for (const c of CARDS) {
+    for (const other of c.incompatible ?? []) {
+      const o = byId.get(other);
+      if (!o) { soucis.push(`${c.id} : incompatible avec ${other}, inconnue`); continue; }
+      if (!(o.incompatible ?? []).includes(c.id)) {
+        soucis.push(`${c.id} <-> ${other} : incompatibilite declaree d'un seul cote`);
+      }
+    }
+    for (const req of c.requires ?? []) {
+      if (!byId.has(req)) soucis.push(`${c.id} : requires ${req}, inconnue`);
+    }
+    if (c.requires && c.requires.every(id => byId.get(id)?.rarity === 0)) {
+      soucis.push(`${c.id} : ne conditionne que sur des communes — c'est un cas`
+        + ` d'affichage (\`effective\`), pas de filtre`);
+    }
+  }
+
+  // une carte qui bonifie un systeme sans le creer est morte sans son prerequis
+  const SOURCES = {
+    orbiterDamageMul: ["orbiteurs"],
+    droneDamageMul: ["drone"],
+  };
+  for (const c of CARDS) {
+    const src = String(c.apply ?? "");
+    for (const [mod, sources] of Object.entries(SOURCES)) {
+      if (!src.includes(mod)) continue;
+      if (sources.includes(c.id)) continue;
+      const ok = (c.requires ?? []).some(id => sources.includes(id));
+      if (!ok) soucis.push(`${c.id} : touche ${mod} sans requires ${sources.join("/")}`);
+    }
+  }
+
+  for (let di = 0; di < DIFFICULTIES.length; di++) {
+    for (const cls of CLASSES) {
+      for (const niveau of [1, 10, 20, 30]) {
+        for (const joueurs of [1, 4]) {
+          const ctx = { players: joueurs, teamOwned: new Set(), systems: new Set() };
+          if (di > 0) ctx.systems.add("hasards_actifs");
+          const maigres = poolThin(eligibleCards(new Map(), cls.id, niveau, null, ctx));
+          for (const { rarity, n } of maigres) {
+            soucis.push(`${DIFFICULTIES[di].key}/${cls.id}/niveau ${niveau}/${joueurs}j :`
+              + ` rarete ${rarity} a ${n} cartes pour un seuil de ${POOL_MIN}`);
+          }
+        }
+      }
+    }
+  }
+  return soucis;
 }
 
 export function mesureRevenu(diffIndex, joueurs, manches = 8, minutes = 60) {

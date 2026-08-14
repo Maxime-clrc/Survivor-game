@@ -63,7 +63,7 @@ export const WX_CENDRES = 2;
 
 export const WEATHERS = [
   { key: "brume", nom: "Brume",
-    texte: "brume dense — les bords de l'arène se ferment" },
+    texte: "brume dense — on ne voit plus venir" },
   { key: "bourrasque", nom: "Bourrasque",
     texte: "bourrasque — tout est poussé, vous comme eux" },
   { key: "cendres", nom: "Cendres",

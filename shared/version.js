@@ -767,6 +767,43 @@
                    use le garde. Les comptes existants gardent leurs paliers sans
                    remboursement — le profil ne trace pas la depense
 
+     0.8.17 equilibrage, lot E vague 1  LE TIRAGE SE CONDITIONNE. Le catalogue
+                   proposait des cartes sans effet chez celui qui les tire :
+                   `Surcharge orbitale` sortait sans `Orbiteurs`, donc une offre
+                   sur trois etait un fantome. Quatre filtres dans
+                   `eligibleCards` : `requires`, `minPlayers`, `teamUnique` (le
+                   porteur empile encore, la table ne la revoit plus) et
+                   `requiresSystem`. Le `ctx` est optionnel — un script de mesure
+                   n'a rien a construire. Les trois filtres de CONTEXTE sont
+                   inertes jusqu'a la vague 2 : aucune carte actuelle ne les
+                   declare, 99 cartes eligibles en solo comme a quatre.
+                   `requires` NE PREND PAS `essaim`, contrairement au plan :
+                   `orbiterDamageMul` n'est lu qu'a un seul endroit, la boucle des
+                   lames. Avec `essaim` dans la liste la carte restait morte sur
+                   une build d'essaim.
+                   TROIS DEFAUTS TROUVES PAR L'AUDIT, TOUS REELS. `railgun`
+                   declarait une incompatibilite avec `perforation` que
+                   `perforation` ne declarait pas, et l'inverse pour `inertie` :
+                   deux paires a moitie ecrites, donc contournables selon l'ordre
+                   de tirage. `sharedSupport` etait un champ MORT — pose par « Voeu
+                   partage », lu nulle part, le systeme lisant l'identifiant de
+                   carte et non le mod ; supprime, `apply` devient optionnel.
+                   Aucun autre mod n'est mort.
+                   IL N'Y A PAS DE GENOU DE PLAFONNEMENT ADDITIF, contrairement au
+                   constat du plan. Gain marginal en empilant les dix sources
+                   additives de `damageMul` : 12,0 % a la premiere carte, 7,5 % a
+                   la sixieme, 9,2 % a la quinzieme, 9,2 % a la vingt-cinquieme. La
+                   dilution est INTERNE a une pile et le pas d'une autre famille la
+                   remet a 12 %. Le pool de communes n'a pas a se vider plus tot.
+                   `scoreMul` n'est plus une cible de carte et reste dans
+                   `defaultMods` et `_credit`. `Bourse` devient +25 % d'eclats,
+                   `Ferraille` garde le PV par kill et gagne `pickupRadiusMul`,
+                   seconde cle en aval — `Poches larges` garde son plancher.
+                   LA BRUME NE MENT PLUS (D4b) : « on ne voit plus venir » au lieu
+                   de « les bords de l'arene se ferment », que rien n'implementait.
+                   Vagues 2 et 3 a venir : les deux seules interruptions
+                   volontaires du plan
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -775,4 +812,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.16";
+export const VERSION = "0.8.17";
