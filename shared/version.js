@@ -895,6 +895,64 @@
                    Le fanion n'a PAS de rayon : un PV max qui clignote au pas d'un
                    coequipier est une fabrique de defauts
 
+     0.8.21 equilibrage, lot I  LE PILOTE, ET CE QU'IL REVELE. Le lot est un
+                   PROTOCOLE : le plan interdit toute decision de valeur avant
+                   mesure, et les trois mesures qu'il demande — survie par classe,
+                   debit par classe, valeur d'une composition — etaient impossibles.
+                   Les lots B, C, D et J ont chacun sorti un critere rouge avec la
+                   meme note : IL FAUT UN PILOTE. Ce lot paie la dette.
+                   DEUX BOTS, ET ILS NE SE REMPLACENT PAS. `botInput` avance sur le
+                   corps le plus proche et n'appuie sur rien ; il reste INTACT,
+                   parce que toutes les mesures des lots A a H se rejouent contre
+                   lui. `pilotage()` recule d'une menace ponderee, teste douze
+                   directions a 10 Hz en interrogeant `_zoneHits` sur le point
+                   candidat (la geometrie d'une zone ne se recopie pas), releve,
+                   ramasse, se met DANS le rempart d'un allie, et consomme ses
+                   recharges : 100 / 45 % pour le tank, 91 / 94 % pour le tireur.
+                   `metaProfil()` rend les trois profils de `PROFILS.md` dans la
+                   forme exacte que `room.js` construit — EMPLACEMENTS et CARTES
+                   VERROUILLEES compris. A P0 les quinze legendaires sont
+                   verrouillees : le jalon garanti de `LEGENDARY_LEVELS` rend trois
+                   cartes ordinaires, et c'est structurel, pas un defaut.
+                   LE REMPART SOLO A P0 EN CALME EST VERT, et large : 676 s contre
+                   388 (soigneur) et 479 (tireur), premier des trois. D14 (b) est
+                   confirme a la lettre — la reponse du tank a la horde n'est pas la
+                   fuite mais son Rempart. Avec un declencheur timide (« au moins
+                   deux corps dans le rayon ») le meme tank tombait a 331 s : une
+                   mesure de classe est d'abord une mesure de son pilotage. Aucune
+                   correction de competence n'est donc autorisee, et `speedMul` ne
+                   bouge pas.
+                   LA DOCTRINE DES 90 % S'ECRIT AU LIEU DE SE SUPPOSER :
+                   `vitesseClasseMediane()` la deduit de `CLASSES` au lieu de
+                   supposer `CFG.PLAYER_SPEED`, et l'exception du Rempart se verifie.
+                   UN CRITERE SORT ROUGE : le tireur domine les deux autres classes
+                   EN SOLO hors calme (656 s contre 331 pour le tank a P0 normal,
+                   13 236 degats par minute contre 4 354). Le kit du tank est en
+                   valeurs fixes la ou le tireur multiplie sa build, donc `diff.dmg`
+                   mange le premier ; en calme l'ordre s'inverse. Le levier est au
+                   lot J, comme le plan l'ecrit — pas dans les valeurs de classe.
+                   MAIS UNE CLASSE NE SE JUGE PAS LA OU ELLE N'EXISTE PAS. Deux
+                   classes sur trois sont `unique` : la matrice « classe x
+                   effectif » n'a de sens qu'EN SOLO, « deux tanks deux soigneurs »
+                   n'est pas jouable, et au-dessus d'un joueur la comparaison est une
+                   COMPOSITION. Lue en chaine (chaque ligne ajoute une classe), elle
+                   donne l'apport : le soigneur vaut +40 % en normal et +36 % en
+                   cauchemar, le tank +57 % en normal et zero en cauchemar. La
+                   composition 1/1/2 va +120 % plus loin que quatre tireurs en normal
+                   et +35 % en cauchemar, en sortant MOINS de degats : le systeme de
+                   classes n'est pas decoratif, et l'echange est celui que trois
+                   roles promettent. Le tank a zero en cauchemar est le residu du
+                   lot, et il recoupe la matrice solo — c'est le mode ou sa survie
+                   propre s'effondre.
+                   LE TANK N'APPORTE RIEN A UNE TABLE QUI NE LE SUIT PAS : avec des
+                   allies qui ignorent son rempart, la meme composition tombait a
+                   691 s contre 1 021 pour quatre tireurs. Un terme de cohesion dans
+                   le pilote la remet a parite. La valeur d'un tank est une question
+                   de POSITIONNEMENT, et c'est mesure.
+                   UN TAUX DE REUSSITE ABSOLU NE SE MESURE PAS SANS PILOTE HUMAIN :
+                   la matrice de `PROFILS.md` reste le critere de CLOTURE du plan.
+                   Ce qui se mesure ici est le relatif, a graines appariees
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -903,4 +961,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.20";
+export const VERSION = "0.8.21";

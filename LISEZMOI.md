@@ -8,6 +8,193 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Classes, compétences et compositions (lot I)
+
+Le lot est **d'abord un protocole** : le plan interdit toute décision de valeur
+avant mesure, et les trois mesures qu'il demande — survie par classe, débit par
+classe, valeur d'une composition — étaient toutes **impossibles** jusqu'ici. Les
+lots B, C, D et J ont chacun sorti un critère rouge avec la même note : *il faut
+un pilote*. Le lot I paie cette dette.
+
+**Deux bots, et ils ne se remplacent pas.** `botInput` avance sur le corps le
+plus proche et n'appuie sur rien ; il reste **intact**, parce que toutes les
+mesures des lots A à H se rejouent contre lui. `pilotage()` est le second : il
+recule d'une menace pondérée, teste douze directions **plus l'arrêt** à 10 Hz en
+interrogeant `_zoneHits` sur le point candidat (la géométrie d'une zone ne se
+recopie pas — le pilote passe par le point de passage du moteur), se
+tient hors des bords, relève un allié à terre, ramasse les bonus, se met **dans
+le rempart d'un allié**, et consomme ses recharges.
+
+| taux de recharges consommées | Rempart / Provocation | Bombe / Surcharge | Mode soin / Vague |
+|---|---|---|---|
+| pilote, normal P1, 12 min | **100 % / 60 %** | **91 % / 94 %** | 0 % / 0 % |
+
+Le soigneur à 0 % n'est pas un défaut du pilote : le protocole de débit est
+**invulnérable**, donc personne n'a besoin d'être soigné. Les compétences du
+soigneur ne se mesurent qu'en équipe et en mortel.
+
+**Les trois profils de compte deviennent un objet de manche.** `metaProfil()`
+rend exactement la forme que `room.js` construit au lancement — lignes équipées,
+tronc commun, confort, **et cartes verrouillées**. Le nombre d'**emplacements**
+en fait partie : P1 n'équipe que 5 des 6 lignes de sa classe, P2 les six.
+
+| | lignes équipées | palier | secours | cartes verrouillées | légendaires tirables |
+|---|---|---|---|---|---|
+| **P0** neuf | 0 | — | 0 | **21** | **0 / 15** |
+| **P1** engagé | 5 | 3 | 5 | 9 | 7 à 8 / 15 |
+| **P2** complet | 6 | 5 | 5 | 0 | 15 / 15 |
+
+**Le jalon de légendaire est vide à P0, et c'est structurel.** `LEGENDARY_LEVELS`
+garantit une légendaire aux niveaux 13 et 24 ; sur un compte neuf, les quinze
+légendaires sont verrouillées par les jalons de boss, donc le tirage garanti rend
+trois cartes ordinaires. Le garde-fou de pool du lot E le journalise
+(« rareté 3 : 0 cartes éligibles »). Ce n'est pas un défaut du lot I — c'est le
+prix écrit du système de jalons — mais c'est une **partie de ce qui fait P0**, et
+il fallait le mesurer avant de juger un taux de réussite.
+
+#### Matrice de survie, en solo
+
+Quatre manches par cellule, **graines appariées** (mulberry32 dérivé du numéro de
+manche, protocole du lot D), mortelles, plafond de 45 min. `deg/min` est le débit
+**observé**, progression comprise : il monte avec le niveau atteint, donc il ne
+sert pas à comparer deux classes — c'est le rôle du tableau suivant.
+
+| mode | profil | Rempart | Soigneur | Tireur |
+|---|---|---|---|---|
+| **calme** | P0 neuf | **676 s** (seg. 2) | 388 s | 479 s |
+| | P1 engagé | 1 086 s (seg. 3, 25 % de manches finies) | 462 s | **1 341 s** (seg. 4) |
+| | P2 complet | **1 354 s** (seg. 4) | 534 s | 664 s |
+| **normal** | P0 neuf | 331 s | 273 s | **656 s** (seg. 2) |
+| | P1 engagé | 607 s | 504 s | **672 s** |
+| | P2 complet | 400 s | 489 s | **1 022 s** (seg. 3) |
+| **cauchemar** | P0 neuf | 220 s | 207 s | **379 s** |
+| | P1 engagé | 287 s | 214 s | **586 s** |
+| | P2 complet | 211 s | 206 s | **491 s** |
+
+**Le Rempart solo à P0 en calme n'est pas le point faible que D14 redoutait** :
+676 s contre 388 (Soigneur) et 479 (Tireur), premier des trois. La
+sous-vérification obligatoire du lot est **verte**, et aucune correction de
+compétence n'est donc autorisée par cette clause. Le raisonnement de D14 (b) est
+confirmé à la lettre : la réponse du tank à la horde n'est pas la fuite, c'est son
+Rempart — avec un déclencheur timide (« au moins deux corps dans le rayon »), le
+même tank tombait à 331 s en normal ; posé **dès qu'il est prêt et qu'il y a de
+quoi le menacer**, il passe devant. Une mesure de classe est d'abord une mesure de
+son pilotage.
+
+**Le Tireur domine les deux autres classes en solo, sauf en calme.** L'écart n'est
+pas marginal : 656 contre 331 s en normal à P0. La lecture est structurelle — le
+kit du tank est en **valeurs fixes** (12 PV de bouclier par seconde, −50 % de
+dégâts) là où le Tireur multiplie sa propre build, donc `diff.dmg` mange le
+premier et pas le second. En calme, où la pression rentre dans les valeurs fixes,
+l'ordre s'inverse.
+
+**Biais de mesure à garder :** le pilote applique **une seule politique** — reculer,
+esquiver, appuyer — et c'est celle que la fiche du Rempart contredit le plus (« va
+la chercher, ramène-la loin des tiens »). Une politique par classe rendrait la
+comparaison caduque (on comparerait des politiques), une politique unique
+handicape le tank. Le chiffre à retenir n'est donc pas l'écart absolu, c'est
+l'inversion **calme ↔ cauchemar**, qui ne dépend pas de la politique.
+
+**Les profils ne s'ordonnent pas toujours** : P2 sort sous P1 dans trois cellules
+sur neuf (calme/Tireur 664 contre 1 341, normal/Rempart 400 contre 607). Quatre
+manches ne suffisent pas à ordonner deux profils voisins, et une seconde cause est
+probable : P2 déverrouille les quinze légendaires **et les cartes d'arme**, qu'un
+bot qui tire au hasard parmi trois offres prend sans savoir s'en servir. Trancher
+demanderait un tireur de cartes qui **choisit** — même réserve qu'au lot E,
+vague 3.
+
+**La matrice n'existe qu'en solo, et ce n'est pas un raccourci.** Rempart et
+Soigneur sont `unique` : `room.js` refuse une seconde instance. Une équipe
+monoclasse à deux, trois ou quatre joueurs n'existe donc pas en jeu pour deux
+classes sur trois, et « deux tanks deux soigneurs » — la quatrième composition du
+plan — n'est pas jouable. Au-dessus d'un joueur, la comparaison de classes **est**
+une comparaison de compositions.
+
+**Un taux de réussite absolu ne se mesure pas sans pilote humain.** La matrice de
+`PROFILS.md` (20-30 % en calme à P0, etc.) reste le critère de **clôture du
+plan**, pas un critère de lot : le pilote gagne une manche sur quatre en calme à
+P1 et jamais ailleurs. Ce qui se mesure ici est le **relatif** — classe contre
+classe, profil contre profil, à graines appariées.
+
+#### Débit par classe
+
+Solo, invulnérable, P1, 12 min × 3 manches graînées : mêmes niveaux, même durée,
+donc les chiffres se comparent.
+
+| classe | dégâts/min | A par min | % de recharges | E par min | % de recharges | niveau à 12 min |
+|---|---|---|---|---|---|---|
+| Rempart | 4 354 | 3,0 | **100 %** | 1,5 | 60 % | 16 |
+| Soigneur | 4 321 | 0,0 | — | 0,0 | — | 15 |
+| Tireur | **13 236** | 6,1 | 91 % | 2,2 | 94 % | 19 |
+
+**Le Tireur sort trois fois le débit des deux autres pour +20 % de `damageMul`.**
+Le multiplicateur de classe n'explique qu'un tiers de l'écart ; le reste est une
+**boucle** : il tue plus vite, donc il monte de niveau plus vite (19 contre 15-16
+en douze minutes), donc il tire plus de cartes de dégâts. Débit et progression ne
+sont pas deux axes indépendants, et c'est le Tireur qui encaisse les intérêts.
+
+**Le Rempart et le Soigneur sortent le même débit** (4 354 contre 4 321) pour des
+`damageMul` de 0,80 et 0,85 : l'écart de fiche est dans le bruit d'une build.
+
+#### Compositions à quatre
+
+Normal et cauchemar, P1, trois manches graînées. **Calme est écarté parce que la
+mesure y serait censurée** : une table de quatre y atteint le plafond de temps, et
+toutes les compositions rendent alors le même chiffre. Deux modes et pas un seul,
+parce qu'ils ne disent pas la même chose — voir l'apport du tank.
+
+La liste est une **chaîne** : chaque ligne ajoute une classe à la précédente, donc
+l'écart entre deux lignes **est** l'apport de cette classe.
+
+| | 4 tireurs | + tank | + soigneur |
+|---|---|---|---|
+| **normal** | 658 s (seg. 2) | 1 032 s (seg. 3) — **+57 %** | 1 447 s (seg. 4) — **+40 %** |
+| **cauchemar** | 1 021 s (seg. 3) | 1 018 s (seg. 3) — **−0,3 %** | 1 381 s (seg. 4) — **+36 %** |
+
+**La composition 1/1/2 va plus loin que quatre tireurs : +120 % en normal, +35 %
+en cauchemar.** Le critère du plan est vert, et largement — le système de classes
+n'est pas décoratif, alors même que la table mixte sort **moins de dégâts** (21 530
+contre 35 220 par minute en cauchemar) et **neuf niveaux de moins**. C'est
+exactement l'échange que trois rôles promettent.
+
+**La valeur d'un tank est une question de POSITIONNEMENT, et c'est mesuré.** Avec
+un pilote dont les alliés ignorent le rempart, la même composition rendait **691 s
+contre 1 021** pour quatre tireurs, soit −32 % : ajouter un tank *coûtait* une
+manche. Un seul terme dans le pilote — se tenir dans le rempart d'un allié quand
+on n'a rien de plus urgent — la remet à parité en cauchemar et à +57 % en normal.
+Sans ce terme, la mesure jugeait une table qui ne suit pas son tank.
+
+**Le tank n'apporte rien en cauchemar** (−0,3 %), et c'est le résidu du lot. Il
+recoupe la matrice solo : c'est le mode où sa survie propre s'effondre. Le plan
+tranche déjà la disposition — *si rien dans la manche ne punit l'absence de tank,
+ça se corrige au lot J, par les traits, pas par les valeurs de classe*.
+
+#### Verdict
+
+| critère | issue |
+|---|---|
+| Rempart solo à P0 en calme au niveau des deux autres | **vert** — premier des trois (676 s) |
+| aucune classe strictement dominée | **vert par l'équipe** : dominées en solo, positives en table (+57 %, +40 %) |
+| 1/1/2 au moins aussi loin que 4 tireurs | **vert** — +120 % en normal, +35 % en cauchemar |
+| doctrine des 90 % mesurée sur la classe médiane | **vert** — déduite de `CLASSES`, exception du Rempart vérifiée |
+
+**Aucune valeur de classe ne bouge.** La seule clause qui autorisait une
+correction — le Rempart solo à P0 — est verte, et le plan renvoie explicitement le
+reste au lot J. `verifierClasses()` est le critère rejouable : doctrine, Rempart
+solo à P0 en calme, domination lue **avec l'apport en équipe**, et la chaîne de
+compositions dans les deux modes non censurés.
+
+**Le relevé que le lot J avait laissé en attente se ferme.** Les bonus au sol se
+ramassaient à 1-12 % avec `botInput` ; le pilote en prend **13 à 50 %** selon la
+densité (24/186 en calme à P0, 279/560 en cauchemar à P2). Le sol reste encombré
+dans les cellules pauvres, mais le générateur n'est plus bloqué par des bonus que
+personne ne prend : la clémence des bonus redevient mesurable.
+
+**Ce qu'un bot ne mesurera jamais** (à remesurer avec un pilote humain) : le taux
+de réussite absolu de `PROFILS.md`, l'ordre P1 → P2 dans les cellules serrées, et
+la valeur d'une carte d'arme — trois questions qui demandent un joueur qui
+**choisit**.
+
 ### Marchand, éclats, catalogue de reliques (lot F)
 
 Le marchand n'était pas déséquilibré, il était **résolu** : 10 reliques pour 18
@@ -599,6 +786,8 @@ chiffre d'un facteur deux. La mesure est dominée par le bruit, et augmenter les
 essais n'y changerait rien — le bot n'utilise ni Rempart ni Provocation, les deux
 seules choses qui font un tank. `mesureComposition()` est livrée avec le lot ; le
 critère est renvoyé au lot I, qui a besoin d'un pilote (même réserve qu'au lot B).
+**Réglé au lot I** : `pilotage()` appuie sur les deux, et la chaîne de
+compositions donne l'apport du tank — +57 % en normal, zéro en cauchemar.
 
 ### Vitesse et bestiaire (lot B du plan d'équilibrage)
 
@@ -1055,55 +1244,16 @@ l'arène, et le coût montait avec la densité — c'est-à-dire au pire moment.
 
 ### Classes : écarts entre compositions
 
-Cinq essais par composition, mêmes bots que ci-dessus, avec en plus l'usage des
-deux compétences dès que la situation s'y prête. **Aucun réglage n'a encore été
-touché à la suite de ces chiffres** — ils sont le constat, pas la conclusion.
+**Périmé, remplacé par le lot I** (voir plus haut). Les chiffres de cette section
+étaient relevés en **vagues**, unité supprimée au plan 5, et avec des bots qui
+n'esquivaient pas : ils ne se comparent à rien de mesurable aujourd'hui. Ce qui
+survit du constat d'alors, et que le lot I confirme : le soigneur ne tenait pas
+l'objectif de dégâts (26 à 31 % de ceux du tireur) et sa survie solo était celle
+du tireur à 0,1 % près.
 
-| composition | j | vague | niveau | survie | durée d'une vague | durée d'un boss |
-|---|---|---|---|---|---|---|
-| tireur | 1 | 5,6 | 7,2 | 162 s | 27,3 s | 42 s |
-| soigneur | 1 | 4,8 | 6,6 | 162 s | 27,9 s | — |
-| tank | 1 | 6,0 | 8,0 | 218 s | 34,9 s | 56 s |
-| tireur ×2 | 2 | 5,4 | 6,2 | 196 s | 30,2 s | 54 s |
-| tank + tireur | 2 | 5,0 | 5,8 | 180 s | 28,2 s | — |
-| soigneur + tireur | 2 | 7,0 | 7,8 | 286 s | 37,2 s | 59 s |
-| tank + soigneur + tireur | 3 | 8,6 | 9,8 | 445 s | 50,9 s | 77 s |
-| trio + tireur | 4 | 8,0 | 8,4 | 354 s | 39,9 s | 66 s |
-
-**Écart à effectif égal** — le chiffre qui décide : **1,2 vague à un joueur**
-(4,8 à 6,0), mais **2,0 vagues à deux** (5,0 à 7,0), au-dessus de la limite de
-1,5 qu'on s'était fixée. Le duo le plus fort est *soigneur + tireur*, le plus
-faible *tank + tireur*.
-
-| classe | dégâts | part du tireur | soins |
-|---|---|---|---|
-| tank (avec tireur) | 7 024 | 45 % | — |
-| tank (trio) | 35 478 | 56 % | — |
-| soigneur (avec tireur) | 13 087 | 31 % | 458 |
-| soigneur (trio) | 16 371 | 26 % | 1 191 |
-
-Le tank tient l'objectif (au moins 40 % des dégâts du tireur), **le soigneur ne
-le tient pas** : 26 à 31 %. C'était attendu — le temps passé en mode soin est du
-temps sans dégâts — mais l'objectif était écrit sans compter les soins à part.
-
-Survie du **soigneur solo : 162,1 s contre 162,0 s** pour le tireur solo, soit
-0,1 % d'écart là où on tolérait 20 %.
-
-Taux d'utilisation des compétences : **17 à 79 %** des recharges consommées,
-contre 80 % attendus. Le chiffre en dit plus sur les bots que sur les
-compétences : ils ne déclenchent que sous condition (rempart s'il y a au moins
-deux ennemis dans la zone, bombe s'il y en a deux dans le rayon visé), et un bot
-qui appuierait dès que c'est prêt afficherait 100 % sans rien prouver.
-
-Coût : **0,06 à 0,88 s de CPU pour 900 s simulées** (plafond 3 s) et **7,7 à
-11,3 Ko/s par joueur** (plafond 160). Le lot n'a rien changé à ces deux postes.
-
-Observation structurelle, à garder en tête avant tout réglage : **les PV du boss
-sont indexés sur la puissance de l'équipe, qui intègre le multiplicateur de
-dégâts de classe**. Le +20 % du tireur lui achète donc +20 % de PV de boss et
-ne lui laisse que ses 85 PV en moins ; le −20 % du tank lui rend un boss plus
-tendre en plus de ses 150 PV. Sur les vagues, l'indexation est partielle (55 %
-et 35 %), donc l'effet ne s'y annule pas de la même manière.
+Une observation structurelle de l'époque est **caduque depuis D2** : les PV de
+boss ne s'indexent plus sur la puissance de l'équipe, donc le +20 % du tireur ne
+lui achète plus de PV de boss.
 
 ### États et purge
 

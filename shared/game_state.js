@@ -11,7 +11,9 @@ import {
   STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOOM,
   PURGE_ORDER, ELITE_STATUS, statusAt, statusBit, enemyStatusMask,
 } from "./statuses.js";
-import { PROG_CFG, TREES, COMMUN, applyMeta, coresForRun } from "./progression.js";
+import {
+  PROG_CFG, TREES, COMMUN, MILESTONES, applyMeta, coresForRun, lockedCards, slotsFor,
+} from "./progression.js";
 import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import { CLASS_COLOR } from "./palette.js";
 import {
@@ -5906,9 +5908,17 @@ export function mesurePopulation(diffIndex, joueurs, minutes = 30, invulnerable 
 export const SPEED_DOCTRINE = 0.90;
 export const SPEED_SPREAD_MIN = 3.5;
 
+// D14 (b) : la doctrine se mesure contre la classe MEDIANE, pas la plus lente. Le
+// Rempart n'est donc pas couvert, et cette exception s'ecrit — une garantie qui a
+// une exception non ecrite est une garantie fausse. Deduite de `CLASSES` et non
+// egale a `CFG.PLAYER_SPEED` : un `speedMul` qui bouge doit deplacer le plafond.
+export function vitesseClasseMediane() {
+  return mediane(CLASSES.map(c => CFG.PLAYER_SPEED * c.speedMul));
+}
+
 export function verifierVitesses(minutes = 30, roll = 1.1) {
   const soucis = [];
-  const plafond = CFG.PLAYER_SPEED * SPEED_DOCTRINE;
+  const plafond = vitesseClasseMediane() * SPEED_DOCTRINE;
 
   for (let di = 0; di < DIFFICULTIES.length; di++) {
     let pire = 0, pireOu = "";
@@ -6944,5 +6954,558 @@ export function verifierMarchand(effectifs = [1, 4], manches = 6,
         + ` eclats de reliques contre ${m.valeur} — la patience domine`);
     }
   }
+  return soucis;
+}
+
+// LE PILOTE. `botInput` reste intact : les lots A a H se rejouent contre lui, et un
+// bot qui se met a esquiver deplacerait toutes leurs mesures. Celui-ci est un
+// SECOND bot, reserve au lot I — il recule, il esquive les zones, il ramasse, il
+// releve, et il utilise les deux competences de sa classe. Sans lui, une matrice de
+// survie mesure le pilotage et non les classes : quatre lots de suite ont sorti un
+// critere rouge pour cette raison.
+export const PILOT_CFG = {
+  LECTURE: 460,
+  ESQUIVE: 110,
+  PAS: 6,
+  SAUT: 96,
+  GROUPE: 2,
+  SOIN_ENTREE: 0.62,
+  SOIN_SORTIE: 0.92,
+  SECOURS: 0.45,
+  PORTEE_SOIN: 700,
+  BONUS: 520,
+  REMPART: 620,
+  ZONE: 520,
+};
+
+const PILOT_DIRS = (() => {
+  const out = [[0, 0]];
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6;
+    out.push([Math.cos(a), Math.sin(a)]);
+  }
+  return out;
+})();
+
+function menacesAutour(g, p) {
+  const out = [];
+  const R = PILOT_CFG.LECTURE;
+  for (const e of g.enemies) {
+    if (e.hp <= 0) continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    if (dx * dx + dy * dy > R * R) continue;
+    out.push({ x: e.x, y: e.y, poids: 1 });
+  }
+  for (const b of [g.boss, g.boss2]) {
+    if (!b) continue;
+    const dx = b.x - p.x, dy = b.y - p.y;
+    if (dx * dx + dy * dy > (R * 1.6) ** 2) continue;
+    out.push({ x: b.x, y: b.y, poids: 5 });
+  }
+  return out;
+}
+
+// la geometrie d'une zone ne se recopie pas : `_zoneHits` est le point de passage,
+// on ne lui donne qu'un point candidat.
+function zonesDangereuses(g, p) {
+  const out = [];
+  for (const z of g.zones) {
+    if (!(z.dmg > 0 || z.dot > 0)) continue;
+    const porte = PILOT_CFG.ZONE + (z.r ?? 0) + Math.max(z.w ?? 0, z.h ?? 0);
+    const dx = z.x - p.x, dy = z.y - p.y;
+    if (dx * dx + dy * dy > porte * porte) continue;
+    out.push(z);
+  }
+  return out;
+}
+
+function coutPosition(g, x, y, menaces, zones, but) {
+  let c = 0;
+  const R = PILOT_CFG.LECTURE;
+  for (const m of menaces) {
+    const d = Math.hypot(m.x - x, m.y - y);
+    if (d >= R) continue;
+    const k = 1 - d / R;
+    c += m.poids * k * k * 120;
+  }
+  const point = { x, y };
+  for (const z of zones) if (g._zoneHits(z, point)) c += z.dmg > 0 ? 900 : 260;
+  const b = g.bounds;
+  const bord = Math.min(x - b.x0, b.x1 - x, y - b.y0, b.y1 - y);
+  if (bord < 160) c += (160 - bord) * 2.5;
+  if (but) c += Math.hypot(but.x - x, but.y - y) * but.poids;
+  return c;
+}
+
+function corpsDans(g, p, r) {
+  let n = 0;
+  const rr = r * r;
+  for (const e of g.enemies) {
+    if (e.hp <= 0) continue;
+    if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= rr) n++;
+  }
+  return n;
+}
+
+// la bombe se lance sur une GRAPPE, pas sur le corps le plus proche : c'est ce que
+// la fiche de classe demande au joueur, donc c'est ce que le pilote doit faire.
+function grappeEnnemis(g, p, portee, rayon) {
+  let best = null;
+  const pp = portee * portee, rr = rayon * rayon;
+  for (const e of g.enemies) {
+    if (e.hp <= 0) continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > pp) continue;
+    let n = 0;
+    for (const o of g.enemies) {
+      if (o.hp <= 0) continue;
+      if ((o.x - e.x) ** 2 + (o.y - e.y) ** 2 <= rr) n++;
+    }
+    if (!best || n > best.n) best = { x: e.x, y: e.y, n, d: Math.sqrt(d2) };
+  }
+  return best;
+}
+
+function allieLePlusAtteint(g, p, portee) {
+  let cible = null, pire = 1;
+  for (const o of g.players.values()) {
+    if (o.id === p.id) continue;
+    if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 > portee * portee) continue;
+    const r = o.downed ? -1 : o.hp / o.maxHp;
+    if (r < pire) { pire = r; cible = o; }
+  }
+  return pire < PILOT_CFG.SOIN_ENTREE ? cible : null;
+}
+
+export function pilotage() {
+  const memo = new Map();
+
+  return (g, p) => {
+    let mem = memo.get(p.id);
+    if (!mem) { mem = { x: 0, y: 0, k: 0 }; memo.set(p.id, mem); }
+
+    const cls = classAt(p.cls).id;
+    const ratio = p.hp / Math.max(1, p.maxHp);
+
+    let proche = null, dp = Infinity;
+    for (const e of g.enemies) {
+      if (e.hp <= 0) continue;
+      const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+      if (d < dp) { dp = d; proche = e; }
+    }
+    if (g.boss && (!proche || dp > 340 * 340)) {
+      const d = (g.boss.x - p.x) ** 2 + (g.boss.y - p.y) ** 2;
+      if (d < dp || !proche) { proche = g.boss; dp = d; }
+    }
+    dp = Math.sqrt(dp);
+
+    if (--mem.k <= 0) {
+      mem.k = PILOT_CFG.PAS;
+      const menaces = menacesAutour(g, p);
+      const zones = zonesDangereuses(g, p);
+
+      let but = null;
+      let tombe = null, dt = Infinity;
+      for (const o of g.players.values()) {
+        if (o.id === p.id || !o.downed) continue;
+        const d = (o.x - p.x) ** 2 + (o.y - p.y) ** 2;
+        if (d < dt) { dt = d; tombe = o; }
+      }
+      if (tombe && ratio > PILOT_CFG.SECOURS) but = { x: tombe.x, y: tombe.y, poids: 0.7 };
+      // se tenir DANS le rempart d'un allie : sans ce terme, le tank n'apporte a
+      // l'equipe que sa provocation, et la mesure de composition juge un tank que
+      // personne ne suit.
+      if (!but) {
+        for (const bw of g.bulwarks) {
+          if (bw.owner === p.id) continue;
+          const d2 = (bw.x - p.x) ** 2 + (bw.y - p.y) ** 2;
+          if (d2 > PILOT_CFG.REMPART ** 2) continue;
+          but = { x: bw.x, y: bw.y, poids: 0.3 };
+          break;
+        }
+      }
+      if (!but) {
+        let bonus = null, db = PILOT_CFG.BONUS ** 2;
+        for (const w of g.powerups) {
+          const d = (w.x - p.x) ** 2 + (w.y - p.y) ** 2;
+          if (d < db) { db = d; bonus = w; }
+        }
+        if (bonus) but = { x: bonus.x, y: bonus.y, poids: 0.12 };
+      }
+      if (!but) {
+        let cx = 0, cy = 0, n = 0;
+        for (const o of g.players.values()) {
+          if (o.id === p.id) continue;
+          cx += o.x; cy += o.y; n++;
+        }
+        but = n
+          ? { x: cx / n, y: cy / n, poids: 0.06 }
+          : { x: (g.bounds.x0 + g.bounds.x1) / 2, y: (g.bounds.y0 + g.bounds.y1) / 2,
+              poids: 0.02 };
+      }
+
+      let bx = 0, by = 0, bc = Infinity;
+      for (const [dx, dy] of PILOT_DIRS) {
+        const x = p.x + dx * PILOT_CFG.SAUT, y = p.y + dy * PILOT_CFG.SAUT;
+        const c = coutPosition(g, x, y, menaces, zones, but);
+        if (c < bc) { bc = c; bx = dx; by = dy; }
+      }
+      mem.x = bx; mem.y = by;
+    }
+
+    let ax = 1, ay = 0, ar = SKILL_CFG.DPS_BOMB_RANGE_MAX;
+    if (proche) {
+      const d = Math.hypot(proche.x - p.x, proche.y - p.y) || 1;
+      ax = (proche.x - p.x) / d; ay = (proche.y - p.y) / d; ar = d;
+    }
+
+    let s1 = false, s2 = false, s3 = false;
+    const tier3 = p.mods.skill3 > 0 && p.cd3 <= 0;
+
+    if (cls === "tank") {
+      // le rempart est une BATTERIE DE BOUCLIER qui suit son porteur : un joueur
+      // competent le pose des qu'il est pret et qu'il y a de quoi le menacer, il
+      // n'attend pas d'etre entoure. Un declencheur plus fin sous-estime la classe.
+      s1 = p.cd1 <= 0 && ((proche !== null && dp < 600) || ratio < 0.9);
+      const large = corpsDans(g, p, SKILL_CFG.TANK_TAUNT_RADIUS);
+      s2 = p.cd2 <= 0 && (large >= 4 || ratio < 0.5
+        || [...g.players.values()].some(o => o.downed && o.id !== p.id
+          && (o.x - p.x) ** 2 + (o.y - p.y) ** 2 < 400 * 400));
+      s3 = tier3 && corpsDans(g, p, 220) >= 3;
+    } else if (cls === "soigneur") {
+      const besoin = allieLePlusAtteint(g, p, PILOT_CFG.PORTEE_SOIN);
+      const seul = g.players.size === 1;
+      const veut = besoin !== null
+        || (seul && ratio < PILOT_CFG.SOIN_ENTREE && proche && dp < 620);
+      const stop = !besoin && ratio > PILOT_CFG.SOIN_SORTIE;
+      if (p.healSwapCd <= 0 && ((veut && !p.healMode) || (stop && p.healMode))) s1 = true;
+      // en mode soin le tir vise l'allie ; seul, il vise l'ennemi (le soin de soi
+      // passe par une balle qui TOUCHE un ennemi)
+      if (p.healMode && besoin) {
+        const d = Math.hypot(besoin.x - p.x, besoin.y - p.y) || 1;
+        ax = (besoin.x - p.x) / d; ay = (besoin.y - p.y) / d;
+      }
+      let blesses = 0;
+      for (const o of g.players.values()) {
+        if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 > SKILL_CFG.HEAL_WAVE_RADIUS ** 2) continue;
+        if (o.downed || o.hp / o.maxHp < 0.7) blesses++;
+      }
+      s2 = p.cd2 <= 0 && blesses >= 1;
+      s3 = tier3 && blesses >= 1;
+    } else {
+      const grappe = p.bombStock > 0
+        ? grappeEnnemis(g, p, SKILL_CFG.DPS_BOMB_RANGE_MAX,
+            SKILL_CFG.DPS_BOMB_RADIUS * p.mods.bombRadiusMul)
+        : null;
+      if (grappe && (grappe.n >= PILOT_CFG.GROUPE || (g.boss && grappe.n >= 1))) {
+        s1 = true;
+        const d = grappe.d || 1;
+        ax = (grappe.x - p.x) / d; ay = (grappe.y - p.y) / d; ar = d;
+      }
+      s2 = p.cd2 <= 0 && (corpsDans(g, p, 500) >= 3 || (g.boss !== null && dp < 600));
+      s3 = tier3 && corpsDans(g, p, CARD_CFG.SKILL3_SALVE_RANGE) >= 3;
+    }
+
+    return {
+      x: mem.x, y: mem.y, ax, ay, ar,
+      dash: p.dashCd <= 0 && dp < PILOT_CFG.ESQUIVE && (mem.x !== 0 || mem.y !== 0),
+      s1, s2, s3,
+    };
+  };
+}
+
+// LES TROIS PROFILS DE COMPTE de `PROFILS.md`, en objet `meta` de manche : meme
+// forme que celui que `room.js` construit au lancement, emplacements compris —
+// une ligne achetee mais non EQUIPEE ne s'applique pas.
+export const PROFIL_NEUF = 0, PROFIL_ENGAGE = 1, PROFIL_COMPLET = 2;
+export const PROFILS = ["neuf", "engage", "complet"];
+export const PROFIL_TIER = [0, 3, PROG_CFG.TIERS_MAX];
+
+export function metaProfil(profil, clsId) {
+  if (profil <= PROFIL_NEUF) {
+    return { lines: {}, commun: {}, confort: {}, locked: lockedCards([]) };
+  }
+  const plein = profil >= PROFIL_COMPLET;
+  const tier = PROFIL_TIER[Math.min(profil, PROFIL_COMPLET)];
+  // `niveau${SLOTS_LEVEL}` n'est PAS dans `MILESTONES` : il n'ouvre pas de carte,
+  // seulement un emplacement, et c'est `hub.js` qui le pose.
+  const jalons = plein
+    ? [...MILESTONES.map(m => m.id), `niveau${PROG_CFG.SLOTS_LEVEL}`]
+    : ["niveau10", `niveau${PROG_CFG.SLOTS_LEVEL}`, "boss_0", "boss_1", "boss_2"];
+  const emplacements = slotsFor({ milestones: jalons, runs: plein ? PROG_CFG.SLOTS_RUNS : 0 });
+  const lignes = (TREES[clsId] ?? []).slice(0, emplacements);
+  return {
+    lines: Object.fromEntries(lignes.map(l => [l.id, tier])),
+    // `secours` est pleine des P1 : c'est ce que suppose le budget de `coutMeta()`,
+    // et c'est son cinquieme palier qui porte le saut P0 -> P1.
+    commun: Object.fromEntries(COMMUN.map(l =>
+      [l.id, l.famille === "secours" ? PROG_CFG.TIERS_MAX : tier])),
+    confort: { quatrieme: 1, ravitaillement: plein ? 1 : 0 },
+    locked: lockedCards(jalons),
+    emplacements,
+  };
+}
+
+function manchePilotee(diffIndex, joueurs, classes, profil, minutes, options = {}) {
+  const g = new GameState(diffIndex);
+  for (let i = 1; i <= joueurs; i++) {
+    const cls = classes[(i - 1) % classes.length];
+    g.addPlayer(i, `bot${i}`, i - 1, cls, metaProfil(profil, classAt(cls).id));
+  }
+  g.warmup = 0;
+
+  const pilote = pilotage();
+  const acheteur = options.acheteur ?? acheteurGourmand([], 0, 0.7, true);
+  const inputs = new Map();
+  const images = Math.round(minutes * 60 / CFG.TICK);
+  const vies = new Map();
+  let poses = 0, ramasses = 0, perimes = 0;
+
+  for (let k = 0; k < images && !g.gameOver && !g.victory; k++) {
+    if (g.cardsPending) {
+      for (const [id, offres] of g.cardOffers) {
+        const p = g.players.get(id);
+        if (p && offres.length) {
+          g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
+        }
+      }
+      g.cardsPending = false;
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+    if (g.relicPending) {
+      acheteur(g);
+      g.closeMerchant();
+      g.openNextScreen();
+      k--;
+      continue;
+    }
+
+    inputs.clear();
+    for (const p of g.players.values()) inputs.set(p.id, pilote(g, p));
+    g.step(CFG.TICK, inputs);
+    if (options.invulnerable) {
+      for (const p of g.players.values()) {
+        p.hp = p.maxHp; p.downed = false; p.revive = 0;
+      }
+      if (!g.victory) g.gameOver = false;
+    }
+
+    const vus = new Set();
+    for (const w of g.powerups) {
+      vus.add(w.id);
+      if (!vies.has(w.id)) poses++;
+      vies.set(w.id, w.life);
+    }
+    for (const [id, vie] of vies) {
+      if (vus.has(id)) continue;
+      if (vie <= CFG.TICK) perimes++; else ramasses++;
+      vies.delete(id);
+    }
+  }
+
+  const minutesJouees = Math.max(1 / 60, g.time / 60);
+  let degats = 0, soins = 0, s1 = 0, s2 = 0;
+  for (const p of g.players.values()) {
+    degats += p.damageDealt;
+    soins += p.healDealt;
+    s1 += p.skillUses[0];
+    s2 += p.skillUses[1];
+  }
+  return {
+    segment: g.segment, niveau: g.level, duree: g.time,
+    victoire: !!g.victory, boss: g.bossCount,
+    degats: degats / joueurs / minutesJouees,
+    soins: soins / joueurs / minutesJouees,
+    skill1: s1 / joueurs / minutesJouees,
+    skill2: s2 / joueurs / minutesJouees,
+    poses, ramasses, perimes,
+  };
+}
+
+// ce qu'un joueur qui appuierait des que c'est pret obtiendrait : le taux de
+// consommation du pilote se lit contre CA, pas dans l'absolu.
+export function rechargesParMinute(cls) {
+  const id = classAt(cls).id;
+  if (id === "tank") {
+    return [60 / SKILL_CFG.TANK_BULWARK_CD, 60 / SKILL_CFG.TANK_TAUNT_CD];
+  }
+  if (id === "soigneur") {
+    return [60 / SKILL_CFG.HEAL_MODE_SWAP_CD, 60 / SKILL_CFG.HEAL_WAVE_CD];
+  }
+  return [60 / SKILL_CFG.DPS_BOMB_CD, 60 / SKILL_CFG.DPS_OVERDRIVE_CD];
+}
+
+export function mesureSurvie(diffIndex, joueurs, classes, profil, manches = 6,
+  minutes = 60) {
+  const runs = [];
+  const alea = Math.random;
+  try {
+    for (let r = 1; r <= manches; r++) {
+      Math.random = grainer(r * 7919);
+      runs.push(manchePilotee(diffIndex, joueurs, classes, profil, minutes));
+    }
+  } finally {
+    Math.random = alea;
+  }
+  const gagnees = runs.filter(r => r.victoire).length;
+  return {
+    diffIndex, joueurs, profil, classes, runs,
+    segment: mediane(runs.map(r => r.segment)),
+    survie: mediane(runs.map(r => r.duree)),
+    niveau: mediane(runs.map(r => r.niveau)),
+    degats: mediane(runs.map(r => r.degats)),
+    soins: mediane(runs.map(r => r.soins)),
+    taux: gagnees / runs.length,
+    ramasses: somme(runs.map(r => r.ramasses)),
+    poses: somme(runs.map(r => r.poses)),
+  };
+}
+
+// le debit se mesure INVULNERABLE et en solo : ce qu'on compare est ce que la
+// classe sort, pas combien de temps elle tient — la survie est l'autre axe.
+export function mesureDebit(diffIndex, cls, profil = PROFIL_ENGAGE, manches = 3,
+  minutes = 12) {
+  const runs = [];
+  const alea = Math.random;
+  try {
+    for (let r = 1; r <= manches; r++) {
+      Math.random = grainer(r * 7919);
+      runs.push(manchePilotee(diffIndex, 1, [cls], profil, minutes,
+        { invulnerable: true }));
+    }
+  } finally {
+    Math.random = alea;
+  }
+  const prets = rechargesParMinute(cls);
+  return {
+    cls, profil,
+    degats: mediane(runs.map(r => r.degats)),
+    soins: mediane(runs.map(r => r.soins)),
+    skill1: mediane(runs.map(r => r.skill1)),
+    skill2: mediane(runs.map(r => r.skill2)),
+    taux1: mediane(runs.map(r => r.skill1)) / prets[0],
+    taux2: mediane(runs.map(r => r.skill2)) / prets[1],
+    niveau: mediane(runs.map(r => r.niveau)),
+  };
+}
+
+// une CHAINE, pas une liste : chaque entree ajoute une classe a la precedente, donc
+// l'ecart entre deux lignes EST l'apport de cette classe. « 2 tanks 2 soigneurs »
+// n'y figure pas — `unique` la refuse en jeu (`room.js`).
+export const COMPOSITIONS = [
+  { nom: "4 tireurs", classes: [2, 2, 2, 2] },
+  { nom: "tank + 3 tireurs", classes: [0, 2, 2, 2], apporte: 0 },
+  { nom: "tank + soigneur + 2 tireurs", classes: [0, 1, 2, 2], apporte: 1 },
+];
+
+export const CLASS_GAP = 0.25;
+export const COMPO_GAP = 0.15;
+// deux modes, et pas trois : a quatre joueurs, calme atteint le plafond de temps,
+// donc toutes les compositions y rendent le meme chiffre. Une mesure censuree ne
+// departage rien.
+export const COMPO_MODES = [DIFF_NORMAL, DIFFICULTIES.length - 1];
+
+// `effectifs` reste a [1] par defaut : deux classes sur trois sont `unique`, donc
+// au-dessus d'un joueur une equipe monoclasse n'existe pas en jeu — la comparaison
+// y devient une COMPOSITION, et c'est `COMPOSITIONS` qui la porte.
+export function matriceSurvie(effectifs = [1], profils = [0, 1, 2], manches = 4,
+  diffs = null) {
+  const table = [];
+  const modes = diffs ?? DIFFICULTIES.map((_, i) => i);
+  for (const di of modes) {
+    for (const n of effectifs) {
+      for (const pr of profils) {
+        for (let cls = 0; cls < CLASSES.length; cls++) {
+          const r = mesureSurvie(di, n, [cls], pr, manches);
+          table.push({ diffIndex: di, joueurs: n, profil: pr, cls, ...r });
+        }
+      }
+    }
+  }
+  return table;
+}
+
+export function verifierClasses(manches = 4, effectifs = [1]) {
+  const soucis = [];
+
+  // la doctrine du lot B se mesure contre la classe MEDIANE (D14 b) : le Rempart en
+  // sort, et cette exception se verifie au lieu de se supposer.
+  const vitesses = CLASSES.map(c => CFG.PLAYER_SPEED * c.speedMul);
+  const med = vitesseClasseMediane();
+  if (Math.min(...vitesses) >= med) {
+    soucis.push(`doctrine : aucune classe sous la mediane de ${med.toFixed(0)} px/s`
+      + ` — l'exception ecrite en D14 n'a plus d'objet`);
+  }
+
+  const table = matriceSurvie(effectifs, [0, 1, 2], manches);
+  const debits = CLASSES.map((_, cls) => mesureDebit(DIFF_NORMAL, cls));
+
+  // 1. le Rempart SOLO a P0 en calme : le raisonnement de D14 est cooperatif, et
+  // en solo personne n'aide. On le compare aux deux autres classes, seule forme
+  // mesurable sans pilote humain (le taux absolu de la matrice en demande un).
+  const calme = table.filter(r => r.diffIndex === 0 && r.joueurs === 1 && r.profil === PROFIL_NEUF);
+  const tank = calme.find(r => r.cls === 0);
+  const autres = calme.filter(r => r.cls !== 0).map(r => r.survie);
+  if (tank && autres.length) {
+    const ref = mediane(autres);
+    if (tank.survie < ref * (1 - CLASS_GAP)) {
+      soucis.push(`tank solo P0 calme : ${tank.survie.toFixed(0)} s contre`
+        + ` ${ref.toFixed(0)} s pour les autres classes, soit`
+        + ` ${(100 * (1 - tank.survie / ref)).toFixed(0)} % de moins`
+        + ` — le correctif porte sur ses COMPETENCES, jamais sur speedMul`);
+    }
+  }
+
+  // 2. la chaine de compositions : l'ecart entre deux lignes est l'APPORT d'une
+  // classe. C'est la seule lecture qui vaille pour une classe de soutien. Elle se
+  // lit dans DEUX modes : l'apport du tank vaut +57 % en normal et zero en
+  // cauchemar, ou il meurt aussi vite que les autres. Un mode ne tranche pas.
+  const compos = [];
+  const apport = new Map();
+  for (const di of COMPO_MODES) {
+    const chaine = COMPOSITIONS.map(c =>
+      ({ ...c, diffIndex: di, r: mesureSurvie(di, 4, c.classes, PROFIL_ENGAGE, manches) }));
+    for (let i = 1; i < chaine.length; i++) {
+      const v = chaine[i].r.survie / chaine[i - 1].r.survie - 1;
+      apport.set(chaine[i].apporte, Math.max(apport.get(chaine[i].apporte) ?? -1, v));
+    }
+    compos.push(...chaine);
+  }
+
+  // 3. aucune classe strictement dominee. Etre battu sur les deux axes EN SOLO ne
+  // suffit pas a conclure : une classe de soutien n'a personne a soutenir en solo.
+  // Elle n'est dominee que si elle n'apporte rien non plus a une equipe.
+  for (let a = 0; a < CLASSES.length; a++) {
+    const sa = mediane(table.filter(r => r.cls === a).map(r => r.survie));
+    const da = debits[a].degats;
+    for (let b = 0; b < CLASSES.length; b++) {
+      if (a === b) continue;
+      const sb = mediane(table.filter(r => r.cls === b).map(r => r.survie));
+      const db = debits[b].degats;
+      if (!(sb > sa * (1 + CLASS_GAP) && db > da * (1 + CLASS_GAP))) continue;
+      const ap = apport.get(a);
+      if (ap !== undefined && ap > 0) continue;
+      soucis.push(`${CLASSES[a].id} est domine par ${CLASSES[b].id} :`
+        + ` ${sa.toFixed(0)} s / ${da.toFixed(0)} degats par minute en solo contre`
+        + ` ${sb.toFixed(0)} s / ${db.toFixed(0)}`
+        + (ap === undefined ? "" : `, et ${(ap * 100).toFixed(0)} % d'apport en equipe`));
+    }
+  }
+
+  // 4. la composition 1/1/2 doit aller au moins aussi loin que quatre tireurs,
+  // sinon le systeme de classes est decoratif en cooperatif.
+  for (const di of COMPO_MODES) {
+    const chaine = compos.filter(c => c.diffIndex === di);
+    const tireurs = chaine[0].r, mixte = chaine[chaine.length - 1].r;
+    if (mixte.survie < tireurs.survie * (1 - COMPO_GAP)) {
+      soucis.push(`${DIFFICULTIES[di].key} : ${mixte.survie.toFixed(0)} s pour 1/1/2`
+        + ` contre ${tireurs.survie.toFixed(0)} s pour quatre tireurs — rien dans la`
+        + ` manche ne punit l'absence de tank (le levier est au lot J, pas ici)`);
+    }
+  }
+
   return soucis;
 }

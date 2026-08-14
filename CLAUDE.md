@@ -458,11 +458,13 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   pixel** (`PLAYER_BITE`). `_spawnSweep()` teste le segment centre du joueur →
   point d'apparition, dans l'ordre où la balle le parcourt.
 - **AUCUN TYPE DE HORDE NE DÉPASSE 90 % DE LA VITESSE DE LA CLASSE MÉDIANE**
-  (`SPEED_DOCTRINE`, Soigneur à `CFG.PLAYER_SPEED`), à aucune minute, dans aucune
-  difficulté, **tirage de vitesse compris**. C'est ce qui garantit qu'il reste
-  toujours quelque chose à semer. Le Rempart (`speedMul 0,92`) n'est pas couvert :
-  un tank ne répond pas à la horde en fuyant. Ne s'applique **ni aux boss ni aux
-  invocations de mécanique**, qui doivent pouvoir rattraper.
+  (`SPEED_DOCTRINE` × `vitesseClasseMediane()`, **déduite de `CLASSES`** et jamais
+  écrite en dur), à aucune minute, dans aucune difficulté, **tirage de vitesse
+  compris**. C'est ce qui garantit qu'il reste toujours quelque chose à semer. Le
+  Rempart (`speedMul 0,92`) n'est **pas couvert**, et cette exception se vérifie
+  (`verifierClasses`) au lieu de se supposer : un tank ne répond pas à la horde en
+  fuyant, il pose son Rempart. Ne s'applique **ni aux boss ni aux invocations de
+  mécanique**, qui doivent pouvoir rattraper.
 - **La rampe de vitesse est MULTIPLICATIVE** (`ENEMY_SPEED_RAMP_PCT`) : une rampe
   additive uniforme est mathématiquement une compression du bestiaire — elle
   rapproche tout le monde de la moyenne. Le rapport lent/rapide est donc
@@ -1210,9 +1212,25 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
 - **Pour juger une mécanique de boss, la bonne mesure est l'écart entre un joueur
   qui lit les annonces et un joueur qui les ignore.** Écart faible = mécanique
   punitive, pas difficile.
-- **Toute mesure précise son profil de compte** : *compte neuf* (un `GameState`
-  sans `meta`) et *compte maximal*. Écart attendu **sous 1,5 vague** ; s'il
-  dépasse, réduire le **nombre d'emplacements**, jamais les valeurs.
+- **Toute mesure précise son profil de compte** : `metaProfil(profil, cls)` rend
+  les trois profils de `PROFILS.md` (P0 neuf, P1 engagé, P2 complet) dans la forme
+  exacte que `room.js` construit au lancement — **emplacements compris** : une
+  ligne achetée mais non équipée ne s'applique pas, et les **cartes verrouillées**
+  d'un compte neuf en font partie. Écart attendu **sous 1,5 vague** ; s'il dépasse,
+  réduire le **nombre d'emplacements**, jamais les valeurs.
+- **DEUX BOTS, ET ILS NE SE REMPLACENT PAS.** `botInput` est celui des lots A à H
+  (il avance sur le corps le plus proche) : le toucher déplacerait toutes leurs
+  mesures. `pilotage()` est le **pilote** du lot I — il recule, esquive les zones
+  par `_zoneHits`, relève, ramasse et **consomme ses recharges**. Un critère de
+  **survie** se mesure avec le pilote, un critère de **population** avec le bot.
+  Un taux d'utilisation de compétence est la mesure du pilote, pas de la classe.
+- **Une matrice « classe × effectif » n'existe qu'en SOLO** : Rempart et Soigneur
+  sont `unique`, donc au-dessus d'un joueur la comparaison est une **composition**
+  (`COMPOSITIONS`), et « deux tanks deux soigneurs » n'est pas jouable.
+- **Un taux de réussite absolu n'est pas mesurable sans pilote humain** : la
+  matrice de `PROFILS.md` est le critère de clôture du plan, pas un critère de lot.
+  Ce qui se mesure en simulation est le **relatif** — classe contre classe, profil
+  contre profil, composition contre composition, à graines appariées.
 - **Le plafond n'est plus le régulateur de fin de manche** (lot A) : il ne mord
   plus que dans trois cas sur neuf, tous après la minute 9. Ce qui règle le
   plateau est le **débit face à ce que l'équipe nettoie**. Contrainte =
