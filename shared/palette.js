@@ -66,6 +66,11 @@ export const COMBAT = {
   bullet:     "#f4d35e",
   shot:       "#ff3b5c",
   flash:      "#ffffff",
+  // en additif, un coeur deja blanc sature des la deuxieme couche : c'est une
+  // surexposition, pas une detonation. On baisse la SOURCE et on laisse
+  // l'empilement fabriquer le coeur chaud. `flash` reste blanc pur — il sert au
+  // flash de touche de la horde, ou c'est correct.
+  blastCore:  "#fff4e0",
   downed:     "#4a5568",
   outline:    "#ffffff",
 };

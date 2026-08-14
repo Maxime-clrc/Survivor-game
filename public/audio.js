@@ -357,6 +357,55 @@ const PALETTE = {
     return { end: a.end + 0.2, stop: a.stop };
   },
 
+  // L'ELECTRICITE N'EST PAS UN BOURDONNEMENT : c'est une serie de craquements
+  // IRREGULIERS. Un intervalle constant donne une machine a coudre, et le carre
+  // est ce qui la rend sale. `force` vient du nombre de cibles.
+  foudre: (o) => {
+    const k = Math.max(0.5, Math.min(1.4, o.force ?? 1));
+    let d = 0;
+    for (let i = 0; i < 4; i++) {
+      noise({ dur: 0.022, type: "highpass", freq: 3000 + Math.random() * 3000,
+              q: 0.8, gain: SOUND_GAIN.impact * 1.2 * k, delay: d });
+      d += 0.03 + Math.random() * 0.06;
+    }
+    const a = tone({ freq: (180 + Math.random() * 80) * (2 - k), to: 120,
+                     dur: 0.20, type: "square", gain: SOUND_GAIN.impact * 0.55 * k });
+    tone({ freq: 58, dur: 0.26, type: "sine", gain: SOUND_GAIN.impact * 0.3 });
+    return { end: a.end + d, stop: a.stop };
+  },
+
+  // le balayage : ce qui traverse l'arene se lit comme un souffle qui MONTE.
+  balayage: () => {
+    const a = noise({ dur: 0.5, type: "bandpass", freq: 260, to: 2400, q: 0.6,
+                      gain: SOUND_GAIN.mort * 0.7, attack: 0.06 });
+    tone({ freq: 70, to: 180, dur: 0.42, type: "sawtooth", gain: SOUND_GAIN.mort * 0.35 });
+    return { end: a.end, stop: a.stop };
+  },
+
+  rempart: () => {
+    const a = tone({ freq: 110, to: 78, dur: 0.22, type: "square",
+                     gain: SOUND_GAIN.mort * 0.6 });
+    tone({ freq: 330, to: 294, dur: 0.30, type: "triangle",
+           gain: SOUND_GAIN.bonus * 0.35, delay: 0.03 });
+    return { end: a.end + 0.1, stop: a.stop };
+  },
+
+  provocation: () => {
+    const a = tone({ freq: 260, to: 92, dur: 0.34, type: "sawtooth",
+                     gain: SOUND_GAIN.mort * 0.55 });
+    noise({ dur: 0.18, type: "lowpass", freq: 900, to: 200, gain: SOUND_GAIN.mort * 0.4 });
+    return { end: a.end, stop: a.stop };
+  },
+
+  // le soin MONTE et ne resout pas : c'est un secours, pas une recompense.
+  vagueSoin: () => {
+    const a = tone({ freq: 392, to: 587, dur: 0.28, type: "triangle",
+                     gain: SOUND_GAIN.bonus * 0.5 });
+    tone({ freq: 784, dur: 0.22, type: "sine", gain: SOUND_GAIN.bonus * 0.22,
+           delay: 0.07 });
+    return { end: a.end + 0.1, stop: a.stop };
+  },
+
   // [26d] le critique ne monte PAS le volume : il ajoute un transitoire aigu au
   // son de touche, et il lui prend sa place dans le limiteur (meme cle).
   critique: () => {

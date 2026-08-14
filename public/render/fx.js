@@ -47,11 +47,23 @@ export const pump = new EventPump(handleEvent, {
 function addShake(mag) {
   shake.mag = Math.min(SHAKE_MAX, Math.max(shake.mag, mag));
 }
+// UN KIND ABSENT DE CETTE TABLE EST MUET. Deux exceptions volontaires : `2`
+// (niveau) et `6` (rupture de barre) sonnent par leur evenement NOMME, les
+// doubler les ferait sonner deux fois ; `4` est un fourre-tout (balise,
+// purification, Sentence, relevement) — un son unique pour tous mentirait, et
+// ce qui compte y a deja le sien.
 const EFFECT_SOUND = {
   0:  { son: "explosion", force: 0.7, shake: 4 },
+  1:  { son: "balayage", force: 0.9, shake: 3 },
+  // l'arc PREND la place d'une touche dans le limiteur (meme cle) : une build
+  // de ricochet en produit plusieurs par seconde, le nombre de voix ne bouge pas.
+  3:  { son: "foudre", force: 1, shake: 0, key: "impact" },
   5:  { son: "mort", pitch: 0.55, shake: 0 },
   7:  { son: "explosion", force: 1.0, shake: 6 },
   8:  { son: "explosion", force: 0.6, shake: 4 },
+  9:  { son: "rempart", force: 0.8, shake: 0 },
+  10: { son: "provocation", force: 0.9, shake: 0 },
+  11: { son: "vagueSoin", force: 0.7, shake: 0 },
   12: { son: "explosion", force: 1.35, shake: 9 },
   13: { son: "impact", pitch: 1.4, force: 0.5, shake: 0 },
   14: { son: "impact", pitch: 0.55, force: 0.45, shake: 0 },
@@ -61,10 +73,10 @@ const EFFECT_SOUND = {
 // les quatre souffles, et LEUR MATIERE. `n` est le nombre de tues : il met a
 // l'echelle la duree, la taille et la gravite du son.
 const BLAST_STYLE = {
-  0:  { coeur: COMBAT.flash, feu: FX.novaSoft, bord: FX.nova, debris: FX.nova },
-  7:  { coeur: COMBAT.flash, feu: FX.blastEdge, bord: FX.blastFill, debris: FX.blastFill },
-  8:  { coeur: COMBAT.flash, feu: FX.wave, bord: FX.waveSoft, debris: FX.waveSoft },
-  12: { coeur: COMBAT.flash, feu: FX.bombEdge, bord: FX.bombFill, debris: FX.bombFill },
+  0:  { coeur: COMBAT.blastCore, feu: FX.novaSoft, bord: FX.nova, debris: FX.nova },
+  7:  { coeur: COMBAT.blastCore, feu: FX.blastEdge, bord: FX.blastFill, debris: FX.blastFill },
+  8:  { coeur: COMBAT.blastCore, feu: FX.wave, bord: FX.waveSoft, debris: FX.waveSoft },
+  12: { coeur: COMBAT.blastCore, feu: FX.bombEdge, bord: FX.bombFill, debris: FX.bombFill },
 };
 
 function handleEvent(e) {

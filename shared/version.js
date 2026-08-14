@@ -1138,6 +1138,30 @@
                    Le champ `bank` du tuple de boss, dont la lecture est morte,
                    est remplace par `palier` — la part de palier restante
 
+     0.10.2 lot 04 LES EFFETS MUETS, ET LE BLANC QUI SATURE. `EFFECT_SOUND` ne
+                   couvrait que sept identifiants sur les quinze emis : balayage,
+                   arc, rempart, provocation et vague de soin ne faisaient aucun
+                   bruit. Ils en ont un, ecrit a l'oscillateur. Trois restent
+                   muets VOLONTAIREMENT et c'est ecrit dans la table : `2` et `6`
+                   sonnent deja par leur evenement nomme (les doubler les ferait
+                   sonner deux fois), `4` est un fourre-tout — un son unique pour
+                   la balise, la purification, la Sentence et le relevement
+                   mentirait.
+                   L'ARC PREND LA PLACE D'UNE TOUCHE dans le limiteur (`key:
+                   "impact"`), comme le critique : une build de ricochet en
+                   produit plusieurs par seconde et le nombre de voix ne bouge
+                   pas d'un cran.
+                   L'ELECTRICITE N'EST PAS UN BOURDONNEMENT. `foudre` est une
+                   serie de craquements aux intervalles IRREGULIERS (30 a 90 ms)
+                   sur un corps carre desaccorde : un intervalle constant donne
+                   une machine a coudre, et le carre est ce qui la rend sale.
+                   LE COEUR D'UN SOUFFLE N'EST PLUS BLANC PUR. En additif, un
+                   `#ffffff` a alpha plein sature des la deuxieme couche — c'est
+                   une surexposition, pas une detonation. `COMBAT.blastCore`
+                   (`#fff4e0`) baisse la SOURCE et laisse l'empilement fabriquer
+                   le coeur chaud. `COMBAT.flash` reste blanc pur : il sert au
+                   flash de touche de la horde, ou c'est correct
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1146,4 +1170,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.10.1";
+export const VERSION = "0.10.2";
