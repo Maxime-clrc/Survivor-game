@@ -174,12 +174,16 @@ export function createGL(canvas, opts = {}) {
     fdr = (cr * 255) | 0; fdg = (cg * 255) | 0; fdb = (cb * 255) | 0;
   };
 
-  r.resize = (pxW, pxH, worldW, worldH) => {
+  // la PROJECTION prend une echelle, pas une taille de monde : c'est le seul
+  // moyen que la couche GL et les couches 2D derivent leurs pixels-par-unite du
+  // MEME nombre. Une taille de monde les faisait diverger des que le rapport de
+  // la zone de dessin s'ecartait du sien.
+  r.resize = (pxW, pxH, scale) => {
     if (!r.ok) return;
     canvas.width = pxW;
     canvas.height = pxH;
     gl.viewport(0, 0, pxW, pxH);
-    r.world = { w: worldW, h: worldH };
+    r.px = { w: pxW, h: pxH, s: scale };
   };
 
   r.begin = (bg = null, camX = 0, camY = 0) => {
@@ -196,9 +200,10 @@ export function createGL(canvas, opts = {}) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(uAtlas, 0);
-    const w = r.world?.w ?? 1600, h = r.world?.h ?? 900;
-    gl.uniform2f(uScale, 2 / w, -2 / h);
-    gl.uniform2f(uOffset, -1 - camX * (2 / w), 1 + camY * (2 / h));
+    const px = r.px ?? { w: canvas.width, h: canvas.height, s: 1 };
+    const sx = 2 * px.s / px.w, sy = -2 * px.s / px.h;
+    gl.uniform2f(uScale, sx, sy);
+    gl.uniform2f(uOffset, -1 - camX * sx, 1 - camY * sy);
     applyBlend();
     return true;
   };

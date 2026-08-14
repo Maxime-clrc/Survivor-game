@@ -1317,3 +1317,26 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
   de conception** appartient à ce fichier, pas au code.
 - **La documentation suit la même règle** : on n'écrit que ce qu'on ne peut pas
   relire dans le code. Pas de fichier de doc entretenu « pour la forme ».
+
+## Workflow d'exécution
+
+**LE MODÈLE SUIT LA TÂCHE, PAS LE LOT.** Un lot mélange presque toujours les
+trois natures ci-dessous ; on découpe par nature avant de déléguer.
+
+| nature de la tâche | qui | pourquoi |
+|---|---|---|
+| **inventaire, relevé, vérification** (lister les `kind` émis, croiser deux tables, confirmer qu'un champ est mort, `node --check`) | `caveman:cavecrew-investigator`, modèle **haiku** | lecture seule, réponse factuelle, sortie compressée |
+| **édition bornée à 1-2 fichiers, spec déjà écrite** (table de sons, entrée de palette, texte d'annonce, constante) | `caveman:cavecrew-builder`, modèle **sonnet** | la décision est prise, il ne reste que la frappe |
+| **logique de simulation, invariants croisés, conception** (points de passage uniques, boss, équilibrage, couches client) | **le fil principal**, opus | un invariant de ce dépôt se tient en tête, pas en prompt |
+
+Trois règles qui font l'économie :
+
+- **On ne délègue jamais une décision**, seulement une exécution ou un relevé. Un
+  agent qui doit choisir entre deux conceptions coûte plus cher que de l'écrire.
+- **Un agent part froid** : tout ce que le fil principal sait déjà et qu'il
+  faudrait réexpliquer annule le gain. En dessous de trois fichiers à ouvrir,
+  faire soi-même.
+- **Le relevé se délègue, l'écriture qui touche `game_state.js` non.**
+
+**Un lot livré = un commit = un bump** (voir *Version*). L'ordre des lots d'un
+plan est celui des numéros de `docs/superpowers/specs/planN/`.

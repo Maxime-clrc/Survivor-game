@@ -51,7 +51,7 @@ export function ingest(msg) {
       id: a[0], x: a[1], y: a[2], r: a[3], warn: a[4], blast: a[5],
       shape: a[6] ?? 0, w: a[7] ?? 0, h: a[8] ?? 0, ang: a[9] ?? 0,
       hole: a[10] ?? 0, warn0: a[11] || CFG.ZONE_WARN,
-      spread: a[12] ?? 0, life: a[13] ?? 0, prox: a[14] ?? 0,
+      spread: a[12] ?? 0, life: a[13] ?? 0, prox: a[14] ?? 0, pj: a[15] ?? 0,
     })),
     bounds: msg.bn
       ? { x0: msg.bn[0], y0: msg.bn[1], x1: msg.bn[2], y1: msg.bn[3],

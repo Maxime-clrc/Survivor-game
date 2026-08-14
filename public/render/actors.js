@@ -319,7 +319,18 @@ export function drawZones(zones, tm = 0) {
     }
   }
 
-  if (persistent.length) drawZonesActive(persistent, tm);
+  if (persistent.length) {
+    const groupes = new Map();
+    for (const z of persistent) {
+      const k = z.pj || 0;
+      let g = groupes.get(k);
+      if (!g) groupes.set(k, g = []);
+      g.push(z);
+    }
+    for (const [pj, g] of groupes) {
+      drawZonesActive(g, tm, pj ? ownerColorOf(pj) ?? null : null);
+    }
+  }
 
   for (const z of list) drawZoneFlow(z, tm);
 }
@@ -384,10 +395,14 @@ function drawZoneWarn(z, tm, ring) {
     ctx.fill(zoneRule(z));
   }
 }
-function drawZonesActive(list, tm) {
+function drawZonesActive(list, tm, teinte = null) {
   const tick = CFG.ZONE_TICK || 0.25;
   const ph = (tm % tick) / tick;
   const pulse = 0.88 + 0.12 * Math.max(0, 1 - ph * 2.5);
+  const cBraise = teinte ?? ZONE.blast;
+  const cBord = teinte ?? ZONE.edge;
+  const cFond = teinte ?? ZONE.fill;
+  const cHachure = teinte ?? ZONE.persist;
 
   for (const z of list) {
     if (zoneFx >= ZONE_FX_MAX || particles.length >= PARTICLE_MAX) break;
@@ -397,7 +412,7 @@ function drawZonesActive(list, tm) {
         x: pt.x, y: pt.y,
         vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 18,
         lift: 26, life: 0.9 + Math.random() * 0.5, max: 1.4,
-        col: ZONE.blast, size: 4, zfx: 1, frame: fxGlow,
+        col: cBraise, size: 4, zfx: 1, frame: fxGlow,
       });
       setZoneFx(zoneFx + 1);
     }
@@ -416,19 +431,19 @@ function drawZonesActive(list, tm) {
 
   ctx.beginPath();
   for (const z of list) zoneSubPath(z, 1.05);
-  ctx.fillStyle = alpha(ZONE.edge, 0.34 * pulse);
+  ctx.fillStyle = alpha(cBord, 0.34 * pulse);
   ctx.fill("nonzero");
 
   ctx.beginPath();
   for (const z of list) zoneSubPath(z, 1);
-  ctx.fillStyle = alpha(ZONE.fill, 0.45 * pulse);
+  ctx.fillStyle = alpha(cFond, 0.45 * pulse);
   ctx.fill("nonzero");
 
   ctx.save();
   ctx.beginPath();
   for (const z of list) zoneSubPath(z, 1);
   ctx.clip("nonzero");
-  ctx.strokeStyle = alpha(ZONE.persist, 0.22);
+  ctx.strokeStyle = alpha(cHachure, 0.22);
   ctx.lineWidth = 3;
   const pas = 14;
   const off = (tm * 22) % pas;

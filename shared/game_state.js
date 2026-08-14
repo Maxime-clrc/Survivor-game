@@ -940,8 +940,12 @@ export class GameState {
       if (p.mods.shieldPool > 0 && !p.downed
           && T.shieldRegen <= 0 && p.shield < p.mods.shieldPool
           && !(p.mods.noShieldRegen && p.pacteUsed)) {
-        this._grantShield(p, p.mods.shieldPool - p.shield, p.mods.shieldPool);
-        if (p.mods.noShieldRegen) p.pacteUsed = 1;
+        // rampe et non interrupteur : sans elle, un coup toutes les sept
+        // secondes rend un pool PLEIN, ce qui est une quasi-invincibilite.
+        const taux = p.mods.shieldPool / CARD_CFG.SHIELD_REGEN_RAMP;
+        this._grantShield(p, Math.min(taux * dt, p.mods.shieldPool - p.shield),
+                          p.mods.shieldPool);
+        if (p.mods.noShieldRegen && p.shield >= p.mods.shieldPool - 1e-6) p.pacteUsed = 1;
       }
 
       if (p.mods.hpRegen > 0 && !p.downed && p.hp < p.maxHp) {
@@ -1959,7 +1963,8 @@ export class GameState {
 
   _blastGround(owner, x, y, r) {
     if (!owner || !(owner.mods.blastGround > 0)) return;
-    this._groundZone(x, y, r * 0.7, CARD_CFG.TERRAIN_DOT, owner.mods.blastGround);
+    this._groundZone(x, y, r * 0.7, CARD_CFG.TERRAIN_DOT, owner.mods.blastGround,
+                     owner.id);
   }
 
   _dashVuln(p) {
@@ -3236,7 +3241,7 @@ export class GameState {
     }
   }
 
-  _groundZone(x, y, r, dot, life) {
+  _groundZone(x, y, r, dot, life, pj = 0) {
     let oldest = -1;
     let count = 0;
     for (let i = 0; i < this.zones.length; i++) {
@@ -3246,7 +3251,7 @@ export class GameState {
     }
     if (count >= trailMax(CFG.VIEW_W * CFG.VIEW_H) && oldest >= 0) this.zones.splice(oldest, 1);
     this._zone({
-      x, y, r, dot, life,
+      x, y, r, dot, life, pj,
       warn: 0, tick: CFG.ZONE_TICK, horde: 1,
     });
   }
@@ -5012,6 +5017,14 @@ export class GameState {
   }
 
   _zoneApply(z, amount, overTime) {
+    if (z.pj) {
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if (!this._zoneHits(z, e)) continue;
+        this._damage(e, amount, z.pj, 0, true);
+      }
+      return;
+    }
     for (const p of this.players.values()) {
       if (p.downed) continue;
       if (!this._zoneHits(z, p)) continue;
@@ -5851,7 +5864,7 @@ export class GameState {
         z.id, r1(z.x), r1(z.y), Math.round(z.r), r2(z.warn), r2(z.blast),
         z.shape ?? 0, Math.round(z.w ?? 0), Math.round(z.h ?? 0),
         r2(z.ang ?? 0), Math.round(z.hole ?? 0), r2(z.warn0 ?? CFG.ZONE_WARN),
-        r2(z.spread ?? 0), r2(z.life ?? 0), z.prox ? 1 : 0], 6)),
+        r2(z.spread ?? 0), r2(z.life ?? 0), z.prox ? 1 : 0, z.pj ?? 0], 6)),
       mk: this.marks.map(m => [m.id, r1(m.x), r1(m.y), Math.round(m.r),
                                r2(m.max > 0 ? Math.max(0, m.t) / m.max : 0), m.mech,
                                m.a, m.b, m.need, m.cur,

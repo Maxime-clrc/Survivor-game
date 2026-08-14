@@ -28,6 +28,7 @@ export const CARD_CFG = {
   LIFESTEAL_CAP: 3,
 
   SHIELD_REGEN_DELAY: 6,
+  SHIELD_REGEN_RAMP: 1.8,
 
   COUNTER_CD: 3,
   COUNTER_RADIUS: 120,
@@ -40,13 +41,15 @@ export const CARD_CFG = {
   PULSAR_RADIUS: 250,
   PULSAR_DAMAGE: 90,
 
-  DRONE_ORBIT: 46,
+  // bande de rayon EXCLUSIVE, au-dela des lames (`ORBIT_RADIUS`) : a 46 et 30 px
+  // les drones orbitaient dans la pile d'anneaux du joueur, qui les recouvrait.
+  DRONE_ORBIT: 112,
   DRONE_SPEED: 1.1,
   DRONE_RANGE: 420,
   DRONE_CD: 0.5,
   DRONE_DAMAGE_MUL: 0.6,
 
-  SWARM_ORBIT: 30,
+  SWARM_ORBIT: 92,
   SWARM_SPEED: 3.1,
   SWARM_DAMAGE: 12,
   SWARM_HIT_CD: 0.6,

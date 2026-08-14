@@ -68,14 +68,20 @@ export function resize() {
   }
   renderScale = cv.width / CFG.VIEW_W;
   applyCamera();
-  gl?.resize(w, h, CFG.VIEW_W, CFG.VIEW_H);
+  gl?.resize(w, h, renderScale);
 }
 export const camera = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2, x0: 0, y0: 0 };
 const CAMERA_RATE = 8;
+function clampCam(v, vue, arene) {
+  return Math.min(Math.max(v, vue / 2), arene - vue / 2);
+}
 export function updateCamera(dt) {
   let t = predicted ?? latest?.players?.get(myId) ?? null;
   if (!t && latest) { for (const p of latest.players.values()) { t = p; break; } }
-  const tx = t ? t.x : camera.x, ty = t ? t.y : camera.y;
+  // on ecrete la CIBLE, pas la camera : ecreter apres le lissage arrete la
+  // camera net au bord, et cette discontinuite de vitesse se lit comme un zoom.
+  const tx = clampCam(t ? t.x : camera.x, CFG.VIEW_W, CFG.ARENA_W);
+  const ty = clampCam(t ? t.y : camera.y, CFG.VIEW_H, CFG.ARENA_H);
   if (Math.abs(tx - camera.x) > CFG.VIEW_W || Math.abs(ty - camera.y) > CFG.VIEW_H) {
     camera.x = tx; camera.y = ty;
   } else {
@@ -83,8 +89,6 @@ export function updateCamera(dt) {
     camera.x += (tx - camera.x) * pull;
     camera.y += (ty - camera.y) * pull;
   }
-  camera.x = Math.min(Math.max(camera.x, CFG.VIEW_W / 2), CFG.ARENA_W - CFG.VIEW_W / 2);
-  camera.y = Math.min(Math.max(camera.y, CFG.VIEW_H / 2), CFG.ARENA_H - CFG.VIEW_H / 2);
   camera.x0 = camera.x - CFG.VIEW_W / 2;
   camera.y0 = camera.y - CFG.VIEW_H / 2;
   applyCamera();

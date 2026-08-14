@@ -7,13 +7,13 @@ import { BIOME_CFG, CFG, WX_BOURRASQUE, biomeAt, weatherAt, weatherFor } from "/
 import { COMBAT, WALL, alpha } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
 import { fmtM } from "/shared/units.js";
-import { glActive } from "/sprites.js";
+import { drawSprite, glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myDashCd, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
 import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, lastPlayerPos } from "./boss.js";
 import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls } from "./decor.js";
-import { blastMarks, bursts, deaths, dmgAgg, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, stepFeedback, timeWarp, zoneFx } from "./fx.js";
+import { blastMarks, bursts, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, readMove } from "../ui/dom.js";
 
@@ -306,6 +306,31 @@ function drawWorld(v) {
   drawVignette();
   drawPulse();
   drawAllyArrows(v.playerList);
+  if (REPERE) drawRepere();
+}
+// `?repere` : la MEME croix posee aux memes coordonnees monde sur les trois
+// couches. Elles se superposent, ou la bascule WebGL a une transformation a
+// elle. Seul critere rejouable de l'alignement, densite de pixels comprise.
+const REPERE = location.search.includes("repere");
+function drawRepere() {
+  const pas = 400;
+  const bras = 26;
+  const x0 = Math.floor(camera.x0 / pas) * pas;
+  const y0 = Math.floor(camera.y0 / pas) * pas;
+  for (let x = x0; x < camera.x0 + CFG.VIEW_W + pas; x += pas) {
+    for (let y = y0; y < camera.y0 + CFG.VIEW_H + pas; y += pas) {
+      for (const c of [underCtx, overCtx]) {
+        c.strokeStyle = c === underCtx ? "#ff2d55" : "#00e5ff";
+        c.lineWidth = c === underCtx ? 4 : 1.5;
+        c.beginPath();
+        c.moveTo(x - bras, y); c.lineTo(x + bras, y);
+        c.moveTo(x, y - bras); c.lineTo(x, y + bras);
+        c.stroke();
+      }
+      drawSprite(ctx, fxWhite, x, y, { scaleX: bras / 8, scaleY: 0.35, alpha: 0.9 });
+      drawSprite(ctx, fxWhite, x, y, { scaleX: 0.35, scaleY: bras / 8, alpha: 0.9 });
+    }
+  }
 }
 function drawAllyArrows(players) {
   if (phase !== PHASE_ROUND) return;

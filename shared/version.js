@@ -1079,6 +1079,35 @@
                    l'index 3. La purge par le soin se comptait en TOUCHES, elle se
                    compte desormais en TEMPS de lien
 
+     0.10.0 lot 01 QUATRE CORRECTIFS, ET DEUX N'ETAIENT PAS CE QU'ILS
+                   PARAISSAIENT. « Terrain conquis » ne montrait pas de flaque :
+                   la zone existait, mais `_zoneApply` ne frappe QUE des joueurs
+                   — le sol brulant du joueur brulait SON AUTEUR (13,5 PV/s
+                   mesures) et ne touchait aucun ennemi. Une zone porte donc un
+                   proprietaire (`z.pj`, clef de queue du tuple) : elle frappe la
+                   horde par `_damage`, epargne les joueurs, et se teinte de la
+                   couleur de son auteur au lieu d'etre indistinguable d'une
+                   trainee ennemie.
+                   LES DRONES ETAIENT SIMULES, SERIALISES ET DESSINES — ils
+                   orbitaient a 30 et 46 px, dans la pile d'anneaux du joueur
+                   (`RING_BUFF0` = 30), et le sprite du joueur les recouvrait. Ils
+                   prennent une bande de rayon EXCLUSIVE au-dela des lames
+                   (92 et 112 px). Le champ, le reseau et le trace etaient bons :
+                   c'etait la regle des bandes exclusives qui manquait.
+                   LE ZOOM AUX BORDS EST UNE DISCONTINUITE DE VITESSE. La camera
+                   etait lissee puis ECRETEE : au bord elle s'arretait net, en une
+                   image, et l'oeil lit cette rupture comme un zoom. On ecrete la
+                   CIBLE, le lissage porte l'arrivee. Au passage la projection GL
+                   prend une ECHELLE et non une taille de monde — seul moyen que
+                   les trois couches derivent leurs pixels-par-unite du meme
+                   nombre. `?repere` pose la meme croix aux memes coordonnees sur
+                   les trois couches : critere rejouable de l'alignement.
+                   LA RECHARGE DE BOUCLIER ETAIT UN INTERRUPTEUR. Le delai de 6 s
+                   fonctionnait, mais rendait le pool ENTIER d'un coup :
+                   `SHIELD_REGEN_RAMP` (1,8 s pour le pool plein) punit les degats
+                   espaces. Mesure : un coup vidant le bouclier toutes les 7 s
+                   plafonne a 55,6 % du pool, contre 100 % avant
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1087,4 +1116,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.9.1";
+export const VERSION = "0.10.0";
