@@ -1830,6 +1830,13 @@ tr.clickable { cursor: pointer; }
 .cardMain { font-family: var(--font-body); font-size: var(--t-m); font-weight: 600; color: var(--text); line-height: 1.35; }
 .cardCond { font-family: var(--font-body); font-size: var(--t-s); color: var(--go); line-height: 1.4; }
 .cardWarn { font-family: var(--font-body); font-size: var(--t-s); color: var(--notice-warn-text); line-height: 1.4; }
+.cardTeam {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text);
+}
 .cardFoot {
   display: flex;
   flex-direction: column;
@@ -2823,6 +2830,15 @@ tr.clickable { cursor: pointer; }
   font-weight: 700;
   letter-spacing: 0;
   color: var(--gain);
+}
+#merchantTitle .merchantAchat {
+  display: block;
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  font-weight: 400;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 #merchantTimer { height: 6px; border-radius: 999px; overflow: hidden; }
 #merchantTimer > i { border-radius: 999px; }

@@ -83,6 +83,7 @@ export const CFG = {
   DASH_SPEED: 900,
   DASH_TIME: 0.18,
   DASH_CD: 3,
+  DASH_CD_MIN: 0.3,
 
   FIRE_INTERVAL: 0.16,
   FIRE_INTERVAL_MIN: 0.05,
@@ -143,8 +144,8 @@ export const CFG = {
   HARVEST_MIN: 25,
   HARVEST_MAX: 45,
   HARVEST_MAX_GROUND: 4,
-  HARVEST_YIELD_MIN: 15,
-  HARVEST_YIELD_MAX: 35,
+  HARVEST_YIELD_MIN: 8,
+  HARVEST_YIELD_MAX: 17,
   HARVEST_CRYSTAL_HP: 60,
   HARVEST_CHANNEL: 1.5,
   HARVEST_RADIUS: 16,
@@ -505,6 +506,7 @@ export class GameState {
     this.boss2 = null;
     this.lastBossKind = 0;
     this.bossKills = 0;
+    this.barsBroken = 0;
     this.bossKindsKilled = new Set();
     this.finalKill = 0;
 
@@ -622,6 +624,8 @@ export class GameState {
       rageT: 0,
       pacteUsed: 0,
       relicBatteryUsed: 0,
+      relicBought: 0,
+      relicRerolls: 0,
       relicMemoireUsed: 0,
 
       selfReviveUsed: 0,
@@ -633,6 +637,7 @@ export class GameState {
 
       rally: 1,
       dashCrits: 0,
+      dashShot: 0,
       dashSeen: 0,
       oathT: 0,
       oathMul: 0,
@@ -771,7 +776,7 @@ export class GameState {
       p.maxHp = r.maxHp;
     }
 
-    const flat = this._relicSum(p, "flatHp");
+    const flat = this._relicSum(p, "flatHp") + this._relicAllySum(p, "allyFlatHp");
     if (flat !== 0) p.maxHp = Math.max(1, p.maxHp + flat);
 
     const gained = p.maxHp - before;
@@ -856,6 +861,7 @@ export class GameState {
       if (p.dashSeen && p.dashT <= 0) {
         p.dashSeen = 0;
         if (p.mods.dashCrit > 0) p.dashCrits = p.mods.dashCrit;
+        p.dashShot = this._relicSum(p, "dashShotFlat");
       }
       if (p.oathT > 0) {
         p.oathT = Math.max(0, p.oathT - dt);
@@ -954,7 +960,8 @@ export class GameState {
         p.dashX = dx / d;
         p.dashY = dy / d;
         p.dashT = CFG.DASH_TIME;
-        p.dashCd = CFG.DASH_CD * p.mods.dashCdMul;
+        p.dashCd = Math.max(CFG.DASH_CD_MIN, CFG.DASH_CD * p.mods.dashCdMul
+          + this._relicSum(p, "dashCdFlat"));
         if (p.mods.dashTrail > 0) p.dashHits = new Set();
       }
 
@@ -974,14 +981,15 @@ export class GameState {
         p.dashSeen = 1;
       } else if (inp) {
         const g = this.hazards.length ? this._ground(p.x, p.y) : null;
-        const speedMul = (p.relics.has("coeur_machine") ? 1 : p.mods.speedMul)
+        const speedMul = (this._relicFlag(p, "speedFixed") ? 1 : p.mods.speedMul)
           * (p.rally ?? 1);
         const resist = p.mods.groundResist;
         const slow = g ? 1 - (1 - g.slow) * (1 - resist) : 1;
         const sp = CFG.PLAYER_SPEED * speedMul
           * (p.statuses.has(STATUS_ROOT) ? 1 - STATUS_CFG.ROOT_SLOW : 1)
           * slow;
-        if (this.slipT > 0 || (g && g.slip && resist < 1)) {
+        const semelle = this._relicFlag(p, "slipImmune");
+        if (this.slipT > 0 || (g && g.slip && resist < 1 && !semelle)) {
           const k = Math.min(1, (this.slipT > 0 ? BOSS_CFG.SLIP_ACCEL : BIOME_CFG.SLIP_ACCEL) * dt);
           p.vx += (inp.x * sp - p.vx) * k;
           p.vy += (inp.y * sp - p.vy) * k;
@@ -1029,6 +1037,31 @@ export class GameState {
     }
   }
 
+  // ce qu'un ALLIE porte et qui profite aux autres. Sans rayon : un PV max qui
+  // clignote au pas d'un coequipier est une fabrique de defauts.
+  _relicAllySum(p, key) {
+    let s = 0;
+    for (const o of this.players.values()) {
+      if (o === p) continue;
+      s += this._relicSum(o, key);
+    }
+    return s;
+  }
+
+  // les degats bruts PERMANENTS d'un joueur : le tir les ajoute, la puissance les
+  // compte. Le bonus d'esquive n'en fait pas partie, il est ponctuel.
+  _flatDamage(p) {
+    const plafond = this._relicSum(p, "barDamageMax") || Infinity;
+    return this._relicSum(p, "flatDamage")
+      + this._relicAllySum(p, "allyFlatDamage")
+      + Math.min(plafond, this._relicSum(p, "barDamage") * this.barsBroken);
+  }
+
+  _relicFlag(p, key) {
+    for (const id of p.relics.keys()) if (relicById(id)?.[key]) return true;
+    return false;
+  }
+
   _relicSum(p, key) {
     let s = 0;
     for (const id of p.relics.keys()) {
@@ -1039,7 +1072,9 @@ export class GameState {
   }
 
   _shoot(p) {
-    const base = (CFG.BULLET_DAMAGE + this._relicSum(p, "flatDamage")) * p.mods.damageMul
+    const brut = this._flatDamage(p) + (p.dashShot ?? 0);
+    p.dashShot = 0;
+    const base = (CFG.BULLET_DAMAGE + brut) * p.mods.damageMul
       * (p.buffDamage > 0 ? CFG.BUFF_DAMAGE_MUL : 1);
     this._volley(p, base);
     if (p.mods.echoChance > 0 && Math.random() < p.mods.echoChance) this._volley(p, base);
@@ -1092,7 +1127,7 @@ export class GameState {
       owner: p.id,
       pierce,
       chain: (p.buffRicochet > 0 ? CFG.RICOCHET_MAX : 0) + p.mods.chain,
-      burn: p.mods.burnDmg,
+      burn: p.mods.burnDmg > 0 ? p.mods.burnDmg + this._relicSum(p, "burnFlat") : 0,
       arc: p.mods.chainChance,
       boom: opt.boom ? CARD_CFG.GRENADE_DAMAGE * (dmg / CFG.BULLET_DAMAGE) : 0,
       hits: pierce > 0 ? new Set() : null,
@@ -1303,6 +1338,7 @@ export class GameState {
 
   _heal(healer, target, amount) {
     if (amount <= 0 || target.downed) return 0;
+    if (this._relicFlag(target, "noHeal")) return 0;
     amount *= healer.mods.healGivenMul ?? 1;
 
     if ((healer.mods.catalyse ?? 0) > 0 && healer !== target) {
@@ -1588,6 +1624,11 @@ export class GameState {
     }
     if (this.boss2 && target === this.boss2) target = this.boss;
     if (target.vulnUntil > this.time) amount *= CARD_CFG.VULNERABLE_MUL;
+    if (ownerId && this.hazards.length) {
+      const o = this.players.get(ownerId);
+      const brut = o ? this._relicSum(o, "hazardDamage") : 0;
+      if (brut > 0 && this._inHazard(target)) amount += brut;
+    }
     if ((target.rootUntil ?? 0) > this.time && ownerId) {
       const o = this.players.get(ownerId);
       if (o && o.mods.rootDamage > 0) amount *= 1 + o.mods.rootDamage;
@@ -1801,7 +1842,7 @@ export class GameState {
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) this._damage(boss, dmg, ownerId);
     }
-    this._hitMarks(x, y, r, dmg);
+    this._hitMarks(x, y, r, dmg, ownerId);
     this._blastGround(owner, x, y, r);
     this.enemies = this.enemies.filter(e => e.hp > 0);
   }
@@ -1851,7 +1892,7 @@ export class GameState {
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) this._damage(boss, dmg, ownerId);
     }
-    this._hitMarks(x, y, radius, dmg);
+    this._hitMarks(x, y, radius, dmg, ownerId);
     this._blastGround(owner, x, y, radius);
     this.enemies = this.enemies.filter(e => e.hp > 0);
   }
@@ -2317,11 +2358,13 @@ export class GameState {
     const poss = p.relics;
     const pool = RELICS.filter(r =>
       !poss.has(r.id)
-      && (r.tier < 3 || !this.relicLegendaryTaken));
+      && (r.tier < 3 || !this.relicLegendaryTaken)
+      && !(r.minPlayers && this.players.size < r.minPlayers)
+      && !(r.requiresSystem === "hasards_actifs" && this.hazards.length === 0));
     const picks = [];
     const from = [...pool];
     while (picks.length < RELIC_CFG.OFFER_COUNT && from.length > 0) {
-      const weights = [46, 32, 17, 5];
+      const weights = RELIC_CFG.WEIGHT;
       let total = 0;
       for (const r of from) total += weights[r.tier];
       let roll = Math.random() * total;
@@ -2340,14 +2383,19 @@ export class GameState {
     this.relicBossDue = false;
     this.relicOffers = new Map();
     for (const p of this.players.values()) {
+      p.relicBought = 0;
+      p.relicRerolls = 0;
       this.relicOffers.set(p.id, this._offerRelics(p));
     }
     this.relicPending = true;
   }
 
+  // UN SEUL ACHAT PAR VISITE : le marchand cesse d'etre un budget a repartir pour
+  // devenir un choix, comme l'ecran de cartes. Ce qui reste finance les relances.
   buyRelic(p, id) {
     const offers = this.relicOffers.get(p.id);
     if (!offers || !offers.includes(id)) return false;
+    if ((p.relicBought ?? 0) >= RELIC_CFG.BUY_PER_VISIT) return false;
     const r = relicById(id);
     if (!r) return false;
     if (r.tier === 3 && this.relicLegendaryTaken) return false;
@@ -2355,19 +2403,25 @@ export class GameState {
     if (p.eclats < price) return false;
     p.eclats -= price;
     p.relics.set(id, 1);
+    p.relicBought = (p.relicBought ?? 0) + 1;
     if (r.tier === 3) this.relicLegendaryTaken = true;
     const off = this.relicOffers.get(p.id);
     if (off) this.relicOffers.set(p.id, off.filter(o => o !== id));
-    if (r.flatHp) this._recomputeAll(p);
+    if (r.flatHp || r.allyFlatHp) this._recomputeAll();
     return true;
   }
 
   rerollRelic(p) {
-    const cost = relicRerollCost(this.level);
+    const cost = relicRerollCost(this.level, p.relicRerolls ?? 0);
     if (p.eclats < cost) return false;
     p.eclats -= cost;
+    p.relicRerolls = (p.relicRerolls ?? 0) + 1;
     this.relicOffers.set(p.id, this._offerRelics(p));
     return true;
+  }
+
+  relicRerollPrice(p) {
+    return relicRerollCost(this.level, p.relicRerolls ?? 0);
   }
 
   relicDone(p) {
@@ -2559,8 +2613,7 @@ export class GameState {
     if (this.harvestCd <= 0) {
       this.harvestCd = CFG.HARVEST_MIN
         + Math.random() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
-      if (!this.biomeNu
-          && this.harvests.length < CFG.HARVEST_MAX_GROUND) {
+      if (!this.biomeNu && this.harvests.length < this._harvestGroundCap()) {
         const at = this._harvestPoint();
         if (at) {
           this.harvests.push({
@@ -2581,18 +2634,28 @@ export class GameState {
         if (h.hp <= 0) { this._harvestYield(h); continue; }
       } else {
         let on = false;
+        let vitesse = 0;
         for (const p of this._alivePlayers()) {
           const r = CFG.HARVEST_CHANNEL_RADIUS;
-          if ((p.x - h.x) ** 2 + (p.y - h.y) ** 2 <= r * r) { on = true; break; }
+          if ((p.x - h.x) ** 2 + (p.y - h.y) ** 2 <= r * r) {
+            on = true;
+            vitesse = Math.max(vitesse, this._relicSum(p, "harvestSpeed"));
+          }
         }
         h.prog = on
-          ? h.prog + dt / CFG.HARVEST_CHANNEL
+          ? h.prog + dt * (1 + vitesse) / CFG.HARVEST_CHANNEL
           : Math.max(0, h.prog - dt * 0.5 / CFG.HARVEST_CHANNEL);
         if (h.prog >= 1) { this._harvestYield(h); continue; }
       }
       kept.push(h);
     }
     if (kept.length !== this.harvests.length) this.harvests = kept;
+  }
+
+  _harvestGroundCap() {
+    let sol = CFG.HARVEST_MAX_GROUND;
+    for (const p of this.players.values()) sol += this._relicSum(p, "harvestGround");
+    return sol;
   }
 
   _harvestPoint() {
@@ -2627,7 +2690,8 @@ export class GameState {
     let soin = 0, encore = 0;
     for (const p of this.players.values()) {
       const bonus = this.event ? p.mods.eventShard : 0;
-      p.eclats += Math.round(gain * (p.mods.shardMul + bonus));
+      p.eclats += Math.round(gain * (p.mods.shardMul + bonus))
+        + this._relicSum(p, "shardFlat");
       if (p.mods.harvestHeal > soin) soin = p.mods.harvestHeal;
       if (p.mods.harvestAgain > encore) encore = p.mods.harvestAgain;
     }
@@ -2637,7 +2701,7 @@ export class GameState {
       }
     }
     if (encore > 0 && Math.random() < encore
-        && this.harvests.length < CFG.HARVEST_MAX_GROUND) {
+        && this.harvests.length < this._harvestGroundCap()) {
       this.harvests.push({
         id: this._nextId++,
         x: h.x, y: h.y,
@@ -3338,6 +3402,7 @@ export class GameState {
         kind: 6,
       });
 
+      this.barsBroken++;
       this._breakRefresh();
       this._bossBreak(b);
       if (!this.boss) return;
@@ -4193,13 +4258,15 @@ export class GameState {
     });
   }
 
-  _hitMarks(x, y, radius, dmg) {
+  _hitMarks(x, y, radius, dmg, ownerId = 0) {
     if (!this.marks.length) return;
+    const owner = this.players.get(ownerId);
+    const brut = owner ? this._relicSum(owner, "mechDamage") : 0;
     for (const m of this.marks) {
       if (m.dead || m.maxHp <= 0) continue;
       const rr = radius + m.r;
       if ((m.x - x) ** 2 + (m.y - y) ** 2 > rr * rr) continue;
-      m.hp -= dmg;
+      m.hp -= dmg + brut;
       if (m.hp <= 0) this._breakMark(m);
     }
   }
@@ -4290,8 +4357,7 @@ export class GameState {
   }
 
   _playerPower(p) {
-    const flat = this._relicSum(p, "flatDamage")
-      + this._relicSum(p, "bossDamage") * 0.3;
+    const flat = this._flatDamage(p) + this._relicSum(p, "bossDamage") * 0.3;
     return powerIndex(p.powerMods ?? p.mods, flat);
   }
 
@@ -4544,6 +4610,14 @@ export class GameState {
       if (Math.abs(x - b.x) >= b.w / 2 || Math.abs(y - b.y) >= b.h / 2) continue;
       if (dmg > 0 && b.maxHp > 0) b.hp = Math.max(0, b.hp - dmg);
       return true;
+    }
+    return false;
+  }
+
+  _inHazard(e) {
+    for (const h of this.hazards) {
+      if (!hazardState(h, this.time).on) continue;
+      if ((e.x - h.x) ** 2 + (e.y - h.y) ** 2 <= h.r * h.r) return true;
     }
     return false;
   }
@@ -5140,9 +5214,11 @@ export class GameState {
 
     this._damage(e, b.dmg, b.owner, b.burn);
     const tireur = this.players.get(b.owner);
-    if (tireur && tireur.mods.rootChance > 0
-        && Math.random() < tireur.mods.rootChance) {
-      this._rootEnemy(e, CARD_CFG.FILINS_TIME);
+    if (tireur) {
+      const chance = tireur.mods.rootChance + this._relicSum(tireur, "rootChance");
+      if (chance > 0 && Math.random() < chance) {
+        this._rootEnemy(e, CARD_CFG.FILINS_TIME);
+      }
     }
     const critPierce = this.lastCrit && tireur?.mods.critVuln;
     if (b.arc > 0 && Math.random() < b.arc) this._arc(e, b.dmg, b.owner);
@@ -5550,6 +5626,15 @@ export class GameState {
           p.hp = Math.min(p.maxHp, Math.round(p.maxHp * ratio) + bonus);
           p.revive = 0;
           p.hitCd = CFG.PLAYER_HIT_CD;
+          for (const o of this.players.values()) {
+            if (o.downed) continue;
+            const soin = this._relicSum(o, "reviveHeal");
+            if (soin <= 0) continue;
+            const r = CFG.REVIVE_RADIUS * o.mods.reviveRadiusMul;
+            if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 > r * r) continue;
+            p.hp = Math.min(p.maxHp, p.hp + soin);
+            o.hp = Math.min(o.maxHp, o.hp + soin);
+          }
           if (jureur) {
             for (const q of [p, jureur]) {
               q.oathT = CARD_CFG.SERMENT_TIME;
@@ -6188,7 +6273,8 @@ function botVersBoss(g, p) {
   return i;
 }
 
-export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes = 42) {
+export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes = 42,
+  acheteur = null) {
   const g = new GameState(diffIndex);
   for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
   g.warmup = 0;
@@ -6217,6 +6303,7 @@ export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes 
       continue;
     }
     if (g.relicPending) {
+      acheteur?.(g);
       g.closeMerchant();
       g.openNextScreen();
       k--;
@@ -6655,6 +6742,207 @@ export function verifierProgression(effectifs = [1, 4], manches = 6, diffIndex =
   if (vus.length > 1 && Math.max(...vus) - Math.min(...vus) > 2) {
     soucis.push(`${DIFFICULTIES[diffIndex].key} : ${Math.min(...vus).toFixed(1)} a`
       + ` ${Math.max(...vus).toFixed(1)} cartes selon l'effectif`);
+  }
+  return soucis;
+}
+
+// LE BOT NE RECOLTE PAS : il tire sur le corps le plus proche, un cristal n'est
+// casse qu'au passage. Le revenu est donc INJECTE depuis le modele, sans quoi la
+// mesure teste le pilotage au lieu du marchand. `part` = taux de points recoltes.
+export function revenuRecolte(minutes, part = 0.7) {
+  const inter = (CFG.HARVEST_MIN + CFG.HARVEST_MAX) / 2;
+  const gain = (CFG.HARVEST_YIELD_MIN + CFG.HARVEST_YIELD_MAX) / 2;
+  return Math.round(minutes * 60 / inter * part * gain);
+}
+
+// Le palier VISE est le plus haut qui soit a la fois payable et encore tirable :
+// viser un palier epuise (la legendaire deja prise) ferait relancer a vide.
+function visePalier(g, p) {
+  let vise = 0;
+  for (const r of RELICS) {
+    if (p.relics.has(r.id)) continue;
+    if (r.tier === 3 && g.relicLegendaryTaken) continue;
+    if (r.minPlayers && g.players.size < r.minPlayers) continue;
+    if (r.requiresSystem === "hasards_actifs" && g.hazards.length === 0) continue;
+    if (relicPrice(r) <= p.eclats && r.tier > vise) vise = r.tier;
+  }
+  return vise;
+}
+
+// Deux politiques, parce que la distribution des achats est une propriete de la
+// POLITIQUE autant que du catalogue : `gourmand` prend le plus haut palier payable
+// et relance tant qu'il ne le voit pas — il borne le taux de relance par le haut ;
+// `neutre` prend au hasard parmi ce qu'il peut payer, et c'est LUI qui dit si les
+// prix departagent les paliers.
+function acheteurGourmand(visites, patience = 0, part = 0.7, neutre = false,
+  relancesMax = 2) {
+  const verse = new Map();
+  return g => {
+    for (const p of g.players.values()) {
+      const du = revenuRecolte(g.hordeMinutes(), part);
+      p.eclats += du - (verse.get(p.id) ?? 0);
+      verse.set(p.id, du);
+      const avant = p.eclats;
+      let relances = 0;
+      const saute = g.segment <= patience;
+      let achat = null;
+      while (!saute) {
+        const offres = (g.relicOffers.get(p.id) ?? []).map(relicById).filter(Boolean);
+        const abordables = offres.filter(r => relicPrice(r) <= p.eclats);
+        if (neutre) {
+          achat = abordables.length
+            ? abordables[Math.floor(Math.random() * abordables.length)]
+            : null;
+          break;
+        }
+        const vise = visePalier(g, p);
+        const best = abordables.reduce((a, b) => (a && a.tier >= b.tier ? a : b), null);
+        if (best && best.tier >= vise) { achat = best; break; }
+        const prix = g.relicRerollPrice(p);
+        if (relances >= relancesMax || p.eclats - prix < (best ? relicPrice(best) : 0)
+          || !g.rerollRelic(p)) { achat = best; break; }
+        relances++;
+      }
+      if (achat && !g.buyRelic(p, achat.id)) achat = null;
+      visites.push({
+        joueur: p.id, segment: g.segment, niveau: g.level,
+        offres: [...(g.relicOffers.get(p.id) ?? []), ...(achat ? [achat.id] : [])],
+        achat: achat?.id ?? null, tier: achat?.tier ?? null,
+        relances, eclats: avant, verse: du, depense: avant - p.eclats, saute,
+      });
+      g.relicDone(p);
+    }
+  };
+}
+
+export function mesureMarchand(diffIndex, joueurs, manches = 6, patience = 0,
+  neutre = false, part = 0.7, minutes = 60) {
+  const runs = [];
+  const alea = Math.random;
+  try {
+    for (let r = 1; r <= manches; r++) {
+      Math.random = grainer(r * 7919);
+      const visites = [];
+      const m = mesureTTK(diffIndex, joueurs, [], minutes,
+        acheteurGourmand(visites, patience, part, neutre));
+      const mien = visites.filter(v => v.joueur === 1);
+      const vus = new Set(mien.flatMap(v => v.offres));
+      const achats = mien.filter(v => v.achat);
+      runs.push({
+        graine: r, visites: mien, victoire: m.victoire, boss: m.combats.length,
+        niveau: m.niveau,
+        achats: achats.length,
+        valeur: somme(achats.map(v => relicPrice(relicById(v.achat)))),
+        paliers: achats.map(v => v.tier),
+        vus: vus.size,
+        relances: somme(mien.map(v => v.relances)),
+        avecRelance: mien.filter(v => v.relances > 0).length,
+        revenu: somme(mien.map(v => v.eclats))
+          ? mien[mien.length - 1].eclats + somme(achats.map(v => relicPrice(relicById(v.achat))))
+          : 0,
+      });
+    }
+  } finally {
+    Math.random = alea;
+  }
+  const visites = somme(runs.map(r => r.visites.length));
+  const paliers = runs.flatMap(r => r.paliers);
+  return {
+    diffIndex, joueurs, patience, neutre, part, runs, visites,
+    achats: mediane(runs.map(r => r.achats)),
+    revenu: mediane(runs.map(r => r.revenu)),
+    depense: mediane(runs.map(r => somme(r.visites.map(v => v.depense)))),
+    valeur: mediane(runs.map(r => r.valeur)),
+    vus: mediane(runs.map(r => r.vus)),
+    partVue: mediane(runs.map(r => r.vus)) / RELICS.length,
+    tauxRelance: visites ? somme(runs.map(r => r.avecRelance)) / visites : 0,
+    parPalier: RELIC_RARITY.map((_, t) =>
+      paliers.length ? paliers.filter(x => x === t).length / paliers.length : 0),
+  };
+}
+
+export const REVENU_BAND = [400, 500];
+export const RELIC_SEEN_MAX = 0.7;
+export const RELIC_REROLL_BAND = [0.15, 0.4];
+export const RELIC_TIER_SPAN = 3;
+
+export function verifierMarchand(effectifs = [1, 4], manches = 6,
+  diffIndex = DIFF_NORMAL) {
+  const soucis = [];
+
+  const parPalier = RELIC_RARITY.map((_, t) => RELICS.filter(r => r.tier === t).length);
+  if (RELIC_CFG.WEIGHT.length !== RELIC_RARITY.length
+    || RELIC_CFG.PRICE.length !== RELIC_RARITY.length) {
+    soucis.push(`catalogue : WEIGHT/PRICE ne couvrent pas les ${RELIC_RARITY.length} paliers`);
+  }
+  for (let t = 1; t < RELIC_CFG.PRICE.length; t++) {
+    if (RELIC_CFG.PRICE[t] <= RELIC_CFG.PRICE[t - 1]) {
+      soucis.push(`catalogue : le palier ${t} ne coute pas plus que le ${t - 1}`);
+    }
+    if (RELIC_CFG.WEIGHT[t] >= RELIC_CFG.WEIGHT[t - 1]) {
+      soucis.push(`catalogue : le palier ${t} n'est pas plus rare que le ${t - 1}`);
+    }
+    if (parPalier[t] > parPalier[t - 1]) {
+      soucis.push(`catalogue : ${parPalier[t]} reliques au palier ${t} pour`
+        + ` ${parPalier[t - 1]} au ${t - 1}`);
+    }
+  }
+  // le revenu se verifie sur le MODELE et non sur une manche : le bot ne recolte
+  // pas, et le dernier marchand tombe avant la trentieme minute.
+  const revenu = revenuRecolte(TL_CFG.SEGMENTS * TL_CFG.SEGMENT_TIME / 60);
+  if (revenu < REVENU_BAND[0] || revenu > REVENU_BAND[1]) {
+    soucis.push(`recolte : ${revenu} eclats sur une manche pleine, bande`
+      + ` ${REVENU_BAND.join("-")}`);
+  }
+
+  // le catalogue doit tenir la demande d'une manche : `RELIC_CFG.OFFER_COUNT` par
+  // visite et une visite par segment, sans quoi le critere « moins de 70 % vu » est
+  // arithmetiquement hors d'atteinte.
+  const offresMax = RELIC_CFG.OFFER_COUNT * (TL_CFG.SEGMENTS - 1);
+  if (RELICS.length < offresMax * RELIC_SEEN_MAX) {
+    soucis.push(`catalogue : ${RELICS.length} reliques pour ${offresMax} offres possibles`);
+  }
+
+  for (const n of effectifs) {
+    const ou = `${DIFFICULTIES[diffIndex].key}/${n}j`;
+    const m = mesureMarchand(diffIndex, n, manches);
+
+    const finies = m.runs.filter(r => r.victoire).length;
+    // le boss final CLOT la manche : il n'ouvre pas de marchand derriere lui, donc
+    // une manche gagnee compte cinq visites, pas six.
+    const cap = (TL_CFG.SEGMENTS - 1) * RELIC_CFG.BUY_PER_VISIT;
+    if (m.achats > cap) {
+      soucis.push(`${ou} : ${m.achats} achats la ou le plafond structurel est de ${cap}`);
+    }
+    if (finies && m.achats < cap) {
+      soucis.push(`${ou} : ${m.achats} achats sur ${finies} manches completes —`
+        + ` le revenu ne couvre pas une relique par visite`);
+    }
+    if (m.partVue > RELIC_SEEN_MAX) {
+      soucis.push(`${ou} : ${Math.round(m.partVue * 100)} % du catalogue vu en une`
+        + ` manche, plafond ${Math.round(RELIC_SEEN_MAX * 100)} %`);
+    }
+    if (m.tauxRelance < RELIC_REROLL_BAND[0] || m.tauxRelance > RELIC_REROLL_BAND[1]) {
+      soucis.push(`${ou} : ${Math.round(m.tauxRelance * 100)} % de visites relancees,`
+        + ` bande ${RELIC_REROLL_BAND.map(x => Math.round(x * 100)).join("-")} %`);
+    }
+    // « aucun palier dans plus de 50 % des achats » n'est PAS testable : un
+    // maximisateur concentre sur le palier du haut par construction, un acheteur
+    // au hasard reproduit `WEIGHT`, ou la commune vaut deja 50 %. Ce qui se teste
+    // est la COUVERTURE : des prix qui departagent laissent passer trois paliers.
+    const couverts = m.parPalier.filter(x => x > 0).length;
+    if (couverts < RELIC_TIER_SPAN) {
+      soucis.push(`${ou} : les achats ne couvrent que ${couverts} palier(s)`
+        + ` (${m.parPalier.map(x => Math.round(x * 100) + " %").join(" / ")})`);
+    }
+
+    // « sauter les deux premiers marchands » : dominante si elle rend PLUS de valeur
+    const patient = mesureMarchand(diffIndex, n, manches, 2);
+
+    if (patient.valeur > m.valeur) {
+      soucis.push(`${ou} : sauter les deux premiers marchands rend ${patient.valeur}`
+        + ` eclats de reliques contre ${m.valeur} — la patience domine`);
+    }
   }
   return soucis;
 }

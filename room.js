@@ -4,7 +4,7 @@ import {
 } from "./shared/game_state.js";
 import { CARD_CFG, cardBrief, banClosure } from "./shared/cards.js";
 import { segmentName } from "./shared/timeline.js";
-import { RELIC_CFG, relicRerollCost } from "./shared/reliques.js";
+import { RELIC_CFG } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
 import { lockedCards } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
@@ -455,19 +455,7 @@ export class Room {
     this.state.relicPending = false;
     this.merchantDeadline = Date.now() + RELIC_CFG.PICK_TIME * 1000;
 
-    for (const [id, offers] of this.state.relicOffers) {
-      const c = this.clients.get(id);
-      if (!c) continue;
-      const p = this.state.players.get(id);
-      c.conn.send(JSON.stringify({
-        t: "merchant",
-        segment: this.state.segment,
-        deadline: this.merchantDeadline,
-        eclats: p ? p.eclats : 0,
-        rerollCost: relicRerollCost(this.state.level),
-        offers,
-      }));
-    }
+    for (const id of this.state.relicOffers.keys()) this.merchantSend(id);
     this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
     this.hooks.log(`[${this.code}] boss vaincu — marchand ouvert`);
   }
@@ -487,7 +475,8 @@ export class Room {
       segment: this.state.segment,
       deadline: this.merchantDeadline,
       eclats: p.eclats,
-      rerollCost: relicRerollCost(this.state.level),
+      rerollCost: this.state.relicRerollPrice(p),
+      achats: Math.max(0, RELIC_CFG.BUY_PER_VISIT - (p.relicBought ?? 0)),
       offers,
     }));
   }

@@ -1351,8 +1351,10 @@ export function renderMerchant() {
   if (!merchantState) { merchantEl.hidden = true; return; }
   merchantEl.hidden = false;
 
+  const epuise = (merchantState.achats ?? 1) <= 0;
   merchantTitle.innerHTML =
-    `Marchand <span class="merchantEclats">${merchantState.eclats} éclats</span>`;
+    `Marchand <span class="merchantEclats">${merchantState.eclats} éclats</span>` +
+    (epuise ? `<span class="merchantAchat">une relique par visite</span>` : "");
 
   merchantRow.innerHTML = "";
   for (const id of merchantState.offers) {
@@ -1364,7 +1366,7 @@ export function renderMerchant() {
     btn.className = `cardOpt r${r.tier}`;
     btn.style.color = col;
     btn.dataset.id = id;
-    btn.disabled = merchantState.done || merchantState.eclats < prix;
+    btn.disabled = merchantState.done || epuise || merchantState.eclats < prix;
     let html =
       `<div class="cardTop">` +
         `<span class="cardName">${escapeHtml(r.nom)}</span>` +
@@ -1374,6 +1376,7 @@ export function renderMerchant() {
       `</div>` +
       `<div class="cardBody">` +
         `<div class="cardMain">${escapeHtml(r.desc)}</div>` +
+        (r.equipe ? `<div class="cardTeam">effet d'équipe</div>` : "") +
         (r.contrepartie
           ? `<div class="cardWarn">${escapeHtml(r.contrepartie)}</div>`
           : "") +
@@ -1389,7 +1392,8 @@ export function renderMerchant() {
   const reroll = document.createElement("button");
   reroll.className = "ghost";
   reroll.textContent = `Relancer (${merchantState.rerollCost} éclats)`;
-  reroll.disabled = merchantState.done || merchantState.eclats < merchantState.rerollCost;
+  reroll.disabled = merchantState.done || epuise
+    || merchantState.eclats < merchantState.rerollCost;
   reroll.onclick = () => {
     ws.send(JSON.stringify({ t: "rerollRelic" }));
   };
@@ -1397,7 +1401,7 @@ export function renderMerchant() {
 
   const passer = document.createElement("button");
   passer.className = "ghost";
-  passer.textContent = "Passer";
+  passer.textContent = epuise ? "Terminer" : "Passer";
   passer.disabled = merchantState.done;
   passer.onclick = () => {
     merchantState.done = true;

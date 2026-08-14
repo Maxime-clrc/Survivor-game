@@ -334,6 +334,7 @@ export function connect() {
             deadline: msg.deadline,
             eclats: msg.eclats ?? 0,
             rerollCost: msg.rerollCost ?? 0,
+            achats: msg.achats ?? 1,
             offers: msg.offers ?? [],
             done: false,
             from: Date.now(),

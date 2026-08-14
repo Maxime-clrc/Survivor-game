@@ -869,6 +869,31 @@
                    PIEGE PAYE : un releve non graine a rendu « puissance mediane
                    1,70, une victoire sur six » puis « 3,94, trois sur six » au
                    MEME code. Un releve non graine est du bruit
+     0.8.20 equilibrage, lot F  LE MARCHAND DEVIENT UN CHOIX. Catalogue 10 -> 24
+                   reliques (10/7/5/2), quatorze ecrites, quatre offres par visite,
+                   UN SEUL ACHAT, poids de tirage `[50, 28, 15, 4]`, relance qui
+                   croit DANS la visite (x1,8), rendement d'un point 15-35 -> 8-17.
+                   `REROLL_WAVE` devient `REROLL_LEVEL` : le mot « vague » n'existe
+                   plus depuis le plan 5.
+                   LE PLAFOND STRUCTUREL EST CINQ ACHATS, PAS SIX : le boss final
+                   clot la manche, il n'ouvre pas de marchand derriere lui.
+                   LE RENDEMENT DU PLAN NE PRODUIT PAS LA CIBLE DU PLAN : 10-22
+                   rendent 576 eclats sur une manche pleine pour une cible de
+                   400-500 — la « division par deux » est un facteur 0,64. A 8-17
+                   le modele rend 450, et c'est ce montant qui fait exister la
+                   relance (19 % des visites contre 65 % a 576).
+                   LE BOT NE RECOLTE PAS : le revenu est INJECTE depuis le modele
+                   (`revenuRecolte`), sinon la mesure juge le pilotage. Il se
+                   verifie sur le modele, pas sur une manche.
+                   LE TAUX DE RELANCE EST UNE PROPRIETE DE LA POLITIQUE : 6 % pour
+                   un acheteur qui se contente d'une rare, 65 % pour un chasseur
+                   d'epique, au MEME code. Le critere porte sur `gourmand`, qui le
+                   borne par le haut. Et « aucun palier dans plus de 50 % des
+                   achats » n'est pas testable — un maximisateur concentre par
+                   construction, un acheteur au hasard reproduit `WEIGHT` ; ce qui
+                   se teste est la COUVERTURE, trois paliers sur quatre.
+                   Le fanion n'a PAS de rayon : un PV max qui clignote au pas d'un
+                   coequipier est une fabrique de defauts
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -878,4 +903,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.19";
+export const VERSION = "0.8.20";

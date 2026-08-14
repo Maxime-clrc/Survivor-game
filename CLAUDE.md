@@ -700,11 +700,17 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **La progression est commune à l'équipe** (`state.xp`/`state.level`), gains
   **normalisés sur l'effectif**. Un niveau ne donne rien d'autre qu'un choix de
   carte.
-- **Le marchand** emprunte le mécanisme des cartes **sauf l'exclusivité** :
-  achats **indépendants**, échéance qui **ferme sans forcer**, relique achetée
-  **sort de l'offre courante**.
+- **Le marchand est un CHOIX, comme l'écran de cartes** : `BUY_PER_VISIT` achat
+  par visite (compteur `p.relicBought`, remis à zéro par `openMerchant()`),
+  quatre offres tirées aux poids `RELIC_CFG.WEIGHT`, échéance qui **ferme sans
+  forcer**, relique achetée **sort de l'offre courante**. Ce qui reste finance les
+  **relances**, dont le prix croît **dans la visite** (`p.relicRerolls`,
+  `relicRerollCost(niveau, dansLaVisite)`, point de passage `relicRerollPrice()`).
+  Le tirage **filtre** sur `minPlayers` et `requiresSystem`. Le boss final clôt la
+  manche : cinq visites au plus, pas six.
 - **Les reliques vivent dans `p.relics`**, lues par les points d'application :
-  flat des dégâts dans `_shoot()` (avant les multiplicateurs), flat boss dans
+  dégâts bruts permanents dans `_flatDamage()` (lu par `_shoot()` **et**
+  `_playerPower()` — toute source permanente entre dans `powerIndex`), flat boss dans
   `_damage()` (**avant** la redirection Jumeaux), flat PV dans `_recomputeMods()`,
   cadence dans `_players()`, vitesse en **remplaçant** `speedMul`, essaim en
   ajoutant à `mods.swarm`. Elles voyagent dans le champ `relics` du `loadout`.

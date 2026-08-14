@@ -8,6 +8,93 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Marchand, éclats, catalogue de reliques (lot F)
+
+Le marchand n'était pas déséquilibré, il était **résolu** : 10 reliques pour 18
+offres, et un revenu qui couvrait la dépense maximale.
+
+| | avant | après |
+|---|---|---|
+| catalogue | 10 (3/3/3/1) | **24** (10/7/5/2) |
+| offres par visite | 3 | **4** |
+| achats par visite | illimités | **1** |
+| poids de tirage | plat, écrit sur place | `WEIGHT: [50, 28, 15, 4]` |
+| relance | `10 + 3 × (niveau − 1)` | **× 1,8 par relance DANS la visite** |
+| rendement d'un point | 15 à 35 | **8 à 17** |
+
+**Le plafond structurel est CINQ achats, pas six.** Le boss final clôt la manche :
+il n'ouvre pas de marchand derrière lui. Le critère du plan (« six reliques par
+manche complète ») est arithmétiquement hors d'atteinte ; le vérificateur compare
+à `(TL_CFG.SEGMENTS − 1) × BUY_PER_VISIT`.
+
+**Le rendement du plan ne produit pas la cible du plan.** 10-22 éclats par point
+donnent **576** éclats sur une manche pleine (un point toutes les 35 s, 70 % pris)
+là où le plan vise 400-500 : la division par deux annoncée est un facteur 0,64. À
+**8-17** le modèle rend **450**, et c'est ce montant qui fait exister la relance.
+
+**Le bot ne récolte pas** — il tire sur le corps le plus proche, un cristal n'est
+cassé qu'au passage. Le revenu est donc **injecté depuis le modèle**
+(`revenuRecolte(minutes, part)`) ; il se vérifie sur le modèle et non sur une
+manche, sans quoi la mesure jugerait le pilotage.
+
+**Le taux de relance est une propriété de la POLITIQUE autant que du prix.** Deux
+acheteurs sur les mêmes graines : `gourmand` vise le plus haut palier qu'il peut
+payer **et qui soit encore tirable**, et relance jusqu'à deux fois pour le voir ;
+`neutre` prend au hasard parmi ce qu'il peut payer et ne relance jamais.
+
+| normal, 4 manches graînées | achats | valeur | catalogue vu | relance | paliers achetés |
+|---|---|---|---|---|---|
+| solo, `gourmand` | 5 | 240 | 48 % | **19 %** | 19 / 56 / 25 / 0 |
+| solo, `neutre` | 5 | 165 | 56 % | 0 % | 65 / 29 / 6 / 0 |
+| solo, `gourmand` sautant deux marchands | 4 | 230 | 56 % | 33 % | 21 / 21 / 57 / 0 |
+| quatre, `gourmand` | 5 | 240 | 54 % | **35 %** | 20 / 60 / 20 / 0 |
+| quatre, `neutre` | 5 | 175 | 56 % | 0 % | 55 / 45 / 0 / 0 |
+| quatre, `gourmand` sautant deux marchands | 4 | 232 | 54 % | 35 % | 0 / 63 / 38 / 0 |
+
+**Sauter les deux premiers marchands ne domine pas** : 230 contre 240 éclats de
+reliques en solo, 232 contre 240 à quatre. Le marchand du segment 1 n'est donc
+pas le piège que le plan craignait, et la montée de qualité par segment
+(`QUALITY_PER_LEVEL` côté cartes) reste inutile ici — à ne poser qu'après mesure,
+comme le plan le demande.
+
+**Aucune légendaire achetée en seize manches.** Poids 4 sur 97, prix 150, et en
+solo une seule des deux est tirable (`serment_de_fer` exige deux joueurs) : la
+contrainte « une légendaire par manche » ne mord jamais, elle reste un garde-fou.
+
+Au revenu de 576, le même code rendait **65 %** de visites relancées pour
+`gourmand` et **6 %** pour un acheteur qui se contente d'une rare : la bande
+« 15 à 40 % » ne veut rien dire sans politique écrite. Le critère porte donc sur
+`gourmand`, qui borne le taux par le haut.
+
+**« Aucun palier acheté dans plus de 50 % des cas » n'est pas testable.** Un
+maximisateur concentre sur le palier du haut par construction ; un acheteur au
+hasard reproduit `WEIGHT`, où la commune vaut déjà 50 %. Ce qui se teste est la
+**couverture** : des prix qui départagent laissent passer trois paliers — mesuré
+trois sur quatre, la légendaire restant hors de portée en solo (`serment_de_fer`
+exige deux joueurs, `coeur_machine` coûte 150 pour un poids de 4).
+
+**`noHeal` ferme `_heal()`, pas la remise à plein d'un événement.** L'invariant du
+script est sans condition (« réussir un événement rend 100 % des PV ») et il
+gagne : la contrepartie porte sur ce qu'un allié ou une carte donne, pas sur une
+réinitialisation de manche.
+
+**Le fanion n'a pas de rayon.** Le plan le voulait à 6 m : un PV max qui clignote
+au pas d'un coéquipier est une fabrique de défauts. `_relicAllySum` s'applique à
+toute l'équipe, et la relique le dit (`equipe: true`, affiché à l'achat).
+
+`verifierMarchand()` est le critère rejouable : structure du catalogue (prix
+croissants, poids décroissants, effectif par palier décroissant, taille tenant la
+demande d'une manche), revenu du modèle dans la bande, cinq achats, moins de 70 %
+du catalogue vu, relance dans la bande, trois paliers couverts, et « sauter les
+deux premiers marchands » qui ne rend pas plus de valeur. Solo, trois manches
+graînées : **ok**.
+
+Contrôles unitaires (13) : `registre` +35 puis +105 bruts au plafond ·
+`serment_de_fer` +35 dégâts et +50 PV à l'allié, tout soin reçu ramené à zéro ·
+`besace` +6 éclats au porteur seul · `contrepoids` 3,00 → 2,40 s ·
+`boussole` 4 → 5 points au sol · `cran_arret` 19,2 puis 9,6 · `silex` brûlure 15,
+et 0 sans build de brûlure · `trousse_campagne` +30 aux deux.
+
 ### Environnement, entrave, événements, récolte, esquive (lot E, vague 3)
 
 Douze cartes, en fin de tableau. `appel_du_vide` reste écartée (décision D6). Le
