@@ -46,72 +46,155 @@ export const ALERT_INFO = 2;
 
 export const MECHS = [
   { id: MECH_STACK, key: "stack", nom: "Regroupement", minPlayers: 2, fallback: MECH_DODGE,
-    level: ALERT_ORDER, texte: "REGROUPEZ-VOUS sur le cercle" },
+    level: ALERT_ORDER, texte: "REGROUPEZ-VOUS sur le cercle",
+    ordre: "REGROUPEZ-VOUS", forme: "cercle" },
   { id: MECH_SPREAD, key: "spread", nom: "Dispersion", minPlayers: 2, fallback: -1,
-    level: ALERT_ORDER, texte: "ÉCARTEZ-VOUS les uns des autres" },
+    level: ALERT_ORDER, texte: "ÉCARTEZ-VOUS les uns des autres",
+    ordre: "ÉCARTEZ-VOUS", forme: "triangle" },
   { id: MECH_TOWER, key: "tower", nom: "Tours", minPlayers: 1, fallback: -1,
-    level: ALERT_ORDER, texte: "OCCUPEZ toutes les tours" },
+    level: ALERT_ORDER, texte: "OCCUPEZ toutes les tours",
+    ordre: "OCCUPEZ LES TOURS", forme: "colonne" },
   { id: MECH_COUNT, key: "count", nom: "Dénombrement", minPlayers: 3, fallback: MECH_TOWER,
-    level: ALERT_ORDER, texte: "le nombre inscrit doit être exact" },
+    level: ALERT_ORDER, texte: "le nombre inscrit doit être exact",
+    ordre: "OCCUPEZ LE NOMBRE EXACT", forme: "colonne" },
   { id: MECH_LINK, key: "link", nom: "Lien", minPlayers: 2, fallback: -1,
-    level: ALERT_ORDER, texte: "ÉLOIGNEZ-VOUS pour rompre le lien" },
+    level: ALERT_ORDER, texte: "ÉLOIGNEZ-VOUS pour rompre le lien",
+    ordre: "ÉLOIGNEZ-VOUS", forme: "chaine" },
   { id: MECH_JAIL, key: "jail", nom: "Prison", minPlayers: 2, fallback: MECH_CLUSTER,
-    level: ALERT_ORDER, texte: "LIBÉREZ le prisonnier en tirant sur la cage" },
+    level: ALERT_ORDER, texte: "LIBÉREZ le prisonnier en tirant sur la cage",
+    ordre: "TIREZ SUR LA CAGE", forme: "cage" },
   { id: MECH_GAZE, key: "gaze", nom: "Regard", minPlayers: 1, fallback: -1,
-    level: ALERT_ORDER, texte: "NE VISEZ PLUS le boss" },
+    level: ALERT_ORDER, texte: "NE VISEZ PLUS le boss",
+    ordre: "NE VISEZ PLUS", forme: "oeil" },
   { id: MECH_PROX, key: "prox", nom: "Proximité", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "le centre est mortel, éloigne-toi" },
+    level: ALERT_WARN, texte: "le centre est mortel, éloigne-toi",
+    ordre: "FUIS LE CENTRE", forme: "disque" },
   { id: MECH_MIASMA, key: "miasma", nom: "Miasme", minPlayers: 1, fallback: -1,
-    level: ALERT_INFO, texte: "un cumul de Vulnérabilité pour toute l'équipe" },
+    level: ALERT_INFO, texte: "un cumul de Vulnérabilité pour toute l'équipe",
+    ordre: "VULNÉRABILITÉ", forme: "disque" },
   { id: MECH_ULT, key: "ult", nom: "Jauge d'ultime", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "la jauge ne descend que si les tours sont tenues" },
+    level: ALERT_WARN, texte: "la jauge ne descend que si les tours sont tenues",
+    ordre: "TENEZ LES TOURS", forme: "colonne" },
   { id: MECH_CLUSTER, key: "cluster", nom: "Grappe", minPlayers: 1, fallback: -1,
-    level: ALERT_ORDER, texte: "DÉTRUIS la grappe avant l'éclosion" },
+    level: ALERT_ORDER, texte: "DÉTRUIS la grappe avant l'éclosion",
+    ordre: "DÉTRUIS LA GRAPPE", forme: "cage" },
   { id: MECH_FEED, key: "feed", nom: "Lien nourricier", minPlayers: 1, fallback: -1,
-    level: ALERT_ORDER, texte: "TUE les rejetons, ils la soignent" },
+    level: ALERT_ORDER, texte: "TUE les rejetons, ils la soignent",
+    ordre: "TUE LES REJETONS", forme: "chaine" },
   { id: MECH_EXAFLARE, key: "exaflare", nom: "Exaflare", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "la suite arrive dans le même axe" },
+    level: ALERT_WARN, texte: "la suite arrive dans le même axe",
+    ordre: "QUITTE L'AXE", forme: "ligne" },
   { id: MECH_BAIT, key: "bait", nom: "Appâts", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "ton fantôme te suit — ne t'arrête pas" },
+    level: ALERT_WARN, texte: "ton fantôme te suit — ne t'arrête pas",
+    ordre: "NE T'ARRÊTE PAS", forme: "triangle" },
   { id: MECH_DRIFT, key: "drift", nom: "Dérive", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "les disques glissent" },
+    level: ALERT_WARN, texte: "les disques glissent",
+    ordre: "LES DISQUES GLISSENT", forme: "disque" },
   { id: MECH_SANCTUARY, key: "sanctuary", nom: "Sanctuaires", minPlayers: 1, fallback: -1,
-    level: ALERT_ORDER, texte: "RESTE sur les disques sûrs" },
+    level: ALERT_ORDER, texte: "RESTE sur les disques sûrs",
+    ordre: "RESTE SUR LES DISQUES", forme: "disque" },
   { id: MECH_SLIP, key: "slip", nom: "Sol glissant", minPlayers: 1, fallback: -1,
-    level: ALERT_INFO, texte: "le sol ne répond plus tout de suite" },
+    level: ALERT_INFO, texte: "le sol ne répond plus tout de suite",
+    ordre: "SOL GLISSANT", forme: "disque" },
   { id: MECH_QUADRANT, key: "quadrant", nom: "Verrouillage", minPlayers: 3, fallback: MECH_DODGE,
-    level: ALERT_ORDER, texte: "les murs vous séparent — tenez votre quart" },
+    level: ALERT_ORDER, texte: "les murs vous séparent — tenez votre quart",
+    ordre: "TENEZ VOTRE QUART", forme: "damier" },
   { id: MECH_CROSS, key: "cross", nom: "Croix", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "l'intersection est mortelle" },
+    level: ALERT_WARN, texte: "l'intersection est mortelle",
+    ordre: "QUITTE L'INTERSECTION", forme: "ligne" },
   { id: MECH_CONVERGE, key: "converge", nom: "Convergence", minPlayers: 2, fallback: -1,
-    level: ALERT_INFO, texte: "ils se rejoignent — regroupez-vous" },
+    level: ALERT_INFO, texte: "ils se rejoignent — regroupez-vous",
+    ordre: "REGROUPEZ-VOUS", forme: "cercle" },
   { id: MECH_DODGE, key: "dodge", nom: "Zone", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "sors de la zone" },
+    level: ALERT_WARN, texte: "sors de la zone",
+    ordre: "SORS DE LA ZONE", forme: "disque" },
   { id: MECH_SHRINK, key: "shrink", nom: "Constriction", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "l'arène se referme — la couronne devient mortelle" },
+    level: ALERT_WARN, texte: "l'arène se referme — la couronne devient mortelle",
+    ordre: "RENTRE DANS L'ARÈNE", forme: "anneau" },
   { id: MECH_PUDDLE, key: "puddle", nom: "Mares", minPlayers: 1, fallback: -1,
-    level: ALERT_INFO, texte: "chaque tir laisse une mare — le sol se réduit" },
+    level: ALERT_INFO, texte: "chaque tir laisse une mare — le sol se réduit",
+    ordre: "LE SOL SE RÉDUIT", forme: "disque" },
   { id: MECH_SAFE, key: "safe", nom: "Secteur sûr", minPlayers: 1, fallback: -1,
-    level: ALERT_ORDER, texte: "PLACE-TOI dans le secteur épargné" },
+    level: ALERT_ORDER, texte: "PLACE-TOI dans le secteur épargné",
+    ordre: "VA AU SECTEUR SÛR", forme: "cone" },
 
   { id: MECH_BREATH, key: "breath", nom: "Souffle", minPlayers: 1, fallback: -1,
-    level: ALERT_INFO, texte: "le souffle efface les projectiles" },
+    level: ALERT_INFO, texte: "le souffle efface les projectiles",
+    ordre: "TES TIRS S'EFFACENT", forme: "cone" },
   { id: MECH_BROOD, key: "brood", nom: "Nuée", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "une nuée de rejetons éclot" },
+    level: ALERT_WARN, texte: "une nuée de rejetons éclot",
+    ordre: "UNE NUÉE ÉCLOT", forme: "disque" },
   { id: MECH_REVERSE, key: "reverse", nom: "Inversion", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "les motifs repartent en sens inverse" },
+    level: ALERT_WARN, texte: "les motifs repartent en sens inverse",
+    ordre: "LE MOTIF S'INVERSE", forme: "ligne" },
   { id: MECH_SWAP, key: "swap", nom: "Échange", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "ils viennent d'échanger leurs places" },
+    level: ALERT_WARN, texte: "ils viennent d'échanger leurs places",
+    ordre: "ILS ONT ÉCHANGÉ", forme: "ligne" },
   { id: MECH_ENRAGE, key: "enrage", nom: "Emportement", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "le combat s'éternise — il frappe plus fort" },
+    level: ALERT_WARN, texte: "le combat s'éternise — il frappe plus fort",
+    ordre: "IL FRAPPE PLUS FORT", forme: "disque" },
 
   { id: MECH_SYNTH, key: "synth", nom: "Synthèse", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "deux motifs à la fois — lisez les deux" },
+    level: ALERT_WARN, texte: "deux motifs à la fois — lisez les deux",
+    ordre: "DEUX MOTIFS", forme: "damier" },
   { id: MECH_SEAL, key: "seal", nom: "Sceau", minPlayers: 1, fallback: -1,
-    level: ALERT_ORDER, texte: "TENEZ tous les foyers en même temps" },
+    level: ALERT_ORDER, texte: "TENEZ tous les foyers en même temps",
+    ordre: "TENEZ TOUS LES FOYERS", forme: "colonne" },
 ];
 
 export function mechAt(id) { return MECHS[id] ?? null; }
+
+// LE METRONOME SE DEDUIT DE L HORLOGE DE MANCHE. Rien ne traverse le reseau :
+// serveur et client lisent la meme grille, donc le metronome visuel ne ment pas.
+export function beatPhase(tm) {
+  const T = BOSS_CFG.METRO_BEAT;
+  return { temps: Math.floor(tm / T) % BOSS_CFG.METRO_MEASURE, k: (tm % T) / T };
+}
+
+// LA FORME DIT L'ACTION. Onze formes pour trente et une mecaniques : une forme
+// sert plusieurs mecaniques, une mecanique ne change JAMAIS de forme.
+export const FORMES = {
+  disque:   "sortir",
+  anneau:   "rentrer",
+  cone:     "contourner",
+  ligne:    "traverser lateralement",
+  damier:   "se placer dans un creux",
+  cercle:   "se regrouper dessus",
+  triangle: "s'eloigner de lui",
+  colonne:  "occuper a N",
+  oeil:     "cesser de viser",
+  chaine:   "s'eloigner l'un de l'autre",
+  cage:     "tirer dessus",
+};
+
+// LA COULEUR DIT L'INTENTION, et le collectif ne se declare pas : il se DEDUIT.
+// Toute mecanique a `minPlayers >= 2` engage l'equipe, donc elle est violette —
+// la regle s'applique seule sur les donnees existantes.
+export function mechCollective(id) {
+  const def = MECHS[id];
+  return !!def && def.minPlayers >= 2;
+}
+
+export function verifierGrammaire() {
+  const err = [];
+  const parForme = new Map();
+  for (const m of MECHS) {
+    if (!m.ordre) err.push(`${m.key} : pas d'ordre court`);
+    else if (m.ordre.split(/\s+/).length > 4) err.push(`${m.ordre} : plus de quatre mots`);
+    if (!m.forme) err.push(`${m.key} : pas de forme`);
+    else if (!FORMES[m.forme]) err.push(`${m.key} : forme inconnue « ${m.forme} »`);
+    else {
+      if (!parForme.has(m.forme)) parForme.set(m.forme, []);
+      parForme.get(m.forme).push(m.key);
+    }
+    if (!m.texte) err.push(`${m.key} : pas d'explication`);
+  }
+  for (const [f, keys] of parForme) {
+    if (FORMES[f]) continue;
+    err.push(`forme ${f} sans sens : ${keys.join(", ")}`);
+  }
+  return { ok: err.length === 0, err, formes: [...parForme].map(([f, k]) => [f, k.length]) };
+}
 
 export function adaptMech(id, alive) {
   const def = MECHS[id];
@@ -216,6 +299,14 @@ export function bossPool(kind, phase) {
   return pool;
 }
 
+// LE TEMPS DIT L'URGENCE, et il n'a que quatre valeurs — jamais entre les deux.
+// Les `*_WARN` s'y rangent tous : une duree ad hoc ne s'apprend pas, quatre
+// classes s'apprennent en trois manches.
+export const WARN_REFLEXE = 0.8;
+export const WARN_STANDARD = 1.6;
+export const WARN_LECTURE = 2.4;
+export const WARN_PREPARATION = 4.0;
+
 export const BOSS_CFG = {
   BAR_DWELL: 10,
 
@@ -226,30 +317,33 @@ export const BOSS_CFG = {
   ENRAGE_CD: 0.12,
   ENRAGE_CD_FLOOR: 0.45,
 
+  METRO_BEAT: 0.8,
+  METRO_MEASURE: 4,
+
   BROOD_COUNT: 5,
   MECH_DAMAGE_RATIO: 0.90,
   MECH_VULN: 1,
 
   STACK_RADIUS: 135,
-  STACK_WARN: 3.4,
+  STACK_WARN: WARN_PREPARATION,
   SPREAD_MIN: 230,
-  SPREAD_WARN: 3.0,
+  SPREAD_WARN: WARN_PREPARATION,
   SPREAD_RATIO: 0.55,
   TOWER_RADIUS: 95,
-  TOWER_WARN: 4.2,
+  TOWER_WARN: WARN_PREPARATION,
   TOWER_RATIO: 0.45,
-  COUNT_WARN: 4.8,
+  COUNT_WARN: WARN_PREPARATION,
   LINK_BREAK: 300,
   LINK_TIME: 8,
   LINK_DPS: 11,
   JAIL_TIME: 7,
   JAIL_HP: 240,
-  GAZE_WARN: 1.6,
+  GAZE_WARN: WARN_STANDARD,
   GAZE_TIME: 2.0,
   GAZE_TICK: 0.5,
   GAZE_RATIO: 0.22,
   PROX_RADIUS: 280,
-  PROX_WARN: 2.2,
+  PROX_WARN: WARN_LECTURE,
 
   CLUSTER_HP: 230,
   CLUSTER_TIME: 12,
@@ -260,11 +354,11 @@ export const BOSS_CFG = {
 
   EXAFLARE_STEPS: 7,
   EXAFLARE_R: 105,
-  EXAFLARE_WARN: 1.5,
+  EXAFLARE_WARN: WARN_STANDARD,
   EXAFLARE_STEP: 0.32,
   BAIT_COUNT: 4,
   BAIT_STEP: 0.55,
-  BAIT_WARN: 1.5,
+  BAIT_WARN: WARN_STANDARD,
   BAIT_R: 90,
   BAIT_LAG: 1.0,
   DRIFT_COUNT: 3,
@@ -273,7 +367,7 @@ export const BOSS_CFG = {
   DRIFT_TICKS: 10,
   DRIFT_PERIOD: 0.5,
   SANCT_R: 125,
-  SANCT_WARN: 3.2,
+  SANCT_WARN: WARN_LECTURE,
   SANCT_SPEED: 55,
   SANCT_TICKS: 5,
   SANCT_PERIOD: 1.1,
@@ -286,7 +380,7 @@ export const BOSS_CFG = {
   PUDDLE_DOT: 20,
   PUDDLE_WARN: 0.4,
 
-  QUADRANT_WARN: 1.9,
+  QUADRANT_WARN: WARN_PREPARATION,
   QUADRANT_TICKS: 5,
   QUADRANT_PERIOD: 0.7,
   QUAD_TIME: 20,
@@ -294,16 +388,16 @@ export const BOSS_CFG = {
 
   SHRINK_STEP: 0.13,
   SHRINK_MIN: 0.45,
-  SHRINK_WARN: 2.6,
+  SHRINK_WARN: WARN_LECTURE,
   SHRINK_RATIO: 0.5,
   CROWN_DPS: 60,
 
   CONE_R: 640,
   CONE_SPREAD: 0.40,
-  CONE_WARN: 1.8,
+  CONE_WARN: WARN_STANDARD,
   PACMAN_R: 700,
   PACMAN_SAFE: 0.58,
-  PACMAN_WARN: 2.6,
+  PACMAN_WARN: WARN_LECTURE,
 
   ULT_FILL: 1 / 42,
   ULT_DRAIN: 1 / 9,
@@ -315,10 +409,10 @@ export const BOSS_CFG = {
   TWIN_BLAST_RATIO: 0.75,
   TWIN_STATUS_CD: 5,
   CROSS_THICKNESS: 150,
-  CROSS_WARN: 1.7,
+  CROSS_WARN: WARN_STANDARD,
   CROSS_GAP: 0.18,
   CROSSD_THICKNESS: 130,
-  CROSSD_WARN: 2.2,
+  CROSSD_WARN: WARN_LECTURE,
   CROSSD_LIFE: 8,
   CROSSD_DOT: 26,
 
@@ -326,7 +420,7 @@ export const BOSS_CFG = {
   FINAL_BAR_DWELL: 10,
 
   SEAL_RADIUS: 88,
-  SEAL_WARN: 6.0,
+  SEAL_WARN: WARN_PREPARATION,
   SEAL_RATIO: 1.0,
   SEAL_SPREAD: 0.40,
 

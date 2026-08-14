@@ -1162,6 +1162,39 @@
                    le coeur chaud. `COMBAT.flash` reste blanc pur : il sert au
                    flash de touche de la horde, ou c'est correct
 
+     0.10.3 lot 05 TRENTE ET UNE MECANIQUES, ET AUCUNE CONVENTION COMMUNE : rien
+                   ne s'apprenait d'un boss a l'autre. Trois axes, tous
+                   verifiables (`verifierGrammaire`).
+                   LA FORME DIT L'ACTION. Onze formes pour trente et une
+                   mecaniques — une forme sert plusieurs mecaniques, une
+                   mecanique ne change JAMAIS de forme. Elle est rappelee a cote
+                   de l'ordre, ce qui finit par rendre le texte inutile.
+                   LA COULEUR DIT L'INTENTION, ET LE COLLECTIF NE SE DECLARE PAS.
+                   Toute mecanique a `minPlayers >= 2` est violette : la regle
+                   s'applique seule sur les donnees existantes, il n'y a pas de
+                   champ a tenir a jour. Le violet dit « ce n'est pas ton
+                   probleme, c'est notre probleme ».
+                   LE TEMPS DIT L'URGENCE, et il n'a plus que QUATRE valeurs :
+                   reflexe 0,8 · standard 1,6 · lecture 2,4 · preparation 4,0.
+                   Les seize `*_WARN` s'y rangent (`SEAL_WARN` tombe de 6,0 a
+                   4,0). `PUDDLE_WARN` reste a 0,4 : ce n'est pas un
+                   avertissement, c'est un effet.
+                   DEUX TEXTES PAR MECANIQUE. Les textes existants etaient de
+                   bonnes EXPLICATIONS utilisees comme ORDRES — « le nombre
+                   inscrit doit etre exact » ne se lit pas en combat. L'imperatif
+                   court (quatre mots au plus, verifie) passe en combat,
+                   l'explication est reservee a la PREMIERE rencontre.
+                   LE METRONOME EST JOUABLE SON COUPE. Il frappe desormais sur le
+                   temps, et la grille est `this.time` — que le client a deja.
+                   Rien ne traverse le reseau, donc le metronome visuel ne peut
+                   pas mentir : quatre temoins sous la barre, anneau qui se
+                   contracte et claque au quatrieme. Mesure : douze frappes
+                   consecutives a moins d'un tick du temps fort.
+                   NON FAIT, ET ASSUME : le shader de telegraphes (B-4). Il
+                   demande un second programme GL et une parite complete avec le
+                   chemin 2D de repli, sur la surface la plus regardee du jeu,
+                   pour un gain qu'aucun critere d'acceptation du lot ne demande
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1170,4 +1203,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.10.2";
+export const VERSION = "0.10.3";

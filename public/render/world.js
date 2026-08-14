@@ -276,10 +276,10 @@ function drawWorld(v) {
       setLastBossPhase(v.boss.phase);
       setPhaseAnnounce(performance.now());
     }
-    drawBoss(v.boss);
+    drawBoss(v.boss, v.tm ?? 0);
     if (v.boss2) {
       drawBoss({ ...v.boss2, kind: v.boss.kind, phase: v.boss.phase, bars: v.boss.bars,
-                 hp: v.boss.hp, maxHp: v.boss.maxHp, twin: 1 });
+                 hp: v.boss.hp, maxHp: v.boss.maxHp, twin: 1 }, v.tm ?? 0);
     }
   }
   drawDrones(v.droneList);

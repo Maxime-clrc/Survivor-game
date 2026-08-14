@@ -1,5 +1,5 @@
 
-import { BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, MECH_BAIT, MECH_CLUSTER, MECH_COUNT, MECH_FEED, MECH_JAIL, MECH_LINK, MECH_PROX, MECH_SANCTUARY, MECH_SEAL, MECH_SPREAD, MECH_STACK, MECH_TOWER } from "/shared/bosses.js";
+import { beatPhase, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, MECH_BAIT, MECH_CLUSTER, MECH_COUNT, MECH_FEED, MECH_JAIL, MECH_LINK, MECH_PROX, MECH_SANCTUARY, MECH_SEAL, MECH_SPREAD, MECH_STACK, MECH_TOWER } from "/shared/bosses.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, classAt } from "/shared/classes.js";
 import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG } from "/shared/game_state.js";
@@ -29,7 +29,7 @@ function bossPose(now) {
   const k = 1 - v;
   return { gather: 0, burst: k * k * Math.cos(v * Math.PI * 1.3) };
 }
-export function drawBoss(b) {
+export function drawBoss(b, bossTm = 0) {
   const r = CFG.BOSS_RADIUS * ((b.kind ?? 0) === BOSS_FINAL ? 1.4 : 1);
   const now = performance.now();
   const t = now / 1000;
@@ -73,6 +73,22 @@ export function drawBoss(b) {
   }
 
   ctx.restore();
+
+  // le METRONOME, deuxieme couche : l'anneau se contracte sur le temps et
+  // CLAQUE au quatrieme. Meme horloge que les temoins du HUD, celle de `tm`.
+  if (kind === BOSS_METRONOME && !twin) {
+    const { temps, k } = beatPhase(bossTm);
+    const fort = temps === 3;
+    const col = fort ? SIGNAL.lethal : SIGNAL.go;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = alpha(col, fort ? 0.30 + 0.5 * k : 0.22);
+    ctx.lineWidth = fort ? 2 + 4 * k : 2;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r + 30 + (1 - k) * 46, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // le PALIER : aucune invulnerabilite invisible. L'enveloppe blanche pulse sur
   // toute sa duree — le blanc ne dit que ca.

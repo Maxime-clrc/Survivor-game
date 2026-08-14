@@ -367,6 +367,66 @@
   background: var(--go);
 }
 
+/* le VIOLET dit « rater engage l'equipe ». Il se deduit de `minPlayers`, il ne
+   se declare pas — une consigne collective ne se lit pas comme une consigne
+   personnelle. */
+/* le METRONOME VISUEL : quatre temoins, le quatrieme vire au rouge avant la
+   frappe. Un joueur sans son doit pouvoir tout resoudre. */
+#bossBeat { display: flex; gap: var(--sp-1); margin-top: var(--sp-1); }
+#bossBeat > i {
+  display: block;
+  width: 22px;
+  height: 4px;
+  background: color-mix(in srgb, var(--text-faint) 60%, transparent);
+}
+#bossBeat > i.on { background: var(--go); }
+#bossBeat > i.last { background: var(--lethal); transform: scaleY(calc(1 + var(--beat, 0) * 1.5)); }
+
+/* LA FORME DIT L'ACTION, et elle est rappelee a cote de l'ordre : onze formes
+   pour trente et une mecaniques, c'est ce qui s'apprend d'un boss a l'autre. */
+#alertOrder[data-forme]::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: var(--sp-2);
+  vertical-align: -2px;
+  background: var(--go);
+}
+#alertOrder.collective[data-forme]::before { background: var(--persist); }
+#alertOrder[data-forme=""]::before { display: none; }
+#alertOrder[data-forme="disque"]::before,
+#alertOrder[data-forme="cercle"]::before { border-radius: 50%; }
+#alertOrder[data-forme="anneau"]::before {
+  border-radius: 50%;
+  background: none;
+  border: 3px solid var(--go);
+}
+#alertOrder.collective[data-forme="anneau"]::before { border-color: var(--persist); }
+#alertOrder[data-forme="triangle"]::before { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+#alertOrder[data-forme="cone"]::before { clip-path: polygon(50% 100%, 100% 0, 0 0); }
+#alertOrder[data-forme="ligne"]::before { height: 4px; vertical-align: 3px; }
+#alertOrder[data-forme="colonne"]::before { width: 5px; }
+#alertOrder[data-forme="chaine"]::before {
+  clip-path: polygon(0 40%, 100% 40%, 100% 60%, 0 60%);
+  transform: rotate(-20deg);
+}
+#alertOrder[data-forme="damier"]::before {
+  clip-path: polygon(0 0, 50% 0, 50% 50%, 100% 50%, 100% 100%, 50% 100%, 50% 50%, 0 50%);
+}
+#alertOrder[data-forme="cage"]::before {
+  background: none;
+  border: 2px solid var(--go);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+}
+#alertOrder.collective[data-forme="cage"]::before { border-color: var(--persist); }
+#alertOrder[data-forme="oeil"]::before { border-radius: 50% 50% 50% 50% / 70% 70% 30% 30%; }
+
+#alertOrder.collective { border-color: var(--persist); animation: none; }
+#alertOrder.collective .txt { color: var(--persist); }
+#alertOrder.collective .cd { background: color-mix(in srgb, var(--persist) 25%, transparent); }
+#alertOrder.collective .cd > i { background: var(--persist); }
+
 #alertWarn {
   margin-top: var(--sp-3);
   font-size: var(--t-m);

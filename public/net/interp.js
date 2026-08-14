@@ -1,7 +1,7 @@
 
 import { playSound } from "/audio.js";
 import { STATUS_ICON, paintIcon } from "/icons.js";
-import { ALERT_INFO, ALERT_ORDER, ALERT_WARN, mechAt } from "/shared/bosses.js";
+import { ALERT_INFO, ALERT_ORDER, ALERT_WARN, mechAt, mechCollective } from "/shared/bosses.js";
 import { CFG, weatherAt } from "/shared/game_state.js";
 import { ENEMY } from "/shared/palette.js";
 import { STATUSES, statusBit } from "/shared/statuses.js";
@@ -223,6 +223,20 @@ export function flushWorld(now) {
     }
   }
 }
+// une mecanique ne s'explique qu'UNE fois par navigateur : ensuite, l'ordre
+// court suffit, et c'est le telegraphe qui porte l'information.
+const MECHS_VUS = "survivor.mechsVus";
+let mechsVus = null;
+function premiereFois(id) {
+  if (!mechsVus) {
+    try { mechsVus = new Set(JSON.parse(localStorage.getItem(MECHS_VUS) ?? "[]")); }
+    catch { mechsVus = new Set(); }
+  }
+  if (mechsVus.has(id)) return false;
+  mechsVus.add(id);
+  try { localStorage.setItem(MECHS_VUS, JSON.stringify([...mechsVus])); } catch { /* prive */ }
+  return true;
+}
 export function pushAlert(msg) {
   alertQueue.push({ msg, at: performance.now() + INTERP_MS });
 }
@@ -246,7 +260,13 @@ function applyAlert(msg, now) {
   if (!def) return;
   const level = msg.meteo !== undefined ? ALERT_INFO : def.level;
   const dur = msg.dur > 0 ? Math.max(800, msg.dur * 1000 - 250) : 1500;
-  const entry = { nom: def.nom, texte: def.texte, from: now, until: now + dur };
+  // DEUX TEXTES : l'imperatif court est l'ordre de combat, l'explication est
+  // reservee a la premiere rencontre. Personne ne lit une phrase en combat.
+  const neuf = msg.mech !== undefined && premiereFois(msg.mech);
+  const entry = { nom: def.nom, from: now, until: now + dur,
+                  texte: neuf || !def.ordre ? def.texte : def.ordre,
+                  forme: def.forme ?? "",
+                  collective: msg.mech !== undefined && mechCollective(msg.mech) };
   if (level === ALERT_ORDER) alertOrder = entry;
   else if (level === ALERT_WARN) alertWarn = entry;
   else alertInfo = entry;

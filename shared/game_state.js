@@ -3450,12 +3450,23 @@ export class GameState {
     }
 
     b.attackCd -= dt;
-    if (b.attackCd <= 0) {
+    if (b.attackCd <= 0 && this._surLeTemps(b, dt)) {
       const phase = Math.max(0.55, 1 - CFG.BOSS_PHASE_CD_STEP * b.phase);
       const rage = Math.max(BOSS_CFG.ENRAGE_CD_FLOOR, 1 - BOSS_CFG.ENRAGE_CD * b.enrage);
       b.attackCd = CFG.BOSS_ATTACK_CD * phase * rage;
       this._bossAttack(b, dx / d, dy / d);
     }
+  }
+
+  // LE METRONOME FRAPPE SUR LE TEMPS, et le temps se DEDUIT : la grille est
+  // `this.time`, que le client a deja (`tm`). Rien ne traverse le reseau, et le
+  // metronome visuel ne peut donc pas mentir.
+  _surLeTemps(b, dt) {
+    if (b.kind !== BOSS_METRONOME) return true;
+    const T = BOSS_CFG.METRO_BEAT * BOSS_CFG.METRO_MEASURE;
+    const av = (this.time - dt) % T;
+    const ap = this.time % T;
+    return ap < av;
   }
 
   _bossEnrage(b) {

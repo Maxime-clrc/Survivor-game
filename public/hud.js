@@ -8,7 +8,7 @@ import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
-import { bossAt, ALERT_ORDER, BOSS_FINAL } from "/shared/bosses.js";
+import { bossAt, beatPhase, ALERT_ORDER, BOSS_FINAL, BOSS_METRONOME } from "/shared/bosses.js";
 import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, STATUS_ICON, iconImg } from "/icons.js";
@@ -32,6 +32,7 @@ const el = {
   bossBank: $("bossBank"),
   bossMult: $("bossMult"),
   bossPips: $("bossPips"),
+  bossBeat: $("bossBeat"),
   bossUlt:  $("bossUlt"),
   bossUltFill: $("bossUlt").firstElementChild,
   team:     $("hudTeam"),
@@ -202,6 +203,23 @@ function updateTeam(v, c) {
       }
     }
   }
+}
+
+// B-3 · RIEN D'EXCLUSIVEMENT SONORE. Le Metronome porte une information
+// temporelle : quatre temoins sous la barre, le quatrieme rouge avant la frappe.
+// La grille est `tm`, la meme des deux cotes — l'audio n'accelere que la lecture.
+function updateBeat(v) {
+  const on = (v.boss?.kind ?? -1) === BOSS_METRONOME;
+  setHidden(el.bossBeat, "bbOn", !on);
+  if (!on) return;
+  const { temps, k } = beatPhase(v.tm ?? 0);
+  for (let i = 0; i < 4; i++) {
+    const w = el.bossBeat.children[i];
+    if (!w) break;
+    setClass(w, `bb${i}`, "on", i <= temps);
+    setClass(w, `bbl${i}`, "last", i === 3 && temps === 3);
+  }
+  setStyle(el.bossBeat, "bbk", "--beat", (1 - k).toFixed(2));
 }
 
 // [30] une balle retire une fraction infime de la barre, et une barre qui
@@ -467,6 +485,12 @@ function updateAlerts(c, now) {
   if (o) {
     setText(orderTxt, "aot", o.texte);
     setText(orderSrc, "aos", o.nom.toUpperCase());
+    // le violet ne dit qu'une chose : ce n'est pas ton probleme, c'est notre
+    // probleme. Il se deduit de `minPlayers`, il ne se declare pas.
+    setClass(el.order, "aoc", "collective", !!o.collective);
+    // la FORME est repetee a cote de l'ordre : c'est ce qui fait qu'un joueur
+    // finit par reagir au telegraphe sans lire le texte.
+    if (memo.aof !== o.forme) { memo.aof = o.forme; el.order.dataset.forme = o.forme ?? ""; }
     const span = Math.max(1, o.until - o.from);
     setWidth(orderCd, "aok", (o.until - now) / span);
   }
@@ -588,6 +612,7 @@ export function updateHud(v, c) {
   setHidden(metaSlow, "mSlowH", !v.slow);
 
   updateBoss(v.boss, now);
+  updateBeat(v);
   updateTeam(v, c);
   updateSelf(v, c);
   updateAlerts(c, now);
