@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
-import { PROG_CFG, TREES, slotsFor, tierCost, coresForRun, coresPartial, recordFinal } from "./shared/progression.js";
+import { PROG_CFG, TREES, COMMUN, slotsFor, tierCost, coresForRun, coresPartial, recordFinal } from "./shared/progression.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { VERSION } from "./shared/version.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
@@ -52,6 +52,7 @@ export function createHub(store, log, commit = "") {
       milestones: pr.milestones,
       kills: pr.kills,
       classes: pr.classes,
+      commun: pr.commun ?? {},
       confort: pr.confort,
       bannedCards: pr.bannedCards ?? [],
       pseudo: pr.pseudo ?? "",
@@ -274,6 +275,24 @@ export function createHub(store, log, commit = "") {
         break;
       }
 
+      // les lignes communes ne consomment aucun emplacement : elles valent pour
+      // les trois classes, sans equipement a choisir
+      case "metaCommun": {
+        const line = COMMUN.find(l => l.id === msg.line);
+        if (!line) break;
+        const pr = client.profile;
+        pr.commun ??= {};
+        const cur = pr.commun[line.id] | 0;
+        if (cur >= PROG_CFG.TIERS_MAX) break;
+        const cost = tierCost(cur, line.id);
+        if (pr.cores < cost) break;
+        pr.cores -= cost;
+        pr.commun[line.id] = cur + 1;
+        persist(client);
+        sendProgress(client);
+        break;
+      }
+
       case "metaEquip": {
         const cp = client.profile.classes[msg.cls];
         if (!cp || !Array.isArray(msg.lines) || msg.lines.length > 16) break;
@@ -395,6 +414,7 @@ export function createHub(store, log, commit = "") {
           return;
         }
         case "metaBuy":
+        case "metaCommun":
         case "metaEquip":
         case "metaConfort":
           if (metaAllowed(client)) handleMeta(client, msg);

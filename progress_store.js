@@ -93,7 +93,8 @@ function restCall(cfg, method, path, body, done, extraHeaders = null) {
 function pristine(p) {
   return p.cores === 0 && p.runs === 0
     && p.milestones.length === 0 && p.confort.length === 0
-    && Object.keys(p.classes).length === 0;
+    && Object.keys(p.classes).length === 0
+    && Object.keys(p.commun ?? {}).length === 0;
 }
 
 export function createStore(log = console.log) {
@@ -195,7 +196,7 @@ export function createStore(log = console.log) {
   function migrate(profile, from) {
     if (!profile || typeof profile !== "object") return false;
     if (from === PROG_CFG.VERSION) return false;
-    if (from !== 3 && from !== 4) return false;
+    if (from < 3 || from >= PROG_CFG.VERSION) return false;
 
     if (from === 3 && Array.isArray(profile.milestones)) {
       profile.milestones = [...new Set(profile.milestones
@@ -207,13 +208,20 @@ export function createStore(log = console.log) {
     if (best.segment === undefined) best.segment = 0;
     if (!Array.isArray(profile.bannedCards)) profile.bannedCards = [];
     if (!profile.bestFinal || typeof profile.bestFinal !== "object") profile.bestFinal = {};
+
+    if (!profile.commun || typeof profile.commun !== "object") profile.commun = {};
+    if (!Array.isArray(profile.confort)) profile.confort = [];
+    // le bannissement devient un achat : un compte qui en a deja use le garde
+    if (profile.bannedCards.length && !profile.confort.includes("bannissement")) {
+      profile.confort.push("bannissement");
+    }
     return true;
   }
 
   function adoptRow(row) {
     const lower = String(row.pseudo ?? "").toLowerCase();
     if (!lower) return 0;
-    const connue = row.version === 3 || row.version === 4;
+    const connue = row.version >= 3 && row.version < PROG_CFG.VERSION;
     if (typeof row.version !== "number" || row.version > PROG_CFG.VERSION) {
       frozen.add(lower);
       return 0;

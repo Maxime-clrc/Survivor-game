@@ -10,6 +10,11 @@ import { lockedCards } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 
+const rerollsFor = profile => {
+  const cf = profile?.confort ?? [];
+  return (cf.includes("relance") ? 1 : 0) + (cf.includes("relance2") ? 1 : 0);
+};
+
 export const PHASE_LOBBY = 0;
 export const PHASE_ROUND = 1;
 export const PHASE_CARDS = 2;
@@ -409,7 +414,7 @@ export class Room {
       if (!c) continue;
       c.conn.send(JSON.stringify({
         t: "cards",
-        reroll: c.profile?.confort.includes("relance") && !c.rerollUsed ? 1 : 0,
+        reroll: c.rerollLeft | 0,
         segment: this.state.segment,
         bossWave: this.state.relicBossDue ? 1 : 0,
         boss: this.state.bossCount,
@@ -527,6 +532,7 @@ export class Room {
         }
         meta = {
           lines,
+          commun: { ...(c.profile.commun ?? {}) },
           confort: {
             ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
             quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
@@ -538,7 +544,7 @@ export class Room {
           })(),
         };
       }
-      c.rerollUsed = false;
+      c.rerollLeft = rerollsFor(c.profile);
       c.lastFinal = null;
       this.state.addPlayer(c.id, c.name, c.colorIndex, c.cls, meta);
       c.input.x = 0; c.input.y = 0; c.input.dash = false;
@@ -721,7 +727,7 @@ export class Room {
         const offers = this.state.cardOffers.get(id);
         const p = this.state.players.get(id);
         if (!offers || !p || !offers.includes(msg.id)) break;
-        if (!client.profile) break;
+        if (!client.profile?.confort.includes("bannissement")) break;
         const pr = client.profile;
         pr.bannedCards ??= [];
         if (pr.bannedCards.includes(msg.id)) break;
@@ -788,15 +794,15 @@ export class Room {
 
       case "reroll": {
         if (this.phase !== PHASE_CARDS || this.cardPicked.has(id)) break;
-        if (!client.profile?.confort.includes("relance") || client.rerollUsed) break;
+        if (!((client.rerollLeft | 0) > 0)) break;
         const p = this.state.players.get(id);
         if (!p || !this.state.cardOffers.has(id)) break;
-        client.rerollUsed = true;
+        client.rerollLeft = (client.rerollLeft | 0) - 1;
         const offers = this.state.offerCards(p);
         this.state.cardOffers.set(id, offers);
         client.conn.send(JSON.stringify({
           t: "cards",
-          reroll: 0,
+          reroll: client.rerollLeft,
           segment: this.state.segment,
           bossWave: 1,
           boss: this.state.bossCount,

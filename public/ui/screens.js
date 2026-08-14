@@ -7,7 +7,7 @@ import { CARDS, CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, banClosure, cardDetail }
 import { CLASSES, CLASS_DEFAULT, SKILL3_NAME, classAt } from "/shared/classes.js";
 import { CFG, DAMAGE_SOURCES, DIFFICULTIES, PLAYER_COLORS, biomeAt } from "/shared/game_state.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
-import { CONFORT, MILESTONES, PROG_CFG, TREES, slotsFor, tierCost } from "/shared/progression.js";
+import { COMMUN, CONFORT, MILESTONES, PROG_CFG, TREES, slotsFor, tierCost } from "/shared/progression.js";
 import { RELIC_RARITY, relicById, relicPrice } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { drawSprite, frameOf } from "/sprites.js";
@@ -385,6 +385,10 @@ function cheapestPurchase(pr) {
     if (!(pr.confort ?? []).includes(cf.id)) {
       min = Math.min(min, PROG_CFG.CONFORT_COSTS[cf.id]);
     }
+  }
+  for (const line of COMMUN) {
+    const n = (pr.commun ?? {})[line.id] | 0;
+    if (n < PROG_CFG.TIERS_MAX) min = Math.min(min, tierCost(n, line.id));
   }
   return min;
 }
@@ -997,7 +1001,7 @@ export function renderMeta(clsOverride) {
     `<b>Emplacements ${equipped.length} / ${slots}</b> équipés sur le ${escapeHtml(cdef.nom)}`
     + ` · réattribution libre entre les manches<br>`
     + `<small>${PROG_CFG.SLOTS_BASE} de départ`
-    + ` · vague ${PROG_CFG.SLOTS_WAVE} ${(pr.milestones ?? []).includes("vague10") ? "✓" : "•"}`
+    + ` · niveau ${PROG_CFG.SLOTS_LEVEL} ${(pr.milestones ?? []).includes(`niveau${PROG_CFG.SLOTS_LEVEL}`) ? "✓" : "•"}`
     + ` · ${PROG_CFG.SLOTS_BOSSES} boss différents (${Math.min(bosses, PROG_CFG.SLOTS_BOSSES)}/${PROG_CFG.SLOTS_BOSSES})`
     + ` · ${PROG_CFG.SLOTS_RUNS} parties (${Math.min(pr.runs ?? 0, PROG_CFG.SLOTS_RUNS)}/${PROG_CFG.SLOTS_RUNS})</small>`;
 
@@ -1011,7 +1015,7 @@ export function renderMeta(clsOverride) {
   metaSubEl.textContent = metaTab === "arbre"
     ? `arbre du ${cdef.nom} — l'effet affiché est le TOTAL possédé`
     : metaTab === "confort"
-      ? "confort : aucun emplacement consommé, commun aux trois classes"
+      ? "confort et lignes communes : aucun emplacement consommé, valent pour les trois classes"
       : metaTab === "jalons"
         ? "les jalons débloquent cartes et emplacements — jamais des noyaux"
         : "cartes bannies de ce compte — définitif, pas de débannissement";
@@ -1089,6 +1093,29 @@ export function renderMeta(clsOverride) {
       b.textContent = `${cost} noyaux`;
       b.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
       b.onclick = () => ws.send(JSON.stringify({ t: "metaConfort", id: cf.id }));
+    }
+    row.appendChild(b);
+    metaConfortEl.appendChild(row);
+  }
+
+  for (const line of COMMUN) {
+    const n = (pr.commun ?? {})[line.id] | 0;
+    const cost = tierCost(n, line.id);
+    const row = document.createElement("div");
+    row.className = "metaLine confort" + (n > 0 ? " owned" : "");
+    row.innerHTML =
+      `<span class="metaName">${escapeHtml(line.nom)}</span>` +
+      `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
+      `<span class="metaDesc">${escapeHtml(n > 0 ? line.desc(n) : line.desc(1) + " par palier")}</span>`;
+    const b = document.createElement("button");
+    b.className = "metaBuy";
+    if (n >= PROG_CFG.TIERS_MAX) {
+      b.textContent = "max";
+      b.disabled = true;
+    } else {
+      b.textContent = `${cost} noyaux`;
+      b.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
+      b.onclick = () => ws.send(JSON.stringify({ t: "metaCommun", line: line.id }));
     }
     row.appendChild(b);
     metaConfortEl.appendChild(row);
@@ -1522,7 +1549,7 @@ export function renderCards() {
     btn.innerHTML = html;
     btn.onclick = () => pickCard(c.id);
 
-    if (!cardsState.picked) {
+    if (!cardsState.picked && (progressState?.confort ?? []).includes("bannissement")) {
       const ban = document.createElement("span");
       ban.className = "cardBan";
       ban.textContent = "bannir";
@@ -1537,10 +1564,12 @@ export function renderCards() {
   if (cardsState.reroll && !cardsState.picked) {
     const rb = document.createElement("button");
     rb.id = "cardsReroll";
-    rb.innerHTML = "↻<br>relancer<br>le tirage";
-    rb.title = "une seule relance par manche";
+    const reste = cardsState.reroll | 0;
+    rb.innerHTML = `↻<br>relancer<br>le tirage${reste > 1 ? ` (${reste})` : ""}`;
+    rb.title = reste > 1 ? `${reste} relances restantes pour cette manche`
+      : "derniere relance de la manche";
     rb.onclick = () => {
-      cardsState.reroll = false;
+      cardsState.reroll = reste - 1;
       rb.disabled = true;
       ws?.send(JSON.stringify({ t: "reroll" }));
     };

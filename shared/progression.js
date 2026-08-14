@@ -4,16 +4,18 @@ import { SKILL_CFG } from "./classes.js";
 import { BOSS_ROSTER } from "./bosses.js";
 
 export const PROG_CFG = {
-  VERSION: 5,
+  VERSION: 6,
 
   SLOTS_BASE: 3,
   SLOTS_MAX: 6,
   SLOTS_BOSSES: 3,
   SLOTS_RUNS: 25,
-  SLOTS_LEVEL: 12,
+  SLOTS_LEVEL: 13,
 
   TIERS_MAX: 5,
-  TIER_COSTS: [200, 420, 880, 1800, 3600],
+  TIER_COSTS: [100, 180, 320, 560, 840],
+  TRONC_COSTS: [120, 220, 400, 700, 1160],
+  SECOURS_COSTS: [200, 400, 700, 1100, 1600],
 
   CORE_LEVEL: 8,
   CORE_BOSS: 25,
@@ -23,7 +25,12 @@ export const PROG_CFG = {
   KILLS_MILESTONE: 500,
   NO_DOWN_MIN_LEVEL: 6,
 
-  CONFORT_COSTS: { relance: 1200, quatrieme: 2500, ravitaillement: 900 },
+  CONFORT_COSTS: {
+    relance: 250, quatrieme: 450, ravitaillement: 500,
+    bannissement: 700, relance2: 900,
+  },
+
+  SECOURS_REGEN: 1.2,
 
   CATALYSE_TIME: 3,
   THORNS_RADIUS: 80,
@@ -108,13 +115,45 @@ export const CONFORT = [
     desc: "quatre cartes proposées au lieu de trois" },
   { id: "ravitaillement", nom: "Ravitaillement initial",
     desc: "un bonus au sol dès le début de la manche" },
+  { id: "bannissement", nom: "Bannissement",
+    desc: "retirer définitivement une carte de tous les tirages" },
+  { id: "relance2", nom: "Seconde relance",
+    desc: "une deuxième relance de tirage par partie" },
 ];
 
-export function applyMeta(mods, maxHp, clsId, lines) {
+// Communes aux trois classes : la polyvalence n'est pas une taxe. `secours` est la
+// clemence, et son cinquieme palier est le seul achat qui change l'issue d'une
+// manche — c'est lui qui porte le saut P0 -> P1, pas les pourcentages.
+export const COMMUN = [
+  { id: "sursis", nom: "Sursis", famille: "secours", costs: "SECOURS_COSTS",
+    step: PROG_CFG.SECOURS_REGEN,
+    desc: n => `+${String(PROG_CFG.SECOURS_REGEN * n).replace(".", ",")} PV/s hors coup`
+      + (n >= PROG_CFG.TIERS_MAX ? ", et un relèvement automatique par manche" : ""),
+    apply(m, n) {
+      m.hpRegen += PROG_CFG.SECOURS_REGEN * n;
+      if (n >= PROG_CFG.TIERS_MAX) m.selfRevive = 1;
+    } },
+  { id: "carcasse", nom: "Carcasse", famille: "tronc", costs: "TRONC_COSTS", step: 0.03,
+    desc: n => `+${pct(0.03 * n)} de PV max`,
+    apply(m, n) { m.metaHpRatio += 0.03 * n; } },
+  { id: "foulee", nom: "Foulée", famille: "tronc", costs: "TRONC_COSTS", step: 0.015,
+    desc: n => `+${pct(0.015 * n)} de vitesse`,
+    apply(m, n) { m.speedMul += 0.015 * n; } },
+  { id: "glanage", nom: "Glanage", famille: "tronc", costs: "TRONC_COSTS", step: 14,
+    desc: n => `+${14 * n} px de portée de ramassage`,
+    apply(m, n) { m.pickupRadius = Math.max(m.pickupRadius, 14 * n); } },
+];
+
+const COMMUN_BY_ID = new Map(COMMUN.map(l => [l.id, l]));
+
+export function applyMeta(mods, maxHp, clsId, lines, commun = null) {
   const m = { ...mods, metaHpRatio: 0 };
-  const tree = TREES[clsId] ?? [];
-  for (const line of tree) {
-    const n = Math.min(lines[line.id] | 0, PROG_CFG.TIERS_MAX);
+  for (const line of TREES[clsId] ?? []) {
+    const n = Math.min(lines?.[line.id] | 0, PROG_CFG.TIERS_MAX);
+    if (n > 0) line.apply(m, n);
+  }
+  for (const line of COMMUN) {
+    const n = Math.min(commun?.[line.id] | 0, PROG_CFG.TIERS_MAX);
     if (n > 0) line.apply(m, n);
   }
   m.critChance = Math.min(CARD_CFG.CRIT_CHANCE_CAP, m.critChance);
@@ -135,8 +174,11 @@ export function slotsFor(profile) {
   return Math.min(PROG_CFG.SLOTS_MAX, n);
 }
 
-export function tierCost(currentTier) {
-  return PROG_CFG.TIER_COSTS[currentTier] ?? Infinity;
+export function tierCost(currentTier, lineId = null) {
+  const table = lineId && COMMUN_BY_ID.has(lineId)
+    ? PROG_CFG[COMMUN_BY_ID.get(lineId).costs]
+    : PROG_CFG.TIER_COSTS;
+  return table[currentTier] ?? Infinity;
 }
 
 const armes = CARDS
@@ -197,6 +239,7 @@ export function newProfile(pseudo) {
     milestones: [],
     kills: {},
     classes: {},
+    commun: {},
     confort: [],
     bannedCards: [],
     bestFinal: {},

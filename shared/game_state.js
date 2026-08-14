@@ -10,7 +10,7 @@ import {
   STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOOM,
   PURGE_ORDER, ELITE_STATUS, statusAt, statusBit, enemyStatusMask,
 } from "./statuses.js";
-import { PROG_CFG, applyMeta } from "./progression.js";
+import { PROG_CFG, TREES, COMMUN, applyMeta, coresForRun } from "./progression.js";
 import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import { CLASS_COLOR } from "./palette.js";
 import {
@@ -725,8 +725,9 @@ export class GameState {
     const before = p.maxHp;
     const r = fullMods(p.cards, this._otherCards(p), p.cls, this.level);
     p.powerMods = r.mods;
-    if (p.meta && p.meta.lines) {
-      const rr = applyMeta(r.mods, r.maxHp, classAt(p.cls).id, p.meta.lines);
+    if (p.meta && (p.meta.lines || p.meta.commun)) {
+      const rr = applyMeta(r.mods, r.maxHp, classAt(p.cls).id,
+        p.meta.lines, p.meta.commun);
       p.mods = rr.mods;
       p.maxHp = rr.maxHp;
     } else {
@@ -6117,6 +6118,106 @@ export function mesureProgression(diffIndex, joueurs, manches = 6, minutes = 60)
       return ap !== null && av !== null && ap > av ? t / (ap - av) : null;
     }),
   };
+}
+
+export function mesureRevenu(diffIndex, joueurs, manches = 8, minutes = 60) {
+  const runs = [];
+  const alea = Math.random;
+  try {
+    for (let r = 1; r <= manches; r++) {
+      Math.random = grainer(r * 7919);
+      const m = mesureTTK(diffIndex, joueurs, [], minutes);
+      const boss = m.combats.length;
+      runs.push({
+        niveau: m.niveau, boss, victoire: m.victoire,
+        noyaux: coresForRun(m.niveau, boss, diffIndex),
+        brut: Math.round((PROG_CFG.CORE_LEVEL * m.niveau + PROG_CFG.CORE_BOSS * boss)
+          * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)),
+      });
+    }
+  } finally {
+    Math.random = alea;
+  }
+  const plafonnees = runs.filter(r => r.brut > PROG_CFG.CORE_RUN_CAP);
+  return {
+    diffIndex, joueurs, runs,
+    noyaux: mediane(runs.map(r => r.noyaux)),
+    finies: runs.filter(r => r.victoire).length,
+    plafonnees: plafonnees.length,
+    plafonneesFinies: plafonnees.filter(r => r.victoire).length,
+  };
+}
+
+// le budget du lot G est derive a rebours de la matrice de PROFILS.md, en supposant
+// ce revenu par manche : c'est LUI qu'il faut verifier, pas le cout d'une ligne
+// (l'ancien critere datait du cadrage a une seule ligne).
+export const META_RUN_CORES = 420;
+export const META_RUN_TOL = 0.25;
+export const META_POWER_MAX = 1.8;
+
+const somme = xs => xs.reduce((a, b) => a + b, 0);
+
+export function coutMeta() {
+  const classe = somme(PROG_CFG.TIER_COSTS);
+  const tronc = somme(PROG_CFG.TRONC_COSTS);
+  const secours = somme(PROG_CFG.SECOURS_COSTS);
+  const confort = somme(Object.values(PROG_CFG.CONFORT_COSTS));
+  const jusqua3 = t => somme(t.slice(0, 3));
+  return {
+    p1: confort + secours + jusqua3(PROG_CFG.TIER_COSTS) * 6
+      + jusqua3(PROG_CFG.TRONC_COSTS) * 3,
+    p2: confort + secours + classe * 6 + tronc * 3,
+  };
+}
+
+export function gainMeta(clsId) {
+  const plein = Object.fromEntries(
+    [...(TREES[clsId] ?? []), ...COMMUN].map(l => [l.id, PROG_CFG.TIERS_MAX]));
+  const cls = CLASSES.findIndex(c => c.id === clsId);
+  const nu = fullMods(new Map(), [], cls);
+  const avec = applyMeta(nu.mods, nu.maxHp, clsId, plein, plein);
+  return {
+    puissance: powerIndex(avec.mods) / powerIndex(nu.mods),
+    pv: avec.maxHp / nu.maxHp,
+  };
+}
+
+export function verifierMeta(effectifs = [1, 4], manches = 4) {
+  const soucis = [];
+
+  for (let di = 0; di < DIFFICULTIES.length; di++) {
+    for (const n of effectifs) {
+      const r = mesureRevenu(di, n, manches);
+      const ou = `${DIFFICULTIES[di].key}/${n}j`;
+      // le plafond borne la soiree exceptionnelle, pas le cas nominal
+      const nominal = r.plafonnees - r.plafonneesFinies;
+      if (nominal > 0) {
+        soucis.push(`${ou} : ${nominal} manches NON terminees touchent le plafond`
+          + ` de ${PROG_CFG.CORE_RUN_CAP} noyaux`);
+      }
+      if (di < DIFFICULTIES.length - 1 && r.plafonnees > 0) {
+        soucis.push(`${ou} : le plafond mord hors cauchemar`
+          + ` (${r.plafonnees}/${manches} manches)`);
+      }
+
+      if (di === DIFF_NORMAL
+        && Math.abs(r.noyaux - META_RUN_CORES) / META_RUN_CORES > META_RUN_TOL) {
+        soucis.push(`${ou} : ${r.noyaux} noyaux par manche contre ${META_RUN_CORES}`
+          + ` supposes par le budget (${(META_RUN_TOL * 100).toFixed(0)} % de marge)`);
+      }
+    }
+  }
+
+  for (const cls of CLASSES) {
+    const g = gainMeta(cls.id);
+    const pire = Math.max(g.puissance, g.pv);
+    if (pire > META_POWER_MAX) {
+      soucis.push(`${cls.id} : compte complet a x${pire.toFixed(2)}`
+        + ` (puissance x${g.puissance.toFixed(2)}, PV x${g.pv.toFixed(2)})`
+        + ` pour un plafond de x${META_POWER_MAX}`);
+    }
+  }
+  return soucis;
 }
 
 export const BOSS_DRIFT_MAX = 0.20;

@@ -8,6 +8,63 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Progression de compte (lot G du plan d'équilibrage)
+
+Protocole du lot D (graines écrites), `mesureRevenu()` / `verifierMeta()`, huit
+manches par cas. `gainMeta()` et `coutMeta()` sont des fonctions **pures** : deux
+des cinq critères se vérifient sans simuler.
+
+**Le plafond de noyaux ne mord que là où il doit.**
+
+| noyaux par manche | médiane | manches plafonnées | dont terminées |
+|---|---|---|---|
+| calme 1 / 4 j | 390 / 390 | 0 / 0 | — |
+| normal 1 / 4 j | **501 / 524** | 0 / 0 | — |
+| cauchemar 1 / 4 j | 600 / 600 | 5/8 · 8/8 | 5 · 7 |
+
+`CORE_LEVEL` reste à 8 : le plafond de 600 ne mord pas en normal (546 au plus
+haut), donc la contingence du lot ne se déclenche pas. **En cauchemar à quatre il
+mord sur les huit manches**, dont une non terminée : ce n'est plus un plafond de
+sécurité, c'est le régime normal du mode. À revoir avec `DIFF_MUL`, pas avec le
+plafond.
+
+**Le niveau 30 est atteint dans presque toutes les manches** depuis le lot H — les
+manches se terminent, donc le plafond de niveau reborne la fin de courbe que le
+lot D venait de libérer. Le revenu en devient plat : `8 × 30` est une constante.
+
+**Le budget est dérivé à rebours de la matrice, et il tombe juste.**
+
+| | contenu | coût | manches à 501 noyaux |
+|---|---|---|---|
+| **P1** | confort + secours complets, paliers 1-3 partout | 12 620 | **25** |
+| **P2** | tout, une classe | 26 600 | **53** |
+
+Le plan visait 30 et 63 manches à 420 noyaux ; le revenu mesuré est de 501, soit
+**+19 %**, dans la marge de 25 % que `verifierMeta` surveille. C'est cette
+hypothèse de revenu qu'il faut resurveiller, pas le coût d'une ligne : l'ancien
+critère (« 15-20 manches pour une ligne ») datait du cadrage à **une** ligne, quand
+le compte en compte désormais dix.
+
+**Le gain d'un compte complet reste sous le plafond de ×1,8**, et le plan le
+surestimait (il annonçait ×1,65) :
+
+| | puissance | PV |
+|---|---|---|
+| tireur | **×1,34** | ×1,15 |
+| rempart | ×1,00 | **×1,45** |
+| soigneur | ×1,00 | ×1,35 |
+
+**Ce que le lot ajoute** : `CONFORT` passe de 3 à 5 entrées (bannissement et
+seconde relance), une ligne `SECOURS` de cinq paliers dont le cinquième donne
+`selfRevive` — mod qui existait déjà, rien de neuf côté simulation — et trois
+lignes de **tronc commun** achetées une fois pour les trois classes. Le
+bannissement devient un **achat** : un compte qui en avait déjà usé le garde à la
+migration.
+
+**Coûts divisés**, parce que le compte compte dix lignes et plus une :
+`TIER_COSTS` 6 900 → 2 000 par ligne. Les comptes existants gardent leurs paliers
+sans remboursement — le profil ne trace pas la dépense.
+
 ### Boss : courbe de PV et densité de renforts (lot H du plan d'équilibrage)
 
 Protocole du lot D (graines écrites), `mesureBoss()` / `verifierBoss()`, durées

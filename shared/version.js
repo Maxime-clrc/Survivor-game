@@ -730,6 +730,43 @@
                    coherence demande les trois profils de compte, que le bot n'a
                    pas
 
+     0.8.16 equilibrage, lot G  LA META SE PAIE EN QUALITATIF AVANT DE SE PAYER
+                   EN POURCENTAGES. La matrice de PROFILS.md demande 5 % -> 50 %
+                   de reussite en normal entre P0 et P1 quand l'arbre n'offrait
+                   que x1,25 de puissance : un multiplicateur ne fait pas ce saut.
+                   `CONFORT` passe de trois a cinq entrees (bannissement, seconde
+                   relance), une ligne `SECOURS` de cinq paliers donne `selfRevive`
+                   au cinquieme — le mod existait deja, rien de neuf en simulation
+                   — et trois lignes de TRONC COMMUN s'achetent une fois pour les
+                   trois classes : la polyvalence cessait d'etre gratuite.
+                   `TIER_COSTS` 6 900 -> 2 000 la ligne, parce que le compte compte
+                   desormais dix lignes et plus une. Compte complet : 26 600
+                   noyaux, soit P1 a 25 manches et P2 a 53.
+                   LE CRITERE DE COUT D'UNE LIGNE EST REMPLACE. « 15-20 manches
+                   pour une ligne » datait du cadrage a une seule ligne ; ce que le
+                   budget suppose vraiment est un REVENU PAR MANCHE (420), et c'est
+                   lui que `verifierMeta` surveille a 25 % pres. Mesure : 501 en
+                   normal, +19 %.
+                   LE PLAFOND DE NOYAUX NE MORD QUE LA OU IL DOIT, donc
+                   `CORE_LEVEL` reste a 8 : 0 manche plafonnee en calme et en
+                   normal (546 au plus haut pour un plafond de 600), 5 sur 8 en
+                   cauchemar solo et toutes terminees. MAIS EN CAUCHEMAR A QUATRE
+                   IL MORD HUIT FOIS SUR HUIT, dont une manche non terminee : ce
+                   n'est plus un plafond de securite, c'est le regime du mode. Ca
+                   se corrige par `DIFF_MUL`, pas par le plafond.
+                   LE NIVEAU 30 REDEVIENT LE MUR depuis le lot H : les manches se
+                   terminent, donc le plafond de niveau reborne la fin de courbe
+                   que le lot D venait de liberer, et le revenu devient plat.
+                   DEUX CRITERES SE VERIFIENT SANS SIMULER : `gainMeta()` rend
+                   x1,34 de puissance au tireur et x1,45 de PV au rempart pour un
+                   plafond de x1,8 — le plan surestimait a x1,65 ; `coutMeta()`
+                   rend la trajectoire P1/P2.
+                   Jalons du lot G-3 : `SLOTS_LEVEL` 12 -> 13, `LEGENDARY_LEVELS`
+                   [12, 22] -> [13, 24]. Profil v6, migration enchainee depuis v3 ;
+                   le bannissement devenant un achat, un compte qui en avait deja
+                   use le garde. Les comptes existants gardent leurs paliers sans
+                   remboursement — le profil ne trace pas la depense
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -738,4 +775,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.8.15";
+export const VERSION = "0.8.16";
