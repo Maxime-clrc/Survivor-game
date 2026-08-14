@@ -19,12 +19,21 @@ export const SKILL_CFG = {
   TANK_TAUNT_REDUCTION: 0.5,
   TANK_TAUNT_CD: 24,
 
-  HEAL_MODE_INTERVAL: 0.35,
-  HEAL_MODE_ALLY: 10,
-  HEAL_MODE_SELF: 3,
-  HEAL_MODE_REVIVE: 0.35,
+  // Le mode soin reste une BASCULE et non une recharge : c'est une posture, pas
+  // un declenchement. Ce qui change, c'est la question posee au joueur — « ai-je
+  // une ligne de tir ? » devient « puis-je RESTER pres de lui ? ». La contrainte
+  // n'est pas retiree, elle est remplacee : le lien pousse le soigneur DANS la
+  // melee au lieu de le laisser tirer de loin, et ce qu'il fait devient visible
+  // pour toute la table.
   HEAL_MODE_SWAP_CD: 0.5,
   HEAL_MODE_SHIELD_CAP: 60,
+
+  HEAL_LINK_RADIUS: 260,
+  HEAL_LINK_MAX: 2,
+  HEAL_LINK_RATE: 20,
+  // sans delai de grace, un allie qui oscille a la limite fait clignoter le lien
+  HEAL_LINK_GRACE: 0.5,
+  HEAL_LINK_REVIVE: 1.0,
 
   HEAL_WAVE_RADIUS: 300,
   HEAL_WAVE_AMOUNT: 35,
@@ -84,13 +93,17 @@ export const CLASSES = [
   {
     id: "soigneur", nom: "Soigneur", hp: 100, damageMul: 0.85, speedMul: 1.00,
     unique: true,
-    desc: "100 PV, −15 % de dégâts. Soigne à distance, relève à distance.",
-    mission: "Tu relèves les tiens, personne d'autre ne le fera. En mode soin "
-      + "tes tirs ne blessent plus mais s'arrêtent quand même sur les ennemis : "
-      + "trouve l'angle avant d'en avoir besoin.",
+    solo: "sans allié à lier, sa posture de soin est inerte — c'est un rôle de groupe",
+    desc: "100 PV, −15 % de dégâts. Lie ses alliés proches et les relève.",
+    mission: "Tu relèves les tiens, personne d'autre ne le fera. En posture de "
+      + "soin tu ne tires plus : tes liens s'accrochent seuls aux alliés proches "
+      + "et cassent si tu les laisses partir. Reste dans la mêlée avec eux.",
     couleur: CLASS_COLOR.soigneur,
     skills: [
-      { nom: "Mode soin", touche: "A/1", desc: "bascule : les tirs soignent au lieu de blesser" },
+      { nom: "Mode soin", touche: "A/1",
+        desc: `bascule : ${SKILL_CFG.HEAL_LINK_MAX} liens de `
+            + `${SKILL_CFG.HEAL_LINK_RATE} PV/s sur les alliés dans `
+            + `${fmtM(SKILL_CFG.HEAL_LINK_RADIUS)}` },
       { nom: "Vague de soin", touche: "E/2",
         desc: `${SKILL_CFG.HEAL_WAVE_AMOUNT} PV à toute l'équipe dans ${fmtM(SKILL_CFG.HEAL_WAVE_RADIUS)}` },
     ],
@@ -124,5 +137,6 @@ export function classAt(index) {
 
 export function classBrief(index) {
   const c = classAt(index);
-  return { id: c.id, nom: c.nom, desc: c.desc, couleur: c.couleur, unique: c.unique, skills: c.skills };
+  return { id: c.id, nom: c.nom, desc: c.desc, couleur: c.couleur, unique: c.unique,
+           solo: c.solo ?? "", skills: c.skills };
 }

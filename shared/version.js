@@ -1028,6 +1028,57 @@
                    pour sept provenances, et l'amortissement des particules etait
                    indexe sur l'IMAGE et non sur le temps
 
+     0.9.1 lot L2  LE SOIN DEVIENT UN LIEN CONTINU. Le projectile de soin
+                   disparait : en posture, le soigneur ne tire plus et des liens
+                   s'accrochent seuls aux allies proches.
+                   CE QUE CA COUTE EST ASSUME. Le depot identifiait la ligne de
+                   vue comme l'interet de la classe — « soigner quelqu'un derriere
+                   la horde est un probleme de position, pas un clic sur une
+                   barre » — et un lien de proximite supprime cette visee. La
+                   contrainte n'est donc pas RETIREE, elle est REMPLACEE : la
+                   question passe de « ai-je une ligne de tir ? » a « puis-je
+                   RESTER pres de lui ? », l'echec passe du tir rate au lien
+                   casse, et le geste passe de viser a travers la horde a tenir
+                   une position dangereuse. Pour un jeu cooperatif c'est un
+                   meilleur probleme, et ca regle la faiblesse du role : ce que
+                   fait le soigneur devient visible pour toute la table.
+                   LE SOCLE NE LIE QUE LES ALLIES et ne rend aucun PV au soigneur.
+                   `HEAL_MODE_SELF` valait 8,6 PV/s en continu, la vague seule
+                   vaut 2,2 : l'auto-subsistance est divisee par quatre et la
+                   posture devient INERTE en solo. C'est un choix, pas une
+                   regression — un soutien seul n'a pas de sens strategique, et
+                   c'est un probleme d'affichage : la carte de classe le dit
+                   AVANT, elle ne le laisse pas decouvrir a la minute 8.
+                   LE DEBIT NE MONTE PAS. 20 PV/s sur une cible contre 28,6
+                   theoriques : le lien ne rate jamais, il ne peut donc pas
+                   soigner autant. A deux cibles le total monte a 40, et c'est
+                   l'objet du lot — un gain de GROUPE, pas de puissance brute.
+                   Mesure : 20,0 PV/s sur une cible, zero clignotement sur un
+                   allie qui oscille a la limite du rayon (le delai de grace
+                   tient), rupture franche a 0,75 s, relevement a 10 m en 1,00 s.
+                   TROIS CARTES ET DEUX LIGNES DE META CHANGENT DE SENS.
+                   `faisceau_double` devenait vide (« le projectile traverse un
+                   allie ») : elle devient `ramification`, un lien de plus, meme
+                   intention transposee. `siphon` (epique) rend l'autonomie en
+                   REECRIVANT une regle du mode — les liens LIBRES prennent des
+                   ennemis, jamais la place d'un allie blesse. `portee` cesse
+                   d'etre une portee de tir pour devenir un rayon de tolerance,
+                   donc la ligne DEFENSIVE du soigneur. `catalyse` s'applique a
+                   tous les allies lies a taux reduit (0,02 par point au lieu de
+                   0,03) : le plafond reste comparable a deux cibles, et
+                   l'archetype « lier large » se paie en efficacite par cible au
+                   lieu d'etre gratuit.
+                   LE PILOTE SUIT LA MECANIQUE, sans quoi la mesure de composition
+                   jugerait un soigneur qui laisse casser tous ses liens : il
+                   n'entre plus en posture pour se soigner lui-meme, ne vise plus
+                   personne, et TIENT SA POSITION pres de celui qu'il soigne.
+                   Menage : `_healBullet`, `_fireHeal`, `_healPurgeHit`,
+                   `p.healHits`, `mods.healPierce`, `BOLT_CROSS` et
+                   `COMBAT.bulletHeal` disparaissent avec le projectile ; le tuple
+                   de balle perd son drapeau de soin, donc `owner` remonte a
+                   l'index 3. La purge par le soin se comptait en TOUCHES, elle se
+                   compte desormais en TEMPS de lien
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1036,4 +1087,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.9.0";
+export const VERSION = "0.9.1";

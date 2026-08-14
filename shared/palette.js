@@ -64,7 +64,6 @@ export const CLASS_COLOR = {
 
 export const COMBAT = {
   bullet:     "#f4d35e",
-  bulletHeal: HEAL,
   shot:       "#ff3b5c",
   flash:      "#ffffff",
   downed:     "#4a5568",

@@ -1680,6 +1680,16 @@ tr.clickable { cursor: pointer; }
   text-transform: uppercase;
   letter-spacing: var(--track-title);
 }
+/* ce n'est pas un avertissement de danger : c'est une information de contexte,
+   donc l'ambre du « pris par » ne s'applique pas ici */
+.classSolo {
+  margin-top: var(--sp-2);
+  font-family: var(--font-body);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
 #classHint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); }
 #classRow { align-items: stretch; }
 

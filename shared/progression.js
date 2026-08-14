@@ -72,8 +72,10 @@ export const TREES = {
     { id: "flux", nom: "Flux", step: 0.07,
       desc: n => `+${pct(0.07 * n)} de soins prodigués`,
       apply(m, n) { m.healGivenMul += 0.07 * n; } },
+    // ce n'est plus une portee de TIR mais un rayon de TOLERANCE : c'est devenu
+    // la ligne defensive du soigneur, celle qui le laisse plus loin du danger
     { id: "portee", nom: "Portée", step: 0.08,
-      desc: n => `+${pct(0.08 * n)} de portée et de vitesse du faisceau`,
+      desc: n => `+${pct(0.08 * n)} de rayon d'accrochage des liens`,
       apply(m, n) { m.healBeamMul += 0.08 * n; } },
     { id: "releve", nom: "Relève", step: 0.10,
       desc: n => `réanimation +${pct(0.10 * n)}, +${4 * n} PV au relevé`,
@@ -81,9 +83,12 @@ export const TREES = {
     { id: "osmose", nom: "Osmose", step: 0.04,
       desc: n => `${pct(0.04 * n)} des soins prodigués reviennent en PV`,
       apply(m, n) { m.transfusion += 0.04 * n; } },
-    { id: "catalyse", nom: "Catalyse", step: 0.03,
-      desc: n => `la cible soignée gagne +${pct(0.03 * n)} de dégâts pendant ${PROG_CFG.CATALYSE_TIME} s`,
-      apply(m, n) { m.catalyse += 0.03 * n; } },
+    // elle s'applique a TOUS les allies lies, donc a taux reduit : le plafond
+    // reste comparable a deux cibles (+20 % contre +15 %), et l'archetype
+    // « lier large » se paie en efficacite par cible au lieu d'etre gratuit.
+    { id: "catalyse", nom: "Catalyse", step: 0.02,
+      desc: n => `chaque allié lié gagne +${pct(0.02 * n)} de dégâts pendant ${PROG_CFG.CATALYSE_TIME} s`,
+      apply(m, n) { m.catalyse += 0.02 * n; } },
   ],
 
   dps: [

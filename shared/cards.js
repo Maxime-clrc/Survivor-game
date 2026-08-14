@@ -104,7 +104,10 @@ export const CARD_CFG = {
   REPRESAILLES_DAMAGE: 40,
   REPRESAILLES_RADIUS: 150,
 
-  FAISCEAU_PIERCE: 1,
+  // ce que le SOCLE abandonne devient un choix de build : `siphon` reecrit une
+  // regle du mode au lieu d'ajuster un nombre, et c'est le registre d'une epique
+  SIPHON_RATE: 6,
+  SIPHON_DAMAGE: 14,
   BASCULE_VIVE_RATE: 0.25,
   BASCULE_VIVE_TIME: 2,
   VAGUE_LARGE_RADIUS: 0.5,
@@ -899,10 +902,10 @@ export const CARDS = [
   },
 
   {
-    id: "faisceau_double", nom: "Faisceau divisé", rarity: 1, max: 1, tags: ["coop"],
+    id: "ramification", nom: "Ramification", rarity: 1, max: 1, tags: ["coop"],
     cls: "soigneur",
-    desc: "le projectile de soin traverse un allié et en touche un second",
-    apply(m) { m.healPierce += CARD_CFG.FAISCEAU_PIERCE; },
+    desc: "un lien de soin de plus",
+    apply(m) { m.healLinks += 1; },
   },
   {
     id: "bascule_vive", nom: "Bascule vive", rarity: 1, max: 1, tags: ["coop", "cadence"],
@@ -921,6 +924,17 @@ export const CARDS = [
     cls: "soigneur",
     desc: "30 % des soins prodigués sont aussi rendus au soigneur",
     apply(m) { m.transfusion += CARD_CFG.TRANSFUSION_RATIO; },
+  },
+  // `transfusion` couvre « le lien me soigne quand je soigne un allie » ;
+  // `siphon` couvre l'autre besoin, AVOIR UNE CIBLE quand il n'y a pas d'allie.
+  // Les deux ne se recouvrent pas.
+  {
+    id: "siphon", nom: "Siphon", rarity: 2, max: 1, tags: ["coop", "off"],
+    cls: "soigneur",
+    desc: `les liens libres s'accrochent aux ennemis : `
+        + `${CARD_CFG.SIPHON_DAMAGE} dégâts/s, `
+        + `${CARD_CFG.SIPHON_RATE} PV/s rendus au soigneur`,
+    apply(m) { m.siphon = 1; },
   },
 
   {
@@ -1278,7 +1292,8 @@ export function defaultMods() {
     tauntTime: 0,
     tauntCd: 0,
     represailles: 0,
-    healPierce: 0,
+    healLinks: 0,
+    siphon: 0,
     swapInstant: 0,
     healWaveRadiusMul: 1,
     transfusion: 0,

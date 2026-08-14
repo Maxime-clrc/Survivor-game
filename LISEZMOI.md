@@ -8,6 +8,64 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Ressenti de combat et lien de soin (plan 7, lots L1 et L2)
+
+**La fréquence d'un événement détermine inversement son budget de retour.** Un jeu
+de combat, c'est cinq impacts par seconde ; un survivor à la minute 25, c'est
+**20 à 60 morts par seconde**. Si chaque mort est un événement, plus rien n'en est
+un — et le limiteur de voix `admit` d'`audio.js` existe parce que ce mur avait déjà
+été rencontré. C'est le critère qui a tranché chaque arbitrage du lot.
+
+**Ce que la magnitude change.** Avant, une grenade qui fauchait trente ennemis
+produisait exactement la même image et le même son qu'une grenade dans le vide :
+le client savait *ce qui* arrivait, jamais *combien*. Relevé sur douze minutes
+solo en normal, le nombre de tués d'un seul souffle monte à **64** (nova, rayon
+430) et à **31** à quatre en cauchemar. Le plafond d'échelle est fixé à **12
+tués** : au-delà, l'oreille ne départage plus, et une nova doit saturer.
+
+**Le recul est une vitesse, pas une téléportation.** `BLAST_KNOCK` = 620 px/s avec
+un amortissement de 0,0012/s donne **≈ 92 px** de déplacement (4,6 m), comparable
+au `NOVA_PUSH` instantané de 95 px — mais étalé sur 0,4 s, donc *visible*. Le trou
+tient assez longtemps pour être lu, et les apparitions y sont suspendues 1,1 s.
+
+**Le retour de touche du boss était un canal absent, pas un réglage discret.**
+L'éclair blanc vit dans `flashAtlas` ; le boss est tracé à la main, hors atlas. Et
+le point d'impact, prévu dans le tuple `bossDmg` depuis toujours, n'était rempli
+que pour les Jumeaux : sur un corps de 34 px de rayon, chiffres et étincelles
+naissaient au centre.
+
+**Bout en bout, deux clients réels** (`net` + poignée RFC 6455) : 204 instantanés
+sur dix secondes de manche, **57 entrées de lien** transmises, tuples de balle de
+longueur 4 (le drapeau de soin a disparu), **zéro erreur** serveur.
+
+#### Le lien de soin, mesuré
+
+| critère | relevé |
+|---|---|
+| débit sur une cible | **20,0 PV/s** — sous les 28,6 théoriques d'avant, et le lien ne rate jamais |
+| deux cibles | 2 liens, +20 PV chacun · `ramification` en ajoute un troisième |
+| clignotement à la limite du rayon | **0 rupture** sur 2 s d'oscillation autour du rayon |
+| rupture hors rayon | 0,33 s → tenue · 0,75 s → rompue (délai de grâce 0,5 s) |
+| relèvement par le lien à 10 m | **1,00 s**, soit `REVIVE_TIME` exactement |
+| solo | **0 lien, 0 PV** — la posture est inerte, et c'est le choix du lot |
+| `siphon` | 1 allié + 1 ennemi : allié +20 PV, ennemi −14 PV, soigneur +6 PV/s |
+
+**Ce que le pilote a révélé, et qui n'était pas prévu.** La posture a un coût
+d'opportunité **réel** : en posture, le soigneur ne tire plus du tout. Trois
+politiques de déclenchement ont été mesurées sur la table 1/1/2 :
+
+| politique du pilote | normal | cauchemar |
+|---|---|---|
+| lier quand un allié passe sous 62 % de PV | **2 106 s** | **978 s** |
+| lier dès qu'un allié n'est pas plein (PV + bouclier) | 1 401 s | 344 s |
+| lier sous 65 % de PV + bouclier | posture engagée **0,6 %** du temps |
+
+La deuxième politique semblait la plus compétente — elle l'est pour le soin, elle
+coûte un tiers de la manche. La troisième ne se déclenche jamais : **le bouclier du
+Rempart tient les alliés à plein**, donc un seuil qui compte le bouclier ne part
+pas. Le seuil retenu lit donc les **PV seuls** : un joueur qui perd des PV est
+déjà celui que le bouclier n'a pas suffi à couvrir.
+
 ### Classes, compétences et compositions (lot I)
 
 Le lot est **d'abord un protocole** : le plan interdit toute décision de valeur

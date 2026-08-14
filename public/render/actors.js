@@ -4,7 +4,7 @@ import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { CFG, ENEMY_TYPES, POWERUP_TYPES, traitsOf } from "/shared/game_state.js";
-import { BOSS, CLASS_COLOR, ENEMY, FX, OWNED, SURFACE, ZONE, alpha } from "/shared/palette.js";
+import { BOSS, CLASS_COLOR, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
@@ -32,27 +32,8 @@ function boltDiamond(x, y, ux, uy, r) {
   ctx.closePath();
   ctx.fill();
 }
-function boltCross(x, y, ux, uy, r) {
-  const px = -uy, py = ux;
-  const L = r * 2.0, W = r * 0.5, C = r * 1.25;
-  ctx.beginPath();
-  ctx.moveTo(x + ux * L + px * W, y + uy * L + py * W);
-  ctx.lineTo(x + ux * L - px * W, y + uy * L - py * W);
-  ctx.lineTo(x - ux * L - px * W, y - uy * L - py * W);
-  ctx.lineTo(x - ux * L + px * W, y - uy * L + py * W);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x + px * C + ux * W, y + py * C + uy * W);
-  ctx.lineTo(x + px * C - ux * W, y + py * C - uy * W);
-  ctx.lineTo(x - px * C - ux * W, y - py * C - uy * W);
-  ctx.lineTo(x - px * C + ux * W, y - py * C + uy * W);
-  ctx.closePath();
-  ctx.fill();
-}
 export const BOLT_CAPSULE = 0;
 export const BOLT_DIAMOND = 1;
-export const BOLT_CROSS   = 2;
 export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
   const prev = trail.get(b.id);
   trail.set(b.id, { x: b.x, y: b.y });
@@ -69,10 +50,6 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
         boltDiamond(b.x - ux * r * 3, b.y - uy * r * 3, ux, uy, r * 0.7);
         ctx.globalAlpha = 1;
         boltDiamond(b.x, b.y, ux, uy, r);
-        return;
-      }
-      if (shape === BOLT_CROSS) {
-        boltCross(b.x, b.y, ux, uy, r);
         return;
       }
       ctx.globalAlpha = 0.3;
@@ -92,7 +69,6 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
     }
   }
   if (shape === BOLT_DIAMOND) { boltDiamond(b.x, b.y, 1, 0, r); return; }
-  if (shape === BOLT_CROSS) { boltCross(b.x, b.y, 1, 0, r); return; }
   ctx.beginPath();
   ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
   ctx.fill();
@@ -1161,6 +1137,31 @@ function auraPass(list, diff) {
     }
   }
 }
+// Deux jeux de parametres pour LA MEME fonction de trace, et c'est ce qui rend
+// les deux modes distinguables d'un coup d'oeil par un allie a l'autre bout de
+// l'ecran : le soin est chaud et CALME (peu de gigue, aucune coupure), le
+// siphon est froid et AGITE (forte gigue, branches mortes, coupures).
+export function drawSoinLinks(links, players, enemies) {
+  if (!links || links.length === 0) return;
+  let par = null;
+  for (const [src, cible, ennemi] of links) {
+    if (par === null) {
+      par = new Map();
+      for (const p of players) par.set(p.id, p);
+    }
+    const a = par.get(src);
+    if (!a) continue;
+    const b = ennemi ? enemies.find(e => e.id === cible) : par.get(cible);
+    if (!b) continue;
+    if (!inView(a.x, a.y, 200) && !inView(b.x, b.y, 200)) continue;
+    drawArc(`h${src}:${cible}`, a.x, a.y, b.x, b.y, ennemi
+      ? { col: SIGNAL.persist, coeur: FX.ricochetCore, amp: 0.14, width: 2,
+          branches: 2, cut: 0.55 }
+      : { col: FX.heal, coeur: FX.healSoft, amp: 0.035, width: 2.4,
+          branches: 0, cut: 0 });
+  }
+}
+
 function drawMedicLinks(list) {
   for (const m of list) {
     if (m.type !== 7) continue;

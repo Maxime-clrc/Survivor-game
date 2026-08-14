@@ -623,7 +623,9 @@ export class GameState {
         relicPurge: 0,
       },
       statuses: new Map(),
-      healHits: new Map(),
+      // les liens vivent A COTE de `mods`, comme les minuteurs et les etats :
+      // un recalcul de chargement ne doit pas les effacer.
+      links: [],
       purges: 0,
 
       frenzyStacks: 0,
@@ -849,6 +851,7 @@ export class GameState {
     this._shots(dt);
     this._zones(dt);
     this._collisions();
+    this._healLinks(dt);
     this._revive(dt);
 
     if (this.players.size > 0 && this.aliveCount() === 0) this.gameOver = true;
@@ -1026,9 +1029,7 @@ export class GameState {
 
       p.fireCd = Math.max(0, p.fireCd - dt);
 
-      let interval = p.healMode
-        ? SKILL_CFG.HEAL_MODE_INTERVAL
-        : CFG.FIRE_INTERVAL * p.mods.fireIntervalMul;
+      let interval = CFG.FIRE_INTERVAL * p.mods.fireIntervalMul;
       if (p.frenzyStacks > 0) interval /= 1 + p.frenzyStacks * CARD_CFG.FRENZY_STEP;
       if (p.mods.lowHpRate > 0 && p.hp <= p.maxHp * CARD_CFG.ADRENALINE_HP) {
         interval /= 1 + p.mods.lowHpRate;
@@ -1040,10 +1041,10 @@ export class GameState {
 
       p.fireInterval = interval;
 
-      if (p.fireCd <= 0 && this.warmup <= 0) {
+      // posture engagee : il ne tire plus du tout. Les liens s'accrochent seuls.
+      if (p.fireCd <= 0 && this.warmup <= 0 && !p.healMode) {
         p.fireCd = interval;
-        if (p.healMode) this._fireHeal(p);
-        else this._shoot(p);
+        this._shoot(p);
       }
     }
   }
@@ -1374,65 +1375,97 @@ export class GameState {
     return healed;
   }
 
-  _fireHeal(p) {
-    const a = Math.atan2(p.aimY, p.aimX);
-    const dx = Math.cos(a), dy = Math.sin(a);
-    const speed = CFG.BULLET_SPEED * p.mods.bulletSpeedMul * (p.mods.healBeamMul ?? 1);
-    this.bullets.push({
-      id: this._nextId++,
-      x: p.x + dx * (CFG.PLAYER_RADIUS + 2),
-      y: p.y + dy * (CFG.PLAYER_RADIUS + 2),
-      vx: dx * speed, vy: dy * speed,
-      life: CFG.BULLET_LIFE * p.mods.bulletLifeMul * (p.mods.healBeamMul ?? 1),
-      dmg: 0,
-      owner: p.id,
-      pierce: 0, chain: 0, burn: 0, arc: 0, boom: 0,
-      hits: null, hit: null, inertia: 0, bounce: 0, dmg0: 0,
-      heal: SKILL_CFG.HEAL_MODE_ALLY,
-      healPierce: p.mods.healPierce,
-    });
+  // ===================== LE LIEN DE SOIN =====================
+  // Accrochage automatique, rupture apres un delai de grace, ALLIES D'ABORD.
+  // Le lien ne rend AUCUN PV au soigneur : le soin de soi appartient a la vague,
+  // qui l'inclut deja (`for (const o of this.players.values())`). Mettre la meme
+  // fonction a deux endroits diluerait les deux. Consequence assumee : sans
+  // allie, la posture est inerte — c'est un role de groupe.
+  _healLinks(dt) {
+    let siphonne = false;
+    for (const p of this.players.values()) {
+      if (!p.healMode || p.downed) { p.links.length = 0; continue; }
+
+      const rMax = SKILL_CFG.HEAL_LINK_RADIUS * (p.mods.healBeamMul ?? 1);
+      const r2 = rMax * rMax;
+      const plafond = SKILL_CFG.HEAL_LINK_MAX + (p.mods.healLinks ?? 0);
+
+      for (let i = p.links.length - 1; i >= 0; i--) {
+        const l = p.links[i];
+        // un ennemi mort sort du tableau mais l'objet survit : `hp` suffit a le
+        // dire, et evite de balayer six cents corps par lien et par image.
+        const c = l.ennemi ? l.cible : this.players.get(l.id);
+        const vivant = !!c && (l.ennemi ? c.hp > 0 : true);
+        if (!vivant) { p.links.splice(i, 1); continue; }
+        l.cible = c;
+        if ((c.x - p.x) ** 2 + (c.y - p.y) ** 2 <= r2) { l.grace = 0; continue; }
+        l.grace += dt;
+        if (l.grace >= SKILL_CFG.HEAL_LINK_GRACE) p.links.splice(i, 1);
+      }
+
+      // les allies ne se font JAMAIS supplanter : les ennemis ne comblent que
+      // les liens restes libres.
+      if (p.links.length < plafond) {
+        const pris = new Set(p.links.map(l => l.id));
+        const libres = [];
+        for (const o of this.players.values()) {
+          if (o.id === p.id || pris.has(o.id)) continue;
+          const d2 = (o.x - p.x) ** 2 + (o.y - p.y) ** 2;
+          if (d2 <= r2) libres.push({ c: o, d2, ennemi: 0 });
+        }
+        libres.sort((a, b) => a.d2 - b.d2);
+        for (const f of libres) {
+          if (p.links.length >= plafond) break;
+          p.links.push({ id: f.c.id, ennemi: 0, grace: 0, purge: 0, cible: f.c });
+        }
+      }
+
+      if (p.mods.siphon > 0 && p.links.length < plafond) {
+        const pris = new Set(p.links.map(l => l.id));
+        const proies = [];
+        for (const e of this.enemies) {
+          if (e.hp <= 0 || pris.has(e.id)) continue;
+          const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+          if (d2 <= r2) proies.push({ c: e, d2 });
+        }
+        proies.sort((a, b) => a.d2 - b.d2);
+        for (const f of proies) {
+          if (p.links.length >= plafond) break;
+          p.links.push({ id: f.c.id, ennemi: 1, grace: 0, purge: 0, cible: f.c });
+        }
+      }
+
+      for (const l of p.links) {
+        const c = l.cible;
+        if (!c) continue;
+        if (l.ennemi) {
+          this._damage(c, CARD_CFG.SIPHON_DAMAGE * dt, p.id, 0, true);
+          if (c.hp <= 0) siphonne = true;
+          if (!p.downed) {
+            p.hp = Math.min(p.maxHp, p.hp + CARD_CFG.SIPHON_RATE * dt);
+          }
+          continue;
+        }
+        if (c.downed) continue;
+        this._heal(p, c, SKILL_CFG.HEAL_LINK_RATE * dt);
+        // la purge se comptait en TOUCHES ; un lien continu la compte en TEMPS
+        l.purge += dt;
+        if (l.purge >= STATUS_CFG.PURGE_WINDOW) {
+          l.purge = 0;
+          this._purgeStatus(c);
+        }
+      }
+    }
+    if (siphonne) this.enemies = this.enemies.filter(e => e.hp > 0);
   }
 
-  _healBullet(b) {
-    const owner = this.players.get(b.owner);
-
+  _linkPayload() {
+    let out = null;
     for (const p of this.players.values()) {
-      if (p.id === b.owner) continue;
-      const rr = CFG.PLAYER_RADIUS + CFG.BULLET_RADIUS;
-      if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 > rr * rr) continue;
-
-      if (p.downed) {
-        p.revive = Math.min(CFG.REVIVE_TIME, p.revive + SKILL_CFG.HEAL_MODE_REVIVE);
-        if (p.revive >= CFG.REVIVE_TIME) {
-          p.downed = false;
-          p.hp = Math.min(p.maxHp, Math.round(p.maxHp * Math.max(CFG.REVIVE_HP_RATIO,
-            owner ? owner.mods.reviveHpRatio : 0))
-            + (owner ? owner.mods.reviveHpBonus ?? 0 : 0));
-          p.revive = 0;
-          p.hitCd = CFG.PLAYER_HIT_CD;
-        }
-        if (owner) owner.healDealt += SKILL_CFG.HEAL_MODE_ALLY;
-      } else if (owner) {
-        this._heal(owner, p, b.heal);
-      }
-
-      if (owner && owner.id !== p.id) this._healPurgeHit(owner.id, p);
-
-      if (b.healPierce > 0) { b.healPierce--; continue; }
-      return true;
+      if (!p.healMode || p.links.length === 0) continue;
+      for (const l of p.links) (out ??= []).push([p.id, l.id, l.ennemi]);
     }
-
-    for (const e of this.enemies) {
-      if (e.hp <= 0) continue;
-      const rr = e.r + CFG.BULLET_RADIUS;
-      if ((b.x - e.x) ** 2 + (b.y - e.y) ** 2 > rr * rr) continue;
-      if (owner && !owner.downed) {
-        owner.hp = Math.min(owner.maxHp, owner.hp + SKILL_CFG.HEAL_MODE_SELF);
-      }
-      return true;
-    }
-
-    return false;
+    return out;
   }
 
   _skills(dt) {
@@ -5098,9 +5131,6 @@ export class GameState {
         }
       }
 
-      for (const [id, w] of p.healHits) {
-        if (this.time >= w.until) p.healHits.delete(id);
-      }
       if (p.statuses.size === 0) continue;
 
       for (const [id, st] of p.statuses) {
@@ -5130,20 +5160,6 @@ export class GameState {
     }
   }
 
-  _healPurgeHit(healerId, target) {
-    const w = target.healHits.get(healerId);
-    if (w && this.time < w.until) {
-      w.n++;
-      w.until = this.time + STATUS_CFG.PURGE_WINDOW;
-      if (w.n >= STATUS_CFG.PURGE_HITS) {
-        target.healHits.delete(healerId);
-        return this._purgeStatus(target);
-      }
-      return -1;
-    }
-    target.healHits.set(healerId, { n: 1, until: this.time + STATUS_CFG.PURGE_WINDOW });
-    return -1;
-  }
 
 
   _hurt(p, amount, {
@@ -5358,11 +5374,6 @@ export class GameState {
     const live = [];
     for (const b of this.bullets) {
       let hit = false;
-
-      if (b.heal > 0) {
-        if (!this._healBullet(b)) live.push(b);
-        continue;
-      }
 
       for (const boss of this._bossTargets()) {
         if (hit) break;
@@ -5704,8 +5715,13 @@ export class GameState {
       for (const o of this.players.values()) {
         if (o.id === p.id || o.downed) continue;
         const r = CFG.REVIVE_RADIUS * o.mods.reviveRadiusMul;
-        if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 > r * r) continue;
-        rate += o.mods.reviveSpeedMul;
+        const proche = (o.x - p.x) ** 2 + (o.y - p.y) ** 2 <= r * r;
+        // le lien releve DE LOIN : c'est le seul point d'achevement, il compte
+        // les deux sources au lieu d'en ouvrir un second.
+        const lie = o.links.some(l => !l.ennemi && l.id === p.id);
+        if (!proche && !lie) continue;
+        rate += lie ? SKILL_CFG.HEAL_LINK_REVIVE * o.mods.reviveSpeedMul
+                    : o.mods.reviveSpeedMul;
         if (o.mods.reviveHpRatio > ratio) ratio = o.mods.reviveHpRatio;
         if ((o.mods.reviveHpBonus ?? 0) > bonus) bonus = o.mods.reviveHpBonus;
         if (o.mods.oathDamage > (jureur?.mods.oathDamage ?? 0)) jureur = o;
@@ -5829,7 +5845,7 @@ export class GameState {
       e: this.enemies.map(e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
                                 e.type + (e.elite ? 100 : 0),
                                 r2(e.ang), e.hitSeq, e.critSeq], 7)),
-      b: this.bullets.map(b => [b.id, r1(b.x), r1(b.y), b.heal > 0 ? 1 : 0, b.owner]),
+      b: this.bullets.map(b => [b.id, r1(b.x), r1(b.y), b.owner]),
       s: this.shots.map(s => [s.id, r1(s.x), r1(s.y)]),
       z: this.zones.map(z => trimTail([
         z.id, r1(z.x), r1(z.y), Math.round(z.r), r2(z.warn), r2(z.blast),
@@ -5882,6 +5898,7 @@ export class GameState {
         ? [...this.bossDmg].map(([id, c]) =>
             [id, Math.round(c.d), Math.round(c.crit), r1(c.x), r1(c.y)])
         : null,
+      hl: this._linkPayload(),
       sp: this.slipT > 0 ? 1 : 0,
       bn: this.bounds.x0 > 0 || this.bounds.y0 > 0
           || this.bounds.x1 < CFG.ARENA_W || this.bounds.y1 < CFG.ARENA_H || this.shrink
@@ -7061,10 +7078,15 @@ export const PILOT_CFG = {
   PAS: 6,
   SAUT: 96,
   GROUPE: 2,
+  // MESURE : la posture a un cout d'opportunite reel — en posture le soigneur ne
+  // tire plus du tout. A 0,99 (« lier des qu'un allie n'est pas plein ») la table
+  // 1/1/2 tombe a 1 401 s en normal contre 2 106 ici. Le seuil reste donc bas :
+  // on lie quand un allie est REELLEMENT entame, pas en permanence.
   SOIN_ENTREE: 0.62,
-  SOIN_SORTIE: 0.92,
   SECOURS: 0.45,
-  PORTEE_SOIN: 700,
+  // le rayon d'accrochage, plus la marge dont le pilote a besoin pour venir s'y
+  // mettre : au-dela il n'y a pas de lien a entretenir
+  PORTEE_SOIN: SKILL_CFG.HEAL_LINK_RADIUS * 2.2,
   BONUS: 520,
   REMPART: 620,
   ZONE: 520,
@@ -7159,6 +7181,11 @@ function grappeEnnemis(g, p, portee, rayon) {
   return best;
 }
 
+// Le seuil se lit sur les PV SEULS, et c'est mesure : lire PV + bouclier semble
+// plus fin (sous un rempart les PV ne bougent pas), mais le bouclier tient les
+// allies a plein en permanence, donc le declencheur ne part jamais — 0,6 % du
+// temps en posture. Un joueur qui PERD des PV est deja celui que le bouclier n'a
+// pas suffi a couvrir : c'est le bon signal.
 function allieLePlusAtteint(g, p, portee) {
   let cible = null, pire = 1;
   for (const o of g.players.values()) {
@@ -7205,6 +7232,13 @@ export function pilotage() {
         if (d < dt) { dt = d; tombe = o; }
       }
       if (tombe && ratio > PILOT_CFG.SECOURS) but = { x: tombe.x, y: tombe.y, poids: 0.7 };
+      // TENIR SA POSITION PRES DE CELUI QU'ON SOIGNE : le lien remplace la ligne
+      // de vue par une contrainte de distance, et sans ce terme la mesure juge un
+      // soigneur qui laisse casser tous ses liens.
+      if (!but && p.healMode) {
+        const cible = allieLePlusAtteint(g, p, PILOT_CFG.PORTEE_SOIN);
+        if (cible) but = { x: cible.x, y: cible.y, poids: 0.45 };
+      }
       // se tenir DANS le rempart d'un allie : sans ce terme, le tank n'apporte a
       // l'equipe que sa provocation, et la mesure de composition juge un tank que
       // personne ne suit.
@@ -7266,18 +7300,13 @@ export function pilotage() {
           && (o.x - p.x) ** 2 + (o.y - p.y) ** 2 < 400 * 400));
       s3 = tier3 && corpsDans(g, p, 220) >= 3;
     } else if (cls === "soigneur") {
+      // la question posee au soigneur n'est plus « ai-je une ligne de tir ? »
+      // mais « puis-je RESTER pres de lui ? » : la posture ne vise rien, elle
+      // s'entretient par la position, et sans allie elle est inerte.
+      // la sortie ne depend plus de SES PV : la posture ne le soigne plus, donc
+      // y rester sans allie a lier ne fait que le priver de son tir.
       const besoin = allieLePlusAtteint(g, p, PILOT_CFG.PORTEE_SOIN);
-      const seul = g.players.size === 1;
-      const veut = besoin !== null
-        || (seul && ratio < PILOT_CFG.SOIN_ENTREE && proche && dp < 620);
-      const stop = !besoin && ratio > PILOT_CFG.SOIN_SORTIE;
-      if (p.healSwapCd <= 0 && ((veut && !p.healMode) || (stop && p.healMode))) s1 = true;
-      // en mode soin le tir vise l'allie ; seul, il vise l'ennemi (le soin de soi
-      // passe par une balle qui TOUCHE un ennemi)
-      if (p.healMode && besoin) {
-        const d = Math.hypot(besoin.x - p.x, besoin.y - p.y) || 1;
-        ax = (besoin.x - p.x) / d; ay = (besoin.y - p.y) / d;
-      }
+      if (p.healSwapCd <= 0 && !!besoin !== !!p.healMode) s1 = true;
       let blesses = 0;
       for (const o of g.players.values()) {
         if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 > SKILL_CFG.HEAL_WAVE_RADIUS ** 2) continue;

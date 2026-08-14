@@ -10,7 +10,7 @@ import { fmtM } from "/shared/units.js";
 import { glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myDashCd, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
-import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_CROSS, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawPowerups, drawSancts, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
+import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, lastPlayerPos } from "./boss.js";
 import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls } from "./decor.js";
 import { blastMarks, bursts, deaths, dmgAgg, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, stepFeedback, timeWarp, zoneFx } from "./fx.js";
@@ -290,10 +290,11 @@ function drawWorld(v) {
   }
   for (const b of v.bulletList) {
     if (!inView(b.x, b.y, 40)) continue;
-    drawBolt(b, CFG.BULLET_RADIUS + (b.heal ? 1.5 : 0),
-             b.heal ? COMBAT.bulletHeal : (ownerColorOf(b.owner) ?? COMBAT.bullet),
-             bulletTrail, b.heal ? BOLT_CROSS : BOLT_CAPSULE);
+    drawBolt(b, CFG.BULLET_RADIUS, ownerColorOf(b.owner) ?? COMBAT.bullet,
+             bulletTrail, BOLT_CAPSULE);
   }
+
+  drawSoinLinks(v.links, v.playerList, v.enemyList);
 
   drawPlayers(v.playerList, v.tm, v.marks ?? []);
   drawMarkColumns(v.marks ?? [], v.tm);

@@ -335,6 +335,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_hurt(p, d, opts)` | **tout** ce qui blesse un joueur ; multiplicateur de difficulté **ici et nulle part ailleurs** ; plafond de mécanique ; provenance |
 | `_damage()` | **tout** ce qui blesse un ennemi ou le boss ; vol de vie, critique, momentum, exécution, brûlure, `hitSeq`, `critSeq`, point d'impact du boss, redirection Jumeaux, crédit XP du boss |
 | `_blastPush(x, y, r, force)` | **toute** impulsion radiale d'un souffle, et le trou d'apparition qui va avec (`_dansUnTrou`) |
+| `_healLinks(dt)` | accrochage, rupture, soin, réanimation et siphon du Soigneur |
 | `drawArc(clef, x0, y0, x1, y1, opts)` | **tout** ce qui relie deux points par un arc : ricochet, salve, lien de soin |
 | `spawnBlast(x, y, r, ampleur, style)` | les couches chaudes d'un souffle, mises à l'échelle par la magnitude |
 | `_applyStatus()` / `_purgeStatus()` | pose et retrait d'état |
@@ -413,7 +414,8 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   le TUEUR (`p.critKills`, même forme cyclique).
 - **Clés NOMMÉES du snapshot** (ignorées par un client ancien) : `sg`, `xl`,
   `xp`, `bw`, `bm`, `an`, `sa`, `mk`, `bo2`, `sp`, `bn`, `wl`, `bd`, `wu`, `ev`,
-  `ob`. `bn`, `wl`, `wu`, `ev`, `ob` sont **absentes** la plupart du temps.
+  `ob`, `hl`. `bn`, `wl`, `wu`, `ev`, `ob`, `hl` sont **absentes** la plupart du
+  temps.
 - **Avant d'ouvrir une clé de snapshot, chercher si la valeur est une fonction de
   ce que le client a déjà** : la géométrie d'une graine, l'état d'un danger du
   temps, la météo du segment, un trait de `(diffIndex, type)`.
@@ -489,11 +491,24 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   cellule, donc dans le voisinage. La toucher casse la preuve.
 - **L'état de provocation est global** (`state.taunt = {id, until, x, y}`), lu par
   `_nearestPlayer()`.
-- **Le mode soin est la seule chose où une balle teste les joueurs**
-  (`_healBullet()`, appelé avant la boucle de dégâts, sort immédiatement). Ces
-  projectiles ne blessent pas mais **s'arrêtent sur les ennemis**.
+- **Le mode soin est une POSTURE, pas une recharge, et en posture le soigneur ne
+  tire plus du tout.** Les liens s'accrochent seuls (`_healLinks`) : alliés
+  d'abord, jusqu'à `HEAL_LINK_MAX`, rupture après `HEAL_LINK_GRACE` hors rayon
+  — sans ce délai, un allié qui oscille à la limite fait clignoter le lien. La
+  question posée au joueur n'est plus « ai-je une ligne de tir ? » mais « puis-je
+  **rester** près de lui ? ».
+- **Le lien ne rend AUCUN PV au soigneur** : l'auto-subsistance appartient à la
+  vague, qui l'inclut déjà. **Sa posture est donc inerte en solo**, et c'est
+  assumé — un soutien seul n'a pas de sens stratégique. C'est un problème
+  d'affichage (`solo` dans `CLASSES`, montré à un joueur), pas de puissance. La
+  carte `siphon` est ce qui rend l'autonomie : elle **réécrit une règle** du mode,
+  et les ennemis ne comblent que les liens **restés libres**.
 - **Le soin du medic est un chemin NEUF**, jamais un `_damage()` négatif. Rupture
   mesurée en **temps passé sous le feu**.
+- **La purge par le soin se compte en TEMPS** (`STATUS_CFG.PURGE_WINDOW` de lien
+  continu), là où elle se comptait en touches.
+- **Le relèvement n'a qu'UN point d'achèvement, `_revive()`** : il compte la
+  proximité **et** le lien, au lieu d'ouvrir un second chemin.
 - **Ne jamais écrire dans `ENEMY_TYPES`** : `standoff`, `traits`, `shieldArc`,
   `dashCd`, `dashWarn`, `dashT`, `trailAt`, `healT`, `fireT`, `fleeT`, `hitAt`,
   `aura` sont **copiés sur l'entité** à l'apparition.
@@ -892,7 +907,8 @@ Ajouter une entrée impose de traiter les deux côtés.
 | soins rendus | `p.healDealt`, champ `heal` de `scoreboardRows()` | colonne « soins » du bilan |
 | magnitude d'un souffle | `n` sur l'effet, 9ᵉ élément (index 8, coupé si nul) — nova, grenade, onde, bombe | `BLAST_STYLE` + `spawnBlast()` + force du son |
 | critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats |
-| propriétaire d'une balle | 5ᵉ élément du tuple `b` | `ownerColorOf(b.owner) ?? COMBAT.bullet` |
+| propriétaire d'une balle | 4ᵉ élément du tuple `b` | `ownerColorOf(b.owner) ?? COMBAT.bullet` |
+| lien de soin | `_healLinks()` ; clé `hl`, triplets `[soigneur, cible, ennemi]`, **absente** hors posture | `drawSoinLinks()` : soin chaud et **calme**, siphon froid et **agité** |
 | intervalle de tir | `p.fireInterval`, 34ᵉ élément du tuple joueur | `fireInterval` (`ingest.js`) + ligne « cadence » de `ui/build.js` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` — **ne circule pas** | `CARD_CATEGORY_COLOR` + `.cardCat` |
 | hub des salles | `listRooms`/`createRoom`/`joinRoom`/`leaveRoom` → `rooms`/`roomJoined`/`joinRoomError`/`roomClosed` | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
@@ -972,10 +988,10 @@ le sien :
   glyphe est dans la couleur du texte.
 - Les chiffres ne s'affichent que sur le **boss** (`bd`) : chaque client ne lit
   **que** sa propre ligne.
-- **Trois silhouettes de projectile, jamais trois couleurs seules** :
-  `BOLT_CAPSULE` (tir allié), `BOLT_DIAMOND` (tir hostile), `BOLT_CROSS` (soin).
-  La croix est **orientée dans l'axe de vol** et tracée en **deux `fill()`** (deux
-  sous-tracés en sens contraires trouent le centre).
+- **Deux silhouettes de projectile, jamais deux couleurs seules** :
+  `BOLT_CAPSULE` (tir allié), `BOLT_DIAMOND` (tir hostile). Le soin n'est plus un
+  projectile : c'est un **arc**, et il se distingue par son **tracé** — calme et
+  chaud pour le soin, agité et froid pour le siphon.
 - **Les marqueurs posés sur un joueur sont des glyphes distincts en silhouette.**
 - **Le sanctuaire se reconnaît à ses CROIX QUI MONTENT**, pas à sa couleur : sept
   croix, montée 2,6 s, **aucune allocation** (fonction de l'identifiant, du rang
@@ -1270,6 +1286,11 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
   par `_zoneHits`, relève, ramasse et **consomme ses recharges**. Un critère de
   **survie** se mesure avec le pilote, un critère de **population** avec le bot.
   Un taux d'utilisation de compétence est la mesure du pilote, pas de la classe.
+- **UNE POSTURE QUI COÛTE LE TIR NE SE TIENT PAS EN PERMANENCE.** Lier « dès qu'un
+  allié n'est pas plein » fait perdre un tiers de la manche à la table 1/1/2
+  (1 401 s contre 2 106). Et le seuil se lit sur les **PV seuls** : lire PV +
+  bouclier paraît plus fin, mais le bouclier tient les alliés à plein, donc le
+  déclencheur ne part jamais. Les deux variantes ont été mesurées, pas devinées.
 - **Une matrice « classe × effectif » n'existe qu'en SOLO** : Rempart et Soigneur
   sont `unique`, donc au-dessus d'un joueur la comparaison est une **composition**
   (`COMPOSITIONS`), et « deux tanks deux soigneurs » n'est pas jouable.

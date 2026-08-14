@@ -920,6 +920,10 @@ function renderClasses() {
         `<div class="classSkill"><span class="key">${escapeHtml(s.touche)}</span>` +
         `<span><b>${escapeHtml(s.nom)}</b> — ${escapeHtml(s.desc)}</span></div>`
       ).join("") +
+      // un joueur qui choisit soigneur pour une partie SOLO doit le savoir
+      // avant, pas le decouvrir a la minute 8
+      (c.solo && lobby.length <= 1
+        ? `<div class="classSolo">seul : ${escapeHtml(c.solo)}</div>` : "") +
       (pris ? `<div class="classTaken">pris par ${escapeHtml(pris)}</div>` : "");
 
     paintClassSilhouette(btn.querySelector(".classSil"), c);
