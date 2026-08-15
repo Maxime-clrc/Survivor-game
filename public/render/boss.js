@@ -1,7 +1,7 @@
 
 import { beatPhase, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE, BOSS_TISSEUR, BOSS_VEILLEUR, MECH_BAIT, MECH_CLUSTER, MECH_COUNT, MECH_FEED, MECH_JAIL, MECH_LINK, MECH_PROX, MECH_SANCTUARY, MECH_SEAL, MECH_SPREAD, MECH_STACK, MECH_TOWER } from "/shared/bosses.js";
 import { CARD_CFG } from "/shared/cards.js";
-import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, classAt } from "/shared/classes.js";
+import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, SKILL_ULT_WIND, classAt } from "/shared/classes.js";
 import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG } from "/shared/game_state.js";
 import { BOSS, BOSS_SKIN, CLASS_COLOR, COMBAT, EFFECT_COLOR, FX, HUD, MARK, POWERUP_COLOR, SIGNAL, SURFACE, TEXT, alpha } from "/shared/palette.js";
 import { STATUSES, STATUS_DOOM, STATUS_VULN } from "/shared/statuses.js";
@@ -9,7 +9,7 @@ import { drawSprite, frameOf } from "/sprites.js";
 import { amSpectator, dash, myId, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
-import { bossFlash, bossHit, lastBossPos } from "./fx.js";
+import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, lastBossPos, shieldHit } from "./fx.js";
 import { aimVector, colorOf, ctx, mouse, nameOf, setCtx, underCtx } from "./stage.js";
 
 
@@ -862,10 +862,53 @@ function markGauge(x, y, k, col) {
   ctx.fillStyle = col;
   ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, k)), h);
 }
-const RING_SHIELD = CFG.PLAYER_RADIUS + 4;
-const RING_STATUS = CFG.PLAYER_RADIUS + 8;
-const RING_SKILL  = CFG.PLAYER_RADIUS + 12;
-const RING_BUFF0  = CFG.PLAYER_RADIUS + 16;
+// UNE COQUE, PAS UN CERCLE BLEU. Trois choses la separent d'un trait : elle est
+// FACETTEE (des plaques discretes, donc une charge qui se COMPTE au lieu de se
+// deviner), elle prend la lumiere en arc haut-gauche comme toute la charte, et
+// elle encaisse VISIBLEMENT — la derniere touche allume le liseré.
+const SHIELD_PLATES = 9;
+const SHIELD_GAP = 0.10;
+const SHIELD_HIT_MS = 260;
+
+function drawShieldShell(x, y, p, tm) {
+  const k = Math.max(0, Math.min(1, p.shield / CFG.SHIELD_POOL));
+  const col = POWERUP_COLOR.shield;
+  const frappe = Math.max(0, 1 - (performance.now() - (shieldHit.get(p.id) ?? -1e9)) / SHIELD_HIT_MS);
+  // rotation lente et respiration : une coque inerte se lit comme de l'interface
+  const spin = tm * 0.35 + p.id * 0.7;
+  const r = RING_SHIELD + Math.sin(tm * 2.2 + p.id) * 0.6 + frappe * 2.5;
+  const pleines = k * SHIELD_PLATES;
+
+  ctx.save();
+  ctx.lineCap = "butt";
+
+  ctx.fillStyle = alpha(col, 0.05 + k * 0.05 + frappe * 0.18);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+
+  const pas = (Math.PI * 2) / SHIELD_PLATES;
+  for (let i = 0; i < SHIELD_PLATES; i++) {
+    // la plaque partielle se remplit, les suivantes restent en creux : le joueur
+    // LIT sa charge au lieu de l'estimer sur un arc continu.
+    const part = Math.max(0, Math.min(1, pleines - i));
+    const a0 = spin + i * pas + SHIELD_GAP / 2;
+    const a1 = a0 + pas - SHIELD_GAP;
+    ctx.strokeStyle = alpha(col, part > 0 ? 0.45 + part * 0.45 + frappe * 0.4 : 0.10);
+    ctx.lineWidth = part > 0 ? 3 + part * 1.4 : 1.2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, a0, part > 0 ? a0 + (a1 - a0) * part : a1);
+    ctx.stroke();
+  }
+
+  // la LUMIERE en arc haut-gauche, comme sur toute creature de la charte
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = alpha(COMBAT.flash, 0.16 + k * 0.14 + frappe * 0.5);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, r - 1.5, Math.PI * 1.05, Math.PI * 1.55);
+  ctx.stroke();
+  ctx.restore();
+}
+
 export const lastPlayerPos = new Map();
 function playerMoving(id, x, y) {
   const prev = lastPlayerPos.get(id);
@@ -958,6 +1001,22 @@ export function drawPlayers(list, tm, marks = []) {
         ctx.beginPath(); ctx.arc(x, y, RING_SKILL, 0, Math.PI * 2); ctx.stroke();
       }
 
+      // L'AMORCE — le personnage marque le coup avant que l'effet parte. C'est
+      // ce qui distingue un ultime d'un sort : il s'annonce, et le joueur est
+      // engage. Elle se ramasse comme un boss, en carre, pas en lineaire.
+      const amorce = (p.skillFlags & SKILL_ULT_WIND) !== 0;
+      if (amorce) {
+        const puls = 0.4 + 0.6 * Math.abs(Math.sin(tm * 14));
+        ctx.strokeStyle = alpha(FX.flash, puls);
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(x, y, RING_SKILL + 4, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = alpha(col, 0.5);
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(x, y, RING_SKILL + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * puls);
+        ctx.stroke();
+      }
+
       const moving = playerMoving(p.id, x, y);
       const teinte = dashing ? FX.flash
         : ((p.skillFlags & SKILL_HEAL_MODE) ? FX.heal : col);
@@ -971,16 +1030,7 @@ export function drawPlayers(list, tm, marks = []) {
         angle: ang, scaleX: sx, scaleY: sy, tint: teinte,
       });
 
-      if (p.shield > 0) {
-        const k = p.shield / CFG.SHIELD_POOL;
-        ctx.strokeStyle = POWERUP_COLOR.shield;
-        ctx.globalAlpha = 0.35 + k * 0.45;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(x, y, RING_SHIELD, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
+      if (p.shield > 0) drawShieldShell(x, y, p, tm);
 
       let ring = RING_BUFF0;
       for (const [bit, colour] of [

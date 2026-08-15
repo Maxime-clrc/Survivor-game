@@ -5,7 +5,7 @@ import {
 } from "./cards.js";
 import {
   CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange, bombFlight,
-  SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE,
+  SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE, SKILL_ULT_WIND,
 } from "./classes.js";
 import {
   STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOOM,
@@ -337,6 +337,10 @@ export const DAMAGE_SOURCES = [
 ];
 
 const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
+
+const SKILL3_TABLE = {
+  tank: "SKILL3_ANCRE", soigneur: "SKILL3_SANCTUAIRE", dps: "SKILL3_SALVE",
+};
 
 export const DIFFICULTIES = [
   {
@@ -727,6 +731,7 @@ export class GameState {
       odT: 0,
       odBonus: 0,
       skillUses: [0, 0, 0],
+      ultT: 0,
 
       jailed: 0,
       vx: 0, vy: 0,
@@ -912,6 +917,7 @@ export class GameState {
     this._shots(dt);
     this._zones(dt);
     this._collisions();
+    this._ultimes(dt);
     this._healLinks(dt);
     this._revive(dt);
 
@@ -1341,16 +1347,54 @@ export class GameState {
     }
   }
 
+  // UN ULTIME S'ANNONCE. L'appui arme une amorce ; l'effet part a son echeance,
+  // et le joueur est engage — il n'y a pas d'annulation. La Salve verifie sa
+  // cible A L'APPUI : sans ca elle brulerait son amorce pour rien, et
+  // l'invariant « pas de recharge consommee sans cible » tomberait.
   _skill3(p) {
-    if (p.downed || p.cd3 > 0) return;
+    if (p.downed || p.cd3 > 0 || p.ultT > 0) return;
     const tier = p.mods.skill3;
     if (tier <= 0) return;
+    if (classAt(p.cls).id === "dps" && !this._salveCible(p)) return;
+
+    p.cd3 = CARD_CFG[SKILL3_TABLE[classAt(p.cls).id]][tier - 1].cd * p.mods.skillCdMul;
+    p.skillUses[2]++;
+    p.ultT = CARD_CFG.SKILL3_WINDUP;
+  }
+
+  _salveCible(p) {
+    const r2 = CARD_CFG.SALVE_RANGE * CARD_CFG.SALVE_RANGE;
+    for (const e of this.enemies) {
+      if (e.hp > 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= r2) return true;
+    }
+    return false;
+  }
+
+  _ultimes(dt) {
+    for (const p of this.players.values()) {
+      if (p.ultT <= 0) continue;
+      p.ultT -= dt;
+      if (p.ultT > 0) continue;
+      p.ultT = 0;
+      if (p.downed) continue;
+      this._ultFire(p);
+    }
+  }
+
+  _ultFire(p) {
+    const tier = p.mods.skill3;
+    if (tier <= 0) return;
+    // l'effet d'ECRAN et le marqueur pour les allies partent d'ici, une fois pour
+    // les trois : dans un jeu a quatre, savoir qu'un coequipier vient de lacher
+    // son ultime change tes propres decisions.
+    this.effects.push({
+      id: this._nextId++, x: p.x, y: p.y, r: 40,
+      life: 0.5, max: 0.5, kind: 16, owner: p.id, n: tier,
+    });
 
     switch (classAt(p.cls).id) {
       case "tank": {
         const c = CARD_CFG.SKILL3_ANCRE[tier - 1];
-        p.cd3 = c.cd * p.mods.skillCdMul;
-        p.skillUses[2]++;
         const r = c.r * p.mods.areaMul;
         this.anchors.push({
           id: this._nextId++, x: p.x, y: p.y, r,
@@ -1365,8 +1409,6 @@ export class GameState {
 
       case "soigneur": {
         const c = CARD_CFG.SKILL3_SANCTUAIRE[tier - 1];
-        p.cd3 = c.cd * p.mods.skillCdMul;
-        p.skillUses[2]++;
         const r = c.r * p.mods.areaMul;
         this.sancts.push({
           id: this._nextId++, x: p.x, y: p.y, r,
@@ -1380,37 +1422,134 @@ export class GameState {
         return;
       }
 
-      default: {
-        const c = CARD_CFG.SKILL3_SALVE[tier - 1];
-        const a0 = Math.atan2(p.aimY, p.aimX);
-        const range = CARD_CFG.SKILL3_SALVE_RANGE;
-        const near = [];
-        for (const e of this.enemies) {
-          if (e.hp <= 0) continue;
-          const dx = e.x - p.x, dy = e.y - p.y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 > range * range) continue;
-          if (Math.abs(this._angleDiff(Math.atan2(dy, dx), a0))
-              > CARD_CFG.SKILL3_SALVE_SPREAD) continue;
-          near.push({ e, d2 });
-        }
-        if (near.length === 0) return;
-        near.sort((a, b) => a.d2 - b.d2);
-
-        p.cd3 = c.cd * p.mods.skillCdMul;
-        p.skillUses[2]++;
-        const dmg = CFG.BULLET_DAMAGE * p.mods.damageMul * p.mods.barrelDamageMul * c.mul;
-        for (let i = 0; i < near.length && i < c.targets; i++) {
-          const e = near[i].e;
-          if (c.vuln) e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
-          this._damage(e, dmg, p.id);
-          this.effects.push({
-            id: this._nextId++, x: e.x, y: e.y, r: 16,
-            life: 0.3, max: 0.3, kind: 13, x2: p.x, y2: p.y,
-          });
-        }
-      }
+      default:
+        this._salve(p, tier);
     }
+  }
+
+  // L'ATTRIBUTION EN TROIS PASSES est le coeur du lot : c'est la troisieme qui
+  // fait la difference entre « six missiles » et « une salve ».
+  _salve(p, tier) {
+    const c = CARD_CFG.SKILL3_SALVE[tier - 1];
+    const direct = CFG.BULLET_DAMAGE * p.mods.damageMul * p.mods.barrelDamageMul * c.mul;
+    const tries = this._salveTries(p);
+    if (tries.length === 0) return;
+
+    const reserve = new Map();
+    const cibles = [];
+    const a0 = Math.atan2(p.aimY, p.aimX);
+    // passe 2 · REPARTITION — une cible par missile tant qu'il reste des cibles,
+    // par un curseur qui tourne. Sans lui, la garde de la passe 3 ne mord pas
+    // avant longtemps et toute la salve retombe sur la cible la plus proche.
+    let curseur = 0;
+    for (let i = 0; i < c.missiles; i++) {
+      let choisi = null;
+      // passe 3 · GARDE ANTI-SURTUAGE — chaque missile RESERVE ses degats ; on
+      // n'en attribue un de plus que si le deja-reserve ne suffit pas a tuer.
+      for (let k = 0; k < tries.length; k++) {
+        const t = tries[(curseur + k) % tries.length];
+        if ((reserve.get(t.id) ?? 0) >= t.hp) continue;
+        choisi = t;
+        curseur = (curseur + k + 1) % tries.length;
+        break;
+      }
+      // tout est sature : on DOUBLE au lieu de perdre le missile. Un ultime ne
+      // doit jamais donner l'impression de gacher.
+      if (!choisi) choisi = tries[i % tries.length];
+      reserve.set(choisi.id, (reserve.get(choisi.id) ?? 0) + direct);
+      cibles.push(choisi);
+    }
+
+    // LA GERBE S'ORDONNE PAR RELEVEMENT DE CIBLE. Distribuer les ecarts dans
+    // l'ordre d'attribution lance des missiles a l'oppose de leur cible : la
+    // poursuite pure ne rattrape pas, elle se met en orbite. Mesure : 4,4 cibles
+    // distinctes sur 6, et monter le taux de virage n'y changeait rien.
+    const ordre = cibles.map((t, i) => ({ t, i,
+      rel: this._angleDiff(Math.atan2(t.e.y - p.y, t.e.x - p.x), a0) }));
+    ordre.sort((u, v) => u.rel - v.rel);
+
+    for (let i = 0; i < ordre.length; i++) {
+      const choisi = ordre[i].t;
+      const off = ordre.length === 1
+        ? 0
+        : (i / (ordre.length - 1) - 0.5) * CARD_CFG.SALVE_SPREAD * 2;
+      const a = a0 + off;
+      this.bullets.push({
+        id: this._nextId++,
+        x: p.x + Math.cos(a) * (CFG.PLAYER_RADIUS + 2),
+        y: p.y + Math.sin(a) * (CFG.PLAYER_RADIUS + 2),
+        vx: Math.cos(a) * CARD_CFG.SALVE_SPEED,
+        vy: Math.sin(a) * CARD_CFG.SALVE_SPEED,
+        life: CARD_CFG.SALVE_LIFE,
+        dmg: direct,
+        owner: p.id,
+        pierce: 0, chain: 0, arc: 0, burn: 0,
+        boom: direct * (c.blastMul / c.mul),
+        boomR: c.blastR * p.mods.areaMul,
+        hits: null, hit: null, inertia: 0, bounce: 0, dmg0: direct,
+        missile: 1, cible: choisi.id, dumb: CARD_CFG.SALVE_DUMB_TIME,
+        vuln: c.vuln ? 1 : 0,
+      });
+    }
+  }
+
+  // L'acquisition est a 360°, la VISEE departage : les cibles dans le cone du
+  // reticule passent devant les autres a distance comparable.
+  _salveTries(p) {
+    const a0 = Math.atan2(p.aimY, p.aimX);
+    const range = CARD_CFG.SALVE_RANGE;
+    const out = [];
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      const dx = e.x - p.x, dy = e.y - p.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > range * range) continue;
+      const dansLeCone =
+        Math.abs(this._angleDiff(Math.atan2(dy, dx), a0)) <= CARD_CFG.SALVE_CONE;
+      out.push({ e, id: e.id, hp: e.hp,
+                 score: d2 * (dansLeCone ? 1 : CARD_CFG.SALVE_OFFCONE) });
+    }
+    out.sort((a, b) => a.score - b.score);
+    return out;
+  }
+
+  // AVEC SIX CENTS ENNEMIS QUI MEURENT VITE, la cible d'un missile sera souvent
+  // morte avant l'impact : sans reacquisition les missiles finissent sur des
+  // cadavres. Un missile ne poursuit jamais une cible morte.
+  _guide(b, dt) {
+    if (b.dumb > 0) { b.dumb -= dt; return; }
+
+    let c = b.cibleRef;
+    if (!c || c.hp <= 0 || c.id !== b.cible) {
+      c = null;
+      for (const e of this.enemies) if (e.id === b.cible) { c = e; break; }
+      b.cibleRef = c;
+    }
+    if (!c || c.hp <= 0) {
+      c = this._salveReseek(b);
+      if (!c) { b.life = 0; return; }
+      b.cible = c.id;
+      b.cibleRef = c;
+    }
+
+    const vers = Math.atan2(c.y - b.y, c.x - b.x);
+    const cur = Math.atan2(b.vy, b.vx);
+    const max = CARD_CFG.SALVE_TURN_RATE * dt;
+    const d = this._angleDiff(vers, cur);
+    const a = cur + Math.max(-max, Math.min(max, d));
+    b.vx = Math.cos(a) * CARD_CFG.SALVE_SPEED;
+    b.vy = Math.sin(a) * CARD_CFG.SALVE_SPEED;
+  }
+
+  _salveReseek(b) {
+    const r2 = CARD_CFG.SALVE_RESEEK * CARD_CFG.SALVE_RESEEK;
+    let best = null, bd = r2;
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      const d2 = (e.x - b.x) ** 2 + (e.y - b.y) ** 2;
+      if (d2 < bd) { bd = d2; best = e; }
+    }
+    return best;
   }
 
   _heal(healer, target, amount) {
@@ -1449,55 +1588,13 @@ export class GameState {
   _healLinks(dt) {
     let siphonne = false;
     for (const p of this.players.values()) {
-      if (!p.healMode || p.downed) { p.links.length = 0; continue; }
-
-      const rMax = SKILL_CFG.HEAL_LINK_RADIUS * (p.mods.healBeamMul ?? 1);
-      const r2 = rMax * rMax;
-      const plafond = SKILL_CFG.HEAL_LINK_MAX + (p.mods.healLinks ?? 0);
-
-      for (let i = p.links.length - 1; i >= 0; i--) {
-        const l = p.links[i];
-        // un ennemi mort sort du tableau mais l'objet survit : `hp` suffit a le
-        // dire, et evite de balayer six cents corps par lien et par image.
-        const c = l.ennemi ? l.cible : this.players.get(l.id);
-        const vivant = !!c && (l.ennemi ? c.hp > 0 : true);
-        if (!vivant) { p.links.splice(i, 1); continue; }
-        l.cible = c;
-        if ((c.x - p.x) ** 2 + (c.y - p.y) ** 2 <= r2) { l.grace = 0; continue; }
-        l.grace += dt;
-        if (l.grace >= SKILL_CFG.HEAL_LINK_GRACE) p.links.splice(i, 1);
-      }
-
-      // les allies ne se font JAMAIS supplanter : les ennemis ne comblent que
-      // les liens restes libres.
-      if (p.links.length < plafond) {
-        const pris = new Set(p.links.map(l => l.id));
-        const libres = [];
-        for (const o of this.players.values()) {
-          if (o.id === p.id || pris.has(o.id)) continue;
-          const d2 = (o.x - p.x) ** 2 + (o.y - p.y) ** 2;
-          if (d2 <= r2) libres.push({ c: o, d2, ennemi: 0 });
-        }
-        libres.sort((a, b) => a.d2 - b.d2);
-        for (const f of libres) {
-          if (p.links.length >= plafond) break;
-          p.links.push({ id: f.c.id, ennemi: 0, grace: 0, purge: 0, cible: f.c });
-        }
-      }
-
-      if (p.mods.siphon > 0 && p.links.length < plafond) {
-        const pris = new Set(p.links.map(l => l.id));
-        const proies = [];
-        for (const e of this.enemies) {
-          if (e.hp <= 0 || pris.has(e.id)) continue;
-          const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
-          if (d2 <= r2) proies.push({ c: e, d2 });
-        }
-        proies.sort((a, b) => a.d2 - b.d2);
-        for (const f of proies) {
-          if (p.links.length >= plafond) break;
-          p.links.push({ id: f.c.id, ennemi: 1, grace: 0, purge: 0, cible: f.c });
-        }
+      // le SANCTUAIRE est un ULTIME, pas une posture : ses liens ne connaissent
+      // ni plafond ni rupture, et ils survivent a la sortie du mode soin.
+      if (p.downed) { p.links.length = 0; continue; }
+      if (!p.healMode) {
+        if (p.links.length) p.links = p.links.filter(l => l.sanct);
+      } else {
+        this._postureLinks(p, dt);
       }
 
       for (const l of p.links) {
@@ -1521,14 +1618,103 @@ export class GameState {
         }
       }
     }
+    if (this.sancts.length) this._sanctLinks();
     if (siphonne) this.enemies = this.enemies.filter(e => e.hp > 0);
+  }
+
+  _postureLinks(p, dt) {
+    const rMax = SKILL_CFG.HEAL_LINK_RADIUS * (p.mods.healBeamMul ?? 1);
+    const r2 = rMax * rMax;
+    const plafond = SKILL_CFG.HEAL_LINK_MAX + (p.mods.healLinks ?? 0);
+    let poses = 0;
+
+    for (let i = p.links.length - 1; i >= 0; i--) {
+      const l = p.links[i];
+      if (l.sanct) continue;
+      poses++;
+      // un ennemi mort sort du tableau mais l'objet survit : `hp` suffit a le
+      // dire, et evite de balayer six cents corps par lien et par image.
+      const c = l.ennemi ? l.cible : this.players.get(l.id);
+      const vivant = !!c && (l.ennemi ? c.hp > 0 : true);
+      if (!vivant) { p.links.splice(i, 1); poses--; continue; }
+      l.cible = c;
+      if ((c.x - p.x) ** 2 + (c.y - p.y) ** 2 <= r2) { l.grace = 0; continue; }
+      l.grace += dt;
+      if (l.grace >= SKILL_CFG.HEAL_LINK_GRACE) { p.links.splice(i, 1); poses--; }
+    }
+
+    // les allies ne se font JAMAIS supplanter : les ennemis ne comblent que
+    // les liens restes libres.
+    if (poses < plafond) {
+      const pris = new Set(p.links.map(l => l.id));
+      const libres = [];
+      for (const o of this.players.values()) {
+        if (o.id === p.id || pris.has(o.id)) continue;
+        const d2 = (o.x - p.x) ** 2 + (o.y - p.y) ** 2;
+        if (d2 <= r2) libres.push({ c: o, d2, ennemi: 0 });
+      }
+      libres.sort((a, b) => a.d2 - b.d2);
+      for (const f of libres) {
+        if (poses >= plafond) break;
+        p.links.push({ id: f.c.id, ennemi: 0, grace: 0, purge: 0, cible: f.c });
+        poses++;
+      }
+    }
+
+    if (p.mods.siphon > 0 && poses < plafond) {
+      const pris = new Set(p.links.map(l => l.id));
+      const proies = [];
+      for (const e of this.enemies) {
+        if (e.hp <= 0 || pris.has(e.id)) continue;
+        const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+        if (d2 <= r2) proies.push({ c: e, d2 });
+      }
+      proies.sort((a, b) => a.d2 - b.d2);
+      for (const f of proies) {
+        if (poses >= plafond) break;
+        p.links.push({ id: f.c.id, ennemi: 1, grace: 0, purge: 0, cible: f.c });
+        poses++;
+      }
+    }
+  }
+
+  // « la zone ou je peux tous vous tenir » : le Soigneur depasse enfin sa limite
+  // de deux cibles, et les liens partent du DOME, ce qui le libere du centre.
+  _sanctLinks() {
+    for (const p of this.players.values()) {
+      for (let i = p.links.length - 1; i >= 0; i--) {
+        const l = p.links[i];
+        if (!l.sanct) continue;
+        const sa = this.sancts.find(s => s.id === l.sanct);
+        const c = this.players.get(l.id);
+        if (!sa || !c || c.downed
+            || (c.x - sa.x) ** 2 + (c.y - sa.y) ** 2 > sa.r * sa.r) {
+          p.links.splice(i, 1);
+        } else {
+          l.cible = c;
+        }
+      }
+    }
+    for (const sa of this.sancts) {
+      const owner = this.players.get(sa.owner);
+      if (!owner || owner.downed) continue;
+      const pris = new Set(owner.links.filter(l => l.sanct === sa.id).map(l => l.id));
+      for (const o of this.players.values()) {
+        if (o.id === owner.id || o.downed || pris.has(o.id)) continue;
+        if ((o.x - sa.x) ** 2 + (o.y - sa.y) ** 2 > sa.r * sa.r) continue;
+        owner.links.push({ id: o.id, ennemi: 0, grace: 0, purge: 0, cible: o, sanct: sa.id });
+      }
+    }
   }
 
   _linkPayload() {
     let out = null;
     for (const p of this.players.values()) {
-      if (!p.healMode || p.links.length === 0) continue;
-      for (const l of p.links) (out ??= []).push([p.id, l.id, l.ennemi]);
+      if (p.links.length === 0) continue;
+      for (const l of p.links) {
+        if (!p.healMode && !l.sanct) continue;
+        (out ??= []).push(l.sanct ? [p.id, l.id, l.ennemi, l.sanct] : [p.id, l.id, l.ennemi]);
+      }
     }
     return out;
   }
@@ -1983,9 +2169,9 @@ export class GameState {
     this._separateFromPlayers();
   }
 
-  _explode(x, y, dmg, ownerId) {
+  _explode(x, y, dmg, ownerId, rayon, bossMul = 1) {
     const owner = this.players.get(ownerId);
-    const r = CARD_CFG.GRENADE_RADIUS * (owner ? owner.mods.areaMul : 1);
+    const r = rayon || CARD_CFG.GRENADE_RADIUS * (owner ? owner.mods.areaMul : 1);
     const souffle = { id: this._nextId++, x, y, r, life: 0.35, max: 0.35, kind: 7, n: 0 };
     this.effects.push(souffle);
 
@@ -2002,7 +2188,7 @@ export class GameState {
     }
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) {
-        this._damage(boss, dmg, ownerId, 0, false, x, y);
+        this._damage(boss, dmg * bossMul, ownerId, 0, false, x, y);
       }
     }
     souffle.n = fauches;
@@ -5450,6 +5636,9 @@ export class GameState {
     const kept = [];
     for (const b of this.bullets) {
       b.life -= dt;
+      // vol bete, puis guidage a taux de virage limite : la limite cree l'arc,
+      // sans courbe scriptee.
+      if (b.missile) this._guide(b, dt);
       const wasX = b.x, wasY = b.y;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
@@ -5464,7 +5653,7 @@ export class GameState {
       }
 
       if (this.harvests.length && this._harvestHit(b.x, b.y, b.dmg)) {
-        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner);
+        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
         continue;
       }
 
@@ -5477,7 +5666,7 @@ export class GameState {
           this._obstacleReflect(b, o, wasX, wasY);
           bounced = true;
         } else if (o) {
-          if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner);
+          if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
           continue;
         }
       }
@@ -5492,7 +5681,7 @@ export class GameState {
                      && b.y > -50 && b.y < CFG.ARENA_H + 50) {
         kept.push(b);
       } else if (b.boom > 0 && b.life <= 0) {
-        this._explode(b.x, b.y, b.boom, b.owner);
+        this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
       }
     }
     this.bullets = kept;
@@ -5862,7 +6051,13 @@ export class GameState {
     }
 
     if (b.boom > 0) {
-      this._explode(ix, iy, b.boom, b.owner);
+      // un missile fait les DEUX : le direct puis le souffle. La grenade, elle,
+      // n'a jamais eu que le souffle.
+      if (b.missile) {
+        if (b.vuln) e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
+        this._damage(e, b.dmg, b.owner);
+      }
+      this._explode(ix, iy, b.boom, b.owner, b.boomR);
       return true;
     }
 
@@ -5944,7 +6139,13 @@ export class GameState {
         const rr = CFG.BOSS_RADIUS + CFG.BULLET_RADIUS;
         if ((b.x - boss.x) ** 2 + (b.y - boss.y) ** 2 <= rr * rr) {
           if (b.boom > 0) {
-            this._explode(b.x, b.y, b.boom, b.owner);
+            // sans plafond, huit missiles sur une cible UNIQUE — donc toutes les
+            // cibles saturees, donc tout double dessus — seraient la meilleure
+            // source de degats du jeu contre un boss.
+            if (b.missile) {
+              this._damage(boss, b.dmg * CARD_CFG.SALVE_BOSS_MUL, b.owner, 0, false, b.x, b.y);
+            }
+            this._explode(b.x, b.y, b.boom, b.owner, b.boomR, b.missile ? CARD_CFG.SALVE_BOSS_MUL : 1);
             hit = true;
           } else {
             this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y);
@@ -5963,7 +6164,7 @@ export class GameState {
           if (m.dead || m.maxHp <= 0) continue;
           const rr = m.r + CFG.BULLET_RADIUS;
           if ((b.x - m.x) ** 2 + (b.y - m.y) ** 2 > rr * rr) continue;
-          if (b.boom > 0) { this._explode(b.x, b.y, b.boom, b.owner); hit = true; break; }
+          if (b.boom > 0) { this._explode(b.x, b.y, b.boom, b.owner, b.boomR); hit = true; break; }
           m.hp -= b.dmg;
           if (m.hp <= 0) this._breakMark(m);
           if (b.pierce > 0) b.pierce--; else hit = true;
@@ -5974,6 +6175,11 @@ export class GameState {
       if (!hit) {
         for (const e of this.enemies) {
           if (e.hp <= 0) continue;
+          // UN MISSILE NE S'ARME QUE SUR SA CIBLE. Sans cette regle la gerbe
+          // initiale detone sur le premier corps croise et l'attribution en
+          // trois passes ne veut plus rien dire : six missiles finissent sur les
+          // deux ennemis places dans l'axe du reticule.
+          if (b.missile && e.id !== b.cible) continue;
           if (b.hits ? b.hits.has(e.id) : b.hit === e.id) continue;
           const rr = e.r + CFG.BULLET_RADIUS;
           if ((b.x - e.x) ** 2 + (b.y - e.y) ** 2 > rr * rr) continue;
@@ -6410,7 +6616,8 @@ export class GameState {
         r1(p.cd1), r1(p.cd2),
         (p.healMode ? SKILL_HEAL_MODE : 0)
           | (p.tauntT > 0 ? SKILL_TAUNT : 0)
-          | (p.odT > 0 || p.odBonus > 0 ? SKILL_OVERDRIVE : 0),
+          | (p.odT > 0 || p.odBonus > 0 ? SKILL_OVERDRIVE : 0)
+          | (p.ultT > 0 ? SKILL_ULT_WIND : 0),
         p.bombStock,
         this._statusMask(p),
         p.statuses.get(STATUS_VULN)?.stacks ?? 0,
@@ -6427,7 +6634,9 @@ export class GameState {
                        e.type + (e.elite ? 100 : 0),
                        r2(e.ang), e.hitSeq, e.critSeq], 7)),
       b: filtrer(this.bullets, () => CFG.BULLET_RADIUS,
-        b => [b.id, r1(b.x), r1(b.y), b.owner]),
+        b => b.missile
+          ? [b.id, r1(b.x), r1(b.y), b.owner, 1]
+          : [b.id, r1(b.x), r1(b.y), b.owner]),
       s: filtrer(this.shots, () => CFG.BULLET_RADIUS,
         s => [s.id, r1(s.x), r1(s.y)]),
       z: this.zones.map(z => trimTail([
@@ -6460,7 +6669,7 @@ export class GameState {
         f => f.kind === 3 || f.kind === 13
         ? [f.id, r1(f.x), r1(f.y), Math.round(f.r ?? 0), r2(f.life / f.max), f.kind, r1(f.x2), r1(f.y2)]
         : trimTail([f.id, r1(f.x), r1(f.y), Math.round(f.r), r2(f.life / f.max), f.kind ?? 0,
-                    0, 0, f.n ?? 0], 6)),
+                    f.owner ?? 0, 0, f.n ?? 0], 6)),
       sl: this.slow > 0 ? 1 : 0,
       df: this.diffIndex,
       wu: this.windup.length > 0 ? [...this.windup] : null,
@@ -7914,7 +8123,7 @@ export function pilotage() {
         ax = (grappe.x - p.x) / d; ay = (grappe.y - p.y) / d; ar = d;
       }
       s2 = p.cd2 <= 0 && (corpsDans(g, p, 500) >= 3 || (g.boss !== null && dp < 600));
-      s3 = tier3 && corpsDans(g, p, CARD_CFG.SKILL3_SALVE_RANGE) >= 3;
+      s3 = tier3 && corpsDans(g, p, CARD_CFG.SALVE_RANGE) >= 3;
     }
 
     return {

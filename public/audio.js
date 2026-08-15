@@ -390,6 +390,29 @@ const PALETTE = {
     return { end: a.end + 0.1, stop: a.stop };
   },
 
+  // LA COQUE SE FERME ET SE BRISE. Elle monte a la pose, elle CASSE a la
+  // rupture : deux sens opposes, comme la bascule du salon — un bouclier qui
+  // rendrait le meme son dans les deux sens ne dirait rien.
+  bouclier: () => {
+    const a = tone({ freq: 330, to: 494, dur: 0.16, type: "triangle",
+                     gain: SOUND_GAIN.bonus * 0.45 });
+    tone({ freq: 660, to: 988, dur: 0.12, type: "sine",
+           gain: SOUND_GAIN.bonus * 0.20, delay: 0.02 });
+    return { end: a.end + 0.05, stop: a.stop };
+  },
+
+  // le VERRE : un craquement large, court, sans corps tonal tenu — deux
+  // fragments de bruit desaccordes, pas une note.
+  bouclierBrise: () => {
+    const a = noise({ dur: 0.09, type: "highpass", freq: 2600, to: 1400,
+                      gain: SOUND_GAIN.mort * 0.8 });
+    noise({ dur: 0.17, type: "bandpass", freq: 1800, to: 700, q: 0.8,
+            gain: SOUND_GAIN.mort * 0.5, delay: 0.03 });
+    tone({ freq: 494, to: 208, dur: 0.14, type: "triangle",
+           gain: SOUND_GAIN.impact * 0.7 });
+    return { end: a.end + 0.12, stop: a.stop };
+  },
+
   provocation: () => {
     const a = tone({ freq: 260, to: 92, dur: 0.34, type: "sawtooth",
                      gain: SOUND_GAIN.mort * 0.55 });

@@ -1530,6 +1530,179 @@
                    masquage au lieu de le contredire. Les deux constantes de
                    portee sont un PREMIER REGLAGE, a juger en jouant
 
+     0.12.2 lot 03 LE JEU ETAIT DESSINE, L'INTERFACE NON. Sprites traces, boss
+                   proceduraux, sol cuit — et par-dessus, une barre de vie de
+                   cinq pixels a couleur pleine : deux langages visuels
+                   cohabitaient et l'interface etait le pauvre des deux. Le HUD
+                   RESTE EN DOM, c'est un chantier de MATIERE, pas
+                   d'architecture — le cache d'ecriture de `hud.js` est la bonne
+                   reponse, et le CSS sait deja tout faire.
+                   LE FANTOME DE DEGATS DEVIENT UN POINT DE PASSAGE UNIQUE
+                   (`barGhost`). Il n'existait que pour la barre de boss ; il
+                   couvre maintenant la barre de soi et celles des allies. C'est
+                   le gain de lisibilite du lot : une barre qui glisse ne se voit
+                   pas, une barre qui laisse une trace montre COMBIEN on vient de
+                   prendre.
+                   LE BOUCLIER PASSE PAR-DESSUS LA VIE, PAS A COTE. C'etait une
+                   seconde barre de 4 px au-dessus : le joueur lisait deux
+                   nombres au lieu d'un etat. Surcouche translucide a trame
+                   diagonale, qui S'ETEINT au coup et pulse pendant la rampe de
+                   `SHIELD_REGEN_RAMP` — sans ca il subit une regle qu'il ne voit
+                   pas. Une seule classe `.gauge` porte les six traitements
+                   (matiere, fantome, graduations, seuil bas, bouclier,
+                   epaisseur), donc soi et allies ne peuvent plus diverger.
+                   LES GRADUATIONS SONT DES PV, PAS UNE PROPORTION : un repere
+                   tous les 25 PV, pose par `--tick` calcule sur `maxHp`. A
+                   150 PV pour un Rempart et 85 pour un Tireur, la meme fraction
+                   ne dit pas la meme chose.
+                   L'APPUI SE NOTE MEME EN RECHARGE (`pipPress` en couche 0,
+                   ecrit par `input.js` via `notePress`, lu par le HUD). Sans ce
+                   retour le joueur ne sait pas s'il a mal appuye ou si c'est
+                   indisponible — et ca ne touche pas la validation serveur.
+                   L'ultime prend son rang : encadre, plus grand, sa propre
+                   pulsation de disponibilite, et le palier 3 vire au
+                   legendaire — la promotion cesse de n'exister que dans le code.
+                   LA DUREE D'UN BONUS EST UNE FONCTION DE CE QUE LE CLIENT A
+                   DEJA : `CFG.BUFF_TIME` et le front montant du bit. Zero octet
+                   de reseau, et le serveur reste la verite — bit encore pose
+                   apres l'echeance = ramassage qui a rafraichi, on repart d'un
+                   cycle plein. Un bonus PARTAGE (`powerupShare`) dure moins
+                   longtemps que la jauge ne le dit ; l'ecart se resorbe au cycle
+                   suivant et ne valait pas une cle d'instantane. Les pastilles
+                   se reconcilient par CLE au lieu de se reconstruire, sinon
+                   toute la rangee rejouerait son apparition a chaque changement.
+                   LE PANNEAU DONNE DES VALEURS EFFECTIVES, JAMAIS DES
+                   POURCENTAGES — « 18,4 degats », pas « +52 % ». Tout se deduit
+                   de l'instantane, des cartes et des reliques ; le nombre de
+                   canons reprend EXACTEMENT la formule de `powerIndex` pour que
+                   panneau et fenetre de build ne puissent pas se contredire.
+                   Seul le terme `barDamage` manque — il demande `barsBroken`,
+                   que le client n'a pas, et c'est une relique sur vingt-quatre.
+                   LE DETAIL PAR JOUEUR N'EXISTE PAS, ET C'EST LA DECISION. Un
+                   compteur de DPS par joueur dans un jeu cooperatif entre amis
+                   cree du reproche, partout ou il existe ; le Rempart et le
+                   Soigneur auront toujours un mauvais chiffre, c'est leur
+                   travail. Ce qui est offert a la place est plus instructif :
+                   les DEGATS SUBIS PAR SOURCE, accumules cote client a partir de
+                   la chute de PV et de `lastSrc`. Panneau et compteur sont
+                   masques par defaut et se reglent separement au menu pause.
+                   Le panneau se rafraichit a 4 Hz, pas a l'image : `fullMods` ne
+                   se recalcule que si la signature du chargement bouge, et la
+                   ligne qui change s'illumine une seconde — ce qui relie un
+                   choix a son effet sans hameçon sur la prise de carte
+
+     0.12.3 lot 04 LES TROISIEMES COMPETENCES SE DECLENCHAIENT COMME N'IMPORTE
+                   QUEL SORT. Quatre traitements communs, ecrits une fois pour
+                   les trois, avec un point de passage unique (`_ultFire`) :
+                   AMORCE de 0,35 s pendant laquelle le joueur est ENGAGE — pas
+                   d'annulation, c'est ce qui distingue un ultime d'un sort ;
+                   onde d'ecran tiree pour SON lanceur seulement (un voile plein
+                   ecran a chaque ultime allie serait une gene, pas une
+                   information) ; marqueur au-dessus du lanceur, parce qu'a
+                   quatre, savoir qu'un coequipier vient de lacher son ultime
+                   change tes propres decisions ; et un PALIER 3 qui se lit sans
+                   chiffre — couronne doublee, teinte legendaire jusque sur son
+                   icone de competence.
+                   L'amorce coute UN BIT (`SKILL_ULT_WIND`), pas une cle.
+                   LA SALVE N'EST PLUS DU HITSCAN. Huit missiles au plus, par
+                   lancement et par joueur, sur le chemin des projectiles
+                   existant : un 5e element du tuple `b`, emis SEULEMENT pour un
+                   missile, donc zero octet pour les centaines de balles
+                   ordinaires. Acquisition a 360° — un tir a tete chercheuse qui
+                   respecte un cone est incoherent — mais la visee DEPARTAGE
+                   (`score = d² × 2,2` hors cone).
+                   L'ATTRIBUTION EN TROIS PASSES EST LE LOT. La passe 3 reserve
+                   les degats de chaque missile et n'en engage un de plus sur un
+                   ennemi que si le deja-reserve ne suffit pas a le tuer ; le
+                   surplus DOUBLE au lieu d'etre perdu, un ultime ne doit jamais
+                   donner l'impression de gacher. Deux bugs trouves a la mesure,
+                   pas a la lecture : sans la passe 2 (repartition par curseur
+                   tournant) la garde ne mord pas avant longtemps et TOUTE la
+                   salve retombe sur la cible la plus proche ; et la gerbe
+                   detonait sur le premier corps croise — un missile ne s'arme
+                   donc que sur SA cible.
+                   LA GERBE S'ORDONNE PAR RELEVEMENT DE CIBLE. Distribuer les
+                   ecarts dans l'ordre d'attribution lance des missiles a
+                   l'oppose de leur cible, et une poursuite pure a taux de virage
+                   borne ne rattrape pas : elle se met en ORBITE. Mesure : 4,4
+                   cibles distinctes sur 6, et monter `SALVE_TURN_RATE` de 6 a 30
+                   n'y changeait rien — le reglage ne pouvait pas sauver la
+                   geometrie. Ordonnee, la salve touche 6 cibles sur 6, cent pour
+                   cent, sur 200 tirages a cibles fixes comme mobiles. Une fusee
+                   de proximite avait ete ecrite pour compenser : mesuree
+                   inutile, elle a ete SUPPRIMEE plutot que gardee « au cas ou ».
+                   `SALVE_TURN_RATE` reste donc a la valeur de la spec.
+                   LECON DE BANC, elle resservira : le premier banc mesurait
+                   surtout son propre desordre (cibles qui meurent, joueur pris a
+                   partie, obstacles de biome). Il donnait une surface de reglage
+                   avec une falaise entre 6 et 7 rad/s — une falaise pareille ne
+                   ressemble pas a de la physique, et c'etait bien le banc.
+                   `SALVE_BOSS_MUL: 0,25`, aligne sur `DPS_BOMB_BOSS_MUL` : sur
+                   une cible UNIQUE toutes les cibles sont saturees, donc tout
+                   double dessus — sans plafond la Salve serait la meilleure
+                   source de degats du jeu contre un boss.
+                   L'ANCRE MONTRE ENFIN CE QU'ELLE TIENT. Le role du tank est
+                   entierement fait de choses qui n'arrivent pas ; c'est la seule
+                   competence qui puisse montrer son travail a l'equipe. Les
+                   retenus SE DEDUISENT de la geometrie cote client — l'entree
+                   dans le rayon se rejoue comme `drawMedicLinks` rejoue le choix
+                   du serveur — donc vingt chaines a l'ecran coutent zero octet.
+                   LE SANCTUAIRE DEVIENT L'ULTIME DU LIEN. Dans le dome, les
+                   liens s'accrochent a TOUS les allies, sans plafond et sans
+                   rupture, et ils survivent a la sortie du mode soin : c'est un
+                   ultime, pas une posture. Le Soigneur depasse enfin sa limite
+                   de deux cibles (mesure : 3 liens hors posture pour un plafond
+                   de 2). Les liens partent du DOME et non du soigneur, ce qui le
+                   libere du centre — un 4e element sur `hl`, absent partout
+                   ailleurs. `_healLinks` se scinde en `_postureLinks` et
+                   `_sanctLinks` sans cesser d'etre le point de passage unique
+
+     0.12.4 lot 05 LE BOUCLIER ETAIT UN CERCLE BLEU DE TROIS PIXELS, et il
+                   n'avait NI APPARITION NI RUPTURE — la seule ressource du jeu
+                   qui disparaissait en silence. Il devient une COQUE : neuf
+                   plaques discretes au lieu d'un arc continu, donc une charge
+                   qui se COMPTE au lieu de s'estimer (meme raison que les
+                   graduations en PV du lot 03) ; rotation lente et respiration,
+                   parce qu'une coque inerte se lit comme de l'interface ; et la
+                   lumiere en arc haut-gauche, comme toute creature de la charte.
+                   TROIS FRONTS, TROIS BUDGETS, ZERO OCTET DE RESEAU. Pose,
+                   touche et rupture sont trois fronts sur `p.shield`, une valeur
+                   deja transportee : `events.js` les emet comme il emet deja une
+                   mort ou un relevement. La touche est l'eclair d'une image
+                   (liseré qui s'allume), la pose un fait notable, la rupture le
+                   moment ou le joueur perd son tampon.
+                   LA RUPTURE EST DU VERRE, et le verre existait deja :
+                   `fx_shard` est la case « eclat anguleux » de l'atlas, donc les
+                   eclats passent par le lot WebGL comme le reste — pas de
+                   quatrieme case, pas de chemin special, 22 eclats en GL et 10
+                   en 2D. Ils naissent sur le BORD de la coque et non au centre :
+                   c'est la coque qui cede, pas le personnage qui explose. AUCUN
+                   TRESSAILLEMENT — ce n'est pas une detonation, et le
+                   tressaillement reste reserve aux gros evenements.
+                   Deux sons opposes (`bouclier` monte, `bouclierBrise` casse) :
+                   une bascule ne rend jamais le meme son dans ses deux sens.
+                   LA TABLE DES BANDES DE RAYON DESCEND DANS `fx.js`, la couche
+                   la plus basse qui en a besoin. Les eclats doivent naitre
+                   exactement sur le rayon que `boss.js` dessine, et deux
+                   definitions du meme rayon finissent toujours par diverger.
+                   LES LIENS N'ETAIENT PAS DES TRAITS DROITS, MAIS ILS EN AVAIENT
+                   L'AIR : le lien de soin est a `amp: 0,035`, donc un deplacement
+                   de point milieu invisible a l'oeil. Le reflexe aurait ete de
+                   monter l'amplitude — c'etait casser l'invariant « soin chaud et
+                   CALME, siphon froid et AGITE », qui est ce qui les distingue.
+                   `drawArc` gagne donc un FLUX au lieu d'agitation : des perles
+                   qui courent le long du trace, sans une seule allocation
+                   (position = fonction de l'indice, du temps et de la longueur
+                   cumulee, comme les croix du sanctuaire), et qui s'estompent aux
+                   deux bouts pour naitre du porteur au lieu d'apparaitre en
+                   l'air.
+                   LE SENS DU FLUX EST UNE INFORMATION DE JEU qu'un trait ne
+                   portait pas : le soin coule vers l'allie, le siphon vers le
+                   soigneur, la chaine vers l'ancre, le soin ennemi vers sa cible.
+                   Le lien des Jumeaux ALTERNE — c'est un echange, pas un don.
+                   Les six appelants de `drawArc` y passent, et le point de
+                   passage unique reste unique
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1538,4 +1711,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.11.7";
+export const VERSION = "0.12.4";

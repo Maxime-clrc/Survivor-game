@@ -73,6 +73,45 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
   ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
   ctx.fill();
 }
+// UN MISSILE N'EST PAS UNE BALLE PLUS GROSSE : c'est une trainee. La direction
+// se deduit de l'image precedente, comme pour tout projectile.
+export function drawMissile(b, col) {
+  const prev = bulletTrail.get(b.id);
+  bulletTrail.set(b.id, { x: b.x, y: b.y });
+  let ux = 1, uy = 0;
+  if (prev) {
+    const dx = b.x - prev.x, dy = b.y - prev.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 0.5) { ux = dx / d; uy = dy / d; }
+  }
+  const r = CFG.BULLET_RADIUS * 1.5;
+
+  ctx.lineCap = "round";
+  for (let i = 3; i >= 1; i--) {
+    ctx.globalAlpha = 0.10 * i;
+    ctx.strokeStyle = i > 2 ? col : FX.blastEdge;
+    ctx.lineWidth = r * (0.5 + i * 0.35);
+    ctx.beginPath();
+    ctx.moveTo(b.x - ux * r * (2 + i * 3.4), b.y - uy * r * (2 + i * 3.4));
+    ctx.lineTo(b.x - ux * r * (i * 2.2), b.y - uy * r * (i * 2.2));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = COMBAT.blastCore;
+  ctx.beginPath();
+  ctx.moveTo(b.x + ux * r * 2.2, b.y + uy * r * 2.2);
+  ctx.lineTo(b.x - uy * r, b.y + ux * r);
+  ctx.lineTo(b.x - ux * r * 1.6, b.y - uy * r * 1.6);
+  ctx.lineTo(b.x + uy * r, b.y - ux * r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  ctx.lineCap = "butt";
+}
+
 export function pruneTrails(v) {
   if (bulletTrail.size > 900) {
     bulletTrail.clear();
@@ -549,6 +588,38 @@ export function drawEffects(effects) {
   for (const f of effects) {
     const grow = 1 - f.k;
 
+    // UN ULTIME S'ANNONCE A TOUTE L'EQUIPE. L'onde qui traverse la vue n'est
+    // tiree que pour SON lanceur — un voile plein ecran a chaque ultime allie
+    // serait une gene, pas une information. Le PALIER se lit sans chiffre : le
+    // 3 vire au legendaire et double sa couronne.
+    if (f.kind === 16) {
+      const col = f.n >= 3 ? RARITY_COLOR[3] : (ownerColorOf(f.owner) ?? FX.flash);
+      if (f.owner === myId) {
+        ctx.fillStyle = alpha(col, f.k * 0.10);
+        ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+      }
+      for (let i = 0; i < (f.n >= 3 ? 2 : 1); i++) {
+        ctx.strokeStyle = alpha(col, f.k * (0.8 - i * 0.3));
+        ctx.lineWidth = 5 - i * 2;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r * (0.3 + grow * (2.4 + i * 0.9)), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // le marqueur au-dessus du lanceur : trois chevrons qui montent.
+      ctx.strokeStyle = alpha(col, f.k);
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 3; i++) {
+        const y = f.y - 34 - i * 9 - grow * 14;
+        const w = 9 - i * 2;
+        ctx.beginPath();
+        ctx.moveTo(f.x - w, y + 5);
+        ctx.lineTo(f.x, y);
+        ctx.lineTo(f.x + w, y + 5);
+        ctx.stroke();
+      }
+      continue;
+    }
+
     if (f.kind === 1) {
       ctx.fillStyle = alpha(FX.veil, f.k * 0.16);
       ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
@@ -769,6 +840,36 @@ export function drawBulwarks(list) {
     ctx.stroke();
   }
 }
+// L'ANCRE MONTRE ENFIN CE QU'ELLE TIENT. Le role du tank est entierement fait
+// de choses qui n'arrivent pas ; c'est la seule competence du jeu qui puisse
+// montrer son travail a l'equipe. Les retenus se DEDUISENT de la geometrie —
+// l'entree dans le rayon se rejoue ici comme `drawMedicLinks` rejoue le choix du
+// serveur, donc aucune cle de reseau ne s'ouvre.
+const anchorHeld = new Map();
+
+export function drawAnchorChains(list, enemies) {
+  for (const [id, s] of anchorHeld) {
+    if (!list.some(a => a.id === id)) anchorHeld.delete(id);
+    else if (s.size > 400) s.clear();
+  }
+  for (const an of list) {
+    let tenus = anchorHeld.get(an.id);
+    if (!tenus) { tenus = new Set(); anchorHeld.set(an.id, tenus); }
+    const leash = an.r * 2;
+    for (const e of enemies) {
+      const d2 = (e.x - an.x) ** 2 + (e.y - an.y) ** 2;
+      if (d2 <= an.r * an.r) tenus.add(e.id);
+      else if (d2 > leash * leash) { tenus.delete(e.id); continue; }
+      if (!tenus.has(e.id)) continue;
+      if (!inView(e.x, e.y, 120) && !inView(an.x, an.y, 120)) continue;
+      drawArc(`an${an.id}:${e.id}`, an.x, an.y, e.x, e.y,
+        { col: CLASS_COLOR.tank, coeur: OWNED.bulwarkArc, amp: 0.10,
+          width: 1.8, branches: 1, cut: 0.5,
+          flow: { col: OWNED.bulwarkArc, hz: 0.9, n: 2, size: 2.2, sens: -1 } });
+    }
+  }
+}
+
 export function drawAnchors(list) {
   for (const an of list) {
     ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.04 + an.k * 0.04);
@@ -1038,8 +1139,49 @@ function arcTrace(pts, saut) {
   ctx.stroke();
 }
 
+// LE SENS D'UN LIEN EST UNE INFORMATION DE JEU, et un trait ne le porte pas.
+// Les perles courent le long du trace : du soigneur vers l'allie pour le soin,
+// de la proie vers le soigneur pour le siphon, vers l'ancre pour une chaine.
+// Elles se calculent SANS ALLOCATION — position = fonction de l'indice, du temps
+// et de la longueur cumulee, comme les croix du sanctuaire.
+function arcFlow(pts, cut, { col, hz, n, size, sens }) {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    if (i === cut) continue;
+    total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  }
+  if (total < 1) return;
+
+  const t = performance.now() / 1000;
+  ctx.fillStyle = col;
+  for (let b = 0; b < n; b++) {
+    let u = ((t * hz + b / n) % 1);
+    if (sens < 0) u = 1 - u;
+    // les perles s'estompent aux deux bouts : elles NAISSENT du porteur au lieu
+    // d'apparaitre en l'air.
+    const fondu = Math.sin(u * Math.PI);
+    if (fondu <= 0.02) continue;
+    let reste = u * total;
+    for (let i = 1; i < pts.length; i++) {
+      if (i === cut) continue;
+      const ax = pts[i - 1][0], ay = pts[i - 1][1];
+      const seg = Math.hypot(pts[i][0] - ax, pts[i][1] - ay);
+      if (reste > seg) { reste -= seg; continue; }
+      const k = seg > 0 ? reste / seg : 0;
+      ctx.globalAlpha = fondu;
+      ctx.beginPath();
+      ctx.arc(ax + (pts[i][0] - ax) * k, ay + (pts[i][1] - ay) * k,
+              size * (0.5 + fondu * 0.5), 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 export function drawArc(key, x0, y0, x1, y1, {
   col, coeur, amp = 0.06, width = 1.8, branches = 1, cut = 0, pinch = true,
+  flow = null,
 } = {}) {
   const now = performance.now();
   let a = arcCache.get(key);
@@ -1078,6 +1220,13 @@ export function drawArc(key, x0, y0, x1, y1, {
   ctx.strokeStyle = alpha(coeur, 0.92);
   ctx.lineWidth = width;
   arcTrace(a.abs, a.cut);
+
+  if (flow) {
+    arcFlow(a.abs, a.cut, {
+      col: alpha(flow.col ?? coeur, 0.95), hz: flow.hz ?? 0.8,
+      n: flow.n ?? 3, size: flow.size ?? width * 1.3, sens: flow.sens ?? 1,
+    });
+  }
 
   // les deux points brillants ANCRENT l'arc sur ce qu'il relie
   ctx.fillStyle = alpha(coeur, 0.9);
@@ -1167,24 +1316,30 @@ function auraPass(list, diff) {
 // les deux modes distinguables d'un coup d'oeil par un allie a l'autre bout de
 // l'ecran : le soin est chaud et CALME (peu de gigue, aucune coupure), le
 // siphon est froid et AGITE (forte gigue, branches mortes, coupures).
-export function drawSoinLinks(links, players, enemies) {
+export function drawSoinLinks(links, players, enemies, sancts = []) {
   if (!links || links.length === 0) return;
   let par = null;
-  for (const [src, cible, ennemi] of links) {
+  for (const [src, cible, ennemi, sanct] of links) {
     if (par === null) {
       par = new Map();
       for (const p of players) par.set(p.id, p);
     }
-    const a = par.get(src);
+    // dans le dome, le lien part du DOME et non du soigneur : c'est ce qui le
+    // libere de rester au centre.
+    const a = sanct ? sancts.find(s => s.id === sanct) : par.get(src);
     if (!a) continue;
     const b = ennemi ? enemies.find(e => e.id === cible) : par.get(cible);
     if (!b) continue;
     if (!inView(a.x, a.y, 200) && !inView(b.x, b.y, 200)) continue;
+    // le soin coule VERS l'allie, le siphon VERS le soigneur : le meme trace
+    // dit deux choses opposees par le seul sens de son flux.
     drawArc(`h${src}:${cible}`, a.x, a.y, b.x, b.y, ennemi
       ? { col: SIGNAL.persist, coeur: FX.ricochetCore, amp: 0.14, width: 2,
-          branches: 2, cut: 0.55 }
-      : { col: FX.heal, coeur: FX.healSoft, amp: 0.035, width: 2.4,
-          branches: 0, cut: 0 });
+          branches: 2, cut: 0.55,
+          flow: { col: SIGNAL.persist, hz: 1.5, n: 4, size: 2.6, sens: -1 } }
+      : { col: FX.heal, coeur: FX.healSoft, amp: 0.045, width: 2.4,
+          branches: 0, cut: 0,
+          flow: { col: FX.healSoft, hz: 0.7, n: 3, size: 3.2, sens: 1 } });
   }
 }
 
@@ -1209,6 +1364,7 @@ function drawMedicLinks(list) {
     drawArc(`m${m.id}`, ox, oy, best.x, best.y, {
       col: ENEMY_TINT[7], coeur: FX.healSoft, amp: 0.05, width: 1.6,
       branches: 1, cut: 0.3,
+      flow: { col: ENEMY_TINT[7], hz: 0.8, n: 2, size: 2, sens: 1 },
     });
   }
 }

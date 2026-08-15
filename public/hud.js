@@ -1,17 +1,19 @@
 
 import {
-  CFG, PLAYER_COLORS, DIFFICULTIES, enemyCap,
+  CFG, PLAYER_COLORS, DIFFICULTIES, DAMAGE_SOURCES, enemyCap, fullMods,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
-import { difficulty } from "./core/state.js";
+import { relicById } from "/shared/reliques.js";
+import { toM } from "/shared/units.js";
+import { difficulty, hudDps, hudStats, ownedCounts, pipPress, relicsByPlayer } from "./core/state.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
 import { bossAt, beatPhase, estFinal, ALERT_ORDER, BOSS_METRONOME } from "/shared/bosses.js";
 import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
-import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN } from "/shared/palette.js";
-import { EFFECT_BADGES, POWERUP_STYLE, STATUS_ICON, iconImg } from "/icons.js";
+import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN, SRC_TINT } from "/shared/palette.js";
+import { EFFECT_BADGES, POWERUP_STYLE, SRC_ICON, STATUS_ICON, iconImg } from "/icons.js";
 
 const $ = id => document.getElementById(id);
 
@@ -43,12 +45,19 @@ const el = {
   announce: $("hudAnnounce"),
   effects:  $("selfEffects"),
   buffs:    $("selfBuffs"),
-  shield:   $("selfShield").firstElementChild,
+  hpBar:    $("selfHp"),
   hp:       $("selfHp").firstElementChild,
+  hpGhost:  $("selfHp").children[1],
+  shieldBar: $("selfHp").children[2],
+  shield:   $("selfHp").children[2].firstElementChild,
   xp:       $("selfXp").firstElementChild,
   hpText:   $("selfHpText"),
   level:    $("selfLevel"),
   pips:     $("selfPips"),
+  stats:    $("hudStats"),
+  statsDps: $("statsDps"),
+  statsRows: $("statsRows"),
+  statsHurt: $("statsHurt"),
   spectator: $("hudSpectator"),
   perf:     $("hudPerf"),
   dmg:      $("dmgLayer"),
@@ -118,13 +127,44 @@ export function resetHud() {
   el.dmg.textContent = "";
   dmgCount = 0;
   dmgLive.length = 0;
-  residu.k = 1;
+  ghosts.clear();
+  shieldSeen.clear();
+  buffSeen.clear();
+  badges.clear();
+  el.effects.textContent = "";
+  el.buffs.textContent = "";
+  dpsWindow.length = 0;
+  hurtParSrc.fill(0);
+  hurtHp = -1;
   for (const k of Object.keys(memo)) delete memo[k];
 }
 
 function hpColor(k, downed, col) {
   if (downed) return COMBAT.downed;
   return k < 0.25 ? HUD.low : (k < 0.5 ? HUD.mid : col);
+}
+
+// le seuil bas est le SEUL moment ou le HUD a le droit d'attirer le regard.
+const LOW_HP = 0.30;
+
+// le bouclier s'eteint au coup et se rallume pendant la rampe de `SHIELD_REGEN_RAMP`
+// — sans ca le joueur subit une regle qu'il ne voit pas.
+const SHIELD_HIT_MS = 220;
+const shieldSeen = new Map();
+
+function updateShield(bar, node, key, shield, now) {
+  const k = shield > 0 ? Math.min(1, shield / CFG.SHIELD_POOL) : 0;
+  setWidth(node, `sh${key}`, k);
+  const prev = shieldSeen.get(key);
+  if (!prev) { shieldSeen.set(key, { v: shield, hit: 0 }); }
+  else {
+    if (shield < prev.v - 0.5) prev.hit = now;
+    prev.v = shield;
+  }
+  const s = shieldSeen.get(key);
+  setClass(bar, `shh${key}`, "shieldHit", now - s.hit < SHIELD_HIT_MS);
+  setClass(bar, `shr${key}`, "shieldUp", k > 0 && k < 1 && now - s.hit >= SHIELD_HIT_MS);
+  setClass(bar, `shO${key}`, "shielded", k > 0);
 }
 
 
@@ -137,13 +177,13 @@ function buildTeam(lobby, myId) {
     row.className = "teamRow" + (l.id === myId ? " me" : "");
     row.innerHTML =
       '<div class="nom"></div><div class="score"></div>' +
-      '<div class="bar"><i></i><u></u></div><div class="tags"></div>';
+      '<div class="bar gauge"><i></i><b></b><u><i></i></u></div><div class="tags"></div>';
     row.dataset.pid = l.id;
     el.team.appendChild(row);
   }
 }
 
-function updateTeam(v, c) {
+function updateTeam(v, c, now) {
   const sig = c.lobby.map(l => `${l.id}:${l.name}:${l.colorIndex}`).join("|");
   if (sig !== teamSig) { teamSig = sig; buildTeam(c.lobby, c.myId); }
 
@@ -154,7 +194,8 @@ function updateTeam(v, c) {
     const p = v.playerList.find(pp => pp.id === l.id);
     const col = PLAYER_COLORS[l.colorIndex % PLAYER_COLORS.length];
     const [nom, score, bar, tags] = row.children;
-    const fill = bar.firstElementChild, sh = bar.lastElementChild;
+    const [fill, ghost, shWrap] = bar.children;
+    const sh = shWrap.firstElementChild;
 
     setText(nom, `tn${l.id}`, l.name);
     setStyle(nom, `tc${l.id}`, "color", col);
@@ -163,6 +204,7 @@ function updateTeam(v, c) {
     if (l.spectator || !p) {
       setWidth(fill, `tf${l.id}`, 0);
       setWidth(sh, `tsh${l.id}`, 0);
+      setWidth(ghost, `tgh${l.id}`, 0);
       setText(tags, `tg${l.id}`, l.spectator ? "spectateur" : "…");
       continue;
     }
@@ -171,7 +213,10 @@ function updateTeam(v, c) {
     const k = p.downed ? 0 : Math.max(0, Math.min(1, p.hp / maxHp));
     setWidth(fill, `tf${l.id}`, k);
     setStyle(fill, `tfc${l.id}`, "background", hpColor(k, p.downed, col));
-    setWidth(sh, `tsh${l.id}`, p.shield > 0 ? Math.min(1, p.shield / CFG.SHIELD_POOL) : 0);
+    setGhost(ghost, `tgh${l.id}`, k, barGhost(`t${l.id}`, k, now));
+    setTicks(bar, `ttk${l.id}`, maxHp);
+    setClass(bar, `tlo${l.id}`, "low", !p.downed && k < LOW_HP);
+    updateShield(bar, sh, `t${l.id}`, p.shield, now);
 
     const stSig = `${p.statuses}|${p.vuln}|${p.doom > 0 ? p.doom.toFixed(1) : 0}|${p.downed}`;
     if (memo[`tst${l.id}`] !== stSig) {
@@ -225,11 +270,39 @@ function updateBeat(v) {
 // [30] une balle retire une fraction infime de la barre, et une barre qui
 // glisse en continu ne se voit pas. Le segment perdu RESTE affiche en clair et
 // rattrape en ~300 ms : c'est la salve qui devient visible, pas le total.
-const residu = { k: 1, at: 0 };
+// UN SEUL POINT DE PASSAGE pour toutes les barres du HUD, boss compris.
 const RESIDU_MS = 300;
+const ghosts = new Map();
+
+function barGhost(key, k, now) {
+  let g = ghosts.get(key);
+  if (!g) { g = { k, at: now }; ghosts.set(key, g); }
+  if (k >= g.k) g.k = k;
+  else {
+    const dt = Math.min(100, now - (g.at || now));
+    g.k = k + (g.k - k) * Math.pow(0.02, dt / RESIDU_MS);
+    if (g.k - k < 0.002) g.k = k;
+  }
+  g.at = now;
+  return g.k;
+}
+
+function setGhost(node, key, k, ghost) {
+  setStyle(node, key + "x", "left", `${(k * 100).toFixed(2)}%`);
+  setStyle(node, key + "w", "width", `${(Math.max(0, ghost - k) * 100).toFixed(2)}%`);
+}
+
+// une graduation tous les 25 PV : a 150 PV pour un Rempart et 85 pour un Tireur,
+// la meme fraction ne dit pas la meme chose.
+const HP_TICK = 25;
+
+function setTicks(node, key, maxHp) {
+  const n = Math.max(1, Math.round(maxHp / HP_TICK));
+  setStyle(node, key, "--tick", (100 / n).toFixed(3) + "%");
+}
 
 function updateBoss(b, now) {
-  if (!b) { setHidden(el.boss, "bossOn", true); residu.k = 1; return; }
+  if (!b) { setHidden(el.boss, "bossOn", true); ghosts.delete("boss"); return; }
   setHidden(el.boss, "bossOn", false);
 
   const bars = Math.max(1, b.bars ?? 1);
@@ -237,15 +310,7 @@ function updateBoss(b, now) {
   const left = Math.max(1, Math.min(bars, Math.ceil(b.hp / barHp)));
   const k = Math.max(0, Math.min(1, (b.hp - (left - 1) * barHp) / barHp));
 
-  if (k >= residu.k) residu.k = k;
-  else {
-    const dt = Math.min(100, now - (residu.at || now));
-    residu.k = k + (residu.k - k) * Math.pow(0.02, dt / RESIDU_MS);
-    if (residu.k - k < 0.002) residu.k = k;
-  }
-  residu.at = now;
-  setStyle(el.bossLoss, "blx", "left", `${(k * 100).toFixed(2)}%`);
-  setStyle(el.bossLoss, "blw", "width", `${((residu.k - k) * 100).toFixed(2)}%`);
+  setGhost(el.bossLoss, "bl", k, barGhost("boss", k, now));
 
   const kind = b.kind ?? 0;
   const def = bossAt(kind);
@@ -361,15 +426,21 @@ function buildPips(cdef) {
   mk("ESP", "esquive", TEXT.base);
   mk("A", cdef.skills[0].nom.slice(0, 11), cdef.couleur);
   mk("E", cdef.skills[1].nom.slice(0, 11), cdef.couleur);
-  mk("3", (SKILL3_NAME[cdef.id] ?? "").toLowerCase().slice(0, 11), cdef.couleur);
+  // l'ultime a un rang a part : c'est le lot 04 qui en fait un ultime, l'interface
+  // doit le dire aussi, sinon la promotion n'existe que dans le code.
+  mk("3", (SKILL3_NAME[cdef.id] ?? "").toLowerCase().slice(0, 11), cdef.couleur)
+    .classList.add("ult");
 }
 
-function updatePip(node, i, ready, k, active, stock) {
+const PRESS_MS = 160;
+
+function updatePip(node, i, ready, k, active, stock, now) {
   setClass(node, `pr${i}`, "ready", ready);
   setClass(node, `pa${i}`, "active", active);
   setStyle(node.firstElementChild, `pk${i}`, "--k",
     (Math.max(0, Math.min(1, k)) * 100).toFixed(0) + "%");
   setText(node.querySelector(".stock"), `ps${i}`, stock > 1 ? "×" + stock : "");
+  setClass(node, `pp${i}`, "press", now - pipPress[i] < PRESS_MS);
 
   if (ready && memo[`pw${i}`] === false) {
     node.classList.remove("flash");
@@ -380,7 +451,7 @@ function updatePip(node, i, ready, k, active, stock) {
 }
 
 
-function updateSelf(v, c) {
+function updateSelf(v, c, now) {
   const me = v.playerList.find(p => p.id === c.myId);
   if (!me) return;
 
@@ -388,7 +459,10 @@ function updateSelf(v, c) {
   const k = Math.max(0, Math.min(1, me.hp / maxHp));
   setWidth(el.hp, "shp", k);
   setStyle(el.hp, "shpc", "background", hpColor(k, me.downed, c.myColor));
-  setWidth(el.shield, "ssh", me.shield > 0 ? Math.min(1, me.shield / CFG.SHIELD_POOL) : 0);
+  setGhost(el.hpGhost, "sgh", k, barGhost("self", k, now));
+  setTicks(el.hpBar, "stk", maxHp);
+  setClass(el.hpBar, "slo", "low", !me.downed && k < LOW_HP);
+  updateShield(el.hpBar, el.shield, "self", me.shield, now);
 
   setText(el.hpText, "shpt", me.downed
     ? "à terre — attends un coéquipier"
@@ -410,47 +484,75 @@ function updateSelf(v, c) {
   const base = SKILL_BASE_CD[cdef.id] ?? [1, 1];
 
   const dashCd = me.dashCd ?? 0;
-  updatePip(el.pips.children[0], 0, dashCd <= 0, dashCd <= 0 ? 1 : 1 - dashCd / c.dashCd, false, 0);
+  updatePip(el.pips.children[0], 0, dashCd <= 0, dashCd <= 0 ? 1 : 1 - dashCd / c.dashCd,
+    false, 0, now);
 
   const stock = cdef.id === "dps" ? (me.bombStock ?? 0) : 0;
   const cd1 = me.cd1 ?? 0, cd2 = me.cd2 ?? 0;
   updatePip(el.pips.children[1], 1, cd1 <= 0 || stock > 0, cd1 <= 0 ? 1 : 1 - cd1 / base[0],
-    (me.skillFlags & SKILL_HEAL_MODE) !== 0, stock);
+    (me.skillFlags & SKILL_HEAL_MODE) !== 0, stock, now);
   updatePip(el.pips.children[2], 2, cd2 <= 0, cd2 <= 0 ? 1 : 1 - cd2 / base[1],
-    (me.skillFlags & (SKILL_TAUNT | SKILL_OVERDRIVE)) !== 0, 0);
+    (me.skillFlags & (SKILL_TAUNT | SKILL_OVERDRIVE)) !== 0, 0, now);
 
   const tier3 = me.skill3 ?? 0;
   const pip3 = el.pips.children[3];
   setClass(pip3, "p3lock", "locked", tier3 <= 0);
+  setClass(pip3, "p3t", "t3", tier3 >= 3);
   const cd3 = me.cd3 ?? 0;
   const base3 = tier3 > 0 ? (SKILL3_BASE_CD[cdef.id]?.[tier3 - 1] ?? 1) : 1;
   updatePip(pip3, 3, tier3 > 0 && cd3 <= 0, cd3 <= 0 ? (tier3 > 0 ? 1 : 0) : 1 - cd3 / base3,
-    false, 0);
+    false, 0, now);
 
   updateEffects(c.counts);
-  updateBuffs(me.buffs);
+  updateBuffs(me.buffs, now);
+  updateStats(me, v, c, now);
+}
+
+// un etat qui surgit sans transition passe inapercu, et c'est justement
+// l'information qu'il fallait voir : les pastilles se reconcilient par CLE au
+// lieu de se reconstruire, sinon toute la rangee rejouerait son apparition.
+const BADGE_OUT_MS = 220;
+const badges = new Map();
+
+function reconcileBadges(root, prefix, wanted) {
+  for (const [key, node] of [...badges]) {
+    if (!key.startsWith(prefix) || wanted.has(key)) continue;
+    badges.delete(key);
+    node.classList.remove("in");
+    node.classList.add("out");
+    setTimeout(() => node.remove(), BADGE_OUT_MS);
+  }
+  for (const [key, w] of wanted) {
+    let node = badges.get(key);
+    if (!node) {
+      node = document.createElement("div");
+      node.className = "badge in";
+      node.style.color = w.color;
+      node.appendChild(iconImg(w.icon, w.color, w.size));
+      node.appendChild(document.createElement("span"));
+      badges.set(key, node);
+      root.appendChild(node);
+    }
+    if (node.style.order !== String(w.ord)) node.style.order = String(w.ord);
+    const txt = node.lastElementChild;
+    if (txt.textContent !== w.text) txt.textContent = w.text;
+    if (w.k !== undefined) {
+      const pct = (Math.max(0, Math.min(1, w.k)) * 100).toFixed(0) + "%";
+      if (node.dataset.k !== pct) { node.dataset.k = pct; node.style.setProperty("--k", pct); }
+    }
+  }
 }
 
 function updateEffects(counts) {
-  let sig = "";
-  for (const e of EFFECT_BADGES) {
-    const n = counts.get(e.id) ?? 0;
-    if (n > 0) sig += `${e.id}:${n};`;
-  }
-  if (memo.eff === sig) return;
-  memo.eff = sig;
-
-  el.effects.textContent = "";
-  for (const e of EFFECT_BADGES) {
+  const wanted = new Map();
+  for (let i = 0; i < EFFECT_BADGES.length; i++) {
+    const e = EFFECT_BADGES[i];
     const n = counts.get(e.id) ?? 0;
     if (n <= 0) continue;
-    const b = document.createElement("div");
-    b.className = "badge";
-    b.style.color = e.color;
-    b.appendChild(iconImg(e.icon, e.color, 16));
-    if (n > 1) b.append("×" + n);
-    el.effects.appendChild(b);
+    wanted.set("e:" + e.id,
+      { color: e.color, icon: e.icon, size: 16, text: n > 1 ? "×" + n : "", ord: i });
   }
+  reconcileBadges(el.effects, "e:", wanted);
 }
 
 const BUFF_ROW = [
@@ -461,23 +563,159 @@ const BUFF_ROW = [
   [BUFF_RICOCHET, "ricochet", "ricochet"],
 ];
 
-function updateBuffs(mask) {
-  if (memo.buf === mask) return;
-  memo.buf = mask;
+// la duree d'un bonus est une FONCTION DE CE QUE LE CLIENT A DEJA : `CFG.BUFF_TIME`
+// et le front montant du bit. Le serveur reste la verite — bit encore pose apres
+// l'echeance = ramassage qui a rafraichi, on repart d'un cycle plein.
+const buffSeen = new Map();
 
-  el.buffs.textContent = "";
-  for (const [bit, key, label] of BUFF_ROW) {
-    if (!(mask & bit)) continue;
+function updateBuffs(mask, now) {
+  const wanted = new Map();
+  const duree = CFG.BUFF_TIME * 1000;
+  for (let i = 0; i < BUFF_ROW.length; i++) {
+    const [bit, key, label] = BUFF_ROW[i];
+    if (!(mask & bit)) { buffSeen.delete(bit); continue; }
+    let until = buffSeen.get(bit);
+    if (until === undefined || now >= until) { until = now + duree; buffSeen.set(bit, until); }
     const st = POWERUP_STYLE[key];
-    const b = document.createElement("div");
-    b.className = "badge";
-    b.style.color = st.color;
-    b.appendChild(iconImg(st.icon, st.color, 14));
-    b.append(label);
-    el.buffs.appendChild(b);
+    wanted.set("b:" + key, { color: st.color, icon: st.icon, size: 14, text: label, ord: i,
+                             k: (until - now) / duree });
   }
+  reconcileBadges(el.buffs, "b:", wanted);
 }
 
+
+// LE JOUEUR NE DOIT PAS FAIRE L'ARITHMETIQUE : le panneau donne des valeurs
+// EFFECTIVES, jamais des pourcentages. Tout se deduit de ce que le client a
+// deja — instantane, cartes, reliques — sans un octet de reseau.
+const num = (v, d = 1) => v.toFixed(d).replace(".", ",");
+
+const STAT_ROWS = [
+  { nom: "dégâts par tir", val: s => num(s.degats) },
+  { nom: "tirs par seconde", val: s => num(s.cadence, 2) },
+  { nom: "dégâts par seconde", val: s => num(s.dps) },
+  { nom: "critique", val: s => `${Math.round(s.critChance * 100)} % · ×${num(s.critMul, 2)}` },
+  { nom: "points de vie", val: s => `${Math.round(s.hp)} / ${Math.round(s.maxHp)}` },
+  { nom: "vitesse", val: s => num(toM(s.vitesse)) + " m/s" },
+  { nom: "dégâts subis", val: s => "×" + num(s.subis, 2) },
+  { nom: "rayon d'effet", val: s => "×" + num(s.rayon, 2) },
+];
+
+const STATS_MS = 250;
+const DPS_WINDOW_MS = 5000;
+const dpsWindow = [];
+const hurtParSrc = new Array(DAMAGE_SOURCES.length).fill(0);
+let hurtHp = -1;
+let statsAt = 0;
+let modsSig = "";
+let modsCache = null;
+
+function relicFlat(id, key) {
+  let total = 0;
+  for (const r of relicsByPlayer.get(id) ?? []) total += relicById(r)?.[key] ?? 0;
+  return total;
+}
+
+function myMods(me, v) {
+  const counts = ownedCounts(me.id);
+  const others = [];
+  for (const p of v.playerList) if (p.id !== me.id) others.push(ownedCounts(p.id));
+  const niveau = v.teamLevel ?? me.level ?? 1;
+  let sig = `${niveau}|${me.cls}|`;
+  for (const [id, n] of counts) sig += `${id}${n},`;
+  sig += "#";
+  for (const o of others) for (const [id, n] of o) sig += `${id}${n},`;
+  if (sig !== modsSig || !modsCache) {
+    modsSig = sig;
+    modsCache = fullMods(counts, others, me.cls ?? CLASS_DEFAULT, niveau);
+  }
+  return modsCache;
+}
+
+function updateStats(me, v, c, now) {
+  const on = hudStats || hudDps;
+
+  // savoir CE QUI TE TUE vaut mieux qu'un compteur de degats : on l'accumule a
+  // partir de la chute de PV et de `lastSrc`, tous deux deja dans l'instantane.
+  if (hurtHp >= 0 && me.hp < hurtHp - 0.01) {
+    const i = Math.max(0, Math.min(DAMAGE_SOURCES.length - 1, me.src ?? 0));
+    hurtParSrc[i] += hurtHp - me.hp;
+  }
+  hurtHp = me.hp;
+
+  dpsWindow.push({ at: now, total: me.damage ?? 0 });
+  while (dpsWindow.length > 2 && now - dpsWindow[0].at > DPS_WINDOW_MS) dpsWindow.shift();
+
+  if (!on || now - statsAt < STATS_MS) return;
+  statsAt = now;
+
+  if (hudDps) {
+    const a = dpsWindow[0], b = dpsWindow[dpsWindow.length - 1];
+    const span = Math.max(0.001, (b.at - a.at) / 1000);
+    const dps = span < 1 ? 0 : Math.max(0, b.total - a.total) / span;
+    setText(el.statsDps, "stD", `${Math.round(dps)} dps · ${Math.round(me.damage ?? 0)} total`);
+  }
+  setHidden(el.statsDps, "stDH", !hudDps);
+
+  setHidden(el.statsRows, "stRH", !hudStats);
+  setHidden(el.statsHurt, "stHH", !hudStats);
+  if (!hudStats) return;
+
+  const m = myMods(me, v);
+  const flat = relicFlat(me.id, "flatDamage")
+    + [...v.playerList].reduce((s, p) => p.id === me.id ? s : s + relicFlat(p.id, "allyFlatDamage"), 0);
+  const degats = (CFG.BULLET_DAMAGE + flat) * m.damageMul * m.barrelDamageMul;
+  const interval = me.fireInterval > 0 ? me.fireInterval : CFG.FIRE_INTERVAL * m.fireIntervalMul;
+  const cadence = 1 / Math.max(0.01, interval);
+  const canons = 1 + m.extraBarrels + (m.backShot ? 0.7 : 0);
+  const s = {
+    degats, cadence,
+    dps: degats * cadence * canons * (1 + m.critChance * (m.critMul - 1)),
+    critChance: m.critChance, critMul: m.critMul,
+    hp: me.hp, maxHp: me.maxHp || CFG.PLAYER_MAX_HP,
+    vitesse: CFG.PLAYER_SPEED * m.speedMul,
+    subis: m.damageTakenMul, rayon: m.areaMul,
+  };
+
+  if (el.statsRows.children.length !== STAT_ROWS.length) {
+    el.statsRows.textContent = "";
+    for (const r of STAT_ROWS) {
+      const d = document.createElement("div");
+      d.className = "statRow";
+      d.innerHTML = '<span class="lab"></span><span class="val"></span>';
+      d.firstElementChild.textContent = r.nom;
+      el.statsRows.appendChild(d);
+    }
+  }
+  // la ligne concernee s'illumine une seconde : c'est ce qui relie un choix a
+  // son effet. Elle se declenche sur le CHANGEMENT DE VALEUR, donc sans hameçon
+  // sur la prise de carte.
+  for (let i = 0; i < STAT_ROWS.length; i++) {
+    const node = el.statsRows.children[i];
+    const txt = STAT_ROWS[i].val(s);
+    if (memo[`sv${i}`] !== undefined && memo[`sv${i}`] !== txt) {
+      node.classList.remove("bump");
+      void node.offsetWidth;
+      node.classList.add("bump");
+    }
+    setText(node.lastElementChild, `sv${i}`, txt);
+  }
+
+  const total = hurtParSrc.reduce((a, b) => a + b, 0);
+  if (total <= 0) { setText(el.statsHurt, "stH", ""); return; }
+  const sig = hurtParSrc.map(x => Math.round(x)).join(",");
+  if (memo.stHs === sig) return;
+  memo.stHs = sig;
+  el.statsHurt.textContent = "";
+  for (let i = 0; i < DAMAGE_SOURCES.length; i++) {
+    if (hurtParSrc[i] <= 0) continue;
+    const d = document.createElement("div");
+    d.className = "hurtRow";
+    d.style.color = SRC_TINT[i];
+    d.appendChild(iconImg(SRC_ICON[i], SRC_TINT[i], 12));
+    d.append(`${DAMAGE_SOURCES[i].label} ${Math.round(hurtParSrc[i] / total * 100)} %`);
+    el.statsHurt.appendChild(d);
+  }
+}
 
 function updateAlerts(c, now) {
   const o = c.alertOrder;
@@ -613,8 +851,9 @@ export function updateHud(v, c) {
 
   updateBoss(v.boss, now);
   updateBeat(v);
-  updateTeam(v, c);
-  updateSelf(v, c);
+  updateTeam(v, c, now);
+  updateSelf(v, c, now);
+  setHidden(el.stats, "stOn", !me || !(hudStats || hudDps));
   updateAlerts(c, now);
   updateAnnounce(v, c, now);
 

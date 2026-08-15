@@ -125,6 +125,15 @@ export function diffSnapshots(a, b, opts = {}) {
     } else if (pb.hp > pa.hp && !pb.downed) {
       out.push({ t: "soigne", id, x: pb.x, y: pb.y, dmg: pb.hp - pa.hp });
     }
+
+    // le bouclier ne coute RIEN de plus au reseau : sa pose et sa rupture sont
+    // deux fronts sur une valeur deja transportee. La rupture est le moment ou
+    // le joueur perd son tampon — elle merite d'etre un evenement, pas la
+    // disparition silencieuse d'un cercle.
+    const sa = pa.shield ?? 0, sb = pb.shield ?? 0;
+    if (sa <= 0 && sb > 0) out.push({ t: "bouclierPose", id, x: pb.x, y: pb.y, v: sb });
+    else if (sa > 0 && sb <= 0) out.push({ t: "bouclierBrise", id, x: pb.x, y: pb.y, v: sa });
+    else if (sb < sa) out.push({ t: "bouclierTouche", id, x: pb.x, y: pb.y, v: sa - sb });
   }
 
   const zb = new Map(b.zones.map(z => [z.id, z]));

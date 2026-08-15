@@ -199,12 +199,26 @@ export const CARD_CFG = {
     { r: 160, time: 9, heal: 16, cd: 22, purge: 1 },
   ],
   SKILL3_SALVE: [
-    { targets: 4, mul: 0.60, cd: 20, vuln: 0 },
-    { targets: 6, mul: 0.75, cd: 17, vuln: 0 },
-    { targets: 8, mul: 0.90, cd: 14, vuln: 1 },
+    { missiles: 4, mul: 0.55, blastR: 70, blastMul: 0.45, cd: 20, vuln: 0 },
+    { missiles: 6, mul: 0.55, blastR: 70, blastMul: 0.45, cd: 17, vuln: 0 },
+    { missiles: 8, mul: 0.55, blastR: 85, blastMul: 0.50, cd: 14, vuln: 1 },
   ],
-  SKILL3_SALVE_RANGE: 480,
-  SKILL3_SALVE_SPREAD: 0.7,
+  SALVE_RANGE: 480,
+  SALVE_DUMB_TIME: 0.15,
+  SALVE_TURN_RATE: 6.0,
+  SALVE_SPEED: 620,
+  SALVE_LIFE: 2.5,
+  SALVE_SPREAD: 0.9,
+  SALVE_BOSS_MUL: 0.25,
+  // l'acquisition est a 360°, la VISEE departage : un tir a tete chercheuse qui
+  // respecte un cone est incoherent, mais on garde le choix du paquet a frapper.
+  SALVE_CONE: 0.7,
+  SALVE_OFFCONE: 2.2,
+  SALVE_RESEEK: 300,
+
+  // un ultime s'annonce : pendant l'amorce le joueur est ENGAGE, l'annulation
+  // n'est pas possible.
+  SKILL3_WINDUP: 0.35,
 };
 
 export const CATEGORIES = [
@@ -260,12 +274,13 @@ const skill3Ancre = t => {
 const skill3Sanctuaire = t => {
   const c = CARD_CFG.SKILL3_SANCTUAIRE[t];
   return `3ᵉ compétence (touche 3) : dôme de ${fmtM(c.r)} pendant ${num(c.time)} s — `
-    + `${c.heal} PV/s à l'intérieur, les projectiles ennemis qui entrent sont détruits`;
+    + `${c.heal} PV/s à l'intérieur, les projectiles ennemis qui entrent sont détruits, `
+    + `et le lien du soigneur s'accroche à tous les alliés du dôme`;
 };
 const skill3Salve = t => {
   const c = CARD_CFG.SKILL3_SALVE[t];
-  return `3ᵉ compétence (touche 3) : verrouille ${c.targets} ennemis dans un cône de ${fmtM(CARD_CFG.SKILL3_SALVE_RANGE)} `
-    + `et les touche à coup sûr, ${num(c.mul * 100)} % de dégâts par cible`;
+  return `3ᵉ compétence (touche 3) : ${plur(c.missiles, "missile")} à tête chercheuse dans ${fmtM(CARD_CFG.SALVE_RANGE)} — `
+    + `${num(c.mul * 100)} % de dégâts directs puis un souffle de ${fmtM(c.blastR)} à ${num(c.blastMul * 100)} %`;
 };
 
 

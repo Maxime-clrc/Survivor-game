@@ -229,6 +229,8 @@ export const HUD = {
   ready:    "#ffffff",
   notReady: "#565c6e",
   xp:       "#f4d35e",
+  shield:   "#7fd8e8",
+  ghost:    "#ffe0b0",
 };
 
 export const TYPE = [13, 15, 18, 22, 29, 38, 50];
@@ -380,9 +382,11 @@ export function cssVars(diffIndex = 1) {
     "--boss-ult-soft": BOSS.ultSoft,
     "--boss-eye":      BOSS.eye,
 
-    "--hud-low": HUD.low,
-    "--hud-mid": HUD.mid,
-    "--xp":      HUD.xp,
+    "--hud-low":    HUD.low,
+    "--hud-mid":    HUD.mid,
+    "--hud-shield": HUD.shield,
+    "--hud-ghost":  HUD.ghost,
+    "--xp":         HUD.xp,
 
     "--downed": COMBAT.downed,
     "--flash":  COMBAT.flash,

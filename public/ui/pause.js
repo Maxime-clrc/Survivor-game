@@ -1,7 +1,20 @@
 
-import { PHASE_ROUND, amSpectator, myId, pauseReal, phase, ws } from "../core/state.js";
+import { PHASE_ROUND, amSpectator, hudDps, hudStats, myId, pauseReal, phase, setHudDps, setHudStats, ws } from "../core/state.js";
 import { openBuild } from "./build.js";
 import { pauseConfirm, pauseEl, pauseQuitAsk, pauseQuitBtn, pauseState, updateVersion } from "./dom.js";
+
+const statsBtn = document.getElementById("pauseStats");
+const dpsBtn = document.getElementById("pauseDps");
+
+function renderHudOptions() {
+  statsBtn.textContent = `Panneau de statistiques : ${hudStats ? "affiché" : "masqué"}`;
+  statsBtn.classList.toggle("on", hudStats);
+  dpsBtn.textContent = `Compteur de dégâts : ${hudDps ? "affiché" : "masqué"}`;
+  dpsBtn.classList.toggle("on", hudDps);
+}
+statsBtn.onclick = () => { setHudStats(!hudStats); renderHudOptions(); };
+dpsBtn.onclick = () => { setHudDps(!hudDps); renderHudOptions(); };
+renderHudOptions();
 
 export function renderPauseState() {
   pauseState.textContent = pauseReal

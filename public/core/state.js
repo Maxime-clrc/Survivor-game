@@ -104,6 +104,27 @@ export let serverCommit = "";
 export const keys = new Set();
 export const dash = { pending: false, t: 0, cd: 0, x: 0, y: 0 };
 export const skills = { s1: false, s2: false, s3: false };
+// l'appui se note MEME quand la competence est en recharge : sans ce retour, le
+// joueur ne sait pas s'il a mal appuye ou si c'est indisponible.
+export const pipPress = [0, 0, 0, 0];
+export function notePress(i) { pipPress[i] = performance.now(); }
+
+const STAT_KEY = "survivor.hudStats";
+export let hudStats = readFlag(STAT_KEY, false);
+export function setHudStats(v) {
+  hudStats = !!v;
+  try { localStorage.setItem(STAT_KEY, hudStats ? "1" : "0"); } catch {  }
+}
+const DPS_KEY = "survivor.hudDps";
+export let hudDps = readFlag(DPS_KEY, false);
+export function setHudDps(v) {
+  hudDps = !!v;
+  try { localStorage.setItem(DPS_KEY, hudDps ? "1" : "0"); } catch {  }
+}
+function readFlag(key, fallback) {
+  try { return (localStorage.getItem(key) ?? (fallback ? "1" : "0")) === "1"; }
+  catch { return fallback; }
+}
 export const PERF = location.search.includes("perf");
 export const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 const ATTACK_LABEL = {

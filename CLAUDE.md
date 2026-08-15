@@ -336,8 +336,11 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_hurt(p, d, opts)` | **tout** ce qui blesse un joueur ; multiplicateur de difficulté **ici et nulle part ailleurs** ; plafond de mécanique ; provenance |
 | `_damage()` | **tout** ce qui blesse un ennemi ou le boss ; vol de vie, critique, momentum, exécution, brûlure, `hitSeq`, `critSeq`, point d'impact du boss, redirection Jumeaux, crédit XP du boss |
 | `_blastPush(x, y, r, force)` | **toute** impulsion radiale d'un souffle, et le trou d'apparition qui va avec (`_dansUnTrou`) |
-| `_healLinks(dt)` | accrochage, rupture, soin, réanimation et siphon du Soigneur |
-| `drawArc(clef, x0, y0, x1, y1, opts)` | **tout** ce qui relie deux points par un arc : ricochet, salve, lien de soin |
+| `_healLinks(dt)` | accrochage, rupture, soin, réanimation et siphon du Soigneur ; `_postureLinks` = la posture, `_sanctLinks` = le dôme (ni plafond ni rupture) |
+| `_ultFire(p)` | **tout** ce que déclenche une 3ᵉ compétence, à l'échéance de l'amorce ; effet d'écran et marqueur d'équipe posés une fois pour les trois |
+| `drawArc(clef, x0, y0, x1, y1, opts)` | **tout** ce qui relie deux points par un arc : ricochet, salve, lien de soin, chaîne d'Ancre, lien des Jumeaux. `flow` porte le SENS |
+| `RING_*` (`render/fx.js`) | les bandes de rayon autour d'un personnage — lues par `boss.js` **et** par les éclats de coque |
+| `drawShieldShell()` | l'état du bouclier à l'écran ; `spawnShieldOn` / `spawnShieldBreak` ses deux fronts |
 | `spawnBlast(x, y, r, ampleur, style)` | les couches chaudes d'un souffle, mises à l'échelle par la magnitude |
 | `_applyStatus()` / `_purgeStatus()` | pose et retrait d'état |
 | `_killEnemy()` | **toute** mort d'ennemi : XP, explosion du kamikaze, cumuls |
@@ -389,7 +392,9 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   `CARD_CFG`, `SKILL_CFG`, `STATUS_CFG`, `BOSS_CFG`. Une description compose
   `fmtM(LA_CONSTANTE)`, elle ne recopie pas un nombre.
 - **Chaque effet dessiné autour d'un personnage occupe une bande de rayon
-  exclusive** : `RING_SHIELD`, `RING_STATUS`, `RING_SKILL`, `RING_BUFF0`, puis
+  exclusive**, table dans `render/fx.js` (la couche la plus basse qui en a
+  besoin, les éclats de coque naissant sur `RING_SHIELD`) :
+  `RING_SHIELD`, `RING_STATUS`, `RING_SKILL`, `RING_BUFF0`, puis
   3,7 m lames orbitales, 8 m givre, 8,5 m rempart. **Vaut aussi autour d'un
   ENNEMI** : halo d'élite `r+6`→`r+8`, liseré d'aura `r+10`. Les lames se
   dessinent en passe séparée (`drawOrbiters`), le givre est un disque **sans
@@ -920,14 +925,14 @@ Ajouter une entrée impose de traiter les deux côtés.
 
 | Registre | Serveur | Client |
 |---|---|---|
-| `kind` d'effet | 0 nova · 1 balayage · 2 niveau · 3 ricochet (2 points de plus) · 4 balise/relèvement/purification/Sentence · 5 élite · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart · 10 provocation · 11 vague de soin · 12 bombe · 13 salve (2 points de plus) · 14 absorption | `drawEffects()` |
+| `kind` d'effet | 0 nova · 1 balayage · 2 niveau · 3 ricochet (2 points de plus) · 4 balise/relèvement/purification/Sentence · 5 élite · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart · 10 provocation · 11 vague de soin · 12 bombe · 13 salve (2 points de plus) · 14 absorption · 15 rupture de barre · 16 **ultime** (`owner`, palier dans `n`) | `drawEffects()` |
 | type d'ennemi | `ENEMY_TYPES` (`enemies.js`), élite à +100 | `ENEMY.TINT` (`palette.js`) + `plan()` (`e{type}_*`) + `DEATH_BURST` + `enemyFrame()` |
 | trait | `TRAITS` + `TRAIT_CFG` (`enemies.js`) ; attachement dans `DIFFICULTIES[i].traits` — **l'index ne circule pas** | `traitsOf()` dans `render/actors.js` |
 | profil de difficulté | `DIFFICULTIES` (`game_state.js`) | `renderVoteDetail()` + `applyPalette(diffIndex)` |
 | décor de mode | `DECOR` (`palette.js`) — **ne circule pas** | `decor` dans `render/stage.js`, lu par `render/decor.js` |
 | classe | `CLASSES` (`classes.js`) | sélecteur du salon + `buildPips()`/`updatePip()` |
 | couleur d'un joueur | `assignColors()` (`room.js`), index dans `colorIndex` | `PLAYER_COLORS` via `colorOf`/`ownerColorOf` |
-| bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` | teinte, halos, icônes |
+| bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` · `SKILL_ULT_WIND` | teinte, halos, icônes, anneau d'amorce |
 | états | `STATUSES` (`statuses.js`), bit dans `_statusMask()` | `STATUS_ICON` + halo + cadre d'équipe |
 | `shape` de zone | 0 disque · 1 rect · 2 anneau · 3 cône · 4 Pac-Man · 5 croix | `zonePath()`/`zoneSubPath()` + `_zoneHits()` |
 | bits de buff | `BUFF_DAMAGE` … `BUFF_RICOCHET` | anneaux + bandeau HUD |
@@ -950,7 +955,8 @@ Ajouter une entrée impose de traiter les deux côtés.
 | magnitude d'un souffle | `n` sur l'effet, 9ᵉ élément (index 8, coupé si nul) — nova, grenade, onde, bombe | `BLAST_STYLE` + `spawnBlast()` + force du son |
 | critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats |
 | propriétaire d'une balle | 4ᵉ élément du tuple `b` | `ownerColorOf(b.owner) ?? COMBAT.bullet` |
-| lien de soin | `_healLinks()` ; clé `hl`, triplets `[soigneur, cible, ennemi]`, **absente** hors posture | `drawSoinLinks()` : soin chaud et **calme**, siphon froid et **agité** |
+| missile de Salve | 5ᵉ élément du tuple `b`, **émis seulement si missile** | `drawMissile()` |
+| lien de soin | `_healLinks()` ; clé `hl`, triplets `[soigneur, cible, ennemi]` — **quadruplets** quand le lien vient d'un Sanctuaire (id du dôme) | `drawSoinLinks()` : soin chaud et **calme**, siphon froid et **agité** ; un lien de dôme part du **dôme** |
 | intervalle de tir | `p.fireInterval`, 34ᵉ élément du tuple joueur | `fireInterval` (`ingest.js`) + ligne « cadence » de `ui/build.js` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` — **ne circule pas** | `CARD_CATEGORY_COLOR` + `.cardCat` |
 | hub des salles | `listRooms`/`createRoom`/`joinRoom`/`leaveRoom` → `rooms`/`roomJoined`/`joinRoomError`/`roomClosed` | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |

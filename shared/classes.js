@@ -5,6 +5,7 @@ import { CLASS_COLOR } from "./palette.js";
 export const SKILL_HEAL_MODE = 1;
 export const SKILL_TAUNT     = 2;
 export const SKILL_OVERDRIVE = 4;
+export const SKILL_ULT_WIND  = 8;
 
 export const SKILL_CFG = {
   TANK_BULWARK_RADIUS: 130,

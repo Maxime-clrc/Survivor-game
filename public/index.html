@@ -89,8 +89,7 @@
         <div id="selfBuffs"></div>
         <div id="selfMain">
           <div id="selfGauges">
-            <div id="selfShield"><i></i></div>
-            <div id="selfHp"><i></i></div>
+            <div id="selfHp" class="gauge"><i></i><b></b><u><i></i></u></div>
             <div id="selfXp"><i></i></div>
           </div>
           <div id="selfText">
@@ -99,6 +98,12 @@
           </div>
           <div id="selfPips"></div>
         </div>
+      </div>
+
+      <div id="hudStats" hidden>
+        <div id="statsDps"></div>
+        <div id="statsRows"></div>
+        <div id="statsHurt"></div>
       </div>
 
       <div id="hudSpectator" hidden>SPECTATEUR — tu entres à la manche suivante</div>
@@ -629,6 +634,11 @@
     </div>
     <div id="pauseSource">
       <button id="pauseSrc" title="basculer entre la bande son calculée et les pistes audio">Bande son : pistes</button>
+    </div>
+
+    <div id="pauseHud">
+      <button id="pauseStats">Panneau de statistiques : masqué</button>
+      <button id="pauseDps">Compteur de dégâts : masqué</button>
     </div>
 
     <button id="pauseBuild">Consulter son build</button>

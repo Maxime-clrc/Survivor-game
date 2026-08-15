@@ -4,7 +4,7 @@ import { EventPump } from "/events.js";
 import { hudDamage } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
 import { CFG, hazardState } from "/shared/game_state.js";
-import { COMBAT, FX, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
+import { COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
 import { eventAt, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
 import { latest, myId } from "../core/state.js";
@@ -74,6 +74,8 @@ const EFFECT_SOUND = {
   13: { son: "impact", pitch: 1.4, force: 0.5, shake: 0 },
   14: { son: "impact", pitch: 0.55, force: 0.45, shake: 0 },
   15: { son: "impact", pitch: 0.9, force: 0.7, shake: 0 },
+  // palier 3 · budget de MOMENT DE MANCHE : un ultime sort ~4 fois par manche.
+  16: { son: "lancement", force: 0.9, shake: 3 },
 };
 
 // les quatre souffles, et LEUR MATIERE. `n` est le nombre de tues : il met a
@@ -152,6 +154,24 @@ function handleEvent(e) {
       break;
     }
     case "aterre": playSound("aterre"); break;
+
+    // LE BOUCLIER EST UNE COQUE, ET UNE COQUE SE BRISE. Trois budgets distincts :
+    // la touche est l'eclair d'une image, la pose un fait notable, la rupture le
+    // moment ou le joueur perd son tampon. Aucun tressaillement : ce n'est pas
+    // une detonation, et le tressaillement est reserve aux gros evenements.
+    case "bouclierPose":
+      playSound("bouclier");
+      spawnShieldOn(e.x, e.y);
+      break;
+
+    case "bouclierBrise":
+      playSound("bouclierBrise");
+      spawnShieldBreak(e.x, e.y);
+      break;
+
+    case "bouclierTouche":
+      shieldHit.set(e.id, performance.now());
+      break;
 
     // [21] le relevement d'un allie : flash, grave, et l'invulnerabilite se voit.
     case "releve":
@@ -502,6 +522,66 @@ export function drawBlastMarks() {
 }
 
 // [21] l'invulnerabilite breve d'un releve doit SE VOIR.
+// CHAQUE EFFET AUTOUR D'UN PERSONNAGE OCCUPE UNE BANDE DE RAYON EXCLUSIVE. La
+// table vit ici, la couche la plus basse qui en a besoin : les eclats de coque
+// doivent naitre exactement sur le rayon que `boss.js` dessine, et deux
+// definitions du meme rayon finiraient par diverger.
+export const RING_SHIELD = CFG.PLAYER_RADIUS + 4;
+export const RING_STATUS = CFG.PLAYER_RADIUS + 8;
+export const RING_SKILL  = CFG.PLAYER_RADIUS + 12;
+export const RING_BUFF0  = CFG.PLAYER_RADIUS + 16;
+
+// LA COQUE. Sa rupture est du VERRE : `fx_shard` est deja la matiere « eclat
+// anguleux » de l'atlas, elle passe donc par le lot WebGL comme le reste — pas
+// de quatrieme case, pas de chemin special.
+export const shieldHit = new Map();
+const SHIELD_PLATES = 9;
+
+export function spawnShieldOn(x, y) {
+  const col = POWERUP_COLOR.shield;
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: 44, max: RING_SHIELD, life: 0.28, t: 0.28, col, w: 2.5 });
+  }
+  // les plaques CONVERGENT : la coque se ferme sur le porteur au lieu de
+  // s'allumer sur place.
+  for (let i = 0; i < SHIELD_PLATES && particles.length < PARTICLE_MAX; i++) {
+    const a = (i / SHIELD_PLATES) * Math.PI * 2 + Math.random() * 0.2;
+    const d = 46 + Math.random() * 26;
+    particles.push({
+      x: x + Math.cos(a) * d, y: y + Math.sin(a) * d,
+      vx: -Math.cos(a) * d * 2.6, vy: -Math.sin(a) * d * 2.6,
+      life: 0.34, max: 0.34, col, size: 3.4,
+      frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 2, drag: 0.9,
+    });
+  }
+}
+
+export function spawnShieldBreak(x, y) {
+  const col = POWERUP_COLOR.shield;
+  const dense = glActive();
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: RING_SHIELD, max: RING_SHIELD + 34,
+                  life: 0.30, t: 0.30, col, w: 3 });
+  }
+  if (particles.length < PARTICLE_MAX) {
+    particles.push({ x, y, vx: 0, vy: 0, life: 0.05, max: 0.05,
+                     col: COMBAT.flash, size: 40, frame: fxGlow, drag: 1 });
+  }
+  // les eclats partent du BORD de la coque, pas du centre : c'est la coque qui
+  // cede, pas le personnage qui explose.
+  const n = dense ? 22 : 10;
+  for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+    const sp = 150 + Math.random() * 170;
+    particles.push({
+      x: x + Math.cos(a) * RING_SHIELD, y: y + Math.sin(a) * RING_SHIELD,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.42, max: 0.42, col, size: 3 + Math.random() * 2.2,
+      frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 9, drag: 0.93,
+    });
+  }
+}
+
 function spawnRevive(x, y, col) {
   if (bursts.length < BURST_MAX) {
     bursts.push({ x, y, r: 10, max: 150, life: 0.55, t: 0.55, col, w: 3.5 });
