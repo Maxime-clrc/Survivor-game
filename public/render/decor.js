@@ -62,7 +62,7 @@ export function drawVignette() {
   const fog = weather?.id === WX_BRUME;
   if (!vignette || decor.pulse > 0 || fog) {
     const r = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2;
-    const from = decor.vignetteFrom + (fog ? BIOME_CFG.FOG_FROM : 0);
+    const from = Math.max(0, decor.vignetteFrom + (fog ? BIOME_CFG.FOG_FROM : 0));
     const amt = decor.vignette * puls * (fog ? BIOME_CFG.FOG_VIGNETTE : 1);
     setVignette(ctx.createRadialGradient(
       CFG.VIEW_W / 2, CFG.VIEW_H / 2, r * Math.min(0.9, from),

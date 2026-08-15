@@ -1,7 +1,7 @@
 
 import { createGL } from "/gl.js";
 import { bombRange } from "/shared/classes.js";
-import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, biomeAt, buildBiome } from "/shared/game_state.js";
+import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome } from "/shared/game_state.js";
 import { ENEMY, cssVars, decorAt, teinter } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { reuploadAtlas } from "/sprites.js";
@@ -103,6 +103,26 @@ const CULL_MARGIN = 90;
 export function inView(x, y, m = CULL_MARGIN) {
   return x > camera.x0 - m && x < camera.x0 + CFG.VIEW_W + m
       && y > camera.y0 - m && y < camera.y0 + CFG.VIEW_H + m;
+}
+
+// LA BRUME EST UN CHAMP DE VISION, PAS UNE TEINTE : elle retire de
+// l'information. Le disque est centre sur LE JOUEUR et non sur la vue — c'est
+// sa vision qui se retrecit, et la camera s'ecrete aux bords de l'arene alors
+// que lui non. Decroissance en carre : on garde longtemps une silhouette, puis
+// elle s'efface d'un coup.
+//
+// Ce que ca masque : la HORDE. Jamais un telegraphe, jamais une zone, jamais un
+// marqueur, jamais le boss, jamais un allie — une annonce qu'on ne voit pas
+// n'est pas difficile, elle est injuste. C'est la seule regle de l'effet.
+export function voileBrume(x, y) {
+  if (!weather || weather.id !== WX_BRUME) return 1;
+  const p = predicted ?? latest?.players?.get(myId);
+  const cx = p ? p.x : camera.x, cy = p ? p.y : camera.y;
+  const d = Math.hypot(x - cx, y - cy);
+  if (d <= BIOME_CFG.FOG_CLEAR) return 1;
+  if (d >= BIOME_CFG.FOG_BLIND) return 0;
+  const k = (BIOME_CFG.FOG_BLIND - d) / (BIOME_CFG.FOG_BLIND - BIOME_CFG.FOG_CLEAR);
+  return k * k;
 }
 addEventListener("resize", resize);
 resize();

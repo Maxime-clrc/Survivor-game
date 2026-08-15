@@ -9,7 +9,7 @@ import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
 import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
-import { ELITE_GOLD, camera, ctx, inView, ownerColorOf } from "./stage.js";
+import { ELITE_GOLD, camera, ctx, inView, ownerColorOf, voileBrume } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
 export const bulletTrail = new Map();
@@ -1201,6 +1201,8 @@ function drawMedicLinks(list) {
     }
     if (!best) continue;
     if (!inView(m.x, m.y, 200) && !inView(best.x, best.y, 200)) continue;
+    // un lien qui pend entre deux corps invisibles trahirait la brume
+    if (voileBrume(m.x, m.y) <= 0.02 && voileBrume(best.x, best.y) <= 0.02) continue;
     const ca = Math.cos(m.ang ?? 0), sa = Math.sin(m.ang ?? 0);
     const ox = m.x + 8.5 * ca - (-21) * sa;
     const oy = m.y + 8.5 * sa + (-21) * ca;
@@ -1221,6 +1223,15 @@ export function drawEnemies(list, view) {
 
   for (const e of list) {
     if (!inView(e.x, e.y)) continue;
+    // CE QUI S'ANNONCE PERCE LA BRUME. Un fonceur declenche a 420 px
+    // (`DASH_RANGE`), donc dans le voile : son preavis y serait illisible, et
+    // un preavis qu'on ne voit pas n'est pas difficile, il est injuste. Le
+    // corps qui prend son elan redevient net — c'est aussi la plus belle image
+    // que l'effet produise.
+    // La brume sort du dessin AVANT tout le reste : a forte densite elle rend
+    // aussi des lots de dessin, ce qui n'est pas plus mal.
+    const voile = windup.has(e.id) ? 1 : voileBrume(e.x, e.y);
+    if (voile <= 0.02) continue;
     const def = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
     const r = e.elite ? def.r * CFG.ELITE_RADIUS_MUL : def.r;
 
@@ -1237,7 +1248,7 @@ export function drawEnemies(list, view) {
     if (e.elite) {
       const pulse = 0.5 + 0.5 * Math.sin(t / 240 + e.id);
       ctx.strokeStyle = ELITE_GOLD;
-      ctx.globalAlpha = 0.3 + pulse * 0.35;
+      ctx.globalAlpha = (0.3 + pulse * 0.35) * voile;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(e.x, e.y, r + 6 + pulse * 2, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
@@ -1249,7 +1260,7 @@ export function drawEnemies(list, view) {
     if (auraCovered.has(e.id)) {
       const pulse = 0.5 + 0.5 * Math.sin(t / 380 + e.id);
       ctx.strokeStyle = ENEMY_TINT[8];
-      ctx.globalAlpha = 0.3 + pulse * 0.25;
+      ctx.globalAlpha = (0.3 + pulse * 0.25) * voile;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(e.x, e.y, r + 10, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
@@ -1287,15 +1298,18 @@ export function drawEnemies(list, view) {
       scaleY: gain * punch * (1 - squash) * (windup.has(e.id) ? 1.14 : 1),
       flash,
       flashTint: hit?.col ?? null,
+      alpha: voile,
     });
 
     if (e.hp < e.maxHp) {
       const w = r * 2;
       const tx = e.x - r, ty = e.y - r - 9;
+      ctx.globalAlpha = voile;
       ctx.fillStyle = alpha(SURFACE.shadow, 0.45);
       ctx.fillRect(tx, ty, w, 3);
       ctx.fillStyle = e.elite ? ELITE_GOLD : (ENEMY_TINT[e.type] ?? ENEMY_TINT[0]);
       ctx.fillRect(tx, ty, w * (e.hp / e.maxHp), 3);
+      ctx.globalAlpha = 1;
     }
   }
 }

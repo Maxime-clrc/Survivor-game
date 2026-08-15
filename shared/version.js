@@ -1500,6 +1500,36 @@
                    unique sur du JS mesure le JIT autant que le code. Toute
                    mesure de CPU de ce depot doit chauffer avant de compter
 
+     0.11.7 LA BRUME NE FAISAIT RIEN, ET CE QU'ELLE FAISAIT ALLAIT A L'ENVERS.
+                   Aucun effet de simulation (`WX_BRUME` n'apparaissait nulle
+                   part dans `game_state.js`), et cote rendu elle ne
+                   reparametrait qu'un vignettage DEJA present en permanence
+                   (0,68 en cauchemar). Pire, `FOG_FROM: +0,12` eloignait le
+                   depart du degrade : mesure, le bord haut/bas de l'ecran
+                   (450 px, la demi-hauteur) passait de 0,155 a 0,051 — elle
+                   ECLAIRCISSAIT la moitie des directions d'arrivee, alors que sa
+                   propre ligne de table promet « on ne voit plus venir ».
+                   ELLE DEVIENT UN CHAMP DE VISION. `voileBrume(x, y)` :
+                   visibilite pleine jusqu'a `FOG_CLEAR` (260), plus rien au-dela
+                   de `FOG_BLIND` (480), decroissance en carre entre les deux. Le
+                   disque est centre sur LE JOUEUR et non sur la vue — c'est sa
+                   vision qui se retrecit, et la camera s'ecrete aux bords de
+                   l'arene alors que lui non. Cout reseau nul, le serveur reste
+                   autoritaire : on cesse de DESSINER, on ne cesse pas de savoir.
+                   UNE SEULE REGLE, ET ELLE DECIDE DE TOUT : la brume masque LA
+                   HORDE, jamais une annonce. Zones, telegraphes, marqueurs,
+                   boss, allies, structures restent intacts. Et ce qui s'annonce
+                   PERCE le voile — un fonceur declenche a `DASH_RANGE` (420),
+                   donc dans la brume : son preavis y serait a 7 % d'opacite.
+                   Un preavis qu'on ne voit pas n'est pas difficile, il est
+                   injuste. Le corps qui prend son elan redevient net.
+                   Ce qui TIRE reste visible par construction, sans regle
+                   speciale : le tireur se place a 170 et le soigneur ennemi a
+                   240, tous deux dans la zone claire.
+                   `FOG_FROM` passe a -0,10 pour que le vignettage accompagne le
+                   masquage au lieu de le contredire. Les deux constantes de
+                   portee sont un PREMIER REGLAGE, a juger en jouant
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1508,4 +1538,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.11.6";
+export const VERSION = "0.11.7";

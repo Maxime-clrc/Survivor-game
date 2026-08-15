@@ -40,8 +40,21 @@ export const BIOME_CFG = {
   GUST_AMP_HZ: 0.055,
 
   ASH_LIFE: 11,
+
+  // LA BRUME RETIRE DE L'INFORMATION, elle ne teinte pas. Pleine visibilite
+  // jusqu'a FOG_CLEAR, plus rien de la horde au-dela de FOG_BLIND. La demi-vue
+  // fait 800 x 450 : a 480 le disque deborde a peine en haut et en bas, et
+  // ampute franchement les cotes — c'est un champ de vision, plus un ecran.
+  // Tout ce qui TIRE reste dedans par construction (le tireur se place a 170,
+  // le soigneur ennemi a 240), donc on ne se fait jamais toucher par un corps
+  // qu'on ne pouvait pas voir.
+  FOG_CLEAR: 260,
+  FOG_BLIND: 480,
+
+  // le vignettage accompagne le masquage au lieu de le contredire : il partait
+  // PLUS LOIN du centre (+0,12), ce qui eclaircissait les bords haut et bas.
   FOG_VIGNETTE: 1.35,
-  FOG_FROM: 0.12,
+  FOG_FROM: -0.10,
 };
 
 export const HZ_GEYSER = 0;
