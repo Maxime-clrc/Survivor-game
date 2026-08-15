@@ -1262,6 +1262,51 @@
                    passe par la grille (jamais en n²) et respecte la regle des
                    auras — la MEILLEURE reduction, jamais le produit
 
+     0.10.6 lot 08 TROIS BOSS DE PLUS, ET UN FINAL PAR DIFFICULTE. Le roster
+                   passe de six a onze entrees, en APPEND-ONLY : l'index circule
+                   dans `bo[9]`, inserer au milieu reecrirait le sens de tous les
+                   instantanes. Le pool cesse donc d'etre un prefixe pour devenir
+                   une LISTE (`BOSS_POOL`, huit entrees) et `BOSS_POOL_COUNT`
+                   reprend son vrai sens : combien une MANCHE en montre, pas
+                   combien le depot en compte. Une partie n'en voit plus que 5/8.
+                   VEILLEUR (renoncement) : bati sur `MECH_GAZE`, la seule
+                   mecanique qui interdit l'action principale — en tir a double
+                   stick, detourner le regard veut dire renoncer a son DPS. En
+                   derniere phase l'oeil ne se ferme plus.
+                   TISSEUR (espace) : le Ravageur RETIRE de l'arene par la
+                   peripherie, le Tisseur CONSTRUIT a l'interieur. Les mares
+                   deviennent sa passive, et les noeuds sont la contrepartie —
+                   c'est le seul boss ou le joueur REPARE l'arene.
+                   PRISME (identification, `minPlayers: 2`) : la ou les Jumeaux
+                   demandent de SEPARER, il demande de DISTINGUER. Premier boss
+                   reserve au multijoueur, et c'est assume. Verifie : zero
+                   tirage sur 4000 en solo.
+                   RECITANT (calme, 5 barres) rejoue ce que les autres ont
+                   appris et rend l'equipe a plein a chaque rupture — un examen
+                   blanc. SILENCE (cauchemar, 6 barres) est le seul boss du
+                   depot autorise a casser UNE regle : passe la phase 5, une
+                   mecanique deja vue revient SANS ANNONCE. Le telegraphe au sol
+                   reste — c'est l'annonce qui disparait, pas la geometrie. Ca ne
+                   tient que parce que la grammaire du lot 05 est acquise
+                   partout ailleurs.
+                   DEUX MANCHES DE SUITE NE SE RESSEMBLENT PLUS : le tirage se
+                   souvient de la precedente (`bossPrecedents`, memoire tenue par
+                   la SALLE). Mesure : au moins 3 boss nouveaux entre deux
+                   manches, pire cas sur 500 paires — contre 0 garanti sans la
+                   memoire, un pool plus grand ne suffisant pas.
+                   UN BOSS QUI SE SOIGNE NE CASSAIT PLUS AUCUNE BARRE. Bug reel
+                   trouve a la mesure : le soin le decollait du plancher entre le
+                   clamp de `_damage` et le test de `_bossBars`, donc la rupture
+                   n'arrivait jamais. Matriarche et Jumeaux restaient bloques a
+                   80 % de PV indefiniment. `_bossHeal` devient le point de
+                   passage unique de tout soin de boss : jamais au-dessus du
+                   plafond de la barre courante, et rien du tout quand une
+                   rupture est en attente.
+                   LE PARTAGE DES LEGENDAIRES NE BOUGE PAS (cinq paquets) : les
+                   jalons des boss 6 a 10 rendent des armes, comme le sixieme le
+                   faisait deja. Aucun compte ne se reverrouille ; en revanche
+                   rencontrer les cinq porteurs prend plusieurs manches
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1270,4 +1315,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.10.5";
+export const VERSION = "0.10.6";

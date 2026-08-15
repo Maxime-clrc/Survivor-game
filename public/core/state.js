@@ -139,6 +139,17 @@ const ATTACK_LABEL = {
   synthese: "synthèse — regroupement ET exaflares, en même temps",
   entrelacs: "entrelacs — couronne ET disques à la dérive",
   sceau: "SCEAU — tous les foyers tenus en même temps",
+  regarddouble: "double regard — deux fenêtres d'affilée",
+  regardmobile: "regard mobile — ne vise plus, et ne t'arrête pas",
+  regardpermanent: "REGARD PERMANENT — l'œil ne se ferme plus",
+  noeuds: "nœuds — détruis-les, ils prennent le terrain",
+  copies: "copies — elles rejouent tes déplacements",
+  copiesrenvoi: "copies armées — elles répondent au tir",
+  copiesliees: "copies liées — elles vous attachent l'un à l'autre",
+  echange: "échange — il prend la place du plus loin",
+  copiesvraie: "la vraie change — il prend une place et noie l'écran",
+  synthesedouble: "double synthèse — quatre motifs, deux à deux",
+  sansannonce: "SANS ANNONCE — ce que tu as déjà vu ne se dira plus",
 };
 export function phaseUnlockText(kind, phase) {
   const list = bossAt(kind).unlock[phase - 1];

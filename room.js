@@ -499,7 +499,11 @@ export class Room {
     this.roundNumber++;
     this.setPaused(false);
     const diff = this.votedDifficulty().index;
+    const vus = this.state ? this.state.bossSeen.slice() : [];
     this.state = new GameState(diff, this.biomeIndex, this.seed);
+    // la memoire du tirage appartient a la SALLE : deux manches de suite ne
+    // montrent pas le meme quintette.
+    this.state.bossPrecedents = vus;
     this.cardPicked.clear();
     for (const c of this.joined()) if (c.cls === null) c.cls = CLASS_DEFAULT;
     this.assignColors();

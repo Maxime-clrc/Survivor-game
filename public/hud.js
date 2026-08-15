@@ -8,7 +8,7 @@ import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
-import { bossAt, beatPhase, ALERT_ORDER, BOSS_FINAL, BOSS_METRONOME } from "/shared/bosses.js";
+import { bossAt, beatPhase, estFinal, ALERT_ORDER, BOSS_METRONOME } from "/shared/bosses.js";
 import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, STATUS_ICON, iconImg } from "/icons.js";
@@ -254,7 +254,7 @@ function updateBoss(b, now) {
     const K = BOSS_SKIN[kind] ?? BOSS_SKIN[0];
     el.boss.style.setProperty("--boss-low", K.bar);
     el.boss.style.setProperty("--boss-deep", K.deep);
-    el.boss.classList.toggle("final", kind === BOSS_FINAL);
+    el.boss.classList.toggle("final", estFinal(kind));
   }
   const rage = b.enrage ?? 0;
   setText(el.bossName, "bn", `${def.nom.toUpperCase()} ${ROMAN[b.index] ?? b.index}`
@@ -281,7 +281,7 @@ function updateBoss(b, now) {
   if (memo.bpl !== left) {
     memo.bpl = left;
     for (let i = 0; i < bars; i++) el.bossPips.children[i].classList.toggle("spent", i >= left);
-    if (kind === BOSS_FINAL) {
+    if (estFinal(kind)) {
       const k = bars > 1 ? (bars - left) / (bars - 1) : 1;
       el.boss.style.setProperty("--final-pulse", `${(2.6 - k * 1.7).toFixed(2)}s`);
     }
@@ -510,7 +510,7 @@ function updateAnnounce(v, c, now) {
   const sinceBoss = now - c.bossAnnounce;
   const sincePhase = now - c.phaseAnnounce;
 
-  const finalBoss = (v.boss?.kind ?? 0) === BOSS_FINAL;
+  const finalBoss = v.boss ? estFinal(v.boss.kind ?? 0) : false;
   const duree = finalBoss ? 5000 : 2600;
   const plein = finalBoss ? 4200 : 2000;
   if (v.boss && sinceBoss < duree) {

@@ -1,5 +1,5 @@
 
-import { beatPhase, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, MECH_BAIT, MECH_CLUSTER, MECH_COUNT, MECH_FEED, MECH_JAIL, MECH_LINK, MECH_PROX, MECH_SANCTUARY, MECH_SEAL, MECH_SPREAD, MECH_STACK, MECH_TOWER } from "/shared/bosses.js";
+import { beatPhase, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE, BOSS_TISSEUR, BOSS_VEILLEUR, MECH_BAIT, MECH_CLUSTER, MECH_COUNT, MECH_FEED, MECH_JAIL, MECH_LINK, MECH_PROX, MECH_SANCTUARY, MECH_SEAL, MECH_SPREAD, MECH_STACK, MECH_TOWER } from "/shared/bosses.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, classAt } from "/shared/classes.js";
 import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG } from "/shared/game_state.js";
@@ -129,13 +129,18 @@ function peindreBoss(kind, S) {
     case BOSS_ORACLE:     drawBossOracle(S); break;
     case BOSS_JUMEAUX:    drawBossJumeaux(S); break;
     case BOSS_FINAL:      drawBossFinal(S); break;
+    case BOSS_VEILLEUR:   drawBossVeilleur(S); break;
+    case BOSS_TISSEUR:    drawBossTisseur(S); break;
+    case BOSS_PRISME:     drawBossPrisme(S); break;
+    case BOSS_RECITANT:   drawBossRecitant(S); break;
+    case BOSS_SILENCE:    drawBossSilence(S); break;
     default:              drawBossRavageur(S);
   }
 }
 export function bossSheet() {
   const r = CFG.BOSS_RADIUS;
   const pas = (r + 26) * 2;
-  const poses = [0, 1, 2, 3, 4, 4, 5];
+  const poses = [0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10];
   const c = document.createElement("canvas");
   c.width = pas * poses.length;
   c.height = pas;
@@ -442,6 +447,237 @@ function drawBossFinal(S) {
   ctx.beginPath();
   ctx.arc(0, 0, r * (0.16 + tense * 0.10 + eclat * 0.28), 0, Math.PI * 2);
   ctx.fill();
+}
+function drawBossVeilleur(S) {
+  const { r, t, skin, dark, edge, tense, burst } = S;
+
+  ctx.save();
+  ctx.rotate(S.ang * 0.2);
+  const breath = 1 + Math.sin(t * 1.6) * 0.02;
+  ctx.scale(0.5 * breath, 1.15 / breath);
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 1.3); ctx.lineTo(r * 0.7, -r * 0.4); ctx.lineTo(r * 0.7, r * 0.4);
+  ctx.lineTo(0, r * 1.3); ctx.lineTo(-r * 0.7, r * 0.4); ctx.lineTo(-r * 0.7, -r * 0.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+
+  const lidClose = tense;
+  const pupil = r * (0.30 + Math.max(0, burst) * 0.22);
+
+  ctx.save();
+  ctx.rotate(S.ang);
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.60, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath(); ctx.arc(0, 0, pupil, 0, Math.PI * 2); ctx.fill();
+
+  if (lidClose > 0.01) {
+    const h = r * 1.8 * lidClose;
+    ctx.fillStyle = dark;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.9, -r * 0.9); ctx.lineTo(r * 0.9, -r * 0.9);
+    ctx.lineTo(r * 0.9, -r * 0.9 + h); ctx.lineTo(-r * 0.9, -r * 0.9 + h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.9, r * 0.9); ctx.lineTo(r * 0.9, r * 0.9);
+    ctx.lineTo(r * 0.9, r * 0.9 - h); ctx.lineTo(-r * 0.9, r * 0.9 - h);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+function drawBossTisseur(S) {
+  const { r, t, skin, dark, edge, tense, burst } = S;
+
+  const spread = r * (1.15 + tense * 0.06 + Math.max(0, burst) * 0.34);
+  const tips = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + t * 0.35;
+    tips.push({ x: Math.cos(a) * spread, y: Math.sin(a) * spread, a });
+  }
+
+  ctx.save();
+  ctx.strokeStyle = alpha(dark, 0.7);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const p0 = tips[i], p1 = tips[(i + 1) % 6];
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = dark;
+  for (const p of tips) {
+    const w = r * 0.10;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(p.x + Math.cos(p.a + Math.PI / 2) * w, p.y + Math.sin(p.a + Math.PI / 2) * w);
+    ctx.lineTo(p.x * 1.06, p.y * 1.06);
+    ctx.lineTo(p.x + Math.cos(p.a - Math.PI / 2) * w, p.y + Math.sin(p.a - Math.PI / 2) * w);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.rotate(S.ang);
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const px = Math.cos(a) * r * 0.55, py = Math.sin(a) * r * 0.55;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.26, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.12 * (1 + Math.max(0, burst) * 0.4), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawBossPrisme(S) {
+  const { r, t, skin, dark, edge, tense, burst } = S;
+
+  for (let i = 0; i < 2; i++) {
+    const spin = t * (0.7 + i * 0.4) + i * Math.PI;
+    const off = r * (0.9 - tense * 0.55) * (1 - i * 0.15);
+    const rad = r * (0.85 - i * 0.12);
+    ctx.save();
+    ctx.translate(Math.cos(spin) * off, Math.sin(spin) * off);
+    ctx.rotate(spin * 1.4);
+    ctx.strokeStyle = alpha(i === 0 ? skin : dark, 0.55 + tense * 0.35);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const a = -Math.PI / 2 + (k / 3) * Math.PI * 2;
+      const px = Math.cos(a) * rad, py = Math.sin(a) * rad;
+      k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.rotate(S.ang);
+  const rad = r * (1 + Math.max(0, burst) * 0.10);
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  for (let k = 0; k < 3; k++) {
+    const a = -Math.PI / 2 + (k / 3) * Math.PI * 2;
+    const px = Math.cos(a) * rad, py = Math.sin(a) * rad;
+    k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(0, r * 0.12, r * 0.24, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath(); ctx.arc(0, r * 0.12, r * 0.11, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawBossRecitant(S) {
+  const { r, t, skin, dark, edge, tense, burst } = S;
+
+  const spin = t * 0.18;
+  const active = Math.floor((spin / (Math.PI * 2)) * 5) % 5;
+
+  ctx.save();
+  ctx.rotate(S.ang * 0.15 + spin);
+  for (let i = 0; i < 5; i++) {
+    const a0 = (i / 5) * Math.PI * 2;
+    const a1 = ((i + 1) / 5) * Math.PI * 2;
+    const on = i === active;
+    const rad = r * (0.96 + (on ? Math.max(0, burst) * 0.08 : 0) - tense * 0.05);
+    ctx.fillStyle = on ? alpha(skin, 0.9 + burst * 0.1) : dark;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, rad, a0, a1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.98, 0, Math.PI * 2); ctx.stroke();
+
+  ctx.save();
+  ctx.rotate(S.ang);
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.30, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = BOSS.eye;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.14 * (1 + Math.max(0, burst) * 0.4), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawBossSilence(S) {
+  const { r, t, skin, dark, edge, tense, burst } = S;
+
+  ctx.save();
+  ctx.rotate(S.ang * 0.1);
+  const breath = 1 + Math.sin(t * 0.9) * 0.015;
+  ctx.scale(breath, 1 / breath);
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(0, -r); ctx.lineTo(r * 0.7, -r * 0.55); ctx.lineTo(r * 0.86, 0);
+  ctx.lineTo(r * 0.7, r * 0.55); ctx.lineTo(0, r); ctx.lineTo(-r * 0.7, r * 0.55);
+  ctx.lineTo(-r * 0.86, 0); ctx.lineTo(-r * 0.7, -r * 0.55);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = alpha(skin, 0.10 + Math.max(0, burst) * 0.20);
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.35); ctx.lineTo(r * 0.35, 0); ctx.lineTo(0, r * 0.35); ctx.lineTo(-r * 0.35, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  const h = r * 0.06 * (1 - tense) + 0.4;
+  ctx.save();
+  ctx.rotate(S.ang);
+  ctx.fillStyle = BOSS.maw;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.62, -h); ctx.lineTo(r * 0.62, -h); ctx.lineTo(r * 0.62, h); ctx.lineTo(-r * 0.62, h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = alpha(BOSS.eye, (1 - tense) * (0.6 + Math.max(0, burst) * 0.4));
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.14, -h * 0.6); ctx.lineTo(r * 0.14, -h * 0.6);
+  ctx.lineTo(r * 0.14, h * 0.6); ctx.lineTo(-r * 0.14, h * 0.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 const MARK_GO = SIGNAL.go;
 const MARK_AWAY = SIGNAL.lethal;

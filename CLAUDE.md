@@ -669,10 +669,25 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   le final ≈ deux fois la médiane) monte dégâts de zone et cadence, et
   **s'annonce à chaque palier**. Il passe par `_zoneDamage()` et `attackCd`, donc
   sous le plafond des mécaniques.
-- **Le boss final est la SIXIÈME entrée du roster et n'est jamais tiré** :
-  `_pickBoss` le rend quand `_rosterCleared()` (les cinq **vaincus**,
-  `bossKindsKilled`) ; le tirage ordinaire s'arrête à `BOSS_POOL_COUNT`, **écrit**
-  dans `bosses.js`. `finalDone` l'empêche de revenir.
+- **LE POOL EST UNE LISTE, PAS UN PRÉFIXE** (`BOSS_POOL`, huit entrées) : le
+  roster est **append-only** puisque l'index circule dans `bo[9]`, donc les
+  finaux vivent *après* les boss de pool dans le tableau. `BOSS_POOL_COUNT` (5)
+  dit combien une **manche** en montre, pas combien le dépôt en compte — une
+  partie n'en voit que 5/8.
+- **Un final par difficulté** (`finalPour`, `finalPour(diffIndex)`,
+  `estFinal(kind)`) : Récitant en calme, Amalgame en normal, Silence en
+  cauchemar. Aucun final n'est tiré ; `_pickBoss` le rend quand
+  `_rosterCleared()` — **`bossKindsKilled.size >= BOSS_POOL_COUNT`**, ce que la
+  manche a montré et non la taille du pool. `finalDone` l'empêche de revenir.
+- **Le tirage se souvient de la MANCHE PRÉCÉDENTE** (`state.bossPrecedents`,
+  rempli par `room.js` depuis le `bossSeen` de la manche d'avant) : ce que la
+  précédente a montré passe en dernier. Mesure : **au moins 3 boss nouveaux**
+  entre deux manches consécutives, pire cas sur 500 paires.
+- **Le partage des légendaires reste sur cinq paquets** (`LEGENDARY_SPLIT`) :
+  les jalons des boss 6 à 10 rendent des **armes**, comme le sixième le faisait
+  déjà. Aucun compte existant ne se reverrouille ; la contrepartie est que
+  rencontrer les cinq porteurs de légendaires prend maintenant plusieurs
+  manches, puisqu'une manche n'en tire que 5 sur 8.
 - **Le boss final clôt le segment 6**, et rien d'autre ne le fait sortir.
 - **Ses patterns repris sont intensifiés par DEUX champs de roster** : `atkCdMul`
   (dans `attackCd`) et `zoneMul` (dans `_zoneDamage()`). Champ absent = 1.
@@ -910,7 +925,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | tags de carte | `tags` (`off`, `def`, `coop`, `cadence`) | rien |
 | script | `SCRIPT`/`SCRIPTS` (`timeline.js`), variante en clair (un NOM) ; clé `sg` | `updateSegment()` + `gameIntensity()` |
 | géométrie d'apparition | `GEOMETRIES` (`timeline.js`) — **ne circule pas** | rien |
-| boss | `BOSS_ROSTER` (`bosses.js`), index dans `bo[9]` ; `bars` au roster ; `BOSS_POOL_COUNT` | `drawBoss*()` + `BOSS_SKIN` + `#hudBoss.final` + `phaseUnlockText()` |
+| boss | `BOSS_ROSTER` (`bosses.js`, **11 entrees, append-only**), index dans `bo[9]` ; `bars` et `archetype` au roster ; `BOSS_POOL` / `BOSS_POOL_COUNT` ; `finalPour` | `drawBoss*()` + `BOSS_SKIN` + `estFinal()` pour `#hudBoss.final` + `phaseUnlockText()` |
 | mécanique | `MECHS` (`bosses.js`), index dans l'alerte et `mk` | `drawMarks()` + `pushAlert()` |
 | événement | `EVENTS` (`timeline.js`), index dans l'alerte et `ev` ; colonne `event` des beats | `eventAt()` + bandeau de segment + `evenementDebut`/`evenementFin` |
 | biome | `BIOMES` (`biomes.js`), index + graine **une fois** au salon | `buildBiome()` rejoué + `drawObstacles()`/`drawHazards()` |

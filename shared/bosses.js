@@ -5,7 +5,13 @@ export const BOSS_METRONOME = 2;
 export const BOSS_ORACLE = 3;
 export const BOSS_JUMEAUX = 4;
 export const BOSS_FINAL = 5;
+export const BOSS_VEILLEUR = 6;
+export const BOSS_TISSEUR = 7;
+export const BOSS_PRISME = 8;
+export const BOSS_RECITANT = 9;
+export const BOSS_SILENCE = 10;
 
+// combien de boss une MANCHE montre, pas combien le depot en compte
 export const BOSS_POOL_COUNT = 5;
 
 export const MECH_STACK = 0;
@@ -202,6 +208,9 @@ export function verifierGrammaire() {
 // l'espace de la meme facon, le joueur les vit comme un seul boss a cinq jeux
 // de telegraphes.
 export const ARCHETYPES = {
+  guetteur:      "il ne bouge pas et il REGARDE : c'est le tir qui devient cher",
+  batisseur:     "il CONSTRUIT a l'interieur, la place se perd la ou il passe",
+  reflet:        "plusieurs corps, un seul vrai",
   ancre:         "il occupe un bord, l'arene devient asymetrique",
   constricteur:  "l'espace disponible diminue et ne revient pas",
   diffus:        "la horde est son corps",
@@ -210,10 +219,14 @@ export const ARCHETYPES = {
   fixe:          "l'espace est neutre, tout est dans la lecture du sol",
 };
 
+// l'unicite porte sur le POOL : c'est lui qu'une manche montre, et deux boss
+// tires ne doivent pas occuper l'espace de la meme facon. Les finaux sont hors
+// pool, un seul sort par manche, ils peuvent partager « fixe ».
 export function verifierArchetypes() {
   const err = [];
   const vus = new Map();
   for (const b of BOSS_ROSTER) {
+    if (b.finalPour !== undefined || b.id === BOSS_FINAL) continue;
     const a = b.archetype;
     if (!a) { err.push(`${b.key} : pas d'archetype`); continue; }
     if (!ARCHETYPES[a]) { err.push(`${b.key} : archetype inconnu « ${a} »`); continue; }
@@ -318,7 +331,91 @@ export const BOSS_ROSTER = [
       ["sceau"],
     ],
   },
+
+  // TROIS BOSS DE PLUS, APPEND-ONLY : l'index circule dans `bo[9]`, inserer au
+  // milieu reecrirait le sens de tous les instantanes. Le pool passe a huit
+  // (`BOSS_POOL`), le tirage reste a cinq — une manche n'en montre plus que 5/8,
+  // donc deux parties consecutives cessent de se ressembler.
+  {
+    id: BOSS_VEILLEUR, key: "veilleur", nom: "Veilleur", verbe: "renoncement",
+    minPlayers: 1, hpMul: 0.92, archetype: "guetteur",
+    sous: "accepte de ne pas tirer",
+    base: ["regard", "cone", "salve"],
+    unlock: [
+      ["regarddouble"],
+      ["regard", "damier"],
+      ["regardmobile"],
+      ["regardpermanent"],
+    ],
+  },
+  {
+    id: BOSS_TISSEUR, key: "tisseur", nom: "Tisseur", verbe: "espace",
+    minPlayers: 1, hpMul: 1.05, archetype: "batisseur",
+    sous: "il te reste de moins en moins de place",
+    base: ["mur", "marques", "salve"],
+    unlock: [
+      ["noeuds"],
+      ["prison"],
+      ["quadrant"],
+      ["entrelacs"],
+    ],
+  },
+  {
+    id: BOSS_PRISME, key: "prisme", nom: "Prisme", verbe: "identification",
+    minPlayers: 2, hpMul: 0.95, archetype: "reflet",
+    sous: "lequel est le vrai",
+    base: ["copies", "croix", "marques"],
+    unlock: [
+      ["copiesrenvoi"],
+      ["echange"],
+      ["copiesliees"],
+      ["copiesvraie"],
+    ],
+  },
+
+  // UN FINAL PAR DIFFICULTE. `finalPour` est la seule variante de boss par
+  // difficulte du depot, et elle est bornee au final : le pool de tirage reste
+  // commun aux trois modes.
+  {
+    id: BOSS_RECITANT, key: "recitant", nom: "Récitant", verbe: "récapitulation",
+    minPlayers: 1, hpMul: 0.90, archetype: "fixe", bars: 5, finalPour: 0,
+    sous: "tout ce qu'ils t'ont appris",
+    base: ["salve", "marques"],
+    unlock: [
+      ["damier"],
+      ["grappes"],
+      ["sanctuaire"],
+      ["rassemblement"],
+    ],
+  },
+  {
+    id: BOSS_SILENCE, key: "silence", nom: "Silence", verbe: "mémoire",
+    minPlayers: 1, hpMul: 1.10, archetype: "fixe", bars: 6, finalPour: 2,
+    sous: "il n'y aura pas d'avertissement",
+    base: ["salve", "marques", "croix", "regard"],
+    unlock: [
+      ["sceau"],
+      ["synthese"],
+      ["entrelacs"],
+      ["synthesedouble"],
+      ["sansannonce"],
+    ],
+  },
 ];
+
+// LE POOL EST UNE LISTE, PAS UN PREFIXE : les finaux vivent apres les boss de
+// pool dans le tableau, et l'ordre du tableau est fige (l'index circule).
+export const BOSS_POOL = [
+  BOSS_RAVAGEUR, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_JUMEAUX,
+  BOSS_VEILLEUR, BOSS_TISSEUR, BOSS_PRISME,
+];
+
+export function estFinal(kind) { return bossAt(kind).finalPour !== undefined || kind === BOSS_FINAL; }
+
+export function finalPour(diffIndex) {
+  const f = BOSS_ROSTER.find(b => b.finalPour === diffIndex);
+  return f ? f.id : BOSS_FINAL;
+}
 
 export function bossAt(i) { return BOSS_ROSTER[i] ?? BOSS_ROSTER[0]; }
 
@@ -356,6 +453,16 @@ export const BOSS_CFG = {
   RENFORT_RANGE: 200,
   RENFORT_STEP: 0.06,
   RENFORT_MAX: 0.30,
+
+  GAZE_PERMANENT: 4,
+  RECITANT_HEAL: 0.35,
+
+  NOEUD_HP: 260,
+  NOEUD_COUNT: 4,
+  NOEUD_TIME: 9,
+  NOEUD_R: 120,
+  NOEUD_DOT: 26,
+  NOEUD_LIFE: 14,
 
   SUITE_GAP: 2.2,
   SUPERPOSE_GAP: 0.7,

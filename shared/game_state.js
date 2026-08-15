@@ -28,7 +28,8 @@ import {
   MECH_BREATH, MECH_BROOD, MECH_REVERSE, MECH_SWAP, MECH_ENRAGE,
   MECH_SYNTH, MECH_SEAL,
   BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME,
-  BOSS_FINAL, BOSS_POOL_COUNT,
+  BOSS_VEILLEUR, BOSS_TISSEUR, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE,
+  BOSS_FINAL, BOSS_POOL_COUNT, BOSS_POOL, estFinal, finalPour,
 } from "./bosses.js";
 import {
   TL_CFG, SCRIPTS, EVENTS, beatAt, adaptEntry, adaptEvent, eventAt, verifierScript,
@@ -526,6 +527,7 @@ export class GameState {
       + Math.random() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
 
     this.bossSeen = [];
+    this.bossPrecedents = [];
     this.boss2 = null;
     this.lastBossKind = 0;
     this.bossKills = 0;
@@ -3301,25 +3303,33 @@ export class GameState {
 
 
   _pickBoss(alive) {
-    if (!this.finalDone && this._rosterCleared()) return BOSS_FINAL;
+    if (!this.finalDone && this._rosterCleared()) return this._finalKind();
 
     const eligible = [];
-    for (let i = 0; i < BOSS_POOL_COUNT && i < BOSS_ROSTER.length; i++) {
+    for (const i of BOSS_POOL) {
       if (BOSS_ROSTER[i].minPlayers <= alive) eligible.push(i);
     }
     if (eligible.length === 0) return 0;
     let pool = eligible.filter(i => !this.bossSeen.includes(i));
     if (pool.length === 0) { this.bossSeen = []; pool = eligible; }
+    // deux manches de suite ne se ressemblent pas : ce que la PRECEDENTE a
+    // montre passe en dernier. C'est le seul interet d'un pool plus grand que
+    // le tirage, et la memoire appartient a la salle, pas au module.
+    const neufs = pool.filter(i => !this.bossPrecedents.includes(i));
+    if (neufs.length > 0) pool = neufs;
     const kind = pool[Math.floor(Math.random() * pool.length)];
     this.bossSeen.push(kind);
     return kind;
   }
 
+  // le final se choisit par DIFFICULTE. C'est la seule variante de boss par
+  // mode du depot, et elle est bornee au final : le pool reste commun.
+  _finalKind() { return finalPour(this.diffIndex); }
+
+  // « les cinq vaincus » se compte sur ce que la MANCHE a montre, pas sur la
+  // taille du pool : il en compte huit et une manche en tire cinq.
   _rosterCleared() {
-    for (let i = 0; i < BOSS_FINAL; i++) {
-      if (!this.bossKindsKilled.has(i)) return false;
-    }
-    return true;
+    return this.bossKindsKilled.size >= BOSS_POOL_COUNT;
   }
 
   _bossTargets() {
@@ -3356,14 +3366,14 @@ export class GameState {
 
         const power = CFG.BOSS_POWER_REF;
         const kind = this.segment >= TL_CFG.SEGMENTS
-          ? BOSS_FINAL
+          ? this._finalKind()
           : this._pickBoss(this.players.size);
         this.lastBossKind = kind;
         const def = bossAt(kind);
         const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
           * this._bossHpRamp()
           * power * CFG.BOSS_HP_MUL * this.diff.boss * def.hpMul
-          * (kind === BOSS_FINAL ? BOSS_CFG.FINAL_HP_MUL : 1);
+          * (estFinal(kind) ? BOSS_CFG.FINAL_HP_MUL : 1);
         const bars = def.bars ?? CFG.BOSS_BARS;
         const pos = this._spawnPoint();
         this.boss = {
@@ -3381,7 +3391,7 @@ export class GameState {
           dash: 0,
           dashX: 0,
           dashY: 0,
-          floor: kind === BOSS_FINAL
+          floor: estFinal(kind)
             ? 0
             : Math.min(this.segment - 1, bars - 1),
           spiral: null,
@@ -3496,7 +3506,7 @@ export class GameState {
   }
 
   _bossEnrage(b) {
-    const seuil = b.kind === BOSS_FINAL ? BOSS_CFG.FINAL_ENRAGE_AT : BOSS_CFG.ENRAGE_AT;
+    const seuil = estFinal(b.kind) ? BOSS_CFG.FINAL_ENRAGE_AT : BOSS_CFG.ENRAGE_AT;
     if (b.fightT < seuil) return;
     const palier = 1 + Math.floor((b.fightT - seuil) / BOSS_CFG.ENRAGE_STEP);
     if (palier <= b.enrage) return;
@@ -3509,7 +3519,9 @@ export class GameState {
     // ANCRE : il ne se deplace plus du tout. Un cote de l'arene devient
     // dangereux en permanence, l'autre est un refuge, et la distance devient un
     // arbitrage constant au lieu d'etre imposee par un boss qui suit.
-    if (arche === "ancre") {
+    // GUETTEUR : il ne bouge pas non plus, mais il n'est pas encastre — c'est
+    // son regard qui occupe l'espace, pas son corps.
+    if (arche === "ancre" || arche === "guetteur") {
       const t = this._nearestPlayer(b.x, b.y);
       if (t) b.ang = Math.atan2(t.y - b.y, t.x - b.x);
       return;
@@ -3524,8 +3536,8 @@ export class GameState {
       b.blinkCd = BOSS_CFG.BLINK_EVERY;
       if (!t) return;
       const a = Math.random() * Math.PI * 2;
-      const pt = this._clampPoint(t.x + Math.cos(a) * BOSS_CFG.BLINK_DIST,
-                                  t.y + Math.sin(a) * BOSS_CFG.BLINK_DIST);
+      const pt = this._dropPoint(t.x + Math.cos(a) * BOSS_CFG.BLINK_DIST,
+                                 t.y + Math.sin(a) * BOSS_CFG.BLINK_DIST, 90);
       this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
                           r: 120, life: 0.35, max: 0.35, kind: 14 });
       b.x = pt.x; b.y = pt.y;
@@ -3563,7 +3575,7 @@ export class GameState {
   // de sauter des phases : `_damage` s'y arrete, `_bossBars` l'attend.
   _bossFloor(b) {
     if (b.phase < b.bars - 1) return b.maxHp - (b.phase + 1) * b.barHp;
-    if (b.kind === BOSS_FINAL && b.fightT - b.lastBreak < this._dwell(b)) return 1;
+    if (estFinal(b.kind) && b.fightT - b.lastBreak < this._dwell(b)) return 1;
     return null;
   }
 
@@ -3572,9 +3584,22 @@ export class GameState {
   // en subit PLUS, pas moins.
   _dwell(b) {
     const P = this._bossProfil();
-    return b.kind === BOSS_FINAL
+    return estFinal(b.kind)
       ? BOSS_CFG.FINAL_BAR_DWELL * (P.dwell / BOSS_CFG.BAR_DWELL)
       : P.dwell;
+  }
+
+  // TOUT SOIN DE BOSS PASSE ICI. Sans ce point de passage, un boss qui se
+  // soigne ne casse JAMAIS de barre : le soin le decolle du plancher entre le
+  // clamp de `_damage` et le test de `_bossBars`, et la rupture n'arrive pas.
+  // Deux regles : on ne remonte pas au-dessus du plafond de la barre courante,
+  // et on ne soigne pas du tout quand une rupture est en attente.
+  _bossHeal(b, amount) {
+    if (!(amount > 0)) return;
+    const plancher = this._bossFloor(b);
+    if (plancher !== null && b.hp <= plancher + 1e-6) return;
+    const plafond = b.maxHp - b.phase * b.barHp;
+    b.hp = Math.min(plafond, b.hp + amount);
   }
 
   _bossBars(b) {
@@ -3667,6 +3692,34 @@ export class GameState {
         this._alert(MECH_SWAP, 2);
         return;
       }
+
+      case BOSS_VEILLEUR:
+        this._atkRegard(b);
+        return;
+
+      case BOSS_TISSEUR:
+        this._atkNoeuds(b);
+        return;
+
+      case BOSS_PRISME:
+        this._atkEchange(b);
+        return;
+
+      // le Recitant REJOUE, il n'invente rien : une rupture rend l'equipe a
+      // plein comme un examen blanc, et la barre suivante ouvre sur la mecanique
+      // du boss suivant. C'est le seul boss dont la rupture soigne.
+      case BOSS_RECITANT: {
+        for (const p of this._alivePlayers()) {
+          p.hp = Math.min(p.maxHp, p.hp + p.maxHp * BOSS_CFG.RECITANT_HEAL);
+        }
+        this._alert(MECH_BREATH, 2);
+        return;
+      }
+
+      case BOSS_SILENCE:
+        if (b.phase >= b.bars - 2) b.silence = 1;
+        this._finalVuln();
+        return;
 
       case BOSS_FINAL: {
         if (b.phase <= 1) { this._alert(MECH_BREATH, 2); return; }
@@ -3768,8 +3821,122 @@ export class GameState {
       case "synthese":     this._atkSynthese(b, 0); break;
       case "entrelacs":    this._atkSynthese(b, 1); break;
       case "sceau":        this._atkSceau(b); break;
+      case "regarddouble":    this._atkRegardDouble(b); break;
+      case "regardmobile":    this._atkRegardMobile(b); break;
+      case "regardpermanent": this._atkRegardPermanent(b); break;
+      case "noeuds":          this._atkNoeuds(b); break;
+      case "copies":          this._atkCopies(b); break;
+      case "copiesrenvoi":    this._atkCopiesRenvoi(b); break;
+      case "copiesliees":     this._atkCopiesLiees(b); break;
+      case "copiesvraie":     this._atkCopiesVraie(b); break;
+      case "echange":         this._atkEchange(b); break;
+      case "synthesedouble":  this._atkSyntheseDouble(b); break;
+      case "sansannonce":     this._atkSansAnnonce(b); break;
       default:             this._atkMarques(b); break;
     }
+  }
+
+  // VEILLEUR — le seul verbe qui INTERDIT l'action principale : dans un jeu de
+  // tir a double stick, « detourner le regard » se traduit par cesser de viser,
+  // donc renoncer a son DPS.
+  _atkRegardDouble(b) {
+    this._atkRegard(b);
+    this._deferAtk(b, "regard", BOSS_CFG.GAZE_TIME + BOSS_CFG.GAZE_WARN);
+  }
+
+  _atkRegardMobile(b) {
+    this._atkRegard(b);
+    this._deferAtk(b, "derive", 0.6);
+  }
+
+  // en derniere phase l'oeil ne se ferme plus : il faut le tuer en ne le visant
+  // que par intermittence.
+  _atkRegardPermanent(b) {
+    b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
+    b.gaze = BOSS_CFG.GAZE_TIME * BOSS_CFG.GAZE_PERMANENT;
+    this._alert(MECH_GAZE, this._warn(BOSS_CFG.GAZE_WARN) + b.gaze);
+  }
+
+  // TISSEUR — le Ravageur RETIRE de l'arene par la peripherie, le Tisseur
+  // CONSTRUIT a l'interieur. Les noeuds sont la contrepartie : les detruire rend
+  // de l'espace, et c'est le seul boss ou le joueur repare l'arene.
+  _atkNoeuds(b) {
+    const hp = BOSS_CFG.NOEUD_HP * this._bossPower();
+    const n = Math.max(2, Math.min(BOSS_CFG.NOEUD_COUNT, this._alivePlayers().length + 1));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.6;
+      const d = 140 + Math.random() * 220;
+      const pt = this._dropPoint(b.x + Math.cos(a) * d, b.y + Math.sin(a) * d);
+      this._mark({
+        mech: MECH_CLUSTER, noeud: 1,
+        x: pt.x, y: pt.y, r: 34, t: BOSS_CFG.NOEUD_TIME,
+        hp, maxHp: hp,
+      });
+    }
+    this._alert(MECH_CLUSTER, BOSS_CFG.NOEUD_TIME);
+  }
+
+  // PRISME — la ou les Jumeaux demandent de SEPARER, le Prisme demande de
+  // DISTINGUER. Les copies rejouent le deplacement des joueurs avec un decalage :
+  // c'est le mecanisme des appats, pousse au rang d'identite.
+  _atkCopies(b, mult = 1) {
+    for (const p of this._alivePlayers()) {
+      this._mark({
+        mech: MECH_BAIT, a: p.id, x: p.x, y: p.y, r: BOSS_CFG.BAIT_R,
+        t: BOSS_CFG.BAIT_COUNT * BOSS_CFG.BAIT_STEP * mult,
+        left: Math.round(BOSS_CFG.BAIT_COUNT * mult), step: 0,
+      });
+    }
+    this._alert(MECH_BAIT, BOSS_CFG.BAIT_COUNT * BOSS_CFG.BAIT_STEP * mult);
+  }
+
+  _atkCopiesRenvoi(b) {
+    this._atkCopies(b);
+    this._deferAtk(b, "salve", BOSS_CFG.BAIT_STEP * 2);
+  }
+
+  _atkCopiesLiees(b) {
+    this._atkCopies(b);
+    this._deferAtk(b, "lien", BOSS_CFG.BAIT_STEP);
+  }
+
+  // « lequel est le vrai » : il prend la place de sa cible la plus lointaine.
+  _atkEchange(b) {
+    const alive = this._alivePlayers();
+    if (alive.length === 0) { this._atkMarques(b); return; }
+    let loin = alive[0], bd = -1;
+    for (const p of alive) {
+      const d = (p.x - b.x) ** 2 + (p.y - b.y) ** 2;
+      if (d > bd) { bd = d; loin = p; }
+    }
+    this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
+                        r: 130, life: 0.35, max: 0.35, kind: 14 });
+    const pt = this._dropPoint(loin.x, loin.y, 90);
+    b.x = pt.x; b.y = pt.y;
+    this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
+                        r: 130, life: 0.35, max: 0.35, kind: 14 });
+    this._alert(MECH_SWAP, 1.2);
+    this._deferAtk(b, "salve", 0.5);
+  }
+
+  // « la vraie change » : il prend une autre place ET noie l'ecran de copies.
+  _atkCopiesVraie(b) {
+    this._atkEchange(b);
+    this._atkCopies(b, 1.5);
+  }
+
+  _atkSyntheseDouble(b) {
+    this._atkSynthese(b, 0);
+    this._deferAtk(b, "entrelacs", BOSS_CFG.SYNTH_GAP * 2);
+  }
+
+  // SILENCE — le seul boss autorise a casser une regle, et une seule : passe ce
+  // point, une mecanique deja vue REVIENT SANS ANNONCE. Ca ne tient que parce
+  // que la grammaire du lot 05 est acquise partout ailleurs. Le telegraphe AU
+  // SOL reste : c'est l'annonce qui disparait, pas la geometrie.
+  _atkSansAnnonce(b) {
+    b.silence = 1;
+    this._alert(MECH_SYNTH, 2);
   }
 
   _atkSynthese(b, variante) {
@@ -3954,6 +4121,13 @@ export class GameState {
   _alert(mech, dur = 0) {
     const def = mechAt(mech);
     if (!def) return;
+    // le Silence : une mecanique deja vue dans ce combat ne s'annonce plus. Le
+    // telegraphe au sol reste, seule l'annonce disparait.
+    if (this.boss && this.boss.silence) {
+      const vus = (this.boss.vus ??= new Set());
+      if (vus.has(mech)) return;
+      vus.add(mech);
+    }
     this.alerts.push({ mech, level: def.level, dur: Math.round(dur * 100) / 100 });
     if (this.alerts.length > 16) this.alerts.shift();
   }
@@ -4442,7 +4616,7 @@ export class GameState {
         if (!e) { m.dead = true; return; }
         m.x = e.x; m.y = e.y;
         const bo = this.boss;
-        if (bo) bo.hp = Math.min(bo.maxHp, bo.hp + bo.maxHp * BOSS_CFG.FEED_HEAL * dt);
+        if (bo) this._bossHeal(bo, bo.maxHp * BOSS_CFG.FEED_HEAL * dt);
         break;
       }
       case MECH_BAIT: {
@@ -4511,6 +4685,9 @@ export class GameState {
         break;
       }
       case MECH_CLUSTER:
+        // un noeud tenu jusqu'au bout ne fait pas eclore : il PREND l'espace.
+        if (m.noeud) { this._groundZone(m.x, m.y, BOSS_CFG.NOEUD_R, BOSS_CFG.NOEUD_DOT,
+                                        BOSS_CFG.NOEUD_LIFE); break; }
         for (let i = 0; i < BOSS_CFG.CLUSTER_HATCH; i++) {
           const a = Math.random() * Math.PI * 2;
           this._spawnEnemy(1, m.x + Math.cos(a) * 24, m.y + Math.sin(a) * 24);
@@ -4577,7 +4754,7 @@ export class GameState {
     }
     b.essaim = n;
     if (n <= 0) return;
-    b.hp = Math.min(b.maxHp, b.hp + b.maxHp * BOSS_CFG.DIFFUS_HEAL * n * dt);
+    this._bossHeal(b, b.maxHp * BOSS_CFG.DIFFUS_HEAL * n * dt);
   }
 
   // CAUCHEMAR : les renforts DURCISSENT en se regroupant. Ca force l'ecartement
@@ -4666,7 +4843,7 @@ export class GameState {
       this._alert(MECH_CONVERGE, 0);
     }
     if (!b.converge && (b.x - o.x) ** 2 + (b.y - o.y) ** 2 < BOSS_CFG.TWIN_HEAL_RANGE ** 2) {
-      b.hp = Math.min(b.maxHp, b.hp + b.maxHp * BOSS_CFG.TWIN_HEAL * dt);
+      this._bossHeal(b, b.maxHp * BOSS_CFG.TWIN_HEAL * dt);
     }
 
     for (const p of this._alivePlayers()) {
@@ -5107,8 +5284,11 @@ export class GameState {
     }
   }
 
+  // le Tisseur CONSTRUIT la ou il passe : la mare est sa passive, pas une
+  // attaque — c'est ce qui fait que la place se perd sans qu'il l'annonce.
   _puddlesActive() {
-    return this.boss !== null && this.boss.kind === BOSS_MATRIARCHE;
+    return this.boss !== null
+      && (this.boss.kind === BOSS_MATRIARCHE || this.boss.kind === BOSS_TISSEUR);
   }
 
 
@@ -5893,11 +6073,11 @@ export class GameState {
     this._credit(this.players.get(ownerId), 500);
     this.totalKills++;
     if (this.boss) this.bossKindsKilled.add(this.boss.kind);
-    if (this.boss && this.boss.kind === BOSS_FINAL) {
+    if (this.boss && estFinal(this.boss.kind)) {
       this.finalKill = Math.round(this.boss.fightT * 10) / 10;
     }
     this.bossKills++;
-    const final = this.boss && this.boss.kind === BOSS_FINAL;
+    const final = this.boss && estFinal(this.boss.kind);
     if (this.boss && !final) this._merchantDue();
 
     if (final) this.finalDone = true;
