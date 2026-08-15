@@ -18,6 +18,7 @@ réseau n'aurait rien rendu.
 | 04 | 0.11.3 | télémétrie de vraies parties, JSONL, armée par paramètre d'URL |
 | 05 | 0.11.4 | instantané filtré par vue de client — 2,5× de bande passante |
 | 06 | — | **abandonné à la mesure** — voir plus bas |
+| 07 | 0.11.5 | le voisinage 3×3 se cuit au lieu de se parcourir — l'index du lot 03 était devenu 65 % du pas |
 
 ## Mesures d'ouverture
 
@@ -80,6 +81,42 @@ volume à parser avec lui.
 dans le navigateur avec l'instrumentation qui existe déjà (`PERF`, `fps`,
 `netPerf`, `frameMax`, `?repere`) plutôt que de deviner d'après le code. Le
 poste suspect n'est plus la réception.
+
+## Lot 07 — la cible est 3-4 salles simultanées, et le profileur a désigné mon propre lot 03
+
+Cible fixée après coup : **3 à 4 parties en même temps**. À ce niveau le CPU
+redevient le facteur limitant — quatre salles saturées à équipe éclatée
+faisaient 127 % d'un cœur sur un VPS 3× plus lent.
+
+Le profileur (`--cpu-prof`, pas d'instrumentation manuelle) a désigné
+`_statCandidats` : **65 % du pas de simulation**, dans les deux dispositions.
+L'index du lot 03 est bien deux fois plus rapide que le balayage qu'il
+remplaçait, mais il refaisait à chaque requête un travail qui ne dépend que de
+la géométrie — neuf cellules scannées puis triées, pour chaque corps, trois fois
+par tick.
+
+Or le voisinage 3×3 d'une cellule ne change jamais. Il se **cuit** une fois :
+une liste par cellule, dédupliquée et triée, et la requête se réduit à lire une
+plage. 486 entrées pour 28×16 cellules.
+
+```
+                        avant lot 07   apres
+simulation, eclatee     91,7 ms/s      21,8 ms/s     -76 %
+simulation, groupee     25,9 ms/s      24,0 ms/s      -7 %
+cout total par salle    10,6 % / 4,2 % 3,5 % / 4,0 % d'un coeur
+sur VPS 3x plus lent    32 % / 12 %    10,5 % / 12,1 % par salle
+```
+
+**L'anomalie « éclatée 3,5× plus chère » a disparu** : éclatée (3,5 %) est
+maintenant *moins* chère que groupée (4,0 %), ce qui est l'ordre intuitif. Tout
+l'écart venait du 3×3 balayé — une horde qui traverse l'arène change de cellule
+sans arrêt.
+
+Quatre salles saturées tiennent désormais dans **48 % d'un cœur** sur un VPS 3×
+plus lent. La cible est atteinte, et `node:worker_threads` n'a pas lieu d'être.
+
+Nouveau sommet du profil : `_separateEnemies` (37 %) et `_grille` (15 %), c'est
+à dire la séparation des corps — inhérente, et déjà en tri par comptage.
 
 ## Ce qui reste ouvert après le plan
 

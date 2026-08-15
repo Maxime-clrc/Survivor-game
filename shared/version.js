@@ -1456,6 +1456,34 @@
                    retard d'interpolation compris, RIEN de ce qui est a l'ecran
                    ne manque du paquet
 
+     0.11.5 lot 07 LE PROFILEUR A DESIGNE MON PROPRE LOT 03. `_statCandidats`
+                   pesait 65 % du pas de simulation : l'index est bien deux fois
+                   plus rapide que le balayage qu'il remplace, mais il refaisait
+                   a CHAQUE requete un travail qui ne depend que de la geometrie
+                   — neuf cellules scannees puis triees, par corps, trois fois
+                   par tick.
+                   OR LE VOISINAGE 3x3 D'UNE CELLULE NE CHANGE JAMAIS. Il se
+                   cuit : une liste par cellule, dedupliquee et triee, et la
+                   requete se reduit a lire une plage (`_statCell` rend la
+                   cellule, `vstart`/`vitems` la plage). 486 entrees pour 28x16
+                   cellules. Le tri par insertion et le tampon `sortie`
+                   disparaissent avec.
+                   L'ordre croissant d'indice est conserve — il est desormais
+                   garanti a la CUISSON au lieu de l'etre a la requete, et il
+                   reste ce qui fait que deux boites touchees en meme temps se
+                   resolvent dans le meme ordre qu'au balayage.
+                   Mesure, equipe eclatee : simulation 91,7 -> 21,8 ms de CPU
+                   par seconde de jeu (-76 %), cout total d'une salle saturee
+                   10,6 % -> 3,5 % d'un coeur. L'ANOMALIE DISPARAIT : eclatee
+                   devient moins chere que groupee (3,5 contre 4,0 %), ce qui est
+                   l'ordre intuitif — tout l'ecart venait du 3x3 balaye, une
+                   horde qui traverse l'arene changeant de cellule sans arret.
+                   Quatre salles saturees tiennent dans 48 % d'un coeur sur un
+                   VPS 3x plus lent, ce qui clot la question des workers.
+                   Verifie comme le lot 03, a l'identique : six manches de 420 s
+                   rejouees avec et sans index, empreintes egales, plus 80 000
+                   requetes exhaustives
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1464,4 +1492,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.11.4";
+export const VERSION = "0.11.5";

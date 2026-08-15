@@ -75,15 +75,17 @@ const EMPTY_LIST = Object.freeze([]);
 
 // La plus large requete faite a l'index statique. Le plus gros corps du depot
 // est le gibier de `chasse` (rayon de type 21, x2,5 de taille, x1,18 s'il est
-// elite), soit 62 : la marge tient, et `_statCandidats` replie sur le balayage
-// complet si un jour elle ne tient plus.
+// elite), soit 62 : la marge tient, et une requete plus large replie sur le
+// balayage complet si un jour elle ne tient plus.
 const STAT_MARGE = 80;
 
-// tri par comptage, une seule cellule par element (celle de son CENTRE) : c'est
-// `cell` qui garantit la couverture, pas la multiplicite. Voir `_statIndex`.
+// LE VOISINAGE 3x3 D'UNE CELLULE NE CHANGE JAMAIS : la geometrie est posee a la
+// construction. On ne le parcourt donc pas a la requete, on le CUIT — une liste
+// deja dedupliquee et deja triee par cellule, et la requete se reduit a lire une
+// plage. Sans ca, neuf cellules etaient balayees et triees pour chaque corps et
+// chaque tick, soit 65 % du pas de simulation au profileur.
 function indexerStatique(list, cell, cols, rows) {
   const cells = cols * rows;
-  const start = new Int32Array(cells + 1);
   const n = list.length;
   const at = new Int32Array(n);
   for (let i = 0; i < n; i++) {
@@ -91,13 +93,27 @@ function indexerStatique(list, cell, cols, rows) {
     const cx = Math.min(cols - 1, Math.max(0, Math.floor(o.x / cell)));
     const cy = Math.min(rows - 1, Math.max(0, Math.floor(o.y / cell)));
     at[i] = cy * cols + cx;
-    start[at[i] + 1]++;
   }
-  for (let c = 0; c < cells; c++) start[c + 1] += start[c];
-  const items = new Int32Array(n);
-  const cur = Int32Array.from(start.subarray(0, cells));
-  for (let i = 0; i < n; i++) items[cur[at[i]]++] = i;
-  return { start, items };
+
+  const vstart = new Int32Array(cells + 1);
+  const groupes = [];
+  for (let c = 0; c < cells; c++) {
+    const cx = c % cols, cy = (c - cx) / cols;
+    const g = [];
+    for (let gy = Math.max(0, cy - 1); gy <= Math.min(rows - 1, cy + 1); gy++) {
+      for (let gx = Math.max(0, cx - 1); gx <= Math.min(cols - 1, cx + 1); gx++) {
+        const v = gy * cols + gx;
+        for (let i = 0; i < n; i++) if (at[i] === v) g.push(i);
+      }
+    }
+    g.sort((a, b) => a - b);
+    groupes.push(g);
+    vstart[c + 1] = vstart[c] + g.length;
+  }
+  const vitems = new Int32Array(vstart[cells]);
+  let k = 0;
+  for (const g of groupes) for (const i of g) vitems[k++] = i;
+  return { vstart, vitems };
 }
 
 export const CFG = {
@@ -5136,48 +5152,32 @@ export class GameState {
       cell, cols, rows,
       obs: indexerStatique(obs, cell, cols, rows),
       haz: indexerStatique(haz, cell, cols, rows),
-      sortie: new Int32Array(Math.max(obs.length, haz.length, 1)),
     };
     return this._statG;
   }
 
-  // rend les candidats en ordre CROISSANT d'indice : `_obstacleBlock` applique
-  // ses poussees en sequence et `_obstacleAt` rend la premiere trouvee, donc
-  // l'ordre de visite fait partie du resultat des qu'un corps touche deux
-  // boites a la fois. -1 = requete trop large, balayer toute la liste.
-  _statCandidats(idx, x, y, r) {
+  // La cellule de la requete, et rien d'autre : la liste du voisinage est deja
+  // cuite, dedupliquee et TRIEE PAR INDICE — l'ordre de visite fait partie du
+  // resultat des qu'un corps touche deux boites a la fois (`_obstacleBlock`
+  // applique ses poussees en sequence, `_obstacleAt` rend la premiere trouvee).
+  // -1 = requete plus large que la marge, balayer toute la liste.
+  _statCell(x, y, r) {
     if (r > STAT_MARGE) return -1;
     const G = this._statIndex();
-    const { cell, cols, rows, sortie } = G;
-    const cx = Math.min(cols - 1, Math.max(0, Math.floor(x / cell)));
-    const cy = Math.min(rows - 1, Math.max(0, Math.floor(y / cell)));
-    const y0 = cy > 0 ? cy - 1 : 0, y1 = cy + 1 < rows ? cy + 1 : rows - 1;
-    const x0 = cx > 0 ? cx - 1 : 0, x1 = cx + 1 < cols ? cx + 1 : cols - 1;
-    const start = idx.start, items = idx.items;
-    let n = 0;
-    for (let gy = y0; gy <= y1; gy++) {
-      const base = gy * cols;
-      for (let gx = x0; gx <= x1; gx++) {
-        const c = base + gx;
-        for (let k = start[c]; k < start[c + 1]; k++) {
-          const j = items[k];
-          let p = n++;
-          while (p > 0 && sortie[p - 1] > j) { sortie[p] = sortie[p - 1]; p--; }
-          sortie[p] = j;
-        }
-      }
-    }
-    return n;
+    const cx = Math.min(G.cols - 1, Math.max(0, Math.floor(x / G.cell)));
+    const cy = Math.min(G.rows - 1, Math.max(0, Math.floor(y / G.cell)));
+    return cy * G.cols + cx;
   }
 
   _obstacleBlock(o, wasX, wasY, radius = 0) {
     const list = this.obstacles;
     if (list.length === 0) return;
-    const G = this._statIndex();
-    const n = this._statCandidats(G.obs, o.x, o.y, radius);
-    const total = n < 0 ? list.length : n;
-    for (let k = 0; k < total; k++) {
-      const b = list[n < 0 ? k : G.sortie[k]];
+    const idx = this._statIndex().obs;
+    const c = this._statCell(o.x, o.y, radius);
+    const k0 = c < 0 ? 0 : idx.vstart[c];
+    const k1 = c < 0 ? list.length : idx.vstart[c + 1];
+    for (let k = k0; k < k1; k++) {
+      const b = list[c < 0 ? k : idx.vitems[k]];
       if (b.maxHp > 0 && b.hp <= 0) continue;
       const hw = b.w / 2 + radius, hh = b.h / 2 + radius;
       const dx = o.x - b.x, dy = o.y - b.y;
@@ -5191,11 +5191,12 @@ export class GameState {
   _obstacleAt(x, y, margin = 0) {
     const list = this.obstacles;
     if (list.length === 0) return null;
-    const G = this._statIndex();
-    const n = this._statCandidats(G.obs, x, y, margin);
-    const total = n < 0 ? list.length : n;
-    for (let k = 0; k < total; k++) {
-      const b = list[n < 0 ? k : G.sortie[k]];
+    const idx = this._statIndex().obs;
+    const c = this._statCell(x, y, margin);
+    const k0 = c < 0 ? 0 : idx.vstart[c];
+    const k1 = c < 0 ? list.length : idx.vstart[c + 1];
+    for (let k = k0; k < k1; k++) {
+      const b = list[c < 0 ? k : idx.vitems[k]];
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(y - b.y) < b.h / 2 + margin) {
         return b;
@@ -5221,11 +5222,11 @@ export class GameState {
   _obstacleHit(x, y, dmg = 0) {
     const list = this.obstacles;
     if (list.length === 0) return null;
-    const G = this._statIndex();
-    const n = this._statCandidats(G.obs, x, y, 0);
-    const total = n < 0 ? list.length : n;
-    for (let k = 0; k < total; k++) {
-      const b = list[n < 0 ? k : G.sortie[k]];
+    const idx = this._statIndex().obs;
+    const c = this._statCell(x, y, 0);
+    const k1 = idx.vstart[c + 1];
+    for (let k = idx.vstart[c]; k < k1; k++) {
+      const b = list[idx.vitems[k]];
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) >= b.w / 2 || Math.abs(y - b.y) >= b.h / 2) continue;
       if (dmg > 0 && b.maxHp > 0) b.hp = Math.max(0, b.hp - dmg);
@@ -5251,11 +5252,11 @@ export class GameState {
   _inHazard(e) {
     const list = this.hazards;
     if (list.length === 0) return false;
-    const G = this._statIndex();
-    const n = this._statCandidats(G.haz, e.x, e.y, 0);
-    const total = n < 0 ? list.length : n;
-    for (let k = 0; k < total; k++) {
-      const h = list[n < 0 ? k : G.sortie[k]];
+    const idx = this._statIndex().haz;
+    const c = this._statCell(e.x, e.y, 0);
+    const k1 = idx.vstart[c + 1];
+    for (let k = idx.vstart[c]; k < k1; k++) {
+      const h = list[idx.vitems[k]];
       if (!hazardState(h, this.time).on) continue;
       if ((e.x - h.x) ** 2 + (e.y - h.y) ** 2 <= h.r * h.r) return true;
     }
@@ -5271,11 +5272,11 @@ export class GameState {
     out.slow = 1; out.slip = false;
     const list = this.hazards;
     if (list.length === 0) return out;
-    const G = this._statIndex();
-    const n = this._statCandidats(G.haz, x, y, 0);
-    const total = n < 0 ? list.length : n;
-    for (let k = 0; k < total; k++) {
-      const h = list[n < 0 ? k : G.sortie[k]];
+    const idx = this._statIndex().haz;
+    const c = this._statCell(x, y, 0);
+    const k1 = idx.vstart[c + 1];
+    for (let k = idx.vstart[c]; k < k1; k++) {
+      const h = list[idx.vitems[k]];
       if (h.kind !== HZ_SLOW && h.kind !== HZ_SLIP) continue;
       if ((x - h.x) ** 2 + (y - h.y) ** 2 > h.r * h.r) continue;
       if (h.kind === HZ_SLOW) out.slow = Math.min(out.slow, BIOME_CFG.SLOW_MUL);
