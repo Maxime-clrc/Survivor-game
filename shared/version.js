@@ -1361,6 +1361,38 @@
                    les zones : la meteo est du sol, le telegraphe garde le
                    dessus. Deux teintes entrent dans la charte (`WEATHER`)
 
+     0.11.2 lot 03 LA GEOMETRIE DE BIOME NE BOUGE PLUS APRES LA CONSTRUCTION,
+                   ELLE S'INDEXE DONC UNE FOIS. `_obstacleBlock` et `_ground`
+                   balayaient toute la table pour chaque corps et chaque tick :
+                   8,7 millions d'appels sur 420 s de mesure, la part la plus
+                   chere du pas de simulation. `_statIndex()` construit un tri
+                   par comptage a la premiere requete, et `_statCandidats` rend
+                   un voisinage 3x3.
+                   MEME PREUVE QUE `_grille()`, ce qui est le seul interet de
+                   reprendre sa forme : `cell = plus grande demi-boite +
+                   STAT_MARGE`, donc une boite qui recouvre la requete a son
+                   centre a moins d'une cellule, donc dans le voisinage.
+                   Ecretage 1-lipschitzien, il ne separe jamais. Une requete
+                   plus large que la marge (aucune aujourd'hui : le plus gros
+                   corps du depot est le gibier de chasse, rayon 62) REPLIE sur
+                   le balayage complet au lieu de mentir.
+                   LES CANDIDATS SORTENT EN ORDRE CROISSANT D'INDICE, par tri
+                   par insertion. Ce n'est pas de la coquetterie :
+                   `_obstacleBlock` applique ses poussees en sequence et
+                   `_obstacleAt` rend la premiere trouvee, donc l'ordre de
+                   visite fait partie du resultat des qu'un corps touche deux
+                   boites a la fois.
+                   `_ground` rend un objet REUTILISE : appele pour chaque corps
+                   et chaque tick, il allouait des millions de couples de
+                   scalaires. Ses deux appelants le lisent immediatement.
+                   Verifie a l'identique et non a l'estime : six manches de
+                   420 s rejouees deux fois, graine de `Math.random` comprise,
+                   avec index et avec le balayage remis en place — empreintes
+                   egales a chaque seconde ; plus 80 000 requetes exhaustives
+                   comparees au balayage. Gain mesure sur le meme scenario de
+                   saturation : step median 0,83 -> 0,42 ms, p99 1,44 -> 0,72,
+                   soit moitie moins
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1369,4 +1401,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.11.1";
+export const VERSION = "0.11.2";

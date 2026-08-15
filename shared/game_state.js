@@ -73,6 +73,33 @@ export { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost
 
 const EMPTY_LIST = Object.freeze([]);
 
+// La plus large requete faite a l'index statique. Le plus gros corps du depot
+// est le gibier de `chasse` (rayon de type 21, x2,5 de taille, x1,18 s'il est
+// elite), soit 62 : la marge tient, et `_statCandidats` replie sur le balayage
+// complet si un jour elle ne tient plus.
+const STAT_MARGE = 80;
+
+// tri par comptage, une seule cellule par element (celle de son CENTRE) : c'est
+// `cell` qui garantit la couverture, pas la multiplicite. Voir `_statIndex`.
+function indexerStatique(list, cell, cols, rows) {
+  const cells = cols * rows;
+  const start = new Int32Array(cells + 1);
+  const n = list.length;
+  const at = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = list[i];
+    const cx = Math.min(cols - 1, Math.max(0, Math.floor(o.x / cell)));
+    const cy = Math.min(rows - 1, Math.max(0, Math.floor(o.y / cell)));
+    at[i] = cy * cols + cx;
+    start[at[i] + 1]++;
+  }
+  for (let c = 0; c < cells; c++) start[c + 1] += start[c];
+  const items = new Int32Array(n);
+  const cur = Int32Array.from(start.subarray(0, cells));
+  for (let i = 0; i < n; i++) items[cur[at[i]]++] = i;
+  return { start, items };
+}
+
 export const CFG = {
   ARENA_W: 4800,
   ARENA_H: 2700,
@@ -489,6 +516,8 @@ export class GameState {
       CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
     this._biomeObstacles = this.biome.obstacles;
     this._biomeHazards = this.biome.hazards;
+    this._statG = null;
+    this._groundOut = { slow: 1, slip: false };
     this.hazardTick = 0;
     this.weather = null;
 
@@ -5067,8 +5096,73 @@ export class GameState {
     if (Math.abs(o.y - W.y) < t) o.y = wasY <= W.y ? W.y - t : W.y + t;
   }
 
+  // LA GEOMETRIE DE BIOME EST POSEE A LA CONSTRUCTION ET NE BOUGE PLUS, donc
+  // elle s'indexe UNE fois pour la manche. Sans index, `_obstacleBlock` et
+  // `_ground` balayaient toute la table pour chaque corps et chaque tick : 8,7
+  // millions d'appels sur 420 s de mesure, la part la plus chere du pas.
+  //
+  // Meme forme que `_grille()`, et la taille de cellule PROUVE la couverture de
+  // la meme facon : `cell = plus grande demi-boite + STAT_MARGE`, donc une boite
+  // qui recouvre la requete a son centre a moins d'une cellule, donc dans le
+  // voisinage 3x3. Les coordonnees de cellule sont ecretees, ce qui est
+  // 1-lipschitzien et ne separe donc jamais deux corps qui se touchent.
+  // Une requete plus large que `STAT_MARGE` casserait la preuve : elle repasse
+  // par le balayage complet au lieu de mentir.
+  _statIndex() {
+    if (this._statG) return this._statG;
+    const obs = this._biomeObstacles, haz = this._biomeHazards;
+    let demi = 1;
+    for (const o of obs) demi = Math.max(demi, o.w / 2, o.h / 2);
+    for (const h of haz) demi = Math.max(demi, h.r);
+    const cell = demi + STAT_MARGE;
+    const cols = Math.max(1, Math.ceil(CFG.ARENA_W / cell));
+    const rows = Math.max(1, Math.ceil(CFG.ARENA_H / cell));
+    this._statG = {
+      cell, cols, rows,
+      obs: indexerStatique(obs, cell, cols, rows),
+      haz: indexerStatique(haz, cell, cols, rows),
+      sortie: new Int32Array(Math.max(obs.length, haz.length, 1)),
+    };
+    return this._statG;
+  }
+
+  // rend les candidats en ordre CROISSANT d'indice : `_obstacleBlock` applique
+  // ses poussees en sequence et `_obstacleAt` rend la premiere trouvee, donc
+  // l'ordre de visite fait partie du resultat des qu'un corps touche deux
+  // boites a la fois. -1 = requete trop large, balayer toute la liste.
+  _statCandidats(idx, x, y, r) {
+    if (r > STAT_MARGE) return -1;
+    const G = this._statIndex();
+    const { cell, cols, rows, sortie } = G;
+    const cx = Math.min(cols - 1, Math.max(0, Math.floor(x / cell)));
+    const cy = Math.min(rows - 1, Math.max(0, Math.floor(y / cell)));
+    const y0 = cy > 0 ? cy - 1 : 0, y1 = cy + 1 < rows ? cy + 1 : rows - 1;
+    const x0 = cx > 0 ? cx - 1 : 0, x1 = cx + 1 < cols ? cx + 1 : cols - 1;
+    const start = idx.start, items = idx.items;
+    let n = 0;
+    for (let gy = y0; gy <= y1; gy++) {
+      const base = gy * cols;
+      for (let gx = x0; gx <= x1; gx++) {
+        const c = base + gx;
+        for (let k = start[c]; k < start[c + 1]; k++) {
+          const j = items[k];
+          let p = n++;
+          while (p > 0 && sortie[p - 1] > j) { sortie[p] = sortie[p - 1]; p--; }
+          sortie[p] = j;
+        }
+      }
+    }
+    return n;
+  }
+
   _obstacleBlock(o, wasX, wasY, radius = 0) {
-    for (const b of this.obstacles) {
+    const list = this.obstacles;
+    if (list.length === 0) return;
+    const G = this._statIndex();
+    const n = this._statCandidats(G.obs, o.x, o.y, radius);
+    const total = n < 0 ? list.length : n;
+    for (let k = 0; k < total; k++) {
+      const b = list[n < 0 ? k : G.sortie[k]];
       if (b.maxHp > 0 && b.hp <= 0) continue;
       const hw = b.w / 2 + radius, hh = b.h / 2 + radius;
       const dx = o.x - b.x, dy = o.y - b.y;
@@ -5080,7 +5174,13 @@ export class GameState {
   }
 
   _obstacleAt(x, y, margin = 0) {
-    for (const b of this.obstacles) {
+    const list = this.obstacles;
+    if (list.length === 0) return null;
+    const G = this._statIndex();
+    const n = this._statCandidats(G.obs, x, y, margin);
+    const total = n < 0 ? list.length : n;
+    for (let k = 0; k < total; k++) {
+      const b = list[n < 0 ? k : G.sortie[k]];
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(y - b.y) < b.h / 2 + margin) {
         return b;
@@ -5104,7 +5204,13 @@ export class GameState {
   }
 
   _obstacleHit(x, y, dmg = 0) {
-    for (const b of this.obstacles) {
+    const list = this.obstacles;
+    if (list.length === 0) return null;
+    const G = this._statIndex();
+    const n = this._statCandidats(G.obs, x, y, 0);
+    const total = n < 0 ? list.length : n;
+    for (let k = 0; k < total; k++) {
+      const b = list[n < 0 ? k : G.sortie[k]];
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) >= b.w / 2 || Math.abs(y - b.y) >= b.h / 2) continue;
       if (dmg > 0 && b.maxHp > 0) b.hp = Math.max(0, b.hp - dmg);
@@ -5128,22 +5234,39 @@ export class GameState {
   }
 
   _inHazard(e) {
-    for (const h of this.hazards) {
+    const list = this.hazards;
+    if (list.length === 0) return false;
+    const G = this._statIndex();
+    const n = this._statCandidats(G.haz, e.x, e.y, 0);
+    const total = n < 0 ? list.length : n;
+    for (let k = 0; k < total; k++) {
+      const h = list[n < 0 ? k : G.sortie[k]];
       if (!hazardState(h, this.time).on) continue;
       if ((e.x - h.x) ** 2 + (e.y - h.y) ** 2 <= h.r * h.r) return true;
     }
     return false;
   }
 
+  // L'OBJET RENDU EST REUTILISE : `_ground` est appele pour chaque corps et
+  // chaque tick, soit des millions d'allocations d'un couple de scalaires. Les
+  // deux appelants le lisent immediatement — ne pas le garder d'un tick a
+  // l'autre.
   _ground(x, y) {
-    let slow = 1, slip = false;
-    for (const h of this.hazards) {
+    const out = this._groundOut;
+    out.slow = 1; out.slip = false;
+    const list = this.hazards;
+    if (list.length === 0) return out;
+    const G = this._statIndex();
+    const n = this._statCandidats(G.haz, x, y, 0);
+    const total = n < 0 ? list.length : n;
+    for (let k = 0; k < total; k++) {
+      const h = list[n < 0 ? k : G.sortie[k]];
       if (h.kind !== HZ_SLOW && h.kind !== HZ_SLIP) continue;
       if ((x - h.x) ** 2 + (y - h.y) ** 2 > h.r * h.r) continue;
-      if (h.kind === HZ_SLOW) slow = Math.min(slow, BIOME_CFG.SLOW_MUL);
-      else slip = true;
+      if (h.kind === HZ_SLOW) out.slow = Math.min(out.slow, BIOME_CFG.SLOW_MUL);
+      else out.slip = true;
     }
-    return { slow, slip };
+    return out;
   }
 
   _hazards(dt) {
