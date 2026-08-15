@@ -31,6 +31,14 @@ export const BIOME_CFG = {
   COVER_HP: 900,
 
   GUST_PUSH: 46,
+  GUST_PERIOD: 26,
+  GUST_CALM: 0.42,
+  GUST_RAMP: 3.2,
+  GUST_MIN: 0.45,
+  GUST_TURN_HZ: 0.021,
+  GUST_SWING: 1.15,
+  GUST_AMP_HZ: 0.055,
+
   ASH_LIFE: 11,
   FOG_VIGNETTE: 1.35,
   FOG_FROM: 0.12,
@@ -65,7 +73,7 @@ export const WEATHERS = [
   { key: "brume", nom: "Brume",
     texte: "brume dense — on ne voit plus venir" },
   { key: "bourrasque", nom: "Bourrasque",
-    texte: "bourrasque — tout est poussé, vous comme eux" },
+    texte: "rafales — le vent vous pousse, la horde l'ignore" },
   { key: "cendres", nom: "Cendres",
     texte: "pluie de cendres — les bonus au sol ne durent plus" },
 ];
@@ -258,8 +266,40 @@ export function weatherFor(diffIndex, seed, segment) {
   const rand = rng((seed >>> 0) * 733 + segment * 9176);
   if (rand() < 0.34) return null;
   const id = Math.min(WEATHERS.length - 1, Math.floor(rand() * WEATHERS.length));
-  const ang = rand() * Math.PI * 2;
-  return { id, dx: Math.cos(ang), dy: Math.sin(ang) };
+  const TAU = Math.PI * 2;
+  return {
+    id,
+    ang: rand() * TAU,
+    ph: rand(),
+    p1: rand() * TAU,
+    p2: rand() * TAU,
+    pa: rand() * TAU,
+  };
+}
+
+// LA BOURRASQUE N'EST PAS UN VECTEUR CONSTANT : angle et force sont des
+// FONCTIONS DU TEMPS DE MANCHE, donc rejouables a l'identique des deux cotes
+// sans un octet de reseau, comme l'etat d'un danger. L'enveloppe reprend
+// d'ailleurs la forme de `hazardState` — periode, fenetre active, rampe : le
+// vent RETOMBE A ZERO entre deux rafales, sinon il cesse d'etre un evenement et
+// devient une taxe permanente sur le deplacement.
+// Les deux sinus d'angle sont incommensurables et leur somme depasse le
+// demi-tour, donc la rafale peut s'inverser en cours de segment.
+export function windAt(w, t) {
+  if (!w || w.id !== WX_BOURRASQUE) return null;
+  const C = BIOME_CFG;
+  const TAU = Math.PI * 2;
+  const u = (((t / C.GUST_PERIOD) + w.ph) % 1) * C.GUST_PERIOD;
+  const active = C.GUST_PERIOD * (1 - C.GUST_CALM);
+  if (u >= active) return null;
+  const rampe = Math.min(1, Math.min(u, active - u) / C.GUST_RAMP);
+  if (rampe <= 0) return null;
+  const ampleur = C.GUST_MIN + (1 - C.GUST_MIN)
+    * (0.5 + 0.5 * Math.sin(t * C.GUST_AMP_HZ * TAU + w.pa));
+  const ang = w.ang
+    + Math.sin(t * C.GUST_TURN_HZ * TAU + w.p1) * C.GUST_SWING
+    + Math.sin(t * C.GUST_TURN_HZ * 2.7 * TAU + w.p2) * C.GUST_SWING * 0.5;
+  return { ang, dx: Math.cos(ang), dy: Math.sin(ang), force: rampe * ampleur };
 }
 
 export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,

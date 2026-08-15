@@ -105,6 +105,14 @@ export const BIOME = {
   slip:      "#8fb6c9",
 };
 
+// LA METEO EST DU DECOR, donc froide et sous 18 % de saturation : elle ne doit
+// jamais concurrencer un telegraphe. La cendre est le seul ecart, chaude parce
+// qu'elle vient du feu — et elle reste plus sombre que n'importe quel signal.
+export const WEATHER = {
+  wind: "#9fb4cc",
+  ash:  "#b8a48c",
+};
+
 export const BOSS = {
   skin:     "#ff4d6d",
   skinDark: "#8e1230",

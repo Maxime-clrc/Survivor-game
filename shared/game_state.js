@@ -40,7 +40,7 @@ import {
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 } from "./enemies.js";
 import {
-  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor,
+  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
   biomeAt, hazardAt, weatherAt, verifierBiomes,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
@@ -54,7 +54,7 @@ export {
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
 export { EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE };
 export {
-  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor,
+  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
   biomeAt, hazardAt, weatherAt, verifierBiomes,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
@@ -2971,7 +2971,6 @@ export class GameState {
     budget.clear();
     for (const [id, n] of this.windupCibles) budget.set(id, n);
     this.windupCibles.clear();
-    const gust = this._gust(dt);
 
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
@@ -3106,8 +3105,6 @@ export class GameState {
             TRAIT_CFG.TRAIL_LIFE);
         }
       }
-
-      if (gust) { e.x += gust.x; e.y += gust.y; }
 
       if (e.kx || e.ky) {
         e.x += e.kx * dt;
@@ -5184,10 +5181,14 @@ export class GameState {
     }
   }
 
+  // LA METEO NE TOUCHE QUE LE JOUEUR. Une bourrasque qui pousse aussi la horde
+  // ne change rien a la distance entre les deux : elle translate la scene. Le
+  // seul appelant est donc `_players`.
   _gust(dt) {
-    const w = this.weather;
-    if (!w || w.id !== WX_BOURRASQUE) return null;
-    return { x: w.dx * BIOME_CFG.GUST_PUSH * dt, y: w.dy * BIOME_CFG.GUST_PUSH * dt };
+    const v = windAt(this.weather, this.time);
+    if (!v) return null;
+    const k = BIOME_CFG.GUST_PUSH * v.force * dt;
+    return { x: v.dx * k, y: v.dy * k };
   }
 
   _arena(dt) {

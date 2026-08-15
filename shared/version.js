@@ -1333,6 +1333,34 @@
                    tirage sur 4000 en solo, six boss encore eligibles pour cinq
                    places, archetypes toujours uniques
 
+     0.11.1 lot 02 LA METEO ETAIT UN VECTEUR CONSTANT QUI POUSSAIT TOUT LE
+                   MONDE — donc elle ne faisait rien. Une bourrasque appliquee
+                   aussi a la horde ne change pas la distance entre elle et le
+                   joueur : elle TRANSLATE la scene. `_gust` n'a plus qu'un
+                   appelant, `_players`, et le texte de la table le dit.
+                   `windAt(w, t)` remplace `{dx, dy}` : angle et force sont des
+                   FONCTIONS DU TEMPS DE MANCHE, rejouables a l'identique des
+                   deux cotes, toujours sans un octet de reseau (le tirage ne
+                   depend que de la graine et du segment). L'enveloppe reprend
+                   la forme de `hazardState` — periode, fenetre active, rampe —
+                   parce qu'un vent qui ne retombe jamais a zero cesse d'etre un
+                   evenement pour devenir une taxe. Deux sinus d'angle
+                   incommensurables dont la somme depasse le demi-tour : la
+                   rafale s'inverse en cours de segment. Mesure : vent present
+                   59 % du segment, plus longue accalmie 10,9 s, balayage 195°,
+                   exposition moyenne 15,4 px/s contre 46 en permanence avant —
+                   moyenne divisee par trois, pic identique, et le pic compte
+                   maintenant vraiment puisque la horde n'y est plus soumise.
+                   LA METEO SE VOIT ENFIN. `drawWeather` pose un champ de brins
+                   sans une seule particule allouee : la position d'un brin est
+                   une fonction de son indice et du temps, un seul `stroke` pour
+                   tout le champ, ancrage MONDE et non camera (ancre a la
+                   camera, le vent parait accroche au joueur). Densite, longueur
+                   et vitesse lisent la meme `force`, donc une accalmie se VOIT
+                   avant de se sentir. La cendre reutilise le meme champ. Sous
+                   les zones : la meteo est du sol, le telegraphe garde le
+                   dessus. Deux teintes entrent dans la charte (`WEATHER`)
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1341,4 +1369,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.11.0";
+export const VERSION = "0.11.1";
