@@ -1307,6 +1307,32 @@
                    faisait deja. Aucun compte ne se reverrouille ; en revanche
                    rencontrer les cinq porteurs prend plusieurs manches
 
+     0.11.0 lot 01 TROIS CORRECTIFS, ET LE PREMIER TENAIT DANS UNE SOUSTRACTION.
+                   Les chiffres de degats du boss ne s'affichaient pas :
+                   `pushDamage` passait des coordonnees MONDE a `hudDamage`, qui
+                   attend des coordonnees de VUE et ecarte tout ce qui depasse
+                   `VIEW_W`. Un boss a x = 2400 etait donc ecarte a chaque coup.
+                   Les deux autres appelants soustrayaient bien la camera —
+                   l'etincelle et le coup de zoom sortaient, seul le nombre
+                   manquait, ce qui rendait le defaut illisible.
+                   LE REBOND NE CONNAISSAIT QUE LES BORDS. Une balle a rebond
+                   mourait sur un obstacle de biome. Elle s'y reflechit
+                   desormais, par la meme resolution d'AXE que `_obstacleBlock`
+                   (on ressort par la face d'ou l'on venait, sinon une balle
+                   rapide traverse et repart du mauvais cote). Un mur
+                   destructible encaisse ET renvoie : `_obstacleHit` reste le
+                   point de passage unique des degats de couverture, il rend
+                   maintenant l'obstacle au lieu d'un booleen. Au plus un rebond
+                   consomme par tick, bord et obstacle confondus.
+                   LES JUMEAUX SORTENT DU SOLO (`minPlayers: 2`). Les deux corps
+                   visent le meme `_nearestPlayer` : a un seul joueur ils ne se
+                   separent jamais, restent dans `TWIN_HEAL_RANGE` et se soignent
+                   de 2,2 %/s — il fallait depasser ce taux en net pour avancer
+                   DANS une barre, ce qu'un joueur seul ne fait pas. Deuxieme
+                   boss reserve au multijoueur apres le Prisme. Verifie : zero
+                   tirage sur 4000 en solo, six boss encore eligibles pour cinq
+                   places, archetypes toujours uniques
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1315,4 +1341,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.10.6";
+export const VERSION = "0.11.0";

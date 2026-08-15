@@ -5111,9 +5111,23 @@ export class GameState {
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) >= b.w / 2 || Math.abs(y - b.y) >= b.h / 2) continue;
       if (dmg > 0 && b.maxHp > 0) b.hp = Math.max(0, b.hp - dmg);
-      return true;
+      return b;
     }
-    return false;
+    return null;
+  }
+
+  // meme resolution par AXE que `_obstacleBlock` : on ressort par la face d'ou
+  // l'on venait, sinon une balle rapide traverse et repart du mauvais cote.
+  _obstacleReflect(b, o, wasX, wasY) {
+    const hw = o.w / 2, hh = o.h / 2;
+    const px = hw - Math.abs(b.x - o.x), py = hh - Math.abs(b.y - o.y);
+    if (px <= py) {
+      b.x = wasX <= o.x ? o.x - hw : o.x + hw;
+      b.vx = -b.vx;
+    } else {
+      b.y = wasY <= o.y ? o.y - hh : o.y + hh;
+      b.vy = -b.vy;
+    }
   }
 
   _inHazard(e) {
@@ -5296,21 +5310,17 @@ export class GameState {
     const kept = [];
     for (const b of this.bullets) {
       b.life -= dt;
+      const wasX = b.x, wasY = b.y;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
+      let bounced = false;
       if (b.bounce > 0) {
         const BB = this.bounds;
-        let bounced = false;
         if (b.x < BB.x0)           { b.x = 2 * BB.x0 - b.x; b.vx = -b.vx; bounced = true; }
         else if (b.x > BB.x1)      { b.x = 2 * BB.x1 - b.x; b.vx = -b.vx; bounced = true; }
         if (b.y < BB.y0)           { b.y = 2 * BB.y0 - b.y; b.vy = -b.vy; bounced = true; }
         else if (b.y > BB.y1)      { b.y = 2 * BB.y1 - b.y; b.vy = -b.vy; bounced = true; }
-        if (bounced) {
-          b.bounce--;
-          b.dmg *= CARD_CFG.BOUNCE_DAMAGE_MUL;
-          if (b.hits) b.hits.clear(); else b.hit = null;
-        }
       }
 
       if (this.harvests.length && this._harvestHit(b.x, b.y, b.dmg)) {
@@ -5318,9 +5328,24 @@ export class GameState {
         continue;
       }
 
-      if (this.obstacles.length && this._obstacleHit(b.x, b.y, b.dmg)) {
-        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner);
-        continue;
+      // le mur destructible encaisse AVANT le rebond : `_obstacleHit` reste le
+      // point de passage unique des degats de couverture, il rend maintenant
+      // l'obstacle au lieu d'un booleen.
+      if (this.obstacles.length) {
+        const o = this._obstacleHit(b.x, b.y, b.dmg);
+        if (o && b.bounce > 0) {
+          this._obstacleReflect(b, o, wasX, wasY);
+          bounced = true;
+        } else if (o) {
+          if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner);
+          continue;
+        }
+      }
+
+      if (bounced) {
+        b.bounce--;
+        b.dmg *= CARD_CFG.BOUNCE_DAMAGE_MUL;
+        if (b.hits) b.hits.clear(); else b.hit = null;
       }
 
       if (b.life > 0 && b.x > -50 && b.x < CFG.ARENA_W + 50

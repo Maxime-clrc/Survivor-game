@@ -560,7 +560,8 @@ export function drawBursts() {
   ctx.restore();
 }
 function pushDamage(x, y, dmg, crit = false) {
-  hudDamage(x + (Math.random() - 0.5) * 40, y - 30, dmg, crit ? "crit" : "deal");
+  hudDamage(x - camera.x0 + (Math.random() - 0.5) * 40, y - camera.y0 - 30,
+            dmg, crit ? "crit" : "deal");
 }
 const DMG_AGG_MS = 200;
 const DMG_THRESHOLD = 0.05;
