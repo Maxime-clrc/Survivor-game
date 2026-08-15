@@ -1472,17 +1472,33 @@
                    garanti a la CUISSON au lieu de l'etre a la requete, et il
                    reste ce qui fait que deux boites touchees en meme temps se
                    resolvent dans le meme ordre qu'au balayage.
-                   Mesure, equipe eclatee : simulation 91,7 -> 21,8 ms de CPU
-                   par seconde de jeu (-76 %), cout total d'une salle saturee
-                   10,6 % -> 3,5 % d'un coeur. L'ANOMALIE DISPARAIT : eclatee
-                   devient moins chere que groupee (3,5 contre 4,0 %), ce qui est
-                   l'ordre intuitif — tout l'ecart venait du 3x3 balaye, une
-                   horde qui traverse l'arene changeant de cellule sans arret.
-                   Quatre salles saturees tiennent dans 48 % d'un coeur sur un
-                   VPS 3x plus lent, ce qui clot la question des workers.
+                   Gain reel, A CHAUD : 23,5 -> 20,4 ms de CPU par seconde de
+                   jeu, soit 13 %. Les 76 % annonces au commit etaient un
+                   ARTEFACT DE CHAUFFE (voir 0.11.6) : a froid le meme banc
+                   donne 68,1 -> 19,1, mais un serveur qui tourne est chaud.
                    Verifie comme le lot 03, a l'identique : six manches de 420 s
                    rejouees avec et sans index, empreintes egales, plus 80 000
-                   requetes exhaustives
+                   requetes exhaustives. Ce qui reste vrai sans reserve, c'est la
+                   SIMPLIFICATION : plus de tri par insertion, plus de tampon de
+                   sortie, plus de balayage 3x3 a la requete
+
+     0.11.6 correctif de MESURE, aucun changement de code. Deux bancs se
+                   contredisaient sur le lot 07 ; l'arbitrage (meme processus,
+                   meme scenario, a froid puis a chaud) montre que le gain
+                   annonce mesurait surtout la compilation JIT :
+
+                     a froid   avant 68,1 ms/s   apres 19,1   -72 %
+                     a chaud   avant 23,5 ms/s   apres 20,4   -13 %
+
+                   DEUX CONCLUSIONS TOMBENT AVEC. L'« anomalie » equipe eclatee
+                   3,5 fois plus chere que groupee n'existait pas : a chaud,
+                   avant le lot 07, eclatee coutait 23,5 et groupee 26,1 — elle
+                   etait moins chere. Et le CPU n'a jamais ete le facteur
+                   limitant a 3-4 salles : les 127 % d'un coeur qui ont motive le
+                   lot 07 etaient du froid, la vraie valeur d'alors etait ~45 %.
+                   LECON, ecrite ici parce qu'elle resservira : un banc a passage
+                   unique sur du JS mesure le JIT autant que le code. Toute
+                   mesure de CPU de ce depot doit chauffer avant de compter
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -1492,4 +1508,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.11.5";
+export const VERSION = "0.11.6";

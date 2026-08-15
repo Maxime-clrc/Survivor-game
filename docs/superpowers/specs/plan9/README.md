@@ -99,24 +99,40 @@ Or le voisinage 3×3 d'une cellule ne change jamais. Il se **cuit** une fois :
 une liste par cellule, dédupliquée et triée, et la requête se réduit à lire une
 plage. 486 entrées pour 28×16 cellules.
 
+### Le gain annoncé était faux, et c'est la leçon la plus utile du plan
+
+J'ai d'abord annoncé −76 %, sur un banc à **passage unique**. Deux bancs se
+contredisaient ; l'arbitrage (même processus, même scénario, à froid puis à
+chaud) tranche :
+
 ```
-                        avant lot 07   apres
-simulation, eclatee     91,7 ms/s      21,8 ms/s     -76 %
-simulation, groupee     25,9 ms/s      24,0 ms/s      -7 %
-cout total par salle    10,6 % / 4,2 % 3,5 % / 4,0 % d'un coeur
-sur VPS 3x plus lent    32 % / 12 %    10,5 % / 12,1 % par salle
+                     avant lot 07   apres
+a froid              68,1 ms/s      19,1 ms/s     -72 %
+a chaud              23,5 ms/s      20,4 ms/s     -13 %   <- la vraie valeur
+a chaud, groupee     26,1 ms/s      22,4 ms/s     -14 %
 ```
 
-**L'anomalie « éclatée 3,5× plus chère » a disparu** : éclatée (3,5 %) est
-maintenant *moins* chère que groupée (4,0 %), ce qui est l'ordre intuitif. Tout
-l'écart venait du 3×3 balayé — une horde qui traverse l'arène change de cellule
-sans arrêt.
+Un banc à passage unique sur du JS mesure **le JIT autant que le code**. Un
+serveur qui tourne est chaud. Le gain réel du lot 07 est de **13 %**.
 
-Quatre salles saturées tiennent désormais dans **48 % d'un cœur** sur un VPS 3×
-plus lent. La cible est atteinte, et `node:worker_threads` n'a pas lieu d'être.
+Deux conclusions tombent avec :
+
+- **L'« anomalie » équipe éclatée 3,5× plus chère n'a jamais existé.** À chaud,
+  avant le lot 07 : éclatée 23,5, groupée 26,1 — elle était *moins* chère, ce
+  qui est l'ordre intuitif. C'est le passage unique qui mesurait la compilation.
+- **Le CPU n'était pas le facteur limitant à 3-4 salles.** Les 127 % d'un cœur
+  qui ont motivé ce lot étaient du froid ; la vraie valeur d'alors était ~45 %.
+
+Ce qui reste vrai sans réserve : la **simplification**. Plus de tri par
+insertion, plus de tampon de sortie, plus de balayage 3×3 à la requête — et
+vérifié bit-identique comme le lot 03. 13 % à ce prix-là valait la peine, mais
+il fallait le dire au bon ordre de grandeur.
 
 Nouveau sommet du profil : `_separateEnemies` (37 %) et `_grille` (15 %), c'est
 à dire la séparation des corps — inhérente, et déjà en tri par comptage.
+
+**Règle pour la suite : toute mesure de CPU de ce dépôt doit chauffer avant de
+compter.**
 
 ## Ce qui reste ouvert après le plan
 
