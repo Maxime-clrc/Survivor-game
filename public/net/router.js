@@ -8,9 +8,14 @@ import { applyPalette, biomeIndex, biomeSeed, rebuildBiome, setBiomeIndex, setBi
 import { resetFeedback } from "../render/world.js";
 import { renderGateMode, renderGateSwitch, renderServerInfo } from "../ui/boot.js";
 import { closeBuild } from "../ui/build.js";
-import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, pauseEl, registerFormEl, setGateBusy, setStatus, settingsEl, updateVersion, waitMsg } from "../ui/dom.js";
+import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, pauseEl, registerFormEl, setGateBusy, setStatus, settingsEl, updateTrace, updateVersion, waitMsg } from "../ui/dom.js";
 import { closePause, renderPauseState } from "../ui/pause.js";
 import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderMeta, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
+
+// LA MESURE S'ARME PAR L'URL : elle sert a enregistrer de VRAIES parties pour
+// l'equilibrage, donc elle ne doit couter aucun clic a personne — et surtout
+// pas vivre dans un menu ou on l'oublierait armee.
+const MESURE = location.search.includes("mesure");
 
 export function connect() {
   setStatus("connexion…");
@@ -71,6 +76,7 @@ export function connect() {
 
       case "roomJoined":
         setInRoom(true);
+        if (MESURE) ws.send(JSON.stringify({ t: "trace", on: 1 }));
         setPendingRejoin(null);
         hubResumeEl.hidden = true;
         setJoinAttempt(null);
@@ -110,6 +116,7 @@ export function connect() {
 
       case "roomClosed":
         setInRoom(false);
+        updateTrace(false, "");
         setRoomNameCur("");
         setPhase(PHASE_LOBBY);
         setLastResult(null);
@@ -174,26 +181,12 @@ export function connect() {
         ws.close();
         break;
 
-      case "lobby":
-        setLobby(msg.players);
-        setHostId(msg.host);
-        setPhase(msg.phase);
-        setRoundNumber(msg.round);
-        setRoomNameCur(msg.roomName ?? roomNameCur);
-        setDifficulty(msg.difficulty ?? difficulty);
-        if (msg.biome !== undefined) {
-          setBiomeIndex(msg.biome);
-          setBiomeSeed(msg.seed ?? biomeSeed);
-          rebuildBiome(phase === PHASE_ROUND ? difficulty : msg.difficulty ?? difficulty);
-        }
-        setTally(msg.tally ?? tally);
-        setMyVote(lobby.find(l => l.id === myId)?.vote ?? myVote);
-        setAmSpectator(lobby.find(l => l.id === myId)?.spectator ?? false);
-        refreshPanel();
-      case "serverInfo":
-        renderServerInfo(msg);
-        break;
-
+      // DEUX `case "lobby"` COHABITAIENT DANS CE SWITCH depuis le decoupage du
+      // client : JS retient le PREMIER, donc celui qui differait par la file du
+      // monde etait mort, et le vivant tombait sans `break` dans `serverInfo`
+      // — d'ou un `rtt` indefini a chaque salon. L'invariant du depot est celui
+      // du bloc mort : le salon porte `phase`, applique avant `roundEnd` il
+      // ouvrirait le salon 110 ms avant le bilan.
       case "lobby": {
         const appliquer = () => {
           setLobby(msg.players);
@@ -202,8 +195,14 @@ export function connect() {
           setRoundNumber(msg.round);
           setRoomNameCur(msg.roomName ?? roomNameCur);
           setDifficulty(msg.difficulty ?? difficulty);
+          if (msg.biome !== undefined) {
+            setBiomeIndex(msg.biome);
+            setBiomeSeed(msg.seed ?? biomeSeed);
+            rebuildBiome(phase === PHASE_ROUND ? difficulty : msg.difficulty ?? difficulty);
+          }
           setTally(msg.tally ?? tally);
           setRoundHistory(msg.history ?? []);
+          updateTrace(msg.trace === 1, msg.tracePar ?? "");
           const mine = msg.players?.find(p => p.id === myId);
           if (mine && mine.ping !== undefined) { setMyPing(Number(mine.ping)); renderTopPing(); }
           setMyVote(lobby.find(l => l.id === myId)?.vote ?? myVote);
@@ -214,6 +213,14 @@ export function connect() {
         else appliquer();
         break;
       }
+
+      case "serverInfo":
+        renderServerInfo(msg);
+        break;
+
+      case "traceState":
+        updateTrace(msg.on === 1, msg.par ?? "");
+        break;
 
       case "round":
         pushWorld(() => {

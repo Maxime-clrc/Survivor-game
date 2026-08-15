@@ -1,8 +1,9 @@
 
 import {
-  GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL, BIOMES,
+  GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL, BIOMES, enemyCap,
 } from "./shared/game_state.js";
 import { CARD_CFG, cardBrief, banClosure } from "./shared/cards.js";
+import { VERSION } from "./shared/version.js";
 import { segmentName } from "./shared/timeline.js";
 import { RELIC_CFG } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
@@ -71,6 +72,197 @@ export class Room {
     this.sinceSnapshot = -this.staggerFrac * SNAPSHOT_INTERVAL;
 
     this.perf = { esp: new Sampler(), lastSend: 0, clair: 0, defl: 0 };
+
+    // LA MESURE EST UN ETAT DE LA SALLE, jamais du module : deux salles peuvent
+    // etre tracees independamment, et rien ne survit a leur destruction.
+    this.traceArme = false;
+    this.tracePar = "";
+    this.traceT = 0;
+    this.traceVu = null;
+  }
+
+  armerTrace(client, on) {
+    const veut = !!on;
+    if (this.traceArme === veut) return;
+    this.traceArme = veut;
+    this.tracePar = veut ? client.name : "";
+    this.broadcast({ t: "traceState", on: veut ? 1 : 0, par: this.tracePar });
+    this.hooks.log(`[${this.code}] mesure ${veut ? `armée par ${client.name}` : "désarmée"}`);
+    if (veut && this.phase === PHASE_ROUND) this.traceDebut();
+    if (!veut) this.traceFin("desarmee");
+  }
+
+  traceLigne(obj) {
+    if (this.traceArme) this.hooks.trace(this, obj);
+  }
+
+  // L'EN-TETE PORTE TOUT CE QU'UNE SIMULATION DOIT REJOUER : difficulte,
+  // variante de script, biome ET graine (la geometrie se regenere), effectif,
+  // classes, et le profil meta de chaque compte — une ligne achetee mais non
+  // equipee ne s'applique pas, donc le lire du profil ne suffirait pas.
+  traceDebut() {
+    const s = this.state;
+    this.traceVu = {
+      niveau: s.level, segment: s.segment, bossKind: -1, bossPhase: 0, bossT: 0,
+      event: -1, meteo: s.weather ? s.weather.id : -1,
+      aterre: new Set(), morts: new Map(), mech: new Map(),
+    };
+    this.traceT = 0;
+    this.traceLigne({
+      k: "debut",
+      version: VERSION,
+      salle: this.code,
+      manche: this.roundNumber,
+      quand: new Date().toISOString(),
+      difficulte: s.diffIndex,
+      variante: DIFFICULTIES[s.diffIndex]?.script ?? "normal",
+      biome: s.biomeIndex,
+      graine: s.seed,
+      effectif: s.players.size,
+      joueurs: [...s.players.values()].map(p => ({
+        id: p.id,
+        nom: this.clients.get(p.id)?.name ?? "",
+        cls: p.cls,
+        meta: this.clients.get(p.id)?.profile
+          ? { noyaux: this.clients.get(p.id).profile.cores ?? 0,
+              jalons: (this.clients.get(p.id).profile.milestones ?? []).length,
+              confort: [...(this.clients.get(p.id).profile.confort ?? [])] }
+          : null,
+      })),
+    });
+  }
+
+  traceFin(cause) {
+    if (!this.traceVu) return;
+    const s = this.state;
+    this.traceVu = null;
+    this.traceLigne({
+      k: "fin",
+      cause,
+      t: Math.round(s.time),
+      segment: s.segment,
+      niveau: s.level,
+      victoire: s.victory ? 1 : 0,
+      kills: s.totalKills,
+      boss: s.bossKills,
+      mecaniques: [...s.mechStats].map(([id, c]) => [id, c.pose, c.echec]),
+      lignes: this.scoreboardRows().map(r => ({
+        id: r.id, cls: r.cls, score: r.score, kills: r.kills, morts: r.deaths,
+        degats: r.damage, soins: r.heal, subisPar: r.hurtBy, cartes: r.cards,
+      })),
+    });
+  }
+
+  traceEchantillon() {
+    const s = this.state;
+    return {
+      k: "e",
+      t: Math.round(s.time * 10) / 10,
+      seg: s.segment,
+      beat: s.beat,
+      horde: Math.round(s.hordeTime),
+      niveau: s.level,
+      xp: Math.round(s.xp),
+      pop: s.enemies.length,
+      plafond: enemyCap(s.diffIndex, Math.max(1, s.players.size)),
+      vivants: s.aliveCount(),
+      kills: s.totalKills,
+      meteo: s.weather ? s.weather.id : -1,
+      ev: s.event ? s.event.id : -1,
+      boss: s.boss
+        ? { kind: s.boss.kind, hp: Math.round(s.boss.hp), max: Math.round(s.boss.maxHp),
+            phase: s.boss.phase, barres: s.boss.bars, t: Math.round(s.boss.fightT) }
+        : null,
+      joueurs: [...s.players.values()].map(p => ({
+        id: p.id,
+        hp: Math.round(p.hp),
+        max: Math.round(p.maxHp),
+        bouclier: Math.round(p.shield),
+        aterre: p.downed ? 1 : 0,
+        degats: Math.round(p.damageDealt),
+        soins: Math.round(p.healDealt),
+        kills: p.kills,
+        morts: p.deaths,
+        puissance: Math.round(s._playerPower(p) * 1000) / 1000,
+      })),
+    };
+  }
+
+  // TOUT SE DEDUIT D'UNE COMPARAISON AVEC L'IMAGE PRECEDENTE : la simulation ne
+  // sait pas qu'on l'observe, et n'a donc rien a emettre. Seuls poses et echecs
+  // de mecanique demandaient deux compteurs, faute d'etre observables du dehors.
+  traceTick(dt) {
+    if (!this.traceArme || this.phase !== PHASE_ROUND || !this.traceVu) return;
+    const s = this.state, vu = this.traceVu;
+    const t = Math.round(s.time * 10) / 10;
+
+    if (s.level !== vu.niveau) {
+      this.traceLigne({ k: "niveau", t, de: vu.niveau, a: s.level });
+      vu.niveau = s.level;
+    }
+    if (s.segment !== vu.segment) {
+      this.traceLigne({ k: "segment", t, de: vu.segment, a: s.segment });
+      vu.segment = s.segment;
+    }
+
+    const kind = s.boss ? s.boss.kind : -1;
+    if (kind !== vu.bossKind) {
+      if (kind >= 0) {
+        vu.bossT = s.time;
+        this.traceLigne({ k: "bossDebut", t, kind, barres: s.boss.bars,
+                          hp: Math.round(s.boss.maxHp), segment: s.segment });
+      } else {
+        this.traceLigne({ k: "bossFin", t, kind: vu.bossKind,
+                          duree: Math.round((s.time - vu.bossT) * 10) / 10,
+                          barresCassees: vu.bossPhase });
+      }
+      vu.bossKind = kind;
+      vu.bossPhase = 0;
+    } else if (s.boss && s.boss.phase !== vu.bossPhase) {
+      this.traceLigne({ k: "barre", t, kind, phase: s.boss.phase,
+                        hp: Math.round(s.boss.hp) });
+      vu.bossPhase = s.boss.phase;
+    }
+
+    const ev = s.event ? s.event.id : -1;
+    if (ev !== vu.event) {
+      this.traceLigne({ k: ev >= 0 ? "eventDebut" : "eventFin", t,
+                        id: ev >= 0 ? ev : vu.event, seg: s.segment, beat: s.beat });
+      vu.event = ev;
+    }
+    const meteo = s.weather ? s.weather.id : -1;
+    if (meteo !== vu.meteo) {
+      this.traceLigne({ k: "meteo", t, id: meteo, seg: s.segment });
+      vu.meteo = meteo;
+    }
+
+    for (const p of s.players.values()) {
+      const morts = vu.morts.get(p.id) ?? 0;
+      if (p.deaths > morts) {
+        vu.morts.set(p.id, p.deaths);
+        this.traceLigne({ k: "mort", t, id: p.id, n: p.deaths, src: p.lastSrc });
+      }
+      if (p.downed && !vu.aterre.has(p.id)) {
+        vu.aterre.add(p.id);
+        this.traceLigne({ k: "aterre", t, id: p.id, src: p.lastSrc });
+      } else if (!p.downed && vu.aterre.has(p.id)) {
+        vu.aterre.delete(p.id);
+        this.traceLigne({ k: "releve", t, id: p.id });
+      }
+    }
+
+    for (const [id, c] of s.mechStats) {
+      const av = vu.mech.get(id);
+      if (av && av.pose === c.pose && av.echec === c.echec) continue;
+      vu.mech.set(id, { pose: c.pose, echec: c.echec });
+      this.traceLigne({ k: "mech", t, id, pose: c.pose, echec: c.echec });
+    }
+
+    this.traceT += dt;
+    if (this.traceT >= 1) {
+      this.traceT = 0;
+      this.traceLigne(this.traceEchantillon());
+    }
   }
 
   perfArm() {
@@ -331,6 +523,8 @@ export class Room {
       script: DIFFICULTIES[vote.index]?.script ?? "normal",
       biome: this.biomeIndex,
       seed: this.seed,
+      trace: this.traceArme ? 1 : 0,
+      tracePar: this.tracePar,
       history: this.history.slice().reverse(),
       players: this.joined().map(c => ({
         id: c.id,
@@ -553,6 +747,7 @@ export class Room {
       difficulty: diff,
       warmup: WARMUP_S,
     });
+    if (this.traceArme) this.traceDebut();
     this.broadcast(this.lobbyPayload());
     this.hooks.occupancy(this);
     this.hooks.log(`[${this.code}] manche ${this.roundNumber} lancée — `
@@ -561,6 +756,7 @@ export class Room {
   }
 
   abortRound() {
+    this.traceFin("interrompue");
     this.phase = PHASE_LOBBY;
     this.setPaused(false);
     this.unlockClasses();
@@ -573,6 +769,7 @@ export class Room {
   }
 
   endRound() {
+    this.traceFin(this.state.victory ? "victoire" : "defaite");
     this.phase = PHASE_LOBBY;
     this.setPaused(false);
     this.unlockClasses();
@@ -681,17 +878,30 @@ export class Room {
         if (!offers || !p || !offers.includes(msg.id)) break;
         if (!this.state.takeCard(p, msg.id)) break;
 
+        // les deux REFUSEES comptent autant que la prise : c'est le couple qui
+        // dit ce qu'une carte vaut aux yeux d'un joueur.
+        this.traceLigne({ k: "carte", t: Math.round(this.state.time * 10) / 10,
+                          id, prise: msg.id, offertes: offers.slice(),
+                          niveau: this.state.level });
         this.cardPicked.add(id);
         this.broadcast(this.loadoutPayload());
         this.broadcast({ t: "cardsWait", pending: this.cardsPendingIds() });
         break;
       }
 
+      // n'importe qui dans la salle arme la mesure, et TOUT LE MONDE le voit :
+      // enregistrer la partie des autres sans le dire ne se fait pas.
+      case "trace":
+        this.armerTrace(client, msg.on);
+        break;
+
       case "buyRelic": {
         if (this.phase !== PHASE_MERCHANT) break;
         const p = this.state.players.get(id);
         if (!p || !this.state.relicOffers.has(id)) break;
         if (!this.state.buyRelic(p, msg.id)) break;
+        this.traceLigne({ k: "relique", t: Math.round(this.state.time * 10) / 10,
+                          id, achat: msg.id, boss: this.state.bossKills });
         this.merchantSend(id);
         this.broadcast({ t: "merchantWait", pending: this.merchantPendingIds() });
         break;
@@ -839,6 +1049,7 @@ export class Room {
         for (const a of this.state.alerts) this.broadcast({ t: "alert", ...a });
         this.state.alerts.length = 0;
       }
+      this.traceTick(dt);
       if (this.briefOpen && this.state.warmup <= 0) this.syncBrief();
       if (this.state.victory) this.endRound();
       else if (this.state.gameOver) this.endRound();

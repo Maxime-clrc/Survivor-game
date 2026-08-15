@@ -518,6 +518,7 @@ export class GameState {
     this._biomeHazards = this.biome.hazards;
     this._statG = null;
     this._groundOut = { slow: 1, slip: false };
+    this.mechStats = new Map();
     this.hazardTick = 0;
     this.weather = null;
 
@@ -4147,6 +4148,9 @@ export class GameState {
   _alert(mech, dur = 0) {
     const def = mechAt(mech);
     if (!def) return;
+    // compte AVANT le Silence : la mecanique est posee meme quand elle ne
+    // s'annonce pas, et c'est la pose qui sert de denominateur au taux d'echec.
+    this._mechCompte(mech, "pose");
     // le Silence : une mecanique deja vue dans ce combat ne s'annonce plus. Le
     // telegraphe au sol reste, seule l'annonce disparait.
     if (this.boss && this.boss.silence) {
@@ -4219,12 +4223,23 @@ export class GameState {
   // mecaniques d'OCCUPATION restent collectives — la grammaire les nomme deja,
   // ce sont les `colonne`, et rien d'autre n'a besoin d'etre declare.
   _mechFail(fautifs, ratio, mech = -1) {
+    this._mechCompte(mech, "echec");
     const P = this._bossProfil();
     const forme = mech >= 0 ? mechAt(mech)?.forme : null;
     const collectif = P.echec === "collectif"
       || (P.echec === "mixte" && forme === "colonne");
     const cibles = collectif ? this._alivePlayers() : fautifs;
     for (const p of cibles) this._mechHit(p, ratio);
+  }
+
+  // LA BONNE MESURE D'UNE MECANIQUE DE BOSS EST L'ECART entre un joueur qui lit
+  // les annonces et un joueur qui les ignore ; faute de pouvoir mesurer ca sur
+  // un bot, on compte au moins poses et echecs. Deux compteurs, aucun systeme.
+  _mechCompte(mech, quoi) {
+    if (mech < 0) return;
+    let c = this.mechStats.get(mech);
+    if (!c) this.mechStats.set(mech, c = { pose: 0, echec: 0 });
+    c[quoi]++;
   }
 
   _mark(o) {

@@ -1393,6 +1393,38 @@
                    saturation : step median 0,83 -> 0,42 ms, p99 1,44 -> 0,72,
                    soit moitie moins
 
+     0.11.3 lot 04 MESURER DE VRAIES PARTIES. `?mesure` dans l'URL arme une
+                   trace JSONL cote SERVEUR : le client ne voit qu'un instantane
+                   deja coupe et agrege, donc une trace prise au navigateur ne
+                   serait pas comparable a un `GameState` de simulation.
+                   Une ligne = un objet JSON : une manche interrompue laisse un
+                   fichier exploitable au lieu d'un tableau tronque, et un script
+                   de mesure le relit en une ligne de code.
+                   Le contrat de `Room` tient : elle produit des objets et ne
+                   connait ni disque, ni chemin, ni format de nom — le HUB reste
+                   le seul ecrivain, comme pour la progression. Nouveau hook,
+                   `trace`. L'etat est attache a la SALLE, deux salles se
+                   tracent independamment.
+                   TOUT SE DEDUIT D'UNE COMPARAISON AVEC L'IMAGE PRECEDENTE :
+                   niveau, segment, boss, barre, evenement, meteo, mise a terre,
+                   relevement, mort. La simulation ne sait pas qu'on l'observe.
+                   Seules poses et echecs de mecanique n'etaient pas observables
+                   du dehors et demandaient deux compteurs (`mechStats`, pose
+                   comptee AVANT le Silence : la mecanique existe meme quand elle
+                   ne s'annonce pas). Les cartes REFUSEES sont enregistrees avec
+                   la prise — c'est le couple qui dit ce qu'une carte vaut.
+                   La mesure SE VOIT (`#trace`, pendant la manche, contrairement
+                   a la version) : enregistrer la partie des autres sans le dire
+                   ne se fait pas. Etat porte aussi par le salon, pour qui arrive
+                   apres.
+                   AU PASSAGE, UN VRAI BUG : deux `case "lobby"` cohabitaient
+                   dans le routeur depuis le decoupage du client (0.8.0). JS
+                   retient le PREMIER, donc le bloc qui differait par la file du
+                   monde etait mort et le vivant tombait sans `break` dans
+                   `serverInfo` — `rtt` indefini a chaque salon, historique de
+                   manches jamais mis a jour, et l'invariant « le salon s'applique
+                   a la reception SAUF si la file n'est pas vide » viole
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1401,4 +1433,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.11.2";
+export const VERSION = "0.11.3";

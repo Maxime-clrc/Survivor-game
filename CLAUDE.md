@@ -61,6 +61,7 @@ hub.js                 registre des salles, comptes, progression — SEUL a ecri
 room.js                UNE partie : GameState, clients, phases, pause, tick
 ws_lite.js             WebSocket minimal (RFC 6455 + permessage-deflate), pas de TLS
 perf.js                echantillonnage CPU
+telemetry.js           trace JSONL d'une VRAIE partie — serveur SEUL, hub ecrivain
 version_check.js       refuse un deploiement sans bump
 progress_store.js      persistance Supabase — serveur SEUL, memoire + replique
 shared/game_state.js   LOGIQUE PURE — importee par le serveur ET le navigateur
@@ -955,6 +956,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | transition | `round`/`roundAbort`/`roundEnd`/`cards`/`cardsWait` | `pushWorld()` — jamais à la réception |
 | sortie de manche | `leaveRound` : `removePlayer` + spectateur | bouton du menu pause, avec confirmation |
 | version | `VERSION` (`shared/version.js`), clés `version` et `commit` du `welcome` | `#version` + `updateVersion()` : ambre `.stale` **sans le hash** |
+| mesure | `trace` → `traceState{on,par}` ; clés `trace`/`tracePar` du salon ; hook `trace`, `telemetry.js` | `?mesure` dans l'URL, `#trace`, `updateTrace()` |
 
 **Registres purement CLIENTS** (ils se déduisent du snapshot ou de la liste de
 cartes, déjà diffusée) : image de sprite (`plan()` dans `sprites.js`, adressée par

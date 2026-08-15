@@ -190,6 +190,11 @@ export function updateVersion() {
     ? `v${VERSION} — serveur v${serverVersion} · recharge la page`
     : `v${VERSION}${serverCommit ? ` (${serverCommit})` : ""}`;
 }
+const traceEl = document.getElementById("trace");
+export function updateTrace(on, par) {
+  traceEl.hidden = !on;
+  traceEl.textContent = on ? `● MESURE${par ? ` · ${par}` : ""}` : "";
+}
 const SAISIE_TEXTE = new Set(["", "text", "password", "search", "email", "url", "tel", "number"]);
 export function enSaisie() {
   const el = document.activeElement;
