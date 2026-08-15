@@ -400,6 +400,16 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 
 - **Les snapshots sont des tableaux positionnels.** On ajoute des champs **à la
   fin, jamais au milieu** ; le client lit avec un repli (`a[16] ?? 0`).
+- **L'instantané est FILTRÉ PAR VUE** (`snapshot(vue)`, `vueDe()` dans
+  `room.js`). Le rectangle est celui que le client affiche vraiment — centré sur
+  le joueur **puis écrêté à l'arène**, comme `updateCamera` et `_pushOffScreen`
+  — élargi de `CULL_MARGE` puis **arrondi vers l'extérieur** sur `CULL_GRID`,
+  ce qui fait qu'une équipe groupée ne paie qu'**une** compression. Restent
+  entiers : joueurs, boss, zones, marqueurs. `vue` absent = instantané complet.
+- **Une absence n'est plus une mort côté client** (`dansVue` dans `events.js`,
+  `opts.vue`) : un corps filtré peut être simplement sorti du champ. La marge du
+  client est **plus étroite** que celle du serveur, donc un corps filtré n'est
+  jamais dans la vue. Vaut aussi pour le ramassage d'un bonus et le son de tir.
 - **Les tableaux exportés sont ordonnés et l'index circule** : `POWERUP_TYPES`,
   `ENEMY_TYPES`, `DIFFICULTIES`, `CLASSES`, `STATUSES`, `BOSS_ROSTER`, `MECHS`,
   `EVENTS`, `BIOMES`, `WEATHERS`, `DAMAGE_SOURCES`. Insérer au milieu réécrit le

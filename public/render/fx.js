@@ -42,6 +42,12 @@ function stepTimeWarp(dt) {
 export const pump = new EventPump(handleEvent, {
   get myId() { return myId; },
   get hazards() { return hazardsActifs(); },
+  // le rectangle REELLEMENT affiche : `events.js` s'en sert pour ne pas lire
+  // une entite filtree par le serveur comme une entite morte.
+  get vue() {
+    return { x0: camera.x0, y0: camera.y0,
+             x1: camera.x0 + CFG.VIEW_W, y1: camera.y0 + CFG.VIEW_H };
+  },
   hazardState,
 });
 function addShake(mag) {

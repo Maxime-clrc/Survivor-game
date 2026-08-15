@@ -6358,7 +6358,12 @@ export class GameState {
     return out;
   }
 
-  snapshot() {
+  // `vue` FILTRE CE QUI EST LOIN, et rien d'autre. Ce qui reste entier :
+  // les JOUEURS (les fleches de coequipiers hors champ les lisent), le boss,
+  // les ZONES et les MARQUEURS (un telegraphe rate est une perte de jeu, ils ne
+  // pesent qu'un dixieme du paquet), et tout ce qui tient en quelques entrees.
+  // `vue` absent = instantane complet, exactement comme avant.
+  snapshot(vue = null) {
     const r1 = v => Math.round(v * 10) / 10;
     const r2 = v => Math.round(v * 100) / 100;
 
@@ -6366,6 +6371,18 @@ export class GameState {
       let n = a.length;
       while (n > keep && !a[n - 1]) n--;
       return n === a.length ? a : a.slice(0, n);
+    };
+
+    const filtrer = (list, rayon, forme) => {
+      if (!vue) return list.map(forme);
+      const out = [];
+      for (const o of list) {
+        const r = rayon(o);
+        if (o.x + r < vue.x0 || o.x - r > vue.x1
+            || o.y + r < vue.y0 || o.y - r > vue.y1) continue;
+        out.push(forme(o));
+      }
+      return out;
     };
 
     return {
@@ -6404,11 +6421,14 @@ export class GameState {
         r2(p.fireInterval),
         p.critKills,
       ]),
-      e: this.enemies.map(e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
-                                e.type + (e.elite ? 100 : 0),
-                                r2(e.ang), e.hitSeq, e.critSeq], 7)),
-      b: this.bullets.map(b => [b.id, r1(b.x), r1(b.y), b.owner]),
-      s: this.shots.map(s => [s.id, r1(s.x), r1(s.y)]),
+      e: filtrer(this.enemies, e => e.r,
+        e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
+                       e.type + (e.elite ? 100 : 0),
+                       r2(e.ang), e.hitSeq, e.critSeq], 7)),
+      b: filtrer(this.bullets, () => CFG.BULLET_RADIUS,
+        b => [b.id, r1(b.x), r1(b.y), b.owner]),
+      s: filtrer(this.shots, () => CFG.BULLET_RADIUS,
+        s => [s.id, r1(s.x), r1(s.y)]),
       z: this.zones.map(z => trimTail([
         z.id, r1(z.x), r1(z.y), Math.round(z.r), r2(z.warn), r2(z.blast),
         z.shape ?? 0, Math.round(z.w ?? 0), Math.round(z.h ?? 0),
@@ -6418,7 +6438,8 @@ export class GameState {
                                r2(m.max > 0 ? Math.max(0, m.t) / m.max : 0), m.mech,
                                m.a, m.b, m.need, m.cur,
                                r2(m.maxHp > 0 ? Math.max(0, m.hp) / m.maxHp : 0)]),
-      w: this.powerups.map(w => [w.id, r1(w.x), r1(w.y), w.type]),
+      w: filtrer(this.powerups, () => CFG.POWERUP_RADIUS,
+        w => [w.id, r1(w.x), r1(w.y), w.type]),
       hv: this.harvests.map(h => [h.id, r1(h.x), r1(h.y), h.kind,
         r2(h.kind === 0 ? h.hp / h.maxHp : h.prog)]),
       tu: this.turrets.map(t => [t.id, r1(t.x), r1(t.y), r2(t.life / CFG.TURRET_LIFE), r2(t.ang)]),
@@ -6430,7 +6451,12 @@ export class GameState {
       bm: this.bombs.map(b => [b.id, r1(b.x), r1(b.y), r2(b.t / b.max), r1(b.tx), r1(b.ty)]),
       dr: this.drones.filter(d => d.dead <= 0)
         .map(d => [d.id, r1(d.x), r1(d.y), r2(d.ang), d.kind, d.owner]),
-      f: this.effects.map(f => f.kind === 3 || f.kind === 13
+      // un arc (ricochet, salve) porte un SECOND point : son rayon utile couvre
+      // les deux bouts, sinon on jette un trait dont l'autre extremite se voit.
+      f: filtrer(this.effects,
+        f => f.x2 === undefined ? (f.r ?? 0)
+          : Math.max(f.r ?? 0, Math.hypot(f.x2 - f.x, f.y2 - f.y)),
+        f => f.kind === 3 || f.kind === 13
         ? [f.id, r1(f.x), r1(f.y), Math.round(f.r ?? 0), r2(f.life / f.max), f.kind, r1(f.x2), r1(f.y2)]
         : trimTail([f.id, r1(f.x), r1(f.y), Math.round(f.r), r2(f.life / f.max), f.kind ?? 0,
                     0, 0, f.n ?? 0], 6)),

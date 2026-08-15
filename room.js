@@ -29,6 +29,14 @@ const COLOR_DPS_A = 2;
 const COLOR_DPS_B = 3;
 
 const PAUSE_MAX_MS = 5 * 60 * 1000;
+
+// Ce que la marge doit couvrir, additionne : les 110 ms d'interpolation sur le
+// mobile le plus rapide, le retard de la camera lissee, et l'ecart tolere de la
+// prediction locale (recalage a 90 px). Environ 200 px de pire cas ; 300 laisse
+// de quoi. La grille est ce qui fait qu'une equipe groupee ne paie qu'UNE
+// compression.
+const CULL_MARGE = 300;
+const CULL_GRID = 256;
 const SNAPSHOT_INTERVAL = 1 / CFG.SNAPSHOT_HZ;
 
 const WARMUP_S = 20;
@@ -272,6 +280,48 @@ export class Room {
     this.perf.defl = 0;
   }
 
+
+  // LE RECTANGLE EST CELUI QUE LE CLIENT VA VRAIMENT AFFICHER : centre sur le
+  // joueur puis ECRETE a l'arene, comme `updateCamera` et comme
+  // `_pushOffScreen`. Centrer sans ecreter laisserait, dans un coin de l'arene,
+  // une bande visible a l'ecran que le serveur aurait filtree.
+  //
+  // La cle est ARRONDIE VERS L'EXTERIEUR sur une grille : deux joueurs proches
+  // partagent alors un rectangle, donc un seul `prepareMessage`. Arrondir vers
+  // l'exterieur n'enleve jamais rien, ca ajoute au pire une bande.
+  vueDe(client) {
+    const p = this.state.players.get(client.id);
+    if (!p) return null;
+    const vx = Math.max(0, Math.min(CFG.ARENA_W - CFG.VIEW_W, p.x - CFG.VIEW_W / 2));
+    const vy = Math.max(0, Math.min(CFG.ARENA_H - CFG.VIEW_H, p.y - CFG.VIEW_H / 2));
+    const g = CULL_GRID;
+    const x0 = Math.floor((vx - CULL_MARGE) / g) * g;
+    const y0 = Math.floor((vy - CULL_MARGE) / g) * g;
+    const x1 = Math.ceil((vx + CFG.VIEW_W + CULL_MARGE) / g) * g;
+    const y1 = Math.ceil((vy + CFG.VIEW_H + CULL_MARGE) / g) * g;
+    return { x0, y0, x1, y1 };
+  }
+
+  broadcastSnapshot() {
+    const parVue = new Map();
+    for (const c of this.clients.values()) {
+      const vue = this.vueDe(c);
+      const cle = vue ? `${vue.x0},${vue.y0},${vue.x1},${vue.y1}` : "*";
+      let prep = parVue.get(cle);
+      if (!prep) {
+        const snap = this.state.snapshot(vue);
+        snap.ph = this.phase;
+        prep = prepareMessage(JSON.stringify(snap));
+        parVue.set(cle, prep);
+        if (PERF_ON) {
+          if (prep.plain.length > this.perf.clair) this.perf.clair = prep.plain.length;
+          const dl = prep.deflated ? prep.deflated.length : 0;
+          if (dl > this.perf.defl) this.perf.defl = dl;
+        }
+      }
+      c.conn.sendPrepared(prep);
+    }
+  }
 
   broadcast(obj) {
     const prep = prepareMessage(JSON.stringify(obj));
@@ -1080,11 +1130,7 @@ export class Room {
         if (this.perf.lastSend > 0) this.perf.esp.add(t - this.perf.lastSend);
         this.perf.lastSend = t;
       }
-      if (this.clients.size > 0 && this.phase === PHASE_ROUND) {
-        const snap = this.state.snapshot();
-        snap.ph = this.phase;
-        this.broadcast(snap);
-      }
+      if (this.clients.size > 0 && this.phase === PHASE_ROUND) this.broadcastSnapshot();
       if (this.phase === PHASE_ROUND && this.state.bossDmg.size > 0) this.state.bossDmg.clear();
     }
   }

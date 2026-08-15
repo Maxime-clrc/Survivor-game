@@ -1425,6 +1425,37 @@
                    manches jamais mis a jour, et l'invariant « le salon s'applique
                    a la reception SAUF si la file n'est pas vide » viole
 
+     0.11.4 lot 05 L'INSTANTANE SE FILTRE PAR VUE. `snapshot(vue)` jette ce qui
+                   est loin ; `vue` absent rend l'instantane complet, au bit
+                   pres. Le rectangle est celui que le client AFFICHE vraiment :
+                   centre sur le joueur puis ECRETE a l'arene, comme
+                   `updateCamera` et comme `_pushOffScreen` — centrer sans
+                   ecreter laisserait, dans un coin, une bande visible a l'ecran
+                   que le serveur aurait filtree.
+                   RESTENT ENTIERS : les joueurs (les fleches de coequipiers hors
+                   champ les lisent), le boss, les ZONES et les MARQUEURS. Un
+                   telegraphe rate est une perte de jeu, et ils ne pesent qu'un
+                   dixieme du paquet — le refus est deliberé.
+                   LA CLE EST ARRONDIE VERS L'EXTERIEUR sur une grille de 256 px,
+                   donc deux joueurs proches partagent un rectangle et une seule
+                   compression : groupee, l'equipe coute exactement ce qu'elle
+                   coutait avant. Arrondir vers l'exterieur n'enleve jamais rien.
+                   COTE CLIENT, UNE ABSENCE N'EST PLUS UNE MORT. `diffSnapshots`
+                   lisait tout ennemi disparu comme un mort — filtre, il aurait
+                   fabrique une explosion et un son a chaque sortie de champ.
+                   `dansVue` borne l'evenement a la vue, avec une marge PLUS
+                   ETROITE que celle du serveur : un corps filtre n'y est donc
+                   jamais. Meme correctif pour le ramassage d'un bonus et pour le
+                   son de tir, qui se lisaient aussi sur une apparition.
+                   Mesure a 736 corps : equipe eclatee aux quatre coins,
+                   7,4 -> 2,4 Mbit/s pour la salle, soit 67 % ; equipe groupee,
+                   0 %, mais une seule compression au lieu de quatre. Le filtrage
+                   paie exactement quand l'equipe se separe et ne coute rien
+                   quand elle ne se separe pas. Verifie : sur 8400 instantanes a
+                   quatre joueurs, camera du client rejouee a l'identique et
+                   retard d'interpolation compris, RIEN de ce qui est a l'ecran
+                   ne manque du paquet
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1433,4 +1464,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.11.3";
+export const VERSION = "0.11.4";

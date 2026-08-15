@@ -7,14 +7,27 @@ const MAX_DEATH = 40;
 const PICKUP_NEAR = 80;
 const BULLET_CLAIM = 90;
 
+// DEPUIS QUE LE SERVEUR FILTRE PAR VUE, UNE ABSENCE N'EST PLUS UNE MORT : un
+// corps peut simplement etre sorti du champ. On ne compte l'evenement que si le
+// corps etait DANS la vue, et la marge du serveur est plus large que celle-ci
+// — un corps filtre est donc toujours au-dela, jamais dedans.
+const VUE_MARGE = 140;
+function dansVue(v, x, y) {
+  if (!v) return true;
+  return x >= v.x0 - VUE_MARGE && x <= v.x1 + VUE_MARGE
+      && y >= v.y0 - VUE_MARGE && y <= v.y1 + VUE_MARGE;
+}
+
 export function diffSnapshots(a, b, opts = {}) {
   const out = [];
   if (!a || !b) return out;
   if (b.recvAt - a.recvAt > EVENT_GAP_MS) return out;
 
+  const vue = opts.vue ?? null;
+
   let firstNew = null;
   for (const [id, bu] of b.bullets) {
-    if (!a.bullets.has(id)) { firstNew = bu; break; }
+    if (!a.bullets.has(id) && dansVue(vue, bu.x, bu.y)) { firstNew = bu; break; }
   }
   if (firstNew) out.push({ t: "tir", x: firstNew.x, y: firstNew.y });
 
@@ -60,6 +73,7 @@ export function diffSnapshots(a, b, opts = {}) {
   for (const [id, ea] of a.enemies) {
     if (nDeath >= MAX_DEATH) break;
     if (b.enemies.has(id)) continue;
+    if (!dansVue(vue, ea.x, ea.y)) continue;
     const m = { t: "mort", id, x: ea.x, y: ea.y, type: ea.type, elite: ea.elite,
                 ang: ea.ang, dmg: Math.max(0, ea.hp), maxHp: ea.maxHp, crit: false,
                 owner: auteurDe(ea.x, ea.y) };
@@ -132,6 +146,7 @@ export function diffSnapshots(a, b, opts = {}) {
   const wb = new Set(b.powerups.map(w => w.id));
   for (const w of a.powerups) {
     if (wb.has(w.id)) continue;
+    if (!dansVue(vue, w.x, w.y)) continue;
     let near = false;
     for (const [, p] of b.players) {
       if ((p.x - w.x) ** 2 + (p.y - w.y) ** 2 < PICKUP_NEAR * PICKUP_NEAR) { near = true; break; }
