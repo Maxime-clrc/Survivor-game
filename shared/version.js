@@ -1703,6 +1703,51 @@
                    Les six appelants de `drawArc` y passent, et le point de
                    passage unique reste unique
 
+     0.12.5 lot 06 MA PROPRE COQUE DU LOT 05 ETAIT UNE JAUGE, et c'est la regle
+                   du depot que j'avais enfreinte : la ligne de partage est « ou
+                   VIT l'element ». La charge chiffree vit deja au HUD ; la
+                   repeter autour du personnage en arc qui se vide, c'est mettre
+                   de l'ECRAN dans le MONDE. Elle redevient une BULLE — la charge
+                   ne s'y lit pas, elle s'y SENT : densite du degrade, epaisseur
+                   de membrane et amplitude d'ondulation, jamais un remplissage.
+                   Trois choses la font passer pour un volume : un degrade radial
+                   creux au centre et dense au bord (seul moyen qu'un disque vu
+                   de dessus se lise comme une sphere), un rayon qui ondule par
+                   somme de deux sinus INCOMMENSURABLES — un cercle parfait se
+                   lit comme de l'interface — et DEUX reflets, l'arc haut-gauche
+                   de la charte plus un court en bas a droite. Un seul point de
+                   lumiere ne fabrique pas de relief. Zero allocation : le rayon
+                   est une fonction de l'angle, du temps et de l'identifiant.
+                   UNE LETTRE DANS UNE CASE EST UN RACCOURCI CLAVIER, PAS UNE
+                   ICONE. Les pips affichaient « ESP / A / E / 3 » : ca ne se
+                   reconnait pas du coin de l'oeil, et c'est pourtant la seule
+                   facon dont on regarde ses recharges. Dix glyphes entrent dans
+                   `icons.js`, dessines au canvas comme les bonus au sol — le
+                   verbe de la competence, pas son initiale. La touche reste
+                   ecrite, en petit, dans un coin. Une competence indisponible se
+                   DESATURE au lieu de disparaitre : on la reconnait encore, on
+                   sait juste qu'elle ne part pas.
+                   Les glyphes sont passes au test de la SILHOUETTE avant d'etre
+                   gardes, comme les sprites : rendus hors navigateur en noir sur
+                   blanc. Deux ont ete refaits — la Salve etait asymetrique (une
+                   rotation fausse), la Vague de soin etait un pate.
+                   LA LISTE D'EQUIPE SE LIT PENDANT QU'ON ESQUIVE. Elle n'avait
+                   ni role ni chiffre : le glyphe de classe passe en tete, parce
+                   que c'est le ROLE qui decide si on va aider, et les PV
+                   s'ecrivent en CHIFFRES — « il lui reste 40 PV » se decide, « il
+                   est a un quart » se devine. Le score reste mais descend au
+                   dernier rang de lecture. Un fond decolle enfin les lignes du
+                   monde : des noms clairs sur un sol clair ne se lisaient pas.
+                   LE CHIFFRE DE PV PASSE SUR LA BARRE au lieu d'a cote : l'oeil
+                   faisait deux sauts pour une seule information. Le bloc de soi
+                   devient un OBJET pose sur le monde — fond, lisere, liseré cyan
+                   qui dit « c'est toi » comme au bilan et dans la build. Angles
+                   DURS partout : la derogation de rayon appartient aux menus, le
+                   HUD garde ses 2 px.
+                   AU PASSAGE, SIX SELECTEURS MORTS : `iconImg` rend une `<img>`,
+                   et le CSS visait `canvas` depuis le debut. Aucune des icones
+                   posees dans le HUD n'avait donc son `display: block`
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1711,4 +1756,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.12.4";
+export const VERSION = "0.12.5";

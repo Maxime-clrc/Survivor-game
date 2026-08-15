@@ -862,50 +862,75 @@ function markGauge(x, y, k, col) {
   ctx.fillStyle = col;
   ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, k)), h);
 }
-// UNE COQUE, PAS UN CERCLE BLEU. Trois choses la separent d'un trait : elle est
-// FACETTEE (des plaques discretes, donc une charge qui se COMPTE au lieu de se
-// deviner), elle prend la lumiere en arc haut-gauche comme toute la charte, et
-// elle encaisse VISIBLEMENT — la derniere touche allume le liseré.
-const SHIELD_PLATES = 9;
-const SHIELD_GAP = 0.10;
+// UNE BULLE, PAS UNE JAUGE. La charge chiffree vit deja au HUD : la repeter
+// autour du personnage en arc qui se vide, c'est mettre de l'ECRAN dans le
+// MONDE. Ici la charge ne se lit pas, elle se SENT — densite, epaisseur de bord
+// et amplitude d'ondulation, jamais un remplissage.
 const SHIELD_HIT_MS = 260;
+const SHIELD_LOBES = 7;
+
+// le rayon ondule par somme de deux sinus INCOMMENSURABLES : un cercle parfait
+// se lit comme de l'interface, une membrane qui respire se lit comme de la
+// matiere. Aucune allocation — fonction de l'angle, du temps et de l'identifiant.
+function shieldR(base, a, tm, id, amp) {
+  return base
+    + Math.sin(a * SHIELD_LOBES + tm * 1.7 + id) * amp
+    + Math.sin(a * 3 - tm * 1.1 + id * 2.3) * amp * 0.6;
+}
+
+function shieldPath(x, y, base, tm, id, amp) {
+  ctx.beginPath();
+  for (let i = 0; i <= 28; i++) {
+    const a = (i / 28) * Math.PI * 2;
+    const r = shieldR(base, a, tm, id, amp);
+    const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
 
 function drawShieldShell(x, y, p, tm) {
   const k = Math.max(0, Math.min(1, p.shield / CFG.SHIELD_POOL));
   const col = POWERUP_COLOR.shield;
   const frappe = Math.max(0, 1 - (performance.now() - (shieldHit.get(p.id) ?? -1e9)) / SHIELD_HIT_MS);
-  // rotation lente et respiration : une coque inerte se lit comme de l'interface
-  const spin = tm * 0.35 + p.id * 0.7;
-  const r = RING_SHIELD + Math.sin(tm * 2.2 + p.id) * 0.6 + frappe * 2.5;
-  const pleines = k * SHIELD_PLATES;
+  const base = RING_SHIELD + 1 + frappe * 3;
+  const amp = 0.7 + k * 0.8 + frappe * 2.2;
 
   ctx.save();
-  ctx.lineCap = "butt";
 
-  ctx.fillStyle = alpha(col, 0.05 + k * 0.05 + frappe * 0.18);
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  // le VOLUME : un degrade radial creux au centre et dense au bord. C'est le
+  // seul moyen qu'un disque plat vu de dessus se lise comme une sphere.
+  const g = ctx.createRadialGradient(x, y, base * 0.35, x, y, base);
+  g.addColorStop(0, alpha(col, 0.03 + k * 0.05));
+  g.addColorStop(0.72, alpha(col, 0.07 + k * 0.10 + frappe * 0.10));
+  g.addColorStop(1, alpha(col, 0.22 + k * 0.26 + frappe * 0.35));
+  ctx.fillStyle = g;
+  shieldPath(x, y, base, tm, p.id, amp);
+  ctx.fill();
 
-  const pas = (Math.PI * 2) / SHIELD_PLATES;
-  for (let i = 0; i < SHIELD_PLATES; i++) {
-    // la plaque partielle se remplit, les suivantes restent en creux : le joueur
-    // LIT sa charge au lieu de l'estimer sur un arc continu.
-    const part = Math.max(0, Math.min(1, pleines - i));
-    const a0 = spin + i * pas + SHIELD_GAP / 2;
-    const a1 = a0 + pas - SHIELD_GAP;
-    ctx.strokeStyle = alpha(col, part > 0 ? 0.45 + part * 0.45 + frappe * 0.4 : 0.10);
-    ctx.lineWidth = part > 0 ? 3 + part * 1.4 : 1.2;
-    ctx.beginPath();
-    ctx.arc(x, y, r, a0, part > 0 ? a0 + (a1 - a0) * part : a1);
-    ctx.stroke();
-  }
-
-  // la LUMIERE en arc haut-gauche, comme sur toute creature de la charte
   ctx.globalCompositeOperation = "lighter";
-  ctx.strokeStyle = alpha(COMBAT.flash, 0.16 + k * 0.14 + frappe * 0.5);
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(x, y, r - 1.5, Math.PI * 1.05, Math.PI * 1.55);
+
+  // la MEMBRANE : le bord porte la charge par son epaisseur, pas par sa longueur
+  ctx.strokeStyle = alpha(col, 0.40 + k * 0.30 + frappe * 0.45);
+  ctx.lineWidth = 1.2 + k * 1.6 + frappe * 2;
+  shieldPath(x, y, base, tm, p.id, amp);
   ctx.stroke();
+
+  // le SPECULAIRE, en arc haut-gauche comme toute la charte : c'est lui qui
+  // dit « surface courbe » plutot que « anneau ».
+  ctx.strokeStyle = alpha(COMBAT.flash, 0.20 + k * 0.18 + frappe * 0.55);
+  ctx.lineWidth = 1.6 + k;
+  ctx.beginPath();
+  ctx.arc(x, y, base - 2, Math.PI * 1.08, Math.PI * 1.52);
+  ctx.stroke();
+  // un second reflet court, en bas a droite : deux points de lumiere fabriquent
+  // le relief qu'un seul ne donne pas.
+  ctx.strokeStyle = alpha(COMBAT.flash, 0.10 + k * 0.10);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(x, y, base - 2, Math.PI * 0.18, Math.PI * 0.36);
+  ctx.stroke();
+
   ctx.restore();
 }
 

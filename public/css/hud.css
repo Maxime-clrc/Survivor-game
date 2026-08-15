@@ -361,10 +361,27 @@
   gap: var(--sp-2);
 }
 
-.teamRow { display: grid; grid-template-columns: 1fr auto; gap: 0 var(--sp-2); }
+/* la liste se lit EN UN COUP D'OEIL pendant qu'on esquive : glyphe de classe,
+   nom, chiffre de PV, puis la jauge. Le fond la decolle du monde — sans lui,
+   des noms clairs sur un sol clair deviennent illisibles. */
+.teamRow {
+  display: grid;
+  grid-template-columns: 16px 1fr auto auto;
+  gap: 0 var(--sp-2);
+  align-items: center;
+  padding: var(--sp-1) var(--sp-2);
+  background: color-mix(in srgb, var(--bg-void) 46%, transparent);
+  border-left: 2px solid transparent;
+}
+
+/* le cyan dit « c'est toi », ici comme au bilan et dans la build. */
+.teamRow.me { border-left-color: var(--go); background: color-mix(in srgb, var(--bg-void) 62%, transparent); }
+
+.teamRow .cls { display: flex; }
+.teamRow .cls img { display: block; }
 
 .teamRow .nom {
-  font-size: var(--t-s);            
+  font-size: var(--t-s);
   letter-spacing: var(--track-title);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -373,7 +390,21 @@
 
 .teamRow.me .nom { font-weight: 700; }
 
-.teamRow .score { font-size: var(--t-xs); color: var(--text-dim); }
+.teamRow .pv {
+  font-size: var(--t-s);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.teamRow .pv.downed { font-size: var(--t-xs); font-weight: 400; }
+
+/* le score reste, mais au dernier rang de lecture : en manche c'est le PV qui
+   decide d'une action, jamais le score. */
+.teamRow .score {
+  font-size: var(--t-xs);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
 
 .teamRow .bar {
   grid-column: 1 / -1;
@@ -381,8 +412,9 @@
   margin-top: var(--sp-1);
 }
 
+.teamRow .tags { grid-column: 1 / -1; }
+
 .teamRow .tags {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: var(--sp-1);
@@ -392,9 +424,11 @@
   color: var(--text-dim);
 }
 
+.teamRow .tags:empty { display: none; }
+
 .teamRow .tags .doom { margin-left: auto; font-weight: 700; }
 .teamRow .tags .stack { font-weight: 700; font-size: var(--t-xs); }
-.teamRow .tags canvas { display: block; }
+.teamRow .tags img { display: block; }
 
 
 #hudAlerts {
@@ -586,7 +620,7 @@
   font-weight: 700;
 }
 
-#selfEffects .badge canvas, #selfBuffs .badge canvas { display: block; }
+#selfEffects .badge img, #selfBuffs .badge img { display: block; }
 #selfEffects .badge span:empty, #selfBuffs .badge span:empty { display: none; }
 
 /* LA DUREE RESTANTE en balayage, comme les recharges : un effet sans duree
@@ -613,9 +647,20 @@
   to   { opacity: 0; transform: translateY(-6px) scale(0.8); }
 }
 
-#selfMain { display: flex; align-items: flex-end; gap: var(--sp-3); }
+/* le bloc de soi est un OBJET pose sur le monde, pas des barres flottantes : un
+   fond opaque, un liseré, et le chiffre de PV sur la barre elle-meme. Angles
+   DURS — la derogation de rayon appartient aux menus, pas au HUD. */
+#selfMain {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  padding: var(--sp-2);
+  background: color-mix(in srgb, var(--bg-void) 55%, transparent);
+  border: var(--hair) solid var(--line-soft);
+  border-left: 2px solid var(--go);
+}
 
-#selfGauges { width: 260px; }
+#selfGauges { position: relative; width: 260px; }
 
 /* la barre de SOI n'a pas le meme rang de lecture que celles des allies : cinq
    pixels, c'est une ligne. */
@@ -630,48 +675,90 @@
   transition: width var(--tap) linear;
 }
 
-#selfText { min-width: 96px; }
+/* LE CHIFFRE VIT SUR LA BARRE. A cote, l'oeil fait deux sauts pour une seule
+   information ; dessus, il n'en fait aucun. */
+#selfText {
+  position: absolute;
+  inset: 0 var(--sp-2) auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  pointer-events: none;
+}
 
 #selfHpText {
-  font-size: var(--t-m);            
-  color: var(--text-dim);
+  font-size: var(--t-s);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
   white-space: nowrap;
+  text-shadow: 0 1px 2px var(--bg-void), 0 0 3px var(--bg-void);
 }
 
 #selfHpText.downed { color: var(--lethal); }
 
 #selfLevel {
-  margin-top: var(--sp-1);
-  font-size: var(--t-s);
-  font-weight: 600;
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
   color: var(--xp);
   white-space: nowrap;
+  text-shadow: 0 1px 2px var(--bg-void), 0 0 3px var(--bg-void);
 }
 
-#selfLevel small { display: block; font-size: var(--t-xs); font-weight: 400; color: var(--text-dim); }
+#selfLevel small {
+  margin-left: var(--sp-1);
+  font-weight: 400;
+  color: var(--text-dim);
+}
 
 
 #selfPips { display: flex; gap: var(--sp-2); }
 
 .pip {
   position: relative;
-  width: 42px;
+  width: 44px;
   text-align: center;
 }
 
 .pip .box {
   position: relative;
-  height: 34px;
+  height: 44px;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--bg-void) 80%, transparent);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--text) 8%, transparent),
+      transparent 60%),
+    color-mix(in srgb, var(--bg-void) 84%, transparent);
   border: var(--edge) solid var(--line-soft);
-  font-size: var(--t-s);            
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 12%, transparent);
+  font-size: var(--t-s);
   font-weight: 700;
 }
 
+.pip .box img { display: block; }
+.pip .box > * { grid-area: 1 / 1; }
+
+/* LA TOUCHE EST UN RACCOURCI, PAS UNE ICONE : elle se range en coin et le
+   glyphe prend la case. */
+.pip .key {
+  align-self: end;
+  justify-self: end;
+  margin: 0 2px -1px 0;
+  font-size: var(--t-xs);
+  line-height: 1;
+  color: var(--text-faint);
+}
+
 .pip.ready .box { border-color: var(--pip); color: var(--pip); }
+.pip.ready .key { color: var(--pip); }
 .pip .box { color: var(--text-faint); }
+
+/* une competence indisponible se DESATURE : on la reconnait encore, on sait
+   juste qu'elle ne part pas. */
+.pip:not(.ready) .box img { filter: saturate(0.35) brightness(0.7); }
 
 .pip .box::before {
   content: "";
@@ -698,9 +785,9 @@
 
 /* L'ULTIME A UN RANG A PART : encadre, plus grand, sa propre animation de
    disponibilite. Sinon la promotion n'existe que dans le code. */
-.pip.ult { width: 52px; }
+.pip.ult { width: 56px; }
 .pip.ult .box {
-  height: 44px;
+  height: 56px;
   border-width: 2px;
   font-size: var(--t-m);
   outline: var(--hair) solid color-mix(in srgb, var(--pip) 45%, transparent);
@@ -805,7 +892,7 @@
   line-height: 1.7;
 }
 
-.hurtRow canvas { display: block; }
+.hurtRow img { display: block; }
 
 #hudSpectator {
   position: absolute;

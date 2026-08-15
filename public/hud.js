@@ -13,7 +13,7 @@ import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.
 import { bossAt, beatPhase, estFinal, ALERT_ORDER, BOSS_METRONOME } from "/shared/bosses.js";
 import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN, SRC_TINT } from "/shared/palette.js";
-import { EFFECT_BADGES, POWERUP_STYLE, SRC_ICON, STATUS_ICON, iconImg } from "/icons.js";
+import { EFFECT_BADGES, POWERUP_STYLE, SKILL_ICON, SRC_ICON, STATUS_ICON, iconImg } from "/icons.js";
 
 const $ = id => document.getElementById(id);
 
@@ -176,7 +176,8 @@ function buildTeam(lobby, myId) {
     const row = document.createElement("div");
     row.className = "teamRow" + (l.id === myId ? " me" : "");
     row.innerHTML =
-      '<div class="nom"></div><div class="score"></div>' +
+      '<div class="cls"></div><div class="nom"></div>' +
+      '<div class="pv"></div><div class="score"></div>' +
       '<div class="bar gauge"><i></i><b></b><u><i></i></u></div><div class="tags"></div>';
     row.dataset.pid = l.id;
     el.team.appendChild(row);
@@ -193,7 +194,7 @@ function updateTeam(v, c, now) {
     if (!row) break;
     const p = v.playerList.find(pp => pp.id === l.id);
     const col = PLAYER_COLORS[l.colorIndex % PLAYER_COLORS.length];
-    const [nom, score, bar, tags] = row.children;
+    const [cls, nom, pv, score, bar, tags] = row.children;
     const [fill, ghost, shWrap] = bar.children;
     const sh = shWrap.firstElementChild;
 
@@ -201,16 +202,31 @@ function updateTeam(v, c, now) {
     setStyle(nom, `tc${l.id}`, "color", col);
     setText(score, `ts${l.id}`, String(p ? p.score : 0));
 
+    // LA CLASSE SE RECONNAIT AVANT LE NOM. Une liste d'equipe se lit en un coup
+    // d'oeil pendant qu'on esquive : c'est le ROLE qui decide si on va aider.
+    const cid = p?.cls ?? l.cls ?? CLASS_DEFAULT;
+    if (memo[`tcl${l.id}`] !== cid) {
+      memo[`tcl${l.id}`] = cid;
+      cls.textContent = "";
+      cls.appendChild(iconImg(SKILL_ICON[`${classAt(cid).id}0`], col, 14));
+    }
+
     if (l.spectator || !p) {
       setWidth(fill, `tf${l.id}`, 0);
       setWidth(sh, `tsh${l.id}`, 0);
       setWidth(ghost, `tgh${l.id}`, 0);
+      setText(pv, `tpv${l.id}`, "");
       setText(tags, `tg${l.id}`, l.spectator ? "spectateur" : "…");
       continue;
     }
 
     const maxHp = p.maxHp || CFG.PLAYER_MAX_HP;
     const k = p.downed ? 0 : Math.max(0, Math.min(1, p.hp / maxHp));
+    // le CHIFFRE, pas la proportion : « il lui reste 40 PV » se decide, « il est
+    // a un quart » se devine.
+    setText(pv, `tpv${l.id}`, p.downed ? "à terre" : String(Math.round(p.hp)));
+    setClass(pv, `tpd${l.id}`, "downed", !!p.downed);
+    setStyle(pv, `tpc${l.id}`, "color", hpColor(k, p.downed, TEXT.base));
     setWidth(fill, `tf${l.id}`, k);
     setStyle(fill, `tfc${l.id}`, "background", hpColor(k, p.downed, col));
     setGhost(ghost, `tgh${l.id}`, k, barGhost(`t${l.id}`, k, now));
@@ -412,23 +428,30 @@ const SKILL3_BASE_CD = {
   dps: CARD_CFG.SKILL3_SALVE.map(c => c.cd),
 };
 
+// UNE LETTRE DANS UNE CASE EST UN RACCOURCI CLAVIER, PAS UNE ICONE : elle ne se
+// reconnait pas du coin de l'oeil, et c'est la seule facon dont on regarde ses
+// recharges. Le glyphe passe au premier plan, la touche reste ecrite en coin.
 function buildPips(cdef) {
   el.pips.textContent = "";
-  const mk = (key, label, color) => {
+  const mk = (key, label, color, icon, px) => {
     const p = document.createElement("div");
     p.className = "pip";
     p.style.setProperty("--pip", color);
-    p.innerHTML = `<div class="box">${key}<span class="stock"></span></div><div class="lbl"></div>`;
+    p.innerHTML = '<div class="box"><span class="key"></span>'
+      + '<span class="stock"></span></div><div class="lbl"></div>';
+    p.querySelector(".key").textContent = key;
     p.querySelector(".lbl").textContent = label;
+    if (icon) p.firstElementChild.prepend(iconImg(icon, color, px));
     el.pips.appendChild(p);
     return p;
   };
-  mk("ESP", "esquive", TEXT.base);
-  mk("A", cdef.skills[0].nom.slice(0, 11), cdef.couleur);
-  mk("E", cdef.skills[1].nom.slice(0, 11), cdef.couleur);
+  mk("ESP", "esquive", TEXT.base, SKILL_ICON.dash, 20);
+  mk("A", cdef.skills[0].nom.slice(0, 11), cdef.couleur, SKILL_ICON[`${cdef.id}0`], 20);
+  mk("E", cdef.skills[1].nom.slice(0, 11), cdef.couleur, SKILL_ICON[`${cdef.id}1`], 20);
   // l'ultime a un rang a part : c'est le lot 04 qui en fait un ultime, l'interface
   // doit le dire aussi, sinon la promotion n'existe que dans le code.
-  mk("3", (SKILL3_NAME[cdef.id] ?? "").toLowerCase().slice(0, 11), cdef.couleur)
+  mk("3", (SKILL3_NAME[cdef.id] ?? "").toLowerCase().slice(0, 11), cdef.couleur,
+     SKILL_ICON[`${cdef.id}2`], 26)
     .classList.add("ult");
 }
 
