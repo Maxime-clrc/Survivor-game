@@ -1748,6 +1748,24 @@
                    et le CSS visait `canvas` depuis le debut. Aucune des icones
                    posees dans le HUD n'avait donc son `display: block`
 
+     0.12.6 lot 07 LE PANNEAU DE STATISTIQUES MENTAIT. `fullMods` rend
+                   `{ mods, maxHp }`, pas les mods : le lire a plat donnait des
+                   `NaN` en cascade, puis le premier `.toFixed` sur un champ
+                   absent LEVAIT — et une exception dans la boucle de rendu
+                   vidait toutes les lignes suivantes. Trois lignes fausses, huit
+                   lignes vides, et le defaut se lisait comme « le panneau est a
+                   moitie fini » au lieu de « le panneau est casse ».
+                   « CRITIQUE » NE DISAIT PAS SI C'ETAIT LE TAUX OU LES DEGATS.
+                   Deux lignes valent mieux qu'un libelle a deviner : « taux de
+                   critique » et « degats critiques ».
+                   UN PANNEAU OU UNE CARTE PRISE NE BOUGE RIEN NE SERT A RIEN, et
+                   c'etait le cas d'une famille entiere : « Poudre dense » et
+                   « Canon long » ne touchent ni les degats ni la cadence, donc
+                   les prendre n'affichait strictement aucun changement. Portee,
+                   perforation et ricochets entrent, plus projectiles par tir et
+                   bouclier max. Verifie carte par carte : chaque axe du
+                   catalogue deplace au moins une ligne
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1756,4 +1774,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.12.5";
+export const VERSION = "0.12.6";

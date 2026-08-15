@@ -4,7 +4,7 @@ import {
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
 import { relicById } from "/shared/reliques.js";
-import { toM } from "/shared/units.js";
+import { fmtM, toM } from "/shared/units.js";
 import { difficulty, hudDps, hudStats, ownedCounts, pipPress, relicsByPlayer } from "./core/state.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
@@ -612,12 +612,24 @@ function updateBuffs(mask, now) {
 // deja — instantane, cartes, reliques — sans un octet de reseau.
 const num = (v, d = 1) => v.toFixed(d).replace(".", ",");
 
+// « critique » ne disait pas si c'etait le TAUX ou les DEGATS : deux lignes
+// valent mieux qu'un libelle a deviner. Ce qui n'a pas de valeur absolue —
+// reduction et rayon — reste un multiplicateur, mais son sens est ecrit.
 const STAT_ROWS = [
   { nom: "dégâts par tir", val: s => num(s.degats) },
   { nom: "tirs par seconde", val: s => num(s.cadence, 2) },
   { nom: "dégâts par seconde", val: s => num(s.dps) },
-  { nom: "critique", val: s => `${Math.round(s.critChance * 100)} % · ×${num(s.critMul, 2)}` },
+  { nom: "projectiles par tir", val: s => num(s.canons, 2) },
+  { nom: "taux de critique", val: s => Math.round(s.critChance * 100) + " %" },
+  { nom: "dégâts critiques", val: s => "×" + num(s.critMul, 2) },
+  // ces trois lignes existent parce qu'une carte entiere ne se voyait NULLE PART
+  // sans elles : « Poudre dense » et « Canon long » ne touchent ni les degats ni
+  // la cadence. Un panneau ou une carte prise ne bouge rien ne sert a rien.
+  { nom: "portée", val: s => fmtM(s.portee) },
+  { nom: "perforation", val: s => String(s.pierce) },
+  { nom: "ricochets", val: s => String(s.chain) },
   { nom: "points de vie", val: s => `${Math.round(s.hp)} / ${Math.round(s.maxHp)}` },
+  { nom: "bouclier max", val: s => String(Math.round(s.bouclier)) },
   { nom: "vitesse", val: s => num(toM(s.vitesse)) + " m/s" },
   { nom: "dégâts subis", val: s => "×" + num(s.subis, 2) },
   { nom: "rayon d'effet", val: s => "×" + num(s.rayon, 2) },
@@ -649,7 +661,10 @@ function myMods(me, v) {
   for (const o of others) for (const [id, n] of o) sig += `${id}${n},`;
   if (sig !== modsSig || !modsCache) {
     modsSig = sig;
-    modsCache = fullMods(counts, others, me.cls ?? CLASS_DEFAULT, niveau);
+    // `fullMods` rend `{ mods, maxHp }`, pas les mods : le lire a plat donnait
+    // des `NaN` en cascade, et le premier `.toFixed` sur un champ absent vidait
+    // toutes les lignes suivantes du panneau.
+    modsCache = fullMods(counts, others, me.cls ?? CLASS_DEFAULT, niveau).mods;
   }
   return modsCache;
 }
@@ -691,10 +706,13 @@ function updateStats(me, v, c, now) {
   const cadence = 1 / Math.max(0.01, interval);
   const canons = 1 + m.extraBarrels + (m.backShot ? 0.7 : 0);
   const s = {
-    degats, cadence,
+    degats, cadence, canons,
     dps: degats * cadence * canons * (1 + m.critChance * (m.critMul - 1)),
     critChance: m.critChance, critMul: m.critMul,
     hp: me.hp, maxHp: me.maxHp || CFG.PLAYER_MAX_HP,
+    bouclier: m.shieldPool + relicFlat(me.id, "flatShield"),
+    portee: CFG.BULLET_SPEED * m.bulletSpeedMul * CFG.BULLET_LIFE * m.bulletLifeMul,
+    pierce: m.pierce, chain: m.chain,
     vitesse: CFG.PLAYER_SPEED * m.speedMul,
     subis: m.damageTakenMul, rayon: m.areaMul,
   };
