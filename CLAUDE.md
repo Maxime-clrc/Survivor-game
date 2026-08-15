@@ -612,12 +612,28 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **Le gibier de `chasse` porte `noExec`** (exclu du seuil d'exécution) ; ses PV
   sont une **fraction de ceux d'un boss** du même segment, et ne suivent pas la
   puissance.
-- **UNE DIFFICULTÉ EST UN PROFIL** : `script`, `roster`, `traits`, `resume`, puis
-  le **résidu** `hp`/`spawn`/`dmg`/`boss`/`speed`. Ni `events` ni `biome` n'y
-  ouvrent de clé.
-- **Trois refus explicites** : pas de variante de boss par difficulté, pas de
-  variante de mécanique par difficulté, pas de statistique de type par difficulté
-  (le résidu porte tout l'ajustement chiffré).
+- **UNE DIFFICULTÉ EST UN PROFIL** : `script`, `roster`, `traits`, `resume`,
+  `bossProfil`, puis le **résidu** `hp`/`spawn`/`dmg`/`boss`/`speed`. Ni `events`
+  ni `biome` n'y ouvrent de clé.
+- **Deux refus explicites** : pas de variante de **mécanique** par difficulté,
+  pas de statistique de **type** par difficulté (le résidu porte tout
+  l'ajustement chiffré). Le troisième refus — pas de variante de boss par
+  difficulté — est **levé pour le boss final seulement** : `finalPour` dans
+  `BOSS_ROSTER`, un final par mode, le **pool de tirage reste commun**.
+- **LA DIFFICULTÉ D'UN COMBAT DE BOSS SE RÈGLE PAR LE NOMBRE DE CHOSES À LIRE EN
+  MÊME TEMPS**, ni par les PV ni par les dégâts. `bossProfil` porte les six
+  leviers et il n'y a qu'un point de lecture, `_bossProfil()` : `parPhase`
+  (mécaniques simultanées, `superpose` les fait se chevaucher), `warn` (décalage
+  de classe de télégraphe, `reflexe` la phase à partir de laquelle on tombe à
+  0,8 s), `mechRatio`, `echec`, `couches` (calme s'arrête à `unlock[2]`),
+  `dwell`, `renforts`.
+- **`BAR_DWELL` MONTE avec la difficulté** (8 / 10 / 12), ce qui est
+  contre-intuitif : le palier est le moment où se joue la mécanique de la phase
+  suivante, donc en cauchemar on en subit **plus**, pas moins.
+- **P4 · L'ÉCHEC EST D'ABORD INDIVIDUEL**, point de passage `_mechFail(fautifs,
+  ratio, mech)`. En `mixte` (normal), seules les mécaniques d'**occupation**
+  restent collectives — et elles se reconnaissent à leur **forme `colonne`**,
+  déjà écrite dans la grammaire : rien de plus à déclarer.
 - **Les variantes de script changent la FORME de la pression, jamais sa
   QUANTITÉ** (qui vit dans `diff.spawn`). Il ne reste qu'un axe : **quelle
   géométrie**.

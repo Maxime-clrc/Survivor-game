@@ -18,6 +18,7 @@ import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost
 import { CLASS_COLOR } from "./palette.js";
 import {
   BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, bossPool, mechAt, adaptMech, towerCount,
+  WARN_CLASSES, WARN_REFLEXE,
   ALERT_ORDER, ALERT_WARN, ALERT_INFO,
   MECH_STACK, MECH_SPREAD, MECH_TOWER, MECH_COUNT, MECH_LINK, MECH_JAIL,
   MECH_GAZE, MECH_PROX, MECH_MIASMA, MECH_ULT, MECH_CLUSTER, MECH_FEED,
@@ -305,6 +306,10 @@ export const DIFFICULTIES = [
       "la horde arrive d'un seul côté — le sol ne fait jamais rien",
     ],
     hp: 0.78, spawn: 0.80, dmg: 0.80, boss: 0.75, speed: 0.85,
+    bossProfil: {
+      parPhase: 1, warn: 1, mechRatio: 0.60, echec: "individuel",
+      couches: 3, dwell: 8, renforts: 0, reflexe: -1,
+    },
   },
   {
     key: "normal", label: "normal",
@@ -324,6 +329,10 @@ export const DIFFICULTIES = [
       "pinces et quatre fronts sur les crescendos — le sol ne blesse pas",
     ],
     hp: 1.00, spawn: 1.00, dmg: 1.00, boss: 1.00, speed: 1.00,
+    bossProfil: {
+      parPhase: 2, warn: 0, mechRatio: 0.90, echec: "mixte",
+      couches: 99, dwell: 10, renforts: 0, reflexe: -1,
+    },
   },
   {
     key: "cauchemar", label: "cauchemar",
@@ -345,6 +354,10 @@ export const DIFFICULTIES = [
       "plusieurs directions en permanence : le sol se referme derrière eux",
     ],
     hp: 1.35, spawn: 1.28, dmg: 1.25, boss: 1.25, speed: 1.12,
+    bossProfil: {
+      parPhase: 2, warn: 0, mechRatio: 1.15, echec: "collectif",
+      couches: 99, dwell: 12, renforts: 1, reflexe: 4, superpose: 1,
+    },
   },
 ];
 export const DIFF_NORMAL = 1;
@@ -3456,7 +3469,8 @@ export class GameState {
             : B.x0 + Math.random() * (B.x1 - B.x0);
           const sy = side === 0 ? B.y0 + 20 : side === 1 ? B.y1 - 20
             : B.y0 + Math.random() * (B.y1 - B.y0);
-          this._spawnEnemy(-1, sx, sy);
+          const r = this._spawnEnemy(-1, sx, sy);
+          if (r) r.renfort = 1;
         }
       }
     }
@@ -3549,12 +3563,22 @@ export class GameState {
   // de sauter des phases : `_damage` s'y arrete, `_bossBars` l'attend.
   _bossFloor(b) {
     if (b.phase < b.bars - 1) return b.maxHp - (b.phase + 1) * b.barHp;
-    if (b.kind === BOSS_FINAL && b.fightT - b.lastBreak < BOSS_CFG.FINAL_BAR_DWELL) return 1;
+    if (b.kind === BOSS_FINAL && b.fightT - b.lastBreak < this._dwell(b)) return 1;
     return null;
   }
 
+  // le palier MONTE avec la difficulte, ce qui est contre-intuitif : c'est le
+  // moment ou se joue la mecanique de la phase suivante, donc en cauchemar on
+  // en subit PLUS, pas moins.
+  _dwell(b) {
+    const P = this._bossProfil();
+    return b.kind === BOSS_FINAL
+      ? BOSS_CFG.FINAL_BAR_DWELL * (P.dwell / BOSS_CFG.BAR_DWELL)
+      : P.dwell;
+  }
+
   _bossBars(b) {
-    const dwell = b.kind === BOSS_FINAL ? BOSS_CFG.FINAL_BAR_DWELL : BOSS_CFG.BAR_DWELL;
+    const dwell = this._dwell(b);
     const plancher = this._bossFloor(b);
     const auPlancher = plancher !== null && b.hp <= plancher + 1e-6;
     const reste = dwell - (b.fightT - b.lastBreak);
@@ -3569,7 +3593,7 @@ export class GameState {
         id: this._nextId++, x: b.x, y: b.y,
         r: CFG.BOSS_BREAK_RADIUS * 0.55, life: 0.55, max: 0.55, kind: 15,
       });
-      if (b.phase < b.bars - 1) {
+      if (b.phase < b.bars - 1 && b.phase < this._bossProfil().couches) {
         const couche = bossAt(b.kind).unlock[b.phase];
         if (couche && couche.length) {
           this._deferAtk(b, couche[Math.floor(Math.random() * couche.length)], 0.9);
@@ -3688,13 +3712,24 @@ export class GameState {
   }
 
   _bossAttack(b, ux, uy) {
-    const pool = bossPool(b.kind, Math.max(b.phase, b.floor));
+    const P = this._bossProfil();
+    // CALME NE DEBLOQUE PAS `unlock[3]` : la couche la plus dure de chaque boss
+    // est ce que `normal` a de plus, au lieu du meme contenu en plus mou.
+    const pool = bossPool(b.kind, Math.min(P.couches, Math.max(b.phase, b.floor)));
     let choice = pool[Math.floor(Math.random() * pool.length)];
     if (choice === b.lastAttack && pool.length > 1) {
       choice = pool[(pool.indexOf(choice) + 1) % pool.length];
     }
     b.lastAttack = choice;
     this._atk(choice, b, ux, uy);
+    // DEUX MECANIQUES PAR PHASE, ET EN CAUCHEMAR L'UNE SUR L'AUTRE : la
+    // difficulte d'un raid n'a jamais ete la fenetre de reaction, c'est la
+    // SUPERPOSITION.
+    for (let i = 1; i < P.parPhase && pool.length > 1; i++) {
+      const autre = pool[(pool.indexOf(choice) + 1 + i) % pool.length];
+      if (autre === choice) continue;
+      this._deferAtk(b, autre, P.superpose ? BOSS_CFG.SUPERPOSE_GAP : BOSS_CFG.SUITE_GAP);
+    }
   }
 
   _atk(key, b, ux, uy) {
@@ -3778,10 +3813,10 @@ export class GameState {
       this._mark({
         mech: MECH_SEAL, grp, lead: i === 0 ? 1 : 0,
         x: cx + Math.cos(a) * rad, y: cy + Math.sin(a) * rad,
-        r: BOSS_CFG.SEAL_RADIUS, t: BOSS_CFG.SEAL_WARN, need: 1,
+        r: BOSS_CFG.SEAL_RADIUS, t: this._warn(BOSS_CFG.SEAL_WARN), need: 1,
       });
     }
-    this._alert(MECH_SEAL, BOSS_CFG.SEAL_WARN);
+    this._alert(MECH_SEAL, this._warn(BOSS_CFG.SEAL_WARN));
   }
 
   _resolveSceau(lead) {
@@ -3794,7 +3829,9 @@ export class GameState {
       if (this._countIn(m) >= 1) tenus++;
     }
     if (tenus >= foyers) return;
-    for (const p of alive) this._mechHit(p, BOSS_CFG.SEAL_RATIO);
+    const fautifs = alive.filter(p =>
+      !group.some(m => (p.x - m.x) ** 2 + (p.y - m.y) ** 2 <= m.r * m.r));
+    this._mechFail(fautifs.length ? fautifs : alive, BOSS_CFG.SEAL_RATIO, MECH_SEAL);
   }
 
   _atkSpirale(b) {
@@ -3937,13 +3974,57 @@ export class GameState {
     if (this.alerts.length > 16) this.alerts.shift();
   }
 
-  _mechDamage(p) { return p.maxHp * BOSS_CFG.MECH_DAMAGE_RATIO; }
+  // UNE DIFFICULTE DE BOSS SE REGLE PAR LE NOMBRE DE CHOSES A LIRE EN MEME
+  // TEMPS, ni par les PV ni par les degats. Le profil porte les six leviers, et
+  // il n'y a qu'un point de lecture.
+  _bossProfil() {
+    return this.diff.bossProfil ?? DIFFICULTIES[DIFF_NORMAL].bossProfil;
+  }
+
+  // le temps dit l'urgence, et il n'a que quatre valeurs : le profil DEPLACE
+  // une duree ecrite d'un cran, il n'en invente pas.
+  _warn(d) {
+    const P = this._bossProfil();
+    const i = WARN_CLASSES.indexOf(d);
+    const phase = this.boss ? this.boss.phase : 0;
+    if (P.reflexe >= 0 && phase >= P.reflexe) return WARN_REFLEXE;
+    if (i < 0 || !P.warn) return d;
+    return WARN_CLASSES[Math.min(WARN_CLASSES.length - 1, i + P.warn)];
+  }
+
+  _mechDamage(p) {
+    return p.maxHp * BOSS_CFG.MECH_DAMAGE_RATIO * this._bossProfil().mechRatio;
+  }
+
+  // les deux rayons de groupe suivent l'EFFECTIF : ce qui est serre a quatre est
+  // trivial a deux, et l'inverse pour la dispersion.
+  _stackRadius(alive) {
+    return BOSS_CFG.STACK_RADIUS + BOSS_CFG.STACK_PER_PLAYER * Math.max(0, alive - 2);
+  }
+
+  _spreadMin(alive) {
+    return Math.max(120,
+      BOSS_CFG.SPREAD_MIN + BOSS_CFG.SPREAD_PER_PLAYER * Math.max(0, alive - 2));
+  }
 
   _mechHit(p, ratio = 1) {
     if (!p || p.downed) return;
     p.mechFails++;
     this._hurt(p, this._mechDamage(p) * ratio, MECH_HURT);
     this._applyStatus(p, STATUS_VULN, BOSS_CFG.MECH_VULN);
+  }
+
+  // P4 · L'ECHEC EST D'ABORD INDIVIDUEL. Un debutant qui rate doit mourir LUI,
+  // pas faire perdre la soiree a trois autres. En « mixte », seules les
+  // mecaniques d'OCCUPATION restent collectives — la grammaire les nomme deja,
+  // ce sont les `colonne`, et rien d'autre n'a besoin d'etre declare.
+  _mechFail(fautifs, ratio, mech = -1) {
+    const P = this._bossProfil();
+    const forme = mech >= 0 ? mechAt(mech)?.forme : null;
+    const collectif = P.echec === "collectif"
+      || (P.echec === "mixte" && forme === "colonne");
+    const cibles = collectif ? this._alivePlayers() : fautifs;
+    for (const p of cibles) this._mechHit(p, ratio);
   }
 
   _mark(o) {
@@ -3978,10 +4059,10 @@ export class GameState {
 
     if (mech === MECH_DODGE) {
       const p = alive[0];
-      this._alert(MECH_DODGE, BOSS_CFG.STACK_WARN);
+      this._alert(MECH_DODGE, this._warn(BOSS_CFG.STACK_WARN));
       this._zone({
-        x: p.x, y: p.y, r: BOSS_CFG.STACK_RADIUS,
-        warn: BOSS_CFG.STACK_WARN, dmg: this._zoneDamage(b),
+        x: p.x, y: p.y, r: this._stackRadius(alive.length),
+        warn: this._warn(BOSS_CFG.STACK_WARN), dmg: this._zoneDamage(b),
       });
       return;
     }
@@ -3989,9 +4070,9 @@ export class GameState {
     const p = alive[Math.floor(Math.random() * alive.length)];
     this._mark({
       mech: MECH_STACK, a: p.id, x: p.x, y: p.y,
-      r: BOSS_CFG.STACK_RADIUS, t: BOSS_CFG.STACK_WARN,
+      r: this._stackRadius(alive.length), t: this._warn(BOSS_CFG.STACK_WARN),
     });
-    this._alert(MECH_STACK, BOSS_CFG.STACK_WARN);
+    this._alert(MECH_STACK, this._warn(BOSS_CFG.STACK_WARN));
   }
 
   _resolveStack(m) {
@@ -4016,15 +4097,15 @@ export class GameState {
       mech: MECH_SPREAD,
       x: (this.bounds.x0 + this.bounds.x1) / 2,
       y: (this.bounds.y0 + this.bounds.y1) / 2,
-      r: BOSS_CFG.SPREAD_MIN, t: BOSS_CFG.SPREAD_WARN,
+      r: this._spreadMin(alive.length), t: this._warn(BOSS_CFG.SPREAD_WARN),
     });
-    this._alert(MECH_SPREAD, BOSS_CFG.SPREAD_WARN);
+    this._alert(MECH_SPREAD, this._warn(BOSS_CFG.SPREAD_WARN));
   }
 
   _resolveSpread() {
     const alive = this._alivePlayers();
     const hit = new Set();
-    const min2 = BOSS_CFG.SPREAD_MIN * BOSS_CFG.SPREAD_MIN;
+    const min2 = this._spreadMin(alive.length) ** 2;
     for (let i = 0; i < alive.length; i++) {
       for (let j = i + 1; j < alive.length; j++) {
         const a = alive[i], c = alive[j];
@@ -4045,7 +4126,7 @@ export class GameState {
     const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
     const rad = Math.min(B.x1 - B.x0, B.y1 - B.y0) * 0.32;
     const base = Math.random() * Math.PI * 2;
-    const warn = mech === MECH_COUNT ? BOSS_CFG.COUNT_WARN : BOSS_CFG.TOWER_WARN;
+    const warn = mech === MECH_COUNT ? this._warn(BOSS_CFG.COUNT_WARN) : this._warn(BOSS_CFG.TOWER_WARN);
 
     const n = mech === MECH_COUNT ? 2 : towerCount(alive.length);
     const needs = [];
@@ -4077,9 +4158,11 @@ export class GameState {
       if (m.mech === MECH_COUNT ? n !== need : n < 1) missed++;
     }
     if (missed > 0) {
-      for (const p of this._alivePlayers()) {
-        this._mechHit(p, BOSS_CFG.TOWER_RATIO * missed);
-      }
+      // fautif = celui qui ne tenait aucun foyer. En calme il est seul a payer.
+      const fautifs = this._alivePlayers()
+        .filter(p => !group.some(m => (p.x - m.x) ** 2 + (p.y - m.y) ** 2 <= m.r * m.r));
+      this._mechFail(fautifs.length ? fautifs : this._alivePlayers(),
+                     BOSS_CFG.TOWER_RATIO * missed, lead.mech);
     }
     for (const m of group) m.dead = true;
   }
@@ -4144,9 +4227,9 @@ export class GameState {
   _atkProximite(b) {
     this._mark({
       mech: MECH_PROX, x: b.x, y: b.y,
-      r: BOSS_CFG.PROX_RADIUS, t: BOSS_CFG.PROX_WARN,
+      r: BOSS_CFG.PROX_RADIUS, t: this._warn(BOSS_CFG.PROX_WARN),
     });
-    this._alert(MECH_PROX, BOSS_CFG.PROX_WARN);
+    this._alert(MECH_PROX, this._warn(BOSS_CFG.PROX_WARN));
   }
 
   _resolveProx(m) {
@@ -4161,9 +4244,9 @@ export class GameState {
   }
 
   _atkRegard(b) {
-    b.gazeWarn = BOSS_CFG.GAZE_WARN;
+    b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
     b.gaze = BOSS_CFG.GAZE_TIME;
-    this._alert(MECH_GAZE, BOSS_CFG.GAZE_WARN + BOSS_CFG.GAZE_TIME);
+    this._alert(MECH_GAZE, this._warn(BOSS_CFG.GAZE_WARN) + BOSS_CFG.GAZE_TIME);
   }
 
   _atkExaflare(b) {
@@ -4180,7 +4263,7 @@ export class GameState {
       dy: Math.sin(a) * BOSS_CFG.EXAFLARE_R * 1.55,
       left: BOSS_CFG.EXAFLARE_STEPS, t: 0, first: 1,
     };
-    this._alert(MECH_EXAFLARE, BOSS_CFG.EXAFLARE_WARN);
+    this._alert(MECH_EXAFLARE, this._warn(BOSS_CFG.EXAFLARE_WARN));
   }
   _flare(b, dt) {
     const f = b.flare;
@@ -4190,7 +4273,7 @@ export class GameState {
     f.t = BOSS_CFG.EXAFLARE_STEP;
     this._zone({
       x: f.x, y: f.y, r: BOSS_CFG.EXAFLARE_R,
-      warn: f.first ? BOSS_CFG.EXAFLARE_WARN : 0.4,
+      warn: f.first ? this._warn(BOSS_CFG.EXAFLARE_WARN) : 0.4,
       dmg: this._zoneDamage(b),
     });
     f.first = 0;
@@ -4232,7 +4315,7 @@ export class GameState {
     const alive = Math.max(1, this._alivePlayers().length);
     const n = alive <= 2 ? 2 : 3;
     const grp = this._nextId++;
-    const total = BOSS_CFG.SANCT_WARN + BOSS_CFG.SANCT_TICKS * BOSS_CFG.SANCT_PERIOD;
+    const total = this._warn(BOSS_CFG.SANCT_WARN) + BOSS_CFG.SANCT_TICKS * BOSS_CFG.SANCT_PERIOD;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       this._mark({
@@ -4242,10 +4325,10 @@ export class GameState {
         vx: Math.cos(a) * BOSS_CFG.SANCT_SPEED,
         vy: Math.sin(a) * BOSS_CFG.SANCT_SPEED,
         r: BOSS_CFG.SANCT_R, t: total,
-        left: BOSS_CFG.SANCT_TICKS, step: BOSS_CFG.SANCT_WARN,
+        left: BOSS_CFG.SANCT_TICKS, step: this._warn(BOSS_CFG.SANCT_WARN),
       });
     }
-    this._alert(MECH_SANCTUARY, BOSS_CFG.SANCT_WARN);
+    this._alert(MECH_SANCTUARY, this._warn(BOSS_CFG.SANCT_WARN));
   }
 
   _atkVerglas(b) {
@@ -4262,12 +4345,12 @@ export class GameState {
           shape: 1, x: e.x, y: e.y,
           w: len, h: BOSS_CFG.CROSS_THICKNESS,
           ang: a + i * Math.PI / 2,
-          warn: BOSS_CFG.CROSS_WARN + i * BOSS_CFG.CROSS_GAP,
+          warn: this._warn(BOSS_CFG.CROSS_WARN) + i * BOSS_CFG.CROSS_GAP,
           dmg: this._zoneDamage(b) * 0.8,
         });
       }
     }
-    this._alert(MECH_CROSS, BOSS_CFG.CROSS_WARN);
+    this._alert(MECH_CROSS, this._warn(BOSS_CFG.CROSS_WARN));
   }
 
   _atkCroixDurable(b) {
@@ -4277,13 +4360,13 @@ export class GameState {
         shape: 5, x: e.x, y: e.y,
         r: len, h: BOSS_CFG.CROSSD_THICKNESS,
         ang: Math.random() * Math.PI / 2,
-        warn: BOSS_CFG.CROSSD_WARN,
+        warn: this._warn(BOSS_CFG.CROSSD_WARN),
         life: BOSS_CFG.CROSSD_LIFE,
         dot: BOSS_CFG.CROSSD_DOT,
         dmg: this._zoneDamage(b) * 0.55,
       });
     }
-    this._alert(MECH_CROSS, BOSS_CFG.CROSSD_WARN);
+    this._alert(MECH_CROSS, this._warn(BOSS_CFG.CROSSD_WARN));
   }
 
   _atkCone(b) {
@@ -4294,11 +4377,11 @@ export class GameState {
         shape: 3, x: b.x, y: b.y,
         r: BOSS_CFG.CONE_R, spread: BOSS_CFG.CONE_SPREAD,
         ang: Math.atan2(p.y - b.y, p.x - b.x),
-        warn: BOSS_CFG.CONE_WARN,
+        warn: this._warn(BOSS_CFG.CONE_WARN),
         dmg: this._zoneDamage(b),
       });
     }
-    this._alert(MECH_DODGE, BOSS_CFG.CONE_WARN);
+    this._alert(MECH_DODGE, this._warn(BOSS_CFG.CONE_WARN));
   }
 
   _atkPacman(b) {
@@ -4306,11 +4389,11 @@ export class GameState {
       shape: 4, x: b.x, y: b.y,
       r: BOSS_CFG.PACMAN_R, spread: BOSS_CFG.PACMAN_SAFE,
       ang: Math.random() * Math.PI * 2,
-      warn: BOSS_CFG.PACMAN_WARN,
+      warn: this._warn(BOSS_CFG.PACMAN_WARN),
       prox: 1,
       dmg: this._zoneDamage(b) * 1.25,
     });
-    this._alert(MECH_SAFE, BOSS_CFG.PACMAN_WARN);
+    this._alert(MECH_SAFE, this._warn(BOSS_CFG.PACMAN_WARN));
   }
 
 
@@ -4373,7 +4456,7 @@ export class GameState {
           m.left--;
           this._zone({
             x: ghost.x, y: ghost.y, r: m.r,
-            warn: BOSS_CFG.BAIT_WARN,
+            warn: this._warn(BOSS_CFG.BAIT_WARN),
             dmg: this.boss ? this._zoneDamage(this.boss) : CFG.ZONE_DAMAGE,
           });
         }
@@ -4497,9 +4580,40 @@ export class GameState {
     b.hp = Math.min(b.maxHp, b.hp + b.maxHp * BOSS_CFG.DIFFUS_HEAL * n * dt);
   }
 
+  // CAUCHEMAR : les renforts DURCISSENT en se regroupant. Ca force l'ecartement
+  // de l'equipe sans aucun telegraphe, juste par une regle — un modificateur qui
+  // ne s'annonce pas, il se decouvre. Voisinage lu par la grille, jamais en n².
+  _renforts() {
+    if (!this._bossProfil().renforts) return;
+    const list = this.enemies;
+    if (list.length === 0) return;
+    const { cell, cols, rows, start, items } = this._grille();
+    const R2 = BOSS_CFG.RENFORT_RANGE * BOSS_CFG.RENFORT_RANGE;
+    for (const e of list) {
+      if (e.hp <= 0 || !e.renfort) continue;
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor(e.x / cell)));
+      const cy = Math.min(rows - 1, Math.max(0, Math.floor(e.y / cell)));
+      let n = 0;
+      for (let gy = Math.max(0, cy - 1); gy <= Math.min(rows - 1, cy + 1); gy++) {
+        for (let gx = Math.max(0, cx - 1); gx <= Math.min(cols - 1, cx + 1); gx++) {
+          const c = gy * cols + gx;
+          for (let i = start[c]; i < start[c + 1]; i++) {
+            const o = list[items[i]];
+            if (o === e || o.hp <= 0 || !o.renfort) continue;
+            if ((o.x - e.x) ** 2 + (o.y - e.y) ** 2 <= R2) n++;
+          }
+        }
+      }
+      // meme regle que toute aura : la MEILLEURE reduction, jamais le produit.
+      const bonus = Math.min(BOSS_CFG.RENFORT_MAX, n * BOSS_CFG.RENFORT_STEP);
+      if (bonus > e.aura) e.aura = bonus;
+    }
+  }
+
   _bossPassives(b, dt) {
     this._flare(b, dt);
     this._diffus(b, dt);
+    this._renforts();
 
     if (b.gazeWarn > 0) {
       b.gazeWarn -= dt;
@@ -4524,7 +4638,10 @@ export class GameState {
       if (b.ult >= 1) {
         b.ult = 0;
         this._alert(MECH_ULT, 0);
-        for (const p of this._alivePlayers()) this._mechHit(p, BOSS_CFG.ULT_RATIO);
+        const dehors = this._alivePlayers().filter(p => !towers.some(
+          m => (p.x - m.x) ** 2 + (p.y - m.y) ** 2 <= m.r * m.r));
+        this._mechFail(dehors.length ? dehors : this._alivePlayers(),
+                       BOSS_CFG.ULT_RATIO, MECH_ULT);
         this.effects.push({
           id: this._nextId++,
           x: b.x, y: b.y, r: CFG.BOSS_SWEEP_R, life: 0.8, max: 0.8, kind: 6,
@@ -4933,9 +5050,9 @@ export class GameState {
     this.shrink = {
       x0: cx - nw / 2, y0: cy - nh / 2,
       x1: cx + nw / 2, y1: cy + nh / 2,
-      t: BOSS_CFG.SHRINK_WARN,
+      t: this._warn(BOSS_CFG.SHRINK_WARN),
     };
-    this._alert(MECH_SHRINK, BOSS_CFG.SHRINK_WARN);
+    this._alert(MECH_SHRINK, this._warn(BOSS_CFG.SHRINK_WARN));
   }
 
   _atkQuadrant(b) {
@@ -4959,11 +5076,11 @@ export class GameState {
       x: B.x0 + w * (qx ? 1.5 : 0.5),
       y: B.y0 + h * (qy ? 1.5 : 0.5),
       w, h,
-      warn: BOSS_CFG.QUADRANT_WARN,
+      warn: this._warn(BOSS_CFG.QUADRANT_WARN),
       period: BOSS_CFG.QUADRANT_PERIOD, left: BOSS_CFG.QUADRANT_TICKS,
       dmg: this._zoneDamage(b) * 0.6,
     });
-    this._alert(MECH_DODGE, BOSS_CFG.QUADRANT_WARN);
+    this._alert(MECH_DODGE, this._warn(BOSS_CFG.QUADRANT_WARN));
   }
 
   _puddle(x, y) {

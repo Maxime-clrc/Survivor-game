@@ -1223,6 +1223,45 @@
                    FIXE (Amalgame) : il ne marche plus, il se teleporte.
                    MOBILE (Metronome) : il le garde, et il est desormais le seul
 
+     0.10.5 lot 07 LA DIFFICULTE D'UN COMBAT DE BOSS NE SE REGLE NI PAR LES PV
+                   NI PAR LES DEGATS, MAIS PAR LE NOMBRE DE CHOSES A LIRE EN
+                   MEME TEMPS. Jusqu'ici seul `diff.boss` bougeait, sur les PV :
+                   les mecaniques etaient identiques en calme et en cauchemar.
+                   `bossProfil` ouvre une cle du profil de difficulte et porte
+                   six leviers, avec un seul point de lecture (`_bossProfil`).
+                   Un telegraphe seul est facile ; un telegraphe pendant qu'on
+                   tient une tour et qu'un allie est marque, c'est un vrai
+                   probleme — et c'est plus interessant que +25 % de PV.
+                   `BAR_DWELL` MONTE avec la difficulte (8 / 10 / 12). C'est
+                   contre-intuitif et c'est voulu : le palier est le moment ou se
+                   joue la mecanique de la phase suivante (lot 02), donc en
+                   cauchemar on en subit PLUS. Mesure du plancher de combat :
+                   32,1 s en calme, 40,1 en normal, 48 attendus en cauchemar.
+                   CALME NE DEBLOQUE PAS `unlock[3]`. La couche la plus dure de
+                   chaque boss devient ce que `normal` a de plus, au lieu du meme
+                   contenu en plus mou. Verifie : aucun `unlock[3]` n'entre dans
+                   le repertoire en calme, sur les six boss.
+                   P4 · L'ECHEC EST D'ABORD INDIVIDUEL, et c'est ce qui separe un
+                   jeu de fete d'un jeu de raid. `_mechFail(fautifs, ratio, mech)`
+                   est le point de passage. En calme, seul le fautif encaisse
+                   (mesure : innocent a -0 PV) ; en cauchemar tout le monde ; en
+                   normal, seules les mecaniques d'OCCUPATION restent collectives
+                   — et elles se reconnaissent a leur forme `colonne`, deja
+                   ecrite par le lot 05. La grammaire fait le travail, il n'y a
+                   aucune liste a tenir a jour.
+                   `_warn` DEPLACE une duree d'un cran de classe, il n'en invente
+                   pas : calme lit tout en `lecture` (1,6 -> 2,4), cauchemar tombe
+                   en `reflexe` (0,8) a partir de la phase 5. Trente-deux
+                   telegraphes y passent ; `PUDDLE_WARN` reste dehors, ce n'est
+                   pas un avertissement.
+                   `STACK_RADIUS` et `SPREAD_MIN` suivent enfin l'EFFECTIF : ce
+                   qui est serre a quatre etait trivial a deux.
+                   LES RENFORTS DE CAUCHEMAR DURCISSENT EN SE REGROUPANT. Ca
+                   force l'ecartement de l'equipe sans aucun telegraphe, juste
+                   par une regle : elle ne s'annonce pas, elle se decouvre. Elle
+                   passe par la grille (jamais en n²) et respecte la regle des
+                   auras — la MEILLEURE reduction, jamais le produit
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1231,4 +1270,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.10.4";
+export const VERSION = "0.10.5";

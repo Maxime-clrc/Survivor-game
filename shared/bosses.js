@@ -336,6 +336,7 @@ export const WARN_REFLEXE = 0.8;
 export const WARN_STANDARD = 1.6;
 export const WARN_LECTURE = 2.4;
 export const WARN_PREPARATION = 4.0;
+export const WARN_CLASSES = [WARN_REFLEXE, WARN_STANDARD, WARN_LECTURE, WARN_PREPARATION];
 
 export const BOSS_CFG = {
   BAR_DWELL: 10,
@@ -346,6 +347,18 @@ export const BOSS_CFG = {
   ENRAGE_DAMAGE: 0.25,
   ENRAGE_CD: 0.12,
   ENRAGE_CD_FLOOR: 0.45,
+
+  // a quatre joueurs un rassemblement dans 135 px est serre, a deux une
+  // dispersion de 230 px est triviale : les deux rayons suivent l'effectif.
+  STACK_PER_PLAYER: 26,
+  SPREAD_PER_PLAYER: -22,
+
+  RENFORT_RANGE: 200,
+  RENFORT_STEP: 0.06,
+  RENFORT_MAX: 0.30,
+
+  SUITE_GAP: 2.2,
+  SUPERPOSE_GAP: 0.7,
 
   DIFFUS_RANGE: 420,
   DIFFUS_HEAL: 0.0012,
