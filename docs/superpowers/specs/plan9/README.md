@@ -17,7 +17,7 @@ réseau n'aurait rien rendu.
 | 03 | 0.11.2 | grille statique pour obstacles et dangers — la part la plus chère du `step` |
 | 04 | 0.11.3 | télémétrie de vraies parties, JSONL, armée par paramètre d'URL |
 | 05 | 0.11.4 | instantané filtré par vue de client — 2,5× de bande passante |
-| 06 | 0.11.5 | client : réutilisation des objets à l'ingestion, anneaux d'ennemi batchés |
+| 06 | — | **abandonné à la mesure** — voir plus bas |
 
 ## Mesures d'ouverture
 
@@ -48,6 +48,38 @@ culling par client   40,2 %    <- 2,5x, c'est le lot 05
   ce titre il est derrière le pool d'objets du lot 06, moins cher.
 - **OffscreenCanvas / rendu dans un worker** — le HUD est en DOM par décision
   d'architecture, gain partiel et risque élevé.
+
+## Lot 06 — abandonné, et c'est l'audit qui avait tort
+
+L'audit d'ouverture annonçait le chemin de réception client comme « une fabrique
+à micro-saccades » : `JSON.parse` de 36 Ko vingt fois par seconde, puis 900
+objets et une `Map` reconstruits, soit ~40 000 objets par seconde jetés au
+ramasse-miettes sur le thread qui dessine. Mesuré, à 800 corps :
+
+```
+JSON.parse de 32 Kio          0,096 ms
+construction de l'instantane  0,033 ms
+                              -------
+total par instantane          0,129 ms, UNE image sur trois
+                              soit 0,8 % du budget d'une image a 60 fps
+```
+
+La boucle directe à la place de `map` + paires gagne bien 30 % (0,033 → 0,023
+ms), mais 30 % de 0,03 ms n'est pas une optimisation, c'est du bruit.
+
+Deuxième moitié du lot, les anneaux d'élite et d'aura tracés un par un en 2D :
+comptés à saturation, **18 élites sur 800 corps et zéro aura**. Le batch aurait
+économisé dix-huit `stroke` par image, pas la centaine que la lecture du code
+laissait craindre.
+
+Rien dans ce lot ne valait son risque. Ce qui l'a rendu inutile, en partie,
+c'est le lot 05 : à équipe séparée le paquet a déjà fondu de 67 %, donc le
+volume à parser avec lui.
+
+**Ce qu'il faut faire à la place** : si une saccade se voit en jeu, la mesurer
+dans le navigateur avec l'instrumentation qui existe déjà (`PERF`, `fps`,
+`netPerf`, `frameMax`, `?repere`) plutôt que de deviner d'après le code. Le
+poste suspect n'est plus la réception.
 
 ## Ce qui reste ouvert après le plan
 
