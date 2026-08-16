@@ -43,7 +43,7 @@ export function ingest(msg) {
       critSeq: a[8] ?? 0,
     }])),
     bullets: new Map(msg.b.map(a => [a[0], {
-      id: a[0], x: a[1], y: a[2], owner: a[3] ?? 0,
+      id: a[0], x: a[1], y: a[2], owner: a[3] ?? 0, missile: a[4] ?? 0,
     }])),
     links: msg.hl ?? null,
     shots: new Map(msg.s.map(a => [a[0], { id: a[0], x: a[1], y: a[2] }])),
@@ -74,7 +74,9 @@ export function ingest(msg) {
     drones: new Map((msg.dr ?? []).map(a => [a[0], { id: a[0], x: a[1], y: a[2], ang: a[3], kind: a[4], owner: a[5] ?? 0 }])),
     effects: (msg.f ?? []).map(a => ({
       id: a[0], x: a[1], y: a[2], r: a[3], k: a[4], kind: a[5] ?? 0,
-      x2: a[6], y2: a[7], n: a[8] ?? 0,
+      // l'index 6 porte x2 pour un arc (3, 13) et le PROPRIETAIRE pour un
+      // ultime (16) : deux lectures du meme emplacement, jamais deux cles.
+      x2: a[6], y2: a[7], owner: a[6] ?? 0, n: a[8] ?? 0,
     })),
     boss: msg.bo
       ? { id: msg.bo[0], x: msg.bo[1], y: msg.bo[2], hp: msg.bo[3],

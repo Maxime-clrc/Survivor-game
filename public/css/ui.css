@@ -502,3 +502,19 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 #version[hidden] { display: none; }
 
 #version.stale { color: var(--warn); }
+
+/* la mesure reste visible PENDANT la manche, contrairement a la version : un
+   enregistrement qui court sans se voir n'est pas un enregistrement honnete. */
+#trace {
+  position: fixed;
+  left: var(--sp-2);
+  bottom: var(--sp-2);
+  z-index: 25;
+  font-size: var(--t-xs);
+  font-family: var(--font);
+  letter-spacing: .08em;
+  color: var(--warn);
+  pointer-events: none;
+  user-select: none;
+}
+#trace[hidden] { display: none; }

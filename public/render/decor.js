@@ -1,6 +1,6 @@
 
-import { BIOME_CFG, CFG, HZ_EMBER, HZ_GEYSER, HZ_SLIP, HZ_SLOW, WX_BRUME, biomeAt, hazardState } from "/shared/game_state.js";
-import { BIOME, BOSS, SURFACE, WALL, ZONE, alpha } from "/shared/palette.js";
+import { BIOME_CFG, CFG, HZ_EMBER, HZ_GEYSER, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, hazardState, windAt } from "/shared/game_state.js";
+import { BIOME, BOSS, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
 import { difficulty } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
 import { floorPattern } from "./material.js";
@@ -62,7 +62,7 @@ export function drawVignette() {
   const fog = weather?.id === WX_BRUME;
   if (!vignette || decor.pulse > 0 || fog) {
     const r = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2;
-    const from = decor.vignetteFrom + (fog ? BIOME_CFG.FOG_FROM : 0);
+    const from = Math.max(0, decor.vignetteFrom + (fog ? BIOME_CFG.FOG_FROM : 0));
     const amt = decor.vignette * puls * (fog ? BIOME_CFG.FOG_VIGNETTE : 1);
     setVignette(ctx.createRadialGradient(
       CFG.VIEW_W / 2, CFG.VIEW_H / 2, r * Math.min(0.9, from),
@@ -190,6 +190,70 @@ export function drawObstacles(cover) {
     }
   }
 }
+// UN CHAMP DE PARTICULES SANS PARTICULES : la position d'un brin est une
+// fonction de son indice et du temps, donc rien ne s'alloue, rien ne se garde
+// entre deux images, et deux clients voient la meme chose. Un seul `stroke`
+// pour tout le champ.
+// le champ couvre un DISQUE (il tourne avec le vent) et la vue en prend un peu
+// moins de la moitie : mesure, 220 brins en laissent une bonne quatre-vingtaine
+// a l'ecran.
+const CHAMP_MAX = 220;
+function h01(i) {
+  let x = Math.imul(i ^ 0x9e3779b9, 0x85ebca6b);
+  x ^= x >>> 13;
+  x = Math.imul(x, 0xc2b2ae35);
+  return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+}
+function enroule(v, centre, demi) {
+  const p = 2 * demi;
+  let d = (v - centre + demi) % p;
+  if (d < 0) d += p;
+  return centre + d - demi;
+}
+// le champ est ancre au MONDE et non a la camera : sinon il glisse avec le
+// joueur, et le vent parait accroche a lui au lieu de traverser l'arene.
+function champ(tm, ang, vitesse, longueur, nombre, couleur, opacite, epaisseur) {
+  const demi = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2 + longueur;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const cx = camera.x0 + CFG.VIEW_W / 2, cy = camera.y0 + CFG.VIEW_H / 2;
+  const cu = cx * ca + cy * sa, cw = cy * ca - cx * sa;
+  const portee = demi * 2;
+
+  ctx.beginPath();
+  for (let i = 0; i < nombre; i++) {
+    const u = enroule(h01(i) * portee + tm * vitesse, cu, demi);
+    const w = enroule(h01(i + 7919) * portee, cw, demi);
+    const l = longueur * (0.55 + 0.45 * h01(i + 104729));
+    const x = u * ca - w * sa, y = u * sa + w * ca;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - ca * l, y - sa * l);
+  }
+  ctx.strokeStyle = alpha(couleur, opacite);
+  ctx.lineWidth = epaisseur;
+  ctx.lineCap = "round";
+  ctx.stroke();
+  ctx.lineCap = "butt";
+}
+
+// LE VENT SE VOIT, SINON IL N'EST QU'UNE DERIVE INEXPLIQUEE. La densite, la
+// longueur et la vitesse des brins lisent toutes la meme `force`, donc une
+// accalmie se voit avant de se sentir.
+export function drawWeather(tm) {
+  if (!weather) return;
+  if (weather.id === WX_BOURRASQUE) {
+    const v = windAt(weather, tm);
+    if (!v) return;
+    champ(tm, v.ang, 520 + 1150 * v.force, 30 + 82 * v.force,
+          Math.round(CHAMP_MAX * (0.35 + 0.65 * v.force)),
+          WEATHER.wind, 0.05 + 0.15 * v.force, 1.2);
+    return;
+  }
+  if (weather.id === WX_CENDRES) {
+    const ang = Math.PI / 2 + Math.sin(tm * 0.11 + weather.p1) * 0.22;
+    champ(tm, ang, 108, 9, CHAMP_MAX, WEATHER.ash, 0.20, 2.1);
+  }
+}
+
 export function drawHazards(tm) {
   const list = hazardsActifs();
   if (!list.length) return;

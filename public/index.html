@@ -12,7 +12,7 @@
 <body>
 
 <div id="topbar" hidden>
-  <button id="topHome" title="Retour aux salons">
+  <button id="topHome" data-i18n-title="ui.top.home.title" title="Retour aux salons">
     <span class="mark"></span>
     <span>Survivor</span>
   </button>
@@ -28,7 +28,8 @@
     <span id="topName"></span>
   </div>
 
-  <button id="topSettings">Paramètres</button>
+  <button id="topLang" data-i18n-title="ui.set.langue.row" title="Langue de l'interface">FR</button>
+  <button id="topSettings" data-i18n="ui.top.settings">Paramètres</button>
 </div>
 
 <div id="stage">
@@ -63,7 +64,7 @@
         <div id="bossBar"><i></i><s id="bossLoss"></s><u id="bossBank"></u><b id="bossMult"></b></div>
         <div id="bossPips"></div>
         <div id="bossBeat" hidden><i></i><i></i><i></i><i></i></div>
-        <div id="bossUlt" hidden><i></i><span>ULTIME — tenez les tours pour la faire descendre</span></div>
+        <div id="bossUlt" hidden><i></i><span data-i18n="ui.hud.ult">ULTIME — tenez les tours pour la faire descendre</span></div>
       </div>
 
       <div id="hudTeam"></div>
@@ -89,19 +90,24 @@
         <div id="selfBuffs"></div>
         <div id="selfMain">
           <div id="selfGauges">
-            <div id="selfShield"><i></i></div>
-            <div id="selfHp"><i></i></div>
+            <div id="selfHp" class="gauge"><i></i><b></b><u><i></i></u></div>
+            <div id="selfText">
+              <div id="selfHpText"></div>
+              <div id="selfLevel"></div>
+            </div>
             <div id="selfXp"><i></i></div>
-          </div>
-          <div id="selfText">
-            <div id="selfHpText"></div>
-            <div id="selfLevel"></div>
           </div>
           <div id="selfPips"></div>
         </div>
       </div>
 
-      <div id="hudSpectator" hidden>SPECTATEUR — tu entres à la manche suivante</div>
+      <div id="hudStats" hidden>
+        <div id="statsDps"></div>
+        <div id="statsRows"></div>
+        <div id="statsHurt"></div>
+      </div>
+
+      <div id="hudSpectator" hidden data-i18n="ui.hud.spectator">SPECTATEUR — tu entres à la manche suivante</div>
       <div id="hudPerf" hidden></div>
 
       <div id="dmgLayer"></div>
@@ -118,12 +124,9 @@
     </div>
 
     <div class="gatePitch">
-      <div class="sectionTitle">En ligne · coopératif · 4 joueurs</div>
-      <h1 class="gateH1">Tenez la ligne jusqu'à la dernière vague.</h1>
-      <p class="gateLead">
-        Connecte-toi pour voir les salles ouvertes, choisir ta classe
-        et lancer une manche avec ton équipe.
-      </p>
+      <div class="sectionTitle" data-i18n="ui.gate.kicker">En ligne · coopératif · 4 joueurs</div>
+      <h1 class="gateH1" data-i18n="ui.gate.h1">Tenez la ligne jusqu'à la dernière vague.</h1>
+      <p class="gateLead" data-i18n="ui.gate.lead">Connecte-toi pour voir les salles ouvertes, choisir ta classe et lancer une manche avec ton équipe.</p>
     </div>
 
     <div class="gateStatus">
@@ -136,61 +139,61 @@
   <div class="gateRight">
   <div id="gateForms">
     <div id="gateTabs">
-      <button id="tabLogin" class="mine">Se connecter</button>
-      <button id="tabRegister">Créer un compte</button>
+      <button id="tabLogin" class="mine" data-i18n="ui.gate.tab.login">Se connecter</button>
+      <button id="tabRegister" data-i18n="ui.gate.tab.register">Créer un compte</button>
     </div>
 
     <div class="gateForm" id="loginForm">
       <div class="gateFormHead">
-        <h2 class="gateFormTitle">Content de te revoir</h2>
-        <p class="gateFormLead">Laisse le mot de passe vide pour reprendre la session mémorisée sur ce navigateur.</p>
+        <h2 class="gateFormTitle" data-i18n="ui.gate.login.title">Content de te revoir</h2>
+        <p class="gateFormLead" data-i18n="ui.gate.login.lead">Laisse le mot de passe vide pour reprendre la session mémorisée sur ce navigateur.</p>
       </div>
-      <label class="fieldLabel" for="name">Pseudo</label>
-      <input id="name" maxlength="14" placeholder="ton pseudo" autocomplete="username" spellcheck="false">
-      <label class="fieldLabel" for="pass">Mot de passe</label>
-      <input id="pass" type="password" maxlength="72" placeholder="mot de passe" autocomplete="current-password">
-      <button id="go">Se connecter</button>
+      <label class="fieldLabel" for="name" data-i18n="ui.gate.field.pseudo">Pseudo</label>
+      <input id="name" maxlength="14" data-i18n-ph="ui.gate.ph.pseudo" placeholder="ton pseudo" autocomplete="username" spellcheck="false">
+      <label class="fieldLabel" for="pass" data-i18n="ui.gate.field.pass">Mot de passe</label>
+      <input id="pass" type="password" maxlength="72" data-i18n-ph="ui.gate.ph.pass" placeholder="mot de passe" autocomplete="current-password">
+      <button id="go" data-i18n="ui.gate.login.go">Se connecter</button>
     </div>
 
     <div class="gateForm" id="registerForm" hidden>
       <div class="gateFormHead">
-        <h2 class="gateFormTitle">Crée ton compte</h2>
-        <p class="gateFormLead">Un pseudo, un mot de passe, et la progression te suit d'une soirée à l'autre.</p>
+        <h2 class="gateFormTitle" data-i18n="ui.gate.register.title">Crée ton compte</h2>
+        <p class="gateFormLead" data-i18n="ui.gate.register.lead">Un pseudo, un mot de passe, et la progression te suit d'une soirée à l'autre.</p>
       </div>
-      <label class="fieldLabel" for="regName">Pseudo</label>
-      <input id="regName" maxlength="14" placeholder="3 à 14 caractères" autocomplete="username" spellcheck="false">
-      <label class="fieldLabel" for="regPass">Mot de passe</label>
-      <input id="regPass" type="password" maxlength="72" placeholder="8 caractères minimum" autocomplete="new-password">
-      <label class="fieldLabel" for="regPass2">Confirmation</label>
-      <input id="regPass2" type="password" maxlength="72" placeholder="retape le mot de passe" autocomplete="new-password">
-      <button id="regGo">Créer le compte</button>
-      <div class="hint">pas de récupération par email — note ton mot de passe quelque part</div>
+      <label class="fieldLabel" for="regName" data-i18n="ui.gate.field.pseudo">Pseudo</label>
+      <input id="regName" maxlength="14" data-i18n-ph="ui.gate.ph.regName" placeholder="3 à 14 caractères" autocomplete="username" spellcheck="false">
+      <label class="fieldLabel" for="regPass" data-i18n="ui.gate.field.pass">Mot de passe</label>
+      <input id="regPass" type="password" maxlength="72" data-i18n-ph="ui.gate.ph.regPass" placeholder="8 caractères minimum" autocomplete="new-password">
+      <label class="fieldLabel" for="regPass2" data-i18n="ui.gate.field.confirm">Confirmation</label>
+      <input id="regPass2" type="password" maxlength="72" data-i18n-ph="ui.gate.ph.regPass2" placeholder="retape le mot de passe" autocomplete="new-password">
+      <button id="regGo" data-i18n="ui.gate.register.go">Créer le compte</button>
+      <div class="hint" data-i18n="ui.gate.register.hint">pas de récupération par email — note ton mot de passe quelque part</div>
     </div>
   </div>
   <div id="status"></div>
 
   <div id="gateHold" hidden>
-    <div class="sectionTitle">Compte déjà connecté ailleurs</div>
+    <div class="sectionTitle" data-i18n="ui.gate.hold.title">Compte déjà connecté ailleurs</div>
     <div id="gateWho" class="hint"></div>
     <div id="gateHoldMsg" class="hint" hidden></div>
-    <button id="gateContinue">Continuer quand même</button>
+    <button id="gateContinue" data-i18n="ui.gate.hold.go">Continuer quand même</button>
   </div>
 
   <p class="gateSwitch" id="gateSwitch"></p>
 
   <div class="gateAudio">
     <div id="audioRow">
-      <button id="mute" title="couper le son">♪</button>
-      <input id="vol" type="range" min="0" max="100" step="5" title="volume">
+      <button id="mute" data-i18n-title="ui.audio.mute.title" title="couper le son">♪</button>
+      <input id="vol" type="range" min="0" max="100" step="5" data-i18n-title="ui.audio.vol.title" title="volume">
       <span id="volVal">70 %</span>
     </div>
     <div id="musicRow">
-      <span class="musGlyph" title="musique">♫</span>
-      <input id="musVol" type="range" min="0" max="100" step="5" title="volume de la musique">
+      <span class="musGlyph" data-i18n-title="ui.audio.music.title" title="musique">♫</span>
+      <input id="musVol" type="range" min="0" max="100" step="5" data-i18n-title="ui.audio.musvol.title" title="volume de la musique">
       <span id="musVolVal">50 %</span>
     </div>
     <div id="musicSrcRow">
-      <button id="musSrc" title="basculer entre la bande son calculée et les pistes audio">Bande son : pistes</button>
+      <button id="musSrc" data-i18n-title="ui.audio.src.title" title="basculer entre la bande son calculée et les pistes audio">Bande son : pistes</button>
     </div>
   </div>
   </div>
@@ -203,7 +206,7 @@
   </div>
   <div id="loadBar"><i></i></div>
   <div id="loadPct">0 %</div>
-  <div id="loadWhat" class="hint">génération des sprites</div>
+  <div id="loadWhat" class="hint" data-i18n="ui.load.what">génération des sprites</div>
 </div>
 
 <div id="hubScreen" class="overlay" hidden>
@@ -216,15 +219,15 @@
         <div id="hubResumeSub"></div>
       </div>
       <div class="row">
-        <button id="hubResumeGo">Reprendre</button>
-        <button id="hubResumeStay" class="ghost">Rester ici</button>
+        <button id="hubResumeGo" data-i18n="ui.hub.resume.go">Reprendre</button>
+        <button id="hubResumeStay" class="ghost" data-i18n="ui.hub.resume.stay">Rester ici</button>
       </div>
     </div>
 
     <div class="hubHead">
       <div>
-        <h1 id="hubTitle">Salons</h1>
-        <p class="hubLead">Une salle pleine reste visible : c'est celle où sont les autres.</p>
+        <h1 id="hubTitle" data-i18n="ui.hub.title">Salons</h1>
+        <p class="hubLead" data-i18n="ui.hub.lead">Une salle pleine reste visible : c'est celle où sont les autres.</p>
       </div>
       <div id="hubBar" class="row">
         <button id="hubRefresh">
@@ -232,9 +235,9 @@
             <path d="M13 8a5 5 0 1 1-1.6-3.7" fill="none" stroke="currentColor" stroke-width="1.7"/>
             <path d="M12.6 2.2v3.1H9.5z" fill="currentColor"/>
           </svg>
-          <span>Actualiser</span>
+          <span data-i18n="ui.hub.refresh">Actualiser</span>
         </button>
-        <button id="hubBoardBtn">Classement</button>
+        <button id="hubBoardBtn" data-i18n="ui.hub.board">Classement</button>
       </div>
     </div>
 
@@ -247,29 +250,29 @@
 
     <div id="hubPassAsk" hidden>
       <div id="hubPassAskHead">
-        <div class="sectionTitle">Salle protégée</div>
+        <div class="sectionTitle" data-i18n="ui.hub.passask.title">Salle protégée</div>
         <div id="hubPassAskWho" class="hint"></div>
       </div>
       <div class="row">
-        <input id="hubPassAskInput" type="password" maxlength="20" placeholder="mot de passe de la salle" autocomplete="off">
-        <button id="hubPassAskGo">Rejoindre</button>
-        <button id="hubPassAskCancel" class="ghost">annuler</button>
+        <input id="hubPassAskInput" type="password" maxlength="20" data-i18n-ph="ui.hub.passask.ph" placeholder="mot de passe de la salle" autocomplete="off">
+        <button id="hubPassAskGo" data-i18n="ui.hub.passask.go">Rejoindre</button>
+        <button id="hubPassAskCancel" class="ghost" data-i18n="ui.hub.passask.cancel">annuler</button>
       </div>
     </div>
 
     <div class="hubCreate">
-      <div class="sectionTitle">Créer une salle</div>
-      <p class="hubLead">Tu en deviens l'hôte : la difficulté et le lancement te reviennent.</p>
+      <div class="sectionTitle" data-i18n="ui.hub.create.title">Créer une salle</div>
+      <p class="hubLead" data-i18n="ui.hub.create.lead">Tu en deviens l'hôte : la difficulté et le lancement te reviennent.</p>
       <div class="row" id="hubCreateRow">
         <label class="fieldWrap">
-          <span class="fieldLabel">Nom de la salle</span>
-          <input id="roomName" maxlength="20" placeholder="Vendredi soir" autocomplete="off" spellcheck="false">
+          <span class="fieldLabel" data-i18n="ui.hub.create.name">Nom de la salle</span>
+          <input id="roomName" maxlength="20" data-i18n-ph="ui.hub.create.name.ph" placeholder="Vendredi soir" autocomplete="off" spellcheck="false">
         </label>
         <label class="fieldWrap">
-          <span class="fieldLabel">Mot de passe — optionnel</span>
-          <input id="roomPass" maxlength="20" placeholder="Vide = salle ouverte à tous" autocomplete="off" spellcheck="false">
+          <span class="fieldLabel" data-i18n="ui.hub.create.pass">Mot de passe — optionnel</span>
+          <input id="roomPass" maxlength="20" data-i18n-ph="ui.hub.create.pass.ph" placeholder="Vide = salle ouverte à tous" autocomplete="off" spellcheck="false">
         </label>
-        <button id="roomCreate">Créer la salle</button>
+        <button id="roomCreate" data-i18n="ui.hub.create.go">Créer la salle</button>
       </div>
     </div>
 
@@ -278,14 +281,14 @@
     <div id="hubAccount">
       <div class="row">
         <span id="hubWho" class="hint"></span>
-        <button id="hubPassToggle" class="link">Changer de mot de passe</button>
-        <button id="hubLogout" class="link">Se déconnecter</button>
+        <button id="hubPassToggle" class="link" data-i18n="ui.hub.pass.toggle">Changer de mot de passe</button>
+        <button id="hubLogout" class="link" data-i18n="ui.hub.logout">Se déconnecter</button>
       </div>
       <div id="hubPassBox" hidden>
         <div class="row">
-          <input id="passOld" type="password" maxlength="72" placeholder="ancien mot de passe" autocomplete="current-password">
-          <input id="passNew" type="password" maxlength="72" placeholder="nouveau (8 caractères min)" autocomplete="new-password">
-          <button id="passChangeBtn">Changer</button>
+          <input id="passOld" type="password" maxlength="72" data-i18n-ph="ui.hub.pass.old.ph" placeholder="ancien mot de passe" autocomplete="current-password">
+          <input id="passNew" type="password" maxlength="72" data-i18n-ph="ui.hub.pass.new.ph" placeholder="nouveau (8 caractères min)" autocomplete="new-password">
+          <button id="passChangeBtn" data-i18n="ui.hub.pass.go">Changer</button>
         </div>
         <div id="passMsg" class="hint"></div>
       </div>
@@ -298,7 +301,7 @@
   <div class="bilanWrap">
     <div id="bilanKicker" class="sectionTitle"></div>
     <div id="bilanTitle"></div>
-    <p id="bilanLead">Clique sur une ligne du tableau pour ouvrir le build de ce joueur.</p>
+    <p id="bilanLead" data-i18n="ui.bilan.lead">Clique sur une ligne du tableau pour ouvrir le build de ce joueur.</p>
 
     <div id="bilanStats"></div>
 
@@ -312,8 +315,8 @@
 
     <div id="bilanNext">
       <div class="row">
-        <button id="bilanGo">Continuer</button>
-        <button id="bilanLeave" class="ghost">Retour aux salons</button>
+        <button id="bilanGo" data-i18n="ui.bilan.go">Continuer</button>
+        <button id="bilanLeave" class="ghost" data-i18n="ui.bilan.leave">Retour aux salons</button>
       </div>
     </div>
   </div>
@@ -324,7 +327,7 @@
     <div id="finKicker" class="sectionTitle"></div>
     <h2 id="finTitle"></h2>
     <div id="finStats"></div>
-    <button id="finGo">Voir les stats</button>
+    <button id="finGo" data-i18n="ui.fin.go">Voir les stats</button>
   </div>
 </div>
 
@@ -333,30 +336,25 @@
 
     <div class="metaHead">
       <div>
-        <div class="sectionTitle">Progression permanente</div>
+        <div class="sectionTitle" data-i18n="ui.meta.kicker">Progression permanente</div>
         <h1 id="menuTitle">Arbre du Tireur</h1>
       </div>
       <div class="metaCoresBox">
-        <div class="metaCoresLabel">Noyaux disponibles</div>
+        <div class="metaCoresLabel" data-i18n="ui.meta.cores.label">Noyaux disponibles</div>
         <div id="metaCores"></div>
       </div>
     </div>
 
-    <p class="metaLead">
-      Chaque arbre renforce ce que la classe fait déjà, il ne comble pas ses
-      faiblesses. Les noyaux viennent de la performance d'équipe — vague
-      atteinte et boss vaincus, versés à parts égales — jamais des kills
-      individuels.
-    </p>
+    <p class="metaLead" data-i18n="ui.meta.lead">Chaque arbre renforce ce que la classe fait déjà, il ne comble pas ses faiblesses. Les noyaux viennent de la performance d'équipe — vague atteinte et boss vaincus, versés à parts égales — jamais des kills individuels.</p>
 
     <div id="metaClassTabs"></div>
     <div id="metaSlots"></div>
 
     <div id="metaTabs">
-      <button id="metaTabArbre" class="mine">Arbre</button>
-      <button id="metaTabConfort">Confort</button>
-      <button id="metaTabJalons">Jalons</button>
-      <button id="metaTabBans">Bannies</button>
+      <button id="metaTabArbre" class="mine" data-i18n="ui.meta.tab.arbre">Arbre</button>
+      <button id="metaTabConfort" data-i18n="ui.meta.tab.confort">Confort</button>
+      <button id="metaTabJalons" data-i18n="ui.meta.tab.jalons">Jalons</button>
+      <button id="metaTabBans" data-i18n="ui.meta.tab.bans">Bannies</button>
     </div>
 
     <div id="meta" hidden>
@@ -368,7 +366,7 @@
     </div>
 
     <div class="row metaBack">
-      <button id="menuClose">Retour au salon</button>
+      <button id="menuClose" data-i18n="ui.meta.back">Retour au salon</button>
     </div>
 
   </div>
@@ -379,81 +377,87 @@
 
     <div class="setHead">
       <div>
-        <div class="sectionTitle">Réglages de cette machine</div>
-        <h1 id="settingsTitle">Paramètres</h1>
+        <div class="sectionTitle" data-i18n="ui.set.kicker">Réglages de cette machine</div>
+        <h1 id="settingsTitle" data-i18n="ui.set.title">Paramètres</h1>
       </div>
       <div class="row">
-        <button id="settingsClose">← Retour</button>
+        <button id="settingsClose" data-i18n="ui.set.close">← Retour</button>
       </div>
     </div>
 
-    <p class="setLead">
-      Ces réglages sont enregistrés sur cette machine, pour toutes tes parties.
-    </p>
+    <p class="setLead" data-i18n="ui.set.lead">Ces réglages sont enregistrés sur cette machine, pour toutes tes parties.</p>
 
     <section class="setCard">
-      <div class="sectionTitle">Audio</div>
+      <div class="sectionTitle" data-i18n="ui.set.langue.title">Langue</div>
       <div class="setRow">
-        <span>Effets sonores</span>
+        <span data-i18n="ui.set.langue.row">Langue de l'interface</span>
+        <div class="row langRow" id="setLangRow"></div>
+      </div>
+    </section>
+
+    <section class="setCard">
+      <div class="sectionTitle" data-i18n="ui.set.audio">Audio</div>
+      <div class="setRow">
+        <span data-i18n="ui.set.sfx">Effets sonores</span>
         <input id="setVol" type="range" min="0" max="100" step="5">
         <span class="setVal" id="setVolVal">70 %</span>
       </div>
       <div class="setRow">
-        <span>Musique</span>
+        <span data-i18n="ui.set.music">Musique</span>
         <input id="setMusVol" type="range" min="0" max="100" step="5">
         <span class="setVal" id="setMusVolVal">50 %</span>
       </div>
       <div class="setRow">
-        <span>Bande son</span>
+        <span data-i18n="ui.set.src">Bande son</span>
         <button id="setSrc" class="srcBtn">Pistes</button>
         <span class="setVal" id="setSrcVal">fichiers</span>
       </div>
     </section>
 
     <section class="setCard">
-      <div class="sectionTitle">Contrôles</div>
-      <p class="setLead">Disposition AZERTY. La souris sert toujours à viser.</p>
+      <div class="sectionTitle" data-i18n="ui.set.ctrl">Contrôles</div>
+      <p class="setLead" data-i18n="ui.set.ctrl.lead">Disposition AZERTY. La souris sert toujours à viser.</p>
 
       <div class="keyRow">
         <span class="keyCombo">
           <span class="keyCap">Z</span><span class="keyCap">Q</span>
           <span class="keyCap">S</span><span class="keyCap">D</span>
         </span>
-        <span class="keyDesc">Se déplacer — les flèches fonctionnent aussi</span>
+        <span class="keyDesc" data-i18n="ui.set.key.move">Se déplacer — les flèches fonctionnent aussi</span>
       </div>
       <div class="keyRow">
-        <span class="keyCombo"><span class="keyCap">Souris</span></span>
-        <span class="keyDesc">Viser. Le tir part tout seul, tu n'as rien à cliquer.</span>
+        <span class="keyCombo"><span class="keyCap" data-i18n="ui.key.mouse">Souris</span></span>
+        <span class="keyDesc" data-i18n="ui.set.key.aim">Viser. Le tir part tout seul, tu n'as rien à cliquer.</span>
       </div>
       <div class="keyRow">
-        <span class="keyCombo"><span class="keyCap">Espace</span></span>
-        <span class="keyDesc">Esquiver — tu es invulnérable pendant le bond</span>
+        <span class="keyCombo"><span class="keyCap" data-i18n="ui.key.space">Espace</span></span>
+        <span class="keyDesc" data-i18n="ui.set.key.dodge">Esquiver — tu es invulnérable pendant le bond</span>
       </div>
       <div class="keyRow">
         <span class="keyCombo"><span class="keyCap">A</span><span class="keyCap">1</span></span>
-        <span class="keyDesc">Première compétence de classe</span>
+        <span class="keyDesc" data-i18n="ui.set.key.skill1">Première compétence de classe</span>
       </div>
       <div class="keyRow">
         <span class="keyCombo"><span class="keyCap">E</span><span class="keyCap">2</span></span>
-        <span class="keyDesc">Deuxième compétence de classe</span>
+        <span class="keyDesc" data-i18n="ui.set.key.skill2">Deuxième compétence de classe</span>
       </div>
       <div class="keyRow">
         <span class="keyCombo">
-          <span class="keyCap">3</span><span class="keyCap">R</span><span class="keyCap">Clic milieu</span>
+          <span class="keyCap">3</span><span class="keyCap">R</span><span class="keyCap" data-i18n="ui.key.mclick">Clic milieu</span>
         </span>
-        <span class="keyDesc">Troisième compétence, une fois sa carte tirée</span>
+        <span class="keyDesc" data-i18n="ui.set.key.skill3">Troisième compétence, une fois sa carte tirée</span>
       </div>
       <div class="keyRow">
         <span class="keyCombo"><span class="keyCap">Tab</span></span>
-        <span class="keyDesc">Consulter son build en cours de manche</span>
+        <span class="keyDesc" data-i18n="ui.set.key.build">Consulter son build en cours de manche</span>
       </div>
       <div class="keyRow">
-        <span class="keyCombo"><span class="keyCap">Échap</span></span>
-        <span class="keyDesc">Menu pause</span>
+        <span class="keyCombo"><span class="keyCap" data-i18n="ui.key.esc">Échap</span></span>
+        <span class="keyDesc" data-i18n="ui.set.key.pause">Menu pause</span>
       </div>
       <div class="keyRow">
-        <span class="keyCombo"><span class="keyCap">Proximité</span></span>
-        <span class="keyDesc">Relève un coéquipier en restant simplement à côté de lui</span>
+        <span class="keyCombo"><span class="keyCap" data-i18n="ui.key.prox">Proximité</span></span>
+        <span class="keyDesc" data-i18n="ui.set.key.revive">Relève un coéquipier en restant simplement à côté de lui</span>
       </div>
     </section>
 
@@ -470,7 +474,7 @@
         <div id="summary"></div>
       </div>
       <div class="row panelLeaveRow">
-        <button id="panelLeave">← Quitter la salle</button>
+        <button id="panelLeave" data-i18n="ui.panel.leave">← Quitter la salle</button>
       </div>
     </div>
 
@@ -478,19 +482,15 @@
 
       <div class="panelChoices">
         <div id="classes">
-          <div id="classLabel" class="sectionTitle">1 — Classe</div>
-          <p class="panelLead">
-            Rempart et Soigneur sont uniques : un seul joueur chacun.
-          </p>
+          <div id="classLabel" class="sectionTitle" data-i18n="ui.panel.class.label">1 — Classe</div>
+          <p class="panelLead" data-i18n="ui.panel.class.lead">Rempart et Soigneur sont uniques : un seul joueur chacun.</p>
           <div id="classRow"></div>
           <div id="classHint"></div>
         </div>
 
         <div id="vote">
-          <div id="voteLabel" class="sectionTitle">2 — Difficulté</div>
-          <p class="panelLead">
-            Chacun vote, la majorité l'emporte. Le mode retenu s'applique à toute l'équipe.
-          </p>
+          <div id="voteLabel" class="sectionTitle" data-i18n="ui.panel.vote.label">2 — Difficulté</div>
+          <p class="panelLead" data-i18n="ui.panel.vote.lead">Chacun vote, la majorité l'emporte. Le mode retenu s'applique à toute l'équipe.</p>
           <div id="voteRow"></div>
           <div id="voteHint"></div>
         </div>
@@ -499,20 +499,20 @@
       <aside class="panelState">
         <section class="panelCard">
           <div class="panelCardHead">
-            <span class="sectionTitle">Équipe</span>
+            <span class="sectionTitle" data-i18n="ui.panel.team">Équipe</span>
             <span id="teamReady"></span>
           </div>
           <div id="teamList"></div>
-          <button id="readyBtn">Je suis prêt</button>
+          <button id="readyBtn" data-i18n="ui.panel.ready">Je suis prêt</button>
         </section>
 
         <section class="panelCard">
-          <div class="sectionTitle">Manches précédentes</div>
+          <div class="sectionTitle" data-i18n="ui.panel.history">Manches précédentes</div>
           <div id="historyList"></div>
         </section>
 
         <div id="scoresWrap">
-          <div class="sectionTitle">Table</div>
+          <div class="sectionTitle" data-i18n="ui.panel.table">Table</div>
           <table id="scores"><tbody></tbody></table>
         </div>
       </aside>
@@ -521,7 +521,7 @@
   </div>
 
   <div id="vote">
-    <div id="voteLabel" class="sectionTitle">Difficulté</div>
+    <div id="voteLabel" class="sectionTitle" data-i18n="ui.panel.vote2.label">Difficulté</div>
     <div id="voteRow"></div>
     <div id="voteHint"></div>
     <ul id="voteDetail"></ul>
@@ -534,7 +534,7 @@
         <div id="waitMsg"></div>
       </div>
       <div class="row">
-        <button id="start">Lancer la manche</button>
+        <button id="start" data-i18n="ui.panel.start">Lancer la manche</button>
       </div>
     </div>
   </div>
@@ -543,31 +543,31 @@
 <div id="brief" class="overlay" hidden>
   <div class="briefWrap">
     <div id="briefName"></div>
-    <div id="briefKicker" class="sectionTitle">tes deux compétences et leurs touches</div>
+    <div id="briefKicker" class="sectionTitle" data-i18n="ui.brief.kicker">tes deux compétences et leurs touches</div>
 
     <div id="briefSkills"></div>
 
     <div id="briefThird"></div>
 
     <div id="briefMission">
-      <div class="sectionTitle">Ta mission</div>
+      <div class="sectionTitle" data-i18n="ui.brief.mission">Ta mission</div>
       <p id="briefMissionText"></p>
     </div>
 
     <div id="briefBasics">
-      <span class="briefBasic"><b>ZQSD</b> se déplacer</span>
-      <span class="briefBasic"><b>Souris</b> viser</span>
-      <span class="briefBasic"><b>Espace</b> esquiver</span>
+      <span class="briefBasic"><b>ZQSD</b> <span data-i18n="ui.brief.basic.move">se déplacer</span></span>
+      <span class="briefBasic"><b data-i18n="ui.key.mouse">Souris</b> <span data-i18n="ui.brief.basic.aim">viser</span></span>
+      <span class="briefBasic"><b data-i18n="ui.key.space">Espace</b> <span data-i18n="ui.brief.basic.dodge">esquiver</span></span>
     </div>
 
-    <button id="briefGo">Continuer</button>
+    <button id="briefGo" data-i18n="ui.brief.go">Continuer</button>
     <div id="briefBar"><i></i></div>
-    <div id="briefCount">première vague dans <b id="briefLeft">—</b> s</div>
+    <div id="briefCount"><span data-i18n="ui.brief.count.pre">première vague dans</span> <b id="briefLeft">—</b> <span data-i18n="ui.brief.count.post">s</span></div>
   </div>
 </div>
 
 <div id="cards" class="overlay" hidden>
-  <div id="cardsKicker">Choix de carte</div>
+  <div id="cardsKicker" data-i18n="ui.cards.kicker">Choix de carte</div>
   <div id="cardsTitle"></div>
   <div id="cardsTimer"><i></i></div>
   <div id="cardsRow"></div>
@@ -584,67 +584,73 @@
 <div id="build" class="overlay" hidden>
   <div class="buildWrap">
     <div id="buildHead">
-      <button id="buildPrev" class="buildNav" title="joueur précédent">◀</button>
+      <button id="buildPrev" class="buildNav" data-i18n-title="ui.build.prev.title" title="joueur précédent">◀</button>
       <div id="buildIdent">
         <div id="buildName"></div>
         <div id="buildClass"></div>
       </div>
-      <button id="buildNext" class="buildNav" title="joueur suivant">▶</button>
+      <button id="buildNext" class="buildNav" data-i18n-title="ui.build.next.title" title="joueur suivant">▶</button>
     </div>
 
     <div id="buildStats"></div>
 
-    <div id="buildModsTitle" class="sectionTitle">Multiplicateurs</div>
+    <div id="buildModsTitle" class="sectionTitle" data-i18n="ui.build.mods">Multiplicateurs</div>
     <div id="buildMods"></div>
 
-    <div id="buildSkillsTitle" class="sectionTitle">Compétences</div>
+    <div id="buildSkillsTitle" class="sectionTitle" data-i18n="ui.build.skills">Compétences</div>
     <div id="buildSkills"></div>
 
-    <div id="buildCardsTitle" class="sectionTitle">Cartes</div>
+    <div id="buildCardsTitle" class="sectionTitle" data-i18n="ui.build.cards">Cartes</div>
     <div id="buildCards"></div>
 
     <div id="buildFoot">
-      <button id="buildBack" class="ghost">← Fermer</button>
-      <div id="buildHint" class="hint">← → changer de joueur · <b>Échap</b> fermer</div>
+      <button id="buildBack" class="ghost" data-i18n="ui.build.back">← Fermer</button>
+      <div id="buildHint" class="hint"><span data-i18n="ui.build.hint.nav">← → changer de joueur ·</span> <b data-i18n="ui.key.esc">Échap</b> <span data-i18n="ui.build.hint.close">fermer</span></div>
     </div>
   </div>
 </div>
 
 <div id="pause" hidden>
   <div id="pausePanel">
-    <div id="pauseTitle">Pause</div>
+    <div id="pauseTitle" data-i18n="ui.pause.title">Pause</div>
     <div id="pauseState"></div>
 
-    <button id="pauseResume">Reprendre</button>
+    <button id="pauseResume" data-i18n="ui.pause.resume">Reprendre</button>
 
     <div id="pauseAudio">
-      <button id="pauseMute" title="couper le son">♪</button>
-      <input id="pauseVol" type="range" min="0" max="100" step="5" title="volume">
+      <button id="pauseMute" data-i18n-title="ui.audio.mute.title" title="couper le son">♪</button>
+      <input id="pauseVol" type="range" min="0" max="100" step="5" data-i18n-title="ui.audio.vol.title" title="volume">
       <span id="pauseVolVal">70 %</span>
     </div>
     <div id="pauseMusic">
-      <span class="musGlyph" title="musique">♫</span>
-      <input id="pauseMusVol" type="range" min="0" max="100" step="5" title="volume de la musique">
+      <span class="musGlyph" data-i18n-title="ui.audio.music.title" title="musique">♫</span>
+      <input id="pauseMusVol" type="range" min="0" max="100" step="5" data-i18n-title="ui.audio.musvol.title" title="volume de la musique">
       <span id="pauseMusVolVal">50 %</span>
     </div>
     <div id="pauseSource">
-      <button id="pauseSrc" title="basculer entre la bande son calculée et les pistes audio">Bande son : pistes</button>
+      <button id="pauseSrc" data-i18n-title="ui.audio.src.title" title="basculer entre la bande son calculée et les pistes audio">Bande son : pistes</button>
     </div>
 
-    <button id="pauseBuild">Consulter son build</button>
-    <button id="pauseQuit" class="danger">Quitter la manche</button>
+    <div id="pauseHud">
+      <button id="pauseStats">Panneau de statistiques : masqué</button>
+      <button id="pauseDps">Compteur de dégâts : masqué</button>
+    </div>
+
+    <button id="pauseBuild" data-i18n="ui.pause.build">Consulter son build</button>
+    <button id="pauseQuit" class="danger" data-i18n="ui.pause.quit">Quitter la manche</button>
 
     <div id="pauseConfirm" hidden>
-      <div id="pauseQuitAsk">Quitter la manche en cours ? Tu redeviens spectateur jusqu'à la suivante.</div>
+      <div id="pauseQuitAsk" data-i18n="ui.pause.quit.ask">Quitter la manche en cours ? Tu redeviens spectateur jusqu'à la suivante.</div>
       <div class="row">
-        <button id="pauseQuitYes" class="danger">Oui, quitter</button>
-        <button id="pauseQuitNo">Annuler</button>
+        <button id="pauseQuitYes" class="danger" data-i18n="ui.pause.quit.yes">Oui, quitter</button>
+        <button id="pauseQuitNo" data-i18n="ui.pause.quit.no">Annuler</button>
       </div>
     </div>
   </div>
 </div>
 
 <div id="version" hidden></div>
+<div id="trace" hidden></div>
 
 <script>
   window.addEventListener("error", e => {
@@ -654,13 +660,22 @@
     s.classList.add("err");
   }, true);
 
-  setTimeout(() => {
-    if (window.__clientReady) return;
+  let attente = "";
+  const veille = setInterval(() => {
     const s = document.getElementById("status");
+    if (window.__clientReady) {
+      if (attente && s.textContent === attente) {
+        s.textContent = "";
+        s.classList.remove("err");
+      }
+      clearInterval(veille);
+      return;
+    }
     if (!s.textContent) {
-      s.textContent = location.protocol === "file:"
+      attente = location.protocol === "file:"
         ? "ouvre http://localhost:8080 — pas le fichier directement"
         : "client.js non chargé — vérifie /shared/game_state.js (F12)";
+      s.textContent = attente;
       s.classList.add("err");
     }
   }, 1500);

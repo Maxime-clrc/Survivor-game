@@ -1,5 +1,6 @@
 
 import { ALERT_ORDER, ALERT_WARN } from "./bosses.js";
+import { t, tf } from "./i18n.js";
 
 export const TL_CFG = {
   SEGMENTS: 6,
@@ -34,7 +35,10 @@ export const SEGMENT_NAMES = [
 ];
 
 export function segmentName(segment) {
-  return SEGMENT_NAMES[segment - 1] ?? `Segment ${segment}`;
+  const nom = SEGMENT_NAMES[segment - 1];
+  return nom
+    ? t(`segment.${segment}`, nom)
+    : tf("segment.autre", "Segment {n}", { n: segment });
 }
 
 export const EV_NUEE = 0;
@@ -61,6 +65,8 @@ export const EVENTS = [
 ];
 
 export function eventAt(id) { return EVENTS[id] ?? null; }
+export const eventNom = i => t(`event.${EVENTS[i]?.key}.nom`, EVENTS[i]?.nom ?? "");
+export const eventTexte = i => t(`event.${EVENTS[i]?.key}.texte`, EVENTS[i]?.texte ?? "");
 
 export const GEOMETRIES = ["bords", "front", "pince", "quatre-fronts", "anneau"];
 

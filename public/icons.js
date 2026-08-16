@@ -257,6 +257,116 @@ export const STATUS_ICON = [
   },
 ];
 
+// LES COMPETENCES MERITENT LE MEME TRAITEMENT QUE LES BONUS AU SOL. Une lettre
+// dans une case est un raccourci clavier, pas une icone : elle ne se reconnait
+// pas du coin de l'oeil, et c'est justement la seule facon dont on regarde ses
+// recharges. La touche reste ecrite, en petit, dans un coin.
+// Cle = `${classe}${rang}`, plus `dash`. Rang 0 et 1 = les deux competences,
+// rang 2 = l'ultime.
+export const SKILL_ICON = {
+  dash: g => {
+    g.lineWidth = 1.7; g.lineCap = "round";
+    for (const dx of [-4.4, -0.6]) {
+      g.beginPath();
+      g.moveTo(dx, -4.4); g.lineTo(dx + 4, 0); g.lineTo(dx, 4.4);
+      g.stroke();
+    }
+    g.globalAlpha *= 0.5;
+    g.beginPath(); g.moveTo(-6.6, -3); g.lineTo(-6.6, 3); g.stroke();
+  },
+
+  // REMPART : un mur bombe, vu de face
+  tank0: g => {
+    g.lineWidth = 1.8;
+    g.beginPath();
+    g.moveTo(-6, 4.6); g.lineTo(-6, -1.4);
+    g.bezierCurveTo(-3, -6.4, 3, -6.4, 6, -1.4);
+    g.lineTo(6, 4.6);
+    g.stroke();
+    g.fillRect(-6.4, 4.4, 12.8, 2);
+  },
+
+  // PROVOCATION : l'onde qui part du porteur
+  tank1: g => {
+    g.beginPath(); g.arc(0, 0, 2.2, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 1.5;
+    for (const r of [4.4, 6.8]) {
+      g.beginPath(); g.arc(0, 0, r, -0.9, 0.9); g.stroke();
+      g.beginPath(); g.arc(0, 0, r, Math.PI - 0.9, Math.PI + 0.9); g.stroke();
+    }
+  },
+
+  // ANCRE : elle se plante et elle tient
+  tank2: g => {
+    g.lineWidth = 1.8; g.lineCap = "round";
+    g.beginPath(); g.arc(0, -4.4, 2, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.moveTo(0, -2.4); g.lineTo(0, 5.4); g.stroke();
+    g.beginPath(); g.moveTo(-4.4, -0.6); g.lineTo(4.4, -0.6); g.stroke();
+    g.beginPath();
+    g.moveTo(-5.4, 1.6); g.bezierCurveTo(-5, 6, 5, 6, 5.4, 1.6);
+    g.stroke();
+  },
+
+  // MODE SOIN : la croix, dans la bande du lien
+  soigneur0: g => {
+    g.fillRect(-1.7, -6, 3.4, 12);
+    g.fillRect(-6, -1.7, 12, 3.4);
+  },
+
+  // VAGUE DE SOIN : la croix, portee par deux ondes qui s'ecartent
+  soigneur1: g => {
+    g.fillRect(-1.5, -6.6, 3, 6.6);
+    g.fillRect(-4.3, -4.8, 8.6, 3);
+    g.lineWidth = 1.6;
+    g.beginPath(); g.arc(0, -1.2, 5.2, 0.42, Math.PI - 0.42); g.stroke();
+    g.beginPath(); g.arc(0, -1.2, 7.6, 0.58, Math.PI - 0.58); g.stroke();
+  },
+
+  // SANCTUAIRE : le dome, et ce qu'il abrite
+  soigneur2: g => {
+    g.lineWidth = 1.8;
+    g.beginPath(); g.arc(0, 3, 6.4, Math.PI, 0); g.stroke();
+    g.beginPath(); g.moveTo(-7.4, 3); g.lineTo(7.4, 3); g.stroke();
+    g.fillRect(-1.2, -2.4, 2.4, 4.4);
+    g.fillRect(-3.2, -1.2, 6.4, 2);
+  },
+
+  // BOMBE : la charge et sa meche
+  dps0: g => {
+    g.beginPath(); g.arc(0, 1.8, 4.8, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 1.5; g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(1.6, -2.6); g.bezierCurveTo(4.4, -5, 5.4, -6.4, 4.6, -7);
+    g.stroke();
+  },
+
+  // SURCHARGE : l'eclair
+  dps1: g => {
+    g.beginPath();
+    g.moveTo(1.6, -7); g.lineTo(-4.6, 0.8); g.lineTo(-0.4, 0.8);
+    g.lineTo(-1.6, 7); g.lineTo(4.6, -1); g.lineTo(0.4, -1);
+    g.closePath(); g.fill();
+  },
+
+  // SALVE : trois pointes qui divergent, la gerbe
+  dps2: g => {
+    g.lineWidth = 1.5; g.lineCap = "round";
+    for (const a of [-0.62, 0, 0.62]) {
+      const dx = Math.sin(a), dy = -Math.cos(a);
+      const nx = -dy, ny = dx;
+      g.beginPath();
+      g.moveTo(dx * -6.4, dy * -6.4);
+      g.lineTo(dx * 2.6, dy * 2.6);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(dx * 6.6, dy * 6.6);
+      g.lineTo(dx * 2.4 + nx * 2.1, dy * 2.4 + ny * 2.1);
+      g.lineTo(dx * 2.4 - nx * 2.1, dy * 2.4 - ny * 2.1);
+      g.closePath(); g.fill();
+    }
+  },
+};
+
 export const SRC_ICON = [
   g => {
     g.lineWidth = 2; g.lineCap = "round";

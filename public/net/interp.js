@@ -1,11 +1,12 @@
 
 import { playSound } from "/audio.js";
 import { STATUS_ICON, paintIcon } from "/icons.js";
-import { ALERT_INFO, ALERT_ORDER, ALERT_WARN, mechAt, mechCollective } from "/shared/bosses.js";
+import { ALERT_INFO, ALERT_ORDER, ALERT_WARN, mechAt, mechCollective, mechNom, mechOrdre, mechTexte } from "/shared/bosses.js";
 import { CFG, weatherAt } from "/shared/game_state.js";
+import { weatherNom, weatherTexte } from "/shared/biomes.js";
 import { ENEMY } from "/shared/palette.js";
 import { STATUSES, statusBit } from "/shared/statuses.js";
-import { eventAt } from "/shared/timeline.js";
+import { eventAt, eventNom, eventTexte } from "/shared/timeline.js";
 import { EMPTY_SET, INTERP_MS, PERF, PHASE_ROUND, bilanOpen, cardsState, difficulty, merchantState, pauseReal, phase, signalerErreur, snapshots } from "../core/state.js";
 import { ctx } from "../render/stage.js";
 
@@ -263,8 +264,13 @@ function applyAlert(msg, now) {
   // DEUX TEXTES : l'imperatif court est l'ordre de combat, l'explication est
   // reservee a la premiere rencontre. Personne ne lit une phrase en combat.
   const neuf = msg.mech !== undefined && premiereFois(msg.mech);
-  const entry = { nom: def.nom, from: now, until: now + dur,
-                  texte: neuf || !def.ordre ? def.texte : def.ordre,
+  const nom = msg.meteo !== undefined ? weatherNom(msg.meteo)
+    : msg.event !== undefined ? eventNom(msg.event) : mechNom(msg.mech);
+  const dit = msg.meteo !== undefined ? weatherTexte(msg.meteo)
+    : msg.event !== undefined ? eventTexte(msg.event)
+    : (neuf || !def.ordre ? mechTexte(msg.mech) : mechOrdre(msg.mech));
+  const entry = { nom, from: now, until: now + dur,
+                  texte: dit,
                   forme: def.forme ?? "",
                   collective: msg.mech !== undefined && mechCollective(msg.mech) };
   if (level === ALERT_ORDER) alertOrder = entry;

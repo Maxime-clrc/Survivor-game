@@ -1,6 +1,6 @@
 
 import { CFG } from "/shared/game_state.js";
-import { INPUT_HZ, PHASE_ROUND, amSpectator, cardsState, connected, dash, keys, latest, merchantState, myDashCd, myId, phase, predicted, skills, ws } from "./core/state.js";
+import { INPUT_HZ, PHASE_ROUND, amSpectator, cardsState, connected, dash, keys, latest, merchantState, myDashCd, myId, notePress, phase, predicted, skills, ws } from "./core/state.js";
 import { aimRange, aimVector, updateMouse } from "./render/stage.js";
 import { closeBuild, cycleBuild, openBuild } from "./ui/build.js";
 import { buildEl, cv, enSaisie, pauseEl, readMove } from "./ui/dom.js";
@@ -10,6 +10,7 @@ function requestSkill(n) {
   if (phase !== PHASE_ROUND || amSpectator || cardsState || merchantState) return;
   if (!pauseEl.hidden) return;
   if (latest?.players.get(myId)?.downed) return;
+  notePress(n);
   if (n === 1) skills.s1 = true;
   else if (n === 2) skills.s2 = true;
   else skills.s3 = true;
@@ -62,6 +63,7 @@ addEventListener("keydown", e => {
 function requestDash() {
   if (phase !== PHASE_ROUND || amSpectator || !predicted) return;
   if (!pauseEl.hidden) return;
+  notePress(0);
   if (dash.cd > 0 || dash.t > 0) return;
   const me = latest?.players.get(myId);
   if (me?.downed) return;
