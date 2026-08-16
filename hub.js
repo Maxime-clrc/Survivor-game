@@ -461,7 +461,7 @@ export function createHub(store, log, commit = "") {
         room.handleMessage(client, msg);
       } catch (err) {
         log(`salle ${room.code} en erreur sur « ${msg.t} » : ${err.message}`);
-        closeRoom(room, "erreur interne");
+        closeRoom(room, "erreur");
       }
     };
 
@@ -615,7 +615,7 @@ export function createHub(store, log, commit = "") {
         room.tick(elapsed);
       } catch (err) {
         log(`salle ${room.code} en erreur : ${err.message}`);
-        closeRoom(room, "erreur interne");
+        closeRoom(room, "erreur");
         continue;
       }
       if (room.clients.size === 0 && room.emptySince

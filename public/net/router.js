@@ -1,6 +1,7 @@
 
 import { playSound } from "/audio.js";
 import { showHud } from "/hud.js";
+import { t, tf } from "/shared/i18n.js";
 import { PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setMerchantState, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
 import { ingest } from "./ingest.js";
 import { netPerfBoundary, pushAlert, pushWorld, screenCloseQueued, setScreenCloseQueued, worldQueue } from "./interp.js";
@@ -17,8 +18,27 @@ import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, 
 // pas vivre dans un menu ou on l'oublierait armee.
 const MESURE = location.search.includes("mesure");
 
+/* Le serveur envoie un CODE ; sa phrase francaise, quand il en met une, n'est
+   plus qu'un repli pour un motif que le client ne connait pas. */
+function authTexte(msg) {
+  const repli = msg.msg ?? t("ui.auth.refuse", "refusé");
+  return msg.motif ? t(`ui.auth.${msg.motif}`, repli) : repli;
+}
+
+const LAUNCH_CANCEL = {
+  etat: ["ui.launch.etat", "la salle a changé d'état"],
+  arrivee: ["ui.launch.arrivee", "un joueur vient d'arriver — confirmez pour lancer"],
+  pasPret: ["ui.launch.pasPret", "{qui} n'est plus prêt"],
+  clic: ["ui.launch.clic", "annulé par {qui}"],
+};
+function launchCancelText(msg) {
+  const e = LAUNCH_CANCEL[msg.why];
+  const raison = e ? tf(e[0], e[1], { qui: msg.qui ?? "" }) : String(msg.why);
+  return tf("ui.launch.annule", "Lancement annulé — {raison}.", { raison });
+}
+
 export function connect() {
-  setStatus("connexion…");
+  setStatus(t("ui.net.connecting", "connexion…"));
   setGateBusy(true);
 
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -53,9 +73,9 @@ export function connect() {
           gate.hidden = false;
           gateWho.hidden = true;
           gateHoldMsgEl.hidden = false;
-          gateHoldMsgEl.textContent =
+          gateHoldMsgEl.textContent = t("ui.gate.hold.temp",
             "Ta progression restera temporaire sur cet onglet : elle ne sera pas "
-            + "enregistrée sur le compte.";
+            + "enregistrée sur le compte.");
           gateHold.hidden = false;
         } else {
           gate.hidden = true;
@@ -97,11 +117,12 @@ export function connect() {
         hubResumeEl.hidden = true;
         if (msg.motif === "motdepasse" && joinAttempt) {
           const retry = !hubPassAskEl.hidden;
-          hubPassAskWhoEl.textContent = `« ${joinAttempt.name} » demande un mot de passe.`;
+          hubPassAskWhoEl.textContent = tf("ui.hub.passask.who",
+            "« {nom} » demande un mot de passe.", { nom: joinAttempt.name });
           hubPassAskEl.hidden = false;
           hubPassAskInput.value = "";
           hubPassAskInput.focus();
-          hubStatus(retry ? "Mot de passe incorrect." : "", retry);
+          hubStatus(retry ? t("ui.hub.err.badpass", "Mot de passe incorrect.") : "", retry);
           break;
         }
         const MOTIFS = {
@@ -110,7 +131,9 @@ export function connect() {
           motdepasse: "mot de passe incorrect",
           plafond: "plafond de salles atteint — rejoins une salle existante",
         };
-        hubStatus(MOTIFS[msg.motif] ?? "impossible de rejoindre cette salle", true);
+        hubStatus(MOTIFS[msg.motif]
+          ? t(`ui.hub.join.${msg.motif}`, MOTIFS[msg.motif])
+          : t("ui.hub.join.autre", "impossible de rejoindre cette salle"), true);
         break;
       }
 
@@ -139,8 +162,9 @@ export function connect() {
         if (settingsEl) settingsEl.hidden = true;
         setSettingsFrom(null);
         enterHub();
-        if (msg.why === "erreur interne") {
-          hubStatus("la salle a été fermée sur une erreur — désolé", true);
+        if (msg.why === "erreur") {
+          hubStatus(t("ui.hub.roomerr",
+            "la salle a été fermée sur une erreur — désolé"), true);
         }
         break;
 
@@ -157,20 +181,21 @@ export function connect() {
           localStorage.removeItem("survivor.token");
         }
         if (connected) {
-          passMsg(msg.msg ?? "refusé", true);
+          passMsg(authTexte(msg), true);
           break;
         }
         loadingEl.hidden = true;
         gate.hidden = false;
         renderGateMode();
         setStatus(msg.motif === "jeton"
-          ? "session expirée — tape ton mot de passe" : (msg.msg ?? ""),
-          msg.motif !== "jeton" ? true : false);
+          ? t("ui.auth.jeton.gate", "session expirée — tape ton mot de passe")
+          : authTexte(msg),
+          msg.motif !== "jeton");
         if (msg.fatal) ws.close();
         break;
 
       case "passChanged":
-        passMsg("mot de passe changé", false);
+        passMsg(t("ui.auth.passChanged", "mot de passe changé"), false);
         passOldInput.value = "";
         passNewInput.value = "";
         break;
@@ -255,7 +280,7 @@ export function connect() {
         const d = Number(msg.delay) || 0;
         setLaunchEndsAt(d > 0 ? performance.now() + d * 1000 : 0);
         renderLaunch();
-        if (!d && msg.why) waitMsg.textContent = `Lancement annulé — ${msg.why}.`;
+        if (!d && msg.why) waitMsg.textContent = launchCancelText(msg);
         break;
       }
 

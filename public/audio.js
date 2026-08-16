@@ -1,6 +1,7 @@
 
 export const AUDIO_CFG = {
   SAME_COOLDOWN: 0.04,
+  CLAIM_GAP: 0.09,
   MAX_VOICES: 16,
   STEAL_FADE: 0.025,
   MASTER: 0.55,
@@ -30,15 +31,20 @@ export class VoiceLimiter {
     this.stolen = 0;
   }
 
-  admit(key, now) {
+  admit(key, now, gap = this.cfg.SAME_COOLDOWN) {
     const last = this.lastAt.get(key);
-    if (last !== undefined && now - last < this.cfg.SAME_COOLDOWN) {
+    if (last !== undefined && now - last < gap) {
       this.dropped++;
       return false;
     }
     this.lastAt.set(key, now);
     return true;
   }
+
+  // PRENDRE LA PLACE N'EST PAS PASSER DEVANT LA FILE : marquer la cle sans
+  // demander l'admission fait taire la PROCHAINE touche au lieu de se faire
+  // taire par la precedente. Le nombre de voix ne bouge pas d'un cran.
+  claim(key, now) { this.lastAt.set(key, now); }
 
   add(key, now, endsAt, stop) {
     this.voices = this.voices.filter(v => v.endsAt > now);
@@ -363,14 +369,23 @@ const PALETTE = {
   foudre: (o) => {
     const k = Math.max(0.5, Math.min(1.4, o.force ?? 1));
     let d = 0;
+    // un highpass a 3 kHz ne laisse passer que de l'AIR : sous la horde on ne
+    // voyait plus que l'arc. Le pied descend a 1,5 kHz, ou le craquement a
+    // encore un corps.
     for (let i = 0; i < 4; i++) {
-      noise({ dur: 0.022, type: "highpass", freq: 3000 + Math.random() * 3000,
-              q: 0.8, gain: SOUND_GAIN.impact * 1.2 * k, delay: d });
-      d += 0.03 + Math.random() * 0.06;
+      noise({ dur: 0.028, type: "highpass", freq: 1500 + Math.random() * 2800,
+              q: 0.8, gain: SOUND_GAIN.impact * 2.8 * k, delay: d });
+      d += 0.028 + Math.random() * 0.055;
     }
+    // LE CLAQUEMENT — la bande mediane que les craquements n'ont pas. C'est elle
+    // qui fait entendre la decharge, pas les aigus.
+    noise({ dur: 0.07, type: "bandpass", freq: 900, to: 380, q: 1.1,
+            gain: SOUND_GAIN.impact * 2 * k });
+    // le grave reste un APPUI, pas une detonation : c'est la bande mediane qui
+    // porte la decharge maintenant, le sub n'a plus qu'a la poser.
     const a = tone({ freq: (180 + Math.random() * 80) * (2 - k), to: 120,
-                     dur: 0.20, type: "square", gain: SOUND_GAIN.impact * 0.55 * k });
-    tone({ freq: 58, dur: 0.26, type: "sine", gain: SOUND_GAIN.impact * 0.3 });
+                     dur: 0.16, type: "square", gain: SOUND_GAIN.impact * 0.45 * k });
+    tone({ freq: 58, dur: 0.13, type: "sine", gain: SOUND_GAIN.impact * 0.18 });
     return { end: a.end + d, stop: a.stop };
   },
 
@@ -544,7 +559,12 @@ export function playSound(name, opts = {}) {
 
   const now = ac.currentTime;
   const key = opts.key ?? (opts.level !== undefined ? `${name}:${opts.level}` : name);
-  if (!limiter.admit(key, now)) return false;
+  if (opts.claim) {
+    // il garde une cadence a lui, sinon une build de ricochet en poserait
+    // autant que le limiteur peut en voler.
+    if (!limiter.admit(`${key}~claim`, now, AUDIO_CFG.CLAIM_GAP)) return false;
+    limiter.claim(key, now);
+  } else if (!limiter.admit(key, now)) return false;
 
   const v = recipe(opts);
   limiter.add(key, now, v.end, v.stop);

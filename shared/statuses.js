@@ -1,4 +1,6 @@
 
+import { t } from "./i18n.js";
+
 export const STATUS_VULN = 0;
 export const STATUS_BURN = 1;
 export const STATUS_ROOT = 2;
@@ -34,6 +36,8 @@ export const STATUSES = [
 export const STATUS_BY_KEY = new Map(STATUSES.map(s => [s.key, s.id]));
 
 export function statusAt(id) { return STATUSES[id] ?? null; }
+export const statusNom = id => t(`status.${id}.nom`, statusAt(id)?.nom ?? "");
+export const statusDesc = id => t(`status.${id}.desc`, statusAt(id)?.desc ?? "");
 export function statusBit(id) { return 1 << id; }
 
 export const PURGE_ORDER = [STATUS_DOOM, STATUS_BURN, STATUS_ROOT, STATUS_VULN];

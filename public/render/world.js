@@ -3,7 +3,8 @@ import { audioStats } from "/audio.js";
 import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
 import { BOSS_CFG, MECH_JAIL } from "/shared/bosses.js";
-import { BIOME_CFG, CFG, biomeAt, weatherAt, weatherFor, windAt } from "/shared/game_state.js";
+import { BIOME_CFG, CFG, weatherFor, windAt } from "/shared/game_state.js";
+import { biomeNom, weatherNom } from "/shared/biomes.js";
 import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
 import { fmtM } from "/shared/units.js";
@@ -220,8 +221,8 @@ function drawScreen(v) {
   const st = PERF ? audioStats() : null;
   updateHud(v, {
     now, myId, lobby, ping, difficulty, amSpectator,
-    biomeNom: biomeAt(biomeIndex).nom,
-    meteoNom: weather ? weatherAt(weather.id)?.nom ?? "" : "",
+    biomeNom: biomeNom(biomeIndex),
+    meteoNom: weather ? weatherNom(weather.id) : "",
     myColor: colorOf(myId),
     dashCd: myDashCd,
     counts: ownedCounts(myId),

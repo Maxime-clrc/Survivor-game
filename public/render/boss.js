@@ -1,6 +1,7 @@
 
 import { beatPhase, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE, BOSS_TISSEUR, BOSS_VEILLEUR, MECH_BAIT, MECH_CLUSTER, MECH_COUNT, MECH_FEED, MECH_JAIL, MECH_LINK, MECH_PROX, MECH_SANCTUARY, MECH_SEAL, MECH_SPREAD, MECH_STACK, MECH_TOWER } from "/shared/bosses.js";
 import { CARD_CFG } from "/shared/cards.js";
+import { t } from "/shared/i18n.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, SKILL_ULT_WIND, classAt } from "/shared/classes.js";
 import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG } from "/shared/game_state.js";
 import { BOSS, BOSS_SKIN, CLASS_COLOR, COMBAT, EFFECT_COLOR, FX, HUD, MARK, POWERUP_COLOR, SIGNAL, SURFACE, TEXT, alpha } from "/shared/palette.js";
@@ -726,7 +727,7 @@ export function drawMarks(marks, players) {
         ctx.setLineDash([10, 8]);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
         ctx.setLineDash([]);
-        markLabel(m.x, m.y - m.r - 10, "REGROUPEMENT", MARK_GO);
+        markLabel(m.x, m.y - m.r - 10, t("mark.stack", "REGROUPEMENT"), MARK_GO);
         break;
       }
       case MECH_SPREAD: {
@@ -763,7 +764,7 @@ export function drawMarks(marks, players) {
           ctx.strokeStyle = alpha(col, 0.5 + 0.5 * pulse);
           ctx.lineWidth = 3;
           ctx.beginPath(); ctx.arc(m.x, m.y, m.r + 9, 0, Math.PI * 2); ctx.stroke();
-          markLabel(m.x, m.y - m.r - 18, "SCEAU", col);
+          markLabel(m.x, m.y - m.r - 18, t("mark.seal", "SCEAU"), col);
         }
         break;
       }
@@ -775,7 +776,8 @@ export function drawMarks(marks, players) {
         ctx.globalAlpha = 0.85;
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
         ctx.globalAlpha = 1;
-        markLabel((a.x + b.x) / 2, (a.y + b.y) / 2 - 16, "ÉCARTEZ-VOUS", MARK_AWAY);
+        markLabel((a.x + b.x) / 2, (a.y + b.y) / 2 - 16,
+          t("mark.spread", "ÉCARTEZ-VOUS"), MARK_AWAY);
         break;
       }
       case MECH_JAIL: {
@@ -791,7 +793,7 @@ export function drawMarks(marks, players) {
         }
         ctx.stroke();
         markGauge(m.x, m.y + m.r + 8, m.hp, MARK_BREAK);
-        markLabel(m.x, m.y - m.r - 10, "LIBÈRE-LE", MARK_BREAK);
+        markLabel(m.x, m.y - m.r - 10, t("mark.free", "LIBÈRE-LE"), MARK_BREAK);
         break;
       }
       case MECH_CLUSTER: {
@@ -894,7 +896,7 @@ function drawShieldShell(x, y, p, tm) {
   const col = POWERUP_COLOR.shield;
   const frappe = Math.max(0, 1 - (performance.now() - (shieldHit.get(p.id) ?? -1e9)) / SHIELD_HIT_MS);
   const base = RING_SHIELD + 1 + frappe * 3;
-  const amp = 0.7 + k * 0.8 + frappe * 2.2;
+  const amp = 1 + k * 1.1 + frappe * 2.8;
 
   ctx.save();
 

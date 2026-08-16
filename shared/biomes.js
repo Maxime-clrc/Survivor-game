@@ -1,4 +1,6 @@
 
+import { t } from "./i18n.js";
+
 export const BIOME_CFG = {
   HAZARD_SURFACE_MAX: 0.08,
   TRAIL_BUDGET: 0.04,
@@ -77,6 +79,7 @@ export const HAZARDS = [
 ];
 
 export function hazardAt(kind) { return HAZARDS[kind] ?? null; }
+export const hazardNom = k => t(`hazard.${HAZARDS[k]?.key}`, HAZARDS[k]?.nom ?? "");
 
 export const WX_BRUME = 0;
 export const WX_BOURRASQUE = 1;
@@ -92,6 +95,8 @@ export const WEATHERS = [
 ];
 
 export function weatherAt(id) { return WEATHERS[id] ?? null; }
+export const weatherNom = i => t(`weather.${WEATHERS[i]?.key}.nom`, WEATHERS[i]?.nom ?? "");
+export const weatherTexte = i => t(`weather.${WEATHERS[i]?.key}.texte`, WEATHERS[i]?.texte ?? "");
 
 export const BIOMES = [
   {
@@ -112,6 +117,8 @@ export const BIOMES = [
 ];
 
 export function biomeAt(i) { return BIOMES[i] ?? BIOMES[0]; }
+export const biomeNom = i => t(`biome.${biomeAt(i).key}.nom`, biomeAt(i).nom);
+export const biomeResume = i => t(`biome.${biomeAt(i).key}.resume`, biomeAt(i).resume);
 
 export function mulberry32(seed) { return rng(seed); }
 

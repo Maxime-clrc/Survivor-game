@@ -2,6 +2,7 @@
 import { bossAt } from "/shared/bosses.js";
 import { computeMods } from "/shared/cards.js";
 import { CFG } from "/shared/game_state.js";
+import { t } from "/shared/i18n.js";
 
 export const INTERP_MS = 110;
 export const INPUT_HZ = 30;
@@ -162,7 +163,7 @@ const ATTACK_LABEL = {
   sceau: "SCEAU — tous les foyers tenus en même temps",
   regarddouble: "double regard — deux fenêtres d'affilée",
   regardmobile: "regard mobile — ne vise plus, et ne t'arrête pas",
-  regardpermanent: "REGARD PERMANENT — l'œil ne se ferme plus",
+  regardpermanent: "REGARD CLIGNOTANT — ne tire que l'œil fermé",
   noeuds: "nœuds — détruis-les, ils prennent le terrain",
   copies: "copies — elles rejouent tes déplacements",
   copiesrenvoi: "copies armées — elles répondent au tir",
@@ -174,8 +175,8 @@ const ATTACK_LABEL = {
 };
 export function phaseUnlockText(kind, phase) {
   const list = bossAt(kind).unlock[phase - 1];
-  if (!list || !list.length) return "il accélère";
-  return list.map(k => ATTACK_LABEL[k] ?? k).join(" · ");
+  if (!list || !list.length) return t("ui.atk.aucune", "il accélère");
+  return list.map(k => t(`ui.atk.${k}`, ATTACK_LABEL[k] ?? k)).join(" · ");
 }
 
 export function setAmSpectator(v) { amSpectator = v; }

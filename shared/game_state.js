@@ -15,6 +15,7 @@ import {
   PROG_CFG, TREES, COMMUN, MILESTONES, applyMeta, coresForRun, lockedCards, slotsFor,
 } from "./progression.js";
 import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
+import { t } from "./i18n.js";
 import { CLASS_COLOR } from "./palette.js";
 import {
   BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, bossPool, mechAt, adaptMech, towerCount,
@@ -26,7 +27,7 @@ import {
   MECH_QUADRANT, MECH_CROSS, MECH_CONVERGE, MECH_DODGE,
   MECH_SHRINK, MECH_PUDDLE, MECH_SAFE,
   MECH_BREATH, MECH_BROOD, MECH_REVERSE, MECH_SWAP, MECH_ENRAGE,
-  MECH_SYNTH, MECH_SEAL,
+  MECH_SYNTH, MECH_SEAL, MECH_RELOC,
   BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME,
   BOSS_VEILLEUR, BOSS_TISSEUR, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE,
   BOSS_FINAL, BOSS_POOL_COUNT, BOSS_POOL, estFinal, finalPour,
@@ -335,6 +336,12 @@ export const DAMAGE_SOURCES = [
   { key: "blast",      label: "explosion" },
   { key: "env",        label: "environnement" },
 ];
+
+/* Points de passage du texte de difficulte et de provenance d'un degat. */
+export const srcLabel = i => t(`src.${DAMAGE_SOURCES[i]?.key}`, DAMAGE_SOURCES[i]?.label ?? "");
+export const diffLabel = i => t(`diff.${DIFFICULTIES[i]?.key}.label`, DIFFICULTIES[i]?.label ?? "");
+export const diffResume = i => (DIFFICULTIES[i]?.resume ?? [])
+  .map((r, k) => t(`diff.${DIFFICULTIES[i].key}.resume.${k}`, r));
 
 const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
 
@@ -3627,6 +3634,8 @@ export class GameState {
           hunt: null,
           gaze: 0,
           gazeWarn: 0,
+          gazeRest: 0,
+          gazeLeft: 0,
           ult: 0,
           miasmaCd: STATUS_CFG.BOSS_MIASMA_EVERY,
           converge: 0,
@@ -3638,17 +3647,10 @@ export class GameState {
           defer: [],
         };
 
-        // ANCRE : il s'encastre dans un bord tire au sort, et il y reste.
-        if (def.archetype === "ancre") {
-          const B = this.bounds;
-          const bord = Math.floor(Math.random() * 4);
-          const marge = CFG.BOSS_RADIUS * 0.6;
-          this.boss.bord = bord;
-          if (bord === 0) { this.boss.x = (B.x0 + B.x1) / 2; this.boss.y = B.y0 + marge; }
-          else if (bord === 1) { this.boss.x = (B.x0 + B.x1) / 2; this.boss.y = B.y1 - marge; }
-          else if (bord === 2) { this.boss.x = B.x0 + marge; this.boss.y = (B.y0 + B.y1) / 2; }
-          else { this.boss.x = B.x1 - marge; this.boss.y = (B.y0 + B.y1) / 2; }
-        }
+        // ANCRE : il s'encastre dans un bord tire au sort, et il n'en change
+        // qu'a la rupture de barre.
+        if (def.archetype === "ancre") this._encastre(this.boss, Math.floor(Math.random() * 4));
+        else if (def.archetype === "guetteur") this._poste(this.boss);
 
         if (kind === BOSS_JUMEAUX) {
           const g = BOSS_CFG.TWIN_GAP / 2;
@@ -3741,6 +3743,44 @@ export class GameState {
     if (palier <= b.enrage) return;
     b.enrage = palier;
     this._alert(MECH_ENRAGE, 2);
+  }
+
+  _encastre(b, bord) {
+    const B = this.bounds;
+    const marge = CFG.BOSS_RADIUS * 0.6;
+    b.bord = bord;
+    if (bord === 0) { b.x = (B.x0 + B.x1) / 2; b.y = B.y0 + marge; }
+    else if (bord === 1) { b.x = (B.x0 + B.x1) / 2; b.y = B.y1 - marge; }
+    else if (bord === 2) { b.x = B.x0 + marge; b.y = (B.y0 + B.y1) / 2; }
+    else { b.x = B.x1 - marge; b.y = (B.y0 + B.y1) / 2; }
+  }
+
+  // le guetteur n'est pas encastre : il se POSTE, a distance de l'equipe et
+  // jamais sur le bord — un boss immobile colle au bord rend la moitie de la
+  // vue inutile.
+  _poste(b) {
+    const c = this._teamCentroid();
+    const a = Math.random() * Math.PI * 2;
+    const pt = this._dropPoint(c.x + Math.cos(a) * BOSS_CFG.RELOC_DIST,
+                               c.y + Math.sin(a) * BOSS_CFG.RELOC_DIST, 90);
+    b.x = pt.x; b.y = pt.y;
+  }
+
+  // UN BOSS QUI NE MARCHE PAS DOIT QUAND MEME CHANGER DE PLACE : sinon la
+  // moitie de l'arene ne sert a rien de tout le combat et la lecture du sol se
+  // fait une seule fois. La rupture de barre le reinstalle — l'ancre change de
+  // bord, le guetteur se poste ailleurs.
+  _bossReplace(b) {
+    this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
+                        r: 130, life: 0.35, max: 0.35, kind: 14 });
+    if (bossAt(b.kind).archetype === "ancre") {
+      this._encastre(b, ((b.bord ?? 0) + 1 + Math.floor(Math.random() * 3)) % 4);
+    } else {
+      this._poste(b);
+    }
+    this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
+                        r: 130, life: 0.35, max: 0.35, kind: 14 });
+    this._alert(MECH_RELOC, 2);
   }
 
   _bossMove(b, dt) {
@@ -3898,7 +3938,9 @@ export class GameState {
     // l'ETAT du combat. A chaque rupture l'arene perd un cran et ne le reprend
     // pas — un soft-enrage entierement spatial, sans compte a rebours, et bien
     // plus lisible qu'un multiplicateur de degats.
-    if (bossAt(b.kind).archetype === "constricteur") this._atkConstriction(b);
+    const arche = bossAt(b.kind).archetype;
+    if (arche === "constricteur") this._atkConstriction(b);
+    if (arche === "ancre" || arche === "guetteur") this._bossReplace(b);
 
     switch (b.kind) {
       case BOSS_MATRIARCHE:
@@ -3922,9 +3964,9 @@ export class GameState {
         return;
       }
 
-      case BOSS_VEILLEUR:
-        this._atkRegard(b);
-        return;
+      // le Veilleur n'a pas de cas : sa rupture EST la reinstallation, posee
+      // plus haut. Un regard de plus ici tombait sur la phase la plus chargee
+      // et refermait la fenetre de tir au moment ou elle venait d'etre gagnee.
 
       case BOSS_TISSEUR:
         this._atkNoeuds(b);
@@ -4067,10 +4109,13 @@ export class GameState {
 
   // VEILLEUR — le seul verbe qui INTERDIT l'action principale : dans un jeu de
   // tir a double stick, « detourner le regard » se traduit par cesser de viser,
-  // donc renoncer a son DPS.
+  // donc renoncer a son DPS. Deux fenetres d'affilee, mais separees par le
+  // repos : sans lui la seconde s'ouvrait a l'instant ou la premiere se
+  // fermait, donc une seule fenetre de cinq secondes portant deux annonces.
   _atkRegardDouble(b) {
     this._atkRegard(b);
-    this._deferAtk(b, "regard", BOSS_CFG.GAZE_TIME + BOSS_CFG.GAZE_WARN);
+    this._deferAtk(b, "regard",
+      BOSS_CFG.GAZE_TIME + BOSS_CFG.GAZE_WARN + BOSS_CFG.GAZE_REST);
   }
 
   _atkRegardMobile(b) {
@@ -4078,12 +4123,12 @@ export class GameState {
     this._deferAtk(b, "derive", 0.6);
   }
 
-  // en derniere phase l'oeil ne se ferme plus : il faut le tuer en ne le visant
-  // que par intermittence.
+  // en derniere phase l'oeil CLIGNOTE au lieu de rester ouvert : « le tuer en
+  // ne le visant que par intermittence » demande que l'intermittence existe.
   _atkRegardPermanent(b) {
-    b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
-    b.gaze = BOSS_CFG.GAZE_TIME * BOSS_CFG.GAZE_PERMANENT;
-    this._alert(MECH_GAZE, this._warn(BOSS_CFG.GAZE_WARN) + b.gaze);
+    if (!this._gazeOuvre(b, BOSS_CFG.GAZE_PERM_OPEN, BOSS_CFG.GAZE_PERMANENT)) {
+      this._atkCone(b);
+    }
   }
 
   // TISSEUR — le Ravageur RETIRE de l'arene par la peripherie, le Tisseur
@@ -4660,10 +4705,21 @@ export class GameState {
     }
   }
 
-  _atkRegard(b) {
+  // POINT DE PASSAGE UNIQUE DU REGARD. Il REFUSE tant que l'oeil se repose :
+  // c'est ce refus qui garantit une fenetre de tir, au lieu de la laisser au
+  // tirage du repertoire (a la derniere phase, cinq entrees sur huit etaient
+  // un regard et le cycle d'attaque etait plus court que le regard lui-meme).
+  _gazeOuvre(b, duree = BOSS_CFG.GAZE_TIME, cycles = 1) {
+    if (b.gazeRest > 0 || b.gazeWarn > 0 || b.gaze > 0) return false;
     b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
-    b.gaze = BOSS_CFG.GAZE_TIME;
-    this._alert(MECH_GAZE, this._warn(BOSS_CFG.GAZE_WARN) + BOSS_CFG.GAZE_TIME);
+    b.gaze = duree;
+    b.gazeLeft = cycles - 1;
+    this._alert(MECH_GAZE, b.gazeWarn + duree);
+    return true;
+  }
+
+  _atkRegard(b) {
+    if (!this._gazeOuvre(b)) this._atkCone(b);
   }
 
   _atkExaflare(b) {
@@ -5047,6 +5103,19 @@ export class GameState {
         if ((p.aimX * dx + p.aimY * dy) / d < 0.6) continue;
         p.gazeCd = BOSS_CFG.GAZE_TICK;
         this._mechHit(p, BOSS_CFG.GAZE_RATIO);
+      }
+      if (b.gaze <= 0) {
+        b.gazeRest = b.gazeLeft > 0 ? BOSS_CFG.GAZE_PERM_GAP : BOSS_CFG.GAZE_REST;
+      }
+    } else if (b.gazeRest > 0) {
+      b.gazeRest -= dt;
+      // le clignotement se rouvre SANS preavis : l'oeil est deja ouvert dans la
+      // tete du joueur, un telegraphe de plus n'apprend rien et allonge la
+      // fenetre ou l'on ne tire pas.
+      if (b.gazeRest <= 0 && b.gazeLeft > 0) {
+        b.gazeLeft--;
+        b.gaze = BOSS_CFG.GAZE_PERM_OPEN;
+        this._alert(MECH_GAZE, b.gaze);
       }
     }
 

@@ -584,6 +584,7 @@ const BLAST_TINT = {
   8:  [FX.waveSoft, FX.wave],
   12: [FX.bombFill, FX.bombEdge],
 };
+const HEAL_WAVE_MOTES = 8;
 export function drawEffects(effects) {
   for (const f of effects) {
     const grow = 1 - f.k;
@@ -774,15 +775,39 @@ export function drawEffects(effects) {
       continue;
     }
 
+    // LA VAGUE DE SOIN, en couches a constantes de temps distinctes, comme un
+    // souffle — mais le gradient est INVERSE : creux au centre, dense au front.
+    // Le soin est donne vers l'exterieur, il ne remplit pas un disque.
     if (f.kind === 11) {
-      ctx.fillStyle = alpha(FX.heal, f.k * 0.10);
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2); ctx.fill();
+      const R = f.r * (0.16 + grow * 0.84);
+      const g = ctx.createRadialGradient(f.x, f.y, R * 0.42, f.x, f.y, R);
+      g.addColorStop(0, alpha(FX.heal, 0));
+      g.addColorStop(0.78, alpha(FX.heal, f.k * 0.09));
+      g.addColorStop(1, alpha(FX.heal, f.k * 0.22));
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(f.x, f.y, R, 0, Math.PI * 2); ctx.fill();
 
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
       ctx.strokeStyle = alpha(FX.heal, f.k * 0.9);
-      ctx.lineWidth = 5 * f.k + 1.5;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.lineWidth = 4 * f.k + 2;
+      ctx.beginPath(); ctx.arc(f.x, f.y, R, 0, Math.PI * 2); ctx.stroke();
+
+      // la trainee reste EN ARRIERE du front : un seul anneau se lit comme de
+      // l'interface, deux rayons a deux vitesses se lisent comme une onde.
+      ctx.strokeStyle = alpha(FX.healSoft, f.k * f.k * 0.45);
+      ctx.lineWidth = 9;
+      ctx.beginPath(); ctx.arc(f.x, f.y, R * 0.84, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+
+      // ELLE SE RECONNAIT A SES CROIX, comme le sanctuaire — mais PORTEES par
+      // le front au lieu de monter sur place. Aucune allocation.
+      for (let i = 0; i < HEAL_WAVE_MOTES; i++) {
+        const a = (i / HEAL_WAVE_MOTES) * Math.PI * 2 + f.id * 0.63;
+        paintIcon(ctx, POWERUP_ICON.heal, FX.heal,
+                  f.x + Math.cos(a) * R, f.y + Math.sin(a) * R,
+                  0.28 + f.k * 0.18, f.k * f.k * 0.9);
+      }
       continue;
     }
 
@@ -823,15 +848,53 @@ export function drawEffects(effects) {
     ctx.stroke();
   }
 }
+// LE REMPART EST BATI, PAS SOUFFLE. Il bloque vraiment (`state.walls`), donc il
+// se dessine comme un mur : une couronne de PLAQUES a joints ouverts, d'epaisseur
+// visible, la ou le dome du soigneur est lisse. La phase vient de l'identifiant,
+// pas du temps — un mur qui tourne n'est plus un mur.
+const BULWARK_PLATES = 14;
+const BULWARK_EP = 9;
 export function drawBulwarks(list) {
+  const tm = performance.now() / 1000;
   for (const b of list) {
-    const opacite = 0.35 + b.k * 0.45;
-    ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.05 + b.k * 0.04);
+    const g = ctx.createRadialGradient(b.x, b.y, b.r * 0.55, b.x, b.y, b.r);
+    g.addColorStop(0, alpha(CLASS_COLOR.tank, 0.02));
+    g.addColorStop(0.82, alpha(CLASS_COLOR.tank, 0.05 + b.k * 0.04));
+    g.addColorStop(1, alpha(CLASS_COLOR.tank, 0.12 + b.k * 0.12));
+    ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
 
-    ctx.strokeStyle = alpha(CLASS_COLOR.tank, opacite);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const pas = (Math.PI * 2) / BULWARK_PLATES;
+    const phase = b.id * 0.37;
+    ctx.lineWidth = 1.4;
+    for (let i = 0; i < BULWARK_PLATES; i++) {
+      const a0 = phase + i * pas, a1 = a0 + pas * 0.72;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, a0, a1);
+      ctx.arc(b.x, b.y, b.r - BULWARK_EP, a1, a0, true);
+      ctx.closePath();
+      ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.07 + b.k * 0.09);
+      ctx.fill();
+      ctx.strokeStyle = alpha(CLASS_COLOR.tank, 0.22 + b.k * 0.34);
+      ctx.stroke();
+    }
+
+    // le champ qui tient les plaques : la SEULE chose vivante du rempart.
+    ctx.strokeStyle = alpha(CLASS_COLOR.tank,
+                            (0.30 + b.k * 0.40) * (0.85 + 0.15 * Math.sin(tm * 2.2 + b.id)));
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+
+    // le SPECULAIRE haut-gauche, comme toute la charte : c'est lui qui dit
+    // « surface courbe » plutot que « cercle trace ».
+    ctx.strokeStyle = alpha(COMBAT.flash, 0.10 + b.k * 0.14);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r - BULWARK_EP * 0.5, Math.PI * 1.08, Math.PI * 1.46);
+    ctx.stroke();
+    ctx.restore();
 
     ctx.strokeStyle = alpha(OWNED.bulwarkArc, 0.85);
     ctx.lineWidth = 3.5;

@@ -507,30 +507,28 @@ export class Room {
     return this.joined().filter(c => !c.ready);
   }
 
-  launchPayload(why = "") {
+  launchPayload(why = "", qui = "") {
     const reste = this.launchAt ? Math.max(0, this.launchAt - Date.now()) : 0;
-    return { t: "launch", delay: +(reste / 1000).toFixed(2), why };
+    return { t: "launch", delay: +(reste / 1000).toFixed(2), why, qui };
   }
 
-  cancelLaunch(why = "") {
+  cancelLaunch(why = "", qui = "") {
     if (!this.launchAt) return;
     this.launchAt = 0;
-    this.broadcast(this.launchPayload(why));
-    this.hooks.log(`[${this.code}] lancement annulé${why ? ` — ${why}` : ""}`);
+    this.broadcast(this.launchPayload(why, qui));
+    this.hooks.log(`[${this.code}] lancement annulé${why ? ` — ${why}${qui ? ` (${qui})` : ""}` : ""}`);
   }
 
   tickLaunch() {
     if (!this.launchAt) return;
     if (this.phase !== PHASE_LOBBY || this.joined().length === 0) {
-      this.cancelLaunch("la salle a changé d'état");
+      this.cancelLaunch("etat");
       return;
     }
     const manquants = this.notReady();
     if (manquants.length > 0) {
       const arrivee = this.joined().length === 2 && !this.joined().some(c => c.ready);
-      this.cancelLaunch(arrivee
-        ? "un joueur vient d'arriver — confirmez pour lancer"
-        : `${manquants[0].name} n'est plus prêt`);
+      this.cancelLaunch(arrivee ? "arrivee" : "pasPret", arrivee ? "" : manquants[0].name);
       return;
     }
     if (Date.now() >= this.launchAt) {
@@ -1041,7 +1039,7 @@ export class Room {
 
       case "cancelStart": {
         if (this.phase !== PHASE_LOBBY || !this.launchAt) break;
-        this.cancelLaunch(`annulé par ${client.name}`);
+        this.cancelLaunch("clic", client.name);
         break;
       }
 

@@ -75,6 +75,8 @@ shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
 shared/timeline.js     LE SCRIPT — six segments, trente beats, TROIS variantes, les EVENEMENTS
 shared/biomes.js       LE LIEU — trois biomes, cinq dangers, trois meteos, generateur DETERMINISTE
 shared/units.js        pixels -> metres, SEUL point de conversion d'affichage
+shared/i18n.js         LA langue : cle -> texte, le FR restant le REPLI
+shared/lang/en.js      le dictionnaire anglais, SURCHARGE par cle
 shared/version.js      LA version + le CHANGELOG en commentaire
 shared/palette.js      LA CHARTE — couleurs, rampes, echelle typo
 public/client.js       AMORCE : importe tout, cable, lance la boucle (44 lignes)
@@ -117,9 +119,11 @@ Un seul port sert les fichiers **et** les WebSocket. `resolvePath()` route
 `/shared/*` depuis la racine du dépôt, le reste depuis `public/`.
 
 **`shared/game_state.js` ne référence jamais le DOM, le canvas, le clavier ni le
-réseau.** `cards.js`, `classes.js`, `statuses.js`, `bosses.js`, `enemies.js`,
-`progression.js` et `biomes.js` ne dépendent de **rien**. Seule exception :
-`timeline.js` importe `ALERT_*` de `bosses.js` (feuille → feuille, sans cycle).
+réseau.** `classes.js`, `statuses.js`, `bosses.js`, `enemies.js`,
+`progression.js` et `biomes.js` ne dépendent de **rien**. Deux exceptions, toutes
+deux feuille → feuille et sans cycle : `timeline.js` importe `ALERT_*` de
+`bosses.js`, et tout ce qui porte du **texte de joueur** importe `i18n.js`
+(`cards.js`, `reliques.js`, `units.js`).
 
 Les constantes de comportement vivent à côté de leur table : `CARD_CFG`,
 `SKILL_CFG`, `STATUS_CFG`, `BOSS_CFG`, `TL_CFG`, `TRAIT_CFG`, `BIOME_CFG`. Ce
@@ -374,6 +378,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `teinter(base, teinte, k)` | clarté du mode + chroma du biome |
 | `audioUi` | volume, depuis les trois vues |
 | `uiSoundFor()` | son d'un bouton d'interface |
+| `t(cle, repli)` | toute traduction ; `traduireStatique()` la variante markup |
 | `goHome()` | retour au hub, d'où qu'on clique |
 | `enSaisie()` | « suis-je en train d'écrire » |
 | `prepareMessage()` | compression, une fois par broadcast |
@@ -937,6 +942,8 @@ Ajouter une entrée impose de traiter les deux côtés.
 | `shape` de zone | 0 disque · 1 rect · 2 anneau · 3 cône · 4 Pac-Man · 5 croix | `zonePath()`/`zoneSubPath()` + `_zoneHits()` |
 | bits de buff | `BUFF_DAMAGE` … `BUFF_RICOCHET` | anneaux + bandeau HUD |
 | bonus | `_applyPowerup()` ; `POWERUP_ROTATION` dit ce qui **tombe**, `POWERUP_TYPES` ce qui **circule** | `POWERUP_ICON` + `POWERUP_STYLE` |
+| texte d'une carte | `CARDS` (`cards.js`) ; `cardBrief` n'envoie que `id` et `rarity` — le texte **ne circule pas** | `cardNom()` / `cardDesc()` / `cardDetail()`, marqueurs `{0}` remplis par `vals` |
+| texte d'une relique | `RELICS` (`reliques.js`) — **ne circule pas** | `relicNom()` / `relicDesc()` / `relicContrepartie()` |
 | clés de `mods` | `defaultMods()` (`cards.js`) | rien |
 | tags de carte | `tags` (`off`, `def`, `coop`, `cadence`) | rien |
 | script | `SCRIPT`/`SCRIPTS` (`timeline.js`), variante en clair (un NOM) ; clé `sg` | `updateSegment()` + `gameIntensity()` |
@@ -961,7 +968,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | catégorie de carte | `CATEGORIES` + `cardCategory()` — **ne circule pas** | `CARD_CATEGORY_COLOR` + `.cardCat` |
 | hub des salles | `listRooms`/`createRoom`/`joinRoom`/`leaveRoom` → `rooms`/`roomJoined`/`joinRoomError`/`roomClosed` | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité | `register`/`login`/`loginToken`/`logout`/`changePass` → `welcome{pseudo,token?,dup}`/`authError{motif,fatal?}`/`passChanged`/`loggedOut` | `#gate`, bloc compte du hub, `survivor.token` |
-| lancement différé | `start`/`cancelStart` ; `room.launchAt`, `launchPayload()`, `tickLaunch()` → `launch{delay,why}` | `#start` (+ `.cancel`), `renderLaunch()`, `launchEndsAt` |
+| lancement différé | `start`/`cancelStart` ; `room.launchAt`, `launchPayload()`, `tickLaunch()` → `launch{delay,why,qui}`, `why` = **code** (`etat`, `arrivee`, `pasPret`, `clic`) | `#start` (+ `.cancel`), `renderLaunch()`, `launchEndsAt`, `LAUNCH_CANCEL` |
 | état prêt | `ready{on}` ; champ `ready` de `lobbyPayload()` ; `notReady()` | `#readyBtn` (+ `.on`), `.teamRow.ready`, `#teamReady`, `#waitMsg` |
 | latence | `WsConnection.rtt` ; champ `ping`, `-1` si inconnu | `.teamPing` |
 | historique | `room.history` (`{at, diffIndex, wave}`) | `renderHistory()` → `#historyList .histRow` |
@@ -971,6 +978,8 @@ Ajouter une entrée impose de traiter les deux côtés.
 | victoire | `state.victory`, `state.finalKill`, clés du `roundEnd` ; `bestFinalRun` | `#bilan.win` + `.bilanStat.final` |
 | transition | `round`/`roundAbort`/`roundEnd`/`cards`/`cardsWait` | `pushWorld()` — jamais à la réception |
 | sortie de manche | `leaveRound` : `removePlayer` + spectateur | bouton du menu pause, avec confirmation |
+| langue | `shared/i18n.js` + `shared/lang/*.js` — **ne circule pas**, réglage de machine | `#topLang`, `#setLangRow`, `traduireStatique()`, `onLangChange` |
+| motif d'erreur | `authError{motif}`, `joinRoomError{motif}`, `roomClosed{why}` — **codes**, la phrase n'est qu'un repli | `authTexte()` / `MOTIFS` (`net/router.js`) → `ui.auth.*`, `ui.hub.join.*` |
 | version | `VERSION` (`shared/version.js`), clés `version` et `commit` du `welcome` | `#version` + `updateVersion()` : ambre `.stale` **sans le hash** |
 | mesure | `trace` → `traceState{on,par}` ; clés `trace`/`tracePar` du salon ; hook `trace`, `telemetry.js` | `?mesure` dans l'URL, `#trace`, `updateTrace()` |
 
@@ -1358,6 +1367,67 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
 
 - **Commentaires et identifiants en français sans accents** (`degats`,
   `reanimation`, `telegraphiee`). **Chaînes affichées au joueur avec accents.**
+
+### Langues
+
+- **LE FRANÇAIS RESTE ÉCRIT À CÔTÉ DE SA DONNÉE et sert de REPLI.** Une langue
+  étrangère est une **surcharge par clé** (`shared/lang/*.js`), jamais une
+  seconde source de vérité : `shared/cards.js` garde `nom`/`desc` en clair, le
+  dictionnaire ne les recopie pas. Une clé absente rend le repli, donc une
+  traduction partielle dégrade au lieu de trouer l'écran.
+- **Un seul point de passage, `t(cle, repli)`** (`shared/i18n.js`). Le module est
+  **pur** — aucun DOM, `localStorage` en `try/catch` — pour que le serveur puisse
+  l'importer.
+- **Trois formes, parce qu'une phrase n'est pas une étiquette** : `t` pour un
+  libellé ; **`tf(cle, repli, vals)`** pour les `{marqueur}` — c'est ce qui laisse
+  une traduction changer l'**ordre des mots**, là où une concaténation le fige ;
+  **`tn(base, repliUn, repliN, n)`** pour le pluriel, qui lit `base.un` /
+  `base.n`. La **règle** de pluriel diffère (le français bascule à 2, l'anglais à
+  tout ce qui n'est pas 1) : elle se choisit dans la langue **affichée**.
+- **`dec(v, d)` est le point de passage de tout décimal affiché** : le séparateur
+  appartient à la langue, pas au nombre. Aucun `.replace(".", ",")` ailleurs.
+  `fmtM` (`units.js`), `num` (`cards.js`) et `ordinal(n)` suivent la même règle.
+- **Une description ne recopie un nombre dans AUCUNE des deux langues** : une
+  `desc` qui compose une constante porte des **marqueurs positionnels** (`{0}`)
+  et un **thunk `vals`** ; `cardDesc(id)` les remplit à la lecture. Le thunk, pas
+  un objet : le séparateur décimal dépend de la langue courante.
+- **`plur(n, mot)` prend le MOT FRANÇAIS pour clé** (`u.ennemi`, `u.lame`) : pas
+  de table de correspondance à tenir.
+- **Le texte d'une carte ne traverse pas le réseau** : `cardBrief` n'envoie que
+  `id` et `rarity`, le client lit sa propre table (`cardNom`, `cardDesc`).
+- **Chaque table de données porte ses points de passage**, à côté de son
+  accesseur : `cardNom`/`cardDesc`, `relicNom`/`relicDesc`, `classNom`/`classDesc`
+  /`classMission`/`skillNom`/`skillDesc`, `statusNom`, `bossNom`/`bossVerbe`
+  /`bossSous`, `mechNom`/`mechTexte`/`mechOrdre`, `eventNom`/`eventTexte`,
+  `biomeNom`/`weatherNom`/`hazardNom`, `diffLabel`/`diffResume`, `srcLabel`,
+  `ligneNom`/`confortNom`/`jalonLabel`. `segmentName()` traduit **à l'intérieur**
+  — c'était déjà le point de passage unique.
+- **Un texte figé au chargement du module ne se traduit jamais** : ce qui compose
+  une autre valeur traduisible est une **fonction**, pas une constante
+  (`MILESTONES[].label`). Même règle pour `applyAlert` : l'entrée d'alerte lit
+  les tables **au moment de l'empiler**, pas à la construction.
+- **LE SERVEUR N'ENVOIE PAS DE PHRASE AU CLIENT, il envoie un CODE**
+  (`launch.why` + `qui`, `roomClosed.why`, `authError.motif`). Une phrase qui
+  subsiste dans le message n'est qu'un **repli** pour un code inconnu du client.
+  Les **journaux** restent en français : ils sont côté opérateur.
+- **Chaque module se rafraîchit lui-même** (`onLangChange` dans `ui/screens.js`,
+  `hud.js`, `ui/pause.js`, `ui/build.js`) : la couche qui possède un écran est la
+  seule à savoir le reconstruire. Le **HUD oublie sa table `memo`** — il n'écrit
+  que si la valeur a changé, or un changement de langue change toutes les valeurs
+  sans changer une seule des signatures qui les gardent.
+- **Les clés sont PLATES et hiérarchisées par point** : `ui.*` pour le châssis,
+  puis une famille par table (`cards.<id>.<champ>`, `class.*`, `boss.*`…). Une
+  clé se grep telle quelle.
+- **Le markup se traduit par ATTRIBUT** : `data-i18n` (texte), `data-i18n-title`,
+  `data-i18n-ph`. `traduireStatique()` (`ui/dom.js`) relève le français d'origine
+  **une fois** dans une `WeakMap`. Un nœud qui porte `data-i18n` ne doit contenir
+  **aucun élément enfant** — `textContent` l'effacerait ; on enveloppe la partie
+  variable dans un `<span>` frère.
+- **Le nom d'une langue s'écrit dans cette langue** (« Français », « English ») :
+  les boutons du sélecteur ne portent aucune clé.
+- **Deux entrées, un seul état** (`survivor.lang`) : bascule en haut à droite de
+  la barre, choix explicite dans les paramètres. `onLangChange` est ce qui
+  reconstruit ; aucun rechargement de page.
 - **LE MINIMUM DE COMMENTAIRES POSSIBLE.** Par défaut : **aucun**. Un commentaire
   coûte des tokens à chaque lecture, et le dépôt est lu bien plus souvent qu'il
   n'est écrit. On n'en écrit un que si le code ne peut pas porter l'information —

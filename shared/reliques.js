@@ -1,4 +1,6 @@
 
+import { t } from "./i18n.js";
+
 export const RELIC_RARITY = ["commune", "rare", "epique", "legendaire"];
 
 export const RELIC_CFG = {
@@ -153,6 +155,15 @@ export function relicById(id) {
   for (const r of RELICS) if (r.id === id) return r;
   return null;
 }
+
+/* Point de passage du texte d'une relique. Le francais de la table est le repli.
+   Aucune description de relique ne compose de constante : ce sont des valeurs
+   brutes ecrites a cote de leur champ, elles n'ont donc pas de marqueur. */
+export const relicRarityLabel = i => t(`relicrarity.${i}`, RELIC_RARITY[i] ?? "");
+export const relicNom = id => t(`relics.${id}.nom`, relicById(id)?.nom ?? "");
+export const relicDesc = id => t(`relics.${id}.desc`, relicById(id)?.desc ?? "");
+export const relicContrepartie = id =>
+  t(`relics.${id}.contrepartie`, relicById(id)?.contrepartie ?? "");
 
 export function relicPrice(r) {
   return RELIC_CFG.PRICE[r.tier] ?? 0;

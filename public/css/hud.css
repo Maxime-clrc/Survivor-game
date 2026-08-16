@@ -313,10 +313,13 @@
 
 /* LE BOUCLIER PAR-DESSUS, PAS A COTE : une surcouche translucide a trame
    distincte, superposee a la vie. */
+/* il passe AU-DESSUS des graduations : sous elles, la trame se faisait manger
+   par le quadrillage et la surcouche ne se lisait plus. */
 .gauge > u {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 1;
 }
 
 .gauge > u > i {
@@ -326,10 +329,15 @@
   transition: width var(--tap) linear;
   background:
     repeating-linear-gradient(-45deg,
-      color-mix(in srgb, var(--hud-shield) 62%, transparent) 0 2px,
-      transparent 2px 5px),
-    color-mix(in srgb, var(--hud-shield) 16%, transparent);
-  border-right: var(--hair) solid var(--hud-shield);
+      color-mix(in srgb, var(--hud-shield) 92%, transparent) 0 3px,
+      transparent 3px 7px),
+    color-mix(in srgb, var(--hud-shield) 30%, transparent);
+  /* le BORD porte la valeur : c'est lui qu'on lit du coin de l'oeil, pas la
+     trame. Franc, et il deborde d'une lueur pour se detacher de la vie. */
+  border-right: 2px solid var(--hud-shield);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--hud-shield) 60%, transparent),
+    0 0 7px color-mix(in srgb, var(--hud-shield) 45%, transparent);
 }
 
 /* il doit s'ETEINDRE au coup et se rallumer pendant la rampe — sans ca le joueur
@@ -660,7 +668,7 @@
   border-left: 2px solid var(--go);
 }
 
-#selfGauges { position: relative; width: 260px; }
+#selfGauges { position: relative; width: 320px; }
 
 /* la barre de SOI n'a pas le meme rang de lecture que celles des allies : cinq
    pixels, c'est une ligne. */
@@ -677,13 +685,18 @@
 
 /* LE CHIFFRE VIT SUR LA BARRE. A cote, l'oeil fait deux sauts pour une seule
    information ; dessus, il n'en fait aucun. */
+/* GRILLE ET NON FLEX : `space-between` sur deux enfants `nowrap` ne borne
+   rien — la ligne de vie debordait de la jauge et passait SOUS les pastilles de
+   competence. La colonne souple s'ellipse, le niveau garde sa place. */
 #selfText {
   position: absolute;
   inset: 0 var(--sp-2) auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--sp-2);
   align-items: center;
-  justify-content: space-between;
   height: 22px;
+  overflow: hidden;
   pointer-events: none;
 }
 
@@ -693,6 +706,8 @@
   font-variant-numeric: tabular-nums;
   color: var(--text);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-shadow: 0 1px 2px var(--bg-void), 0 0 3px var(--bg-void);
 }
 

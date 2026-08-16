@@ -1,4 +1,5 @@
 
+import { getLang, t } from "/shared/i18n.js";
 import { VERSION } from "/shared/version.js";
 import { PHASE_ROUND, connected, inRoom, keys, phase, serverCommit, serverVersion } from "../core/state.js";
 
@@ -135,6 +136,8 @@ export const topPingValEl = document.getElementById("topPingVal");
 export const topAvatarEl = document.getElementById("topAvatar");
 export const topNameEl = document.getElementById("topName");
 export const topSettingsBtn = document.getElementById("topSettings");
+export const topLangBtn = document.getElementById("topLang");
+export const setLangRowEl = document.getElementById("setLangRow");
 export const briefEl = document.getElementById("brief");
 export const briefNameEl = document.getElementById("briefName");
 export const briefSkillsEl = document.getElementById("briefSkills");
@@ -156,6 +159,28 @@ export const menuTitleEl = document.getElementById("menuTitle");
 export const metaClassTabsEl = document.getElementById("metaClassTabs");
 export const metaSlotsEl = document.getElementById("metaSlots");
 export const metaBansEl = document.getElementById("metaBans");
+/* Le francais du markup EST le repli : on le releve au premier passage, on ne
+   le recopie donc jamais dans le dictionnaire. */
+const ORIGINE = new WeakMap();
+function repli(el, champ, valeur) {
+  let m = ORIGINE.get(el);
+  if (!m) ORIGINE.set(el, m = {});
+  if (!(champ in m)) m[champ] = valeur;
+  return m[champ];
+}
+export function traduireStatique(racine = document) {
+  for (const el of racine.querySelectorAll("[data-i18n]")) {
+    el.textContent = t(el.dataset.i18n, repli(el, "txt", el.textContent));
+  }
+  for (const el of racine.querySelectorAll("[data-i18n-title]")) {
+    el.title = t(el.dataset.i18nTitle, repli(el, "title", el.title));
+  }
+  for (const el of racine.querySelectorAll("[data-i18n-ph]")) {
+    el.placeholder = t(el.dataset.i18nPh, repli(el, "ph", el.placeholder));
+  }
+  document.documentElement.lang = getLang();
+}
+
 export function fmtBig(n) {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }

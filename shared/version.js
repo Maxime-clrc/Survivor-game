@@ -1766,6 +1766,175 @@
                    bouclier max. Verifie carte par carte : chaque axe du
                    catalogue deplace au moins une ligne
 
+     0.13.0 lot 01 LE JEU NE PARLAIT QUE FRANCAIS. Moteur de traduction
+                   (`shared/i18n.js`), dictionnaire anglais (`shared/lang/en.js`)
+                   et selecteur a DEUX entrees : bascule FR/EN en haut a droite
+                   de la barre, choix explicite dans les parametres.
+                   LE FRANCAIS RESTE ECRIT A COTE DE SA DONNEE et sert de repli :
+                   une langue etrangere est une SURCHARGE par cle, jamais une
+                   seconde source de verite. Une cle absente rend le texte
+                   francais, donc une traduction partielle degrade au lieu de
+                   trouer l'ecran — et le dictionnaire ne recopie pas le FR.
+                   LE MARKUP SE TRADUIT PAR ATTRIBUT (`data-i18n`, `-title`,
+                   `-ph`), releve une fois au premier passage dans une `WeakMap`.
+                   Point de passage unique : `traduireStatique()` dans `ui/dom.js`
+                   — la seule reference DOM du moteur, pour que `shared/i18n.js`
+                   reste importable par le serveur.
+                   Ce lot couvre le HTML statique. Les textes construits en JS
+                   (ecrans, HUD) et les tables de donnees (cartes, reliques, boss,
+                   classes, progression) suivent aux lots 02 a 04
+
+     0.13.1 lot 02 LES TEXTES CONSTRUITS EN JS. `screens.js`, `hud.js`,
+                   `ui/build.js`, `ui/pause.js`, `ui/boot.js`, `net/router.js` et
+                   les libelles d'attaque de `core/state.js` passent par `t()`.
+                   TROIS FORMES, PARCE QU'UNE PHRASE N'EST PAS UNE ETIQUETTE :
+                   `t(cle, repli)` pour un libelle, `tf` pour `{marqueur}` — ce
+                   qui permet a une traduction de changer l'ORDRE des mots la ou
+                   une concatenation le figeait —, `tn` pour le pluriel, dont la
+                   regle differe (le francais bascule a 2, l'anglais a tout ce
+                   qui n'est pas 1) et se choisit donc dans la langue AFFICHEE.
+                   `dec()` : le separateur decimal appartient a la langue, pas au
+                   nombre. « ×1,84 » et « ×1.84 ».
+                   LE SERVEUR N'ENVOIE PLUS DE PHRASE FRANCAISE AU CLIENT, il
+                   envoie un CODE : `cancelLaunch(why, qui)` rend `etat`,
+                   `arrivee`, `pasPret`, `clic` au lieu du texte, `closeRoom` rend
+                   `erreur`, et `authError` etait deja porteur d'un motif. Sa
+                   phrase ne sert plus que de repli pour un motif inconnu du
+                   client. Le journal, lui, reste francais : il est cote
+                   operateur.
+                   CHAQUE MODULE SE RAFRAICHIT LUI-MEME (`onLangChange` dans
+                   `screens.js`, `hud.js`, `ui/pause.js`, `ui/build.js`) au lieu
+                   d'une fonction centrale : la couche qui possede un ecran est la
+                   seule a savoir le reconstruire. Le HUD, lui, OUBLIE sa table
+                   `memo` — il n'ecrit que si la valeur a change, or un changement
+                   de langue change toutes les valeurs sans changer une seule des
+                   signatures qui les gardent.
+                   AU PASSAGE, `VOTE_STATS` ETAIT MORT : declare, jamais lu.
+                   Supprime au lieu d'etre traduit
+
+     0.13.2 lot 03 LE CATALOGUE. 138 cartes et 30 reliques : nom, description,
+                   cumul, effet courant, rarete, categorie, famille.
+                   UNE DESCRIPTION NE RECOPIE TOUJOURS PAS UN NOMBRE, dans
+                   AUCUNE des deux langues. Les 44 descriptions qui composaient
+                   `fmtM(LA_CONSTANTE)` deviennent une chaine a MARQUEURS
+                   POSITIONNELS plus un thunk `vals` : le francais reste lisible
+                   a cote de sa donnee, l'anglais reordonne ses mots, et les deux
+                   lisent la meme constante. Conversion faite par transformation
+                   de source, pas a la main — 316 comparaisons prouvent que le
+                   francais rendu est inchange, au caractere pres.
+                   LE TEXTE D'UNE CARTE NE TRAVERSE PLUS LE RESEAU : `cardBrief`
+                   n'envoie que l'identifiant et la rarete. Le client a la table,
+                   il la lit. C'est la regle « chercher si la valeur est une
+                   fonction de ce que le client a deja », appliquee a l'envers.
+                   `fmtM` ET `num` SUIVENT LA LANGUE : le separateur decimal
+                   appartient a la langue, pas au nombre. « 4,3 m » et « 4.3 m ».
+                   `ordinal(n)` de meme — le francais distingue le premier du
+                   reste, l'anglais distingue 1/2/3 puis les adolescents.
+                   `plur(n, mot)` prend le MOT FRANCAIS POUR CLE, ce qui evite
+                   une table de correspondance : `u.ennemi`, `u.balle`, `u.lame`
+
+     0.13.3 lot 04 LES TABLES DE DONNEES, ce qui clot la traduction : classes et
+                   competences, etats, boss, mecaniques, evenements, biomes,
+                   dangers, meteos, etapes de manche, difficultes, provenances de
+                   degat, arbres de progression, confort, jalons, et les quatre
+                   etiquettes posees DANS le monde par `render/boss.js`.
+                   1115 entrees anglaises. Le francais reste ecrit a cote de sa
+                   donnee et sert de repli, sans exception.
+                   « VAINCRE RAVAGEUR » COMPOSE LE NOM DU BOSS AU LIEU DE LE
+                   RECOPIER : `MILESTONES[].label` devient une FONCTION, sans
+                   quoi le jalon serait reste francais dans un ecran anglais —
+                   il etait fige au chargement du module.
+                   `segmentName()` traduit A L'INTERIEUR : c'etait deja le point
+                   de passage unique, et son seul appelant serveur est un
+                   journal, ou le francais est le bon texte.
+                   L'ALERTE LIT LA TABLE AU MOMENT DE L'EMPILER, pas a la
+                   construction : `applyAlert` passait `def.nom` / `def.texte`
+                   tels quels dans une entree gardee 1,5 s. La langue peut
+                   changer entre-temps.
+                   AU PASSAGE, DEUX NOMBRES FAUX A L'ECRAN : l'arbre du Tireur
+                   affichait « −1,7999999999999998 s de recharge de bombe » et le
+                   tronc « +3,5999999999999996 PV/s ». Un flottant concatene sans
+                   arrondi. `nombre()` (i18n) est desormais le seul chemin — il
+                   arrondit AVANT de formater, et rend l'entier sans decimale
+
+     0.13.4 lot 05 QUATRE TEXTES RESTAIENT EN FRANCAIS A L'ECRAN, tous rates par
+                   la meme cause : je cherchais le francais PAR SES ACCENTS.
+                   « esquive », « temps ralenti », « la horde reprend » n'en ont
+                   aucun. Le nouveau balayage cherche une chaine de PLUSIEURS
+                   MOTS qui n'est pas un repli de `t/tf/tn` — il trouve aussi la
+                   deuxieme forme de `tn`, que la premiere version prenait pour
+                   du texte en dur.
+                   Les deux libelles de competence des pastilles lisaient
+                   `cdef.skills[i].nom` au lieu de `skillNom()` : la table, pas
+                   le point de passage. C'est exactement ce que la regle interdit,
+                   et rien ne le signalait — un acces direct a un champ traduit
+                   rend le francais sans erreur.
+                   `metaSlow` est pose UNE FOIS au chargement, hors de la table
+                   `memo` : l'oubli de `memo` ne le reecrivait pas. Il est reposé
+                   dans `onLangChange`.
+                   Les noms de competence du Soigneur raccourcis en anglais
+                   (« Heal stance ») : la pastille coupe a 11 caracteres
+
+     0.13.5 lot 06 TROIS EFFETS EN RETARD SUR LE RESTE. La coque de bouclier
+                   passait DANS le joueur : `RING_SHIELD` partait de
+                   `PLAYER_RADIUS` (14) alors que les silhouettes de classe vont
+                   jusqu'a 24 px dans l'atlas. Les quatre bandes remontent
+                   (+12/17/22/27) — la premiere se derive de la SILHOUETTE, pas
+                   du rayon de collision.
+                   La vague de soin etait un disque plat et un anneau. Elle
+                   prend le vocabulaire des souffles — couches a constantes de
+                   temps distinctes, front qui devance sa trainee — avec le
+                   gradient INVERSE (creux au centre, dense au bord) : le soin
+                   part vers l'exterieur, il ne remplit pas. Et elle se
+                   reconnait a ses croix, comme le sanctuaire, sauf qu'elles
+                   sont PORTEES par le front.
+                   Le rempart se dessine enfin comme ce qu'il est : un mur.
+                   Couronne de 14 plaques a joints ouverts, epaisseur visible,
+                   phase tiree de l'identifiant — un mur qui tourne n'est plus
+                   un mur. Les deux poses ont leur front de particules
+                   (`spawnHealWave`, `spawnBulwark`)
+
+     0.13.6 lot 07 LE VEILLEUR NE LAISSAIT PLUS TIRER. A la derniere phase son
+                   repertoire comptait cinq regards sur huit entrees, pour un
+                   cycle d'attaque (2,05 s) plus court que le regard lui-meme
+                   (1,6 de preavis + 2,0 d'oeil ouvert) : le bandeau « NE VISEZ
+                   PLUS » couvrait 91 % du combat. Trois causes, trois
+                   corrections : `_gazeOuvre` devient le point de passage unique
+                   et REFUSE tant que l'oeil se repose (`GAZE_REST`, 2,6 s — la
+                   fenetre de tir cesse d'etre un tirage), le doublon « regard »
+                   de `unlock[1]` disparait, et la rupture de barre cesse d'en
+                   poser un de plus. Le regard permanent CLIGNOTE (4 x 1,4 s
+                   ouvert / 1,2 s ferme) au lieu de tenir huit secondes : son
+                   propre commentaire promettait deja l'intermittence.
+                   Mesure, trois graines par phase, phases 0/2/4 : bandeau
+                   66/88/91 % -> 41/44/46 %, oeil ouvert d'affilee 3,3 s ->
+                   2,0 s, plus longue fenetre de tir 7,4 s -> 9,0 s.
+                   ANCRE ET GUETTEUR NE BOUGEAIENT JAMAIS, donc le combat
+                   entier se jouait dans le meme coin — et le guetteur naissait
+                   sur le bord de la vue, la moitie de l'ecran perdue. Ils se
+                   REINSTALLENT a chaque rupture de barre (`_bossReplace`,
+                   annonce `MECH_RELOC`) : l'ancre change de bord, le guetteur
+                   se poste a 520 px de l'equipe, jamais au bord. `b.bord`
+                   etait ecrit et jamais relu, il sert enfin
+
+     0.13.7 lot 08 LA LIGNE DE VIE DEBORDAIT SOUS LES PASTILLES. `#selfText`
+                   etait un flex `space-between` de deux enfants `nowrap` : rien
+                   ne borne ca. Grille `minmax(0,1fr) auto`, ellipse sur la ligne
+                   de vie, jauge a 320 px.
+                   LE BOUCLIER PASSAIT SOUS LES GRADUATIONS — le quadrillage
+                   mangeait sa trame. `z-index: 1` sur la surcouche, trame plus
+                   franche (92/30 %), et le BORD porte la valeur : 2 px et une
+                   lueur qui deborde.
+                   L'ARC NE S'ENTENDAIT PAS, et pour une raison qui n'etait pas
+                   le gain : partageant la cle du limiteur avec la touche, il se
+                   faisait REFUSER par celle qui venait de passer. `claim`
+                   inverse la priorite — il marque la cle sans demander
+                   l'admission, donc il fait taire la PROCHAINE touche au lieu
+                   d'etre tu par la precedente, et le nombre de voix ne bouge
+                   pas. Cadence propre, `CLAIM_GAP` 90 ms. La recette y gagne
+                   une bande mediane : un highpass a 3 kHz ne laisse passer que
+                   de l'air
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1774,4 +1943,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.12.6";
+export const VERSION = "0.13.7";

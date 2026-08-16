@@ -4,8 +4,9 @@ import { EventPump } from "/events.js";
 import { hudDamage } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
 import { CFG, hazardState } from "/shared/game_state.js";
-import { COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
-import { eventAt, segmentName } from "/shared/timeline.js";
+import { t } from "/shared/i18n.js";
+import { CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
+import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
 import { latest, myId } from "../core/state.js";
 import { ENEMY_TINT, alertInfo, setAlertInfo } from "../net/interp.js";
@@ -63,7 +64,9 @@ const EFFECT_SOUND = {
   1:  { son: "balayage", force: 0.9, shake: 3 },
   // l'arc PREND la place d'une touche dans le limiteur (meme cle) : une build
   // de ricochet en produit plusieurs par seconde, le nombre de voix ne bouge pas.
-  3:  { son: "foudre", force: 1, shake: 0, key: "impact" },
+  // `claim` est ce qui rend le mot vrai — sans lui l'arc se faisait REFUSER par
+  // la touche qui venait de passer, et on ne voyait plus que le trace.
+  3:  { son: "foudre", force: 1, shake: 0, key: "impact", claim: true },
   5:  { son: "mort", pitch: 0.55, shake: 0 },
   7:  { son: "explosion", force: 1.0, shake: 6 },
   8:  { son: "explosion", force: 0.6, shake: 4 },
@@ -139,7 +142,7 @@ function handleEvent(e) {
     case "segment": {
       const now = performance.now();
       setAlertInfo({ nom: segmentName(e.segment).toUpperCase(),
-                    texte: "la horde reprend",
+                    texte: t("ui.alert.segment", "la horde reprend"),
                     from: now, until: now + 2500 });
       break;
     }
@@ -147,8 +150,9 @@ function handleEvent(e) {
     case "evenementFin": {
       const now = performance.now();
       const def = eventAt(e.event);
-      setAlertInfo({ nom: (def?.nom ?? "ÉVÉNEMENT").toUpperCase(),
-                    texte: "terminé — équipe remise à plein",
+      setAlertInfo({ nom: (def ? eventNom(e.event)
+                      : t("ui.alert.event", "ÉVÉNEMENT")).toUpperCase(),
+                    texte: t("ui.alert.eventFin", "terminé — équipe remise à plein"),
                     from: now, until: now + 2500 });
       playSound("releve");
       break;
@@ -239,6 +243,8 @@ function handleEvent(e) {
         addGridPing(e.x, e.y, Math.max(70, e.r || 0));
         break;
       }
+      if (e.kind === 11) spawnHealWave(e.x, e.y, e.r);
+      else if (e.kind === 9) spawnBulwark(e.x, e.y, e.r);
       if (!d) break;
       playSound(d.son, d);
       if (d.shake) {
@@ -526,10 +532,13 @@ export function drawBlastMarks() {
 // table vit ici, la couche la plus basse qui en a besoin : les eclats de coque
 // doivent naitre exactement sur le rayon que `boss.js` dessine, et deux
 // definitions du meme rayon finiraient par diverger.
-export const RING_SHIELD = CFG.PLAYER_RADIUS + 4;
-export const RING_STATUS = CFG.PLAYER_RADIUS + 8;
-export const RING_SKILL  = CFG.PLAYER_RADIUS + 12;
-export const RING_BUFF0  = CFG.PLAYER_RADIUS + 16;
+// La premiere bande part de la SILHOUETTE, pas du rayon de collision : les
+// tracés de classe vont jusqu'a 24 px (`sprites.js`), donc une coque a
+// `PLAYER_RADIUS + 4` passait DANS le personnage au lieu de l'envelopper.
+export const RING_SHIELD = CFG.PLAYER_RADIUS + 12;
+export const RING_STATUS = CFG.PLAYER_RADIUS + 17;
+export const RING_SKILL  = CFG.PLAYER_RADIUS + 22;
+export const RING_BUFF0  = CFG.PLAYER_RADIUS + 27;
 
 // LA COQUE. Sa rupture est du VERRE : `fx_shard` est deja la matiere « eclat
 // anguleux » de l'atlas, elle passe donc par le lot WebGL comme le reste — pas
@@ -546,7 +555,7 @@ export function spawnShieldOn(x, y) {
   // s'allumer sur place.
   for (let i = 0; i < SHIELD_PLATES && particles.length < PARTICLE_MAX; i++) {
     const a = (i / SHIELD_PLATES) * Math.PI * 2 + Math.random() * 0.2;
-    const d = 46 + Math.random() * 26;
+    const d = RING_SHIELD + 32 + Math.random() * 26;
     particles.push({
       x: x + Math.cos(a) * d, y: y + Math.sin(a) * d,
       vx: -Math.cos(a) * d * 2.6, vy: -Math.sin(a) * d * 2.6,
@@ -578,6 +587,54 @@ export function spawnShieldBreak(x, y) {
       vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       life: 0.42, max: 0.42, col, size: 3 + Math.random() * 2.2,
       frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 9, drag: 0.93,
+    });
+  }
+}
+
+// LA VAGUE DE SOIN EST UN DON, PAS UNE DETONATION : tout part du centre vers
+// l'exterieur et rien ne retombe. Deux constantes de temps — l'anneau freine,
+// les motes filent — sinon la vague se lit comme un souffle vert.
+const HEAL_MOTES = 12;
+export function spawnHealWave(x, y, r) {
+  const rr = r || 120;
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: rr * 0.2, max: rr * 1.08, life: 0.5, t: 0.5,
+                  col: FX.heal, w: 2.6 });
+  }
+  if (particles.length < PARTICLE_MAX) {
+    particles.push({ x, y, vx: 0, vy: 0, life: 0.22, max: 0.22,
+                     col: FX.healSoft, size: 30, frame: fxGlow, drag: 1, grow: 110 });
+  }
+  const n = glActive() ? HEAL_MOTES : Math.floor(HEAL_MOTES / 2);
+  for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.35;
+    const sp = rr * (1.5 + Math.random() * 0.5);
+    particles.push({
+      x: x + Math.cos(a) * 10, y: y + Math.sin(a) * 10,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.55, max: 0.55, col: FX.heal, size: 3.6,
+      frame: fxGlow, drag: 0.88,
+    });
+  }
+}
+
+// LE REMPART SE MONTE. Les plaques viennent de l'exterieur et se posent SUR le
+// bord — l'inverse de la coque du joueur, qui se ferme sur son porteur.
+const BULWARK_PLATES_FX = 12;
+export function spawnBulwark(x, y, r) {
+  const rr = r || 110;
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: rr * 1.32, max: rr, life: 0.34, t: 0.34,
+                  col: CLASS_COLOR.tank, w: 3.5 });
+  }
+  for (let i = 0; i < BULWARK_PLATES_FX && particles.length < PARTICLE_MAX; i++) {
+    const a = (i / BULWARK_PLATES_FX) * Math.PI * 2;
+    const d = rr + 34;
+    particles.push({
+      x: x + Math.cos(a) * d, y: y + Math.sin(a) * d,
+      vx: -Math.cos(a) * 130, vy: -Math.sin(a) * 130,
+      life: 0.32, max: 0.32, col: CLASS_COLOR.tank, size: 4.2,
+      frame: fxShard, ang: a + Math.PI / 2, spin: 0, drag: 0.84,
     });
   }
 }

@@ -1,16 +1,17 @@
 
 import {
-  CFG, PLAYER_COLORS, DIFFICULTIES, DAMAGE_SOURCES, enemyCap, fullMods,
+  CFG, PLAYER_COLORS, DAMAGE_SOURCES, diffLabel, srcLabel, enemyCap, fullMods,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
+import { dec, getLang, onLangChange, t, tf } from "/shared/i18n.js";
 import { relicById } from "/shared/reliques.js";
 import { fmtM, toM } from "/shared/units.js";
 import { difficulty, hudDps, hudStats, ownedCounts, pipPress, relicsByPlayer } from "./core/state.js";
-import { CLASS_DEFAULT, SKILL_CFG, SKILL3_NAME, classAt,
+import { CLASS_DEFAULT, SKILL_CFG, classAt, skill3Nom, skillNom,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
-import { bossAt, beatPhase, estFinal, ALERT_ORDER, BOSS_METRONOME } from "/shared/bosses.js";
+import { bossAt, bossNom, bossSous, bossVerbe, beatPhase, estFinal, ALERT_ORDER, BOSS_METRONOME } from "/shared/bosses.js";
 import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN, SRC_TINT } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, SKILL_ICON, SRC_ICON, STATUS_ICON, iconImg } from "/icons.js";
@@ -82,7 +83,7 @@ const metaPing  = metaLine("");
 const metaEcl   = metaLine("");
 const metaDiff  = metaLine("warn");
 const metaSlow  = metaLine("slow");
-metaSlow.textContent = "temps ralenti";
+metaSlow.textContent = t("ui.hud.slow", "temps ralenti");
 metaEcl.hidden = metaDiff.hidden = metaSlow.hidden = true;
 
 const memo = Object.create(null);
@@ -138,6 +139,14 @@ export function resetHud() {
   hurtHp = -1;
   for (const k of Object.keys(memo)) delete memo[k];
 }
+
+/* Le HUD n'ecrit que si la valeur a change : un changement de langue change
+   toutes les valeurs a la fois, mais pas les signatures qui les gardent. On
+   oublie donc la table, et la prochaine image reecrit tout. */
+onLangChange(() => {
+  for (const k of Object.keys(memo)) delete memo[k];
+  metaSlow.textContent = t("ui.hud.slow", "temps ralenti");
+});
 
 function hpColor(k, downed, col) {
   if (downed) return COMBAT.downed;
@@ -216,7 +225,7 @@ function updateTeam(v, c, now) {
       setWidth(sh, `tsh${l.id}`, 0);
       setWidth(ghost, `tgh${l.id}`, 0);
       setText(pv, `tpv${l.id}`, "");
-      setText(tags, `tg${l.id}`, l.spectator ? "spectateur" : "…");
+      setText(tags, `tg${l.id}`, l.spectator ? t("ui.hud.spec", "spectateur") : "…");
       continue;
     }
 
@@ -224,7 +233,7 @@ function updateTeam(v, c, now) {
     const k = p.downed ? 0 : Math.max(0, Math.min(1, p.hp / maxHp));
     // le CHIFFRE, pas la proportion : « il lui reste 40 PV » se decide, « il est
     // a un quart » se devine.
-    setText(pv, `tpv${l.id}`, p.downed ? "à terre" : String(Math.round(p.hp)));
+    setText(pv, `tpv${l.id}`, p.downed ? t("ui.hud.downed", "à terre") : String(Math.round(p.hp)));
     setClass(pv, `tpd${l.id}`, "downed", !!p.downed);
     setStyle(pv, `tpc${l.id}`, "color", hpColor(k, p.downed, TEXT.base));
     setWidth(fill, `tf${l.id}`, k);
@@ -240,7 +249,7 @@ function updateTeam(v, c, now) {
       tags.textContent = "";
       if (p.downed) {
         const d = document.createElement("span");
-        d.textContent = "à terre";
+        d.textContent = t("ui.hud.downed", "à terre");
         d.style.color = COMBAT.downed;
         tags.appendChild(d);
       }
@@ -338,10 +347,12 @@ function updateBoss(b, now) {
     el.boss.classList.toggle("final", estFinal(kind));
   }
   const rage = b.enrage ?? 0;
-  setText(el.bossName, "bn", `${def.nom.toUpperCase()} ${ROMAN[b.index] ?? b.index}`
-    + (rage > 0 ? ` — EMPORTEMENT ${ROMAN[rage] ?? rage}` : ""));
+  setText(el.bossName, "bn", `${bossNom(b.kind).toUpperCase()} ${ROMAN[b.index] ?? b.index}`
+    + (rage > 0
+      ? ` — ${t("ui.hud.enrage", "EMPORTEMENT")} ${ROMAN[rage] ?? rage}`
+      : ""));
   setClass(el.bossName, "bnr", "enrage", rage > 0);
-  setText(el.bossVerb, "bv", def.verbe);
+  setText(el.bossVerb, "bv", bossVerbe(b.kind));
   // la barre en cours devient BLANCHE et se vide sur le palier : le temps
   // restant se lit sur l'objet que le joueur regarde deja.
   const palier = Math.max(0, Math.min(1, b.palier ?? 0));
@@ -394,12 +405,12 @@ function updateSegment(v, c = {}) {
   const ev = v.event ? eventAt(v.event.id) : null;
   if (ev)             { etat = `${ev.nom} · ${mmss(v.event.t)}`;
                         couleur = ev.level === ALERT_ORDER ? SIGNAL.go : SIGNAL.warn; }
-  else if (dernier)   { etat = "crescendo"; couleur = SIGNAL.warn; }
+  else if (dernier)   { etat = t("ui.hud.crescendo", "crescendo"); couleur = SIGNAL.warn; }
   else                { etat = mmss(v.hordeLeft); couleur = TEXT.dim; }
 
   const sat = v.enemyList.length / enemyCap(difficulty, v.playerList.length);
   if (sat >= 0.7) {
-    etat += ` · arène ${Math.round(sat * 100)} %`;
+    etat += ` · ${tf("ui.hud.arene", "arène {p} %", { p: Math.round(sat * 100) })}`;
     if (sat >= 0.98) couleur = SIGNAL.lethal;
     else couleur = SIGNAL.warn;
   }
@@ -445,12 +456,13 @@ function buildPips(cdef) {
     el.pips.appendChild(p);
     return p;
   };
-  mk("ESP", "esquive", TEXT.base, SKILL_ICON.dash, 20);
-  mk("A", cdef.skills[0].nom.slice(0, 11), cdef.couleur, SKILL_ICON[`${cdef.id}0`], 20);
-  mk("E", cdef.skills[1].nom.slice(0, 11), cdef.couleur, SKILL_ICON[`${cdef.id}1`], 20);
+  mk(t("ui.key.spaceShort", "ESP"), t("ui.hud.pip.dash", "esquive"),
+     TEXT.base, SKILL_ICON.dash, 20);
+  mk("A", skillNom(cdef, 0).slice(0, 11), cdef.couleur, SKILL_ICON[`${cdef.id}0`], 20);
+  mk("E", skillNom(cdef, 1).slice(0, 11), cdef.couleur, SKILL_ICON[`${cdef.id}1`], 20);
   // l'ultime a un rang a part : c'est le lot 04 qui en fait un ultime, l'interface
   // doit le dire aussi, sinon la promotion n'existe que dans le code.
-  mk("3", (SKILL3_NAME[cdef.id] ?? "").toLowerCase().slice(0, 11), cdef.couleur,
+  mk("3", skill3Nom(cdef.id).toLowerCase().slice(0, 11), cdef.couleur,
      SKILL_ICON[`${cdef.id}2`], 26)
     .classList.add("ult");
 }
@@ -488,8 +500,11 @@ function updateSelf(v, c, now) {
   updateShield(el.hpBar, el.shield, "self", me.shield, now);
 
   setText(el.hpText, "shpt", me.downed
-    ? "à terre — attends un coéquipier"
-    : `${Math.round(me.hp)} / ${maxHp} pv` + (me.shield > 0 ? ` · ${Math.round(me.shield)} bouclier` : ""));
+    ? t("ui.hud.downed.self", "à terre — attends un coéquipier")
+    : tf("ui.hud.hp", "{hp} / {max} pv", { hp: Math.round(me.hp), max: maxHp })
+      + (me.shield > 0
+        ? ` · ${tf("ui.hud.shield", "{n} bouclier", { n: Math.round(me.shield) })}`
+        : ""));
   setClass(el.hpText, "shpd", "downed", !!me.downed);
 
   const teamProg = v.teamProgress ?? me.prog ?? 0;
@@ -498,8 +513,9 @@ function updateSelf(v, c, now) {
   if (memo.slvl !== teamLvl) {
     memo.slvl = teamLvl;
     el.level.innerHTML = "";
-    el.level.append(`niv. ${teamLvl}`, Object.assign(document.createElement("small"),
-      { textContent: "équipe" }));
+    el.level.append(tf("ui.hud.level", "niv. {n}", { n: teamLvl }),
+      Object.assign(document.createElement("small"),
+        { textContent: t("ui.hud.team", "équipe") }));
   }
 
   const cdef = classAt(me.cls ?? CLASS_DEFAULT);
@@ -600,7 +616,8 @@ function updateBuffs(mask, now) {
     let until = buffSeen.get(bit);
     if (until === undefined || now >= until) { until = now + duree; buffSeen.set(bit, until); }
     const st = POWERUP_STYLE[key];
-    wanted.set("b:" + key, { color: st.color, icon: st.icon, size: 14, text: label, ord: i,
+    wanted.set("b:" + key, { color: st.color, icon: st.icon, size: 14,
+                             text: t(`ui.buff.${key}`, label), ord: i,
                              k: (until - now) / duree });
   }
   reconcileBadges(el.buffs, "b:", wanted);
@@ -610,29 +627,29 @@ function updateBuffs(mask, now) {
 // LE JOUEUR NE DOIT PAS FAIRE L'ARITHMETIQUE : le panneau donne des valeurs
 // EFFECTIVES, jamais des pourcentages. Tout se deduit de ce que le client a
 // deja — instantane, cartes, reliques — sans un octet de reseau.
-const num = (v, d = 1) => v.toFixed(d).replace(".", ",");
+const num = (v, d = 1) => dec(v, d);
 
 // « critique » ne disait pas si c'etait le TAUX ou les DEGATS : deux lignes
 // valent mieux qu'un libelle a deviner. Ce qui n'a pas de valeur absolue —
 // reduction et rayon — reste un multiplicateur, mais son sens est ecrit.
 const STAT_ROWS = [
-  { nom: "dégâts par tir", val: s => num(s.degats) },
-  { nom: "tirs par seconde", val: s => num(s.cadence, 2) },
-  { nom: "dégâts par seconde", val: s => num(s.dps) },
-  { nom: "projectiles par tir", val: s => num(s.canons, 2) },
-  { nom: "taux de critique", val: s => Math.round(s.critChance * 100) + " %" },
-  { nom: "dégâts critiques", val: s => "×" + num(s.critMul, 2) },
+  { cle: "degatsTir", nom: "dégâts par tir", val: s => num(s.degats) },
+  { cle: "cadence", nom: "tirs par seconde", val: s => num(s.cadence, 2) },
+  { cle: "dps", nom: "dégâts par seconde", val: s => num(s.dps) },
+  { cle: "canons", nom: "projectiles par tir", val: s => num(s.canons, 2) },
+  { cle: "critTaux", nom: "taux de critique", val: s => Math.round(s.critChance * 100) + " %" },
+  { cle: "critDegats", nom: "dégâts critiques", val: s => "×" + num(s.critMul, 2) },
   // ces trois lignes existent parce qu'une carte entiere ne se voyait NULLE PART
   // sans elles : « Poudre dense » et « Canon long » ne touchent ni les degats ni
   // la cadence. Un panneau ou une carte prise ne bouge rien ne sert a rien.
-  { nom: "portée", val: s => fmtM(s.portee) },
-  { nom: "perforation", val: s => String(s.pierce) },
-  { nom: "ricochets", val: s => String(s.chain) },
-  { nom: "points de vie", val: s => `${Math.round(s.hp)} / ${Math.round(s.maxHp)}` },
-  { nom: "bouclier max", val: s => String(Math.round(s.bouclier)) },
-  { nom: "vitesse", val: s => num(toM(s.vitesse)) + " m/s" },
-  { nom: "dégâts subis", val: s => "×" + num(s.subis, 2) },
-  { nom: "rayon d'effet", val: s => "×" + num(s.rayon, 2) },
+  { cle: "portee", nom: "portée", val: s => fmtM(s.portee) },
+  { cle: "pierce", nom: "perforation", val: s => String(s.pierce) },
+  { cle: "chain", nom: "ricochets", val: s => String(s.chain) },
+  { cle: "pointsDeVie", nom: "points de vie", val: s => `${Math.round(s.hp)} / ${Math.round(s.maxHp)}` },
+  { cle: "bouclier", nom: "bouclier max", val: s => String(Math.round(s.bouclier)) },
+  { cle: "vitesse", nom: "vitesse", val: s => num(toM(s.vitesse)) + " m/s" },
+  { cle: "subis", nom: "dégâts subis", val: s => "×" + num(s.subis, 2) },
+  { cle: "rayon", nom: "rayon d'effet", val: s => "×" + num(s.rayon, 2) },
 ];
 
 const STATS_MS = 250;
@@ -690,7 +707,8 @@ function updateStats(me, v, c, now) {
     const a = dpsWindow[0], b = dpsWindow[dpsWindow.length - 1];
     const span = Math.max(0.001, (b.at - a.at) / 1000);
     const dps = span < 1 ? 0 : Math.max(0, b.total - a.total) / span;
-    setText(el.statsDps, "stD", `${Math.round(dps)} dps · ${Math.round(me.damage ?? 0)} total`);
+    setText(el.statsDps, "stD", tf("ui.hud.dps", "{dps} dps · {tot} total",
+      { dps: Math.round(dps), tot: Math.round(me.damage ?? 0) }));
   }
   setHidden(el.statsDps, "stDH", !hudDps);
 
@@ -717,13 +735,14 @@ function updateStats(me, v, c, now) {
     subis: m.damageTakenMul, rayon: m.areaMul,
   };
 
-  if (el.statsRows.children.length !== STAT_ROWS.length) {
+  if (el.statsRows.children.length !== STAT_ROWS.length || memo.stLang !== getLang()) {
+    memo.stLang = getLang();
     el.statsRows.textContent = "";
     for (const r of STAT_ROWS) {
       const d = document.createElement("div");
       d.className = "statRow";
       d.innerHTML = '<span class="lab"></span><span class="val"></span>';
-      d.firstElementChild.textContent = r.nom;
+      d.firstElementChild.textContent = t(`ui.stat.${r.cle}`, r.nom);
       el.statsRows.appendChild(d);
     }
   }
@@ -753,7 +772,7 @@ function updateStats(me, v, c, now) {
     d.className = "hurtRow";
     d.style.color = SRC_TINT[i];
     d.appendChild(iconImg(SRC_ICON[i], SRC_TINT[i], 12));
-    d.append(`${DAMAGE_SOURCES[i].label} ${Math.round(hurtParSrc[i] / total * 100)} %`);
+    d.append(`${srcLabel(i)} ${Math.round(hurtParSrc[i] / total * 100)} %`);
     el.statsHurt.appendChild(d);
   }
 }
@@ -793,18 +812,17 @@ function updateAnnounce(v, c, now) {
   const duree = finalBoss ? 5000 : 2600;
   const plein = finalBoss ? 4200 : 2000;
   if (v.boss && sinceBoss < duree) {
-    const def = bossAt(v.boss.kind ?? 0);
     setClass(el.announce, "anFin", "final", finalBoss);
     show("boss",
       sinceBoss < plein ? 1 : 1 - (sinceBoss - plein) / (duree - plein), false,
-      finalBoss ? def.nom.toUpperCase()
-        : `${def.nom.toUpperCase()} ${ROMAN[v.boss.index] ?? v.boss.index}`,
-      def.verbe.toUpperCase(), def.sous);
+      finalBoss ? bossNom(v.boss.kind).toUpperCase()
+        : `${bossNom(v.boss.kind).toUpperCase()} ${ROMAN[v.boss.index] ?? v.boss.index}`,
+      bossVerbe(v.boss.kind).toUpperCase(), bossSous(v.boss.kind));
     return;
   }
   if (v.boss && v.boss.phase > 0 && sincePhase < 2200) {
     show("phase", sincePhase < 1600 ? 1 : 1 - (sincePhase - 1600) / 600, true,
-      `BARRE BRISÉE — PHASE ${v.boss.phase + 1}`,
+      tf("ui.hud.barBroken", "BARRE BRISÉE — PHASE {n}", { n: v.boss.phase + 1 }),
       c.phaseText ?? "", "");
     return;
   }
@@ -874,16 +892,16 @@ export function updateHud(v, c) {
   const me = v.playerList.find(p => p.id === c.myId);
   const eclats = me?.eclats ?? 0;
 
-  setText(metaKills, "mKills", `kills ${v.kills}`);
-  setText(metaEnem, "mEnem", `ennemis ${v.enemyList.length}`);
-  setText(metaPing, "mPing", `ping ${c.ping} ms`);
+  setText(metaKills, "mKills", tf("ui.hud.kills", "kills {n}", { n: v.kills }));
+  setText(metaEnem, "mEnem", tf("ui.hud.enemies", "ennemis {n}", { n: v.enemyList.length }));
+  setText(metaPing, "mPing", tf("ui.hud.ping", "ping {n} ms", { n: c.ping }));
 
   setHidden(metaEcl, "mEclH", eclats === 0);
-  if (eclats > 0) setText(metaEcl, "mEcl", `éclats ${eclats}`);
+  if (eclats > 0) setText(metaEcl, "mEcl", tf("ui.hud.eclats", "éclats {n}", { n: eclats }));
 
   setHidden(metaDiff, "mDiffH", c.difficulty === 1);
   if (c.difficulty !== 1) {
-    setText(metaDiff, "mDiff", DIFFICULTIES[c.difficulty]?.label ?? "");
+    setText(metaDiff, "mDiff", diffLabel(c.difficulty));
     setStyle(metaDiff, "mDiffC", "color", c.difficulty > 1 ? BOSS.barLow : SIGNAL.gain);
   }
 
