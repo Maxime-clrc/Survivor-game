@@ -1935,6 +1935,19 @@
                    une bande mediane : un highpass a 3 kHz ne laisse passer que
                    de l'air
 
+     0.13.8 fix : « CLIENT.JS NON CHARGE » S'AFFICHAIT SUR UN CLIENT SAIN. Le
+                   garde-fou d'amorce d'`index.html` etait un `setTimeout` UNIQUE
+                   a 1500 ms : passe ce delai il ecrivait son message d'erreur et
+                   plus rien ne le retirait, alors que `__clientReady` arrivait
+                   une seconde plus tard sur une premiere ouverture froide. Rien
+                   d'autre n'ecrit dans `#status` avant le clic de connexion,
+                   donc la fausse alerte restait a l'ecran toute la porte
+                   d'entree. Le garde-fou devient une VEILLE : meme delai, mais
+                   elle retire son propre message des que le client est pret, et
+                   seulement le sien (comparaison a la chaine posee, pour ne pas
+                   effacer un vrai statut). Une panne reelle laisse le message,
+                   `__clientReady` ne venant jamais
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1943,4 +1956,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.7";
+export const VERSION = "0.13.8";

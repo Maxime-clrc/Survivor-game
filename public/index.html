@@ -660,13 +660,22 @@
     s.classList.add("err");
   }, true);
 
-  setTimeout(() => {
-    if (window.__clientReady) return;
+  let attente = "";
+  const veille = setInterval(() => {
     const s = document.getElementById("status");
+    if (window.__clientReady) {
+      if (attente && s.textContent === attente) {
+        s.textContent = "";
+        s.classList.remove("err");
+      }
+      clearInterval(veille);
+      return;
+    }
     if (!s.textContent) {
-      s.textContent = location.protocol === "file:"
+      attente = location.protocol === "file:"
         ? "ouvre http://localhost:8080 — pas le fichier directement"
         : "client.js non chargé — vérifie /shared/game_state.js (F12)";
+      s.textContent = attente;
       s.classList.add("err");
     }
   }, 1500);
