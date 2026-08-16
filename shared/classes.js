@@ -1,12 +1,10 @@
 
-import { t, tf } from "./i18n.js";
 import { fmtM } from "./units.js";
 import { CLASS_COLOR } from "./palette.js";
 
 export const SKILL_HEAL_MODE = 1;
 export const SKILL_TAUNT     = 2;
 export const SKILL_OVERDRIVE = 4;
-export const SKILL_ULT_WIND  = 8;
 
 export const SKILL_CFG = {
   TANK_BULWARK_RADIUS: 130,
@@ -87,11 +85,9 @@ export const CLASSES = [
     couleur: CLASS_COLOR.tank,
     skills: [
       { nom: "Rempart", touche: "A/1",
-        desc: "zone de bouclier de {0} qui te suit, 8 s",
-        vals: () => ({ "0": fmtM(SKILL_CFG.TANK_BULWARK_RADIUS) }) },
+        desc: `zone de bouclier de ${fmtM(SKILL_CFG.TANK_BULWARK_RADIUS)} qui te suit, 8 s` },
       { nom: "Provocation", touche: "E/2",
-        desc: "attire la horde dans {0}, invulnérable 1,2 s puis −50 %",
-        vals: () => ({ "0": fmtM(SKILL_CFG.TANK_TAUNT_RADIUS) }) },
+        desc: `attire la horde dans ${fmtM(SKILL_CFG.TANK_TAUNT_RADIUS)}, invulnérable 1,2 s puis −50 %` },
     ],
   },
   {
@@ -105,13 +101,11 @@ export const CLASSES = [
     couleur: CLASS_COLOR.soigneur,
     skills: [
       { nom: "Mode soin", touche: "A/1",
-        desc: "bascule : {0} liens de {1} PV/s sur les alliés dans {2}",
-        vals: () => ({ "0": SKILL_CFG.HEAL_LINK_MAX, "1": SKILL_CFG.HEAL_LINK_RATE,
-                       "2": fmtM(SKILL_CFG.HEAL_LINK_RADIUS) }) },
+        desc: `bascule : ${SKILL_CFG.HEAL_LINK_MAX} liens de `
+            + `${SKILL_CFG.HEAL_LINK_RATE} PV/s sur les alliés dans `
+            + `${fmtM(SKILL_CFG.HEAL_LINK_RADIUS)}` },
       { nom: "Vague de soin", touche: "E/2",
-        desc: "{0} PV à toute l'équipe dans {1}",
-        vals: () => ({ "0": SKILL_CFG.HEAL_WAVE_AMOUNT,
-                       "1": fmtM(SKILL_CFG.HEAL_WAVE_RADIUS) }) },
+        desc: `${SKILL_CFG.HEAL_WAVE_AMOUNT} PV à toute l'équipe dans ${fmtM(SKILL_CFG.HEAL_WAVE_RADIUS)}` },
     ],
   },
   {
@@ -124,9 +118,8 @@ export const CLASSES = [
     couleur: CLASS_COLOR.dps,
     skills: [
       { nom: "Bombe", touche: "A/1",
-        desc: "explosif visé au réticule jusqu'à {0}, détonation retardée, {1} de souffle",
-        vals: () => ({ "0": fmtM(SKILL_CFG.DPS_BOMB_RANGE_MAX),
-                       "1": fmtM(SKILL_CFG.DPS_BOMB_RADIUS) }) },
+        desc: `explosif visé au réticule jusqu'à ${fmtM(SKILL_CFG.DPS_BOMB_RANGE_MAX)}, `
+            + `détonation retardée, ${fmtM(SKILL_CFG.DPS_BOMB_RADIUS)} de souffle` },
       { nom: "Surcharge", touche: "E/2", desc: "cadence croissante à chaque kill pendant 6 s" },
     ],
   },
@@ -147,18 +140,3 @@ export function classBrief(index) {
   return { id: c.id, nom: c.nom, desc: c.desc, couleur: c.couleur, unique: c.unique,
            solo: c.solo ?? "", skills: c.skills };
 }
-
-/* Points de passage du texte d'une classe. Le francais de la table est le repli ;
-   une description de competence compose ses constantes par marqueurs, comme une
-   carte. */
-export const classNom = c => t(`class.${c.id}.nom`, c.nom);
-export const classDesc = c => t(`class.${c.id}.desc`, c.desc);
-export const classMission = c => t(`class.${c.id}.mission`, c.mission ?? c.desc);
-export const classSolo = c => (c.solo ? t(`class.${c.id}.solo`, c.solo) : "");
-export const skillNom = (c, i) => t(`skill.${c.id}.${i}.nom`, c.skills[i].nom);
-export const skillDesc = (c, i) => {
-  const s = c.skills[i];
-  const cle = `skill.${c.id}.${i}.desc`;
-  return s.vals ? tf(cle, s.desc, s.vals()) : t(cle, s.desc);
-};
-export const skill3Nom = id => t(`skill3.${id}`, SKILL3_NAME[id] ?? "");

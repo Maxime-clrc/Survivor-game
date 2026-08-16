@@ -61,7 +61,6 @@ hub.js                 registre des salles, comptes, progression — SEUL a ecri
 room.js                UNE partie : GameState, clients, phases, pause, tick
 ws_lite.js             WebSocket minimal (RFC 6455 + permessage-deflate), pas de TLS
 perf.js                echantillonnage CPU
-telemetry.js           trace JSONL d'une VRAIE partie — serveur SEUL, hub ecrivain
 version_check.js       refuse un deploiement sans bump
 progress_store.js      persistance Supabase — serveur SEUL, memoire + replique
 shared/game_state.js   LOGIQUE PURE — importee par le serveur ET le navigateur
@@ -75,8 +74,6 @@ shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
 shared/timeline.js     LE SCRIPT — six segments, trente beats, TROIS variantes, les EVENEMENTS
 shared/biomes.js       LE LIEU — trois biomes, cinq dangers, trois meteos, generateur DETERMINISTE
 shared/units.js        pixels -> metres, SEUL point de conversion d'affichage
-shared/i18n.js         LA langue : cle -> texte, le FR restant le REPLI
-shared/lang/en.js      le dictionnaire anglais, SURCHARGE par cle
 shared/version.js      LA version + le CHANGELOG en commentaire
 shared/palette.js      LA CHARTE — couleurs, rampes, echelle typo
 public/client.js       AMORCE : importe tout, cable, lance la boucle (44 lignes)
@@ -119,11 +116,9 @@ Un seul port sert les fichiers **et** les WebSocket. `resolvePath()` route
 `/shared/*` depuis la racine du dépôt, le reste depuis `public/`.
 
 **`shared/game_state.js` ne référence jamais le DOM, le canvas, le clavier ni le
-réseau.** `classes.js`, `statuses.js`, `bosses.js`, `enemies.js`,
-`progression.js` et `biomes.js` ne dépendent de **rien**. Deux exceptions, toutes
-deux feuille → feuille et sans cycle : `timeline.js` importe `ALERT_*` de
-`bosses.js`, et tout ce qui porte du **texte de joueur** importe `i18n.js`
-(`cards.js`, `reliques.js`, `units.js`).
+réseau.** `cards.js`, `classes.js`, `statuses.js`, `bosses.js`, `enemies.js`,
+`progression.js` et `biomes.js` ne dépendent de **rien**. Seule exception :
+`timeline.js` importe `ALERT_*` de `bosses.js` (feuille → feuille, sans cycle).
 
 Les constantes de comportement vivent à côté de leur table : `CARD_CFG`,
 `SKILL_CFG`, `STATUS_CFG`, `BOSS_CFG`, `TL_CFG`, `TRAIT_CFG`, `BIOME_CFG`. Ce
@@ -340,11 +335,8 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_hurt(p, d, opts)` | **tout** ce qui blesse un joueur ; multiplicateur de difficulté **ici et nulle part ailleurs** ; plafond de mécanique ; provenance |
 | `_damage()` | **tout** ce qui blesse un ennemi ou le boss ; vol de vie, critique, momentum, exécution, brûlure, `hitSeq`, `critSeq`, point d'impact du boss, redirection Jumeaux, crédit XP du boss |
 | `_blastPush(x, y, r, force)` | **toute** impulsion radiale d'un souffle, et le trou d'apparition qui va avec (`_dansUnTrou`) |
-| `_healLinks(dt)` | accrochage, rupture, soin, réanimation et siphon du Soigneur ; `_postureLinks` = la posture, `_sanctLinks` = le dôme (ni plafond ni rupture) |
-| `_ultFire(p)` | **tout** ce que déclenche une 3ᵉ compétence, à l'échéance de l'amorce ; effet d'écran et marqueur d'équipe posés une fois pour les trois |
-| `drawArc(clef, x0, y0, x1, y1, opts)` | **tout** ce qui relie deux points par un arc : ricochet, salve, lien de soin, chaîne d'Ancre, lien des Jumeaux. `flow` porte le SENS |
-| `RING_*` (`render/fx.js`) | les bandes de rayon autour d'un personnage — lues par `boss.js` **et** par les éclats de coque |
-| `drawShieldShell()` | l'état du bouclier à l'écran ; `spawnShieldOn` / `spawnShieldBreak` ses deux fronts |
+| `_healLinks(dt)` | accrochage, rupture, soin, réanimation et siphon du Soigneur |
+| `drawArc(clef, x0, y0, x1, y1, opts)` | **tout** ce qui relie deux points par un arc : ricochet, salve, lien de soin |
 | `spawnBlast(x, y, r, ampleur, style)` | les couches chaudes d'un souffle, mises à l'échelle par la magnitude |
 | `_applyStatus()` / `_purgeStatus()` | pose et retrait d'état |
 | `_killEnemy()` | **toute** mort d'ennemi : XP, explosion du kamikaze, cumuls |
@@ -378,7 +370,6 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `teinter(base, teinte, k)` | clarté du mode + chroma du biome |
 | `audioUi` | volume, depuis les trois vues |
 | `uiSoundFor()` | son d'un bouton d'interface |
-| `t(cle, repli)` | toute traduction ; `traduireStatique()` la variante markup |
 | `goHome()` | retour au hub, d'où qu'on clique |
 | `enSaisie()` | « suis-je en train d'écrire » |
 | `prepareMessage()` | compression, une fois par broadcast |
@@ -397,9 +388,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   `CARD_CFG`, `SKILL_CFG`, `STATUS_CFG`, `BOSS_CFG`. Une description compose
   `fmtM(LA_CONSTANTE)`, elle ne recopie pas un nombre.
 - **Chaque effet dessiné autour d'un personnage occupe une bande de rayon
-  exclusive**, table dans `render/fx.js` (la couche la plus basse qui en a
-  besoin, les éclats de coque naissant sur `RING_SHIELD`) :
-  `RING_SHIELD`, `RING_STATUS`, `RING_SKILL`, `RING_BUFF0`, puis
+  exclusive** : `RING_SHIELD`, `RING_STATUS`, `RING_SKILL`, `RING_BUFF0`, puis
   3,7 m lames orbitales, 8 m givre, 8,5 m rempart. **Vaut aussi autour d'un
   ENNEMI** : halo d'élite `r+6`→`r+8`, liseré d'aura `r+10`. Les lames se
   dessinent en passe séparée (`drawOrbiters`), le givre est un disque **sans
@@ -410,16 +399,6 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 
 - **Les snapshots sont des tableaux positionnels.** On ajoute des champs **à la
   fin, jamais au milieu** ; le client lit avec un repli (`a[16] ?? 0`).
-- **L'instantané est FILTRÉ PAR VUE** (`snapshot(vue)`, `vueDe()` dans
-  `room.js`). Le rectangle est celui que le client affiche vraiment — centré sur
-  le joueur **puis écrêté à l'arène**, comme `updateCamera` et `_pushOffScreen`
-  — élargi de `CULL_MARGE` puis **arrondi vers l'extérieur** sur `CULL_GRID`,
-  ce qui fait qu'une équipe groupée ne paie qu'**une** compression. Restent
-  entiers : joueurs, boss, zones, marqueurs. `vue` absent = instantané complet.
-- **Une absence n'est plus une mort côté client** (`dansVue` dans `events.js`,
-  `opts.vue`) : un corps filtré peut être simplement sorti du champ. La marge du
-  client est **plus étroite** que celle du serveur, donc un corps filtré n'est
-  jamais dans la vue. Vaut aussi pour le ramassage d'un bonus et le son de tir.
 - **Les tableaux exportés sont ordonnés et l'index circule** : `POWERUP_TYPES`,
   `ENEMY_TYPES`, `DIFFICULTIES`, `CLASSES`, `STATUSES`, `BOSS_ROSTER`, `MECHS`,
   `EVENTS`, `BIOMES`, `WEATHERS`, `DAMAGE_SOURCES`. Insérer au milieu réécrit le
@@ -930,20 +909,18 @@ Ajouter une entrée impose de traiter les deux côtés.
 
 | Registre | Serveur | Client |
 |---|---|---|
-| `kind` d'effet | 0 nova · 1 balayage · 2 niveau · 3 ricochet (2 points de plus) · 4 balise/relèvement/purification/Sentence · 5 élite · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart · 10 provocation · 11 vague de soin · 12 bombe · 13 salve (2 points de plus) · 14 absorption · 15 rupture de barre · 16 **ultime** (`owner`, palier dans `n`) | `drawEffects()` |
+| `kind` d'effet | 0 nova · 1 balayage · 2 niveau · 3 ricochet (2 points de plus) · 4 balise/relèvement/purification/Sentence · 5 élite · 6 barre brisée · 7 explosion · 8 onde blanche · 9 rempart · 10 provocation · 11 vague de soin · 12 bombe · 13 salve (2 points de plus) · 14 absorption | `drawEffects()` |
 | type d'ennemi | `ENEMY_TYPES` (`enemies.js`), élite à +100 | `ENEMY.TINT` (`palette.js`) + `plan()` (`e{type}_*`) + `DEATH_BURST` + `enemyFrame()` |
 | trait | `TRAITS` + `TRAIT_CFG` (`enemies.js`) ; attachement dans `DIFFICULTIES[i].traits` — **l'index ne circule pas** | `traitsOf()` dans `render/actors.js` |
 | profil de difficulté | `DIFFICULTIES` (`game_state.js`) | `renderVoteDetail()` + `applyPalette(diffIndex)` |
 | décor de mode | `DECOR` (`palette.js`) — **ne circule pas** | `decor` dans `render/stage.js`, lu par `render/decor.js` |
 | classe | `CLASSES` (`classes.js`) | sélecteur du salon + `buildPips()`/`updatePip()` |
 | couleur d'un joueur | `assignColors()` (`room.js`), index dans `colorIndex` | `PLAYER_COLORS` via `colorOf`/`ownerColorOf` |
-| bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` · `SKILL_ULT_WIND` | teinte, halos, icônes, anneau d'amorce |
+| bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` | teinte, halos, icônes |
 | états | `STATUSES` (`statuses.js`), bit dans `_statusMask()` | `STATUS_ICON` + halo + cadre d'équipe |
 | `shape` de zone | 0 disque · 1 rect · 2 anneau · 3 cône · 4 Pac-Man · 5 croix | `zonePath()`/`zoneSubPath()` + `_zoneHits()` |
 | bits de buff | `BUFF_DAMAGE` … `BUFF_RICOCHET` | anneaux + bandeau HUD |
 | bonus | `_applyPowerup()` ; `POWERUP_ROTATION` dit ce qui **tombe**, `POWERUP_TYPES` ce qui **circule** | `POWERUP_ICON` + `POWERUP_STYLE` |
-| texte d'une carte | `CARDS` (`cards.js`) ; `cardBrief` n'envoie que `id` et `rarity` — le texte **ne circule pas** | `cardNom()` / `cardDesc()` / `cardDetail()`, marqueurs `{0}` remplis par `vals` |
-| texte d'une relique | `RELICS` (`reliques.js`) — **ne circule pas** | `relicNom()` / `relicDesc()` / `relicContrepartie()` |
 | clés de `mods` | `defaultMods()` (`cards.js`) | rien |
 | tags de carte | `tags` (`off`, `def`, `coop`, `cadence`) | rien |
 | script | `SCRIPT`/`SCRIPTS` (`timeline.js`), variante en clair (un NOM) ; clé `sg` | `updateSegment()` + `gameIntensity()` |
@@ -962,13 +939,12 @@ Ajouter une entrée impose de traiter les deux côtés.
 | magnitude d'un souffle | `n` sur l'effet, 9ᵉ élément (index 8, coupé si nul) — nova, grenade, onde, bombe | `BLAST_STYLE` + `spawnBlast()` + force du son |
 | critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats |
 | propriétaire d'une balle | 4ᵉ élément du tuple `b` | `ownerColorOf(b.owner) ?? COMBAT.bullet` |
-| missile de Salve | 5ᵉ élément du tuple `b`, **émis seulement si missile** | `drawMissile()` |
-| lien de soin | `_healLinks()` ; clé `hl`, triplets `[soigneur, cible, ennemi]` — **quadruplets** quand le lien vient d'un Sanctuaire (id du dôme) | `drawSoinLinks()` : soin chaud et **calme**, siphon froid et **agité** ; un lien de dôme part du **dôme** |
+| lien de soin | `_healLinks()` ; clé `hl`, triplets `[soigneur, cible, ennemi]`, **absente** hors posture | `drawSoinLinks()` : soin chaud et **calme**, siphon froid et **agité** |
 | intervalle de tir | `p.fireInterval`, 34ᵉ élément du tuple joueur | `fireInterval` (`ingest.js`) + ligne « cadence » de `ui/build.js` |
 | catégorie de carte | `CATEGORIES` + `cardCategory()` — **ne circule pas** | `CARD_CATEGORY_COLOR` + `.cardCat` |
 | hub des salles | `listRooms`/`createRoom`/`joinRoom`/`leaveRoom` → `rooms`/`roomJoined`/`joinRoomError`/`roomClosed` | `#hubScreen`, `renderRooms()`, `enterHub()`, `inRoom` |
 | identité | `register`/`login`/`loginToken`/`logout`/`changePass` → `welcome{pseudo,token?,dup}`/`authError{motif,fatal?}`/`passChanged`/`loggedOut` | `#gate`, bloc compte du hub, `survivor.token` |
-| lancement différé | `start`/`cancelStart` ; `room.launchAt`, `launchPayload()`, `tickLaunch()` → `launch{delay,why,qui}`, `why` = **code** (`etat`, `arrivee`, `pasPret`, `clic`) | `#start` (+ `.cancel`), `renderLaunch()`, `launchEndsAt`, `LAUNCH_CANCEL` |
+| lancement différé | `start`/`cancelStart` ; `room.launchAt`, `launchPayload()`, `tickLaunch()` → `launch{delay,why}` | `#start` (+ `.cancel`), `renderLaunch()`, `launchEndsAt` |
 | état prêt | `ready{on}` ; champ `ready` de `lobbyPayload()` ; `notReady()` | `#readyBtn` (+ `.on`), `.teamRow.ready`, `#teamReady`, `#waitMsg` |
 | latence | `WsConnection.rtt` ; champ `ping`, `-1` si inconnu | `.teamPing` |
 | historique | `room.history` (`{at, diffIndex, wave}`) | `renderHistory()` → `#historyList .histRow` |
@@ -978,10 +954,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | victoire | `state.victory`, `state.finalKill`, clés du `roundEnd` ; `bestFinalRun` | `#bilan.win` + `.bilanStat.final` |
 | transition | `round`/`roundAbort`/`roundEnd`/`cards`/`cardsWait` | `pushWorld()` — jamais à la réception |
 | sortie de manche | `leaveRound` : `removePlayer` + spectateur | bouton du menu pause, avec confirmation |
-| langue | `shared/i18n.js` + `shared/lang/*.js` — **ne circule pas**, réglage de machine | `#topLang`, `#setLangRow`, `traduireStatique()`, `onLangChange` |
-| motif d'erreur | `authError{motif}`, `joinRoomError{motif}`, `roomClosed{why}` — **codes**, la phrase n'est qu'un repli | `authTexte()` / `MOTIFS` (`net/router.js`) → `ui.auth.*`, `ui.hub.join.*` |
 | version | `VERSION` (`shared/version.js`), clés `version` et `commit` du `welcome` | `#version` + `updateVersion()` : ambre `.stale` **sans le hash** |
-| mesure | `trace` → `traceState{on,par}` ; clés `trace`/`tracePar` du salon ; hook `trace`, `telemetry.js` | `?mesure` dans l'URL, `#trace`, `updateTrace()` |
 
 **Registres purement CLIENTS** (ils se déduisent du snapshot ou de la liste de
 cartes, déjà diffusée) : image de sprite (`plan()` dans `sprites.js`, adressée par
@@ -1367,67 +1340,6 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
 
 - **Commentaires et identifiants en français sans accents** (`degats`,
   `reanimation`, `telegraphiee`). **Chaînes affichées au joueur avec accents.**
-
-### Langues
-
-- **LE FRANÇAIS RESTE ÉCRIT À CÔTÉ DE SA DONNÉE et sert de REPLI.** Une langue
-  étrangère est une **surcharge par clé** (`shared/lang/*.js`), jamais une
-  seconde source de vérité : `shared/cards.js` garde `nom`/`desc` en clair, le
-  dictionnaire ne les recopie pas. Une clé absente rend le repli, donc une
-  traduction partielle dégrade au lieu de trouer l'écran.
-- **Un seul point de passage, `t(cle, repli)`** (`shared/i18n.js`). Le module est
-  **pur** — aucun DOM, `localStorage` en `try/catch` — pour que le serveur puisse
-  l'importer.
-- **Trois formes, parce qu'une phrase n'est pas une étiquette** : `t` pour un
-  libellé ; **`tf(cle, repli, vals)`** pour les `{marqueur}` — c'est ce qui laisse
-  une traduction changer l'**ordre des mots**, là où une concaténation le fige ;
-  **`tn(base, repliUn, repliN, n)`** pour le pluriel, qui lit `base.un` /
-  `base.n`. La **règle** de pluriel diffère (le français bascule à 2, l'anglais à
-  tout ce qui n'est pas 1) : elle se choisit dans la langue **affichée**.
-- **`dec(v, d)` est le point de passage de tout décimal affiché** : le séparateur
-  appartient à la langue, pas au nombre. Aucun `.replace(".", ",")` ailleurs.
-  `fmtM` (`units.js`), `num` (`cards.js`) et `ordinal(n)` suivent la même règle.
-- **Une description ne recopie un nombre dans AUCUNE des deux langues** : une
-  `desc` qui compose une constante porte des **marqueurs positionnels** (`{0}`)
-  et un **thunk `vals`** ; `cardDesc(id)` les remplit à la lecture. Le thunk, pas
-  un objet : le séparateur décimal dépend de la langue courante.
-- **`plur(n, mot)` prend le MOT FRANÇAIS pour clé** (`u.ennemi`, `u.lame`) : pas
-  de table de correspondance à tenir.
-- **Le texte d'une carte ne traverse pas le réseau** : `cardBrief` n'envoie que
-  `id` et `rarity`, le client lit sa propre table (`cardNom`, `cardDesc`).
-- **Chaque table de données porte ses points de passage**, à côté de son
-  accesseur : `cardNom`/`cardDesc`, `relicNom`/`relicDesc`, `classNom`/`classDesc`
-  /`classMission`/`skillNom`/`skillDesc`, `statusNom`, `bossNom`/`bossVerbe`
-  /`bossSous`, `mechNom`/`mechTexte`/`mechOrdre`, `eventNom`/`eventTexte`,
-  `biomeNom`/`weatherNom`/`hazardNom`, `diffLabel`/`diffResume`, `srcLabel`,
-  `ligneNom`/`confortNom`/`jalonLabel`. `segmentName()` traduit **à l'intérieur**
-  — c'était déjà le point de passage unique.
-- **Un texte figé au chargement du module ne se traduit jamais** : ce qui compose
-  une autre valeur traduisible est une **fonction**, pas une constante
-  (`MILESTONES[].label`). Même règle pour `applyAlert` : l'entrée d'alerte lit
-  les tables **au moment de l'empiler**, pas à la construction.
-- **LE SERVEUR N'ENVOIE PAS DE PHRASE AU CLIENT, il envoie un CODE**
-  (`launch.why` + `qui`, `roomClosed.why`, `authError.motif`). Une phrase qui
-  subsiste dans le message n'est qu'un **repli** pour un code inconnu du client.
-  Les **journaux** restent en français : ils sont côté opérateur.
-- **Chaque module se rafraîchit lui-même** (`onLangChange` dans `ui/screens.js`,
-  `hud.js`, `ui/pause.js`, `ui/build.js`) : la couche qui possède un écran est la
-  seule à savoir le reconstruire. Le **HUD oublie sa table `memo`** — il n'écrit
-  que si la valeur a changé, or un changement de langue change toutes les valeurs
-  sans changer une seule des signatures qui les gardent.
-- **Les clés sont PLATES et hiérarchisées par point** : `ui.*` pour le châssis,
-  puis une famille par table (`cards.<id>.<champ>`, `class.*`, `boss.*`…). Une
-  clé se grep telle quelle.
-- **Le markup se traduit par ATTRIBUT** : `data-i18n` (texte), `data-i18n-title`,
-  `data-i18n-ph`. `traduireStatique()` (`ui/dom.js`) relève le français d'origine
-  **une fois** dans une `WeakMap`. Un nœud qui porte `data-i18n` ne doit contenir
-  **aucun élément enfant** — `textContent` l'effacerait ; on enveloppe la partie
-  variable dans un `<span>` frère.
-- **Le nom d'une langue s'écrit dans cette langue** (« Français », « English ») :
-  les boutons du sélecteur ne portent aucune clé.
-- **Deux entrées, un seul état** (`survivor.lang`) : bascule en haut à droite de
-  la barre, choix explicite dans les paramètres. `onLangChange` est ce qui
-  reconstruit ; aucun rechargement de page.
 - **LE MINIMUM DE COMMENTAIRES POSSIBLE.** Par défaut : **aucun**. Un commentaire
   coûte des tokens à chaque lecture, et le dépôt est lu bien plus souvent qu'il
   n'est écrit. On n'en écrit un que si le code ne peut pas porter l'information —

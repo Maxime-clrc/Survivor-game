@@ -1,6 +1,4 @@
 
-import { t } from "./i18n.js";
-
 export const BIOME_CFG = {
   HAZARD_SURFACE_MAX: 0.08,
   TRAIL_BUDGET: 0.04,
@@ -33,30 +31,9 @@ export const BIOME_CFG = {
   COVER_HP: 900,
 
   GUST_PUSH: 46,
-  GUST_PERIOD: 26,
-  GUST_CALM: 0.42,
-  GUST_RAMP: 3.2,
-  GUST_MIN: 0.45,
-  GUST_TURN_HZ: 0.021,
-  GUST_SWING: 1.15,
-  GUST_AMP_HZ: 0.055,
-
   ASH_LIFE: 11,
-
-  // LA BRUME RETIRE DE L'INFORMATION, elle ne teinte pas. Pleine visibilite
-  // jusqu'a FOG_CLEAR, plus rien de la horde au-dela de FOG_BLIND. La demi-vue
-  // fait 800 x 450 : a 480 le disque deborde a peine en haut et en bas, et
-  // ampute franchement les cotes — c'est un champ de vision, plus un ecran.
-  // Tout ce qui TIRE reste dedans par construction (le tireur se place a 170,
-  // le soigneur ennemi a 240), donc on ne se fait jamais toucher par un corps
-  // qu'on ne pouvait pas voir.
-  FOG_CLEAR: 260,
-  FOG_BLIND: 480,
-
-  // le vignettage accompagne le masquage au lieu de le contredire : il partait
-  // PLUS LOIN du centre (+0,12), ce qui eclaircissait les bords haut et bas.
   FOG_VIGNETTE: 1.35,
-  FOG_FROM: -0.10,
+  FOG_FROM: 0.12,
 };
 
 export const HZ_GEYSER = 0;
@@ -79,7 +56,6 @@ export const HAZARDS = [
 ];
 
 export function hazardAt(kind) { return HAZARDS[kind] ?? null; }
-export const hazardNom = k => t(`hazard.${HAZARDS[k]?.key}`, HAZARDS[k]?.nom ?? "");
 
 export const WX_BRUME = 0;
 export const WX_BOURRASQUE = 1;
@@ -89,14 +65,12 @@ export const WEATHERS = [
   { key: "brume", nom: "Brume",
     texte: "brume dense — on ne voit plus venir" },
   { key: "bourrasque", nom: "Bourrasque",
-    texte: "rafales — le vent vous pousse, la horde l'ignore" },
+    texte: "bourrasque — tout est poussé, vous comme eux" },
   { key: "cendres", nom: "Cendres",
     texte: "pluie de cendres — les bonus au sol ne durent plus" },
 ];
 
 export function weatherAt(id) { return WEATHERS[id] ?? null; }
-export const weatherNom = i => t(`weather.${WEATHERS[i]?.key}.nom`, WEATHERS[i]?.nom ?? "");
-export const weatherTexte = i => t(`weather.${WEATHERS[i]?.key}.texte`, WEATHERS[i]?.texte ?? "");
 
 export const BIOMES = [
   {
@@ -117,8 +91,6 @@ export const BIOMES = [
 ];
 
 export function biomeAt(i) { return BIOMES[i] ?? BIOMES[0]; }
-export const biomeNom = i => t(`biome.${biomeAt(i).key}.nom`, biomeAt(i).nom);
-export const biomeResume = i => t(`biome.${biomeAt(i).key}.resume`, biomeAt(i).resume);
 
 export function mulberry32(seed) { return rng(seed); }
 
@@ -286,40 +258,8 @@ export function weatherFor(diffIndex, seed, segment) {
   const rand = rng((seed >>> 0) * 733 + segment * 9176);
   if (rand() < 0.34) return null;
   const id = Math.min(WEATHERS.length - 1, Math.floor(rand() * WEATHERS.length));
-  const TAU = Math.PI * 2;
-  return {
-    id,
-    ang: rand() * TAU,
-    ph: rand(),
-    p1: rand() * TAU,
-    p2: rand() * TAU,
-    pa: rand() * TAU,
-  };
-}
-
-// LA BOURRASQUE N'EST PAS UN VECTEUR CONSTANT : angle et force sont des
-// FONCTIONS DU TEMPS DE MANCHE, donc rejouables a l'identique des deux cotes
-// sans un octet de reseau, comme l'etat d'un danger. L'enveloppe reprend
-// d'ailleurs la forme de `hazardState` — periode, fenetre active, rampe : le
-// vent RETOMBE A ZERO entre deux rafales, sinon il cesse d'etre un evenement et
-// devient une taxe permanente sur le deplacement.
-// Les deux sinus d'angle sont incommensurables et leur somme depasse le
-// demi-tour, donc la rafale peut s'inverser en cours de segment.
-export function windAt(w, t) {
-  if (!w || w.id !== WX_BOURRASQUE) return null;
-  const C = BIOME_CFG;
-  const TAU = Math.PI * 2;
-  const u = (((t / C.GUST_PERIOD) + w.ph) % 1) * C.GUST_PERIOD;
-  const active = C.GUST_PERIOD * (1 - C.GUST_CALM);
-  if (u >= active) return null;
-  const rampe = Math.min(1, Math.min(u, active - u) / C.GUST_RAMP);
-  if (rampe <= 0) return null;
-  const ampleur = C.GUST_MIN + (1 - C.GUST_MIN)
-    * (0.5 + 0.5 * Math.sin(t * C.GUST_AMP_HZ * TAU + w.pa));
-  const ang = w.ang
-    + Math.sin(t * C.GUST_TURN_HZ * TAU + w.p1) * C.GUST_SWING
-    + Math.sin(t * C.GUST_TURN_HZ * 2.7 * TAU + w.p2) * C.GUST_SWING * 0.5;
-  return { ang, dx: Math.cos(ang), dy: Math.sin(ang), force: rampe * ampleur };
+  const ang = rand() * Math.PI * 2;
+  return { id, dx: Math.cos(ang), dy: Math.sin(ang) };
 }
 
 export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,

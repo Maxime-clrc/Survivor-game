@@ -6,7 +6,6 @@ import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, COMMUN, slotsFor, tierCost, coresForRun, coresPartial, recordFinal } from "./shared/progression.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { VERSION } from "./shared/version.js";
-import { Trace, nomTrace } from "./telemetry.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
 import { PERF_ON, PERF_REPORT_S, Sampler, nowMs as perfNow, f1 } from "./perf.js";
 
@@ -141,29 +140,6 @@ export function createHub(store, log, commit = "") {
   }
 
 
-  // LE HUB RESTE LE SEUL ECRIVAIN, ici comme pour la progression : la salle
-  // produit des objets et ne connait ni chemin, ni disque, ni format de nom.
-  const traces = new Map();
-
-  function trace(room, obj) {
-    if (!obj) return;
-    if (obj.k === "debut") {
-      traces.get(room.code)?.fermer();
-      const t = new Trace(nomTrace(room.code, obj.manche), log);
-      traces.set(room.code, t);
-      t.ligne(obj);
-      log(`[${room.code}] mesure ouverte — ${t.chemin}`);
-      return;
-    }
-    const t = traces.get(room.code);
-    if (!t) return;
-    t.ligne(obj);
-    if (obj.k === "fin") {
-      traces.delete(room.code);
-      t.fermer().then(chemin => log(`[${room.code}] mesure fermée — ${chemin}`));
-    }
-  }
-
   const hooks = {
     log,
     occupancy: () => broadcastRooms(),
@@ -171,7 +147,6 @@ export function createHub(store, log, commit = "") {
     awardPartial,
     sendProgress,
     persist,
-    trace,
   };
 
   function roomsPayload() {
@@ -221,11 +196,6 @@ export function createHub(store, log, commit = "") {
       returnToHub(c, why);
     }
     rooms.delete(room.code);
-    const t = traces.get(room.code);
-    if (t) {
-      traces.delete(room.code);
-      t.fermer().then(chemin => log(`[${room.code}] mesure fermée — ${chemin}`));
-    }
     broadcastRooms();
     log(`salle ${room.code} fermée — ${why}`);
   }
@@ -461,7 +431,7 @@ export function createHub(store, log, commit = "") {
         room.handleMessage(client, msg);
       } catch (err) {
         log(`salle ${room.code} en erreur sur « ${msg.t} » : ${err.message}`);
-        closeRoom(room, "erreur");
+        closeRoom(room, "erreur interne");
       }
     };
 
@@ -615,7 +585,7 @@ export function createHub(store, log, commit = "") {
         room.tick(elapsed);
       } catch (err) {
         log(`salle ${room.code} en erreur : ${err.message}`);
-        closeRoom(room, "erreur");
+        closeRoom(room, "erreur interne");
         continue;
       }
       if (room.clients.size === 0 && room.emptySince

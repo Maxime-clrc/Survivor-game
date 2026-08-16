@@ -1,6 +1,4 @@
 
-import { t } from "./i18n.js";
-
 export const BOSS_RAVAGEUR = 0;
 export const BOSS_MATRIARCHE = 1;
 export const BOSS_METRONOME = 2;
@@ -47,7 +45,6 @@ export const MECH_SWAP = 27;
 export const MECH_ENRAGE = 28;
 export const MECH_SYNTH = 29;
 export const MECH_SEAL = 30;
-export const MECH_RELOC = 31;
 
 export const ALERT_ORDER = 0;
 export const ALERT_WARN = 1;
@@ -149,9 +146,6 @@ export const MECHS = [
   { id: MECH_SEAL, key: "seal", nom: "Sceau", minPlayers: 1, fallback: -1,
     level: ALERT_ORDER, texte: "TENEZ tous les foyers en même temps",
     ordre: "TENEZ TOUS LES FOYERS", forme: "colonne" },
-  { id: MECH_RELOC, key: "reloc", nom: "Réinstallation", minPlayers: 1, fallback: -1,
-    level: ALERT_WARN, texte: "il se réinstalle ailleurs — l'arène change de côté",
-    ordre: "IL CHANGE DE CÔTÉ", forme: "ligne" },
 ];
 
 export function mechAt(id) { return MECHS[id] ?? null; }
@@ -353,7 +347,7 @@ export const BOSS_ROSTER = [
     base: ["regard", "cone", "salve"],
     unlock: [
       ["regarddouble"],
-      ["damier"],
+      ["regard", "damier"],
       ["regardmobile"],
       ["regardpermanent"],
     ],
@@ -429,16 +423,6 @@ export function finalPour(diffIndex) {
 
 export function bossAt(i) { return BOSS_ROSTER[i] ?? BOSS_ROSTER[0]; }
 
-/* Points de passage du texte d'un boss et d'une mecanique. */
-export const bossNom = i => t(`boss.${bossAt(i).key}.nom`, bossAt(i).nom);
-export const bossVerbe = i => t(`boss.${bossAt(i).key}.verbe`, bossAt(i).verbe);
-export const bossSous = i => t(`boss.${bossAt(i).key}.sous`, bossAt(i).sous ?? "");
-export const mechNom = i => t(`mech.${MECHS[i]?.key}.nom`, MECHS[i]?.nom ?? "");
-export const mechTexte = i => t(`mech.${MECHS[i]?.key}.texte`, MECHS[i]?.texte ?? "");
-export const mechOrdre = i => (MECHS[i]?.ordre
-  ? t(`mech.${MECHS[i].key}.ordre`, MECHS[i].ordre)
-  : "");
-
 export function bossPool(kind, phase) {
   const def = bossAt(kind);
   const pool = def.base.slice();
@@ -475,9 +459,6 @@ export const BOSS_CFG = {
   RENFORT_MAX: 0.30,
 
   GAZE_PERMANENT: 4,
-  GAZE_PERM_OPEN: 1.4,
-  GAZE_PERM_GAP: 1.2,
-  RELOC_DIST: 520,
   RECITANT_HEAL: 0.35,
 
   NOEUD_HP: 260,
@@ -522,10 +503,6 @@ export const BOSS_CFG = {
   GAZE_TIME: 2.0,
   GAZE_TICK: 0.5,
   GAZE_RATIO: 0.22,
-  // l'oeil ferme est une fenetre de TIR, et elle ne se tire pas au sort : sans
-  // plancher, deux regards s'enchainent en moins que leur propre duree et la
-  // mecanique cesse d'etre un arbitrage pour devenir une interdiction.
-  GAZE_REST: 2.6,
   PROX_RADIUS: 280,
   PROX_WARN: WARN_LECTURE,
 

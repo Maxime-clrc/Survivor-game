@@ -3,4 +3,3 @@ node_modules/
 data/
 # outillage local
 .claude/launch.json
-traces/

@@ -1,6 +1,5 @@
 
 import { initAudio } from "/audio.js";
-import { t, tf, tn } from "/shared/i18n.js";
 import { startMusic } from "/music.js";
 import { VERSION } from "/shared/version.js";
 import { atlasStats, bindGL, buildAtlas, frameOf, glActive, silhouetteSheet } from "/sprites.js";
@@ -18,8 +17,8 @@ export function renderGateMode() {
   const token = localStorage.getItem("survivor.token") || "";
   if (!nameInput.value) nameInput.value = pseudo;
   passInput.placeholder = pseudo && token
-    ? t("ui.gate.ph.passResume", "mot de passe (vide : reprendre la session)")
-    : t("ui.gate.ph.pass", "mot de passe");
+    ? "mot de passe (vide : reprendre la session)"
+    : "mot de passe";
 }
 gateContinueBtn.onclick = () => {
   gate.hidden = true;
@@ -34,7 +33,7 @@ export function renderServerInfo(info) {
 
   if (!info) {
     gateServerEl.className = "gateChip off";
-    gateServerEl.innerHTML = `<i class="chipDot"></i>${escapeHtml(t("ui.gate.srv.off", "serveur injoignable"))}`;
+    gateServerEl.innerHTML = `<i class="chipDot"></i>serveur injoignable`;
     gateRoomsEl.hidden = true;
     gateBuildEl.hidden = true;
     return;
@@ -43,14 +42,13 @@ export function renderServerInfo(info) {
   const ms = Number(info.rtt);
   const lat = Number.isFinite(ms) && ms >= 0 ? `${ms} ms` : "—";
   gateServerEl.className = "gateChip";
-  gateServerEl.innerHTML = `<i class="chipDot"></i>${escapeHtml(
-    tf("ui.gate.srv.on", "serveur en ligne · {lat}", { lat }))}`;
+  gateServerEl.innerHTML = `<i class="chipDot"></i>serveur en ligne · ${escapeHtml(lat)}`;
 
   const n = info.rooms | 0;
   gateRoomsEl.hidden = false;
   gateRoomsEl.textContent = n === 0
-    ? t("ui.gate.srv.rooms0", "aucune salle ouverte")
-    : tn("ui.gate.srv.rooms", "{n} salle ouverte", "{n} salles ouvertes", n);
+    ? "aucune salle ouverte"
+    : `${n} salle${n > 1 ? "s" : ""} ouverte${n > 1 ? "s" : ""}`;
 
   gateBuildEl.hidden = !info.build;
   if (info.build) gateBuildEl.textContent = `build ${info.build}`;
@@ -74,12 +72,8 @@ async function pollServerInfo() {
 export function renderGateSwitch(register) {
   if (!gateSwitchEl) return;
   gateSwitchEl.innerHTML = register
-    ? `${escapeHtml(t("ui.gate.switch.hasAcc", "Tu as déjà un compte ?"))} `
-      + `<button type="button" id="gateSwitchBtn">`
-      + `${escapeHtml(t("ui.gate.switch.toLogin", "Connecte-toi."))}</button>`
-    : `${escapeHtml(t("ui.gate.switch.noAcc", "Pas encore de compte ?"))} `
-      + `<button type="button" id="gateSwitchBtn">`
-      + `${escapeHtml(t("ui.gate.switch.toRegister", "Crée-en un en dix secondes."))}</button>`;
+    ? `Tu as déjà un compte ? <button type="button" id="gateSwitchBtn">Connecte-toi.</button>`
+    : `Pas encore de compte ? <button type="button" id="gateSwitchBtn">Crée-en un en dix secondes.</button>`;
   gateSwitchEl.querySelector("#gateSwitchBtn").onclick = () => activateTab(!register);
 }
 let booted = false;
@@ -89,7 +83,7 @@ async function bootOnce() {
 
   gate.hidden = true;
   loadingEl.hidden = false;
-  setLoading(0, t("ui.load.what", "génération des sprites"));
+  setLoading(0, "génération des sprites");
 
   initAudio();
   startMusic();
@@ -106,7 +100,7 @@ async function bootOnce() {
     setFxGlow(frameOf("fx_glow"));
   }
 
-  setLoading(1, t("ui.load.ready", "prêt"));
+  setLoading(1, "prêt");
   if (PERF) {
     console.log(`atlas : ${stats.frames} images, ${stats.w}x${stats.h}, ` +
                 `${atlasStats().mo.toFixed(1)} Mo — rendu : ` +
@@ -133,12 +127,12 @@ async function bootOnce() {
 goBtn.onclick = async () => {
   const pseudo = nameInput.value.trim();
   const pass = passInput.value;
-  if (!pseudo) { setStatus(t("ui.gate.err.noPseudo", "tape ton pseudo"), true); return; }
+  if (!pseudo) { setStatus("tape ton pseudo", true); return; }
 
   const storedPseudo = localStorage.getItem("survivor.pseudo") || "";
   const token = localStorage.getItem("survivor.token") || "";
   const canResume = !!token && pseudo.toLowerCase() === storedPseudo.toLowerCase();
-  if (!pass && !canResume) { setStatus(t("ui.gate.err.noPass", "tape ton mot de passe"), true); return; }
+  if (!pass && !canResume) { setStatus("tape ton mot de passe", true); return; }
 
   setGateBusy(true);
   await bootOnce();
@@ -149,9 +143,9 @@ goBtn.onclick = async () => {
 regGoBtn.onclick = async () => {
   const pseudo = regNameInput.value.trim();
   const pass = regPassInput.value;
-  if (!pseudo) { setStatus(t("ui.gate.err.pickPseudo", "choisis un pseudo"), true); return; }
-  if (pass.length < 8) { setStatus(t("ui.gate.err.passShort", "mot de passe : 8 caractères minimum"), true); return; }
-  if (pass !== regPass2Input.value) { setStatus(t("ui.gate.err.passMismatch", "les deux mots de passe ne correspondent pas"), true); return; }
+  if (!pseudo) { setStatus("choisis un pseudo", true); return; }
+  if (pass.length < 8) { setStatus("mot de passe : 8 caractères minimum", true); return; }
+  if (pass !== regPass2Input.value) { setStatus("les deux mots de passe ne correspondent pas", true); return; }
   setGateBusy(true);
   await bootOnce();
   sendAuth({ t: "register", pseudo, pass });

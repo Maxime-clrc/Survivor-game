@@ -1,8 +1,7 @@
 
-import { nombre, t, tf } from "./i18n.js";
 import { CARDS, CARD_CFG, RARITY } from "./cards.js";
 import { SKILL_CFG } from "./classes.js";
-import { BOSS_ROSTER, bossNom } from "./bosses.js";
+import { BOSS_ROSTER } from "./bosses.js";
 
 export const PROG_CFG = {
   VERSION: 6,
@@ -39,91 +38,80 @@ export const PROG_CFG = {
 };
 
 
-const pct = v => `${nombre(v * 100)} %`;
+const pct = v => `${String(Math.round(v * 1000) / 10).replace(".", ",")} %`;
 
 export const TREES = {
   tank: [
     { id: "constitution", nom: "Constitution", step: 0.06,
-      desc: n => tf("prog.constitution.desc", "+{0} de PV max", { "0": pct(0.06 * n) }),
+      desc: n => `+${pct(0.06 * n)} de PV max`,
       apply(m, n) { m.metaHpRatio += 0.06 * n; } },
     { id: "alliage", nom: "Alliage", step: 0.02,
-      desc: n => tf("prog.alliage.desc", "−{0} de dégâts subis", { "0": pct(1 - Math.pow(0.98, n)) }),
+      desc: n => `−${pct(1 - Math.pow(0.98, n))} de dégâts subis`,
       apply(m, n) { m.damageTakenMul *= Math.pow(0.98, n); } },
     { id: "ancrage", nom: "Ancrage", step: 0.08,
-      desc: n => tf("prog.ancrage.desc", "+{0} de rayon et de durée du rempart", { "0": pct(0.08 * n) }),
+      desc: n => `+${pct(0.08 * n)} de rayon et de durée du rempart`,
       apply(m, n) {
         m.bulwarkRadiusMul += 0.08 * n;
         m.bulwarkTime += SKILL_CFG.TANK_BULWARK_TIME * 0.08 * n;
       } },
     { id: "defi", nom: "Défi", step: 1,
-      desc: n => tf("prog.defi.desc", "−{0} s de recharge de provocation", { "0": n }),
+      desc: n => `−${n} s de recharge de provocation`,
       apply(m, n) { m.tauntCd -= n; } },
     { id: "epines", nom: "Épines", step: 0.04,
-      desc: n => tf("prog.epines.desc", "renvoie {0} des dégâts subis à 4 m", { "0": pct(0.04 * n) }),
+      desc: n => `renvoie ${pct(0.04 * n)} des dégâts subis à 4 m`,
       apply(m, n) { m.thorns += 0.04 * n; } },
     { id: "garde", nom: "Garde", step: 0.02,
-      desc: n => tf("prog.garde.desc", "les alliés à moins de 6 m subissent −{0}", { "0": pct(0.02 * n) }),
+      desc: n => `les alliés à moins de 6 m subissent −${pct(0.02 * n)}`,
       apply(m, n) { m.guardAura += 0.02 * n; } },
   ],
 
   soigneur: [
     { id: "vitalite", nom: "Vitalité", step: 0.04,
-      desc: n => tf("prog.vitalite.desc", "+{0} de PV max", { "0": pct(0.04 * n) }),
+      desc: n => `+${pct(0.04 * n)} de PV max`,
       apply(m, n) { m.metaHpRatio += 0.04 * n; } },
     { id: "flux", nom: "Flux", step: 0.07,
-      desc: n => tf("prog.flux.desc", "+{0} de soins prodigués", { "0": pct(0.07 * n) }),
+      desc: n => `+${pct(0.07 * n)} de soins prodigués`,
       apply(m, n) { m.healGivenMul += 0.07 * n; } },
     // ce n'est plus une portee de TIR mais un rayon de TOLERANCE : c'est devenu
     // la ligne defensive du soigneur, celle qui le laisse plus loin du danger
     { id: "portee", nom: "Portée", step: 0.08,
-      desc: n => tf("prog.portee.desc", "+{0} de rayon d'accrochage des liens", { "0": pct(0.08 * n) }),
+      desc: n => `+${pct(0.08 * n)} de rayon d'accrochage des liens`,
       apply(m, n) { m.healBeamMul += 0.08 * n; } },
     { id: "releve", nom: "Relève", step: 0.10,
-      desc: n => tf("prog.releve.desc", "réanimation +{0}, +{1} PV au relevé", { "0": pct(0.10 * n), "1": 4 * n }),
+      desc: n => `réanimation +${pct(0.10 * n)}, +${4 * n} PV au relevé`,
       apply(m, n) { m.reviveSpeedMul += 0.10 * n; m.reviveHpBonus += 4 * n; } },
     { id: "osmose", nom: "Osmose", step: 0.04,
-      desc: n => tf("prog.osmose.desc", "{0} des soins prodigués reviennent en PV", { "0": pct(0.04 * n) }),
+      desc: n => `${pct(0.04 * n)} des soins prodigués reviennent en PV`,
       apply(m, n) { m.transfusion += 0.04 * n; } },
     // elle s'applique a TOUS les allies lies, donc a taux reduit : le plafond
     // reste comparable a deux cibles (+20 % contre +15 %), et l'archetype
     // « lier large » se paie en efficacite par cible au lieu d'etre gratuit.
     { id: "catalyse", nom: "Catalyse", step: 0.02,
-      desc: n => tf("prog.catalyse.desc", "chaque allié lié gagne +{0} de dégâts pendant {1} s", { "0": pct(0.02 * n), "1": PROG_CFG.CATALYSE_TIME }),
+      desc: n => `chaque allié lié gagne +${pct(0.02 * n)} de dégâts pendant ${PROG_CFG.CATALYSE_TIME} s`,
       apply(m, n) { m.catalyse += 0.02 * n; } },
   ],
 
   dps: [
     { id: "calibre", nom: "Calibre", step: 0.04,
-      desc: n => tf("prog.calibre.desc", "+{0} de dégâts", { "0": pct(0.04 * n) }),
+      desc: n => `+${pct(0.04 * n)} de dégâts`,
       apply(m, n) { m.damageMul += 0.04 * n; } },
     { id: "precision", nom: "Précision", step: 0.02,
-      desc: n => tf("prog.precision.desc", "+{0} de chance critique", { "0": pct(0.02 * n) }),
+      desc: n => `+${pct(0.02 * n)} de chance critique`,
       apply(m, n) { m.critChance += 0.02 * n; } },
     { id: "letalite", nom: "Létalité", step: 0.08,
-      desc: n => tf("prog.letalite.desc", "+{0} de dégâts critiques", { "0": pct(0.08 * n) }),
+      desc: n => `+${pct(0.08 * n)} de dégâts critiques`,
       apply(m, n) { m.critMul += 0.08 * n; } },
     { id: "munitions", nom: "Munitions", step: 0.06,
-      desc: n => tf("prog.munitions.desc", "+{0} de vitesse et de portée des balles", { "0": pct(0.06 * n) }),
+      desc: n => `+${pct(0.06 * n)} de vitesse et de portée des balles`,
       apply(m, n) { m.bulletSpeedMul += 0.06 * n; m.bulletLifeMul += 0.06 * n; } },
     { id: "charge", nom: "Charge", step: 0.6,
-      desc: n => tf("prog.charge.desc", "−{0} s de recharge de bombe, +{1} de rayon", { "0": nombre(0.6 * n), "1": pct(0.05 * n) }),
+      desc: n => `−${String(0.6 * n).replace(".", ",")} s de recharge de bombe, +${pct(0.05 * n)} de rayon`,
       apply(m, n) { m.bombCdCut += 0.6 * n; m.bombRadiusMul += 0.05 * n; } },
     { id: "surchauffe", nom: "Surchauffe", step: 0.5,
-      desc: n => tf("prog.surchauffe.desc", "+{0} s de durée de surcharge", { "0": nombre(0.5 * n) }),
+      desc: n => `+${String(0.5 * n).replace(".", ",")} s de durée de surcharge`,
       apply(m, n) { m.overdriveTime += 0.5 * n; } },
   ],
 };
-
-export const confortNom = id => {
-  const c = CONFORT.find(x => x.id === id);
-  return c ? t(`confort.${id}.nom`, c.nom) : "";
-};
-export const confortDesc = id => {
-  const c = CONFORT.find(x => x.id === id);
-  return c ? t(`confort.${id}.desc`, c.desc) : "";
-};
-export const ligneNom = l => t(`prog.${l.id}.nom`, l.nom);
-export const jalonLabel = m => t(`jalon.${m.id}`, m.label);
 
 export const CONFORT = [
   { id: "relance", nom: "Relance",
@@ -144,22 +132,20 @@ export const CONFORT = [
 export const COMMUN = [
   { id: "sursis", nom: "Sursis", famille: "secours", costs: "SECOURS_COSTS",
     step: PROG_CFG.SECOURS_REGEN,
-    desc: n => tf("prog.sursis.desc", "+{0} PV/s hors coup",
-      { "0": nombre(PROG_CFG.SECOURS_REGEN * n) })
-      + (n >= PROG_CFG.TIERS_MAX
-        ? t("prog.sursis.plein", ", et un relèvement automatique par manche") : ""),
+    desc: n => `+${String(PROG_CFG.SECOURS_REGEN * n).replace(".", ",")} PV/s hors coup`
+      + (n >= PROG_CFG.TIERS_MAX ? ", et un relèvement automatique par manche" : ""),
     apply(m, n) {
       m.hpRegen += PROG_CFG.SECOURS_REGEN * n;
       if (n >= PROG_CFG.TIERS_MAX) m.selfRevive = 1;
     } },
   { id: "carcasse", nom: "Carcasse", famille: "tronc", costs: "TRONC_COSTS", step: 0.03,
-    desc: n => tf("prog.carcasse.desc", "+{0} de PV max", { "0": pct(0.03 * n) }),
+    desc: n => `+${pct(0.03 * n)} de PV max`,
     apply(m, n) { m.metaHpRatio += 0.03 * n; } },
   { id: "foulee", nom: "Foulée", famille: "tronc", costs: "TRONC_COSTS", step: 0.015,
-    desc: n => tf("prog.foulee.desc", "+{0} de vitesse", { "0": pct(0.015 * n) }),
+    desc: n => `+${pct(0.015 * n)} de vitesse`,
     apply(m, n) { m.speedMul += 0.015 * n; } },
   { id: "glanage", nom: "Glanage", famille: "tronc", costs: "TRONC_COSTS", step: 14,
-    desc: n => tf("prog.glanage.desc", "+{0} px de portée de ramassage", { "0": 14 * n }),
+    desc: n => `+${14 * n} px de portée de ramassage`,
     apply(m, n) { m.pickupRadius = Math.max(m.pickupRadius, 14 * n); } },
 ];
 
@@ -213,25 +199,17 @@ const conditionnelles = CARDS
 const LEGENDARY_SPLIT = 5;
 const legendairesDuBoss = i => legendaires.filter((_, k) => k % LEGENDARY_SPLIT === i);
 
-/* `label` est une FONCTION : « vaincre Ravageur » compose le nom du boss, qui se
-   traduit lui aussi, au lieu de le recopier dans le libelle. */
 export const MILESTONES = [
-  { id: "niveau10",
-    label: () => t("jalon.niveau10", "atteindre le niveau 10"),
-    unlocks: conditionnelles },
+  { id: "niveau10", label: "atteindre le niveau 10", unlocks: conditionnelles },
   ...BOSS_ROSTER.map((b, i) => ({
-    id: `boss_${i}`,
-    label: () => tf("jalon.boss", "vaincre {nom}", { nom: bossNom(i) }),
+    id: `boss_${i}`, label: `vaincre ${b.nom}`,
     unlocks: i < LEGENDARY_SPLIT ? legendairesDuBoss(i) : armes,
   })),
   { id: "sans_chute",
-    label: () => tf("jalon.sans_chute",
-      "terminer une manche (niveau {n}+) sans être mis à terre",
-      { n: PROG_CFG.NO_DOWN_MIN_LEVEL }),
+    label: `terminer une manche (niveau ${PROG_CFG.NO_DOWN_MIN_LEVEL}+) sans être mis à terre`,
     unlocks: armes.filter((_, k) => k % 2 === 0) },
   { id: "kills500",
-    label: () => tf("jalon.kills500", "tuer {n} ennemis avec une même classe",
-      { n: PROG_CFG.KILLS_MILESTONE }),
+    label: `tuer ${PROG_CFG.KILLS_MILESTONE} ennemis avec une même classe`,
     unlocks: armes.filter((_, k) => k % 2 === 1) },
 ];
 

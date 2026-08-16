@@ -1,8 +1,7 @@
 
 import { BOSS_CFG } from "/shared/bosses.js";
-import { dec, onLangChange, t, tf } from "/shared/i18n.js";
-import { CARD_BY_ID, RARITY_COLOR, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
-import { CLASS_DEFAULT, SKILL_HEAL_MODE, classAt, classNom, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
+import { CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, cardDetail } from "/shared/cards.js";
+import { CLASS_DEFAULT, SKILL3_NAME, SKILL_HEAL_MODE, classAt } from "/shared/classes.js";
 import { CFG, PLAYER_COLORS, fullMods, powerIndex } from "/shared/game_state.js";
 import { SIGNAL } from "/shared/palette.js";
 import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, myId, ownedCounts, phase, skills } from "../core/state.js";
@@ -45,31 +44,31 @@ function buildMultipliers(info) {
   return fullMods(info.counts, others, info.cls ?? CLASS_DEFAULT, niveau);
 }
 function fmtMul(v) {
-  return "×" + dec(v);
+  return "×" + v.toFixed(2).replace(".", ",");
 }
 const BUILD_MODS = [
-  { cle: "degats", nom: "dégâts", get: m => m.damageMul },
-  { cle: "cadence", nom: "cadence", get: m => 1 / Math.max(0.01, m.fireIntervalMul), live: true },
-  { cle: "critique", nom: "critique", get: m => 1 + m.critChance * (m.critMul - 1),
+  { nom: "dégâts", get: m => m.damageMul },
+  { nom: "cadence", get: m => 1 / Math.max(0.01, m.fireIntervalMul), live: true },
+  { nom: "critique", get: m => 1 + m.critChance * (m.critMul - 1),
     fmt: m => `${Math.round(m.critChance * 100)} % · ${fmtMul(m.critMul)}` },
-  { cle: "rayon", nom: "rayon", get: m => m.areaMul },
-  { cle: "vitesse", nom: "vitesse", get: m => m.speedMul },
-  { cle: "subis", nom: "dégâts subis", get: m => m.damageTakenMul, bas: true },
+  { nom: "rayon", get: m => m.areaMul },
+  { nom: "vitesse", get: m => m.speedMul },
+  { nom: "dégâts subis", get: m => m.damageTakenMul, bas: true },
 ];
 const POWER_MARKS = [
-  { v: 1.26, cle: "nu", lab: "nu" },
-  { v: CFG.BOSS_POWER_REF, cle: "mediane", lab: "médiane" },
-  { v: 4.10, cle: "forte", lab: "forte" },
-  { v: 5.71, cle: "max", lab: "max" },
+  { v: 1.26, lab: "nu" },
+  { v: CFG.BOSS_POWER_REF, lab: "médiane" },
+  { v: 4.10, lab: "forte" },
+  { v: 5.71, lab: "max" },
 ];
 const POWER_SCALE_MAX = 6.5;
 const BOSS_MEDIAN_FIGHT = 70;
 function powerLabel(v) {
-  if (v < 1.6) return t("ui.build.pw.faible", "faible");
-  if (v < CFG.BOSS_POWER_REF) return t("ui.build.pw.sousMediane", "sous la médiane");
-  if (v < 3.7) return t("ui.build.pw.surMediane", "au-dessus de la médiane");
-  if (v < 4.5) return t("ui.build.pw.forte", "forte");
-  return t("ui.build.pw.exceptionnelle", "exceptionnelle");
+  if (v < 1.6) return "faible";
+  if (v < CFG.BOSS_POWER_REF) return "sous la médiane";
+  if (v < 3.7) return "au-dessus de la médiane";
+  if (v < 4.5) return "forte";
+  return "exceptionnelle";
 }
 function powerBlockHtml(mods) {
   const v = powerIndex(mods);
@@ -77,8 +76,7 @@ function powerBlockHtml(mods) {
   const ref = CFG.BOSS_POWER_REF;
 
   const marks = POWER_MARKS.map(m =>
-    `<span class="pMark" style="left:${pct(m.v)}%"><i></i>`
-    + `${escapeHtml(t(`ui.build.mark.${m.cle}`, m.lab))}</span>`).join("");
+    `<span class="pMark" style="left:${pct(m.v)}%"><i></i>${escapeHtml(m.lab)}</span>`).join("");
 
   const brut = BOSS_MEDIAN_FIGHT * ref / Math.max(0.1, v);
   const plancher = CFG.BOSS_BARS * BOSS_CFG.BAR_DWELL;
@@ -86,26 +84,20 @@ function powerBlockHtml(mods) {
 
   return (
     `<div class="pHead">` +
-      `<span class="pLab">${escapeHtml(t("ui.build.pw", "puissance"))}</span>` +
-      `<span class="pVal">${dec(v)}</span>` +
+      `<span class="pLab">puissance</span>` +
+      `<span class="pVal">${v.toFixed(2).replace(".", ",")}</span>` +
       `<span class="pQual">${escapeHtml(powerLabel(v))}</span>` +
     `</div>` +
     `<div class="pGauge">` +
       `<i class="pFill" style="width:${pct(v)}%"></i>` +
-      `<span class="pKnee" style="left:${pct(ref)}%" title="${escapeHtml(
-        t("ui.build.pw.ref",
-          "build de référence : c'est sur elle que les boss sont calibrés"))}"></span>` +
+      `<span class="pKnee" style="left:${pct(ref)}%" title="build de référence : c'est sur elle que les boss sont calibrés"></span>` +
       `<span class="pCursor" style="left:${pct(v)}%"></span>` +
     `</div>` +
     `<div class="pMarks">${marks}</div>` +
     `<div class="pNote${v > ref ? " gain" : ""}">` +
-      escapeHtml(tf("ui.build.pw.note",
-        "les boss ne suivent plus ta puissance — un combat te prend environ {s} s",
-        { s: Math.round(duree) })) +
-      (duree <= plancher
-        ? ` ${escapeHtml(t("ui.build.pw.plancher",
-            "(plancher : le répertoire doit passer)"))}`
-        : "") +
+      `les boss ne suivent plus ta puissance — un combat te prend environ ` +
+      `${Math.round(duree)} s` +
+      (duree <= plancher ? ` (plancher : le répertoire doit passer)` : "") +
     `</div>`);
 }
 function modsChipsHtml(mods, live) {
@@ -118,8 +110,7 @@ function modsChipsHtml(mods, live) {
     const mauvais = d.bas ? v > 1.005 : v < 0.995;
     const cls = bon ? " gain" : mauvais ? " cout" : "";
     const txt = d.fmt ? d.fmt(mods) : fmtMul(v);
-    return `<div class="buildMod${cls}">`
-      + `<span class="lab">${escapeHtml(t(`ui.build.mod.${d.cle}`, d.nom))}</span>` +
+    return `<div class="buildMod${cls}"><span class="lab">${escapeHtml(d.nom)}</span>` +
       `<span class="val">${escapeHtml(txt)}</span></div>`;
   }).join("");
 }
@@ -136,27 +127,25 @@ export function renderBuild() {
   const sansClasse = info.cls === null || info.cls === undefined;
   buildName.textContent = info.name;
   buildName.style.color = buildTarget === myId ? SIGNAL.go : col;
-  buildClass.textContent = sansClasse ? t("ui.build.noClass", "sans classe") : classNom(def);
+  buildClass.textContent = sansClasse ? "sans classe" : def.nom;
   buildClass.style.color = sansClasse ? "" : def.couleur;
 
   buildStats.innerHTML = [
-    ["score", "score", info.score], ["kills", "kills", info.kills],
-    ["morts", "morts", info.deaths], ["degats", "dégâts", info.damage],
-    ["pvmax", "PV max", maxHp],
-  ].map(([cle, lab, val]) =>
+    ["score", info.score], ["kills", info.kills],
+    ["morts", info.deaths], ["dégâts", info.damage], ["PV max", maxHp],
+  ].map(([lab, val]) =>
     `<div class="buildStat"><span class="val">${escapeHtml(fmtBig(val))}</span>` +
-    `<span class="lab">${escapeHtml(t(`ui.stat.${cle}`, lab))}</span></div>`).join("");
+    `<span class="lab">${escapeHtml(lab)}</span></div>`).join("");
 
   buildMods.innerHTML = modsChipsHtml(mods, info);
 
   let skills = "";
   if (!sansClasse) {
-    skills = def.skills.map((s, i) =>
+    skills = def.skills.map(s =>
       `<div class="buildSkill"><span class="key">${escapeHtml(s.touche)}</span>` +
-      `<span><b>${escapeHtml(skillNom(def, i))}</b> — `
-      + `${escapeHtml(skillDesc(def, i))}</span></div>`).join("");
+      `<span><b>${escapeHtml(s.nom)}</b> — ${escapeHtml(s.desc)}</span></div>`).join("");
 
-    const nom3 = skill3Nom(def.id);
+    const nom3 = SKILL3_NAME[def.id];
     if (nom3) {
       const carte3 = [...info.counts.keys()].find(
         id => CARD_BY_ID.get(id)?.excl === "skill3");
@@ -165,9 +154,7 @@ export function renderBuild() {
         `<div class="buildSkill${carte3 ? "" : " off"}">` +
         `<span class="key">3/R</span>` +
         `<span><b>${escapeHtml(nom3)}</b> — ` +
-        `${escapeHtml(carte3 ? desc3
-          : t("ui.build.skill3.absente",
-              "carte non tirée, la compétence reste indisponible"))}` +
+        `${escapeHtml(carte3 ? desc3 : "carte non tirée, la compétence reste indisponible")}` +
         `</span></div>`;
     }
   }
@@ -179,8 +166,7 @@ export function renderBuild() {
 function renderBuildCards(counts) {
   buildCards.innerHTML = "";
   if (counts.size === 0) {
-    buildCards.innerHTML = `<div class="buildEmpty">`
-      + `${escapeHtml(t("ui.build.noCards", "aucune carte"))}</div>`;
+    buildCards.innerHTML = `<div class="buildEmpty">aucune carte</div>`;
     return;
   }
 
@@ -198,7 +184,7 @@ function renderBuildCards(counts) {
       const h = document.createElement("div");
       h.className = "buildRarity";
       h.style.color = col;
-      h.textContent = rarityLabel(rarity);
+      h.textContent = RARITY_LABEL[rarity] ?? "";
       buildCards.appendChild(h);
     }
 
@@ -208,7 +194,7 @@ function renderBuildCards(counts) {
     row.style.color = col;
     row.innerHTML =
       `<div class="buildCardHead">` +
-        `<span class="buildCardName">${escapeHtml(cardNom(id))}</span>` +
+        `<span class="buildCardName">${escapeHtml(card.nom)}</span>` +
         (n > 1 ? `<span class="buildCardMul">×${n}</span>` : "") +
       `</div>` +
       `<div class="buildCardDesc">${escapeHtml(d?.desc ?? "")}</div>` +
@@ -221,15 +207,12 @@ export function openBuild(id) {
   if (roster.length === 0) return;
   buildTarget = roster.includes(id) ? id : roster[0];
   if (buildBackBtn) {
-    buildBackBtn.textContent = bilanOpen
-      ? t("ui.build.backBilan", "← Retour au bilan")
-      : t("ui.build.back", "← Fermer");
+    buildBackBtn.textContent = bilanOpen ? "← Retour au bilan" : "← Fermer";
   }
   buildEl.hidden = false;
   renderBuild();
 }
 export function closeBuild() { buildEl.hidden = true; }
-onLangChange(() => { if (!buildEl.hidden) renderBuild(); });
 if (buildBackBtn) buildBackBtn.onclick = closeBuild;
 export function cycleBuild(step) {
   if (buildEl.hidden) return;

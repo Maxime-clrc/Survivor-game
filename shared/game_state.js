@@ -5,7 +5,7 @@ import {
 } from "./cards.js";
 import {
   CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange, bombFlight,
-  SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE, SKILL_ULT_WIND,
+  SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE,
 } from "./classes.js";
 import {
   STATUSES, STATUS_CFG, STATUS_VULN, STATUS_BURN, STATUS_ROOT, STATUS_DOOM,
@@ -15,7 +15,6 @@ import {
   PROG_CFG, TREES, COMMUN, MILESTONES, applyMeta, coresForRun, lockedCards, slotsFor,
 } from "./progression.js";
 import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
-import { t } from "./i18n.js";
 import { CLASS_COLOR } from "./palette.js";
 import {
   BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, bossPool, mechAt, adaptMech, towerCount,
@@ -27,7 +26,7 @@ import {
   MECH_QUADRANT, MECH_CROSS, MECH_CONVERGE, MECH_DODGE,
   MECH_SHRINK, MECH_PUDDLE, MECH_SAFE,
   MECH_BREATH, MECH_BROOD, MECH_REVERSE, MECH_SWAP, MECH_ENRAGE,
-  MECH_SYNTH, MECH_SEAL, MECH_RELOC,
+  MECH_SYNTH, MECH_SEAL,
   BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME,
   BOSS_VEILLEUR, BOSS_TISSEUR, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE,
   BOSS_FINAL, BOSS_POOL_COUNT, BOSS_POOL, estFinal, finalPour,
@@ -41,7 +40,7 @@ import {
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 } from "./enemies.js";
 import {
-  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
+  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor,
   biomeAt, hazardAt, weatherAt, verifierBiomes,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
@@ -55,7 +54,7 @@ export {
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
 export { EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE };
 export {
-  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
+  BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor,
   biomeAt, hazardAt, weatherAt, verifierBiomes,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
@@ -73,49 +72,6 @@ export { BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, mechAt };
 export { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost };
 
 const EMPTY_LIST = Object.freeze([]);
-
-// La plus large requete faite a l'index statique. Le plus gros corps du depot
-// est le gibier de `chasse` (rayon de type 21, x2,5 de taille, x1,18 s'il est
-// elite), soit 62 : la marge tient, et une requete plus large replie sur le
-// balayage complet si un jour elle ne tient plus.
-const STAT_MARGE = 80;
-
-// LE VOISINAGE 3x3 D'UNE CELLULE NE CHANGE JAMAIS : la geometrie est posee a la
-// construction. On ne le parcourt donc pas a la requete, on le CUIT — une liste
-// deja dedupliquee et deja triee par cellule, et la requete se reduit a lire une
-// plage. Sans ca, neuf cellules etaient balayees et triees pour chaque corps et
-// chaque tick, soit 65 % du pas de simulation au profileur.
-function indexerStatique(list, cell, cols, rows) {
-  const cells = cols * rows;
-  const n = list.length;
-  const at = new Int32Array(n);
-  for (let i = 0; i < n; i++) {
-    const o = list[i];
-    const cx = Math.min(cols - 1, Math.max(0, Math.floor(o.x / cell)));
-    const cy = Math.min(rows - 1, Math.max(0, Math.floor(o.y / cell)));
-    at[i] = cy * cols + cx;
-  }
-
-  const vstart = new Int32Array(cells + 1);
-  const groupes = [];
-  for (let c = 0; c < cells; c++) {
-    const cx = c % cols, cy = (c - cx) / cols;
-    const g = [];
-    for (let gy = Math.max(0, cy - 1); gy <= Math.min(rows - 1, cy + 1); gy++) {
-      for (let gx = Math.max(0, cx - 1); gx <= Math.min(cols - 1, cx + 1); gx++) {
-        const v = gy * cols + gx;
-        for (let i = 0; i < n; i++) if (at[i] === v) g.push(i);
-      }
-    }
-    g.sort((a, b) => a - b);
-    groupes.push(g);
-    vstart[c + 1] = vstart[c] + g.length;
-  }
-  const vitems = new Int32Array(vstart[cells]);
-  let k = 0;
-  for (const g of groupes) for (const i of g) vitems[k++] = i;
-  return { vstart, vitems };
-}
 
 export const CFG = {
   ARENA_W: 4800,
@@ -337,17 +293,7 @@ export const DAMAGE_SOURCES = [
   { key: "env",        label: "environnement" },
 ];
 
-/* Points de passage du texte de difficulte et de provenance d'un degat. */
-export const srcLabel = i => t(`src.${DAMAGE_SOURCES[i]?.key}`, DAMAGE_SOURCES[i]?.label ?? "");
-export const diffLabel = i => t(`diff.${DIFFICULTIES[i]?.key}.label`, DIFFICULTIES[i]?.label ?? "");
-export const diffResume = i => (DIFFICULTIES[i]?.resume ?? [])
-  .map((r, k) => t(`diff.${DIFFICULTIES[i].key}.resume.${k}`, r));
-
 const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
-
-const SKILL3_TABLE = {
-  tank: "SKILL3_ANCRE", soigneur: "SKILL3_SANCTUAIRE", dps: "SKILL3_SALVE",
-};
 
 export const DIFFICULTIES = [
   {
@@ -543,9 +489,6 @@ export class GameState {
       CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
     this._biomeObstacles = this.biome.obstacles;
     this._biomeHazards = this.biome.hazards;
-    this._statG = null;
-    this._groundOut = { slow: 1, slip: false };
-    this.mechStats = new Map();
     this.hazardTick = 0;
     this.weather = null;
 
@@ -738,7 +681,6 @@ export class GameState {
       odT: 0,
       odBonus: 0,
       skillUses: [0, 0, 0],
-      ultT: 0,
 
       jailed: 0,
       vx: 0, vy: 0,
@@ -924,7 +866,6 @@ export class GameState {
     this._shots(dt);
     this._zones(dt);
     this._collisions();
-    this._ultimes(dt);
     this._healLinks(dt);
     this._revive(dt);
 
@@ -1354,54 +1295,16 @@ export class GameState {
     }
   }
 
-  // UN ULTIME S'ANNONCE. L'appui arme une amorce ; l'effet part a son echeance,
-  // et le joueur est engage — il n'y a pas d'annulation. La Salve verifie sa
-  // cible A L'APPUI : sans ca elle brulerait son amorce pour rien, et
-  // l'invariant « pas de recharge consommee sans cible » tomberait.
   _skill3(p) {
-    if (p.downed || p.cd3 > 0 || p.ultT > 0) return;
+    if (p.downed || p.cd3 > 0) return;
     const tier = p.mods.skill3;
     if (tier <= 0) return;
-    if (classAt(p.cls).id === "dps" && !this._salveCible(p)) return;
-
-    p.cd3 = CARD_CFG[SKILL3_TABLE[classAt(p.cls).id]][tier - 1].cd * p.mods.skillCdMul;
-    p.skillUses[2]++;
-    p.ultT = CARD_CFG.SKILL3_WINDUP;
-  }
-
-  _salveCible(p) {
-    const r2 = CARD_CFG.SALVE_RANGE * CARD_CFG.SALVE_RANGE;
-    for (const e of this.enemies) {
-      if (e.hp > 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= r2) return true;
-    }
-    return false;
-  }
-
-  _ultimes(dt) {
-    for (const p of this.players.values()) {
-      if (p.ultT <= 0) continue;
-      p.ultT -= dt;
-      if (p.ultT > 0) continue;
-      p.ultT = 0;
-      if (p.downed) continue;
-      this._ultFire(p);
-    }
-  }
-
-  _ultFire(p) {
-    const tier = p.mods.skill3;
-    if (tier <= 0) return;
-    // l'effet d'ECRAN et le marqueur pour les allies partent d'ici, une fois pour
-    // les trois : dans un jeu a quatre, savoir qu'un coequipier vient de lacher
-    // son ultime change tes propres decisions.
-    this.effects.push({
-      id: this._nextId++, x: p.x, y: p.y, r: 40,
-      life: 0.5, max: 0.5, kind: 16, owner: p.id, n: tier,
-    });
 
     switch (classAt(p.cls).id) {
       case "tank": {
         const c = CARD_CFG.SKILL3_ANCRE[tier - 1];
+        p.cd3 = c.cd * p.mods.skillCdMul;
+        p.skillUses[2]++;
         const r = c.r * p.mods.areaMul;
         this.anchors.push({
           id: this._nextId++, x: p.x, y: p.y, r,
@@ -1416,6 +1319,8 @@ export class GameState {
 
       case "soigneur": {
         const c = CARD_CFG.SKILL3_SANCTUAIRE[tier - 1];
+        p.cd3 = c.cd * p.mods.skillCdMul;
+        p.skillUses[2]++;
         const r = c.r * p.mods.areaMul;
         this.sancts.push({
           id: this._nextId++, x: p.x, y: p.y, r,
@@ -1429,134 +1334,37 @@ export class GameState {
         return;
       }
 
-      default:
-        this._salve(p, tier);
-    }
-  }
+      default: {
+        const c = CARD_CFG.SKILL3_SALVE[tier - 1];
+        const a0 = Math.atan2(p.aimY, p.aimX);
+        const range = CARD_CFG.SKILL3_SALVE_RANGE;
+        const near = [];
+        for (const e of this.enemies) {
+          if (e.hp <= 0) continue;
+          const dx = e.x - p.x, dy = e.y - p.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > range * range) continue;
+          if (Math.abs(this._angleDiff(Math.atan2(dy, dx), a0))
+              > CARD_CFG.SKILL3_SALVE_SPREAD) continue;
+          near.push({ e, d2 });
+        }
+        if (near.length === 0) return;
+        near.sort((a, b) => a.d2 - b.d2);
 
-  // L'ATTRIBUTION EN TROIS PASSES est le coeur du lot : c'est la troisieme qui
-  // fait la difference entre « six missiles » et « une salve ».
-  _salve(p, tier) {
-    const c = CARD_CFG.SKILL3_SALVE[tier - 1];
-    const direct = CFG.BULLET_DAMAGE * p.mods.damageMul * p.mods.barrelDamageMul * c.mul;
-    const tries = this._salveTries(p);
-    if (tries.length === 0) return;
-
-    const reserve = new Map();
-    const cibles = [];
-    const a0 = Math.atan2(p.aimY, p.aimX);
-    // passe 2 · REPARTITION — une cible par missile tant qu'il reste des cibles,
-    // par un curseur qui tourne. Sans lui, la garde de la passe 3 ne mord pas
-    // avant longtemps et toute la salve retombe sur la cible la plus proche.
-    let curseur = 0;
-    for (let i = 0; i < c.missiles; i++) {
-      let choisi = null;
-      // passe 3 · GARDE ANTI-SURTUAGE — chaque missile RESERVE ses degats ; on
-      // n'en attribue un de plus que si le deja-reserve ne suffit pas a tuer.
-      for (let k = 0; k < tries.length; k++) {
-        const t = tries[(curseur + k) % tries.length];
-        if ((reserve.get(t.id) ?? 0) >= t.hp) continue;
-        choisi = t;
-        curseur = (curseur + k + 1) % tries.length;
-        break;
+        p.cd3 = c.cd * p.mods.skillCdMul;
+        p.skillUses[2]++;
+        const dmg = CFG.BULLET_DAMAGE * p.mods.damageMul * p.mods.barrelDamageMul * c.mul;
+        for (let i = 0; i < near.length && i < c.targets; i++) {
+          const e = near[i].e;
+          if (c.vuln) e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
+          this._damage(e, dmg, p.id);
+          this.effects.push({
+            id: this._nextId++, x: e.x, y: e.y, r: 16,
+            life: 0.3, max: 0.3, kind: 13, x2: p.x, y2: p.y,
+          });
+        }
       }
-      // tout est sature : on DOUBLE au lieu de perdre le missile. Un ultime ne
-      // doit jamais donner l'impression de gacher.
-      if (!choisi) choisi = tries[i % tries.length];
-      reserve.set(choisi.id, (reserve.get(choisi.id) ?? 0) + direct);
-      cibles.push(choisi);
     }
-
-    // LA GERBE S'ORDONNE PAR RELEVEMENT DE CIBLE. Distribuer les ecarts dans
-    // l'ordre d'attribution lance des missiles a l'oppose de leur cible : la
-    // poursuite pure ne rattrape pas, elle se met en orbite. Mesure : 4,4 cibles
-    // distinctes sur 6, et monter le taux de virage n'y changeait rien.
-    const ordre = cibles.map((t, i) => ({ t, i,
-      rel: this._angleDiff(Math.atan2(t.e.y - p.y, t.e.x - p.x), a0) }));
-    ordre.sort((u, v) => u.rel - v.rel);
-
-    for (let i = 0; i < ordre.length; i++) {
-      const choisi = ordre[i].t;
-      const off = ordre.length === 1
-        ? 0
-        : (i / (ordre.length - 1) - 0.5) * CARD_CFG.SALVE_SPREAD * 2;
-      const a = a0 + off;
-      this.bullets.push({
-        id: this._nextId++,
-        x: p.x + Math.cos(a) * (CFG.PLAYER_RADIUS + 2),
-        y: p.y + Math.sin(a) * (CFG.PLAYER_RADIUS + 2),
-        vx: Math.cos(a) * CARD_CFG.SALVE_SPEED,
-        vy: Math.sin(a) * CARD_CFG.SALVE_SPEED,
-        life: CARD_CFG.SALVE_LIFE,
-        dmg: direct,
-        owner: p.id,
-        pierce: 0, chain: 0, arc: 0, burn: 0,
-        boom: direct * (c.blastMul / c.mul),
-        boomR: c.blastR * p.mods.areaMul,
-        hits: null, hit: null, inertia: 0, bounce: 0, dmg0: direct,
-        missile: 1, cible: choisi.id, dumb: CARD_CFG.SALVE_DUMB_TIME,
-        vuln: c.vuln ? 1 : 0,
-      });
-    }
-  }
-
-  // L'acquisition est a 360°, la VISEE departage : les cibles dans le cone du
-  // reticule passent devant les autres a distance comparable.
-  _salveTries(p) {
-    const a0 = Math.atan2(p.aimY, p.aimX);
-    const range = CARD_CFG.SALVE_RANGE;
-    const out = [];
-    for (const e of this.enemies) {
-      if (e.hp <= 0) continue;
-      const dx = e.x - p.x, dy = e.y - p.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 > range * range) continue;
-      const dansLeCone =
-        Math.abs(this._angleDiff(Math.atan2(dy, dx), a0)) <= CARD_CFG.SALVE_CONE;
-      out.push({ e, id: e.id, hp: e.hp,
-                 score: d2 * (dansLeCone ? 1 : CARD_CFG.SALVE_OFFCONE) });
-    }
-    out.sort((a, b) => a.score - b.score);
-    return out;
-  }
-
-  // AVEC SIX CENTS ENNEMIS QUI MEURENT VITE, la cible d'un missile sera souvent
-  // morte avant l'impact : sans reacquisition les missiles finissent sur des
-  // cadavres. Un missile ne poursuit jamais une cible morte.
-  _guide(b, dt) {
-    if (b.dumb > 0) { b.dumb -= dt; return; }
-
-    let c = b.cibleRef;
-    if (!c || c.hp <= 0 || c.id !== b.cible) {
-      c = null;
-      for (const e of this.enemies) if (e.id === b.cible) { c = e; break; }
-      b.cibleRef = c;
-    }
-    if (!c || c.hp <= 0) {
-      c = this._salveReseek(b);
-      if (!c) { b.life = 0; return; }
-      b.cible = c.id;
-      b.cibleRef = c;
-    }
-
-    const vers = Math.atan2(c.y - b.y, c.x - b.x);
-    const cur = Math.atan2(b.vy, b.vx);
-    const max = CARD_CFG.SALVE_TURN_RATE * dt;
-    const d = this._angleDiff(vers, cur);
-    const a = cur + Math.max(-max, Math.min(max, d));
-    b.vx = Math.cos(a) * CARD_CFG.SALVE_SPEED;
-    b.vy = Math.sin(a) * CARD_CFG.SALVE_SPEED;
-  }
-
-  _salveReseek(b) {
-    const r2 = CARD_CFG.SALVE_RESEEK * CARD_CFG.SALVE_RESEEK;
-    let best = null, bd = r2;
-    for (const e of this.enemies) {
-      if (e.hp <= 0) continue;
-      const d2 = (e.x - b.x) ** 2 + (e.y - b.y) ** 2;
-      if (d2 < bd) { bd = d2; best = e; }
-    }
-    return best;
   }
 
   _heal(healer, target, amount) {
@@ -1595,13 +1403,55 @@ export class GameState {
   _healLinks(dt) {
     let siphonne = false;
     for (const p of this.players.values()) {
-      // le SANCTUAIRE est un ULTIME, pas une posture : ses liens ne connaissent
-      // ni plafond ni rupture, et ils survivent a la sortie du mode soin.
-      if (p.downed) { p.links.length = 0; continue; }
-      if (!p.healMode) {
-        if (p.links.length) p.links = p.links.filter(l => l.sanct);
-      } else {
-        this._postureLinks(p, dt);
+      if (!p.healMode || p.downed) { p.links.length = 0; continue; }
+
+      const rMax = SKILL_CFG.HEAL_LINK_RADIUS * (p.mods.healBeamMul ?? 1);
+      const r2 = rMax * rMax;
+      const plafond = SKILL_CFG.HEAL_LINK_MAX + (p.mods.healLinks ?? 0);
+
+      for (let i = p.links.length - 1; i >= 0; i--) {
+        const l = p.links[i];
+        // un ennemi mort sort du tableau mais l'objet survit : `hp` suffit a le
+        // dire, et evite de balayer six cents corps par lien et par image.
+        const c = l.ennemi ? l.cible : this.players.get(l.id);
+        const vivant = !!c && (l.ennemi ? c.hp > 0 : true);
+        if (!vivant) { p.links.splice(i, 1); continue; }
+        l.cible = c;
+        if ((c.x - p.x) ** 2 + (c.y - p.y) ** 2 <= r2) { l.grace = 0; continue; }
+        l.grace += dt;
+        if (l.grace >= SKILL_CFG.HEAL_LINK_GRACE) p.links.splice(i, 1);
+      }
+
+      // les allies ne se font JAMAIS supplanter : les ennemis ne comblent que
+      // les liens restes libres.
+      if (p.links.length < plafond) {
+        const pris = new Set(p.links.map(l => l.id));
+        const libres = [];
+        for (const o of this.players.values()) {
+          if (o.id === p.id || pris.has(o.id)) continue;
+          const d2 = (o.x - p.x) ** 2 + (o.y - p.y) ** 2;
+          if (d2 <= r2) libres.push({ c: o, d2, ennemi: 0 });
+        }
+        libres.sort((a, b) => a.d2 - b.d2);
+        for (const f of libres) {
+          if (p.links.length >= plafond) break;
+          p.links.push({ id: f.c.id, ennemi: 0, grace: 0, purge: 0, cible: f.c });
+        }
+      }
+
+      if (p.mods.siphon > 0 && p.links.length < plafond) {
+        const pris = new Set(p.links.map(l => l.id));
+        const proies = [];
+        for (const e of this.enemies) {
+          if (e.hp <= 0 || pris.has(e.id)) continue;
+          const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+          if (d2 <= r2) proies.push({ c: e, d2 });
+        }
+        proies.sort((a, b) => a.d2 - b.d2);
+        for (const f of proies) {
+          if (p.links.length >= plafond) break;
+          p.links.push({ id: f.c.id, ennemi: 1, grace: 0, purge: 0, cible: f.c });
+        }
       }
 
       for (const l of p.links) {
@@ -1625,103 +1475,14 @@ export class GameState {
         }
       }
     }
-    if (this.sancts.length) this._sanctLinks();
     if (siphonne) this.enemies = this.enemies.filter(e => e.hp > 0);
-  }
-
-  _postureLinks(p, dt) {
-    const rMax = SKILL_CFG.HEAL_LINK_RADIUS * (p.mods.healBeamMul ?? 1);
-    const r2 = rMax * rMax;
-    const plafond = SKILL_CFG.HEAL_LINK_MAX + (p.mods.healLinks ?? 0);
-    let poses = 0;
-
-    for (let i = p.links.length - 1; i >= 0; i--) {
-      const l = p.links[i];
-      if (l.sanct) continue;
-      poses++;
-      // un ennemi mort sort du tableau mais l'objet survit : `hp` suffit a le
-      // dire, et evite de balayer six cents corps par lien et par image.
-      const c = l.ennemi ? l.cible : this.players.get(l.id);
-      const vivant = !!c && (l.ennemi ? c.hp > 0 : true);
-      if (!vivant) { p.links.splice(i, 1); poses--; continue; }
-      l.cible = c;
-      if ((c.x - p.x) ** 2 + (c.y - p.y) ** 2 <= r2) { l.grace = 0; continue; }
-      l.grace += dt;
-      if (l.grace >= SKILL_CFG.HEAL_LINK_GRACE) { p.links.splice(i, 1); poses--; }
-    }
-
-    // les allies ne se font JAMAIS supplanter : les ennemis ne comblent que
-    // les liens restes libres.
-    if (poses < plafond) {
-      const pris = new Set(p.links.map(l => l.id));
-      const libres = [];
-      for (const o of this.players.values()) {
-        if (o.id === p.id || pris.has(o.id)) continue;
-        const d2 = (o.x - p.x) ** 2 + (o.y - p.y) ** 2;
-        if (d2 <= r2) libres.push({ c: o, d2, ennemi: 0 });
-      }
-      libres.sort((a, b) => a.d2 - b.d2);
-      for (const f of libres) {
-        if (poses >= plafond) break;
-        p.links.push({ id: f.c.id, ennemi: 0, grace: 0, purge: 0, cible: f.c });
-        poses++;
-      }
-    }
-
-    if (p.mods.siphon > 0 && poses < plafond) {
-      const pris = new Set(p.links.map(l => l.id));
-      const proies = [];
-      for (const e of this.enemies) {
-        if (e.hp <= 0 || pris.has(e.id)) continue;
-        const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
-        if (d2 <= r2) proies.push({ c: e, d2 });
-      }
-      proies.sort((a, b) => a.d2 - b.d2);
-      for (const f of proies) {
-        if (poses >= plafond) break;
-        p.links.push({ id: f.c.id, ennemi: 1, grace: 0, purge: 0, cible: f.c });
-        poses++;
-      }
-    }
-  }
-
-  // « la zone ou je peux tous vous tenir » : le Soigneur depasse enfin sa limite
-  // de deux cibles, et les liens partent du DOME, ce qui le libere du centre.
-  _sanctLinks() {
-    for (const p of this.players.values()) {
-      for (let i = p.links.length - 1; i >= 0; i--) {
-        const l = p.links[i];
-        if (!l.sanct) continue;
-        const sa = this.sancts.find(s => s.id === l.sanct);
-        const c = this.players.get(l.id);
-        if (!sa || !c || c.downed
-            || (c.x - sa.x) ** 2 + (c.y - sa.y) ** 2 > sa.r * sa.r) {
-          p.links.splice(i, 1);
-        } else {
-          l.cible = c;
-        }
-      }
-    }
-    for (const sa of this.sancts) {
-      const owner = this.players.get(sa.owner);
-      if (!owner || owner.downed) continue;
-      const pris = new Set(owner.links.filter(l => l.sanct === sa.id).map(l => l.id));
-      for (const o of this.players.values()) {
-        if (o.id === owner.id || o.downed || pris.has(o.id)) continue;
-        if ((o.x - sa.x) ** 2 + (o.y - sa.y) ** 2 > sa.r * sa.r) continue;
-        owner.links.push({ id: o.id, ennemi: 0, grace: 0, purge: 0, cible: o, sanct: sa.id });
-      }
-    }
   }
 
   _linkPayload() {
     let out = null;
     for (const p of this.players.values()) {
-      if (p.links.length === 0) continue;
-      for (const l of p.links) {
-        if (!p.healMode && !l.sanct) continue;
-        (out ??= []).push(l.sanct ? [p.id, l.id, l.ennemi, l.sanct] : [p.id, l.id, l.ennemi]);
-      }
+      if (!p.healMode || p.links.length === 0) continue;
+      for (const l of p.links) (out ??= []).push([p.id, l.id, l.ennemi]);
     }
     return out;
   }
@@ -2176,9 +1937,9 @@ export class GameState {
     this._separateFromPlayers();
   }
 
-  _explode(x, y, dmg, ownerId, rayon, bossMul = 1) {
+  _explode(x, y, dmg, ownerId) {
     const owner = this.players.get(ownerId);
-    const r = rayon || CARD_CFG.GRENADE_RADIUS * (owner ? owner.mods.areaMul : 1);
+    const r = CARD_CFG.GRENADE_RADIUS * (owner ? owner.mods.areaMul : 1);
     const souffle = { id: this._nextId++, x, y, r, life: 0.35, max: 0.35, kind: 7, n: 0 };
     this.effects.push(souffle);
 
@@ -2195,7 +1956,7 @@ export class GameState {
     }
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) {
-        this._damage(boss, dmg * bossMul, ownerId, 0, false, x, y);
+        this._damage(boss, dmg, ownerId, 0, false, x, y);
       }
     }
     souffle.n = fauches;
@@ -3210,6 +2971,7 @@ export class GameState {
     budget.clear();
     for (const [id, n] of this.windupCibles) budget.set(id, n);
     this.windupCibles.clear();
+    const gust = this._gust(dt);
 
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
@@ -3344,6 +3106,8 @@ export class GameState {
             TRAIT_CFG.TRAIL_LIFE);
         }
       }
+
+      if (gust) { e.x += gust.x; e.y += gust.y; }
 
       if (e.kx || e.ky) {
         e.x += e.kx * dt;
@@ -3634,8 +3398,6 @@ export class GameState {
           hunt: null,
           gaze: 0,
           gazeWarn: 0,
-          gazeRest: 0,
-          gazeLeft: 0,
           ult: 0,
           miasmaCd: STATUS_CFG.BOSS_MIASMA_EVERY,
           converge: 0,
@@ -3647,10 +3409,17 @@ export class GameState {
           defer: [],
         };
 
-        // ANCRE : il s'encastre dans un bord tire au sort, et il n'en change
-        // qu'a la rupture de barre.
-        if (def.archetype === "ancre") this._encastre(this.boss, Math.floor(Math.random() * 4));
-        else if (def.archetype === "guetteur") this._poste(this.boss);
+        // ANCRE : il s'encastre dans un bord tire au sort, et il y reste.
+        if (def.archetype === "ancre") {
+          const B = this.bounds;
+          const bord = Math.floor(Math.random() * 4);
+          const marge = CFG.BOSS_RADIUS * 0.6;
+          this.boss.bord = bord;
+          if (bord === 0) { this.boss.x = (B.x0 + B.x1) / 2; this.boss.y = B.y0 + marge; }
+          else if (bord === 1) { this.boss.x = (B.x0 + B.x1) / 2; this.boss.y = B.y1 - marge; }
+          else if (bord === 2) { this.boss.x = B.x0 + marge; this.boss.y = (B.y0 + B.y1) / 2; }
+          else { this.boss.x = B.x1 - marge; this.boss.y = (B.y0 + B.y1) / 2; }
+        }
 
         if (kind === BOSS_JUMEAUX) {
           const g = BOSS_CFG.TWIN_GAP / 2;
@@ -3743,44 +3512,6 @@ export class GameState {
     if (palier <= b.enrage) return;
     b.enrage = palier;
     this._alert(MECH_ENRAGE, 2);
-  }
-
-  _encastre(b, bord) {
-    const B = this.bounds;
-    const marge = CFG.BOSS_RADIUS * 0.6;
-    b.bord = bord;
-    if (bord === 0) { b.x = (B.x0 + B.x1) / 2; b.y = B.y0 + marge; }
-    else if (bord === 1) { b.x = (B.x0 + B.x1) / 2; b.y = B.y1 - marge; }
-    else if (bord === 2) { b.x = B.x0 + marge; b.y = (B.y0 + B.y1) / 2; }
-    else { b.x = B.x1 - marge; b.y = (B.y0 + B.y1) / 2; }
-  }
-
-  // le guetteur n'est pas encastre : il se POSTE, a distance de l'equipe et
-  // jamais sur le bord — un boss immobile colle au bord rend la moitie de la
-  // vue inutile.
-  _poste(b) {
-    const c = this._teamCentroid();
-    const a = Math.random() * Math.PI * 2;
-    const pt = this._dropPoint(c.x + Math.cos(a) * BOSS_CFG.RELOC_DIST,
-                               c.y + Math.sin(a) * BOSS_CFG.RELOC_DIST, 90);
-    b.x = pt.x; b.y = pt.y;
-  }
-
-  // UN BOSS QUI NE MARCHE PAS DOIT QUAND MEME CHANGER DE PLACE : sinon la
-  // moitie de l'arene ne sert a rien de tout le combat et la lecture du sol se
-  // fait une seule fois. La rupture de barre le reinstalle — l'ancre change de
-  // bord, le guetteur se poste ailleurs.
-  _bossReplace(b) {
-    this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
-                        r: 130, life: 0.35, max: 0.35, kind: 14 });
-    if (bossAt(b.kind).archetype === "ancre") {
-      this._encastre(b, ((b.bord ?? 0) + 1 + Math.floor(Math.random() * 3)) % 4);
-    } else {
-      this._poste(b);
-    }
-    this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
-                        r: 130, life: 0.35, max: 0.35, kind: 14 });
-    this._alert(MECH_RELOC, 2);
   }
 
   _bossMove(b, dt) {
@@ -3938,9 +3669,7 @@ export class GameState {
     // l'ETAT du combat. A chaque rupture l'arene perd un cran et ne le reprend
     // pas — un soft-enrage entierement spatial, sans compte a rebours, et bien
     // plus lisible qu'un multiplicateur de degats.
-    const arche = bossAt(b.kind).archetype;
-    if (arche === "constricteur") this._atkConstriction(b);
-    if (arche === "ancre" || arche === "guetteur") this._bossReplace(b);
+    if (bossAt(b.kind).archetype === "constricteur") this._atkConstriction(b);
 
     switch (b.kind) {
       case BOSS_MATRIARCHE:
@@ -3964,9 +3693,9 @@ export class GameState {
         return;
       }
 
-      // le Veilleur n'a pas de cas : sa rupture EST la reinstallation, posee
-      // plus haut. Un regard de plus ici tombait sur la phase la plus chargee
-      // et refermait la fenetre de tir au moment ou elle venait d'etre gagnee.
+      case BOSS_VEILLEUR:
+        this._atkRegard(b);
+        return;
 
       case BOSS_TISSEUR:
         this._atkNoeuds(b);
@@ -4109,13 +3838,10 @@ export class GameState {
 
   // VEILLEUR — le seul verbe qui INTERDIT l'action principale : dans un jeu de
   // tir a double stick, « detourner le regard » se traduit par cesser de viser,
-  // donc renoncer a son DPS. Deux fenetres d'affilee, mais separees par le
-  // repos : sans lui la seconde s'ouvrait a l'instant ou la premiere se
-  // fermait, donc une seule fenetre de cinq secondes portant deux annonces.
+  // donc renoncer a son DPS.
   _atkRegardDouble(b) {
     this._atkRegard(b);
-    this._deferAtk(b, "regard",
-      BOSS_CFG.GAZE_TIME + BOSS_CFG.GAZE_WARN + BOSS_CFG.GAZE_REST);
+    this._deferAtk(b, "regard", BOSS_CFG.GAZE_TIME + BOSS_CFG.GAZE_WARN);
   }
 
   _atkRegardMobile(b) {
@@ -4123,12 +3849,12 @@ export class GameState {
     this._deferAtk(b, "derive", 0.6);
   }
 
-  // en derniere phase l'oeil CLIGNOTE au lieu de rester ouvert : « le tuer en
-  // ne le visant que par intermittence » demande que l'intermittence existe.
+  // en derniere phase l'oeil ne se ferme plus : il faut le tuer en ne le visant
+  // que par intermittence.
   _atkRegardPermanent(b) {
-    if (!this._gazeOuvre(b, BOSS_CFG.GAZE_PERM_OPEN, BOSS_CFG.GAZE_PERMANENT)) {
-      this._atkCone(b);
-    }
+    b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
+    b.gaze = BOSS_CFG.GAZE_TIME * BOSS_CFG.GAZE_PERMANENT;
+    this._alert(MECH_GAZE, this._warn(BOSS_CFG.GAZE_WARN) + b.gaze);
   }
 
   // TISSEUR — le Ravageur RETIRE de l'arene par la peripherie, le Tisseur
@@ -4395,9 +4121,6 @@ export class GameState {
   _alert(mech, dur = 0) {
     const def = mechAt(mech);
     if (!def) return;
-    // compte AVANT le Silence : la mecanique est posee meme quand elle ne
-    // s'annonce pas, et c'est la pose qui sert de denominateur au taux d'echec.
-    this._mechCompte(mech, "pose");
     // le Silence : une mecanique deja vue dans ce combat ne s'annonce plus. Le
     // telegraphe au sol reste, seule l'annonce disparait.
     if (this.boss && this.boss.silence) {
@@ -4470,23 +4193,12 @@ export class GameState {
   // mecaniques d'OCCUPATION restent collectives — la grammaire les nomme deja,
   // ce sont les `colonne`, et rien d'autre n'a besoin d'etre declare.
   _mechFail(fautifs, ratio, mech = -1) {
-    this._mechCompte(mech, "echec");
     const P = this._bossProfil();
     const forme = mech >= 0 ? mechAt(mech)?.forme : null;
     const collectif = P.echec === "collectif"
       || (P.echec === "mixte" && forme === "colonne");
     const cibles = collectif ? this._alivePlayers() : fautifs;
     for (const p of cibles) this._mechHit(p, ratio);
-  }
-
-  // LA BONNE MESURE D'UNE MECANIQUE DE BOSS EST L'ECART entre un joueur qui lit
-  // les annonces et un joueur qui les ignore ; faute de pouvoir mesurer ca sur
-  // un bot, on compte au moins poses et echecs. Deux compteurs, aucun systeme.
-  _mechCompte(mech, quoi) {
-    if (mech < 0) return;
-    let c = this.mechStats.get(mech);
-    if (!c) this.mechStats.set(mech, c = { pose: 0, echec: 0 });
-    c[quoi]++;
   }
 
   _mark(o) {
@@ -4705,21 +4417,10 @@ export class GameState {
     }
   }
 
-  // POINT DE PASSAGE UNIQUE DU REGARD. Il REFUSE tant que l'oeil se repose :
-  // c'est ce refus qui garantit une fenetre de tir, au lieu de la laisser au
-  // tirage du repertoire (a la derniere phase, cinq entrees sur huit etaient
-  // un regard et le cycle d'attaque etait plus court que le regard lui-meme).
-  _gazeOuvre(b, duree = BOSS_CFG.GAZE_TIME, cycles = 1) {
-    if (b.gazeRest > 0 || b.gazeWarn > 0 || b.gaze > 0) return false;
-    b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
-    b.gaze = duree;
-    b.gazeLeft = cycles - 1;
-    this._alert(MECH_GAZE, b.gazeWarn + duree);
-    return true;
-  }
-
   _atkRegard(b) {
-    if (!this._gazeOuvre(b)) this._atkCone(b);
+    b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
+    b.gaze = BOSS_CFG.GAZE_TIME;
+    this._alert(MECH_GAZE, this._warn(BOSS_CFG.GAZE_WARN) + BOSS_CFG.GAZE_TIME);
   }
 
   _atkExaflare(b) {
@@ -5104,19 +4805,6 @@ export class GameState {
         p.gazeCd = BOSS_CFG.GAZE_TICK;
         this._mechHit(p, BOSS_CFG.GAZE_RATIO);
       }
-      if (b.gaze <= 0) {
-        b.gazeRest = b.gazeLeft > 0 ? BOSS_CFG.GAZE_PERM_GAP : BOSS_CFG.GAZE_REST;
-      }
-    } else if (b.gazeRest > 0) {
-      b.gazeRest -= dt;
-      // le clignotement se rouvre SANS preavis : l'oeil est deja ouvert dans la
-      // tete du joueur, un telegraphe de plus n'apprend rien et allonge la
-      // fenetre ou l'on ne tire pas.
-      if (b.gazeRest <= 0 && b.gazeLeft > 0) {
-        b.gazeLeft--;
-        b.gaze = BOSS_CFG.GAZE_PERM_OPEN;
-        this._alert(MECH_GAZE, b.gaze);
-      }
     }
 
     if (b.kind === BOSS_ORACLE) {
@@ -5382,57 +5070,8 @@ export class GameState {
     if (Math.abs(o.y - W.y) < t) o.y = wasY <= W.y ? W.y - t : W.y + t;
   }
 
-  // LA GEOMETRIE DE BIOME EST POSEE A LA CONSTRUCTION ET NE BOUGE PLUS, donc
-  // elle s'indexe UNE fois pour la manche. Sans index, `_obstacleBlock` et
-  // `_ground` balayaient toute la table pour chaque corps et chaque tick : 8,7
-  // millions d'appels sur 420 s de mesure, la part la plus chere du pas.
-  //
-  // Meme forme que `_grille()`, et la taille de cellule PROUVE la couverture de
-  // la meme facon : `cell = plus grande demi-boite + STAT_MARGE`, donc une boite
-  // qui recouvre la requete a son centre a moins d'une cellule, donc dans le
-  // voisinage 3x3. Les coordonnees de cellule sont ecretees, ce qui est
-  // 1-lipschitzien et ne separe donc jamais deux corps qui se touchent.
-  // Une requete plus large que `STAT_MARGE` casserait la preuve : elle repasse
-  // par le balayage complet au lieu de mentir.
-  _statIndex() {
-    if (this._statG) return this._statG;
-    const obs = this._biomeObstacles, haz = this._biomeHazards;
-    let demi = 1;
-    for (const o of obs) demi = Math.max(demi, o.w / 2, o.h / 2);
-    for (const h of haz) demi = Math.max(demi, h.r);
-    const cell = demi + STAT_MARGE;
-    const cols = Math.max(1, Math.ceil(CFG.ARENA_W / cell));
-    const rows = Math.max(1, Math.ceil(CFG.ARENA_H / cell));
-    this._statG = {
-      cell, cols, rows,
-      obs: indexerStatique(obs, cell, cols, rows),
-      haz: indexerStatique(haz, cell, cols, rows),
-    };
-    return this._statG;
-  }
-
-  // La cellule de la requete, et rien d'autre : la liste du voisinage est deja
-  // cuite, dedupliquee et TRIEE PAR INDICE — l'ordre de visite fait partie du
-  // resultat des qu'un corps touche deux boites a la fois (`_obstacleBlock`
-  // applique ses poussees en sequence, `_obstacleAt` rend la premiere trouvee).
-  // -1 = requete plus large que la marge, balayer toute la liste.
-  _statCell(x, y, r) {
-    if (r > STAT_MARGE) return -1;
-    const G = this._statIndex();
-    const cx = Math.min(G.cols - 1, Math.max(0, Math.floor(x / G.cell)));
-    const cy = Math.min(G.rows - 1, Math.max(0, Math.floor(y / G.cell)));
-    return cy * G.cols + cx;
-  }
-
   _obstacleBlock(o, wasX, wasY, radius = 0) {
-    const list = this.obstacles;
-    if (list.length === 0) return;
-    const idx = this._statIndex().obs;
-    const c = this._statCell(o.x, o.y, radius);
-    const k0 = c < 0 ? 0 : idx.vstart[c];
-    const k1 = c < 0 ? list.length : idx.vstart[c + 1];
-    for (let k = k0; k < k1; k++) {
-      const b = list[c < 0 ? k : idx.vitems[k]];
+    for (const b of this.obstacles) {
       if (b.maxHp > 0 && b.hp <= 0) continue;
       const hw = b.w / 2 + radius, hh = b.h / 2 + radius;
       const dx = o.x - b.x, dy = o.y - b.y;
@@ -5444,14 +5083,7 @@ export class GameState {
   }
 
   _obstacleAt(x, y, margin = 0) {
-    const list = this.obstacles;
-    if (list.length === 0) return null;
-    const idx = this._statIndex().obs;
-    const c = this._statCell(x, y, margin);
-    const k0 = c < 0 ? 0 : idx.vstart[c];
-    const k1 = c < 0 ? list.length : idx.vstart[c + 1];
-    for (let k = k0; k < k1; k++) {
-      const b = list[c < 0 ? k : idx.vitems[k]];
+    for (const b of this.obstacles) {
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(y - b.y) < b.h / 2 + margin) {
         return b;
@@ -5475,13 +5107,7 @@ export class GameState {
   }
 
   _obstacleHit(x, y, dmg = 0) {
-    const list = this.obstacles;
-    if (list.length === 0) return null;
-    const idx = this._statIndex().obs;
-    const c = this._statCell(x, y, 0);
-    const k1 = idx.vstart[c + 1];
-    for (let k = idx.vstart[c]; k < k1; k++) {
-      const b = list[idx.vitems[k]];
+    for (const b of this.obstacles) {
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) >= b.w / 2 || Math.abs(y - b.y) >= b.h / 2) continue;
       if (dmg > 0 && b.maxHp > 0) b.hp = Math.max(0, b.hp - dmg);
@@ -5505,39 +5131,22 @@ export class GameState {
   }
 
   _inHazard(e) {
-    const list = this.hazards;
-    if (list.length === 0) return false;
-    const idx = this._statIndex().haz;
-    const c = this._statCell(e.x, e.y, 0);
-    const k1 = idx.vstart[c + 1];
-    for (let k = idx.vstart[c]; k < k1; k++) {
-      const h = list[idx.vitems[k]];
+    for (const h of this.hazards) {
       if (!hazardState(h, this.time).on) continue;
       if ((e.x - h.x) ** 2 + (e.y - h.y) ** 2 <= h.r * h.r) return true;
     }
     return false;
   }
 
-  // L'OBJET RENDU EST REUTILISE : `_ground` est appele pour chaque corps et
-  // chaque tick, soit des millions d'allocations d'un couple de scalaires. Les
-  // deux appelants le lisent immediatement — ne pas le garder d'un tick a
-  // l'autre.
   _ground(x, y) {
-    const out = this._groundOut;
-    out.slow = 1; out.slip = false;
-    const list = this.hazards;
-    if (list.length === 0) return out;
-    const idx = this._statIndex().haz;
-    const c = this._statCell(x, y, 0);
-    const k1 = idx.vstart[c + 1];
-    for (let k = idx.vstart[c]; k < k1; k++) {
-      const h = list[idx.vitems[k]];
+    let slow = 1, slip = false;
+    for (const h of this.hazards) {
       if (h.kind !== HZ_SLOW && h.kind !== HZ_SLIP) continue;
       if ((x - h.x) ** 2 + (y - h.y) ** 2 > h.r * h.r) continue;
-      if (h.kind === HZ_SLOW) out.slow = Math.min(out.slow, BIOME_CFG.SLOW_MUL);
-      else out.slip = true;
+      if (h.kind === HZ_SLOW) slow = Math.min(slow, BIOME_CFG.SLOW_MUL);
+      else slip = true;
     }
-    return out;
+    return { slow, slip };
   }
 
   _hazards(dt) {
@@ -5575,14 +5184,10 @@ export class GameState {
     }
   }
 
-  // LA METEO NE TOUCHE QUE LE JOUEUR. Une bourrasque qui pousse aussi la horde
-  // ne change rien a la distance entre les deux : elle translate la scene. Le
-  // seul appelant est donc `_players`.
   _gust(dt) {
-    const v = windAt(this.weather, this.time);
-    if (!v) return null;
-    const k = BIOME_CFG.GUST_PUSH * v.force * dt;
-    return { x: v.dx * k, y: v.dy * k };
+    const w = this.weather;
+    if (!w || w.id !== WX_BOURRASQUE) return null;
+    return { x: w.dx * BIOME_CFG.GUST_PUSH * dt, y: w.dy * BIOME_CFG.GUST_PUSH * dt };
   }
 
   _arena(dt) {
@@ -5705,9 +5310,6 @@ export class GameState {
     const kept = [];
     for (const b of this.bullets) {
       b.life -= dt;
-      // vol bete, puis guidage a taux de virage limite : la limite cree l'arc,
-      // sans courbe scriptee.
-      if (b.missile) this._guide(b, dt);
       const wasX = b.x, wasY = b.y;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
@@ -5722,7 +5324,7 @@ export class GameState {
       }
 
       if (this.harvests.length && this._harvestHit(b.x, b.y, b.dmg)) {
-        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
+        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner);
         continue;
       }
 
@@ -5735,7 +5337,7 @@ export class GameState {
           this._obstacleReflect(b, o, wasX, wasY);
           bounced = true;
         } else if (o) {
-          if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
+          if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner);
           continue;
         }
       }
@@ -5750,7 +5352,7 @@ export class GameState {
                      && b.y > -50 && b.y < CFG.ARENA_H + 50) {
         kept.push(b);
       } else if (b.boom > 0 && b.life <= 0) {
-        this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
+        this._explode(b.x, b.y, b.boom, b.owner);
       }
     }
     this.bullets = kept;
@@ -6120,13 +5722,7 @@ export class GameState {
     }
 
     if (b.boom > 0) {
-      // un missile fait les DEUX : le direct puis le souffle. La grenade, elle,
-      // n'a jamais eu que le souffle.
-      if (b.missile) {
-        if (b.vuln) e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
-        this._damage(e, b.dmg, b.owner);
-      }
-      this._explode(ix, iy, b.boom, b.owner, b.boomR);
+      this._explode(ix, iy, b.boom, b.owner);
       return true;
     }
 
@@ -6208,13 +5804,7 @@ export class GameState {
         const rr = CFG.BOSS_RADIUS + CFG.BULLET_RADIUS;
         if ((b.x - boss.x) ** 2 + (b.y - boss.y) ** 2 <= rr * rr) {
           if (b.boom > 0) {
-            // sans plafond, huit missiles sur une cible UNIQUE — donc toutes les
-            // cibles saturees, donc tout double dessus — seraient la meilleure
-            // source de degats du jeu contre un boss.
-            if (b.missile) {
-              this._damage(boss, b.dmg * CARD_CFG.SALVE_BOSS_MUL, b.owner, 0, false, b.x, b.y);
-            }
-            this._explode(b.x, b.y, b.boom, b.owner, b.boomR, b.missile ? CARD_CFG.SALVE_BOSS_MUL : 1);
+            this._explode(b.x, b.y, b.boom, b.owner);
             hit = true;
           } else {
             this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y);
@@ -6233,7 +5823,7 @@ export class GameState {
           if (m.dead || m.maxHp <= 0) continue;
           const rr = m.r + CFG.BULLET_RADIUS;
           if ((b.x - m.x) ** 2 + (b.y - m.y) ** 2 > rr * rr) continue;
-          if (b.boom > 0) { this._explode(b.x, b.y, b.boom, b.owner, b.boomR); hit = true; break; }
+          if (b.boom > 0) { this._explode(b.x, b.y, b.boom, b.owner); hit = true; break; }
           m.hp -= b.dmg;
           if (m.hp <= 0) this._breakMark(m);
           if (b.pierce > 0) b.pierce--; else hit = true;
@@ -6244,11 +5834,6 @@ export class GameState {
       if (!hit) {
         for (const e of this.enemies) {
           if (e.hp <= 0) continue;
-          // UN MISSILE NE S'ARME QUE SUR SA CIBLE. Sans cette regle la gerbe
-          // initiale detone sur le premier corps croise et l'attribution en
-          // trois passes ne veut plus rien dire : six missiles finissent sur les
-          // deux ennemis places dans l'axe du reticule.
-          if (b.missile && e.id !== b.cible) continue;
           if (b.hits ? b.hits.has(e.id) : b.hit === e.id) continue;
           const rr = e.r + CFG.BULLET_RADIUS;
           if ((b.x - e.x) ** 2 + (b.y - e.y) ** 2 > rr * rr) continue;
@@ -6634,12 +6219,7 @@ export class GameState {
     return out;
   }
 
-  // `vue` FILTRE CE QUI EST LOIN, et rien d'autre. Ce qui reste entier :
-  // les JOUEURS (les fleches de coequipiers hors champ les lisent), le boss,
-  // les ZONES et les MARQUEURS (un telegraphe rate est une perte de jeu, ils ne
-  // pesent qu'un dixieme du paquet), et tout ce qui tient en quelques entrees.
-  // `vue` absent = instantane complet, exactement comme avant.
-  snapshot(vue = null) {
+  snapshot() {
     const r1 = v => Math.round(v * 10) / 10;
     const r2 = v => Math.round(v * 100) / 100;
 
@@ -6647,18 +6227,6 @@ export class GameState {
       let n = a.length;
       while (n > keep && !a[n - 1]) n--;
       return n === a.length ? a : a.slice(0, n);
-    };
-
-    const filtrer = (list, rayon, forme) => {
-      if (!vue) return list.map(forme);
-      const out = [];
-      for (const o of list) {
-        const r = rayon(o);
-        if (o.x + r < vue.x0 || o.x - r > vue.x1
-            || o.y + r < vue.y0 || o.y - r > vue.y1) continue;
-        out.push(forme(o));
-      }
-      return out;
     };
 
     return {
@@ -6685,8 +6253,7 @@ export class GameState {
         r1(p.cd1), r1(p.cd2),
         (p.healMode ? SKILL_HEAL_MODE : 0)
           | (p.tauntT > 0 ? SKILL_TAUNT : 0)
-          | (p.odT > 0 || p.odBonus > 0 ? SKILL_OVERDRIVE : 0)
-          | (p.ultT > 0 ? SKILL_ULT_WIND : 0),
+          | (p.odT > 0 || p.odBonus > 0 ? SKILL_OVERDRIVE : 0),
         p.bombStock,
         this._statusMask(p),
         p.statuses.get(STATUS_VULN)?.stacks ?? 0,
@@ -6698,16 +6265,11 @@ export class GameState {
         r2(p.fireInterval),
         p.critKills,
       ]),
-      e: filtrer(this.enemies, e => e.r,
-        e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
-                       e.type + (e.elite ? 100 : 0),
-                       r2(e.ang), e.hitSeq, e.critSeq], 7)),
-      b: filtrer(this.bullets, () => CFG.BULLET_RADIUS,
-        b => b.missile
-          ? [b.id, r1(b.x), r1(b.y), b.owner, 1]
-          : [b.id, r1(b.x), r1(b.y), b.owner]),
-      s: filtrer(this.shots, () => CFG.BULLET_RADIUS,
-        s => [s.id, r1(s.x), r1(s.y)]),
+      e: this.enemies.map(e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
+                                e.type + (e.elite ? 100 : 0),
+                                r2(e.ang), e.hitSeq, e.critSeq], 7)),
+      b: this.bullets.map(b => [b.id, r1(b.x), r1(b.y), b.owner]),
+      s: this.shots.map(s => [s.id, r1(s.x), r1(s.y)]),
       z: this.zones.map(z => trimTail([
         z.id, r1(z.x), r1(z.y), Math.round(z.r), r2(z.warn), r2(z.blast),
         z.shape ?? 0, Math.round(z.w ?? 0), Math.round(z.h ?? 0),
@@ -6717,8 +6279,7 @@ export class GameState {
                                r2(m.max > 0 ? Math.max(0, m.t) / m.max : 0), m.mech,
                                m.a, m.b, m.need, m.cur,
                                r2(m.maxHp > 0 ? Math.max(0, m.hp) / m.maxHp : 0)]),
-      w: filtrer(this.powerups, () => CFG.POWERUP_RADIUS,
-        w => [w.id, r1(w.x), r1(w.y), w.type]),
+      w: this.powerups.map(w => [w.id, r1(w.x), r1(w.y), w.type]),
       hv: this.harvests.map(h => [h.id, r1(h.x), r1(h.y), h.kind,
         r2(h.kind === 0 ? h.hp / h.maxHp : h.prog)]),
       tu: this.turrets.map(t => [t.id, r1(t.x), r1(t.y), r2(t.life / CFG.TURRET_LIFE), r2(t.ang)]),
@@ -6730,15 +6291,10 @@ export class GameState {
       bm: this.bombs.map(b => [b.id, r1(b.x), r1(b.y), r2(b.t / b.max), r1(b.tx), r1(b.ty)]),
       dr: this.drones.filter(d => d.dead <= 0)
         .map(d => [d.id, r1(d.x), r1(d.y), r2(d.ang), d.kind, d.owner]),
-      // un arc (ricochet, salve) porte un SECOND point : son rayon utile couvre
-      // les deux bouts, sinon on jette un trait dont l'autre extremite se voit.
-      f: filtrer(this.effects,
-        f => f.x2 === undefined ? (f.r ?? 0)
-          : Math.max(f.r ?? 0, Math.hypot(f.x2 - f.x, f.y2 - f.y)),
-        f => f.kind === 3 || f.kind === 13
+      f: this.effects.map(f => f.kind === 3 || f.kind === 13
         ? [f.id, r1(f.x), r1(f.y), Math.round(f.r ?? 0), r2(f.life / f.max), f.kind, r1(f.x2), r1(f.y2)]
         : trimTail([f.id, r1(f.x), r1(f.y), Math.round(f.r), r2(f.life / f.max), f.kind ?? 0,
-                    f.owner ?? 0, 0, f.n ?? 0], 6)),
+                    0, 0, f.n ?? 0], 6)),
       sl: this.slow > 0 ? 1 : 0,
       df: this.diffIndex,
       wu: this.windup.length > 0 ? [...this.windup] : null,
@@ -8192,7 +7748,7 @@ export function pilotage() {
         ax = (grappe.x - p.x) / d; ay = (grappe.y - p.y) / d; ar = d;
       }
       s2 = p.cd2 <= 0 && (corpsDans(g, p, 500) >= 3 || (g.boss !== null && dp < 600));
-      s3 = tier3 && corpsDans(g, p, CARD_CFG.SALVE_RANGE) >= 3;
+      s3 = tier3 && corpsDans(g, p, CARD_CFG.SKILL3_SALVE_RANGE) >= 3;
     }
 
     return {

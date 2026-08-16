@@ -9,7 +9,7 @@ import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
 import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
-import { ELITE_GOLD, camera, ctx, inView, ownerColorOf, voileBrume } from "./stage.js";
+import { ELITE_GOLD, camera, ctx, inView, ownerColorOf } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
 export const bulletTrail = new Map();
@@ -73,45 +73,6 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
   ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
   ctx.fill();
 }
-// UN MISSILE N'EST PAS UNE BALLE PLUS GROSSE : c'est une trainee. La direction
-// se deduit de l'image precedente, comme pour tout projectile.
-export function drawMissile(b, col) {
-  const prev = bulletTrail.get(b.id);
-  bulletTrail.set(b.id, { x: b.x, y: b.y });
-  let ux = 1, uy = 0;
-  if (prev) {
-    const dx = b.x - prev.x, dy = b.y - prev.y;
-    const d = Math.hypot(dx, dy);
-    if (d > 0.5) { ux = dx / d; uy = dy / d; }
-  }
-  const r = CFG.BULLET_RADIUS * 1.5;
-
-  ctx.lineCap = "round";
-  for (let i = 3; i >= 1; i--) {
-    ctx.globalAlpha = 0.10 * i;
-    ctx.strokeStyle = i > 2 ? col : FX.blastEdge;
-    ctx.lineWidth = r * (0.5 + i * 0.35);
-    ctx.beginPath();
-    ctx.moveTo(b.x - ux * r * (2 + i * 3.4), b.y - uy * r * (2 + i * 3.4));
-    ctx.lineTo(b.x - ux * r * (i * 2.2), b.y - uy * r * (i * 2.2));
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-
-  ctx.fillStyle = COMBAT.blastCore;
-  ctx.beginPath();
-  ctx.moveTo(b.x + ux * r * 2.2, b.y + uy * r * 2.2);
-  ctx.lineTo(b.x - uy * r, b.y + ux * r);
-  ctx.lineTo(b.x - ux * r * 1.6, b.y - uy * r * 1.6);
-  ctx.lineTo(b.x + uy * r, b.y - ux * r);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = col;
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
-  ctx.lineCap = "butt";
-}
-
 export function pruneTrails(v) {
   if (bulletTrail.size > 900) {
     bulletTrail.clear();
@@ -584,42 +545,9 @@ const BLAST_TINT = {
   8:  [FX.waveSoft, FX.wave],
   12: [FX.bombFill, FX.bombEdge],
 };
-const HEAL_WAVE_MOTES = 8;
 export function drawEffects(effects) {
   for (const f of effects) {
     const grow = 1 - f.k;
-
-    // UN ULTIME S'ANNONCE A TOUTE L'EQUIPE. L'onde qui traverse la vue n'est
-    // tiree que pour SON lanceur — un voile plein ecran a chaque ultime allie
-    // serait une gene, pas une information. Le PALIER se lit sans chiffre : le
-    // 3 vire au legendaire et double sa couronne.
-    if (f.kind === 16) {
-      const col = f.n >= 3 ? RARITY_COLOR[3] : (ownerColorOf(f.owner) ?? FX.flash);
-      if (f.owner === myId) {
-        ctx.fillStyle = alpha(col, f.k * 0.10);
-        ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
-      }
-      for (let i = 0; i < (f.n >= 3 ? 2 : 1); i++) {
-        ctx.strokeStyle = alpha(col, f.k * (0.8 - i * 0.3));
-        ctx.lineWidth = 5 - i * 2;
-        ctx.beginPath();
-        ctx.arc(f.x, f.y, f.r * (0.3 + grow * (2.4 + i * 0.9)), 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      // le marqueur au-dessus du lanceur : trois chevrons qui montent.
-      ctx.strokeStyle = alpha(col, f.k);
-      ctx.lineWidth = 3;
-      for (let i = 0; i < 3; i++) {
-        const y = f.y - 34 - i * 9 - grow * 14;
-        const w = 9 - i * 2;
-        ctx.beginPath();
-        ctx.moveTo(f.x - w, y + 5);
-        ctx.lineTo(f.x, y);
-        ctx.lineTo(f.x + w, y + 5);
-        ctx.stroke();
-      }
-      continue;
-    }
 
     if (f.kind === 1) {
       ctx.fillStyle = alpha(FX.veil, f.k * 0.16);
@@ -775,39 +703,15 @@ export function drawEffects(effects) {
       continue;
     }
 
-    // LA VAGUE DE SOIN, en couches a constantes de temps distinctes, comme un
-    // souffle — mais le gradient est INVERSE : creux au centre, dense au front.
-    // Le soin est donne vers l'exterieur, il ne remplit pas un disque.
     if (f.kind === 11) {
-      const R = f.r * (0.16 + grow * 0.84);
-      const g = ctx.createRadialGradient(f.x, f.y, R * 0.42, f.x, f.y, R);
-      g.addColorStop(0, alpha(FX.heal, 0));
-      g.addColorStop(0.78, alpha(FX.heal, f.k * 0.09));
-      g.addColorStop(1, alpha(FX.heal, f.k * 0.22));
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(f.x, f.y, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = alpha(FX.heal, f.k * 0.10);
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2); ctx.fill();
 
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
       ctx.strokeStyle = alpha(FX.heal, f.k * 0.9);
-      ctx.lineWidth = 4 * f.k + 2;
-      ctx.beginPath(); ctx.arc(f.x, f.y, R, 0, Math.PI * 2); ctx.stroke();
-
-      // la trainee reste EN ARRIERE du front : un seul anneau se lit comme de
-      // l'interface, deux rayons a deux vitesses se lisent comme une onde.
-      ctx.strokeStyle = alpha(FX.healSoft, f.k * f.k * 0.45);
-      ctx.lineWidth = 9;
-      ctx.beginPath(); ctx.arc(f.x, f.y, R * 0.84, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-
-      // ELLE SE RECONNAIT A SES CROIX, comme le sanctuaire — mais PORTEES par
-      // le front au lieu de monter sur place. Aucune allocation.
-      for (let i = 0; i < HEAL_WAVE_MOTES; i++) {
-        const a = (i / HEAL_WAVE_MOTES) * Math.PI * 2 + f.id * 0.63;
-        paintIcon(ctx, POWERUP_ICON.heal, FX.heal,
-                  f.x + Math.cos(a) * R, f.y + Math.sin(a) * R,
-                  0.28 + f.k * 0.18, f.k * f.k * 0.9);
-      }
+      ctx.lineWidth = 5 * f.k + 1.5;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
       continue;
     }
 
@@ -848,53 +752,15 @@ export function drawEffects(effects) {
     ctx.stroke();
   }
 }
-// LE REMPART EST BATI, PAS SOUFFLE. Il bloque vraiment (`state.walls`), donc il
-// se dessine comme un mur : une couronne de PLAQUES a joints ouverts, d'epaisseur
-// visible, la ou le dome du soigneur est lisse. La phase vient de l'identifiant,
-// pas du temps — un mur qui tourne n'est plus un mur.
-const BULWARK_PLATES = 14;
-const BULWARK_EP = 9;
 export function drawBulwarks(list) {
-  const tm = performance.now() / 1000;
   for (const b of list) {
-    const g = ctx.createRadialGradient(b.x, b.y, b.r * 0.55, b.x, b.y, b.r);
-    g.addColorStop(0, alpha(CLASS_COLOR.tank, 0.02));
-    g.addColorStop(0.82, alpha(CLASS_COLOR.tank, 0.05 + b.k * 0.04));
-    g.addColorStop(1, alpha(CLASS_COLOR.tank, 0.12 + b.k * 0.12));
-    ctx.fillStyle = g;
+    const opacite = 0.35 + b.k * 0.45;
+    ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.05 + b.k * 0.04);
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
 
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    const pas = (Math.PI * 2) / BULWARK_PLATES;
-    const phase = b.id * 0.37;
-    ctx.lineWidth = 1.4;
-    for (let i = 0; i < BULWARK_PLATES; i++) {
-      const a0 = phase + i * pas, a1 = a0 + pas * 0.72;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, a0, a1);
-      ctx.arc(b.x, b.y, b.r - BULWARK_EP, a1, a0, true);
-      ctx.closePath();
-      ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.07 + b.k * 0.09);
-      ctx.fill();
-      ctx.strokeStyle = alpha(CLASS_COLOR.tank, 0.22 + b.k * 0.34);
-      ctx.stroke();
-    }
-
-    // le champ qui tient les plaques : la SEULE chose vivante du rempart.
-    ctx.strokeStyle = alpha(CLASS_COLOR.tank,
-                            (0.30 + b.k * 0.40) * (0.85 + 0.15 * Math.sin(tm * 2.2 + b.id)));
+    ctx.strokeStyle = alpha(CLASS_COLOR.tank, opacite);
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
-
-    // le SPECULAIRE haut-gauche, comme toute la charte : c'est lui qui dit
-    // « surface courbe » plutot que « cercle trace ».
-    ctx.strokeStyle = alpha(COMBAT.flash, 0.10 + b.k * 0.14);
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.r - BULWARK_EP * 0.5, Math.PI * 1.08, Math.PI * 1.46);
-    ctx.stroke();
-    ctx.restore();
 
     ctx.strokeStyle = alpha(OWNED.bulwarkArc, 0.85);
     ctx.lineWidth = 3.5;
@@ -903,36 +769,6 @@ export function drawBulwarks(list) {
     ctx.stroke();
   }
 }
-// L'ANCRE MONTRE ENFIN CE QU'ELLE TIENT. Le role du tank est entierement fait
-// de choses qui n'arrivent pas ; c'est la seule competence du jeu qui puisse
-// montrer son travail a l'equipe. Les retenus se DEDUISENT de la geometrie —
-// l'entree dans le rayon se rejoue ici comme `drawMedicLinks` rejoue le choix du
-// serveur, donc aucune cle de reseau ne s'ouvre.
-const anchorHeld = new Map();
-
-export function drawAnchorChains(list, enemies) {
-  for (const [id, s] of anchorHeld) {
-    if (!list.some(a => a.id === id)) anchorHeld.delete(id);
-    else if (s.size > 400) s.clear();
-  }
-  for (const an of list) {
-    let tenus = anchorHeld.get(an.id);
-    if (!tenus) { tenus = new Set(); anchorHeld.set(an.id, tenus); }
-    const leash = an.r * 2;
-    for (const e of enemies) {
-      const d2 = (e.x - an.x) ** 2 + (e.y - an.y) ** 2;
-      if (d2 <= an.r * an.r) tenus.add(e.id);
-      else if (d2 > leash * leash) { tenus.delete(e.id); continue; }
-      if (!tenus.has(e.id)) continue;
-      if (!inView(e.x, e.y, 120) && !inView(an.x, an.y, 120)) continue;
-      drawArc(`an${an.id}:${e.id}`, an.x, an.y, e.x, e.y,
-        { col: CLASS_COLOR.tank, coeur: OWNED.bulwarkArc, amp: 0.10,
-          width: 1.8, branches: 1, cut: 0.5,
-          flow: { col: OWNED.bulwarkArc, hz: 0.9, n: 2, size: 2.2, sens: -1 } });
-    }
-  }
-}
-
 export function drawAnchors(list) {
   for (const an of list) {
     ctx.fillStyle = alpha(CLASS_COLOR.tank, 0.04 + an.k * 0.04);
@@ -1202,49 +1038,8 @@ function arcTrace(pts, saut) {
   ctx.stroke();
 }
 
-// LE SENS D'UN LIEN EST UNE INFORMATION DE JEU, et un trait ne le porte pas.
-// Les perles courent le long du trace : du soigneur vers l'allie pour le soin,
-// de la proie vers le soigneur pour le siphon, vers l'ancre pour une chaine.
-// Elles se calculent SANS ALLOCATION — position = fonction de l'indice, du temps
-// et de la longueur cumulee, comme les croix du sanctuaire.
-function arcFlow(pts, cut, { col, hz, n, size, sens }) {
-  let total = 0;
-  for (let i = 1; i < pts.length; i++) {
-    if (i === cut) continue;
-    total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-  }
-  if (total < 1) return;
-
-  const t = performance.now() / 1000;
-  ctx.fillStyle = col;
-  for (let b = 0; b < n; b++) {
-    let u = ((t * hz + b / n) % 1);
-    if (sens < 0) u = 1 - u;
-    // les perles s'estompent aux deux bouts : elles NAISSENT du porteur au lieu
-    // d'apparaitre en l'air.
-    const fondu = Math.sin(u * Math.PI);
-    if (fondu <= 0.02) continue;
-    let reste = u * total;
-    for (let i = 1; i < pts.length; i++) {
-      if (i === cut) continue;
-      const ax = pts[i - 1][0], ay = pts[i - 1][1];
-      const seg = Math.hypot(pts[i][0] - ax, pts[i][1] - ay);
-      if (reste > seg) { reste -= seg; continue; }
-      const k = seg > 0 ? reste / seg : 0;
-      ctx.globalAlpha = fondu;
-      ctx.beginPath();
-      ctx.arc(ax + (pts[i][0] - ax) * k, ay + (pts[i][1] - ay) * k,
-              size * (0.5 + fondu * 0.5), 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    }
-  }
-  ctx.globalAlpha = 1;
-}
-
 export function drawArc(key, x0, y0, x1, y1, {
   col, coeur, amp = 0.06, width = 1.8, branches = 1, cut = 0, pinch = true,
-  flow = null,
 } = {}) {
   const now = performance.now();
   let a = arcCache.get(key);
@@ -1283,13 +1078,6 @@ export function drawArc(key, x0, y0, x1, y1, {
   ctx.strokeStyle = alpha(coeur, 0.92);
   ctx.lineWidth = width;
   arcTrace(a.abs, a.cut);
-
-  if (flow) {
-    arcFlow(a.abs, a.cut, {
-      col: alpha(flow.col ?? coeur, 0.95), hz: flow.hz ?? 0.8,
-      n: flow.n ?? 3, size: flow.size ?? width * 1.3, sens: flow.sens ?? 1,
-    });
-  }
 
   // les deux points brillants ANCRENT l'arc sur ce qu'il relie
   ctx.fillStyle = alpha(coeur, 0.9);
@@ -1379,30 +1167,24 @@ function auraPass(list, diff) {
 // les deux modes distinguables d'un coup d'oeil par un allie a l'autre bout de
 // l'ecran : le soin est chaud et CALME (peu de gigue, aucune coupure), le
 // siphon est froid et AGITE (forte gigue, branches mortes, coupures).
-export function drawSoinLinks(links, players, enemies, sancts = []) {
+export function drawSoinLinks(links, players, enemies) {
   if (!links || links.length === 0) return;
   let par = null;
-  for (const [src, cible, ennemi, sanct] of links) {
+  for (const [src, cible, ennemi] of links) {
     if (par === null) {
       par = new Map();
       for (const p of players) par.set(p.id, p);
     }
-    // dans le dome, le lien part du DOME et non du soigneur : c'est ce qui le
-    // libere de rester au centre.
-    const a = sanct ? sancts.find(s => s.id === sanct) : par.get(src);
+    const a = par.get(src);
     if (!a) continue;
     const b = ennemi ? enemies.find(e => e.id === cible) : par.get(cible);
     if (!b) continue;
     if (!inView(a.x, a.y, 200) && !inView(b.x, b.y, 200)) continue;
-    // le soin coule VERS l'allie, le siphon VERS le soigneur : le meme trace
-    // dit deux choses opposees par le seul sens de son flux.
     drawArc(`h${src}:${cible}`, a.x, a.y, b.x, b.y, ennemi
       ? { col: SIGNAL.persist, coeur: FX.ricochetCore, amp: 0.14, width: 2,
-          branches: 2, cut: 0.55,
-          flow: { col: SIGNAL.persist, hz: 1.5, n: 4, size: 2.6, sens: -1 } }
-      : { col: FX.heal, coeur: FX.healSoft, amp: 0.045, width: 2.4,
-          branches: 0, cut: 0,
-          flow: { col: FX.healSoft, hz: 0.7, n: 3, size: 3.2, sens: 1 } });
+          branches: 2, cut: 0.55 }
+      : { col: FX.heal, coeur: FX.healSoft, amp: 0.035, width: 2.4,
+          branches: 0, cut: 0 });
   }
 }
 
@@ -1419,15 +1201,12 @@ function drawMedicLinks(list) {
     }
     if (!best) continue;
     if (!inView(m.x, m.y, 200) && !inView(best.x, best.y, 200)) continue;
-    // un lien qui pend entre deux corps invisibles trahirait la brume
-    if (voileBrume(m.x, m.y) <= 0.02 && voileBrume(best.x, best.y) <= 0.02) continue;
     const ca = Math.cos(m.ang ?? 0), sa = Math.sin(m.ang ?? 0);
     const ox = m.x + 8.5 * ca - (-21) * sa;
     const oy = m.y + 8.5 * sa + (-21) * ca;
     drawArc(`m${m.id}`, ox, oy, best.x, best.y, {
       col: ENEMY_TINT[7], coeur: FX.healSoft, amp: 0.05, width: 1.6,
       branches: 1, cut: 0.3,
-      flow: { col: ENEMY_TINT[7], hz: 0.8, n: 2, size: 2, sens: 1 },
     });
   }
 }
@@ -1442,15 +1221,6 @@ export function drawEnemies(list, view) {
 
   for (const e of list) {
     if (!inView(e.x, e.y)) continue;
-    // CE QUI S'ANNONCE PERCE LA BRUME. Un fonceur declenche a 420 px
-    // (`DASH_RANGE`), donc dans le voile : son preavis y serait illisible, et
-    // un preavis qu'on ne voit pas n'est pas difficile, il est injuste. Le
-    // corps qui prend son elan redevient net — c'est aussi la plus belle image
-    // que l'effet produise.
-    // La brume sort du dessin AVANT tout le reste : a forte densite elle rend
-    // aussi des lots de dessin, ce qui n'est pas plus mal.
-    const voile = windup.has(e.id) ? 1 : voileBrume(e.x, e.y);
-    if (voile <= 0.02) continue;
     const def = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
     const r = e.elite ? def.r * CFG.ELITE_RADIUS_MUL : def.r;
 
@@ -1467,7 +1237,7 @@ export function drawEnemies(list, view) {
     if (e.elite) {
       const pulse = 0.5 + 0.5 * Math.sin(t / 240 + e.id);
       ctx.strokeStyle = ELITE_GOLD;
-      ctx.globalAlpha = (0.3 + pulse * 0.35) * voile;
+      ctx.globalAlpha = 0.3 + pulse * 0.35;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(e.x, e.y, r + 6 + pulse * 2, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
@@ -1479,7 +1249,7 @@ export function drawEnemies(list, view) {
     if (auraCovered.has(e.id)) {
       const pulse = 0.5 + 0.5 * Math.sin(t / 380 + e.id);
       ctx.strokeStyle = ENEMY_TINT[8];
-      ctx.globalAlpha = (0.3 + pulse * 0.25) * voile;
+      ctx.globalAlpha = 0.3 + pulse * 0.25;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(e.x, e.y, r + 10, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
@@ -1517,18 +1287,15 @@ export function drawEnemies(list, view) {
       scaleY: gain * punch * (1 - squash) * (windup.has(e.id) ? 1.14 : 1),
       flash,
       flashTint: hit?.col ?? null,
-      alpha: voile,
     });
 
     if (e.hp < e.maxHp) {
       const w = r * 2;
       const tx = e.x - r, ty = e.y - r - 9;
-      ctx.globalAlpha = voile;
       ctx.fillStyle = alpha(SURFACE.shadow, 0.45);
       ctx.fillRect(tx, ty, w, 3);
       ctx.fillStyle = e.elite ? ELITE_GOLD : (ENEMY_TINT[e.type] ?? ENEMY_TINT[0]);
       ctx.fillRect(tx, ty, w * (e.hp / e.maxHp), 3);
-      ctx.globalAlpha = 1;
     }
   }
 }

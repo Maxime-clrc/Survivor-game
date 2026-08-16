@@ -2,15 +2,13 @@
 import { getAudioSource, getMusicVolume, getVolume, initAudio, isMuted, playSound, setAudioSource, setMusicDuck, setMusicVolume, setMuted, setVolume } from "/audio.js";
 import { showHud } from "/hud.js";
 import { refreshMusicSource } from "/music.js";
-import { bossAt, bossNom } from "/shared/bosses.js";
-import { CARDS, CARD_BY_ID, RARITY_COLOR, banClosure, cardDesc, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
-import { CLASSES, CLASS_DEFAULT, classAt, classDesc, classMission, classNom, classSolo, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
-import { CFG, DAMAGE_SOURCES, DIFFICULTIES, PLAYER_COLORS, diffLabel, diffResume, srcLabel } from "/shared/game_state.js";
-import { biomeNom, biomeResume } from "/shared/biomes.js";
-import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from "/shared/i18n.js";
+import { bossAt } from "/shared/bosses.js";
+import { CARDS, CARD_BY_ID, RARITY_COLOR, RARITY_LABEL, banClosure, cardDetail } from "/shared/cards.js";
+import { CLASSES, CLASS_DEFAULT, SKILL3_NAME, classAt } from "/shared/classes.js";
+import { CFG, DAMAGE_SOURCES, DIFFICULTIES, PLAYER_COLORS, biomeAt } from "/shared/game_state.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
-import { COMMUN, CONFORT, MILESTONES, PROG_CFG, TREES, confortDesc, confortNom, jalonLabel, ligneNom, slotsFor, tierCost } from "/shared/progression.js";
-import { relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
+import { COMMUN, CONFORT, MILESTONES, PROG_CFG, TREES, slotsFor, tierCost } from "/shared/progression.js";
+import { RELIC_RARITY, relicById, relicPrice } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, tally, ws } from "../core/state.js";
@@ -19,8 +17,7 @@ import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaMilestonesEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, traduireStatique,
-topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaMilestonesEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
 export function hubStatus(msg, isError = false) {
@@ -30,14 +27,11 @@ export function hubStatus(msg, isError = false) {
 export let myPing = -1;
 export let settingsFrom = null;
 const TOPBAR_SCREENS = [
-  { el: () => settingsEl, crumb: () => t("ui.set.title", "Paramètres") },
-  { el: () => menuEl, crumb: () => tf("ui.crumb.meta", "Progression · {cls}",
-      { cls: classNom(classAt(metaClsOverride ?? CLASS_DEFAULT)) }) },
-  { el: () => bilanEl, crumb: () => t("ui.crumb.bilan", "Bilan de manche") },
-  { el: () => panel, crumb: () => roomNameCur
-      ? tf("ui.crumb.salon.nom", "Salon · {nom}", { nom: roomNameCur })
-      : t("ui.crumb.salon", "Salon") },
-  { el: () => hubScreenEl, crumb: () => t("ui.hub.title", "Salons") },
+  { el: () => settingsEl, crumb: () => "Paramètres" },
+  { el: () => menuEl, crumb: () => `Progression · ${classAt(metaClsOverride ?? CLASS_DEFAULT).nom}` },
+  { el: () => bilanEl, crumb: () => "Bilan de manche" },
+  { el: () => panel, crumb: () => roomNameCur ? `Salon · ${roomNameCur}` : "Salon" },
+  { el: () => hubScreenEl, crumb: () => "Salons" },
 ];
 function syncTopbar() {
   if (!topbarEl) return;
@@ -162,8 +156,7 @@ document.addEventListener("pointerdown", e => {
 function goHome() {
   if (!connected) return;
   if (inRoom && phase === PHASE_ROUND && !amSpectator
-      && !confirm(t("ui.confirm.leaveRunning",
-        "Une manche est en cours. Quitter la salle et revenir aux salons ?"))) {
+      && !confirm("Une manche est en cours. Quitter la salle et revenir aux salons ?")) {
     return;
   }
   if (settingsEl && !settingsEl.hidden) { settingsEl.hidden = true; settingsFrom = null; }
@@ -189,55 +182,13 @@ function closeSettings() {
 }
 topSettingsBtn.onclick = openSettings;
 if (settingsCloseBtn) settingsCloseBtn.onclick = closeSettings;
-
-/* Le nom d'une langue s'ecrit dans cette langue : ni « Anglais » ni « French ».
-   Les deux boutons ne portent donc aucune cle de traduction. */
-function renderLangue() {
-  if (topLangBtn) topLangBtn.textContent = getLang().toUpperCase();
-  if (!setLangRowEl) return;
-  if (!setLangRowEl.children.length) {
-    for (const code of LANGS) {
-      const b = document.createElement("button");
-      b.className = "langBtn";
-      b.dataset.lang = code;
-      b.textContent = LANG_NOM[code];
-      b.onclick = () => setLang(code);
-      setLangRowEl.append(b);
-    }
-  }
-  for (const b of setLangRowEl.children) b.classList.toggle("on", b.dataset.lang === getLang());
-}
-if (topLangBtn) {
-  topLangBtn.onclick = () => setLang(LANGS[(LANGS.indexOf(getLang()) + 1) % LANGS.length]);
-}
-/* Chaque module se rafraichit lui-meme (`onLangChange` dans `hud.js`,
-   `ui/pause.js`, `ui/build.js`) : la couche qui possede un ecran est la seule a
-   savoir le reconstruire. Ici, les ecrans de `screens.js` et rien d'autre. */
-onLangChange(() => {
-  traduireStatique();
-  renderLangue();
-  refreshAudioUi();
-  syncTopbar();
-  if (hubScreenEl && !hubScreenEl.hidden) { renderRooms(); renderResume(); renderBoard(); }
-  if (panel && !panel.hidden) refreshPanel();
-  if (menuEl && !menuEl.hidden) renderMeta();
-  if (finEl && !finEl.hidden && lastResult) openFin(lastResult);
-  if (bilanEl && !bilanEl.hidden && lastResult) showBilan(lastResult);
-  if (cardsEl && !cardsEl.hidden) renderCards();
-  if (merchantEl && !merchantEl.hidden) renderMerchant();
-  renderBriefWait();
-});
-traduireStatique();
-renderLangue();
 export function enterHub() {
   if (!connected || inRoom) return;
   hubScreenEl.hidden = false;
   hubPassAskEl.hidden = true;
   hubPassAskInput.value = "";
   if (hubBoardEl) hubBoardEl.hidden = true;
-  hubWhoEl.textContent = "";
-  hubWhoEl.append(t("ui.hub.who", "Connecté comme "),
-    document.createElement("b"));
+  hubWhoEl.innerHTML = "Connecté comme <b></b>";
   hubWhoEl.querySelector("b").textContent = localStorage.getItem("survivor.pseudo") || "?";
   renderRooms();
   renderResume();
@@ -255,24 +206,23 @@ export function renderResume() {
 
   hubResumeIconEl.innerHTML = PLAY_SVG;
   hubResumeTitleEl.textContent = salle.state === 1
-    ? tf("ui.hub.resume.running", "Une manche tourne encore dans « {nom} »", { nom: salle.name })
-    : tf("ui.hub.resume.open", "Ta salle « {nom} » est toujours ouverte", { nom: salle.name });
+    ? `Une manche tourne encore dans « ${salle.name} »`
+    : `Ta salle « ${salle.name} » est toujours ouverte`;
 
   const ou = salle.state === 1
-    ? tf("ui.hub.resume.step", "Étape {n}/6 en cours", { n: Math.max(1, salle.segment || 0) })
-    : t("ui.hub.resume.lobby", "Au salon");
+    ? `Étape ${Math.max(1, salle.segment || 0)}/6 en cours`
+    : "Au salon";
   const qui = salle.count > 0
-    ? tn("ui.hub.resume.count", "{n} joueur présent", "{n} joueurs présents", salle.count)
-    : t("ui.hub.resume.nobody", "personne pour l'instant");
-  hubResumeSubEl.textContent = tf("ui.hub.resume.sub",
-    "{ou} · {qui} · tu reprends ta place", { ou, qui });
+    ? `${salle.count} joueur${salle.count > 1 ? "s" : ""} présent${salle.count > 1 ? "s" : ""}`
+    : "personne pour l'instant";
+  hubResumeSubEl.textContent = `${ou} · ${qui} · tu reprends ta place`;
 }
 function answerResume(reprendre) {
   const salle = pendingRejoin;
   setPendingRejoin(null);
   if (hubResumeEl) hubResumeEl.hidden = true;
   if (!reprendre || !salle) return;
-  hubStatus(tf("ui.hub.backTo", "Retour vers « {nom} »…", { nom: salle.name }));
+  hubStatus(`Retour vers « ${salle.name} »…`);
   ws.send(JSON.stringify({ t: "joinRoom", code: salle.code }));
 }
 if (hubResumeGoBtn) hubResumeGoBtn.onclick = () => answerResume(true);
@@ -288,7 +238,7 @@ export function renderRooms() {
   if (roomsList.length === 0) {
     const empty = document.createElement("div");
     empty.className = "roomEmpty";
-    empty.textContent = t("ui.hub.empty", "Aucune salle ouverte — crée la première.");
+    empty.textContent = "Aucune salle ouverte — crée la première.";
     roomListEl.appendChild(empty);
     return;
   }
@@ -298,13 +248,10 @@ export function renderRooms() {
     btn.className = "roomEntry";
     btn.disabled = full;
     const lock = r.locked && r.state === 1
-      ? `<span class="roomLock" title="${escapeHtml(
-          t("ui.hub.room.locked", "protégée par mot de passe"))}">${LOCK_SVG}</span>` : "";
-    const etiquette = r.state === 1 ? t("ui.hub.room.running", "En jeu")
-      : full ? t("ui.hub.room.full", "Complète")
-      : t("ui.hub.room.open", "Ouvert");
-    const state = `<span class="roomState${r.state === 1 ? " running" : ""}">`
-      + `${escapeHtml(etiquette)}</span>`;
+      ? `<span class="roomLock" title="protégée par mot de passe">${LOCK_SVG}</span>` : "";
+    const state = r.state === 1 ? `<span class="roomState running">En jeu</span>`
+      : full ? `<span class="roomState">Complète</span>`
+      : `<span class="roomState">Ouvert</span>`;
     const slots = `<span class="roomSlots" data-n="${r.count}">`
       + "<i></i>".repeat(r.max) + "</span>";
     btn.innerHTML = `<span class="roomName"><span class="roomSub"></span></span>`
@@ -312,16 +259,15 @@ export function renderRooms() {
       + `<span class="roomCount">${r.count} / ${r.max}</span>`;
     const nameEl = btn.querySelector(".roomName");
     nameEl.insertBefore(document.createTextNode(r.name), nameEl.firstChild);
-    const mode = diffLabel(r.diff);
-    const etat = r.state === 1
-      ? tf("ui.hub.room.step", "étape {n}/6 en cours", { n: Math.max(1, r.segment || 0) })
-      : r.locked ? t("ui.hub.room.locked", "protégée par mot de passe")
-      : t("ui.hub.room.waiting", "en attente de joueurs");
+    const mode = DIFFICULTIES[r.diff]?.label ?? "normal";
+    const etat = r.state === 1 ? `étape ${Math.max(1, r.segment || 0)}/6 en cours`
+      : r.locked ? "protégée par mot de passe"
+      : "en attente de joueurs";
     btn.querySelector(".roomSub").textContent = `${mode} · ${etat}`;
     btn.onclick = () => {
       setJoinAttempt({ code: r.code, name: r.name });
       hubPassAskEl.hidden = true;
-      hubStatus(tf("ui.hub.entering", "entrée dans « {nom} »…", { nom: r.name }));
+      hubStatus(`entrée dans « ${r.name} »…`);
       ws.send(JSON.stringify({ t: "joinRoom", code: r.code }));
     };
     roomListEl.appendChild(btn);
@@ -349,18 +295,17 @@ export function renderBoard() {
   hubBoardTabs.innerHTML = "";
   DIFFICULTIES.forEach((d, i) => {
     const b = document.createElement("button");
-    b.textContent = diffLabel(i);
+    b.textContent = d.label;
     b.className = i === boardDiff ? "" : "ghost";
     b.onclick = () => { boardDiff = i; renderBoard(); };
     hubBoardTabs.appendChild(b);
   });
 
-  if (!boardData) { hubBoardList.textContent = t("ui.hub.board.loading", "chargement…"); return; }
+  if (!boardData) { hubBoardList.textContent = "chargement…"; return; }
   const lignes = boardData[boardDiff] ?? [];
   if (lignes.length === 0) {
     hubBoardList.innerHTML =
-      `<div class="hint">${escapeHtml(t("ui.hub.board.empty",
-        "personne n'a encore vaincu le Noyau à cette difficulté"))}</div>`;
+      `<div class="hint">personne n'a encore vaincu le Noyau à cette difficulté</div>`;
     return;
   }
   hubBoardList.innerHTML = lignes.map((l, i) =>
@@ -372,7 +317,7 @@ export function renderBoard() {
 }
 hubPassAskGoBtn.onclick = () => {
   if (!connected || inRoom || !joinAttempt) return;
-  hubStatus(tf("ui.hub.entering", "entrée dans « {nom} »…", { nom: joinAttempt.name }));
+  hubStatus(`entrée dans « ${joinAttempt.name} »…`);
   ws.send(JSON.stringify({ t: "joinRoom", code: joinAttempt.code, pass: hubPassAskInput.value }));
 };
 hubPassAskInput.onkeydown = e => { if (e.key === "Enter") hubPassAskGoBtn.click(); };
@@ -384,7 +329,7 @@ hubPassAskCancelBtn.onclick = () => {
 };
 roomCreateBtn.onclick = () => {
   if (!connected || inRoom) return;
-  hubStatus(t("ui.hub.creating", "création…"));
+  hubStatus("création…");
   ws.send(JSON.stringify({
     t: "createRoom",
     name: roomNameInput.value.trim(),
@@ -415,10 +360,7 @@ passChangeBtn.onclick = () => {
   if (!connected) return;
   const ancien = passOldInput.value;
   const neuf = passNewInput.value;
-  if (neuf.length < 8) {
-    passMsg(t("ui.hub.pass.short", "nouveau mot de passe : 8 caractères minimum"), true);
-    return;
-  }
+  if (neuf.length < 8) { passMsg("nouveau mot de passe : 8 caractères minimum", true); return; }
   ws.send(JSON.stringify({ t: "changePass", ancien, neuf }));
 };
 function openMenuFor(clsIndex) {
@@ -489,9 +431,7 @@ function refreshAudioUi() {
     if (u.mute) {
       u.mute.textContent = isMuted() ? "✕" : "♪";
       u.mute.classList.toggle("off", isMuted());
-      u.mute.title = isMuted()
-        ? t("ui.audio.unmute.title", "rétablir le son")
-        : t("ui.audio.mute.title", "couper le son");
+      u.mute.title = isMuted() ? "rétablir le son" : "couper le son";
     }
     if (u.mus) {
       u.mus.value = String(mus);
@@ -499,15 +439,10 @@ function refreshAudioUi() {
     }
     if (u.src) {
       u.src.textContent = u.srcVal
-        ? (pistes ? t("ui.audio.src.pistes", "Pistes") : t("ui.audio.src.synthe", "Synthé"))
-        : (pistes ? t("ui.audio.src.longPistes", "Bande son : pistes")
-                  : t("ui.audio.src.longSynthe", "Bande son : synthé"));
+        ? (pistes ? "Pistes" : "Synthé")
+        : (pistes ? "Bande son : pistes" : "Bande son : synthé");
       u.src.classList.toggle("on", pistes);
-      if (u.srcVal) {
-        u.srcVal.textContent = pistes
-          ? t("ui.audio.src.fichiers", "fichiers")
-          : t("ui.audio.src.calculee", "calculée");
-      }
+      if (u.srcVal) u.srcVal.textContent = pistes ? "fichiers" : "calculée";
     }
   }
 }
@@ -559,7 +494,7 @@ export function renderLaunch() {
   if (launchEndsAt === 0) {
     clearInterval(launchTimer);
     launchTimer = 0;
-    startBtn.textContent = t("ui.panel.start", "Lancer la manche");
+    startBtn.textContent = "Lancer la manche";
     startBtn.classList.remove("cancel");
     return;
   }
@@ -569,7 +504,7 @@ export function renderLaunch() {
     launchTimer = 0;
     startBtn.disabled = true;
     startBtn.classList.remove("cancel");
-    startBtn.textContent = t("ui.panel.starting", "Lancement…");
+    startBtn.textContent = "Lancement…";
     return;
   }
 
@@ -577,9 +512,8 @@ export function renderLaunch() {
   startBtn.disabled = false;
   startBtn.classList.add("cancel");
   const reste = Math.max(0, Math.ceil((launchEndsAt - performance.now()) / 1000));
-  startBtn.textContent = tf("ui.panel.cancel", "Annuler le lancement — {n} s", { n: reste });
-  waitMsg.textContent = t("ui.panel.starting.msg",
-    "La manche démarre. Un clic pour tout arrêter.");
+  startBtn.textContent = `Annuler le lancement — ${reste} s`;
+  waitMsg.textContent = "La manche démarre. Un clic pour tout arrêter.";
 
   if (!launchTimer) launchTimer = setInterval(renderLaunch, 200);
 }
@@ -600,12 +534,11 @@ export function openBrief(dur) {
   const c = classAt(me?.cls ?? CLASS_DEFAULT);
 
   briefEl.querySelector(".briefWrap").style.setProperty("--tint", c.couleur);
-  briefNameEl.textContent = classNom(c);
-  briefMissionTextEl.textContent = classMission(c);
+  briefNameEl.textContent = c.nom;
+  briefMissionTextEl.textContent = c.mission ?? c.desc;
 
   briefSkillsEl.textContent = "";
-  for (let si = 0; si < c.skills.length; si++) {
-    const s = c.skills[si];
+  for (const s of c.skills) {
     const card = document.createElement("div");
     card.className = "briefSkill";
 
@@ -616,7 +549,7 @@ export function openBrief(dur) {
       if (i > 0) {
         const ou = document.createElement("span");
         ou.className = "briefOr";
-        ou.textContent = t("ui.brief.or", "ou");
+        ou.textContent = "ou";
         keys.appendChild(ou);
       }
       const cap = document.createElement("span");
@@ -627,17 +560,17 @@ export function openBrief(dur) {
 
     const nom = document.createElement("div");
     nom.className = "briefSkillName";
-    nom.textContent = skillNom(c, si);
+    nom.textContent = s.nom;
 
     const desc = document.createElement("div");
     desc.className = "briefSkillDesc";
-    desc.textContent = skillDesc(c, si);
+    desc.textContent = s.desc;
 
     card.append(keys, nom, desc);
     briefSkillsEl.appendChild(card);
   }
 
-  const nom3 = skill3Nom(c.id);
+  const nom3 = SKILL3_NAME[c.id];
   briefThirdEl.textContent = "";
   briefThirdEl.hidden = !nom3;
   if (nom3) {
@@ -647,7 +580,7 @@ export function openBrief(dur) {
       if (i > 0) {
         const ou = document.createElement("span");
         ou.className = "briefOr";
-        ou.textContent = t("ui.brief.or", "ou");
+        ou.textContent = "ou";
         keys.appendChild(ou);
       }
       const cap = document.createElement("span");
@@ -657,8 +590,8 @@ export function openBrief(dur) {
     });
     const txt = document.createElement("span");
     txt.className = "briefThirdText";
-    txt.innerHTML = `<b>${escapeHtml(nom3)}</b> — ${escapeHtml(t("ui.brief.third",
-      "troisième compétence, une carte peut te l'accorder en cours de partie"))}`;
+    txt.innerHTML = `<b>${escapeHtml(nom3)}</b> — troisième compétence, `
+      + `une carte peut te l'accorder en cours de partie`;
     briefThirdEl.append(keys, txt);
   }
 
@@ -713,12 +646,10 @@ export function renderBriefWait() {
   }
   if (!briefWaitTimer) briefWaitTimer = setInterval(renderBriefWait, 250);
   const qui = briefWaiting.length <= 2
-    ? briefWaiting.map(escapeHtml).map(n => `<b>${n}</b>`)
-        .join(` ${escapeHtml(t("ui.and", "et"))} `)
-    : `<b>${tf("ui.nPlayers", "{n} joueurs", { n: briefWaiting.length })}</b>`;
+    ? briefWaiting.map(escapeHtml).map(n => `<b>${n}</b>`).join(" et ")
+    : `<b>${briefWaiting.length} joueurs</b>`;
   const reste = Math.max(0, Math.ceil((briefEndsAt - performance.now()) / 1000));
-  hudBriefEl.innerHTML = tf("ui.hud.briefWait",
-    "En attente de {qui} — briefing <i>{n} s</i>", { qui, n: reste });
+  hudBriefEl.innerHTML = `En attente de ${qui} — briefing <i>${reste} s</i>`;
 }
 
 export function refreshPanel() {
@@ -734,15 +665,11 @@ export function refreshPanel() {
   const isHost = myId === hostId;
   const hostName = lobby.find(l => l.id === hostId)?.name ?? "?";
 
-  if (panelKicker) {
-    panelKicker.textContent = isHost
-      ? t("ui.panel.kicker.host", "Salon · tu es l'hôte")
-      : t("ui.crumb.salon", "Salon");
-  }
-  panelTitle.textContent = roomNameCur || t("ui.crumb.salon", "Salon");
+  if (panelKicker) panelKicker.textContent = isHost ? "Salon · tu es l'hôte" : "Salon";
+  panelTitle.textContent = roomNameCur || "Salon";
   summary.textContent = lobby.length > 1
-    ? tf("ui.panel.connected", "{n} joueurs connectés.", { n: lobby.length })
-    : t("ui.panel.waiting", "En attente de joueurs.");
+    ? `${lobby.length} joueurs connectés.`
+    : "En attente de joueurs.";
   renderScores(lastResult ? lastResult.rows : lobby.map(l => ({
     id: l.id, name: l.name, colorIndex: l.colorIndex,
     score: 0, kills: 0, deaths: 0, total: l.total,
@@ -758,9 +685,7 @@ export function refreshPanel() {
   const jeSuisPret = !!me?.ready;
 
   readyBtn.hidden = solo;
-  readyBtn.textContent = jeSuisPret
-    ? t("ui.panel.notReady", "Je ne suis plus prêt")
-    : t("ui.panel.ready", "Je suis prêt");
+  readyBtn.textContent = jeSuisPret ? "Je ne suis plus prêt" : "Je suis prêt";
   readyBtn.classList.toggle("on", jeSuisPret);
 
   startBtn.hidden = !isHost;
@@ -769,32 +694,26 @@ export function refreshPanel() {
   renderTeam();
   renderHistory();
 
-  const maClasse = classNom(classAt(me?.cls ?? CLASS_DEFAULT));
-  const mode = diffLabel(difficulty);
+  const maClasse = classAt(me?.cls ?? CLASS_DEFAULT).nom;
+  const mode = DIFFICULTIES[difficulty]?.label ?? "normal";
   const prets = lobby.length - manquants.length;
   launchSummaryEl.textContent = solo
-    ? tf("ui.panel.sum.solo", "{cls} · difficulté {mode} · en solo",
-        { cls: maClasse, mode })
-    : tf("ui.panel.sum.team", "{cls} · difficulté {mode} · {prets} sur {tot} {verbe}",
-        { cls: maClasse, mode, prets, tot: lobby.length,
-          verbe: tn("ui.panel.sum.verbe", "est prêt", "sont prêts", prets) });
+    ? `${maClasse} · difficulté ${mode} · en solo`
+    : `${maClasse} · difficulté ${mode} · ${prets} joueur${prets > 1 ? "s" : ""}`
+      + ` sur ${lobby.length} ${prets > 1 ? "sont prêts" : "est prêt"}`;
 
   if (solo) {
-    waitMsg.textContent = t("ui.panel.wait.solo", "Tu joues seul. Lance quand tu veux.");
+    waitMsg.textContent = "Tu joues seul. Lance quand tu veux.";
   } else if (manquants.length === 0) {
     waitMsg.textContent = isHost
-      ? t("ui.panel.wait.allHost",
-          "Tout le monde est prêt. Tout le monde entre en jeu, spectateurs compris.")
-      : tf("ui.panel.wait.allGuest", "Tout le monde est prêt. En attente de {qui}…",
-          { qui: hostName });
+      ? "Tout le monde est prêt. Tout le monde entre en jeu, spectateurs compris."
+      : `Tout le monde est prêt. En attente de ${hostName}…`;
   } else if (manquants.length === 1 && manquants[0].id === myId) {
-    waitMsg.textContent = t("ui.panel.wait.you", "Il ne manque que toi.");
+    waitMsg.textContent = "Il ne manque que toi.";
   } else if (manquants.length <= 2) {
-    waitMsg.textContent = tf("ui.panel.wait.some", "En attente de {qui}.",
-      { qui: manquants.map(l => l.name).join(` ${t("ui.and", "et")} `) });
+    waitMsg.textContent = `En attente de ${manquants.map(l => l.name).join(" et ")}.`;
   } else {
-    waitMsg.textContent = tf("ui.panel.wait.some", "En attente de {qui}.",
-      { qui: tf("ui.nPlayers", "{n} joueurs", { n: manquants.length }) });
+    waitMsg.textContent = `En attente de ${manquants.length} joueurs.`;
   }
 
   renderLaunch();
@@ -808,8 +727,7 @@ function renderTeam() {
   if (teamReadyEl) {
     teamReadyEl.textContent = solo
       ? ""
-      : tf("ui.panel.readyCount", "{n} / {tot} prêts",
-          { n: prets, tot: lobby.length });
+      : `${prets} / ${lobby.length} prêt${lobby.length > 1 ? "s" : ""}`;
   }
 
   for (const l of lobby) {
@@ -826,12 +744,9 @@ function renderTeam() {
       `<span class="teamMain">` +
         `<span class="teamTop">` +
           `<span class="teamName"></span>` +
-          (l.id === hostId
-            ? `<span class="teamHost">${escapeHtml(t("ui.panel.host", "hôte"))}</span>`
-            : "") +
+          (l.id === hostId ? `<span class="teamHost">hôte</span>` : "") +
         `</span>` +
-        `<span class="teamCls">${escapeHtml(cls ? cls.nom
-          : t("ui.panel.noClass", "choisit sa classe…"))}</span>` +
+        `<span class="teamCls">${cls ? escapeHtml(cls.nom) : "choisit sa classe…"}</span>` +
       `</span>` +
       `<span class="teamPing">${pingTxt}</span>` +
       `<span class="teamDot"></span>`;
@@ -853,8 +768,7 @@ function renderHistory() {
     const row = document.createElement("div");
     row.className = "histRow";
     row.innerHTML = `<span class="histWhen">—</span>`
-      + `<span class="histLabel">${escapeHtml(t("ui.panel.hist.empty",
-        "Aucune manche jouée dans cette salle."))}</span><span></span>`;
+      + `<span class="histLabel">Aucune manche jouée dans cette salle.</span><span></span>`;
     historyListEl.appendChild(row);
     return;
   }
@@ -864,7 +778,7 @@ function renderHistory() {
     const heure = Number.isFinite(t.getTime())
       ? `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`
       : "—";
-    const mode = diffLabel(h.diffIndex);
+    const mode = DIFFICULTIES[h.diffIndex]?.label ?? "?";
 
     const etape = h.segment > 0 ? `${segmentName(h.segment)} (${h.segment}/6)` : "—";
     const row = document.createElement("div");
@@ -881,13 +795,22 @@ readyBtn.onclick = () => {
   const me = lobby.find(l => l.id === myId);
   ws.send(JSON.stringify({ t: "ready", on: !me?.ready }));
 };
-function mulCourt(v) { return "×" + dec(+v.toFixed(2)).replace(/[.,]?0+$/, ""); }
+const VOTE_STATS = [
+  { nom: "PV",          val: d => d.hp },
+  { nom: "apparitions", val: d => d.spawn },
+  { nom: "dégâts",      val: d => d.dmg },
+  { nom: "boss",        val: d => d.boss },
+];
+function mul2(v) { return "×" + v.toFixed(2).replace(".", ","); }
+function mulCourt(v) { return "×" + String(+v.toFixed(2)).replace(".", ","); }
 function voteDetail(d, i) {
-  const lignes = diffResume(i);
-  const risque = i === 0 ? t("ui.vote.biome.calme", "aucun danger")
-    : i === 1 ? t("ui.vote.biome.normal", "rien qui blesse")
-    : t("ui.vote.biome.cauchemar", "dangers actifs et météo");
-  lignes.push(`${biomeNom(biomeIndex)} — ${biomeResume(biomeIndex)} · ${risque}`);
+  const lignes = (d.resume ?? []).slice();
+  const b = biomeAt(biomeIndex);
+  lignes.push(i === 0
+    ? `${b.nom} — ${b.resume} · aucun danger`
+    : i === 1
+      ? `${b.nom} — ${b.resume} · rien qui blesse`
+      : `${b.nom} — ${b.resume} · dangers actifs et météo`);
   return lignes.join(" · ");
 }
 function renderVote() {
@@ -899,16 +822,12 @@ function renderVote() {
     const noyaux = PROG_CFG.DIFF_MUL[i] ?? 1;
     btn.innerHTML =
       `<span class="voteHead"><span class="voteName"></span>`
-      + `<span class="voteMul">${escapeHtml(t("ui.vote.cores", "noyaux"))}`
-      + ` ${mulCourt(noyaux)}</span></span>`
+      + `<span class="voteMul">noyaux ${mulCourt(noyaux)}</span></span>`
       + `<span class="voteDetail"></span>`
       + (n > 0 ? `<span class="tally"></span>` : "");
-    btn.querySelector(".voteName").textContent = diffLabel(i);
+    btn.querySelector(".voteName").textContent = d.label;
     btn.querySelector(".voteDetail").textContent = voteDetail(d, i);
-    if (n > 0) {
-      btn.querySelector(".tally").textContent =
-        tn("ui.vote.tally", "{n} voix", "{n} voix", n);
-    }
+    if (n > 0) btn.querySelector(".tally").textContent = `${n} voix`;
     btn.classList.toggle("mine", i === myVote);
     btn.classList.toggle("winner", i === difficulty);
     btn.onclick = () => {
@@ -920,18 +839,16 @@ function renderVote() {
     voteRow.appendChild(btn);
   });
 
-  const retenu = diffLabel(difficulty);
+  const retenu = DIFFICULTIES[difficulty]?.label ?? "normal";
   voteHint.textContent = lobby.length > 1
-    ? tf("ui.vote.hint.team",
-        "Mode retenu : {mode} ({n} voix sur {tot}). À égalité, le plus doux l'emporte.",
-        { mode: retenu, n: tally[difficulty] ?? 0, tot: lobby.length })
-    : tf("ui.vote.hint.solo",
-        "Mode retenu : {mode}. Le vote se verrouille au lancement.", { mode: retenu });
+    ? `Mode retenu : ${retenu} (${tally[difficulty] ?? 0} voix sur ${lobby.length}).`
+      + ` À égalité, le plus doux l'emporte.`
+    : `Mode retenu : ${retenu}. Le vote se verrouille au lancement.`;
 }
 const CLASS_STATS = [
-  { cle: "pv", nom: "PV", val: c => c.hp, texte: c => String(c.hp) },
-  { cle: "degats", nom: "dégâts", val: c => c.damageMul, texte: c => pourcent(c.damageMul) },
-  { cle: "vitesse", nom: "vitesse", val: c => c.speedMul, texte: c => pourcent(c.speedMul) },
+  { nom: "PV", val: c => c.hp, texte: c => String(c.hp) },
+  { nom: "dégâts", val: c => c.damageMul, texte: c => pourcent(c.damageMul) },
+  { nom: "vitesse", val: c => c.speedMul, texte: c => pourcent(c.speedMul) },
 ];
 function pourcent(mul) {
   const p = Math.round((mul - 1) * 100);
@@ -985,7 +902,7 @@ function renderClasses() {
 
     const stats = CLASS_STATS.map((st, k) =>
       `<div class="statRow">` +
-        `<span class="statName">${escapeHtml(t(`ui.stat.${st.cle}`, st.nom))}</span>` +
+        `<span class="statName">${st.nom}</span>` +
         `<span class="statBar"><i style="width:${Math.round(st.val(c) / maxi[k] * 100)}%"></i></span>` +
         `<span class="statVal">${escapeHtml(st.texte(c))}</span>` +
       `</div>`).join("");
@@ -994,23 +911,20 @@ function renderClasses() {
       `<div class="classHead">` +
         `<canvas class="classSil"></canvas>` +
         `<div>` +
-          `<div class="className">${escapeHtml(classNom(c))}</div>` +
-          `<div class="classRole">${escapeHtml(classDesc(c))}</div>` +
+          `<div class="className">${escapeHtml(c.nom)}</div>` +
+          `<div class="classRole">${escapeHtml(c.desc)}</div>` +
         `</div>` +
       `</div>` +
       `<div class="classStats">${stats}</div>` +
-      c.skills.map((s, k) =>
+      c.skills.map(s =>
         `<div class="classSkill"><span class="key">${escapeHtml(s.touche)}</span>` +
-        `<span><b>${escapeHtml(skillNom(c, k))}</b> — `
-        + `${escapeHtml(skillDesc(c, k))}</span></div>`
+        `<span><b>${escapeHtml(s.nom)}</b> — ${escapeHtml(s.desc)}</span></div>`
       ).join("") +
       // un joueur qui choisit soigneur pour une partie SOLO doit le savoir
       // avant, pas le decouvrir a la minute 8
       (c.solo && lobby.length <= 1
-        ? `<div class="classSolo">${escapeHtml(tf("ui.class.solo", "seul : {txt}",
-            { txt: classSolo(c) }))}</div>` : "") +
-      (pris ? `<div class="classTaken">${escapeHtml(tf("ui.class.taken",
-        "pris par {qui}", { qui: pris }))}</div>` : "");
+        ? `<div class="classSolo">seul : ${escapeHtml(c.solo)}</div>` : "") +
+      (pris ? `<div class="classTaken">pris par ${escapeHtml(pris)}</div>` : "");
 
     paintClassSilhouette(btn.querySelector(".classSil"), c);
 
@@ -1027,7 +941,7 @@ function renderClasses() {
       const meta = document.createElement("button");
       meta.className = "classMetaBtn";
       if (mine !== metaBtnCls) meta.classList.add("fresh");
-      meta.textContent = tf("ui.class.talents", "Talents du {cls}", { cls: classNom(c) });
+      meta.textContent = `Talents du ${c.nom}`;
       meta.style.color = c.couleur;
       const dot = document.createElement("i");
       dot.className = "metaDot";
@@ -1042,16 +956,14 @@ function renderClasses() {
 
   if (!classHint) return;
   if (locked) {
-    classHint.textContent = tf("ui.class.locked",
-      "Classe verrouillée pour la session : {cls}.",
-      { cls: classNom(classAt(mine ?? CLASS_DEFAULT)) });
+    classHint.textContent =
+      `Classe verrouillée pour la session : ${classAt(mine ?? CLASS_DEFAULT).nom}.`;
   } else if (mine === null || mine === undefined) {
-    classHint.textContent = tf("ui.class.default",
-      "Sans choix explicite, tu entres en {cls}. Le choix se verrouille au lancement.",
-      { cls: classNom(CLASSES[CLASS_DEFAULT]) });
+    classHint.textContent =
+      `Sans choix explicite, tu entres en ${CLASSES[CLASS_DEFAULT].nom}.`
+      + " Le choix se verrouille au lancement.";
   } else {
-    classHint.textContent = t("ui.class.lockHint",
-      "Le choix se verrouille au lancement de la première manche.");
+    classHint.textContent = "Le choix se verrouille au lancement de la première manche.";
   }
 }
 const META_TABS = [
@@ -1076,13 +988,13 @@ export function renderMeta(clsOverride) {
   const slots = slotsFor(pr);
   const equipped = cp.equipped ?? [];
 
-  menuTitleEl.textContent = tf("ui.meta.title", "Arbre du {cls}", { cls: classNom(cdef) });
-  metaCoresEl.textContent = tf("ui.meta.cores", "{n} noyaux", { n: pr.cores });
+  menuTitleEl.textContent = `Arbre du ${cdef.nom}`;
+  metaCoresEl.textContent = `${pr.cores} noyaux`;
 
   metaClassTabsEl.innerHTML = "";
   for (let i = 0; i < CLASSES.length; i++) {
     const b = document.createElement("button");
-    b.textContent = classNom(CLASSES[i]);
+    b.textContent = CLASSES[i].nom;
     b.className = classAt(i).id === clsId ? "mine" : "";
     b.onclick = () => renderMeta(i);
     metaClassTabsEl.appendChild(b);
@@ -1090,20 +1002,12 @@ export function renderMeta(clsOverride) {
 
   const bosses = (pr.milestones ?? []).filter(id => id.startsWith("boss_")).length;
   metaSlotsEl.innerHTML =
-    `<b>${escapeHtml(tf("ui.meta.slots", "Emplacements {n} / {tot}",
-      { n: equipped.length, tot: slots }))}</b> `
-    + escapeHtml(tf("ui.meta.slots.sur",
-        "équipés sur le {cls} · réattribution libre entre les manches",
-        { cls: classNom(cdef) }))
-    + `<br><small>`
-    + escapeHtml(tf("ui.meta.slots.base", "{n} de départ", { n: PROG_CFG.SLOTS_BASE }))
-    + ` · ` + escapeHtml(tf("ui.meta.slots.niveau", "niveau {n}", { n: PROG_CFG.SLOTS_LEVEL }))
-    + ` ${(pr.milestones ?? []).includes(`niveau${PROG_CFG.SLOTS_LEVEL}`) ? "✓" : "•"}`
-    + ` · ` + escapeHtml(tf("ui.meta.slots.boss", "{n} boss différents ({a}/{n})",
-        { n: PROG_CFG.SLOTS_BOSSES, a: Math.min(bosses, PROG_CFG.SLOTS_BOSSES) }))
-    + ` · ` + escapeHtml(tf("ui.meta.slots.parties", "{n} parties ({a}/{n})",
-        { n: PROG_CFG.SLOTS_RUNS, a: Math.min(pr.runs ?? 0, PROG_CFG.SLOTS_RUNS) }))
-    + `</small>`;
+    `<b>Emplacements ${equipped.length} / ${slots}</b> équipés sur le ${escapeHtml(cdef.nom)}`
+    + ` · réattribution libre entre les manches<br>`
+    + `<small>${PROG_CFG.SLOTS_BASE} de départ`
+    + ` · niveau ${PROG_CFG.SLOTS_LEVEL} ${(pr.milestones ?? []).includes(`niveau${PROG_CFG.SLOTS_LEVEL}`) ? "✓" : "•"}`
+    + ` · ${PROG_CFG.SLOTS_BOSSES} boss différents (${Math.min(bosses, PROG_CFG.SLOTS_BOSSES)}/${PROG_CFG.SLOTS_BOSSES})`
+    + ` · ${PROG_CFG.SLOTS_RUNS} parties (${Math.min(pr.runs ?? 0, PROG_CFG.SLOTS_RUNS)}/${PROG_CFG.SLOTS_RUNS})</small>`;
 
   metaTreeEl.hidden = metaTab !== "arbre";
   metaConfortEl.hidden = metaTab !== "confort";
@@ -1113,33 +1017,26 @@ export function renderMeta(clsOverride) {
     document.getElementById(id).classList.toggle("mine", metaTab === tab);
   }
   metaSubEl.textContent = metaTab === "arbre"
-    ? tf("ui.meta.sub.arbre", "arbre du {cls} — l'effet affiché est le TOTAL possédé",
-        { cls: classNom(cdef) })
+    ? `arbre du ${cdef.nom} — l'effet affiché est le TOTAL possédé`
     : metaTab === "confort"
-      ? t("ui.meta.sub.confort",
-          "confort et lignes communes : aucun emplacement consommé, valent pour les trois classes")
+      ? "confort et lignes communes : aucun emplacement consommé, valent pour les trois classes"
       : metaTab === "jalons"
-        ? t("ui.meta.sub.jalons",
-            "les jalons débloquent cartes et emplacements — jamais des noyaux")
-        : t("ui.meta.sub.bans",
-            "cartes bannies de ce compte — définitif, pas de débannissement");
+        ? "les jalons débloquent cartes et emplacements — jamais des noyaux"
+        : "cartes bannies de ce compte — définitif, pas de débannissement";
 
   metaBansEl.innerHTML = "";
   const bans = progressState?.bannedCards ?? [];
   if (bans.length === 0) {
-    metaBansEl.innerHTML = `<div class="hint">${escapeHtml(t("ui.meta.bans.empty",
-      "aucune carte bannie — le bouton vit sur l'écran de choix, pendant une manche"))}</div>`;
+    metaBansEl.innerHTML = `<div class="hint">aucune carte bannie — le bouton vit sur l'écran de choix, pendant une manche</div>`;
   } else {
     for (const bid of bans) {
       const card = CARD_BY_ID.get(bid);
       const row = document.createElement("div");
       row.className = "metaLine confort banned";
       row.innerHTML =
-        `<span class="metaName">${escapeHtml(cardNom(bid) || bid)}</span>` +
-        `<span class="metaDesc">${escapeHtml(card
-          ? cardDesc(bid)
-          : t("ui.meta.bans.unknown", "carte inconnue de cette version"))}</span>` +
-        `<span class="metaBanTag">${escapeHtml(t("ui.meta.bans.tag", "bannie"))}</span>`;
+        `<span class="metaName">${escapeHtml(card?.nom ?? bid)}</span>` +
+        `<span class="metaDesc">${escapeHtml(card?.desc ?? "carte inconnue de cette version")}</span>` +
+        `<span class="metaBanTag">bannie</span>`;
       metaBansEl.appendChild(row);
     }
   }
@@ -1154,27 +1051,24 @@ export function renderMeta(clsOverride) {
     row.className = "metaLine"
       + (isEquipped ? " equipped" : n > 0 ? " owned" : " locked");
     row.innerHTML =
-      `<span class="metaName">${escapeHtml(ligneNom(line))}</span>` +
+      `<span class="metaName">${escapeHtml(line.nom)}</span>` +
       `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
-      `<span class="metaDesc">${escapeHtml(n > 0 ? line.desc(n)
-        : tf("ui.meta.parPalier", "{txt} par palier", { txt: line.desc(1) }))}</span>`;
+      `<span class="metaDesc">${escapeHtml(n > 0 ? line.desc(n) : line.desc(1) + " par palier")}</span>`;
 
     const buy = document.createElement("button");
     buy.className = "metaBuy";
     if (n >= PROG_CFG.TIERS_MAX) {
-      buy.textContent = t("ui.meta.max", "max");
+      buy.textContent = "max";
       buy.disabled = true;
     } else {
-      buy.textContent = tf("ui.meta.cores", "{n} noyaux", { n: cost });
+      buy.textContent = `${cost} noyaux`;
       buy.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
       buy.onclick = () => ws.send(JSON.stringify({ t: "metaBuy", cls: clsId, line: line.id }));
     }
 
     const eq = document.createElement("button");
     eq.className = "metaEquip" + (isEquipped ? " on" : "");
-    eq.textContent = isEquipped
-      ? t("ui.meta.equipped", "équipée")
-      : t("ui.meta.equip", "équiper");
+    eq.textContent = isEquipped ? "équipée" : "équiper";
     eq.disabled = n <= 0 || (!isEquipped && equipped.length >= slots) || phase !== PHASE_LOBBY;
     eq.onclick = () => {
       const lines = isEquipped ? equipped.filter(l => l !== line.id) : [...equipped, line.id];
@@ -1192,15 +1086,15 @@ export function renderMeta(clsOverride) {
     const row = document.createElement("div");
     row.className = "metaLine confort";
     row.innerHTML =
-      `<span class="metaName">${escapeHtml(confortNom(cf.id))}</span>` +
-      `<span class="metaDesc">${escapeHtml(confortDesc(cf.id))}</span>`;
+      `<span class="metaName">${escapeHtml(cf.nom)}</span>` +
+      `<span class="metaDesc">${escapeHtml(cf.desc)}</span>`;
     const b = document.createElement("button");
     b.className = "metaBuy";
     if (owned) {
-      b.textContent = t("ui.meta.owned", "acquise");
+      b.textContent = "acquise";
       b.disabled = true;
     } else {
-      b.textContent = tf("ui.meta.cores", "{n} noyaux", { n: cost });
+      b.textContent = `${cost} noyaux`;
       b.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
       b.onclick = () => ws.send(JSON.stringify({ t: "metaConfort", id: cf.id }));
     }
@@ -1214,17 +1108,16 @@ export function renderMeta(clsOverride) {
     const row = document.createElement("div");
     row.className = "metaLine confort" + (n > 0 ? " owned" : "");
     row.innerHTML =
-      `<span class="metaName">${escapeHtml(ligneNom(line))}</span>` +
+      `<span class="metaName">${escapeHtml(line.nom)}</span>` +
       `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
-      `<span class="metaDesc">${escapeHtml(n > 0 ? line.desc(n)
-        : tf("ui.meta.parPalier", "{txt} par palier", { txt: line.desc(1) }))}</span>`;
+      `<span class="metaDesc">${escapeHtml(n > 0 ? line.desc(n) : line.desc(1) + " par palier")}</span>`;
     const b = document.createElement("button");
     b.className = "metaBuy";
     if (n >= PROG_CFG.TIERS_MAX) {
-      b.textContent = t("ui.meta.max", "max");
+      b.textContent = "max";
       b.disabled = true;
     } else {
-      b.textContent = tf("ui.meta.cores", "{n} noyaux", { n: cost });
+      b.textContent = `${cost} noyaux`;
       b.disabled = pr.cores < cost || phase !== PHASE_LOBBY;
       b.onclick = () => ws.send(JSON.stringify({ t: "metaCommun", line: line.id }));
     }
@@ -1236,19 +1129,14 @@ export function renderMeta(clsOverride) {
   metaMilestonesEl.innerHTML = MILESTONES.map(m => {
     const ok = done.has(m.id);
     return `<span class="metaJalon${ok ? " done" : ""}">`
-      + `${ok ? "✓" : "•"} ${escapeHtml(jalonLabel(m))}`
-      + ` <small>(${escapeHtml(tn("ui.meta.jalon.cartes",
-          "{n} carte", "{n} cartes", m.unlocks.length))})</small></span>`;
+      + `${ok ? "✓" : "•"} ${escapeHtml(m.label)}`
+      + ` <small>(${m.unlocks.length} carte${m.unlocks.length > 1 ? "s" : ""})</small></span>`;
   }).join("");
 }
 function renderScores(rows, body = scoresBody) {
   body.innerHTML = "";
   const head = document.createElement("tr");
-  head.innerHTML = [
-    ["joueur", "joueur"], ["classe", "classe"], ["niv", "niv."], ["score", "score"],
-    ["kills", "kills"], ["morts", "morts"], ["degats", "dégâts"],
-    ["cartes", "cartes"], ["noyaux", "noyaux"], ["cumul", "cumul"],
-  ].map(([cle, lab]) => `<th>${escapeHtml(t(`ui.col.${cle}`, lab))}</th>`).join("");
+  head.innerHTML = "<th>joueur</th><th>classe</th><th>niv.</th><th>score</th><th>kills</th><th>morts</th><th>dégâts</th><th>cartes</th><th>noyaux</th><th>cumul</th>";
   body.appendChild(head);
 
   for (const r of rows) {
@@ -1258,7 +1146,7 @@ function renderScores(rows, body = scoresBody) {
     const cdef = (r.cls === null || r.cls === undefined) ? null : classAt(r.cls);
     tr.innerHTML =
       `<td class="name" style="color:${col}">${escapeHtml(r.name)}${tag}</td>` +
-      `<td class="sub"${cdef ? ` style="color:${cdef.couleur}"` : ""}>${cdef ? escapeHtml(classNom(cdef)) : "—"}</td>` +
+      `<td class="sub"${cdef ? ` style="color:${cdef.couleur}"` : ""}>${cdef ? escapeHtml(cdef.nom) : "—"}</td>` +
       `<td>${r.level ?? 1}</td>` +
       `<td>${r.score}</td><td>${r.kills}</td><td>${r.deaths}</td>` +
       `<td>${Math.round(r.damage ?? 0)}</td>` +
@@ -1266,7 +1154,7 @@ function renderScores(rows, body = scoresBody) {
       `<td class="sub">${r.cores !== undefined ? "+" + r.cores : "—"}</td>` +
       `<td class="sub">${r.total ? r.total.score : 0}</td>`;
     tr.className = "clickable";
-    tr.title = t("ui.col.voirBuild", "voir la build");
+    tr.title = "voir la build";
     tr.onclick = () => openBuild(r.id);
     body.appendChild(tr);
   }
@@ -1279,21 +1167,20 @@ export function openFin(res) {
   bilanEl.hidden = true;
 
   if (finKicker) {
-    finKicker.textContent = [roomNameCur, diffLabel(difficulty)].filter(Boolean).join(" · ");
+    const mode = DIFFICULTIES[difficulty]?.label ?? "";
+    finKicker.textContent = [roomNameCur, mode].filter(Boolean).join(" · ");
   }
 
   finEl.classList.toggle("win", !!res.victory);
-  finTitle.textContent = res.victory
-    ? t("ui.fin.win", "Victoire")
-    : t("ui.fin.lose", "Tu es tombé");
+  finTitle.textContent = res.victory ? "Victoire" : "Tu es tombé";
 
   const etape = res.segment
     ? `${segmentName(res.segment)} (${res.segment}/${TL_CFG.SEGMENTS})`
     : "—";
   finStats.innerHTML = [
-    [t("ui.fin.stat.etape", "étape atteinte"), etape],
-    [t("ui.fin.stat.niveau", "niveau"), String(res.level ?? 1)],
-    [t("ui.fin.stat.survie", "survie"), fmtTime(res.time)],
+    ["étape atteinte", etape],
+    ["niveau", String(res.level ?? 1)],
+    ["survie", fmtTime(res.time)],
   ].map(([lab, val]) =>
     `<div class="finStat"><span class="val">${escapeHtml(val)}</span>` +
     `<span class="lab">${escapeHtml(lab)}</span></div>`).join("");
@@ -1317,51 +1204,45 @@ export function showBilan(res) {
   bilanEl.hidden = false;
   panel.hidden = true;
 
-  const niv = res.level
-    ? ` — ${tf("ui.bilan.niveau", "niveau {n}", { n: res.level })}`
-    : "";
+  const niv = res.level ? ` — niveau ${res.level}` : "";
   bilanEl.classList.toggle("win", !!res.victory);
   bilanTitle.textContent = res.victory
-    ? t("ui.bilan.win", "Victoire — les six étapes franchies") + niv
+    ? `Victoire — les six étapes franchies${niv}`
     : res.segment
-      ? tf("ui.bilan.lose.step", "Partie terminée — {etape} ({n}/{tot})",
-          { etape: segmentName(res.segment), n: res.segment, tot: TL_CFG.SEGMENTS }) + niv
-      : t("ui.bilan.lose", "Partie terminée");
+      ? `Partie terminée — ${segmentName(res.segment)}`
+        + ` (${res.segment}/${TL_CFG.SEGMENTS})${niv}`
+      : `Partie terminée`;
   if (bilanKicker) {
-    bilanKicker.textContent = [roomNameCur, diffLabel(difficulty)].filter(Boolean).join(" · ");
+    const mode = DIFFICULTIES[difficulty]?.label ?? "";
+    bilanKicker.textContent = [roomNameCur, mode].filter(Boolean).join(" · ");
   }
 
   const joueurs = res.rows.filter(r => r.played).length || res.rows.length;
   bilanStats.innerHTML =
-    `<div class="bilanStat"><span class="lab">${escapeHtml(
-      t("ui.fin.stat.survie", "survie"))}</span>` +
+    `<div class="bilanStat"><span class="lab">survie</span>` +
     `<span class="val">${escapeHtml(fmtTime(res.time))}</span></div>` +
-    `<div class="bilanStat"><span class="lab">${escapeHtml(
-      t("ui.col.kills", "kills"))}</span>` +
+    `<div class="bilanStat"><span class="lab">kills</span>` +
     `<span class="val">${res.kills}</span></div>` +
-    `<div class="bilanStat"><span class="lab">${escapeHtml(
-      t("ui.bilan.stat.joueurs", "joueurs"))}</span>` +
+    `<div class="bilanStat"><span class="lab">joueurs</span>` +
     `<span class="val">${joueurs}</span></div>` +
-    `<div class="bilanStat"><span class="lab">${escapeHtml(
-      t("ui.bilan.stat.manche", "manche"))}</span>` +
+    `<div class="bilanStat"><span class="lab">manche</span>` +
     `<span class="val">${res.round}</span></div>`;
   renderHurtBy(res.rows);
   renderBilanScores(res.rows);
 }
 const BILAN_COLS = [
-  { cle: "score",  lab: "score",  val: r => fmtBig(r.score ?? 0),   mine: true },
-  { cle: "kills",  lab: "kills",  val: r => String(r.kills ?? 0) },
-  { cle: "morts",  lab: "morts",  val: r => String(r.deaths ?? 0) },
-  { cle: "degats", lab: "dégâts", val: r => fmtBig(r.damage ?? 0) },
-  { cle: "soins",  lab: "soins",  val: r => (r.heal ?? 0) > 0 ? fmtBig(r.heal) : "—" },
-  { cle: "noyaux", lab: "noyaux", val: r => r.cores !== undefined ? String(r.cores) : "—" },
+  { lab: "score",  val: r => fmtBig(r.score ?? 0),   mine: true },
+  { lab: "kills",  val: r => String(r.kills ?? 0) },
+  { lab: "morts",  val: r => String(r.deaths ?? 0) },
+  { lab: "dégâts", val: r => fmtBig(r.damage ?? 0) },
+  { lab: "soins",  val: r => (r.heal ?? 0) > 0 ? fmtBig(r.heal) : "—" },
+  { lab: "noyaux", val: r => r.cores !== undefined ? String(r.cores) : "—" },
 ];
 function renderBilanScores(rows) {
   bilanScoresBody.innerHTML = "";
   const head = document.createElement("tr");
-  head.innerHTML = `<th>${escapeHtml(t("ui.col.joueur", "joueur"))}</th>`
-    + BILAN_COLS.map(c =>
-        `<th>${escapeHtml(t(`ui.col.${c.cle}`, c.lab))}</th>`).join("");
+  head.innerHTML = `<th>joueur</th>`
+    + BILAN_COLS.map(c => `<th>${c.lab}</th>`).join("");
   bilanScoresBody.appendChild(head);
 
   for (const r of rows) {
@@ -1375,7 +1256,7 @@ function renderBilanScores(rows) {
         `<span class="whoDot" style="color:${col}">${escapeHtml(ini)}</span>` +
         `<span class="whoText">` +
           `<span class="whoName">${escapeHtml(r.name)}</span>` +
-          `<span class="whoCls">${cdef ? escapeHtml(classNom(cdef)) : "—"}</span>` +
+          `<span class="whoCls">${cdef ? escapeHtml(cdef.nom) : "—"}</span>` +
         `</span>` +
       `</td>`
       + BILAN_COLS.map(c =>
@@ -1397,14 +1278,13 @@ function renderHurtBy(rows) {
   bilanHurt.hidden = false;
 
   const parts = DAMAGE_SOURCES
-    .map((s, i) => ({ i, label: srcLabel(i), val: total[i] }))
+    .map((s, i) => ({ i, label: s.label, val: total[i] }))
     .filter(p => p.val > 0)
     .sort((a, b) => b.val - a.val);
 
   const segs = parts.map(p => ({ ...p, pct: Math.round(p.val / somme * 100) }));
   bilanHurt.innerHTML =
-    `<div class="hurtTitle sectionTitle">${escapeHtml(t("ui.bilan.hurt",
-      "dégâts subis par l'équipe"))}</div>` +
+    `<div class="hurtTitle sectionTitle">dégâts subis par l'équipe</div>` +
     `<div class="hurtStack">` +
       segs.map(p => `<i style="width:${p.pct}%;background:${SRC_TINT[p.i]}"></i>`).join("") +
     `</div>` +
@@ -1417,12 +1297,10 @@ function renderHurtBy(rows) {
     `</div>`;
   if (PERF) {
     bilanPerf.hidden = false;
-    bilanPerf.textContent = tf("ui.bilan.perf",
-      "diagnostic réseau — famine {fam} · recal {rec} · >{ms}ms {gap}"
-      + " · max gap {maxGap} ms · img max {maxImg} ms",
-      { fam: netPerf.totFamine, rec: netPerf.totResnap, ms: INTERP_MS,
-        gap: netPerf.totGap, maxGap: netPerf.maxGap.toFixed(0),
-        maxImg: netPerf.maxFrame.toFixed(0) });
+    bilanPerf.textContent =
+      `diagnostic réseau — famine ${netPerf.totFamine} · recal ${netPerf.totResnap}`
+      + ` · >${INTERP_MS}ms ${netPerf.totGap} · max gap ${netPerf.maxGap.toFixed(0)} ms`
+      + ` · img max ${netPerf.maxFrame.toFixed(0)} ms`;
   }
 }
 export function closeBilan() {
@@ -1449,7 +1327,7 @@ function cardBadges(playerId) {
     if (!card) continue;
     const col = RARITY_COLOR[card.rarity] ?? RARITY_COLOR[0];
     html += `<span class="cardBadge" style="border-color:${col};color:${col}">` +
-      `${escapeHtml(cardNom(id))}${n > 1 ? ` ×${n}` : ""}</span>`;
+      `${escapeHtml(card.nom)}${n > 1 ? ` ×${n}` : ""}</span>`;
   }
   return html;
 }
@@ -1479,11 +1357,8 @@ export function renderMerchant() {
 
   const epuise = (merchantState.achats ?? 1) <= 0;
   merchantTitle.innerHTML =
-    `${escapeHtml(t("ui.merchant.title", "Marchand"))} `
-    + `<span class="merchantEclats">${escapeHtml(tf("ui.merchant.eclats",
-        "{n} éclats", { n: merchantState.eclats }))}</span>` +
-    (epuise ? `<span class="merchantAchat">${escapeHtml(t("ui.merchant.oneBuy",
-      "une relique par visite"))}</span>` : "");
+    `Marchand <span class="merchantEclats">${merchantState.eclats} éclats</span>` +
+    (epuise ? `<span class="merchantAchat">une relique par visite</span>` : "");
 
   merchantRow.innerHTML = "";
   for (const id of merchantState.offers) {
@@ -1498,22 +1373,20 @@ export function renderMerchant() {
     btn.disabled = merchantState.done || epuise || merchantState.eclats < prix;
     let html =
       `<div class="cardTop">` +
-        `<span class="cardName">${escapeHtml(relicNom(r.id))}</span>` +
+        `<span class="cardName">${escapeHtml(r.nom)}</span>` +
       `</div>` +
       `<div class="cardMeta">` +
-        `<span class="cardRarity">${escapeHtml(relicRarityLabel(r.tier))}</span>` +
+        `<span class="cardRarity">${RELIC_RARITY[r.tier] ?? ""}</span>` +
       `</div>` +
       `<div class="cardBody">` +
-        `<div class="cardMain">${escapeHtml(relicDesc(r.id))}</div>` +
-        (r.equipe ? `<div class="cardTeam">${escapeHtml(t("ui.merchant.team",
-          "effet d'équipe"))}</div>` : "") +
+        `<div class="cardMain">${escapeHtml(r.desc)}</div>` +
+        (r.equipe ? `<div class="cardTeam">effet d'équipe</div>` : "") +
         (r.contrepartie
-          ? `<div class="cardWarn">${escapeHtml(relicContrepartie(r.id))}</div>`
+          ? `<div class="cardWarn">${escapeHtml(r.contrepartie)}</div>`
           : "") +
       `</div>` +
       `<div class="cardFoot">` +
-        `<span class="merchantPrix">${escapeHtml(tf("ui.merchant.eclats",
-          "{n} éclats", { n: prix }))}</span>` +
+        `<span class="merchantPrix">${prix} éclats</span>` +
       `</div>`;
     btn.innerHTML = html;
     btn.onclick = () => buyRelic(id);
@@ -1522,8 +1395,7 @@ export function renderMerchant() {
 
   const reroll = document.createElement("button");
   reroll.className = "ghost";
-  reroll.textContent = tf("ui.merchant.reroll", "Relancer ({n} éclats)",
-    { n: merchantState.rerollCost });
+  reroll.textContent = `Relancer (${merchantState.rerollCost} éclats)`;
   reroll.disabled = merchantState.done || epuise
     || merchantState.eclats < merchantState.rerollCost;
   reroll.onclick = () => {
@@ -1533,9 +1405,7 @@ export function renderMerchant() {
 
   const passer = document.createElement("button");
   passer.className = "ghost";
-  passer.textContent = epuise
-    ? t("ui.merchant.done", "Terminer")
-    : t("ui.merchant.skip", "Passer");
+  passer.textContent = epuise ? "Terminer" : "Passer";
   passer.disabled = merchantState.done;
   passer.onclick = () => {
     merchantState.done = true;
@@ -1551,7 +1421,7 @@ export function renderMerchantWait() {
   if (!merchantState) return;
   const names = merchantWait.filter(id => id !== myId).map(id => nameOf(id));
   merchantWaitEl.textContent = names.length
-    ? tf("ui.wait.players", "en attente de {qui}…", { qui: names.join(", ") })
+    ? `en attente de ${names.join(", ")}…`
     : "";
 }
 function buyRelic(id) {
@@ -1606,24 +1476,21 @@ function banCard(id) {
   if (!card) return;
   const closure = banClosure(id)
     .filter(bid => !(progressState?.bannedCards ?? []).includes(bid));
-  let msg = tf("ui.ban.ask", "Bannir « {nom} » ?", { nom: cardNom(id) }) + "\n\n"
-    + t("ui.ban.warn",
-        "Cette carte ne sera plus JAMAIS proposée sur ce compte, et tu ne "
-        + "recevras pas de carte de remplacement pour cette apparition.");
+  let msg = `Bannir « ${card.nom} » ?\n\n`
+    + "Cette carte ne sera plus JAMAIS proposée sur ce compte, et tu ne "
+    + "recevras pas de carte de remplacement pour cette apparition.";
   const entrained = closure.filter(bid => bid !== id);
   if (entrained.length > 0) {
-    msg += "\n\n" + t("ui.ban.closure",
-      "Bannies avec elle (elles dépendent de celle-ci) :") + "\n— "
-      + entrained.map(bid => cardNom(bid) || bid).join("\n— ");
+    msg += "\n\nBannies avec elle (elles dépendent de celle-ci) :\n— "
+      + entrained.map(bid => CARD_BY_ID.get(bid)?.nom ?? bid).join("\n— ");
   }
   if (card.excl === "skill3") {
     const variants = CARDS.filter(c => c.excl === "skill3" && c.cls === card.cls);
     const banned = new Set([...(progressState?.bannedCards ?? []), ...closure]);
     if (variants.every(v => banned.has(v.id))) {
-      msg += "\n\n" + tf("ui.ban.last",
-        "⚠ C'est la DERNIÈRE variante de troisième compétence du {cls} : "
-        + "ce compte n'aura plus jamais de troisième compétence sur cette classe.",
-        { cls: classNom(classAt(lobby.find(l => l.id === myId)?.cls ?? CLASS_DEFAULT)) });
+      msg += "\n\n⚠ C'est la DERNIÈRE variante de troisième compétence du "
+        + `${classAt(lobby.find(l => l.id === myId)?.cls ?? CLASS_DEFAULT).nom} : `
+        + "ce compte n'aura plus jamais de troisième compétence sur cette classe.";
     }
   }
   if (!confirm(msg)) return;
@@ -1637,15 +1504,12 @@ export function renderCards() {
   cardsEl.hidden = false;
 
   const suite = cardsState.more > 0
-    ? ` — ` + tf("ui.cards.more", "encore {n} choix après celui-ci", { n: cardsState.more })
+    ? ` — encore ${cardsState.more} choix après celui-ci`
     : "";
-  const niveau = tf("ui.cards.level", "niveau {n}", { n: cardsState.level });
   cardsTitle.textContent = cardsState.bossWave
-    ? tf("ui.cards.title.boss", "{boss} vaincu — {niveau}", {
-        boss: `${bossNom(cardsState.bossKind).toUpperCase()} `
-          + `${ROMAN[cardsState.boss] ?? cardsState.boss}`, niveau }) + suite
-    : tf("ui.cards.title.segment", "{etape} — {niveau}",
-        { etape: segmentName(cardsState.segment), niveau }) + suite;
+    ? `${bossAt(cardsState.bossKind).nom.toUpperCase()} ${ROMAN[cardsState.boss] ?? cardsState.boss}`
+      + ` vaincu — niveau ${cardsState.level}${suite}`
+    : `${segmentName(cardsState.segment)} — niveau ${cardsState.level}${suite}`;
 
   const owned = ownedCounts(myId);
 
@@ -1665,10 +1529,10 @@ export function renderCards() {
     let html =
       `<div class="cardTop">` +
         `<span class="cardIcon">${familyIcon(d?.familleId)}</span>` +
-        `<span class="cardName">${escapeHtml(cardNom(c.id))}</span>` +
+        `<span class="cardName">${escapeHtml(c.nom)}</span>` +
       `</div>` +
       `<div class="cardMeta">` +
-        `<span class="cardRarity">${escapeHtml(rarityLabel(c.rarity))}</span>` +
+        `<span class="cardRarity">${RARITY_LABEL[c.rarity] ?? ""}</span>` +
         (d?.famille ? `<span class="cardFamily">${escapeHtml(d.famille)}</span>` : "") +
       `</div>` +
       (d ? `<div class="cardCat">` +
@@ -1678,7 +1542,7 @@ export function renderCards() {
         `<span class="catRank">${escapeHtml(d.rang)}</span>` +
       `</div>` : "") +
       `<div class="cardBody">` +
-        `<div class="cardMain">${escapeHtml(cardDesc(c.id))}</div>` +
+        `<div class="cardMain">${escapeHtml(c.desc)}</div>` +
         (d?.effectif ? `<div class="cardCond">${escapeHtml(d.effectif)}</div>` : "") +
         (d?.avertissement ? `<div class="cardWarn">${escapeHtml(d.avertissement)}</div>` : "") +
       `</div>`;
@@ -1696,10 +1560,9 @@ export function renderCards() {
     if (!cardsState.picked && (progressState?.confort ?? []).includes("bannissement")) {
       const ban = document.createElement("span");
       ban.className = "cardBan";
-      ban.textContent = t("ui.cards.ban", "bannir");
+      ban.textContent = "bannir";
       ban.setAttribute("role", "button");
-      ban.title = t("ui.cards.ban.title",
-        "retirer définitivement cette carte du tirage de ce compte");
+      ban.title = "retirer définitivement cette carte du tirage de ce compte";
       ban.onclick = ev => { ev.stopPropagation(); banCard(c.id); };
       btn.appendChild(ban);
     }
@@ -1710,11 +1573,9 @@ export function renderCards() {
     const rb = document.createElement("button");
     rb.id = "cardsReroll";
     const reste = cardsState.reroll | 0;
-    rb.innerHTML = `↻<br>${escapeHtml(t("ui.cards.reroll", "relancer<br>le tirage"))}`
-      + `${reste > 1 ? ` (${reste})` : ""}`;
-    rb.title = reste > 1
-      ? tf("ui.cards.reroll.left", "{n} relances restantes pour cette manche", { n: reste })
-      : t("ui.cards.reroll.last", "dernière relance de la manche");
+    rb.innerHTML = `↻<br>relancer<br>le tirage${reste > 1 ? ` (${reste})` : ""}`;
+    rb.title = reste > 1 ? `${reste} relances restantes pour cette manche`
+      : "derniere relance de la manche";
     rb.onclick = () => {
       cardsState.reroll = reste - 1;
       rb.disabled = true;
@@ -1729,9 +1590,7 @@ export function renderCards() {
 export function renderCardsWait() {
   if (!cardsState) return;
   const names = cardsPending.filter(id => id !== myId).map(id => nameOf(id));
-  cardsWaitEl.textContent = names.length
-    ? tf("ui.wait.players", "en attente de {qui}…", { qui: names.join(", ") })
-    : "";
+  cardsWaitEl.textContent = names.length ? `en attente de ${names.join(", ")}…` : "";
 }
 function stopCardsTimer() {
   if (cardsTimerHandle) { clearInterval(cardsTimerHandle); setCardsTimerHandle(null); }

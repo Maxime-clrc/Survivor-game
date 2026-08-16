@@ -3,18 +3,17 @@ import { audioStats } from "/audio.js";
 import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
 import { BOSS_CFG, MECH_JAIL } from "/shared/bosses.js";
-import { BIOME_CFG, CFG, weatherFor, windAt } from "/shared/game_state.js";
-import { biomeNom, weatherNom } from "/shared/biomes.js";
+import { BIOME_CFG, CFG, WX_BOURRASQUE, biomeAt, weatherAt, weatherFor } from "/shared/game_state.js";
 import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
 import { fmtM } from "/shared/units.js";
 import { drawSprite, glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myDashCd, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
-import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
+import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, lastPlayerPos } from "./boss.js";
-import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls, drawWeather } from "./decor.js";
-import { blastMarks, bursts, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, stepFeedback, timeWarp, zoneFx } from "./fx.js";
+import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls } from "./decor.js";
+import { blastMarks, bursts, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, readMove } from "../ui/dom.js";
 
@@ -37,7 +36,6 @@ export function resetFeedback() {
   zoneCracks.clear();
   zoneMotion.clear();
   blastSeen.clear();
-  shieldHit.clear();
   scorches.length = 0;
   setZoneFx(0);
   resetHud();
@@ -144,11 +142,9 @@ function stepPrediction(dt) {
     }
   }
 
-  const vent = windAt(weather, latest.tm ?? 0);
-  if (vent) {
-    const k = BIOME_CFG.GUST_PUSH * vent.force * dt;
-    predicted.x += vent.dx * k;
-    predicted.y += vent.dy * k;
+  if (weather?.id === WX_BOURRASQUE) {
+    predicted.x += weather.dx * BIOME_CFG.GUST_PUSH * dt;
+    predicted.y += weather.dy * BIOME_CFG.GUST_PUSH * dt;
   }
 
   const r = CFG.PLAYER_RADIUS;
@@ -221,8 +217,8 @@ function drawScreen(v) {
   const st = PERF ? audioStats() : null;
   updateHud(v, {
     now, myId, lobby, ping, difficulty, amSpectator,
-    biomeNom: biomeNom(biomeIndex),
-    meteoNom: weather ? weatherNom(weather.id) : "",
+    biomeNom: biomeAt(biomeIndex).nom,
+    meteoNom: weather ? weatherAt(weather.id)?.nom ?? "" : "",
     myColor: colorOf(myId),
     dashCd: myDashCd,
     counts: ownedCounts(myId),
@@ -250,12 +246,10 @@ function drawWorld(v) {
 
   drawArenaBounds(v.bounds);
   drawHazards(v.tm);
-  drawWeather(v.tm ?? 0);
   drawZones(v.zones, v.tm);
   drawObstacles(v.cover);
   drawBulwarks(v.bulwarks ?? []);
   drawAnchors(v.anchors ?? []);
-  drawAnchorChains(v.anchors ?? [], v.enemyList);
   drawSancts(v.sancts ?? []);
   drawTurrets(v.turrets ?? []);
   drawEffects(v.effects);
@@ -297,12 +291,11 @@ function drawWorld(v) {
   }
   for (const b of v.bulletList) {
     if (!inView(b.x, b.y, 40)) continue;
-    if (b.missile) { drawMissile(b, ownerColorOf(b.owner) ?? COMBAT.bullet); continue; }
     drawBolt(b, CFG.BULLET_RADIUS, ownerColorOf(b.owner) ?? COMBAT.bullet,
              bulletTrail, BOLT_CAPSULE);
   }
 
-  drawSoinLinks(v.links, v.playerList, v.enemyList, v.sancts ?? []);
+  drawSoinLinks(v.links, v.playerList, v.enemyList);
 
   drawPlayers(v.playerList, v.tm, v.marks ?? []);
   drawMarkColumns(v.marks ?? [], v.tm);
@@ -326,12 +319,9 @@ function drawTwinLink(a, b) {
   const d = Math.hypot(a.x - b.x, a.y - b.y);
   if (d > BOSS_CFG.TWIN_HEAL_RANGE) return;
   const k = 1 - d / BOSS_CFG.TWIN_HEAL_RANGE;
-  // le flux va DANS LES DEUX SENS par alternance : c'est un echange, pas un don.
   drawArc("twin", a.x, a.y, b.x, b.y, {
     col: BOSS.twinEdge, coeur: COMBAT.flash,
     amp: 0.05 + 0.05 * k, width: 1.6 + 2.6 * k, branches: 1, cut: 0,
-    flow: { col: COMBAT.flash, hz: 1.1 + k, n: 2 + Math.round(k * 3),
-            size: 2 + k * 2, sens: (performance.now() / 2200 | 0) % 2 ? -1 : 1 },
   });
 }
 const REPERE = location.search.includes("repere");
