@@ -1369,10 +1369,16 @@ export class GameState {
     p.ultT = CARD_CFG.SKILL3_WINDUP;
   }
 
+  // LE BOSS EST UNE CIBLE DE SALVE. L'arene est balayee a son arrivee : une
+  // acquisition qui ne regarde que la horde rend l'ultime du tireur
+  // inutilisable pendant tout le combat.
   _salveCible(p) {
     const r2 = CARD_CFG.SALVE_RANGE * CARD_CFG.SALVE_RANGE;
     for (const e of this.enemies) {
       if (e.hp > 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= r2) return true;
+    }
+    for (const boss of this._bossTargets()) {
+      if ((boss.x - p.x) ** 2 + (boss.y - p.y) ** 2 <= r2) return true;
     }
     return false;
   }
@@ -1506,16 +1512,22 @@ export class GameState {
     const a0 = Math.atan2(p.aimY, p.aimX);
     const range = CARD_CFG.SALVE_RANGE;
     const out = [];
-    for (const e of this.enemies) {
-      if (e.hp <= 0) continue;
+    const pousser = (e, hp) => {
       const dx = e.x - p.x, dy = e.y - p.y;
       const d2 = dx * dx + dy * dy;
-      if (d2 > range * range) continue;
+      if (d2 > range * range) return;
       const dansLeCone =
         Math.abs(this._angleDiff(Math.atan2(dy, dx), a0)) <= CARD_CFG.SALVE_CONE;
-      out.push({ e, id: e.id, hp: e.hp,
+      out.push({ e, id: e.id, hp,
                  score: d2 * (dansLeCone ? 1 : CARD_CFG.SALVE_OFFCONE) });
+    };
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      pousser(e, e.hp);
     }
+    // les Jumeaux sont deux points d'application pour UNE reserve : la garde
+    // anti-surtuage lit `this.boss.hp` des deux cotes.
+    for (const boss of this._bossTargets()) pousser(boss, this.boss.hp);
     out.sort((a, b) => a.score - b.score);
     return out;
   }
@@ -1530,6 +1542,7 @@ export class GameState {
     if (!c || c.hp <= 0 || c.id !== b.cible) {
       c = null;
       for (const e of this.enemies) if (e.id === b.cible) { c = e; break; }
+      if (!c) for (const boss of this._bossTargets()) if (boss.id === b.cible) { c = boss; break; }
       b.cibleRef = c;
     }
     if (!c || c.hp <= 0) {
@@ -1555,6 +1568,10 @@ export class GameState {
       if (e.hp <= 0) continue;
       const d2 = (e.x - b.x) ** 2 + (e.y - b.y) ** 2;
       if (d2 < bd) { bd = d2; best = e; }
+    }
+    for (const boss of this._bossTargets()) {
+      const d2 = (boss.x - b.x) ** 2 + (boss.y - b.y) ** 2;
+      if (d2 < bd) { bd = d2; best = boss; }
     }
     return best;
   }
@@ -1836,6 +1853,7 @@ export class GameState {
       if (vulnerable) near[i].e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
       this._damage(near[i].e, dmg, bo.owner);
       if (near[i].e.hp <= 0) fauches++;
+      this._blastAfter(owner, near[i].e);
     }
 
     for (const boss of this._bossTargets()) {
@@ -1846,6 +1864,7 @@ export class GameState {
     souffle.n = fauches;
     this._blastPush(bo.x, bo.y, r, 1);
     this._hitMarks(bo.x, bo.y, r, dmg);
+    this._blastGround(owner, bo.x, bo.y, r);
 
     if (owner && owner.mods.bombShards > 0) {
       const n = SKILL_CFG.DPS_BOMB_SHARDS;
@@ -2205,9 +2224,9 @@ export class GameState {
     this.enemies = this.enemies.filter(e => e.hp > 0);
   }
 
-  // « Etau » et « Terrain conquis » se branchent sur les DEUX souffles du joueur,
-  // l'explosion et l'onde. Le plan demandait un `requires` de zone : aucune carte
-  // n'en cree, elles viennent des competences et de l'arme.
+  // « Etau » et « Terrain conquis » se branchent sur les TROIS souffles du
+  // joueur : l'explosion, l'onde et la bombe. Le plan demandait un `requires` de
+  // zone : aucune carte n'en cree, elles viennent des competences et de l'arme.
   _blastAfter(owner, e) {
     if (owner && owner.mods.blastRoot > 0) this._rootEnemy(e, owner.mods.blastRoot);
   }

@@ -1948,6 +1948,24 @@
                    effacer un vrai statut). Une panne reelle laisse le message,
                    `__clientReady` ne venant jamais
 
+     0.13.9 fix : DEUX OUBLIS DE BRANCHEMENT SUR LE TIREUR. « Terrain conquis »
+                   et « Etau » se disaient branches sur les DEUX souffles du
+                   joueur, l'explosion (`_explode`) et l'onde (`_wave`) — il y en
+                   a TROIS, la bombe (`_bombBlast`) est un chemin a part et ne
+                   passait ni par `_blastGround` ni par `_blastAfter`. La flaque
+                   sortait donc du lance-grenades mais jamais de la competence,
+                   alors que c'est elle qu'on appelle une explosion en jouant.
+                   L'ACQUISITION DE LA SALVE NE VOYAIT QUE LA HORDE. `_salveCible`
+                   (garde de l'appui), `_salveTries`, `_salveReseek` et le
+                   rattrapage d'identifiant de `_guide` parcouraient
+                   `this.enemies` seul ; or `_sweepEnemies` vide l'arene a
+                   l'arrivee du boss, donc l'ultime du tireur refusait de partir
+                   pendant tout le combat — la ou le reste de sa panoplie tape
+                   deja le boss. Les quatre passent par `_bossTargets()`. La
+                   collision balle/boss traitait deja les missiles, rien a y
+                   changer. La garde anti-surtuage lit `this.boss.hp` pour les
+                   DEUX Jumeaux : deux points d'application, une reserve
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1956,4 +1974,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.8";
+export const VERSION = "0.13.9";
