@@ -1,5 +1,6 @@
 
-import { beatPhase, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE, BOSS_TISSEUR, BOSS_VEILLEUR, MECH_BAIT, MECH_CLUSTER, MECH_COUNT, MECH_FEED, MECH_JAIL, MECH_LINK, MECH_PROX, MECH_SANCTUARY, MECH_SEAL, MECH_SPREAD, MECH_STACK, MECH_TOWER } from "/shared/bosses.js";
+import { playSound } from "/audio.js";
+import { beatPhase, BOSS_CFG, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_ORACLE, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE, BOSS_TISSEUR, BOSS_VEILLEUR, MECH_BAIT, MECH_CLUSTER, MECH_COUNT, MECH_FEED, MECH_JAIL, MECH_LINK, MECH_PROX, MECH_SANCTUARY, MECH_SEAL, MECH_SPREAD, MECH_STACK, MECH_TOWER } from "/shared/bosses.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { t } from "/shared/i18n.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, SKILL_ULT_WIND, classAt } from "/shared/classes.js";
@@ -11,7 +12,7 @@ import { amSpectator, dash, myId, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
 import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, lastBossPos, shieldHit } from "./fx.js";
-import { aimVector, colorOf, ctx, mouse, nameOf, setCtx, underCtx } from "./stage.js";
+import { aimVector, camera, colorOf, ctx, mouse, nameOf, setCtx, underCtx } from "./stage.js";
 
 
 const BOSS_RELEASE_MS = 320;
@@ -693,7 +694,7 @@ function markHalo(x, y, r, col, t) {
     ctx.stroke();
   }
 }
-export function drawMarkColumns(marks, t) {
+export function drawMarkColumns(marks, sec) {
   for (const m of marks) {
     if (m.mech !== MECH_TOWER && m.mech !== MECH_COUNT
         && m.mech !== MECH_STACK && m.mech !== MECH_SANCTUARY
@@ -701,7 +702,7 @@ export function drawMarkColumns(marks, t) {
     const ok = m.mech === MECH_SANCTUARY
       || (m.mech === MECH_COUNT ? m.cur === m.need : m.cur >= 1);
     const col = ok ? MARK.ok : MARK_GO;
-    const h = 110 + Math.sin(t * 2.2) * 8;
+    const h = 110 + Math.sin(sec * 2.2) * 8;
     const g = ctx.createLinearGradient(m.x, m.y, m.x, m.y - h);
     g.addColorStop(0, alpha(col, 0.50));
     g.addColorStop(1, alpha(col, 0));
@@ -712,16 +713,19 @@ export function drawMarkColumns(marks, t) {
 export function drawMarks(marks, players) {
   if (!marks.length) return;
   const byId = new Map(players.map(p => [p.id, p]));
-  const t = performance.now() / 1000;
+  // JAMAIS `t` ICI : c'est le nom du point de passage de la traduction, importe
+  // en tete de module. Une horloge locale qui le masque transforme chaque
+  // `t("mark.…")` en TypeError, donc en image entiere perdue.
+  const sec = performance.now() / 1000;
 
   for (const m of marks) {
-    const pulse = 0.55 + 0.45 * Math.sin(t * 5);
+    const pulse = 0.55 + 0.45 * Math.sin(sec * 5);
     switch (m.mech) {
       case MECH_STACK: {
         const k = 1 - m.k;
         ctx.fillStyle = alpha(SIGNAL.go, 0.05 + k * k * 0.22);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
-        markHalo(m.x, m.y, m.r, MARK_GO, t);
+        markHalo(m.x, m.y, m.r, MARK_GO, sec);
         ctx.strokeStyle = MARK_GO;
         ctx.lineWidth = 3;
         ctx.setLineDash([10, 8]);
@@ -748,7 +752,7 @@ export function drawMarks(marks, players) {
         const col = ok ? MARK.ok : MARK_GO;
         ctx.fillStyle = ok ? alpha(FX.heal, 0.14) : alpha(SIGNAL.go, 0.10);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
-        markHalo(m.x, m.y, m.r, col, t);
+        markHalo(m.x, m.y, m.r, col, sec);
         ctx.strokeStyle = col;
         ctx.lineWidth = ok ? 4 : 2;
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
@@ -833,7 +837,7 @@ export function drawMarks(marks, players) {
       case MECH_SANCTUARY: {
         ctx.fillStyle = alpha(FX.heal, 0.16);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
-        markHalo(m.x, m.y, m.r, MARK.ok, t);
+        markHalo(m.x, m.y, m.r, MARK.ok, sec);
         ctx.strokeStyle = MARK.ok;
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
@@ -850,6 +854,218 @@ export function drawMarks(marks, players) {
       default: break;
     }
   }
+}
+// ── LE REGARD ───────────────────────────────────────────────────────────────
+// LA SEULE MECANIQUE DONT LA REPONSE N'EST PAS SPATIALE. Toutes les autres
+// disent « va la », et un telegraphe au sol suffit ; celle-ci dit « oriente ta
+// visee autrement » — aucun marquage au sol ne peut l'exprimer. Elle a donc son
+// propre canal : quatre couches portant le MEME signe, l'oeil barre, pour qu'il
+// s'apprenne en une fois. La barre dit l'interdiction, jamais la couleur seule.
+const GAZE_DEMI = Math.acos(BOSS_CFG.GAZE_COS);
+const GAZE_PULSES = 4;
+const GAZE_FLASH_MS = 420;
+const GAZE_CONE = 300;
+const GAZE_EYE = 118;
+// l'oeil ne se pose PAS sur le personnage : la camera le tient au centre de la
+// vue, un signe centre l'effacerait au moment ou il faut le lire.
+const GAZE_EYE_Y = -0.26;
+const gz = { actif: false, ouvert: false, k: 0, batt: 0, vise: false,
+             cur: 0, max: 0, until: 0, flash: 0 };
+
+function gazeFlashK() {
+  if (!gz.flash) return 0;
+  const e = (performance.now() - gz.flash) / GAZE_FLASH_MS;
+  if (e >= 1) { gz.flash = 0; return 0; }
+  return 1 - e;
+}
+
+// le decompte serveur arrive par paliers de tick : on le suit par une ECHEANCE
+// lissee, sinon le tempo de la pulsation escalierait a la cadence reseau.
+function gazeEtat(b) {
+  const cur = b?.gazeWarn ?? 0;
+  const ouvert = (b?.gaze ?? 0) > 0;
+  const now = performance.now();
+  if (cur <= 0) {
+    // le son ACCELERE la lecture, il ne porte aucune information exclusive :
+    // les quatre couches sont visuelles.
+    if (gz.cur > 0 && !ouvert) { gz.flash = now; playSound("balayage", { force: 0.55 }); }
+    gz.cur = 0; gz.max = 0; gz.until = 0;
+    gz.actif = ouvert;
+    gz.ouvert = ouvert;
+    gz.k = ouvert ? 1 : 0;
+    if (!ouvert) gz.vise = false;
+    return;
+  }
+  if (gz.cur <= 0 || cur > gz.max) { gz.max = cur; gz.until = now + cur * 1000; }
+  else gz.until += (now + cur * 1000 - gz.until) * 0.15;
+  gz.cur = cur;
+  gz.actif = true;
+  gz.ouvert = false;
+  gz.k = Math.max(0, Math.min(1, 1 - (gz.until - now) / (gz.max * 1000)));
+}
+
+// le tempo REMPLACE le chiffre : on sent l'echeance sans la lire. Il accelere
+// en carre, et la derniere pulsation nait a l'instant de la resolution.
+function gazeBatt() {
+  return gz.ouvert
+    ? (performance.now() / 700) % 1
+    : ((1 - (1 - gz.k) ** 2) * GAZE_PULSES) % 1;
+}
+
+function oeilPath(s) {
+  const h = s * 0.62;
+  ctx.beginPath();
+  ctx.moveTo(-s, 0);
+  ctx.quadraticCurveTo(0, -h * 2, s, 0);
+  ctx.quadraticCurveTo(0, h * 2, -s, 0);
+  ctx.closePath();
+}
+function oeilBarre(s) {
+  const h = s * 0.62;
+  oeilPath(s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 0.30, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.98, h * 0.98);
+  ctx.lineTo(s * 0.98, -h * 0.98);
+  ctx.stroke();
+}
+
+// COUCHE 1 · la pulsation d'arene. Elle dit « quelque chose se passe » a
+// quelqu'un qui regarde ailleurs. FAIBLE OPACITE OBLIGATOIRE, et dessinee AVANT
+// tout telegraphe au sol : en cauchemar `parPhase` en superpose deux, et une
+// onde qui masque un telegraphe transforme une mecanique lisible en piege.
+export function drawGazeArene(v) {
+  gazeEtat(v.boss);
+  gz.batt = gazeBatt();
+  const fl = gazeFlashK();
+  const b = v.boss;
+  if (!b || (!gz.actif && fl <= 0)) return;
+
+  const rMax = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) * 0.8;
+  const monte = 0.45 + 0.55 * gz.k;
+  for (let i = 0; i < 2; i++) {
+    // a la resolution les ondes rentrent au lieu de sortir : l'effondrement est
+    // ce qui dit « c'est passe », meme a ceux qui ont reussi.
+    const w = fl > 0 ? fl * (1 - i * 0.35) : (gz.batt + i * 0.5) % 1;
+    const r = w * rMax;
+    if (r < 40) continue;
+    const a = (fl > 0 ? 0.20 * fl : 0.10 * (1 - w) * monte);
+    ctx.strokeStyle = alpha(SIGNAL.lethal, a);
+    ctx.lineWidth = 2 + 4 * (1 - w);
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.stroke();
+
+    ctx.lineWidth = 1.6;
+    for (let j = 0; j < 8; j++) {
+      const ang = (j / 8) * Math.PI * 2 + w * 0.5;
+      ctx.save();
+      ctx.translate(b.x + Math.cos(ang) * r, b.y + Math.sin(ang) * r);
+      ctx.rotate(ang + Math.PI / 2);
+      ctx.strokeStyle = alpha(SIGNAL.lethal, a * 1.6);
+      oeilBarre(13);
+      ctx.restore();
+    }
+  }
+}
+
+// COUCHE 4 · le secteur interdit, ancre sur le joueur. Demi-angle
+// `acos(GAZE_COS)`, exactement le seuil que le serveur teste : le joueur n'a
+// plus a deviner s'il « regarde », il le VOIT, et il sait de combien il doit
+// encore tourner. C'est l'avantage qu'un MMO n'a pas — la visee y est implicite.
+export function drawGazeCone(v) {
+  if (!gz.actif) return;
+  const b = v.boss;
+  const me = predicted ?? v.playerList.find(p => p.id === myId);
+  const moi = v.playerList.find(p => p.id === myId);
+  if (!b || !me || !moi || moi.downed || amSpectator) { gz.vise = false; return; }
+
+  const dx = b.x - me.x, dy = b.y - me.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const aim = aimVector();
+  const vise = (aim.ax * dx + aim.ay * dy) / d >= BOSS_CFG.GAZE_COS;
+  gz.vise = vise;
+
+  const ang = Math.atan2(dy, dx);
+  const col = vise ? SIGNAL.lethal : SURFACE.lineSoft;
+  const g = ctx.createRadialGradient(me.x, me.y, CFG.PLAYER_RADIUS,
+                                     me.x, me.y, GAZE_CONE);
+  g.addColorStop(0, alpha(col, vise ? 0.24 : 0.09));
+  g.addColorStop(1, alpha(col, 0));
+  ctx.beginPath();
+  ctx.moveTo(me.x, me.y);
+  ctx.arc(me.x, me.y, GAZE_CONE, ang - GAZE_DEMI, ang + GAZE_DEMI);
+  ctx.closePath();
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = alpha(col, vise ? 0.85 : 0.32);
+  ctx.lineWidth = vise ? 2.5 : 1.5;
+  ctx.stroke();
+
+  // le reticule porte le meme verdict, en continu : c'est lui qu'on regarde.
+  ctx.lineWidth = vise ? 2.5 : 1.5;
+  ctx.beginPath();
+  ctx.arc(mouse.x, mouse.y, 12, 0, Math.PI * 2);
+  ctx.stroke();
+  if (vise) {
+    ctx.beginPath();
+    ctx.moveTo(mouse.x - 9, mouse.y + 9);
+    ctx.lineTo(mouse.x + 9, mouse.y - 9);
+    ctx.stroke();
+  }
+}
+
+// COUCHES 2 et 3 · la vignette d'ecran et l'oeil barre. De l'espace ECRAN, donc
+// impossible a manquer quelle que soit la position de la camera, et ca n'occupe
+// aucun pixel de jeu. Le remplissage de l'oeil EST le compte a rebours ; son
+// etat dit ce que fait le joueur : eteint et sourd quand la visee est detournee,
+// vif et rouge quand elle ne l'est pas.
+export function drawGazeEcran() {
+  const fl = gazeFlashK();
+  if (!gz.actif && fl <= 0) return;
+
+  const cx = camera.x0 + CFG.VIEW_W / 2, cy = camera.y0 + CFG.VIEW_H / 2;
+  const rv = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2;
+  const batt = 0.55 + 0.45 * Math.sin(gz.batt * Math.PI * 2);
+
+  const amt = gz.actif ? (0.16 + 0.26 * gz.k) * batt : 0;
+  const g = ctx.createRadialGradient(cx, cy, rv * 0.40, cx, cy, rv);
+  g.addColorStop(0, alpha(SIGNAL.lethal, 0));
+  g.addColorStop(1, alpha(SIGNAL.lethal, Math.min(0.55, amt + fl * 0.35)));
+  ctx.fillStyle = g;
+  ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+
+  if (fl > 0) {
+    ctx.fillStyle = alpha(COMBAT.flash, 0.14 * fl);
+    ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+  }
+
+  const s = GAZE_EYE * (1 - fl * 0.6);
+  const col = gz.vise ? SIGNAL.lethal : SURFACE.lineSoft;
+  ctx.save();
+  ctx.translate(cx, cy + CFG.VIEW_H * GAZE_EYE_Y);
+  ctx.globalAlpha = gz.actif ? 0.85 + 0.15 * batt : fl;
+
+  ctx.save();
+  oeilPath(s);
+  ctx.clip();
+  // la DEMI-HAUTEUR REELLE de la lentille, pas le point de controle : une
+  // quadratique culmine a la moitie de sa fleche, et un remplissage cale sur le
+  // controle resterait vide jusqu'au quart puis plein au trois-quarts.
+  const h = s * 0.62;
+  ctx.fillStyle = alpha(col, gz.vise ? 0.32 : 0.10);
+  ctx.fillRect(-s, h - 2 * h * gz.k, 2 * s, 2 * h * gz.k);
+  ctx.restore();
+
+  ctx.strokeStyle = alpha(col, gz.vise ? 0.95 : 0.42);
+  ctx.lineWidth = gz.vise ? 4 : 2.2;
+  oeilBarre(s);
+  ctx.restore();
+}
+export function resetGaze() {
+  gz.actif = false; gz.ouvert = false; gz.k = 0; gz.batt = 0; gz.vise = false;
+  gz.cur = 0; gz.max = 0; gz.until = 0; gz.flash = 0;
 }
 function markLabel(x, y, text, col) {
   ctx.textAlign = "center";

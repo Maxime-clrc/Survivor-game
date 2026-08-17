@@ -1821,7 +1821,9 @@ SPREAD_MIN: 230          // dispersion : distance minimale entre joueurs
 TOWER_RADIUS: 95         // tours : rayon d'une zone à occuper
 LINK_BREAK: 300          // lien : distance qui le rompt
 JAIL_HP: 240             // cage, avant indexation sur la puissance de l'équipe
-GAZE_TIME: 2.0           // regard : durée de la fenêtre
+GAZE_WARN: 4.0           // regard : décompte, puis UN instant de résolution
+GAZE_RATIO: 0.30         // regard : le coup unique, en part des PV max
+GAZE_GRACE: 0.2          // regard : détourner une fois dans cette fenêtre suffit
 FEED_HEAL: 0.005         // soin par seconde et par rejeton, en part des PV max
 TWIN_HEAL: 0.008         // soin mutuel des Jumeaux, à moins de 400 px
 ULT_FILL / ULT_DRAIN     // 1/42 par seconde, 1/9 tours tenues

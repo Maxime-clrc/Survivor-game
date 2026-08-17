@@ -242,7 +242,10 @@ export const CFG = {
   BOSS_RADIUS: 34,
   BOSS_SPEED: 44,
   BOSS_CONTACT_DAMAGE: 30,
-  BOSS_ATTACK_CD: 3.2,
+  // LE COMBAT MONTE, IL NE COMMENCE PAS A SON REGIME DE CROISIERE. A 3,2 s de
+  // depart, `parPhase: 2` posait deja deux mecaniques en 2,2 s des la barre 1.
+  // Le rapport barre 1 / barre 5 passe de 1,6 a 1,8.
+  BOSS_ATTACK_CD: 4.6,
   BOSS_SUMMON_EVERY: 15,
   SWEEP_STACK_GRACE: 18,
   BOSS_SUMMON_BASE: 4,
@@ -260,7 +263,7 @@ export const CFG = {
   BOSS_HP_MINUTE_RAMP: 0.055,
   BOSS_POWER_KNEE: 2.5,
   BOSS_POWER_K: 0.50,
-  BOSS_PHASE_CD_STEP: 0.09,
+  BOSS_PHASE_CD_STEP: 0.11,
   BOSS_PHASE_DAMAGE_STEP: 0.14,
   BOSS_BREAK_RADIUS: 572,
 
@@ -743,6 +746,7 @@ export class GameState {
       jailed: 0,
       vx: 0, vy: 0,
       gazeCd: 0,
+      gazeSafe: 0,
       twinCd: 0,
       trail: [],
       mechFails: 0,
@@ -3642,7 +3646,7 @@ export class GameState {
           ang: 0,
           attackCd: 4,
           summonCd: CFG.BOSS_SUMMON_EVERY,
-          lastAttack: "",
+          lastAttacks: [],
           dash: 0,
           dashX: 0,
           dashY: 0,
@@ -4059,20 +4063,37 @@ export class GameState {
     // CALME NE DEBLOQUE PAS `unlock[3]` : la couche la plus dure de chaque boss
     // est ce que `normal` a de plus, au lieu du meme contenu en plus mou.
     const pool = bossPool(b.kind, Math.min(P.couches, Math.max(b.phase, b.floor)));
-    let choice = pool[Math.floor(Math.random() * pool.length)];
-    if (choice === b.lastAttack && pool.length > 1) {
-      choice = pool[(pool.indexOf(choice) + 1) % pool.length];
-    }
-    b.lastAttack = choice;
+    const choice = this._pickAtk(b, pool);
+    if (!choice) return;
     this._atk(choice, b, ux, uy);
     // DEUX MECANIQUES PAR PHASE, ET EN CAUCHEMAR L'UNE SUR L'AUTRE : la
     // difficulte d'un raid n'a jamais ete la fenetre de reaction, c'est la
-    // SUPERPOSITION.
-    for (let i = 1; i < P.parPhase && pool.length > 1; i++) {
-      const autre = pool[(pool.indexOf(choice) + 1 + i) % pool.length];
-      if (autre === choice) continue;
+    // SUPERPOSITION. Mais le NOMBRE suit la phase et pas seulement la
+    // difficulte : `parPhase` reste le plafond, la barre en donne le rythme —
+    // une mecanique a la barre 1, deux a partir de la barre 3. C'est ce que la
+    // structure `base` + `unlock[0..3]` prepare deja, il ne manquait que la
+    // cadence pour l'accompagner.
+    const par = Math.min(P.parPhase, 1 + Math.floor(b.phase / 2));
+    for (let i = 1; i < par && pool.length > 1; i++) {
+      const autre = this._pickAtk(b, pool);
+      if (!autre || autre === choice) continue;
       this._deferAtk(b, autre, P.superpose ? BOSS_CFG.SUPERPOSE_GAP : BOSS_CFG.SUITE_GAP);
     }
+  }
+
+  // POINT DE PASSAGE UNIQUE DU TIRAGE D'ATTAQUE. La memoire porte sur les
+  // `ATK_MEMO` dernieres et non sur la seule precedente : tant que le pool a au
+  // moins ATK_MEMO + 1 entrees, rien ne revient avant que trois autres soient
+  // passees. Le tirage differe d'une salve consomme un cran lui aussi.
+  _pickAtk(b, pool) {
+    if (!pool.length) return null;
+    const memo = (b.lastAttacks ??= []);
+    const libres = pool.filter(k => !memo.includes(k));
+    const source = libres.length ? libres : pool;
+    const choice = source[Math.floor(Math.random() * source.length)];
+    memo.push(choice);
+    while (memo.length > BOSS_CFG.ATK_MEMO) memo.shift();
+    return choice;
   }
 
   _atk(key, b, ux, uy) {
@@ -4131,10 +4152,13 @@ export class GameState {
   // donc renoncer a son DPS. Deux fenetres d'affilee, mais separees par le
   // repos : sans lui la seconde s'ouvrait a l'instant ou la premiere se
   // fermait, donc une seule fenetre de cinq secondes portant deux annonces.
+  // La marge n'est pas cosmetique : le differe tombe a l'instant exact ou le
+  // repos s'acheve, et sans elle l'ordre des deux dans le tick decide si la
+  // seconde fenetre s'ouvre ou se replie en cone.
   _atkRegardDouble(b) {
     this._atkRegard(b);
     this._deferAtk(b, "regard",
-      BOSS_CFG.GAZE_TIME + BOSS_CFG.GAZE_WARN + BOSS_CFG.GAZE_REST);
+      BOSS_CFG.GAZE_TIME + BOSS_CFG.GAZE_WARN + BOSS_CFG.GAZE_REST + 0.1);
   }
 
   _atkRegardMobile(b) {
@@ -4733,8 +4757,31 @@ export class GameState {
     b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
     b.gaze = duree;
     b.gazeLeft = cycles - 1;
+    for (const p of this.players.values()) p.gazeSafe = 0;
     this._alert(MECH_GAZE, b.gazeWarn + duree);
     return true;
+  }
+
+  _gazeVise(b, p) {
+    const dx = b.x - p.x, dy = b.y - p.y;
+    const d = Math.hypot(dx, dy) || 1;
+    return (p.aimX * dx + p.aimY * dy) / d >= BOSS_CFG.GAZE_COS;
+  }
+
+  // L'INSTANT DE RESOLUTION, et il est le meme pour tout le monde : ceux qui ont
+  // reussi le voient passer aussi. C'est ce qui dit « c'est fini, revise » — la
+  // moitie de ce qui manquait a un etat qui s'eteignait sans rien annoncer.
+  _gazeResoud(b) {
+    let rate = false;
+    for (const p of this._alivePlayers()) {
+      if (!p.gazeSafe && this._gazeVise(b, p)) {
+        this._mechHit(p, BOSS_CFG.GAZE_RATIO);
+        rate = true;
+      }
+      p.gazeSafe = 0;
+    }
+    if (rate) this._mechCompte(MECH_GAZE, "echec");
+    b.gazeRest = b.gazeLeft > 0 ? BOSS_CFG.GAZE_PERM_GAP : BOSS_CFG.GAZE_REST;
   }
 
   _atkRegard(b) {
@@ -5112,16 +5159,25 @@ export class GameState {
 
     if (b.gazeWarn > 0) {
       b.gazeWarn -= dt;
+      // la tolerance se releve EN CONTINU sur la derniere fraction de seconde :
+      // avoir detourne une fois dedans suffit, au lieu d'un test a l'image pres.
+      if (b.gazeWarn <= BOSS_CFG.GAZE_GRACE) {
+        for (const p of this._alivePlayers()) {
+          if (!this._gazeVise(b, p)) p.gazeSafe = 1;
+        }
+      }
+      if (b.gazeWarn <= 0) {
+        b.gazeWarn = 0;
+        if (b.gaze <= 0) this._gazeResoud(b);
+      }
     } else if (b.gaze > 0) {
       b.gaze -= dt;
       for (const p of this._alivePlayers()) {
         p.gazeCd -= dt;
         if (p.gazeCd > 0) continue;
-        const dx = b.x - p.x, dy = b.y - p.y;
-        const d = Math.hypot(dx, dy) || 1;
-        if ((p.aimX * dx + p.aimY * dy) / d < 0.6) continue;
+        if (!this._gazeVise(b, p)) continue;
         p.gazeCd = BOSS_CFG.GAZE_TICK;
-        this._mechHit(p, BOSS_CFG.GAZE_RATIO);
+        this._mechHit(p, BOSS_CFG.GAZE_PERM_RATIO);
       }
       if (b.gaze <= 0) {
         b.gazeRest = b.gazeLeft > 0 ? BOSS_CFG.GAZE_PERM_GAP : BOSS_CFG.GAZE_REST;
@@ -6775,7 +6831,12 @@ export class GameState {
            this.boss.bars, this.boss.phase,
            this.boss.kind, r2(this.boss.ult),
            this.boss.enrage ?? 0,
-           r2(this.boss.palier ?? 0)]
+           r2(this.boss.palier ?? 0),
+           // le regard est la seule mecanique dont la reponse n'est pas
+           // spatiale : aucun telegraphe au sol ne peut l'exprimer, donc son
+           // decompte doit traverser. Deux nombres, en fin de tuple.
+           r2(Math.max(0, this.boss.gazeWarn ?? 0)),
+           r2(Math.max(0, this.boss.gaze ?? 0))]
         : null,
       bo2: this.boss2
         ? [this.boss2.id, r1(this.boss2.x), r1(this.boss2.y), r2(this.boss2.ang)]

@@ -489,6 +489,9 @@ export const BOSS_CFG = {
 
   SUITE_GAP: 2.2,
   SUPERPOSE_GAP: 0.7,
+  // UNE MEMOIRE DE TROIS, PAS DE UN : avec un pool de trois ou quatre entrees,
+  // ne regarder que la derniere produit A B A B A B.
+  ATK_MEMO: 3,
 
   DIFFUS_RANGE: 420,
   DIFFUS_HEAL: 0.0012,
@@ -518,10 +521,26 @@ export const BOSS_CFG = {
   LINK_DPS: 11,
   JAIL_TIME: 7,
   JAIL_HP: 240,
-  GAZE_WARN: WARN_STANDARD,
-  GAZE_TIME: 2.0,
+  // LE REGARD EST UN INSTANT DE RESOLUTION, PAS UN ETAT SOUTENU. Un etat n'a
+  // pas de fin lisible : le joueur ne sait pas quand reviser, donc il attend
+  // trop, perd son DPS, puis reprend au hasard. Un decompte, une resolution,
+  // termine — et le pire cas passe de quatre tics a 22 % (88 % des PV max) a UN
+  // coup. La classe de preavis monte d'autant : celle-ci demande de CHANGER DE
+  // POSTURE, pas de lire le sol.
+  GAZE_WARN: WARN_PREPARATION,
+  GAZE_TIME: 0,
+  GAZE_RATIO: 0.30,
+  // le seuil du test, ECRIT : la couche 4 dessine exactement `acos(GAZE_COS)`
+  // autour du joueur, donc le secteur montre est celui que le code mesure.
+  GAZE_COS: 0.6,
+  // detourner UNE FOIS dans cette fenetre suffit : sans elle la mecanique se
+  // joue a l'image pres, ce qui n'est pas lisible.
+  GAZE_GRACE: 0.2,
+  // le regard PERMANENT reste la seule occurrence d'etat soutenu du jeu
+  // (derniere phase du Veilleur). Son tic garde donc son propre ratio : 0,30
+  // par demi-seconde y serait une execution.
   GAZE_TICK: 0.5,
-  GAZE_RATIO: 0.22,
+  GAZE_PERM_RATIO: 0.16,
   // l'oeil ferme est une fenetre de TIR, et elle ne se tire pas au sort : sans
   // plancher, deux regards s'enchainent en moins que leur propre duree et la
   // mecanique cesse d'etre un arbitrage pour devenir une interdiction.

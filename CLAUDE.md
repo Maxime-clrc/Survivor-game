@@ -648,6 +648,24 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   de classe de télégraphe, `reflexe` la phase à partir de laquelle on tombe à
   0,8 s), `mechRatio`, `echec`, `couches` (calme s'arrête à `unlock[2]`),
   `dwell`, `renforts`.
+- **`parPhase` est un PLAFOND, la barre en donne le rythme** :
+  `min(parPhase, 1 + floor(phase / 2))`. Le joueur apprend une mécanique à la
+  fois, puis les voit se combiner — un combat qui ouvre à son régime de croisière
+  n'a pas de courbe.
+- **Le tirage d'attaque se souvient des TROIS dernières** (`ATK_MEMO`,
+  `_pickAtk`, point de passage unique, le différé d'une salve consomme un cran
+  lui aussi). Une mémoire de un donne `A B A B A B` dès qu'un pool a trois ou
+  quatre entrées.
+- **LE REGARD EST UN INSTANT DE RÉSOLUTION, PAS UN ÉTAT** : un décompte, une
+  résolution, terminé. `GAZE_TIME` vaut 0 ; la tolérance (`GAZE_GRACE`) se relève
+  **en continu** sur la dernière fraction de seconde (`p.gazeSafe`), au lieu d'un
+  test à l'image près. `GAZE_PERMANENT` reste la **seule** occurrence d'état
+  soutenu du jeu, et garde donc son propre ratio de tic.
+- **C'est la seule mécanique dont la réponse n'est pas spatiale**, donc la seule
+  qui a son propre canal visuel : quatre couches, un seul signe (l'œil barré).
+  La **couche 1 se dessine avant tout télégraphe au sol** — par construction, pas
+  par réglage d'opacité. La **couche 4** dessine `acos(BOSS_CFG.GAZE_COS)`, la
+  constante que le serveur mesure, jamais un angle recopié.
 - **`BAR_DWELL` MONTE avec la difficulté** (8 / 10 / 12), ce qui est
   contre-intuitif : le palier est le moment où se joue la mécanique de la phase
   suivante, donc en cauchemar on en subit **plus**, pas moins.
@@ -950,6 +968,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | géométrie d'apparition | `GEOMETRIES` (`timeline.js`) — **ne circule pas** | rien |
 | boss | `BOSS_ROSTER` (`bosses.js`, **11 entrees, append-only**), index dans `bo[9]` ; `bars` et `archetype` au roster ; `BOSS_POOL` / `BOSS_POOL_COUNT` ; `finalPour` | `drawBoss*()` + `BOSS_SKIN` + `estFinal()` pour `#hudBoss.final` + `phaseUnlockText()` |
 | mécanique | `MECHS` (`bosses.js`), index dans l'alerte et `mk` | `drawMarks()` + `pushAlert()` |
+| regard | `GAZE_*` (`bosses.js`), `_gazeOuvre`/`_gazeVise`/`_gazeResoud` ; `bo[13]` préavis, `bo[14]` œil ouvert | `drawGazeArene()` (couche 1, **avant tout télégraphe au sol**) · `drawGazeCone()` (couche 4) · `drawGazeEcran()` (couches 2 et 3) |
 | événement | `EVENTS` (`timeline.js`), index dans l'alerte et `ev` ; colonne `event` des beats | `eventAt()` + bandeau de segment + `evenementDebut`/`evenementFin` |
 | biome | `BIOMES` (`biomes.js`), index + graine **une fois** au salon | `buildBiome()` rejoué + `drawObstacles()`/`drawHazards()` |
 | danger | `HAZARDS` + `BIOME_CFG` — **ne circule pas** ; `hazardState(h, t)` | `drawHazards()` + `groundAt()` + `danger` dans `events.js` |

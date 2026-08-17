@@ -1966,6 +1966,51 @@
                    changer. La garde anti-surtuage lit `this.boss.hp` pour les
                    DEUX Jumeaux : deux points d'application, une reserve
 
+     0.13.10 fix : L'ECRAN SE VIDAIT PENDANT UNE CAGE. `drawMarks` declarait
+                   `const t = performance.now() / 1000` — le nom du point de
+                   passage de la traduction, importe en tete de module. Les
+                   quatre marqueurs qui portent une etiquette (`stack`, `seal`,
+                   `link`, `jail`) appelaient donc un NOMBRE : TypeError, image
+                   avortee. Or la boucle de rendu attrape et poursuit, et
+                   `gl.end()` vit APRES `drawWorld` — un lot GL ouvert et jamais
+                   vide, un `#cv` deja efface : plus de joueurs, plus de boss,
+                   plus de projectiles, plus de monstres, tant que le marqueur
+                   existait. Le sol restait, ce qui faisait lire un probleme de
+                   couches WebGL. L'horloge locale s'appelle `sec` ; le meme
+                   masquage dans `drawMarkColumns` tombe avec
+
+     0.13.11 lot 09 LE REGARD DEVIENT UN INSTANT DE RESOLUTION. Il etait un ETAT
+                   soutenu : 2 s d'oeil ouvert, un test toutes les 0,5 s a 22 %
+                   des PV max, donc jusqu'a 88 % sur une occurrence — et surtout
+                   une forme sans fin lisible, ou le joueur attend trop puis
+                   reprend au hasard. Un decompte (`WARN_PREPARATION`, 4 s), une
+                   resolution, termine : UN coup a 30 %, avec 0,2 s de tolerance
+                   relevee en continu (`GAZE_GRACE`, `p.gazeSafe`) pour qu'un
+                   joueur qui detourne au dernier moment ne soit pas juge a
+                   l'image pres. `GAZE_PERMANENT` reste la SEULE occurrence
+                   d'etat soutenu du jeu, avec son propre ratio de tic.
+                   Le canal visuel est la moitie du lot : quatre couches, un
+                   seul signe, l'oeil barre. Pulsation d'arene dessinee AVANT
+                   tout telegraphe au sol — c'est la construction, pas un
+                   reglage d'opacite, qui garantit qu'elle n'en masque aucun ;
+                   vignette d'ecran au meme tempo ; oeil qui se REMPLIT au
+                   centre haut de la vue ; et le secteur interdit ancre sur le
+                   personnage, de demi-angle `acos(GAZE_COS)`, exactement le
+                   seuil que le serveur mesure — le reticule y porte le meme
+                   verdict en continu. Les quatre s'effondrent ensemble a la
+                   resolution, meme pour qui a reussi.
+                   LES COMBATS MONTENT AU LIEU DE COMMENCER PLEIN REGIME.
+                   `BOSS_ATTACK_CD` 3,2 -> 4,6 et `BOSS_PHASE_CD_STEP` 0,09 ->
+                   0,11 (4,60 / 4,09 / 3,59 / 3,08 / 2,58 s, rapport 1,79) ;
+                   `parPhase` suit la PHASE et plus seulement la difficulte
+                   (`min(parPhase, 1 + floor(phase / 2))`) : une mecanique aux
+                   barres 1 et 2, deux a partir de la 3 ; et l'anti-repetition
+                   garde les TROIS dernieres (`ATK_MEMO`, `_pickAtk`) au lieu de
+                   la seule precedente, qui produisait A B A B A B.
+                   Mesure, Veilleur, trois graines : un joueur qui lit les
+                   annonces encaisse 0 touche de regard, un qui les ignore en
+                   encaisse une par occurrence — l'ecart qui manquait
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -1974,4 +2019,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.9";
+export const VERSION = "0.13.11";

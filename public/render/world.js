@@ -12,7 +12,7 @@ import { drawSprite, glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myDashCd, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
 import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
-import { drawBoss, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, lastPlayerPos } from "./boss.js";
+import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, lastPlayerPos, resetGaze } from "./boss.js";
 import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { blastMarks, bursts, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
@@ -47,6 +47,7 @@ export function resetFeedback() {
   shake.mag = 0; shake.x = 0; shake.y = 0;
   setAlertOrder(null); setAlertWarn(null); setAlertInfo(null);
   setBossCue(null);
+  resetGaze();
 }
 const slipV = { x: 0, y: 0 };
 let lastFrame = performance.now();
@@ -242,6 +243,9 @@ function drawWorld(v) {
   drawFloor();
   drawGrid();
   drawBlastMarks();
+  // la pulsation du regard passe AVANT tout telegraphe au sol : c'est par
+  // construction, et non par reglage d'opacite, qu'elle n'en masque aucun.
+  drawGazeArene(v);
 
   if (v.slow) {
     ctx.fillStyle = alpha(WALL.fill, 0.06);
@@ -267,6 +271,7 @@ function drawWorld(v) {
   drawHarvests(v.harvests ?? []);
   drawBombs(v.bombList ?? []);
   drawMarks(v.marks ?? [], v.playerList);
+  drawGazeCone(v);
   drawDeaths();
   drawEnemies(v.enemyList, v);
 
@@ -312,6 +317,7 @@ function drawWorld(v) {
   drawBursts();
 
   drawVignette();
+  drawGazeEcran();
   drawPulse();
   drawAllyArrows(v.playerList);
   if (REPERE) drawRepere();
