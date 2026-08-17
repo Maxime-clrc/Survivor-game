@@ -19,7 +19,7 @@ import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaMilestonesEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, traduireStatique,
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaMilestonesEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -192,20 +192,26 @@ if (settingsCloseBtn) settingsCloseBtn.onclick = closeSettings;
 
 /* Le nom d'une langue s'ecrit dans cette langue : ni « Anglais » ni « French ».
    Les deux boutons ne portent donc aucune cle de traduction. */
-function renderLangue() {
-  if (topLangBtn) topLangBtn.textContent = getLang().toUpperCase();
-  if (!setLangRowEl) return;
-  if (!setLangRowEl.children.length) {
+function remplirLangRow(row) {
+  if (!row) return;
+  if (!row.children.length) {
     for (const code of LANGS) {
       const b = document.createElement("button");
       b.className = "langBtn";
       b.dataset.lang = code;
       b.textContent = LANG_NOM[code];
       b.onclick = () => setLang(code);
-      setLangRowEl.append(b);
+      row.append(b);
     }
   }
-  for (const b of setLangRowEl.children) b.classList.toggle("on", b.dataset.lang === getLang());
+  for (const b of row.children) b.classList.toggle("on", b.dataset.lang === getLang());
+}
+/* La barre superieure est masquee sur `#gate` : sans cette troisieme entree, on
+   ne pourrait changer de langue qu'une fois connecte. */
+function renderLangue() {
+  if (topLangBtn) topLangBtn.textContent = getLang().toUpperCase();
+  remplirLangRow(setLangRowEl);
+  remplirLangRow(gateLangRowEl);
 }
 if (topLangBtn) {
   topLangBtn.onclick = () => setLang(LANGS[(LANGS.indexOf(getLang()) + 1) % LANGS.length]);

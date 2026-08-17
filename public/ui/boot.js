@@ -1,6 +1,6 @@
 
 import { initAudio } from "/audio.js";
-import { t, tf, tn } from "/shared/i18n.js";
+import { onLangChange, t, tf, tn } from "/shared/i18n.js";
 import { startMusic } from "/music.js";
 import { VERSION } from "/shared/version.js";
 import { atlasStats, bindGL, buildAtlas, frameOf, glActive, silhouetteSheet } from "/sprites.js";
@@ -26,7 +26,9 @@ gateContinueBtn.onclick = () => {
   if (inRoom) refreshPanel();
   else enterHub();
 };
+let lastServerInfo = null;
 export function renderServerInfo(info) {
+  lastServerInfo = info ?? null;
   setMyPing(info ? Number(info.rtt) : -1);
   renderTopPing();
 
@@ -170,6 +172,17 @@ tabRegisterBtn.onclick = () => activateTab(true);
 nameInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
 passInput.onkeydown = e => { if (e.key === "Enter") goBtn.click(); };
 regPass2Input.onkeydown = e => { if (e.key === "Enter") regGoBtn.click(); };
+/* Le placeholder du mot de passe et les puces de serveur sont ECRITS ici : ils
+   ne portent pas de `data-i18n`, donc `traduireStatique()` ne les couvre pas.
+   Garde sur `gate.hidden` — `renderGateMode()` rouvre les formulaires. */
+onLangChange(() => {
+  if (gate.hidden) return;
+  if (gateHold.hidden) {
+    renderGateMode();
+    renderGateSwitch(!registerFormEl.hidden);
+  }
+  renderServerInfo(lastServerInfo);
+});
 renderGateMode();
 renderGateSwitch(false);
 pollServerInfo();

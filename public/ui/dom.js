@@ -138,6 +138,7 @@ export const topNameEl = document.getElementById("topName");
 export const topSettingsBtn = document.getElementById("topSettings");
 export const topLangBtn = document.getElementById("topLang");
 export const setLangRowEl = document.getElementById("setLangRow");
+export const gateLangRowEl = document.getElementById("gateLangRow");
 export const briefEl = document.getElementById("brief");
 export const briefNameEl = document.getElementById("briefName");
 export const briefSkillsEl = document.getElementById("briefSkills");

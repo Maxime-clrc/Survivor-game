@@ -2515,6 +2515,12 @@ tr.clickable { cursor: pointer; }
   text-wrap: pretty;
 }
 .gateKeys, #gate > .hint:last-of-type { display: none; }
+#gateLangRow {
+  width: 100%;
+  max-width: 400px;
+  margin-inline: auto;
+  justify-content: flex-end;
+}
 .gateAudio {
   display: flex;
   flex-direction: column;

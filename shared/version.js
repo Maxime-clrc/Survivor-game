@@ -2011,6 +2011,22 @@
                    annonces encaisse 0 touche de regard, un qui les ignore en
                    encaisse une par occurrence — l'ecart qui manquait
 
+     0.13.12 fix : LA LANGUE NE SE CHOISISSAIT QU'UNE FOIS CONNECTE. Les deux
+                   entrees (bascule de la barre superieure, ligne des
+                   parametres) vivent derriere `#gate`, or la barre y est
+                   masquee : un joueur anglophone devait traverser l'ecran de
+                   connexion en francais. TROISIEME entree sur `#gate`,
+                   `#gateLangRow`, remplie par le meme chemin que la ligne des
+                   parametres (`remplirLangRow`) — un seul etat, `survivor.lang`.
+                   `boot.js` se rafraichit lui-meme comme les autres modules : le
+                   placeholder du mot de passe, la ligne de bascule
+                   connexion/creation et les puces de serveur sont ECRITS en JS,
+                   donc hors de portee de `traduireStatique()`. Deux gardes —
+                   rien si `#gate` est cache (`renderGateMode()` rouvre les
+                   formulaires), rien sur le mode que si l'ecran de session
+                   dupliquee est ouvert ; derniere reponse de `/etat` memorisee
+                   pour rejouer les puces
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2019,4 +2035,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.11";
+export const VERSION = "0.13.12";

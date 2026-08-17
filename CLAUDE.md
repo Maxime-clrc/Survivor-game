@@ -997,7 +997,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | victoire | `state.victory`, `state.finalKill`, clés du `roundEnd` ; `bestFinalRun` | `#bilan.win` + `.bilanStat.final` |
 | transition | `round`/`roundAbort`/`roundEnd`/`cards`/`cardsWait` | `pushWorld()` — jamais à la réception |
 | sortie de manche | `leaveRound` : `removePlayer` + spectateur | bouton du menu pause, avec confirmation |
-| langue | `shared/i18n.js` + `shared/lang/*.js` — **ne circule pas**, réglage de machine | `#topLang`, `#setLangRow`, `traduireStatique()`, `onLangChange` |
+| langue | `shared/i18n.js` + `shared/lang/*.js` — **ne circule pas**, réglage de machine | `#topLang`, `#setLangRow`, `#gateLangRow`, `traduireStatique()`, `onLangChange` |
 | motif d'erreur | `authError{motif}`, `joinRoomError{motif}`, `roomClosed{why}` — **codes**, la phrase n'est qu'un repli | `authTexte()` / `MOTIFS` (`net/router.js`) → `ui.auth.*`, `ui.hub.join.*` |
 | version | `VERSION` (`shared/version.js`), clés `version` et `commit` du `welcome` | `#version` + `updateVersion()` : ambre `.stale` **sans le hash** |
 | mesure | `trace` → `traceState{on,par}` ; clés `trace`/`tracePar` du salon ; hook `trace`, `telemetry.js` | `?mesure` dans l'URL, `#trace`, `updateTrace()` |
@@ -1444,9 +1444,11 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
   variable dans un `<span>` frère.
 - **Le nom d'une langue s'écrit dans cette langue** (« Français », « English ») :
   les boutons du sélecteur ne portent aucune clé.
-- **Deux entrées, un seul état** (`survivor.lang`) : bascule en haut à droite de
-  la barre, choix explicite dans les paramètres. `onLangChange` est ce qui
-  reconstruit ; aucun rechargement de page.
+- **Trois entrées, un seul état** (`survivor.lang`) : bascule en haut à droite de
+  la barre, choix explicite dans les paramètres, et **rangée sur `#gate`**
+  (`#gateLangRow` — la barre y est masquée, sans quoi on ne pourrait changer de
+  langue qu'une fois connecté). Une seule construction, `remplirLangRow()`.
+  `onLangChange` est ce qui reconstruit ; aucun rechargement de page.
 - **LE MINIMUM DE COMMENTAIRES POSSIBLE.** Par défaut : **aucun**. Un commentaire
   coûte des tokens à chaque lecture, et le dépôt est lu bien plus souvent qu'il
   n'est écrit. On n'en écrit un que si le code ne peut pas porter l'information —
