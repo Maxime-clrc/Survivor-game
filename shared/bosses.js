@@ -187,6 +187,44 @@ export function mechCollective(id) {
   return !!def && def.minPlayers >= 2;
 }
 
+// CE QU'UN ORDRE PREND AU JOUEUR, ET DANS QUEL SENS. Il n'a qu'une position et
+// qu'une ligne de visee : deux ordres du meme axe et de sens contraire ne sont
+// pas deux choses a lire, c'est une consigne impossible. Deux ordres qui
+// DESIGNENT un point ne se tiennent pas non plus — il n'y a qu'un endroit ou
+// aller. Une forme absente de la table est un evitement (`disque`, `anneau`,
+// `cone`, `ligne`, `damier`) : le joueur choisit ou aller, donc elle ne prend
+// rien et se superpose a tout.
+export const AXES = {
+  colonne:  ["place", 1],
+  cercle:   ["place", 1],
+  triangle: ["place", -1],
+  chaine:   ["place", -1],
+  cage:     ["visee", 1],
+  oeil:     ["visee", -1],
+};
+
+export function mechsCompatibles(a, b) {
+  const ca = AXES[MECHS[a]?.forme], cb = AXES[MECHS[b]?.forme];
+  if (!ca || !cb || ca[0] !== cb[0]) return true;
+  if (ca[1] !== cb[1]) return false;
+  // deux visees de meme sens sont une seule consigne (« tire sur ces deux
+  // cibles ») ; deux ecarts aussi. Deux points designes, jamais.
+  return ca[0] !== "place" || ca[1] < 0;
+}
+
+// CRITERE REJOUABLE : quelles paires incompatibles un pool peut-il seulement
+// tirer ? La reponse doit rester « aucune qui ne soit gardee » — le verrou vit
+// dans `_mechLibre`, ceci en est la lecture.
+export function verifierCoexistence() {
+  const paires = [];
+  for (let a = 0; a < MECHS.length; a++) {
+    for (let b = a + 1; b < MECHS.length; b++) {
+      if (!mechsCompatibles(a, b)) paires.push(`${MECHS[a].key} x ${MECHS[b].key}`);
+    }
+  }
+  return { ok: true, paires };
+}
+
 export function verifierGrammaire() {
   const err = [];
   const parForme = new Map();
@@ -204,6 +242,9 @@ export function verifierGrammaire() {
   for (const [f, keys] of parForme) {
     if (FORMES[f]) continue;
     err.push(`forme ${f} sans sens : ${keys.join(", ")}`);
+  }
+  for (const f of Object.keys(AXES)) {
+    if (!FORMES[f]) err.push(`axe ${f} : forme inconnue`);
   }
   return { ok: err.length === 0, err, formes: [...parForme].map(([f, k]) => [f, k.length]) };
 }
@@ -489,6 +530,16 @@ export const BOSS_CFG = {
 
   SUITE_GAP: 2.2,
   SUPERPOSE_GAP: 0.7,
+
+  // IL Y A TOUJOURS UN ABRI. Une zone qui recouvre un endroit ou il FAUT etre
+  // s'ecarte, SAUF si elle se resout assez tot pour qu'on en sorte et qu'on y
+  // revienne : la superposition devient alors du timing, ce qui est le but, au
+  // lieu d'un ordre impossible. `ABRI_RETOUR` est ce delai de retour.
+  ABRI_RETOUR: 1.2,
+  ABRI_MARGE: 46,
+  // en dessous de ce reste, un abri ne laisse plus le temps de sortir d'un motif
+  // qui sature le sol et d'y revenir : le motif se replie au lieu de se poser.
+  ABRI_SATURE: 3.0,
   // UNE MEMOIRE DE TROIS, PAS DE UN : avec un pool de trois ou quatre entrees,
   // ne regarder que la derniere produit A B A B A B.
   ATK_MEMO: 3,

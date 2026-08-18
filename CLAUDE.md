@@ -358,6 +358,10 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `enemySpeed(type, minute, diff, tirage, elite)` | vitesse d'un ennemi — apparition **et** vérificateur |
 | `_clampToBounds()` / `_dropPoint()` | tout ce qui borne un déplacement ou pose un objet |
 | `_bossTargets()` | tout ce qui frappe « le boss » en zone |
+| `_mechLibre(mech)` | la coexistence de deux ordres ; lu par `_pickAtk` **avant** le tirage |
+| `_zoneEcarteAbris(z)` (dans `_zone()`) | tout ce qui empêche une zone de couvrir un abri |
+| `_solPret(b)` / `_solPose(b, n0)` | l'exclusivité d'un motif qui sature le sol |
+| `_foyerPoint()` / `_foyerLibre()` | où un foyer d'occupation ou un refuge peut naître |
 | `_ground()` / `groundAt()` | champs de ralentissement, serveur et client |
 | `_obstacleBlock()` | blocage par obstacle de biome (repoussage **par axe**) |
 | `hazardState(h, t)` | état d'un danger, partagé simulation ↔ rendu |
@@ -689,6 +693,37 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 
 ### Boss
 
+- **DEUX ORDRES DU MÊME AXE ET DE SENS CONTRAIRE NE COEXISTENT JAMAIS.** Le
+  joueur n'a qu'une position et qu'une ligne de visée : ce n'est pas *deux choses
+  à lire*, c'est une consigne impossible. La grammaire le porte déjà — `AXES`
+  (`bosses.js`) donne pour chaque **forme** ce qu'elle prend (`place`, `visée`) et
+  dans quel sens. Deux ordres qui **désignent** un point ne se tiennent pas non
+  plus ; deux écarts ou deux cibles de tir, si. Point de lecture unique
+  `_mechLibre`, consulté par **`_pickAtk` avant le tirage** : un refus est un
+  **retirage**, pas un repli sur `_atkMarques` — replier fait perdre au boss sa
+  pression et allonge les combats de moitié. `verifierCoexistence()` liste les
+  paires, `verifierMecaniques()` est le critère rejouable.
+- **`parPhase` n'est pas le seul chemin de superposition** : la cadence suffit
+  (3,08 s en phase 3 contre 4 s d'annonce de tours), donc le **calme**, à
+  `parPhase: 1`, n'est pas protégé par sa difficulté.
+- **IL Y A TOUJOURS UN ABRI, ET IL PEUT Y AVOIR DU TIMING.** Une zone qui
+  recouvrirait un abri — foyer de forme `colonne`, ou refuge `MECH_SANCTUARY`
+  dont le sens est **inverse** et se nomme au lieu de se déduire — s'écarte
+  (`_zoneEcarteAbris`, rejoué **à chaque image** pour ce qui bouge), **sauf** si
+  elle se résout `ABRI_RETOUR` avant l'échéance : la superposition devient alors
+  du réflexe, ce qui est le but. Symétrique à la pose (`_foyerPoint`), qui écarte
+  aussi les obstacles de biome et les dangers qui blessent. Un refuge **fuit** le
+  feu (`_zoneFeu`), et « le feu » inclut ce qui va tomber.
+- **UN SEUL MOTIF DE SATURATION À LA FOIS** (`b.solT`, durée **mesurée** sur les
+  zones posées, détonations seules) : chaque motif laisse un creux — l'autre
+  parité du damier, le trou de la couronne, l'entre-deux des lames — mais le creux
+  de l'un tombe sous le plein de l'autre. Une croix n'est **pas** un motif de
+  saturation : elle est locale à sa cible et laisse les quadrants.
+- **Le nombre de places à tenir suit l'effectif à la RÉSOLUTION, pas à la pose**
+  (`_resolveTowers`, `_resolveSceau`) : une équipe qui perd un joueur pendant
+  l'annonce ne peut pas tenir la place qui était la sienne.
+- **La parade d'une prison est la CAGE, pas l'esquive** : un joueur cloué par
+  `_markTick` ne prend pas le sol (`_zoneApply`).
 - **`bars` est une propriété du ROSTER** (`CFG.BOSS_BARS` en repli). Le final en
   a huit.
 - **N barres font N−1 ruptures, donc N−1 entrées d'`unlock`** : `phase` plafonne

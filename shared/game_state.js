@@ -19,6 +19,7 @@ import { t } from "./i18n.js";
 import { CLASS_COLOR } from "./palette.js";
 import {
   BOSS_ROSTER, BOSS_CFG, MECHS, bossAt, bossPool, mechAt, adaptMech, towerCount,
+  mechsCompatibles,
   WARN_CLASSES, WARN_REFLEXE,
   ALERT_ORDER, ALERT_WARN, ALERT_INFO,
   MECH_STACK, MECH_SPREAD, MECH_TOWER, MECH_COUNT, MECH_LINK, MECH_JAIL,
@@ -347,6 +348,24 @@ export const diffResume = i => (DIFFICULTIES[i]?.resume ?? [])
   .map((r, k) => t(`diff.${DIFFICULTIES[i].key}.resume.${k}`, r));
 
 const MECH_HURT = { ignoreCooldown: true, mech: true, src: SRC_MECH };
+
+// CE QU'UNE ENTREE DE REPERTOIRE POSE — miroir du repartiteur `_atk()`. `ATK_POSE`
+// donne la mecanique annoncee, `ATK_SOL` dit si l'entree SATURE le sol. Les deux
+// ne servent qu'a `_pickAtk` : ne pas tirer ce que le verrou refusera. Une entree
+// absente de `ATK_POSE` n'annonce aucun ordre positionnel.
+const ATK_POSE = {
+  rassemblement: MECH_STACK, synthese: MECH_STACK, dispersion: MECH_SPREAD,
+  tours: MECH_TOWER, denombrement: MECH_COUNT, sceau: MECH_SEAL,
+  lien: MECH_LINK, prison: MECH_JAIL,
+  grappes: MECH_CLUSTER, noeuds: MECH_CLUSTER,
+  regard: MECH_GAZE, regarddouble: MECH_GAZE, regardmobile: MECH_GAZE,
+  regardpermanent: MECH_GAZE,
+  copies: MECH_BAIT, copiesrenvoi: MECH_BAIT, copiesliees: MECH_BAIT,
+  copiesvraie: MECH_BAIT, appat: MECH_BAIT,
+  sanctuaire: MECH_SANCTUARY,
+};
+const ATK_SOL = new Set(["damier", "couronne", "couloirs", "balayage", "mur",
+  "pacman", "quadrant", "constriction", "entrelacs", "synthesedouble"]);
 
 const SKILL3_TABLE = {
   tank: "SKILL3_ANCRE", soigneur: "SKILL3_SANCTUAIRE", dps: "SKILL3_SALVE",
@@ -3667,6 +3686,7 @@ export class GameState {
           enrage: 0,
           palier: 0,
           palierOuvert: 0,
+          solT: 0,
           defer: [],
         };
 
@@ -4085,15 +4105,27 @@ export class GameState {
   // `ATK_MEMO` dernieres et non sur la seule precedente : tant que le pool a au
   // moins ATK_MEMO + 1 entrees, rien ne revient avant que trois autres soient
   // passees. Le tirage differe d'une salve consomme un cran lui aussi.
+  //
+  // UN REFUS EST UN RETIRAGE, PAS UN REPLI. Le verrou de coexistence se lit ICI,
+  // avant le tirage : sinon une entree refusee retombait sur `_atkMarques`, le
+  // boss perdait sa pression et les combats s'allongeaient de moitie.
   _pickAtk(b, pool) {
     if (!pool.length) return null;
+    const jouable = pool.filter(k => this._atkJouable(b, k));
+    const base = jouable.length ? jouable : pool;
     const memo = (b.lastAttacks ??= []);
-    const libres = pool.filter(k => !memo.includes(k));
-    const source = libres.length ? libres : pool;
+    const libres = base.filter(k => !memo.includes(k));
+    const source = libres.length ? libres : base;
     const choice = source[Math.floor(Math.random() * source.length)];
     memo.push(choice);
     while (memo.length > BOSS_CFG.ATK_MEMO) memo.shift();
     return choice;
+  }
+
+  _atkJouable(b, key) {
+    if (ATK_SOL.has(key) && !this._solPret(b)) return false;
+    const mech = ATK_POSE[key];
+    return mech === undefined || this._mechLibre(mech);
   }
 
   _atk(key, b, ux, uy) {
@@ -4178,6 +4210,7 @@ export class GameState {
   // CONSTRUIT a l'interieur. Les noeuds sont la contrepartie : les detruire rend
   // de l'espace, et c'est le seul boss ou le joueur repare l'arene.
   _atkNoeuds(b) {
+    if (!this._mechLibre(MECH_CLUSTER)) { this._atkMarques(b); return; }
     const hp = BOSS_CFG.NOEUD_HP * this._bossPower();
     const n = Math.max(2, Math.min(BOSS_CFG.NOEUD_COUNT, this._alivePlayers().length + 1));
     for (let i = 0; i < n; i++) {
@@ -4285,6 +4318,7 @@ export class GameState {
   _atkSceau(b) {
     const alive = this._alivePlayers();
     if (alive.length === 0) return;
+    if (!this._mechLibre(MECH_SEAL)) { this._atkMarques(b); return; }
     const grp = this._nextId++;
     const B = this.bounds;
     const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
@@ -4294,9 +4328,11 @@ export class GameState {
 
     for (let i = 0; i < n; i++) {
       const a = base + (i / n) * Math.PI * 2;
+      const pt = this._foyerPoint(cx, cy, rad, a, BOSS_CFG.SEAL_RADIUS,
+                                  this._warn(BOSS_CFG.SEAL_WARN));
       this._mark({
         mech: MECH_SEAL, grp, lead: i === 0 ? 1 : 0,
-        x: cx + Math.cos(a) * rad, y: cy + Math.sin(a) * rad,
+        x: pt.x, y: pt.y,
         r: BOSS_CFG.SEAL_RADIUS, t: this._warn(BOSS_CFG.SEAL_WARN), need: 1,
       });
     }
@@ -4375,6 +4411,8 @@ export class GameState {
   }
 
   _atkMur(b) {
+    if (!this._solPret(b)) { this._atkMarques(b); return; }
+    const n0 = this.zones.length;
     const B = this.bounds;
     const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
     const vertical = Math.random() < 0.5;
@@ -4415,6 +4453,7 @@ export class GameState {
         });
       }
     }
+    this._solPose(b, n0);
   }
 
 
@@ -4532,6 +4571,174 @@ export class GameState {
     c[quoi]++;
   }
 
+  // POINT DE PASSAGE UNIQUE DE LA COEXISTENCE DE DEUX ORDRES. La grammaire dit
+  // deja ce qu'un ordre prend au joueur (`AXES`) : il ne reste qu'a refuser de
+  // poser par-dessus un ordre du meme axe et de sens contraire. Deux consignes
+  // opposees ne sont pas deux choses a lire, c'est une consigne impossible.
+  _mechLibre(mech) {
+    for (const m of this.marks) {
+      if (m.dead) continue;
+      // `feed` est un TEMOIN de lien, pas un ordre : sa marque vit tout le
+      // combat, et un temoin qui verrouille bloquerait le repertoire entier.
+      if (m.mech === MECH_FEED) continue;
+      if (!mechsCompatibles(mech, m.mech)) return false;
+    }
+    const b = this.boss;
+    if (b && (b.gaze > 0 || b.gazeWarn > 0) && !mechsCompatibles(mech, MECH_GAZE)) return false;
+    return true;
+  }
+
+  // UN ABRI EST UN ENDROIT OU IL FAUT ETRE, et son echeance est le moment ou on
+  // l'y verifie. Un foyer d'occupation la porte dans son `t` ; un sanctuaire n'en
+  // a pas — son battement peut tomber a tout moment et seul le `lead` du groupe
+  // le compte, donc son echeance est MAINTENANT. Le sanctuaire est un `disque`
+  // dont le sens est INVERSE : ca ne se deduit pas de la forme, ca se nomme.
+  _abris() {
+    const out = [];
+    for (const m of this.marks) {
+      if (m.dead) continue;
+      if (m.mech === MECH_SANCTUARY) out.push({ x: m.x, y: m.y, r: m.r, t: 0 });
+      else if (mechAt(m.mech)?.forme === "colonne") {
+        out.push({ x: m.x, y: m.y, r: m.r, t: Math.max(0, m.t) });
+      }
+    }
+    return out;
+  }
+
+  // TOUJOURS UN SAFE SPOT AU SOL. Chaque motif de saturation laisse un creux —
+  // l'autre parite du damier, le trou de la couronne, l'entre-deux des lames.
+  // Deux motifs EN MEME TEMPS ne le garantissent plus : le creux de l'un tombe
+  // sous le plein de l'autre. Ils se suivent donc, ils ne se croisent pas.
+  // Seul un foyer FIXE interdit de saturer : un refuge mobile fuit le feu tout
+  // seul (`_zoneFeu`) et les zones s'ecartent de lui a la pose.
+  _solPret(b) {
+    if ((b.solT ?? 0) > 0) return false;
+    for (const m of this.marks) {
+      if (m.dead || mechAt(m.mech)?.forme !== "colonne") continue;
+      if (m.t <= BOSS_CFG.ABRI_SATURE) return false;
+    }
+    return true;
+  }
+
+  // la duree d'un motif se MESURE sur les zones qu'il vient de poser, plutot que
+  // d'ecrire une seconde fois `GRID_GAP` et `SWEEP_STAGGER`. On ne retient que
+  // les DETONATIONS : un sol qui brule ensuite se lit et se contourne, et
+  // compter sa vie bloquait tout le repertoire onze secondes.
+  _solPose(b, n0) {
+    let fin = 0;
+    for (let i = n0; i < this.zones.length; i++) {
+      const z = this.zones[i];
+      const f = z.warn + (z.left > 0 ? z.left * z.period : 0);
+      if (f > fin) fin = f;
+    }
+    b.solT = fin + BOSS_CFG.ABRI_RETOUR;
+  }
+
+  _zoneCouvre(z, a) {
+    if (this._zoneHits(z, a)) return true;
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      if (this._zoneHits(z, { x: a.x + Math.cos(ang) * a.r, y: a.y + Math.sin(ang) * a.r })) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // une zone locale qui recouvrirait un abri s'ecarte le long de l'axe qui les
+  // separe. Si huit pas n'y suffisent pas, elle ne se pose pas : une marque
+  // manquante ne se voit pas, un ordre impossible si.
+  _zoneEcarteAbris(z) {
+    if (z.pj || z.horde || z.dmg <= 0 || this.marks.length === 0) return true;
+    const abris = this._abris();
+    if (abris.length === 0) return true;
+    const fin = z.warn
+      + (z.life > 0 ? z.life : 0)
+      + (z.left > 0 ? z.left * z.period : 0);
+    for (const a of abris) {
+      // le timing suffit : elle explose et s'efface avant qu'on ait a etre la.
+      if (fin + BOSS_CFG.ABRI_RETOUR <= a.t) continue;
+      for (let n = 0; n < 8 && this._zoneCouvre(z, a); n++) {
+        const dx = z.x - a.x, dy = z.y - a.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const pas = a.r + BOSS_CFG.ABRI_MARGE;
+        z.x = a.x + (dx / d) * (d + pas);
+        z.y = a.y + (dy / d) * (d + pas);
+        this._clampToBounds(z, 0);
+      }
+      if (this._zoneCouvre(z, a)) return false;
+    }
+    return true;
+  }
+
+  // un foyer d'occupation se pose la ou l'on peut REELLEMENT aller : ni dans un
+  // obstacle de biome, ni sur un danger qui blesse, ni sous une zone deja en vol
+  // qui brulera encore a l'echeance. Il tourne autour du centre jusqu'a trouver,
+  // puis se rabat sur `_dropPoint`.
+  _foyerPoint(cx, cy, rad, ang, r, echeance) {
+    for (let i = 0; i < 6; i++) {
+      const a = ang + i * 0.22;
+      const x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad;
+      if (this._foyerLibre(x, y, r, echeance)) return this._dropPoint(x, y, r);
+    }
+    return this._dropPoint(cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad, r);
+  }
+
+  // « le feu » inclut ce qui va tomber : un refuge qui n'evite que les zones
+  // DEJA actives derive sur un telegraphe et s'y trouve a la detonation.
+  _zoneFeu(x, y, r) {
+    const a = { x, y, r };
+    for (const z of this.zones) {
+      if (z.pj || z.horde || z.dmg <= 0 || z.warn > BOSS_CFG.ABRI_RETOUR) continue;
+      if (this._zoneCouvre(z, a)) return z;
+    }
+    return null;
+  }
+
+  _solSain(x, y, r) {
+    for (const o of this.obstacles) {
+      if (o.maxHp > 0 && o.hp <= 0) continue;
+      if (Math.abs(x - o.x) < o.w / 2 + r && Math.abs(y - o.y) < o.h / 2 + r) return false;
+    }
+    for (const h of this.hazards) {
+      if (!HAZARDS[h.kind]?.hurts) continue;
+      const st = hazardState(h, this.time);
+      if ((x - st.x) ** 2 + (y - st.y) ** 2 < (h.r + r) ** 2) return false;
+    }
+    return true;
+  }
+
+  // LA QUESTION SE POSE AU SOL, PAS DANS LA TABLE : reste-t-il un point de
+  // l'arene ou l'on ne prend rien ? Echantillonnage — la seule reponse honnete
+  // quand deux motifs se croisent. Lu par `verifierMecaniques`.
+  _solLibrePart(actives, pas = 15) {
+    const B = this.bounds;
+    for (let i = 0; i < pas; i++) {
+      for (let j = 0; j < pas; j++) {
+        const pt = {
+          x: B.x0 + (B.x1 - B.x0) * (i + 0.5) / pas,
+          y: B.y0 + (B.y1 - B.y0) * (j + 0.5) / pas,
+        };
+        if (actives.some(z => this._zoneHits(z, pt))) continue;
+        if (this._solSain(pt.x, pt.y, CFG.PLAYER_RADIUS)) return true;
+      }
+    }
+    return false;
+  }
+
+  _foyerLibre(x, y, r, echeance) {
+    if (!this._solSain(x, y, r)) return false;
+    // meme regle que `_zoneEcarteAbris`, dans l'autre sens : une zone qui aura
+    // fini assez tot pour qu'on revienne ne gene pas, c'est du timing.
+    for (const z of this.zones) {
+      if (z.pj || z.horde || z.dmg <= 0) continue;
+      const fin = z.warn + (z.life > 0 ? z.life : 0) + (z.left > 0 ? z.left * z.period : 0);
+      if (fin + BOSS_CFG.ABRI_RETOUR <= echeance) continue;
+      if (this._zoneCouvre(z, { x, y, r })) return false;
+    }
+    return true;
+  }
+
   _mark(o) {
     const m = {
       id: this._nextId++,
@@ -4572,6 +4779,7 @@ export class GameState {
       return;
     }
 
+    if (!this._mechLibre(MECH_STACK)) { this._atkMarques(b); return; }
     const p = alive[Math.floor(Math.random() * alive.length)];
     this._mark({
       mech: MECH_STACK, a: p.id, x: p.x, y: p.y,
@@ -4597,7 +4805,8 @@ export class GameState {
 
   _atkDispersion(b) {
     const alive = this._alivePlayers();
-    if (adaptMech(MECH_SPREAD, alive.length) !== MECH_SPREAD) { this._atkMarques(b); return; }
+    if (adaptMech(MECH_SPREAD, alive.length) !== MECH_SPREAD
+        || !this._mechLibre(MECH_SPREAD)) { this._atkMarques(b); return; }
     this._mark({
       mech: MECH_SPREAD,
       x: (this.bounds.x0 + this.bounds.x1) / 2,
@@ -4624,7 +4833,7 @@ export class GameState {
   _atkTours(b, exact) {
     const alive = this._alivePlayers();
     const mech = adaptMech(exact ? MECH_COUNT : MECH_TOWER, alive.length);
-    if (mech < 0) { this._atkMarques(b); return; }
+    if (mech < 0 || !this._mechLibre(mech)) { this._atkMarques(b); return; }
 
     const grp = this._nextId++;
     const B = this.bounds;
@@ -4644,9 +4853,10 @@ export class GameState {
 
     for (let i = 0; i < n; i++) {
       const a = base + (i / n) * Math.PI * 2;
+      const pt = this._foyerPoint(cx, cy, rad, a, BOSS_CFG.TOWER_RADIUS, warn);
       this._mark({
         mech, grp, lead: i === 0 ? 1 : 0,
-        x: cx + Math.cos(a) * rad, y: cy + Math.sin(a) * rad,
+        x: pt.x, y: pt.y,
         r: BOSS_CFG.TOWER_RADIUS, t: warn, need: needs[i],
       });
     }
@@ -4656,12 +4866,17 @@ export class GameState {
   _resolveTowers(lead) {
     const group = this.marks.filter(m => m.grp === lead.grp);
     const alive = this._alivePlayers().length;
-    let missed = 0;
+    // LE NOMBRE DE PLACES SUIT L'EFFECTIF A LA RESOLUTION, pas a la pose : une
+    // equipe qui perd un joueur pendant l'annonce ne peut pas tenir la place qui
+    // etait la sienne. Meme regle que `_resolveSceau`, qui la tenait deja.
+    const foyers = Math.min(group.length, Math.max(1, alive));
+    let tenus = 0;
     for (const m of group) {
       const n = this._countIn(m);
       const need = Math.min(m.need, Math.max(1, alive));
-      if (m.mech === MECH_COUNT ? n !== need : n < 1) missed++;
+      if (m.mech === MECH_COUNT ? n === need : n >= 1) tenus++;
     }
+    const missed = Math.max(0, foyers - tenus);
     if (missed > 0) {
       // fautif = celui qui ne tenait aucun foyer. En calme il est seul a payer.
       const fautifs = this._alivePlayers()
@@ -4674,7 +4889,8 @@ export class GameState {
 
   _atkLien(b) {
     const alive = this._alivePlayers();
-    if (adaptMech(MECH_LINK, alive.length) !== MECH_LINK) { this._atkMarques(b); return; }
+    if (adaptMech(MECH_LINK, alive.length) !== MECH_LINK
+        || !this._mechLibre(MECH_LINK)) { this._atkMarques(b); return; }
     const i = Math.floor(Math.random() * alive.length);
     let j = Math.floor(Math.random() * (alive.length - 1));
     if (j >= i) j++;
@@ -4690,7 +4906,7 @@ export class GameState {
     const alive = this._alivePlayers();
     const mech = adaptMech(MECH_JAIL, alive.length);
     if (mech === MECH_CLUSTER) { this._atkGrappes(b, 1, true); return; }
-    if (mech !== MECH_JAIL) { this._atkMarques(b); return; }
+    if (mech !== MECH_JAIL || !this._mechLibre(MECH_JAIL)) { this._atkMarques(b); return; }
 
     const p = alive[Math.floor(Math.random() * alive.length)];
     const hp = BOSS_CFG.JAIL_HP * this._bossPower();
@@ -4702,6 +4918,7 @@ export class GameState {
   }
 
   _atkGrappes(b, count = 0, urgent = false) {
+    if (!this._mechLibre(MECH_CLUSTER)) { this._atkMarques(b); return; }
     if (!count) count = this.players.size >= 2 ? BOSS_CFG.CLUSTER_COUNT : 1;
     const hp = BOSS_CFG.CLUSTER_HP * this._bossPower();
     for (let i = 0; i < count; i++) {
@@ -4754,6 +4971,8 @@ export class GameState {
   // un regard et le cycle d'attaque etait plus court que le regard lui-meme).
   _gazeOuvre(b, duree = BOSS_CFG.GAZE_TIME, cycles = 1) {
     if (b.gazeRest > 0 || b.gazeWarn > 0 || b.gaze > 0) return false;
+    // « ne vise plus » et « tire sur ca » sont le meme axe en sens contraire.
+    if (!this._mechLibre(MECH_GAZE)) return false;
     b.gazeWarn = this._warn(BOSS_CFG.GAZE_WARN);
     b.gaze = duree;
     b.gazeLeft = cycles - 1;
@@ -4857,10 +5076,17 @@ export class GameState {
     const total = this._warn(BOSS_CFG.SANCT_WARN) + BOSS_CFG.SANCT_TICKS * BOSS_CFG.SANCT_PERIOD;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
+      let px = 0, py = 0;
+      // echeance nulle : un refuge est un abri sans echeance (`_abris`), donc il
+      // ne nait sous rien de mortel, pas meme sous un telegraphe qui partirait.
+      for (let k = 0; k < 8; k++) {
+        px = this.bounds.x0 + 200 + Math.random() * Math.max(1, this.bounds.x1 - this.bounds.x0 - 400);
+        py = this.bounds.y0 + 150 + Math.random() * Math.max(1, this.bounds.y1 - this.bounds.y0 - 300);
+        if (this._foyerLibre(px, py, BOSS_CFG.SANCT_R, 0)) break;
+      }
       this._mark({
         mech: MECH_SANCTUARY, grp, lead: i === 0 ? 1 : 0,
-        x: this.bounds.x0 + 200 + Math.random() * Math.max(1, this.bounds.x1 - this.bounds.x0 - 400),
-        y: this.bounds.y0 + 150 + Math.random() * Math.max(1, this.bounds.y1 - this.bounds.y0 - 300),
+        x: px, y: py,
         vx: Math.cos(a) * BOSS_CFG.SANCT_SPEED,
         vy: Math.sin(a) * BOSS_CFG.SANCT_SPEED,
         r: BOSS_CFG.SANCT_R, t: total,
@@ -4875,6 +5101,9 @@ export class GameState {
     this._alert(MECH_SLIP, BOSS_CFG.SLIP_TIME);
   }
 
+  // une croix n'est PAS un motif de saturation : elle est locale a chaque cible
+  // et laisse les quadrants. Sa cohabitation avec un abri se regle a la zone
+  // (`_zoneEcarteAbris`), pas par l'exclusivite du sol.
   _atkCroix(b) {
     for (const e of this._bossTargets()) {
       const a = Math.random() * Math.PI * 2;
@@ -4923,7 +5152,10 @@ export class GameState {
     this._alert(MECH_DODGE, this._warn(BOSS_CFG.CONE_WARN));
   }
 
+  // le secteur epargne EST l'abri : deux motifs a la fois et il n'en reste rien.
   _atkPacman(b) {
+    if (!this._solPret(b)) { this._atkMarques(b); return; }
+    const n0 = this.zones.length;
     this._zone({
       shape: 4, x: b.x, y: b.y,
       r: BOSS_CFG.PACMAN_R, spread: BOSS_CFG.PACMAN_SAFE,
@@ -4932,6 +5164,7 @@ export class GameState {
       prox: 1,
       dmg: this._zoneDamage(b) * 1.25,
     });
+    this._solPose(b, n0);
     this._alert(MECH_SAFE, this._warn(BOSS_CFG.PACMAN_WARN));
   }
 
@@ -5002,7 +5235,22 @@ export class GameState {
         break;
       }
       case MECH_SANCTUARY: {
-        m.x += m.vx * dt; m.y += m.vy * dt;
+        // UN REFUGE FUIT LE FEU : il derive, donc il peut entrer dans une zone
+        // apres sa pose — et « reste sur le disque » tomberait alors au meme
+        // endroit que « sors de la zone ». Il rebondit comme sur un bord ; s'il
+        // est DEJA dedans il s'en ecarte au lieu d'osciller sur place.
+        {
+          const dedans = this._zoneFeu(m.x, m.y, m.r);
+          if (dedans) {
+            const dx = m.x - dedans.x, dy = m.y - dedans.y;
+            const d = Math.hypot(dx, dy) || 1;
+            const sp = Math.hypot(m.vx, m.vy) || BOSS_CFG.SANCT_SPEED;
+            m.vx = (dx / d) * sp; m.vy = (dy / d) * sp;
+          } else if (this._zoneFeu(m.x + m.vx * dt, m.y + m.vy * dt, m.r)) {
+            m.vx = -m.vx; m.vy = -m.vy;
+          }
+          m.x += m.vx * dt; m.y += m.vy * dt;
+        }
         {
           const B = this.bounds;
           if (m.x < B.x0 + m.r || m.x > B.x1 - m.r) { m.vx = -m.vx; }
@@ -5156,6 +5404,7 @@ export class GameState {
     this._flare(b, dt);
     this._diffus(b, dt);
     this._renforts();
+    if (b.solT > 0) b.solT -= dt;
 
     if (b.gazeWarn > 0) {
       b.gazeWarn -= dt;
@@ -5195,7 +5444,11 @@ export class GameState {
     }
 
     if (b.kind === BOSS_ORACLE) {
-      const towers = this.marks.filter(m => (m.mech === MECH_TOWER || m.mech === MECH_COUNT) && !m.dead);
+      // la jauge se lit sur UN groupe de tours — le dernier pose. Sur tous, deux
+      // groupes suffisaient a la rendre intenable, donc a la faire deborder.
+      const vivantes = this.marks.filter(m => (m.mech === MECH_TOWER || m.mech === MECH_COUNT) && !m.dead);
+      const grp = vivantes.length ? vivantes[vivantes.length - 1].grp : 0;
+      const towers = vivantes.filter(m => m.grp === grp);
       const held = towers.length > 0 && towers.every(m => m.cur >= Math.max(1, m.need));
       b.ult += (held ? -BOSS_CFG.ULT_DRAIN : BOSS_CFG.ULT_FILL) * dt;
       if (b.ult <= 0) b.ult = 0;
@@ -5297,6 +5550,7 @@ export class GameState {
       src: SRC_ZONE, horde: 0,
       ...z,
     };
+    if (!this._zoneEcarteAbris(zone)) return;
     zone.warn0 = zone.warn;
     this.zones.push(zone);
   }
@@ -5330,6 +5584,8 @@ export class GameState {
   }
 
   _atkDamier(b) {
+    if (!this._solPret(b)) { this._atkMarques(b); return; }
+    const n0 = this.zones.length;
     const B = this.bounds;
     const cw = (B.x1 - B.x0) / CFG.GRID_COLS;
     const ch = (B.y1 - B.y0) / CFG.GRID_ROWS;
@@ -5347,9 +5603,12 @@ export class GameState {
         });
       }
     }
+    this._solPose(b, n0);
   }
 
   _atkCouronne(b) {
+    if (!this._solPret(b)) { this._atkMarques(b); return; }
+    const n0 = this.zones.length;
     const B = this.bounds;
     const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
     const ringFirst = Math.random() < 0.5;
@@ -5365,9 +5624,12 @@ export class GameState {
       warn: CFG.DONUT_WARN + (ringFirst ? CFG.DONUT_GAP : 0),
       dmg: this._zoneDamage(b),
     });
+    this._solPose(b, n0);
   }
 
   _atkCouloirs(b) {
+    if (!this._solPret(b)) { this._atkMarques(b); return; }
+    const n0 = this.zones.length;
     const B = this.bounds;
     const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
     const mx = (B.x0 + B.x1) / 2, my = (B.y0 + B.y1) / 2;
@@ -5395,9 +5657,12 @@ export class GameState {
         dmg: this._zoneDamage(b),
       });
     }
+    this._solPose(b, n0);
   }
 
   _atkBalayage(b) {
+    if (!this._solPret(b)) { this._atkMarques(b); return; }
+    const n0 = this.zones.length;
     const blades = CFG.SWEEP_BLADES;
     const len = Math.hypot(this.bounds.x1 - this.bounds.x0, this.bounds.y1 - this.bounds.y0);
     const base = Math.random() * Math.PI * 2;
@@ -5414,6 +5679,7 @@ export class GameState {
         dmg: this._zoneDamage(b),
       });
     }
+    this._solPose(b, n0);
   }
 
   _zoneDamage(b) {
@@ -5699,6 +5965,7 @@ export class GameState {
 
   _atkConstriction(b) {
     if (this.shrink) return;
+    if (!this._solPret(b)) { this._atkMarques(b); return; }
     const B = this.bounds;
     const w = B.x1 - B.x0, h = B.y1 - B.y0;
     const minW = CFG.VIEW_W * BOSS_CFG.SHRINK_MIN;
@@ -5713,10 +5980,14 @@ export class GameState {
       x1: cx + nw / 2, y1: cy + nh / 2,
       t: this._warn(BOSS_CFG.SHRINK_WARN),
     };
+    b.solT = this.shrink.t + BOSS_CFG.ABRI_RETOUR;
     this._alert(MECH_SHRINK, this._warn(BOSS_CFG.SHRINK_WARN));
   }
 
   _atkQuadrant(b) {
+    // les murs coupent l'arene en quatre : un foyer vivant devient inatteignable.
+    // ils ne rendent pas le sol mortel, donc ils n'occupent pas `solT`.
+    if (!this._solPret(b) || this._abris().length) { this._atkMarques(b); return; }
     const mech = adaptMech(MECH_QUADRANT, this._alivePlayers().length);
     if (mech !== MECH_QUADRANT) { this._atkQuadrantZone(b); return; }
     const B = this.bounds;
@@ -5728,6 +5999,7 @@ export class GameState {
   }
 
   _atkQuadrantZone(b) {
+    const n0 = this.zones.length;
     const B = this.bounds;
     const qx = Math.random() < 0.5 ? 0 : 1;
     const qy = Math.random() < 0.5 ? 0 : 1;
@@ -5741,6 +6013,7 @@ export class GameState {
       period: BOSS_CFG.QUADRANT_PERIOD, left: BOSS_CFG.QUADRANT_TICKS,
       dmg: this._zoneDamage(b) * 0.6,
     });
+    this._solPose(b, n0);
     this._alert(MECH_DODGE, this._warn(BOSS_CFG.QUADRANT_WARN));
   }
 
@@ -5910,6 +6183,10 @@ export class GameState {
     }
     for (const p of this.players.values()) {
       if (p.downed) continue;
+      // LA PARADE D'UNE PRISON EST LA CAGE, PAS L'ESQUIVE. Un joueur cloue par
+      // `_markTick` ne peut pas sortir d'une zone : le sol ne le touche donc pas
+      // tant qu'il y est, sinon la mecanique n'a plus de reponse.
+      if (p.jailed > 0) continue;
       if (!this._zoneHits(z, p)) continue;
       let dmg = amount;
       if (z.prox) {
@@ -5942,6 +6219,9 @@ export class GameState {
         if (z.x < B.x0 - z.r || z.x > B.x1 + z.r
             || z.y < B.y0 - z.r || z.y > B.y1 + z.r) { z.left = 0; z.life = 0; }
       }
+      // une zone qui BOUGE peut entrer dans un abri apres sa pose : la regle se
+      // rejoue a chaque image, sinon elle ne tient que pour les zones fixes.
+      if ((z.follow || z.vx || z.vy) && this.marks.length) this._zoneEcarteAbris(z);
 
       if (z.warn > 0) {
         z.warn -= dt;
@@ -7706,6 +7986,94 @@ export function mesureBoss(diffIndex, joueurs, manches = 6, minutes = 60) {
       ? combats.filter(c => c.enrage > 0).length / combats.length : null,
     debordements: combats.filter(c => c.pointe > c.capHorde).length,
   };
+}
+
+// CRITERE REJOUABLE DE LA COEXISTENCE. Quatre choses qu'un combat ne doit jamais
+// produire, et une seule question a chaque fois : la consigne affichee est-elle
+// EXECUTABLE ? Un chevauchement n'est un defaut que s'il ne laisse pas le temps
+// de faire les deux — sinon c'est du timing, et le timing est le but.
+export function verifierMecaniques(effectifs = [1, 2, 3, 4], manches = 3,
+  diffIndex = DIFF_NORMAL, minutes = 42) {
+  const soucis = [];
+  const alea = Math.random;
+
+  for (const n of effectifs) {
+    const cas = new Map();
+    const note = (quoi, detail) => {
+      if (!cas.has(quoi)) cas.set(quoi, { n: 0, ex: detail });
+      cas.get(quoi).n++;
+    };
+
+    try {
+      for (let r = 1; r <= manches; r++) {
+        Math.random = grainer(r * 7919 + n * 31 + diffIndex * 101);
+        const g = new GameState(diffIndex);
+        for (let i = 1; i <= n; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+        g.warmup = 0;
+        const inputs = new Map();
+        const images = Math.round(minutes * 60 / CFG.TICK);
+
+        for (let k = 0; k < images && !g.victory; k++) {
+          if (g.cardsPending) {
+            for (const [id, offres] of g.cardOffers) {
+              const p = g.players.get(id);
+              if (p && offres.length) g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
+            }
+            g.cardsPending = false; g.openNextScreen(); k--; continue;
+          }
+          if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
+          inputs.clear();
+          for (const p of g.players.values()) inputs.set(p.id, botVersBoss(g, p));
+          g.step(CFG.TICK, inputs);
+          for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
+          if (!g.victory) g.gameOver = false;
+          if (!g.boss) continue;
+
+          const vivantes = g.marks.filter(m => !m.dead);
+          const vivants = g._alivePlayers().length;
+
+          // 1. deux ordres que le joueur ne peut pas suivre ensemble
+          for (let i = 0; i < vivantes.length; i++) {
+            for (let j = i + 1; j < vivantes.length; j++) {
+              const a = vivantes[i], c = vivantes[j];
+              // deux foyers d'un MEME groupe sont un seul ordre, pas deux.
+              if (a.grp && a.grp === c.grp) continue;
+              if (a.mech === MECH_FEED || c.mech === MECH_FEED) continue;
+              if (mechsCompatibles(a.mech, c.mech)) continue;
+              note("ordres incompatibles", `${mechAt(a.mech).key} + ${mechAt(c.mech).key}`);
+            }
+          }
+
+          // 2. plus de places a tenir que de joueurs pour les tenir
+          const occ = vivantes.filter(m => mechAt(m.mech)?.forme === "colonne");
+          const besoin = occ.reduce((s, m) => s + Math.max(1, m.need), 0);
+          if (occ.length && besoin > vivants) {
+            note("places > joueurs", `${besoin} places pour ${vivants} joueurs`);
+          }
+
+          // 3. un abri sous le feu a l'instant meme ou il faut y etre. « Brule »
+          // = applique des degats maintenant : une zone instantanee ne blesse
+          // qu'a la detonation (`blast` neuf), le reste de sa vie est un
+          // remanent visuel que `_zones` ne fait plus passer par `_zoneApply`.
+          const actives = g.zones.filter(z => !z.pj && !z.horde && z.dmg > 0
+            && z.warn <= 0 && (z.life > 0 || z.blast > 0.2));
+          for (const a of g._abris()) {
+            if (a.t > BOSS_CFG.ABRI_RETOUR) continue;
+            if (!actives.some(z => g._zoneCouvre(z, a))) continue;
+            note("abri sous le feu a l'echeance", `${vivants} joueurs`);
+          }
+
+          // 4. plus rien de sur au sol
+          if (!g._solLibrePart(actives)) note("aucun safe spot", `${vivants} joueurs`);
+        }
+      }
+    } finally { Math.random = alea; }
+
+    for (const [quoi, v] of cas) {
+      soucis.push(`${DIFFICULTIES[diffIndex].key}/${n}j : ${quoi}, ${v.n} images (${v.ex})`);
+    }
+  }
+  return soucis;
 }
 
 export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_NORMAL) {

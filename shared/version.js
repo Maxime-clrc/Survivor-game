@@ -2027,6 +2027,50 @@
                    dupliquee est ouvert ; derniere reponse de `/etat` memorisee
                    pour rejouer les puces
 
+     0.13.13 fix : DEUX MECANIQUES POUVAIENT DEMANDER L'IMPOSSIBLE. Rien ne
+                   connaissait la relation entre deux mecaniques vivantes : `tours`
+                   et `denombrement` sont deux CLES du meme repertoire pour une
+                   seule mecanique d'occupation, donc `_pickAtk` les tirait
+                   ensemble — 4 tours pour 2 joueurs (le repli de `denombrement`
+                   sous `minPlayers: 3` est `MECH_TOWER`), jusqu'a 8 places pour 4,
+                   dont une « a 2 » a cote d'une « a 1 ». Meme trou pour
+                   « REGROUPEZ-VOUS » + « ECARTEZ-VOUS » (5,5/min de combat en
+                   normal) et « NE VISEZ PLUS » + « DETRUIS LA GRAPPE ». Et
+                   `_zone()` ne consultait jamais `state.marks` : une zone letale
+                   tombait sur un foyer a tenir 9,7/min de combat.
+                   `parPhase` n'etait pas le seul chemin — la cadence suffit
+                   (3,08 s en phase 3 contre 4 s d'annonce de tours), donc le
+                   calme, a `parPhase: 1`, n'etait pas protege non plus.
+                   TROIS REGLES, ET LA GRAMMAIRE LES PORTAIT DEJA. `AXES`
+                   (`bosses.js`) dit ce qu'un ordre prend au joueur — une `place`
+                   ou une `visee` — et dans quel sens : deux ordres du meme axe et
+                   de sens contraire ne sont pas deux choses a lire, c'est une
+                   consigne impossible. `_mechLibre` en est le point de passage,
+                   lu par `_pickAtk` AVANT le tirage : un refus est un retirage,
+                   pas un repli sur `_atkMarques` — la premiere version repliait et
+                   les combats s'allongeaient de moitie.
+                   IL Y A TOUJOURS UN ABRI, et il peut y avoir du TIMING. Une zone
+                   qui recouvrirait un foyer ou un refuge s'ecarte (`_zoneEcarteAbris`,
+                   rejoue a chaque image pour les zones qui bougent), SAUF si elle
+                   se resout `ABRI_RETOUR` avant l'echeance : l'explosion dans la
+                   zone sure devient alors un probleme de reflexe, ce qui est le
+                   but. Symetrique a la pose (`_foyerPoint`, `_foyerLibre`), qui
+                   ecarte aussi les obstacles de biome (7-8 % des foyers naissaient
+                   dedans, inatteignables) et les dangers qui blessent (14,5 % en
+                   cauchemar). Un refuge FUIT le feu (`_zoneFeu`).
+                   TOUJOURS UN SAFE SPOT AU SOL : un seul motif de saturation a la
+                   fois (`b.solT`, duree MESUREE sur les zones posees), parce que
+                   le creux de l'un tombe sous le plein de l'autre.
+                   Trois corollaires : `_resolveTowers` clampe le nombre de foyers
+                   sur l'effectif VIVANT comme `_resolveSceau` le faisait deja ; la
+                   jauge de l'Oracle se lit sur UN groupe de tours ; un joueur
+                   emprisonne ne prend plus le sol — la parade d'une prison est la
+                   cage, pas l'esquive.
+                   `verifierMecaniques()` est le critere rejouable : ordres
+                   incompatibles, places > joueurs, abri sous le feu a l'echeance,
+                   aucun safe spot. Les trois premiers a zero, le quatrieme a zero,
+                   sur 24 manches de 42 min en 1/2/3/4 joueurs et trois modes
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2035,4 +2079,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.12";
+export const VERSION = "0.13.13";
