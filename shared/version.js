@@ -2071,6 +2071,12 @@
                    aucun safe spot. Les trois premiers a zero, le quatrieme a zero,
                    sur 24 manches de 42 min en 1/2/3/4 joueurs et trois modes
 
+     0.13.14 feat : LA BANDE SON SE TIRE AU SORT. Sept pistes de horde (la
+                   premiere d'une manche reste « Chrome Grid », le reste au
+                   hasard sans rejouer la precedente), cinq pistes de boss, et
+                   une scene « final » de deux pistes, choisie par `estFinal`
+                   dans la boucle de rendu
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2079,4 +2085,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.13";
+export const VERSION = "0.13.14";

@@ -2,7 +2,7 @@
 import { audioStats } from "/audio.js";
 import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
-import { BOSS_CFG, MECH_JAIL } from "/shared/bosses.js";
+import { BOSS_CFG, MECH_JAIL, estFinal } from "/shared/bosses.js";
 import { BIOME_CFG, CFG, weatherFor, windAt } from "/shared/game_state.js";
 import { biomeNom, weatherNom } from "/shared/biomes.js";
 import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
@@ -72,7 +72,8 @@ function frameBody(now) {
 
   setMusicIntensity(gameIntensity());
   setMusicScene(phase !== PHASE_ROUND || !latest ? "menu"
-    : latest.boss ? "boss" : "horde");
+    : !latest.boss ? "horde"
+    : estFinal(latest.boss.kind ?? 0) ? "final" : "boss");
 
   const enJeu = phase === PHASE_ROUND;
   arenaEl.style.visibility = enJeu ? "" : "hidden";

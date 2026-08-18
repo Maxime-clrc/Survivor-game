@@ -16,9 +16,20 @@ const TRACKS = {
     "waves/Neon Run Protocol.mp3",
     "waves/Chrome Overdrive.mp3",
     "waves/Iron Choir March.mp3",
+    "waves/Arcade Plasma Run.mp3",
+    "waves/Neon Run Circuit.mp3",
+    "waves/Neon Vector Run.mp3",
   ],
   boss: [
     "boss/Couronne de Nuée.mp3",
+    "boss/Chrome Leviathan.mp3",
+    "boss/Iron Crown Pulse.mp3",
+    "boss/Maelstrom Crown.mp3",
+    "boss/Neon Colossus.mp3",
+  ],
+  final: [
+    "final boss/Chrome Requiem.mp3",
+    "final boss/Neon Ash Crown.mp3",
   ],
 };
 
@@ -29,13 +40,14 @@ function urlOf(rel) {
 let decks = null;
 let cur = -1;
 let scene = "";
-let rot = 0;
+let hordeDebut = true;
+const dernier = { horde: "", boss: "", final: "" };
 let running = false;
 let watch = 0;
 let fading = 0;
 
 export function tracksStats() {
-  return { running, scene, cur, rot, playing: decks?.[cur]?.el?.src ?? "" };
+  return { running, scene, cur, dernier, playing: decks?.[cur]?.el?.src ?? "" };
 }
 
 function ready() {
@@ -133,26 +145,41 @@ function crossTo(rel, loop) {
   }
 }
 
-function nextHorde() {
-  const list = TRACKS.horde;
-  const rel = list[rot % list.length];
-  rot = (rot + 1) % list.length;
+function sceneDe(name) {
+  return name === "boss" || name === "final" ? name : "horde";
+}
+
+// premiere piste de horde d'une manche fixe, le reste tire au sort sans
+// rejouer la precedente.
+function tirage(name) {
+  const list = TRACKS[name];
+  if (name === "horde" && hordeDebut) {
+    hordeDebut = false;
+    dernier.horde = list[0];
+    return list[0];
+  }
+  let rel = list[(Math.random() * list.length) | 0];
+  for (let i = 0; i < 8 && list.length > 1 && rel === dernier[name]; i++) {
+    rel = list[(Math.random() * list.length) | 0];
+  }
+  dernier[name] = rel;
   return rel;
 }
 
 export function setTrackScene(name) {
-  const s = name === "boss" ? "boss" : "horde";
+  const s = sceneDe(name);
   if (s === scene) return;
   scene = s;
   if (!running) return;
-  crossTo(s === "boss" ? TRACKS.boss[0] : nextHorde(), s === "boss");
+  crossTo(tirage(s), s !== "horde");
 }
 
 export function startTracks(name) {
   if (running || !ready()) return false;
   running = true;
-  scene = name === "boss" ? "boss" : "horde";
-  crossTo(scene === "boss" ? TRACKS.boss[0] : nextHorde(), scene === "boss");
+  hordeDebut = true;
+  scene = sceneDe(name);
+  crossTo(tirage(scene), scene !== "horde");
   watch = setInterval(tick, TRACK_CFG.WATCH_MS);
   return true;
 }
@@ -190,5 +217,5 @@ function tick() {
   if (el.loop) return;
   const d = el.duration;
   if (!Number.isFinite(d) || d <= 0) return;
-  if (d - el.currentTime <= TRACK_CFG.FADE) crossTo(nextHorde(), false);
+  if (d - el.currentTime <= TRACK_CFG.FADE) crossTo(tirage(scene), false);
 }

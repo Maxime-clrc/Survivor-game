@@ -65,7 +65,7 @@ export function stopMusic() {
 }
 
 export function setMusicScene(name) {
-  const s = name === "boss" ? "boss" : name === "menu" ? "menu" : "horde";
+  const s = name === "boss" || name === "final" || name === "menu" ? name : "horde";
   if (s === scene) return;
   scene = s;
   if (started) route();
