@@ -225,21 +225,6 @@ input, textarea, [contenteditable] {
 
 
 
-#metaBans {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  width: 100%;
-  margin-top: var(--sp-2);
-}
-.metaLine.banned { opacity: 0.75; }
-.metaBanTag {
-  font-size: var(--t-xs);
-  color: var(--lethal);
-  text-align: right;
-  text-transform: uppercase;
-  letter-spacing: var(--track-caps);
-}
 .metaLine.equipped { border-color: var(--go); }
 .metaLine.owned { border-color: var(--text-dim); }
 .metaLine.locked { opacity: 0.62; }

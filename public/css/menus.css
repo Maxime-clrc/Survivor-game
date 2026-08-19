@@ -472,6 +472,27 @@
   background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
+/* Hauts faits : meme langage que le bouton de talents — c'est son frere sous
+   la categorie Classe — mais dans l'OR des legendaires : les hauts faits
+   promettent des cartes, la teinte dit deja « rarete et valeur ». Pleine
+   largeur : une entree de premier rang, pas un lien de bas de page. */
+#hautsFaitsBtn {
+  width: 100%;
+  min-height: 40px;
+  border-radius: var(--radius-ctl);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  text-transform: uppercase;
+  color: var(--legendaire);
+  border: var(--hair) solid color-mix(in srgb, currentColor 40%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+#hautsFaitsBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 15%, transparent);
+  border-color: color-mix(in srgb, currentColor 65%, transparent);
+}
+
 #voteRow {
   gap: var(--sp-3);
   padding: 0;
@@ -1726,8 +1747,8 @@ tr.clickable { cursor: pointer; }
 #voteHint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); }
 
 #meta { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; }
-#metaTree, #metaConfort, #metaBans { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
-#metaTree[hidden], #metaConfort[hidden], #metaBans[hidden], #metaMilestones[hidden] { display: none; }
+#metaTree, #metaConfort { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
+#metaTree[hidden], #metaConfort[hidden], #metaMilestones[hidden] { display: none; }
 #metaConfort { margin-top: var(--sp-2); }
 .metaLine {
   display: grid;

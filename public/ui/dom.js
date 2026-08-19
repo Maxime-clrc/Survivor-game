@@ -159,7 +159,6 @@ export const metaMilestonesEl = document.getElementById("metaMilestones");
 export const menuTitleEl = document.getElementById("menuTitle");
 export const metaClassTabsEl = document.getElementById("metaClassTabs");
 export const metaSlotsEl = document.getElementById("metaSlots");
-export const metaBansEl = document.getElementById("metaBans");
 /* Le francais du markup EST le repli : on le releve au premier passage, on ne
    le recopie donc jamais dans le dictionnaire. */
 const ORIGINE = new WeakMap();

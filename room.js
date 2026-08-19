@@ -772,11 +772,11 @@ export class Room {
             ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
             quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
           },
-          locked: (() => {
-            const locked = lockedCards(c.profile.milestones);
-            for (const bid of c.profile.bannedCards ?? []) locked.add(bid);
-            return locked;
-          })(),
+          /* Les bans sont PAR MANCHE depuis la decision du porteur (2026-08-19) :
+             ils vivent dans `p.locked` du GameState et meurent avec lui — le
+             profil n'entre plus dans le filtre. `bannedCards` reste un champ
+             mort dans les profils existants, jamais relu. */
+          locked: lockedCards(c.profile.milestones),
         };
       }
       c.rerollLeft = rerollsFor(c.profile);
@@ -973,26 +973,25 @@ export class Room {
         break;
       }
 
+      /* Bannissement PAR MANCHE (decision du porteur, 2026-08-19 — il etait
+         permanent par compte depuis le lot J) : la carte rejoint `p.locked`,
+         le filtre de tirage du GameState, et meurt avec lui a la fin de la
+         manche. Rien ne s'ecrit dans le profil — pas de persist, pas de
+         sendProgress. L'idempotence est structurelle : une carte deja dans
+         `p.locked` ne peut plus figurer dans une offre. */
       case "banCard": {
         if (this.phase !== PHASE_CARDS || this.cardPicked.has(id)) break;
         const offers = this.state.cardOffers.get(id);
         const p = this.state.players.get(id);
         if (!offers || !p || !offers.includes(msg.id)) break;
-        if (!client.profile?.confort.includes("bannissement")) break;
-        const pr = client.profile;
-        pr.bannedCards ??= [];
-        if (pr.bannedCards.includes(msg.id)) break;
 
-        const closure = banClosure(msg.id).filter(bid => !pr.bannedCards.includes(bid));
-        pr.bannedCards.push(...closure);
+        const closure = banClosure(msg.id);
         p.locked ??= new Set();
         for (const bid of closure) p.locked.add(bid);
-        this.hooks.persist(client);
-        this.hooks.sendProgress(client);
 
         this.cardPicked.add(id);
         this.broadcast({ t: "cardsWait", pending: this.cardsPendingIds() });
-        this.hooks.log(`[${this.code}] ${client.name} bannit ${msg.id}`
+        this.hooks.log(`[${this.code}] ${client.name} bannit ${msg.id} pour la manche`
           + (closure.length > 1 ? ` (+${closure.length - 1} dépendante(s))` : ""));
         break;
       }

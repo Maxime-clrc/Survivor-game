@@ -854,10 +854,13 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   `_damage()` (**avant** la redirection Jumeaux), flat PV dans `_recomputeMods()`,
   cadence dans `_players()`, vitesse en **remplaçant** `speedMul`, essaim en
   ajoutant à `mods.swarm`. Elles voyagent dans le champ `relics` du `loadout`.
-- **Le bannissement** : `bannedCards` s'unit à `lockedCards()` dans `meta.locked`.
-  Bannir **consomme la phase**, écrit **immédiatement** (hook `persist`), et la
-  clôture de dépendances (`banClosure`, champ `dependsOn`) s'écrit à plat. Pas de
-  débannissement. Pool vidé → carte de secours (`ravitaillement`).
+- **Le bannissement est PAR MANCHE** (décision du porteur, 2026-08-19 — il était
+  permanent par compte depuis le lot J) : la clôture (`banClosure`, champ
+  `dependsOn`) rejoint `p.locked` du `GameState` et meurt avec lui. Rien ne
+  s'écrit au profil — `bannedCards` y est un champ mort, jamais relu. Bannir
+  **consomme la phase** ; le bouton est **libre** (l'achat confort
+  `bannissement` a disparu de la table — identifiant mort dans les profils qui
+  l'avaient acheté). Pool vidé → carte de secours (`ravitaillement`).
 - **L'économie** : `coresForRun` **linéaire et plafonnée** (vague × `CORE_WAVE` +
   boss × `CORE_BOSS`, plafond `CORE_RUN_CAP`), **les jalons ne créditent jamais de
   noyaux**, les **emplacements se gagnent aux jalons** (`slotsFor(profile)`).

@@ -211,10 +211,8 @@ export function createStore(log = console.log) {
 
     if (!profile.commun || typeof profile.commun !== "object") profile.commun = {};
     if (!Array.isArray(profile.confort)) profile.confort = [];
-    // le bannissement devient un achat : un compte qui en a deja use le garde
-    if (profile.bannedCards.length && !profile.confort.includes("bannissement")) {
-      profile.confort.push("bannissement");
-    }
+    // (le grant retro du confort « bannissement » a disparu avec l'achat :
+    // le ban est libre et par manche depuis le 2026-08-19)
     return true;
   }
 

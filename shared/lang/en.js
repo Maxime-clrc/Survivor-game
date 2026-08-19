@@ -90,8 +90,11 @@ export const EN = {
     + "beaten, paid out in equal shares — never from individual kills.",
   "ui.meta.tab.arbre": "Tree",
   "ui.meta.tab.confort": "Comfort",
-  "ui.meta.tab.jalons": "Milestones",
-  "ui.meta.tab.bans": "Banned",
+  "ui.class.hautsfaits": "Feats",
+  "ui.hf.kicker": "Account goals",
+  "ui.hf.title": "Feats",
+  "ui.hf.lead": "Feats unlock cards and slots — never cores. They are checked at the "
+    + "end of a round and stay earned forever.",
   "ui.meta.back": "Back to the lobby",
 
   /* --- parametres ------------------------------------------------------- */
@@ -422,11 +425,6 @@ export const EN = {
   "ui.meta.slots.parties": "{n} runs ({a}/{n})",
   "ui.meta.sub.arbre": "{cls} tree — the effect shown is the TOTAL owned",
   "ui.meta.sub.confort": "comfort and shared lines: no slot consumed, they count for all three classes",
-  "ui.meta.sub.jalons": "milestones unlock cards and slots — never cores",
-  "ui.meta.sub.bans": "cards banned on this account — permanent, no un-banning",
-  "ui.meta.bans.empty": "no card banned — the button lives on the pick screen, during a round",
-  "ui.meta.bans.unknown": "card unknown to this version",
-  "ui.meta.bans.tag": "banned",
   "ui.meta.jalon.cartes.un": "{n} card",
   "ui.meta.jalon.cartes.n": "{n} cards",
 
@@ -436,16 +434,14 @@ export const EN = {
   "ui.cards.title.boss": "{boss} defeated — {niveau}",
   "ui.cards.title.segment": "{etape} — {niveau}",
   "ui.cards.ban": "ban",
-  "ui.cards.ban.title": "remove this card from this account's pool for good",
+  "ui.cards.ban.title": "remove this card from the pool for the rest of this round",
   "ui.cards.reroll": "reroll<br>the draw",
   "ui.cards.reroll.left": "{n} rerolls left for this round",
   "ui.cards.reroll.last": "last reroll of the round",
   "ui.ban.ask": "Ban « {nom} »?",
-  "ui.ban.warn": "This card will NEVER be offered on this account again, and you will "
+  "ui.ban.warn": "This card will not be offered again during THIS round, and you will "
     + "not get a replacement card for this appearance.",
   "ui.ban.closure": "Banned along with it (they depend on this one):",
-  "ui.ban.last": "⚠ This is the LAST third-skill variant of the {cls}: this account will "
-    + "never have a third skill on that class again.",
 
   /* --- marchand --------------------------------------------------------- */
   "ui.merchant.title": "Merchant",
@@ -1242,8 +1238,6 @@ export const EN = {
   "confort.quatrieme.desc": "four cards offered instead of three",
   "confort.ravitaillement.nom": "Initial resupply",
   "confort.ravitaillement.desc": "a ground pickup from the start of the round",
-  "confort.bannissement.nom": "Banning",
-  "confort.bannissement.desc": "permanently remove a card from every draw",
   "confort.relance2.nom": "Second reroll",
   "confort.relance2.desc": "a second draw reroll per run",
 

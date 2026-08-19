@@ -26,9 +26,12 @@ export const PROG_CFG = {
   KILLS_MILESTONE: 500,
   NO_DOWN_MIN_LEVEL: 6,
 
+  /* `bannissement` a quitte la table (2026-08-19) : depuis que le ban est par
+     manche, c'est une commodite de base, plus un achat — le bouton est libre.
+     Les comptes qui l'avaient achete gardent l'identifiant mort dans leur
+     profil, ignore par tous les lecteurs. */
   CONFORT_COSTS: {
-    relance: 250, quatrieme: 450, ravitaillement: 500,
-    bannissement: 700, relance2: 900,
+    relance: 250, quatrieme: 450, ravitaillement: 500, relance2: 900,
   },
 
   SECOURS_REGEN: 1.2,
@@ -123,7 +126,11 @@ export const confortDesc = id => {
   return c ? t(`confort.${id}.desc`, c.desc) : "";
 };
 export const ligneNom = l => t(`prog.${l.id}.nom`, l.nom);
-export const jalonLabel = m => t(`jalon.${m.id}`, m.label);
+/* `label` est une FONCTION depuis la refonte i18n (elle compose deja t/tf avec
+   sa propre cle) : il faut l'APPELER — passee en repli a t(), l'ecran affichait
+   son code source. L'ancienne forme chaine reste acceptee par prudence. */
+export const jalonLabel = m =>
+  typeof m.label === "function" ? m.label() : t(`jalon.${m.id}`, m.label);
 
 export const CONFORT = [
   { id: "relance", nom: "Relance",
@@ -132,8 +139,6 @@ export const CONFORT = [
     desc: "quatre cartes proposées au lieu de trois" },
   { id: "ravitaillement", nom: "Ravitaillement initial",
     desc: "un bonus au sol dès le début de la manche" },
-  { id: "bannissement", nom: "Bannissement",
-    desc: "retirer définitivement une carte de tous les tirages" },
   { id: "relance2", nom: "Seconde relance",
     desc: "une deuxième relance de tirage par partie" },
 ];
@@ -268,7 +273,8 @@ export function newProfile(pseudo) {
     classes: {},
     commun: {},
     confort: [],
-    bannedCards: [],
+    // `bannedCards` a disparu : les bans sont PAR MANCHE depuis le 2026-08-19
+    // (p.locked du GameState) — les profils existants gardent un champ mort.
     bestFinal: {},
   };
 }
