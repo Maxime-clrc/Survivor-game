@@ -351,13 +351,9 @@ export const BOSS_ROSTER = [
       ["proximite"],
     ],
   },
-  // HORS SOLO : les deux corps visent le meme `_nearestPlayer`, donc a un seul
-  // joueur ils ne se separent jamais, restent dans `TWIN_HEAL_RANGE` et se
-  // soignent de 2,2 %/s en continu — la barre n'avance plus. Le verbe du boss
-  // demande deux joueurs, la table le dit maintenant.
   {
     id: BOSS_JUMEAUX, key: "jumeaux", nom: "Jumeaux", verbe: "séparation",
-    minPlayers: 2, hpMul: 1.00, archetype: "multiple",
+    minPlayers: 1, hpMul: 1.00, archetype: "multiple",
     sous: "séparez-vous",
     base: ["salve", "croix", "marques"],
     unlock: [
@@ -662,6 +658,8 @@ export const BOSS_CFG = {
   TWIN_GAP: 520,
   TWIN_BLAST_RATIO: 0.75,
   TWIN_STATUS_CD: 5,
+  TWIN_FOCUS_TIME: 6,
+  TWIN_STANDOFF: 560,
   CROSS_THICKNESS: 150,
   CROSS_WARN: WARN_STANDARD,
   CROSS_GAP: 0.18,

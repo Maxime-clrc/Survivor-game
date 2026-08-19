@@ -2077,6 +2077,37 @@
                    une scene « final » de deux pistes, choisie par `estFinal`
                    dans la boucle de rendu
 
+     0.13.15 correctif LES JUMEAUX SE SEPARENT PAR LE FOCUS, ce qui leve la
+                   restriction posee en 0.11.0. Deux causes, pas une : les deux
+                   corps naissaient a 140 px l'un de l'autre au lieu de 520
+                   (chaque jumeau etait ECRETE separement contre les bords de la
+                   vue, or `_spawnPoint()` tombe hors vue — les deux revenaient
+                   sur le meme bord), et `_bossMove` demandait a CHACUN le meme
+                   `_nearestPlayer`, donc meme cible, meme vitesse, convergence a
+                   ~100 px et soin mutuel en continu. 0.11.0 avait vu la seconde
+                   et l'avait contournee en sortant le boss du solo ; a deux
+                   joueurs groupes le probleme restait entier.
+                   LE VERBE DU ROSTER EST « separation » : il lui manquait le
+                   geste. Frapper un jumeau lui pose un FOCUS (`_damage`, sur
+                   l'entite REELLEMENT touchee, avant la redirection vers
+                   `boss`), il poursuit son agresseur, et son frere non focalise
+                   s'ECARTE jusqu'a `TWIN_STANDOFF`. Le focus expire apres
+                   `TWIN_FOCUS_TIME` : cesser de frapper, c'est les laisser se
+                   rejoindre. L'ecretage porte desormais sur le CENTRE, plus sur
+                   les corps, donc l'ecart de naissance est garanti.
+                   `minPlayers` retombe a 1 : la cause ecrite dans le commentaire
+                   de 0.11.0 n'existe plus, et le deck redistribue cinq boss pour
+                   cinq places a tout effectif.
+                   Mesure (bot qui tire et recule) : ecart 506-561 px contre 400
+                   de portee de soin, soin actif 0 % du temps a un, deux et
+                   quatre joueurs, contre 100 % avant.
+                   UN SEUL CUE NOUVEAU : `drawTwinLink` disait deja POURQUOI il
+                   faut les separer, il ne disait pas QUI tient lequel. Le
+                   porteur du focus ne se deduit pas d'un instantane — `bo2`
+                   gagne donc deux places en QUEUE, coupees par `trimTail` tant
+                   que personne ne le tient, et chaque jumeau porte un anneau a
+                   la couleur de celui qui le tire
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2085,4 +2116,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.14";
+export const VERSION = "0.13.15";

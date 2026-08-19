@@ -1973,6 +1973,10 @@ export class GameState {
           + owner.mods.bossDamagePerBar * (this.boss?.phase ?? 0));
       }
     }
+    if (this.boss2 && ownerId && (struck === this.boss || struck === this.boss2)) {
+      struck.focus = ownerId;
+      struck.focusAt = this.time;
+    }
     if (this.boss2 && target === this.boss2) target = this.boss;
     if (target.vulnUntil > this.time) amount *= CARD_CFG.VULNERABLE_MUL;
     if (ownerId && this.hazards.length) {
@@ -3698,15 +3702,20 @@ export class GameState {
         if (kind === BOSS_JUMEAUX) {
           const g = BOSS_CFG.TWIN_GAP / 2;
           const B = this.bounds;
-          const put = x => Math.min(Math.max(x, B.x0 + 60), B.x1 - 60);
-          this.boss.x = put(pos.x - g);
+          // on ecrete le CENTRE puis on ecarte : ecreter chaque jumeau ramenait
+          // les deux sur le meme bord, donc dans la portee de soin des la naissance.
+          const cx = Math.min(Math.max(pos.x, B.x0 + 60 + g), B.x1 - 60 - g);
+          this.boss.x = cx - g;
           this.boss.status = STATUS_BURN;
+          this.boss.focus = 0;
+          this.boss.focusAt = -1e9;
           this.boss2 = {
             id: this._nextId++,
             kind, twin: 1,
-            x: put(pos.x + g), y: pos.y,
+            x: cx + g, y: pos.y,
             ang: 0, dash: 0, dashX: 0, dashY: 0,
             status: STATUS_ROOT,
+            focus: 0, focusAt: -1e9,
           };
         }
         this._alertBoss(kind);
@@ -3826,6 +3835,21 @@ export class GameState {
     this._alert(MECH_RELOC, 2);
   }
 
+  _twinFocus(b) {
+    if (!b.focus || this.time - b.focusAt > BOSS_CFG.TWIN_FOCUS_TIME) return null;
+    const p = this.players.get(b.focus);
+    return p && !p.downed ? p : null;
+  }
+
+  _twinLead() {
+    if (!this.boss2 || this.boss.converge > 0) return null;
+    const a = this._twinFocus(this.boss) ? this.boss : null;
+    const c = this._twinFocus(this.boss2) ? this.boss2 : null;
+    if (!a) return c;
+    if (!c) return a;
+    return a.focusAt >= c.focusAt ? a : c;
+  }
+
   _bossMove(b, dt) {
     const arche = bossAt(b.kind).archetype;
     // ANCRE : il ne se deplace plus du tout. Un cote de l'arene devient
@@ -3863,9 +3887,20 @@ export class GameState {
       tx = (this.bounds.x0 + this.bounds.x1) / 2;
       ty = (this.bounds.y0 + this.bounds.y1) / 2;
     } else {
-      const t = this._nearestPlayer(b.x, b.y);
+      const t = this._twinFocus(b) ?? this._nearestPlayer(b.x, b.y);
       if (!t) return;
       tx = t.x; ty = t.y;
+      const lead = this._twinLead();
+      if (lead && lead !== b
+          && (b.x - lead.x) ** 2 + (b.y - lead.y) ** 2
+             < BOSS_CFG.TWIN_STANDOFF ** 2) {
+        let ex = b.x - lead.x, ey = b.y - lead.y;
+        const e = Math.hypot(ex, ey);
+        if (e < 1) { ex = Math.cos(b.ang + Math.PI / 2); ey = Math.sin(b.ang + Math.PI / 2); }
+        else { ex /= e; ey /= e; }
+        tx = b.x + ex * BOSS_CFG.TWIN_STANDOFF;
+        ty = b.y + ey * BOSS_CFG.TWIN_STANDOFF;
+      }
     }
     const dx = tx - b.x, dy = ty - b.y;
     const d = Math.hypot(dx, dy) || 1;
@@ -7119,7 +7154,9 @@ export class GameState {
            r2(Math.max(0, this.boss.gaze ?? 0))]
         : null,
       bo2: this.boss2
-        ? [this.boss2.id, r1(this.boss2.x), r1(this.boss2.y), r2(this.boss2.ang)]
+        ? trimTail([this.boss2.id, r1(this.boss2.x), r1(this.boss2.y), r2(this.boss2.ang),
+                    this._twinFocus(this.boss) ? this.boss.focus : 0,
+                    this._twinFocus(this.boss2) ? this.boss2.focus : 0], 4)
         : null,
       bd: this.boss && this.bossDmg.size > 0
         ? [...this.bossDmg].map(([id, c]) =>

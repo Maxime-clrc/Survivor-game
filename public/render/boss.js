@@ -12,7 +12,7 @@ import { amSpectator, dash, myId, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
 import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, lastBossPos, shieldHit } from "./fx.js";
-import { aimVector, camera, colorOf, ctx, mouse, nameOf, setCtx, underCtx } from "./stage.js";
+import { aimVector, camera, colorOf, ctx, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
 
 
 const BOSS_RELEASE_MS = 320;
@@ -694,6 +694,21 @@ function markHalo(x, y, r, col, t) {
     ctx.stroke();
   }
 }
+// le porteur du focus ne se deduit pas d'un instantane : il vient du serveur,
+// et c'est lui qui dit a qui le jumeau s'est accroche.
+export function drawTwinFocus(b1, b2) {
+  const sec = performance.now() / 1000;
+  for (const [b, focus] of [[b1, b2.focus1], [b2, b2.focus2]]) {
+    if (!focus) continue;
+    const col = ownerColorOf(focus) ?? SIGNAL.warn;
+    ctx.strokeStyle = alpha(col, 0.35 + 0.3 * Math.sin(sec * 5));
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, CFG.BOSS_RADIUS + 14, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
 export function drawMarkColumns(marks, sec) {
   for (const m of marks) {
     if (m.mech !== MECH_TOWER && m.mech !== MECH_COUNT

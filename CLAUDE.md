@@ -467,6 +467,13 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   source de vérité, `state.boss2` un second point d'application ; redirection
   dans `_damage()`. **Tout retour visuel vise l'entité RÉELLEMENT touchée**
   (`struck`, point d'impact dans `bossDmg`).
+- **Le soin mutuel des Jumeaux se coupe par le FOCUS, et le focus se prend en
+  FRAPPANT** (`struck`, avant la redirection). Le jumeau focalisé poursuit son
+  agresseur, celui qui ne l'est pas s'écarte jusqu'à `TWIN_STANDOFF` : sans ce
+  second point, deux corps qui demandent le même `_nearestPlayer` à la même
+  vitesse convergent, et le soin ne s'arrête jamais. Le focus **expire**
+  (`TWIN_FOCUS_TIME`) — cesser de frapper les laisse se rejoindre. L'écart de
+  naissance écrête le **centre**, jamais les deux corps.
 - **Une mécanique ratée met à terre, elle ne tue jamais un joueur à pleine vie**
   (drapeau `mech` dans `_hurt`). La progression de la sanction passe par le
   **cumul de Vulnérabilité** posé par `_mechHit()`. Options écrites une seule
@@ -1002,6 +1009,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | script | `SCRIPT`/`SCRIPTS` (`timeline.js`), variante en clair (un NOM) ; clé `sg` | `updateSegment()` + `gameIntensity()` |
 | géométrie d'apparition | `GEOMETRIES` (`timeline.js`) — **ne circule pas** | rien |
 | boss | `BOSS_ROSTER` (`bosses.js`, **11 entrees, append-only**), index dans `bo[9]` ; `bars` et `archetype` au roster ; `BOSS_POOL` / `BOSS_POOL_COUNT` ; `finalPour` | `drawBoss*()` + `BOSS_SKIN` + `estFinal()` pour `#hudBoss.final` + `phaseUnlockText()` |
+| focus des Jumeaux | `b.focus`/`b.focusAt`, posés dans `_damage()` ; `bo2[4]` et `bo2[5]`, **coupés** tant que personne ne tient le focus | `drawTwinFocus()` : anneau à la couleur du porteur (le lien, lui, reste **déduit** par `drawTwinLink`) |
 | mécanique | `MECHS` (`bosses.js`), index dans l'alerte et `mk` | `drawMarks()` + `pushAlert()` |
 | regard | `GAZE_*` (`bosses.js`), `_gazeOuvre`/`_gazeVise`/`_gazeResoud` ; `bo[13]` préavis, `bo[14]` œil ouvert | `drawGazeArene()` (couche 1, **avant tout télégraphe au sol**) · `drawGazeCone()` (couche 4) · `drawGazeEcran()` (couches 2 et 3) |
 | événement | `EVENTS` (`timeline.js`), index dans l'alerte et `ev` ; colonne `event` des beats | `eventAt()` + bandeau de segment + `evenementDebut`/`evenementFin` |

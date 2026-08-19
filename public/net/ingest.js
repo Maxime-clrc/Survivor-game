@@ -88,7 +88,8 @@ export function ingest(msg) {
           gazeWarn: msg.bo[13] ?? 0, gaze: msg.bo[14] ?? 0 }
       : null,
     boss2: msg.bo2
-      ? { id: msg.bo2[0], x: msg.bo2[1], y: msg.bo2[2], ang: msg.bo2[3] }
+      ? { id: msg.bo2[0], x: msg.bo2[1], y: msg.bo2[2], ang: msg.bo2[3],
+          focus1: msg.bo2[4] ?? 0, focus2: msg.bo2[5] ?? 0 }
       : null,
     bossDmg: msg.bd ?? null,
     marks: (msg.mk ?? []).map(a => ({
