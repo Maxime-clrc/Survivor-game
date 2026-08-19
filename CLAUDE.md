@@ -1021,7 +1021,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | couverture destructible | `maxHp` sur un obstacle ; `_obstacleHit()` ; clé creuse `ob` | liseré tireté + blocage rejoué + `murDetruit` |
 | météo | `WEATHERS` (`biomes.js`), index dans l'alerte ; `weatherFor(diff, graine, segment)` | `weatherAt()` + `drawVignette()` + `stepPrediction()` |
 | attaque de boss | chaînes du `base`/`unlock`, dispatchées par `_atk()` | `ATTACK_LABEL` — **ne circule pas** |
-| niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` | `updateAlerts()` : consigne cyan à rebours · avertissement ambre · info blanche |
+| niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` | `updateAlerts()` : consigne ambre à rebours · avertissement orange · info blanche |
 | provenance d'un dégât | `DAMAGE_SOURCES` (`game_state.js`), **sept** entrées, index en fin du tuple joueur | `SRC_ICON` (`icons.js`) + `SRC_TINT` (`palette.js`) + `hudDamage()` + `renderHurtBy()` |
 | soins rendus | `p.healDealt`, champ `heal` de `scoreboardRows()` | colonne « soins » du bilan |
 | magnitude d'un souffle | `n` sur l'effet, 9ᵉ élément (index 8, coupé si nul) — nova, grenade, onde, bombe | `BLAST_STYLE` + `spawnBlast()` + force du son |
@@ -1175,6 +1175,17 @@ le sien :
   la tierce descendante, plus courte). Classe lue **à l'appui**.
 - **`uiSoundFor()`** est une table par identifiant consultée dans la délégation,
   pas un `onclick`. Un bouton absent rend `selection`.
+- **Le décompte de lancement TICKE, une fois par seconde tombée** (`tick`, 14 ms
+  de bruit passe-bande). Même matière que `survol` et plus grave (2200 → 1500
+  contre 3400 → 2200) : les deux disent « il se passe quelque chose » et non « tu
+  as fait quelque chose » — un tick de décompte qui sonnerait comme une note se
+  lirait comme une réponse à un geste, or personne n'a rien fait, c'est le temps
+  qui passe. Le grave le place aussi **sous** le souffle qui va suivre : l'un
+  compte, l'autre conclut. Il part sur le chiffre **affiché** qui change et non à
+  chaque passage — `renderLaunch` tourne cinq fois par seconde et `refreshPanel`
+  la rappelle à chaque diffusion du salon — donc **aucun tick sur la première
+  valeur** (le clic vient de rendre `lancer`, deux sons pour un événement) ni sur
+  `1 → 0`. Mesuré : exactement deux ticks, `3 → 2` et `2 → 1`.
 - **Le souffle de lancement part du message `round`**, pas du clic de l'hôte —
   donc par la file du monde. `lancement` **monte avant de descendre** (paramètre
   `attack` de `noise`).
@@ -1208,9 +1219,28 @@ toute créature, aucun sur le décor**, et **jamais de noir pur**.
   `render/stage.js` pose les variables CSS sur `:root` depuis `cssVars()` —
   **jamais l'inverse**. `tokens.css` ne contient aucune couleur. L'échelle
   typographique (`TYPE`) suit la même règle.
-- **La couleur est fonctionnelle, jamais esthétique** : cyan `il faut y aller` ·
-  ambre `danger, sortir` · rouge `danger létal` · blanc `ça concerne un allié` ·
-  violet `persistant` · vert `gain, soin`. **Jamais de rouge pour quelque chose
+- **La base est un GRAPHITE CHAUD et l'ambre porte l'action.** L'indigo d'origine
+  tirait tout l'écran vers le bleu — les gris y devenaient froids et l'ambre s'y
+  lisait comme une alerte posée sur du ciel. Même échelle de luminosité, teinte
+  déplacée vers le brun : l'ambre s'y pose comme une lumière sur du métal. Le
+  cyan est parti avec l'indigo.
+- **Une couleur qui porte du TEXTE prend sa version foncée.** Une teinte réglée
+  pour un aplat se dissout dès qu'elle devient un mot : `--go-ink` (`#c07a12`) et
+  non `--go` sur fond clair, `--on-go` (`#241703`) pour le texte posé **sur** un
+  aplat ambre. Même teinte, autre densité.
+- **Une surface cliquable est plus claire que celle qui la porte**, liseré clair
+  en haut et ombre en bas ; une surface passive est enfoncée, filet presque
+  absent, aucune ombre. Sans cet écart, ce qu'on lit et ce qu'on presse retombent
+  sur le même ton. Le liseré est une **arête de lumière** et non un contour : un
+  pixel, en haut seulement — il dit d'où vient la lumière, donc que la surface
+  dépasse. Sa règle est volontairement **faible** (`.overlay button`, 0-1-1), et
+  c'est ce qui laisse les actions principales (1-0-0) garder leur aplat sans
+  avoir à les nommer ; écrite en `#gate button` elle passait devant et « Se
+  connecter » perdait son ambre. `.link` et `.ghost` en sont exclus — une arête
+  sur un élément sans fond dessine un cadre autour de rien.
+- **La couleur est fonctionnelle, jamais esthétique** : ambre `action, il faut y
+  aller` · orange `avertissement` · rouge `danger létal` · blanc `ça concerne un
+  allié` · violet `persistant` · vert `gain, soin, prêt`. **Jamais de rouge pour quelque chose
   où il faut aller.** Les couleurs d'**identité** (classes, types, bonus) sont une
   famille à part. Seule dérogation : la catégorie **offensif** est rouge sur
   l'écran de cartes, hors combat — ne pas l'étendre au monde.
@@ -1360,7 +1390,7 @@ toute créature, aucun sur le décor**, et **jamais de noir pur**.
 - **Un multiplicateur affiché sans échelle n'informe personne** : repères
   **mesurés** (`POWER_MARKS` dans `ui/build.js`) — à remesurer si le catalogue ou
   les raretés bougent.
-- **Le cyan dit « c'est toi »** : nom en tête de la build, colonne score de sa
+- **L'ambre dit « c'est toi »** : nom en tête de la build, colonne score de sa
   propre ligne au bilan.
 - **Le menu pause n'est pas un `.overlay`** (à plusieurs la partie continue
   derrière). Ouvrir le menu **arrête le personnage** (`readMove()` sort à vide).

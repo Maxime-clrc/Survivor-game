@@ -494,6 +494,20 @@ const PALETTE = {
     return { end: a.end, stop: a.stop };
   },
 
+  /* LE TICK DU DECOMPTE. Une seconde de moins avant la manche, dite en 14 ms.
+
+     Plus GRAVE et plus court que `survol` (2200 → 1500 Hz contre 3400 → 2200),
+     et c'est la seule chose qui les separe : ils sont de la meme matiere — du
+     bruit passe-bande etroit, sans composante tonale — parce qu'ils disent tous
+     deux « il se passe quelque chose » et non « tu as fait quelque chose ». Un
+     tick de decompte qui sonnerait comme une note se lirait comme une reponse a
+     un geste, or personne n'a rien fait : c'est le temps qui passe.
+
+     Le grave le distingue du survol sans l'opposer, et il le place SOUS le
+     souffle de lancement qui va suivre — l'un compte, l'autre conclut. */
+  tick: () => noise({ dur: 0.014, type: "bandpass", freq: 2200, to: 1500,
+                      q: 7, gain: SOUND_GAIN.menu * 0.9 }),
+
   survol: () => noise({ dur: 0.018, type: "bandpass", freq: 3400, to: 2200,
                         q: 6, gain: SOUND_GAIN.menu }),
 

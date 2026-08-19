@@ -1,19 +1,68 @@
 
+/* --- surfaces ---------------------------------------------------------------
+   GRAPHITE CHAUD. L'indigo d'origine (#08090d … #2a3140) tirait tout l'ecran
+   vers le bleu : les gris y devenaient froids, et l'ambre d'action s'y lisait
+   comme une alerte posee sur du ciel. La base est desormais un graphite TIEDE —
+   meme echelle de luminosite, teinte deplacee vers le brun — et l'ambre s'y pose
+   comme une lumiere sur du metal.
+
+   DEUX NIVEAUX DE SURFACE, et cette distinction porte la moitie du resultat :
+   une surface PASSIVE (ce qu'on lit) est enfoncee — filet presque absent, aucune
+   ombre ; une surface RELEVEE (ce qu'on presse) est plus claire que celle qui la
+   porte, avec un lisere clair en haut et une ombre en bas. Sans cet ecart, tout
+   retombe sur le meme ton et l'ecran devient plat.
+
+   L'ECHELLE A ETE MONTEE D'UN CRAN apres coup : les valeurs d'origine rendaient
+   un ecran juste mais sombre, ou les surfaces se distinguaient mal les unes des
+   autres. Ce sont les ECARTS entre crans qui font la profondeur, pas la
+   noirceur du plus bas — ils sont donc conserves tels quels, et tout le jeu
+   monte ensemble. Les textes, eux, ne bougent pas : leur contraste descend
+   mecaniquement, et il reste au-dessus du seuil AA (mesure : titre 12,5,
+   secondaire 7,1, attenue 3,9 — ce dernier est reserve aux libelles courts).
+
+   `line` et `lineSoft` restent des HEX et non des rgba : le canvas les lit
+   directement, et `alpha()` comme `ramp()` parsent six caracteres hexadecimaux.
+   Les filets translucides de l'interface vivent dans `UI` juste dessous. */
 export const SURFACE = {
-  void:     "#08090d",
-  arena:    "#0f1219",
-  panel:    "#161a24",
-  raised:   "#1e2431",
-  line:     "#2a3140",
-  lineSoft: "#1c222d",
-  gridFine:  "#171b24",
-  gridMajor: "#222836",
+  void:     "#2b2520",
+  arena:    "#3a322c",
+  panel:    "#453e39",
+  raised:   "#554d46",
+  line:     "#554d46",
+  lineSoft: "#3a322c",
+  gridFine:  "#372f29",
+  gridMajor: "#4b4139",
   shadow:   "#000000",
+};
+
+/* Ce qui distingue une surface qu'on PRESSE d'une surface qu'on LIT. Trois
+   valeurs translucides plutot que des hex : elles se posent sur des fonds
+   differents (panneau, champ, carte) et doivent s'y accorder sans qu'on
+   recalcule un ton par endroit.
+
+   Le lisere du haut est presque blanc et tres fin : c'est une ARETE DE LUMIERE,
+   pas un contour — il dit d'ou vient la lumiere, donc que la surface depasse. */
+export const UI = {
+  rise:        "rgba(132,121,110,.5)",
+  /* LE VERRE. Une carte de choix n'est pas une surface pleine : elle laisse
+     passer le fond, floute ce qui est dessous et attrape la lumiere sur son
+     arete haute. Deux valeurs seulement — la teinte du verre lui-meme et le
+     reflet qui court sous l'arete ; le flou et la saturation sont des EFFETS,
+     ils vivent dans la feuille avec les autres reglages de rendu.
+
+     La teinte est tres peu opaque (34 %) : au-dela, le flou ne se voit plus et
+     la carte redevient un panneau. En dessous, le texte perd son fond et la
+     mesure de contraste ne tient plus. */
+  glass:     "rgba(96,88,80,.34)",
+  glassGlow: "rgba(255,247,238,.14)",
+  edgeTop:     "rgba(255,255,255,.95)",
+  lineRaised:  "rgba(230,226,221,.26)",
+  linePassive: "rgba(230,226,221,.07)",
 };
 
 export const DECOR = [
   {
-    arena: "#181d28", gridFine: "#252c3b", gridMajor: "#38455f",
+    arena: "#413830", gridFine: "#50463d", gridMajor: "#63564a",
     vignette: 0.40, vignetteFrom: 0.46, skip: 0, pulse: 0,
   },
   {
@@ -21,31 +70,58 @@ export const DECOR = [
     vignette: 0.55, vignetteFrom: 0.42, skip: 0, pulse: 0,
   },
   {
-    arena: "#0a0a0e", gridFine: "#1c1719", gridMajor: "#2e2624",
+    arena: "#2d2620", gridFine: "#3f332c", gridMajor: "#544036",
     vignette: 0.68, vignetteFrom: 0.34, skip: 3, pulse: 0.06,
   },
 ];
 
 export function decorAt(diffIndex) { return DECOR[diffIndex] ?? DECOR[1]; }
 
+/* SIX tons et non trois, et aucun ne contient de bleu. Le gris froid d'origine
+   se voyait surtout sur les grandes surfaces de prose : sur un fond tiede, un
+   texte bleute paraît sale. L'echelle est graphite chaud de bout en bout.
+
+   `faint` et `mute` ont ete remontes AVEC les surfaces, et pas par gout : sur le
+   panneau eclairci, leurs valeurs d'origine tombaient a 3,4 et 2,8 de contraste,
+   c'est-a-dire sous le seuil AA — pour des tons qui portent des libelles reels
+   (noms de statistiques, heures, notes de pied). Un gris qu'on ne peut pas lire
+   ne hierarchise rien, il supprime. C'est la meme correction que le depot avait
+   deja faite une fois sur le troisieme ton.
+
+   `dim` est le ton le PLUS FREQUENT de l'interface — c'est celui des leads, des
+   notes et des lignes secondaires — d'ou sa place au milieu et non en bas. */
 export const TEXT = {
-  base:  "#e9edf5",
-  dim:   "#8892a6",
-  faint: "#6f7a90",
+  base:   "#f9f9f8",   // titre
+  strong: "#e9e7e4",   // fort
+  body:   "#dfdcd8",   // courant
+  dim:    "#c3bdb7",   // secondaire, le plus frequent
+  faint:  "#a89e93",   // attenue
+  mute:   "#988d81",   // discret
 };
 
+/* L'AMBRE, ET LUI SEUL, porte l'action. Le cyan est parti avec l'indigo : sur
+   une base tiede il ressortait comme un corps etranger, alors que l'ambre est la
+   couleur meme du materiau eclaire.
+
+   `goInk` et `onGo` ne sont pas des variantes decoratives, ils repondent a une
+   regle : UNE COULEUR QUI PORTE DU TEXTE PREND SA VERSION FONCEE. Une teinte
+   reglee pour un aplat se dissout des qu'elle devient un mot — meme teinte,
+   autre densite. `onGo` est l'inverse, le texte pose SUR un aplat ambre. */
 export const SIGNAL = {
-  go:      "#38bdf8",
-  warn:    "#f5a524",
-  lethal:  "#ef4056",
-  ally:    "#e9edf5",
+  go:      "#ffae2b",
+  goSoft:  "#ffcc7a",
+  goInk:   "#c07a12",
+  onGo:    "#241703",
+  warn:    "#ff9430",
+  lethal:  "#ff5540",
+  ally:    "#e9e7e4",
   persist: "#a855f7",
-  gain:    "#34d399",
+  gain:    "#9dc94a",
 };
 
 export const HEAL = SIGNAL.gain;
 
-export const RARITY_COLOR = ["#94a3b8", "#38bdf8", "#c084fc", "#fbbf24"];
+export const RARITY_COLOR = ["#c3bdb7", "#9dc94a", "#ff9e4a", "#ffd98a"];
 
 export const CARD_CATEGORY_COLOR = {
   off:     SIGNAL.lethal,
@@ -55,11 +131,15 @@ export const CARD_CATEGORY_COLOR = {
   util:    TEXT.dim,
 };
 
+/* `dps2` est la SEULE teinte que la charte ne fournit pas, et il en faut une :
+   le tireur est la seule classe non unique, donc deux joueurs peuvent la porter
+   en meme temps. Un ambre PALE, assez proche pour rester « tireur » et assez
+   clair pour ne pas se confondre avec le premier a l'ecran. */
 export const CLASS_COLOR = {
-  tank:     "#7fd8e8",
-  soigneur: "#8ef0c8",
-  dps:      "#f4d35e",
-  dps2:     "#d98cf0",
+  tank:     "#e0684a",
+  soigneur: "#9dc94a",
+  dps:      "#ffc44a",
+  dps2:     "#ffd98a",
 };
 
 export const COMBAT = {
@@ -354,11 +434,31 @@ export function cssVars(diffIndex = 1) {
     "--line":      SURFACE.line,
     "--line-soft": SURFACE.lineSoft,
 
-    "--text":       TEXT.base,
-    "--text-dim":   TEXT.dim,
-    "--text-faint": TEXT.faint,
+    /* Ce qui separe une surface qu'on PRESSE d'une surface qu'on LIT. La
+       relevee est plus claire que son support, avec l'arete de lumiere en haut ;
+       la passive n'a qu'un filet presque absent et aucune ombre. */
+    "--ui-rise":         UI.rise,
+    "--ui-edge-top":     UI.edgeTop,
+    "--ui-line-raised":  UI.lineRaised,
+    "--ui-line-passive": UI.linePassive,
+    "--ui-glass":        UI.glass,
+    "--ui-glass-glow":   UI.glassGlow,
+
+    "--text":        TEXT.base,
+    "--text-strong": TEXT.strong,
+    "--text-body":   TEXT.body,
+    "--text-dim":    TEXT.dim,
+    "--text-faint":  TEXT.faint,
+    "--text-mute":   TEXT.mute,
 
     "--go":      SIGNAL.go,
+    /* Les trois etats de l'ambre. `--go-ink` est l'ambre qui porte du TEXTE sur
+       un fond clair, `--on-go` le texte pose SUR un aplat ambre — les deux
+       existent parce qu'une teinte reglee pour un aplat se dissout des qu'elle
+       devient un mot. */
+    "--go-soft": SIGNAL.goSoft,
+    "--go-ink":  SIGNAL.goInk,
+    "--on-go":   SIGNAL.onGo,
     "--warn":    SIGNAL.warn,
     "--lethal":  SIGNAL.lethal,
     "--ally":    SIGNAL.ally,

@@ -25,6 +25,13 @@
 
   --radius-ui: 16px;
   --radius-ctl: 12px;
+  /* LE RAYON DES PETITES PIECES — pastilles, capuchons de touche, jauges,
+     lignes d'historique. Elles heritaient de `--radius` (2 px), c'est-a-dire du
+     rayon DUR de l'arene et du HUD : sur un ecran ou panneaux et boutons sont
+     franchement arrondis, elles ressortaient comme des angles vifs oublies.
+     Six et non douze : une pastille de dix-huit pixels de haut prise dans le
+     rayon des boutons devient une gelule. */
+  --radius-chip: 6px;
 
   --btn-pad:    var(--sp-4) var(--sp-6);   
   --btn-pad-lg: var(--sp-4) var(--sp-12);  
@@ -137,6 +144,44 @@
   transition: border-color var(--tap) linear, background var(--tap) linear,
               color var(--tap) linear, transform var(--tap) ease-out;
 }
+
+/* --- CE QU'ON PRESSE contre CE QU'ON LIT --------------------------------------
+   La regle qui porte la moitie de la direction graphite : une surface CLIQUABLE
+   est plus claire que celle qui la porte, avec un lisere clair en haut et une
+   ombre en bas ; une surface PASSIVE est enfoncee — filet presque absent, aucune
+   ombre. Sans cet ecart, panneaux et boutons retombent sur le meme ton et
+   l'ecran devient plat.
+
+   Le lisere du haut est une ARETE DE LUMIERE et non un contour : `inset 0 1px 0`
+   sur un blanc presque pur, un pixel, en haut seulement. Il dit d'ou vient la
+   lumiere, donc que la surface DEPASSE. Un contour complet dirait « encadre »,
+   ce qui est le contraire.
+
+   Le selecteur est volontairement FAIBLE — `.overlay button`, soit (0,1,1) —
+   et c'est ce qui exclut les actions principales sans avoir a les nommer :
+   `#start, #go, #regGo…` pese (1,0,0) et garde donc son aplat ambre. Ecrite en
+   `#gate button, #hubScreen button…` la regle pesait (1,0,1), passait devant, et
+   le bouton « Se connecter » perdait son ambre — verifie a l'ecran. Un lisere
+   blanc par-dessus l'ambre l'aurait de toute facon delave : leur relief vient de
+   leur lueur, pas d'une arete.
+
+   `.link` et `.ghost` sont exclus pour une autre raison : ce sont les deux
+   familles SANS SURFACE du depot — un lien souligne, un bouton fantome. Une
+   arete de lumiere sur un element qui n'a pas de fond ne souleve rien, elle
+   dessine un cadre autour de rien, et c'est exactement ce qu'on voyait au bas
+   du hub sur « Se déconnecter ». */
+.overlay button:not(.link):not(.ghost) {
+  background: var(--ui-rise);
+  border-color: var(--ui-line-raised);
+  box-shadow:
+    inset 0 var(--hair) 0 0 color-mix(in srgb, var(--ui-edge-top) 22%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--bg-void) 80%, transparent);
+}
+/* La surface passive : ce qu'on lit ne se souleve pas. */
+.overlay input {
+  border-color: var(--ui-line-passive);
+  box-shadow: none;
+}
 #gate input, #hubScreen input, #panel input, #menu input {
   min-height: var(--field-h);
   padding: 0 var(--field-pad);
@@ -164,7 +209,7 @@
   text-transform: uppercase;
   min-height: 52px;
   padding: var(--btn-pad-lg);
-  color: var(--bg-void);
+  color: var(--on-go);
   background: var(--go);
   border-color: var(--go);
   border-radius: var(--radius-ctl);
@@ -217,7 +262,7 @@
   font-family: var(--font-display);
   font-weight: 600;
   border: 0;
-  border-radius: calc(var(--radius-ctl) - 4px);
+  border-radius: var(--radius-chip);
   background: transparent;
   white-space: nowrap;
   padding-inline: var(--sp-2);
@@ -333,7 +378,7 @@
 #roomList .roomEntry .roomState {
   order: 2;
   padding: 2px var(--sp-2);
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   font-family: var(--font);
   font-size: var(--t-xs);
   letter-spacing: var(--track-title);
@@ -452,12 +497,72 @@
   box-shadow: 0 0 var(--sp-8) -6px currentColor;
 }
 .classOpt { overflow: hidden; }
+
+/* --- LA CARTE DE VERRE --------------------------------------------------------
+   Les cartes de CHOIX — classe et difficulte — cessent d'etre des panneaux
+   pleins : elles laissent passer le fond, le floutent, et attrapent la lumiere
+   sur leur arete haute.
+
+   Ce n'est pas un ornement gratuit : ce sont les deux seuls endroits du salon ou
+   l'on COMPARE trois objets de meme forme, et le verre les detache du fond sans
+   ajouter ni couleur ni contour — donc sans concurrencer la teinte de classe,
+   qui est la seule information de la carte.
+
+   Quatre couches, chacune pour une raison :
+     - un fond translucide, pose sur `--ui-glass` (34 % d'opacite : au-dela le
+       flou ne se voit plus, en deca le texte perd son fond) ;
+     - `backdrop-filter` — le flou fait le verre, la saturation compense le
+       delavage que tout flou produit sur les couleurs qu'il traverse ;
+     - un degrade tres court en haut, le REFLET, qui meurt en 45 % de hauteur :
+       un verre eclaire d'en haut n'est pas eclaire partout ;
+     - l'arete de lumiere en `inset`, comme sur toute surface relevee du depot.
+
+   Le selecteur reprend `#classRow` : `.classOpt` est un `<button>`, donc la
+   regle de surface relevee (`.overlay button:not(…)`, 0-3-1) le rattrapait et
+   lui reposait son fond opaque. `#voteRow button` n'avait pas le probleme —
+   l'identifiant l'emporte deja.
+
+   `isolation: isolate` n'est pas decoratif : `backdrop-filter` cree un contexte
+   d'empilement, et sans lui le `::after` de `.classOpt.mine` passait dessous. */
+#classRow .classOpt,
+#voteRow button {
+  background:
+    linear-gradient(to bottom,
+      var(--ui-glass-glow) 0%, transparent 45%),
+    var(--ui-glass);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: var(--hair) solid var(--ui-line-raised);
+  box-shadow:
+    inset 0 var(--hair) 0 0 color-mix(in srgb, var(--ui-edge-top) 26%, transparent),
+    0 var(--sp-2) var(--sp-6) -4px color-mix(in srgb, var(--bg-void) 85%, transparent);
+  isolation: isolate;
+}
+
+/* La carte RETENUE reste distinguee par sa teinte, pas par plus de verre : on
+   ajoute un voile de sa propre couleur SOUS le reflet, et rien d'autre. Deux
+   cartes de verre dont l'une serait plus floue que l'autre se liraient comme un
+   defaut de rendu. */
+#voteRow button.mine {
+  background:
+    linear-gradient(to bottom, var(--ui-glass-glow) 0%, transparent 45%),
+    color-mix(in srgb, var(--go) 10%, var(--ui-glass));
+}
+
+/* LE REPLI. Sans `backdrop-filter`, un fond a 34 % laisse lire la grille du
+   decor a travers le texte — le verre devient un calque sale. On rend alors la
+   surface pleine : on perd l'effet, jamais la lisibilite. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #classRow .classOpt,
+  #voteRow button { background: var(--ui-panel); }
+  #voteRow button.mine { background: color-mix(in srgb, var(--go) 8%, var(--ui-panel)); }
+}
 #classRow .classOpt { border-radius: var(--radius-ui); }
 .classOpt.mine::after { border-radius: var(--radius-ui) var(--radius-ui) 0 0; }
 .className { font-family: var(--font-display); font-size: var(--t-l); }
 .classRole { font-family: var(--font-body); line-height: 1.5; }
 .classSkill { font-family: var(--font-body); }
-.classSkill .key { font-family: var(--font); border-radius: var(--radius); }
+.classSkill .key { font-family: var(--font); border-radius: var(--radius-chip); }
 .classTaken { font-family: var(--font); color: var(--warn); }
 .classCell { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
 .classCell > .classOpt { flex: 1; }
@@ -524,7 +629,7 @@
 .voteMul {
   flex: none;
   padding: 2px var(--sp-2);
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   font-family: var(--font);
   font-size: var(--t-xs);
   text-transform: none;
@@ -532,7 +637,7 @@
   color: var(--text-dim);
   background: var(--ui-field);
 }
-#voteRow button.winner .voteMul { color: var(--bg-void); background: var(--go); }
+#voteRow button.winner .voteMul { color: var(--on-go); background: var(--go); }
 .voteDetail {
   font-family: var(--font-body);
   font-size: var(--t-s);
@@ -597,7 +702,7 @@
 .metaLine.equipped { box-shadow: inset 0 0 0 var(--hair) var(--go); }
 .metaName { font-family: var(--font-display); }
 .metaDesc { font-family: var(--font-body); }
-.metaBuy, .metaEquip { border-radius: var(--radius); min-height: 0; }
+.metaBuy, .metaEquip { border-radius: var(--radius-chip); min-height: 0; }
 
 @media (max-width: 900px) {
   #gate { grid-template-columns: 1fr; }
@@ -888,7 +993,7 @@
 }
 #buildStats { gap: var(--sp-3); }
 .buildMod { border-radius: var(--radius-ctl); }
-.buildSkill .key { border-radius: var(--radius); }
+.buildSkill .key { border-radius: var(--radius-chip); }
 .buildCard { border-radius: 0 var(--radius-ctl) var(--radius-ctl) 0; }
 .buildCardName { font-family: var(--font-display); }
 .buildCardDesc { font-family: var(--font-body); }
@@ -929,7 +1034,7 @@
   font-weight: 700;
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
-  color: var(--bg-void);
+  color: var(--on-go);
   background: var(--go);
   border-color: var(--go);
 }
@@ -1035,7 +1140,7 @@
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-4);
   border: var(--hair) solid var(--ui-line);
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   background: var(--ui-panel);
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -1262,7 +1367,7 @@
   padding: 2px var(--sp-2);
   border: var(--hair) solid var(--ui-line);
   border-bottom-width: 2px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   background: var(--bg-void);
   font-family: var(--font);
   font-size: var(--t-xs);
@@ -1522,7 +1627,7 @@ tr.clickable { cursor: pointer; }
 .cardBadge {
   display: inline-block;
   border: var(--hair) solid currentColor;
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   padding: 0 var(--sp-1);
   margin: 1px var(--sp-1) 1px 0;
   font-size: var(--t-xs);
@@ -1699,7 +1804,7 @@ tr.clickable { cursor: pointer; }
   font-weight: 700;
   color: currentColor;
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   padding: 2px var(--sp-2);
   background: color-mix(in srgb, currentColor 14%, transparent);
   white-space: nowrap;
@@ -1771,7 +1876,7 @@ tr.clickable { cursor: pointer; }
   min-height: 32px;
   padding: 0 var(--sp-2);
   font-size: var(--t-xs);
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
 }
 .metaBuy { font-family: var(--font); }
 .metaBuy, .metaEquip { white-space: nowrap; }
@@ -1926,7 +2031,7 @@ tr.clickable { cursor: pointer; }
   font-size: var(--t-xs);
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
-  color: var(--bg-void);
+  color: var(--on-go);
   background: var(--go);
 }
 .cardOpt.faded { opacity: .3; }
@@ -2016,7 +2121,7 @@ tr.clickable { cursor: pointer; }
   min-width: var(--sp-6);
   padding: 2px var(--sp-2);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   background: color-mix(in srgb, var(--go) 14%, transparent);
   text-align: center;
   font-family: var(--font);
@@ -2196,7 +2301,7 @@ tr.clickable { cursor: pointer; }
   font-weight: 700;
   letter-spacing: var(--track-title);
   text-transform: uppercase;
-  color: var(--bg-void);
+  color: var(--on-go);
   border-color: var(--go);
   background: var(--go);
   box-shadow: var(--glow-go);
@@ -2574,7 +2679,7 @@ tr.clickable { cursor: pointer; }
   height: 34px;
   border-radius: var(--radius-ctl);
   font-size: var(--t-m);
-  color: var(--bg-void);
+  color: var(--on-go);
   background: var(--go);
 }
 #hubResumeText { flex: 1; min-width: 0; }
@@ -2595,7 +2700,7 @@ tr.clickable { cursor: pointer; }
   font-weight: 700;
   letter-spacing: var(--track-title);
   text-transform: uppercase;
-  color: var(--bg-void);
+  color: var(--on-go);
   border-color: var(--go);
   background: var(--go);
 }
@@ -2650,7 +2755,7 @@ tr.clickable { cursor: pointer; }
   font-weight: 700;
   letter-spacing: var(--track-title);
   text-transform: uppercase;
-  color: var(--bg-void);
+  color: var(--on-go);
   border-color: var(--go);
   background: var(--go);
 }
@@ -2760,7 +2865,7 @@ tr.clickable { cursor: pointer; }
   font-size: var(--t-xs);
   letter-spacing: var(--track-title);
   padding: 0 var(--sp-1);
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   background: color-mix(in srgb, var(--go) 16%, transparent);
   color: var(--go);
 }
@@ -2905,7 +3010,7 @@ tr.clickable { cursor: pointer; }
 .merchantPrix { font-family: var(--font); font-size: var(--t-xs); color: var(--gain); }
 
 .cardBan {
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   font-family: var(--font);
   font-size: var(--t-xs);
   letter-spacing: var(--track-title);
@@ -2949,7 +3054,7 @@ tr.clickable { cursor: pointer; }
 #hubBoardList { gap: 0; }
 .boardRow {
   padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius);
+  border-radius: var(--radius-chip);
   border-top: var(--hair) solid var(--line-soft);
 }
 .boardRow:first-child { border-top: 0; }
@@ -2977,7 +3082,7 @@ tr.clickable { cursor: pointer; }
   min-width: 0;
   min-height: 34px;
   border: 0;
-  border-radius: calc(var(--radius-ctl) - 4px);
+  border-radius: var(--radius-chip);
   background: transparent;
   font-family: var(--font-display);
   font-size: var(--t-xs);
@@ -2986,6 +3091,18 @@ tr.clickable { cursor: pointer; }
   text-transform: uppercase;
   color: var(--text-dim);
 }
+/* LES BOUTS DE RANGEE. `ui.css` leur pose un rayon de segment (2 px, angles durs
+   de l'arene) via `:first-child` / `:last-child`, ce qui pese (1,2,0) et bat la
+   regle groupee ci-dessus (1,1,0) — la feuille est pourtant chargee avant. On
+   voyait donc un onglet CARRE a chaque extremite d'une rangee arrondie. La
+   contre-regle reprend les memes pseudo-classes pour peser autant, et vit ici
+   parce que c'est `menus.css` qui possede l'habillage des menus. */
+#gateTabs button:first-child, #gateTabs button:last-child,
+#metaClassTabs button:first-child, #metaClassTabs button:last-child,
+#metaTabs button:first-child, #metaTabs button:last-child {
+  border-radius: var(--radius-chip);
+}
+
 #metaClassTabs button.mine, #metaTabs button.mine {
   color: var(--go);
   background: color-mix(in srgb, var(--go) 10%, var(--ui-panel));
@@ -3031,7 +3148,7 @@ tr.clickable { cursor: pointer; }
 }
 .pVal { font-family: var(--font); font-size: var(--t-xl); font-weight: 700; color: var(--text); }
 .pQual { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-dim); }
-.pGauge { border-radius: var(--radius); overflow: hidden; }
+.pGauge { border-radius: var(--radius-chip); overflow: hidden; }
 .pNote { font-family: var(--font-body); font-size: var(--t-xs); line-height: 1.6; }
 .pMark { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
 
@@ -3087,7 +3204,7 @@ button:hover:not(:disabled) {
 #hubPassAskGo:hover:not(:disabled) {
   background: color-mix(in srgb, #fff 14%, var(--go));
   border-color: color-mix(in srgb, #fff 14%, var(--go));
-  color: var(--bg-void);
+  color: var(--on-go);
   box-shadow: var(--glow-go-hi);
   transform: none;
   filter: none;
@@ -3106,7 +3223,7 @@ button:hover:not(:disabled) {
 #start.cancel:hover:not(:disabled) {
   background: color-mix(in srgb, #fff 14%, var(--warn));
   border-color: color-mix(in srgb, #fff 14%, var(--warn));
-  color: var(--bg-void);
+  color: var(--on-go);
   box-shadow: 0 0 var(--sp-12) color-mix(in srgb, var(--warn) 60%, transparent);
 }
 #start.cancel:active:not(:disabled) {

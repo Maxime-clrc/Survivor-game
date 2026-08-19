@@ -178,8 +178,14 @@ input, textarea, [contenteditable] {
   border-radius: 0;
   border-left-width: 0;
 }
-#voteRow button:first-child { border-left-width: var(--hair); border-radius: var(--radius) 0 0 var(--radius); }
-#voteRow button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+/* LES DEUX REGLES DE SEGMENT ONT ETE RETIREES ICI. `#voteRow` etait un segment
+   — trois boutons colles, arrondis seulement aux deux bouts — et il est passe en
+   TROIS CARTES separees depuis. Les regles etaient restees, et elles gagnaient :
+   `:first-child` porte la rangee a (1,2,0) contre (1,1,0) pour la regle groupee
+   de `menus.css`, alors meme que cette feuille est chargee apres. On lisait donc
+   une premiere carte a 2 px, une deuxieme a 16 et une troisieme a 0 — « des
+   cadres arrondis et d'autres carres ». Le rayon des cartes appartient
+   desormais a `menus.css`, et a lui seul. */
 #voteRow button.mine { color: var(--text); background: var(--bg-raised); }
 #voteRow button.winner { border-color: var(--go); color: var(--go); }
 #voteRow .tally { color: var(--text-faint); font-size: var(--t-xs); }

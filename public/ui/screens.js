@@ -594,6 +594,11 @@ window.addEventListener("keydown", e => {
 refreshAudioUi();
 export let launchEndsAt = 0;
 let launchTimer = 0;
+/* Derniere seconde ANNONCEE. Le tick ne part pas a chaque passage de
+   `renderLaunch` — la fonction tourne cinq fois par seconde, et elle est aussi
+   rappelee par `refreshPanel` a chaque diffusion du salon. Il part quand le
+   chiffre AFFICHE change, donc exactement une fois par seconde. */
+let launchLastSec = 0;
 function launchPending() { return launchEndsAt > performance.now(); }
 export function renderLaunch() {
   if (!startBtn) return;
@@ -601,6 +606,7 @@ export function renderLaunch() {
   if (launchEndsAt === 0) {
     clearInterval(launchTimer);
     launchTimer = 0;
+    launchLastSec = 0;
     startBtn.textContent = t("ui.panel.start", "Lancer la manche");
     startBtn.classList.remove("cancel");
     return;
@@ -609,6 +615,7 @@ export function renderLaunch() {
   if (!launchPending()) {
     clearInterval(launchTimer);
     launchTimer = 0;
+    launchLastSec = 0;
     startBtn.disabled = true;
     startBtn.classList.remove("cancel");
     startBtn.textContent = t("ui.panel.starting", "Lancement…");
@@ -619,6 +626,12 @@ export function renderLaunch() {
   startBtn.disabled = false;
   startBtn.classList.add("cancel");
   const reste = Math.max(0, Math.ceil((launchEndsAt - performance.now()) / 1000));
+  /* Un tick par seconde ecoulee, et AUCUN sur la premiere valeur affichee : le
+     clic vient de rendre `lancer`, un tick colle dessus ferait deux sons pour un
+     seul evenement. On n'annonce donc que les secondes qui TOMBENT — 3 → 2,
+     2 → 1 — et le souffle de `lancement` conclut a l'echeance. */
+  if (launchLastSec && reste && reste < launchLastSec) playSound("tick");
+  launchLastSec = reste;
   startBtn.textContent = tf("ui.panel.cancel", "Annuler le lancement — {n} s", { n: reste });
   waitMsg.textContent = t("ui.panel.starting.msg",
     "La manche démarre. Un clic pour tout arrêter.");
