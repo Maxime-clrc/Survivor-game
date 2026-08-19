@@ -1,37 +1,17 @@
 
-/* --- surfaces ---------------------------------------------------------------
-   GRAPHITE CHAUD. L'indigo d'origine (#08090d … #2a3140) tirait tout l'ecran
-   vers le bleu : les gris y devenaient froids, et l'ambre d'action s'y lisait
-   comme une alerte posee sur du ciel. La base est desormais un graphite TIEDE —
-   meme echelle de luminosite, teinte deplacee vers le brun — et l'ambre s'y pose
-   comme une lumiere sur du metal.
-
-   DEUX NIVEAUX DE SURFACE, et cette distinction porte la moitie du resultat :
-   une surface PASSIVE (ce qu'on lit) est enfoncee — filet presque absent, aucune
-   ombre ; une surface RELEVEE (ce qu'on presse) est plus claire que celle qui la
-   porte, avec un lisere clair en haut et une ombre en bas. Sans cet ecart, tout
-   retombe sur le meme ton et l'ecran devient plat.
-
-   L'ECHELLE A ETE MONTEE D'UN CRAN apres coup : les valeurs d'origine rendaient
-   un ecran juste mais sombre, ou les surfaces se distinguaient mal les unes des
-   autres. Ce sont les ECARTS entre crans qui font la profondeur, pas la
-   noirceur du plus bas — ils sont donc conserves tels quels, et tout le jeu
-   monte ensemble. Les textes, eux, ne bougent pas : leur contraste descend
-   mecaniquement, et il reste au-dessus du seuil AA (mesure : titre 12,5,
-   secondaire 7,1, attenue 3,9 — ce dernier est reserve aux libelles courts).
-
-   `line` et `lineSoft` restent des HEX et non des rgba : le canvas les lit
-   directement, et `alpha()` comme `ramp()` parsent six caracteres hexadecimaux.
-   Les filets translucides de l'interface vivent dans `UI` juste dessous. */
+/* --- surfaces DU JEU ----------------------------------------------------------
+   L'indigo d'origine, et il reste : l'arene, le HUD et les entites n'ont pas
+   change de direction. Le graphite chaud ne concerne que l'interface HORS
+   PARTIE, et il vit dans `UI_THEME` plus bas — deux palettes, deux portees. */
 export const SURFACE = {
-  void:     "#2b2520",
-  arena:    "#3a322c",
-  panel:    "#453e39",
-  raised:   "#554d46",
-  line:     "#554d46",
-  lineSoft: "#3a322c",
-  gridFine:  "#372f29",
-  gridMajor: "#4b4139",
+  void:     "#08090d",
+  arena:    "#0f1219",
+  panel:    "#161a24",
+  raised:   "#1e2431",
+  line:     "#2a3140",
+  lineSoft: "#1c222d",
+  gridFine:  "#171b24",
+  gridMajor: "#222836",
   shadow:   "#000000",
 };
 
@@ -62,7 +42,7 @@ export const UI = {
 
 export const DECOR = [
   {
-    arena: "#413830", gridFine: "#50463d", gridMajor: "#63564a",
+    arena: "#181d28", gridFine: "#252c3b", gridMajor: "#38455f",
     vignette: 0.40, vignetteFrom: 0.46, skip: 0, pulse: 0,
   },
   {
@@ -70,58 +50,35 @@ export const DECOR = [
     vignette: 0.55, vignetteFrom: 0.42, skip: 0, pulse: 0,
   },
   {
-    arena: "#2d2620", gridFine: "#3f332c", gridMajor: "#544036",
+    arena: "#0a0a0e", gridFine: "#1c1719", gridMajor: "#2e2624",
     vignette: 0.68, vignetteFrom: 0.34, skip: 3, pulse: 0.06,
   },
 ];
 
 export function decorAt(diffIndex) { return DECOR[diffIndex] ?? DECOR[1]; }
 
-/* SIX tons et non trois, et aucun ne contient de bleu. Le gris froid d'origine
-   se voyait surtout sur les grandes surfaces de prose : sur un fond tiede, un
-   texte bleute paraît sale. L'echelle est graphite chaud de bout en bout.
-
-   `faint` et `mute` ont ete remontes AVEC les surfaces, et pas par gout : sur le
-   panneau eclairci, leurs valeurs d'origine tombaient a 3,4 et 2,8 de contraste,
-   c'est-a-dire sous le seuil AA — pour des tons qui portent des libelles reels
-   (noms de statistiques, heures, notes de pied). Un gris qu'on ne peut pas lire
-   ne hierarchise rien, il supprime. C'est la meme correction que le depot avait
-   deja faite une fois sur le troisieme ton.
-
-   `dim` est le ton le PLUS FREQUENT de l'interface — c'est celui des leads, des
-   notes et des lignes secondaires — d'ou sa place au milieu et non en bas. */
+/* Les trois tons du JEU. Ceux de l'interface sont dans `UI_THEME`. */
 export const TEXT = {
-  base:   "#f9f9f8",   // titre
-  strong: "#e9e7e4",   // fort
-  body:   "#dfdcd8",   // courant
-  dim:    "#c3bdb7",   // secondaire, le plus frequent
-  faint:  "#a89e93",   // attenue
-  mute:   "#988d81",   // discret
+  base:  "#e9edf5",
+  dim:   "#8892a6",
+  faint: "#6f7a90",
 };
 
-/* L'AMBRE, ET LUI SEUL, porte l'action. Le cyan est parti avec l'indigo : sur
-   une base tiede il ressortait comme un corps etranger, alors que l'ambre est la
-   couleur meme du materiau eclaire.
-
-   `goInk` et `onGo` ne sont pas des variantes decoratives, ils repondent a une
-   regle : UNE COULEUR QUI PORTE DU TEXTE PREND SA VERSION FONCEE. Une teinte
-   reglee pour un aplat se dissout des qu'elle devient un mot — meme teinte,
-   autre densite. `onGo` est l'inverse, le texte pose SUR un aplat ambre. */
+/* La grammaire du JEU, inchangee : cyan « il faut y aller », ambre « danger,
+   sortir », rouge letal. L'interface hors partie a la sienne (`UI_THEME`), ou
+   l'ambre porte l'action — les deux ne se croisent jamais a l'ecran. */
 export const SIGNAL = {
-  go:      "#ffae2b",
-  goSoft:  "#ffcc7a",
-  goInk:   "#c07a12",
-  onGo:    "#241703",
-  warn:    "#ff9430",
-  lethal:  "#ff5540",
-  ally:    "#e9e7e4",
+  go:      "#38bdf8",
+  warn:    "#f5a524",
+  lethal:  "#ef4056",
+  ally:    "#e9edf5",
   persist: "#a855f7",
-  gain:    "#9dc94a",
+  gain:    "#34d399",
 };
 
 export const HEAL = SIGNAL.gain;
 
-export const RARITY_COLOR = ["#c3bdb7", "#9dc94a", "#ff9e4a", "#ffd98a"];
+export const RARITY_COLOR = ["#94a3b8", "#38bdf8", "#c084fc", "#fbbf24"];
 
 export const CARD_CATEGORY_COLOR = {
   off:     SIGNAL.lethal,
@@ -131,15 +88,61 @@ export const CARD_CATEGORY_COLOR = {
   util:    TEXT.dim,
 };
 
-/* `dps2` est la SEULE teinte que la charte ne fournit pas, et il en faut une :
-   le tireur est la seule classe non unique, donc deux joueurs peuvent la porter
-   en meme temps. Un ambre PALE, assez proche pour rester « tireur » et assez
-   clair pour ne pas se confondre avec le premier a l'ecran. */
 export const CLASS_COLOR = {
-  tank:     "#e0684a",
-  soigneur: "#9dc94a",
-  dps:      "#ffc44a",
-  dps2:     "#ffd98a",
+  tank:     "#7fd8e8",
+  soigneur: "#8ef0c8",
+  dps:      "#f4d35e",
+  dps2:     "#d98cf0",
+};
+
+/* --- LE THEME DE L'INTERFACE HORS PARTIE ---------------------------------------
+   Graphite chaud et ambre, et il ne sort JAMAIS des menus. C'est la seule facon
+   de tenir les deux directions a la fois : l'arene garde son indigo et sa
+   grammaire — cyan « il faut y aller », ambre « danger, sortir » — pendant que
+   les ecrans hors partie passent au metal chaud ou l'ambre porte l'action. Les
+   memes valeurs partout auraient force un choix : soit repeindre le jeu, soit
+   renoncer a la charte ; soit, pire, laisser `--go` valoir l'ambre en combat et
+   se confondre avec `--warn` a deux cents ennemis.
+
+   La SEPARATION est une portee CSS et non un second jeu de noms : `cssVars()`
+   expose ces valeurs en `--ui-*`, et `menus.css` les remappe sur `--text`,
+   `--go`… au niveau de `.overlay` et de la barre. Les menus heritent donc du
+   theme, tout le reste garde `:root`. Aucune des deux cents references de la
+   feuille n'a eu a changer de nom.
+
+   `goInk` et `onGo` repondent a une regle : UNE COULEUR QUI PORTE DU TEXTE PREND
+   SA VERSION FONCEE. Une teinte reglee pour un aplat se dissout des qu'elle
+   devient un mot — meme teinte, autre densite ; `onGo` est l'inverse, l'encre
+   posee SUR un aplat ambre. */
+export const UI_THEME = {
+  void:     "#2b2520",
+  arena:    "#3a322c",
+  panel:    "#453e39",
+  raised:   "#554d46",
+  line:     "#554d46",
+  lineSoft: "#3a322c",
+
+  text:       "#f9f9f8",
+  textStrong: "#e9e7e4",
+  textBody:   "#dfdcd8",
+  textDim:    "#c3bdb7",
+  textFaint:  "#a89e93",
+  textMute:   "#988d81",
+
+  go:      "#ffae2b",
+  goSoft:  "#ffcc7a",
+  goInk:   "#c07a12",
+  onGo:    "#241703",
+  warn:    "#ff9430",
+  lethal:  "#ff5540",
+  gain:    "#9dc94a",
+  ally:    "#e9e7e4",
+
+  rarity: ["#c3bdb7", "#9dc94a", "#ff9e4a", "#ffd98a"],
+
+  clsTank:     "#e0684a",
+  clsSoigneur: "#9dc94a",
+  clsDps:      "#ffc44a",
 };
 
 export const COMBAT = {
@@ -452,13 +455,6 @@ export function cssVars(diffIndex = 1) {
     "--text-mute":   TEXT.mute,
 
     "--go":      SIGNAL.go,
-    /* Les trois etats de l'ambre. `--go-ink` est l'ambre qui porte du TEXTE sur
-       un fond clair, `--on-go` le texte pose SUR un aplat ambre — les deux
-       existent parce qu'une teinte reglee pour un aplat se dissout des qu'elle
-       devient un mot. */
-    "--go-soft": SIGNAL.goSoft,
-    "--go-ink":  SIGNAL.goInk,
-    "--on-go":   SIGNAL.onGo,
     "--warn":    SIGNAL.warn,
     "--lethal":  SIGNAL.lethal,
     "--ally":    SIGNAL.ally,
@@ -492,7 +488,42 @@ export function cssVars(diffIndex = 1) {
     "--flash":  COMBAT.flash,
 
     "--cursor-ui": cursorUri(TEXT.base, false),
-    "--cursor-go": cursorUri(SIGNAL.go, true),
+    "--cursor-go": cursorUri(UI_THEME.go, true),
+
+    /* LE THEME DE L'INTERFACE, expose a part et remappe par `menus.css` sur les
+       ecrans hors partie. Ces valeurs ne touchent jamais l'arene ni le HUD :
+       c'est la portee CSS qui les separe, pas un second jeu de noms. */
+    "--ui-bg-void":   UI_THEME.void,
+    "--ui-bg-arena":  UI_THEME.arena,
+    "--ui-bg-panel":  UI_THEME.panel,
+    "--ui-bg-raised": UI_THEME.raised,
+    "--ui-line-c":    UI_THEME.line,
+    "--ui-line-softc": UI_THEME.lineSoft,
+
+    "--ui-text":        UI_THEME.text,
+    "--ui-text-strong": UI_THEME.textStrong,
+    "--ui-text-body":   UI_THEME.textBody,
+    "--ui-text-dim":    UI_THEME.textDim,
+    "--ui-text-faint":  UI_THEME.textFaint,
+    "--ui-text-mute":   UI_THEME.textMute,
+
+    "--ui-go":      UI_THEME.go,
+    "--ui-go-soft": UI_THEME.goSoft,
+    "--ui-go-ink":  UI_THEME.goInk,
+    "--ui-on-go":   UI_THEME.onGo,
+    "--ui-warn":    UI_THEME.warn,
+    "--ui-lethal":  UI_THEME.lethal,
+    "--ui-gain":    UI_THEME.gain,
+    "--ui-ally":    UI_THEME.ally,
+
+    "--ui-commune":    UI_THEME.rarity[0],
+    "--ui-rare":       UI_THEME.rarity[1],
+    "--ui-epique":     UI_THEME.rarity[2],
+    "--ui-legendaire": UI_THEME.rarity[3],
+
+    "--ui-cls-tank":     UI_THEME.clsTank,
+    "--ui-cls-soigneur": UI_THEME.clsSoigneur,
+    "--ui-cls-dps":      UI_THEME.clsDps,
 
     "--t-xs":  TYPE[0] + "px",
     "--t-s":   TYPE[1] + "px",

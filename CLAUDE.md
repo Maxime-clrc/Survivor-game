@@ -1219,11 +1219,20 @@ toute créature, aucun sur le décor**, et **jamais de noir pur**.
   `render/stage.js` pose les variables CSS sur `:root` depuis `cssVars()` —
   **jamais l'inverse**. `tokens.css` ne contient aucune couleur. L'échelle
   typographique (`TYPE`) suit la même règle.
-- **La base est un GRAPHITE CHAUD et l'ambre porte l'action.** L'indigo d'origine
-  tirait tout l'écran vers le bleu — les gris y devenaient froids et l'ambre s'y
-  lisait comme une alerte posée sur du ciel. Même échelle de luminosité, teinte
-  déplacée vers le brun : l'ambre s'y pose comme une lumière sur du métal. Le
-  cyan est parti avec l'indigo.
+- **DEUX PALETTES, SÉPARÉES PAR LA PORTÉE.** L'interface **hors partie** est en
+  graphite chaud et ambre ; l'**arène, le HUD et les entités** gardent l'indigo
+  d'origine et leur grammaire — cyan « il faut y aller », ambre « danger,
+  sortir ». Les mêmes valeurs partout auraient forcé un choix : repeindre le jeu,
+  renoncer à la charte, ou — pire — laisser `--go` valoir l'ambre en combat et se
+  confondre avec `--warn` à deux cents ennemis, exactement le défaut que ce
+  fichier documente pour `bullet` / `shot`.
+- **La séparation est une PORTÉE, jamais un second jeu de noms.** `UI_THEME`
+  (`palette.js`) est exposé en `--ui-*` sur `:root`, et `menus.css` le remappe
+  sur `--text`, `--go`… au niveau de `.overlay`, `#topbar` et `#pause`. Les
+  descendants héritent, le reste de la page garde les valeurs de jeu, et aucune
+  des deux cents références de la feuille n'a eu à changer de nom. `#cards`,
+  `#build` et `#pause` sont du **menu** bien qu'ils s'ouvrent une manche en
+  cours : ce sont des écrans posés par-dessus le jeu, pas le jeu.
 - **Une couleur qui porte du TEXTE prend sa version foncée.** Une teinte réglée
   pour un aplat se dissout dès qu'elle devient un mot : `--go-ink` (`#c07a12`) et
   non `--go` sur fond clair, `--on-go` (`#241703`) pour le texte posé **sur** un

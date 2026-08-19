@@ -18,6 +18,70 @@
   font-display: swap;
 }
 
+/* --- LE THEME DE L'INTERFACE, remappe par PORTEE ------------------------------
+   Le graphite chaud et l'ambre ne concernent que les ecrans HORS PARTIE :
+   l'arene, le HUD et les entites gardent l'indigo et leur grammaire — cyan
+   « il faut y aller », ambre « danger, sortir ». Sans cette separation, `--go`
+   vaudrait l'ambre en combat et se confondrait avec `--warn` a deux cents
+   ennemis, ce qui est exactement le defaut que le depot documente pour
+   `bullet` / `shot`.
+
+   La separation est une PORTEE et non un second jeu de noms : `palette.js`
+   expose le theme en `--ui-*` sur `:root`, et ces quelques lignes le remappent
+   sur les noms usuels au niveau des ecrans. Les descendants heritent, tout le
+   reste de la page garde les valeurs de jeu — et aucune des deux cents
+   references de cette feuille n'a eu a changer de nom.
+
+   LA LIGNE DE PARTAGE EST « LA MANCHE TOURNE-T-ELLE DERRIERE ». `#cards`,
+   `#merchant`, `#build`, `#pause` et `#brief` s'ouvrent PENDANT une partie : ils sont
+   poses sur l'arene, on y lit des raretes, des categories et des teintes de
+   classe qui viennent des constantes de JEU, et on retourne au combat en les
+   fermant. Deux palettes s'y croiseraient — un fond graphite sous un cyan de
+   rarete — donc ils gardent celle du jeu, entiere. Ils sont exclus par
+   `:not()`, un identifiant chacun, plutot que sortis de `.overlay` : la classe
+   porte toute leur mise en page, et la leur retirer casserait bien plus que
+   leurs couleurs.
+
+   `#brief` en fait partie bien qu'il precede la premiere vague : il est pose sur
+   une manche qui tourne deja — les joueurs s'y deplacent — et il porte `--tint`,
+   la teinte de classe, qui vient de `CLASS_COLOR`, donc du jeu.
+
+   `#topbar` reste : elle n'existe que hors partie. `#bilan` aussi — il s'affiche
+   la manche terminee, phase salon. */
+.overlay:not(#cards):not(#merchant):not(#build):not(#brief), #topbar {
+  --bg-void:   var(--ui-bg-void);
+  --bg-arena:  var(--ui-bg-arena);
+  --bg-panel:  var(--ui-bg-panel);
+  --bg-raised: var(--ui-bg-raised);
+  --line:      var(--ui-line-c);
+  --line-soft: var(--ui-line-softc);
+
+  --text:        var(--ui-text);
+  --text-strong: var(--ui-text-strong);
+  --text-body:   var(--ui-text-body);
+  --text-dim:    var(--ui-text-dim);
+  --text-faint:  var(--ui-text-faint);
+  --text-mute:   var(--ui-text-mute);
+
+  --go:      var(--ui-go);
+  --go-soft: var(--ui-go-soft);
+  --go-ink:  var(--ui-go-ink);
+  --on-go:   var(--ui-on-go);
+  --warn:    var(--ui-warn);
+  --lethal:  var(--ui-lethal);
+  --gain:    var(--ui-gain);
+  --ally:    var(--ui-ally);
+
+  --commune:    var(--ui-commune);
+  --rare:       var(--ui-rare);
+  --epique:     var(--ui-epique);
+  --legendaire: var(--ui-legendaire);
+
+  --cls-tank:     var(--ui-cls-tank);
+  --cls-soigneur: var(--ui-cls-soigneur);
+  --cls-dps:      var(--ui-cls-dps);
+}
+
 :root {
   --font-display: "Chakra Petch", var(--font);
   --font-body: "Space Grotesk", system-ui, sans-serif;
