@@ -296,7 +296,7 @@ function registerHit(e) {
 }
 const HIT_BURST_MAX = 4;
 export const hitQueue = [];
-const CRIT_FLASH = 0.13;
+const CRIT_FLASH = 0.17;
 function applyHit(id, x, y, dx, dy, crit = false, col = null) {
   const now = performance.now();
   hits.set(id, {
@@ -318,17 +318,26 @@ function applyHit(id, x, y, dx, dy, crit = false, col = null) {
   }
   if (crit) spawnCritShards(x, y, dx, dy);
 }
-export const CRIT_PUNCH = 0.05;
-// [26e] des ECLATS, pas un disque : la forme doit dire « perforation ».
+export const CRIT_PUNCH = 0.07;
+// [26e] des ECLATS, pas un disque : la forme doit dire « perforation ». Le
+// noyau chaud qui les accompagne est ce qui rend le critique lisible dans une
+// foule : les eclats partent, le point reste une image de plus.
 export function spawnCritShards(x, y, dx, dy) {
   const a0 = Math.atan2(dy, dx);
-  for (let i = 0; i < 3 && particles.length < PARTICLE_MAX; i++) {
-    const a = a0 + (i - 1) * 0.30 + (Math.random() - 0.5) * 0.14;
-    const sp = 240 + Math.random() * 180;
+  const n = glActive() ? 5 : 3;
+  for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+    const a = a0 + (i - (n - 1) / 2) * 0.30 + (Math.random() - 0.5) * 0.16;
+    const sp = 260 + Math.random() * 220;
     particles.push({
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      life: 0.22, max: 0.22, col: SIGNAL.warn, size: 3.4,
+      life: 0.26, max: 0.26, col: SIGNAL.warn, size: 3.6,
       frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 6,
+    });
+  }
+  if (particles.length < PARTICLE_MAX) {
+    particles.push({
+      x, y, vx: 0, vy: 0, life: 0.13, max: 0.13,
+      col: SIGNAL.warn, size: 11, frame: fxGlow,
     });
   }
 }
@@ -710,10 +719,14 @@ const DMG_AGG_MS = 200;
 const DMG_THRESHOLD = 0.05;
 export const dmgAgg = new Map();
 function aggregateDamage(e) {
+  // le critique voyage jusqu'au CHIFFRE : un coup qui vaut le double sans que
+  // rien ne le dise n'existe pas pour le joueur. Un seul critique dans le lot
+  // suffit a teinter le total — la couleur porte l'evenement, pas la somme.
+  const crit = (e.crits ?? 0) > 0 || e.crit === true;
   const a = dmgAgg.get(e.id);
-  if (a) { a.sum += e.dmg; a.x = e.x; a.y = e.y; return; }
+  if (a) { a.sum += e.dmg; a.x = e.x; a.y = e.y; a.crit = a.crit || crit; return; }
   dmgAgg.set(e.id, {
-    x: e.x, y: e.y, sum: e.dmg, at: performance.now(),
+    x: e.x, y: e.y, sum: e.dmg, at: performance.now(), crit,
     maxHp: e.maxHp || 1,
   });
 }
@@ -749,7 +762,7 @@ export function flushDamage(now) {
     dmgAgg.delete(id);
     if (a.sum >= a.maxHp * DMG_THRESHOLD) {
       hudDamage(a.x - camera.x0 + (Math.random() - 0.5) * 18,
-                a.y - camera.y0 - 22, a.sum, "deal");
+                a.y - camera.y0 - 22, a.sum, a.crit ? "crit" : "deal");
     }
   }
 }

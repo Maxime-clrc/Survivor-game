@@ -1,7 +1,7 @@
 
 import { getLang, t } from "/shared/i18n.js";
 import { VERSION } from "/shared/version.js";
-import { PHASE_ROUND, connected, inRoom, keys, phase, serverCommit, serverVersion } from "../core/state.js";
+import { PHASE_ROUND, connected, inRoom, keys, pauseReal, phase, serverCommit, serverVersion } from "../core/state.js";
 
 export const arenaEl = document.getElementById("arena");
 export const cvUnder = document.getElementById("cvUnder");
@@ -204,6 +204,7 @@ export const pauseState = document.getElementById("pauseState");
 export const pauseConfirm = document.getElementById("pauseConfirm");
 export const pauseQuitBtn = document.getElementById("pauseQuit");
 export const pauseQuitAsk = document.getElementById("pauseQuitAsk");
+export const hudPauseEl = document.getElementById("hudPause");
 const versionEl = document.getElementById("version");
 export function updateVersion() {
   versionEl.hidden = connected && inRoom && phase === PHASE_ROUND && pauseEl.hidden;
@@ -230,7 +231,9 @@ export function enSaisie() {
   return SAISIE_TEXTE.has((el.getAttribute("type") ?? "").toLowerCase());
 }
 export function readMove() {
-  if (!pauseEl.hidden) return { x: 0, y: 0 };
+  // la simulation est figee : predire un deplacement ne ferait qu'un recalage
+  // sec a la reprise. Vaut pour la pause de l'hote, menu ouvert ou non.
+  if (!pauseEl.hidden || pauseReal) return { x: 0, y: 0 };
   let x = 0, y = 0;
   if (keys.has("KeyW") || keys.has("ArrowUp"))    y -= 1;
   if (keys.has("KeyS") || keys.has("ArrowDown"))  y += 1;

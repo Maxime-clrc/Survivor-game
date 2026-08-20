@@ -806,6 +806,12 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **La progression permanente est EXCLUE de la difficulté par construction** :
   `p.powerMods` = cartes + classe (lu par `_playerPower()`), `p.mods` = copie +
   méta.
+- **Cette exclusion ne vaut QUE pour la difficulté : ce qu'on MONTRE au joueur
+  est `p.mods`, méta comprise.** Le panneau de stats et la fenêtre de build
+  rejouent `metaLinesFor()` + `applyMeta()` — point de passage unique partagé
+  avec `room.js`, **lignes équipées seulement** — sur **son propre** profil, le
+  seul qui voyage. Sans quoi un compte qui a monté « Précision » lit 5 % de
+  critique là où le serveur en roule 15.
 
 ### Progression et cartes
 
@@ -920,8 +926,12 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   `case "start"` arme `room.launchAt` et diffuse `launch` ; la garde d'hôte reste
   sur le lancement, jamais sur l'annulation. **Conditions revalidées à chaque
   tick** (`tickLaunch`). Un **départ** n'annule pas ; une salle **vidée** si.
-- **Le message porte une DURÉE, jamais une échéance.** `why` n'accompagne que les
-  annulations subies. `cancelStart` ne rediffuse pas le salon.
+- **Le message porte une DURÉE, jamais une échéance.** Vaut pour **tout** compte
+  à rebours envoyé au client — `launch`, mais aussi `cards` et `merchant`
+  (`duree`, `cardLeft()`) : une échéance absolue force le client à comparer
+  l'horloge du serveur à la sienne, et une machine en retard voyait sa jauge de
+  cartes encore pleine alors que la manche avait déjà repris. `why` n'accompagne
+  que les annulations subies. `cancelStart` ne rediffuse pas le salon.
 - **`renderLaunch()` ne repasse pas par le salon** et est appelé **en dernier**
   par `refreshPanel()`. À l'échéance locale, le bouton se désarme sur
   « Lancement… ».
@@ -941,12 +951,15 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **L'attente ne s'affiche qu'à celui qui a DÉJÀ fermé** (`#hudBrief`), nomme qui
   manque (noms jusqu'à deux, compte au-delà), reprend le compte à rebours, en
   **blanc**.
-- **Une pause n'a de sens qu'à UN SEUL joueur**, accordée par le serveur
-  (`pauseReal` ne vaut vrai que sur sa réponse). Trois refus : hors manche,
-  demandeur pas en jeu, **dès qu'un second client est connecté**. Elle se lève
-  seule au bout de **5 minutes** ou à l'arrivée d'un second joueur. **Les
-  recharges et les états ne s'écoulent pas** (il suffit de ne pas appeler
-  `step()`).
+- **LA PAUSE EST CELLE DE L'HÔTE, ET ELLE VAUT POUR TOUT LE MONDE**, accordée
+  par le serveur (`pauseReal` ne vaut vrai que sur sa réponse). Deux portes :
+  **l'hôte**, à tout effectif et même en spectateur, et le joueur **seul dans sa
+  salle** — un spectateur suffisait à retirer la pause au joueur seul. Reprendre
+  appartient à **celui qui a figé** (`room.pausedBy`) et à l'hôte ; un départ du
+  pauseur lève la pause, une **arrivée** ne la lève plus. Elle se lève seule au
+  bout de **5 minutes**. **Les recharges et les états ne s'écoulent pas** (il
+  suffit de ne pas appeler `step()`), et le client **cesse de prédire**
+  (`readMove()`). Celui qui n'a pas ouvert le menu lit un bandeau, `#hudPause`.
 - **L'historique appartient à la SALLE** (`room.history`), rempli par
   `recordRound()` aux DEUX sorties, plafonné à `ROUND_HISTORY_MAX` (8), porte la
   **vague atteinte et rien d'autre** (ni victoire ni défaite), heure en
@@ -1025,7 +1038,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | provenance d'un dégât | `DAMAGE_SOURCES` (`game_state.js`), **sept** entrées, index en fin du tuple joueur | `SRC_ICON` (`icons.js`) + `SRC_TINT` (`palette.js`) + `hudDamage()` + `renderHurtBy()` |
 | soins rendus | `p.healDealt`, champ `heal` de `scoreboardRows()` | colonne « soins » du bilan |
 | magnitude d'un souffle | `n` sur l'effet, 9ᵉ élément (index 8, coupé si nul) — nova, grenade, onde, bombe | `BLAST_STYLE` + `spawnBlast()` + force du son |
-| critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats |
+| critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats, noyau chaud, **chiffre ambre** (`a.crit` dans `dmgAgg`) |
 | propriétaire d'une balle | 4ᵉ élément du tuple `b` | `ownerColorOf(b.owner) ?? COMBAT.bullet` |
 | missile de Salve | 5ᵉ élément du tuple `b`, **émis seulement si missile** | `drawMissile()` |
 | lien de soin | `_healLinks()` ; clé `hl`, triplets `[soigneur, cible, ennemi]` — **quadruplets** quand le lien vient d'un Sanctuaire (id du dôme) | `drawSoinLinks()` : soin chaud et **calme**, siphon froid et **agité** ; un lien de dôme part du **dôme** |
@@ -1037,7 +1050,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | état prêt | `ready{on}` ; champ `ready` de `lobbyPayload()` ; `notReady()` | `#readyBtn` (+ `.on`), `.teamRow.ready`, `#teamReady`, `#waitMsg` |
 | latence | `WsConnection.rtt` ; champ `ping`, `-1` si inconnu | `.teamPing` |
 | historique | `room.history` (`{at, diffIndex, wave}`) | `renderHistory()` → `#historyList .histRow` |
-| pause | `pause` → `paused` ; `setPaused()` | `#pause`, `pauseReal`, `renderPauseState()` |
+| pause | `pause` → `paused{on,why,par}` ; `setPaused()`, `room.pausedBy` | `#pause`, `#hudPause`, `pauseReal`, `applyPause()` |
 | briefing | `state.warmup`, `WARMUP_S`, champ `warmup` du `round` | `#brief`, `openBrief()`/`closeBrief()` |
 | briefing fermé | `briefDone` → `briefState{waiting:[noms]}` | `#hudBrief`, `renderBriefWait()` |
 | victoire | `state.victory`, `state.finalKill`, clés du `roundEnd` ; `bestFinalRun` | `#bilan.win` + `.bilanStat.final` |

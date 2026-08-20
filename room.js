@@ -7,7 +7,7 @@ import { VERSION } from "./shared/version.js";
 import { segmentName } from "./shared/timeline.js";
 import { RELIC_CFG } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
-import { lockedCards } from "./shared/progression.js";
+import { lockedCards, metaLinesFor } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 
@@ -66,6 +66,7 @@ export class Room {
 
     this.paused = false;
     this.pausedAt = 0;
+    this.pausedBy = 0;
 
     this.briefOpen = false;
 
@@ -421,8 +422,6 @@ export class Room {
     this.knownMembers.add(client.pseudoKey);
     this.emptySince = 0;
 
-    if (this.paused) this.setPaused(false, "un second joueur est arrivé");
-
     this.refreshHost();
     client.conn.send(JSON.stringify({
       t: "roomJoined",
@@ -441,6 +440,11 @@ export class Room {
 
   detach(client) {
     if (!this.clients.has(client.id)) return;
+    // celui qui a fige la partie est le seul a pouvoir la reprendre : s'il s'en
+    // va, personne ne tient plus la pause.
+    if (this.paused && this.pausedBy === client.id) {
+      this.setPaused(false, "le joueur qui avait mis en pause a quitté");
+    }
     this.hooks.awardPartial(client, this);
     this.state.removePlayer(client.id);
     this.clients.delete(client.id);
@@ -630,15 +634,25 @@ export class Room {
   }
 
 
-  setPaused(on, why = "") {
+  setPaused(on, why = "", par = 0) {
     if (this.paused === on) return;
     this.paused = on;
     this.pausedAt = on ? Date.now() : 0;
-    this.broadcast({ t: "paused", on: on ? 1 : 0, why });
-    this.hooks.log(`[${this.code}] ` + (on ? "manche en pause (solo)"
+    this.pausedBy = on ? par : 0;
+    const nom = on ? (this.clients.get(par)?.name ?? "") : "";
+    this.broadcast({ t: "paused", on: on ? 1 : 0, why, par: nom });
+    this.hooks.log(`[${this.code}] ` + (on ? `manche en pause${nom ? ` — ${nom}` : ""}`
       : `pause levée${why ? ` — ${why}` : ""}`));
   }
 
+
+  /* LE MESSAGE PORTE UNE DUREE, JAMAIS UNE ECHEANCE. Une echeance absolue
+     obligeait le client a comparer l'horloge du SERVEUR a la sienne : sur une
+     machine en retard, la jauge de l'ecran de cartes restait pleine alors que
+     la manche avait deja repris, et le joueur mourait sans voir l'arene. */
+  cardLeft() {
+    return Math.max(0, this.cardDeadline - Date.now());
+  }
 
   cardsPendingIds() {
     return [...this.state.players.keys()]
@@ -663,7 +677,7 @@ export class Room {
         bossKind: this.state.lastBossKind,
         more: this.state.pendingLevels,
         level: this.state.level,
-        deadline: this.cardDeadline,
+        duree: this.cardLeft(),
         offers: offers.map(cardBrief),
       }));
     }
@@ -715,7 +729,7 @@ export class Room {
     c.conn.send(JSON.stringify({
       t: "merchant",
       segment: this.state.segment,
-      deadline: this.merchantDeadline,
+      duree: Math.max(0, this.merchantDeadline - Date.now()),
       eclats: p.eclats,
       rerollCost: this.state.relicRerollPrice(p),
       achats: Math.max(0, RELIC_CFG.BUY_PER_VISIT - (p.relicBought ?? 0)),
@@ -757,17 +771,10 @@ export class Room {
       let meta = null;
       if (c.profile) {
         const clsId = CLASSES[c.cls].id;
-        const cp = c.profile.classes[clsId];
-        const lines = {};
-        if (cp) {
-          for (const lid of cp.equipped ?? []) {
-            const t = cp.tiers?.[lid] | 0;
-            if (t > 0) lines[lid] = t;
-          }
-        }
+        const { lines, commun } = metaLinesFor(c.profile, clsId);
         meta = {
           lines,
-          commun: { ...(c.profile.commun ?? {}) },
+          commun,
           confort: {
             ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
             quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
@@ -996,11 +1003,21 @@ export class Room {
         break;
       }
 
+      /* LA PAUSE EST CELLE DE L'HOTE, ET ELLE VAUT POUR TOUT LE MONDE. Elle
+         etait refusee des qu'un second client etait connecte — un spectateur
+         suffisait a la retirer au joueur seul. Deux portes seulement : l'hote,
+         quel que soit l'effectif et meme en spectateur, et le joueur SEUL dans
+         sa salle. Reprendre appartient a celui qui a fige, et a l'hote. */
       case "pause": {
         if (this.phase !== PHASE_ROUND) break;
-        const on = !!msg.on;
-        if (on && (this.joined().length > 1 || !this.state.players.has(id))) break;
-        this.setPaused(on, on ? "" : "reprise");
+        if (!msg.on) {
+          if (this.paused && this.pausedBy !== id && id !== this.hostId) break;
+          this.setPaused(false, "reprise");
+          break;
+        }
+        const seul = this.joined().length === 1 && this.state.players.has(id);
+        if (!seul && id !== this.hostId) break;
+        this.setPaused(true, "", id);
         break;
       }
 
@@ -1059,7 +1076,7 @@ export class Room {
           bossKind: this.state.lastBossKind,
           more: this.state.pendingLevels,
           level: this.state.level,
-          deadline: this.cardDeadline,
+          duree: this.cardLeft(),
           offers: offers.map(cardBrief),
         }));
         break;

@@ -447,10 +447,18 @@ const PALETTE = {
   // [26d] le critique ne monte PAS le volume : il ajoute un transitoire aigu au
   // son de touche, et il lui prend sa place dans le limiteur (meme cle).
   critique: () => {
+    // le critique gardait la place de la touche mais lui prenait aussi son
+    // corps : un transitoire aigu SEUL sonne plus MAIGRE qu'une touche, donc
+    // l'evenement le plus fort du palier 2 s'entendait moins que l'ordinaire.
+    // La touche reste dessous, la difference se fait au TIMBRE — deux partiels
+    // en quinte, ratio non entier, qui DESCENDENT (une montee dirait
+    // « charge », une descente dit « impact »).
     const a = noise({ dur: 0.04, freq: 2400, to: 1200, q: 1.2, gain: SOUND_GAIN.impact });
-    tone({ freq: 2960, to: 3520, dur: 0.055, type: "triangle",
-           gain: SOUND_GAIN.impact * 0.85, attack: 0.002 });
-    return { end: a.end + 0.02, stop: a.stop };
+    tone({ freq: 3520, to: 2480, dur: 0.11, type: "triangle",
+           gain: SOUND_GAIN.impact * 0.8, attack: 0.001 });
+    tone({ freq: 5280, to: 3720, dur: 0.07, type: "sine",
+           gain: SOUND_GAIN.impact * 0.45, attack: 0.001 });
+    return { end: a.end + 0.09, stop: a.stop };
   },
 
   // [3] tension puis relachement : la hauteur monte avec la canalisation.

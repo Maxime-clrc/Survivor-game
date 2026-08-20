@@ -170,6 +170,19 @@ export const COMMUN = [
 
 const COMMUN_BY_ID = new Map(COMMUN.map(l => [l.id, l]));
 
+// LES LIGNES QUI COMPTENT SONT LES LIGNES EQUIPEES : une ligne achetee mais
+// laissee hors emplacement ne s'applique pas. Point de passage unique, lu par le
+// serveur au lancement ET par le client pour afficher des valeurs EFFECTIVES.
+export function metaLinesFor(profile, clsId) {
+  const cp = profile?.classes?.[clsId];
+  const lines = {};
+  for (const lid of cp?.equipped ?? []) {
+    const n = cp.tiers?.[lid] | 0;
+    if (n > 0) lines[lid] = n;
+  }
+  return { lines, commun: { ...(profile?.commun ?? {}) } };
+}
+
 export function applyMeta(mods, maxHp, clsId, lines, commun = null) {
   const m = { ...mods, metaHpRatio: 0 };
   for (const line of TREES[clsId] ?? []) {

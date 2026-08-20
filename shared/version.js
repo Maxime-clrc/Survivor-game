@@ -2108,6 +2108,47 @@
                    que personne ne le tient, et chaque jumeau porte un anneau a
                    la couleur de celui qui le tire
 
+     0.13.16 feat : LA PAUSE APPARTIENT A L'HOTE. Elle etait refusee des qu'un
+                   SECOND CLIENT etait connecte — un spectateur suffisait a la
+                   retirer au joueur seul, et a plusieurs personne ne pouvait
+                   arreter la partie. Deux portes desormais : l'hote (a tout
+                   effectif, meme en spectateur) et le joueur seul dans sa
+                   salle. Reprendre appartient a celui qui a fige (`pausedBy`)
+                   et a l'hote ; le depart du pauseur leve la pause, l'arrivee
+                   d'un joueur ne la leve plus. Bandeau `#hudPause` pour ceux
+                   qui n'ont pas ouvert le menu, et `readMove()` cesse de
+                   predire tant que la simulation est figee.
+                   correctif LE COMPTE A REBOURS DES CARTES ETAIT UNE ECHEANCE
+                   ABSOLUE. `cards` et `merchant` portaient un horodatage du
+                   SERVEUR ; le client le comparait a son horloge a lui. Sur une
+                   machine en retard, la jauge restait pleine alors que la manche
+                   avait DEJA repris (`forceRemainingPicks` puis `resumeRound`) :
+                   le joueur mourait devant son ecran de cartes. Le message porte
+                   une DUREE (`duree`, `cardLeft()`), comme `launch` le faisait
+                   deja.
+                   UN COMPTEUR DE DEGATS JUGE LA PARTIE, PAS UNE FENETRE : le
+                   total divise par `tm` (qui ne court ni pendant le briefing ni
+                   pendant un ecran, donc c'est du temps de COMBAT). La fenetre
+                   glissante de 5 s est SUPPRIMEE, pas rangee ailleurs : elle
+                   sautait d'un facteur trois entre deux paquets d'ennemis, ce
+                   qui ne se compare a rien.
+                   LE CRITIQUE SE VOIT ET S'ENTEND. Il ne teintait que la cible :
+                   son CHIFFRE reste ambre jusqu'au bout (`a.crit` traverse
+                   l'agregation de 200 ms, un seul critique dans le lot suffit),
+                   les eclats montent a cinq avec un noyau chaud, et le son cesse
+                   d'etre un transitoire SEUL — la touche reste dessous, la
+                   difference se fait au timbre : deux partiels qui descendent
+                   correctif LE PANNEAU DE STATS IGNORAIT LA META. Il annonce
+                   des valeurs EFFECTIVES mais ne lisait que `fullMods` (cartes
+                   + classe) : « Precision » au maximum affichait encore 5 % de
+                   taux de critique la ou le serveur en roulait 15. Le panneau et
+                   la fenetre de build rejouent maintenant `applyMeta` sur son
+                   PROPRE profil (celui d'un allie ne voyage pas), via
+                   `metaLinesFor()`, extrait de `room.js` pour que les deux cotes
+                   lisent la meme regle — lignes EQUIPEES seulement. Le calcul,
+                   lui, etait juste : la meta est ADDITIVE sur le taux de base
+                   (0,05 + 5 x 0,02 = 0,15).
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2116,4 +2157,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.15";
+export const VERSION = "0.13.16";
