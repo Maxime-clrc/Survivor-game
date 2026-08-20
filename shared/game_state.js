@@ -128,6 +128,11 @@ export const CFG = {
   PLAYER_RADIUS: 14,
   PLAYER_MAX_HP: 100,
   PLAYER_HIT_CD: 0.55,
+  // UN ECRAN NE TUE PAS. La simulation est figee pendant les cartes et le
+  // marchand, mais l'ennemi au contact garde sa position ET sa recharge : a la
+  // reprise il frappe avant que le client n'ait meme redessine l'arene (un
+  // instantane, plus 110 ms d'interpolation). Le delai couvre les deux.
+  RESUME_GRACE: 0.6,
 
   DASH_SPEED: 900,
   DASH_TIME: 0.18,
@@ -364,6 +369,13 @@ const ATK_POSE = {
   copiesvraie: MECH_BAIT, appat: MECH_BAIT,
   sanctuaire: MECH_SANCTUARY,
 };
+// LA CONSTRICTION RESTE SOUS LE VERROU, ET CE N'EST PAS UN OUBLI. Elle ne pose
+// aucune zone, donc l'en sortir semblait gratuit (elle bloquait un tirage de sol
+// sur cinq en cauchemar solo) — mais elle RESSERRE `state.bounds`, et un motif
+// deja pose garde alors une geometrie calculee sur les anciennes bornes : un abri
+// se retrouve sous le feu. `verifierMecaniques` le voit (0 -> 6 images en
+// cauchemar), et un abri sous le feu a l'echeance est exactement ce que le lot
+// 0.13.13 interdit.
 const ATK_SOL = new Set(["damier", "couronne", "couloirs", "balayage", "mur",
   "pacman", "quadrant", "constriction", "entrelacs", "synthesedouble"]);
 
@@ -431,8 +443,22 @@ export const DIFFICULTIES = [
       "plusieurs directions en permanence : le sol se referme derrière eux",
     ],
     hp: 1.35, spawn: 1.28, dmg: 1.25, boss: 1.25, speed: 1.12,
+    /* CAUCHEMAR SE DURCIT PAR CE QUE COUTE UNE CONSIGNE RATEE : `mechRatio` EST
+       l'ecart entre lire les annonces et les ignorer, la seule mesure qui juge
+       une mecanique de boss (mesure : +7 % de PV perdus par un bot qui ignore
+       tout, en solo, a graines et durees appariees).
+       TROIS LEVIERS ESSAYES ET REFUSES PAR LA MESURE. `parPhase` 3 + `reflexe` 3
+       fait BAISSER ce que perd ce meme bot (31,7 -> 17,1 PV/min) : plus de
+       mecaniques simultanees, c'est plus de refus de coexistence, donc moins de
+       sol. Une cadence a 0,80 donne +13 % a deux mais -26 % en solo. Et
+       `warn: -1` — le vrai levier du mode, qui est encore a ZERO, donc a la meme
+       classe de telegraphe qu'en normal — casse l'invariant du safe spot :
+       `ABRI_RETOUR` vaut 1,2 s en dur alors que le telegraphe descendrait a
+       0,8 s, donc une zone ne peut plus « se resoudre avant l'echeance » et
+       `verifierMecaniques` compte des abris sous le feu. Le rendre PROPORTIONNEL
+       a la classe de telegraphe est le prealable, et c'est un lot a part. */
     bossProfil: {
-      parPhase: 2, warn: 0, mechRatio: 1.15, echec: "collectif",
+      parPhase: 2, warn: 0, mechRatio: 1.40, echec: "collectif",
       couches: 99, dwell: 12, renforts: 1, reflexe: 4, superpose: 1,
     },
   },
@@ -594,6 +620,7 @@ export class GameState {
     this.taunt = null;
     this.slow = 0;
     this.slipT = 0;
+    this.repriseGrace = 0;
     this.boss = null;
 
     this.bounds = { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H };
@@ -926,6 +953,7 @@ export class GameState {
 
     this.slow = Math.max(0, this.slow - dt);
     this.slipT = Math.max(0, this.slipT - dt);
+    this.repriseGrace = Math.max(0, this.repriseGrace - dt);
     this._arena(dt);
     this._players(dt, inputs);
     this._statuses(dt);
@@ -4557,7 +4585,11 @@ export class GameState {
     const phase = this.boss ? this.boss.phase : 0;
     if (P.reflexe >= 0 && phase >= P.reflexe) return WARN_REFLEXE;
     if (i < 0 || !P.warn) return d;
-    return WARN_CLASSES[Math.min(WARN_CLASSES.length - 1, i + P.warn)];
+    // le decalage va DANS LES DEUX SENS : calme donne un cran de plus a lire,
+    // cauchemar un cran de moins. Sans le plancher, un `warn` negatif sur une
+    // duree deja au reflexe sortait de la table et rendait `undefined`.
+    return WARN_CLASSES[Math.max(0,
+      Math.min(WARN_CLASSES.length - 1, i + P.warn))];
   }
 
   _mechDamage(p) {
@@ -4666,6 +4698,11 @@ export class GameState {
       const f = z.warn + (z.left > 0 ? z.left * z.period : 0);
       if (f > fin) fin = f;
     }
+    // LA MARGE DE RETOUR RESTE, ET ELLE A ETE MESUREE. La retirer paraissait
+    // gratuit — le motif suivant porte son propre preavis — mais les zones
+    // REMANENTES d'un motif survivent a sa derniere detonation : les motifs se
+    // chainaient, le sol ne se vidait plus (cauchemar solo, 2,85 -> 13,99 zones
+    // hostiles en moyenne) et un combat a deux passait de 86 a 181 s.
     b.solT = fin + BOSS_CFG.ABRI_RETOUR;
   }
 
@@ -6378,6 +6415,7 @@ export class GameState {
     src = SRC_CONTACT,
   } = {}) {
     if (!p || p.downed) return;
+    if (this.repriseGrace > 0) return;
     if (p.dashT > 0) return;
     if (p.tauntInvuln > 0) return;
     if (fromZone && p.timers.zoneImmune > 0) return;

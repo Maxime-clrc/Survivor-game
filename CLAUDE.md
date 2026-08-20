@@ -369,11 +369,12 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `adaptType()` | adaptation au niveau (`minLevel`, `fallback`) ; `_pickType` **filtre**, `_spawnEnemy` **replie** |
 | `adaptEntry()` | adaptation d'un beat à l'effectif |
 | `openNextScreen()` | enchaînement cartes → marchand |
+| `state.repriseGrace` | **un écran ne tue pas** : toute reprise de simulation figée (cartes, marchand, pause) rend `_hurt()` inerte pendant `CFG.RESUME_GRACE` |
 | `_recomputeMods()` | rejoue tout le chargement (cartes + classe + méta) |
 | `assignColors()` | couleur de joueur, à la diffusion du salon |
 | `notReady()` | qui manque pour lancer |
 | `briefWaiting()` / `syncBrief()` | qui n'a pas fermé son briefing |
-| `setPaused()` | les trois causes de pause |
+| `setPaused()` | les causes de pause, et la grâce de reprise |
 | `unlockClasses()` | déverrouillage aux DEUX sorties de manche |
 | `recordRound()` | historique, aux DEUX sorties de manche |
 | `pushWorld()` / `worldQueue` | tout message ponctuel décrivant le MONDE |
@@ -659,6 +660,12 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   de classe de télégraphe, `reflexe` la phase à partir de laquelle on tombe à
   0,8 s), `mechRatio`, `echec`, `couches` (calme s'arrête à `unlock[2]`),
   `dwell`, `renforts`.
+- **`warn` négatif est le levier de cauchemar, et il est BLOQUÉ** : le mode est
+  encore à `0`, donc à la même classe de télégraphe que normal. Descendre d'un
+  cran casse l'invariant du safe spot, parce que `ABRI_RETOUR` vaut 1,2 s **en
+  dur** quand le télégraphe, lui, tomberait à 0,8 s — une zone ne peut plus « se
+  résoudre avant l'échéance » et `verifierMecaniques` compte des abris sous le
+  feu. Le rendre **proportionnel à la classe de télégraphe** est le préalable.
 - **`parPhase` est un PLAFOND, la barre en donne le rythme** :
   `min(parPhase, 1 + floor(phase / 2))`. Le joueur apprend une mécanique à la
   fois, puis les voit se combiner — un combat qui ouvre à son régime de croisière
@@ -722,10 +729,18 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   aussi les obstacles de biome et les dangers qui blessent. Un refuge **fuit** le
   feu (`_zoneFeu`), et « le feu » inclut ce qui va tomber.
 - **UN SEUL MOTIF DE SATURATION À LA FOIS** (`b.solT`, durée **mesurée** sur les
-  zones posées, détonations seules) : chaque motif laisse un creux — l'autre
-  parité du damier, le trou de la couronne, l'entre-deux des lames — mais le creux
-  de l'un tombe sous le plein de l'autre. Une croix n'est **pas** un motif de
-  saturation : elle est locale à sa cible et laisse les quadrants.
+  zones posées, détonations seules, **plus `ABRI_RETOUR`**) : chaque motif laisse
+  un creux — l'autre parité du damier, le trou de la couronne, l'entre-deux des
+  lames — mais le creux de l'un tombe sous le plein de l'autre. Une croix n'est
+  **pas** un motif de saturation : elle est locale à sa cible et laisse les
+  quadrants. **Deux dérogations ont été essayées et REFUSÉES par la mesure** :
+  retirer `ABRI_RETOUR` de `_solPose` (les zones **rémanentes** survivent à la
+  dernière détonation, donc les motifs se chaînent : 2,85 → 14 zones hostiles en
+  moyenne, et un combat à deux passe de 86 à 181 s) et sortir la **constriction**
+  du verrou (elle ne pose aucune zone, mais elle resserre `state.bounds` sous un
+  motif déjà posé — `verifierMecaniques` compte alors des abris sous le feu).
+  **Le verrou coûte la moitié de la présence au sol en solo, et c'est le prix de
+  la garantie : il se paie sur `bossProfil`, jamais sur le verrou.**
 - **Le nombre de places à tenir suit l'effectif à la RÉSOLUTION, pas à la pose**
   (`_resolveTowers`, `_resolveSceau`) : une équipe qui perd un joueur pendant
   l'annonce ne peut pas tenir la place qui était la sienne.

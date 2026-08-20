@@ -1599,8 +1599,10 @@ function startMerchantTimer() {
 }
 function updateMerchantTimer() {
   if (!merchantState) return;
-  const span = Math.max(1, merchantState.deadline - merchantState.from);
-  const k = Math.max(0, Math.min(1, (merchantState.deadline - Date.now()) / span));
+  const span = merchantState.deadline - merchantState.from;
+  const k = span > 0
+    ? Math.max(0, Math.min(1, (merchantState.deadline - Date.now()) / span))
+    : 0;
   merchantTimerFill.style.width = `${k * 100}%`;
   merchantTimerEl.classList.toggle("urgent", k < 0.25);
 }
@@ -1761,8 +1763,12 @@ function startCardsTimer() {
 }
 function updateCardsTimer() {
   if (!cardsState) return;
-  const span = Math.max(1, cardsState.deadline - cardsState.from);
-  const k = Math.max(0, Math.min(1, (cardsState.deadline - Date.now()) / span));
+  // une portee absente ou nulle vide la jauge, elle ne la laisse pas PLEINE :
+  // une barre qui ne descend pas ment sur le temps qui reste.
+  const span = cardsState.deadline - cardsState.from;
+  const k = span > 0
+    ? Math.max(0, Math.min(1, (cardsState.deadline - Date.now()) / span))
+    : 0;
   cardsTimerFill.style.width = `${k * 100}%`;
   cardsTimerEl.classList.toggle("urgent", k < 0.25);
 }

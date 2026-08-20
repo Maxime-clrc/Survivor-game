@@ -636,6 +636,9 @@ export class Room {
 
   setPaused(on, why = "", par = 0) {
     if (this.paused === on) return;
+    // meme dette qu'un ecran de choix : l'ennemi au contact a garde sa position
+    // et sa recharge pendant que la simulation etait figee.
+    if (!on && this.phase === PHASE_ROUND) this.state.repriseGrace = CFG.RESUME_GRACE;
     this.paused = on;
     this.pausedAt = on ? Date.now() : 0;
     this.pausedBy = on ? par : 0;
@@ -746,6 +749,7 @@ export class Room {
     if (ecran === "cards") { this.enterCardPhase(); return; }
     if (ecran === "merchant") { this.enterMerchantPhase(); return; }
     this.phase = PHASE_ROUND;
+    this.state.repriseGrace = CFG.RESUME_GRACE;
     this.state.cardOffers = new Map();
     this.broadcast(this.loadoutPayload());
   }

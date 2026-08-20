@@ -2149,6 +2149,32 @@
                    lui, etait juste : la meta est ADDITIVE sur le taux de base
                    (0,05 + 5 x 0,02 = 0,15).
 
+     0.13.17 fix : UN ECRAN NE TUE PAS. La simulation est figee pendant les
+                   cartes et le marchand, mais l'ennemi au contact garde sa
+                   position ET sa recharge : a la reprise il frappait avant meme
+                   que le client n'ait redessine l'arene (un instantane, plus
+                   110 ms d'interpolation). `CFG.RESUME_GRACE` (0,6 s) rend
+                   `_hurt()` inerte a toute reprise de simulation figee — ecran
+                   de cartes, marchand, et pause, qui a la meme dette.
+                   fix : le plancher manquait a `_warn` — un `warn` negatif
+                   sortait de `WARN_CLASSES` et rendait `undefined`.
+                   CAUCHEMAR : `mechRatio` 1,15 -> 1,40. Le verrou de saturation
+                   du lot 0.13.13 coute la MOITIE de la presence au sol en solo
+                   (5,77 -> 2,85 zones hostiles en moyenne, 54 % des tirages de
+                   sol refuses) : c'est le prix de la garantie du safe spot, et il
+                   se paie sur `bossProfil`, jamais sur le verrou. Trois autres
+                   leviers ont ete essayes et REFUSES par la mesure — `parPhase` 3
+                   + `reflexe` 3 (31,7 -> 17,1 PV/min perdus par un bot qui ignore
+                   tout : plus de mecaniques simultanees = plus de refus de
+                   coexistence = moins de sol), une cadence a 0,80 (+13 % a deux,
+                   -26 % en solo), et sortir la constriction du verrou
+                   (`verifierMecaniques` : 0 -> 6 images d'abri sous le feu, elle
+                   resserre les bounds sous un motif deja pose).
+                   `warn: -1`, le vrai levier du mode, reste bloque : `ABRI_RETOUR`
+                   vaut 1,2 s en dur quand le telegraphe tomberait a 0,8 s. Le
+                   rendre proportionnel a la classe est un lot a part.
+                   `verifierMecaniques` cauchemar 1/2/4 joueurs : RAS.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2157,4 +2183,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.16";
+export const VERSION = "0.13.17";
