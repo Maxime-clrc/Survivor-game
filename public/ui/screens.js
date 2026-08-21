@@ -11,7 +11,8 @@ import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from 
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
 import { COMMUN, CONFORT, PROG_CFG, TREES, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, slotsFor, tierCost, vueStats } from "/shared/progression.js";
 import { ARME_CFG, armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
-import { CADRES, CADRE_BY_ID, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
+import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
+import { appliquerCadre } from "./cadres.js";
 import { relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { drawSprite, frameOf } from "/sprites.js";
@@ -906,10 +907,6 @@ function renderTeam() {
   for (const l of lobby) {
     const row = document.createElement("div");
     row.className = "teamRow" + (!solo && l.ready ? " ready" : "");
-    if (l.cadre && l.cadre !== "defaut") {
-      row.classList.add("cadre");
-      row.style.setProperty("--cadre", CADRE_BY_ID.get(l.cadre)?.trait ?? "transparent");
-    }
 
     const cls = (l.cls === null || l.cls === undefined) ? null : classAt(l.cls);
     const ms = Number(l.ping);
@@ -932,6 +929,7 @@ function renderTeam() {
       `<span class="teamDot"></span>`;
 
     row.querySelector(".teamName").textContent = l.name;
+    appliquerCadre(row.querySelector(".teamName"), l.cadre);
     const av = row.querySelector(".teamAvatar");
     av.textContent = (l.name || "?").trim().charAt(0).toUpperCase() || "?";
     av.style.color = teinte;
@@ -1379,13 +1377,16 @@ function renderCadres(pr) {
     row.className = "cadreRow" + (ok ? "" : " taken") + (c.id === actif ? " mine" : "");
     row.disabled = !ok;
     row.innerHTML =
-      `<span class="cadreApercu" style="--cadre:${c.trait}"></span>`
+      `<span class="cadreApercu"><span class="cadrePlaque"></span></span>`
       + `<span class="cadreBody">`
         + `<span class="cadreNom">${escapeHtml(cadreNom(c.id))}</span>`
         + `<span class="cadreCond">${escapeHtml(ok
             ? (c.id === actif ? t("ui.meta.cadre.actif", "équipé") : t("ui.meta.cadre.libre", "obtenu"))
             : hfTexte(parCadre.get(c.id) ?? ""))}</span>`
       + `</span>`;
+    const plaque = row.querySelector(".cadrePlaque");
+    plaque.textContent = myPseudo || t("ui.meta.cadre.toi", "toi");
+    appliquerCadre(plaque, c.id);
     if (ok) row.onclick = () => ws.send(JSON.stringify({ t: "metaCadre", id: c.id }));
     metaCadresEl.appendChild(row);
   }
@@ -1406,9 +1407,8 @@ function renderScores(rows, body = scoresBody) {
     const tag = r.id === hostId ? " ★" : "";
     const cdef = (r.cls === null || r.cls === undefined) ? null : classAt(r.cls);
     tr.innerHTML =
-      `<td class="name${r.cadre && r.cadre !== "defaut" ? " cadre" : ""}"`
-        + ` style="color:${col};--cadre:${CADRE_BY_ID.get(r.cadre)?.trait ?? "transparent"}">`
-        + `${escapeHtml(r.name)}${tag}</td>` +
+      `<td class="name" style="color:${col}">`
+        + `<span class="nameCadre">${escapeHtml(r.name)}${tag}</span></td>` +
       `<td class="sub"${cdef ? ` style="color:${cdef.couleur}"` : ""}>${cdef ? escapeHtml(classNom(cdef)) : "—"}</td>` +
       `<td>${r.level ?? 1}</td>` +
       `<td>${r.score}</td><td>${r.kills}</td><td>${r.deaths}</td>` +
@@ -1416,6 +1416,9 @@ function renderScores(rows, body = scoresBody) {
       `<td class="cards">${cardBadges(r.id)}</td>` +
       `<td class="sub">${r.cores !== undefined ? "+" + r.cores : "—"}</td>` +
       `<td class="sub">${r.total ? r.total.score : 0}</td>`;
+    /* portee "ligne" : le <td> porte deja la couleur de CLASSE en texte, un fond
+       entrerait en concurrence avec elle */
+    appliquerCadre(tr.querySelector(".nameCadre"), r.cadre, "ligne");
     tr.className = "clickable";
     tr.title = t("ui.col.voirBuild", "voir la build");
     tr.onclick = () => openBuild(r.id);

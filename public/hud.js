@@ -16,7 +16,7 @@ import { bossAt, bossNom, bossSous, bossVerbe, beatPhase, estFinal, ALERT_ORDER,
 import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN, SRC_TINT } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, SKILL_ICON, SRC_ICON, STATUS_ICON, iconImg } from "/icons.js";
-import { CADRE_BY_ID, HF_BY_ID, cadreNom, hfNom, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
+import { HF_BY_ID, cadreNom, hfNom, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
 import { cardNom } from "/shared/cards.js";
 import { relicNom } from "/shared/reliques.js";
 

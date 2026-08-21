@@ -230,6 +230,46 @@ export const BOSS_SKIN = [
   { skin: "#4a4a55", dark: "#1c1c24", edge: "#0a0a0e", bar: "#8a8a99", deep: "#16161d" },
 ];
 
+/* LA PEAU D'UN CADRE — l'identite reste dans hauts_faits.js, comme BOSS_ROSTER
+   garde la sienne a cote de BOSS_SKIN.
+
+   Cinq emplacements a valeurs NOMMEES, jamais du CSS : une table de donnees qui
+   porte une declaration de style ne s'inspecte plus qu'a l'oeil.
+
+   `palier` n'est pas un sixieme emplacement, c'est ce qui BORNE les cinq autres,
+   et il se croise avec l'exigence du haut fait (verifierHautsFaits) :
+     1  defis libres     lueur <= douce, ni double ni balaye ni nette
+     2  defis cauchemar  au moins un de double / balaye / nette, aucune animation
+     3  legende          seul a porter irise et pulse
+   `defaut` n'a pas d'entree : ce n'est pas un cadre, c'est son absence. */
+export const CADRE_PALIER_MAX = 3;
+export const CADRE_MARQUEURS_2 = ["double", "balaye", "nette"];
+export const CADRE_ANIMES = ["irise", "pulse"];
+
+export const CADRE_SKIN = {
+  sobre:       { palier: 1, teinte: "#9aa4b2", fond: "trame",  bordure: "trait",   ornement: "aucun",    lueur: "aucune", insigne: "cercle" },
+  depouille:   { palier: 1, teinte: "#7f8a99", fond: "aucun",  bordure: "plein",   ornement: "crans",    lueur: "aucune", insigne: "anneau" },
+  immacule:    { palier: 1, teinte: "#eaf2ff", fond: "voile",  bordure: "trait",   ornement: "aucun",    lueur: "douce",  insigne: "losange" },
+  foudroyant:  { palier: 1, teinte: "#63d7ff", fond: "aucun",  bordure: "encoche", ornement: "pointes",  lueur: "douce",  insigne: "eclair" },
+  arsenal:     { palier: 1, teinte: "#ffb454", fond: "trame",  bordure: "plein",   ornement: "barres",   lueur: "aucune", insigne: "ratelier" },
+  ermite:      { palier: 1, teinte: "#8f7ad6", fond: "aucun",  bordure: "trait",   ornement: "angles",   lueur: "douce",  insigne: "solitude" },
+
+  insomniaque: { palier: 2, teinte: "#c4453f", fond: "trame",  bordure: "double",  ornement: "crans",    lueur: "nette",  insigne: "oeil" },
+  intact:      { palier: 2, teinte: "#4fd6a0", fond: "voile",  bordure: "double",  ornement: "angles",   lueur: "douce",  insigne: "bouclier" },
+  chasseur:    { palier: 2, teinte: "#d64f8f", fond: "trame",  bordure: "encoche", ornement: "pointes",  lueur: "nette",  insigne: "trophee" },
+  or:          { palier: 2, teinte: "#ffd24a", fond: "balaye", bordure: "double",  ornement: "barres",   lueur: "nette",  insigne: "laurier" },
+  phalange:    { palier: 2, teinte: "#4a8fff", fond: "voile",  bordure: "double",  ornement: "chevrons", lueur: "nette",  insigne: "phalange" },
+
+  /* seule entree dont la teinte n'est pas une couleur mais un spectre, et seul
+     insigne qui prend ce spectre au lieu d'un aplat */
+  prismatique: { palier: 3, teinte: "#e8ecf5", fond: "irise",  bordure: "double",  ornement: "pointes",  lueur: "pulse",  insigne: "prisme",
+                 spectre: ["#ff5c7a", "#ffb454", "#ffd24a", "#4fd6a0", "#63d7ff", "#a78bfa", "#ff5c7a"] },
+};
+
+/* L'accent est DERIVE, pas ecrit : douze hex de plus a tenir d'accord avec leur
+   teinte est douze occasions de les desaccorder. */
+export const cadreAccent = (teinte) => melange(teinte, "#ffffff", 0.42);
+
 export const POWERUP_COLOR = {
   heal:     HEAL,
   damage:   "#f4d35e",

@@ -2,9 +2,8 @@
 import { createGL } from "/gl.js";
 import { bombRange } from "/shared/classes.js";
 import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome } from "/shared/game_state.js";
-import { ENEMY, cssVars, decorAt, teinter } from "/shared/palette.js";
+import { CADRE_SKIN, ENEMY, cssVars, decorAt, teinter } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
-import { CADRE_BY_ID } from "/shared/hauts_faits.js";
 import { reuploadAtlas } from "/sprites.js";
 import { PERF, latest, lobby, myId, predicted } from "../core/state.js";
 import { cv, cvGl, cvUnder } from "../ui/dom.js";
@@ -180,10 +179,13 @@ export function ownerColorOf(id) {
 export function nameOf(id) {
   return lobby.find(l => l.id === id)?.name ?? "?";
 }
-/* Le cadre voyage avec le salon : la plaque n'ouvre aucune clef d'instantane. */
+/* Le cadre voyage avec le salon : la plaque n'ouvre aucune clef d'instantane.
+   En manche il ne rend que TEINTE et PALIER — le fond, l'ornement et l'insigne
+   restent aux menus : rien de decoratif ne se superpose au jeu, et le sol porte
+   les telegraphes. */
 export function cadreOf(id) {
   const c = lobby.find(l => l.id === id)?.cadre;
-  return c && c !== "defaut" ? (CADRE_BY_ID.get(c)?.trait ?? null) : null;
+  return c ? (CADRE_SKIN[c] ?? null) : null;
 }
 export const GRID_FINE = 5 * PX_PER_M;
 export const GRID_MAJOR = 20 * PX_PER_M;

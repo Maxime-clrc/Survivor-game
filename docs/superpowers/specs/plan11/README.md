@@ -1,12 +1,13 @@
 # Survivor LAN — cartes, armes, hauts faits
 
-Trois plans, à exécuter dans l'ordre des numéros.
+Quatre plans, à exécuter dans l'ordre des numéros.
 
 | # | plan | objet |
 |---|---|---|
 | **01** | [cartes](01-CARTES.md) | nettoyage du catalogue : familles manquantes, forme du pool, invocations |
 | **02** | [armes](02-ARMES.md) | dix armes, coefficients d'échelle, familles par arme, identité visuelle et sonore |
 | **03** | [hauts faits](03-HAUTS-FAITS.md) | les jalons deviennent des hauts faits et débloquent armes, cartes, lignes, reliques et cadres |
+| **04** | [cadres](04-CADRES.md) | un cadre cesse d'être une couleur : cinq emplacements, trois paliers, un insigne par défi |
 
 ---
 
@@ -19,8 +20,12 @@ qu'on y ajoute une trentaine de cartes d'arme.
 tableau**. Ajouter sept armes avant reviendrait à casser les comptes existants,
 puis à réparer.
 
-**02 en dernier**, et par tranches : quatre armes d'abord (canon d'assaut,
+**02 avant-dernier**, et par tranches : quatre armes d'abord (canon d'assaut,
 laser, tesla, lame), soit 16 cartes de famille au lieu de 40.
+
+**04 en dernier.** Purement cosmétique et sans dépendance : il refait le
+matériau des cadres que 03 a créés. Le repousser ne bloque rien, et l'avancer
+reviendrait à habiller un système qui n'existe pas encore.
 
 ---
 

@@ -2403,6 +2403,32 @@
                    seul profil. Les compositions a plusieurs et le cauchemar
                    restent a faire.
 
+     0.14.4 lot 04 UN CADRE CESSE D'ETRE UNE COULEUR. Douze traits colores ne se
+                   distinguent pas a la largeur d'un nom : Or et Arsenal etaient
+                   deux ambres voisins, et rien ne disait ce qu'un cadre avait
+                   coute. La peau quitte `hauts_faits.js` pour `CADRE_SKIN`
+                   (`palette.js`), meme decoupe que BOSS_ROSTER / BOSS_SKIN.
+                   CINQ EMPLACEMENTS A VALEURS NOMMEES — fond, bordure, ornement,
+                   lueur, insigne — et `menus.css` a une regle par VALEUR, jamais
+                   par cadre : un treizieme cadre est une ligne de table et un
+                   glyphe, zero CSS.
+                   LE PALIER SE CROISE AVEC L'EXIGENCE au lieu de se declarer :
+                   1 mat (6 defis libres), 2 relief (5 defis cauchemar), 3 le seul
+                   anime (`legende`). `verifierHautsFaits()` refuse un palier qui
+                   ne concorde pas — les quatre tests negatifs mordent.
+                   L'insigne est un MASQUE CSS et non un <svg> injecte : les sites
+                   d'appel construisent des chaines HTML, et un masque prend
+                   `var(--cadre)`, donc le spectre du Prismatique s'y applique
+                   sans cas particulier. La lueur passe par `filter: drop-shadow`
+                   parce que `encoche` est un `clip-path`, qui decouperait une
+                   ombre exterieure — meme piege que « --bevel et --glow-go ne
+                   coexistent pas », resolu au lieu d'etre evite.
+                   EN MANCHE, RIEN NE CHANGE DE SURFACE : le soulignement reste,
+                   il gagne la teinte et la lueur a partir du palier 2. Le sol
+                   porte les telegraphes, une plaque le couvrirait.
+                   Reseau et persistance inchanges : le serveur envoie un
+                   identifiant, comme avant.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2411,4 +2437,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.14.3";
+export const VERSION = "0.14.4";

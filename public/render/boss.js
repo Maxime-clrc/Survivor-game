@@ -1386,17 +1386,25 @@ export function drawPlayers(list, tm, marks = []) {
       const ny = y - CFG.PLAYER_RADIUS - 28;
       ctx.font = "12px ui-monospace, Menlo, Consolas, monospace";
       ctx.textAlign = "center";
-      // le cadre est un SOULIGNEMENT, pas une boite : rien de decoratif ne se
-      // superpose au jeu, et une boite autour d'un nom en couvrirait le sol
-      const trait = cadreOf(p.id);
-      if (trait) {
+      // EN MANCHE le cadre reste un SOULIGNEMENT : rien de decoratif ne se
+      // superpose au jeu, et une plaque autour d'un nom couvrirait le sol, qui
+      // porte les telegraphes. Il ne gagne que ce qui ne coute aucune surface :
+      // la teinte, et la lueur a partir du palier 2.
+      const cadre = cadreOf(p.id);
+      if (cadre) {
         const w = ctx.measureText(nom).width;
-        ctx.strokeStyle = trait;
+        ctx.save();
+        ctx.strokeStyle = cadre.teinte;
         ctx.lineWidth = 2;
+        if (cadre.palier >= 2) {
+          ctx.shadowColor = cadre.teinte;
+          ctx.shadowBlur = cadre.palier >= 3 ? 12 : 7;
+        }
         ctx.beginPath();
         ctx.moveTo(x - w / 2 - 3, ny + 4);
         ctx.lineTo(x + w / 2 + 3, ny + 4);
         ctx.stroke();
+        ctx.restore();
       }
       ctx.fillStyle = TEXT.dim;
       ctx.fillText(nom, x, ny);

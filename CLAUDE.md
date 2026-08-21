@@ -92,6 +92,7 @@ public/render/material.js la MATIERE du sol : une tuile cuite par (biome, mode, 
 public/render/actors.js zones, projectiles, structures, ennemis, bonus
 public/render/boss.js  boss, marques de mecanique, joueurs
 public/render/world.js ORCHESTRATION : ordre de dessin, boucle, prediction, resetFeedback
+public/ui/cadres.js    LES CADRES a l ecran : 12 insignes, appliquerCadre()
 public/ui/build.js     fenetre de build
 public/ui/screens.js   barre, hub, salon, cartes, marchand, bilan, progression
 public/ui/pause.js     menu pause
@@ -382,6 +383,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `state.repriseGrace` | **un écran ne tue pas** : toute reprise de simulation figée (cartes, marchand, pause) rend `_hurt()` inerte pendant `CFG.RESUME_GRACE` |
 | `_recomputeMods()` | rejoue tout le chargement (cartes + classe + méta) |
 | `assignColors()` | couleur de joueur, à la diffusion du salon |
+| `appliquerCadre(el, id, portee)` | le cadre à l'écran : les cinq emplacements, et la suppression du fond en portée `ligne` |
 | `notReady()` | qui manque pour lancer |
 | `briefWaiting()` / `syncBrief()` | qui n'a pas fermé son briefing |
 | `setPaused()` | les causes de pause, et la grâce de reprise |
@@ -950,9 +952,30 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   ouvert par le bouton sous la catégorie Classe du salon. Le Terminal ne garde
   que l’arbre et le confort. La page porte les deux sections : la liste groupée
   par niveau d’exigence, puis les cadres.
-- **Le cadre ne coûte rien au réseau** : il voyage avec le salon et le bilan,
-  comme la couleur, et n'ouvre aucune clé d'instantané. Autour d'un nom, c'est un
-  **soulignement**, jamais une boîte.
+- **Le cadre ne coûte rien au réseau** : le serveur envoie un **identifiant**, il
+  voyage avec le salon et le bilan comme la couleur, et n'ouvre aucune clé
+  d'instantané. **L'identité vit dans `CADRES` (`hauts_faits.js`), la peau dans
+  `CADRE_SKIN` (`palette.js`)** — même découpe que `BOSS_ROSTER` / `BOSS_SKIN`.
+- **Une peau est CINQ EMPLACEMENTS à valeurs nommées** (`fond`, `bordure`,
+  `ornement`, `lueur`, `insigne`), jamais du CSS dans la table. `palier` n'est pas
+  un sixième emplacement : il **borne** les cinq autres (1 mat · 2 relief · 3 le
+  seul animé) et il **se croise avec l'exigence** dans `verifierHautsFaits()`
+  (palier 2 ⟺ `diffMin: 2`, palier 3 ⟺ `legende`, un seul au palier 3). Point de
+  passage unique `appliquerCadre(el, id, portee)` (`ui/cadres.js`) ; `menus.css`
+  a une règle **par valeur d'emplacement**, jamais par cadre. `defaut` n'a pas de
+  peau — ce n'est pas un cadre, c'est son absence.
+- **`portee: "ligne"` supprime le fond** : au bilan le `<td>` porte déjà la
+  couleur de **classe** en texte. Une règle écrite une fois, pas douze exceptions.
+- **L'insigne est un MASQUE CSS** (`--cadre-insigne`, data-URI), pas un `<svg>`
+  injecté : les sites d'appel construisent des chaînes HTML, et un masque prend
+  `var(--cadre)`, donc le spectre du Prismatique s'y applique sans cas
+  particulier. La **lueur passe par `filter: drop-shadow`** et non `box-shadow` —
+  `encoche` est un `clip-path`, qui découperait une ombre extérieure.
+- **EN MANCHE, autour d'un nom, c'est un soulignement, jamais une boîte** : rien
+  de décoratif ne se superpose au jeu, et une plaque couvrirait le sol, qui porte
+  les télégraphes. Le cadre n'y gagne que ce qui ne coûte aucune surface — la
+  **teinte**, et la **lueur** à partir du palier 2. Le fond, l'ornement et
+  l'insigne restent aux menus.
 - **Une invocation ne s'indexe pas sur `damageMul`, elle s'indexe sur l'indice de
   puissance ENTIER**, à exposant réduit (`CARD_CFG.SUMMON_SCALE`) : le tir gagne
   aussi la cadence, les dégâts bruts et le critique, donc une source qui ne lit
@@ -1151,6 +1174,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | décor de mode | `DECOR` (`palette.js`) — **ne circule pas** | `decor` dans `render/stage.js`, lu par `render/decor.js` |
 | classe | `CLASSES` (`classes.js`) | sélecteur du salon + `buildPips()`/`updatePip()` |
 | couleur d'un joueur | `assignColors()` (`room.js`), index dans `colorIndex` | `PLAYER_COLORS` via `colorOf`/`ownerColorOf` |
+| cadre d'un joueur | `CADRES` (`hauts_faits.js`) — un **identifiant**, champ `cadre` du salon et du bilan ; la peau **ne circule pas** | `CADRE_SKIN` (`palette.js`) + `appliquerCadre()` (`ui/cadres.js`) + règles par emplacement (`menus.css`) ; `cadreOf()` (`stage.js`) rend `{ teinte, palier }` au canvas |
 | bits de compétence | `SKILL_HEAL_MODE` · `SKILL_TAUNT` · `SKILL_OVERDRIVE` · `SKILL_ULT_WIND` | teinte, halos, icônes, anneau d'amorce |
 | états | `STATUSES` (`statuses.js`), bit dans `_statusMask()` | `STATUS_ICON` + halo + cadre d'équipe |
 | `shape` de zone | 0 disque · 1 rect · 2 anneau · 3 cône · 4 Pac-Man · 5 croix | `zonePath()`/`zoneSubPath()` + `_zoneHits()` |

@@ -1,6 +1,7 @@
 import { nombre, t, tf } from "./i18n.js";
 import { fmtM } from "./units.js";
 import { BOSS_ROSTER } from "./bosses.js";
+import { CADRE_ANIMES, CADRE_MARQUEURS_2, CADRE_SKIN } from "./palette.js";
 
 /* LES HAUTS FAITS OUVRENT DES PORTES, ILS NE DONNENT PAS DE PUISSANCE. Les
    noyaux sont une courbe, les hauts faits sont des marches ; une puissance qui
@@ -36,19 +37,19 @@ export const hfNiveauLabel = i => t(`hf.niveau.${i}`, HF_NIVEAUX[i] ?? "");
    d'avoir de vrais defis sans jamais creer d'ecart de puissance. */
 export const CADRE_DEFAUT = "defaut";
 export const CADRES = [
-  { id: "defaut", nom: "Aucun", trait: "#00000000" },
-  { id: "sobre", nom: "Sobre", trait: "#9aa4b2" },
-  { id: "depouille", nom: "Dépouillé", trait: "#7f8a99" },
-  { id: "immacule", nom: "Immaculé", trait: "#eaf2ff" },
-  { id: "foudroyant", nom: "Foudroyant", trait: "#63d7ff" },
-  { id: "arsenal", nom: "Arsenal", trait: "#ffb454" },
-  { id: "ermite", nom: "Ermite", trait: "#8f7ad6" },
-  { id: "insomniaque", nom: "Insomniaque", trait: "#c4453f" },
-  { id: "intact", nom: "Intact", trait: "#4fd6a0" },
-  { id: "chasseur", nom: "Chasseur", trait: "#d64f8f" },
-  { id: "or", nom: "Or", trait: "#ffd24a" },
-  { id: "phalange", nom: "Phalange", trait: "#4a8fff" },
-  { id: "prismatique", nom: "Prismatique", trait: "#ffffff" },
+  { id: "defaut", nom: "Aucun" },
+  { id: "sobre", nom: "Sobre" },
+  { id: "depouille", nom: "Dépouillé" },
+  { id: "immacule", nom: "Immaculé" },
+  { id: "foudroyant", nom: "Foudroyant" },
+  { id: "arsenal", nom: "Arsenal" },
+  { id: "ermite", nom: "Ermite" },
+  { id: "insomniaque", nom: "Insomniaque" },
+  { id: "intact", nom: "Intact" },
+  { id: "chasseur", nom: "Chasseur" },
+  { id: "or", nom: "Or" },
+  { id: "phalange", nom: "Phalange" },
+  { id: "prismatique", nom: "Prismatique" },
 ];
 export const CADRE_BY_ID = new Map(CADRES.map(c => [c.id, c]));
 export const cadreNom = id => t(`cadre.${id}.nom`, CADRE_BY_ID.get(id)?.nom ?? id);
@@ -428,10 +429,32 @@ export function verifierHautsFaits(cardIds = null, relicIds = null) {
     }
   }
 
+  /* LE PALIER SE CROISE AVEC L'EXIGENCE, il ne se declare pas : sans ce test
+     l'echelle du materiau se defait au prochain defi ajoute. */
   for (const c of CADRES) {
     if (c.id === CADRE_DEFAUT) continue;
     if (!objets.has(`cadre:${c.id}`)) out.push(`cadre « ${c.id} » : aucun haut fait ne le donne`);
+    const peau = CADRE_SKIN[c.id];
+    if (!peau) { out.push(`cadre « ${c.id} » : aucune peau dans CADRE_SKIN`); continue; }
+
+    const par = HF_BY_ID.get(objets.get(`cadre:${c.id}`));
+    const attendu = par?.id === "legende" ? 3 : par?.diffMin === 2 ? 2 : 1;
+    if (peau.palier !== attendu) {
+      out.push(`cadre « ${c.id} » : palier ${peau.palier} pour une exigence de palier ${attendu}`);
+    }
+
+    const slots = [peau.fond, peau.bordure, peau.ornement, peau.lueur];
+    const anime = slots.find(v => CADRE_ANIMES.includes(v));
+    const marque = slots.find(v => CADRE_MARQUEURS_2.includes(v));
+    if (peau.palier < 3 && anime) out.push(`cadre « ${c.id} » : « ${anime} » est réservé au palier 3`);
+    if (peau.palier === 1 && marque) out.push(`cadre « ${c.id} » : « ${marque} » est réservé au palier 2`);
+    if (peau.palier === 2 && !marque) out.push(`cadre « ${c.id} » : palier 2 sans marqueur de palier 2`);
   }
+  for (const id of Object.keys(CADRE_SKIN)) {
+    if (!CADRE_BY_ID.has(id)) out.push(`peau « ${id} » : absente de CADRES`);
+  }
+  const sommet = Object.values(CADRE_SKIN).filter(p => p.palier === 3).length;
+  if (sommet !== 1) out.push(`palier 3 : ${sommet} cadres au lieu d'un seul`);
 
   if (cardIds) {
     for (const h of HAUTS_FAITS) {
