@@ -149,7 +149,6 @@ export function migrateProfile(profile, from) {
   const best = profile.best ?? (profile.best = {});
   if (best.level === undefined) best.level = 0;
   if (best.segment === undefined) best.segment = 0;
-  if (!Array.isArray(profile.bannedCards)) profile.bannedCards = [];
   if (!profile.bestFinal || typeof profile.bestFinal !== "object") profile.bestFinal = {};
 
   if (!profile.commun || typeof profile.commun !== "object") profile.commun = {};
@@ -184,10 +183,8 @@ export function migrateProfile(profile, from) {
   if (!profile.stats || typeof profile.stats !== "object") {
     profile.stats = statsVierges();
   }
-  // le bannissement devient un achat : un compte qui en a deja use le garde
-  if (profile.bannedCards.length && !profile.confort.includes("bannissement")) {
-    profile.confort.push("bannissement");
-  }
+  // (`bannedCards` a disparu : le ban est par manche et gratuit — champ mort
+  //  chez les comptes qui en portent encore un)
   return true;
 }
 

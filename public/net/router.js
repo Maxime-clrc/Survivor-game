@@ -10,9 +10,9 @@ import { applyPalette, biomeIndex, biomeSeed, rebuildBiome, setBiomeIndex, setBi
 import { resetFeedback } from "../render/world.js";
 import { renderGateMode, renderGateSwitch, renderServerInfo } from "../ui/boot.js";
 import { closeBuild } from "../ui/build.js";
-import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, pauseEl, registerFormEl, setGateBusy, setStatus, settingsEl, updateTrace, updateVersion, waitMsg } from "../ui/dom.js";
-import { closePause, renderPauseState } from "../ui/pause.js";
-import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderMeta, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
+import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, registerFormEl, setGateBusy, setStatus, settingsEl, updateTrace, updateVersion, waitMsg } from "../ui/dom.js";
+import { applyPause, closePause, setPausePar } from "../ui/pause.js";
+import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderMeta, renderHautsFaits, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
 
 // LA MESURE S'ARME PAR L'URL : elle sert a enregistrer de VRAIES parties pour
 // l'equilibrage, donc elle ne doit couter aucun clic a personne — et surtout
@@ -175,6 +175,7 @@ export function connect() {
         // passent par la meme file que le reste
         for (const id of msg.gagnes ?? []) pousserHautFait(id);
         renderMeta();
+        renderHautsFaits();
         updateTerminalDot();
         break;
 
@@ -365,7 +366,11 @@ export function connect() {
             segment: msg.segment ?? 0, bossWave: msg.bossWave === 1, boss: msg.boss ?? 0,
             bossKind: msg.bossKind ?? 0,
             level: msg.level, more: msg.more ?? 0,
-            deadline: msg.deadline, offers: msg.offers,
+            // LE MESSAGE PORTE UNE DUREE, JAMAIS UNE ECHEANCE : une horloge de
+            // machine en retard sur celle du serveur laissait la jauge pleine
+            // alors que la manche avait DEJA repris, et le joueur mourait
+            // devant son ecran de cartes.
+            deadline: Date.now() + (msg.duree ?? 0), offers: msg.offers,
             reroll: msg.reroll === 1,
             picked: false, pickedId: null,
             from: Date.now(),
@@ -386,7 +391,7 @@ export function connect() {
         pushWorld(() => {
           setMerchantState({
             wave: msg.wave ?? 0,
-            deadline: msg.deadline,
+            deadline: Date.now() + (msg.duree ?? 0),
             eclats: msg.eclats ?? 0,
             rerollCost: msg.rerollCost ?? 0,
             achats: msg.achats ?? 1,
@@ -408,7 +413,8 @@ export function connect() {
 
       case "paused":
         setPauseReal(msg.on === 1);
-        if (!pauseEl.hidden) renderPauseState();
+        setPausePar(msg.par ?? "");
+        applyPause();
         break;
 
       case "loadout":
@@ -457,6 +463,10 @@ export function connect() {
     closeBilan();
     closeFin();
     closeBuild();
+    // une pause survit a la socket sinon : `readMove()` la lit, et on revient
+    // dans une manche ou le personnage refuse d'avancer.
+    setPauseReal(false);
+    setPausePar("");
     closePause();
     updateVersion();
     if (localStorage.getItem("survivor.pseudo") || pendingAuth) {

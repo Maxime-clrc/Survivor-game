@@ -6,7 +6,8 @@ import {
 import { dec, getLang, onLangChange, t, tf } from "/shared/i18n.js";
 import { relicById } from "/shared/reliques.js";
 import { fmtM, toM } from "/shared/units.js";
-import { difficulty, hudDps, hudStats, ownedCounts, pipPress, relicsByPlayer } from "./core/state.js";
+import { difficulty, hudDps, hudStats, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
+import { applyMeta, metaLinesFor } from "/shared/progression.js";
 import { CLASS_DEFAULT, SKILL_CFG, classAt, skill3Nom, skillNom,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { CARD_CFG } from "/shared/cards.js";
@@ -138,7 +139,6 @@ export function resetHud() {
   badges.clear();
   el.effects.textContent = "";
   el.buffs.textContent = "";
-  dpsWindow.length = 0;
   hurtParSrc.fill(0);
   hurtHp = -1;
   for (const k of Object.keys(memo)) delete memo[k];
@@ -657,8 +657,6 @@ const STAT_ROWS = [
 ];
 
 const STATS_MS = 250;
-const DPS_WINDOW_MS = 5000;
-const dpsWindow = [];
 const hurtParSrc = new Array(DAMAGE_SOURCES.length).fill(0);
 let hurtHp = -1;
 let statsAt = 0;
@@ -671,12 +669,30 @@ function relicFlat(id, key) {
   return total;
 }
 
+// LE PANNEAU DONNE DES VALEURS EFFECTIVES : il lui manquait la META, donc un
+// compte qui avait equipe « Precision » au maximum lisait encore 5 % de taux de
+// critique la ou le serveur en roulait 15. On rejoue exactement ce que `room.js`
+// construit au lancement — lignes EQUIPEES seulement — et le profil ne change
+// pas en manche, donc on le resout par identite d'objet et non par signature.
+let metaFrom = null, metaCls = "", metaCache = null, metaGen = 0;
+function myMeta(clsId) {
+  if (progressState !== metaFrom || clsId !== metaCls) {
+    metaFrom = progressState;
+    metaCls = clsId;
+    metaGen++;
+    metaCache = progressState ? metaLinesFor(progressState, clsId) : null;
+  }
+  return metaCache;
+}
 function myMods(me, v) {
   const counts = ownedCounts(me.id);
   const others = [];
   for (const p of v.playerList) if (p.id !== me.id) others.push(ownedCounts(p.id));
   const niveau = v.teamLevel ?? me.level ?? 1;
-  let sig = `${niveau}|${me.cls}|`;
+  const cls = me.cls ?? CLASS_DEFAULT;
+  const clsId = classAt(cls).id;
+  const meta = myMeta(clsId);
+  let sig = `${niveau}|${me.cls}|${metaGen}|`;
   for (const [id, n] of counts) sig += `${id}${n},`;
   sig += "#";
   for (const o of others) for (const [id, n] of o) sig += `${id}${n},`;
@@ -685,7 +701,9 @@ function myMods(me, v) {
     // `fullMods` rend `{ mods, maxHp }`, pas les mods : le lire a plat donnait
     // des `NaN` en cascade, et le premier `.toFixed` sur un champ absent vidait
     // toutes les lignes suivantes du panneau.
-    modsCache = fullMods(counts, others, me.cls ?? CLASS_DEFAULT, niveau).mods;
+    const r = fullMods(counts, others, cls, niveau);
+    modsCache = meta ? applyMeta(r.mods, r.maxHp, clsId, meta.lines, meta.commun).mods
+                     : r.mods;
   }
   return modsCache;
 }
@@ -701,18 +719,16 @@ function updateStats(me, v, c, now) {
   }
   hurtHp = me.hp;
 
-  dpsWindow.push({ at: now, total: me.damage ?? 0 });
-  while (dpsWindow.length > 2 && now - dpsWindow[0].at > DPS_WINDOW_MS) dpsWindow.shift();
-
   if (!on || now - statsAt < STATS_MS) return;
   statsAt = now;
 
   if (hudDps) {
-    const a = dpsWindow[0], b = dpsWindow[dpsWindow.length - 1];
-    const span = Math.max(0.001, (b.at - a.at) / 1000);
-    const dps = span < 1 ? 0 : Math.max(0, b.total - a.total) / span;
+    // UN COMPTEUR DE DEGATS JUGE LA PARTIE, PAS UNE FENETRE : le total divise
+    // par le temps de manche ecoule. `tm` ne court ni pendant le briefing ni
+    // pendant un ecran, donc le denominateur est deja du temps de COMBAT.
+    const tot = me.damage ?? 0;
     setText(el.statsDps, "stD", tf("ui.hud.dps", "{dps} dps · {tot} total",
-      { dps: Math.round(dps), tot: Math.round(me.damage ?? 0) }));
+      { dps: Math.round(tot / Math.max(1, v.tm ?? 0)), tot: Math.round(tot) }));
   }
   setHidden(el.statsDps, "stDH", !hudDps);
 

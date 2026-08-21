@@ -1,4 +1,8 @@
 
+/* --- surfaces DU JEU ----------------------------------------------------------
+   L'indigo d'origine, et il reste : l'arene, le HUD et les entites n'ont pas
+   change de direction. Le graphite chaud ne concerne que l'interface HORS
+   PARTIE, et il vit dans `UI_THEME` plus bas — deux palettes, deux portees. */
 export const SURFACE = {
   void:     "#08090d",
   arena:    "#0f1219",
@@ -9,6 +13,31 @@ export const SURFACE = {
   gridFine:  "#171b24",
   gridMajor: "#222836",
   shadow:   "#000000",
+};
+
+/* Ce qui distingue une surface qu'on PRESSE d'une surface qu'on LIT. Trois
+   valeurs translucides plutot que des hex : elles se posent sur des fonds
+   differents (panneau, champ, carte) et doivent s'y accorder sans qu'on
+   recalcule un ton par endroit.
+
+   Le lisere du haut est presque blanc et tres fin : c'est une ARETE DE LUMIERE,
+   pas un contour — il dit d'ou vient la lumiere, donc que la surface depasse. */
+export const UI = {
+  rise:        "rgba(132,121,110,.5)",
+  /* LE VERRE. Une carte de choix n'est pas une surface pleine : elle laisse
+     passer le fond, floute ce qui est dessous et attrape la lumiere sur son
+     arete haute. Deux valeurs seulement — la teinte du verre lui-meme et le
+     reflet qui court sous l'arete ; le flou et la saturation sont des EFFETS,
+     ils vivent dans la feuille avec les autres reglages de rendu.
+
+     La teinte est tres peu opaque (34 %) : au-dela, le flou ne se voit plus et
+     la carte redevient un panneau. En dessous, le texte perd son fond et la
+     mesure de contraste ne tient plus. */
+  glass:     "rgba(96,88,80,.34)",
+  glassGlow: "rgba(255,247,238,.14)",
+  edgeTop:     "rgba(255,255,255,.95)",
+  lineRaised:  "rgba(230,226,221,.26)",
+  linePassive: "rgba(230,226,221,.07)",
 };
 
 export const DECOR = [
@@ -28,12 +57,16 @@ export const DECOR = [
 
 export function decorAt(diffIndex) { return DECOR[diffIndex] ?? DECOR[1]; }
 
+/* Les trois tons du JEU. Ceux de l'interface sont dans `UI_THEME`. */
 export const TEXT = {
   base:  "#e9edf5",
   dim:   "#8892a6",
   faint: "#6f7a90",
 };
 
+/* La grammaire du JEU, inchangee : cyan « il faut y aller », ambre « danger,
+   sortir », rouge letal. L'interface hors partie a la sienne (`UI_THEME`), ou
+   l'ambre porte l'action — les deux ne se croisent jamais a l'ecran. */
 export const SIGNAL = {
   go:      "#38bdf8",
   warn:    "#f5a524",
@@ -60,6 +93,56 @@ export const CLASS_COLOR = {
   soigneur: "#8ef0c8",
   dps:      "#f4d35e",
   dps2:     "#d98cf0",
+};
+
+/* --- LE THEME DE L'INTERFACE HORS PARTIE ---------------------------------------
+   Graphite chaud et ambre, et il ne sort JAMAIS des menus. C'est la seule facon
+   de tenir les deux directions a la fois : l'arene garde son indigo et sa
+   grammaire — cyan « il faut y aller », ambre « danger, sortir » — pendant que
+   les ecrans hors partie passent au metal chaud ou l'ambre porte l'action. Les
+   memes valeurs partout auraient force un choix : soit repeindre le jeu, soit
+   renoncer a la charte ; soit, pire, laisser `--go` valoir l'ambre en combat et
+   se confondre avec `--warn` a deux cents ennemis.
+
+   La SEPARATION est une portee CSS et non un second jeu de noms : `cssVars()`
+   expose ces valeurs en `--ui-*`, et `menus.css` les remappe sur `--text`,
+   `--go`… au niveau de `.overlay` et de la barre. Les menus heritent donc du
+   theme, tout le reste garde `:root`. Aucune des deux cents references de la
+   feuille n'a eu a changer de nom.
+
+   `goInk` et `onGo` repondent a une regle : UNE COULEUR QUI PORTE DU TEXTE PREND
+   SA VERSION FONCEE. Une teinte reglee pour un aplat se dissout des qu'elle
+   devient un mot — meme teinte, autre densite ; `onGo` est l'inverse, l'encre
+   posee SUR un aplat ambre. */
+export const UI_THEME = {
+  void:     "#2b2520",
+  arena:    "#3a322c",
+  panel:    "#453e39",
+  raised:   "#554d46",
+  line:     "#554d46",
+  lineSoft: "#3a322c",
+
+  text:       "#f9f9f8",
+  textStrong: "#e9e7e4",
+  textBody:   "#dfdcd8",
+  textDim:    "#c3bdb7",
+  textFaint:  "#a89e93",
+  textMute:   "#988d81",
+
+  go:      "#ffae2b",
+  goSoft:  "#ffcc7a",
+  goInk:   "#c07a12",
+  onGo:    "#241703",
+  warn:    "#ff9430",
+  lethal:  "#ff5540",
+  gain:    "#9dc94a",
+  ally:    "#e9e7e4",
+
+  rarity: ["#c3bdb7", "#9dc94a", "#ff9e4a", "#ffd98a"],
+
+  clsTank:     "#e0684a",
+  clsSoigneur: "#9dc94a",
+  clsDps:      "#ffc44a",
 };
 
 export const COMBAT = {
@@ -354,9 +437,22 @@ export function cssVars(diffIndex = 1) {
     "--line":      SURFACE.line,
     "--line-soft": SURFACE.lineSoft,
 
-    "--text":       TEXT.base,
-    "--text-dim":   TEXT.dim,
-    "--text-faint": TEXT.faint,
+    /* Ce qui separe une surface qu'on PRESSE d'une surface qu'on LIT. La
+       relevee est plus claire que son support, avec l'arete de lumiere en haut ;
+       la passive n'a qu'un filet presque absent et aucune ombre. */
+    "--ui-rise":         UI.rise,
+    "--ui-edge-top":     UI.edgeTop,
+    "--ui-line-raised":  UI.lineRaised,
+    "--ui-line-passive": UI.linePassive,
+    "--ui-glass":        UI.glass,
+    "--ui-glass-glow":   UI.glassGlow,
+
+    "--text":        TEXT.base,
+    "--text-strong": TEXT.strong,
+    "--text-body":   TEXT.body,
+    "--text-dim":    TEXT.dim,
+    "--text-faint":  TEXT.faint,
+    "--text-mute":   TEXT.mute,
 
     "--go":      SIGNAL.go,
     "--warn":    SIGNAL.warn,
@@ -392,7 +488,42 @@ export function cssVars(diffIndex = 1) {
     "--flash":  COMBAT.flash,
 
     "--cursor-ui": cursorUri(TEXT.base, false),
-    "--cursor-go": cursorUri(SIGNAL.go, true),
+    "--cursor-go": cursorUri(UI_THEME.go, true),
+
+    /* LE THEME DE L'INTERFACE, expose a part et remappe par `menus.css` sur les
+       ecrans hors partie. Ces valeurs ne touchent jamais l'arene ni le HUD :
+       c'est la portee CSS qui les separe, pas un second jeu de noms. */
+    "--ui-bg-void":   UI_THEME.void,
+    "--ui-bg-arena":  UI_THEME.arena,
+    "--ui-bg-panel":  UI_THEME.panel,
+    "--ui-bg-raised": UI_THEME.raised,
+    "--ui-line-c":    UI_THEME.line,
+    "--ui-line-softc": UI_THEME.lineSoft,
+
+    "--ui-text":        UI_THEME.text,
+    "--ui-text-strong": UI_THEME.textStrong,
+    "--ui-text-body":   UI_THEME.textBody,
+    "--ui-text-dim":    UI_THEME.textDim,
+    "--ui-text-faint":  UI_THEME.textFaint,
+    "--ui-text-mute":   UI_THEME.textMute,
+
+    "--ui-go":      UI_THEME.go,
+    "--ui-go-soft": UI_THEME.goSoft,
+    "--ui-go-ink":  UI_THEME.goInk,
+    "--ui-on-go":   UI_THEME.onGo,
+    "--ui-warn":    UI_THEME.warn,
+    "--ui-lethal":  UI_THEME.lethal,
+    "--ui-gain":    UI_THEME.gain,
+    "--ui-ally":    UI_THEME.ally,
+
+    "--ui-commune":    UI_THEME.rarity[0],
+    "--ui-rare":       UI_THEME.rarity[1],
+    "--ui-epique":     UI_THEME.rarity[2],
+    "--ui-legendaire": UI_THEME.rarity[3],
+
+    "--ui-cls-tank":     UI_THEME.clsTank,
+    "--ui-cls-soigneur": UI_THEME.clsSoigneur,
+    "--ui-cls-dps":      UI_THEME.clsDps,
 
     "--t-xs":  TYPE[0] + "px",
     "--t-s":   TYPE[1] + "px",

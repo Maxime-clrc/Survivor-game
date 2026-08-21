@@ -375,11 +375,12 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `adaptType()` | adaptation au niveau (`minLevel`, `fallback`) ; `_pickType` **filtre**, `_spawnEnemy` **replie** |
 | `adaptEntry()` | adaptation d'un beat à l'effectif |
 | `openNextScreen()` | enchaînement cartes → marchand |
+| `state.repriseGrace` | **un écran ne tue pas** : toute reprise de simulation figée (cartes, marchand, pause) rend `_hurt()` inerte pendant `CFG.RESUME_GRACE` |
 | `_recomputeMods()` | rejoue tout le chargement (cartes + classe + méta) |
 | `assignColors()` | couleur de joueur, à la diffusion du salon |
 | `notReady()` | qui manque pour lancer |
 | `briefWaiting()` / `syncBrief()` | qui n'a pas fermé son briefing |
-| `setPaused()` | les trois causes de pause |
+| `setPaused()` | les causes de pause, et la grâce de reprise |
 | `unlockClasses()` | déverrouillage aux DEUX sorties de manche |
 | `recordRound()` | historique, aux DEUX sorties de manche |
 | `pushWorld()` / `worldQueue` | tout message ponctuel décrivant le MONDE |
@@ -665,6 +666,12 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   de classe de télégraphe, `reflexe` la phase à partir de laquelle on tombe à
   0,8 s), `mechRatio`, `echec`, `couches` (calme s'arrête à `unlock[2]`),
   `dwell`, `renforts`.
+- **`warn` négatif est le levier de cauchemar, et il est BLOQUÉ** : le mode est
+  encore à `0`, donc à la même classe de télégraphe que normal. Descendre d'un
+  cran casse l'invariant du safe spot, parce que `ABRI_RETOUR` vaut 1,2 s **en
+  dur** quand le télégraphe, lui, tomberait à 0,8 s — une zone ne peut plus « se
+  résoudre avant l'échéance » et `verifierMecaniques` compte des abris sous le
+  feu. Le rendre **proportionnel à la classe de télégraphe** est le préalable.
 - **`parPhase` est un PLAFOND, la barre en donne le rythme** :
   `min(parPhase, 1 + floor(phase / 2))`. Le joueur apprend une mécanique à la
   fois, puis les voit se combiner — un combat qui ouvre à son régime de croisière
@@ -728,10 +735,18 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   aussi les obstacles de biome et les dangers qui blessent. Un refuge **fuit** le
   feu (`_zoneFeu`), et « le feu » inclut ce qui va tomber.
 - **UN SEUL MOTIF DE SATURATION À LA FOIS** (`b.solT`, durée **mesurée** sur les
-  zones posées, détonations seules) : chaque motif laisse un creux — l'autre
-  parité du damier, le trou de la couronne, l'entre-deux des lames — mais le creux
-  de l'un tombe sous le plein de l'autre. Une croix n'est **pas** un motif de
-  saturation : elle est locale à sa cible et laisse les quadrants.
+  zones posées, détonations seules, **plus `ABRI_RETOUR`**) : chaque motif laisse
+  un creux — l'autre parité du damier, le trou de la couronne, l'entre-deux des
+  lames — mais le creux de l'un tombe sous le plein de l'autre. Une croix n'est
+  **pas** un motif de saturation : elle est locale à sa cible et laisse les
+  quadrants. **Deux dérogations ont été essayées et REFUSÉES par la mesure** :
+  retirer `ABRI_RETOUR` de `_solPose` (les zones **rémanentes** survivent à la
+  dernière détonation, donc les motifs se chaînent : 2,85 → 14 zones hostiles en
+  moyenne, et un combat à deux passe de 86 à 181 s) et sortir la **constriction**
+  du verrou (elle ne pose aucune zone, mais elle resserre `state.bounds` sous un
+  motif déjà posé — `verifierMecaniques` compte alors des abris sous le feu).
+  **Le verrou coûte la moitié de la présence au sol en solo, et c'est le prix de
+  la garantie : il se paie sur `bossProfil`, jamais sur le verrou.**
 - **Le nombre de places à tenir suit l'effectif à la RÉSOLUTION, pas à la pose**
   (`_resolveTowers`, `_resolveSceau`) : une équipe qui perd un joueur pendant
   l'annonce ne peut pas tenir la place qui était la sienne.
@@ -812,6 +827,12 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **La progression permanente est EXCLUE de la difficulté par construction** :
   `p.powerMods` = cartes + classe (lu par `_playerPower()`), `p.mods` = copie +
   méta.
+- **Cette exclusion ne vaut QUE pour la difficulté : ce qu'on MONTRE au joueur
+  est `p.mods`, méta comprise.** Le panneau de stats et la fenêtre de build
+  rejouent `metaLinesFor()` + `applyMeta()` — point de passage unique partagé
+  avec `room.js`, **lignes équipées seulement** — sur **son propre** profil, le
+  seul qui voyage. Sans quoi un compte qui a monté « Précision » lit 5 % de
+  critique là où le serveur en roule 15.
 
 ### Progression et cartes
 
@@ -875,6 +896,10 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   — la décision du joueur ne se recouvre pas. Une à la fois, les autres en file.
   **En coopératif, seuls tes hauts faits produisent un bandeau** ; ceux des
   alliés passent en une ligne d'info.
+- **Les hauts faits ont leur PROPRE ÉCRAN** (`#hautsFaits`), hors du Terminal,
+  ouvert par le bouton sous la catégorie Classe du salon. Le Terminal ne garde
+  que l’arbre et le confort. La page porte les deux sections : la liste groupée
+  par niveau d’exigence, puis les cadres.
 - **Le cadre ne coûte rien au réseau** : il voyage avec le salon et le bilan,
   comme la couleur, et n'ouvre aucune clé d'instantané. Autour d'un nom, c'est un
   **soulignement**, jamais une boîte.
@@ -923,10 +948,13 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   `_damage()` (**avant** la redirection Jumeaux), flat PV dans `_recomputeMods()`,
   cadence dans `_players()`, vitesse en **remplaçant** `speedMul`, essaim en
   ajoutant à `mods.swarm`. Elles voyagent dans le champ `relics` du `loadout`.
-- **Le bannissement** : `bannedCards` s'unit à `lockedCards()` dans `meta.locked`.
-  Bannir **consomme la phase**, écrit **immédiatement** (hook `persist`), et la
-  clôture de dépendances (`banClosure`, champ `dependsOn`) s'écrit à plat. Pas de
-  débannissement. Pool vidé → carte de secours (`ravitaillement`).
+- **Le bannissement est PAR MANCHE** (décision du porteur, 2026-08-19 — il était
+  permanent par compte depuis le lot J) : la clôture (`banClosure`, champ
+  `dependsOn`) rejoint `p.locked` du `GameState` et meurt avec lui. Rien ne
+  s'écrit au profil — `bannedCards` y est un champ mort, jamais relu. Bannir
+  **consomme la phase** ; le bouton est **libre** (l'achat confort
+  `bannissement` a disparu de la table — identifiant mort dans les profils qui
+  l'avaient acheté). Pool vidé → carte de secours (`ravitaillement`).
 - **L'économie** : `coresForRun` **linéaire et plafonnée** (vague × `CORE_WAVE` +
   boss × `CORE_BOSS`, plafond `CORE_RUN_CAP`), **les jalons ne créditent jamais de
   noyaux**, les **emplacements se gagnent aux jalons** (`slotsFor(profile)`).
@@ -986,8 +1014,12 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   `case "start"` arme `room.launchAt` et diffuse `launch` ; la garde d'hôte reste
   sur le lancement, jamais sur l'annulation. **Conditions revalidées à chaque
   tick** (`tickLaunch`). Un **départ** n'annule pas ; une salle **vidée** si.
-- **Le message porte une DURÉE, jamais une échéance.** `why` n'accompagne que les
-  annulations subies. `cancelStart` ne rediffuse pas le salon.
+- **Le message porte une DURÉE, jamais une échéance.** Vaut pour **tout** compte
+  à rebours envoyé au client — `launch`, mais aussi `cards` et `merchant`
+  (`duree`, `cardLeft()`) : une échéance absolue force le client à comparer
+  l'horloge du serveur à la sienne, et une machine en retard voyait sa jauge de
+  cartes encore pleine alors que la manche avait déjà repris. `why` n'accompagne
+  que les annulations subies. `cancelStart` ne rediffuse pas le salon.
 - **`renderLaunch()` ne repasse pas par le salon** et est appelé **en dernier**
   par `refreshPanel()`. À l'échéance locale, le bouton se désarme sur
   « Lancement… ».
@@ -1007,12 +1039,15 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **L'attente ne s'affiche qu'à celui qui a DÉJÀ fermé** (`#hudBrief`), nomme qui
   manque (noms jusqu'à deux, compte au-delà), reprend le compte à rebours, en
   **blanc**.
-- **Une pause n'a de sens qu'à UN SEUL joueur**, accordée par le serveur
-  (`pauseReal` ne vaut vrai que sur sa réponse). Trois refus : hors manche,
-  demandeur pas en jeu, **dès qu'un second client est connecté**. Elle se lève
-  seule au bout de **5 minutes** ou à l'arrivée d'un second joueur. **Les
-  recharges et les états ne s'écoulent pas** (il suffit de ne pas appeler
-  `step()`).
+- **LA PAUSE EST CELLE DE L'HÔTE, ET ELLE VAUT POUR TOUT LE MONDE**, accordée
+  par le serveur (`pauseReal` ne vaut vrai que sur sa réponse). Deux portes :
+  **l'hôte**, à tout effectif et même en spectateur, et le joueur **seul dans sa
+  salle** — un spectateur suffisait à retirer la pause au joueur seul. Reprendre
+  appartient à **celui qui a figé** (`room.pausedBy`) et à l'hôte ; un départ du
+  pauseur lève la pause, une **arrivée** ne la lève plus. Elle se lève seule au
+  bout de **5 minutes**. **Les recharges et les états ne s'écoulent pas** (il
+  suffit de ne pas appeler `step()`), et le client **cesse de prédire**
+  (`readMove()`). Celui qui n'a pas ouvert le menu lit un bandeau, `#hudPause`.
 - **L'historique appartient à la SALLE** (`room.history`), rempli par
   `recordRound()` aux DEUX sorties, plafonné à `ROUND_HISTORY_MAX` (8), porte la
   **vague atteinte et rien d'autre** (ni victoire ni défaite), heure en
@@ -1087,11 +1122,11 @@ Ajouter une entrée impose de traiter les deux côtés.
 | couverture destructible | `maxHp` sur un obstacle ; `_obstacleHit()` ; clé creuse `ob` | liseré tireté + blocage rejoué + `murDetruit` |
 | météo | `WEATHERS` (`biomes.js`), index dans l'alerte ; `weatherFor(diff, graine, segment)` | `weatherAt()` + `drawVignette()` + `stepPrediction()` |
 | attaque de boss | chaînes du `base`/`unlock`, dispatchées par `_atk()` | `ATTACK_LABEL` — **ne circule pas** |
-| niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` | `updateAlerts()` : consigne cyan à rebours · avertissement ambre · info blanche |
+| niveau d'alerte | `ALERT_ORDER` · `ALERT_WARN` · `ALERT_INFO` | `updateAlerts()` : consigne ambre à rebours · avertissement orange · info blanche |
 | provenance d'un dégât | `DAMAGE_SOURCES` (`game_state.js`), **sept** entrées, index en fin du tuple joueur | `SRC_ICON` (`icons.js`) + `SRC_TINT` (`palette.js`) + `hudDamage()` + `renderHurtBy()` |
 | soins rendus | `p.healDealt`, champ `heal` de `scoreboardRows()` | colonne « soins » du bilan |
 | magnitude d'un souffle | `n` sur l'effet, 9ᵉ élément (index 8, coupé si nul) — nova, grenade, onde, bombe | `BLAST_STYLE` + `spawnBlast()` + force du son |
-| critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats |
+| critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats, noyau chaud, **chiffre ambre** (`a.crit` dans `dmgAgg`) |
 | propriétaire d'une balle | 4ᵉ élément du tuple `b` | `ownerColorOf(b.owner) ?? COMBAT.bullet` |
 | missile de Salve | 5ᵉ élément du tuple `b`, **émis seulement si missile** | `drawMissile()` |
 | lien de soin | `_healLinks()` ; clé `hl`, triplets `[soigneur, cible, ennemi]` — **quadruplets** quand le lien vient d'un Sanctuaire (id du dôme) | `drawSoinLinks()` : soin chaud et **calme**, siphon froid et **agité** ; un lien de dôme part du **dôme** |
@@ -1103,7 +1138,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | état prêt | `ready{on}` ; champ `ready` de `lobbyPayload()` ; `notReady()` | `#readyBtn` (+ `.on`), `.teamRow.ready`, `#teamReady`, `#waitMsg` |
 | latence | `WsConnection.rtt` ; champ `ping`, `-1` si inconnu | `.teamPing` |
 | historique | `room.history` (`{at, diffIndex, wave}`) | `renderHistory()` → `#historyList .histRow` |
-| pause | `pause` → `paused` ; `setPaused()` | `#pause`, `pauseReal`, `renderPauseState()` |
+| pause | `pause` → `paused{on,why,par}` ; `setPaused()`, `room.pausedBy` | `#pause`, `#hudPause`, `pauseReal`, `applyPause()` |
 | briefing | `state.warmup`, `WARMUP_S`, champ `warmup` du `round` | `#brief`, `openBrief()`/`closeBrief()` |
 | briefing fermé | `briefDone` → `briefState{waiting:[noms]}` | `#hudBrief`, `renderBriefWait()` |
 | victoire | `state.victory`, `state.finalKill`, clés du `roundEnd` ; `bestFinalRun` | `#bilan.win` + `.bilanStat.final` |
@@ -1241,6 +1276,17 @@ le sien :
   la tierce descendante, plus courte). Classe lue **à l'appui**.
 - **`uiSoundFor()`** est une table par identifiant consultée dans la délégation,
   pas un `onclick`. Un bouton absent rend `selection`.
+- **Le décompte de lancement TICKE, une fois par seconde tombée** (`tick`, 14 ms
+  de bruit passe-bande). Même matière que `survol` et plus grave (2200 → 1500
+  contre 3400 → 2200) : les deux disent « il se passe quelque chose » et non « tu
+  as fait quelque chose » — un tick de décompte qui sonnerait comme une note se
+  lirait comme une réponse à un geste, or personne n'a rien fait, c'est le temps
+  qui passe. Le grave le place aussi **sous** le souffle qui va suivre : l'un
+  compte, l'autre conclut. Il part sur le chiffre **affiché** qui change et non à
+  chaque passage — `renderLaunch` tourne cinq fois par seconde et `refreshPanel`
+  la rappelle à chaque diffusion du salon — donc **aucun tick sur la première
+  valeur** (le clic vient de rendre `lancer`, deux sons pour un événement) ni sur
+  `1 → 0`. Mesuré : exactement deux ticks, `3 → 2` et `2 → 1`.
 - **Le souffle de lancement part du message `round`**, pas du clic de l'hôte —
   donc par la file du monde. `lancement` **monte avant de descendre** (paramètre
   `attack` de `noise`).
@@ -1274,9 +1320,37 @@ toute créature, aucun sur le décor**, et **jamais de noir pur**.
   `render/stage.js` pose les variables CSS sur `:root` depuis `cssVars()` —
   **jamais l'inverse**. `tokens.css` ne contient aucune couleur. L'échelle
   typographique (`TYPE`) suit la même règle.
-- **La couleur est fonctionnelle, jamais esthétique** : cyan `il faut y aller` ·
-  ambre `danger, sortir` · rouge `danger létal` · blanc `ça concerne un allié` ·
-  violet `persistant` · vert `gain, soin`. **Jamais de rouge pour quelque chose
+- **DEUX PALETTES, SÉPARÉES PAR LA PORTÉE.** L'interface **hors partie** est en
+  graphite chaud et ambre ; l'**arène, le HUD et les entités** gardent l'indigo
+  d'origine et leur grammaire — cyan « il faut y aller », ambre « danger,
+  sortir ». Les mêmes valeurs partout auraient forcé un choix : repeindre le jeu,
+  renoncer à la charte, ou — pire — laisser `--go` valoir l'ambre en combat et se
+  confondre avec `--warn` à deux cents ennemis, exactement le défaut que ce
+  fichier documente pour `bullet` / `shot`.
+- **La séparation est une PORTÉE, jamais un second jeu de noms.** `UI_THEME`
+  (`palette.js`) est exposé en `--ui-*` sur `:root`, et `menus.css` le remappe
+  sur `--text`, `--go`… au niveau de `.overlay`, `#topbar` et `#pause`. Les
+  descendants héritent, le reste de la page garde les valeurs de jeu, et aucune
+  des deux cents références de la feuille n'a eu à changer de nom. `#cards`,
+  `#build` et `#pause` sont du **menu** bien qu'ils s'ouvrent une manche en
+  cours : ce sont des écrans posés par-dessus le jeu, pas le jeu.
+- **Une couleur qui porte du TEXTE prend sa version foncée.** Une teinte réglée
+  pour un aplat se dissout dès qu'elle devient un mot : `--go-ink` (`#c07a12`) et
+  non `--go` sur fond clair, `--on-go` (`#241703`) pour le texte posé **sur** un
+  aplat ambre. Même teinte, autre densité.
+- **Une surface cliquable est plus claire que celle qui la porte**, liseré clair
+  en haut et ombre en bas ; une surface passive est enfoncée, filet presque
+  absent, aucune ombre. Sans cet écart, ce qu'on lit et ce qu'on presse retombent
+  sur le même ton. Le liseré est une **arête de lumière** et non un contour : un
+  pixel, en haut seulement — il dit d'où vient la lumière, donc que la surface
+  dépasse. Sa règle est volontairement **faible** (`.overlay button`, 0-1-1), et
+  c'est ce qui laisse les actions principales (1-0-0) garder leur aplat sans
+  avoir à les nommer ; écrite en `#gate button` elle passait devant et « Se
+  connecter » perdait son ambre. `.link` et `.ghost` en sont exclus — une arête
+  sur un élément sans fond dessine un cadre autour de rien.
+- **La couleur est fonctionnelle, jamais esthétique** : ambre `action, il faut y
+  aller` · orange `avertissement` · rouge `danger létal` · blanc `ça concerne un
+  allié` · violet `persistant` · vert `gain, soin, prêt`. **Jamais de rouge pour quelque chose
   où il faut aller.** Les couleurs d'**identité** (classes, types, bonus) sont une
   famille à part. Seule dérogation : la catégorie **offensif** est rouge sur
   l'écran de cartes, hors combat — ne pas l'étendre au monde.
@@ -1426,7 +1500,7 @@ toute créature, aucun sur le décor**, et **jamais de noir pur**.
 - **Un multiplicateur affiché sans échelle n'informe personne** : repères
   **mesurés** (`POWER_MARKS` dans `ui/build.js`) — à remesurer si le catalogue ou
   les raretés bougent.
-- **Le cyan dit « c'est toi »** : nom en tête de la build, colonne score de sa
+- **L'ambre dit « c'est toi »** : nom en tête de la build, colonne score de sa
   propre ligne au bilan.
 - **Le menu pause n'est pas un `.overlay`** (à plusieurs la partie continue
   derrière). Ouvrir le menu **arrête le personnage** (`readMove()` sort à vide).
@@ -1531,11 +1605,11 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
   /`classMission`/`skillNom`/`skillDesc`, `statusNom`, `bossNom`/`bossVerbe`
   /`bossSous`, `mechNom`/`mechTexte`/`mechOrdre`, `eventNom`/`eventTexte`,
   `biomeNom`/`weatherNom`/`hazardNom`, `diffLabel`/`diffResume`, `srcLabel`,
-  `ligneNom`/`confortNom`/`jalonLabel`. `segmentName()` traduit **à l'intérieur**
+  `ligneNom`/`confortNom`, `hfNom`/`hfTexte`/`cadreNom`. `segmentName()` traduit **à l'intérieur**
   — c'était déjà le point de passage unique.
 - **Un texte figé au chargement du module ne se traduit jamais** : ce qui compose
   une autre valeur traduisible est une **fonction**, pas une constante
-  (`MILESTONES[].label`). Même règle pour `applyAlert` : l'entrée d'alerte lit
+  (le `vals` d’un haut fait, le `desc` d’une carte). Même règle pour `applyAlert` : l'entrée d'alerte lit
   les tables **au moment de l'empiler**, pas à la construction.
 - **LE SERVEUR N'ENVOIE PAS DE PHRASE AU CLIENT, il envoie un CODE**
   (`launch.why` + `qui`, `roomClosed.why`, `authError.motif`). Une phrase qui

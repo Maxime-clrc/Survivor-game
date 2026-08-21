@@ -447,10 +447,18 @@ const PALETTE = {
   // [26d] le critique ne monte PAS le volume : il ajoute un transitoire aigu au
   // son de touche, et il lui prend sa place dans le limiteur (meme cle).
   critique: () => {
+    // le critique gardait la place de la touche mais lui prenait aussi son
+    // corps : un transitoire aigu SEUL sonne plus MAIGRE qu'une touche, donc
+    // l'evenement le plus fort du palier 2 s'entendait moins que l'ordinaire.
+    // La touche reste dessous, la difference se fait au TIMBRE — deux partiels
+    // en quinte, ratio non entier, qui DESCENDENT (une montee dirait
+    // « charge », une descente dit « impact »).
     const a = noise({ dur: 0.04, freq: 2400, to: 1200, q: 1.2, gain: SOUND_GAIN.impact });
-    tone({ freq: 2960, to: 3520, dur: 0.055, type: "triangle",
-           gain: SOUND_GAIN.impact * 0.85, attack: 0.002 });
-    return { end: a.end + 0.02, stop: a.stop };
+    tone({ freq: 3520, to: 2480, dur: 0.11, type: "triangle",
+           gain: SOUND_GAIN.impact * 0.8, attack: 0.001 });
+    tone({ freq: 5280, to: 3720, dur: 0.07, type: "sine",
+           gain: SOUND_GAIN.impact * 0.45, attack: 0.001 });
+    return { end: a.end + 0.09, stop: a.stop };
   },
 
   // [3] tension puis relachement : la hauteur monte avec la canalisation.
@@ -493,6 +501,20 @@ const PALETTE = {
     noise({ dur: 0.35, type: "lowpass", freq: 1600, to: 200, gain: SOUND_GAIN.boss * 0.4 });
     return { end: a.end, stop: a.stop };
   },
+
+  /* LE TICK DU DECOMPTE. Une seconde de moins avant la manche, dite en 14 ms.
+
+     Plus GRAVE et plus court que `survol` (2200 → 1500 Hz contre 3400 → 2200),
+     et c'est la seule chose qui les separe : ils sont de la meme matiere — du
+     bruit passe-bande etroit, sans composante tonale — parce qu'ils disent tous
+     deux « il se passe quelque chose » et non « tu as fait quelque chose ». Un
+     tick de decompte qui sonnerait comme une note se lirait comme une reponse a
+     un geste, or personne n'a rien fait : c'est le temps qui passe.
+
+     Le grave le distingue du survol sans l'opposer, et il le place SOUS le
+     souffle de lancement qui va suivre — l'un compte, l'autre conclut. */
+  tick: () => noise({ dur: 0.014, type: "bandpass", freq: 2200, to: 1500,
+                      q: 7, gain: SOUND_GAIN.menu * 0.9 }),
 
   survol: () => noise({ dur: 0.018, type: "bandpass", freq: 3400, to: 2200,
                         q: 6, gain: SOUND_GAIN.menu }),

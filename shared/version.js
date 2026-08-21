@@ -2108,6 +2108,72 @@
                    que personne ne le tient, et chaque jumeau porte un anneau a
                    la couleur de celui qui le tire
 
+     0.13.16 feat : LA PAUSE APPARTIENT A L'HOTE. Elle etait refusee des qu'un
+                   SECOND CLIENT etait connecte — un spectateur suffisait a la
+                   retirer au joueur seul, et a plusieurs personne ne pouvait
+                   arreter la partie. Deux portes desormais : l'hote (a tout
+                   effectif, meme en spectateur) et le joueur seul dans sa
+                   salle. Reprendre appartient a celui qui a fige (`pausedBy`)
+                   et a l'hote ; le depart du pauseur leve la pause, l'arrivee
+                   d'un joueur ne la leve plus. Bandeau `#hudPause` pour ceux
+                   qui n'ont pas ouvert le menu, et `readMove()` cesse de
+                   predire tant que la simulation est figee.
+                   correctif LE COMPTE A REBOURS DES CARTES ETAIT UNE ECHEANCE
+                   ABSOLUE. `cards` et `merchant` portaient un horodatage du
+                   SERVEUR ; le client le comparait a son horloge a lui. Sur une
+                   machine en retard, la jauge restait pleine alors que la manche
+                   avait DEJA repris (`forceRemainingPicks` puis `resumeRound`) :
+                   le joueur mourait devant son ecran de cartes. Le message porte
+                   une DUREE (`duree`, `cardLeft()`), comme `launch` le faisait
+                   deja.
+                   UN COMPTEUR DE DEGATS JUGE LA PARTIE, PAS UNE FENETRE : le
+                   total divise par `tm` (qui ne court ni pendant le briefing ni
+                   pendant un ecran, donc c'est du temps de COMBAT). La fenetre
+                   glissante de 5 s est SUPPRIMEE, pas rangee ailleurs : elle
+                   sautait d'un facteur trois entre deux paquets d'ennemis, ce
+                   qui ne se compare a rien.
+                   LE CRITIQUE SE VOIT ET S'ENTEND. Il ne teintait que la cible :
+                   son CHIFFRE reste ambre jusqu'au bout (`a.crit` traverse
+                   l'agregation de 200 ms, un seul critique dans le lot suffit),
+                   les eclats montent a cinq avec un noyau chaud, et le son cesse
+                   d'etre un transitoire SEUL — la touche reste dessous, la
+                   difference se fait au timbre : deux partiels qui descendent
+                   correctif LE PANNEAU DE STATS IGNORAIT LA META. Il annonce
+                   des valeurs EFFECTIVES mais ne lisait que `fullMods` (cartes
+                   + classe) : « Precision » au maximum affichait encore 5 % de
+                   taux de critique la ou le serveur en roulait 15. Le panneau et
+                   la fenetre de build rejouent maintenant `applyMeta` sur son
+                   PROPRE profil (celui d'un allie ne voyage pas), via
+                   `metaLinesFor()`, extrait de `room.js` pour que les deux cotes
+                   lisent la meme regle — lignes EQUIPEES seulement. Le calcul,
+                   lui, etait juste : la meta est ADDITIVE sur le taux de base
+                   (0,05 + 5 x 0,02 = 0,15).
+
+     0.13.17 fix : UN ECRAN NE TUE PAS. La simulation est figee pendant les
+                   cartes et le marchand, mais l'ennemi au contact garde sa
+                   position ET sa recharge : a la reprise il frappait avant meme
+                   que le client n'ait redessine l'arene (un instantane, plus
+                   110 ms d'interpolation). `CFG.RESUME_GRACE` (0,6 s) rend
+                   `_hurt()` inerte a toute reprise de simulation figee — ecran
+                   de cartes, marchand, et pause, qui a la meme dette.
+                   fix : le plancher manquait a `_warn` — un `warn` negatif
+                   sortait de `WARN_CLASSES` et rendait `undefined`.
+                   CAUCHEMAR : `mechRatio` 1,15 -> 1,40. Le verrou de saturation
+                   du lot 0.13.13 coute la MOITIE de la presence au sol en solo
+                   (5,77 -> 2,85 zones hostiles en moyenne, 54 % des tirages de
+                   sol refuses) : c'est le prix de la garantie du safe spot, et il
+                   se paie sur `bossProfil`, jamais sur le verrou. Trois autres
+                   leviers ont ete essayes et REFUSES par la mesure — `parPhase` 3
+                   + `reflexe` 3 (31,7 -> 17,1 PV/min perdus par un bot qui ignore
+                   tout : plus de mecaniques simultanees = plus de refus de
+                   coexistence = moins de sol), une cadence a 0,80 (+13 % a deux,
+                   -26 % en solo), et sortir la constriction du verrou
+                   (`verifierMecaniques` : 0 -> 6 images d'abri sous le feu, elle
+                   resserre les bounds sous un motif deja pose).
+                   `warn: -1`, le vrai levier du mode, reste bloque : `ABRI_RETOUR`
+                   vaut 1,2 s en dur quand le telegraphe tomberait a 0,8 s. Le
+                   rendre proportionnel a la classe est un lot a part.
+                   `verifierMecaniques` cauchemar 1/2/4 joueurs : RAS.
      ---------------------------------------------------------------------------
      plan11 — cartes, armes, hauts faits
      ---------------------------------------------------------------------------
@@ -2224,6 +2290,12 @@
                    `verifierHautsFaits()` est le critere rejouable : il refuse
                    une arme derriere un defi, un cadre ailleurs qu'en defi, un
                    palier sans jauge et un cadre que personne ne donne
+                   FUSION AVEC L AMONT : la page dediee `#hautsFaits` (sortie
+                   du Terminal le 2026-08-19, decision du porteur) est GARDEE
+                   et remplie par ce systeme au lieu de `MILESTONES` — on ne
+                   rouvre pas des onglets qui viennent d etre fermes. Le ban
+                   par manche de l amont est garde aussi : le profil n apporte
+                   plus que les VERROUS DE HAUT FAIT au filtre de tirage.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un

@@ -20,7 +20,7 @@ import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -32,6 +32,8 @@ export let myPing = -1;
 export let settingsFrom = null;
 const TOPBAR_SCREENS = [
   { el: () => settingsEl, crumb: () => t("ui.set.title", "Paramètres") },
+  { el: () => document.getElementById("hautsFaits"),
+    crumb: () => t("ui.hf.title", "Hauts faits") },
   { el: () => menuEl, crumb: () => tf("ui.crumb.meta", "Progression · {cls}",
       { cls: classNom(classAt(metaClsOverride ?? CLASS_DEFAULT)) }) },
   { el: () => bilanEl, crumb: () => t("ui.crumb.bilan", "Bilan de manche") },
@@ -169,6 +171,8 @@ function goHome() {
   }
   if (settingsEl && !settingsEl.hidden) { settingsEl.hidden = true; settingsFrom = null; }
   if (menuEl && !menuEl.hidden) menuEl.hidden = true;
+  const hf = document.getElementById("hautsFaits");
+  if (hf && !hf.hidden) hf.hidden = true;
   closeBuild();
   if (!inRoom) { enterHub(); syncTopbar(); return; }
   ws.send(JSON.stringify({ t: "leaveRoom" }));
@@ -176,7 +180,8 @@ function goHome() {
 topHomeBtn.onclick = goHome;
 function openSettings() {
   if (!settingsEl) return;
-  settingsFrom = [hubScreenEl, panel, bilanEl, menuEl].find(e => e && !e.hidden) ?? null;
+  settingsFrom = [hubScreenEl, panel, bilanEl, menuEl,
+    document.getElementById("hautsFaits")].find(e => e && !e.hidden) ?? null;
   if (settingsFrom) settingsFrom.hidden = true;
   settingsEl.hidden = false;
   syncTopbar();
@@ -228,6 +233,7 @@ onLangChange(() => {
   if (hubScreenEl && !hubScreenEl.hidden) { renderRooms(); renderResume(); renderBoard(); }
   if (panel && !panel.hidden) refreshPanel();
   if (menuEl && !menuEl.hidden) renderMeta();
+  renderHautsFaits();
   if (finEl && !finEl.hidden && lastResult) openFin(lastResult);
   if (bilanEl && !bilanEl.hidden && lastResult) showBilan(lastResult);
   if (cardsEl && !cardsEl.hidden) renderCards();
@@ -433,6 +439,31 @@ function openMenuFor(clsIndex) {
   menuEl.hidden = false;
   renderMeta(clsIndex);
 }
+
+/* HAUTS FAITS : page dediee, hors du Terminal. L'entree est le bouton or
+   sous la categorie Classe du salon ; le retour est le salon. */
+const hautsFaitsEl = document.getElementById("hautsFaits");
+
+function openHautsFaits() {
+  panel.hidden = true;
+  hautsFaitsEl.hidden = false;
+  renderHautsFaits();
+  syncTopbar();
+}
+
+document.getElementById("hautsFaitsBtn").onclick = openHautsFaits;
+document.getElementById("hautsFaitsClose").onclick = () => {
+  hautsFaitsEl.hidden = true;
+  refreshPanel();
+  syncTopbar();
+};
+
+export function renderHautsFaits() {
+  if (!hautsFaitsEl || hautsFaitsEl.hidden) return;
+  if (!progressState) return;
+  renderHauts(progressState);
+  renderCadres(progressState);
+}
 menuCloseBtn.onclick = () => {
   menuEl.hidden = true;
   refreshPanel();
@@ -559,6 +590,11 @@ window.addEventListener("keydown", e => {
 refreshAudioUi();
 export let launchEndsAt = 0;
 let launchTimer = 0;
+/* Derniere seconde ANNONCEE. Le tick ne part pas a chaque passage de
+   `renderLaunch` — la fonction tourne cinq fois par seconde, et elle est aussi
+   rappelee par `refreshPanel` a chaque diffusion du salon. Il part quand le
+   chiffre AFFICHE change, donc exactement une fois par seconde. */
+let launchLastSec = 0;
 function launchPending() { return launchEndsAt > performance.now(); }
 export function renderLaunch() {
   if (!startBtn) return;
@@ -566,6 +602,7 @@ export function renderLaunch() {
   if (launchEndsAt === 0) {
     clearInterval(launchTimer);
     launchTimer = 0;
+    launchLastSec = 0;
     startBtn.textContent = t("ui.panel.start", "Lancer la manche");
     startBtn.classList.remove("cancel");
     return;
@@ -574,6 +611,7 @@ export function renderLaunch() {
   if (!launchPending()) {
     clearInterval(launchTimer);
     launchTimer = 0;
+    launchLastSec = 0;
     startBtn.disabled = true;
     startBtn.classList.remove("cancel");
     startBtn.textContent = t("ui.panel.starting", "Lancement…");
@@ -584,6 +622,12 @@ export function renderLaunch() {
   startBtn.disabled = false;
   startBtn.classList.add("cancel");
   const reste = Math.max(0, Math.ceil((launchEndsAt - performance.now()) / 1000));
+  /* Un tick par seconde ecoulee, et AUCUN sur la premiere valeur affichee : le
+     clic vient de rendre `lancer`, un tick colle dessus ferait deux sons pour un
+     seul evenement. On n'annonce donc que les secondes qui TOMBENT — 3 → 2,
+     2 → 1 — et le souffle de `lancement` conclut a l'echeance. */
+  if (launchLastSec && reste && reste < launchLastSec) playSound("tick");
+  launchLastSec = reste;
   startBtn.textContent = tf("ui.panel.cancel", "Annuler le lancement — {n} s", { n: reste });
   waitMsg.textContent = t("ui.panel.starting.msg",
     "La manche démarre. Un clic pour tout arrêter.");
@@ -734,6 +778,9 @@ export function refreshPanel() {
   if (!inRoom) { panel.hidden = true; return; }
   if (!gate.hidden) return;
   if (!menuEl.hidden) return;
+  // La page Hauts faits est un ecran a part entiere : un `lobby` broadcast ne
+  // doit pas repeindre le salon par-dessus — meme garde que #menu.
+  if (!hautsFaitsEl.hidden) return;
   showHud(phase === PHASE_ROUND);
   if (phase === PHASE_ROUND || bilanOpen || finOpen) { panel.hidden = true; return; }
   panel.hidden = false;
@@ -1065,9 +1112,10 @@ function renderClasses() {
       "Le choix se verrouille au lancement de la première manche.");
   }
 }
+// L'onglet « Bannies » a quitte l'ecran des talents (demande du porteur) :
+// les bans restent permanents et par compte, seule leur consultation disparait.
 const META_TABS = [
   ["metaTabArbre", "arbre"], ["metaTabConfort", "confort"],
-  ["metaTabHf", "hf"], ["metaTabCadres", "cadres"], ["metaTabBans", "bans"],
 ];
 let metaTab = "arbre";
 for (const [id, tab] of META_TABS) {
@@ -1118,43 +1166,14 @@ export function renderMeta(clsOverride) {
 
   metaTreeEl.hidden = metaTab !== "arbre";
   metaConfortEl.hidden = metaTab !== "confort";
-  metaHfEl.hidden = metaTab !== "hf";
-  metaCadresEl.hidden = metaTab !== "cadres";
-  metaBansEl.hidden = metaTab !== "bans";
   for (const [id, tab] of META_TABS) {
     document.getElementById(id).classList.toggle("mine", metaTab === tab);
   }
   metaSubEl.textContent = metaTab === "arbre"
     ? tf("ui.meta.sub.arbre", "arbre du {cls} — l'effet affiché est le TOTAL possédé",
         { cls: classNom(cdef) })
-    : metaTab === "confort"
-      ? t("ui.meta.sub.confort",
-          "confort et lignes communes : aucun emplacement consommé, valent pour les trois classes")
-      : metaTab === "jalons"
-        ? t("ui.meta.sub.jalons",
-            "les jalons débloquent cartes et emplacements — jamais des noyaux")
-        : t("ui.meta.sub.bans",
-            "cartes bannies de ce compte — définitif, pas de débannissement");
-
-  metaBansEl.innerHTML = "";
-  const bans = progressState?.bannedCards ?? [];
-  if (bans.length === 0) {
-    metaBansEl.innerHTML = `<div class="hint">${escapeHtml(t("ui.meta.bans.empty",
-      "aucune carte bannie — le bouton vit sur l'écran de choix, pendant une manche"))}</div>`;
-  } else {
-    for (const bid of bans) {
-      const card = CARD_BY_ID.get(bid);
-      const row = document.createElement("div");
-      row.className = "metaLine confort banned";
-      row.innerHTML =
-        `<span class="metaName">${escapeHtml(cardNom(bid) || bid)}</span>` +
-        `<span class="metaDesc">${escapeHtml(card
-          ? cardDesc(bid)
-          : t("ui.meta.bans.unknown", "carte inconnue de cette version"))}</span>` +
-        `<span class="metaBanTag">${escapeHtml(t("ui.meta.bans.tag", "bannie"))}</span>`;
-      metaBansEl.appendChild(row);
-    }
-  }
+    : t("ui.meta.sub.confort",
+        "confort et lignes communes : aucun emplacement consommé, valent pour les trois classes");
 
   metaTreeEl.innerHTML = "";
   for (const line of TREES[clsId] ?? []) {
@@ -1255,8 +1274,6 @@ export function renderMeta(clsOverride) {
     metaConfortEl.appendChild(row);
   }
 
-  renderHauts(pr);
-  renderCadres(pr);
 }
 
 /* UN HAUT FAIT CACHE EST UNE LOTERIE, PAS UN OBJECTIF : la liste montre la
@@ -1673,8 +1690,10 @@ function startMerchantTimer() {
 }
 function updateMerchantTimer() {
   if (!merchantState) return;
-  const span = Math.max(1, merchantState.deadline - merchantState.from);
-  const k = Math.max(0, Math.min(1, (merchantState.deadline - Date.now()) / span));
+  const span = merchantState.deadline - merchantState.from;
+  const k = span > 0
+    ? Math.max(0, Math.min(1, (merchantState.deadline - Date.now()) / span))
+    : 0;
   merchantTimerFill.style.width = `${k * 100}%`;
   merchantTimerEl.classList.toggle("urgent", k < 0.25);
 }
@@ -1697,31 +1716,24 @@ function markCardPicked(id) {
   if (rb) { rb.disabled = true; rb.hidden = true; }
   renderCardsWait();
 }
+/* Le ban est PAR MANCHE (decision du porteur, 2026-08-19) : la carte ne
+   reviendra plus dans les tirages de CETTE manche, et c'est tout — plus
+   d'ecriture au compte, plus d'avertissement de derniere variante a vie. Il
+   coute quand meme la phase de choix, d'ou la confirmation. */
 function banCard(id) {
   if (!cardsState || cardsState.picked) return;
   const card = CARD_BY_ID.get(id);
   if (!card) return;
-  const closure = banClosure(id)
-    .filter(bid => !(progressState?.bannedCards ?? []).includes(bid));
+  const closure = banClosure(id);
   let msg = tf("ui.ban.ask", "Bannir « {nom} » ?", { nom: cardNom(id) }) + "\n\n"
     + t("ui.ban.warn",
-        "Cette carte ne sera plus JAMAIS proposée sur ce compte, et tu ne "
+        "Cette carte ne sera plus proposée pendant CETTE manche, et tu ne "
         + "recevras pas de carte de remplacement pour cette apparition.");
   const entrained = closure.filter(bid => bid !== id);
   if (entrained.length > 0) {
     msg += "\n\n" + t("ui.ban.closure",
       "Bannies avec elle (elles dépendent de celle-ci) :") + "\n— "
       + entrained.map(bid => cardNom(bid) || bid).join("\n— ");
-  }
-  if (card.excl === "skill3") {
-    const variants = CARDS.filter(c => c.excl === "skill3" && c.cls === card.cls);
-    const banned = new Set([...(progressState?.bannedCards ?? []), ...closure]);
-    if (variants.every(v => banned.has(v.id))) {
-      msg += "\n\n" + tf("ui.ban.last",
-        "⚠ C'est la DERNIÈRE variante de troisième compétence du {cls} : "
-        + "ce compte n'aura plus jamais de troisième compétence sur cette classe.",
-        { cls: classNom(classAt(lobby.find(l => l.id === myId)?.cls ?? CLASS_DEFAULT)) });
-    }
   }
   if (!confirm(msg)) return;
   cardsState.picked = true;
@@ -1790,13 +1802,15 @@ export function renderCards() {
     btn.innerHTML = html;
     btn.onclick = () => pickCard(c.id);
 
-    if (!cardsState.picked && (progressState?.confort ?? []).includes("bannissement")) {
+    // Le ban est libre depuis qu'il est par manche (2026-08-19) : plus
+    // d'achat confort qui le debloque.
+    if (!cardsState.picked) {
       const ban = document.createElement("span");
       ban.className = "cardBan";
       ban.textContent = t("ui.cards.ban", "bannir");
       ban.setAttribute("role", "button");
       ban.title = t("ui.cards.ban.title",
-        "retirer définitivement cette carte du tirage de ce compte");
+        "retirer cette carte du tirage pour le reste de la manche");
       ban.onclick = ev => { ev.stopPropagation(); banCard(c.id); };
       btn.appendChild(ban);
     }
@@ -1840,8 +1854,12 @@ function startCardsTimer() {
 }
 function updateCardsTimer() {
   if (!cardsState) return;
-  const span = Math.max(1, cardsState.deadline - cardsState.from);
-  const k = Math.max(0, Math.min(1, (cardsState.deadline - Date.now()) / span));
+  // une portee absente ou nulle vide la jauge, elle ne la laisse pas PLEINE :
+  // une barre qui ne descend pas ment sur le temps qui reste.
+  const span = cardsState.deadline - cardsState.from;
+  const k = span > 0
+    ? Math.max(0, Math.min(1, (cardsState.deadline - Date.now()) / span))
+    : 0;
   cardsTimerFill.style.width = `${k * 100}%`;
   cardsTimerEl.classList.toggle("urgent", k < 0.25);
 }

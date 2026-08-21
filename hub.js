@@ -57,7 +57,6 @@ export function createHub(store, log, commit = "") {
       classes: pr.classes,
       commun: pr.commun ?? {},
       confort: pr.confort,
-      bannedCards: pr.bannedCards ?? [],
       pseudo: pr.pseudo ?? "",
       gained: c.lastGain ?? 0,
       hf: pr.hf ?? [],

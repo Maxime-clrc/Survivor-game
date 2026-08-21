@@ -5,7 +5,8 @@ import { CARD_BY_ID, RARITY_COLOR, cardDetail, cardNom, rarityLabel } from "/sha
 import { CLASS_DEFAULT, SKILL_HEAL_MODE, classAt, classNom, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
 import { CFG, PLAYER_COLORS, fullMods, powerIndex } from "/shared/game_state.js";
 import { SIGNAL } from "/shared/palette.js";
-import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, myId, ownedCounts, phase, skills } from "../core/state.js";
+import { applyMeta, metaLinesFor } from "/shared/progression.js";
+import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, myId, ownedCounts, phase, progressState, skills } from "../core/state.js";
 import { deaths } from "../render/fx.js";
 import { nameOf } from "../render/stage.js";
 import { buildBackBtn, buildCards, buildClass, buildEl, buildMods, buildName, buildSkills, buildSkillsTitle, buildStats, escapeHtml, fmtBig } from "./dom.js";
@@ -42,7 +43,14 @@ function buildMultipliers(info) {
   const niveau = phase === PHASE_ROUND
     ? (latest?.teamLevel ?? 1)
     : (lastResult?.level ?? 1);
-  return fullMods(info.counts, others, info.cls ?? CLASS_DEFAULT, niveau);
+  const cls = info.cls ?? CLASS_DEFAULT;
+  const r = fullMods(info.counts, others, cls, niveau);
+  // la META n'est connue que pour SOI : le profil d'un allie ne voyage pas. On
+  // prefere une ligne juste sur sa propre build a deux lignes fausses.
+  if (info.id !== myId || !progressState) return r;
+  const clsId = classAt(cls).id;
+  const { lines, commun } = metaLinesFor(progressState, clsId);
+  return applyMeta(r.mods, r.maxHp, clsId, lines, commun);
 }
 function fmtMul(v) {
   return "×" + dec(v);

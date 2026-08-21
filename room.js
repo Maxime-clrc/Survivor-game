@@ -7,7 +7,7 @@ import { VERSION } from "./shared/version.js";
 import { segmentName } from "./shared/timeline.js";
 import { RELIC_CFG } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
-import { cadreActifDe, lockedCards, lockedRelics } from "./shared/progression.js";
+import { cadreActifDe, lockedCards, lockedRelics, metaLinesFor } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 
@@ -67,6 +67,7 @@ export class Room {
 
     this.paused = false;
     this.pausedAt = 0;
+    this.pausedBy = 0;
 
     this.briefOpen = false;
 
@@ -432,8 +433,6 @@ export class Room {
     this.knownMembers.add(client.pseudoKey);
     this.emptySince = 0;
 
-    if (this.paused) this.setPaused(false, "un second joueur est arrivé");
-
     this.refreshHost();
     client.conn.send(JSON.stringify({
       t: "roomJoined",
@@ -452,6 +451,11 @@ export class Room {
 
   detach(client) {
     if (!this.clients.has(client.id)) return;
+    // celui qui a fige la partie est le seul a pouvoir la reprendre : s'il s'en
+    // va, personne ne tient plus la pause.
+    if (this.paused && this.pausedBy === client.id) {
+      this.setPaused(false, "le joueur qui avait mis en pause a quitté");
+    }
     this.hooks.awardPartial(client, this);
     this.state.removePlayer(client.id);
     this.clients.delete(client.id);
@@ -643,15 +647,28 @@ export class Room {
   }
 
 
-  setPaused(on, why = "") {
+  setPaused(on, why = "", par = 0) {
     if (this.paused === on) return;
+    // meme dette qu'un ecran de choix : l'ennemi au contact a garde sa position
+    // et sa recharge pendant que la simulation etait figee.
+    if (!on && this.phase === PHASE_ROUND) this.state.repriseGrace = CFG.RESUME_GRACE;
     this.paused = on;
     this.pausedAt = on ? Date.now() : 0;
-    this.broadcast({ t: "paused", on: on ? 1 : 0, why });
-    this.hooks.log(`[${this.code}] ` + (on ? "manche en pause (solo)"
+    this.pausedBy = on ? par : 0;
+    const nom = on ? (this.clients.get(par)?.name ?? "") : "";
+    this.broadcast({ t: "paused", on: on ? 1 : 0, why, par: nom });
+    this.hooks.log(`[${this.code}] ` + (on ? `manche en pause${nom ? ` — ${nom}` : ""}`
       : `pause levée${why ? ` — ${why}` : ""}`));
   }
 
+
+  /* LE MESSAGE PORTE UNE DUREE, JAMAIS UNE ECHEANCE. Une echeance absolue
+     obligeait le client a comparer l'horloge du SERVEUR a la sienne : sur une
+     machine en retard, la jauge de l'ecran de cartes restait pleine alors que
+     la manche avait deja repris, et le joueur mourait sans voir l'arene. */
+  cardLeft() {
+    return Math.max(0, this.cardDeadline - Date.now());
+  }
 
   cardsPendingIds() {
     return [...this.state.players.keys()]
@@ -676,7 +693,7 @@ export class Room {
         bossKind: this.state.lastBossKind,
         more: this.state.pendingLevels,
         level: this.state.level,
-        deadline: this.cardDeadline,
+        duree: this.cardLeft(),
         offers: offers.map(cardBrief),
       }));
     }
@@ -728,7 +745,7 @@ export class Room {
     c.conn.send(JSON.stringify({
       t: "merchant",
       segment: this.state.segment,
-      deadline: this.merchantDeadline,
+      duree: Math.max(0, this.merchantDeadline - Date.now()),
       eclats: p.eclats,
       rerollCost: this.state.relicRerollPrice(p),
       achats: Math.max(0, RELIC_CFG.BUY_PER_VISIT - (p.relicBought ?? 0)),
@@ -745,6 +762,7 @@ export class Room {
     if (ecran === "cards") { this.enterCardPhase(); return; }
     if (ecran === "merchant") { this.enterMerchantPhase(); return; }
     this.phase = PHASE_ROUND;
+    this.state.repriseGrace = CFG.RESUME_GRACE;
     this.state.cardOffers = new Map();
     this.broadcast(this.loadoutPayload());
   }
@@ -770,26 +788,19 @@ export class Room {
       let meta = null;
       if (c.profile) {
         const clsId = CLASSES[c.cls].id;
-        const cp = c.profile.classes[clsId];
-        const lines = {};
-        if (cp) {
-          for (const lid of cp.equipped ?? []) {
-            const t = cp.tiers?.[lid] | 0;
-            if (t > 0) lines[lid] = t;
-          }
-        }
+        const { lines, commun } = metaLinesFor(c.profile, clsId);
         meta = {
           lines,
-          commun: { ...(c.profile.commun ?? {}) },
+          commun,
           confort: {
             ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
             quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
           },
-          locked: (() => {
-            const locked = lockedCards(c.profile);
-            for (const bid of c.profile.bannedCards ?? []) locked.add(bid);
-            return locked;
-          })(),
+          /* Les bans sont PAR MANCHE : ils vivent dans `p.locked` du GameState
+             et meurent avec lui, le profil n'entre plus dans le filtre. Ce que
+             le profil apporte ici, ce sont les VERROUS DE HAUT FAIT — cartes
+             et reliques qu'aucun haut fait n'a encore ouvertes. */
+          locked: lockedCards(c.profile),
           lockedRelics: lockedRelics(c.profile),
         };
       }
@@ -988,35 +999,44 @@ export class Room {
         break;
       }
 
+      /* Bannissement PAR MANCHE (decision du porteur, 2026-08-19 — il etait
+         permanent par compte depuis le lot J) : la carte rejoint `p.locked`,
+         le filtre de tirage du GameState, et meurt avec lui a la fin de la
+         manche. Rien ne s'ecrit dans le profil — pas de persist, pas de
+         sendProgress. L'idempotence est structurelle : une carte deja dans
+         `p.locked` ne peut plus figurer dans une offre. */
       case "banCard": {
         if (this.phase !== PHASE_CARDS || this.cardPicked.has(id)) break;
         const offers = this.state.cardOffers.get(id);
         const p = this.state.players.get(id);
         if (!offers || !p || !offers.includes(msg.id)) break;
-        if (!client.profile?.confort.includes("bannissement")) break;
-        const pr = client.profile;
-        pr.bannedCards ??= [];
-        if (pr.bannedCards.includes(msg.id)) break;
 
-        const closure = banClosure(msg.id).filter(bid => !pr.bannedCards.includes(bid));
-        pr.bannedCards.push(...closure);
+        const closure = banClosure(msg.id);
         p.locked ??= new Set();
         for (const bid of closure) p.locked.add(bid);
-        this.hooks.persist(client);
-        this.hooks.sendProgress(client);
 
         this.cardPicked.add(id);
         this.broadcast({ t: "cardsWait", pending: this.cardsPendingIds() });
-        this.hooks.log(`[${this.code}] ${client.name} bannit ${msg.id}`
+        this.hooks.log(`[${this.code}] ${client.name} bannit ${msg.id} pour la manche`
           + (closure.length > 1 ? ` (+${closure.length - 1} dépendante(s))` : ""));
         break;
       }
 
+      /* LA PAUSE EST CELLE DE L'HOTE, ET ELLE VAUT POUR TOUT LE MONDE. Elle
+         etait refusee des qu'un second client etait connecte — un spectateur
+         suffisait a la retirer au joueur seul. Deux portes seulement : l'hote,
+         quel que soit l'effectif et meme en spectateur, et le joueur SEUL dans
+         sa salle. Reprendre appartient a celui qui a fige, et a l'hote. */
       case "pause": {
         if (this.phase !== PHASE_ROUND) break;
-        const on = !!msg.on;
-        if (on && (this.joined().length > 1 || !this.state.players.has(id))) break;
-        this.setPaused(on, on ? "" : "reprise");
+        if (!msg.on) {
+          if (this.paused && this.pausedBy !== id && id !== this.hostId) break;
+          this.setPaused(false, "reprise");
+          break;
+        }
+        const seul = this.joined().length === 1 && this.state.players.has(id);
+        if (!seul && id !== this.hostId) break;
+        this.setPaused(true, "", id);
         break;
       }
 
@@ -1075,7 +1095,7 @@ export class Room {
           bossKind: this.state.lastBossKind,
           more: this.state.pendingLevels,
           level: this.state.level,
-          deadline: this.cardDeadline,
+          duree: this.cardLeft(),
           offers: offers.map(cardBrief),
         }));
         break;

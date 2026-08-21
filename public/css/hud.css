@@ -909,6 +909,32 @@
 
 .hurtRow img { display: block; }
 
+/* la pause de l'hote fige la partie de TOUT LE MONDE : celui qui n'a pas
+   ouvert le menu doit lire pourquoi son ecran ne bouge plus. */
+#hudPause {
+  position: absolute;
+  top: 42%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  text-shadow: 0 2px 0 var(--bg-void);
+}
+
+#hudPause .par {
+  display: block;
+  margin-top: var(--sp-2);
+  font-family: var(--font);
+  font-size: var(--t-s);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-dim);
+}
+
 #hudSpectator {
   position: absolute;
   bottom: var(--sp-6);
@@ -950,6 +976,7 @@
 .dmg.hurt:has(img) { display: flex; align-items: center; gap: 3px; }
 .dmg img { display: block; width: 12px; height: 12px; }
 .dmg.crit { font-size: var(--t-m); color: var(--warn); }
+.dmg.crit::after { content: "!"; }
 .dmg.deal { color: var(--boss-eye); }
 
 @keyframes dmgRise {

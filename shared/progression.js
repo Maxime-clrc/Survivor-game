@@ -29,9 +29,12 @@ export const PROG_CFG = {
   KILLS_MILESTONE: 500,
   NO_DOWN_MIN_LEVEL: 6,
 
+  /* `bannissement` a quitte la table (2026-08-19) : depuis que le ban est par
+     manche, c'est une commodite de base, plus un achat — le bouton est libre.
+     Les comptes qui l'avaient achete gardent l'identifiant mort dans leur
+     profil, ignore par tous les lecteurs. */
   CONFORT_COSTS: {
-    relance: 250, quatrieme: 450, ravitaillement: 500,
-    bannissement: 700, relance2: 900,
+    relance: 250, quatrieme: 450, ravitaillement: 500, relance2: 900,
   },
 
   SECOURS_REGEN: 1.2,
@@ -134,8 +137,6 @@ export const CONFORT = [
     desc: "quatre cartes proposées au lieu de trois" },
   { id: "ravitaillement", nom: "Ravitaillement initial",
     desc: "un bonus au sol dès le début de la manche" },
-  { id: "bannissement", nom: "Bannissement",
-    desc: "retirer définitivement une carte de tous les tirages" },
   { id: "relance2", nom: "Seconde relance",
     desc: "une deuxième relance de tirage par partie" },
 ];
@@ -166,6 +167,19 @@ export const COMMUN = [
 ];
 
 const COMMUN_BY_ID = new Map(COMMUN.map(l => [l.id, l]));
+
+// LES LIGNES QUI COMPTENT SONT LES LIGNES EQUIPEES : une ligne achetee mais
+// laissee hors emplacement ne s'applique pas. Point de passage unique, lu par le
+// serveur au lancement ET par le client pour afficher des valeurs EFFECTIVES.
+export function metaLinesFor(profile, clsId) {
+  const cp = profile?.classes?.[clsId];
+  const lines = {};
+  for (const lid of cp?.equipped ?? []) {
+    const n = cp.tiers?.[lid] | 0;
+    if (n > 0) lines[lid] = n;
+  }
+  return { lines, commun: { ...(profile?.commun ?? {}) } };
+}
 
 export function applyMeta(mods, maxHp, clsId, lines, commun = null) {
   const m = { ...mods, metaHpRatio: 0 };
@@ -283,7 +297,8 @@ export function newProfile(pseudo) {
     classes: {},
     commun: {},
     confort: [],
-    bannedCards: [],
+    // `bannedCards` a disparu : les bans sont PAR MANCHE depuis le 2026-08-19
+    // (p.locked du GameState) — les profils existants gardent un champ mort.
     bestFinal: {},
     hf: [],
     debloquees: [],

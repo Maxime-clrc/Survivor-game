@@ -109,6 +109,7 @@
         <div id="statsHurt"></div>
       </div>
 
+      <div id="hudPause" hidden></div>
       <div id="hudSpectator" hidden data-i18n="ui.hud.spectator">SPECTATEUR — tu entres à la manche suivante</div>
       <div id="hudPerf" hidden></div>
 
@@ -356,22 +357,44 @@
     <div id="metaTabs">
       <button id="metaTabArbre" class="mine" data-i18n="ui.meta.tab.arbre">Arbre</button>
       <button id="metaTabConfort" data-i18n="ui.meta.tab.confort">Confort</button>
-      <button id="metaTabHf" data-i18n="ui.meta.tab.hf">Hauts faits</button>
-      <button id="metaTabCadres" data-i18n="ui.meta.tab.cadres">Cadres</button>
-      <button id="metaTabBans" data-i18n="ui.meta.tab.bans">Bannies</button>
     </div>
 
     <div id="meta" hidden>
       <div id="metaSub" class="hint"></div>
       <div id="metaTree"></div>
       <div id="metaConfort" hidden></div>
-      <div id="metaHf" hidden></div>
-      <div id="metaCadres" hidden></div>
-      <div id="metaBans" hidden></div>
     </div>
 
     <div class="row metaBack">
       <button id="menuClose" data-i18n="ui.meta.back">Retour au salon</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- HAUTS FAITS : page dediee, hors du Terminal (demande du porteur). Les
+     objectifs du compte et ce que chacun debloque — jamais des noyaux. Le
+     point d'entree est le bouton or sous la categorie Classe du salon. -->
+<div id="hautsFaits" class="overlay" hidden>
+  <div class="metaWrap">
+
+    <div class="metaHead">
+      <div>
+        <div class="sectionTitle" data-i18n="ui.hf.kicker">Objectifs du compte</div>
+        <h1 data-i18n="ui.hf.title">Hauts faits</h1>
+      </div>
+    </div>
+
+    <p class="metaLead" data-i18n="ui.hf.lead">Les hauts faits débloquent des cartes et des emplacements — jamais des noyaux. Ils se constatent en fin de manche et restent acquis pour toujours.</p>
+
+    <div id="metaHf"></div>
+
+    <div class="sectionTitle" data-i18n="ui.hf.cadres">Cadres</div>
+    <p class="metaLead" data-i18n="ui.hf.cadres.lead">Un cadre ne change rien à la partie : il se voit autour de ton nom, au salon, au bilan et en jeu. C’est la seule récompense des défis.</p>
+    <div id="metaCadres"></div>
+
+    <div class="row metaBack">
+      <button id="hautsFaitsClose" data-i18n="ui.meta.back">Retour au salon</button>
     </div>
 
   </div>
@@ -491,6 +514,11 @@
           <p class="panelLead" data-i18n="ui.panel.class.lead">Rempart et Soigneur sont uniques : un seul joueur chacun.</p>
           <div id="classRow"></div>
           <div id="classHint"></div>
+          <!-- Les hauts faits ont leur propre entree sous la categorie Classe
+               (demande du porteur) : ils ont quitte les onglets du Terminal. -->
+          <div class="row">
+            <button id="hautsFaitsBtn" data-i18n="ui.class.hautsfaits">Hauts faits</button>
+          </div>
         </div>
 
         <div id="vote">

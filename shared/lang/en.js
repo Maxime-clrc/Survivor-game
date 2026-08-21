@@ -90,9 +90,14 @@ export const EN = {
     + "beaten, paid out in equal shares — never from individual kills.",
   "ui.meta.tab.arbre": "Tree",
   "ui.meta.tab.confort": "Comfort",
-  "ui.meta.tab.hf": "Achievements",
-  "ui.meta.tab.cadres": "Frames",
-  "ui.meta.tab.bans": "Banned",
+  "ui.class.hautsfaits": "Feats",
+  "ui.hf.kicker": "Account goals",
+  "ui.hf.title": "Feats",
+  "ui.hf.lead": "Feats unlock cards and slots — never cores. They are checked at the "
+    + "end of a round and stay earned forever.",
+  "ui.hf.cadres": "Frames",
+  "ui.hf.cadres.lead": "A frame changes nothing in play: it shows around your name, "
+    + "in the lobby, on the scoreboard and in game. It is the only reward the challenges give.",
   "ui.meta.back": "Back to the lobby",
 
   /* --- parametres ------------------------------------------------------- */
@@ -423,11 +428,6 @@ export const EN = {
   "ui.meta.slots.parties": "{n} runs ({a}/{n})",
   "ui.meta.sub.arbre": "{cls} tree — the effect shown is the TOTAL owned",
   "ui.meta.sub.confort": "comfort and shared lines: no slot consumed, they count for all three classes",
-  "ui.meta.sub.jalons": "milestones unlock cards and slots — never cores",
-  "ui.meta.sub.bans": "cards banned on this account — permanent, no un-banning",
-  "ui.meta.bans.empty": "no card banned — the button lives on the pick screen, during a round",
-  "ui.meta.bans.unknown": "card unknown to this version",
-  "ui.meta.bans.tag": "banned",
   "ui.meta.hf.total": "{n} / {tot} unlocked",
   "ui.meta.cadre.actif": "equipped",
   "ui.meta.cadre.libre": "unlocked",
@@ -443,16 +443,14 @@ export const EN = {
   "ui.cards.title.boss": "{boss} defeated — {niveau}",
   "ui.cards.title.segment": "{etape} — {niveau}",
   "ui.cards.ban": "ban",
-  "ui.cards.ban.title": "remove this card from this account's pool for good",
+  "ui.cards.ban.title": "remove this card from the pool for the rest of this round",
   "ui.cards.reroll": "reroll<br>the draw",
   "ui.cards.reroll.left": "{n} rerolls left for this round",
   "ui.cards.reroll.last": "last reroll of the round",
   "ui.ban.ask": "Ban « {nom} »?",
-  "ui.ban.warn": "This card will NEVER be offered on this account again, and you will "
+  "ui.ban.warn": "This card will not be offered again during THIS round, and you will "
     + "not get a replacement card for this appearance.",
   "ui.ban.closure": "Banned along with it (they depend on this one):",
-  "ui.ban.last": "⚠ This is the LAST third-skill variant of the {cls}: this account will "
-    + "never have a third skill on that class again.",
 
   /* --- marchand --------------------------------------------------------- */
   "ui.merchant.title": "Merchant",
@@ -1277,8 +1275,6 @@ export const EN = {
   "confort.quatrieme.desc": "four cards offered instead of three",
   "confort.ravitaillement.nom": "Initial resupply",
   "confort.ravitaillement.desc": "a ground pickup from the start of the round",
-  "confort.bannissement.nom": "Banning",
-  "confort.bannissement.desc": "permanently remove a card from every draw",
   "confort.relance2.nom": "Second reroll",
   "confort.relance2.desc": "a second draw reroll per run",
 
@@ -1386,7 +1382,11 @@ export const EN = {
   "ui.pause.dps.on": "Damage meter: shown",
   "ui.pause.dps.off": "Damage meter: hidden",
   "ui.pause.state.solo": "simulation frozen — nobody else is waiting",
-  "ui.pause.state.multi": "the game goes on — pause is unavailable with others",
+  "ui.pause.state.on": "simulation frozen — the game is paused for everyone",
+  "ui.pause.state.multi": "the game goes on — only the host can pause it",
+  "ui.pause.banner": "GAME PAUSED",
+  "ui.pause.banner.par": "paused by {qui}",
+  "ui.pause.banner.seul": "waiting to resume",
   "ui.pause.leaveRoom": "Leave the room",
   "ui.pause.leaveRoom.ask": "Leave the room? You go back to the room list.",
   "ui.pause.title": "Pause",
