@@ -9,7 +9,8 @@ import { CFG, DAMAGE_SOURCES, DIFFICULTIES, PLAYER_COLORS, diffLabel, diffResume
 import { biomeNom, biomeResume } from "/shared/biomes.js";
 import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from "/shared/i18n.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
-import { COMMUN, CONFORT, MILESTONES, PROG_CFG, TREES, confortDesc, confortNom, jalonLabel, ligneNom, slotsFor, tierCost } from "/shared/progression.js";
+import { COMMUN, CONFORT, PROG_CFG, TREES, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, slotsFor, tierCost, vueStats } from "/shared/progression.js";
+import { CADRES, CADRE_BY_ID, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
 import { relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { drawSprite, frameOf } from "/sprites.js";
@@ -19,7 +20,7 @@ import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaMilestonesEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaBansEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -821,6 +822,10 @@ function renderTeam() {
   for (const l of lobby) {
     const row = document.createElement("div");
     row.className = "teamRow" + (!solo && l.ready ? " ready" : "");
+    if (l.cadre && l.cadre !== "defaut") {
+      row.classList.add("cadre");
+      row.style.setProperty("--cadre", CADRE_BY_ID.get(l.cadre)?.trait ?? "transparent");
+    }
 
     const cls = (l.cls === null || l.cls === undefined) ? null : classAt(l.cls);
     const ms = Number(l.ping);
@@ -1062,7 +1067,7 @@ function renderClasses() {
 }
 const META_TABS = [
   ["metaTabArbre", "arbre"], ["metaTabConfort", "confort"],
-  ["metaTabJalons", "jalons"], ["metaTabBans", "bans"],
+  ["metaTabHf", "hf"], ["metaTabCadres", "cadres"], ["metaTabBans", "bans"],
 ];
 let metaTab = "arbre";
 for (const [id, tab] of META_TABS) {
@@ -1113,7 +1118,8 @@ export function renderMeta(clsOverride) {
 
   metaTreeEl.hidden = metaTab !== "arbre";
   metaConfortEl.hidden = metaTab !== "confort";
-  metaMilestonesEl.hidden = metaTab !== "jalons";
+  metaHfEl.hidden = metaTab !== "hf";
+  metaCadresEl.hidden = metaTab !== "cadres";
   metaBansEl.hidden = metaTab !== "bans";
   for (const [id, tab] of META_TABS) {
     document.getElementById(id).classList.toggle("mine", metaTab === tab);
@@ -1214,11 +1220,18 @@ export function renderMeta(clsOverride) {
     metaConfortEl.appendChild(row);
   }
 
+  const verrous = lignesVerrouillees(pr);
+  const ouvreLigne = new Map();
+  for (const h of HAUTS_FAITS) {
+    if (h.reward.type !== "ligne") continue;
+    for (const id of h.reward.ids) ouvreLigne.set(id, h.id);
+  }
   for (const line of COMMUN) {
     const n = (pr.commun ?? {})[line.id] | 0;
     const cost = tierCost(n, line.id);
+    const ferme = verrous.has(line.famille ?? "");
     const row = document.createElement("div");
-    row.className = "metaLine confort" + (n > 0 ? " owned" : "");
+    row.className = "metaLine confort" + (n > 0 ? " owned" : "") + (ferme ? " taken" : "");
     row.innerHTML =
       `<span class="metaName">${escapeHtml(ligneNom(line))}</span>` +
       `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
@@ -1226,7 +1239,11 @@ export function renderMeta(clsOverride) {
         : tf("ui.meta.parPalier", "{txt} par palier", { txt: line.desc(1) }))}</span>`;
     const b = document.createElement("button");
     b.className = "metaBuy";
-    if (n >= PROG_CFG.TIERS_MAX) {
+    if (ferme) {
+      b.textContent = t("ui.meta.verrouillee", "verrouillée");
+      b.title = hfTexte(ouvreLigne.get(line.famille) ?? "");
+      b.disabled = true;
+    } else if (n >= PROG_CFG.TIERS_MAX) {
       b.textContent = t("ui.meta.max", "max");
       b.disabled = true;
     } else {
@@ -1238,14 +1255,86 @@ export function renderMeta(clsOverride) {
     metaConfortEl.appendChild(row);
   }
 
-  const done = new Set(pr.milestones ?? []);
-  metaMilestonesEl.innerHTML = MILESTONES.map(m => {
-    const ok = done.has(m.id);
-    return `<span class="metaJalon${ok ? " done" : ""}">`
-      + `${ok ? "✓" : "•"} ${escapeHtml(jalonLabel(m))}`
-      + ` <small>(${escapeHtml(tn("ui.meta.jalon.cartes",
-          "{n} carte", "{n} cartes", m.unlocks.length))})</small></span>`;
-  }).join("");
+  renderHauts(pr);
+  renderCadres(pr);
+}
+
+/* UN HAUT FAIT CACHE EST UNE LOTERIE, PAS UN OBJECTIF : la liste montre la
+   progression chiffree quand elle existe, la recompense AVANT l'obtention — les
+   cadres compris, qui doivent se voir pour etre desires — et l'exigence de
+   difficulte en clair sur les cinq concernes. */
+function nomsRecompense(h) {
+  return h.reward.ids.map(id =>
+    h.reward.type === "cadre" ? cadreNom(id)
+    : h.reward.type === "relique" ? relicNom(id)
+    : h.reward.type === "ligne" ? t(`prog.famille.${id}`, id)
+    : (cardNom(id) || id)).join(", ");
+}
+
+function renderHauts(pr) {
+  const done = new Set(pr.hf ?? []);
+  const stats = vueStats(pr);
+  const modes = [t("ui.diff.calme", "calme"), t("ui.diff.normal", "normal"),
+                 t("ui.diff.cauchemar", "cauchemar")];
+  let html = `<div class="hfCount">`
+    + escapeHtml(tf("ui.meta.hf.total", "{n} / {tot} obtenus",
+        { n: done.size, tot: HAUTS_FAITS.length }))
+    + `</div>`;
+  for (let niv = 0; niv < HF_NIVEAUX.length; niv++) {
+    const liste = HAUTS_FAITS.filter(h => h.niveau === niv);
+    const faits = liste.filter(h => done.has(h.id)).length;
+    html += `<div class="hfGroupe"><div class="sectionTitle">`
+      + escapeHtml(hfNiveauLabel(niv))
+      + ` <small>${faits} / ${liste.length}</small></div>`;
+    for (const h of liste) {
+      const ok = done.has(h.id);
+      const pg = ok ? null : hfProgres(h.id, stats);
+      html += `<div class="hfRow${ok ? " done" : ""}">`
+        + `<span class="hfMark">${ok ? "✓" : "•"}</span>`
+        + `<span class="hfBody">`
+          + `<span class="hfTitre">${escapeHtml(hfNom(h.id))}`
+          + (h.diffMin !== undefined
+              ? `<em class="hfDiff">${escapeHtml(modes[h.diffMin] ?? "")}</em>` : "")
+          + `</span>`
+          + `<span class="hfCond">${escapeHtml(hfTexte(h.id))}</span>`
+          + `<span class="hfPrix">${escapeHtml(rewardLabel(h.reward.type))} : `
+          + `${escapeHtml(nomsRecompense(h))}</span>`
+        + `</span>`
+        + (pg ? `<span class="hfJauge">${pg.n} / ${pg.max}</span>` : `<span class="hfJauge"></span>`)
+        + `</div>`;
+    }
+    html += `</div>`;
+  }
+  metaHfEl.innerHTML = html;
+}
+
+/* Les cadres non obtenus sont VISIBLES mais grises, avec leur condition : c'est
+   ce qui les rend desirables. Un clic equipe, un seul actif a la fois. */
+function renderCadres(pr) {
+  const avoir = cadresDe(pr);
+  const actif = cadreActifDe(pr);
+  const parCadre = new Map();
+  for (const h of HAUTS_FAITS) {
+    if (h.reward.type !== "cadre") continue;
+    for (const id of h.reward.ids) parCadre.set(id, h.id);
+  }
+  metaCadresEl.innerHTML = "";
+  for (const c of CADRES) {
+    const ok = avoir.has(c.id);
+    const row = document.createElement("button");
+    row.className = "cadreRow" + (ok ? "" : " taken") + (c.id === actif ? " mine" : "");
+    row.disabled = !ok;
+    row.innerHTML =
+      `<span class="cadreApercu" style="--cadre:${c.trait}"></span>`
+      + `<span class="cadreBody">`
+        + `<span class="cadreNom">${escapeHtml(cadreNom(c.id))}</span>`
+        + `<span class="cadreCond">${escapeHtml(ok
+            ? (c.id === actif ? t("ui.meta.cadre.actif", "équipé") : t("ui.meta.cadre.libre", "obtenu"))
+            : hfTexte(parCadre.get(c.id) ?? ""))}</span>`
+      + `</span>`;
+    if (ok) row.onclick = () => ws.send(JSON.stringify({ t: "metaCadre", id: c.id }));
+    metaCadresEl.appendChild(row);
+  }
 }
 function renderScores(rows, body = scoresBody) {
   body.innerHTML = "";
@@ -1263,7 +1352,9 @@ function renderScores(rows, body = scoresBody) {
     const tag = r.id === hostId ? " ★" : "";
     const cdef = (r.cls === null || r.cls === undefined) ? null : classAt(r.cls);
     tr.innerHTML =
-      `<td class="name" style="color:${col}">${escapeHtml(r.name)}${tag}</td>` +
+      `<td class="name${r.cadre && r.cadre !== "defaut" ? " cadre" : ""}"`
+        + ` style="color:${col};--cadre:${CADRE_BY_ID.get(r.cadre)?.trait ?? "transparent"}">`
+        + `${escapeHtml(r.name)}${tag}</td>` +
       `<td class="sub"${cdef ? ` style="color:${cdef.couleur}"` : ""}>${cdef ? escapeHtml(classNom(cdef)) : "—"}</td>` +
       `<td>${r.level ?? 1}</td>` +
       `<td>${r.score}</td><td>${r.kills}</td><td>${r.deaths}</td>` +

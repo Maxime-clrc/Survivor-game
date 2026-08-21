@@ -1,7 +1,7 @@
 
 import {
   CARD_BY_ID, CARD_CFG, CARDS, computeMods, defaultMods, drawCards,
-  eligibleCards, poolThin, verifierCatalogue, POOL_MIN,
+  eligibleCards, poolThin, verifierCatalogue, FAMILY_TIERS, POOL_MIN,
 } from "./cards.js";
 import {
   CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange, bombFlight,
@@ -12,9 +12,10 @@ import {
   PURGE_ORDER, ELITE_STATUS, statusAt, statusBit, enemyStatusMask,
 } from "./statuses.js";
 import {
-  PROG_CFG, TREES, COMMUN, MILESTONES, applyMeta, coresForRun, lockedCards, slotsFor,
+  PROG_CFG, TREES, COMMUN, applyMeta, coresForRun, lockedCards, lockedRelics, slotsFor,
 } from "./progression.js";
 import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
+import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
 import { t } from "./i18n.js";
 import { CLASS_COLOR } from "./palette.js";
 import {
@@ -534,6 +535,30 @@ export function fullMods(cards, others, cls, level = 1) {
   return { mods, maxHp: Math.round(maxHp) };
 }
 
+/* TOUS LES COMPTEURS DE HAUT FAIT SONT PERSONNELS. Un compteur d'equipe serait
+   atteint quatre fois plus vite a quatre joueurs : trivial en groupe, penible en
+   solo. Ils vivent donc sur le JOUEUR, dans un bloc a part pour que la remise a
+   zero d'une manche soit une seule affectation.
+   Les deux fenetres glissantes sont des anneaux d'une case par seconde, avec
+   leur somme tenue a jour : un rythme ne depend ni de la duree de la manche, ni
+   de l'effectif, ni de la difficulte, la ou un total brut depend des trois. */
+export function hfCompteurs() {
+  return {
+    sec: 0,
+    still: 0, basPv: 0, sain: 0, sainMax: 0,
+    near: 0, far: 0, blast: 0, tirs: 0, percee: 0,
+    critFen: new Array(HF_CFG.FENETRE_CRIT).fill(0), critSom: 0, critBest: 0,
+    killFen: new Array(HF_CFG.FENETRE_KILL).fill(0), killSom: 0, killBest: 0,
+    killTot: 0, tirsAuKill: new Array(HF_CFG.ECONOMIE_KILLS).fill(0), tirsPourCent: 0,
+    harvests: 0, revives: 0, relics: 0,
+    cartes: 0, rarete: -1, familleMax: 0,
+    armes: new Set(),
+    segSain: 1, segmentsSains: 0,
+    bossUlt0: 0, bossDegat: 0,
+    bossSansUlt: 0, bossSansDegat: 0, bossVite: 0,
+  };
+}
+
 export function powerIndex(m, flat = 0) {
   let barrels = (1 + m.extraBarrels + (m.backShot ? 0.7 : 0)) * m.barrelDamageMul;
   if (m.weapon === "dispersion") barrels = 5 * 0.55;
@@ -695,6 +720,7 @@ export class GameState {
       kills: 0,
       deaths: 0,
       score: 0,
+      hf: hfCompteurs(),
       aimX: 1,
       aimY: 0,
       aimR: SKILL_CFG.DPS_BOMB_RANGE_MAX,
@@ -781,6 +807,9 @@ export class GameState {
       locked: meta && meta.locked
         ? (meta.locked instanceof Set ? meta.locked : new Set(meta.locked))
         : null,
+      lockedRelics: meta && meta.lockedRelics
+        ? (meta.lockedRelics instanceof Set ? meta.lockedRelics : new Set(meta.lockedRelics))
+        : null,
       catalyseT: 0,
       catalyseMul: 1,
     };
@@ -847,7 +876,12 @@ export class GameState {
     if (had >= card.max) return false;
 
     p.cards.set(id, had + 1);
-    if (!card.fallback) p.commonStreak = card.rarity === 0 ? p.commonStreak + 1 : 0;
+    if (!card.fallback) {
+      p.commonStreak = card.rarity === 0 ? p.commonStreak + 1 : 0;
+      p.hf.cartes++;
+      if (card.rarity > p.hf.rarete) p.hf.rarete = card.rarity;
+      if (card.family && card.tier === FAMILY_TIERS - 1) p.hf.familleMax = 1;
+    }
     if (this._hasSharedSupport()) this._recomputeAll();
     else this._recomputeMods(p);
 
@@ -895,6 +929,47 @@ export class GameState {
     const gained = p.maxHp - before;
     if (gained > 0 && !p.downed) p.hp = Math.min(p.maxHp, p.hp + gained);
     p.hp = Math.min(p.hp, p.maxHp);
+    p.hf?.armes.add(p.mods.weapon ?? "base");
+  }
+
+  /* Ce que la manche a produit pour UN joueur, dans la forme que
+     `evaluerHautsFaits` attend. Point de passage unique : le hub y ajoute les
+     cumuls du profil et n'a rien a savoir de la simulation. */
+  hfStatsDeManche(p, opts = {}) {
+    const hf = p.hf;
+    return {
+      diff: this.diffIndex,
+      joueurs: this.players.size,
+      clsId: classAt(p.cls).id,
+      finie: !!opts.finie,
+      complete: !!this.victory,
+      chutes: p.deaths,
+      niveau: this.level,
+      kills: p.kills,
+      stillMax: hf.still,
+      basPvMax: hf.basPv,
+      sainMax: hf.sainMax,
+      killsNearRun: hf.near,
+      killsFarRun: hf.far,
+      killsBlastRun: hf.blast,
+      percee: hf.percee,
+      critBest: hf.critBest,
+      killBest: hf.killBest,
+      tirsPourCent: hf.tirsPourCent,
+      harvestsRun: hf.harvests,
+      revivesRun: hf.revives,
+      relicsRun: hf.relics,
+      skillUsesRun: hf.skillUsesRun ?? (p.skillUses[0] + p.skillUses[1] + p.skillUses[2]),
+      cartesMax: hf.cartes,
+      rareteMax: hf.rarete,
+      familleMax: !!hf.familleMax,
+      armes: hf.armes.size,
+      segmentsSains: hf.segmentsSains,
+      bossSansUlt: !!hf.bossSansUlt,
+      bossSansDegat: !!hf.bossSansDegat,
+      bossVite: hf.bossVite,
+      bossKindsRun: [...this.bossKindsKilled],
+    };
   }
 
   removePlayer(id) {
@@ -1037,6 +1112,18 @@ export class GameState {
       }
       p.elanT += dt;
       this._momentum(p);
+
+      const hf = p.hf;
+      this._hfFenetre(hf, Math.floor(this.time));
+      if (!p.downed) {
+        const inp = inputs.get(p.id);
+        if (!inp || (Math.abs(inp.x) < 0.01 && Math.abs(inp.y) < 0.01)) hf.still += dt;
+        if (p.maxHp > 0 && p.hp / p.maxHp < HF_CFG.BAS_PV) hf.basPv += dt;
+        hf.sain += dt;
+        if (this.segment > HF_CFG.SANS_FAILLE_SEGMENT && hf.sain > hf.sainMax) {
+          hf.sainMax = hf.sain;
+        }
+      }
 
       if (p.mods.shieldPool > 0 && !p.downed
           && T.shieldRegen <= 0 && p.shield < p.mods.shieldPool
@@ -1185,6 +1272,53 @@ export class GameState {
                     CARD_CFG.SUMMON_SCALE);
   }
 
+  /* Une seule case par seconde ecoulee, jamais l'anneau entier : a 120 Hz et
+     quatre joueurs, balayer 60 cases par image coute plus que la mesure. */
+  _hfFenetre(hf, sec) {
+    if (sec === hf.sec) return;
+    const n = sec - hf.sec;
+    for (let k = 1; k <= Math.min(HF_CFG.FENETRE_CRIT, n); k++) {
+      const i = (hf.sec + k) % HF_CFG.FENETRE_CRIT;
+      hf.critSom -= hf.critFen[i];
+      hf.critFen[i] = 0;
+    }
+    for (let k = 1; k <= Math.min(HF_CFG.FENETRE_KILL, n); k++) {
+      const i = (hf.sec + k) % HF_CFG.FENETRE_KILL;
+      hf.killSom -= hf.killFen[i];
+      hf.killFen[i] = 0;
+    }
+    hf.sec = sec;
+  }
+
+  /* La PORTEE se mesure du tueur au corps, la CAUSE se lit sur le drapeau que
+     `_explode` pose : ni l'une ni l'autre ne se deduit apres coup. */
+  _hfKill(owner, e) {
+    const hf = owner.hf;
+    const d2 = (e.x - owner.x) ** 2 + (e.y - owner.y) ** 2;
+    if (d2 <= HF_CFG.PRES * HF_CFG.PRES) hf.near++;
+    else if (d2 >= HF_CFG.LOIN * HF_CFG.LOIN) hf.far++;
+    if (this._causeBlast) hf.blast++;
+    if (this._balle) {
+      const n = (this._balle.tues | 0) + 1;
+      this._balle.tues = n;
+      if (n > hf.percee) hf.percee = n;
+    }
+
+    const sec = Math.floor(this.time);
+    this._hfFenetre(hf, sec);
+    hf.killFen[sec % HF_CFG.FENETRE_KILL]++;
+    hf.killSom++;
+    if (hf.killSom > hf.killBest) hf.killBest = hf.killSom;
+
+    const i = hf.killTot % HF_CFG.ECONOMIE_KILLS;
+    if (hf.killTot >= HF_CFG.ECONOMIE_KILLS) {
+      const cout = hf.tirs - hf.tirsAuKill[i];
+      if (hf.tirsPourCent === 0 || cout < hf.tirsPourCent) hf.tirsPourCent = cout;
+    }
+    hf.tirsAuKill[i] = hf.tirs;
+    hf.killTot++;
+  }
+
   _relicFlag(p, key) {
     for (const id of p.relics.keys()) if (relicById(id)?.[key]) return true;
     return false;
@@ -1250,6 +1384,7 @@ export class GameState {
   }
 
   _fire(p, dmg, angleOffset, opt = {}) {
+    p.hf.tirs++;
     const a = Math.atan2(p.aimY, p.aimX) + angleOffset;
     const dx = Math.cos(a), dy = Math.sin(a);
     const speed = CFG.BULLET_SPEED * p.mods.bulletSpeedMul
@@ -1880,6 +2015,12 @@ export class GameState {
   }
 
   _bombBlast(bo) {
+    const avant = this._causeBlast;
+    this._causeBlast = true;
+    try { this._bombBlastInterne(bo); } finally { this._causeBlast = avant; }
+  }
+
+  _bombBlastInterne(bo) {
     const owner = this.players.get(bo.owner);
     const mul = owner ? owner.mods.damageMul : 1;
     const dmg = SKILL_CFG.DPS_BOMB_DAMAGE * mul;
@@ -2076,6 +2217,14 @@ export class GameState {
         target.critSeq = (target.critSeq + 1) % 10;
       }
     }
+    if (this.lastCrit && owner) {
+      const hf = owner.hf;
+      const sec = Math.floor(this.time);
+      this._hfFenetre(hf, sec);
+      hf.critFen[sec % HF_CFG.FENETRE_CRIT]++;
+      hf.critSom++;
+      if (hf.critSom > hf.critBest) hf.critBest = hf.critSom;
+    }
 
     if (burn > 0) {
       if (!target.burn || burn >= target.burn.dmg) {
@@ -2255,6 +2404,13 @@ export class GameState {
   }
 
   _explode(x, y, dmg, ownerId, rayon, bossMul = 1) {
+    const boomAvant = this._causeBlast;
+    this._causeBlast = true;
+    try { return this._explodeInterne(x, y, dmg, ownerId, rayon, bossMul); }
+    finally { this._causeBlast = boomAvant; }
+  }
+
+  _explodeInterne(x, y, dmg, ownerId, rayon, bossMul = 1) {
     const owner = this.players.get(ownerId);
     const r = rayon || CARD_CFG.GRENADE_RADIUS * (owner ? owner.mods.areaMul : 1);
     const souffle = { id: this._nextId++, x, y, r, life: 0.35, max: 0.35, kind: 7, n: 0 };
@@ -2751,6 +2907,10 @@ export class GameState {
       this.gameOver = true;
       return;
     }
+    for (const p of this.players.values()) {
+      if (p.hf.segSain) p.hf.segmentsSains++;
+      p.hf.segSain = 1;
+    }
     this.segment++;
     this.hordeTime = 0;
     this.beat = 0;
@@ -2799,7 +2959,8 @@ export class GameState {
       !poss.has(r.id)
       && (r.tier < 3 || !this.relicLegendaryTaken)
       && !(r.minPlayers && this.players.size < r.minPlayers)
-      && !(r.requiresSystem === "hasards_actifs" && this.hazards.length === 0));
+      && !(r.requiresSystem === "hasards_actifs" && this.hazards.length === 0)
+      && !(p.lockedRelics && p.lockedRelics.has(r.id)));
     const picks = [];
     const from = [...pool];
     while (picks.length < RELIC_CFG.OFFER_COUNT && from.length > 0) {
@@ -2843,6 +3004,7 @@ export class GameState {
     p.eclats -= price;
     p.relics.set(id, 1);
     p.relicBought = (p.relicBought ?? 0) + 1;
+    p.hf.relics++;
     if (r.tier === 3) this.relicLegendaryTaken = true;
     const off = this.relicOffers.get(p.id);
     if (off) this.relicOffers.set(p.id, off.filter(o => o !== id));
@@ -3182,7 +3344,10 @@ export class GameState {
         break;
       case "slow":   this.slow = CFG.SLOW_TIME; break;
       case "nova":   this._nova(p); break;
-      case "fragment": p.hp = Math.min(p.maxHp, p.hp + CARD_CFG.HARVEST_HEAL * part); return;
+      case "fragment":
+        p.hf.harvests++;
+        p.hp = Math.min(p.maxHp, p.hp + CARD_CFG.HARVEST_HEAL * part);
+        return;
       case "purification":
         this._purgeAll(p);
         this.effects.push({
@@ -3215,6 +3380,7 @@ export class GameState {
     }
 
     for (const o of downed) {
+      if (p && o.id !== p.id) p.hf.revives++;
       o.downed = false;
       o.hp = Math.round(o.maxHp * CFG.BEACON_HP_RATIO);
       o.revive = 0;
@@ -3656,6 +3822,10 @@ export class GameState {
       if (this.bossPending) {
         this.bossPending = false;
         this.bossCount++;
+        for (const p of this.players.values()) {
+          p.hf.bossUlt0 = p.skillUses[2];
+          p.hf.bossDegat = 0;
+        }
         const crowd = this.aliveCrowd();
 
         this._sweepEnemies();
@@ -6412,6 +6582,9 @@ export class GameState {
     if (!p || p.downed) return;
     if (p.dashT > 0) return;
     if (p.tauntInvuln > 0) return;
+    p.hf.sain = 0;
+    p.hf.segSain = 0;
+    if (this.boss) p.hf.bossDegat++;
     if (fromZone && p.timers.zoneImmune > 0) return;
     if (!ignoreCooldown && p.hitCd > 0) return;
 
@@ -6532,6 +6705,13 @@ export class GameState {
   }
 
   _bulletHitEnemy(b, e, ix, iy) {
+    const avant = this._balle;
+    this._balle = b;
+    try { return this._bulletHitInterne(b, e, ix, iy); }
+    finally { this._balle = avant; }
+  }
+
+  _bulletHitInterne(b, e, ix, iy) {
     const bdef = ENEMY_TYPES[e.type];
     if (bdef?.shieldArc) {
       const from = Math.atan2(iy - e.y, ix - e.x);
@@ -6848,6 +7028,8 @@ export class GameState {
       // corps a disparu avec son compteur. Le compteur vit donc sur le TUEUR.
       if (this.lastCrit) owner.critKills = (owner.critKills + 1) % 10;
 
+      this._hfKill(owner, e);
+
       if (owner.mods.frenzy) {
         const cap = Math.round(CARD_CFG.FRENZY_MAX / CARD_CFG.FRENZY_STEP);
         owner.frenzyStacks = Math.min(cap, owner.frenzyStacks + 1);
@@ -6943,6 +7125,13 @@ export class GameState {
       this.finalKill = Math.round(this.boss.fightT * 10) / 10;
     }
     this.bossKills++;
+    const duree = this.boss ? this.boss.fightT : 0;
+    for (const p of this.players.values()) {
+      const hf = p.hf;
+      if (p.skillUses[2] === hf.bossUlt0) hf.bossSansUlt = 1;
+      if (hf.bossDegat === 0) hf.bossSansDegat = 1;
+      if (duree > 0 && (hf.bossVite === 0 || duree < hf.bossVite)) hf.bossVite = duree;
+    }
     const final = this.boss && estFinal(this.boss.kind);
     if (this.boss && !final) this._merchantDue();
 
@@ -6994,6 +7183,12 @@ export class GameState {
       if (rate > 0) {
         p.revive += dt * rate;
         if (p.revive >= CFG.REVIVE_TIME) {
+          for (const o of this.players.values()) {
+            if (o.id === p.id || o.downed) continue;
+            const r = CFG.REVIVE_RADIUS * o.mods.reviveRadiusMul;
+            const proche = (o.x - p.x) ** 2 + (o.y - p.y) ** 2 <= r * r;
+            if (proche || o.links.some(l => !l.ennemi && l.id === p.id)) o.hf.revives++;
+          }
           p.downed = false;
           p.hp = Math.min(p.maxHp, Math.round(p.maxHp * ratio) + bonus);
           p.revive = 0;
@@ -8733,16 +8928,20 @@ export const PROFIL_TIER = [0, 3, PROG_CFG.TIERS_MAX];
 
 export function metaProfil(profil, clsId) {
   if (profil <= PROFIL_NEUF) {
-    return { lines: {}, commun: {}, confort: {}, locked: lockedCards([]) };
+    return { lines: {}, commun: {}, confort: {}, locked: lockedCards(null),
+             lockedRelics: lockedRelics(null) };
   }
   const plein = profil >= PROFIL_COMPLET;
   const tier = PROFIL_TIER[Math.min(profil, PROFIL_COMPLET)];
-  // `niveau${SLOTS_LEVEL}` n'est PAS dans `MILESTONES` : il n'ouvre pas de carte,
-  // seulement un emplacement, et c'est `hub.js` qui le pose.
+  // les emplacements restent gagnes par NIVEAU et par NOMBRE DE MANCHES, hors
+  // systeme de hauts faits : `milestones` reste le journal des evenements de
+  // progression, `hf` la liste des hauts faits obtenus.
   const jalons = plein
-    ? [...MILESTONES.map(m => m.id), `niveau${PROG_CFG.SLOTS_LEVEL}`]
+    ? [...BOSS_ROSTER.map((_, i) => `boss_${i}`), "niveau10", `niveau${PROG_CFG.SLOTS_LEVEL}`]
     : ["niveau10", `niveau${PROG_CFG.SLOTS_LEVEL}`, "boss_0", "boss_1", "boss_2"];
-  const emplacements = slotsFor({ milestones: jalons, runs: plein ? PROG_CFG.SLOTS_RUNS : 0 });
+  const hf = plein ? HAUTS_FAITS.map(h => h.id) : ["premier_sang", "recrue", "bestiaire1"];
+  const profil2 = { hf, milestones: jalons, runs: plein ? PROG_CFG.SLOTS_RUNS : 0 };
+  const emplacements = slotsFor(profil2);
   const lignes = (TREES[clsId] ?? []).slice(0, emplacements);
   return {
     lines: Object.fromEntries(lignes.map(l => [l.id, tier])),
@@ -8751,7 +8950,8 @@ export function metaProfil(profil, clsId) {
     commun: Object.fromEntries(COMMUN.map(l =>
       [l.id, l.famille === "secours" ? PROG_CFG.TIERS_MAX : tier])),
     confort: { quatrieme: 1, ravitaillement: plein ? 1 : 0 },
-    locked: lockedCards(jalons),
+    locked: lockedCards(profil2),
+    lockedRelics: lockedRelics(profil2),
     emplacements,
   };
 }

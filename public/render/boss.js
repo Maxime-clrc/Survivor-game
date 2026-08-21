@@ -12,7 +12,7 @@ import { amSpectator, dash, myId, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
 import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, lastBossPos, shieldHit } from "./fx.js";
-import { aimVector, camera, colorOf, ctx, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
+import { aimVector, cadreOf, camera, colorOf, ctx, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
 
 
 const BOSS_RELEASE_MS = 320;
@@ -1350,10 +1350,24 @@ export function drawPlayers(list, tm, marks = []) {
     drawPlayerMarks(p, x, y, marks, tm);
 
     if (!isMe) {
-      ctx.fillStyle = TEXT.dim;
+      const nom = nameOf(p.id);
+      const ny = y - CFG.PLAYER_RADIUS - 28;
       ctx.font = "12px ui-monospace, Menlo, Consolas, monospace";
       ctx.textAlign = "center";
-      ctx.fillText(nameOf(p.id), x, y - CFG.PLAYER_RADIUS - 28);
+      // le cadre est un SOULIGNEMENT, pas une boite : rien de decoratif ne se
+      // superpose au jeu, et une boite autour d'un nom en couvrirait le sol
+      const trait = cadreOf(p.id);
+      if (trait) {
+        const w = ctx.measureText(nom).width;
+        ctx.strokeStyle = trait;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x - w / 2 - 3, ny + 4);
+        ctx.lineTo(x + w / 2 + 3, ny + 4);
+        ctx.stroke();
+      }
+      ctx.fillStyle = TEXT.dim;
+      ctx.fillText(nom, x, ny);
     }
   }
 }

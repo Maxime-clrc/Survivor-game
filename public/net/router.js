@@ -1,10 +1,11 @@
 
 import { playSound } from "/audio.js";
-import { showHud } from "/hud.js";
+import { pousserHautFait, showHud } from "/hud.js";
 import { t, tf } from "/shared/i18n.js";
 import { PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setMerchantState, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
 import { ingest } from "./ingest.js";
-import { netPerfBoundary, pushAlert, pushWorld, screenCloseQueued, setScreenCloseQueued, worldQueue } from "./interp.js";
+import { netPerfBoundary, pushAlert, pushWorld, screenCloseQueued, setAlertInfo, setScreenCloseQueued, worldQueue } from "./interp.js";
+import { hfNom } from "/shared/hauts_faits.js";
 import { applyPalette, biomeIndex, biomeSeed, rebuildBiome, setBiomeIndex, setBiomeSeed } from "../render/stage.js";
 import { resetFeedback } from "../render/world.js";
 import { renderGateMode, renderGateSwitch, renderServerInfo } from "../ui/boot.js";
@@ -170,9 +171,31 @@ export function connect() {
 
       case "progress":
         setProgressState(msg);
+        // le bilan arrive avec la manche : les hauts faits gagnes a la fin
+        // passent par la meme file que le reste
+        for (const id of msg.gagnes ?? []) pousserHautFait(id);
         renderMeta();
         updateTerminalDot();
         break;
+
+      case "hautFait":
+        for (const id of msg.ids ?? []) pousserHautFait(id);
+        break;
+
+      // en cooperatif, seuls TES hauts faits produisent un bandeau : ceux des
+      // allies passent en une ligne dans le fil d'evenements
+      // `applyAlert` reste reserve aux trois tables du serveur (event, mech,
+      // meteo) : cette ligne est un texte CLIENT, elle se pose directement.
+      case "hautFaitAllie": {
+        const maintenant = performance.now();
+        setAlertInfo({
+          nom: t("ui.hf.obtenu", "haut fait"),
+          texte: tf("ui.hf.allie", "{qui} — {quoi}",
+            { qui: msg.qui ?? "", quoi: (msg.ids ?? []).map(hfNom).join(", ") }),
+          from: maintenant, until: maintenant + 3200, forme: "",
+        });
+        break;
+      }
 
       case "authError":
         setPendingAuth(null);

@@ -1726,8 +1726,9 @@ tr.clickable { cursor: pointer; }
 #voteHint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); }
 
 #meta { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; }
-#metaTree, #metaConfort, #metaBans { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
-#metaTree[hidden], #metaConfort[hidden], #metaBans[hidden], #metaMilestones[hidden] { display: none; }
+#metaTree, #metaConfort, #metaBans, #metaHf, #metaCadres { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
+#metaTree[hidden], #metaConfort[hidden], #metaBans[hidden],
+#metaHf[hidden], #metaCadres[hidden] { display: none; }
 #metaConfort { margin-top: var(--sp-2); }
 .metaLine {
   display: grid;
@@ -1757,19 +1758,8 @@ tr.clickable { cursor: pointer; }
 .metaLine { grid-template-columns: 130px 64px 1fr 104px 96px; }
 .metaLine.confort { grid-template-columns: 170px 1fr 104px; }
 .metaEquip.on { border-color: var(--go); color: var(--go); background: color-mix(in srgb, var(--go) 12%, transparent); }
-#metaMilestones {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-4);
-  margin-top: var(--sp-2);
-  font-family: var(--font);
-  font-size: var(--t-xs);
-  color: var(--text-faint);
-}
 #gate small, #hubScreen small, #panel small,
 #menu small, #bilan small, #fin small, #settings small { font-size: var(--t-xs); }
-#metaMilestones .metaJalon { font-family: var(--font-body); }
-#metaMilestones .metaJalon.done { color: var(--go); }
 #metaSub { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); text-align: left; }
 
 #cards { gap: var(--sp-6); }
@@ -3227,3 +3217,83 @@ input:focus {
 }
 @keyframes focusRing { from { outline-offset: -2px; } to { outline-offset: 2px; } }
 :focus:not(:focus-visible) { outline: none; }
+
+/* ---- hauts faits : groupes par niveau d'exigence, progression chiffree, et la
+   recompense VISIBLE avant l'obtention — les cadres compris, qui doivent se voir
+   pour etre desires. ------------------------------------------------------- */
+#metaHf .hfCount {
+  font-family: var(--font);
+  font-size: var(--t-s);
+  color: var(--text-dim);
+  margin-bottom: var(--sp-4);
+}
+#metaHf .hfGroupe { margin-bottom: var(--sp-6); }
+#metaHf .hfGroupe .sectionTitle { margin-bottom: var(--sp-2); }
+#metaHf .hfGroupe .sectionTitle small {
+  color: var(--text-faint);
+  letter-spacing: 0;
+}
+#metaHf .hfRow {
+  display: grid;
+  grid-template-columns: var(--sp-6) 1fr auto;
+  align-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--hair) solid var(--line-soft);
+  opacity: .62;
+}
+#metaHf .hfRow.done { opacity: 1; }
+#metaHf .hfMark { color: var(--text-faint); font-family: var(--font); }
+#metaHf .hfRow.done .hfMark { color: var(--gain); }
+#metaHf .hfBody { display: flex; flex-direction: column; gap: 2px; }
+#metaHf .hfTitre { font-weight: 700; color: var(--text); }
+#metaHf .hfDiff {
+  margin-left: var(--sp-2);
+  padding: 0 var(--sp-1);
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  color: var(--warn);
+  border: var(--hair) solid var(--warn);
+}
+#metaHf .hfCond { font-size: var(--t-s); color: var(--text-dim); max-width: 62ch; }
+#metaHf .hfPrix { font-family: var(--font); font-size: var(--t-xs); color: var(--go); }
+#metaHf .hfJauge {
+  font-family: var(--font);
+  font-size: var(--t-s);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* Un cadre non obtenu est VISIBLE mais grise, avec sa condition. */
+#metaCadres { display: flex; flex-direction: column; gap: var(--sp-1); }
+.cadreRow {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-raised);
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius-ctl);
+  text-align: left;
+  color: inherit;
+}
+.cadreRow.mine { border-color: var(--go); }
+.cadreRow.taken { opacity: .45; }
+.cadreApercu {
+  height: 22px;
+  border-bottom: var(--edge) solid var(--cadre, transparent);
+}
+.cadreBody { display: flex; flex-direction: column; gap: 2px; }
+.cadreNom { font-weight: 700; }
+.cadreCond { font-size: var(--t-xs); color: var(--text-dim); }
+
+/* Le cadre autour d'un nom est un SOULIGNEMENT : rien de decoratif ne boxe une
+   ligne de salon deja dense. */
+.teamRow.cadre .teamName { border-bottom: var(--edge) solid var(--cadre); }
+#scores td.name.cadre, #bilanScores td.name.cadre {
+  box-shadow: inset 0 -2px 0 var(--cadre);
+}

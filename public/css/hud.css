@@ -957,3 +957,37 @@
   70%  { opacity: 1; }
   to   { opacity: 0; transform: translate(-50%, calc(-50% - 26px)); }
 }
+
+/* Le bandeau de haut fait : en bas a droite, entree par glissement, sortie en
+   fondu. Il ne se superpose ni au HUD de combat (haut et bas gauche) ni au fil
+   d'alertes (centre haut). */
+#hudHf {
+  position: absolute;
+  right: var(--sp-6);
+  bottom: var(--sp-6);
+  width: 320px;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel);
+  border-left: var(--edge) solid var(--go);
+  border-radius: var(--radius);
+  box-shadow: 0 0 var(--sp-6) var(--bg-void);
+  opacity: 0;
+  transform: translateX(var(--sp-6));
+  transition: opacity 320ms ease-out, transform 320ms ease-out;
+}
+#hudHf.on { opacity: 1; transform: translateX(0); }
+#hudHf .hfKicker {
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--go);
+}
+#hudHf .hfNom { font-size: var(--t-m); font-weight: 700; color: var(--text); }
+#hudHf .hfTexte { font-size: var(--t-xs); color: var(--text-dim); }
+#hudHf .hfGain {
+  margin-top: var(--sp-1);
+  font-family: var(--font);
+  font-size: var(--t-xs);
+  color: var(--gain);
+}

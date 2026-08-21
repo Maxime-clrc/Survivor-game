@@ -2161,6 +2161,70 @@
                    `CARDS`, donc une insertion au milieu reverrouillerait des
                    cartes deja gagnees chez tous les comptes
 
+     0.14.1 lot 03 LES JALONS DEVIENNENT DES HAUTS FAITS. 36 exigences en trois
+                   niveaux (10 simples, 14 intermediaires, 12 defis), 13 cadres,
+                   et surtout : TOUTE RECOMPENSE EST NOMMEE.
+                   C'ETAIT LE FIL ROUGE DU PLAN. `armes.filter((_, k) => k % 2
+                   === 0)` et `legendairesDuBoss(i)` dependaient d'une POSITION
+                   dans `CARDS` : passer de trois a dix armes decalait la parite
+                   et reverrouillait des cartes chez tous les comptes existants.
+                   `reward: { type, ids }` supprime le defaut, et une recompense
+                   qui nomme une arme que le depot ne connait pas encore
+                   (`laser`, `tesla`, `lame`, `siege`, `precision`, `assaut`)
+                   traverse sans rien verrouiller — c'est pour ca que ce lot
+                   passe AVANT celui des armes.
+                   UNE CARTE, UNE RELIQUE OU UNE LIGNE EST VERROUILLEE SI ET
+                   SEULEMENT SI UN HAUT FAIT LA DONNE : la liste des verrous se
+                   deduit de la table au lieu d'etre tenue a cote. 31 cartes,
+                   15 reliques et les deux familles de lignes communes.
+                   ON NE RETIRE JAMAIS UN DEBLOCAGE ACQUIS, et la garantie ne
+                   passe PAS par une correspondance jalon -> haut fait : la
+                   migration v6 -> v7 releve CARTE PAR CARTE ce qu'un compte
+                   avait ouvert et le range dans `profile.debloquees`, qui le
+                   suit pour toujours. Ses tables sont FIGEES — une migration
+                   decrit le passe, elle ne suit pas `CARDS`. Mesure : 209
+                   profils, 2 371 deblocages testes, zero perdu.
+                   `profile.milestones` reste le journal des evenements de
+                   progression (emplacements de cartes), `profile.hf` la liste
+                   des hauts faits : deux listes, deux roles, rien a convertir.
+                   TOUS LES COMPTEURS SONT PERSONNELS (`p.hf`), jamais l'etat de
+                   manche — un compteur d'equipe serait atteint quatre fois plus
+                   vite a quatre joueurs. Les deux fenetres glissantes sont des
+                   anneaux d'une case par seconde, somme tenue a jour, et on ne
+                   balaie que les secondes ECOULEES.
+                   LES SEUILS DU PLAN ETAIENT DES PARIS ET LA PLUPART ETAIENT
+                   FAUX. 40 joueurs-manches en normal, pilote, un et quatre
+                   joueurs : trois seuils etaient deja atteints par la mediane,
+                   donc ne testaient rien — « moins de 200 tirs pour 100 kills »
+                   quand la mediane est a 118 recompensait le tir de base, alors
+                   qu'il doit enseigner le fusil de siege. Tableau complet dans
+                   LISEZMOI.md.
+                   DEUX MESURES RENDAIENT ZERO PARTOUT, ET UNE SEULE ETAIT LA
+                   FAUTE DU HARNAIS. « Sous 25 % de PV » ne pouvait pas monter
+                   parce que le harnais remettait les PV au maximum a chaque
+                   image. « Tues par explosion » ne montait pas non plus, et la
+                   c'etait le jeu : `_bombBlast` resout son souffle LUI-MEME,
+                   sans passer par `_explode`, donc le drapeau de cause ne voyait
+                   pas la source la plus naturelle du jeu. Deux points de
+                   passage, pas un.
+                   LE BANDEAU ATTEND LA FIN DU COMBAT et ne recouvre jamais un
+                   ecran de cartes : une salle emet `hautsFaits` a la mort d'un
+                   boss, le hub — seul ecrivain du magasin — evalue et pousse.
+                   `vueStats` FUSIONNE sans ecrire, `cumulerStats` REPLIE la
+                   manche dans le profil apres l'evaluation ; les appeler dans
+                   l'autre ordre compterait la manche deux fois.
+                   En cooperatif, seuls TES hauts faits font un bandeau ; ceux
+                   des allies passent en une ligne d'info, posee directement
+                   parce qu'`applyAlert` reste reserve aux trois tables du
+                   serveur.
+                   Le cadre ne coute rien au reseau : il voyage avec le salon et
+                   le bilan, comme la couleur. Autour d'un nom c'est un
+                   SOULIGNEMENT, jamais une boite — rien de decoratif ne se
+                   superpose au jeu.
+                   `verifierHautsFaits()` est le critere rejouable : il refuse
+                   une arme derriere un defi, un cadre ailleurs qu'en defi, un
+                   palier sans jauge et un cadre que personne ne donne
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2169,4 +2233,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.14.0";
+export const VERSION = "0.14.1";

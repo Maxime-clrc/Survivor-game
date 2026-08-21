@@ -15,6 +15,9 @@ import { bossAt, bossNom, bossSous, bossVerbe, beatPhase, estFinal, ALERT_ORDER,
 import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN, SRC_TINT } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, SKILL_ICON, SRC_ICON, STATUS_ICON, iconImg } from "/icons.js";
+import { CADRE_BY_ID, HF_BY_ID, cadreNom, hfNom, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
+import { cardNom } from "/shared/cards.js";
+import { relicNom } from "/shared/reliques.js";
 
 const $ = id => document.getElementById(id);
 
@@ -26,6 +29,7 @@ const el = {
   segName:  $("segName"),
   segBar:   $("segBar").firstElementChild,
   segState: $("segState"),
+  hf:       $("hudHf"),
   boss:     $("hudBoss"),
   bossName: $("bossName"),
   bossVerb: $("bossVerb"),
@@ -917,6 +921,7 @@ export function updateHud(v, c) {
   updateAnnounce(v, c, now);
 
   setHidden(el.spectator, "spec", !c.amSpectator);
+  updateHautsFaits(now, !!c.ecranOuvert);
 
   if (c.perf) {
     setHidden(el.perf, "pfOn", false);
@@ -927,6 +932,56 @@ export function updateHud(v, c) {
       + (c.net ? `\n${c.net}` : ""));
     setClass(el.perf, "pfl", "low", c.fps < 55);
   }
+}
+
+/* LE BANDEAU DIT CE QU'IL DONNE. Un haut fait qui ne nomme pas sa recompense
+   oblige a aller verifier, donc a quitter la manche des yeux.
+   Trois regles : une a la fois, les autres en file ; il ATTEND que l'ecran de
+   cartes se ferme, parce que la decision du joueur ne doit pas etre recouverte ;
+   et il ne parle que de TES hauts faits — ceux des allies passent en alerte. */
+const HF_BANDEAU_MS = 4000;
+const file = [];
+let bandeau = null;
+
+export function pousserHautFait(id) {
+  if (!HF_BY_ID.has(id)) return;
+  file.push(id);
+}
+
+function nomRecompense(h) {
+  const type = h.reward.type;
+  const noms = h.reward.ids.map(id =>
+    type === "cadre" ? cadreNom(id)
+    : type === "relique" ? relicNom(id)
+    : type === "ligne" ? t(`prog.famille.${id}`, id)
+    : (cardNom(id) || id));
+  return `${rewardLabel(type)} — ${noms.join(", ")}`;
+}
+
+function updateHautsFaits(now, couvert) {
+  if (bandeau && now >= bandeau.fin) {
+    bandeau = null;
+    el.hf.hidden = true;
+    el.hf.classList.remove("on");
+  }
+  if (bandeau || couvert || file.length === 0) return;
+  const h = HF_BY_ID.get(file.shift());
+  if (!h) return;
+  bandeau = { fin: now + HF_BANDEAU_MS };
+  el.hf.innerHTML =
+    `<div class="hfKicker">${escapeHtml(t("ui.hf.obtenu", "haut fait"))}</div>`
+    + `<div class="hfNom">${escapeHtml(hfNom(h.id))}</div>`
+    + `<div class="hfTexte">${escapeHtml(hfTexte(h.id))}</div>`
+    + `<div class="hfGain">${escapeHtml(nomRecompense(h))}</div>`;
+  el.hf.hidden = false;
+  // deux images separent l'affichage de la classe : sans ca la transition CSS
+  // part d'un noeud qui vient de naitre et ne joue pas.
+  requestAnimationFrame(() => requestAnimationFrame(() => el.hf.classList.add("on")));
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
 function fmtTime(t) {

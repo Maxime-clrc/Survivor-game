@@ -149,17 +149,19 @@ export const briefThirdEl = document.getElementById("briefThird");
 export const briefGoBtn = document.getElementById("briefGo");
 export const briefCountEl = document.getElementById("briefCount");
 export const hudBriefEl = document.getElementById("hudBrief");
+export const hudHfEl = document.getElementById("hudHf");
 
 export const metaEl = document.getElementById("meta");
 export const metaCoresEl = document.getElementById("metaCores");
 export const metaSubEl = document.getElementById("metaSub");
 export const metaTreeEl = document.getElementById("metaTree");
 export const metaConfortEl = document.getElementById("metaConfort");
-export const metaMilestonesEl = document.getElementById("metaMilestones");
 export const menuTitleEl = document.getElementById("menuTitle");
 export const metaClassTabsEl = document.getElementById("metaClassTabs");
 export const metaSlotsEl = document.getElementById("metaSlots");
 export const metaBansEl = document.getElementById("metaBans");
+export const metaHfEl = document.getElementById("metaHf");
+export const metaCadresEl = document.getElementById("metaCadres");
 /* Le francais du markup EST le repli : on le releve au premier passage, on ne
    le recopie donc jamais dans le dictionnaire. */
 const ORIGINE = new WeakMap();

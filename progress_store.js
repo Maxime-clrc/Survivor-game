@@ -3,7 +3,9 @@ import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
 import { scryptSync, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 
-import { PROG_CFG, newProfile } from "./shared/progression.js";
+import { PROG_CFG, newProfile, statsVierges } from "./shared/progression.js";
+import { CADRE_DEFAUT } from "./shared/hauts_faits.js";
+import { BOSS_ROSTER } from "./shared/bosses.js";
 
 const REMOTE_TIMEOUT_MS = 3000;
 const LOAD_RETRY_MS = 15000;
@@ -97,6 +99,99 @@ function pristine(p) {
     && Object.keys(p.commun ?? {}).length === 0;
 }
 
+/* UNE MIGRATION DECRIT LE PASSE. Ces listes sont celles de la v6, figees :
+   elles ne doivent PAS suivre `CARDS`, sinon la conversion changerait de sens
+   au prochain lot. C'est exactement le defaut qu'on supprime — un deblocage
+   indexe sur une position de tableau. */
+const V6_ARMES = ["dispersion", "railgun", "grenade"];
+const V6_LEGENDAIRES = [
+  "echo", "instinct", "contrat", "essaim", "sentence_capitale",
+  "pacte_de_fer", "coeur_forge", "chaine_assaut", "constitution", "vif_argent",
+  "voeu_partage", "ancre_souveraine", "sanctuaire_absolu", "salve_totale", "phalange",
+  "dynamo", "horizon", "fournaise", "faucheuse", "cataclysme",
+];
+const V6_CONDITIONNELLES = ["symbiose", "austerite", "resonance"];
+const V6_SPLIT = 5;
+
+function v6Ouvertes(jalons) {
+  const out = new Set();
+  const done = new Set(jalons ?? []);
+  if (done.has("niveau10")) for (const id of V6_CONDITIONNELLES) out.add(id);
+  for (let i = 0; i < 20; i++) {
+    if (!done.has(`boss_${i}`)) continue;
+    if (i < V6_SPLIT) {
+      V6_LEGENDAIRES.forEach((id, k) => { if (k % V6_SPLIT === i) out.add(id); });
+    } else {
+      for (const id of V6_ARMES) out.add(id);
+    }
+  }
+  if (done.has("sans_chute")) V6_ARMES.forEach((id, k) => { if (k % 2 === 0) out.add(id); });
+  if (done.has("kills500")) V6_ARMES.forEach((id, k) => { if (k % 2 === 1) out.add(id); });
+  return [...out];
+}
+
+const JALONS_V3 = new Map([
+  ["vague8", "niveau10"],
+  ["vague5", "niveau6"], ["vague10", "niveau12"],
+  ["vague15", "niveau18"], ["vague20", "niveau24"],
+]);
+
+export function migrateProfile(profile, from) {
+  if (!profile || typeof profile !== "object") return false;
+  if (from === PROG_CFG.VERSION) return false;
+  if (from < 3 || from >= PROG_CFG.VERSION) return false;
+
+  if (from === 3 && Array.isArray(profile.milestones)) {
+    profile.milestones = [...new Set(profile.milestones
+      .map(id => JALONS_V3.get(id) ?? id))];
+  }
+
+  const best = profile.best ?? (profile.best = {});
+  if (best.level === undefined) best.level = 0;
+  if (best.segment === undefined) best.segment = 0;
+  if (!Array.isArray(profile.bannedCards)) profile.bannedCards = [];
+  if (!profile.bestFinal || typeof profile.bestFinal !== "object") profile.bestFinal = {};
+
+  if (!profile.commun || typeof profile.commun !== "object") profile.commun = {};
+  if (!Array.isArray(profile.confort)) profile.confort = [];
+
+  /* v6 -> v7 : ON NE RETIRE JAMAIS UN DEBLOCAGE ACQUIS. La garantie ne passe
+     PAS par une correspondance jalon -> haut fait qu'il faudrait maintenir :
+     on releve carte par carte ce que le compte avait ouvert, et cette liste
+     le suit pour toujours. Les hauts faits que les donnees stockees prouvent
+     sont accordes par-dessus. */
+  if (from < 7) {
+    profile.debloquees = v6Ouvertes(profile.milestones);
+    const jalons = new Set(profile.milestones ?? []);
+    const hf = new Set(profile.hf ?? []);
+    let bosses = 0;
+    for (const id of jalons) if (id.startsWith("boss_")) bosses++;
+    if (bosses >= 1) hf.add("premier_sang");
+    if (bosses >= 5) hf.add("bestiaire1");
+    if (bosses >= BOSS_ROSTER.length) hf.add("bestiaire2");
+    if (jalons.has("sans_chute")) hf.add("debout");
+    if (jalons.has("kills500")) hf.add("moisson");
+    if ((profile.runs | 0) >= 1) hf.add("recrue");
+    profile.hf = [...hf];
+  }
+
+  if (!Array.isArray(profile.hf)) profile.hf = [];
+  if (!Array.isArray(profile.debloquees)) profile.debloquees = [];
+  if (!Array.isArray(profile.cadres) || profile.cadres.length === 0) {
+    profile.cadres = [CADRE_DEFAUT];
+  }
+  if (typeof profile.cadreActif !== "string") profile.cadreActif = CADRE_DEFAUT;
+  if (!profile.stats || typeof profile.stats !== "object") {
+    profile.stats = statsVierges();
+  }
+  // le bannissement devient un achat : un compte qui en a deja use le garde
+  if (profile.bannedCards.length && !profile.confort.includes("bannissement")) {
+    profile.confort.push("bannissement");
+  }
+  return true;
+}
+
+
 export function createStore(log = console.log) {
   const remote = remoteConfig(process.env, log);
 
@@ -187,37 +282,6 @@ export function createStore(log = console.log) {
   }
 
 
-  const JALONS_V3 = new Map([
-    ["vague8", "niveau10"],
-    ["vague5", "niveau6"], ["vague10", "niveau12"],
-    ["vague15", "niveau18"], ["vague20", "niveau24"],
-  ]);
-
-  function migrate(profile, from) {
-    if (!profile || typeof profile !== "object") return false;
-    if (from === PROG_CFG.VERSION) return false;
-    if (from < 3 || from >= PROG_CFG.VERSION) return false;
-
-    if (from === 3 && Array.isArray(profile.milestones)) {
-      profile.milestones = [...new Set(profile.milestones
-        .map(id => JALONS_V3.get(id) ?? id))];
-    }
-
-    const best = profile.best ?? (profile.best = {});
-    if (best.level === undefined) best.level = 0;
-    if (best.segment === undefined) best.segment = 0;
-    if (!Array.isArray(profile.bannedCards)) profile.bannedCards = [];
-    if (!profile.bestFinal || typeof profile.bestFinal !== "object") profile.bestFinal = {};
-
-    if (!profile.commun || typeof profile.commun !== "object") profile.commun = {};
-    if (!Array.isArray(profile.confort)) profile.confort = [];
-    // le bannissement devient un achat : un compte qui en a deja use le garde
-    if (profile.bannedCards.length && !profile.confort.includes("bannissement")) {
-      profile.confort.push("bannissement");
-    }
-    return true;
-  }
-
   function adoptRow(row) {
     const lower = String(row.pseudo ?? "").toLowerCase();
     if (!lower) return 0;
@@ -226,7 +290,7 @@ export function createStore(log = console.log) {
       frozen.add(lower);
       return 0;
     }
-    const migre = connue && migrate(row.data, row.version);
+    const migre = connue && migrateProfile(row.data, row.version);
     const reset = row.version < PROG_CFG.VERSION && !migre;
     const cur = accounts.get(lower);
     if (cur && !pristine(cur.profile)) return 0;

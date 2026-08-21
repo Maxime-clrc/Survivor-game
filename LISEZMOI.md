@@ -1784,6 +1784,65 @@ lame ne décroche pas, c'est le tir qui la dépasse — ce qui est le comporteme
 voulu, l'exposant 0,6 étant précisément là pour qu'une invocation suive sans
 dominer.
 
+### Étalonnage des hauts faits (plan 11, lot 03)
+
+**Les seuils du plan étaient des paris, et la plupart étaient faux.** Ils avaient
+été posés sans mesure. Relevé : **40 joueurs-manches** en normal, pilote, à un et
+à quatre joueurs, jusqu'à la minute 30, tirages de cartes au hasard.
+
+| compteur | médiane | min | max | seuil du plan | seuil retenu |
+|---|---:|---:|---:|---:|---:|
+| kills par manche | 1 958 | 662 | 7 980 | — | — |
+| kills à moins de 6 m | 360 | 38 | 1 348 | 600 | **1 500** |
+| kills à plus de 35 m | 69 | 7 | 482 | 400 | **250** |
+| kills par explosion (Tireur) | 823 | 667 | 962 | 1 000 | **2 500** |
+| tirs pour 100 kills | 118 | 5 | 1 645 | < 200 | **< 90** |
+| meilleurs kills / 30 s | 155 | 35 | 370 | 100 | **200** |
+| meilleurs critiques / 60 s | 87 | 14 | 1 160 | 50 | **115** |
+| secondes sous 25 % de PV | 36 | 0 | 521 | 90 | **60** |
+| sain d'affilée à partir du segment 4 | 71 s | 0 | 190 | 120 | **120** |
+| kills d'un même tir | 3 | 1 | 39 | 5 | **5** |
+| cartes possédées | 29 | 8 | 29 | 20 | **20** |
+
+**Un seuil « en une manche » vise 1,3 fois la médiane** — sous quoi c'est une
+formalité, au-delà de deux fois c'est du grattage. Un **cumul** ne se lit pas en
+valeur absolue mais en **nombre de manches** : « 1 500 kills au contact » vaut
+quatre manches, « 250 à longue portée » en vaut 3,6.
+
+**Trois seuils étaient déjà atteints par la médiane**, donc ne testaient rien :
+100 kills en 30 s (médiane 155), 50 critiques en 60 s (médiane 87), et surtout
+« moins de 200 tirs pour 100 kills » quand la médiane est à 118. Ce dernier est
+celui qui devait enseigner le fusil de siège ; à 200 il récompensait le tir de
+base.
+
+**Deux mesures ont dû être refaites, et le harnais n'était en cause que pour
+une.**
+
+- *« Secondes sous 25 % de PV »* rendait **0 partout** : le harnais remettait les
+  PV au maximum à chaque image pour que la manche aille au bout, donc le compteur
+  ne pouvait structurellement pas monter. Refait en **relevant** le joueur à
+  terre sans le soigner : médiane 36 s.
+- *« Kills par explosion »* rendait **0 partout aussi**, et là c'était le jeu : la
+  bombe du Tireur résout son souffle **elle-même**, sans passer par `_explode`,
+  donc le drapeau de cause ne la voyait pas. Deux points de passage, pas un —
+  corrigé, la médiane passe de 0 à **823 par manche**.
+
+**Une mesure reste polluée par le pilote, et son seuil est conservé tel quel :**
+« 90 s cumulées sans se déplacer » (*Sur le terrain*). Le pilote rend une entrée
+nulle dès qu'il n'a pas de but, donc il mesure **848 s** d'immobilité sur une
+manche de 1 800 s. Un humain de survivor ne s'arrête jamais aussi longtemps. Un
+taux d'utilisation est la mesure du pilote, pas du jeu.
+
+**Rythme de déblocage, mesuré :** six manches d'affilée avec le pilote, une
+classe et une difficulté différentes à chaque fois, donnent **19 hauts faits sur
+36** — dont tout ce qui se gagne en jouant, et trois cadres (*Dépouillé*,
+*Foudroyant*, *Insomniaque*). Les dix-sept qui restent demandent soit un cumul,
+soit un défi que le pilote ne sait pas viser.
+
+**Non-régression de la migration, 209 profils v6 :** on rejoue les tables de la
+v6 pour savoir ce que chaque profil avait ouvert, on migre, on revérifie.
+**2 371 déblocages testés, zéro perdu.**
+
 ## Réglages
 
 Tout est en haut de `shared/game_state.js`.

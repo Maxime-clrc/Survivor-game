@@ -1,11 +1,14 @@
 
 import { nombre, t, tf } from "./i18n.js";
-import { CARDS, CARD_CFG, RARITY } from "./cards.js";
+import { CARD_BY_ID, CARD_CFG } from "./cards.js";
 import { SKILL_CFG } from "./classes.js";
-import { BOSS_ROSTER, bossNom } from "./bosses.js";
+import {
+  CADRE_DEFAUT, HAUTS_FAITS, HF_BY_ID, TOUTES_RECOMPENSES,
+  evaluerHautsFaits, hfNom, hfTexte, recompensesDe,
+} from "./hauts_faits.js";
 
 export const PROG_CFG = {
-  VERSION: 6,
+  VERSION: 7,
 
   SLOTS_BASE: 3,
   SLOTS_MAX: 6,
@@ -123,7 +126,6 @@ export const confortDesc = id => {
   return c ? t(`confort.${id}.desc`, c.desc) : "";
 };
 export const ligneNom = l => t(`prog.${l.id}.nom`, l.nom);
-export const jalonLabel = m => t(`jalon.${m.id}`, m.label);
 
 export const CONFORT = [
   { id: "relance", nom: "Relance",
@@ -200,50 +202,63 @@ export function tierCost(currentTier, lineId = null) {
   return table[currentTier] ?? Infinity;
 }
 
-const armes = CARDS
-  .filter(c => c.remplaceArme && !c.fallback)
-  .map(c => c.id);
-const legendaires = CARDS
-  .filter(c => c.rarity === RARITY.LEGENDAIRE && !c.fallback && !c.remplaceArme)
-  .map(c => c.id);
-const conditionnelles = CARDS
-  .filter(c => c.applyAfter && c.rarity !== RARITY.LEGENDAIRE && !c.remplaceArme)
-  .map(c => c.id);
+export { HAUTS_FAITS, HF_BY_ID, evaluerHautsFaits, hfNom, hfTexte };
 
-const LEGENDARY_SPLIT = 5;
-const legendairesDuBoss = i => legendaires.filter((_, k) => k % LEGENDARY_SPLIT === i);
+/* UNE CARTE EST VERROUILLEE SI ET SEULEMENT SI UN HAUT FAIT LA DONNE. La liste
+   des verrous se DEDUIT de la table des recompenses au lieu d'etre tenue a cote,
+   et une recompense nommee ne bouge plus quand `CARDS` grandit — c'est ce que
+   `armes.filter((_, k) => k % 2 === 0)` ne pouvait pas promettre.
+   Une arme que le depot ne connait pas encore (`laser`, `tesla`…) traverse sans
+   rien verrouiller : le lot des hauts faits precede celui des armes. */
+const VERROUILLABLES = new Set(
+  [...TOUTES_RECOMPENSES.cartes].filter(id => CARD_BY_ID.has(id)));
+const RELIQUES_VERROUILLABLES = TOUTES_RECOMPENSES.reliques;
+const LIGNES_VERROUILLABLES = TOUTES_RECOMPENSES.lignes;
 
-/* `label` est une FONCTION : « vaincre Ravageur » compose le nom du boss, qui se
-   traduit lui aussi, au lieu de le recopier dans le libelle. */
-export const MILESTONES = [
-  { id: "niveau10",
-    label: () => t("jalon.niveau10", "atteindre le niveau 10"),
-    unlocks: conditionnelles },
-  ...BOSS_ROSTER.map((b, i) => ({
-    id: `boss_${i}`,
-    label: () => tf("jalon.boss", "vaincre {nom}", { nom: bossNom(i) }),
-    unlocks: i < LEGENDARY_SPLIT ? legendairesDuBoss(i) : armes,
-  })),
-  { id: "sans_chute",
-    label: () => tf("jalon.sans_chute",
-      "terminer une manche (niveau {n}+) sans être mis à terre",
-      { n: PROG_CFG.NO_DOWN_MIN_LEVEL }),
-    unlocks: armes.filter((_, k) => k % 2 === 0) },
-  { id: "kills500",
-    label: () => tf("jalon.kills500", "tuer {n} ennemis avec une même classe",
-      { n: PROG_CFG.KILLS_MILESTONE }),
-    unlocks: armes.filter((_, k) => k % 2 === 1) },
-];
+const hfDe = profil => Array.isArray(profil) ? profil : (profil?.hf ?? []);
 
-const MILESTONE_BY_ID = new Map(MILESTONES.map(m => [m.id, m]));
-
-export function lockedCards(milestonesDone = []) {
-  const locked = new Set([...legendaires, ...armes, ...conditionnelles]);
-  for (const id of milestonesDone) {
-    const m = MILESTONE_BY_ID.get(id);
-    if (m) for (const cardId of m.unlocks) locked.delete(cardId);
-  }
+/* `debloquees` est le GRAND-PERE : la migration y a range, carte par carte, ce
+   qu'un compte avait deja ouvert sous l'ancien systeme. On ne retire jamais un
+   deblocage acquis, et cette garantie ne depend d'aucune correspondance
+   jalon -> haut fait qu'il faudrait maintenir. */
+export function lockedCards(profil = null) {
+  const locked = new Set(VERROUILLABLES);
+  const { cartes } = recompensesDe(hfDe(profil));
+  for (const id of cartes) locked.delete(id);
+  for (const id of profil?.debloquees ?? []) locked.delete(id);
   return locked;
+}
+
+export function lockedRelics(profil = null) {
+  const locked = new Set(RELIQUES_VERROUILLABLES);
+  const { reliques } = recompensesDe(hfDe(profil));
+  for (const id of reliques) locked.delete(id);
+  for (const id of profil?.debloquees ?? []) locked.delete(id);
+  return locked;
+}
+
+/* Une ligne s'OUVRE, elle ne se donne pas : elle coute toujours des noyaux. */
+export function lignesVerrouillees(profil = null) {
+  const locked = new Set(LIGNES_VERROUILLABLES);
+  const { lignes } = recompensesDe(hfDe(profil));
+  for (const id of lignes) locked.delete(id);
+  return locked;
+}
+
+export function ligneOuverte(profil, ligne) {
+  return !lignesVerrouillees(profil).has(ligne.famille ?? "");
+}
+
+export function cadresDe(profil) {
+  const { cadres } = recompensesDe(hfDe(profil));
+  cadres.add(CADRE_DEFAUT);
+  for (const id of profil?.cadres ?? []) cadres.add(id);
+  return cadres;
+}
+
+export function cadreActifDe(profil) {
+  const id = profil?.cadreActif ?? CADRE_DEFAUT;
+  return cadresDe(profil).has(id) ? id : CADRE_DEFAUT;
 }
 
 export function coresForRun(level, bossKills, diffIndex) {
@@ -270,7 +285,83 @@ export function newProfile(pseudo) {
     confort: [],
     bannedCards: [],
     bestFinal: {},
+    hf: [],
+    debloquees: [],
+    cadres: [CADRE_DEFAUT],
+    cadreActif: CADRE_DEFAUT,
+    stats: statsVierges(),
   };
+}
+
+/* Les cumuls de PROFIL, ceux qu'une seule manche ne peut pas porter. Ils sont
+   personnels comme les compteurs de manche : un compteur d'equipe serait atteint
+   quatre fois plus vite a quatre joueurs. */
+export function statsVierges() {
+  return {
+    bossTotal: 0, bossKinds: [], bossKindsDur: [],
+    killsNear: 0, killsFar: 0, killsBlast: 0,
+    harvests: 0, revives: 0, relicsBought: 0, skillUses: 0,
+    classes: [],
+  };
+}
+
+/* DEUX FONCTIONS, ET ELLES NE FONT PAS LA MEME CHOSE. `vueStats` FUSIONNE sans
+   rien ecrire : c'est ce que lit l'evaluation, en cours de manche comme a la
+   fin, et c'est pour ca qu'un premier boss donne son bandeau tout de suite au
+   lieu d'attendre le bilan. `cumulerStats` REPLIE la manche dans le profil, et
+   n'est appelee qu'une fois, apres l'evaluation finale — les appeler dans
+   l'autre ordre compterait la manche deux fois. */
+export function vueStats(profil, run = {}) {
+  const s = profil?.stats ?? statsVierges();
+  const kinds = new Set(s.bossKinds ?? []);
+  const durs = new Set(s.bossKindsDur ?? []);
+  let total = s.bossTotal | 0;
+  for (const k of run.bossKindsRun ?? []) {
+    if (!kinds.has(k)) total++;
+    kinds.add(k);
+    if ((run.diff | 0) >= 2) durs.add(k);
+  }
+  const classes = new Set(s.classes ?? []);
+  if (run.clsId) classes.add(run.clsId);
+  return {
+    ...run,
+    bossTotal: total,
+    bossKinds: kinds.size,
+    bossKindsDur: durs.size,
+    killsNear: (s.killsNear | 0) + (run.killsNearRun | 0),
+    killsFar: (s.killsFar | 0) + (run.killsFarRun | 0),
+    killsBlast: (s.killsBlast | 0) + (run.killsBlastRun | 0),
+    harvests: (s.harvests | 0) + (run.harvestsRun | 0),
+    revives: (s.revives | 0) + (run.revivesRun | 0),
+    relicsBought: (s.relicsBought | 0) + (run.relicsRun | 0),
+    skillUses: (s.skillUses | 0) + (run.skillUsesRun | 0),
+    classes: classes.size,
+  };
+}
+
+export function cumulerStats(profil, run) {
+  if (!profil.stats) profil.stats = statsVierges();
+  const s = profil.stats;
+  const vue = vueStats(profil, run);
+  s.killsNear = vue.killsNear;
+  s.killsFar = vue.killsFar;
+  s.killsBlast = vue.killsBlast;
+  s.harvests = vue.harvests;
+  s.revives = vue.revives;
+  s.relicsBought = vue.relicsBought;
+  s.skillUses = vue.skillUses;
+  s.bossTotal = vue.bossTotal;
+  const kinds = new Set(s.bossKinds ?? []);
+  const durs = new Set(s.bossKindsDur ?? []);
+  for (const k of run.bossKindsRun ?? []) {
+    kinds.add(k);
+    if ((run.diff | 0) >= 2) durs.add(k);
+  }
+  s.bossKinds = [...kinds];
+  s.bossKindsDur = [...durs];
+  const classes = new Set(s.classes ?? []);
+  if (run.clsId) classes.add(run.clsId);
+  s.classes = [...classes];
 }
 
 export function recordFinal(profile, run, dateISO) {

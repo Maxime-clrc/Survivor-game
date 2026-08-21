@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 
 import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
-import { PROG_CFG, TREES, COMMUN, slotsFor, tierCost, coresForRun, coresPartial, recordFinal } from "./shared/progression.js";
+import { PROG_CFG, TREES, COMMUN, slotsFor, tierCost, coresForRun, coresPartial, recordFinal,
+  cadreActifDe, cadresDe, cumulerStats, evaluerHautsFaits, ligneOuverte, vueStats } from "./shared/progression.js";
+import { CADRE_DEFAUT, recompensesDe } from "./shared/hauts_faits.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { VERSION } from "./shared/version.js";
 import { Trace, nomTrace } from "./telemetry.js";
@@ -58,11 +60,47 @@ export function createHub(store, log, commit = "") {
       bannedCards: pr.bannedCards ?? [],
       pseudo: pr.pseudo ?? "",
       gained: c.lastGain ?? 0,
+      hf: pr.hf ?? [],
+      stats: pr.stats ?? {},
+      cadres: [...cadresDe(pr)],
+      cadreActif: cadreActifDe(pr),
     };
   }
+
+  /* LES HAUTS FAITS OUVRENT DES PORTES : le hub decide, parce qu'il est le seul
+     ecrivain du magasin et le seul a connaitre les profils. La salle ne fait
+     qu'emettre — a la mort d'un boss et a la fin de la manche. */
+  function evaluerPour(c, room, finie) {
+    const p = room.state.players.get(c.id);
+    if (!p || !c.profile) return [];
+    const run = room.state.hfStatsDeManche(p, { finie });
+    const gagnes = evaluerHautsFaits(c.profile.hf, vueStats(c.profile, run));
+    if (gagnes.length === 0) return [];
+    c.profile.hf = [...(c.profile.hf ?? []), ...gagnes];
+    const { cadres } = recompensesDe(gagnes);
+    if (cadres.size) {
+      const avoir = new Set(c.profile.cadres ?? [CADRE_DEFAUT]);
+      for (const id of cadres) avoir.add(id);
+      c.profile.cadres = [...avoir];
+    }
+    persist(c);
+    return gagnes;
+  }
+
+  function hautsFaits(room) {
+    for (const c of room.joined()) {
+      const gagnes = evaluerPour(c, room, false);
+      if (gagnes.length === 0) continue;
+      c.conn.send(JSON.stringify({ t: "hautFait", ids: gagnes }));
+      room.broadcastSauf(c.id, { t: "hautFaitAllie", qui: c.name, ids: gagnes });
+    }
+  }
   function sendProgress(c) {
-    c.conn.send(JSON.stringify(progressPayload(c)));
+    const payload = progressPayload(c);
+    if (c.lastHf?.length) payload.gagnes = c.lastHf;
+    c.conn.send(JSON.stringify(payload));
     c.lastGain = 0;
+    c.lastHf = null;
   }
 
   function awardRun(room) {
@@ -95,6 +133,22 @@ export function createHub(store, log, commit = "") {
           && Object.values(pr.kills).some(k => k >= PROG_CFG.KILLS_MILESTONE)) {
         pr.milestones.push("kills500");
       }
+
+      // l'ordre compte : on EVALUE la manche, puis on la REPLIE dans les cumuls.
+      // L'inverse la compterait deux fois.
+      const run = state.hfStatsDeManche(p, { finie: true });
+      const gagnes = evaluerHautsFaits(pr.hf, vueStats(pr, run));
+      if (gagnes.length) {
+        pr.hf = [...(pr.hf ?? []), ...gagnes];
+        const { cadres } = recompensesDe(gagnes);
+        if (cadres.size) {
+          const avoir = new Set(pr.cadres ?? [CADRE_DEFAUT]);
+          for (const id of cadres) avoir.add(id);
+          pr.cadres = [...avoir];
+        }
+      }
+      cumulerStats(pr, run);
+      c.lastHf = gagnes;
 
       pr.cores += gain;
       pr.runs += 1;
@@ -134,6 +188,14 @@ export function createHub(store, log, commit = "") {
     return par.map(l => l.slice(0, limit));
   }
 
+  function equiperCadre(c, id) {
+    if (!c.profile) return false;
+    if (!cadresDe(c.profile).has(id)) return false;
+    c.profile.cadreActif = id;
+    persist(c);
+    return true;
+  }
+
   function awardPartial(c, room) {
     if (room.phase === PHASE_LOBBY || !c.profile || !room.state.players.has(c.id)) return;
     c.profile.cores += coresPartial(room.state.level, room.state.diffIndex);
@@ -169,6 +231,7 @@ export function createHub(store, log, commit = "") {
     occupancy: () => broadcastRooms(),
     awardRun,
     awardPartial,
+    hautsFaits,
     sendProgress,
     persist,
     trace,
@@ -310,6 +373,7 @@ export function createHub(store, log, commit = "") {
       case "metaCommun": {
         const line = COMMUN.find(l => l.id === msg.line);
         if (!line) break;
+        if (!ligneOuverte(client.profile, line)) break;
         const pr = client.profile;
         pr.commun ??= {};
         const cur = pr.commun[line.id] | 0;
@@ -331,6 +395,15 @@ export function createHub(store, log, commit = "") {
         if (lines.length > slotsFor(client.profile)) break;
         cp.equipped = lines;
         persist(client);
+        sendProgress(client);
+        break;
+      }
+
+      // un cadre ne change rien : il n'a ni cout, ni verrou d'etat de manche —
+      // seule la possession compte, et `equiperCadre` la verifie
+      case "metaCadre": {
+        if (typeof msg.id !== "string") break;
+        if (!equiperCadre(client, msg.id)) break;
         sendProgress(client);
         break;
       }
@@ -446,6 +519,7 @@ export function createHub(store, log, commit = "") {
         case "metaBuy":
         case "metaCommun":
         case "metaEquip":
+        case "metaCadre":
         case "metaConfort":
           if (metaAllowed(client)) handleMeta(client, msg);
           return;

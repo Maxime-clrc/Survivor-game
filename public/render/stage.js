@@ -4,6 +4,7 @@ import { bombRange } from "/shared/classes.js";
 import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome } from "/shared/game_state.js";
 import { ENEMY, cssVars, decorAt, teinter } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
+import { CADRE_BY_ID } from "/shared/hauts_faits.js";
 import { reuploadAtlas } from "/sprites.js";
 import { PERF, latest, lobby, myId, predicted } from "../core/state.js";
 import { cv, cvGl, cvUnder } from "../ui/dom.js";
@@ -178,6 +179,11 @@ export function ownerColorOf(id) {
 }
 export function nameOf(id) {
   return lobby.find(l => l.id === id)?.name ?? "?";
+}
+/* Le cadre voyage avec le salon : la plaque n'ouvre aucune clef d'instantane. */
+export function cadreOf(id) {
+  const c = lobby.find(l => l.id === id)?.cadre;
+  return c && c !== "defaut" ? (CADRE_BY_ID.get(c)?.trait ?? null) : null;
 }
 export const GRID_FINE = 5 * PX_PER_M;
 export const GRID_MAJOR = 20 * PX_PER_M;

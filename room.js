@@ -7,7 +7,7 @@ import { VERSION } from "./shared/version.js";
 import { segmentName } from "./shared/timeline.js";
 import { RELIC_CFG } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
-import { lockedCards } from "./shared/progression.js";
+import { cadreActifDe, lockedCards, lockedRelics } from "./shared/progression.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 
@@ -51,6 +51,7 @@ export class Room {
     this.name = name;
     this.pass = pass;
     this.hooks = hooks;
+    this.bossVus = 0;
 
     this.clients = new Map();
     this.knownMembers = new Set();
@@ -333,6 +334,16 @@ export class Room {
     for (const c of this.clients.values()) c.conn.sendPrepared(prep);
   }
 
+  /* En cooperatif, seuls TES hauts faits produisent un bandeau : ceux des allies
+     passent en une ligne dans le fil. D'ou la diffusion a tout le monde SAUF au
+     porteur, qui recoit deja le sien. */
+  broadcastSauf(id, obj) {
+    const prep = prepareMessage(JSON.stringify(obj));
+    for (const c of this.clients.values()) {
+      if (c.id !== id) c.conn.sendPrepared(prep);
+    }
+  }
+
   perfReport() {
     if (!PERF_ON || this.phase !== PHASE_ROUND) return;
     const p = this.perf;
@@ -584,6 +595,7 @@ export class Room {
         cls: c.cls,
         clsLocked: c.clsLocked,
         ready: c.ready ? 1 : 0,
+        cadre: cadreActifDe(c.profile),
         ping: c.conn.rtt != null ? Math.round(c.conn.rtt) : -1,
       })),
     };
@@ -612,6 +624,7 @@ export class Room {
         id: c.id,
         name: c.name,
         colorIndex: c.colorIndex,
+        cadre: cadreActifDe(c.profile),
         played: !!p,
         cls: p ? p.cls : c.cls,
         level: p ? this.state.level : 1,
@@ -773,10 +786,11 @@ export class Room {
             quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
           },
           locked: (() => {
-            const locked = lockedCards(c.profile.milestones);
+            const locked = lockedCards(c.profile);
             for (const bid of c.profile.bannedCards ?? []) locked.add(bid);
             return locked;
           })(),
+          lockedRelics: lockedRelics(c.profile),
         };
       }
       c.rerollLeft = rerollsFor(c.profile);
@@ -786,6 +800,7 @@ export class Room {
       c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
     }
     this.state.warmup = WARMUP_S;
+    this.bossVus = 0;
     this.briefOpen = true;
     this.phase = PHASE_ROUND;
     this.acc = -this.staggerFrac * CFG.TICK;
@@ -1098,6 +1113,10 @@ export class Room {
         this.state.alerts.length = 0;
       }
       this.traceTick(dt);
+      if (this.state.bossKills !== this.bossVus) {
+        this.bossVus = this.state.bossKills;
+        this.hooks.hautsFaits(this);
+      }
       if (this.briefOpen && this.state.warmup <= 0) this.syncBrief();
       if (this.state.victory) this.endRound();
       else if (this.state.gameOver) this.endRound();

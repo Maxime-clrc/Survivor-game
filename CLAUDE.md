@@ -72,6 +72,7 @@ shared/bosses.js       roster des 5 boss + le final, registre des mecaniques
 shared/enemies.js      LE BESTIAIRE — 9 types, 6 traits, attachement, adaptType
 shared/reliques.js     le catalogue des reliques
 shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
+shared/hauts_faits.js  LES HAUTS FAITS : 36 exigences, 13 cadres, recompenses NOMMEES
 shared/timeline.js     LE SCRIPT — six segments, trente beats, TROIS variantes, les EVENEMENTS
 shared/biomes.js       LE LIEU — trois biomes, cinq dangers, trois meteos, generateur DETERMINISTE
 shared/units.js        pixels -> metres, SEUL point de conversion d'affichage
@@ -351,6 +352,10 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_bulletHitEnemy()` | une balle qui touche — appelé par la boucle de collision **et** le balayage à l'apparition |
 | `_groundZone()` | toute zone posée par la horde, plafond global `trailMax()` |
 | `_summonMul(p)` | **toute** source de dégâts qui n'est pas le tir : lame orbitale, essaim, drone, tourelle, pulsar, onde de mort |
+| `hfStatsDeManche(p)` | ce qu'une manche produit pour un joueur, dans la forme qu'attend l'évaluation |
+| `vueStats` / `cumulerStats` | la FUSION (lecture) et le REPLI (écriture) des cumuls de profil — les inverser compte la manche deux fois |
+| `evaluerHautsFaits()` | l'obtention d'un haut fait, en cours de manche comme à la fin |
+| `_causeBlast` | ce qui compte comme « tué par explosion » : `_explode` **et** `_bombBlast`, qui résout son souffle lui-même |
 | `_windupSature()` / `_windupCompte()` | budget de préavis de ruée, par vue |
 | `_wave(x, y, r, dmg, owner)` | l'onde blanche des cartes (l'horloge de manche s'appelle `_segmentTick(dt)` — deux méthodes de même nom s'écrasent en silence) |
 | `_spawnPoint(geom, r)` / `_pushOffScreen` / `_edgePoint` | apparition et repoussage hors vue |
@@ -832,6 +837,47 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **`verifierCartes()` (`game_state.js`) est le critère rejouable du catalogue**,
   et il appelle `verifierCatalogue()` (`cards.js`) pour la structure de la table
   — axes en doublon, paliers vides, forme du pool, chaînes de prérequis.
+
+### Hauts faits
+
+- **UN HAUT FAIT OUVRE UNE PORTE, IL NE DONNE PAS DE PUISSANCE.** Les noyaux sont
+  une courbe, les hauts faits sont des marches ; une puissance qui arrive par
+  marches crée des falaises. Une arme débloquée doit encore être choisie et
+  jouée, une ligne coûte toujours des noyaux, un cadre ne change rien.
+- **TOUTE RÉCOMPENSE EST NOMMÉE** (`reward: { type, ids }`, cinq types : `arme`,
+  `carte`, `ligne`, `relique`, `cadre`). Un déblocage indexé sur une **position
+  de tableau** se casse dès qu'on ajoute un élément : c'est ce qui reverrouillait
+  des cartes chez tous les comptes existants. Une récompense qui nomme une arme
+  **que le dépôt ne connaît pas encore** traverse sans rien verrouiller.
+- **UNE CARTE, UNE RELIQUE OU UNE LIGNE EST VERROUILLÉE SI ET SEULEMENT SI UN
+  HAUT FAIT LA DONNE.** La liste des verrous se **déduit** de la table des
+  récompenses (`TOUTES_RECOMPENSES`), elle ne se tient pas à côté.
+- **Les armes vivent en simple et intermédiaire, jamais en défi** ; **les cadres
+  vivent en défi, jamais ailleurs.** `verifierHautsFaits()` est le critère
+  rejouable, et il vérifie les deux.
+- **TOUS LES COMPTEURS SONT PERSONNELS** (`p.hf`), jamais l'état de manche : un
+  compteur d'équipe serait atteint quatre fois plus vite à quatre joueurs.
+  Le pendant est connu : la horde suit `joueurs^0,75`, donc un seuil brut est
+  ~30 % plus dur en groupe — **d'où la préférence pour un RYTHME** (fenêtre
+  glissante d'une case par seconde) plutôt qu'un total brut.
+- **Un seuil « en une manche » vise 1,3 fois la médiane mesurée** ; un **cumul**
+  se lit en **nombre de manches**. Les seuils du plan étaient des paris : ils ont
+  tous été remesurés (LISEZMOI.md).
+- **ON NE RETIRE JAMAIS UN DÉBLOCAGE ACQUIS.** La garantie ne passe pas par une
+  correspondance jalon → haut fait : la migration relève **carte par carte** ce
+  qu'un compte avait ouvert et le range dans `profile.debloquees`, qui le suit
+  pour toujours. Une migration **décrit le passé** — ses tables sont figées et ne
+  suivent pas `CARDS`.
+- **`profile.milestones` reste le journal des événements de progression**
+  (emplacements de cartes) ; **`profile.hf` est la liste des hauts faits**. Deux
+  listes, deux rôles, aucune conversion à tenir.
+- **Le bandeau attend la fin du combat et ne recouvre jamais un écran de cartes**
+  — la décision du joueur ne se recouvre pas. Une à la fois, les autres en file.
+  **En coopératif, seuls tes hauts faits produisent un bandeau** ; ceux des
+  alliés passent en une ligne d'info.
+- **Le cadre ne coûte rien au réseau** : il voyage avec le salon et le bilan,
+  comme la couleur, et n'ouvre aucune clé d'instantané. Autour d'un nom, c'est un
+  **soulignement**, jamais une boîte.
 - **Une invocation ne s'indexe pas sur `damageMul`, elle s'indexe sur l'indice de
   puissance ENTIER**, à exposant réduit (`CARD_CFG.SUMMON_SCALE`) : le tir gagne
   aussi la cadence, les dégâts bruts et le critique, donc une source qui ne lit

@@ -16,7 +16,7 @@ import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, 
 import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { blastMarks, bursts, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
-import { arenaEl, readMove } from "../ui/dom.js";
+import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";
 
 export function resetFeedback() {
   pump.reset();
@@ -223,6 +223,9 @@ function drawScreen(v) {
   const st = PERF ? audioStats() : null;
   updateHud(v, {
     now, myId, lobby, ping, difficulty, amSpectator,
+    // le bandeau ne recouvre jamais une decision : il attend que l'ecran de
+    // cartes ou le marchand se referme
+    ecranOuvert: !cardsEl.hidden || !merchantEl.hidden,
     biomeNom: biomeNom(biomeIndex),
     meteoNom: weather ? weatherNom(weather.id) : "",
     myColor: colorOf(myId),
