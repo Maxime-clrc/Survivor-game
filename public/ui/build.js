@@ -59,16 +59,16 @@ const BUILD_MODS = [
 const POWER_MARKS = [
   { v: 1.26, cle: "nu", lab: "nu" },
   { v: CFG.BOSS_POWER_REF, cle: "mediane", lab: "médiane" },
-  { v: 4.10, cle: "forte", lab: "forte" },
-  { v: 5.71, cle: "max", lab: "max" },
+  { v: 6.50, cle: "forte", lab: "forte" },
+  { v: 9.00, cle: "max", lab: "max" },
 ];
-const POWER_SCALE_MAX = 6.5;
+const POWER_SCALE_MAX = 10.5;
 const BOSS_MEDIAN_FIGHT = 70;
 function powerLabel(v) {
   if (v < 1.6) return t("ui.build.pw.faible", "faible");
   if (v < CFG.BOSS_POWER_REF) return t("ui.build.pw.sousMediane", "sous la médiane");
-  if (v < 3.7) return t("ui.build.pw.surMediane", "au-dessus de la médiane");
-  if (v < 4.5) return t("ui.build.pw.forte", "forte");
+  if (v < 6.5) return t("ui.build.pw.surMediane", "au-dessus de la médiane");
+  if (v < 9.0) return t("ui.build.pw.forte", "forte");
   return t("ui.build.pw.exceptionnelle", "exceptionnelle");
 }
 function powerBlockHtml(mods) {

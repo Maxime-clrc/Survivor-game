@@ -350,6 +350,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_killEnemy()` | **toute** mort d'ennemi : XP, explosion du kamikaze, cumuls |
 | `_bulletHitEnemy()` | une balle qui touche — appelé par la boucle de collision **et** le balayage à l'apparition |
 | `_groundZone()` | toute zone posée par la horde, plafond global `trailMax()` |
+| `_summonMul(p)` | **toute** source de dégâts qui n'est pas le tir : lame orbitale, essaim, drone, tourelle, pulsar, onde de mort |
 | `_windupSature()` / `_windupCompte()` | budget de préavis de ruée, par vue |
 | `_wave(x, y, r, dmg, owner)` | l'onde blanche des cartes (l'horloge de manche s'appelle `_segmentTick(dt)` — deux méthodes de même nom s'écrasent en silence) |
 | `_spawnPoint(geom, r)` / `_pushOffScreen` / `_edgePoint` | apparition et repoussage hors vue |
@@ -812,7 +813,29 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **Une famille de cartes occupe les quatre paliers de rareté, et le palier vaut
   la rareté** (`family`/`tier`). Trois règles indissociables : jamais deux paliers
   de la même famille dans un tirage, un palier supérieur possédé retire les
-  inférieurs, les paliers **se cumulent**.
+  inférieurs, les paliers **se cumulent**. **Douze familles**, 48 cartes.
+- **UN AXE EST UNE CLÉ DE `mods`, et deux cartes qui ne touchent QUE la même clé
+  — sans condition, sans classe, sans famille — sont le même effet écrit deux
+  fois.** La correction est de créer la famille, jamais de supprimer une carte :
+  les doublons deviennent des paliers et rien n'est perdu. On ne supprime que
+  lorsque les quatre paliers de la famille sont déjà pris.
+- **Un 4/4 porte la statistique de sa famille.** Le palier supérieur retire les
+  inférieurs du pool, donc une légendaire qui ferme une échelle sans en porter
+  l'axe se verrouille **hors de sa propre famille** et meurt à la prise. Seule
+  exception : une carte **sans `apply`** (Vœu partagé), qui réécrit une règle.
+- **Le pool compte au moins 1,5 commune par épique.** Une commune revue en
+  boucle et une épique jamais revue sont le même défaut, pris par les deux bouts.
+- **Les légendaires neuves s'ajoutent en QUEUE de `CARDS`** : `legendairesDuBoss`
+  (`progression.js`) partitionne par `k % LEGENDARY_SPLIT` sur l'**ordre** du
+  tableau, donc une insertion au milieu reverrouille des cartes déjà gagnées chez
+  tous les comptes existants.
+- **`verifierCartes()` (`game_state.js`) est le critère rejouable du catalogue**,
+  et il appelle `verifierCatalogue()` (`cards.js`) pour la structure de la table
+  — axes en doublon, paliers vides, forme du pool, chaînes de prérequis.
+- **Une invocation ne s'indexe pas sur `damageMul`, elle s'indexe sur l'indice de
+  puissance ENTIER**, à exposant réduit (`CARD_CFG.SUMMON_SCALE`) : le tir gagne
+  aussi la cadence, les dégâts bruts et le critique, donc une source qui ne lit
+  que le multiplicateur de dégâts **décroche**. Point de passage `_summonMul(p)`.
 - **Les légendaires sont garanties à des jalons et plafonnées**
   (`LEGENDARY_LEVELS`, `LEGENDARY_MAX`) ; le jalon se déclenche au premier écran
   ouvert **à partir du** niveau seuil. `legendaryLevelDone` vit dans `GameState`.

@@ -1721,6 +1721,69 @@ le coin bas gauche. Le budget est large : les deux parts mesurables du lot —
 diffusion et particules — consomment ensemble **0,016 ms** sur les 16,7 ms d'une
 image.
 
+### Refonte du catalogue (plan 11, lot 01)
+
+**Le catalogue n'avait jamais été étendu au-delà de cinq axes.** 139 cartes, 21
+dans une famille. Le relevé qui a tranché n'est pas une lecture : on applique
+chaque `apply(m, 1)` sur des mods vierges et on diffe les clés touchées. **Un axe
+est une clé de `mods`** ; deux cartes qui ne touchent QUE la même clé, sans
+condition, sans classe et sans famille, sont le même effet écrit deux fois. Ce
+relevé a trouvé un septième axe en doublon que la table du plan ne listait pas,
+`areaMul` (Expansion / Déflagration / Singularité) — d'où **sept** familles
+neuves et non six.
+
+**Forme du pool.** Avant : 28 communes, 48 rares, 44 épiques, 18 légendaires.
+Après : **44 / 49 / 28 / 23**, soit **1,57 commune par épique** (le critère était
+1,5). Dix-neuf épiques qui n'ajustaient qu'un nombre passent rares, dix-neuf
+rares passent communes. Deux d'entre elles ont dû revenir en arrière :
+`nasse` exige `filins` **ou** `etau`, et un prérequis commun n'est plus un filtre
+— c'est `verifierCartes()` qui l'a signalé, pas une relecture.
+
+**Ce que la refonte déplace, mesuré.** 36 manches semées (12 graines × 3 classes),
+solo, normal, jusqu'à la minute 26, tirages de cartes au hasard, même harnais des
+deux côtés. On relève `_playerPower()` en fin de manche :
+
+| | avant | après |
+|---|---|---|
+| niveau médian atteint | 24 | **30** |
+| p10 | 1,09 | **1,61** |
+| médiane | 3,07 | **3,54** |
+| p75 | 4,42 | **6,58** |
+| p90 | 7,65 | 8,93 |
+| maximum | 12,37 | 10,61 |
+
+**Le pool réformé monte le plancher et rabote la pointe.** C'est exactement ce
+qu'un rééquilibrage vers les communes doit faire : moins de manches où le tirage
+ne donne rien, moins de manches où il donne tout. Les repères de `POWER_MARKS`
+(`ui/build.js`) suivent : « forte » 4,10 → **6,50**, « max » 5,71 → **9,00**,
+échelle 6,5 → **10,5**. Le repère « nu » est remesuré **inchangé** à 1,26 — c'est
+le Tireur ; le Rempart est à 0,84 et le Soigneur à 0,89.
+
+**Les invocations décrochaient, et pas pour la raison écrite dans le plan.** Elles
+lisaient bien `damageMul` — ce qu'elles ne lisaient pas, c'est tout le reste :
+cadence, dégâts bruts, critique. Un relevé le montre sans ambiguïté : sur une
+build à `ballesLourdes` (beaucoup de dégâts, peu de cadence), l'ancien
+multiplicateur de lame atteignait **×4,46 pour un indice de puissance de 2,07** ;
+sur une build à cadence, **×2,46 pour un indice de 7,90**. Le multiplicateur ne
+suivait pas la puissance, il suivait une de ses composantes.
+
+`_summonMul(p)` lit donc `powerIndex` entier, à exposant `SUMMON_SCALE` = **0,6**.
+Mesure du critère (« une lame prise à la minute 5 fait encore plus de 15 % des
+dégâts à la minute 25 ») : 10 graines, tout le hasard semé, **bot au contact** —
+le pilote recule et le bot des lots A-H tient 260 px, or une lame porte à 3,7 m,
+donc ni l'un ni l'autre ne la laisse toucher quoi que ce soit. Un critère de
+portée de contact se mesure au contact.
+
+| | moyenne | médiane | minimum | au-dessus de 15 % |
+|---|---|---|---|---|
+| part des lames après la minute 25 | **40,0 %** | 52,2 % | 7,6 % | **9 / 10** |
+
+Le critère est tenu sur neuf graines sur dix. La dixième est une build dont le
+tir principal explose (indice 3,99 pour un multiplicateur de lame de 2,23) : la
+lame ne décroche pas, c'est le tir qui la dépasse — ce qui est le comportement
+voulu, l'exposant 0,6 étant précisément là pour qu'une invocation suive sans
+dominer.
+
 ## Réglages
 
 Tout est en haut de `shared/game_state.js`.

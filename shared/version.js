@@ -2108,6 +2108,59 @@
                    que personne ne le tient, et chaque jumeau porte un anneau a
                    la couleur de celui qui le tire
 
+     ---------------------------------------------------------------------------
+     plan11 — cartes, armes, hauts faits
+     ---------------------------------------------------------------------------
+
+     0.14.0 lot 01 LE CATALOGUE N'AVAIT JAMAIS ETE ETENDU AU-DELA DE CINQ AXES.
+                   139 cartes, 21 dans une famille : tout axe qui avait une
+                   famille etait propre, tout axe qui n'en avait pas etait en
+                   doublon. La correction n'est pas de supprimer, c'est de creer
+                   les familles — SEPT au lieu des six du plan, l'axe `areaMul`
+                   (expansion / deflagration / singularite) etant un doublon que
+                   la table du plan ne listait pas.
+                   recharge, portee, bouclier, critique, brulure, execution,
+                   souffle. Neuf cartes ecrites pour combler les paliers vides :
+                   Coup de grace, Canon de siege, Coque, Brasier, Dynamo,
+                   Horizon, Fournaise, Faucheuse, Cataclysme.
+                   « Ressort de detente » et « Rodage » DISPARAISSENT : doublons
+                   purs de « Culasse allegee » et de « Condensateur » a un point
+                   pres, et les quatre paliers de leur famille etaient pris.
+                   UN 4/4 QUI NE PORTE PAS LA STATISTIQUE DE SA FAMILLE SE
+                   VERROUILLE HORS DE SA PROPRE ECHELLE : le palier superieur
+                   retire les inferieurs du pool, donc « Pacte de fer » sans
+                   bouclier, « Sentence capitale » sans chance critique et
+                   « Vif-argent » sans vitesse devenaient des cartes mortes des
+                   qu'on les prenait. Les trois portent maintenant leur axe.
+                   LA FORME DU POOL ETAIT INVERSEE : 28 communes pour 44 epiques.
+                   19 epiques qui n'ajustaient qu'un nombre passent rares, 19
+                   rares passent communes — 44 / 49 / 28 / 23, soit 1,57 commune
+                   par epique. `filins` et `etau` restent rares : `nasse` les
+                   exige, et un prerequis commun n'est plus un filtre (c'est
+                   `verifierCartes()` qui l'a dit).
+                   LES INVOCATIONS DECROCHAIENT. Lame orbitale, essaim, drone,
+                   tourelle, pulsar et onde de mort s'indexaient sur le seul
+                   `damageMul`, alors que le tir gagne aussi la cadence, les
+                   degats bruts et le critique. Point de passage unique
+                   `_summonMul(p)` : l'indice de puissance ENTIER, a exposant
+                   `SUMMON_SCALE` = 0,6. Mesure (10 graines, bot au contact,
+                   « Orbiteurs » pris a la minute 5) : les lames font 40 % des
+                   degats en moyenne apres la minute 25, 9 graines sur 10
+                   au-dessus des 15 % du critere.
+                   `verifierCatalogue()` (cards.js) est le critere rejouable ;
+                   `verifierCartes()` (game_state.js) reste le point d'entree et
+                   l'appelle.
+                   REPERES DE PUISSANCE REMESURES (`POWER_MARKS`, ui/build.js) :
+                   36 manches semees, solo, trois classes. Le pool reforme monte
+                   le plancher et rabote la pointe — p10 1,09 -> 1,61, mediane
+                   3,07 -> 3,54, p75 4,42 -> 6,58, max 12,37 -> 10,61. « forte »
+                   passe de 4,10 a 6,50, « max » de 5,71 a 9,00, l'echelle de
+                   6,5 a 10,5.
+                   LES CINQ LEGENDAIRES NEUVES SONT EN QUEUE DE TABLE :
+                   `legendairesDuBoss` partitionne par `k % 5` sur l'ORDRE de
+                   `CARDS`, donc une insertion au milieu reverrouillerait des
+                   cartes deja gagnees chez tous les comptes
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2116,4 +2169,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.13.15";
+export const VERSION = "0.14.0";

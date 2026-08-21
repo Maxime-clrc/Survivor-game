@@ -27,10 +27,23 @@ export const CARD_CFG = {
   LEGENDARY_MAX: 2,
 
   BURN_TIME: 3,
+  BURN_SPREAD: 90,
+  BURN_SPREAD_MAX: 140,
   LIFESTEAL_CAP: 3,
 
   SHIELD_REGEN_DELAY: 6,
   SHIELD_REGEN_RAMP: 1.8,
+
+  DYNAMO_PER_KILL: 0.3,
+  EXEC_PER_BAR: 0.01,
+
+  /* Une invocation ne tire pas : elle ne touche ni la cadence, ni les degats
+     bruts, ni le critique. Indexee sur `damageMul` seul elle DECROCHE — le tir
+     principal fait x10 sur une manche, la lame reste a x3. Elle suit donc
+     l'indice de puissance ENTIER, a exposant reduit : elle progresse sans
+     dominer, et « Surcharge orbitale » redevient un bonus au lieu d'un
+     correctif obligatoire. */
+  SUMMON_SCALE: 0.6,
 
   COUNTER_CD: 3,
   COUNTER_RADIUS: 120,
@@ -261,6 +274,13 @@ export const FAMILY_LABEL = {
   survie: "survie",
   mobilite: "mobilité",
   soutien: "soutien",
+  recharge: "recharge",
+  portee: "portée",
+  bouclier: "bouclier",
+  critique: "critique",
+  brulure: "brûlure",
+  execution: "exécution",
+  souffle: "souffle",
 };
 export const familyLabel = id => t(`cardfam.${id}`, FAMILY_LABEL[id] ?? id);
 export const FAMILY_TIERS = 4;
@@ -309,12 +329,6 @@ const suffixe = (d, s) => ({ desc: d.desc + s, vals: d.vals });
 
 export const CARDS = [
   {
-    id: "ressort", nom: "Ressort de détente", rarity: 0, max: 5, tags: ["off", "cadence"],
-    desc: "−8 % d'intervalle de tir",
-    stack: n => pctCut(0.92, n),
-    apply(m, n) { m.fireIntervalMul *= Math.pow(0.92, n); },
-  },
-  {
     id: "blindage", nom: "Plaque de blindage", rarity: 0, max: 5, tags: ["def"],
     desc: "+20 PV max, soigne d'autant",
     stack: n => tf("cards.blindage.stack", "+{0} PV", { "0": 20 * n }),
@@ -328,6 +342,7 @@ export const CARDS = [
   },
   {
     id: "canonLong", nom: "Canon long", rarity: 0, max: 3, tags: ["off"],
+    family: "portee", tier: 0,
     desc: "+25 % de portée",
     stack: n => pctAdd(0.25, n),
     apply(m, n) { m.bulletLifeMul += 0.25 * n; },
@@ -389,18 +404,28 @@ export const CARDS = [
 
   {
     id: "precision", nom: "Précision", rarity: 0, max: 3, tags: ["off"],
+    family: "critique", tier: 0,
     desc: "+6 % de chance de coup critique",
     stack: n => pctAdd(0.06, n),
     apply(m, n) { m.critChance += 0.06 * n; },
   },
   {
+    id: "coup_de_grace", nom: "Coup de grâce", rarity: 0, max: 3, tags: ["off"],
+    family: "execution", tier: 0,
+    desc: "les ennemis sous 5 % de PV meurent instantanément",
+    stack: n => tf("cards.coup_de_grace.stack", "sous {0} %", { "0": num(5 + 2 * (n - 1)) }),
+    apply(m, n) { m.execThreshold = Math.max(m.execThreshold, 0.05 + 0.02 * (n - 1)); },
+  },
+  {
     id: "expansion", nom: "Expansion", rarity: 0, max: 4, tags: ["off"], cat: "zone",
+    family: "souffle", tier: 0,
     desc: "+8 % de rayon sur tes explosions, ondes et auras",
     stack: n => pctAdd(0.08, n),
     apply(m, n) { m.areaMul += 0.08 * n; },
   },
   {
     id: "condensateur", nom: "Condensateur", rarity: 0, max: 5, tags: ["def"],
+    family: "recharge", tier: 0,
     desc: "−7 % de recharge des compétences",
     stack: n => pctCut(0.93, n),
     apply(m, n) { m.skillCdMul *= Math.pow(0.93, n); },
@@ -418,16 +443,11 @@ export const CARDS = [
     apply(m, n) { m.damageMul += 0.05 * n; m.maxHpRatio += 0.05 * n; },
   },
   {
-    id: "rodage", nom: "Rodage", rarity: 0, max: 5, tags: ["def"],
-    desc: "−5 % de recharge des compétences et +5 % de vitesse",
-    stack: n => tf("cards.rodage.stack", "{0} de recharge, {1} de vitesse", { "0": pctCut(0.95, n), "1": pctAdd(0.05, n) }),
-    apply(m, n) { m.skillCdMul *= Math.pow(0.95, n); m.speedMul += 0.05 * n; },
-  },
-  {
-    id: "chargeur_long", nom: "Chargeur long", rarity: 0, max: 4, tags: ["off"],
-    desc: "+10 % de portée et +8 % de vitesse des balles",
-    stack: n => tf("cards.chargeur_long.stack", "{0} de portée, {1} de vitesse", { "0": pctAdd(0.10, n), "1": pctAdd(0.08, n) }),
-    apply(m, n) { m.bulletLifeMul += 0.10 * n; m.bulletSpeedMul += 0.08 * n; },
+    id: "chargeur_long", nom: "Chargeur long", rarity: 1, max: 4, tags: ["off"],
+    family: "portee", tier: 1,
+    desc: "+45 % de portée et +10 % de vitesse des balles",
+    stack: n => tf("cards.chargeur_long.stack", "{0} de portée, {1} de vitesse", { "0": pctAdd(0.45, n), "1": pctAdd(0.10, n) }),
+    apply(m, n) { m.bulletLifeMul += 0.45 * n; m.bulletSpeedMul += 0.10 * n; },
   },
   {
     id: "ferraille", nom: "Ferraille", rarity: 0, max: 4, tags: ["def", "util"],
@@ -438,12 +458,14 @@ export const CARDS = [
 
   {
     id: "reserve", nom: "Réserve", rarity: 0, max: 4, tags: ["def"],
+    family: "bouclier", tier: 0,
     desc: "12 points de bouclier, se recharge après 6 s sans dégât subi",
     stack: n => tf("cards.reserve.stack", "{0} points", { "0": 12 * n }),
     apply(m, n) { m.shieldPool += 12 * n; },
   },
   {
     id: "braises", nom: "Braises", rarity: 0, max: 3, tags: ["off"],
+    family: "brulure", tier: 0,
     desc: "brûlure : 3 dégâts sur 3 s",
     stack: n => tf("cards.braises.stack", "{0} dégâts", { "0": 3 * n }),
     apply(m, n) { m.burnDmg += 3 * n; },
@@ -485,7 +507,7 @@ export const CARDS = [
   },
 
   {
-    id: "perforation", nom: "Perforation", rarity: 1, max: 2, tags: ["off"],
+    id: "perforation", nom: "Perforation", rarity: 0, max: 2, tags: ["off"],
     incompatible: ["railgun"],
     desc: "les balles traversent 1 ennemi de plus",
     stack: n => tn("cards.perforation.stack", "{n} ennemi de plus", "{n} ennemis de plus", n),
@@ -499,18 +521,20 @@ export const CARDS = [
   },
   {
     id: "bouclierRegen", nom: "Bouclier régénérant", rarity: 1, max: 3, tags: ["def"],
+    family: "bouclier", tier: 1,
     desc: "30 points de bouclier, se recharge après 6 s sans dégât subi",
     stack: n => tf("cards.bouclierRegen.stack", "{0} points", { "0": 30 * n }),
     apply(m, n) { m.shieldPool += 30 * n; },
   },
   {
-    id: "vampirisme", nom: "Vampirisme", rarity: 1, max: 3, tags: ["def"],
+    id: "vampirisme", nom: "Vampirisme", rarity: 0, max: 3, tags: ["def"],
     desc: "2 % des dégâts infligés rendus en PV (max 3 PV/s)",
     stack: n => tf("cards.vampirisme.stack", "{0} %", { "0": num(2 * n) }),
     apply(m, n) { m.lifesteal += 0.02 * n; },
   },
   {
     id: "incendiaire", nom: "Munitions incendiaires", rarity: 1, max: 2, tags: ["off"],
+    family: "brulure", tier: 1,
     desc: "brûlure : 8 dégâts sur 3 s",
     stack: n => tf("cards.incendiaire.stack", "{0} dégâts", { "0": 8 * n }),
     apply(m, n) { m.burnDmg += 8 * n; },
@@ -533,7 +557,7 @@ export const CARDS = [
     apply(m) { m.reviveRadiusMul += 0.6; m.reviveHpRatio = Math.max(m.reviveHpRatio, 0.7); m.maxHpBonus += 10; },
   },
   {
-    id: "contreAttaque", nom: "Contre-attaque", rarity: 1, max: 2, tags: ["def"], cat: "zone",
+    id: "contreAttaque", nom: "Contre-attaque", rarity: 0, max: 2, tags: ["def"], cat: "zone",
     desc: "encaisser déclenche une nova de 60 dégâts sur {0} (recharge 3 s)",
     vals: () => ({ "0": fmtM(CARD_CFG.COUNTER_RADIUS) }),
     stack: n => tf("cards.contreAttaque.stack", "{0} dégâts", { "0": 60 * n }),
@@ -547,18 +571,18 @@ export const CARDS = [
     apply(m, n) { m.fireIntervalMul *= Math.pow(0.84, n); },
   },
   {
-    id: "ballesLourdes", nom: "Balles lourdes", rarity: 1, max: 2, tags: ["off"],
+    id: "ballesLourdes", nom: "Balles lourdes", rarity: 0, max: 2, tags: ["off"],
     desc: "+35 % de dégâts, −20 % de cadence",
     stack: n => tf("cards.ballesLourdes.stack", "{0} de dégâts, {1} d'intervalle", { "0": pctAdd(0.35, n), "1": pctUp(1.25, n) }),
     apply(m, n) { m.damageMul += 0.35 * n; m.fireIntervalMul *= Math.pow(1.25, n); },
   },
   {
-    id: "talon", nom: "Talon de fer", rarity: 1, max: 1, tags: ["def"],
+    id: "talon", nom: "Talon de fer", rarity: 0, max: 1, tags: ["def"],
     desc: "immunité aux zones pendant 1,5 s après en avoir subi une",
     apply(m) { m.zoneImmunity = CARD_CFG.ZONE_IMMUNITY; },
   },
   {
-    id: "antidote", nom: "Antidote", rarity: 1, max: 2, tags: ["def"],
+    id: "antidote", nom: "Antidote", rarity: 0, max: 2, tags: ["def"],
     desc: "les états durent 40 % moins longtemps sur soi",
     stack: n => pctCut(1 - CARD_CFG.ANTIDOTE_REDUCTION, n),
     apply(m, n) { m.statusTimeMul *= Math.pow(1 - CARD_CFG.ANTIDOTE_REDUCTION, n); },
@@ -572,12 +596,13 @@ export const CARDS = [
 
   {
     id: "mire", nom: "Mire", rarity: 1, max: 2, tags: ["off"],
+    family: "critique", tier: 1,
     desc: "+12 % de chance de coup critique",
     stack: n => pctAdd(0.12, n),
     apply(m, n) { m.critChance += 0.12 * n; },
   },
   {
-    id: "talon_faible", nom: "Talon faible", rarity: 1, max: 2, tags: ["off"],
+    id: "talon_faible", nom: "Talon faible", rarity: 0, max: 2, tags: ["off"],
     desc: "+40 % de dégâts critiques",
     stack: n => pctAdd(0.40, n),
     effective: (ctx, n) => tf("cards.talon_faible.eff",
@@ -586,44 +611,47 @@ export const CARDS = [
   },
   {
     id: "deflagration", nom: "Déflagration", rarity: 1, max: 3, tags: ["off"], cat: "zone",
+    family: "souffle", tier: 1,
     desc: "+20 % de rayon sur tes explosions, ondes et auras",
     stack: n => pctAdd(0.20, n),
     apply(m, n) { m.areaMul += 0.20 * n; },
   },
   {
     id: "surtension", nom: "Surtension", rarity: 1, max: 3, tags: ["def"],
+    family: "recharge", tier: 1,
     desc: "−15 % de recharge des compétences",
     stack: n => pctCut(0.85, n),
     apply(m, n) { m.skillCdMul *= Math.pow(0.85, n); },
   },
   {
     id: "achevement", nom: "Achèvement", rarity: 1, max: 2, tags: ["off"],
+    family: "execution", tier: 1,
     desc: "les ennemis sous 12 % de PV meurent instantanément",
     stack: n => tf("cards.achevement.stack", "sous {0} %", { "0": num(12 + 4 * (n - 1)) }),
     apply(m, n) { m.execThreshold = Math.max(m.execThreshold, 0.12 + 0.04 * (n - 1)); },
   },
   {
-    id: "meute", nom: "Meute", rarity: 1, max: 2, tags: ["off"],
+    id: "meute", nom: "Meute", rarity: 0, max: 2, tags: ["off"],
     desc: "+3 % de dégâts par ennemi à moins de {0}, jusqu'à +30 %",
     vals: () => ({ "0": fmtM(CARD_CFG.PACK_RADIUS) }),
     stack: n => tf("cards.meute.stack", "jusqu'à {0}", { "0": pctAdd(CARD_CFG.PACK_MAX, n) }),
     apply(m, n) { m.packStep += CARD_CFG.PACK_STEP * n; m.packMax += CARD_CFG.PACK_MAX * n; },
   },
   {
-    id: "carnage", nom: "Carnage", rarity: 1, max: 2, tags: ["off"],
+    id: "carnage", nom: "Carnage", rarity: 0, max: 2, tags: ["off"],
     desc: "chaque ennemi tué donne +1 % de dégâts pendant 4 s, jusqu'à 30 fois",
     stack: n => tf("cards.carnage.stack", "jusqu'à {0}", { "0": pctAdd(CARD_CFG.RAGE_STEP * CARD_CFG.RAGE_MAX, n) }),
     apply(m, n) { m.ragePerKill += CARD_CFG.RAGE_STEP * n; },
   },
   {
-    id: "adrenaline", nom: "Adrénaline", rarity: 1, max: 2, tags: ["off", "cadence"],
+    id: "adrenaline", nom: "Adrénaline", rarity: 0, max: 2, tags: ["off", "cadence"],
     desc: "+25 % de cadence sous 50 % de PV",
     stack: n => pctAdd(CARD_CFG.ADRENALINE_RATE, n),
     apply(m, n) { m.lowHpRate += CARD_CFG.ADRENALINE_RATE * n; },
   },
 
   {
-    id: "symbiose", nom: "Symbiose", rarity: 1, max: 2, tags: ["off"],
+    id: "symbiose", nom: "Symbiose", rarity: 0, max: 2, tags: ["off"],
     desc: "+5 % de dégâts par carte défensive possédée",
     effective: (ctx, n) => tf("cards.symbiose.eff",
       "{0} — actuellement {1} de dégâts",
@@ -654,7 +682,7 @@ export const CARDS = [
     apply(m, n) { m.orbiterDamageMul += 0.60 * n; },
   },
   {
-    id: "munition_dense", nom: "Munition dense", rarity: 1, max: 2, tags: ["off"],
+    id: "munition_dense", nom: "Munition dense", rarity: 0, max: 2, tags: ["off"],
     desc: "+40 % de dégâts, −25 % de vitesse des balles",
     stack: n => tf("cards.munition_dense.stack", "{0} de dégâts, −{1} % de vitesse", { "0": pctAdd(0.40, n), "1": num(25 * n) }),
     apply(m, n) { m.damageMul += 0.40 * n; m.bulletSpeedMul -= 0.25 * n; },
@@ -668,12 +696,12 @@ export const CARDS = [
     apply(m, n) { m.orbiters += 2 * n; },
   },
   {
-    id: "salveArriere", nom: "Salve arrière", rarity: 2, max: 1, tags: ["off"],
+    id: "salveArriere", nom: "Salve arrière", rarity: 1, max: 1, tags: ["off"],
     desc: "chaque tir envoie aussi une balle à 180°, dégâts à 70 %",
     apply(m) { m.backShot = 1; },
   },
   {
-    id: "foudre", nom: "Chaîne de foudre", rarity: 2, max: 2, tags: ["off"],
+    id: "foudre", nom: "Chaîne de foudre", rarity: 1, max: 2, tags: ["off"],
     desc: "15 % de chance qu'un impact arce sur 3 ennemis",
     stack: n => tf("cards.foudre.stack", "{0} %", { "0": num(15 * n) }),
     apply(m, n) { m.chainChance += 0.15 * n; },
@@ -707,6 +735,28 @@ export const CARDS = [
     apply(m, n) { m.damageMul += 0.45 * n; },
   },
   {
+    id: "canon_siege", nom: "Canon de siège", rarity: 2, max: 2, tags: ["off"],
+    family: "portee", tier: 2,
+    desc: "+75 % de portée et +20 % de vitesse des balles",
+    stack: n => tf("cards.canon_siege.stack", "{0} de portée, {1} de vitesse", { "0": pctAdd(0.75, n), "1": pctAdd(0.20, n) }),
+    apply(m, n) { m.bulletLifeMul += 0.75 * n; m.bulletSpeedMul += 0.20 * n; },
+  },
+  {
+    id: "coque", nom: "Coque", rarity: 2, max: 2, tags: ["def"],
+    family: "bouclier", tier: 2,
+    desc: "45 points de bouclier, et il se recharge deux fois plus vite",
+    stack: n => tf("cards.coque.stack", "{0} points, recharge ×{1}", { "0": 45 * n, "1": num(1 + n) }),
+    apply(m, n) { m.shieldPool += 45 * n; m.shieldRegenMul += n; },
+  },
+  {
+    id: "brasier", nom: "Brasier", rarity: 2, max: 2, tags: ["off"],
+    family: "brulure", tier: 2,
+    desc: "brûlure : 20 dégâts sur 3 s, et un ennemi qui meurt en brûlant enflamme ceux à moins de {0}",
+    vals: () => ({ "0": fmtM(CARD_CFG.BURN_SPREAD) }),
+    stack: n => tf("cards.brasier.stack", "{0} dégâts", { "0": 20 * n }),
+    apply(m, n) { m.burnDmg += 20 * n; m.burnSpread = Math.max(m.burnSpread, CARD_CFG.BURN_SPREAD); },
+  },
+  {
     id: "rotative", nom: "Rotative", rarity: 2, max: 2, tags: ["off", "cadence"],
     family: "cadence", tier: 2,
     desc: "−28 % d'intervalle de tir",
@@ -736,14 +786,14 @@ export const CARDS = [
     apply(m) { m.frenzy = 1; },
   },
   {
-    id: "givre", nom: "Champ de givre", rarity: 2, max: 2, tags: ["def"], cat: "zone",
+    id: "givre", nom: "Champ de givre", rarity: 1, max: 2, tags: ["def"], cat: "zone",
     desc: "aura de {0}, ennemis à 65 % de vitesse",
     vals: () => ({ "0": fmtM(160) }),
     stack: n => tf("cards.givre.stack", "aura de {0}", { "0": fmtM(160 * (1 + 0.35 * (n - 1))) }),
     apply(m, n) { m.frostRadius = Math.max(m.frostRadius, 160 * (1 + 0.35 * (n - 1))); },
   },
   {
-    id: "recolte", nom: "Récolte", rarity: 2, max: 2, tags: ["def"],
+    id: "recolte", nom: "Récolte", rarity: 1, max: 2, tags: ["def"],
     desc: "8 % des ennemis tués laissent un fragment de 5 PV",
     stack: n => tf("cards.recolte.stack", "{0} %", { "0": num(8 * n) }),
     apply(m, n) { m.harvest += 0.08 * n; },
@@ -756,7 +806,7 @@ export const CARDS = [
     apply(m, n) { m.deathWave += 25 * n; },
   },
   {
-    id: "catalyseur", nom: "Catalyseur", rarity: 2, max: 2, tags: ["off"],
+    id: "catalyseur", nom: "Catalyseur", rarity: 1, max: 2, tags: ["off"],
     desc: "+15 % de dégâts contre un ennemi affecté par un état",
     stack: n => pctAdd(CARD_CFG.CATALYSEUR_BONUS, n),
     effective: () => t("cards.catalyseur.eff",
@@ -766,22 +816,26 @@ export const CARDS = [
 
   {
     id: "oeil_de_faucon", nom: "Œil de faucon", rarity: 2, max: 1, tags: ["off"],
+    family: "critique", tier: 2,
     desc: "+20 % de chance et +50 % de dégâts critiques",
     stack: n => tf("cards.oeil_de_faucon.stack", "{0} de chance, {1} de dégâts", { "0": pctAdd(0.20, n), "1": pctAdd(0.50, n) }),
     apply(m, n) { m.critChance += 0.20 * n; m.critMul += 0.50 * n; },
   },
   {
     id: "singularite", nom: "Singularité", rarity: 2, max: 1, tags: ["off"], cat: "zone",
+    family: "souffle", tier: 2,
     desc: "+35 % de rayon, et tes explosions aspirent les ennemis vers leur centre",
     apply(m) { m.areaMul += 0.35; m.areaPull = 1; },
   },
   {
     id: "flux_continu", nom: "Flux continu", rarity: 2, max: 1, tags: ["def"],
+    family: "recharge", tier: 2,
     desc: "−25 % de recharge des compétences, et chaque kill en retire 0,1 s",
     apply(m) { m.skillCdMul *= 0.75; m.cdPerKill += CARD_CFG.FLUX_PER_KILL; },
   },
   {
     id: "moisson", nom: "Moisson", rarity: 2, max: 1, tags: ["off", "def"],
+    family: "execution", tier: 2,
     desc: "les ennemis sous 20 % de PV meurent instantanément, et rendent 1 PV",
     apply(m) {
       m.execThreshold = Math.max(m.execThreshold, 0.20);
@@ -789,36 +843,36 @@ export const CARDS = [
     },
   },
   {
-    id: "blindage_offensif", nom: "Blindage offensif", rarity: 2, max: 1, tags: ["off", "def"],
+    id: "blindage_offensif", nom: "Blindage offensif", rarity: 1, max: 1, tags: ["off", "def"],
     desc: "{0} % de tes PV max s'ajoutent à tes dégâts",
     vals: () => ({ "0": Math.round(CARD_CFG.BLINDAGE_OFFENSIF * 100) }),
     apply(m) { m.hpToDamage += CARD_CFG.BLINDAGE_OFFENSIF; },
   },
   {
-    id: "fureur_defensive", nom: "Fureur défensive", rarity: 2, max: 1, tags: ["off", "def"],
+    id: "fureur_defensive", nom: "Fureur défensive", rarity: 1, max: 1, tags: ["off", "def"],
     desc: "{0} % de tes dégâts s'ajoutent à tes PV max",
     vals: () => ({ "0": Math.round(CARD_CFG.FUREUR_DEFENSIVE * 100) }),
     apply(m) { m.damageToHp += CARD_CFG.FUREUR_DEFENSIVE; },
   },
   {
-    id: "dernier_souffle", nom: "Dernier souffle", rarity: 2, max: 1, tags: ["off"],
+    id: "dernier_souffle", nom: "Dernier souffle", rarity: 1, max: 1, tags: ["off"],
     desc: "+80 % de dégâts sous 25 % de PV",
     apply(m) { m.lowHpDamage += CARD_CFG.SOUFFLE_DAMAGE; },
   },
 
   {
-    id: "rebond", nom: "Balles rebondissantes", rarity: 2, max: 1, tags: ["off"],
+    id: "rebond", nom: "Balles rebondissantes", rarity: 1, max: 1, tags: ["off"],
     desc: "les balles rebondissent sur les bords, −25 % de dégâts par rebond",
     apply(m) { m.bounce = 1; },
   },
   {
-    id: "inertie", nom: "Inertie", rarity: 2, max: 1, tags: ["off"],
+    id: "inertie", nom: "Inertie", rarity: 1, max: 1, tags: ["off"],
     desc: "les balles ne s'arrêtent plus, −35 % de dégâts par ennemi traversé",
     incompatible: ["railgun"],
     apply(m) { m.inertia = 1; },
   },
   {
-    id: "resonance", nom: "Résonance", rarity: 2, max: 2, tags: ["off"],
+    id: "resonance", nom: "Résonance", rarity: 1, max: 2, tags: ["off"],
     desc: "chaque carte de cadence donne aussi +4 % de dégâts",
     effective: (ctx, n) => tf("cards.resonance.eff",
       "{0} — actuellement {1} de dégâts",
@@ -878,16 +932,16 @@ export const CARDS = [
 
   {
     id: "sentence_capitale", nom: "Sentence capitale", rarity: 3, max: 1, tags: ["off"],
-    desc: "tes coups critiques traversent la cible et la rendent vulnérable",
-    apply(m) { m.critVuln = 1; },
+    family: "critique", tier: 3,
+    desc: "+25 % de chance et +50 % de dégâts critiques, et tes coups critiques traversent la cible et la rendent vulnérable",
+    apply(m) { m.critChance += 0.25; m.critMul += 0.50; m.critVuln = 1; },
   },
   {
-    id: "pacte_de_fer", nom: "Pacte de fer", rarity: 3, max: 1, tags: ["off"],
-    desc: "ton bouclier ne se régénère plus, mais tes dégâts montent de {0} % par tranche de {1} points de bouclier maximum",
-    vals: () => ({ "0": Math.round(CARD_CFG.PACTE_STEP * 100), "1": CARD_CFG.PACTE_PER }),
-    effective: () => t("cards.pacte_de_fer.eff",
-      "sans carte de bouclier, elle ne fait rien"),
-    apply(m) { m.shieldToDamage = 1; m.noShieldRegen = 1; },
+    id: "pacte_de_fer", nom: "Pacte de fer", rarity: 3, max: 1, tags: ["off", "def"],
+    family: "bouclier", tier: 3,
+    desc: "{0} points de bouclier ; il ne se régénère plus, mais tes dégâts montent de {1} % par tranche de {2} points de bouclier maximum",
+    vals: () => ({ "0": 60, "1": Math.round(CARD_CFG.PACTE_STEP * 100), "2": CARD_CFG.PACTE_PER }),
+    apply(m) { m.shieldPool += 60; m.shieldToDamage = 1; m.noShieldRegen = 1; },
   },
 
   {
@@ -912,9 +966,9 @@ export const CARDS = [
   {
     id: "vif_argent", nom: "Vif-argent", rarity: 3, max: 1, tags: ["off", "def"],
     family: "mobilite", tier: 3,
-    desc: "l'esquive laisse une traînée de {0} dégâts sur {1}",
+    desc: "+30 % de vitesse, et l'esquive laisse une traînée de {0} dégâts sur {1}",
     vals: () => ({ "0": CARD_CFG.VIF_ARGENT_DAMAGE, "1": fmtM(CARD_CFG.VIF_ARGENT_RADIUS) }),
-    apply(m) { m.dashTrail += CARD_CFG.VIF_ARGENT_DAMAGE; },
+    apply(m) { m.speedMul += 0.30; m.dashTrail += CARD_CFG.VIF_ARGENT_DAMAGE; },
   },
   {
     id: "voeu_partage", nom: "Vœu partagé", rarity: 3, max: 1, tags: ["coop"],
@@ -1123,7 +1177,7 @@ export const CARDS = [
     apply(m, n) { m.breakRefresh = n; },
   },
   {
-    id: "relais", nom: "Relais", rarity: 1, max: 2, tags: ["coop"],
+    id: "relais", nom: "Relais", rarity: 0, max: 2, tags: ["coop"],
     minPlayers: 2,
     desc: "allié à terre : +{0} % de dégâts et de vitesse jusqu'à la relève",
     vals: () => ({ "0": num(CARD_CFG.RELAIS_STEP * 100) }),
@@ -1131,7 +1185,7 @@ export const CARDS = [
     apply(m, n) { m.downedRally += CARD_CFG.RELAIS_STEP * n; },
   },
   {
-    id: "bouclier_partage", nom: "Bouclier partagé", rarity: 1, max: 2, tags: ["coop", "def"],
+    id: "bouclier_partage", nom: "Bouclier partagé", rarity: 0, max: 2, tags: ["coop", "def"],
     minPlayers: 2,
     desc: "{0} % du bouclier gagné va aussi à l'allié le plus proche",
     vals: () => ({ "0": num(CARD_CFG.SHIELD_SHARE * 100) }),
@@ -1139,7 +1193,7 @@ export const CARDS = [
     apply(m, n) { m.shieldShare += CARD_CFG.SHIELD_SHARE * n; },
   },
   {
-    id: "traqueur", nom: "Traqueur", rarity: 2, max: 1, tags: ["off"],
+    id: "traqueur", nom: "Traqueur", rarity: 1, max: 1, tags: ["off"],
     desc: "+{0} % de dégâts contre les boss, +{1} % de plus par barre brisée",
     vals: () => ({ "0": num(CARD_CFG.TRAQUEUR_BASE * 100), "1": num(CARD_CFG.TRAQUEUR_PER_BAR * 100) }),
     apply(m) {
@@ -1148,14 +1202,14 @@ export const CARDS = [
     },
   },
   {
-    id: "serment", nom: "Serment", rarity: 2, max: 1, tags: ["coop"],
+    id: "serment", nom: "Serment", rarity: 1, max: 1, tags: ["coop"],
     minPlayers: 2,
     desc: "relever un allié donne aux deux +{0} % de dégâts pendant {1} s",
     vals: () => ({ "0": num(CARD_CFG.SERMENT_MUL * 100), "1": num(CARD_CFG.SERMENT_TIME) }),
     apply(m) { m.oathDamage = CARD_CFG.SERMENT_MUL; },
   },
   {
-    id: "porte_voix", nom: "Porte-voix", rarity: 2, max: 1, tags: ["coop"],
+    id: "porte_voix", nom: "Porte-voix", rarity: 1, max: 1, tags: ["coop"],
     minPlayers: 2,
     desc: "tes bonus ramassés s'appliquent à l'équipe, à {0} %",
     vals: () => ({ "0": num(CARD_CFG.PORTE_VOIX_SHARE * 100) }),
@@ -1171,7 +1225,7 @@ export const CARDS = [
     apply(m, n) { m.groundResist = 1 - Math.pow(1 - CARD_CFG.CRAMPONS_STEP, n); },
   },
   {
-    id: "conducteur", nom: "Conducteur", rarity: 1, max: 2, tags: ["off", "util"],
+    id: "conducteur", nom: "Conducteur", rarity: 0, max: 2, tags: ["off", "util"],
     requiresSystem: "hasards_actifs",
     desc: "les ennemis qui traversent un danger du sol subissent {0} dégâts/s",
     vals: () => ({ "0": num(CARD_CFG.CONDUCTEUR_DPS) }),
@@ -1193,7 +1247,7 @@ export const CARDS = [
     apply(m, n) { m.blastRoot += CARD_CFG.ETAU_TIME * n; },
   },
   {
-    id: "opportuniste", nom: "Opportuniste", rarity: 1, max: 2, tags: ["off", "util"],
+    id: "opportuniste", nom: "Opportuniste", rarity: 0, max: 2, tags: ["off", "util"],
     desc: "pendant un événement, +{0} % de dégâts et +{1} % d'éclats",
     vals: () => ({ "0": num(CARD_CFG.OPPORTUNISTE_DMG * 100), "1": num(CARD_CFG.OPPORTUNISTE_SHARD * 100) }),
     stack: n => pctAdd(CARD_CFG.OPPORTUNISTE_DMG, n),
@@ -1203,14 +1257,14 @@ export const CARDS = [
     },
   },
   {
-    id: "prospecteur", nom: "Prospecteur", rarity: 1, max: 2, tags: ["coop", "util"],
+    id: "prospecteur", nom: "Prospecteur", rarity: 0, max: 2, tags: ["coop", "util"],
     desc: "récolter un point rend {0} PV à toute l'équipe",
     vals: () => ({ "0": num(CARD_CFG.PROSPECTEUR_HEAL) }),
     stack: n => tf("cards.prospecteur.stack", "{0} PV", { "0": num(CARD_CFG.PROSPECTEUR_HEAL * n) }),
     apply(m, n) { m.harvestHeal += CARD_CFG.PROSPECTEUR_HEAL * n; },
   },
   {
-    id: "contre_pied", nom: "Contre-pied", rarity: 1, max: 2, tags: ["off", "util"],
+    id: "contre_pied", nom: "Contre-pied", rarity: 0, max: 2, tags: ["off", "util"],
     desc: "traverser un ennemi en esquivant le rend vulnérable {0} s",
     vals: () => ({ "0": num(CARD_CFG.CONTRE_PIED_TIME) }),
     stack: n => n > 1
@@ -1219,30 +1273,30 @@ export const CARDS = [
     apply(m, n) { m.dashVuln = n; },
   },
   {
-    id: "terrain_conquis", nom: "Terrain conquis", rarity: 2, max: 1, tags: ["off"],
+    id: "terrain_conquis", nom: "Terrain conquis", rarity: 1, max: 1, tags: ["off"],
     desc: "tes explosions et tes ondes laissent un sol brûlant {0} s",
     vals: () => ({ "0": num(CARD_CFG.TERRAIN_LIFE) }),
     apply(m) { m.blastGround = CARD_CFG.TERRAIN_LIFE; },
   },
   {
-    id: "nasse", nom: "Nasse", rarity: 2, max: 1, tags: ["off"],
+    id: "nasse", nom: "Nasse", rarity: 1, max: 1, tags: ["off"],
     requires: ["filins", "etau"],
     desc: "les ennemis entravés subissent +{0} % de dégâts",
     vals: () => ({ "0": num(CARD_CFG.NASSE_MUL * 100) }),
     apply(m) { m.rootDamage = CARD_CFG.NASSE_MUL; },
   },
   {
-    id: "curee", nom: "Curée", rarity: 2, max: 1, tags: ["util"],
+    id: "curee", nom: "Curée", rarity: 0, max: 1, tags: ["util"],
     desc: "les élites laissent un bonus au sol de plus en mourant",
     apply(m) { m.eliteDrop = 1; },
   },
   {
-    id: "filon", nom: "Filon", rarity: 2, max: 1, tags: ["util"],
+    id: "filon", nom: "Filon", rarity: 1, max: 1, tags: ["util"],
     desc: "un point de récolte sur trois en laisse un second à sa place",
     apply(m) { m.harvestAgain = CARD_CFG.FILON_CHANCE; },
   },
   {
-    id: "sillage", nom: "Sillage", rarity: 2, max: 1, tags: ["off"],
+    id: "sillage", nom: "Sillage", rarity: 1, max: 1, tags: ["off"],
     desc: "les {0} coups qui suivent une esquive sont des coups critiques",
     vals: () => ({ "0": num(CARD_CFG.SILLAGE_HITS) }),
     apply(m) { m.dashCrit = CARD_CFG.SILLAGE_HITS; },
@@ -1253,6 +1307,43 @@ export const CARDS = [
     desc: "chaque allié à moins de {0} donne à l'équipe −{1} % de dégâts subis",
     vals: () => ({ "0": fmtM(CARD_CFG.ALLY_RADIUS), "1": num(CARD_CFG.PHALANGE_STEP * 100) }),
     apply(m) { m.phalanxStep = CARD_CFG.PHALANGE_STEP; },
+  },
+  {
+    id: "dynamo", nom: "Dynamo", rarity: 3, max: 1, tags: ["def"],
+    family: "recharge", tier: 3,
+    desc: "−45 % de recharge des compétences, et chaque kill en retire {0} s",
+    vals: () => ({ "0": num(CARD_CFG.DYNAMO_PER_KILL) }),
+    apply(m) { m.skillCdMul *= 0.55; m.cdPerKill += CARD_CFG.DYNAMO_PER_KILL; },
+  },
+  {
+    id: "horizon", nom: "Horizon", rarity: 3, max: 1, tags: ["off"],
+    family: "portee", tier: 3,
+    desc: "+150 % de portée, +40 % de vitesse des balles, et les balles traversent 1 ennemi de plus",
+    apply(m) { m.bulletLifeMul += 1.5; m.bulletSpeedMul += 0.4; m.pierce += 1; },
+  },
+  {
+    id: "fournaise", nom: "Fournaise", rarity: 3, max: 1, tags: ["off"],
+    family: "brulure", tier: 3,
+    desc: "brûlure : 50 dégâts sur 3 s, et un ennemi qui meurt en brûlant enflamme ceux à moins de {0}",
+    vals: () => ({ "0": fmtM(CARD_CFG.BURN_SPREAD_MAX) }),
+    apply(m) { m.burnDmg += 50; m.burnSpread = Math.max(m.burnSpread, CARD_CFG.BURN_SPREAD_MAX); },
+  },
+  {
+    id: "faucheuse", nom: "Faucheuse", rarity: 3, max: 1, tags: ["off", "def"],
+    family: "execution", tier: 3,
+    desc: "les ennemis sous {0} % de PV meurent instantanément et rendent {1} PV ; le seuil monte de {2} % par barre de boss brisée",
+    vals: () => ({ "0": 32, "1": 3, "2": num(CARD_CFG.EXEC_PER_BAR * 100) }),
+    apply(m) {
+      m.execThreshold = Math.max(m.execThreshold, 0.32);
+      m.execHeal += 3;
+      m.execPerBar += CARD_CFG.EXEC_PER_BAR;
+    },
+  },
+  {
+    id: "cataclysme", nom: "Cataclysme", rarity: 3, max: 1, tags: ["off"], cat: "zone",
+    family: "souffle", tier: 3,
+    desc: "+75 % de rayon sur tes explosions, ondes et auras, et elles aspirent les ennemis vers leur centre",
+    apply(m) { m.areaMul += 0.75; m.areaPull = 1; },
   },
 ];
 
@@ -1319,8 +1410,10 @@ export function defaultMods() {
     extraBarrels: 0,
     barrelDamageMul: 1,
     shieldPool: 0,
+    shieldRegenMul: 1,
     lifesteal: 0,
     burnDmg: 0,
+    burnSpread: 0,
     chain: 0,
     chainChance: 0,
     selfRevive: 0,
@@ -1390,6 +1483,7 @@ export function defaultMods() {
     cdPerKill: 0,
     execThreshold: 0,
     execHeal: 0,
+    execPerBar: 0,
     hpPerKill: 0,
     maxHpRatio: 0,
     hpToDamage: 0,
@@ -1566,6 +1660,78 @@ export function drawCards(owned, quality, forceRare = false, cls = null,
   }
 
   while (out.length < count && FALLBACK_CARD) out.push(FALLBACK_CARD);
+
+  return out;
+}
+
+/* Critere rejouable de la TABLE, appele par `verifierCartes()` (game_state.js),
+   qui reste le point d'entree unique. Ce qui se verifie ici est la STRUCTURE du
+   catalogue, donc ca vit a cote du catalogue, sur le modele de `verifierScript()` et de
+   `verifierBiomes()` : il rend la liste des manquements, vide = catalogue sain.
+   Un AXE est une clef de `mods` ; deux cartes qui ne touchent QUE la meme clef,
+   sans condition ni classe ni famille, sont le meme effet ecrit deux fois. */
+export function verifierCatalogue() {
+  const out = [];
+  const base = defaultMods();
+
+  const clefsDe = c => {
+    const m = defaultMods();
+    c.apply?.(m, 1);
+    return Object.keys(m).filter(k => m[k] !== base[k]);
+  };
+
+  const pur = new Map();
+  for (const c of CARDS) {
+    if (c.family || c.cls || c.fallback || c.applyAfter) continue;
+    const clefs = clefsDe(c);
+    if (clefs.length !== 1) continue;
+    pur.set(clefs[0], [...(pur.get(clefs[0]) ?? []), c.id]);
+  }
+  for (const [clef, ids] of pur) {
+    if (ids.length > 1) out.push(`axe « ${clef} » : ${ids.join(", ")} hors famille`);
+  }
+
+  const fams = new Map();
+  for (const c of CARDS) {
+    if (!c.family) continue;
+    if (c.tier !== c.rarity) out.push(`${c.id} : palier ${c.tier}, rarete ${c.rarity}`);
+    const f = fams.get(c.family) ?? new Map();
+    f.set(c.tier, [...(f.get(c.tier) ?? []), c.id]);
+    fams.set(c.family, f);
+  }
+  for (const [fam, paliers] of fams) {
+    if (!FAMILY_LABEL[fam]) out.push(`famille « ${fam} » sans libelle`);
+    for (let i = 0; i < FAMILY_TIERS; i++) {
+      const l = paliers.get(i) ?? [];
+      if (l.length === 0) out.push(`famille « ${fam} » : palier ${i + 1}/${FAMILY_TIERS} vide`);
+      else if (l.length > 1) out.push(`famille « ${fam} » palier ${i + 1} en double : ${l.join(", ")}`);
+    }
+    // un palier superieur possede RETIRE les inferieurs du pool : un 4/4 qui ne
+    // porte pas la statistique de sa famille se verrouille hors de sa propre
+    // echelle, et devient une carte morte des qu'on la prend.
+    const bas = paliers.get(0)?.[0], haut = paliers.get(FAMILY_TIERS - 1)?.[0];
+    if (bas && haut && CARD_BY_ID.get(haut)?.apply) {
+      const socle = new Set(clefsDe(CARD_BY_ID.get(bas)));
+      if (!clefsDe(CARD_BY_ID.get(haut)).some(k => socle.has(k))) {
+        out.push(`famille « ${fam} » : ${haut} ne porte rien de ${bas}`);
+      }
+    }
+  }
+
+  const n = poolCounts(CARDS.filter(c => !c.fallback));
+  if (n[RARITY.COMMUNE] < n[RARITY.EPIQUE] * 1.5) {
+    out.push(`pool inverse : ${n[RARITY.COMMUNE]} communes pour ${n[RARITY.EPIQUE]} epiques`);
+  }
+
+  // une carte ne doit pas exiger une carte qui exige elle-meme quelque chose :
+  // trois cartes pour une seule idee, c'est une idee qu'on ne joue jamais.
+  for (const c of CARDS) {
+    for (const id of c.requires ?? []) {
+      const dep = CARD_BY_ID.get(id);
+      if (!dep) out.push(`${c.id} exige ${id}, qui n'existe pas`);
+      else if (dep.requires?.length) out.push(`${c.id} exige ${id}, qui exige a son tour`);
+    }
+  }
 
   return out;
 }

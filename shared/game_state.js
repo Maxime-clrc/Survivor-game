@@ -1,7 +1,7 @@
 
 import {
   CARD_BY_ID, CARD_CFG, CARDS, computeMods, defaultMods, drawCards,
-  eligibleCards, poolThin, POOL_MIN,
+  eligibleCards, poolThin, verifierCatalogue, POOL_MIN,
 } from "./cards.js";
 import {
   CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange, bombFlight,
@@ -547,6 +547,10 @@ export function powerIndex(m, flat = 0) {
     * (1 + m.echoChance) / m.fireIntervalMul * flatMul;
 }
 
+/* Indice d'un chargement NU : le denominateur de `_summonMul`, releve une fois
+   au chargement du module au lieu d'etre recopie. */
+const SUMMON_REF = powerIndex(defaultMods());
+
 export function bossPower(power) {
   if (power <= CFG.BOSS_POWER_KNEE) return power;
   return CFG.BOSS_POWER_KNEE + CFG.BOSS_POWER_K * (power - CFG.BOSS_POWER_KNEE);
@@ -1039,7 +1043,7 @@ export class GameState {
           && !(p.mods.noShieldRegen && p.pacteUsed)) {
         // rampe et non interrupteur : sans elle, un coup toutes les sept
         // secondes rend un pool PLEIN, ce qui est une quasi-invincibilite.
-        const taux = p.mods.shieldPool / CARD_CFG.SHIELD_REGEN_RAMP;
+        const taux = p.mods.shieldPool / CARD_CFG.SHIELD_REGEN_RAMP * p.mods.shieldRegenMul;
         this._grantShield(p, Math.min(taux * dt, p.mods.shieldPool - p.shield),
                           p.mods.shieldPool);
         if (p.mods.noShieldRegen && p.shield >= p.mods.shieldPool - 1e-6) p.pacteUsed = 1;
@@ -1170,9 +1174,34 @@ export class GameState {
       + Math.min(plafond, this._relicSum(p, "barDamage") * this.barsBroken);
   }
 
+  /* Point de passage unique de TOUTE source de degats qui n'est pas le tir :
+     lame orbitale, essaim, drone, tourelle, pulsar, onde de mort. Indexee sur le
+     seul `damageMul` elle decrochait — le tir gagne aussi la cadence, les degats
+     bruts et le critique, elle non. Elle lit donc l'indice de puissance ENTIER,
+     a exposant reduit : elle progresse sans dominer, et « Surcharge orbitale »
+     redevient un bonus au lieu d'un correctif obligatoire. */
+  _summonMul(p) {
+    return Math.pow(powerIndex(p.mods, this._flatDamage(p)) / SUMMON_REF,
+                    CARD_CFG.SUMMON_SCALE);
+  }
+
   _relicFlag(p, key) {
     for (const id of p.relics.keys()) if (relicById(id)?.[key]) return true;
     return false;
+  }
+
+  /* La contagion ne BLESSE pas : elle ne fait que poser l'etat, donc elle ne
+     peut pas se rappeler elle-meme. La chaine se propage d'un tick a l'autre,
+     par les morts que la brulure finit par causer. */
+  _burnSpread(source, r, dmg, ownerId) {
+    const r2 = r * r;
+    for (const e of this.enemies) {
+      if (e === source || e.hp <= 0) continue;
+      const dx = e.x - source.x, dy = e.y - source.y;
+      if (dx * dx + dy * dy > r2) continue;
+      if (!e.burn || dmg >= e.burn.dmg) e.burn = { dmg, t: CARD_CFG.BURN_TIME, owner: ownerId };
+      else e.burn.t = CARD_CFG.BURN_TIME;
+    }
   }
 
   _relicSum(p, key) {
@@ -2060,8 +2089,11 @@ export class GameState {
       if (target.hp <= 0) this._killBoss(ownerId);
       return;
     }
-    if (target.hp > 0 && owner && owner.mods.execThreshold > 0 && !target.noExec
-        && target.maxHp > 0 && target.hp <= target.maxHp * owner.mods.execThreshold) {
+    const seuilExec = owner
+      ? owner.mods.execThreshold + owner.mods.execPerBar * this.barsBroken
+      : 0;
+    if (target.hp > 0 && seuilExec > 0 && !target.noExec
+        && target.maxHp > 0 && target.hp <= target.maxHp * seuilExec) {
       target.hp = 0;
       if (owner.mods.execHeal > 0 && !owner.downed) {
         owner.hp = Math.min(owner.maxHp, owner.hp + owner.mods.execHeal);
@@ -2308,7 +2340,7 @@ export class GameState {
 
   _pulse(p) {
     this._wave(p.x, p.y, CARD_CFG.PULSAR_RADIUS,
-      CARD_CFG.PULSAR_DAMAGE * p.mods.damageMul, p.id);
+      CARD_CFG.PULSAR_DAMAGE * this._summonMul(p), p.id);
   }
 
   _dashTrail(p) {
@@ -2366,7 +2398,7 @@ export class GameState {
       }
 
       const n = p.mods.orbiters;
-      const dmg = CARD_CFG.ORBIT_DAMAGE * p.mods.damageMul * p.mods.orbiterDamageMul;
+      const dmg = CARD_CFG.ORBIT_DAMAGE * this._summonMul(p) * p.mods.orbiterDamageMul;
 
       for (let i = 0; i < n; i++) {
         const a = this.time * CARD_CFG.ORBIT_SPEED + (i / n) * Math.PI * 2;
@@ -2466,7 +2498,7 @@ export class GameState {
       vx: Math.cos(d.ang) * CFG.BULLET_SPEED,
       vy: Math.sin(d.ang) * CFG.BULLET_SPEED,
       life: CFG.BULLET_LIFE,
-      dmg: CFG.BULLET_DAMAGE * p.mods.damageMul * CARD_CFG.DRONE_DAMAGE_MUL,
+      dmg: CFG.BULLET_DAMAGE * this._summonMul(p) * CARD_CFG.DRONE_DAMAGE_MUL,
       owner: p.id,
       pierce: 0, chain: 0, burn: 0, arc: 0, boom: 0,
       hits: null, hit: null,
@@ -2496,7 +2528,7 @@ export class GameState {
     d.y += (dy / dist) * step;
 
     if (dist <= target.r + 12) {
-      this._damage(target, CARD_CFG.SWARM_DAMAGE * p.mods.damageMul, p.id);
+      this._damage(target, CARD_CFG.SWARM_DAMAGE * this._summonMul(p), p.id);
       d.dead = CARD_CFG.SWARM_RESPAWN;
       d.target = 0;
     }
@@ -3199,7 +3231,7 @@ export class GameState {
       id: this._nextId++,
       x: p.x, y: p.y,
       owner: p.id,
-      dmg: CFG.BULLET_DAMAGE * p.mods.damageMul,
+      dmg: CFG.BULLET_DAMAGE * this._summonMul(p),
       life: CFG.TURRET_LIFE,
       fireCd: 0,
       ang: Math.atan2(p.aimY, p.aimX),
@@ -6410,7 +6442,7 @@ export class GameState {
       this._wave(p.x, p.y, CARD_CFG.REPRESAILLES_RADIUS,
         p.mods.represailles * p.mods.damageMul, p.id);
     }
-    p.timers.shieldRegen = CARD_CFG.SHIELD_REGEN_DELAY;
+    p.timers.shieldRegen = CARD_CFG.SHIELD_REGEN_DELAY / p.mods.shieldRegenMul;
     if (fromZone && p.mods.zoneImmunity > 0) p.timers.zoneImmune = p.mods.zoneImmunity;
 
     if (p.mods.counterNova > 0 && p.timers.counter <= 0) {
@@ -6844,10 +6876,14 @@ export class GameState {
         });
       }
 
+      if (owner.mods.burnSpread > 0 && e.burn) {
+        this._burnSpread(e, owner.mods.burnSpread, e.burn.dmg, ownerId);
+      }
+
       if (owner.mods.deathWave > 0 && !this._inWave) {
         this._inWave = true;
         this._wave(e.x, e.y, CARD_CFG.DEATHWAVE_RADIUS,
-          owner.mods.deathWave * owner.mods.damageMul, ownerId);
+          owner.mods.deathWave * this._summonMul(owner), ownerId);
         this._inWave = false;
       }
     }
@@ -7841,7 +7877,7 @@ export function mesureProgression(diffIndex, joueurs, manches = 6, minutes = 60)
 }
 
 export function verifierCartes() {
-  const soucis = [];
+  const soucis = verifierCatalogue();
   const byId = new Map(CARDS.map(c => [c.id, c]));
 
   for (const c of CARDS) {
