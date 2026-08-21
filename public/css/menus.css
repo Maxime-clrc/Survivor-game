@@ -3499,3 +3499,31 @@ input:focus {
 #scores td.name.cadre, #bilanScores td.name.cadre {
   box-shadow: inset 0 -2px 0 var(--cadre);
 }
+
+/* ---- choix d'arme, dans le briefing ------------------------------------- */
+#briefArme { margin-top: var(--sp-4); }
+#briefArmeRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.armeOpt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3);
+  text-align: left;
+  background: var(--bg-raised);
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius-ctl);
+  color: inherit;
+}
+.armeOpt.mine { border-color: var(--go); box-shadow: inset 0 0 0 var(--hair) var(--go); }
+.armeNom { font-family: var(--font-display); font-weight: 700; color: var(--text); }
+.armeDit { font-size: var(--t-s); color: var(--text-dim); }
+.armeChiffres { font-family: var(--font); font-size: var(--t-xs); color: var(--text-faint); }
+/* la CONTRAINTE se lit avant le choix : un malus qu'on decouvre en jeu est une
+   punition, un malus annonce est une decision */
+.armeCout { font-family: var(--font); font-size: var(--t-xs); color: var(--warn); }
+#briefArmeReroll { margin-top: var(--sp-2); }

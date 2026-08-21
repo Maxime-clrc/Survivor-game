@@ -12,6 +12,7 @@ import { amSpectator, dash, myId, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
 import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, lastBossPos, shieldHit } from "./fx.js";
+import { ARMES } from "/shared/armes.js";
 import { aimVector, cadreOf, camera, colorOf, ctx, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
 
 
@@ -1344,6 +1345,37 @@ export function drawPlayers(list, tm, marks = []) {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, RING_STATUS, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
+    }
+
+    /* LE FAISCEAU EST UNE NAPPE, PAS UN TIR : deux couches, un coeur clair fin
+       et un halo large additif. C est ce doublage qui separe « une ligne bleue »
+       de « un rayon ». Sa teinte se degrade a mesure que la chaleur monte. */
+    if (ARMES[p.arme]?.chaleur && p.armeRes < 1) {
+      const a = ARMES[p.arme];
+      const portee = 640 * 1.5 * a.portee;
+      const bx = x + Math.cos(p.armeAng) * portee;
+      const by = y + Math.sin(p.armeAng) * portee;
+      const chaud = p.armeRes;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = alpha(chaud > 0.7 ? SIGNAL.warn : col, 0.22);
+      ctx.lineWidth = 14;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.strokeStyle = alpha(FX.flash, 0.85);
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.restore();
+    }
+
+    /* LA RAMPE SE LIT SUR LE PERSONNAGE et non sous le reticule : elle depend du
+       DEPLACEMENT, donc le joueur doit voir sa position et sa rampe dans le meme
+       regard. Une ressource invisible est une ressource subie. */
+    if (ARMES[p.arme]?.rampe && p.armeRes > 0.02) {
+      ctx.strokeStyle = alpha(p.armeRes >= 1 ? SIGNAL.go : col, 0.5 + p.armeRes * 0.4);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, RING_BUFF0, -Math.PI / 2, -Math.PI / 2 + p.armeRes * Math.PI * 2);
+      ctx.stroke();
     }
 
     drawPlayerBar(p, x, y, col);

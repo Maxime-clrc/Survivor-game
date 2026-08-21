@@ -10,6 +10,7 @@ import { biomeNom, biomeResume } from "/shared/biomes.js";
 import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from "/shared/i18n.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
 import { COMMUN, CONFORT, PROG_CFG, TREES, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, slotsFor, tierCost, vueStats } from "/shared/progression.js";
+import { ARME_CFG, armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
 import { CADRES, CADRE_BY_ID, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
 import { relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
@@ -20,7 +21,7 @@ import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -645,8 +646,44 @@ let briefTimer = 0;
 let briefEndsAt = 0;
 export let briefWaiting = [];
 let briefWaitTimer = 0;
+/* L'offre d'arme est POUSSEE par le serveur (message `armes`), pas deduite : le
+   verrou de haut fait vit au profil, et le profil ne voyage pas. */
+let armeEtat = null;
+export function setArmeEtat(v) { armeEtat = v; renderArmes(); }
+
+export function renderArmes() {
+  if (!briefArmeRowEl) return;
+  const on = !!armeEtat && (armeEtat.offres ?? []).length > 1;
+  briefArmeRowEl.parentElement.hidden = !on;
+  if (!on) return;
+
+  briefArmeRowEl.innerHTML = "";
+  for (const id of armeEtat.offres) {
+    const a = armeAt(id);
+    const f = armeFiche(id);
+    const b = document.createElement("button");
+    b.className = "armeOpt" + (id === armeEtat.choisie ? " mine" : "");
+    b.innerHTML =
+      `<span class="armeNom">${escapeHtml(armeNom(id))}</span>`
+      + `<span class="armeDit">${escapeHtml(armeResume(id))}</span>`
+      + `<span class="armeChiffres">${escapeHtml(f.cadence)} · ${escapeHtml(f.degats)}`
+      + ` · ${escapeHtml(f.dps)} · ${escapeHtml(f.portee)}</span>`
+      + (a.contrainte
+          ? `<span class="armeCout">${escapeHtml(armeContrainte(id))}</span>` : "");
+    b.onclick = () => ws.send(JSON.stringify({ t: "chooseArme", id }));
+    briefArmeRowEl.appendChild(b);
+  }
+  briefArmeRerollBtn.hidden = (armeEtat.relances ?? 0) <= 0;
+  briefArmeRerollBtn.textContent = tn("ui.brief.arme.relance",
+    "Relancer ({n} restante)", "Relancer ({n} restantes)", armeEtat.relances ?? 0);
+}
+if (briefArmeRerollBtn) {
+  briefArmeRerollBtn.onclick = () => ws.send(JSON.stringify({ t: "rerollArme" }));
+}
+
 export function openBrief(dur) {
   if (!briefEl) return;
+  renderArmes();
   const me = lobby.find(l => l.id === myId);
   const c = classAt(me?.cls ?? CLASS_DEFAULT);
 

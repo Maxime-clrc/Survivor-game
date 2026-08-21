@@ -12,7 +12,7 @@ import { renderGateMode, renderGateSwitch, renderServerInfo } from "../ui/boot.j
 import { closeBuild } from "../ui/build.js";
 import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, registerFormEl, setGateBusy, setStatus, settingsEl, updateTrace, updateVersion, waitMsg } from "../ui/dom.js";
 import { applyPause, closePause, setPausePar } from "../ui/pause.js";
-import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderMeta, renderHautsFaits, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
+import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderMeta, renderHautsFaits, setArmeEtat, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
 
 // LA MESURE S'ARME PAR L'URL : elle sert a enregistrer de VRAIES parties pour
 // l'equilibrage, donc elle ne doit couter aucun clic a personne — et surtout
@@ -177,6 +177,10 @@ export function connect() {
         renderMeta();
         renderHautsFaits();
         updateTerminalDot();
+        break;
+
+      case "armes":
+        setArmeEtat(msg);
         break;
 
       case "hautFait":

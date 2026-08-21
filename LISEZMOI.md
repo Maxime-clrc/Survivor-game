@@ -1843,6 +1843,69 @@ soit un défi que le pilote ne sait pas viser.
 v6 pour savoir ce que chaque profil avait ouvert, on migre, on revérifie.
 **2 371 déblocages testés, zéro perdu.**
 
+### Les armes, banc d'essai (plan 11, lot 02 — tranche de quatre)
+
+**Banc, pas manche.** Le spawner, l'horloge de vague et le crédit d'expérience
+sont neutralisés : sans ça la horde entre dans la mesure, et le boss fait monter
+le joueur de niveau pendant qu'on le mesure. Mannequin unique = cible unique,
+file de dix corps = densité, boss réel = conversion. Classe neutralisée
+(`damageMul = 1`), critique à zéro : on juge **l'arme**.
+
+| arme | mono | boss | file | boss / réf | file / réf |
+|---|---:|---:|---:|---:|---:|
+| tir standard | 72 | 72 | 72 | 0,96 | 0,96 |
+| canon d'assaut | 145 | 145 | 145 | **1,94** | 1,94 |
+| canon laser | 72 | 72 | 724 | 0,96 | **9,65** |
+| tesla | 32 | 72 | 72 | 0,96 | 0,96 |
+| lame tournoyante | 34 | 46 | 67 | 0,62 | 0,90 |
+| dispersion | 70 | 70 | 70 | 0,94 | 0,94 |
+| railgun | 87 | 87 | 855 | 1,16 | **11,40** |
+| lance-grenades | 50 | 50 | 150 | 0,67 | 2,00 |
+
+Référence : 75 dps. **Aucune arme sous 60 % dans l'un des deux contextes** — le
+critère du plan est tenu, et les conversions sont ce qui le tient : le tesla
+passe de 0,43 à 0,96 sur un boss, la lame de 0,45 à 0,62.
+
+**Le canon d'assaut à 1,94 est le plus haut du lot**, et le plan demandait de le
+surveiller en premier. C'est voulu : c'est le prix de l'immobilité, et la rampe
+met 2,5 s à monter — sur les douze secondes du banc elle n'est pleine que la
+moitié du temps, donc le régime de croisière réel est plus bas que le pic.
+
+**Trois bugs que seul le banc pouvait trouver, et aucun n'était une question
+d'équilibrage :**
+
+- **`boss.r` n'existe pas.** Le rayon d'un boss est `CFG.BOSS_RADIUS` ; mes deux
+  nouveaux tests de portée comparaient contre `undefined`, donc contre `NaN` — et
+  un `>` sur `NaN` est **faux**, donc la garde *laissait passer* au lieu de
+  rejeter. Le faisceau du laser touchait un boss à 1 200 px, hors de vue.
+- **Le souffle du lance-grenades se calculait en fraction de
+  `CFG.BULLET_DAMAGE`.** Juste tant qu'une arme était une *carte* qui ne changeait
+  que des multiplicateurs, faux dès qu'elle déclare ses propres dégâts : 1 540 %
+  de la référence au premier relevé.
+- **Le combat de boss resserre `state.bounds` à une vue**, donc une position de
+  mannequin posée en absolu ne tient pas une image — le joueur était ramené à
+  1 200 px de sa cible et toutes les colonnes « boss » étaient fausses. La cible
+  se place **par rapport au joueur**, pas dans l'arène.
+
+**Une manche complète par arme** (pilote, normal, 15 min, tirages au hasard) :
+
+| arme | kills | dégâts |
+|---|---:|---:|
+| tir standard | 1 252 | 175 883 |
+| canon d'assaut | 1 581 | 244 871 |
+| canon laser | 1 655 | 178 477 |
+| tesla | 1 577 | 193 223 |
+| lame tournoyante | **387** | **71 464** |
+| dispersion | 1 400 | 217 738 |
+| railgun | 1 620 | 200 684 |
+| lance-grenades | 1 533 | 220 195 |
+
+**Le chiffre de la lame ne juge pas la lame, il juge le pilote.** `pilotage()`
+recule — c'est sa règle depuis le lot I — et la lame demande exactement
+l'inverse. Un critère de survie se mesure avec le pilote, un critère d'arme de
+contact demanderait un pilote qui avance. Tant qu'il n'existe pas, ce chiffre
+n'est pas une mesure d'équilibrage.
+
 ## Réglages
 
 Tout est en haut de `shared/game_state.js`.

@@ -7,7 +7,8 @@ import { VERSION } from "./shared/version.js";
 import { segmentName } from "./shared/timeline.js";
 import { RELIC_CFG } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
-import { cadreActifDe, lockedCards, lockedRelics, metaLinesFor } from "./shared/progression.js";
+import { armesOuvertes, cadreActifDe, lockedCards, lockedRelics, metaLinesFor } from "./shared/progression.js";
+import { ARMES, ARME_CFG, ARME_DEFAUT } from "./shared/armes.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 
@@ -338,6 +339,25 @@ export class Room {
   /* En cooperatif, seuls TES hauts faits produisent un bandeau : ceux des allies
      passent en une ligne dans le fil. D'ou la diffusion a tout le monde SAUF au
      porteur, qui recoit deja le sien. */
+  offreArmes(c) {
+    const ouvertes = armesOuvertes(c.profile);
+    const autres = ARMES.filter(a => a.id !== ARME_DEFAUT && ouvertes.has(a.id));
+    for (let i = autres.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [autres[i], autres[j]] = [autres[j], autres[i]];
+    }
+    return [ARME_DEFAUT, ...autres.slice(0, ARME_CFG.OFFRES - 1).map(a => a.id)];
+  }
+
+  armePayload(c) {
+    return {
+      t: "armes",
+      offres: c.armeOffres ?? [ARME_DEFAUT],
+      choisie: c.arme ?? ARME_DEFAUT,
+      relances: Math.max(0, ARME_CFG.RELANCES - (c.armeRelances ?? 0)),
+    };
+  }
+
   broadcastSauf(id, obj) {
     const prep = prepareMessage(JSON.stringify(obj));
     for (const c of this.clients.values()) {
@@ -806,7 +826,13 @@ export class Room {
       }
       c.rerollLeft = rerollsFor(c.profile);
       c.lastFinal = null;
+      c.armeOffres = this.offreArmes(c);
+      c.armeRelances = 0;
+      c.arme = ARME_DEFAUT;
       this.state.addPlayer(c.id, c.name, c.colorIndex, c.cls, meta);
+      const pj = this.state.players.get(c.id);
+      if (pj) { pj.arme = c.arme; this.state._recomputeMods(pj); }
+      c.conn.send(JSON.stringify(this.armePayload(c)));
       c.input.x = 0; c.input.y = 0; c.input.dash = false;
       c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
     }
@@ -1037,6 +1063,35 @@ export class Room {
         const seul = this.joined().length === 1 && this.state.players.has(id);
         if (!seul && id !== this.hostId) break;
         this.setPaused(true, "", id);
+        break;
+      }
+
+      /* Le choix vit dans le BRIEFING : l'ecran existe deja, il retient deja la
+         vague et il attend deja tout le monde. Un ecran de plus pour trois
+         boutons serait neuf points d'enregistrement pour rien. */
+      case "chooseArme": {
+        if (this.phase !== PHASE_ROUND || !this.state.warmup) break;
+        const pj = this.state.players.get(id);
+        if (!pj || !client.armeOffres?.includes(msg.id)) break;
+        client.arme = msg.id;
+        pj.arme = msg.id;
+        this.state._recomputeMods(pj);
+        pj.hp = Math.min(pj.hp, pj.maxHp);
+        client.conn.send(JSON.stringify(this.armePayload(client)));
+        break;
+      }
+
+      case "rerollArme": {
+        if (this.phase !== PHASE_ROUND || !this.state.warmup) break;
+        if ((client.armeRelances ?? 0) >= ARME_CFG.RELANCES) break;
+        client.armeRelances = (client.armeRelances ?? 0) + 1;
+        client.armeOffres = this.offreArmes(client);
+        if (!client.armeOffres.includes(client.arme)) {
+          client.arme = ARME_DEFAUT;
+          const pj = this.state.players.get(id);
+          if (pj) { pj.arme = ARME_DEFAUT; this.state._recomputeMods(pj); }
+        }
+        client.conn.send(JSON.stringify(this.armePayload(client)));
         break;
       }
 

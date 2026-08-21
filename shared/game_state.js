@@ -16,6 +16,14 @@ import {
 } from "./progression.js";
 import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
+import {
+  ARMES, ARME_CFG, ARME_DEFAUT, appliquerEchelle, armeAt, conversionBoss, dpsBase,
+} from "./armes.js";
+
+/* L index circule dans l instantane : ARMES est donc APPEND-ONLY, comme
+   ENEMY_TYPES ou BOSS_ROSTER. Inserer au milieu reecrirait le sens de tous les
+   instantanes en vol. */
+const ARME_INDEX = new Map(ARMES.map((a, i) => [a.id, i]));
 import { t } from "./i18n.js";
 import { CLASS_COLOR } from "./palette.js";
 import {
@@ -532,8 +540,16 @@ export function effectiveCards(cards, others = []) {
   return fusion ?? cards;
 }
 
-export function fullMods(cards, others, cls, level = 1) {
+export function fullMods(cards, others, cls, level = 1, arme = ARME_DEFAUT) {
   const mods = computeMods(effectiveCards(cards, others));
+  /* L'echelle d'arme s'applique AVANT la classe et la meta : une arme change ce
+     qu'une CARTE lui rapporte, pas ce que la classe vaut. */
+  appliquerEchelle(mods, arme);
+  mods.critChance = Math.min(CARD_CFG.CRIT_CHANCE_CAP, mods.critChance);
+  mods.fireIntervalMul = Math.max(
+    mods.noOverheat ? CARD_CFG.FIRE_INTERVAL_HARD_FLOOR : CARD_CFG.FIRE_INTERVAL_FLOOR,
+    mods.fireIntervalMul);
+  mods.weapon = arme === ARME_DEFAUT ? null : arme;
 
   if (mods.damagePerLevel > 0) {
     mods.damageMul += mods.damagePerLevel * Math.max(0, level - 1);
@@ -585,16 +601,17 @@ export function hfCompteurs() {
   };
 }
 
-export function powerIndex(m, flat = 0) {
+export function powerIndex(m, flat = 0, arme = ARME_DEFAUT) {
+  const a = armeAt(arme);
   let barrels = (1 + m.extraBarrels + (m.backShot ? 0.7 : 0)) * m.barrelDamageMul;
-  if (m.weapon === "dispersion") barrels = 5 * 0.55;
-  else if (m.weapon === "grenade") barrels = 4;
-  else if (m.weapon === "railgun") barrels = 1.15;
   if (m.inertia) barrels *= 1.9;
   const catalyseur = 1 + m.catalyseur * 0.5;
   const crit = 1 + m.critChance * (m.critMul - 1);
-  const flatMul = 1 + flat / CFG.BULLET_DAMAGE;
-  return m.damageMul * barrels * catalyseur * crit
+  const flatMul = 1 + flat / a.degats;
+  // ce que l'arme rend contre une CIBLE UNIQUE, conversion comprise : c'est le
+  // contexte sur lequel les boss sont calibres
+  const armeMul = dpsBase(a) * conversionBoss(a) / (CFG.BULLET_DAMAGE / CFG.FIRE_INTERVAL);
+  return m.damageMul * barrels * armeMul * catalyseur * crit
     * (1 + m.echoChance) / m.fireIntervalMul * flatMul;
 }
 
@@ -748,6 +765,13 @@ export class GameState {
       deaths: 0,
       score: 0,
       hf: hfCompteurs(),
+      arme: ARME_DEFAUT,
+      armeRes: 0,
+      armeAng: 0,
+      armeMuet: 0,
+      armeT: 0,
+      frostR: 0,
+      lameMarques: new Map(),
       aimX: 1,
       aimY: 0,
       aimR: SKILL_CFG.DPS_BOMB_RANGE_MAX,
@@ -938,7 +962,7 @@ export class GameState {
 
   _recomputeMods(p) {
     const before = p.maxHp;
-    const r = fullMods(p.cards, this._otherCards(p), p.cls, this.level);
+    const r = fullMods(p.cards, this._otherCards(p), p.cls, this.level, p.arme);
     p.powerMods = r.mods;
     if (p.meta && (p.meta.lines || p.meta.commun)) {
       const rr = applyMeta(r.mods, r.maxHp, classAt(p.cls).id,
@@ -1249,7 +1273,8 @@ export class GameState {
 
       p.fireCd = Math.max(0, p.fireCd - dt);
 
-      let interval = CFG.FIRE_INTERVAL * p.mods.fireIntervalMul;
+      const arme = armeAt(p.arme);
+      let interval = arme.interval * p.mods.fireIntervalMul;
       if (p.frenzyStacks > 0) interval /= 1 + p.frenzyStacks * CARD_CFG.FRENZY_STEP;
       if (p.mods.lowHpRate > 0 && p.hp <= p.maxHp * CARD_CFG.ADRENALINE_HP) {
         interval /= 1 + p.mods.lowHpRate;
@@ -1261,8 +1286,11 @@ export class GameState {
 
       p.fireInterval = interval;
 
+      const tirAutorise = this.warmup <= 0 && !p.healMode && !p.downed;
+      this._armeTick(p, arme, dt, tirAutorise);
+
       // posture engagee : il ne tire plus du tout. Les liens s'accrochent seuls.
-      if (p.fireCd <= 0 && this.warmup <= 0 && !p.healMode) {
+      if (arme.interval > 0 && p.fireCd <= 0 && tirAutorise && p.armeMuet <= 0) {
         p.fireCd = interval;
         this._shoot(p);
       }
@@ -1347,6 +1375,98 @@ export class GameState {
     hf.killTot++;
   }
 
+  /* LA RESSOURCE D'UNE ARME EST UN ETAT DE MANCHE, pas une recharge : elle monte
+     et descend toute seule, et le joueur la lit au lieu de la declencher. Point
+     de passage unique — `armeRes` porte la rampe du canon d'assaut comme la
+     chaleur du laser, parce qu'une seule jauge voyage et qu'un joueur n'a jamais
+     deux ressources a la fois. */
+  _armeTick(p, arme, dt, tirAutorise) {
+    p.armeMuet = Math.max(0, p.armeMuet - dt);
+    p.armeAng = Math.atan2(p.aimY, p.aimX);
+    p.frostR = p.mods.frostRadius;
+
+    if (arme.rampe) {
+      // la RETOMBEE est progressive : sans elle, esquiver une mecanique de boss
+      // couterait toute la puissance accumulee, et l'arme serait injouable.
+      const bouge = (p.vx * p.vx + p.vy * p.vy) > ARME_CFG.RAMPE_SEUIL ** 2;
+      p.armeRes = bouge
+        ? Math.max(0, p.armeRes - dt * p.mods.rampeGarde / ARME_CFG.RAMPE_CHUTE)
+        : Math.min(1, p.armeRes + dt * (1 + p.mods.rampeVite) / ARME_CFG.RAMPE_MONTEE);
+      // le champ du 4/4 REUTILISE l'aura de givre : une seconde machinerie de
+      // ralentissement serait un second chemin pour la meme regle
+      p.frostR = Math.max(p.mods.frostRadius,
+        p.mods.rampeZone > 0 && p.armeRes >= 1 && !bouge ? p.mods.rampeZone : 0);
+      return;
+    }
+
+    if (arme.chaleur) {
+      const tire = tirAutorise && p.armeMuet <= 0;
+      if (tire) {
+        p.armeRes = Math.min(1, p.armeRes + dt * ARME_CFG.CHALEUR_MONTEE * (p.mods.chaleurSeuil ?? 1));
+        if (p.armeRes >= 1) {
+          p.armeMuet = ARME_CFG.CHALEUR_MUET;
+          this._surchauffe(p);
+        }
+        p.armeT += dt;
+        while (p.armeT >= ARME_CFG.LASER_TICK) {
+          p.armeT -= ARME_CFG.LASER_TICK;
+          this._faisceau(p, arme, ARME_CFG.LASER_TICK);
+        }
+      } else {
+        p.armeT = 0;
+        const froid = ARME_CFG.CHALEUR_CHUTE * (p.mods.chaleurChute ?? 1);
+        p.armeRes = Math.max(0, p.armeRes - dt * froid);
+      }
+    }
+  }
+
+  /* LE FAISCEAU NE RATE JAMAIS : il ne lance pas de projectile, il balaie un
+     segment. C'est sa vraie signature, pas ses degats. */
+  _faisceau(p, arme, dt) {
+    const base = (arme.degats + this._flatDamage(p)) * p.mods.damageMul
+      * (p.buffDamage > 0 ? CFG.BUFF_DAMAGE_MUL : 1)
+      * (1 + p.armeRes * (ARME_CFG.CHALEUR_BONUS + (p.mods.chaleurDegats ?? 0)));
+    const dmg = base * dt;
+    const portee = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * p.mods.bulletLifeMul;
+    const dx = Math.cos(p.armeAng), dy = Math.sin(p.armeAng);
+    const large = ARME_CFG.LASER_LARGEUR * (p.mods.faisceauLarge ?? 1);
+    this._segmentHits(p, p.x, p.y, dx, dy, portee, large, dmg, true);
+  }
+
+  /* Point de passage unique de tout ce qui frappe LE LONG D'UN SEGMENT : le
+     faisceau du laser, et le rail du railgun s'il en vient un jour. */
+  _segmentHits(p, ox, oy, dx, dy, portee, large, dmg, overTime) {
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      const px = e.x - ox, py = e.y - oy;
+      const le = px * dx + py * dy;
+      if (le < 0 || le > portee) continue;
+      const ex = px - le * dx, ey = py - le * dy;
+      const rr = large + e.r;
+      if (ex * ex + ey * ey > rr * rr) continue;
+      this._damage(e, dmg, p.id, p.mods.burnDmg > 0 ? p.mods.burnDmg : 0, overTime);
+    }
+    for (const boss of this._bossTargets()) {
+      const px = boss.x - ox, py = boss.y - oy;
+      const le = px * dx + py * dy;
+      if (le < 0 || le > portee) continue;
+      const ex = px - le * dx, ey = py - le * dy;
+      const rr = large + CFG.BOSS_RADIUS;
+      if (ex * ex + ey * ey > rr * rr) continue;
+      this._damage(boss, dmg, p.id, 0, overTime, ox + dx * le, oy + dy * le);
+    }
+  }
+
+  _surchauffe(p) {
+    this.effects.push({
+      id: this._nextId++, x: p.x, y: p.y,
+      r: 90, life: 0.4, max: 0.4, kind: 0, n: 0, owner: p.id,
+    });
+    if (p.mods.surchauffeNova > 0) {
+      this._wave(p.x, p.y, p.mods.surchauffeNova, p.mods.damageMul * 60, p.id);
+    }
+  }
+
   _relicFlag(p, key) {
     for (const id of p.relics.keys()) if (relicById(id)?.[key]) return true;
     return false;
@@ -1376,34 +1496,51 @@ export class GameState {
   }
 
   _shoot(p) {
+    const arme = armeAt(p.arme);
     const brut = this._flatDamage(p) + (p.dashShot ?? 0);
     p.dashShot = 0;
-    const base = (CFG.BULLET_DAMAGE + brut) * p.mods.damageMul
-      * (p.buffDamage > 0 ? CFG.BUFF_DAMAGE_MUL : 1);
+    const base = (arme.degats + brut) * p.mods.damageMul
+      * (p.buffDamage > 0 ? CFG.BUFF_DAMAGE_MUL : 1)
+      // la rampe monte les degats, elle ne touche a rien d'autre : c'est le
+      // dialogue entre le danger qui approche et le compteur qui monte
+      * (arme.rampe ? 1 + p.armeRes * ((p.mods.rampeMax ?? ARME_CFG.RAMPE_MAX) - 1) : 1);
     this._volley(p, base);
     if (p.mods.echoChance > 0 && Math.random() < p.mods.echoChance) this._volley(p, base);
   }
 
   _volley(p, base) {
     const dmg = base * p.mods.barrelDamageMul;
+    const arme = armeAt(p.arme);
 
-    switch (p.mods.weapon) {
-      case "dispersion": {
-        const each = dmg * 0.55;
-        for (let i = 0; i < 5; i++) this._fire(p, each, (i / 4 - 0.5) * 0.45);
-        break;
-      }
-      case "railgun":
-        this._fire(p, dmg, 0, { pierceAll: true });
-        break;
+    switch (arme.tir) {
+      case "arc":
+        this._teslaTir(p, arme, dmg);
+        return;
+      case "arc_sol":
+        this._lameTir(p, arme, dmg);
+        return;
       case "grenade":
-        this._fire(p, dmg, 0, { boom: true });
+        // le direct est nul : toute la puissance est dans le souffle, c'est ce
+        // que « 40 + zone » veut dire
+        this._fire(p, 0, 0, { boom: true, boomDmg: dmg, court: arme.portee });
         break;
       default: {
+        if (arme.plombs) {
+          const n = arme.plombs;
+          const conv = arme.convergence ?? 0;
+          for (let i = 0; i < n; i++) {
+            const k = (i / (n - 1) - 0.5);
+            this._fire(p, dmg, 0, { court: arme.portee, lat: k * 46, conv });
+          }
+          break;
+        }
         const barrels = 1 + p.mods.extraBarrels + (p.buffDouble > 0 ? 1 : 0);
         for (let i = 0; i < barrels; i++) {
           const off = barrels === 1 ? 0 : (i - (barrels - 1) / 2) * 0.13;
-          this._fire(p, dmg, off);
+          this._fire(p, dmg, off, {
+            pierceAll: !!arme.perforeTout,
+            court: arme.portee,
+          });
         }
       }
     }
@@ -1411,10 +1548,136 @@ export class GameState {
     if (p.mods.backShot) this._fire(p, dmg * 0.7, Math.PI);
   }
 
+  /* TESLA : AUCUNE VISEE. L'arc part sur le corps le plus proche et saute seul —
+     c'est ce qui la rend differente a JOUER, pas differente a regarder. Sur un
+     boss, les rebonds REVIENNENT sur la meme cible avec leur perte : une arme
+     qui saute entre les cibles n'a rien a sauter face a une cible unique. */
+  _teslaTir(p, arme, dmg) {
+    const portee = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * p.mods.bulletLifeMul;
+    const p2 = portee * portee;
+    let cible = null, best = p2;
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+      if (d < best) { best = d; cible = e; }
+    }
+    let boss = null;
+    if (!cible) {
+      for (const b of this._bossTargets()) {
+        const d = (b.x - p.x) ** 2 + (b.y - p.y) ** 2;
+        if (d < best) { best = d; boss = b; }
+      }
+    }
+    if (!cible && !boss) return;
+
+    const rebonds = ARME_CFG.TESLA_REBONDS + (p.mods.teslaRebonds ?? 0);
+    const garde = 1 - (p.mods.teslaPerte ?? ARME_CFG.TESLA_PERTE);
+
+    if (boss) {
+      // conversion boss : le meme nombre d'arcs, tous sur le meme corps
+      let k = 1, total = 0;
+      for (let i = 0; i <= rebonds; i++) { total += k; k *= garde; }
+      this._effetArc(p.x, p.y, boss.x, boss.y);
+      this._damage(boss, dmg * total, p.id, 0, false, boss.x, boss.y);
+      return;
+    }
+
+    const vus = new Set();
+    let src = p, cur = cible, force = dmg;
+    for (let i = 0; i <= rebonds; i++) {
+      vus.add(cur.id);
+      this._effetArc(src.x, src.y, cur.x, cur.y);
+      if (p.mods.teslaEntrave > 0) cur.rootUntil = this.time + p.mods.teslaEntrave;
+      this._damage(cur, force, p.id);
+      force *= garde;
+      src = cur;
+      let next = null, nd = ARME_CFG.TESLA_SAUT ** 2;
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if (vus.has(e.id) && !(p.mods.teslaRetour > 0 && vus.size > 1)) continue;
+        if (e === src) continue;
+        // le retour sur une cible deja touchee est un palier de famille, pas la
+        // regle de base : sans lui, un arc sur un boss isole n'a nulle part ou aller
+        const d = (e.x - src.x) ** 2 + (e.y - src.y) ** 2;
+        if (d < nd) { nd = d; next = e; }
+      }
+      if (!next) break;
+      cur = next;
+    }
+  }
+
+  _effetArc(x, y, x2, y2) {
+    this.effects.push({
+      id: this._nextId++, x, y, x2, y2,
+      r: 0, life: 0.18, max: 0.18, kind: 3,
+    });
+  }
+
+  /* LAME : portee nulle, aucune visee a gerer, et elle touche TOUT L'ARC. Sur un
+     boss, les coups repetes empilent une marque — c'est ce qui l'empeche de
+     tomber sous le plancher en cible unique. */
+  _lameTir(p, arme, dmg) {
+    const r = (ARME_CFG.LAME_RAYON + (p.mods.lameRayon ?? 0)) * p.mods.areaMul;
+    const arc = ARME_CFG.LAME_ARC * (p.mods.lameArc ?? 1);
+    const sens = p.mods.lameDouble > 0 ? [1, -1] : [1];
+    const r2 = r * r;
+    let touches = 0;
+
+    for (const s of sens) {
+      const a0 = p.armeAng + (s > 0 ? 0 : Math.PI);
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        const dx = e.x - p.x, dy = e.y - p.y;
+        if (dx * dx + dy * dy > (r + e.r) ** 2) continue;
+        if (Math.abs(this._angleDiff(Math.atan2(dy, dx), a0)) > arc / 2) continue;
+        this._damage(e, dmg, p.id, p.mods.burnDmg);
+        if (p.mods.lamePousse > 0) {
+          const d = Math.hypot(dx, dy) || 1;
+          e.x += (dx / d) * p.mods.lamePousse;
+          e.y += (dy / d) * p.mods.lamePousse;
+        }
+        touches++;
+      }
+      for (const boss of this._bossTargets()) {
+        const dx = boss.x - p.x, dy = boss.y - p.y;
+        if (dx * dx + dy * dy > (r + CFG.BOSS_RADIUS) ** 2) continue;
+        if (Math.abs(this._angleDiff(Math.atan2(dy, dx), a0)) > arc / 2) continue;
+        const m = this._lameMarque(p, boss.id);
+        this._damage(boss, dmg * (1 + m * ARME_CFG.LAME_MARQUE), p.id, 0, false, boss.x, boss.y);
+        touches++;
+      }
+    }
+
+    this.effects.push({
+      id: this._nextId++, x: p.x, y: p.y, r,
+      life: 0.2, max: 0.2, kind: 17, n: touches, owner: p.id,
+      ang: p.armeAng, n2: sens.length,
+    });
+    void r2;
+    if (touches > 0 && p.mods.lameKill > 0) p.fireCd = Math.max(0, p.fireCd - p.mods.lameKill);
+  }
+
+  _lameMarque(p, id) {
+    const m = p.lameMarques.get(id);
+    const n = (m && this.time - m.at < ARME_CFG.LAME_MARQUE_TEMPS) ? m.n : 0;
+    const next = Math.min(ARME_CFG.LAME_MARQUE_MAX, n + 1);
+    p.lameMarques.set(id, { n: next, at: this.time });
+    return n;
+  }
+
   _fire(p, dmg, angleOffset, opt = {}) {
     p.hf.tirs++;
     const a = Math.atan2(p.aimY, p.aimX) + angleOffset;
-    const dx = Math.cos(a), dy = Math.sin(a);
+    let dx = Math.cos(a), dy = Math.sin(a);
+    let ox = 0, oy = 0;
+    if (opt.lat) {
+      ox = -dy * opt.lat; oy = dx * opt.lat;
+      if (opt.conv > 0) {
+        const cx = dx * opt.conv - ox, cy = dy * opt.conv - oy;
+        const d = Math.hypot(cx, cy) || 1;
+        dx = cx / d; dy = cy / d;
+      }
+    }
     const speed = CFG.BULLET_SPEED * p.mods.bulletSpeedMul
       * (opt.boom ? CARD_CFG.GRENADE_SPEED_MUL : 1);
     const pierce = (opt.pierceAll || p.mods.inertia)
@@ -1423,18 +1686,18 @@ export class GameState {
 
     const b = {
       id: this._nextId++,
-      x: p.x + dx * (CFG.PLAYER_RADIUS + 2),
-      y: p.y + dy * (CFG.PLAYER_RADIUS + 2),
+      x: p.x + ox + dx * (CFG.PLAYER_RADIUS + 2),
+      y: p.y + oy + dy * (CFG.PLAYER_RADIUS + 2),
       vx: dx * speed,
       vy: dy * speed,
-      life: CFG.BULLET_LIFE * p.mods.bulletLifeMul,
+      life: CFG.BULLET_LIFE * p.mods.bulletLifeMul * (opt.court ?? 1),
       dmg,
       owner: p.id,
       pierce,
       chain: (p.buffRicochet > 0 ? CFG.RICOCHET_MAX : 0) + p.mods.chain,
       burn: p.mods.burnDmg > 0 ? p.mods.burnDmg + this._relicSum(p, "burnFlat") : 0,
       arc: p.mods.chainChance,
-      boom: opt.boom ? CARD_CFG.GRENADE_DAMAGE * (dmg / CFG.BULLET_DAMAGE) : 0,
+      boom: opt.boom ? (opt.boomDmg ?? CARD_CFG.GRENADE_DAMAGE * (dmg / CFG.BULLET_DAMAGE)) : 0,
       hits: pierce > 0 ? new Set() : null,
       hit: null,
       inertia: p.mods.inertia ? 1 : 0,
@@ -3474,7 +3737,7 @@ export class GameState {
   _enemies(dt) {
     const frost = [];
     for (const p of this.players.values()) {
-      if (p.mods.frostRadius > 0 && !p.downed) frost.push(p);
+      if (p.frostR > 0 && !p.downed) frost.push(p);
     }
     this._auraPass();
     this.windup.length = 0;
@@ -3501,7 +3764,7 @@ export class GameState {
       const def = ENEMY_TYPES[e.type];
       let mul = this.slow > 0 ? CFG.SLOW_MUL : 1;
       for (const p of frost) {
-        const fr = p.mods.frostRadius;
+        const fr = p.frostR;
         if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= fr * fr) {
           mul *= CARD_CFG.FROST_MUL;
           break;
@@ -7096,6 +7359,13 @@ export class GameState {
         });
       }
 
+      // un ennemi qui meurt sous le tesla relance un arc depuis son corps
+      if (owner.mods.teslaMort > 0 && armeAt(owner.arme).rebonds && !this._inArc) {
+        this._inArc = true;
+        this._arc(e, armeAt(owner.arme).degats * owner.mods.damageMul, ownerId);
+        this._inArc = false;
+      }
+
       if (owner.mods.burnSpread > 0 && e.burn) {
         this._burnSpread(e, owner.mods.burnSpread, e.burn.dmg, ownerId);
       }
@@ -7339,7 +7609,7 @@ export class GameState {
           ? 1
           : r2(Math.min(1, (this.xp - this.levelFrom) / Math.max(1, this.levelAt - this.levelFrom))),
         r2(p.dashCd), p.dashT > 0 ? 1 : 0,
-        p.mods.orbiters, Math.round(p.mods.frostRadius),
+        p.mods.orbiters, Math.round(p.frostR),
         p.cls,
         r1(p.cd1), r1(p.cd2),
         (p.healMode ? SKILL_HEAL_MODE : 0)
@@ -7356,6 +7626,9 @@ export class GameState {
         p.eclats,
         r2(p.fireInterval),
         p.critKills,
+        ARME_INDEX.get(p.arme) ?? 0,
+        r2(p.armeRes),
+        r2(p.armeAng),
       ]),
       e: filtrer(this.enemies, e => e.r,
         e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),

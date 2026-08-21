@@ -72,6 +72,7 @@ shared/bosses.js       roster des 5 boss + le final, registre des mecaniques
 shared/enemies.js      LE BESTIAIRE — 9 types, 6 traits, attachement, adaptType
 shared/reliques.js     le catalogue des reliques
 shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
+shared/armes.js        LES ARMES : 8 fiches, coefficients d echelle, conversions boss
 shared/hauts_faits.js  LES HAUTS FAITS : 36 exigences, 13 cadres, recompenses NOMMEES
 shared/timeline.js     LE SCRIPT — six segments, trente beats, TROIS variantes, les EVENEMENTS
 shared/biomes.js       LE LIEU — trois biomes, cinq dangers, trois meteos, generateur DETERMINISTE
@@ -352,6 +353,9 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_bulletHitEnemy()` | une balle qui touche — appelé par la boucle de collision **et** le balayage à l'apparition |
 | `_groundZone()` | toute zone posée par la horde, plafond global `trailMax()` |
 | `_summonMul(p)` | **toute** source de dégâts qui n'est pas le tir : lame orbitale, essaim, drone, tourelle, pulsar, onde de mort |
+| `appliquerEchelle(mods, arme)` | ce qu’une arme tire de chaque statistique de carte |
+| `conversionBoss(a)` | ce qu’une arme rend contre une CIBLE UNIQUE |
+| `_armeTick(p, arme, dt, tir)` | la ressource d’une arme : rampe, chaleur, faisceau |
 | `hfStatsDeManche(p)` | ce qu'une manche produit pour un joueur, dans la forme qu'attend l'évaluation |
 | `vueStats` / `cumulerStats` | la FUSION (lecture) et le REPLI (écriture) des cumuls de profil — les inverser compte la manche deux fois |
 | `evaluerHautsFaits()` | l'obtention d'un haut fait, en cours de manche comme à la fin |
@@ -858,6 +862,39 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 - **`verifierCartes()` (`game_state.js`) est le critère rejouable du catalogue**,
   et il appelle `verifierCatalogue()` (`cards.js`) pour la structure de la table
   — axes en doublon, paliers vides, forme du pool, chaînes de prérequis.
+
+### Armes
+
+- **LA VARIÉTÉ NE VIENT PAS DU PROJECTILE**, elle vient de ce que l’arme exige du
+  corps et de l’attention : le **mouvement**, la **ressource**, la **visée**, la
+  **distance**. `verifierArmes()` refuse un dépôt où l’un des quatre axes est vide.
+- **AUCUNE ARME N’AJOUTE UNE ENTRÉE, UN BOUTON NI UN GESTE.** On vise et on
+  maintient le tir : c’est l’arme qui se comporte autrement, pas le joueur qui
+  apprend une manipulation.
+- **Une arme ne change pas ce qu’une carte FAIT, elle change ce qu’elle lui
+  RAPPORTE** (`appliquerEchelle`, point de passage unique). Six coefficients par
+  arme ; la cadence se rescale sur sa **réduction**, parce que `fireIntervalMul`
+  descend quand la cadence monte. Aucun coefficient sous 0,2 — une carte à valeur
+  nulle est un choix vide ; seule la **perforation** a droit au zéro.
+- **AUCUNE ARME NE DESCEND SOUS 60 % DE LA RÉFÉRENCE DANS L’UN DES DEUX
+  CONTEXTES.** Les boss sont un cinquième du temps de manche, contre une cible
+  unique : une arme qui saute entre les cibles n’a rien à sauter. D’où
+  `conversionBoss()` — les arcs du tesla **reviennent**, la lame **empile une
+  marque**, les plombs **convergent**. La conversion se calcule, elle ne se
+  déclare pas à côté de la mécanique.
+- **Trois armes proposées au départ, le tir standard TOUJOURS parmi elles**, une
+  relance par manche. Le choix vit dans le **briefing** : l’écran retient déjà la
+  vague et attend déjà tout le monde.
+- **L’index d’arme circule dans l’instantané** : `ARMES` est **append-only**,
+  comme `ENEMY_TYPES` ou `BOSS_ROSTER`.
+- **La famille de l’arme portée est garantie dans le pool, celles des autres en
+  sont retirées.** Ce sont les seules cartes qui ne peuvent jamais faire doublon,
+  et elles sont exclues du rapport communes/épiques — les seize ne sont jamais
+  disponibles ensemble.
+- **Une ressource invisible est une ressource subie.** La rampe se lit **sur le
+  personnage** (elle dépend du déplacement), la chaleur sous le réticule.
+- **Une arme est verrouillée si et seulement si un haut fait la donne**
+  (`armesOuvertes`), exactement comme une carte ou une relique.
 
 ### Hauts faits
 

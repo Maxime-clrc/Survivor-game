@@ -2297,6 +2297,66 @@
                    par manche de l amont est garde aussi : le profil n apporte
                    plus que les VERROUS DE HAUT FAIT au filtre de tirage.
 
+     0.14.2 lot 02 LES ARMES, PREMIERE TRANCHE. Quatre neuves — canon d'assaut,
+                   canon laser, tesla, lame tournoyante — et les trois anciennes
+                   entrees dans la meme table : huit fiches dans `shared/armes.js`.
+                   LA VARIETE NE VIENT PAS DU PROJECTILE. Dix armes qui se
+                   distinguent par leur balle se jouent toutes pareil. Les quatre
+                   neuves couvrent les quatre AXES du plan : le mouvement (la
+                   rampe du canon d'assaut), la ressource (la chaleur du laser),
+                   la visee (le tesla, qui n'en demande aucune), la distance (la
+                   lame, portee nulle). `verifierArmes()` refuse un depot ou l'un
+                   des quatre est vide.
+                   UNE ARME NE CHANGE PAS CE QU'UNE CARTE FAIT, ELLE CHANGE CE
+                   QU'ELLE LUI RAPPORTE : six coefficients par arme, un seul pool
+                   de cartes. Une carte de cadence est excellente sur le tesla et
+                   presque inutile sur le railgun, sans ecrire une carte neuve.
+                   La cadence se rescale sur sa REDUCTION — `fireIntervalMul`
+                   descend quand la cadence monte, donc appliquer le coefficient
+                   a la valeur brute inverserait le levier sur toute arme lente.
+                   AUCUNE ARME SOUS 60 % DE LA REFERENCE DANS L'UN DES DEUX
+                   CONTEXTES. Les boss sont un cinquieme du temps de manche,
+                   contre une cible unique : une arme qui saute entre les cibles
+                   n'a rien a sauter. `conversionBoss()` CALCULE la conversion au
+                   lieu de la declarer — les arcs du tesla reviennent (0,43 ->
+                   0,96), la lame empile une marque (0,45 -> 0,62), les plombs
+                   convergent sous 250 px (0,30 -> 0,94).
+                   TROIS BUGS TROUVES PAR LE BANC, AUCUN D'EQUILIBRAGE : `boss.r`
+                   n'existe pas (le rayon est `CFG.BOSS_RADIUS`) et une garde de
+                   portee comparee a NaN LAISSE PASSER au lieu de rejeter, donc
+                   le faisceau touchait un boss hors de vue ; le souffle du
+                   lance-grenades se calculait en fraction de `CFG.BULLET_DAMAGE`,
+                   juste tant qu'une arme etait une carte, faux des qu'elle
+                   declare ses degats (1 540 % de la reference) ; et un combat de
+                   boss resserre `state.bounds`, donc un mannequin pose en absolu
+                   ne tient pas une image.
+                   SEIZE CARTES DE FAMILLE, quatre par arme neuve, sur le systeme
+                   `family`/`tier` existant. La famille de l'arme PORTEE est
+                   garantie dans le pool, celles des autres en sont retirees :
+                   plus de manche condamnee par un tirage qui ne coopere pas. Ce
+                   sont les seules cartes qui ne peuvent jamais faire doublon, et
+                   elles sortent du rapport communes/epiques — les seize ne sont
+                   jamais disponibles ensemble.
+                   UNE ARME N'EST PLUS UNE CARTE. Dispersion, railgun et
+                   lance-grenades quittent `CARDS` pour la table : trois offres au
+                   depart, LE TIR STANDARD TOUJOURS PARMI ELLES (repli sur pour un
+                   debutant), une relance. Le choix vit dans le BRIEFING, qui
+                   retient deja la vague et attend deja tout le monde — un ecran
+                   de plus pour trois boutons serait neuf points d'enregistrement
+                   pour rien. Une arme est verrouillee si et seulement si un haut
+                   fait la donne, comme une carte ou une relique.
+                   L'index d'arme circule dans l'instantane : `ARMES` est
+                   APPEND-ONLY, comme `ENEMY_TYPES` ou `BOSS_ROSTER`. Trois
+                   places en queue du tuple joueur — index, ressource, angle.
+                   `perforation` et `inertie` perdent leur incompatibilite avec le
+                   railgun : le COEFFICIENT dit mieux « inutile » qu'un refus
+                   binaire, et le railgun n'est plus une carte.
+                   RESTE A FAIRE sur ce lot : l'identite SONORE par arme (section
+                   8.2), la jauge de chaleur sous le reticule (l'anneau de rampe,
+                   lui, est pose sur le personnage), et les deux armes hors
+                   tranche — fusil de siege et fusil de precision, deja NOMMEES
+                   par leurs hauts faits et qui traversent sans rien verrouiller.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2305,4 +2365,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.14.1";
+export const VERSION = "0.14.2";

@@ -35,6 +35,9 @@ export function ingest(msg) {
       eclats: a[32] ?? 0,
       fireInterval: a[33] ?? 0,
       critKills: a[34] ?? 0,
+      arme: a[35] ?? 0,
+      armeRes: a[36] ?? 0,
+      armeAng: a[37] ?? 0,
     }])),
     enemies: new Map(msg.e.map(a => [a[0], {
       id: a[0], x: a[1], y: a[2], hp: a[3], maxHp: a[4],

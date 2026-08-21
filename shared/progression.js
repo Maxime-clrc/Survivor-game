@@ -1,6 +1,7 @@
 
 import { nombre, t, tf } from "./i18n.js";
 import { CARD_BY_ID, CARD_CFG } from "./cards.js";
+import { ARMES, ARME_BY_ID, ARME_DEFAUT } from "./armes.js";
 import { SKILL_CFG } from "./classes.js";
 import {
   CADRE_DEFAUT, HAUTS_FAITS, HF_BY_ID, TOUTES_RECOMPENSES,
@@ -226,6 +227,11 @@ export { HAUTS_FAITS, HF_BY_ID, evaluerHautsFaits, hfNom, hfTexte };
    rien verrouiller : le lot des hauts faits precede celui des armes. */
 const VERROUILLABLES = new Set(
   [...TOUTES_RECOMPENSES.cartes].filter(id => CARD_BY_ID.has(id)));
+/* Une ARME n'est plus une carte : elle se choisit au depart de la manche. Elle
+   se verrouille donc dans sa propre liste, sur exactement la meme regle — elle
+   est verrouillee si et seulement si un haut fait la donne. */
+const ARMES_VERROUILLABLES = new Set(
+  [...TOUTES_RECOMPENSES.cartes].filter(id => ARME_BY_ID.has(id)));
 const RELIQUES_VERROUILLABLES = TOUTES_RECOMPENSES.reliques;
 const LIGNES_VERROUILLABLES = TOUTES_RECOMPENSES.lignes;
 
@@ -241,6 +247,15 @@ export function lockedCards(profil = null) {
   for (const id of cartes) locked.delete(id);
   for (const id of profil?.debloquees ?? []) locked.delete(id);
   return locked;
+}
+
+export function armesOuvertes(profil = null) {
+  const ouvertes = new Set([ARME_DEFAUT]);
+  const { cartes } = recompensesDe(hfDe(profil));
+  for (const id of cartes) if (ARME_BY_ID.has(id)) ouvertes.add(id);
+  for (const id of profil?.debloquees ?? []) if (ARME_BY_ID.has(id)) ouvertes.add(id);
+  for (const a of ARMES) if (!ARMES_VERROUILLABLES.has(a.id)) ouvertes.add(a.id);
+  return ouvertes;
 }
 
 export function lockedRelics(profil = null) {

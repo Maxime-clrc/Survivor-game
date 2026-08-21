@@ -1,4 +1,5 @@
 
+import { ARME_CFG } from "/shared/armes.js";
 import { POWERUP_ICON, POWERUP_STYLE, paintIcon } from "/icons.js";
 import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
@@ -585,9 +586,34 @@ const BLAST_TINT = {
   12: [FX.bombFill, FX.bombEdge],
 };
 const HEAL_WAVE_MOTES = 8;
+const LAME_ARC_VUE = ARME_CFG.LAME_ARC;
+
 export function drawEffects(effects) {
   for (const f of effects) {
     const grow = 1 - f.k;
+
+    /* LE BALAYAGE DE LA LAME : un arc qui persiste, pas un cercle. La forme du
+       TRAJET est ce qui identifie l'arme d'un bout a l'autre de l'ecran — une
+       arme qui ne se distingue que par ses degats n'a pas d'identite. */
+    if (f.kind === 17) {
+      const col = ownerColorOf(f.owner) ?? FX.flash;
+      const demi = LAME_ARC_VUE / 2;
+      for (let s = 0; s < (f.n2 ?? 1); s++) {
+        const a0 = (f.ang ?? 0) + (s === 0 ? 0 : Math.PI);
+        const bal = a0 - demi + grow * LAME_ARC_VUE;
+        ctx.strokeStyle = alpha(col, f.k * 0.75);
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, a0 - demi, bal);
+        ctx.stroke();
+        ctx.strokeStyle = alpha(FX.flash, f.k * 0.5);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, Math.max(a0 - demi, bal - 0.35), bal);
+        ctx.stroke();
+      }
+      continue;
+    }
 
     // UN ULTIME S'ANNONCE A TOUTE L'EQUIPE. L'onde qui traverse la vue n'est
     // tiree que pour SON lanceur — un voile plein ecran a chaque ultime allie

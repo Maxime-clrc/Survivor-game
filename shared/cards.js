@@ -2,6 +2,7 @@
 import { nombre, ordinal, t, tf, tn } from "./i18n.js";
 import { fmtM } from "./units.js";
 import { RARITY_COLOR } from "./palette.js";
+import { ARME_CFG, FAMILLES_D_ARME, familleDeArme } from "./armes.js";
 
 export const RARITY = { COMMUNE: 0, RARE: 1, EPIQUE: 2, LEGENDAIRE: 3 };
 
@@ -281,6 +282,10 @@ export const FAMILY_LABEL = {
   brulure: "brûlure",
   execution: "exécution",
   souffle: "souffle",
+  arme_assaut: "canon d'assaut",
+  arme_laser: "canon laser",
+  arme_tesla: "tesla",
+  arme_lame: "lame tournoyante",
 };
 export const familyLabel = id => t(`cardfam.${id}`, FAMILY_LABEL[id] ?? id);
 export const FAMILY_TIERS = 4;
@@ -508,7 +513,6 @@ export const CARDS = [
 
   {
     id: "perforation", nom: "Perforation", rarity: 0, max: 2, tags: ["off"],
-    incompatible: ["railgun"],
     desc: "les balles traversent 1 ennemi de plus",
     stack: n => tn("cards.perforation.stack", "{n} ennemi de plus", "{n} ennemis de plus", n),
     apply(m, n) { m.pierce += n; },
@@ -868,7 +872,6 @@ export const CARDS = [
   {
     id: "inertie", nom: "Inertie", rarity: 1, max: 1, tags: ["off"],
     desc: "les balles ne s'arrêtent plus, −35 % de dégâts par ennemi traversé",
-    incompatible: ["railgun"],
     apply(m) { m.inertia = 1; },
   },
   {
@@ -887,28 +890,6 @@ export const CARDS = [
     apply(m) { m.damageMul += CARD_CFG.DETTE_DAMAGE; m.xpCostMul *= 1 + CARD_CFG.DETTE_XP_COST; },
   },
 
-  {
-    id: "dispersion", nom: "Fusil à dispersion", rarity: 3, max: 1, tags: ["off"],
-    desc: "remplace le tir : 5 balles en cône, 55 % de dégâts chacune",
-    remplaceArme: true,
-    incompatible: ["railgun", "grenade"],
-    apply(m) { m.weapon = "dispersion"; m.fireIntervalMul *= 1.6; },
-  },
-  {
-    id: "railgun", nom: "Railgun", rarity: 3, max: 1, tags: ["off"],
-    desc: "remplace le tir : traverse tout, ×3 dégâts, cadence divisée par 2,5",
-    remplaceArme: true,
-    incompatible: ["dispersion", "grenade", "perforation", "inertie"],
-    apply(m) { m.weapon = "railgun"; m.damageMul += 2; m.fireIntervalMul *= 2.5; m.bulletSpeedMul += 1; },
-  },
-  {
-    id: "grenade", nom: "Lance-grenades", rarity: 3, max: 1, tags: ["off"],
-    desc: "remplace le tir : projectile lent qui explose sur {0}",
-    vals: () => ({ "0": fmtM(CARD_CFG.GRENADE_RADIUS) }),
-    remplaceArme: true,
-    incompatible: ["dispersion", "railgun"],
-    apply(m) { m.weapon = "grenade"; m.fireIntervalMul *= 2.2; },
-  },
   {
     id: "echo", nom: "Écho", rarity: 3, max: 1, tags: ["off"],
     desc: "20 % de chance que chaque balle soit tirée en double",
@@ -1345,6 +1326,133 @@ export const CARDS = [
     desc: "+75 % de rayon sur tes explosions, ondes et auras, et elles aspirent les ennemis vers leur centre",
     apply(m) { m.areaMul += 0.75; m.areaPull = 1; },
   },
+  {
+    id: "assaut_rampe", nom: "Culasse chaude", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_assaut", tier: 0,
+    desc: "canon d'assaut : la rampe monte {0} % plus vite",
+    vals: () => ({ "0": 25 }),
+    stack: n => pctAdd(0.25, n),
+    apply(m, n) { m.rampeVite += 0.25 * n; },
+  },
+  {
+    id: "assaut_plafond", nom: "Régime plein", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_assaut", tier: 1,
+    desc: "canon d'assaut : plafond de rampe ×{0} au lieu de ×{1}",
+    vals: () => ({ "0": num(ARME_CFG.RAMPE_MAX + 0.3), "1": num(ARME_CFG.RAMPE_MAX) }),
+    stack: n => tf("cards.assaut_plafond.stack", "×{0}", { "0": num(ARME_CFG.RAMPE_MAX + 0.3 * n) }),
+    apply(m, n) { m.rampeMax = ARME_CFG.RAMPE_MAX + 0.3 * n; },
+  },
+  {
+    id: "assaut_garde", nom: "Inertie de tir", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_assaut", tier: 2,
+    desc: "canon d'assaut : la rampe ne retombe plus qu'à moitié",
+    effective: () => t("cards.assaut_garde.eff",
+      "c'est ce qui rend l'arme jouable sur les mécaniques de boss"),
+    apply(m) { m.rampeGarde = 0.5; },
+  },
+  {
+    id: "assaut_sol", nom: "Point d'ancrage", rarity: 3, max: 1, tags: ["off"], cat: "zone",
+    family: "arme_assaut", tier: 3,
+    desc: "canon d'assaut : rampe pleine, tirer immobile ralentit tout autour de {0}",
+    vals: () => ({ "0": fmtM(170) }),
+    apply(m) {
+      m.rampeVite += 0.5;
+      m.rampeMax = Math.max(m.rampeMax, ARME_CFG.RAMPE_MAX + 0.3);
+      m.rampeZone = 170;
+    },
+  },
+
+  {
+    id: "laser_seuil", nom: "Dissipateur", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_laser", tier: 0,
+    desc: "canon laser : seuil de chaleur +{0} %",
+    vals: () => ({ "0": 25 }),
+    stack: n => pctAdd(0.25, n),
+    apply(m, n) { m.chaleurSeuil = 1 / (1 + 0.25 * n); },
+  },
+  {
+    id: "laser_froid", nom: "Circuit froid", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_laser", tier: 1,
+    desc: "canon laser : refroidit deux fois plus vite",
+    stack: n => tf("cards.laser_froid.stack", "×{0}", { "0": num(1 + n) }),
+    apply(m, n) { m.chaleurChute += n; },
+  },
+  {
+    id: "laser_chaud", nom: "Focale ardente", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_laser", tier: 2,
+    desc: "canon laser : à chaleur pleine, +{0} % de dégâts de plus",
+    vals: () => ({ "0": 30 }),
+    effective: () => t("cards.laser_chaud.eff",
+      "la même ressource devient un malus en horde et un bonus sur un boss"),
+    apply(m) { m.chaleurDegats += 0.30; m.faisceauLarge = 1.35; },
+  },
+  {
+    id: "laser_nova", nom: "Purge thermique", rarity: 3, max: 1, tags: ["off"], cat: "zone",
+    family: "arme_laser", tier: 3,
+    desc: "canon laser : la surchauffe déclenche une nova de {0}",
+    vals: () => ({ "0": fmtM(260) }),
+    apply(m) { m.surchauffeNova = 260; m.chaleurDegats += 0.30; m.chaleurSeuil = 1 / 1.5; },
+  },
+
+  {
+    id: "tesla_saut", nom: "Second arc", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_tesla", tier: 0,
+    desc: "tesla : +1 rebond",
+    stack: n => tf("cards.tesla_saut.stack", "{0}", { "0": plur(n, "rebond") }),
+    apply(m, n) { m.teslaRebonds += n; },
+  },
+  {
+    id: "tesla_retention", nom: "Conducteur pur", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_tesla", tier: 1,
+    desc: "tesla : les rebonds ne perdent plus que {0} % au lieu de {1} %",
+    vals: () => ({ "0": num(12), "1": num(ARME_CFG.TESLA_PERTE * 100) }),
+    apply(m, n) { m.teslaPerte = Math.max(0.06, ARME_CFG.TESLA_PERTE - 0.08 * n); },
+  },
+  {
+    id: "tesla_retour", nom: "Boucle fermée", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_tesla", tier: 2,
+    desc: "tesla : +2 rebonds, et les arcs reviennent sur une cible déjà touchée",
+    apply(m) { m.teslaRebonds += 2; m.teslaRetour = 1; },
+  },
+  {
+    id: "tesla_entrave", nom: "Champ statique", rarity: 3, max: 1, tags: ["off"],
+    family: "arme_tesla", tier: 3,
+    desc: "tesla : chaque rebond entrave {0} s, et un ennemi qui meurt relance un arc",
+    vals: () => ({ "0": num(0.6) }),
+    apply(m) { m.teslaEntrave = 0.6; m.teslaRebonds += 1; m.teslaMort = 1; },
+  },
+
+  {
+    id: "lame_rayon", nom: "Longue portée", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_lame", tier: 0,
+    desc: "lame : +{0} % de rayon de balayage",
+    vals: () => ({ "0": 20 }),
+    stack: n => pctAdd(0.20, n),
+    apply(m, n) { m.lameRayon += ARME_CFG.LAME_RAYON * 0.20 * n; },
+  },
+  {
+    id: "lame_pousse", nom: "Revers", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_lame", tier: 1,
+    desc: "lame : le balayage repousse ce qu'il touche",
+    stack: n => tf("cards.lame_pousse.stack", "{0} px", { "0": 14 * n }),
+    apply(m, n) { m.lamePousse += 14 * n; },
+  },
+  {
+    id: "lame_double", nom: "Double tranchant", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_lame", tier: 2,
+    desc: "lame : un second arc balaie en sens inverse",
+    apply(m) { m.lameDouble = 1; },
+  },
+  {
+    id: "lame_elan", nom: "Faux d'acier", rarity: 3, max: 1, tags: ["off"],
+    family: "arme_lame", tier: 3,
+    desc: "lame : chaque balayage qui touche raccourcit le suivant de {0} s",
+    vals: () => ({ "0": num(0.08) }),
+    apply(m) {
+      m.lameKill = 0.08; m.lameDouble = 1; m.lameArc = 1.15;
+      m.lameRayon += ARME_CFG.LAME_RAYON * 0.20;
+    },
+  },
 ];
 
 export const CARD_BY_ID = new Map(CARDS.map(c => [c.id, c]));
@@ -1433,6 +1541,12 @@ export function defaultMods() {
     guardianCd: 0,
     instinctCd: 0,
     weapon: null,
+    rampeVite: 0, rampeMax: ARME_CFG.RAMPE_MAX, rampeGarde: 1, rampeZone: 0,
+    chaleurSeuil: 1, chaleurChute: 1, chaleurDegats: 0, surchauffeNova: 0,
+    faisceauLarge: 1,
+    teslaRebonds: 0, teslaPerte: ARME_CFG.TESLA_PERTE, teslaRetour: 0,
+    teslaEntrave: 0, teslaMort: 0,
+    lameRayon: 0, lameArc: 1, lamePousse: 0, lameDouble: 0, lameKill: 0,
     orbiterDamageMul: 1,
     bounce: 0,
     inertia: 0,
@@ -1474,6 +1588,9 @@ export function defaultMods() {
     bombCdCut: 0,
     bombRadiusMul: 1,
 
+    // le SOCLE, garde a part : l'echelle d'arme doit savoir ce qui vient des
+    // CARTES et ce qui vient du jeu de base (le tesla remplace le socle par 0)
+    critBase: CARD_CFG.CRIT_CHANCE,
     critChance: CARD_CFG.CRIT_CHANCE,
     critMul: CARD_CFG.CRIT_MUL,
     critVuln: 0,
@@ -1576,7 +1693,9 @@ export function eligibleCards(owned, cls = null, levelNow = 0, locked = null, ct
     if (card && card.incompatible) for (const other of card.incompatible) blocked.add(other);
   }
   const top = topTiers(owned);
+  const mienne = familleDeArme(ctx?.arme);
   return CARDS.filter(c => {
+    if (c.family && FAMILLES_D_ARME.has(c.family) && c.family !== mienne) return false;
     if (c.family && (top.get(c.family) ?? -1) > c.tier) return false;
     if (c.fallback) return false;
     if (c.cls && c.cls !== cls) return false;
@@ -1718,7 +1837,8 @@ export function verifierCatalogue() {
     }
   }
 
-  const n = poolCounts(CARDS.filter(c => !c.fallback));
+  const n = poolCounts(CARDS.filter(c =>
+    !c.fallback && !(c.family && FAMILLES_D_ARME.has(c.family))));
   if (n[RARITY.COMMUNE] < n[RARITY.EPIQUE] * 1.5) {
     out.push(`pool inverse : ${n[RARITY.COMMUNE]} communes pour ${n[RARITY.EPIQUE]} epiques`);
   }
