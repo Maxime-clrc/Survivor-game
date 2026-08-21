@@ -18,6 +18,7 @@ import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost
 import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
 import {
   ARMES, ARME_CFG, ARME_DEFAUT, appliquerEchelle, armeAt, conversionBoss, dpsBase,
+  lameRayon,
 } from "./armes.js";
 
 /* L index circule dans l instantane : ARMES est donc APPEND-ONLY, comme
@@ -770,6 +771,7 @@ export class GameState {
       armeAng: 0,
       armeMuet: 0,
       armeT: 0,
+      armeTouche: 0,
       frostR: 0,
       lameMarques: new Map(),
       aimX: 1,
@@ -1402,20 +1404,23 @@ export class GameState {
     if (arme.chaleur) {
       const tire = tirAutorise && p.armeMuet <= 0;
       if (tire) {
-        p.armeRes = Math.min(1, p.armeRes + dt * ARME_CFG.CHALEUR_MONTEE * (p.mods.chaleurSeuil ?? 1));
+        p.armeT += dt;
+        while (p.armeT >= ARME_CFG.LASER_TICK) {
+          p.armeT -= ARME_CFG.LASER_TICK;
+          p.armeTouche = this._faisceau(p, arme, ARME_CFG.LASER_TICK) > 0 ? 1 : 0;
+        }
+      } else {
+        p.armeT = 0;
+        p.armeTouche = 0;
+      }
+      if (p.armeTouche) {
+        p.armeRes = Math.min(1, p.armeRes + dt * ARME_CFG.CHALEUR_MONTEE * p.mods.chaleurSeuil);
         if (p.armeRes >= 1) {
           p.armeMuet = ARME_CFG.CHALEUR_MUET;
           this._surchauffe(p);
         }
-        p.armeT += dt;
-        while (p.armeT >= ARME_CFG.LASER_TICK) {
-          p.armeT -= ARME_CFG.LASER_TICK;
-          this._faisceau(p, arme, ARME_CFG.LASER_TICK);
-        }
       } else {
-        p.armeT = 0;
-        const froid = ARME_CFG.CHALEUR_CHUTE * (p.mods.chaleurChute ?? 1);
-        p.armeRes = Math.max(0, p.armeRes - dt * froid);
+        p.armeRes = Math.max(0, p.armeRes - dt * ARME_CFG.CHALEUR_CHUTE * p.mods.chaleurChute);
       }
     }
   }
@@ -1429,13 +1434,14 @@ export class GameState {
     const dmg = base * dt;
     const portee = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * p.mods.bulletLifeMul;
     const dx = Math.cos(p.armeAng), dy = Math.sin(p.armeAng);
-    const large = ARME_CFG.LASER_LARGEUR * (p.mods.faisceauLarge ?? 1);
-    this._segmentHits(p, p.x, p.y, dx, dy, portee, large, dmg, true);
+    const large = ARME_CFG.LASER_LARGEUR * p.mods.faisceauLarge;
+    return this._segmentHits(p, p.x, p.y, dx, dy, portee, large, dmg, true);
   }
 
   /* Point de passage unique de tout ce qui frappe LE LONG D'UN SEGMENT : le
      faisceau du laser, et le rail du railgun s'il en vient un jour. */
   _segmentHits(p, ox, oy, dx, dy, portee, large, dmg, overTime) {
+    let touches = 0;
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       const px = e.x - ox, py = e.y - oy;
@@ -1445,6 +1451,7 @@ export class GameState {
       const rr = large + e.r;
       if (ex * ex + ey * ey > rr * rr) continue;
       this._damage(e, dmg, p.id, p.mods.burnDmg > 0 ? p.mods.burnDmg : 0, overTime);
+      touches++;
     }
     for (const boss of this._bossTargets()) {
       const px = boss.x - ox, py = boss.y - oy;
@@ -1454,7 +1461,9 @@ export class GameState {
       const rr = large + CFG.BOSS_RADIUS;
       if (ex * ex + ey * ey > rr * rr) continue;
       this._damage(boss, dmg, p.id, 0, overTime, ox + dx * le, oy + dy * le);
+      touches++;
     }
+    return touches;
   }
 
   _surchauffe(p) {
@@ -1522,7 +1531,10 @@ export class GameState {
       case "grenade":
         // le direct est nul : toute la puissance est dans le souffle, c'est ce
         // que « 40 + zone » veut dire
-        this._fire(p, 0, 0, { boom: true, boomDmg: dmg, court: arme.portee });
+        this._fire(p, 0, 0, {
+          boom: true, boomDmg: dmg, court: arme.portee,
+          boomR: (arme.souffle ?? CARD_CFG.GRENADE_RADIUS) * p.mods.areaMul,
+        });
         break;
       default: {
         if (arme.plombs) {
@@ -1617,7 +1629,7 @@ export class GameState {
      boss, les coups repetes empilent une marque — c'est ce qui l'empeche de
      tomber sous le plancher en cible unique. */
   _lameTir(p, arme, dmg) {
-    const r = (ARME_CFG.LAME_RAYON + (p.mods.lameRayon ?? 0)) * p.mods.areaMul;
+    const r = (lameRayon(arme) + p.mods.lameRayon) * p.mods.areaMul;
     const arc = ARME_CFG.LAME_ARC * (p.mods.lameArc ?? 1);
     const sens = p.mods.lameDouble > 0 ? [1, -1] : [1];
     const r2 = r * r;
@@ -1698,6 +1710,7 @@ export class GameState {
       burn: p.mods.burnDmg > 0 ? p.mods.burnDmg + this._relicSum(p, "burnFlat") : 0,
       arc: p.mods.chainChance,
       boom: opt.boom ? (opt.boomDmg ?? CARD_CFG.GRENADE_DAMAGE * (dmg / CFG.BULLET_DAMAGE)) : 0,
+      boomR: opt.boomR ?? 0,
       hits: pierce > 0 ? new Set() : null,
       hit: null,
       inertia: p.mods.inertia ? 1 : 0,
@@ -8984,7 +8997,27 @@ export const PILOT_CFG = {
   BONUS: 520,
   REMPART: 620,
   ZONE: 520,
+
+  /* LE PILOTE DU LOT I RECULE, TOUJOURS. C'est sa doctrine et elle ne bouge pas :
+     avec le tir standard il se comporte exactement comme avant, sinon toutes les
+     mesures des lots I a K changeraient de sens.
+     Mais une arme de CONTACT lui demande l'inverse, et une arme a RAMPE lui
+     demande de ne pas bouger du tout — sans ces deux termes, la mesure ne juge
+     pas l'arme, elle juge l'incapacite du pilote a la jouer. Les deux ne
+     s'activent que si l'arme les declare. */
+  TENUE_POIDS: 4.5,
+  TENUE_MARGE: 0.35,
+  RAMPE_TENIR: 240,
 };
+
+/* La distance a laquelle le pilote CHERCHE a se tenir, deduite de la portee de
+   l'arme : elle ne se declare pas une seconde fois dans la table. `null` = la
+   doctrine d'origine, reculer autant que possible. */
+export function tenueDe(arme) {
+  if (arme.lame) return lameRayon(arme) * 0.7;
+  if (arme.plombs) return CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * 0.45;
+  return null;
+}
 
 const PILOT_DIRS = (() => {
   const out = [[0, 0]];
@@ -9027,14 +9060,22 @@ function zonesDangereuses(g, p) {
   return out;
 }
 
-function coutPosition(g, x, y, menaces, zones, but) {
+function coutPosition(g, x, y, menaces, zones, but, tenue = null) {
   let c = 0;
-  const R = PILOT_CFG.LECTURE;
+  const R = tenue !== null ? tenue : PILOT_CFG.LECTURE;
+  let plusProche = Infinity;
   for (const m of menaces) {
     const d = Math.hypot(m.x - x, m.y - y);
+    if (d < plusProche) plusProche = d;
     if (d >= R) continue;
     const k = 1 - d / R;
     c += m.poids * k * k * 120;
+  }
+  // une arme de contact veut une BANDE, pas un maximum : trop loin coute autant
+  // que trop pres, et c'est ce qui fait avancer le pilote au lieu de fuir
+  if (tenue !== null && plusProche < Infinity) {
+    const marge = tenue * PILOT_CFG.TENUE_MARGE;
+    c += Math.max(0, Math.abs(plusProche - tenue) - marge) * PILOT_CFG.TENUE_POIDS;
   }
   const point = { x, y };
   for (const z of zones) if (g._zoneHits(z, point)) c += z.dmg > 0 ? 900 : 260;
@@ -9099,6 +9140,8 @@ export function pilotage() {
     if (!mem) { mem = { x: 0, y: 0, k: 0 }; memo.set(p.id, mem); }
 
     const cls = classAt(p.cls).id;
+    const arme = armeAt(p.arme);
+    const tenue = tenueDe(arme);
     const ratio = p.hp / Math.max(1, p.maxHp);
 
     let proche = null, dp = Infinity;
@@ -9168,7 +9211,12 @@ export function pilotage() {
       let bx = 0, by = 0, bc = Infinity;
       for (const [dx, dy] of PILOT_DIRS) {
         const x = p.x + dx * PILOT_CFG.SAUT, y = p.y + dy * PILOT_CFG.SAUT;
-        const c = coutPosition(g, x, y, menaces, zones, but);
+        let c = coutPosition(g, x, y, menaces, zones, but, tenue);
+        // une rampe ne se garde qu'immobile : tant que rien n'est au contact,
+        // rester vaut mieux que gagner quelques pixels
+        if (arme.rampe && (dx !== 0 || dy !== 0) && dp > PILOT_CFG.RAMPE_TENIR ** 2) {
+          c += 90 * p.armeRes + 40;
+        }
         if (c < bc) { bc = c; bx = dx; by = dy; }
       }
       mem.x = bx; mem.y = by;

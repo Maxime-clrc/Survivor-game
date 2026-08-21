@@ -2357,6 +2357,52 @@
                    tranche — fusil de siege et fusil de precision, deja NOMMEES
                    par leurs hauts faits et qui traversent sans rien verrouiller.
 
+     0.14.3 lot 02 LES ARMES S'EQUILIBRENT ENTRE ELLES. Le banc disait ce qu'une
+                   arme SORT, pas ce qu'elle fait GAGNER : manche reelle, profil
+                   P1, six graines, et LA MORT COMPTE. La mesure est le temps
+                   tenu, rapporte au tir standard.
+                   LE PILOTE NE SAVAIT PAS JOUER DEUX DES QUATRE ARMES, et c'est
+                   ce qu'il fallait etablir AVANT de toucher un chiffre. Rampe
+                   tenue 0,39, chaleur 0,99, lame a 196 px pour une portee de
+                   110 : la mesure jugeait l'incapacite du bot. `pilotage()`
+                   gagne donc une TENUE DE DISTANCE deduite de l'arme et un terme
+                   d'immobilite pour les armes a rampe — les deux ne s'activent
+                   que si l'arme les declare, donc avec le tir standard son
+                   comportement est INCHANGE et les mesures des lots I a K
+                   gardent leur sens.
+                   UN DEFAUT DE CONCEPTION QUE SEULE CETTE MESURE POUVAIT
+                   MONTRER : la chaleur montait des qu'on tirait, or le tir est
+                   AUTOMATIQUE et le plan interdit d'ajouter une entree. La
+                   ressource n'etait donc pas pilotable — un metronome. Elle
+                   monte maintenant quand le faisceau TOUCHE : on la gere en
+                   visant ailleurs, sans un bouton de plus. 0,99 -> 0,64.
+                   Un bug d'echantillonnage se cachait dessous : le faisceau se
+                   resout a 10 Hz, la chaleur s'integre a 60, donc elle
+                   refroidissait cinq images sur six et ne montait jamais.
+                   LE LANCE-GRENADES DEBORDAIT PAR SA SURFACE, PAS PAR SES
+                   DEGATS : 0,67 de la reference en cible unique et pourtant
+                   1 063 kills contre 416, x1,88 de survie. La premiere coupe
+                   portait sur les degats — `verifierArmes()` l'a REFUSEE, elle
+                   le faisait tomber a 53 % de la reference. Rayon de souffle
+                   130 -> 95 px, et l'arme rentre a x1,03.
+                   LE RAYON DE LA LAME N'EST PAS UN LEVIER, C'EST UN SEUIL :
+                   130 px -> x0,66, 156 px -> x1,58. Vingt pour cent de rayon
+                   font basculer la survie d'un facteur 2,4, parce qu'en dessous
+                   de ~150 px la lame ne perce pas l'anneau qui se referme sur
+                   elle. Le rayon se pose donc AU-DESSUS du seuil et c'est l'ARC
+                   qui regle : 162° -> 108°, ce qui demande en plus de faire
+                   face. x1,14.
+                   Le rayon lui-meme cesse d'etre un nombre invente a cote d'une
+                   colonne qui disait deja combien : il se DEDUIT de `portee`,
+                   avec un facteur `LAME_UTILE` mesure et non suppose.
+                   ETAT FINAL, ecart 0,76 a 1,30 : assaut 0,76 (il paie sa survie
+                   pour 2,22 fois la reference en degats), railgun 0,93 avec le
+                   meilleur TTK boss (66 s), tesla 1,05, grenade 1,03, lame 1,14,
+                   laser 1,28, dispersion 1,30.
+                   RESTE NON MESURE : un seul effectif, une seule difficulte, un
+                   seul profil. Les compositions a plusieurs et le cauchemar
+                   restent a faire.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2365,4 +2411,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.14.2";
+export const VERSION = "0.14.3";

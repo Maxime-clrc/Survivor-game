@@ -1906,6 +1906,88 @@ l'inverse. Un critère de survie se mesure avec le pilote, un critère d'arme de
 contact demanderait un pilote qui avance. Tant qu'il n'existe pas, ce chiffre
 n'est pas une mesure d'équilibrage.
 
+### Équilibrage des armes entre elles (plan 11, lot 02)
+
+Le banc dit ce qu'une arme **sort**. Il ne dit pas ce qu'elle fait **gagner**.
+Manche réelle, horde réelle, boss réels, profil P1, **et la mort compte** — on ne
+relève plus le joueur. Six graines, solo, normal. La mesure est le **temps tenu**,
+rapporté au tir standard.
+
+#### Le pilote ne savait pas jouer deux des quatre armes
+
+Avant de corriger le moindre chiffre : `pilotage()` recule toujours, c'est sa
+doctrine depuis le lot I. Une arme de contact lui demande l'inverse, une arme à
+rampe lui demande de ne pas bouger. Relevé de compétence :
+
+| arme | ressource tenue | distance au corps | tenue visée |
+|---|---:|---:|---:|
+| canon d'assaut | rampe **0,39** | 490 px | reculer |
+| canon laser | chaleur **0,99** | 567 px | reculer |
+| lame | — | **196 px** | 88 px |
+
+Le pilote gagne donc **une tenue de distance dérivée de l'arme**, et un terme
+d'immobilité pour les armes à rampe. Les deux ne s'activent que si l'arme les
+déclare : **avec le tir standard son comportement est inchangé**, sinon toutes
+les mesures des lots I à K changeraient de sens.
+
+#### Un défaut de conception que seule cette mesure pouvait montrer
+
+**La chaleur du laser tenait 0,99 en moyenne.** Elle montait dès qu'on tirait —
+or le tir est **automatique**, il n'y a pas de gâchette à relâcher, et le plan
+interdit d'ajouter une entrée. La ressource n'était donc pas pilotable : c'était
+un métronome. La chaleur monte maintenant quand le faisceau **touche**, et le
+joueur la gère en visant ailleurs. Moyenne mesurée après : **0,64** — une
+ressource qui cycle.
+
+Un bug d'échantillonnage se cachait derrière : le faisceau se résout à 10 Hz mais
+la chaleur s'intègre à 60 Hz, donc elle refroidissait cinq images sur six et ne
+montait jamais. Le verdict du dernier tic est désormais retenu.
+
+#### Ce que la mesure a corrigé
+
+| arme | avant | après | levier |
+|---|---:|---:|---|
+| lance-grenades | ×1,88 | **×1,03** | rayon de souffle 130 → 95 px |
+| lame tournoyante | ×0,66 | **×1,14** | rayon dérivé + arc 162° → 108° |
+| canon laser | ×0,62 | **×1,28** | chaleur pilotable (conception) |
+| dispersion | ×0,67 | **×1,30** | tenue de distance (pilote) |
+| canon d'assaut | ×0,62 | **×0,76** | rampe 2,5 s → 1,6 s |
+
+**Le lance-grenades débordait par sa SURFACE, pas par ses dégâts** : 0,67 de la
+référence en cible unique et pourtant 1 063 kills contre 416. La première coupe
+portait sur les dégâts — `verifierArmes()` l'a **refusée**, elle le faisait
+tomber à 53 % de la référence, sous son propre plancher. La coupe porte donc là
+où le débordement se mesure.
+
+**Le rayon de la lame n'est pas un levier de réglage, c'est un seuil.** 130 px
+donne ×0,66, 156 px donne ×1,58 : vingt pour cent de rayon font basculer la
+survie d'un facteur 2,4. En dessous d'environ 150 px la lame ne perce pas
+l'anneau de corps qui se referme sur elle, au-dessus elle le nettoie. Le rayon a
+donc été posé **au-dessus du seuil** et c'est l'**arc** qui règle — 108° au lieu
+de 162°, ce qui demande en plus de faire face.
+
+#### État final
+
+| arme | temps tenu | niveau | kills | TTK boss |
+|---|---:|---:|---:|---:|
+| tir standard | ×1,00 | 10 | 416 | 88 s |
+| canon d'assaut | ×0,76 | 10 | 419 | 119 s |
+| canon laser | ×1,28 | 18 | 1 072 | 92 s |
+| tesla | ×1,05 | 13 | 652 | 169 s |
+| lame tournoyante | ×1,14 | 25 | 1 920 | 105 s |
+| dispersion | ×1,30 | 15 | 898 | 109 s |
+| railgun | ×0,93 | 13 | 640 | 66 s |
+| lance-grenades | ×1,03 | 10 | 416 | — |
+
+**Écart total 0,76 à 1,30.** Le canon d'assaut est volontairement le plus bas :
+c'est l'arme qui paie sa survie pour 2,22 fois la référence en dégâts, et le
+plan lui donne l'immobilité pour prix. Le railgun à 0,93 avec le meilleur TTK
+boss (66 s) est l'inverse : il paie en horde ce qu'il gagne sur cible unique.
+
+**Ce qui n'est pas mesuré :** un seul effectif (solo), une seule difficulté
+(normal), un seul profil (P1), six graines. Les compositions à plusieurs et le
+cauchemar restent à faire.
+
 ## Réglages
 
 Tout est en haut de `shared/game_state.js`.

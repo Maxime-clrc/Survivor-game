@@ -893,6 +893,19 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
   disponibles ensemble.
 - **Une ressource invisible est une ressource subie.** La rampe se lit **sur le
   personnage** (elle dépend du déplacement), la chaleur sous le réticule.
+- **L’équilibrage d’une arme se mesure au TEMPS TENU, pas au DPS.** Le banc dit
+  ce qu’elle sort, la manche dit ce qu’elle fait gagner. Bande retenue : **0,75
+  à 1,35** du tir standard.
+- **Avant de corriger un chiffre d’arme, vérifier que le PILOTE sait la jouer.**
+  `pilotage()` recule : sa tenue de distance et son terme d’immobilité se
+  dérivent de l’arme, et **ne s’activent que si l’arme les déclare** — avec le
+  tir standard son comportement est celui du lot I, inchangé.
+- **La chaleur monte quand le faisceau TOUCHE**, jamais quand on tire : le tir
+  est automatique, donc une chaleur liée au tir n’est pas pilotable — c’est un
+  métronome. On la gère en visant ailleurs, sans une entrée de plus.
+- **Le rayon d’une arme de balayage est un SEUIL, pas un levier** : sous ~150 px
+  elle ne perce pas l’anneau qui se referme, au-dessus elle le nettoie. On pose
+  le rayon au-dessus du seuil et on règle par l’**arc**.
 - **Une arme est verrouillée si et seulement si un haut fait la donne**
   (`armesOuvertes`), exactement comme une carte ou une relique.
 

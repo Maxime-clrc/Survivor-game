@@ -18,7 +18,10 @@ export const ARME_CFG = {
   // approche et le compteur qui monte. La RETOMBEE PROGRESSIVE est essentielle —
   // sans elle, esquiver une mecanique de boss couterait toute la puissance
   // accumulee et l'arme serait injouable sur les onze boss.
-  RAMPE_MONTEE: 2.5,
+  // MESURE : le pilote ne tient la rampe que 39 % du temps, et payait 38 % de
+  // survie pour 41 % de degats — le trajet etait perdant. 1,6 s rend une station
+  // COURTE payante, ce qui est le geste que l arme doit enseigner.
+  RAMPE_MONTEE: 1.6,
   RAMPE_CHUTE: 1.2,
   RAMPE_MAX: 2.2,
   RAMPE_SEUIL: 12,
@@ -42,8 +45,7 @@ export const ARME_CFG = {
 
   // lame : les PV sont INTRINSEQUES a l'arme, pas une carte. C'est ce qui la
   // rend jouable au contact des le premier choix, sans dependre d'un tirage.
-  LAME_ARC: Math.PI * 0.9,
-  LAME_RAYON: 110,
+  LAME_ARC: Math.PI * 0.6,
   LAME_HP: 0.40,
   LAME_MARQUE: 0.08,
   LAME_MARQUE_MAX: 5,
@@ -93,6 +95,9 @@ export const ARMES = [
   {
     id: "lame", nom: "Lame tournoyante", tir: "arc_sol", axe: "distance",
     interval: 0.40, degats: 14, portee: 0.25,
+    // le rayon du balayage EST la portee de la table : 110 px etait un nombre
+    // invente a cote d une colonne qui disait deja combien
+    rayon: true,
     lame: true, hpBonus: ARME_CFG.LAME_HP,
     resume: "un balayage qui touche tout autour de toi, et +40 % de PV max",
     contrainte: "portée nulle : il faut être au contact",
@@ -120,10 +125,15 @@ export const ARMES = [
   },
   {
     id: "grenade", nom: "Lance-grenades", tir: "grenade", axe: "distance",
-    interval: 0.80, degats: 40, portee: 0.9,
+    /* MESURE : x1,88 de survie et 1 063 kills contre 416 au tir standard. Ce
+       n est pas son dps qui deborde (0,67 en cible unique), c est sa SURFACE —
+       et `verifierArmes()` a refuse la premiere coupe, qui portait sur les
+       degats et le faisait tomber a 53 % de la reference en cible unique. La
+       coupe porte donc sur le RAYON, la ou le debordement se mesure. */
+    interval: 0.80, degats: 40, portee: 0.9, souffle: 95,
     resume: "un projectile lent qui explose",
     contrainte: "il faut anticiper la trajectoire",
-    ech: ECH(1.1, 0.5, 0.8, 1.5, 0.0, 0.6),
+    ech: ECH(1.1, 0.5, 0.8, 0.9, 0.0, 0.6),
   },
 ];
 
@@ -193,6 +203,13 @@ export function appliquerEchelle(mods, armeId) {
   if (a.hpBonus) mods.maxHpRatio += a.hpBonus;
   return mods;
 }
+
+/* Le rayon du balayage se deduit de la portee, mais un RAYON n est pas une
+   PORTEE DE BALLE : un disque de 240 px balaye toutes les 0,4 s tient 2,04 fois
+   plus longtemps que le tir standard, la ou 110 px n en tenait que 0,66. Le
+   facteur est donc MESURE, pas suppose. */
+export const LAME_UTILE = 0.65;
+export const lameRayon = a => 640 * 1.5 * a.portee * LAME_UTILE;
 
 export const dpsBase = a =>
   a.interval > 0 ? a.degats * (a.plombs ?? 1) / a.interval : a.degats;

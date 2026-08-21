@@ -1428,7 +1428,7 @@ export const CARDS = [
     desc: "lame : +{0} % de rayon de balayage",
     vals: () => ({ "0": 20 }),
     stack: n => pctAdd(0.20, n),
-    apply(m, n) { m.lameRayon += ARME_CFG.LAME_RAYON * 0.20 * n; },
+    apply(m, n) { m.lameRayon += 156 * 0.20 * n; },
   },
   {
     id: "lame_pousse", nom: "Revers", rarity: 1, max: 2, tags: ["off"],
@@ -1450,7 +1450,7 @@ export const CARDS = [
     vals: () => ({ "0": num(0.08) }),
     apply(m) {
       m.lameKill = 0.08; m.lameDouble = 1; m.lameArc = 1.15;
-      m.lameRayon += ARME_CFG.LAME_RAYON * 0.20;
+      m.lameRayon += 156 * 0.20;
     },
   },
 ];
