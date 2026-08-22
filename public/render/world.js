@@ -1,7 +1,8 @@
 
-import { audioStats } from "/audio.js";
+import { audioStats, setFaisceauChaleur, startFaisceau, stopFaisceau } from "/audio.js";
 import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
+import { ARMES } from "/shared/armes.js";
 import { BOSS_CFG, MECH_JAIL, estFinal } from "/shared/bosses.js";
 import { BIOME_CFG, CFG, weatherFor, windAt } from "/shared/game_state.js";
 import { biomeNom, weatherNom } from "/shared/biomes.js";
@@ -11,7 +12,7 @@ import { fmtM } from "/shared/units.js";
 import { drawSprite, glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myDashCd, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
-import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
+import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, BOLT_RAIL, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, lastPlayerPos, resetGaze } from "./boss.js";
 import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { blastMarks, bursts, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, stepFeedback, timeWarp, zoneFx } from "./fx.js";
@@ -48,6 +49,7 @@ export function resetFeedback() {
   setAlertOrder(null); setAlertWarn(null); setAlertInfo(null);
   setBossCue(null);
   resetGaze();
+  stopFaisceau(); faisceauOn = false;
 }
 const slipV = { x: 0, y: 0 };
 let lastFrame = performance.now();
@@ -77,6 +79,7 @@ function frameBody(now) {
 
   const enJeu = phase === PHASE_ROUND;
   arenaEl.style.visibility = enJeu ? "" : "hidden";
+  routerFaisceau(enJeu);
 
   if (connected && latest && enJeu) {
     // le hitstop est un RETARD supplementaire de l'horloge de rendu : la
@@ -102,6 +105,24 @@ function frameBody(now) {
     gl?.end();
   }
 }
+/* Le tir est automatique : tant que la nappe est a l'ecran, l'arme tire. La
+   meme condition porte donc l'image et le son, et il n'y a rien de plus a faire
+   circuler. */
+let faisceauOn = false;
+function routerFaisceau(enJeu) {
+  const me = enJeu && connected ? latest?.players?.get(myId) : null;
+  const a = me ? ARMES[me.arme] : null;
+  const on = !!a?.chaleur && !me.downed && me.armeRes < 1;
+  if (on) {
+    if (!faisceauOn) { startFaisceau(); faisceauOn = true; }
+    setFaisceauChaleur(me.armeRes);
+  } else if (faisceauOn) {
+    // la saturation coupe NET, tout le reste s'eteint
+    stopFaisceau(!!a?.chaleur && me?.armeRes >= 1);
+    faisceauOn = false;
+  }
+}
+
 function stepPrediction(dt) {
   dash.cd = Math.max(0, dash.cd - dt);
   dash.t = Math.max(0, dash.t - dt);
@@ -261,6 +282,7 @@ function drawWorld(v) {
   drawWeather(v.tm ?? 0);
   drawZones(v.zones, v.tm);
   drawObstacles(v.cover);
+  drawVisee(v.playerList);
   drawBulwarks(v.bulwarks ?? []);
   drawAnchors(v.anchors ?? []);
   drawAnchorChains(v.anchors ?? [], v.enemyList);
@@ -309,7 +331,7 @@ function drawWorld(v) {
     if (!inView(b.x, b.y, 40)) continue;
     if (b.missile) { drawMissile(b, ownerColorOf(b.owner) ?? COMBAT.bullet); continue; }
     drawBolt(b, CFG.BULLET_RADIUS, ownerColorOf(b.owner) ?? COMBAT.bullet,
-             bulletTrail, BOLT_CAPSULE);
+             bulletTrail, silhouetteDe(v, b.owner));
   }
 
   drawSoinLinks(v.links, v.playerList, v.enemyList, v.sancts ?? []);
@@ -333,6 +355,14 @@ function drawWorld(v) {
 // MULTIPLE : le lien des Jumeaux est visible EN PERMANENCE, pas seulement
 // pendant `MECH_LINK`. Le joueur doit voir POURQUOI il faut les separer sans
 // qu'on le lui dise — et il se coupe des qu'ils sont assez loin.
+/* La silhouette d'une balle est une FONCTION de ce que le client a deja : le
+   proprietaire voyage dans le tuple, et l'arme du proprietaire dans le sien.
+   Aucune clef d'instantane a ouvrir pour distinguer un rail d'une capsule. */
+function silhouetteDe(v, owner) {
+  const p = v.playerList?.find(x => x.id === owner);
+  return ARMES[p?.arme]?.charge ? BOLT_RAIL : BOLT_CAPSULE;
+}
+
 function drawTwinLink(a, b) {
   const d = Math.hypot(a.x - b.x, a.y - b.y);
   if (d > BOSS_CFG.TWIN_HEAL_RANGE) return;

@@ -63,9 +63,17 @@ export const SKILL_CFG = {
   DPS_OVERDRIVE_FADE: 2,
 };
 
-export function bombRange(ar) {
+/* POINT DE PASSAGE UNIQUE DE `ar`. Il ASSAINIT et rien de plus : absente,
+   negative ou aberrante, la distance vaut « aussi loin que possible ». C'est a
+   chaque usage de dire jusqu'ou il porte — une bombe et un lance-grenades
+   n'ont pas la meme allonge, et un clamp unique en donnait une seule aux deux. */
+export function porteeReticule(ar) {
   const r = Number(ar);
-  if (!Number.isFinite(r) || r <= 0) return SKILL_CFG.DPS_BOMB_RANGE_MAX;
+  return Number.isFinite(r) && r > 0 ? r : Infinity;
+}
+
+export function bombRange(ar) {
+  const r = porteeReticule(ar);
   return Math.min(SKILL_CFG.DPS_BOMB_RANGE_MAX,
                   Math.max(SKILL_CFG.DPS_BOMB_RANGE_MIN, r));
 }

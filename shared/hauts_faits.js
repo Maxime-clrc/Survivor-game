@@ -384,7 +384,7 @@ export function recompensesDe(ids) {
 export const TOUTES_RECOMPENSES = recompensesDe(HAUTS_FAITS.map(h => h.id));
 
 /* Critere rejouable, sur le modele de `verifierBiomes()`. */
-export function verifierHautsFaits(cardIds = null, relicIds = null) {
+export function verifierHautsFaits(cardIds = null, relicIds = null, armeIds = null) {
   const out = [];
   const vus = new Set();
   const objets = new Map();
@@ -470,6 +470,25 @@ export function verifierHautsFaits(cardIds = null, relicIds = null) {
       for (const x of h.reward.ids) {
         if (!relicIds.has(x)) out.push(`${h.id} : relique « ${x} » inconnue`);
       }
+    }
+  }
+  /* Le troisieme bloc de validation, celui qui n'avait jamais ete ecrit : deux
+     hauts faits donnent une arme que la table ne contient pas, `armeAt` retombe
+     en silence sur le tir standard, et le joueur voit « arme debloquee » pour
+     une arme qui ne sera jamais proposee. Et l'INVERSE, qui manquait aussi :
+     une arme ajoutee sans haut fait est jouable par personne, et personne ne le
+     sait. `armeIds` porte les armes AUTRES que le tir standard. */
+  if (armeIds) {
+    const donnees = new Set();
+    for (const h of HAUTS_FAITS) {
+      if (h.reward.type !== "arme") continue;
+      for (const x of h.reward.ids) {
+        if (!armeIds.has(x)) out.push(`${h.id} : arme « ${x} » inconnue`);
+        donnees.add(x);
+      }
+    }
+    for (const x of armeIds) {
+      if (!donnees.has(x)) out.push(`arme « ${x} » : aucun haut fait ne la donne`);
     }
   }
 

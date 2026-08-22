@@ -929,7 +929,8 @@ function renderTeam() {
       `<span class="teamDot"></span>`;
 
     row.querySelector(".teamName").textContent = l.name;
-    appliquerCadre(row.querySelector(".teamName"), l.cadre);
+    // sur la LIGNE, pas sur le nom : une plaque a besoin d'une surface
+    appliquerCadre(row, l.cadre);
     const av = row.querySelector(".teamAvatar");
     av.textContent = (l.name || "?").trim().charAt(0).toUpperCase() || "?";
     av.style.color = teinte;
@@ -1320,6 +1321,7 @@ function nomsRecompense(h) {
     h.reward.type === "cadre" ? cadreNom(id)
     : h.reward.type === "relique" ? relicNom(id)
     : h.reward.type === "ligne" ? t(`prog.famille.${id}`, id)
+    : h.reward.type === "arme" ? armeNom(id)
     : (cardNom(id) || id)).join(", ");
 }
 
@@ -1377,15 +1379,25 @@ function renderCadres(pr) {
     row.className = "cadreRow" + (ok ? "" : " taken") + (c.id === actif ? " mine" : "");
     row.disabled = !ok;
     row.innerHTML =
-      `<span class="cadreApercu"><span class="cadrePlaque"></span></span>`
+      // ON EQUIPE CE QU'ON A VU, et ce qu'on verra est une ligne de salon : on
+      // en rend une en miniature plutot qu'un echantillon a part
+      `<span class="cadreApercu"><span class="teamRow">`
+        + `<span class="teamAvatar"></span>`
+        + `<span class="teamMain"><span class="teamTop">`
+          + `<span class="teamName"></span></span>`
+          + `<span class="teamCls"></span></span>`
+      + `</span></span>`
       + `<span class="cadreBody">`
         + `<span class="cadreNom">${escapeHtml(cadreNom(c.id))}</span>`
         + `<span class="cadreCond">${escapeHtml(ok
             ? (c.id === actif ? t("ui.meta.cadre.actif", "équipé") : t("ui.meta.cadre.libre", "obtenu"))
             : hfTexte(parCadre.get(c.id) ?? ""))}</span>`
       + `</span>`;
-    const plaque = row.querySelector(".cadrePlaque");
-    plaque.textContent = myPseudo || t("ui.meta.cadre.toi", "toi");
+    const plaque = row.querySelector(".cadreApercu .teamRow");
+    const nom = myPseudo || t("ui.meta.cadre.toi", "toi");
+    plaque.querySelector(".teamName").textContent = nom;
+    plaque.querySelector(".teamAvatar").textContent = nom.trim().charAt(0).toUpperCase() || "?";
+    plaque.querySelector(".teamCls").textContent = cadreNom(c.id);
     appliquerCadre(plaque, c.id);
     if (ok) row.onclick = () => ws.send(JSON.stringify({ t: "metaCadre", id: c.id }));
     metaCadresEl.appendChild(row);
@@ -1407,8 +1419,7 @@ function renderScores(rows, body = scoresBody) {
     const tag = r.id === hostId ? " ★" : "";
     const cdef = (r.cls === null || r.cls === undefined) ? null : classAt(r.cls);
     tr.innerHTML =
-      `<td class="name" style="color:${col}">`
-        + `<span class="nameCadre">${escapeHtml(r.name)}${tag}</span></td>` +
+      `<td class="name" style="color:${col}">${escapeHtml(r.name)}${tag}</td>` +
       `<td class="sub"${cdef ? ` style="color:${cdef.couleur}"` : ""}>${cdef ? escapeHtml(classNom(cdef)) : "—"}</td>` +
       `<td>${r.level ?? 1}</td>` +
       `<td>${r.score}</td><td>${r.kills}</td><td>${r.deaths}</td>` +
@@ -1416,9 +1427,8 @@ function renderScores(rows, body = scoresBody) {
       `<td class="cards">${cardBadges(r.id)}</td>` +
       `<td class="sub">${r.cores !== undefined ? "+" + r.cores : "—"}</td>` +
       `<td class="sub">${r.total ? r.total.score : 0}</td>`;
-    /* portee "ligne" : le <td> porte deja la couleur de CLASSE en texte, un fond
-       entrerait en concurrence avec elle */
-    appliquerCadre(tr.querySelector(".nameCadre"), r.cadre, "ligne");
+    // AUCUN CADRE AU BILAN : le <td> porte deja la couleur de classe en texte, et
+    // une plaque n'a pas la place d'une colonne de tableau
     tr.className = "clickable";
     tr.title = t("ui.col.voirBuild", "voir la build");
     tr.onclick = () => openBuild(r.id);

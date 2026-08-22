@@ -3,7 +3,7 @@ import { BOSS_CFG } from "/shared/bosses.js";
 import { dec, onLangChange, t, tf } from "/shared/i18n.js";
 import { CARD_BY_ID, RARITY_COLOR, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
 import { CLASS_DEFAULT, SKILL_HEAL_MODE, classAt, classNom, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
-import { CFG, PLAYER_COLORS, fullMods, powerIndex } from "/shared/game_state.js";
+import { CFG, PLAYER_COLORS, fullMods, plafonnerHp, powerIndex } from "/shared/game_state.js";
 import { SIGNAL } from "/shared/palette.js";
 import { applyMeta, metaLinesFor } from "/shared/progression.js";
 import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, myId, ownedCounts, phase, progressState, skills } from "../core/state.js";
@@ -47,10 +47,15 @@ function buildMultipliers(info) {
   const r = fullMods(info.counts, others, cls, niveau);
   // la META n'est connue que pour SOI : le profil d'un allie ne voyage pas. On
   // prefere une ligne juste sur sa propre build a deux lignes fausses.
-  if (info.id !== myId || !progressState) return r;
+  // le plafond est le DERNIER maillon cote serveur : le rejouer ici, sinon la
+  // ligne « PV max » annonce ce que Contrat de sang vient justement d'interdire
+  if (info.id !== myId || !progressState) {
+    return { mods: r.mods, maxHp: plafonnerHp(r.maxHp, r.mods) };
+  }
   const clsId = classAt(cls).id;
   const { lines, commun } = metaLinesFor(progressState, clsId);
-  return applyMeta(r.mods, r.maxHp, clsId, lines, commun);
+  const rr = applyMeta(r.mods, r.maxHp, clsId, lines, commun);
+  return { mods: rr.mods, maxHp: plafonnerHp(rr.maxHp, rr.mods) };
 }
 function fmtMul(v) {
   return "×" + dec(v);

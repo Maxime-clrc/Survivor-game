@@ -1378,6 +1378,49 @@ export function drawPlayers(list, tm, marks = []) {
       ctx.stroke();
     }
 
+    /* LA CHARGE DU RAILGUN SE LIT SUR LA LIGNE DE TIR, pas sur une jauge : elle
+       dit QUAND et OU en meme temps, et c'est tout ce que l'arme demande de
+       decider. Le rail se dessine avant de partir, un peu plus loin a chaque
+       image, et un joueur qui voit sa ligne se remplir sait exactement de combien
+       de temps il dispose pour s'y placer. */
+    if (ARMES[p.arme]?.charge && !p.downed) {
+      const a2 = ARMES[p.arme];
+      const portee = 640 * 1.5 * a2.portee * p.armeRes;
+      if (portee > 4) {
+        const plein = p.armeRes >= 0.98;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.strokeStyle = alpha(plein ? FX.flash : col, 0.10 + p.armeRes * 0.35);
+        ctx.lineWidth = plein ? 4 : 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.cos(p.armeAng) * portee, y + Math.sin(p.armeAng) * portee);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    /* LE CHARGEUR EST UN COMPTE, donc des CRANS et non une barre : on lit « il
+       m'en reste deux » d'un coup d'oeil. Le meme anneau porte le remplissage de
+       la recharge, parce que c'est la meme question — combien puis-je encore
+       tirer. Ambre pendant la recharge : la fenetre ou l'arme ne rend rien. */
+    if (ARMES[p.arme]?.chargeur && !p.downed) {
+      const n = ARMES[p.arme].chargeur;
+      const plein = p.armeRes >= 0.999;
+      const pleins = p.armeRes * n;
+      const pas = (Math.PI * 2) / n;
+      ctx.lineWidth = 3;
+      for (let i = 0; i < n; i++) {
+        const k = Math.max(0, Math.min(1, pleins - i));
+        if (k <= 0.02) continue;
+        const a0 = -Math.PI / 2 + i * pas + 0.06;
+        ctx.strokeStyle = alpha(plein ? col : SIGNAL.warn, 0.35 + k * 0.5);
+        ctx.beginPath();
+        ctx.arc(x, y, RING_BUFF0, a0, a0 + (pas - 0.12) * k);
+        ctx.stroke();
+      }
+    }
+
     drawPlayerBar(p, x, y, col);
     drawPlayerMarks(p, x, y, marks, tm);
 

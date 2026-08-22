@@ -2429,6 +2429,330 @@
                    Reseau et persistance inchanges : le serveur envoie un
                    identifiant, comme avant.
 
+     0.15.0 lot 1  ARRETER LES PERTES. Cinq defauts qui retiraient de la valeur
+                   au joueur pendant que le reste du plan 12 s'ecrivait.
+                   « SECOND CANON » ETAIT UN MALUS PUR SUR CINQ ARMES SUR HUIT :
+                   `barrelDamageMul` se paie en haut de `_volley`, avant
+                   l'aiguillage, alors qu'`extraBarrels` n'est lu que par la
+                   branche a balles unitaires. Dispersion, tesla, lame et
+                   grenade payaient -18 %, cumulable deux fois, pour rien ; le
+                   laser ne payait ni ne recevait. Rarete 1, donc frequente, et
+                   son texte promettait un gain. La carte declare `canons`, le
+                   pool la retire par `litCanons(arme)` — DEDUIT du tir, pas une
+                   liste a tenir. La penalite descendra dans la branche au lot 3.
+                   LA FAMILLE D'ARME SE DECLARE au lieu de se deduire de « n'est
+                   pas le tir standard » : une famille deduite se vide des qu'on
+                   ajoute une arme, et dispersion, railgun et grenade en
+                   declaraient une vide. Pool inchange a la mesure — c'est le
+                   critere du lot 3 qui mordra, pas le tirage d'aujourd'hui.
+                   `nomsRecompense()` n'avait pas de branche `arme` : neuf hauts
+                   faits annoncaient « dispersion » au lieu de « Fusil a
+                   dispersion ». `armeNom` etait deja importe.
+                   `justify-content: safe center` sur `.overlay` : un conteneur
+                   de defilement qui centre place le debordement DES DEUX COTES,
+                   et scrollTop 0 est deja sous le debut du contenu. Les
+                   premieres lignes de Hauts faits etaient inatteignables ; huit
+                   overlays repares d'un mot-cle, `#brief` compris.
+                   L'ECRAN D'ARME : `#briefArme` sans `width` se reduisait a son
+                   contenu sous le `align-items: center` de `.briefWrap`, et
+                   `auto-fit` renvoyait la troisieme arme a la ligne. La grille
+                   dit TROIS. Survol, focus et selection existent enfin, en
+                   `--tint` et non `--go` : le briefing porte la teinte de
+                   classe.
+
+     0.15.1 lot 2  REPARER LES REGLES FAUSSES. Quatre endroits ou le jeu annonce
+                   une chose et en fait une autre.
+                   LE PLAFOND DE PV NE PLAFONNAIT PAS. `hpCap` etait pose au
+                   MILIEU de la chaine, dans `fullMods` ; `applyMeta` et les
+                   reliques passaient apres et par-dessus. Contrat de sang
+                   annonce 60 PV, un compte avance en gardait 198. `plafonnerHp`
+                   devient le DERNIER maillon, appele une fois dans
+                   `_recomputeMods` — toute source de PV branchee plus tard
+                   passera devant lui au lieu de le contourner. La fenetre de
+                   build le rejoue, sinon elle annoncerait ce que la carte
+                   interdit. Mesure : 60 exactement, meta pleine et deux
+                   reliques de PV comprises.
+                   UN CRISTAL EST UNE CIBLE. `_harvestHit` n'etait appele que
+                   depuis `_bullets` : le faisceau, l'arc et le balayage ne
+                   poussent rien dans `bullets`, donc laser, tesla et lame ne
+                   pouvaient pas casser un cristal — les eclats achetent les
+                   reliques, c'etait un axe de progression ferme a trois armes.
+                   Le lance-grenades non plus, son direct etant nul : le souffle
+                   d'un JOUEUR entame maintenant, celui d'un kamikaze non.
+                   `_harvestDamage` porte l'APPLICATION, la geometrie reste a
+                   l'arme, qui l'a deja pour les corps. Le tesla garde une
+                   reserve : le cristal n'est acquis que si plus rien de vivant
+                   n'est a portee — un cristal qui aspire les arcs en pleine
+                   vague est une punition. Mesure : les huit le cassent, de 0,28
+                   a 1,28 s ; le cristal reste INTACT avec trois ennemis a cote.
+                   LA GRENADE DETONE AU RETICULE. `court` multipliait la duree
+                   de vie, donc l'explosion tombait toujours a la meme distance
+                   et « il faut anticiper la trajectoire » ne voulait rien dire.
+                   Le client envoie desormais `ar` BRUT : il le clampait par
+                   `bombRange` avant l'envoi, donc l'arme heritait de l'allonge
+                   de la Bombe (460 px) au lieu de la sienne (864). Point de
+                   passage `porteeReticule()`, qui ASSAINIT seul ; chaque usage
+                   pose sa propre borne. Un corps rencontre avant fait sauter la
+                   grenade plus tot, comme avant. Mesure : 5 m -> 5,2 m ;
+                   60 m -> 43,3 m, la portee de l'arme. La portee UTILE de la
+                   grenade passe de 475 a 864 px : c'est le lot 5 qui tranche.
+                   Un marqueur au sol annonce le point d'impact, sature quand le
+                   reticule depasse. La portee se DEDUIT des cartes du client,
+                   aucune cle d'instantane ouverte.
+                   DEUX ARMES ETAIENT MUETTES. `kind 17` manquait a
+                   `EFFECT_SOUND` : la lame prend `balayage`, mais PITCHE et sans
+                   tressaillement — le boss balaie une fois par phase, la lame
+                   2,5 fois par seconde, c'est un palier 2 et un tir ordinaire ne
+                   secoue pas l'ecran. Le laser prend une BOUCLE et non un
+                   declenchement : un faisceau continu ne se decoupe pas en tirs,
+                   et un tick par 0,1 s serait un metronome. Sa hauteur monte
+                   avec la chaleur, coupee NET a saturation — la ressource
+                   devient audible avant d'etre fatale. Une voix, hors limiteur.
+
+     0.15.2 lot 3  POSER LES FILETS. Pas une ligne de contenu : les criteres qui
+                   empecheront les lots suivants de recreuser les memes trous. Le
+                   fil rouge du plan 11 s'est casse trois fois — recompense
+                   indexee, famille deduite, recompense nommee sans cible —
+                   parce que chaque garde-fou a ete ecrit APRES le contenu.
+                   `conversionBoss()` NE VOYAIT PAS LA CHALEUR. `powerIndex` lit
+                   `dpsBase x conversionBoss`, et `powerIndex` alimente
+                   `bossPower` : la mise a l'echelle des boss tournait sur une
+                   conversion fausse. Banc monte pour trancher (boss fige et
+                   increvable, horde videe a chaque tick, critique coupe, 300 s,
+                   neuf distances, en part du tir standard) : standard 1,00 ·
+                   assaut 0,98 · laser 1,18 · tesla 2,21 · lame 1,40 · dispersion
+                   1,01 · railgun 1,04 · grenade 1,04. UNE SEULE manquait, celle
+                   du laser — le spec en annoncait six. Elle se CALCULE : contre
+                   une cible unique le faisceau ne rate jamais, donc la chaleur
+                   sature, et le bonus se paie sur la moyenne du cycle entre le
+                   plancher que laisse le mutisme et 1. L'uptime n'y entre pas,
+                   c'est un terme a part du modele. La convergence de la
+                   dispersion MAINTIENT ses six plombs a 1, elle ne depasse pas.
+                   `perforation` ET `ricochet`, deux axes au lieu d'un. `pierce`
+                   et `chain` sont deux clefs de `mods` : mettre la perforation du
+                   railgun a zero — ce qu'exige la realite, `perforeTout` ecrasant
+                   le mod avant lecture — aurait tue son rebond avec. Le ricochet
+                   reprend VERBATIM l'ancienne colonne, donc zero changement de
+                   comportement ; seule la perforation tombe, sur le laser et le
+                   railgun, ou la statistique etait deja infinie.
+                   LES AXES D'UNE CARTE SE RELEVENT (`axesDeCarte`) : on observe
+                   ce que `apply` et `applyAfter` ecrivent dans `mods`, au lieu
+                   d'un champ `axes:` qui derive des que l'effet bouge. 28 cartes
+                   sur 158 touchent le tableau. `inertia` y compte comme une
+                   perforation : pas de colonne a elle, morte partout ou la
+                   perforation l'est.
+                   UNE CARTE A COEFFICIENT NUL SORT DU POOL. Retire, par arme :
+                   Perforation et Inertie (5 armes), Ricochet (4), Second canon
+                   (5). `poolThin` se rejoue arme par arme — aucun pool maigre.
+                   LA PENALITE DESCEND OU VIT LE BENEFICE. `barrelDamageMul` se
+                   payait en haut de `_volley`, avant l'aiguillage ; il descend
+                   dans la branche a balles unitaires, avec `powerIndex` et le
+                   panneau de stats. Mesure sur cible unique : les cinq armes qui
+                   ne lisent pas `extraBarrels` passent de -26 % a 0,0 % exact.
+                   L'incoherence devient impossible au lieu d'etre rattrapee.
+                   TROIS CRITERES NEUFS, et ils MORDENT — un lot 3 silencieux
+                   aurait pose des tests complaisants. `verifierArmes(cards,
+                   axesDeCarte)` : 3 erreurs, les trois armes sans famille.
+                   `verifierHautsFaits(…, armeIds)` : 2 erreurs, les deux armes
+                   que neuf hauts faits donnent et que la table ne contient pas —
+                   plus le test INVERSE, une arme que personne ne donne. Toute
+                   carte offensive doit toucher un axe ou porter `horsEchelle`,
+                   exemption EXPLICITE : 52 posees a la main, une par une.
+                   `verifierCatalogue()` reste silencieux, et c'est dit.
+
+     0.15.3 lot 4  LE CONTENU QUI MANQUAIT. Huit armes deviennent DIX, quatre
+                   familles de cartes deviennent DIX, et les trois verificateurs
+                   poses au lot 3 redeviennent silencieux — c'etait leur travail.
+                   LE RAILGUN A UNE CHARGE, ET C'EST UNE HORLOGE. Sa fiche en
+                   annoncait une, son axe declare etait « ressource », et le code
+                   n'avait rien : un fusil lent qui perfore, meme capsule que le
+                   tir standard. Le tir etant AUTOMATIQUE, une charge qu'on
+                   relache n'existe pas et une charge purement temporelle est un
+                   metronome — le meme piege que la chaleur du laser. Elle se lit
+                   donc SUR LA LIGNE DE TIR, qui se dessine un peu plus loin a
+                   chaque image : elle dit QUAND et OU en meme temps, et ce que le
+                   joueur pilote est sa position a l'instant ou le rail part.
+                   1,6 s et 140 degats : 87,5 de dps nominal contre 85,7 avant,
+                   donc le lot d'equilibrage repart du meme point.
+                   DEUX ARMES ENFIN ECRITES. Le fusil de SIEGE : six obus, puis
+                   1,8 s ou l'arme ne rend rien. Le chargeur est un COMPTE, donc
+                   des crans, et le meme anneau porte la recharge — c'est la meme
+                   question. `armeMuet` la ferme, le meme champ que la saturation
+                   du laser. Sa garde x3 est rendue A LA FIN de la fenetre, sinon
+                   la contrepartie devenait un cadeau permanent ; elle n'annule
+                   pas la vulnerabilite, elle l'empeche d'etre letale. Le fusil de
+                   PRECISION : portee x2,2, 20 % de critique de base, traverse un
+                   corps. `armesOuvertes` les verrouille toute seule — leurs hauts
+                   faits les nommaient depuis le lot 03 du plan 11.
+                   UN OBUS N'EST NI UNE GRENADE NI UN MISSILE. Trois champs, trois
+                   sens : `missile` GUIDE et ne touche que sa cible, `direct` fait
+                   le direct PUIS le souffle, `lob` RALENTIT. Les deduire l'un de
+                   l'autre a casse deux fois — l'obus ralenti par son `boom`, puis
+                   la grenade acceleree par son percuteur alors que sa duree de vol
+                   se calcule sur la vitesse attendue. Mesure apres correction :
+                   reticule a 200 / 400 / 600 / 864 / 1200 px -> detonation a
+                   204 / 403 / 603 / 867 / 867, avec percuteur comme sans.
+                   VINGT CARTES DE FAMILLE, cinq familles a quatre paliers, en
+                   QUEUE de `CARDS`. Meme regle que les quatre premieres : le 3/4
+                   corrige la faiblesse de l'arme dans le contexte ou elle est la
+                   plus faible — convergence totale, sillon incandescent,
+                   percuteur, dernier obus, cible froide — et le 4/4 REPORTE la
+                   statistique du 1/1, sans quoi il se verrouille hors de sa
+                   propre echelle et meurt a la prise.
+                   La reaction en chaine a une PROFONDEUR BORNEE : sans plafond,
+                   une nuee serree fait exploser toute la vue en une image.
+                   Mesure : dix armes, 600 s de pilote chacune, aucune exception ;
+                   famille pleine sur chacune, 300 s, idem. Aucun pool maigre.
+
+     0.15.4 lot 5  EQUILIBRER, UNE FOIS. Le critere d'avant ne connaissait qu'un
+                   nombre — le dps nominal en cible unique — et il est reste MUET
+                   pendant que le tesla dominait et que la grenade faisait x1,88
+                   de survie. Il ne mentait pas, il regardait le mauvais nombre.
+                   QUATRE COMPTEURS sur le joueur : `armeTemps`, `armeMuet`,
+                   `armeCibles`, `armeDegats`. `armeMuet` ne compte que le refus
+                   pour cause de RESSOURCE — saturation du laser, recharge du
+                   siege : un temps mort volontaire mesurerait le style du pilote.
+                   La charge du railgun n'en est pas, elle EST sa cadence, et
+                   compter une cadence comme du mutisme rendrait toute arme lente
+                   muette. L'attribution passe par `_sousArme` : une balle de
+                   competence et une balle de tir sortent toutes deux de `_fire`,
+                   donc le drapeau voyage sur la balle jusqu'a l'impact.
+                   LE MODELE : V = 0,8 Dh + 0,2 Db + S. Le plan ecrivait
+                   `(0,8 Vhorde + 0,2 Vboss) x U x R`, ou `Vhorde` porte deja les
+                   cibles et `R` deja le rapport au nominal : les multiplier
+                   compte deux fois la meme chose. Une mesure directe contient U
+                   et R par construction ; les deux restent RELEVES, parce que ce
+                   sont eux qui disent quel terme deborde.
+                   ON MESURE L'ABSORBE, JAMAIS L'ENVOYE. Le surtuage pesait
+                   jusqu'a 76 % des degats d'une arme a gros coup : compter le
+                   brut classait les armes par gaspillage. Consequence directe et
+                   contre-intuitive — `degats` SATURE sur une arme qui tue deja en
+                   un coup, et le levier devient la cadence ou les cibles.
+                   LES DEUX BANCS SONT IMMORTELS. Sans ca `Dh` est confondu avec
+                   la survie : une arme qui tient plus longtemps atteint des
+                   minutes plus denses, donc mesure un debit plus eleve, et la
+                   survie serait comptee deux fois. Le banc de boss laisse le boss
+                   ATTAQUER et le pilote REPONDRE : figer le tireur offrait la
+                   rampe pleine au canon d'assaut et le mesurait a 2,6 x nominal.
+                   `D` SE NOTE SUR DES MECANIQUES (`exige`, cinq colonnes), pas
+                   sur une impression : « y a-t-il une jauge » a une reponse dans
+                   le code, donc la note se rejoue quand une onzieme arme arrive.
+                   Cible 1,00 + 0,04 x (D - 0,5), soit 0,95 a 1,17.
+                   DEUX DEFAUTS TROUVES PAR LA CAMPAGNE, pas par la lecture. Le
+                   direct d'un OBUS n'atteignait pas les boss — la branche de
+                   collision ne le rendait que pour un missile de Salve, donc tout
+                   ce que le siege delivrait a une cible unique venait de son
+                   souffle, et reduire le rayon le faisait tomber a ZERO. Et une
+                   balle en vol resolvait sur un JUMEAU disparu : `hp -= x` dans
+                   un cadavre rend `undefined - x`, donc NaN, donc du silence.
+                   `conversionBoss` compte enfin le souffle de l'obus : sans lui
+                   le siege se lisait a 53 % de la reference la ou le banc en
+                   mesure 80 %.
+                   LA RESOLUTION DE LA CAMPAGNE EST DE +-0,08 sur les armes
+                   chaotiques, plus large que la tolerance de +-0,05 : le canon
+                   d'assaut change de 0,16 pour 2 % de degats. Au-dela de vingt
+                   graines on ajuste du bruit. Le critere de sortie est la BANDE
+                   GLOBALE, et elle est tenue.
+
+     0.15.5 lot 6  LE TESLA SE VISE. Une arme qui atteint la reference SANS EXIGER
+                   DE VISEE n'est pas une arme alternative, c'est l'arme optimale —
+                   et elle retirait le seul geste que le jeu demande. `sansVisee`
+                   etait l'idee du plan 11 ; l'idee etait mauvaise. Le reste tient
+                   debout : les arcs, les rebonds, le 0 % de critique, la
+                   conversion boss. C'est la DELIVRANCE qui change.
+                   Le champ `sansVisee` n'etait d'ailleurs lu NULLE PART : l'auto-
+                   visee vivait en dur dans `_teslaTir`. Le trait part maintenant
+                   droit devant et s'accroche au PREMIER CORPS DU SEGMENT, avec
+                   40 px de tolerance laterale — le tesla est l'arme qui PARDONNE
+                   la visee, pas celle qui s'en passe : sans cette marge on aurait
+                   remplace « ca ne peut pas rater » par « ca rate tout le temps »,
+                   ce qui n'est pas plus un choix. La projection sort de
+                   `_segmentHits` (`_surSegment`) au lieu d'etre reecrite, et le
+                   cristal suit la meme regle : il ne s'acquiert que dans l'axe.
+                   UN REBOND de base au lieu de deux, le second s'achete ; saut a
+                   220 px, la dispersion est locale et non un ratissage ; portee
+                   0,85 — 34 m etait enorme PARCE QUE L'ARME VISAIT SEULE.
+                   Mesure du critere : sur un groupe de quatre corps, viser le
+                   groupe donne 45/11/0/21, viser a cote 74/0/106/0, viser ailleurs
+                   ZERO. Un tir tesla peut enfin rater.
+                   L'AMORCE SE DISTINGUE DE LA DISPERSION : le premier arc porte
+                   `n: 1` — le champ de magnitude, DEJA dans le tuple d'effet, donc
+                   aucune clef ouverte — et se dessine presque droit et epais la ou
+                   les rebonds restent agites et fins. Sans cette difference l'arme
+                   se relit comme automatique, ce qu'elle n'est plus.
+                   `botInput` envoyait `ar: 1` : sans effet tant que `bombRange` le
+                   remontait a 80, FAUX depuis que `porteeReticule` le prend au
+                   mot — une grenade detonait au pied du bot de mesure.
+                   La refonte a coute 0,16 au tesla (0,906 -> 0,744), ce que le
+                   plan annoncait : c'est l'arme dont la realisation change le plus.
+                   CAMPAGNE DE CLOTURE (20 graines x 20 min) : les DIX armes dans
+                   la bande 0,95-1,17 ET dans la tolerance de +-0,05, ecart maximal
+                   0,035. Le dernier a rentrer est le laser, et pas par ses degats —
+                   sa reponse y est non monotone — mais par sa LARGEUR : 10,5
+                   cibles/s contre 4,7 pour la reference. 26 -> 22 px, 1,126 ->
+                   1,037. Le releve complet est dans LISEZMOI.md.
+
+     0.15.6 lot 7  UN CADRE CESSE D'ETRE UN MOT. Il decorait le TEXTE d'un nom :
+                   un inline-block avec deux pseudos dans son padding, invisible
+                   dans les menus, a l'etroit au bilan. Une plaque a une
+                   silhouette, une profondeur, une lueur et une zone morte — rien
+                   de tout ca ne tient autour de sept lettres. Le support devient
+                   la LIGNE D'EQUIPE, dont `renderTeamList` construisait deja
+                   exactement l'anatomie : il y avait un `appliquerCadre` a
+                   deplacer d'un niveau, pas une structure a refaire.
+                   LA PORTEE « ligne » DISPARAIT AVEC SON BESOIN : elle desactivait
+                   le fond au bilan, donc elle admettait que l'endroit etait
+                   mauvais. Plus aucun cadre au bilan, et `.nameCadre` avec —
+                   une classe dont la seule lecture est morte se supprime.
+                   L'insigne devient un MEDAILLON sur l'avatar, a sa vraie taille ;
+                   l'encoche passe de 7 a 12 px, a l'echelle de ce qu'elle
+                   entaille ; l'apercu du Terminal rend une vraie ligne en
+                   miniature — on equipe ce qu'on a VU.
+                   Deux pieges payes. `.teamRow` sert AUSSI au HUD (`hud.css`) :
+                   on SCOPE en `:is(#teamList, .cadreApercu)` au lieu d'elargir,
+                   sinon les styles de salon fuient dans la partie. Et la ligne
+                   posait `background:` en raccourci, ce qui efface le
+                   `background-image` du fond de cadre a chaque rendu, avec un ID
+                   qui bat la specificite des regles d'emplacement — passe en
+                   `background-color`. Zero regle CSS par cadre, comme avant.
+                   LE RAILGUN SE DETACHE DE LA CAPSULE COMMUNE. Cinq armes
+                   partageaient la meme silhouette ; le rail prend la sienne, une
+                   aiguille longue a trainee DROITE et coeur clair — un rail ne
+                   flotte pas. Elle se DEDUIT : le proprietaire voyage dans le
+                   tuple de balle, son arme dans le tuple joueur, donc aucune clef
+                   d'instantane a ouvrir.
+
+     0.15.7 lot 8  CLAUDE.md PASSE DE 132 k A 20,5 k CARACTERES. Il est charge a
+                   CHAQUE session : tout ce qui ne sert qu'a un domaine y coutait
+                   des tokens a chaque tache, y compris celles qui n'en touchaient
+                   aucun. La racine ne garde que ce qui vaut pour TOUTE tache —
+                   commandes, version, plan de fichiers, regle des couches, points
+                   de passage uniques, conventions, workflow — plus une CARTE et
+                   les pieges dont l'echec est SILENCIEUX : tables append-only,
+                   instantane positionnel, couches et setters, unites, repli
+                   francais. Le reste part dans `docs/regles/` — SIMULATION,
+                   RESEAU, RENDU, CONTENU, LANGUES — qui ne sont PAS charges : on
+                   les ouvre quand la carte le dit. Meme motif que `LISEZMOI.md`,
+                   deja lu a la demande. Une tache de rendu paie desormais 54 k au
+                   lieu de 132 k, une tache d'outillage 20 k.
+                   NEUF INFORMATIONS MORTES retirees, relevees en croisant chaque
+                   identifiant cite avec le depot — 890 cites, 14 introuvables,
+                   les 5 restants sont des exemples generiques :
+                     `LEGENDARY_SPLIT` et le partage des legendaires en cinq
+                     paquets, un systeme qui n'existe plus ;
+                     `atkCdMul` et `zoneMul`, deux champs de roster disparus ;
+                     `CORE_WAVE` — c'est `CORE_LEVEL`, et la formule lit le
+                     NIVEAU, pas la vague ;
+                     `bestFinalRun`, jamais ecrit au profil ;
+                     `_bossDead`, `_waveTick`, `renderVoteDetail`, `b.sealDone`,
+                     tous renommes ;
+                     `clientWidth`, que `resize()` ne lit pas — il mesure par
+                     `getBoundingClientRect()`.
+                   `armes.js` etait a 37 % de commentaires, le pire du depot : ses
+                   blocs recitaient la doctrine que les docs portent deja, ce que
+                   la convention interdit explicitement. Treize blocs ramenes a
+                   leur mesure et a leur piege. Le depot reste a 6 % au total.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2437,4 +2761,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.14.4";
+export const VERSION = "0.15.7";

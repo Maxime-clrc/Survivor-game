@@ -1,6 +1,5 @@
-
 import { createGL } from "/gl.js";
-import { bombRange } from "/shared/classes.js";
+
 import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome } from "/shared/game_state.js";
 import { CADRE_SKIN, ENEMY, cssVars, decorAt, teinter } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
@@ -145,10 +144,13 @@ export function aimVector() {
   const d = Math.hypot(dx, dy);
   return d > 0.001 ? { ax: dx / d, ay: dy / d } : { ax: 0, ay: 0 };
 }
+/* LA DISTANCE BRUTE, et le serveur decide. Elle etait clampee ici par
+   `bombRange` : le lance-grenades, qui porte deux fois plus loin que la bombe,
+   ne pouvait pas recevoir sa propre allonge. */
 export function aimRange() {
   refreshMouseWorld();
   const from = predicted ?? { x: camera.x, y: camera.y };
-  return bombRange(Math.hypot(mouse.x - from.x, mouse.y - from.y));
+  return Math.hypot(mouse.x - from.x, mouse.y - from.y);
 }
 const VIDE = Object.freeze([]);
 function biomeNu() {

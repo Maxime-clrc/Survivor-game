@@ -10,6 +10,8 @@ export const AUDIO_CFG = {
   DUCK_UP: 0.70,
 };
 
+const FAISCEAU_HZ = 88;
+
 export const SOUND_GAIN = {
   alerte: 1.0,
   boss: 0.9,
@@ -161,6 +163,52 @@ export function getAudioSource() { return source; }
 
 export function audioContext() { return ac; }
 export function musicBus() { return musicG; }
+
+/* UN FAISCEAU CONTINU NE SE DECOUPE PAS EN TIRS. Le son de tir est deduit de
+   l'apparition d'une balle : le laser n'en cree aucune, donc il etait muet. Un
+   declenchement par tick le rendrait metronomique — c'est une BOUCLE, et sa
+   hauteur monte avec la chaleur : la ressource devient audible avant d'etre
+   fatale, ce qu'une ressource pilotable doit offrir. Coupee NET a saturation.
+   Une seule voix, hors du limiteur : elle ne prend la place de rien. */
+let hum = null;
+export function startFaisceau() {
+  if (!ac || hum || muted || volume <= 0) return;
+  const t0 = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(FAISCEAU_HZ, t0);
+  const f = ac.createBiquadFilter();
+  f.type = "bandpass";
+  f.Q.value = 3.2;
+  f.frequency.setValueAtTime(FAISCEAU_HZ * 3, t0);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(SOUND_GAIN.tir * 0.9, t0 + 0.06);
+  osc.connect(f); f.connect(g); g.connect(master);
+  osc.start(t0);
+  hum = { osc, f, g };
+}
+
+export function setFaisceauChaleur(k) {
+  if (!hum || !ac) return;
+  const t = ac.currentTime;
+  const q = Math.max(0, Math.min(1, k));
+  hum.osc.frequency.setTargetAtTime(FAISCEAU_HZ * (1 + q * 0.85), t, 0.05);
+  hum.f.frequency.setTargetAtTime(FAISCEAU_HZ * 3 * (1 + q * 1.4), t, 0.05);
+}
+
+export function stopFaisceau(net = false) {
+  if (!hum || !ac) return;
+  const { osc, g } = hum;
+  hum = null;
+  const t = ac.currentTime;
+  // NET a la saturation : la coupure EST l'information
+  const d = net ? 0.015 : 0.08;
+  g.gain.cancelScheduledValues(t);
+  g.gain.setValueAtTime(Math.max(0.0002, g.gain.value), t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  osc.stop(t + d + 0.02);
+}
 
 export function setMusicVolume(v) {
   musicVolume = Math.max(0, Math.min(1, v));
@@ -390,10 +438,16 @@ const PALETTE = {
   },
 
   // le balayage : ce qui traverse l'arene se lit comme un souffle qui MONTE.
-  balayage: () => {
-    const a = noise({ dur: 0.5, type: "bandpass", freq: 260, to: 2400, q: 0.6,
-                      gain: SOUND_GAIN.mort * 0.7, attack: 0.06 });
-    tone({ freq: 70, to: 180, dur: 0.42, type: "sawtooth", gain: SOUND_GAIN.mort * 0.35 });
+  // `pitch` le rend a la LAME sans en faire un second son : le boss balaie
+  // l'arene une fois par phase, la lame tourne 2,5 fois par seconde — meme
+  // matiere, plus haute et plus courte, c'est la regle du palier 2.
+  balayage: (o = {}) => {
+    const k = o.pitch ?? 1;
+    const d = 0.5 / Math.max(1, k);
+    const a = noise({ dur: d, type: "bandpass", freq: 260 * k, to: 2400 * k, q: 0.6,
+                      gain: SOUND_GAIN.mort * 0.7 * (o.gain ?? 1), attack: 0.06 / Math.max(1, k) });
+    tone({ freq: 70 * k, to: 180 * k, dur: d * 0.84, type: "sawtooth",
+           gain: SOUND_GAIN.mort * 0.35 * (o.gain ?? 1) });
     return { end: a.end, stop: a.stop };
   },
 

@@ -2,7 +2,7 @@
 import { nombre, ordinal, t, tf, tn } from "./i18n.js";
 import { fmtM } from "./units.js";
 import { RARITY_COLOR } from "./palette.js";
-import { ARME_CFG, FAMILLES_D_ARME, familleDeArme } from "./armes.js";
+import { ARME_BY_ID, ARME_CFG, ARME_DEFAUT, FAMILLES_D_ARME, armeAt, familleDeArme, litCanons } from "./armes.js";
 
 export const RARITY = { COMMUNE: 0, RARE: 1, EPIQUE: 2, LEGENDAIRE: 3 };
 
@@ -99,6 +99,12 @@ export const CARD_CFG = {
   GRENADE_DAMAGE: 110,
   GRENADE_RADIUS: 130,
   GRENADE_SPEED_MUL: 0.55,
+  // la reaction en chaine : moitie moins fort et moitie moins large que le
+  // souffle qui l'a declenchee, et une profondeur BORNEE — sans plafond une
+  // nuee serree fait exploser toute la vue en une image
+  CHAINE_DMG: 55,
+  CHAINE_RAYON: 70,
+  CHAINE_PROF_MAX: 2,
 
   SYMBIOSE_STEP: 0.05,
   AUSTERITE_BONUS: 0.30,
@@ -286,6 +292,11 @@ export const FAMILY_LABEL = {
   arme_laser: "canon laser",
   arme_tesla: "tesla",
   arme_lame: "lame tournoyante",
+  arme_dispersion: "fusil à dispersion",
+  arme_railgun: "railgun",
+  arme_grenade: "lance-grenades",
+  arme_siege: "fusil de siège",
+  arme_precision: "fusil de précision",
 };
 export const familyLabel = id => t(`cardfam.${id}`, FAMILY_LABEL[id] ?? id);
 export const FAMILY_TIERS = 4;
@@ -341,6 +352,7 @@ export const CARDS = [
   },
   {
     id: "poudre", nom: "Poudre dense", rarity: 0, max: 3, tags: ["off"],
+    horsEchelle: true,
     desc: "+12 % de vitesse des balles",
     stack: n => pctAdd(0.12, n),
     apply(m, n) { m.bulletSpeedMul += 0.12 * n; },
@@ -416,6 +428,7 @@ export const CARDS = [
   },
   {
     id: "coup_de_grace", nom: "Coup de grâce", rarity: 0, max: 3, tags: ["off"],
+    horsEchelle: true,
     family: "execution", tier: 0,
     desc: "les ennemis sous 5 % de PV meurent instantanément",
     stack: n => tf("cards.coup_de_grace.stack", "sous {0} %", { "0": num(5 + 2 * (n - 1)) }),
@@ -437,6 +450,7 @@ export const CARDS = [
   },
   {
     id: "elan", nom: "Élan", rarity: 0, max: 3, tags: ["off"],
+    horsEchelle: true,
     desc: "+1 % de dégâts par seconde sans être touché, jusqu'à +25 %",
     stack: n => tf("cards.elan.stack", "jusqu'à {0}", { "0": pctAdd(CARD_CFG.ELAN_MAX, n) }),
     apply(m, n) { m.elanStep += CARD_CFG.ELAN_STEP * n; m.elanMax += CARD_CFG.ELAN_MAX * n; },
@@ -470,6 +484,7 @@ export const CARDS = [
   },
   {
     id: "braises", nom: "Braises", rarity: 0, max: 3, tags: ["off"],
+    horsEchelle: true,
     family: "brulure", tier: 0,
     desc: "brûlure : 3 dégâts sur 3 s",
     stack: n => tf("cards.braises.stack", "{0} dégâts", { "0": 3 * n }),
@@ -519,6 +534,8 @@ export const CARDS = [
   },
   {
     id: "secondCanon", nom: "Second canon", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
+    canons: true,
     desc: "+1 balle en éventail, −18 % de dégâts par balle",
     stack: n => tf("cards.secondCanon.stack", "+{0}, {1} par balle", { "0": plur(n, "balle"), "1": pctCut(0.82, n) }),
     apply(m, n) { m.extraBarrels += n; m.barrelDamageMul *= Math.pow(0.82, n); },
@@ -538,6 +555,7 @@ export const CARDS = [
   },
   {
     id: "incendiaire", nom: "Munitions incendiaires", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
     family: "brulure", tier: 1,
     desc: "brûlure : 8 dégâts sur 3 s",
     stack: n => tf("cards.incendiaire.stack", "{0} dégâts", { "0": 8 * n }),
@@ -593,6 +611,7 @@ export const CARDS = [
   },
   {
     id: "tourelleAppui", nom: "Tourelle d'appui", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
     desc: "pose une tourelle automatique toutes les 45 s",
     stack: n => tf("cards.tourelleAppui.stack", "toutes les {0} s", { "0": num(CARD_CFG.AUTO_TURRET_CD / n) }),
     apply(m, n) { m.autoTurretCd = CARD_CFG.AUTO_TURRET_CD / n; },
@@ -629,6 +648,7 @@ export const CARDS = [
   },
   {
     id: "achevement", nom: "Achèvement", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
     family: "execution", tier: 1,
     desc: "les ennemis sous 12 % de PV meurent instantanément",
     stack: n => tf("cards.achevement.stack", "sous {0} %", { "0": num(12 + 4 * (n - 1)) }),
@@ -636,6 +656,7 @@ export const CARDS = [
   },
   {
     id: "meute", nom: "Meute", rarity: 0, max: 2, tags: ["off"],
+    horsEchelle: true,
     desc: "+3 % de dégâts par ennemi à moins de {0}, jusqu'à +30 %",
     vals: () => ({ "0": fmtM(CARD_CFG.PACK_RADIUS) }),
     stack: n => tf("cards.meute.stack", "jusqu'à {0}", { "0": pctAdd(CARD_CFG.PACK_MAX, n) }),
@@ -643,12 +664,14 @@ export const CARDS = [
   },
   {
     id: "carnage", nom: "Carnage", rarity: 0, max: 2, tags: ["off"],
+    horsEchelle: true,
     desc: "chaque ennemi tué donne +1 % de dégâts pendant 4 s, jusqu'à 30 fois",
     stack: n => tf("cards.carnage.stack", "jusqu'à {0}", { "0": pctAdd(CARD_CFG.RAGE_STEP * CARD_CFG.RAGE_MAX, n) }),
     apply(m, n) { m.ragePerKill += CARD_CFG.RAGE_STEP * n; },
   },
   {
     id: "adrenaline", nom: "Adrénaline", rarity: 0, max: 2, tags: ["off", "cadence"],
+    horsEchelle: true,
     desc: "+25 % de cadence sous 50 % de PV",
     stack: n => pctAdd(CARD_CFG.ADRENALINE_RATE, n),
     apply(m, n) { m.lowHpRate += CARD_CFG.ADRENALINE_RATE * n; },
@@ -680,6 +703,7 @@ export const CARDS = [
   },
   {
     id: "surcharge_orbitale", nom: "Surcharge orbitale", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
     requires: ["orbiteurs"],
     desc: "+60 % aux dégâts des lames orbitales",
     stack: n => pctAdd(0.60, n),
@@ -694,6 +718,7 @@ export const CARDS = [
 
   {
     id: "orbiteurs", nom: "Orbiteurs", rarity: 2, max: 3, tags: ["off"],
+    horsEchelle: true,
     desc: "2 lames tournantes à {0}, 25 dégâts au contact",
     vals: () => ({ "0": fmtM(CARD_CFG.ORBIT_RADIUS) }),
     stack: n => tf("cards.orbiteurs.stack", "{0}", { "0": plur(2 * n, "lame") }),
@@ -701,17 +726,20 @@ export const CARDS = [
   },
   {
     id: "salveArriere", nom: "Salve arrière", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "chaque tir envoie aussi une balle à 180°, dégâts à 70 %",
     apply(m) { m.backShot = 1; },
   },
   {
     id: "foudre", nom: "Chaîne de foudre", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
     desc: "15 % de chance qu'un impact arce sur 3 ennemis",
     stack: n => tf("cards.foudre.stack", "{0} %", { "0": num(15 * n) }),
     apply(m, n) { m.chainChance += 0.15 * n; },
   },
   {
     id: "pulsar", nom: "Pulsar", rarity: 2, max: 2, tags: ["off"], cat: "zone",
+    horsEchelle: true,
     desc: "toutes les 12 s, onde automatique de 90 dégâts sur {0}",
     vals: () => ({ "0": fmtM(CARD_CFG.PULSAR_RADIUS) }),
     stack: n => tf("cards.pulsar.stack", "toutes les {0} s", { "0": num(12 / n) }),
@@ -719,6 +747,7 @@ export const CARDS = [
   },
   {
     id: "drone", nom: "Drone de soutien", rarity: 2, max: 2, tags: ["off"],
+    horsEchelle: true,
     desc: "un drone vous suit et tire seul à 60 % de vos dégâts",
     stack: n => tf("cards.drone.stack", "{0}", { "0": plur(n, "drone") }),
     apply(m, n) { m.drones += n; },
@@ -754,6 +783,7 @@ export const CARDS = [
   },
   {
     id: "brasier", nom: "Brasier", rarity: 2, max: 2, tags: ["off"],
+    horsEchelle: true,
     family: "brulure", tier: 2,
     desc: "brûlure : 20 dégâts sur 3 s, et un ennemi qui meurt en brûlant enflamme ceux à moins de {0}",
     vals: () => ({ "0": fmtM(CARD_CFG.BURN_SPREAD) }),
@@ -786,6 +816,7 @@ export const CARDS = [
   },
   {
     id: "frenesie", nom: "Frénésie", rarity: 2, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "chaque kill donne +2 % de cadence, jusqu'à +60 %",
     apply(m) { m.frenzy = 1; },
   },
@@ -804,6 +835,7 @@ export const CARDS = [
   },
   {
     id: "ondeMort", nom: "Onde de mort", rarity: 2, max: 2, tags: ["off"], cat: "zone",
+    horsEchelle: true,
     desc: "tuer un ennemi déclenche 25 dégâts sur {0} autour de lui",
     vals: () => ({ "0": fmtM(CARD_CFG.DEATHWAVE_RADIUS) }),
     stack: n => tf("cards.ondeMort.stack", "{0} dégâts", { "0": 25 * n }),
@@ -811,6 +843,7 @@ export const CARDS = [
   },
   {
     id: "catalyseur", nom: "Catalyseur", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
     desc: "+15 % de dégâts contre un ennemi affecté par un état",
     stack: n => pctAdd(CARD_CFG.CATALYSEUR_BONUS, n),
     effective: () => t("cards.catalyseur.eff",
@@ -839,6 +872,7 @@ export const CARDS = [
   },
   {
     id: "moisson", nom: "Moisson", rarity: 2, max: 1, tags: ["off", "def"],
+    horsEchelle: true,
     family: "execution", tier: 2,
     desc: "les ennemis sous 20 % de PV meurent instantanément, et rendent 1 PV",
     apply(m) {
@@ -848,24 +882,28 @@ export const CARDS = [
   },
   {
     id: "blindage_offensif", nom: "Blindage offensif", rarity: 1, max: 1, tags: ["off", "def"],
+    horsEchelle: true,
     desc: "{0} % de tes PV max s'ajoutent à tes dégâts",
     vals: () => ({ "0": Math.round(CARD_CFG.BLINDAGE_OFFENSIF * 100) }),
     apply(m) { m.hpToDamage += CARD_CFG.BLINDAGE_OFFENSIF; },
   },
   {
     id: "fureur_defensive", nom: "Fureur défensive", rarity: 1, max: 1, tags: ["off", "def"],
+    horsEchelle: true,
     desc: "{0} % de tes dégâts s'ajoutent à tes PV max",
     vals: () => ({ "0": Math.round(CARD_CFG.FUREUR_DEFENSIVE * 100) }),
     apply(m) { m.damageToHp += CARD_CFG.FUREUR_DEFENSIVE; },
   },
   {
     id: "dernier_souffle", nom: "Dernier souffle", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "+80 % de dégâts sous 25 % de PV",
     apply(m) { m.lowHpDamage += CARD_CFG.SOUFFLE_DAMAGE; },
   },
 
   {
     id: "rebond", nom: "Balles rebondissantes", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "les balles rebondissent sur les bords, −25 % de dégâts par rebond",
     apply(m) { m.bounce = 1; },
   },
@@ -892,6 +930,7 @@ export const CARDS = [
 
   {
     id: "echo", nom: "Écho", rarity: 3, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "20 % de chance que chaque balle soit tirée en double",
     apply(m) { m.echoChance = 0.2; },
   },
@@ -907,6 +946,7 @@ export const CARDS = [
   },
   {
     id: "essaim", nom: "Essaim", rarity: 3, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "4 mini-drones orbitants, 12 dégâts chacun",
     apply(m) { m.swarm = 4; },
   },
@@ -919,6 +959,7 @@ export const CARDS = [
   },
   {
     id: "pacte_de_fer", nom: "Pacte de fer", rarity: 3, max: 1, tags: ["off", "def"],
+    horsEchelle: true,
     family: "bouclier", tier: 3,
     desc: "{0} points de bouclier ; il ne se régénère plus, mais tes dégâts montent de {1} % par tranche de {2} points de bouclier maximum",
     vals: () => ({ "0": 60, "1": Math.round(CARD_CFG.PACTE_STEP * 100), "2": CARD_CFG.PACTE_PER }),
@@ -946,6 +987,7 @@ export const CARDS = [
   },
   {
     id: "vif_argent", nom: "Vif-argent", rarity: 3, max: 1, tags: ["off", "def"],
+    horsEchelle: true,
     family: "mobilite", tier: 3,
     desc: "+30 % de vitesse, et l'esquive laisse une traînée de {0} dégâts sur {1}",
     vals: () => ({ "0": CARD_CFG.VIF_ARGENT_DAMAGE, "1": fmtM(CARD_CFG.VIF_ARGENT_RADIUS) }),
@@ -991,6 +1033,7 @@ export const CARDS = [
   },
   {
     id: "represailles", nom: "Représailles", rarity: 2, max: 1, tags: ["def", "off"],
+    horsEchelle: true,
     cls: "tank",
     desc: "encaisser pendant la provocation renvoie 40 dégâts sur {0}",
     vals: () => ({ "0": fmtM(CARD_CFG.REPRESAILLES_RADIUS) }),
@@ -1026,6 +1069,7 @@ export const CARDS = [
   // Les deux ne se recouvrent pas.
   {
     id: "siphon", nom: "Siphon", rarity: 2, max: 1, tags: ["coop", "off"],
+    horsEchelle: true,
     cls: "soigneur",
     desc: "les liens libres s'accrochent aux ennemis : {0} dégâts/s, {1} PV/s rendus au soigneur",
     vals: () => ({ "0": CARD_CFG.SIPHON_DAMAGE, "1": CARD_CFG.SIPHON_RATE }),
@@ -1034,18 +1078,21 @@ export const CARDS = [
 
   {
     id: "bombe_fragmentation", nom: "Fragmentation", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     cls: "dps",
     desc: "l'explosion projette 8 éclats à 50 % de dégâts",
     apply(m) { m.bombShards = 1; },
   },
   {
     id: "bombe_double", nom: "Double charge", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     cls: "dps",
     desc: "deux bombes en réserve, recharge inchangée",
     apply(m) { m.bombCharges += 1; },
   },
   {
     id: "surcharge_longue", nom: "Surcharge prolongée", rarity: 2, max: 1, tags: ["off", "cadence"],
+    horsEchelle: true,
     cls: "dps",
     desc: "surcharge : +3 s, et le bonus redescend au lieu de tomber d'un coup",
     apply(m) {
@@ -1055,6 +1102,7 @@ export const CARDS = [
   },
   {
     id: "detonateur", nom: "Détonateur", rarity: 2, max: 1, tags: ["off"],
+    horsEchelle: true,
     cls: "dps",
     desc: "les ennemis touchés par la bombe subissent +25 % de dégâts pendant 4 s",
     apply(m) { m.bombVulnerable = 1; },
@@ -1107,6 +1155,7 @@ export const CARDS = [
 
   {
     id: "salve", nom: "Salve", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     cls: "dps", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["salve_etendue", "salve_totale"],
     ...skill3Salve(0),
@@ -1114,6 +1163,7 @@ export const CARDS = [
   },
   {
     id: "salve_etendue", nom: "Salve étendue", rarity: 2, max: 1, tags: ["off"],
+    horsEchelle: true,
     cls: "dps", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["salve", "salve_totale"],
     ...skill3Salve(1),
@@ -1121,6 +1171,7 @@ export const CARDS = [
   },
   {
     id: "salve_totale", nom: "Salve totale", rarity: 3, max: 1, tags: ["off"],
+    horsEchelle: true,
     cls: "dps", excl: "skill3", minLevel: CARD_CFG.SKILL3_MIN_LEVEL,
     incompatible: ["salve", "salve_etendue"],
     ...suffixe(skill3Salve(2), " — cibles rendues Vulnérables"),
@@ -1136,6 +1187,7 @@ export const CARDS = [
 
   {
     id: "reperes", nom: "Repères", rarity: 0, max: 4, tags: ["off"],
+    horsEchelle: true,
     desc: "+{0} % de dégâts contre les boss",
     vals: () => ({ "0": num(CARD_CFG.REPERES_STEP * 100) }),
     stack: n => pctAdd(CARD_CFG.REPERES_STEP, n),
@@ -1151,6 +1203,7 @@ export const CARDS = [
   },
   {
     id: "briseur", nom: "Briseur", rarity: 1, max: 2, tags: ["off", "cadence"],
+    horsEchelle: true,
     desc: "briser une barre de boss recharge instantanément tes compétences",
     stack: n => n > 1
       ? t("cards.briseur.stack.n", "et rend 20 % de bouclier")
@@ -1175,6 +1228,7 @@ export const CARDS = [
   },
   {
     id: "traqueur", nom: "Traqueur", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "+{0} % de dégâts contre les boss, +{1} % de plus par barre brisée",
     vals: () => ({ "0": num(CARD_CFG.TRAQUEUR_BASE * 100), "1": num(CARD_CFG.TRAQUEUR_PER_BAR * 100) }),
     apply(m) {
@@ -1207,6 +1261,7 @@ export const CARDS = [
   },
   {
     id: "conducteur", nom: "Conducteur", rarity: 0, max: 2, tags: ["off", "util"],
+    horsEchelle: true,
     requiresSystem: "hasards_actifs",
     desc: "les ennemis qui traversent un danger du sol subissent {0} dégâts/s",
     vals: () => ({ "0": num(CARD_CFG.CONDUCTEUR_DPS) }),
@@ -1215,6 +1270,7 @@ export const CARDS = [
   },
   {
     id: "filins", nom: "Filins", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
     desc: "{0} % de chance qu'une balle entrave sa cible {1} s",
     vals: () => ({ "0": num(CARD_CFG.FILINS_CHANCE * 100), "1": num(CARD_CFG.FILINS_TIME) }),
     stack: n => tf("cards.filins.stack", "{0} % de chance", { "0": num(CARD_CFG.FILINS_CHANCE * n * 100) }),
@@ -1222,6 +1278,7 @@ export const CARDS = [
   },
   {
     id: "etau", nom: "Étau", rarity: 1, max: 2, tags: ["off"],
+    horsEchelle: true,
     desc: "tes explosions et tes ondes entravent {0} s",
     vals: () => ({ "0": num(CARD_CFG.ETAU_TIME) }),
     stack: n => tf("cards.etau.stack", "{0} s", { "0": num(CARD_CFG.ETAU_TIME * n) }),
@@ -1229,6 +1286,7 @@ export const CARDS = [
   },
   {
     id: "opportuniste", nom: "Opportuniste", rarity: 0, max: 2, tags: ["off", "util"],
+    horsEchelle: true,
     desc: "pendant un événement, +{0} % de dégâts et +{1} % d'éclats",
     vals: () => ({ "0": num(CARD_CFG.OPPORTUNISTE_DMG * 100), "1": num(CARD_CFG.OPPORTUNISTE_SHARD * 100) }),
     stack: n => pctAdd(CARD_CFG.OPPORTUNISTE_DMG, n),
@@ -1246,6 +1304,7 @@ export const CARDS = [
   },
   {
     id: "contre_pied", nom: "Contre-pied", rarity: 0, max: 2, tags: ["off", "util"],
+    horsEchelle: true,
     desc: "traverser un ennemi en esquivant le rend vulnérable {0} s",
     vals: () => ({ "0": num(CARD_CFG.CONTRE_PIED_TIME) }),
     stack: n => n > 1
@@ -1255,12 +1314,14 @@ export const CARDS = [
   },
   {
     id: "terrain_conquis", nom: "Terrain conquis", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "tes explosions et tes ondes laissent un sol brûlant {0} s",
     vals: () => ({ "0": num(CARD_CFG.TERRAIN_LIFE) }),
     apply(m) { m.blastGround = CARD_CFG.TERRAIN_LIFE; },
   },
   {
     id: "nasse", nom: "Nasse", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     requires: ["filins", "etau"],
     desc: "les ennemis entravés subissent +{0} % de dégâts",
     vals: () => ({ "0": num(CARD_CFG.NASSE_MUL * 100) }),
@@ -1278,6 +1339,7 @@ export const CARDS = [
   },
   {
     id: "sillage", nom: "Sillage", rarity: 1, max: 1, tags: ["off"],
+    horsEchelle: true,
     desc: "les {0} coups qui suivent une esquive sont des coups critiques",
     vals: () => ({ "0": num(CARD_CFG.SILLAGE_HITS) }),
     apply(m) { m.dashCrit = CARD_CFG.SILLAGE_HITS; },
@@ -1304,6 +1366,7 @@ export const CARDS = [
   },
   {
     id: "fournaise", nom: "Fournaise", rarity: 3, max: 1, tags: ["off"],
+    horsEchelle: true,
     family: "brulure", tier: 3,
     desc: "brûlure : 50 dégâts sur 3 s, et un ennemi qui meurt en brûlant enflamme ceux à moins de {0}",
     vals: () => ({ "0": fmtM(CARD_CFG.BURN_SPREAD_MAX) }),
@@ -1311,6 +1374,7 @@ export const CARDS = [
   },
   {
     id: "faucheuse", nom: "Faucheuse", rarity: 3, max: 1, tags: ["off", "def"],
+    horsEchelle: true,
     family: "execution", tier: 3,
     desc: "les ennemis sous {0} % de PV meurent instantanément et rendent {1} PV ; le seuil monte de {2} % par barre de boss brisée",
     vals: () => ({ "0": 32, "1": 3, "2": num(CARD_CFG.EXEC_PER_BAR * 100) }),
@@ -1452,6 +1516,174 @@ export const CARDS = [
       m.lameKill = 0.08; m.lameDouble = 1; m.lameArc = 1.15;
       m.lameRayon += 156 * 0.20;
     },
+  },
+  /* LES CINQ FAMILLES QUI MANQUAIENT. Meme regle que les quatre premieres :
+     quatre paliers, commune -> legendaire, le 3/4 corrige la faiblesse de l'arme
+     dans le contexte ou elle est la plus faible, et le 4/4 REPORTE la statistique
+     du 1/1 — sans quoi il se verrouille hors de sa propre echelle et meurt a la
+     prise. Ajoutees en QUEUE : `CARDS` est append-only. */
+  {
+    id: "disp_plombs", nom: "Gerbe fournie", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_dispersion", tier: 0,
+    desc: "dispersion : +{0} plombs par tir",
+    vals: () => ({ "0": 2 }),
+    stack: n => plur(2 * n, "plomb"),
+    apply(m, n) { m.plombsPlus += 2 * n; },
+  },
+  {
+    id: "disp_gerbe", nom: "Choke serré", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_dispersion", tier: 1,
+    desc: "dispersion : gerbe resserrée de {0} %",
+    vals: () => ({ "0": 30 }),
+    stack: n => pctCut(0.70, n),
+    apply(m, n) { m.gerbeMul *= Math.pow(0.70, n); },
+  },
+  {
+    id: "disp_converge", nom: "Canon à âme lisse", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_dispersion", tier: 2,
+    desc: "dispersion : sous {0}, toute la gerbe frappe le même point",
+    vals: () => ({ "0": fmtM(250) }),
+    effective: () => t("cards.disp_converge.eff",
+      "c'est ce qui rend l'arme jouable sur une cible unique"),
+    apply(m) { m.convergeTotale = 1; },
+  },
+  {
+    id: "disp_rebond", nom: "Chevrotine vive", rarity: 3, max: 1, tags: ["off"],
+    family: "arme_dispersion", tier: 3,
+    desc: "dispersion : +{0} plombs, et chaque plomb rebondit une fois",
+    vals: () => ({ "0": 2 }),
+    apply(m) { m.plombsPlus += 2; m.plombsChain = 1; },
+  },
+
+  {
+    id: "rail_vite", nom: "Bobine surtendue", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_railgun", tier: 0,
+    desc: "railgun : charge {0} % plus courte",
+    vals: () => ({ "0": 12 }),
+    stack: n => pctCut(0.88, n),
+    apply(m, n) { m.railVite *= Math.pow(0.88, n); },
+  },
+  {
+    id: "rail_calibre", nom: "Barreau lourd", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_railgun", tier: 1,
+    desc: "railgun : +{0} % de dégâts par rail",
+    vals: () => ({ "0": 25 }),
+    stack: n => pctAdd(0.25, n),
+    apply(m, n) { m.railDegats += 0.25 * n; },
+  },
+  {
+    id: "rail_sillon", nom: "Sillon incandescent", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_railgun", tier: 2,
+    desc: "railgun : le rail laisse un sillon qui brûle {0} s",
+    vals: () => ({ "0": num(ARME_CFG.RAIL_SILLON) }),
+    effective: () => t("cards.rail_sillon.eff",
+      "c'est ce qui rend le rail utile sur un corps qui ne quitte pas sa ligne"),
+    apply(m) { m.railSillon = ARME_CFG.RAIL_SILLON; },
+  },
+  {
+    id: "rail_resonance", nom: "Résonance", rarity: 3, max: 1, tags: ["off"],
+    family: "arme_railgun", tier: 3,
+    desc: "railgun : charge plus courte, et chaque corps traversé ajoute {0} % au suivant",
+    vals: () => ({ "0": 18 }),
+    apply(m) { m.railVite *= 0.88; m.railResonance = 0.18; },
+  },
+
+  {
+    id: "gren_souffle", nom: "Charge creuse", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_grenade", tier: 0,
+    desc: "lance-grenades : souffle +{0} %",
+    vals: () => ({ "0": 25 }),
+    stack: n => pctUp(1.25, n),
+    apply(m, n) { m.souffleMul *= Math.pow(1.25, n); },
+  },
+  {
+    id: "gren_salve", nom: "Barillet", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_grenade", tier: 1,
+    desc: "lance-grenades : +{0} grenade par tir",
+    vals: () => ({ "0": 1 }),
+    stack: n => plur(n, "grenade"),
+    apply(m, n) { m.grenadesPlus += n; },
+  },
+  {
+    id: "gren_contact", nom: "Percuteur", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_grenade", tier: 2,
+    desc: "lance-grenades : la grenade détone au contact et ajoute {0} de dégâts directs",
+    vals: () => ({ "0": 45 }),
+    effective: () => t("cards.gren_contact.eff",
+      "c'est ce qui rend l'arme jouable sur une cible unique"),
+    apply(m) { m.grenadeDirect = 45; },
+  },
+  {
+    id: "gren_chaine", nom: "Réaction en chaîne", rarity: 3, max: 1, tags: ["off"],
+    family: "arme_grenade", tier: 3,
+    desc: "lance-grenades : souffle plus large, et un corps tué par le souffle explose à son tour",
+    apply(m) { m.souffleMul *= 1.25; m.grenadeChaine = 1; },
+  },
+
+  {
+    id: "siege_chargeur", nom: "Coffre à obus", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_siege", tier: 0,
+    desc: "fusil de siège : +{0} obus au chargeur",
+    vals: () => ({ "0": 2 }),
+    stack: n => plur(2 * n, "obus"),
+    apply(m, n) { m.chargeurPlus += 2 * n; },
+  },
+  {
+    id: "siege_recharge", nom: "Culasse ouverte", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_siege", tier: 1,
+    desc: "fusil de siège : recharge {0} % plus courte",
+    vals: () => ({ "0": 20 }),
+    stack: n => pctCut(0.80, n),
+    apply(m, n) { m.rechargeMul *= Math.pow(0.80, n); },
+  },
+  {
+    id: "siege_dernier", nom: "Dernier obus", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_siege", tier: 2,
+    desc: "fusil de siège : le dernier obus du chargeur fait ×{0}",
+    vals: () => ({ "0": num(2) }),
+    effective: () => t("cards.siege_dernier.eff",
+      "c'est ce qui fait de la fin du chargeur une décision au lieu d'une corvée"),
+    apply(m) { m.siegeDernier = 2; },
+  },
+  {
+    id: "siege_relance", nom: "Chaîne de tir", rarity: 3, max: 1, tags: ["off"],
+    family: "arme_siege", tier: 3,
+    desc: "fusil de siège : +{0} obus, et une mise à mort recharge instantanément",
+    vals: () => ({ "0": 2 }),
+    apply(m) { m.chargeurPlus += 2; m.siegeKill = 1; },
+  },
+
+  {
+    id: "prec_portee", nom: "Canon rayé", rarity: 0, max: 3, tags: ["off"],
+    family: "arme_precision", tier: 0,
+    desc: "fusil de précision : portée +{0} %",
+    vals: () => ({ "0": 25 }),
+    stack: n => pctAdd(0.25, n),
+    apply(m, n) { m.bulletLifeMul += 0.25 * n; },
+  },
+  {
+    id: "prec_perce", nom: "Noyau dur", rarity: 1, max: 2, tags: ["off"],
+    family: "arme_precision", tier: 1,
+    desc: "fusil de précision : traverse {0} ennemi de plus",
+    vals: () => ({ "0": 1 }),
+    stack: n => tn("cards.prec_perce.stack", "{n} ennemi de plus", "{n} ennemis de plus", n),
+    apply(m, n) { m.pierce += n; },
+  },
+  {
+    id: "prec_froide", nom: "Cible froide", rarity: 2, max: 1, tags: ["off"],
+    family: "arme_precision", tier: 2,
+    desc: "fusil de précision : ×{0} sur un corps qu'on n'a pas touché depuis {1} s",
+    vals: () => ({ "0": num(2.5), "1": num(ARME_CFG.PREC_FROID) }),
+    effective: () => t("cards.prec_froide.eff",
+      "c'est ce qui rend l'arme jouable face à une horde au lieu d'une file"),
+    apply(m) { m.precFroide = 2.5; },
+  },
+  {
+    id: "prec_marque", nom: "Marqueur", rarity: 3, max: 1, tags: ["off"],
+    family: "arme_precision", tier: 3,
+    desc: "fusil de précision : portée +{0} %, et un corps touché devient vulnérable pour toute l'équipe",
+    vals: () => ({ "0": 25 }),
+    apply(m) { m.bulletLifeMul += 0.25; m.precMarque = 1; },
   },
 ];
 
@@ -1614,7 +1846,62 @@ export function defaultMods() {
     ragePerKill: 0,
     lowHpRate: 0,
     lowHpDamage: 0,
+
+    plombsPlus: 0,
+    gerbeMul: 1,
+    convergeTotale: 0,
+    plombsChain: 0,
+    railVite: 1,
+    railDegats: 0,
+    railSillon: 0,
+    railResonance: 0,
+    souffleMul: 1,
+    grenadesPlus: 0,
+    grenadeDirect: 0,
+    grenadeChaine: 0,
+    chargeurPlus: 0,
+    rechargeMul: 1,
+    siegeDernier: 1,
+    siegeKill: 0,
+    precFroide: 0,
+    precMarque: 0,
   };
+}
+
+/* LES AXES D'UNE CARTE SE RELEVENT, ILS NE SE DECLARENT PAS. Un champ `axes:`
+   ecrit a la main derive des que l'`apply` bouge, et ce plan a deja trouve trois
+   fois la meme panne — la recompense indexee, la famille deduite, la conversion
+   ecrite a cote. On OBSERVE ce que la carte ecrit dans `mods`, et on le range
+   sous l'axe du tableau d'echelle qui porte cette clef. Releve une fois. */
+const AXE_DE_CLEF = {
+  damageMul: "degats",
+  fireIntervalMul: "cadence",
+  bulletLifeMul: "portee",
+  areaMul: "zone",
+  pierce: "perforation",
+  // `inertia` EST une perforation infinie : elle n'a pas de clef a elle dans le
+  // tableau, mais elle est morte partout ou la perforation l'est
+  inertia: "perforation",
+  chain: "ricochet",
+  critChance: "critique", critMul: "critique", critBase: "critique",
+};
+const AXES_MEMO = new Map();
+export function axesDeCarte(c) {
+  let v = AXES_MEMO.get(c.id);
+  if (v) return v;
+  const base = defaultMods();
+  const m = defaultMods();
+  c.apply?.(m, 1);
+  // le conditionnel compte AUSSI : une carte qui ne rapporte que sous condition
+  // rapporte quand meme, et l'arme la met a l'echelle de la meme facon
+  c.applyAfter?.(m, 1, { defensive: 1, cadence: 1, topRarity: -1 });
+  const out = new Set();
+  for (const [clef, axe] of Object.entries(AXE_DE_CLEF)) {
+    if (m[clef] !== base[clef]) out.add(axe);
+  }
+  v = [...out];
+  AXES_MEMO.set(c.id, v);
+  return v;
 }
 
 export function cardContext(owned) {
@@ -1694,8 +1981,24 @@ export function eligibleCards(owned, cls = null, levelNow = 0, locked = null, ct
   }
   const top = topTiers(owned);
   const mienne = familleDeArme(ctx?.arme);
+  // le tir standard ne met rien a l'echelle : pas de table, pas de filtre
+  const porteur = ctx?.arme && ctx.arme !== ARME_DEFAUT ? ARME_BY_ID.get(ctx.arme) : null;
+  const ech = porteur?.ech ?? null;
   return CARDS.filter(c => {
     if (c.family && FAMILLES_D_ARME.has(c.family) && c.family !== mienne) return false;
+    // la penalite de `barrelDamageMul` est payee par TOUTES les armes, le canon
+    // en plus ne sert qu'a celles qui tirent des balles unitaires : ailleurs la
+    // carte est un malus pur, cumulable deux fois, et rien ne le dit a l'ecran
+    if (c.canons && !litCanons(armeAt(ctx?.arme))) return false;
+    // UNE CARTE A COEFFICIENT NUL NE RAPPORTE RIEN, et sur trois cartes offertes
+    // en tirer une morte fait un choix a deux options sans le dire. `=== 0` et
+    // non un seuil : a 0,2 le joueur fait un choix informe et perdant, ce qui
+    // reste un choix. `every` et non `some` : une carte qui donne perforation ET
+    // degats sert encore par ses degats.
+    if (ech) {
+      const axes = axesDeCarte(c);
+      if (axes.length && axes.every(k => ech[k] === 0)) return false;
+    }
     if (c.family && (top.get(c.family) ?? -1) > c.tier) return false;
     if (c.fallback) return false;
     if (c.cls && c.cls !== cls) return false;

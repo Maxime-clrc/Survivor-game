@@ -1,10 +1,10 @@
 
 import {
   CARD_BY_ID, CARD_CFG, CARDS, computeMods, defaultMods, drawCards,
-  eligibleCards, poolThin, verifierCatalogue, FAMILY_TIERS, POOL_MIN,
+  axesDeCarte, eligibleCards, poolThin, verifierCatalogue, FAMILY_TIERS, POOL_MIN,
 } from "./cards.js";
 import {
-  CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange, bombFlight,
+  CLASSES, CLASS_DEFAULT, SKILL_CFG, classAt, bombRange, bombFlight, porteeReticule,
   SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE, SKILL_ULT_WIND,
 } from "./classes.js";
 import {
@@ -17,8 +17,8 @@ import {
 import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
 import {
-  ARMES, ARME_CFG, ARME_DEFAUT, appliquerEchelle, armeAt, conversionBoss, dpsBase,
-  lameRayon,
+  ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, appliquerEchelle, armeAt, cibleArme,
+  conversionBoss, difficulte, dpsBase, lameRayon, litCanons, survieArme, verifierArmes,
 } from "./armes.js";
 
 /* L index circule dans l instantane : ARMES est donc APPEND-ONLY, comme
@@ -574,8 +574,16 @@ export function fullMods(cards, others, cls, level = 1, arme = ARME_DEFAUT) {
     mods.damageMul += CARD_CFG.PACTE_STEP * (mods.shieldPool / CARD_CFG.PACTE_PER);
   }
 
-  if (mods.hpCap > 0) maxHp = Math.min(maxHp, mods.hpCap);
+  // le plafond ne se pose PAS ici : trois sources ajoutent des PV apres
+  // (`applyMeta`, les reliques), et un plafond au milieu de la chaine se
+  // contourne par tout ce qu'on branche derriere. Voir `plafonnerHp`.
   return { mods, maxHp: Math.round(maxHp) };
+}
+
+/* LE plafond de PV, et il est le DERNIER. Point de passage unique : toute
+   source de PV ajoutee plus tard passe devant lui au lieu de le contourner. */
+export function plafonnerHp(maxHp, mods) {
+  return mods.hpCap > 0 ? Math.min(maxHp, mods.hpCap) : maxHp;
 }
 
 /* TOUS LES COMPTEURS DE HAUT FAIT SONT PERSONNELS. Un compteur d'equipe serait
@@ -599,13 +607,24 @@ export function hfCompteurs() {
     segSain: 1, segmentsSains: 0,
     bossUlt0: 0, bossDegat: 0,
     bossSansUlt: 0, bossSansDegat: 0, bossVite: 0,
+
+    /* CE QUE L'ARME DELIVRE, et non ce que la build delivre. Un DPS nominal ne
+       voit ni les cibles reellement touchees, ni le temps ou l'arme peut tirer,
+       ni la part des tirs qui portent — c'est pour ca qu'il ne remontait aucune
+       anomalie pendant que le tesla dominait. `armeMuet` ne compte QUE le refus
+       pour cause de ressource : un temps mort volontaire mesurerait le style du
+       pilote, pas l'arme. */
+    armeTemps: 0, armeMuet: 0, armeCibles: 0, armeDegats: 0,
   };
 }
 
 export function powerIndex(m, flat = 0, arme = ARME_DEFAUT) {
   const a = armeAt(arme);
-  let barrels = (1 + m.extraBarrels + (m.backShot ? 0.7 : 0)) * m.barrelDamageMul;
-  if (m.inertia) barrels *= 1.9;
+  // meme decoupe que `_volley` : le canon en plus et sa penalite ne comptent que
+  // pour les armes a balles unitaires, la salve arriere ne paie rien
+  const canons = litCanons(a) ? (1 + m.extraBarrels) * m.barrelDamageMul : 1;
+  let barrels = canons + (m.backShot ? 0.7 : 0);
+  if (m.inertia && a.ech.perforation > 0) barrels *= 1.9;
   const catalyseur = 1 + m.catalyseur * 0.5;
   const crit = 1 + m.critChance * (m.critMul - 1);
   const flatMul = 1 + flat / a.degats;
@@ -676,6 +695,9 @@ export class GameState {
     this.puddleSeen = false;
 
     this.harvests = [];
+    this._chaineProf = 0;
+    // le joueur dont l'ARME est en train de frapper ; 0 sinon
+    this._armeDe = 0;
     this.harvestCd = CFG.HARVEST_MIN
       + Math.random() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
 
@@ -768,6 +790,9 @@ export class GameState {
       hf: hfCompteurs(),
       arme: ARME_DEFAUT,
       armeRes: 0,
+      armeMun: 0,
+      armeRech: 0,
+      precVus: new Map(),
       armeAng: 0,
       armeMuet: 0,
       armeT: 0,
@@ -776,7 +801,7 @@ export class GameState {
       lameMarques: new Map(),
       aimX: 1,
       aimY: 0,
-      aimR: SKILL_CFG.DPS_BOMB_RANGE_MAX,
+      aimR: Infinity,
       buffDamage: 0,
       buffRate: 0,
       buffDouble: 0,
@@ -978,6 +1003,7 @@ export class GameState {
 
     const flat = this._relicSum(p, "flatHp") + this._relicAllySum(p, "allyFlatHp");
     if (flat !== 0) p.maxHp = Math.max(1, p.maxHp + flat);
+    p.maxHp = plafonnerHp(p.maxHp, p.mods);
 
     const gained = p.maxHp - before;
     if (gained > 0 && !p.downed) p.hp = Math.min(p.maxHp, p.hp + gained);
@@ -1211,7 +1237,7 @@ export class GameState {
         const ad = Math.hypot(inp.ax, inp.ay);
         if (ad > 0.001) { p.aimX = inp.ax / ad; p.aimY = inp.ay / ad; }
       }
-      if (inp) p.aimR = bombRange(inp.ar);
+      if (inp) p.aimR = porteeReticule(inp.ar);
 
       if (inp && inp.dash && p.dashCd <= 0 && p.dashT <= 0) {
         let dx = inp.x, dy = inp.y;
@@ -1284,17 +1310,31 @@ export class GameState {
       if (p.buffRate > 0) interval *= CFG.BUFF_RATE_MUL;
       if (p.odBonus > 0) interval /= 1 + p.odBonus;
       if (p.healSwapBoost > 0) interval /= 1 + CARD_CFG.BASCULE_VIVE_RATE;
+      if (arme.charge) interval *= p.mods.railVite;
       interval = Math.max(CFG.FIRE_INTERVAL_MIN, interval + this._relicSum(p, "rateFlat"));
 
       p.fireInterval = interval;
 
       const tirAutorise = this.warmup <= 0 && !p.healMode && !p.downed;
+      if (tirAutorise) {
+        p.hf.armeTemps += dt;
+        // muet = REFUSE pour cause de ressource. La charge du railgun n'en est
+        // pas : elle EST sa cadence, et compter une cadence comme du mutisme
+        // rendrait toutes les armes lentes muettes.
+        if (p.armeMuet > 0) p.hf.armeMuet += dt;
+      }
       this._armeTick(p, arme, dt, tirAutorise);
 
       // posture engagee : il ne tire plus du tout. Les liens s'accrochent seuls.
       if (arme.interval > 0 && p.fireCd <= 0 && tirAutorise && p.armeMuet <= 0) {
         p.fireCd = interval;
         this._shoot(p);
+        if (arme.chargeur) {
+          p.armeMun = Math.max(0, p.armeMun - 1);
+          // la recharge n'a pas besoin de son propre signal : le bouclier qui
+          // se ferme est deja dessine, et la jauge se remplit sous le reticule
+          if (p.armeMun <= 0) p.armeMuet = arme.recharge * p.mods.rechargeMul;
+        }
       }
     }
   }
@@ -1384,6 +1424,9 @@ export class GameState {
      deux ressources a la fois. */
   _armeTick(p, arme, dt, tirAutorise) {
     p.armeMuet = Math.max(0, p.armeMuet - dt);
+    // bornee, pas entretenue : un identifiant d'ennemi ne revient jamais, donc
+    // la table ne sert que de memoire courte
+    if (p.precVus.size > 2000) p.precVus.clear();
     p.armeAng = Math.atan2(p.aimY, p.aimX);
     p.frostR = p.mods.frostRadius;
 
@@ -1398,6 +1441,39 @@ export class GameState {
       // ralentissement serait un second chemin pour la meme regle
       p.frostR = Math.max(p.mods.frostRadius,
         p.mods.rampeZone > 0 && p.armeRes >= 1 && !bouge ? p.mods.rampeZone : 0);
+      return;
+    }
+
+    /* LA CHARGE EST UNE HORLOGE, PAS UNE MANIPULATION. Le tir etant automatique,
+       il n'y a rien a declencher : ce que le joueur pilote, c'est ou il se trouve
+       quand le rail part. La jauge ne fait que rendre le cycle LISIBLE — une
+       ressource invisible est une ressource subie. */
+    if (arme.charge) {
+      const cycle = arme.interval * p.mods.fireIntervalMul;
+      p.armeRes = cycle > 0 ? Math.max(0, Math.min(1, 1 - p.fireCd / cycle)) : 1;
+      return;
+    }
+
+    /* LE CHARGEUR : six obus, puis une fenetre ou l'arme ne rend rien. `armeMuet`
+       est ce qui la ferme, donc le meme champ que la saturation du laser — un
+       second chemin pour « je ne peux pas tirer » se serait desynchronise. */
+    if (arme.chargeur) {
+      const taille = this._chargeur(p, arme);
+      if (p.armeMuet > 0) {
+        // le bouclier ne supprime pas la vulnerabilite, il l'empeche d'etre
+        // letale : on encaisse pendant la recharge, on ne repond pas
+        p.armeRech = 1;
+        const cap = p.mods.shieldPool * (arme.rechargeGarde ?? 1);
+        if (p.shield < cap) this._grantShield(p, cap - p.shield, cap);
+        const duree = arme.recharge * p.mods.rechargeMul;
+        p.armeRes = duree > 0 ? Math.max(0, Math.min(1, 1 - p.armeMuet / duree)) : 1;
+      } else {
+        // la garde s'en va avec la fenetre : sinon un siege garderait trois fois
+        // sa reserve en permanence, et la contrepartie deviendrait un cadeau
+        if (p.armeRech) { p.armeRech = 0; p.shield = Math.min(p.shield, p.mods.shieldPool); }
+        if (!(p.armeMun > 0)) p.armeMun = taille;
+        p.armeRes = Math.min(1, p.armeMun / taille);
+      }
       return;
     }
 
@@ -1425,9 +1501,24 @@ export class GameState {
     }
   }
 
+  _chargeur(p, arme) { return arme.chargeur + p.mods.chargeurPlus; }
+
+  // une mise a mort remplit le chargeur ET coupe la recharge en cours : c'est ce
+  // qui transforme la fenetre morte en recompense au lieu d'une attente
+  _siegeKill(p) {
+    const arme = armeAt(p.arme);
+    if (!arme.chargeur || !(p.mods.siegeKill > 0)) return;
+    p.armeMuet = 0;
+    p.armeMun = this._chargeur(p, arme);
+  }
+
   /* LE FAISCEAU NE RATE JAMAIS : il ne lance pas de projectile, il balaie un
      segment. C'est sa vraie signature, pas ses degats. */
   _faisceau(p, arme, dt) {
+    return this._sousArme(p.id, () => this._faisceauInterne(p, arme, dt));
+  }
+
+  _faisceauInterne(p, arme, dt) {
     const base = (arme.degats + this._flatDamage(p)) * p.mods.damageMul
       * (p.buffDamage > 0 ? CFG.BUFF_DAMAGE_MUL : 1)
       * (1 + p.armeRes * (ARME_CFG.CHALEUR_BONUS + (p.mods.chaleurDegats ?? 0)));
@@ -1436,6 +1527,16 @@ export class GameState {
     const dx = Math.cos(p.armeAng), dy = Math.sin(p.armeAng);
     const large = ARME_CFG.LASER_LARGEUR * p.mods.faisceauLarge;
     return this._segmentHits(p, p.x, p.y, dx, dy, portee, large, dmg, true);
+  }
+
+  /* La projection sur le segment, extraite de `_segmentHits` plutot que
+     reecrite : rend la distance le long de l'axe, ou `null` si le corps est
+     derriere, au-dela, ou trop lateral. */
+  _surSegment(px, py, dx, dy, portee, large) {
+    const le = px * dx + py * dy;
+    if (le < 0 || le > portee) return null;
+    const ex = px - le * dx, ey = py - le * dy;
+    return ex * ex + ey * ey > large * large ? null : le;
   }
 
   /* Point de passage unique de tout ce qui frappe LE LONG D'UN SEGMENT : le
@@ -1462,6 +1563,17 @@ export class GameState {
       if (ex * ex + ey * ey > rr * rr) continue;
       this._damage(boss, dmg, p.id, 0, overTime, ox + dx * le, oy + dy * le);
       touches++;
+    }
+    // un faisceau qui traverse une file ET un cristal casse les deux : c'est
+    // sa signature, pas une exception
+    for (const h of this.harvests) {
+      const px = h.x - ox, py = h.y - oy;
+      const le = px * dx + py * dy;
+      if (le < 0 || le > portee) continue;
+      const ex = px - le * dx, ey = py - le * dy;
+      const rr = large + CFG.HARVEST_RADIUS;
+      if (ex * ex + ey * ey > rr * rr) continue;
+      if (this._harvestDamage(h, dmg)) touches++;
     }
     return touches;
   }
@@ -1517,79 +1629,132 @@ export class GameState {
     if (p.mods.echoChance > 0 && Math.random() < p.mods.echoChance) this._volley(p, base);
   }
 
+  /* LA PENALITE VIT AU MEME ENDROIT QUE LE BENEFICE. `barrelDamageMul` se payait
+     ICI, avant l'aiguillage, alors qu'`extraBarrels` n'est lu que par la branche a
+     balles unitaires : quatre armes sur huit payaient -18 % cumulable deux fois
+     pour rien. Descendre la penalite rend l'incoherence impossible au lieu de la
+     rattraper par une liste. */
   _volley(p, base) {
-    const dmg = base * p.mods.barrelDamageMul;
+    return this._sousArme(p.id, () => this._volleyInterne(p, base));
+  }
+
+  _volleyInterne(p, base) {
     const arme = armeAt(p.arme);
 
     switch (arme.tir) {
       case "arc":
-        this._teslaTir(p, arme, dmg);
+        this._teslaTir(p, arme, base);
         return;
       case "arc_sol":
-        this._lameTir(p, arme, dmg);
+        this._lameTir(p, arme, base);
         return;
-      case "grenade":
+      case "grenade": {
         // le direct est nul : toute la puissance est dans le souffle, c'est ce
-        // que « 40 + zone » veut dire
-        this._fire(p, 0, 0, {
-          boom: true, boomDmg: dmg, court: arme.portee,
-          boomR: (arme.souffle ?? CARD_CFG.GRENADE_RADIUS) * p.mods.areaMul,
-        });
+        // que « 40 + zone » veut dire.
+        // LE RETICULE FIXE LE POINT DE DETONATION, borne par ce que l'arme
+        // porte : `court` multipliait la duree de vie, donc la grenade sautait
+        // toujours a la meme distance et « anticiper la trajectoire » ne voulait
+        // rien dire. Un corps rencontre avant la fait sauter plus tot.
+        const max = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * p.mods.bulletLifeMul;
+        const v = CFG.BULLET_SPEED * p.mods.bulletSpeedMul * CARD_CFG.GRENADE_SPEED_MUL;
+        const nb = 1 + p.mods.grenadesPlus;
+        const direct = p.mods.grenadeDirect;
+        for (let i = 0; i < nb; i++) {
+          const off = nb === 1 ? 0 : (i - (nb - 1) / 2) * 0.10;
+          this._fire(p, direct, off, {
+            boom: true, boomDmg: base, direct: direct > 0, lob: true,
+            // la balle nait deja devant le joueur : la duree ne couvre que le reste
+            vie: Math.max(0, Math.min(p.aimR, max) - (CFG.PLAYER_RADIUS + 2)) / v,
+            boomR: (arme.souffle ?? CARD_CFG.GRENADE_RADIUS)
+              * p.mods.areaMul * p.mods.souffleMul,
+          });
+        }
         break;
+      }
       default: {
         if (arme.plombs) {
-          const n = arme.plombs;
+          const n = arme.plombs + p.mods.plombsPlus;
           const conv = arme.convergence ?? 0;
+          // la convergence TOTALE annule l'ecart lateral quand la cible est dans
+          // la fenetre : six plombs sur un point au lieu d'une gerbe qui l'encadre
+          const serre = p.mods.convergeTotale > 0 && p.aimR <= conv
+            ? 0 : 46 * p.mods.gerbeMul;
           for (let i = 0; i < n; i++) {
-            const k = (i / (n - 1) - 0.5);
-            this._fire(p, dmg, 0, { court: arme.portee, lat: k * 46, conv });
+            const k = n === 1 ? 0 : (i / (n - 1) - 0.5);
+            this._fire(p, base, 0, {
+              court: arme.portee, lat: k * serre, conv,
+              chaine: p.mods.plombsChain,
+            });
           }
           break;
         }
         const barrels = 1 + p.mods.extraBarrels + (p.buffDouble > 0 ? 1 : 0);
+        const dmg = base * p.mods.barrelDamageMul;
+        const dernier = arme.chargeur && (p.armeMun ?? arme.chargeur) === 1
+          ? (p.mods.siegeDernier ?? 1) : 1;
+        const rail = arme.charge ? 1 + p.mods.railDegats : 1;
         for (let i = 0; i < barrels; i++) {
           const off = barrels === 1 ? 0 : (i - (barrels - 1) / 2) * 0.13;
-          this._fire(p, dmg, off, {
+          this._fire(p, dmg * dernier * rail, off, {
             pierceAll: !!arme.perforeTout,
             court: arme.portee,
+            perce: arme.perce ?? 0,
+            // un OBUS fait le direct PUIS le souffle ; la grenade, elle, n'a
+            // jamais eu que le souffle
+            boom: !!arme.souffle,
+            direct: !!arme.obus,
+            boomDmg: arme.souffle ? dmg * dernier * (arme.souffleDmg ?? 1) : undefined,
+            boomR: arme.souffle
+              ? arme.souffle * p.mods.areaMul * p.mods.souffleMul : undefined,
+            brule: arme.charge && p.mods.railSillon > 0 ? p.mods.railSillon : 0,
+            reso: arme.charge ? p.mods.railResonance : 0,
           });
         }
       }
     }
 
-    if (p.mods.backShot) this._fire(p, dmg * 0.7, Math.PI);
+    if (p.mods.backShot) this._fire(p, base * 0.7, Math.PI);
   }
 
-  /* TESLA : AUCUNE VISEE. L'arc part sur le corps le plus proche et saute seul —
-     c'est ce qui la rend differente a JOUER, pas differente a regarder. Sur un
-     boss, les rebonds REVIENNENT sur la meme cible avec leur perte : une arme
-     qui saute entre les cibles n'a rien a sauter face a une cible unique. */
+  /* LE TESLA SE VISE. Il partait sur le corps le plus proche, donc il ne pouvait
+     pas rater : une arme qui atteint la reference sans exiger de visee n'est pas
+     une arme alternative, c'est l'arme optimale — et elle retirait le seul geste
+     que le jeu demande. Le trait part maintenant DROIT DEVANT et s'accroche au
+     premier corps du segment, avec une tolerance laterale genereuse ; c'est a
+     l'impact que l'arc se disperse. Un tir a cote est un tir perdu.
+     Sur un boss, les rebonds REVIENNENT sur la meme cible avec leur perte : une
+     arme qui saute entre les cibles n'a rien a sauter face a une cible unique. */
   _teslaTir(p, arme, dmg) {
     const portee = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * p.mods.bulletLifeMul;
-    const p2 = portee * portee;
-    let cible = null, best = p2;
+    const dx = Math.cos(p.armeAng), dy = Math.sin(p.armeAng);
+    const large = ARME_CFG.TESLA_ACCROCHE;
+    // le PREMIER corps du segment, pas le plus proche du joueur : c'est la
+    // difference entre viser et se laisser porter
+    let cible = null, best = portee;
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
-      const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
-      if (d < best) { best = d; cible = e; }
+      const le = this._surSegment(e.x - p.x, e.y - p.y, dx, dy, portee, large + e.r);
+      if (le !== null && le < best) { best = le; cible = e; }
     }
     let boss = null;
-    if (!cible) {
-      for (const b of this._bossTargets()) {
-        const d = (b.x - p.x) ** 2 + (b.y - p.y) ** 2;
-        if (d < best) { best = d; boss = b; }
-      }
+    for (const b of this._bossTargets()) {
+      const le = this._surSegment(b.x - p.x, b.y - p.y, dx, dy, portee,
+                                  large + CFG.BOSS_RADIUS);
+      if (le !== null && le < best) { best = le; boss = b; cible = null; }
     }
-    if (!cible && !boss) return;
-
     const rebonds = ARME_CFG.TESLA_REBONDS + (p.mods.teslaRebonds ?? 0);
     const garde = 1 - (p.mods.teslaPerte ?? ARME_CFG.TESLA_PERTE);
+
+    // LE CRISTAL NE VOLE PAS LA CIBLE : un cristal qui aspire les arcs pendant
+    // une vague est une punition, pas une arme. Il n'est acquis que quand il
+    // n'y a plus rien de vivant a portee.
+    if (!cible && !boss) { this._teslaCristaux(p, dmg, portee, rebonds, garde); return; }
 
     if (boss) {
       // conversion boss : le meme nombre d'arcs, tous sur le meme corps
       let k = 1, total = 0;
       for (let i = 0; i <= rebonds; i++) { total += k; k *= garde; }
-      this._effetArc(p.x, p.y, boss.x, boss.y);
+      this._effetArc(p.x, p.y, boss.x, boss.y, 1);
       this._damage(boss, dmg * total, p.id, 0, false, boss.x, boss.y);
       return;
     }
@@ -1598,7 +1763,9 @@ export class GameState {
     let src = p, cur = cible, force = dmg;
     for (let i = 0; i <= rebonds; i++) {
       vus.add(cur.id);
-      this._effetArc(src.x, src.y, cur.x, cur.y);
+      // le premier trait est l'AMORCE : sans lui a l'ecran, le joueur ne voit pas
+      // qu'il a vise, et l'arme continue de se lire comme automatique
+      this._effetArc(src.x, src.y, cur.x, cur.y, i === 0 ? 1 : 0);
       if (p.mods.teslaEntrave > 0) cur.rootUntil = this.time + p.mods.teslaEntrave;
       this._damage(cur, force, p.id);
       force *= garde;
@@ -1618,10 +1785,39 @@ export class GameState {
     }
   }
 
-  _effetArc(x, y, x2, y2) {
+  _teslaCristaux(p, dmg, portee, rebonds, garde) {
+    const dx = Math.cos(p.armeAng), dy = Math.sin(p.armeAng);
+    const large = ARME_CFG.TESLA_ACCROCHE + CFG.HARVEST_RADIUS;
+    let cur = null, best = portee;
+    for (const h of this.harvests) {
+      if (h.kind !== 0 || h.hp <= 0) continue;
+      const le = this._surSegment(h.x - p.x, h.y - p.y, dx, dy, portee, large);
+      if (le !== null && le < best) { best = le; cur = h; }
+    }
+    if (!cur) return;
+    const vus = new Set();
+    let src = p, force = dmg;
+    for (let i = 0; i <= rebonds; i++) {
+      vus.add(cur);
+      this._effetArc(src.x, src.y, cur.x, cur.y, src === p ? 1 : 0);
+      this._harvestDamage(cur, force);
+      force *= garde;
+      src = cur;
+      let next = null, nd = ARME_CFG.TESLA_SAUT ** 2;
+      for (const h of this.harvests) {
+        if (h.kind !== 0 || h.hp <= 0 || vus.has(h)) continue;
+        const d = (h.x - src.x) ** 2 + (h.y - src.y) ** 2;
+        if (d < nd) { nd = d; next = h; }
+      }
+      if (!next) break;
+      cur = next;
+    }
+  }
+
+  _effetArc(x, y, x2, y2, amorce = 0) {
     this.effects.push({
       id: this._nextId++, x, y, x2, y2,
-      r: 0, life: 0.18, max: 0.18, kind: 3,
+      r: 0, life: 0.18, max: 0.18, kind: 3, n: amorce,
     });
   }
 
@@ -1658,6 +1854,14 @@ export class GameState {
         this._damage(boss, dmg * (1 + m * ARME_CFG.LAME_MARQUE), p.id, 0, false, boss.x, boss.y);
         touches++;
       }
+      // sans reserve : la lame frappe tout ce qui est dans l'arc, c'est sa
+      // definition
+      for (const h of this.harvests) {
+        const dx = h.x - p.x, dy = h.y - p.y;
+        if (dx * dx + dy * dy > (r + CFG.HARVEST_RADIUS) ** 2) continue;
+        if (Math.abs(this._angleDiff(Math.atan2(dy, dx), a0)) > arc / 2) continue;
+        if (this._harvestDamage(h, dmg)) touches++;
+      }
     }
 
     this.effects.push({
@@ -1690,11 +1894,15 @@ export class GameState {
         dx = cx / d; dy = cy / d;
       }
     }
+    // LOBEE se DECLARE : le deduire de `boom` faisait ralentir l'obus du siege,
+    // et le deduire de `direct` faisait accelerer la grenade des qu'une carte lui
+    // donnait un percuteur — or `vie` est calculee sur la vitesse attendue, donc
+    // la grenade passait au-dela du reticule.
     const speed = CFG.BULLET_SPEED * p.mods.bulletSpeedMul
-      * (opt.boom ? CARD_CFG.GRENADE_SPEED_MUL : 1);
+      * (opt.lob ? CARD_CFG.GRENADE_SPEED_MUL : 1);
     const pierce = (opt.pierceAll || p.mods.inertia)
       ? Infinity
-      : (p.buffPierce > 0 ? CFG.PIERCE_HITS : 0) + p.mods.pierce;
+      : (p.buffPierce > 0 ? CFG.PIERCE_HITS : 0) + p.mods.pierce + (opt.perce ?? 0);
 
     const b = {
       id: this._nextId++,
@@ -1702,18 +1910,23 @@ export class GameState {
       y: p.y + oy + dy * (CFG.PLAYER_RADIUS + 2),
       vx: dx * speed,
       vy: dy * speed,
-      life: CFG.BULLET_LIFE * p.mods.bulletLifeMul * (opt.court ?? 1),
+      life: opt.vie ?? (CFG.BULLET_LIFE * p.mods.bulletLifeMul * (opt.court ?? 1)),
       dmg,
       owner: p.id,
       pierce,
-      chain: (p.buffRicochet > 0 ? CFG.RICOCHET_MAX : 0) + p.mods.chain,
-      burn: p.mods.burnDmg > 0 ? p.mods.burnDmg + this._relicSum(p, "burnFlat") : 0,
+      chain: (p.buffRicochet > 0 ? CFG.RICOCHET_MAX : 0) + p.mods.chain
+        + (opt.chaine ?? 0),
+      burn: Math.max(opt.brule ?? 0,
+        p.mods.burnDmg > 0 ? p.mods.burnDmg + this._relicSum(p, "burnFlat") : 0),
       arc: p.mods.chainChance,
       boom: opt.boom ? (opt.boomDmg ?? CARD_CFG.GRENADE_DAMAGE * (dmg / CFG.BULLET_DAMAGE)) : 0,
       boomR: opt.boomR ?? 0,
       hits: pierce > 0 ? new Set() : null,
       hit: null,
       inertia: p.mods.inertia ? 1 : 0,
+      direct: opt.direct ? 1 : 0,
+      arme: this._armeDe === p.id ? 1 : 0,
+      reso: opt.reso ?? 0,
       bounce: p.mods.bounce ? CARD_CFG.BOUNCE_MAX : 0,
       dmg0: dmg,
     };
@@ -1783,7 +1996,7 @@ export class GameState {
             * p.mods.skillCdMul;
         }
         p.skillUses[0]++;
-        const range = p.aimR;
+        const range = bombRange(p.aimR);
         const flight = bombFlight(range);
         this.bombs.push({
           id: this._nextId++,
@@ -2452,6 +2665,11 @@ export class GameState {
       struck.focusAt = this.time;
     }
     if (this.boss2 && target === this.boss2) target = this.boss;
+    /* UNE BALLE EN VOL SURVIT A SA CIBLE. Un jumeau qui disparait laisse des
+       references derriere lui : sans cette garde on ecrit `hp -= x` dans un
+       cadavre, ce qui rend `undefined - x`, donc NaN, donc du silence — le defaut
+       exact que ce depot documente. La redirection doit avoir eu lieu AVANT. */
+    if (!target || !Number.isFinite(target.hp)) return;
     if (target.vulnUntil > this.time) amount *= CARD_CFG.VULNERABLE_MUL;
     if (ownerId && this.hazards.length) {
       const o = this.players.get(ownerId);
@@ -2494,6 +2712,15 @@ export class GameState {
 
     if (owner) {
       owner.damageDealt += amount;
+      /* CE QUE L'ARME DELIVRE : ni les invocations, ni les competences, ni les
+         zones — elles ont leur propre echelle et ne se comparent pas entre armes.
+         Et ce qui est ABSORBE, pas ce qui est envoye : un souffle sur dix corps
+         mourants comptait dix fois sa valeur pleine, donc toute arme de zone se
+         mesurait a la hauteur de son surtuage. */
+      if (this._armeDe === ownerId) {
+        owner.hf.armeDegats += Math.min(amount, Math.max(0, target.hp));
+        owner.hf.armeCibles++;
+      }
       if (target === this.boss) {
         let cumul = this.bossDmg.get(ownerId);
         if (!cumul) this.bossDmg.set(ownerId, cumul = { d: 0, crit: 0, x: 0, y: 0 });
@@ -2736,6 +2963,14 @@ export class GameState {
         this._damage(boss, dmg * bossMul, ownerId, 0, false, x, y);
       }
     }
+    // le souffle d'un JOUEUR casse le cristal — sans quoi le lance-grenades,
+    // dont le direct est nul, ne peut pas en casser un du tout. Celui d'un
+    // kamikaze non : la horde ne ramasse pas la monnaie a la place de l'equipe.
+    if (owner) {
+      for (const h of this.harvests) {
+        if ((h.x - x) ** 2 + (h.y - y) ** 2 <= r2) this._harvestDamage(h, dmg);
+      }
+    }
     souffle.n = fauches;
     this._hitMarks(x, y, r, dmg, ownerId);
     this._blastGround(owner, x, y, r);
@@ -2748,6 +2983,17 @@ export class GameState {
   // zone : aucune carte n'en cree, elles viennent des competences et de l'arme.
   _blastAfter(owner, e) {
     if (owner && owner.mods.blastRoot > 0) this._rootEnemy(e, owner.mods.blastRoot);
+    /* REACTION EN CHAINE : un corps tue par le souffle explose a son tour. La
+       profondeur est BORNEE et non laissee a la geometrie — sans plafond, une
+       nuee serree fait exploser toute la vue en une image. */
+    if (owner && owner.mods.grenadeChaine > 0 && e.hp <= 0
+        && this._chaineProf < CARD_CFG.CHAINE_PROF_MAX) {
+      this._chaineProf++;
+      try {
+        this._explode(e.x, e.y, owner.mods.damageMul * CARD_CFG.CHAINE_DMG,
+                      owner.id, CARD_CFG.CHAINE_RAYON * owner.mods.areaMul);
+      } finally { this._chaineProf--; }
+    }
   }
 
   _blastGround(owner, x, y, r) {
@@ -6354,13 +6600,23 @@ export class GameState {
     return !!this._obstacleAt(x, y, margin);
   }
 
-  _harvestHit(x, y, dmg = 0) {
+  /* UN CRISTAL EST UNE CIBLE, pas un cas particulier des balles : le faisceau,
+     l'arc et le balayage ne poussent rien dans `bullets`, donc trois armes sur
+     huit ne pouvaient pas ramasser la monnaie qui achete les reliques — un axe
+     de progression entier ferme. La GEOMETRIE appartient a l'arme, qui l'a deja
+     pour les corps ; l'APPLICATION est ici, et nulle part ailleurs. */
+  _harvestDamage(h, dmg) {
+    if (h.kind !== 0 || h.hp <= 0) return false;
+    if (dmg > 0) h.hp = Math.max(0, h.hp - dmg);
+    return true;
+  }
+
+  _harvestHit(x, y, dmg = 0, rayon = CFG.BULLET_RADIUS) {
     for (const h of this.harvests) {
       if (h.kind !== 0 || h.hp <= 0) continue;
-      const r = CFG.HARVEST_RADIUS + CFG.BULLET_RADIUS;
+      const r = CFG.HARVEST_RADIUS + rayon;
       if ((x - h.x) ** 2 + (y - h.y) ** 2 > r * r) continue;
-      if (dmg > 0) h.hp = Math.max(0, h.hp - dmg);
-      return true;
+      return this._harvestDamage(h, dmg);
     }
     return false;
   }
@@ -6603,6 +6859,7 @@ export class GameState {
     const kept = [];
     for (const b of this.bullets) {
       b.life -= dt;
+      this._armeDe = b.arme ? b.owner : 0;
       // vol bete, puis guidage a taux de virage limite : la limite cree l'arc,
       // sans courbe scriptee.
       if (b.missile) this._guide(b, dt);
@@ -7025,6 +7282,15 @@ export class GameState {
     finally { this._balle = avant; }
   }
 
+  /* Point de passage unique de l'ATTRIBUTION A L'ARME. Une balle de competence
+     et une balle de tir sortent toutes deux de `_fire` : c'est `_volley` qui les
+     distingue, et le drapeau voyage sur la balle jusqu'a l'impact. */
+  _sousArme(id, fn) {
+    const avant = this._armeDe;
+    this._armeDe = id;
+    try { return fn(); } finally { this._armeDe = avant; }
+  }
+
   _bulletHitInterne(b, e, ix, iy) {
     const bdef = ENEMY_TYPES[e.type];
     if (bdef?.shieldArc) {
@@ -7038,9 +7304,9 @@ export class GameState {
     if (b.boom > 0) {
       // un missile fait les DEUX : le direct puis le souffle. La grenade, elle,
       // n'a jamais eu que le souffle.
-      if (b.missile) {
+      if (b.missile || b.direct) {
         if (b.vuln) e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
-        this._damage(e, b.dmg, b.owner);
+        this._damage(e, b.dmg, b.owner, b.burn);
       }
       this._explode(ix, iy, b.boom, b.owner, b.boomR);
       return true;
@@ -7059,8 +7325,23 @@ export class GameState {
       }
     }
 
-    this._damage(e, b.dmg, b.owner, b.burn);
     const tireur = this.players.get(b.owner);
+    // CIBLE FROIDE : la prime va au corps qu'on n'a pas touche depuis un moment,
+    // donc a la horde et jamais a la file qu'on arrose
+    let froid = 1;
+    if (tireur && tireur.mods.precFroide > 0) {
+      const vu = tireur.precVus.get(e.id);
+      if (vu === undefined || this.time - vu >= ARME_CFG.PREC_FROID) {
+        froid = tireur.mods.precFroide;
+      }
+      tireur.precVus.set(e.id, this.time);
+    }
+    this._damage(e, b.dmg * froid, b.owner, b.burn);
+    if (tireur && tireur.mods.precMarque > 0) {
+      e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
+    }
+    // RESONANCE : le rail grossit a chaque corps traverse, la ou l'inertie decroit
+    if (b.reso > 0) b.dmg *= 1 + b.reso;
     if (tireur) {
       const chance = tireur.mods.rootChance + this._relicSum(tireur, "rootChance");
       if (chance > 0 && Math.random() < chance) {
@@ -7129,6 +7410,11 @@ export class GameState {
             // source de degats du jeu contre un boss.
             if (b.missile) {
               this._damage(boss, b.dmg * CARD_CFG.SALVE_BOSS_MUL, b.owner, 0, false, b.x, b.y);
+            } else if (b.direct) {
+              // UN OBUS FAIT LES DEUX SUR UN BOSS AUSSI. Sans cette branche, tout
+              // ce que le siege rendait a une cible unique venait de son souffle,
+              // et reduire le rayon le faisait tomber a ZERO — mesure a l'appui.
+              this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y);
             }
             this._explode(b.x, b.y, b.boom, b.owner, b.boomR, b.missile ? CARD_CFG.SALVE_BOSS_MUL : 1);
             hit = true;
@@ -7343,6 +7629,8 @@ export class GameState {
       if (this.lastCrit) owner.critKills = (owner.critKills + 1) % 10;
 
       this._hfKill(owner, e);
+
+      this._siegeKill(owner);
 
       if (owner.mods.frenzy) {
         const cap = Math.round(CARD_CFG.FRENZY_MAX / CARD_CFG.FRENZY_STEP);
@@ -7759,7 +8047,11 @@ function botInput(g, p) {
     const d = Math.hypot(cx - p.x, cy - p.y);
     if (d > 60) { x = (cx - p.x) / d; y = (cy - p.y) / d; }
   }
-  return { x, y, ax, ay, ar: 1, dash: false, s1: false, s2: false, s3: false };
+  // `ar` est la DISTANCE au reticule : `1` etait sans effet tant que
+  // `bombRange` le remontait a 80, il est faux depuis que `porteeReticule` le
+  // prend au mot — une grenade detonait au pied du bot
+  const ar = cible ? Math.sqrt(bd) : SKILL_CFG.DPS_BOMB_RANGE_MAX;
+  return { x, y, ax, ay, ar, dash: false, s1: false, s2: false, s3: false };
 }
 
 export function mesurePopulation(diffIndex, joueurs, minutes = 30, invulnerable = true) {
@@ -8397,6 +8689,9 @@ export function mesureProgression(diffIndex, joueurs, manches = 6, minutes = 60)
 
 export function verifierCartes() {
   const soucis = verifierCatalogue();
+  // le catalogue est PASSE a `verifierArmes` : c'est ici que les deux tables se
+  // rencontrent, `armes.js` etant une feuille
+  soucis.push(...verifierArmes(CARDS, axesDeCarte));
   const byId = new Map(CARDS.map(c => [c.id, c]));
 
   for (const c of CARDS) {
@@ -8444,6 +8739,155 @@ export function verifierCartes() {
           }
         }
       }
+    }
+  }
+
+  /* LE FILTRE PAR AXE RETIRE DES CARTES : `poolThin` doit donc se rejouer ARME
+     PAR ARME. Si retirer la perforation fait tomber un pool sous le seuil, le
+     probleme n'est pas le filtre, c'est que le catalogue est trop mince pour ce
+     qu'on lui demande. */
+  for (const arme of ARMES) {
+    for (const cls of CLASSES) {
+      const ctx = { players: 1, teamOwned: new Set(), systems: new Set(), arme: arme.id };
+      const maigres = poolThin(eligibleCards(new Map(), cls.id, 30, null, ctx));
+      for (const { rarity, n } of maigres) {
+        soucis.push(`${arme.id}/${cls.id} : rarete ${rarity} a ${n} cartes eligibles`
+          + ` pour un seuil de ${POOL_MIN}`);
+      }
+    }
+  }
+  return soucis;
+}
+
+/* ===========================================================================
+   LA CAMPAGNE D'ARMES.
+
+   UNE ARME VAUT CE QU'ELLE DELIVRE, PAS CE QU'ELLE AFFICHE. Le critere d'avant
+   ne connaissait qu'un nombre — le dps nominal en cible unique — et ne remontait
+   aucune anomalie pendant que le tesla dominait et que la grenade faisait x1,88
+   de survie. Il ne mentait pas, il regardait le mauvais nombre.
+
+     V = 0,8 x Dh  +  0,2 x Db  +  S
+
+   Dh  degats par seconde MESURES en manche, mutisme et ratages compris
+   Db  degats par seconde MESURES contre un boss seul, meme convention
+   S   la survie que l'arme donne, au taux de change des cartes de conversion
+
+   ATTENTION AU DOUBLE COMPTE. Le plan ecrivait `V = (0,8 Vhorde + 0,2 Vboss) x U
+   x R`, ou `Vhorde` porte deja les cibles touchees et `R` porte deja le rapport
+   des degats reels au nominal : les multiplier compte deux fois la meme chose.
+   Une mesure directe des degats delivres contient U et R par construction. Les
+   deux restent RELEVES, parce que ce sont eux qui disent QUEL terme deborde —
+   c'est un diagnostic, pas un facteur.
+
+   A GRAINES APPARIEES : ce qui se mesure est le RELATIF, arme contre arme. Deux
+   graines differentes mesureraient le script et pas l'arme.
+   =========================================================================== */
+export function mesureArmes(manches = 3, minutes = 10, diffIndex = DIFF_NORMAL) {
+  const alea = Math.random;
+  const out = [];
+  try {
+    for (const a of ARMES) {
+      let temps = 0, muet = 0, cibles = 0, degats = 0, tirs = 0, survie = 0;
+      for (let r = 1; r <= manches; r++) {
+        Math.random = grainer(r * 7919);
+        const g = new GameState(diffIndex);
+        g.addPlayer(1, "banc", 2);
+        const p = g.players.get(1);
+        p.arme = a.id;
+        g._recomputeMods(p);
+        const pil = pilotage();
+        const fin = minutes * 60;
+        let t = 0, chute = fin;
+        while (t < fin) {
+          g.step(CFG.TICK, new Map([[1, pil(g, p)]]));
+          t += CFG.TICK;
+          if (p.downed && chute === fin) chute = t;
+          /* IMMORTEL, PAS INVULNERABLE. Sans ca `Dh` est confondu avec la survie :
+             une arme qui tient plus longtemps atteint des minutes plus denses,
+             donc mesure un debit plus eleve — et la survie serait comptee deux
+             fois, une fois dans `Dh` et une fois dans `S`. Toutes les armes
+             voient exactement la meme horde pendant exactement le meme temps. */
+          p.hp = p.maxHp; p.downed = false; p.downT = 0;
+        }
+        temps += p.hf.armeTemps; muet += p.hf.armeMuet;
+        cibles += p.hf.armeCibles; degats += p.hf.armeDegats;
+        tirs += p.hf.tirs; survie += chute;
+      }
+      out.push({
+        id: a.id,
+        dh: temps > 0 ? degats / temps : 0,
+        db: mesureArmeBoss(a, diffIndex),
+        u: temps > 0 ? 1 - muet / temps : 1,
+        // par SECONDE et non par tir : le faisceau, l'arc et le balayage ne
+        // passent pas par `_fire`, donc ils n'ont pas de « tir » a diviser
+        ciblesParSec: temps > 0 ? cibles / temps : 0,
+        tirs,
+        survie: survie / manches,
+        s: survieArme(a, CLASSES[2].hp),
+      });
+    }
+  } finally { Math.random = alea; }
+
+  const ref = out.find(x => x.id === ARME_DEFAUT);
+  const brut = x => (1 - ARME_CFG.PART_BOSS) * x.dh + ARME_CFG.PART_BOSS * x.db;
+  const base = brut(ref);
+  for (const x of out) {
+    x.v = base > 0 ? brut(x) / base + x.s : 0;
+    x.cible = cibleArme(ARME_BY_ID.get(x.id));
+  }
+  return out;
+}
+
+/* CIBLE UNIQUE, ET LE PILOTE LA JOUE. Un banc qui FIGE le tireur offre la rampe
+   pleine au canon d'assaut et mesure 2,6 fois son nominal — un combat de boss est
+   exactement l'endroit ou l'on bouge. Le boss attaque donc normalement et le
+   pilote repond ; seule sa MORT est retiree, parce qu'on mesure ce que l'arme
+   delivre et non combien de temps elle tient. La horde est videe : c'est la cible
+   unique qu'on veut, et elle seule. */
+export function mesureArmeBoss(a, diffIndex = DIFF_NORMAL, secondes = 90, graines = 2) {
+  const alea = Math.random;
+  let total = 0, n = 0;
+  try {
+    for (let r = 1; r <= graines; r++) {
+      Math.random = grainer(r * 4507);
+      const g = new GameState(diffIndex);
+      g.addPlayer(1, "banc", 2);
+      const p = g.players.get(1);
+      p.arme = a.id;
+      g._recomputeMods(p);
+      g.bossPending = true;
+      g.step(CFG.TICK, new Map());
+      if (!g.boss) continue;
+      const pil = pilotage();
+      const avant = p.hf.armeDegats;
+      let t = 0;
+      while (t < secondes) {
+        g.enemies.length = 0;
+        const B = g.boss;
+        if (!B) break;
+        B.hp = 1e12; B.maxHp = 1e12;
+        if (g.boss2) { g.boss2.hp = 1e12; g.boss2.maxHp = 1e12; }
+        g.step(CFG.TICK, new Map([[1, pil(g, p)]]));
+        // immortel, pas invulnerable : il subit tout, il ne tombe pas
+        p.hp = p.maxHp; p.downed = false; p.downT = 0;
+        t += CFG.TICK;
+      }
+      total += (p.hf.armeDegats - avant) / secondes;
+      n++;
+    }
+  } finally { Math.random = alea; }
+  return n > 0 ? total / n : 0;
+}
+
+/* Critere rejouable de l'equilibrage des armes. Il ne peut PAS tourner sans
+   mesures : c'est un verificateur de campagne, comme `verifierMeta`. */
+export function verifierEquilibreArmes(manches = 3, minutes = 10) {
+  const soucis = [];
+  for (const x of mesureArmes(manches, minutes)) {
+    if (Math.abs(x.v - x.cible) > ARME_CFG.TOLERANCE_V) {
+      soucis.push(`${x.id} : ${Math.round(x.v * 100)} % délivré pour une cible de`
+        + ` ${Math.round(x.cible * 100)} % (difficulté ${difficulte(ARME_BY_ID.get(x.id))})`);
     }
   }
   return soucis;

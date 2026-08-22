@@ -1,16 +1,16 @@
 
-import { ARME_CFG } from "/shared/armes.js";
+import { ARME_CFG, ARMES } from "/shared/armes.js";
 import { POWERUP_ICON, POWERUP_STYLE, paintIcon } from "/icons.js";
 import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
-import { CFG, ENEMY_TYPES, POWERUP_TYPES, traitsOf } from "/shared/game_state.js";
+import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, fullMods, traitsOf } from "/shared/game_state.js";
 import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
-import { EMPTY_SET, bombReadyAt, difficulty, myId } from "../core/state.js";
+import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
 import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
-import { ELITE_GOLD, camera, ctx, inView, ownerColorOf, voileBrume } from "./stage.js";
+import { ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
 export const bulletTrail = new Map();
@@ -35,6 +35,45 @@ function boltDiamond(x, y, ux, uy, r) {
 }
 export const BOLT_CAPSULE = 0;
 export const BOLT_DIAMOND = 1;
+/* LA TROISIEME SILHOUETTE, et elle reste une SILHOUETTE : cinq armes
+   partageaient la meme capsule, dont le railgun, qui tire un rail a 53 degats
+   toutes les 0,95 s la ou le tir standard en envoie 12 six fois par seconde.
+   Une aiguille longue et fine, avec une trainee droite : ce qu'on voit dit ce
+   que ca coute. Elle se DEDUIT de l'arme du proprietaire, donc elle n'ouvre
+   aucune clef d'instantane. */
+export const BOLT_RAIL = 2;
+/* Une AIGUILLE : longue dans l'axe, presque nulle en travers, et un coeur clair
+   qui la traverse. La trainee est DROITE et non un point flou — un rail ne
+   flotte pas. */
+function boltRail(x, y, ux, uy, r, col) {
+  const L = r * 9, W = r * 0.55;
+  const px = -uy, py = ux;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = alpha(col, 0.22);
+  ctx.lineWidth = r * 2.4;
+  ctx.beginPath();
+  ctx.moveTo(x - ux * L, y - uy * L);
+  ctx.lineTo(x + ux * r, y + uy * r);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(x + ux * r * 2.2, y + uy * r * 2.2);
+  ctx.lineTo(x - ux * L + px * W, y - uy * L + py * W);
+  ctx.lineTo(x - ux * L - px * W, y - uy * L - py * W);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = FX.flash;
+  ctx.lineWidth = Math.max(1, r * 0.4);
+  ctx.beginPath();
+  ctx.moveTo(x + ux * r * 2, y + uy * r * 2);
+  ctx.lineTo(x - ux * L * 0.7, y - uy * L * 0.7);
+  ctx.stroke();
+}
+
 export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
   const prev = trail.get(b.id);
   trail.set(b.id, { x: b.x, y: b.y });
@@ -46,6 +85,7 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
     const d = Math.hypot(dx, dy);
     if (d > 0.5) {
       const ux = dx / d, uy = dy / d;
+      if (shape === BOLT_RAIL) { boltRail(b.x, b.y, ux, uy, r, col); return; }
       if (shape === BOLT_DIAMOND) {
         ctx.globalAlpha = 0.3;
         boltDiamond(b.x - ux * r * 3, b.y - uy * r * 3, ux, uy, r * 0.7);
@@ -69,6 +109,7 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
       return;
     }
   }
+  if (shape === BOLT_RAIL) { boltRail(b.x, b.y, 1, 0, r, col); return; }
   if (shape === BOLT_DIAMOND) { boltDiamond(b.x, b.y, 1, 0, r); return; }
   ctx.beginPath();
   ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
@@ -667,10 +708,14 @@ export function drawEffects(effects) {
 
     if (f.kind === 3) {
       ctx.globalAlpha = f.k;
-      drawArc(`r${f.id}`, f.x, f.y, f.x2, f.y2, {
-        col: FX.ricochet, coeur: FX.ricochetCore, amp: 0.09, width: 2.2,
-        branches: 2, cut: 0.45,
-      });
+      /* L'AMORCE EST LE TRAIT QU'ON A VISE, la dispersion est ce qu'il a
+         declenche : presque droite et epaisse contre agitee et fine. Sans cette
+         difference le tesla se relit comme automatique, ce qu'il n'est plus. */
+      drawArc(`r${f.id}`, f.x, f.y, f.x2, f.y2, f.n
+        ? { col: FX.ricochetCore, coeur: FX.flash, amp: 0.03, width: 3.4,
+            branches: 0, cut: 0.15 }
+        : { col: FX.ricochet, coeur: FX.ricochetCore, amp: 0.09, width: 2.2,
+            branches: 2, cut: 0.45 });
       ctx.globalAlpha = 1;
       continue;
     }
@@ -1087,6 +1132,60 @@ export function drawPowerups(list) {
     paintPowerupIcon(st, w.x, y, (r / 8.6) * pulse);
   }
 }
+/* UNE ARME QUI VISE AU SOL DOIT MONTRER OU. Sans ce marqueur, le point
+   d'impact du lance-grenades se decouvre APRES le tir, et « il faut anticiper
+   la trajectoire » ne devient jouable pour personne.
+   La portee est une FONCTION de ce que le client a deja — ses propres cartes —
+   donc elle n'ouvre aucune cle d'instantane ; elle se recalcule quand la main
+   change, pas a l'image. */
+let porteeSig = "";
+let porteeMax = 0;
+function porteeArme(me, arme) {
+  const counts = ownedCounts(myId);
+  let n = 0;
+  for (const v of counts.values()) n += v;
+  const sig = `${arme.id}|${me.cls}|${counts.size}|${n}`;
+  if (sig !== porteeSig) {
+    porteeSig = sig;
+    const m = fullMods(counts, [], me.cls ?? 0, 1, arme.id).mods;
+    porteeMax = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * m.bulletLifeMul;
+  }
+  return porteeMax;
+}
+
+export function drawVisee(playerList) {
+  const me = playerList?.find(p => p.id === myId);
+  if (!me || me.downed) return;
+  const arme = ARMES[me.arme];
+  if (arme?.tir !== "grenade") return;
+
+  const max = porteeArme(me, arme);
+  const dx = mouse.x - me.x, dy = mouse.y - me.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const trop = d > max;
+  const k = trop ? max / d : 1;
+  const x = me.x + dx * k, y = me.y + dy * k;
+  const r = arme.souffle ?? CARD_CFG.GRENADE_RADIUS;
+  // sature quand le reticule depasse ce que l'arme porte : la grenade tombera
+  // ici et pas sous le curseur
+  const col = trop ? SIGNAL.warn : (ownerColorOf(myId) ?? COMBAT.bullet);
+
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = alpha(col, trop ? 0.75 : 0.4);
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = alpha(col, trop ? 0.9 : 0.55);
+  ctx.beginPath();
+  ctx.moveTo(x - 9, y); ctx.lineTo(x + 9, y);
+  ctx.moveTo(x, y - 9); ctx.lineTo(x, y + 9);
+  ctx.stroke();
+  ctx.restore();
+}
+
 const HARVEST_GOLD = RARITY_COLOR[3];
 export function drawHarvests(list) {
   if (list.length === 0) return;

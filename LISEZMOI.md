@@ -8,6 +8,75 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les dix armes (plan 12, lots 5 et 6)
+
+**Le critère d'avant ne connaissait qu'un nombre** — le DPS nominal en cible
+unique, entre 60 % et 160 % de la référence. Il est resté muet pendant que le
+tesla dominait et que le lance-grenades faisait ×1,88 de survie. Il ne mentait
+pas : il regardait le mauvais nombre.
+
+```
+V = 0,8 × Dh + 0,2 × Db + S          cible = 1,00 + 0,04 × (D − 0,5)
+```
+
+`Dh` dégâts/s mesurés en horde · `Db` dégâts/s mesurés contre un boss seul ·
+`S` survie apportée, au taux de change des cartes de conversion (200 PV ↔ ×1,0).
+`D` se note sur cinq mécaniques (`exige` dans `ARMES`), pas sur une impression.
+
+**Protocole** — 20 graines × 20 min, difficulté normale, pilote, graines
+appariées. Trois décisions de banc, chacune imposée par une mesure et non par un
+principe :
+
+- **on compte l'ABSORBÉ, jamais l'envoyé.** Le surtuage pesait jusqu'à **76 %**
+  des dégâts d'une arme à gros coup ; compter le brut classait les armes par
+  gaspillage. Conséquence : `degats` **sature** sur une arme qui tue déjà en un
+  coup, et le levier devient la cadence ou les cibles ;
+- **les deux bancs sont immortels.** Sinon `Dh` est confondu avec la survie —
+  une arme qui tient plus longtemps atteint des minutes plus denses — et la
+  survie serait comptée deux fois, dans `Dh` puis dans `S` ;
+- **le banc de boss laisse le boss attaquer et le pilote répondre.** Figer le
+  tireur offrait la rampe pleine au canon d'assaut et le mesurait à 2,6× son
+  nominal.
+
+**Relevé final** (campagne complète, après la refonte du tesla) :
+
+| arme | Dh | Db | U | cibles/s | S | **V** | cible | écart |
+|---|---|---|---|---|---|---|---|---|
+| tir standard | 80 | 93 | 1,00 | 4,7 | — | **1,000** | 1,000 | +0,000 |
+| canon d'assaut | 79 | 112 | 1,00 | 6,5 | — | **1,041** | 1,060 | −0,019 |
+| canon laser | 90 | 66 | 0,74 | 10,5 | — | **1,037** | 1,060 | −0,023 |
+| tesla | 78 | 122 | 1,00 | 4,6 | — | **1,053** | 1,020 | +0,033 |
+| lame tournoyante | 74 | 56 | 1,00 | 5,9 | 0,17 | **1,030** | 1,020 | +0,010 |
+| fusil à dispersion | 86 | 78 | 1,00 | 8,9 | — | **1,023** | 1,040 | −0,017 |
+| railgun | 92 | 75 | 1,00 | 2,1 | — | **1,076** | 1,100 | −0,024 |
+| lance-grenades | 91 | 79 | 1,00 | 2,1 | — | **1,075** | 1,040 | +0,035 |
+| fusil de siège | 72 | 74 | 0,70 | 2,4 | 0,15 | **1,028** | 1,060 | −0,032 |
+| fusil de précision | 88 | 79 | 1,00 | 2,6 | — | **1,049** | 1,060 | −0,011 |
+
+Les dix dans la bande `0,95 – 1,17`, et les dix dans la tolérance de ±0,05.
+Écart maximal : 0,035.
+
+**Ce que la campagne a désigné, arme par arme.** On coupe là où le débordement
+se mesure, pas là où c'est commode :
+
+- **fusil de siège** : chaque obus comptait **deux fois** sur un même corps, le
+  direct et un souffle de même valeur. Le souffle devient une part (0,5) ;
+- **canon laser** : son débordement était sa **largeur** — 10,5 cibles/s contre
+  4,7 pour la référence. Sa réponse aux dégâts est non monotone (67 → 0,908 ·
+  75 → 1,126 · 79 → 1,118), donc y toucher revenait à ajuster du bruit ; la
+  nappe passe de 26 à 22 px et l'arme rentre d'un coup ;
+- **railgun** : sa perforation ne délivre que **2,1 cibles/s** — « traverse
+  tout » ne vaut presque rien tant que la horde n'est pas alignée. C'est la
+  piste ouverte si l'arme doit encore bouger : un rail **large**, pas un rail
+  plus fort ;
+- **canon d'assaut** et **lance-grenades** sont les deux armes chaotiques : elles
+  bougent de 0,16 pour 2 % de dégâts.
+
+**Limite connue.** La résolution de la campagne est de **±0,08** sur ces deux-là,
+plus large que la tolérance. Au-delà de vingt graines, chaque itération coûte
+cinq minutes de simulation pour un gain sous le bruit. Ce qui reste dans la
+bande se tranche **en jouant**, pas au banc.
+
 ### Ressenti de combat et lien de soin (plan 7, lots L1 et L2)
 
 **La fréquence d'un événement détermine inversement son budget de retour.** Un jeu

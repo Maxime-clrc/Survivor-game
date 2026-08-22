@@ -79,6 +79,10 @@ const EFFECT_SOUND = {
   15: { son: "impact", pitch: 0.9, force: 0.7, shake: 0 },
   // palier 3 · budget de MOMENT DE MANCHE : un ultime sort ~4 fois par manche.
   16: { son: "lancement", force: 0.9, shake: 3 },
+  // la LAME, 2,5 balayages par seconde : palier 2, donc la hauteur porte la
+  // difference et le tressaillement reste a zero — un tir ordinaire ne secoue
+  // pas l'ecran, quelle que soit l'arme.
+  17: { son: "balayage", pitch: 2.1, gain: 0.55, force: 0.5, shake: 0 },
 };
 
 // les quatre souffles, et LEUR MATIERE. `n` est le nombre de tues : il met a

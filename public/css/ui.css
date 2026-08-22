@@ -54,7 +54,10 @@ input, textarea, [contenteditable] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* `safe` retombe sur flex-start des que le centrage couperait du contenu : un
+     conteneur de defilement qui centre place le debordement DES DEUX COTES, et
+     celui du haut est hors d'atteinte — scrollTop 0 est deja sous le debut. */
+  justify-content: safe center;
   gap: var(--sp-6);
   z-index: 10;
   padding: var(--sp-6);

@@ -91,14 +91,16 @@ const VARS = ["--cadre", "--cadre-2", "--cadre-insigne", "--cadre-spectre"];
 
 /* LE POINT DE PASSAGE UNIQUE du cadre a l'ecran.
 
-   `portee` vaut "plaque" (salon, apercu — tout) ou "ligne" (tableau de bilan,
-   ou le <td> porte deja la couleur de CLASSE en texte : un fond entrerait en
-   concurrence avec elle). C'est UNE regle ecrite une fois, pas douze exceptions
-   dans la table.
+   UN CADRE EST UNE PLAQUE, PAS UN MOT. Il a une silhouette, une profondeur, une
+   lueur et une zone morte : rien de tout ca ne tient autour d'un nom de sept
+   lettres. Il ne se pose donc plus que sur une LIGNE D'EQUIPE, dont
+   `renderTeamList()` construit deja exactement l'anatomie. La portee "ligne",
+   qui desactivait le fond au bilan, a disparu avec le besoin : c'etait un
+   correctif qui admettait que l'endroit etait mauvais.
 
    Toujours nettoyer d'abord : les lignes de salon se reconstruisent, mais
-   `.cadreApercu` et `td.name` peuvent se voir reattribuer un autre cadre. */
-export function appliquerCadre(el, id, portee = "plaque") {
+   l'apercu du Terminal se voit reattribuer un autre cadre. */
+export function appliquerCadre(el, id) {
   if (!el) return;
   for (const a of ATTRS) el.removeAttribute(`data-cadre-${a}`);
   for (const v of VARS) el.style.removeProperty(v);
@@ -111,7 +113,7 @@ export function appliquerCadre(el, id, portee = "plaque") {
   el.dataset.cadreBordure = peau.bordure;
   el.dataset.cadreOrnement = peau.ornement;
   el.dataset.cadreLueur = peau.lueur;
-  el.dataset.cadreFond = portee === "ligne" ? "aucun" : peau.fond;
+  el.dataset.cadreFond = peau.fond;
 
   el.style.setProperty("--cadre", peau.teinte);
   el.style.setProperty("--cadre-2", cadreAccent(peau.teinte));
