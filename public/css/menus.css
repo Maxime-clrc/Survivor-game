@@ -3496,101 +3496,352 @@ input:focus {
 .cadreNom { font-weight: 700; }
 .cadreCond { font-size: var(--t-xs); color: var(--text-dim); }
 
-/* ====== CADRES : CINQ EMPLACEMENTS ========================================
+/* ====== CADRES : SIX EMPLACEMENTS =========================================
    UNE REGLE PAR VALEUR D'EMPLACEMENT, JAMAIS PAR CADRE. Ajouter un treizieme
-   cadre est une ligne dans CADRE_SKIN et un glyphe — zero CSS.
+   cadre reste une ligne dans CADRE_SKIN et un glyphe — zero CSS.
 
-   Les attributs sont poses par `appliquerCadre()` (public/ui/cadres.js), qui est
-   aussi ce qui supprime le fond en portee "ligne".
+   LA PLAQUE EST UNE COUCHE, PAS LA LIGNE. `appliquerCadre()` (ui/cadres.js)
+   insere `<i class="cadreCouche"><i class="cadreEclat"></i></i>` en premier
+   enfant. Le contenu (avatar, nom, hote, classe, ping, etat) n'a rien a savoir
+   du cadre : six surfaces de peinture suffisent a une plaque, et aucune n'est
+   dans le flux.
 
-   La LUEUR passe par `filter: drop-shadow` et non `box-shadow` : `encoche` est un
-   `clip-path`, et un clip-path decoupe une ombre EXTERIEURE. drop-shadow
-   s'applique apres le decoupage, donc il suit la silhouette entaillee. C'est le
-   meme piege que « --bevel et --glow-go ne coexistent pas », resolu au lieu
-   d'etre evite. */
-/* LA PLAQUE. Elle ne se met plus autour d'un mot : la ligne porte deja la
-   surface, le padding et la zone morte, donc le cadre n'a qu'a l'habiller. Le
-   nom garde son `text-overflow: ellipsis`, qui etait justement ce que l'ancien
-   inline-block devait contourner. */
+     .cadreCouche          matiere + silhouette (clip-path) + lueur d'ensemble
+     .cadreCouche::before  la BORDURE, en pile d'ombres internes de rayons croissants
+     .cadreCouche::after   les SEGMENTS ALLUMES — la lumiere ne fait PAS le tour
+     .cadreEclat           la bande technique, le noeud, et (::after) le reflet
+     .cadre::before        la visserie, dont le NOMBRE suit le palier
+     .cadre::after         l'ornement, glyphe masque a droite
+
+   `z-index: -1` sous `isolation: isolate` : sans le contexte d'empilement, une
+   couche negative passe DERRIERE le fond de son parent au lieu de dessus. Le
+   texte, lui, reste au-dessus sans avoir a etre positionne.
+
+   La LUEUR passe par `filter: drop-shadow` et non `box-shadow` : la silhouette
+   est un `clip-path`, qui decoupe une ombre EXTERIEURE. drop-shadow s'applique
+   apres le decoupage, donc il suit l'entaille. Il est pose sur la COUCHE et non
+   sur la ligne — sur la ligne il enveloppait aussi le texte.
+
+   LA RARETE EST UNE COMPLEXITE, PAS UNE COULEUR. `data-cadre-palier` dose la
+   visserie, le reflet et la profondeur. Aucune regle ne nomme un cadre. */
 .cadre {
   position: relative;
+  isolation: isolate;
+
+  --cadre-cut: 13px;
+  --cadre-noir: #06070b;
+  /* une vis est un creux : lumiere en haut, ombre en bas, cerne noir. Un aplat
+     gris a cette taille ne se lit pas comme une piece. */
+  --vis: radial-gradient(circle at 50% 38%,
+    rgba(255, 255, 255, .5), rgba(255, 255, 255, .13) 42%,
+    rgba(0, 0, 0, .62) 70%, transparent 74%);
+  /* LA MATIERE COMMUNE a toutes les peaux : arete de lumiere en haut a gauche,
+     usure radiale en bas a droite, grille d'un pixel. Le fond de la peau se pose
+     PAR-DESSUS, d'ou l'ordre `<fond>, var(--plaque)` dans chaque regle. */
+  --plaque:
+    radial-gradient(140% 190% at 14% -40%, rgba(255, 255, 255, .05), transparent 58%),
+    radial-gradient(120% 160% at 96% 130%, rgba(0, 0, 0, .5), transparent 62%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .02) 0 1px, transparent 1px 3px);
+}
+/* LA PLAQUE REMPLACE LE FOND ET LE FILET DE LA LIGNE : les garder dessinait un
+   rectangle arrondi derriere une silhouette entaillee. La regle doit porter le
+   MEME POIDS que `:is(#teamList, .cadreApercu) .teamRow.ready` (1-2-0), sinon
+   elle perd en silence — c'est ce qui laissait deja l'ancien `border-color` du
+   cadre sans effet. Meme poids, plus loin dans la feuille : elle passe. */
+:is(#teamList, .cadreApercu) .teamRow.cadre {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+/* la geometrie est RELATIVE a la plaque, pas a une resolution : seule l'entaille
+   se re-echelonne, parce qu'un cran de 13 px sur une ligne de 40 px la coupe */
+.cadreApercu .cadre { --cadre-cut: 9px; }
+
+.cadreCouche {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: var(--radius-ctl);
+  background-color: var(--cadre-noir);
   background-repeat: no-repeat;
   background-position: 0 0;
-  /* la bordure de la ligne prend la teinte : sans ca le filet gris et le liseré
-     du cadre se dessinent l'un a cote de l'autre */
-  border-color: color-mix(in srgb, var(--cadre) 34%, var(--ui-line));
 }
-
-/* L'insigne devient un MEDAILLON sur l'avatar, a sa vraie taille : coince dans
-   un padding il faisait 15 px et mangeait une lettre. Toujours un masque, donc
-   il prend `--cadre` et le spectre du Prismatique s'y applique sans cas
-   particulier. */
-.cadre .teamAvatar { position: relative; overflow: visible; }
-.cadre .teamAvatar::after {
+.cadreCouche::before,
+.cadreCouche::after {
   content: "";
   position: absolute;
-  right: -6px;
-  bottom: -6px;
-  width: 17px;
-  height: 17px;
-  background: var(--cadre);
-  -webkit-mask: var(--cadre-insigne) center / contain no-repeat;
-  mask: var(--cadre-insigne) center / contain no-repeat;
+  inset: 0;
+  border-radius: inherit;
+}
+/* le fond vert de la ligne prete ne survit pas sous une plaque opaque : l'etat
+   « pret » se redit donc SUR la plaque, une regle et pas douze */
+.cadre.ready .cadreCouche {
+  background-color: color-mix(in srgb, var(--gain) 10%, var(--cadre-noir));
 }
 
-/* ---- fond --------------------------------------------------------------- */
-[data-cadre-fond="aucun"] { background-image: none; }
-[data-cadre-fond="voile"] {
-  background-image: linear-gradient(color-mix(in srgb, var(--cadre) 13%, transparent) 0 100%);
+/* ---- silhouette : la plaque n'est pas un rectangle ---------------------- */
+[data-cadre-silhouette="droit"] .cadreCouche { border-radius: var(--radius-ctl); }
+[data-cadre-silhouette="coupe"] .cadreCouche {
+  border-radius: 3px;
+  clip-path: polygon(var(--cadre-cut) 0, 100% 0,
+    100% calc(100% - var(--cadre-cut)), calc(100% - var(--cadre-cut)) 100%,
+    0 100%, 0 var(--cadre-cut));
 }
-[data-cadre-fond="trame"] {
-  background-image: repeating-linear-gradient(115deg,
-    color-mix(in srgb, var(--cadre) 24%, transparent) 0 1px, transparent 1px 5px);
+/* l'encoche du bord gauche est ce qui distingue une plaque d'un bouton : elle
+   n'a aucun equivalent dans le reste de l'interface */
+[data-cadre-silhouette="cran"] .cadreCouche {
+  border-radius: 3px;
+  clip-path: polygon(0 0, calc(100% - var(--cadre-cut)) 0, 100% var(--cadre-cut),
+    100% 100%, var(--cadre-cut) 100%, 0 calc(100% - var(--cadre-cut)),
+    0 64%, 5px 50%, 0 36%);
 }
-[data-cadre-fond="balaye"] {
-  background-image: linear-gradient(100deg,
-    transparent 0%,
-    color-mix(in srgb, var(--cadre) 26%, transparent) 42%,
-    color-mix(in srgb, var(--cadre-2) 44%, transparent) 54%,
-    transparent 100%);
+[data-cadre-silhouette="blindee"] .cadreCouche {
+  border-radius: 2px;
+  clip-path: polygon(var(--cadre-cut) 0, calc(100% - var(--cadre-cut)) 0,
+    100% var(--cadre-cut), 100% calc(100% - 7px), calc(100% - 7px) 100%,
+    var(--cadre-cut) 100%, 0 calc(100% - var(--cadre-cut)), 0 var(--cadre-cut));
+}
+[data-cadre-silhouette="brisee"] .cadreCouche {
+  border-radius: 2px;
+  clip-path: polygon(0 var(--cadre-cut), var(--cadre-cut) 0,
+    38% 0, 41% 5px, 61% 5px, 64% 0,
+    calc(100% - var(--cadre-cut)) 0, 100% var(--cadre-cut),
+    100% 44%, calc(100% - 5px) 52%, 100% 60%,
+    100% calc(100% - var(--cadre-cut)), calc(100% - var(--cadre-cut)) 100%,
+    var(--cadre-cut) 100%, 0 calc(100% - var(--cadre-cut)));
+}
+
+/* ---- fond : la MATIERE, jamais assez forte pour disputer le texte ------- */
+[data-cadre-fond="aucun"] .cadreCouche { background-image: var(--plaque); }
+[data-cadre-fond="voile"] .cadreCouche {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--cadre) 11%, transparent) 0 100%),
+    var(--plaque);
+}
+[data-cadre-fond="trame"] .cadreCouche {
+  background-image:
+    repeating-linear-gradient(115deg,
+      color-mix(in srgb, var(--cadre) 15%, transparent) 0 1px, transparent 1px 6px),
+    var(--plaque);
+}
+/* deux toles qui se RECOUVRENT : la couture est une arete claire suivie de son
+   ombre portee, pas un trait — c'est l'ombre qui fait la superposition */
+[data-cadre-fond="plaque"] .cadreCouche {
+  background-image:
+    linear-gradient(104deg, transparent 0 34%,
+      rgba(255, 255, 255, .07) 34% 34.5%, rgba(0, 0, 0, .5) 34.5% 36.5%, transparent 36.5%),
+    repeating-linear-gradient(74deg, rgba(255, 255, 255, .022) 0 2px, transparent 2px 5px),
+    var(--plaque);
+}
+/* deux mailles a 60 deg se croisent en losanges : un vrai pavage hexagonal
+   demanderait trois gradients coniques par tuile pour la meme lecture a 6 px */
+[data-cadre-fond="circuit"] .cadreCouche {
+  background-image:
+    repeating-linear-gradient(60deg,
+      color-mix(in srgb, var(--cadre) 13%, transparent) 0 1px, transparent 1px 9px),
+    repeating-linear-gradient(-60deg,
+      color-mix(in srgb, var(--cadre) 9%, transparent) 0 1px, transparent 1px 9px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .028) 0 1px, transparent 1px 7px),
+    var(--plaque);
+}
+[data-cadre-fond="balaye"] .cadreCouche {
+  background-image:
+    linear-gradient(100deg, transparent 0%,
+      color-mix(in srgb, var(--cadre) 22%, transparent) 42%,
+      color-mix(in srgb, var(--cadre-2) 38%, transparent) 54%, transparent 100%),
+    var(--plaque);
 }
 /* Le voile sombre est une SECONDE couche, pas une opacite : reduire l'opacite du
-   degrade eteindrait aussi le texte pose dessus. */
-[data-cadre-fond="irise"] {
+   degrade eteindrait aussi la matiere posee dessus. Cinq calques, donc cinq
+   tailles et cinq positions — l'animation doit les redire toutes. */
+[data-cadre-fond="irise"] .cadreCouche {
   background-image:
-    linear-gradient(rgba(12, 14, 20, .74) 0 100%),
+    var(--plaque),
+    linear-gradient(rgba(6, 7, 11, .74) 0 100%),
     linear-gradient(100deg, var(--cadre-spectre));
-  background-size: 100% 100%, 300% 100%;
+  background-size: auto, auto, auto, 100% 100%, 300% 100%;
+  animation: cadreIrise 14s linear infinite;
+}
+@keyframes cadreIrise {
+  from { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; }
+  to   { background-position: 0 0, 0 0, 0 0, 0 0, 300% 0; }
 }
 
-/* ---- bordure ------------------------------------------------------------ */
-[data-cadre-bordure="trait"]  { box-shadow: inset 0 -2px 0 var(--cadre); }
-[data-cadre-bordure="plein"]  { box-shadow: inset 0 0 0 1px var(--cadre); }
-[data-cadre-bordure="double"] {
+/* ---- bordure : une EPAISSEUR, pas un filet ------------------------------
+   La pile va du bord vers l'interieur, et la premiere ombre est celle du
+   dessus : cerne noir profond au pixel exterieur, puis ce que la peau ajoute,
+   puis un filet metal, puis l'ombre interne qui creuse la surface. */
+.cadreCouche::before {
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--cadre) 52%, transparent),
-    inset 0 -3px 0 var(--cadre);
+    inset 0 0 0 1px rgba(0, 0, 0, .9),
+    var(--cadre-bord, inset 0 0 0 0 transparent),
+    inset 0 0 0 3px rgba(255, 255, 255, .04),
+    inset 0 7px 11px -7px rgba(0, 0, 0, .62);
 }
-[data-cadre-bordure="encoche"] {
-  box-shadow: inset 0 0 0 1px var(--cadre);
-  /* 12 px et non 7 : une entaille se lit a l'echelle de ce qu'elle entaille */
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+[data-cadre-bordure="trait"] {
+  --cadre-bord: inset 0 -2px 0 color-mix(in srgb, var(--cadre) 80%, transparent);
+}
+[data-cadre-bordure="plein"] {
+  --cadre-bord: inset 0 0 0 2px color-mix(in srgb, var(--cadre) 44%, transparent);
+}
+[data-cadre-bordure="double"] {
+  --cadre-bord:
+    inset 0 0 0 2px color-mix(in srgb, var(--cadre) 40%, transparent),
+    inset 0 0 0 5px rgba(0, 0, 0, .5),
+    inset 0 -4px 0 -1px color-mix(in srgb, var(--cadre) 60%, transparent);
+}
+[data-cadre-bordure="blindee"] {
+  --cadre-bord:
+    inset 0 0 0 3px rgba(0, 0, 0, .7),
+    inset 0 0 0 4px color-mix(in srgb, var(--cadre) 30%, transparent),
+    inset 0 0 0 7px rgba(255, 255, 255, .035),
+    inset 0 -5px 0 -2px color-mix(in srgb, var(--cadre) 46%, transparent);
+}
+[data-cadre-bordure="chassis"] {
+  --cadre-bord:
+    inset 0 0 0 2px color-mix(in srgb, var(--cadre) 34%, transparent),
+    inset 0 0 0 6px rgba(0, 0, 0, .48),
+    inset 0 0 0 7px color-mix(in srgb, var(--cadre-2) 26%, transparent);
 }
 
-/* ---- lueur -------------------------------------------------------------- */
-[data-cadre-lueur="aucune"] { filter: none; }
-[data-cadre-lueur="douce"] {
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cadre) 42%, transparent));
+/* ---- segments allumes ---------------------------------------------------
+   DEUX RUNS SEULEMENT, en haut a gauche et en bas a droite. Une bordure
+   lumineuse sur tout le tour est ce qui fait « gabarit gaming » ; une lumiere
+   qui s'arrete dit qu'elle sort d'une piece precise. La lueur est locale, sur
+   le segment lui-meme, avant l'aureole d'ensemble. */
+.cadreCouche::after {
+  background-repeat: no-repeat;
+  background-image:
+    linear-gradient(90deg, transparent, var(--cadre) 24%, var(--cadre-2) 76%, transparent),
+    linear-gradient(90deg, var(--cadre-2), transparent);
+  background-size: 34% 2px, 18% 2px;
+  background-position: 13% 0, 88% 100%;
+  opacity: var(--cadre-seg, .78);
+  filter: drop-shadow(0 0 var(--cadre-seg-flou, 3px)
+    color-mix(in srgb, var(--cadre) 62%, transparent));
 }
-[data-cadre-lueur="nette"] {
-  filter:
-    drop-shadow(0 0 2px color-mix(in srgb, var(--cadre) 78%, transparent))
-    drop-shadow(0 0 9px color-mix(in srgb, var(--cadre) 34%, transparent));
+
+/* ---- lueur : ce que la peau ajoute par-dessus les segments -------------- */
+[data-cadre-lueur="aucune"] { --cadre-seg: .6; --cadre-seg-flou: 0px; }
+[data-cadre-lueur="aucune"] .cadreCouche { filter: none; }
+[data-cadre-lueur="douce"] { --cadre-seg: .82; --cadre-seg-flou: 4px; }
+[data-cadre-lueur="douce"] .cadreCouche {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--cadre) 24%, transparent));
 }
-[data-cadre-lueur="pulse"] {
+[data-cadre-lueur="nette"] { --cadre-seg: .95; --cadre-seg-flou: 6px; }
+[data-cadre-lueur="nette"] .cadreCouche {
   filter:
-    drop-shadow(0 0 3px color-mix(in srgb, var(--cadre) 80%, transparent))
-    drop-shadow(0 0 10px color-mix(in srgb, var(--cadre) 40%, transparent));
+    drop-shadow(0 0 2px color-mix(in srgb, var(--cadre) 62%, transparent))
+    drop-shadow(0 0 9px color-mix(in srgb, var(--cadre) 26%, transparent));
+}
+/* un troisieme calque BLANC parcourt le segment du haut. Il est fin, lent et
+   sans arret : c'est le seul mouvement qu'on doive percevoir dans un salon. */
+[data-cadre-lueur="segment"] { --cadre-seg: .9; --cadre-seg-flou: 5px; }
+[data-cadre-lueur="segment"] .cadreCouche {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cadre) 26%, transparent));
+}
+[data-cadre-lueur="segment"] .cadreCouche::after {
+  background-image:
+    linear-gradient(90deg, transparent, var(--cadre) 24%, var(--cadre-2) 76%, transparent),
+    linear-gradient(90deg, var(--cadre-2), transparent),
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, .8), transparent);
+  background-size: 34% 2px, 18% 2px, 11% 2px;
+  animation: cadreCourse 11s linear infinite;
+}
+@keyframes cadreCourse {
+  from { background-position: 13% 0, 88% 100%, -30% 0; }
+  to   { background-position: 13% 0, 88% 100%, 135% 0; }
+}
+[data-cadre-lueur="pulse"] { --cadre-seg: 1; --cadre-seg-flou: 7px; }
+[data-cadre-lueur="pulse"] .cadreCouche {
+  animation: cadreIrise 14s linear infinite, cadrePulse 3.4s ease-in-out infinite;
+}
+/* l'amplitude est faible et la periode longue : une plaque qui clignote se
+   remarque une fois puis fatigue, une plaque qui respire se garde */
+@keyframes cadrePulse {
+  0%, 100% { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--cadre) 62%, transparent)); }
+  50% { filter:
+    drop-shadow(0 0 5px color-mix(in srgb, var(--cadre) 78%, transparent))
+    drop-shadow(0 0 13px color-mix(in srgb, var(--cadre) 34%, transparent)); }
+}
+
+/* ---- bande technique, noeud, reflet -------------------------------------
+   `.cadreEclat` ne bouge PAS : c'est son ::after qui traverse, en transform et
+   en opacite — les deux seules proprietes qu'un compositeur anime sans
+   repeindre. Douze plaques cohabitent sur l'ecran des hauts faits, donc aucune
+   animation ne touche la geometrie. */
+.cadreEclat {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background-repeat: no-repeat;
+  background-image: repeating-linear-gradient(90deg,
+    rgba(255, 255, 255, .18) 0 1px, transparent 1px 5px);
+  background-size: 44px 3px;
+  background-position: 46px calc(100% - 6px);
+}
+[data-cadre-palier="2"] .cadreEclat,
+[data-cadre-palier="3"] .cadreEclat { opacity: .5; }
+.cadreEclat::after {
+  content: "";
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -40%;
+  width: 34%;
+  opacity: 0;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .09), transparent);
+}
+[data-cadre-palier="2"] .cadreEclat::after,
+[data-cadre-palier="3"] .cadreEclat::after { animation: cadreReflet 15s ease-in-out infinite; }
+@keyframes cadreReflet {
+  0%, 60% { transform: translate3d(0, 0, 0); opacity: 0; }
+  68% { opacity: .9; }
+  84%, 100% { transform: translate3d(360%, 0, 0); opacity: 0; }
+}
+/* LE NOEUD : la piece d'ou la lumiere sort. Un carre tourne, pas un disque —
+   le seul cercle du jeu est une entite vivante. */
+[data-cadre-palier="3"] .cadreEclat::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 7px;
+  width: 4px;
+  height: 4px;
+  background: var(--cadre-2);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--cadre) 72%, transparent);
+  animation: cadreNoeud 3.4s ease-in-out infinite;
+}
+@keyframes cadreNoeud {
+  0%, 100% { opacity: .35; transform: rotate(45deg) scale(.85); }
+  50% { opacity: 1; transform: rotate(45deg) scale(1.12); }
+}
+
+/* ---- visserie : le NOMBRE de pieces suit le palier ---------------------- */
+.cadre::before {
+  content: "";
+  position: absolute;
+  inset: 6px 8px;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: 5px 5px;
+  background-image: var(--cadre-vis);
+  background-position: var(--cadre-vis-pos);
+}
+[data-cadre-palier="1"] {
+  --cadre-vis: var(--vis), var(--vis);
+  --cadre-vis-pos: 0 0, 0 100%;
+}
+[data-cadre-palier="2"] {
+  --cadre-vis: var(--vis), var(--vis), var(--vis), var(--vis);
+  --cadre-vis-pos: 0 0, 100% 0, 0 100%, 100% 100%;
+}
+[data-cadre-palier="3"] {
+  --cadre-vis: var(--vis), var(--vis), var(--vis), var(--vis), var(--vis), var(--vis);
+  --cadre-vis-pos: 0 0, 50% 0, 100% 0, 0 100%, 50% 100%, 100% 100%;
 }
 
 /* ---- ornement : a DROITE, l'insigne tenant le medaillon ----------------- */
@@ -3623,23 +3874,36 @@ input:focus {
 [data-cadre-ornement="angles"]::after {
   --cadre-orn: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 14"><g fill="none" stroke="black" stroke-width="2" stroke-linecap="square"><path d="M1 5V1h4"/><path d="M11 9v4H7"/></g></svg>');
 }
+[data-cadre-ornement="boulons"]::after {
+  --cadre-orn: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 14"><g fill="black"><path d="M3 1 4.7 2v2L3 5 1.3 4V2Z"/><path d="M9 1 10.7 2v2L9 5 7.3 4V2Z"/><path d="M3 9 4.7 10v2L3 13 1.3 12v-2Z"/><path d="M9 9 10.7 10v2L9 13 7.3 12v-2Z"/><rect x="2" y="6.4" width="8" height="1.4"/></g></svg>');
+}
+[data-cadre-ornement="rail"]::after {
+  --cadre-orn: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 14"><g fill="black"><rect x="0" y="1" width="12" height="1.6"/><rect x="1" y="4.4" width="2" height="1.4"/><rect x="4.5" y="4.4" width="2" height="1.4"/><rect x="8" y="4.4" width="2" height="1.4"/><rect x="0" y="7.6" width="12" height="1.6"/><rect x="2" y="11" width="8" height="2"/></g></svg>');
+}
 
-/* ---- palier 3 : le SEUL anime, et il porte les deux animations ---------- */
-[data-cadre-palier="3"] {
-  animation: cadreIrise 9s linear infinite, cadrePulse 2.6s ease-in-out infinite;
+/* ---- insigne : un MEDAILLON sur l'avatar, a sa vraie taille -------------
+   Coince dans un padding il faisait 15 px et mangeait une lettre. Toujours un
+   masque, donc il prend `--cadre` et le spectre du Prismatique s'y applique
+   sans cas particulier. */
+.cadre .teamAvatar { position: relative; overflow: visible; }
+.cadre .teamAvatar::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 17px;
+  height: 17px;
+  background: var(--cadre);
+  -webkit-mask: var(--cadre-insigne) center / contain no-repeat;
+  mask: var(--cadre-insigne) center / contain no-repeat;
 }
-@keyframes cadreIrise { to { background-position: 0 0, 300% 0; } }
-@keyframes cadrePulse {
-  0%, 100% { filter:
-    drop-shadow(0 0 3px color-mix(in srgb, var(--cadre) 80%, transparent))
-    drop-shadow(0 0 8px color-mix(in srgb, var(--cadre) 30%, transparent)); }
-  50% { filter:
-    drop-shadow(0 0 5px color-mix(in srgb, var(--cadre) 92%, transparent))
-    drop-shadow(0 0 16px color-mix(in srgb, var(--cadre) 52%, transparent)); }
-}
+
 @media (prefers-reduced-motion: reduce) {
-  /* le degrade RESTE, il cesse de tourner */
-  [data-cadre-palier="3"] { animation: none; }
+  /* la matiere RESTE, elle cesse de bouger */
+  .cadreCouche,
+  .cadreCouche::after,
+  .cadreEclat::after,
+  [data-cadre-palier="3"] .cadreEclat::before { animation: none; }
 }
 
 /* ---- choix d'arme, dans le briefing ------------------------------------- */

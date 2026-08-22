@@ -86,8 +86,30 @@ const masqueDe = (nom) => {
   return svg ? `url("data:image/svg+xml,${encodeURIComponent(svg)}")` : "none";
 };
 
-const ATTRS = ["fond", "bordure", "ornement", "lueur", "palier"];
+const ATTRS = ["fond", "bordure", "ornement", "lueur", "silhouette", "palier"];
 const VARS = ["--cadre", "--cadre-2", "--cadre-insigne", "--cadre-spectre"];
+
+/* LA PLAQUE EST UNE COUCHE, PAS LA LIGNE. Le contenu (avatar, nom, hote, classe,
+   ping, etat) ne sait rien du cadre : la couche est posee en PREMIER ENFANT,
+   absolue et en `z-index: -1`, donc elle n'entre pas dans le flux et passe sous
+   le texte. Elle porte silhouette, matiere, bordure et lumiere ; ses deux
+   pseudo-elements portent la bordure et les segments allumes, et `.cadreEclat`
+   porte la bande technique, le noeud et le reflet qui traverse.
+
+   Elle est CONSTRUITE ICI et non dans les chaines HTML des deux sites d'appel :
+   un cadre qui change ne doit toucher qu'un fichier, et une ligne sans peau ne
+   doit pas porter un element mort. */
+const couche = (el) => {
+  let c = el.firstElementChild;
+  if (!c || !c.classList.contains("cadreCouche")) {
+    c = document.createElement("i");
+    c.className = "cadreCouche";
+    c.setAttribute("aria-hidden", "true");
+    c.innerHTML = `<i class="cadreEclat"></i>`;
+    el.prepend(c);
+  }
+  return c;
+};
 
 /* LE POINT DE PASSAGE UNIQUE du cadre a l'ecran.
 
@@ -107,9 +129,15 @@ export function appliquerCadre(el, id) {
 
   const peau = CADRE_SKIN[id];
   el.classList.toggle("cadre", !!peau);
-  if (!peau) return;
+  if (!peau) {
+    const morte = el.firstElementChild;
+    if (morte && morte.classList.contains("cadreCouche")) morte.remove();
+    return;
+  }
+  couche(el);
 
   el.dataset.cadrePalier = String(peau.palier);
+  el.dataset.cadreSilhouette = peau.silhouette;
   el.dataset.cadreBordure = peau.bordure;
   el.dataset.cadreOrnement = peau.ornement;
   el.dataset.cadreLueur = peau.lueur;

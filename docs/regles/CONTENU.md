@@ -224,16 +224,44 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   voyage avec le salon et le bilan comme la couleur, et n'ouvre aucune clé
   d'instantané. **L'identité vit dans `CADRES` (`hauts_faits.js`), la peau dans
   `CADRE_SKIN` (`palette.js`)** — même découpe que `BOSS_ROSTER` / `BOSS_SKIN`.
-- **Une peau est CINQ EMPLACEMENTS à valeurs nommées** (`fond`, `bordure`,
-  `ornement`, `lueur`, `insigne`), jamais du CSS dans la table. `palier` n'est pas
-  un sixième emplacement : il **borne** les cinq autres (1 mat · 2 relief · 3 le
-  seul animé) et il **se croise avec l'exigence** dans `verifierHautsFaits()`
+- **Une peau est SIX EMPLACEMENTS à valeurs nommées** (`silhouette`, `fond`,
+  `bordure`, `ornement`, `lueur`, `insigne` — la liste est `CADRE_EMPLACEMENTS`),
+  jamais du CSS dans la table. La **silhouette** est le sixième : elle était
+  soudée à `bordure: encoche`, or la **forme** et l'**épaisseur** sont deux
+  décisions — une plaque blindée peut avoir un bord fin. `palier` n'est pas un
+  septième emplacement : il **borne** les six autres (1 mat · 2 relief · 3 le seul
+  spectre) et il **se croise avec l'exigence** dans `verifierHautsFaits()`
   (palier 2 ⟺ `diffMin: 2`, palier 3 ⟺ `legende`, un seul au palier 3). Point de
-  passage unique `appliquerCadre(el, id, portee)` (`ui/cadres.js`) ; `menus.css`
+  passage unique `appliquerCadre(el, id)` (`ui/cadres.js`) ; `menus.css`
   a une règle **par valeur d'emplacement**, jamais par cadre. `defaut` n'a pas de
   peau — ce n'est pas un cadre, c'est son absence.
-- **`portee: "ligne"` supprime le fond** : au bilan le `<td>` porte déjà la
-  couleur de **classe** en texte. Une règle écrite une fois, pas douze exceptions.
+- **LA PLAQUE EST UNE COUCHE, PAS LA LIGNE.** `appliquerCadre()` insère
+  `<i class="cadreCouche"><i class="cadreEclat"></i></i>` en **premier enfant** :
+  le contenu (avatar, nom, hôte, classe, ping, état) ne sait rien du cadre, et
+  les deux sites d'appel n'ont pas de balisage décoratif à écrire. Six surfaces
+  de peinture, aucune dans le flux : couche (matière + silhouette + lueur),
+  `::before` (la bordure en pile d'ombres internes), `::after` (les **segments
+  allumés**), `.cadreEclat` (bande technique, nœud, reflet), `.cadre::before`
+  (visserie), `.cadre::after` (ornement). `z-index: -1` **sous**
+  `isolation: isolate` : sans contexte d'empilement, une couche négative passe
+  derrière le fond de son parent au lieu de dessus.
+- **LA RARETÉ EST UNE COMPLEXITÉ, PAS UNE COULEUR.** Le CSS **lit**
+  `data-cadre-palier` pour doser la visserie (2 · 4 · 6 vis), le reflet (absent ·
+  lent · lent + nœud pulsé) et la profondeur. Aucune règle ne nomme un cadre, donc
+  un treizième cadre reste **une ligne dans `CADRE_SKIN`**.
+- **LA LUMIÈRE NE FAIT PAS LE TOUR** : deux segments allumés seulement, et leur
+  lueur est portée par le segment (`drop-shadow` sur `::after`) avant l'auréole
+  d'ensemble. Une bordure lumineuse sur tout le périmètre est ce qui fait
+  « gabarit gaming ».
+- **La règle de la plaque doit porter le POIDS de `:is(#teamList, .cadreApercu)
+  .teamRow.ready`** (1-2-0) pour effacer fond et filet de la ligne. Un `.cadre`
+  nu (0-1-0) perd en silence — c'est ce qui laissait déjà l'ancien
+  `border-color` du cadre sans aucun effet.
+- **Pas de WebGL sous une plaque.** Le seul palier 3 existant est unique par
+  invariant, le salon en affiche une poignée et l'écran des hauts faits douze :
+  un contexte GL par plaque coûterait plus que ce que le CSS rend déjà
+  (spectre balayé, reflet composité, nœud pulsé). L'accroche existe si le besoin
+  vient — `.cadreEclat` est un élément vide, prêt à recevoir un canvas mutualisé.
 - **L'insigne est un MASQUE CSS** (`--cadre-insigne`, data-URI), pas un `<svg>`
   injecté : les sites d'appel construisent des chaînes HTML, et un masque prend
   `var(--cadre)`, donc le spectre du Prismatique s'y applique sans cas

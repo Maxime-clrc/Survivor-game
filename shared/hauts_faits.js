@@ -1,7 +1,7 @@
 import { nombre, t, tf } from "./i18n.js";
 import { fmtM } from "./units.js";
 import { BOSS_ROSTER } from "./bosses.js";
-import { CADRE_ANIMES, CADRE_MARQUEURS_2, CADRE_SKIN } from "./palette.js";
+import { CADRE_ANIMES, CADRE_EMPLACEMENTS, CADRE_MARQUEURS_2, CADRE_SKIN } from "./palette.js";
 
 /* LES HAUTS FAITS OUVRENT DES PORTES, ILS NE DONNENT PAS DE PUISSANCE. Les
    noyaux sont une courbe, les hauts faits sont des marches ; une puissance qui
@@ -436,6 +436,9 @@ export function verifierHautsFaits(cardIds = null, relicIds = null, armeIds = nu
     if (!objets.has(`cadre:${c.id}`)) out.push(`cadre « ${c.id} » : aucun haut fait ne le donne`);
     const peau = CADRE_SKIN[c.id];
     if (!peau) { out.push(`cadre « ${c.id} » : aucune peau dans CADRE_SKIN`); continue; }
+    for (const e of CADRE_EMPLACEMENTS) {
+      if (!peau[e]) out.push(`cadre « ${c.id} » : emplacement « ${e} » vide`);
+    }
 
     const par = HF_BY_ID.get(objets.get(`cadre:${c.id}`));
     const attendu = par?.id === "legende" ? 3 : par?.diffMin === 2 ? 2 : 1;
@@ -443,7 +446,7 @@ export function verifierHautsFaits(cardIds = null, relicIds = null, armeIds = nu
       out.push(`cadre « ${c.id} » : palier ${peau.palier} pour une exigence de palier ${attendu}`);
     }
 
-    const slots = [peau.fond, peau.bordure, peau.ornement, peau.lueur];
+    const slots = [peau.silhouette, peau.fond, peau.bordure, peau.ornement, peau.lueur];
     const anime = slots.find(v => CADRE_ANIMES.includes(v));
     const marque = slots.find(v => CADRE_MARQUEURS_2.includes(v));
     if (peau.palier < 3 && anime) out.push(`cadre « ${c.id} » : « ${anime} » est réservé au palier 3`);

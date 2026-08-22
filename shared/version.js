@@ -2753,6 +2753,32 @@
                    la convention interdit explicitement. Treize blocs ramenes a
                    leur mesure et a leur piege. Le depot reste a 6 % au total.
 
+     0.15.8 lot cadres : un cadre devient une PLAQUE, la rarete se lit a la
+                   complexite technique et non a la couleur.
+                   LA SILHOUETTE EST LE SIXIEME EMPLACEMENT. Elle etait soudee a
+                   `bordure: encoche`, or la FORME et l'EPAISSEUR sont deux
+                   decisions — une plaque blindee peut avoir un bord fin.
+                   `CADRE_EMPLACEMENTS` liste les six, et `verifierHautsFaits`
+                   refuse desormais une peau dont un emplacement est vide.
+                   Valeurs neuves : silhouette droit/coupe/cran/blindee/brisee,
+                   fond circuit/plaque, bordure blindee/chassis, ornement
+                   boulons/rail, lueur segment. `CADRE_MARQUEURS_2` et
+                   `CADRE_ANIMES` suivent, donc le croisement palier x exigence
+                   couvre les nouvelles valeurs au lieu de les laisser passer.
+                   LA PLAQUE EST UNE COUCHE, PAS LA LIGNE. `appliquerCadre()`
+                   insere une couche `cadreCouche` en PREMIER ENFANT, absolue et
+                   en `z-index: -1` : le contenu d'une ligne d'equipe — avatar,
+                   nom, hote, classe, ping, etat — ne sait rien du cadre, et rien
+                   n'entre dans le flux. Elle est construite dans `ui/cadres.js`
+                   et non dans les chaines HTML des deux sites d'appel : un cadre
+                   qui change ne touche qu'un fichier, et une ligne sans peau ne
+                   porte pas d'element mort. Le parametre `portee` disparait avec
+                   la boite qu'il supprimait.
+                   LE PALIER NE SE DECLARE PLUS CADRE PAR CADRE : `menus.css` LIT
+                   `data-cadre-palier` pour doser la visserie, le reflet et la
+                   profondeur. Aucune regle ne nomme un cadre, donc un treizieme
+                   cadre reste UNE LIGNE dans `CADRE_SKIN`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2761,4 +2787,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.15.7";
+export const VERSION = "0.15.8";

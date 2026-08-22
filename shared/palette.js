@@ -233,36 +233,50 @@ export const BOSS_SKIN = [
 /* LA PEAU D'UN CADRE — l'identite reste dans hauts_faits.js, comme BOSS_ROSTER
    garde la sienne a cote de BOSS_SKIN.
 
-   Cinq emplacements a valeurs NOMMEES, jamais du CSS : une table de donnees qui
-   porte une declaration de style ne s'inspecte plus qu'a l'oeil.
+   Six emplacements a valeurs NOMMEES, jamais du CSS : une table de donnees qui
+   porte une declaration de style ne s'inspecte plus qu'a l'oeil. La silhouette
+   est le sixieme : elle etait soudee a `bordure: encoche`, or la FORME et
+   l'EPAISSEUR sont deux decisions — une plaque blindee peut avoir un bord fin.
 
-   `palier` n'est pas un sixieme emplacement, c'est ce qui BORNE les cinq autres,
+     silhouette  droit · coupe · cran · blindee · brisee
+     fond        aucun · voile · trame · plaque · circuit · balaye · irise
+     bordure     trait · plein · double · blindee · chassis
+     ornement    aucun · crans · chevrons · barres · pointes · angles · boulons · rail
+     lueur       aucune · douce · nette · segment · pulse
+     insigne     les douze glyphes de ui/cadres.js
+
+   `palier` n'est pas un septieme emplacement, c'est ce qui BORNE les six autres,
    et il se croise avec l'exigence du haut fait (verifierHautsFaits) :
-     1  defis libres     lueur <= douce, ni double ni balaye ni nette
-     2  defis cauchemar  au moins un de double / balaye / nette, aucune animation
-     3  legende          seul a porter irise et pulse
+     1  defis libres     lueur <= douce, aucun marqueur de palier 2, plaque inerte
+     2  defis cauchemar  au moins un marqueur, un reflet lent, la visserie complete
+     3  legende          seul a porter irise, pulse et chassis
+   Le palier ne se declare pas dans le CSS cadre par cadre : la feuille le LIT
+   (`data-cadre-palier`) pour doser la visserie, le reflet et la profondeur. Une
+   rarete se voit a la complexite technique, pas a la couleur.
+
    `defaut` n'a pas d'entree : ce n'est pas un cadre, c'est son absence. */
+export const CADRE_EMPLACEMENTS = ["silhouette", "fond", "bordure", "ornement", "lueur", "insigne"];
 export const CADRE_PALIER_MAX = 3;
-export const CADRE_MARQUEURS_2 = ["double", "balaye", "nette"];
-export const CADRE_ANIMES = ["irise", "pulse"];
+export const CADRE_MARQUEURS_2 = ["double", "blindee", "balaye", "nette", "segment"];
+export const CADRE_ANIMES = ["irise", "pulse", "chassis"];
 
 export const CADRE_SKIN = {
-  sobre:       { palier: 1, teinte: "#9aa4b2", fond: "trame",  bordure: "trait",   ornement: "aucun",    lueur: "aucune", insigne: "cercle" },
-  depouille:   { palier: 1, teinte: "#7f8a99", fond: "aucun",  bordure: "plein",   ornement: "crans",    lueur: "aucune", insigne: "anneau" },
-  immacule:    { palier: 1, teinte: "#eaf2ff", fond: "voile",  bordure: "trait",   ornement: "aucun",    lueur: "douce",  insigne: "losange" },
-  foudroyant:  { palier: 1, teinte: "#63d7ff", fond: "aucun",  bordure: "encoche", ornement: "pointes",  lueur: "douce",  insigne: "eclair" },
-  arsenal:     { palier: 1, teinte: "#ffb454", fond: "trame",  bordure: "plein",   ornement: "barres",   lueur: "aucune", insigne: "ratelier" },
-  ermite:      { palier: 1, teinte: "#8f7ad6", fond: "aucun",  bordure: "trait",   ornement: "angles",   lueur: "douce",  insigne: "solitude" },
+  sobre:       { palier: 1, teinte: "#9aa4b2", silhouette: "droit",   fond: "trame",   bordure: "trait",   ornement: "aucun",    lueur: "aucune",  insigne: "cercle" },
+  depouille:   { palier: 1, teinte: "#7f8a99", silhouette: "cran",    fond: "aucun",   bordure: "plein",   ornement: "crans",    lueur: "aucune",  insigne: "anneau" },
+  immacule:    { palier: 1, teinte: "#eaf2ff", silhouette: "droit",   fond: "voile",   bordure: "trait",   ornement: "aucun",    lueur: "douce",   insigne: "losange" },
+  foudroyant:  { palier: 1, teinte: "#63d7ff", silhouette: "coupe",   fond: "circuit", bordure: "plein",   ornement: "pointes",  lueur: "douce",   insigne: "eclair" },
+  arsenal:     { palier: 1, teinte: "#ffb454", silhouette: "coupe",   fond: "plaque",  bordure: "plein",   ornement: "boulons",  lueur: "aucune",  insigne: "ratelier" },
+  ermite:      { palier: 1, teinte: "#8f7ad6", silhouette: "droit",   fond: "aucun",   bordure: "trait",   ornement: "angles",   lueur: "douce",   insigne: "solitude" },
 
-  insomniaque: { palier: 2, teinte: "#c4453f", fond: "trame",  bordure: "double",  ornement: "crans",    lueur: "nette",  insigne: "oeil" },
-  intact:      { palier: 2, teinte: "#4fd6a0", fond: "voile",  bordure: "double",  ornement: "angles",   lueur: "douce",  insigne: "bouclier" },
-  chasseur:    { palier: 2, teinte: "#d64f8f", fond: "trame",  bordure: "encoche", ornement: "pointes",  lueur: "nette",  insigne: "trophee" },
-  or:          { palier: 2, teinte: "#ffd24a", fond: "balaye", bordure: "double",  ornement: "barres",   lueur: "nette",  insigne: "laurier" },
-  phalange:    { palier: 2, teinte: "#4a8fff", fond: "voile",  bordure: "double",  ornement: "chevrons", lueur: "nette",  insigne: "phalange" },
+  insomniaque: { palier: 2, teinte: "#c4453f", silhouette: "cran",    fond: "trame",   bordure: "double",  ornement: "crans",    lueur: "nette",   insigne: "oeil" },
+  intact:      { palier: 2, teinte: "#4fd6a0", silhouette: "blindee", fond: "voile",   bordure: "blindee", ornement: "angles",   lueur: "douce",   insigne: "bouclier" },
+  chasseur:    { palier: 2, teinte: "#d64f8f", silhouette: "coupe",   fond: "plaque",  bordure: "double",  ornement: "pointes",  lueur: "nette",   insigne: "trophee" },
+  or:          { palier: 2, teinte: "#ffd24a", silhouette: "coupe",   fond: "balaye",  bordure: "double",  ornement: "barres",   lueur: "nette",   insigne: "laurier" },
+  phalange:    { palier: 2, teinte: "#4a8fff", silhouette: "blindee", fond: "plaque",  bordure: "blindee", ornement: "chevrons", lueur: "segment", insigne: "phalange" },
 
   /* seule entree dont la teinte n'est pas une couleur mais un spectre, et seul
      insigne qui prend ce spectre au lieu d'un aplat */
-  prismatique: { palier: 3, teinte: "#e8ecf5", fond: "irise",  bordure: "double",  ornement: "pointes",  lueur: "pulse",  insigne: "prisme",
+  prismatique: { palier: 3, teinte: "#e8ecf5", silhouette: "brisee",  fond: "irise",   bordure: "chassis", ornement: "rail",     lueur: "pulse",   insigne: "prisme",
                  spectre: ["#ff5c7a", "#ffb454", "#ffd24a", "#4fd6a0", "#63d7ff", "#a78bfa", "#ff5c7a"] },
 };
 

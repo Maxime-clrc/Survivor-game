@@ -258,7 +258,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `state.repriseGrace` | **un écran ne tue pas** : toute reprise de simulation figée (cartes, marchand, pause) rend `_hurt()` inerte pendant `CFG.RESUME_GRACE` |
 | `_recomputeMods()` | rejoue tout le chargement (cartes + classe + méta) |
 | `assignColors()` | couleur de joueur, à la diffusion du salon |
-| `appliquerCadre(el, id, portee)` | le cadre à l'écran : les cinq emplacements, et la suppression du fond en portée `ligne` |
+| `appliquerCadre(el, id)` | le cadre à l'écran : les six emplacements, et la couche `.cadreCouche` posée en premier enfant |
 | `notReady()` | qui manque pour lancer |
 | `briefWaiting()` / `syncBrief()` | qui n'a pas fermé son briefing |
 | `setPaused()` | les causes de pause, et la grâce de reprise |
