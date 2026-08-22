@@ -7,7 +7,7 @@ import { dec, getLang, onLangChange, t, tf } from "/shared/i18n.js";
 import { relicById } from "/shared/reliques.js";
 import { fmtM, toM } from "/shared/units.js";
 import { difficulty, hudDps, hudStats, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
-import { ARMES, litCanons } from "/shared/armes.js";
+import { ARMES, canonEffet, canonGain } from "/shared/armes.js";
 import { applyMeta, metaLinesFor } from "/shared/progression.js";
 import { CLASS_DEFAULT, SKILL_CFG, classAt, skill3Nom, skillNom,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
@@ -740,15 +740,15 @@ function updateStats(me, v, c, now) {
   const m = myMods(me, v);
   const flat = relicFlat(me.id, "flatDamage")
     + [...v.playerList].reduce((s, p) => p.id === me.id ? s : s + relicFlat(p.id, "allyFlatDamage"), 0);
-  // meme decoupe que `_volley` : ce qui ne lit pas `extraBarrels` ne paie pas
-  // `barrelDamageMul` — afficher la penalite sur une arme qui ne l'encaisse pas
-  // etait la seule trace du defaut a l'ecran, et elle mentait dans l'autre sens
-  const canons = litCanons(ARMES[me.arme] ?? ARMES[0]);
+  // meme decoupe que `_volley` : ce que le canon en plus ajoute depend de
+  // l'arme, et seule celle qui l'encaisse affiche la penalite
+  const arme = ARMES[me.arme] ?? ARMES[0];
+  const canons = canonEffet(arme) !== null;
   const degats = (CFG.BULLET_DAMAGE + flat) * m.damageMul
     * (canons ? m.barrelDamageMul : 1);
   const interval = me.fireInterval > 0 ? me.fireInterval : CFG.FIRE_INTERVAL * m.fireIntervalMul;
   const cadence = 1 / Math.max(0.01, interval);
-  const tubes = (canons ? 1 + m.extraBarrels : 1) + (m.backShot ? 0.7 : 0);
+  const tubes = canonGain(arme, canons ? m.extraBarrels : 0) + (m.backShot ? 0.7 : 0);
   const s = {
     degats, cadence, canons: tubes,
     dps: degats * cadence * tubes * (1 + m.critChance * (m.critMul - 1)),

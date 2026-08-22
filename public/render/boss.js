@@ -8,7 +8,7 @@ import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG } 
 import { BOSS, BOSS_SKIN, CLASS_COLOR, COMBAT, EFFECT_COLOR, FX, HUD, MARK, POWERUP_COLOR, SIGNAL, SURFACE, TEXT, alpha } from "/shared/palette.js";
 import { STATUSES, STATUS_DOOM, STATUS_VULN } from "/shared/statuses.js";
 import { drawSprite, frameOf } from "/sprites.js";
-import { amSpectator, dash, myId, phase, predicted } from "../core/state.js";
+import { amSpectator, dash, myId, ownedCounts, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
 import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, lastBossPos, shieldHit } from "./fx.js";
@@ -1353,17 +1353,24 @@ export function drawPlayers(list, tm, marks = []) {
     if (ARMES[p.arme]?.chaleur && p.armeRes < 1) {
       const a = ARMES[p.arme];
       const portee = 640 * 1.5 * a.portee;
-      const bx = x + Math.cos(p.armeAng) * portee;
-      const by = y + Math.sin(p.armeAng) * portee;
       const chaud = p.armeRes;
+      // un canon en plus ajoute une NAPPE au laser : elle se dessine du meme
+      // ecart que la simulation lui donne, sinon le joueur tire ou il ne voit rien
+      const n = 1 + (ownedCounts(p.id).get("secondCanon") ?? 0)
+        + ((p.buffs & BUFF_DOUBLE) ? 1 : 0);
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      ctx.strokeStyle = alpha(chaud > 0.7 ? SIGNAL.warn : col, 0.22);
-      ctx.lineWidth = 14;
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
-      ctx.strokeStyle = alpha(FX.flash, 0.85);
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
+      for (let i = 0; i < n; i++) {
+        const ang = p.armeAng + (n === 1 ? 0 : (i - (n - 1) / 2) * 0.13);
+        const bx = x + Math.cos(ang) * portee;
+        const by = y + Math.sin(ang) * portee;
+        ctx.strokeStyle = alpha(chaud > 0.7 ? SIGNAL.warn : col, 0.22);
+        ctx.lineWidth = 14;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
+        ctx.strokeStyle = alpha(FX.flash, 0.85);
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
+      }
       ctx.restore();
     }
 

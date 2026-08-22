@@ -83,10 +83,18 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   écrit qu’il a regardé. Une carte de famille d’arme en est dispensée : l’arme
   **est** son contexte.
 - **LA PÉNALITÉ VIT AU MÊME ENDROIT QUE LE BÉNÉFICE.** `barrelDamageMul` se
-  payait en haut de `_volley`, avant l’aiguillage, alors qu’`extraBarrels` n’est
-  lu que par la branche à **balles unitaires** (`litCanons`) : quatre armes sur
-  huit payaient −18 % cumulable deux fois pour rien. Même découpe dans
-  `powerIndex()` et dans le panneau de stats.
+  payait en haut de `_volley`, avant l’aiguillage, alors qu’`extraBarrels` n’était
+  lu que par la branche à **balles unitaires** : quatre armes sur huit payaient
+  −18 % cumulable deux fois pour rien. Même découpe dans `powerIndex()` et dans
+  le panneau de stats.
+- **UN CANON EN PLUS N’AJOUTE PAS LA MÊME CHOSE PARTOUT** (`canonEffet(a)`) : une
+  balle en éventail, **deux plombs**, une grenade, un arc, une nappe de laser.
+  Le retirer du pool pour cinq armes les laissait sans aucune carte de projectile,
+  et le joueur qui prenait « Second canon » ne voyait rien changer. `litCanons` se
+  **déduit** de `canonEffet` — seule la lame ne lance rien. `canonGain(a, extra)`
+  est le point de passage du gain : `_volley`, `powerIndex()` et le panneau de
+  stats lisent la **même** fonction. Le bonus « double » emprunte le même chemin,
+  donc il vaut désormais pour les dix armes.
 - **AUCUNE ARME NE DESCEND SOUS 60 % DE LA RÉFÉRENCE DANS L’UN DES DEUX
   CONTEXTES.** Les boss sont un cinquième du temps de manche, contre une cible
   unique : une arme qui saute entre les cibles n’a rien à sauter. D’où
@@ -95,8 +103,8 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   du cycle. La conversion se calcule, elle ne se déclare pas à côté de la
   mécanique, et l’**uptime n’y est pas** : c’est un terme à part du modèle,
   l’inclure le compterait deux fois. Les cinq autres rendent 1, et c’est
-  **mesuré** : la convergence de la dispersion *maintient* ses six plombs sur une
-  cible unique, elle ne les fait pas dépasser. `powerIndex()` lit
+  **mesuré** : la gerbe de la dispersion couvre un corps à la scission, elle ne
+  le frappe pas deux fois. `powerIndex()` lit
   `dpsBase × conversionBoss`, donc une conversion fausse déréglait la mise à
   l’échelle des boss elle-même.
 - **DIX ARMES, DIX FAMILLES DE QUATRE CARTES**, et chacune est donnée par
@@ -117,6 +125,19 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   fin de la recharge, sinon la contrepartie deviendrait un cadeau permanent. Il
   ne supprime pas la vulnérabilité — 1,8 s sans rien rendre — il l'empêche
   d'être létale.
+- **LA DISPERSION EST UNE DISTANCE, PAS UN CÔNE.** Une balle unique part, vaut
+  `porteur` plombs, et **se scinde à `scission` px parcourus** (`b.scinde`,
+  résolu par `_scinder()` dans `_bullets`, jamais dans `_fire` — pousser dans le
+  tableau qu’on parcourt fait avancer les plombs d’un tick de trop). Sur la ligne
+  de scission l’arme est **muette** : le porteur touche avant de s’ouvrir. La
+  bande utile commence juste après, d’où `tenueDe = scission × 1,25` — un pilote
+  posé sur la ligne mesurait l’arme là où elle ne rend rien.
+  L’**ouverture de la gerbe est le levier de horde, pas les dégâts** : à 0,42 rad
+  les plombs se marchent dessus sur un seul corps et le surtuage plafonne `Dh`
+  (5,45 → 7,9 de dégâts n’a rendu que +1 de `Dh`) ; à 0,80 ils couvrent plusieurs
+  corps ; à 1,05 la densité tombe et la salve ne tue plus rien. Le 3/4
+  (`scissionDroite`) **supprime la divergence** au lieu de resserrer un cône :
+  c’est ce qui rend l’arme jouable au-delà de la bande et sur une cible unique.
 - **UN OBUS N'EST NI UNE GRENADE NI UN MISSILE.** Trois champs de balle, trois
   sens : `missile` **guide** et ne touche que sa cible (Salve) ; `direct` fait le
   **direct puis le souffle** ; `lob` **ralentit**. Les déduire l'un de l'autre a
@@ -128,6 +149,14 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   vague et attend déjà tout le monde.
 - **L’index d’arme circule dans l’instantané** : `ARMES` est **append-only**,
   comme `ENEMY_TYPES` ou `BOSS_ROSTER`.
+- **LE CONTEXTE DE TIRAGE EST D’ÉQUIPE, L’ARME EST DU JOUEUR.** `_cardCtx()` ne
+  porte que ce qui vaut pour tout le monde ; `offerCards(p)` y **ajoute**
+  `arme: p.arme`. Sans cette ligne `eligibleCards` lisait le tir standard pour
+  tous, et les trois filtres par arme tombaient **en silence** : la famille du
+  porteur était retirée du pool au lieu d’y être garantie, aucune carte à
+  coefficient nul n’était écartée, et « Second canon » s’offrait aux armes qui ne
+  le lisaient pas. `_poolWarn()` recevait le même contexte, donc il ne pouvait
+  pas le signaler.
 - **La famille de l’arme portée est garantie dans le pool, celles des autres en
   sont retirées.** Ce sont les seules cartes qui ne peuvent jamais faire doublon,
   et elles sont exclues du rapport communes/épiques — les quarante ne sont jamais

@@ -77,6 +77,60 @@ plus large que la tolérance. Au-delà de vingt graines, chaque itération coût
 cinq minutes de simulation pour un gain sous le bruit. Ce qui reste dans la
 bande se tranche **en jouant**, pas au banc.
 
+**Ce relevé précède la correction d'attribution de 0.15.9** (juste dessous) : ses
+`Dh` comptaient aussi ce que la classe et les zones délivraient. La campagne est
+à rejouer avant d'y retoucher.
+
+### La dispersion se scinde (0.15.9)
+
+Le fusil à dispersion tirait six plombs en cône : à 24 m de portée utile, rien
+que le joueur puisse **jouer** ne le distinguait du tir standard. Il tire
+maintenant **une balle** qui vaut deux plombs et se **scinde** à 260 px.
+
+**Attribution corrigée d'abord.** `_bullets` posait le drapeau d'arme pendant le
+vol, mais l'impact se résout dans `_collisions` : toute une image de touches
+était créditée à la **dernière balle parcourue**, dégâts de classe et de zone
+compris. Le drapeau se pose maintenant par balle dans `_collisions`. Conséquence
+directe : le `Dh` de **toutes** les armes à balle baisse d'environ 20 %, la
+référence comprise. Les deux tables ci-dessous sont relevées après correction, à
+3 graines × 10 min — du **relatif**, pas la campagne.
+
+| arme | Dh | Db | **V** | cible | écart |
+|---|---|---|---|---|---|
+| tir standard | 41,8 | 92,6 | **1,00** | 1,00 | +0,00 |
+| canon d'assaut | 42,3 | 111,9 | **1,08** | 1,06 | +0,02 |
+| canon laser | 60,6 | 65,9 | **1,19** | 1,06 | +0,13 |
+| tesla | 63,0 | 122,0 | **1,44** | 1,02 | +0,42 |
+| lame tournoyante | 45,3 | 55,5 | **1,08** | 1,02 | +0,06 |
+| fusil à dispersion | 35,4 | 114,7 | **0,99** | 1,06 | −0,07 |
+| railgun | 46,1 | 75,2 | **1,00** | 1,10 | −0,10 |
+| lance-grenades | 44,8 | 79,3 | **1,00** | 1,04 | −0,04 |
+| fusil de siège | 35,6 | 74,2 | **0,98** | 1,06 | −0,08 |
+| fusil de précision | 48,4 | 79,4 | **1,05** | 1,06 | −0,01 |
+
+**Le tesla et le laser ne délivrent pas par balle**, donc la correction ne les a
+pas touchés : leur écart n'est pas neuf, il était **masqué** par la
+sur-attribution des autres. C'est un lot d'équilibrage à part, pas un correctif.
+
+**Profil de portée** (cible immobile immortelle, tireur figé, 20 s, dps délivré) :
+
+| distance (px) | 60 | 120 | 180 | 240 | 260 | 300 | 340 | 400 | 460 |
+|---|---|---|---|---|---|---|---|---|---|
+| tir standard | 93 | 88 | 90 | 90 | 88 | 89 | 90 | 91 | 88 |
+| dispersion | 46 | 46 | 45 | 46 | 49 | **138** | 92 | 45 | 45 |
+| + Canon à âme lisse | 47 | 45 | 46 | 46 | 44 | 90 | 92 | 91 | 89 |
+| + Second canon | 38 | 38 | 37 | 38 | 38 | **149** | 108 | 39 | 37 |
+
+Bande utile : **276 – 350 px** (14 – 17,5 m). Sous 276 la balle touche avant de
+s'ouvrir, au-delà la gerbe s'est écartée. Le 3/4 aplatit la queue au lieu de
+relever la pointe.
+
+**Le levier de horde est l'ouverture, pas les dégâts.** À cadence et dégâts
+constants : arc 0,42 → V 0,80 · **0,80 → 0,90** · 1,05 → 0,74. Et 5,45 → 7,9 de
+dégâts par plomb n'a rendu que **+1 de `Dh`** — les plombs se marchaient dessus,
+le surtuage mangeait tout. La cadence n'a payé qu'**une fois l'ouverture
+ouverte** : 0,40 → 0,32 s vaut +0,07 de V à arc 0,80, et rien à 0,42.
+
 ### Ressenti de combat et lien de soin (plan 7, lots L1 et L2)
 
 **La fréquence d'un événement détermine inversement son budget de retour.** Un jeu

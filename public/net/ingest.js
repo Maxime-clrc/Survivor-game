@@ -46,7 +46,7 @@ export function ingest(msg) {
       critSeq: a[8] ?? 0,
     }])),
     bullets: new Map(msg.b.map(a => [a[0], {
-      id: a[0], x: a[1], y: a[2], owner: a[3] ?? 0, missile: a[4] ?? 0,
+      id: a[0], x: a[1], y: a[2], owner: a[3] ?? 0, sil: a[4] ?? 0,
     }])),
     links: msg.hl ?? null,
     shots: new Map(msg.s.map(a => [a[0], { id: a[0], x: a[1], y: a[2] }])),

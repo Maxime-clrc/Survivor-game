@@ -4,8 +4,9 @@ import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
 import { ARMES } from "/shared/armes.js";
 import { BOSS_CFG, MECH_JAIL, estFinal } from "/shared/bosses.js";
-import { BIOME_CFG, CFG, weatherFor, windAt } from "/shared/game_state.js";
+import { BIOME_CFG, CFG, SIL_MISSILE, SIL_PORTEUR, weatherFor, windAt } from "/shared/game_state.js";
 import { biomeNom, weatherNom } from "/shared/biomes.js";
+import { CARD_CFG } from "/shared/cards.js";
 import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
 import { fmtM } from "/shared/units.js";
@@ -15,7 +16,7 @@ import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, fl
 import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, BOLT_RAIL, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, lastPlayerPos, resetGaze } from "./boss.js";
 import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls, drawWeather } from "./decor.js";
-import { blastMarks, bursts, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, stepFeedback, timeWarp, zoneFx } from "./fx.js";
+import { blastMarks, bursts, dashMarks, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";
 
@@ -26,6 +27,7 @@ export function resetFeedback() {
   gridPings.length = 0;
   bursts.length = 0;
   blastMarks.length = 0;
+  dashMarks.length = 0;
   pulse.t = 0;
   timeWarp.stop = 0; timeWarp.held = 0;
   shooterFire.clear();
@@ -268,6 +270,12 @@ function drawWorld(v) {
   drawFloor();
   drawGrid();
   drawBlastMarks();
+  for (const p of v.playerList) {
+    if (!p.dashing || p.downed || !ownedCounts(p.id).has("vif_argent")) continue;
+    spawnDashMark(p.x, p.y, CARD_CFG.VIF_ARGENT_RADIUS,
+                  ownerColorOf(p.id) ?? COMBAT.bullet, p.id);
+  }
+  drawDashMarks();
   // la pulsation du regard passe AVANT tout telegraphe au sol : c'est par
   // construction, et non par reglage d'opacite, qu'elle n'en masque aucun.
   drawGazeArene(v);
@@ -329,8 +337,11 @@ function drawWorld(v) {
   }
   for (const b of v.bulletList) {
     if (!inView(b.x, b.y, 40)) continue;
-    if (b.missile) { drawMissile(b, ownerColorOf(b.owner) ?? COMBAT.bullet); continue; }
-    drawBolt(b, CFG.BULLET_RADIUS, ownerColorOf(b.owner) ?? COMBAT.bullet,
+    const col = ownerColorOf(b.owner) ?? COMBAT.bullet;
+    if (b.sil === SIL_MISSILE) { drawMissile(b, col); continue; }
+    // LE PORTEUR EST GROS, LES PLOMBS SONT FINS : sans cet ecart le joueur ne
+    // voit pas ce qui se scinde, et la distance de scission ne s'apprend pas
+    drawBolt(b, CFG.BULLET_RADIUS * (b.sil === SIL_PORTEUR ? 1.8 : 1), col,
              bulletTrail, silhouetteDe(v, b.owner));
   }
 

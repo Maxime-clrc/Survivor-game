@@ -1153,10 +1153,43 @@ function porteeArme(me, arme) {
   return porteeMax;
 }
 
+/* LA SCISSION DOIT SE VOIR : c'est le seul chiffre que l'arme demande
+   d'apprendre, et une distance qu'on ne voit pas ne s'apprend pas. Un chevron
+   pose sur la ligne de tir, exactement la ou la balle s'ouvre. */
+function drawScission(me, arme) {
+  // le RETICULE LOCAL et non l'angle du serveur : le marqueur doit suivre la
+  // souris a l'image, comme celui du lance-grenades
+  const a = Math.atan2(mouse.y - me.y, mouse.x - me.x);
+  // la balle nait devant le joueur : la scission tombe donc plus loin que le
+  // chiffre de la table, et c'est ce point-la qu'il faut montrer
+  const d = arme.scission + CFG.PLAYER_RADIUS + 2;
+  const x = me.x + Math.cos(a) * d;
+  const y = me.y + Math.sin(a) * d;
+  const col = ownerColorOf(myId) ?? COMBAT.bullet;
+  const px = -Math.sin(a), py = Math.cos(a);
+  ctx.save();
+  ctx.strokeStyle = alpha(col, 0.22);
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 7]);
+  ctx.beginPath();
+  ctx.arc(me.x, me.y, d, a - 0.42, a + 0.42);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = alpha(col, 0.55);
+  ctx.beginPath();
+  ctx.moveTo(x + px * 6, y + py * 6);
+  ctx.lineTo(x + px * 17, y + py * 17);
+  ctx.moveTo(x - px * 6, y - py * 6);
+  ctx.lineTo(x - px * 17, y - py * 17);
+  ctx.stroke();
+  ctx.restore();
+}
+
 export function drawVisee(playerList) {
   const me = playerList?.find(p => p.id === myId);
   if (!me || me.downed) return;
   const arme = ARMES[me.arme];
+  if (arme?.scission) { drawScission(me, arme); return; }
   if (arme?.tir !== "grenade") return;
 
   const max = porteeArme(me, arme);

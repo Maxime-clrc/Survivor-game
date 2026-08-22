@@ -1541,11 +1541,10 @@ export const CARDS = [
   {
     id: "disp_converge", nom: "Canon à âme lisse", rarity: 2, max: 1, tags: ["off"],
     family: "arme_dispersion", tier: 2,
-    desc: "dispersion : sous {0}, toute la gerbe frappe le même point",
-    vals: () => ({ "0": fmtM(250) }),
+    desc: "dispersion : les plombs ne divergent plus, ils partent en faisceau",
     effective: () => t("cards.disp_converge.eff",
-      "c'est ce qui rend l'arme jouable sur une cible unique"),
-    apply(m) { m.convergeTotale = 1; },
+      "c'est ce qui rend l'arme jouable au-delà de la scission, et sur une cible unique"),
+    apply(m) { m.scissionDroite = 1; },
   },
   {
     id: "disp_rebond", nom: "Chevrotine vive", rarity: 3, max: 1, tags: ["off"],
@@ -1849,7 +1848,7 @@ export function defaultMods() {
 
     plombsPlus: 0,
     gerbeMul: 1,
-    convergeTotale: 0,
+    scissionDroite: 0,
     plombsChain: 0,
     railVite: 1,
     railDegats: 0,

@@ -2779,6 +2779,51 @@
                    profondeur. Aucune regle ne nomme un cadre, donc un treizieme
                    cadre reste UNE LIGNE dans `CADRE_SKIN`.
 
+     0.15.9 correctif de test : la dispersion se SCINDE, le canon en plus vaut
+                   pour dix armes, la trainee de Vif-argent se voit, le cadre
+                   suit le salon.
+                   LA DISPERSION EST UNE DISTANCE, PAS UN CONE. Six plombs en
+                   cone sur 24 m ne demandaient rien au joueur. Une balle unique
+                   part, vaut deux plombs, et se scinde a 260 px : muette sous
+                   276, 1,55 x la reference entre 276 et 350, 0,50 au-dela. La
+                   carte 3/4 « Canon a ame lisse » ne resserre plus un cone, elle
+                   SUPPRIME la divergence — la queue s'aplatit au lieu que la
+                   pointe monte. `arme.convergence`, `mods.convergeTotale` et les
+                   options `lat`/`conv` de `_fire` sont morts avec elle.
+                   L'OUVERTURE EST LE LEVIER DE HORDE, PAS LES DEGATS : a 0,42
+                   rad les plombs se marchaient dessus et le surtuage plafonnait
+                   `Dh` (5,45 -> 7,9 de degats n'a rendu que +1). Arc 0,80,
+                   interval 0,32, degats 6,2 — V 0,99 pour une cible de 1,06.
+                   UN CANON EN PLUS N'AJOUTE PAS LA MEME CHOSE PARTOUT
+                   (`canonEffet`) : une balle en eventail, deux plombs, une
+                   grenade, un arc, une nappe. « Second canon » etait retire du
+                   pool de cinq armes, qui n'avaient donc AUCUNE carte de
+                   projectile. `litCanons` s'en deduit, `canonGain` porte le gain
+                   pour `_volley`, `powerIndex()` et le panneau de stats. Le
+                   bonus « double » emprunte le meme chemin.
+                   ATTRIBUTION A L'ARME CORRIGEE : `_bullets` posait le drapeau
+                   pendant le vol, l'impact se resout dans `_collisions` — toute
+                   une image de touches etait creditee a la derniere balle
+                   parcourue, degats de classe et de zone compris. Le `Dh` de
+                   toutes les armes a balle baisse de ~20 %, reference comprise ;
+                   le tesla (1,44) et le laser (1,19) n'ont pas bouge, leur ecart
+                   etait MASQUE. `hf.armeDegats` ne sert qu'au banc, aucun haut
+                   fait ne le lit : rien ne change en partie.
+                   VIF-ARGENT NE FAISAIT RIEN A L'ECRAN. Elle blessait depuis
+                   toujours ; sans trace au sol le joueur ne pouvait pas le
+                   savoir. `spawnDashMark` pose un point tous les 10 px — pas un
+                   par image, sinon la densite suit la frequence d'affichage.
+                   LE POOL DE CARTES IGNORAIT L'ARME PORTEE : `_cardCtx()` est
+                   d'EQUIPE, `p.arme` est du JOUEUR, et `offerCards` ne l'y
+                   ajoutait pas. Les trois filtres par arme tombaient en silence
+                   — la famille du porteur RETIREE du pool au lieu d'y etre
+                   garantie, aucune carte a coefficient nul ecartee, « Second
+                   canon » offert partout. C'est la cause reelle de « la carte ne
+                   change rien ».
+                   LE CADRE NE SUIVAIT PAS LE SALON : `metaCadre` renvoyait le
+                   profil sans rediffuser `lobbyPayload()`, donc il fallait
+                   quitter la salle et y revenir.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2787,4 +2832,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.15.8";
+export const VERSION = "0.15.9";

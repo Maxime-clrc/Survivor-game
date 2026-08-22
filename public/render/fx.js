@@ -540,6 +540,42 @@ export function drawBlastMarks() {
   }
 }
 
+/* LA TRAINEE DE VIF-ARGENT. La carte blessait depuis toujours, elle ne se
+   voyait pas — donc elle « ne faisait rien ». Un point tous les 10 px et non un
+   par image : sinon la densite de la trainee suit la frequence d'affichage. */
+const DASH_MARK_MAX = 48;
+const DASH_MARK_PAS = 10;
+const DASH_MARK_DUR = 520;
+export const dashMarks = [];
+export function spawnDashMark(x, y, r, col, owner) {
+  for (let i = dashMarks.length - 1; i >= 0; i--) {
+    if (dashMarks[i].owner !== owner) continue;
+    if ((dashMarks[i].x - x) ** 2 + (dashMarks[i].y - y) ** 2 < DASH_MARK_PAS ** 2) return;
+    break;
+  }
+  if (dashMarks.length >= DASH_MARK_MAX) dashMarks.shift();
+  dashMarks.push({ x, y, r, col, owner, at: performance.now() });
+}
+export function drawDashMarks() {
+  if (dashMarks.length === 0) return;
+  const now = performance.now();
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = dashMarks.length - 1; i >= 0; i--) {
+    const m = dashMarks[i];
+    const k = (now - m.at) / DASH_MARK_DUR;
+    if (k >= 1) { dashMarks[i] = dashMarks[dashMarks.length - 1]; dashMarks.pop(); continue; }
+    if (!inView(m.x, m.y, m.r)) continue;
+    const rr = m.r * (0.55 + 0.45 * (1 - k));
+    ctx.fillStyle = alpha(m.col, 0.20 * (1 - k));
+    ctx.beginPath(); ctx.arc(m.x, m.y, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(FX.flash, 0.26 * (1 - k) ** 2);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(m.x, m.y, rr, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // [21] l'invulnerabilite breve d'un releve doit SE VOIR.
 // CHAQUE EFFET AUTOUR D'UN PERSONNAGE OCCUPE UNE BANDE DE RAYON EXCLUSIVE. La
 // table vit ici, la couche la plus basse qui en a besoin : les eclats de coque

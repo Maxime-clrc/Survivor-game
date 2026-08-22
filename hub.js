@@ -404,6 +404,9 @@ export function createHub(store, log, commit = "") {
         if (typeof msg.id !== "string") break;
         if (!equiperCadre(client, msg.id)) break;
         sendProgress(client);
+        // le cadre voyage avec le salon comme la couleur : sans cette diffusion
+        // il ne se voyait qu'a la prochaine entree dans la salle
+        if (client.room) client.room.broadcast(client.room.lobbyPayload());
         break;
       }
 

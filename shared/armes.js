@@ -60,6 +60,19 @@ export const ARME_CFG = {
   // comptait deux fois sur un meme corps, et le banc le mesurait a 2,0 x nominal
   SIEGE_SOUFFLE: 0.5,
 
+  // dispersion : la balle unique se scinde a distance FIXE. C'est le seul
+  // chiffre que le joueur doit apprendre — de pres le porteur seul touche, de
+  // loin la gerbe s'est deja ecartee. Le porteur vaut deux plombs.
+  DISP_SCISSION: 260,
+  DISP_PORTEUR: 2,
+  DISP_ARC: 0.80,
+  // le 3/4 supprime la divergence : les plombs partent en faisceau parallele,
+  // assez large pour couvrir un boss, trop etroit pour ratisser une horde
+  DISP_DROITE: 44,
+
+  // ce qu'un canon en plus ajoute a une arme a plombs
+  CANON_PLOMBS: 2,
+
   // degats par seconde du sillon ; la duree est celle de toute brulure
   RAIL_SILLON: 14,
   PREC_FROID: 3,
@@ -138,14 +151,12 @@ export const ARMES = [
   {
     id: "dispersion", nom: "Fusil à dispersion", tir: "balle", axe: "distance",
     famille: true,
-    interval: 0.50, degats: 5.45, plombs: 6, portee: 0.5,
-    resume: "six plombs en cône, qui convergent de près",
-    contrainte: "portée courte",
-    exige: EXIGE(0.5, 0, 1, 0, 0),
+    interval: 0.32, degats: 6.2, plombs: 6, portee: 0.5,
+    scission: ARME_CFG.DISP_SCISSION, porteur: ARME_CFG.DISP_PORTEUR,
+    resume: "une balle qui se scinde en six plombs à mi-portée",
+    contrainte: "inoffensive de près, dispersée de loin",
+    exige: EXIGE(0.5, 0.5, 1, 0, 0),
     ech: ECH(0.9, 0.8, 0.7, 0.6, 0.6, 0.6, 0.8),
-    // les plombs CONVERGENT sous cette distance : un boss n a pas de flancs, et
-    // une arme qui ne peut pas concentrer sa gerbe tombe sous le plancher
-    convergence: 250,
   },
   {
     id: "railgun", nom: "Railgun", tir: "balle", axe: "ressource",
@@ -240,10 +251,28 @@ export function familleDeArme(armeId) {
   return ARME_BY_ID.get(armeId)?.famille ? `arme_${armeId}` : null;
 }
 
-/* `extraBarrels` n'est lu que par la branche a BALLES UNITAIRES de `_volley` :
-   une arme a plombs, a arc, a faisceau ou a grenade paie `barrelDamageMul` sans
-   rien recevoir. La condition se deduit du tir, elle ne se tient pas a cote. */
-export const litCanons = a => a.tir === "balle" && !a.plombs;
+/* UN CANON EN PLUS N'AJOUTE PAS LA MEME CHOSE PARTOUT. Il n'etait lu que par la
+   branche a balles unitaires, donc la carte etait un malus pur ailleurs — et
+   retiree du pool, ce qui laissait cinq armes sans carte de projectile. Ce que
+   chacune en fait se DEDUIT du tir, elle ne se declare pas a cote. Seule la lame
+   n'a rien a multiplier : elle ne lance rien. */
+export const canonEffet = a =>
+  a.tir === "arc_sol" ? null
+    : a.plombs ? "plombs"
+    : a.tir === "balle" ? "balle"
+    : a.tir;
+
+export const litCanons = a => canonEffet(a) !== null;
+
+/* Ce que `extraBarrels` multiplie, arme par arme : `powerIndex()` et le panneau
+   de stats lisent la MEME fonction que `_volley`, sinon les trois divergent. */
+export function canonGain(a, extra) {
+  if (!(extra > 0)) return 1;
+  const e = canonEffet(a);
+  if (e === null) return 1;
+  if (e === "plombs") return (a.plombs + ARME_CFG.CANON_PLOMBS * extra) / a.plombs;
+  return 1 + extra;
+}
 
 /* Point de passage unique de l'echelle. La cadence se rescale sur sa REDUCTION :
    `fireIntervalMul` descend quand la cadence monte, donc l'appliquer a la valeur
@@ -334,9 +363,9 @@ export function conversionBoss(a) {
     const plancher = Math.max(0, 1 - ARME_CFG.CHALEUR_MUET * ARME_CFG.CHALEUR_CHUTE);
     return 1 + ((plancher + 1) / 2) * ARME_CFG.CHALEUR_BONUS;
   }
-  // les quatre autres rendent 1, et c'est MESURE : la convergence de la dispersion
-  // MAINTIENT ses plombs a 1 sans depasser, la perforation du railgun n'a rien a
-  // traverser sur un corps, et la rampe de l'assaut vaut autant en horde
+  // les quatre autres rendent 1, et c'est MESURE : la gerbe de la dispersion
+  // couvre un boss a la scission sans depasser, la perforation du railgun n'a
+  // rien a traverser sur un corps, et la rampe de l'assaut vaut autant en horde
   return 1;
 }
 
