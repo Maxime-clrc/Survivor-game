@@ -108,15 +108,15 @@ export const weatherTexte = i => t(`weather.${WEATHERS[i]?.key}.texte`, WEATHERS
 export const BIOMES = [
   {
     key: "usine", nom: "Usine",
-    resume: "piliers en grille, couloirs francs",
+    resume: "chaînes de production, allées franches",
   },
   {
     key: "fonderie", nom: "Fonderie",
-    resume: "ouvertures larges, deux cuves centrales",
+    resume: "deux fours massifs, une coulée entre eux",
   },
   {
     key: "friche", nom: "Friche",
-    resume: "obstacles épars, couverture destructible",
+    resume: "deux champs de ruines, terrain nu au milieu",
   },
   {
     key: "nebuleuse", nom: "Nébuleuse",
@@ -142,85 +142,116 @@ function rng(seed) {
   };
 }
 
+/* LA COMPOSITION, ET C EST ELLE QUI FAIT PARCOURIR UN LIEU. Les quatre tables
+   etaient quatre semis de rectangles dans la meme gamme de taille : un espace
+   uniformement encombre, sans dense ni ouvert, donc sans rythme. Une arene se
+   traverse, elle ne se pietine pas.
+
+   Chaque lieu a maintenant SA loi d implantation :
+     USINE      des bandes — chaine, allee, chaine. Long et mince, orthogonal.
+     FONDERIE   deux masses et un couloir entre elles. Peu d objets, enormes.
+     FRICHE     deux champs de ruines et du terrain nu au milieu. Epars, casse.
+     NEBULEUSE  de tres longues travees et des passages francs. Etire.
+
+   LE CARRE CENTRAL RESTE TRAVERSABLE dans les deux axes — `verifierBiomes()`
+   le rejoue a chaque graine, et c est ce qui autorise des masses pareilles sans
+   jamais enfermer une equipe. */
 const OBSTACLES = {
   usine: [
-    { x: 0.20, y: 0.30, w: 0.0575, h: 0.102 },
-    { x: 0.20, y: 0.70, w: 0.0575, h: 0.102 },
-    { x: 0.50, y: 0.30, w: 0.0575, h: 0.102 },
-    { x: 0.50, y: 0.70, w: 0.0575, h: 0.102 },
-    { x: 0.80, y: 0.30, w: 0.0575, h: 0.102 },
-    { x: 0.80, y: 0.70, w: 0.0575, h: 0.102 },
+    { x: 0.28, y: 0.16, w: 0.230, h: 0.036 },
+    { x: 0.72, y: 0.84, w: 0.230, h: 0.036 },
+    { x: 0.10, y: 0.16, w: 0.048, h: 0.090 },
+    { x: 0.90, y: 0.84, w: 0.048, h: 0.090 },
+    { x: 0.34, y: 0.52, w: 0.052, h: 0.130 },
+    { x: 0.66, y: 0.48, w: 0.052, h: 0.130 },
+    { x: 0.50, y: 0.90, w: 0.070, h: 0.048 },
   ],
   fonderie: [
-    { x: 0.35, y: 0.50, w: 0.125, h: 0.167 },
-    { x: 0.65, y: 0.50, w: 0.125, h: 0.167 },
+    { x: 0.30, y: 0.30, w: 0.120, h: 0.190 },
+    { x: 0.70, y: 0.70, w: 0.120, h: 0.190 },
+    { x: 0.50, y: 0.06, w: 0.260, h: 0.048 },
+    { x: 0.12, y: 0.78, w: 0.070, h: 0.070 },
+    { x: 0.88, y: 0.22, w: 0.070, h: 0.070 },
   ],
   friche: [
-    { x: 0.14, y: 0.22, w: 0.075, h: 0.089 },
-    { x: 0.30, y: 0.74, w: 0.056, h: 0.144 },
-    { x: 0.62, y: 0.18, w: 0.100, h: 0.078 },
-    { x: 0.86, y: 0.58, w: 0.069, h: 0.122 },
-    { x: 0.44, y: 0.42, w: 0.069, h: 0.078, hp: 1 },
-    { x: 0.72, y: 0.62, w: 0.069, h: 0.078, hp: 1 },
-    { x: 0.24, y: 0.50, w: 0.069, h: 0.078, hp: 1 },
+    { x: 0.10, y: 0.18, w: 0.085, h: 0.070 },
+    { x: 0.19, y: 0.30, w: 0.045, h: 0.110 },
+    { x: 0.26, y: 0.14, w: 0.060, h: 0.048 },
+    { x: 0.82, y: 0.80, w: 0.085, h: 0.070 },
+    { x: 0.90, y: 0.66, w: 0.045, h: 0.110 },
+    { x: 0.73, y: 0.88, w: 0.060, h: 0.048 },
+    { x: 0.50, y: 0.10, w: 0.110, h: 0.040 },
+    { x: 0.46, y: 0.44, w: 0.062, h: 0.066, hp: 1 },
+    { x: 0.70, y: 0.36, w: 0.062, h: 0.066, hp: 1 },
+    { x: 0.30, y: 0.62, w: 0.062, h: 0.066, hp: 1 },
   ],
   nebuleuse: [
-    { x: 0.26, y: 0.22, w: 0.150, h: 0.052 },
-    { x: 0.74, y: 0.78, w: 0.150, h: 0.052 },
-    { x: 0.15, y: 0.66, w: 0.050, h: 0.124 },
-    { x: 0.85, y: 0.34, w: 0.050, h: 0.124 },
-    { x: 0.50, y: 0.50, w: 0.070, h: 0.070, hp: 1 },
-    { x: 0.50, y: 0.14, w: 0.060, h: 0.060, hp: 1 },
+    { x: 0.24, y: 0.20, w: 0.300, h: 0.034 },
+    { x: 0.76, y: 0.80, w: 0.300, h: 0.034 },
+    { x: 0.08, y: 0.58, w: 0.040, h: 0.150 },
+    { x: 0.92, y: 0.42, w: 0.040, h: 0.150 },
+    { x: 0.50, y: 0.30, w: 0.150, h: 0.030 },
+    { x: 0.50, y: 0.72, w: 0.056, h: 0.056, hp: 1 },
+    { x: 0.36, y: 0.86, w: 0.056, h: 0.056, hp: 1 },
   ],
 };
 
 const HZ_NORMAL = {
   usine: [
-    { kind: HZ_SLOW, x: 0.35, y: 0.50 },
-    { kind: HZ_SLOW, x: 0.65, y: 0.50 },
+    { kind: HZ_SLOW, x: 0.50, y: 0.34 },
+    { kind: HZ_SLOW, x: 0.50, y: 0.66 },
   ],
   fonderie: [
-    { kind: HZ_SLOW, x: 0.35, y: 0.24 },
-    { kind: HZ_SLOW, x: 0.65, y: 0.76 },
+    { kind: HZ_SLOW, x: 0.50, y: 0.50 },
+    { kind: HZ_SLOW, x: 0.16, y: 0.50 },
   ],
   friche: [
-    { kind: HZ_SLOW, x: 0.10, y: 0.55 },
-    { kind: HZ_SLOW, x: 0.56, y: 0.84 },
+    { kind: HZ_SLOW, x: 0.58, y: 0.76 },
+    { kind: HZ_SLOW, x: 0.14, y: 0.62 },
   ],
-  // en apesanteur c'est le FREINAGE qui manque : le champ de ralentissement est
+  // en apesanteur c est le FREINAGE qui manque : le champ de ralentissement est
   // ici un puits de gravite, meme regle, meme chiffre.
   nebuleuse: [
-    { kind: HZ_SLOW, x: 0.32, y: 0.60 },
-    { kind: HZ_SLOW, x: 0.68, y: 0.40 },
+    { kind: HZ_SLOW, x: 0.30, y: 0.55 },
+    { kind: HZ_SLOW, x: 0.70, y: 0.45 },
   ],
 };
 
+/* CHAQUE LIEU RECOMPOSE LES CINQ DANGERS, il n en invente aucun : ce sont les
+   memes rayons, les memes degats, la meme horloge. Ce qui change est ce qu ils
+   SONT — un geyser est un jet de vapeur a l Usine, une grille chaude a la
+   Fonderie, un cable sous tension a la Friche, une anomalie dans le vide. La
+   table de rendu vit dans `render/dangers.js`. */
 const HZ_CAUCHEMAR = {
   usine: [
-    { kind: HZ_GEYSER, x: 0.35, y: 0.50, period: 7.0, phase: 0.00 },
-    { kind: HZ_GEYSER, x: 0.65, y: 0.50, period: 5.4, phase: 0.37 },
-    { kind: HZ_GEYSER, x: 0.50, y: 0.14, period: 6.2, phase: 0.64 },
-    { kind: HZ_SLIP, x: 0.16, y: 0.50 },
+    { kind: HZ_GEYSER, x: 0.50, y: 0.34, period: 7.0, phase: 0.00 },
+    { kind: HZ_GEYSER, x: 0.50, y: 0.66, period: 5.4, phase: 0.37 },
+    { kind: HZ_GEYSER, x: 0.16, y: 0.50, period: 6.2, phase: 0.64 },
     { kind: HZ_SLIP, x: 0.84, y: 0.50 },
+    { kind: HZ_SLIP, x: 0.50, y: 0.50 },
   ],
+  // la louche court ENTRE les deux fours : le couloir central est le seul
+  // endroit ou elle a la place, et c est aussi le passage franc de la carte.
   fonderie: [
-    { kind: HZ_POOL, x: 0.35, y: 0.24 },
-    { kind: HZ_POOL, x: 0.65, y: 0.76 },
-    { kind: HZ_EMBER, x: 0.50, y: 0.30, dx: 1, dy: 0, phase: 0.00 },
+    { kind: HZ_POOL, x: 0.16, y: 0.14 },
+    { kind: HZ_POOL, x: 0.84, y: 0.86 },
+    { kind: HZ_EMBER, x: 0.50, y: 0.50, dx: 1, dy: 0, phase: 0.00 },
     { kind: HZ_EMBER, x: 0.50, y: 0.70, dx: 1, dy: 0, phase: 0.50 },
+    { kind: HZ_GEYSER, x: 0.50, y: 0.32, period: 6.6, phase: 0.20 },
+    { kind: HZ_GEYSER, x: 0.16, y: 0.62, period: 5.8, phase: 0.70 },
   ],
   friche: [
-    { kind: HZ_POOL, x: 0.18, y: 0.68 },
-    { kind: HZ_POOL, x: 0.50, y: 0.86 },
-    { kind: HZ_POOL, x: 0.82, y: 0.80 },
+    { kind: HZ_POOL, x: 0.14, y: 0.76 },
+    { kind: HZ_POOL, x: 0.86, y: 0.24 },
+    { kind: HZ_GEYSER, x: 0.56, y: 0.62, period: 7.4, phase: 0.10 },
+    { kind: HZ_GEYSER, x: 0.38, y: 0.26, period: 6.0, phase: 0.55 },
   ],
-  // le sol glissant EST l'apesanteur, et la braise un debris incandescent qui
-  // traverse la travee. Aucun danger neuf : le biome recompose les cinq.
   nebuleuse: [
-    { kind: HZ_SLIP, x: 0.22, y: 0.42 },
-    { kind: HZ_SLIP, x: 0.78, y: 0.58 },
-    { kind: HZ_EMBER, x: 0.50, y: 0.32, dx: 1, dy: 0, phase: 0.20 },
-    { kind: HZ_EMBER, x: 0.50, y: 0.70, dx: 1, dy: 0, phase: 0.70 },
+    { kind: HZ_SLIP, x: 0.24, y: 0.44 },
+    { kind: HZ_SLIP, x: 0.76, y: 0.56 },
+    { kind: HZ_EMBER, x: 0.50, y: 0.44, dx: 1, dy: 0, phase: 0.20 },
+    { kind: HZ_EMBER, x: 0.50, y: 0.62, dx: 1, dy: 0, phase: 0.70 },
+    { kind: HZ_POOL, x: 0.50, y: 0.88 },
   ],
 };
 

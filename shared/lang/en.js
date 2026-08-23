@@ -1156,11 +1156,11 @@ export const EN = {
 
   /* --- biomes, dangers, meteo --------------------------------------------- */
   "biome.usine.nom": "Factory",
-  "biome.usine.resume": "pillars on a grid, clean corridors",
+  "biome.usine.resume": "production lines, clean aisles",
   "biome.fonderie.nom": "Foundry",
-  "biome.fonderie.resume": "wide openings, two central vats",
+  "biome.fonderie.resume": "two massive furnaces, a casting run between",
   "biome.friche.nom": "Wasteland",
-  "biome.friche.resume": "scattered obstacles, destructible cover",
+  "biome.friche.resume": "two rubble fields, bare ground between",
   "biome.nebuleuse.nom": "Nebula",
   "biome.nebuleuse.resume": "long spans, bays open on the void",
   "hazard.geyser": "geyser",

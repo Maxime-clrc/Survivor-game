@@ -3222,6 +3222,31 @@
                    c est elle l annonce ; a l amorce le jet, l arc ou la chaleur
                    montent avec `st.k`.
 
+     0.17.4 lot 4  LA COMPOSITION. Les quatre implantations etaient quatre semis
+                   de rectangles dans la meme gamme de taille : un espace
+                   uniformement encombre, donc sans dense ni ouvert, donc sans
+                   rythme. Une arene se traverse, elle ne se pietine pas.
+                   Chaque lieu a maintenant SA loi d implantation. L Usine pose
+                   des BANDES — chaine, allee, chaine — longues, minces,
+                   orthogonales. La Fonderie pose DEUX MASSES et un couloir entre
+                   elles : cinq objets par vue au lieu de six, mais 6,8 % de
+                   surface contre 4,2 %, et c est exactement le contraste
+                   recherche. La Friche pose DEUX CHAMPS DE RUINES et laisse du
+                   terrain nu au milieu — dix objets par vue, tous petits. La
+                   Nebuleuse pose de TRES LONGUES TRAVEES et des passages francs.
+                   Les dangers suivent l architecture au lieu de la doubler : la
+                   louche de la Fonderie court dans le couloir ENTRE les deux
+                   fours, les jets de vapeur de l Usine tombent dans les allees,
+                   les flaques de la Friche s installent dans les gravats.
+                   Chaque lieu recompose les cinq dangers, aucun n en invente :
+                   memes rayons, memes degats, meme horloge. La Fonderie et la
+                   Friche gagnent un GEYSER — grille chaude et cable sous tension
+                   — la Nebuleuse une FLAQUE, qui y est un champ de radiation.
+                   VERIFIE : `verifierBiomes()` muet sur 200 graines. Plafonds de
+                   surface tenus, aucun danger pose sur un obstacle malgre les
+                   40 px de gigue de la Friche, carre central traversable dans
+                   les deux axes pour les quatre lieux et les trois modes.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3230,4 +3255,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.17.3";
+export const VERSION = "0.17.4";
