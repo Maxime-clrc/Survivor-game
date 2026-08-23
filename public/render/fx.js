@@ -12,7 +12,7 @@ import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
 import { GFX_MEDIUM, gfx, latest, myId } from "../core/state.js";
 import { ENEMY_TINT, alertInfo, setAlertInfo } from "../net/interp.js";
-import { ELITE_GOLD, GRID_FINE, camera, ctx, hazardsActifs, inView, lumDir, ownerColorOf } from "./stage.js";
+import { ELITE_GOLD, GRID_FINE, camera, ctx, hazardsActifs, inView, lumDir, ownerColorOf, skin } from "./stage.js";
 
 
 const PARTICLE_2D = 300;
@@ -103,14 +103,23 @@ function handleEvent(e) {
       tirBouche(e);
       break;
 
-    case "impact":
+    case "impact": {
       // [26d] le critique PREND la place de la touche dans le limiteur : le
-      // nombre de voix par seconde ne bouge pas d'un cran.
-      if (e.crits > 0) playSound("critique", { key: "impact" });
-      else playSound("impact");
+      // nombre de voix par seconde ne bouge pas d'un cran. Le coup lourd fait
+      // pareil — un troisieme palier de touche ne coute donc aucune voix.
+      const pal = palierDe(e);
+      // UN DEGAT CONTINU EST MUET. Il sortait 27 fois par seconde sur la meme
+      // clef que les vraies touches et leur prenait leur place dans le limiteur :
+      // le mix etait plein de poison. Les chiffres agreges le disent deja.
+      if (pal !== HIT_CONTINU) {
+        if (e.crits > 0) playSound("critique", { key: "impact" });
+        else if (pal === HIT_LOURD) playSound("impactLourd", { key: "impact", claim: true });
+        else playSound("impact");
+      }
       if (e.boss) bossHit.at = performance.now();
-      else { registerHit(e); aggregateDamage(e); }
+      else { registerHit(e, pal); aggregateDamage(e); }
       break;
+    }
 
     case "blesse":
       aggregateSelf("hurt", e);
@@ -486,17 +495,53 @@ function chainPitch() {
   chain.at = now;
   return Math.pow(2, chain.n / 12);
 }
-function registerHit(e) {
-  let dx = 0, dy = 0;
-  if (latest) {
+/* QUATRE PALIERS, ET C'EST LA CIBLE QUI LES DECIDE. La part de PV max retiree
+   dit a la fois la puissance du coup ET la masse de ce qui l'encaisse : le meme
+   rail rend LOURD sur un fantassin et LEGER sur un colosse, donc « un ennemi
+   lourd reagit moins » sort du meme nombre, sans table de masse.
+
+   LA BOUCHE DIT L'ARME, L'IMPACT DIT LE COUP. L'identite de l'arme voyage deja
+   par trois canaux — depart, silhouette du projectile, voix. La rejouer ici
+   ferait un quatrieme axe sur un evenement qui sort des dizaines de fois par
+   seconde, et le palier 0 de `RENDU.md` ne le paie pas.
+
+   UN TICK DE BRULURE N'EST PAS UNE TOUCHE. Le serveur le dit deja — `_damage`
+   n'incremente pas `hitSeq` en `overTime` — et le client l'effacait. MESURE, 4
+   graines, 12 min, 4 joueurs, mode normal : sur 92 968 evenements d'impact,
+   75 651 (81 %) sont du degat CONTINU. Ils rendaient l'eclair blanc, le recul
+   directionnel, deux etincelles et une voix — pour un poison. Ils gardent un
+   eclair court, ils perdent tout le reste.
+
+   Sur les 17 317 vraies touches : part de 0,1 % au p25, 0,3 % a la mediane,
+   16,3 % au p90, 31,2 % au p95. Les deux seuils decoupent 93 / 5 / 2 %, soit
+   31,7 / 1,7 / 0,53 par seconde — l'echelle de budget de `RENDU.md`, relevee. */
+export const HIT_CONTINU = 0, HIT_LEGER = 1, HIT_MOYEN = 2, HIT_LOURD = 3;
+const PALIER_MOYEN = 0.25, PALIER_LOURD = 0.60;
+function palierDe(e) {
+  if (!(e.hits > 0)) return HIT_CONTINU;
+  const part = (e.dmg ?? 0) / e.hits / Math.max(1, e.maxHp ?? 1);
+  return part >= PALIER_LOURD ? HIT_LOURD : part >= PALIER_MOYEN ? HIT_MOYEN : HIT_LEGER;
+}
+const PALIER = [
+  { flash: 0.045,      kick: 0,    eclats: 0, sp: 0,   cone: 0,    poussiere: 0 },
+  { flash: HIT_FLASH,  kick: 1,    eclats: 2, sp: 90,  cone: 1.60, poussiere: 0 },
+  { flash: 0.085,      kick: 1.35, eclats: 4, sp: 140, cone: 1.18, poussiere: 1 },
+  { flash: 0.120,      kick: 1.90, eclats: 6, sp: 210, cone: 0.76, poussiere: 3 },
+];
+
+function registerHit(e, pal) {
+  let dx = e.dx ?? 0, dy = e.dy ?? 0;
+  // aucun projectile ne l'explique — zone, brulure, arc, balayage : la source
+  // est le joueur le plus proche, et pour CES sources-la c'est exact.
+  if (dx === 0 && dy === 0 && latest) {
     let best = Infinity;
     for (const p of latest.players.values()) {
       const d = (p.x - e.x) ** 2 + (p.y - e.y) ** 2;
       if (d < best) { best = d; dx = e.x - p.x; dy = e.y - p.y; }
     }
-    const n = Math.hypot(dx, dy) || 1;
-    dx /= n; dy /= n;
   }
+  const n0 = Math.hypot(dx, dy) || 1;
+  dx /= n0; dy /= n0;
 
   const now = performance.now();
   const n = Math.max(1, Math.min(HIT_BURST_MAX, e.hits ?? 1));
@@ -508,33 +553,77 @@ function registerHit(e) {
   let restants = e.crits ?? 0;
   for (let i = 0; i < n; i++) {
     const crit = restants-- > 0;
-    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col);
-    else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy, crit, col });
+    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col, pal);
+    else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy, crit, col, pal });
   }
 }
 const HIT_BURST_MAX = 4;
 export const hitQueue = [];
 const CRIT_FLASH = 0.17;
-function applyHit(id, x, y, dx, dy, crit = false, col = null) {
+function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER) {
   const now = performance.now();
+  const P = PALIER[pal] ?? PALIER[HIT_LEGER];
   hits.set(id, {
-    until: now + (crit ? CRIT_FLASH : HIT_FLASH) * 1000,
-    dx, dy, col: crit ? SIGNAL.warn : col,
+    until: now + (crit ? CRIT_FLASH : P.flash) * 1000,
+    dx, dy,
+    // RIEN NE REND L'ETAT « BRULE » SUR UN ENNEMI — la brulure n'est pas dans
+    // l'instantane — donc l'eclair par tick est la SEULE information et il ne
+    // peut pas disparaitre. Il change de couleur : violet = persistant, la
+    // grammaire deja ecrite. Un ennemi qui brule se teinte au lieu de clignoter
+    // blanc, et cesse de se lire comme un ennemi qu'on frappe en continu.
+    col: crit ? SIGNAL.warn : (pal === HIT_CONTINU ? SIGNAL.persist : col),
+    kick: P.kick,
     // [26c] le coup de zoom porte la reponse sur LA CIBLE et non sur la camera :
     // dans une foule de 400 corps, c'est le seul endroit ou elle se lit.
     punch: crit ? now + CRIT_PUNCH * 1000 : 0,
   });
 
-  for (let i = 0; i < 2 && particles.length < PARTICLE_MAX; i++) {
-    const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.6;
-    const sp = 90 + Math.random() * 70;
+  // LES ETINCELLES PARTENT DANS L'AXE DU COUP, et le cone se resserre quand il
+  // porte : un coup leger eparpille, un coup lourd perfore.
+  const a0 = Math.atan2(dy, dx);
+  for (let i = 0; i < P.eclats && particles.length < PARTICLE_MAX; i++) {
+    const a = a0 + (Math.random() - 0.5) * P.cone;
+    const sp = P.sp + Math.random() * (P.sp * 0.8);
     particles.push({
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      life: 0.14, max: 0.14, col: COMBAT.flash, size: 2,
-      ang: a, long: 3.4,
+      life: 0.14 + pal * 0.03, max: 0.14 + pal * 0.03,
+      col: COMBAT.flash, size: 2 + pal * 0.5,
+      ang: a, long: 3.4 + pal * 0.8,
     });
   }
+  if (P.poussiere > 0) poussiere(x, y, a0, P.poussiere);
+  // le coup lourd sort du budget de la touche : il vaut ~0,2 par seconde, donc
+  // il a droit a l'onde et au noyau que le palier 0 ne peut pas payer.
+  if (pal === HIT_LOURD && bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: 4, max: 34, life: 0.2, t: 0.2, col: COMBAT.flash, w: 1.8 });
+    if (particles.length < PARTICLE_MAX) {
+      particles.push({ x, y, vx: 0, vy: 0, life: 0.07, max: 0.07,
+                       col: COMBAT.blastCore, size: 15, frame: fxGlow, drag: 1 });
+    }
+  }
   if (crit) spawnCritShards(x, y, dx, dy);
+}
+
+/* LA POUSSIERE EST DE LA MATIERE DU LIEU, et la matiere du lieu est DEJA
+   declaree : `skin().blocEdge` porte le beton lave de la Friche, la tole peinte
+   de l'Usine, la fonte brulee de la Fonderie, le composite froid de la
+   Nebuleuse. Une seule regle, quatre lectures, aucune table de plus.
+
+   Elle part A CONTRE-SENS du coup et elle est LENTE : les etincelles disent ou
+   va l'energie, la poussiere dit ce qui s'est detache. */
+function poussiere(x, y, a0, n) {
+  const col = skin().blocEdge;
+  const nb = glActive() ? n : Math.ceil(n / 2);
+  for (let i = 0; i < nb && particles.length < PARTICLE_MAX; i++) {
+    const a = a0 + Math.PI + (Math.random() - 0.5) * 2.2;
+    const sp = 30 + Math.random() * 55;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.34 + Math.random() * 0.2, max: 0.54,
+      col, size: 5 + Math.random() * 4, frame: fxGlow,
+      grow: 22, a0: 0.30, drag: 0.9,
+    });
+  }
 }
 export const CRIT_PUNCH = 0.07;
 // [26e] des ECLATS, pas un disque : la forme doit dire « perforation ». Le
@@ -564,7 +653,7 @@ function flushHitQueue(now) {
     if (hitQueue[i].at > now) continue;
     const h = hitQueue[i];
     hitQueue.splice(i, 1);
-    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col);
+    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col, h.pal);
   }
 }
 export const deaths = [];

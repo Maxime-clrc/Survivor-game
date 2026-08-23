@@ -410,6 +410,21 @@ const PALETTE = {
 
   impact: () => noise({ dur: 0.04, freq: 2400, to: 1200, q: 1.2, gain: SOUND_GAIN.impact }),
 
+  /* LE COUP LOURD DESCEND. La touche ordinaire est une bande haute de 40 ms ;
+     celle-ci garde son attaque mais lui donne un corps et un appui grave — le
+     palier ne se lit pas au volume, il se lit a la BANDE. Elle prend la place de
+     la touche dans le limiteur, comme le critique : troisieme palier, zero voix
+     de plus. */
+  impactLourd: () => {
+    const a = noise({ dur: 0.05, freq: 1400, to: 520, q: 1.0,
+                      gain: SOUND_GAIN.impact * 1.5 });
+    noise({ dur: 0.11, type: "lowpass", freq: 900, to: 180,
+            gain: SOUND_GAIN.impact * 1.1, delay: 0.008 });
+    tone({ freq: 128, to: 62, dur: 0.09, type: "sine",
+           gain: SOUND_GAIN.impact * 0.9 });
+    return { end: a.end + 0.08, stop: a.stop };
+  },
+
   mort: (o) => noise({ dur: 0.12, type: "lowpass", freq: 1400 * (o.pitch ?? 1),
                        to: 200 * (o.pitch ?? 1), gain: SOUND_GAIN.mort }),
 

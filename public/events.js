@@ -54,13 +54,47 @@ export function diffSnapshots(a, b, opts = {}) {
   for (const [id, bu] of a.bullets) {
     if (!b.bullets.has(id)) eteintes.push(bu);
   }
-  const auteurDe = (x, y) => {
-    let best = 0, bd = BULLET_CLAIM * BULLET_CLAIM;
+  /* UN PROJECTILE PERFORANT NE MEURT PAS SUR SA CIBLE. Le railgun et le fusil de
+     precision traversent : aucune balle ne s'eteint, donc 38 % des impacts
+     n'avaient aucun auteur — dont TOUS ceux de l'arme la plus directionnelle du
+     jeu. Une balle qui a survecu et qui passe pres du coup l'explique aussi bien,
+     et sa direction est EXACTE : deux positions, un pas de temps.
+     Elle passe APRES les eteintes : une balle qui est morte la est une meilleure
+     explication qu'une balle qui n'a fait que passer. */
+  const perforants = [];
+  for (const [id, bb] of b.bullets) {
+    const ba = a.bullets.get(id);
+    if (ba && (bb.x !== ba.x || bb.y !== ba.y)) perforants.push(ba, bb);
+  }
+  // un seul objet reutilise : `diffSnapshots` tourne 20 fois par seconde et
+  // rendre un litteral par impact allouerait jusqu'a 48 objets par appel.
+  const COUP = { owner: 0, dx: 0, dy: 0 };
+  const coupDe = (x, y) => {
+    COUP.owner = 0; COUP.dx = 0; COUP.dy = 0;
+    let bd = BULLET_CLAIM * BULLET_CLAIM, mort = null;
     for (const bu of eteintes) {
       const d = (bu.x - x) ** 2 + (bu.y - y) ** 2;
-      if (d < bd) { bd = d; best = bu.owner ?? 0; }
+      if (d < bd) { bd = d; mort = bu; }
     }
-    return best;
+    if (mort) {
+      COUP.owner = mort.owner ?? 0;
+      // LA LIGNE DE TIR, et non le dernier pas : une balle vole droit depuis son
+      // tireur, donc l'axe se lit sur des centaines de pixels au lieu des trente
+      // d'un instantane — et il reste juste quand la balle meurt sur le corps.
+      const p = b.players.get(COUP.owner);
+      if (p) { COUP.dx = x - p.x; COUP.dy = y - p.y; }
+      return COUP;
+    }
+    bd = BULLET_CLAIM * BULLET_CLAIM;
+    for (let i = 0; i < perforants.length; i += 2) {
+      const bb = perforants[i + 1];
+      const d = (bb.x - x) ** 2 + (bb.y - y) ** 2;
+      if (d >= bd) continue;
+      bd = d;
+      COUP.owner = bb.owner ?? 0;
+      COUP.dx = bb.x - perforants[i].x; COUP.dy = bb.y - perforants[i].y;
+    }
+    return COUP;
   };
 
   // [26f] combien de mes critiques ont TUE pendant ce pas. Le compteur vit sur
@@ -81,9 +115,14 @@ export function diffSnapshots(a, b, opts = {}) {
     const crits = ((eb.critSeq ?? 0) - (ea.critSeq ?? 0) + 10) % 10;
     const lost = ea.hp - eb.hp;
     if (hits === 0 && lost <= 0) continue;
+    const c = coupDe(eb.x, eb.y);
+    // `hits` VAUT ZERO ET CE N'EST PAS UN DEFAUT : le serveur n'incremente pas
+    // `hitSeq` pour un degat continu (`_damage(..., overTime)`), donc zero dit
+    // « des PV sont partis sans que rien n'ait touche » — brulure, zone, poison.
+    // Le forcer a un faisait passer 81 % des evenements pour des touches.
     out.push({ t: "impact", id, x: eb.x, y: eb.y, dmg: Math.max(0, lost),
-               hits: Math.max(1, hits), crits, type: eb.type, maxHp: eb.maxHp,
-               ang: eb.ang, owner: auteurDe(eb.x, eb.y) });
+               hits, crits, type: eb.type, maxHp: eb.maxHp,
+               ang: eb.ang, owner: c.owner, dx: c.dx, dy: c.dy });
     nImpact++;
   }
   for (const [id, ea] of a.enemies) {
@@ -92,7 +131,7 @@ export function diffSnapshots(a, b, opts = {}) {
     if (!dansVue(vue, ea.x, ea.y)) continue;
     const m = { t: "mort", id, x: ea.x, y: ea.y, type: ea.type, elite: ea.elite,
                 ang: ea.ang, dmg: Math.max(0, ea.hp), maxHp: ea.maxHp, crit: false,
-                owner: auteurDe(ea.x, ea.y) };
+                owner: coupDe(ea.x, ea.y).owner };
     morts.push(m);
     out.push(m);
     nDeath++;

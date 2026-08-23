@@ -3375,6 +3375,57 @@
                    les morts, qui sont le palier au-dessus : un canon, la moitie
                    des etincelles, une bouffee. Aucune sixieme lecture de `gfx`.
 
+     0.18.3 lot 3  L IMPACT SAIT D OU VIENT LE COUP. Il le deduisait du JOUEUR LE
+                   PLUS PROCHE : un tir allie venu de l autre bout de l ecran
+                   envoyait ses etincelles a 180 degres du bon axe. Or `auteurDe`
+                   retrouvait deja la balle, il jetait sa direction.
+                   UN PROJECTILE PERFORANT NE MEURT PAS SUR SA CIBLE : railgun et
+                   precision traversent, aucune balle ne s eteint, donc 38 % des
+                   impacts n avaient AUCUN auteur — dont tous ceux de l arme la
+                   plus directionnelle du jeu. Une balle survivante qui passe pres
+                   du coup l explique aussi bien, et sa direction est exacte. Les
+                   eteintes passent d abord : morte la vaut mieux que passee par
+                   la. MESURE : 38 % -> 8,6 % sur les vraies touches.
+                   L axe d une balle eteinte se lit sur la LIGNE DE TIR et non sur
+                   son dernier pas — des centaines de pixels au lieu de trente, et
+                   ca reste juste quand la balle meurt sur le corps.
+                   UN TICK DE BRULURE N EST PAS UNE TOUCHE, et le serveur le disait
+                   deja : `_damage(..., overTime)` n incremente pas `hitSeq`. Le
+                   client ecrasait l information avec `Math.max(1, hits)`. MESURE,
+                   4 graines x 12 min, 4 joueurs : sur 92 968 evenements d impact,
+                   75 651 — 81 % — sont du degat CONTINU. Ils rendaient l eclair
+                   blanc, le recul directionnel, deux etincelles et une voix, pour
+                   un poison. Ils gardent un eclair, ils perdent le reste.
+                   Cet eclair ne peut pas disparaitre : RIEN ne rend l etat
+                   « brule » sur un ennemi, la brulure n est pas dans l instantane,
+                   donc il est la SEULE information. Il passe au VIOLET — la
+                   grammaire de couleur dit deja persistant — et cesse de se lire
+                   comme un ennemi qu on frappe en continu.
+                   QUATRE PALIERS, DECIDES PAR LA CIBLE. La part de PV max retiree
+                   dit la puissance du coup ET la masse de ce qui l encaisse : le
+                   meme rail rend LOURD sur un fantassin et LEGER sur un colosse,
+                   donc « un ennemi lourd reagit moins » sort du meme nombre, sans
+                   table de masse. Seuils 0,25 et 0,60, RELEVES : sur 17 317 vraies
+                   touches la part vaut 0,3 % a la mediane et 16,3 % au p90, et les
+                   deux seuils decoupent 93 / 5 / 2 %, soit 31,7 / 1,7 / 0,53 par
+                   seconde. Le cone se resserre quand le coup porte.
+                   LA BOUCHE DIT L ARME, L IMPACT DIT LE COUP : l identite voyage
+                   deja par le depart, la silhouette et la voix. Un quatrieme axe
+                   sur un evenement a 34 par seconde serait invisible.
+                   LA POUSSIERE EST DE LA MATIERE DU LIEU, et le lieu la declare
+                   deja : `skin().blocEdge` rend le beton lave de la Friche, la
+                   tole peinte de l Usine, la fonte brulee de la Fonderie, le
+                   composite froid de la Nebuleuse. Aucune table de plus. Elle part
+                   A CONTRE-SENS et lentement — les etincelles disent ou va
+                   l energie, la poussiere ce qui s est detache.
+                   `impactLourd` prend la place de la touche dans le limiteur, avec
+                   `claim` : sans lui les 31,7 touches legeres par seconde le
+                   refusaient. Zero voix de plus.
+                   BILAN MESURE : particules d impact 67,8/s -> 21,3/s (-69 %),
+                   voix de touche 2,7/s -> 1,2/s (-55 %), pointe 2 voix sur 16.
+                   Trois paliers, un axe juste et la matiere du lieu coutent MOINS
+                   que ce qu il y avait avant.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3383,4 +3434,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.2";
+export const VERSION = "0.18.3";

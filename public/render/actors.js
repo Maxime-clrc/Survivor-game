@@ -1735,8 +1735,12 @@ export function drawEnemies(list, view) {
 
     const hit = hits.get(e.id);
     const flash = hit ? Math.max(0, (hit.until - t) / (HIT_FLASH * 1000)) : 0;
-    const kx = flash > 0 ? hit.dx * HIT_KICK * flash : 0;
-    const ky = flash > 0 ? hit.dy * HIT_KICK * flash : 0;
+    // le palier module le tressaillement, jamais le rayon : c'est la part de PV
+    // retiree qui le porte, donc un colosse encaisse moins qu'un fantassin sous
+    // le meme coup sans qu'une table de masse existe.
+    const kick = flash > 0 ? HIT_KICK * (hit.kick ?? 1) * Math.min(1, flash) : 0;
+    const kx = kick > 0 ? hit.dx * kick : 0;
+    const ky = kick > 0 ? hit.dy * kick : 0;
     // [26c] ×1,15 sur deux ou trois images, retour elastique : la reponse est
     // portee par la CIBLE et non par la camera.
     const punch = hit && hit.punch > t
