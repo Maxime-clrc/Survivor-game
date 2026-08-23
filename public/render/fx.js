@@ -8,9 +8,9 @@ import { t } from "/shared/i18n.js";
 import { CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
 import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
-import { latest, myId } from "../core/state.js";
+import { GFX_MEDIUM, gfx, latest, myId } from "../core/state.js";
 import { ENEMY_TINT, alertInfo, setAlertInfo } from "../net/interp.js";
-import { ELITE_GOLD, GRID_FINE, camera, ctx, hazardsActifs, inView, ownerColorOf } from "./stage.js";
+import { ELITE_GOLD, GRID_FINE, camera, ctx, hazardsActifs, inView, lumDir, ownerColorOf } from "./stage.js";
 
 
 const PARTICLE_2D = 300;
@@ -588,6 +588,33 @@ export const RING_SHIELD = CFG.PLAYER_RADIUS + 12;
 export const RING_STATUS = CFG.PLAYER_RADIUS + 17;
 export const RING_SKILL  = CFG.PLAYER_RADIUS + 22;
 export const RING_BUFF0  = CFG.PLAYER_RADIUS + 27;
+
+/* L'OMBRE DE CONTACT. Sans elle une entite FLOTTE : elle n'a aucune ancre au
+   sol. C'est le plus fort rapport gain/cout du plan 13, et il est presque nul —
+   `fx_glow` est deja dans l'atlas, la teinte noire prémultipliee donne un
+   melange alpha classique, et le quad tombe dans le lot NORMAL qui existe deja.
+   Aucun appel de dessin supplementaire.
+
+   ELLE NE S'ADDITIONNE PAS : a 200 ennemis serres, 200 ombres empilees feraient
+   une flaque noire. Opacite plafonnee, ecrasement vertical, decalage par la
+   direction de lumiere du biome — jamais centree, sinon elle se lit comme un
+   halo et non comme une ombre.
+
+   Pas d'ombre pour un projectile : meme raison que pour la lumiere, la
+   frequence. */
+const OMBRE_A = 0.34;
+const OMBRE_PLAT = 0.52;
+export function drawOmbre(x, y, r, k = 1) {
+  if (gfx < GFX_MEDIUM || !fxGlow) return;
+  const d = lumDir();
+  const s = (r * 2.15) / SPRITE_CELL;
+  drawSprite(ctx, fxGlow, x + d[0] * r * 0.30, y + d[1] * r * 0.34, {
+    scaleX: s,
+    scaleY: s * OMBRE_PLAT,
+    tint: SURFACE.shadow,
+    alpha: OMBRE_A * k,
+  });
+}
 
 // LA COQUE. Sa rupture est du VERRE : `fx_shard` est deja la matiere « eclat
 // anguleux » de l'atlas, elle passe donc par le lot WebGL comme le reste — pas

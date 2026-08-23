@@ -1,15 +1,41 @@
 
 import { BIOME_CFG, CFG, HZ_EMBER, HZ_GEYSER, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, hazardState, windAt } from "/shared/game_state.js";
-import { BIOME, BOSS, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
-import { difficulty } from "../core/state.js";
+import { BIOME, BOSS, PROP, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
+import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
-import { floorPattern } from "./material.js";
-import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, obstaclesActifs, renderScale, setVignette, sol, vignette, weather } from "./stage.js";
+import { floorPattern, fondEspace, macroPattern } from "./material.js";
+import { bossAtmo, bossVignette, ledDe } from "./lumiere.js";
+import { forEachPropLight } from "./props.js";
+import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, inView, lumDir, obstaclesActifs, renderScale, setVignette, sol, vignette, weather } from "./stage.js";
+
+/* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine entre la couleur
+   d'arene et la matiere du sol : la tuile de la Nebuleuse RETIRE ses baies, donc
+   ce qui est peint ici se voit a travers le pont.
+
+   Deux parallaxes, parce qu'un fond a une seule vitesse est un autocollant : les
+   astres a 0,05, les etoiles a 0,16. La derive maximale sur cette arene est de
+   256 px et la marge cuite en fait 300 — rien a boucler. */
+const FOND_LOIN = 0.05;
+const FOND_PRES = 0.16;
+export function drawFond() {
+  if (gfx <= GFX_LOW || biomeAt(biomeIndex).fond !== "espace") return;
+  const f = fondEspace(biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
+  const dx = camera.x - CFG.ARENA_W / 2, dy = camera.y - CFG.ARENA_H / 2;
+  ctx.save();
+  ctx.translate(camera.x0, camera.y0);
+  ctx.drawImage(f.loin, -f.marge - dx * FOND_LOIN, -f.marge - dy * FOND_LOIN);
+  ctx.drawImage(f.pres, -f.marge - dx * FOND_PRES, -f.marge - dy * FOND_PRES);
+  ctx.restore();
+}
 
 export function drawFloor() {
   const p = floorPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale);
   if (!p) return;
   ctx.fillStyle = p;
+  ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+  const m = macroPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale);
+  if (!m) return;
+  ctx.fillStyle = m;
   ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
 }
 
@@ -28,21 +54,28 @@ export function drawGrid() {
   };
   ctx.lineWidth = 1;
 
+  // LA 5 M EST CUITE DANS LA MATIERE des `medium` : un joint a une epaisseur et
+  // deux cotes, donc il decrit une SURFACE la ou une ligne decrit un plan
+  // technique. La 20 m reste tracee — c'est la seule qui serve a lire une
+  // portee. `GRID_FINE` ne bouge pas : `drawGridPings` s'en sert toujours.
   const skip = decor.skip;
-  ctx.strokeStyle = sol.gridFine;
-  ctx.beginPath();
-  let n = 0;
-  for (let x = GRID_FINE; x < CFG.ARENA_W; x += GRID_FINE, n++) {
-    if (skip && n % skip === 1) continue;
-    ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
+  if (gfx <= GFX_LOW) {
+    ctx.strokeStyle = sol.gridFine;
+    ctx.beginPath();
+    let n = 0;
+    for (let x = GRID_FINE; x < CFG.ARENA_W; x += GRID_FINE, n++) {
+      if (skip && n % skip === 1) continue;
+      ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
+    }
+    n = 0;
+    for (let y = GRID_FINE; y < CFG.ARENA_H; y += GRID_FINE, n++) {
+      if (skip && n % skip === 2) continue;
+      ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
+    }
+    ctx.stroke();
   }
-  n = 0;
-  for (let y = GRID_FINE; y < CFG.ARENA_H; y += GRID_FINE, n++) {
-    if (skip && n % skip === 2) continue;
-    ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
-  }
-  ctx.stroke();
 
+  ctx.globalAlpha = gfx <= GFX_LOW ? 1 : 0.5;
   ctx.strokeStyle = sol.gridMajor;
   ctx.beginPath();
   for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
@@ -52,6 +85,7 @@ export function drawGrid() {
     ctx.moveTo(0, y + .5); ctx.lineTo(CFG.ARENA_W, y + .5);
   }
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
   drawGridPings();
 }
@@ -60,10 +94,11 @@ export function drawVignette() {
     ? 1 + decor.pulse * Math.sin(performance.now() / 2600)
     : 1;
   const fog = weather?.id === WX_BRUME;
-  if (!vignette || decor.pulse > 0 || fog) {
+  const bv = bossVignette();
+  if (!vignette || decor.pulse > 0 || fog || bv !== 1) {
     const r = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2;
     const from = Math.max(0, decor.vignetteFrom + (fog ? BIOME_CFG.FOG_FROM : 0));
-    const amt = decor.vignette * puls * (fog ? BIOME_CFG.FOG_VIGNETTE : 1);
+    const amt = decor.vignette * puls * (fog ? BIOME_CFG.FOG_VIGNETTE : 1) * bv;
     setVignette(ctx.createRadialGradient(
       CFG.VIEW_W / 2, CFG.VIEW_H / 2, r * Math.min(0.9, from),
       CFG.VIEW_W / 2, CFG.VIEW_H / 2, r));
@@ -114,6 +149,12 @@ function silhouette(g, o, biome) {
     g.lineTo(x + w, y + c); g.lineTo(x + w, y + h - c);
     g.lineTo(x + w - c, y + h); g.lineTo(x + c, y + h);
     g.lineTo(x, y + h - c); g.lineTo(x, y + c);
+  } else if (biome === "nebuleuse") {
+    const c2 = Math.min(16, w * 0.30, h * 0.30);
+    g.moveTo(x + c2, y); g.lineTo(x + w - c2, y);
+    g.lineTo(x + w, y + c2); g.lineTo(x + w, y + h - c2);
+    g.lineTo(x + w - c2, y + h); g.lineTo(x + c2, y + h);
+    g.lineTo(x, y + h - c2); g.lineTo(x, y + c2);
   } else if (biome === "friche") {
     const e = Math.min(11, w * 0.26, h * 0.26);
     const pair = ((o.x + o.y) | 0) % 2 === 0;
@@ -130,11 +171,72 @@ function silhouette(g, o, biome) {
   g.closePath();
 }
 
+/* LA FACE DU DESSUS DEVIENT UNE MATIERE, pas une surface pleine : tole striee,
+   coin use, et une bande LED qui ECLAIRE reellement le sol — `ledDe()` vit dans
+   `lumiere.js` et les deux la lisent, sinon la lueur et le trait finissent sur
+   deux aretes differentes. Tout est clippe a la silhouette : rien ne deborde sur
+   le sol, ou vivent les telegraphes. */
+function habillage(o, rx, ry, biome) {
+  ctx.save();
+  ctx.translate(o.x + rx, o.y + ry);
+  silhouette(ctx, o, biome);
+  ctx.clip();
+
+  const w = o.w, h = o.h;
+  ctx.strokeStyle = alpha("#000000", 0.20);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = -w / 2 + 5; x < w / 2; x += 7) {
+    ctx.moveTo(x, -h / 2); ctx.lineTo(x, h / 2);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metal, 0.09);
+  ctx.beginPath();
+  for (let x = -w / 2 + 6; x < w / 2; x += 7) {
+    ctx.moveTo(x, -h / 2); ctx.lineTo(x, h / 2);
+  }
+  ctx.stroke();
+
+  const use = ((o.x * 2654435761) ^ (o.y * 40503)) >>> 0;
+  const cw = 7 + (use % 9);
+  const sx = use & 1 ? 1 : -1, sy = use & 2 ? 1 : -1;
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.beginPath();
+  ctx.moveTo(sx * w / 2, sy * h / 2);
+  ctx.lineTo(sx * (w / 2 - cw), sy * h / 2);
+  ctx.lineTo(sx * w / 2, sy * (h / 2 - cw));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  const l = ledDe(o);
+  if (!l) return;
+  const puls = 0.72 + 0.28 * Math.sin(performance.now() / 620 + o.x * 0.01);
+  ctx.save();
+  ctx.translate(rx, ry);
+  ctx.lineCap = "round";
+  ctx.strokeStyle = alpha(PROP.led, 0.20 * puls);
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(l.x - l.dx * l.len / 2, l.y - l.dy * l.len / 2);
+  ctx.lineTo(l.x + l.dx * l.len / 2, l.y + l.dy * l.len / 2);
+  ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.led, 0.85 * puls);
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.lineCap = "butt";
+  ctx.restore();
+}
+
 export function drawObstacles(cover) {
   const list = obstaclesActifs();
   if (!list.length) return;
   const biome = biomeAt(biomeIndex).key;
   const ox = camera.x0 + CFG.VIEW_W / 2, oy = camera.y0 + CFG.VIEW_H / 2;
+  // L'OMBRE PORTEE LIT `lumDir()`, le relief reste RADIAL : l'un dit d'ou vient
+  // la lumiere, l'autre ou est la camera. Deux gestes distincts, pas deux
+  // reglages du meme.
+  const dir = lumDir();
 
   for (let i = 0; i < list.length; i++) {
     const o = list[i];
@@ -146,7 +248,7 @@ export function drawObstacles(cover) {
     const rx = (dx / d) * OBST_RELIEF, ry = (dy / d) * OBST_RELIEF;
 
     ctx.save();
-    ctx.translate(o.x + OBST_OMBRE * 0.6, o.y + OBST_OMBRE * 0.7);
+    ctx.translate(o.x + dir[0] * OBST_OMBRE, o.y + dir[1] * OBST_OMBRE);
     silhouette(ctx, o, biome);
     ctx.fillStyle = alpha("#000000", 0.34);
     ctx.fill();
@@ -176,6 +278,8 @@ export function drawObstacles(cover) {
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();
+
+    if (gfx > GFX_LOW) habillage(o, rx, ry, biome);
 
     if (o.maxHp > 0) {
       ctx.save();
@@ -212,10 +316,15 @@ function enroule(v, centre, demi) {
 }
 // le champ est ancre au MONDE et non a la camera : sinon il glisse avec le
 // joueur, et le vent parait accroche a lui au lieu de traverser l'arene.
-function champ(tm, ang, vitesse, longueur, nombre, couleur, opacite, epaisseur) {
-  const demi = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2 + longueur;
+// `cx0/cy0/rayon` ancrent le champ sur une SOURCE au lieu de la vue : c'est le
+// seul ecart entre la meteo et la vapeur d'un geyser. Parametres positionnels et
+// non un objet d'options — le module ne doit rien allouer par image.
+function champ(tm, ang, vitesse, longueur, nombre, couleur, opacite, epaisseur,
+               cx0, cy0, rayon) {
+  const demi = (rayon ?? Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2) + longueur;
   const ca = Math.cos(ang), sa = Math.sin(ang);
-  const cx = camera.x0 + CFG.VIEW_W / 2, cy = camera.y0 + CFG.VIEW_H / 2;
+  const cx = cx0 ?? camera.x0 + CFG.VIEW_W / 2;
+  const cy = cy0 ?? camera.y0 + CFG.VIEW_H / 2;
   const cu = cx * ca + cy * sa, cw = cy * ca - cx * sa;
   const portee = demi * 2;
 
@@ -252,6 +361,84 @@ export function drawWeather(tm) {
     const ang = Math.PI / 2 + Math.sin(tm * 0.11 + weather.p1) * 0.22;
     champ(tm, ang, 108, 9, CHAMP_MAX, WEATHER.ash, 0.20, 2.1);
   }
+}
+
+/* LE MONDE NE DOIT PAS SEMBLER MORT QUAND LE JOUEUR S'ARRETE. Tout reutilise
+   `champ()` : la position d'un brin reste une fonction de son indice et du
+   temps, donc ce lot n'alloue rien et ne peut pas deriver — si un effet avait
+   besoin d'un tableau qui persiste, il ne serait pas ici, il serait dans `fx.js`
+   sous `PARTICLE_MAX`.
+
+   TOUT RESTE DISCRET : a l'arret quelque chose bouge et on ne sait pas dire
+   quoi ; en mouvement on ne le remarque pas. */
+const POUSSIERE = 150;
+export function drawAtmosphere(tm) {
+  if (gfx < GFX_HIGH) return;
+
+  champ(tm, Math.PI * 0.62 + Math.sin(tm * 0.07) * 0.30, 24, 5,
+        POUSSIERE, WEATHER.wind, 0.055, 1.6);
+
+  for (const h of hazardsActifs()) {
+    if (h.kind === HZ_SLOW || h.kind === HZ_SLIP) continue;
+    const st = hazardState(h, tm);
+    if (!st.on || !inView(st.x, st.y, h.r)) continue;
+    champ(tm, -Math.PI / 2, 30, 15, 14, WEATHER.wind, 0.10 * st.k, 3.2,
+          st.x, st.y, h.r * 0.75);
+  }
+
+  // UN COFFRET QUI GRESILLE EST DU DECOR ; un coffret qui gresille, crache trois
+  // etincelles et eclaire son pourtour est un OBJET. Les deux autres canaux sont
+  // deja ecrits, celui-ci ferme le troisieme — et il lit la meme declaration.
+  forEachPropLight((x, y, r, col, i) => {
+    if (i < 0.55 || !inView(x, y, 40)) return;
+    champ(tm, Math.PI * 0.52, 110, 7, 4, col, 0.34 * i, 1.4, x, y, 20);
+  });
+
+  // LE BOSS RESPIRE DANS L'ARENE. Il arrive en dernier et sur toute la vue :
+  // c'est le seul champ qui ait le droit de traverser le centre, parce qu'il
+  // annonce ce qui s'y trouve.
+  const ba = bossAtmo();
+  if (ba) {
+    champ(tm, -Math.PI / 2 + Math.sin(tm * 0.13) * 0.4, 46, 11,
+          Math.round(90 * ba.k), ba.col, 0.075 * ba.k, 2.2);
+  }
+}
+
+/* LE PREMIER PLAN. Trois regles sans exception : rien au centre (il appartient
+   au joueur), jamais opaque, et coupe pendant un boss — l'arene se resserre deja
+   a une vue, y ajouter du bord serait le contraire de ce que le resserrement
+   cherche.
+   La parallaxe est une DERIVE globale proportionnelle a la position de camera :
+   assez pour donner la profondeur, trop peu pour attirer l'oeil. */
+const PP_PARALLAXE = 0.055;
+const PP_BANDE = 0.155;
+export function drawPremierPlan(v) {
+  if (gfx < GFX_HIGH || v.boss) return;
+  const h = CFG.VIEW_H * PP_BANDE;
+  const dx = (camera.x - CFG.ARENA_W / 2) * PP_PARALLAXE;
+  const dy = (camera.y - CFG.ARENA_H / 2) * PP_PARALLAXE;
+
+  ctx.save();
+  ctx.translate(camera.x0, camera.y0);
+
+  for (const haut of [true, false]) {
+    const y0 = haut ? 0 : CFG.VIEW_H;
+    const g = ctx.createLinearGradient(0, y0, 0, haut ? h : CFG.VIEW_H - h);
+    g.addColorStop(0, alpha(SURFACE.void, 0.34));
+    g.addColorStop(1, alpha(SURFACE.void, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, haut ? 0 : CFG.VIEW_H - h, CFG.VIEW_W, h);
+  }
+
+  ctx.fillStyle = alpha(SURFACE.void, 0.30);
+  for (let i = 0; i < 5; i++) {
+    const x = ((i * 431 + dx) % (CFG.VIEW_W + 260)) - 130;
+    const haut = (i & 1) === 0;
+    const ep = 16 + (i % 3) * 7;
+    ctx.fillRect(x, haut ? -20 - dy * 0.4 : CFG.VIEW_H - h * 0.62 - dy * 0.4,
+                 ep, h * 0.8);
+  }
+  ctx.restore();
 }
 
 export function drawHazards(tm) {

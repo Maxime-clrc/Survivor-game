@@ -84,9 +84,22 @@ export const MECHS = [
   { id: MECH_ULT, key: "ult", nom: "Jauge d'ultime", minPlayers: 1, fallback: -1,
     level: ALERT_WARN, texte: "la jauge ne descend que si les tours sont tenues",
     ordre: "TENEZ LES TOURS", forme: "colonne" },
+  /* TROIS REGLES DERRIERE UN SEUL CRENEAU, et c'est voulu : deux mecaniques
+     d'occupation ne doivent jamais tourner ensemble. Ce qui doit diverger, c'est
+     ce que le joueur LIT — une grappe fait ECLORE, un noeud PREND l'espace, et
+     le verbe change parce que l'enjeu change. Le jeu annoncait une eclosion qui
+     n'arrivait jamais, donc il mentait dans la seule phrase qu'il ecrivait. */
   { id: MECH_CLUSTER, key: "cluster", nom: "Grappe", minPlayers: 1, fallback: -1,
     level: ALERT_ORDER, texte: "DÉTRUIS la grappe avant l'éclosion",
-    ordre: "DÉTRUIS LA GRAPPE", forme: "cage" },
+    ordre: "DÉTRUIS LA GRAPPE", forme: "cage",
+    variantes: {
+      noeud: { key: "noeud", nom: "Nœud",
+        texte: "DÉTRUIS le nœud avant qu'il ne prenne la place",
+        ordre: "DÉTRUIS LE NŒUD" },
+      hative: { key: "hative", nom: "Grappe hâtive",
+        texte: "DÉTRUIS la grappe — l'éclosion est deux fois plus proche",
+        ordre: "DÉTRUIS LA GRAPPE, VITE" },
+    } },
   { id: MECH_FEED, key: "feed", nom: "Lien nourricier", minPlayers: 1, fallback: -1,
     level: ALERT_ORDER, texte: "TUE les rejetons, ils la soignent",
     ordre: "TUE LES REJETONS", forme: "chaine" },
@@ -470,11 +483,22 @@ export function bossAt(i) { return BOSS_ROSTER[i] ?? BOSS_ROSTER[0]; }
 export const bossNom = i => t(`boss.${bossAt(i).key}.nom`, bossAt(i).nom);
 export const bossVerbe = i => t(`boss.${bossAt(i).key}.verbe`, bossAt(i).verbe);
 export const bossSous = i => t(`boss.${bossAt(i).key}.sous`, bossAt(i).sous ?? "");
-export const mechNom = i => t(`mech.${MECHS[i]?.key}.nom`, MECHS[i]?.nom ?? "");
-export const mechTexte = i => t(`mech.${MECHS[i]?.key}.texte`, MECHS[i]?.texte ?? "");
-export const mechOrdre = i => (MECHS[i]?.ordre
-  ? t(`mech.${MECHS[i].key}.ordre`, MECHS[i].ordre)
-  : "");
+/* UNE VARIANTE PORTE SON PROPRE LIBELLE, et rien d'autre : elle ne redeclare ni
+   le niveau, ni la forme, ni le creneau — c'est la MEME mecanique. Absente, on
+   retombe sur la mecanique, donc les vingt-neuf autres ne bougent pas. */
+export const mechVar = (i, v) => (v && MECHS[i]?.variantes?.[v]) || MECHS[i] || null;
+export const mechNom = (i, v) => {
+  const d = mechVar(i, v);
+  return d ? t(`mech.${d.key}.nom`, d.nom ?? "") : "";
+};
+export const mechTexte = (i, v) => {
+  const d = mechVar(i, v);
+  return d ? t(`mech.${d.key}.texte`, d.texte ?? "") : "";
+};
+export const mechOrdre = (i, v) => {
+  const d = mechVar(i, v);
+  return d?.ordre ? t(`mech.${d.key}.ordre`, d.ordre) : "";
+};
 
 export function bossPool(kind, phase) {
   const def = bossAt(kind);

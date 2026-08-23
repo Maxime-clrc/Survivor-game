@@ -40,17 +40,21 @@ export const UI = {
   linePassive: "rgba(230,226,221,.07)",
 };
 
+/* L'ARENE EST ANTHRACITE, PAS INDIGO. Le bleu d'origine tirait la matiere vers
+   le plastique : un gris neutre-froid rend le beton et la tole, et il laisse a
+   l'ambre le monopole de la chaleur. `SURFACE` ne bouge pas — elle sert aussi
+   l'interface, et les deux palettes restent separees. */
 export const DECOR = [
   {
-    arena: "#181d28", gridFine: "#252c3b", gridMajor: "#38455f",
+    arena: "#1b1c21", gridFine: "#2a2b31", gridMajor: "#3d3f47",
     vignette: 0.40, vignetteFrom: 0.46, skip: 0, pulse: 0,
   },
   {
-    arena: SURFACE.arena, gridFine: SURFACE.gridFine, gridMajor: SURFACE.gridMajor,
+    arena: "#121316", gridFine: "#1b1d21", gridMajor: "#272a30",
     vignette: 0.55, vignetteFrom: 0.42, skip: 0, pulse: 0,
   },
   {
-    arena: "#0a0a0e", gridFine: "#1c1719", gridMajor: "#2e2624",
+    arena: "#0b0b0d", gridFine: "#1a1718", gridMajor: "#2c2724",
     vignette: 0.68, vignetteFrom: 0.34, skip: 3, pulse: 0.06,
   },
 ];
@@ -188,6 +192,45 @@ export const BIOME = {
   slip:      "#8fb6c9",
 };
 
+/* LES PROPS SONT DE LA MATIERE, PAS UN SIGNAL. Un signal est sature et anime,
+   une matiere est desaturee et fixe : c'est la seule regle qui empeche le decor
+   de mentir, maintenant que l'ambre n'est plus reserve a l'avertissement.
+   `led` est le seul ton chaud vif, et il ne couvre jamais plus de trois pixels. */
+export const PROP = {
+  ombre: "#000000",
+  metal: "#8b939f",
+  metalDark: "#3a3f47",
+  rouille: "#6b4326",
+  peint: "#b9a06a",
+  led: "#ffa63d",
+  verre: "#9fb0bd",
+  vert: "#5c6b4a",
+  // la fonte est le SEUL ton du depot plus chaud que l'ambre de signal : elle ne
+  // sert qu'a de la matiere en fusion, jamais a un avertissement.
+  fonte: "#ff6a18",
+  scorie: "#4a423c",
+  brique: "#7a5544",
+  givre: "#a8c4d6",
+  astre: "#cfe0ff",
+  // LE SEUL CYAN DU DECOR, et il ne sert qu'a une balise d'arrimage. Il reste
+  // sous l'ambre : la station eclaire en chaud, elle se signale en froid.
+  balise: "#6fc6d8",
+};
+
+/* LA LUMIERE DU LIEU. `amb` est la couleur vers laquelle le sol descend loin de
+   toute source — jamais noire : un sol a zero n'est plus une matiere, c'est un
+   trou. `k` est la profondeur de l'ombre, `dir` la direction de la lumiere
+   (partagee par toutes les ombres portees), `emis` la teinte des sources fixes. */
+export const LUM = {
+  usine:    { amb: "#6d7480", k: 0.52, dir: [0.62, 0.78], emis: "#ffa63d" },
+  fonderie: { amb: "#8a6a52", k: 0.58, dir: [0.55, 0.84], emis: "#ff8a2a" },
+  friche:   { amb: "#707a80", k: 0.62, dir: [0.70, 0.71], emis: "#ffb44f" },
+  // la seule ambiante FROIDE du depot, et la plus profonde : dans le vide il n'y
+  // a pas de lumiere rasante, seulement les sources du pont. L'ambre reste
+  // l'emissif — c'est la station qui eclaire, pas les etoiles.
+  nebuleuse: { amb: "#59637d", k: 0.70, dir: [0.58, 0.81], emis: "#ffb060" },
+};
+
 // LA METEO EST DU DECOR, donc froide et sous 18 % de saturation : elle ne doit
 // jamais concurrencer un telegraphe. La cendre est le seul ecart, chaude parce
 // qu'elle vient du feu — et elle reste plus sombre que n'importe quel signal.
@@ -216,18 +259,41 @@ export const BOSS = {
   crack:    "#ffdc78",
 };
 
+/* UN BOSS NE SE CONTENTE PAS D'APPARAITRE DANS L'ARENE, IL LA PREND. Quatre
+   champs de plus par ligne, et ce sont des NOMBRES : `amb` la couleur vers
+   laquelle l'ambiante tire, `k` la profondeur d'ombre, `vig` le facteur de
+   vignettage, `puls` [hz, amplitude] le battement de l'ambiante, `atmo` la
+   teinte du champ d'arene (null = aucun).
+
+   Chacun rejoue le VERBE que sa silhouette dit deja : le Ravageur creuse une
+   fosse, le Metronome bat, l'Oracle ouvre trop grand, le final absorbe. Le monde
+   ne fait pas un effet en plus — il repete le boss.
+
+   Les cinq dernieres lignes sont les finals par difficulte : meme profil que le
+   final, c'est le meme combat. */
 export const BOSS_SKIN = [
-  { skin: "#ff4d6d", dark: "#8e1230", edge: "#5c0b1c", bar: "#ff8fa3", deep: "#7a0f26" },
-  { skin: "#a8d13a", dark: "#4a6112", edge: "#2b3a08", bar: "#c6e46a", deep: "#3f5410" },
-  { skin: "#9db4c8", dark: "#3f5266", edge: "#25313d", bar: "#c2d3e2", deep: "#374857" },
-  { skin: "#8b5cf6", dark: "#3b1d80", edge: "#22114d", bar: "#b79dff", deep: "#331a70" },
-  { skin: "#ff8a3d", dark: "#8a3c05", edge: "#4d2103", bar: "#ffb782", deep: "#7a3604" },
-  { skin: "#e8e4dc", dark: "#6f6a63", edge: "#2f2c28", bar: "#f4f1ea", deep: "#5b5750" },
-  { skin: "#f2c14e", dark: "#7a5a0c", edge: "#3f2e04", bar: "#ffdc8a", deep: "#6b4f0a" },
-  { skin: "#3fbfa0", dark: "#125a4a", edge: "#08312a", bar: "#7fe0c8", deep: "#0f4c40" },
-  { skin: "#7ec8ff", dark: "#1d5c8e", edge: "#0d3350", bar: "#b4e0ff", deep: "#19506f" },
-  { skin: "#c9a227", dark: "#6b530c", edge: "#3a2c05", bar: "#e6c96a", deep: "#5c470a" },
-  { skin: "#4a4a55", dark: "#1c1c24", edge: "#0a0a0e", bar: "#8a8a99", deep: "#16161d" },
+  { skin: "#ff4d6d", dark: "#8e1230", edge: "#5c0b1c", bar: "#ff8fa3", deep: "#7a0f26",
+    amb: "#5a3a28", k: 0.72, vig: 1.30, puls: [0, 0],       atmo: "#ff8a3d" },
+  { skin: "#a8d13a", dark: "#4a6112", edge: "#2b3a08", bar: "#c6e46a", deep: "#3f5410",
+    amb: "#4f5a3a", k: 0.66, vig: 1.15, puls: [0.55, 0.16], atmo: "#a8d13a" },
+  { skin: "#9db4c8", dark: "#3f5266", edge: "#25313d", bar: "#c2d3e2", deep: "#374857",
+    amb: "#5a6270", k: 0.62, vig: 1.12, puls: [1.50, 0.20], atmo: null },
+  { skin: "#8b5cf6", dark: "#3b1d80", edge: "#22114d", bar: "#b79dff", deep: "#331a70",
+    amb: "#6e6a72", k: 0.48, vig: 0.78, puls: [0, 0],       atmo: "#8b5cf6" },
+  { skin: "#ff8a3d", dark: "#8a3c05", edge: "#4d2103", bar: "#ffb782", deep: "#7a3604",
+    amb: "#44506e", k: 0.68, vig: 1.18, puls: [0.90, 0.10], atmo: "#7ec8ff" },
+  { skin: "#e8e4dc", dark: "#6f6a63", edge: "#2f2c28", bar: "#f4f1ea", deep: "#5b5750",
+    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+  { skin: "#f2c14e", dark: "#7a5a0c", edge: "#3f2e04", bar: "#ffdc8a", deep: "#6b4f0a",
+    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+  { skin: "#3fbfa0", dark: "#125a4a", edge: "#08312a", bar: "#7fe0c8", deep: "#0f4c40",
+    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+  { skin: "#7ec8ff", dark: "#1d5c8e", edge: "#0d3350", bar: "#b4e0ff", deep: "#19506f",
+    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+  { skin: "#c9a227", dark: "#6b530c", edge: "#3a2c05", bar: "#e6c96a", deep: "#5c470a",
+    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+  { skin: "#4a4a55", dark: "#1c1c24", edge: "#0a0a0e", bar: "#8a8a99", deep: "#16161d",
+    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
 ];
 
 /* LA PEAU D'UN CADRE — l'identite reste dans hauts_faits.js, comme BOSS_ROSTER

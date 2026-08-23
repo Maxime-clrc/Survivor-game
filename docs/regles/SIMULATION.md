@@ -263,6 +263,18 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   **retirage**, pas un repli sur `_atkMarques` — replier fait perdre au boss sa
   pression et allonge les combats de moitié. `verifierCoexistence()` liste les
   paires, `verifierMecaniques()` est le critère rejouable.
+- **DEUX RÈGLES PEUVENT PARTAGER UN CRÉNEAU, JAMAIS UNE ANNONCE.** `MECH_CLUSTER`
+  porte trois chemins — `_atkGrappes`, sa version hâtive (compte à rebours de
+  moitié) et `_atkNoeuds` — et le partage du créneau est **correct** : deux
+  mécaniques d'occupation ne doivent pas tourner ensemble. Ce qui doit diverger
+  est ce que le joueur **lit**. Une grappe fait **éclore**, un nœud **prend
+  l'espace** : le verbe change parce que l'enjeu change, et annoncer une éclosion
+  qui n'arrive jamais est le seul mensonge que le jeu écrive au joueur.
+  `MECHS[i].variantes[v]` porte le seul libellé (`nom`, `texte`, `ordre`) ;
+  ni le niveau, ni la forme, ni le créneau, ni le comptage ne se redéclarent.
+  `_alert(mech, dur, variante)` la transporte dans `a.v`, et le **Silence se
+  souvient par variante** — avoir vu une grappe n'apprend rien sur un nœud, côté
+  serveur comme dans le `premiereFois` du client.
 - **`parPhase` n'est pas le seul chemin de superposition** : la cadence suffit
   (3,08 s en phase 3 contre 4 s d'annonce de tours), donc le **calme**, à
   `parPhase: 1`, n'est pas protégé par sa difficulté.

@@ -1500,8 +1500,14 @@ export class GameState {
         p.armeT = 0;
         p.armeTouche = 0;
       }
-      if (p.armeTouche) {
-        p.armeRes = Math.min(1, p.armeRes + dt * ARME_CFG.CHALEUR_MONTEE * p.mods.chaleurSeuil);
+      /* LA CHALEUR SUIT LE FAISCEAU, PAS LA TOUCHE. Elle ne montait qu'en
+         contact, donc elle ne se remplissait que dans les moments ou le joueur
+         gagnait deja — et comme le bonus croit avec elle, la ressource
+         recompensait sans jamais mordre. Deux regimes pour ne pas punir la
+         couverture de zone : le contact sature en 4,2 s, le vide en 7 s. */
+      if (tire) {
+        const monte = p.armeTouche ? ARME_CFG.CHALEUR_MONTEE : ARME_CFG.CHALEUR_MONTEE_VIDE;
+        p.armeRes = Math.min(1, p.armeRes + dt * monte * p.mods.chaleurSeuil);
         if (p.armeRes >= 1) {
           p.armeMuet = ARME_CFG.CHALEUR_MUET;
           this._surchauffe(p);
@@ -1726,12 +1732,19 @@ export class GameState {
           break;
         }
         const barrels = 1 + extra;
+        /* LA RAMPE S'OUVRE DANS LA GERBE. Elle n'existait que comme un anneau
+           autour du personnage — une jauge d'interface pour une mecanique qui
+           doit se lire dans les balles. Aucun etat neuf : `armeRes` porte deja
+           exactement la bonne valeur, immobile depuis assez longtemps donne un
+           tir chirurgical, un deplacement rouvre la gerbe. */
+        const disp = arme.rampe ? ARME_CFG.ASSAUT_DISPERSION * (1 - p.armeRes) : 0;
         const dmg = base * penal;
         const dernier = arme.chargeur && (p.armeMun ?? arme.chargeur) === 1
           ? (p.mods.siegeDernier ?? 1) : 1;
         const rail = arme.charge ? 1 + p.mods.railDegats : 1;
         for (let i = 0; i < barrels; i++) {
-          const off = barrels === 1 ? 0 : (i - (barrels - 1) / 2) * 0.13;
+          const off = (barrels === 1 ? 0 : (i - (barrels - 1) / 2) * 0.13)
+            + (disp > 0 ? (Math.random() * 2 - 1) * disp : 0);
           this._fire(p, dmg * dernier * rail, off, {
             pierceAll: !!arme.perforeTout,
             court: arme.portee,
@@ -5039,7 +5052,7 @@ export class GameState {
         hp, maxHp: hp,
       });
     }
-    this._alert(MECH_CLUSTER, BOSS_CFG.NOEUD_TIME);
+    this._alert(MECH_CLUSTER, BOSS_CFG.NOEUD_TIME, "noeud");
   }
 
   // PRISME — la ou les Jumeaux demandent de SEPARER, le Prisme demande de
@@ -5290,7 +5303,10 @@ export class GameState {
     return { x: sx / ps.length, y: sy / ps.length };
   }
 
-  _alert(mech, dur = 0) {
+  /* LA VARIANTE NE CHANGE QUE LE LIBELLE. Le creneau, le niveau et le compte
+     restent ceux de la mecanique ; le Silence, lui, se souvient PAR variante —
+     avoir vu une grappe n'a jamais rien appris sur un noeud. */
+  _alert(mech, dur = 0, variante = null) {
     const def = mechAt(mech);
     if (!def) return;
     // compte AVANT le Silence : la mecanique est posee meme quand elle ne
@@ -5300,10 +5316,13 @@ export class GameState {
     // telegraphe au sol reste, seule l'annonce disparait.
     if (this.boss && this.boss.silence) {
       const vus = (this.boss.vus ??= new Set());
-      if (vus.has(mech)) return;
-      vus.add(mech);
+      const cle = variante ? `${mech}:${variante}` : mech;
+      if (vus.has(cle)) return;
+      vus.add(cle);
     }
-    this.alerts.push({ mech, level: def.level, dur: Math.round(dur * 100) / 100 });
+    const a = { mech, level: def.level, dur: Math.round(dur * 100) / 100 };
+    if (variante) a.v = variante;
+    this.alerts.push(a);
     if (this.alerts.length > 16) this.alerts.shift();
   }
 
@@ -5757,7 +5776,8 @@ export class GameState {
         hp, maxHp: hp,
       });
     }
-    this._alert(MECH_CLUSTER, urgent ? BOSS_CFG.CLUSTER_TIME * 0.5 : BOSS_CFG.CLUSTER_TIME);
+    this._alert(MECH_CLUSTER, urgent ? BOSS_CFG.CLUSTER_TIME * 0.5 : BOSS_CFG.CLUSTER_TIME,
+                urgent ? "hative" : null);
   }
 
   _atkNourriciers(b) {
@@ -8016,7 +8036,8 @@ export class GameState {
       mk: this.marks.map(m => [m.id, r1(m.x), r1(m.y), Math.round(m.r),
                                r2(m.max > 0 ? Math.max(0, m.t) / m.max : 0), m.mech,
                                m.a, m.b, m.need, m.cur,
-                               r2(m.maxHp > 0 ? Math.max(0, m.hp) / m.maxHp : 0)]),
+                               r2(m.maxHp > 0 ? Math.max(0, m.hp) / m.maxHp : 0),
+                               m.noeud ? 1 : 0]),
       w: filtrer(this.powerups, () => CFG.POWERUP_RADIUS,
         w => [w.id, r1(w.x), r1(w.y), w.type]),
       hv: this.harvests.map(h => [h.id, r1(h.x), r1(h.y), h.kind,

@@ -163,6 +163,13 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   disponibles ensemble.
 - **Une ressource invisible est une ressource subie.** La rampe se lit **sur le
   personnage** (elle dépend du déplacement), la chaleur sous le réticule.
+- **UNE JAUGE DOIT SE LIRE DANS CE QUE L’ARME PROJETTE, pas seulement dans un
+  anneau.** La rampe du canon d’assaut ouvre la **gerbe**
+  (`ASSAUT_DISPERSION × (1 − armeRes)`, ~9° à rampe nulle, tir chirurgical à
+  rampe pleine) : aucun état neuf, `armeRes` portait déjà exactement la bonne
+  valeur. Ce n’est pas un habillage — c’est un malus qui monte l’exigence de
+  **visée** de 0,5 à 1 (il faut choisir entre tirer et bouger), donc `D` et la
+  cible avec, et le nominal paie la compensation que la campagne désigne.
 - **UNE ARME VAUT CE QU’ELLE DÉLIVRE, PAS CE QU’ELLE AFFICHE.** Le critère de
   DPS nominal est resté muet pendant que le tesla dominait et que la grenade
   faisait ×1,88 de survie : il ne mentait pas, il regardait le mauvais nombre.
@@ -197,9 +204,15 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   `pilotage()` recule : sa tenue de distance et son terme d’immobilité se
   dérivent de l’arme, et **ne s’activent que si l’arme les déclare** — avec le
   tir standard son comportement est celui du lot I, inchangé.
-- **La chaleur monte quand le faisceau TOUCHE**, jamais quand on tire : le tir
-  est automatique, donc une chaleur liée au tir n’est pas pilotable — c’est un
-  métronome. On la gère en visant ailleurs, sans une entrée de plus.
+- **La chaleur monte tant que le faisceau est ACTIF, à deux régimes** :
+  `CHALEUR_MONTEE` en contact (4,2 s), `CHALEUR_MONTEE_VIDE` à vide (7 s).
+  Adossée à la seule touche, elle ne se remplissait que dans les moments où le
+  joueur gagnait déjà — donc jamais dans ceux où il aurait appris qu’elle existe,
+  et comme le bonus croît avec elle, la ressource **récompensait sans jamais
+  mordre**. Le second régime est ce qui évite de punir la couverture de zone. Le
+  tir étant automatique, le cycle est permanent : 4 s de tir, 1,5 s de mutisme,
+  ~77 % d’activité — et `armeMuet` le porte, donc le modèle d’équilibrage le
+  capte par le terme d’uptime.
 - **Le rayon d’une arme de balayage est un SEUIL, pas un levier** : sous ~150 px
   elle ne perce pas l’anneau qui se referme, au-dessus elle le nettoie. On pose
   le rayon au-dessus du seuil et on règle par l’**arc**.

@@ -7,9 +7,9 @@ import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, fullMods, traitsOf } from "/shared/game_state.js";
 import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
-import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
+import { EMPTY_SET, GFX_MEDIUM, bombReadyAt, difficulty, gfx, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
-import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
+import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawOmbre, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
 import { ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
@@ -42,6 +42,13 @@ export const BOLT_DIAMOND = 1;
    que ca coute. Elle se DEDUIT de l'arme du proprietaire, donc elle n'ouvre
    aucune clef d'instantane. */
 export const BOLT_RAIL = 2;
+/* Quatre silhouettes de plus, une par mecanique de delivrance : six petits corps
+   plutot que six balles, un objet balistique qui tourne, un obus qui porte son
+   souffle, une aiguille qui traverse. */
+export const BOLT_GRAIN = 3;
+export const BOLT_BARIL = 4;
+export const BOLT_OBUS = 5;
+export const BOLT_TRAIT = 6;
 /* Une AIGUILLE : longue dans l'axe, presque nulle en travers, et un coeur clair
    qui la traverse. La trainee est DROITE et non un point flou — un rail ne
    flotte pas. */
@@ -74,6 +81,107 @@ function boltRail(x, y, ux, uy, r, col) {
   ctx.stroke();
 }
 
+// SIX PETITS CORPS, PAS SIX BALLES : rond et sans elongation, c'est ce qui
+// separe une gerbe de plombs d'une salve.
+function boltGrain(x, y, ux, uy, r, col) {
+  ctx.fillStyle = alpha(col, 0.3);
+  ctx.beginPath(); ctx.arc(x - ux * r * 2.4, y - uy * r * 2.4, r * 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+}
+/* UN OBJET BALISTIQUE, PAS UN TIR : un cylindre qui TOURNE, donc dont l'axe ne
+   suit pas la trajectoire. La phase est une fonction de l'identifiant et du
+   temps — rien ne se garde d'une image a l'autre. */
+function boltBaril(b, r, col) {
+  const a = b.id * 0.7 + performance.now() / 1000 * 6.5;
+  const ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
+  const L = r * 1.5, W = r * 0.85;
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(b.x + ux * L + px * W, b.y + uy * L + py * W);
+  ctx.lineTo(b.x + ux * L - px * W, b.y + uy * L - py * W);
+  ctx.lineTo(b.x - ux * L - px * W, b.y - uy * L - py * W);
+  ctx.lineTo(b.x - ux * L + px * W, b.y - uy * L + py * W);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = alpha(FX.flash, 0.7);
+  ctx.lineWidth = Math.max(1, r * 0.3);
+  ctx.beginPath();
+  ctx.moveTo(b.x + ux * L, b.y + uy * L);
+  ctx.lineTo(b.x - ux * L, b.y - uy * L);
+  ctx.stroke();
+}
+// COURT ET EPAIS, avec un nez : il vole droit et vite la ou la grenade est lobee,
+// et il porte son souffle avec lui.
+function boltObus(x, y, ux, uy, r, col) {
+  const px = -uy, py = ux;
+  const N = r * 2, Q = r, W = r * 0.95;
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(x + ux * N, y + uy * N);
+  ctx.lineTo(x + ux * Q + px * W, y + uy * Q + py * W);
+  ctx.lineTo(x - ux * Q + px * W, y - uy * Q + py * W);
+  ctx.lineTo(x - ux * Q - px * W, y - uy * Q - py * W);
+  ctx.lineTo(x + ux * Q - px * W, y + uy * Q - py * W);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = alpha(FX.flash, 0.5);
+  ctx.lineWidth = Math.max(1, r * 0.5);
+  ctx.beginPath();
+  ctx.moveTo(x - ux * Q, y - uy * Q);
+  ctx.lineTo(x - ux * r * 3.6, y - uy * r * 3.6);
+  ctx.stroke();
+}
+// UN TRAIT, PAS UNE AIGUILLE : la ou le rail a une masse, la precision n'a qu'une
+// trainee. C'est la longueur qui dit la portee, la finesse qui dit la cadence.
+function boltTrait(x, y, ux, uy, r, col) {
+  const L = r * 16;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  ctx.strokeStyle = alpha(col, 0.3);
+  ctx.lineWidth = Math.max(1, r * 0.5);
+  ctx.beginPath();
+  ctx.moveTo(x - ux * L, y - uy * L);
+  ctx.lineTo(x + ux * r, y + uy * r);
+  ctx.stroke();
+  ctx.strokeStyle = alpha(FX.flash, 0.9);
+  ctx.lineWidth = Math.max(1, r * 0.28);
+  ctx.beginPath();
+  ctx.moveTo(x - ux * L * 0.45, y - uy * L * 0.45);
+  ctx.lineTo(x + ux * r * 1.6, y + uy * r * 1.6);
+  ctx.stroke();
+  ctx.lineCap = "butt";
+  ctx.restore();
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(x + ux * r * 1.2, y + uy * r * 1.2, r * 0.55, 0, Math.PI * 2); ctx.fill();
+}
+function boltForme(shape, b, ux, uy, r, col) {
+  switch (shape) {
+    case BOLT_RAIL:  boltRail(b.x, b.y, ux, uy, r, col); return true;
+    case BOLT_GRAIN: boltGrain(b.x, b.y, ux, uy, r, col); return true;
+    case BOLT_BARIL: boltBaril(b, r, col); return true;
+    case BOLT_OBUS:  boltObus(b.x, b.y, ux, uy, r, col); return true;
+    case BOLT_TRAIT: boltTrait(b.x, b.y, ux, uy, r, col); return true;
+    default: return false;
+  }
+}
+/* CE QUE L'ARME PROJETTE, pas ce qu'elle vaut sur sa fiche : cinq armes
+   partageaient la meme capsule, donc un rail de 53 degats se lisait comme une
+   balle de 12. La silhouette et la taille se DEDUISENT de la mecanique, donc
+   rien ne circule — le proprietaire voyage deja dans le tuple de la balle, et
+   son arme dans le sien. Cuit une fois : `ARMES` ne bouge pas. */
+const SIL_DEFAUT = [BOLT_CAPSULE, 1];
+const SILHOUETTES = new Map(ARMES.map(a => [a.id,
+  a.charge ? [BOLT_RAIL, 1.6]
+  : a.tir === "grenade" ? [BOLT_BARIL, 1.3]
+  : a.obus ? [BOLT_OBUS, 1.4]
+  : a.plombs ? [BOLT_GRAIN, 0.7]
+  : a.perce ? [BOLT_TRAIT, 0.8]
+  : a.rampe ? [BOLT_CAPSULE, 0.85]
+  : SIL_DEFAUT]));
+export const silhouetteArme = a => SILHOUETTES.get(a?.id) ?? SIL_DEFAUT;
+
 export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
   const prev = trail.get(b.id);
   trail.set(b.id, { x: b.x, y: b.y });
@@ -85,7 +193,7 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
     const d = Math.hypot(dx, dy);
     if (d > 0.5) {
       const ux = dx / d, uy = dy / d;
-      if (shape === BOLT_RAIL) { boltRail(b.x, b.y, ux, uy, r, col); return; }
+      if (boltForme(shape, b, ux, uy, r, col)) return;
       if (shape === BOLT_DIAMOND) {
         ctx.globalAlpha = 0.3;
         boltDiamond(b.x - ux * r * 3, b.y - uy * r * 3, ux, uy, r * 0.7);
@@ -109,7 +217,7 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
       return;
     }
   }
-  if (shape === BOLT_RAIL) { boltRail(b.x, b.y, 1, 0, r, col); return; }
+  if (boltForme(shape, b, 1, 0, r, col)) return;
   if (shape === BOLT_DIAMOND) { boltDiamond(b.x, b.y, 1, 0, r); return; }
   ctx.beginPath();
   ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
@@ -1597,6 +1705,19 @@ export function drawEnemies(list, view) {
   auraPass(list, diff);
   drawMedicLinks(list);
   const me = view?.playerList?.find(p => p.id === myId);
+
+  // PASSE SEPAREE, et c'est la seule facon correcte : une ombre posee juste
+  // avant SON corps tomberait sur le corps deja dessine du voisin. Meme mode de
+  // melange que les corps, donc meme lot GL — aucun appel de dessin en plus.
+  if (gfx >= GFX_MEDIUM) {
+    for (const e of list) {
+      if (!inView(e.x, e.y)) continue;
+      const v = windup.has(e.id) ? 1 : voileBrume(e.x, e.y);
+      if (v <= 0.02) continue;
+      const d = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
+      drawOmbre(e.x, e.y, e.elite ? d.r * CFG.ELITE_RADIUS_MUL : d.r, v);
+    }
+  }
 
   for (const e of list) {
     if (!inView(e.x, e.y)) continue;

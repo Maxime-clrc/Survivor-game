@@ -2824,6 +2824,330 @@
                    profil sans rediffuser `lobbyPayload()`, donc il fallait
                    quitter la salle et y revenir.
 
+     0.16.1 lot 1  LE PALIER DE QUALITE. Premier lot du plan 13, qui fait monter
+                   d'un cran le rendu de l'arene sans toucher une regle de jeu.
+                   Il n'ameliore rien a l'ecran : il rend les six lots suivants
+                   comparables, reversibles et mesurables.
+                   `survivor.gfx` — quatre paliers, `high` par defaut. Un defaut
+                   prudent ferait que personne ne voit jamais le travail ; `low`
+                   reste a un clic. Le NOM est ce qu'on range, pas l'indice : un
+                   palier insere plus tard reinterpreterait un indice stocke.
+                   `low` EST UN CONTRAT, mais sur la TECHNIQUE : matiere, semis,
+                   lumiere, grille d'avant le plan 13. C'est le bouton AVANT de
+                   la comparaison visuelle, et le repli d'une machine qui ne suit
+                   pas. Tout lot suivant qui touche un chemin partage verifie
+                   qu'il n'a pas bouge. La PALETTE d'arene est hors contrat (lot
+                   2) : un palier regle un cout de rendu, il n'annule pas une
+                   decision de direction artistique.
+                   Ce qui ne change JAMAIS entre paliers : la simulation, les
+                   collisions, les apparitions, la position de quoi que ce soit.
+                   Deux joueurs de la meme partie a deux paliers voient la meme
+                   INFORMATION, pas la meme image.
+                   Bouton cyclique au menu pause, a cote des deux bascules de
+                   HUD, meme modele que `survivor.renderer`.
+
+     0.16.2 lot 2  LA MATIERE. Le sol donnait « texture repetee » pour une raison
+                   arithmetique : 400 px repetes dans 1600 x 900, c'est 4 x 2,25
+                   repetitions VISIBLES EN MEME TEMPS. Aucune quantite de detail
+                   dans la tuile ne rattrape ca — c'est la periode qui se voit,
+                   pas le contenu. Deuxieme echelle (`MACRO`, 1 200) faite de
+                   nappes sans aucune arete, plus un semis qui, lui, ne se repete
+                   jamais.
+                   LA GRILLE DESCEND DANS LA MATIERE. `TILE` valait deja
+                   exactement `GRID_MAJOR` et la maille de 5 m le divise par 4 :
+                   la tuile portait donc les deux grilles sans le savoir. Un
+                   joint a une epaisseur et deux cotes, donc il decrit une
+                   SURFACE ; une ligne tracee decrit un plan technique — c'etait
+                   le marqueur « prototype » numero un. La 20 m reste tracee a
+                   50 %, seule a servir a lire une portee. `GRID_FINE` ne bouge
+                   pas : `drawGridPings` s'en sert toujours.
+                   `props.js` NE GARDE RIEN : presence, type, angle et echelle
+                   d'un prop sont des fonctions de sa cellule monde et de la
+                   graine. Meme motif que `champ()`, ancre a une cellule au lieu
+                   d'un indice — semis infini, non repetitif, identique chez
+                   tous, cache par rectangle de cellules et non par image.
+                   RIEN DANS LE SEMIS NE SE LIT COMME BLOQUANT : tout est plaque
+                   au sol et toute cellule occupee par un obstacle ou un danger
+                   est sautee. Un pylone visuel traversable serait un mensonge de
+                   gameplay ; ce qui doit bloquer reste un obstacle de
+                   `biomes.js`. Collisions, apparitions, dangers : au bit pres.
+                   L'ARENE EST ANTHRACITE, PAS INDIGO. Le bleu tirait la matiere
+                   vers le plastique. `DECOR[]` et la teinte de la Friche
+                   glissent vers le gris neutre-froid ; `SURFACE` et `UI_THEME`
+                   ne bougent pas — deux palettes, deux portees, et les fusionner
+                   defaisait un choix ecrit. Le vert de la Friche cesse de
+                   piloter et redevient une trace : c'est une installation
+                   abandonnee, pas un pre.
+                   L'AMBRE CESSE D'ETRE UNIQUEMENT UN SIGNAL. Il devient une
+                   matiere (`PROP.rouille`) et une lumiere (`PROP.led`). Les deux
+                   ne se confondent pas : un signal est sature et anime, une
+                   matiere est desaturee et fixe.
+
+     0.16.3 lot 3  LA LUMIERE. Il n'y en avait AUCUNE : tout etait eclaire a
+                   plat, seul le vignettage modulait. Premiere cause de l'ecart
+                   de gamme, et la moins chere a corriger.
+                   LA PILE DE CANVAS SEPARE DEJA SOL / ENTITES / EFFETS, donc une
+                   passe posee sur `#cvUnder` NE PEUT PAS atteindre un ennemi, un
+                   projectile, un telegraphe ou un marqueur. `drawLumiere()` est
+                   appelee apres le sol et les props, AVANT le premier element de
+                   gameplay : la hierarchie de lisibilite est structurelle, pas
+                   reglee. La deplacer d'une ligne plus bas la casse en silence.
+                   TAMPON A 1/4 DE LA VUE (1/2 en `ultra`) : le
+                   sur-echantillonnage bilineaire du `drawImage` donne la douceur
+                   GRATUITEMENT. A pleine resolution il faudrait un flou.
+                   DEUX PASSES, PAS UNE. `multiply` fait l'ombre, `lighter` fait
+                   l'emission. `multiply` seul rend un jeu plus sombre — pas un
+                   jeu eclaire ; `lighter` seul delave. La base ambiante repart
+                   dans la seconde passe : a 12 % d'une luminance de 0,45 le
+                   relevement plat est negligeable, les taches claires montent.
+                   TOUTE SOURCE EST LUE, AUCUNE N'EST POUSSEE : dangers par
+                   `hazardState()` (donc la lumiere d'un geyser EST son etat,
+                   rien a resynchroniser), props par `forEachPropLight()`,
+                   souffles par `bursts`, joueurs par `playerList`. Ecrire vers
+                   une couche superieure est interdit, et rien n'y obligeait.
+                   UN PROJECTILE N'EST PAS UNE SOURCE : il y en a des centaines
+                   par seconde a la minute 25, le sol clignoterait au rythme de
+                   la cadence de tir. Un stroboscope n'a pas de fonction
+                   artistique.
+                   Une source plafonne a 0,85 : c'est l'EMPILEMENT qui fabrique
+                   le coeur clair, exactement comme pour un souffle.
+
+     0.16.4 lot 4  LE VOLUME. Une ombre bien placee en dit plus sur un volume que
+                   n'importe quelle quantite de detail sur sa face.
+                   `drawObstacles` FAISAIT DEJA LES DEUX GESTES, et les deux
+                   etaient justes : l'extrusion RADIALE dit ou est la camera, le
+                   decalage CONSTANT d'ou vient la lumiere. Le second etait ecrit
+                   en dur a un seul endroit et rien d'autre ne le connaissait.
+                   `lumDir()` le nomme et le partage — il vit dans `stage.js`,
+                   la couche la plus basse qui en ait besoin, sous `fx.js` et
+                   sous `decor.js`. Deux ombres qui pointent differemment sur le
+                   meme ecran sont LE defaut visible d'un rendu 2D ; il n'existe
+                   plus de second endroit ou l'ecrire.
+                   L'OMBRE DE CONTACT. Sans elle une entite FLOTTE : aucune ancre
+                   au sol. Un quad `fx_glow` teinte noir — la teinte
+                   premultipliee donne un melange alpha classique — dans le lot
+                   NORMAL qui existe deja : aucun appel de dessin en plus.
+                   PASSE SEPAREE, et c'est la seule facon correcte : une ombre
+                   posee juste avant SON corps tombe sur le corps deja dessine du
+                   voisin. Elle ne s'additionne pas (200 ennemis serres feraient
+                   une flaque noire), elle est ecrasee et decalee — jamais
+                   centree, sinon elle se lit comme un halo. Pas d'ombre pour un
+                   projectile : la frequence, comme pour la lumiere.
+                   Le boss n'est pas dans l'atlas : son ombre est un TRACE.
+                   LA FACE DU DESSUS DEVIENT UNE MATIERE : tole striee, coin use,
+                   et une bande LED qui eclaire reellement le sol. `ledDe()` vit
+                   dans `lumiere.js` et `decor.js` la lit — sinon la lueur et le
+                   trait finissent sur deux aretes differentes. Reservee aux blocs
+                   PERMANENTS : sur une couverture destructible elle
+                   concurrencerait le contour tirete, qui est du gameplay.
+                   Tout l'habillage est clippe a la silhouette : rien ne deborde
+                   sur le sol, ou vivent les telegraphes.
+
+     0.16.5 lot 5  L'ATMOSPHERE. Le lot le moins cher du plan 13 : la mecanique
+                   existait deja, entiere, et elle etait bonne.
+                   `champ()` PREND UN CENTRE. Trois parametres positionnels de
+                   plus — pas un objet d'options, le module ne doit rien allouer
+                   par image — et la meteo devient aussi la vapeur d'un geyser et
+                   les etincelles d'un coffret. Un parametre, pas une seconde
+                   fonction.
+                   C'est un champ de particules SANS PARTICULES : la position
+                   d'un brin est une fonction de son indice et du temps. Rien ne
+                   s'alloue, un `stroke` par champ, et deux clients voient la
+                   meme chose. C'est aussi ce qui empeche le lot de deriver — un
+                   effet qui aurait besoin d'un tableau persistant n'est pas ici,
+                   il est dans `fx.js` sous `PARTICLE_MAX`.
+                   UN PROP EMISSIF EXISTE PAR TROIS CANAUX : il gresille, il
+                   crache des etincelles, il eclaire son pourtour. Les trois
+                   lisent la MEME declaration (`forEachPropLight`), ecrite au lot
+                   2 et deja consommee par le lot 3. Un coffret qui n'aurait que
+                   le premier serait du decor ; avec les trois c'est un objet.
+                   LE PREMIER PLAN, trois regles sans exception : rien au centre
+                   (il appartient au joueur), jamais opaque, et COUPE pendant un
+                   boss — l'arene se resserre deja a une vue, y ajouter du bord
+                   serait le contraire de ce que le resserrement cherche. La
+                   parallaxe est une derive globale proportionnelle a la position
+                   de camera : assez pour la profondeur, trop peu pour l'oeil.
+                   PAS DE PLUIE, PAS DE BROUILLARD VOLUMETRIQUE. La Friche est
+                   interieure-abandonnee ; et `voileBrume()` occupe deja le canal
+                   de la brume — il est un CHAMP DE VISION, pas une teinte, deux
+                   brumes se contrediraient.
+
+     0.16.6 lot 6  LE BOSS PREND L'ARENE. Il n'y apparaissait que comme une
+                   entite de plus ; le monde ne reagissait pas.
+                   Le profil vit dans `BOSS_SKIN`, la table deja indexee par
+                   `kind` : `amb`, `k`, `vig`, `puls`, `atmo`. Ce sont des
+                   NOMBRES, donc l'application est une interpolation et non une
+                   structure. Les cinq dernieres lignes sont les finals par
+                   difficulte — meme profil, c'est le meme combat.
+                   DEUX CANAUX A CONSTANTES DE TEMPS DISTINCTES, et l'ordre est
+                   tout : `kL` (1,2 s) porte l'ambiante et le vignettage, `kS`
+                   (0,8 s) ne demarre qu'a `kL > 0.85` et porte la teinte du sol
+                   et l'atmosphere. LA LUMIERE CHANGE AVANT LA MATIERE : on sent
+                   l'arrivee avant de la voir, ce qui est l'ordre dans lequel une
+                   menace se manifeste. Une bascule instantanee de la couleur du
+                   sol se lit comme un bug de rendu, pas comme une entree.
+                   LA TEINTE DU SOL PASSE PAR L'AMBIANTE de la passe de lumiere,
+                   jamais par un recuit de la tuile : le mecanisme du lot 3
+                   existe deja et il coute un `melange()`. Recuire 400 x 400 par
+                   image pour la meme image aurait ete le chemin evident et le
+                   mauvais.
+                   Le profil est GARDE pendant la sortie — il devient null des la
+                   mort du boss alors que les deux canaux ont encore 1,5 s a
+                   redescendre. Une rupture de barre est une POINTE, pas un
+                   palier.
+                   AUCUN TELEGRAPHE NE PERD DE CONTRASTE : le profil ne pilote
+                   que l'ambiante, qui ne touche que le sol. Barre de PV,
+                   marqueurs et annonces vivent sur `#cv` et dans le HUD DOM.
+                   Le champ d'atmosphere du boss est le SEUL qui traverse le
+                   centre : il annonce ce qui s'y trouve.
+                   `pasBoss()` avance meme sans tampon de lumiere — le vignettage
+                   le lit aussi, et il vit a tous les paliers.
+
+     0.16.7 lot 7  UNE MAP DOIT RESSEMBLER A SON NOM. Le semis du lot 2 partageait
+                   huit props entre les trois biomes, reponderes : un sol d'usine
+                   et un sol de fonderie recevaient les memes plaques et les
+                   memes cables, donc les trois etaient interchangeables.
+                   Six props communs — honnetement industriels, ils valent
+                   partout — plus un jeu PROPRE a chaque biome, qui porte son
+                   verbe. L'Usine FABRIQUE : convoyeurs, caisses cerclees, allees
+                   peintes. La Fonderie COULE : rigoles en fusion, lingots
+                   coules, croutes de scorie. La Friche a ETE ABANDONNEE, elle
+                   garde le sien.
+                   UNE ALLEE N'EST PAS UN AVERTISSEMENT : deux lignes continues
+                   et pales, pas des hachures. Un marquage hachure se lit comme
+                   un telegraphe, et le sol en porte deja.
+                   TROIS LUMIERES, TROIS COMPORTEMENTS : un tube mort GRESILLE
+                   (il tient, faiblit, revient d'un coup), un voyant RESPIRE, du
+                   metal en fusion ONDULE sans jamais s'eteindre. Le comportement
+                   dit la matiere mieux que la couleur. Un prop emissif declare
+                   donc son rayon ET sa teinte — `PROP.fonte` est le seul ton du
+                   depot plus chaud que l'ambre de signal, et il ne sert qu'a de
+                   la matiere en fusion.
+                   LA COULEE DE LA FONDERIE NE DEPENDAIT QUE DE L'USURE : en mode
+                   calme il n'en restait AUCUNE et le sol etait celui d'un
+                   couloir. C'est le LIEU qui la decide, pas la difficulte — un
+                   plancher de scorie, de croute et de brique refractaire existe
+                   a tous les modes, l'usure ne fait qu'en ajouter.
+                   L'USINE TRANSPORTE : deux paires de traces de roulage
+                   traversent la tuile de bout en bout. Une usure DIRECTIONNELLE
+                   est ce qui separe un sol d'atelier d'un sol de couloir.
+
+     0.16.8 lot 8  LA NEBULEUSE, quatrieme biome. Ajoutee EN FIN de `BIOMES` —
+                   la table est append-only, son index circule dans l'instantane
+                   et sur le reseau. Le tirage lit `BIOMES.length`, donc elle
+                   entre en rotation sans qu'une ligne de serveur bouge.
+                   AUCUN DANGER NEUF : elle recompose les cinq. En apesanteur
+                   c'est le FREINAGE qui manque, donc le champ de ralentissement
+                   devient un puits de gravite ; le sol glissant EST l'apesanteur ;
+                   la braise est un debris incandescent qui traverse la travee.
+                   Meme regle, memes chiffres, aucune surface de simulation neuve.
+                   `verifierBiomes()` muet sur 4 biomes x 3 modes x 4 graines :
+                   surfaces sous budget, calme sans danger, normal sans danger qui
+                   blesse, coeur traversable, aucun danger pose sur un obstacle.
+                   30 s simulees aux trois difficultes, rien ne leve.
+                   LE SEUL SOL QUI SOUSTRAIT. Les trois autres tuiles POSENT des
+                   couches translucides sur la couleur d'arene ; celle-ci peint un
+                   pont presque opaque puis en RETIRE les baies (`clearRect`), et
+                   c'est par ces trous que le vide se voit. On marche sur un
+                   plancher, jamais sur le vide — un sol transparent aurait rendu
+                   la lecture des positions impossible.
+                   0,93 et non 1,0 : la teinte de mode traverse encore, sinon le
+                   pont serait identique en calme et en cauchemar. Les baies
+                   tombent sur la maille de 5 m et les joints se dessinent APRES :
+                   ils deviennent les meneaux du vitrage au lieu de les
+                   contredire.
+                   `drawFond()` est le SEUL arriere-plan du jeu, et il n'existe
+                   que pour un biome qui declare `fond`. DEUX PARALLAXES, parce
+                   qu'un fond a une seule vitesse est un autocollant : astres a
+                   0,05, etoiles a 0,16, deux `drawImage` par image. La derive
+                   maximale sur cette arene est de 256 px et la marge cuite en
+                   fait 300 — rien a boucler.
+                   Les etoiles sont groupees par PALIER DE CLARTE : trois `fill`
+                   pour 765 etoiles. Un `arc` par point aurait coute autant de
+                   chemins que de pixels. Un astre sans TERMINATEUR est un disque :
+                   le croissant sombre coute un second arc en `destination-out`.
+                   PAS DE RAINBOW NEON : quatre teintes de nebuleuse, deux froides
+                   une violette une chaude, toutes sous 22 %. `PROP.balise` est le
+                   seul cyan du decor et il ne sert qu'a une balise d'arrimage —
+                   la station eclaire en chaud, elle se signale en froid.
+
+     0.16.9 lot 9  L IDENTITE DE TIR. Une arme ne se reconnait pas a sa fiche,
+                   elle se reconnait a ce qu'elle projette — et cinq d'entre
+                   elles partageaient la meme capsule.
+                   LA PORTEE DU LASER SORTAIT DE L ECRAN A TOUS LES COUPS : la
+                   vue fait 1600 px, le joueur en voit 800 devant lui, le
+                   faisceau en parcourait 1536. Une portee dont on ne voit jamais
+                   la fin EST une portee illimitee, quoi qu'en dise la table.
+                   0,9 (43 m) la fait tomber juste au-dela du demi-ecran, et un
+                   TERMINUS la dessine meme quand rien n'est touche : elle
+                   s'apprend en la voyant s'arreter, sans qu'on l'ecrive.
+                   LA CHALEUR NE MONTAIT QUE SI L ON TOUCHAIT, donc tirer dans le
+                   vide etait gratuit et la jauge ne se remplissait que dans les
+                   moments ou le joueur gagnait deja — jamais dans ceux ou il
+                   aurait appris qu'elle existe. Elle monte desormais tant que le
+                   faisceau est ACTIF, a deux regimes (4,2 s en contact, 7 s a
+                   vide) pour ne pas punir la couverture de zone. MESURE : le
+                   laser passe de V 1,187 a 1,083 pour une cible de 1,06, donc
+                   DANS la fourchette pour la premiere fois.
+                   UN FAISCEAU CONTINU N A PAS D INSTANT DE DEPART, il apparait.
+                   L'allumage lui en donne un — 90 ms plus large et plus clair —
+                   et il revient a chaque sortie de saturation, seul moment ou le
+                   tir s'interrompt. L'impulsion a ete REFUSEE : elle aurait fait
+                   du laser un railgun rapide et rendu la chaleur sans objet.
+                   LA RAMPE DE L ASSAUT SE LIT DANS LES BALLES. Elle n'existait
+                   que comme un anneau autour du personnage — une jauge
+                   d'interface pour une mecanique qui doit se voir dans le tir.
+                   La gerbe s'ouvre a ASSAUT_DISPERSION x (1 - armeRes), ~9 deg
+                   a rampe nulle, tir chirurgical a rampe pleine. AUCUN ETAT
+                   NEUF : armeRes portait deja exactement la bonne valeur.
+                   Ce n'est pas un habillage : l'exigence de VISEE monte de 0,5 a
+                   1 (choisir entre tirer et bouger), donc D passe de 2,0 a 2,5
+                   et la cible de 1,06 a 1,08. MESURE : V tombe de 1,046 a 0,926,
+                   et la compensation porte sur le NOMINAL — seul terme que la
+                   dispersion n'ait pas touche — 6 -> 7 rend 1,050.
+                   SEPT SILHOUETTES DE PROJECTILE, une par mecanique de
+                   delivrance : capsule (standard x1,0, assaut x0,85), grain rond
+                   (dispersion x0,7), aiguille (railgun x1,6), baril en ROTATION
+                   (grenade x1,3), obus court et epais (siege x1,4), trait fin a
+                   longue trainee (precision x0,8). Forme ET taille se DEDUISENT
+                   de l'arme du proprietaire : le tuple d'une balle porte deja
+                   son proprietaire, et le tuple du joueur son arme. AUCUNE CLEF
+                   D INSTANTANE NE S OUVRE — la table est cuite une fois depuis
+                   ARMES, donc le tir standard, de loin le plus nombreux, ne
+                   grossit pas d'un octet.
+
+     0.16.10 lot 10 LE TISSEUR N A PAS DE GRAPPES, il a des NOEUDS — le jeu les
+                   dessinait comme des grappes et annoncait une eclosion qui
+                   n'arrivait jamais. Le joueur lisait « DETRUIS la grappe avant
+                   l'eclosion », echouait, ne voyait rien eclore, et en concluait
+                   correctement qu'il n'avait pas compris. LE JEU LUI MENTAIT
+                   DANS LA SEULE PHRASE QU IL LUI ECRIVAIT.
+                   MECH_CLUSTER N EST PAS SEPARE, et c'est delibere : deux
+                   mecaniques d'occupation ne doivent pas tourner ensemble, donc
+                   le partage du creneau est correct. Ce qui devait diverger est
+                   ce que le joueur LIT et ce qu'il VOIT. `variantes` porte le
+                   seul libelle — ni le niveau, ni la forme, ni le creneau, ni le
+                   comptage ne se redeclarent — et le SILENCE s'en souvient PAR
+                   VARIANTE : avoir vu une grappe n'apprend rien sur un noeud.
+                   La grappe hative (repli solo de `_atkPrison`) prend la sienne :
+                   deux fois moins de temps sans aucun signe que l'urgence
+                   differe etait le meme defaut, un cran plus bas.
+                   L EMPREINTE FAIT TOUT LE TRAVAIL. Un cercle de NOEUD_R en
+                   pointilles fins, sous le noeud, DES SON APPARITION : le joueur
+                   voit la place qu'il va perdre, a l'echelle reelle, pendant les
+                   9 s ou il peut encore l'empecher. Une mecanique dont on montre
+                   la consequence AVANT qu'elle arrive n'a plus a etre expliquee.
+                   Des amarres vers le boss disent qui tisse.
+                   LA ZONE NAIT DE L EMPREINTE au lieu d'apparaitre : le
+                   pointille s'epaissit et se remplit, donc la cause reste
+                   visible pendant la transition. A la destruction l'empreinte se
+                   RETRACTE vers le centre — le Tisseur est le seul boss ou le
+                   joueur repare l'arene, ca doit se voir se refermer.
+                   LE CLIENT SAIT POURQUOI UN NOEUD A DISPARU SANS QU ON LE LUI
+                   ENVOIE : detruit, il s'en va avec du temps au compteur ; tenu
+                   jusqu'au bout, il s'en va a zero. Un onzieme champ sur le
+                   marqueur (`m.noeud`), ajoute EN FIN de tuple, suffit a tout.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -2832,4 +3156,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.15.9";
+export const VERSION = "0.16.10";

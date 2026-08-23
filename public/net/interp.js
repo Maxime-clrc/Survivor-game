@@ -228,6 +228,8 @@ export function flushWorld(now) {
 // court suffit, et c'est le telegraphe qui porte l'information.
 const MECHS_VUS = "survivor.mechsVus";
 let mechsVus = null;
+// PAR VARIANTE : avoir vu une grappe n'apprend rien sur un noeud, et l'ordre
+// court ne suffit que quand on a deja lu l'explication de CETTE regle.
 function premiereFois(id) {
   if (!mechsVus) {
     try { mechsVus = new Set(JSON.parse(localStorage.getItem(MECHS_VUS) ?? "[]")); }
@@ -263,12 +265,13 @@ function applyAlert(msg, now) {
   const dur = msg.dur > 0 ? Math.max(800, msg.dur * 1000 - 250) : 1500;
   // DEUX TEXTES : l'imperatif court est l'ordre de combat, l'explication est
   // reservee a la premiere rencontre. Personne ne lit une phrase en combat.
-  const neuf = msg.mech !== undefined && premiereFois(msg.mech);
+  const neuf = msg.mech !== undefined
+    && premiereFois(msg.v ? `${msg.mech}:${msg.v}` : msg.mech);
   const nom = msg.meteo !== undefined ? weatherNom(msg.meteo)
-    : msg.event !== undefined ? eventNom(msg.event) : mechNom(msg.mech);
+    : msg.event !== undefined ? eventNom(msg.event) : mechNom(msg.mech, msg.v);
   const dit = msg.meteo !== undefined ? weatherTexte(msg.meteo)
     : msg.event !== undefined ? eventTexte(msg.event)
-    : (neuf || !def.ordre ? mechTexte(msg.mech) : mechOrdre(msg.mech));
+    : (neuf || !def.ordre ? mechTexte(msg.mech, msg.v) : mechOrdre(msg.mech, msg.v));
   const entry = { nom, from: now, until: now + dur,
                   texte: dit,
                   forme: def.forme ?? "",

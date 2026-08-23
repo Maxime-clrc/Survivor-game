@@ -13,9 +13,11 @@ import { fmtM } from "/shared/units.js";
 import { drawSprite, glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myDashCd, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
-import { ARROW_MARGIN, BOLT_CAPSULE, BOLT_DIAMOND, BOLT_RAIL, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
-import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, lastPlayerPos, resetGaze } from "./boss.js";
-import { drawArenaBounds, drawFloor, drawGrid, drawHazards, drawObstacles, drawVignette, drawWalls, drawWeather } from "./decor.js";
+import { ARROW_MARGIN, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
+import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, faisceauAllume, lastPlayerPos, noeudsSortis, noeudsVus, resetGaze } from "./boss.js";
+import { drawArenaBounds, drawAtmosphere, drawFloor, drawFond, drawGrid, drawHazards, drawObstacles, drawPremierPlan, drawVignette, drawWalls, drawWeather } from "./decor.js";
+import { drawLumiere } from "./lumiere.js";
+import { drawProps } from "./props.js";
 import { blastMarks, bursts, dashMarks, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";
@@ -37,6 +39,9 @@ export function resetFeedback() {
   bulletTrail.clear();
   shotTrail.clear();
   lastPlayerPos.clear();
+  faisceauAllume.clear();
+  noeudsVus.clear();
+  noeudsSortis.length = 0;
   zoneCracks.clear();
   zoneMotion.clear();
   blastSeen.clear();
@@ -267,8 +272,16 @@ function drawScreen(v) {
 }
 function drawWorld(v) {
   setCtx(underCtx);
+  // le fond passe AVANT la matiere : la tuile de la Nebuleuse retire ses baies,
+  // et c'est par ces trous qu'il se voit.
+  drawFond();
   drawFloor();
   drawGrid();
+  drawProps();
+  // LA LUMIERE S'ARRETE ICI. Tout ce qui suit est du gameplay — marques,
+  // dangers, zones, telegraphes, obstacles — et n'est donc JAMAIS assombri.
+  // La hierarchie de lisibilite tient par l'ordre de dessin, pas par un reglage.
+  drawLumiere(v);
   drawBlastMarks();
   for (const p of v.playerList) {
     if (!p.dashing || p.downed || !ownedCounts(p.id).has("vif_argent")) continue;
@@ -288,6 +301,7 @@ function drawWorld(v) {
   drawArenaBounds(v.bounds);
   drawHazards(v.tm);
   drawWeather(v.tm ?? 0);
+  drawAtmosphere(v.tm ?? 0);
   drawZones(v.zones, v.tm);
   drawObstacles(v.cover);
   drawVisee(v.playerList);
@@ -335,14 +349,16 @@ function drawWorld(v) {
     if (!inView(s.x, s.y, 40)) continue;
     drawBolt(s, CFG.SHOT_RADIUS, COMBAT.shot, shotTrail, BOLT_DIAMOND);
   }
+  const armeDe = new Map(v.playerList.map(p => [p.id, ARMES[p.arme]]));
   for (const b of v.bulletList) {
     if (!inView(b.x, b.y, 40)) continue;
     const col = ownerColorOf(b.owner) ?? COMBAT.bullet;
     if (b.sil === SIL_MISSILE) { drawMissile(b, col); continue; }
+    const [forme, taille] = silhouetteArme(armeDe.get(b.owner));
     // LE PORTEUR EST GROS, LES PLOMBS SONT FINS : sans cet ecart le joueur ne
     // voit pas ce qui se scinde, et la distance de scission ne s'apprend pas
-    drawBolt(b, CFG.BULLET_RADIUS * (b.sil === SIL_PORTEUR ? 1.8 : 1), col,
-             bulletTrail, silhouetteDe(v, b.owner));
+    drawBolt(b, CFG.BULLET_RADIUS * (b.sil === SIL_PORTEUR ? 1.8 : taille), col,
+             bulletTrail, forme);
   }
 
   drawSoinLinks(v.links, v.playerList, v.enemyList, v.sancts ?? []);
@@ -355,6 +371,7 @@ function drawWorld(v) {
   drawBursts();
 
   drawVignette();
+  drawPremierPlan(v);
   drawGazeEcran();
   drawPulse();
   drawAllyArrows(v.playerList);
@@ -366,14 +383,6 @@ function drawWorld(v) {
 // MULTIPLE : le lien des Jumeaux est visible EN PERMANENCE, pas seulement
 // pendant `MECH_LINK`. Le joueur doit voir POURQUOI il faut les separer sans
 // qu'on le lui dise — et il se coupe des qu'ils sont assez loin.
-/* La silhouette d'une balle est une FONCTION de ce que le client a deja : le
-   proprietaire voyage dans le tuple, et l'arme du proprietaire dans le sien.
-   Aucune clef d'instantane a ouvrir pour distinguer un rail d'une capsule. */
-function silhouetteDe(v, owner) {
-  const p = v.playerList?.find(x => x.id === owner);
-  return ARMES[p?.arme]?.charge ? BOLT_RAIL : BOLT_CAPSULE;
-}
-
 function drawTwinLink(a, b) {
   const d = Math.hypot(a.x - b.x, a.y - b.y);
   if (d > BOSS_CFG.TWIN_HEAL_RANGE) return;

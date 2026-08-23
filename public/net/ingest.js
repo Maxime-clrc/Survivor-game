@@ -97,7 +97,7 @@ export function ingest(msg) {
     bossDmg: msg.bd ?? null,
     marks: (msg.mk ?? []).map(a => ({
       id: a[0], x: a[1], y: a[2], r: a[3], k: a[4], mech: a[5],
-      a: a[6], b: a[7], need: a[8], cur: a[9], hp: a[10],
+      a: a[6], b: a[7], need: a[8], cur: a[9], hp: a[10], noeud: a[11] ?? 0,
     })),
     slip: msg.sp === 1,
     segment: msg.sg ? msg.sg[0] : 0,

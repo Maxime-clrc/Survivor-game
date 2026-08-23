@@ -1,7 +1,7 @@
 import { createGL } from "/gl.js";
 
 import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome } from "/shared/game_state.js";
-import { CADRE_SKIN, ENEMY, cssVars, decorAt, teinter } from "/shared/palette.js";
+import { CADRE_SKIN, ENEMY, LUM, cssVars, decorAt, teinter } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { reuploadAtlas } from "/sprites.js";
 import { PERF, latest, lobby, myId, predicted } from "../core/state.js";
@@ -189,6 +189,16 @@ export function cadreOf(id) {
   const c = lobby.find(l => l.id === id)?.cadre;
   return c ? (CADRE_SKIN[c] ?? null) : null;
 }
+/* UNE SEULE DIRECTION DE LUMIERE PAR BIOME, et elle vit ICI — la couche la plus
+   basse qui la connaisse, sous `fx.js` qui en a besoin pour les ombres de
+   contact et sous `decor.js` pour les ombres portees. Deux ombres qui pointent
+   differemment sur le meme ecran, c'est le defaut le plus visible d'un rendu 2D.
+   Le relief RADIAL de `drawObstacles` reste : c'est la CAMERA, pas la lumiere,
+   et les deux coexistent — c'est ce que fait la 2D haut de gamme. */
+export function lumDir() {
+  return (LUM[biomeAt(biomeIndex).key] ?? LUM.usine).dir;
+}
+
 export const GRID_FINE = 5 * PX_PER_M;
 export const GRID_MAJOR = 20 * PX_PER_M;
 export const ELITE_GOLD = ENEMY.elite;

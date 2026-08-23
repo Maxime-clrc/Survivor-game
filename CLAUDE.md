@@ -122,7 +122,7 @@ shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
 shared/armes.js        LES ARMES : 10 fiches, coefficients d echelle, conversions boss
 shared/hauts_faits.js  LES HAUTS FAITS : 36 exigences, 13 cadres, recompenses NOMMEES
 shared/timeline.js     LE SCRIPT — six segments, trente beats, TROIS variantes, les EVENEMENTS
-shared/biomes.js       LE LIEU — trois biomes, cinq dangers, trois meteos, generateur DETERMINISTE
+shared/biomes.js       LE LIEU — quatre biomes, cinq dangers, trois meteos, generateur DETERMINISTE
 shared/units.js        pixels -> metres, SEUL point de conversion d'affichage
 shared/i18n.js         LA langue : cle -> texte, le FR restant le REPLI
 shared/lang/en.js      le dictionnaire anglais, SURCHARGE par cle
@@ -134,8 +134,10 @@ public/ui/dom.js       TOUTE reference DOM du jeu + helpers de texte
 public/render/stage.js canvas, ctx courant, camera, gl, decor de mode, biome, souris -> monde
 public/net/interp.js   horloge de rendu, interpolation, worldQueue / alertQueue
 public/render/fx.js    particules, impacts, morts, chiffres de degats, tressaillement
+public/render/material.js la MATIERE du sol : deux tuiles + l ARRIERE-PLAN, cuits par (biome, mode, graine)
+public/render/props.js LE SEMIS : props deterministes par cellule monde, rien ne bloque
+public/render/lumiere.js LA LUMIERE : tampon quart de vue, multiply + lighter sur le SOL
 public/render/decor.js LE SOL : grille, vignettage, obstacles, dangers
-public/render/material.js la MATIERE du sol : une tuile cuite par (biome, mode, graine)
 public/render/actors.js zones, projectiles, structures, ennemis, bonus
 public/render/boss.js  boss, marques de mecanique, joueurs
 public/render/world.js ORCHESTRATION : ordre de dessin, boucle, prediction, resetFeedback
@@ -248,6 +250,14 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_zoneEcarteAbris(z)` (dans `_zone()`) | tout ce qui empêche une zone de couvrir un abri |
 | `_solPret(b)` / `_solPose(b, n0)` | l'exclusivité d'un motif qui sature le sol |
 | `_foyerPoint()` / `_foyerLibre()` | où un foyer d'occupation ou un refuge peut naître |
+| `pasBoss(v)` (`render/lumiere.js`) | LA prise du boss sur le monde : deux canaux, `kL` (lumiere, 1,2 s) puis `kS` (matiere, 0,8 s, demarre a `kL > 0.85`). LA LUMIERE CHANGE AVANT LA MATIERE. Profil dans `BOSS_SKIN`, garde pendant la sortie. Lu par `bossVignette()` et `bossAtmo()` |
+| `champ(...)` (`render/decor.js`) | TOUT champ de brins : meteo, poussiere, vapeur, etincelles. La position d'un brin est une fonction de son indice et du temps — rien ne s'alloue, un seul `stroke` par champ. `cx0/cy0/rayon` l'ancrent sur une SOURCE au lieu de la vue. Un effet qui aurait besoin d'un tableau persistant n'est pas ici : il est dans `fx.js`, sous `PARTICLE_MAX` |
+| `drawPremierPlan(v)` | LE premier plan. Trois regles : rien au centre, jamais opaque, COUPE pendant un boss |
+| `lumDir()` (`render/stage.js`) | LA direction de lumiere du biome. Lue par l'ombre portee des obstacles, celle des props et l'ombre de contact des entites. Deux ombres qui pointent differemment sur le meme ecran est LE defaut visible d'un rendu 2D — il n'existe pas de second endroit ou l'ecrire. Le relief RADIAL de `drawObstacles` reste : c'est la CAMERA, pas la lumiere |
+| `drawOmbre(x, y, r, k)` (`render/fx.js`) | TOUTE ombre de contact. Un quad `fx_glow` teinte noir, dans le lot NORMAL qui existe deja — aucun appel de dessin en plus. **Passe SEPAREE** avant les corps : une ombre posee juste avant SON corps tombe sur le corps du voisin. Elle ne s'additionne pas, et un projectile n'en a pas |
+| `ledDe(o)` (`render/lumiere.js`) | la bande LED d'un bloc : `decor.js` la DESSINE, `drawLumiere` l'ALLUME, les deux lisent la meme fonction. Jamais sur une couverture destructible — le contour tirete est du gameplay |
+| `drawLumiere(v)` | TOUTE lumiere de l'arene. Appelee sur `#cvUnder` **avant** le premier element de gameplay : rien de ce qui suit n'est assombri, et c'est l'ORDRE DE DESSIN qui le garantit, pas un reglage. Les sources sont **lues** (dangers, props, `bursts`, joueurs), jamais poussees |
+| `gfx` (`core/state.js`) | LE palier de qualite. `low` rend la TECHNIQUE d'avant le plan 13 — matiere, semis, lumiere, grille ; la **palette** d'arene vaut a tous les paliers, c'est de la DA, pas de la qualite. Cinq points de lecture, pas un de plus : `material`, `props`, `lumiere`, `decor`, `fx` |
 | `_ground()` / `groundAt()` | champs de ralentissement, serveur et client |
 | `_obstacleBlock()` | blocage par obstacle de biome (repoussage **par axe**) |
 | `hazardState(h, t)` | état d'un danger, partagé simulation ↔ rendu |

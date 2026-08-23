@@ -126,6 +126,29 @@ function readFlag(key, fallback) {
   try { return (localStorage.getItem(key) ?? (fallback ? "1" : "0")) === "1"; }
   catch { return fallback; }
 }
+/* LE PALIER DE QUALITE EST UN INDICE, PAS UN NOM : un module de rendu compare
+   `gfx >= GFX_HIGH`, jamais une chaine. Le NOM est ce qu'on range — un indice
+   stocke se reinterpreterait si un palier s'inserait un jour.
+
+   `low` est un CONTRAT, mais sur la TECHNIQUE : matiere, semis, lumiere, grille
+   d'avant le plan 13. La palette d'arene, elle, vaut a TOUS les paliers — c'est
+   une decision de direction artistique, et une machine lente n'a pas a voir un
+   autre jeu. Ce qui ne change JAMAIS entre paliers : la simulation, les
+   collisions, les apparitions, la position de quoi que ce soit. */
+export const GFX_LOW = 0, GFX_MEDIUM = 1, GFX_HIGH = 2, GFX_ULTRA = 3;
+export const GFX_KEYS = ["low", "medium", "high", "ultra"];
+const GFX_KEY = "survivor.gfx";
+export let gfx = readGfx();
+export function setGfx(v) {
+  gfx = Math.min(GFX_ULTRA, Math.max(GFX_LOW, v | 0));
+  try { localStorage.setItem(GFX_KEY, GFX_KEYS[gfx]); } catch {  }
+}
+function readGfx() {
+  try {
+    const i = GFX_KEYS.indexOf(localStorage.getItem(GFX_KEY) ?? "");
+    return i < 0 ? GFX_HIGH : i;
+  } catch { return GFX_HIGH; }
+}
 export const PERF = location.search.includes("perf");
 export const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 const ATTACK_LABEL = {

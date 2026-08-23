@@ -1,11 +1,14 @@
 
 import { onLangChange, t, tf } from "/shared/i18n.js";
-import { PHASE_ROUND, amSpectator, hostId, hudDps, hudStats, myId, pauseReal, phase, setHudDps, setHudStats, ws } from "../core/state.js";
+import { GFX_KEYS, GFX_ULTRA, PHASE_ROUND, amSpectator, gfx, hostId, hudDps, hudStats, myId, pauseReal, phase, setGfx, setHudDps, setHudStats, ws } from "../core/state.js";
 import { openBuild } from "./build.js";
 import { hudPauseEl, pauseConfirm, pauseEl, pauseQuitAsk, pauseQuitBtn, pauseState, updateVersion } from "./dom.js";
 
 const statsBtn = document.getElementById("pauseStats");
 const dpsBtn = document.getElementById("pauseDps");
+const gfxBtn = document.getElementById("pauseGfx");
+
+const GFX_NOM = ["basse", "moyenne", "élevée", "ultra"];
 
 function renderHudOptions() {
   statsBtn.textContent = hudStats
@@ -16,6 +19,9 @@ function renderHudOptions() {
     ? t("ui.pause.dps.on", "Compteur de dégâts : affiché")
     : t("ui.pause.dps.off", "Compteur de dégâts : masqué");
   dpsBtn.classList.toggle("on", hudDps);
+  gfxBtn.textContent = tf("ui.pause.gfx", "Qualité graphique : {n}",
+    { n: t(`ui.pause.gfx.${GFX_KEYS[gfx]}`, GFX_NOM[gfx]) });
+  gfxBtn.classList.toggle("on", gfx > 0);
 }
 onLangChange(() => {
   renderHudOptions();
@@ -23,6 +29,7 @@ onLangChange(() => {
 });
 statsBtn.onclick = () => { setHudStats(!hudStats); renderHudOptions(); };
 dpsBtn.onclick = () => { setHudDps(!hudDps); renderHudOptions(); };
+gfxBtn.onclick = () => { setGfx((gfx + 1) % (GFX_ULTRA + 1)); renderHudOptions(); };
 renderHudOptions();
 
 // le nom de celui qui a fige la partie : le serveur envoie une DONNEE (`par`),

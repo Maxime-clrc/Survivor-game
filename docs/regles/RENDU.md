@@ -48,6 +48,191 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   un `scale(1.015)` permanent.
 - **Le HUD n'écrit dans le DOM que si la valeur a changé** (table `memo`).
 
+### La lumière
+
+**`drawLumiere()` est appelée sur `#cvUnder`, juste après `drawFloor`,
+`drawGrid` et `drawProps`, et AVANT le premier élément de gameplay.** C'est tout
+le système : la pile de canvas sépare déjà sol / entités / effets, donc une passe
+posée sur le canvas du bas ne peut pas atteindre un ennemi, un projectile, un
+télégraphe ou un marqueur. **La hiérarchie de lisibilité est structurelle, pas
+réglée** — la déplacer d'une ligne plus bas la casse en silence.
+
+- Le tampon est à **1/4 de la vue** (1/2 en `ultra`) : le sur-échantillonnage
+  bilinéaire du `drawImage` donne la douceur gratuitement. À pleine résolution il
+  faudrait un flou.
+- **Deux passes, pas une** : `multiply` fait l'ombre, `lighter` fait l'émission.
+  `multiply` seul rend un jeu plus sombre, `lighter` seul un jeu délavé.
+- **Toute source est LUE, aucune n'est poussée** : dangers via `hazardState()`,
+  props via `forEachPropLight()`, souffles via `bursts`, joueurs via `playerList`.
+  Écrire vers une couche supérieure est interdit, et rien ici n'y oblige.
+- **Un projectile n'est pas une source.** Il y en a des centaines par seconde à la
+  minute 25 : le sol clignoterait au rythme de la cadence de tir.
+- **Une source ne monte jamais au blanc pur toute seule** (plafond 0,85) : c'est
+  l'empilement qui fabrique le cœur clair, comme pour un souffle.
+
+### Le volume
+
+**`lumDir()` vit dans `stage.js`** — la couche la plus basse qui la connaisse,
+sous `fx.js` (ombres de contact) et sous `decor.js` (ombres portées). **Deux
+ombres qui pointent différemment sur le même écran, c'est le défaut le plus
+visible d'un rendu 2D**, et le plus facile à éviter en refusant qu'il existe un
+second endroit où l'écrire.
+
+**Le relief radial de `drawObstacles` reste, et il ne concurrence pas l'ombre** :
+le radial dit où est la **caméra** (un objet loin du centre montre son flanc), le
+décalage constant dit d'où vient la **lumière**. Deux gestes distincts, pas deux
+réglages du même — et les faire coexister est ce que fait la 2D haut de gamme.
+
+- **`drawOmbre()` se dessine en passe SÉPARÉE**, avant les corps. Une ombre posée
+  juste avant *son* corps tomberait sur le corps déjà dessiné du voisin.
+- Même mode de mélange que les corps, donc **même lot GL** : aucun appel de
+  dessin supplémentaire, seulement des quads.
+- **Elle ne s'additionne pas.** À 200 ennemis serrés, 200 ombres empilées feraient
+  une flaque noire.
+- **Un projectile n'a pas d'ombre.** Même raison que pour la lumière : la
+  fréquence.
+- Le boss n'est pas dans l'atlas : son ombre est un **tracé**, pas un quad.
+
+### Le sol et le semis
+
+- **`TILE` vaut exactement `GRID_MAJOR`, `MAILLE` exactement `GRID_FINE`.** La
+  tuile porte donc les deux grilles en **joints** au lieu de les laisser se tracer
+  par-dessus — un joint a une épaisseur et deux côtés, donc il décrit une
+  *surface* ; une ligne décrit un *plan technique*. Le motif est ancré à l'origine
+  du **monde** (la caméra vit dans le transform), donc les joints tombent sur la
+  maille réelle. `GRID_FINE` reste exporté : `drawGridPings()` s'en sert.
+- **Une seconde période sans aucune arête** (`MACRO`, 1 200) : à 400 px l'œil
+  trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
+  ne rattrape ça.
+- **`props.js` ne garde rien** : présence, type, angle et échelle d'un prop sont
+  des fonctions de sa cellule monde et de la graine — même motif que `champ()`,
+  ancré à une cellule au lieu d'un indice. Le semis est donc infini, non répétitif
+  et identique chez tous. Cache par rectangle de cellules, pas par image.
+- **RÈGLE ABSOLUE : rien dans `props.js` ne se lit comme bloquant.** Tout est
+  plaqué au sol, et le semis saute toute cellule occupée par un obstacle ou un
+  danger. Un prop qui ferait hésiter sur une trajectoire est un bug. Ce qui doit
+  se lire comme bloquant est un **obstacle**, dans `biomes.js`.
+- **Un prop est de la matière, pas un signal** : un signal est saturé et animé,
+  une matière est désaturée et fixe. C'est la seule règle qui empêche le décor de
+  mentir maintenant que l'ambre n'est plus réservé à l'avertissement.
+
+### L'atmosphère
+
+Tout passe par `champ()` — **un champ de particules sans particules** : la
+position d'un brin est une fonction de son indice et du temps, donc rien ne
+s'alloue, rien ne se garde entre deux images, deux clients voient la même chose,
+et **un champ coûte un `stroke`**.
+
+C'est la propriété qui empêche ce système de dériver : **si un effet a besoin
+d'un tableau qui persiste, il n'est pas là — il est dans `fx.js`, avec les
+particules, sous `PARTICLE_MAX`.**
+
+- `cx0/cy0/rayon` **ancrent** le champ sur une source au lieu de la vue. C'est le
+  seul écart entre la météo et la vapeur d'un geyser : un paramètre, pas une
+  seconde fonction. Positionnels et non un objet d'options — le module ne doit
+  rien allouer par image.
+- **Un prop émissif existe par trois canaux** : il grésille, il crache des
+  étincelles, il éclaire son pourtour. Les trois lisent la **même** déclaration
+  (`forEachPropLight`). Un coffret qui n'aurait que le premier serait du décor.
+
+**Le premier plan** (`drawPremierPlan`), sur `#cv` après le vignettage :
+
+1. **Rien au centre.** Il vit dans les bandes haute et basse. Le centre appartient
+   au joueur.
+2. **Jamais opaque.** Il ne masque rien, il assombrit un peu.
+3. **Coupé pendant un boss.** L'arène se resserre déjà à une vue ; y ajouter du
+   bord serait le contraire de ce que le resserrement cherche.
+
+La parallaxe est une **dérive globale** proportionnelle à la position de caméra —
+assez pour donner la profondeur, trop peu pour attirer l'œil.
+
+### Le boss prend l'arène
+
+Le profil vit dans **`BOSS_SKIN`** (`palette.js`), la table déjà indexée par
+`kind` : `amb`, `k`, `vig`, `puls`, `atmo`. Ce sont des **nombres** — l'application
+est une interpolation, pas une structure.
+
+**Deux canaux à constantes de temps distinctes, et l'ordre compte :**
+
+| canal | durée | ce qu'il porte |
+|---|---|---|
+| `kL` | 1,2 s | l'ambiante et le vignettage |
+| `kS` | 0,8 s, **démarre à `kL > 0.85`** | la teinte du sol et l'atmosphère |
+
+**La lumière change avant la matière.** On sent l'arrivée avant de la voir, ce qui
+est l'ordre dans lequel une menace se manifeste. Une bascule instantanée de la
+couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
+
+- **La teinte du sol passe par l'ambiante de la passe de lumière**, jamais par un
+  recuit de la tuile : le mécanisme existe déjà et il coûte un `melange()`.
+- **Le profil est GARDÉ pendant la sortie.** Il devient `null` dès la mort du
+  boss alors que les deux canaux ont encore 1,5 s à redescendre.
+- Une **rupture de barre** est une pointe, pas un palier.
+- **Aucun télégraphe ne perd de contraste** : le profil ne pilote que l'ambiante,
+  qui ne touche que le sol. Barre de PV, marqueurs et annonces vivent sur `#cv` et
+  dans le HUD DOM — ils ne bougent jamais.
+- Le champ d'atmosphère du boss est le **seul** qui ait le droit de traverser le
+  centre : il annonce ce qui s'y trouve.
+
+### Une map ressemble à son nom
+
+Le semis partage **six props communs** — honnêtement industriels, ils valent
+partout — et donne à chaque biome **son propre jeu**, qui porte son verbe :
+l'Usine *fabrique* (convoyeurs, caisses, allées), la Fonderie *coule* (rigoles,
+lingots, scorie), la Friche *a été abandonnée*, la Nébuleuse *arrime* (rails,
+ancrages, balises). Un catalogue entièrement partagé rendait les biomes
+interchangeables.
+
+- **Une allée n'est pas un avertissement** : deux lignes continues et pâles, pas
+  des hachures. Un marquage hachuré se lit comme un télégraphe.
+- **Un prop émissif déclare son rayon ET sa teinte.** Une rigole en fusion et un
+  voyant de coffret ne sont pas la même lumière.
+- **Le comportement dit la matière mieux que la couleur** : un tube mort
+  *grésille*, un voyant *respire*, du métal en fusion *ondule*, une balise *bat*.
+- **Ce qui appartient au lieu ne dépend pas de la difficulté.** La coulée de la
+  Fonderie ne vivait que dans `usure` : en mode calme il n'en restait aucune et
+  le sol était celui d'un couloir. Le plancher existe à tous les modes, l'usure
+  ne fait qu'en ajouter.
+
+### L'arrière-plan
+
+**`drawFond()` est le seul arrière-plan du jeu**, et il n'existe que pour les
+biomes qui déclarent `fond` dans `BIOMES`. Il se dessine **entre la couleur
+d'arène et la matière du sol**.
+
+**La Nébuleuse est le seul sol qui SOUSTRAIT** : les trois autres tuiles posent
+des couches translucides par-dessus la couleur d'arène ; celle-ci peint un pont
+presque opaque puis en **retire** les baies (`clearRect`). C'est par ces trous
+que le vide se voit. **On marche sur un plancher, jamais sur le vide.**
+
+- Presque opaque (0,93) et non opaque : la teinte de mode continue de traverser.
+- Les baies tombent sur la **maille de 5 m** et les joints se dessinent après :
+  ils deviennent les meneaux du vitrage au lieu de les contredire.
+- **Deux parallaxes, pas une** — un fond à une seule vitesse est un autocollant.
+  Astres à 0,05, étoiles à 0,16, deux `drawImage` par image.
+- Les étoiles sont groupées par **palier de clarté** : trois `fill`, pas un
+  `arc` par étoile.
+- Un astre sans **terminateur** est un disque. Le croissant sombre coûte un
+  second arc en `destination-out`.
+
+### Le palier de qualité
+
+`gfx` (`core/state.js`, `survivor.gfx`) — `low / medium / high / ultra`, `high`
+par défaut. **`low` est un contrat, mais sur la TECHNIQUE** : matière, semis,
+lumière et grille d'avant le plan 13. C'est le bouton AVANT de la comparaison et
+le repli d'une machine lente. Tout changement qui touche un chemin partagé
+vérifie que `low` n'a pas bougé.
+
+**La palette d'arène n'est pas dans le contrat** : `DECOR[]` et les teintes de
+biome valent à **tous** les paliers. Un palier de qualité règle un coût de rendu,
+il n'annule pas une décision de direction artistique — une machine lente doit
+voir le même jeu, pas un autre.
+
+**Cinq points de lecture, pas un de plus** : `material` (nombre d'échelles),
+`props` (densité), `lumiere` (résolution du tampon), `decor` (grille fine),
+`fx` (`PARTICLE_MAX`). La simulation, les collisions et les apparitions ne
+changent **jamais** entre paliers.
+
 ### Caméra et arène
 
 `CFG.ARENA_W/H` = 4800 × 2700, `CFG.VIEW_W/H` = 1600 × 900. **La caméra vit dans
@@ -193,11 +378,39 @@ le sien :
   glyphe est dans la couleur du texte.
 - Les chiffres ne s'affichent que sur le **boss** (`bd`) : chaque client ne lit
   **que** sa propre ligne.
-- **Deux silhouettes de projectile, jamais deux couleurs seules** :
-  `BOLT_CAPSULE` (tir allié), `BOLT_DIAMOND` (tir hostile). Le soin n'est plus un
-  projectile : c'est un **arc**, et il se distingue par son **tracé** — calme et
-  chaud pour le soin, agité et froid pour le siphon.
+- **Une silhouette de projectile par ARME, jamais une couleur seule** :
+  `BOLT_CAPSULE` (tir standard ×1,0 · assaut ×0,85), `BOLT_DIAMOND` (tir
+  hostile), `BOLT_RAIL` (railgun ×1,6), `BOLT_GRAIN` (dispersion ×0,7),
+  `BOLT_BARIL` (grenade ×1,3), `BOLT_OBUS` (siège ×1,4), `BOLT_TRAIT`
+  (précision ×0,8). Forme **et** taille se **déduisent** de l'arme du
+  propriétaire (`silhouetteArme`, cuite une fois depuis `ARMES`) : le tuple
+  d'une balle porte déjà son propriétaire, et le tuple du joueur son arme —
+  **aucune clef d'instantané ne s'ouvre pour ça**. Le 5ᵉ champ de la balle reste
+  la seule silhouette qui circule (`SIL_MISSILE`, `SIL_PORTEUR`), parce que ni
+  l'un ni l'autre ne se déduit de l'arme. Laser, tesla et lame ne passent pas par
+  `bullets` et ont chacun leur rendu. Le soin n'est plus un projectile : c'est un
+  **arc**, et il se distingue par son **tracé** — calme et chaud pour le soin,
+  agité et froid pour le siphon.
+- **La portée d'une arme doit tomber DANS LE CHAMP DE VISION.** La vue fait
+  1600 px et le joueur en voit 800 devant lui : une portée dont on ne voit jamais
+  la fin *est* une portée illimitée, quel que soit le nombre dans la table. Le
+  faisceau la rend visible par son **terminus**, dessiné même quand il ne touche
+  rien — c'est lui qui l'apprend au joueur, pas un texte. Un faisceau continu n'a
+  pas d'instant de départ : l'**allumage** (`faisceauAllume`, 90 ms plus large et
+  plus clair) lui en donne un, et il revient à chaque sortie de saturation.
 - **Les marqueurs posés sur un joueur sont des glyphes distincts en silhouette.**
+- **UNE MÉCANIQUE DONT ON MONTRE LA CONSÉQUENCE AVANT QU'ELLE ARRIVE N'A PLUS
+  BESOIN D'ÊTRE EXPLIQUÉE.** Le nœud du Tisseur porte l'**empreinte** de la zone
+  qu'il va poser — un cercle de `NOEUD_R` en pointillés fins, sous lui, dès son
+  apparition : le joueur voit la place qu'il va perdre, **à l'échelle réelle**,
+  pendant les 9 s où il peut encore l'empêcher. Des **amarres** vers le boss
+  disent qui tisse (même trait que `MECH_FEED`). À l'expiration le pointillé
+  s'épaissit et se remplit, donc la zone au sol **naît** de l'empreinte au lieu
+  d'apparaître sans cause ; à la destruction elle se **rétracte** vers le centre —
+  le Tisseur est le seul boss où le joueur répare l'arène, ça doit se voir se
+  refermer. **Le client sait pourquoi un nœud a disparu sans qu'on le lui envoie**
+  (`noeudsVus`) : détruit, il s'en va avec du temps au compteur ; tenu jusqu'au
+  bout, il s'en va à zéro.
 - **Le sanctuaire se reconnaît à ses CROIX QUI MONTENT**, pas à sa couleur : sept
   croix, montée 2,6 s, **aucune allocation** (fonction de l'identifiant, du rang
   et du temps). Phase décalée par rang **et** par identifiant, dérive bornée par

@@ -11,9 +11,9 @@ import { drawSprite, frameOf } from "/sprites.js";
 import { amSpectator, dash, myId, ownedCounts, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
-import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, lastBossPos, shieldHit } from "./fx.js";
+import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, drawOmbre, lastBossPos, shieldHit } from "./fx.js";
 import { ARMES } from "/shared/armes.js";
-import { aimVector, cadreOf, camera, colorOf, ctx, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
+import { aimVector, cadreOf, camera, colorOf, ctx, lumDir, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
 
 
 const BOSS_RELEASE_MS = 320;
@@ -47,6 +47,16 @@ export function drawBoss(b, bossTm = 0) {
   const edge = twin ? BOSS.twinEdge : K.edge;
 
   const { gather, burst } = bossPose(now);
+
+  // LE BOSS N'EST PAS DANS L'ATLAS : son ombre est un tracé, pas un quad. Elle
+  // reste faible et serrée — elle vit sur `#cv`, donc au-dessus de la horde.
+  const ld = lumDir();
+  ctx.save();
+  ctx.translate(b.x + ld[0] * r * 0.26, b.y + ld[1] * r * 0.30);
+  ctx.scale(1, 0.52);
+  ctx.fillStyle = alpha(SURFACE.shadow, 0.30);
+  ctx.beginPath(); ctx.arc(0, 0, r * 1.02, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 
   const dedans = kind === BOSS_FINAL;
   ctx.fillStyle = alpha(skin, 0.10 + burst * (dedans ? -0.04 : 0.10));
@@ -726,13 +736,85 @@ export function drawMarkColumns(marks, sec) {
     ctx.fillRect(m.x - 3, m.y - h, 6, h);
   }
 }
+/* L'EMPREINTE EST TOUT LE CHANTIER : montrer la place qu'on va perdre, a
+   l'echelle reelle, pendant les 9 s ou on peut encore l'empecher. Une mecanique
+   dont on montre la consequence AVANT qu'elle arrive n'a plus a etre expliquee.
+   `k` va de 1 (pointille fin) a 0 (disque plein) : la zone au sol NAIT de
+   l'empreinte au lieu d'apparaitre, donc la cause reste visible pendant la
+   transition. `retrait` la referme vers le centre — on rend de l'espace, ca
+   doit se voir. */
+function empreinte(x, y, k, retrait, sec) {
+  const r = BOSS_CFG.NOEUD_R * (1 - retrait);
+  if (r < 2) return;
+  const plein = 1 - k;
+  if (plein > 0) {
+    ctx.fillStyle = alpha(FX.elite, 0.06 + plein * 0.22);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.save();
+  ctx.strokeStyle = alpha(MARK.bait, 0.35 + plein * 0.5);
+  ctx.lineWidth = 1.5 + plein * 4;
+  ctx.setLineDash([9, 11]);
+  ctx.lineDashOffset = -sec * 14;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+// C'EST LE TISSEUR QUI TISSE : le lien doit se voir. Meme trait que MECH_FEED,
+// mais il PART du boss au lieu d'y ramener — trois amarres, pas une.
+function amarres(x, y, r, sec) {
+  const dx = lastBossPos.x - x, dy = lastBossPos.y - y;
+  const d = Math.hypot(dx, dy);
+  if (!(d > r + 8)) return;
+  const ux = dx / d, uy = dy / d, px = -uy, py = ux;
+  ctx.save();
+  ctx.strokeStyle = alpha(MARK.bait, 0.25 + 0.15 * Math.sin(sec * 3));
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = -1; i <= 1; i++) {
+    const e = i * 14;
+    ctx.moveTo(x + ux * r + px * e * 0.4, y + uy * r + py * e * 0.4);
+    ctx.quadraticCurveTo(x + ux * d * 0.5 + px * e, y + uy * d * 0.5 + py * e,
+                         lastBossPos.x, lastBossPos.y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+/* Le client sait POURQUOI un noeud a disparu sans qu'on le lui envoie : detruit,
+   il s'en va avec du temps au compteur ; tenu jusqu'au bout, il s'en va a zero.
+   Une clef d'instantane de moins pour la meme information. */
+export const noeudsVus = new Map();
+export const noeudsSortis = [];
+const NOEUD_SORTIE = 0.55;
+function suivreNoeuds(marks, sec) {
+  for (const m of marks) {
+    if (m.mech !== MECH_CLUSTER || !m.noeud) continue;
+    const n = noeudsVus.get(m.id);
+    if (n) { n.x = m.x; n.y = m.y; n.k = m.k; n.sec = sec; }
+    else noeudsVus.set(m.id, { x: m.x, y: m.y, k: m.k, sec });
+  }
+  // ce qui n'a pas ete restampe cette image a disparu de l'instantane
+  for (const [id, n] of noeudsVus) {
+    if (n.sec === sec) continue;
+    noeudsVus.delete(id);
+    noeudsSortis.push({ x: n.x, y: n.y, pris: n.k <= 0.02, t0: sec });
+  }
+  for (let i = noeudsSortis.length - 1; i >= 0; i--) {
+    const s = noeudsSortis[i];
+    const q = (sec - s.t0) / NOEUD_SORTIE;
+    if (q >= 1) { noeudsSortis.splice(i, 1); continue; }
+    if (s.pris) empreinte(s.x, s.y, 1 - q, 0, sec);
+    else empreinte(s.x, s.y, 1, q * q, sec);
+  }
+}
 export function drawMarks(marks, players) {
-  if (!marks.length) return;
-  const byId = new Map(players.map(p => [p.id, p]));
   // JAMAIS `t` ICI : c'est le nom du point de passage de la traduction, importe
   // en tete de module. Une horloge locale qui le masque transforme chaque
   // `t("mark.…")` en TypeError, donc en image entiere perdue.
   const sec = performance.now() / 1000;
+  // AVANT la sortie sur liste vide : une empreinte survit au noeud qui l'a posee
+  if (noeudsVus.size || noeudsSortis.length || marks.length) suivreNoeuds(marks, sec);
+  if (!marks.length) return;
+  const byId = new Map(players.map(p => [p.id, p]));
 
   for (const m of marks) {
     const pulse = 0.55 + 0.45 * Math.sin(sec * 5);
@@ -817,6 +899,9 @@ export function drawMarks(marks, players) {
         break;
       }
       case MECH_CLUSTER: {
+        // UN NOEUD N'EST PAS UN OEUF : il ne fait rien eclore, il PREND la place.
+        // Le distinguer par ce qu'il va DEVENIR, pas par une couleur.
+        if (m.noeud) { empreinte(m.x, m.y, 1, 0, sec); amarres(m.x, m.y, m.r, sec); }
         ctx.fillStyle = alpha(FX.elite, 0.25 + pulse * 0.25);
         ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = MARK_BREAK;
@@ -1192,11 +1277,44 @@ function paintOutline(frame, x, y, angle, scaleX, scaleY, a) {
     alpha: a,
   });
 }
+/* UN FAISCEAU CONTINU N'A PAS D'INSTANT DE DEPART : il apparait. L'allumage lui
+   en donne un — deux images plus larges et plus claires — et il revient a chaque
+   sortie de saturation, le seul moment ou le tir s'interrompt. */
+export const faisceauAllume = new Map();
+const FAISCEAU_ALLUMAGE = 90;
+function allumage(id) {
+  const now = performance.now();
+  const at = faisceauAllume.get(id);
+  if (at === undefined) { faisceauAllume.set(id, now); return 1; }
+  return Math.max(0, 1 - (now - at) / FAISCEAU_ALLUMAGE);
+}
+/* LE TERMINUS EST CE QUI REND LA PORTEE VISIBLE. Il existe meme quand le
+   faisceau ne touche rien : une portee dont on ne voit jamais la fin n'en est
+   pas une, et c'est lui qui l'apprend au joueur sans qu'on l'ecrive. */
+function faisceauTerminus(x, y, col, k) {
+  const sec = performance.now() / 1000;
+  ctx.fillStyle = alpha(col, 0.3);
+  ctx.beginPath(); ctx.arc(x, y, 16 + k * 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(FX.flash, 0.8);
+  ctx.beginPath(); ctx.arc(x, y, 5 + k * 4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(FX.flash, 0.45);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const a = sec * 2.2 + i * Math.PI / 2;
+    const c = Math.cos(a), s = Math.sin(a);
+    ctx.moveTo(x + c * 8, y + s * 8);
+    ctx.lineTo(x + c * (17 + k * 9), y + s * (17 + k * 9));
+  }
+  ctx.stroke();
+}
 export function drawPlayers(list, tm, marks = []) {
   for (const p of list) {
     const isMe = p.id === myId;
     const x = isMe && predicted ? predicted.x : p.x;
     const y = isMe && predicted ? predicted.y : p.y;
+    // un joueur a terre est COUCHE : son ombre s'etale et s'affaiblit.
+    drawOmbre(x, y, CFG.PLAYER_RADIUS * (p.downed ? 1.25 : 1), p.downed ? 0.55 : 1);
     const col = colorOf(p.id);
 
     if (p.downed) {
@@ -1354,24 +1472,29 @@ export function drawPlayers(list, tm, marks = []) {
       const a = ARMES[p.arme];
       const portee = 640 * 1.5 * a.portee;
       const chaud = p.armeRes;
+      const teinte = chaud > 0.7 ? SIGNAL.warn : col;
       // un canon en plus ajoute une NAPPE au laser : elle se dessine du meme
       // ecart que la simulation lui donne, sinon le joueur tire ou il ne voit rien
       const n = 1 + (ownedCounts(p.id).get("secondCanon") ?? 0)
         + ((p.buffs & BUFF_DOUBLE) ? 1 : 0);
+      const k = allumage(p.id);
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       for (let i = 0; i < n; i++) {
         const ang = p.armeAng + (n === 1 ? 0 : (i - (n - 1) / 2) * 0.13);
         const bx = x + Math.cos(ang) * portee;
         const by = y + Math.sin(ang) * portee;
-        ctx.strokeStyle = alpha(chaud > 0.7 ? SIGNAL.warn : col, 0.22);
-        ctx.lineWidth = 14;
+        ctx.strokeStyle = alpha(teinte, 0.22 + k * 0.4);
+        ctx.lineWidth = 14 + k * 20;
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
         ctx.strokeStyle = alpha(FX.flash, 0.85);
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3 + k * 7;
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
+        faisceauTerminus(bx, by, teinte, k);
       }
       ctx.restore();
+    } else if (ARMES[p.arme]?.chaleur) {
+      faisceauAllume.delete(p.id);
     }
 
     /* LA RAMPE SE LIT SUR LE PERSONNAGE et non sous le reticule : elle depend du

@@ -18,10 +18,17 @@ export const ARME_CFG = {
   RAMPE_CHUTE: 1.2,
   RAMPE_MAX: 2.0,
   RAMPE_SEUIL: 12,
+  // LA RAMPE SE LIT DANS LES BALLES, plus seulement dans un anneau : la meme
+  // jauge dit desormais les degats ET la gerbe. ~9 degres a rampe nulle.
+  ASSAUT_DISPERSION: 0.16,
 
   // laser : la MEME ressource est un malus en horde et un bonus sur boss. Une
   // mecanique, deux lectures selon le contexte.
   CHALEUR_MONTEE: 1 / 4.2,
+  // TIRER DANS LE VIDE ETAIT GRATUIT : la jauge ne montait que dans les moments
+  // ou le joueur gagnait deja, donc jamais dans ceux ou il aurait appris qu'elle
+  // existe. Le faisceau chauffe tant qu'il est ACTIF, plus lentement a vide.
+  CHALEUR_MONTEE_VIDE: 1 / 7.0,
   CHALEUR_CHUTE: 1 / 2.6,
   CHALEUR_MUET: 1.5,
   CHALEUR_BONUS: 0.25,
@@ -108,16 +115,25 @@ export const ARMES = [
   },
   {
     id: "assaut", nom: "Canon d'assaut", tir: "balle", axe: "mouvement",
-    interval: 0.11, degats: 6, portee: 0.8,
+    // MESURE : la gerbe fait tomber V de 1,046 a 0,926 pour une cible qui monte
+    // a 1,08. La compensation porte sur le NOMINAL, seul terme que la dispersion
+    // n'ait pas touche — 6 -> 7 rend 1,08 au banc.
+    interval: 0.11, degats: 7, portee: 0.8,
     rampe: true, famille: true,
     resume: "les dégâts montent tant que tu ne bouges pas, et retombent doucement",
     contrainte: "la rampe se perd en se déplaçant",
-    exige: EXIGE(0.5, 0, 1, 0.5, 0),
+    // la visee monte de 0,5 a 1 avec la gerbe : il faut desormais CHOISIR entre
+    // tirer et bouger, ce qui fait un axe de plus a piloter
+    exige: EXIGE(1, 0, 1, 0.5, 0),
     ech: ECH(1.2, 1.1, 0.8, 0.2, 0.9, 0.9, 1.0),
   },
   {
     id: "laser", nom: "Canon laser", tir: "faisceau", axe: "ressource",
-    interval: 0, degats: 75, portee: 1.6,
+    // 77 m SORTAIENT DE L ECRAN A TOUS LES COUPS : la vue fait 1600 px, le
+    // joueur en voit 800 devant lui, le faisceau en parcourait 1536. Une portee
+    // dont on ne voit jamais la fin EST une portee illimitee. 43 m tombent juste
+    // au-dela du demi-ecran : elle s'apprend en la voyant s'arreter.
+    interval: 0, degats: 75, portee: 0.9,
     chaleur: true, perforeTout: true, famille: true,
     resume: "un faisceau continu qui traverse une file entière et ne rate jamais",
     contrainte: "il chauffe, et se tait 1,5 s à saturation",

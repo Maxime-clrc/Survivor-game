@@ -109,10 +109,21 @@ export const BIOMES = [
     resume: "ouvertures larges, deux cuves centrales",
     tint: "#1e1010", grid: "#33201c", skip: 4,
   },
+  // le vert ne PILOTE plus la teinte : il reste une trace dans la matiere
+  // (lichen, mousse), la Friche est une installation abandonnee, pas un pre.
   {
     key: "friche", nom: "Friche",
     resume: "obstacles épars, couverture destructible",
-    tint: "#0d1a0d", grid: "#18291a", skip: 3,
+    tint: "#161a18", grid: "#1e2422", skip: 3,
+  },
+  /* LE PONT D'UNE STATION, pas le vide : on marche sur un plancher, et le vide
+     se voit A TRAVERS lui. `fond` declare que ce biome a un ARRIERE-PLAN — la
+     matiere y laisse des baies transparentes au lieu de couvrir la tuile, et
+     c'est le seul champ que le rendu lit pour le savoir. */
+  {
+    key: "nebuleuse", nom: "Nébuleuse",
+    resume: "longues travées, baies ouvertes sur le vide",
+    tint: "#141826", grid: "#1e2438", skip: 0, fond: "espace",
   },
 ];
 
@@ -155,6 +166,14 @@ const OBSTACLES = {
     { x: 0.72, y: 0.62, w: 0.069, h: 0.078, hp: 1 },
     { x: 0.24, y: 0.50, w: 0.069, h: 0.078, hp: 1 },
   ],
+  nebuleuse: [
+    { x: 0.26, y: 0.22, w: 0.150, h: 0.052 },
+    { x: 0.74, y: 0.78, w: 0.150, h: 0.052 },
+    { x: 0.15, y: 0.66, w: 0.050, h: 0.124 },
+    { x: 0.85, y: 0.34, w: 0.050, h: 0.124 },
+    { x: 0.50, y: 0.50, w: 0.070, h: 0.070, hp: 1 },
+    { x: 0.50, y: 0.14, w: 0.060, h: 0.060, hp: 1 },
+  ],
 };
 
 const HZ_NORMAL = {
@@ -169,6 +188,12 @@ const HZ_NORMAL = {
   friche: [
     { kind: HZ_SLOW, x: 0.10, y: 0.55 },
     { kind: HZ_SLOW, x: 0.56, y: 0.84 },
+  ],
+  // en apesanteur c'est le FREINAGE qui manque : le champ de ralentissement est
+  // ici un puits de gravite, meme regle, meme chiffre.
+  nebuleuse: [
+    { kind: HZ_SLOW, x: 0.32, y: 0.60 },
+    { kind: HZ_SLOW, x: 0.68, y: 0.40 },
   ],
 };
 
@@ -190,6 +215,14 @@ const HZ_CAUCHEMAR = {
     { kind: HZ_POOL, x: 0.18, y: 0.68 },
     { kind: HZ_POOL, x: 0.50, y: 0.86 },
     { kind: HZ_POOL, x: 0.82, y: 0.80 },
+  ],
+  // le sol glissant EST l'apesanteur, et la braise un debris incandescent qui
+  // traverse la travee. Aucun danger neuf : le biome recompose les cinq.
+  nebuleuse: [
+    { kind: HZ_SLIP, x: 0.22, y: 0.42 },
+    { kind: HZ_SLIP, x: 0.78, y: 0.58 },
+    { kind: HZ_EMBER, x: 0.50, y: 0.32, dx: 1, dy: 0, phase: 0.20 },
+    { kind: HZ_EMBER, x: 0.50, y: 0.70, dx: 1, dy: 0, phase: 0.70 },
   ],
 };
 
