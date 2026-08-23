@@ -7,7 +7,7 @@ import { ARMES } from "/shared/armes.js";
 import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, POIDS_MAX, echelleBouche, ficheDe, familleDe, poids } from "/shared/feedback.js";
 import { CFG, ENEMY_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
-import { CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
+import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
 import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
 import { GFX_MEDIUM, gfx, latest, myId } from "../core/state.js";
@@ -104,6 +104,10 @@ function handleEvent(e) {
       break;
 
     case "impact": {
+      // LE BOSS SORT EN PREMIER ET COMPLETEMENT. Son evenement ne porte pas de
+      // `hits` — il n'y a pas de `hitSeq` sur un boss — donc `palierDe` le
+      // classait CONTINU et le rendait MUET. Deux baremes, deux chemins.
+      if (e.boss) { bossTouche(e); break; }
       // [26d] le critique PREND la place de la touche dans le limiteur : le
       // nombre de voix par seconde ne bouge pas d'un cran. Le coup lourd fait
       // pareil — un troisieme palier de touche ne coute donc aucune voix.
@@ -116,10 +120,14 @@ function handleEvent(e) {
         else if (pal === HIT_LOURD) playSound("impactLourd", { key: "impact", claim: true });
         else playSound("impact");
       }
-      if (e.boss) bossHit.at = performance.now();
-      else { registerHit(e, pal); aggregateDamage(e); }
+      registerHit(e, pal);
+      aggregateDamage(e);
       break;
     }
+
+    case "bossMort":
+      bossMort(e.x, e.y);
+      break;
 
     case "blesse":
       aggregateSelf("hurt", e);
@@ -234,10 +242,12 @@ function handleEvent(e) {
 
     case "degats":
       pushDamage(e.x, e.y, e.dmg, e.crit);
-      // [29] l'etincelle nait la ou la balle a touche, dans l'axe du tir, et
-      // reutilise les eclats du critique : aucun asset de plus.
-      spawnCritShards(e.x, e.y, e.x - lastBossPos.x, e.y - lastBossPos.y);
-      bossHit.at = performance.now();
+      // [29] l'etincelle nait la ou la balle a touche, dans l'axe du tir.
+      // ELLE N'EMPRUNTE PLUS LES ECLATS DU CRITIQUE A CHAQUE COUP : les eclats
+      // ambres sortaient vingt fois par seconde, donc un critique sur le boss
+      // ressemblait exactement a un coup ordinaire. Ils redeviennent le signe
+      // du critique, et le coup ordinaire garde une etincelle a lui.
+      bossEclats(e.x, e.y, e.x - lastBossPos.x, e.y - lastBossPos.y, e.crit);
       break;
 
     // le palier ne ment pas : la touche existe, elle ne compte pas. Etincelle
@@ -1236,6 +1246,7 @@ export function stepFeedback(dt) {
   stepBursts(dt);
 
   const now = performance.now();
+  if (bossMortQueue.length > 0) flushBossMort(now);
   if (hitQueue.length > 0) flushHitQueue(now);
   if (hits.size > 0) {
     for (const [id, h] of hits) if (h.until < now) hits.delete(id);
@@ -1328,12 +1339,139 @@ export const lastBossPos = { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
 // `flashAtlas` ; le boss est trace a la main, hors atlas, donc il n'en avait
 // aucun equivalent. Ce n'etait pas un reglage trop discret, c'etait un canal
 // absent — et le choix de rendu, lui, etait bon.
-export const bossHit = { at: 0 };
 export const BOSS_FLASH_MS = 80;
+export const bossHit = { at: 0, k: 1, dur: BOSS_FLASH_MS };
 export function bossFlash(now) {
   if (bossHit.at <= 0) return 0;
-  const k = 1 - (now - bossHit.at) / BOSS_FLASH_MS;
-  return k > 0 ? k : 0;
+  const k = 1 - (now - bossHit.at) / bossHit.dur;
+  return k > 0 ? k * bossHit.k : 0;
+}
+
+/* LA TOUCHE D'UN BOSS SE MESURE EN PART DE BARRE, et elle etait PLATE : le meme
+   eclair de 80 ms pour un tick de brulure et pour un rail. Le boss est la seule
+   cible qu'on regarde en continu — c'est justement la que l'ecart se lit.
+
+   MESURE, 3 graines, 4 joueurs, 10 boss tues, 12 694 instantanes ou le boss perd
+   des PV : la part d'UNE barre retiree par pas de 50 ms vaut 0,01 % a la mediane,
+   1,14 % au p90, 4,22 % au p99, 15 % au maximum. 2 % est donc le haut du bareme
+   utile — au-dela l'eclair est deja plein.
+
+   LA RACINE, PAS LA PROPORTION. En lineaire, 82 % des touches tombaient sur le
+   plancher et tout le milieu du bareme etait vide — l'ecart ne se lisait qu'entre
+   « rien » et « enorme ». La racine rend le p75 a 0,41 et le p90 a 0,76 : c'est
+   la meme courbe que `poids`, et pour la meme raison.
+
+   Le plancher a 0,25 n'est pas cosmetique : sans lui une brulure sur le boss ne
+   se verrait plus du tout, et c'est souvent tout ce qui reste pendant un palier. */
+const BOSS_PART_PLEIN = 0.02;
+function bossTouche(e) {
+  const crit = e.crit === true;
+  const k = crit ? 1
+    : Math.max(0.25, Math.min(1, Math.sqrt((e.part ?? 0) / BOSS_PART_PLEIN)));
+  bossHit.at = performance.now();
+  bossHit.k = k;
+  bossHit.dur = 50 + 90 * k;
+  // meme grammaire que la horde, meme clef de limiteur : le palier d'un coup ne
+  // change pas de langue selon la cible.
+  if (crit) playSound("critique", { key: "impact" });
+  else if (k >= 1) playSound("impactLourd", { key: "impact", claim: true });
+  else playSound("impact");
+}
+
+// le coup ordinaire sur le boss : deux traits blancs dans l'axe, la meme matiere
+// qu'une touche legere de la horde. Les eclats ambres restent au critique.
+function bossEclats(x, y, dx, dy, crit) {
+  if (crit) { spawnCritShards(x, y, dx, dy); return; }
+  const a0 = Math.atan2(dy, dx);
+  for (let i = 0; i < 2 && particles.length < PARTICLE_MAX; i++) {
+    const a = a0 + (Math.random() - 0.5) * 1.2;
+    const sp = 120 + Math.random() * 110;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.15, max: 0.15, col: COMBAT.flash, size: 2.2,
+      ang: a, long: 3.6,
+    });
+  }
+}
+
+/* LA MORT D'UN BOSS NE PRODUISAIT RIEN. `_killBoss` met `this.boss` a `null` et
+   n'emet aucun effet, aucune zone, aucun son : le corps disparaissait entre deux
+   images. C'etait le seul moment de palier 3 du jeu sans aucun budget, alors que
+   c'est celui que la manche entiere prepare.
+
+   CINQ ECHEANCES, ET C'EST L'ETALEMENT QUI FAIT L'EVENEMENT — tout au meme
+   instant ne fait qu'un flash. Les anneaux s'elargissent et RALENTISSENT, le
+   souffle vient en premier, la queue grave arrive quand l'image est finie. */
+const BOSS_MORT_R = 150;
+const BOSS_BLAST = { coeur: COMBAT.blastCore, feu: BOSS.barLow,
+                     bord: BOSS.barRing, debris: BOSS.skin };
+const BOSS_MORT = [
+  { t: 0,    r: 0.6, w: 5,   blast: 1, shake: 10, ping: 1, son: "bossBrise" },
+  { t: 0.09, r: 1.0, w: 4 },
+  { t: 0.20, r: 1.5, w: 3,   debris: 16, ping: 1 },
+  { t: 0.36, r: 2.1, w: 2,   fumee: 6 },
+  { t: 0.62, r: 2.8, w: 1.4, son: "bossQueue" },
+];
+export const bossMortQueue = [];
+function bossMort(x, y) {
+  const now = performance.now();
+  // le hitstop appartient aux barres de boss ; la derniere barre en est une, et
+  // c'est la seule qui n'en avait pas parce que `_killBoss` n'emet pas `barre`.
+  addHitstop(0.14);
+  addPulse(COMBAT.flash, 0.7);
+  for (let i = 0; i < BOSS_MORT.length; i++) {
+    bossMortQueue.push({ at: now + BOSS_MORT[i].t * 1000, i, x, y });
+  }
+}
+function flushBossMort(now) {
+  for (let i = bossMortQueue.length - 1; i >= 0; i--) {
+    if (bossMortQueue[i].at > now) continue;
+    const q = bossMortQueue[i];
+    bossMortQueue[i] = bossMortQueue[bossMortQueue.length - 1];
+    bossMortQueue.pop();
+    jouerBossMort(q);
+  }
+}
+function jouerBossMort(q) {
+  const E = BOSS_MORT[q.i];
+  const r = BOSS_MORT_R * E.r;
+  if (E.blast) spawnBlast(q.x, q.y, BOSS_MORT_R, 1, BOSS_BLAST);
+  if (bursts.length < BURST_MAX) {
+    const vie = 0.30 + E.r * 0.12;
+    bursts.push({ x: q.x, y: q.y, r: r * 0.3, max: r, life: vie, t: vie,
+                  col: BOSS.barRing, w: E.w });
+  }
+  if (E.shake) addShake(E.shake);
+  if (E.ping) addGridPing(q.x, q.y, r);
+  if (E.son) playSound(E.son);
+  const dense = glActive();
+  if (E.debris) {
+    const n = dense ? E.debris : Math.ceil(E.debris / 2);
+    for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 220 + Math.random() * 420;
+      particles.push({
+        x: q.x, y: q.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: 0.7 + Math.random() * 0.4, max: 1.1,
+        col: BOSS.skin, size: 3.4 + Math.random() * 3,
+        frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 12,
+      });
+    }
+  }
+  if (E.fumee) {
+    const n = dense ? E.fumee : Math.ceil(E.fumee / 2);
+    for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 26 + Math.random() * 46;
+      particles.push({
+        x: q.x + Math.cos(a) * r * 0.25, y: q.y + Math.sin(a) * r * 0.25,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: 1.2 + Math.random() * 0.6, max: 1.8,
+        col: SURFACE.line, size: BOSS_MORT_R * 0.45, frame: fxGlow,
+        grow: 70, a0: 0.30, drag: 0.985,
+      });
+    }
+  }
 }
 
 export function setPARTICLE_MAX(v) { PARTICLE_MAX = v; }

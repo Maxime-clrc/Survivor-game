@@ -19,7 +19,7 @@ import { drawArenaBounds, drawAtmosphere, drawFloor, drawFond, drawGrid, drawObs
 import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
 import { drawProps } from "./props.js";
-import { blastMarks, bouches, bursts, dashMarks, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp, zoneFx } from "./fx.js";
+import { blastMarks, bossMortQueue, bouches, bursts, dashMarks, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";
 
@@ -48,6 +48,7 @@ export function resetFeedback() {
   blastSeen.clear();
   shieldHit.clear();
   bouches.clear();
+  bossMortQueue.length = 0;
   scorches.length = 0;
   setZoneFx(0);
   resetHud();

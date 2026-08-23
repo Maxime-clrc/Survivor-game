@@ -146,18 +146,25 @@ export function diffSnapshots(a, b, opts = {}) {
   }
 
   if (b.boss) {
+    // `mine` est lu AVANT la touche d'equipe : c'est la seule source de critique
+    // du cote boss, et sans elle l'impact ne pouvait pas savoir qu'il en etait un.
+    const mine = (b.bossDmg ?? []).find(d => d[0] === opts.myId);
     if (!a.boss || a.boss.id !== b.boss.id) {
       out.push({ t: "boss", kind: b.boss.kind ?? 0, x: b.boss.x, y: b.boss.y });
     } else {
       if (b.boss.hp < a.boss.hp) {
+        // LA TOUCHE D'UN BOSS SE MESURE EN PART DE BARRE. Ses PV totaux ne
+        // veulent rien dire pour le joueur : ce qu'il lit a l'ecran est une
+        // barre, et `bars` est deja dans l'instantane.
+        const perdu = a.boss.hp - b.boss.hp;
+        const barre = (b.boss.maxHp ?? 1) / Math.max(1, b.boss.bars ?? 1);
         out.push({ t: "impact", boss: true, x: b.boss.x, y: b.boss.y,
-                   dmg: a.boss.hp - b.boss.hp });
+                   dmg: perdu, part: perdu / barre, crit: (mine?.[2] ?? 0) > 0 });
       }
       if ((b.boss.phase ?? 0) > (a.boss.phase ?? 0)) {
         out.push({ t: "barre", phase: b.boss.phase, x: b.boss.x, y: b.boss.y });
       }
     }
-    const mine = (b.bossDmg ?? []).find(d => d[0] === opts.myId);
     if (mine && mine[1] > 0) {
       out.push({ t: "degats", x: mine[3] ?? b.boss.x, y: mine[4] ?? b.boss.y,
                  dmg: mine[1], crit: (mine[2] ?? 0) > 0 });
@@ -166,6 +173,13 @@ export function diffSnapshots(a, b, opts = {}) {
       out.push({ t: "ricochet", x: mine[3] ?? b.boss.x, y: mine[4] ?? b.boss.y,
                  cx: b.boss.x, cy: b.boss.y });
     }
+  } else if (a.boss && (a.boss.phase ?? 0) >= (a.boss.bars ?? 1) - 1) {
+    /* LE BOSS DISPARAIT DE L'INSTANTANE, ET C'EST TOUT CE QU'IL FAIT :
+       `_killBoss` ne pousse aucun effet, ne cree aucune zone, n'emet aucun son.
+       Son absence le dit aussi bien qu'un message, et ne coute pas un octet.
+       LA GARDE EST LA DERNIERE BARRE. Sans elle, une remise a zero de manche —
+       l'autre endroit ou `this.boss` passe a `null` — se lirait comme une mort. */
+    out.push({ t: "bossMort", x: a.boss.x, y: a.boss.y, kind: a.boss.kind ?? 0 });
   }
 
   for (const [id, pb] of b.players) {

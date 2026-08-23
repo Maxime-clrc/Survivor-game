@@ -3468,6 +3468,52 @@
                    `explosion` mis a l echelle du rayon. Aucune famille de souffle
                    d ennemi a ajouter.
 
+     0.18.5 lot 5  TUER UN BOSS NE PRODUISAIT RIEN. `_killBoss` met `this.boss` a
+                   `null` et n emet aucun effet, aucune zone, aucun son : le corps
+                   disparaissait entre deux images. Le seul moment de palier 3 du
+                   jeu sans aucun budget, et c est celui que la manche prepare.
+                   Le client le deduit de l ABSENCE, donc zero octet : le boss a
+                   disparu et il etait sur sa DERNIERE barre. La garde compte —
+                   sans elle, la remise a zero de manche, l autre endroit ou
+                   `this.boss` passe a `null`, se lirait comme une mort.
+                   VERIFIE : 4 500 s, 3 graines, 38 barres brisees, 9 boss tues,
+                   9 evenements emis. Aucun faux positif, aucun manque.
+                   CINQ ECHEANCES ET C EST L ETALEMENT QUI FAIT L EVENEMENT :
+                   souffle et cassure a 0, anneaux a 90 / 200 / 360 / 620 ms qui
+                   s elargissent et RALENTISSENT, debris a 200, fumee a 360, queue
+                   grave a 620 — elle arrive quand l image est finie. Tout au meme
+                   instant n aurait fait qu un flash.
+                   Le hitstop appartient aux barres de boss ; la DERNIERE en est
+                   une, et c est la seule qui n en avait pas parce que `_killBoss`
+                   n emet pas `barre`.
+                   REGRESSION DU LOT 3 CORRIGEE : l evenement d impact d un boss ne
+                   porte pas de `hits` — il n y a pas de `hitSeq` sur un boss —
+                   donc `palierDe` le classait CONTINU et le rendait MUET depuis
+                   0.18.3. Le boss sort desormais en premier et par un chemin
+                   complet : deux baremes, deux chemins.
+                   LA TOUCHE D UN BOSS SE MESURE EN PART DE BARRE, et elle etait
+                   PLATE : le meme eclair de 80 ms pour un tick de brulure et pour
+                   un rail, sur la seule cible qu on regarde en continu. MESURE,
+                   12 694 instantanes ou le boss perd des PV : la part d une barre
+                   par pas de 50 ms vaut 0,01 % a la mediane, 1,14 % au p90,
+                   4,22 % au p99. Plein a 2 %, plancher a 0,25, et LA RACINE — en
+                   lineaire 82 % des touches tombaient sur le plancher et tout le
+                   milieu du bareme etait vide. La racine rend 62 / 0,41 / 0,76.
+                   L eclair dure 73 ms a la mediane et 140 ms au p99, contre 80 ms
+                   fixes. Meme grammaire de son que la horde, meme clef.
+                   LE CRITIQUE N ETAIT PAS DILUE, IL ETAIT ABSENT : `spawnCritShards`
+                   sortait a CHAQUE coup sur le boss, vingt fois par seconde, donc
+                   un critique ressemblait exactement a un coup ordinaire. Les
+                   eclats ambres redeviennent le signe du critique ; le coup
+                   ordinaire garde deux traits blancs. `crit` remonte par
+                   `bossDmg`, deja transporte.
+                   PAS DE VOIX DE TOUCHE PAR ARME sur le boss, et c est un refus :
+                   le joueur entend deja le DEPART de son arme a sa cadence, et
+                   ajouter un timbre d impact assorti vingt fois par seconde
+                   redirait la meme chose en remplissant le mix. Ce qui manquait
+                   sur le boss n etait pas « quelle arme » mais « combien de barre
+                   vient de partir ».
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3476,4 +3522,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.4";
+export const VERSION = "0.18.5";

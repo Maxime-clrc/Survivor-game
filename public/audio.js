@@ -740,6 +740,31 @@ const PALETTE = {
     tone({ freq: 147, dur: 0.9, type: "sine", gain: SOUND_GAIN.boss * 0.3 });
     return { end: a.end, stop: a.stop };
   },
+
+  /* LE BOSS SE BRISE. Trois couches et trois echelles de temps : la CASSURE
+     (bruit large, 50 ms), le corps qui s'effondre, un sub qui part de haut et
+     descend sous la mesure. C'est le seul son du jeu qui ait le droit de DURER —
+     un moment de manche par boss, onze par partie. */
+  bossBrise: () => {
+    const a = noise({ dur: 0.05, type: "highpass", freq: 4200, q: 0.6,
+                      gain: SOUND_GAIN.boss * 1.0 });
+    noise({ dur: 0.45, type: "lowpass", freq: 1800, to: 90,
+            gain: SOUND_GAIN.boss * 1.1, delay: 0.01 });
+    tone({ freq: 220, to: 38, dur: 0.40, type: "sawtooth",
+           gain: SOUND_GAIN.boss * 0.7 });
+    tone({ freq: 55, to: 28, dur: 0.9, type: "sine",
+           gain: SOUND_GAIN.boss * 0.55, delay: 0.03 });
+    return { end: a.end + 0.9, stop: a.stop };
+  },
+
+  // LA QUEUE : ce qui reste quand l'image est finie. Elle MONTE avant de tomber
+  // (`attack`) et elle ne resout pas — le boss est mort, la manche continue.
+  bossQueue: () => {
+    const a = noise({ dur: 1.1, type: "lowpass", freq: 380, to: 60, attack: 0.10,
+                      gain: SOUND_GAIN.boss * 0.45 });
+    tone({ freq: 62, to: 41, dur: 1.0, type: "sine", gain: SOUND_GAIN.boss * 0.4 });
+    return { end: a.end, stop: a.stop };
+  },
 };
 
 export function playSound(name, opts = {}) {
