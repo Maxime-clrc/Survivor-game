@@ -3337,6 +3337,44 @@
                    evenements et rend exactement 805 sons, le compte d avant. Le
                    pire cas est gratuit, seule la difference se paie.
 
+     0.18.2 lot 2  LE DEPART DU COUP. `grep -rn "muzzle|bouche|recul" public/`
+                   rendait ZERO LIGNE : un projectile apparaissait a 16 px du
+                   corps, et c etait le seul evenement du jeu sans depart. Canal
+                   absent, pas canal mal regle — comme l eclair de touche du boss.
+                   ELLE EST ATTACHEE AU CANON, PAS AU MONDE. Le tir est
+                   enregistre par proprietaire et trace a la position RENDUE, dans
+                   l axe ou le joueur pointe : une position monde figee
+                   decrocherait du personnage des qu il bouge, et c est le
+                   decrochage qui se voit, pas les 50 ms de retard de visee.
+                   C est aussi pourquoi l evenement `tir` NE PORTE PAS d angle :
+                   un champ dont le lecteur contredit la valeur ne vaut rien.
+                   23 px, MESURE sur les trois traces de classe — tireur 24,
+                   rempart 23, soigneur 21. Un seul nombre, l ecart ne se voit pas.
+                   LA FORME SE LIT SUR LA FAMILLE et non sur un champ de la fiche :
+                   aiguille et rails en travers pour le rail, trois lobes pour la
+                   gerbe, bouffee RONDE pour le tube lobe, cone plus anneau de
+                   pression pour l obus, claquement court et barre pour le
+                   balistique. Elle NAIT A SA TAILLE MAXIMALE, meme regle que le
+                   noyau d un souffle.
+                   LE RECUL EST VISUEL ET RIEN D AUTRE : la position simulee ne
+                   bouge pas d un pixel — un retour de tir qui deplacerait le
+                   personnage serait du gameplay decide par le client. Il porte le
+                   SPRITE et son liseré, jamais les anneaux : meme partage que le
+                   tressaillement d un ennemi touche, le corps encaisse a
+                   l interieur de son aura. Decalage ET ecrasement dans le meme
+                   axe — un decalage seul se lit comme une desynchronisation.
+                   LA DOUILLE est le seul debris du jeu qui ne vienne pas d une
+                   destruction : elle sort sur le cote et elle tourne, et c est ce
+                   qui rend l arme mecanique.
+                   Les trois memes familles n ont pas de bouche que celles qui n
+                   ont pas de son, et pour la meme raison : leur depart existe
+                   deja (allumage du faisceau, origine de l arc, balayage).
+                   BUDGET : 3 a 8 particules par tir, ~98 vivantes en regime a 4
+                   joueurs sur les 3 000 du chemin WebGL. Le chemin 2D plafonne a
+                   300 — la bouche y prendrait un tiers du budget et affamerait
+                   les morts, qui sont le palier au-dessus : un canon, la moitie
+                   des etincelles, une bouffee. Aucune sixieme lecture de `gfx`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3345,4 +3383,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.1";
+export const VERSION = "0.18.2";

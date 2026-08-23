@@ -44,16 +44,29 @@ export function familleDe(a) {
    limiteur de voix : quatre joueurs portant la meme famille se partagent une
    place, donc le nombre de voix ne bouge pas avec l'effectif.
    `jitter` est l'ecart de hauteur d'un tir a l'autre — c'est lui qui casse la
-   repetition, pas quatre fichiers numerotes. */
+   repetition, pas quatre fichiers numerotes.
+
+   `bouche` est la MATIERE du depart, et la FORME se lit sur la famille elle-meme
+   plutot que sur un champ : deux endroits ou ecrire « c'est une gerbe » finissent
+   par diverger. `null` aux memes trois familles, pour la meme raison qu'au son —
+   leur depart existe deja et le doubler serait la meme faute deux fois. */
+const BOUCHE = (long, large, vie, fumee, douille, etincelles, recul) =>
+  ({ long, large, vie, fumee, douille, etincelles, recul });
+
 export const FEEDBACK = {
-  [FAM_BALISTIQUE]: { son: "tir",       jitter: 0.07 },
-  [FAM_DISPERSION]: { son: "tirGerbe",  jitter: 0.05 },
-  [FAM_RAIL]:       { son: "tirRail",   jitter: 0.03 },
-  [FAM_EXPLOSIF]:   { son: "tirLourd",  jitter: 0.05 },
-  [FAM_OBUS]:       { son: "tirObus",   jitter: 0.04 },
-  [FAM_FAISCEAU]:   { son: null,        jitter: 0 },
-  [FAM_ELECTRIQUE]: { son: null,        jitter: 0 },
-  [FAM_LAME]:       { son: null,        jitter: 0 },
+  [FAM_BALISTIQUE]: { son: "tir",      jitter: 0.07,
+                      bouche: BOUCHE(15, 8, 0.045, 0, 1, 2, 3.4) },
+  [FAM_DISPERSION]: { son: "tirGerbe", jitter: 0.05,
+                      bouche: BOUCHE(20, 23, 0.075, 2, 1, 5, 8.0) },
+  [FAM_RAIL]:       { son: "tirRail",  jitter: 0.03,
+                      bouche: BOUCHE(48, 5, 0.060, 0, 0, 3, 7.0) },
+  [FAM_EXPLOSIF]:   { son: "tirLourd", jitter: 0.05,
+                      bouche: BOUCHE(12, 13, 0.065, 3, 0, 1, 2.6) },
+  [FAM_OBUS]:       { son: "tirObus",  jitter: 0.04,
+                      bouche: BOUCHE(25, 16, 0.070, 2, 1, 3, 7.5) },
+  [FAM_FAISCEAU]:   { son: null,       jitter: 0, bouche: null },
+  [FAM_ELECTRIQUE]: { son: null,       jitter: 0, bouche: null },
+  [FAM_LAME]:       { son: null,       jitter: 0, bouche: null },
 };
 
 export const ficheDe = a => FEEDBACK[familleDe(a)];
@@ -73,3 +86,9 @@ export function poids(a) {
   if (!a || !(a.interval > 0)) return POIDS_MIN;
   return Math.max(POIDS_MIN, Math.min(POIDS_MAX, Math.sqrt(a.interval / POIDS_REF)));
 }
+
+/* LE POIDS MODULE, LA FAMILLE DECIDE. Le multiplicateur reste faible a dessein :
+   la famille porte deja l'ecart entre une gerbe et une aiguille, et l'echelle ne
+   sert qu'a separer les armes DEDANS — trois seulement partagent une famille. Un
+   facteur franc les aurait fait changer de famille a l'oeil. */
+export const echelleBouche = a => 0.75 + 0.25 * poids(a);

@@ -4,7 +4,7 @@ import { EventPump } from "/events.js";
 import { hudDamage } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
-import { POIDS_MAX, ficheDe, poids } from "/shared/feedback.js";
+import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, POIDS_MAX, echelleBouche, ficheDe, familleDe, poids } from "/shared/feedback.js";
 import { CFG, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
@@ -100,6 +100,7 @@ function handleEvent(e) {
   switch (e.t) {
     case "tir":
       tirVoix(e);
+      tirBouche(e);
       break;
 
     case "impact":
@@ -289,6 +290,188 @@ function tirVoix(e) {
     // la queue d'un echantillon ne doit pas depasser la cadence qui l'appelle
     dur: a?.interval > 0 ? a.interval * 0.9 : 0,
   });
+}
+
+/* LA BOUCHE. Un projectile APPARAISSAIT a 16 px du corps : le seul evenement du
+   jeu qui n'avait aucun depart. Le canal manquait, il n'etait pas mal regle.
+
+   ELLE EST ATTACHEE AU CANON, PAS AU MONDE. Le tir est enregistre par
+   proprietaire et le trace se fait a la position RENDUE du joueur, dans l'axe ou
+   il pointe : une position monde figee decrocherait du personnage des qu'il
+   bouge, et c'est le decrochage qui se voit, pas les 50 ms de retard de visee.
+
+   23 px, MESURE sur les trois traces de classe (tireur 24, rempart 23,
+   soigneur 21) : un seul nombre, l'ecart ne se voit pas. */
+const BOUCHE_X = 23;
+const RECUL_MS = 90;
+export const bouches = new Map();
+
+function tirBouche(e) {
+  const p = latest?.players?.get(e.owner);
+  const a = p ? ARMES[p.arme] : null;
+  const f = ficheDe(a);
+  if (!f.bouche) return;
+  bouches.set(e.owner, {
+    at: performance.now(), fam: familleDe(a), b: f.bouche, ech: echelleBouche(a),
+    n: Math.min(3, Math.max(1, e.n ?? 1)), parti: 0,
+  });
+}
+
+/* LE RECUL EST VISUEL ET RIEN D'AUTRE : la position simulee ne bouge pas d'un
+   pixel. Un retour de tir qui deplacerait le personnage serait du gameplay, et
+   du gameplay decide par le client. Il porte le SPRITE, pas les anneaux — meme
+   partage que le tressaillement d'un ennemi touche : le corps encaisse a
+   l'interieur de son aura. */
+export function reculDe(id) {
+  const m = bouches.get(id);
+  if (!m) return 0;
+  const u = (performance.now() - m.at) / RECUL_MS;
+  if (u >= 1) return 0;
+  return m.b.recul * m.ech * Math.pow(1 - u, 1.5);
+}
+
+function kite(x, y, ux, uy, long, large) {
+  const px = -uy, py = ux;
+  ctx.beginPath();
+  ctx.moveTo(x + ux * long, y + uy * long);
+  ctx.lineTo(x + ux * long * 0.28 + px * large, y + uy * long * 0.28 + py * large);
+  ctx.lineTo(x - ux * long * 0.3, y - uy * long * 0.3);
+  ctx.lineTo(x + ux * long * 0.28 - px * large, y + uy * long * 0.28 - py * large);
+  ctx.closePath();
+  ctx.fill();
+}
+function losange(x, y, ux, uy, long, large) {
+  const px = -uy, py = ux;
+  ctx.beginPath();
+  ctx.moveTo(x + ux * long, y + uy * long);
+  ctx.lineTo(x + px * large, y + py * large);
+  ctx.lineTo(x - ux * long, y - uy * long);
+  ctx.lineTo(x - px * large, y - py * large);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* LA FORME SE LIT SUR LA FAMILLE, pas sur un champ de la fiche : « c'est une
+   gerbe » ecrit a deux endroits finit par diverger. Le coeur rejoue la meme
+   forme en plus petit et saute les ornements — c'est l'empilement qui fabrique
+   le blanc, jamais une source deja blanche. */
+function formeBouche(fam, x, y, ux, uy, L, W, coeur) {
+  const px = -uy, py = ux;
+  switch (fam) {
+    case FAM_RAIL:
+      // la seule bouche PLUS LONGUE QUE LARGE, et les rails en travers
+      losange(x + ux * L * 0.35, y + uy * L * 0.35, ux, uy, L * 0.65, W);
+      if (!coeur) losange(x, y, px, py, W * 3.4, W * 0.5);
+      return;
+    case FAM_DISPERSION:
+      // LA GERBE S'OUVRE : trois lobes, jamais un cone lisse
+      kite(x, y, ux, uy, L, W * 0.55);
+      if (coeur) return;
+      for (const s of [-1, 1]) {
+        const a = Math.atan2(uy, ux) + s * 0.62;
+        kite(x, y, Math.cos(a), Math.sin(a), L * 0.72, W * 0.42);
+      }
+      return;
+    case FAM_EXPLOSIF:
+      // UN TUBE NE CLAQUE PAS : une bouffee ronde, aucune pointe
+      ctx.beginPath();
+      ctx.arc(x + ux * L * 0.2, y + uy * L * 0.2, W, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    case FAM_OBUS:
+      kite(x, y, ux, uy, L, W * 0.7);
+      if (coeur) return;
+      // l'anneau de pression : ce qui separe une bouche fermee d'un tube ouvert
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x + ux * L * 0.3, y + uy * L * 0.3, W * 1.15, 0, Math.PI * 2);
+      ctx.stroke();
+      return;
+    default:
+      kite(x, y, ux, uy, L, W * 0.5);
+      if (coeur) return;
+      losange(x, y, px, py, W * 1.3, W * 0.28);
+      return;
+  }
+}
+
+export function drawBouche(id, x, y, ang, col) {
+  const m = bouches.get(id);
+  if (!m) return;
+  // l'eclair s'eteint avant le recul : la peremption du registre appartient a
+  // `stepFeedback`, qui purge deja les autres tables datees.
+  const u = (performance.now() - m.at) / (m.b.vie * 1000);
+  if (u >= 1) return;
+  const ux = Math.cos(ang), uy = Math.sin(ang);
+  const bx = x + ux * BOUCHE_X, by = y + uy * BOUCHE_X;
+  // les particules naissent a la position RENDUE, donc au premier trace et non a
+  // la reception : `latest` a jusqu'a un instantane d'avance sur l'image.
+  if (!m.parti) { m.parti = 1; boucheFx(m, bx, by, ux, uy); }
+  if (!inView(bx, by, 60)) return;
+
+  // ELLE NAIT A SA TAILLE MAXIMALE — meme regle que le noyau d'un souffle : une
+  // montee progressive fait « animation », une naissance pleine fait « depart ».
+  const k = 1 - u;
+  const ech = m.ech * (1 + 0.12 * (m.n - 1));
+  const L = m.b.long * ech, W = m.b.large * ech;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = k;
+  ctx.fillStyle = col;
+  formeBouche(m.fam, bx, by, ux, uy, L, W, false);
+  ctx.globalAlpha = Math.min(1, k * 1.2);
+  ctx.fillStyle = COMBAT.blastCore;
+  formeBouche(m.fam, bx, by, ux, uy, L * 0.55, W * 0.5, true);
+  ctx.restore();
+}
+
+function boucheFx(m, x, y, ux, uy) {
+  if (!inView(x, y, 60)) return;
+  const b = m.b, ech = m.ech, n = m.n;
+  // le chemin 2D plafonne a 300 particules contre 3 000 : a pleine densite la
+  // bouche y prendrait un tiers du budget et affamerait les morts, qui sont le
+  // palier au-dessus. Un canon, la moitie des etincelles, une bouffee.
+  const dense = glActive();
+  const nb = dense ? n : 1;
+  const ang0 = Math.atan2(uy, ux);
+  const ouvert = Math.min(1.6, (b.large / b.long) * 1.6);
+
+  const ne = dense ? b.etincelles * nb : Math.ceil(b.etincelles / 2);
+  for (let i = 0; i < ne && particles.length < PARTICLE_MAX; i++) {
+    const a = ang0 + (Math.random() - 0.5) * ouvert;
+    const sp = 240 + Math.random() * 260;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.11, max: 0.11, col: COMBAT.flash, size: 2 * ech,
+      ang: a, long: 3.6,
+    });
+  }
+  // LA DOUILLE SORT SUR LE COTE ET ELLE TOURNE. C'est le seul debris du jeu qui
+  // ne vienne pas d'une destruction, et c'est ce qui rend l'arme mecanique.
+  for (let i = 0; i < b.douille * nb && particles.length < PARTICLE_MAX; i++) {
+    const a = ang0 + Math.PI / 2 + (Math.random() - 0.5) * 0.7;
+    const sp = 90 + Math.random() * 80;
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.38, max: 0.38, col: COMBAT.bullet, size: 2.3 * ech,
+      frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 22, drag: 0.86,
+    });
+  }
+  // la fumee derive DEVANT la bouche et grandit : elle dit la pression, pas le feu
+  const nf = dense ? b.fumee : Math.min(1, b.fumee);
+  for (let i = 0; i < nf && particles.length < PARTICLE_MAX; i++) {
+    const a = ang0 + (Math.random() - 0.5) * 0.9;
+    const sp = 40 + Math.random() * 50;
+    particles.push({
+      x: x + ux * 4, y: y + uy * 4,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.5 + Math.random() * 0.25, max: 0.75,
+      col: SURFACE.line, size: b.large * 0.7 * ech, frame: fxGlow,
+      grow: 60, a0: 0.28, drag: 0.93,
+    });
+  }
 }
 
 // [1] LE RETOUR N'EST PAS SUR LA MORT, IL EST SUR LA CADENCE DES MORTS. Chaque
@@ -910,6 +1093,11 @@ export function stepFeedback(dt) {
   if (hitQueue.length > 0) flushHitQueue(now);
   if (hits.size > 0) {
     for (const [id, h] of hits) if (h.until < now) hits.delete(id);
+  }
+  if (bouches.size > 0) {
+    for (const [id, m] of bouches) {
+      if (now - m.at > Math.max(m.b.vie * 1000, RECUL_MS)) bouches.delete(id);
+    }
   }
 }
 export let fxWhite = 0, fxShard = 0, fxGlow = 0;
