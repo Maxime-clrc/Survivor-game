@@ -1286,7 +1286,7 @@ export function renderMeta(clsOverride) {
     const cost = tierCost(n, line.id);
     const ferme = verrous.has(line.famille ?? "");
     const row = document.createElement("div");
-    row.className = "metaLine confort" + (n > 0 ? " owned" : "") + (ferme ? " taken" : "");
+    row.className = "metaLine" + (n > 0 ? " owned" : "") + (ferme ? " taken" : "");
     row.innerHTML =
       `<span class="metaName">${escapeHtml(ligneNom(line))}</span>` +
       `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
@@ -1307,6 +1307,17 @@ export function renderMeta(clsOverride) {
       b.onclick = () => ws.send(JSON.stringify({ t: "metaCommun", line: line.id }));
     }
     row.appendChild(b);
+    if (n > 0) {
+      const coupee = (pr.communOff ?? []).includes(line.id);
+      const sw = document.createElement("button");
+      sw.className = "metaEquip" + (coupee ? "" : " on");
+      sw.textContent = coupee
+        ? t("ui.meta.coupee", "coupée")
+        : t("ui.meta.active", "active");
+      sw.disabled = phase !== PHASE_LOBBY;
+      sw.onclick = () => ws.send(JSON.stringify({ t: "metaCommunOff", line: line.id }));
+      row.appendChild(sw);
+    }
     metaConfortEl.appendChild(row);
   }
 

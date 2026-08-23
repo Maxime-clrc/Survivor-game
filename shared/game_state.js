@@ -3894,6 +3894,7 @@ export class GameState {
       const bonus = this.event ? p.mods.eventShard : 0;
       p.eclats += Math.round(gain * (p.mods.shardMul + bonus))
         + this._relicSum(p, "shardFlat");
+      p.hf.harvests++;
       if (p.mods.harvestHeal > soin) soin = p.mods.harvestHeal;
       if (p.mods.harvestAgain > encore) encore = p.mods.harvestAgain;
     }
@@ -3937,7 +3938,6 @@ export class GameState {
       case "slow":   this.slow = CFG.SLOW_TIME; break;
       case "nova":   this._nova(p); break;
       case "fragment":
-        p.hf.harvests++;
         p.hp = Math.min(p.maxHp, p.hp + CARD_CFG.HARVEST_HEAL * part);
         return;
       case "purification":

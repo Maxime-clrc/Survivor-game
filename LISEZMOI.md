@@ -131,6 +131,35 @@ dégâts par plomb n'a rendu que **+1 de `Dh`** — les plombs se marchaient des
 le surtuage mangeait tout. La cadence n'a payé qu'**une fois l'ouverture
 ouverte** : 0,40 → 0,32 s vaut +0,07 de V à arc 0,80, et rien à 0,42.
 
+### Le tesla paie son écart (0.18.7)
+
+L'écart relevé en 0.15.9 — **1,40 délivré pour une cible de 1,02** — n'avait
+jamais été payé : il était noté « masqué par la sur-attribution des autres »,
+donc décrit, pas corrigé. Retour de table : *trop de portée et trop de cadence*.
+Le banc dit la même chose. Sweep à 3 graines × 10 min, portée × intervalle :
+
+| portée | intervalle | Dh | Db | V | écart à 1,02 |
+|---|---|---|---|---|---|
+| 0,85 (41 m) | 0,30 s | 63,3 | 122,0 | **1,403** | +0,383 |
+| 0,70 (34 m) | 0,36 s | 56,8 | 102,4 | 1,233 | +0,213 |
+| 0,70 | 0,40 s | 51,9 | 88,4 | 1,107 | +0,087 |
+| 0,75 (36 m) | 0,42 s | 47,5 | 84,0 | 1,025 | +0,005 |
+| **0,70** | **0,42 s** | 48,2 | 74,4 | **0,990** | −0,030 |
+| 0,72 | 0,42 s | 46,4 | 74,7 | 0,964 | −0,056 |
+| 0,70 | 0,44 s | 43,3 | 83,4 | 0,959 | −0,061 |
+
+Les deux dernières lignes sont **sous** la tolérance : le pas utile est de
+0,02 s d'intervalle, pas moins. Retenu 0,70 / 0,42 s (revérifié à 5 graines ×
+10 min), et non 0,75 / 0,42 qui vise plus juste : la portée est la moitié du
+retour, et 0,75 la laisserait presque intacte. Les dégâts ne bougent pas — sur
+une arme qui enchaîne, ils remontent `Dh` et `Db` ensemble, donc ils déplacent V
+sans rien changer à ce que le joueur reproche.
+
+**Les autres armes n'ont pas été retouchées** et restent où la correction
+d'attribution les a laissées, à 5 graines × 10 min : dispersion −0,138, grenade
+−0,178, siège −0,119, railgun −0,078, précision −0,074. C'est la campagne de
+clôture qui est à rejouer (20 × 20), pas six chiffres à corriger un par un.
+
 ### Ressenti de combat et lien de soin (plan 7, lots L1 et L2)
 
 **La fréquence d'un événement détermine inversement son budget de retour.** Un jeu

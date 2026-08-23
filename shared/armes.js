@@ -142,9 +142,11 @@ export const ARMES = [
   },
   {
     id: "tesla", nom: "Tesla", tir: "arc", axe: "visee",
-    // 34 m etait enorme PARCE QUE L'ARME VISAIT SEULE ; une arme qu'on vise a
-    // droit a sa portee, et 41 m reste sous le tir standard
-    interval: 0.30, degats: 18.4, portee: 0.85,
+    // MESURE : 1,40 delivre pour une cible de 1,02 — l ecart releve en 0.15.9
+    // n avait jamais ete paye, et il tenait dans la portee et la cadence. Le
+    // coup ne bouge pas : sur une arme qui enchaine, le levier est le rythme et
+    // la distance. 34 m et 0,42 s rendent 0,99 (5 graines x 10 min).
+    interval: 0.42, degats: 18.4, portee: 0.70,
     rebonds: true, critBase: 0, famille: true,
     resume: "un trait qui se disperse en arcs sur les corps voisins",
     contrainte: "aucun coup critique, et chaque saut perd 30 %",

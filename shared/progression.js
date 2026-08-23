@@ -179,7 +179,15 @@ export function metaLinesFor(profile, clsId) {
     const n = cp.tiers?.[lid] | 0;
     if (n > 0) lines[lid] = n;
   }
-  return { lines, commun: { ...(profile?.commun ?? {}) } };
+  // UNE LIGNE COMMUNE COUPEE NE S APPLIQUE PAS. Le champ absent vaut TOUT
+  // ACTIF : aucun profil existant ne change, et rien n a a migrer.
+  const coupees = new Set(profile?.communOff ?? []);
+  const commun = {};
+  for (const l of COMMUN) {
+    const n = profile?.commun?.[l.id] | 0;
+    if (n > 0 && !coupees.has(l.id)) commun[l.id] = n;
+  }
+  return { lines, commun };
 }
 
 export function applyMeta(mods, maxHp, clsId, lines, commun = null) {

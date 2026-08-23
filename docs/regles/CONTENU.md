@@ -238,6 +238,14 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   armeIds)` valide les **trois** familles d’identifiants, et l’inverse : une arme
   que **aucun** haut fait ne donne est jouable par personne. Il est le critère
   rejouable, et il vérifie les deux.
+- **UN COMPTEUR SE BRANCHE SUR L’ÉVÉNEMENT QUE SON TEXTE NOMME, et un compteur
+  qui ne monte jamais ne lève rien.** « Prospecteur » comptait `p.hf.harvests`
+  au ramassage d’un **fragment** — la carte « Récolte », que la plupart des
+  comptes n’ont pas — et jamais dans `_harvestYield`, qui est le seul endroit
+  où un point de récolte rend quelque chose. Le seuil restait à zéro pour qui
+  cassait des cristaux. **Le point de crédit est celui où la récompense de manche
+  est versée** : les éclats et le compteur sortent de la même boucle, sinon les
+  deux dérivent.
 - **TOUS LES COMPTEURS SONT PERSONNELS** (`p.hf`), jamais l'état de manche : un
   compteur d'équipe serait atteint quatre fois plus vite à quatre joueurs.
   Le pendant est connu : la horde suit `joueurs^0,75`, donc un seuil brut est
@@ -366,6 +374,14 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   **consomme la phase** ; le bouton est **libre** (l'achat confort
   `bannissement` a disparu de la table — identifiant mort dans les profils qui
   l'avaient acheté). Pool vidé → carte de secours (`ravitaillement`).
+- **UNE LIGNE PERMANENTE SE COUPE, ET LA COUPURE EST UNE LISTE D’EXCLUSION.**
+  Les lignes de classe se déséquipent par les **emplacements** ; les **communes**
+  n’en consomment aucun, donc rien ne les arrêtait — `sursis` régénérait chez qui
+  voulait s’en passer. `profile.communOff` porte les identifiants **coupés** :
+  le champ absent vaut **tout actif**, donc aucun profil n’a à migrer et rien ne
+  se reverrouille. Le filtre vit dans `metaLinesFor`, **le** point de lecture du
+  serveur, du HUD et de la fenêtre de build — le poser ailleurs ferait mentir
+  l’un des trois. Couper n’est pas vendre : les paliers restent payés.
 - **L'économie** : `coresForRun` **linéaire et plafonnée** (niveau × `CORE_LEVEL` +
   boss × `CORE_BOSS`, plafond `CORE_RUN_CAP`), **les jalons ne créditent jamais de
   noyaux**, les **emplacements se gagnent aux jalons** (`slotsFor(profile)`).

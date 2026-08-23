@@ -3555,6 +3555,27 @@
                    le choeur n existent qu en cauchemar, donc les mesurer en normal
                    rend zero et zero ressemble a un bug.
 
+     0.18.7 correctif de jeu : trois retours de table.
+                   LE TESLA N AVAIT JAMAIS PAYE SON ECART. Releve a 1,40 pour
+                   une cible de 1,02 en 0.15.9 — « masque par la sur-attribution
+                   des autres », donc jamais corrige. Il tenait dans la PORTEE
+                   et la CADENCE, pas dans le coup : 41 -> 34 m et 0,30 -> 0,42 s
+                   rendent 0,99 (5 graines x 10 min). Sur une arme qui enchaine,
+                   toucher aux degats remonte les DEUX colonnes a la fois.
+                   « PROSPECTEUR » COMPTAIT LE MAUVAIS EVENEMENT. `p.hf.harvests`
+                   montait au ramassage d un FRAGMENT (carte « Recolte », 8 % des
+                   morts) et jamais dans `_harvestYield` : qui cassait des cristaux
+                   sans cette carte restait a zero. Il est credite la ou les
+                   eclats le sont, a chaque joueur — un cristal vaut un point,
+                   quel que soit l effectif. Le fragment ne compte plus.
+                   UNE LIGNE COMMUNE SE COUPE. Les lignes de classe se
+                   desequipent depuis toujours par les emplacements ; les
+                   COMMUNES s appliquaient sans recours, donc `sursis` regenerait
+                   chez qui voulait s en passer. `profile.communOff` est une liste
+                   d EXCLUSION — le champ absent vaut TOUT ACTIF, aucun profil a
+                   migrer — filtree dans `metaLinesFor`, seul point de lecture du
+                   serveur, du HUD et de la fenetre de build.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3563,4 +3584,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.6";
+export const VERSION = "0.18.7";

@@ -419,6 +419,8 @@ export const EN = {
   "ui.meta.equip": "equip",
   "ui.meta.equipped": "equipped",
   "ui.meta.owned": "owned",
+  "ui.meta.active": "active",
+  "ui.meta.coupee": "off",
   "ui.meta.parPalier": "{txt} per tier",
   "ui.meta.slots": "Slots {n} / {tot}",
   "ui.meta.slots.sur": "equipped on the {cls} · free reassignment between rounds",

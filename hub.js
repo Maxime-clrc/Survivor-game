@@ -56,6 +56,7 @@ export function createHub(store, log, commit = "") {
       kills: pr.kills,
       classes: pr.classes,
       commun: pr.commun ?? {},
+      communOff: pr.communOff ?? [],
       confort: pr.confort,
       pseudo: pr.pseudo ?? "",
       gained: c.lastGain ?? 0,
@@ -381,6 +382,23 @@ export function createHub(store, log, commit = "") {
         if (pr.cores < cost) break;
         pr.cores -= cost;
         pr.commun[line.id] = cur + 1;
+        persist(client);
+        sendProgress(client);
+        break;
+      }
+
+      // COUPER UNE LIGNE COMMUNE N EST PAS LA VENDRE : les paliers restent
+      // payes, seule l application s arrete. Liste d exclusion et non
+      // d inclusion — un profil sans le champ garde tout actif.
+      case "metaCommunOff": {
+        const line = COMMUN.find(l => l.id === msg.line);
+        if (!line) break;
+        const pr = client.profile;
+        if (!(pr.commun?.[line.id] > 0)) break;
+        const coupees = new Set(pr.communOff ?? []);
+        if (coupees.has(line.id)) coupees.delete(line.id);
+        else coupees.add(line.id);
+        pr.communOff = [...coupees];
         persist(client);
         sendProgress(client);
         break;
