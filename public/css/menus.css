@@ -1948,6 +1948,9 @@ tr.clickable { cursor: pointer; }
 .metaLine { grid-template-columns: 130px 64px 1fr 104px 96px; }
 .metaLine.confort { grid-template-columns: 170px 1fr 104px; }
 .metaEquip.on { border-color: var(--go); color: var(--go); background: color-mix(in srgb, var(--go) 12%, transparent); }
+.metaLine.coupee { opacity: .55; }
+.metaLine.coupee .metaName { text-decoration: line-through; }
+.metaLine.coupee .metaDesc { color: var(--text-faint); }
 #gate small, #hubScreen small, #panel small,
 #menu small, #bilan small, #fin small, #settings small { font-size: var(--t-xs); }
 #metaSub { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); text-align: left; }

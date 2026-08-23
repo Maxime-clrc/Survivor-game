@@ -3588,6 +3588,21 @@
                    Le depart se dit DEVANT le personnage, jamais sur lui, et
                    `RENDU.md` porte la raison pour que l essai ne se refasse pas.
 
+     0.18.9 correctif : LE BOUTON NE FAISAIT RIEN, ET RIEN NE LE DISAIT.
+                   `metaCommunOff` (0.18.7) avait son `case` dans `handleMeta` mais
+                   pas son entree dans l aiguillage de `handleConnection`, qui
+                   nomme les types `meta*` UN PAR UN : le message tombait dans la
+                   branche salle, ou personne ne le connait non plus. Le clic
+                   partait, la progression ne bougeait pas, aucune erreur nulle
+                   part. Verifie bout en bout cette fois — faux `conn` sur un vrai
+                   `createHub` : achat, coupure, remise, ligne non possedee refusee.
+                   LA COUPURE SE LIT SANS LE BOUTON : la ligne passe en `.coupee`,
+                   meme vocabulaire que `.banned` — nom barre, ligne en retrait. Un
+                   etat porte par le seul libelle d un bouton se rate. Et la ligne
+                   commune perd `.confort` : elle a des paliers ET deux boutons, donc
+                   la grille a cinq colonnes, pas les trois qui la faisaient
+                   replier depuis toujours.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3596,4 +3611,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.8";
+export const VERSION = "0.18.9";

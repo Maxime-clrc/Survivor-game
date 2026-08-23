@@ -44,6 +44,11 @@ compte.
   `listRooms` (1/s), `createRoom`, `joinRoom`, `leaveRoom` et les `meta*` (hub ET
   salon, jamais en manche) ; le reste va à `room.handleMessage()` et est
   **rejeté** si le client n'est dans aucune salle. `nextClientId` vit au hub.
+- **LES `meta*` SONT UNE LISTE BLANCHE, PAS UN PRÉFIXE.** `handleConnection`
+  nomme chaque type un par un avant d’appeler `handleMeta` ; un `case` ajouté
+  dans `handleMeta` sans son entrée dans cette liste tombe dans la branche
+  salle, où `room.handleMessage` ne le connaît pas non plus — **le bouton ne
+  fait rien et rien ne le dit**. Les deux endroits se modifient ensemble.
 - **Le recomptage d'effectif a un point de passage unique** : le hook
   `occupancy` → `broadcastRooms()`. La liste est POUSSÉE aux clients en état hub.
 - **Une salle pleine se refuse** (`joinRoomError{motif:"pleine"}`), elle ne met

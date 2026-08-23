@@ -538,6 +538,7 @@ export function createHub(store, log, commit = "") {
         }
         case "metaBuy":
         case "metaCommun":
+        case "metaCommunOff":
         case "metaEquip":
         case "metaCadre":
         case "metaConfort":

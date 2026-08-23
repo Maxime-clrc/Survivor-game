@@ -1285,8 +1285,10 @@ export function renderMeta(clsOverride) {
     const n = (pr.commun ?? {})[line.id] | 0;
     const cost = tierCost(n, line.id);
     const ferme = verrous.has(line.famille ?? "");
+    const coupee = (pr.communOff ?? []).includes(line.id);
     const row = document.createElement("div");
-    row.className = "metaLine" + (n > 0 ? " owned" : "") + (ferme ? " taken" : "");
+    row.className = "metaLine" + (n > 0 ? " owned" : "") + (ferme ? " taken" : "")
+      + (n > 0 && coupee ? " coupee" : "");
     row.innerHTML =
       `<span class="metaName">${escapeHtml(ligneNom(line))}</span>` +
       `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
@@ -1308,7 +1310,6 @@ export function renderMeta(clsOverride) {
     }
     row.appendChild(b);
     if (n > 0) {
-      const coupee = (pr.communOff ?? []).includes(line.id);
       const sw = document.createElement("button");
       sw.className = "metaEquip" + (coupee ? "" : " on");
       sw.textContent = coupee
