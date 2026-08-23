@@ -123,6 +123,7 @@ shared/armes.js        LES ARMES : 10 fiches, coefficients d echelle, conversion
 shared/hauts_faits.js  LES HAUTS FAITS : 36 exigences, 13 cadres, recompenses NOMMEES
 shared/timeline.js     LE SCRIPT — six segments, trente beats, TROIS variantes, les EVENEMENTS
 shared/biomes.js       LE LIEU — quatre biomes, cinq dangers, trois meteos, generateur DETERMINISTE
+shared/feedback.js     CE QU UNE ARME DIT : famille de retour DEDUITE, voix, poids
 shared/units.js        pixels -> metres, SEUL point de conversion d'affichage
 shared/i18n.js         LA langue : cle -> texte, le FR restant le REPLI
 shared/lang/en.js      le dictionnaire anglais, SURCHARGE par cle
@@ -232,6 +233,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `axesDeCarte(c)` | les axes du tableau d’échelle qu’une carte touche — **relevés** sur `apply`/`applyAfter`, jamais déclarés |
 | `litCanons(a)` | quelles armes lisent `extraBarrels`, donc lesquelles paient `barrelDamageMul` |
 | `conversionBoss(a)` | ce qu’une arme rend contre une CIBLE UNIQUE |
+| `ficheDe(a)` / `poids(a)` (`shared/feedback.js`) | ce qu’une arme DIT : la famille donne la matière (et la CLEF du limiteur de voix), `interval` donne l’échelle. Trois familles rendent `son: null` — leur délivrance sonne déjà, un son de départ la doublerait |
 | `_armeTick(p, arme, dt, tir)` | la ressource d’une arme : rampe, chaleur, charge, chargeur |
 | `_surSegment(px, py, dx, dy, portee, large)` | la projection sur un segment : accrochage du tesla **et** balayage du faisceau |
 | `_sousArme(id, fn)` | l’attribution des dégâts à l’ARME plutôt qu’à la build ; le drapeau voyage sur la balle jusqu’à l’impact |

@@ -3298,6 +3298,45 @@
                    finit par ne plus faire, donc le genre de verification qui
                    n a plus lieu.
 
+     0.18.1 lot 1  LA FICHE ET LA VOIX. Premier lot du plan 15, dont le constat
+                   tient dans un `break` : `diffSnapshots` s arretait a la
+                   PREMIERE balle neuve d un instantane et poussait un `tir`
+                   anonyme. Dix armes, quatre joueurs, UN SEUL SON generique
+                   toutes les 50 ms — l identite sonore d une arme n etait pas
+                   mal reglee, elle etait STRUCTURELLEMENT IMPOSSIBLE.
+                   `shared/feedback.js` : la fiche de retour d une arme, module
+                   pur sur le modele de `palette.js`. Ce qu une arme VAUT reste
+                   dans `armes.js`, ce qu elle DIT vit ici, et la famille se
+                   DEDUIT des champs de mecanique — meme idiome que
+                   `silhouetteArme()` et `canonEffet()`. Une onzieme arme herite
+                   d un retour coherent sans une ligne de table.
+                   TROIS FAMILLES NE SONNENT PAS AU DEPART, et c est une decision :
+                   le faisceau est une boucle, l arc du tesla sonne par l effet 3,
+                   le balayage de la lame par l effet 17. Leur donner un son de
+                   depart le doublerait.
+                   LOBEE ET DIRECTE NE SONNENT PAS PAREIL : grenade et siege
+                   saturent tous deux le poids, donc l echelle ne pouvait pas les
+                   separer. Le depot les separait deja a l image — le baril
+                   TOURNE, l obus vole DROIT — il ne manquait que la voix.
+                   LE POIDS D UN COUP EST SA CADENCE, releve sur `interval` et
+                   jamais declare : hauteur, gain et duree de queue en sortent. Un
+                   echantillon de 260 ms rejoue neuf fois par seconde etait un
+                   mur ; il est desormais coupe a la cadence qui l appelle.
+                   `tir` porte `owner` et `n`, RIEN NE CIRCULE EN PLUS : le
+                   proprietaire voyage deja dans le tuple de la balle et son arme
+                   dans le sien. Une balle neuve loin de son proprietaire n est
+                   pas un depart — c est une scission a 260 px ou une tourelle —
+                   donc seule la naissance a la bouche compte.
+                   UN ALLIE SONNE PLUS BAS QUE SOI (0,55) : sans cet ecart, a
+                   quatre joueurs on n entend plus SON arme.
+                   `bu.heal` supprime : sa seule lecture etait morte depuis que le
+                   soin est un arc, le tuple de balle ne porte pas ce champ.
+                   MESURE, 8 min, 4 joueurs, mode normal : quatre armes
+                   differentes montent de 1 012 a 1 165 sons pour un pic de 5 voix
+                   sur 16, zero volee ; quatre fois la MEME arme rapide emet 2 678
+                   evenements et rend exactement 805 sons, le compte d avant. Le
+                   pire cas est gratuit, seule la difference se paie.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3306,4 +3345,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.17.6";
+export const VERSION = "0.18.1";

@@ -6,6 +6,10 @@ const MAX_DEATH = 40;
 
 const PICKUP_NEAR = 80;
 const BULLET_CLAIM = 90;
+// une balle nait a `PLAYER_RADIUS + 2` et parcourt au plus un instantane avant
+// d'etre vue : la marge couvre les deux, et reste tres en dessous des 260 px de
+// la scission, qui est ce qu'elle doit exclure.
+const TIR_PROCHE = 110;
 
 // DEPUIS QUE LE SERVEUR FILTRE PAR VUE, UNE ABSENCE N'EST PLUS UNE MORT : un
 // corps peut simplement etre sorti du champ. On ne compte l'evenement que si le
@@ -25,17 +29,29 @@ export function diffSnapshots(a, b, opts = {}) {
 
   const vue = opts.vue ?? null;
 
-  let firstNew = null;
+  // UN TIR EST UN DEPART, PAS UNE BALLE QUI APPARAIT. Une balle neuve loin de
+  // son proprietaire n'est pas un coup parti : c'est une scission (le porteur du
+  // fusil a dispersion s'ouvre a 260 px) ou une tourelle. Seul ce qui nait a la
+  // bouche compte — et le compte est PAR PROPRIETAIRE : sans lui, quatre joueurs
+  // portant quatre armes differentes rendaient un seul son anonyme toutes les
+  // 50 ms, et l'identite sonore d'une arme etait impossible, pas mal reglee.
+  const tirs = new Map();
   for (const [id, bu] of b.bullets) {
-    if (!a.bullets.has(id) && dansVue(vue, bu.x, bu.y)) { firstNew = bu; break; }
+    if (a.bullets.has(id)) continue;
+    if (!dansVue(vue, bu.x, bu.y)) continue;
+    const p = b.players.get(bu.owner ?? 0);
+    if (!p) continue;
+    if ((p.x - bu.x) ** 2 + (p.y - bu.y) ** 2 > TIR_PROCHE * TIR_PROCHE) continue;
+    const e = tirs.get(p.id);
+    if (e) { e.n++; continue; }
+    tirs.set(p.id, { n: 1 });
   }
-  if (firstNew) out.push({ t: "tir", x: firstNew.x, y: firstNew.y });
+  for (const [owner, e] of tirs) out.push({ t: "tir", owner, n: e.n });
 
   // [22] a QUI est ce coup. Rien ne le transporte : une balle disparue pres du
   // point d'impact le dit aussi bien, et ne coute pas un octet de reseau.
   const eteintes = [];
   for (const [id, bu] of a.bullets) {
-    if (bu.heal) continue;
     if (!b.bullets.has(id)) eteintes.push(bu);
   }
   const auteurDe = (x, y) => {

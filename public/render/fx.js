@@ -3,6 +3,8 @@ import { playSound } from "/audio.js";
 import { EventPump } from "/events.js";
 import { hudDamage } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
+import { ARMES } from "/shared/armes.js";
+import { POIDS_MAX, ficheDe, poids } from "/shared/feedback.js";
 import { CFG, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
@@ -97,7 +99,7 @@ const BLAST_STYLE = {
 function handleEvent(e) {
   switch (e.t) {
     case "tir":
-      playSound("tir");
+      tirVoix(e);
       break;
 
     case "impact":
@@ -258,6 +260,35 @@ function handleEvent(e) {
       break;
     }
   }
+}
+
+/* LA VOIX D'UN DEPART. L'arme ne circule pas : le proprietaire voyage dans le
+   tuple de la balle, son arme dans le sien, donc `ARMES[p.arme]` la rend sans
+   qu'aucune clef d'instantane s'ouvre.
+
+   La famille donne la MATIERE, l'arme donne l'ECHELLE — hauteur, gain et duree
+   se relevent sur `interval`, ils ne se declarent pas. Deux armes de la meme
+   famille restent donc distinctes sans seconde table, et la clef du limiteur
+   reste la famille : quatre joueurs sur la meme arme se partagent une place.
+
+   UN ALLIE SONNE PLUS BAS QUE SOI. Sans cet ecart, a quatre joueurs on
+   n'entend plus SON arme, ce qui est la seule chose que ce lot cherche. */
+const TIR_ALLIE = 0.55;
+function tirVoix(e) {
+  const p = latest?.players?.get(e.owner);
+  const a = p ? ARMES[p.arme] : null;
+  const f = ficheDe(a);
+  // trois familles sonnent par leur delivrance, pas par leur depart
+  if (!f.son) return;
+  const w = poids(a);
+  const n = Math.max(1, e.n ?? 1);
+  playSound(f.son, {
+    pitch: Math.pow(w, -0.35) * (1 + (Math.random() - 0.5) * f.jitter),
+    gain: Math.min(1.3, (0.7 + 0.3 * (w / POIDS_MAX)) * (1 + 0.12 * (n - 1)))
+      * (e.owner === myId ? 1 : TIR_ALLIE),
+    // la queue d'un echantillon ne doit pas depasser la cadence qui l'appelle
+    dur: a?.interval > 0 ? a.interval * 0.9 : 0,
+  });
 }
 
 // [1] LE RETOUR N'EST PAS SUR LA MORT, IL EST SUR LA CADENCE DES MORTS. Chaque

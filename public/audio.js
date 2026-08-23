@@ -137,19 +137,25 @@ export function loadSamples() {
 
 export function sampleReady(name) { return buffers.has(name); }
 
-function sample(name, gain) {
+/* `durMax` est en temps de SORTIE, le troisieme argument de `start()` en temps
+   de TAMPON : les deux ne coincident qu'a vitesse 1. C'est ce qui autorise une
+   arme rapide a garder l'attaque de l'echantillon sans en trainer la queue —
+   neuf copies de 260 ms par seconde etaient un mur, pas une cadence. */
+function sample(name, gain, rate = 1, durMax = 0) {
   const buf = buffers.get(name);
   const spec = SAMPLES[name];
   const t0 = ac.currentTime;
   const src = ac.createBufferSource();
   src.buffer = buf;
+  src.playbackRate.value = rate;
   const g = ac.createGain();
-  const dur = Math.min(spec.dur, Math.max(0.02, buf.duration - spec.offset));
+  let dur = Math.min(spec.dur, Math.max(0.02, (buf.duration - spec.offset) / rate));
+  if (durMax > 0) dur = Math.max(0.02, Math.min(dur, durMax));
   g.gain.setValueAtTime(Math.max(0.0002, gain), t0);
   g.gain.setValueAtTime(Math.max(0.0002, gain), t0 + Math.max(0, dur - 0.03));
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   src.connect(g); g.connect(master);
-  src.start(t0, spec.offset, dur + 0.02);
+  src.start(t0, spec.offset, dur * rate + 0.02);
   return { end: t0 + dur, stop: () => fadeOut(g, src, t0) };
 }
 
@@ -330,10 +336,77 @@ function fadeOut(g, node, t0) {
 }
 
 
+/* LES QUATRE VOIX DE DEPART. Une par famille de `shared/feedback.js`, et trois
+   familles n'en ont pas : leur delivrance sonne deja (boucle du faisceau, arc du
+   tesla, balayage de la lame). Toutes lisent `pitch` et `gain` — c'est le seul
+   endroit ou l'arme se distingue de sa famille, et il vaut mieux qu'un second
+   jeu de recettes. */
 const PALETTE = {
-  tir: () => (source === "pistes" && buffers.has("tir"))
-    ? sample("tir", SOUND_GAIN.tir * SAMPLES.tir.gain)
-    : tone({ freq: 900, to: 700, dur: 0.025, type: "square", gain: SOUND_GAIN.tir }),
+  // LE CLAQUEMENT PORTE L'ARME, PAS LE CORPS : sans le transitoire large, un
+  // tir balistique synthetise n'est qu'un bip.
+  tir: (o = {}) => {
+    const k = o.pitch ?? 1;
+    const g = SOUND_GAIN.tir * (o.gain ?? 1);
+    if (source === "pistes" && buffers.has("tir")) {
+      return sample("tir", g * SAMPLES.tir.gain, k, o.dur ?? 0);
+    }
+    noise({ dur: 0.018, type: "highpass", freq: 3200 * k, q: 0.7, gain: g * 1.6 });
+    const a = tone({ freq: 900 * k, to: 620 * k, dur: 0.032, type: "square", gain: g });
+    return { end: a.end, stop: a.stop };
+  },
+
+  // LA GERBE : large, courte, et un grave qui la POUSSE. C'est le grave qui
+  // separe un fusil a plombs d'un tir rapide, pas le volume.
+  tirGerbe: (o = {}) => {
+    const k = o.pitch ?? 1;
+    const g = SOUND_GAIN.tir * (o.gain ?? 1);
+    noise({ dur: 0.02, type: "highpass", freq: 4200 * k, q: 0.6, gain: g * 1.5 });
+    const a = noise({ dur: 0.10, type: "lowpass", freq: 2000 * k, to: 420 * k,
+                      gain: g * 2.0 });
+    tone({ freq: 150 * k, to: 62 * k, dur: 0.11, type: "sine", gain: g * 1.1 });
+    return { end: a.end, stop: a.stop };
+  },
+
+  // LE RAIL SE DECHARGE, DONC IL DESCEND : une montee dirait « charge », or la
+  // charge est deja visible sur la ligne de tir pendant 0,95 s. La bande etroite
+  // qui suit est ce qui reste dans le canon apres le depart.
+  tirRail: (o = {}) => {
+    const k = o.pitch ?? 1;
+    const g = SOUND_GAIN.tir * (o.gain ?? 1);
+    const a = tone({ freq: 1250 * k, to: 190 * k, dur: 0.11, type: "sawtooth",
+                     gain: g * 1.5 });
+    noise({ dur: 0.15, type: "bandpass", freq: 2800 * k, to: 900 * k, q: 2.4,
+            gain: g * 1.3, delay: 0.01 });
+    tone({ freq: 72, dur: 0.19, type: "sine", gain: g * 0.9 });
+    return { end: a.end + 0.09, stop: a.stop };
+  },
+
+  // LE DEPART LOBE N'A AUCUN AIGU : ce qui brille appartient a la detonation,
+  // qui arrive apres et a deja son son. Ici il n'y a qu'un tube et une masse.
+  tirLourd: (o = {}) => {
+    const k = o.pitch ?? 1;
+    const g = SOUND_GAIN.tir * (o.gain ?? 1);
+    const a = noise({ dur: 0.13, type: "lowpass", freq: 1000 * k, to: 200 * k,
+                      gain: g * 2.2 });
+    tone({ freq: 185 * k, to: 68 * k, dur: 0.12, type: "sine", gain: g * 1.4 });
+    noise({ dur: 0.07, type: "bandpass", freq: 1500 * k, to: 620 * k, q: 1.1,
+            gain: g * 0.9, delay: 0.012 });
+    return { end: a.end + 0.06, stop: a.stop };
+  },
+
+  // L'OBUS PART DROIT, DONC IL CLAQUE. C'est le seul ecart avec le depart lobe,
+  // et c'est le bon : un percuteur et une bouche a haute pression contre un
+  // tube. Le corps est carre — l'arme a un chargeur, elle est mecanique.
+  tirObus: (o = {}) => {
+    const k = o.pitch ?? 1;
+    const g = SOUND_GAIN.tir * (o.gain ?? 1);
+    noise({ dur: 0.026, type: "highpass", freq: 2600 * k, q: 0.8, gain: g * 2.0 });
+    const a = noise({ dur: 0.11, type: "lowpass", freq: 1400 * k, to: 260 * k,
+                      gain: g * 1.9 });
+    tone({ freq: 210 * k, to: 84 * k, dur: 0.10, type: "square", gain: g * 1.0 });
+    tone({ freq: 58, dur: 0.16, type: "sine", gain: g * 0.8 });
+    return { end: a.end + 0.05, stop: a.stop };
+  },
 
   impact: () => noise({ dur: 0.04, freq: 2400, to: 1200, q: 1.2, gain: SOUND_GAIN.impact }),
 
