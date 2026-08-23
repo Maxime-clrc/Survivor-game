@@ -521,9 +521,15 @@ export class Room {
     for (const c of this.clients.values()) c.clsLocked = false;
   }
 
+  /* `BIOME` et `GRAINE` forcent le tirage, POUR LES TESTS UNIQUEMENT — meme
+     statut que `ROOM_GRACE_MS` et `ROOM_MAX`. Comparer quatre lieux demande de
+     pouvoir en demander un, et relancer des salles jusqu au bon tirage est le
+     genre de protocole qu on finit par ne plus faire. */
   drawBiome() {
-    this.biomeIndex = Math.floor(Math.random() * BIOMES.length);
-    this.seed = Math.floor(Math.random() * 0x7fffffff);
+    const force = process.env.BIOME;
+    const i = force === undefined ? -1 : BIOMES.findIndex(b => b.key === force);
+    this.biomeIndex = i >= 0 ? i : Math.floor(Math.random() * BIOMES.length);
+    this.seed = Number(process.env.GRAINE) || Math.floor(Math.random() * 0x7fffffff);
   }
 
   recordRound() {

@@ -3283,6 +3283,21 @@
                    tiennent : rien au centre, jamais opaque, coupe pendant un
                    boss.
 
+     0.17.6 lot 6  LES REGLES ECRITES, ET DE QUOI LES VERIFIER. `RENDU.md` portait
+                   encore les regles d avant le plan 14 : une seule silhouette,
+                   un seul habillage, des baies sur la maille de 5 m. Quatre
+                   sections nouvelles — quatre lieux pas quatre couleurs, la
+                   masse batie, un danger n est pas un cercle, la composition —
+                   et le critere de non-regression ECRIT : si on echange les
+                   quatre noms et que les captures restent difficiles a
+                   attribuer, le travail n est pas fini.
+                   `BIOME=<cle> GRAINE=<n>` forcent le tirage d une salle, POUR
+                   LES TESTS UNIQUEMENT, meme statut que `ROOM_GRACE_MS` et
+                   `ROOM_MAX`. Sans ca, comparer quatre lieux demande de relancer
+                   des salles jusqu au bon tirage — le genre de protocole qu on
+                   finit par ne plus faire, donc le genre de verification qui
+                   n a plus lieu.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3291,4 +3306,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.17.5";
+export const VERSION = "0.17.6";

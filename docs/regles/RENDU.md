@@ -101,6 +101,10 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   *surface* ; une ligne décrit un *plan technique*. Le motif est ancré à l'origine
   du **monde** (la caméra vit dans le transform), donc les joints tombent sur la
   maille réelle. `GRID_FINE` reste exporté : `drawGridPings()` s'en sert.
+- **Deux biomes n'ont pas de maille de 5 m** : la Friche, dont le béton a des
+  *joints de coulage* irréguliers — un joint technique régulier décrirait une
+  installation entretenue — et la Nébuleuse, dont le nid d'abeille tient ce rôle.
+  `cuire()` est le seul endroit où ça se décide.
 - **Une seconde période sans aucune arête** (`MACRO`, 1 200) : à 400 px l'œil
   trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
   ne rattrape ça.
@@ -174,6 +178,94 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
 - Le champ d'atmosphère du boss est le **seul** qui ait le droit de traverser le
   centre : il annonce ce qui s'y trouve.
 
+### Quatre lieux, pas quatre couleurs
+
+**Même univers ≠ même environnement.** Le socle est commun — sci-fi industriel
+sombre, ambre de signal réservé au gameplay, télégraphes jamais concurrencés —
+et **la différence est structurelle** : forme, matière, source de lumière,
+danger, implantation.
+
+| | FRICHE | USINE | FONDERIE | NÉBULEUSE |
+|---|---|---|---|---|
+| **verbe** | a été laissée | fabrique | coule | flotte |
+| **bloc** | ruine fissurée | machine panneautée | four maçonné | travée ajourée |
+| **sol** | dalles et joints de coulage | tôle et maille de 5 m | plaques, voies, vitrifié | nid d'abeille |
+| **source** | presque rien | bandes LED ambrées | la gueule des fours | feux de position froids |
+| **implantation** | deux champs de ruines | bandes : chaîne, allée, chaîne | deux masses, un couloir | longues travées |
+| **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | haubans et antennes |
+
+**Le critère de non-régression** : si on échange les quatre noms et que les
+captures restent difficiles à attribuer, le travail n'est pas fini.
+
+**Un lieu se déclare à UN endroit** : `BIOME_SKIN` (`palette.js`) — arène,
+grille, bloc, ambiante, direction de lumière, émissif. Avant, la couleur vivait
+à trois endroits (`BIOMES[].tint/.grid`, `LUM`) et le bloc à aucun ; **mesure du
+résultat : les quatre arènes tenaient dans 15 niveaux RGB sur 255.** `biomes.js`
+décide de la **géométrie**, jamais du ton.
+
+**Le mode règle la clarté, le lieu règle la teinte.** `solDeBiome()` relève le
+facteur sur `DECOR` au lieu de l'écrire : trois modes × quatre lieux sans que
+l'un mange l'autre. C'est ce que `teinter()` — qui normalisait la luminance sur
+la base — rendait impossible, et c'est pourquoi il a été supprimé.
+
+### La masse bâtie
+
+`render/blocs.js`. **C'est l'obstacle qui occupe l'écran** : quatre sols
+différents sous quatre mêmes blocs donnent quatre mêmes maps.
+
+- **LA SILHOUETTE REMPLIT SON RECTANGLE.** La collision est une AABB repoussée
+  **par axe** (`_obstacleBlock`) : une forme qui rentre ses coins fait buter le
+  joueur sur du vide. Toute la différence se joue **dans** l'empreinte — matière,
+  arête, lumière — jamais en la rognant. Chanfreins sous 16 px.
+- **La forme vaut à tous les paliers**, l'habillage intérieur s'arrête en `low` —
+  et c'est `decor.js` qui le décide : `gfx` garde ses **cinq** points de lecture.
+- **`ledDe()` porte teinte, rayon ET type.** Une gueule de four et un voyant ne
+  sont pas la même lumière : la gueule éclaire deux fois plus loin. La Friche
+  n'a presque plus rien d'allumé — elle a été abandonnée.
+- Le seul détail qui **sorte** de l'empreinte est hors du clip, et il est unique :
+  les fers à béton de la ruine. Un mur cassé dont rien ne dépasse est un mur
+  coupé à la scie.
+
+### Un danger n'est pas un cercle
+
+`render/dangers.js`, table `(biome, kind) -> dessin`. **Ajouter un danger à un
+lieu = une entrée.** Le gameplay ne bouge pas d'un chiffre : **le disque de
+`biomes.js` reste le collider**, il cesse d'être dessiné.
+
+1. **L'empreinte reste lisible au bord près.** Chaque dessin ferme sur une
+   `limite()` franche à `h.r`, jamais un dégradé qui s'éteint — un danger dont
+   on ne lit pas le bord est injuste, pas difficile.
+2. **Il s'annonce par sa géométrie permanente**, jamais par un clignotement : le
+   canal du télégraphe appartient au boss. Ce qui bouge ici est de la **matière**
+   — un flux, une vapeur, une étincelle. Jamais de pointillés.
+3. **Ce qui blesse est chaud, ce qui ralentit est froid.** Seule constante entre
+   les quatre lieux, et c'est elle qui rend la table extensible sans
+   réapprentissage.
+
+Les dangers à phase gardent leur **double état** : au repos on voit
+l'**installation** — la buse, le câble mort, la grille de fonte — et c'est elle
+l'annonce ; à l'amorce le jet monte avec `st.k`.
+
+### La composition
+
+`OBSTACLES` dans `biomes.js`. Quatre semis de rectangles dans la même gamme de
+taille donnaient un espace **uniformément encombré** : ni dense ni ouvert, donc
+sans rythme. Une arène se traverse, elle ne se piétine pas.
+
+- Chaque lieu a **sa loi d'implantation** (table ci-dessus). Le contraste se lit
+  dans les chiffres : la Fonderie pose **5 objets par vue pour 6,8 % de surface**,
+  la Friche **10 pour 4,4 %**.
+- **Les dangers suivent l'architecture au lieu de la doubler** : la louche court
+  dans le couloir *entre* les deux fours, les jets de vapeur tombent dans les
+  allées.
+- **Le carré central reste traversable dans les deux axes.** `verifierBiomes()`
+  le rejoue à chaque graine — muet sur 200 — et c'est ce qui autorise des masses
+  pareilles sans jamais enfermer une équipe.
+- `BIOME=<clé> GRAINE=<n>` forcent le tirage d'une salle, **pour les tests
+  uniquement**. Sans ça, comparer quatre lieux demande de relancer des salles
+  jusqu'au bon tirage, et c'est le genre de protocole qu'on finit par ne plus
+  faire.
+
 ### Une map ressemble à son nom
 
 Le semis partage **six props communs** — honnêtement industriels, ils valent
@@ -202,12 +294,21 @@ d'arène et la matière du sol**.
 
 **La Nébuleuse est le seul sol qui SOUSTRAIT** : les trois autres tuiles posent
 des couches translucides par-dessus la couleur d'arène ; celle-ci peint un pont
-presque opaque puis en **retire** les baies (`clearRect`). C'est par ces trous
-que le vide se voit. **On marche sur un plancher, jamais sur le vide.**
+presque opaque puis en **retire** les baies. C'est par ces trous que le vide se
+voit. **On marche sur un plancher, jamais sur le vide.**
 
 - Presque opaque (0,93) et non opaque : la teinte de mode continue de traverser.
-- Les baies tombent sur la **maille de 5 m** et les joints se dessinent après :
-  ils deviennent les meneaux du vitrage au lieu de les contredire.
+- **Son plancher est un nid d'abeille, et il n'a pas de maille de 5 m** —
+  `cuire()` la saute pour ce biome, comme pour la Friche. Une baie est donc une
+  **cellule retirée** en `destination-out` : un hexagone ne se `clearRect` pas,
+  et c'est justement ce qui l'empêche de redevenir un rectangle. Le réseau de
+  joints devient son meneau.
+- **Une bande de nébuleuse traverse toute l'image** : elle donne l'échelle parce
+  qu'elle ne tient pas dans l'écran, là où un amas de taches de même taille se
+  lit comme du bruit.
+- **Le fond dérive** — 8 px sur deux minutes, et **seulement la couche
+  lointaine** : les étoiles proches restent fixes, sinon c'est le vaisseau qui
+  semblerait tanguer.
 - **Deux parallaxes, pas une** — un fond à une seule vitesse est un autocollant.
   Astres à 0,05, étoiles à 0,16, deux `drawImage` par image.
 - Les étoiles sont groupées par **palier de clarté** : trois `fill`, pas un
