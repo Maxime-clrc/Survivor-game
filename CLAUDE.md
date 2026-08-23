@@ -136,6 +136,7 @@ public/net/interp.js   horloge de rendu, interpolation, worldQueue / alertQueue
 public/render/fx.js    particules, impacts, morts, chiffres de degats, tressaillement
 public/render/material.js la MATIERE du sol : deux tuiles + l ARRIERE-PLAN, cuits par (biome, mode, graine)
 public/render/props.js LE SEMIS : props deterministes par cellule monde, rien ne bloque
+public/render/blocs.js LA MASSE BATIE : 4 silhouettes, 4 habillages, ledDe()
 public/render/lumiere.js LA LUMIERE : tampon quart de vue, multiply + lighter sur le SOL
 public/render/decor.js LE SOL : grille, vignettage, obstacles, dangers
 public/render/actors.js zones, projectiles, structures, ennemis, bonus
@@ -255,7 +256,8 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `drawPremierPlan(v)` | LE premier plan. Trois regles : rien au centre, jamais opaque, COUPE pendant un boss |
 | `lumDir()` (`render/stage.js`) | LA direction de lumiere du biome. Lue par l'ombre portee des obstacles, celle des props et l'ombre de contact des entites. Deux ombres qui pointent differemment sur le meme ecran est LE defaut visible d'un rendu 2D — il n'existe pas de second endroit ou l'ecrire. Le relief RADIAL de `drawObstacles` reste : c'est la CAMERA, pas la lumiere |
 | `drawOmbre(x, y, r, k)` (`render/fx.js`) | TOUTE ombre de contact. Un quad `fx_glow` teinte noir, dans le lot NORMAL qui existe deja — aucun appel de dessin en plus. **Passe SEPAREE** avant les corps : une ombre posee juste avant SON corps tombe sur le corps du voisin. Elle ne s'additionne pas, et un projectile n'en a pas |
-| `ledDe(o)` (`render/lumiere.js`) | la bande LED d'un bloc : `decor.js` la DESSINE, `drawLumiere` l'ALLUME, les deux lisent la meme fonction. Jamais sur une couverture destructible — le contour tirete est du gameplay |
+| `ledDe(o)` (`render/blocs.js`) | LA source fixe d'un bloc — teinte, rayon et TYPE (bande, gueule, feux, tube) : `decor.js` la DESSINE, `drawLumiere` l'ALLUME, les deux lisent la meme fonction. Jamais sur une couverture destructible — le contour tirete est du gameplay |
+| `silhouetteBloc(g, o, cle)` (`render/blocs.js`) | LA forme d'un obstacle, une par lieu. **Elle remplit son rectangle** : la collision est une AABB, une forme qui rentre ses coins fait buter sur du vide |
 | `drawLumiere(v)` | TOUTE lumiere de l'arene. Appelee sur `#cvUnder` **avant** le premier element de gameplay : rien de ce qui suit n'est assombri, et c'est l'ORDRE DE DESSIN qui le garantit, pas un reglage. Les sources sont **lues** (dangers, props, `bursts`, joueurs), jamais poussees |
 | `gfx` (`core/state.js`) | LE palier de qualite. `low` rend la TECHNIQUE d'avant le plan 13 — matiere, semis, lumiere, grille ; la **palette** d'arene vaut a tous les paliers, c'est de la DA, pas de la qualite. Cinq points de lecture, pas un de plus : `material`, `props`, `lumiere`, `decor`, `fx` |
 | `_ground()` / `groundAt()` | champs de ralentissement, serveur et client |

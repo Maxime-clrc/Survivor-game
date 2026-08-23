@@ -1,10 +1,11 @@
 
 import { BIOME_CFG, CFG, HZ_EMBER, HZ_GEYSER, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, hazardState, windAt } from "/shared/game_state.js";
-import { BIOME, BOSS, PROP, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
+import { BIOME, BOSS, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
 import { floorPattern, fondEspace, macroPattern } from "./material.js";
-import { bossAtmo, bossVignette, ledDe } from "./lumiere.js";
+import { bossAtmo, bossVignette } from "./lumiere.js";
+import { dessinerLed, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
 import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
@@ -140,94 +141,6 @@ export function drawArenaBounds(b) {
 const OBST_RELIEF = 7;
 const OBST_OMBRE = 9;
 
-function silhouette(g, o, biome) {
-  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
-  const c = Math.min(9, w * 0.22, h * 0.22);
-  g.beginPath();
-  if (biome === "fonderie") {
-    g.moveTo(x + c, y); g.lineTo(x + w - c, y);
-    g.lineTo(x + w, y + c); g.lineTo(x + w, y + h - c);
-    g.lineTo(x + w - c, y + h); g.lineTo(x + c, y + h);
-    g.lineTo(x, y + h - c); g.lineTo(x, y + c);
-  } else if (biome === "nebuleuse") {
-    const c2 = Math.min(16, w * 0.30, h * 0.30);
-    g.moveTo(x + c2, y); g.lineTo(x + w - c2, y);
-    g.lineTo(x + w, y + c2); g.lineTo(x + w, y + h - c2);
-    g.lineTo(x + w - c2, y + h); g.lineTo(x + c2, y + h);
-    g.lineTo(x, y + h - c2); g.lineTo(x, y + c2);
-  } else if (biome === "friche") {
-    const e = Math.min(11, w * 0.26, h * 0.26);
-    const pair = ((o.x + o.y) | 0) % 2 === 0;
-    g.moveTo(x + (pair ? e : 0), y);
-    g.lineTo(x + w, y);
-    g.lineTo(x + w, y + h - (pair ? 0 : e));
-    g.lineTo(x + w - (pair ? 0 : e), y + h);
-    g.lineTo(x, y + h);
-    g.lineTo(x, y + (pair ? e : 0));
-  } else {
-    g.moveTo(x + c, y); g.lineTo(x + w, y);
-    g.lineTo(x + w, y + h); g.lineTo(x, y + h); g.lineTo(x, y + c);
-  }
-  g.closePath();
-}
-
-/* LA FACE DU DESSUS DEVIENT UNE MATIERE, pas une surface pleine : tole striee,
-   coin use, et une bande LED qui ECLAIRE reellement le sol — `ledDe()` vit dans
-   `lumiere.js` et les deux la lisent, sinon la lueur et le trait finissent sur
-   deux aretes differentes. Tout est clippe a la silhouette : rien ne deborde sur
-   le sol, ou vivent les telegraphes. */
-function habillage(o, rx, ry, biome) {
-  ctx.save();
-  ctx.translate(o.x + rx, o.y + ry);
-  silhouette(ctx, o, biome);
-  ctx.clip();
-
-  const w = o.w, h = o.h;
-  ctx.strokeStyle = alpha("#000000", 0.20);
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let x = -w / 2 + 5; x < w / 2; x += 7) {
-    ctx.moveTo(x, -h / 2); ctx.lineTo(x, h / 2);
-  }
-  ctx.stroke();
-  ctx.strokeStyle = alpha(PROP.metal, 0.09);
-  ctx.beginPath();
-  for (let x = -w / 2 + 6; x < w / 2; x += 7) {
-    ctx.moveTo(x, -h / 2); ctx.lineTo(x, h / 2);
-  }
-  ctx.stroke();
-
-  const use = ((o.x * 2654435761) ^ (o.y * 40503)) >>> 0;
-  const cw = 7 + (use % 9);
-  const sx = use & 1 ? 1 : -1, sy = use & 2 ? 1 : -1;
-  ctx.fillStyle = alpha("#000000", 0.30);
-  ctx.beginPath();
-  ctx.moveTo(sx * w / 2, sy * h / 2);
-  ctx.lineTo(sx * (w / 2 - cw), sy * h / 2);
-  ctx.lineTo(sx * w / 2, sy * (h / 2 - cw));
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-
-  const l = ledDe(o);
-  if (!l) return;
-  const puls = 0.72 + 0.28 * Math.sin(performance.now() / 620 + o.x * 0.01);
-  ctx.save();
-  ctx.translate(rx, ry);
-  ctx.lineCap = "round";
-  ctx.strokeStyle = alpha(l.col, 0.20 * puls);
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(l.x - l.dx * l.len / 2, l.y - l.dy * l.len / 2);
-  ctx.lineTo(l.x + l.dx * l.len / 2, l.y + l.dy * l.len / 2);
-  ctx.stroke();
-  ctx.strokeStyle = alpha(l.col, 0.85 * puls);
-  ctx.lineWidth = 1.6;
-  ctx.stroke();
-  ctx.lineCap = "butt";
-  ctx.restore();
-}
-
 export function drawObstacles(cover) {
   const list = obstaclesActifs();
   if (!list.length) return;
@@ -250,21 +163,21 @@ export function drawObstacles(cover) {
 
     ctx.save();
     ctx.translate(o.x + dir[0] * OBST_OMBRE, o.y + dir[1] * OBST_OMBRE);
-    silhouette(ctx, o, biome);
+    silhouetteBloc(ctx, o, biome);
     ctx.fillStyle = alpha("#000000", 0.34);
     ctx.fill();
     ctx.restore();
 
     ctx.save();
     ctx.translate(o.x + rx, o.y + ry);
-    silhouette(ctx, o, biome);
+    silhouetteBloc(ctx, o, biome);
     ctx.fillStyle = o.maxHp > 0 ? BIOME.cover : S.bloc;
     ctx.fill();
     ctx.restore();
 
     ctx.save();
     ctx.translate(o.x, o.y);
-    silhouette(ctx, o, biome);
+    silhouetteBloc(ctx, o, biome);
     ctx.fillStyle = alpha(o.maxHp > 0 ? BIOME.cover : S.bloc, 0.55);
     ctx.fill();
     ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge, 0.45);
@@ -274,18 +187,21 @@ export function drawObstacles(cover) {
 
     ctx.save();
     ctx.translate(o.x + rx, o.y + ry);
-    silhouette(ctx, o, biome);
+    silhouetteBloc(ctx, o, biome);
     ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge, 0.7);
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();
 
-    if (gfx > GFX_LOW) habillage(o, rx, ry, biome);
+    if (gfx > GFX_LOW) {
+      habillerBloc(o, rx, ry, biome, S);
+      dessinerLed(ledDe(o), rx, ry);
+    }
 
     if (o.maxHp > 0) {
       ctx.save();
       ctx.translate(o.x + rx, o.y + ry);
-      silhouette(ctx, o, biome);
+      silhouetteBloc(ctx, o, biome);
       ctx.strokeStyle = alpha(BIOME.coverEdge, 0.85);
       ctx.lineWidth = 2;
       ctx.setLineDash([Math.max(3, 14 * k), 6]);

@@ -3169,6 +3169,31 @@
                    `ledDe()` porte sa TEINTE : la bande d un bloc s allume a
                    l emissif du lieu, donc la Nebuleuse s eclaire froid.
 
+     0.17.2 lot 2  L ARCHITECTURE. La masse a l ecran est l OBSTACLE, et les
+                   quatre biomes partageaient UNE silhouette (seul le chanfrein
+                   changeait) et UN habillage (tole striee + bande LED). Quatre
+                   sols differents sous quatre memes blocs donnent quatre memes
+                   maps — le semis de props ne rattrape pas ca.
+                   `render/blocs.js`, entre `props` et `lumiere` : quatre formes
+                   et quatre matieres. La machine est PANNEAUTEE (panneau creuse,
+                   nervures, pupitre a trois voyants, boulons), le four est
+                   MACONNE (rangs de brique en quinconce, tirants rivetes, gueule
+                   incandescente et sa suie), la ruine est FISSUREE (crete
+                   brisee, fers a beton qui depassent, fissures qui se divisent,
+                   percement, coulures de rouille, lichen au pied), la travee est
+                   AJOUREE (croisillon, cadre, feux de position qui courent).
+                   LA SILHOUETTE REMPLIT SON RECTANGLE, et ce n est pas
+                   negociable : la collision est une AABB repoussee par axe, donc
+                   une forme qui rentre ses coins fait buter le joueur sur du
+                   vide. Toute la difference se joue DANS l empreinte.
+                   `ledDe()` demenage avec le bloc et porte desormais sa TEINTE,
+                   son RAYON et son TYPE — bande, gueule, feux, tube. La gueule
+                   du four eclaire deux fois plus loin et deux fois plus fort que
+                   la bande d une machine, la friche n a presque plus rien
+                   d allume : elle a ete abandonnee.
+                   `gfx` garde ses CINQ points de lecture — `blocs.js` n en est
+                   pas un, c est `decor.js` qui coupe l habillage en `low`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3177,4 +3202,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.17.1";
+export const VERSION = "0.17.2";

@@ -2,6 +2,7 @@ import { CFG, HZ_SLIP, HZ_SLOW, hazardState } from "/shared/game_state.js";
 import { BOSS_SKIN, alpha, melange } from "/shared/palette.js";
 import { GFX_HIGH, GFX_ULTRA, gfx } from "../core/state.js";
 import { bursts } from "./fx.js";
+import { ledDe } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
 import { camera, ctx, hazardsActifs, obstaclesActifs, ownerColorOf, skin } from "./stage.js";
 
@@ -23,26 +24,6 @@ import { camera, ctx, hazardsActifs, obstaclesActifs, ownerColorOf, skin } from 
    que les taches claires, elles, montent vraiment. */
 const DIV = [0, 0, 4, 2];
 const GLOW = 0.12;
-
-/* La bande LED d'un bloc : `decor.js` la DESSINE, `drawLumiere` l'ALLUME, et
-   les deux lisent la meme fonction — sinon la lueur au sol et le trait a
-   l'ecran finissent sur deux aretes differentes. Reservee aux blocs
-   permanents : sur une couverture destructible elle concurrencerait le contour
-   tirete, qui est du gameplay. */
-export function ledDe(o) {
-  if (o.maxHp > 0) return null;
-  const h = ((o.x * 73856093) ^ (o.y * 19349663)) >>> 0;
-  if ((h % 10) < 4) return null;
-  const cote = (h >>> 4) % 4;
-  const inset = 4;
-  const hw = o.w / 2 - inset, hh = o.h / 2 - inset;
-  const long = (cote & 1 ? o.h : o.w) * 0.52;
-  const col = skin().emis;
-  if (cote === 0) return { x: o.x, y: o.y - hh, dx: 1, dy: 0, len: long, col };
-  if (cote === 1) return { x: o.x + hw, y: o.y, dx: 0, dy: 1, len: long, col };
-  if (cote === 2) return { x: o.x, y: o.y + hh, dx: 1, dy: 0, len: long, col };
-  return { x: o.x - hw, y: o.y, dx: 0, dy: 1, len: long, col };
-}
 
 /* LA PRISE DU BOSS SUR LE MONDE. Deux canaux a constantes de temps distinctes,
    et l'ordre compte : LA LUMIERE CHANGE AVANT LA MATIERE. On sent l'arrivee
@@ -163,7 +144,7 @@ export function drawLumiere(v) {
   for (const o of obstaclesActifs()) {
     const l = ledDe(o);
     if (!l) continue;
-    source(g, l.x, l.y, l.len + 74, l.col, 0.24);
+    source(g, l.x, l.y, l.r, l.col, l.type === "gueule" ? 0.46 : 0.24);
   }
 
   // le souffle est LU, jamais pousse : ecrire vers une couche superieure est

@@ -190,6 +190,7 @@ export function cadreOf(id) {
    differemment sur le meme ecran, c'est le defaut le plus visible d'un rendu 2D.
    Le relief RADIAL de `drawObstacles` reste : c'est la CAMERA, pas la lumiere,
    et les deux coexistent — c'est ce que fait la 2D haut de gamme. */
+export function biomeKey() { return biomeAt(biomeIndex).key; }
 export function lumDir() {
   return biomeSkin(biomeAt(biomeIndex).key).dir;
 }
