@@ -64,7 +64,11 @@ function cuire(biomeIndex, diffIndex, seed, dpr) {
   else if (cle === "nebuleuse") nebuleuse(g, rand, usure);
   else usine(g, rand, usure);
 
-  if (gfx > GFX_LOW) maille(g, usure, cle);
+  // LA FRICHE N A PAS DE MAILLE DE 5 M. Un joint technique regulier decrit une
+  // installation entretenue ; une dalle de beton lave a des JOINTS DE COULAGE,
+  // irreguliers, et c est `dalles()` qui les pose. La regularite du terrain est
+  // exactement ce qu il faut casser ici.
+  if (gfx > GFX_LOW && cle !== "friche" && cle !== "nebuleuse") maille(g, usure, cle);
   return cv;
 }
 
@@ -202,6 +206,31 @@ function usine(g, rand, usure) {
   for (let i = 0; i < h; i++) tache(g, rand() * TILE, rand() * TILE, 18 + rand() * 26, "#000000", 0.12 + rand() * 0.10);
 }
 
+/* LA VOIE. Une fonderie TRANSPORTE des masses, donc elle a des rails coules
+   dans le sol, avec leurs traverses. C est la seule usure directionnelle de ce
+   lieu, et elle traverse la tuile de bout en bout. */
+function voie(g, v, vertical) {
+  for (const d of [-9, 9]) {
+    g.strokeStyle = alpha("#000000", 0.30);
+    g.lineWidth = 6;
+    g.beginPath();
+    if (vertical) { g.moveTo(v + d, 0); g.lineTo(v + d, TILE); }
+    else { g.moveTo(0, v + d); g.lineTo(TILE, v + d); }
+    g.stroke();
+    g.strokeStyle = alpha(PROP.metal, 0.16);
+    g.lineWidth = 2;
+    g.stroke();
+  }
+  g.strokeStyle = alpha("#000000", 0.20);
+  g.lineWidth = 3;
+  g.beginPath();
+  for (let t = 0; t < TILE; t += 27) {
+    if (vertical) { g.moveTo(v - 15, t); g.lineTo(v + 15, t); }
+    else { g.moveTo(t, v - 15); g.lineTo(t, v + 15); }
+  }
+  g.stroke();
+}
+
 function fonderie(g, rand, usure) {
   const sombre = alpha("#000000", 0.26 + 0.10 * usure);
   const clair = alpha("#ffd9a8", 0.035);
@@ -247,6 +276,25 @@ function fonderie(g, rand, usure) {
     for (let x = 0; x < TILE; x += 22) { g.moveTo(x, brique - 7); g.lineTo(x, brique + 7); }
     g.moveTo(0, brique); g.lineTo(TILE, brique);
     g.stroke();
+
+    voie(g, TILE * 0.22, false);
+    voie(g, TILE * 0.74, true);
+
+    // LES ZONES VITRIFIEES : la ou le metal est tombe, le sol a FONDU puis
+    // refroidi en verre. Presque noir, presque lisse, un cerne encore chaud —
+    // c est la seule surface du depot qui soit plus sombre que le fond.
+    for (let i = 0; i < 3; i++) {
+      const x = rand() * TILE, y = rand() * TILE, r = 30 + rand() * 46;
+      poser(g, x, y, r + 6, (c) => {
+        c.fillStyle = alpha("#070507", 0.44);
+        c.beginPath(); c.ellipse(0, 0, r, r * 0.72, rand() * 3, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = alpha(PROP.fonte, 0.14);
+        c.lineWidth = 2.6;
+        c.beginPath(); c.ellipse(0, 0, r + 2, r * 0.72 + 2, 0, 0, Math.PI * 2); c.stroke();
+        c.fillStyle = alpha("#c8b4a8", 0.05);
+        c.beginPath(); c.ellipse(-r * 0.3, -r * 0.22, r * 0.42, r * 0.16, -0.4, 0, Math.PI * 2); c.fill();
+      });
+    }
   }
 
   const n = 3 + Math.round(5 * usure);
@@ -275,20 +323,20 @@ function fonderie(g, rand, usure) {
   }
 }
 
-/* LA FRICHE EST UNE INSTALLATION ABANDONNEE, PAS UN PRE. Beton lave, cables
-   restes en place, gravats, et le lichen relegue au rang de trace. En `low` on
-   garde la recette d'avant : c'est le contrat du palier. */
+/* LA FRICHE EST UNE INSTALLATION ABANDONNEE, PAS UN PRE, ET SON SOL EST DU
+   BETON — coule en dalles, lave par vingt ans de pluie, repris par ce qui
+   pousse. Il n a donc PAS de maille de 5 m : `cuire()` la saute pour ce lieu.
+   Ce qui la remplace est un reseau de joints de coulage irreguliers, et c est
+   lui qui casse la regularite du terrain.
+
+   Les joints ondulent avec des sinus de periode entiere sur la tuile : ils se
+   raccordent donc d une tuile a l autre sans qu on ait rien a gerer.
+
+   En `low` on garde la recette d avant : c est le contrat du palier. */
 function friche(g, rand, usure) {
   if (gfx <= GFX_LOW) return fricheLegacy(g, rand, usure);
 
-  for (let i = 0; i < 5; i++) {
-    const x = rand() * TILE, y = rand() * TILE;
-    const w = 60 + rand() * 130, h = 50 + rand() * 110;
-    poser(g, x, y, Math.max(w, h), (c) => {
-      c.fillStyle = alpha(rand() < 0.5 ? "#000000" : "#ffffff", 0.020 + rand() * 0.018);
-      c.fillRect(0, 0, w, h);
-    });
-  }
+  dalles(g, rand, usure);
 
   for (let i = 0; i < 6; i++) {
     const x0 = rand() * TILE, y0 = rand() * TILE;
@@ -335,66 +383,197 @@ function friche(g, rand, usure) {
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
   }
 
-  g.lineWidth = 1;
-  for (let i = 0; i < 26; i++) {
+  // LES FLAQUES. Une friche retient l eau : un miroir mat, plus sombre que le
+  // beton, avec un cerne clair de depot au bord. Aucun reflet — un reflet
+  // demanderait de savoir ce qu il y a au-dessus, et il n y a rien.
+  const f = 3 + Math.round(2 * usure);
+  for (let i = 0; i < f; i++) {
     const x = rand() * TILE, y = rand() * TILE;
-    const a = rand() * Math.PI * 2, l = 18 + rand() * 60;
-    g.strokeStyle = alpha("#000000", 0.05 + rand() * 0.07);
-    g.beginPath(); g.moveTo(x, y);
-    g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
-    g.stroke();
+    const rx = 16 + rand() * 26, ry = rx * (0.45 + rand() * 0.3);
+    const a = rand() * Math.PI;
+    poser(g, x, y, rx + 4, (c) => {
+      c.rotate(a);
+      c.fillStyle = alpha("#0d1013", 0.34);
+      c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = alpha("#8a8f7a", 0.10);
+      c.lineWidth = 2.2;
+      c.beginPath(); c.ellipse(0, 0, rx + 1.5, ry + 1.5, 0, 0, Math.PI * 2); c.stroke();
+    });
   }
 
   const n = 3 + Math.round(4 * usure);
   for (let i = 0; i < n; i++) tache(g, rand() * TILE, rand() * TILE, 30 + rand() * 55, PROP.rouille, 0.06 + 0.07 * usure);
-  for (let i = 0; i < 2; i++) tache(g, rand() * TILE, rand() * TILE, 26 + rand() * 40, PROP.vert, 0.045);
   const m = Math.round(4 * usure);
   for (let i = 0; i < m; i++) tache(g, rand() * TILE, rand() * TILE, 45 + rand() * 60, "#000000", 0.10);
 }
 
-/* LA NEBULEUSE EST LE SEUL SOL QUI SOUSTRAIT. Les trois autres tuiles POSENT des
-   couches translucides par-dessus la couleur d'arene ; celle-ci peint un pont
-   presque opaque puis en RETIRE les baies (`clearRect`), et c'est par ces trous
-   que l'arriere-plan se voit. On marche sur un plancher, jamais sur le vide.
+/* LES DALLES ET CE QUI POUSSE ENTRE. Trois seams verticaux, deux horizontaux,
+   chacun ondule ; chaque dalle prend sa propre valeur, donc le sol cesse d etre
+   une seule surface. La vegetation ne pousse QUE sur les joints — c est ce qui
+   la rend credible : elle suit la fissure, elle ne colonise pas la dalle. */
+const SEAM_X = [0.22, 0.55, 0.81];
+const SEAM_Y = [0.31, 0.69];
+function dalles(g, rand, usure) {
+  const xs = [0, ...SEAM_X.map(v => v * TILE), TILE];
+  const ys = [0, ...SEAM_Y.map(v => v * TILE), TILE];
+  for (let i = 0; i < xs.length - 1; i++) {
+    for (let j = 0; j < ys.length - 1; j++) {
+      const v = rand();
+      g.fillStyle = alpha(v < 0.5 ? "#000000" : "#c8c4b4", 0.016 + v * 0.030);
+      g.fillRect(xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j]);
+    }
+  }
+
+  const onde = (t, k, ph) => Math.sin((t / TILE) * Math.PI * 2 * k + ph) * 3.2;
+  const joint = (vertical, v, k, ph) => {
+    for (const [col, w, d] of [["#000000", 3.4, 0], ["#9aa08d", 1.1, -1.6]]) {
+      g.strokeStyle = alpha(col, col === "#000000" ? 0.34 + 0.10 * usure : 0.07);
+      g.lineWidth = w;
+      g.beginPath();
+      for (let t = 0; t <= TILE; t += 8) {
+        const o = onde(t, k, ph) + d;
+        if (vertical) { const x = v + o, y = t; t === 0 ? g.moveTo(x, y) : g.lineTo(x, y); }
+        else { const x = t, y = v + o; t === 0 ? g.moveTo(x, y) : g.lineTo(x, y); }
+      }
+      g.stroke();
+    }
+    // ce qui pousse dans le joint : des touffes courtes, jamais un aplat vert.
+    const touffes = 5 + Math.round(6 * (1 - usure * 0.4));
+    for (let i = 0; i < touffes; i++) {
+      const t = rand() * TILE;
+      const o = onde(t, k, ph);
+      const x = vertical ? v + o : t, y = vertical ? t : v + o;
+      g.strokeStyle = alpha(PROP.vert, 0.20 + rand() * 0.18);
+      g.lineWidth = 1;
+      g.beginPath();
+      for (let b = 0; b < 4; b++) {
+        const a = -Math.PI / 2 + (rand() - 0.5) * 1.9;
+        const l = 3 + rand() * 5;
+        g.moveTo(x, y);
+        g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+      }
+      g.stroke();
+    }
+  };
+
+  SEAM_X.forEach((v, i) => joint(true, v * TILE, i + 1, i * 2.1));
+  SEAM_Y.forEach((v, i) => joint(false, v * TILE, i + 2, i * 1.7));
+
+  // LES FISSURES PARTENT DES JOINTS, jamais du milieu d une dalle : c est la
+  // que le beton cede.
+  const nf = 5 + Math.round(6 * usure);
+  g.lineCap = "round";
+  for (let i = 0; i < nf; i++) {
+    const surX = rand() < 0.5;
+    const v = (surX ? SEAM_X : SEAM_Y)[(rand() * (surX ? 3 : 2)) | 0] * TILE;
+    const t = rand() * TILE;
+    let x = surX ? v : t, y = surX ? t : v;
+    let a = (surX ? 0 : Math.PI / 2) + (rand() - 0.5) * 1.4;
+    g.strokeStyle = alpha("#000000", 0.26 + 0.14 * usure);
+    g.lineWidth = 1.3;
+    g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 5; k++) {
+      a += (rand() - 0.5) * 0.9;
+      x += Math.cos(a) * (7 + rand() * 11); y += Math.sin(a) * (7 + rand() * 11);
+      g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  g.lineCap = "butt";
+}
+
+/* LA NEBULEUSE EST LE SEUL SOL QUI SOUSTRAIT. Les trois autres tuiles POSENT
+   des couches translucides par-dessus la couleur d arene ; celle-ci peint un
+   pont presque opaque puis en RETIRE les baies, et c est par ces trous que
+   l arriere-plan se voit. On marche sur un plancher, jamais sur le vide.
+
+   ET SON PLANCHER N EST PAS UNE TOLE : c est un NID D ABEILLE. Un panneau
+   hexagonal ne se confond avec aucun des trois autres lieux — ni avec la maille
+   de 5 m, qui est justement sautee ici. Une baie est donc une CELLULE retiree,
+   pas un rectangle decoupe, et le reseau de joints devient son meneau.
 
    Presque opaque et non opaque (0,93) : la teinte de mode continue de traverser,
-   sinon le pont serait identique en calme et en cauchemar.
+   sinon le pont serait identique en calme et en cauchemar. */
+const HEX = 50;
+const HEX_U = HEX / 3;
+function cellule(g, cx, cy) {
+  g.beginPath();
+  g.moveTo(cx, cy - HEX_U * 2);
+  g.lineTo(cx + HEX / 2, cy - HEX_U);
+  g.lineTo(cx + HEX / 2, cy + HEX_U);
+  g.lineTo(cx, cy + HEX_U * 2);
+  g.lineTo(cx - HEX / 2, cy + HEX_U);
+  g.lineTo(cx - HEX / 2, cy - HEX_U);
+  g.closePath();
+}
+function centreHex(i, j) {
+  return [i * HEX + ((j & 1) ? HEX / 2 : 0), j * HEX];
+}
 
-   Les baies tombent sur la MAILLE de 5 m et les joints se dessinent apres :
-   ils deviennent les meneaux du vitrage au lieu de les contredire. */
 function nebuleuse(g, rand, usure) {
   if (gfx <= GFX_LOW) return usine(g, rand, usure);
-  const M = MAILLE;
+  const N = TILE / HEX;
 
-  g.fillStyle = alpha("#2b3040", 0.93);
+  g.fillStyle = alpha("#232b40", 0.93);
   g.fillRect(0, 0, TILE, TILE);
 
-  g.fillStyle = alpha("#000000", 0.16);
-  for (let i = 0; i < 4; i++) {
-    const x = Math.floor(rand() * 4) * M, y = Math.floor(rand() * 4) * M;
-    g.fillRect(x, y, M, M);
+  for (let j = -1; j <= N; j++) {
+    for (let i = -1; i <= N; i++) {
+      const [cx, cy] = centreHex(i, j);
+      const v = ((i * 7 + j * 13 + N) % 5) / 5;
+      cellule(g, cx, cy);
+      g.fillStyle = alpha(v < 0.4 ? "#000000" : PROP.givre, 0.014 + v * 0.026);
+      g.fill();
+    }
   }
 
-  const baies = [];
-  for (let i = 0; i < 3; i++) {
-    const cx = Math.floor(rand() * 3) * M, cy = Math.floor(rand() * 3) * M;
-    const w = (1 + Math.floor(rand() * 2)) * M, h = M;
-    baies.push(rand() < 0.5 ? [cx, cy, w, h] : [cx, cy, h, w]);
+  g.lineWidth = 2.4;
+  g.strokeStyle = alpha("#000000", 0.40);
+  g.beginPath();
+  for (let j = -1; j <= N; j++) {
+    for (let i = -1; i <= N; i++) {
+      const [cx, cy] = centreHex(i, j);
+      g.moveTo(cx, cy - HEX_U * 2);
+      g.lineTo(cx + HEX / 2, cy - HEX_U);
+      g.lineTo(cx + HEX / 2, cy + HEX_U);
+      g.lineTo(cx, cy + HEX_U * 2);
+    }
   }
-  for (const [x, y, w, h] of baies) {
-    g.clearRect(x + 5, y + 5, w - 10, h - 10);
-    g.strokeStyle = alpha(PROP.givre, 0.16);
-    g.lineWidth = 2;
-    g.strokeRect(x + 5, y + 5, w - 10, h - 10);
-    g.strokeStyle = alpha("#000000", 0.42);
-    g.lineWidth = 5;
-    g.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5);
+  g.stroke();
+  g.lineWidth = 1;
+  g.strokeStyle = alpha(PROP.givre, 0.055);
+  g.stroke();
+
+  // LES BAIES : des cellules RETIREES. `destination-out` parce qu un hexagone ne
+  // se `clearRect` pas — et c est justement ce qui empeche la baie de redevenir
+  // un rectangle.
+  const baies = [];
+  for (let k = 0; k < 3; k++) {
+    baies.push([1 + Math.floor(rand() * (N - 2)), 1 + Math.floor(rand() * (N - 2))]);
+  }
+  g.save();
+  g.globalCompositeOperation = "destination-out";
+  g.fillStyle = "#000";
+  for (const [i, j] of baies) {
+    const [cx, cy] = centreHex(i, j);
+    g.save(); g.translate(cx, cy); g.scale(0.82, 0.82); g.translate(-cx, -cy);
+    cellule(g, cx, cy); g.fill();
+    g.restore();
+  }
+  g.restore();
+  for (const [i, j] of baies) {
+    const [cx, cy] = centreHex(i, j);
+    g.save(); g.translate(cx, cy); g.scale(0.82, 0.82); g.translate(-cx, -cy);
+    cellule(g, cx, cy);
+    g.strokeStyle = alpha("#000000", 0.50); g.lineWidth = 6; g.stroke();
+    g.strokeStyle = alpha(PROP.givre, 0.20); g.lineWidth = 1.6; g.stroke();
+    g.restore();
   }
 
   g.lineWidth = 1;
-  for (let i = 0; i < 60; i++) {
-    const x = rand() * TILE, y = rand() * TILE, l = 16 + rand() * 44;
-    g.strokeStyle = alpha(rand() < 0.5 ? PROP.metal : "#000000", 0.020 + rand() * 0.020);
+  for (let i = 0; i < 40; i++) {
+    const x = rand() * TILE, y = rand() * TILE, l = 12 + rand() * 30;
+    g.strokeStyle = alpha(rand() < 0.5 ? PROP.metal : "#000000", 0.018 + rand() * 0.018);
     g.beginPath(); g.moveTo(x, y); g.lineTo(x + l, y); g.stroke();
   }
 
@@ -438,11 +617,30 @@ function cuireLoin(seed, w, h) {
 
   // PAS DE RAINBOW NEON : deux froids et UN chaud, tous sous 22 % d'opacite.
   const teintes = ["#2a3a6e", "#3d2a5e", "#1c3a4a", "#5a3a22"];
-  for (let i = 0; i < 7; i++) {
-    const x = rand() * w, y = rand() * h, r = 190 + rand() * 320;
-    const col = teintes[(rand() * (i === 6 ? 4 : 3)) | 0];
+
+  /* LA NEBULEUSE DOIT ETRE LE SUJET DU FOND, pas une tache dedans. Une BANDE
+     traverse toute l image en diagonale — c est elle qui donne l echelle, parce
+     qu elle ne tient pas dans l ecran — et les nuages se posent dessus. Un amas
+     de taches rondes de meme taille se lit comme du bruit ; une bande plus des
+     taches se lit comme une structure. */
+  const ang = -0.42;
+  g.save();
+  g.translate(w / 2, h / 2);
+  g.rotate(ang);
+  const bande = g.createLinearGradient(0, -h * 0.42, 0, h * 0.42);
+  bande.addColorStop(0, alpha("#2a3a6e", 0));
+  bande.addColorStop(0.42, alpha("#3d2a5e", 0.13));
+  bande.addColorStop(0.55, alpha("#2a3a6e", 0.16));
+  bande.addColorStop(1, alpha("#1c3a4a", 0));
+  g.fillStyle = bande;
+  g.fillRect(-w, -h * 0.42, w * 2, h * 0.84);
+  g.restore();
+
+  for (let i = 0; i < 9; i++) {
+    const x = rand() * w, y = rand() * h, r = 260 + rand() * 420;
+    const col = teintes[(rand() * (i >= 7 ? 4 : 3)) | 0];
     const grad = g.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, alpha(col, 0.14 + rand() * 0.07));
+    grad.addColorStop(0, alpha(col, 0.13 + rand() * 0.07));
     grad.addColorStop(0.55, alpha(col, 0.05));
     grad.addColorStop(1, alpha(col, 0));
     g.fillStyle = grad;

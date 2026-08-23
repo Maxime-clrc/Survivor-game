@@ -22,9 +22,16 @@ export function drawFond() {
   if (gfx <= GFX_LOW || biomeAt(biomeIndex).fond !== "espace") return;
   const f = fondEspace(biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
   const dx = camera.x - CFG.ARENA_W / 2, dy = camera.y - CFG.ARENA_H / 2;
+  // LA NEBULEUSE DERIVE, et il faut la regarder dix secondes pour s en rendre
+  // compte : 8 px d amplitude sur une periode de deux minutes. Assez pour que
+  // le fond ne soit pas un autocollant, trop peu pour attirer l oeil pendant un
+  // combat. La derive ne touche QUE la couche lointaine — les etoiles proches
+  // restent fixes, sinon c est le vaisseau qui semblerait tanguer.
+  const t = performance.now() / 1000;
+  const ddx = Math.sin(t * 0.052) * 8, ddy = Math.cos(t * 0.037) * 6;
   ctx.save();
   ctx.translate(camera.x0, camera.y0);
-  ctx.drawImage(f.loin, -f.marge - dx * FOND_LOIN, -f.marge - dy * FOND_LOIN);
+  ctx.drawImage(f.loin, -f.marge - dx * FOND_LOIN + ddx, -f.marge - dy * FOND_LOIN + ddy);
   ctx.drawImage(f.pres, -f.marge - dx * FOND_PRES, -f.marge - dy * FOND_PRES);
   ctx.restore();
 }
@@ -322,11 +329,18 @@ export function drawAtmosphere(tm) {
 }
 
 /* LE PREMIER PLAN. Trois regles sans exception : rien au centre (il appartient
-   au joueur), jamais opaque, et coupe pendant un boss — l'arene se resserre deja
+   au joueur), jamais opaque, et coupe pendant un boss — l arene se resserre deja
    a une vue, y ajouter du bord serait le contraire de ce que le resserrement
    cherche.
+
+   ET IL PARLE DU LIEU. Les memes colonnes grises dans les quatre biomes etaient
+   la derniere piece qui les rendait interchangeables jusque dans les bords :
+   l Usine porte une PASSERELLE et ses conduites, la Fonderie des CHEMINEES et
+   leur fumee, la Friche un GRILLAGE affaisse, la Nebuleuse des HAUBANS. Meme
+   budget de dessin, quatre lectures.
+
    La parallaxe est une DERIVE globale proportionnelle a la position de camera :
-   assez pour donner la profondeur, trop peu pour attirer l'oeil. */
+   assez pour donner la profondeur, trop peu pour attirer l oeil. */
 const PP_PARALLAXE = 0.055;
 const PP_BANDE = 0.155;
 export function drawPremierPlan(v) {
@@ -334,6 +348,7 @@ export function drawPremierPlan(v) {
   const h = CFG.VIEW_H * PP_BANDE;
   const dx = (camera.x - CFG.ARENA_W / 2) * PP_PARALLAXE;
   const dy = (camera.y - CFG.ARENA_H / 2) * PP_PARALLAXE;
+  const cle = biomeAt(biomeIndex).key;
 
   ctx.save();
   ctx.translate(camera.x0, camera.y0);
@@ -341,21 +356,119 @@ export function drawPremierPlan(v) {
   for (const haut of [true, false]) {
     const y0 = haut ? 0 : CFG.VIEW_H;
     const g = ctx.createLinearGradient(0, y0, 0, haut ? h : CFG.VIEW_H - h);
-    g.addColorStop(0, alpha(SURFACE.void, 0.34));
+    g.addColorStop(0, alpha(SURFACE.void, cle === "fonderie" ? 0.42 : 0.34));
     g.addColorStop(1, alpha(SURFACE.void, 0));
     ctx.fillStyle = g;
     ctx.fillRect(0, haut ? 0 : CFG.VIEW_H - h, CFG.VIEW_W, h);
   }
 
-  ctx.fillStyle = alpha(SURFACE.void, 0.30);
-  for (let i = 0; i < 5; i++) {
-    const x = ((i * 431 + dx) % (CFG.VIEW_W + 260)) - 130;
-    const haut = (i & 1) === 0;
-    const ep = 16 + (i % 3) * 7;
-    ctx.fillRect(x, haut ? -20 - dy * 0.4 : CFG.VIEW_H - h * 0.62 - dy * 0.4,
-                 ep, h * 0.8);
-  }
+  if (cle === "friche") grillage(h, dx, dy);
+  else if (cle === "fonderie") cheminees(h, dx, dy);
+  else if (cle === "nebuleuse") haubans(h, dx, dy);
+  else passerelle(h, dx, dy);
+
   ctx.restore();
+}
+
+// L USINE : une passerelle continue et ses conduites. C est la seule silhouette
+// des quatre qui soit HORIZONTALE — elle dit que l installation est construite.
+function passerelle(h, dx, dy) {
+  ctx.fillStyle = alpha(SURFACE.void, 0.34);
+  for (const haut of [true, false]) {
+    const yb = haut ? h * 0.42 - dy * 0.4 : CFG.VIEW_H - h * 0.42 - dy * 0.4;
+    ctx.fillRect(-40, yb - 9, CFG.VIEW_W + 80, 18);
+    for (let i = 0; i < 7; i++) {
+      const x = ((i * 263 + dx) % (CFG.VIEW_W + 200)) - 100;
+      ctx.fillRect(x, haut ? -20 : yb, 13, haut ? yb + 20 : CFG.VIEW_H - yb + 20);
+    }
+    ctx.fillStyle = alpha(SURFACE.void, 0.26);
+    ctx.fillRect(-40, haut ? yb + 15 : yb - 21, CFG.VIEW_W + 80, 6);
+    ctx.fillStyle = alpha(SURFACE.void, 0.34);
+  }
+}
+
+// LA FONDERIE : des cheminees larges, et la fumee qui en sort DEBORDE sur la
+// bande — c est ce qui la rend chaude sans une seule touche d orange.
+function cheminees(h, dx, dy) {
+  for (let i = 0; i < 4; i++) {
+    const x = ((i * 431 + dx) % (CFG.VIEW_W + 320)) - 160;
+    const haut = (i & 1) === 0;
+    const ep = 44 + (i % 3) * 16;
+    const y = haut ? -20 - dy * 0.4 : CFG.VIEW_H - h * 0.86 - dy * 0.4;
+    ctx.fillStyle = alpha(SURFACE.void, 0.46);
+    ctx.fillRect(x, y, ep, h * 1.05);
+    ctx.fillRect(x - 6, haut ? y + h * 0.95 : y, ep + 12, 11);
+    const f = ctx.createRadialGradient(x + ep / 2, haut ? y + h : y, 0,
+                                       x + ep / 2, haut ? y + h : y, 130);
+    f.addColorStop(0, alpha(SURFACE.void, 0.30));
+    f.addColorStop(1, alpha(SURFACE.void, 0));
+    ctx.fillStyle = f;
+    ctx.fillRect(x + ep / 2 - 130, (haut ? y + h : y) - 130, 260, 260);
+  }
+}
+
+// LA FRICHE : un grillage affaisse. Des poteaux qui ne sont plus d aplomb et
+// une maille qui pend entre eux — la seule silhouette des quatre qui ne tienne
+// pas droit.
+function grillage(h, dx, dy) {
+  const pas = 118;
+  for (const haut of [true, false]) {
+    const yb = haut ? h * 0.92 - dy * 0.4 : CFG.VIEW_H - h * 0.92 - dy * 0.4;
+    const y0 = haut ? -20 : CFG.VIEW_H + 20;
+    ctx.strokeStyle = alpha(SURFACE.void, 0.30);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (let x = -pas; x < CFG.VIEW_W + pas; x += 15) {
+      const u = ((x + dx) % pas) / pas;
+      const creux = Math.sin(u * Math.PI) * 14 * (haut ? 1 : -1);
+      const y = yb + creux;
+      ctx.moveTo(x, y0); ctx.lineTo(x, y);
+    }
+    for (let k = 0; k < 4; k++) {
+      const t = (k + 1) / 5;
+      for (let x = -pas; x < CFG.VIEW_W + pas; x += 15) {
+        const u = ((x + dx) % pas) / pas;
+        const creux = Math.sin(u * Math.PI) * 14 * (haut ? 1 : -1);
+        const y = y0 + (yb + creux - y0) * t;
+        x === -pas ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+    ctx.fillStyle = alpha(SURFACE.void, 0.44);
+    for (let i = 0; i < 6; i++) {
+      const x = ((i * pas + dx) % (CFG.VIEW_W + 200)) - 100;
+      const pen = ((i * 7) % 5 - 2) * 3;
+      ctx.save();
+      ctx.translate(x, yb);
+      ctx.rotate(pen * 0.012);
+      ctx.fillRect(-4, haut ? -h - 20 : 0, 8, h + 20);
+      ctx.restore();
+    }
+  }
+}
+
+// LA NEBULEUSE : des haubans et une antenne. Rien de massif — dans le vide, une
+// silhouette lourde en haut de l ecran ne tiendrait a rien.
+function haubans(h, dx, dy) {
+  ctx.strokeStyle = alpha(SURFACE.void, 0.40);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const x = ((i * 379 + dx) % (CFG.VIEW_W + 300)) - 150;
+    const haut = (i & 1) === 0;
+    const y0 = haut ? -20 : CFG.VIEW_H + 20;
+    const y1 = haut ? h * 0.9 - dy * 0.4 : CFG.VIEW_H - h * 0.9 - dy * 0.4;
+    ctx.moveTo(x, y0); ctx.lineTo(x + 62, y1);
+    ctx.moveTo(x + 124, y0); ctx.lineTo(x + 62, y1);
+    ctx.moveTo(x + 62, y1); ctx.lineTo(x + 62, y0);
+  }
+  ctx.stroke();
+  ctx.fillStyle = alpha(SURFACE.void, 0.34);
+  for (let i = 0; i < 3; i++) {
+    const x = ((i * 617 + dx) % (CFG.VIEW_W + 260)) - 130;
+    const haut = (i & 1) === 0;
+    ctx.fillRect(x, haut ? -20 - dy * 0.4 : CFG.VIEW_H - h * 0.5 - dy * 0.4, 9, h * 0.7);
+  }
 }
 
 export function drawWalls(w) {

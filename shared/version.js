@@ -3247,6 +3247,42 @@
                    40 px de gigue de la Friche, carre central traversable dans
                    les deux axes pour les quatre lieux et les trois modes.
 
+     0.17.5 lot 5  LE SOL, LE FOND, LE BORD. Trois couches partagees restaient,
+                   et elles suffisaient a rendre les quatre lieux cousins.
+                   LE SOL. La Friche perd la maille de 5 m — `cuire()` la saute
+                   pour elle : un joint technique regulier decrit une
+                   installation entretenue, et ce lieu n en est plus une. A la
+                   place, des JOINTS DE COULAGE irreguliers (sinus de periode
+                   entiere sur la tuile, donc raccordes d une tuile a l autre),
+                   une valeur par dalle, des fissures qui partent des joints et
+                   jamais du milieu d une dalle, de la vegetation qui ne pousse
+                   QUE dans les joints, et des flaques mates sans reflet.
+                   La Nebuleuse perd la maille aussi et gagne un NID D ABEILLE :
+                   ses baies deviennent des CELLULES retirees en
+                   `destination-out` — un hexagone ne se `clearRect` pas, et
+                   c est justement ce qui l empeche de redevenir un rectangle.
+                   La Fonderie gagne ses VOIES coulees dans le sol, traverses
+                   comprises, et des ZONES VITRIFIEES : la ou le metal est tombe,
+                   le sol a fondu puis refroidi en verre — la seule surface du
+                   depot plus sombre que le fond.
+                   LE FOND. Une BANDE de nebuleuse traverse toute l image en
+                   diagonale : elle donne l echelle parce qu elle ne tient pas
+                   dans l ecran, la ou un amas de taches de meme taille se lisait
+                   comme du bruit. Elle DERIVE — 8 px sur deux minutes, assez
+                   pour qu elle cesse d etre un autocollant, trop peu pour
+                   attirer l oeil en combat. La derive ne touche que la couche
+                   lointaine : les etoiles proches restent fixes, sinon c est le
+                   vaisseau qui semblerait tanguer.
+                   LE BORD. Les memes colonnes grises dans les quatre biomes
+                   etaient la derniere piece qui les rendait interchangeables
+                   jusque dans les marges : passerelle et conduites a l Usine,
+                   cheminees et fumee a la Fonderie, grillage affaisse a la
+                   Friche — la seule silhouette des quatre qui ne tienne pas
+                   droit — haubans et antennes dans le vide. Meme budget de
+                   dessin, quatre lectures, et les trois regles du premier plan
+                   tiennent : rien au centre, jamais opaque, coupe pendant un
+                   boss.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3255,4 +3291,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.17.4";
+export const VERSION = "0.17.5";
