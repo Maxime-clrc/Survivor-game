@@ -331,8 +331,16 @@ voir le même jeu, pas un autre.
 
 **Cinq points de lecture, pas un de plus** : `material` (nombre d'échelles),
 `props` (densité), `lumiere` (résolution du tampon), `decor` (grille fine),
-`fx` (`PARTICLE_MAX`). La simulation, les collisions et les apparitions ne
-changent **jamais** entre paliers.
+`fx` (l'**ombre de contact**). La simulation, les collisions et les apparitions
+ne changent **jamais** entre paliers.
+
+**`PARTICLE_MAX` ne suit PAS `gfx`, il suit le RENDERER** — 300 en canvas 2D,
+3 000 en WebGL, posé une fois par `ui/boot.js`. Ce n'est pas un oubli : un
+plafond de particules mesure le coût **par particule**, et il est dix fois plus
+élevé sur le chemin 2D, où chaque fragment est un `fill`. Le palier de qualité,
+lui, règle une *technique*. Les deux axes sont indépendants et doivent le rester
+— c'est pourquoi tout ce que le plan 15 a ajouté (bouche, impacts, morts, mort
+de boss) se dose sur `glActive()` et **jamais** sur `gfx`.
 
 ### Caméra et arène
 
@@ -448,11 +456,13 @@ le sien :
   l'a franchi. Le canal `alert` est mis en file et sorti sur la même horloge.
 - **Le tressaillement ne sort que sur les gros événements** (détonation, onde de
   choc, rupture de barre, bombe), jamais sur un impact ordinaire.
-- **Le hitstop n'existe QUE pour les barres de boss** (`addHitstop`, 100 ms, au
-  plus 30 par manche) : dans un survivor la fluidité du déplacement **est** le
-  jeu. Il gèle l'horloge de **rendu** (`timeWarp.held`, retiré de `renderTime`),
-  jamais la simulation, et se rattrape à **mi-vitesse** pour ne pas payer le gel
-  en latence permanente.
+- **Le hitstop n'existe QUE pour les barres de boss et pour la MORT du boss**
+  (`addHitstop`, 100 ms, 140 ms à la mort, au plus 30 par manche) : dans un
+  survivor la fluidité du déplacement **est** le jeu. Il gèle l'horloge de
+  **rendu** (`timeWarp.held`, retiré de `renderTime`), jamais la simulation, et
+  se rattrape à **mi-vitesse** pour ne pas payer le gel en latence permanente.
+  La mort est la **dernière barre** ; elle n'en avait pas parce que `_killBoss`
+  n'émet pas `barre`, pas parce qu'elle n'y avait pas droit.
 - **Un souffle se compose en COUCHES à constantes de temps distinctes** : noyau
   (2 images, né à sa taille maximale), boule de feu, onde de choc qui **dépasse**
   le remplissage, débris, fumée, marque au sol. Une montée progressive fait
@@ -526,6 +536,117 @@ le sien :
 - **Le rempart est interpolé** (`lerpList`), comme les marqueurs. Il **suit son
   tank sauf s'il est ancré** (`bw.anchor`, choix fait à la pose et gravé). Un
   propriétaire déconnecté ou à terre le laisse où il est.
+
+### Le combat
+
+**Quatre canaux disent quatre choses différentes, et aucun ne redit celle d'un
+autre.** C'est la règle qui tient tout le reste : la **bouche** dit *quelle
+arme*, le **projectile** dit *ce qu'elle envoie*, l'**impact** dit *combien ça a
+coûté à la cible*, la **mort** dit *de quoi c'était fait*. Ajouter l'arme à
+l'impact, ou la cible à la bouche, c'est payer deux fois pour une information.
+
+**La fiche vit dans `shared/feedback.js`**, module pur au même titre que
+`palette.js` : deux tables, une par sujet — ce qu'une **arme** dit en partant, ce
+qu'une **créature** dit en mourant.
+
+- **La famille se DÉDUIT d'un champ de mécanique**, jamais d'une déclaration :
+  `chaleur → faisceau`, `lame`, `rebonds → électrique`, `charge → rail`,
+  `plombs → dispersion`, `obus`, `souffle → explosif`, sinon balistique. Même
+  idiome que `silhouetteArme()` et `canonEffet()` — une onzième arme hérite d'un
+  retour cohérent sans une ligne de table.
+- **Trois familles n'ont NI son de départ NI bouche**, et c'est une décision :
+  faisceau, électrique et lame ont déjà un départ (l'allumage, l'origine de
+  l'arc, le balayage). Le doubler serait la même faute deux fois. `son` et
+  `bouche` sont donc nuls **ensemble** — `verifierFeedback()` le vérifie.
+- **La famille donne la matière, `interval` donne l'échelle.** `poids(a)` est
+  relevé sur la cadence, jamais déclaré : hauteur, gain et durée de queue en
+  sortent. La saturation en haut est voulue — au-delà, « lourd » est lourd.
+- **Un échantillon se coupe à la cadence qui l'appelle.** 260 ms rejoués neuf
+  fois par seconde sont un mur, pas une arme rapide.
+- **La clé du limiteur est la FAMILLE, pas le joueur** : quatre joueurs sur la
+  même arme se partagent une place. C'est ce qui rend l'identité gratuite —
+  quatre fois la même arme rapide rend exactement le compte de sons d'avant.
+
+**La bouche** (`bouches`, `drawBouche`) :
+
+- **Elle est attachée au CANON, pas au monde.** Le tir est enregistré par
+  propriétaire et tracé à la position **rendue**, dans l'axe où le joueur pointe.
+  Une position monde figée décroche du personnage dès qu'il bouge, et c'est le
+  décrochage qui se voit — pas les 50 ms de retard de visée. **L'événement `tir`
+  ne porte donc pas d'angle** : un champ dont le lecteur contredit la valeur ne
+  vaut rien.
+- **23 px**, mesuré sur les trois tracés de classe (tireur 24, rempart 23,
+  soigneur 21). Un seul nombre, l'écart ne se voit pas.
+- **La forme se lit sur la FAMILLE**, jamais sur un champ : « c'est une gerbe »
+  écrit à deux endroits finit par diverger. Elle **naît à sa taille maximale**,
+  même règle que le noyau d'un souffle.
+- **Le recul est visuel et rien d'autre** : la position simulée ne bouge pas d'un
+  pixel — un retour de tir qui déplacerait le personnage serait du gameplay
+  décidé par le client. Il porte le **sprite et son liseré**, jamais les anneaux :
+  le corps encaisse à l'intérieur de son aura, comme un ennemi touché. Décalage
+  **et** écrasement dans le même axe ; un décalage seul se lit comme une
+  désynchronisation.
+
+**L'impact** — quatre paliers, et **c'est la cible qui les décide** :
+
+- La part de PV max retirée dit à la fois la puissance du coup **et** la masse de
+  ce qui l'encaisse. Le même rail rend LOURD sur un fantassin et LÉGER sur un
+  colosse : « un ennemi lourd réagit moins » sort du même nombre, **sans table de
+  masse**.
+- **UN TICK DE BRÛLURE N'EST PAS UNE TOUCHE**, et le serveur le dit déjà —
+  `_damage(..., overTime)` n'incrémente pas `hitSeq`, donc `hits === 0`. Le
+  forcer à un faisait passer **81 %** des événements d'impact pour des touches,
+  avec éclair blanc, recul directionnel, étincelles et voix, pour un poison.
+- **Cet éclair ne peut pas disparaître** : rien ne rend l'état « brûle » sur un
+  ennemi, la brûlure n'est pas dans l'instantané. Il passe au **violet** —
+  *persistant* dans la grammaire de couleur — et cesse de se lire comme un ennemi
+  qu'on frappe.
+- **L'axe vient du projectile, jamais du joueur le plus proche.** Une balle
+  éteinte donne la **ligne de tir** (des centaines de pixels, stable même quand
+  elle meurt sur le corps) ; une balle **perforante** donne sa vitesse exacte —
+  sans elle, le railgun et la précision n'avaient aucun auteur. Faute de
+  projectile (zone, brûlure, arc, balayage), le joueur le plus proche **est** la
+  source, et là c'est exact.
+- **La poussière est de la matière du LIEU**, et le lieu la déclare déjà :
+  `skin().blocEdge`. Aucune table de plus. Elle part **à contre-sens** et
+  lentement — les étincelles disent où va l'énergie, la poussière ce qui s'est
+  détaché.
+
+**La mort** — la matière se déduit du comportement :
+
+- `splits` → un sac ; `heal` ou `auraRadius` → de l'énergie ; le reste → une
+  carapace. **L'axe est la matière, pas le métal contre l'organique** : l'arène
+  est une machine, les monstres sont ce qui s'y est introduit, il n'y a pas
+  d'ennemi en tôle.
+- **La hauteur dit la MASSE**, relevée sur `r`. Elle disait l'**index** de la
+  table — donc l'ordre d'arrivée : le coureur sonnait plus grave que le
+  fantassin, le colosse plus aigu que le couvain.
+- **Les trois timbres partagent la clé `mort`** : le palier 1 porte sur la
+  *cadence* des morts, pas sur la mort. Seuls le soigneur et le chœur **prennent
+  la place** (`claim`) — les deux cibles prioritaires du bestiaire, et seulement
+  en cauchemar après la minute 19.
+
+**Le boss** :
+
+- **Sa touche se mesure en PART DE BARRE**, jamais en PV : ce que le joueur lit à
+  l'écran est une barre, et `bars` est déjà dans l'instantané. **En racine** — en
+  linéaire, 82 % des touches tombaient sur le plancher et tout le milieu du
+  barème était vide.
+- **Son événement d'impact ne porte pas de `hits`** (il n'y a pas de `hitSeq` sur
+  un boss) : il sort **en premier et par un chemin complet**, sinon le barème de
+  la horde le classe « continu » et le rend muet.
+- **Les éclats du critique appartiennent au critique.** Ils sortaient à chaque
+  coup, vingt fois par seconde : un critique ressemblait donc exactement à un
+  coup ordinaire.
+- **Sa mort se déduit de son ABSENCE** — `_killBoss` n'émet aucun effet — et la
+  garde est la **dernière barre**, sinon une remise à zéro de manche se lit comme
+  une mort. **Cinq échéances** (0 / 90 / 200 / 360 / 620 ms) : c'est l'étalement
+  qui fait l'événement, tout au même instant ne fait qu'un flash.
+
+**`verifierFeedback(armes, types, recettes)`** croise les deux tables avec ce
+qu'`audio.js` expose (`recettes()`). Un nom de recette faux ne lève rien :
+`playSound` rend `false` et l'événement devient **muet**. Muet = tout va bien,
+comme `verifierBiomes()`.
 
 ### Audio
 

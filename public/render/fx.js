@@ -4,7 +4,7 @@ import { EventPump } from "/events.js";
 import { hudDamage } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
-import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, POIDS_MAX, echelleBouche, ficheDe, familleDe, poids } from "/shared/feedback.js";
+import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, echelleBouche, ficheDe, familleDe, matiereDe, poids } from "/shared/feedback.js";
 import { CFG, ENEMY_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
@@ -698,29 +698,12 @@ export function drawDeaths() {
     });
   }
 }
-/* CE QU'UNE CREATURE EST FAITE SE DEDUIT DE CE QU'ELLE FAIT. Pas de champ neuf
-   dans le bestiaire : celle qui SE DIVISE est un sac, celles qui SOIGNENT ou
-   PORTENT UNE AURA tiennent de l'energie, les six autres ont une carapace. Trois
-   regles, cuites une fois — `ENEMY_TYPES` ne bouge pas.
-
-   L'axe est la MATIERE, pas le metal contre l'organique : la charte dit que
-   l'arene est une machine et que les monstres sont ce qui s'y est introduit. Il
-   n'y a pas d'ennemi en tole a differencier.
-
-   Elle ne coute RIEN : les trois cases de particule sont deja dans l'atlas et
-   `DEATH_BURST` distingue deja le nombre, la taille et la vitesse. Ce qui
-   manquait, c'est la case et le comportement — un eclat anguleux qui tournoie ne
-   peut pas dire « poche qui creve ». */
-const MAT_CARAPACE = 0, MAT_ORGANIQUE = 1, MAT_ENERGIE = 2;
-const MATIERE = [
-  { spin: 14, grow: 0,  a0: 1,    drag: 0.90, son: "mort" },
-  { spin: 0,  grow: 30, a0: 0.70, drag: 0.80, son: "mortMou" },
-  { spin: 0,  grow: 0,  a0: 0.95, drag: 0.95, son: "mortEnergie" },
-];
-const MATIERE_DE = ENEMY_TYPES.map(d =>
-  d.splits ? MAT_ORGANIQUE
-  : (d.heal || d.auraRadius) ? MAT_ENERGIE
-  : MAT_CARAPACE);
+/* La matiere d'une creature vit dans `shared/feedback.js`, avec celle des armes.
+   Ce qui reste ici est ce qu'elle ne coute PAS : les trois cases de particule
+   sont deja dans l'atlas et `DEATH_BURST` distingue deja le nombre, la taille et
+   la vitesse. Ce qui manquait, c'est la case et le comportement — un eclat
+   anguleux qui tournoie ne peut pas dire « poche qui creve ». */
+const MATIERE_DE = ENEMY_TYPES.map(matiereDe);
 
 /* LA HAUTEUR DIT LA MASSE. Elle disait l'INDEX : `1.3 - type * 0.12`, donc
    l'ordre d'arrivee dans la table. Le coureur, le plus petit corps du bestiaire,

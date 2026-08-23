@@ -947,10 +947,14 @@ export function updateHud(v, c) {
 
   if (c.perf) {
     setHidden(el.perf, "pfOn", false);
+    // `#hudPerf` est en `pre-line` : deux lignes, la charge d'abord, le cout
+    // ensuite. `frag` porte son PLAFOND — un compteur de particules sans le
+    // sien ne dit pas si on sature, et c'est la seule question qu'il pose.
     setText(el.perf, "pf",
-      `${c.fps.toFixed(0)} i/s · ${c.particles} frag · ${v.enemyList.length} ennemis · ` +
+      `${c.fps.toFixed(0)} i/s · ${c.particles}/${c.fragMax} frag · ${c.fx} fx · ` +
+      `${v.enemyList.length} ennemis · ${v.bulletList.length} balles\n` +
       `${c.renderer} ${c.draws} appels / ${c.quads} quads · ` +
-      `${c.voices} voix (pic ${c.peak})`
+      `${c.voices} voix (pic ${c.peak} · ${c.refus} refus · ${c.vols} vols)`
       + (c.net ? `\n${c.net}` : ""));
     setClass(el.perf, "pfl", "low", c.fps < 55);
   }

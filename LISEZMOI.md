@@ -2111,6 +2111,91 @@ boss (66 s) est l'inverse : il paie en horde ce qu'il gagne sur cible unique.
 (normal), un seul profil (P1), six graines. Les compositions à plusieurs et le
 cauchemar restent à faire.
 
+### Le retour de combat (plan 15)
+
+Tous les seuils de ce plan sont **relevés**, aucun n'est choisi. Ils tiennent en
+un protocole unique, rejouable sans le navigateur : la logique est pure, on
+fabrique des instantanés à la main depuis un `GameState` et on les passe à
+`diffSnapshots` — le module d'événements ne dépend de rien.
+
+```js
+// le squelette : GameState -> instantanés 20 Hz -> diffSnapshots -> comptage
+const g = new GameState(1);                       // 2 pour le cauchemar
+for (let i = 1; i <= 4; i++) { g.addPlayer(i, `bot${i}`, i - 1);
+  const p = g.players.get(i); p.arme = ARMES_CHOISIES[i - 1]; g._recomputeMods(p); }
+g.warmup = 0;
+const pil = pilotage();                           // le pilote du dépôt, pas un bot ad hoc
+// à chaque image : g.step(CFG.TICK, inputs) ; un instantané toutes les 3 images
+```
+
+Trois pièges déjà payés dans ce protocole :
+
+- **Un bot maison fausse tout.** Une visée « l'ennemi d'indice `k % n` » a rendu
+  **54 impacts en 10 minutes** contre 1 590 avec `pilotage()` : sans réticule
+  correct, les armes ne délivrent pas. Toujours le pilote du dépôt.
+- **La fenêtre décide de ce qu'on mesure.** Le couvain arrive à la minute 9, le
+  soigneur à 19, le chœur à 23. Une mesure de 12 minutes ne voit **jamais** deux
+  des trois matières. Forcer `minMin = 0` mesure le mélange de fin de manche.
+- **Le roster dépend du MODE.** Soigneur et chœur n'existent qu'en cauchemar
+  (`roster: [0..8]` contre `[0..6]` en normal) : les mesurer en normal rend zéro,
+  et zéro ressemble à un bug.
+
+**Voix de tir** — 8 min, 4 joueurs, mode normal :
+
+| cas | sons joués | pic de voix | volées | refusées |
+|---|---|---|---|---|
+| avant (un `tir` anonyme par instantané) | 1 012 | ~2 / 16 | 0 | — |
+| quatre armes différentes | 1 165 (+15 %) | 5 / 16 | 0 | 0 |
+| quatre fois la même arme rapide | **805** — le compte d'avant | 3 / 16 | 0 | 1 873 |
+
+Le pire cas est **gratuit** : le limiteur absorbe les 2 678 événements émis. Seule
+la *différence* se paie. C'est le critère de non-régression du plan, et il porte
+sur `MAX_VOICES` et le vol, jamais sur le pic — quatre familles distinctes
+occupent forcément plus d'une place que le son unique qu'elles remplacent.
+
+**Bouche** — 3 à 8 particules par tir, **~98 vivantes en régime** à 4 joueurs sur
+les 3 000 du chemin WebGL. Le chemin 2D plafonne à 300 : à pleine densité la
+bouche y prendrait un tiers du budget et affamerait les morts, qui sont le palier
+au-dessus. Un canon, la moitié des étincelles, une bouffée.
+
+**Impact** — 4 graines × 12 min, 4 joueurs, normal, **92 968 événements** :
+
+| | part |
+|---|---|
+| dégât **continu** (brûlure, zone — aucune touche) | 75 651, **81 %** |
+| vraies touches | 17 317 |
+| touches **sans auteur identifié** | 1 492, **8,6 %** (38 % avant la reprise des perforants) |
+
+Part de PV max retirée **par touche** : 0,1 % au p25, 0,3 % à la médiane, 16,3 %
+au p90, 31,2 % au p95. Les seuils **0,25 / 0,60** découpent 93 / 5 / 2 %, soit
+31,7 / 1,7 / 0,53 par seconde.
+
+Bilan du lot : particules d'impact **67,8/s → 21,3/s (−69 %)**, voix de touche
+**2,7/s → 1,2/s (−55 %)**, pic 2 voix sur 16. Trois paliers, un axe juste et la
+matière du lieu coûtent **moins** que ce qu'il y avait avant.
+
+**Morts** — cauchemar, bestiaire forcé, 32 min : **86 %** carapace, **5 %**
+organique, **9 %** énergie. 36 % des morts d'énergie s'entendent contre 28 % pour
+la horde (le `claim`), pour **+4 %** de voix et un pic de 4 sur 16. Zéro
+particule de plus : seuls la case d'atlas, la rotation, la croissance et
+l'opacité changent.
+
+**Boss** — 3 graines, 4 joueurs, 4 500 s, **38 barres brisées, 9 boss tués** :
+
+- `bossMort` émis **9 fois**. Aucun faux positif, aucun manque — la garde « il
+  était sur sa dernière barre » suffit à séparer la mort de la remise à zéro.
+- Part d'**une barre** retirée par pas de 50 ms : 0,01 % à la médiane, 1,14 % au
+  p90, 4,22 % au p99, 15 % au maximum. Plein à **2 %**, plancher 0,25.
+- **La racine, pas la proportion** : en linéaire 82 % des touches tombaient sur
+  le plancher ; en racine, 62 %, p75 à 0,41 et p90 à 0,76. L'éclair dure 73 ms à
+  la médiane et 140 ms au p99, contre 80 ms fixes.
+
+**Ce qui n'est pas mesuré :** tout est en simulation, sans navigateur. Le coût
+GPU réel des nouvelles particules, la lisibilité des cinq formes de bouche et le
+rendu de la séquence de mort du boss demandent un œil en jeu — `?perf` sort
+désormais `frag/plafond`, le nombre d'effets vivants, les balles et les refus de
+voix pour ça.
+
 ## Réglages
 
 Tout est en haut de `shared/game_state.js`.

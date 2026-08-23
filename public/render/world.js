@@ -19,7 +19,7 @@ import { drawArenaBounds, drawAtmosphere, drawFloor, drawFond, drawGrid, drawObs
 import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
 import { drawProps } from "./props.js";
-import { blastMarks, bossMortQueue, bouches, bursts, dashMarks, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp, zoneFx } from "./fx.js";
+import { PARTICLE_MAX, blastMarks, bossMortQueue, bouches, bursts, dashMarks, deaths, dmgAgg, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";
 
@@ -266,10 +266,16 @@ function drawScreen(v) {
     bossAnnounce, phaseAnnounce,
     phaseText: v.boss && v.boss.phase > 0
       ? phaseUnlockText(v.boss.kind ?? 0, v.boss.phase) : "",
-    perf: PERF, fps, particles: particles.length,
+    perf: PERF, fps, particles: particles.length, fragMax: PARTICLE_MAX,
+    // TOUT CE QUE LE PLAN 15 A OUVERT, EN UN SEUL NOMBRE : souffles, depouilles,
+    // bouches, echeances de mort de boss, touches en attente d'etalement. Un
+    // effet qui fuit se voit ici avant de se voir a l'image.
+    fx: bursts.length + deaths.length + bouches.size
+      + bossMortQueue.length + hitQueue.length,
     renderer: glActive() ? "GL" : "2D",
     draws: gl?.draws ?? 0, quads: gl?.quads ?? 0,
     voices: st ? st.active : 0, peak: st ? st.peak : 0,
+    refus: st ? st.dropped : 0, vols: st ? st.stolen : 0,
     net: netPerf.txt,
   });
 }

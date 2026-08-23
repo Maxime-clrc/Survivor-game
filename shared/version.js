@@ -3514,6 +3514,47 @@
                    sur le boss n etait pas « quelle arme » mais « combien de barre
                    vient de partir ».
 
+     0.18.6 lot 6  LES REGLES ECRITES, ET DE QUOI LES VERIFIER. Le plan 15 avait
+                   cinq lots de code et aucune trace : `RENDU.md` ignorait la
+                   fiche, la bouche, les paliers, la matiere et la mort du boss.
+                   `verifierFeedback(armes, types, recettes)` croise les DEUX
+                   tables avec ce qu `audio.js` expose. UN NOM DE RECETTE FAUX NE
+                   LEVE RIEN : `playSound` rend `false` et l evenement devient
+                   MUET — exactement la classe de bug que `CLAUDE.md` appelle
+                   « silence ». Verifie en retirant `tirRail` : la garde crie.
+                   La matiere d une creature DEMENAGE dans `shared/feedback.js`,
+                   a cote de la famille d une arme : c est la meme question — ce
+                   que le combat DIT — et c est ce qui permet de croiser tout le
+                   vocabulaire sonore en une passe, sans charger le rendu.
+                   `RENDU.md` gagne une section « Le combat » dont la premiere
+                   ligne est la regle qui tient tout le reste : QUATRE CANAUX
+                   DISENT QUATRE CHOSES DIFFERENTES. La bouche dit l arme, le
+                   projectile ce qu elle envoie, l impact ce que ca a coute a la
+                   cible, la mort de quoi c etait fait. Ajouter l arme a l impact
+                   c est payer deux fois pour une information.
+                   DEUX REGLES ECRITES ETAIENT FAUSSES.
+                   1. `fx` n avait pas `PARTICLE_MAX` pour point de lecture de
+                   `gfx` : son seul `gfx` est l OMBRE DE CONTACT. `PARTICLE_MAX`
+                   suit le RENDERER (300 en 2D, 3 000 en WebGL), et c est correct
+                   — un plafond mesure le cout PAR particule, dix fois plus eleve
+                   sur un chemin ou chaque fragment est un `fill`. Les deux axes
+                   sont independants et doivent le rester.
+                   2. Le hitstop n appartenait qu aux barres de boss. La MORT est
+                   la derniere barre ; elle n en avait pas parce que `_killBoss`
+                   n emet pas `barre`, pas parce qu elle n y avait pas droit.
+                   `?perf` sort desormais `frag/PLAFOND` — un compteur de
+                   particules sans son plafond ne dit pas si on sature, et c est
+                   la seule question qu il pose — le nombre d effets vivants
+                   (souffles, depouilles, bouches, echeances, touches en attente),
+                   les balles, et les refus et vols de voix. Deux lignes :
+                   `#hudPerf` est deja en `pre-line`.
+                   `LISEZMOI.md` porte les chiffres des six lots ET LE PROTOCOLE,
+                   avec ses trois pieges deja payes : un bot maison rend 54
+                   impacts la ou `pilotage()` en rend 1 590 ; une fenetre de 12
+                   minutes ne voit jamais deux des trois matieres ; le soigneur et
+                   le choeur n existent qu en cauchemar, donc les mesurer en normal
+                   rend zero et zero ressemble a un bug.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3522,4 +3563,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.5";
+export const VERSION = "0.18.6";

@@ -1,6 +1,11 @@
 /* ===========================================================================
-   LA FICHE DE RETOUR D'UNE ARME. Module pur, sur le modele de `palette.js` et
+   LA FICHE DE RETOUR DU COMBAT. Module pur, sur le modele de `palette.js` et
    `units.js` : il ne depend de RIEN et ne connait ni le DOM ni le reseau.
+
+   Deux tables, une seule question : ce qu'une ARME dit en partant, ce qu'une
+   CREATURE dit en mourant. Les deux se DEDUISENT d'un champ de mecanique et
+   nomment une recette d'`audio.js` — c'est ce qui permet a `verifierFeedback()`
+   de croiser tout le vocabulaire sonore du combat en une passe.
 
    Ce qu'une arme VAUT vit dans `armes.js`. Ce qu'elle DIT vit ici, et les deux
    ne se recopient jamais : la famille se DEDUIT des champs de mecanique, comme
@@ -92,3 +97,75 @@ export function poids(a) {
    sert qu'a separer les armes DEDANS — trois seulement partagent une famille. Un
    facteur franc les aurait fait changer de famille a l'oeil. */
 export const echelleBouche = a => 0.75 + 0.25 * poids(a);
+
+/* CE QU'UNE CREATURE EST FAITE SE DEDUIT DE CE QU'ELLE FAIT. Aucun champ neuf
+   dans le bestiaire : celle qui SE DIVISE est un sac, celles qui SOIGNENT ou
+   PORTENT UNE AURA tiennent de l'energie, les autres ont une carapace.
+
+   L'axe est la MATIERE, pas le metal contre l'organique : la charte dit que
+   l'arene est une machine et que les monstres sont ce qui s'y est introduit. Il
+   n'y a pas d'ennemi en tole a differencier.
+
+   La table dit le COMPORTEMENT d'un fragment, pas sa case d'atlas : `fx_shard`
+   et `fx_glow` sont assignes a la construction de l'atlas, donc ils se lisent a
+   l'appel. Elle vit ICI et non a cote de `DEATH_BURST` parce que `son` doit
+   pouvoir se croiser avec `audio.js` sans charger le rendu. */
+export const MAT_CARAPACE = 0, MAT_ORGANIQUE = 1, MAT_ENERGIE = 2;
+export const MATIERE = [
+  { spin: 14, grow: 0,  a0: 1,    drag: 0.90, son: "mort" },
+  { spin: 0,  grow: 30, a0: 0.70, drag: 0.80, son: "mortMou" },
+  { spin: 0,  grow: 0,  a0: 0.95, drag: 0.95, son: "mortEnergie" },
+];
+export const matiereDe = d =>
+  d?.splits ? MAT_ORGANIQUE
+  : (d?.heal || d?.auraRadius) ? MAT_ENERGIE
+  : MAT_CARAPACE;
+
+/* CE QUI NE LEVE RIEN : un nom de recette faux rend `playSound` a `false` et
+   l'evenement devient MUET. C'est exactement la classe de bug que `CLAUDE.md`
+   appelle « silence », et la seule facon de la voir est de croiser les tables
+   avec ce qu'`audio.js` expose.
+
+   Les tables et le bestiaire arrivent en ARGUMENT : ce module ne depend de rien
+   et ne va pas commencer ici. Muet = tout va bien, comme `verifierBiomes()`. */
+export function verifierFeedback(armes = [], types = [], recettes = []) {
+  const soucis = [];
+  const dispo = new Set(recettes);
+
+  for (const [cle, f] of Object.entries(FEEDBACK)) {
+    // une famille a son depart ENTIER ou pas de depart du tout : une voix sans
+    // bouche, ou l'inverse, est une famille livree a moitie.
+    if ((f.son === null) !== (f.bouche === null)) {
+      soucis.push(`${cle} : son et bouche ne s'accordent pas`);
+    }
+    if (f.son !== null && recettes.length && !dispo.has(f.son)) {
+      soucis.push(`${cle} : recette « ${f.son} » absente d'audio.js`);
+    }
+    if (!f.bouche) continue;
+    const b = f.bouche;
+    for (const [champ, v] of Object.entries(b)) {
+      if (!(v >= 0)) soucis.push(`${cle}.bouche.${champ} = ${v}`);
+    }
+    if (!(b.long > 0) || !(b.large > 0)) soucis.push(`${cle} : bouche sans forme`);
+    if (!(b.vie > 0.02 && b.vie < 0.2)) soucis.push(`${cle} : vie ${b.vie} hors bornes`);
+  }
+
+  for (let i = 0; i < MATIERE.length; i++) {
+    if (recettes.length && !dispo.has(MATIERE[i].son)) {
+      soucis.push(`matiere ${i} : recette « ${MATIERE[i].son} » absente d'audio.js`);
+    }
+  }
+
+  for (const a of armes) {
+    const f = FEEDBACK[familleDe(a)];
+    if (!f) { soucis.push(`${a.id} : famille inconnue`); continue; }
+    const w = poids(a);
+    if (!(w >= POIDS_MIN && w <= POIDS_MAX)) soucis.push(`${a.id} : poids ${w}`);
+  }
+
+  for (let i = 0; i < types.length; i++) {
+    if (!MATIERE[matiereDe(types[i])]) soucis.push(`${types[i].key} : matiere inconnue`);
+  }
+
+  return soucis;
+}

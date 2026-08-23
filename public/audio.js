@@ -767,6 +767,11 @@ const PALETTE = {
   },
 };
 
+/* CE QUE CETTE PALETTE SAIT JOUER. Un nom de recette faux ne leve rien :
+   `playSound` rend `false` et l'evenement devient MUET. `verifierFeedback()`
+   croise cette liste avec les tables de `shared/feedback.js`. */
+export function recettes() { return Object.keys(PALETTE); }
+
 export function playSound(name, opts = {}) {
   if (!ac || muted || volume <= 0) return false;
   const recipe = PALETTE[name];
