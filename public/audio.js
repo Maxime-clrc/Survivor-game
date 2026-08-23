@@ -428,6 +428,32 @@ const PALETTE = {
   mort: (o) => noise({ dur: 0.12, type: "lowpass", freq: 1400 * (o.pitch ?? 1),
                        to: 200 * (o.pitch ?? 1), gain: SOUND_GAIN.mort }),
 
+  /* LES DEUX AUTRES MATIERES. Elles partagent la clef `mort` du limiteur : le
+     palier 1 porte sur la CADENCE des morts et non sur la mort, donc trois
+     timbres ne doivent pas couter trois places. */
+
+  // LA POCHE QUI CREVE. C'est l'ABSENCE d'aigu qui la separe d'une carapace, pas
+  // le volume : rien ne claque, tout s'affaisse.
+  mortMou: (o) => {
+    const p = o.pitch ?? 1;
+    const a = noise({ dur: 0.15, type: "lowpass", freq: 620 * p, to: 90 * p,
+                      gain: SOUND_GAIN.mort * 1.2 });
+    tone({ freq: 120 * p, to: 52 * p, dur: 0.11, type: "sine",
+           gain: SOUND_GAIN.mort * 0.5 });
+    return { end: a.end, stop: a.stop };
+  },
+
+  // LA DECHARGE : ce qu'elle tenait s'en va. Une hauteur qui TOMBE et une queue
+  // fine, aucun corps — il n'y en avait pas.
+  mortEnergie: (o) => {
+    const p = o.pitch ?? 1;
+    const a = tone({ freq: 940 * p, to: 190 * p, dur: 0.13, type: "sawtooth",
+                     gain: SOUND_GAIN.mort * 0.8 });
+    noise({ dur: 0.10, type: "highpass", freq: 2400 * p, q: 0.8,
+            gain: SOUND_GAIN.mort * 0.5, delay: 0.01 });
+    return { end: a.end + 0.04, stop: a.stop };
+  },
+
   bonus: (o) => {
     const a = tone({ freq: 620, dur: 0.09, gain: SOUND_GAIN.bonus * 0.8 });
     tone({ freq: 930, dur: 0.11, gain: SOUND_GAIN.bonus, delay: 0.07 });

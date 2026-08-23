@@ -5,7 +5,7 @@ import { hudDamage } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
 import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, POIDS_MAX, echelleBouche, ficheDe, familleDe, poids } from "/shared/feedback.js";
-import { CFG, hazardState } from "/shared/game_state.js";
+import { CFG, ENEMY_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
 import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
@@ -137,9 +137,21 @@ function handleEvent(e) {
       break;
 
     case "mort": {
-      const base = e.elite ? 0.6 : 1.3 - Math.min(0.6, e.type * 0.12);
-      playSound("mort", { pitch: base * chainPitch() });
-      spawnDeath(e.x, e.y, e.type, e.elite, e.ang ?? 0, e.crit, e.owner);
+      const mat = MATIERE_DE[e.type] ?? MAT_CARAPACE;
+      // MEME CLEF DE LIMITEUR POUR LES TROIS : la matiere change la recette,
+      // jamais le nombre de voix. Le palier 1 porte sur la CADENCE des morts,
+      // pas sur la mort — trois timbres ne doivent pas couter trois places.
+      // LE SOIGNEUR ET LE CHOEUR PRENNENT LA PLACE. Ce sont les deux cibles
+      // prioritaires du bestiaire — l'un rend la horde increvable, l'autre lui
+      // donne 35 % de reduction — donc leur chute est une information tactique
+      // et non une mort de plus. Sans `claim` elle se fait refuser par la horde
+      // qui tombe en meme temps. Ils n'existent QUE en cauchemar (roster
+      // `[0..8]`), et seulement apres la minute 19 : le cout est nul ailleurs.
+      // MESURE, cauchemar, bestiaire force : 36 % de leurs morts s'entendent
+      // contre 28 % pour la horde, pour +4 % de voix et une pointe de 4 sur 16.
+      playSound(MATIERE[mat].son,
+        { key: "mort", pitch: hauteurMort(e), claim: mat === MAT_ENERGIE });
+      spawnDeath(e.x, e.y, e.type, e.elite, e.ang ?? 0, e.crit, e.owner, mat);
       spawnXpStream(e.x, e.y);
       if (e.dmg > 0) aggregateDamage(e);
       break;
@@ -676,6 +688,45 @@ export function drawDeaths() {
     });
   }
 }
+/* CE QU'UNE CREATURE EST FAITE SE DEDUIT DE CE QU'ELLE FAIT. Pas de champ neuf
+   dans le bestiaire : celle qui SE DIVISE est un sac, celles qui SOIGNENT ou
+   PORTENT UNE AURA tiennent de l'energie, les six autres ont une carapace. Trois
+   regles, cuites une fois — `ENEMY_TYPES` ne bouge pas.
+
+   L'axe est la MATIERE, pas le metal contre l'organique : la charte dit que
+   l'arene est une machine et que les monstres sont ce qui s'y est introduit. Il
+   n'y a pas d'ennemi en tole a differencier.
+
+   Elle ne coute RIEN : les trois cases de particule sont deja dans l'atlas et
+   `DEATH_BURST` distingue deja le nombre, la taille et la vitesse. Ce qui
+   manquait, c'est la case et le comportement — un eclat anguleux qui tournoie ne
+   peut pas dire « poche qui creve ». */
+const MAT_CARAPACE = 0, MAT_ORGANIQUE = 1, MAT_ENERGIE = 2;
+const MATIERE = [
+  { spin: 14, grow: 0,  a0: 1,    drag: 0.90, son: "mort" },
+  { spin: 0,  grow: 30, a0: 0.70, drag: 0.80, son: "mortMou" },
+  { spin: 0,  grow: 0,  a0: 0.95, drag: 0.95, son: "mortEnergie" },
+];
+const MATIERE_DE = ENEMY_TYPES.map(d =>
+  d.splits ? MAT_ORGANIQUE
+  : (d.heal || d.auraRadius) ? MAT_ENERGIE
+  : MAT_CARAPACE);
+
+/* LA HAUTEUR DIT LA MASSE. Elle disait l'INDEX : `1.3 - type * 0.12`, donc
+   l'ordre d'arrivee dans la table. Le coureur, le plus petit corps du bestiaire,
+   sonnait plus GRAVE que le fantassin, et le colosse plus AIGU que le couvain —
+   l'inverse de ce qu'on voit. Le rayon est deja la, et il est juste.
+   L'elite garde un cran a lui : c'est un fait notable, et un fait notable se
+   distingue par la hauteur (`RENDU.md`, palier 2). ELITE_RADIUS_MUL vaut 1,18,
+   trop peu pour s'entendre seul. */
+const MORT_REF = 12;
+const MORT_ELITE = 0.72;
+function hauteurMort(e) {
+  const d = ENEMY_TYPES[e.type];
+  const masse = Math.pow(MORT_REF / (d?.r ?? MORT_REF), 0.55);
+  return masse * (e.elite ? MORT_ELITE : 1) * chainPitch();
+}
+
 const DEATH_BURST = [
   { n: 1.00, size: 2.5, sp: 60, spread: 130, life: 0.40, flash: 1.0, cone: 7 },
   { n: 0.75, size: 2.0, sp: 150, spread: 190, life: 0.30, flash: 0.8, cone: 1.1 },
@@ -687,7 +738,7 @@ const DEATH_BURST = [
   { n: 0.85, size: 2.0, sp: 80, spread: 130, life: 0.42, flash: 0.8, cone: 7 },
   { n: 1.35, size: 2.4, sp: 45, spread: 95, life: 0.60, flash: 1.15, cone: 7 },
 ];
-function spawnDeath(x, y, type, elite, ang = 0, crit = false, owner = 0) {
+function spawnDeath(x, y, type, elite, ang = 0, crit = false, owner = 0, mat = MAT_CARAPACE) {
   if (deaths.length < DEATH_MAX) {
     deaths.push({
       x, y, type, at: performance.now(),
@@ -701,16 +752,22 @@ function spawnDeath(x, y, type, elite, ang = 0, crit = false, owner = 0) {
   const D = DEATH_BURST[type] ?? DEATH_BURST[0];
   const gros = crit ? 1.6 : 1;
   const n = Math.round((elite ? (dense ? 22 : 10) : (dense ? 14 : 7)) * D.n * gros);
-  const grow = elite ? 1.4 : 1;
+  const taille = elite ? 1.4 : 1;
+  const M = MATIERE[mat] ?? MATIERE[MAT_CARAPACE];
+  // `fxShard` et `fxGlow` sont assignes a la construction de l'atlas : la case
+  // se lit a l'appel, jamais dans la table.
+  const frame = mat === MAT_CARAPACE ? fxShard : fxGlow;
   for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
     const a = D.cone >= 7 ? Math.random() * Math.PI * 2
                           : ang + (Math.random() - 0.5) * D.cone;
     const sp = (D.sp + Math.random() * D.spread) * gros;
     particles.push({
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      life: D.life, max: D.life, col, size: D.size * grow,
-      frame: fxShard, ang: Math.random() * Math.PI * 2,
-      spin: (Math.random() - 0.5) * 14 * (2.5 / D.size),
+      life: D.life, max: D.life, col, size: D.size * taille,
+      frame, ang: Math.random() * Math.PI * 2,
+      spin: M.spin ? (Math.random() - 0.5) * M.spin * (2.5 / D.size) : 0,
+      grow: M.grow ? M.grow * taille : 0,
+      a0: M.a0, drag: M.drag,
     });
   }
   if (particles.length < PARTICLE_MAX) {

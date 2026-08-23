@@ -3426,6 +3426,48 @@
                    Trois paliers, un axe juste et la matiere du lieu coutent MOINS
                    que ce qu il y avait avant.
 
+     0.18.4 lot 4  LA MORT DIT DE QUOI C ETAIT FAIT. `DEATH_BURST` distinguait
+                   deja neuf types par le nombre, la taille et la vitesse ; les
+                   neuf partageaient la meme CASE d atlas et le meme son. Or un
+                   eclat anguleux qui tournoie ne peut pas dire « poche qui
+                   creve », et les trois cases de particule sont dans l atlas
+                   depuis le plan 13 : le canal existait, il n etait pas branche.
+                   CE QU UNE CREATURE EST FAITE SE DEDUIT DE CE QU ELLE FAIT.
+                   Aucun champ neuf dans le bestiaire : celle qui SE DIVISE est un
+                   sac (`splits`), celles qui SOIGNENT ou PORTENT UNE AURA
+                   tiennent de l energie (`heal`, `auraRadius`), les six autres
+                   ont une carapace. Trois regles, cuites une fois.
+                   L axe est la MATIERE et non le metal contre l organique : la
+                   charte dit que l arene est une machine et que les monstres sont
+                   ce qui s y est introduit. Il n y a pas d ennemi en tole.
+                   LA HAUTEUR DISAIT L INDEX. `1.3 - type * 0.12` notait l ordre
+                   d arrivee dans la table : le coureur, plus petit corps du
+                   bestiaire, sonnait plus GRAVE que le fantassin, et le colosse
+                   plus AIGU que le couvain — l inverse de ce qu on voit. Elle dit
+                   desormais la MASSE, relevee sur `r`, qui etait deja la.
+                   L elite garde un cran a lui : c est un fait notable, et un fait
+                   notable se distingue par la hauteur. `ELITE_RADIUS_MUL` vaut
+                   1,18, trop peu pour s entendre seul.
+                   LES TROIS TIMBRES PARTAGENT LA CLEF `mort` : le palier 1 porte
+                   sur la CADENCE des morts, pas sur la mort, donc trois recettes
+                   ne coutent pas trois places.
+                   LE SOIGNEUR ET LE CHOEUR PRENNENT LA PLACE (`claim`). L un rend
+                   la horde increvable, l autre lui donne 35 % de reduction : leur
+                   chute est une information tactique. Ils n existent QUE en
+                   cauchemar — roster `[0..8]` contre `[0..6]` en normal — et
+                   seulement apres la minute 19 : le cout est nul ailleurs.
+                   MESURE, cauchemar, bestiaire force, 32 min : 86 % carapace,
+                   5 % organique, 9 % energie. 36 % des morts d energie
+                   s entendent contre 28 % pour la horde, pour +4 % de voix et une
+                   pointe de 4 sur 16. Zero particule de plus : seuls la case, la
+                   rotation, la croissance et l opacite changent.
+                   `spawnBlast` N A PAS BOUGE, et c est une verification, pas un
+                   oubli : le kamikaze ne passe pas par `_explode` mais par une
+                   ZONE telegraphiee (`warn: blastDelay`), donc son souffle a deja
+                   sa signature — craquelures, couleur hostile, evenement
+                   `explosion` mis a l echelle du rayon. Aucune famille de souffle
+                   d ennemi a ajouter.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3434,4 +3476,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.3";
+export const VERSION = "0.18.4";
