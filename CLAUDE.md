@@ -277,7 +277,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `pushWorld()` / `worldQueue` | tout message ponctuel décrivant le MONDE |
 | `applyAlert()` | annonce, que le message porte `event`, `mech` ou `meteo` |
 | `drawSprite()` / `cellRect()` / `mirrored()` | dessin d'entité, lecture d'atlas, sous-tracé miroir |
-| `teinter(base, teinte, k)` | clarté du mode + chroma du biome |
+| `solDeBiome(diffIndex, key)` | LA couleur du sol : le lieu donne la teinte, le mode la clarté |
 | `audioUi` | volume, depuis les trois vues |
 | `uiSoundFor()` | son d'un bouton d'interface |
 | `t(cle, repli)` | toute traduction ; `traduireStatique()` la variante markup |

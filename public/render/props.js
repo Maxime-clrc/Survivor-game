@@ -1,7 +1,7 @@
 import { CFG } from "/shared/game_state.js";
-import { LUM, PROP, alpha } from "/shared/palette.js";
+import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
-import { biomeIndex, biomeSeed, camera, ctx, hazardsActifs, obstaclesActifs } from "./stage.js";
+import { biomeIndex, biomeSeed, camera, ctx, hazardsActifs, obstaclesActifs, skin } from "./stage.js";
 import { biomeAt } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
@@ -142,7 +142,7 @@ export function drawProps() {
   if (gfx <= GFX_LOW) return;
   refresh();
   if (props.length === 0) return;
-  const dir = (LUM[biomeAt(biomeIndex).key] ?? LUM.usine).dir;
+  const dir = skin().dir;
   const ox = dir[0] * 2.4, oy = dir[1] * 2.4;
 
   for (const p of props) {

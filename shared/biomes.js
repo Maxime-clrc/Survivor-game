@@ -98,32 +98,30 @@ export function weatherAt(id) { return WEATHERS[id] ?? null; }
 export const weatherNom = i => t(`weather.${WEATHERS[i]?.key}.nom`, WEATHERS[i]?.nom ?? "");
 export const weatherTexte = i => t(`weather.${WEATHERS[i]?.key}.texte`, WEATHERS[i]?.texte ?? "");
 
+/* AUCUNE COULEUR ICI. Elle vivait a la fois dans `tint`/`grid` et dans la
+   palette, et les deux moities se neutralisaient. La charte d'un lieu est
+   entiere dans `BIOME_SKIN` — ce module decide de la GEOMETRIE, jamais du ton.
+
+   `fond` declare que ce biome a un ARRIERE-PLAN : la matiere y laisse des baies
+   transparentes au lieu de couvrir la tuile, et c'est le seul champ que le rendu
+   lit pour le savoir. */
 export const BIOMES = [
   {
     key: "usine", nom: "Usine",
     resume: "piliers en grille, couloirs francs",
-    tint: "#0b1626", grid: "#1a2740", skip: 0,
   },
   {
     key: "fonderie", nom: "Fonderie",
     resume: "ouvertures larges, deux cuves centrales",
-    tint: "#1e1010", grid: "#33201c", skip: 4,
   },
-  // le vert ne PILOTE plus la teinte : il reste une trace dans la matiere
-  // (lichen, mousse), la Friche est une installation abandonnee, pas un pre.
   {
     key: "friche", nom: "Friche",
     resume: "obstacles épars, couverture destructible",
-    tint: "#161a18", grid: "#1e2422", skip: 3,
   },
-  /* LE PONT D'UNE STATION, pas le vide : on marche sur un plancher, et le vide
-     se voit A TRAVERS lui. `fond` declare que ce biome a un ARRIERE-PLAN — la
-     matiere y laisse des baies transparentes au lieu de couvrir la tuile, et
-     c'est le seul champ que le rendu lit pour le savoir. */
   {
     key: "nebuleuse", nom: "Nébuleuse",
     resume: "longues travées, baies ouvertes sur le vide",
-    tint: "#141826", grid: "#1e2438", skip: 0, fond: "espace",
+    fond: "espace",
   },
 ];
 

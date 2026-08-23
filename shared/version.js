@@ -3148,6 +3148,27 @@
                    jusqu'au bout, il s'en va a zero. Un onzieme champ sur le
                    marqueur (`m.noeud`), ajoute EN FIN de tuple, suffit a tout.
 
+     0.17.1 lot 1  LA CHARTE DE LIEU. Premier lot du plan 14, dont le constat
+                   tient en une mesure : apres `teinter()`, qui preserve la
+                   luminance de la base, LES QUATRE ARENES TENAIENT DANS 15
+                   NIVEAUX RGB SUR 255. Quatre sols a 6 % l un de l autre ne sont
+                   pas quatre lieux, et aucune quantite de props ne rattrape ca.
+                   Un biome declarait sa couleur a TROIS endroits — `tint` et
+                   `grid` dans `biomes.js`, son ambiante dans `LUM` — et son bloc
+                   a AUCUN : les quatre partageaient `BIOME.block`. Les deux
+                   moities se neutralisaient.
+                   `BIOME_SKIN` est desormais le SEUL endroit ou un lieu se
+                   declare : arene, grille, bloc, ambiante, direction de lumiere,
+                   emissif. La couleur est ECRITE et non derivee, et le mode ne
+                   fait plus qu un FACTEUR DE CLARTE (`solDeBiome`) releve sur
+                   `DECOR` — il assombrit, il ne teinte plus. C est la seule
+                   facon d avoir a la fois trois modes et quatre lieux.
+                   `teinter()` n a plus de lecteur : il est supprime, pas garde.
+                   `BIOMES[].tint`, `.grid` et `.skip` avec lui — `.skip` etait
+                   deja mort, la grille fine lit `DECOR`.
+                   `ledDe()` porte sa TEINTE : la bande d un bloc s allume a
+                   l emissif du lieu, donc la Nebuleuse s eclaire froid.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3156,4 +3177,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.16.10";
+export const VERSION = "0.17.1";

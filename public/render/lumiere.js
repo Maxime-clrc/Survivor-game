@@ -1,10 +1,9 @@
 import { CFG, HZ_SLIP, HZ_SLOW, hazardState } from "/shared/game_state.js";
-import { BOSS_SKIN, LUM, alpha, melange } from "/shared/palette.js";
-import { biomeAt } from "/shared/biomes.js";
+import { BOSS_SKIN, alpha, melange } from "/shared/palette.js";
 import { GFX_HIGH, GFX_ULTRA, gfx } from "../core/state.js";
 import { bursts } from "./fx.js";
 import { forEachPropLight } from "./props.js";
-import { biomeIndex, camera, ctx, hazardsActifs, obstaclesActifs, ownerColorOf } from "./stage.js";
+import { camera, ctx, hazardsActifs, obstaclesActifs, ownerColorOf, skin } from "./stage.js";
 
 /* IL N'Y AVAIT AUCUNE LUMIERE DANS LE JEU. Tout etait eclaire a plat, seul le
    vignettage modulait.
@@ -38,10 +37,11 @@ export function ledDe(o) {
   const inset = 4;
   const hw = o.w / 2 - inset, hh = o.h / 2 - inset;
   const long = (cote & 1 ? o.h : o.w) * 0.52;
-  if (cote === 0) return { x: o.x, y: o.y - hh, dx: 1, dy: 0, len: long };
-  if (cote === 1) return { x: o.x + hw, y: o.y, dx: 0, dy: 1, len: long };
-  if (cote === 2) return { x: o.x, y: o.y + hh, dx: 1, dy: 0, len: long };
-  return { x: o.x - hw, y: o.y, dx: 0, dy: 1, len: long };
+  const col = skin().emis;
+  if (cote === 0) return { x: o.x, y: o.y - hh, dx: 1, dy: 0, len: long, col };
+  if (cote === 1) return { x: o.x + hw, y: o.y, dx: 0, dy: 1, len: long, col };
+  if (cote === 2) return { x: o.x, y: o.y + hh, dx: 1, dy: 0, len: long, col };
+  return { x: o.x - hw, y: o.y, dx: 0, dy: 1, len: long, col };
 }
 
 /* LA PRISE DU BOSS SUR LE MONDE. Deux canaux a constantes de temps distinctes,
@@ -137,7 +137,7 @@ export function drawLumiere(v) {
   const P = pasBoss(v);
   const g = tampon();
   if (!g) return;
-  const B = LUM[biomeAt(biomeIndex).key] ?? LUM.usine;
+  const B = skin();
   const L = P
     ? { amb: melange(B.amb, P.amb, bs.kS), emis: B.emis,
         k: B.k + (P.k - B.k) * bs.kL - battement(P) }
@@ -163,7 +163,7 @@ export function drawLumiere(v) {
   for (const o of obstaclesActifs()) {
     const l = ledDe(o);
     if (!l) continue;
-    source(g, l.x, l.y, l.len + 74, L.emis, 0.24);
+    source(g, l.x, l.y, l.len + 74, l.col, 0.24);
   }
 
   // le souffle est LU, jamais pousse : ecrire vers une couche superieure est

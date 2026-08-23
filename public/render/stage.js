@@ -1,7 +1,7 @@
 import { createGL } from "/gl.js";
 
 import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome } from "/shared/game_state.js";
-import { CADRE_SKIN, ENEMY, LUM, cssVars, decorAt, teinter } from "/shared/palette.js";
+import { CADRE_SKIN, ENEMY, biomeSkin, cssVars, decorAt, solDeBiome } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { reuploadAtlas } from "/sprites.js";
 import { PERF, latest, lobby, myId, predicted } from "../core/state.js";
@@ -14,18 +14,12 @@ export let biomeSeed = 1;
 let biome = buildBiome(0, 1, 1, CFG.ARENA_W, CFG.ARENA_H);
 export let weather = null;
 export let weatherSeg = 0;
-const PART_BIOME = 0.75;
-const PART_BIOME_GRILLE = 0.8;
+let modeCourant = 1;
 
-export let sol = { arena: "#0b0e14", gridFine: "#151b26", gridMajor: "#232c3d" };
+export let sol = solDeBiome(1, "usine");
 
 function refreshSol() {
-  const b = biomeAt(biomeIndex);
-  sol = {
-    arena: teinter(decor.arena, b.tint, PART_BIOME),
-    gridFine: teinter(decor.gridFine, b.grid, PART_BIOME_GRILLE),
-    gridMajor: decor.gridMajor,
-  };
+  sol = solDeBiome(modeCourant, biomeAt(biomeIndex).key);
   vignette = null;
 }
 
@@ -39,6 +33,7 @@ export function rebuildBiome(diffIndex = 1) {
 }
 export function applyPalette(diffIndex = 1) {
   decor = decorAt(diffIndex);
+  modeCourant = diffIndex;
   const root = document.documentElement.style;
   for (const [k, v] of Object.entries(cssVars(diffIndex))) root.setProperty(k, v);
   vignette = null;
@@ -196,7 +191,13 @@ export function cadreOf(id) {
    Le relief RADIAL de `drawObstacles` reste : c'est la CAMERA, pas la lumiere,
    et les deux coexistent — c'est ce que fait la 2D haut de gamme. */
 export function lumDir() {
-  return (LUM[biomeAt(biomeIndex).key] ?? LUM.usine).dir;
+  return biomeSkin(biomeAt(biomeIndex).key).dir;
+}
+
+// LA CHARTE DU LIEU COURANT. Un seul point de lecture cote rendu : forme,
+// matiere et lumiere d'un biome sortent toutes d'ici.
+export function skin() {
+  return biomeSkin(biomeAt(biomeIndex).key);
 }
 
 export const GRID_FINE = 5 * PX_PER_M;

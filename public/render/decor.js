@@ -6,7 +6,7 @@ import { drawGridPings } from "./fx.js";
 import { floorPattern, fondEspace, macroPattern } from "./material.js";
 import { bossAtmo, bossVignette, ledDe } from "./lumiere.js";
 import { forEachPropLight } from "./props.js";
-import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, inView, lumDir, obstaclesActifs, renderScale, setVignette, sol, vignette, weather } from "./stage.js";
+import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
 /* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine entre la couleur
    d'arene et la matiere du sol : la tuile de la Nebuleuse RETIRE ses baies, donc
@@ -215,13 +215,13 @@ function habillage(o, rx, ry, biome) {
   ctx.save();
   ctx.translate(rx, ry);
   ctx.lineCap = "round";
-  ctx.strokeStyle = alpha(PROP.led, 0.20 * puls);
+  ctx.strokeStyle = alpha(l.col, 0.20 * puls);
   ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(l.x - l.dx * l.len / 2, l.y - l.dy * l.len / 2);
   ctx.lineTo(l.x + l.dx * l.len / 2, l.y + l.dy * l.len / 2);
   ctx.stroke();
-  ctx.strokeStyle = alpha(PROP.led, 0.85 * puls);
+  ctx.strokeStyle = alpha(l.col, 0.85 * puls);
   ctx.lineWidth = 1.6;
   ctx.stroke();
   ctx.lineCap = "butt";
@@ -232,6 +232,7 @@ export function drawObstacles(cover) {
   const list = obstaclesActifs();
   if (!list.length) return;
   const biome = biomeAt(biomeIndex).key;
+  const S = skin();
   const ox = camera.x0 + CFG.VIEW_W / 2, oy = camera.y0 + CFG.VIEW_H / 2;
   // L'OMBRE PORTEE LIT `lumDir()`, le relief reste RADIAL : l'un dit d'ou vient
   // la lumiere, l'autre ou est la camera. Deux gestes distincts, pas deux
@@ -257,16 +258,16 @@ export function drawObstacles(cover) {
     ctx.save();
     ctx.translate(o.x + rx, o.y + ry);
     silhouette(ctx, o, biome);
-    ctx.fillStyle = o.maxHp > 0 ? BIOME.cover : BIOME.block;
+    ctx.fillStyle = o.maxHp > 0 ? BIOME.cover : S.bloc;
     ctx.fill();
     ctx.restore();
 
     ctx.save();
     ctx.translate(o.x, o.y);
     silhouette(ctx, o, biome);
-    ctx.fillStyle = alpha(o.maxHp > 0 ? BIOME.cover : BIOME.block, 0.55);
+    ctx.fillStyle = alpha(o.maxHp > 0 ? BIOME.cover : S.bloc, 0.55);
     ctx.fill();
-    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : BIOME.blockEdge, 0.45);
+    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge, 0.45);
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.restore();
@@ -274,7 +275,7 @@ export function drawObstacles(cover) {
     ctx.save();
     ctx.translate(o.x + rx, o.y + ry);
     silhouette(ctx, o, biome);
-    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : BIOME.blockEdge, 0.7);
+    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge, 0.7);
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();

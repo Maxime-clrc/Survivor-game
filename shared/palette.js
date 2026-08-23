@@ -181,9 +181,11 @@ export const ZONE = {
 
 export const WALL = { fill: "#7896ff", edge: "#aac3ff" };
 
+/* Ce qui reste COMMUN aux quatre lieux, parce que c'est du gameplay et non du
+   decor : une couverture destructible se lit pareil partout, et l'ambre d'un
+   danger reste la couleur du danger. Tout le reste est descendu dans
+   `BIOME_SKIN`. */
 export const BIOME = {
-  block:     "#5b6472",
-  blockEdge: "#8b96a8",
   cover:     "#6d6152",
   coverEdge: "#c9a86a",
   hazard:    "#e8912f",
@@ -217,19 +219,76 @@ export const PROP = {
   balise: "#6fc6d8",
 };
 
-/* LA LUMIERE DU LIEU. `amb` est la couleur vers laquelle le sol descend loin de
-   toute source — jamais noire : un sol a zero n'est plus une matiere, c'est un
-   trou. `k` est la profondeur de l'ombre, `dir` la direction de la lumiere
-   (partagee par toutes les ombres portees), `emis` la teinte des sources fixes. */
-export const LUM = {
-  usine:    { amb: "#6d7480", k: 0.52, dir: [0.62, 0.78], emis: "#ffa63d" },
-  fonderie: { amb: "#8a6a52", k: 0.58, dir: [0.55, 0.84], emis: "#ff8a2a" },
-  friche:   { amb: "#707a80", k: 0.62, dir: [0.70, 0.71], emis: "#ffb44f" },
-  // la seule ambiante FROIDE du depot, et la plus profonde : dans le vide il n'y
-  // a pas de lumiere rasante, seulement les sources du pont. L'ambre reste
-  // l'emissif — c'est la station qui eclaire, pas les etoiles.
-  nebuleuse: { amb: "#59637d", k: 0.70, dir: [0.58, 0.81], emis: "#ffb060" },
+/* LA CHARTE D'UN LIEU, ET ELLE EST LE SEUL ENDROIT OU IL SE DECLARE.
+
+   Avant, un biome posait sa couleur a trois endroits et son bloc a aucun :
+   `tint`/`grid` dans `biomes.js`, son ambiante ici, et les quatre partageaient
+   `BIOME.block`. Mesure du resultat : apres `teinter()` — qui preserve la
+   luminance de la base — les quatre arenes tenaient dans 15 niveaux RGB sur
+   255. Quatre sols a 6 % l'un de l'autre ne sont pas quatre lieux.
+
+   La couleur d'un lieu est donc ECRITE et non derivee, et la difficulte n'est
+   plus qu'un FACTEUR DE CLARTE (`solDeBiome`) : elle assombrit, elle ne teinte
+   plus. C'est la seule facon d'avoir a la fois trois modes et quatre lieux.
+
+   `amb` est la couleur vers laquelle le sol descend loin de toute source —
+   jamais noire : un sol a zero n'est plus une matiere, c'est un trou. `k` est
+   la profondeur de l'ombre, `dir` la direction de la lumiere (partagee par
+   toutes les ombres portees), `emis` la teinte des sources fixes, `bloc` et
+   `blocEdge` la masse batie — celle qui occupe l'ecran. */
+export const BIOME_SKIN = {
+  usine: {
+    arena: "#121a26", gridFine: "#1f2a3c", gridMajor: "#32405e",
+    bloc: "#4e5a6e", blocEdge: "#93a2b8",
+    amb: "#6d7480", k: 0.52, dir: [0.62, 0.78], emis: "#ffa63d",
+  },
+  fonderie: {
+    arena: "#1d1310", gridFine: "#2c1d17", gridMajor: "#45291d",
+    bloc: "#5a4034", blocEdge: "#a8724a",
+    amb: "#8a6a52", k: 0.58, dir: [0.55, 0.84], emis: "#ff8a2a",
+  },
+  // le gris-vert du beton lave, et la seule ambiante PLATE : dans une friche
+  // rien n'eclaire, donc rien ne modele.
+  friche: {
+    arena: "#1b1a13", gridFine: "#27261c", gridMajor: "#3a3829",
+    bloc: "#5c5f55", blocEdge: "#9aa08d",
+    amb: "#6e7570", k: 0.62, dir: [0.70, 0.71], emis: "#ffb44f",
+  },
+  // la seule ambiante FROIDE du depot, la plus profonde, et le seul emissif qui
+  // ne soit pas ambre : dans le vide il n'y a pas de lumiere rasante, seulement
+  // les feux de position de la station.
+  nebuleuse: {
+    arena: "#0b1020", gridFine: "#16203a", gridMajor: "#24325a",
+    bloc: "#38455f", blocEdge: "#7fa8d8",
+    amb: "#59637d", k: 0.70, dir: [0.58, 0.81], emis: "#7fd0e8",
+  },
 };
+
+export function biomeSkin(key) { return BIOME_SKIN[key] ?? BIOME_SKIN.usine; }
+
+/* LE MODE REGLE LA CLARTE, LE LIEU REGLE LA TEINTE. Le facteur se releve sur
+   `DECOR` au lieu de s'ecrire : les trois modes gardent leur echelle exacte, et
+   retoucher `DECOR` continue de tout suivre. */
+export function solDeBiome(diffIndex, key) {
+  const S = biomeSkin(key);
+  const k = luminance(decorAt(diffIndex).arena) / luminance(DECOR[1].arena);
+  return {
+    arena: eclat(S.arena, k),
+    gridFine: eclat(S.gridFine, k),
+    gridMajor: eclat(S.gridMajor, k),
+  };
+}
+
+function luminance(hex) {
+  const c = rgbDe(hex);
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+
+function eclat(hex, k) {
+  const c = rgbDe(hex);
+  const m = (i) => Math.round(clamp255(c[i] * k)).toString(16).padStart(2, "0");
+  return `#${m(0)}${m(1)}${m(2)}`;
+}
 
 // LA METEO EST DU DECOR, donc froide et sous 18 % de saturation : elle ne doit
 // jamais concurrencer un telegraphe. La cendre est le seul ecart, chaude parce
@@ -454,16 +513,6 @@ export function alpha(hex, a) {
 export function melange(a, b, k) {
   const A = rgbDe(a), B = rgbDe(b);
   const m = (i) => Math.round(clamp255(A[i] + (B[i] - A[i]) * k)).toString(16).padStart(2, "0");
-  return `#${m(0)}${m(1)}${m(2)}`;
-}
-
-export function teinter(base, teinte, k) {
-  const A = rgbDe(base), B = rgbDe(teinte);
-  const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-  const la = lum(A), lb = lum(B);
-  if (lb < 1) return base;
-  const f = la / lb;
-  const m = (i) => Math.round(clamp255(A[i] + (B[i] * f - A[i]) * k)).toString(16).padStart(2, "0");
   return `#${m(0)}${m(1)}${m(2)}`;
 }
 
