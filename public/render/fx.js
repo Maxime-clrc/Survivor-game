@@ -334,7 +334,6 @@ function tirVoix(e) {
    23 px, MESURE sur les trois traces de classe (tireur 24, rempart 23,
    soigneur 21) : un seul nombre, l'ecart ne se voit pas. */
 const BOUCHE_X = 23;
-const RECUL_MS = 90;
 export const bouches = new Map();
 
 function tirBouche(e) {
@@ -346,19 +345,6 @@ function tirBouche(e) {
     at: performance.now(), fam: familleDe(a), b: f.bouche, ech: echelleBouche(a),
     n: Math.min(3, Math.max(1, e.n ?? 1)), parti: 0,
   });
-}
-
-/* LE RECUL EST VISUEL ET RIEN D'AUTRE : la position simulee ne bouge pas d'un
-   pixel. Un retour de tir qui deplacerait le personnage serait du gameplay, et
-   du gameplay decide par le client. Il porte le SPRITE, pas les anneaux — meme
-   partage que le tressaillement d'un ennemi touche : le corps encaisse a
-   l'interieur de son aura. */
-export function reculDe(id) {
-  const m = bouches.get(id);
-  if (!m) return 0;
-  const u = (performance.now() - m.at) / RECUL_MS;
-  if (u >= 1) return 0;
-  return m.b.recul * m.ech * Math.pow(1 - u, 1.5);
 }
 
 function kite(x, y, ux, uy, long, large) {
@@ -430,8 +416,6 @@ function formeBouche(fam, x, y, ux, uy, L, W, coeur) {
 export function drawBouche(id, x, y, ang, col) {
   const m = bouches.get(id);
   if (!m) return;
-  // l'eclair s'eteint avant le recul : la peremption du registre appartient a
-  // `stepFeedback`, qui purge deja les autres tables datees.
   const u = (performance.now() - m.at) / (m.b.vie * 1000);
   if (u >= 1) return;
   const ux = Math.cos(ang), uy = Math.sin(ang);
@@ -1236,7 +1220,7 @@ export function stepFeedback(dt) {
   }
   if (bouches.size > 0) {
     for (const [id, m] of bouches) {
-      if (now - m.at > Math.max(m.b.vie * 1000, RECUL_MS)) bouches.delete(id);
+      if (now - m.at > m.b.vie * 1000) bouches.delete(id);
     }
   }
 }

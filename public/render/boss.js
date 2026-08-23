@@ -11,7 +11,7 @@ import { drawSprite, frameOf } from "/sprites.js";
 import { amSpectator, dash, myId, ownedCounts, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
-import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, drawBouche, drawOmbre, lastBossPos, reculDe, shieldHit } from "./fx.js";
+import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, drawBouche, drawOmbre, lastBossPos, shieldHit } from "./fx.js";
 import { ARMES } from "/shared/armes.js";
 import { aimVector, cadreOf, camera, colorOf, ctx, lumDir, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
 
@@ -1400,19 +1400,13 @@ export function drawPlayers(list, tm, marks = []) {
       const frame = classFrame(p, moving ? "move" : "idle");
       const aimDir = isMe ? aimVector() : { ax: p.aimX, ay: p.aimY };
       const ang = Math.atan2(aimDir.ay, aimDir.ax);
-      // LE RECUL PORTE LE CORPS, PAS L'AURA. Il recule dans l'axe et s'ecrase
-      // dans le meme axe — un decalage seul se lit comme une desynchronisation,
-      // c'est l'ecrasement qui le rend encaisse.
-      const rec = reculDe(p.id);
-      const rx = rec > 0 ? x - Math.cos(ang) * rec : x;
-      const ry = rec > 0 ? y - Math.sin(ang) * rec : y;
-      const sx = (moving ? 1.06 : 1) * (1 - rec * 0.012);
-      const sy = (moving ? 0.96 : 1) * (1 + rec * 0.008);
-      if (!dashing) paintOutline(frame, rx, ry, ang, sx, sy, 0.9);
-      drawSprite(ctx, frame, rx, ry, {
+      const sx = moving ? 1.06 : 1;
+      const sy = moving ? 0.96 : 1;
+      if (!dashing) paintOutline(frame, x, y, ang, sx, sy, 0.9);
+      drawSprite(ctx, frame, x, y, {
         angle: ang, scaleX: sx, scaleY: sy, tint: teinte,
       });
-      drawBouche(p.id, rx, ry, ang, col);
+      drawBouche(p.id, x, y, ang, col);
 
       if (p.shield > 0) drawShieldShell(x, y, p, tm);
 

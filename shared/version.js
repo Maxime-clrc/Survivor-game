@@ -3576,6 +3576,18 @@
                    migrer — filtree dans `metaLinesFor`, seul point de lecture du
                    serveur, du HUD et de la fenetre de build.
 
+     0.18.8        LE PERSONNAGE NE RECULE PLUS AU TIR. Essaye au lot 2, retire
+                   apres essai en jeu : dans un survivor le corps du joueur est ce
+                   qu on lit en permanence pour esquiver, et le faire bouger pour
+                   une raison qui n est pas un deplacement le rend illisible — a
+                   six tirs par seconde il ne revenait jamais au repos.
+                   Le champ `recul` part avec, il ne se debranche pas : un champ
+                   dont la seule lecture est morte se supprime. `reculDe()`,
+                   `RECUL_MS` et la peremption qui les attendait disparaissent
+                   aussi — la bouche s efface maintenant a sa propre duree.
+                   Le depart se dit DEVANT le personnage, jamais sur lui, et
+                   `RENDU.md` porte la raison pour que l essai ne se refasse pas.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3584,4 +3596,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.7";
+export const VERSION = "0.18.8";

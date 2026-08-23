@@ -55,20 +55,20 @@ export function familleDe(a) {
    plutot que sur un champ : deux endroits ou ecrire « c'est une gerbe » finissent
    par diverger. `null` aux memes trois familles, pour la meme raison qu'au son —
    leur depart existe deja et le doubler serait la meme faute deux fois. */
-const BOUCHE = (long, large, vie, fumee, douille, etincelles, recul) =>
-  ({ long, large, vie, fumee, douille, etincelles, recul });
+const BOUCHE = (long, large, vie, fumee, douille, etincelles) =>
+  ({ long, large, vie, fumee, douille, etincelles });
 
 export const FEEDBACK = {
   [FAM_BALISTIQUE]: { son: "tir",      jitter: 0.07,
-                      bouche: BOUCHE(15, 8, 0.045, 0, 1, 2, 3.4) },
+                      bouche: BOUCHE(15, 8, 0.045, 0, 1, 2) },
   [FAM_DISPERSION]: { son: "tirGerbe", jitter: 0.05,
-                      bouche: BOUCHE(20, 23, 0.075, 2, 1, 5, 8.0) },
+                      bouche: BOUCHE(20, 23, 0.075, 2, 1, 5) },
   [FAM_RAIL]:       { son: "tirRail",  jitter: 0.03,
-                      bouche: BOUCHE(48, 5, 0.060, 0, 0, 3, 7.0) },
+                      bouche: BOUCHE(48, 5, 0.060, 0, 0, 3) },
   [FAM_EXPLOSIF]:   { son: "tirLourd", jitter: 0.05,
-                      bouche: BOUCHE(12, 13, 0.065, 3, 0, 1, 2.6) },
+                      bouche: BOUCHE(12, 13, 0.065, 3, 0, 1) },
   [FAM_OBUS]:       { son: "tirObus",  jitter: 0.04,
-                      bouche: BOUCHE(25, 16, 0.070, 2, 1, 3, 7.5) },
+                      bouche: BOUCHE(25, 16, 0.070, 2, 1, 3) },
   [FAM_FAISCEAU]:   { son: null,       jitter: 0, bouche: null },
   [FAM_ELECTRIQUE]: { son: null,       jitter: 0, bouche: null },
   [FAM_LAME]:       { son: null,       jitter: 0, bouche: null },

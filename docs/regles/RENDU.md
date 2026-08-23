@@ -580,12 +580,11 @@ qu'une **créature** dit en mourant.
 - **La forme se lit sur la FAMILLE**, jamais sur un champ : « c'est une gerbe »
   écrit à deux endroits finit par diverger. Elle **naît à sa taille maximale**,
   même règle que le noyau d'un souffle.
-- **Le recul est visuel et rien d'autre** : la position simulée ne bouge pas d'un
-  pixel — un retour de tir qui déplacerait le personnage serait du gameplay
-  décidé par le client. Il porte le **sprite et son liseré**, jamais les anneaux :
-  le corps encaisse à l'intérieur de son aura, comme un ennemi touché. Décalage
-  **et** écrasement dans le même axe ; un décalage seul se lit comme une
-  désynchronisation.
+- **LE PERSONNAGE NE RECULE PAS.** Un recul de tir a été essayé et retiré : dans
+  un survivor le corps du joueur est ce qu'on lit en permanence pour esquiver, et
+  le faire bouger pour une raison qui n'est pas un déplacement le rend illisible
+  — d'autant qu'à six tirs par seconde il ne revient jamais au repos. Le départ
+  se dit **devant** le personnage, jamais sur lui.
 
 **L'impact** — quatre paliers, et **c'est la cible qui les décide** :
 
