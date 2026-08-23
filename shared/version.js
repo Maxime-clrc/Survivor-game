@@ -3194,6 +3194,34 @@
                    `gfx` garde ses CINQ points de lecture — `blocs.js` n en est
                    pas un, c est `decor.js` qui coupe l habillage en `low`.
 
+     0.17.3 lot 3  LES DANGERS DIEGETIQUES. Un danger etait un disque ambre
+                   hachure, le meme dans les quatre lieux : un element de debug
+                   pose sur la map, pas un objet du monde. Le gameplay ne bouge
+                   pas d un chiffre — rayons, degats, ralentissements, collisions
+                   sont intacts. Le DISQUE RESTE, il devient invisible.
+                   `render/dangers.js` porte une table `(biome, kind) -> dessin`,
+                   et ajouter un danger a un lieu est desormais UNE entree. Seize
+                   representations : gravats, boue, flaque toxique et cable sous
+                   tension pour la Friche ; convoyeur qui defile, huile, jet de
+                   vapeur et chariot sur rail pour l Usine ; scorie aux fissures
+                   rouges, coulee en fusion, louche sur rail et grille chaude pour
+                   la Fonderie ; puits de gravite, dalles en apesanteur, champ de
+                   radiation, debris plasma et anomalie pour la Nebuleuse.
+                   TROIS REGLES TIENNENT LA LISIBILITE. L empreinte reste lisible
+                   au bord pres — chaque dessin ferme sur une `limite()` franche a
+                   `h.r`, jamais un degrade qui s eteint : un danger dont on ne lit
+                   pas le bord est injuste. Un danger s annonce par sa GEOMETRIE
+                   PERMANENTE et jamais par un clignotement — le canal du
+                   telegraphe appartient au boss, donc ce qui bouge ici est de la
+                   matiere : un flux, une vapeur, une etincelle. Enfin ce qui
+                   blesse est chaud et ce qui ralentit est froid, seule constante
+                   entre les quatre lieux, et c est elle qui rend la table
+                   extensible sans reapprentissage.
+                   Les dangers a phase gardent leur double etat : au repos on voit
+                   l INSTALLATION (la buse, le cable mort, la grille de fonte), et
+                   c est elle l annonce ; a l amorce le jet, l arc ou la chaleur
+                   montent avec `st.k`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3202,4 +3230,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.17.2";
+export const VERSION = "0.17.3";

@@ -1,5 +1,5 @@
 
-import { BIOME_CFG, CFG, HZ_EMBER, HZ_GEYSER, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, hazardState, windAt } from "/shared/game_state.js";
+import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, hazardState, windAt } from "/shared/game_state.js";
 import { BIOME, BOSS, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
@@ -358,67 +358,6 @@ export function drawPremierPlan(v) {
   ctx.restore();
 }
 
-export function drawHazards(tm) {
-  const list = hazardsActifs();
-  if (!list.length) return;
-
-  for (const h of list) {
-    const st = hazardState(h, tm);
-
-    if (h.kind === HZ_SLOW || h.kind === HZ_SLIP) {
-      const col = h.kind === HZ_SLOW ? BIOME.slow : BIOME.slip;
-      ctx.fillStyle = alpha(col, 0.10);
-      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = alpha(col, 0.22);
-      ctx.lineWidth = 1;
-      ctx.save();
-      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2); ctx.clip();
-      if (h.kind === HZ_SLIP) {
-        for (let d = -h.r; d <= h.r; d += 13) {
-          ctx.beginPath();
-          ctx.moveTo(h.x + d, h.y - h.r); ctx.lineTo(h.x + d + h.r, h.y + h.r);
-          ctx.stroke();
-        }
-      } else {
-        for (let d = -h.r; d <= h.r; d += 16) {
-          ctx.beginPath();
-          ctx.moveTo(h.x - h.r, h.y + d); ctx.lineTo(h.x + h.r, h.y + d);
-          ctx.stroke();
-        }
-      }
-      ctx.restore();
-      continue;
-    }
-
-    if (h.kind === HZ_EMBER) {
-      ctx.strokeStyle = alpha(BIOME.hazardIdle, 0.75);
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(h.x - h.dx * h.span, h.y - h.dy * h.span);
-      ctx.lineTo(h.x + h.dx * h.span, h.y + h.dy * h.span);
-      ctx.stroke();
-    } else {
-      ctx.strokeStyle = alpha(BIOME.hazardIdle, 0.9);
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2); ctx.stroke();
-    }
-
-    if (!st.on) continue;
-
-    const k = st.k;
-    ctx.fillStyle = alpha(BIOME.hazard, 0.20 * k);
-    ctx.beginPath(); ctx.arc(st.x, st.y, h.r * k, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = alpha(BIOME.hazard, 0.75 * k);
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    if (h.kind === HZ_GEYSER) {
-      const puls = 0.5 + 0.5 * Math.sin(tm * 9);
-      ctx.fillStyle = alpha(BIOME.hazard, 0.28 * k * puls);
-      ctx.beginPath(); ctx.arc(st.x, st.y, h.r * 0.55 * k, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-}
 export function drawWalls(w) {
   if (!w) return;
   const t = w.t;
