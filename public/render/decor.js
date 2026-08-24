@@ -9,31 +9,230 @@ import { contourDe, dessinerLed, habillerBloc, ledDe, silhouetteBloc } from "./b
 import { forEachPropLight } from "./props.js";
 import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
-/* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine entre la couleur
-   d'arene et la matiere du sol : la tuile de la Nebuleuse RETIRE ses baies, donc
-   ce qui est peint ici se voit a travers le pont.
+/* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine deux fois : une passe
+   PLEINE VUE entre la couleur d'arene et la matiere du sol — c'est ce qui
+   transparait sous un plancher a 0,93 —, puis une passe par BAIE, apres le sol,
+   a pleine valeur.
 
-   Deux parallaxes, parce qu'un fond a une seule vitesse est un autocollant : les
-   astres a 0,05, les etoiles a 0,16. La derive maximale sur cette arene est de
-   256 px et la marge cuite en fait 300 — rien a boucler. */
+   TROIS parallaxes, parce qu'un fond a une seule vitesse est un autocollant et
+   qu'a deux il manque ce qui se passe ENTRE l'infini et le proche : les astres a
+   0,05, le gaz a 0,10, les etoiles a 0,16. La derive maximale sur cette arene est
+   de 256 px et la marge cuite en fait 300 — rien a boucler. */
 const FOND_LOIN = 0.05;
+const FOND_GAZ = 0.10;
 const FOND_PRES = 0.16;
+
+/* LE FOND SE BLITTE PAR SOUS-RECTANGLE. Une baie de 300 px ne doit pas payer une
+   image de 2 200 : on calcule le morceau de source qui lui correspond au lieu de
+   laisser un clip s'en charger. `ech` porte la demi-resolution du gaz — une
+   nappe floue n'a pas besoin d'un pixel par pixel, et l'etirement du blit est
+   exactement le flou qu'on aurait paye autrement. */
+function blitFond(f, img, p, ech, ddx, ddy, X, Y, W, H) {
+  const dx = camera.x - CFG.ARENA_W / 2, dy = camera.y - CFG.ARENA_H / 2;
+  const ox = camera.x0 - f.marge - dx * p + ddx;
+  const oy = camera.y0 - f.marge - dy * p + ddy;
+  ctx.drawImage(img, (X - ox) / ech, (Y - oy) / ech, W / ech, H / ech, X, Y, W, H);
+}
+
+// LA NEBULEUSE DERIVE, et il faut la regarder dix secondes pour s en rendre
+// compte. La derive ne touche que ce qui est LOIN — les etoiles proches restent
+// fixes, sinon c est le vaisseau qui semblerait tanguer.
+// un objet de module et non un tuple rendu : deux appelants par image, et rien
+// ici ne doit allouer.
+const derive = { lx: 0, ly: 0, gx: 0, gy: 0 };
+function majDerive() {
+  const t = performance.now() / 1000;
+  derive.lx = Math.sin(t * 0.052) * 8;
+  derive.ly = Math.cos(t * 0.037) * 6;
+  derive.gx = Math.sin(t * 0.031) * 15;
+  derive.gy = Math.cos(t * 0.043) * 11;
+}
+
 export function drawFond() {
   if (gfx <= GFX_LOW || biomeAt(biomeIndex).fond !== "espace") return;
   const f = fondEspace(biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
-  const dx = camera.x - CFG.ARENA_W / 2, dy = camera.y - CFG.ARENA_H / 2;
-  // LA NEBULEUSE DERIVE, et il faut la regarder dix secondes pour s en rendre
-  // compte : 8 px d amplitude sur une periode de deux minutes. Assez pour que
-  // le fond ne soit pas un autocollant, trop peu pour attirer l oeil pendant un
-  // combat. La derive ne touche QUE la couche lointaine — les etoiles proches
-  // restent fixes, sinon c est le vaisseau qui semblerait tanguer.
-  const t = performance.now() / 1000;
-  const ddx = Math.sin(t * 0.052) * 8, ddy = Math.cos(t * 0.037) * 6;
+  majDerive();
+  const ddx = derive.lx, ddy = derive.ly, gx = derive.gx, gy = derive.gy;
+  // LES ETOILES NE SONT PLUS ICI : sous un plancher a 0,93 elles ne se voyaient
+  // pas, et elles coutaient une image pleine vue. Ce qui reste sous le pont est
+  // ce qui a une SURFACE — la nebuleuse et son gaz —, assez pour que le plancher
+  // ne soit pas plat. Le ciel, lui, se regarde par une baie.
+  blitFond(f, f.loin, FOND_LOIN, 1, ddx, ddy, camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+  blitFond(f, f.gaz, FOND_GAZ, f.ech, gx, gy, camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+}
+
+/* LA BAIE, ET C'EST ELLE QUI DIT QU'ON EST DANS L'ESPACE.
+
+   Avant : trois hexagones retires par tuile de sol, 4 % de la surface, decoupes
+   DANS le motif — donc repetes tous les 400 px et remplis par ce qui transparait
+   sous un plancher a 0,93. Resultat mesure a l'ecran : une salle hexagonale
+   bleue, avec un cosmos invisible dessous.
+
+   Maintenant : une baie occupe une TRAVEE du pont, elle est tiree par cellule de
+   nervure, et elle redessine l'arriere-plan A PLEINE VALEUR au lieu de compter
+   sur ce qui passe au travers.
+
+   ELLE EST VITREE, ET CE N'EST PAS UN DETAIL. Un trou franc dans le plancher
+   ment : le joueur le traverse, les ennemis le traversent, un obstacle du biome
+   peut tomber dessus et son ombre porterait sur du vide. Une verriere donne
+   exactement la meme image — le vide, en grand, sous les pieds — sans qu'aucune
+   regle de deplacement n'ait a bouger. Rien a exclure du semis, rien a exclure
+   des obstacles.
+
+   Le pas est celui des nervures : une baie est ce qu'il y a ENTRE deux poutres,
+   ce qui explique sa forme et sa place. */
+const BAIE_TAUX = 0.38;
+const BAIE_INSET = 38;
+const BAIE_CHANF = 34;
+const BAIE_MENEAU = 104;
+const VIDE = "#03050c";
+// tableau de module et non un litteral dans la boucle : jusqu'a onze baies par
+// vue, et rien ici ne doit allouer par image.
+const REFLETS = [[0.18, 0.055], [0.44, 0.028]];
+
+function hCell(cx, cy, s) {
+  return h01(Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ Math.imul(s, 83492791));
+}
+
+function cadreBaie(x, y, w, h) {
+  const c = Math.min(BAIE_CHANF, w * 0.28, h * 0.28);
+  ctx.beginPath();
+  ctx.moveTo(x + c, y); ctx.lineTo(x + w - c, y);
+  ctx.lineTo(x + w, y + c); ctx.lineTo(x + w, y + h - c);
+  ctx.lineTo(x + w - c, y + h); ctx.lineTo(x + c, y + h);
+  ctx.lineTo(x, y + h - c); ctx.lineTo(x, y + c);
+  ctx.closePath();
+}
+
+export function drawBaies() {
+  if (gfx <= GFX_LOW || biomeAt(biomeIndex).fond !== "espace") return;
+  const f = fondEspace(biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
+  majDerive();
+  const ddx = derive.lx, ddy = derive.ly, gx = derive.gx, gy = derive.gy;
+  const s = biomeSeed >>> 0;
+  const c0x = Math.floor(camera.x0 / GRID_MAJOR);
+  const c1x = Math.floor((camera.x0 + CFG.VIEW_W) / GRID_MAJOR);
+  const c0y = Math.floor(camera.y0 / GRID_MAJOR);
+  const c1y = Math.floor((camera.y0 + CFG.VIEW_H) / GRID_MAJOR);
+
+  for (let cy = c0y; cy <= c1y; cy++) {
+    for (let cx = c0x; cx <= c1x; cx++) {
+      if (cx < 0 || cy < 0) continue;
+      if (hCell(cx, cy, s) >= BAIE_TAUX) continue;
+
+      const x0 = cx * GRID_MAJOR, y0 = cy * GRID_MAJOR;
+      const x1 = Math.min(CFG.ARENA_W, x0 + GRID_MAJOR);
+      const y1 = Math.min(CFG.ARENA_H, y0 + GRID_MAJOR);
+      let x = x0 + BAIE_INSET, y = y0 + BAIE_INSET;
+      let w = x1 - x0 - BAIE_INSET * 2, h = y1 - y0 - BAIE_INSET * 2;
+      // deux formats : la travee pleine, et la BANDE — c'est ce qui empeche un
+      // tirage par cellule de redevenir un damier de carres identiques.
+      if (hCell(cx, cy, s + 13) < 0.46) {
+        const trav = hCell(cx, cy, s + 29) < 0.5;
+        if (trav) { const nh = h * 0.50; y += (h - nh) * hCell(cx, cy, s + 41); h = nh; }
+        else { const nw = w * 0.50; x += (w - nw) * hCell(cx, cy, s + 41); w = nw; }
+      }
+      if (w < 70 || h < 70) continue;
+      if (!inView(x + w / 2, y + h / 2, Math.max(w, h))) continue;
+      baie(f, x, y, w, h, ddx, ddy, gx, gy);
+    }
+  }
+  ctx.lineWidth = 1;
+}
+
+function baie(f, x, y, w, h, ddx, ddy, gx, gy) {
+  const S = skin();
   ctx.save();
-  ctx.translate(camera.x0, camera.y0);
-  ctx.drawImage(f.loin, -f.marge - dx * FOND_LOIN + ddx, -f.marge - dy * FOND_LOIN + ddy);
-  ctx.drawImage(f.pres, -f.marge - dx * FOND_PRES, -f.marge - dy * FOND_PRES);
+  cadreBaie(x, y, w, h);
+  ctx.clip();
+
+  // LE VIDE EST PEINT AVANT D'ETRE REMPLI : le plancher est encore dessous, et
+  // ce qui doit se voir dans une baie est le ciel, pas un ciel sur du metal.
+  ctx.fillStyle = VIDE;
+  ctx.fillRect(x, y, w, h);
+  blitFond(f, f.loin, FOND_LOIN, 1, ddx, ddy, x, y, w, h);
+  blitFond(f, f.gaz, FOND_GAZ, f.ech, gx, gy, x, y, w, h);
+  blitFond(f, f.pres, FOND_PRES, 1, 0, 0, x, y, w, h);
+  scintiller(f, x, y, w, h);
+
+  // LE VERRE. Un voile froid — qui PLAFONNE aussi la clarte de la baie, donc la
+  // lisibilite d'un ennemi qui passe dessus — et deux reflets obliques. Sans
+  // eux la baie se lit comme un trou, et un trou ment.
+  ctx.fillStyle = alpha(PROP.givre, 0.030);
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = alpha(PROP.givre, 0.045);
+  for (const [u, e] of REFLETS) {
+    const bx = x + w * u;
+    ctx.beginPath();
+    ctx.moveTo(bx, y + h);
+    ctx.lineTo(bx + w * e, y + h);
+    ctx.lineTo(bx + h * 0.55 + w * e, y);
+    ctx.lineTo(bx + h * 0.55, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // LES MENEAUX. Ils donnent l'echelle : sans eux on ne sait pas si la baie fait
+  // deux metres ou vingt.
+  const vert = h >= w;
+  const n = Math.floor((vert ? h : w) / BAIE_MENEAU);
+  if (n >= 1) {
+    ctx.strokeStyle = alpha("#000000", 0.62);
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    for (let i = 1; i <= n; i++) {
+      const v = i / (n + 1);
+      if (vert) { ctx.moveTo(x, y + h * v); ctx.lineTo(x + w, y + h * v); }
+      else { ctx.moveTo(x + w * v, y); ctx.lineTo(x + w * v, y + h); }
+    }
+    ctx.stroke();
+    ctx.strokeStyle = alpha(S.blocEdge, 0.20);
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+
+  // L'OMBRE DU CADRE, tracee DANS le clip : la moitie interieure d'un trait
+  // large. C'est elle qui donne au plancher son EPAISSEUR — une baie sans
+  // tranche est un autocollant.
+  cadreBaie(x, y, w, h);
+  ctx.strokeStyle = alpha("#000000", 0.55);
+  ctx.lineWidth = 18;
+  ctx.stroke();
   ctx.restore();
+
+  cadreBaie(x, y, w, h);
+  ctx.strokeStyle = alpha(S.blocEdge, 0.30);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+/* LE SCINTILLEMENT NE SE CUIT PAS. Une couche cuite qu'on ferait pulser fait
+   pulser TOUT le ciel d'un coup, ce qui n'est pas un scintillement mais un
+   projecteur. Ici chaque etoile a sa propre horloge, et le regroupement par
+   PALIER de clarte garde le cout a trois `fill` — le meme geste que les etoiles
+   cuites, un cran plus vivant. Rien ne s'alloue : la position d'une etoile est
+   une fonction de son indice. */
+const SCINT_N = 420;
+function scintiller(f, X, Y, W, H) {
+  const dx = camera.x - CFG.ARENA_W / 2, dy = camera.y - CFG.ARENA_H / 2;
+  const ox = camera.x0 - f.marge - dx * FOND_PRES;
+  const oy = camera.y0 - f.marge - dy * FOND_PRES;
+  const t = performance.now() / 1000;
+
+  for (let p = 0; p < 3; p++) {
+    ctx.fillStyle = alpha(PROP.astre, 0.22 + p * 0.29);
+    ctx.beginPath();
+    let vide = true;
+    for (let i = 0; i < SCINT_N; i++) {
+      const sx = ox + h01(i) * f.w, sy = oy + h01(i + 5011) * f.h;
+      if (sx < X || sx > X + W || sy < Y || sy > Y + H) continue;
+      const u = 0.5 + 0.5 * Math.sin(t * (0.5 + h01(i + 1229) * 1.7) + h01(i + 911) * 40);
+      if (((u * 3) | 0) !== p) continue;
+      ctx.rect(sx, sy, 1.8 + p * 0.7, 1.8 + p * 0.7);
+      vide = false;
+    }
+    if (!vide) ctx.fill();
+  }
 }
 
 export function drawFloor() {

@@ -3633,6 +3633,37 @@
                    vaut a tous les paliers, comme `silhouetteBloc` et comme la
                    palette d arene. Aucun point de lecture de `gfx` en plus.
 
+     0.19.1 lot 2  LA NEBULEUSE ETAIT UNE SALLE BLEUE, ET SON COSMOS ETAIT
+                   DESSOUS. `fondEspace()` existait depuis le plan 14 — bande de
+                   nebuleuse, astres a terminateur, 765 etoiles en trois `fill` —
+                   et ne se voyait pas : le plancher est peint a 0,93, et les
+                   baies etaient trois hexagones de 41 px par tuile de 400, soit
+                   4 % de la surface, DECOUPES DANS LE MOTIF donc repetes sur un
+                   reseau de 400 px.
+                   LA BAIE DEMENAGE ET DEVIENT UNE VERRIERE. Tiree par cellule de
+                   nervure — meme pas que ce qui la borde, ce qui explique sa
+                   place —, deux formats, et elle REDESSINE l arriere-plan a
+                   pleine valeur au lieu de compter sur ce qui transparait.
+                   Mesure : 20,0 % d arene ouverte, 18 a 25 % de la vue, onze
+                   baies au pire. Vitree et non ouverte, et ce n est pas un
+                   detail : un trou franc ment — le joueur le traverse, un
+                   obstacle du biome peut tomber dessus et son ombre porterait
+                   sur du vide. La verriere donne la meme image sans qu une seule
+                   regle de deplacement bouge, donc rien a exclure du semis ni
+                   des obstacles. Ombre de cadre tracee DANS le clip pour donner
+                   au plancher son EPAISSEUR, meneaux pour l echelle.
+                   TROIS PARALLAXES : le gaz entre a 0,10, cuit en
+                   DEMI-RESOLUTION et etire au blit — une nappe floue n a pas
+                   besoin d un pixel par pixel, et l etirement est le flou qu on
+                   aurait paye. Sa bande CROISE celle du lointain. Nuages sombres
+                   ajoutes : une nebuleuse sans masque d absorption est une brume.
+                   Le scintillement ne se cuit pas — une couche cuite qu on fait
+                   pulser fait pulser tout le ciel d un coup. Le blit passe par
+                   SOUS-RECTANGLE : une baie de 300 px ne paie pas une image de
+                   2 200. Les etoiles quittent la passe pleine vue, invisibles
+                   sous un plancher a 0,93. `arena` descend a #06080f : a #0b1020
+                   le ciel n avait nulle part ou etre plus sombre que le sol.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3641,4 +3672,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.19.0";
+export const VERSION = "0.19.1";

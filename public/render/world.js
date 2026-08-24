@@ -15,7 +15,7 @@ import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty,
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
 import { ARROW_MARGIN, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, faisceauAllume, lastPlayerPos, noeudsSortis, noeudsVus, resetGaze } from "./boss.js";
-import { drawArenaBounds, drawAtmosphere, drawFloor, drawFond, drawGrid, drawObstacles, drawPremierPlan, drawVignette, drawWalls, drawWeather } from "./decor.js";
+import { drawArenaBounds, drawAtmosphere, drawBaies, drawFloor, drawFond, drawGrid, drawObstacles, drawPremierPlan, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
 import { drawProps } from "./props.js";
@@ -281,10 +281,13 @@ function drawScreen(v) {
 }
 function drawWorld(v) {
   setCtx(underCtx);
-  // le fond passe AVANT la matiere : la tuile de la Nebuleuse retire ses baies,
-  // et c'est par ces trous qu'il se voit.
+  // le fond passe AVANT la matiere : le plancher de la Nebuleuse est presque
+  // opaque, donc ce qui reste dessous est ce qui a une surface — la nebuleuse et
+  // son gaz. Le CIEL, lui, se regarde par une baie, et une baie repeint le fond
+  // a pleine valeur PAR-DESSUS le plancher : c'est du verre, pas un trou.
   drawFond();
   drawFloor();
+  drawBaies();
   drawGrid();
   drawProps();
   // LA LUMIERE S'ARRETE ICI. Tout ce qui suit est du gameplay — marques,

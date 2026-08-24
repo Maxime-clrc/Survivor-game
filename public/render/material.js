@@ -527,8 +527,11 @@ function nebuleuse(g, rand, usure) {
     }
   }
 
+  // le meneau du nid d abeille RECULE : depuis le lot 1 la nervure du pont
+  // porte le pas de 20 m, et depuis celui-ci la baie porte le vide. Trois
+  // reseaux de meme force sur un seul sol se lisent « salle », pas « pont ».
   g.lineWidth = 2.4;
-  g.strokeStyle = alpha("#000000", 0.40);
+  g.strokeStyle = alpha("#000000", 0.30);
   g.beginPath();
   for (let j = -1; j <= N; j++) {
     for (let i = -1; i <= N; i++) {
@@ -541,34 +544,15 @@ function nebuleuse(g, rand, usure) {
   }
   g.stroke();
   g.lineWidth = 1;
-  g.strokeStyle = alpha(PROP.givre, 0.055);
+  g.strokeStyle = alpha(PROP.givre, 0.040);
   g.stroke();
 
-  // LES BAIES : des cellules RETIREES. `destination-out` parce qu un hexagone ne
-  // se `clearRect` pas — et c est justement ce qui empeche la baie de redevenir
-  // un rectangle.
-  const baies = [];
-  for (let k = 0; k < 3; k++) {
-    baies.push([1 + Math.floor(rand() * (N - 2)), 1 + Math.floor(rand() * (N - 2))]);
-  }
-  g.save();
-  g.globalCompositeOperation = "destination-out";
-  g.fillStyle = "#000";
-  for (const [i, j] of baies) {
-    const [cx, cy] = centreHex(i, j);
-    g.save(); g.translate(cx, cy); g.scale(0.82, 0.82); g.translate(-cx, -cy);
-    cellule(g, cx, cy); g.fill();
-    g.restore();
-  }
-  g.restore();
-  for (const [i, j] of baies) {
-    const [cx, cy] = centreHex(i, j);
-    g.save(); g.translate(cx, cy); g.scale(0.82, 0.82); g.translate(-cx, -cy);
-    cellule(g, cx, cy);
-    g.strokeStyle = alpha("#000000", 0.50); g.lineWidth = 6; g.stroke();
-    g.strokeStyle = alpha(PROP.givre, 0.20); g.lineWidth = 1.6; g.stroke();
-    g.restore();
-  }
+  /* LES BAIES NE SONT PLUS ICI. Elles etaient trois cellules retirees par
+     tuile — 4 % de la surface, et surtout decoupees DANS le motif, donc
+     repetees sur un reseau de 400 px. Une baie doit etre GRANDE, RARE et
+     ANCREE AU MONDE : elle vit maintenant dans `drawBaies()` (`decor.js`), qui
+     redessine l arriere-plan a pleine valeur au lieu de compter sur ce qui
+     transparait sous un plancher a 0,93. */
 
   g.lineWidth = 1;
   for (let i = 0; i < 40; i++) {
@@ -604,9 +588,62 @@ export function fondEspace(seed, viewW, viewH) {
   const cle = `${seed}|${viewW}|${viewH}`;
   if (fondCache && fondCache.cle === cle) return fondCache;
   const w = viewW + FOND_MARGE * 2, h = viewH + FOND_MARGE * 2;
-  fondCache = { cle, w, h, marge: FOND_MARGE,
-                loin: cuireLoin(seed, w, h), pres: cuireEtoiles(seed, w, h) };
+  fondCache = { cle, w, h, marge: FOND_MARGE, ech: GAZ_ECH,
+                loin: cuireLoin(seed, w, h),
+                gaz: cuireGaz(seed, w, h),
+                pres: cuireEtoiles(seed, w, h) };
   return fondCache;
+}
+
+/* LA TROISIEME PARALLAXE, ET ELLE EST CUITE A MOITIE. Deux couches donnaient
+   deja de la profondeur ; ce qui manquait etait ce qui se passe ENTRE l infini
+   et les etoiles proches — du gaz, assez pres pour deriver visiblement, assez
+   diffus pour n avoir aucune arete. Une nappe floue n a pas besoin d un pixel
+   par pixel : elle est cuite en demi-resolution et etiree au blit, soit un
+   quart de la memoire des deux autres.
+
+   Sa bande croise celle de `cuireLoin` au lieu de la suivre — deux bandes
+   paralleles se lisent comme une seule, deux bandes croisees comme un volume. */
+const GAZ_ECH = 2;
+function cuireGaz(seed, w, h) {
+  const cv = document.createElement("canvas");
+  cv.width = Math.ceil(w / GAZ_ECH); cv.height = Math.ceil(h / GAZ_ECH);
+  const g = cv.getContext("2d");
+  const rand = mulberry32((seed >>> 0) * 4111 + 23);
+  const W = cv.width, H = cv.height;
+
+  g.save();
+  g.translate(W / 2, H / 2);
+  g.rotate(0.66);
+  const bande = g.createLinearGradient(0, -H * 0.30, 0, H * 0.30);
+  bande.addColorStop(0, alpha("#1c3a4a", 0));
+  bande.addColorStop(0.48, alpha("#48407a", 0.10));
+  bande.addColorStop(1, alpha("#1c3a4a", 0));
+  g.fillStyle = bande;
+  g.fillRect(-W, -H * 0.30, W * 2, H * 0.60);
+  g.restore();
+
+  // LES NUAGES SOMBRES COMPTENT AUTANT QUE LES CLAIRS : une nebuleuse sans
+  // masque d absorption est une brume. Trois nappes noires, plus larges.
+  for (let i = 0; i < 3; i++) {
+    const x = rand() * W, y = rand() * H, r = 140 + rand() * 190;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, alpha("#000000", 0.30));
+    grad.addColorStop(1, alpha("#000000", 0));
+    g.fillStyle = grad;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+
+  for (let i = 0; i < 6; i++) {
+    const x = rand() * W, y = rand() * H, r = 90 + rand() * 160;
+    const col = ["#3a5a8c", "#5a3a70", "#2a6a72"][(rand() * 3) | 0];
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, alpha(col, 0.09 + rand() * 0.05));
+    grad.addColorStop(1, alpha(col, 0));
+    g.fillStyle = grad;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  return cv;
 }
 
 function cuireLoin(seed, w, h) {

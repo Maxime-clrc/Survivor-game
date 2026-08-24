@@ -257,8 +257,11 @@ export const BIOME_SKIN = {
   // la seule ambiante FROIDE du depot, la plus profonde, et le seul emissif qui
   // ne soit pas ambre : dans le vide il n'y a pas de lumiere rasante, seulement
   // les feux de position de la station.
+  // `arena` descend sous les trois autres, et c'est le lieu qui l'exige : c'est
+  // la valeur a laquelle la nebuleuse et les etoiles se comparent. A #0b1020 le
+  // ciel n'avait nulle part ou etre plus sombre que le sol.
   nebuleuse: {
-    arena: "#0b1020", gridFine: "#16203a", gridMajor: "#24325a",
+    arena: "#06080f", gridFine: "#16203a", gridMajor: "#24325a",
     bloc: "#38455f", blocEdge: "#7fa8d8",
     amb: "#59637d", k: 0.70, dir: [0.58, 0.81], emis: "#7fd0e8",
   },

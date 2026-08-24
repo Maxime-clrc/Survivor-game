@@ -315,32 +315,61 @@ interchangeables.
 ### L'arrière-plan
 
 **`drawFond()` est le seul arrière-plan du jeu**, et il n'existe que pour les
-biomes qui déclarent `fond` dans `BIOMES`. Il se dessine **entre la couleur
-d'arène et la matière du sol**.
+biomes qui déclarent `fond` dans `BIOMES`. Il se dessine **deux fois** : une
+passe pleine vue entre la couleur d'arène et la matière du sol, puis une passe
+**par baie**, après le sol, à pleine valeur.
 
-**La Nébuleuse est le seul sol qui SOUSTRAIT** : les trois autres tuiles posent
-des couches translucides par-dessus la couleur d'arène ; celle-ci peint un pont
-presque opaque puis en **retire** les baies. C'est par ces trous que le vide se
-voit. **On marche sur un plancher, jamais sur le vide.**
-
-- Presque opaque (0,93) et non opaque : la teinte de mode continue de traverser.
-- **Son plancher est un nid d'abeille, et il n'a pas de maille de 5 m** —
-  `cuire()` la saute pour ce biome, comme pour la Friche. Une baie est donc une
-  **cellule retirée** en `destination-out` : un hexagone ne se `clearRect` pas,
-  et c'est justement ce qui l'empêche de redevenir un rectangle. Le réseau de
-  joints devient son meneau.
+- **Trois parallaxes, pas deux** — un fond à une seule vitesse est un
+  autocollant, et à deux il manque ce qui se passe *entre* l'infini et le
+  proche. Astres 0,05, **gaz 0,10**, étoiles 0,16. Le gaz est cuit en
+  **demi-résolution** et étiré au blit : une nappe floue n'a pas besoin d'un
+  pixel par pixel, et l'étirement *est* le flou qu'on aurait payé autrement.
+  Sa bande **croise** celle de la couche lointaine — deux bandes parallèles se
+  lisent comme une seule, deux bandes croisées comme un volume.
 - **Une bande de nébuleuse traverse toute l'image** : elle donne l'échelle parce
   qu'elle ne tient pas dans l'écran, là où un amas de taches de même taille se
-  lit comme du bruit.
-- **Le fond dérive** — 8 px sur deux minutes, et **seulement la couche
-  lointaine** : les étoiles proches restent fixes, sinon c'est le vaisseau qui
-  semblerait tanguer.
-- **Deux parallaxes, pas une** — un fond à une seule vitesse est un autocollant.
-  Astres à 0,05, étoiles à 0,16, deux `drawImage` par image.
-- Les étoiles sont groupées par **palier de clarté** : trois `fill`, pas un
-  `arc` par étoile.
+  lit comme du bruit. Les nuages **sombres** comptent autant que les clairs : une
+  nébuleuse sans masque d'absorption est une brume.
+- **Le fond dérive**, et seulement ce qui est **loin** : les étoiles proches
+  restent fixes, sinon c'est le vaisseau qui semblerait tanguer.
+- Les étoiles cuites sont groupées par **palier de clarté** : trois `fill`, pas
+  un `arc` par étoile. **Le scintillement, lui, ne se cuit pas** — faire pulser
+  une couche cuite fait pulser tout le ciel d'un coup, ce qui est un projecteur
+  et non un scintillement. Chaque étoile a son horloge, le regroupement par
+  palier garde le coût à trois `fill`, et rien ne s'alloue : la position est une
+  fonction de l'indice.
 - Un astre sans **terminateur** est un disque. Le croissant sombre coûte un
   second arc en `destination-out`.
+- **Le blit se fait par sous-rectangle** : une baie de 300 px ne paie pas une
+  image de 2 200. On calcule le morceau de source, on ne laisse pas un clip s'en
+  charger.
+
+#### La baie
+
+**C'est elle qui dit qu'on est dans l'espace.** Avant : trois hexagones retirés
+par tuile, 4 % de la surface, découpés *dans* le motif — donc répétés tous les
+400 px et remplis par ce qui transparaissait sous un plancher à 0,93. Résultat à
+l'écran : une salle hexagonale bleue, avec un cosmos invisible dessous.
+
+- **Une baie occupe une travée du pont** : elle est tirée par **cellule de
+  nervure**, donc au même pas de 400 px que ce qui la borde — c'est ce qui
+  explique sa forme et sa place. Deux formats, la travée pleine et la bande,
+  sinon un tirage par cellule redevient un damier de carrés identiques.
+- **ELLE EST VITRÉE, ET CE N'EST PAS UN DÉTAIL.** Un trou franc dans le plancher
+  ment : le joueur le traverse, les ennemis le traversent, un obstacle du biome
+  peut tomber dessus et son ombre porterait sur du vide. Une verrière donne
+  exactement la même image — le vide, en grand, sous les pieds — sans qu'aucune
+  règle de déplacement ne bouge. Rien à exclure du semis, rien à exclure des
+  obstacles. **On marche sur un plancher, jamais sur le vide.**
+- Le voile de verre **plafonne** aussi la clarté de la baie, donc la lisibilité
+  d'un ennemi qui passe dessus.
+- **L'ombre du cadre est tracée DANS le clip** : la moitié intérieure d'un trait
+  large. C'est elle qui donne au plancher son **épaisseur** — une baie sans
+  tranche est un autocollant. Les **meneaux** donnent l'échelle : sans eux on ne
+  sait pas si la baie fait deux mètres ou vingt.
+- Le plancher reste presque opaque (0,93) et son nid d'abeille **recule** : la
+  nervure porte le pas, la baie porte le vide, trois réseaux de même force sur un
+  seul sol se lisent « salle ».
 
 ### Le palier de qualité
 

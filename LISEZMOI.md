@@ -8,6 +8,31 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les baies de la Nébuleuse (0.19.1)
+
+Réglage de `BAIE_TAUX`, `BAIE_INSET` et du format de bande, mesuré sur six
+graines en balayant la caméra tous les 100 px sur toute l'arène (4800 × 2700,
+vue 1600 × 900, pas de nervure 400).
+
+| réglage | % d'arène ouverte | % de vue en moyenne | baies visibles au pire |
+|---|---|---|---|
+| taux 0,34 · inset 52 · bande 0,42 | 14,9 | 14,0 – 19,7 | 11 |
+| **taux 0,38 · inset 38 · bande 0,50** | **20,0** | **18,2 – 25,3** | **11** |
+
+Le second est retenu : un tiers de surface ouverte en plus **sans un blit de
+plus**, parce que le gain vient de la taille et non du nombre. Zéro débordement
+d'arène sur les six graines (la dernière rangée de cellules est tronquée à
+300 px de haut, la baie y descend à 196 et reste au-dessus du plancher de 70).
+
+Coût par image au pire : 11 baies × 3 `drawImage` de sous-rectangle ≈ 3 Mpx,
+soit **deux fois un blit pleine vue**. Les étoiles ont quitté la passe pleine
+vue en échange — sous un plancher à 0,93 elles ne se voyaient pas.
+
+Mémoire de l'arrière-plan cuit, vue 1600 × 900 plus 300 px de marge de chaque
+côté : `loin` 2200 × 1500 (13 Mo), `pres` 2200 × 1500 (13 Mo), `gaz` 1100 × 750
+(3,3 Mo). Le gaz est en demi-résolution **parce qu'il est flou** ; à pleine
+résolution la troisième parallaxe aurait coûté 13 Mo pour aucune arête de plus.
+
 ### Les dix armes (plan 12, lots 5 et 6)
 
 **Le critère d'avant ne connaissait qu'un nombre** — le DPS nominal en cible
