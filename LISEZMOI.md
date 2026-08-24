@@ -8,6 +8,70 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le critère de non-régression, rendu mesurable (0.19.6)
+
+Le plan 16 s'était donné un critère qui ne s'exécute pas : *« si on échange les
+quatre noms et que les captures restent difficiles à attribuer, le travail n'est
+pas fini »*. La moitié qui pouvait devenir du code l'est : `signatureBiome()`
+décrit une loi d'implantation en **quatre nombres**, et `verifierBiomes()` refuse
+que deux lieux se ressemblent sur les quatre à la fois.
+
+| lieu | densité (obj/vue) | encombrement | contraste | élongation |
+|---|---|---|---|---|
+| usine | 7,0 | 4,2 % | ×2,5 | ×11,4 |
+| fonderie | 5,0 | 6,8 % | ×4,7 | ×9,6 |
+| friche | 10,0 | 4,4 % | ×2,1 | ×4,9 |
+| nébuleuse | 7,0 | 7,0 % | ×18,9 | ×15,8 |
+
+Deux lois sont distinctes dès qu'**un** axe les sépare d'au moins **40 %** —
+exiger les quatre interdirait des variations légitimes, n'en exiger aucun a
+produit deux fois la même map.
+
+| paire | axe qui sépare | écart |
+|---|---|---|
+| usine / fonderie | contraste | 47 % |
+| usine / friche | élongation | 57 % |
+| usine / nébuleuse | contraste | 87 % |
+| fonderie / friche | contraste | 56 % |
+| fonderie / nébuleuse | contraste | 75 % |
+| friche / nébuleuse | contraste | 89 % |
+
+**Le garde-fou attrape le défaut qu'il est censé attraper** — rejoué contre
+l'ancienne table de la Nébuleuse, celle d'avant le lot 3 :
+
+| axe | usine | nébuleuse (avant) | écart |
+|---|---|---|---|
+| densité | 7,00 | 7,00 | 0 % |
+| encombrement | 4,2 % | 4,3 % | 3 % |
+| contraste | ×2,46 | ×3,25 | 24 % |
+| élongation | ×11,36 | ×15,69 | **28 %** |
+
+Meilleur axe à 28 % pour un seuil de 40 % : les deux lois auraient été signalées.
+
+`verifierBiomes()` muet sur **200 graines × 4 lieux × 3 modes**, lois comprises.
+
+#### Ce qui ne se mesure pas, et son protocole
+
+**Le test du nom masqué.** `BIOME=<clé> GRAINE=7 PORT=7911 node server.js`, une
+capture par lieu à la même graine, **recadrée sous le bandeau de segment** (le
+nom du lieu y est écrit). Montrer les quatre dans un ordre quelconque. La réponse
+attendue est « une zone abandonnée / une usine automatisée / une fonderie /
+l'espace ». « Quatre installations industrielles différentes » est un échec.
+
+**Le coût par palier.** `?perf` affiche fps, particules, `GL/2D`, lots, quads.
+Relever aux quatre paliers `gfx`, sur la Nébuleuse (le lieu le plus chargé :
+jusqu'à 11 baies × 3 blits) et sur la Fonderie (jusqu'à 10 regards, chacun une
+source de lumière et un champ). Le contrat de `low` porte sur la **technique** —
+matière, semis, lumière, grille d'avant le plan 13 — et **pas** sur la forme d'un
+lieu : la grille par biome et le liseré de bloc valent à tous les paliers, c'est
+de la direction artistique.
+
+**Les cinq points de lecture de `gfx`** — `material`, `props`, `lumiere`,
+`decor`, `fx` — se vérifient au `grep`. Ils étaient **six** depuis le plan 13 :
+`actors.js` gardait sa passe d'ombres par un `gfx >= GFX_MEDIUM`. Corrigé en
+0.19.6 par `ombresActives()`, même motif que `lumiereActive()` : l'appelant
+apprend ce qu'il doit savoir sans devenir un point de lecture.
+
 ### La part de props propre à chaque lieu (0.19.4)
 
 Un prop est **propre** quand il n'appartient pas au fonds commun. Relevé sur les

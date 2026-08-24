@@ -3800,6 +3800,39 @@
                    L EMBASE DE CHEMINEE ferme la boucle avec le premier plan : les
                    cheminees du bord ont enfin un pied.
 
+     0.19.6 lot 7  LE CRITERE DU PLAN NE S EXECUTAIT PAS. « Si on echange les
+                   quatre noms et que les captures restent difficiles a
+                   attribuer, le travail n est pas fini » : vrai, et inverifiable.
+                   La moitie qui pouvait devenir du code l est.
+                   `signatureBiome()` decrit une loi d implantation en QUATRE
+                   nombres — densite, encombrement, contraste de taille,
+                   elongation — et `verifierBiomes()` refuse que deux lieux se
+                   ressemblent sur les quatre a la fois : un axe doit les separer
+                   d au moins 40 %. Exiger les quatre interdirait des variations
+                   legitimes, n en exiger aucun a produit deux fois la meme map.
+                   Le contraste seul laissait passer Usine/Friche, l elongation
+                   seule laissait passer Usine/Nebuleuse — il faut les quatre
+                   axes pour que le test tienne.
+                   ET IL ATTRAPE LE DEFAUT QU IL EST CENSE ATTRAPER : rejoue
+                   contre l ancienne table de la Nebuleuse, celle d avant le lot
+                   3, le meilleur axe tombe a 28 % pour un seuil de 40 %. Les deux
+                   lois auraient ete signalees. Ecarts actuels : 47 a 89 %.
+                   `verifierBiomes()` muet sur 200 graines, lois comprises.
+                   AU PASSAGE, UN INVARIANT FAUX DEPUIS LE PLAN 13 : `gfx` avait
+                   SIX points de lecture, pas cinq — `actors.js` gardait sa passe
+                   d ombres par un `gfx >= GFX_MEDIUM`, et la documentation
+                   affirmait le contraire depuis 0.16.10. `ombresActives()`, meme
+                   motif que `lumiereActive()` : l appelant apprend ce qu il doit
+                   savoir sans devenir un point de lecture. Sauter une passe qui
+                   balaye la horde entiere vaut la peine ; le payer d un sixieme
+                   point, non. Verifie au grep : material, props, lumiere, decor,
+                   fx, et rien d autre.
+                   CE QUI NE SE MESURE PAS A SON PROTOCOLE, dans `LISEZMOI.md` :
+                   le test du nom masque (captures RECADREES SOUS LE BANDEAU, le
+                   nom du lieu y est ecrit) et le releve de cout aux quatre
+                   paliers `gfx` sur les deux lieux les plus charges — la
+                   Nebuleuse et ses onze baies, la Fonderie et ses dix regards.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3808,4 +3841,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.19.5";
+export const VERSION = "0.19.6";

@@ -7,9 +7,9 @@ import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, fullMods, traitsOf } from "/shared/game_state.js";
 import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
-import { EMPTY_SET, GFX_MEDIUM, bombReadyAt, difficulty, gfx, myId, ownedCounts } from "../core/state.js";
+import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
-import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawOmbre, fxGlow, fxShard, hits, particles, setZoneFx, zoneFx } from "./fx.js";
+import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawOmbre, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, zoneFx } from "./fx.js";
 import { ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
@@ -1709,7 +1709,7 @@ export function drawEnemies(list, view) {
   // PASSE SEPAREE, et c'est la seule facon correcte : une ombre posee juste
   // avant SON corps tomberait sur le corps deja dessine du voisin. Meme mode de
   // melange que les corps, donc meme lot GL — aucun appel de dessin en plus.
-  if (gfx >= GFX_MEDIUM) {
+  if (ombresActives()) {
     for (const e of list) {
       if (!inView(e.x, e.y)) continue;
       const v = windup.has(e.id) ? 1 : voileBrume(e.x, e.y);

@@ -209,7 +209,17 @@ danger, implantation.
 | **mouvement** | un néon qui grésille | **bandes qui défilent, bras, presses, chenille, bouffées** | la fonte qui ondule | la balise qui bat, le cristal qui respire |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
-captures restent difficiles à attribuer, le travail n'est pas fini.
+captures restent difficiles à attribuer, le travail n'est pas fini. Il a **deux
+moitiés, et l'une s'exécute** :
+
+- `signatureBiome()` décrit une loi d'implantation en quatre nombres — densité,
+  encombrement, contraste de taille, élongation — et **`verifierBiomes()` refuse
+  que deux lieux se ressemblent sur les quatre à la fois** : un axe doit les
+  séparer d'au moins 40 %. Ce n'est pas théorique, c'est arrivé — la Nébuleuse a
+  porté la loi de l'Usine jusqu'au plan 16, et rien ne le disait. Rejoué contre
+  l'ancienne table, le contrôle la signale (chiffres dans `LISEZMOI.md`).
+- L'autre moitié demande des yeux : quatre captures **recadrées sous le bandeau**,
+  à la même graine, montrées dans le désordre. Protocole dans `LISEZMOI.md`.
 
 **Le pas de 20 m reste, ce qui le PORTE change** (`GRILLE`, `decor.js`). La
 graduation est la seule chose à l'écran qui serve à lire une portée : elle ne se
@@ -471,6 +481,13 @@ voir le même jeu, pas un autre.
 `props` (densité), `lumiere` (résolution du tampon), `decor` (grille fine),
 `fx` (l'**ombre de contact**). La simulation, les collisions et les apparitions
 ne changent **jamais** entre paliers.
+
+**Ça se vérifie au `grep`, et il faut le faire** : ils étaient six depuis le plan
+13 sans que rien ne le signale — `actors.js` gardait sa passe d'ombres par un
+`gfx >= GFX_MEDIUM`. Quand un appelant a besoin de savoir, il le demande au
+module qui possède le réglage : `ombresActives()`, `lumiereActive()`. Sauter une
+passe qui balaye la horde entière vaut la peine ; devenir un sixième point de
+lecture pour y arriver, non.
 
 **`PARTICLE_MAX` ne suit PAS `gfx`, il suit le RENDERER** — 300 en canvas 2D,
 3 000 en WebGL, posé une fois par `ui/boot.js`. Ce n'est pas un oubli : un

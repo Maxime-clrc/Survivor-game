@@ -941,6 +941,13 @@ export const RING_BUFF0  = CFG.PLAYER_RADIUS + 27;
    frequence. */
 const OMBRE_A = 0.34;
 const OMBRE_PLAT = 0.52;
+/* L'APPELANT A BESOIN DE SAVOIR, et il n'a pas le droit de le demander a `gfx`.
+   `drawOmbre` se garde deja toute seule, mais la passe qui l'appelle balaye la
+   horde entiere : la sauter vaut la peine, et le faire avec un `gfx >= ...` chez
+   l'appelant ferait de lui un SIXIEME point de lecture. Meme motif que
+   `lumiereActive()`. */
+export function ombresActives() { return gfx >= GFX_MEDIUM; }
+
 export function drawOmbre(x, y, r, k = 1) {
   if (gfx < GFX_MEDIUM || !fxGlow) return;
   const d = lumDir();

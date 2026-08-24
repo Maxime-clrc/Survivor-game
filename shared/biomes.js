@@ -389,10 +389,63 @@ export function windAt(w, t) {
   return { ang, dx: Math.cos(ang), dy: Math.sin(ang), force: rampe * ampleur };
 }
 
+/* LA SIGNATURE D UNE LOI D IMPLANTATION, en quatre nombres. Elle existe pour une
+   seule raison : DEUX LIEUX NE PEUVENT PAS PARTAGER UNE LOI, et c est arrive —
+   la Nebuleuse a porte celle de l Usine jusqu au plan 16, barre 0,230 x 0,036
+   contre 0,300 x 0,034. Deux lieux a la meme implantation sont le meme lieu,
+   quelle que soit la couleur du sol, et rien ne le signalait.
+
+   Les quatre axes disent des choses differentes, et c est voulu : la DENSITE
+   (combien d objets par vue), l ENCOMBREMENT (quelle part de sol), le CONTRASTE
+   (le rapport de la plus grosse piece a la plus petite) et l ELONGATION (une
+   barre ou un pave). Le contraste seul laissait passer Usine/Friche, l elongation
+   seule laissait passer Usine/Nebuleuse. */
+export function signatureBiome(biomeIndex, arenaW = 1600, arenaH = 900,
+                               viewW = 1600, viewH = 900) {
+  const b = buildBiome(biomeIndex, 2, 7, arenaW, arenaH, viewW, viewH);
+  const vues = Math.max(1, Math.round(arenaW / viewW) * Math.round(arenaH / viewH));
+  let min = Infinity, max = 0, elong = 0;
+  for (const o of b.obstacles) {
+    const a = o.w * o.h;
+    if (a < min) min = a;
+    if (a > max) max = a;
+    elong = Math.max(elong, o.w / o.h, o.h / o.w);
+  }
+  return {
+    key: b.key,
+    densite: b.obstacles.length / vues,
+    encombrement: b.obstacleSurface,
+    contraste: min > 0 ? max / min : 1,
+    elongation: elong,
+  };
+}
+
+// deux lois sont distinctes des qu'UN axe les separe franchement. Exiger les
+// quatre interdirait des variations legitimes ; n'en exiger aucun a produit deux
+// fois la meme map.
+const LOI_ECART = 0.40;
+const LOI_AXES = ["densite", "encombrement", "contraste", "elongation"];
+
 export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
                                viewW = 1600, viewH = 900) {
   const soucis = [];
   const budget = BIOME_CFG.HAZARD_SURFACE_MAX;
+
+  const sigs = BIOMES.map((_, i) => signatureBiome(i, arenaW, arenaH, viewW, viewH));
+  for (let a = 0; a < sigs.length; a++) {
+    for (let b = a + 1; b < sigs.length; b++) {
+      let ecart = 0, axe = "";
+      for (const k of LOI_AXES) {
+        const hi = Math.max(sigs[a][k], sigs[b][k]);
+        const e = hi > 0 ? Math.abs(sigs[a][k] - sigs[b][k]) / hi : 0;
+        if (e > ecart) { ecart = e; axe = k; }
+      }
+      if (ecart < LOI_ECART) {
+        soucis.push(`${sigs[a].key}/${sigs[b].key} : lois d'implantation trop proches `
+          + `(meilleur axe ${axe} a ${(ecart * 100).toFixed(0)} %, seuil ${LOI_ECART * 100} %)`);
+      }
+    }
+  }
 
   for (let bi = 0; bi < BIOMES.length; bi++) {
     for (let di = 0; di < 3; di++) {
