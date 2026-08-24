@@ -3664,6 +3664,38 @@
                    sous un plancher a 0,93. `arena` descend a #06080f : a #0b1020
                    le ciel n avait nulle part ou etre plus sombre que le sol.
 
+     0.19.2 lot 3  LA NEBULEUSE NE PARTAGE PLUS RIEN. Elle tirait CINQ props sur
+                   douze dans le fonds commun — caillebotis, plaque, cable,
+                   tuyau, coffret : de la quincaillerie terrestre posee au sol
+                   d une station orbitale parce qu elle etait deja ecrite, la
+                   seule justification qu un prop n a pas le droit d avoir. Cinq
+                   props remplacent les cinq : EPAVE (fragment de coque anguleux
+                   a nervure interne), VOILE (panneau solaire bleu-noir et son
+                   bras), MODULE (capsule, anneaux, hublot — le seul prop du lieu
+                   qui ait ete habite), CRISTAL (emissif froid, il RESPIRE
+                   profond : la seule source du depot qui ne soit pas un
+                   appareil), ANTENNE (parabole MORTE — ce qui appelle encore ici
+                   est la balise, et il ne doit y avoir qu une chose qui appelle).
+                   Douze tirages sur douze lui appartiennent. Les trois lieux
+                   terrestres gardent leur fonds : ils SONT industriels.
+                   SA LOI D IMPLANTATION ETAIT CELLE DE L USINE a un centieme
+                   pres — barre 0,230 x 0,036 contre 0,300 x 0,034. Deux lieux a
+                   la meme implantation sont le meme lieu. La sienne devient le
+                   CONTRASTE DE TAILLE : deux masses en diagonale, deux travees a
+                   l aplomb des bords, des eclats. Mesure du rapport plus grosse
+                   piece / plus petite : x18,9 contre x4,7 Fonderie, x2,5 Usine,
+                   x2,1 Friche — et le centre reste vide. `verifierBiomes()` muet
+                   sur 200 graines x 4 lieux x 3 modes.
+                   L AMBIANCE SUIT LE LIEU : dans le vide rien ne reste en
+                   suspension, donc pas de poussiere — du DEBRIS, cinq fois plus
+                   lent et froid, en DEUX nappes croisees. Une seule nappe se lit
+                   comme du vent, et il n y a pas de vent dans le vide.
+                   ET LE BORD SE VOIT ENFIN : les haubans etaient des traits noirs
+                   a 0,40 sur le fond le plus sombre du jeu, donc rien. Des
+                   VOILURES les remplacent — une surface se lit en noir sur noir
+                   par le decoupage de sa trame — plus un ratelier d antennes pour
+                   l echelle.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3672,4 +3704,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.19.1";
+export const VERSION = "0.19.2";

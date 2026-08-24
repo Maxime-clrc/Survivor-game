@@ -613,11 +613,28 @@ export function drawWeather(tm) {
    TOUT RESTE DISCRET : a l'arret quelque chose bouge et on ne sait pas dire
    quoi ; en mouvement on ne le remarque pas. */
 const POUSSIERE = 150;
+
+/* LA POUSSIERE N'EST PAS LA MEME PARTOUT. Dans le vide il n'y a pas d'air, donc
+   rien ne reste en suspension : ce qui derive est du DEBRIS — cinq fois plus
+   lent, deux fois plus court, et froid. Il derive dans DEUX sens : deux nappes
+   croisees se lisent comme un volume, une seule comme du vent, et il n'y a pas
+   de vent dans le vide. */
+const AMBIANCE = {
+  nebuleuse: { v: 5, l: 3, n: 110, col: PROP.givre, a: 0.075, e: 1.9,
+               contre: { ang: -1.9, v: 3, l: 5, n: 60, a: 0.045, e: 1.3 } },
+};
+const AMB_DEFAUT = { v: 24, l: 5, n: POUSSIERE, col: WEATHER.wind, a: 0.055, e: 1.6 };
+
 export function drawAtmosphere(tm) {
   if (gfx < GFX_HIGH) return;
 
-  champ(tm, Math.PI * 0.62 + Math.sin(tm * 0.07) * 0.30, 24, 5,
-        POUSSIERE, WEATHER.wind, 0.055, 1.6);
+  const A = AMBIANCE[biomeAt(biomeIndex).key] ?? AMB_DEFAUT;
+  champ(tm, Math.PI * 0.62 + Math.sin(tm * 0.07) * 0.30, A.v, A.l,
+        A.n, A.col, A.a, A.e);
+  if (A.contre) {
+    const c = A.contre;
+    champ(tm, c.ang + Math.sin(tm * 0.04) * 0.22, c.v, c.l, c.n, A.col, c.a, c.e);
+  }
 
   for (const h of hazardsActifs()) {
     if (h.kind === HZ_SLOW || h.kind === HZ_SLIP) continue;
@@ -764,28 +781,67 @@ function grillage(h, dx, dy) {
   }
 }
 
-// LA NEBULEUSE : des haubans et une antenne. Rien de massif — dans le vide, une
-// silhouette lourde en haut de l ecran ne tiendrait a rien.
+/* LA NEBULEUSE : des VOILURES et un ratelier d'antennes. Les haubans etaient des
+   traits noirs a 0,40 sur le fond le plus sombre du jeu — ils n'existaient pas a
+   l'ecran. Une voilure a une SURFACE, donc elle se lit meme en noir sur noir :
+   c'est le decoupage de sa trame qui la dessine, pas son contour.
+
+   Un liseré froid a 0,10 sur l'arete haute, et c'est tout ce que ce lieu
+   s'autorise : la regle est que le premier plan assombrit, il n'eclaire pas —
+   mais une arete a 10 % ne fait pas de lumiere, elle rend la forme lisible. */
 function haubans(h, dx, dy) {
-  ctx.strokeStyle = alpha(SURFACE.void, 0.40);
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  for (let i = 0; i < 5; i++) {
-    const x = ((i * 379 + dx) % (CFG.VIEW_W + 300)) - 150;
+  for (let i = 0; i < 4; i++) {
+    const x = ((i * 449 + dx) % (CFG.VIEW_W + 340)) - 170;
     const haut = (i & 1) === 0;
-    const y0 = haut ? -20 : CFG.VIEW_H + 20;
-    const y1 = haut ? h * 0.9 - dy * 0.4 : CFG.VIEW_H - h * 0.9 - dy * 0.4;
-    ctx.moveTo(x, y0); ctx.lineTo(x + 62, y1);
-    ctx.moveTo(x + 124, y0); ctx.lineTo(x + 62, y1);
-    ctx.moveTo(x + 62, y1); ctx.lineTo(x + 62, y0);
+    const w = 132 + (i % 3) * 38, hh = h * (0.72 + (i % 2) * 0.22);
+    const y = haut ? -18 - dy * 0.4 : CFG.VIEW_H + 18 - hh - dy * 0.4;
+    const pen = ((i * 5) % 3 - 1) * 0.05;
+
+    ctx.save();
+    ctx.translate(x + w / 2, y + hh / 2);
+    ctx.rotate(pen);
+    ctx.fillStyle = alpha(SURFACE.void, 0.46);
+    ctx.fillRect(-w / 2, -hh / 2, w, hh);
+    // LA TRAME : c'est elle qui dit « panneau solaire » et non « bloc noir ».
+    ctx.strokeStyle = alpha(SURFACE.void, 0.62);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let k = 1; k < 5; k++) {
+      const u = -w / 2 + (w / 5) * k;
+      ctx.moveTo(u, -hh / 2); ctx.lineTo(u, hh / 2);
+    }
+    ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0);
+    ctx.stroke();
+    ctx.strokeStyle = alpha(PROP.givre, 0.10);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, haut ? hh / 2 : -hh / 2);
+    ctx.lineTo(w / 2, haut ? hh / 2 : -hh / 2);
+    ctx.stroke();
+    // LE MAT qui la porte : une voilure sans bras flotte sans raison.
+    ctx.fillStyle = alpha(SURFACE.void, 0.52);
+    ctx.fillRect(-5, haut ? -hh / 2 - 30 : hh / 2, 10, 34);
+    ctx.restore();
+  }
+
+  // LE RATELIER D'ANTENNES : trois mats fins et leurs traverses. C'est le seul
+  // detail fin de ce bord, et il donne l'echelle des voilures.
+  ctx.strokeStyle = alpha(SURFACE.void, 0.50);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const x = ((i * 661 + dx) % (CFG.VIEW_W + 280)) - 140;
+    const haut = (i & 1) === 1;
+    const y0 = haut ? -18 - dy * 0.4 : CFG.VIEW_H + 18 - dy * 0.4;
+    const y1 = haut ? h * 0.86 : CFG.VIEW_H - h * 0.86;
+    ctx.moveTo(x, y0); ctx.lineTo(x, y1);
+    for (let k = 1; k <= 3; k++) {
+      const y = y0 + (y1 - y0) * (k / 4);
+      const l = 15 - k * 3;
+      ctx.moveTo(x - l, y); ctx.lineTo(x + l, y);
+    }
   }
   ctx.stroke();
-  ctx.fillStyle = alpha(SURFACE.void, 0.34);
-  for (let i = 0; i < 3; i++) {
-    const x = ((i * 617 + dx) % (CFG.VIEW_W + 260)) - 130;
-    const haut = (i & 1) === 0;
-    ctx.fillRect(x, haut ? -20 - dy * 0.4 : CFG.VIEW_H - h * 0.5 - dy * 0.4, 9, h * 0.7);
-  }
 }
 
 export function drawWalls(w) {

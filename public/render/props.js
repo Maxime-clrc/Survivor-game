@@ -15,16 +15,27 @@ import { biomeAt } from "/shared/biomes.js";
 const CELL = 200;
 const MARGE = 1;
 
-/* UNE MAP DOIT RESSEMBLER A SON NOM. Six props communs — ils sont honnetement
-   industriels et valent partout — et un jeu PROPRE a chaque biome, qui porte
-   son verbe : l'Usine fabrique (convoyeurs, caisses, allees), la Fonderie coule
-   (rigoles, lingots, scorie), la Friche a ete abandonnee (gravats, ferraille,
-   tubes morts). Un catalogue partage rendait les trois interchangeables. */
+/* UNE MAP DOIT RESSEMBLER A SON NOM. Un jeu de props PROPRE a chaque biome, qui
+   porte son verbe : l'Usine fabrique (convoyeurs, caisses, allees), la Fonderie
+   coule (rigoles, lingots, scorie), la Friche a ete abandonnee (gravats,
+   ferraille, tubes morts), la Nebuleuse FLOTTE. Un catalogue partage rendait les
+   quatre interchangeables.
+
+   LA NEBULEUSE NE PARTAGE PLUS RIEN. Elle tirait cinq props sur douze dans le
+   fonds commun — caillebotis, plaque, cable, tuyau, coffret : de la quincaillerie
+   TERRESTRE, posee au sol d'une station orbitale parce qu'elle etait deja
+   ecrite. C'est la seule justification qu'un prop n'a pas le droit d'avoir. Son
+   catalogue est desormais entierement le sien ; le lien avec les trois autres
+   lieux passe par la charte, les cadres et les effets de jeu, pas par un tuyau.
+
+   Les trois autres gardent leur fonds commun : il est honnetement industriel, et
+   eux SONT des installations industrielles. */
 const P_PLAQUE = 0, P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_DEBRIS = 4, P_MARQUAGE = 5, P_COFFRET = 6, P_TUBE = 7,
       P_CONVOYEUR = 8, P_CAISSES = 9, P_ALLEE = 10,
       P_RIGOLE = 11, P_LINGOTS = 12, P_SCORIE = 13,
-      P_RAIL = 14, P_GIVRE = 15, P_ANCRAGE = 16, P_BALISE = 17;
+      P_RAIL = 14, P_GIVRE = 15, P_ANCRAGE = 16, P_BALISE = 17,
+      P_EPAVE = 18, P_VOILE = 19, P_MODULE = 20, P_CRISTAL = 21, P_ANTENNE = 22;
 
 // un prop emissif declare son RAYON et sa COULEUR : une rigole en fusion et un
 // voyant de coffret ne sont pas la meme lumiere.
@@ -33,6 +44,7 @@ const EMISSIF = {
   [P_TUBE]:    { r: 78, col: PROP.led },
   [P_RIGOLE]:  { r: 96, col: PROP.fonte },
   [P_BALISE]:  { r: 70, col: PROP.balise },
+  [P_CRISTAL]: { r: 86, col: PROP.balise },
 };
 
 const TABLE = {
@@ -42,8 +54,8 @@ const TABLE = {
              P_TUYAU, P_PLAQUE, P_DEBRIS, P_COFFRET, P_CAILLEBOTIS, P_MARQUAGE],
   friche: [P_DEBRIS, P_DEBRIS, P_CABLE, P_CABLE, P_PLAQUE, P_TUBE,
            P_COFFRET, P_MARQUAGE, P_TUYAU, P_DEBRIS, P_CAILLEBOTIS, P_CABLE],
-  nebuleuse: [P_RAIL, P_RAIL, P_ANCRAGE, P_ANCRAGE, P_GIVRE, P_GIVRE,
-              P_BALISE, P_CAILLEBOTIS, P_PLAQUE, P_CABLE, P_TUYAU, P_COFFRET],
+  nebuleuse: [P_EPAVE, P_EPAVE, P_VOILE, P_VOILE, P_CRISTAL, P_CRISTAL,
+              P_MODULE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_GIVRE, P_BALISE],
 };
 
 // densite : 0 en `low` — le sol reste celui d'avant le plan 13.
@@ -135,6 +147,11 @@ function gresil(p) {
     const u = (t * (0.6 + p.p * 0.2) + p.p) % 1;
     return u < 0.12 ? 1 : u < 0.24 ? 0.5 : 0.10;
   }
+  // un cristal RESPIRE PROFOND et lentement : rien ne le commande, rien ne
+  // l'alimente. C'est la seule source du depot qui ne soit pas un appareil.
+  if (p.k === P_CRISTAL) {
+    return 0.30 + 0.70 * (0.5 + 0.5 * Math.sin(t * (0.24 + p.p * 0.16) + p.p * 11));
+  }
   return 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * (1.1 + p.p) + p.p * 9));
 }
 
@@ -172,6 +189,11 @@ function dessin(p, ox, oy) {
     case P_RIGOLE:      return rigole(p);
     case P_LINGOTS:     return lingots(p, ox, oy);
     case P_SCORIE:      return scorie(p);
+    case P_EPAVE:       return epave(p, ox, oy);
+    case P_VOILE:       return voile(p, ox, oy);
+    case P_MODULE:      return module_(p, ox, oy);
+    case P_CRISTAL:     return cristal(p);
+    case P_ANTENNE:     return antenne(p, ox, oy);
     case P_RAIL:        return rail(p, ox, oy);
     case P_GIVRE:       return givre(p);
     case P_ANCRAGE:     return ancrage(ox, oy);
@@ -180,7 +202,159 @@ function dessin(p, ox, oy) {
   }
 }
 
-/* --- NEBULEUSE : ce qui ARRIME ----------------------------------------- */
+/* --- NEBULEUSE : ce qui FLOTTE ET CE QUI ARRIME ------------------------- */
+
+/* L'EPAVE. Un fragment de coque tombe sur le pont : un polygone ANGULEUX, jamais
+   un rectangle — ce qui casse ne casse pas droit. Le contour reste ferme et la
+   piece plaquee au sol, comme tout ce module ; c'est sa forme qui dit qu'elle a
+   ete arrachee, pas un volume. */
+function epave(p, ox, oy) {
+  const n = 5 + ((p.p * 3) | 0);
+  const r0 = 13 + p.p * 9;
+  const trace = (dx, dy, k) => {
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const r = r0 * k * (0.62 + ((i * 37 + p.p * 83) % 11) / 14);
+      const x = Math.cos(a) * r + dx, y = Math.sin(a) * r * 0.78 + dy;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  };
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  trace(ox, oy, 1); ctx.fill();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.86);
+  trace(0, 0, 1); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.givre, 0.18);
+  ctx.lineWidth = 1.2;
+  trace(0, 0, 1); ctx.stroke();
+  // la NERVURE interne : c'est elle qui dit « coque » plutot que « caillou ».
+  ctx.strokeStyle = alpha(PROP.metal, 0.22);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-r0 * 0.5, -r0 * 0.12); ctx.lineTo(r0 * 0.55, r0 * 0.10);
+  ctx.moveTo(-r0 * 0.1, -r0 * 0.5); ctx.lineTo(r0 * 0.05, r0 * 0.5);
+  ctx.stroke();
+}
+
+/* LA VOILE. Un panneau solaire detache : une trame de cellules, un cadre, et un
+   REFLET qui ne couvre qu'une moitie. Il est bleu-noir et non gris — une voile
+   ne renvoie pas la lumiere d'une station, elle boit celle d'une etoile. */
+function voile(p, ox, oy) {
+  const w = 46 + p.p * 26, h = 24 + p.p * 8;
+  const cols = 4 + ((p.p * 3) | 0);
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha("#111a2e", 0.88);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = alpha(PROP.ombre, 0.50);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 1; i < cols; i++) {
+    const x = -w / 2 + (w / cols) * i;
+    ctx.moveTo(x, -h / 2 + 1.5); ctx.lineTo(x, h / 2 - 1.5);
+  }
+  ctx.moveTo(-w / 2 + 1.5, 0); ctx.lineTo(w / 2 - 1.5, 0);
+  ctx.stroke();
+  ctx.fillStyle = alpha(PROP.givre, 0.07);
+  ctx.fillRect(-w / 2, -h / 2, w * 0.44, h);
+  ctx.strokeStyle = alpha(PROP.metal, 0.30);
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
+  // le BRAS d'attache : une voile sans point de fixation flotte sans raison.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.90);
+  ctx.fillRect(w / 2 - 1, -2, 11, 4);
+}
+
+/* LE MODULE. Une capsule : deux anneaux de jonction, un hublot, une coque plus
+   claire que tout le reste du semis. C'est le seul prop du lieu qui ait ete
+   HABITE, et c'est ce qui lui donne son hublot. */
+function module_(p, ox, oy) {
+  const l = 40 + p.p * 22, r = 11 + p.p * 4;
+  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.beginPath();
+  ctx.ellipse(ox, oy, l / 2, r, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = alpha("#4a5468", 0.88);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, l / 2, r, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = alpha(PROP.givre, 0.10);
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 0.32, l / 2 - 3, r * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = alpha(PROP.ombre, 0.46);
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  for (const u of [-0.28, 0.30]) {
+    ctx.moveTo(l * u, -r * 0.92); ctx.lineTo(l * u, r * 0.92);
+  }
+  ctx.stroke();
+  ctx.fillStyle = alpha("#0a0f1c", 0.90);
+  ctx.beginPath(); ctx.arc(l * 0.04, 0, r * 0.34, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.34);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(l * 0.04, 0, r * 0.34, 0, Math.PI * 2); ctx.stroke();
+}
+
+/* LE CRISTAL. Des prismes, et il ECLAIRE — la seule source du lieu qui ne soit
+   pas un appareil. Pas de contour ferme sur le halo : un contour en ferait une
+   zone de jeu, et le canal du telegraphe ne se prete pas. */
+function cristal(p) {
+  const k = gresil(p);
+  const n = 3 + ((p.p * 3) | 0);
+  const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 26);
+  grad.addColorStop(0, alpha(PROP.balise, 0.16 + 0.16 * k));
+  grad.addColorStop(1, alpha(PROP.balise, 0));
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 2); ctx.fill();
+
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + p.p * 5;
+    const d = 3 + ((i * 29 + p.p * 61) % 7);
+    const h = 9 + ((i * 17 + p.p * 43) % 9);
+    const w = 3.4 + ((i * 11 + p.p * 29) % 3);
+    const cx = Math.cos(a) * d, cy = Math.sin(a) * d;
+    const ca = Math.cos(a - 0.5), sa = Math.sin(a - 0.5);
+    ctx.beginPath();
+    ctx.moveTo(cx + ca * h, cy + sa * h);
+    ctx.lineTo(cx - sa * w, cy + ca * w);
+    ctx.lineTo(cx - ca * h * 0.45, cy - sa * h * 0.45);
+    ctx.lineTo(cx + sa * w, cy - ca * w);
+    ctx.closePath();
+    ctx.fillStyle = alpha(PROP.balise, 0.30 + 0.42 * k);
+    ctx.fill();
+    ctx.strokeStyle = alpha("#ffffff", 0.10 + 0.22 * k);
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+  }
+}
+
+/* L'ANTENNE. Une parabole vue de dessus, son bras et son contrepoids. Elle est
+   MORTE — aucun voyant, aucune pulsation : ce qui appelle encore dans ce lieu
+   est la balise, et il ne doit y avoir qu'une chose qui appelle. */
+function antenne(p, ox, oy) {
+  const r = 13 + p.p * 6;
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.beginPath(); ctx.ellipse(ox, oy, r, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.84);
+  ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.26);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i <= 2; i++) {
+    ctx.ellipse(0, 0, r * (i / 3), r * 0.62 * (i / 3), 0, 0, Math.PI * 2);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metal, 0.38);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(r * 1.5, -r * 0.30);
+  ctx.moveTo(-r * 1.15, r * 0.22); ctx.lineTo(0, 0);
+  ctx.stroke();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.88);
+  ctx.fillRect(-r * 1.45, r * 0.10, 6, 5);
+}
 
 function rail(p, ox, oy) {
   const l = 88 + p.p * 54;

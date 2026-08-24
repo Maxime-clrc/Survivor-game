@@ -193,8 +193,9 @@ danger, implantation.
 | **pas de 20 m** | marquage peint effacé | trait franc | nœuds seuls | nervures du pont |
 | **contour de bloc** | presque aucun | franc | sourd | franc |
 | **source** | presque rien | bandes LED ambrées | la gueule des fours | feux de position froids |
-| **implantation** | deux champs de ruines | bandes : chaîne, allée, chaîne | deux masses, un couloir | longues travées |
-| **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | haubans et antennes |
+| **implantation** | deux champs de ruines | bandes : chaîne, allée, chaîne | deux masses, un couloir | contraste de taille, centre vide |
+| **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | voilures et râtelier d'antennes |
+| **props** | gravats, ferraille, tubes morts | convoyeurs, caisses, allées | rigoles, lingots, scorie | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
 captures restent difficiles à attribuer, le travail n'est pas fini.
@@ -281,6 +282,12 @@ sans rythme. Une arène se traverse, elle ne se piétine pas.
 - Chaque lieu a **sa loi d'implantation** (table ci-dessus). Le contraste se lit
   dans les chiffres : la Fonderie pose **5 objets par vue pour 6,8 % de surface**,
   la Friche **10 pour 4,4 %**.
+- **Deux lieux ne peuvent pas partager une loi.** La Nébuleuse avait celle de
+  l'Usine à un centième près — barre 0,230 × 0,036 contre 0,300 × 0,034 : deux
+  lieux à la même implantation sont le même lieu, quelle que soit la couleur du
+  sol. La sienne est maintenant le **contraste de taille**, et il se mesure sur
+  le rapport de la plus grosse pièce à la plus petite : **×18,9**, contre ×4,7 à
+  la Fonderie, ×2,5 à l'Usine, ×2,1 à la Friche.
 - **Les dangers suivent l'architecture au lieu de la doubler** : la louche court
   dans le couloir *entre* les deux fours, les jets de vapeur tombent dans les
   allées.
@@ -294,12 +301,19 @@ sans rythme. Une arène se traverse, elle ne se piétine pas.
 
 ### Une map ressemble à son nom
 
-Le semis partage **six props communs** — honnêtement industriels, ils valent
-partout — et donne à chaque biome **son propre jeu**, qui porte son verbe :
-l'Usine *fabrique* (convoyeurs, caisses, allées), la Fonderie *coule* (rigoles,
-lingots, scorie), la Friche *a été abandonnée*, la Nébuleuse *arrime* (rails,
-ancrages, balises). Un catalogue entièrement partagé rendait les biomes
-interchangeables.
+Le semis donne à chaque biome **son propre jeu**, qui porte son verbe : l'Usine
+*fabrique* (convoyeurs, caisses, allées), la Fonderie *coule* (rigoles, lingots,
+scorie), la Friche *a été abandonnée*, la Nébuleuse *flotte* (épaves, voiles,
+modules, cristaux, antennes). Un catalogue entièrement partagé rendait les
+biomes interchangeables.
+
+**Les trois lieux terrestres partagent un fonds industriel** — plaque,
+caillebotis, câble, tuyau, débris, marquage — et ils y ont droit : ce *sont* des
+installations industrielles. **La Nébuleuse ne partage plus rien.** Elle en
+tirait cinq props sur douze, posés au sol d'une station orbitale parce qu'ils
+étaient déjà écrits — la seule justification qu'un prop n'a pas le droit d'avoir.
+Son lien avec les trois autres passe par la charte, les cadres et les effets de
+jeu, pas par un tuyau.
 
 - **Une allée n'est pas un avertissement** : deux lignes continues et pâles, pas
   des hachures. Un marquage hachuré se lit comme un télégraphe.

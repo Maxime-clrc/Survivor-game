@@ -8,6 +8,23 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les quatre lois d'implantation (0.19.2)
+
+`buildBiome(bi, 2, 7)` sur l'arène complète, taille des obstacles relevée.
+
+| lieu | objets/vue | % surface | plus petit | plus gros | rapport |
+|---|---|---|---|---|---|
+| usine | 7,0 | 4,2 | 4 838 px² | 11 923 px² | ×2,5 |
+| fonderie | 5,0 | 6,8 | 7 056 px² | 32 832 px² | ×4,7 |
+| friche | 10,0 | 4,4 | 4 147 px² | 8 568 px² | ×2,1 |
+| **nébuleuse** | 7,0 | 7,0 | **1 659 px²** | **31 320 px²** | **×18,9** |
+
+Le rapport est ce qui sépare les lois, pas le nombre d'objets : l'Usine et la
+Nébuleuse en posent autant, et ne se ressemblent plus. Avant ce lot la Nébuleuse
+était à ×2,5 avec une barre de 0,300 × 0,034 contre 0,230 × 0,036 pour l'Usine.
+
+`verifierBiomes()` muet sur **200 graines × 4 lieux × 3 modes**.
+
 ### Les baies de la Nébuleuse (0.19.1)
 
 Réglage de `BAIE_TAUX`, `BAIE_INSET` et du format de bande, mesuré sur six

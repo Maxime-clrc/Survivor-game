@@ -1164,7 +1164,7 @@ export const EN = {
   "biome.friche.nom": "Wasteland",
   "biome.friche.resume": "two rubble fields, bare ground between",
   "biome.nebuleuse.nom": "Nebula",
-  "biome.nebuleuse.resume": "long spans, bays open on the void",
+  "biome.nebuleuse.resume": "drifting wrecks, glazed bays open on the void",
   "hazard.geyser": "geyser",
   "hazard.flaque": "corrupted pool",
   "hazard.braise": "ember",

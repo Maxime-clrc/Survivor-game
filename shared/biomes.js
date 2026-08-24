@@ -120,7 +120,7 @@ export const BIOMES = [
   },
   {
     key: "nebuleuse", nom: "Nébuleuse",
-    resume: "longues travées, baies ouvertes sur le vide",
+    resume: "épaves à la dérive, verrières ouvertes sur le vide",
     fond: "espace",
   },
 ];
@@ -151,7 +151,12 @@ function rng(seed) {
      USINE      des bandes — chaine, allee, chaine. Long et mince, orthogonal.
      FONDERIE   deux masses et un couloir entre elles. Peu d objets, enormes.
      FRICHE     deux champs de ruines et du terrain nu au milieu. Epars, casse.
-     NEBULEUSE  de tres longues travees et des passages francs. Etire.
+     NEBULEUSE  le CONTRASTE DE TAILLE, et le centre reste vide. Deux masses en
+                diagonale, deux travees a l aplomb des bords — tres longues, deux
+                fois plus fines que la chaine d Usine —, et des eclats. Sa loi
+                etait celle de l Usine a un centieme pres (barre 0,230 x 0,036
+                contre 0,300 x 0,034) : deux lieux avec la meme implantation sont
+                le meme lieu, quelle que soit la couleur du sol.
 
    LE CARRE CENTRAL RESTE TRAVERSABLE dans les deux axes — `verifierBiomes()`
    le rejoue a chaque graine, et c est ce qui autorise des masses pareilles sans
@@ -186,13 +191,13 @@ const OBSTACLES = {
     { x: 0.30, y: 0.62, w: 0.062, h: 0.066, hp: 1 },
   ],
   nebuleuse: [
-    { x: 0.24, y: 0.20, w: 0.300, h: 0.034 },
-    { x: 0.76, y: 0.80, w: 0.300, h: 0.034 },
-    { x: 0.08, y: 0.58, w: 0.040, h: 0.150 },
-    { x: 0.92, y: 0.42, w: 0.040, h: 0.150 },
-    { x: 0.50, y: 0.30, w: 0.150, h: 0.030 },
-    { x: 0.50, y: 0.72, w: 0.056, h: 0.056, hp: 1 },
-    { x: 0.36, y: 0.86, w: 0.056, h: 0.056, hp: 1 },
+    { x: 0.22, y: 0.24, w: 0.145, h: 0.150 },
+    { x: 0.78, y: 0.76, w: 0.145, h: 0.150 },
+    { x: 0.06, y: 0.50, w: 0.020, h: 0.560 },
+    { x: 0.94, y: 0.50, w: 0.020, h: 0.560 },
+    { x: 0.10, y: 0.70, w: 0.042, h: 0.038, hp: 1 },
+    { x: 0.90, y: 0.30, w: 0.042, h: 0.038, hp: 1 },
+    { x: 0.63, y: 0.20, w: 0.036, h: 0.032, hp: 1 },
   ],
 };
 
