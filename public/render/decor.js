@@ -1,11 +1,11 @@
 
 import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, hazardState, windAt } from "/shared/game_state.js";
-import { BIOME, BOSS, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
+import { BIOME, BOSS, PROP, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
 import { floorPattern, fondEspace, macroPattern } from "./material.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
-import { dessinerLed, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
+import { contourDe, dessinerLed, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
 import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
@@ -83,8 +83,34 @@ export function drawGrid() {
     ctx.stroke();
   }
 
-  ctx.globalAlpha = gfx <= GFX_LOW ? 1 : 0.5;
+  (GRILLE[biomeAt(biomeIndex).key] ?? grilleFranche)(gfx <= GFX_LOW ? 1 : 0.5);
+
+  drawGridPings();
+}
+
+/* LE PAS DE 20 M RESTE, SA FORME DEVIENT CELLE DU LIEU. La ligne droite pleine
+   arene etait le signal le plus fort de l'ecran ET le seul qui ne variait pas
+   d'un pixel entre les quatre : quatre sols, quatre blocs, quatre dangers, et
+   par-dessus le meme plan technique. Ce qu'on garde est la FONCTION — un pas
+   regulier de 20 m, la seule chose a l'ecran qui serve a lire une portee. Ce
+   qu'on change est ce qui le PORTE.
+
+   ET CA VAUT A TOUS LES PALIERS : c'est de la direction artistique, pas une
+   technique. `low` garde sa grille fine, il ne garde pas la forme de l'autre —
+   meme regle que `silhouetteBloc` et que la palette d'arene. */
+const GRILLE = {
+  usine: grilleFranche,
+  fonderie: grilleRepere,
+  friche: grilleEffacee,
+  nebuleuse: grilleNervure,
+};
+
+// L'USINE EST CONSTRUITE ET ENTRETENUE : le trait franc est le sien, et c'est
+// le repere auquel les trois autres se comparent.
+function grilleFranche(a) {
+  ctx.globalAlpha = a;
   ctx.strokeStyle = sol.gridMajor;
+  ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
     ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, CFG.ARENA_H);
@@ -94,8 +120,97 @@ export function drawGrid() {
   }
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
 
-  drawGridPings();
+/* LA FONDERIE PORTE DEJA SES JOINTS DE PLAQUE dans la matiere du sol : une
+   seconde trame par-dessus fait deux reseaux. La ligne s'efface, les NOEUDS
+   restent — et un noeud tous les 20 m suffit a lire une portee. */
+const REPERE = 13;
+function grilleRepere(a) {
+  grilleFranche(a * 0.30);
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = sol.gridMajor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
+    for (let y = GRID_MAJOR; y < CFG.ARENA_H; y += GRID_MAJOR) {
+      ctx.moveTo(x - REPERE, y + .5); ctx.lineTo(x + REPERE, y + .5);
+      ctx.moveTo(x + .5, y - REPERE); ctx.lineTo(x + .5, y + REPERE);
+    }
+  }
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 1;
+}
+
+/* LA FRICHE N'A PLUS DE PLAN, ELLE A UN MARQUAGE — peint au sol il y a vingt
+   ans, efface depuis. Chaque maille porte trois troncons, un sur trois manque,
+   aucun n'est tout a fait dans l'axe. Le pas reste mesurable, on le reconstruit
+   d'un troncon a l'autre ; plus rien ne se lit comme une trame.
+
+   La peinture est celle des props et jamais la couleur de grille : ce qui reste
+   au sol d'une installation abandonnee est du pigment, pas un trait technique. */
+const EFFACE_N = 3;
+function grilleEffacee(a) {
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = alpha(PROP.peint, 0.20);
+  ctx.lineWidth = 3.4;
+  ctx.beginPath();
+  let i = 0;
+  for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
+    for (let y = 0; y < CFG.ARENA_H; y += GRID_MAJOR) troncons(x, y, true, i++);
+  }
+  for (let y = GRID_MAJOR; y < CFG.ARENA_H; y += GRID_MAJOR) {
+    for (let x = 0; x < CFG.ARENA_W; x += GRID_MAJOR) troncons(y, x, false, i++);
+  }
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 1;
+}
+
+function troncons(v, t0, vert, i) {
+  const d = GRID_MAJOR / EFFACE_N;
+  for (let k = 0; k < EFFACE_N; k++) {
+    const j = i * EFFACE_N + k;
+    if (h01(j) < 0.34) continue;
+    const a0 = t0 + k * d + h01(j + 31) * d * 0.30;
+    const a1 = a0 + d * (0.34 + h01(j + 61) * 0.42);
+    const o = (h01(j + 97) - 0.5) * 5;
+    if (vert) { ctx.moveTo(v + o, a0); ctx.lineTo(v + o, Math.min(CFG.ARENA_H, a1)); }
+    else { ctx.moveTo(a0, v + o); ctx.lineTo(Math.min(CFG.ARENA_W, a1), v + o); }
+  }
+}
+
+/* LA NEBULEUSE N'A PAS DE GRILLE TRACEE : le pas de 20 m est porte par les
+   NERVURES du pont. Une nervure a une epaisseur, un cote a l'ombre et un cote
+   eclaire, donc elle decrit une STRUCTURE la ou une ligne decrit un plan. Meme
+   geste que le joint de la tuile, un cran plus haut — et il ne restait sinon
+   sur ce lieu QUE des reseaux : le nid d'abeille, puis la trame par-dessus.
+
+   Le cote eclaire lit `lumDir()` et rien d'autre. */
+const NERVURE = 7;
+function grilleNervure(a) {
+  const dir = lumDir();
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = alpha("#000000", 0.38);
+  ctx.lineWidth = NERVURE;
+  nervures(0, 0);
+  ctx.strokeStyle = alpha(skin().blocEdge, 0.20);
+  ctx.lineWidth = 1.4;
+  nervures(-dir[0] * NERVURE / 2, -dir[1] * NERVURE / 2);
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 1;
+}
+
+function nervures(ox, oy) {
+  ctx.beginPath();
+  for (let x = GRID_MAJOR; x < CFG.ARENA_W; x += GRID_MAJOR) {
+    ctx.moveTo(x + ox, 0); ctx.lineTo(x + ox, CFG.ARENA_H);
+  }
+  for (let y = GRID_MAJOR; y < CFG.ARENA_H; y += GRID_MAJOR) {
+    ctx.moveTo(0, y + oy); ctx.lineTo(CFG.ARENA_W, y + oy);
+  }
+  ctx.stroke();
 }
 export function drawVignette() {
   const puls = decor.pulse > 0
@@ -153,6 +268,7 @@ export function drawObstacles(cover) {
   if (!list.length) return;
   const biome = biomeAt(biomeIndex).key;
   const S = skin();
+  const C = contourDe(biome);
   const ox = camera.x0 + CFG.VIEW_W / 2, oy = camera.y0 + CFG.VIEW_H / 2;
   // L'OMBRE PORTEE LIT `lumDir()`, le relief reste RADIAL : l'un dit d'ou vient
   // la lumiere, l'autre ou est la camera. Deux gestes distincts, pas deux
@@ -187,7 +303,8 @@ export function drawObstacles(cover) {
     silhouetteBloc(ctx, o, biome);
     ctx.fillStyle = alpha(o.maxHp > 0 ? BIOME.cover : S.bloc, 0.55);
     ctx.fill();
-    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge, 0.45);
+    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge,
+                            o.maxHp > 0 ? 0.45 : C.plat);
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.restore();
@@ -195,7 +312,8 @@ export function drawObstacles(cover) {
     ctx.save();
     ctx.translate(o.x + rx, o.y + ry);
     silhouetteBloc(ctx, o, biome);
-    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge, 0.7);
+    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge,
+                            o.maxHp > 0 ? 0.7 : C.relief);
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();

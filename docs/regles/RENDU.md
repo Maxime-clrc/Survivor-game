@@ -190,12 +190,33 @@ danger, implantation.
 | **verbe** | a été laissée | fabrique | coule | flotte |
 | **bloc** | ruine fissurée | machine panneautée | four maçonné | travée ajourée |
 | **sol** | dalles et joints de coulage | tôle et maille de 5 m | plaques, voies, vitrifié | nid d'abeille |
+| **pas de 20 m** | marquage peint effacé | trait franc | nœuds seuls | nervures du pont |
+| **contour de bloc** | presque aucun | franc | sourd | franc |
 | **source** | presque rien | bandes LED ambrées | la gueule des fours | feux de position froids |
 | **implantation** | deux champs de ruines | bandes : chaîne, allée, chaîne | deux masses, un couloir | longues travées |
 | **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | haubans et antennes |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
 captures restent difficiles à attribuer, le travail n'est pas fini.
+
+**Le pas de 20 m reste, ce qui le PORTE change** (`GRILLE`, `decor.js`). La
+graduation est la seule chose à l'écran qui serve à lire une portée : elle ne se
+négocie pas. Mais la même ligne droite pleine arène dans les quatre lieux était
+le signal le plus fort de l'écran **et** le seul qui n'y variait pas d'un pixel —
+quatre sols, quatre blocs, quatre dangers, et par-dessus un plan technique
+commun. La Nébuleuse n'avait d'ailleurs *que* des réseaux : nid d'abeille, puis
+trame par-dessus.
+
+- La forme d'un lieu **vaut à tous les paliers**, `low` compris : c'est de la
+  direction artistique, pas une technique. `low` garde sa grille **fine**, pas la
+  forme de l'autre. Aucun point de lecture de `gfx` en plus.
+- Une **nervure** n'est pas une ligne, pour la même raison qu'un joint de tuile :
+  elle a une épaisseur et un côté éclairé, donc elle décrit une structure. Le
+  côté éclairé lit `lumDir()` et rien d'autre.
+- Le marquage de la Friche est du **pigment** (`PROP.peint`), jamais la couleur
+  de grille : ce qui reste au sol d'une installation abandonnée est de la
+  peinture, pas un trait technique. Il est troué et désaxé — le pas se
+  reconstruit d'un tronçon à l'autre, il ne se lit plus comme une trame.
 
 **Un lieu se déclare à UN endroit** : `BIOME_SKIN` (`palette.js`) — arène,
 grille, bloc, ambiante, direction de lumière, émissif. Avant, la couleur vivait
@@ -219,6 +240,11 @@ différents sous quatre mêmes blocs donnent quatre mêmes maps.
   arête, lumière — jamais en la rognant. Chanfreins sous 16 px.
 - **La forme vaut à tous les paliers**, l'habillage intérieur s'arrête en `low` —
   et c'est `decor.js` qui le décide : `gfx` garde ses **cinq** points de lecture.
+- **Le liseré est une propriété de la MATIÈRE, pas du jeu** (`contourDe`). Tracé
+  à la même force sur les quatre, il disait « panneau usiné » quelle que soit la
+  couleur du sol dessous. Un four se lit à sa masse et à sa gueule, une ruine n'a
+  pas d'arête nette. Les **couvertures destructibles gardent le leur, plein** :
+  leur contour tireté dit des points de vie, il est du gameplay.
 - **`ledDe()` porte teinte, rayon ET type.** Une gueule de four et un voyant ne
   sont pas la même lumière : la gueule éclaire deux fois plus loin. La Friche
   n'a presque plus rien d'allumé — elle a été abandonnée.

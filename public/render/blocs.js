@@ -85,6 +85,23 @@ function ruine(g, o, x, y, w, h) {
   g.closePath();
 }
 
+/* LE LISERE N'EST PAS UNE PROPRIETE DU JEU, C'EST UNE PROPRIETE DE LA MATIERE.
+   Un contour clair et continu dit « panneau usine » : le tracer a la meme force
+   sur les quatre lieux les ramene tous a l atelier, quelle que soit la couleur
+   du sol dessous. Une ruine n a pas d arete nette, un four se lit a sa masse et
+   a sa gueule.
+
+   Les couvertures destructibles gardent le leur, plein : leur contour tirete est
+   du GAMEPLAY, il dit des points de vie. */
+const CONTOUR = {
+  usine:     { plat: 0.45, relief: 0.70 },
+  nebuleuse: { plat: 0.45, relief: 0.70 },
+  fonderie:  { plat: 0.16, relief: 0.26 },
+  friche:    { plat: 0.10, relief: 0.16 },
+};
+
+export function contourDe(cle) { return CONTOUR[cle] ?? CONTOUR.usine; }
+
 /* LA SOURCE FIXE D'UN BLOC. `decor.js` la DESSINE, `lumiere.js` l'ALLUME, les
    deux lisent cette fonction — sinon la lueur au sol et le trait a l'ecran
    finissent sur deux aretes differentes. Elle porte sa TEINTE et son RAYON :

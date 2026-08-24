@@ -3603,6 +3603,36 @@
                    la grille a cinq colonnes, pas les trois qui la faisaient
                    replier depuis toujours.
 
+     0.19.0 lot 1  LA GRILLE CESSE D ETRE UNIVERSELLE. Premier lot du plan 16,
+                   dont le constat est que six elements transverses ecrasent tout
+                   ce que le plan 14 distingue : quatre sols, quatre blocs, quatre
+                   dangers, et par-dessus LE MEME plan technique — 400 px, lignes
+                   droites pleine arene, une petite dizaine par vue, identiques au
+                   pixel dans les quatre lieux.
+                   Le pas de 20 m reste : c est la seule chose a l ecran qui serve
+                   a lire une portee. Ce qui change est ce qui le PORTE. `GRILLE`
+                   dans `decor.js` — l Usine garde le trait franc, c est le repere
+                   auquel les trois autres se comparent ; la Fonderie l efface a
+                   30 % et ne garde que les NOEUDS, sa matiere portant deja des
+                   joints de plaque et une seconde trame faisant deux reseaux ;
+                   la Friche n a plus qu un MARQUAGE peint et efface — trois
+                   troncons par maille, un sur trois manquant, aucun dans l axe,
+                   le pas se reconstruit d un troncon a l autre ; la Nebuleuse n a
+                   plus de ligne du tout, le pas est porte par les NERVURES du
+                   pont, une bande sombre et son cote eclaire lu sur `lumDir()`.
+                   Elle n avait sinon QUE des reseaux — nid d abeille, puis trame
+                   par-dessus : d ou la lecture « salle futuriste ».
+                   ET LE LISERE DE BLOC DEVIENT UNE PROPRIETE DE LA MATIERE,
+                   `contourDe()` : trace a 0,45 / 0,70 sur les quatre, il disait
+                   « panneau usine » quelle que soit la couleur du sol dessous. La
+                   Fonderie tombe a 0,16 / 0,26 et la Friche a 0,10 / 0,16 — un
+                   four se lit a sa masse et a sa gueule, une ruine n a pas d arete
+                   nette. Les couvertures destructibles gardent le leur, plein :
+                   leur contour tirete dit des points de vie, il est du GAMEPLAY.
+                   La FORME d un lieu n est pas dans le contrat de `low` : elle
+                   vaut a tous les paliers, comme `silhouetteBloc` et comme la
+                   palette d arene. Aucun point de lecture de `gfx` en plus.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3611,4 +3641,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.18.9";
+export const VERSION = "0.19.0";
