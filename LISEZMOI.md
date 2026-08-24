@@ -8,21 +8,27 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
-### La part de props propre à chaque lieu (0.19.3)
+### La part de props propre à chaque lieu (0.19.4)
 
-Un prop est **propre** quand un seul lieu le tire. Relevé sur les quatre tables
-de `props.js`, douze tirages chacune. Cible du plan 16 : **≥ 70 %**.
+Un prop est **propre** quand il n'appartient pas au fonds commun. Relevé sur les
+quatre tables de `props.js`, douze tirages chacune. Cible du plan 16 : **≥ 70 %**.
+
+**Le fonds commun est DÉCLARÉ, jamais déduit** — plaque, caillebotis, câble,
+tuyau, débris, marquage, coffret, les sept props industriels d'origine. La
+définition « un prop que deux lieux tirent » se retourne toute seule : purger
+l'Usine ferait passer le tuyau pour un prop *propre* à la Fonderie, et son score
+monterait de 50 à 83 % sans qu'une ligne bouge.
 
 | lieu | propres / 12 | part | avant le plan 16 |
 |---|---|---|---|
-| usine | 5 | 42 % | 42 % — **lot 5** |
+| usine | 10 | **83 %** | 42 % |
 | fonderie | 6 | 50 % | 50 % — **lot 6** |
 | friche | 10 | **83 %** | **0 %** |
 | nébuleuse | 12 | **100 %** | 58 % |
 
-Fonds commun restant, sept props honnêtement industriels : plaque, caillebotis,
-coffret, tuyau, câble, marquage, débris. **Aucune entrée morte** — chaque prop
-du catalogue est tiré par au moins un lieu.
+**Aucune entrée morte** — chaque prop déclaré est tiré par au moins une table.
+Le contrôle est fait au même relevé : un prop que plus personne ne tire se
+supprime, il ne s'oublie pas au catalogue.
 
 La Friche était à zéro : douze tirages, aucun qui lui appartienne, dont un
 coffret à voyant et un caillebotis dans un lieu abandonné depuis vingt ans.

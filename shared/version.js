@@ -3725,6 +3725,41 @@
                    hors du clip, plaque au sol : un mur perce dont rien n est
                    tombe est un mur perce proprement.
 
+     0.19.4 lot 5  L USINE EST LE SEUL LIEU DONT LE VERBE SOIT AU PRESENT, ET
+                   RIEN N Y BOUGEAIT. Quatre machines a elle, toutes animees sauf
+                   une : BRAS (il pivote et S ARRETE a chaque bout — un mouvement
+                   qui ne s arrete jamais se lit comme une rotation libre, pas
+                   comme un geste commande), PRESSE (descente vive, remontee
+                   lente, temps mort en haut : c est le rythme qui dit la force,
+                   l inverse ferait un ressort), VENTILATION (le seul mouvement
+                   continu — une soufflerie ne s arrete pas), PALETTIER, fixe et
+                   il doit l etre : quatre machines animees sans rien d immobile
+                   autour font une vitrine, pas un atelier.
+                   LA BANDE DEFILE. Un convoyeur a l arret est un caisson. Le
+                   decalage est une fonction du temps modulo le pas des taquets,
+                   donc rien ne derive et rien ne se garde ; le sens depend de la
+                   cellule, sinon toute l usine transporte vers la meme chose.
+                   LA BANDE LED PORTE UNE CHENILLE : une bande qui pulse dit qu un
+                   appareil est sous tension, un point qui COURT dit qu une ligne
+                   tourne. C est la difference entre allume et en marche.
+                   `evacDe()` ET `evacEtat()` : un bloc sur trois EVACUE, sur le
+                   cote oppose a la bande — deux choses sur la meme arete se
+                   disputent la lecture. Meme forme de declaration que `ledDe` :
+                   `decor.js` LIT, personne ne pousse. La bouffee sort dans la
+                   direction de la bouche, un jet vertical partout dirait qu il y
+                   a un plafond.
+                   ET L INVARIANT QUI AUTORISE TOUT CA, ECRIT : un mouvement de
+                   decor est CONTINU ET PERIODIQUE, donc sans debut ni echeance,
+                   donc ce n est pas un telegraphe — ce canal appartient au boss.
+                   L enveloppe d une bouffee est douce des DEUX cotes : un flanc
+                   franc refabriquerait une echeance. Le depot avait deja
+                   assoupli « une matiere est fixe » sans le dire — le tube
+                   gresille, le voyant respire, la fonte ondule, la balise bat.
+                   Part propre : 42 % -> 83 %. Le fonds commun est desormais
+                   DECLARE et non deduit dans le releve : « un prop que deux lieux
+                   tirent » se retourne tout seul, purger l Usine aurait fait
+                   passer la Fonderie de 50 a 83 % sans qu une ligne bouge.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3733,4 +3768,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.19.3";
+export const VERSION = "0.19.4";

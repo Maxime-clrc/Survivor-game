@@ -5,7 +5,7 @@ import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
 import { floorPattern, fondEspace, macroPattern } from "./material.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
-import { contourDe, dessinerLed, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
+import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
 import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
@@ -651,6 +651,18 @@ export function drawAtmosphere(tm) {
     if (i < 0.55 || !inView(x, y, 40)) return;
     champ(tm, Math.PI * 0.52, 110, 7, 4, col, 0.34 * i, 1.4, x, y, 20);
   });
+
+  // L'USINE RESPIRE. La bouffee sort DU BLOC et dans la direction de sa bouche —
+  // un jet vertical partout dirait qu'il y a un plafond, et il n'y en a pas. La
+  // declaration vit dans `blocs.js` : ici on la LIT, comme un danger.
+  for (const o of obstaclesActifs()) {
+    const e = evacDe(o);
+    if (!e || !inView(e.x, e.y, 90)) continue;
+    const k = evacEtat(e, tm);
+    if (k <= 0.02) continue;
+    champ(tm, Math.atan2(e.dy, e.dx), 44 + 60 * k, 13, Math.round(4 + 10 * k),
+          WEATHER.wind, 0.13 * k, 3.4, e.x + e.dx * 14, e.y + e.dy * 14, 46);
+  }
 
   // LE BOSS RESPIRE DANS L'ARENE. Il arrive en dernier et sur toute la vue :
   // c'est le seul champ qui ait le droit de traverser le centre, parce qu'il

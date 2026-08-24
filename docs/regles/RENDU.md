@@ -116,9 +116,18 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   plaqué au sol, et le semis saute toute cellule occupée par un obstacle ou un
   danger. Un prop qui ferait hésiter sur une trajectoire est un bug. Ce qui doit
   se lire comme bloquant est un **obstacle**, dans `biomes.js`.
-- **Un prop est de la matière, pas un signal** : un signal est saturé et animé,
-  une matière est désaturée et fixe. C'est la seule règle qui empêche le décor de
-  mentir maintenant que l'ambre n'est plus réservé à l'avertissement.
+- **Un prop est de la matière, pas un signal** : un signal est **saturé**, une
+  matière est désaturée. C'est la seule règle qui empêche le décor de mentir
+  maintenant que l'ambre n'est plus réservé à l'avertissement.
+- **UN PROP QUI BOUGE N'EST PAS UN SIGNAL, à une condition qui se vérifie : son
+  mouvement est CONTINU et PÉRIODIQUE**, donc il n'a ni début ni fin, donc il
+  n'annonce rien. Un télégraphe a un début et une **échéance** — c'est ce qui le
+  rend lisible, et ce canal-là appartient au boss. Une bouffée d'évacuation a
+  donc une enveloppe **douce des deux côtés** : un flanc franc ferait une
+  échéance. Le dépôt avait déjà assoupli la règle sans le dire — un tube mort
+  grésille, un voyant respire, du métal en fusion ondule, une balise bat : **le
+  comportement est un canal de matière**. L'Usine est le lieu qui l'exploite le
+  plus, parce que c'est le seul dont le verbe soit au présent.
 
 ### L'atmosphère
 
@@ -195,7 +204,8 @@ danger, implantation.
 | **source** | presque rien | bandes LED ambrées | la gueule des fours | feux de position froids |
 | **implantation** | deux champs de ruines | bandes : chaîne, allée, chaîne | deux masses, un couloir | contraste de taille, centre vide |
 | **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | voilures et râtelier d'antennes |
-| **props** | brousse, jonchée, grillage tombé, carcasse, bidon, panneau | convoyeurs, caisses, allées | rigoles, lingots, scorie | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
+| **props** | brousse, jonchée, grillage tombé, carcasse, bidon, panneau | convoyeurs, bras, presses, ventilations, palettiers | rigoles, lingots, scorie | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
+| **mouvement** | un néon qui grésille | **bandes qui défilent, bras, presses, chenille, bouffées** | la fonte qui ondule | la balise qui bat, le cristal qui respire |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
 captures restent difficiles à attribuer, le travail n'est pas fini.
@@ -248,7 +258,15 @@ différents sous quatre mêmes blocs donnent quatre mêmes maps.
   leur contour tireté dit des points de vie, il est du gameplay.
 - **`ledDe()` porte teinte, rayon ET type.** Une gueule de four et un voyant ne
   sont pas la même lumière : la gueule éclaire deux fois plus loin. La Friche
-  n'a presque plus rien d'allumé — elle a été abandonnée.
+  n'a presque plus rien d'allumé — elle a été abandonnée. La bande de l'Usine
+  porte une **chenille** : une bande qui pulse dit qu'un appareil est sous
+  tension, un point qui **court** dit qu'une ligne tourne, et c'est la
+  différence entre allumé et en marche.
+- **`evacDe()` déclare une bouche d'évacuation**, même forme que `ledDe` :
+  `decor.js` la lit, personne ne la pousse. Un bloc d'Usine sur trois, sur le
+  côté **opposé** à la bande — deux choses sur la même arête se disputent la
+  lecture, et la bande était là avant. La bouffée sort **dans la direction de la
+  bouche** : un jet vertical partout dirait qu'il y a un plafond.
 - **Ce qui sort de l'empreinte est hors du clip, et rien n'y a de volume** : les
   fers à béton de la ruine, et l'**éboulis** de sa brèche, plaqué au sol contre
   le pied du mur. Un mur cassé dont rien ne dépasse est un mur coupé à la scie ;

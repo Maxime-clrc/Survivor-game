@@ -129,10 +129,44 @@ export function ledDe(o) {
   const type = cle === "fonderie" ? "gueule" : cle === "nebuleuse" ? "feux"
              : cle === "friche" ? "tube" : "bande";
 
-  if (cote === 0) return { x: o.x, y: o.y - hh, dx: 1, dy: 0, len: long, col, r, type };
-  if (cote === 1) return { x: o.x + hw, y: o.y, dx: 0, dy: 1, len: long, col, r, type };
-  if (cote === 2) return { x: o.x, y: o.y + hh, dx: 1, dy: 0, len: long, col, r, type };
-  return { x: o.x - hw, y: o.y, dx: 0, dy: 1, len: long, col, r, type };
+  if (cote === 0) return { x: o.x, y: o.y - hh, dx: 1, dy: 0, len: long, col, r, type, cote };
+  if (cote === 1) return { x: o.x + hw, y: o.y, dx: 0, dy: 1, len: long, col, r, type, cote };
+  if (cote === 2) return { x: o.x, y: o.y + hh, dx: 1, dy: 0, len: long, col, r, type, cote };
+  return { x: o.x - hw, y: o.y, dx: 0, dy: 1, len: long, col, r, type, cote };
+}
+
+/* LA BOUCHE D'EVACUATION. Une installation qui fabrique EVACUE, et c'est par la
+   que l'Usine respire — le seul lieu du depot dont le verbe soit au present.
+   Meme forme de declaration que `ledDe` : `decor.js` la lit, personne ne la
+   pousse.
+
+   Elle se pose sur le cote OPPOSE a la bande LED quand il y en a une : deux
+   choses qui vivent sur la meme arete se disputent la lecture, et la bande a
+   ete la premiere. Un bloc sur trois, jamais une couverture destructible. */
+export function evacDe(o) {
+  if (biomeKey() !== "usine" || o.maxHp > 0) return null;
+  const h = ((o.x * 40503) ^ (o.y * 2654435761)) >>> 0;
+  if (h % 3 !== 0) return null;
+  const l = ledDe(o);
+  const cote = l ? (l.cote + 2) % 4 : (h >>> 6) % 4;
+  const hw = o.w / 2, hh = o.h / 2;
+  const ph = ((h >>> 12) & 255) / 255;
+  if (cote === 0) return { x: o.x, y: o.y - hh, dx: 0, dy: -1, ph };
+  if (cote === 1) return { x: o.x + hw, y: o.y, dx: 1, dy: 0, ph };
+  if (cote === 2) return { x: o.x, y: o.y + hh, dx: 0, dy: 1, ph };
+  return { x: o.x - hw, y: o.y, dx: -1, dy: 0, ph };
+}
+
+/* L'ENVELOPPE D'UNE BOUFFEE, et elle est DOUCE des deux cotes. Un flanc franc
+   ferait un debut et une fin, donc une echeance, donc un telegraphe — et ce
+   canal appartient au boss. Une machine qui souffle n'annonce rien : elle
+   respire. */
+const EVAC_PERIODE = 5.4;
+export function evacEtat(e, t) {
+  const u = ((t / EVAC_PERIODE) + e.ph) % 1;
+  if (u > 0.42) return 0;
+  const v = u / 0.42;
+  return Math.sin(v * Math.PI) ** 1.6;
 }
 
 /* L'INTERIEUR, ET IL EST TOUT LE SUJET. Quatre matieres, quatre gestes : la
@@ -508,6 +542,24 @@ export function dessinerLed(l, rx, ry) {
   ctx.strokeStyle = alpha(l.col, 0.85 * puls);
   ctx.lineWidth = 1.6;
   ctx.stroke();
+
+  /* LA CHENILLE, et elle n'appartient qu'a l'Usine. Une bande qui pulse dit
+     qu'un appareil est sous tension ; un point qui COURT dit qu'une ligne
+     tourne. C'est la difference entre allume et en marche, et c'est tout ce que
+     ce lieu demande. Continue et periodique, donc sans echeance. */
+  if (l.type === "bande") {
+    const u = (t / 2400 + l.x * 0.004) % 1;
+    const cx = l.x + l.dx * (u - 0.5) * l.len;
+    const cy = l.y + l.dy * (u - 0.5) * l.len;
+    const q = 7;
+    ctx.strokeStyle = alpha("#ffffff", 0.34);
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(cx - l.dx * q, cy - l.dy * q);
+    ctx.lineTo(cx + l.dx * q, cy + l.dy * q);
+    ctx.stroke();
+  }
+
   ctx.lineCap = "butt";
   ctx.restore();
 }

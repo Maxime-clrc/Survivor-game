@@ -37,7 +37,20 @@ const P_PLAQUE = 0, P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_RAIL = 14, P_GIVRE = 15, P_ANCRAGE = 16, P_BALISE = 17,
       P_EPAVE = 18, P_VOILE = 19, P_MODULE = 20, P_CRISTAL = 21, P_ANTENNE = 22,
       P_BROUSSE = 23, P_JONCHEE = 24, P_GRILLAGE = 25, P_CARCASSE = 26,
-      P_BIDON = 27, P_PANNEAU = 28;
+      P_BIDON = 27, P_PANNEAU = 28,
+      P_BRAS = 29, P_PRESSE = 30, P_VENTILATION = 31, P_PALETTIER = 32;
+
+/* UN PROP QUI BOUGE N'EST PAS UN SIGNAL, A UNE CONDITION QUI SE VERIFIE : SON
+   MOUVEMENT EST CONTINU ET PERIODIQUE, donc il n'a ni debut ni fin, donc il
+   n'annonce rien. Un telegraphe a un debut et une echeance — c'est exactement ce
+   qui le rend lisible, et c'est ce canal-la qui appartient au boss.
+
+   La regle « une matiere est desaturee et fixe » reste entiere sur la SATURATION.
+   Sur le mouvement, le depot l'avait deja assouplie sans le dire : un tube mort
+   gresille, un voyant respire, du metal en fusion ondule, une balise bat. Le
+   comportement est un canal de MATIERE. L'Usine est le lieu qui l'exploite le
+   plus, parce que c'est le seul dont le verbe soit au present. */
+const CYCLE = (t, periode, phase) => ((t / periode) + phase) % 1;
 
 // un prop emissif declare son RAYON et sa COULEUR : une rigole en fusion et un
 // voyant de coffret ne sont pas la meme lumiere.
@@ -50,8 +63,8 @@ const EMISSIF = {
 };
 
 const TABLE = {
-  usine: [P_CONVOYEUR, P_CONVOYEUR, P_CAISSES, P_ALLEE, P_ALLEE, P_PLAQUE,
-          P_CAILLEBOTIS, P_COFFRET, P_TUYAU, P_CABLE, P_MARQUAGE, P_DEBRIS],
+  usine: [P_CONVOYEUR, P_CONVOYEUR, P_CONVOYEUR, P_BRAS, P_PRESSE, P_VENTILATION,
+          P_PALETTIER, P_CAISSES, P_ALLEE, P_ALLEE, P_MARQUAGE, P_CABLE],
   fonderie: [P_RIGOLE, P_RIGOLE, P_LINGOTS, P_LINGOTS, P_SCORIE, P_SCORIE,
              P_TUYAU, P_PLAQUE, P_DEBRIS, P_COFFRET, P_CAILLEBOTIS, P_MARQUAGE],
   // le TUBE reste, et il n'est plus tire que par elle : un neon qui gresille est
@@ -195,6 +208,10 @@ function dessin(p, ox, oy) {
     case P_RIGOLE:      return rigole(p);
     case P_LINGOTS:     return lingots(p, ox, oy);
     case P_SCORIE:      return scorie(p);
+    case P_BRAS:        return bras(p, ox, oy);
+    case P_PRESSE:      return presse(p, ox, oy);
+    case P_VENTILATION: return ventilation(p, ox, oy);
+    case P_PALETTIER:   return palettier(p, ox, oy);
     case P_BROUSSE:     return brousse(p);
     case P_JONCHEE:     return jonchee(p, ox, oy);
     case P_GRILLAGE:    return grillage(p, ox, oy);
@@ -623,22 +640,195 @@ function balise(p, ox, oy) {
 
 /* --- USINE : ce qui FABRIQUE ------------------------------------------- */
 
+/* LA BANDE DEFILE, ET C'EST LE GESTE DE CE LIEU. Un convoyeur a l'arret est un
+   caisson. Le decalage est une fonction du temps modulo le PAS des taquets, donc
+   il ne derive jamais et ne garde rien ; le sens depend de la cellule, sinon
+   toute l'usine transporte vers la meme chose.
+
+   Vitesse basse volontairement : a l'arret quelque chose bouge et on ne sait pas
+   dire quoi, en mouvement on ne le remarque pas. C'est le budget de l'ambiance. */
+const TAQUET = 9;
 function convoyeur(p, ox, oy) {
   const l = 68 + p.p * 40, w = 17;
+  const sens = p.p < 0.5 ? 1 : -1;
+  const d = (performance.now() / 1000 * 11 * sens) % TAQUET;
   ctx.fillStyle = alpha(PROP.ombre, 0.36);
   ctx.fillRect(-l / 2 + ox, -w / 2 + oy, l, w);
   ctx.fillStyle = alpha(PROP.metalDark, 0.86);
   ctx.fillRect(-l / 2, -w / 2, l, w);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(-l / 2, -w / 2, l, w); ctx.clip();
   ctx.strokeStyle = alpha(PROP.ombre, 0.46);
   ctx.lineWidth = 1.6;
   ctx.beginPath();
-  for (let x = -l / 2 + 5; x < l / 2; x += 9) {
+  for (let x = -l / 2 - TAQUET + d; x < l / 2 + TAQUET; x += TAQUET) {
     ctx.moveTo(x, -w / 2 + 1.5); ctx.lineTo(x, w / 2 - 1.5);
   }
   ctx.stroke();
+  ctx.restore();
+
   ctx.fillStyle = alpha(PROP.metal, 0.22);
   ctx.fillRect(-l / 2, -w / 2, l, 2);
   ctx.fillRect(-l / 2, w / 2 - 2, l, 2);
+  // les TAMBOURS de bout : ils disent que la bande est fermee sur elle-meme.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.94);
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(s * l / 2, 0, 3.4, w / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* LE BRAS. Il PIVOTE entre deux positions et s'arrete a chaque bout : un
+   mouvement qui ne s'arrete jamais se lit comme une rotation libre, pas comme un
+   geste commande. L'arret est ce qui dit qu'il y a un ordre derriere. */
+function bras(p, ox, oy) {
+  const u = CYCLE(performance.now() / 1000, 4.2 + p.p * 2.6, p.p);
+  // deux tiers de course, un tiers d'arret a chaque bout
+  const v = u < 0.5 ? Math.min(1, u * 3) : Math.min(1, (1 - u) * 3);
+  const a0 = -0.9 + p.p * 0.5, a1 = a0 + 1.5;
+  const a = a0 + (a1 - a0) * (v * v * (3 - 2 * v));
+  const l1 = 16 + p.p * 5, l2 = 13 + p.p * 4;
+
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.beginPath(); ctx.arc(ox, oy, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.90);
+  ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.30);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.stroke();
+
+  const x1 = Math.cos(a) * l1, y1 = Math.sin(a) * l1;
+  const b = a + 0.85;
+  const x2 = x1 + Math.cos(b) * l2, y2 = y1 + Math.sin(b) * l2;
+  ctx.strokeStyle = alpha(PROP.ombre, 0.40);
+  ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.strokeStyle = alpha("#6a7284", 0.86);
+  ctx.lineWidth = 4.6;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.92);
+  ctx.beginPath(); ctx.arc(x1, y1, 3.4, 0, Math.PI * 2); ctx.fill();
+  // la PINCE : deux doigts, et ils s'ecartent en bout de course.
+  const e = 2.2 + v * 2.4;
+  ctx.strokeStyle = alpha(PROP.metal, 0.60);
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  for (const s of [-1, 1]) {
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 + Math.cos(b + s * 0.5) * e * 1.8, y2 + Math.sin(b + s * 0.5) * e * 1.8);
+  }
+  ctx.stroke();
+}
+
+/* LA PRESSE. Une masse qui descend VITE et remonte lentement, avec un temps mort
+   en haut : c'est le rythme qui dit la force. L'inverse — descente lente,
+   remontee vive — se lirait comme un ressort. */
+function presse(p, ox, oy) {
+  const u = CYCLE(performance.now() / 1000, 2.6 + p.p * 1.4, p.p * 7);
+  const c = u < 0.62 ? 0 : u < 0.70 ? (u - 0.62) / 0.08 : 1 - (u - 0.70) / 0.30;
+  const w = 30 + p.p * 10, h = 22 + p.p * 7;
+
+  ctx.fillStyle = alpha(PROP.ombre, 0.38);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha("#3f4552", 0.90);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#0b0d12", 0.72);
+  ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8);
+  ctx.strokeStyle = alpha(PROP.metal, 0.26);
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+
+  // les COLONNES de guidage, fixes — c'est par rapport a elles qu'on voit que
+  // la masse bouge.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.88);
+  for (const s of [-1, 1]) ctx.fillRect(s * (w / 2 - 5) - 2, -h / 2 + 3, 4, h - 6);
+
+  const mh = h * 0.34;
+  const my = -h / 2 + 5 + (h - mh - 10) * c;
+  ctx.fillStyle = alpha(PROP.ombre, 0.50);
+  ctx.fillRect(-w / 2 + 7, my + 2, w - 14, mh);
+  ctx.fillStyle = alpha("#79808f", 0.92);
+  ctx.fillRect(-w / 2 + 7, my, w - 14, mh);
+  ctx.fillStyle = alpha(PROP.metal, 0.24);
+  ctx.fillRect(-w / 2 + 7, my, w - 14, 2);
+}
+
+/* LA VENTILATION. Le seul mouvement CONTINU du lot — une soufflerie ne s'arrete
+   pas —, et le seul qui tourne. Les pales restent sous la grille : une pale plus
+   claire que son capot se lirait comme une piece detachee. */
+function ventilation(p, ox, oy) {
+  const r = 13 + p.p * 5;
+  const a = performance.now() / 1000 * (1.5 + p.p * 1.1);
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.beginPath(); ctx.arc(ox, oy, r + 2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha("#0d1017", 0.88);
+  ctx.beginPath(); ctx.arc(0, 0, r + 2, 0, Math.PI * 2); ctx.fill();
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = alpha("#4b5364", 0.60);
+  for (let i = 0; i < 5; i++) {
+    const b = a + (i / 5) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, r, b, b + 0.62);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.80);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const b = (i / 4) * Math.PI;
+    ctx.moveTo(-Math.cos(b) * r, -Math.sin(b) * r);
+    ctx.lineTo(Math.cos(b) * r, Math.sin(b) * r);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metal, 0.34);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r + 1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.94);
+  ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LE PALETTIER. Le seul prop FIXE que l'Usine ajoute, et il lui faut l'etre :
+   quatre machines animees sans rien d'immobile autour font une vitrine, pas un
+   atelier. Ses alveoles ne sont pas toutes pleines — un rack plein se lit comme
+   un damier. */
+function palettier(p, ox, oy) {
+  const w = 54 + p.p * 24, h = 20 + p.p * 7;
+  const n = 3 + ((p.p * 3) | 0);
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha("#2c3038", 0.76);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+
+  for (let i = 0; i < n; i++) {
+    if (((i * 37 + p.p * 71) % 10) < 3) continue;
+    const aw = w / n - 4;
+    const x = -w / 2 + 2 + i * (w / n);
+    ctx.fillStyle = alpha(PROP.rouille, 0.44);
+    ctx.fillRect(x, -h / 2 + 3, aw, h - 6);
+    ctx.strokeStyle = alpha(PROP.peint, 0.16);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, -h / 2 + 3, aw, h - 6);
+  }
+
+  ctx.strokeStyle = alpha(PROP.metal, 0.40);
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2, -h / 2);
+  ctx.moveTo(-w / 2, h / 2); ctx.lineTo(w / 2, h / 2);
+  ctx.stroke();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.90);
+  for (let i = 0; i <= n; i++) {
+    const x = -w / 2 + i * (w / n);
+    ctx.fillRect(x - 1.6, -h / 2 - 1, 3.2, h + 2);
+  }
 }
 
 function caisses(p, ox, oy) {
