@@ -8,6 +8,25 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La part de props propre à chaque lieu (0.19.3)
+
+Un prop est **propre** quand un seul lieu le tire. Relevé sur les quatre tables
+de `props.js`, douze tirages chacune. Cible du plan 16 : **≥ 70 %**.
+
+| lieu | propres / 12 | part | avant le plan 16 |
+|---|---|---|---|
+| usine | 5 | 42 % | 42 % — **lot 5** |
+| fonderie | 6 | 50 % | 50 % — **lot 6** |
+| friche | 10 | **83 %** | **0 %** |
+| nébuleuse | 12 | **100 %** | 58 % |
+
+Fonds commun restant, sept props honnêtement industriels : plaque, caillebotis,
+coffret, tuyau, câble, marquage, débris. **Aucune entrée morte** — chaque prop
+du catalogue est tiré par au moins un lieu.
+
+La Friche était à zéro : douze tirages, aucun qui lui appartienne, dont un
+coffret à voyant et un caillebotis dans un lieu abandonné depuis vingt ans.
+
 ### Les quatre lois d'implantation (0.19.2)
 
 `buildBiome(bi, 2, 7)` sur l'arène complète, taille des obstacles relevée.

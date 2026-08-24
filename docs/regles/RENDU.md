@@ -195,7 +195,7 @@ danger, implantation.
 | **source** | presque rien | bandes LED ambrées | la gueule des fours | feux de position froids |
 | **implantation** | deux champs de ruines | bandes : chaîne, allée, chaîne | deux masses, un couloir | contraste de taille, centre vide |
 | **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | voilures et râtelier d'antennes |
-| **props** | gravats, ferraille, tubes morts | convoyeurs, caisses, allées | rigoles, lingots, scorie | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
+| **props** | brousse, jonchée, grillage tombé, carcasse, bidon, panneau | convoyeurs, caisses, allées | rigoles, lingots, scorie | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
 captures restent difficiles à attribuer, le travail n'est pas fini.
@@ -249,9 +249,14 @@ différents sous quatre mêmes blocs donnent quatre mêmes maps.
 - **`ledDe()` porte teinte, rayon ET type.** Une gueule de four et un voyant ne
   sont pas la même lumière : la gueule éclaire deux fois plus loin. La Friche
   n'a presque plus rien d'allumé — elle a été abandonnée.
-- Le seul détail qui **sorte** de l'empreinte est hors du clip, et il est unique :
-  les fers à béton de la ruine. Un mur cassé dont rien ne dépasse est un mur
-  coupé à la scie.
+- **Ce qui sort de l'empreinte est hors du clip, et rien n'y a de volume** : les
+  fers à béton de la ruine, et l'**éboulis** de sa brèche, plaqué au sol contre
+  le pied du mur. Un mur cassé dont rien ne dépasse est un mur coupé à la scie ;
+  un mur percé dont rien n'est tombé est un mur percé proprement.
+- **La brèche vit DANS l'empreinte** — la collision ne bouge pas d'un pixel — et
+  se lit comme un trou parce que ce qui la remplit est un éboulis et non une
+  matière. Elle part du **pied** (un mur cède par le bas) et ne touche jamais un
+  coin (un mur ne se déchausse pas par l'angle).
 
 ### Un danger n'est pas un cercle
 
@@ -307,13 +312,23 @@ scorie), la Friche *a été abandonnée*, la Nébuleuse *flotte* (épaves, voile
 modules, cristaux, antennes). Un catalogue entièrement partagé rendait les
 biomes interchangeables.
 
-**Les trois lieux terrestres partagent un fonds industriel** — plaque,
-caillebotis, câble, tuyau, débris, marquage — et ils y ont droit : ce *sont* des
-installations industrielles. **La Nébuleuse ne partage plus rien.** Elle en
-tirait cinq props sur douze, posés au sol d'une station orbitale parce qu'ils
-étaient déjà écrits — la seule justification qu'un prop n'a pas le droit d'avoir.
-Son lien avec les trois autres passe par la charte, les cadres et les effets de
-jeu, pas par un tuyau.
+**Un prop est PROPRE quand un seul lieu le tire, et la part se mesure** (chiffres
+dans `LISEZMOI.md`, cible ≥ 70 %). Le fonds commun — plaque, caillebotis, câble,
+tuyau, débris, marquage, coffret — reste **honnêtement industriel**, et les lieux
+qui y ont droit sont ceux qui *sont* des installations industrielles.
+
+- **La Nébuleuse ne partage plus rien** (100 %). Elle en tirait cinq sur douze,
+  posés au sol d'une station orbitale parce qu'ils étaient déjà écrits — la seule
+  justification qu'un prop n'a pas le droit d'avoir. Son lien avec les trois
+  autres passe par la charte, les cadres et les effets de jeu, pas par un tuyau.
+- **La Friche était à zéro** (83 %) : douze tirages, aucun à elle, dont un
+  coffret à voyant et un caillebotis dans un lieu abandonné depuis vingt ans.
+  **Ce qui a poussé prouve l'abandon mieux que toute rouille** — la brousse est
+  son prop le plus tiré. Elle garde le **tube**, seul reste allumé qu'elle
+  s'autorise et que plus personne d'autre ne tire : un néon qui grésille dit
+  l'abandon, un voyant qui respire dit qu'un appareil fonctionne.
+- **Aucune entrée morte** : un prop que plus aucune table ne tire se supprime, il
+  ne s'oublie pas dans le catalogue.
 
 - **Une allée n'est pas un avertissement** : deux lignes continues et pâles, pas
   des hachures. Un marquage hachuré se lit comme un télégraphe.

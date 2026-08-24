@@ -3696,6 +3696,35 @@
                    par le decoupage de sa trame — plus un ratelier d antennes pour
                    l echelle.
 
+     0.19.3 lot 4  LA FRICHE ETAIT A ZERO. Douze tirages de props, AUCUN qui lui
+                   appartienne — et dedans un coffret a voyant et un caillebotis,
+                   dans un lieu abandonne depuis vingt ans. C etait le pire score
+                   des quatre, et une friche n est pas une usine dont on a baisse
+                   les lumieres : c est un endroit d ou l homme est parti, et ce
+                   qui le prouve est ce qui a POUSSE depuis.
+                   Six props a elle : BROUSSE (le plus tire des trois — les
+                   touffes naissent d un centre et s ecartent, une couronne
+                   reguliere ferait un massif), JONCHEE (du beton casse et non de
+                   la ferraille, le fer est ce qui distingue un moellon d un
+                   caillou), GRILLAGE tombe (maille AFFAISSEE, une maille
+                   reguliere decrirait une cloture encore debout), CARCASSE (sa
+                   trappe est OUVERTE : on est venu prendre ce qu il y avait a
+                   prendre), BIDON couche (jamais debout — un fut debout est un
+                   obstacle, et rien dans ce module n a le droit de se lire comme
+                   bloquant), PANNEAU tombe avec son massif. Part propre mesuree :
+                   0 % -> 83 %, cible du plan a 70 %.
+                   Le COFFRET part, le TUBE reste et n est plus tire que par elle :
+                   un neon qui gresille dit l abandon, un voyant qui respire dit
+                   qu un appareil FONCTIONNE. Aucune entree morte au catalogue —
+                   verifie, les sept props communs sont tous encore tires.
+                   LA BRECHE, dans `blocs.js` : deux blocs sur trois ont un pan
+                   qui a CEDE. Elle vit DANS l empreinte, donc la collision ne
+                   bouge pas d un pixel ; elle se lit comme un trou parce que ce
+                   qui la remplit est un eboulis. Elle part du pied — un mur cede
+                   par le bas — et ne touche jamais un coin. Son eboulis deborde
+                   hors du clip, plaque au sol : un mur perce dont rien n est
+                   tombe est un mur perce proprement.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3704,4 +3733,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.19.2";
+export const VERSION = "0.19.3";

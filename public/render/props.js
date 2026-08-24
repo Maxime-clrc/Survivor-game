@@ -35,7 +35,9 @@ const P_PLAQUE = 0, P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_CONVOYEUR = 8, P_CAISSES = 9, P_ALLEE = 10,
       P_RIGOLE = 11, P_LINGOTS = 12, P_SCORIE = 13,
       P_RAIL = 14, P_GIVRE = 15, P_ANCRAGE = 16, P_BALISE = 17,
-      P_EPAVE = 18, P_VOILE = 19, P_MODULE = 20, P_CRISTAL = 21, P_ANTENNE = 22;
+      P_EPAVE = 18, P_VOILE = 19, P_MODULE = 20, P_CRISTAL = 21, P_ANTENNE = 22,
+      P_BROUSSE = 23, P_JONCHEE = 24, P_GRILLAGE = 25, P_CARCASSE = 26,
+      P_BIDON = 27, P_PANNEAU = 28;
 
 // un prop emissif declare son RAYON et sa COULEUR : une rigole en fusion et un
 // voyant de coffret ne sont pas la meme lumiere.
@@ -52,8 +54,12 @@ const TABLE = {
           P_CAILLEBOTIS, P_COFFRET, P_TUYAU, P_CABLE, P_MARQUAGE, P_DEBRIS],
   fonderie: [P_RIGOLE, P_RIGOLE, P_LINGOTS, P_LINGOTS, P_SCORIE, P_SCORIE,
              P_TUYAU, P_PLAQUE, P_DEBRIS, P_COFFRET, P_CAILLEBOTIS, P_MARQUAGE],
-  friche: [P_DEBRIS, P_DEBRIS, P_CABLE, P_CABLE, P_PLAQUE, P_TUBE,
-           P_COFFRET, P_MARQUAGE, P_TUYAU, P_DEBRIS, P_CAILLEBOTIS, P_CABLE],
+  // le TUBE reste, et il n'est plus tire que par elle : un neon qui gresille est
+  // le seul reste ALLUME que ce lieu s'autorise, et son comportement dit
+  // l'abandon mieux qu'une rouille de plus. Le coffret, lui, part — un voyant
+  // qui respire dit qu'un appareil FONCTIONNE, et plus rien ne fonctionne ici.
+  friche: [P_BROUSSE, P_BROUSSE, P_BROUSSE, P_JONCHEE, P_JONCHEE, P_GRILLAGE,
+           P_CARCASSE, P_BIDON, P_PANNEAU, P_TUBE, P_DEBRIS, P_CABLE],
   nebuleuse: [P_EPAVE, P_EPAVE, P_VOILE, P_VOILE, P_CRISTAL, P_CRISTAL,
               P_MODULE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_GIVRE, P_BALISE],
 };
@@ -189,6 +195,12 @@ function dessin(p, ox, oy) {
     case P_RIGOLE:      return rigole(p);
     case P_LINGOTS:     return lingots(p, ox, oy);
     case P_SCORIE:      return scorie(p);
+    case P_BROUSSE:     return brousse(p);
+    case P_JONCHEE:     return jonchee(p, ox, oy);
+    case P_GRILLAGE:    return grillage(p, ox, oy);
+    case P_CARCASSE:    return carcasse(p, ox, oy);
+    case P_BIDON:       return bidon(p, ox, oy);
+    case P_PANNEAU:     return panneau(p, ox, oy);
     case P_EPAVE:       return epave(p, ox, oy);
     case P_VOILE:       return voile(p, ox, oy);
     case P_MODULE:      return module_(p, ox, oy);
@@ -199,6 +211,197 @@ function dessin(p, ox, oy) {
     case P_ANCRAGE:     return ancrage(ox, oy);
     case P_BALISE:      return balise(p, ox, oy);
     default:            return tube(p, ox, oy);
+  }
+}
+
+/* --- FRICHE : ce qui a ETE LAISSE --------------------------------------- */
+
+/* LA BROUSSE, ET C'EST ELLE QUI DIT « ABANDONNEE » MIEUX QUE TOUTE ROUILLE. Une
+   friche n'est pas une usine sombre : c'est un endroit d'ou l'homme est parti, et
+   ce qui le prouve est ce qui a POUSSE depuis. Aucune touffe n'est plantee, elles
+   naissent d'un centre et s'ecartent — une couronne reguliere ferait un massif.
+
+   Pas de contour, pas de masse pleine : le module ne dessine QUE du plaque au sol,
+   et un buisson qui aurait du volume se lirait comme bloquant. */
+function brousse(p) {
+  const n = 5 + ((p.p * 4) | 0);
+  ctx.fillStyle = alpha(PROP.ombre, 0.16);
+  ctx.beginPath(); ctx.ellipse(1.5, 2, 15, 11, 0, 0, Math.PI * 2); ctx.fill();
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + p.p * 6;
+    const d = 2 + ((i * 31 + p.p * 67) % 9);
+    const cx = Math.cos(a) * d, cy = Math.sin(a) * d * 0.8;
+    const brins = 5 + (i % 3);
+    ctx.strokeStyle = alpha(PROP.vert, 0.26 + ((i * 13 + p.p * 41) % 7) / 24);
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    for (let b = 0; b < brins; b++) {
+      const ba = -Math.PI / 2 + (((b * 29 + i * 17 + p.p * 53) % 20) / 10 - 1) * 1.5;
+      const l = 4 + ((b * 23 + i * 11 + p.p * 37) % 8);
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(ba) * l, cy + Math.sin(ba) * l);
+    }
+    ctx.stroke();
+  }
+}
+
+/* LA JONCHEE. Du beton casse, pas de la ferraille : des blocs anguleux, clairs
+   sur le dessus et sombres sur la tranche, et QUELQUES fers qui en sortent. Le
+   fer est ce qui distingue un moellon d'un caillou. */
+function jonchee(p, ox, oy) {
+  const n = 4 + ((p.p * 4) | 0);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + p.p * 7;
+    const d = 3 + ((i * 41 + p.p * 79) % 15);
+    const w = 5 + ((i * 19 + p.p * 47) % 8), h = w * 0.62;
+    const x = Math.cos(a) * d, y = Math.sin(a) * d * 0.82;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a * 1.3);
+    ctx.fillStyle = alpha(PROP.ombre, 0.34);
+    ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+    ctx.fillStyle = alpha("#7e7a6e", 0.60 + (i % 3) * 0.10);
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = alpha(PROP.ombre, 0.30);
+    ctx.fillRect(-w / 2, h / 2 - 1.4, w, 1.4);
+    ctx.restore();
+  }
+  ctx.strokeStyle = alpha(PROP.rouille, 0.52);
+  ctx.lineWidth = 1;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const a = p.p * 9 + i * 2.1;
+    const d = 4 + ((i * 37 + p.p * 61) % 10);
+    const x = Math.cos(a) * d, y = Math.sin(a) * d * 0.8;
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + Math.cos(a + 1) * 6, y + Math.sin(a + 1) * 5,
+                         x + Math.cos(a + 0.4) * 11, y + Math.sin(a + 0.4) * 9);
+  }
+  ctx.stroke();
+  ctx.lineCap = "butt";
+}
+
+/* LE GRILLAGE TOMBE. Un panneau de cloture couche au sol : une maille losangee,
+   AFFAISSEE en son milieu — une maille reguliere decrirait une cloture encore
+   debout, et celle-ci ne l'est plus depuis longtemps. Le cadre est tordu, donc
+   ses deux montants ne sont pas paralleles. */
+function grillage(p, ox, oy) {
+  const w = 44 + p.p * 22, h = 26 + p.p * 10;
+  const gauche = h * (0.86 + p.p * 0.2), droite = h * (1.1 - p.p * 0.18);
+  const bordY = (u) => (-gauche + (droite - gauche) * u) / 2;
+
+  ctx.strokeStyle = alpha(PROP.ombre, 0.30);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i <= 6; i++) {
+    const u = i / 6, x = -w / 2 + w * u;
+    ctx.moveTo(x + ox, bordY(u) + oy); ctx.lineTo(x + ox, -bordY(u) + oy);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = alpha(PROP.metal, 0.24);
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  for (let i = 0; i <= 6; i++) {
+    const u = i / 6, x = -w / 2 + w * u;
+    ctx.moveTo(x, bordY(u)); ctx.lineTo(x + w / 6, -bordY(u + 1 / 6));
+    ctx.moveTo(x, -bordY(u)); ctx.lineTo(x + w / 6, bordY(u + 1 / 6));
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = alpha(PROP.rouille, 0.46);
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, bordY(0)); ctx.lineTo(w / 2, bordY(1));
+  ctx.moveTo(-w / 2, -bordY(0)); ctx.lineTo(w / 2, -bordY(1));
+  ctx.stroke();
+}
+
+/* LA CARCASSE. Une machine qu'on a videe : un chassis rouille, un tambour reste
+   dedans, et une trappe OUVERTE — c'est la trappe qui dit qu'on est venu prendre
+   ce qu'il y avait a prendre. */
+function carcasse(p, ox, oy) {
+  const w = 40 + p.p * 16, h = 26 + p.p * 9;
+  ctx.fillStyle = alpha(PROP.ombre, 0.38);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha(PROP.rouille, 0.62);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#0d0c0a", 0.72);
+  ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8);
+
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.70);
+  ctx.lineWidth = 2.2;
+  ctx.strokeRect(-w / 2 + 1.5, -h / 2 + 1.5, w - 3, h - 3);
+
+  ctx.strokeStyle = alpha(PROP.metal, 0.26);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(-w * 0.12, 0, h * 0.28, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-w * 0.12, 0, h * 0.14, 0, Math.PI * 2); ctx.stroke();
+
+  // la trappe, rabattue sur le cote et plus claire que le trou.
+  ctx.fillStyle = alpha(PROP.rouille, 0.50);
+  ctx.fillRect(w / 2 - 1, -h * 0.34, 13, h * 0.66);
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.60);
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(w / 2 - 1, -h * 0.34, 13, h * 0.66);
+}
+
+/* LE BIDON RENVERSE. Couche, jamais debout : un fut debout est un obstacle, et
+   rien ici n'a le droit de se lire comme bloquant. Deux cerclages, un fond
+   ELLIPTIQUE — c'est l'ellipse qui dit qu'il est sur le flanc. */
+function bidon(p, ox, oy) {
+  const l = 26 + p.p * 10, r = 8 + p.p * 2.5;
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillRect(-l / 2 + ox, -r + oy, l, r * 2);
+  ctx.fillStyle = alpha(PROP.rouille, 0.66);
+  ctx.fillRect(-l / 2, -r, l, r * 2);
+  ctx.fillStyle = alpha("#c8c4b4", 0.07);
+  ctx.fillRect(-l / 2, -r, l, r * 0.7);
+  ctx.strokeStyle = alpha(PROP.ombre, 0.40);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (const u of [-0.22, 0.22]) {
+    ctx.moveTo(l * u, -r); ctx.lineTo(l * u, r);
+  }
+  ctx.stroke();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.74);
+  ctx.beginPath(); ctx.ellipse(-l / 2, 0, 2.6, r, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.rouille, 0.40);
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(l / 2, 0, 2.6, r, 0, 0, Math.PI * 2); ctx.stroke();
+}
+
+/* LE PANNEAU CASSE. Il est TOMBE, avec son pied et son massif de beton : un
+   panneau encore droit dirait qu'on entretient les lieux. Sa tole est percee, et
+   ce qui restait de peinture est efface — jamais sature, sinon il redevient un
+   avertissement, et le canal de l'avertissement appartient au jeu. */
+function panneau(p, ox, oy) {
+  const w = 24 + p.p * 9, h = 17 + p.p * 6;
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.68);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.5, 0);
+  ctx.lineTo(w * 0.5 + 22, 4 + p.p * 5);
+  ctx.stroke();
+  ctx.fillStyle = alpha("#6b6a60", 0.50);
+  ctx.fillRect(w * 0.5 + 20, -3 + p.p * 5, 9, 12);
+
+  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha("#5a5a52", 0.72);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = alpha(PROP.peint, 0.16);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  // les percements : ils traversent, donc ils sont NOIRS et non gris.
+  ctx.fillStyle = alpha("#0a0a08", 0.80);
+  for (let i = 0; i < 3; i++) {
+    const x = -w / 2 + 4 + ((i * 37 + p.p * 71) % Math.max(1, w - 8));
+    const y = -h / 2 + 3 + ((i * 23 + p.p * 53) % Math.max(1, h - 6));
+    ctx.beginPath();
+    ctx.arc(x, y, 1.4 + (i % 2) * 1.1, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 

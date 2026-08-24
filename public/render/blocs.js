@@ -152,13 +152,15 @@ export function habillerBloc(o, rx, ry, cle, S) {
 
   ctx.restore();
 
-  // LE SEUL DETAIL QUI SORTE DE L EMPREINTE, et il est HORS du clip pour ca :
-  // des fers a beton qui depassent la crete de 5 px. Un mur casse dont rien ne
-  // depasse est un mur coupe a la scie.
-  if (cle === "friche") fers(o, rx, ry);
+  // CE QUI SORT DE L EMPREINTE, et il est HORS du clip pour ca. Deux choses, et
+  // aucune ne se lit comme un volume : des fers a beton qui depassent la crete de
+  // 5 px, et l EBOULIS de la breche, plaque au sol contre le pied du mur. Un mur
+  // casse dont rien ne depasse est un mur coupe a la scie ; un mur perce dont
+  // rien n est tombe est un mur qu on a perce PROPREMENT.
+  if (cle === "friche") debord(o, rx, ry);
 }
 
-function fers(o, rx, ry) {
+function debord(o, rx, ry) {
   const s = graine(o);
   const w = o.w, h = o.h;
   ctx.save();
@@ -175,7 +177,36 @@ function fers(o, rx, ry) {
   }
   ctx.stroke();
   ctx.lineCap = "butt";
+
+  const b = breche(o);
+  if (b) {
+    for (let i = 0; i < 7; i++) {
+      const x = b.x + (((s >>> (i * 3)) & 15) / 15 - 0.5) * b.w * 1.15;
+      const y = h / 2 + ((s >>> (i * 2 + 1)) & 7) * 0.7;
+      const t = 2.4 + ((s >>> i) & 3);
+      ctx.fillStyle = alpha("#000000", 0.30);
+      ctx.fillRect(x - t / 2 + 1, y - t / 2 + 1, t, t * 0.7);
+      ctx.fillStyle = alpha("#6e6a5e", 0.46 + (i % 3) * 0.10);
+      ctx.fillRect(x - t / 2, y - t / 2, t, t * 0.7);
+    }
+  }
   ctx.restore();
+}
+
+/* LA BRECHE. Deux blocs sur trois en ont une, et c'est ce qui empeche une friche
+   d'etre une usine dont on aurait baisse les lumieres : un pan de mur qui a CEDE.
+   Elle vit DANS l'empreinte — la collision ne bouge pas d'un pixel, c'est
+   l'invariant de ce module —, mais elle se lit comme un trou parce que ce qui la
+   remplit est un eboulis et non une matiere.
+
+   Elle ne touche jamais un coin : un mur cede en son milieu, il ne se dechausse
+   pas par l'angle. */
+function breche(o) {
+  const s = graine(o);
+  if ((s >>> 17) % 3 === 0) return null;
+  const w = Math.min(o.w * 0.34, 46);
+  const x = (((s >>> 19) & 15) / 15 - 0.5) * (o.w - w * 1.6);
+  return { x, w, h: Math.min(o.h * 0.52, 34) };
 }
 
 /* --- USINE : ce qui est USINE ------------------------------------------ */
@@ -340,6 +371,36 @@ function friche(o, S) {
     g.addColorStop(1, alpha(PROP.rouille, 0));
     ctx.fillStyle = g;
     ctx.fillRect(x - 2, -h / 2, 4 + (i & 1) * 2, l);
+  }
+
+  // LE PAN QUI A CEDE. Il est dans l'empreinte — la collision ne bouge pas —, et
+  // il se lit comme un trou parce que ce qui le remplit est un EBOULIS. Il part
+  // du pied : un mur cede par le bas, il ne s'evide pas par le haut.
+  const b = breche(o);
+  if (b) {
+    const y0 = h / 2 - b.h;
+    ctx.fillStyle = alpha("#000000", 0.66);
+    ctx.beginPath();
+    ctx.moveTo(b.x - b.w / 2, h / 2);
+    for (let i = 0; i <= 5; i++) {
+      const u = i / 5;
+      const d = ((s >>> (i * 3 + 1)) & 7) / 7;
+      ctx.lineTo(b.x - b.w / 2 + b.w * u, y0 + d * b.h * 0.34);
+    }
+    ctx.lineTo(b.x + b.w / 2, h / 2);
+    ctx.closePath();
+    ctx.fill();
+    // la TRANCHE : le beton est epais, donc le bord du trou a une epaisseur, et
+    // c'est elle qui empeche la breche de se lire comme une tache.
+    ctx.strokeStyle = alpha(S.blocEdge, 0.26);
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const t = 3 + ((s >>> (i * 2)) & 3);
+      const x = b.x + (((s >>> (i * 5)) & 15) / 15 - 0.5) * b.w * 0.9;
+      ctx.fillStyle = alpha("#6e6a5e", 0.40 + (i % 3) * 0.12);
+      ctx.fillRect(x - t / 2, h / 2 - t - ((s >>> i) & 3), t, t * 0.8);
+    }
   }
 
   ctx.fillStyle = alpha(PROP.vert, 0.16);
