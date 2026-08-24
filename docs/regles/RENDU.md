@@ -204,7 +204,8 @@ danger, implantation.
 | **source** | presque rien | bandes LED ambrées | la gueule des fours | feux de position froids |
 | **implantation** | deux champs de ruines | bandes : chaîne, allée, chaîne | deux masses, un couloir | contraste de taille, centre vide |
 | **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | voilures et râtelier d'antennes |
-| **props** | brousse, jonchée, grillage tombé, carcasse, bidon, panneau | convoyeurs, bras, presses, ventilations, palettiers | rigoles, lingots, scorie | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
+| **props** | brousse, jonchée, grillage tombé, carcasse, bidon, panneau | convoyeurs, bras, presses, ventilations, palettiers | poches, lingotières, trémies, outillage, rigoles | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
+| **ce qui traverse** | rien, et c'est le sujet | les bandes de chaîne | **le canal de coulée** | les nervures du pont |
 | **mouvement** | un néon qui grésille | **bandes qui défilent, bras, presses, chenille, bouffées** | la fonte qui ondule | la balise qui bat, le cristal qui respire |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
@@ -390,6 +391,41 @@ passe pleine vue entre la couleur d'arène et la matière du sol, puis une passe
 - **Le blit se fait par sous-rectangle** : une baie de 300 px ne paie pas une
   image de 2 200. On calcule le morceau de source, on ne laisse pas un clip s'en
   charger.
+
+#### Le canal de coulée
+
+Tout ce que la Fonderie disait d'elle-même vivait dans une **tuile de 400 px** —
+rigoles, voies, vitrifié : des *pièces*, répétées, jamais une installation. Il lui
+manquait ce qu'une fonderie a et qu'un atelier n'a pas : **quelque chose de long
+qui traverse**, et par rapport à quoi tout le reste se situe. `couleeDe()`
+(`material.js`) est cette géométrie, ancrée au **monde** et tirée par graine.
+
+- **IL EST COUVERT, ET CE N'EST PAS UN DÉTAIL.** La nappe libre de métal en
+  fusion est déjà prise : c'est `couleeEnFusion`, un **danger**, avec son
+  collider. Peindre la même matière sans collider apprendrait au joueur soit à
+  fuir ce qui ne blesse pas, soit à ignorer ce qui blesse. Un canal couvert n'a
+  pas ce problème : on lit une **conduite**, pas une mare, et la lumière sort par
+  ses joints et ses regards.
+- La polyligne est **orthogonale**, coudes francs : une conduite industrielle
+  tourne à angle droit, une rivière serpente.
+- **Seuls les REGARDS sont des sources.** Un joint tous les 46 px en ferait des
+  centaines : une source tous les 46 px n'est plus une source, c'est une nappe, et
+  le tampon deviendrait uniformément chaud. Le regard est rare et éclaire loin.
+- **Ils se filtrent à la génération, jamais à l'usage** — chiffres dans
+  `LISEZMOI.md`. Un regard sous un bloc pose un halo sans rien qui l'émette ; un
+  regard dans un danger superpose deux fois la même matière dont une seule
+  blesse. Filtrer une fois sert les **deux** lecteurs : `decor.js` dessine,
+  `lumiere.js` allume, et deux listes divergentes mettraient la lueur à côté de
+  la conduite. Le canal, lui, passe sous un bloc sans être filtré : une conduite
+  passe sous une machine, c'est la **source** qui n'a pas le droit d'être
+  invisible.
+- **La chaleur qui monte est ancrée sur le regard**, pas sur la vue : elle dit où
+  est la source au lieu de teindre l'image. Une distorsion thermique aurait
+  demandé un second tampon et un blit par image pour le même mot ; un brin qui
+  monte le dit avec un `stroke`.
+- L'**embase de cheminée** est le pied des cheminées du premier plan, posée sur
+  les fours qui n'ont pas de gueule. Sans elle les silhouettes du bord ne tiennent
+  à rien.
 
 #### La baie
 

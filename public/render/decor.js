@@ -3,7 +3,7 @@ import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, 
 import { BIOME, BOSS, PROP, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
-import { floorPattern, fondEspace, macroPattern } from "./material.js";
+import { couleeDe, floorPattern, fondEspace, macroPattern } from "./material.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
@@ -244,6 +244,77 @@ export function drawFloor() {
   if (!m) return;
   ctx.fillStyle = m;
   ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
+}
+
+/* LE CANAL DE COULEE, DESSINE. La geometrie vit dans `material.js` — `lumiere.js`
+   la lit aussi, et deux modules qui liraient deux geometries differentes
+   mettraient la lueur a cote de la conduite.
+
+   Il est COUVERT : des plaques epaisses, un joint incandescent entre chacune, et
+   des regards rares. Ce qui brille est ce qui PASSE ENTRE deux plaques, jamais
+   une nappe libre — la nappe libre est un danger, avec son collider. */
+const COULEE_PLAQUE = 46;
+export function drawCoulee() {
+  if (gfx <= GFX_LOW || biomeAt(biomeIndex).key !== "fonderie") return;
+  const c = couleeDe(biomeSeed, CFG.ARENA_W, CFG.ARENA_H, obstaclesActifs(), hazardsActifs());
+  const t = performance.now() / 1000;
+
+  for (const canal of c.canaux) {
+    for (const s of canal.segs) {
+      const mx = (s.x0 + s.x1) / 2, my = (s.y0 + s.y1) / 2;
+      const l = Math.hypot(s.x1 - s.x0, s.y1 - s.y0);
+      if (!inView(mx, my, l / 2 + canal.large)) continue;
+      const vert = s.x0 === s.x1;
+      const w = vert ? canal.large : l, h = vert ? l : canal.large;
+      const x = Math.min(s.x0, s.x1) - (vert ? canal.large / 2 : 0);
+      const y = Math.min(s.y0, s.y1) - (vert ? 0 : canal.large / 2);
+
+      ctx.fillStyle = alpha("#000000", 0.44);
+      ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+      ctx.fillStyle = alpha(PROP.brique, 0.30);
+      ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+      ctx.fillStyle = alpha("#191413", 0.92);
+      ctx.fillRect(x, y, w, h);
+
+      // LE JOINT : ce qui passe entre deux plaques. Il ondule, il ne clignote
+      // pas — de la matiere en fusion n'a pas d'echeance.
+      const n = Math.max(1, Math.round(l / COULEE_PLAQUE));
+      for (let i = 1; i < n; i++) {
+        const u = i / n;
+        const k = 0.42 + 0.58 * (0.5 + 0.5 * Math.sin(t * 0.7 + i * 1.9));
+        const jx = s.x0 + (s.x1 - s.x0) * u, jy = s.y0 + (s.y1 - s.y0) * u;
+        ctx.strokeStyle = alpha(PROP.fonte, 0.30 + 0.34 * k);
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        if (vert) { ctx.moveTo(jx - canal.large / 2, jy); ctx.lineTo(jx + canal.large / 2, jy); }
+        else { ctx.moveTo(jx, jy - canal.large / 2); ctx.lineTo(jx, jy + canal.large / 2); }
+        ctx.stroke();
+        ctx.strokeStyle = alpha("#ffd9a8", 0.20 + 0.26 * k);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = alpha(PROP.metalDark, 0.60);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, w, h);
+    }
+  }
+
+  for (const r of c.regards) {
+    if (!inView(r.x, r.y, 26)) continue;
+    const k = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 0.5 + r.ph * 9));
+    ctx.fillStyle = alpha("#0c0808", 0.92);
+    ctx.beginPath(); ctx.arc(r.x, r.y, 11, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(r.x, r.y, 0, r.x, r.y, 9);
+    g.addColorStop(0, alpha("#ffe6b0", 0.80 * k));
+    g.addColorStop(0.55, alpha(PROP.fonte, 0.70 * k));
+    g.addColorStop(1, alpha("#7a2a08", 0.50));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(r.x, r.y, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(PROP.metalDark, 0.86);
+    ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.arc(r.x, r.y, 10.5, 0, Math.PI * 2); ctx.stroke();
+  }
 }
 
 export function drawGrid() {
@@ -651,6 +722,20 @@ export function drawAtmosphere(tm) {
     if (i < 0.55 || !inView(x, y, 40)) return;
     champ(tm, Math.PI * 0.52, 110, 7, 4, col, 0.34 * i, 1.4, x, y, 20);
   });
+
+  /* LA CHALEUR MONTE, ET C'EST LE SEUL EFFET DE CE LIEU QUI TRAVERSE LE CENTRE.
+     Elle ne le traverse pas comme un champ de meteo : elle est ANCREE sur chaque
+     regard, donc elle dit ou est la source au lieu de teinter la vue. Une
+     distorsion thermique aurait demande un second tampon et un blit par image
+     pour le meme mot ; un brin qui monte le dit avec un `stroke`. */
+  if (biomeAt(biomeIndex).key === "fonderie") {
+    const c = couleeDe(biomeSeed, CFG.ARENA_W, CFG.ARENA_H, obstaclesActifs(), hazardsActifs());
+    for (const r of c.regards) {
+      if (!inView(r.x, r.y, 70)) continue;
+      const k = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(tm * 0.5 + r.ph * 9));
+      champ(tm, -Math.PI / 2, 34, 16, 9, PROP.fonte, 0.09 * k, 2.6, r.x, r.y, 30);
+    }
+  }
 
   // L'USINE RESPIRE. La bouffee sort DU BLOC et dans la direction de sa bouche —
   // un jet vertical partout dirait qu'il y a un plafond, et il n'y en a pas. La

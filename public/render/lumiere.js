@@ -1,10 +1,11 @@
 import { CFG, HZ_SLIP, HZ_SLOW, hazardState } from "/shared/game_state.js";
-import { BOSS_SKIN, alpha, melange } from "/shared/palette.js";
+import { BOSS_SKIN, PROP, alpha, melange } from "/shared/palette.js";
 import { GFX_HIGH, GFX_ULTRA, gfx } from "../core/state.js";
 import { bursts } from "./fx.js";
+import { couleeDe } from "./material.js";
 import { ledDe } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { camera, ctx, hazardsActifs, obstaclesActifs, ownerColorOf, skin } from "./stage.js";
+import { biomeKey, biomeSeed, camera, ctx, hazardsActifs, obstaclesActifs, ownerColorOf, skin } from "./stage.js";
 
 /* IL N'Y AVAIT AUCUNE LUMIERE DANS LE JEU. Tout etait eclaire a plat, seul le
    vignettage modulait.
@@ -145,6 +146,20 @@ export function drawLumiere(v) {
     const l = ledDe(o);
     if (!l) continue;
     source(g, l.x, l.y, l.r, l.col, l.type === "gueule" ? 0.46 : 0.24);
+  }
+
+  /* LE SOL DE LA FONDERIE ECLAIRE, et il n'y a que la qu'il le fasse. Seuls les
+     REGARDS du canal sont des sources : un joint tous les 46 px en ferait des
+     centaines, et une source tous les 46 px n'est plus une source, c'est une
+     nappe — le tampon deviendrait uniformement chaud et plus rien ne se
+     detacherait. La geometrie est celle que `decor.js` dessine, lue au meme
+     endroit : deux geometries mettraient la lueur a cote de la conduite. */
+  if (biomeKey() === "fonderie") {
+    const c = couleeDe(biomeSeed, CFG.ARENA_W, CFG.ARENA_H, obstaclesActifs(), hazardsActifs());
+    for (const r of c.regards) {
+      const k = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(tm * 0.5 + r.ph * 9));
+      source(g, r.x, r.y, 150, PROP.fonte, 0.34 * k);
+    }
   }
 
   // le souffle est LU, jamais pousse : ecrire vers une couche superieure est

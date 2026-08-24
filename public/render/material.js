@@ -574,6 +574,92 @@ function nebuleuse(g, rand, usure) {
   for (let i = 0; i < n; i++) tache(g, rand() * TILE, rand() * TILE, 24 + rand() * 40, PROP.givre, 0.045 + 0.03 * usure);
 }
 
+/* LE CANAL DE COULEE, ET IL EST ANCRE AU MONDE. Tout ce que la Fonderie disait
+   d'elle-meme vivait dans une tuile de 400 px : rigoles, voies, vitrifie — donc
+   des PIECES, repetees, jamais une installation. Il lui manquait la seule chose
+   qu'une fonderie a et qu'un atelier n'a pas : quelque chose de long qui
+   TRAVERSE, et par rapport a quoi tout le reste se situe.
+
+   IL EST COUVERT, ET CE N'EST PAS UN DETAIL. La nappe libre de metal en fusion
+   est deja prise : c'est `couleeEnFusion`, un DANGER, avec son collider. Peindre
+   la meme matiere sans collider apprendrait au joueur soit a fuir ce qui ne
+   blesse pas, soit a ignorer ce qui blesse. Un canal couvert n'a pas ce
+   probleme : on lit une conduite, pas une mare, et la lumiere sort par ses
+   JOINTS et ses REGARDS.
+
+   La polyligne est ORTHOGONALE et ses coudes sont francs : une conduite
+   industrielle tourne a angle droit, une riviere serpente. */
+const COULEE_LARGE = 30;
+let couleeCache = null;
+
+export function couleeDe(seed, arenaW, arenaH, obstacles, hazards) {
+  const cle = `${seed}|${arenaW}|${arenaH}|${obstacles.length}|${hazards.length}`;
+  if (couleeCache && couleeCache.cle === cle) return couleeCache.v;
+  const rand = mulberry32((seed >>> 0) * 9173 + 41);
+  const v = [];
+
+  for (let k = 0; k < 2; k++) {
+    const vert = k === 1;
+    const L = vert ? arenaH : arenaW, T = vert ? arenaW : arenaH;
+    const n = 3;
+    const pts = [];
+    let t = T * (0.18 + rand() * 0.24) + (k ? T * 0.44 : 0);
+    pts.push([-80, t]);
+    for (let i = 1; i <= n; i++) {
+      const l = (L / n) * i - (i < n ? L * 0.06 : -80);
+      pts.push([l, t]);
+      if (i < n) {
+        t = Math.max(T * 0.12, Math.min(T * 0.88, t + (rand() - 0.5) * T * 0.34));
+        pts.push([l, t]);
+      }
+    }
+    const segs = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [a, b] = [pts[i], pts[i + 1]];
+      segs.push(vert ? { x0: a[1], y0: a[0], x1: b[1], y1: b[0] }
+                     : { x0: a[0], y0: a[1], x1: b[0], y1: b[1] });
+    }
+    v.push({ segs, large: COULEE_LARGE });
+  }
+
+  /* LES REGARDS SONT LES SEULES SOURCES. Un joint par 46 px ferait des centaines
+     de sources pour la passe de lumiere, et une source tous les 46 px n'est plus
+     une source : c'est une nappe. Le regard est rare et il eclaire loin.
+
+     ILS SE FILTRENT A LA GENERATION, jamais a l'usage. Releve sur six graines :
+     un a quatre regards tombaient SOUS un bloc — un halo au sol sans rien qui
+     l'emette — et jusqu'a deux DANS un danger, ou la coulee libre est deja
+     dessinee avec son collider. Le canal, lui, passe sous un bloc sans probleme :
+     une conduite passe sous une machine ; c'est la SOURCE qui n'a pas le droit
+     d'etre invisible. Filtrer ici, c'est le faire une fois et pour les DEUX
+     lecteurs — filtrer a l'usage, c'est le refaire par image et risquer que
+     `decor.js` et `lumiere.js` ne voient pas la meme liste. */
+  const couvert = (x, y) => {
+    for (const o of obstacles) {
+      if (Math.abs(x - o.x) < o.w / 2 + 14 && Math.abs(y - o.y) < o.h / 2 + 14) return true;
+    }
+    for (const h of hazards) {
+      if ((x - h.x) ** 2 + (y - h.y) ** 2 < (h.r + 14) ** 2) return true;
+    }
+    return false;
+  };
+  const regards = [];
+  for (const c of v) {
+    for (const s of c.segs) {
+      const l = Math.hypot(s.x1 - s.x0, s.y1 - s.y0);
+      const n = Math.max(1, Math.round(l / 460));
+      for (let i = 0; i < n; i++) {
+        const u = (i + 0.5) / n;
+        const x = s.x0 + (s.x1 - s.x0) * u, y = s.y0 + (s.y1 - s.y0) * u;
+        const ph = rand();
+        if (!couvert(x, y)) regards.push({ x, y, ph });
+      }
+    }
+  }
+  couleeCache = { cle, v: { canaux: v, regards } };
+  return couleeCache.v;
+}
+
 /* L'ARRIERE-PLAN, CUIT UNE FOIS. Deux couches parce qu'un fond a UNE seule
    parallaxe est un autocollant : les astres sont a l'infini (0,05), les etoiles
    proches derivent trois fois plus (0,16), et c'est cet ecart qui donne la

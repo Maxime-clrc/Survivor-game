@@ -22,9 +22,36 @@ monterait de 50 à 83 % sans qu'une ligne bouge.
 | lieu | propres / 12 | part | avant le plan 16 |
 |---|---|---|---|
 | usine | 10 | **83 %** | 42 % |
-| fonderie | 6 | 50 % | 50 % — **lot 6** |
+| fonderie | 10 | **83 %** | 50 % |
 | friche | 10 | **83 %** | **0 %** |
 | nébuleuse | 12 | **100 %** | 58 % |
+
+La plaque et le coffret ont été **supprimés du dépôt**, pas déplacés : la
+Fonderie était la dernière à les tirer, et un prop que plus aucune table ne tire
+ne s'oublie pas au catalogue. Le fonds commun tombe à cinq — caillebotis, câble,
+tuyau, débris, marquage.
+
+### Le canal de coulée de la Fonderie (0.19.5)
+
+Deux canaux orthogonaux traversant l'arène, tirés par graine, avec un regard
+tous les 460 px. Relevé sur six graines, caméra balayée tous les 100 px.
+
+| | avant filtrage | après |
+|---|---|---|
+| regards par arène | 20 – 21 | 16 – 18 |
+| visibles par vue (moyenne) | 2,3 – 5,0 | 1,9 – 4,4 |
+| visibles au pire | 11 | 10 |
+| **sous un bloc** | **1 à 4** | **0** |
+| **dans un danger** | **0 à 2** | **0** |
+
+Les deux défauts étaient réels : un regard sous un bloc pose un halo au sol sans
+rien qui l'émette, et un regard dans un danger superpose deux fois la même
+matière — dont une seule blesse. **Le filtrage est fait à la génération**, donc
+une fois et pour les deux lecteurs (`decor.js` dessine, `lumiere.js` allume) ;
+le faire à l'usage le referait par image et laisserait les deux listes diverger.
+
+Le canal, lui, passe sous un bloc sans être filtré : une conduite passe sous une
+machine. C'est la **source** qui n'a pas le droit d'être invisible.
 
 **Aucune entrée morte** — chaque prop déclaré est tiré par au moins une table.
 Le contrôle est fait au même relevé : un prop que plus personne ne tire se

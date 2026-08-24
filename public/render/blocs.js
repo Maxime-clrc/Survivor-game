@@ -324,10 +324,38 @@ function four(o, S) {
     }
   }
 
-  // LA GUEULE. Elle est la seule chose de ce depot qui eclaire depuis un
-  // obstacle, et son halo est cuit ici : au sol c'est `ledDe` qui le porte.
+  /* L'EMBASE DE CHEMINEE, sur les fours qui n'ont pas de gueule. Le premier plan
+     en porte deja, tout en haut de l'ecran : celle-ci est leur PIED, et c'est ce
+     qui raccorde les deux — sans elle les cheminees du bord ne tiennent a rien.
+     Un anneau de brique, un conduit noir, et la suie qui a coule autour. */
   const l = ledDe(o);
-  if (!l) return;
+  if (!l) {
+    const r = Math.min(w, h) * 0.30;
+    if (r < 9) return;
+    const suie = ctx.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 2.1);
+    suie.addColorStop(0, alpha("#000000", 0.40));
+    suie.addColorStop(1, alpha("#000000", 0));
+    ctx.fillStyle = suie;
+    ctx.fillRect(-r * 2.1, -r * 2.1, r * 4.2, r * 4.2);
+    ctx.fillStyle = alpha(PROP.brique, 0.46);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha("#000000", 0.44);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = alpha("#070505", 0.90);
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.58, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(PROP.metalDark, 0.60);
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + (s & 7) * 0.1;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62);
+      ctx.lineTo(Math.cos(a) * r * 0.98, Math.sin(a) * r * 0.98);
+      ctx.stroke();
+    }
+    if (s & 4) boulons(o, S, 2);
+    return;
+  }
   const gx = l.x - o.x, gy = l.y - o.y;
   const gw = l.dx ? l.len : 13, gh = l.dy ? l.len : 13;
   ctx.fillStyle = alpha("#000000", 0.62);

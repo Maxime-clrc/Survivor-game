@@ -3760,6 +3760,46 @@
                    tirent » se retourne tout seul, purger l Usine aurait fait
                    passer la Fonderie de 50 a 83 % sans qu une ligne bouge.
 
+     0.19.5 lot 6  LA FONDERIE TENAIT DANS UNE TUILE DE 400 PX. Rigoles, voies,
+                   vitrifie : des PIECES, repetees, jamais une installation. Il
+                   lui manquait ce qu une fonderie a et qu un atelier n a pas —
+                   quelque chose de LONG QUI TRAVERSE, et par rapport a quoi tout
+                   le reste se situe.
+                   `couleeDe()` : deux canaux orthogonaux ancres au MONDE, coudes
+                   francs (une conduite tourne a angle droit, une riviere
+                   serpente). IL EST COUVERT, et ce n est pas un detail : la nappe
+                   libre de fusion est DEJA prise, c est `couleeEnFusion`, un
+                   DANGER avec son collider. La peindre sans collider apprendrait
+                   au joueur soit a fuir ce qui ne blesse pas, soit a ignorer ce
+                   qui blesse. Un canal couvert n a pas ce probleme — on lit une
+                   conduite, et la lumiere sort par ses joints et ses REGARDS.
+                   Seuls les regards sont des sources : un joint tous les 46 px en
+                   ferait des centaines, et une source tous les 46 px n est plus
+                   une source, c est une nappe. Ils se filtrent A LA GENERATION —
+                   releve avant : un a quatre regards SOUS un bloc (un halo sans
+                   rien qui l emette) et jusqu a deux DANS un danger (deux fois la
+                   meme matiere, dont une seule blesse). Apres : zero et zero, sur
+                   six graines. Filtrer une fois sert les DEUX lecteurs, `decor`
+                   qui dessine et `lumiere` qui allume ; a l usage les deux listes
+                   divergeraient. Le canal, lui, passe sous un bloc sans filtre :
+                   une conduite passe sous une machine, c est la SOURCE qui n a pas
+                   le droit d etre invisible.
+                   LA CHALEUR MONTE, ancree sur le regard et pas sur la vue : elle
+                   dit ou est la source au lieu de teindre l image. Une distorsion
+                   thermique aurait demande un second tampon et un blit par image
+                   pour le meme mot ; un brin qui monte le dit avec un `stroke`.
+                   Quatre props a elle : POCHE (le plus gros du depot et la plus
+                   forte source du sol, posee sur son socle — une poche en l air
+                   demanderait une grue donc un volume), MOULE (le rang n est pas
+                   uniforme : une fonderie coule EN CONTINU, c est le degrade du
+                   rang qui le raconte), TREMIE (ce qui ENTRE), OUTILLAGE (le seul
+                   prop du lieu qui parle de la MAIN). Part propre : 50 % -> 83 %.
+                   ET LA PLAQUE ET LE COFFRET SONT SUPPRIMES, pas deplaces : elle
+                   etait la derniere a les tirer. Un prop que plus aucune table ne
+                   tire ne s oublie pas au catalogue. Le fonds commun tombe a cinq.
+                   L EMBASE DE CHEMINEE ferme la boucle avec le premier plan : les
+                   cheminees du bord ont enfin un pied.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3768,4 +3808,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.19.4";
+export const VERSION = "0.19.5";

@@ -30,15 +30,16 @@ const MARGE = 1;
 
    Les trois autres gardent leur fonds commun : il est honnetement industriel, et
    eux SONT des installations industrielles. */
-const P_PLAQUE = 0, P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
-      P_DEBRIS = 4, P_MARQUAGE = 5, P_COFFRET = 6, P_TUBE = 7,
+const P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
+      P_DEBRIS = 4, P_MARQUAGE = 5, P_TUBE = 7,
       P_CONVOYEUR = 8, P_CAISSES = 9, P_ALLEE = 10,
       P_RIGOLE = 11, P_LINGOTS = 12, P_SCORIE = 13,
       P_RAIL = 14, P_GIVRE = 15, P_ANCRAGE = 16, P_BALISE = 17,
       P_EPAVE = 18, P_VOILE = 19, P_MODULE = 20, P_CRISTAL = 21, P_ANTENNE = 22,
       P_BROUSSE = 23, P_JONCHEE = 24, P_GRILLAGE = 25, P_CARCASSE = 26,
       P_BIDON = 27, P_PANNEAU = 28,
-      P_BRAS = 29, P_PRESSE = 30, P_VENTILATION = 31, P_PALETTIER = 32;
+      P_BRAS = 29, P_PRESSE = 30, P_VENTILATION = 31, P_PALETTIER = 32,
+      P_POCHE = 33, P_MOULE = 34, P_TREMIE = 35, P_OUTILLAGE = 36;
 
 /* UN PROP QUI BOUGE N'EST PAS UN SIGNAL, A UNE CONDITION QUI SE VERIFIE : SON
    MOUVEMENT EST CONTINU ET PERIODIQUE, donc il n'a ni debut ni fin, donc il
@@ -52,12 +53,12 @@ const P_PLAQUE = 0, P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
    plus, parce que c'est le seul dont le verbe soit au present. */
 const CYCLE = (t, periode, phase) => ((t / periode) + phase) % 1;
 
-// un prop emissif declare son RAYON et sa COULEUR : une rigole en fusion et un
-// voyant de coffret ne sont pas la meme lumiere.
+// un prop emissif declare son RAYON et sa COULEUR : une poche en fusion et un
+// tube mort ne sont pas la meme lumiere.
 const EMISSIF = {
-  [P_COFFRET]: { r: 54, col: PROP.led },
   [P_TUBE]:    { r: 78, col: PROP.led },
   [P_RIGOLE]:  { r: 96, col: PROP.fonte },
+  [P_POCHE]:   { r: 120, col: PROP.fonte },
   [P_BALISE]:  { r: 70, col: PROP.balise },
   [P_CRISTAL]: { r: 86, col: PROP.balise },
 };
@@ -65,8 +66,12 @@ const EMISSIF = {
 const TABLE = {
   usine: [P_CONVOYEUR, P_CONVOYEUR, P_CONVOYEUR, P_BRAS, P_PRESSE, P_VENTILATION,
           P_PALETTIER, P_CAISSES, P_ALLEE, P_ALLEE, P_MARQUAGE, P_CABLE],
-  fonderie: [P_RIGOLE, P_RIGOLE, P_LINGOTS, P_LINGOTS, P_SCORIE, P_SCORIE,
-             P_TUYAU, P_PLAQUE, P_DEBRIS, P_COFFRET, P_CAILLEBOTIS, P_MARQUAGE],
+  // la PLAQUE et le COFFRET sont SUPPRIMES du depot, pas deplaces : elle etait le
+  // dernier lieu a les tirer, et un prop que plus aucune table ne tire ne
+  // s'oublie pas au catalogue. Elle garde le caillebotis et le tuyau — une
+  // fonderie a des grilles de sol et des conduites, ce n'est pas de l'emprunt.
+  fonderie: [P_POCHE, P_RIGOLE, P_RIGOLE, P_MOULE, P_MOULE, P_TREMIE,
+             P_OUTILLAGE, P_LINGOTS, P_SCORIE, P_SCORIE, P_CAILLEBOTIS, P_TUYAU],
   // le TUBE reste, et il n'est plus tire que par elle : un neon qui gresille est
   // le seul reste ALLUME que ce lieu s'autorise, et son comportement dit
   // l'abandon mieux qu'une rouille de plus. Le coffret, lui, part — un voyant
@@ -158,7 +163,7 @@ function gresil(p) {
     const u = Math.sin(t * (7 + p.p * 5) + p.p * 12) * Math.sin(t * 1.7 + p.p * 3);
     return u > 0.15 ? 1 : u > -0.2 ? 0.35 : 0.06;
   }
-  if (p.k === P_RIGOLE) {
+  if (p.k === P_RIGOLE || p.k === P_POCHE) {
     return 0.70 + 0.30 * (0.5 + 0.5 * Math.sin(t * (0.42 + p.p * 0.3) + p.p * 7));
   }
   // une balise d'arrimage BAT : elle appelle, elle n'eclaire pas.
@@ -195,13 +200,15 @@ export function drawProps() {
 
 function dessin(p, ox, oy) {
   switch (p.k) {
-    case P_PLAQUE:      return plaque(ox, oy);
     case P_CAILLEBOTIS: return caillebotis(ox, oy);
     case P_CABLE:       return cable(p);
     case P_TUYAU:       return tuyau(ox, oy);
     case P_DEBRIS:      return debris(p, ox, oy);
     case P_MARQUAGE:    return marquage(p);
-    case P_COFFRET:     return coffret(p, ox, oy);
+    case P_POCHE:       return poche(p, ox, oy);
+    case P_MOULE:       return moule(p, ox, oy);
+    case P_TREMIE:      return tremie(p, ox, oy);
+    case P_OUTILLAGE:   return outillage(p, ox, oy);
     case P_CONVOYEUR:   return convoyeur(p, ox, oy);
     case P_CAISSES:     return caisses(p, ox, oy);
     case P_ALLEE:       return allee(p);
@@ -863,6 +870,159 @@ function allee(p) {
 
 /* --- FONDERIE : ce qui COULE ------------------------------------------- */
 
+/* LA POCHE DE COULEE. Le plus gros prop du depot, et la plus forte source du
+   sol : c'est elle qui donne a la Fonderie sa masse au niveau du semis, la ou
+   les trois autres lieux n'ont que des pieces. Son bain est plus clair que son
+   bord, sinon la cuve se lit comme un disque plein.
+
+   Elle est POSEE SUR SON SOCLE, jamais suspendue : une poche en l'air demanderait
+   une grue, donc un volume, et rien dans ce module n'a le droit d'en avoir un. */
+function poche(p, ox, oy) {
+  const r = 17 + p.p * 6;
+  const k = gresil(p);
+  ctx.fillStyle = alpha(PROP.ombre, 0.40);
+  ctx.beginPath(); ctx.ellipse(ox, oy, r + 4, r + 3, 0, 0, Math.PI * 2); ctx.fill();
+
+  // le socle, plus large que la cuve : c'est ce qui la pose au sol.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.80);
+  ctx.beginPath(); ctx.ellipse(0, 0, r + 4, r + 3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.brique, 0.52);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.86);
+  ctx.lineWidth = 3.4;
+  ctx.beginPath(); ctx.arc(0, 0, r - 1, 0, Math.PI * 2); ctx.stroke();
+
+  const bain = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.72);
+  bain.addColorStop(0, alpha("#ffe6b0", 0.55 + 0.35 * k));
+  bain.addColorStop(0.6, alpha(PROP.fonte, 0.60 + 0.30 * k));
+  bain.addColorStop(1, alpha("#7a2a08", 0.72));
+  ctx.fillStyle = bain;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2); ctx.fill();
+
+  // la CROUTE : du metal qui refroidit en surface, et elle derive avec le bain.
+  ctx.fillStyle = alpha(PROP.scorie, 0.60);
+  for (let i = 0; i < 3; i++) {
+    const a = p.p * 8 + i * 2.3 + performance.now() / 1000 * 0.09;
+    const d = r * (0.24 + ((i * 29 + p.p * 53) % 7) / 22);
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, 4 + (i % 3), 2.6 + (i % 2), a, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // les TOURILLONS et le BEC : sans eux c'est un chaudron, pas une poche.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.92);
+  for (const s of [-1, 1]) ctx.fillRect(s * (r + 1) - 3, -3.4, 6, 6.8);
+  ctx.beginPath();
+  ctx.moveTo(r * 0.72, -5); ctx.lineTo(r + 7, 0); ctx.lineTo(r * 0.72, 5);
+  ctx.closePath(); ctx.fill();
+}
+
+/* LA LINGOTIERE. Une rangee d'empreintes, et elles ne sont pas toutes au meme
+   stade : une pleine et rouge, une qui a tourne au brun, une vide. Un rang
+   uniforme dirait qu'on a coule d'un coup — une fonderie coule EN CONTINU, et
+   c'est le degrade du rang qui le raconte. */
+function moule(p, ox, oy) {
+  const n = 3 + ((p.p * 3) | 0);
+  const w = 15, h = 26;
+  const W = n * (w + 3);
+  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillRect(-W / 2 + ox, -h / 2 + oy, W, h);
+  ctx.fillStyle = alpha("#2a221e", 0.88);
+  ctx.fillRect(-W / 2, -h / 2, W, h);
+  for (let i = 0; i < n; i++) {
+    const x = -W / 2 + 1.5 + i * (w + 3);
+    const etat = ((i * 41 + p.p * 79) % 10) / 10;
+    ctx.fillStyle = alpha("#050405", 0.80);
+    ctx.fillRect(x, -h / 2 + 3, w, h - 6);
+    if (etat < 0.28) continue;
+    const c = etat < 0.55 ? PROP.scorie : etat < 0.8 ? "#8c3a12" : PROP.fonte;
+    ctx.fillStyle = alpha(c, 0.55 + etat * 0.35);
+    ctx.fillRect(x + 1.5, -h / 2 + 4.5, w - 3, h - 9);
+    if (etat > 0.8) {
+      ctx.fillStyle = alpha("#ffd9a8", 0.34);
+      ctx.fillRect(x + 3.5, -h / 2 + 7, w - 7, h - 14);
+    }
+  }
+  ctx.strokeStyle = alpha(PROP.metal, 0.24);
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(-W / 2, -h / 2, W, h);
+}
+
+/* LA TREMIE. Ce qui ENTRE dans une fonderie : de la charge, versee par une
+   goulotte. Elle est vue de dessus, donc c'est son ouverture qu'on lit — un
+   trapeze sombre — et le tas qui a debordé au pied. */
+function tremie(p, ox, oy) {
+  const w = 30 + p.p * 12, h = 22 + p.p * 8;
+  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 + ox, -h / 2 + oy); ctx.lineTo(w / 2 + ox, -h / 2 + oy);
+  ctx.lineTo(w * 0.28 + ox, h / 2 + oy); ctx.lineTo(-w * 0.28 + ox, h / 2 + oy);
+  ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = alpha("#3c3630", 0.90);
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2, -h / 2);
+  ctx.lineTo(w * 0.28, h / 2); ctx.lineTo(-w * 0.28, h / 2);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = alpha("#070605", 0.86);
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.36, -h * 0.28); ctx.lineTo(w * 0.36, -h * 0.28);
+  ctx.lineTo(w * 0.17, h * 0.34); ctx.lineTo(-w * 0.17, h * 0.34);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.26);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2, -h / 2);
+  ctx.stroke();
+
+  ctx.fillStyle = alpha(PROP.scorie, 0.62);
+  for (let i = 0; i < 5; i++) {
+    const x = (((i * 37 + p.p * 71) % 20) / 20 - 0.5) * w * 0.8;
+    const y = h / 2 + ((i * 23 + p.p * 47) % 7) * 0.8;
+    ctx.beginPath(); ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/* L'OUTILLAGE. Des ringards et des pinces, poses EN FAISCEAU contre rien : c'est
+   le seul prop du lieu qui parle de la MAIN qui travaille ici. Les manches
+   partent d'un point commun, jamais paralleles — un rateau range est un rateau
+   qu'on n'utilise pas. */
+function outillage(p, ox, oy) {
+  const n = 3 + ((p.p * 3) | 0);
+  const bx = -14, by = 6;
+  ctx.lineCap = "round";
+  for (let i = 0; i < n; i++) {
+    const a = -0.9 + (i / Math.max(1, n - 1)) * 0.8 + p.p * 0.3;
+    const l = 30 + ((i * 31 + p.p * 61) % 12);
+    const ex = bx + Math.cos(a) * l, ey = by + Math.sin(a) * l;
+    ctx.strokeStyle = alpha(PROP.ombre, 0.34);
+    ctx.lineWidth = 3.4;
+    ctx.beginPath(); ctx.moveTo(bx + ox, by + oy); ctx.lineTo(ex + ox, ey + oy); ctx.stroke();
+    ctx.strokeStyle = alpha(PROP.metalDark, 0.86);
+    ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+    // le bout de l'outil : crochet, palette ou fourche selon le tirage.
+    ctx.strokeStyle = alpha(PROP.metal, 0.46);
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    const t = (i + ((p.p * 3) | 0)) % 3;
+    if (t === 0) ctx.arc(ex, ey, 3.6, a - 2.2, a + 0.8);
+    else if (t === 1) {
+      ctx.moveTo(ex - Math.sin(a) * 4, ey + Math.cos(a) * 4);
+      ctx.lineTo(ex + Math.sin(a) * 4, ey - Math.cos(a) * 4);
+    } else {
+      for (const s of [-1, 0, 1]) {
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex + Math.cos(a + s * 0.4) * 5, ey + Math.sin(a + s * 0.4) * 5);
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.lineCap = "butt";
+  ctx.fillStyle = alpha(PROP.rouille, 0.50);
+  ctx.beginPath(); ctx.ellipse(bx, by, 5, 3.4, 0.3, 0, Math.PI * 2); ctx.fill();
+}
+
 function rigole(p) {
   const l = 74 + p.p * 46, w = 13;
   const k = gresil(p);
@@ -917,25 +1077,6 @@ function scorie(p) {
   ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill();
 }
 
-function plaque(ox, oy) {
-  const r = 15;
-  ctx.fillStyle = alpha(PROP.ombre, 0.32);
-  ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = alpha(PROP.metalDark, 0.72);
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = alpha(PROP.metal, 0.30);
-  ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.arc(0, 0, r - 2.5, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = alpha(PROP.ombre, 0.45);
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + 0.4;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
-    ctx.lineTo(Math.cos(a) * (r - 4), Math.sin(a) * (r - 4));
-    ctx.stroke();
-  }
-}
 
 function caillebotis(ox, oy) {
   const w = 34, h = 22;
@@ -1023,21 +1164,6 @@ function marquage(p) {
   ctx.strokeRect(-w / 2, -h / 2, w, h);
 }
 
-function coffret(p, ox, oy) {
-  const w = 20, h = 13;
-  ctx.fillStyle = alpha(PROP.ombre, 0.40);
-  ctx.fillRect(-w / 2 + ox * 1.6, -h / 2 + oy * 1.6, w, h);
-  ctx.fillStyle = alpha(PROP.metalDark, 0.90);
-  ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.strokeStyle = alpha(PROP.metal, 0.34);
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(-w / 2, -h / 2, w, h);
-  ctx.fillStyle = alpha(PROP.ombre, 0.50);
-  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, 3.4);
-  const k = gresil(p);
-  ctx.fillStyle = alpha(PROP.led, 0.30 + 0.70 * k);
-  ctx.fillRect(w / 2 - 5, h / 2 - 4.4, 2.6, 2.6);
-}
 
 function tube(p, ox, oy) {
   const l = 40, r = 2.6;
