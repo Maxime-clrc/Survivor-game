@@ -3943,6 +3943,35 @@
                    son opacite globale — cadre en pointilles, glyphe desature,
                    NOM lisible : c est lui qui dit ce qui manque.
 
+     0.20.3 lot 4  UN ALLIE HORS DU CHAMP N EXISTAIT NULLE PART. Ni marqueur, ni
+                   direction, ni distance — ni dans le monde ni dans le HUD.
+                   L arene fait 4800 x 2700 pour une vue de 1600 x 900 : c est le
+                   cas ORDINAIRE, pas un cas limite. Un chevron par allie, ramene
+                   sur le RECTANGLE de la vue et non sur un cercle — un cercle
+                   laisse les quatre coins vides et fait glisser le marqueur —
+                   avec la distance EN METRES. Rien ne s ouvre sur le reseau : les
+                   joueurs ne sont jamais filtres par vue, leur position etait
+                   deja la, et la camera arrive par le contexte que le rendu
+                   passe deja.
+                   IL GARDE LA COULEUR DU JOUEUR, TOUJOURS. C est une DIRECTION,
+                   et la charte interdit le rouge pour ce vers quoi il faut
+                   aller ; l etat passe donc par la FORME — chevron creux pour un
+                   allie loin, triangle plein pour un allie a terre — par la
+                   presence et par le mot.
+                   LE BOUCLIER DES ALLIES SORT DE LA BARRE DE VIE. Il y etait
+                   superpose en trame, donc deux valeurs se lisaient sur une
+                   surface ; il a son filet de trois pixels dessous, et ce filet
+                   n existe que s il a quelque chose a dire. La surcouche `<u>`
+                   disparait du depot : le bouclier a la meme forme partout.
+                   A TERRE, LA BARRE DEVIENT CELLE DU RELEVEMENT — elle est vide
+                   de toute facon, et c est la seule chose qui bouge encore pour
+                   ce joueur. L arete de la ligne passe au rouge sombre, et le mot
+                   ne s ecrit plus deux fois sur la meme ligne.
+                   MES ETATS NE SE REPETENT PLUS dans ma propre ligne d equipe :
+                   ils sont dans la bande, au-dessus de mes vitales, depuis le
+                   lot precedent. Deux endroits pour la meme information, c est un
+                   endroit de trop a surveiller.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3951,4 +3980,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.20.2";
+export const VERSION = "0.20.3";

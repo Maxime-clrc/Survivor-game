@@ -260,6 +260,7 @@ function drawScreen(v) {
     biomeNom: biomeNom(biomeIndex),
     meteoNom: weather ? weatherNom(weather.id) : "",
     myColor: colorOf(myId),
+    camX: camera.x0, camY: camera.y0,
     counts: ownedCounts(myId),
     alertOrder, alertWarn, alertInfo,
     bossAnnounce, phaseAnnounce,

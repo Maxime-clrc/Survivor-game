@@ -381,43 +381,14 @@
   box-shadow: 0 0 6px color-mix(in srgb, var(--hud-shield) 45%, transparent);
 }
 
-.gauge.surcharge > i, .gauge.surcharge > u > i {
+.gauge.surcharge > i {
   border-right-color: var(--flash);
   box-shadow: 0 0 8px color-mix(in srgb, var(--flash) 55%, transparent);
 }
 
-/* LA SURCOUCHE RESTE POUR LES ALLIES — leur ligne n'a qu'une barre, et c'est le
-   lot de l'escouade qui la separe. Elle passe AU-DESSUS des graduations : sous
-   elles, la trame se faisait manger par le quadrillage. */
-.gauge > u {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.gauge > u > i {
-  display: block;
-  height: 100%;
-  width: 0;
-  transition: width var(--tap) linear;
-  background:
-    repeating-linear-gradient(-45deg,
-      color-mix(in srgb, var(--hud-shield) 92%, transparent) 0 3px,
-      transparent 3px 7px),
-    color-mix(in srgb, var(--hud-shield) 30%, transparent);
-  /* le BORD porte la valeur : c'est lui qu'on lit du coin de l'oeil, pas la
-     trame. Franc, et il deborde d'une lueur pour se detacher de la vie. */
-  border-right: 2px solid var(--hud-shield);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--hud-shield) 60%, transparent),
-    0 0 7px color-mix(in srgb, var(--hud-shield) 45%, transparent);
-}
-
 /* il doit s'ETEINDRE au coup et se rallumer pendant la rampe — sans ca le joueur
    subit une regle qu'il ne voit pas. */
-.gauge.shieldHit > u > i, .gauge.bouclier.shieldHit > i { opacity: 0.15; }
-.gauge.shieldUp > u > i,
+.gauge.bouclier.shieldHit > i { opacity: 0.15; }
 .gauge.bouclier.shieldUp > i { animation: shieldUp 1.1s ease-in-out infinite; }
 
 @keyframes shieldUp {
@@ -512,6 +483,21 @@
   height: 8px;
   margin-top: var(--sp-1);
 }
+
+/* LE FILET DE BOUCLIER — trois pixels sous la vie, jamais dessus. Il n'existe
+   que s'il y a quelque chose a dire : pas de reserve et pas de bouclier, pas de
+   ligne, et donc pas de place perdue pour les trois autres. */
+.teamRow .sh {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-top: 2px;
+}
+
+.teamRow .sh[hidden] { display: none; }
+
+/* A TERRE : l'arete de la ligne passe au rouge sombre et la barre devient celle
+   du RELEVEMENT. C'est lisible d'un coup d'oeil sans que l'ecran s'alarme. */
+.teamRow.aterre { border-left-color: var(--downed); }
 
 .teamRow .tags { grid-column: 1 / -1; }
 
@@ -1111,6 +1097,45 @@
 }
 
 #hudPerf.low { color: var(--lethal); }
+
+
+/* LES CHEVRONS HORS ECRAN — l'arene fait trois fois la vue : un allie hors du
+   champ est le cas ORDINAIRE. Le chevron pointe, la distance chiffre, et la
+   FORME change avant la couleur quand il est a terre. Discret par defaut : il ne
+   prend de la voix que s'il y a quelque chose a faire. */
+#hudMarks { position: absolute; inset: 0; pointer-events: none; }
+
+.mark {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--t-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.55;
+  text-shadow: 0 1px 2px var(--bg-void), 0 0 3px var(--bg-void);
+  transition: opacity 200ms linear;
+}
+
+.mark[hidden] { display: none; }
+
+.mark > i {
+  display: block;
+  width: 13px;
+  height: 13px;
+  background: currentColor;
+  clip-path: polygon(50% 0, 100% 100%, 50% 76%, 0 100%);
+  transform: rotate(calc(var(--ang, 0deg) + 90deg));
+}
+
+.mark.bas { opacity: 0.85; }
+.mark.aterre { opacity: 1; }
+/* la FORME dit l'etat avant la couleur : chevron creux pour un allie loin,
+   triangle PLEIN pour un allie a terre. */
+.mark.aterre > i { clip-path: polygon(50% 0, 100% 88%, 0 88%); }
 
 
 #dmgLayer { position: absolute; inset: 0; }

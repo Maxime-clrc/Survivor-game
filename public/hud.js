@@ -44,6 +44,7 @@ const el = {
   bossUlt:  $("bossUlt"),
   bossUltFill: $("bossUlt").firstElementChild,
   team:     $("hudTeam"),
+  marks:    $("hudMarks"),
   alerts:   $("hudAlerts"),
   order:    $("alertOrder"),
   warn:     $("alertWarn"),
@@ -229,13 +230,25 @@ let teamSig = "";
 
 function buildTeam(lobby, myId) {
   el.team.textContent = "";
+  el.marks.textContent = "";
   for (const l of lobby) {
+    if (l.id !== myId) {
+      const m = document.createElement("div");
+      m.className = "mark";
+      m.innerHTML = '<i></i><span></span>';
+      m.hidden = true;
+      m.dataset.pid = l.id;
+      el.marks.appendChild(m);
+    }
     const row = document.createElement("div");
     row.className = "teamRow hudPanel" + (l.id === myId ? " me" : "");
+    // LE BOUCLIER A SON PROPRE FILET, comme chez soi : superpose a la vie, il
+    // faisait lire deux valeurs sur la meme surface.
     row.innerHTML =
       '<div class="cls"></div><div class="nom"></div>' +
       '<div class="pv"></div><div class="score"></div>' +
-      '<div class="bar gauge"><i></i><b></b><u><i></i></u></div><div class="tags"></div>';
+      '<div class="bar gauge"><i></i><b></b></div>' +
+      '<div class="sh gauge bouclier"><i></i></div><div class="tags"></div>';
     row.dataset.pid = l.id;
     el.team.appendChild(row);
   }
@@ -252,9 +265,9 @@ function updateTeam(v, c, now) {
     if (!row) break;
     const p = v.playerList.find(pp => pp.id === l.id);
     const col = PLAYER_COLORS[l.colorIndex % PLAYER_COLORS.length];
-    const [cls, nom, pv, score, bar, tags] = row.children;
-    const [fill, ghost, shWrap] = bar.children;
-    const sh = shWrap.firstElementChild;
+    const [cls, nom, pv, score, bar, shBar, tags] = row.children;
+    const [fill, ghost] = bar.children;
+    const sh = shBar.firstElementChild;
 
     setText(nom, `tn${l.id}`, l.name);
     setStyle(nom, `tc${l.id}`, "color", col);
@@ -273,6 +286,7 @@ function updateTeam(v, c, now) {
       setWidth(fill, `tf${l.id}`, 0);
       setWidth(sh, `tsh${l.id}`, 0);
       setWidth(ghost, `tgh${l.id}`, 0);
+      setHidden(shBar, `tshh${l.id}`, true);
       setText(pv, `tpv${l.id}`, "");
       setText(tags, `tg${l.id}`, l.spectator ? t("ui.hud.spec", "spectateur") : "…");
       continue;
@@ -285,23 +299,28 @@ function updateTeam(v, c, now) {
     setText(pv, `tpv${l.id}`, p.downed ? t("ui.hud.downed", "à terre") : String(Math.round(p.hp)));
     setClass(pv, `tpd${l.id}`, "downed", !!p.downed);
     setStyle(pv, `tpc${l.id}`, "color", hpColor(k, p.downed, TEXT.base));
-    setWidth(fill, `tf${l.id}`, k);
-    setStyle(fill, `tfc${l.id}`, "background-color", hpColor(k, p.downed, col));
-    setGhost(ghost, `tgh${l.id}`, k, barGhost(`t${l.id}`, k, now));
+    // A TERRE, LA BARRE DEVIENT CELLE DU RELEVEMENT : elle est vide de toute
+    // facon, et c'est la seule chose qui bouge encore pour ce joueur.
+    const releve = p.downed && p.revive > 0;
+    setWidth(fill, `tf${l.id}`, releve ? p.revive / CFG.REVIVE_TIME : k);
+    setStyle(fill, `tfc${l.id}`, "background-color",
+      releve ? SIGNAL.gain : hpColor(k, p.downed, col));
+    setGhost(ghost, `tgh${l.id}`, releve ? 1 : k, barGhost(`t${l.id}`, k, now));
     setTicks(bar, `ttk${l.id}`, maxHp);
     setClass(bar, `tlo${l.id}`, "low", !p.downed && k < LOW_HP);
-    updateShield(bar, sh, `t${l.id}`, p.shield, reserves.get(l.id) ?? 0, now);
+    setClass(row, `tdw${l.id}`, "aterre", !!p.downed);
+    setHidden(shBar, `tshh${l.id}`,
+      (reserves.get(l.id) ?? 0) <= 0 && p.shield <= 0.5);
+    updateShield(shBar, sh, `t${l.id}`, p.shield, reserves.get(l.id) ?? 0, now);
+
+    // MES etats sont dans la bande, au-dessus de mes vitales : les repeter ici
+    // ferait deux endroits a surveiller pour la meme information.
+    if (l.id === c.myId) { setText(tags, `tg${l.id}`, ""); continue; }
 
     const stSig = `${p.statuses}|${p.vuln}|${p.doom > 0 ? p.doom.toFixed(1) : 0}|${p.downed}`;
     if (memo[`tst${l.id}`] !== stSig) {
       memo[`tst${l.id}`] = stSig;
       tags.textContent = "";
-      if (p.downed) {
-        const d = document.createElement("span");
-        d.textContent = t("ui.hud.downed", "à terre");
-        d.style.color = COMBAT.downed;
-        tags.appendChild(d);
-      }
       for (const s of STATUSES) {
         if (!(p.statuses & statusBit(s.id))) continue;
         tags.appendChild(iconImg(STATUS_ICON[s.id], s.couleur, 13));
@@ -322,6 +341,60 @@ function updateTeam(v, c, now) {
       }
     }
   }
+}
+
+/* LES CHEVRONS HORS ECRAN — un allie sorti du champ n'existait NULLE PART a
+   l'ecran : ni direction, ni distance, ni dans le monde ni dans le HUD. L'arene
+   fait 4800 x 2700 pour une vue de 1600 x 900 : c'est le cas ordinaire, pas un
+   cas limite. Rien ne s'ouvre sur le reseau — les joueurs ne sont jamais filtres
+   par vue, donc leur position est deja la.
+
+   Le chevron reste DISCRET par defaut et ne prend de la voix que quand il y a
+   quelque chose a faire : il change de forme et de couleur pour un allie a
+   terre, et gagne en presence pour un allie au seuil bas. */
+const MARK_MARGE = 60;
+
+function updateMarks(v, c) {
+  const me = v.playerList.find(p => p.id === c.myId);
+  if (!me) return;
+  const cx = CFG.VIEW_W / 2, cy = CFG.VIEW_H / 2;
+
+  for (const m of el.marks.children) {
+    const id = +m.dataset.pid;
+    const p = v.playerList.find(pp => pp.id === id);
+    const vx = p ? p.x - c.camX : 0, vy = p ? p.y - c.camY : 0;
+    const dehors = !!p && (vx < MARK_MARGE || vx > CFG.VIEW_W - MARK_MARGE
+                        || vy < MARK_MARGE || vy > CFG.VIEW_H - MARK_MARGE);
+    setHidden(m, `mk${id}`, !dehors);
+    if (!dehors) continue;
+
+    const dx = vx - cx, dy = vy - cy;
+    // on ramene le point sur le RECTANGLE de la vue, pas sur un cercle : un
+    // cercle laisse les quatre coins vides et fait glisser le chevron.
+    const k = Math.min((cx - MARK_MARGE) / Math.max(1e-3, Math.abs(dx)),
+                       (cy - MARK_MARGE) / Math.max(1e-3, Math.abs(dy)));
+    setStyle(m, `mkx${id}`, "left", ((cx + dx * k) / CFG.VIEW_W * 100).toFixed(2) + "%");
+    setStyle(m, `mky${id}`, "top", ((cy + dy * k) / CFG.VIEW_H * 100).toFixed(2) + "%");
+    setStyle(m, `mka${id}`, "--ang", (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1) + "deg");
+
+    // LE CHEVRON GARDE LA COULEUR DU JOUEUR, toujours : c'est une DIRECTION, et
+    // la charte interdit le rouge pour ce vers quoi il faut aller. L'etat passe
+    // par la forme, la presence et le mot — jamais par la teinte.
+    const maxHp = p.maxHp || CFG.PLAYER_MAX_HP;
+    const bas = !p.downed && p.hp / maxHp < LOW_HP;
+    setStyle(m, `mkc${id}`, "color", colorDe(c.lobby, id));
+    setClass(m, `mkd${id}`, "aterre", !!p.downed);
+    setClass(m, `mkb${id}`, "bas", bas);
+    // LA DISTANCE EST EN METRES, comme partout ce qui s'adresse au joueur.
+    setText(m.lastElementChild, `mkt${id}`, p.downed
+      ? t("ui.hud.downed", "à terre")
+      : fmtM(Math.hypot(p.x - me.x, p.y - me.y)));
+  }
+}
+
+function colorDe(lobby, id) {
+  const l = lobby.find(o => o.id === id);
+  return PLAYER_COLORS[(l?.colorIndex ?? 0) % PLAYER_COLORS.length];
 }
 
 // B-3 · RIEN D'EXCLUSIVEMENT SONORE. Le Metronome porte une information
@@ -1040,6 +1113,7 @@ export function updateHud(v, c) {
   updateBoss(v.boss, now);
   updateBeat(v);
   updateTeam(v, c, now);
+  updateMarks(v, c);
   updateSelf(v, c, now);
   setHidden(el.stats, "stOn", !me || !(hudStats || hudDps));
   updateAlerts(c, now);
