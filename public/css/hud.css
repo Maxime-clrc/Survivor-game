@@ -81,17 +81,57 @@
   line-height: 1;
 }
 
+/* LE BLOC DE TELEMETRIE — un libelle, un chiffre, alignes en colonnes. Six
+   lignes de la meme taille donnaient au ping le poids des kills. */
 #hudMeta {
   margin-top: var(--sp-2);
-  font-size: var(--t-s);
+  width: 132px;
+}
+
+.tele {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 0 var(--sp-2);
+  line-height: 1.45;
+}
+
+.tele .lab {
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
   color: var(--text-dim);
-  line-height: 1.5;
+}
+
+.tele .val {
+  font-size: var(--t-s);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* LE RESEAU FERME LA MARCHE : il ne dit rien sur la partie, il dit si le lien
+   tient. Meme colonne, un rang de lecture en dessous. */
+.tele.faible .lab, .tele.faible .val {
+  font-size: var(--t-xs);
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+#hudMeta .etat {
+  margin-top: var(--sp-1);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
 }
 
 #hudMeta .warn  { color: var(--warn); }
 #hudMeta .slow  { color: var(--persist); }
 
 
+/* L'EN-TETE DE MISSION — trois rangs : OU je suis, OU J'EN SUIS, COMBIEN DE
+   TEMPS. Le nom du lieu descend en inscription : un titre de vingt-deux pixels
+   au milieu du bord haut masquait l'action pendant cinq minutes. */
 #hudSegment {
   position: absolute;
   top: var(--hud-safe);
@@ -99,27 +139,42 @@
   transform: translateX(-50%);
   width: 300px;
   text-align: center;
+  transition: opacity 800ms linear;
+}
+
+/* IL S'EFFACE QUAND PLUS RIEN NE CHANGE : la place et la vague sont acquises au
+   bout de six secondes. Un evenement ou un crescendo le rallument. */
+#hudSegment.dim { opacity: 0.45; }
+
+#segKicker {
+  font-size: var(--t-xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 #segName {
-  font-size: var(--t-l);
-  font-weight: 600;
+  font-size: var(--t-m);
+  font-weight: 700;
   letter-spacing: var(--track-title);
+  text-transform: uppercase;
 }
 
 #segName.crescendo { color: var(--warn); }
 
+/* CINQ GRADUATIONS, CINQ VAGUES : la graduation dit combien il y en a, le front
+   dit ou l'on en est, et les deux tombent au meme endroit. */
 #segBar {
-  margin-top: var(--sp-2);
+  --tick: 20%;
+  margin-top: var(--sp-1);
   height: 5px;
-  background: var(--line-soft);
 }
 
 #segBar > i {
   display: block;
   height: 100%;
   width: 0;
-  background: var(--text-dim);
+  background-color: var(--text-dim);
   transition: width var(--fade) linear;
 }
 

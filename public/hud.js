@@ -27,6 +27,7 @@ const el = {
   clock:    $("hudClock"),
   meta:     $("hudMeta"),
   seg:      $("hudSegment"),
+  segKicker: $("segKicker"),
   segName:  $("segName"),
   segBar:   $("segBar").firstElementChild,
   segState: $("segState"),
@@ -80,20 +81,40 @@ const annBig = el.announce.querySelector(".big");
 const annMid = el.announce.querySelector(".mid");
 const annSub = el.announce.querySelector(".sub");
 
-const metaLine = cls => {
+/* LE BLOC DE TELEMETRIE — quatre comptes et deux etats, sur DEUX rangs de
+   lecture. Six lignes de la meme taille et de la meme couleur donnaient au ping
+   le poids des kills ; le chrono domine, les comptes suivent, le reseau ferme la
+   marche. Les LIBELLES sont statiques : ils s'ecrivent une fois. */
+const metaCompte = (cle, repli) => {
   const d = document.createElement("div");
-  if (cls) d.className = cls;
+  d.className = "tele";
+  d.innerHTML = '<span class="lab"></span><span class="val"></span>';
+  d.firstElementChild.textContent = t(cle, repli);
   el.meta.appendChild(d);
   return d;
 };
-const metaKills = metaLine("");
-const metaEnem  = metaLine("");
-const metaPing  = metaLine("");
-const metaEcl   = metaLine("");
-const metaDiff  = metaLine("warn");
-const metaSlow  = metaLine("slow");
+const metaEtat = cls => {
+  const d = document.createElement("div");
+  d.className = "etat " + cls;
+  el.meta.appendChild(d);
+  return d;
+};
+const metaKills = metaCompte("ui.hud.lab.kills", "kills");
+const metaEnem  = metaCompte("ui.hud.lab.enemies", "ennemis");
+const metaEcl   = metaCompte("ui.hud.lab.eclats", "éclats");
+const metaPing  = metaCompte("ui.hud.lab.ping", "ping");
+metaPing.classList.add("faible");
+const metaDiff  = metaEtat("warn");
+const metaSlow  = metaEtat("slow");
 metaSlow.textContent = t("ui.hud.slow", "temps ralenti");
 metaEcl.hidden = metaDiff.hidden = metaSlow.hidden = true;
+
+function relireLibelles() {
+  metaKills.firstElementChild.textContent = t("ui.hud.lab.kills", "kills");
+  metaEnem.firstElementChild.textContent = t("ui.hud.lab.enemies", "ennemis");
+  metaEcl.firstElementChild.textContent = t("ui.hud.lab.eclats", "éclats");
+  metaPing.firstElementChild.textContent = t("ui.hud.lab.ping", "ping");
+}
 
 const memo = Object.create(null);
 
@@ -145,6 +166,7 @@ export function resetHud() {
   badges.clear();
   el.status.textContent = "";
   cdPeak.fill(0);
+  missionSig = "";
   pools.clear();
   poolAt = 0;
   hurtParSrc.fill(0);
@@ -158,6 +180,7 @@ export function resetHud() {
 onLangChange(() => {
   for (const k of Object.keys(memo)) delete memo[k];
   metaSlow.textContent = t("ui.hud.slow", "temps ralenti");
+  relireLibelles();
 });
 
 function hpColor(k, downed, col) {
@@ -511,24 +534,43 @@ function updateBoss(b, now) {
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 
-function updateSegment(v, c = {}) {
+/* L'EN-TETE DE MISSION — trois rangs et rien de plus : OU je suis (le lieu, en
+   inscription), OU J'EN SUIS (la vague, en gros), COMBIEN DE TEMPS (la barre et
+   le decompte). Le nom du lieu ne peut pas etre un titre de jeu au milieu de
+   l'ecran : il descend en 13 px, et tout le bloc s'efface au bout de six
+   secondes quand plus rien ne change.
+
+   LA VAGUE CIRCULAIT SANS JAMAIS S'AFFICHER. `v.beat` ne servait qu'a detecter
+   le crescendo, alors que c'est le seul palier de progression a l'echelle de la
+   minute : un segment dure cinq minutes, une vague soixante secondes. */
+const MISSION_MS = 6000;
+let missionSig = "";
+let missionAt = 0;
+
+function updateSegment(v, c = {}, now = 0) {
   if (!v.segment || v.boss) { setHidden(el.seg, "sgOn", true); return; }
   setHidden(el.seg, "sgOn", false);
 
   const dernier = v.beat >= TL_CFG.BEATS - 1;
   const lieu = c.biomeNom ? ` · ${c.biomeNom}` : "";
-  const meteo = c.meteoNom ? ` · ${c.meteoNom}` : "";
+  setText(el.segKicker, "sgk",
+    `${segmentName(v.segment)} · ${v.segment}/${TL_CFG.SEGMENTS}${lieu}`);
   setText(el.segName, "sgn",
-    `${segmentName(v.segment)} · ${v.segment}/${TL_CFG.SEGMENTS}${lieu}${meteo}`);
+    tf("ui.hud.vague", "vague {n} / {max}",
+       { n: Math.min(TL_CFG.BEATS, (v.beat ?? 0) + 1), max: TL_CFG.BEATS }));
   setClass(el.segName, "sgb", "crescendo", dernier);
 
-  const frac = Math.max(0, Math.min(1, v.hordeLeft / TL_CFG.SEGMENT_TIME));
+  // LA BARRE MONTE, le chiffre descend : le front de remplissage tombe alors sur
+  // la limite de la vague en cours, et les cinq graduations disent lesquelles
+  // sont passees. Une barre qui se VIDE placait le front a l'oppose du compte.
+  const frac = 1 - Math.max(0, Math.min(1, v.hordeLeft / TL_CFG.SEGMENT_TIME));
   let etat, couleur;
   const ev = v.event ? eventAt(v.event.id) : null;
   if (ev)             { etat = `${ev.nom} · ${mmss(v.event.t)}`;
                         couleur = ev.level === ALERT_ORDER ? SIGNAL.go : SIGNAL.warn; }
   else if (dernier)   { etat = t("ui.hud.crescendo", "crescendo"); couleur = SIGNAL.warn; }
   else                { etat = mmss(v.hordeLeft); couleur = TEXT.dim; }
+  if (!ev && c.meteoNom) etat += ` · ${c.meteoNom}`;
 
   const sat = v.enemyList.length / enemyCap(difficulty, v.playerList.length);
   if (sat >= 0.7) {
@@ -538,9 +580,15 @@ function updateSegment(v, c = {}) {
   }
 
   setWidth(el.segBar, "sgf", frac);
-  setStyle(el.segBar, "sgc", "background", couleur);
+  setStyle(el.segBar, "sgc", "background-color", couleur);
   setText(el.segState, "sgs", etat);
   setStyle(el.segState, "sgsc", "color", couleur);
+
+  // il ne s'efface que si RIEN n'attend une lecture : un evenement en cours et le
+  // crescendo gardent le bloc allume.
+  const sig = `${v.segment}|${v.beat}|${v.event?.id ?? ""}`;
+  if (sig !== missionSig) { missionSig = sig; missionAt = now; }
+  setClass(el.seg, "sgd", "dim", !ev && !dernier && now - missionAt > MISSION_MS);
 }
 
 function mmss(s) {
@@ -1094,20 +1142,20 @@ export function updateHud(v, c) {
   const me = v.playerList.find(p => p.id === c.myId);
   const eclats = me?.eclats ?? 0;
 
-  setText(metaKills, "mKills", tf("ui.hud.kills", "kills {n}", { n: v.kills }));
-  setText(metaEnem, "mEnem", tf("ui.hud.enemies", "ennemis {n}", { n: v.enemyList.length }));
-  setText(metaPing, "mPing", tf("ui.hud.ping", "ping {n} ms", { n: c.ping }));
+  setText(metaKills.lastElementChild, "mKills", String(v.kills));
+  setText(metaEnem.lastElementChild, "mEnem", String(v.enemyList.length));
+  setText(metaPing.lastElementChild, "mPing", String(c.ping));
 
   setHidden(metaEcl, "mEclH", eclats === 0);
-  if (eclats > 0) setText(metaEcl, "mEcl", tf("ui.hud.eclats", "éclats {n}", { n: eclats }));
+  if (eclats > 0) setText(metaEcl.lastElementChild, "mEcl", String(eclats));
 
   setHidden(metaDiff, "mDiffH", c.difficulty === 1);
   if (c.difficulty !== 1) {
-    setText(metaDiff, "mDiff", diffLabel(c.difficulty));
+    setText(metaDiff, "mDiff", diffLabel(c.difficulty).toUpperCase());
     setStyle(metaDiff, "mDiffC", "color", c.difficulty > 1 ? BOSS.barLow : SIGNAL.gain);
   }
 
-  updateSegment(v, c);
+  updateSegment(v, c, now);
   setHidden(metaSlow, "mSlowH", !v.slow);
 
   updateBoss(v.boss, now);

@@ -3972,6 +3972,30 @@
                    lot precedent. Deux endroits pour la meme information, c est un
                    endroit de trop a surveiller.
 
+     0.20.4 lot 5  LA VAGUE CIRCULAIT SANS JAMAIS S AFFICHER. `v.beat` ne servait
+                   qu a detecter le crescendo, alors que c est le SEUL palier de
+                   progression a l echelle de la minute : un segment dure cinq
+                   minutes, une vague soixante secondes. Le joueur savait dans
+                   quel segment il etait, sur six, et rien de plus fin.
+                   L en-tete de mission tient desormais trois rangs et pas un de
+                   plus : OU je suis (le lieu, en inscription de 13 px), OU J EN
+                   SUIS (la vague, en 18 px), COMBIEN DE TEMPS (la barre et le
+                   decompte). Le nom du lieu etait un TITRE de 22 px au milieu du
+                   bord haut, affiche cinq minutes d affilee.
+                   LA BARRE MONTE, LE CHIFFRE DESCEND. Elle se vidait, donc son
+                   front tombait a l oppose du compte de vagues ; elle se remplit,
+                   et ses CINQ graduations tombent exactement sur les limites de
+                   vague. La graduation dit combien il y en a, le front dit ou
+                   l on en est.
+                   ET LE BLOC S EFFACE au bout de six secondes quand plus rien ne
+                   change — la place et la vague sont acquises. Un evenement en
+                   cours ou un crescendo le rallument.
+                   LE PING AVAIT LE POIDS DES KILLS. Six lignes de la meme taille
+                   et de la meme couleur en haut a gauche : le bloc se lit
+                   maintenant en colonnes, libelle a gauche et chiffre a droite,
+                   avec le reseau d un rang en dessous. Il ne dit rien sur la
+                   partie, il dit si le lien tient.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3980,4 +4004,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.20.3";
+export const VERSION = "0.20.4";
