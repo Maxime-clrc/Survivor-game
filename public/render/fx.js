@@ -1,7 +1,7 @@
 
 import { playSound } from "/audio.js";
 import { EventPump } from "/events.js";
-import { hudDamage } from "/hud.js";
+import { hudDamage, hudEvent } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
 import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, echelleBouche, ficheDe, familleDe, matiereDe, poids } from "/shared/feedback.js";
@@ -97,6 +97,9 @@ const BLAST_STYLE = {
 };
 
 function handleEvent(e) {
+  // le HUD lit le MEME canal, et il le lit en premier : ce qu'il en fait ne
+  // depend d'aucun des retours poses ci-dessous.
+  hudEvent(e);
   switch (e.t) {
     case "tir":
       tirVoix(e);

@@ -4028,6 +4028,31 @@
                    Le SCEAU du boss final garde sa pulsation : seule animation
                    permanente du HUD, et sa periode dit les barres restantes.
 
+     0.20.6 lot 7  LA CHOSE LA PLUS VOYANTE DE L ECRAN CLIGNOTAIT EN PERMANENCE.
+                   Le cadre de consigne pulsait a 280 ms en boucle : ce qui
+                   clignote tout le temps n annonce plus rien. Il ENTRE une fois
+                   — 180 ms — se lit, et part avant la resolution comme avant. Il
+                   passe en une rangee : la FORME a gauche, l ordre, son nom, et
+                   le decompte colle au bord bas. La pastille de forme tenait une
+                   ligne a elle seule.
+                   LE HUD S ABONNE AU CANAL D EVENEMENTS. `hudEvent` est le
+                   troisieme point d entree du module, appele par `fx.js` avant
+                   ses propres retours. Deux fronts ne se deduisent pas d une
+                   comparaison de valeurs : la RUPTURE d un bouclier — tomber de
+                   trente a zero d un coup n est pas la meme chose que se faire
+                   grignoter — et la MONTEE DE NIVEAU, qui est un fait d equipe.
+                   `events.js` les emettait deja et `fx.js` les faisait sonner ;
+                   le HUD n ouvre pas un second canal, il ecoute celui-la, et il
+                   n ajoute AUCUN son.
+                   Les deux retours ne touchent que la couleur et un balayage :
+                   aucun pixel de mise en page ne bouge.
+                   CE QUI PULSE ENCORE, ET POURQUOI : le vignettage de seuil bas
+                   (2,6 s) et la rampe de bouclier (1,1 s) disent un ETAT EN
+                   COURS et s arretent avec lui ; le sceau du boss final dit les
+                   barres restantes par sa periode ; l attente de briefing est
+                   hors combat. Tout le reste — cadre de consigne, emportement,
+                   ultime pret — a ete rendu ponctuel par les lots 3, 6 et 7.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4036,4 +4061,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.20.5";
+export const VERSION = "0.20.6";

@@ -6,7 +6,7 @@ import {
 import { dec, getLang, onLangChange, t, tf } from "/shared/i18n.js";
 import { relicById } from "/shared/reliques.js";
 import { fmtM, toM } from "/shared/units.js";
-import { difficulty, hudDps, hudStats, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
+import { difficulty, hudDps, hudStats, myId, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
 import { ARMES, ARME_DEFAUT, canonEffet, canonGain } from "/shared/armes.js";
 import { applyMeta, metaLinesFor } from "/shared/progression.js";
 import { CLASS_DEFAULT, classAt, skill3Nom, skillNom,
@@ -61,6 +61,7 @@ const el = {
   shieldGhost: $("selfShield").querySelector(".gauge").children[1],
   shieldVal: $("selfShield").querySelector(".val"),
   downed:   $("selfDowned"),
+  xpRow:    $("selfXp").parentElement,
   xp:       $("selfXp").firstElementChild,
   hpText:   $("selfHpText"),
   level:    $("selfLevel"),
@@ -152,6 +153,34 @@ function setClass(node, key, name, on) {
 
 export function showHud(on) {
   el.root.hidden = !on;
+}
+
+/* UNE ANIMATION SE REJOUE EN RETIRANT SA CLASSE, en forcant un calcul de mise en
+   page, puis en la reposant. La classe reste ensuite : elle ne decrit pas un
+   etat, elle a declenche un evenement. */
+function rejouer(node, cls) {
+  node.classList.remove(cls);
+  void node.offsetWidth;
+  node.classList.add(cls);
+}
+
+/* LE HUD S'ABONNE AU CANAL D'EVENEMENTS au lieu de deviner. Deux fronts ne se
+   deduisent pas d'une comparaison de valeurs : la RUPTURE d'un bouclier — un
+   bouclier qui passe de 30 a 0 en deux touches n'est pas la meme chose qu'un
+   bouclier qui tombe d'un coup — et la montee de NIVEAU, qui est un fait
+   d'equipe. `events.js` les emet deja, `fx.js` les fait sonner ; le HUD n'ouvre
+   pas un second canal, il ecoute celui-la.
+
+   Aucun son n'est ajoute ici : ils sont tous poses par `fx.js`. */
+export function hudEvent(e) {
+  switch (e.t) {
+    case "bouclierBrise":
+      if (e.id === myId) rejouer(el.shieldBar, "brise");
+      break;
+    case "niveau":
+      rejouer(el.xpRow, "niveau");
+      break;
+  }
 }
 
 export function resetHud() {
@@ -1062,6 +1091,10 @@ function updateAlerts(c, now) {
   const o = c.alertOrder;
   setHidden(el.order, "aoOn", !o);
   if (o) {
+    // L'ENTREE SE REJOUE A CHAQUE CONSIGNE, meme quand la precedente n'a pas eu
+    // le temps de disparaitre : le noeud ne change pas d'etat cache, donc rien
+    // ne la rejouerait sans ca.
+    if (memo.aoe !== o.from) { memo.aoe = o.from; rejouer(el.order, "entre"); }
     setText(orderTxt, "aot", o.texte);
     setText(orderSrc, "aos", o.nom.toUpperCase());
     // le violet ne dit qu'une chose : ce n'est pas ton probleme, c'est notre
