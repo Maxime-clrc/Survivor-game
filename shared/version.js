@@ -3866,6 +3866,45 @@
                    RIEN N EST DEPLACE, RIEN N EST AJOUTE : meme contenu a
                    l ecran, meme table `memo`, aucun son, aucune cle de reseau.
 
+     0.20.1 lot 2  LE BOUCLIER NE DISAIT PAS LA VERITE. La barre se normalisait
+                   sur `CFG.SHIELD_POOL` — 80 — alors que la reserve de base
+                   vaut ZERO et vient des cartes (+12, +30, +45, +60) et de
+                   l arme (le siege en ajoute). Un joueur avec une seule carte de
+                   bouclier avait une reserve de 12 : PLEIN, il affichait 15 % de
+                   barre. La reserve se rejoue desormais par joueur avec
+                   `fullMods` — cartes, cartes COOP des autres, classe, arme ;
+                   la meta ne touche pas la reserve — toutes les 250 ms, parce
+                   qu une reserve ne bouge qu a la prise d une carte. Sans
+                   reserve la reference reste 80 : c est ce que donne le bonus
+                   ramasse, et l ordre de grandeur du dome et du mode soin.
+                   AU-DESSUS DE LA RESERVE la barre est pleine et son arete
+                   passe au blanc — dome, mode soin, recharge du siege depassent
+                   tous le plafond de regeneration, et ce qui deborde ne
+                   reviendra pas.
+                   DEUX LIGNES, JAMAIS DEUX COUCHES. Le bouclier etait une trame
+                   posee SUR la vie et son chiffre vivait dans la meme phrase que
+                   celui des PV : trois lectures sur une surface. Chaque ligne
+                   porte son libelle, sa hauteur, sa matiere et son chiffre, et
+                   le chiffre est HORS de la barre — dessus, il devenait
+                   illisible des qu elle se vidait sous lui.
+                   LES ETATS QUITTENT LE COIN LE PLUS FROID. Vulnerabilite,
+                   brulure, entrave et sentence ne s affichaient que dans la
+                   ligne d equipe, en haut a droite, en 13 px — les seules
+                   donnees du HUD dont la lecture change ce qu on fait dans la
+                   seconde. Une bande unique au-dessus des vitales, trois rangs :
+                   etats, bonus, effets de build, et seul le rang 3 se replie.
+                   LE SEUIL BAS NE CLIGNOTE PLUS : une arete franche sur la
+                   jauge, l arete du panneau qui passe au rouge, une vignette
+                   d ecran a 2,6 s — la periode du vignettage de cauchemar — et
+                   une sortie en fondu.
+                   TROIS LECTURES MORTES AU PASSAGE. `.shielded` etait posee
+                   soixante fois par seconde sans qu aucune regle ne la lise.
+                   `relicFlat(id, "flatShield")` lisait une clef qu aucune
+                   relique ne porte. Et la MATIERE de la jauge est un
+                   `background-image` : la couleur posee en `background` depuis
+                   le script la remplacait a chaque image — le verre du plan 12
+                   n avait jamais existe a l ecran, ni pour soi ni pour l equipe.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3874,4 +3913,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.20.0";
+export const VERSION = "0.20.1";

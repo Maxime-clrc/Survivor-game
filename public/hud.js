@@ -7,7 +7,7 @@ import { dec, getLang, onLangChange, t, tf } from "/shared/i18n.js";
 import { relicById } from "/shared/reliques.js";
 import { fmtM, toM } from "/shared/units.js";
 import { difficulty, hudDps, hudStats, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
-import { ARMES, canonEffet, canonGain } from "/shared/armes.js";
+import { ARMES, ARME_DEFAUT, canonEffet, canonGain } from "/shared/armes.js";
 import { applyMeta, metaLinesFor } from "/shared/progression.js";
 import { CLASS_DEFAULT, SKILL_CFG, classAt, skill3Nom, skillNom,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
@@ -50,13 +50,16 @@ const el = {
   warn:     $("alertWarn"),
   info:     $("alertInfo"),
   announce: $("hudAnnounce"),
-  effects:  $("selfEffects"),
-  buffs:    $("selfBuffs"),
+  status:   $("selfStatus"),
   hpBar:    $("selfHp"),
   hp:       $("selfHp").firstElementChild,
   hpGhost:  $("selfHp").children[1],
-  shieldBar: $("selfHp").children[2],
-  shield:   $("selfHp").children[2].firstElementChild,
+  shieldRow: $("selfShield"),
+  shieldBar: $("selfShield").querySelector(".gauge"),
+  shield:   $("selfShield").querySelector(".gauge").firstElementChild,
+  shieldGhost: $("selfShield").querySelector(".gauge").children[1],
+  shieldVal: $("selfShield").querySelector(".val"),
+  downed:   $("selfDowned"),
   xp:       $("selfXp").firstElementChild,
   hpText:   $("selfHpText"),
   level:    $("selfLevel"),
@@ -132,6 +135,7 @@ export function showHud(on) {
 
 export function resetHud() {
   el.root.classList.remove("hf");
+  el.root.classList.remove("bas");
   el.dmg.textContent = "";
   dmgCount = 0;
   dmgLive.length = 0;
@@ -139,8 +143,9 @@ export function resetHud() {
   shieldSeen.clear();
   buffSeen.clear();
   badges.clear();
-  el.effects.textContent = "";
-  el.buffs.textContent = "";
+  el.status.textContent = "";
+  pools.clear();
+  poolAt = 0;
   hurtParSrc.fill(0);
   hurtHp = -1;
   for (const k of Object.keys(memo)) delete memo[k];
@@ -167,19 +172,56 @@ const LOW_HP = 0.30;
 const SHIELD_HIT_MS = 220;
 const shieldSeen = new Map();
 
-function updateShield(bar, node, key, shield, now) {
-  const k = shield > 0 ? Math.min(1, shield / CFG.SHIELD_POOL) : 0;
+/* LA RESERVE DE BOUCLIER EST UNE FONCTION DE LA BUILD, et elle valait ZERO au
+   depart : elle vient des cartes (+12, +30, +45, +60) et de l'arme (le siege en
+   ajoute). La barre se normalisait sur `CFG.SHIELD_POOL` (80), donc une seule
+   carte de bouclier affichait 15 % de barre A PLEIN. On rejoue `fullMods` par
+   joueur — les cartes COOP des autres comptent, la classe et l'arme aussi ; la
+   meta, non, aucune ligne ne touche la reserve. Toutes les 250 ms : une reserve
+   ne bouge qu'a la prise d'une carte. */
+const POOL_MS = 250;
+const pools = new Map();
+let poolAt = 0;
+
+function shieldPools(v) {
+  const now = performance.now();
+  if (now - poolAt < POOL_MS && pools.size) return pools;
+  poolAt = now;
+  const counts = v.playerList.map(p => ownedCounts(p.id));
+  for (let i = 0; i < v.playerList.length; i++) {
+    const p = v.playerList[i];
+    const autres = [];
+    for (let j = 0; j < counts.length; j++) if (j !== i) autres.push(counts[j]);
+    const arme = ARMES[p.arme]?.id ?? ARME_DEFAUT;
+    pools.set(p.id, fullMods(counts[i], autres, p.cls ?? CLASS_DEFAULT,
+                             v.teamLevel ?? p.level ?? 1, arme).mods.shieldPool);
+  }
+  return pools;
+}
+
+/* AU-DESSUS DE LA RESERVE la barre est PLEINE et se marque : dome, mode soin,
+   recharge du siege et bonus ramasse depassent tous le plafond de regeneration,
+   et ce qui deborde ne reviendra pas. Le chiffre, lui, dit toujours le vrai. */
+function updateShield(bar, node, key, shield, pool, now) {
+  // SANS RESERVE, la reference reste `CFG.SHIELD_POOL` : c'est ce que donne le
+  // bonus ramasse, et c'est l'ordre de grandeur du dome et du mode soin. La
+  // marque de surcharge, elle, n'a de sens que s'il Y A une reserve a depasser.
+  const ref = pool > 0 ? pool : CFG.SHIELD_POOL;
+  const k = Math.min(1, Math.max(0, shield / ref));
   setWidth(node, `sh${key}`, k);
+  setClass(bar, `shs${key}`, "surcharge", pool > 0 && shield > pool + 0.5);
   const prev = shieldSeen.get(key);
-  if (!prev) { shieldSeen.set(key, { v: shield, hit: 0 }); }
+  if (!prev) { shieldSeen.set(key, { v: shield, hit: -1e9 }); }
   else {
     if (shield < prev.v - 0.5) prev.hit = now;
     prev.v = shield;
   }
   const s = shieldSeen.get(key);
   setClass(bar, `shh${key}`, "shieldHit", now - s.hit < SHIELD_HIT_MS);
-  setClass(bar, `shr${key}`, "shieldUp", k > 0 && k < 1 && now - s.hit >= SHIELD_HIT_MS);
-  setClass(bar, `shO${key}`, "shielded", k > 0);
+  // la rampe ne pulse que si quelque chose remonte VRAIMENT : sans reserve, un
+  // bouclier a mi-barre est un bonus qui s'epuise, pas une recharge en cours.
+  setClass(bar, `shr${key}`, "shieldUp",
+    pool > 0 && k > 0 && k < 1 && now - s.hit >= SHIELD_HIT_MS);
 }
 
 
@@ -200,6 +242,7 @@ function buildTeam(lobby, myId) {
 }
 
 function updateTeam(v, c, now) {
+  const reserves = shieldPools(v);
   const sig = c.lobby.map(l => `${l.id}:${l.name}:${l.colorIndex}`).join("|");
   if (sig !== teamSig) { teamSig = sig; buildTeam(c.lobby, c.myId); }
 
@@ -243,11 +286,11 @@ function updateTeam(v, c, now) {
     setClass(pv, `tpd${l.id}`, "downed", !!p.downed);
     setStyle(pv, `tpc${l.id}`, "color", hpColor(k, p.downed, TEXT.base));
     setWidth(fill, `tf${l.id}`, k);
-    setStyle(fill, `tfc${l.id}`, "background", hpColor(k, p.downed, col));
+    setStyle(fill, `tfc${l.id}`, "background-color", hpColor(k, p.downed, col));
     setGhost(ghost, `tgh${l.id}`, k, barGhost(`t${l.id}`, k, now));
     setTicks(bar, `ttk${l.id}`, maxHp);
     setClass(bar, `tlo${l.id}`, "low", !p.downed && k < LOW_HP);
-    updateShield(bar, sh, `t${l.id}`, p.shield, now);
+    updateShield(bar, sh, `t${l.id}`, p.shield, reserves.get(l.id) ?? 0, now);
 
     const stSig = `${p.statuses}|${p.vuln}|${p.doom > 0 ? p.doom.toFixed(1) : 0}|${p.downed}`;
     if (memo[`tst${l.id}`] !== stSig) {
@@ -496,33 +539,37 @@ function updateSelf(v, c, now) {
   const me = v.playerList.find(p => p.id === c.myId);
   if (!me) return;
 
+  // DEUX LIGNES, JAMAIS DEUX COUCHES : le bouclier etait une trame posee SUR la
+  // vie et son chiffre vivait dans la meme phrase que celui des PV.
+  const pool = shieldPools(v).get(me.id) ?? 0;
+  setHidden(el.shieldRow, "shrow", pool <= 0 && me.shield <= 0.5);
+  updateShield(el.shieldBar, el.shield, "self", me.shield, pool, now);
+  const ks = Math.min(1, me.shield / (pool > 0 ? pool : CFG.SHIELD_POOL));
+  setGhost(el.shieldGhost, "sgs", ks, barGhost("selfSh", ks, now));
+  setText(el.shieldVal, "shv", String(Math.round(me.shield)));
+
   const maxHp = me.maxHp || CFG.PLAYER_MAX_HP;
   const k = Math.max(0, Math.min(1, me.hp / maxHp));
   setWidth(el.hp, "shp", k);
-  setStyle(el.hp, "shpc", "background", hpColor(k, me.downed, c.myColor));
+  setStyle(el.hp, "shpc", "background-color", hpColor(k, me.downed, c.myColor));
   setGhost(el.hpGhost, "sgh", k, barGhost("self", k, now));
   setTicks(el.hpBar, "stk", maxHp);
-  setClass(el.hpBar, "slo", "low", !me.downed && k < LOW_HP);
-  updateShield(el.hpBar, el.shield, "self", me.shield, now);
+  const bas = !me.downed && k < LOW_HP;
+  setClass(el.hpBar, "slo", "low", bas);
+  // LE SEUIL BAS EST UN ETAT DU HUD, pas une propriete de la barre : l'arete du
+  // panneau change et l'ecran prend une vignette lente. Rien ne clignote.
+  setClass(el.root, "sbas", "bas", bas);
 
   setText(el.hpText, "shpt", me.downed
-    ? t("ui.hud.downed.self", "à terre — attends un coéquipier")
-    : tf("ui.hud.hp", "{hp} / {max} pv", { hp: Math.round(me.hp), max: maxHp })
-      + (me.shield > 0
-        ? ` · ${tf("ui.hud.shield", "{n} bouclier", { n: Math.round(me.shield) })}`
-        : ""));
+    ? t("ui.hud.downed", "à terre")
+    : `${Math.round(me.hp)} / ${maxHp}`);
   setClass(el.hpText, "shpd", "downed", !!me.downed);
+  setHidden(el.downed, "sdwn", !me.downed);
 
   const teamProg = v.teamProgress ?? me.prog ?? 0;
   const teamLvl = v.teamLevel ?? me.level ?? 1;
   setWidth(el.xp, "sxp", teamProg);
-  if (memo.slvl !== teamLvl) {
-    memo.slvl = teamLvl;
-    el.level.innerHTML = "";
-    el.level.append(tf("ui.hud.level", "niv. {n}", { n: teamLvl }),
-      Object.assign(document.createElement("small"),
-        { textContent: t("ui.hud.team", "équipe") }));
-  }
+  setText(el.level, "slvl", tf("ui.hud.level", "niv. {n}", { n: teamLvl }));
 
   const cdef = classAt(me.cls ?? CLASS_DEFAULT);
   if (memo.scls !== cdef.id) { memo.scls = cdef.id; buildPips(cdef); }
@@ -548,8 +595,7 @@ function updateSelf(v, c, now) {
   updatePip(pip3, 3, tier3 > 0 && cd3 <= 0, cd3 <= 0 ? (tier3 > 0 ? 1 : 0) : 1 - cd3 / base3,
     false, 0, now);
 
-  updateEffects(c.counts);
-  updateBuffs(me.buffs, now);
+  updateStatus(me, c.counts, now);
   updateStats(me, v, c, now);
 }
 
@@ -571,9 +617,9 @@ function reconcileBadges(root, prefix, wanted) {
     let node = badges.get(key);
     if (!node) {
       node = document.createElement("div");
-      node.className = "badge in";
+      node.className = `badge ${w.cls} in`;
       node.style.color = w.color;
-      node.appendChild(iconImg(w.icon, w.color, w.size));
+      if (w.icon) node.appendChild(iconImg(w.icon, w.color, w.size));
       node.appendChild(document.createElement("span"));
       badges.set(key, node);
       root.appendChild(node);
@@ -588,16 +634,50 @@ function reconcileBadges(root, prefix, wanted) {
   }
 }
 
+/* TROIS RANGS DANS UNE SEULE BANDE, ET L'ORDRE EST LE RANG. Les etats vivaient
+   dans le coin le plus froid de l'ecran — la ligne d'equipe, en 13 px — alors
+   que ce sont les seules donnees du HUD dont la lecture change ce qu'on fait
+   dans la seconde. Ils passent devant les bonus, qui passent devant les effets
+   de build. Seul le rang 3 se replie : quatre effets, puis un compteur. */
+const ETATS_MAX = 4;
+
+function updateStatus(me, counts, now) {
+  updateEtats(me);
+  updateBuffs(me.buffs, now);
+  updateEffects(counts);
+}
+
+function updateEtats(me) {
+  const wanted = new Map();
+  for (let i = 0; i < STATUSES.length; i++) {
+    const st = STATUSES[i];
+    if (!(me.statuses & statusBit(st.id))) continue;
+    // la SENTENCE porte son decompte, la VULNERABILITE son empilement : les deux
+    // seules durees que l'instantane donne deja.
+    const txt = st.id === STATUS_DOOM && me.doom > 0 ? me.doom.toFixed(1)
+      : st.id === STATUS_VULN && me.vuln > 1 ? "×" + me.vuln : "";
+    wanted.set("s:" + st.id, { color: st.couleur, icon: STATUS_ICON[st.id],
+                               size: 18, text: txt, ord: i, cls: "r1" });
+  }
+  reconcileBadges(el.status, "s:", wanted);
+}
+
 function updateEffects(counts) {
   const wanted = new Map();
+  let replies = 0;
   for (let i = 0; i < EFFECT_BADGES.length; i++) {
     const e = EFFECT_BADGES[i];
     const n = counts.get(e.id) ?? 0;
     if (n <= 0) continue;
-    wanted.set("e:" + e.id,
-      { color: e.color, icon: e.icon, size: 16, text: n > 1 ? "×" + n : "", ord: i });
+    if (wanted.size >= ETATS_MAX) { replies++; continue; }
+    wanted.set("e:" + e.id, { color: e.color, icon: e.icon, size: 12,
+                              text: n > 1 ? "×" + n : "", ord: 200 + i, cls: "r3" });
   }
-  reconcileBadges(el.effects, "e:", wanted);
+  if (replies > 0) {
+    wanted.set("e:+", { color: TEXT.dim, icon: null, size: 0,
+                        text: "+" + replies, ord: 299, cls: "r3" });
+  }
+  reconcileBadges(el.status, "e:", wanted);
 }
 
 const BUFF_ROW = [
@@ -623,10 +703,10 @@ function updateBuffs(mask, now) {
     if (until === undefined || now >= until) { until = now + duree; buffSeen.set(bit, until); }
     const st = POWERUP_STYLE[key];
     wanted.set("b:" + key, { color: st.color, icon: st.icon, size: 14,
-                             text: t(`ui.buff.${key}`, label), ord: i,
-                             k: (until - now) / duree });
+                             text: t(`ui.buff.${key}`, label), ord: 100 + i,
+                             k: (until - now) / duree, cls: "r2" });
   }
-  reconcileBadges(el.buffs, "b:", wanted);
+  reconcileBadges(el.status, "b:", wanted);
 }
 
 
@@ -755,7 +835,7 @@ function updateStats(me, v, c, now) {
     dps: degats * cadence * tubes * (1 + m.critChance * (m.critMul - 1)),
     critChance: m.critChance, critMul: m.critMul,
     hp: me.hp, maxHp: me.maxHp || CFG.PLAYER_MAX_HP,
-    bouclier: m.shieldPool + relicFlat(me.id, "flatShield"),
+    bouclier: shieldPools(v).get(me.id) ?? 0,
     portee: CFG.BULLET_SPEED * m.bulletSpeedMul * CFG.BULLET_LIFE * m.bulletLifeMul,
     pierce: m.pierce, chain: m.chain,
     vitesse: CFG.PLAYER_SPEED * m.speedMul,
