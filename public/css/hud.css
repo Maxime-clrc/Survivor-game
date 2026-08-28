@@ -843,6 +843,18 @@
   text-align: center;
 }
 
+/* LA MOBILITE N'EST PAS UNE COMPETENCE : un filet la separe des trois autres,
+   dans la gouttiere, sans toucher a la largeur des cases. */
+#selfPips .pip:first-child { margin-right: var(--sp-3); }
+#selfPips .pip:first-child::after {
+  content: "";
+  position: absolute;
+  top: 10%;
+  bottom: 10%;
+  right: calc(var(--sp-2) * -1);
+  border-left: var(--hair) solid var(--filet);
+}
+
 .pip .box {
   position: relative;
   height: var(--case);
@@ -852,8 +864,8 @@
     linear-gradient(180deg,
       color-mix(in srgb, var(--text) 8%, transparent),
       transparent 60%),
-    color-mix(in srgb, var(--bg-void) 84%, transparent);
-  border: var(--edge) solid var(--line-soft);
+    var(--gaine-dense);
+  border: var(--edge) solid var(--filet);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 12%, transparent);
   font-size: var(--t-s);
   font-weight: 700;
@@ -881,11 +893,21 @@
    juste qu'elle ne part pas. */
 .pip:not(.ready) .box img { filter: saturate(0.35) brightness(0.7); }
 
+/* LE VOILE SE RETIRE PAR LE BAS, il ne tourne pas : sur une case CARREE, un
+   balayage conique ne dit rien — l'angle parcouru n'est pas la fraction d'aire,
+   et a quarante-quatre pixels personne ne lit un angle. L'aire claire est ce qui
+   est acquis, et c'est la seule chose a lire du coin de l'oeil. */
+/* CE QUI EST ACQUIS S'ECLAIRE, ce qui reste s'assombrit, et un FRONT de deux
+   pixels separe les deux : un voile sombre sur une case deja sombre ne se voit
+   pas — c'est le front qu'on lit, comme l'arete du bouclier. */
 .pip .box::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: conic-gradient(transparent 0 var(--k), color-mix(in srgb, var(--bg-void) 78%, transparent) var(--k) 100%);
+  background: linear-gradient(to top,
+    color-mix(in srgb, var(--pip) 20%, transparent) 0 calc(var(--k) - 2px),
+    color-mix(in srgb, var(--pip) 75%, transparent) calc(var(--k) - 2px) var(--k),
+    color-mix(in srgb, var(--bg-void) 58%, transparent) var(--k) 100%);
   pointer-events: none;
 }
 
@@ -900,9 +922,18 @@
 }
 
 /* LE RETOUR D'APPUI — sans lui, appuyer sur une competence en recharge ne donne
-   aucun retour : le joueur ne sait pas s'il a mal appuye ou si c'est indisponible. */
+   aucun retour : le joueur ne sait pas s'il a mal appuye ou si c'est
+   indisponible. Les deux reponses ne se ressemblent pas : la case qui PART
+   s'enfonce et s'eclaire, celle qui REFUSE tremble sur place. */
 .pip.press .box { transform: translateY(1px) scale(0.94); filter: brightness(1.4); }
 .pip .box { transition: transform 90ms ease-out, filter 90ms ease-out; }
+
+.pip.refus .box { animation: pipRefus 160ms ease-out; }
+@keyframes pipRefus {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-2px); }
+  75%      { transform: translateX(2px); }
+}
 
 /* L'ULTIME A UN RANG A PART : encadre, plus grand, sa propre animation de
    disponibilite. Sinon la promotion n'existe que dans le code. */
@@ -914,18 +945,16 @@
   outline: var(--hair) solid color-mix(in srgb, var(--pip) 45%, transparent);
   outline-offset: 3px;
 }
-.pip.ult.ready .box { animation: ultReady 1.6s ease-in-out infinite; }
+/* RIEN NE PULSE EN PERMANENCE : l'ultime disponible se signale UNE FOIS, a
+   l'instant ou il le devient (`.flash`), puis il tient son etat — cadre allume,
+   liseré exterieur. Une case qui respire en boucle attire le regard sans jamais
+   rien annoncer. */
+.pip.ult.ready .box { box-shadow: 0 0 10px 1px color-mix(in srgb, var(--pip) 40%, transparent); }
 .pip.ult.locked .box { outline-color: transparent; }
-
-@keyframes ultReady {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pip) 0%, transparent); }
-  50%      { box-shadow: 0 0 10px 1px color-mix(in srgb, var(--pip) 55%, transparent); }
-}
 
 /* le PALIER 3 se constate a l'oeil, sans lire de chiffre. */
 .pip.ult.t3 .box { border-color: var(--legendaire); color: var(--legendaire); }
 .pip.ult.t3 .box { outline-color: color-mix(in srgb, var(--legendaire) 60%, transparent); }
-.pip.ult.t3.ready .box { animation-duration: 1s; }
 
 .pip .lbl {
   margin-top: var(--sp-1);
@@ -934,6 +963,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* le decompte prend la place du nom, jamais une deuxieme ligne : la hauteur du
+   bloc ne bouge pas d'un pixel entre une case prete et une case en recharge. */
+.pip .lbl.cd {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .pip .stock {
@@ -945,7 +982,15 @@
   color: var(--pip);
 }
 
-.pip.locked { opacity: 0.45; }
+/* UN SOCLE, PAS UNE CASE ETEINTE : le cadre passe en pointilles et le glyphe se
+   desature, mais le nom reste lisible — c'est lui qui dit ce qui manque. */
+.pip.locked .box {
+  border-style: dashed;
+  background: none;
+  box-shadow: none;
+}
+.pip.locked .box img { opacity: 0.35; }
+.pip.locked .key, .pip.locked .lbl { color: var(--text-faint); }
 .pip.locked .box::before { display: none; }
 .pip.locked .box::after {
   content: "";

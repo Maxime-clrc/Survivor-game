@@ -7999,7 +7999,12 @@ export class GameState {
         r2(p.dashCd), p.dashT > 0 ? 1 : 0,
         p.mods.orbiters, Math.round(p.frostR),
         p.cls,
-        r1(p.cd1), r1(p.cd2),
+        // LA RECHARGE DE LA PREMIERE COMPETENCE, quelle que soit la classe. Le
+        // Soigneur n'utilise pas `cd1` : sa bascule tient dans `healSwapCd`, et
+        // la case restait donc PRETE en permanence a l'ecran. Aucune clef ne
+        // s'ouvre, c'est l'emplacement qui cessait d'etre rempli pour une classe
+        // sur trois — et la variable reste seule source, on ne la duplique pas.
+        r1(classAt(p.cls).id === "soigneur" ? p.healSwapCd : p.cd1), r1(p.cd2),
         (p.healMode ? SKILL_HEAL_MODE : 0)
           | (p.tauntT > 0 ? SKILL_TAUNT : 0)
           | (p.odT > 0 || p.odBonus > 0 ? SKILL_OVERDRIVE : 0)

@@ -107,7 +107,7 @@ export const dash = { pending: false, t: 0, cd: 0, x: 0, y: 0 };
 export const skills = { s1: false, s2: false, s3: false };
 // l'appui se note MEME quand la competence est en recharge : sans ce retour, le
 // joueur ne sait pas s'il a mal appuye ou si c'est indisponible.
-export const pipPress = [0, 0, 0, 0];
+export const pipPress = [-1e9, -1e9, -1e9, -1e9];
 export function notePress(i) { pipPress[i] = performance.now(); }
 
 const STAT_KEY = "survivor.hudStats";

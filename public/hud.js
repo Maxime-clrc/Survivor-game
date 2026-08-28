@@ -9,9 +9,8 @@ import { fmtM, toM } from "/shared/units.js";
 import { difficulty, hudDps, hudStats, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
 import { ARMES, ARME_DEFAUT, canonEffet, canonGain } from "/shared/armes.js";
 import { applyMeta, metaLinesFor } from "/shared/progression.js";
-import { CLASS_DEFAULT, SKILL_CFG, classAt, skill3Nom, skillNom,
+import { CLASS_DEFAULT, classAt, skill3Nom, skillNom,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
-import { CARD_CFG } from "/shared/cards.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
 import { bossAt, bossNom, bossSous, bossVerbe, beatPhase, estFinal, ALERT_ORDER, BOSS_METRONOME } from "/shared/bosses.js";
 import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
@@ -144,6 +143,7 @@ export function resetHud() {
   buffSeen.clear();
   badges.clear();
   el.status.textContent = "";
+  cdPeak.fill(0);
   pools.clear();
   poolAt = 0;
   hurtParSrc.fill(0);
@@ -476,24 +476,31 @@ function mmss(s) {
 }
 
 
-const SKILL_BASE_CD = {
-  tank: [SKILL_CFG.TANK_BULWARK_CD, SKILL_CFG.TANK_TAUNT_CD],
-  soigneur: [SKILL_CFG.HEAL_MODE_SWAP_CD, SKILL_CFG.HEAL_WAVE_CD],
-  dps: [SKILL_CFG.DPS_BOMB_CD, SKILL_CFG.DPS_OVERDRIVE_CD],
-};
+/* LA BASE D'UNE RECHARGE EST CELLE QU'ON A VUE, jamais celle qu'on recalcule.
+   Deux tables recopiaient les constantes du serveur en ignorant tout ce que les
+   cartes en font : `skillCdMul` descend jusqu'a x0,55, `bombCdCut` retranche,
+   `tauntCd` ajoute, `cdPerKill` raccourcit a chaque mort. Une recharge divisee
+   par la mauvaise base part deja a moitie remplie. Le SOMMET OBSERVE est exact,
+   gratuit, et il n'a rien a tenir a jour : la valeur au premier instantane qui
+   suit le declenchement EST la duree. */
+const cdPeak = [0, 0, 0, 0];
 
-const SKILL3_BASE_CD = {
-  tank: CARD_CFG.SKILL3_ANCRE.map(c => c.cd),
-  soigneur: CARD_CFG.SKILL3_SANCTUAIRE.map(c => c.cd),
-  dps: CARD_CFG.SKILL3_SALVE.map(c => c.cd),
-};
+function cdFraction(i, cd) {
+  if (cd <= 0) { cdPeak[i] = 0; return 1; }
+  if (cd > cdPeak[i]) cdPeak[i] = cd;
+  return 1 - cd / cdPeak[i];
+}
 
 // UNE LETTRE DANS UNE CASE EST UN RACCOURCI CLAVIER, PAS UNE ICONE : elle ne se
 // reconnait pas du coin de l'oeil, et c'est la seule facon dont on regarde ses
 // recharges. Le glyphe passe au premier plan, la touche reste ecrite en coin.
+const pipNoms = [];
+
 function buildPips(cdef) {
   el.pips.textContent = "";
+  pipNoms.length = 0;
   const mk = (key, label, color, icon, px) => {
+    pipNoms.push(label);
     const p = document.createElement("div");
     p.className = "pip";
     p.style.setProperty("--pip", color);
@@ -518,13 +525,29 @@ function buildPips(cdef) {
 
 const PRESS_MS = 160;
 
-function updatePip(node, i, ready, k, active, stock, now) {
+/* LE LIBELLE PORTE DEUX CHOSES, JAMAIS DEUX LIGNES : le nom quand la case est
+   prete — c'est la seule fois ou on a le temps de le lire — et le decompte
+   pendant la recharge. Le nombre reste secondaire : ce qui se lit du coin de
+   l'oeil est l'aire du voile et l'allumage du filet. */
+function tempsPip(cd) {
+  return cd >= 10 ? String(Math.ceil(cd)) : dec(cd, 1);
+}
+
+function updatePip(node, i, ready, cd, active, stock, now, verrou = false) {
   setClass(node, `pr${i}`, "ready", ready);
   setClass(node, `pa${i}`, "active", active);
   setStyle(node.firstElementChild, `pk${i}`, "--k",
-    (Math.max(0, Math.min(1, k)) * 100).toFixed(0) + "%");
+    (cdFraction(i, cd) * 100).toFixed(0) + "%");
   setText(node.querySelector(".stock"), `ps${i}`, stock > 1 ? "×" + stock : "");
-  setClass(node, `pp${i}`, "press", now - pipPress[i] < PRESS_MS);
+  setText(node.querySelector(".lbl"), `pl${i}`,
+    verrou || cd <= 0 ? (pipNoms[i] ?? "") : tempsPip(cd));
+  setClass(node.querySelector(".lbl"), `plc${i}`, "cd", !verrou && cd > 0);
+
+  const presse = now - pipPress[i] < PRESS_MS;
+  setClass(node, `pp${i}`, "press", presse && ready);
+  // APPUYER SUR UNE CASE QUI NE PART PAS doit se distinguer d'un depart : sans
+  // ca, le joueur ne sait pas s'il a mal appuye ou si c'est indisponible.
+  setClass(node, `pf${i}`, "refus", presse && !ready);
 
   if (ready && memo[`pw${i}`] === false) {
     node.classList.remove("flash");
@@ -573,17 +596,17 @@ function updateSelf(v, c, now) {
 
   const cdef = classAt(me.cls ?? CLASS_DEFAULT);
   if (memo.scls !== cdef.id) { memo.scls = cdef.id; buildPips(cdef); }
-  const base = SKILL_BASE_CD[cdef.id] ?? [1, 1];
 
-  const dashCd = me.dashCd ?? 0;
-  updatePip(el.pips.children[0], 0, dashCd <= 0, dashCd <= 0 ? 1 : 1 - dashCd / c.dashCd,
+  updatePip(el.pips.children[0], 0, (me.dashCd ?? 0) <= 0, me.dashCd ?? 0,
     false, 0, now);
 
+  // LA BOMBE EST UNE RESERVE, PAS UNE RECHARGE : elle part tant qu'il reste une
+  // charge, et `cd1` mesure la remise en stock de la suivante.
   const stock = cdef.id === "dps" ? (me.bombStock ?? 0) : 0;
   const cd1 = me.cd1 ?? 0, cd2 = me.cd2 ?? 0;
-  updatePip(el.pips.children[1], 1, cd1 <= 0 || stock > 0, cd1 <= 0 ? 1 : 1 - cd1 / base[0],
+  updatePip(el.pips.children[1], 1, cdef.id === "dps" ? stock > 0 : cd1 <= 0, cd1,
     (me.skillFlags & SKILL_HEAL_MODE) !== 0, stock, now);
-  updatePip(el.pips.children[2], 2, cd2 <= 0, cd2 <= 0 ? 1 : 1 - cd2 / base[1],
+  updatePip(el.pips.children[2], 2, cd2 <= 0, cd2,
     (me.skillFlags & (SKILL_TAUNT | SKILL_OVERDRIVE)) !== 0, 0, now);
 
   const tier3 = me.skill3 ?? 0;
@@ -591,9 +614,8 @@ function updateSelf(v, c, now) {
   setClass(pip3, "p3lock", "locked", tier3 <= 0);
   setClass(pip3, "p3t", "t3", tier3 >= 3);
   const cd3 = me.cd3 ?? 0;
-  const base3 = tier3 > 0 ? (SKILL3_BASE_CD[cdef.id]?.[tier3 - 1] ?? 1) : 1;
-  updatePip(pip3, 3, tier3 > 0 && cd3 <= 0, cd3 <= 0 ? (tier3 > 0 ? 1 : 0) : 1 - cd3 / base3,
-    false, 0, now);
+  updatePip(pip3, 3, tier3 > 0 && cd3 <= 0, tier3 > 0 ? cd3 : 0,
+    false, 0, now, tier3 <= 0);
 
   updateStatus(me, c.counts, now);
   updateStats(me, v, c, now);

@@ -3905,6 +3905,44 @@
                    le script la remplacait a chaque image — le verre du plan 12
                    n avait jamais existe a l ecran, ni pour soi ni pour l equipe.
 
+     0.20.2 lot 3  LA RECHARGE DU SOIGNEUR N EXISTAIT PAS A L ECRAN. Sa bascule
+                   vit dans `healSwapCd`, pas dans `cd1` — l emplacement etait
+                   donc rempli de zeros pour une classe sur trois, et sa premiere
+                   case s affichait PRETE en permanence, y compris quand la
+                   competence refusait de partir. Aucune clef ne s ouvre :
+                   l instantane ecrit `healSwapCd` dans l emplacement de `cd1`
+                   pour cette classe, et la variable reste seule source.
+                   LA BASE D UNE RECHARGE EST CELLE QU ON A VUE. Deux tables
+                   recopiaient les constantes du serveur en ignorant tout ce que
+                   les cartes en font — `skillCdMul` descend a x0,55, `bombCdCut`
+                   retranche, `tauntCd` ajoute, `cdPerKill` raccourcit a chaque
+                   mort. Une recharge divisee par la mauvaise base part deja a
+                   moitie remplie. Le SOMMET OBSERVE est exact, gratuit, et il n a
+                   rien a tenir a jour. Les deux tables disparaissent, avec les
+                   imports qui les nourrissaient et le `dashCd` que le HUD
+                   recevait sans plus le lire.
+                   LA BOMBE EST UNE RESERVE, PAS UNE RECHARGE : elle part tant
+                   qu il reste une charge, et `cd1` mesure la remise en stock de
+                   la suivante. La case annoncait PRETE a stock vide.
+                   LE VOILE NE TOURNE PLUS. Un balayage conique sur une case
+                   CARREE ne dit rien : l angle parcouru n est pas la fraction
+                   d aire, et a quarante-quatre pixels personne ne lit un angle.
+                   L acquis s eclaire par le bas, le reste s assombrit, et un
+                   FRONT de deux pixels separe les deux — un voile sombre sur une
+                   case deja sombre ne se voyait pas.
+                   LE LIBELLE PORTE DEUX CHOSES, JAMAIS DEUX LIGNES : le nom
+                   quand la case est prete, le decompte pendant la recharge. La
+                   hauteur du bloc ne bouge pas d un pixel entre les deux.
+                   ET LES DEUX REPONSES A UN APPUI CESSENT DE SE RESSEMBLER : la
+                   case qui part s enfonce et s eclaire, celle qui refuse tremble
+                   sur place. `pipPress` naissait a zero, donc les quatre cases
+                   se croyaient pressees pendant les 160 premieres millisecondes
+                   de la page — meme piege que `hit: 0` au lot precedent.
+                   RIEN NE PULSE PLUS EN PERMANENCE : l ultime disponible se
+                   signale UNE FOIS puis tient son etat. Le socle verrouille perd
+                   son opacite globale — cadre en pointilles, glyphe desature,
+                   NOM lisible : c est lui qui dit ce qui manque.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3913,4 +3951,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.20.1";
+export const VERSION = "0.20.2";
