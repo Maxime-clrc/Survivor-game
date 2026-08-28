@@ -67,7 +67,6 @@ const el = {
   level:    $("selfLevel"),
   pips:     $("selfPips"),
   stats:    $("hudStats"),
-  statsDps: $("statsDps"),
   statsRows: $("statsRows"),
   statsHurt: $("statsHurt"),
   spectator: $("hudSpectator"),
@@ -86,20 +85,29 @@ const annSub = el.announce.querySelector(".sub");
    lecture. Six lignes de la meme taille et de la meme couleur donnaient au ping
    le poids des kills ; le chrono domine, les comptes suivent, le reseau ferme la
    marche. Les LIBELLES sont statiques : ils s'ecrivent une fois. */
-const metaCompte = (cle, repli) => {
+const telelignes = [];
+const ligneTele = (root, cle, repli, cls = "") => {
   const d = document.createElement("div");
-  d.className = "tele";
+  d.className = cls ? `tele ${cls}` : "tele";
   d.innerHTML = '<span class="lab"></span><span class="val"></span>';
   d.firstElementChild.textContent = t(cle, repli);
-  el.meta.appendChild(d);
+  telelignes.push([d.firstElementChild, cle, repli]);
+  root.appendChild(d);
   return d;
 };
+const metaCompte = (cle, repli) => ligneTele(el.meta, cle, repli);
 const metaEtat = cls => {
   const d = document.createElement("div");
   d.className = "etat " + cls;
   el.meta.appendChild(d);
   return d;
 };
+// LA TELEMETRIE DE COMBAT — deux lignes, la meme grammaire que le bloc de
+// comptes. « 1284 dps · 42813 total » etait une phrase : deux nombres colles
+// dans un ordre qu'il fallait relire a chaque fois.
+const statDps = ligneTele($("statsDps"), "ui.hud.lab.dps", "dps");
+const statTot = ligneTele($("statsDps"), "ui.hud.lab.total", "total", "faible");
+
 const metaKills = metaCompte("ui.hud.lab.kills", "kills");
 const metaEnem  = metaCompte("ui.hud.lab.enemies", "ennemis");
 const metaEcl   = metaCompte("ui.hud.lab.eclats", "éclats");
@@ -111,10 +119,7 @@ metaSlow.textContent = t("ui.hud.slow", "temps ralenti");
 metaEcl.hidden = metaDiff.hidden = metaSlow.hidden = true;
 
 function relireLibelles() {
-  metaKills.firstElementChild.textContent = t("ui.hud.lab.kills", "kills");
-  metaEnem.firstElementChild.textContent = t("ui.hud.lab.enemies", "ennemis");
-  metaEcl.firstElementChild.textContent = t("ui.hud.lab.eclats", "éclats");
-  metaPing.firstElementChild.textContent = t("ui.hud.lab.ping", "ping");
+  for (const [node, cle, repli] of telelignes) node.textContent = t(cle, repli);
 }
 
 const memo = Object.create(null);
@@ -941,6 +946,11 @@ const STAT_ROWS = [
   { cle: "rayon", nom: "rayon d'effet", val: s => "×" + num(s.rayon, 2) },
 ];
 
+// au-dela de dix mille, les milliers ne se lisent plus : ils s'estiment.
+function grandNombre(n) {
+  return n >= 10000 ? `${dec(n / 1000, 1)} K` : String(Math.round(n));
+}
+
 const STATS_MS = 250;
 const hurtParSrc = new Array(DAMAGE_SOURCES.length).fill(0);
 let hurtHp = -1;
@@ -1007,15 +1017,13 @@ function updateStats(me, v, c, now) {
   if (!on || now - statsAt < STATS_MS) return;
   statsAt = now;
 
-  if (hudDps) {
-    // UN COMPTEUR DE DEGATS JUGE LA PARTIE, PAS UNE FENETRE : le total divise
-    // par le temps de manche ecoule. `tm` ne court ni pendant le briefing ni
-    // pendant un ecran, donc le denominateur est deja du temps de COMBAT.
-    const tot = me.damage ?? 0;
-    setText(el.statsDps, "stD", tf("ui.hud.dps", "{dps} dps · {tot} total",
-      { dps: Math.round(tot / Math.max(1, v.tm ?? 0)), tot: Math.round(tot) }));
-  }
-  setHidden(el.statsDps, "stDH", !hudDps);
+  // UN COMPTEUR DE DEGATS JUGE LA PARTIE, PAS UNE FENETRE : le total divise par
+  // le temps de manche ecoule. `tm` ne court ni pendant le briefing ni pendant
+  // un ecran, donc le denominateur est deja du temps de COMBAT.
+  const tot = me.damage ?? 0;
+  setText(statDps.lastElementChild, "stD",
+    grandNombre(tot / Math.max(1, v.tm ?? 0)));
+  setText(statTot.lastElementChild, "stT", grandNombre(tot));
 
   setHidden(el.statsRows, "stRH", !hudStats);
   setHidden(el.statsHurt, "stHH", !hudStats);
@@ -1050,7 +1058,7 @@ function updateStats(me, v, c, now) {
     el.statsRows.textContent = "";
     for (const r of STAT_ROWS) {
       const d = document.createElement("div");
-      d.className = "statRow";
+      d.className = "tele statRow";
       d.innerHTML = '<span class="lab"></span><span class="val"></span>';
       d.firstElementChild.textContent = t(`ui.stat.${r.cle}`, r.nom);
       el.statsRows.appendChild(d);
@@ -1222,6 +1230,9 @@ export function updateHud(v, c) {
   updateSegment(v, c, now);
   setHidden(metaSlow, "mSlowH", !v.slow);
 
+  // LE BOSS EST UN ETAT DU HUD : ce qui est du confort recule d'un rang tant
+  // qu'il est la.
+  setClass(el.root, "hbo", "boss", !!v.boss);
   updateBoss(v.boss, now);
   updateBeat(v);
   updateTeam(v, c, now);

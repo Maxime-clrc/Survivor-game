@@ -11,6 +11,14 @@
 
 #hud[hidden] { display: none; }
 
+/* TOUT CE QUE LE HUD MASQUE PAR L'ATTRIBUT, EN UN SEUL ENDROIT. Une regle
+   d'auteur qui pose display bat la feuille du navigateur quelle que soit sa
+   specificite : les temoins du Metronome, la ligne d'eclats a zero, la ligne de
+   bouclier sans reserve et le cadre de consigne restaient a l'ecran, vides. Le
+   selecteur porte l'identifiant du HUD, donc il passe devant tous les display
+   de ce fichier. */
+#hud [hidden] { display: none; }
+
 
 /* LA GAINE — UN SEUL MATERIAU pour tout ce qui se pose sur l'arene. Deux
    panneaux qui different par leur bordure se lisent comme deux systemes ; le
@@ -240,7 +248,6 @@
   color: var(--warn);
 }
 
-#bossEtat[hidden] { display: none; }
 #bossEtat.enrage { color: var(--lethal); }
 
 #bossVerb { color: var(--text-dim); font-size: var(--t-xs); }
@@ -621,8 +628,6 @@
   height: 3px;
   margin-top: 2px;
 }
-
-.teamRow .sh[hidden] { display: none; }
 
 /* A TERRE : l'arete de la ligne passe au rouge sombre et la barre devient celle
    du RELEVEMENT. C'est lisible d'un coup d'oeil sans que l'ecran s'alarme. */
@@ -1145,35 +1150,48 @@
   position: absolute;
   right: var(--hud-safe);
   bottom: var(--hud-safe);
-  width: 210px;
+  width: 240px;
   padding: var(--sp-2) var(--sp-3);
   font-size: var(--t-xs);
   transition: opacity 200ms linear;
 }
 
-#hudStats[hidden] { display: none; }
+/* PENDANT UN BOSS, LE CONFORT RECULE ENCORE D'UN RANG. Il ne disparait pas : on
+   coupe la telemetrie dans les reglages, pas au milieu d'un combat. */
+#hud.boss #hudStats { opacity: 0.45; }
 
 /* IL S'EFFACE SOUS LE BANDEAU DE HAUT FAIT : meme coin, et c'est le rang de
    lecture qui tranche — un moment de quatre secondes passe devant du confort
    permanent. */
 #hud.hf #hudStats { opacity: 0; }
 
+/* LES DEUX MODES — COMBAT ne montre que ces deux lignes, DETAIL ajoute les
+   quatorze suivantes et la ventilation. Le cyan est parti : dans l'arene il dit
+   « il faut y aller », et un compteur ne dit jamais ou aller. */
 #statsDps {
   margin-bottom: var(--sp-2);
-  font-size: var(--t-s);
-  font-weight: 700;
-  color: var(--go);
+  padding-bottom: var(--sp-2);
+  border-bottom: var(--hair) solid var(--filet);
 }
 
-.statRow {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  line-height: 1.7;
-  color: var(--text-dim);
+/* le filet separe DEUX blocs : sans le detail, il ne separe rien et se lit
+   comme une ligne vide. */
+#hudStats:has(#statsRows[hidden]) #statsDps {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
-.statRow .val { font-weight: 700; color: var(--text); }
+/* LE DETAIL EST AU DERNIER RANG DE LECTURE : meme grammaire que les autres
+   lignes, un cran de contraste en moins. */
+/* les noms de statistiques sont des mots, pas des inscriptions techniques : en
+   capitales ils se replient sur deux lignes et le panneau double de hauteur. */
+.statRow .lab {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+.statRow .val { font-size: var(--t-xs); color: var(--text-dim); }
 
 .statRow.bump { animation: statBump 1s ease-out; }
 @keyframes statBump {
@@ -1267,8 +1285,6 @@
   text-shadow: 0 1px 2px var(--bg-void), 0 0 3px var(--bg-void);
   transition: opacity 200ms linear;
 }
-
-.mark[hidden] { display: none; }
 
 .mark > i {
   display: block;

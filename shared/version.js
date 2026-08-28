@@ -4053,6 +4053,35 @@
                    hors combat. Tout le reste — cadre de consigne, emportement,
                    ultime pret — a ete rendu ponctuel par les lots 3, 6 et 7.
 
+     0.20.7 lot 8  QUATRE ELEMENTS ETAIENT AFFICHES EN PERMANENCE, VIDES. Une
+                   regle d AUTEUR qui pose `display` bat celle du navigateur,
+                   quelle que soit sa specificite : tout ce que le HUD masque par
+                   l attribut `hidden` et qui porte un `display` restait a
+                   l ecran. Les quatre temoins du Metronome sous CHAQUE boss, la
+                   ligne d eclats a zero, la ligne de bouclier sans reserve, et —
+                   depuis le lot 7 — le cadre de consigne, vide, au milieu de
+                   l ecran. Une seule regle desormais, `#hud [hidden]`, dont le
+                   selecteur porte l identifiant du HUD et passe donc devant tous
+                   les `display` du fichier.
+                   DEUX BOUTONS POUR UN SEUL PANNEAU. Le compteur de degats et le
+                   panneau de statistiques etaient deux interrupteurs
+                   independants alors qu ils sont deux NIVEAUX de la meme couche.
+                   Un controle, trois crans — masquee, combat, detail — et les
+                   deux drapeaux restent, donc un reglage deja enregistre se
+                   relit tel quel.
+                   « 1284 dps · 42813 total » ETAIT UNE PHRASE : deux nombres
+                   colles dans un ordre qu il fallait relire. Deux lignes, la
+                   meme grammaire libelle/valeur que le bloc de comptes et que
+                   les quatorze lignes de detail — la primitive sert desormais
+                   trois blocs, et le cyan est parti : dans l arene il dit « il
+                   faut y aller », et un compteur ne dit jamais ou aller.
+                   Au-dela de dix mille, les milliers ne se lisent plus, ils
+                   s estiment : « 42,8 K ».
+                   ET LE CONFORT RECULE D UN RANG PENDANT UN BOSS (`#hud.boss`) :
+                   il ne disparait pas, on coupe la telemetrie dans les reglages,
+                   pas au milieu d un combat.
+                   FIN DU PLAN 17.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4061,4 +4090,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.20.6";
+export const VERSION = "0.20.7";

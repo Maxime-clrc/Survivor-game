@@ -4,21 +4,23 @@ import { GFX_KEYS, GFX_ULTRA, PHASE_ROUND, amSpectator, gfx, hostId, hudDps, hud
 import { openBuild } from "./build.js";
 import { hudPauseEl, pauseConfirm, pauseEl, pauseQuitAsk, pauseQuitBtn, pauseState, updateVersion } from "./dom.js";
 
-const statsBtn = document.getElementById("pauseStats");
-const dpsBtn = document.getElementById("pauseDps");
+const teleBtn = document.getElementById("pauseTele");
 const gfxBtn = document.getElementById("pauseGfx");
 
 const GFX_NOM = ["basse", "moyenne", "élevée", "ultra"];
 
+/* DEUX BOUTONS POUR UN SEUL PANNEAU : le compteur de degats et le panneau de
+   statistiques etaient deux interrupteurs independants alors qu'ils sont deux
+   NIVEAUX de la meme couche. Un seul controle, trois crans — et les deux
+   drapeaux restent, donc un reglage deja enregistre se relit tel quel. */
+const TELE_NOM = ["masquée", "combat", "détail"];
+const teleNiveau = () => hudStats ? 2 : hudDps ? 1 : 0;
+
 function renderHudOptions() {
-  statsBtn.textContent = hudStats
-    ? t("ui.pause.stats.on", "Panneau de statistiques : affiché")
-    : t("ui.pause.stats.off", "Panneau de statistiques : masqué");
-  statsBtn.classList.toggle("on", hudStats);
-  dpsBtn.textContent = hudDps
-    ? t("ui.pause.dps.on", "Compteur de dégâts : affiché")
-    : t("ui.pause.dps.off", "Compteur de dégâts : masqué");
-  dpsBtn.classList.toggle("on", hudDps);
+  const n = teleNiveau();
+  teleBtn.textContent = tf("ui.pause.tele", "Télémétrie : {n}",
+    { n: t(`ui.pause.tele.${n}`, TELE_NOM[n]) });
+  teleBtn.classList.toggle("on", n > 0);
   gfxBtn.textContent = tf("ui.pause.gfx", "Qualité graphique : {n}",
     { n: t(`ui.pause.gfx.${GFX_KEYS[gfx]}`, GFX_NOM[gfx]) });
   gfxBtn.classList.toggle("on", gfx > 0);
@@ -27,8 +29,12 @@ onLangChange(() => {
   renderHudOptions();
   applyPause();
 });
-statsBtn.onclick = () => { setHudStats(!hudStats); renderHudOptions(); };
-dpsBtn.onclick = () => { setHudDps(!hudDps); renderHudOptions(); };
+teleBtn.onclick = () => {
+  const n = (teleNiveau() + 1) % 3;
+  setHudDps(n >= 1);
+  setHudStats(n === 2);
+  renderHudOptions();
+};
 gfxBtn.onclick = () => { setGfx((gfx + 1) % (GFX_ULTRA + 1)); renderHudOptions(); };
 renderHudOptions();
 
