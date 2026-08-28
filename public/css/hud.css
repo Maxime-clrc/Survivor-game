@@ -12,10 +12,65 @@
 #hud[hidden] { display: none; }
 
 
+/* LA GAINE — UN SEUL MATERIAU pour tout ce qui se pose sur l'arene. Deux
+   panneaux qui different par leur bordure se lisent comme deux systemes ; le
+   rang de lecture ne change donc QUE la densite du fond et la presence de
+   l'arete d'accent. Le reste — filet, biseau, repere d'angle — est commun.
+
+   Le biseau coupe le coin qui regarde le CENTRE de l'ecran, et l'arete d'accent
+   longe le bord ; ils sont diagonalement opposes, donc `clip-path` ne mange
+   jamais l'arete (il clippe la bordure, il ne la suit pas). */
+#hud {
+  --hud-safe: var(--sp-6);
+  --gaine-dense: color-mix(in srgb, var(--bg-void) 68%, transparent);
+  --gaine: color-mix(in srgb, var(--bg-void) 54%, transparent);
+  --filet: color-mix(in srgb, var(--text) 14%, transparent);
+  --marque: color-mix(in srgb, var(--text) 30%, transparent);
+  --case: 44px;
+  --case-ult: 56px;
+}
+
+.hudPanel {
+  position: relative;
+  background: var(--gaine);
+  border: var(--hair) solid var(--filet);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.hudPanel.dense { background: var(--gaine-dense); }
+
+/* LE REPERE D'ANGLE — deux traits de 6 px au coin oppose a l'ancrage. Un seul
+   pseudo-element et deux degrades : aucun noeud en plus, et le coin coupe reste
+   libre. */
+.ancreBG::after, .ancreBD::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-image:
+    linear-gradient(var(--marque), var(--marque)),
+    linear-gradient(var(--marque), var(--marque));
+  background-size: 6px var(--hair), var(--hair) 6px;
+}
+
+.ancreBG {
+  clip-path: polygon(0 0, calc(100% - var(--bevel)) 0,
+                     100% var(--bevel), 100% 100%, 0 100%);
+}
+.ancreBG::after { background-position: right 0 bottom 0, right 0 bottom 0; }
+
+.ancreBD {
+  clip-path: polygon(var(--bevel) 0, 100% 0, 100% 100%,
+                     0 100%, 0 var(--bevel));
+}
+.ancreBD::after { background-position: left 0 bottom 0, left 0 bottom 0; }
+
+
 #hudRun {
   position: absolute;
-  top: var(--sp-4);
-  left: var(--sp-4);
+  top: var(--hud-safe);
+  left: var(--hud-safe);
 }
 
 #hudClock {
@@ -38,7 +93,7 @@
 
 #hudSegment {
   position: absolute;
-  top: var(--sp-3);
+  top: var(--hud-safe);
   left: 50%;
   transform: translateX(-50%);
   width: 300px;
@@ -75,7 +130,7 @@
 
 #hudBrief {
   position: absolute;
-  top: calc(var(--sp-3) + 74px);
+  top: calc(var(--hud-safe) + 74px);
   left: 50%;
   transform: translateX(-50%);
   width: 360px;
@@ -96,7 +151,7 @@
 
 #hudBoss {
   position: absolute;
-  top: var(--sp-4);
+  top: var(--hud-safe);
   left: 50%;
   transform: translateX(-50%);
   width: min(760px, 62%);
@@ -361,8 +416,8 @@
 
 #hudTeam {
   position: absolute;
-  top: var(--sp-4);
-  right: var(--sp-4);
+  top: var(--hud-safe);
+  right: var(--hud-safe);
   width: 190px;
   display: flex;
   flex-direction: column;
@@ -378,12 +433,11 @@
   gap: 0 var(--sp-2);
   align-items: center;
   padding: var(--sp-1) var(--sp-2);
-  background: color-mix(in srgb, var(--bg-void) 46%, transparent);
-  border-left: 2px solid transparent;
+  border-left: var(--edge) solid transparent;
 }
 
 /* le cyan dit « c'est toi », ici comme au bilan et dans la build. */
-.teamRow.me { border-left-color: var(--go); background: color-mix(in srgb, var(--bg-void) 62%, transparent); }
+.teamRow.me { border-left-color: var(--go); background: var(--gaine-dense); }
 
 .teamRow .cls { display: flex; }
 .teamRow .cls img { display: block; }
@@ -606,8 +660,8 @@
 
 #hudSelf {
   position: absolute;
-  left: var(--sp-4);
-  bottom: var(--sp-4);
+  left: var(--hud-safe);
+  bottom: var(--hud-safe);
 }
 
 #selfEffects, #selfBuffs {
@@ -662,10 +716,8 @@
   display: flex;
   align-items: flex-end;
   gap: var(--sp-3);
-  padding: var(--sp-2);
-  background: color-mix(in srgb, var(--bg-void) 55%, transparent);
-  border: var(--hair) solid var(--line-soft);
-  border-left: 2px solid var(--go);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: var(--edge) solid var(--go);
 }
 
 #selfGauges { position: relative; width: 320px; }
@@ -733,13 +785,13 @@
 
 .pip {
   position: relative;
-  width: 44px;
+  width: var(--case);
   text-align: center;
 }
 
 .pip .box {
   position: relative;
-  height: 44px;
+  height: var(--case);
   display: grid;
   place-items: center;
   background:
@@ -800,9 +852,9 @@
 
 /* L'ULTIME A UN RANG A PART : encadre, plus grand, sa propre animation de
    disponibilite. Sinon la promotion n'existe que dans le code. */
-.pip.ult { width: 56px; }
+.pip.ult { width: var(--case-ult); }
 .pip.ult .box {
-  height: 56px;
+  height: var(--case-ult);
   border-width: 2px;
   font-size: var(--t-m);
   outline: var(--hair) solid color-mix(in srgb, var(--pip) 45%, transparent);
@@ -858,16 +910,20 @@
    compteur par joueur cree du reproche. */
 #hudStats {
   position: absolute;
-  right: var(--sp-4);
-  bottom: var(--sp-4);
+  right: var(--hud-safe);
+  bottom: var(--hud-safe);
   width: 210px;
   padding: var(--sp-2) var(--sp-3);
-  background: color-mix(in srgb, var(--bg-void) 72%, transparent);
-  border: var(--hair) solid var(--line-soft);
   font-size: var(--t-xs);
+  transition: opacity 200ms linear;
 }
 
 #hudStats[hidden] { display: none; }
+
+/* IL S'EFFACE SOUS LE BANDEAU DE HAUT FAIT : meme coin, et c'est le rang de
+   lecture qui tranche — un moment de quatre secondes passe devant du confort
+   permanent. */
+#hud.hf #hudStats { opacity: 0; }
 
 #statsDps {
   margin-bottom: var(--sp-2);
@@ -937,7 +993,7 @@
 
 #hudSpectator {
   position: absolute;
-  bottom: var(--sp-6);
+  bottom: var(--hud-safe);
   left: 0;
   right: 0;
   text-align: center;
@@ -948,8 +1004,8 @@
 
 #hudPerf {
   position: absolute;
-  left: var(--sp-4);
-  bottom: 140px;
+  left: var(--hud-safe);
+  bottom: calc(var(--hud-safe) + 150px);
   font-size: var(--t-xs);
   color: var(--gain);
   white-space: pre-line;
@@ -987,17 +1043,16 @@
 
 /* Le bandeau de haut fait : en bas a droite, entree par glissement, sortie en
    fondu. Il ne se superpose ni au HUD de combat (haut et bas gauche) ni au fil
-   d'alertes (centre haut). */
+   d'alertes (centre haut) ; le panneau de telemetrie, lui, partage son coin et
+   s'efface. Le monter au-dessus le jetait dans l'escouade des que les quatorze
+   lignes etaient ouvertes. */
 #hudHf {
   position: absolute;
-  right: var(--sp-6);
-  bottom: var(--sp-6);
+  right: var(--hud-safe);
+  bottom: var(--hud-safe);
   width: 320px;
   padding: var(--sp-3) var(--sp-4);
-  background: var(--panel);
-  border-left: var(--edge) solid var(--go);
-  border-radius: var(--radius);
-  box-shadow: 0 0 var(--sp-6) var(--bg-void);
+  border-right: var(--edge) solid var(--go);
   opacity: 0;
   transform: translateX(var(--sp-6));
   transition: opacity 320ms ease-out, transform 320ms ease-out;
@@ -1017,4 +1072,23 @@
   font-family: var(--font);
   font-size: var(--t-xs);
   color: var(--gain);
+}
+
+
+/* LES DEUX PALIERS — ils se reglent sur le CADRE et non sur la fenetre, parce
+   que le HUD est en pixels d'ecran alors que le cadre retrecit : a 1280 il
+   occupe une part bien plus grande qu'a 1920. On ne met pas tout le HUD a
+   l'echelle : la marge tombe d'un cran, puis les blocs les plus larges. Aucune
+   information ne disparait a ce lot. */
+@container cadre (max-width: 1400px) {
+  #hud { --hud-safe: var(--sp-4); }
+}
+
+@container cadre (max-width: 1150px) {
+  #hud { --case: 38px; --case-ult: 48px; }
+  #hudTeam   { width: 160px; }
+  #selfGauges { width: 280px; }
+  #hudStats  { width: 190px; }
+  #hudHf     { width: 280px; }
+  #alertOrder { width: 460px; }
 }

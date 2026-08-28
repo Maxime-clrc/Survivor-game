@@ -3833,6 +3833,39 @@
                    paliers `gfx` sur les deux lieux les plus charges — la
                    Nebuleuse et ses onze baies, la Fonderie et ses dix regards.
 
+     0.20.0 lot 1  LE HUD N AVAIT PAS DE MATIERE. Premier lot du plan 17, dont
+                   le constat est que le monde a passe quatre plans a se donner
+                   une charte pendant que le HUD gardait la sienne : cinq
+                   panneaux, cinq fonds, trois epaisseurs de filet, aucun geste
+                   commun. LA GAINE est ce geste — noir translucide en deux
+                   densites, un filet clair d un pixel, un coin coupe et un
+                   repere d angle. Le rang de lecture ne change QUE la densite
+                   du fond et la presence de l arete d accent : deux panneaux
+                   qui different par leur bordure se lisent comme deux systemes.
+                   LE BISEAU COUPE LE COIN QUI REGARDE LE CENTRE, l arete
+                   d accent longe le bord ; ils sont diagonalement opposes,
+                   donc `clip-path` ne mange jamais l arete — il clippe la
+                   bordure, il ne la suit pas. Et il tombe dans le RETRAIT :
+                   dix pixels de coupe demandent douze de retrait, sans quoi la
+                   troisieme competence perd son coin.
+                   LA MARGE EST UN TOKEN, PLUS UNE CONSTANTE PAR BLOC :
+                   `--hud-safe` tient les neuf ancrages, et deux paliers la font
+                   descendre. ILS SE REGLENT SUR LE CADRE ET NON SUR LA FENETRE
+                   (`container-type: size` sur `#frame`, licite parce que sa
+                   taille vient du rapport et de la largeur, jamais du contenu) :
+                   le HUD est en pixels d ecran alors que le cadre retrecit,
+                   donc a 1280 il occupait une part bien plus grande qu a 1920.
+                   DEUX DEFAUTS SILENCIEUX AU PASSAGE. `#hudHf` peignait
+                   `var(--panel)`, un token que `cssVars()` n a jamais expose :
+                   le bandeau de haut fait n avait aucun fond, ses quatre lignes
+                   se lisaient a meme l arene. Et il etait ancre dans le MEME
+                   coin que `#hudStats`, qu il recouvrait des que les deux
+                   sortaient ensemble — il se pose desormais au-dessus,
+                   `--hf-lift` etant lu une fois a l ouverture et jamais par
+                   image.
+                   RIEN N EST DEPLACE, RIEN N EST AJOUTE : meme contenu a
+                   l ecran, meme table `memo`, aucun son, aucune cle de reseau.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -3841,4 +3874,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.19.6";
+export const VERSION = "0.20.0";

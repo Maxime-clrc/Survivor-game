@@ -131,6 +131,7 @@ export function showHud(on) {
 }
 
 export function resetHud() {
+  el.root.classList.remove("hf");
   el.dmg.textContent = "";
   dmgCount = 0;
   dmgLive.length = 0;
@@ -188,7 +189,7 @@ function buildTeam(lobby, myId) {
   el.team.textContent = "";
   for (const l of lobby) {
     const row = document.createElement("div");
-    row.className = "teamRow" + (l.id === myId ? " me" : "");
+    row.className = "teamRow hudPanel" + (l.id === myId ? " me" : "");
     row.innerHTML =
       '<div class="cls"></div><div class="nom"></div>' +
       '<div class="pv"></div><div class="score"></div>' +
@@ -989,6 +990,7 @@ function updateHautsFaits(now, couvert) {
     bandeau = null;
     el.hf.hidden = true;
     el.hf.classList.remove("on");
+    el.root.classList.remove("hf");
   }
   if (bandeau || couvert || file.length === 0) return;
   const h = HF_BY_ID.get(file.shift());
@@ -1000,6 +1002,9 @@ function updateHautsFaits(now, couvert) {
     + `<div class="hfTexte">${escapeHtml(hfTexte(h.id))}</div>`
     + `<div class="hfGain">${escapeHtml(nomRecompense(h))}</div>`;
   el.hf.hidden = false;
+  // le panneau de telemetrie occupe le meme coin : il s'efface pendant que le
+  // bandeau est la, et lui seul — c'est le rang de lecture qui tranche.
+  el.root.classList.add("hf");
   // deux images separent l'affichage de la classe : sans ca la transition CSS
   // part d'un noeud qui vient de naitre et ne joue pas.
   requestAnimationFrame(() => requestAnimationFrame(() => el.hf.classList.add("on")));

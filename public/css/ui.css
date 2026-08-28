@@ -23,10 +23,16 @@ input, textarea, [contenteditable] {
 
 #stage { height: 100%; display: flex; align-items: center; justify-content: center; }
 
+/* LE HUD SE REGLE SUR LE CADRE, JAMAIS SUR LA FENETRE : ses tailles sont en
+   pixels d'ecran alors que le cadre retrecit, donc a 1280 il occupe une part
+   bien plus grande qu'a 1920. `container-type: size` est licite ici parce que
+   la taille du cadre ne depend pas de son contenu (rapport + largeur) et que
+   ses deux enfants sont absolus. */
 #frame {
   position: relative;
   aspect-ratio: 1600 / 900;
   width: min(100%, calc(100vh * 16 / 9));
+  container: cadre / size;
 }
 
 #arena {
