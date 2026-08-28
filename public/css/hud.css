@@ -213,30 +213,47 @@
   width: min(760px, 62%);
 }
 
+/* LA TETE — le nom, puis l'etat, puis le verbe. Trois rangs de lecture dans une
+   colonne centree : le nom est un NOM, pas une phrase a rallonge. */
 #bossHead {
   display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
+  flex-direction: column;
+  align-items: center;
   margin-bottom: var(--sp-1);
-  font-size: var(--t-s);
 }
 
 #bossName {
-  font-size: var(--t-m);
+  font-size: var(--t-l);
   font-weight: 700;
   letter-spacing: var(--track-title);
   color: var(--lethal);
 }
 
-#bossName.enrage { animation: enrage 1.4s ease-in-out infinite; }
-
-@keyframes enrage {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.55; }
+/* L'EMPORTEMENT ET LA PHASE sont des etats du cadre. Ils etaient un suffixe du
+   nom, qui CLIGNOTAIT en boucle : le nom cessait d'etre un nom, et une pulsation
+   permanente n'annonce rien. */
+#bossEtat {
+  font-size: var(--t-xs);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--warn);
 }
 
+#bossEtat[hidden] { display: none; }
+#bossEtat.enrage { color: var(--lethal); }
+
 #bossVerb { color: var(--text-dim); font-size: var(--t-xs); }
-#bossHp   { margin-left: auto; color: var(--text-dim); }
+
+/* LE RAIL ET LE COMPTE, sur la meme ligne, juste au-dessus de la barre : le rail
+   MONTRE, le texte NOMME. « x4 » disait la meme chose que les pastilles, d'une
+   deuxieme facon et a l'exterieur du cadre. */
+#bossMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-1);
+}
 
 #bossBar {
   position: relative;
@@ -285,43 +302,69 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  /* QUATRE REPERES, pas dix : le rail au-dessus porte deja un decoupage, et
+     deux decoupages differents sur deux barres empilees se lisent mal. */
   background: repeating-linear-gradient(
     90deg,
-    transparent 0 calc(10% - 2px),
-    color-mix(in srgb, var(--bg-void) 75%, transparent) calc(10% - 2px) 10%);
+    transparent 0 calc(25% - 2px),
+    color-mix(in srgb, var(--bg-void) 75%, transparent) calc(25% - 2px) 25%);
 }
 
 #bossMult {
-  position: absolute;
-  left: calc(100% + var(--sp-3));
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: var(--t-l);
+  margin-left: auto;
+  font-size: var(--t-xs);
   font-weight: 700;
-  color: var(--warn);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
 #bossMult.last { color: var(--boss-low); }
 
+/* LE RAIL — un segment par barre, qui occupe toute la largeur : a neuf pixels
+   sous la jauge, il fallait les COMPTER. La barre en cours est allumee, les
+   tombees sont creuses. */
 #bossPips {
   display: flex;
-  gap: var(--sp-1);
-  margin-top: var(--sp-1);
+  flex: 1;
+  gap: 3px;
+  height: 6px;
 }
 
+/* CE QUI RESTE A FAIRE est creux, ce qui est TOMBE est plein, et la barre en
+   cours brille entre les deux : la position du segment allume est le numero. */
 #bossPips > span {
-  width: 9px;
-  height: 4px;
-  background: var(--lethal);
+  flex: 1;
+  background: none;
+  box-shadow: inset 0 0 0 var(--hair) var(--boss-empty);
 }
 
-#bossPips > span.spent { background: var(--boss-empty); opacity: 0.45; }
+#bossPips > span.tombee {
+  background: color-mix(in srgb, var(--lethal) 45%, transparent);
+  box-shadow: none;
+}
+
+#bossPips > span.encours {
+  background: var(--lethal);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--lethal) 55%, transparent);
+}
+
+/* LA RUPTURE SE JOUE DANS LE RAIL : le segment tombe casse sur place. Le hitstop
+   et le son viennent du canal d'evenements, le HUD n'ajoute que le compte. */
+#bossPips > span.brise { animation: barreBrisee 420ms ease-out; }
+
+@keyframes barreBrisee {
+  0%   { background: var(--flash); transform: scaleY(2.2); }
+  60%  { background: var(--boss-warn); transform: scaleY(0.4); }
+  100% { background: none; transform: scaleY(1); }
+}
 
 #hudBoss.final { width: min(1000px, 78%); }
 
 #hudBoss.final #bossName {
-  font-size: var(--t-l);
+  font-size: var(--t-xl);
   color: var(--boss-low);
 }
 
@@ -329,13 +372,6 @@
   height: 34px;
   border-width: 3px;
   border-color: var(--boss-low);
-}
-
-#hudBoss.final #bossBar::after {
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0 calc(12.5% - 2px),
-    color-mix(in srgb, var(--bg-void) 75%, transparent) calc(12.5% - 2px) 12.5%);
 }
 
 #hudBoss.final #bossBar {
@@ -347,7 +383,10 @@
   50%      { box-shadow: 0 0 12px 2px color-mix(in srgb, var(--boss-low) 45%, transparent); }
 }
 
-#hudBoss.final #bossPips > span { width: 13px; height: 5px; }
+/* LE SCEAU garde sa pulsation, SEULE animation permanente du HUD : sa periode
+   dit les barres restantes (2,6 s -> 0,9 s), et le dernier combat est le seul
+   moment ou attirer le regard en continu se justifie. */
+#hudBoss.final #bossPips { height: 8px; }
 
 #bossUlt { margin-top: var(--sp-2); }
 

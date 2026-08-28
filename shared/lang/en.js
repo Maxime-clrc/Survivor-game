@@ -315,6 +315,8 @@ export const EN = {
   "ui.hud.crescendo": "crescendo",
   "ui.hud.arene": "arena {p} %",
   "ui.hud.enrage": "ENRAGE",
+  "ui.hud.barre": "bar {n} / {max}",
+  "ui.hud.phase": "phase {n}",
   "ui.hud.barBroken": "BAR BROKEN — PHASE {n}",
   "ui.hud.dps": "{dps} dps · {tot} total",
   "ui.hud.lab.kills": "kills",

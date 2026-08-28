@@ -3996,6 +3996,38 @@
                    avec le reseau d un rang en dessous. Il ne dit rien sur la
                    partie, il dit si le lien tient.
 
+     0.20.5 lot 6  UNE COLLISION DE CLEF DANS LA TABLE `memo`. `bpl` servait au
+                   COMPTE DE BARRES du boss et, par le helper, a l etat de
+                   palier : chaque image ecrasait le dernier compte par un
+                   booleen. Le rail se retoggait soixante fois par seconde pour
+                   rien, et surtout AUCUNE variation du compte n etait
+                   detectable — la rupture de barre ne pouvait pas se jouer.
+                   Trouvee en croisant les clefs ecrites en direct avec celles
+                   passees aux helpers : une seule intersection dans tout le
+                   fichier, et c etait elle.
+                   LE RAIL FAISAIT NEUF PIXELS SOUS LA JAUGE : il fallait COMPTER
+                   des pastilles pour savoir ou on en etait. Il prend la largeur,
+                   se remplit DE LA GAUCHE comme la barre de mission, et la
+                   POSITION du segment allume EST le numero de la barre en cours.
+                   Il se vidait par la droite : quatre segments allumes pour
+                   « barre 2 / 5 ».
+                   « x4 » ET LE RAIL DISAIENT LA MEME CHOSE de deux facons, et le
+                   « x4 » vivait a l exterieur du cadre. Le rail MONTRE, le texte
+                   NOMME — et il nomme la barre en cours, pas celles qui restent.
+                   LE TOTAL DE PV DISPARAIT. « 3400 / 5000 » demandait d etre
+                   rapporte a une jauge qui n en montre qu un cinquieme : trois
+                   canaux pour une seule question. Le rail dit combien de combat
+                   reste, la jauge dit ou en est la barre, la phase dit la
+                   difficulte.
+                   L EMPORTEMENT ETAIT UN SUFFIXE DU NOM, ET IL CLIGNOTAIT en
+                   boucle : le nom cessait d etre un nom, et une pulsation
+                   permanente n annonce rien. Phase et emportement deviennent un
+                   ETAT du cadre, sous le nom. La rupture, elle, se joue dans le
+                   rail — 420 ms, le segment tombe casse sur place ; le hitstop et
+                   le son restent au canal d evenements.
+                   Le SCEAU du boss final garde sa pulsation : seule animation
+                   permanente du HUD, et sa periode dit les barres restantes.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4004,4 +4036,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.20.4";
+export const VERSION = "0.20.5";

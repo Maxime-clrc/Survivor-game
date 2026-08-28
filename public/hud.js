@@ -34,8 +34,8 @@ const el = {
   hf:       $("hudHf"),
   boss:     $("hudBoss"),
   bossName: $("bossName"),
+  bossEtat: $("bossEtat"),
   bossVerb: $("bossVerb"),
-  bossHp:   $("bossHp"),
   bossFill: $("bossBar").firstElementChild,
   bossLoss: $("bossLoss"),
   bossBank: $("bossBank"),
@@ -492,21 +492,31 @@ function updateBoss(b, now) {
     el.boss.classList.toggle("final", estFinal(kind));
   }
   const rage = b.enrage ?? 0;
-  setText(el.bossName, "bn", `${bossNom(b.kind).toUpperCase()} ${ROMAN[b.index] ?? b.index}`
-    + (rage > 0
-      ? ` — ${t("ui.hud.enrage", "EMPORTEMENT")} ${ROMAN[rage] ?? rage}`
-      : ""));
-  setClass(el.bossName, "bnr", "enrage", rage > 0);
+  setText(el.bossName, "bn", `${bossNom(b.kind).toUpperCase()} ${ROMAN[b.index] ?? b.index}`);
+  // L EMPORTEMENT ET LA PHASE SONT DES ETATS DU CADRE, pas un suffixe de nom qui
+  // clignote : le nom cessait d etre un nom, et rien ne doit pulser en continu.
+  const etats = [];
+  if (b.phase > 0) etats.push(tf("ui.hud.phase", "phase {n}", { n: b.phase + 1 }));
+  if (rage > 0) etats.push(`${t("ui.hud.enrage", "EMPORTEMENT")} ${ROMAN[rage] ?? rage}`);
+  setHidden(el.bossEtat, "beH", etats.length === 0);
+  setText(el.bossEtat, "be", etats.join(" · "));
+  setClass(el.bossEtat, "ber", "enrage", rage > 0);
+  setClass(el.boss, "bnr", "enrage", rage > 0);
   setText(el.bossVerb, "bv", bossVerbe(b.kind));
   // la barre en cours devient BLANCHE et se vide sur le palier : le temps
   // restant se lit sur l'objet que le joueur regarde deja.
   const palier = Math.max(0, Math.min(1, b.palier ?? 0));
-  setText(el.bossHp, "bh", `${Math.max(0, Math.round(b.hp))} / ${b.maxHp}`);
   setWidth(el.bossFill, "bf", k);
-  setClass(el.boss, "bpl", "palier", palier > 0);
+  // la clef du memo est PROPRE au palier : `bpl` etait aussi celle du compte de
+  // barres, donc chaque image ecrasait le dernier compte par un booleen — le
+  // rail se retoggait pour rien, et la rupture ne pouvait pas se detecter.
+  setClass(el.boss, "bpal", "palier", palier > 0);
   setStyle(el.bossBank, "bkl", "left", "0%");
   setStyle(el.bossBank, "bkw", "width", `${palier * 100}%`);
-  setText(el.bossMult, "bm", `×${left}`);
+  // « x4 » et le rail disaient la meme chose de deux facons. Le rail MONTRE,
+  // le texte NOMME — et il nomme la barre en cours, pas celles qui restent.
+  setText(el.bossMult, "bm",
+    tf("ui.hud.barre", "barre {n} / {max}", { n: bars - left + 1, max: bars }));
   setClass(el.bossMult, "bml", "last", left <= 1);
 
   if (memo.bpn !== bars) {
@@ -516,8 +526,29 @@ function updateBoss(b, now) {
     memo.bpl = -1;
   }
   if (memo.bpl !== left) {
+    const avant = memo.bpl;
     memo.bpl = left;
-    for (let i = 0; i < bars; i++) el.bossPips.children[i].classList.toggle("spent", i >= left);
+    // LE RAIL SE REMPLIT DE LA GAUCHE, comme la barre de mission : la POSITION
+    // du segment allume EST le numero de la barre en cours. Un rail qui se vidait
+    // par la droite donnait quatre segments allumes pour « barre 2 / 5 ».
+    const tombees = bars - left;
+    for (let i = 0; i < bars; i++) {
+      const seg = el.bossPips.children[i];
+      seg.classList.toggle("tombee", i < tombees);
+      seg.classList.toggle("encours", i === tombees);
+    }
+    // LA RUPTURE SE JOUE DANS LE RAIL : le segment qui vient de tomber casse sur
+    // place. Le hitstop et le son sont deja poses par le canal d evenements ;
+    // le HUD n ajoute que la trace visuelle du compte.
+    if (avant > left && avant <= bars) {
+      for (let i = bars - avant; i < tombees; i++) {
+        const seg = el.bossPips.children[i];
+        if (!seg) continue;
+        seg.classList.remove("brise");
+        void seg.offsetWidth;
+        seg.classList.add("brise");
+      }
+    }
     if (estFinal(kind)) {
       const k = bars > 1 ? (bars - left) / (bars - 1) : 1;
       el.boss.style.setProperty("--final-pulse", `${(2.6 - k * 1.7).toFixed(2)}s`);
