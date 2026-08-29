@@ -7791,10 +7791,20 @@ export class GameState {
     // TOUJOURS vrai, donc le porte-bouclier absorbait de TOUTES les directions
     // depuis qu'il existe — pendant que le client, lui, ne dessinait le blocage
     // que de face. L'arc en radians vit deja sur le corps, pose a l'apparition.
+    /* UN TIR BLOQUE N'EST PAS UNE TOUCHE. `hitSeq++` sans degat rendait un
+       HIT_LEGER cote client — eclair blanc, etincelles, voix — donc le
+       porte-bouclier absorbait pendant que le joueur voyait un coup qui porte.
+       Le blocage pose son PROPRE effet et ne touche plus le compteur.
+       Celui qui portait cet effet vivait plus bas, derriere une garde
+       `e.shieldArc > 0` INATTEIGNABLE : celle-ci teste deja la meme chose et
+       rend `true`. Il n'a donc jamais ete pousse une seule fois. */
     if (e.shieldArc > 0) {
       const from = Math.atan2(iy - e.y, ix - e.x);
       if (Math.abs(this._angleDiff(from, e.ang)) <= e.shieldArc / 2) {
-        e.hitSeq = (e.hitSeq + 1) % 10;
+        this.effects.push({
+          id: this._nextId++, x: ix, y: iy, r: 12, life: 0.16, max: 0.16,
+          kind: 18, n: Math.round(from * 100) / 100,
+        });
         return true;
       }
     }
@@ -7810,18 +7820,6 @@ export class GameState {
       return true;
     }
 
-    if (e.shieldArc > 0) {
-      let off = Math.atan2(iy - e.y, ix - e.x) - e.ang;
-      while (off > Math.PI) off -= Math.PI * 2;
-      while (off < -Math.PI) off += Math.PI * 2;
-      if (Math.abs(off) <= e.shieldArc / 2) {
-        this.effects.push({
-          id: this._nextId++,
-          x: ix, y: iy, r: 14, life: 0.18, max: 0.18, kind: 14,
-        });
-        return true;
-      }
-    }
 
     const tireur = this.players.get(b.owner);
     // CIBLE FROIDE : la prime va au corps qu'on n'a pas touche depuis un moment,

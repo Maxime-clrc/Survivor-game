@@ -425,6 +425,20 @@ const PALETTE = {
     return { end: a.end + 0.08, stop: a.stop };
   },
 
+  /* LE COUP QUI N'EST PAS PASSE. Il ne doit pas sonner comme une touche faible
+     mais comme une touche ARRETEE : l'attaque d'un impact, et RIEN derriere —
+     aucun corps, aucun grave, une resonance de plaque qui s'eteint aussitot.
+     C'est l'absence de queue qui dit « ca n'est pas entre ». */
+  bloque: () => {
+    const a = noise({ dur: 0.026, type: "highpass", freq: 3800, q: 0.7,
+                      gain: SOUND_GAIN.impact * 1.3 });
+    noise({ dur: 0.055, type: "bandpass", freq: 1900, to: 1500, q: 9,
+            gain: SOUND_GAIN.impact * 0.9, delay: 0.004 });
+    tone({ freq: 3100, to: 2600, dur: 0.05, type: "triangle",
+           gain: SOUND_GAIN.impact * 0.35, attack: 0.001 });
+    return { end: a.end + 0.05, stop: a.stop };
+  },
+
   mort: (o) => noise({ dur: 0.12, type: "lowpass", freq: 1400 * (o.pitch ?? 1),
                        to: 200 * (o.pitch ?? 1), gain: SOUND_GAIN.mort }),
 

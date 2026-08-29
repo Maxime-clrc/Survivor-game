@@ -4758,6 +4758,36 @@
                    cout de rendu par palier a `?perf`, et la lisibilite a 200
                    corps. Protocoles ecrits dans `LISEZMOI.md`.
 
+     0.23.0 lot 1  LA MATIERE A L IMPACT, ET UN TIR QUI N ENTRAIT PAS. Premier
+                   lot du plan 20. `MATIERE` disait ce qu une creature fait en
+                   MOURANT ; elle dit maintenant aussi ce qu elle fait quand on
+                   la TOUCHE, par un second champ `touche` sur les memes trois
+                   lignes. Frapper un couvain, un colosse et un soigneur rendait
+                   la meme gerbe blanche : le PALIER dit combien le coup a coute,
+                   la MATIERE dit a quoi il s est heurte, et aucun des deux ne
+                   redit l autre. L identite de l arme reste ou elle etait — la
+                   bouche et la silhouette — donc le quatrieme canal n existe pas.
+                   AUCUNE PARTICULE DE PLUS : `PALIER` garde le compte, le cone
+                   et la vitesse ; la matiere plie la case d atlas, la teinte, la
+                   duree, le freinage, la portance et la taille. `PARTICLE_MAX`
+                   ne bouge pas.
+                   UN TIR BLOQUE SE LISAIT COMME UNE TOUCHE. Dans
+                   `_bulletHitInterne`, la seconde garde `e.shieldArc > 0` etait
+                   INATTEIGNABLE depuis que la premiere teste en radians : c est
+                   elle qui portait l effet de blocage, jamais pousse une seule
+                   fois. Le porte-bouclier absorbait en incrementant `hitSeq`
+                   sans degat, ce que le client lit comme un HIT_LEGER — eclair
+                   blanc, etincelles, voix. Le blocage devient son propre
+                   evenement (`kind: 18`, l angle d incidence dans `n`), ne
+                   touche plus le compteur de touches, et rend une plaque qui
+                   s allume EN TRAVERS de l axe avec des etincelles qui GLISSENT.
+                   Recette `bloque` : l attaque d un impact et rien derriere —
+                   c est l absence de queue qui dit que ca n est pas entre. Elle
+                   prend la CLE `impact` du limiteur : un blocage est une touche
+                   qui n est pas passee, pas une voix de plus.
+                   `verifierFeedback()` croise desormais les dix champs de
+                   `touche` — un zero pose par distraction ne leve rien tout seul.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4766,4 +4796,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.8";
+export const VERSION = "0.23.0";

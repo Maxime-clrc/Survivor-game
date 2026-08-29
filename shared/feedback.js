@@ -111,10 +111,27 @@ export const echelleBouche = a => 0.75 + 0.25 * poids(a);
    l'appel. Elle vit ICI et non a cote de `DEATH_BURST` parce que `son` doit
    pouvoir se croiser avec `audio.js` sans charger le rendu. */
 export const MAT_CARAPACE = 0, MAT_ORGANIQUE = 1, MAT_ENERGIE = 2;
+
+/* `touche` EST L'AUTRE MOITIE DE LA MEME QUESTION. La table disait ce qu'une
+   creature fait en MOURANT ; ce qu'elle fait quand on la TOUCHE sortait d'une
+   seule recette blanche, donc frapper un couvain et frapper un colosse rendait
+   exactement la meme image. Le PALIER dit combien le coup a coute, la MATIERE
+   dit a quoi il s'est heurte — deux axes, aucun ne redit l'autre, et l'identite
+   de l'arme reste ou elle est : dans la bouche et dans la silhouette.
+
+   AUCUNE PARTICULE DE PLUS : `PALIER` decide toujours du compte, du cone et de
+   la vitesse ; la matiere ne fait que les plier. `debris` dit si quelque chose
+   se DETACHE — un champ d'energie ne laisse pas de poussiere de beton. */
+const TOUCHE = (eclat, teinte, vite, tenue, taille, freine, monte, gonfle, a0, debris) =>
+  ({ eclat, teinte, vite, tenue, taille, freine, monte, gonfle, a0, debris });
+
 export const MATIERE = [
-  { spin: 14, grow: 0,  a0: 1,    drag: 0.90, son: "mort" },
-  { spin: 0,  grow: 30, a0: 0.70, drag: 0.80, son: "mortMou" },
-  { spin: 0,  grow: 0,  a0: 0.95, drag: 0.95, son: "mortEnergie" },
+  { spin: 14, grow: 0,  a0: 1,    drag: 0.90, son: "mort",
+    touche: TOUCHE(0, 0, 1.00, 1.00, 1.00, 0.90,  0,  0, 1.00, 1) },
+  { spin: 0,  grow: 30, a0: 0.70, drag: 0.80, son: "mortMou",
+    touche: TOUCHE(1, 1, 0.55, 1.55, 1.45, 0.80,  0, 26, 0.80, 0) },
+  { spin: 0,  grow: 0,  a0: 0.95, drag: 0.95, son: "mortEnergie",
+    touche: TOUCHE(1, 1, 0.85, 1.30, 1.15, 0.94, 46,  0, 0.90, 0) },
 ];
 export const matiereDe = d =>
   d?.splits ? MAT_ORGANIQUE
@@ -154,6 +171,18 @@ export function verifierFeedback(armes = [], types = [], recettes = []) {
     if (recettes.length && !dispo.has(MATIERE[i].son)) {
       soucis.push(`matiere ${i} : recette « ${MATIERE[i].son} » absente d'audio.js`);
     }
+    const T = MATIERE[i].touche;
+    if (!T) { soucis.push(`matiere ${i} : aucune touche`); continue; }
+    for (const [champ, v] of Object.entries(T)) {
+      if (!(v >= 0)) soucis.push(`matiere ${i}.touche.${champ} = ${v}`);
+    }
+    // une touche qui n'avance pas, ne dure pas ou n'a pas de corps n'est pas une
+    // touche : c'est la seule facon de voir un zero pose par distraction
+    if (!(T.vite > 0) || !(T.tenue > 0) || !(T.taille > 0)) {
+      soucis.push(`matiere ${i} : touche sans corps`);
+    }
+    if (!(T.freine > 0 && T.freine <= 1)) soucis.push(`matiere ${i} : freine ${T.freine}`);
+    if (!(T.a0 > 0 && T.a0 <= 1)) soucis.push(`matiere ${i} : a0 ${T.a0}`);
   }
 
   for (const a of armes) {

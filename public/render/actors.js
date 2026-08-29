@@ -828,6 +828,40 @@ export function drawEffects(effects) {
       continue;
     }
 
+    /* LE TIR ARRETE. Le porte-bouclier absorbait en SILENCE et le client lisait
+       une touche legere : l'arme paraissait ne rien faire contre ce corps sans
+       qu'aucun pixel ne dise pourquoi. La plaque s'allume EN TRAVERS de l'axe du
+       coup — un segment, jamais un anneau : l'anneau appartient a l'egide et a
+       l'elite — et le coup repart en s'ouvrant vers l'arriere.
+       `n` porte l'angle d'incidence : meme emplacement, autre lecture, comme
+       l'index 6 qui porte deja x2 ou le proprietaire. */
+    if (f.kind === 18) {
+      const a = f.n ?? 0;
+      const ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
+      const L = f.r * (0.9 + 0.7 * f.k);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      ctx.strokeStyle = alpha(ENEMY_TINT[BOUCLIER] ?? FX.flash, f.k * 0.9);
+      ctx.lineWidth = 3 * f.k + 1.2;
+      ctx.beginPath();
+      ctx.moveTo(f.x + px * L, f.y + py * L);
+      ctx.lineTo(f.x - px * L, f.y - py * L);
+      ctx.stroke();
+      ctx.strokeStyle = alpha(FX.flash, f.k * 0.7);
+      ctx.lineWidth = 1.6;
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y);
+        ctx.lineTo(f.x + (ux * 0.45 + px * s) * L * 1.5,
+                   f.y + (uy * 0.45 + py * s) * L * 1.5);
+        ctx.stroke();
+      }
+      ctx.lineCap = "butt";
+      ctx.restore();
+      continue;
+    }
+
     if (f.kind === 13) {
       ctx.globalAlpha = f.k;
       drawArc(`s${f.id}`, f.x2, f.y2, f.x, f.y, {
@@ -1727,6 +1761,7 @@ function drawMedicLinks(list) {
    pas d'arc tant qu'il n'est pas vif, c'est le preavis qui porte cet instant. */
 const RELAIS = ENEMY_TYPES.findIndex(t => t.lienRange);
 const EGIDE = ENEMY_TYPES.findIndex(t => t.egideRadius);
+const BOUCLIER = ENEMY_TYPES.findIndex(t => t.shieldArc);
 function drawRelaisArcs(list) {
   if (RELAIS < 0) return;
   const par = new Map();

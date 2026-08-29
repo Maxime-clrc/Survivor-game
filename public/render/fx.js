@@ -85,6 +85,10 @@ const EFFECT_SOUND = {
   // difference et le tressaillement reste a zero — un tir ordinaire ne secoue
   // pas l'ecran, quelle que soit l'arme.
   17: { son: "balayage", pitch: 2.1, gain: 0.55, force: 0.5, shake: 0 },
+  // le blocage PREND la place d'une touche : c'en est une, elle n'est pas
+  // passee. Sans `key` il aurait ouvert une file a lui, et un porte-bouclier
+  // sous une build a cadence rapide aurait sature le mix a lui seul.
+  18: { son: "bloque", force: 1, shake: 0, key: "impact" },
 };
 
 // les quatre souffles, et LEUR MATIERE. `n` est le nombre de tues : il met a
@@ -286,6 +290,7 @@ function handleEvent(e) {
       }
       if (e.kind === 11) spawnHealWave(e.x, e.y, e.r);
       else if (e.kind === 9) spawnBulwark(e.x, e.y, e.r);
+      else if (e.kind === 18) spawnDeflect(e.x, e.y, e.n ?? 0);
       if (!d) break;
       playSound(d.son, d);
       if (d.shake) {
@@ -560,16 +565,18 @@ function registerHit(e, pal) {
   // son propre ecran. Elle est un attribut de sommet, donc gratuite.
   const col = e.owner && e.owner !== myId ? ownerColorOf(e.owner) : null;
   let restants = e.crits ?? 0;
+  const type = e.type ?? 0;
   for (let i = 0; i < n; i++) {
     const crit = restants-- > 0;
-    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col, pal);
-    else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy, crit, col, pal });
+    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col, pal, type);
+    else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy,
+                         crit, col, pal, type });
   }
 }
 const HIT_BURST_MAX = 4;
 export const hitQueue = [];
 const CRIT_FLASH = 0.17;
-function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER) {
+function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER, type = 0) {
   const now = performance.now();
   const P = PALIER[pal] ?? PALIER[HIT_LEGER];
   hits.set(id, {
@@ -589,18 +596,30 @@ function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER) {
 
   // LES ETINCELLES PARTENT DANS L'AXE DU COUP, et le cone se resserre quand il
   // porte : un coup leger eparpille, un coup lourd perfore.
+  // LA MATIERE LES PLIE SANS EN AJOUTER UNE SEULE : `PALIER` garde le compte, le
+  // cone et la vitesse de base — le budget de frequence ne bouge pas d'un cran —
+  // et `MATIERE.touche` decide de ce qui part. Une carapace jette des eclats
+  // blancs et tendus, un sac des gouttes lourdes qui gonflent, un champ des
+  // motes teintees qui montent et s'attardent.
   const a0 = Math.atan2(dy, dx);
+  const T = (MATIERE[MATIERE_DE[type] ?? MAT_CARAPACE] ?? MATIERE[MAT_CARAPACE]).touche;
+  const teinte = T.teinte ? (ENEMY_TINT[type] ?? COMBAT.flash) : COMBAT.flash;
+  const vie = (0.14 + pal * 0.03) * T.tenue;
   for (let i = 0; i < P.eclats && particles.length < PARTICLE_MAX; i++) {
     const a = a0 + (Math.random() - 0.5) * P.cone;
-    const sp = P.sp + Math.random() * (P.sp * 0.8);
+    const sp = (P.sp + Math.random() * (P.sp * 0.8)) * T.vite;
     particles.push({
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      life: 0.14 + pal * 0.03, max: 0.14 + pal * 0.03,
-      col: COMBAT.flash, size: 2 + pal * 0.5,
-      ang: a, long: 3.4 + pal * 0.8,
+      life: vie, max: vie,
+      col: teinte, size: (2 + pal * 0.5) * T.taille,
+      frame: T.eclat ? fxGlow : fxWhite,
+      ang: a, long: T.eclat ? 1 : 3.4 + pal * 0.8,
+      drag: T.freine, lift: T.monte, grow: T.gonfle, a0: T.a0,
     });
   }
-  if (P.poussiere > 0) poussiere(x, y, a0, P.poussiere);
+  // RIEN NE SE DETACHE D'UN CHAMP : la poussiere est de la matiere du LIEU, elle
+  // suppose une coque qui s'ecaille.
+  if (P.poussiere > 0 && T.debris) poussiere(x, y, a0, P.poussiere);
   // le coup lourd sort du budget de la touche : il vaut ~0,2 par seconde, donc
   // il a droit a l'onde et au noyau que le palier 0 ne peut pas payer.
   if (pal === HIT_LOURD && bursts.length < BURST_MAX) {
@@ -634,6 +653,24 @@ function poussiere(x, y, a0, n) {
     });
   }
 }
+/* LES ETINCELLES D'UN BLOCAGE GLISSENT, elles ne repartent pas dans l'axe :
+   c'est ce qui separe « arretee » de « ratee ». Deux gerbes tangentes a la
+   plaque, courtes, et rien qui clignote sur le corps — il n'a rien encaisse. */
+export function spawnDeflect(x, y, a) {
+  const ux = Math.cos(a), uy = Math.sin(a);
+  const px = -uy, py = ux;
+  for (let i = 0; i < 4 && particles.length < PARTICLE_MAX; i++) {
+    const s = i % 2 ? 1 : -1;
+    const ang = Math.atan2(py * s + uy * 0.3, px * s + ux * 0.3)
+      + (Math.random() - 0.5) * 0.5;
+    const sp = 190 + Math.random() * 150;
+    particles.push({
+      x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+      life: 0.16, max: 0.16, col: COMBAT.flash, size: 2.2,
+      ang, long: 3.2, drag: 0.86,
+    });
+  }
+}
 export const CRIT_PUNCH = 0.07;
 // [26e] des ECLATS, pas un disque : la forme doit dire « perforation ». Le
 // noyau chaud qui les accompagne est ce qui rend le critique lisible dans une
@@ -662,7 +699,7 @@ function flushHitQueue(now) {
     if (hitQueue[i].at > now) continue;
     const h = hitQueue[i];
     hitQueue.splice(i, 1);
-    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col, h.pal);
+    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col, h.pal, h.type);
   }
 }
 export const deaths = [];
