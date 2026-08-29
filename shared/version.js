@@ -5083,6 +5083,30 @@
                    Le banc TIENT la population au lieu de la poser une fois : les
                    corps meurent, et une densite qui retombe ne mesure rien.
 
+     0.25.1 lot 2  LE RELEVE. `?perf` MONTRE les chiffres, il ne les RETIENT pas.
+                   Quatre densites fois cinq paliers de qualite font vingt
+                   relevés, et recopier a la main un compteur qui bouge en donne
+                   vingt dont aucun n est comparable au suivant — c est ce qui a
+                   tenu ce protocole ferme, pas la difficulte de la mesure.
+                   `R` echantillonne dix secondes et imprime UNE ligne prete a
+                   coller, dans la console ET le presse-papier, en la laissant a
+                   l ecran. Elle porte le palier, le rendu, l arme, la densite,
+                   les FPS, le temps d image, `draws`, `quads`, la pointe de
+                   fragments et les trois compteurs du limiteur.
+                   LE PIRE CENTILE COMPTE PLUS QUE LA MOYENNE, et c est pour ca
+                   que la ligne porte les DEUX : un rendu a 60 images en mediane
+                   qui tombe a 22 sur les souffles est pire qu un rendu plat a
+                   50, et c est justement la mediane qui le cache. Le p95 du
+                   temps d image est ce qui se SENT a la manette.
+                   Le temps mesure est le BRUT et non `dt` : celui-la est
+                   plafonne a 0,1 s pour la simulation, donc il ment exactement
+                   sur les images qui coutent.
+                   AUCUNE ALLOCATION PAR IMAGE : trois tableaux poses au
+                   demarrage, remplis en place, tries une seule fois a l echeance.
+                   L echeance vit dans `core/state.js` parce que la touche est
+                   couche 19 et la mesure couche 14 — une liaison ES est morte a
+                   l ecriture, donc elle passe par un setter.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5091,4 +5115,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.25.0";
+export const VERSION = "0.25.1";

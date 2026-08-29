@@ -136,8 +136,28 @@ la densité et le lieu sans relancer dix manches.
 BANC=1 BIOME=fonderie GRAINE=7 npm start   # puis /?banc&perf
 ```
 
-**1-0** les dix armes · **[** **]** la densité par pas de 50 · **H** coupe le HUD.
+**1-0** les dix armes · **[** **]** la densité par pas de 50 · **H** coupe le HUD
+· **R** lance un relevé de 10 s.
 Les deux moitiés sont nécessaires : sans `BANC=1`, `?banc` n'obtient rien.
+
+#### Le relevé (0.25.1)
+
+`?perf` **montre** les chiffres, il ne les **retient** pas. Quatre densités fois
+cinq paliers de qualité font vingt relevés, et recopier à la main un compteur qui
+bouge en donne vingt dont aucun n'est comparable au suivant.
+
+**R** échantillonne 10 s, imprime une ligne prête à coller (console **et**
+presse-papier) et la laisse à l'écran. Le pire centile y est parce qu'il compte
+plus que la moyenne : un rendu à 60 images en médiane qui tombe à 22 sur les
+souffles est pire qu'un rendu plat à 50, et c'est justement la médiane qui le
+cache.
+
+Protocole : `BANC=1 BIOME=… npm start`, puis `/?banc&perf` ; pour chaque palier
+de qualité (menu pause) et chaque densité (`[` `]`), tenir le tir et presser `R`.
+
+| gfx | rendu | arme | corps | FPS méd | FPS p5 | ms p95 | draws | quads | frag max | voix pointe | refusées/s | volées/s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| *(à remplir au banc)* | | | | | | | | | | | | |
 
 #### Ce qui n'a PAS été mesuré, et son protocole
 

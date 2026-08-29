@@ -1,7 +1,7 @@
 
 import { CFG } from "/shared/game_state.js";
 import { ARMES } from "/shared/armes.js";
-import { BANC, INPUT_HZ, PHASE_ROUND, amSpectator, cardsState, connected, dash, keys, latest, merchantState, myDashCd, myId, notePress, phase, predicted, skills, ws } from "./core/state.js";
+import { BANC, INPUT_HZ, PHASE_ROUND, amSpectator, bancReleve, cardsState, connected, dash, keys, latest, merchantState, myDashCd, myId, notePress, phase, predicted, setBancReleve, skills, ws } from "./core/state.js";
 import { aimRange, aimVector, updateMouse } from "./render/stage.js";
 import { closeBuild, cycleBuild, openBuild } from "./ui/build.js";
 import { buildEl, cv, enSaisie, pauseEl, readMove } from "./ui/dom.js";
@@ -87,6 +87,7 @@ function requestDash() {
    Le test du NOM MASQUE est le seul des quatre protocoles ouverts qui demande
    de CACHER quelque chose : on doit pouvoir regarder dix secondes de combat et
    nommer l'arme sans qu'un panneau la donne. */
+const BANC_RELEVE_MS = 10000;
 let bancEl = null;
 function bancDit(txt) {
   if (!bancEl) {
@@ -120,6 +121,16 @@ if (BANC) {
       e.preventDefault();
       const off = document.body.classList.toggle("sansHud");
       bancDit(off ? "HUD masque" : "HUD rendu");
+      return;
+    }
+    // LE RELEVE : dix secondes, une ligne, et on passe au palier suivant. Lire
+    // un compteur qui bouge et le recopier a la main donne vingt mesures dont
+    // aucune n'est comparable a la suivante.
+    if (e.code === "KeyR") {
+      e.preventDefault();
+      if (bancReleve > 0) { setBancReleve(0); bancDit("releve annule"); return; }
+      setBancReleve(performance.now() + BANC_RELEVE_MS);
+      bancDit("releve " + (BANC_RELEVE_MS / 1000) + " s…");
     }
   });
 }

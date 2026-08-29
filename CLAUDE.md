@@ -74,7 +74,8 @@ BANC=1 BIOME=fonderie GRAINE=7 npm start   # puis http://localhost:7777/?banc&pe
 **Le banc** demande ses DEUX moitiés : `BANC=1` côté serveur, `?banc` côté
 client. Touches : **1-0** les dix armes, **[** et **]** la densité par pas de 50,
 **H** coupe le HUD — le test du nom masqué exige que *tout* ce qui nomme l'arme
-se taise, l'étiquette du banc comprise.
+se taise, l'étiquette du banc comprise —, **R** lance un relevé de 10 s qui
+imprime une ligne prête à coller dans `LISEZMOI.md`.
 
 Pas de suite de tests. La logique est pure et sans DOM : on l'importe dans un
 script jetable. 600 s de jeu ≈ 1 s de CPU.

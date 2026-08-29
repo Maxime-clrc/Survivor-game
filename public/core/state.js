@@ -154,6 +154,13 @@ export const PERF = location.search.includes("perf");
    n'accepte les messages que sur `BANC=1` : les deux moities sont necessaires,
    donc un joueur ne peut pas s'ouvrir le catalogue depuis sa barre d'adresse. */
 export const BANC = location.search.includes("banc");
+/* LE RELEVE. `?perf` MONTRE les chiffres, il ne les RETIENT pas : lire un
+   compteur qui bouge et le recopier a la main donne quatre densites fois cinq
+   paliers de mesures dont aucune n'est comparable a la suivante. L'echeance vit
+   ici parce que la touche est dans `input.js` (couche 19) et la mesure dans
+   `world.js` (couche 14) — une liaison ES est morte a l'ecriture. */
+export let bancReleve = 0;
+export function setBancReleve(v) { bancReleve = v; }
 export const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 const ATTACK_LABEL = {
   salve: "salve radiale", marques: "marques au sol", charge: "charge",

@@ -1,5 +1,5 @@
 
-import { audioStats, playSound, setCharge, setFaisceauChaleur, startCharge, startFaisceau, stopCharge, stopFaisceau } from "/audio.js";
+import { audioStats, playSound, resetAudioStats, setCharge, setFaisceauChaleur, startCharge, startFaisceau, stopCharge, stopFaisceau } from "/audio.js";
 import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
 import { ARMES } from "/shared/armes.js";
@@ -11,7 +11,7 @@ import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
 import { fmtM } from "/shared/units.js";
 import { drawSprite, glActive } from "/sprites.js";
-import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, connected, dash, difficulty, latest, lobby, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setPredicted, signalerErreur, snapshots } from "../core/state.js";
+import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, bancReleve, connected, dash, difficulty, gfx, latest, lobby, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setBancReleve, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
 import { ARROW_MARGIN, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawFinArcs, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, faisceauAllume, lastPlayerPos, noeudsSortis, noeudsVus, resetGaze } from "./boss.js";
@@ -67,6 +67,9 @@ export function resetFeedback() {
 const slipV = { x: 0, y: 0 };
 let lastFrame = performance.now();
 let fps = 0;
+// le temps d'image BRUT, celui qui se sent : `dt` est plafonne a 0,1 s pour la
+// simulation, donc il ment justement sur les images qui coutent.
+let rawFrame = 0;
 export function boucleDeRendu(now) {
   try {
     frameBody(now);
@@ -78,6 +81,7 @@ export function boucleDeRendu(now) {
 }
 function frameBody(now) {
   const raw = now - lastFrame;
+  rawFrame = raw;
   const dt = Math.min(raw / 1000, 0.1);
   lastFrame = now;
   if (PERF) netPerfFrame(raw);
@@ -290,13 +294,73 @@ function applyShake() {
       `${(shake.y / CFG.VIEW_H * 100).toFixed(3)}%)`
     : "scale(1.015)";
 }
+/* DIX SECONDES, UNE LIGNE. `?perf` MONTRE les chiffres, il ne les RETIENT pas :
+   quatre densites fois cinq paliers de qualite font vingt relevés, et recopier a
+   la main un compteur qui bouge en donne vingt dont aucun n'est comparable au
+   suivant.
+
+   LE PIRE CENTILE COMPTE PLUS QUE LA MOYENNE. Un rendu qui tient 60 images par
+   seconde en moyenne mais tombe a 22 sur les souffles est pire qu'un rendu plat
+   a 50 — et c'est la mediane qui le cache. La ligne porte donc les DEUX, plus le
+   p95 du temps d'image, qui est ce qui se SENT a la manette.
+
+   Aucune allocation par image : trois tableaux poses au demarrage, remplis en
+   place, tries une seule fois a l'echeance. */
+const REL = { dt: [], frag: [], draws: [], quads: [], n: 0 };
+function relCentile(a, p) {
+  const t = a.slice(0, REL.n).sort((x, y) => x - y);
+  return t[Math.min(t.length - 1, Math.max(0, Math.round((t.length - 1) * p)))] ?? 0;
+}
+function relMoy(a) {
+  let s = 0;
+  for (let i = 0; i < REL.n; i++) s += a[i];
+  return REL.n ? s / REL.n : 0;
+}
+function relever(now, raw, st) {
+  if (REL.n === 0) resetAudioStats();
+  if (REL.n < 4096) {
+    REL.dt[REL.n] = raw;
+    REL.frag[REL.n] = particles.length;
+    REL.draws[REL.n] = gl?.draws ?? 0;
+    REL.quads[REL.n] = gl?.quads ?? 0;
+    REL.n++;
+  }
+  if (now < bancReleve) return;
+  setBancReleve(0);
+  const me = latest?.players?.get(myId);
+  const arme = me ? (ARMES[me.arme]?.id ?? "?") : "?";
+  const pop = latest?.enemies?.size ?? 0;
+  const ligne = "| " + [
+    ["low", "medium", "high", "ultra"][gfx] ?? gfx,
+    glActive() ? "GL" : "2D",
+    arme,
+    pop,
+    Math.round(1000 / Math.max(0.001, relCentile(REL.dt, 0.5))),
+    Math.round(1000 / Math.max(0.001, relCentile(REL.dt, 0.95))),
+    relCentile(REL.dt, 0.95).toFixed(1),
+    Math.round(relMoy(REL.draws)),
+    Math.round(relMoy(REL.quads)),
+    relCentile(REL.frag, 1),
+    st ? st.peak : 0,
+    st ? Math.round(st.dropped / (BANC_RELEVE_S)) : 0,
+    st ? (st.stolen / BANC_RELEVE_S).toFixed(1) : 0,
+  ].join(" | ") + " |";
+  REL.n = 0;
+  console.log(ligne);
+  if (navigator.clipboard) navigator.clipboard.writeText(ligne).catch(() => { });
+  const el = document.getElementById("bancDit");
+  if (el) el.textContent = ligne;
+}
+const BANC_RELEVE_S = 10;
+
 function drawScreen(v) {
   const now = performance.now();
   if (alertOrder && now > alertOrder.until) setAlertOrder(null);
   if (alertWarn && now > alertWarn.until) setAlertWarn(null);
   if (alertInfo && now > alertInfo.until) setAlertInfo(null);
 
-  const st = PERF ? audioStats() : null;
+  const st = PERF || bancReleve > 0 ? audioStats() : null;
+  if (bancReleve > 0) relever(now, rawFrame, st);
   updateHud(v, {
     now, myId, lobby, ping, difficulty, amSpectator,
     // le bandeau ne recouvre jamais une decision : il attend que l'ecran de
