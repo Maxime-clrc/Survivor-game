@@ -1383,3 +1383,25 @@
   #hudHf     { width: 280px; }
   #alertOrder { width: 460px; }
 }
+
+/* LE BANC — `?banc` seulement, et jamais servi a un joueur ordinaire : sans
+   `BANC=1` cote serveur les touches n'obtiennent rien. Le test du NOM MASQUE
+   exige que TOUT ce qui nomme l'arme disparaisse, l'etiquette du banc comprise :
+   c'est pour ca qu'elle tombe sous la meme regle que le HUD. */
+#bancDit {
+  position: fixed;
+  left: var(--sp-3);
+  bottom: var(--sp-3);
+  z-index: 40;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--bg-void);
+  color: var(--text-dim);
+  font: 500 var(--t-xs)/1.4 ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: .06em;
+  pointer-events: none;
+}
+body.sansHud #hud,
+body.sansHud #topbar,
+body.sansHud #bancDit { display: none !important; }

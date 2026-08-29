@@ -12,6 +12,16 @@ import { ARMES, ARME_CFG, ARME_DEFAUT } from "./shared/armes.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 
+/* LE BANC. Meme statut que `BIOME` et `GRAINE` : une surcharge d'environnement
+   POUR LES TESTS, absente en jeu. Quatre protocoles de `LISEZMOI.md` sont restes
+   ouverts parce qu'ils se jugent A L'OEIL — comparer dix armes, lire le retour a
+   200 corps, tenir le test du nom masque, verifier le contraste sur chaque sol —
+   et tous demandent la meme chose : choisir l'arme et la densite sans relancer
+   dix manches. Hors `BANC=1`, les deux messages sont ignores et pas un octet du
+   jeu ne change. */
+const BANC = process.env.BANC === "1";
+const BANC_POP_MAX = 300;
+
 const rerollsFor = profile => {
   const cf = profile?.confort ?? [];
   return (cf.includes("relance") ? 1 : 0) + (cf.includes("relance2") ? 1 : 0);
@@ -525,6 +535,19 @@ export class Room {
      statut que `ROOM_GRACE_MS` et `ROOM_MAX`. Comparer quatre lieux demande de
      pouvoir en demander un, et relancer des salles jusqu au bon tirage est le
      genre de protocole qu on finit par ne plus faire. */
+  /* Le banc TIENT la population, il ne la pose pas une fois : les corps meurent,
+     et une densite qui retombe ne mesure rien. Le remplissage passe par le meme
+     `_spawnEnemy` que la horde — un second chemin d'apparition ne verrait ni les
+     obstacles, ni les quotas de type, ni l'adaptation au niveau. */
+  bancTenir() {
+    const n = this.bancPop;
+    let garde = BANC_POP_MAX;
+    while (this.state.enemies.length < n && garde-- > 0) {
+      if (!this.state._spawnEnemy(-1)) break;
+    }
+    if (this.state.enemies.length > n) this.state.enemies.length = n;
+  }
+
   drawBiome() {
     const force = process.env.BIOME;
     const i = force === undefined ? -1 : BIOMES.findIndex(b => b.key === force);
@@ -1076,14 +1099,34 @@ export class Room {
          vague et il attend deja tout le monde. Un ecran de plus pour trois
          boutons serait neuf points d'enregistrement pour rien. */
       case "chooseArme": {
-        if (this.phase !== PHASE_ROUND || !this.state.warmup) break;
+        // AU BANC, N IMPORTE QUAND ET N IMPORTE LAQUELLE : comparer dix armes
+        // demande de pouvoir en changer sans relancer dix manches. Hors banc, la
+        // garde d origine ne bouge pas d un caractere.
+        if (!BANC && (this.phase !== PHASE_ROUND || !this.state.warmup)) break;
         const pj = this.state.players.get(id);
-        if (!pj || !client.armeOffres?.includes(msg.id)) break;
+        if (!pj) break;
+        if (BANC ? !ARMES.some(a => a.id === msg.id)
+                 : !client.armeOffres?.includes(msg.id)) break;
         client.arme = msg.id;
         pj.arme = msg.id;
         this.state._recomputeMods(pj);
         pj.hp = Math.min(pj.hp, pj.maxHp);
         client.conn.send(JSON.stringify(this.armePayload(client)));
+        break;
+      }
+
+      /* LA POPULATION A LA DEMANDE. Les quatre protocoles restes ouverts dans
+         `LISEZMOI.md` se jugent A L OEIL et demandent tous la meme chose : une
+         densite qu on choisit. Le plafond est SHADOWE sur l instance — une
+         propriete propre masque la methode du prototype, et la supprimer la
+         rend — donc `_enemyCap()` reste le point de passage unique et le jeu
+         hors banc ne connait meme pas ce chemin. */
+      case "bancPop": {
+        if (!BANC || this.phase !== PHASE_ROUND) break;
+        const n = Math.max(0, Math.min(BANC_POP_MAX, msg.n | 0));
+        this.bancPop = n;
+        if (n > 0) this.state._enemyCap = () => n;
+        else delete this.state._enemyCap;
         break;
       }
 
@@ -1180,6 +1223,7 @@ export class Room {
         this.inputs.clear();
         for (const c of this.clients.values()) if (!c.spectator) this.inputs.set(c.id, c.input);
         this.state.step(CFG.TICK, this.inputs);
+        if (this.bancPop > 0) this.bancTenir();
         for (const c of this.clients.values()) {
           c.input.dash = false;
           c.input.s1 = false;

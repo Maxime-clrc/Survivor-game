@@ -150,6 +150,10 @@ function readGfx() {
   } catch { return GFX_HIGH; }
 }
 export const PERF = location.search.includes("perf");
+/* LE BANC, COTE CLIENT. Les touches ne s'arment que sur `?banc`, et le serveur
+   n'accepte les messages que sur `BANC=1` : les deux moities sont necessaires,
+   donc un joueur ne peut pas s'ouvrir le catalogue depuis sa barre d'adresse. */
+export const BANC = location.search.includes("banc");
 export const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 const ATTACK_LABEL = {
   salve: "salve radiale", marques: "marques au sol", charge: "charge",

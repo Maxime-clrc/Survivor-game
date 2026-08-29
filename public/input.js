@@ -1,6 +1,7 @@
 
 import { CFG } from "/shared/game_state.js";
-import { INPUT_HZ, PHASE_ROUND, amSpectator, cardsState, connected, dash, keys, latest, merchantState, myDashCd, myId, notePress, phase, predicted, skills, ws } from "./core/state.js";
+import { ARMES } from "/shared/armes.js";
+import { BANC, INPUT_HZ, PHASE_ROUND, amSpectator, cardsState, connected, dash, keys, latest, merchantState, myDashCd, myId, notePress, phase, predicted, skills, ws } from "./core/state.js";
 import { aimRange, aimVector, updateMouse } from "./render/stage.js";
 import { closeBuild, cycleBuild, openBuild } from "./ui/build.js";
 import { buildEl, cv, enSaisie, pauseEl, readMove } from "./ui/dom.js";
@@ -79,6 +80,48 @@ function requestDash() {
   dash.t = CFG.DASH_TIME;
   dash.cd = myDashCd;
   dash.pending = true;
+}
+/* LE BANC : dix armes sous les chiffres, la densite sous les crochets, le HUD
+   sous H. Rien de tout ceci n'existe sans `?banc` cote client ET `BANC=1` cote
+   serveur — le client se contente d'emettre, le serveur decide.
+   Le test du NOM MASQUE est le seul des quatre protocoles ouverts qui demande
+   de CACHER quelque chose : on doit pouvoir regarder dix secondes de combat et
+   nommer l'arme sans qu'un panneau la donne. */
+let bancEl = null;
+function bancDit(txt) {
+  if (!bancEl) {
+    bancEl = document.createElement("div");
+    bancEl.id = "bancDit";
+    document.body.appendChild(bancEl);
+  }
+  bancEl.textContent = txt;
+}
+if (BANC) {
+  let pop = 0;
+  addEventListener("keydown", e => {
+    if (enSaisie() || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!connected || ws.readyState !== WebSocket.OPEN) return;
+    const chiffre = "Digit1 Digit2 Digit3 Digit4 Digit5 Digit6 Digit7 Digit8 Digit9 Digit0"
+      .split(" ").indexOf(e.code);
+    if (chiffre >= 0 && chiffre < ARMES.length) {
+      e.preventDefault();
+      ws.send(JSON.stringify({ t: "chooseArme", id: ARMES[chiffre].id }));
+      bancDit(ARMES[chiffre].nom);
+      return;
+    }
+    if (e.code === "BracketRight" || e.code === "BracketLeft") {
+      e.preventDefault();
+      pop = Math.max(0, Math.min(300, pop + (e.code === "BracketRight" ? 50 : -50)));
+      ws.send(JSON.stringify({ t: "bancPop", n: pop }));
+      bancDit(pop === 0 ? "densite libre" : pop + " corps");
+      return;
+    }
+    if (e.code === "KeyH") {
+      e.preventDefault();
+      const off = document.body.classList.toggle("sansHud");
+      bancDit(off ? "HUD masque" : "HUD rendu");
+    }
+  });
 }
 addEventListener("mousemove", updateMouse);
 addEventListener("mousedown", updateMouse);

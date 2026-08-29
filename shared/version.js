@@ -5058,6 +5058,31 @@
                    rester le seul a dire ca. A 7 % il se SENT sans se voir, et il
                    ne peut plus se confondre avec l onde d un souffle.
 
+     0.25.0 lot 1  LE BANC A L ECRAN. Premier lot du plan 22. Quatre protocoles
+                   de `LISEZMOI.md` etaient restes ouverts, et tous pour la meme
+                   raison : ILS SE JUGENT A L OEIL. Aucune simulation ne dit si
+                   une arme est reconnaissable, si un faisceau se voit sur un
+                   plancher clair, ou si le retour a 200 corps est spectaculaire
+                   plutot que bruyant. Ce qui manquait n etait pas la difficulte,
+                   c etait l OUTIL : pouvoir choisir l arme, la densite et le
+                   lieu sans relancer dix manches.
+                   `BANC=1` cote serveur, `?banc` cote client, et LES DEUX
+                   MOITIES SONT NECESSAIRES : un joueur ne peut pas s ouvrir le
+                   catalogue depuis sa barre d adresse. Meme statut que `BIOME`
+                   et `GRAINE`, qui existaient deja pour la meme raison.
+                   1-0 les dix armes, [ et ] la densite par pas de 50, H coupe le
+                   HUD. L ETIQUETTE DU BANC TOMBE AVEC LE HUD, et c est le point :
+                   le test du nom masque exige que TOUT ce qui nomme l arme se
+                   taise, sinon il ne teste rien.
+                   AUCUN SECOND CHEMIN D APPARITION : le remplissage passe par
+                   `_spawnEnemy`, donc il voit les obstacles, les quotas de type
+                   et l adaptation au niveau. Le plafond est MASQUE sur l instance
+                   — une propriete propre couvre la methode du prototype, et la
+                   supprimer la rend — donc `_enemyCap()` reste le point de
+                   passage unique et le jeu hors banc ne connait pas ce chemin.
+                   Le banc TIENT la population au lieu de la poser une fois : les
+                   corps meurent, et une densite qui retombe ne mesure rien.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5066,4 +5091,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.24.3";
+export const VERSION = "0.25.0";

@@ -126,6 +126,19 @@ vitesse ; `MATIERE.touche` ne fait que les plier. `PARTICLE_MAX` inchangé
 faisceau chaud, bornée à **16 Hz par émetteur** et **au-delà de 0,45 de jauge**
 seulement — au plus 3 quads par émission en WebGL, 1 en 2D.
 
+#### Le banc (0.25.0)
+
+Les quatre protocoles ci-dessous étaient bloqués par un outil manquant, pas par
+une difficulté : ils se jugent **à l'œil**, et il fallait pouvoir choisir l'arme,
+la densité et le lieu sans relancer dix manches.
+
+```bash
+BANC=1 BIOME=fonderie GRAINE=7 npm start   # puis /?banc&perf
+```
+
+**1-0** les dix armes · **[** **]** la densité par pas de 50 · **H** coupe le HUD.
+Les deux moitiés sont nécessaires : sans `BANC=1`, `?banc` n'obtient rien.
+
 #### Ce qui n'a PAS été mesuré, et son protocole
 
 - **FPS et coût WebGL par palier de qualité** : demande un navigateur.
