@@ -59,6 +59,10 @@ export const STATUS_CFG = {
 
   PURIFY_CHANCE: 0.06,
   PURIFY_CHANCE_NO_HEALER: 0.16,
+  // la chance ci-dessus est MODULEE par les etats reellement poses : plancher
+  // quand l'equipe est propre, x2 quand chacun en porte un
+  PURIFY_FLOOR: 0.25,
+  PURIFY_SPAN: 1.75,
 };
 
 export const ELITE_STATUS = {

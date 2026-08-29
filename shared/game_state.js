@@ -18,8 +18,8 @@ import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost
 import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
 import {
   ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, appliquerEchelle, armeAt, cibleArme,
-  canonEffet, canonGain, conversionBoss, difficulte, dpsBase, lameRayon, litCanons,
-  survieArme, verifierArmes,
+  canonEffet, canonGain, conversionBoss, difficulte, dpsBase, lameRayon, litCadence,
+  litCanons, litPerce, litRebond, survieArme, verifierArmes,
 } from "./armes.js";
 
 /* L index circule dans l instantane : ARMES est donc APPEND-ONLY, comme
@@ -229,6 +229,13 @@ export const CFG = {
   POWERUP_LIFE: 22,
   POWERUP_MAX_GROUND: 2,
   POWERUP_RADIUS: 13,
+  POWERUP_POIDS_MIN: 0.20,
+  // MESURE : 29 corps medians a deux joueurs, pour un plafond de 370. Normaliser
+  // sur le PLAFOND rendait la densite quasi nulle en permanence et la nova
+  // tombait trois fois moins qu'une part plate. La reference est la FOULE par
+  // joueur vivant, reglee pour que la mediane tombe a mi-echelle.
+  POWERUP_FOULE: 28,
+  FRAGMENT_MAX_GROUND: 6,
   BUFF_TIME: 14,
   BUFF_DAMAGE_MUL: 1.8,
   BUFF_RATE_MUL: 0.55,
@@ -559,6 +566,39 @@ export const POWERUP_ROTATION = [
   "heal", "damage", "rate", "double", "shield", "slow", "pierce", "nova",
   "beacon", "turret", "ricochet",
 ].map(k => POWERUP_TYPES.indexOf(k));
+
+/* QUAND CHAQUE BONUS VAUT QUELQUE CHOSE. Un tirage plat fait tomber un soin sur
+   une equipe a PV pleins, une nova sur un ecran vide et une perforation sur un
+   faisceau qui traverse deja tout : la pastille est ramassee, elle ne rend rien,
+   et le joueur apprend a ne plus se detourner. Le poids est donc une FONCTION de
+   l'etat, jamais un interdit — le plancher `CFG.POWERUP_POIDS_MIN` garde tous
+   les types tirables, y compris celui qui ne sert pas maintenant.
+
+   Les termes se lisent : une constante = ce que le type vaut toujours, un terme
+   en `c.x` = ce qu'il vaut EN PLUS quand la situation le demande. Rien ici ne
+   depend de la difficulte : compenser un mode par des recompenses est le defaut
+   que ce plan refuse. */
+const POWERUP_POIDS = {
+  heal:     c => 0.35 + 2.00 * c.manque,
+  damage:   c => 0.80 + 0.55 * c.densite + 0.55 * c.boss,
+  rate:     c => 0.25 + 0.95 * c.cadence,
+  double:   c => 0.25 + 0.95 * c.canons,
+  shield:   c => 0.55 + 0.95 * c.manque + 0.55 * c.boss,
+  slow:     c => 0.35 + 1.10 * c.densite,
+  pierce:   c => 0.25 + c.perce * (0.55 + 0.85 * c.densite),
+  nova:     c => 0.30 + 1.20 * c.densite,
+  // relever demande quelqu'un pour relever : seul, un joueur a terre est la fin
+  // de la manche, pas une situation
+  beacon:   c => (c.aTerre > 0 && c.vivants > 0) ? 3.00 : 0.55,
+  turret:   c => 0.60 + 0.85 * c.boss + 0.55 * c.densite,
+  ricochet: c => 0.25 + c.rebond * (0.55 + 0.85 * c.densite),
+};
+
+// un tirage se fait une fois toutes les vingt secondes : le tableau de poids est
+// tenu au module plutot que rebati, par principe et non par mesure
+const POIDS = [];
+
+export const TYPE_FRAGMENT = POWERUP_TYPES.indexOf("fragment");
 
 export const BUFF_DAMAGE = 1;
 export const BUFF_RATE = 2;
@@ -3855,17 +3895,86 @@ export class GameState {
   }
 
 
+  /* CE QUE LA SITUATION VAUT, en une passe sur l'equipe. La densite se lit sur le
+     PLAFOND de population et non sur une distance : un balayage par bonus tire
+     serait le seul endroit du fichier ou une recompense couterait de la boucle. */
+  _contexteBonus() {
+    let hp = 0, hpMax = 0, aTerre = 0, vivants = 0;
+    let cadence = 0, canons = 0, perce = 0, rebond = 0;
+    for (const p of this.players.values()) {
+      if (p.downed) { aTerre++; continue; }
+      vivants++;
+      hp += p.hp; hpMax += p.maxHp;
+      const a = armeAt(p.arme);
+      if (litCadence(a)) cadence++;
+      if (litCanons(a)) canons++;
+      if (litPerce(a)) perce++;
+      if (litRebond(a)) rebond++;
+    }
+    const n = Math.max(1, vivants);
+    return {
+      vivants,
+      manque: hpMax > 0 ? 1 - hp / hpMax : 0,
+      densite: Math.min(1, this.enemies.length / (CFG.POWERUP_FOULE * n)),
+      boss: this.boss ? 1 : 0,
+      aTerre,
+      cadence: cadence / n, canons: canons / n,
+      perce: perce / n, rebond: rebond / n,
+    };
+  }
+
+  // la chance de purification EXISTAIT deja, elle etait seulement aveugle aux
+  // etats poses. Elle garde ses deux constantes et gagne son facteur.
+  _pressionEtats() {
+    let etats = 0, vivants = 0;
+    for (const p of this.players.values()) {
+      if (p.downed) continue;
+      vivants++;
+      etats += p.statuses.size;
+    }
+    if (vivants === 0) return STATUS_CFG.PURIFY_FLOOR;
+    return STATUS_CFG.PURIFY_FLOOR
+      + STATUS_CFG.PURIFY_SPAN * Math.min(1, etats / vivants);
+  }
+
   _randomPowerupType() {
     const chance = this.hasHealer()
       ? STATUS_CFG.PURIFY_CHANCE
       : STATUS_CFG.PURIFY_CHANCE_NO_HEALER;
-    if (Math.random() < chance) return POWERUP_TYPES.indexOf("purification");
-    return POWERUP_ROTATION[Math.floor(Math.random() * POWERUP_ROTATION.length)];
+    if (Math.random() < chance * this._pressionEtats()) {
+      return POWERUP_TYPES.indexOf("purification");
+    }
+    const c = this._contexteBonus();
+    let total = 0;
+    POIDS.length = 0;
+    for (const k of POWERUP_ROTATION) {
+      const w = Math.max(CFG.POWERUP_POIDS_MIN, POWERUP_POIDS[POWERUP_TYPES[k]](c));
+      total += w;
+      POIDS.push(w);
+    }
+    let r = Math.random() * total;
+    for (let i = 0; i < POIDS.length; i++) {
+      r -= POIDS[i];
+      if (r <= 0) return POWERUP_ROTATION[i];
+    }
+    return POWERUP_ROTATION[POWERUP_ROTATION.length - 1];
+  }
+
+  /* LE FRAGMENT NE PREND PAS LA PLACE D'UN BONUS. Il tombe d'une carte, sur un
+     kill, donc par dizaines ; compte dans `POWERUP_MAX_GROUND`, il BLOQUAIT le
+     generateur — 55 % des apparitions d'une manche cauchemar a quatre joueurs
+     etaient des fragments, et le releve de 0.8.12 disait deja que le sol restait
+     plein de bonus que personne ne ramasse. Les deux populations ont donc chacune
+     leur plafond, et elles ne se les disputent plus. */
+  _solBonus() {
+    let n = 0;
+    for (const w of this.powerups) if (w.type !== TYPE_FRAGMENT) n++;
+    return n;
   }
 
   _powerups(dt) {
     this.powerupCd -= dt;
-    if (this.powerupCd <= 0 && this.powerups.length < CFG.POWERUP_MAX_GROUND) {
+    if (this.powerupCd <= 0 && this._solBonus() < CFG.POWERUP_MAX_GROUND) {
       this.powerupCd = CFG.POWERUP_MIN + Math.random() * (CFG.POWERUP_MAX - CFG.POWERUP_MIN);
       const margin = 90;
       const B = this.bounds;
@@ -8219,7 +8328,8 @@ export class GameState {
         owner.cd2 = Math.max(0, owner.cd2 - owner.mods.cdPerKill);
       }
 
-      if (owner.mods.harvest > 0 && Math.random() < owner.mods.harvest) {
+      if (owner.mods.harvest > 0 && Math.random() < owner.mods.harvest
+          && this.powerups.length - this._solBonus() < CFG.FRAGMENT_MAX_GROUND) {
         const pt = this._dropPoint(e.x, e.y);
         this.powerups.push({
           id: this._nextId++,
@@ -9868,6 +9978,104 @@ export function verifierBonus(tirages = 20000) {
     soucis.push("rate : le bit est pose, la cadence ne bouge pas");
   }
 
+  return soucis;
+}
+
+/* CE QUI TOMBE VRAIMENT, sur une manche entiere. Le poids situationnel ne se
+   juge pas sur sa table : il se juge sur la DISTRIBUTION qu'il produit, et un
+   terme trop gourmand ne se voit qu'a la fin. On compte les APPARITIONS et non
+   les ramassages — le bot ne se detourne pas pour un bonus, c'est un fait releve
+   en 0.8.12 et le lot 5 s'en occupe. Les joueurs a terre sont releves au bout de
+   quelques secondes : sans quoi la manche s'arrete, et le poids de la balise ne
+   verrait jamais sa situation. */
+export function mesureBonus(diffIndex = DIFF_NORMAL, joueurs = 2, minutes = 30,
+  manches = 3) {
+  const parts = new Array(POWERUP_TYPES.length).fill(0);
+  let total = 0, temps = 0;
+  const alea = Math.random;
+  try {
+    for (let r = 1; r <= manches; r++) {
+      Math.random = grainer(r * 6151);
+      const g = new GameState(diffIndex);
+      for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+      g.warmup = 0;
+      const inputs = new Map();
+      const vus = new Set();
+      const images = Math.round(minutes * 60 / CFG.TICK);
+      for (let k = 0; k < images && !g.victory; k++) {
+        if (g.cardsPending) {
+          for (const [id, offres] of g.cardOffers) {
+            const p = g.players.get(id);
+            if (p && offres.length) {
+              g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
+            }
+          }
+          g.cardsPending = false;
+          g.openNextScreen();
+          k--;
+          continue;
+        }
+        if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
+        inputs.clear();
+        for (const p of g.players.values()) inputs.set(p.id, botInput(g, p));
+        g.step(CFG.TICK, inputs);
+        for (const w of g.powerups) {
+          if (vus.has(w.id)) continue;
+          vus.add(w.id);
+          parts[w.type]++;
+          total++;
+        }
+        for (const p of g.players.values()) {
+          if (p.downed && Math.random() < CFG.TICK / 6) {
+            p.downed = false; p.revive = 0; p.hp = p.maxHp * 0.5;
+          }
+        }
+        g.gameOver = false;
+      }
+      temps += g.time;
+    }
+  } finally { Math.random = alea; }
+  return { parts, total, parMinute: total / Math.max(1, temps / 60) };
+}
+
+/* Le plancher est BAS, et c'est voulu : un type que l'equipe ne peut pas lire —
+   la perforation sur un faisceau, la cadence sur une arme continue — DOIT se
+   rarefier, c'est le sujet du lot. Ce que le critere refuse est qu'il disparaisse
+   (`CFG.POWERUP_POIDS_MIN` le garantit) ou qu'un terme trop gourmand mange la
+   rotation. */
+export const BONUS_PART_MIN = 0.20;
+export const BONUS_PART_MAX = 2.00;
+
+/* Critere du tirage situationnel : tout type de la rotation reste tirable, et
+   aucun ne prend plus du double de sa part plate sur une manche entiere. Un
+   verificateur de campagne, comme `verifierEquilibreArmes`. */
+export function verifierTirageBonus(diffIndex = DIFF_NORMAL, joueurs = 2,
+  minutes = 30, manches = 3) {
+  const soucis = [];
+  for (const k of POWERUP_ROTATION) {
+    if (typeof POWERUP_POIDS[POWERUP_TYPES[k]] !== "function") {
+      soucis.push(`${POWERUP_TYPES[k]} : dans la rotation, sans poids`);
+    }
+  }
+  if (soucis.length) return soucis;
+
+  // le denominateur est la ROTATION seule : le fragment et la purification ont
+  // chacun leur propre source, leur frequence est une autre question
+  const { parts } = mesureBonus(diffIndex, joueurs, minutes, manches);
+  let total = 0;
+  for (const k of POWERUP_ROTATION) total += parts[k];
+  if (total < POWERUP_ROTATION.length * 6) {
+    soucis.push(`${total} apparitions seulement : l'echantillon ne dit rien`);
+    return soucis;
+  }
+  const plat = 1 / POWERUP_ROTATION.length;
+  for (const k of POWERUP_ROTATION) {
+    const part = parts[k] / total;
+    if (part < plat * BONUS_PART_MIN || part > plat * BONUS_PART_MAX) {
+      soucis.push(`${POWERUP_TYPES[k]} : ${(part * 100).toFixed(1)} % des`
+        + ` apparitions pour une part plate de ${(plat * 100).toFixed(1)} %`);
+    }
+  }
   return soucis;
 }
 

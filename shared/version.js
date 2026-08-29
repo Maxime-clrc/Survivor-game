@@ -5162,6 +5162,45 @@
                    fragment et purification ; retirer trois entrees de la rotation
                    les nomme toutes les trois.
 
+     0.26.1 lot 2  UN TIRAGE PLAT FAIT TOMBER UN SOIN SUR UNE EQUIPE INTACTE.
+                   Onze types se partageaient la rotation a parts egales, donc
+                   une nova sur un ecran vide, une perforation sur un faisceau qui
+                   traverse deja tout, une cadence sur une arme a `interval` nul —
+                   la pastille est ramassee, elle ne rend rien, et le joueur
+                   apprend a ne plus se detourner. Le poids devient une FONCTION
+                   de l etat : PV manquants, corps a l ecran, boss, joueurs a
+                   terre, et CE QUE LES ARMES DE L EQUIPE SAVENT LIRE
+                   (`litCadence`, `litCanons`, `litPerce`, `litRebond`, a cote de
+                   la table qui les porte). Jamais un interdit : le plancher
+                   `CFG.POWERUP_POIDS_MIN` garde les onze tirables, y compris
+                   celui qui ne sert pas maintenant.
+                   LA DENSITE NE SE NORMALISE PAS SUR LE PLAFOND. Premiere
+                   ecriture : `enemies.length / _enemyCap()`. MESURE : 29 corps
+                   medians a deux joueurs pour un plafond de 370, donc une densite
+                   de 0,08 en permanence et une nova qui tombait trois fois moins
+                   qu une part plate. La reference est la FOULE par joueur vivant,
+                   `CFG.POWERUP_FOULE = 28`, reglee pour que la mediane tombe a
+                   mi-echelle.
+                   LE FRAGMENT BLOQUAIT LE GENERATEUR. Il tombe d une carte, sur
+                   un kill, donc par dizaines, et il comptait dans
+                   `POWERUP_MAX_GROUND` : 55 % des apparitions d une manche
+                   cauchemar a quatre joueurs, et le sol reste plein — exactement
+                   le releve de 0.8.12, dont la cause n avait jamais ete nommee.
+                   Les deux populations ont chacune leur plafond.
+                   LA PURIFICATION GARDE SES DEUX CONSTANTES et gagne son facteur :
+                   la chance est modulee par les etats reellement poses, plancher
+                   quand l equipe est propre, x2 quand chacun en porte un.
+                   `mesureBonus()` compte les APPARITIONS et non les ramassages —
+                   le bot ne se detourne pas, c est un fait releve en 0.8.12 — et
+                   `verifierTirageBonus()` refuse un type qui depasse le double de
+                   sa part plate ou qui tombe sous le cinquieme. Le denominateur
+                   est la ROTATION seule : le fragment et la purification ont
+                   chacun leur source. MESURE, six couples (difficulte, effectif),
+                   3 x 25 min : toutes les parts entre 6,3 et 12,4 % pour une part
+                   plate de 9,1 %, aucune sortie.
+                   AUCUN LEVIER DE DIFFICULTE dans la table de poids : compenser
+                   un mode par des recompenses est le defaut que le plan refuse.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5170,4 +5209,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.26.0";
+export const VERSION = "0.26.1";

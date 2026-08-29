@@ -282,6 +282,16 @@ export const canonEffet = a =>
 
 export const litCanons = a => canonEffet(a) !== null;
 
+/* CE QU'UNE ARME LIT DES BONUS AU SOL, et ce qu'elle n'en lit pas. Un bonus qui
+   ne peut rien rendre a l'arme portee est un ramassage perdu, et rien ne le dit :
+   la cadence d'un `interval` nul retombe sur le plancher, une balle qui traverse
+   deja tout n'a pas de perforation a gagner, un obus consomme au contact n'a
+   nulle part ou rebondir. `_contexteBonus()` s'en sert pour PONDERER le tirage,
+   jamais pour l'interdire. */
+export const litCadence = a => a.interval > 0;
+export const litPerce = a => a.tir === "balle" && !a.perforeTout && !a.obus;
+export const litRebond = a => a.tir === "balle" && !a.obus;
+
 /* Ce que `extraBarrels` multiplie, arme par arme : `powerIndex()` et le panneau
    de stats lisent la MEME fonction que `_volley`, sinon les trois divergent. */
 export function canonGain(a, extra) {
