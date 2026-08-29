@@ -141,6 +141,24 @@ export function blocsDe(lieu) {
   return v;
 }
 
+/* LES TAILLES REELLES d une famille, en pixels, sans passer par `buildBiome`.
+   `verifierEmpreinte()` (`render/blocs.js`) doit juger une silhouette sur les
+   gabarits qu elle porte VRAIMENT : un chanfrein de 16 px ne dit pas la meme
+   chose sur 99 x 59 que sur 232 x 135, et une forme jugee sur une taille
+   inventee ne prouve rien. Une cellule d implantation vaut exactement une vue,
+   donc la fraction se lit en pixels sans autre conversion. */
+export function gabaritsDe(kind, viewW = 1600, viewH = 900) {
+  const f = blocAt(kind);
+  if (!f) return [];
+  const v = [];
+  for (const o of OBSTACLES[f.lieu] ?? []) {
+    if (o.kind !== kind) continue;
+    const w = o.w * viewW, h = o.h * viewH;
+    if (!v.some(g => Math.abs(g[0] - w) < 0.5 && Math.abs(g[1] - h) < 0.5)) v.push([w, h]);
+  }
+  return v;
+}
+
 /* AUCUNE COULEUR ICI. Elle vivait a la fois dans `tint`/`grid` et dans la
    palette, et les deux moities se neutralisaient. La charte d'un lieu est
    entiere dans `BIOME_SKIN` — ce module decide de la GEOMETRIE, jamais du ton.
@@ -229,9 +247,13 @@ const OBSTACLES = {
     { x: 0.90, y: 0.66, w: 0.045, h: 0.110, kind: B_RUINE },
     { x: 0.73, y: 0.88, w: 0.060, h: 0.048, kind: B_RUINE },
     { x: 0.50, y: 0.10, w: 0.110, h: 0.040, kind: B_MUR },
-    { x: 0.46, y: 0.44, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE },
+    // TROIS EPAVES DE MEME GABARIT ETAIENT TROIS FOIS LE MEME OBJET. A surface
+    // egale (± 3 %), elles portent maintenant trois formats — couche, carre,
+    // debout : c est ce qui separe un champ d epaves d un parking. La vue est
+    // en 16/9, donc un format DEBOUT demande h/w > 1,78 en fraction, pas 1,2.
+    { x: 0.46, y: 0.44, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
     { x: 0.70, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE },
-    { x: 0.30, y: 0.62, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE },
+    { x: 0.30, y: 0.62, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE },
   ],
   nebuleuse: [
     { x: 0.22, y: 0.24, w: 0.145, h: 0.150, kind: B_FRAGMENT },

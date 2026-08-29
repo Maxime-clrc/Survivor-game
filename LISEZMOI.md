@@ -8,6 +8,59 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Friche, et une règle qui n'était pas rejouée (0.22.1)
+
+**`verifierEmpreinte()`** fait dessiner chaque famille dans un enregistreur de
+chemin — les formes n'émettent que `moveTo`/`lineTo`, donc c'est de la géométrie
+pure — et mesure la part de rectangle laissée vide, sur les **gabarits réels**
+et **cinq positions**. Seuil 12 %.
+
+| lieu | famille | gabarit | vide au pire |
+|---|---|---|---|
+| usine | chaîne | 368 × 32 | 0,4 % |
+| usine | machine | 83 × 117 | 0,7 % |
+| usine | poste | 77 × 81 · 112 × 43 | 1,3 % · 1,5 % |
+| fonderie | four | 192 × 171 | 0,5 % |
+| fonderie | conduite | 416 × 43 | 0,9 % |
+| fonderie | cuve | 112 × 63 | 2,0 % |
+| friche | ruine | 136 × 63 · 72 × 99 · 96 × 43 | 5,5 % · 3,8 % · **8,2 %** |
+| friche | **mur** | 176 × 36 | **7,2 %** |
+| friche | **carcasse** | 131 × 43 · 99 × 59 · 64 × 88 | 4,3 % · 4,1 % · 4,5 % |
+| nébuleuse | fragment | 232 × 135 | 1,6 % |
+| nébuleuse | travée | 32 × 504 | 1,1 % |
+| nébuleuse | débris | 67 × 34 · 58 × 29 | 9,2 % · **9,6 %** |
+
+Le seuil est à 12 % parce que les formes **d'origine** y tiennent : la plus
+creuse est le débris de la Nébuleuse à 9,6 % (`chanfreine` à 16 px sur 58 × 29),
+antérieure au plan et à revoir au lot 5. Les deux formes de ce lot sont dans la
+gamme de la ruine qu'elles côtoient.
+
+**Le piège, payé dès la première mesure.** `graine(o)` vaut **zéro** en (0, 0) :
+un obstacle posé à l'origine tire la variante *nulle* de toute forme aléatoire —
+créneaux tous plats, nez toujours du même côté. Le banc annonçait **0,0 %** de
+vide sur le mur bas, ce qui était exact et ne voulait rien dire. La mesure se
+fait donc sur cinq positions et garde la pire ; le mur bas passe de 0,0 à 7,2 %.
+
+**Trois épaves de même gabarit étaient trois fois le même objet.** Elles portent
+maintenant trois formats à surface égale (± 3 %). La vue étant en 16/9, un format
+**debout** demande `h/w > 1,78` en fraction et non 1,2 — avec l'ancien 0,062 ×
+0,066 la branche verticale de la silhouette ne s'exécutait **jamais**.
+
+Signature de la Friche **inchangée** : 10,0 obj/vue · 4,4 % · ×2,1 · ×4,9.
+`verifierBiomes()` muet sur 200 graines × 4 lieux × 3 modes (11,8 s),
+`verifierNavigation()`, `verifierBlocs()` et `verifierEmpreinte()` muets.
+
+#### Faire tourner les contrôles du rendu hors navigateur
+
+`blocs.js` importe `stage.js`, et les modules client utilisent des
+spécificateurs absolus (`/shared/…`, `/gl.js`) que Node résout depuis la racine
+du disque. Un **hook de résolution** (`node:module` `register()`) qui rejoue
+`resolvePath()` de `server.js`, plus un DOM-proxy qui avale tout, suffisent à les
+charger : `localStorage` rendant une valeur non nulle, `rendererFlag()` ne vaut
+pas `"webgl"` et `createGL` n'est jamais construit. C'est ce qui rend
+`verifierBlocs()` et `verifierEmpreinte()` rejouables en script jetable plutôt
+qu'à la console — `verifierSilhouettes()` peut suivre le même chemin.
+
 ### Le vocabulaire bâti d'un lieu (0.22.0)
 
 Plomberie du plan 19 : `kind` sur l'obstacle, `BLOC[biome][kind]` côté rendu.
@@ -33,11 +86,8 @@ propriété d'un seul lieu.
 appartenance et entrées mortes comprises ; `verifierNavigation()` muet sur
 4 lieux × 3 modes × 3 graines.
 
-**`verifierBlocs()` se joue depuis la console du navigateur**, comme
-`verifierSilhouettes()` : `blocs.js` importe `stage.js`, donc il n'est pas
-chargeable dans un script Node. Le contrôle équivalent hors navigateur est un
-`grep -o "\[B_[A-Z]*\]" public/render/blocs.js | sort | uniq -c` — 12 familles,
-une fiche chacune.
+`verifierBlocs()` : **12 familles, 12 fiches de dessin.** Il vit côté client ;
+le protocole pour le jouer hors navigateur est décrit en 0.22.1.
 
 ### La horde et le terrain (0.21.0)
 

@@ -693,6 +693,12 @@ const POUSSIERE = 150;
 const AMBIANCE = {
   nebuleuse: { v: 5, l: 3, n: 110, col: PROP.givre, a: 0.075, e: 1.9,
                contre: { ang: -1.9, v: 3, l: 5, n: 60, a: 0.045, e: 1.3 } },
+  // LA FRICHE N A PLUS DE VENTILATION, DONC PLUS DE COURANT D AIR. Ce qui
+  // derive ici n est pas de la poussiere d atelier chassee par une soufflerie :
+  // c est ce que la brousse relache, deux fois plus lent, plus court, moins
+  // nombreux — et VERT, la seule matiere en suspension du depot qui ne soit pas
+  // minerale. Un lieu abandonne se reconnait aussi a ce qu il ne souffle plus.
+  friche: { v: 11, l: 4, n: 84, col: PROP.vert, a: 0.070, e: 1.5 },
 };
 const AMB_DEFAUT = { v: 24, l: 5, n: POUSSIERE, col: WEATHER.wind, a: 0.055, e: 1.6 };
 

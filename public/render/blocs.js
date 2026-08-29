@@ -1,6 +1,6 @@
 import {
   BLOCS, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CUVE, B_DEBRIS, B_FOUR,
-  B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE,
+  B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
@@ -53,9 +53,9 @@ const BLOC = {
     [B_CUVE]: { forme: formeOctogone, habit: four },
   },
   friche: {
-    [B_RUINE]: { forme: formeRuine, habit: friche, hors: debord },
-    [B_MUR]: { forme: formeRuine, habit: friche, hors: debord },
-    [B_CARCASSE]: { forme: formeRuine, habit: friche, hors: debord },
+    [B_RUINE]: { forme: formeRuine, habit: ruinePan, hors: debord },
+    [B_MUR]: { forme: formeMurBas, habit: murBas, hors: eboulisPied },
+    [B_CARCASSE]: { forme: formeCarcasse, habit: carcasse },
   },
   nebuleuse: {
     [B_FRAGMENT]: { forme: formeChanfreine, habit: travee },
@@ -83,6 +83,62 @@ function formeOctogone(g, o) { octogone(g, -o.w / 2, -o.h / 2, o.w, o.h); }
 function formeChanfreine(g, o) { chanfreine(g, -o.w / 2, -o.h / 2, o.w, o.h, CHANFREIN_LARGE); }
 function formeRuine(g, o) { ruine(g, o, -o.w / 2, -o.h / 2, o.w, o.h); }
 
+/* LE MUR BAS N EST PAS UN PAN DE MUR EN PLUS PETIT. Il fait 176 x 36 px : a
+   cette hauteur une crete DENTELEE se lit comme du bruit, parce que la morsure
+   fait le tiers de la piece. Ce qui se lit, c est un profil en MARCHES — des
+   blocs de couronnement tombes un par un, arete franche entre deux —, et une
+   extremite qui a plie. Meme morsure de 4 px, lecture opposee. */
+function formeMurBas(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const s = graine(o);
+  const n = Math.max(3, Math.min(7, Math.round(w / 34)));
+  g.beginPath();
+  g.moveTo(x, y + Math.min(6, h * 0.22));
+  for (let i = 0; i < n; i++) {
+    const d = (((s >>> (i * 3)) & 3) / 3) * CRETE_MORSURE;
+    g.lineTo(x + (i / n) * w, y + d);
+    g.lineTo(x + ((i + 1) / n) * w, y + d);
+  }
+  g.lineTo(x + w, y + h);
+  g.lineTo(x, y + h);
+  g.closePath();
+}
+
+/* LA CARCASSE EST UN CORPS, PAS UNE MACONNERIE : un bout pointe (le nez, deux
+   coins coupes larges), l autre reste franc (la caisse arriere ouverte). C est
+   la seule silhouette ORIENTEE du depot, et l orientation est deterministe par
+   obstacle — un champ d epaves toutes nez au meme cap serait un parking. */
+function formeCarcasse(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const s = graine(o);
+  const long = w >= h;
+  const c = Math.min(CHANFREIN_LARGE, (long ? w : h) * 0.34, (long ? h : w) * 0.42);
+  const av = (s >>> 21) & 1;
+  g.beginPath();
+  if (long) {
+    const nez = av ? x + w : x;
+    const cul = av ? x : x + w;
+    const dir = av ? -1 : 1;
+    g.moveTo(cul, y);
+    g.lineTo(nez + dir * c, y);
+    g.lineTo(nez, y + c);
+    g.lineTo(nez, y + h - c);
+    g.lineTo(nez + dir * c, y + h);
+    g.lineTo(cul, y + h);
+  } else {
+    const nez = av ? y + h : y;
+    const cul = av ? y : y + h;
+    const dir = av ? -1 : 1;
+    g.moveTo(x, cul);
+    g.lineTo(x, nez + dir * c);
+    g.lineTo(x + c, nez);
+    g.lineTo(x + w - c, nez);
+    g.lineTo(x + w, nez + dir * c);
+    g.lineTo(x + w, cul);
+  }
+  g.closePath();
+}
+
 // UN `kind` SANS FICHE NE LEVERAIT RIEN : `fiche()` replie, et le lieu
 // dessinerait sa premiere famille partout sans qu on le voie. Meme role que
 // `verifierFeedback()` pour les recettes de son.
@@ -92,6 +148,95 @@ export function verifierBlocs() {
     const b = BLOCS[k];
     if (!BLOC[b.lieu]) soucis.push(`${b.lieu} : aucune table de dessin`);
     else if (!BLOC[b.lieu][k]) soucis.push(`${b.lieu}/${b.key} : aucune fiche de dessin`);
+  }
+  return soucis;
+}
+
+/* « LA SILHOUETTE REMPLIT SON RECTANGLE » ETAIT UNE REGLE ECRITE, PAS UNE REGLE
+   TENUE : rien ne la rejouait, et le plan va poser huit formes de plus. Une
+   forme qui rentre ses coins fait buter le joueur sur du vide — l ecart ne se
+   voit pas a l arret, il se sent en glissant le long d un mur, et c est le pire
+   endroit ou decouvrir un defaut.
+
+   Le `g` passe aux formes est un ENREGISTREUR, pas un canvas : elles n emettent
+   que `beginPath/moveTo/lineTo/closePath`, donc la mesure est de la geometrie
+   pure et tourne partout. Deux verdicts : aucun sommet hors de l empreinte, et
+   la part de rectangle laissee vide sous le seuil.
+
+   SEUIL A 12 % PARCE QUE LES FORMES D ORIGINE Y TIENNENT : la ruine mord 4 px
+   de crete sur un pan de 43 px de haut, soit 9,3 %, et c est la plus creuse.
+   Un seuil plus serre interdirait une silhouette deja livree ; plus lache, il
+   laisserait passer un coin arrondi. */
+const EMPREINTE_SEUIL = 0.12;
+
+function enregistreur() {
+  let poly = [];
+  return {
+    poly: () => poly,
+    beginPath() { poly = []; },
+    moveTo(x, y) { poly.push([x, y]); },
+    lineTo(x, y) { poly.push([x, y]); },
+    closePath() {},
+  };
+}
+
+function dansPoly(poly, x, y) {
+  let dedans = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) dedans = !dedans;
+  }
+  return dedans;
+}
+
+/* LE PIEGE, PAYE DES LA PREMIERE MESURE : `graine(o)` vaut ZERO en (0, 0), donc
+   un obstacle pose a l origine tire la variante nulle de toute forme aleatoire —
+   creneaux tous plats, nez toujours du meme cote. Le banc annoncait 0,0 % de
+   vide sur le mur bas, ce qui etait vrai et ne voulait rien dire. On mesure donc
+   sur plusieurs POSITIONS et on garde la PIRE. */
+const EMPREINTE_POSES = [[0, 0], [137, 89], [911, 433], [2477, 1601], [313, 2153]];
+
+export function videEmpreinte(kind, w, h, pas = 2, x0 = 0, y0 = 0) {
+  const b = BLOCS[kind];
+  const f = b && BLOC[b.lieu]?.[kind];
+  if (!f) return { vide: 1, hors: 0 };
+  const g = enregistreur();
+  f.forme(g, { x: x0, y: y0, w, h, kind, maxHp: 0 });
+  const poly = g.poly();
+
+  let hors = 0;
+  for (const [px, py] of poly) {
+    if (Math.abs(px) > w / 2 + 0.01 || Math.abs(py) > h / 2 + 0.01) hors++;
+  }
+  let dedans = 0, total = 0;
+  for (let y = -h / 2 + pas / 2; y < h / 2; y += pas) {
+    for (let x = -w / 2 + pas / 2; x < w / 2; x += pas) {
+      total++;
+      if (dansPoly(poly, x, y)) dedans++;
+    }
+  }
+  return { vide: total ? 1 - dedans / total : 1, hors };
+}
+
+export function verifierEmpreinte(pas = 2) {
+  const soucis = [];
+  for (let k = 0; k < BLOCS.length; k++) {
+    const b = BLOCS[k];
+    if (!BLOC[b.lieu]?.[k]) continue;
+    for (const [w, h] of gabaritsDe(k)) {
+      let vide = 0, hors = 0;
+      for (const [x, y] of EMPREINTE_POSES) {
+        const m = videEmpreinte(k, w, h, pas, x, y);
+        vide = Math.max(vide, m.vide);
+        hors += m.hors;
+      }
+      const ou = `${b.lieu}/${b.key} ${Math.round(w)}x${Math.round(h)}`;
+      if (hors > 0) soucis.push(`${ou} : ${hors} sommet(s) hors de l'empreinte`);
+      if (vide > EMPREINTE_SEUIL) {
+        soucis.push(`${ou} : ${(vide * 100).toFixed(1)} % de l'empreinte vide au pire `
+          + `(seuil ${EMPREINTE_SEUIL * 100} %)`);
+      }
+    }
   }
   return soucis;
 }
@@ -179,8 +324,12 @@ export function ledDe(o) {
   const S = skin();
 
   // le four a TOUJOURS sa gueule, la friche presque jamais : la premiere
-  // fonctionne, la seconde a ete abandonnee.
-  const seuil = cle === "fonderie" ? 10 : cle === "friche" ? 1 : cle === "nebuleuse" ? 7 : 6;
+  // fonctionne, la seconde a ete abandonnee. Et quand elle s allume, c est sur
+  // un PAN DE MUR : un tube se fixe en hauteur. Sur un mur bas de 36 px il
+  // n aurait pas de quoi tenir, et une epave n a jamais eu d eclairage fixe.
+  const seuil = cle === "fonderie" ? 10
+    : cle === "friche" ? (o.kind === B_RUINE ? 1 : 0)
+    : cle === "nebuleuse" ? 7 : 6;
   if ((h % 10) >= seuil) return null;
 
   const cote = (h >>> 4) % 4;
@@ -436,9 +585,14 @@ function four(o, S) {
   if (s & 4) boulons(o, S, 2);
 }
 
-/* --- FRICHE : ce qui est FISSURE --------------------------------------- */
+/* --- FRICHE : ce qui a ETE LAISSE --------------------------------------
+   Trois matieres, pas une usure de plus en plus forte : le PAN DE MUR est du
+   beton qui se fissure, le MUR BAS du beton COFFRE qui se descelle, la CARCASSE
+   de la tole qui rouille. Une friche n est pas une usine dont on aurait baisse
+   les lumieres, et c est la ou elle le prouve — trois objets qui n ont pas cede
+   de la meme facon. */
 
-function friche(o, S) {
+function ruinePan(o, S) {
   const w = o.w, h = o.h;
   const s = graine(o);
 
@@ -532,6 +686,173 @@ function friche(o, S) {
     ctx.ellipse(x, h / 2 - 2, 7 + (i & 3) * 3, 4, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+/* LE MUR BAS EST COFFRE, ET C EST TOUT SON SUJET. Le pan de mur se lit a ses
+   FISSURES ; celui-ci se lit a ses JOINTS DE BANCHE — les planches horizontales
+   du coffrage et les trous de tige qui les traversent, tous les deux rangs. Un
+   beton coule en banches garde la trace de ses planches vingt ans apres, et
+   c est le seul detail de ce lieu qui dise « quelqu un a construit ca » au lieu
+   de « ca s est effondre ».
+
+   PAS DE BRECHE ICI. Il fait 36 px de haut : un pan qui cede en son milieu ne
+   laisserait plus rien au-dessus, et un mur qui n a plus de haut n est plus un
+   mur — c est l eboulis, et il est deja dehors. */
+function murBas(o, S) {
+  const w = o.w, h = o.h;
+  const s = graine(o);
+
+  ctx.fillStyle = alpha("#000000", 0.16);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+
+  const banche = Math.max(9, h * 0.34);
+  ctx.strokeStyle = alpha("#000000", 0.32);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let y = -h / 2 + banche; y < h / 2; y += banche) {
+    ctx.moveTo(-w / 2, y); ctx.lineTo(w / 2, y);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.10);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let y = -h / 2 + banche + 1.2; y < h / 2; y += banche) {
+    ctx.moveTo(-w / 2, y); ctx.lineTo(w / 2, y);
+  }
+  ctx.stroke();
+
+  // LES TROUS DE TIGE. Ils sont sur la ligne de banche, jamais entre : c est ce
+  // qui les rend credibles — la tige traverse le joint des deux planches.
+  const pas = Math.max(26, w / 6);
+  for (let x = -w / 2 + pas * 0.6; x < w / 2; x += pas) {
+    const y = -h / 2 + banche;
+    ctx.fillStyle = alpha("#000000", 0.46);
+    ctx.beginPath(); ctx.arc(x, y, 2.1, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = alpha(PROP.rouille, 0.30);
+    ctx.beginPath(); ctx.arc(x, y + 0.6, 1.2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // LE DESCELLEMENT : le couronnement est parti par blocs, donc la crete montre
+  // sa TRANCHE claire la ou elle a casse. Un seul trait, sur le profil en
+  // marches que la silhouette vient de poser.
+  const n = Math.max(3, Math.min(7, Math.round(w / 34)));
+  ctx.strokeStyle = alpha(S.blocEdge, 0.22);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const d = (((s >>> (i * 3)) & 3) / 3) * CRETE_MORSURE;
+    ctx.moveTo(-w / 2 + (i / n) * w, -h / 2 + d + 0.8);
+    ctx.lineTo(-w / 2 + ((i + 1) / n) * w, -h / 2 + d + 0.8);
+  }
+  ctx.stroke();
+
+  for (let i = 0; i < 3; i++) {
+    const x = -w / 2 + ((s >>> (i * 6)) % Math.max(1, w | 0));
+    const g = ctx.createLinearGradient(x, -h / 2, x, h / 2);
+    g.addColorStop(0, alpha(PROP.rouille, 0.26));
+    g.addColorStop(1, alpha(PROP.rouille, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(x - 2, -h / 2, 3 + (i & 1) * 2, h);
+  }
+
+  ctx.fillStyle = alpha(PROP.vert, 0.18);
+  for (let i = 0; i < 4; i++) {
+    const x = -w / 2 + ((s >>> (i * 4 + 3)) % Math.max(1, w | 0));
+    ctx.beginPath();
+    ctx.ellipse(x, h / 2 - 1.5, 5 + (i & 3) * 3, 3.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* LA CARCASSE EST DE LA TOLE, ET ELLE EST DESTRUCTIBLE. Elle se dessine donc
+   PAR-DESSUS `BIOME.cover` et son contour tirete : tout ce qui est ecrit ici
+   reste sous eux en valeur, sinon la lecture des points de vie passerait apres
+   celle de la rouille — et elle est du gameplay.
+
+   Ce qui la separe des deux betons : elle a un INTERIEUR. Une cabine crevee,
+   une arete de caisse, des moyeux nus. On voit dedans, on ne voit pas dans un
+   mur. */
+function carcasse(o, S) {
+  const w = o.w, h = o.h;
+  const s = graine(o);
+  const long = w >= h;
+  const L = long ? w : h, T = long ? h : w;
+
+  ctx.save();
+  if (!long) ctx.rotate(Math.PI / 2);
+
+  ctx.fillStyle = alpha("#000000", 0.26);
+  ctx.fillRect(-L / 2 + 3, -T / 2 + 3, L - 6, T - 6);
+
+  // L ARETE DE CAISSE : une tole emboutie a un pli longitudinal, et c est lui
+  // qui donne le volume sans une seule ombre portee.
+  ctx.strokeStyle = alpha("#000000", 0.34);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-L / 2 + 4, -T * 0.10); ctx.lineTo(L / 2 - 4, -T * 0.10);
+  ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metal, 0.16);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-L / 2 + 4, -T * 0.10 - 1.3); ctx.lineTo(L / 2 - 4, -T * 0.10 - 1.3);
+  ctx.stroke();
+
+  // LA CABINE CREVEE. Le vitrage a saute : c est un trou noir, avec le montant
+  // qui tient encore d un cote.
+  const av = (s >>> 21) & 1;
+  const cx = (av ? 1 : -1) * L * 0.22;
+  const cw = Math.min(L * 0.30, 22), ch = Math.min(T * 0.44, 14);
+  ctx.fillStyle = alpha("#000000", 0.60);
+  ctx.fillRect(cx - cw / 2, -ch / 2, cw, ch);
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.55);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(cx - cw / 2, -ch / 2); ctx.lineTo(cx - cw / 2, ch / 2);
+  ctx.stroke();
+
+  // LES MOYEUX. Deux, nus, sur le flanc bas : une epave n a plus ses roues, mais
+  // elle a encore ce qui les portait.
+  for (const d of [-1, 1]) {
+    const mx = d * L * 0.30;
+    ctx.fillStyle = alpha("#000000", 0.50);
+    ctx.beginPath(); ctx.arc(mx, T / 2 - 3, 3.4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(PROP.rouille, 0.50);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(mx, T / 2 - 3, 3.4, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  for (let i = 0; i < 5; i++) {
+    const x = -L / 2 + ((s >>> (i * 5)) % Math.max(1, L | 0));
+    const y = -T / 2 + ((s >>> (i * 3 + 1)) % Math.max(1, T | 0));
+    ctx.fillStyle = alpha(PROP.rouille, 0.14 + ((s >>> i) & 3) * 0.05);
+    ctx.beginPath();
+    ctx.ellipse(x, y, 3 + ((s >>> (i + 7)) & 3), 2 + ((s >>> (i + 11)) & 1), 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/* L EBOULIS DU MUR BAS. Meme geste que le debord du pan de mur — hors du clip,
+   plaque au sol, aucun volume — mais reparti sur TOUTE la longueur au lieu de
+   sortir d une breche : un mur bas ne se perce pas, il se desagrege. Et pas un
+   fer a beton : le couronnement est du beton de propreté, il n en contient pas. */
+function eboulisPied(o, rx, ry) {
+  const s = graine(o);
+  const w = o.w, h = o.h;
+  const n = Math.max(4, Math.min(11, Math.round(w / 22)));
+  ctx.save();
+  ctx.translate(o.x + rx, o.y + ry);
+  for (let i = 0; i < n; i++) {
+    const x = -w / 2 + ((i + 0.5) / n) * w + (((s >>> (i * 3)) & 7) / 7 - 0.5) * 14;
+    const y = h / 2 + ((s >>> (i * 2 + 1)) & 7) * 0.6;
+    const t = 2.2 + ((s >>> i) & 3);
+    ctx.fillStyle = alpha("#000000", 0.28);
+    ctx.fillRect(x - t / 2 + 1, y - t / 2 + 1, t, t * 0.7);
+    ctx.fillStyle = alpha("#6e6a5e", 0.40 + (i % 3) * 0.10);
+    ctx.fillRect(x - t / 2, y - t / 2, t, t * 0.7);
+  }
+  ctx.restore();
 }
 
 /* --- NEBULEUSE : ce qui est AJOURE ------------------------------------- */

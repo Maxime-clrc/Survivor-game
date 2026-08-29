@@ -227,7 +227,7 @@ danger, implantation.
 | | FRICHE | USINE | FONDERIE | NÉBULEUSE |
 |---|---|---|---|---|
 | **verbe** | a été laissée | fabrique | coule | flotte |
-| **bloc** | ruine fissurée | machine panneautée | four maçonné | travée ajourée |
+| **bloc** | **pan fissuré, mur banché, carcasse** | machine panneautée | four maçonné | travée ajourée |
 | **sol** | dalles et joints de coulage | tôle et maille de 5 m | plaques, voies, vitrifié | nid d'abeille |
 | **pas de 20 m** | marquage peint effacé | trait franc | nœuds seuls | nervures du pont |
 | **contour de bloc** | presque aucun | franc | sourd | franc |
@@ -236,6 +236,8 @@ danger, implantation.
 | **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | voilures et râtelier d'antennes |
 | **props** | brousse, jonchée, grillage tombé, carcasse, bidon, panneau | convoyeurs, bras, presses, ventilations, palettiers | poches, lingotières, trémies, outillage, rigoles | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
 | **ce qui traverse** | rien, et c'est le sujet | les bandes de chaîne | **le canal de coulée** | les nervures du pont |
+| **air** | ce que la brousse relâche : vert, lent, rare | poussière d'atelier | poussière d'atelier | débris croisés, froids |
+| **couche de 1 200 px** | lessivage parallèle, colonisation | nappes rondes | nappes rondes, accent chaud | nappes rondes |
 | **mouvement** | un néon qui grésille | **bandes qui défilent, bras, presses, chenille, bouffées** | la fonte qui ondule | la balise qui bat, le cristal qui respire |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
@@ -297,9 +299,19 @@ exécutable. Il ne circule pas sur le réseau et le serveur ne le lit jamais.
   qui porte la famille d'un autre lieu **et** une famille que plus aucune table
   ne tire ; `verifierBlocs()` rejette un `kind` privé de fiche de dessin — sans
   lui, `fiche()` replie sur la première famille du lieu **sans rien lever**,
-  exactement ce que `verifierFeedback()` traque pour les recettes de son. Il vit
-  côté client, donc il se joue **depuis la console**, comme
-  `verifierSilhouettes()`.
+  exactement ce que `verifierFeedback()` traque pour les recettes de son. Les
+  deux vivent côté client et se jouent quand même **en script jetable** : un hook
+  de résolution qui rejoue `resolvePath()` et un DOM-proxy suffisent, protocole
+  dans `LISEZMOI.md`.
+- **« La silhouette remplit son rectangle » est désormais REJOUÉ**, pas seulement
+  écrit : `verifierEmpreinte()` fait dessiner chaque famille dans un
+  **enregistreur de chemin** (les formes n'émettent que `moveTo`/`lineTo`, donc
+  c'est de la géométrie pure) et mesure la part de rectangle laissée vide, sur
+  les **gabarits réels** (`gabaritsDe()`) et sur **cinq positions**. Seuil 12 % —
+  les formes d'origine y tiennent, la plus creuse étant le débris de la Nébuleuse
+  à 9,6 %. **Piège payé : `graine(o)` vaut zéro en (0, 0)**, donc un obstacle
+  mesuré à l'origine tire la variante *nulle* de toute forme aléatoire — le banc
+  annonçait 0,0 % sur le mur bas, ce qui était vrai et ne voulait rien dire.
 - **LA SILHOUETTE REMPLIT SON RECTANGLE.** La collision est une AABB repoussée
   **par axe** (`_obstacleBlock`) : une forme qui rentre ses coins fait buter le
   joueur sur du vide. Toute la différence se joue **dans** l'empreinte — matière,

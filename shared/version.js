@@ -4449,6 +4449,41 @@
                    `verifierFeedback()` traque pour les recettes de son.
                    Muet sur 200 graines x 4 lieux x 3 modes, navigation comprise.
 
+     0.22.1 lot 2  LA FRICHE : L ABANDON, EN TROIS MATIERES. Elle avait UN objet
+                   bati — un pan de beton fissure — decline en dix tailles. Elle
+                   en a trois, et aucun n a cede de la meme facon : le PAN se
+                   fissure, le MUR BAS se descelle (joints de banche, trous de
+                   tige, couronnement parti par blocs, eboulis sur toute la
+                   longueur), la CARCASSE rouille (tole plissee, cabine crevee,
+                   moyeux nus, seule silhouette ORIENTEE du depot).
+                   LE MUR BAS FAIT 36 PX DE HAUT, et c est pourquoi sa crete est
+                   en MARCHES et non dentelee : a cette hauteur une morsure de
+                   4 px fait le tiers de la piece et se lit comme du bruit.
+                   TROIS EPAVES DE MEME GABARIT ETAIENT TROIS FOIS LE MEME OBJET.
+                   Trois formats a surface egale a 3 % pres — couche, carre,
+                   debout —, et la vue etant en 16/9 un format debout demande
+                   h/w > 1,78 en fraction, pas 1,2. La branche verticale de la
+                   silhouette ne s executait jamais avant ce changement.
+                   L AIR AUSSI EST DU LIEU. Trois biomes sur quatre tiraient la
+                   meme poussiere d atelier. Une friche n a plus de ventilation,
+                   donc plus de courant d air : ce qui derive est ce que la
+                   brousse relache — vert, deux fois plus lent, plus court, moins
+                   nombreux. Et sa couche large de 1 200 px cesse d etre les
+                   memes douze nappes rondes que partout ailleurs : elle porte le
+                   LESSIVAGE (trainees longues et PARALLELES — une pente n a
+                   qu une direction, c est ce qui separe une composition d un
+                   tirage) et la COLONISATION, qui elle n en suit aucune.
+                   « LA SILHOUETTE REMPLIT SON RECTANGLE » ETAIT ECRIT, PAS
+                   TENU : rien ne le rejouait. `verifierEmpreinte()` fait
+                   dessiner chaque famille dans un enregistreur de chemin et
+                   mesure la part de rectangle vide, sur les gabarits REELS et
+                   cinq positions. Seuil 12 %, pire cas 9,6 % (le debris de la
+                   Nebuleuse, anterieur au plan). PIEGE PAYE : `graine(o)` vaut
+                   ZERO en (0, 0), donc une forme mesuree a l origine tire sa
+                   variante nulle — le banc annoncait 0,0 % sur le mur bas, ce
+                   qui etait vrai et ne voulait rien dire.
+                   Signature de la Friche inchangee : 10,0 / 4,4 % / x2,1 / x4,9.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4457,4 +4492,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.0";
+export const VERSION = "0.22.1";

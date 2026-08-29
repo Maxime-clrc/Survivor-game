@@ -76,7 +76,9 @@ function cuireMacro(biomeIndex, diffIndex, seed, dpr) {
   const { cv, g } = toile(MACRO, dpr);
   const rand = mulberry32((seed >>> 0) * 7919 + biomeIndex * 131 + 3);
   const usure = USURE[diffIndex] ?? USURE[1];
-  const chaud = (BIOMES[biomeIndex] ?? BIOMES[0]).key === "fonderie";
+  const cle = (BIOMES[biomeIndex] ?? BIOMES[0]).key;
+  if (cle === "friche") return macroFriche(cv, g, rand, usure);
+  const chaud = cle === "fonderie";
 
   for (let i = 0; i < 5; i++) {
     const r = 260 + rand() * 300;
@@ -93,6 +95,63 @@ function cuireMacro(biomeIndex, diffIndex, seed, dpr) {
           chaud ? PROP.led : PROP.rouille, 0.020 + 0.028 * usure);
   }
   return cv;
+}
+
+/* LA COUCHE LARGE ETAIT LA MEME DANS LES QUATRE LIEUX, et c est la plus grande
+   de l ecran : douze nappes rondes de 1 200 px, seule la teinte d accent
+   changeait. Un semis de taches rondes de meme gamme ne decrit rien — il casse
+   la periode de la tuile, ce qui etait son unique travail.
+
+   LA FRICHE EST DEHORS, ET DEHORS IL PLEUT. Sa couche large porte donc deux
+   choses qu aucune installation couverte ne peut avoir : le LESSIVAGE, des
+   trainees longues et PARALLELES (le site a une pente, et une pente n a qu une
+   direction — c est ce qui separe une composition d un tirage), et la
+   COLONISATION, des nappes vertes qui ne suivent, elles, aucune direction.
+
+   Les deux se lisent a 1 200 px, donc au-dela de ce que l oeil echantillonne en
+   une seconde : c est ce qui fait qu on sent le lieu avant de le detailler. */
+function macroFriche(cv, g, rand, usure) {
+  const pente = rand() * Math.PI;
+
+  for (let i = 0; i < 5; i++) {
+    const r = 220 + rand() * 330;
+    nappe(g, rand() * MACRO, rand() * MACRO, r, "#000000", 0.05 + rand() * 0.07);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    const x = rand() * MACRO, y = rand() * MACRO;
+    const l = 420 + rand() * 420, e = 46 + rand() * 60;
+    const a = pente + (rand() - 0.5) * 0.16;
+    nappeOvale(g, x, y, l, e, a, "#000000", 0.045 + 0.020 * usure);
+    nappeOvale(g, x - Math.sin(a) * e * 0.9, y + Math.cos(a) * e * 0.9,
+               l * 0.9, e * 0.55, a, "#c8c4b4", 0.022);
+  }
+
+  const n = 4 + Math.round(4 * usure);
+  for (let i = 0; i < n; i++) {
+    const rx = 150 + rand() * 200, ry = rx * (0.45 + rand() * 0.5);
+    nappeOvale(g, rand() * MACRO, rand() * MACRO, rx, ry, rand() * Math.PI,
+               PROP.vert, 0.030 + 0.024 * usure);
+  }
+  return cv;
+}
+
+function nappeOvale(g, x, y, rx, ry, ang, couleur, a) {
+  const r = Math.max(rx, ry);
+  for (const dx of x < r ? [0, MACRO] : x > MACRO - r ? [0, -MACRO] : [0]) {
+    for (const dy of y < r ? [0, MACRO] : y > MACRO - r ? [0, -MACRO] : [0]) {
+      g.save();
+      g.translate(x + dx, y + dy);
+      g.rotate(ang);
+      g.scale(rx / ry, 1);
+      const grad = g.createRadialGradient(0, 0, 0, 0, 0, ry);
+      grad.addColorStop(0, alpha(couleur, a));
+      grad.addColorStop(1, alpha(couleur, 0));
+      g.fillStyle = grad;
+      g.fillRect(-ry, -ry, ry * 2, ry * 2);
+      g.restore();
+    }
+  }
 }
 
 function nappe(g, x, y, r, couleur, a) {
