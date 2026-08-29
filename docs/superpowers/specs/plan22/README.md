@@ -27,8 +27,12 @@ Ce plan livre d'abord **l'outil qui les rend faisables**, puis les mesures.
 |---|---|---|---|
 | **1** | 0.25.0 | **Le banc.** `BANC=1` côté serveur, `?banc` côté client : les dix armes sous les chiffres, la densité sous les crochets, le HUD sous `H`. | hors banc, pas un octet du jeu ne change |
 | **2** | 0.25.1 | **Le coût à l'écran.** FPS, `draws`, `quads`, particules et voix par palier `gfx`, à quatre densités. | chiffres dans `LISEZMOI.md` |
-| **3** | 0.25.2 | **Le test du nom masqué.** Dix armes, HUD coupé, verdict par arme. | toute arme non reconnue = un défaut nommé |
-| **4** | 0.25.3 | **Le contraste par lieu.** Faisceau sur la Nébuleuse, souffles sur la Fonderie, balistique sur la Friche, tesla sur l'Usine. | aucun retour perdu dans son sol |
+| **3** | 0.25.**4** | **Le test du nom masqué.** Dix armes, HUD coupé, verdict par arme. | toute arme non reconnue = un défaut nommé |
+| **4** | 0.25.**5** | **Le contraste par lieu.** Faisceau sur la Nébuleuse, souffles sur la Fonderie, balistique sur la Friche, tesla sur l'Usine. | aucun retour perdu dans son sol |
+
+`0.25.2` a été pris par un correctif du lot 2 — le p95 ratait la pointe qu'il
+cherchait — et `0.25.3` par les mesures du lot 2 lui-même. La correspondance
+lettre → chiffre s'écrit, elle ne se calcule pas.
 
 Les lots 2 à 4 **produisent des mesures et, s'il le faut, des correctifs** ; ils
 ne sont pas écrits d'avance, parce qu'un lot de correction dont on connaîtrait le
