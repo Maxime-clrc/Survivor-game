@@ -549,8 +549,15 @@ export const POWERUP_TYPES = [
   "purification",
 ];
 
+/* CE QUI TOMBE. Quatre types de `POWERUP_TYPES` n'y figuraient pas depuis le
+   premier commit — `damage`, `rate`, `double`, `pierce` — et les trois autres
+   points d'apparition passent tous par `_randomPowerupType()` : leur effet, leur
+   pastille de HUD et leur insigne sur le joueur etaient du code mort que rien ne
+   signalait. `fragment` et `purification` restent hors rotation : chacun a sa
+   propre source. `verifierBonus()` refuse un type sans source. */
 export const POWERUP_ROTATION = [
-  "heal", "shield", "slow", "nova", "beacon", "turret", "ricochet",
+  "heal", "damage", "rate", "double", "shield", "slow", "pierce", "nova",
+  "beacon", "turret", "ricochet",
 ].map(k => POWERUP_TYPES.indexOf(k));
 
 export const BUFF_DAMAGE = 1;
@@ -4004,10 +4011,33 @@ export class GameState {
     });
   }
 
+  /* LE PLAFOND DE CE QU'UN BONUS AU SOL PEUT DONNER EN BOUCLIER, et il est le
+     seul : `CFG.SHIELD_POOL` etait ecrit comme plafond ABSOLU, donc une build
+     bouclier au-dela de 80 ramassait la pastille pour rien. Il s'ajoute a la
+     jauge de la build au lieu de la remplacer — le surplus ne se regenere pas,
+     `_shieldRegen` bornant deja sur `mods.shieldPool`. */
+  _capBonus(p) {
+    return p.mods.shieldPool + CFG.SHIELD_POOL;
+  }
+
+  /* UN SOIN DE BONUS NE REND JAMAIS RIEN A PV PLEINS : le surplus devient du
+     bouclier, exactement comme celui du Soigneur dans `_heal`. `noHeal`
+     (Serment de fer) coupe la part PV et laisse passer la part bouclier — la
+     contrepartie dit « aucun soin recu », pas « aucun tampon ». Elle etait de
+     toute facon contournee ici : le soin s'ecrivait sans passer par `_heal`. */
+  _soinBonus(p, montant) {
+    if (montant <= 0) return;
+    const rendu = this._relicFlag(p, "noHeal")
+      ? 0
+      : Math.min(Math.max(0, p.maxHp - p.hp), montant);
+    p.hp += rendu;
+    this._grantShield(p, montant - rendu, this._capBonus(p));
+  }
+
   _applyPowerup(p, type, part = 1) {
     const T = CFG.BUFF_TIME * part;
     switch (POWERUP_TYPES[type]) {
-      case "heal":   p.hp = Math.min(p.maxHp, p.hp + CFG.HEAL_AMOUNT * part); break;
+      case "heal":   this._soinBonus(p, CFG.HEAL_AMOUNT * part); break;
       case "damage": p.buffDamage = Math.max(p.buffDamage, T); break;
       case "rate":   p.buffRate = Math.max(p.buffRate, T); break;
       case "double": p.buffDouble = Math.max(p.buffDouble, T); break;
@@ -4016,15 +4046,20 @@ export class GameState {
       case "beacon": this._beacon(p); break;
       case "turret": this._turret(p); break;
       case "shield":
-        this._grantShield(p, CFG.SHIELD_POOL * part, CFG.SHIELD_POOL);
+        this._grantShield(p, CFG.SHIELD_POOL * part, this._capBonus(p));
         break;
-      case "slow":   this.slow = CFG.SLOW_TIME; break;
+      // ECRASER RACCOURCISSAIT : la carte Instinct pose deja un ralentissement
+      // plus long, et le ramasser le coupait net.
+      case "slow":   this.slow = Math.max(this.slow, CFG.SLOW_TIME); break;
       case "nova":   this._nova(p); break;
       case "fragment":
-        p.hp = Math.min(p.maxHp, p.hp + CARD_CFG.HARVEST_HEAL * part);
-        return;
+        // `return` ici rendait morte l'entree `fragment` de PARTAGEABLES
+        this._soinBonus(p, CARD_CFG.HARVEST_HEAL * part);
+        break;
       case "purification":
-        this._purgeAll(p);
+        // sans etat a retirer la pastille ne faisait rien : elle rend alors la
+        // moitie d'un soin, et le joueur voit toujours quelque chose se passer
+        if (this._purgeAll(p) === 0) this._soinBonus(p, CFG.HEAL_AMOUNT * 0.5 * part);
         this.effects.push({
           id: this._nextId++, x: p.x, y: p.y, r: 90, life: 0.5, max: 0.5, kind: 4,
         });
@@ -4045,7 +4080,9 @@ export class GameState {
 
     if (downed.length === 0) {
       for (const o of this.players.values()) {
-        o.shield = Math.max(o.shield, CFG.BEACON_SHIELD);
+        // hors de `_grantShield` la balise ignorait le plafond et le relais
+        // `shieldShare` ; le montant, lui, ne bouge pas : on remonte A 45
+        this._grantShield(o, CFG.BEACON_SHIELD - o.shield, this._capBonus(o));
         this.effects.push({
           id: this._nextId++,
           x: o.x, y: o.y, r: 70, life: 0.5, max: 0.5, kind: 4,
@@ -9726,6 +9763,111 @@ export function verifierEffets(g) {
       }
     }
   }
+  return soucis;
+}
+
+/* LE BANC DES BONUS AU SOL. Trois questions qu'aucune erreur ne pose, et les
+   trois se MESURENT au lieu de se declarer — une seconde liste diverge.
+
+   [1] UN TYPE QUI NE TOMBE JAMAIS. Quatre l'etaient depuis le premier commit,
+       avec leur effet, leur pastille de HUD et leur insigne deja ecrits.
+   [2] UN RAMASSAGE QUI N'ECRIT RIEN. On applique chaque type sur un etat
+       DEFAVORABLE mais plausible — PV pleins, aucun bouclier, aucun etat,
+       personne a terre, aucun corps — et on refuse une empreinte inchangee.
+   [3] UN BIT POSE QUI NE CHANGE PAS LA BALLE. Le bit de bonus d'arme peut etre
+       pose et lu nulle part : on relit la balle, ou le nombre de tirs.
+
+   Muet = tout va bien. */
+/* L'EFFET POSE NE COMPTE PAS COMME UN ECRIT : la purification poussait le sien
+   sans rien purger, et une empreinte qui l'aurait compte aurait declare l'etui
+   plein. Ce qui compte est ce qui change le COMBAT. */
+function empreinteBonus(g) {
+  const p = g.players.get(1);
+  return [p.hp, p.shield, p.buffDamage, p.buffRate, p.buffDouble, p.buffPierce,
+          p.buffRicochet, p.statuses.size, p.purges, g.slow, g.turrets.length,
+          g.enemies.length,
+          g.enemies.reduce((s, e) => s + e.hp, 0)].join("|");
+}
+
+/* L'etat DEFAVORABLE mais plausible : rien a soigner, rien a purger, personne a
+   relever — et une poignee de corps au contact, sans quoi ce qui frappe la horde
+   n'aurait rien a frapper et passerait pour muet. */
+function bancBonus(corps = 6) {
+  const g = new GameState(DIFF_NORMAL);
+  g.addPlayer(1, "banc", 0);
+  const p = g.players.get(1);
+  p.hp = p.maxHp;
+  p.shield = 0;
+  p.statuses.clear();
+  g.enemies.length = 0;
+  for (let i = 0; i < corps; i++) {
+    const e = g._spawnEnemy(0);
+    if (!e) break;
+    e.x = p.x + 60 + i * 30;
+    e.y = p.y;
+  }
+  return { g, p };
+}
+
+export function verifierBonus(tirages = 20000) {
+  const soucis = [];
+
+  const { g: gt } = bancBonus(0);
+  const vus = new Set();
+  for (let i = 0; i < tirages; i++) vus.add(gt._randomPowerupType());
+
+  const { g: gf, p: pf } = bancBonus(0);
+  pf.mods.harvest = 1;
+  const e = gf._spawnEnemy(0);
+  if (e) { gf._killEnemy(e, 1); for (const w of gf.powerups) vus.add(w.type); }
+
+  for (let i = 0; i < POWERUP_TYPES.length; i++) {
+    if (!vus.has(i)) soucis.push(`${POWERUP_TYPES[i]} : aucune source ne le fait tomber`);
+  }
+
+  for (let i = 0; i < POWERUP_TYPES.length; i++) {
+    const { g, p } = bancBonus();
+    const avant = empreinteBonus(g);
+    g._applyPowerup(p, i);
+    if (empreinteBonus(g) === avant) {
+      soucis.push(`${POWERUP_TYPES[i]} : ramasse, il n'ecrit rien`);
+    }
+  }
+
+  const balle = (buff) => {
+    const { g, p } = bancBonus(0);
+    if (buff) p[buff] = CFG.BUFF_TIME;
+    g.bullets.length = 0;
+    g._shoot(p);
+    const b = g.bullets;
+    return { n: b.length, dmg: b[0] ? b[0].dmg : 0,
+             pierce: b[0] ? b[0].pierce : 0, chain: b[0] ? b[0].chain : 0 };
+  };
+  const nu = balle(null);
+  const cas = [
+    ["damage", "buffDamage", x => x.dmg > nu.dmg, "les degats de la balle"],
+    ["double", "buffDouble", x => x.n > nu.n, "le nombre de balles"],
+    ["pierce", "buffPierce", x => x.pierce > nu.pierce, "la perforation"],
+    ["ricochet", "buffRicochet", x => x.chain > nu.chain, "les rebonds"],
+  ];
+  for (const [nom, champ, ok, quoi] of cas) {
+    if (!ok(balle(champ))) soucis.push(`${nom} : le bit est pose, ${quoi} ne bouge pas`);
+  }
+
+  const tirs = (buff) => {
+    const { g, p } = bancBonus(0);
+    const ordres = new Map([[1, { x: 0, y: 0, ax: 1, ay: 0, dash: false }]]);
+    const avant = p.hf.tirs;
+    for (let t = 0; t < 2; t += CFG.TICK) {
+      if (buff) p[buff] = CFG.BUFF_TIME;
+      g.step(CFG.TICK, ordres);
+    }
+    return p.hf.tirs - avant;
+  };
+  if (tirs("buffRate") <= tirs(null)) {
+    soucis.push("rate : le bit est pose, la cadence ne bouge pas");
+  }
+
   return soucis;
 }
 

@@ -5123,6 +5123,45 @@
                    livraison, par un controle qui tient en douze lignes et qui ne
                    demande pas de navigateur — les centiles sont du code pur.
 
+     0.26.0 lot 1  QUATRE BONUS SUR TREIZE NE SONT JAMAIS TOMBES. Premier lot du
+                   plan 23. `damage`, `rate`, `double` et `pierce` sont dans
+                   `POWERUP_TYPES` depuis le premier commit, absents de
+                   `POWERUP_ROTATION` depuis le premier commit, et les trois
+                   autres points d apparition — l elite, le `ravitaillement`, la
+                   carte Recolte — passent TOUS par `_randomPowerupType()`. Leur
+                   effet est ecrit, leur bit de reseau est ecrit, leur pastille de
+                   HUD avec son compte a rebours est ecrite, leur insigne sur le
+                   corps du joueur est ecrit : quatre chaines completes que rien
+                   n allumait. Un tableau exporte dont on ne tire qu une partie ne
+                   leve rien.
+                   SIX RAMASSAGES POUVAIENT NE RIEN RENDRE. `heal` a PV pleins,
+                   `fragment` a PV pleins, `purification` sans etat pose : le
+                   surplus part maintenant en bouclier par `_soinBonus`, comme
+                   celui du Soigneur dans `_heal`, et une purification a vide
+                   rend la moitie d un soin. `shield` plafonnait a
+                   `CFG.SHIELD_POOL` ecrit comme plafond ABSOLU : une build
+                   bouclier au-dela de 80 ramassait la pastille pour rien —
+                   `_capBonus(p)` ajoute les 80 A la jauge de la build. La balise
+                   ecrivait `o.shield` a la main, donc sans plafond ni relais
+                   `shieldShare` ; le montant ne bouge pas, le chemin oui.
+                   `slow` ECRASAIT au lieu de prendre le maximum, et coupait donc
+                   net le ralentissement plus long de la carte Instinct.
+                   `fragment` sortait par `return` avant le partage : son entree
+                   dans `PARTAGEABLES` etait morte.
+                   `noHeal` (Serment de fer) etait CONTOURNE — le soin d un bonus
+                   ne passe pas par `_heal`. Il coupe desormais la part PV et
+                   laisse passer la part bouclier : la contrepartie dit « aucun
+                   soin recu », pas « aucun tampon ».
+                   `verifierBonus()` MESURE les trois questions au lieu de les
+                   declarer : un type qu aucune source ne fait tomber, un
+                   ramassage dont l empreinte de combat ne bouge pas sur un etat
+                   defavorable mais plausible, et un bit d arme pose que la balle
+                   ou la cadence ne lit pas. L effet pousse a l ecran ne compte
+                   PAS comme un ecrit — c est lui qui masquait la purification a
+                   vide. Temoins : remettre l ancien soin fait parler heal,
+                   fragment et purification ; retirer trois entrees de la rotation
+                   les nomme toutes les trois.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5131,4 +5170,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.25.2";
+export const VERSION = "0.26.0";
