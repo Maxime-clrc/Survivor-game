@@ -735,32 +735,78 @@ const BLAST_TINT = {
   12: [FX.bombFill, FX.bombEdge],
 };
 const HEAL_WAVE_MOTES = 8;
-const LAME_ARC_VUE = ARME_CFG.LAME_ARC;
+
+/* CE QUE LA LAME DESSINE VIENT DES CARTES DU PORTEUR. Le second tranchant et
+   l'ouverture de l'arc sont des `mods`, donc `fullMods` les rend exactement —
+   meme idiome que `porteeArme()` et que la nappe du laser. Recalcule quand la
+   main change, jamais a l'image, et borne par le nombre de joueurs. */
+const LAME_TRAINE = 4;
+const lameSig = new Map();
+const lameVal = new Map();
+function lameForme(id) {
+  const counts = ownedCounts(id);
+  let n = 0;
+  for (const v of counts.values()) n += v;
+  const sig = `${counts.size}|${n}`;
+  if (lameSig.get(id) !== sig) {
+    lameSig.set(id, sig);
+    const m = fullMods(counts, [], 0, 1, "lame").mods;
+    lameVal.set(id, { arc: ARME_CFG.LAME_ARC * (m.lameArc ?? 1),
+                      sens: m.lameDouble > 0 ? 2 : 1 });
+  }
+  return lameVal.get(id);
+}
 
 export function drawEffects(effects) {
   for (const f of effects) {
     const grow = 1 - f.k;
 
-    /* LE BALAYAGE DE LA LAME : un arc qui persiste, pas un cercle. La forme du
-       TRAJET est ce qui identifie l'arme d'un bout a l'autre de l'ecran — une
-       arme qui ne se distingue que par ses degats n'a pas d'identite. */
+    /* LE BALAYAGE DE LA LAME : un arc qui PASSE, pas un cercle qui apparait. La
+       forme du TRAJET est ce qui identifie l'arme d'un bout a l'autre de
+       l'ecran — et elle balayait TOUJOURS VERS L'EST, parce que l'angle pose par
+       `_lameTir` n'etait pas transporte et que `?? 0` le taisait.
+
+       Trois choses la rendent lisible a 200 corps : la traine s'ETEINT vers la
+       queue — c'est le gradient qui dit le sens, pas une fleche —, la POINTE est
+       fine et claire parce que c'est elle qu'on suit, et le contact EPAISSIT le
+       trait au lieu d'ajouter une gerbe : a 2,5 balayages par seconde, le palier
+       2 ne paie pas de particules. */
     if (f.kind === 17) {
       const col = ownerColorOf(f.owner) ?? FX.flash;
-      const demi = LAME_ARC_VUE / 2;
-      for (let s = 0; s < (f.n2 ?? 1); s++) {
-        const a0 = (f.ang ?? 0) + (s === 0 ? 0 : Math.PI);
-        const bal = a0 - demi + grow * LAME_ARC_VUE;
-        ctx.strokeStyle = alpha(col, f.k * 0.75);
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.arc(f.x, f.y, f.r, a0 - demi, bal);
-        ctx.stroke();
-        ctx.strokeStyle = alpha(FX.flash, f.k * 0.5);
+      const L = lameForme(f.owner);
+      const demi = L.arc / 2;
+      const mordu = Math.min(1, (f.n ?? 0) / 4);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      for (let s = 0; s < L.sens; s++) {
+        const a0 = (f.ang ?? 0) + (s === 0 ? 0 : Math.PI) - demi;
+        const bal = a0 + grow * L.arc;
+        for (let i = 0; i < LAME_TRAINE; i++) {
+          const k = (i + 1) / LAME_TRAINE;
+          ctx.strokeStyle = alpha(col, f.k * 0.85 * k * k);
+          ctx.lineWidth = (2.5 + 4 * k) * (1 + 0.5 * mordu);
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r, a0 + (bal - a0) * (i / LAME_TRAINE),
+                  a0 + (bal - a0) * k);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = alpha(FX.flash, Math.min(1, f.k * 0.9 + mordu * 0.3));
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(f.x, f.y, f.r, Math.max(a0 - demi, bal - 0.35), bal);
+        ctx.arc(f.x, f.y, f.r, Math.max(a0, bal - 0.28), bal);
+        ctx.stroke();
+        // le BORD qui coupe : un trait radial a la pointe, en travers de l'arc.
+        // Sans lui la lame se lit comme une onde, pas comme une lame.
+        ctx.strokeStyle = alpha(FX.flash, f.k * 0.5);
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(f.x + Math.cos(bal) * (f.r - 7), f.y + Math.sin(bal) * (f.r - 7));
+        ctx.lineTo(f.x + Math.cos(bal) * (f.r + 7), f.y + Math.sin(bal) * (f.r + 7));
         ctx.stroke();
       }
+      ctx.lineCap = "butt";
+      ctx.restore();
       continue;
     }
 

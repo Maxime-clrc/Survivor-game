@@ -1953,10 +1953,15 @@ export class GameState {
       }
     }
 
+    /* `n2` PORTAIT LE NOMBRE DE TRANCHANTS ET N'ETAIT LU NULLE PART : le tuple
+       d'effet n'a pas de place pour lui, et le client le DEDUIT — le second arc
+       vient d'une carte, donc de `fullMods` du porteur, comme la portee du
+       reticule et la nappe du laser. Un champ dont la seule lecture est morte se
+       supprime. */
     this.effects.push({
       id: this._nextId++, x: p.x, y: p.y, r,
       life: 0.2, max: 0.2, kind: 17, n: touches, owner: p.id,
-      ang: p.armeAng, n2: sens.length,
+      ang: p.armeAng,
     });
     void r2;
     if (touches > 0 && p.mods.lameKill > 0) p.fireCd = Math.max(0, p.fireCd - p.mods.lameKill);
@@ -8508,8 +8513,15 @@ export class GameState {
           : Math.max(f.r ?? 0, Math.hypot(f.x2 - f.x, f.y2 - f.y)),
         f => f.kind === 3 || f.kind === 13
         ? [f.id, r1(f.x), r1(f.y), Math.round(f.r ?? 0), r2(f.life / f.max), f.kind, r1(f.x2), r1(f.y2)]
+        /* L'INDEX 7 PORTAIT UN ZERO LITTERAL, et le balayage de la lame posait
+           un `ang` que personne n'envoyait : le client lisait `f.ang ?? 0` et
+           dessinait donc TOUJOURS vers l'est, quelle que soit la visee. L'arme
+           la plus courte du jeu n'avait aucun canal disant OU elle frappe, et
+           rien ne le signalait — c'est exactement ce que `??` fait taire.
+           Meme emplacement, deux lectures, comme l'index 6 : `y2` pour un arc,
+           l'angle pour tout le reste. Aucun octet de plus. */
         : trimTail([f.id, r1(f.x), r1(f.y), Math.round(f.r), r2(f.life / f.max), f.kind ?? 0,
-                    f.owner ?? 0, 0, f.n ?? 0], 6)),
+                    f.owner ?? 0, r2(f.ang ?? 0), f.n ?? 0], 6)),
       sl: this.slow > 0 ? 1 : 0,
       df: this.diffIndex,
       // LE PREAVIS SE FILTRE PAR VUE comme tout le reste, et il ne l'etait pas.

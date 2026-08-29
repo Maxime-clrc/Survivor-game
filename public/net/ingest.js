@@ -81,7 +81,8 @@ export function ingest(msg) {
       id: a[0], x: a[1], y: a[2], r: a[3], k: a[4], kind: a[5] ?? 0,
       // l'index 6 porte x2 pour un arc (3, 13) et le PROPRIETAIRE pour un
       // ultime (16) : deux lectures du meme emplacement, jamais deux cles.
-      x2: a[6], y2: a[7], owner: a[6] ?? 0, n: a[8] ?? 0,
+      // meme regle a l'index 7 : `y2` pour un arc, l'ANGLE pour tout le reste.
+      x2: a[6], y2: a[7], owner: a[6] ?? 0, ang: a[7] ?? 0, n: a[8] ?? 0,
     })),
     boss: msg.bo
       ? { id: msg.bo[0], x: msg.bo[1], y: msg.bo[2], hp: msg.bo[3],

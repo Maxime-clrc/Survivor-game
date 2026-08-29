@@ -4788,6 +4788,30 @@
                    `verifierFeedback()` croise desormais les dix champs de
                    `touche` — un zero pose par distraction ne leve rien tout seul.
 
+     0.23.1 lot 2  LA LAME BALAYAIT TOUJOURS VERS L EST. `_lameTir` posait `ang`
+                   et `n2` sur son effet ; la serialisation d `effects` portait
+                   `[id,x,y,r,k,kind,owner,0,n]` — un ZERO LITTERAL a l index 7 —
+                   donc le client lisait `f.ang ?? 0` et dessinait l arc vers
+                   l est quelle que soit la visee. L arme la plus courte du jeu
+                   n avait aucun canal disant OU elle frappe, et rien ne le
+                   signalait : c est exactement ce que `??` fait taire.
+                   L index 7 devient l ANGLE quand l effet en a un, et reste `y2`
+                   pour les deux kinds d arc — meme emplacement, deux lectures,
+                   comme l index 6 qui porte deja `x2` ou le proprietaire. Zero
+                   octet de plus : la place etait deja envoyee, remplie de zero.
+                   `n2` SE SUPPRIME AU LIEU DE SE TRANSPORTER : le second
+                   tranchant vient d une carte, donc de `fullMods` du porteur —
+                   comme la portee du reticule et la nappe du laser. Il en va de
+                   meme pour l ouverture de l arc (`lameArc`), qu une carte
+                   legendaire elargit de 15 % sans que le trace le sache.
+                   LE BALAYAGE PASSE AU LIEU D APPARAITRE : traine en quatre
+                   troncons dont l opacite tombe vers la QUEUE — c est le
+                   gradient qui dit le sens, pas une fleche —, pointe fine et
+                   claire, et un trait radial EN TRAVERS de l arc, sans lequel
+                   une lame se lit comme une onde. Le contact EPAISSIT le trait
+                   au lieu d ajouter une gerbe : a 2,5 balayages par seconde le
+                   palier 2 ne paie pas de particules.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4796,4 +4820,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.23.0";
+export const VERSION = "0.23.1";
