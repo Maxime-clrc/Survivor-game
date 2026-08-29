@@ -4419,6 +4419,36 @@
                    de quoi ils parlent. `verifierTraits` est MUET, pour la
                    premiere fois du plan.
 
+     0.22.0 lot 1  UN LIEU N AVAIT QU UNE SEULE FORME D OBSTACLE. Premier lot du
+                   plan 19. Le plan 16 avait releve sept denominateurs communs
+                   aux quatre lieux et en avait traite quatre ; le troisieme —
+                   « les silhouettes sont sous le seuil de perception » — n a
+                   jamais ete mis en lot. Il l est ici, par sa cause : ce n est
+                   pas le chanfrein qui est trop petit, c est qu un lieu ne
+                   dispose que d UNE silhouette, redimensionnee. Trois lieux sur
+                   quatre partagent donc le meme rectangle.
+                   LES FAMILLES EXISTAIENT DEJA DANS LA TABLE, sans nom : la
+                   barre de 0,230 x 0,036 de l Usine et son armoire de
+                   0,048 x 0,090 ne sont pas le meme objet. `kind` les nomme
+                   (`BLOCS`, table ordonnee append-only, `lieu` en declare le
+                   proprietaire) et `BLOC[biome][kind]` les dessine — meme forme
+                   que `DANGER[biome][kind]`, qui marche depuis le plan 14.
+                   IL NE CIRCULE PAS SUR LE RESEAU et le serveur ne le lit
+                   jamais : la geometrie se regenere des deux cotes depuis
+                   (index, graine), et collision, navigation, apparition et depot
+                   restent sur l AABB. Les quatre signatures d implantation sont
+                   inchangees au dixieme — 7,0/4,2 %/x2,5/x11,4 pour l Usine
+                   comme en 0.19.6 —, ce lot est de la PLOMBERIE et ne change pas
+                   un pixel.
+                   DEUX SENS VERIFIES, PAS UN : `verifierBiomes()` refuse un
+                   obstacle qui porterait la famille d un autre lieu ET une
+                   famille que plus aucune table ne tire, meme regle que pour les
+                   props. `verifierBlocs()` refuse qu un `kind` soit prive de
+                   fiche de dessin — sans lui, `fiche()` replierait en silence sur
+                   la premiere famille du lieu, exactement le defaut que
+                   `verifierFeedback()` traque pour les recettes de son.
+                   Muet sur 200 graines x 4 lieux x 3 modes, navigation comprise.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4427,4 +4457,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.8";
+export const VERSION = "0.22.0";

@@ -557,6 +557,11 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   **fonction du temps de manche**.
 - **Seule exception : les PV d'un mur destructible** (clé `ob`), liste **creuse**
   de paires (index, part de PV), **absente** tant que rien n'a été touché.
+- **`kind` nomme la FAMILLE d'un obstacle, et la simulation ne le lit jamais.**
+  Il traverse `buildBiome` pour le seul rendu (`BLOC[biome][kind]`) : collision,
+  navigation, apparition et dépôt restent sur l'AABB, au pixel près. Ajouter une
+  famille ne peut donc pas déplacer un mur. Table `BLOCS`, append-only, `lieu`
+  en déclare le propriétaire.
 - **Un danger d'environnement est du SOL, jamais un télégraphe** : il s'annonce
   par sa **géométrie permanente**. Le canal du télégraphe instantané appartient au
   **boss** et ne se partage pas.

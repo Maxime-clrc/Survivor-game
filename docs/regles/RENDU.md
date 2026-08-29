@@ -286,6 +286,20 @@ la base — rendait impossible, et c'est pourquoi il a été supprimé.
 `render/blocs.js`. **C'est l'obstacle qui occupe l'écran** : quatre sols
 différents sous quatre mêmes blocs donnent quatre mêmes maps.
 
+**Le lieu ne donne plus la forme, il donne le rayon du catalogue.** `BLOC[biome]
+[kind] -> { forme, habit, hors? }`, même patron que `DANGER[biome][kind]` :
+**ajouter un objet à un lieu = une entrée**. Le `kind` vient de `BLOCS`
+(`biomes.js`), table ordonnée append-only dont `lieu` déclare le propriétaire —
+une famille appartient à **un** lieu, c'est la règle de non-réutilisation rendue
+exécutable. Il ne circule pas sur le réseau et le serveur ne le lit jamais.
+
+- **Deux silences à refuser, pas un.** `verifierBiomes()` rejette un obstacle
+  qui porte la famille d'un autre lieu **et** une famille que plus aucune table
+  ne tire ; `verifierBlocs()` rejette un `kind` privé de fiche de dessin — sans
+  lui, `fiche()` replie sur la première famille du lieu **sans rien lever**,
+  exactement ce que `verifierFeedback()` traque pour les recettes de son. Il vit
+  côté client, donc il se joue **depuis la console**, comme
+  `verifierSilhouettes()`.
 - **LA SILHOUETTE REMPLIT SON RECTANGLE.** La collision est une AABB repoussée
   **par axe** (`_obstacleBlock`) : une forme qui rentre ses coins fait buter le
   joueur sur du vide. Toute la différence se joue **dans** l'empreinte — matière,

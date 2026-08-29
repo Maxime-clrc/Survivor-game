@@ -8,6 +8,37 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le vocabulaire bâti d'un lieu (0.22.0)
+
+Plomberie du plan 19 : `kind` sur l'obstacle, `BLOC[biome][kind]` côté rendu.
+**Aucun pixel ne bouge** — le contrôle de non-régression est que les quatre
+signatures d'implantation soient identiques au relevé de 0.19.6.
+
+| lieu | densité | encombrement | contraste | élongation | obstacles | familles posées |
+|---|---|---|---|---|---|---|
+| usine | 7,0 | 4,2 % | ×2,5 | ×11,4 | 63 | chaîne 18 · poste 27 · machine 18 |
+| fonderie | 5,0 | 6,8 % | ×4,7 | ×9,6 | 45 | four 18 · conduite 9 · cuve 18 |
+| friche | 10,0 | 4,4 % | ×2,1 | ×4,9 | 90 | ruine 54 · mur 9 · carcasse 27 |
+| nébuleuse | 7,0 | 7,0 % | ×18,9 | ×15,8 | 63 | fragment 18 · travée 18 · débris 27 |
+
+Les quatre lignes de gauche sont celles de 0.19.6 au dixième près : la géométrie
+est inchangée, et c'est ce qu'on voulait démontrer.
+
+**Les familles n'ont pas été inventées, elles ont été nommées.** Elles vivaient
+déjà dans `OBSTACLES` sans nom — la barre de 0,230 × 0,036 de l'Usine et son
+armoire de 0,048 × 0,090 ne sont pas le même objet. Douze familles, chacune
+propriété d'un seul lieu.
+
+`verifierBiomes()` **muet sur 200 graines × 4 lieux × 3 modes** (12,3 s),
+appartenance et entrées mortes comprises ; `verifierNavigation()` muet sur
+4 lieux × 3 modes × 3 graines.
+
+**`verifierBlocs()` se joue depuis la console du navigateur**, comme
+`verifierSilhouettes()` : `blocs.js` importe `stage.js`, donc il n'est pas
+chargeable dans un script Node. Le contrôle équivalent hors navigateur est un
+`grep -o "\[B_[A-Z]*\]" public/render/blocs.js | sort | uniq -c` — 12 familles,
+une fiche chacune.
+
 ### La horde et le terrain (0.21.0)
 
 **Le défaut, reproduit avant d'être corrigé.** Un corps lâché à 212 px de sa

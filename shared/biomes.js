@@ -98,6 +98,49 @@ export function weatherAt(id) { return WEATHERS[id] ?? null; }
 export const weatherNom = i => t(`weather.${WEATHERS[i]?.key}.nom`, WEATHERS[i]?.nom ?? "");
 export const weatherTexte = i => t(`weather.${WEATHERS[i]?.key}.texte`, WEATHERS[i]?.texte ?? "");
 
+/* LE VOCABULAIRE BATI D UN LIEU. Un obstacle n etait qu un rectangle : quatre
+   lieux, quatre silhouettes, et DANS un lieu la seule variation etait la taille.
+   Les familles existaient pourtant deja dans la table ci-dessous — la barre
+   longue de l Usine et son armoire ne sont pas le meme objet — elles n avaient
+   simplement pas de nom. `kind` le leur donne, `render/blocs.js` les dessine :
+   meme forme que `DANGER[biome][kind]`, qui marche deja.
+
+   IL NE CIRCULE PAS SUR LE RESEAU ET LE SERVEUR NE LE LIT JAMAIS. La geometrie
+   se regenere des deux cotes, et collision, navigation, apparition et depot
+   restent sur l AABB, au pixel pres. Ajouter une famille ne peut donc pas
+   deplacer un mur.
+
+   Table ORDONNEE et append-only, `lieu` en declare le proprietaire : une famille
+   appartient a UN lieu (c est la regle de non-reutilisation), et
+   `verifierBiomes()` refuse aussi bien un obstacle qui porterait la famille d un
+   autre qu une famille que plus aucun obstacle ne tire. */
+export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
+             B_FOUR = 3, B_CONDUITE = 4, B_CUVE = 5,
+             B_RUINE = 6, B_MUR = 7, B_CARCASSE = 8,
+             B_FRAGMENT = 9, B_TRAVEE = 10, B_DEBRIS = 11;
+
+export const BLOCS = [
+  { key: "chaine", lieu: "usine" },
+  { key: "machine", lieu: "usine" },
+  { key: "poste", lieu: "usine" },
+  { key: "four", lieu: "fonderie" },
+  { key: "conduite", lieu: "fonderie" },
+  { key: "cuve", lieu: "fonderie" },
+  { key: "ruine", lieu: "friche" },
+  { key: "mur", lieu: "friche" },
+  { key: "carcasse", lieu: "friche" },
+  { key: "fragment", lieu: "nebuleuse" },
+  { key: "travee", lieu: "nebuleuse" },
+  { key: "debris", lieu: "nebuleuse" },
+];
+
+export function blocAt(k) { return BLOCS[k] ?? null; }
+export function blocsDe(lieu) {
+  const v = [];
+  for (let i = 0; i < BLOCS.length; i++) if (BLOCS[i].lieu === lieu) v.push(i);
+  return v;
+}
+
 /* AUCUNE COULEUR ICI. Elle vivait a la fois dans `tint`/`grid` et dans la
    palette, et les deux moities se neutralisaient. La charte d'un lieu est
    entiere dans `BIOME_SKIN` — ce module decide de la GEOMETRIE, jamais du ton.
@@ -163,41 +206,41 @@ function rng(seed) {
    jamais enfermer une equipe. */
 const OBSTACLES = {
   usine: [
-    { x: 0.28, y: 0.16, w: 0.230, h: 0.036 },
-    { x: 0.72, y: 0.84, w: 0.230, h: 0.036 },
-    { x: 0.10, y: 0.16, w: 0.048, h: 0.090 },
-    { x: 0.90, y: 0.84, w: 0.048, h: 0.090 },
-    { x: 0.34, y: 0.52, w: 0.052, h: 0.130 },
-    { x: 0.66, y: 0.48, w: 0.052, h: 0.130 },
-    { x: 0.50, y: 0.90, w: 0.070, h: 0.048 },
+    { x: 0.28, y: 0.16, w: 0.230, h: 0.036, kind: B_CHAINE },
+    { x: 0.72, y: 0.84, w: 0.230, h: 0.036, kind: B_CHAINE },
+    { x: 0.10, y: 0.16, w: 0.048, h: 0.090, kind: B_POSTE },
+    { x: 0.90, y: 0.84, w: 0.048, h: 0.090, kind: B_POSTE },
+    { x: 0.34, y: 0.52, w: 0.052, h: 0.130, kind: B_MACHINE },
+    { x: 0.66, y: 0.48, w: 0.052, h: 0.130, kind: B_MACHINE },
+    { x: 0.50, y: 0.90, w: 0.070, h: 0.048, kind: B_POSTE },
   ],
   fonderie: [
-    { x: 0.30, y: 0.30, w: 0.120, h: 0.190 },
-    { x: 0.70, y: 0.70, w: 0.120, h: 0.190 },
-    { x: 0.50, y: 0.06, w: 0.260, h: 0.048 },
-    { x: 0.12, y: 0.78, w: 0.070, h: 0.070 },
-    { x: 0.88, y: 0.22, w: 0.070, h: 0.070 },
+    { x: 0.30, y: 0.30, w: 0.120, h: 0.190, kind: B_FOUR },
+    { x: 0.70, y: 0.70, w: 0.120, h: 0.190, kind: B_FOUR },
+    { x: 0.50, y: 0.06, w: 0.260, h: 0.048, kind: B_CONDUITE },
+    { x: 0.12, y: 0.78, w: 0.070, h: 0.070, kind: B_CUVE },
+    { x: 0.88, y: 0.22, w: 0.070, h: 0.070, kind: B_CUVE },
   ],
   friche: [
-    { x: 0.10, y: 0.18, w: 0.085, h: 0.070 },
-    { x: 0.19, y: 0.30, w: 0.045, h: 0.110 },
-    { x: 0.26, y: 0.14, w: 0.060, h: 0.048 },
-    { x: 0.82, y: 0.80, w: 0.085, h: 0.070 },
-    { x: 0.90, y: 0.66, w: 0.045, h: 0.110 },
-    { x: 0.73, y: 0.88, w: 0.060, h: 0.048 },
-    { x: 0.50, y: 0.10, w: 0.110, h: 0.040 },
-    { x: 0.46, y: 0.44, w: 0.062, h: 0.066, hp: 1 },
-    { x: 0.70, y: 0.36, w: 0.062, h: 0.066, hp: 1 },
-    { x: 0.30, y: 0.62, w: 0.062, h: 0.066, hp: 1 },
+    { x: 0.10, y: 0.18, w: 0.085, h: 0.070, kind: B_RUINE },
+    { x: 0.19, y: 0.30, w: 0.045, h: 0.110, kind: B_RUINE },
+    { x: 0.26, y: 0.14, w: 0.060, h: 0.048, kind: B_RUINE },
+    { x: 0.82, y: 0.80, w: 0.085, h: 0.070, kind: B_RUINE },
+    { x: 0.90, y: 0.66, w: 0.045, h: 0.110, kind: B_RUINE },
+    { x: 0.73, y: 0.88, w: 0.060, h: 0.048, kind: B_RUINE },
+    { x: 0.50, y: 0.10, w: 0.110, h: 0.040, kind: B_MUR },
+    { x: 0.46, y: 0.44, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE },
+    { x: 0.70, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE },
+    { x: 0.30, y: 0.62, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE },
   ],
   nebuleuse: [
-    { x: 0.22, y: 0.24, w: 0.145, h: 0.150 },
-    { x: 0.78, y: 0.76, w: 0.145, h: 0.150 },
-    { x: 0.06, y: 0.50, w: 0.020, h: 0.560 },
-    { x: 0.94, y: 0.50, w: 0.020, h: 0.560 },
-    { x: 0.10, y: 0.70, w: 0.042, h: 0.038, hp: 1 },
-    { x: 0.90, y: 0.30, w: 0.042, h: 0.038, hp: 1 },
-    { x: 0.63, y: 0.20, w: 0.036, h: 0.032, hp: 1 },
+    { x: 0.22, y: 0.24, w: 0.145, h: 0.150, kind: B_FRAGMENT },
+    { x: 0.78, y: 0.76, w: 0.145, h: 0.150, kind: B_FRAGMENT },
+    { x: 0.06, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE },
+    { x: 0.94, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE },
+    { x: 0.10, y: 0.70, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
+    { x: 0.90, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
+    { x: 0.63, y: 0.20, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS },
   ],
 };
 
@@ -272,6 +315,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   const cw = arenaW / cols, ch = arenaH / rows;
 
   const obstacles = [];
+  const kDefaut = blocsDe(def.key)[0] ?? 0;
   let obsArea = 0;
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
@@ -287,6 +331,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
           x: cx * cw + fx * cw + (rand() - 0.5) * 2 * j,
           y: cy * ch + fy * ch + (rand() - 0.5) * 2 * j,
           w, h,
+          kind: o.kind ?? kDefaut,
           maxHp: o.hp ? BIOME_CFG.COVER_HP : 0,
           hp: o.hp ? BIOME_CFG.COVER_HP : 0,
         });
@@ -430,6 +475,23 @@ export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
                                viewW = 1600, viewH = 900) {
   const soucis = [];
   const budget = BIOME_CFG.HAZARD_SURFACE_MAX;
+
+  /* UNE FAMILLE APPARTIENT A UN LIEU, ET AUCUNE NE S OUBLIE AU CATALOGUE. Les
+     deux sens comptent : un obstacle qui porterait la famille d un autre lieu
+     y dessinerait un objet etranger sans rien lever, et une famille que plus
+     aucune table ne tire est une entree morte — meme regle que pour les props. */
+  const tirees = new Set();
+  for (const b of BIOMES) {
+    for (const o of OBSTACLES[b.key] ?? []) {
+      const f = blocAt(o.kind);
+      if (!f) soucis.push(`${b.key} : obstacle sans famille declaree`);
+      else if (f.lieu !== b.key) soucis.push(`${b.key} : la famille ${f.key} appartient a ${f.lieu}`);
+      else tirees.add(o.kind);
+    }
+  }
+  for (let k = 0; k < BLOCS.length; k++) {
+    if (!tirees.has(k)) soucis.push(`${BLOCS[k].lieu}/${BLOCS[k].key} : famille jamais tiree`);
+  }
 
   const sigs = BIOMES.map((_, i) => signatureBiome(i, arenaW, arenaH, viewW, viewH));
   for (let a = 0; a < sigs.length; a++) {

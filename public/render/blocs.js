@@ -1,3 +1,7 @@
+import {
+  BLOCS, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CUVE, B_DEBRIS, B_FOUR,
+  B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE,
+} from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
 
@@ -25,12 +29,71 @@ function graine(o) {
   return ((o.x * 2654435761) ^ (o.y * 40503)) >>> 0;
 }
 
+/* LA TABLE DE DESSIN DU BATI, sur le patron de `DANGER[biome][kind]`. Le lieu
+   donnait la silhouette ET l habillage ; il ne donne plus que le rayon du
+   catalogue, et c est la FAMILLE qui decide. Ajouter un objet a un lieu = une
+   entree, comme pour un danger.
+
+   `hors` est ce qui sort de l empreinte — la seule chose de ce module qui vive
+   hors du clip, donc la seule qu il faut declarer plutot que deduire.
+
+   Toutes les familles d un meme lieu partagent encore leur fiche : c est voulu,
+   ce lot est la PLOMBERIE et ne change pas un pixel. Les lots suivants les
+   separent une par une, et `verifierBlocs()` refuse qu une famille en soit
+   privee — un `kind` sans fiche ne leverait rien, il replierait en silence. */
+const BLOC = {
+  usine: {
+    [B_CHAINE]: { forme: formeMachine, habit: usine },
+    [B_MACHINE]: { forme: formeMachine, habit: usine },
+    [B_POSTE]: { forme: formeMachine, habit: usine },
+  },
+  fonderie: {
+    [B_FOUR]: { forme: formeOctogone, habit: four },
+    [B_CONDUITE]: { forme: formeOctogone, habit: four },
+    [B_CUVE]: { forme: formeOctogone, habit: four },
+  },
+  friche: {
+    [B_RUINE]: { forme: formeRuine, habit: friche, hors: debord },
+    [B_MUR]: { forme: formeRuine, habit: friche, hors: debord },
+    [B_CARCASSE]: { forme: formeRuine, habit: friche, hors: debord },
+  },
+  nebuleuse: {
+    [B_FRAGMENT]: { forme: formeChanfreine, habit: travee },
+    [B_TRAVEE]: { forme: formeChanfreine, habit: travee },
+    [B_DEBRIS]: { forme: formeChanfreine, habit: travee },
+  },
+};
+
+// le repli d un lieu est cuit ICI et non cherche a l appel : `drawObstacles`
+// passe par cette fonction quatre fois par obstacle et par image.
+const REPLI = {};
+for (const cle of Object.keys(BLOC)) REPLI[cle] = BLOC[cle][Object.keys(BLOC[cle])[0]];
+
+function fiche(cle, kind) {
+  const t = BLOC[cle] ?? BLOC.usine;
+  return t[kind] ?? REPLI[cle] ?? REPLI.usine;
+}
+
 export function silhouetteBloc(g, o, cle) {
-  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
-  if (cle === "fonderie") return octogone(g, x, y, w, h);
-  if (cle === "nebuleuse") return chanfreine(g, x, y, w, h, CHANFREIN_LARGE);
-  if (cle === "friche") return ruine(g, o, x, y, w, h);
-  return machine(g, x, y, w, h);
+  return fiche(cle, o.kind).forme(g, o);
+}
+
+function formeMachine(g, o) { machine(g, -o.w / 2, -o.h / 2, o.w, o.h); }
+function formeOctogone(g, o) { octogone(g, -o.w / 2, -o.h / 2, o.w, o.h); }
+function formeChanfreine(g, o) { chanfreine(g, -o.w / 2, -o.h / 2, o.w, o.h, CHANFREIN_LARGE); }
+function formeRuine(g, o) { ruine(g, o, -o.w / 2, -o.h / 2, o.w, o.h); }
+
+// UN `kind` SANS FICHE NE LEVERAIT RIEN : `fiche()` replie, et le lieu
+// dessinerait sa premiere famille partout sans qu on le voie. Meme role que
+// `verifierFeedback()` pour les recettes de son.
+export function verifierBlocs() {
+  const soucis = [];
+  for (let k = 0; k < BLOCS.length; k++) {
+    const b = BLOCS[k];
+    if (!BLOC[b.lieu]) soucis.push(`${b.lieu} : aucune table de dessin`);
+    else if (!BLOC[b.lieu][k]) soucis.push(`${b.lieu}/${b.key} : aucune fiche de dessin`);
+  }
+  return soucis;
 }
 
 // LE FOUR EST LOURD : huit cotes, chanfreins egaux, aucune arete qui file.
@@ -174,16 +237,13 @@ export function evacEtat(e, t) {
    est AJOUREE. Tout est clippe a la silhouette : rien ne deborde sur le sol, ou
    vivent les telegraphes. */
 export function habillerBloc(o, rx, ry, cle, S) {
+  const f = fiche(cle, o.kind);
+
   ctx.save();
   ctx.translate(o.x + rx, o.y + ry);
   silhouetteBloc(ctx, o, cle);
   ctx.clip();
-
-  if (cle === "fonderie") four(o, S);
-  else if (cle === "friche") friche(o, S);
-  else if (cle === "nebuleuse") travee(o, S);
-  else usine(o, S);
-
+  f.habit(o, S);
   ctx.restore();
 
   // CE QUI SORT DE L EMPREINTE, et il est HORS du clip pour ca. Deux choses, et
@@ -191,7 +251,7 @@ export function habillerBloc(o, rx, ry, cle, S) {
   // 5 px, et l EBOULIS de la breche, plaque au sol contre le pied du mur. Un mur
   // casse dont rien ne depasse est un mur coupe a la scie ; un mur perce dont
   // rien n est tombe est un mur qu on a perce PROPREMENT.
-  if (cle === "friche") debord(o, rx, ry);
+  if (f.hors) f.hors(o, rx, ry);
 }
 
 function debord(o, rx, ry) {
