@@ -167,6 +167,14 @@ export const ENEMY_TYPES = [
 
   { key: "saboteur",  minMin: 20, fallback: 3, weight: 0.22, share: 0.10, hpMul: 1.1, speed: 66, dmg: 10, r: 13, score: 28, xp: 18,
     standoff: 300, poseCd: 4.2, poseRange: 380, poseR: 60, poseDot: 22, poseLife: 4 },
+
+  /* RELAIS — « qui va avec qui ? » Le seul corps du roster dont la menace
+     n'est pas LUI mais la PAIRE : deux relais tendent un arc, et l'arc est ce
+     qui blesse. Un joueur ne compte plus des corps, il lit une geometrie.
+     Tuer l'un des deux suffit — c'est la premiere fois que le roster propose
+     une cible dont la valeur depend d'une AUTRE cible. */
+  { key: "relais",   minMin: 22, fallback: 3, weight: 0.20, share: 0.08, hpMul: 1.3, speed: 74, dmg: 10, r: 13, score: 30, xp: 20,
+    lienRange: 300, lienRupture: 430, lienLarge: 16, lienDot: 34, cohesion: 0.55 },
 ];
 
 export function trailMax(aireVue) {

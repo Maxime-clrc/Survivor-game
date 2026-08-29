@@ -624,6 +624,36 @@ function saboteurAccents(bras) {
   };
 }
 
+/* RELAIS — le seul corps du roster dont la masse est VERTICALE. Tous les autres
+   sont larges ou ronds ; celui-ci est un mat, et c'est ce qui le fait sortir
+   d'une horde sans qu'on regarde sa couleur. */
+function relaisPath(k) {
+  const ecart = k.ecart ?? 0;
+  return g => {
+    mirrored(g, 1, [[-6, -4], [6, -6], [8, 0], [6, 6], [-6, 5]]);
+    // le mat, plus haut que large — la silhouette tient a ce rapport
+    g.moveTo(-2.5, -5);
+    g.lineTo(-3.5, -19 - ecart * 4);
+    g.lineTo(2.5, -20 - ecart * 4);
+    g.lineTo(1.5, -5);
+    g.closePath();
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[-1, -17 - ecart * 4], [9 + ecart * 5, -22 - ecart * 6],
+                      [10 + ecart * 5, -19 - ecart * 6], [0, -14 - ecart * 3]]);
+    }
+    for (const s of [-1, 1]) mirrored(g, s, [[-4, 4], [-7, 11], [-2, 11], [0, 5]]);
+  };
+}
+
+function relaisAccents(ecart) {
+  return (g, R) => {
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.arc(-0.5, -20 - ecart * 4, 3 + ecart, 0, 7); g.fill();
+    g.fillStyle = R.accent;
+    g.beginPath(); g.ellipse(2, 0, 3.6, 2.6, 0, 0, 7); g.fill();
+  };
+}
+
 const NEUTRAL = ramp("#dfe5f0");
 
 function tankClassPath(k) {
@@ -745,6 +775,8 @@ function plan(raster) {
       shapes: [{ pouls: 0 }, { pouls: 0.3 }, { pouls: -0.2 }, { pouls: 1 }] },
     { path: saboteurPath, accents: k => saboteurAccents(k.bras ?? 0), edge: 2, floats: false,
       shapes: [{ bras: 0 }, { bras: 0.25 }, { bras: -0.15 }, { bras: 1 }] },
+    { path: relaisPath, accents: k => relaisAccents(k.ecart ?? 0), edge: 2, floats: false,
+      shapes: [{ ecart: 0 }, { ecart: 0.25 }, { ecart: -0.15 }, { ecart: 1 }] },
   ];
 
   enemies.forEach((def, t) => {

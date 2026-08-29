@@ -60,14 +60,28 @@ comportements figés — c'est la seule façon d'attribuer un écart à sa cause
 | E3 | 1 | `verifierPopulation` | « population en baisse au segment N » sur 9 profils sur 18, **avant comme après**. Les sims ne sont pas graînées, les comptes bougent d'un tirage à l'autre. | graîner `mesurePopulation` avant d'en tirer une conclusion |
 | E4 | 2 | `ENEMY_TYPES[2].speed` (colosse, 44) | 90 corps devant un goulet de 200 px : **90/90 franchissent** en 30 s, avec ou sans colosses. Ils ne bouchent pas — ils mettent 1 600 px / 44 px/s ≈ 36 s à contourner un mur long. La sensation de « bouchon » est une sensation de **lenteur**. | monter la vitesse du colosse **ou** raccourcir les détours, jamais les deux ; la doctrine de vitesse plafonne à `0,90 × médiane` |
 | E5 | 2 | `ROLE_CFG.FLANC_SPAN` / `flanc` du coureur | ±26° d'écart-type circulaire à 0,55. Lisible, mais le flanc n'est pour l'instant porté que par **un** type : son étalonnage n'a de sens qu'une fois le harceleur du lot 4 écrit, qui en fera son verbe. | régler les deux ensemble, pas le coureur seul |
-| E6 | 3 | `ATK_CFG.WARN` sur la **visée** | Le préavis de visée **n'améliore pas le taux d'esquive** : 33 % de touches sur une cible immobile, 9 % sur une cible qui bouge, avant comme après. Le temps de vol (0,7 à 1,3 s) fournissait déjà la fenêtre. Il est gardé pour l'**attribution** — savoir *qui* tire, dans une horde de 200 — et parce qu'il remplace une devinette du client qui était fausse. | le lot 5 doit démontrer la valeur d'attribution (priorité de cible), sinon la visée redevient instantanée |
+| ~~E6~~ | 3, **tranché au lot 5** | `ATK_CFG.WARN` sur la **visée** | **La promesse « démontrer ou retirer » était le mauvais test, et c'est moi qui l'avais posée.** Deux instruments indépendants : dans une horde, viser ce qui s'apprête ne change rien (2 515 dégâts contre 2 564) ; face à douze tireurs et rien d'autre — où la balle est la seule source de dégâts — 368 contre 372. Et le **témoin valide le verdict d'un côté seulement** : dans la horde, la pire politique possible (tirer sur le plus loin) encaisse 2 544, *moins* que la meilleure — l'instrument est aveugle à la survie. La valeur d'un télégraphe est la lisibilité pour un **humain** : aucun banc de bots ne la mesure. **Conservée sur son coût** (−0,8 % de volume de tir, quelques octets), pas sur un gain démontré. | à juger **à l'écran** au lot 8, avec les silhouettes |
 | E7 | 3 | `ATK_CFG.AIM_SLOW` | La visée immobilise le tireur 0,5 s par cycle de 2,6 s, soit −13 % de vitesse moyenne. Le volume de tir, lui, est intact (−0,8 %). L'effet sur le **placement** du tireur n'a pas été mesuré. | mesurer la distance moyenne tireur/cible au moment du tir, à la passe finale |
 | E8 | 4 | `DIFFICULTIES[i].roster` | Les trois archétypes sont entrés en **cauchemar**, et seul le harceleur en **normal** ; le calme n'en voit aucun. C'est un placement provisoire, pas une décision de composition : ils pèsent 14,5 % de la horde en cauchemar. | le lot 7 redistribue délibérément, avec les mesures de composition |
 | E9 | 4 | `_groundZone()` | Le saboteur est un **cinquième** appelant, et un légitime cette fois : il pose bien du sol de horde. Il aggrave néanmoins le conflit d'étiquette décrit en E2. | à traiter **avec** E2, pas séparément |
 | E10 | 4 | `ENEMY.TINT` | Douze types pour une roue de teintes déjà serrée : harceleur (jaune) contre porte-bouclier (ocre), générateur (bleu ciel) contre soigneur (turquoise). La charte dit qu'un corps se reconnaît **sans sa couleur** — la silhouette porte donc seule, et elle n'a pas été jugée à l'écran. | lot 8 : vérifier les douze silhouettes en niveaux de gris, à 200 corps |
 | E11 | 4 | `egideShield` = 0,34 | Ignorer le générateur coûte **+52 %** de dégâts pour nettoyer le même paquet ; le tuer d'abord coûte +13 %. Le gradient est le bon, mais il n'a été mesuré que sur un paquet de fantassins focalisés à cadence constante. | rejouer sur une vraie manche, avec les dix armes |
 
+| E12 | 5 | `lienDot` = 34 | L'arc ne blesse que ce qui reste dedans : 701 dégâts sur une cible qui campe, 45 sur une cible qui bouge. C'est voulu — c'est une menace **positionnelle** — mais le chiffre n'a été mesuré que sur six relais isolés, jamais mêlés au reste de la horde. | rejouer en composition réelle à la passe finale |
+| E13 | 5 | `SUPPORT` et la cadence | Viser les soutiens tue **+37 %** et vide le terrain de ses soutiens (26,3 → 1,9 en vue), mais ne réduit **pas** les dégâts subis. Le banc ne peut pas dire si c'est le jeu ou l'instrument : à 500 corps, le contact sature et aucune politique de cible ne le change. | mesurer la survie à **densité moyenne**, là où le contact ne sature pas |
+
 À chaque lot, on ajoute une ligne ici plutôt qu'un réglage dans le code.
+
+### Deux pièges de banc d'essai, notés parce qu'ils se reproduiront
+
+- **`_spawnEnemy` replie en silence** sur le fantassin tout type absent du roster
+  de la difficulté. Un banc réglé sur *normal* mesurait des fantassins là où il
+  croyait mesurer des générateurs. **Vérifier `e.type` après l'apparition.**
+- **Épingler `hordeTime` peut verrouiller un ÉVÉNEMENT.** En le figeant à 120 s
+  au segment 6, le banc restait sur le beat de la *nuée* : composition forcée à
+  100 % de coureurs, `types: [1]`, cadence ×2,6. La mesure disait « aucun
+  soutien à l'écran » et c'était vrai — il n'y en avait aucun dans l'arène.
+  **Épingler sur un beat sans `event`.**
 
 ---
 

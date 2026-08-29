@@ -1697,6 +1697,29 @@ function drawMedicLinks(list) {
     });
   }
 }
+/* L'ARC DU RELAIS EST LA MENACE, donc il se dessine comme une menace et non
+   comme un lien de soutien : epais, tendu, sans flux — un flux dit « ceci
+   circule dans un sens », et ici rien ne circule, la ligne BLESSE.
+   Le serveur donne l'appariement (`pair`) et le remet a zero pendant la charge :
+   pas d'arc tant qu'il n'est pas vif, c'est le preavis qui porte cet instant. */
+const RELAIS = ENEMY_TYPES.findIndex(t => t.lienRange);
+function drawRelaisArcs(list) {
+  if (RELAIS < 0) return;
+  const par = new Map();
+  for (const e of list) if (e.pair) par.set(e.id, e);
+  const def = ENEMY_TYPES[RELAIS];
+  for (const a of par.values()) {
+    const b = par.get(a.pair);
+    if (!b || b.pair !== a.id || b.id < a.id) continue;
+    if (!inView(a.x, a.y, 260) && !inView(b.x, b.y, 260)) continue;
+    if (voileBrume(a.x, a.y) <= 0.02 && voileBrume(b.x, b.y) <= 0.02) continue;
+    drawArc(`r${a.id}`, a.x, a.y - 16, b.x, b.y - 16, {
+      col: ENEMY_TINT[RELAIS], coeur: FX.flash, amp: 0.04,
+      width: def.lienLarge * 0.4, branches: 2, cut: 0, pinch: false,
+    });
+  }
+}
+
 export function drawEnemies(list, view) {
   const t = performance.now();
   const ts = t / 1000;
@@ -1704,6 +1727,7 @@ export function drawEnemies(list, view) {
   const windup = view?.windup ?? EMPTY_SET;
   auraPass(list, diff);
   drawMedicLinks(list);
+  drawRelaisArcs(list);
   const me = view?.playerList?.find(p => p.id === myId);
 
   // PASSE SEPAREE, et c'est la seule facon correcte : une ombre posee juste

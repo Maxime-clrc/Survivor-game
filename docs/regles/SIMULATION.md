@@ -175,6 +175,23 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 - **Le saboteur verrouille la PLACE là où le tireur verrouille l'ANGLE.** Même
   grammaire, autre verbe : il annonce « là où tu es dans une demi-seconde ne
   sera plus à toi ».
+- **L'ARC DU RELAIS EST LA MENACE, PAS LE CORPS** — le seul du roster dont la
+  valeur d'une cible dépend d'une **autre** cible. Un joueur ne compte plus des
+  corps, il lit une géométrie.
+- **L'APPARIEMENT EST DÉTERMINISTE et se lit dans l'ordre de la liste** : le
+  plus petit identifiant libre prend le plus proche libre. Sans cet ordre, deux
+  corps se choisiraient l'un l'autre à des images différentes et l'arc
+  clignoterait.
+- **La rupture est plus large que la formation** (`lienRupture` > `lienRange`) :
+  sans cette hystérésis, une paire qui oscille autour de sa portée passe son
+  temps à se recharger, et le joueur voit un arc **battre** au lieu d'un arc.
+- **La cohésion est ce qui fait tenir un arc**, et elle ne s'applique qu'au-delà
+  de la moitié de la portée : de près les deux corps sont libres, et c'est ce
+  qui garde l'arc mobile.
+- **Un arc se charge avant de blesser**, par le même préavis que tout le reste
+  (`ATK_CFG.WARN`, les deux porteurs dans `wu`), et `pair` ne traverse le réseau
+  qu'une fois l'arc **vif** : pas de trait dessiné pendant la charge, c'est le
+  préavis qui porte cet instant.
 
 - **L'état de provocation est global** (`state.taunt = {id, until, x, y}`), lu par
   `_nearestPlayer()`.

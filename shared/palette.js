@@ -165,7 +165,7 @@ export const COMBAT = {
 export const ENEMY = {
   TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899",
          "#84cc16", "#a16207", "#2dd4bf", "#4f46e5",
-         "#facc15", "#38bdf8", "#059669"],
+         "#facc15", "#38bdf8", "#059669", "#d946ef"],
 
   elite:      "#ffd76e",
   base:       "#e05263",

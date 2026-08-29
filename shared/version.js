@@ -4243,6 +4243,47 @@
                    milliseconde. Les trois nouveaux pesent 14,5 % de la horde en
                    cauchemar.
 
+     0.21.4 lot 5  LE RELAIS, ET CE QUE LA MESURE A REFUSE DE CONFIRMER.
+                   LE RELAIS est le seul corps du roster dont la menace n est pas
+                   LUI mais la PAIRE : deux relais tendent un arc, et l arc est ce
+                   qui blesse. Un joueur ne compte plus des corps, il lit une
+                   geometrie — et pour la premiere fois la valeur d une cible
+                   depend d une AUTRE cible. Tuer une extremite casse l arc
+                   (0,90 -> 0,23 paire vive a deux corps). C est une menace
+                   POSITIONNELLE : 701 degats sur une cible qui campe, 45 sur une
+                   cible qui bouge.
+                   TROIS REGLES QUI TIENNENT L ARC. L appariement est
+                   DETERMINISTE et se lit dans l ordre de la liste — sinon deux
+                   corps se choisissent l un l autre a des images differentes et
+                   l arc clignote. La rupture est PLUS LARGE que la formation,
+                   sans quoi une paire qui oscille autour de sa portee bat au lieu
+                   de tenir. Et la cohesion ne joue qu au-dela de la moitie de la
+                   portee : de pres les corps sont libres, et c est ce qui garde
+                   l arc mobile.
+                   LES PRIORITES DE COMBAT EXISTENT, ET ELLES SE LISENT SUR LE
+                   DEBIT : viser les soutiens tue +37 % et vide le terrain de ses
+                   soutiens (26,3 -> 1,9 en vue).
+                   MAIS LE TEMOIN A INVALIDE LA COLONNE DES DEGATS SUBIS. Tirer
+                   sur le corps le plus LOIN — la pire politique concevable —
+                   encaisse MOINS que la meilleure. A 500 corps le contact sature
+                   et aucune politique de cible ne le change. Une mesure dont le
+                   temoin ne bouge pas ne mesure rien.
+                   VERDICT SUR LE PREAVIS DE VISEE. Le lot 3 s etait engage a le
+                   demontrer ou a le retirer. Second instrument monte expres —
+                   douze tireurs et rien d autre, pression maintenue constante :
+                   368 degats contre 372, aucun gain. La promesse etait LE MAUVAIS
+                   TEST : la valeur d un telegraphe est la lisibilite pour un
+                   HUMAIN, et aucun banc de bots ne la mesure. Il est conserve SUR
+                   SON COUT — 0,8 % de volume de tir, quelques octets, une
+                   devinette fausse du client supprimee — pas sur un gain
+                   demontre, et il sera juge a l ecran.
+                   ET LE VERIFICATEUR DU LOT 1 SE CORRIGE ENCORE : sa fenetre
+                   d apres-breche etait en dur a douze secondes, donc son verdict
+                   dependait du tirage de vitesse (+-10 %) — muet seul, bavard
+                   apres d autres verificateurs. Un critere qui change de reponse
+                   sans que le jeu change n est pas un critere.
+                   Cout : 0,242 ms a 200 corps, 0,463 ms a 400.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4251,4 +4292,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.3";
+export const VERSION = "0.21.4";

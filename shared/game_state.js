@@ -443,7 +443,7 @@ export const DIFFICULTIES = [
   {
     key: "cauchemar", label: "cauchemar",
     script: "cauchemar",
-    roster: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    roster: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     traits: {
       grunt: DASH | TRAIL,
       runner: DASH | FRENZY,
@@ -675,6 +675,7 @@ export class GameState {
     this._navVise = { x: 0, y: 0 };
     this._isoK = new Map();
     this._egide = false;
+    this._liens = [];
     this._groundOut = { slow: 1, slip: false };
     this.mechStats = new Map();
     this.hazardTick = 0;
@@ -3378,6 +3379,7 @@ export class GameState {
       shootCd: t.shootCd ? t.shootCd * (0.5 + Math.random()) : 0,
       aimT: 0,
       shield: 0, shieldMax: 0, regen: 0, egide: 0,
+      pair: 0, lienT: 0,
       poseX: 0, poseY: 0,
       aimAng: 0,
       standoff: t.standoff ?? 200,
@@ -4123,6 +4125,9 @@ export class GameState {
     for (const e of this.enemies) {
       if (e.hp > 0 && (e.dashWarn > 0 || e.aimT > 0)) this._windupCompte(e, budget);
     }
+    // APRES le vidage de `windup`, avant la boucle : la charge d'un arc y pousse
+    // ses deux porteurs, et l'arc blesse au meme instant que le reste.
+    this._relaisPass(dt);
 
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
@@ -4230,6 +4235,25 @@ export class GameState {
       // change jamais — un cote retire a chaque image est une oscillation.
       // Il ne s'applique QUE quand la ligne droite passe : sur un cap rendu par
       // le champ, un biais lateral pousse dans la boite que le champ contourne.
+      // LA COHESION EST CE QUI FAIT TENIR UN ARC. Sans elle deux relais se
+      // separent en poursuivant la meme cible par deux cotes, l'arc casse, se
+      // recharge, casse encore — le joueur voit clignoter au lieu de lire. Elle
+      // ne s'applique QUE au-dela de la moitie de la portee : de pres les deux
+      // corps sont libres, et c'est ce qui garde l'arc mobile.
+      if (def.cohesion && e.pair) {
+        const o = this._enemyById(e.pair);
+        if (o) {
+          const px = o.x - e.x, py = o.y - e.y;
+          const pd = Math.hypot(px, py) || 1;
+          if (pd > def.lienRange * 0.5) {
+            const k = def.cohesion * Math.min(1, (pd - def.lienRange * 0.5) / (def.lienRange * 0.5));
+            const cx = sx + (px / pd) * k, cy = sy + (py / pd) * k;
+            const cn = Math.hypot(cx, cy) || 1;
+            sx = cx / cn; sy = cy / cn;
+          }
+        }
+      }
+
       if (e.flanc > 0 && e.navX === 0 && e.navY === 0 && d > ROLE_CFG.FLANC_NEAR) {
         const k = e.flanc
           * Math.min(1, (d - ROLE_CFG.FLANC_NEAR) / ROLE_CFG.FLANC_SPAN)
@@ -4540,6 +4564,86 @@ export class GameState {
       // Une fois BRISEE, elle se recharge — c'est la que la regeneration joue.
       if (!e.egide) { e.shield = e.shieldMax; e.egide = 1; }
       else e.shield = Math.min(e.shieldMax, e.shield + e.regen * dt);
+    }
+  }
+
+  /* L'ARC EST LA MENACE, PAS LE CORPS. Une passe unique : on defait les paires
+     rompues, on en forme de neuves, on charge, puis on applique.
+
+     L'APPARIEMENT EST DETERMINISTE et se lit dans l'ordre de la liste — le plus
+     petit identifiant libre prend le plus proche libre. Sans cela deux corps se
+     choisiraient l'un l'autre a des images differentes et l'arc clignoterait.
+
+     LA RUPTURE EST PLUS LARGE QUE LA FORMATION (`lienRupture` > `lienRange`) :
+     sans cette hysterese, une paire qui oscille autour de sa portee passe son
+     temps a se recharger, et le joueur voit un arc qui bat au lieu d'un arc. */
+  _relaisPass(dt) {
+    const relais = [];
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      if (ENEMY_TYPES[e.type].lienRange) relais.push(e);
+    }
+    if (relais.length === 0) {
+      if (this._liens.length) this._liens.length = 0;
+      return;
+    }
+    const parId = new Map();
+    for (const e of relais) parId.set(e.id, e);
+
+    for (const e of relais) {
+      if (!e.pair) continue;
+      const o = parId.get(e.pair);
+      const def = ENEMY_TYPES[e.type];
+      if (!o || o.pair !== e.id
+          || (e.x - o.x) ** 2 + (e.y - o.y) ** 2 > def.lienRupture ** 2) {
+        if (o && o.pair === e.id) { o.pair = 0; o.lienT = 0; }
+        e.pair = 0; e.lienT = 0;
+      }
+    }
+
+    for (const e of relais) {
+      if (e.pair) continue;
+      const def = ENEMY_TYPES[e.type];
+      let best = null, bd = def.lienRange ** 2;
+      for (const o of relais) {
+        if (o === e || o.pair || o.id < e.id) continue;
+        const d2 = (e.x - o.x) ** 2 + (e.y - o.y) ** 2;
+        if (d2 < bd) { bd = d2; best = o; }
+      }
+      if (!best) continue;
+      e.pair = best.id; best.pair = e.id;
+      e.lienT = best.lienT = ATK_CFG.WARN;
+    }
+
+    this._liens.length = 0;
+    for (const e of relais) {
+      if (!e.pair || e.pair < e.id) continue;
+      const o = parId.get(e.pair);
+      if (!o) continue;
+      if (e.lienT > 0) {
+        e.lienT -= dt; o.lienT = e.lienT;
+        this.windup.push(e);
+        this.windup.push(o);
+        continue;
+      }
+      this._liens.push(e, o);
+    }
+    if (this._liens.length === 0) return;
+
+    const def = ENEMY_TYPES[this._liens[0].type];
+    for (let i = 0; i < this._liens.length; i += 2) {
+      const a = this._liens[i], b = this._liens[i + 1];
+      const vx = b.x - a.x, vy = b.y - a.y;
+      const portee = Math.hypot(vx, vy);
+      if (portee < 1) continue;
+      const dx = vx / portee, dy = vy / portee;
+      for (const p of this.players.values()) {
+        if (p.downed) continue;
+        const t = this._surSegment(p.x - a.x, p.y - a.y, dx, dy,
+          portee, def.lienLarge + CFG.PLAYER_RADIUS);
+        if (t === null) continue;
+        this._hurt(p, def.lienDot * dt, { overTime: true, src: SRC_ZONE });
+      }
     }
   }
 
@@ -8313,7 +8417,8 @@ export class GameState {
       e: filtrer(this.enemies, e => e.r,
         e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
                        e.type + (e.elite ? 100 : 0),
-                       r2(e.ang), e.hitSeq, e.critSeq, Math.round(e.shield)], 7)),
+                       r2(e.ang), e.hitSeq, e.critSeq, Math.round(e.shield),
+                       e.lienT > 0 ? 0 : e.pair], 7)),
       b: filtrer(this.bullets, () => CFG.BULLET_RADIUS,
         b => b.missile ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_MISSILE]
           : b.scinde ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_PORTEUR]
@@ -8768,7 +8873,12 @@ export function verifierDeplacement(effectifs = [1, 4], budgetMs = 16) {
     }
     const avant = Math.hypot(e.x - p.x, e.y - p.y);
     g._obstacleHit(2400, 1400, 200);
-    for (let k = 0; k < 12 / CFG.TICK; k++) {
+    // LA FENETRE SE DERIVE, ELLE AUSSI. A douze secondes en dur, le verdict
+    // dependait du tirage de vitesse de `_spawnEnemy` (±10 %) : le meme test
+    // etait muet seul et bavard apres d'autres verificateurs, selon l'etat du
+    // generateur global. Un critere qui change de reponse sans que le jeu
+    // change n'est pas un critere.
+    for (let k = 0; k < fenetreDe(avant + 200) / CFG.TICK; k++) {
       g.step(CFG.TICK, inputs);
       p.hp = p.maxHp; p.fireCd = 999; g.gameOver = false;
     }

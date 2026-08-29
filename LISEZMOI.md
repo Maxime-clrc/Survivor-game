@@ -65,6 +65,67 @@ mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/15
 200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
 la grille des quatre lieux. Muet au 0.21.0.
 
+### Le groupe, le relais, et un instrument aveugle (0.21.4)
+
+**Le relais.** Le seul corps dont la menace n'est pas lui mais la **paire**.
+Quatre graines, cible mobile, 30 s :
+
+| relais | tue un à 10 s | paires vives | dégâts subis |
+|---|---|---|---|
+| 1 | — | 0,00 | 0 |
+| 2 | non | 0,90 | 0 |
+| 4 | non | 1,86 | 23 |
+| 6 | non | 2,90 | 45 |
+| 2 | **oui** | **0,23** | 0 |
+| 6 | **oui** | 2,23 | 45 |
+
+Tuer une extrémité casse l'arc — c'est la première fois que le roster propose
+une cible dont la valeur dépend d'une **autre** cible. Et l'arc est une menace
+**positionnelle**, pas une course aux dégâts :
+
+| six relais, cible qui | dégâts en 30 s |
+|---|---|
+| campe | **701** |
+| se déplace | 45 |
+
+**Les priorités de combat.** Même horde, même cadence, même trajectoire ; seule
+la question que le joueur se pose en choisissant sa cible change. Cauchemar,
+13 types, deux pilotes, 70 s, trois graines :
+
+| politique | dégâts subis | tués | soutiens en vue |
+|---|---|---|---|
+| le plus proche | 2 564 | 98 | 26,3 |
+| le plus loin (témoin) | 2 544 | 86 | 20,7 |
+| les gros | 2 429 | 29 | 25,2 |
+| les tireurs | 2 584 | 122 | 27,2 |
+| ceux qui visent | 2 515 | 97 | 27,2 |
+| **les soutiens** | 2 596 | **134** | **1,9** |
+
+Viser les soutiens tue **+37 %** et vide le terrain de ses soutiens (26,3 → 1,9).
+La priorité existe, et elle se lit sur le **débit**.
+
+**Mais le témoin invalide la colonne des dégâts subis.** Tirer sur le corps le
+plus *loin* — la pire politique concevable — encaisse 2 544, c'est-à-dire moins
+que la meilleure. À 500 corps, le contact sature : aucune politique de cible ne
+peut le réduire. Une mesure dont le témoin ne bouge pas ne mesure rien, et il
+valait mieux le dire que publier six chiffres qui se ressemblent.
+
+**Verdict sur le préavis de visée (registre E6).** J'avais écrit au lot 3 :
+« démontrer ou retirer ». Deuxième instrument, monté exprès — douze tireurs et
+rien d'autre, la balle est la seule source de dégâts, la pression est maintenue
+constante en remplaçant les morts :
+
+| politique | dégâts subis | tireurs abattus |
+|---|---|---|
+| le plus proche | 372 | 73,0 |
+| celui qui vise | 368 | 72,5 |
+
+**Aucun gain, sur les deux instruments.** La promesse était le mauvais test :
+la valeur d'un télégraphe est la lisibilité pour un **humain**, et aucun banc de
+bots ne la mesure. Le préavis est conservé **sur son coût** — −0,8 % de volume
+de tir, quelques octets, et une devinette fausse du client supprimée — pas sur
+un gain démontré. Il sera jugé à l'écran au lot 8.
+
 ### Trois archétypes, trois verbes (0.21.3)
 
 Chacun est mesuré sur **la décision qu'il change**, pas sur ses statistiques.
