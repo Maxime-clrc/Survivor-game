@@ -8,6 +8,134 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Vérification du plan 19 (0.22.8)
+
+#### Ce que le plan a touché
+
+| | lignes |
+|---|---|
+| `public/render/blocs.js` | +1 148 |
+| `public/render/decor.js` | +575 |
+| `shared/biomes.js` | +317 |
+| `public/render/dangers.js` | +159 |
+| `public/render/material.js` | +117 |
+| `public/render/world.js` | +3 |
+
+**`shared/game_state.js` n'apparaît pas dans le diff**, ni `room.js`, ni
+`server.js`, ni `hub.js`, ni `public/net/`. Trois mille lignes, et le cœur de
+simulation n'a pas bougé d'un caractère : **zéro octet de réseau, zéro règle de
+déplacement, zéro point de vie**. `git diff --stat c8854de..HEAD` le rejoue.
+
+#### Le coût de navigation, là où le plan l'a augmenté
+
+Le lot 7 ajoute des obstacles en cauchemar. `construireNav` est refaite une fois
+par manche et à chaque couverture qui cède ; `diffuser` au plus une fois par
+image (`_navBudget = 1`, `REBUILD_MIN = 0,2 s`).
+
+| lieu | calme | normal | cauchemar | cellules bloquées (cauchemar) |
+|---|---|---|---|---|
+| usine | 45 obs · 0,05 / 0,18 ms | 63 · 0,05 / 0,17 | 81 · **0,04 / 0,17** | 9,9 % |
+| fonderie | 27 · 0,07 / 0,17 | 45 · 0,04 / 0,18 | 63 · **0,05 / 0,17** | **15,0 %** |
+| friche | 54 · 0,06 / 0,17 | 90 · 0,05 / 0,18 | 108 · **0,07 / 0,17** | 9,9 % |
+| nébuleuse | 36 · 0,04 / 0,17 | 63 · 0,05 / 0,17 | 81 · **0,04 / 0,16** | 9,9 % |
+
+**Le coût ne suit pas le nombre d'obstacles** : de 27 à 108 boîtes, `construireNav`
+reste entre 0,04 et 0,07 ms. Il est dominé par l'allocation de la grille
+(120 × 68 = 8 160 cellules), pas par le marquage. `diffuser` est plat à 0,17 ms,
+et amorti par `REBUILD_MIN` il coûte **~0,014 ms par tick**.
+
+#### Le pas complet, à population croissante
+
+ms par tick, 600 ticks, 1 joueur, budget de 16,7 ms :
+
+| lieu | mode | 50 | 100 | 150 | 200 |
+|---|---|---|---|---|---|
+| usine | normal | 0,063 | 0,068 | 0,082 | 0,117 |
+| usine | cauchemar | 0,059 | 0,079 | 0,112 | **0,141** |
+| fonderie | normal | 0,050 | 0,070 | 0,099 | 0,132 |
+| fonderie | cauchemar | 0,049 | 0,077 | 0,104 | **0,130** |
+| friche | normal | 0,051 | 0,071 | 0,095 | 0,130 |
+| friche | cauchemar | 0,035 | 0,065 | 0,100 | **0,131** |
+| nébuleuse | normal | 0,048 | 0,070 | 0,101 | 0,134 |
+| nébuleuse | cauchemar | 0,041 | 0,071 | 0,107 | **0,146** |
+
+À 200 corps le pas coûte **0,9 % du budget d'image**, et la géométrie de cauchemar
+en ajoute au plus 20 % sur celle de normal (usine, 0,117 → 0,141).
+
+#### La horde arrive-t-elle encore ?
+
+Lâchée telle quelle, elle arrive **plus vite** en cauchemar (6,9 s de médiane)
+qu'en calme (9,3 s) : le roster, la cadence et la rampe de vitesse de la
+difficulté écrasent tout ce que la géométrie pourrait dire. **Le témoin garde donc
+le profil fixe — normal — et ne change que la géométrie.** C'est la seule façon
+d'attribuer un écart au lot 7 plutôt qu'au plan 18.
+
+90 corps lâchés aux bords, joueur immobile au centre, 60 s :
+
+| lieu | géométrie | arrivée | médiane | p90 | jamais arrivés |
+|---|---|---|---|---|---|
+| usine | calme / normal / cauchemar | 100 / 100 / 100 % | 7,8 → 8,1 → **8,1 s** | 9,2 → 9,6 → 9,8 | 0 |
+| fonderie | | 99 / 97 / 98 % | 7,8 → 7,3 → **8,1 s** | 9,8 → 9,7 → 9,7 | 0 / 0 / 1 |
+| friche | | 98 / 97 / 100 % | 7,5 → 8,0 → **8,4 s** | 9,2 → 9,9 → 10,1 | 0 |
+| nébuleuse | | 100 / 99 / 100 % | 8,5 → 8,6 → **8,2 s** | 9,7 → 10,6 → 10,3 | 0 / 1 / 0 |
+
+**Densifier le cauchemar coûte 0,3 à 0,9 s sur l'approche médiane et ne bouche
+jamais.** Au pire un corps sur 90 n'arrive pas en 60 s. Le colosse (44 px/s),
+signalé E4 au plan 18, arrive à 95 % dans les quatre lieux.
+
+#### L'espace de combat
+
+Arène échantillonnée tous les 20 px ; un point est jouable s'il n'est ni dans un
+obstacle gonflé du rayon joueur, ni dans un danger **qui blesse**. Le dégagement
+est la distance au premier blocage.
+
+| lieu | % jouable (calme → cauchemar) | dégagement médian | 1er décile |
+|---|---|---|---|
+| usine | 94,0 → 91,7 → **85,4 %** | 196 → 125 → **70 px** | 40 → 30 → 18 |
+| fonderie | 93,3 → 90,6 → **81,6 %** | 181 → 135 → **81 px** | 48 → 29 → 14 |
+| friche | 95,1 → 91,8 → **83,2 %** | 171 → 108 → **63 px** | 41 → 25 → 14 |
+| nébuleuse | 91,6 → 88,8 → **84,6 %** | 188 → 125 → **74 px** | 36 → 25 → 16 |
+
+Monotone dans les quatre lieux et sur les trois métriques. Le plus resserré est
+la Fonderie en cauchemar à 81,6 % de l'arène jouable — c'est le lieu dont la loi
+est la masse, et c'est cohérent.
+
+#### Les six contrôles rejouables
+
+| contrôle | portée | état |
+|---|---|---|
+| `verifierBiomes()` | 200 graines × 4 lieux × 3 modes | **muet** (14,6 s) |
+| `verifierNavigation()` | 4 × 3 × 3 | **muet** |
+| `verifierBlocs()` | 12 familles / 12 fiches | **muet** |
+| `verifierEmpreinte()` | 12 familles × gabarits réels × 5 positions | **muet** |
+| `verifierDangers()` | 2 sens × 4 lieux | **muet** |
+| `verifierAmers()` | 200 graines × 4 lieux × 3 modes | **muet** |
+
+Trois d'entre eux n'existaient pas avant ce plan, et **les cinq défauts qu'ils
+ont trouvés étaient tous silencieux** : l'embase de cheminée jamais dessinée, la
+travée en créneau, le tracé qui se croise, les six entrées de dangers qui ne se
+rencontraient pas, les candidats d'amer translatés en bloc.
+
+#### Ce qui n'a PAS été mesuré, et son protocole
+
+Trois choses demandent un navigateur et des yeux ; aucun banc ne les remplace.
+
+- **Le test du nom masqué.** `BIOME=<clé> GRAINE=7 PORT=7911 node server.js`, une
+  capture par lieu à la même graine, **recadrée sous le bandeau de segment**
+  (le nom du lieu y est écrit), montrées dans le désordre. Réponse attendue :
+  « un site abandonné / une usine automatisée / une fonderie / l'espace ».
+  « Quatre installations industrielles » est un échec.
+- **Le coût de rendu par palier.** `?perf` donne fps, particules, `GL/2D`, lots,
+  quads. Relever aux quatre paliers `gfx` sur la **Nébuleuse** (le lieu le plus
+  chargé : jusqu'à 11 baies × 4 blits depuis le lot 5, plus `orbite()`) et sur la
+  **Fonderie** (jusqu'à 10 regards). Ce que le plan a ajouté au budget de rendu :
+  une passe `orbite()` par baie, un `drawAmer()` par image, et trois habillages
+  de bloc plus détaillés.
+- **La lisibilité en combat.** 200 ennemis, projectiles, boss : vérifier que
+  l'amer et le plan intermédiaire restent sous le gameplay. Ils sont dessinés
+  sous `drawLumiere()`, donc la hiérarchie tient par l'ordre de dessin — mais
+  l'ordre garantit la valeur, pas la quantité de détail.
+
 ### L'amer, et un jeu de candidats qui n'en était pas un (0.22.7)
 
 Un point unique par arène, ancré au monde, tiré par graine. **Plaqué au sol,

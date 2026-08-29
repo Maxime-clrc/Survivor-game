@@ -4721,6 +4721,43 @@
                    mire de calage `?repere`. Le terme cartographique exact pour
                    un point de repere est un AMER.
 
+     0.22.8 lot 9  VERIFICATION DU PLAN 19. Chiffres dans `LISEZMOI.md`.
+                   CE QUE LE PLAN N A PAS TOUCHE EST SON RESULTAT LE PLUS FORT :
+                   `shared/game_state.js` n apparait pas dans le diff, ni
+                   `room.js`, ni `server.js`, ni `hub.js`, ni `public/net/`.
+                   Trois mille lignes, et le cœur de simulation n a pas bouge
+                   d un caractere — zero octet de reseau, zero regle de
+                   deplacement, zero point de vie.
+                   LE COUT DE NAVIGATION NE SUIT PAS LE NOMBRE D OBSTACLES : de
+                   27 a 108 boites, `construireNav` reste entre 0,04 et 0,07 ms,
+                   parce qu il est domine par l allocation de la grille (8 160
+                   cellules) et non par le marquage. `diffuser` est plat a
+                   0,17 ms, amorti a 0,014 ms par tick.
+                   Le pas complet a 200 corps coute 0,117 a 0,146 ms, soit 0,9 %
+                   du budget d image ; la geometrie de cauchemar ajoute au plus
+                   20 % a celle de normal.
+                   LA HORDE ARRIVE PLUS VITE EN CAUCHEMAR QU EN CALME, et ce
+                   n est pas le terrain : c est le roster, la cadence et la rampe
+                   de vitesse du plan 18. Le temoin garde donc le PROFIL FIXE et
+                   ne change que la GEOMETRIE — seule facon d attribuer un ecart
+                   au lot 7. Verdict : densifier le cauchemar coute 0,3 a 0,9 s
+                   sur l approche mediane et ne bouche JAMAIS. Au pire un corps
+                   sur 90 n arrive pas en 60 s, et le colosse a 44 px/s — signale
+                   E4 au plan 18 — arrive a 95 % dans les quatre lieux.
+                   L ESPACE JOUABLE decroit proprement : 91-95 % en calme, 89-92
+                   en normal, 82-85 en cauchemar, avec un degagement median qui
+                   passe de 171-196 px a 63-81. Monotone dans les quatre lieux et
+                   sur les trois metriques.
+                   SIX CONTROLES REJOUABLES, TOUS MUETS. Trois n existaient pas
+                   avant ce plan, et LES CINQ DEFAUTS QU ILS ONT TROUVES ETAIENT
+                   TOUS SILENCIEUX : l embase de cheminee jamais dessinee, la
+                   travee en creneau, le trace qui se croise, les six entrees de
+                   dangers qui ne se rencontraient pas, les candidats d amer
+                   translates en bloc.
+                   RESTE CE QU AUCUN BANC NE MESURE : le test du nom masque, le
+                   cout de rendu par palier a `?perf`, et la lisibilite a 200
+                   corps. Protocoles ecrits dans `LISEZMOI.md`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4729,4 +4766,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.7";
+export const VERSION = "0.22.8";
