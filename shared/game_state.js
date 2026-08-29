@@ -49,7 +49,8 @@ import {
   EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE,
 } from "./timeline.js";
 import {
-  ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait, traitBit, trailMax,
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, adaptType, hasTrait, traitBit,
+  trailMax, masseDe, ecartDe,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 } from "./enemies.js";
 import {
@@ -66,7 +67,7 @@ import {
 export { CARD_CFG };
 export { NAV_CFG, construireNav, diffuser, verifierNavigation };
 export {
-  ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait, trailMax,
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, masseDe, adaptType, hasTrait, trailMax,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 };
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
@@ -3389,6 +3390,9 @@ export class GameState {
       navCible: 0,
       navAncre: -1,
       navX: 0, navY: 0,
+      masse: masseDe(elite ? t.r * CFG.ELITE_RADIUS_MUL : t.r),
+      ecart: ecartDe(t),
+      flanc: t.flanc ?? 0,
     };
     // le test de visibilite est ECHELONNE sur `LOS_PERIOD` images : une vague
     // qui apparait d'un bloc les ferait sinon tomber tous sur la meme.
@@ -4200,6 +4204,21 @@ export class GameState {
         }
       }
 
+      // 1 bis · L'INTENTION DU ROLE. Le flanc arque l'approche de loin et se
+      // resorbe de pres : le corps arrive par le cote puis COMMET, au lieu de
+      // tourner indefiniment autour. Le cote vient de l'identifiant, donc il ne
+      // change jamais — un cote retire a chaque image est une oscillation.
+      // Il ne s'applique QUE quand la ligne droite passe : sur un cap rendu par
+      // le champ, un biais lateral pousse dans la boite que le champ contourne.
+      if (e.flanc > 0 && e.navX === 0 && e.navY === 0 && d > ROLE_CFG.FLANC_NEAR) {
+        const k = e.flanc
+          * Math.min(1, (d - ROLE_CFG.FLANC_NEAR) / ROLE_CFG.FLANC_SPAN)
+          * ((e.id & 1) ? 1 : -1);
+        const fx = sx - sy * k, fy = sy + sx * k;
+        const fn = Math.hypot(fx, fy) || 1;
+        sx = fx / fn; sy = fy / fn;
+      }
+
       // 2 · COMMENT EVITER. TROIS ECHANTILLONS, PAS UN : le point unique a
       // `look` px sautait par-dessus toute cloison plus mince que lui, et la
       // plus mince du depot fait 32 px pour une portee de 58. Le corps ne
@@ -4301,7 +4320,11 @@ export class GameState {
     const list = this.enemies, n = list.length;
     let maxR = CFG.PLAYER_RADIUS;
     for (let i = 0; i < n; i++) if (list[i].r > maxR) maxR = list[i].r;
-    const cell = maxR * 2;
+    // LA CELLULE PROUVE LA COUVERTURE, et elle porte donc la plus grande
+    // DISTANCE D'INTERACTION, pas le plus grand rayon : l'ecart de poste
+    // s'applique au-dela de la somme des rayons, et une cellule dimensionnee
+    // sur les seuls rayons ne le verrait pas d'un bout a l'autre.
+    const cell = Math.max(maxR * 2, ROLE_CFG.POSTE_ECART);
     const cols = Math.max(1, Math.ceil(CFG.ARENA_W / cell));
     const rows = Math.max(1, Math.ceil(CFG.ARENA_H / cell));
     const cells = cols * rows;
@@ -4351,15 +4374,25 @@ export class GameState {
             const j = items[k];
             if (j <= i) continue;
             const b = list[j];
-            const min = a.r + b.r;
+            // DEUX POSTES DU MEME ROLE SE TIENNENT A DISTANCE : sans cela, tout
+            // ce qui vise le meme `standoff` autour de la meme cible finit sur
+            // le meme arc, et six tireurs partent d'un seul point.
+            const min = a.ecart > 0 && a.type === b.type
+              ? Math.max(a.r + b.r, a.ecart)
+              : a.r + b.r;
             const dx = b.x - a.x, dy = b.y - a.y;
             const d2 = dx * dx + dy * dy;
             if (d2 > 0.01 && d2 < min * min) {
               const d = Math.sqrt(d2);
               const push = (min - d) * CFG.ENEMY_SEPARATION;
               const ux = (dx / d) * push, uy = (dy / d) * push;
-              a.x -= ux; a.y -= uy;
-              b.x += ux; b.y += uy;
+              // LA POUSSEE SE REPARTIT A L'INVERSE DES MASSES, et la masse est
+              // la SURFACE du corps. A masses egales on retombe exactement sur
+              // le demi-demi d'avant : `2 x 0,5 = 1`.
+              const tot = a.masse + b.masse;
+              const ka = 2 * b.masse / tot, kb = 2 * a.masse / tot;
+              a.x -= ux * ka; a.y -= uy * ka;
+              b.x += ux * kb; b.y += uy * kb;
             }
           }
         }
@@ -8421,20 +8454,40 @@ const NAV_CAS = [
   { key: "deux boites proches", t: [2400, 1150], e: [2400, 1650], libre: 900,
     mur: [{ x: 2300, y: 1400, w: 300, h: 60 },
           { x: 2660, y: 1400, w: 300, h: 60 }] },
-  { key: "goulet", t: [2400, 1100], e: [2400, 1700], libre: 700,
-    mur: [{ x: 2050, y: 1400, w: 700, h: 60 },
-          { x: 2750, y: 1400, w: 700, h: 60 }] },
+  // UN PASSAGE DE 200 px, ET IL EN FAUT UN VRAI : deux boites qui se touchent
+  // au milieu ne sont pas un goulet, c'est un mur de 1 400, et la mesure disait
+  // « bloque » ce qui etait seulement LENT.
+  { key: "goulet", t: [2400, 1100], e: [2400, 1700], libre: 800,
+    mur: [{ x: 1900, y: 1400, w: 800, h: 60 },
+          { x: 2900, y: 1400, w: 800, h: 60 }] },
 ];
+
+// LA FENETRE SE DERIVE DU PLUS LENT DU ROSTER, jamais d'une constante : un
+// colosse a 44 px/s met deux fois plus de temps qu'un fantassin sur le meme
+// detour, et une fenetre taillee pour le fantassin compte le colosse comme
+// bloque alors qu'il marche encore.
+function vitesseLente() {
+  let v = Infinity;
+  for (const t of ENEMY_TYPES) if (t.speed < v) v = t.speed;
+  return v;
+}
+const fenetreDe = libre => Math.min(90, Math.max(30, (libre / vitesseLente()) * 2.2 + 8));
 
 /* Une passe : on plante `n` corps face a la cible et on regarde s'ils
    PROGRESSENT. Le spawner est mis en sommeil sur l'instance — on mesure une
    geometrie, pas un script. */
-export function mesureDeplacement(cas, { n = 1, joueurs = 1, secondes = 40,
+export function mesureDeplacement(cas, { n = 1, joueurs = 1, secondes = 0,
                                          diffIndex = DIFF_NORMAL,
                                          mobile = false, tue = false } = {}) {
+  if (secondes <= 0) secondes = fenetreDe(cas.libre);
   const g = new GameState(diffIndex, 0, 7);
   g._spawner = () => {};
   g.warmup = 0;
+  // L'HORLOGE EST AVANCEE POUR QUE LE ROSTER SOIT OUVERT : sans elle, `adaptType`
+  // replie tout sur le fantassin et les sept situations ne testent qu'un seul
+  // corps. On veut le colosse dans le goulet, c'est tout l'interet.
+  g.segment = 5;
+  g.hordeTime = 200;
   g._biomeObstacles = cas.mur.map(o => ({ ...o, maxHp: 0, hp: 0 }));
   g._biomeHazards = [];
   g._statG = null;
@@ -8490,7 +8543,7 @@ export function mesureDeplacement(cas, { n = 1, joueurs = 1, secondes = 40,
   let bloques = 0;
   for (const [, s] of suivi) if (s.dmin > Math.max(120, s.d0 * 0.5)) bloques++;
   return {
-    corps: suivi.size, bloques, tArrivee,
+    corps: suivi.size, bloques, tArrivee, secondes: Math.round(secondes),
     ms: msTotal / images,
     vivants: g.enemies.length,
   };
@@ -8506,9 +8559,10 @@ export function verifierDeplacement(effectifs = [1, 4], budgetMs = 16) {
       const ou = `${cas.key}/${n} corps`;
       if (r.bloques > 0) soucis.push(`${ou} : ${r.bloques}/${r.corps} n'ont jamais approche`);
       // LE TEMPS SE BORNE SUR LA LONGUEUR DU CHEMIN, jamais sur une constante :
-      // un mur de 1 400 px se contourne en 1 600 px de marche, pas en 500.
+      // un mur de 1 400 px se contourne en 1 600 px de marche, pas en 500. Le
+      // premier contact est celui du plus RAPIDE, donc il se juge sur sa vitesse.
       const plafond = (cas.libre / vitesse) * 2.5 + 3;
-      if (r.tArrivee === null) soucis.push(`${ou} : aucun contact en 40 s`);
+      if (r.tArrivee === null) soucis.push(`${ou} : aucun contact en ${r.secondes} s`);
       else if (r.tArrivee > plafond) {
         soucis.push(`${ou} : premier contact a ${r.tArrivee.toFixed(1)} s`
           + ` pour un plafond de ${plafond.toFixed(1)} s`);
@@ -8518,7 +8572,7 @@ export function verifierDeplacement(effectifs = [1, 4], budgetMs = 16) {
 
   const foule = NAV_CAS.find(c => c.key === "goulet");
   for (const n of [50, 100, 150, 200]) {
-    const r = mesureDeplacement(foule, { n, joueurs: 1, secondes: 25 });
+    const r = mesureDeplacement(foule, { n, joueurs: 1 });
     if (r.bloques > r.corps * 0.05) {
       soucis.push(`goulet/${n} corps : ${r.bloques} bloques (plafond 5 %)`);
     }
@@ -8530,7 +8584,7 @@ export function verifierDeplacement(effectifs = [1, 4], budgetMs = 16) {
     ["quatre cibles", { n: 60, joueurs: 4 }],
     ["cible qui meurt", { n: 60, joueurs: 2, tue: true }],
   ]) {
-    const r = mesureDeplacement(NAV_CAS[3], { secondes: 30, ...opts });
+    const r = mesureDeplacement(NAV_CAS[3], opts);
     if (r.bloques > r.corps * 0.05) {
       soucis.push(`poche en U / ${key} : ${r.bloques}/${r.corps} bloques`);
     }

@@ -65,6 +65,50 @@ mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/15
 200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
 la grille des quatre lieux. Muet au 0.21.0.
 
+### Les rôles dans le déplacement (0.21.1)
+
+Trois mécanismes, deux **déduits** et un déclaré. Comparaison à graine fixée —
+le tirage de vitesse de `_spawnEnemy` est un bruit de ±10 % qui, non graîné,
+comparait deux tirages plutôt que deux comportements.
+
+| mesure | sans | avec |
+|---|---|---|
+| 14 tireurs, voisin le plus proche | 39,4 px | **65,3 px** |
+| 14 tireurs, étalement angulaire | 0,785 | 0,846 |
+| 24 coureurs lâchés du même côté, étalement des relèvements | 0,043 | **0,102** |
+| 200 corps, coût du pas | 0,148 ms | 0,135 ms |
+
+`POSTE_ECART` vaut 64 et la distance mesurée tombe à 65,3 : le réglage se lit
+directement dans le résultat. Le flanc à 0,55 donne ±26° d'écart-type
+circulaire — les coureurs se séparent en deux arcs au lieu d'arriver en ligne.
+
+**La masse, mesurée pour ce qu'elle fait et non pour ce qu'on en attendait.**
+Horde mixte de 90 corps, cible immobile, distance moyenne après 18 s, six
+graines :
+
+| type | rayon | masse | sans | avec | écart |
+|---|---|---|---|---|---|
+| coureur | 9 | 0,56 | 27,9 px | 30,2 px | **+2,3** |
+| fantassin | 12 | 1,00 | 55,1 px | 52,5 px | −2,6 |
+| pondeuse | 16 | 1,78 | 85,4 px | 75,8 px | **−9,6** |
+| colosse | 21 | 3,06 | 113,0 px | 106,0 px | −7,0 |
+
+Monotone en masse et dans le sens voulu : le lourd avance, le léger cède.
+**Ce que la masse ne fait PAS** : elle ne change pas le débit d'un passage.
+90 corps devant un goulet de 200 px, 30 s — 90/90 franchissent dans les quatre
+configurations (avec ou sans colosses, avec ou sans masse). Les colosses ne
+bouchaient pas, ils étaient seulement **lents** ; c'est `speed: 44` qui produit
+la sensation, pas un blocage.
+
+**Ce que la première version du vérificateur cachait.** Son goulet était fait de
+deux boîtes qui se touchent — donc un mur de 1 400 px, pas un passage — et sa
+fenêtre était taillée pour le fantassin. Résultat : 11 colosses sur 20 comptés
+« bloqués » alors qu'ils marchaient encore (44 px/s pour 1 600 px de détour).
+La fenêtre se dérive désormais du **plus lent du roster** (`fenetreDe`), et
+`mesureDeplacement` avance l'horloge pour que le roster soit ouvert — sans quoi
+`adaptType` repliait les cinq types sur le fantassin et les sept situations ne
+testaient qu'un seul corps.
+
 ### Le critère de non-régression, rendu mesurable (0.19.6)
 
 Le plan 16 s'était donné un critère qui ne s'exécute pas : *« si on échange les

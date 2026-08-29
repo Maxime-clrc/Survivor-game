@@ -46,9 +46,46 @@ export const TRAIT_CFG = {
   AURA_REDUCTION: 0.35,
 };
 
+/* CE QU'UN ROLE FAIT DE SON CORPS. Trois reglages, et deux des trois se
+   DEDUISENT au lieu de se declarer — une colonne de plus dans le bestiaire est
+   une colonne de plus a tenir d'accord avec le reste.
+
+   LA MASSE EST LA SURFACE : `(r / MASSE_REF)^2`. Un colosse pese trois fois un
+   fantassin, un coureur la moitie, et une elite paie son rayon sans qu'aucune
+   ligne ne le dise. C'est ce qui fait qu'un tank TRAVERSE un paquet au lieu d'y
+   rester pris, et qu'un coureur s'ecarte au lieu de le bloquer.
+
+   L'ECART DE POSTE ne concerne que ce qui TIENT UNE DISTANCE (`shootCd` ou
+   `heal`) : sans lui, tout ce qui vise le meme `standoff` autour de la meme
+   cible finit sur le meme arc, et une salve de six part d'un seul point.
+   Il DIMENSIONNE LA CELLULE de `_grille()` — la preuve de couverture du
+   voisinage 3x3 porte sur la plus grande distance d'interaction, pas sur les
+   rayons.
+
+   LE FLANC est le seul champ qui reste declare : « arriver par le cote » est une
+   intention, elle ne se lit dans aucune statistique. */
+export const ROLE_CFG = {
+  MASSE_REF: 12,
+  MASSE_MIN: 0.4,
+  MASSE_MAX: 5,
+
+  POSTE_ECART: 64,
+
+  FLANC_NEAR: 150,
+  FLANC_SPAN: 350,
+};
+
+export function masseDe(r) {
+  const m = (r / ROLE_CFG.MASSE_REF) ** 2;
+  return Math.max(ROLE_CFG.MASSE_MIN, Math.min(ROLE_CFG.MASSE_MAX, m));
+}
+
+export const ecartDe = def => (def?.shootCd || def?.heal) ? ROLE_CFG.POSTE_ECART : 0;
+
 export const ENEMY_TYPES = [
   { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10, xp: 10 },
-  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.40, speed: 156, dmg: 7,  r: 9,  score: 14, xp: 6 },
+  { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.40, speed: 156, dmg: 7,  r: 9,  score: 14, xp: 6,
+    flanc: 0.55 },
   { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 44,  dmg: 30, r: 21, score: 30, xp: 32 },
   { key: "shooter", minMin: 7,   fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25, xp: 14,
     shootCd: 2.6, standoff: 170 },

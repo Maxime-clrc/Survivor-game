@@ -4120,6 +4120,45 @@
                    Cout mesure : +0,002 a +0,033 ms par pas a 200 corps, et la
                    horde ferme 1 a 8 % de distance en plus.
 
+     0.21.1 lot 2  NEUF TYPES PARTAGEAIENT UNE SEULE FACON DE BOUGER. Trois
+                   mecanismes, et DEUX DES TROIS SE DEDUISENT — une colonne de
+                   plus dans le bestiaire est une colonne de plus a tenir
+                   d accord avec le reste.
+                   LA MASSE EST LA SURFACE (`(r / 12)^2`, bornee) et elle
+                   repartit la poussee de separation a son inverse. A masses
+                   egales on retombe EXACTEMENT sur le demi-demi d avant
+                   (`2 x 0,5 = 1`), et une elite paie son rayon sans qu aucune
+                   ligne ne le dise. Mesure sur six graines : le coureur recule
+                   de 2,3 px, la pondeuse avance de 9,6, le colosse de 7,0 —
+                   monotone en masse.
+                   CE QU ELLE NE FAIT PAS, ET C EST MESURE : elle ne change pas
+                   le debit d un passage. 90 corps devant un goulet de 200 px,
+                   90/90 franchissent en 30 s dans les quatre configurations. Les
+                   colosses ne bouchaient pas, ils sont LENTS — 1 600 px de
+                   detour a 44 px/s. La difference va au registre d equilibrage,
+                   pas dans une constante changee au milieu d un lot.
+                   L ECART DE POSTE ne joue qu entre pairs du MEME type, et il
+                   DIMENSIONNE LA CELLULE de `_grille()` : la preuve de
+                   couverture du voisinage 3x3 porte sur la plus grande distance
+                   d interaction, pas sur les rayons. 14 tireurs autour d une
+                   cible : voisin le plus proche de 39,4 a 65,3 px, pour un
+                   reglage de 64 — il se lit directement dans le resultat.
+                   LE FLANC EST LE SEUL CHAMP QUI RESTE DECLARE : « arriver par
+                   le cote » est une intention, elle ne se lit dans aucune
+                   statistique. Il s arque de loin et se resorbe de pres, sinon
+                   le corps tourne sans jamais commettre ; son cote vient de
+                   l identifiant, donc il ne change jamais. Il ne s applique QUE
+                   quand la ligne droite passe — sur un cap rendu par le champ,
+                   un biais lateral pousse dans la boite que le champ contourne.
+                   ET LE VERIFICATEUR DU LOT 1 SE CORRIGE : son goulet etait fait
+                   de deux boites qui SE TOUCHENT, donc un mur de 1 400 px, et sa
+                   fenetre etait taillee pour le fantassin. Il comptait 11
+                   colosses sur 20 « bloques » alors qu ils marchaient encore. La
+                   fenetre se derive du plus lent du roster, et l horloge est
+                   avancee pour que le roster soit OUVERT — sans quoi `adaptType`
+                   repliait les cinq types sur le fantassin.
+                   Cout : nul (0,148 -> 0,135 ms a 200 corps).
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4128,4 +4167,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.0";
+export const VERSION = "0.21.1";

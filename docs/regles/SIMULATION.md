@@ -108,6 +108,24 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   pas comme code. Ne pas le réintroduire sans une mesure qui le demande.
 - **La grille se refait quand une couverture cède** (`_obstacleHit`), et
   seulement là : la géométrie de biome ne bouge pas autrement.
+- **LA MASSE EST LA SURFACE** (`masseDe(r)` = `(r / 12)²`, bornée) et elle
+  **répartit** la poussée de séparation à son inverse. À masses égales on
+  retombe exactement sur le demi-demi d'avant : `2 × 0,5 = 1`. Elle est
+  **déduite du rayon**, donc une élite la paie sans qu'aucune ligne ne le dise.
+  Elle ne change **pas** le débit d'un passage (mesuré : 90/90 dans les quatre
+  configurations) — elle change **qui est au premier rang**.
+- **L'ÉCART DE POSTE NE JOUE QU'ENTRE PAIRS DU MÊME TYPE** (`ecartDe(def)`, tout
+  ce qui a `shootCd` ou `heal`), et il **dimensionne la cellule de `_grille()`**
+  : la preuve de couverture du voisinage 3×3 porte sur la plus grande
+  **distance d'interaction**, pas sur les rayons. La toucher sans toucher la
+  cellule casse la preuve en silence.
+- **Le flanc est le seul champ de rôle qui reste déclaré** (`flanc` sur la ligne
+  du coureur) : « arriver par le côté » est une intention, elle ne se lit dans
+  aucune statistique. Il **s'arque de loin et se résorbe de près**
+  (`FLANC_NEAR` / `FLANC_SPAN`) — sinon le corps tourne sans jamais commettre —
+  et son côté vient de l'identifiant, donc il ne change jamais.
+- **Le flanc ne s'applique QUE quand la ligne droite passe** : sur un cap rendu
+  par le champ, un biais latéral pousse dans la boîte que le champ contourne.
 
 - **L'état de provocation est global** (`state.taunt = {id, until, x, y}`), lu par
   `_nearestPlayer()`.
