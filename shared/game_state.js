@@ -420,7 +420,7 @@ export const DIFFICULTIES = [
   {
     key: "normal", label: "normal",
     script: "normal",
-    roster: [0, 1, 2, 3, 4, 5, 6],
+    roster: [0, 1, 2, 3, 4, 5, 6, 9],
     traits: {
       grunt: DASH,
       runner: FRENZY,
@@ -443,7 +443,7 @@ export const DIFFICULTIES = [
   {
     key: "cauchemar", label: "cauchemar",
     script: "cauchemar",
-    roster: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    roster: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     traits: {
       grunt: DASH | TRAIL,
       runner: DASH | FRENZY,
@@ -673,6 +673,8 @@ export class GameState {
     this._navG = null;
     this._navChamps = new Map();
     this._navVise = { x: 0, y: 0 };
+    this._isoK = new Map();
+    this._egide = false;
     this._groundOut = { slow: 1, slip: false };
     this.mechStats = new Map();
     this.hazardTick = 0;
@@ -2789,6 +2791,16 @@ export class GameState {
       this._addXp(part * CFG.BOSS_XP_BASE * this._xpTimeMul());
     }
 
+    // L'EGIDE ABSORBE EN DERNIER, apres critique, vol de vie et credit d'XP :
+    // ce que le joueur a produit reste ce qu'il a produit, seule la CHAIR est
+    // epargnee. L'absorber en amont ferait mentir les chiffres de degats et
+    // le vol de vie a la fois.
+    if (target.shield > 0) {
+      const pris = Math.min(target.shield, amount);
+      target.shield -= pris;
+      amount -= pris;
+    }
+
     target.hp -= amount;
 
     if (target === this.boss) target.lastHitBy = ownerId;
@@ -3365,6 +3377,8 @@ export class GameState {
       ang: Math.atan2(CFG.ARENA_H / 2 - pos.y, CFG.ARENA_W / 2 - pos.x),
       shootCd: t.shootCd ? t.shootCd * (0.5 + Math.random()) : 0,
       aimT: 0,
+      shield: 0, shieldMax: 0, regen: 0, egide: 0,
+      poseX: 0, poseY: 0,
       aimAng: 0,
       standoff: t.standoff ?? 200,
       traits: traitsOf(this.diffIndex, ti),
@@ -4096,7 +4110,8 @@ export class GameState {
     for (const p of this.players.values()) {
       if (p.frostR > 0 && !p.downed) frost.push(p);
     }
-    this._auraPass();
+    this._isolementPass();
+    this._auraPass(dt);
     this.windup.length = 0;
     // LE BUDGET SE COMPTE AVANT D'ETRE DEPENSE. Il etait reporte de l'image
     // precedente, donc un corps qui ENTRAIT dans une vue en cours de preavis
@@ -4119,12 +4134,12 @@ export class GameState {
         if (e.hp <= 0) continue;
       }
 
-      const t = this._nearestPlayer(e.x, e.y);
+      const def = ENEMY_TYPES[e.type];
+      const t = this._nearestPlayer(e.x, e.y, def.isole);
       if (!t) continue;
       const wasX = e.x, wasY = e.y;
       const dx = t.x - e.x, dy = t.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
-      const def = ENEMY_TYPES[e.type];
       let mul = this.slow > 0 ? CFG.SLOW_MUL : 1;
       for (const p of frost) {
         const fr = p.frostR;
@@ -4315,9 +4330,43 @@ export class GameState {
         e.x += ux * e.speed * mul * approach * dt;
         e.y += uy * e.speed * mul * approach * dt;
         this._medic(e, def, dt);
+      } else if (def.poseCd) {
+        // MEME GRAMMAIRE QUE LE TIR, AUTRE VERBE. Le saboteur verrouille la
+        // PLACE au lieu de l'angle : ce qu'il annonce est « la ou tu es dans une
+        // demi-seconde ne sera plus a toi ». Un joueur qui bouge ne perd rien,
+        // un joueur qui campe perd sa position — c'est exactement la decision
+        // qu'aucun autre corps de la horde ne demande.
+        e.shootCd -= dt;
+        let vise = 0;
+        if (e.aimT > 0) {
+          e.aimT -= dt;
+          vise = 1;
+          this.windup.push(e);
+          if (e.aimT <= 0) {
+            e.shootCd = Math.max(0, def.poseCd - ATK_CFG.WARN);
+            this._groundZone(e.poseX, e.poseY, def.poseR, def.poseDot, def.poseLife);
+          }
+        } else if (e.shootCd <= 0 && d < def.poseRange) {
+          e.aimT = ATK_CFG.WARN;
+          e.poseX = t.x; e.poseY = t.y;
+          vise = 1;
+        }
+        const approach = (!relance && d <= e.standoff) ? -0.35 : 1;
+        const pas = e.speed * mul * (vise ? ATK_CFG.AIM_SLOW : 1) * approach * dt;
+        e.x += (approach > 0 ? sx : dx / d) * pas;
+        e.y += (approach > 0 ? sy : dy / d) * pas;
       } else {
-        e.x += sx * e.speed * mul * dt;
-        e.y += sy * e.speed * mul * dt;
+        // LE RETRAIT EST GENERAL, il n'appartient a aucun type. Le soigneur le
+        // posait deja sous le feu ; le harceleur le pose apres avoir touche.
+        // Un corps qui frappe et reste au contact n'a pas harcele, il a mordu.
+        if (e.fleeT > 0) {
+          e.fleeT -= dt;
+          e.x -= (dx / d) * e.speed * mul * dt;
+          e.y -= (dy / d) * e.speed * mul * dt;
+        } else {
+          e.x += sx * e.speed * mul * dt;
+          e.y += sy * e.speed * mul * dt;
+        }
       }
 
       if (hasTrait(e.traits, TRAIT_TRAIL)) {
@@ -4431,24 +4480,66 @@ export class GameState {
     }
   }
 
-  _auraPass() {
+  /* DEUX AURAS, UNE SEULE PASSE. La reduction du choeur et l'egide du
+     generateur ne se cumulent ni entre elles ni avec elles-memes : on garde la
+     MEILLEURE, jamais le produit — meme regle que partout ailleurs dans ce
+     depot.
+
+     L'EGIDE EST UNE RESERVE, PAS UN POURCENTAGE, et c'est ce qui la separe du
+     choeur a l'oeil comme a la decision : une reduction se subit, une reserve
+     se CASSE. Elle ne se recharge que sous le rayon, elle tombe a zero des
+     qu'on en sort — le joueur qui ecarte la horde de sa source la voit fondre
+     sans avoir tire dessus. */
+  _auraPass(dt) {
     const src = [];
+    const gard = [];
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       e.aura = 0;
+      e.shieldMax = 0;
       const def = ENEMY_TYPES[e.type];
       if (def.auraRadius) src.push({ e, r: def.auraRadius, k: def.auraReduction });
       else if (hasTrait(e.traits, TRAIT_AURA)) {
         src.push({ e, r: TRAIT_CFG.AURA_RADIUS, k: TRAIT_CFG.AURA_REDUCTION });
       }
+      if (def.egideRadius) gard.push({ e, r: def.egideRadius, s: def.egideShield, g: def.egideRegen });
     }
-    if (src.length === 0) return;
     for (const s of src) {
       const r2 = s.r * s.r;
       for (const e of this.enemies) {
         if (e.hp <= 0 || e.aura >= s.k) continue;
         if ((e.x - s.e.x) ** 2 + (e.y - s.e.y) ** 2 <= r2) e.aura = s.k;
       }
+    }
+    if (gard.length === 0) {
+      if (this._egide) {
+        for (const e of this.enemies) { e.shield = 0; e.egide = 0; }
+        this._egide = false;
+      }
+      return;
+    }
+    this._egide = true;
+    for (const s of gard) {
+      const r2 = s.r * s.r;
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        const pool = s.s * e.maxHp;
+        if (e.shieldMax >= pool) continue;
+        if ((e.x - s.e.x) ** 2 + (e.y - s.e.y) ** 2 <= r2) {
+          e.shieldMax = pool;
+          e.regen = s.g * e.maxHp;
+        }
+      }
+    }
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      if (e.shieldMax <= 0) { e.shield = 0; e.egide = 0; continue; }
+      // LA COQUE EST DONNEE, PAS CHARGEE. Un corps qui entre sous le rayon la
+      // recoit entiere : sinon la source ne protege que ce qui traine avec elle
+      // depuis trois secondes, et le renfort qui arrive au contact n'a rien.
+      // Une fois BRISEE, elle se recharge — c'est la que la regeneration joue.
+      if (!e.egide) { e.shield = e.shieldMax; e.egide = 1; }
+      else e.shield = Math.min(e.shieldMax, e.shield + e.regen * dt);
     }
   }
 
@@ -7447,7 +7538,6 @@ export class GameState {
 
     if (mech && p.hp >= p.maxHp - 0.5 && p.shield <= 0) {
       amount = Math.min(amount, p.hp - 1);
-      if (amount <= 0) return;
     }
 
     p.lastSrc = src;
@@ -7471,7 +7561,6 @@ export class GameState {
         p.relicBatteryUsed = 1;
         this._grantShield(p, p.mods.shieldPool * 0.5, p.mods.shieldPool);
       }
-      if (amount <= 0) return;
     }
 
     p.hp -= amount;
@@ -7723,7 +7812,11 @@ export class GameState {
       for (const e of this.enemies) {
         const rr = e.r + CFG.PLAYER_RADIUS;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
-          this._hurt(p, ENEMY_TYPES[e.type].dmg, { src: SRC_CONTACT });
+          const bdef = ENEMY_TYPES[e.type];
+          this._hurt(p, bdef.dmg, { src: SRC_CONTACT });
+          // le harceleur se retire APRES avoir touche : c'est la seule chose
+          // qui separe un harcelement d'une morsure.
+          if (bdef.recul) e.fleeT = bdef.recul;
           if (e.elite && e.statusAt <= this.time && p.dashT <= 0 && p.tauntInvuln <= 0) {
             const id = ELITE_STATUS[ENEMY_TYPES[e.type].key];
             if (id !== undefined) {
@@ -8083,7 +8176,30 @@ export class GameState {
     }
   }
 
-  _nearestPlayer(x, y) {
+  /* CE QUE VAUT UN JOUEUR COUVERT, releve UNE FOIS par image et non par corps.
+     Un joueur avec un allie a portee pese jusqu'a `ISOLE_COUVERT` fois sa
+     distance ; un joueur seul pese la sienne. Le harceleur choisit donc le plus
+     isole sans qu'aucun seuil n'existe — il n'y a pas d'instant ou l'on
+     « devient » isole, il y a un degre de couverture. */
+  _isolementPass() {
+    const table = this._isoK;
+    table.clear();
+    const vivants = this._alivePlayers();
+    if (vivants.length < 2) return;
+    const r2 = ATK_CFG.ISOLE_RAYON ** 2;
+    for (const p of vivants) {
+      let proche = Infinity;
+      for (const q of vivants) {
+        if (q === p) continue;
+        const d2 = (q.x - p.x) ** 2 + (q.y - p.y) ** 2;
+        if (d2 < proche) proche = d2;
+      }
+      const k = proche >= r2 ? 0 : 1 - Math.sqrt(proche) / ATK_CFG.ISOLE_RAYON;
+      table.set(p.id, 1 + (ATK_CFG.ISOLE_COUVERT - 1) * k);
+    }
+  }
+
+  _nearestPlayer(x, y, isole = 0) {
     if (this.taunt) {
       const r = SKILL_CFG.TANK_TAUNT_RADIUS;
       if ((x - this.taunt.x) ** 2 + (y - this.taunt.y) ** 2 <= r * r) {
@@ -8095,7 +8211,8 @@ export class GameState {
     let best = null, bestD = Infinity;
     for (const p of this.players.values()) {
       if (p.downed) continue;
-      const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+      let d = (p.x - x) ** 2 + (p.y - y) ** 2;
+      if (isole) d *= this._isoK.get(p.id) ?? 1;
       if (d < bestD) { bestD = d; best = p; }
     }
     if (!best) for (const p of this.players.values()) return p;
@@ -8196,7 +8313,7 @@ export class GameState {
       e: filtrer(this.enemies, e => e.r,
         e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
                        e.type + (e.elite ? 100 : 0),
-                       r2(e.ang), e.hitSeq, e.critSeq], 7)),
+                       r2(e.ang), e.hitSeq, e.critSeq, Math.round(e.shield)], 7)),
       b: filtrer(this.bullets, () => CFG.BULLET_RADIUS,
         b => b.missile ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_MISSILE]
           : b.scinde ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_PORTEUR]

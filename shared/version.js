@@ -4206,6 +4206,43 @@
                    sur ses CINQ appelants, dont la carte de terrain du joueur et
                    les noeuds du boss.
 
+     0.21.3 lot 4  TROIS ARCHETYPES, TROIS VERBES. Aucun n est un jeu de
+                   statistiques de plus : chacun repose au joueur une question
+                   que le roster ne posait pas.
+                   HARCELEUR — « es-tu couvert ? » Il choisit l ISOLE et se
+                   retire apres avoir touche. 59 % de ses cibles sont le joueur
+                   seul contre 46 % pour un fantassin, et il passe 6 % de son
+                   temps au contact contre 80 % pour un fantassin et 100 % pour
+                   un coureur. Son verbe n existe qu a plusieurs, et en solo il
+                   se comporte comme un coureur — assume, comme la posture du
+                   Soigneur.
+                   GENERATEUR — « qui d abord ? » Il ne blesse presque pas, il
+                   couvre la horde autour de lui. L ignorer coute +52 % de
+                   degats pour nettoyer le meme paquet ; le tuer d abord, +13 %.
+                   LE BOUCLIER PLAT NE MARCHAIT PAS, ET LA MESURE L A DIT : a 26
+                   points fixes l ecart n etait que de +12 %, parce qu une
+                   reserve constante vaut 38 % d un fantassin a la cinquieme
+                   minute et 9 % a la trentieme. En PART DES PV elle ne bouge
+                   plus avec la rampe. Elle est DONNEE entiere a l entree sous le
+                   rayon — une coque qui se charge en trois secondes ne protege
+                   que ce qui traine avec la source depuis trois secondes.
+                   SABOTEUR — « ou te tiens-tu ? » Meme grammaire que le tir,
+                   mais il verrouille la PLACE au lieu de l ANGLE : « la ou tu es
+                   dans une demi-seconde ne sera plus a toi ». Une cible qui
+                   campe encaisse 3 850, une cible qui se deplace 13.
+                   DEUX REGLES NEUVES, ET AUCUN `if (type === …)` : le RETRAIT
+                   (`fleeT`) devient general — le soigneur le posait sous le feu,
+                   le harceleur le pose apres avoir touche — et `_isolementPass`
+                   se releve UNE fois par image, pas par corps. L isolement est un
+                   POIDS et non un seuil : il n y a pas d instant ou l on devient
+                   isole.
+                   LE RELAIS PASSE AU LOT 5. C est une interaction ENTRE CORPS,
+                   donc sa place est dans le lot du groupe, pas dans celui des
+                   archetypes.
+                   Cout : 0,226 ms a 200 corps, 0,454 ms a 400, p99 sous la
+                   milliseconde. Les trois nouveaux pesent 14,5 % de la horde en
+                   cauchemar.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4214,4 +4251,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.2";
+export const VERSION = "0.21.3";

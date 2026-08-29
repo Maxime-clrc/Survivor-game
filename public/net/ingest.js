@@ -44,6 +44,7 @@ export function ingest(msg) {
       type: a[5] % 100, elite: a[5] % 200 >= 100, ang: a[6],
       hitSeq: a[7] ?? 0,
       critSeq: a[8] ?? 0,
+      shield: a[9] ?? 0,
     }])),
     bullets: new Map(msg.b.map(a => [a[0], {
       id: a[0], x: a[1], y: a[2], owner: a[3] ?? 0, sil: a[4] ?? 0,

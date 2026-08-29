@@ -118,7 +118,7 @@ export const MATIERE = [
 ];
 export const matiereDe = d =>
   d?.splits ? MAT_ORGANIQUE
-  : (d?.heal || d?.auraRadius) ? MAT_ENERGIE
+  : (d?.heal || d?.auraRadius || d?.egideRadius) ? MAT_ENERGIE
   : MAT_CARAPACE;
 
 /* CE QUI NE LEVE RIEN : un nom de recette faux rend `playSound` a `false` et

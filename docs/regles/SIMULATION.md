@@ -149,6 +149,32 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 - **Deux préavis, deux langages à l'écran** : le ramassement annonce un corps
   qui **vient sur vous** et garde l'écrasement ; la visée annonce un corps qui
   **reste où il est** et n'a que sa pose. Les deux percent la brume.
+- **UN ARCHÉTYPE EST UN VERBE, PAS UN JEU DE STATISTIQUES.** Chacun repose une
+  question au joueur : le harceleur « es-tu couvert ? », le générateur « qui
+  d'abord ? », le saboteur « où te tiens-tu ? ». Un type qui ne repose aucune
+  question neuve n'entre pas dans le bestiaire.
+- **`_isolementPass()` est relevé UNE fois par image**, pas par corps :
+  `_nearestPlayer(x, y, isole)` lit la table. Un joueur couvert pèse jusqu'à
+  `ISOLE_COUVERT` fois sa distance — c'est un **poids**, pas un seuil : il n'y a
+  pas d'instant où l'on « devient » isolé. **Le verbe du harceleur n'existe
+  qu'à plusieurs**, et en solo il se comporte comme un coureur ; c'est assumé,
+  comme la posture du Soigneur.
+- **Le retrait (`fleeT`) est GÉNÉRAL**, il n'appartient à aucun type : le
+  soigneur le pose sous le feu, le harceleur après avoir touché (`recul`, posé
+  dans `_collisions`). Un corps qui frappe et reste au contact n'a pas harcelé.
+- **L'ÉGIDE EST UNE RÉSERVE, PAS UN POURCENTAGE**, et c'est ce qui la sépare du
+  chœur à l'œil comme à la décision : une réduction se subit, une réserve se
+  **casse**. Elle vaut une **part des PV** (`egideShield`), jamais un nombre —
+  un bouclier plat vaudrait 38 % d'un fantassin à la cinquième minute et 9 % à
+  la trentième. Elle est **donnée entière** à l'entrée sous le rayon et se
+  recharge une fois brisée ; hors du rayon elle tombe à zéro.
+- **L'égide absorbe en DERNIER dans `_damage()`**, après critique, vol de vie et
+  crédit d'XP : ce que le joueur a produit reste ce qu'il a produit, seule la
+  chair est épargnée. Elle n'interrompt pas `hitSeq` — un coup encaissé par la
+  coque reste un coup à l'écran.
+- **Le saboteur verrouille la PLACE là où le tireur verrouille l'ANGLE.** Même
+  grammaire, autre verbe : il annonce « là où tu es dans une demi-seconde ne
+  sera plus à toi ».
 
 - **L'état de provocation est global** (`state.taunt = {id, until, x, y}`), lu par
   `_nearestPlayer()`.

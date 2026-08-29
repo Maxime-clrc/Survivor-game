@@ -65,6 +65,71 @@ mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/15
 200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
 la grille des quatre lieux. Muet au 0.21.0.
 
+### Trois archétypes, trois verbes (0.21.3)
+
+Chacun est mesuré sur **la décision qu'il change**, pas sur ses statistiques.
+Cauchemar, roster ouvert, quatre graines.
+
+**Harceleur — « es-tu couvert ? »** Trois joueurs : deux collés à 90 px, un
+seul à 1 100 px. Part des cibles choisies qui est le joueur isolé :
+
+| | part |
+|---|---|
+| fantassin | 46 % |
+| coureur | 46 % |
+| **harceleur** | **59 %** |
+
+Et il ne s'installe pas. Part du temps passée **au contact** d'une cible
+immobile :
+
+| | part |
+|---|---|
+| fantassin | 80 % |
+| coureur | 100 % |
+| **harceleur** | **6 %** |
+
+**Générateur — « qui d'abord ? »** Quatorze fantassins, cadence de tir
+constante, jamais un coup sur la source. Dégâts à fournir pour nettoyer :
+
+| | dégâts |
+|---|---|
+| sans générateur | 3 879 |
+| **avec, ignoré** | **5 893 (+52 %)** |
+| avec, tué en premier | ≈ 4 370 (+13 %) |
+
+Le gradient est le bon : la bonne décision est nettement meilleure, la mauvaise
+n'est pas punitive au point d'être injuste.
+
+**Le bouclier plat ne marchait pas, et la mesure l'a dit.** À 26 points fixes,
+l'écart n'était que de **+12 %** : une réserve constante vaut 38 % d'un
+fantassin à la cinquième minute et 9 % à la trentième — écrasante au début,
+invisible à la fin, c'est-à-dire l'inverse de ce qu'on demande à un ennemi
+tardif. En **part des PV** (0,34), elle ne bouge plus avec la rampe.
+
+**Saboteur — « où te tiens-tu ? »** Quatre saboteurs, 40 s, dégâts subis :
+
+| cible | dégâts |
+|---|---|
+| campe | 3 850 |
+| **se déplace** | **13** |
+
+**Coût.** Cauchemar, roster complet de douze types, cible mobile :
+
+| | corps | moyenne | p99 |
+|---|---|---|---|
+| 1 j | 200 | 0,226 ms | 0,96 |
+| 4 j | 200 | 0,236 ms | 0,87 |
+| 4 j | 400 | 0,454 ms | 0,85 |
+
+Les trois nouveaux pèsent **14,5 %** de la horde en cauchemar (10 harceleurs,
+12 générateurs, 7 saboteurs sur 200) : un garnissage, pas une prise de contrôle.
+
+**Un piège de banc d'essai, noté parce qu'il se reproduira.** Les deux premières
+mesures du générateur et du saboteur ont donné « aucun effet » : `_spawnEnemy`
+replie sur le fantassin tout type absent du roster de la difficulté, en silence.
+Les deux archétypes n'étant qu'en cauchemar, un banc réglé sur *normal* mesurait
+des fantassins. Un banc d'archétype doit vérifier `e.type` après l'apparition.
+
 ### La grammaire d'attaque de la horde (0.21.2)
 
 Trois attaques, un seul préavis de 0,5 s porté par le corps. Horde réelle,

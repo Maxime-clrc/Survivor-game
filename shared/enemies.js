@@ -45,6 +45,12 @@ export const ATK_CFG = {
   // tire pas en marchant. C'est ce qui rend le preavis lisible de loin.
   AIM_SLOW: 0.3,
   SHOOT_RANGE: 520,
+
+  // ce que vaut la proximite d'un allie pour le harceleur : un joueur couvert
+  // pese `ISOLE_COUVERT` fois sa distance, un joueur seul la sienne. C'est un
+  // poids, pas un seuil — il n'y a pas de moment ou l'on « devient » isole.
+  ISOLE_RAYON: 420,
+  ISOLE_COUVERT: 2.2,
 };
 
 export const TRAIT_CFG = {
@@ -132,6 +138,35 @@ export const ENEMY_TYPES = [
 
   { key: "choeur",   minMin: 23, fallback: 4, weight: 0.20, share: 0.08, hpMul: 1.6, speed: 70, dmg: 12, r: 15, score: 30, xp: 20,
     auraRadius: 130, auraReduction: 0.35 },
+
+  /* TROIS VERBES, PAS TROIS SILHOUETTES. Chacun repose la meme question au
+     joueur sous une forme neuve, et aucun ne se contente d'un autre jeu de
+     statistiques :
+
+     HARCELEUR   « es-tu couvert ? »   il choisit l'ISOLE et arrive par le cote,
+                 puis se retire apres avoir touche. Son verbe n'existe qu'a
+                 plusieurs — en solo il se comporte comme un coureur, et c'est
+                 assume : un harceleur seul n'a personne a separer du groupe.
+     GENERATEUR  « qui d'abord ? »     il ne blesse presque pas, il rend la horde
+                 autour de lui coriace. Le seul ennemi du roster qu'on tue pour
+                 ce qu'il empeche, pas pour ce qu'il fait.
+     SABOTEUR    « ou te tiens-tu ? »  il ne vient pas au contact, il retire du
+                 sol. La ou le kamikaze punit une mise a mort et la trainee suit
+                 un trajet, lui VISE la place que vous occupez. */
+  { key: "harceleur", minMin: 14, fallback: 1, weight: 0.26, share: 0.14, hpMul: 0.6, speed: 132, dmg: 12, r: 10, score: 22, xp: 12,
+    flanc: 0.95, isole: 1, recul: 1.6 },
+
+  /* L'EGIDE EST UNE PART DES PV, PAS UN NOMBRE. Un bouclier plat de 26 vaut
+     38 % d'un fantassin a la cinquieme minute et 9 % a la trentieme : il serait
+     ecrasant au debut et invisible a la fin, c'est-a-dire l'inverse de ce qu'on
+     demande a un ennemi tardif. La part, elle, ne bouge pas avec la rampe de PV.
+     `egideRegen` est la meme part PAR SECONDE : la coque revient en trois
+     secondes si on lache le corps, et c'est ce qui punit le tir disperse. */
+  { key: "generateur", minMin: 17, fallback: 4, weight: 0.18, share: 0.06, hpMul: 1.7, speed: 52, dmg: 8, r: 15, score: 34, xp: 24,
+    egideRadius: 150, egideShield: 0.34, egideRegen: 0.11 },
+
+  { key: "saboteur",  minMin: 20, fallback: 3, weight: 0.22, share: 0.10, hpMul: 1.1, speed: 66, dmg: 10, r: 13, score: 28, xp: 18,
+    standoff: 300, poseCd: 4.2, poseRange: 380, poseR: 60, poseDot: 22, poseLife: 4 },
 ];
 
 export function trailMax(aireVue) {

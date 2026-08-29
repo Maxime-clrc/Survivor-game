@@ -521,6 +521,109 @@ function choeurAccents(call) {
   };
 }
 
+/* TROIS SILHOUETTES QUI DISENT LEUR VERBE. La regle de la charte est qu'un
+   corps se reconnaisse SANS SA COULEUR — a neuf types la palette est deja
+   serree, donc c'est la forme qui porte. Chacune tient sur un contraste que
+   personne d'autre n'a :
+
+     HARCELEUR   deux LAMES en avant, corps efface — le seul du roster dont la
+                 masse est devant et non au centre.
+     GENERATEUR  un ANNEAU ouvert autour d'un noyau, rien qui pointe : le seul
+                 corps sans avant.
+     SABOTEUR    un chassis BAS sur trepied, avec un bras qui plonge vers le
+                 sol — le seul qui regarde en bas. */
+function harceleurPath(k) {
+  const ouvre = k.ouvre ?? 0;
+  return g => {
+    g.moveTo(6, 0);
+    g.lineTo(-3, -7);
+    g.lineTo(-11, -4);
+    g.lineTo(-8, 0);
+    g.lineTo(-11, 4);
+    g.lineTo(-3, 7);
+    g.closePath();
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[2, 3 + ouvre * 2], [17, 9 + ouvre * 7],
+                      [19, 6 + ouvre * 6], [4, 1 + ouvre]]);
+    }
+  };
+}
+
+function harceleurAccents(ouvre) {
+  return (g, R) => {
+    g.fillStyle = R.lumiere;
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(4, s * (2 + ouvre));
+      g.lineTo(18, s * (7.5 + ouvre * 6));
+      g.lineTo(15, s * (4 + ouvre * 4));
+      g.closePath(); g.fill();
+    }
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(-2, 0, 2.2, 0, 7); g.fill();
+  };
+}
+
+function generateurPath(k) {
+  const pouls = k.pouls ?? 0;
+  return g => {
+    const noyau = 7.5 + pouls * 1.2;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.5;
+      const px = Math.cos(a) * noyau, py = Math.sin(a) * noyau;
+      i === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+    g.closePath();
+    // l'anneau est OUVERT en bas : ferme il se lit comme une roue.
+    const arcs = 7;
+    for (let i = 0; i < arcs; i++) {
+      const a0 = -2.5 + (i / arcs) * 5.0;
+      const a1 = a0 + 0.42;
+      const ri = 13 + pouls * 2, ro = 16.5 + pouls * 2.6;
+      g.moveTo(Math.cos(a0) * ri, Math.sin(a0) * ri);
+      g.lineTo(Math.cos(a0) * ro, Math.sin(a0) * ro);
+      g.lineTo(Math.cos(a1) * ro, Math.sin(a1) * ro);
+      g.lineTo(Math.cos(a1) * ri, Math.sin(a1) * ri);
+      g.closePath();
+    }
+  };
+}
+
+function generateurAccents(pouls) {
+  return (g, R) => {
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.arc(0, 0, 4 + pouls, 0, 7); g.fill();
+    g.strokeStyle = R.accent;
+    g.lineWidth = 1.4;
+    g.beginPath(); g.arc(0, 0, 11 + pouls * 1.6, -2.4, 2.4); g.stroke();
+  };
+}
+
+function saboteurPath(k) {
+  const bras = k.bras ?? 0;
+  return g => {
+    mirrored(g, 1, [[-11, -6], [10, -8], [13, -2], [11, 5], [-9, 6]]);
+    // trepied : deux pattes arriere, une jambe avant qui plonge
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[-8, 5], [-12, 13], [-7, 13], [-4, 6]]);
+    }
+    g.moveTo(8, 4);
+    g.lineTo(13 + bras * 4, 12 + bras * 5);
+    g.lineTo(9 + bras * 4, 13 + bras * 5);
+    g.lineTo(5, 5);
+    g.closePath();
+  };
+}
+
+function saboteurAccents(bras) {
+  return (g, R) => {
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(11 + bras * 4, 12 + bras * 5, 2.6 + bras, 0, 7); g.fill();
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.ellipse(2, -2, 6, 3, 0, 0, 7); g.fill();
+  };
+}
+
 const NEUTRAL = ramp("#dfe5f0");
 
 function tankClassPath(k) {
@@ -636,6 +739,12 @@ function plan(raster) {
       shapes: [{ lean: 0 }, { lean: 0.5 }, { lean: -0.3 }, { lean: 1.2 }] },
     { path: choeurPath,  accents: k => choeurAccents(k.call ?? 0), edge: 2, floats: false,
       shapes: [{ call: 0 }, { call: 0.25 }, { call: -0.2 }, { call: 1 }] },
+    { path: harceleurPath, accents: k => harceleurAccents(k.ouvre ?? 0), edge: 2, floats: false,
+      shapes: [{ ouvre: 0 }, { ouvre: 0.3 }, { ouvre: -0.15 }, { ouvre: 1 }] },
+    { path: generateurPath, accents: k => generateurAccents(k.pouls ?? 0), edge: 2.4, floats: true,
+      shapes: [{ pouls: 0 }, { pouls: 0.3 }, { pouls: -0.2 }, { pouls: 1 }] },
+    { path: saboteurPath, accents: k => saboteurAccents(k.bras ?? 0), edge: 2, floats: false,
+      shapes: [{ bras: 0 }, { bras: 0.25 }, { bras: -0.15 }, { bras: 1 }] },
   ];
 
   enemies.forEach((def, t) => {
