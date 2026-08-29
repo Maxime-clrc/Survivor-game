@@ -429,9 +429,10 @@ export const DIFFICULTIES = [
       shooter: VOLLEY,
       brood: SPORE,
       kamikaze: FRENZY,
+      harceleur: FRENZY,
     },
     resume: [
-      "kamikaze et porte-bouclier en plus : il faut choisir sa cible et son angle",
+      "kamikaze, porte-bouclier et harceleur : il faut choisir sa cible et son angle",
       "les grunts chargent, les tireurs envoient des salves de trois",
       "pinces et quatre fronts sur les crescendos — le sol ne blesse pas",
     ],
@@ -454,13 +455,33 @@ export const DIFFICULTIES = [
       kamikaze: FRENZY | TRAIL,
       bulwark: AURA,
       medic: FRENZY,
+      // LES QUATRE ARCHETYPES N'AVAIENT AUCUN TRAIT, DANS AUCUN MODE : ils
+      // etaient entres au lot 4 et au lot 5 en portant leur seul verbe, donc
+      // cauchemar ne les durcissait pas du tout. C'est la place que le residu
+      // chiffre occupait a leur place.
+      harceleur: DASH | FRENZY,
+      generateur: AURA,
+      saboteur: TRAIL,
+      relais: FRENZY,
     },
     resume: [
-      "les neuf types, soigneurs et choeurs compris — un paquet couvert est un mur",
-      "les grunts chargent ET brûlent le sol derrière eux, les broods sporulent",
+      "les treize types : soigneurs, chœurs, générateurs et relais compris",
+      "un paquet couvert est un mur, et deux relais tendent un arc entre eux",
       "plusieurs directions en permanence : le sol se referme derrière eux",
     ],
-    hp: 1.35, spawn: 1.28, dmg: 1.25, boss: 1.25, speed: 1.12,
+    /* `hp` A ETE COUPE DE 1,35 A 1,10, ET LA MESURE A DIT POURQUOI : a la
+       population plafond, des PV en plus ne retiennent PERSONNE — ils
+       n'epaississent que les corps. Passer de 1,35 a 1,10 laisse la pression a
+       quatre joueurs a 1 447 degats/min contre 1 477 (moins de 2 % d'ecart),
+       tout en rendant 22 % de debit de mise a mort et 17 % de PV moyen. Ce
+       residu-la ne portait pas la difficulte, il portait l'eponge que la
+       consigne du plan refuse.
+       CE QUI PORTE VRAIMENT CAUCHEMAR : treize types contre huit et cinq, et
+       douze attachements de trait contre six et zero. `spawn` est INERTE au
+       plafond (1,28 -> 1,45 : aucun effet mesurable) et ne compte qu'avant la
+       saturation ; `dmg` reste le seul levier chiffre qui deplace la pression,
+       et on n'y touche pas. */
+    hp: 1.10, spawn: 1.28, dmg: 1.25, boss: 1.25, speed: 1.12,
     /* CAUCHEMAR SE DURCIT PAR CE QUE COUTE UNE CONSIGNE RATEE : `mechRatio` EST
        l'ecart entre lire les annonces et les ignorer, la seule mesure qui juge
        une mecanique de boss (mesure : +7 % de PV perdus par un bot qui ignore

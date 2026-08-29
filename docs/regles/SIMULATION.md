@@ -188,6 +188,19 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 - **La cohésion est ce qui fait tenir un arc**, et elle ne s'applique qu'au-delà
   de la moitié de la portée : de près les deux corps sont libres, et c'est ce
   qui garde l'arc mobile.
+- **CE QUI SÉPARE LES MODES EST LE ROSTER ET LES TRAITS, pas le résidu.**
+  Cinq / huit / treize types, zéro / six / douze attachements de trait. Le calme
+  s'arrête aux cinq d'origine et n'attache rien ; le normal s'arrête **avant**
+  le soutien et le déni de sol (ni soigneur, ni chœur, ni générateur, ni
+  saboteur, ni relais) ; le cauchemar les a tous.
+- **`hp` EN CAUCHEMAR NE PORTAIT AUCUNE DIFFICULTÉ, seulement de l'éponge.** À
+  la population plafond, des PV en plus ne retiennent personne : 1,35 → 1,10
+  laisse la pression à quatre joueurs à moins de 2 % d'écart, rend 22 % de débit
+  de mise à mort et retire 17 % de PV moyen. Un résidu qui ne change que
+  l'épaisseur des corps est exactement ce que le plan refuse.
+- **`spawn` est INERTE au plafond** (1,28 → 1,45 : aucun effet mesurable) : il
+  ne compte qu'**avant** la saturation. **`dmg` est le seul levier chiffré qui
+  déplace la pression**, et il reste donc le dernier à toucher.
 - **UNE ÉLITE EST UNE VARIANTE DE COMPORTEMENT**, écrite **sur la ligne de son
   type** (`elite: { … }`). Elle ne surcharge que du comportement : les
   statistiques d'apparition et l'économie sont **interdites**

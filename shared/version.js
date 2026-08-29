@@ -4322,6 +4322,36 @@
                    temps, donc allonger son retrait ne change presque rien. Note
                    au registre plutot que chiffre invente.
 
+     0.21.6 lot 7  LE RESIDU DE CAUCHEMAR NE PORTAIT PAS LA DIFFICULTE. Un
+                   pilote IDENTIQUE partout, sur un beat sans evenement, en fait
+                   varier un multiplicateur a la fois — et deux resultats sur
+                   trois sont contre-intuitifs.
+                   `hp` NE RETIENT PERSONNE. A la population plafond, des PV en
+                   plus n epaississent que les corps : 1,35 -> 1,10 laisse la
+                   pression a quatre joueurs a MOINS DE 2 % d ecart (1 447 contre
+                   1 477 degats/min) tout en rendant +22 % de debit de mise a
+                   mort et -17 % de PV moyen. C est le « sac a PV » que la
+                   consigne refuse, mesure. Il passe donc a 1,10.
+                   `spawn` EST INERTE AU PLAFOND : 1,28 -> 1,45 ne produit aucun
+                   effet, la horde etant deja saturee. Il ne compte qu avant la
+                   saturation.
+                   `dmg` EST LE SEUL LEVIER CHIFFRE qui deplace la pression, a
+                   peu pres lineairement, et c est pour cela qu on n y touche pas.
+                   CE QUI PORTE VRAIMENT LES MODES : cinq / huit / treize types,
+                   et zero / six / douze attachements de trait. Le calme s arrete
+                   aux cinq d origine, le normal AVANT le soutien et le deni de
+                   sol, le cauchemar prend tout. Les quatre archetypes des lots 4
+                   et 5 n avaient AUCUN trait dans AUCUN mode — cauchemar ne les
+                   durcissait pas du tout. Ils en ont quatre desormais, pour +3 %
+                   de pression : peu, et c est le point — cauchemar etait DEJA
+                   porte par sa composition, et le 1,35 etait du poids mort.
+                   UN EFFET NON DESIRE, SIGNALE PLUTOT QU ENTERRE : a quatre
+                   joueurs l ecart est conserve, mais EN SOLO la pression monte de
+                   23 a 38 % selon les graines — une horde qui meurt plus vite se
+                   renouvelle plus vite. Trois graines ne suffisent pas a regler
+                   ca et aucun ajustement n a ete valide aux DEUX effectifs : au
+                   registre, pas dans un chiffre invente.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4330,4 +4360,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.5";
+export const VERSION = "0.21.6";

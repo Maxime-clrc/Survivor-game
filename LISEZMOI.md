@@ -65,6 +65,59 @@ mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/15
 200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
 la grille des quatre lieux. Muet au 0.21.0.
 
+### La difficulté par la composition (0.21.6)
+
+Un pilote **identique** partout — même cadence, même trajectoire, même politique
+de cible — sur un beat sans événement. Ce qui change est le mode, et rien
+d'autre. Quatre minutes, trois graines.
+
+**Ce que le résidu de cauchemar portait vraiment.** On fait varier un
+multiplicateur à la fois :
+
+| résidu | dég/min 1 j | dég/min 4 j | tués/min 4 j | PV moyen |
+|---|---|---|---|---|
+| 1,35 / 1,28 / 1,25 (référence) | 1 362 | **1 477** | 49 | 403 |
+| **hp 1,10** | 1 671 | **1 447** | 60 | 333 |
+| hp 1,00 | 1 584 | 1 534 | 62 | 332 |
+| dmg 1,10 | 1 193 | 1 305 | 49 | 403 |
+| spawn 1,45 | 1 284 | 1 490 | 48 | 411 |
+
+Trois faits, et deux sont contre-intuitifs :
+
+- **`hp` ne retient personne.** À la population plafond, des PV en plus
+  n'épaississent que les corps : 1,35 → 1,10 laisse la pression à quatre
+  joueurs à **moins de 2 %** d'écart, tout en rendant **+22 %** de débit de mise
+  à mort et **−17 %** de PV moyen. C'est le « sac à PV » que la consigne refuse,
+  mesuré.
+- **`spawn` est inerte au plafond.** 1,28 → 1,45 ne change rien : la horde est
+  déjà saturée. Il ne compte qu'avant la saturation.
+- **`dmg` est le seul levier chiffré qui déplace la pression**, à peu près
+  linéairement (−12 % pour 1,25 → 1,10). C'est donc le dernier à toucher.
+
+**Décision : `hp` de cauchemar passe de 1,35 à 1,10.** Le reste ne bouge pas.
+
+**Ce que la composition porte, elle.** Le gradient est désormais explicite :
+
+| mode | types | attachements de trait | dég/min 4 j | PV moyen |
+|---|---|---|---|---|
+| calme | 5 | 0 | 777 | 278 |
+| normal | 8 | 6 | 1 037 | 343 |
+| cauchemar | 13 | 12 | **1 475** | 332 |
+
+Les quatre archétypes des lots 4 et 5 n'avaient **aucun trait, dans aucun
+mode** : cauchemar ne les durcissait pas du tout. Ils en ont quatre désormais
+(harceleur `DASH|FRENZY`, générateur `AURA`, saboteur `TRAIL`, relais
+`FRENZY`), et le harceleur en a un en normal. Effet mesuré : **+3 %** de
+pression — peu, mais c'est précisément le point : **cauchemar était déjà porté
+par sa composition, et le 1,35 était du poids mort.**
+
+**Un effet non désiré, signalé plutôt qu'enterré.** À quatre joueurs l'écart est
+conservé (1 475 contre 1 477) ; **en solo la pression monte de 23 à 38 %**
+selon les graines. Une horde qui meurt plus vite se renouvelle plus vite, et un
+joueur seul en voit davantage arriver. La mesure solo est bruitée à trois
+graines et je n'ai pas de réglage validé aux deux effectifs — c'est au registre
+(E18), pas dans un chiffre inventé.
+
 ### Les élites, et un bug de treize mois (0.21.5)
 
 **Le porte-bouclier absorbait de toutes les directions.** Le serveur comparait

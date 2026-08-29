@@ -1354,12 +1354,12 @@ export const EN = {
   "diff.calme.resume.1": "no special behaviour: they walk in and they hit",
   "diff.calme.resume.2": "the horde comes from one side only — the ground never does anything",
   "diff.normal.label": "normal",
-  "diff.normal.resume.0": "kamikazes and shield bearers on top: you must pick your target and your angle",
+  "diff.normal.resume.0": "kamikazes, shield bearers and harriers: you must pick your target and your angle",
   "diff.normal.resume.1": "grunts charge, shooters fire volleys of three",
   "diff.normal.resume.2": "pincers and four fronts on the crescendos — the ground does not hurt",
   "diff.cauchemar.label": "nightmare",
-  "diff.cauchemar.resume.0": "all nine types, healers and choirs included — a covered pack is a wall",
-  "diff.cauchemar.resume.1": "grunts charge AND burn the ground behind them, broods release spores",
+  "diff.cauchemar.resume.0": "all thirteen types: healers, choirs, generators and relays included",
+  "diff.cauchemar.resume.1": "a covered pack is a wall, and two relays string an arc between them",
   "diff.cauchemar.resume.2": "several directions at all times: the ground closes behind them",
 
   /* --- provenance d'un degat ------------------------------------------------ */
