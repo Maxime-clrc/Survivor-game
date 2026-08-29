@@ -4835,6 +4835,35 @@
                    `actors.js` etait inatteignable — celui qui le precede fait
                    `continue` sur la meme condition.
 
+     0.23.3 lot 4  TROIS RESSOURCES D ARME SUR QUATRE ETAIENT MUETTES. `armeRes`
+                   circule depuis longtemps (index 36 du tuple joueur) et le
+                   client le DESSINE quatre fois — nappe de chaleur, ligne de
+                   charge, anneau de rampe, crans de chargeur. Seule la chaleur
+                   avait une voix.
+                   `routerFaisceau` devient `routerArme`, point de passage unique
+                   et LOCAL : ce qu on entend est SA propre arme. Quatre joueurs
+                   sur quatre railguns ne font pas quatre bourdonnements, et
+                   aucune de ces voix ne dispute sa place a celles de la horde.
+                   LA CHARGE DU RAIL est la meme horloge que la ligne de tir qui
+                   se remplit : l oeil et l oreille lisent `armeRes`, donc ils ne
+                   peuvent pas se contredire. Une seule voix, hors du limiteur,
+                   gain en CARRE — le debut d une charge ne doit pas s entendre,
+                   sa fin doit se sentir venir — et coupee a 0,98 : la fin de la
+                   montee appartient au claquement du depart.
+                   LE CHARGEUR SE COMPTE A L OREILLE, et le SENS DU PAS suffit a
+                   le lire : `armeRes` descend par crans tant qu il reste des
+                   obus, et monte en continu pendant la recharge. `dernierCoup`
+                   previent, `recharge` ouvre la fenetre de 1,8 s ou l arme ne
+                   rend rien, `rechargeFin` la ferme — et seule la derniere
+                   RESOUT, parce que c est la seule des trois qui soit une bonne
+                   nouvelle. Aucun champ ne s ouvre, aucun front ne vient du
+                   serveur.
+                   LA RAMPE S ENTEND SANS COUTER UNE VOIX : l assaut sonnait
+                   pareil au premier coup et au trentieme, alors que tout ce qu
+                   il enseigne est « reste ». La MEME voix de depart monte d un
+                   demi-ton et s appuie avec `armeRes`, et elle redescend
+                   progressivement quand le joueur bouge — comme la rampe.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4843,4 +4872,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.23.2";
+export const VERSION = "0.23.3";

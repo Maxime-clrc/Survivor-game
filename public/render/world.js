@@ -1,5 +1,5 @@
 
-import { audioStats, setFaisceauChaleur, startFaisceau, stopFaisceau } from "/audio.js";
+import { audioStats, playSound, setCharge, setFaisceauChaleur, startCharge, startFaisceau, stopCharge, stopFaisceau } from "/audio.js";
 import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
 import { ARMES } from "/shared/armes.js";
@@ -60,6 +60,8 @@ export function resetFeedback() {
   setBossCue(null);
   resetGaze();
   stopFaisceau(); faisceauOn = false;
+  stopCharge(); chargeOn = false;
+  armeResVu = -1; rechargeOn = false;
 }
 const slipV = { x: 0, y: 0 };
 let lastFrame = performance.now();
@@ -89,7 +91,7 @@ function frameBody(now) {
 
   const enJeu = phase === PHASE_ROUND;
   arenaEl.style.visibility = enJeu ? "" : "hidden";
-  routerFaisceau(enJeu);
+  routerArme(enJeu);
 
   if (connected && latest && enJeu) {
     // le hitstop est un RETARD supplementaire de l'horloge de rendu : la
@@ -115,21 +117,63 @@ function frameBody(now) {
     gl?.end();
   }
 }
-/* Le tir est automatique : tant que la nappe est a l'ecran, l'arme tire. La
-   meme condition porte donc l'image et le son, et il n'y a rien de plus a faire
-   circuler. */
-let faisceauOn = false;
-function routerFaisceau(enJeu) {
+/* LES RESSOURCES D'ARME PARLENT, ET ELLES NE PARLENT QU'A LEUR PORTEUR.
+   `armeRes` circule depuis longtemps (index 36 du tuple joueur) et le client le
+   DESSINE deja quatre fois — nappe de chaleur, ligne de charge, anneau de rampe,
+   crans de chargeur. Trois de ces quatre lectures etaient MUETTES.
+
+   Un seul point de passage, et il est LOCAL : ce qu'on entend est SA propre
+   arme. Quatre joueurs sur quatre railguns ne font pas quatre bourdonnements de
+   charge, et aucune de ces voix ne dispute sa place a celles de la horde.
+   Le tir est automatique : tant que la nappe est a l'ecran, l'arme tire — la
+   meme condition porte donc l'image et le son, et rien de plus ne circule. */
+let faisceauOn = false, chargeOn = false;
+let armeResVu = -1, rechargeOn = false;
+function routerArme(enJeu) {
   const me = enJeu && connected ? latest?.players?.get(myId) : null;
   const a = me ? ARMES[me.arme] : null;
-  const on = !!a?.chaleur && !me.downed && me.armeRes < 1;
-  if (on) {
+  const vivant = !!me && !me.downed;
+
+  if (vivant && a?.chaleur && me.armeRes < 1) {
     if (!faisceauOn) { startFaisceau(); faisceauOn = true; }
     setFaisceauChaleur(me.armeRes);
   } else if (faisceauOn) {
     // la saturation coupe NET, tout le reste s'eteint
     stopFaisceau(!!a?.chaleur && me?.armeRes >= 1);
     faisceauOn = false;
+  }
+
+  /* LA CHARGE EST LA MEME HORLOGE QUE LA LIGNE DE TIR QUI SE REMPLIT : l'oeil et
+     l'oreille lisent `armeRes`, donc ils ne peuvent pas se contredire. Elle
+     s'arrete a 0,98 — la fin de la montee appartient au claquement du depart. */
+  if (vivant && a?.charge && me.armeRes < 0.98) {
+    if (!chargeOn) { startCharge(); chargeOn = true; }
+    setCharge(me.armeRes);
+  } else if (chargeOn) {
+    stopCharge();
+    chargeOn = false;
+  }
+
+  /* LE CHARGEUR SE COMPTE A L'OREILLE, et le SENS DU PAS suffit a le lire :
+     `armeRes` descend par crans tant qu'il reste des obus, et monte en continu
+     pendant la recharge. Aucun champ ne s'ouvre, aucun front ne vient du
+     serveur — la fenetre de 1,8 s ou l'arme ne rend rien s'annonce et se ferme. */
+  if (vivant && a?.chargeur) {
+    const r = me.armeRes;
+    if (armeResVu >= 0) {
+      const dernier = 1 / a.chargeur;
+      if (r > armeResVu + 0.001) {
+        if (!rechargeOn) { rechargeOn = true; playSound("recharge"); }
+      } else if (r < armeResVu - 0.001
+                 && r > 0 && r <= dernier + 0.001 && armeResVu > dernier + 0.001) {
+        playSound("dernierCoup");
+      }
+      if (rechargeOn && r >= 0.999) { rechargeOn = false; playSound("rechargeFin"); }
+    }
+    armeResVu = r;
+  } else {
+    armeResVu = -1;
+    rechargeOn = false;
   }
 }
 

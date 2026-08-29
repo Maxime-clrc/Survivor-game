@@ -326,9 +326,18 @@ function tirVoix(e) {
   if (!f.son) return;
   const w = poids(a);
   const n = Math.max(1, e.n ?? 1);
+  /* LA RAMPE S'ENTEND, ET ELLE NE COUTE PAS UNE VOIX. Elle se lisait dans
+     l'anneau et dans l'ecartement des balles, jamais dans la matiere du tir :
+     l'arme sonnait pareil au premier coup et au trentieme, alors que tout ce
+     qu'elle enseigne est « reste ». `armeRes` est deja sur le joueur, la meme
+     voix monte d'un demi-ton et s'appuie — et elle REDESCEND progressivement
+     quand le joueur bouge, exactement comme la rampe. */
+  const rampe = a?.rampe ? (p.armeRes ?? 0) : 0;
   playSound(f.son, {
-    pitch: Math.pow(w, -0.35) * (1 + (Math.random() - 0.5) * f.jitter),
-    gain: Math.min(1.3, (0.7 + 0.3 * (w / POIDS_MAX)) * (1 + 0.12 * (n - 1)))
+    pitch: Math.pow(w, -0.35) * (1 + 0.12 * rampe)
+      * (1 + (Math.random() - 0.5) * f.jitter),
+    gain: Math.min(1.3, (0.7 + 0.3 * (w / POIDS_MAX)) * (1 + 0.12 * (n - 1))
+                        * (1 + 0.22 * rampe))
       * (e.owner === myId ? 1 : TIR_ALLIE),
     // la queue d'un echantillon ne doit pas depasser la cadence qui l'appelle
     dur: a?.interval > 0 ? a.interval * 0.9 : 0,

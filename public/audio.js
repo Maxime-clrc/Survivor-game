@@ -11,6 +11,7 @@ export const AUDIO_CFG = {
 };
 
 const FAISCEAU_HZ = 88;
+const RAIL_HZ = 160;
 
 export const SOUND_GAIN = {
   alerte: 1.0,
@@ -214,6 +215,52 @@ export function stopFaisceau(net = false) {
   g.gain.setValueAtTime(Math.max(0.0002, g.gain.value), t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + d);
   osc.stop(t + d + 0.02);
+}
+
+/* LA CHARGE DU RAIL. Meme forme que le faisceau — une SEULE voix, hors du
+   limiteur, qui ne prend la place de rien — et le sens inverse : le faisceau dit
+   une ressource qui se remplit CONTRE le joueur, la charge une horloge qui
+   travaille POUR lui. Elle monte donc, et le gain suit le CARRE : le debut d'une
+   charge ne doit pas s'entendre, sa fin doit se sentir venir.
+
+   Elle s'arrete avant le depart (`routerArme`) : la fin de la montee appartient
+   au claquement, et un bourdonnement qui deborde dessus les brouille. */
+let rail = null;
+export function startCharge() {
+  if (!ac || rail || muted || volume <= 0) return;
+  const t0 = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(RAIL_HZ, t0);
+  const f = ac.createBiquadFilter();
+  f.type = "bandpass";
+  f.Q.value = 6;
+  f.frequency.setValueAtTime(RAIL_HZ * 2, t0);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  osc.connect(f); f.connect(g); g.connect(master);
+  osc.start(t0);
+  rail = { osc, f, g };
+}
+
+export function setCharge(k) {
+  if (!rail || !ac) return;
+  const t = ac.currentTime;
+  const q = Math.max(0, Math.min(1, k));
+  rail.osc.frequency.setTargetAtTime(RAIL_HZ * (1 + q * 0.5), t, 0.04);
+  rail.f.frequency.setTargetAtTime(RAIL_HZ * 2 * (1 + q * 1.6), t, 0.04);
+  rail.g.gain.setTargetAtTime(SOUND_GAIN.tir * 0.55 * q * q, t, 0.04);
+}
+
+export function stopCharge() {
+  if (!rail || !ac) return;
+  const { osc, g } = rail;
+  rail = null;
+  const t = ac.currentTime;
+  g.gain.cancelScheduledValues(t);
+  g.gain.setValueAtTime(Math.max(0.0002, g.gain.value), t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.02);
+  osc.stop(t + 0.05);
 }
 
 export function setMusicVolume(v) {
@@ -591,6 +638,30 @@ const PALETTE = {
     tone({ freq: 70 * k, to: 180 * k, dur: d * 0.84, type: "sawtooth",
            gain: SOUND_GAIN.mort * 0.35 * (o.gain ?? 1) });
     return { end: a.end, stop: a.stop };
+  },
+
+  /* LE CHARGEUR SE COMPTE A L'OREILLE. Trois moments, trois matieres, et aucun
+     ne ressemble a un tir : ce sont des gestes de MECANIQUE, pas des departs.
+     `dernierCoup` previent, `recharge` ouvre la fenetre ou l'arme ne rend rien,
+     `rechargeFin` la ferme — et seule la derniere RESOUT, parce que c'est la
+     seule des trois qui soit une bonne nouvelle. */
+  dernierCoup: () => noise({ dur: 0.03, type: "bandpass", freq: 2600, to: 2100,
+                             q: 8, gain: SOUND_GAIN.impact * 0.9 }),
+
+  recharge: () => {
+    const a = noise({ dur: 0.05, type: "bandpass", freq: 1400, to: 700, q: 3,
+                      gain: SOUND_GAIN.mort * 0.55 });
+    tone({ freq: 210, to: 120, dur: 0.09, type: "square",
+           gain: SOUND_GAIN.mort * 0.30 });
+    return { end: a.end + 0.05, stop: a.stop };
+  },
+
+  rechargeFin: () => {
+    const a = noise({ dur: 0.035, type: "highpass", freq: 2400, q: 0.8,
+                      gain: SOUND_GAIN.mort * 0.5 });
+    tone({ freq: 330, to: 440, dur: 0.10, type: "triangle",
+           gain: SOUND_GAIN.bonus * 0.5, attack: 0.006 });
+    return { end: a.end + 0.09, stop: a.stop };
   },
 
   rempart: () => {
