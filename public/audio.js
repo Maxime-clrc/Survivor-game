@@ -410,6 +410,20 @@ const PALETTE = {
 
   impact: () => noise({ dur: 0.04, freq: 2400, to: 1200, q: 1.2, gain: SOUND_GAIN.impact }),
 
+  /* L'OUVERTURE. Ce n'est PAS un depart — le depart a deja sonne 13 m plus tot,
+     c'est `tirGerbe` — c'est une masse qui SE DIVISE : une bande qui s'ouvre
+     vers le haut en 60 ms, sans grave et sans queue. La gerbe POUSSE, la
+     scission CRAQUE, et la scission prend la place de la gerbe dans le limiteur
+     puisqu'elle appartient au meme tir. */
+  scission: (o = {}) => {
+    const k = o.pitch ?? 1;
+    const g = SOUND_GAIN.tir * (o.gain ?? 1);
+    const a = noise({ dur: 0.06, type: "bandpass", freq: 900 * k, to: 4200 * k,
+                      q: 0.9, gain: g * 1.6 });
+    noise({ dur: 0.022, type: "highpass", freq: 5200 * k, q: 0.6, gain: g * 1.2 });
+    return { end: a.end + 0.03, stop: a.stop };
+  },
+
   /* LE COUP LOURD DESCEND. La touche ordinaire est une bande haute de 40 ms ;
      celle-ci garde son attaque mais lui donne un corps et un appui grave — le
      palier ne se lit pas au volume, il se lit a la BANDE. Elle prend la place de

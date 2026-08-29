@@ -89,6 +89,10 @@ const EFFECT_SOUND = {
   // passee. Sans `key` il aurait ouvert une file a lui, et un porte-bouclier
   // sous une build a cadence rapide aurait sature le mix a lui seul.
   18: { son: "bloque", force: 1, shake: 0, key: "impact" },
+  // la scission appartient au TIR qui l'a lancee : meme cle de limiteur que la
+  // gerbe, donc l'arme ne coute pas deux voix par coup. Les deux ne se croisent
+  // pas — 13 m de vol separent le depart de l'ouverture.
+  19: { son: "scission", force: 1, shake: 0, key: "tirGerbe" },
 };
 
 // les quatre souffles, et LEUR MATIERE. `n` est le nombre de tues : il met a

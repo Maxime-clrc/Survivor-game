@@ -741,20 +741,22 @@ const HEAL_WAVE_MOTES = 8;
    meme idiome que `porteeArme()` et que la nappe du laser. Recalcule quand la
    main change, jamais a l'image, et borne par le nombre de joueurs. */
 const LAME_TRAINE = 4;
-const lameSig = new Map();
-const lameVal = new Map();
-function lameForme(id) {
+const modsSig = new Map();
+const modsVal = new Map();
+function modsDe(id, armeId) {
   const counts = ownedCounts(id);
   let n = 0;
   for (const v of counts.values()) n += v;
-  const sig = `${counts.size}|${n}`;
-  if (lameSig.get(id) !== sig) {
-    lameSig.set(id, sig);
-    const m = fullMods(counts, [], 0, 1, "lame").mods;
-    lameVal.set(id, { arc: ARME_CFG.LAME_ARC * (m.lameArc ?? 1),
-                      sens: m.lameDouble > 0 ? 2 : 1 });
+  const cle = `${armeId}|${counts.size}|${n}`;
+  if (modsSig.get(id) !== cle) {
+    modsSig.set(id, cle);
+    modsVal.set(id, fullMods(counts, [], 0, 1, armeId).mods);
   }
-  return lameVal.get(id);
+  return modsVal.get(id);
+}
+function lameForme(id) {
+  const m = modsDe(id, "lame");
+  return { arc: ARME_CFG.LAME_ARC * (m.lameArc ?? 1), sens: m.lameDouble > 0 ? 2 : 1 };
 }
 
 export function drawEffects(effects) {
@@ -929,6 +931,45 @@ export function drawEffects(effects) {
       continue;
     }
 
+    /* LE MOMENT OU LE PORTEUR S'OUVRE. Une balle unique se scinde a distance
+       fixe : c'est la seule chose que le fusil a dispersion demande d'apprendre,
+       et elle rendait le meme petit anneau que trois autres mecaniques. Ce
+       qu'elle doit dire est UN CORPS QUI SE DIVISE — donc des rais qui divergent
+       depuis un point, dans le sens du vol, et jamais un cercle.
+       La FORME de la gerbe vient des cartes du porteur : `scissionDroite` la
+       rend parallele, et deux endroits ou ecrire « la gerbe s'ouvre de 0,8 rad »
+       finiraient par diverger. */
+    if (f.kind === 19) {
+      const col = ownerColorOf(f.owner) ?? COMBAT.bullet;
+      const n = Math.max(2, f.n ?? 6);
+      const droit = (modsDe(f.owner, "dispersion").scissionDroite ?? 0) > 0;
+      const arc = droit ? 0 : ARME_CFG.DISP_ARC;
+      const ux = Math.cos(f.ang ?? 0), uy = Math.sin(f.ang ?? 0);
+      const L = f.r * (0.5 + grow * 2.6);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      ctx.strokeStyle = alpha(col, f.k * 0.85);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const k = n === 1 ? 0 : (i / (n - 1) - 0.5);
+        const a = (f.ang ?? 0) + k * arc;
+        const ox = droit ? -uy * k * ARME_CFG.DISP_DROITE : 0;
+        const oy = droit ? ux * k * ARME_CFG.DISP_DROITE : 0;
+        ctx.moveTo(f.x + ox, f.y + oy);
+        ctx.lineTo(f.x + ox + Math.cos(a) * L, f.y + oy + Math.sin(a) * L);
+      }
+      ctx.stroke();
+      // le point ou le porteur a cesse d'exister RESTE en place et s'eteint :
+      // c'est lui qui marque la distance, les rais ne font que la quitter.
+      ctx.fillStyle = alpha(FX.flash, f.k * f.k * 0.9);
+      ctx.beginPath(); ctx.arc(f.x, f.y, 3 + f.k * 4, 0, Math.PI * 2); ctx.fill();
+      ctx.lineCap = "butt";
+      ctx.restore();
+      continue;
+    }
+
     if (f.kind === 14) {
       ctx.strokeStyle = alpha(ENEMY_TINT[6], f.k);
       ctx.lineWidth = 3 * f.k + 1;
@@ -1070,14 +1111,6 @@ export function drawEffects(effects) {
       continue;
     }
 
-    if (f.kind === 14) {
-      ctx.strokeStyle = alpha(HARVEST_GOLD, f.k * 0.9);
-      ctx.lineWidth = 4 * f.k + 1;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r * (0.2 + grow * 0.8), 0, Math.PI * 2);
-      ctx.stroke();
-      continue;
-    }
 
     if (f.kind === 2) {
       ctx.strokeStyle = alpha(FX.level, f.k * 0.9);

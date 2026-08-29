@@ -4812,6 +4812,29 @@
                    au lieu d ajouter une gerbe : a 2,5 balayages par seconde le
                    palier 2 ne paie pas de particules.
 
+     0.23.2 lot 3  LA SCISSION EST LE SEUL CHIFFRE QUE LE FUSIL A DISPERSION
+                   DEMANDE D APPRENDRE, et elle partageait son `kind: 14` avec
+                   le blocage, le teleport de boss et la recolte : un petit
+                   anneau, la meme chose que trois autres mecaniques, et pour
+                   toute voix un `impact` transpose d une quinte.
+                   Elle a son `kind` a elle (19), son sens de vol dans l index 7
+                   ouvert par le lot 2, et son nombre de plombs dans `n`. La
+                   FORME de la gerbe — parallele ou ouverte — se DEDUIT des
+                   cartes du porteur : deux endroits ou ecrire « la gerbe s ouvre
+                   de 0,8 rad » finiraient par diverger.
+                   Ce qu elle dessine est UN CORPS QUI SE DIVISE : des rais qui
+                   divergent depuis un point, dans le sens du vol, jamais un
+                   cercle — et le point ou le porteur a cesse d exister RESTE en
+                   place et s eteint, parce que c est lui qui marque la distance.
+                   Recette `scission` : une bande qui S OUVRE vers le haut en
+                   60 ms, sans grave et sans queue. La gerbe POUSSE au depart, la
+                   scission CRAQUE 13 m plus loin, et les deux partagent la cle
+                   `tirGerbe` du limiteur — l arme ne coute pas deux voix par
+                   coup, et les deux ne se croisent jamais.
+                   BRANCHE MORTE RETIREE : le second `if (f.kind === 14)` d
+                   `actors.js` etait inatteignable — celui qui le precede fait
+                   `continue` sur la meme condition.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4820,4 +4843,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.23.1";
+export const VERSION = "0.23.2";

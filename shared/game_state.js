@@ -7408,8 +7408,14 @@ export class GameState {
         scinde: null,
       });
     }
+    /* LA SCISSION EST LE SEUL CHIFFRE QUE CETTE ARME DEMANDE D'APPRENDRE, et
+       elle partageait son `kind` avec le blocage, le teleport de boss et la
+       recolte : un petit anneau, la meme chose que tout le reste. Elle a son
+       `kind` a elle, son sens de vol et son nombre de plombs — la FORME de la
+       gerbe, elle, se deduit des cartes du porteur cote client. */
     this.effects.push({ id: this._nextId++, x: b.x, y: b.y, r: 18,
-                        life: 0.18, max: 0.18, kind: 14 });
+                        life: 0.18, max: 0.18, kind: 19,
+                        owner: b.owner, ang: a0, n: s.n });
   }
 
   _shots(dt) {
