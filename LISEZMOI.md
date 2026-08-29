@@ -8,6 +8,97 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le retour de combat, plan 20 (0.23.7)
+
+#### Ce que le plan a trouvé, et que rien ne signalait
+
+**Quatre défauts, tous silencieux, trois de la même famille** : un champ posé
+d'un côté et jamais transporté de l'autre. `??` rend un repli qui a l'air normal,
+donc le rendu dessine tranquillement la mauvaise chose.
+
+| défaut | depuis | ce qu'on voyait |
+|---|---|---|
+| `f.ang` du balayage jamais sérialisé | l'origine de la lame | l'arc frappe **toujours vers l'est** |
+| `f.n` jamais sérialisé pour un arc | l'origine du tesla | l'**amorce** — le trait qu'on a visé — n'a jamais été tracée |
+| `f.n2` du second tranchant | l'origine de `lame_double` | le 2ᵉ arc n'existe pas à l'image |
+| 2ᵉ garde `e.shieldArc > 0` inatteignable | 0.19.x | un tir bloqué se lit comme une **touche légère** |
+
+`verifierEffets(g)` rejoue la classe entière : il **mesure** les emplacements du
+tuple au lieu de les déclarer, et refuse toute valeur numérique non nulle posée
+sur un effet vivant qui ne ressort nulle part. Témoin : réintroduire `n2` à la
+main le fait parler immédiatement.
+
+#### Le mix, mesuré avec le vrai limiteur
+
+`MAX_VOICES` = 16, `SAME_COOLDOWN` = 40 ms, `CLAIM_GAP` = 90 ms.
+
+Protocole : `GameState` piloté par `pilotage()`, profil `PROFIL_ENGAGE`, cartes
+tirées au hasard à chaque niveau — le même harnais que `mesureSurvie`. Les
+instantanés sont diffés par `diffSnapshots()` à 20 Hz avec la vue réelle centrée
+sur le joueur 1, et les événements rejoués dans `playSound()` **avec les
+recettes du dépôt**, sur un `AudioContext` de papier qui compte les nœuds.
+Cauchemar, 4 joueurs, 300 s, population forcée.
+
+| pop | pas (ms) | voix pointe | refusées/s | volées/s | nœuds/s | impacts/s | morts/s |
+|---|---|---|---|---|---|---|---|
+| 50 | 0,078 | 8 | 14 | 0,0 | 120 | 8,9 | 7,4 |
+| 100 | 0,203 | 10 | 18 | 0,0 | 140 | 97,1 | 14,0 |
+| 150 | 0,421 | 12 | 32 | 0,0 | 175 | 23,3 | 18,5 |
+| 200 | 0,510 | 14 | 35 | 0,0 | 180 | 235,2 | 26,5 |
+
+**Aucune voix volée à aucune densité.** La pointe monte de 8 à 14 sur 16 : le
+limiteur travaille, il ne rompt pas. Les refus sont ce qui protège le mix — ils
+montent avec la densité, comme prévu, et ce qu'ils refusent est la touche
+ordinaire, jamais un boss ni un critique (`claim`).
+
+#### Par arme, à 200 corps
+
+180 s, cauchemar, 4 joueurs sur la **même** arme — le pire cas de contention,
+puisque la clef du limiteur est la famille.
+
+| arme | voix pointe | refusées/s | volées/s | nœuds/s | tirs/s | morts/s |
+|---|---|---|---|---|---|---|
+| standard | 11 | 35 | 0,0 | 178 | 31,3 | 25,9 |
+| assaut | 11 | 35 | 0,0 | 178 | 37,6 | 21,7 |
+| laser | 10 | 59 | 0,0 | 90 | 0,1 | 68,4 |
+| tesla | 13 | 27 | 0,0 | 169 | 0,1 | 31,6 |
+| lame | 12 | 31 | 0,0 | 119 | 0,2 | 34,7 |
+| dispersion | 10 | 14 | 0,0 | 100 | 4,7 | 18,4 |
+| railgun | 11 | 8 | 0,0 | 62 | 4,4 | 13,9 |
+| grenade | 14 | 21 | 0,0 | 109 | 5,3 | 25,2 |
+| siège | 13 | 18 | 0,0 | 93 | 3,0 | 22,6 |
+| précision | 9 | 16 | 0,0 | 101 | 8,6 | 23,2 |
+
+**Zéro voix volée sur les dix armes.** Le laser, le tesla et la lame rendent
+~0,1 tir/s et c'est correct : ils ne créent pas de balle, donc `diffSnapshots`
+n'en déduit aucun départ — c'est exactement pourquoi leurs trois familles ont
+`son: null` et sonnent par leur délivrance.
+
+Le laser paie le plus de refus (59/s) parce qu'il tue le plus (68 morts/s) : la
+contention est sur la clef `mort`, pas sur le tir. C'est le comportement voulu —
+le palier 1 porte sur la **cadence** des morts, pas sur la mort.
+
+#### Coût de la matière à l'impact
+
+Aucune particule de plus : `PALIER` décide toujours du compte, du cône et de la
+vitesse ; `MATIERE.touche` ne fait que les plier. `PARTICLE_MAX` inchangé
+(300 en 2D, 3 000 en WebGL). Le seul ajout d'émission du plan est la matière du
+faisceau chaud, bornée à **16 Hz par émetteur** et **au-delà de 0,45 de jauge**
+seulement — au plus 3 quads par émission en WebGL, 1 en 2D.
+
+#### Ce qui n'a PAS été mesuré, et son protocole
+
+- **FPS et coût WebGL par palier de qualité** : demande un navigateur.
+  `?perf` affiche `fx`, `draws`, `quads`, `voices`, `peak`, `refus`, `vols`.
+  Protocole : cauchemar, 200 corps, les dix armes, relever `draws`/`quads` à
+  `gfx = low` puis `ultra`.
+- **La lisibilité à 200 corps** : le test du nom masqué — regarder 10 s de jeu
+  sans HUD et nommer l'arme. Aucun banc ne le remplace.
+- **Le faisceau sur la Nébuleuse, les souffles sur la Fonderie** : contraste du
+  retour contre chaque sol. `solDeBiome()` donne la teinte, le retour est
+  additif — mais l'additif sur un sol clair est justement le cas qui se mesure
+  à l'œil.
+
 ### Vérification du plan 19 (0.22.8)
 
 #### Ce que le plan a touché

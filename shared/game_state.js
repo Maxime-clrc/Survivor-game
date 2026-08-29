@@ -9694,6 +9694,41 @@ export function mesureArmeBoss(a, diffIndex = DIFF_NORMAL, secondes = 90, graine
   return n > 0 ? total / n : 0;
 }
 
+/* CE QU'UN EFFET PERD EN SILENCE. Trois champs de ce depot ont ete poses d'un
+   cote et jamais envoyes de l'autre — l'angle du balayage de la lame, le rang
+   d'un arc, le nombre de tranchants — et aucun des trois n'a leve quoi que ce
+   soit : `??` rend un repli qui a l'air normal, et le rendu dessine tranquillement
+   la mauvaise chose pendant des mois.
+
+   La liste des champs transportes ne se DECLARE pas ici — une seconde liste
+   diverge — elle se MESURE : on serialise l'etat courant et on verifie que toute
+   valeur numerique non nulle posee sur un effet vivant ressort quelque part dans
+   son tuple. Un effet filtre par la vue n'est pas une perte, il est absent.
+
+   S'appelle DANS une boucle de mesure, pas une fois : il ne voit que les kinds
+   qui se produisent pendant qu'il regarde. Muet = tout va bien. */
+const EFFET_IGNORE = new Set(["id", "kind", "life", "max"]);
+export function verifierEffets(g) {
+  const soucis = [];
+  const envoyes = new Map((g.snapshot().f ?? []).map(t => [t[0], t]));
+  for (const f of g.effects) {
+    const t = envoyes.get(f.id);
+    if (!t) continue;
+    for (const [cle, v] of Object.entries(f)) {
+      if (EFFET_IGNORE.has(cle) || typeof v !== "number") continue;
+      // une valeur qui ARRONDIT a zero est legitimement rognee par `trimTail` :
+      // ce n'est pas une perte, c'est la resolution du tuple.
+      if (Math.abs(Math.round(v * 100) / 100) < 0.005) continue;
+      // r1, r2 et `Math.round` : la tolerance couvre les trois arrondis du tuple
+      if (!t.some(x => typeof x === "number" && Math.abs(x - v) < 0.51)) {
+        soucis.push(`effet kind ${f.kind} : « ${cle} » = ${v} n'est dans aucun`
+          + ` emplacement du tuple`);
+      }
+    }
+  }
+  return soucis;
+}
+
 /* Critere rejouable de l'equilibrage des armes. Il ne peut PAS tourner sans
    mesures : c'est un verificateur de campagne, comme `verifierMeta`. */
 export function verifierEquilibreArmes(manches = 3, minutes = 10) {

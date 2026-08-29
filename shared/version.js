@@ -4939,6 +4939,31 @@
                    `events.js` le transporte. Un emplacement, deux lectures,
                    comme l index 6.
 
+     0.23.7 lot 8  LE BANC, ET LE CONTROLE QUI AURAIT TROUVE LES TROIS DEFAUTS.
+                   `verifierEffets(g)` refuse un champ pose sur un effet et
+                   jamais transporte — la forme exacte des lots 2, 6 et du
+                   `n2` supprime. Il ne DECLARE pas les emplacements du tuple,
+                   une seconde liste diverge : il les MESURE en serialisant l
+                   etat courant, et toute valeur numerique non nulle qui ne
+                   ressort nulle part est perdue. Une valeur qui arrondit a zero
+                   est rognee par `trimTail` et n est pas une perte. Temoin :
+                   remettre `n2` a la main le fait parler immediatement.
+                   LE MIX SE MESURE AVEC LE VRAI LIMITEUR. Un `AudioContext` de
+                   papier laisse tourner les recettes du depot et `audioStats()`
+                   rend donc les chiffres du jeu, pas ceux d un modele. Les
+                   instantanes sont diffes par `diffSnapshots()` a 20 Hz avec la
+                   vue reelle, et la manche est pilotee par `pilotage()` au
+                   profil engage — un bot ecrit pour l occasion ne tue rien, et
+                   un banc de mix qui ne tue rien mesure le silence.
+                   AUCUNE VOIX VOLEE, A AUCUNE DENSITE NI SUR AUCUNE ARME. La
+                   pointe monte de 8 a 14 sur 16 entre 50 et 200 corps : le
+                   limiteur travaille, il ne rompt pas. Chiffres et protocoles
+                   dans `LISEZMOI.md`.
+                   RESTE CE QU AUCUN BANC NE MESURE : le cout WebGL par palier a
+                   `?perf`, la lisibilite a 200 corps, et le contraste du retour
+                   contre chaque sol — l additif sur un plancher clair est
+                   justement le cas qui se juge a l oeil.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4947,4 +4972,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.23.6";
+export const VERSION = "0.23.7";

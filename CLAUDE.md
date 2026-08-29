@@ -236,6 +236,11 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `conversionBoss(a)` | ce qu’une arme rend contre une CIBLE UNIQUE |
 | `ficheDe(a)` / `poids(a)` (`shared/feedback.js`) | ce qu’une arme DIT : la famille donne la matière (et la CLEF du limiteur de voix), `interval` donne l’échelle. Trois familles rendent `son: null` — leur délivrance sonne déjà, un son de départ la doublerait |
 | `matiereDe(def)` (`shared/feedback.js`) | ce qu’une créature DIT en mourant, déduit de ce qu’elle fait (`splits`, `heal`, `auraRadius`). La case d’atlas se lit à l’appel, jamais dans la table |
+| `MATIERE[i].touche` (`shared/feedback.js`) | ce qu’une créature dit quand on la TOUCHE. Le PALIER dit combien, la MATIERE dit à quoi — et elle n’ajoute AUCUNE particule : `PALIER` garde le compte, le cône et la vitesse, `touche` ne fait que les plier |
+| `verifierEffets(g)` (`shared/game_state.js`) | un champ posé sur un effet et jamais transporté. Trois défauts du dépôt étaient de cette forme, et `??` les taisait tous. Les emplacements du tuple se MESURENT, ils ne se déclarent pas |
+| `_sensBoom(b)` | le SENS d’un souffle de projectile, relevé sur le vol et jamais sur la visée ; `undefined` dit radial. C’est ce qui sépare l’obus du siège de la grenade lobée |
+| `routerArme()` (`public/render/world.js`) | ce qu’une ressource d’arme DIT, et elle ne le dit qu’à SON porteur : chaleur, charge, chargeur, rampe. Aucune de ces voix ne dispute sa place à celles de la horde |
+| `arcLot` / `flushArcs()` (`render/fx.js`) | une CHAÎNE est un événement, pas trois : les segments d’un même tir arrivent dans le même lot, on les cumule et on sonne une fois avec la longueur |
 | `verifierFeedback(armes, types, recettes)` | croise les deux tables avec `recettes()` d’`audio.js`. **Un nom de recette faux ne lève rien** : `playSound` rend `false` et l’événement devient muet |
 | `palierDe(e)` (`render/fx.js`) | LE palier d’une touche, de la part de PV retirée. `hits === 0` = dégât CONTINU, pas une touche — le serveur le dit déjà en n’incrémentant pas `hitSeq` |
 | `bossTouche(e)` | la touche d’un boss, en part de BARRE et en racine. Chemin séparé : son événement n’a pas de `hits`, le barème de la horde le rendrait muet |

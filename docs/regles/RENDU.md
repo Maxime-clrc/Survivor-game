@@ -745,6 +745,20 @@ le sien :
   le remplissage, débris, fumée, marque au sol. Une montée progressive fait
   « animation », une naissance à pleine taille fait « détonation ». Tout est mis à
   l'échelle par la **magnitude** (`n`, le nombre de tués).
+- **Le cœur d'un souffle est teinté par SA matière**, tiré vers le feu de son
+  style : quatre souffles différents finissant par le même point crème perdent
+  justement ce qu'on regarde. `COMBAT.flash` reste blanc pur et reste **où il est
+  correct** : sur l'éclair d'une touche.
+- **Une seconde onde dit l'échelle, pas un rayon plus grand.** Elle n'existe
+  qu'au-delà d'une magnitude — sur un petit souffle, deux anneaux disent « deux
+  souffles » — et elle est **fine, plus lente, plus loin** : c'est l'écart des
+  deux vitesses qui donne la taille.
+- **Un souffle a un SENS, ou n'en a pas** (`_sensBoom(b)`) : l'obus du siège
+  percute et sa matière continue devant lui, la grenade est **lobée** donc elle
+  retombe et n'arrive plus de nulle part. Le sens se relève sur le **vol**,
+  jamais sur la visée — un projectile qui a rebondi n'arrive plus d'où il est
+  parti — et `undefined` dit **radial**. Le cône des débris est la seule
+  différence, et c'est celle qui sépare les deux armes explosives à l'œil.
 - **La matière qui bouge est ce qui dit la puissance** en vue de dessus
   (`_blastPush`) : l'impulsion est une **vitesse qui retombe**, jamais une
   téléportation, et le trou qu'elle ouvre suspend les apparitions 1,1 s.
@@ -753,6 +767,13 @@ le sien :
   halo large — c'est ce doublage qui sépare « une ligne bleue » de « de
   l'électricité »), une à deux **branches mortes**, régénération à **17 Hz**, et un
   point brillant à chaque extrémité.
+- **Le RANG d'un arc porte la perte.** `n` vaut 1 pour l'**amorce** — le trait
+  qu'on a visé, épais et droit — puis 2, 3, 4 : plus loin dans la chaîne, le
+  trait est plus **fin**, plus **agité** et plus **pâle**, donc le nombre de
+  sauts se lit sans compter les traits. **Une chaîne est UN événement** : les
+  segments d'un même tir arrivent dans le même lot de différences, `arcLot` les
+  cumule et `flushArcs()` sonne une seule fois avec la **longueur** — trois
+  sauts ne coûtent pas trois places.
 - **Le boss flashe par REJEU de sa silhouette** (`bossFlash`, 80 ms) : il est
   tracé à la main, hors de l'atlas, donc l'éclair du `flashAtlas` ne l'atteint
   pas. `bossSheet()` le neutralise comme il neutralise `bossCue`.
@@ -857,6 +878,20 @@ qu'une **créature** dit en mourant.
 - **La forme se lit sur la FAMILLE**, jamais sur un champ : « c'est une gerbe »
   écrit à deux endroits finit par diverger. Elle **naît à sa taille maximale**,
   même règle que le noyau d'un souffle.
+- **Les ressources d'arme parlent, et seulement à LEUR porteur** (`routerArme`,
+  point de passage unique). `armeRes` circule déjà et le client le dessine quatre
+  fois — chaleur, charge, rampe, chargeur ; trois de ces quatre lectures étaient
+  muettes. La charge du rail est **la même horloge** que la ligne de tir qui se
+  remplit, coupée à 0,98 parce que la fin de la montée appartient au claquement ;
+  le chargeur se lit au **sens du pas** d'`armeRes` (il descend par crans, il
+  monte pendant la recharge), donc aucun champ ne s'ouvre ; la rampe monte la
+  **même** voix de départ, jamais une voix de plus. Local, donc quatre joueurs
+  sur quatre railguns ne font pas quatre bourdonnements.
+- **La chaleur est CONTINUE, elle ne bascule pas.** Teinte, épaisseur du halo,
+  tremblement du tracé et matière au canon montent ensemble ; **le cœur reste
+  fin** — c'est lui qu'on suit, et un cœur qui grossit efface ce qu'il traverse
+  au moment où il faut le plus le voir. Au son, la hauteur dit « ça monte », c'est
+  l'**instabilité du filtre** qui dit « ça va lâcher ».
 - **LE PERSONNAGE NE RECULE PAS.** Un recul de tir a été essayé et retiré : dans
   un survivor le corps du joueur est ce qu'on lit en permanence pour esquiver, et
   le faire bouger pour une raison qui n'est pas un déplacement le rend illisible
@@ -869,6 +904,16 @@ qu'une **créature** dit en mourant.
   ce qui l'encaisse. Le même rail rend LOURD sur un fantassin et LÉGER sur un
   colosse : « un ennemi lourd réagit moins » sort du même nombre, **sans table de
   masse**.
+- **Le palier dit COMBIEN, la matière dit À QUOI.** `MATIERE[i].touche` est
+  l'autre moitié de la table de mort : carapace = éclats blancs tendus + la
+  poussière du lieu, sac = gouttes lourdes qui gonflent, champ = motes teintées
+  qui montent et s'attardent. **Aucune particule de plus** — `PALIER` garde le
+  compte, le cône et la vitesse, la matière ne fait que les plier. `debris` dit
+  si quelque chose se **détache** : un champ d'énergie ne laisse pas de béton.
+- **Un tir bloqué n'est pas une touche.** Le porte-bouclier absorbe par son
+  propre effet (`kind: 18`, incidence dans `ang`) et n'incrémente **pas**
+  `hitSeq` : la plaque s'allume **en travers** de l'axe et les étincelles
+  **glissent**. Un anneau serait faux — il appartient à l'égide et à l'élite.
 - **UN TICK DE BRÛLURE N'EST PAS UNE TOUCHE**, et le serveur le dit déjà —
   `_damage(..., overTime)` n'incrémente pas `hitSeq`, donc `hits === 0`. Le
   forcer à un faisait passer **81 %** des événements d'impact pour des touches,
@@ -923,6 +968,16 @@ qu'une **créature** dit en mourant.
 qu'`audio.js` expose (`recettes()`). Un nom de recette faux ne lève rien :
 `playSound` rend `false` et l'événement devient **muet**. Muet = tout va bien,
 comme `verifierBiomes()`.
+
+**`verifierEffets(g)`** (`game_state.js`) refuse un champ posé sur un effet et
+jamais transporté. **Trois défauts de ce dépôt étaient de cette forme** — l'angle
+du balayage, le rang d'un arc, le nombre de tranchants — et aucun n'a rien levé :
+`??` rend un repli qui a l'air normal. La liste des emplacements du tuple ne se
+**déclare** pas (une seconde liste diverge), elle se **mesure** : on sérialise
+l'état courant et toute valeur numérique non nulle qui ne ressort nulle part est
+perdue. Un effet filtré par la vue n'est pas une perte, il est absent. **S'appelle
+dans une boucle de mesure** : il ne voit que les `kind` qui se produisent pendant
+qu'il regarde.
 
 ### Audio
 
