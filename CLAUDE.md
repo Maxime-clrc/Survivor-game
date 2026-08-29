@@ -117,6 +117,7 @@ shared/classes.js      les 3 classes, constantes de competence
 shared/statuses.js     les 4 etats, priorite de purge
 shared/bosses.js       roster des 5 boss + le final, registre des mecaniques
 shared/enemies.js      LE BESTIAIRE — 9 types, 6 traits, attachement, adaptType
+shared/navigation.js   OU VA LA HORDE — grille de 40 px, UN champ par JOUEUR
 shared/reliques.js     le catalogue des reliques
 shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
 shared/armes.js        LES ARMES : 10 fiches, coefficients d echelle, conversions boss
@@ -177,7 +178,7 @@ Un seul port sert les fichiers **et** les WebSocket. `resolvePath()` route
 
 **`shared/game_state.js` ne référence jamais le DOM, le canvas, le clavier ni le
 réseau.** `classes.js`, `statuses.js`, `bosses.js`, `enemies.js`,
-`progression.js` et `biomes.js` ne dépendent de **rien**. Deux exceptions, toutes
+`progression.js`, `navigation.js` et `biomes.js` ne dépendent de **rien**. Deux exceptions, toutes
 deux feuille → feuille et sans cycle : `timeline.js` importe `ALERT_*` de
 `bosses.js`, et tout ce qui porte du **texte de joueur** importe `i18n.js`
 (`cards.js`, `reliques.js`, `units.js`).
@@ -250,6 +251,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_wave(x, y, r, dmg, owner)` | l'onde blanche des cartes (l'horloge de manche s'appelle `_segmentTick(dt)` — deux méthodes de même nom s'écrasent en silence) |
 | `_spawnPoint(geom, r)` / `_pushOffScreen` / `_edgePoint` | apparition et repoussage hors vue |
 | `_grille()` | voisinage spatial : séparation entre ennemis **et** ennemi/joueur |
+| `_nav()` / `_navChamp(cible)` (`shared/navigation.js`) | OÙ VA UN CORPS. Trois couches, une seule ici : le champ dit **où aller**, la tangente de `_enemies()` **comment éviter**, `_separate*` **comment se tasser**. Un champ par **JOUEUR**, jamais par ennemi — le coût ne suit pas la population. Le champ ne sert QUE si `droitPossible()` refuse la ligne droite : en terrain libre, le comportement est celui d'avant, au pixel près. Un corps plaqué contre une boîte est DANS une case fermée : son côté ne se déduit pas, il se **souvient** (`navAncre`). Et le point visé se rejoint **en ligne droite**, sinon la tangente locale annule la composante qui ferait tourner le coin |
 | `enemyCap(diffIndex, joueurs)` / `_enemyCap()` | plafond de population, serveur **et** HUD |
 | `enemySpeed(type, minute, diff, tirage, elite)` | vitesse d'un ennemi — apparition **et** vérificateur |
 | `_clampToBounds()` / `_dropPoint()` | tout ce qui borne un déplacement ou pose un objet |

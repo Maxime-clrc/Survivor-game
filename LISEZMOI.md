@@ -8,6 +8,63 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La horde et le terrain (0.21.0)
+
+**Le défaut, reproduit avant d'être corrigé.** Un corps lâché à 212 px de sa
+cible, celle-ci derrière la chaîne de production de l'Usine (368 × 32 px) :
+
+| lieu | avant | après |
+|---|---|---|
+| usine, cible derrière la chaîne | **jamais** en 40 s, figé à 134 px | 5,5 s |
+| poche en U (3 boîtes) | **jamais** en 60 s, figé à 253 px | 11,2 s |
+| fonderie / friche / nébuleuse | 4,0 à 6,3 s | 3,1 à 5,7 s |
+
+Le corps se figeait à **(448, 172)**, c'est-à-dire au centre exact de la face
+basse du mur, au pixel près, pendant 39 des 40 secondes. Deux causes empilées :
+le sondage d'évitement était **un point** à `r + 46` px, donc il sautait
+par-dessus toute cloison plus mince que lui (la plus mince du dépôt fait 32 px) ;
+et le centre d'une face est un **attracteur**, la composante tangentielle y étant
+nulle par symétrie.
+
+**Ce que coûte la couche.** Usine, cible mobile, moyenne sur 30 s de jeu :
+
+| effectif | corps | sans nav | avec nav | écart | distance moyenne à la cible |
+|---|---|---|---|---|---|
+| 1 j | 50 | 0,064 ms | 0,062 ms | −0,002 | 314 → 311 px |
+| 1 j | 100 | 0,079 ms | 0,087 ms | +0,008 | 311 → 303 px |
+| 1 j | 150 | 0,091 ms | 0,108 ms | +0,017 | 390 → 367 px |
+| 1 j | 200 | 0,115 ms | 0,136 ms | +0,021 | 384 → **352 px** |
+| 2 j | 200 | 0,119 ms | 0,135 ms | +0,015 | 293 → 279 px |
+| 4 j | 200 | 0,125 ms | 0,158 ms | +0,033 | 263 → 253 px |
+
+Une diffusion vaut **0,202 ms** sur 8 160 cases, et il en part au plus une par
+image. Le pas complet reste à **0,16 ms en moyenne, 0,46 ms au p99** à 200 corps
+et quatre joueurs, pour un budget de 16,6 ms.
+
+**Deux pièges payés, tous deux mesurés.** La case libre « la plus proche » d'un
+corps plaqué contre une cloison est celle d'**en face** : elle porte une distance
+plus courte, donc elle aspire le corps dans le mur — 4 corps sur 4 plantés à la
+face, 0 arrivée en 40 s. Le bon côté se **souvient** (`navAncre`). Et le point
+visé doit se rejoindre en ligne droite : sinon la tangente locale corrige un cap
+qui traverse la boîte et annule exactement la composante qui ferait tourner le
+coin (poche en U : 0 arrivée avant, 11,2 s après).
+
+**Le désenclavement a été supprimé après mesure.** Détection d'immobilité sur
+fenêtre d'une seconde, biais latéral, reprise forcée du champ : sur douze
+mesures (quatre lieux × trois graines, 200 corps, 2 joueurs), la distance moyenne
+à la cible bouge de **1 px sur 283**. Le champ résout déjà la géométrie, la
+séparation résout la foule. Le biais latéral, lui, *dégradait* — 2 corps sur 60
+bloqués dans la poche en U contre 0 sans lui. La détection reste comme critère
+dans `verifierDeplacement()`, pas comme code.
+
+**Non-régression du contact**, 120 corps sur un joueur immobile pendant 12 s :
+pénétration au-delà de la morsure **0,00 px**, dérive du joueur **0,00 px**.
+
+`verifierDeplacement()` rejoue les dix situations (ligne directe, cloison mince,
+mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/150/
+200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
+la grille des quatre lieux. Muet au 0.21.0.
+
 ### Le critère de non-régression, rendu mesurable (0.19.6)
 
 Le plan 16 s'était donné un critère qui ne s'exécute pas : *« si on échange les

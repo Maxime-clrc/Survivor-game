@@ -4082,6 +4082,44 @@
                    pas au milieu d un combat.
                    FIN DU PLAN 17.
 
+     0.21.0 lot 1  LA HORDE NE COMPRENAIT PAS L ARENE. Un ennemi sondait UN
+                   point a 46 + r px devant lui pour decider d une tangente. La
+                   cloison la plus mince du depot fait 32 px : le point sautait
+                   par-dessus, le corps ne voyait RIEN, se collait a la face, et
+                   le centre d une face est un attracteur — composante
+                   tangentielle nulle par symetrie. Mesure : sur l Usine, un
+                   corps lache a 212 px de sa cible derriere la chaine de
+                   production n arrivait JAMAIS en 40 s et se figeait a 134 px,
+                   au pixel pres, pendant 39 des 40 secondes. Dans une poche en
+                   U : jamais en 60 s.
+                   TROIS COUCHES SEPAREES, une seule nouvelle. `navigation.js`
+                   repond a « OU ALLER » par une diffusion de Dial sur une
+                   grille de 40 px, UNE PAR JOUEUR et non par ennemi : 200 corps
+                   lisent quatre champs, donc le cout ne suit pas la population.
+                   « COMMENT EVITER » reste la tangente locale, corrigee de trois
+                   echantillons au lieu d un. « COMMENT SE TASSER » ne bouge pas.
+                   Le champ ne sert QUE quand la ligne droite ne passe pas : en
+                   terrain libre le comportement est identique au pixel pres.
+                   DEUX PIEGES PAYES, tous deux mesures. La case libre « la plus
+                   proche » d un corps plaque contre une cloison est celle d EN
+                   FACE : elle porte une distance plus courte, donc elle aspire
+                   le corps DANS le mur. Le bon cote ne se deduit pas, il se
+                   SOUVIENT (`navAncre`). Et le point vise doit se rejoindre en
+                   ligne droite, sinon la tangente locale corrige un cap qui
+                   traverse la boite et annule justement la composante qui ferait
+                   tourner le coin.
+                   UN TIREUR NE TIENT SA DISTANCE QUE SI LA LIGNE EXISTE : sans
+                   ce test il se figeait a son `standoff` et vidait son chargeur
+                   dans la boite, que `_shots` absorbe deja.
+                   LE DESENCLAVEMENT A ETE ECRIT, MESURE, PUIS SUPPRIME : detection
+                   d immobilite, biais lateral, reprise forcee du champ. Il ne
+                   changeait RIEN (1 px sur une moyenne de 283, sur douze mesures)
+                   parce que le champ resout deja la geometrie et que la foule
+                   releve de la separation. La detection vit dans
+                   `verifierDeplacement`, ou elle est un critere, pas du code mort.
+                   Cout mesure : +0,002 a +0,033 ms par pas a 200 corps, et la
+                   horde ferme 1 a 8 % de distance en plus.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4090,4 +4128,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.20.7";
+export const VERSION = "0.21.0";

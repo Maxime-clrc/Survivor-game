@@ -58,8 +58,13 @@ import {
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
 } from "./biomes.js";
+import {
+  NAV_CFG, construireNav, diffuser, viser, droitPossible, celluleDe,
+  verifierNavigation,
+} from "./navigation.js";
 
 export { CARD_CFG };
+export { NAV_CFG, construireNav, diffuser, verifierNavigation };
 export {
   ENEMY_TYPES, TRAITS, TRAIT_CFG, adaptType, hasTrait, trailMax,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
@@ -664,6 +669,9 @@ export class GameState {
     this._biomeObstacles = this.biome.obstacles;
     this._biomeHazards = this.biome.hazards;
     this._statG = null;
+    this._navG = null;
+    this._navChamps = new Map();
+    this._navVise = { x: 0, y: 0 };
     this._groundOut = { slow: 1, slip: false };
     this.mechStats = new Map();
     this.hazardTick = 0;
@@ -1065,6 +1073,7 @@ export class GameState {
   removePlayer(id) {
     const partage = this._hasSharedSupport();
     this.players.delete(id);
+    this._navChamps.delete(id);
     if (partage) this._recomputeAll();
   }
 
@@ -3376,7 +3385,14 @@ export class GameState {
       hunt: 0,
       xpWorth: 1,
       scoreWorth: 1,
+      navT: 0,
+      navCible: 0,
+      navAncre: -1,
+      navX: 0, navY: 0,
     };
+    // le test de visibilite est ECHELONNE sur `LOS_PERIOD` images : une vague
+    // qui apparait d'un bloc les ferait sinon tomber tous sur la meme.
+    e.navT = e.id % NAV_CFG.LOS_PERIOD;
     this.enemies.push(e);
     return e;
   }
@@ -4035,7 +4051,42 @@ export class GameState {
   }
 
 
+  /* LA GRILLE DE NAVIGATION EST CELLE DU LIEU, donc elle se construit UNE fois
+     par manche. Pendant un boss `this.obstacles` est vide : il n'y a rien a
+     contourner, on rend `null` et toute la couche disparait du pas. */
+  _nav() {
+    const list = this.obstacles;
+    if (list.length === 0) return null;
+    if (!this._navG) this._navG = construireNav(list, CFG.ARENA_W, CFG.ARENA_H);
+    return this._navG;
+  }
+
+  /* UN CHAMP PAR JOUEUR, PAS PAR ENNEMI — c'est tout le rapport de ce systeme :
+     200 corps lisent quatre diffusions. Une seule est recalculee par image
+     (`_navBudget`), et seulement si la cible a change de case depuis
+     `REBUILD_MIN` : un joueur a 150 px/s traverse une case en 0,27 s. */
+  _navChamp(cible) {
+    const nav = this._nav();
+    if (!nav) return null;
+    let f = this._navChamps.get(cible.id);
+    if (!f) {
+      f = { dist: new Uint16Array(nav.cells), cell: -1, at: -99, pret: false };
+      this._navChamps.set(cible.id, f);
+    }
+    const c = celluleDe(nav, cible.x, cible.y);
+    if (c >= 0 && c !== f.cell && this._navBudget > 0
+        && this.time - f.at >= NAV_CFG.REBUILD_MIN) {
+      this._navBudget--;
+      f.cell = c;
+      f.at = this.time;
+      f.pret = diffuser(nav, c, f.dist);
+    }
+    return f.pret ? f : null;
+  }
+
   _enemies(dt) {
+    const nav = this._nav();
+    this._navBudget = 1;
     const frost = [];
     for (const p of this.players.values()) {
       if (p.frostR > 0 && !p.downed) frost.push(p);
@@ -4118,10 +4169,52 @@ export class GameState {
       }
 
       let sx = dx / d, sy = dy / d;
+
+      // 1 · OU ALLER. Tant que la cible se rejoint en droite ligne, rien ne
+      // change : le champ ne sert qu'a ce que l'evitement local ne sait pas
+      // faire — un mur plus large que sa portee, une poche, un angle rentrant.
+      if (nav) {
+        if (e.navT > 0) e.navT--;
+        if (e.navT <= 0 || e.navCible !== t.id) {
+          e.navT = NAV_CFG.LOS_PERIOD;
+          e.navCible = t.id;
+          e.navX = 0; e.navY = 0;
+          // L'ANCRE SE POSE TANT QU'ON EST LIBRE, pas au moment ou l'on est
+          // coince : elle ne sert qu'apres, et elle n'existerait pas si on
+          // attendait d'en avoir besoin.
+          const ici = celluleDe(nav, e.x, e.y);
+          if (ici >= 0 && !nav.bloque[ici]) e.navAncre = ici;
+          if (d > NAV_CFG.NEAR && !droitPossible(nav, e.x, e.y, t.x, t.y)) {
+            const f = this._navChamp(t);
+            const ancre = f ? viser(nav, f.dist, e.x, e.y, e.navAncre, this._navVise) : -1;
+            if (ancre >= 0) {
+              e.navAncre = ancre;
+              e.navX = this._navVise.x; e.navY = this._navVise.y;
+            }
+          }
+        }
+        if (e.navX !== 0 || e.navY !== 0) {
+          const vx = e.navX - e.x, vy = e.navY - e.y;
+          const vd = Math.hypot(vx, vy);
+          if (vd > 1) { sx = vx / vd; sy = vy / vd; }
+        }
+      }
+
+      // 2 · COMMENT EVITER. TROIS ECHANTILLONS, PAS UN : le point unique a
+      // `look` px sautait par-dessus toute cloison plus mince que lui, et la
+      // plus mince du depot fait 32 px pour une portee de 58. Le corps ne
+      // voyait alors RIEN, se collait a la face, et le centre de la face est un
+      // attracteur (composante tangentielle nulle par symetrie) — il y restait
+      // jusqu'a la fin de la manche.
       if (this.obstacles.length) {
         const look = e.r + CFG.ENEMY_AVOID_LOOK;
-        const px = e.x + sx * look, py = e.y + sy * look;
-        const b = this._obstacleAt(px, py, e.r);
+        let b = null, px = 0, py = 0;
+        for (let s = 1; s <= 3; s++) {
+          const l = look * s / 3;
+          px = e.x + sx * l; py = e.y + sy * l;
+          b = this._obstacleAt(px, py, e.r);
+          if (b) break;
+        }
         if (b) {
           const hw = b.w / 2 + e.r, hh = b.h / 2 + e.r;
           const pen = Math.min(hw - Math.abs(px - b.x), hh - Math.abs(py - b.y));
@@ -4137,9 +4230,14 @@ export class GameState {
         }
       }
 
+      // UNE DISTANCE DE TIR NE SE TIENT QUE SI LA LIGNE EXISTE. Sans ce test,
+      // un tireur dont la cible passe derriere une cloison se fige a son
+      // `standoff` et vide son chargeur dans la boite (`_shots` absorbe sur
+      // l'obstacle) : il ne menace plus rien et ne bouge plus jamais.
+      const relance = e.navX !== 0 || e.navY !== 0;
       if (def.shootCd) {
         e.shootCd -= dt;
-        const approach = d > e.standoff ? 1 : -0.35;
+        const approach = (!relance && d <= e.standoff) ? -0.35 : 1;
         const ux = approach > 0 ? sx : dx / d;
         const uy = approach > 0 ? sy : dy / d;
         e.x += ux * e.speed * mul * approach * dt;
@@ -4161,7 +4259,7 @@ export class GameState {
         }
       } else if (def.heal) {
         const want2 = e.fleeT > 0 ? e.standoff * 1.6 : e.standoff;
-        const approach = d > want2 ? 1 : -0.6;
+        const approach = (!relance && d <= want2) ? -0.6 : 1;
         const ux = approach > 0 ? sx : dx / d;
         const uy = approach > 0 ? sy : dy / d;
         e.x += ux * e.speed * mul * approach * dt;
@@ -6680,7 +6778,13 @@ export class GameState {
       const b = list[idx.vitems[k]];
       if (b.maxHp > 0 && b.hp <= 0) continue;
       if (Math.abs(x - b.x) >= b.w / 2 || Math.abs(y - b.y) >= b.h / 2) continue;
-      if (dmg > 0 && b.maxHp > 0) b.hp = Math.max(0, b.hp - dmg);
+      if (dmg > 0 && b.maxHp > 0) {
+        b.hp = Math.max(0, b.hp - dmg);
+        // UNE COUVERTURE QUI CEDE OUVRE UN PASSAGE : la grille de navigation
+        // est cuite sur la geometrie, donc elle se refait. Quelques fois par
+        // manche, jamais dans une boucle.
+        if (b.hp <= 0) { this._navG = null; this._navChamps.clear(); }
+      }
       return b;
     }
     return null;
@@ -8290,6 +8394,189 @@ export function mesureEncerclement(diffIndex, joueurs, distance = 600, limite = 
     }
   }
   return { cap, corps: g.enemies.length, t: null };
+}
+
+/* LES DIX SITUATIONS DE NAVIGATION, en dur. Ce ne sont pas des lieux du jeu :
+   ce sont les FORMES qui cassent un evitement local — la cloison mince, la
+   poche, le goulet, l'interstice trop etroit pour un corps. Un lieu du depot
+   qui en contiendrait une nouvelle se retrouverait ici, pas dans un reglage.
+
+   `t` est le point de depart de la cible, `e` celui du corps, `mur` la liste
+   des boites. `libre` est la longueur du chemin qu'un humain prendrait : c'est
+   elle qui borne le temps, pas une constante. */
+const NAV_CAS = [
+  { key: "direct", mur: [], t: [2400, 1150], e: [2400, 1650], libre: 500 },
+  { key: "cloison mince", t: [2400, 1150], e: [2400, 1650], libre: 900,
+    mur: [{ x: 2400, y: 1400, w: 600, h: 32 }] },
+  { key: "mur long", t: [2400, 1150], e: [2400, 1650], libre: 1600,
+    mur: [{ x: 2400, y: 1400, w: 1400, h: 40 }] },
+  { key: "poche en U", t: [2400, 1780], e: [2400, 1300], libre: 1200,
+    mur: [{ x: 2200, y: 1400, w: 40, h: 400 },
+          { x: 2600, y: 1400, w: 40, h: 400 },
+          { x: 2400, y: 1620, w: 440, h: 40 }] },
+  { key: "couloir etroit", t: [2000, 1350], e: [3200, 1350], libre: 2300,
+    mur: [{ x: 2400, y: 1000, w: 1200, h: 60 },
+          { x: 2400, y: 1700, w: 1200, h: 60 },
+          { x: 2900, y: 1350, w: 60, h: 640 }] },
+  { key: "deux boites proches", t: [2400, 1150], e: [2400, 1650], libre: 900,
+    mur: [{ x: 2300, y: 1400, w: 300, h: 60 },
+          { x: 2660, y: 1400, w: 300, h: 60 }] },
+  { key: "goulet", t: [2400, 1100], e: [2400, 1700], libre: 700,
+    mur: [{ x: 2050, y: 1400, w: 700, h: 60 },
+          { x: 2750, y: 1400, w: 700, h: 60 }] },
+];
+
+/* Une passe : on plante `n` corps face a la cible et on regarde s'ils
+   PROGRESSENT. Le spawner est mis en sommeil sur l'instance — on mesure une
+   geometrie, pas un script. */
+export function mesureDeplacement(cas, { n = 1, joueurs = 1, secondes = 40,
+                                         diffIndex = DIFF_NORMAL,
+                                         mobile = false, tue = false } = {}) {
+  const g = new GameState(diffIndex, 0, 7);
+  g._spawner = () => {};
+  g.warmup = 0;
+  g._biomeObstacles = cas.mur.map(o => ({ ...o, maxHp: 0, hp: 0 }));
+  g._biomeHazards = [];
+  g._statG = null;
+  g._navG = null;
+
+  for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, (i - 1) % CLASSES.length);
+  const ps = [...g.players.values()];
+  ps.forEach((p, i) => {
+    p.x = cas.t[0] + (i % 2 ? 70 : -70) * (i > 1 ? 1 : 0);
+    p.y = cas.t[1] + (i > 1 ? 70 : 0);
+  });
+
+  const corps = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / Math.max(1, n)) * Math.PI * 2;
+    const ray = n === 1 ? 0 : 40 + (i % 7) * 26;
+    const e = g._spawnEnemy(i % 5, cas.e[0] + Math.cos(a) * ray,
+      cas.e[1] + Math.sin(a) * ray, false);
+    if (e) corps.push(e);
+  }
+
+  const suivi = new Map();
+  for (const e of corps) {
+    suivi.set(e.id, { d0: Math.hypot(e.x - ps[0].x, e.y - ps[0].y), dmin: Infinity });
+  }
+
+  const inputs = new Map();
+  const images = Math.round(secondes / CFG.TICK);
+  let msTotal = 0, tArrivee = null;
+  for (let k = 0; k < images; k++) {
+    const vx = mobile ? Math.cos(k * CFG.TICK * 0.7) : 0;
+    const vy = mobile ? Math.sin(k * CFG.TICK * 0.7) : 0;
+    for (const p of ps) inputs.set(p.id, { x: vx, y: vy, ax: 1, ay: 0, ar: 1, dash: false });
+    const t0 = chrono();
+    g.step(CFG.TICK, inputs);
+    msTotal += chrono() - t0;
+    for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.fireCd = 999; }
+    g.gameOver = false;
+    // LA CIBLE QUI DISPARAIT est le neuvieme cas : les corps doivent se
+    // reporter sur le joueur restant sans rester plantes sur un fantome.
+    if (tue && ps.length > 1 && k === Math.round(images * 0.4)) g.removePlayer(ps[0].id);
+    for (const e of g.enemies) {
+      const s = suivi.get(e.id);
+      if (!s) continue;
+      const t = g._nearestPlayer(e.x, e.y);
+      if (!t) continue;
+      const d = Math.hypot(e.x - t.x, e.y - t.y);
+      if (d < s.dmin) s.dmin = d;
+      if (tArrivee === null && d < 40) tArrivee = (k + 1) * CFG.TICK;
+    }
+  }
+
+  let bloques = 0;
+  for (const [, s] of suivi) if (s.dmin > Math.max(120, s.d0 * 0.5)) bloques++;
+  return {
+    corps: suivi.size, bloques, tArrivee,
+    ms: msTotal / images,
+    vivants: g.enemies.length,
+  };
+}
+
+export function verifierDeplacement(effectifs = [1, 4], budgetMs = 16) {
+  const soucis = [];
+  const vitesse = ENEMY_TYPES[0].speed;
+
+  for (const cas of NAV_CAS) {
+    for (const n of effectifs) {
+      const r = mesureDeplacement(cas, { n, joueurs: 1 });
+      const ou = `${cas.key}/${n} corps`;
+      if (r.bloques > 0) soucis.push(`${ou} : ${r.bloques}/${r.corps} n'ont jamais approche`);
+      // LE TEMPS SE BORNE SUR LA LONGUEUR DU CHEMIN, jamais sur une constante :
+      // un mur de 1 400 px se contourne en 1 600 px de marche, pas en 500.
+      const plafond = (cas.libre / vitesse) * 2.5 + 3;
+      if (r.tArrivee === null) soucis.push(`${ou} : aucun contact en 40 s`);
+      else if (r.tArrivee > plafond) {
+        soucis.push(`${ou} : premier contact a ${r.tArrivee.toFixed(1)} s`
+          + ` pour un plafond de ${plafond.toFixed(1)} s`);
+      }
+    }
+  }
+
+  const foule = NAV_CAS.find(c => c.key === "goulet");
+  for (const n of [50, 100, 150, 200]) {
+    const r = mesureDeplacement(foule, { n, joueurs: 1, secondes: 25 });
+    if (r.bloques > r.corps * 0.05) {
+      soucis.push(`goulet/${n} corps : ${r.bloques} bloques (plafond 5 %)`);
+    }
+    if (r.ms > budgetMs) soucis.push(`goulet/${n} corps : ${r.ms.toFixed(1)} ms par pas`);
+  }
+
+  for (const [key, opts] of [
+    ["cible mobile", { n: 60, joueurs: 1, mobile: true }],
+    ["quatre cibles", { n: 60, joueurs: 4 }],
+    ["cible qui meurt", { n: 60, joueurs: 2, tue: true }],
+  ]) {
+    const r = mesureDeplacement(NAV_CAS[3], { secondes: 30, ...opts });
+    if (r.bloques > r.corps * 0.05) {
+      soucis.push(`poche en U / ${key} : ${r.bloques}/${r.corps} bloques`);
+    }
+  }
+
+  // La couverture qui cede OUVRE un passage : la grille doit le voir.
+  {
+    const g = new GameState(DIFF_NORMAL, 0, 7);
+    g._spawner = () => {};
+    g.warmup = 0;
+    g._biomeObstacles = [
+      { x: 2050, y: 1400, w: 700, h: 60, maxHp: 0, hp: 0 },
+      { x: 2750, y: 1400, w: 700, h: 60, maxHp: 0, hp: 0 },
+      { x: 2400, y: 1400, w: 100, h: 60, maxHp: 100, hp: 100 },
+    ];
+    g._statG = null; g._navG = null;
+    g.addPlayer(1, "bot", 0, 0);
+    const p = g.players.get(1);
+    p.x = 2400; p.y = 1150;
+    const e = g._spawnEnemy(0, 2400, 1650, false);
+    const inputs = new Map([[1, { x: 0, y: 0, ax: 1, ay: 0, ar: 1, dash: false }]]);
+    for (let k = 0; k < 6 / CFG.TICK; k++) {
+      g.step(CFG.TICK, inputs);
+      p.hp = p.maxHp; p.fireCd = 999; g.gameOver = false;
+    }
+    const avant = Math.hypot(e.x - p.x, e.y - p.y);
+    g._obstacleHit(2400, 1400, 200);
+    for (let k = 0; k < 12 / CFG.TICK; k++) {
+      g.step(CFG.TICK, inputs);
+      p.hp = p.maxHp; p.fireCd = 999; g.gameOver = false;
+    }
+    const apres = Math.hypot(e.x - p.x, e.y - p.y);
+    if (apres > 60) {
+      soucis.push(`couverture detruite : le corps reste a ${apres.toFixed(0)} px`
+        + ` (${avant.toFixed(0)} px avant la breche)`);
+    }
+  }
+
+  for (let b = 0; b < BIOMES.length; b++) {
+    const g = new GameState(DIFF_NORMAL, b, 7);
+    for (const s of verifierNavigation(g.obstacles, CFG.ARENA_W, CFG.ARENA_H)) {
+      soucis.push(`${BIOMES[b].key} : ${s}`);
+    }
+  }
+
+  return soucis;
 }
 
 export function verifierEncerclement(effectifs = [1, 2, 4], marge = 3) {

@@ -67,6 +67,48 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   sépare jamais deux corps qui se touchent). La taille de cellule est ce qui
   **prouve** la couverture : deux corps qui se chevauchent sont à moins d'une
   cellule, donc dans le voisinage. La toucher casse la preuve.
+- **LA NAVIGATION EST UNE PILE DE TROIS COUCHES, ET ELLES NE SE MÉLANGENT PAS.**
+  *Où aller* = `shared/navigation.js` ; *comment éviter* = la tangente locale de
+  `_enemies()` ; *comment se tasser* = `_separateEnemies` / `_separateFromPlayers`.
+  Une couche qui ferait le travail d'une autre est le défaut d'origine : le
+  sondage local seul ne contourne ni un mur plus large que sa portée, ni une
+  poche, et un champ seul ne gère ni le contact ni la foule.
+- **LE CHAMP EST INDEXÉ SUR LE JOUEUR, JAMAIS SUR L'ENNEMI** : une diffusion de
+  Dial par joueur vivant, au plus **une par image** (`_navBudget`), rejouée
+  seulement si la cible a changé de case depuis `REBUILD_MIN`. 200 corps lisent
+  quatre champs — c'est la seule raison pour laquelle la chose tient à 200.
+- **LE CHAMP NE SERT QUE SI LA LIGNE DROITE NE PASSE PAS** (`droitPossible`,
+  testé une image sur `LOS_PERIOD`, échelonné par `e.id`). En terrain libre le
+  déplacement est celui d'avant, au pixel près : c'est ce qui rend la couche
+  gratuite là où elle n'a rien à faire, et vérifiable là où elle agit.
+- **Sous `NAV_CFG.NEAR`, on vise la cible EN DROITE LIGNE.** La dernière foulée
+  appartient à l'évitement local : un joueur collé à un mur est dans une case
+  fermée, et un corps qui ne lirait que le champ ne le rejoindrait jamais.
+- **UNE CASE EST FERMÉE QUAND SON CENTRE TOMBE DANS LA BOÎTE GONFLÉE**, jamais
+  quand les deux se recouvrent — le recouvrement ferme un couloir d'une case de
+  large. La contrepartie est qu'une cloison plus mince que
+  `CELL - 2 × CLEARANCE` passerait entre deux centres ; `verifierNavigation()`
+  la rejoue au lieu de la supposer.
+- **UN CORPS PLAQUÉ CONTRE UNE BOÎTE EST DANS UNE CASE FERMÉE** (`CLEARANCE`
+  vaut 14, le plus petit rayon 9). Son côté **ne se déduit pas, il se souvient**
+  (`navAncre`, posée tant qu'on est libre) : prendre la case libre « la plus
+  proche » désigne celle d'**en face**, qui porte une distance plus courte et
+  aspire donc le corps DANS le mur.
+- **LE POINT VISÉ SE REJOINT EN LIGNE DROITE**, sinon la tangente locale corrige
+  un cap qui traverse la boîte et annule exactement la composante qui ferait
+  tourner le coin. Le premier pas y échappe : il est adjacent, donc sûr.
+- **Une distance de tir ne se tient que si la ligne existe** : sans ligne, le
+  tireur et le soigneur ferment la distance au lieu de garder leur `standoff`.
+  `_shots` absorbe déjà sur l'obstacle — tenir sa place derrière une cloison,
+  c'est ne plus menacer personne et ne plus jamais bouger.
+- **Un désenclavement a été écrit, mesuré, puis SUPPRIMÉ** : détection
+  d'immobilité, biais latéral, reprise forcée du champ. Il ne changeait rien
+  (1 px sur 283 de moyenne) — le champ résout la géométrie, la séparation résout
+  la foule. La détection reste, mais comme **critère** (`verifierDeplacement`),
+  pas comme code. Ne pas le réintroduire sans une mesure qui le demande.
+- **La grille se refait quand une couverture cède** (`_obstacleHit`), et
+  seulement là : la géométrie de biome ne bouge pas autrement.
+
 - **L'état de provocation est global** (`state.taunt = {id, until, x, y}`), lu par
   `_nearestPlayer()`.
 - **Le mode soin est une POSTURE, pas une recharge, et en posture le soigneur ne
