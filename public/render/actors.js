@@ -1587,7 +1587,6 @@ export function trackShooters(v) {
     for (const s of v.shotList) seenShots.add(s.id);
   }
 }
-const SHOOTER_AIM = 400;
 const SHOOTER_RECOIL = 160;
 function enemyFrame(e, t, def, ctxInfo) {
   const base = `e${e.type}_`;
@@ -1601,14 +1600,15 @@ function enemyFrame(e, t, def, ctxInfo) {
   if (e.type === 8 && ctxInfo?.covering) return frameOf(base + "open");
 
   if (e.type === 3) {
+    // LA VISEE N'EST PLUS DEVINEE. Elle l'etait a partir de `def.shootCd`, ce
+    // que le serveur ne respecte pas : la premiere recharge est tiree au sort
+    // et un creneau de preavis refuse la repousse. Le serveur DIT maintenant
+    // qui vise (`wu`), donc on le lit. Le recul, lui, reste deduit du depart
+    // d'une balle : il n'a pas besoin d'une clef pour ca.
+    if (ctxInfo?.vise) return frameOf(base + "walkB");
     const last = shooterFire.get(e.id);
-    if (last !== undefined) {
-      const since = performance.now() - last;
-      if (since < SHOOTER_RECOIL) return frameOf(base + "open");
-      const untilNext = def.shootCd * 1000 - since;
-      if (untilNext > 0 && untilNext < SHOOTER_AIM) {
-        return frameOf(base + "walkB");
-      }
+    if (last !== undefined && performance.now() - last < SHOOTER_RECOIL) {
+      return frameOf(base + "open");
     }
     return frameOf(base + "idle");
   }
@@ -1768,7 +1768,14 @@ export function drawEnemies(list, view) {
       ctx.globalAlpha = 1;
     }
 
-    if (windup.has(e.id)) {
+    // DEUX PREAVIS, DEUX LANGAGES. `wu` porte desormais la ruee ET la visee, et
+    // les rendre pareil dirait deux choses differentes avec le meme signe : le
+    // ramassement annonce un corps qui VIENT SUR VOUS, la visee un corps qui
+    // reste ou il est. Le ramassement garde donc l'ecrasement, la visee n'a que
+    // sa pose (`enemyFrame`). Les deux percent la brume — un preavis qu'on ne
+    // voit pas n'est pas difficile, il est injuste.
+    const ramasse = windup.has(e.id) && !def.shootCd;
+    if (ramasse) {
       const gather = 0.55 + 0.45 * Math.sin(t / 60);
       squash = 0;
       breath *= 1 + 0.06 * gather;
@@ -1793,11 +1800,12 @@ export function drawEnemies(list, view) {
       blocked = Math.abs(off) <= (def.shieldArc * Math.PI) / 360;
     }
 
-    drawSprite(ctx, enemyFrame(e, ts, def, { blocked, covering: auraActive.has(e.id) }),
+    drawSprite(ctx, enemyFrame(e, ts, def, {
+      blocked, covering: auraActive.has(e.id), vise: windup.has(e.id) }),
       e.x + kx, e.y + ky, {
       angle: e.ang ?? 0,
-      scaleX: gain * punch * (1 + squash * 0.5) * (windup.has(e.id) ? 0.86 : 1),
-      scaleY: gain * punch * (1 - squash) * (windup.has(e.id) ? 1.14 : 1),
+      scaleX: gain * punch * (1 + squash * 0.5) * (ramasse ? 0.86 : 1),
+      scaleY: gain * punch * (1 - squash) * (ramasse ? 1.14 : 1),
       flash,
       flashTint: hit?.col ?? null,
       alpha: voile,

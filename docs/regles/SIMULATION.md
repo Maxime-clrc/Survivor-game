@@ -126,6 +126,29 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   et son côté vient de l'identifiant, donc il ne change jamais.
 - **Le flanc ne s'applique QUE quand la ligne droite passe** : sur un cap rendu
   par le champ, un biais latéral pousse dans la boîte que le champ contourne.
+- **LE PRÉAVIS DE LA HORDE SE PORTE SUR LE CORPS, celui du boss sur le SOL.**
+  Le canal du télégraphe au sol appartient au boss et ne se partage pas ; une
+  arène à 200 corps n'aurait plus de sol lisible. Un corps qui s'apprête se voit
+  à sa **posture**, et les trois attaques (ruée, visée, amorce d'explosion)
+  partagent **un seul chiffre** (`ATK_CFG.WARN`) : le joueur apprend « quand un
+  corps se ramasse, quelque chose part une demi-seconde plus tard ».
+- **LA RUÉE EST RATIONNÉE, LA VISÉE NON.** Un créneau de ruée refusé **reporte**
+  une ruée ; un créneau de tir refusé **annule** le tir, parce que le tireur ne
+  fait que ça. Les mettre sous le même budget coûtait **84 %** du volume de tir
+  en cauchemar à quatre. Ce qui borne les visées à l'écran est le plafond de
+  **part** du tireur (`share`), pas un budget.
+- **Le budget de préavis se compte AVANT d'être dépensé** : une passe dédiée sur
+  ce qui s'apprête déjà, puis les octrois. Reporté de l'image précédente, il
+  ratait les corps qui *entraient* dans une vue en cours de préavis.
+- **Le préavis se paie sur la RECHARGE, pas sur la cadence** (`shootCd -
+  ATK_CFG.WARN`) : `shootCd` a toujours voulu dire « temps entre deux balles ».
+- **L'angle de tir se VERROUILLE au début de la visée.** Un tir qui suit sa
+  cible jusqu'à la détente n'est pas une attaque, c'est une taxe.
+- **`wu` se filtre par vue**, comme toute autre liste, et il transporte donc des
+  **corps** et non des identifiants — un identifiant ne sait pas où il est.
+- **Deux préavis, deux langages à l'écran** : le ramassement annonce un corps
+  qui **vient sur vous** et garde l'écrasement ; la visée annonce un corps qui
+  **reste où il est** et n'a que sa pose. Les deux percent la brume.
 
 - **L'état de provocation est global** (`state.taunt = {id, until, x, y}`), lu par
   `_nearestPlayer()`.

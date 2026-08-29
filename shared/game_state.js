@@ -49,7 +49,7 @@ import {
   EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE,
 } from "./timeline.js";
 import {
-  ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, adaptType, hasTrait, traitBit,
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, ATK_CFG, adaptType, hasTrait, traitBit,
   trailMax, masseDe, ecartDe,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 } from "./enemies.js";
@@ -67,7 +67,7 @@ import {
 export { CARD_CFG };
 export { NAV_CFG, construireNav, diffuser, verifierNavigation };
 export {
-  ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, masseDe, adaptType, hasTrait, trailMax,
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, ATK_CFG, masseDe, adaptType, hasTrait, trailMax,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 };
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
@@ -693,7 +693,6 @@ export class GameState {
     this.effects = [];
     this.blastHoles = [];
     this.windup = [];
-    this.windupCibles = new Map();
     this.windupBudget = new Map();
     this.event = null;
     this.quarry = 0;
@@ -3365,6 +3364,8 @@ export class GameState {
       r: elite ? t.r * CFG.ELITE_RADIUS_MUL : t.r,
       ang: Math.atan2(CFG.ARENA_H / 2 - pos.y, CFG.ARENA_W / 2 - pos.x),
       shootCd: t.shootCd ? t.shootCd * (0.5 + Math.random()) : 0,
+      aimT: 0,
+      aimAng: 0,
       standoff: t.standoff ?? 200,
       traits: traitsOf(this.diffIndex, ti),
       dashCd: TRAIT_CFG.DASH_CD * (0.4 + Math.random()),
@@ -4097,10 +4098,16 @@ export class GameState {
     }
     this._auraPass();
     this.windup.length = 0;
+    // LE BUDGET SE COMPTE AVANT D'ETRE DEPENSE. Il etait reporte de l'image
+    // precedente, donc un corps qui ENTRAIT dans une vue en cours de preavis
+    // n'y figurait pas encore : la mesure comptait 10 preavis pour un budget de
+    // 8. Une passe dediee sur ce qui s'apprete deja rend le compte EXACT, et
+    // elle ne coute qu'un balayage de la liste.
     const budget = this.windupBudget;
     budget.clear();
-    for (const [id, n] of this.windupCibles) budget.set(id, n);
-    this.windupCibles.clear();
+    for (const e of this.enemies) {
+      if (e.hp > 0 && (e.dashWarn > 0 || e.aimT > 0)) this._windupCompte(e, budget);
+    }
 
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
@@ -4158,16 +4165,14 @@ export class GameState {
         } else if (e.dashWarn > 0) {
           e.dashWarn -= dt;
           mul *= TRAIT_CFG.DASH_GATHER;
-          this.windup.push(e.id);
-          this._windupCompte(e, this.windupCibles);
+          this.windup.push(e);
           if (e.dashWarn <= 0) e.dashT = TRAIT_CFG.DASH_TIME;
         } else {
           e.dashCd -= dt;
           if (e.dashCd <= 0 && d < TRAIT_CFG.DASH_RANGE && !this._windupSature(e, budget)) {
             this._windupCompte(e, budget);
-            this._windupCompte(e, this.windupCibles);
             e.dashCd = TRAIT_CFG.DASH_CD;
-            e.dashWarn = TRAIT_CFG.DASH_WARN;
+            e.dashWarn = ATK_CFG.WARN;
           }
         }
       }
@@ -4256,26 +4261,52 @@ export class GameState {
       const relance = e.navX !== 0 || e.navY !== 0;
       if (def.shootCd) {
         e.shootCd -= dt;
+        // TELEGRAPHE -> ACTION. Le tir partait sans aucune anticipation : rien
+        // ne disait quand, et rien ne disait ou. L'angle se VERROUILLE au debut
+        // de la visee, donc l'esquive existe — un tir qui suit sa cible jusqu'a
+        // la detente n'est pas une attaque, c'est une taxe.
+        let vise = 0;
+        if (e.aimT > 0) {
+          e.aimT -= dt;
+          vise = 1;
+          this.windup.push(e);
+          if (e.aimT <= 0) {
+            // LE PREAVIS SE PAIE SUR LA RECHARGE, PAS SUR LA CADENCE.
+            // `shootCd` a toujours voulu dire « temps entre deux balles » : y
+            // ajouter la visee aurait retire 16 % du volume de tir sans qu'une
+            // seule valeur d'equilibrage soit touchee a l'ecran.
+            e.shootCd = Math.max(0, def.shootCd - ATK_CFG.WARN);
+            const fan = hasTrait(e.traits, TRAIT_VOLLEY) ? TRAIT_CFG.VOLLEY_COUNT : 1;
+            const base = e.aimAng - ((fan - 1) / 2) * TRAIT_CFG.VOLLEY_SPREAD;
+            for (let i = 0; i < fan; i++) {
+              const a = base + i * TRAIT_CFG.VOLLEY_SPREAD;
+              this.shots.push({
+                id: this._nextId++,
+                x: e.x, y: e.y,
+                vx: Math.cos(a) * CFG.SHOT_SPEED,
+                vy: Math.sin(a) * CFG.SHOT_SPEED,
+                life: CFG.SHOT_LIFE,
+              });
+            }
+          }
+        } else if (e.shootCd <= 0 && d < ATK_CFG.SHOOT_RANGE) {
+          // LA VISEE N'EST PAS RATIONNEE, ET LA RUEE SI. Un creneau de ruee
+          // refuse REPORTE une ruee ; un creneau de tir refuse ANNULE le tir,
+          // parce que le tireur ne fait que ca. Les avoir mis sous le meme
+          // budget coutait 84 % du volume de tir en cauchemar a quatre
+          // (46 613 -> 7 554 balles sur huit minutes) : ce n'est pas une regle
+          // de lisibilite, c'est un affaiblissement. Ce qui borne les visees a
+          // l'ecran est le plafond de PART du tireur (`share`), pas un budget.
+          e.aimT = ATK_CFG.WARN;
+          e.aimAng = Math.atan2(dy, dx);
+          vise = 1;
+        }
         const approach = (!relance && d <= e.standoff) ? -0.35 : 1;
+        const pas = e.speed * mul * (vise ? ATK_CFG.AIM_SLOW : 1) * approach * dt;
         const ux = approach > 0 ? sx : dx / d;
         const uy = approach > 0 ? sy : dy / d;
-        e.x += ux * e.speed * mul * approach * dt;
-        e.y += uy * e.speed * mul * approach * dt;
-        if (e.shootCd <= 0 && d < 520) {
-          e.shootCd = def.shootCd;
-          const fan = hasTrait(e.traits, TRAIT_VOLLEY) ? TRAIT_CFG.VOLLEY_COUNT : 1;
-          const base = Math.atan2(dy, dx) - ((fan - 1) / 2) * TRAIT_CFG.VOLLEY_SPREAD;
-          for (let i = 0; i < fan; i++) {
-            const a = base + i * TRAIT_CFG.VOLLEY_SPREAD;
-            this.shots.push({
-              id: this._nextId++,
-              x: e.x, y: e.y,
-              vx: Math.cos(a) * CFG.SHOT_SPEED,
-              vy: Math.sin(a) * CFG.SHOT_SPEED,
-              life: CFG.SHOT_LIFE,
-            });
-          }
-        }
+        e.x += ux * pas;
+        e.y += uy * pas;
       } else if (def.heal) {
         const want2 = e.fleeT > 0 ? e.standoff * 1.6 : e.standoff;
         const approach = (!relance && d <= want2) ? -0.6 : 1;
@@ -4444,7 +4475,7 @@ export class GameState {
   _windupSature(e, budget) {
     for (const q of this.players.values()) {
       if (Math.abs(q.x - e.x) > CFG.VIEW_W / 2 || Math.abs(q.y - e.y) > CFG.VIEW_H / 2) continue;
-      if ((budget.get(q.id) ?? 0) >= TRAIT_CFG.DASH_WARN_MAX) return true;
+      if ((budget.get(q.id) ?? 0) >= ATK_CFG.VUE_MAX) return true;
     }
     return false;
   }
@@ -8115,6 +8146,8 @@ export class GameState {
       return out;
     };
 
+    const wuVus = filtrer(this.windup, () => 0, e => e.id);
+
     return {
       t: "state",
       tm: r2(this.time),
@@ -8204,7 +8237,13 @@ export class GameState {
                     f.owner ?? 0, 0, f.n ?? 0], 6)),
       sl: this.slow > 0 ? 1 : 0,
       df: this.diffIndex,
-      wu: this.windup.length > 0 ? [...this.windup] : null,
+      // LE PREAVIS SE FILTRE PAR VUE comme tout le reste, et il ne l'etait pas.
+      // Tant que seule la ruee y figurait, la liste globale tenait dans une
+      // trentaine d'identifiants ; avec la visee elle en porte le double, et
+      // les envoyer tous a chaque client lui decrit surtout ce qu'il ne voit
+      // pas. La liste porte donc les CORPS et non leurs identifiants — un
+      // identifiant ne sait pas ou il est.
+      wu: wuVus.length > 0 ? wuVus : null,
       ev: this.event ? [this.event.id, r1(Math.max(0, this.event.t))] : null,
       sg: [this.segment, r1(Math.max(0, TL_CFG.SEGMENT_TIME - this.hordeTime)),
            this.beat],
@@ -8689,6 +8728,9 @@ export function verifierPopulation(minutes = 45, effectifs = [1, 2, 4], budgetMs
   return soucis;
 }
 
+const SOL_COLS = 80, SOL_ROWS = 45;
+const SOL_MASQUE = new Uint8Array(SOL_COLS * SOL_ROWS);
+
 export function mesureTraits(diffIndex, joueurs, minutes = 37, pas = 10) {
   const g = new GameState(diffIndex);
   for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
@@ -8770,15 +8812,32 @@ export function mesureTraits(diffIndex, joueurs, minutes = 37, pas = 10) {
     if (zh >= plafond) pleins++;
     somme += zh;
 
+    // LA COUVERTURE SE RASTERISE, elle ne s'additionne pas. La somme des aires
+    // comptait le disque ENTIER d'une zone a moitie hors champ, et comptait DEUX
+    // FOIS ce que deux zones recouvrent ensemble : elle rendait « 120 % d'une
+    // vue », un chiffre impossible qui accusait le jeu d'un defaut de la mesure.
+    // Une grille grossiere clippe et deduplique d'un coup.
     for (const p of g.players.values()) {
-      let aire = 0;
+      SOL_MASQUE.fill(0);
+      const cw = CFG.VIEW_W / SOL_COLS, ch = CFG.VIEW_H / SOL_ROWS;
+      const vx = p.x - demiW, vy = p.y - demiH;
       for (const z of g.zones) {
         if (!z.horde) continue;
-        const dx = Math.max(0, Math.abs(z.x - p.x) - demiW);
-        const dy = Math.max(0, Math.abs(z.y - p.y) - demiH);
-        if (dx * dx + dy * dy < z.r * z.r) aire += Math.PI * z.r * z.r;
+        const c0 = Math.max(0, Math.floor((z.x - z.r - vx) / cw));
+        const c1 = Math.min(SOL_COLS - 1, Math.floor((z.x + z.r - vx) / cw));
+        const r0 = Math.max(0, Math.floor((z.y - z.r - vy) / ch));
+        const r1 = Math.min(SOL_ROWS - 1, Math.floor((z.y + z.r - vy) / ch));
+        for (let ry = r0; ry <= r1; ry++) {
+          const py = vy + (ry + 0.5) * ch;
+          for (let rx = c0; rx <= c1; rx++) {
+            const px = vx + (rx + 0.5) * cw;
+            if ((px - z.x) ** 2 + (py - z.y) ** 2 <= z.r * z.r) SOL_MASQUE[ry * SOL_COLS + rx] = 1;
+          }
+        }
       }
-      const part = aire / (CFG.VIEW_W * CFG.VIEW_H);
+      let pris = 0;
+      for (let i = 0; i < SOL_MASQUE.length; i++) pris += SOL_MASQUE[i];
+      const part = pris / SOL_MASQUE.length;
       couverture += part;
       if (part > couvertureMax) couvertureMax = part;
     }
@@ -8829,9 +8888,9 @@ export function verifierTraits(effectifs = [1, 2, 4], minutes = 37) {
           + ` du temps — ce n'est plus un plafond, c'est une constante`);
       }
       // le budget se pose a l'octroi : un joueur qui avance peut decouvrir un preavis de plus
-      if (r.wuVueMax > TRAIT_CFG.DASH_WARN_MAX + 1) {
-        soucis.push(`${ou} : ${r.wuVueMax} preavis de ruee simultanes a l'ecran`
-          + ` pour un budget de ${TRAIT_CFG.DASH_WARN_MAX}`);
+      if (r.wuVueMax > ATK_CFG.VUE_MAX) {
+        soucis.push(`${ou} : ${r.wuVueMax} preavis simultanes a l'ecran`
+          + ` pour un budget de ${ATK_CFG.VUE_MAX}`);
       }
       if (r.couvertureMax > TRAIT_CFG.TRAIL_SURFACE * 1.1) {
         soucis.push(`${ou} : le sol de horde couvre ${(r.couvertureMax * 100).toFixed(0)} %`

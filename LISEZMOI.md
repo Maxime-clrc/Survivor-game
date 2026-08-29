@@ -65,6 +65,71 @@ mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/15
 200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
 la grille des quatre lieux. Muet au 0.21.0.
 
+### La grammaire d'attaque de la horde (0.21.2)
+
+Trois attaques, un seul préavis de 0,5 s porté par le corps. Horde réelle,
+8 min, roster ouvert, cibles immobiles et invulnérables, trois graines.
+
+**Ce que le préavis de visée ne coûte pas.** Le mettre sous le budget de ruée
+coûtait 84 % du volume de tir :
+
+| mode | j | avant | budget partagé | budget séparé |
+|---|---|---|---|---|
+| calme | 4 | 10 456 | 6 560 | 10 379 |
+| normal | 4 | 27 921 | 7 806 | 27 697 |
+| cauchemar | 1 | 17 637 | 6 501 | 17 506 |
+| cauchemar | 4 | 46 613 | **7 554** | 46 245 |
+
+Écart final : **−0,8 %** partout. Le préavis se paie sur la recharge
+(`shootCd - WARN`), pas sur la cadence.
+
+**Préavis simultanés par vue** — la ruée est plafonnée, la visée bornée par sa
+part de population :
+
+| mode | j | ruée max | visée max | identifiants dans `wu` par instantané |
+|---|---|---|---|---|
+| calme | 4 | 0 | 22 | 10,0 |
+| normal | 4 | **8** | 19 | 10,9 |
+| cauchemar | 4 | **8** | 30 | 16,9 |
+
+La ruée ne dépasse jamais 8, jamais 9 : le budget est désormais **exact**. Il
+était reporté de l'image précédente et ratait les corps qui *entraient* dans une
+vue en cours de préavis — la mesure comptait 10 pour un budget de 8.
+
+**La mèche du kamikaze**, un joueur à 40 px d'un kamikaze qu'on abat :
+
+| | mèche 0,15 s | mèche 0,5 s |
+|---|---|---|
+| le joueur reste | 90 | 90 |
+| le joueur s'écarte | **90** | **0** |
+
+C'est le gain net du lot : l'explosion était inévitable, elle est maintenant
+entièrement esquivable, et ne punit plus que l'inattention.
+
+**Ce que le préavis de visée n'apporte PAS, et il faut le dire.** Un tireur, une
+cible, 90 s, quatre graines :
+
+| ce que la cible regarde | tirs | touchée |
+|---|---|---|
+| rien (immobile) | 402 | 33 % |
+| la balle déjà partie | 402 | **9 %** |
+| le préavis | 402 | 19 % |
+
+Le temps de vol (0,7 à 1,3 s à 235 px/s) fournissait **déjà** la fenêtre
+d'esquive ; le taux de touche est identique avant et après (33 % / 9-10 %). Le
+préavis est conservé pour l'**attribution** — savoir *qui* tire dans une horde de
+200 — et parce qu'il remplace une devinette du client qui était fausse
+(`enemyFrame` dérivait la pose de visée de `def.shootCd`, que le serveur ne
+respecte pas : première recharge tirée au sort). Il doit faire ses preuves au
+lot 5 ou redevenir instantané.
+
+**Et la mesure de couverture du sol était fausse.** Elle additionnait le disque
+**entier** d'une zone à moitié hors champ et comptait **deux fois** ce que deux
+zones recouvrent ensemble — d'où « 120 % d'une vue », un chiffre impossible qui
+accusait le jeu d'un défaut de la mesure. Rasterisée sur une grille de 80 × 45,
+elle donne 21 à 41 % : l'excès est **réel**, mais sa cause n'est pas la horde
+(voir le registre du plan 18, E2).
+
 ### Les rôles dans le déplacement (0.21.1)
 
 Trois mécanismes, deux **déduits** et un déclaré. Comparaison à graine fixée —

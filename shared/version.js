@@ -4159,6 +4159,53 @@
                    repliait les cinq types sur le fantassin.
                    Cout : nul (0,148 -> 0,135 ms a 200 corps).
 
+     0.21.2 lot 3  DEUX ATTAQUES SUR TROIS PARTAIENT SANS RIEN ANNONCER. Le tir
+                   du tireur n avait aucune anticipation, et la meche du kamikaze
+                   valait 0,15 s — le temps d apercevoir la bague et rien de
+                   plus. Seule la ruee avait un preavis.
+                   UN SEUL CHIFFRE, PORTE PAR LE CORPS. `ATK_CFG.WARN` vaut 0,5 s
+                   pour les trois : le joueur apprend « quand un corps se ramasse,
+                   quelque chose part une demi-seconde plus tard », pas trois
+                   durees selon le type. Le canal du telegraphe AU SOL reste au
+                   boss — une arene a 200 corps n aurait plus de sol lisible.
+                   MESURE : la meche a 0,5 s, un joueur qui s ecarte passe de 90
+                   degats subis a ZERO. L explosion etait inevitable, elle ne
+                   punit plus que l inattention.
+                   LA RUEE EST RATIONNEE, LA VISEE NON, et c est une decision
+                   payee par la mesure. Un creneau de ruee refuse REPORTE une
+                   ruee ; un creneau de tir refuse ANNULE le tir. Les avoir mis
+                   sous le meme budget coutait 84 % du volume de tir en cauchemar
+                   a quatre (46 613 -> 7 554 balles). Ce n est pas une regle de
+                   lisibilite, c est un affaiblissement. Ce qui borne les visees
+                   est le plafond de PART du tireur.
+                   ET LE PREAVIS SE PAIE SUR LA RECHARGE, pas sur la cadence
+                   (`shootCd - WARN`) : ecart final de 0,8 %.
+                   LE BUDGET SE COMPTE AVANT D ETRE DEPENSE. Il etait reporte de
+                   l image precedente, donc un corps qui ENTRAIT dans une vue en
+                   cours de preavis n y figurait pas : 10 preavis pour un budget
+                   de 8. Une passe dediee le rend exact — 8, jamais 9.
+                   `wu` SE FILTRE PAR VUE comme toute autre liste, et transporte
+                   donc des CORPS et non des identifiants : un identifiant ne sait
+                   pas ou il est. Sans ce filtre, chaque client recevait la
+                   soixantaine de preavis de toute l arene.
+                   DEUX PREAVIS, DEUX LANGAGES : le ramassement annonce un corps
+                   qui VIENT SUR VOUS et garde l ecrasement, la visee annonce un
+                   corps qui RESTE OU IL EST et n a que sa pose. Le client cesse
+                   au passage de DEVINER la visee a partir de `def.shootCd`, que
+                   le serveur ne respecte pas.
+                   CE QUE LA VISEE N APPORTE PAS, ET IL FAUT LE DIRE : elle
+                   n ameliore pas le taux d esquive. 33 % de touches sur une cible
+                   immobile, 9 % sur une cible qui bouge, avant comme apres — le
+                   temps de vol fournissait deja la fenetre. Elle est gardee pour
+                   l ATTRIBUTION, et le lot 5 doit le demontrer.
+                   ENFIN, LA MESURE DE COUVERTURE DU SOL ETAIT FAUSSE : elle
+                   additionnait le disque ENTIER d une zone a moitie hors champ et
+                   comptait DEUX FOIS les recouvrements, d ou « 120 % d une vue ».
+                   Rasterisee, elle donne 21 a 41 % — l exces est reel, mais sa
+                   cause n est pas la horde : `_groundZone` estampille `horde: 1`
+                   sur ses CINQ appelants, dont la carte de terrain du joueur et
+                   les noeuds du boss.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4167,4 +4214,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.1";
+export const VERSION = "0.21.2";

@@ -17,14 +17,42 @@ export const TRAITS = [
 
 export function traitBit(id) { return 1 << id; }
 
+/* LA GRAMMAIRE D'ATTAQUE DE LA HORDE, et son SEUL point de passage.
+
+   TELEGRAPHE -> ACTION -> IMPACT -> RECUPERATION. Trois attaques la suivent :
+   la ruee, le tir, l'amorce d'explosion. Toutes trois passent par le meme
+   preavis, le meme budget et la meme liste (`state.windup`).
+
+   LE PREAVIS DE LA HORDE SE PORTE SUR LE CORPS, celui du boss sur le SOL. Ce
+   n'est pas un detail de rendu : le canal du telegraphe au sol appartient au
+   boss et ne se partage pas (`SIMULATION.md`), sans quoi une arene a 200 corps
+   n'a plus de sol lisible. Un corps qui s'apprete se voit a sa POSTURE.
+
+   UN SEUL CHIFFRE DE PREAVIS. Un joueur apprend « quand un corps se ramasse,
+   quelque chose part une demi-seconde plus tard » — pas trois durees selon le
+   type. Ce qui distingue les trois attaques est ce qu'elles FONT, pas leur
+   compte a rebours.
+
+   `VUE_MAX` est un budget de LISIBILITE, donc il se compte par VUE et non par
+   population : ce qu'un ecran peut porter ne suit pas la densite. Il couvre
+   maintenant les trois attaques — un tireur qui vise coute la meme place qu'un
+   fonceur qui se ramasse. */
+export const ATK_CFG = {
+  WARN: 0.5,
+  VUE_MAX: 8,
+
+  // ce qui reste de vitesse pendant une visee : le tireur se PLANTE, il ne
+  // tire pas en marchant. C'est ce qui rend le preavis lisible de loin.
+  AIM_SLOW: 0.3,
+  SHOOT_RANGE: 520,
+};
+
 export const TRAIT_CFG = {
-  DASH_WARN: 0.5,
   DASH_MUL: 2.5,
   DASH_TIME: 0.35,
   DASH_CD: 6,
   DASH_GATHER: 0.25,
   DASH_RANGE: 420,
-  DASH_WARN_MAX: 8,
 
   TRAIL_LIFE: 1,
   TRAIL_DOT: 26,
@@ -93,7 +121,7 @@ export const ENEMY_TYPES = [
     splits: 3 },
 
   { key: "kamikaze", minMin: 12, fallback: 1, weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8, r: 10, score: 18, xp: 8,
-    blastRadius: 90, blastDamage: 45, blastDelay: 0.15 },
+    blastRadius: 90, blastDamage: 45, blastDelay: ATK_CFG.WARN },
 
   { key: "bulwark",  minMin: 15, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 50, dmg: 22, r: 15, score: 32, xp: 22,
     shieldArc: 100, shieldTurnRate: 2.4 },
