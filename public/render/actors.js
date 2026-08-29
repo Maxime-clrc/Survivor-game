@@ -890,10 +890,10 @@ export function drawEffects(effects) {
        qu'aucun pixel ne dise pourquoi. La plaque s'allume EN TRAVERS de l'axe du
        coup — un segment, jamais un anneau : l'anneau appartient a l'egide et a
        l'elite — et le coup repart en s'ouvrant vers l'arriere.
-       `n` porte l'angle d'incidence : meme emplacement, autre lecture, comme
-       l'index 6 qui porte deja x2 ou le proprietaire. */
+       `ang` porte l'incidence, comme le sens d'un souffle d'obus : meme
+       emplacement, deux lectures, exactement comme l'index 6. */
     if (f.kind === 18) {
-      const a = f.n ?? 0;
+      const a = f.ang ?? 0;
       const ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
       const L = f.r * (0.9 + 0.7 * f.k);
       ctx.save();

@@ -3031,17 +3031,26 @@ export class GameState {
     this._separateFromPlayers();
   }
 
-  _explode(x, y, dmg, ownerId, rayon, bossMul = 1) {
+  /* `ang` EST LE SENS D'UN SOUFFLE, ET TOUS N'EN ONT PAS. Un obus percute un
+     corps et sa matiere continue devant lui ; une grenade retombe et n'a plus de
+     sens du tout. `undefined` dit « radial », et c'est la difference entre les
+     deux armes explosives — celle qu'on lit sans compter les degats.
+     Le sens se releve sur le VOL et jamais sur la visee : un projectile qui a
+     rebondi n'arrive plus d'ou il est parti. */
+  _sensBoom(b) { return b.lob ? undefined : Math.atan2(b.vy, b.vx); }
+
+  _explode(x, y, dmg, ownerId, rayon, bossMul = 1, ang = undefined) {
     const boomAvant = this._causeBlast;
     this._causeBlast = true;
-    try { return this._explodeInterne(x, y, dmg, ownerId, rayon, bossMul); }
+    try { return this._explodeInterne(x, y, dmg, ownerId, rayon, bossMul, ang); }
     finally { this._causeBlast = boomAvant; }
   }
 
-  _explodeInterne(x, y, dmg, ownerId, rayon, bossMul = 1) {
+  _explodeInterne(x, y, dmg, ownerId, rayon, bossMul = 1, ang = undefined) {
     const owner = this.players.get(ownerId);
     const r = rayon || CARD_CFG.GRENADE_RADIUS * (owner ? owner.mods.areaMul : 1);
-    const souffle = { id: this._nextId++, x, y, r, life: 0.35, max: 0.35, kind: 7, n: 0 };
+    const souffle = { id: this._nextId++, x, y, r, life: 0.35, max: 0.35, kind: 7, n: 0,
+                      ang };
     this.effects.push(souffle);
 
     this._areaPull(x, y, r, ownerId);
@@ -7346,7 +7355,7 @@ export class GameState {
       }
 
       if (this.harvests.length && this._harvestHit(b.x, b.y, b.dmg)) {
-        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
+        if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner, b.boomR, 1, this._sensBoom(b));
         continue;
       }
 
@@ -7359,7 +7368,7 @@ export class GameState {
           this._obstacleReflect(b, o, wasX, wasY);
           bounced = true;
         } else if (o) {
-          if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
+          if (b.boom > 0) this._explode(b.x, b.y, b.boom, b.owner, b.boomR, 1, this._sensBoom(b));
           continue;
         }
       }
@@ -7379,7 +7388,7 @@ export class GameState {
                      && b.y > -50 && b.y < CFG.ARENA_H + 50) {
         kept.push(b);
       } else if (b.boom > 0 && b.life <= 0) {
-        this._explode(b.x, b.y, b.boom, b.owner, b.boomR);
+        this._explode(b.x, b.y, b.boom, b.owner, b.boomR, 1, this._sensBoom(b));
       }
     }
     this._armeDe = 0;
@@ -7815,7 +7824,7 @@ export class GameState {
       if (Math.abs(this._angleDiff(from, e.ang)) <= e.shieldArc / 2) {
         this.effects.push({
           id: this._nextId++, x: ix, y: iy, r: 12, life: 0.16, max: 0.16,
-          kind: 18, n: Math.round(from * 100) / 100,
+          kind: 18, ang: from,
         });
         return true;
       }
@@ -7828,7 +7837,11 @@ export class GameState {
         if (b.vuln) e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
         this._damage(e, b.dmg, b.owner, b.burn);
       }
-      this._explode(ix, iy, b.boom, b.owner, b.boomR);
+      // un obus VOLE DROIT : ce qu'il projette part devant lui. Une grenade est
+      // LOBEE, donc elle n'a plus de sens en arrivant — et c'est declare, pas
+      // deduit, exactement comme dans `_volley`.
+      this._explode(ix, iy, b.boom, b.owner, b.boomR, 1,
+                    b.lob ? undefined : Math.atan2(b.vy, b.vx));
       return true;
     }
 
@@ -7928,7 +7941,7 @@ export class GameState {
               // et reduire le rayon le faisait tomber a ZERO — mesure a l'appui.
               this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y);
             }
-            this._explode(b.x, b.y, b.boom, b.owner, b.boomR, b.missile ? CARD_CFG.SALVE_BOSS_MUL : 1);
+            this._explode(b.x, b.y, b.boom, b.owner, b.boomR, b.missile ? CARD_CFG.SALVE_BOSS_MUL : 1, this._sensBoom(b));
             hit = true;
           } else {
             this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y);
@@ -7947,7 +7960,7 @@ export class GameState {
           if (m.dead || m.maxHp <= 0) continue;
           const rr = m.r + CFG.BULLET_RADIUS;
           if ((b.x - m.x) ** 2 + (b.y - m.y) ** 2 > rr * rr) continue;
-          if (b.boom > 0) { this._explode(b.x, b.y, b.boom, b.owner, b.boomR); hit = true; break; }
+          if (b.boom > 0) { this._explode(b.x, b.y, b.boom, b.owner, b.boomR, 1, this._sensBoom(b)); hit = true; break; }
           m.hp -= b.dmg;
           if (m.hp <= 0) this._breakMark(m);
           if (b.pierce > 0) b.pierce--; else hit = true;

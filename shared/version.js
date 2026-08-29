@@ -4915,6 +4915,30 @@
                    L entree 3 de `EFFECT_SOUND` se supprime : sa seule lecture
                    est morte.
 
+     0.23.6 lot 7  LES QUATRE SOUFFLES PARTAGEAIENT LEUR COEUR. `blastCore` etait
+                   le meme creme pour la nova, la detonation, l onde et la bombe :
+                   quatre matieres differentes finissaient par le meme point, et
+                   c est justement le point qu on regarde. Chaque coeur est tire
+                   vers le FEU de son style — lumineux mais chaud, jamais blanc.
+                   `COMBAT.flash` ne bouge pas et reste ou il est correct : sur l
+                   eclair d une touche.
+                   LA SECONDE ONDE DIT L ECHELLE, PAS UN RAYON PLUS GRAND. Elle n
+                   existe qu au-dela d une magnitude — sur un petit souffle deux
+                   anneaux ne disent pas « plus gros », ils disent « deux
+                   souffles » — et elle est FINE, PLUS LENTE et va PLUS LOIN :
+                   c est l ecart des deux vitesses qui donne la taille.
+                   UN SOUFFLE A UN SENS, OU N EN A PAS. L obus du siege percute
+                   et sa matiere continue devant lui ; la grenade est LOBEE, donc
+                   elle retombe et n arrive plus de nulle part. `_sensBoom(b)` le
+                   releve sur le VOL et jamais sur la visee — un projectile qui a
+                   rebondi n arrive plus d ou il est parti — et `undefined` dit
+                   RADIAL. Le cone des debris est la seule difference, et c est
+                   celle qui separe les deux armes explosives a l oeil.
+                   `ang` DEVIENT LE SENS DE TOUT EFFET QUI EN A UN : l incidence
+                   d un tir bloque quitte `n`, ou elle n avait pas de sens, et
+                   `events.js` le transporte. Un emplacement, deux lectures,
+                   comme l index 6.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4923,4 +4947,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.23.5";
+export const VERSION = "0.23.6";

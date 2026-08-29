@@ -7,7 +7,7 @@ import { ARMES } from "/shared/armes.js";
 import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, echelleBouche, ficheDe, familleDe, matiereDe, poids } from "/shared/feedback.js";
 import { CFG, ENEMY_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
-import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha } from "/shared/palette.js";
+import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, melange } from "/shared/palette.js";
 import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
 import { GFX_MEDIUM, gfx, latest, myId } from "../core/state.js";
@@ -91,13 +91,20 @@ const EFFECT_SOUND = {
   19: { son: "scission", force: 1, shake: 0, key: "tirGerbe" },
 };
 
-// les quatre souffles, et LEUR MATIERE. `n` est le nombre de tues : il met a
-// l'echelle la duree, la taille et la gravite du son.
+/* LES QUATRE SOUFFLES, ET LEUR MATIERE. `n` est le nombre de tues : il met a
+   l'echelle la duree, la taille et la gravite du son.
+
+   LE COEUR EST TEINTE PAR SA PROPRE MATIERE. Les quatre partageaient le meme
+   `blastCore` : quatre souffles differents finissaient par le meme point creme,
+   qui est justement ce qu'on regarde. Il est tire vers le feu du style —
+   lumineux mais CHAUD, jamais blanc. `COMBAT.flash` reste blanc pur et reste ou
+   il est : sur l'eclair d'une touche, ou c'est correct. */
+const coeurDe = feu => melange(COMBAT.blastCore, feu, 0.28);
 const BLAST_STYLE = {
-  0:  { coeur: COMBAT.blastCore, feu: FX.novaSoft, bord: FX.nova, debris: FX.nova },
-  7:  { coeur: COMBAT.blastCore, feu: FX.blastEdge, bord: FX.blastFill, debris: FX.blastFill },
-  8:  { coeur: COMBAT.blastCore, feu: FX.wave, bord: FX.waveSoft, debris: FX.waveSoft },
-  12: { coeur: COMBAT.blastCore, feu: FX.bombEdge, bord: FX.bombFill, debris: FX.bombFill },
+  0:  { coeur: coeurDe(FX.nova), feu: FX.novaSoft, bord: FX.nova, debris: FX.nova },
+  7:  { coeur: coeurDe(FX.blastFill), feu: FX.blastEdge, bord: FX.blastFill, debris: FX.blastFill },
+  8:  { coeur: coeurDe(FX.waveSoft), feu: FX.wave, bord: FX.waveSoft, debris: FX.waveSoft },
+  12: { coeur: coeurDe(FX.bombFill), feu: FX.bombEdge, bord: FX.bombFill, debris: FX.bombFill },
 };
 
 function handleEvent(e) {
@@ -289,7 +296,9 @@ function handleEvent(e) {
         // [8] l'intensite MET TOUT A L'ECHELLE : trente tues et trois ne
         // produisent plus la meme image ni le meme son.
         const ampleur = Math.min(1, (e.n ?? 0) / 12);
-        spawnBlast(e.x, e.y, e.r || 90, ampleur, S);
+        // zero veut dire RADIAL, pas « vers l'est » : seul un souffle qui a
+        // percute quelque chose porte un sens.
+        spawnBlast(e.x, e.y, e.r || 90, ampleur, S, e.ang ? e.ang : null);
         playSound("explosion", { force: (d?.force ?? 1) * (0.75 + 0.75 * ampleur) });
         addShake((d?.shake ?? 4) * (0.7 + 0.6 * ampleur));
         addGridPing(e.x, e.y, Math.max(70, e.r || 0));
@@ -297,7 +306,7 @@ function handleEvent(e) {
       }
       if (e.kind === 11) spawnHealWave(e.x, e.y, e.r);
       else if (e.kind === 9) spawnBulwark(e.x, e.y, e.r);
-      else if (e.kind === 18) spawnDeflect(e.x, e.y, e.n ?? 0);
+      else if (e.kind === 18) spawnDeflect(e.x, e.y, e.ang ?? 0);
       if (!d) break;
       playSound(d.son, d);
       if (d.shake) {
@@ -905,7 +914,7 @@ function spawnXpStream(x, y) {
 
 // [9][10][11] LE SOUFFLE EN COUCHES : chacune a SA constante de temps. Si tout
 // s'estompe sur la meme courbe, ca reste un element d'interface.
-export function spawnBlast(x, y, r, ampleur, S) {
+export function spawnBlast(x, y, r, ampleur, S, ang = null) {
   const dense = glActive();
 
   // noyau : il NAIT a sa taille maximale — une montee progressive fait
@@ -939,12 +948,26 @@ export function spawnBlast(x, y, r, ampleur, S) {
     bursts.push({ x, y, r: r * 0.35, max: r * (1.5 + 0.5 * ampleur),
                   life: 0.25, t: 0.25, col: S.bord, w: 2 + 2.5 * ampleur });
   }
+  /* LA SECONDE ONDE N'EXISTE QU'AU-DELA D'UNE MAGNITUDE. Sur un petit souffle
+     deux anneaux ne disent pas « plus gros », ils disent « deux souffles ». Elle
+     est FINE, PLUS LENTE et va PLUS LOIN : c'est l'ecart entre les deux vitesses
+     qui donne l'echelle, pas un rayon plus grand. */
+  if (ampleur > 0.45 && bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: r * 0.15, max: r * (2.1 + 0.7 * ampleur),
+                  life: 0.42, t: 0.42, col: S.coeur, w: 1.2 });
+  }
 
-  // debris
+  /* DEBRIS. Un souffle qui a un SENS les projette devant lui : l'obus du siege
+     percute et sa matiere continue, la grenade retombe et n'a plus de sens. Le
+     cone est la seule difference, et c'est celle qui separe les deux armes
+     explosives a l'oeil. */
   const nd = Math.round((dense ? 7 : 3) + (dense ? 8 : 3) * ampleur);
+  const cone = ang === null ? Math.PI * 2 : 1.5;
   for (let i = 0; i < nd && particles.length < PARTICLE_MAX; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const sp = 180 + Math.random() * (260 + 320 * ampleur);
+    const a = ang === null ? Math.random() * Math.PI * 2
+                           : ang + (Math.random() - 0.5) * cone;
+    const sp = (180 + Math.random() * (260 + 320 * ampleur))
+      * (ang === null ? 1 : 1.25);
     particles.push({
       x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
       life: 0.5 + Math.random() * 0.25, max: 0.75,

@@ -217,8 +217,11 @@ export function diffSnapshots(a, b, opts = {}) {
   const fa = new Set(a.effects.map(f => f.id));
   for (const f of b.effects) {
     if (fa.has(f.id)) continue;
+    // `ang` est le SENS de l'effet quand il en a un — le souffle d'un obus qui
+    // percute, l'incidence d'un tir bloque. Un souffle qui retombe n'en a pas,
+    // et zero veut alors dire « radial », pas « vers l'est ».
     out.push({ t: "effet", kind: f.kind ?? 0, x: f.x, y: f.y, r: f.r ?? 0,
-               n: f.n ?? 0 });
+               n: f.n ?? 0, ang: f.ang ?? 0 });
   }
 
   const wb = new Set(b.powerups.map(w => w.id));
