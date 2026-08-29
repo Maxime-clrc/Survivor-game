@@ -227,7 +227,7 @@ danger, implantation.
 | | FRICHE | USINE | FONDERIE | NÉBULEUSE |
 |---|---|---|---|---|
 | **verbe** | a été laissée | fabrique | coule | flotte |
-| **bloc** | **pan fissuré, mur banché, carcasse** | machine panneautée | four maçonné | travée ajourée |
+| **bloc** | **pan fissuré, mur banché, carcasse** | **chaîne, cellule, poste** | four maçonné | travée ajourée |
 | **sol** | dalles et joints de coulage | tôle et maille de 5 m | plaques, voies, vitrifié | nid d'abeille |
 | **pas de 20 m** | marquage peint effacé | trait franc | nœuds seuls | nervures du pont |
 | **contour de bloc** | presque aucun | franc | sourd | franc |
@@ -236,9 +236,9 @@ danger, implantation.
 | **bord** | grillage affaissé | passerelle et conduites | cheminées et fumée | voilures et râtelier d'antennes |
 | **props** | brousse, jonchée, grillage tombé, carcasse, bidon, panneau | convoyeurs, bras, presses, ventilations, palettiers | poches, lingotières, trémies, outillage, rigoles | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
 | **ce qui traverse** | rien, et c'est le sujet | les bandes de chaîne | **le canal de coulée** | les nervures du pont |
-| **air** | ce que la brousse relâche : vert, lent, rare | poussière d'atelier | poussière d'atelier | débris croisés, froids |
+| **air** | ce que la brousse relâche : vert, lent, rare | **extraction : droite, rapide, tenue** | poussière d'atelier | débris croisés, froids |
 | **couche de 1 200 px** | lessivage parallèle, colonisation | nappes rondes | nappes rondes, accent chaud | nappes rondes |
-| **mouvement** | un néon qui grésille | **bandes qui défilent, bras, presses, chenille, bouffées** | la fonte qui ondule | la balise qui bat, le cristal qui respire |
+| **mouvement** | un néon qui grésille | **la chaîne bâtie qui défile**, bandes, bras, presses, chenille, bouffées | la fonte qui ondule | la balise qui bat, le cristal qui respire |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
 captures restent difficiles à attribuer, le travail n'est pas fini. Il a **deux

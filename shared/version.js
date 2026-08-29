@@ -4484,6 +4484,44 @@
                    qui etait vrai et ne voulait rien dire.
                    Signature de la Friche inchangee : 10,0 / 4,4 % / x2,1 / x4,9.
 
+     0.22.2 lot 3  L USINE : TROIS ROLES DANS UNE MEME LIGNE. La CHAINE
+                   transporte, la CELLULE transforme, le POSTE commande. C est
+                   le seul des quatre lieux dont le verbe soit au PRESENT, donc
+                   le seul ou quelque chose bouge dans la masse batie : un taquet
+                   court sur le tapis, au pas des rouleaux, et le groupe
+                   d entrainement au bout donne un SENS a la piece — sans lui une
+                   barre reste une barre. Mouvement CONTINU ET PERIODIQUE, donc
+                   sans echeance, donc pas un telegraphe.
+                   LA CHAINE EST LA SEULE PIECE DU DEPOT SANS UN COIN CASSE. A
+                   368 x 32 px un chanfrein de 6 px ne se voit pas ; ce qui se
+                   voit est qu une poutre de convoyeur est EXTRUDEE. Les trois
+                   autres familles d Usine ont leurs coins coupes, celle-ci non.
+                   LA CELLULE A UN BATI ET UNE TABLE, donc un profil en MARCHE.
+                   Un caisson plein se lit « armoire » quelle que soit sa
+                   taille ; ce qui dit « machine-outil » est qu une partie soit
+                   haute et l autre basse, et qu on voie CE QU ELLE TIENT — la
+                   table est nue et porte une piece. Marche a 12 % de la hauteur,
+                   soit 14 px sur 117, pour 5,4 % d empreinte vide.
+                   LE POSTE S OUVRE, et c est tout ce qui fait une armoire : un
+                   joint de porte franc d un bord a l autre, une poignee dessus,
+                   des ouies groupees du cote oppose. Les striations d avant
+                   disaient « tole », ce qu on peut dire d une machine comme
+                   d une caisse ; une porte ne se dit que d un meuble.
+                   L USINE NE DERIVE PAS, ELLE TIRE. Le champ commun faisait
+                   osciller son angle de ±0,30 rad — la signature d un courant
+                   d air LIBRE, donc de tout sauf d une extraction. Son air a
+                   maintenant une direction tenue (`swing: 0`, un reglage et non
+                   un oubli), va trois fois plus vite, et n est pas horizontal :
+                   a 0 exactement les brins se confondraient avec le trait franc
+                   de la grille de 20 m.
+                   DEUX TROUVAILLES DU BANC. `verifierEmpreinte` a leve
+                   « g.rect is not a function » au lieu de mesurer du vide :
+                   l enregistreur de chemin ignorait `rect`, que la chaine est la
+                   premiere a utiliser. Et la bascule d orientation de `chaine()`
+                   n aurait jamais tourne — la loi de ce lieu ne pose que des
+                   bandes horizontales ; elle est retiree plutot que gardee.
+                   Signatures des quatre lieux inchangees.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4492,4 +4530,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.1";
+export const VERSION = "0.22.2";

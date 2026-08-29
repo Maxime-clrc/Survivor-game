@@ -8,6 +8,54 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### L'Usine, trois rôles dans une même ligne (0.22.2)
+
+| famille | rôle | ce qui le porte | vide d'empreinte |
+|---|---|---|---|
+| chaîne | transporte | longerons, rouleaux, taquet qui court, groupe d'entraînement | **0,0 %** |
+| cellule | transforme | profil en marche, tôle nervurée, lucarne, table nue + pièce | **5,4 %** |
+| poste | commande | joint de porte, poignée, ouïes groupées, pupitre | 1,3 % · 1,5 % |
+
+La chaîne à **0,0 %** est un rectangle plein : elle est la seule pièce du dépôt
+sans un coin cassé. À 368 × 32 px un chanfrein de 6 px ne se voit pas, alors
+qu'une poutre **extrudée** se voit. Les trois autres familles d'Usine gardent
+leurs coins coupés — c'est l'écart qui parle, pas la valeur.
+
+La marche de la cellule est à **12 % de la hauteur**, soit 14 px sur 117 : assez
+pour lire un bâti et une table, pour 5,4 % d'empreinte vide, sous le seuil de
+12 % et sous la ruine de la Friche (8,2 %).
+
+**L'air de l'Usine ne dérive pas, il tire.** Le champ commun faisait osciller son
+angle de ±0,30 rad — la signature d'un courant d'air *libre*, donc de tout sauf
+d'une extraction.
+
+| | commun | Usine |
+|---|---|---|
+| vitesse | 24 | **64** |
+| oscillation d'angle | ±0,30 rad | **0** |
+| angle | π × 0,62 | **0,12 rad** |
+| brins | 150 | 130 |
+
+L'angle n'est pas horizontal : à 0 exactement les brins se confondraient avec le
+trait franc de la grille de 20 m, seul autre réseau rectiligne du lieu.
+
+#### Deux trouvailles du banc
+
+**`verifierEmpreinte()` a levé `g.rect is not a function`** au lieu de mesurer du
+vide : l'enregistreur de chemin ne connaissait que `moveTo`/`lineTo`, et la
+chaîne est la première forme à utiliser `rect`. Un enregistreur incomplet ne
+rend pas un faux chiffre, il casse — c'est ce qu'on lui demande.
+
+**La bascule d'orientation de `chaine()` n'aurait jamais tourné** : la loi de ce
+lieu ne pose que des bandes horizontales (« chaîne, allée, chaîne »). Retirée,
+pas gardée au cas où. Contraste avec la Friche en 0.22.1, où la branche verticale
+de la carcasse a été rendue *vivante* parce que trois épaves de même gabarit
+étaient un défaut de composition — ici l'uniformité est la loi.
+
+Signatures des quatre lieux **inchangées** ; `verifierBiomes()` muet sur
+200 graines (11,6 s), `verifierNavigation()`, `verifierBlocs()` et
+`verifierEmpreinte()` muets.
+
 ### La Friche, et une règle qui n'était pas rejouée (0.22.1)
 
 **`verifierEmpreinte()`** fait dessiner chaque famille dans un enregistreur de

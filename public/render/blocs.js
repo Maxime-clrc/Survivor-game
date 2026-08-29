@@ -43,9 +43,9 @@ function graine(o) {
    privee — un `kind` sans fiche ne leverait rien, il replierait en silence. */
 const BLOC = {
   usine: {
-    [B_CHAINE]: { forme: formeMachine, habit: usine },
-    [B_MACHINE]: { forme: formeMachine, habit: usine },
-    [B_POSTE]: { forme: formeMachine, habit: usine },
+    [B_CHAINE]: { forme: formeChaine, habit: chaine },
+    [B_MACHINE]: { forme: formeCellule, habit: cellule },
+    [B_POSTE]: { forme: formeMachine, habit: poste },
   },
   fonderie: {
     [B_FOUR]: { forme: formeOctogone, habit: four },
@@ -82,6 +82,52 @@ function formeMachine(g, o) { machine(g, -o.w / 2, -o.h / 2, o.w, o.h); }
 function formeOctogone(g, o) { octogone(g, -o.w / 2, -o.h / 2, o.w, o.h); }
 function formeChanfreine(g, o) { chanfreine(g, -o.w / 2, -o.h / 2, o.w, o.h, CHANFREIN_LARGE); }
 function formeRuine(g, o) { ruine(g, o, -o.w / 2, -o.h / 2, o.w, o.h); }
+
+/* LA CHAINE EST LA SEULE PIECE DU DEPOT SANS UN SEUL COIN CASSE. C est ce qui
+   la distingue a 368 x 32 px, ou un chanfrein de 6 px ne se voit pas : une
+   poutre de convoyeur est EXTRUDEE, elle sort d une filiere, elle n a pas ete
+   posee coin par coin. Les trois autres familles d Usine ont leurs coins
+   coupes ; celle-ci non, et c est une decision, pas un oubli. */
+function formeChaine(g, o) {
+  g.beginPath();
+  g.rect(-o.w / 2, -o.h / 2, o.w, o.h);
+}
+
+/* LA CELLULE A UN BATI ET UNE TABLE, donc un PROFIL EN MARCHE. Un caisson plein
+   se lit « armoire » quelle que soit sa taille ; ce qui dit « machine-outil »
+   est qu une partie soit haute (la broche, l habillage) et l autre basse (le
+   plan de travail ou la piece arrive). La marche fait 12 % de la hauteur — 14 px
+   sur 117 —, donc elle se voit sans ouvrir un vide que la collision dementirait. */
+const CELL_MARCHE = 0.12;
+const CELL_TABLE = 0.38;
+function formeCellule(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const s = graine(o);
+  const c = Math.min(CHANFREIN, w * 0.20, h * 0.20);
+  const m = h * CELL_MARCHE;
+  const t = w * CELL_TABLE;
+  const gauche = (s >>> 23) & 1;
+  const tx0 = gauche ? x : x + w - t;
+  const tx1 = gauche ? x + t : x + w;
+  g.beginPath();
+  if (gauche) {
+    g.moveTo(tx0, y + m);
+    g.lineTo(tx1, y + m);
+    g.lineTo(tx1, y);
+    g.lineTo(x + w - c, y);
+    g.lineTo(x + w, y + c);
+  } else {
+    g.moveTo(x + c, y);
+    g.lineTo(tx0, y);
+    g.lineTo(tx0, y + m);
+    g.lineTo(tx1, y + m);
+  }
+  g.lineTo(x + w, y + h - c);
+  g.lineTo(x + w - c, y + h);
+  g.lineTo(x, y + h);
+  g.lineTo(x, y + (gauche ? m : c));
+  g.closePath();
+}
 
 /* LE MUR BAS N EST PAS UN PAN DE MUR EN PLUS PETIT. Il fait 176 x 36 px : a
    cette hauteur une crete DENTELEE se lit comme du bruit, parce que la morsure
@@ -176,6 +222,11 @@ function enregistreur() {
     beginPath() { poly = []; },
     moveTo(x, y) { poly.push([x, y]); },
     lineTo(x, y) { poly.push([x, y]); },
+    // `rect` est un sous-trace ferme a lui seul : une forme qui l utilise doit
+    // etre la SEULE de son chemin, sinon le test de parite melangerait deux
+    // enroulements. Aucune ne le fait, et c est la chaine qui l a revele — le
+    // banc a leve `g.rect is not a function` au lieu de mesurer du vide.
+    rect(x, y, w, h) { poly.push([x, y], [x + w, y], [x + w, y + h], [x, y + h]); },
     closePath() {},
   };
 }
@@ -452,9 +503,145 @@ function breche(o) {
   return { x, w, h: Math.min(o.h * 0.52, 34) };
 }
 
-/* --- USINE : ce qui est USINE ------------------------------------------ */
+/* --- USINE : ce qui FABRIQUE --------------------------------------------
+   Trois objets, trois roles dans une meme ligne : la CHAINE transporte, la
+   CELLULE transforme, le POSTE commande. C est la seule des quatre lois du
+   depot dont le verbe soit au PRESENT, et c est pourquoi elle est la seule ou
+   quelque chose bouge dans la masse batie.
 
-function usine(o, S) {
+   LE MOUVEMENT RESTE CONTINU ET PERIODIQUE, donc sans debut ni echeance, donc
+   ce n est pas un telegraphe — ce canal appartient au boss. Un taquet qui passe
+   ne previent de rien : il dit que la ligne tourne. */
+const maintenant = () => performance.now() / 1000;
+
+/* LA CHAINE TRANSPORTE, ET ELLE LE MONTRE. Deux longerons, des rouleaux entre
+   eux, un tapis, un TAQUET qui court dessus, et le groupe d entrainement a un
+   bout — c est lui qui donne un SENS a la piece, sans quoi une barre reste une
+   barre. Le taquet reprend le pas des rouleaux : il glisse sur la ligne, il ne
+   flotte pas au-dessus. */
+const CHAINE_PAS = 13;
+const CHAINE_VITESSE = 26;
+function chaine(o, S) {
+  // LA LOI D IMPLANTATION DE L USINE NE POSE QUE DES BANDES HORIZONTALES
+  // (« chaine, allee, chaine »), donc `L` est toujours la largeur. Une bascule
+  // d orientation serait ici du code que rien n executerait — on l ecrira le
+  // jour ou la table posera une chaine debout, et pas avant.
+  const L = o.w, T = o.h;
+  const s = graine(o);
+
+  ctx.save();
+
+  // le tapis : plus sombre que les longerons, c est le creux de la piece.
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-L / 2, -T / 2 + 4, L, T - 8);
+
+  ctx.strokeStyle = alpha("#000000", 0.30);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let x = -L / 2 + CHAINE_PAS / 2; x < L / 2; x += CHAINE_PAS) {
+    ctx.moveTo(x, -T / 2 + 5); ctx.lineTo(x, T / 2 - 5);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metal, 0.16);
+  ctx.beginPath();
+  for (let x = -L / 2 + CHAINE_PAS / 2 + 1; x < L / 2; x += CHAINE_PAS) {
+    ctx.moveTo(x, -T / 2 + 5); ctx.lineTo(x, T / 2 - 5);
+  }
+  ctx.stroke();
+
+  // LES LONGERONS. Ils bordent le tapis sur toute la longueur, et leur arete
+  // haute prend la lumiere : c est le seul relief franc de la piece.
+  for (const d of [-1, 1]) {
+    const y = d * (T / 2 - 2);
+    ctx.fillStyle = alpha(S.bloc, 0.62);
+    ctx.fillRect(-L / 2, y - 2, L, 4);
+    ctx.fillStyle = alpha(S.blocEdge, 0.16);
+    ctx.fillRect(-L / 2, y - 2, L, 1.2);
+  }
+
+  const sens = (s >>> 25) & 1 ? 1 : -1;
+  const u = ((maintenant() * CHAINE_VITESSE * sens) % CHAINE_PAS + CHAINE_PAS) % CHAINE_PAS;
+  ctx.fillStyle = alpha(S.emis, 0.30);
+  for (let x = -L / 2 + u; x < L / 2; x += CHAINE_PAS * 4) {
+    ctx.fillRect(x - 2.4, -T / 2 + 6, 4.8, T - 12);
+  }
+
+  // LE GROUPE D ENTRAINEMENT, au bout vers lequel la ligne va : un carter plein,
+  // deux boulons, et c est ce qui empeche la barre de se lire comme un rail.
+  const gx = sens > 0 ? L / 2 : -L / 2;
+  const gw = Math.min(18, L * 0.09);
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.fillRect(gx - (sens > 0 ? gw : 0), -T / 2, gw, T);
+  ctx.fillStyle = alpha(S.bloc, 0.70);
+  ctx.fillRect(gx - (sens > 0 ? gw - 1.5 : -1.5), -T / 2 + 1.5, gw - 3, T - 3);
+  ctx.fillStyle = alpha(S.blocEdge, 0.22);
+  ctx.beginPath();
+  ctx.arc(gx - sens * gw / 2, 0, Math.min(4, T * 0.18), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/* LA CELLULE TRANSFORME. Son sujet est la MARCHE que la silhouette vient de
+   poser : le bati est habille de tole nervuree, la table est nue et porte une
+   piece. Une machine-outil se lit a ce qu on voit CE QU ELLE TIENT. */
+function cellule(o, S) {
+  const w = o.w, h = o.h;
+  const s = graine(o);
+  const gauche = (s >>> 23) & 1;
+  const m = h * CELL_MARCHE;
+  const t = w * CELL_TABLE;
+  const bx = gauche ? -w / 2 + t : -w / 2;
+  const bw = w - t;
+
+  ctx.fillStyle = alpha("#000000", 0.22);
+  ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8);
+  ctx.fillStyle = alpha(S.bloc, 0.55);
+  ctx.fillRect(bx + 3, -h / 2 + 3, bw - 6, h - 10);
+
+  ctx.strokeStyle = alpha("#000000", 0.26);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let y = -h / 2 + 12; y < h / 2 - 8; y += 9) { ctx.moveTo(bx + 6, y); ctx.lineTo(bx + bw - 6, y); }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metal, 0.12);
+  ctx.beginPath();
+  for (let y = -h / 2 + 13; y < h / 2 - 8; y += 9) { ctx.moveTo(bx + 6, y); ctx.lineTo(bx + bw - 6, y); }
+  ctx.stroke();
+
+  // LA LUCARNE. On voit la broche travailler : un fond noir, une lueur froide au
+  // milieu. Froide, parce que l ambre du lieu appartient deja a la bande LED et
+  // qu une seconde source chaude sur la meme piece les mettrait en concurrence.
+  const lw = Math.min(bw * 0.52, 26), lh = Math.min(h * 0.20, 20);
+  const lx = bx + bw / 2, ly = -h / 2 + m + lh * 0.9;
+  ctx.fillStyle = alpha("#000000", 0.62);
+  ctx.fillRect(lx - lw / 2, ly - lh / 2, lw, lh);
+  ctx.fillStyle = alpha(PROP.verre, 0.16);
+  ctx.fillRect(lx - lw / 2 + 1.5, ly - lh / 2 + 1.5, lw - 3, 2);
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.55);
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(lx - lw / 2, ly - lh / 2, lw, lh);
+
+  // LA TABLE ET SA PIECE. La table reste nue — c est ce qui la separe du bati —
+  // et la piece est un simple pave clair : on ne fabrique pas du decor, on
+  // fabrique une PIECE.
+  const tx = gauche ? -w / 2 + t / 2 : w / 2 - t / 2;
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.fillRect(tx - t / 2 + 3, -h / 2 + m + 2, t - 6, 3);
+  const pw = Math.min(t * 0.44, 18), ph = Math.min(h * 0.08, 11);
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(tx - pw / 2 + 1.2, -h / 2 + m + 6 + 1.2, pw, ph);
+  ctx.fillStyle = alpha(PROP.metal, 0.30);
+  ctx.fillRect(tx - pw / 2, -h / 2 + m + 6, pw, ph);
+
+  boulons(o, S, 2);
+}
+
+/* LE POSTE COMMANDE. C est l armoire, et une armoire se reconnait a UNE chose :
+   elle s OUVRE. Un joint de porte franc du haut en bas, une poignee dessus, des
+   ouies de ventilation d un cote, et le pupitre — trois voyants froids, jamais
+   animes : l animation appartient au danger. */
+function poste(o, S) {
   const w = o.w, h = o.h;
   const s = graine(o);
 
@@ -463,17 +650,43 @@ function usine(o, S) {
   ctx.fillStyle = alpha(S.bloc, 0.55);
   ctx.fillRect(-w / 2 + 7, -h / 2 + 7, w - 14, h - 14);
 
+  // LE JOINT DE PORTE, franc, d un bord a l autre : c est LUI qui dit
+  // « armoire ». Les striations d avant disaient « tole », ce qu on peut dire
+  // d une machine comme d une caisse ; une porte ne se dit que d un meuble.
   const vert = h >= w;
-  ctx.strokeStyle = alpha("#000000", 0.26);
+  const dx = ((s >>> 5) & 7) / 7 * 0.16;
+  const jv = vert ? (0.42 + dx) * w - w / 2 : 0;
+  const jh = vert ? 0 : (0.42 + dx) * h - h / 2;
+  ctx.strokeStyle = alpha("#000000", 0.44);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  if (vert) { ctx.moveTo(jv, -h / 2 + 6); ctx.lineTo(jv, h / 2 - 6); }
+  else { ctx.moveTo(-w / 2 + 6, jh); ctx.lineTo(w / 2 - 6, jh); }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.16);
   ctx.lineWidth = 1;
   ctx.beginPath();
-  if (vert) for (let x = -w / 2 + 12; x < w / 2 - 6; x += 9) { ctx.moveTo(x, -h / 2 + 8); ctx.lineTo(x, h / 2 - 8); }
-  else for (let y = -h / 2 + 12; y < h / 2 - 6; y += 9) { ctx.moveTo(-w / 2 + 8, y); ctx.lineTo(w / 2 - 8, y); }
+  if (vert) { ctx.moveTo(jv + 1.4, -h / 2 + 6); ctx.lineTo(jv + 1.4, h / 2 - 6); }
+  else { ctx.moveTo(-w / 2 + 6, jh + 1.4); ctx.lineTo(w / 2 - 6, jh + 1.4); }
   ctx.stroke();
-  ctx.strokeStyle = alpha(PROP.metal, 0.12);
+
+  // LA POIGNEE, sur le joint : une porte qu on ne peut pas ouvrir est un panneau.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.70);
+  if (vert) ctx.fillRect(jv - 4.5, -2.5, 3, 12);
+  else ctx.fillRect(-2.5, jh - 4.5, 12, 3);
+
+  // LES OUIES, du cote OPPOSE a la poignee : une armoire dissipe, et les fentes
+  // sont courtes et groupees, pas etalees sur toute la face.
+  const ox = vert ? (jv < 0 ? w * 0.28 : -w * 0.28) : 0;
+  const oy = vert ? 0 : (jh < 0 ? h * 0.28 : -h * 0.28);
+  const ol = Math.min(vert ? w * 0.26 : w * 0.42, 22);
+  ctx.strokeStyle = alpha("#000000", 0.34);
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
-  if (vert) for (let x = -w / 2 + 13; x < w / 2 - 6; x += 9) { ctx.moveTo(x, -h / 2 + 8); ctx.lineTo(x, h / 2 - 8); }
-  else for (let y = -h / 2 + 13; y < h / 2 - 6; y += 9) { ctx.moveTo(-w / 2 + 8, y); ctx.lineTo(w / 2 - 8, y); }
+  for (let i = -2; i <= 2; i++) {
+    if (vert) { ctx.moveTo(ox - ol / 2, oy + i * 4.2); ctx.lineTo(ox + ol / 2, oy + i * 4.2); }
+    else { ctx.moveTo(ox + i * 4.2, oy - ol / 2); ctx.lineTo(ox + i * 4.2, oy + ol / 2); }
+  }
   ctx.stroke();
 
   // LE PUPITRE : ce qui dit qu'une machine se COMMANDE. Trois voyants froids,

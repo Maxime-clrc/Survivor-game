@@ -699,15 +699,27 @@ const AMBIANCE = {
   // nombreux — et VERT, la seule matiere en suspension du depot qui ne soit pas
   // minerale. Un lieu abandonne se reconnait aussi a ce qu il ne souffle plus.
   friche: { v: 11, l: 4, n: 84, col: PROP.vert, a: 0.070, e: 1.5 },
+  /* L USINE NE DERIVE PAS, ELLE TIRE. Une installation en marche a une
+     ventilation forcee : l air y a UNE direction, tenue, et il va VITE. C est
+     ce que le champ commun ne pouvait pas dire — son angle oscillait de ±0,30
+     rad, ce qui est la signature d un courant d air libre, donc de tout sauf
+     d une extraction. `swing: 0` est le reglage, pas un oubli.
+     L angle n est pas horizontal : a 0 exactement les brins se confondraient
+     avec le trait franc de la grille de 20 m, qui est le seul autre reseau
+     rectiligne de ce lieu. */
+  usine: { v: 64, l: 7, n: 130, col: WEATHER.wind, a: 0.045, e: 1.2,
+           ang: 0.12, swing: 0 },
 };
 const AMB_DEFAUT = { v: 24, l: 5, n: POUSSIERE, col: WEATHER.wind, a: 0.055, e: 1.6 };
+const AMB_ANG = Math.PI * 0.62;
+const AMB_SWING = 0.30;
 
 export function drawAtmosphere(tm) {
   if (gfx < GFX_HIGH) return;
 
   const A = AMBIANCE[biomeAt(biomeIndex).key] ?? AMB_DEFAUT;
-  champ(tm, Math.PI * 0.62 + Math.sin(tm * 0.07) * 0.30, A.v, A.l,
-        A.n, A.col, A.a, A.e);
+  const ang = (A.ang ?? AMB_ANG) + Math.sin(tm * 0.07) * (A.swing ?? AMB_SWING);
+  champ(tm, ang, A.v, A.l, A.n, A.col, A.a, A.e);
   if (A.contre) {
     const c = A.contre;
     champ(tm, c.ang + Math.sin(tm * 0.04) * 0.22, c.v, c.l, c.n, A.col, c.a, c.e);
