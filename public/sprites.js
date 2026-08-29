@@ -416,10 +416,22 @@ function bulwarkPath(k) {
     }
     g.closePath();
 
-    g.moveTo(12, -18);
-    g.lineTo(20, -15.5);
-    g.lineTo(20, 14.5);
-    g.lineTo(12, 17);
+    // LE BOUCLIER SORT DEVANT, ET C'EST SON VERBE. Il etait colle au corps :
+    // la mesure confondait le porte-bouclier et le choeur sur les cinq axes
+    // (`verifierSilhouettes`), et a l'oeil deux masses rondes de meme taille
+    // avec des appendices ne se distinguaient que par la couleur — ce que la
+    // charte interdit. Le pavois avance de huit pixels et gagne en hauteur :
+    // la masse passe devant, et un corps dont la masse est devant ne peut plus
+    // etre pris pour un corps qui appelle.
+    g.moveTo(19, -21);
+    g.lineTo(28, -17.5);
+    g.lineTo(28, 16.5);
+    g.lineTo(19, 20);
+    g.closePath();
+    g.moveTo(11, -6);
+    g.lineTo(20, -5);
+    g.lineTo(20, 5);
+    g.lineTo(11, 6);
     g.closePath();
 
     for (const s of [-1, 1]) {
@@ -745,41 +757,172 @@ function rasterTestPaint(img, k) {
   };
 }
 
+/* LA CHARTE DIT QU'UN CORPS SE RECONNAIT SANS SA COULEUR. A treize types la
+   roue de teintes est saturee — le harceleur (jaune) voisine le porte-bouclier
+   (ocre), le generateur (bleu ciel) le soigneur (turquoise) — donc la SILHOUETTE
+   porte seule, et une regle qu'on ne peut pas rejouer n'est pas une regle.
+
+   QUATRE NOMBRES, sur le modele de `signatureBiome()` : l'elancement (haut
+   contre large), le remplissage (ce que la forme occupe de sa boite), le nombre
+   de sommets (une masse contre une dentelle) et l'avance (la masse est-elle
+   devant, au centre, ou derriere). Deux types qui se ressemblent sur les QUATRE
+   a la fois sont le meme corps, quelle que soit leur couleur.
+
+   Le trace est PUR : il ne dessine rien, il enregistre. `pathExtent` fait deja
+   tourner les chemins sur un faux contexte — c'est le meme mecanisme. */
+export function signatureSilhouette(path) {
+  const pts = [];
+  const sous = [];
+  let courant = null;
+  const ajoute = (x, y) => { pts.push([x, y]); if (courant) courant.push([x, y]); };
+  const faux = {
+    moveTo(x, y) { courant = [[x, y]]; sous.push(courant); pts.push([x, y]); },
+    lineTo(x, y) { ajoute(x, y); },
+    closePath() {},
+    arc(x, y, r) { courant = []; sous.push(courant); for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      ajoute(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    } },
+    ellipse(x, y, rx, ry) { courant = []; sous.push(courant); for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      ajoute(x + Math.cos(a) * rx, y + Math.sin(a) * ry);
+    } },
+  };
+  path(faux);
+  if (pts.length < 3) return { elancement: 1, remplissage: 0, sommets: 0, avance: 0, matiere: 0 };
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  let sx = 0, sy = 0;
+  let plein = 0;
+  for (const sp of sous) {
+    if (sp.length < 3) continue;
+    let a = 0;
+    for (let i = 0; i < sp.length; i++) {
+      const [ax, ay] = sp[i], [bx, by] = sp[(i + 1) % sp.length];
+      a += ax * by - bx * ay;
+    }
+    plein += Math.abs(a / 2);
+  }
+  for (const [x, y] of pts) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x;
+    if (y < y0) y0 = y; if (y > y1) y1 = y;
+    sx += x; sy += y;
+  }
+  const w = Math.max(1e-6, x1 - x0), h = Math.max(1e-6, y1 - y0);
+  return {
+    elancement: h / w,
+    // L'AIRE SIGNEE N'A AUCUN SENS ICI : un corps est fait de sous-traces
+    // DISJOINTS — un tronc, deux lames, trois pattes — et leurs enroulements
+    // s'annulent. Elle rendait 0,03 pour le harceleur et 1,00 pour le colosse,
+    // c'est-a-dire du bruit. L'ENVELOPPE CONVEXE, elle, est definie pour un
+    // nuage de points : elle dit si la forme remplit sa boite ou si elle tend
+    // des bras dans le vide.
+    remplissage: Math.min(1, aireEnveloppe(pts) / (w * h)),
+    sommets: pts.length,
+    avance: (sx / pts.length - (x0 + x1) / 2) / Math.max(w, h),
+    // CE QUI SEPARE UN ANNEAU D'UN DISQUE, et que l'enveloppe ne voit pas : la
+    // somme des aires de chaque SOUS-TRACE, en valeur absolue, rapportee a
+    // l'enveloppe. Une masse pleine tend vers 1, une structure ouverte — un
+    // anneau, un mat, un trepied — reste basse.
+    matiere: Math.min(1, plein / Math.max(1e-6, aireEnveloppe(pts))),
+  };
+}
+
+/* Chaine monotone d'Andrew, puis lacet sur l'enveloppe — la seule aire qui
+   veuille dire quelque chose pour un ensemble de traces separes. */
+function aireEnveloppe(pts) {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (p.length < 3) return 0;
+  const croix = (o, a, b) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const bas = [], haut = [];
+  for (const q of p) {
+    while (bas.length >= 2 && croix(bas[bas.length - 2], bas[bas.length - 1], q) <= 0) bas.pop();
+    bas.push(q);
+  }
+  for (let i = p.length - 1; i >= 0; i--) {
+    const q = p[i];
+    while (haut.length >= 2 && croix(haut[haut.length - 2], haut[haut.length - 1], q) <= 0) haut.pop();
+    haut.push(q);
+  }
+  const env = bas.slice(0, -1).concat(haut.slice(0, -1));
+  let a = 0;
+  for (let i = 0; i < env.length; i++) {
+    const [ax, ay] = env[i], [bx, by] = env[(i + 1) % env.length];
+    a += ax * by - bx * ay;
+  }
+  return Math.abs(a / 2);
+}
+
+/* CRITERE REJOUABLE. Muet = aucune paire de types ne se confond. `ecarts` est
+   la tolerance par axe : deux corps doivent differer sur AU MOINS UN. */
+export const signaturesSilhouettes = () =>
+  SILHOUETTES.map(f => ({ key: f.key, ...signatureSilhouette(f.path(f.repos)) }));
+
+export const AXES_SILHOUETTE = {
+  elancement: 0.18, remplissage: 0.10, sommets: 5, avance: 0.055, matiere: 0.14,
+};
+
+export function verifierSilhouettes(ecarts = AXES_SILHOUETTE) {
+  const soucis = [];
+  const sig = signaturesSilhouettes();
+  for (let i = 0; i < sig.length; i++) {
+    for (let j = i + 1; j < sig.length; j++) {
+      const a = sig[i], b = sig[j];
+      if (Math.abs(a.elancement - b.elancement) > ecarts.elancement) continue;
+      if (Math.abs(a.remplissage - b.remplissage) > ecarts.remplissage) continue;
+      if (Math.abs(a.sommets - b.sommets) > ecarts.sommets) continue;
+      if (Math.abs(a.avance - b.avance) > ecarts.avance) continue;
+      if (Math.abs(a.matiere - b.matiere) > ecarts.matiere) continue;
+      soucis.push(`${sig[i].key} et ${sig[j].key} se confondent`
+        + ` sur les quatre axes (elancement ${a.elancement.toFixed(2)}/${b.elancement.toFixed(2)},`
+        + ` remplissage ${a.remplissage.toFixed(2)}/${b.remplissage.toFixed(2)},`
+        + ` sommets ${a.sommets}/${b.sommets},`
+        + ` avance ${a.avance.toFixed(3)}/${b.avance.toFixed(3)},`
+        + ` matiere ${a.matiere.toFixed(2)}/${b.matiere.toFixed(2)})`);
+    }
+  }
+  return soucis;
+}
+
+/* LA TABLE DES SILHOUETTES EST HORS DE `plan()`, et c'est ce qui rend la
+   charte verifiable : la forme de repos de chaque corps doit etre lisible par
+   autre chose que le four a atlas. `repos` est l'etat neutre — celui qu'on
+   compare, parce qu'un corps ne s'annonce pas par sa pose d'attaque. */
+const SILHOUETTES = [
+    { key: "grunt", path: gruntPath,   accents: gruntAccents, edge: 2, floats: false,
+      shapes: [{ legs: 0 }, { legs: 1 }, { legs: -1 }, { legs: 0, open: true }] },
+    { key: "runner", path: runnerPath,  accents: () => runnerAccents, edge: 2, floats: false,
+      shapes: [{ fin: 0 }, { fin: 0.6 }, { fin: -0.4 }, { fin: 1.4 }] },
+    { key: "tank", path: tankPath,    accents: () => tankAccents, edge: 3, floats: false,
+      shapes: [{ plates: 1, step: 0 }, { plates: 1, step: 1 }, { plates: 1, step: -1 },
+               { plates: 0, step: 0 }] },
+    { key: "shooter", path: shooterPath, accents: k => shooterAccents(k.recoil ?? 0), edge: 2, floats: true,
+      shapes: [{ recoil: 0 }, { recoil: 0.3 }, { recoil: -1 }, { recoil: 1 }] },
+    { key: "brood", path: broodPath,   accents: null, edge: 2, floats: false,
+      shapes: [{ swell: 0 }, { swell: 0.35 }, { swell: -0.25 }, { swell: 1.3 }] },
+    { key: "kamikaze", path: kamikazePath, accents: k => kamikazeAccents(k.bristle ?? 0), edge: 2, floats: false,
+      shapes: [{ bristle: 0 }, { bristle: 0.3 }, { bristle: -0.2 }, { bristle: 1 }] },
+    { key: "bulwark", path: bulwarkPath, accents: () => bulwarkAccents, edge: 3, floats: false,
+      shapes: [{ brace: 0, step: 0 }, { brace: 0, step: 1 }, { brace: 0, step: -1 },
+               { brace: 1.2, step: 0 }] },
+    { key: "medic", path: medicPath,   accents: k => medicAccents(k.lean ?? 0), edge: 1.8, floats: false,
+      shapes: [{ lean: 0 }, { lean: 0.5 }, { lean: -0.3 }, { lean: 1.2 }] },
+    { key: "choeur", path: choeurPath,  accents: k => choeurAccents(k.call ?? 0), edge: 2, floats: false,
+      shapes: [{ call: 0 }, { call: 0.25 }, { call: -0.2 }, { call: 1 }] },
+    { key: "harceleur", path: harceleurPath, accents: k => harceleurAccents(k.ouvre ?? 0), edge: 2, floats: false,
+      shapes: [{ ouvre: 0 }, { ouvre: 0.3 }, { ouvre: -0.15 }, { ouvre: 1 }] },
+    { key: "generateur", path: generateurPath, accents: k => generateurAccents(k.pouls ?? 0), edge: 2.4, floats: true,
+      shapes: [{ pouls: 0 }, { pouls: 0.3 }, { pouls: -0.2 }, { pouls: 1 }] },
+    { key: "saboteur", path: saboteurPath, accents: k => saboteurAccents(k.bras ?? 0), edge: 2, floats: false,
+      shapes: [{ bras: 0 }, { bras: 0.25 }, { bras: -0.15 }, { bras: 1 }] },
+    { key: "relais", path: relaisPath, accents: k => relaisAccents(k.ecart ?? 0), edge: 2, floats: false,
+      shapes: [{ ecart: 0 }, { ecart: 0.25 }, { ecart: -0.15 }, { ecart: 1 }] },
+].map(def => ({ ...def, repos: def.shapes[0] }));
+
 function plan(raster) {
   const jobs = [];
 
-  const enemies = [
-    { path: gruntPath,   accents: gruntAccents, edge: 2, floats: false,
-      shapes: [{ legs: 0 }, { legs: 1 }, { legs: -1 }, { legs: 0, open: true }] },
-    { path: runnerPath,  accents: () => runnerAccents, edge: 2, floats: false,
-      shapes: [{ fin: 0 }, { fin: 0.6 }, { fin: -0.4 }, { fin: 1.4 }] },
-    { path: tankPath,    accents: () => tankAccents, edge: 3, floats: false,
-      shapes: [{ plates: 1, step: 0 }, { plates: 1, step: 1 }, { plates: 1, step: -1 },
-               { plates: 0, step: 0 }] },
-    { path: shooterPath, accents: k => shooterAccents(k.recoil ?? 0), edge: 2, floats: true,
-      shapes: [{ recoil: 0 }, { recoil: 0.3 }, { recoil: -1 }, { recoil: 1 }] },
-    { path: broodPath,   accents: null, edge: 2, floats: false,
-      shapes: [{ swell: 0 }, { swell: 0.35 }, { swell: -0.25 }, { swell: 1.3 }] },
-    { path: kamikazePath, accents: k => kamikazeAccents(k.bristle ?? 0), edge: 2, floats: false,
-      shapes: [{ bristle: 0 }, { bristle: 0.3 }, { bristle: -0.2 }, { bristle: 1 }] },
-    { path: bulwarkPath, accents: () => bulwarkAccents, edge: 3, floats: false,
-      shapes: [{ brace: 0, step: 0 }, { brace: 0, step: 1 }, { brace: 0, step: -1 },
-               { brace: 1.2, step: 0 }] },
-    { path: medicPath,   accents: k => medicAccents(k.lean ?? 0), edge: 1.8, floats: false,
-      shapes: [{ lean: 0 }, { lean: 0.5 }, { lean: -0.3 }, { lean: 1.2 }] },
-    { path: choeurPath,  accents: k => choeurAccents(k.call ?? 0), edge: 2, floats: false,
-      shapes: [{ call: 0 }, { call: 0.25 }, { call: -0.2 }, { call: 1 }] },
-    { path: harceleurPath, accents: k => harceleurAccents(k.ouvre ?? 0), edge: 2, floats: false,
-      shapes: [{ ouvre: 0 }, { ouvre: 0.3 }, { ouvre: -0.15 }, { ouvre: 1 }] },
-    { path: generateurPath, accents: k => generateurAccents(k.pouls ?? 0), edge: 2.4, floats: true,
-      shapes: [{ pouls: 0 }, { pouls: 0.3 }, { pouls: -0.2 }, { pouls: 1 }] },
-    { path: saboteurPath, accents: k => saboteurAccents(k.bras ?? 0), edge: 2, floats: false,
-      shapes: [{ bras: 0 }, { bras: 0.25 }, { bras: -0.15 }, { bras: 1 }] },
-    { path: relaisPath, accents: k => relaisAccents(k.ecart ?? 0), edge: 2, floats: false,
-      shapes: [{ ecart: 0 }, { ecart: 0.25 }, { ecart: -0.15 }, { ecart: 1 }] },
-  ];
-
-  enemies.forEach((def, t) => {
+  SILHOUETTES.forEach((def, t) => {
     const R = ramp(ENEMY.TINT[t] ?? ENEMY.base);
     def.shapes.forEach((k, i) => {
       const path = def.path(k);

@@ -65,6 +65,57 @@ mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/15
 200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
 la grille des quatre lieux. Muet au 0.21.0.
 
+### L'identité, rendue vérifiable (0.21.7)
+
+**La charte disait qu'un corps se reconnaît sans sa couleur ; rien ne le
+vérifiait.** Cinq nombres par silhouette, sur le modèle de `signatureBiome()` :
+
+| type | élancement | remplissage | sommets | avance | matière |
+|---|---|---|---|---|---|
+| fantassin | 0,87 | 0,79 | 37 | −0,054 | 0,79 |
+| coureur | 0,52 | 0,65 | 10 | −0,206 | 0,70 |
+| colosse | 0,91 | 0,70 | 22 | 0,015 | 1,00 |
+| tireur | 0,69 | 0,61 | 13 | 0,020 | 0,91 |
+| pondeuse | 0,69 | 0,75 | 23 | −0,003 | 0,71 |
+| kamikaze | 0,97 | 0,69 | 37 | 0,023 | 0,63 |
+| porte-bouclier | 0,96 | 0,79 | 29 | 0,001 | 0,66 |
+| soigneur | 2,00 | 0,83 | 32 | −0,023 | 0,66 |
+| chœur | 1,12 | 0,78 | 27 | 0,001 | 0,78 |
+| harceleur | 0,60 | 0,81 | 14 | −0,005 | 0,54 |
+| générateur | 1,10 | 0,79 | 34 | 0,038 | **0,39** |
+| saboteur | 1,04 | 0,89 | 17 | −0,049 | 0,65 |
+| relais | **2,59** | 0,84 | 25 | −0,020 | 0,54 |
+
+**Deux mesures ont été refaites avant de servir.** L'aire signée n'a aucun sens
+sur ces formes : un corps est fait de sous-tracés **disjoints** — un tronc, deux
+lames, trois pattes — dont les enroulements s'annulent. Elle rendait 0,03 pour
+le harceleur et 1,00 pour le colosse, c'est-à-dire du bruit. Remplacée par
+l'**enveloppe convexe**. Et l'enveloppe ne voit pas les creux : il a fallu un
+cinquième axe, `matiere`, pour séparer un **anneau** d'un **disque** — c'est lui
+qui sépare le générateur (0,39) du kamikaze (0,63), les deux seuls corps que les
+quatre premiers axes confondaient.
+
+**Une paire résiste, et elle est antérieure au plan.** Porte-bouclier et chœur
+se ressemblent sur les cinq axes (élancement 0,96/1,12, matière 0,66/0,78) : deux
+masses rondes de taille voisine avec des appendices. J'ai avancé le pavois de
+huit pixels — son verbe est un blocage **frontal**, sa silhouette ne le disait
+pas — mais **la mesure ne bouge pas** : déplacer la masse déplace aussi la boîte
+englobante, et `avance` est invariante par translation. Le changement est gardé
+pour son **sens**, pas pour le chiffre. Sculpter une forme contre un indicateur
+qu'on ne peut pas regarder ferait pire.
+
+**Quatre types mouraient en fantassin.** `DEATH_BURST` s'arrêtait à neuf entrées
+et `?? DEATH_BURST[0]` faisait le reste, en silence. Chacun a la sienne : le
+harceleur éclate vers l'avant (`cone` 1,0 comme le coureur), la coque du
+générateur se défait en gros éclats lents, le châssis du saboteur se démonte, le
+mât du relais cède en un jet court et vif.
+
+**Aucun son ajouté, et c'est la bonne réponse.** `verifierFeedback()` croisé
+avec les **41 recettes réelles** d'`audio.js` est muet : les quatre archétypes
+héritent de `mort` / `mortEnergie` par `matiereDe()`, et le relais y est passé
+d'`carapace` à `énergie` — il émet un arc. Le limiteur voit **trois** clés de
+mort pour treize types, pas treize.
+
 ### La difficulté par la composition (0.21.6)
 
 Un pilote **identique** partout — même cadence, même trajectoire, même politique

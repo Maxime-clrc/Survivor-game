@@ -2,6 +2,36 @@
 
 **Quand lire ce fichier :** on touche à `public/render/*`, `sprites.js`, `gl.js`, `hud.js`, `audio.js`, `public/css/*`, ou à un écran de menu.
 
+### Silhouettes de la horde
+
+- **UN CORPS SE RECONNAÎT SANS SA COULEUR, et c'est VÉRIFIABLE.** À treize types
+  la roue de teintes est saturée — harceleur (jaune) contre porte-bouclier
+  (ocre), générateur (bleu ciel) contre soigneur (turquoise). La silhouette
+  porte donc seule, et `verifierSilhouettes()` (`sprites.js`) refuse deux types
+  qui se ressemblent sur les **cinq** axes à la fois : élancement, remplissage,
+  sommets, avance, matière.
+- **`SILHOUETTES` vit HORS de `plan()`** : une charte qu'on ne peut pas rejouer
+  n'est pas une charte. `repos` est l'état neutre — un corps ne s'annonce pas
+  par sa pose d'attaque.
+- **L'aire signée n'a aucun sens sur ces formes** : un corps est fait de
+  sous-tracés **disjoints** dont les enroulements s'annulent. `remplissage` se
+  mesure sur l'**enveloppe convexe** ; `matiere` (somme des aires de chaque
+  sous-tracé sur l'enveloppe) est le seul axe qui sépare un **anneau** d'un
+  **disque**, et c'est lui qui distingue le générateur du kamikaze.
+- **Ne pas sculpter une silhouette CONTRE la mesure.** Elle dit qu'une paire est
+  confusable ; elle ne dit pas quoi dessiner. Un écart qui ne se voit pas à
+  l'écran ne se corrige pas au chiffre.
+- **Chaque type a son éclatement** (`DEATH_BURST`, `render/fx.js`) : la table
+  s'arrêtait à neuf entrées et `?? DEATH_BURST[0]` faisait le reste **en
+  silence** — quatre types mouraient en fantassin. `cone` porte l'intention :
+  7 vaut « dans toutes les directions », une valeur étroite projette **dans le
+  sens du déplacement**.
+- **Ce qu'un corps fait se lit sur l'instantané, jamais sur une clé de plus** :
+  la coque d'un voisin dit que le générateur travaille (`e.shield`),
+  l'appariement dit que le relais tend son arc (`e.pair`), `wu` dit qui
+  s'apprête. Une coque se dessine sur le corps **qui la porte**, pas sur sa
+  source.
+
 Les règles qui valent pour *toute* tâche vivent dans `CLAUDE.md`, à la racine.
 Celui-ci ne porte que ce qui ne sert qu'ici — et il n'est PAS chargé
 automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.

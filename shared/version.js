@@ -4352,6 +4352,51 @@
                    ca et aucun ajustement n a ete valide aux DEUX effectifs : au
                    registre, pas dans un chiffre invente.
 
+     0.21.7 lot 8  LA CHARTE DISAIT QU'UN CORPS SE RECONNAIT SANS SA COULEUR ;
+                   RIEN NE LE VERIFIAIT. A treize types la roue de teintes est
+                   saturee, donc la silhouette porte seule — et une regle qu'on
+                   ne peut pas rejouer n'est pas une regle.
+                   CINQ NOMBRES PAR SILHOUETTE, sur le modele de
+                   `signatureBiome()` : elancement, remplissage, sommets, avance,
+                   matiere. `verifierSilhouettes()` refuse deux types qui se
+                   ressemblent sur les CINQ a la fois, et `SILHOUETTES` sort de
+                   `plan()` pour que la mesure existe hors du four a atlas.
+                   DEUX MESURES ONT ETE REFAITES AVANT DE SERVIR. L aire signee
+                   n a AUCUN sens sur ces formes : un corps est fait de
+                   sous-traces DISJOINTS dont les enroulements s annulent — elle
+                   rendait 0,03 pour le harceleur et 1,00 pour le colosse, c est
+                   a dire du bruit. Remplacee par l ENVELOPPE CONVEXE. Et
+                   l enveloppe ne voit pas les creux : il a fallu un cinquieme
+                   axe, `matiere`, pour separer un ANNEAU d un DISQUE — c est lui
+                   qui separe le generateur (0,39) du kamikaze (0,63), les deux
+                   seuls corps que les quatre premiers axes confondaient.
+                   UNE PAIRE RESISTE, ET ELLE EST ANTERIEURE AU PLAN :
+                   porte-bouclier et choeur. Le pavois a ete avance de huit
+                   pixels — son verbe est un blocage FRONTAL, sa silhouette ne le
+                   disait pas — mais LA MESURE NE BOUGE PAS : deplacer la masse
+                   deplace la boite englobante, et `avance` est invariante par
+                   translation. Le changement est garde pour son SENS, pas pour
+                   le chiffre. Sculpter une forme contre un indicateur qu on ne
+                   peut pas regarder ferait pire.
+                   QUATRE TYPES MOURAIENT EN FANTASSIN : `DEATH_BURST` s arretait
+                   a neuf entrees et `?? DEATH_BURST[0]` faisait le reste, en
+                   silence. Chacun a la sienne, et `cone` porte l intention — le
+                   harceleur eclate VERS L AVANT, la coque du generateur se defait
+                   en gros eclats lents, le chassis du saboteur se demonte, le mat
+                   du relais cede en un jet court.
+                   CE QU UN CORPS FAIT SE LIT SUR L INSTANTANE, jamais sur une
+                   clef de plus : la coque d un voisin dit que le generateur
+                   travaille, l appariement dit que le relais tend son arc, `wu`
+                   dit qui s apprete — et la visee n etait lue que pour le tireur,
+                   donc le saboteur restait inerte sous son propre preavis.
+                   AUCUN SON AJOUTE, ET C EST LA BONNE REPONSE.
+                   `verifierFeedback()` croise avec les 41 recettes REELLES
+                   d `audio.js` est muet : les archetypes heritent de `mort` /
+                   `mortEnergie` par `matiereDe()`, et le relais y passe a
+                   ENERGIE — il emet un arc. Le limiteur voit TROIS clefs de mort
+                   pour treize types, pas treize.
+                   FIN DU PLAN 18.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4360,4 +4405,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.6";
+export const VERSION = "0.21.7";

@@ -42,7 +42,7 @@ Un lot = un commit = un bump de patch. Le plan ouvre **0.21.x**.
 | **5** | 0.21.4 | **Le groupe, et le relais.** Le quatrième archétype est *une* interaction entre corps : sa place est ici, pas au lot 4. Priorités de cible produites par la composition, pas par une IA. | tuer le support change le combat, mesuré |
 | **6** | 0.21.5 | **Les élites.** Une variante de **comportement** par type, la signature reste lisible. | type + élite reconnus sans texte |
 | **7** | 0.21.6 | **La difficulté par la composition.** Calme / normal / cauchemar se séparent par le roster, l'agressivité et le rythme, pas par le résidu. | écart de mode conservé à résidu **réduit** |
-| **8** | 0.21.7 | **Identité.** Silhouettes, animations et morts des nouveaux, sons sous le limiteur de voix. | `verifierFeedback()` muet · mix non saturé |
+| **8** | 0.21.7 | **Identité.** Silhouettes rendues **vérifiables** (cinq axes), éclatements de mort des quatre nouveaux, expression tirée de l'instantané. **Aucun son ajouté** : les trois matières couvrent les treize types. | `verifierFeedback()` muet sur les 41 recettes réelles · `verifierSilhouettes()` : une paire, antérieure au plan |
 
 ---
 
@@ -78,6 +78,9 @@ comportements figés — c'est la seule façon d'attribuer un écart à sa cause
 | E18 | 7 | `hp` de cauchemar, en **solo** | La coupe 1,35 → 1,10 conserve l'écart à quatre joueurs (1 475 contre 1 477) mais **monte la pression solo de 23 à 38 %** selon les graines : une horde qui meurt plus vite se renouvelle plus vite, et un joueur seul en voit davantage arriver. Trois graines ne suffisent pas à régler ça, et aucun réglage n'a été validé **aux deux effectifs**. | remesurer solo sur dix graines, puis n'ajuster qu'un seul multiplicateur |
 | E19 | 7 | `spawn` de cauchemar (1,28) | **Inerte au plafond** : 1,28 → 1,45 ne produit aucun effet mesurable, la horde étant déjà saturée. Il ne compte qu'avant la saturation, donc son réglage actuel n'est justifié par aucune mesure de fin de manche. | mesurer son effet **avant** minute 10, là où il agit |
 | E20 | 7 | le pilote de mesure | Toutes les pressions sont relevées avec un pilote à **900 DPS** qui tourne en cercle. C'est un instrument, pas un joueur : en calme solo il tue 217 corps/min et la horde ne dépasse jamais 3 corps, d'où « 3 dégâts/min ». Les rapports entre modes valent ; les valeurs absolues, non. | rejouer les écarts de mode avec les vraies armes à la passe finale |
+
+| E21 | 8 | silhouettes **porte-bouclier / chœur** | `verifierSilhouettes()` les confond sur les **cinq** axes (élancement 0,96/1,12, matière 0,66/0,78). La paire est **antérieure au plan 18**. Le pavois a été avancé de huit pixels — son verbe est un blocage frontal — mais la mesure ne bouge pas : déplacer la masse déplace la boîte englobante, et `avance` est invariante par translation. | **un œil humain**, pas un chiffre : une capture en niveaux de gris à 200 corps |
+| ~~E10~~ | 4, **tranché au lot 8** | `ENEMY.TINT` | La roue est bien saturée à treize types, et c'est assumé : la silhouette porte seule, et elle est désormais **vérifiable** (`verifierSilhouettes()`, cinq axes). Une seule paire résiste, reportée en E21. | — |
 
 À chaque lot, on ajoute une ligne ici plutôt qu'un réglage dans le code.
 

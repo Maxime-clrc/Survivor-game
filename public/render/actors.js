@@ -1599,13 +1599,15 @@ function enemyFrame(e, t, def, ctxInfo) {
 
   if (e.type === 8 && ctxInfo?.covering) return frameOf(base + "open");
 
+  // CE QUI S'APPRETE SE VOIT, quel que soit le type. La visee n'etait lue que
+  // pour le tireur ; le saboteur passe par le meme preavis et restait inerte.
+  // Un corps annonce par `wu` et qui ne bouge pas de pose est un preavis qu'on
+  // ne peut pas lire, c'est-a-dire pas un preavis.
+  if (ctxInfo?.vise && (def.shootCd || def.poseCd)) return frameOf(base + "walkB");
+
   if (e.type === 3) {
-    // LA VISEE N'EST PLUS DEVINEE. Elle l'etait a partir de `def.shootCd`, ce
-    // que le serveur ne respecte pas : la premiere recharge est tiree au sort
-    // et un creneau de preavis refuse la repousse. Le serveur DIT maintenant
-    // qui vise (`wu`), donc on le lit. Le recul, lui, reste deduit du depart
-    // d'une balle : il n'a pas besoin d'une clef pour ca.
-    if (ctxInfo?.vise) return frameOf(base + "walkB");
+    // LE RECUL RESTE DEDUIT du depart d'une balle : il n'a pas besoin d'une
+    // clef, et le serveur ne dit pas « je viens de tirer ».
     const last = shooterFire.get(e.id);
     if (last !== undefined && performance.now() - last < SHOOTER_RECOIL) {
       return frameOf(base + "open");
@@ -1613,14 +1615,35 @@ function enemyFrame(e, t, def, ctxInfo) {
     return frameOf(base + "idle");
   }
 
+  // TROIS ETATS QUI SE LISENT SUR L'INSTANTANE, SANS UNE CLEF DE PLUS : la
+  // coque d'un voisin dit que le generateur travaille, l'appariement dit que le
+  // relais tend son arc, et la reserve d'un corps dit qu'il la porte.
+  if (def.egideRadius && ctxInfo?.couvre) return frameOf(base + "open");
+  if (def.lienRange && e.pair) return frameOf(base + "open");
+
   const step = Math.floor(t * def.speed / 90) & 1;
   return frameOf(base + (step ? "walkA" : "walkB"));
 }
 const auraCovered = new Set();
 const auraActive = new Set();
+// UN GENERATEUR AU TRAVAIL SE VOIT A CE QU'IL PRODUIT, pas a ce qu'il est : on
+// ne cherche pas ses voisins, on regarde qui PORTE une coque — `e.shield` est
+// deja dans l'instantane depuis le lot 4, et la source est celle qui en couvre
+// au moins un.
+const egideActive = new Set();
 function auraPass(list, diff) {
   auraCovered.clear();
   auraActive.clear();
+  egideActive.clear();
+  for (const s of list) {
+    const d = defDe(s.type, s.elite);
+    if (!d.egideRadius) continue;
+    const r2 = d.egideRadius * d.egideRadius;
+    for (const e of list) {
+      if (e === s || !(e.shield > 0)) continue;
+      if ((e.x - s.x) ** 2 + (e.y - s.y) ** 2 <= r2) { egideActive.add(s.id); break; }
+    }
+  }
   const src = [];
   for (const e of list) {
     const def = defDe(e.type, e.elite);
@@ -1703,6 +1726,7 @@ function drawMedicLinks(list) {
    Le serveur donne l'appariement (`pair`) et le remet a zero pendant la charge :
    pas d'arc tant qu'il n'est pas vif, c'est le preavis qui porte cet instant. */
 const RELAIS = ENEMY_TYPES.findIndex(t => t.lienRange);
+const EGIDE = ENEMY_TYPES.findIndex(t => t.egideRadius);
 function drawRelaisArcs(list) {
   if (RELAIS < 0) return;
   const par = new Map();
@@ -1825,7 +1849,8 @@ export function drawEnemies(list, view) {
     }
 
     drawSprite(ctx, enemyFrame(e, ts, def, {
-      blocked, covering: auraActive.has(e.id), vise: windup.has(e.id) }),
+      blocked, covering: auraActive.has(e.id), couvre: egideActive.has(e.id),
+      vise: windup.has(e.id) }),
       e.x + kx, e.y + ky, {
       angle: e.ang ?? 0,
       scaleX: gain * punch * (1 + squash * 0.5) * (ramasse ? 0.86 : 1),
@@ -1843,6 +1868,22 @@ export function drawEnemies(list, view) {
       ctx.fillRect(tx, ty, w, 3);
       ctx.fillStyle = e.elite ? ELITE_GOLD : (ENEMY_TINT[e.type] ?? ENEMY_TINT[0]);
       ctx.fillRect(tx, ty, w * (e.hp / e.maxHp), 3);
+      ctx.globalAlpha = 1;
+    }
+
+    // UNE COQUE SE VOIT SUR LE CORPS QUI LA PORTE, pas sur sa source. Sans ce
+    // trait, tuer le generateur d'abord etait une consigne ecrite nulle part :
+    // la horde se contentait d'encaisser 52 % de degats en plus sans qu'aucun
+    // pixel ne le dise. Un arc OUVERT et non un anneau plein — l'anneau est
+    // pris par l'elite et par l'aura du choeur.
+    if (e.shield > 0 && egideActive.size > 0) {
+      const puls = 0.6 + 0.4 * Math.sin(t / 300 + e.id);
+      ctx.strokeStyle = ENEMY_TINT[EGIDE] ?? ENEMY_TINT[0];
+      ctx.globalAlpha = (0.35 + puls * 0.3) * voile;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, r + 4, -2.2, 2.2);
+      ctx.stroke();
       ctx.globalAlpha = 1;
     }
   }

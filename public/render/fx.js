@@ -717,6 +717,20 @@ const DEATH_BURST = [
   { n: 0.55, size: 4.6, sp: 50, spread: 85, life: 0.60, flash: 1.25, cone: 7 },
   { n: 0.85, size: 2.0, sp: 80, spread: 130, life: 0.42, flash: 0.8, cone: 7 },
   { n: 1.35, size: 2.4, sp: 45, spread: 95, life: 0.60, flash: 1.15, cone: 7 },
+
+  /* LES QUATRE DERNIERS MOURAIENT EN FANTASSIN : la table s'arretait a neuf
+     entrees et `DEATH_BURST[type] ?? DEATH_BURST[0]` faisait le reste, en
+     silence. Chacun meurt maintenant comme il a vecu, et le `cone` est ce qui
+     porte l'intention — 7 vaut « dans toutes les directions », une valeur
+     etroite projette DANS LE SENS DU DEPLACEMENT. */
+  // harceleur : rapide et leger, il eclate VERS L'AVANT comme le coureur
+  { n: 0.70, size: 1.9, sp: 165, spread: 200, life: 0.28, flash: 0.85, cone: 1.0 },
+  // generateur : la coque se DEFAIT — peu d'eclats, gros, lents, tres lumineux
+  { n: 0.45, size: 5.6, sp: 30, spread: 60, life: 0.75, flash: 1.55, cone: 7 },
+  // saboteur : un chassis qui se DEMONTE, eclats nombreux et bas
+  { n: 1.20, size: 2.2, sp: 55, spread: 110, life: 0.50, flash: 0.75, cone: 7 },
+  // relais : le mat CEDE et l'arc se rompt — jet vertical, court et vif
+  { n: 0.90, size: 2.8, sp: 130, spread: 90, life: 0.34, flash: 1.45, cone: 7 },
 ];
 function spawnDeath(x, y, type, elite, ang = 0, crit = false, owner = 0, mat = MAT_CARAPACE) {
   if (deaths.length < DEATH_MAX) {
