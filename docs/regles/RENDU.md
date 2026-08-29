@@ -734,7 +734,7 @@ le sien :
 - **Le tressaillement ne sort que sur les gros événements** (détonation, onde de
   choc, rupture de barre, bombe), jamais sur un impact ordinaire. Une seule
   exception, et elle est doublement bornée : **son propre** coup LOURD, à
-  **1,2 px**. « Lourd » vaut 2 % des touches — 0,53/s pour toute l'équipe,
+  **0,7 px**. « Lourd » vaut 2 % des touches — 0,53/s pour toute l'équipe,
   relevé — et le réserver à son tireur le ramène sous 0,15/s : c'est ce qui
   sépare un accent d'un tremblement permanent. Le coup lourd d'un allié ne
   secoue pas mon écran ; il a déjà son onde, son noyau et sa voix.

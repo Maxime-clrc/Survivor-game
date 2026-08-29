@@ -5050,6 +5050,14 @@
                    aussi bien pour moi que pour une source sans proprietaire —
                    zone, brulure, danger. Le drapeau se pose donc explicitement.
 
+     0.24.3 fix    LE TRESSAILLEMENT DE TOUCHE PASSE DE 1,2 A 0,7 px, sur retour
+                   de jeu. La borne de FREQUENCE etait la bonne — ses propres
+                   coups lourds seulement, sous 0,15/s — mais l amplitude ne l
+                   etait pas : a 12 % de `SHAKE_MAX` il commencait a se lire
+                   comme une petite detonation, et le tressaillement franc doit
+                   rester le seul a dire ca. A 7 % il se SENT sans se voir, et il
+                   ne peut plus se confondre avec l onde d un souffle.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5058,4 +5066,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.24.2";
+export const VERSION = "0.24.3";

@@ -590,13 +590,14 @@ function palierDe(e) {
    accent d'un tremblement permanent. Un coup lourd d'un allie ne secoue pas MON
    ecran ; il a deja son onde, son noyau et sa voix.
 
-   1,2 px sur une vue de 1 600 : il se SENT, il ne se voit pas. Le tressaillement
+   0,7 px sur une vue de 1 600, soit 7 % de `SHAKE_MAX` : il se SENT, il ne se
+   voit pas, et il ne peut pas se confondre avec une detonation. Le tressaillement
    franc reste ou il etait — detonations, ondes de choc, rupture de barre. */
 const PALIER = [
   { flash: 0.045,      kick: 0,    eclats: 0, sp: 0,   cone: 0,    poussiere: 0, shake: 0 },
   { flash: HIT_FLASH,  kick: 1,    eclats: 2, sp: 90,  cone: 1.60, poussiere: 0, shake: 0 },
   { flash: 0.085,      kick: 1.35, eclats: 4, sp: 140, cone: 1.18, poussiere: 1, shake: 0 },
-  { flash: 0.120,      kick: 1.90, eclats: 6, sp: 210, cone: 0.76, poussiere: 3, shake: 1.2 },
+  { flash: 0.120,      kick: 1.90, eclats: 6, sp: 210, cone: 0.76, poussiere: 3, shake: 0.7 },
 ];
 
 function registerHit(e, pal) {

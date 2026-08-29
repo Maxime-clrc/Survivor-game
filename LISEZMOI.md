@@ -18,7 +18,7 @@ déjà relevé au plan 15 : sur 17 317 vraies touches, le découpage est
 lourd, toute l'équipe confondue.
 
 Réservé à **son propre** tireur, le lourd tombe sous **0,15/s** à quatre joueurs.
-À 1,2 px sur une vue de 1 600 et une décroissance de 0,2 s, c'est un accent
+À 0,7 px sur une vue de 1 600 et une décroissance de 0,2 s, c'est un accent
 toutes les six à sept secondes — pas un tremblement.
 
 #### L'acte final : quatre lignes sur treize
