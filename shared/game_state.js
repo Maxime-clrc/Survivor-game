@@ -1853,8 +1853,9 @@ export class GameState {
     for (let i = 0; i <= rebonds; i++) {
       vus.add(cur.id);
       // le premier trait est l'AMORCE : sans lui a l'ecran, le joueur ne voit pas
-      // qu'il a vise, et l'arme continue de se lire comme automatique
-      this._effetArc(src.x, src.y, cur.x, cur.y, i === 0 ? 1 : 0);
+      // qu'il a vise, et l'arme continue de se lire comme automatique. Le RANG
+      // suit — c'est lui qui rend visible et audible la perte par rebond.
+      this._effetArc(src.x, src.y, cur.x, cur.y, i + 1);
       if (p.mods.teslaEntrave > 0) cur.rootUntil = this.time + p.mods.teslaEntrave;
       this._damage(cur, force, p.id);
       force *= garde;
@@ -1888,7 +1889,7 @@ export class GameState {
     let src = p, force = dmg;
     for (let i = 0; i <= rebonds; i++) {
       vus.add(cur);
-      this._effetArc(src.x, src.y, cur.x, cur.y, src === p ? 1 : 0);
+      this._effetArc(src.x, src.y, cur.x, cur.y, i + 1);
       this._harvestDamage(cur, force);
       force *= garde;
       src = cur;
@@ -3182,7 +3183,7 @@ export class GameState {
       this.effects.push({
         id: this._nextId++,
         x: src.x, y: src.y, x2: best.x, y2: best.y,
-        r: 0, life: 0.22, max: 0.22, kind: 3,
+        r: 0, life: 0.22, max: 0.22, kind: 3, n: i + 2,
       });
       this._damage(best, dmg * CARD_CFG.CHAIN_MUL, ownerId);
       src = best;
@@ -8045,7 +8046,9 @@ export class GameState {
       this.effects.push({
         id: this._nextId++,
         x: src.x, y: src.y, x2: best.x, y2: best.y,
-        r: 0, life: 0.22, max: 0.22, kind: 3,
+        // rang 2 et au-dela : un ricochet de carte n'a pas d'amorce — il n'a pas
+        // ete vise — mais il perd de la meme facon, donc il se lit de la meme.
+        r: 0, life: 0.22, max: 0.22, kind: 3, n: i + 2,
       });
 
       this._damage(best, dmg, b.owner);
@@ -8517,8 +8520,15 @@ export class GameState {
       f: filtrer(this.effects,
         f => f.x2 === undefined ? (f.r ?? 0)
           : Math.max(f.r ?? 0, Math.hypot(f.x2 - f.x, f.y2 - f.y)),
+        /* LE RANG D UN ARC N ETAIT PAS ENVOYE. Le tuple d arc s arretait a `y2`,
+           donc `f.n` valait TOUJOURS zero cote client et la branche « amorce »
+           de `drawEffects` — le trait epais et droit qu on a vise, contre les
+           arcs agites qu il declenche — n a jamais ete tracee une seule fois.
+           Il porte maintenant le rang du saut : 1 pour l amorce, puis 2, 3, 4 a
+           mesure que la decharge perd 30 % par rebond. */
         f => f.kind === 3 || f.kind === 13
-        ? [f.id, r1(f.x), r1(f.y), Math.round(f.r ?? 0), r2(f.life / f.max), f.kind, r1(f.x2), r1(f.y2)]
+        ? [f.id, r1(f.x), r1(f.y), Math.round(f.r ?? 0), r2(f.life / f.max), f.kind,
+           r1(f.x2), r1(f.y2), f.n ?? 0]
         /* L'INDEX 7 PORTAIT UN ZERO LITTERAL, et le balayage de la lame posait
            un `ang` que personne n'envoyait : le client lisait `f.ang ?? 0` et
            dessinait donc TOUJOURS vers l'est, quelle que soit la visee. L'arme

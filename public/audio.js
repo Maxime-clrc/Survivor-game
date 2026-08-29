@@ -613,18 +613,30 @@ const PALETTE = {
     return { end: a.end + 0.2, stop: a.stop };
   },
 
-  // L'ELECTRICITE N'EST PAS UN BOURDONNEMENT : c'est une serie de craquements
-  // IRREGULIERS. Un intervalle constant donne une machine a coudre, et le carre
-  // est ce qui la rend sale. `force` vient du nombre de cibles.
+  /* L'ELECTRICITE N'EST PAS UN BOURDONNEMENT : c'est une serie de craquements
+     IRREGULIERS. Un intervalle constant donne une machine a coudre, et le carre
+     est ce qui la rend sale. `force` vient du nombre de cibles.
+
+     `sauts` EST LA LONGUEUR DE LA CHAINE, et c'est elle qui fait entendre le
+     rebond. Les arcs d'un meme tir arrivaient un par un et `claim` en refusait
+     deux sur trois : un rebond ne s'entendait donc pas du tout. Ils sont cumules
+     par `fx.js` et rendus en UNE voix, plus longue et qui craque plus loin —
+     trois sauts ne coutent pas trois places.
+     Chaque craquement descend un peu : la decharge PERD 30 % par rebond, et
+     c'est la seule facon de le dire sans ajouter de couche. */
   foudre: (o) => {
     const k = Math.max(0.5, Math.min(1.4, o.force ?? 1));
+    const sauts = Math.max(0, Math.min(3, (o.sauts ?? 0)));
     let d = 0;
     // un highpass a 3 kHz ne laisse passer que de l'AIR : sous la horde on ne
     // voyait plus que l'arc. Le pied descend a 1,5 kHz, ou le craquement a
     // encore un corps.
-    for (let i = 0; i < 4; i++) {
-      noise({ dur: 0.028, type: "highpass", freq: 1500 + Math.random() * 2800,
-              q: 0.8, gain: SOUND_GAIN.impact * 2.8 * k, delay: d });
+    const nc = 4 + sauts;
+    for (let i = 0; i < nc; i++) {
+      const perte = Math.pow(0.82, i * (sauts > 0 ? 1 : 0));
+      noise({ dur: 0.028, type: "highpass",
+              freq: (1500 + Math.random() * 2800) * perte,
+              q: 0.8, gain: SOUND_GAIN.impact * 2.8 * k * perte, delay: d });
       d += 0.028 + Math.random() * 0.055;
     }
     // LE CLAQUEMENT — la bande mediane que les craquements n'ont pas. C'est elle

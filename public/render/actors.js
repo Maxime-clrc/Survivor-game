@@ -862,15 +862,24 @@ export function drawEffects(effects) {
       continue;
     }
 
+    /* L'AMORCE EST LE TRAIT QU'ON A VISE, la dispersion est ce qu'il a
+       declenche : presque droite et epaisse contre agitee et fine. Cette
+       difference n'a JAMAIS ete tracee — le tuple d'arc s'arretait a `y2`, donc
+       `f.n` valait toujours zero et tout passait par la branche du bas.
+
+       LE RANG PORTE LA PERTE. Chaque saut coute 30 % de la decharge, et c'etait
+       la seule chose que l'image ne disait pas : plus loin dans la chaine, le
+       trait est plus FIN, plus AGITE et plus PALE. Le nombre se lit donc sans
+       compter les traits. */
     if (f.kind === 3) {
-      ctx.globalAlpha = f.k;
-      /* L'AMORCE EST LE TRAIT QU'ON A VISE, la dispersion est ce qu'il a
-         declenche : presque droite et epaisse contre agitee et fine. Sans cette
-         difference le tesla se relit comme automatique, ce qu'il n'est plus. */
-      drawArc(`r${f.id}`, f.x, f.y, f.x2, f.y2, f.n
+      const rang = Math.max(0, (f.n ?? 0) - 1);
+      ctx.globalAlpha = f.k * Math.pow(0.78, rang);
+      drawArc(`r${f.id}`, f.x, f.y, f.x2, f.y2, f.n === 1
         ? { col: FX.ricochetCore, coeur: FX.flash, amp: 0.03, width: 3.4,
             branches: 0, cut: 0.15 }
-        : { col: FX.ricochet, coeur: FX.ricochetCore, amp: 0.09, width: 2.2,
+        : { col: FX.ricochet, coeur: FX.ricochetCore,
+            amp: 0.09 + rang * 0.025,
+            width: Math.max(1.2, 2.2 - rang * 0.3),
             branches: 2, cut: 0.45 });
       ctx.globalAlpha = 1;
       continue;

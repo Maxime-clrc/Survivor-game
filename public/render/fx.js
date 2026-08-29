@@ -56,19 +56,15 @@ export const pump = new EventPump(handleEvent, {
 function addShake(mag) {
   shake.mag = Math.min(SHAKE_MAX, Math.max(shake.mag, mag));
 }
-// UN KIND ABSENT DE CETTE TABLE EST MUET. Deux exceptions volontaires : `2`
+// UN KIND ABSENT DE CETTE TABLE EST MUET. Trois exceptions volontaires : `2`
 // (niveau) et `6` (rupture de barre) sonnent par leur evenement NOMME, les
 // doubler les ferait sonner deux fois ; `4` est un fourre-tout (balise,
 // purification, Sentence, relevement) — un son unique pour tous mentirait, et
-// ce qui compte y a deja le sien.
+// ce qui compte y a deja le sien ; `3` (l'arc) sonne par CUMUL, voir `arcLot` —
+// une chaine est un evenement, pas trois.
 const EFFECT_SOUND = {
   0:  { son: "explosion", force: 0.7, shake: 4 },
   1:  { son: "balayage", force: 0.9, shake: 3 },
-  // l'arc PREND la place d'une touche dans le limiteur (meme cle) : une build
-  // de ricochet en produit plusieurs par seconde, le nombre de voix ne bouge pas.
-  // `claim` est ce qui rend le mot vrai — sans lui l'arc se faisait REFUSER par
-  // la touche qui venait de passer, et on ne voyait plus que le trace.
-  3:  { son: "foudre", force: 1, shake: 0, key: "impact", claim: true },
   5:  { son: "mort", pitch: 0.55, shake: 0 },
   7:  { son: "explosion", force: 1.0, shake: 6 },
   8:  { son: "explosion", force: 0.6, shake: 4 },
@@ -280,6 +276,13 @@ function handleEvent(e) {
     }
 
     case "effet": {
+      // l'arc cumule au lieu de sonner : les segments d'un meme tir arrivent
+      // dans le MEME lot, et `claim` en refusait deux sur trois.
+      if (e.kind === 3) {
+        arcLot.n++;
+        arcLot.sauts = Math.max(arcLot.sauts, Math.max(0, (e.n ?? 1) - 1));
+        break;
+      }
       const d = EFFECT_SOUND[e.kind];
       const S = BLAST_STYLE[e.kind];
       if (S) {
@@ -304,6 +307,21 @@ function handleEvent(e) {
       break;
     }
   }
+}
+
+/* UNE CHAINE EST UN EVENEMENT, PAS TROIS. Les arcs d'un meme tir arrivent dans
+   le MEME lot de differences ; les sonner un par un ne donnait rien de plus,
+   parce que `claim` en refusait deux sur trois — un rebond ne s'entendait donc
+   PAS. On les cumule et on sonne une fois apres le lot, avec la LONGUEUR de la
+   chaine : la voix dure plus longtemps et craque plus loin quand ca saute, et
+   trois sauts ne coutent toujours qu'une place. */
+const arcLot = { n: 0, sauts: 0 };
+function flushArcs() {
+  if (arcLot.n === 0) return;
+  const sauts = arcLot.sauts;
+  arcLot.n = 0; arcLot.sauts = 0;
+  playSound("foudre", { key: "impact", claim: true, sauts,
+                        force: 1 + Math.min(0.4, sauts * 0.15) });
 }
 
 /* LA VOIX D'UN DEPART. L'arme ne circule pas : le proprietaire voyage dans le
@@ -1273,6 +1291,9 @@ export function flushDamage(now) {
   }
 }
 export function stepFeedback(dt) {
+  // apres `pump`, donc apres le lot : c'est ce qui permet a une chaine entiere
+  // de tenir dans une seule voix.
+  flushArcs();
   stepTimeWarp(dt);
   if (pulse.t > 0) pulse.t = Math.max(0, pulse.t - dt);
 

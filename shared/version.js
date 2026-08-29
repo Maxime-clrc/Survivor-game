@@ -4891,6 +4891,30 @@
                    deux automations au meme instant sur le meme parametre ne se
                    departagent pas.
 
+     0.23.5 lot 6  L AMORCE DU TESLA N A JAMAIS ETE TRACEE. Le tuple d arc s
+                   arretait a `y2` : `f.n` valait TOUJOURS zero cote client,
+                   donc la branche « amorce » de `drawEffects` — le trait epais
+                   et droit qu on a VISE, contre les arcs agites qu il declenche
+                   — n a pas ete dessinee une seule fois depuis qu elle existe.
+                   Troisieme champ mort du plan, meme famille que `f.ang` du
+                   lot 2 : ecrit d un cote, jamais envoye, et `??` taisait tout.
+                   L index 8 porte desormais le RANG du saut — 1 pour l amorce,
+                   puis 2, 3, 4 — et il porte plus que la distinction perdue :
+                   chaque saut coute 30 % de la decharge, et c etait la seule
+                   chose que l image ne disait pas. Plus loin dans la chaine, le
+                   trait est plus FIN, plus AGITE et plus PALE ; le nombre de
+                   sauts se lit donc sans compter les traits.
+                   UNE CHAINE EST UN EVENEMENT, PAS TROIS. Les segments d un
+                   meme tir arrivent dans le MEME lot de differences et `claim`
+                   en refusait deux sur trois : un rebond ne s entendait pas du
+                   tout. `arcLot` les cumule et `flushArcs()` sonne UNE fois
+                   apres le lot, avec la longueur de la chaine — la voix dure
+                   plus longtemps et craque plus loin quand ca saute, et chaque
+                   craquement DESCEND, parce que la decharge perd a chaque bond.
+                   Trois sauts ne coutent toujours qu une place.
+                   L entree 3 de `EFFECT_SOUND` se supprime : sa seule lecture
+                   est morte.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4899,4 +4923,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.23.4";
+export const VERSION = "0.23.5";
