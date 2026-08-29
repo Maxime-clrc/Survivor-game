@@ -4964,6 +4964,39 @@
                    contre chaque sol — l additif sur un plancher clair est
                    justement le cas qui se juge a l oeil.
 
+     0.24.0 lot 1  LE PROJECTILE LOURD, ET LA TRAVERSEE. Premier lot du plan 21.
+                   LA GRENADE N AVAIT AUCUNE TRAINEE. Le baril tournait — deux
+                   axes valent mieux qu un pour dire « objet LANCE » — mais rien
+                   ne disait d ou il venait, donc l arme la plus lente du jeu
+                   etait la moins anticipable. La trainee suit le VOL pendant que
+                   le corps TOURNE, et c est tout le sujet : deux axes differents
+                   sur le meme objet separent un objet lance d un projectile
+                   tire. Elle est LOURDE ET DISCRETE — large, tres pale, courte —
+                   parce qu une grenade doit s anticiper sans attirer plus l oeil
+                   que le corps qu on vise. Trois troncons de trait, AUCUNE
+                   particule : a une grenade par seconde et par joueur, le budget
+                   du palier 0 ne paie pas de gerbe.
+                   LA PULSATION DIT « ARMEE », et pas « ca va sauter » : la duree
+                   de vie ne circule pas, et une pulsation qui accelererait
+                   MENTIRAIT. Periode fixe, fonction de l identifiant, aucune
+                   allocation, et elle reste sous le corps — la charte interdit
+                   la boule lumineuse.
+                   `vole` GARDE LA PREMIERE IMAGE : une balle neuve n a pas de
+                   position precedente, et une trainee posee sur un axe suppose
+                   pointerait vers l est pendant une image. Meme classe de defaut
+                   que les trois du plan 20, evitee cette fois a l ecriture.
+                   UNE BALLE QUI RESSORT NE LE DISAIT PAS. Le railgun et le fusil
+                   de precision traversent une file entiere en rendant exactement
+                   ce que rend une balle qui s arrete. Le client le SAIT deja —
+                   l attribution par balle SURVIVANTE est precisement « elle est
+                   ressortie », par opposition a la balle eteinte qui est morte
+                   sur le corps — donc `perce` ne coute pas un octet de reseau.
+                   UNE SEULE PARTICULE, et c est une LIGNE : ce qu il faut lire
+                   est un axe qui continue derriere le corps. Une gerbe de plus
+                   dirait « plus fort » au lieu de « ca passe a travers ».
+                   MESURE : 100 % des impacts du fusil de precision portent le
+                   drapeau, 0 % de ceux du tir standard.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4972,4 +5005,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.23.7";
+export const VERSION = "0.24.0";

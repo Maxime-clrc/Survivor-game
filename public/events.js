@@ -68,9 +68,12 @@ export function diffSnapshots(a, b, opts = {}) {
   }
   // un seul objet reutilise : `diffSnapshots` tourne 20 fois par seconde et
   // rendre un litteral par impact allouerait jusqu'a 48 objets par appel.
-  const COUP = { owner: 0, dx: 0, dy: 0 };
+  // `perce` DIT QUE LA BALLE EST RESSORTIE, et il ne coute rien : c'est deja la
+  // difference entre les deux branches d'attribution — une balle eteinte est
+  // morte sur le corps, une balle qui a survecu l'a TRAVERSE.
+  const COUP = { owner: 0, dx: 0, dy: 0, perce: 0 };
   const coupDe = (x, y) => {
-    COUP.owner = 0; COUP.dx = 0; COUP.dy = 0;
+    COUP.owner = 0; COUP.dx = 0; COUP.dy = 0; COUP.perce = 0;
     let bd = BULLET_CLAIM * BULLET_CLAIM, mort = null;
     for (const bu of eteintes) {
       const d = (bu.x - x) ** 2 + (bu.y - y) ** 2;
@@ -93,6 +96,7 @@ export function diffSnapshots(a, b, opts = {}) {
       bd = d;
       COUP.owner = bb.owner ?? 0;
       COUP.dx = bb.x - perforants[i].x; COUP.dy = bb.y - perforants[i].y;
+      COUP.perce = 1;
     }
     return COUP;
   };
@@ -122,7 +126,7 @@ export function diffSnapshots(a, b, opts = {}) {
     // Le forcer a un faisait passer 81 % des evenements pour des touches.
     out.push({ t: "impact", id, x: eb.x, y: eb.y, dmg: Math.max(0, lost),
                hits, crits, type: eb.type, maxHp: eb.maxHp,
-               ang: eb.ang, owner: c.owner, dx: c.dx, dy: c.dy });
+               ang: eb.ang, owner: c.owner, dx: c.dx, dy: c.dy, perce: c.perce });
     nImpact++;
   }
   for (const [id, ea] of a.enemies) {

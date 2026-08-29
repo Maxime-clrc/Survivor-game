@@ -91,9 +91,44 @@ function boltGrain(x, y, ux, uy, r, col) {
 }
 /* UN OBJET BALISTIQUE, PAS UN TIR : un cylindre qui TOURNE, donc dont l'axe ne
    suit pas la trajectoire. La phase est une fonction de l'identifiant et du
-   temps — rien ne se garde d'une image a l'autre. */
-function boltBaril(b, r, col) {
-  const a = b.id * 0.7 + performance.now() / 1000 * 6.5;
+   temps — rien ne se garde d'une image a l'autre.
+
+   LA TRAINEE SUIT LE VOL PENDANT QUE LE CORPS TOURNE, et c'est tout le sujet :
+   deux axes differents sur le meme objet, c'est ce qui separe un objet LANCE
+   d'un projectile tire. Elle est LOURDE ET DISCRETE — large, tres pale, courte —
+   parce qu'une grenade doit s'anticiper sans attirer plus l'oeil que le corps
+   qu'on vise. Trois troncons de trait, aucune particule : a une grenade par
+   seconde et par joueur, le budget du palier 0 ne paie pas de gerbe.
+
+   LA PULSATION DIT « ARMEE ». Elle ne dit PAS « ca va sauter » — la duree de vie
+   ne circule pas, et une pulsation qui accelererait mentirait. Un anneau pale et
+   court, periode fixe, fonction de l'identifiant : aucune allocation, et il
+   reste sous le corps pour ne pas devenir la boule lumineuse que la charte
+   interdit. */
+function boltBaril(b, r, col, vx, vy) {
+  const sec = performance.now() / 1000;
+  if (vx !== undefined) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    for (let i = 3; i >= 1; i--) {
+      ctx.strokeStyle = alpha(col, 0.05 * i);
+      ctx.lineWidth = r * (0.5 + i * 0.55);
+      ctx.beginPath();
+      ctx.moveTo(b.x - vx * r * (i * 2.6), b.y - vy * r * (i * 2.6));
+      ctx.lineTo(b.x - vx * r * ((i - 1) * 2.6), b.y - vy * r * ((i - 1) * 2.6));
+      ctx.stroke();
+    }
+    const puls = 0.5 + 0.5 * Math.sin(sec * 7 + b.id);
+    ctx.strokeStyle = alpha(FX.blastEdge, 0.10 + 0.22 * puls);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r * (1.7 + 0.25 * puls), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineCap = "butt";
+    ctx.restore();
+  }
+  const a = b.id * 0.7 + sec * 6.5;
   const ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
   const L = r * 1.5, W = r * 0.85;
   ctx.fillStyle = col;
@@ -156,11 +191,14 @@ function boltTrait(x, y, ux, uy, r, col) {
   ctx.fillStyle = col;
   ctx.beginPath(); ctx.arc(x + ux * r * 1.2, y + uy * r * 1.2, r * 0.55, 0, Math.PI * 2); ctx.fill();
 }
-function boltForme(shape, b, ux, uy, r, col) {
+// `vole` dit qu'on connait la DIRECTION reelle : a la premiere image une balle
+// n'a pas de position precedente, et une trainee posee sur un axe suppose
+// pointerait vers l'est pendant une image.
+function boltForme(shape, b, ux, uy, r, col, vole = true) {
   switch (shape) {
     case BOLT_RAIL:  boltRail(b.x, b.y, ux, uy, r, col); return true;
     case BOLT_GRAIN: boltGrain(b.x, b.y, ux, uy, r, col); return true;
-    case BOLT_BARIL: boltBaril(b, r, col); return true;
+    case BOLT_BARIL: boltBaril(b, r, col, vole ? ux : undefined, uy); return true;
     case BOLT_OBUS:  boltObus(b.x, b.y, ux, uy, r, col); return true;
     case BOLT_TRAIT: boltTrait(b.x, b.y, ux, uy, r, col); return true;
     default: return false;
@@ -217,7 +255,7 @@ export function drawBolt(b, r, col, trail, shape = BOLT_CAPSULE) {
       return;
     }
   }
-  if (boltForme(shape, b, 1, 0, r, col)) return;
+  if (boltForme(shape, b, 1, 0, r, col, false)) return;
   if (shape === BOLT_DIAMOND) { boltDiamond(b.x, b.y, 1, 0, r); return; }
   ctx.beginPath();
   ctx.arc(b.x, b.y, r, 0, Math.PI * 2);

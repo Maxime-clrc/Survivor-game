@@ -606,17 +606,19 @@ function registerHit(e, pal) {
   const col = e.owner && e.owner !== myId ? ownerColorOf(e.owner) : null;
   let restants = e.crits ?? 0;
   const type = e.type ?? 0;
+  const perce = e.perce === 1;
   for (let i = 0; i < n; i++) {
     const crit = restants-- > 0;
-    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col, pal, type);
+    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col, pal, type, perce);
     else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy,
-                         crit, col, pal, type });
+                         crit, col, pal, type, perce });
   }
 }
 const HIT_BURST_MAX = 4;
 export const hitQueue = [];
 const CRIT_FLASH = 0.17;
-function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER, type = 0) {
+function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER,
+                  type = 0, perce = false) {
   const now = performance.now();
   const P = PALIER[pal] ?? PALIER[HIT_LEGER];
   hits.set(id, {
@@ -670,6 +672,21 @@ function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER, t
     }
   }
   if (crit) spawnCritShards(x, y, dx, dy);
+  /* LA TRAVERSEE. Une balle qui ressort n'avait aucun retour a elle : le railgun
+     et le fusil de precision traversaient une file entiere en rendant exactement
+     ce que rend une balle qui s'arrete. Le client le SAIT deja — l'attribution
+     par balle survivante est precisement « elle est ressortie » — donc rien ne
+     s'ouvre au reseau.
+     UNE SEULE PARTICULE, et c'est une LIGNE, pas une gerbe : ce qu'il faut lire
+     est un axe qui continue derriere le corps, et une gerbe de plus dirait
+     « plus fort » au lieu de « ca passe a travers ». */
+  if (perce && particles.length < PARTICLE_MAX) {
+    particles.push({
+      x: x + dx * 6, y: y + dy * 6, vx: dx * 70, vy: dy * 70,
+      life: 0.10, max: 0.10, col: COMBAT.flash, size: 1.7,
+      ang: Math.atan2(dy, dx), long: 11, drag: 0.9,
+    });
+  }
 }
 
 /* LA POUSSIERE EST DE LA MATIERE DU LIEU, et la matiere du lieu est DEJA
@@ -767,7 +784,7 @@ function flushHitQueue(now) {
     if (hitQueue[i].at > now) continue;
     const h = hitQueue[i];
     hitQueue.splice(i, 1);
-    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col, h.pal, h.type);
+    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col, h.pal, h.type, h.perce);
   }
 }
 export const deaths = [];
