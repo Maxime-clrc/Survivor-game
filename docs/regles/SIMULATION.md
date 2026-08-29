@@ -256,6 +256,15 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 - **L'aura ne se cumule jamais** : meilleure réduction, jamais le produit.
   Relevée une fois par tick (`_auraPass`), lue dans `_damage()`. Même règle pour
   le Vœu partagé, les auras de givre et les champs de ralentissement.
+- **UN SOL PERSISTANT PORTE SA PROVENANCE** (`z.sol` : `SOL_HORDE`,
+  `SOL_JOUEUR`, `SOL_BOSS`). Elle dit **deux** choses, et il faut les tenir
+  séparées : *tout* sol est exclu de la logique d'abri du boss
+  (`_zoneEcarteAbris`, `_solPose`, `_foyerPoint` lisent la seule présence du
+  champ), mais **le plafond et la mesure ne comptent que le leur**. Sous son
+  ancien nom (`horde`) le champ confondait les deux : le calme, qui n'attache
+  aucun trait, affichait 21 % de « sol de horde », et le plafond évinçait « la
+  plus ancienne zone de horde » sans regarder qui l'avait posée — donc le
+  terrain d'un joueur pouvait effacer une traînée, et l'inverse.
 - **`_groundZone()` porte un plafond global** (`trailMax()`, traînées et spores
   confondues, la plus ancienne cède). La traînée se pose à la **distance
   parcourue**, pas au temps.

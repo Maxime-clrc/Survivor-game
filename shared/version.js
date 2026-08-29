@@ -4397,6 +4397,28 @@
                    pour treize types, pas treize.
                    FIN DU PLAN 18.
 
+     0.21.8 fix    LE SOL DE HORDE N ETAIT PAS DE LA HORDE. `verifierTraits` signalait
+                   « le sol de horde couvre 21 a 41 % d une vue pour un budget de
+                   12 % » a CHAQUE execution depuis le lot 1 ; le lot 3 avait dit
+                   ou regarder, le correctif tient en un renommage.
+                   `_groundZone` a CINQ appelants et estampillait le meme drapeau
+                   sur tous : la trainee, les spores et le saboteur — la horde —
+                   mais aussi LA CARTE DE TERRAIN D UN JOUEUR et LES NOEUDS DU
+                   BOSS. Le drapeau portait deux sens : « ce sol est persistant,
+                   ce n est pas un telegraphe », vrai pour les cinq et lu comme
+                   tel par la logique d abri du boss ; et « ce sol compte dans le
+                   budget de la horde », faux pour trois sur cinq.
+                   LA PREUVE ETAIT DANS LA MESURE : le CALME, qui n attache aucun
+                   trait et n a donc ni trainee ni spore, affichait quand meme
+                   21 %. Et le plafond evinçait « la plus ancienne zone de horde »
+                   sans regarder qui l avait posee — le terrain d un joueur
+                   pouvait donc effacer une trainee, et l inverse.
+                   La provenance est nommee (`SOL_HORDE`, `SOL_JOUEUR`, `SOL_BOSS`)
+                   et reste TOUJOURS VRAIE : la logique d abri du boss ne bouge
+                   pas d un pixel, seuls le plafond et la mesure savent desormais
+                   de quoi ils parlent. `verifierTraits` est MUET, pour la
+                   premiere fois du plan.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4405,4 +4427,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.7";
+export const VERSION = "0.21.8";

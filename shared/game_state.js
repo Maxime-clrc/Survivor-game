@@ -342,6 +342,11 @@ export const PLAYER_COLORS = [
   CLASS_COLOR.dps2,
 ];
 
+/* D'OU VIENT UN SOL PERSISTANT. Trois emetteurs passent par `_groundZone`, et
+   ils ne partagent ni budget ni lecture — mais ils partagent le fait de n'etre
+   PAS un telegraphe de boss, et c'est cela que la logique d'abri lit. */
+export const SOL_HORDE = 1, SOL_JOUEUR = 2, SOL_BOSS = 3;
+
 export const SRC_CONTACT = 0;
 export const SRC_SHOT = 1;
 export const SRC_ZONE = 2;
@@ -3085,7 +3090,7 @@ export class GameState {
   _blastGround(owner, x, y, r) {
     if (!owner || !(owner.mods.blastGround > 0)) return;
     this._groundZone(x, y, r * 0.7, CARD_CFG.TERRAIN_DOT, owner.mods.blastGround,
-                     owner.id);
+                     owner.id, SOL_JOUEUR);
   }
 
   _dashVuln(p) {
@@ -4713,18 +4718,33 @@ export class GameState {
     }
   }
 
-  _groundZone(x, y, r, dot, life, pj = 0) {
+  /* `sol` PORTAIT DEUX SENS, ET L'UN DES DEUX ETAIT FAUX. Sous son ancien nom
+     (`horde`) il disait a la fois « ce sol est PERSISTANT, ce n'est pas un
+     telegraphe de boss » — vrai pour les cinq appelants, et lu comme tel par
+     `_zoneEcarteAbris`, `_solPose` et `_foyerPoint` — et « ce sol compte dans
+     le budget de la horde », ce qui etait faux pour trois d'entre eux : la
+     carte de terrain d'un joueur et les noeuds du boss passent par ici.
+
+     La consequence se mesurait : le calme, qui n'attache AUCUN trait, affichait
+     quand meme 21 % de « sol de horde » a l'ecran. Et le plafond evinçait « la
+     plus ancienne zone de horde » sans regarder qui l'avait posee — donc le
+     terrain d'un joueur pouvait effacer une trainee, et l'inverse.
+
+     La provenance est desormais nommee. Elle reste TOUJOURS VRAIE, donc la
+     logique d'abri du boss ne change pas d'un pixel ; seuls le plafond et la
+     mesure savent maintenant de quoi ils parlent. */
+  _groundZone(x, y, r, dot, life, pj = 0, sol = SOL_HORDE) {
     let oldest = -1;
     let count = 0;
     for (let i = 0; i < this.zones.length; i++) {
-      if (!this.zones[i].horde) continue;
+      if (this.zones[i].sol !== sol) continue;
       count++;
       if (oldest < 0) oldest = i;
     }
     if (count >= trailMax(CFG.VIEW_W * CFG.VIEW_H) && oldest >= 0) this.zones.splice(oldest, 1);
     this._zone({
       x, y, r, dot, life, pj,
-      warn: 0, tick: CFG.ZONE_TICK, horde: 1,
+      warn: 0, tick: CFG.ZONE_TICK, sol,
     });
   }
 
@@ -5881,7 +5901,7 @@ export class GameState {
   // separe. Si huit pas n'y suffisent pas, elle ne se pose pas : une marque
   // manquante ne se voit pas, un ordre impossible si.
   _zoneEcarteAbris(z) {
-    if (z.pj || z.horde || z.dmg <= 0 || this.marks.length === 0) return true;
+    if (z.pj || z.sol || z.dmg <= 0 || this.marks.length === 0) return true;
     const abris = this._abris();
     if (abris.length === 0) return true;
     const fin = z.warn
@@ -5921,7 +5941,7 @@ export class GameState {
   _zoneFeu(x, y, r) {
     const a = { x, y, r };
     for (const z of this.zones) {
-      if (z.pj || z.horde || z.dmg <= 0 || z.warn > BOSS_CFG.ABRI_RETOUR) continue;
+      if (z.pj || z.sol || z.dmg <= 0 || z.warn > BOSS_CFG.ABRI_RETOUR) continue;
       if (this._zoneCouvre(z, a)) return z;
     }
     return null;
@@ -5963,7 +5983,7 @@ export class GameState {
     // meme regle que `_zoneEcarteAbris`, dans l'autre sens : une zone qui aura
     // fini assez tot pour qu'on revienne ne gene pas, c'est du timing.
     for (const z of this.zones) {
-      if (z.pj || z.horde || z.dmg <= 0) continue;
+      if (z.pj || z.sol || z.dmg <= 0) continue;
       const fin = z.warn + (z.life > 0 ? z.life : 0) + (z.left > 0 ? z.left * z.period : 0);
       if (fin + BOSS_CFG.ABRI_RETOUR <= echeance) continue;
       if (this._zoneCouvre(z, { x, y, r })) return false;
@@ -6533,7 +6553,7 @@ export class GameState {
       case MECH_CLUSTER:
         // un noeud tenu jusqu'au bout ne fait pas eclore : il PREND l'espace.
         if (m.noeud) { this._groundZone(m.x, m.y, BOSS_CFG.NOEUD_R, BOSS_CFG.NOEUD_DOT,
-                                        BOSS_CFG.NOEUD_LIFE); break; }
+                                        BOSS_CFG.NOEUD_LIFE, 0, SOL_BOSS); break; }
         for (let i = 0; i < BOSS_CFG.CLUSTER_HATCH; i++) {
           const a = Math.random() * Math.PI * 2;
           this._spawnEnemy(1, m.x + Math.cos(a) * 24, m.y + Math.sin(a) * 24);
@@ -9070,7 +9090,7 @@ export function mesureTraits(diffIndex, joueurs, minutes = 37, pas = 10) {
       if (portee > porteeMax) porteeMax = portee;
     }
     let zh = 0;
-    for (const z of g.zones) if (z.horde) zh++;
+    for (const z of g.zones) if (z.sol === SOL_HORDE) zh++;
     if (zh >= plafond) pleins++;
     somme += zh;
 
@@ -9084,7 +9104,7 @@ export function mesureTraits(diffIndex, joueurs, minutes = 37, pas = 10) {
       const cw = CFG.VIEW_W / SOL_COLS, ch = CFG.VIEW_H / SOL_ROWS;
       const vx = p.x - demiW, vy = p.y - demiH;
       for (const z of g.zones) {
-        if (!z.horde) continue;
+        if (z.sol !== SOL_HORDE) continue;
         const c0 = Math.max(0, Math.floor((z.x - z.r - vx) / cw));
         const c1 = Math.min(SOL_COLS - 1, Math.floor((z.x + z.r - vx) / cw));
         const r0 = Math.max(0, Math.floor((z.y - z.r - vy) / ch));
@@ -9846,7 +9866,7 @@ export function verifierMecaniques(effectifs = [1, 2, 3, 4], manches = 3,
           // = applique des degats maintenant : une zone instantanee ne blesse
           // qu'a la detonation (`blast` neuf), le reste de sa vie est un
           // remanent visuel que `_zones` ne fait plus passer par `_zoneApply`.
-          const actives = g.zones.filter(z => !z.pj && !z.horde && z.dmg > 0
+          const actives = g.zones.filter(z => !z.pj && !z.sol && z.dmg > 0
             && z.warn <= 0 && (z.life > 0 || z.blast > 0.2));
           for (const a of g._abris()) {
             if (a.t > BOSS_CFG.ABRI_RETOUR) continue;

@@ -65,6 +65,33 @@ mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/15
 200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
 la grille des quatre lieux. Muet au 0.21.0.
 
+### Le sol de horde n'était pas de la horde (0.21.8)
+
+`verifierTraits` signalait « le sol de horde couvre 21 à 41 % d'une vue pour un
+budget de 12 % » à **chaque** exécution depuis le lot 1. Le diagnostic du lot 3
+disait déjà où regarder ; le correctif tient en un renommage.
+
+`_groundZone` a **cinq** appelants et estampillait le même drapeau sur tous :
+la traînée, les spores et le saboteur — la horde — mais aussi **la carte de
+terrain d'un joueur** (`_blastGround`) et **les nœuds du boss**. Le drapeau
+portait deux sens à la fois :
+
+| sens | vrai pour | lu par |
+|---|---|---|
+| « ce sol est persistant, ce n'est pas un télégraphe » | les cinq | `_zoneEcarteAbris`, `_solPose`, `_foyerPoint` |
+| « ce sol compte dans le budget de la horde » | **trois sur cinq** | le plafond, `mesureTraits` |
+
+La preuve était dans la mesure elle-même : le **calme**, qui n'attache aucun
+trait et n'a donc ni traînée ni spore, affichait quand même 21 %. Et le plafond
+évinçait « la plus ancienne zone de horde » sans regarder qui l'avait posée —
+le terrain d'un joueur pouvait donc effacer une traînée, et l'inverse.
+
+La provenance est nommée (`SOL_HORDE`, `SOL_JOUEUR`, `SOL_BOSS`) et reste
+toujours vraie, donc la logique d'abri du boss ne bouge pas d'un pixel. Seuls
+le plafond et la mesure savent désormais de quoi ils parlent.
+
+**`verifierTraits` est muet**, pour la première fois du plan.
+
 ### L'identité, rendue vérifiable (0.21.7)
 
 **La charte disait qu'un corps se reconnaît sans sa couleur ; rien ne le
