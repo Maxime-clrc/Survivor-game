@@ -1,4 +1,5 @@
 import { HZ_EMBER, HZ_GEYSER, HZ_POOL, HZ_SLIP, HZ_SLOW, hazardState } from "/shared/game_state.js";
+import { BIOMES, HAZARDS, hazardsDe } from "/shared/biomes.js";
 import { BIOME, PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, hazardsActifs, inView, skin } from "./stage.js";
 
@@ -30,16 +31,24 @@ const DANGER = {
     [HZ_SLIP]: boue,
     [HZ_POOL]: flaqueToxique,
     [HZ_GEYSER]: cableSousTension,
+    [HZ_EMBER]: frontDeCombustion,
   },
   usine: {
     [HZ_SLOW]: convoyeur,
     [HZ_SLIP]: huile,
     [HZ_GEYSER]: jetDeVapeur,
     [HZ_EMBER]: chariot,
+    [HZ_POOL]: bacDeTrempe,
   },
   fonderie: {
     [HZ_SLOW]: scorie,
-    [HZ_SLIP]: scorie,
+    // ET NON `scorie` UNE SECONDE FOIS. Deux mecaniques opposees — l une freine,
+    // l autre emporte — portaient la meme image : tant que le glissant n etait
+    // pose nulle part ca n avait aucune consequence, et c est precisement ce qui
+    // rendait la chose invisible. Le lieu a deja sa surface glissante, elle est
+    // dans sa tuile de sol : le VITRIFIE, la ou le metal est tombe et a refroidi
+    // en verre.
+    [HZ_SLIP]: vitrifie,
     [HZ_POOL]: couleeEnFusion,
     [HZ_EMBER]: louche,
     [HZ_GEYSER]: grilleChaude,
@@ -66,6 +75,38 @@ export function drawHazards(tm) {
     const f = table[h.kind] ?? defaut;
     f(h, st, tm, S);
   }
+}
+
+/* LES DEUX TABLES DOIVENT SE RECOUVRIR EXACTEMENT, et rien ne le verifiait.
+   `biomes.js` decide QUELS dangers un lieu pose, `DANGER` decide a quoi ils
+   ressemblent, et les deux ont derive : quatre dessins n etaient tires par
+   aucune difficulte (le chariot de l Usine, la boue de la Friche, le glissant de
+   la Fonderie, l anomalie de la Nebuleuse), pendant que l Usine posait un `kind`
+   sans dessin.
+
+   AUCUN DES DEUX SENS NE LEVE QUOI QUE CE SOIT. Une entree morte ne se signale
+   jamais ; un `kind` sans dessin replie sur `defaut()`, un disque ambre qui a
+   l air d un placeholder mais qui joue normalement. Meme role que
+   `verifierFeedback()` pour les recettes de son. */
+export function verifierDangers() {
+  const soucis = [];
+  for (const b of BIOMES) {
+    const table = DANGER[b.key];
+    if (!table) { soucis.push(`${b.key} : aucune table de dessin`); continue; }
+    const poses = hazardsDe(b.key);
+    for (const k of poses) {
+      if (!table[k]) soucis.push(`${b.key}/${HAZARDS[k].key} : pose sans dessin`);
+    }
+    for (const k of Object.keys(table)) {
+      if (!poses.includes(+k)) soucis.push(`${b.key}/${HAZARDS[+k].key} : dessin jamais pose`);
+    }
+    // deux mecaniques opposees sous la meme image sont injustes : le joueur ne
+    // peut pas savoir si le sol va le freiner ou l emporter.
+    if (table[HZ_SLOW] && table[HZ_SLOW] === table[HZ_SLIP]) {
+      soucis.push(`${b.key} : ralenti et glissant partagent un dessin`);
+    }
+  }
+  return soucis;
 }
 
 /* --- ce qui sert aux quatre ------------------------------------------- */
@@ -348,6 +389,122 @@ function chariot(h, st, tm, S) {
   ctx.fillStyle = alpha(S.emis, 0.30 + 0.55 * puls);
   ctx.beginPath(); ctx.arc(st.x, st.y, 4.5, 0, Math.PI * 2); ctx.fill();
   limite(st.x, st.y, h.r, BIOME.hazard, 0.42 + 0.3 * k);
+}
+
+/* LE BAC DE TREMPE. Le seul danger d Usine qui ne soit ni un jet ni une piece en
+   mouvement : une cuve ouverte, encastree dans le sol, ou l on plonge ce qui
+   sort du four. Elle est CARREE dans un disque — c est le seul danger du depot
+   qui le soit, et une cuve rectangulaire dans un lieu tout en angles droits est
+   plus juste qu une mare. Le disque reste le collider ; la limite le dit. */
+function bacDeTrempe(h, st, tm, S) {
+  const c = h.r * 0.72;
+  dansLeDisque(h.x, h.y, h.r, () => {
+    ctx.fillStyle = alpha("#0d1114", 0.86);
+    ctx.fillRect(h.x - c, h.y - c, c * 2, c * 2);
+
+    // le bain FUME : une nappe chaude qui respire, jamais un clignotement.
+    const s = sceau(h);
+    const puls = 0.55 + 0.45 * Math.sin(tm * 0.62 + s * 9);
+    const g = ctx.createLinearGradient(h.x, h.y - c, h.x, h.y + c);
+    g.addColorStop(0, alpha(BIOME.hazard, 0.10 * puls));
+    g.addColorStop(0.5, alpha(PROP.fonte, 0.26 * puls));
+    g.addColorStop(1, alpha(BIOME.hazard, 0.10 * puls));
+    ctx.fillStyle = g;
+    ctx.fillRect(h.x - c, h.y - c, c * 2, c * 2);
+
+    // LE CAILLEBOTIS DU BORD : deux rangs de barreaux sur le pourtour, c est ce
+    // qui dit qu on peut s en approcher mais pas y poser le pied.
+    ctx.strokeStyle = alpha(PROP.metalDark, 0.80);
+    ctx.lineWidth = 3;
+    ctx.strokeRect(h.x - c, h.y - c, c * 2, c * 2);
+    ctx.strokeStyle = alpha(PROP.metal, 0.24);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (let i = 1; i < 5; i++) {
+      const u = h.x - c + (i / 5) * c * 2;
+      ctx.moveTo(u, h.y - c); ctx.lineTo(u, h.y - c * 0.72);
+      ctx.moveTo(u, h.y + c); ctx.lineTo(u, h.y + c * 0.72);
+    }
+    ctx.stroke();
+    grain(h, h.x, h.y, h.r * 0.6, 12, "#ffd9a8", 0.20 * puls, 3);
+  });
+  limite(h.x, h.y, h.r, BIOME.hazard, 0.40);
+}
+
+/* LE FRONT DE COMBUSTION. Une decharge technologique brule par en dessous, des
+   mois durant : ce qui avance n est pas une piece mais une LIGNE — un arc de
+   braise avec du noir derriere lui et du combustible devant. Il porte donc son
+   SENS dans sa forme, ce qu aucun autre danger mobile ne fait, et c est ce qui
+   le separe de la louche et du chariot. */
+function frontDeCombustion(h, st, tm, S) {
+  const nx = -h.dy, ny = h.dx;
+  const sens = st.x > h.x ? 1 : -1;
+  const dx = h.dx * sens, dy = h.dy * sens;
+
+  // le brule DERRIERE : ce qui est deja passe ne repousse pas.
+  ctx.fillStyle = alpha("#0b0806", 0.62);
+  ctx.beginPath();
+  ctx.ellipse(st.x - dx * h.r * 0.9, st.y - dy * h.r * 0.9,
+              h.r * 1.15, h.r * 0.86, Math.atan2(ny, nx), 0, Math.PI * 2);
+  ctx.fill();
+
+  dansLeDisque(st.x, st.y, h.r, () => {
+    const s = sceau(h);
+    nappe(st.x, st.y, h.r, "#2a1408", 0.70, 0.44);
+    // L ARC DE BRAISE, en tete. Trois traits paralleles, le plus avance le plus
+    // clair : un front a une epaisseur, une ligne n en a pas.
+    for (let i = 0; i < 3; i++) {
+      const av = (1 - i * 0.34) * h.r * 0.52;
+      const k = 0.55 + 0.45 * Math.sin(tm * (1.1 + i * 0.4) + s * 11 + i);
+      ctx.strokeStyle = alpha(i ? PROP.fonte : "#ffd9a8", (0.50 - i * 0.13) * k);
+      ctx.lineWidth = 3.4 - i;
+      ctx.beginPath();
+      ctx.arc(st.x - dx * h.r * 0.3, st.y - dy * h.r * 0.3, av + h.r * 0.3,
+              Math.atan2(dy, dx) - 0.9, Math.atan2(dy, dx) + 0.9);
+      ctx.stroke();
+    }
+    grain(h, st.x, st.y, h.r * 0.8, 16, "#000000", 0.40, 6);
+  });
+  limite(st.x, st.y, h.r, BIOME.hazard, 0.44);
+}
+
+/* LE VITRIFIE. La ou le metal est tombe, le sol a FONDU puis refroidi en verre :
+   presque noir, presque lisse, et c est exactement pour ca qu on y glisse. La
+   tuile de sol de ce lieu en porte deja — celui-ci est le meme, en grand et avec
+   un collider. Froid, parce qu il n arrete pas : ce qui blesse est chaud, ce qui
+   emporte est froid, et cette regle-la ne se negocie dans aucun lieu. */
+function vitrifie(h, st, tm, S) {
+  nappe(h.x, h.y, h.r, "#070507", 0.80, 0.62);
+  dansLeDisque(h.x, h.y, h.r, () => {
+    const s = sceau(h);
+    // LE REFLET : deux bandes obliques et froides. C est la seule chose qui
+    // distingue du verre d un trou, et elles glissent tres lentement — une
+    // surface qui renvoie la lumiere n est jamais tout a fait fixe.
+    const d = Math.sin(tm * 0.18 + s * 5) * h.r * 0.10;
+    for (const [u, e] of [[-0.30, 0.30], [0.24, 0.16]]) {
+      const g = ctx.createLinearGradient(
+        h.x + u * h.r - h.r * 0.2 + d, h.y - h.r,
+        h.x + u * h.r + h.r * 0.2 + d, h.y + h.r);
+      g.addColorStop(0, alpha(BIOME.slip, 0));
+      g.addColorStop(0.5, alpha(BIOME.slip, e * 0.42));
+      g.addColorStop(1, alpha(BIOME.slip, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(h.x - h.r, h.y - h.r, h.r * 2, h.r * 2);
+    }
+    // les CRAQUELURES du verre, fines et droites : le verre casse en lignes, la
+    // scorie en plaques, et c est ce qui empeche de confondre les deux.
+    ctx.strokeStyle = alpha(PROP.givre, 0.16);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i * 1.7 + s * 17) % (Math.PI * 2);
+      const d0 = ((i * 0.37 + s) % 1) * h.r * 0.5;
+      ctx.moveTo(h.x + Math.cos(a) * d0, h.y + Math.sin(a) * d0);
+      ctx.lineTo(h.x + Math.cos(a) * h.r * 0.94, h.y + Math.sin(a) * h.r * 0.94);
+    }
+    ctx.stroke();
+  });
+  limite(h.x, h.y, h.r, BIOME.slip, 0.34);
 }
 
 function rail(h, col, a) {

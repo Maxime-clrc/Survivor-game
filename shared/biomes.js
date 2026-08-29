@@ -266,24 +266,66 @@ const OBSTACLES = {
   ],
 };
 
+/* L ECHELLE D UN DANGER APPARTIENT AU LIEU, SES DEGATS NON. `h.r` etait lu par
+   `buildBiome` depuis toujours (`h.r ?? d.r`) et AUCUNE table ne s en servait :
+   tout geyser faisait 70 px, toute flaque 85, dans les quatre lieux. Le dessin
+   changeait, la geometrie non — et c est la geometrie qu on joue.
+
+   `dot` NE BOUGE PAS, ET C EST DELIBERE. Ce qui blesse doit blesser pareil
+   partout, sinon le joueur reapprend un bareme a chaque lieu ; la seule constante
+   des quatre reste « ce qui est chaud blesse, ce qui est froid ralentit ». Un
+   lieu se dit par la TAILLE et le RYTHME de ce qu il pose, pas par le chiffre.
+
+   ET LES QUATRE RESTENT COMPARABLES : `verifierBiomes()` refuse maintenant qu une
+   surface de danger s ecarte de plus de 25 % de la moyenne des quatre a mode
+   egal. Une identite qui rendrait un lieu franchement plus dur serait un
+   desequilibre, pas une identite. */
+/* L USINE N Y FIGURE PAS, ET C EST CE QU ELLE DIT : elle EST le gabarit. Une
+   installation reglee ne fait rien deborder, donc ses cinq dangers sont aux
+   rayons de reference et les trois autres lieux se lisent PAR RAPPORT a elle. */
+const ECHELLE = {
+  // ce qui a ete laisse : large et diffus, sauf l arc electrique — un cable qui
+  // claque est petit et mechant.
+  friche: { [HZ_GEYSER]: 0.76, [HZ_POOL]: 1.24, [HZ_EMBER]: 1.10,
+            [HZ_SLOW]: 1.10, [HZ_SLIP]: 1.10 },
+  // la masse : tout y est plus gros, c est le seul mot de ce lieu.
+  fonderie: { [HZ_GEYSER]: 1.14, [HZ_POOL]: 1.30, [HZ_EMBER]: 1.26,
+              [HZ_SLOW]: 1.10, [HZ_SLIP]: 1.00 },
+  // des CHAMPS : larges et mous, sauf ce qui est ponctuel — un eclat de plasma
+  // et une anomalie sont petits, et c est le seul lieu ou ce qui blesse soit
+  // PLUS FIN qu ailleurs alors que ce qui entrave est plus large.
+  nebuleuse: { [HZ_GEYSER]: 0.72, [HZ_POOL]: 1.16, [HZ_EMBER]: 0.80,
+               [HZ_SLOW]: 1.10, [HZ_SLIP]: 1.20 },
+};
+
+/* LE MODE NORMAL ETAIT LE MEME DANS LES QUATRE LIEUX : deux champs de
+   ralentissement, meme rayon, meme place, 5,28 % de surface partout. Toute une
+   difficulte sans une once d identite.
+
+   Les deux dangers qui NE BLESSENT PAS sont pourtant deux verbes opposes — l un
+   freine, l autre emporte — et c est assez pour dire un lieu : l Usine a de
+   l huile sur un sol qu elle balaie encore, la Fonderie des champs de scorie qui
+   collent, la Friche de la boue, la Nebuleuse n a PAS DE FREIN. */
 const HZ_NORMAL = {
   usine: [
     { kind: HZ_SLOW, x: 0.50, y: 0.34 },
-    { kind: HZ_SLOW, x: 0.50, y: 0.66 },
+    { kind: HZ_SLIP, x: 0.50, y: 0.66 },
   ],
   fonderie: [
     { kind: HZ_SLOW, x: 0.50, y: 0.50 },
-    { kind: HZ_SLOW, x: 0.16, y: 0.50 },
+    { kind: HZ_SLIP, x: 0.16, y: 0.50 },
   ],
   friche: [
     { kind: HZ_SLOW, x: 0.58, y: 0.76 },
-    { kind: HZ_SLOW, x: 0.14, y: 0.62 },
+    { kind: HZ_SLIP, x: 0.14, y: 0.62 },
   ],
-  // en apesanteur c est le FREINAGE qui manque : le champ de ralentissement est
-  // ici un puits de gravite, meme regle, meme chiffre.
+  // en apesanteur c est le FREINAGE qui manque, et ca se dit par l ECHELLE : son
+  // glissant est le plus large des quatre (x1,20), et son champ de
+  // ralentissement n est pas un sol qui colle mais un PUITS DE GRAVITE — le seul
+  // des quatre qui ne soit pas une matiere.
   nebuleuse: [
     { kind: HZ_SLOW, x: 0.30, y: 0.55 },
-    { kind: HZ_SLOW, x: 0.70, y: 0.45 },
+    { kind: HZ_SLIP, x: 0.70, y: 0.45 },
   ],
 };
 
@@ -295,33 +337,36 @@ const HZ_NORMAL = {
 const HZ_CAUCHEMAR = {
   usine: [
     { kind: HZ_GEYSER, x: 0.50, y: 0.34, period: 7.0, phase: 0.00 },
-    { kind: HZ_GEYSER, x: 0.50, y: 0.66, period: 5.4, phase: 0.37 },
     { kind: HZ_GEYSER, x: 0.16, y: 0.50, period: 6.2, phase: 0.64 },
-    { kind: HZ_SLIP, x: 0.84, y: 0.50 },
+    { kind: HZ_EMBER, x: 0.50, y: 0.66, dx: 1, dy: 0, phase: 0.30 },
+    { kind: HZ_POOL, x: 0.84, y: 0.50 },
     { kind: HZ_SLIP, x: 0.50, y: 0.50 },
   ],
   // la louche court ENTRE les deux fours : le couloir central est le seul
   // endroit ou elle a la place, et c est aussi le passage franc de la carte.
   fonderie: [
     { kind: HZ_POOL, x: 0.16, y: 0.14 },
-    { kind: HZ_POOL, x: 0.84, y: 0.86 },
     { kind: HZ_EMBER, x: 0.50, y: 0.50, dx: 1, dy: 0, phase: 0.00 },
     { kind: HZ_EMBER, x: 0.50, y: 0.70, dx: 1, dy: 0, phase: 0.50 },
     { kind: HZ_GEYSER, x: 0.50, y: 0.32, period: 6.6, phase: 0.20 },
-    { kind: HZ_GEYSER, x: 0.16, y: 0.62, period: 5.8, phase: 0.70 },
   ],
   friche: [
     { kind: HZ_POOL, x: 0.14, y: 0.76 },
     { kind: HZ_POOL, x: 0.86, y: 0.24 },
     { kind: HZ_GEYSER, x: 0.56, y: 0.62, period: 7.4, phase: 0.10 },
     { kind: HZ_GEYSER, x: 0.38, y: 0.26, period: 6.0, phase: 0.55 },
+    // le front de combustion RAMPE : une friche brule lentement et longtemps,
+    // donc il va deux fois plus loin que la louche et met deux fois plus de
+    // temps a le faire.
+    { kind: HZ_EMBER, x: 0.50, y: 0.80, dx: 1, dy: 0, phase: 0.40,
+      period: 19, span: 300 },
   ],
   nebuleuse: [
-    { kind: HZ_SLIP, x: 0.24, y: 0.44 },
-    { kind: HZ_SLIP, x: 0.76, y: 0.56 },
-    { kind: HZ_EMBER, x: 0.50, y: 0.44, dx: 1, dy: 0, phase: 0.20 },
-    { kind: HZ_EMBER, x: 0.50, y: 0.62, dx: 1, dy: 0, phase: 0.70 },
+    { kind: HZ_SLIP, x: 0.24, y: 0.54 },
+    { kind: HZ_EMBER, x: 0.50, y: 0.44, dx: 1, dy: 0, phase: 0.20, period: 7 },
+    { kind: HZ_EMBER, x: 0.50, y: 0.62, dx: 0, dy: 1, phase: 0.70, period: 7 },
     { kind: HZ_POOL, x: 0.50, y: 0.88 },
+    { kind: HZ_GEYSER, x: 0.76, y: 0.34, period: 4.6, phase: 0.45, active: 1.2 },
   ],
 };
 
@@ -366,16 +411,18 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   else if (diffIndex >= 2) table = HZ_CAUCHEMAR[def.key] ?? [];
 
   const hazards = [];
+  const ech = ECHELLE[def.key] ?? null;
   let hzArea = 0;
+  let hzJetes = 0;
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
       const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
       for (const h of table) {
         const d = hazardAt(h.kind);
         if (!d) continue;
-        const r = h.r ?? d.r;
+        const r = Math.round(h.r ?? d.r * (ech?.[h.kind] ?? 1));
         const area = Math.PI * r * r;
-        if ((hzArea + area) / surface > BIOME_CFG.HAZARD_SURFACE_MAX) continue;
+        if ((hzArea + area) / surface > BIOME_CFG.HAZARD_SURFACE_MAX) { hzJetes++; continue; }
         hzArea += area;
         const fx = mx ? 1 - h.x : h.x, fy = my ? 1 - h.y : h.y;
         hazards.push({
@@ -397,6 +444,10 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
     obstacles, hazards,
     obstacleSurface: obsArea / surface,
     hazardSurface: hzArea / surface,
+    // le budget EVINCE en silence : une entree declaree pouvait ne jamais etre
+    // construite sans que rien ne le dise, et un lieu se retrouvait avec un
+    // danger de moins que ce que sa table annonce. On le compte.
+    hazardJetes: hzJetes,
   };
 }
 
@@ -493,6 +544,23 @@ export function signatureBiome(biomeIndex, arenaW = 1600, arenaH = 900,
 const LOI_ECART = 0.40;
 const LOI_AXES = ["densite", "encombrement", "contraste", "elongation"];
 
+// ce qui separe une identite d un desequilibre. 25 % laisse une echelle de lieu
+// se voir ; au-dela, un lieu demande objectivement plus au joueur que les trois
+// autres, et la difficulte choisie cesse d etre le cadre principal.
+const HZ_ECART = 0.25;
+
+/* QUELS `kind` UN LIEU POSE-T-IL, TOUS MODES CONFONDUS. Lu par
+   `verifierDangers()` (`render/dangers.js`) pour croiser les deux tables : un
+   dessin que plus aucune difficulte ne tire est une entree morte, un `kind` pose
+   sans dessin replie sur `defaut()` — un disque ambre — SANS RIEN LEVER. */
+export function hazardsDe(lieu) {
+  const v = new Set();
+  for (const t of [HZ_NORMAL[lieu], HZ_CAUCHEMAR[lieu]]) {
+    for (const h of t ?? []) v.add(h.kind);
+  }
+  return [...v].sort((a, b) => a - b);
+}
+
 export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
                                viewW = 1600, viewH = 900) {
   const soucis = [];
@@ -531,12 +599,34 @@ export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
     }
   }
 
+  /* LES QUATRE LIEUX DOIVENT RESTER COMPARABLES. Une echelle de danger par lieu
+     est une identite ; la meme echelle poussee trop loin est un desequilibre, et
+     rien ne distinguait les deux. A mode egal, aucune surface ne s ecarte de plus
+     de `HZ_ECART` de la moyenne des quatre — c est le §28 rendu executable. */
+  for (let di = 1; di < 3; di++) {
+    const s = BIOMES.map((_, i) =>
+      buildBiome(i, di, 7, arenaW, arenaH, viewW, viewH).hazardSurface);
+    const moy = s.reduce((a, v) => a + v, 0) / s.length;
+    for (let i = 0; i < s.length; i++) {
+      const e = moy > 0 ? Math.abs(s[i] - moy) / moy : 0;
+      if (e > HZ_ECART) {
+        soucis.push(`${BIOMES[i].key}/${["calme", "normal", "cauchemar"][di]} : `
+          + `surface de danger a ${(s[i] * 100).toFixed(2)} % pour une moyenne de `
+          + `${(moy * 100).toFixed(2)} % (ecart ${(e * 100).toFixed(0)} %, `
+          + `seuil ${HZ_ECART * 100} %)`);
+      }
+    }
+  }
+
   for (let bi = 0; bi < BIOMES.length; bi++) {
     for (let di = 0; di < 3; di++) {
       for (const seed of seeds) {
         const b = buildBiome(bi, di, seed, arenaW, arenaH, viewW, viewH);
         const ou = `${b.key}/${["calme", "normal", "cauchemar"][di]}/${seed}`;
 
+        if (b.hazardJetes > 0) {
+          soucis.push(`${ou} : ${b.hazardJetes} danger(s) evince(s) par le budget`);
+        }
         if (b.hazardSurface > budget + 1e-9) {
           soucis.push(`${ou} : dangers a ${(b.hazardSurface * 100).toFixed(1)} %`);
         }

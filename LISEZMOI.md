@@ -8,6 +8,79 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les dangers : une échelle par lieu, six entrées qui ne se rencontraient pas (0.22.5)
+
+#### L'état de départ
+
+| lieu | `kind` posés | normal | cauchemar |
+|---|---|---|---|
+| usine | **3/5** | ralenti ×2, r110 | 5,28 % · 7,14 % |
+| fonderie | **4/5** | ralenti ×2, r110 | 5,28 % · 6,61 % |
+| friche | **3/5** | ralenti ×2, r110 | 5,28 % · 5,29 % |
+| nébuleuse | **4/5** | ralenti ×2, r110 | 5,28 % · 6,83 % |
+
+**Le mode normal était rigoureusement identique dans les quatre lieux** — deux
+champs de ralentissement, même rayon, même place, 5,28 % de surface. Toute une
+difficulté sans une once d'identité, pour un tiers du budget.
+
+Et `h.r` était lu par `buildBiome` depuis toujours (`h.r ?? d.r`) : **aucune
+table ne s'en servait**. Tout geyser faisait 70 px dans les quatre lieux, toute
+flaque 85. Le dessin changeait, la géométrie non — et c'est la géométrie qu'on
+joue.
+
+#### Six entrées qui ne se rencontraient pas
+
+| sens | ce qui manquait |
+|---|---|
+| dessin sans pose | chariot (usine) · boue (friche) · glissant (fonderie) · anomalie (nébuleuse) |
+| pose sans dessin | flaque (usine) · braise (friche) |
+
+Aucun des deux sens ne lève quoi que ce soit : une entrée morte ne se signale
+jamais, et un `kind` sans dessin replie sur `defaut()` — un disque ambre qui a
+l'air d'un placeholder mais qui **joue normalement**. `verifierDangers()` croise
+les deux tables dans les deux sens.
+
+**La Fonderie dessinait son ralenti et son glissant avec la même fonction.** Deux
+mécaniques opposées sous une seule image — le joueur ne peut pas savoir si le sol
+va le freiner ou l'emporter. Tant que le glissant n'y était posé nulle part ça
+n'avait aucune conséquence, et c'est exactement ce qui rendait la chose
+invisible. Il a son **vitrifié**, dont la matière est déjà dans sa tuile de sol.
+
+#### L'échelle par lieu
+
+`ECHELLE` multiplie `r`. **L'Usine n'y figure pas : elle est la référence.**
+
+| | geyser | flaque | braise | ralenti | glissant |
+|---|---|---|---|---|---|
+| usine (référence) | 70 | 85 | 55 | 110 | 95 |
+| friche | ×0,76 | ×1,24 | ×1,10 | ×1,10 | ×1,10 |
+| fonderie | ×1,14 | ×1,30 | ×1,26 | ×1,10 | ×1,00 |
+| nébuleuse | ×0,72 | ×1,16 | ×0,80 | ×1,10 | ×1,20 |
+
+**`dot` ne bouge jamais.** Ce qui blesse doit blesser pareil partout, sinon le
+joueur réapprend un barème à chaque lieu ; la seule constante des quatre reste
+« ce qui est chaud blesse, ce qui est froid ralentit ».
+
+#### Et les quatre restent comparables
+
+| mode | usine | fonderie | friche | nébuleuse | moyenne | écart max |
+|---|---|---|---|---|---|---|
+| normal | 4,61 % | 5,16 % | 5,60 % | 6,03 % | 5,35 % | **13,8 %** |
+| cauchemar | 6,34 % | 6,16 % | 6,85 % | 6,36 % | 6,43 % | **6,5 %** |
+
+`verifierBiomes()` refuse un écart de plus de **25 %** à la moyenne, à mode égal :
+le §28 rendu exécutable. Une identité qui rendrait un lieu franchement plus dur
+est un déséquilibre, pas une identité.
+
+**Le budget évinçait en silence.** Un premier équilibrage mettait la Fonderie à
+9,8 % pour un plafond de 8 % : elle perdait 3 flaques, 11 braises et 11 geysers,
+et rien ne le disait — la table annonçait cinq entrées, l'arène en construisait
+moins. `hazardJetes` les compte, `verifierBiomes()` les refuse.
+
+Couverture finale **5/5 pour les quatre lieux**. `verifierBiomes()` muet sur
+200 graines (11,5 s), `verifierNavigation()`, `verifierBlocs()`,
+`verifierEmpreinte()` et `verifierDangers()` muets.
+
 ### La Nébuleuse, et trois défauts que rien ne signalait (0.22.4)
 
 Les quatre lieux ont désormais leur vocabulaire bâti. Tableau complet du vide

@@ -4605,6 +4605,50 @@
                    aucune raison d etre sale : rien ne s y depose.
                    Signatures des quatre lieux inchangees.
 
+     0.22.5 lot 6  LES DANGERS : UNE ECHELLE PAR LIEU, ET SIX ENTREES QUI NE SE
+                   RENCONTRAIENT PAS. `h.r` etait lu par `buildBiome` depuis
+                   toujours (`h.r ?? d.r`) et AUCUNE table ne s en servait : tout
+                   geyser faisait 70 px dans les quatre lieux, toute flaque 85.
+                   Le dessin changeait, la geometrie non — et c est la geometrie
+                   qu on joue. `ECHELLE` donne son gabarit a chaque lieu ;
+                   l USINE N Y FIGURE PAS parce qu elle EST la reference, et les
+                   trois autres se lisent par rapport a elle.
+                   `dot` NE BOUGE PAS. Ce qui blesse doit blesser pareil partout,
+                   sinon le joueur reapprend un bareme a chaque lieu. Un lieu se
+                   dit par la TAILLE et le RYTHME, pas par le chiffre.
+                   LE MODE NORMAL ETAIT LE MEME PARTOUT : deux champs de
+                   ralentissement, meme rayon, meme place, 5,28 % de surface dans
+                   les quatre. Toute une difficulte sans une once d identite.
+                   Les deux dangers qui ne blessent pas sont pourtant deux verbes
+                   opposes — l un freine, l autre emporte — et ca suffit : huile
+                   a l Usine, scorie a la Fonderie, boue a la Friche, et a la
+                   Nebuleuse le glissant le plus large des quatre.
+                   COUVERTURE 3/5, 4/5, 3/5, 4/5. Quatre dessins n etaient tires
+                   par aucune difficulte — le chariot de l Usine, la boue de la
+                   Friche, le glissant de la Fonderie, l anomalie de la
+                   Nebuleuse — pendant que l Usine et la Friche posaient des
+                   `kind` sans dessin. Les quatre lieux posent desormais 5/5, et
+                   `verifierDangers()` croise les deux tables DANS LES DEUX SENS :
+                   une entree morte ne se signale jamais, et un `kind` sans
+                   dessin replie sur `defaut()`, un disque ambre qui a l air d un
+                   placeholder mais qui joue normalement.
+                   ET LA FONDERIE DESSINAIT SON RALENTI ET SON GLISSANT AVEC LA
+                   MEME FONCTION. Deux mecaniques opposees sous une seule image :
+                   tant que le glissant n y etait pose nulle part ca n avait
+                   aucune consequence, et c est ce qui rendait la chose
+                   invisible. Il a son VITRIFIE — la matiere est deja dans sa
+                   tuile de sol. Trois dessins nouveaux : bac de trempe (Usine),
+                   front de combustion (Friche), vitrifie (Fonderie).
+                   LE BUDGET EVINCAIT EN SILENCE. `buildBiome` jette ce qui
+                   depasse `HAZARD_SURFACE_MAX` sans le dire : la Fonderie
+                   perdait 3 flaques, 11 braises et 11 geysers sur un premier
+                   equilibrage. `hazardJetes` les compte et `verifierBiomes()`
+                   les refuse.
+                   ET LES QUATRE RESTENT COMPARABLES, C EST VERIFIE : aucune
+                   surface ne s ecarte de plus de 25 % de la moyenne des quatre a
+                   mode egal. Normal 4,61 / 5,16 / 5,60 / 6,03 %, cauchemar
+                   6,34 / 6,16 / 6,85 / 6,36 %. Le §28 rendu executable.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4613,4 +4657,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.4";
+export const VERSION = "0.22.5";

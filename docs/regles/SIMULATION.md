@@ -567,7 +567,17 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   **boss** et ne se partage pas.
 - **Le plafond de surface est STRICT** (`BIOME_CFG.HAZARD_SURFACE_MAX`, 12 % pour
   l'ensemble, traînées et spores comprises). `buildBiome` **jette** les dangers
-  qui franchissent le budget.
+  qui franchissent le budget — et il les **compte** (`hazardJetes`) : une entrée
+  déclarée pouvait n'être jamais construite sans que rien ne le dise.
+- **L'échelle d'un danger appartient au lieu, ses dégâts non.** `ECHELLE`
+  multiplie `r` par lieu (l'Usine est la référence et n'y figure pas) ; `dot` ne
+  bouge jamais, sinon le joueur réapprend un barème à chaque lieu. Et
+  `verifierBiomes()` refuse qu'une surface de danger s'écarte de plus de **25 %**
+  de la moyenne des quatre à mode égal : une identité qui rendrait un lieu
+  franchement plus dur est un déséquilibre.
+- **Chaque lieu pose les CINQ `kind`**, répartis entre normal (les deux qui ne
+  blessent pas) et cauchemar. `hazardsDe(lieu)` le déclare ; `verifierDangers()`
+  (`render/dangers.js`) croise avec la table de dessin dans les deux sens.
 - **La géométrie est posée à la construction et ne bouge plus.** Ce qui peut
   naître en cours de manche : les zones, traversables. `verifierBiomes()` est le
   critère rejouable (plafonds, aucun danger en calme, aucun danger **qui blesse**

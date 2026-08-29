@@ -359,6 +359,24 @@ lieu = une entrée.** Le gameplay ne bouge pas d'un chiffre : **le disque de
    les quatre lieux, et c'est elle qui rend la table extensible sans
    réapprentissage.
 
+4. **L'ÉCHELLE APPARTIENT AU LIEU, LES DÉGÂTS NON.** `h.r` était lu par
+   `buildBiome` depuis toujours et **aucune table ne s'en servait** : tout geyser
+   faisait 70 px dans les quatre lieux, le dessin changeait, la géométrie non — et
+   c'est la géométrie qu'on joue. `ECHELLE` (`biomes.js`) donne son gabarit à
+   chaque lieu, l'**Usine n'y figure pas parce qu'elle EST la référence**.
+   `dot` ne bouge jamais : ce qui blesse doit blesser pareil partout, sinon le
+   joueur réapprend un barème à chaque lieu.
+5. **Les quatre restent comparables, et c'est vérifié.** `verifierBiomes()`
+   refuse qu'une surface de danger s'écarte de plus de **25 %** de la moyenne
+   des quatre à mode égal. Une identité qui rendrait un lieu franchement plus
+   dur est un déséquilibre, pas une identité.
+6. **Les deux tables doivent se recouvrir exactement** (`verifierDangers()`) :
+   un dessin que plus aucune difficulté ne tire est une entrée morte, un `kind`
+   posé sans dessin replie sur `defaut()` — un disque ambre qui a l'air d'un
+   placeholder mais qui joue normalement. **Et deux mécaniques opposées ne
+   peuvent pas partager une image** : le joueur ne saurait pas si le sol va le
+   freiner ou l'emporter.
+
 Les dangers à phase gardent leur **double état** : au repos on voit
 l'**installation** — la buse, le câble mort, la grille de fonte — et c'est elle
 l'annonce ; à l'amorce le jet monte avec `st.k`.
