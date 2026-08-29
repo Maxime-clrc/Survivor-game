@@ -58,9 +58,9 @@ const BLOC = {
     [B_CARCASSE]: { forme: formeCarcasse, habit: carcasse },
   },
   nebuleuse: {
-    [B_FRAGMENT]: { forme: formeChanfreine, habit: travee },
-    [B_TRAVEE]: { forme: formeChanfreine, habit: travee },
-    [B_DEBRIS]: { forme: formeChanfreine, habit: travee },
+    [B_FRAGMENT]: { forme: formeFragment, habit: fragment },
+    [B_TRAVEE]: { forme: formeTravee, habit: travee },
+    [B_DEBRIS]: { forme: formeDebris, habit: debris },
   },
 };
 
@@ -82,6 +82,111 @@ function formeMachine(g, o) { machine(g, -o.w / 2, -o.h / 2, o.w, o.h); }
 function formeOctogone(g, o) { octogone(g, -o.w / 2, -o.h / 2, o.w, o.h); }
 function formeChanfreine(g, o) { chanfreine(g, -o.w / 2, -o.h / 2, o.w, o.h, CHANFREIN_LARGE); }
 function formeRuine(g, o) { ruine(g, o, -o.w / 2, -o.h / 2, o.w, o.h); }
+
+/* LE FRAGMENT S EST DETACHE DE QUELQUE CHOSE. Ses quatre coins etaient coupes
+   a la meme profondeur, ce qui decrit une piece USINEE — l inverse de ce qu il
+   est. Un seul coin est desormais CISAILLE, large et oblique, les trois autres
+   restent nets : la rupture est un evenement, elle n arrive pas quatre fois au
+   meme objet. Le coin cisaille est deterministe, donc dix-huit fragments ne
+   pointent pas tous dans le meme sens. */
+const FRAG_CISAILLE = 0.26;
+function formeFragment(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const s = graine(o);
+  const c = Math.min(CHANFREIN, w * 0.10, h * 0.10);
+  const cw = w * FRAG_CISAILLE, ch = h * FRAG_CISAILLE;
+  const coin = (s >>> 27) & 3;
+  const p = [];
+  /* LE COIN CISAILLE VAUT DEUX POINTS, ET LEUR ORDRE DEPEND DU COIN. Le premier
+     est sur l arete d ARRIVEE, le second sur celle de DEPART : aux coins pairs
+     on arrive par un cote vertical, aux impairs par un horizontal. Les emettre
+     toujours dans le meme ordre fait un trace qui SE CROISE — la forme reste
+     dessinable, elle a juste un enroulement inverse sur le triangle, et le
+     resultat mesure 10 % de vide au lieu de 4. */
+  const angle = (i, ax, ay) => {
+    if (i !== coin) { p.push([ax, ay]); return; }
+    const dx = ax === x ? cw : -cw, dy = ay === y ? ch : -ch;
+    if (i & 1) p.push([ax + dx, ay], [ax, ay + dy]);
+    else p.push([ax, ay + dy], [ax + dx, ay]);
+  };
+  angle(0, x, y);
+  p.push([x + w - c, y]);
+  angle(1, x + w, y);
+  p.push([x + w, y + h - c]);
+  angle(2, x + w, y + h);
+  p.push([x + c, y + h]);
+  angle(3, x, y + h);
+  p.push([x, y + c]);
+  g.beginPath();
+  g.moveTo(p[0][0], p[0][1]);
+  for (let i = 1; i < p.length; i++) g.lineTo(p[i][0], p[i][1]);
+  g.closePath();
+}
+
+/* LA TRAVEE EST UNE POUTRE A TREILLIS, et une poutre a treillis a des NŒUDS.
+   Elle mesure 32 px de large pour 504 de long : a cette echelle un chanfrein de
+   bout ne se voit pas, et un rectangle plein serait la silhouette de la chaine
+   de l Usine. Ce qui se voit est le decoupage regulier de ses deux flancs — une
+   encoche de 4 px sur 32, soit un huitieme de la largeur, au pas des diagonales
+   de l habillage. Aucune autre piece du depot n a une arete rythmee. */
+const TRAVEE_PAS = 28;
+const TRAVEE_ENCOCHE = 4;
+const TRAVEE_LARGE = 7;
+function formeTravee(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const vert = h >= w;
+  const L = vert ? h : w, T = vert ? w : h;
+  const e = Math.min(TRAVEE_ENCOCHE, T * 0.14);
+  const n = Math.max(2, Math.round(L / TRAVEE_PAS));
+  const pt = (u, v) => (vert ? g.lineTo(x + v, y + u) : g.lineTo(x + u, y + v));
+
+  /* UNE ENCOCHE EST PONCTUELLE. Le premier trace alternait plat / creux d un
+     nœud a l autre : un CRENEAU, qui retire la moitie de la longueur — 12,7 %
+     du rectangle, au-dessus du seuil, et un joueur qui glisse le long aurait
+     bute sur du vide un pas sur deux. Un creux triangulaire au nœud seul retire
+     `large x profondeur / 2` par nœud, soit 3,0 %. */
+  g.beginPath();
+  g.moveTo(x, y);
+  for (let i = 1; i < n; i++) {
+    const u = (i / n) * L;
+    pt(u - TRAVEE_LARGE / 2, 0);
+    pt(u, e);
+    pt(u + TRAVEE_LARGE / 2, 0);
+  }
+  pt(L, 0);
+  pt(L, T);
+  for (let i = n - 1; i >= 1; i--) {
+    const u = (i / n) * L;
+    pt(u + TRAVEE_LARGE / 2, T);
+    pt(u, T - e);
+    pt(u - TRAVEE_LARGE / 2, T);
+  }
+  pt(0, T);
+  g.closePath();
+}
+
+/* LE DEBRIS EST UN ECLAT, PAS UNE PIECE. Il laissait 9,6 % de son rectangle
+   vide — le pire du depot — parce qu il portait le chanfrein de 16 px du
+   fragment sur un gabarit de 58 x 29 : quatre coins coupes de plus de la moitie
+   de la hauteur. Il a maintenant sa propre loi : un contour a huit sommets qui
+   MORD peu et PARTOUT, deterministe, donc irregulier sans etre creux. */
+const DEBRIS_MORSURE = 0.16;
+function formeDebris(g, o) {
+  const w = o.w, h = o.h;
+  const s = graine(o);
+  const mx = w * DEBRIS_MORSURE, my = h * DEBRIS_MORSURE;
+  const d = i => ((s >>> (i * 3)) & 7) / 7;
+  g.beginPath();
+  g.moveTo(-w / 2 + mx * d(0), -h / 2);
+  g.lineTo(w / 2 - mx * d(1), -h / 2);
+  g.lineTo(w / 2, -h / 2 + my * d(2));
+  g.lineTo(w / 2, h / 2 - my * d(3));
+  g.lineTo(w / 2 - mx * d(4), h / 2);
+  g.lineTo(-w / 2 + mx * d(5), h / 2);
+  g.lineTo(-w / 2, h / 2 - my * d(6));
+  g.lineTo(-w / 2, -h / 2 + my * d(7));
+  g.closePath();
+}
 
 /* LA CONDUITE EST UN CYLINDRE VU DE DESSUS : ses FLANCS sont droits sur toute
    la longueur, ses BOUTS sont ronds. Elle ne coupe donc que ses quatre coins de
@@ -248,11 +353,12 @@ export function verifierBlocs() {
    pure et tourne partout. Deux verdicts : aucun sommet hors de l empreinte, et
    la part de rectangle laissee vide sous le seuil.
 
-   SEUIL A 12 % PARCE QUE LES FORMES D ORIGINE Y TIENNENT : la ruine mord 4 px
-   de crete sur un pan de 43 px de haut, soit 9,3 %, et c est la plus creuse.
-   Un seuil plus serre interdirait une silhouette deja livree ; plus lache, il
-   laisserait passer un coin arrondi. */
-const EMPREINTE_SEUIL = 0.12;
+   LE SEUIL SUIT CE QUE LE DEPOT TIENT VRAIMENT. Il valait 12 % quand la plus
+   creuse des formes etait le debris de la Nebuleuse a 9,6 % — un chanfrein de
+   16 px sur 58 x 29. Ce debris a maintenant sa propre loi et tombe a 2,3 %, la
+   plus creuse est la ruine de la Friche a 8,2 %, et laisser le seuil ou il
+   etait reviendrait a garder de la marge pour un defaut corrige. */
+const EMPREINTE_SEUIL = 0.10;
 
 function enregistreur() {
   let poly = [];
@@ -1249,7 +1355,161 @@ function eboulisPied(o, rx, ry) {
   ctx.restore();
 }
 
-/* --- NEBULEUSE : ce qui est AJOURE ------------------------------------- */
+/* --- NEBULEUSE : ce qui FLOTTE ------------------------------------------
+   Trois etats d une meme station : la TRAVEE tient encore (charpente reguliere,
+   feux qui courent), le FRAGMENT s en est detache (bordage, un flanc cisaille,
+   des membrures a nu), le DEBRIS n est plus qu un eclat (facettes, givre, un
+   moignon). C est une chronologie, pas trois objets — et c est ce qui donne au
+   lieu son recit sans une ligne de texte. */
+
+/* LES FEUX DE POSITION : une file de points froids le long d une arete, et ils
+   COURENT — un module qu on doit pouvoir suivre dans le noir. Partages par la
+   travee et le fragment : c est la meme station, donc la meme signalisation. */
+function feux(o, l) {
+  if (!l) return;
+  const t = maintenant();
+  const bx = l.x - o.x, by = l.y - o.y;
+  const n = Math.max(3, Math.round(l.len / 13));
+  for (let i = 0; i < n; i++) {
+    const u = (i / (n - 1) - 0.5) * l.len;
+    const k = 0.20 + 0.80 * Math.max(0, 1 - ((t * 1.6 - i * 0.16) % 1.6));
+    ctx.fillStyle = alpha(l.col, 0.22 + 0.66 * k);
+    ctx.beginPath();
+    ctx.arc(bx + l.dx * u, by + l.dy * u, 1.9, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* LE FRAGMENT EST BORDE, PAS AJOURE. La travee est une charpente qu on voit au
+   travers ; celui-ci est un morceau de COQUE — des panneaux, des joints, et sur
+   le flanc cisaille les membrures que la rupture a mises a nu. C est la seule
+   piece du depot qui montre son INTERIEUR STRUCTUREL, et elle ne le montre que
+   la ou elle a casse. */
+function fragment(o, S) {
+  const w = o.w, h = o.h;
+  const s = graine(o);
+
+  ctx.fillStyle = alpha("#000000", 0.36);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.34);
+  ctx.fillRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10);
+
+  // LE BORDAGE : de grands panneaux, joints francs, decales d une rangee a
+  // l autre. Un pas large — une coque n est pas une tole striee.
+  const pas = 26;
+  ctx.strokeStyle = alpha("#000000", 0.34);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (let y = -h / 2 + pas; y < h / 2 - 4; y += pas) { ctx.moveTo(-w / 2, y); ctx.lineTo(w / 2, y); }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.14);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  let r = 0;
+  for (let y = -h / 2; y < h / 2 - 4; y += pas, r++) {
+    const dec = (r & 1) ? pas : 0;
+    for (let x = -w / 2 + dec; x < w / 2; x += pas * 2) {
+      ctx.moveTo(x, y); ctx.lineTo(x, Math.min(h / 2, y + pas));
+    }
+  }
+  ctx.stroke();
+
+  // LES MEMBRURES A NU, sur le coin cisaille et nulle part ailleurs.
+  const coin = (s >>> 27) & 3;
+  const cx = (coin === 1 || coin === 2) ? 1 : -1;
+  const cy = (coin >= 2) ? 1 : -1;
+  const cw = w * FRAG_CISAILLE, ch = h * FRAG_CISAILLE;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx * w / 2, cy * h / 2);
+  ctx.lineTo(cx * (w / 2 - cw), cy * h / 2);
+  ctx.lineTo(cx * w / 2, cy * (h / 2 - ch));
+  ctx.closePath();
+  ctx.clip();
+  ctx.fillStyle = alpha("#05070d", 0.70);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = alpha(PROP.metal, 0.34);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let i = 1; i < 6; i++) {
+    const u = i / 6;
+    ctx.moveTo(cx * (w / 2 - cw * u), cy * h / 2);
+    ctx.lineTo(cx * (w / 2 - cw * u * 0.35), cy * (h / 2 - ch * u));
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // LE HUBLOT. Un seul, froid, jamais anime : ce qui bat sur ce lieu est la
+  // balise du semis, et deux clignotants de rythmes differents sur le meme
+  // ecran se lisent comme une alarme.
+  if ((s >>> 13) & 1) {
+    const hx = -cx * w * 0.22, hy = -cy * h * 0.18;
+    const hr = Math.min(w, h) * 0.09;
+    ctx.fillStyle = alpha("#05070d", 0.86);
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(PROP.metalDark, 0.66);
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = alpha(S.emis, 0.22);
+    ctx.beginPath(); ctx.arc(hx - hr * 0.25, hy - hr * 0.25, hr * 0.45, 0, Math.PI * 2); ctx.fill();
+  }
+
+  feux(o, ledDe(o));
+}
+
+/* LE DEBRIS N A PLUS DE FONCTION, donc plus rien de regulier : trois facettes
+   de valeurs differentes, un moignon de structure arrachee, et du GIVRE sur une
+   seule face — celle qui ne voit jamais d etoile. C est le seul objet du lieu
+   qui dise le FROID, et il le dit parce qu il est le seul a etre mort.
+
+   Il est destructible, donc dessine PAR-DESSUS `BIOME.cover` et son contour
+   tirete : tout reste sous eux en valeur, la lecture des points de vie passe
+   avant celle du givre. */
+function debris(o, S) {
+  const w = o.w, h = o.h;
+  const s = graine(o);
+
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+
+  const a = ((s >>> 5) & 7) / 7 - 0.5;
+  ctx.fillStyle = alpha("#000000", 0.24);
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, -h / 2 + h * (0.30 + a * 0.2));
+  ctx.lineTo(w / 2, -h / 2 + h * (0.62 - a * 0.2));
+  ctx.lineTo(w / 2, h / 2);
+  ctx.lineTo(-w / 2, h / 2);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = alpha(PROP.metal, 0.20);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, -h / 2 + h * (0.30 + a * 0.2));
+  ctx.lineTo(w / 2, -h / 2 + h * (0.62 - a * 0.2));
+  ctx.stroke();
+
+  const gx = ((s >>> 9) & 1) ? 1 : -1;
+  const givre = ctx.createLinearGradient(gx * w / 2, 0, 0, 0);
+  givre.addColorStop(0, alpha(PROP.givre, 0.26));
+  givre.addColorStop(1, alpha(PROP.givre, 0));
+  ctx.fillStyle = givre;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.62);
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (let i = 0; i < 2; i++) {
+    const x = -gx * (w / 2 - 3 - i * 4);
+    ctx.moveTo(x, h / 2 - 2);
+    ctx.lineTo(x + gx * 2.5, h / 2 - 2 - h * (0.30 + i * 0.12));
+  }
+  ctx.stroke();
+  ctx.lineCap = "butt";
+}
+
+/* --- LA TRAVEE : ce qui TIENT ENCORE ------------------------------------ */
 
 function travee(o, S) {
   const w = o.w, h = o.h;
@@ -1258,47 +1518,48 @@ function travee(o, S) {
   ctx.fillStyle = alpha("#000000", 0.34);
   ctx.fillRect(-w / 2 + 6, -h / 2 + 6, w - 12, h - 12);
 
-  // LE TREILLIS. Une structure orbitale se lit a son CROISILLON : la matiere y
-  // est un cadre, pas une plaque. Le fond reste sombre et plein — ca bloque
-  // toujours — mais ce qu'on voit est une charpente.
+  /* LE TREILLIS, ET IL EST AU PAS DE LA SILHOUETTE. Il tournait a 16 px sans
+     rapport avec le contour ; la silhouette porte maintenant une encoche a ce
+     meme pas, donc chaque diagonale ABOUTIT dans un creux au lieu de croiser un
+     bord lisse. Une charpente dont les barres ne tombent pas sur les nœuds est
+     un motif imprime sur une plaque. */
   const vert = h >= w;
-  const pas = 16;
+  const L = vert ? h : w, T = vert ? w : h;
+  const n = Math.max(2, Math.round(L / TRAVEE_PAS));
+  const marge = 4;
+  const bord = T / 2 - marge;
+  const noeud = (i) => -L / 2 + (i / n) * L;
+
+  ctx.save();
+  if (vert) ctx.rotate(-Math.PI / 2);
   ctx.strokeStyle = alpha(S.blocEdge, 0.30);
   ctx.lineWidth = 1.6;
   ctx.beginPath();
-  if (vert) {
-    for (let y = -h / 2 + 6; y < h / 2 - 6; y += pas) {
-      ctx.moveTo(-w / 2 + 6, y); ctx.lineTo(w / 2 - 6, y + pas);
-      ctx.moveTo(w / 2 - 6, y); ctx.lineTo(-w / 2 + 6, y + pas);
-    }
-  } else {
-    for (let x = -w / 2 + 6; x < w / 2 - 6; x += pas) {
-      ctx.moveTo(x, -h / 2 + 6); ctx.lineTo(x + pas, h / 2 - 6);
-      ctx.moveTo(x, h / 2 - 6); ctx.lineTo(x + pas, -h / 2 + 6);
-    }
+  for (let i = 0; i < n; i++) {
+    ctx.moveTo(noeud(i), -bord); ctx.lineTo(noeud(i + 1), bord);
+    ctx.moveTo(noeud(i), bord); ctx.lineTo(noeud(i + 1), -bord);
   }
   ctx.stroke();
 
-  ctx.strokeStyle = alpha(PROP.metal, 0.22);
+  // LES MEMBRURES : les deux barres continues que les diagonales relient. Sans
+  // elles un treillis est un zigzag.
+  ctx.strokeStyle = alpha(PROP.metal, 0.26);
   ctx.lineWidth = 2.4;
-  ctx.strokeRect(-w / 2 + 6, -h / 2 + 6, w - 12, h - 12);
+  ctx.beginPath();
+  ctx.moveTo(-L / 2, -bord); ctx.lineTo(L / 2, -bord);
+  ctx.moveTo(-L / 2, bord); ctx.lineTo(L / 2, bord);
+  ctx.stroke();
 
-  // LES FEUX DE POSITION : une file de points froids le long d'une arete, et ils
-  // COURENT — un module qu'on doit pouvoir suivre dans le noir.
-  const l = ledDe(o);
-  if (l) {
-    const t = performance.now() / 1000;
-    const bx = l.x - o.x, by = l.y - o.y;
-    const n = Math.max(3, Math.round(l.len / 13));
-    for (let i = 0; i < n; i++) {
-      const u = (i / (n - 1) - 0.5) * l.len;
-      const k = 0.20 + 0.80 * Math.max(0, 1 - ((t * 1.6 - i * 0.16) % 1.6));
-      ctx.fillStyle = alpha(l.col, 0.22 + 0.66 * k);
-      ctx.beginPath();
-      ctx.arc(bx + l.dx * u, by + l.dy * u, 1.9, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  // LES GOUSSETS, un nœud sur deux : la ou l encoche mord, il y a une plaque.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.55);
+  for (let i = 1; i < n; i += 2) {
+    const u = noeud(i);
+    ctx.fillRect(u - 2.4, -bord - 1.6, 4.8, 3.2);
+    ctx.fillRect(u - 2.4, bord - 1.6, 4.8, 3.2);
   }
+  ctx.restore();
+
+  feux(o, ledDe(o));
 
   if (s & 1) {
     ctx.strokeStyle = alpha(PROP.metal, 0.30);

@@ -154,6 +154,7 @@ function baie(f, x, y, w, h, ddx, ddy, gx, gy) {
   blitFond(f, f.gaz, FOND_GAZ, f.ech, gx, gy, x, y, w, h);
   blitFond(f, f.pres, FOND_PRES, 1, 0, 0, x, y, w, h);
   scintiller(f, x, y, w, h);
+  orbite(x, y, w, h);
 
   // LE VERRE. Un voile froid — qui PLAFONNE aussi la clarte de la baie, donc la
   // lisibilite d'un ennemi qui passe dessus — et deux reflets obliques. Sans
@@ -212,6 +213,185 @@ function baie(f, x, y, w, h, ddx, ddy, gx, gy) {
    PALIER de clarte garde le cout a trois `fill` — le meme geste que les etoiles
    cuites, un cran plus vivant. Rien ne s'alloue : la position d'une etoile est
    une fonction de son indice. */
+/* LE PLAN INTERMEDIAIRE, ET IL MANQUAIT. Le fond avait trois vitesses — astres
+   0,05, gaz 0,10, etoiles 0,16 — donc trois couches toutes a l INFINI ou
+   presque : rien entre le ciel et le plancher sur lequel on marche. Or c est
+   exactement la que se joue la sensation d espace : une structure qu on depasse
+   dit la distance, une etoile ne le peut pas.
+
+   IL N EST PAS CUIT, et c est ce qui le rend possible. Une quatrieme image de
+   2 200 x 1 500 aurait coute 13 Mo pour une couche dont l occupation utile fait
+   quelques pour cent ; ce sont des SILHOUETTES, donc des chemins. Elles sont
+   ancrees a une grille de l espace intermediaire, tirees par graine — meme
+   motif que `props.js`, avec la parallaxe en plus.
+
+   IL NE SE DESSINE QUE DANS LES BAIES. Sous un plancher a 0,93 il aurait coute
+   une passe pleine vue pour rester invisible, exactement l argument qui a sorti
+   les etoiles de `drawFond()`. Et il passe SOUS le voile de verre : le decor
+   perd du contraste avant le gameplay, jamais l inverse.
+
+   0,22 est PLUS RAPIDE que les etoiles (0,16), donc plus proche, donc dessine
+   APRES elles : une station qui passerait derriere une etoile serait le seul
+   endroit du jeu ou la profondeur mentirait. */
+const ORBITE_P = 0.22;
+const ORBITE_CELL = 620;
+const ORBITE_TAUX = 0.46;
+
+function orbite(X, Y, W, H) {
+  if (gfx < GFX_HIGH) return;
+  const s = biomeSeed >>> 0;
+  const bx = camera.x0 - (camera.x - CFG.ARENA_W / 2) * ORBITE_P;
+  const by = camera.y0 - (camera.y - CFG.ARENA_H / 2) * ORBITE_P;
+  const c0x = Math.floor((X - bx) / ORBITE_CELL), c1x = Math.floor((X + W - bx) / ORBITE_CELL);
+  const c0y = Math.floor((Y - by) / ORBITE_CELL), c1y = Math.floor((Y + H - by) / ORBITE_CELL);
+  // UNE SEULE DIRECTION DE LUMIERE pour toute la couche : dans le vide il y a
+  // un astre, pas douze. Deux silhouettes eclairees de deux cotes se lisent
+  // comme deux images collees.
+  const la = hCell(0, 0, s + 907) * Math.PI * 2;
+  const lx = Math.cos(la), ly = Math.sin(la);
+
+  for (let cy = c0y; cy <= c1y; cy++) {
+    for (let cx = c0x; cx <= c1x; cx++) {
+      if (hCell(cx, cy, s + 51) >= ORBITE_TAUX) continue;
+      const ux = bx + (cx + 0.18 + hCell(cx, cy, s + 61) * 0.64) * ORBITE_CELL;
+      const uy = by + (cy + 0.18 + hCell(cx, cy, s + 71) * 0.64) * ORBITE_CELL;
+      const r = 34 + hCell(cx, cy, s + 81) * 46;
+      if (ux + r * 2 < X || ux - r * 2 > X + W) continue;
+      if (uy + r * 2 < Y || uy - r * 2 > Y + H) continue;
+      const k = hCell(cx, cy, s + 91);
+      ctx.save();
+      ctx.translate(ux, uy);
+      ctx.rotate((hCell(cx, cy, s + 101) - 0.5) * 2.4);
+      if (k < 0.38) asteroide(r, lx, ly, hCell(cx, cy, s + 111));
+      else if (k < 0.76) moduleOrbital(r, lx, ly, hCell(cx, cy, s + 121));
+      else epaveOrbitale(r, lx, ly, hCell(cx, cy, s + 131));
+      ctx.restore();
+    }
+  }
+}
+
+// LE CORPS EST PRESQUE NOIR ET LE BORD PRESQUE SEUL A SE VOIR. C est ce qui
+// tient la couche derriere le gameplay : une silhouette n a pas d interieur.
+function corpsOrbital(trace, lx, ly, r, bord) {
+  trace();
+  ctx.fillStyle = alpha("#04060c", 0.88);
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  const g = ctx.createLinearGradient(-lx * r, -ly * r, lx * r * 0.4, ly * r * 0.4);
+  g.addColorStop(0, alpha(bord, 0.30));
+  g.addColorStop(1, alpha(bord, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(-r * 2, -r * 2, r * 4, r * 4);
+  ctx.restore();
+}
+
+function asteroide(r, lx, ly, p) {
+  const n = 9;
+  corpsOrbital(() => {
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const d = r * (0.62 + 0.38 * h01(Math.round(p * 9973) + i));
+      const x = Math.cos(a) * d, y = Math.sin(a) * d * 0.82;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+  }, lx, ly, r, PROP.givre);
+  // deux crateres, du cote eclaire seulement : a l ombre on ne verrait rien.
+  ctx.fillStyle = alpha("#000000", 0.34);
+  for (let i = 0; i < 2; i++) {
+    const cr = r * (0.14 + 0.10 * h01(Math.round(p * 7919) + i));
+    ctx.beginPath();
+    ctx.arc(-lx * r * (0.30 + i * 0.24), -ly * r * (0.30 + i * 0.24) + r * 0.1, cr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* UN MODULE ORBITAL EST UNE POUTRE AVEC DES CAISSONS DESSUS ET DEUX VOILURES.
+   C est la meme grammaire que la travee du plan de jeu, a une autre echelle :
+   la station dont les fragments jonchent l arene est CELLE-LA, et c est ce qui
+   raccorde les deux plans au lieu d en faire deux decors. */
+function moduleOrbital(r, lx, ly, p) {
+  const L = r * 1.9, T = r * 0.30;
+  corpsOrbital(() => {
+    ctx.beginPath();
+    ctx.rect(-L / 2, -T / 2, L, T);
+  }, lx, ly, r, PROP.givre);
+
+  for (let i = 0; i < 3; i++) {
+    if (h01(Math.round(p * 6151) + i) < 0.35) continue;
+    const cw = r * (0.26 + 0.16 * h01(Math.round(p * 4093) + i));
+    const cx = (i - 1) * L * 0.30;
+    corpsOrbital(() => {
+      ctx.beginPath();
+      ctx.rect(cx - cw / 2, -T * 1.5, cw, T * 3);
+    }, lx, ly, r, PROP.givre);
+  }
+
+  // LES VOILURES. Elles sont FINES et longues, donc elles donnent l echelle :
+  // un caisson seul pourrait etre a n importe quelle distance.
+  ctx.fillStyle = alpha("#0a1424", 0.80);
+  ctx.strokeStyle = alpha(PROP.givre, 0.16);
+  ctx.lineWidth = 1;
+  for (const d of [-1, 1]) {
+    ctx.beginPath();
+    ctx.rect(-L * 0.10, d * T * 1.7, L * 0.20, d * r * 0.9);
+    ctx.fill(); ctx.stroke();
+  }
+
+  // LES FEUX. Deux, lents, jamais synchrones avec ceux du plan de jeu : ils
+  // battent quatre fois plus lentement, donc on ne les confond pas avec un
+  // objet qu on peut atteindre.
+  const t = performance.now() / 1000;
+  for (let i = 0; i < 2; i++) {
+    const u = (t * 0.22 + p + i * 0.5) % 1;
+    if (u > 0.10) continue;
+    ctx.fillStyle = alpha(PROP.balise, 0.55 * (1 - u / 0.10));
+    ctx.beginPath();
+    ctx.arc((i ? 1 : -1) * L * 0.46, 0, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* UNE EPAVE EST UNE COQUE OUVERTE. Elle porte le meme cisaillement que le
+   fragment du plan de jeu — un flanc net, l autre dechire —, et c est la
+   troisieme fois que le lieu raconte la meme chose : une station qui s est
+   rompue. */
+function epaveOrbitale(r, lx, ly, p) {
+  const L = r * 2.1, T = r * 0.52;
+  corpsOrbital(() => {
+    ctx.beginPath();
+    ctx.moveTo(-L / 2, -T / 2);
+    ctx.lineTo(L * 0.24, -T / 2);
+    ctx.lineTo(L / 2, -T * 0.10);
+    ctx.lineTo(L * 0.30, T / 2);
+    ctx.lineTo(-L / 2, T / 2);
+    ctx.closePath();
+  }, lx, ly, r, PROP.givre);
+
+  ctx.strokeStyle = alpha(PROP.givre, 0.13);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < 4; i++) {
+    const x = -L / 2 + (i / 4) * L * 0.8;
+    ctx.moveTo(x, -T / 2 + 1.5); ctx.lineTo(x, T / 2 - 1.5);
+  }
+  ctx.stroke();
+
+  // LA DECHIRURE : quelques membrures qui depassent du bout ouvert.
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.75);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const y = (-0.5 + (i + 0.5) / 3) * T;
+    const l = r * (0.10 + 0.16 * h01(Math.round(p * 8161) + i));
+    ctx.moveTo(-L / 2, y);
+    ctx.lineTo(-L / 2 - l, y + (i - 1) * 2);
+  }
+  ctx.stroke();
+}
+
 const SCINT_N = 420;
 function scintiller(f, X, Y, W, H) {
   const dx = camera.x - CFG.ARENA_W / 2, dy = camera.y - CFG.ARENA_H / 2;

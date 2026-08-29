@@ -227,7 +227,7 @@ danger, implantation.
 | | FRICHE | USINE | FONDERIE | NÉBULEUSE |
 |---|---|---|---|---|
 | **verbe** | a été laissée | fabrique | coule | flotte |
-| **bloc** | **pan fissuré, mur banché, carcasse** | **chaîne, cellule, poste** | **four, conduite, cuve** | travée ajourée |
+| **bloc** | **pan fissuré, mur banché, carcasse** | **chaîne, cellule, poste** | **four, conduite, cuve** | **travée, fragment, débris** |
 | **sol** | dalles et joints de coulage | tôle et maille de 5 m | plaques, voies, vitrifié | nid d'abeille |
 | **pas de 20 m** | marquage peint effacé | trait franc | nœuds seuls | nervures du pont |
 | **contour de bloc** | presque aucun | franc | sourd | franc |
@@ -237,8 +237,8 @@ danger, implantation.
 | **props** | brousse, jonchée, grillage tombé, carcasse, bidon, panneau | convoyeurs, bras, presses, ventilations, palettiers | poches, lingotières, trémies, outillage, rigoles | **rien de commun** : épaves, voiles, modules, cristaux, antennes |
 | **ce qui traverse** | rien, et c'est le sujet | les bandes de chaîne | **le canal de coulée** | les nervures du pont |
 | **air** | ce que la brousse relâche : vert, lent, rare | **extraction : droite, rapide, tenue** | **la chaleur qui monte : lente, épaisse** | débris croisés, froids |
-| **couche de 1 200 px** | lessivage parallèle, colonisation | nappes rondes | **trois foyers larges, aucun clair** | nappes rondes |
-| **mouvement** | un néon qui grésille | **la chaîne bâtie qui défile**, bandes, bras, presses, chenille, bouffées | **le joint qui fuit, la peau de la cuve**, la fonte | la balise qui bat, le cristal qui respire |
+| **couche de 1 200 px** | lessivage parallèle, colonisation | nappes rondes | **trois foyers larges, aucun clair** | **l’ombre de la charpente au-dessus** |
+| **mouvement** | un néon qui grésille | **la chaîne bâtie qui défile**, bandes, bras, presses, chenille, bouffées | **le joint qui fuit, la peau de la cuve**, la fonte | la balise qui bat, le cristal qui respire, **les feux du plan intermédiaire** |
 
 **Le critère de non-régression** : si on échange les quatre noms et que les
 captures restent difficiles à attribuer, le travail n'est pas fini. Il a **deux
@@ -433,9 +433,22 @@ biomes qui déclarent `fond` dans `BIOMES`. Il se dessine **deux fois** : une
 passe pleine vue entre la couleur d'arène et la matière du sol, puis une passe
 **par baie**, après le sol, à pleine valeur.
 
-- **Trois parallaxes, pas deux** — un fond à une seule vitesse est un
-  autocollant, et à deux il manque ce qui se passe *entre* l'infini et le
-  proche. Astres 0,05, **gaz 0,10**, étoiles 0,16. Le gaz est cuit en
+- **Quatre plans, dont un seul n'est pas cuit** — un fond à une seule vitesse est
+  un autocollant, et à deux il manque ce qui se passe *entre* l'infini et le
+  proche. Astres 0,05, **gaz 0,10**, étoiles 0,16, **structures orbitales 0,22**.
+  Les trois premières couches étaient toutes à l'infini ou presque : rien entre
+  le ciel et le plancher, alors que c'est là que se joue la sensation d'espace —
+  une structure qu'on dépasse dit la distance, une étoile ne le peut pas.
+  Ces structures sont des **silhouettes**, donc des chemins tirés par cellule
+  d'un espace intermédiaire (`orbite()`, `decor.js`) : une quatrième image cuite
+  aurait coûté 13 Mo pour quelques pour cent d'occupation utile. Plus rapides que
+  les étoiles donc **plus proches**, donc dessinées **après** elles — une station
+  passant derrière une étoile serait le seul endroit du jeu où la profondeur
+  mentirait. Elles vivent **sous le voile de verre** (le décor perd du contraste
+  avant le gameplay, jamais l'inverse) et **ne se dessinent que dans les baies**,
+  par l'argument qui a déjà sorti les étoiles de `drawFond()`. **Une seule
+  direction de lumière** pour toute la couche : dans le vide il y a un astre,
+  pas douze. Le gaz est cuit en
   **demi-résolution** et étiré au blit : une nappe floue n'a pas besoin d'un
   pixel par pixel, et l'étirement *est* le flou qu'on aurait payé autrement.
   Sa bande **croise** celle de la couche lointaine — deux bandes parallèles se

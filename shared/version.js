@@ -4561,6 +4561,50 @@
                    de ce lieu doit venir de ce qui brule vraiment.
                    Signatures des quatre lieux inchangees.
 
+     0.22.4 lot 5  LA NEBULEUSE : UNE STATION QUI S EST ROMPUE, EN TROIS TEMPS.
+                   La TRAVEE tient encore — charpente au pas de sa propre
+                   silhouette, membrures, goussets, feux qui courent. Le FRAGMENT
+                   s en est detache : borde et non ajoure, un seul flanc
+                   CISAILLE, et c est la seule piece du depot qui montre son
+                   interieur structurel, uniquement la ou elle a casse. Le DEBRIS
+                   n est plus qu un eclat : facettes, moignon, et du GIVRE sur la
+                   face qui ne voit jamais d etoile. Une chronologie, pas trois
+                   objets.
+                   LE PLAN INTERMEDIAIRE MANQUAIT. Le fond avait trois vitesses —
+                   0,05 / 0,10 / 0,16 — donc trois couches toutes a l infini ou
+                   presque : rien entre le ciel et le plancher, alors que c est
+                   la que se joue la sensation d espace. Une structure qu on
+                   depasse dit la distance, une etoile ne le peut pas. `orbite()`
+                   pose asteroides, modules et epaves a 0,22, tires par cellule
+                   d un espace intermediaire. IL N EST PAS CUIT : une quatrieme
+                   image de 2 200 x 1 500 aurait coute 13 Mo pour quelques pour
+                   cent d occupation, et ce sont des SILHOUETTES, donc des
+                   chemins. Plus rapide que les etoiles donc plus proche, donc
+                   dessine APRES elles ; sous le voile de verre ; et seulement
+                   dans les BAIES, par l argument qui avait deja sorti les
+                   etoiles de `drawFond()`. Une seule direction de lumiere pour
+                   toute la couche : dans le vide il y a un astre, pas douze.
+                   TROIS DEFAUTS QUE LE BANC A LEVES, ET AUCUN NE SE VOYAIT.
+                   Le debris laissait 9,6 % de son rectangle vide, le pire du
+                   depot : il portait le chanfrein de 16 px du fragment sur un
+                   gabarit de 58 x 29, soit quatre coins coupes de plus de la
+                   moitie de la hauteur. Sa loi propre le met a 2,3 %.
+                   La premiere travee alternait plat / creux d un nœud a
+                   l autre — un CRENEAU, qui retire la moitie de la longueur :
+                   12,7 %, au-dessus du seuil, et un joueur qui glisse le long
+                   aurait bute sur du vide un pas sur deux. Un creux triangulaire
+                   au nœud seul : 2,5 %.
+                   Et le coin cisaille du fragment emettait ses deux points
+                   toujours dans le meme ordre, alors que le premier est sur
+                   l arete d ARRIVEE : trace qui se croise, 10,0 % mesures pour
+                   3,4 % reels. Le seuil descend de 12 a 10 % — il avait ete pose
+                   sur le debris a 9,6 %, et garder cette marge reviendrait a la
+                   garder pour un defaut corrige.
+                   Sa couche de 1 200 px porte l OMBRE DE LA CHARPENTE au-dessus,
+                   deux bandes larges et paralleles. Un plancher de station n a
+                   aucune raison d etre sale : rien ne s y depose.
+                   Signatures des quatre lieux inchangees.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4569,4 +4613,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.3";
+export const VERSION = "0.22.4";

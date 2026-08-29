@@ -79,6 +79,7 @@ function cuireMacro(biomeIndex, diffIndex, seed, dpr) {
   const cle = (BIOMES[biomeIndex] ?? BIOMES[0]).key;
   if (cle === "friche") return macroFriche(cv, g, rand, usure);
   if (cle === "fonderie") return macroFonderie(cv, g, rand, usure);
+  if (cle === "nebuleuse") return macroNebuleuse(cv, g, rand, usure);
 
   for (let i = 0; i < 5; i++) {
     const r = 260 + rand() * 300;
@@ -153,6 +154,36 @@ function macroFriche(cv, g, rand, usure) {
     const rx = 150 + rand() * 200, ry = rx * (0.45 + rand() * 0.5);
     nappeOvale(g, rand() * MACRO, rand() * MACRO, rx, ry, rand() * Math.PI,
                PROP.vert, 0.030 + 0.024 * usure);
+  }
+  return cv;
+}
+
+/* UN PONT EST SOUS QUELQUE CHOSE, ET C EST CE QUI MANQUAIT. Les douze nappes
+   rondes communes disaient « sol sale », ce qu un plancher de station n a aucune
+   raison d etre : rien ne s y depose, il n y a pas de gravite ambiante pour ca.
+   Ce qu il a, en revanche, c est de l OMBRE PORTEE par la charpente au-dessus —
+   deux bandes larges et paralleles, a l echelle de 1 200 px, donc bien plus
+   grandes que la nervure du pont qu on lit de pres.
+
+   Aucune nappe claire non plus, et pour la meme raison qu a la Fonderie : le
+   clair de ce lieu appartient aux BAIES. Une tache pale sur le plancher ferait
+   croire a une seconde ouverture. */
+function macroNebuleuse(cv, g, rand, usure) {
+  const ang = rand() * Math.PI;
+  for (let i = 0; i < 2; i++) {
+    const d = (i - 0.5) * MACRO * 0.42;
+    nappeOvale(g, MACRO / 2 - Math.sin(ang) * d, MACRO / 2 + Math.cos(ang) * d,
+               MACRO * 0.9, 120 + rand() * 70, ang, "#000000", 0.10 + 0.03 * usure);
+  }
+  for (let i = 0; i < 4; i++) {
+    const r = 200 + rand() * 300;
+    nappe(g, rand() * MACRO, rand() * MACRO, r, "#000000", 0.05 + rand() * 0.06);
+  }
+  // le seul apport de valeur : un froid tres faible, la ou la baie eclaire le
+  // plancher autour d elle.
+  for (let i = 0; i < 3; i++) {
+    const r = 180 + rand() * 220;
+    nappe(g, rand() * MACRO, rand() * MACRO, r, PROP.givre, 0.016 + 0.010 * usure);
   }
   return cv;
 }

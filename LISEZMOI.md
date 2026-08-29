@@ -8,6 +8,85 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Nébuleuse, et trois défauts que rien ne signalait (0.22.4)
+
+Les quatre lieux ont désormais leur vocabulaire bâti. Tableau complet du vide
+d'empreinte, **pire sur cinq positions**, seuil ramené de 12 à **10 %** :
+
+| lieu | famille | gabarit | vide |
+|---|---|---|---|
+| usine | chaîne | 368 × 32 | 0,0 % |
+| usine | cellule | 83 × 117 | 5,4 % |
+| usine | poste | 77 × 81 · 112 × 43 | 1,3 % · 1,5 % |
+| fonderie | four | 192 × 171 | 0,5 % |
+| fonderie | conduite | 416 × 43 | 2,8 % |
+| fonderie | cuve | 112 × 63 | 5,7 % |
+| friche | ruine | 136 × 63 · 72 × 99 · 96 × 43 | 5,5 % · 3,8 % · **8,2 %** |
+| friche | mur | 176 × 36 | 7,2 % |
+| friche | carcasse | 131 × 43 · 99 × 59 · 64 × 88 | 4,3 % · 4,1 % · 4,5 % |
+| nébuleuse | travée | 32 × 504 | 2,5 % |
+| nébuleuse | fragment | 232 × 135 | 3,4 % |
+| nébuleuse | débris | 67 × 34 · 58 × 29 | 1,9 % · 2,3 % |
+
+Le seuil suit ce que le dépôt tient : il valait 12 % quand la plus creuse était
+le débris à 9,6 %. La plus creuse est maintenant la ruine de la Friche à 8,2 %,
+et garder l'ancienne marge reviendrait à la garder pour un défaut corrigé.
+
+#### Les trois défauts, et aucun ne se voyait
+
+| # | ce qui n'allait pas | mesuré | après |
+|---|---|---|---|
+| 1 | le **débris** portait le chanfrein de 16 px du fragment sur 58 × 29 : quatre coins coupés de plus de la moitié de la hauteur | 9,6 % | **2,3 %** |
+| 2 | la première **travée** alternait plat / creux d'un nœud à l'autre — un **créneau**, qui retire la moitié de la longueur | 12,7 % | **2,5 %** |
+| 3 | le coin cisaillé du **fragment** émettait ses deux points toujours dans le même ordre, alors que le premier est sur l'arête d'**arrivée** : tracé qui se croise | 10,0 % | **3,4 %** |
+
+Le second est le plus intéressant : un créneau n'est pas un défaut de dessin,
+c'est un défaut de **jeu** — un joueur qui glisse le long d'une travée aurait
+buté sur du vide un pas sur deux. Un creux triangulaire au nœud seul retire
+`largeur × profondeur / 2` par nœud au lieu de la moitié de la longueur.
+
+Le troisième ne produisait aucune erreur : un chemin qui se croise reste
+dessinable, il a seulement un enroulement inversé sur le triangle. À l'écran il
+aurait fallu regarder très près.
+
+#### Le plan intermédiaire
+
+Le fond avait **trois** vitesses — astres 0,05, gaz 0,10, étoiles 0,16 — donc
+trois couches toutes à l'infini ou presque. Rien entre le ciel et le plancher,
+alors que c'est là que se joue la sensation d'espace : une structure qu'on
+dépasse dit la distance, une étoile ne le peut pas.
+
+| | technique | mémoire | où |
+|---|---|---|---|
+| astres 0,05 | image cuite 2200 × 1500 | 13 Mo | pleine vue + baies |
+| gaz 0,10 | image cuite demi-résolution | 3,3 Mo | pleine vue + baies |
+| étoiles 0,16 | image cuite 2200 × 1500 | 13 Mo | baies seules |
+| **orbite 0,22** | **chemins, tirés par cellule** | **0** | **baies seules** |
+
+Une quatrième image cuite aurait coûté 13 Mo pour quelques pour cent
+d'occupation utile — ce sont des **silhouettes**. Cellule de 620 px, taux 0,46,
+soit ≤ 4 cellules testées par baie et le plus souvent une structure retenue :
+au pire 11 baies × ~2 structures × ~15 opérations de chemin.
+
+Trois contraintes d'ordre, chacune pour une raison :
+
+- **plus rapide que les étoiles donc plus proche donc dessiné après elles** — une
+  station passant derrière une étoile serait le seul endroit du jeu où la
+  profondeur mentirait ;
+- **sous le voile de verre** — le décor perd du contraste avant le gameplay ;
+- **dans les baies seulement** — sous un plancher à 0,93 il aurait coûté une
+  passe pleine vue pour rester invisible, l'argument qui avait déjà sorti les
+  étoiles de `drawFond()`.
+
+**Une seule direction de lumière** pour toute la couche : dans le vide il y a un
+astre, pas douze. Et les feux des modules battent **quatre fois plus lentement**
+que ceux des travées du plan de jeu — on ne les confond pas avec un objet qu'on
+peut atteindre.
+
+Signatures des quatre lieux **inchangées** ; `verifierBiomes()` muet sur
+200 graines (11,8 s), `verifierNavigation()`, `verifierBlocs()` et
+`verifierEmpreinte()` muets.
+
 ### La Fonderie, et une branche morte depuis le plan 16 (0.22.3)
 
 | famille | ce qui la dit | vide d'empreinte |
