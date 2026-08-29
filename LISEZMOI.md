@@ -8,6 +8,53 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### L'amer, et un jeu de candidats qui n'en était pas un (0.22.7)
+
+Un point unique par arène, ancré au monde, tiré par graine. **Plaqué au sol,
+sans collider, sans réseau, sans lumière** : le plus grand élément du lieu est
+aussi celui qui ne coûte pas un pixel de collision.
+
+| lieu | amer | rayon |
+|---|---|---|
+| friche | embase de la tour, pan qui a cédé, bassin repris par la brousse | 460 px |
+| usine | cœur de ligne, plateau tournant, ancrages d'une machine démontée | 460 px |
+| fonderie | creuset, ceintures réfractaires, trou de coulée | 460 px |
+| nébuleuse | collier d'amarrage, griffes de verrouillage, secteurs de guidage | 460 px |
+
+#### Le défaut que `verifierAmers()` a trouvé
+
+Le premier jet tirait **un** décalage appliqué aux six candidats : le jeu de
+positions était donc un motif rigide **translaté en bloc**, donc six essais qui
+réussissaient ou échouaient presque ensemble.
+
+| | candidats | jitter | échecs / 40 graines | pire distance |
+|---|---|---|---|---|
+| premier jet | 6 | commun aux six | **11** (friche/cauchemar) | 139 px |
+| écart par candidat | 10 | propre à chacun | 1 | 178 px |
+| **retenu** | **14** | **propre à chacun** | **0** | **≥ 187 px** |
+
+Garde de 187 px = `AMER_R × 0,32 + 40` — elle porte sur le **cœur** de l'amer et
+non sur son rayon plein : les anneaux extérieurs sont clairsemés, un danger qui
+en effleure un ne trompe personne, alors que le disque central plein pourrait
+passer pour une surface.
+
+**Le défaut n'était pas la garde, c'était le nombre de points réellement
+distincts.** C'est la Friche — le lieu le plus dense, 12 obstacles et 5 dangers
+par vue en cauchemar — qui l'a révélé.
+
+**On prend le moins mauvais, pas le premier qui passe.** En cauchemar l'arène
+porte jusqu'à 45 dangers : un « premier emplacement libre » n'aurait aucune
+garantie d'exister, et un repli silencieux poserait l'amer sur une flaque — deux
+marquages au sol au même endroit, dont un seul blesse.
+
+Collision de nom évitée au passage : `drawRepere()` existe déjà et c'est la mire
+de calage `?repere`. Le terme cartographique exact pour un point de repère est un
+**amer**.
+
+`verifierAmers()`, `verifierBlocs()`, `verifierEmpreinte()` et
+`verifierDangers()` muets sur 200 graines ; `verifierBiomes()` muet sur 200
+(13,7 s), `verifierNavigation()` muet.
+
 ### La difficulté touche enfin le terrain (0.22.6)
 
 *« La géométrie est la MÊME dans les trois modes, seuls les dangers changent »*

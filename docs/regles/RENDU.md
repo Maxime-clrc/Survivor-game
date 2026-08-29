@@ -343,6 +343,36 @@ exécutable. Il ne circule pas sur le réseau et le serveur ne le lit jamais.
   matière. Elle part du **pied** (un mur cède par le bas) et ne touche jamais un
   coin (un mur ne se déchausse pas par l'angle).
 
+### L'amer
+
+Un par arène, `drawAmer()` (`decor.js`), tiré par graine et **ancré au monde**.
+Le semis est homogène du premier au dernier pixel : rien ne dit où l'on est,
+donc 4 800 × 2 700 se traversent sans jamais se situer. Ce qui manque n'est pas
+du détail, c'est un **point unique** — la chose qu'on montre du doigt.
+
+- **IL EST PLAQUÉ AU SOL, et ce n'est pas une économie.** Un grand objet qui
+  aurait du volume mentirait : le pathfinding verrait du vide là où l'œil voit
+  une masse. Ce qui se lit comme bloquant est un **obstacle**, dans `biomes.js`,
+  avec son AABB. Un amer est une **empreinte** — socle, fosse, creuset, collier —
+  donc le plus grand élément du lieu est aussi celui qui ne coûte **pas un pixel
+  de collision**.
+- **Sous la grille de 20 m.** La graduation reste la seule chose de l'écran qui
+  serve à lire une portée ; rien ne passe devant elle.
+- **Il n'émet pas de lumière.** Le tampon a déjà les gueules de four, les regards
+  de la coulée, les props émissifs et les joueurs : une source de 900 px le
+  rendrait uniformément clair, le contraire de ce que la Fonderie cherche.
+- **Il ne se pose jamais sur un danger** (`verifierAmers()`). Deux marquages au
+  sol au même endroit dont un seul blesse est le seul défaut que ce système
+  puisse produire, et il ne lève rien. La garde porte sur le **cœur** et non sur
+  le rayon plein : un danger qui effleure un anneau extérieur ne trompe personne.
+- **On prend le moins mauvais, pas le premier qui passe.** En cauchemar l'arène
+  porte jusqu'à 45 dangers : un « premier emplacement libre » n'aurait aucune
+  garantie d'exister, et un repli silencieux poserait l'amer sur une flaque.
+
+| | FRICHE | USINE | FONDERIE | NÉBULEUSE |
+|---|---|---|---|---|
+| **amer** | l'embase de la tour, son pan qui a cédé, le bassin repris par la brousse | le cœur de ligne : plateau tournant, allées qui convergent, ancrages d'une machine démontée | le creuset : puits réfractaire, ceintures, trou de coulée | le collier d'amarrage : griffes de verrouillage, secteurs de guidage |
+
 ### Un danger n'est pas un cercle
 
 `render/dangers.js`, table `(biome, kind) -> dessin`. **Ajouter un danger à un

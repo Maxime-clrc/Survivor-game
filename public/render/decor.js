@@ -1,9 +1,10 @@
 
-import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, hazardState, windAt } from "/shared/game_state.js";
+import { BIOMES, BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, buildBiome, hazardState, windAt } from "/shared/game_state.js";
 import { BIOME, BOSS, PROP, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
 import { couleeDe, floorPattern, fondEspace, macroPattern } from "./material.js";
+import { mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
@@ -413,6 +414,350 @@ function scintiller(f, X, Y, W, H) {
     }
     if (!vide) ctx.fill();
   }
+}
+
+/* LE REPERE, ET IL Y EN A UN SEUL PAR ARENE. Le semis est homogene du premier
+   au dernier pixel : rien ne dit ou l on est, donc une arene de 4 800 x 2 700 se
+   traverse sans jamais se situer. Ce qui manque n est pas du detail, c est un
+   POINT UNIQUE — la chose qu on montre du doigt.
+
+   IL EST PLAQUE AU SOL, ET CE N EST PAS UNE ECONOMIE. Un grand objet qui aurait
+   du volume mentirait : le pathfinding verrait du vide la ou l œil voit une
+   masse, et c est exactement l erreur que la charte interdit. Ce qui se lit
+   comme bloquant est un OBSTACLE, dans `biomes.js`, avec son AABB. Un repere est
+   une EMPREINTE — un socle, une fosse, un creuset, un collier — donc le plus
+   grand element du lieu est aussi celui qui ne coute pas un pixel de collision.
+
+   Il se dessine SOUS la grille de 20 m : la graduation reste la seule chose de
+   l ecran qui serve a lire une portee, et rien ne passe devant elle.
+
+   IL N EMET PAS DE LUMIERE. Le tampon a deja les gueules de four, les regards de
+   la coulee, les props emissifs et les joueurs ; une source de 900 px le rendrait
+   uniformement clair, ce qui est le contraire de ce que la Fonderie cherche. */
+const AMER_R = 460;
+const AMER_POSES = [[0.30, 0.34], [0.70, 0.66], [0.72, 0.28], [0.28, 0.72],
+                    [0.50, 0.36], [0.50, 0.64], [0.18, 0.50], [0.82, 0.50],
+                    [0.40, 0.20], [0.60, 0.80], [0.36, 0.52], [0.64, 0.48],
+                    [0.22, 0.26], [0.78, 0.74]];
+let amerCache = null;
+
+/* ON PREND LE MOINS MAUVAIS, PAS LE PREMIER QUI PASSE. En cauchemar l arene
+   porte jusqu a 45 dangers : un « premier emplacement libre » n aurait aucune
+   garantie d exister, et un repli silencieux poserait l amer sur une flaque —
+   deux marquages au sol au meme endroit, dont un seul blesse.
+
+   CHAQUE CANDIDAT A SON PROPRE ECART, et c est ce qui rend la recherche reelle.
+   Le premier jet tirait UN decalage applique aux six : le jeu de candidats etait
+   donc un motif rigide translate en bloc, donc six essais qui reussissaient ou
+   echouaient presque ensemble. `verifierAmers()` a signale la Friche — le lieu le
+   plus dense — a 139 a 186 px pour une garde de 187, sur onze graines : le defaut
+   n etait pas la garde, c etait le nombre de points reellement distincts. */
+function amerDe(seed, cle, hazards) {
+  const c = `${seed}|${cle}|${hazards.length}`;
+  if (amerCache && amerCache.c === c) return amerCache.v;
+  const rand = mulberry32((seed >>> 0) * 3571 + 13);
+  const depart = (rand() * AMER_POSES.length) | 0;
+
+  let best = null, bestD = -Infinity;
+  for (let i = 0; i < AMER_POSES.length; i++) {
+    const p = AMER_POSES[(depart + i) % AMER_POSES.length];
+    const x = clampAmer(p[0] * CFG.ARENA_W + (rand() - 0.5) * 300, CFG.ARENA_W);
+    const y = clampAmer(p[1] * CFG.ARENA_H + (rand() - 0.5) * 240, CFG.ARENA_H);
+    let d = Infinity;
+    for (const h of hazards) d = Math.min(d, Math.hypot(x - h.x, y - h.y) - h.r);
+    if (d > bestD) { bestD = d; best = [x, y]; }
+  }
+  amerCache = { c, v: { x: best[0], y: best[1], a: rand() * Math.PI * 2 } };
+  return amerCache.v;
+}
+
+const clampAmer = (v, max) => Math.min(Math.max(v, AMER_R), max - AMER_R);
+
+const AMERS = {
+  friche: tourEffondree,
+  usine: coeurDeLigne,
+  fonderie: creuset,
+  nebuleuse: sasAmarrage,
+};
+
+export function drawAmer() {
+  const cle = biomeAt(biomeIndex).key;
+  const f = AMERS[cle];
+  if (!f) return;
+  const r = amerDe(biomeSeed, cle, hazardsActifs());
+  if (!inView(r.x, r.y, AMER_R)) return;
+  ctx.save();
+  ctx.translate(r.x, r.y);
+  ctx.rotate(r.a);
+  f(AMER_R, skin());
+  ctx.restore();
+}
+
+/* DEUX MARQUAGES AU SOL AU MEME ENDROIT, DONT UN SEUL BLESSE. C est le seul
+   defaut que ce systeme puisse produire, et il ne leve rien : l amer est
+   decoratif, le danger a un collider, et superposes ils apprennent au joueur a
+   ignorer un marquage au sol. On exige donc une garde entre le CŒUR de l amer et
+   tout disque de danger, et on la rejoue sur les quatre lieux, les trois modes et
+   toutes les graines demandees.
+
+   La garde porte sur le cœur (`AMER_R x 0,32`) et non sur le rayon plein : les
+   anneaux exterieurs sont clairsemes, un danger qui en effleure un ne trompe
+   personne — c est le disque central, plein et sombre, qui pourrait passer pour
+   une surface. */
+const AMER_GARDE = 40;
+export function verifierAmers(seeds = [1, 7, 99]) {
+  const soucis = [];
+  const garde = AMER_R * 0.32 + AMER_GARDE;
+  for (let bi = 0; bi < BIOMES.length; bi++) {
+    const cle = BIOMES[bi].key;
+    if (!AMERS[cle]) { soucis.push(`${cle} : aucun amer declare`); continue; }
+    for (let di = 0; di < 3; di++) {
+      for (const seed of seeds) {
+        const b = buildBiome(bi, di, seed, CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
+        amerCache = null;
+        const a = amerDe(seed, cle, b.hazards);
+        const ou = `${cle}/${["calme", "normal", "cauchemar"][di]}/${seed}`;
+        if (a.x < AMER_R || a.y < AMER_R
+            || a.x > CFG.ARENA_W - AMER_R || a.y > CFG.ARENA_H - AMER_R) {
+          soucis.push(`${ou} : amer a moins de son rayon du bord`);
+        }
+        for (const h of b.hazards) {
+          const d = Math.hypot(a.x - h.x, a.y - h.y) - h.r;
+          if (d < garde) {
+            soucis.push(`${ou} : amer a ${Math.round(d)} px d'un ${h.kind} `
+              + `(garde ${Math.round(garde)})`);
+            break;
+          }
+        }
+      }
+    }
+  }
+  amerCache = null;
+  return soucis;
+}
+
+// UN ANNEAU EPAIS, en un seul `stroke` : c est la primitive de trois des quatre
+// reperes, et elle evite un `arc` plein qui masquerait le sol.
+function anneau(r, w, col, a) {
+  ctx.strokeStyle = alpha(col, a);
+  ctx.lineWidth = w;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+/* FRICHE — L EMBASE DE LA TOUR DE REFROIDISSEMENT. Ce qui reste d une tour n est
+   pas la tour : c est son SOCLE, un anneau de beton de trente metres avec le
+   bassin au milieu et le pan qui a cede. La brousse a repris le bassin, parce
+   que c est la que l eau s est arretee. */
+function tourEffondree(R, S) {
+  const br = R * 0.34;
+  ctx.fillStyle = alpha("#000000", 0.26);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.80, 0, Math.PI * 2); ctx.fill();
+
+  anneau(R * 0.78, 40, "#5a5c50", 0.30);
+  anneau(R * 0.78, 40, "#000000", 0.16);
+  anneau(R * 0.60, 3, PROP.metalDark, 0.28);
+
+  // LES CONTREFORTS. Une tour repose sur des jambages en V ; il en reste les
+  // amorces, et c est ce qui empeche l anneau de se lire comme un cercle peint.
+  ctx.strokeStyle = alpha("#6e6a5e", 0.34);
+  ctx.lineWidth = 11;
+  ctx.beginPath();
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2;
+    ctx.moveTo(Math.cos(a) * R * 0.60, Math.sin(a) * R * 0.60);
+    ctx.lineTo(Math.cos(a) * R * 0.94, Math.sin(a) * R * 0.94);
+  }
+  ctx.stroke();
+
+  // LE PAN QUI A CEDE : un secteur ou l anneau manque, et l eboulis qui en est
+  // sorti. Sans lui c est une installation entretenue.
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, R, -0.62, 0.32);
+  ctx.closePath();
+  ctx.clip();
+  ctx.fillStyle = alpha("#1b1a13", 0.60);
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha("#6e6a5e", 0.30);
+  for (let i = 0; i < 22; i++) {
+    const a = -0.6 + (i * 0.043);
+    const d = R * (0.62 + ((i * 7) % 11) / 11 * 0.42);
+    const t = 5 + (i % 4) * 3;
+    ctx.fillRect(Math.cos(a) * d - t / 2, Math.sin(a) * d - t / 2, t, t * 0.7);
+  }
+  ctx.restore();
+
+  // LE BASSIN, repris par ce qui pousse : l eau s est arretee la.
+  ctx.fillStyle = alpha("#0d1013", 0.34);
+  ctx.beginPath(); ctx.arc(0, 0, br, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.vert, 0.22);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 26; i++) {
+    const a = (i * 2.399) % (Math.PI * 2);
+    const d = Math.sqrt((i * 0.618) % 1) * br;
+    ctx.moveTo(Math.cos(a) * d, Math.sin(a) * d);
+    ctx.lineTo(Math.cos(a) * d + Math.cos(a + 1.2) * 9, Math.sin(a) * d + Math.sin(a + 1.2) * 9);
+  }
+  ctx.stroke();
+}
+
+/* USINE — LE CŒUR DE LIGNE. Une usine a un point ou tout converge : le plateau
+   tournant qui distribue vers les chaines. Il est PEINT et BOULONNE, pas
+   construit : une empreinte de production, avec ses allees qui partent en
+   rayons et ses trappes de service. */
+function coeurDeLigne(R, S) {
+  const p = R * 0.62;
+  ctx.fillStyle = alpha("#000000", 0.22);
+  ctx.fillRect(-p, -p, p * 2, p * 2);
+
+  // LES ALLEES QUI CONVERGENT : deux lignes continues et pales par allee, jamais
+  // des hachures — un marquage hachure se lit comme un telegraphe.
+  ctx.strokeStyle = alpha(PROP.peint, 0.26);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    for (const d of [-13, 13]) {
+      const nx = -Math.sin(a) * d, ny = Math.cos(a) * d;
+      ctx.moveTo(Math.cos(a) * R * 0.34 + nx, Math.sin(a) * R * 0.34 + ny);
+      ctx.lineTo(Math.cos(a) * R * 1.02 + nx, Math.sin(a) * R * 1.02 + ny);
+    }
+  }
+  ctx.stroke();
+
+  anneau(R * 0.36, 26, S.bloc, 0.34);
+  anneau(R * 0.36, 26, "#000000", 0.14);
+  anneau(R * 0.50, 2, PROP.metal, 0.16);
+
+  // LE PLATEAU TOURNANT et sa croix d entrainement.
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.23, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.22);
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a) * R * 0.22, Math.sin(a) * R * 0.22);
+  }
+  ctx.stroke();
+
+  // LES ANCRAGES : la grille de boulons d une machine qu on a demontee. C est ce
+  // qui dit qu il y avait quelque chose, et qu il n y est plus.
+  ctx.fillStyle = alpha("#000000", 0.34);
+  for (let i = -3; i <= 3; i++) {
+    for (let j = -3; j <= 3; j++) {
+      const x = i * p * 0.28, y = j * p * 0.28;
+      if (Math.hypot(x, y) < R * 0.40 || Math.abs(x) > p || Math.abs(y) > p) continue;
+      ctx.beginPath(); ctx.arc(x, y, 3.4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+/* FONDERIE — LE CREUSET. Le seul repere des quatre qui soit une FOSSE et non un
+   socle : un puits de brique refractaire, ses ceintures, et le CANAL DE COULEE
+   qui en sort par un cote. Il ne rougeoie pas — la lumiere du lieu appartient
+   aux gueules et aux regards, qui sont, eux, des sources declarees. */
+function creuset(R, S) {
+  ctx.fillStyle = alpha("#000000", 0.36);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.86, 0, Math.PI * 2); ctx.fill();
+
+  for (let i = 0; i < 4; i++) {
+    const r = R * (0.86 - i * 0.13);
+    anneau(r, 9, i & 1 ? PROP.brique : PROP.metalDark, 0.30 - i * 0.04);
+  }
+
+  // L APPAREILLAGE : les joints de brique rayonnent, decales d une assise a
+  // l autre. Un cercle concentrique sans joints est une cible, pas une maconnerie.
+  ctx.strokeStyle = alpha("#000000", 0.30);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let a = 0; a < 4; a++) {
+    const r0 = R * (0.86 - a * 0.13), r1 = r0 - R * 0.11;
+    const n = 26 - a * 3;
+    for (let i = 0; i < n; i++) {
+      const ang = ((i + (a & 1) * 0.5) / n) * Math.PI * 2;
+      ctx.moveTo(Math.cos(ang) * r1, Math.sin(ang) * r1);
+      ctx.lineTo(Math.cos(ang) * r0, Math.sin(ang) * r0);
+    }
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = alpha("#0a0605", 0.72);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.32, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.scorie, 0.42);
+  ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.32, 0, Math.PI * 2); ctx.stroke();
+
+  // LE TROU DE COULEE. Une rigole franche, orthogonale, qui sort du puits et
+  // continue hors du repere : c est ce qui le raccorde au reste du lieu.
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(R * 0.20, -17, R * 0.98, 34);
+  ctx.fillStyle = alpha(PROP.scorie, 0.34);
+  ctx.fillRect(R * 0.20, -11, R * 0.98, 22);
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.50);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(R * 0.20, -17); ctx.lineTo(R * 1.18, -17);
+  ctx.moveTo(R * 0.20, 17); ctx.lineTo(R * 1.18, 17);
+  ctx.stroke();
+}
+
+/* NEBULEUSE — LE COLLIER D AMARRAGE. Un anneau de vingt metres encastre dans le
+   pont, avec ses griffes de verrouillage et ses secteurs de guidage. Il dit
+   qu on est sur une station A QUAI, et c est la seule chose de ce lieu qui parle
+   d autre chose que de rupture. */
+function sasAmarrage(R, S) {
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.76, 0, Math.PI * 2); ctx.fill();
+
+  anneau(R * 0.72, 22, S.bloc, 0.34);
+  anneau(R * 0.72, 22, "#000000", 0.14);
+  anneau(R * 0.50, 3, PROP.givre, 0.16);
+
+  // LES GRIFFES. Huit, orientees dans le meme sens : un verrouillage tourne, et
+  // c est ce sens partage qui le dit sans qu il ait besoin de bouger.
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.66);
+  ctx.lineWidth = 13;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const r0 = R * 0.50, r1 = R * 0.70;
+    ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+    ctx.lineTo(Math.cos(a + 0.26) * r1, Math.sin(a + 0.26) * r1);
+  }
+  ctx.stroke();
+  ctx.lineCap = "butt";
+
+  // LES SECTEURS DE GUIDAGE : des arcs PLEINS, jamais des tirets — un pointille
+  // est le langage du telegraphe et il appartient au boss.
+  ctx.strokeStyle = alpha(S.emis, 0.20);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    ctx.arc(0, 0, R * 0.86, a, a + 0.38);
+    ctx.moveTo(0, 0);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = alpha("#05070d", 0.50);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.30, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.givre, 0.20);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const b = ((i + 1) / 6) * Math.PI * 2;
+    ctx.moveTo(Math.cos(a) * R * 0.29, Math.sin(a) * R * 0.29);
+    ctx.lineTo(Math.cos(b) * R * 0.29, Math.sin(b) * R * 0.29);
+  }
+  ctx.stroke();
 }
 
 export function drawFloor() {

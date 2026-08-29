@@ -4685,6 +4685,42 @@
                    pas un second systeme de difficulte : `_teamPower()` et le
                    residu de `DIFFICULTIES` restent seuls.
 
+     0.22.7 lot 8  L AMER : LE POINT QU ON MONTRE DU DOIGT. Le semis etait
+                   homogene du premier au dernier pixel — rien ne disait ou l on
+                   est, donc 4 800 x 2 700 se traversaient sans jamais se situer.
+                   Ce qui manquait n etait pas du detail, c etait un POINT
+                   UNIQUE. Un par arene, ancre au monde, tire par graine :
+                   l embase de la tour de refroidissement et son pan qui a cede,
+                   le cœur de ligne et ses ancrages d une machine demontee, le
+                   creuset et son trou de coulee, le collier d amarrage et ses
+                   griffes.
+                   IL EST PLAQUE AU SOL, ET CE N EST PAS UNE ECONOMIE. Un grand
+                   objet qui aurait du volume mentirait : le pathfinding verrait
+                   du vide la ou l œil voit une masse, et c est exactement
+                   l erreur que la charte interdit. Ce qui se lit comme bloquant
+                   est un OBSTACLE, avec son AABB. Un amer est une EMPREINTE —
+                   socle, fosse, creuset, collier — donc le plus grand element du
+                   lieu est aussi celui qui ne coute PAS UN PIXEL de collision,
+                   pas un octet de reseau et pas une source de lumiere.
+                   Il passe SOUS la grille de 20 m : la graduation reste la seule
+                   chose de l ecran qui serve a lire une portee.
+                   ON PREND LE MOINS MAUVAIS, PAS LE PREMIER QUI PASSE. En
+                   cauchemar l arene porte jusqu a 45 dangers : un « premier
+                   emplacement libre » n aurait aucune garantie d exister, et un
+                   repli silencieux poserait l amer sur une flaque — deux
+                   marquages au sol au meme endroit, dont un seul blesse.
+                   `verifierAmers()` l a d ailleurs signale : le premier jet
+                   tirait UN decalage applique aux six candidats, donc un motif
+                   rigide translate en bloc, donc six essais qui reussissaient ou
+                   echouaient ensemble. La Friche — le lieu le plus dense —
+                   tombait a 139-186 px pour une garde de 187, sur onze graines
+                   sur quarante. Le defaut n etait pas la garde, c etait le
+                   nombre de points reellement distincts : quatorze candidats,
+                   chacun avec son propre ecart. Muet sur 200 graines.
+                   Collision de nom evitee : `drawRepere` existe deja et c est la
+                   mire de calage `?repere`. Le terme cartographique exact pour
+                   un point de repere est un AMER.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4693,4 +4729,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.6";
+export const VERSION = "0.22.7";
