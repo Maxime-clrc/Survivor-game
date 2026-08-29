@@ -9,7 +9,7 @@ import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alp
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
-import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawOmbre, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, zoneFx } from "./fx.js";
+import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawOmbre, finArcs, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, zoneFx } from "./fx.js";
 import { ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
@@ -1745,6 +1745,28 @@ export function drawArc(key, x0, y0, x1, y1, {
     ctx.fill();
   }
   ctx.restore();
+}
+
+/* L'ARC FINAL D'UN RELAIS. La donnee vit dans `fx.js` avec le reste de la mort ;
+   le TRACE vit ici, parce que `drawArc` est d'une couche plus haute et qu'un
+   module n'importe que vers le bas. Meme partage que `bursts` : `fx.js` decide
+   qu'il y a quelque chose a dire, `actors.js` sait le dire.
+   L'arc s'efface en RACINE : la rupture est franche, l'extinction ne l'est pas. */
+export function drawFinArcs() {
+  if (finArcs.length === 0) return;
+  const now = performance.now();
+  for (let i = finArcs.length - 1; i >= 0; i--) {
+    const a = finArcs[i];
+    const k = (now - a.at) / a.dur;
+    if (k >= 1) { finArcs[i] = finArcs[finArcs.length - 1]; finArcs.pop(); continue; }
+    if (!inView(a.x, a.y, 60) && !inView(a.x2, a.y2, 60)) continue;
+    ctx.globalAlpha = Math.sqrt(1 - k);
+    drawArc(`f${a.at}${i}`, a.x, a.y, a.x2, a.y2, {
+      col: FX.ricochet, coeur: FX.ricochetCore, amp: 0.11, width: 1.6,
+      branches: 2, cut: 0.6,
+    });
+    ctx.globalAlpha = 1;
+  }
 }
 
 const BREATH_HZ = 1.2;

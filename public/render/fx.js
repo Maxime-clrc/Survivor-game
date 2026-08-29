@@ -4,7 +4,7 @@ import { EventPump } from "/events.js";
 import { hudDamage, hudEvent } from "/hud.js";
 import { SRC_ICON } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
-import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, echelleBouche, ficheDe, familleDe, matiereDe, poids } from "/shared/feedback.js";
+import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, FIN_CHAMP, FIN_MASSE, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, echelleBouche, ficheDe, familleDe, finalDe, finalRayon, matiereDe, poids } from "/shared/feedback.js";
 import { CFG, ENEMY_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, melange } from "/shared/palette.js";
@@ -579,11 +579,24 @@ function palierDe(e) {
   const part = (e.dmg ?? 0) / e.hits / Math.max(1, e.maxHp ?? 1);
   return part >= PALIER_LOURD ? HIT_LOURD : part >= PALIER_MOYEN ? HIT_MOYEN : HIT_LEGER;
 }
+/* LE POIDS PILOTE AUSSI LE TRESSAILLEMENT, et c'etait la derniere colonne qui
+   manquait : `PALIER` decidait deja de l'eclair, des eclats, du cone, de la
+   poussiere, de l'onde et de la voix, donc la regle vivait a un seul endroit
+   sauf pour celle-la.
+
+   IL N'EXISTE QUE SUR SES PROPRES COUPS LOURDS, et les deux bornes comptent.
+   « Lourd » vaut 2 % des touches — 0,53 par seconde pour toute l'equipe, releve
+   — et le reserver a SON tireur le ramene sous 0,15 : c'est ce qui separe un
+   accent d'un tremblement permanent. Un coup lourd d'un allie ne secoue pas MON
+   ecran ; il a deja son onde, son noyau et sa voix.
+
+   1,2 px sur une vue de 1 600 : il se SENT, il ne se voit pas. Le tressaillement
+   franc reste ou il etait — detonations, ondes de choc, rupture de barre. */
 const PALIER = [
-  { flash: 0.045,      kick: 0,    eclats: 0, sp: 0,   cone: 0,    poussiere: 0 },
-  { flash: HIT_FLASH,  kick: 1,    eclats: 2, sp: 90,  cone: 1.60, poussiere: 0 },
-  { flash: 0.085,      kick: 1.35, eclats: 4, sp: 140, cone: 1.18, poussiere: 1 },
-  { flash: 0.120,      kick: 1.90, eclats: 6, sp: 210, cone: 0.76, poussiere: 3 },
+  { flash: 0.045,      kick: 0,    eclats: 0, sp: 0,   cone: 0,    poussiere: 0, shake: 0 },
+  { flash: HIT_FLASH,  kick: 1,    eclats: 2, sp: 90,  cone: 1.60, poussiere: 0, shake: 0 },
+  { flash: 0.085,      kick: 1.35, eclats: 4, sp: 140, cone: 1.18, poussiere: 1, shake: 0 },
+  { flash: 0.120,      kick: 1.90, eclats: 6, sp: 210, cone: 0.76, poussiere: 3, shake: 1.2 },
 ];
 
 function registerHit(e, pal) {
@@ -610,18 +623,21 @@ function registerHit(e, pal) {
   let restants = e.crits ?? 0;
   const type = e.type ?? 0;
   const perce = e.perce === 1;
+  // `col` ne suffit PAS a repondre « est-ce mon coup » : il est nul aussi bien
+  // pour moi que pour une source sans proprietaire — zone, brulure, danger.
+  const mien = e.owner === myId;
   for (let i = 0; i < n; i++) {
     const crit = restants-- > 0;
-    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col, pal, type, perce);
+    if (i === 0) applyHit(e.id, e.x, e.y, dx, dy, crit, col, pal, type, perce, mien);
     else hitQueue.push({ at: now + i * step, id: e.id, x: e.x, y: e.y, dx, dy,
-                         crit, col, pal, type, perce });
+                         crit, col, pal, type, perce, mien });
   }
 }
 const HIT_BURST_MAX = 4;
 export const hitQueue = [];
 const CRIT_FLASH = 0.17;
 function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER,
-                  type = 0, perce = false) {
+                  type = 0, perce = false, mien = false) {
   const now = performance.now();
   const P = PALIER[pal] ?? PALIER[HIT_LEGER];
   hits.set(id, {
@@ -667,6 +683,7 @@ function applyHit(id, x, y, dx, dy, crit = false, col = null, pal = HIT_LEGER,
   if (P.poussiere > 0 && T.debris) poussiere(x, y, a0, P.poussiere);
   // le coup lourd sort du budget de la touche : il vaut ~0,2 par seconde, donc
   // il a droit a l'onde et au noyau que le palier 0 ne peut pas payer.
+  if (mien && P.shake > 0) addShake(P.shake);
   if (pal === HIT_LOURD && bursts.length < BURST_MAX) {
     bursts.push({ x, y, r: 4, max: 34, life: 0.2, t: 0.2, col: COMBAT.flash, w: 1.8 });
     if (particles.length < PARTICLE_MAX) {
@@ -787,7 +804,7 @@ function flushHitQueue(now) {
     if (hitQueue[i].at > now) continue;
     const h = hitQueue[i];
     hitQueue.splice(i, 1);
-    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col, h.pal, h.type, h.perce);
+    applyHit(h.id, h.x, h.y, h.dx, h.dy, h.crit, h.col, h.pal, h.type, h.perce, h.mien);
   }
 }
 export const deaths = [];
@@ -816,6 +833,7 @@ export function drawDeaths() {
    la vitesse. Ce qui manquait, c'est la case et le comportement — un eclat
    anguleux qui tournoie ne peut pas dire « poche qui creve ». */
 const MATIERE_DE = ENEMY_TYPES.map(matiereDe);
+const FIN_DE = ENEMY_TYPES.map(finalDe);
 
 /* LA HAUTEUR DIT LA MASSE. Elle disait l'INDEX : `1.3 - type * 0.12`, donc
    l'ordre d'arrivee dans la table. Le coureur, le plus petit corps du bestiaire,
@@ -905,6 +923,67 @@ function spawnDeath(x, y, type, elite, ang = 0, crit = false, owner = 0, mat = M
   if (elite && bursts.length < BURST_MAX) {
     bursts.push({ x, y, r: 20, max: 74, life: 0.35, t: 0.35, col: ELITE_GOLD });
   }
+  finAct(x, y, type, elite);
+}
+
+/* CE QUE LA CREATURE TENAIT NE S'ARRETE PAS EN SILENCE. Quatre lignes du
+   bestiaire sur treize, et c'est la condition pour que ce soit un fait notable :
+   un acte de fermeture sur les treize types sortirait 20 a 60 fois par seconde,
+   et cesserait d'etre une information.
+
+   Aucune des trois formes n'ajoute de mecanique de rendu : le CHAMP est un
+   `burst` dont le rayon maximal est PLUS PETIT que le rayon de depart — il se
+   retracte au lieu de s'ouvrir, et c'est la seule chose a dire —, la MASSE est
+   un anneau court et epais plus trois debris lents, et l'ARC est une donnee que
+   `actors.js` va chercher, parce que `drawArc` vit une couche plus haut. */
+export const finArcs = [];
+const FIN_ARC_MAX = 6;
+const FIN_ARC_MS = 260;
+function finAct(x, y, type, elite) {
+  const def = ENEMY_TYPES[type];
+  const acte = FIN_DE[type];
+  if (!acte) return;
+  const gros = elite ? CFG.ELITE_RADIUS_MUL : 1;
+  const R = finalRayon(def) * gros;
+
+  if (acte === FIN_CHAMP && bursts.length < BURST_MAX) {
+    // il se RETRACTE : `max` sous `r`, et l'anneau rentre vers ce qui le tenait
+    bursts.push({ x, y, r: R, max: R * 0.12, life: 0.34, t: 0.34,
+                  col: ENEMY_TINT[type] ?? COMBAT.flash, w: 2.4 });
+    return;
+  }
+
+  if (acte === FIN_MASSE) {
+    if (bursts.length < BURST_MAX) {
+      bursts.push({ x, y, r: R * 0.2, max: R, life: 0.30, t: 0.30,
+                    col: skin().blocEdge, w: 5 });
+    }
+    // ce qui tombe d'un corps lourd est LENT et RESTE : trois morceaux, pas une
+    // gerbe — la gerbe appartient deja a l'eclat de type.
+    const nb = glActive() ? 3 : 2;
+    for (let i = 0; i < nb && particles.length < PARTICLE_MAX; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 55 + Math.random() * 70;
+      particles.push({
+        x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: 0.62, max: 0.62, col: skin().blocEdge, size: 4.4 + Math.random() * 2,
+        frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 7, drag: 0.82,
+      });
+    }
+    return;
+  }
+
+  // L'ARC FINAL : le mat cede, et la derniere decharge part vers le corps le
+  // plus proche QU'IL AURAIT PU RELIER — au-dela de sa portee, il n'y a rien a
+  // rompre, et l'arc ne se dessine pas.
+  if (!latest || finArcs.length >= FIN_ARC_MAX) return;
+  let cx = 0, cy = 0, bd = R * R;
+  for (const e of latest.enemies.values()) {
+    const d = (e.x - x) ** 2 + (e.y - y) ** 2;
+    if (d > 4 && d < bd) { bd = d; cx = e.x; cy = e.y; }
+  }
+  if (bd >= R * R) return;
+  finArcs.push({ x, y, x2: cx, y2: cy, at: performance.now(), dur: FIN_ARC_MS });
 }
 
 // [4] LE FLUX D'XP. Aucune entite, aucun ramassage, aucun changement de jeu :

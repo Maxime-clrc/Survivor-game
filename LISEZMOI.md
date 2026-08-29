@@ -8,6 +8,46 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Ce qui restait à dire, plan 21 (0.24.2)
+
+#### Le budget du tressaillement de touche
+
+`PALIER` gagne sa dernière colonne. Le chiffre qui autorise l'exception est celui
+déjà relevé au plan 15 : sur 17 317 vraies touches, le découpage est
+**93 / 5 / 2 %**, soit **31,7 / 1,7 / 0,53 par seconde** pour léger / moyen /
+lourd, toute l'équipe confondue.
+
+Réservé à **son propre** tireur, le lourd tombe sous **0,15/s** à quatre joueurs.
+À 1,2 px sur une vue de 1 600 et une décroissance de 0,2 s, c'est un accent
+toutes les six à sept secondes — pas un tremblement.
+
+#### L'acte final : quatre lignes sur treize
+
+| type | acte déduit de | rayon |
+|---|---|---|
+| tank | rayon ≥ 20 | 63 |
+| chœur | `auraRadius` | 130 |
+| générateur | `egideRadius` | 150 |
+| relais | `lienRange` | 300 |
+
+Les neuf autres n'ont **aucun** acte final, et c'est la condition : à 20-60 morts
+par seconde, un acte sur tous les types cesserait d'être une information.
+
+#### Le mix après le plan 21
+
+Même protocole qu'au plan 20 (`AudioContext` de papier, recettes du dépôt,
+`pilotage()`, `diffSnapshots` à 20 Hz), cauchemar, 4 joueurs, 120 s.
+
+| pop | pas (ms) | voix pointe | refusées/s | volées/s | nœuds/s |
+|---|---|---|---|---|---|
+| 50 | 0,080 | 8 | 14 | 0,0 | 115 |
+| 100 | 0,104 | 8 | 18 | 0,0 | 126 |
+| 150 | 0,182 | 9 | 22 | 0,0 | 133 |
+| 200 | 0,316 | 12 | 27 | 0,0 | 200 |
+
+**Aucune voix volée.** Le plan 21 n'ajoute aucune recette : ses trois lots sont
+visuels, sauf le renommage d'`effleure` qui garde exactement le son qu'il avait.
+
 ### Le retour de combat, plan 20 (0.23.7)
 
 #### Ce que le plan a trouvé, et que rien ne signalait

@@ -35,7 +35,7 @@ Un lot = un commit = un bump de patch. Le plan ouvre **0.24.x**.
 |---|---|---|---|
 | **1** | 0.24.0 | **Le projectile lourd, et la traversée.** Traînée du baril dans l'axe du VOL pendant que le corps tourne, pulsation d'arme amorcée, et la ligne de passage d'une balle perforante. | aucune particule de plus par tir · `verifierEffets` muet |
 | **2** | 0.24.1 | **Le ricochet se lit.** Impact → direction de rebond → nouveau départ, et l'événement mal nommé prend son vrai nom. | le rebond se lit sans compter les traits |
-| **3** | 0.24.2 | **L'acte final, et le poids complet.** Un acte de fermeture **déduit** de ce que la créature tenait, et le tressaillement borné à ses propres coups lourds. | trois types sur treize seulement · shake ≤ 1,5 px |
+| **3** | 0.24.2 | **L'acte final, et le poids complet.** Un acte de fermeture **déduit** de ce que la créature tenait, et le tressaillement borné à ses propres coups lourds. | quatre types sur treize seulement · shake ≤ 1,5 px |
 
 ---
 
@@ -45,6 +45,6 @@ Un lot = un commit = un bump de patch. Le plan ouvre **0.24.x**.
 - **Aucun acte final sur un type ordinaire.** Un acte de fermeture sur les treize
   types serait un événement de palier 2 à 20-60 par seconde : ce n'est plus un
   fait notable, c'est du bruit. Il se **déduit** de ce que la créature tenait, et
-  seules trois lignes du bestiaire tiennent quelque chose.
+  seules quatre lignes du bestiaire tiennent quelque chose.
 - **Aucune nouvelle table.** L'acte final sort de `lienRange`, `auraRadius`,
   `egideRadius` et du rayon — même idiome que `matiereDe()`.

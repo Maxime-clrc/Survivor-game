@@ -5016,6 +5016,40 @@
                    deja juste et ne bouge pas d un pixel — une touche sous le
                    seuil d affichage merite une etincelle et rien de plus.
 
+     0.24.2 lot 3  L ACTE FINAL, ET LA DERNIERE COLONNE DU POIDS.
+                   LA MORT AVAIT SES QUATRE TEMPS — trois images de depouille, l
+                   eclat de type, la matiere, le flux d XP — mais pas sa
+                   CONSEQUENCE : ce que le corps maintenait POUR LES AUTRES s
+                   arretait en silence. `finalDe(def)` le deduit de ce que la
+                   creature TENAIT, exactement comme `matiereDe` deduit de ce qu
+                   elle fait : `lienRange` rend un dernier arc vers le corps qu
+                   elle aurait pu relier, `auraRadius`/`egideRadius` un champ qui
+                   SE RETRACTE, un rayon de type >= 20 un anneau court et epais
+                   plus trois morceaux lents. Aucun champ neuf dans le bestiaire.
+                   QUATRE LIGNES SUR TREIZE, ET C EST LA CONDITION. Un acte de
+                   fermeture sur les treize types sortirait 20 a 60 fois par
+                   seconde : ce ne serait plus une information, ce serait du
+                   bruit. Le rayon est celui du TYPE et non de l instance — une
+                   elite ne change pas d acte, elle joue le sien en plus gros.
+                   AUCUNE MECANIQUE DE RENDU EN PLUS : le champ est un `burst`
+                   dont le rayon MAXIMAL est plus petit que celui de depart, donc
+                   il rentre au lieu de s ouvrir, et c est la seule chose a dire.
+                   L arc, lui, est une DONNEE que `fx.js` pose et qu `actors.js`
+                   trace : `drawArc` vit une couche plus haut, et un module n
+                   importe que vers le bas.
+                   LE POIDS PILOTE ENFIN LE TRESSAILLEMENT. `PALIER` decidait de
+                   l eclair, des eclats, du cone, de la poussiere, de l onde et
+                   de la voix — la regle vivait a un seul endroit SAUF pour
+                   celle-la. Il n existe que sur SES PROPRES coups lourds, et les
+                   deux bornes comptent : « lourd » vaut 2 % des touches, soit
+                   0,53/s pour toute l equipe, et le reserver a son tireur le
+                   ramene sous 0,15/s. 1,2 px sur une vue de 1 600 : il se SENT,
+                   il ne se voit pas. Un coup lourd d un allie ne secoue pas MON
+                   ecran — il a deja son onde, son noyau et sa voix.
+                   `col` NE POUVAIT PAS REPONDRE « est-ce mon coup » : il est nul
+                   aussi bien pour moi que pour une source sans proprietaire —
+                   zone, brulure, danger. Le drapeau se pose donc explicitement.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5024,4 +5058,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.24.1";
+export const VERSION = "0.24.2";

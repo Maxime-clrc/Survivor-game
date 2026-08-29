@@ -732,7 +732,12 @@ le sien :
   `EventPump` (`events.js`) ne diffuse un snapshot que lorsque l'horloge de rendu
   l'a franchi. Le canal `alert` est mis en file et sorti sur la même horloge.
 - **Le tressaillement ne sort que sur les gros événements** (détonation, onde de
-  choc, rupture de barre, bombe), jamais sur un impact ordinaire.
+  choc, rupture de barre, bombe), jamais sur un impact ordinaire. Une seule
+  exception, et elle est doublement bornée : **son propre** coup LOURD, à
+  **1,2 px**. « Lourd » vaut 2 % des touches — 0,53/s pour toute l'équipe,
+  relevé — et le réserver à son tireur le ramène sous 0,15/s : c'est ce qui
+  sépare un accent d'un tremblement permanent. Le coup lourd d'un allié ne
+  secoue pas mon écran ; il a déjà son onde, son noyau et sa voix.
 - **Le hitstop n'existe QUE pour les barres de boss et pour la MORT du boss**
   (`addHitstop`, 100 ms, 140 ms à la mort, au plus 30 par manche) : dans un
   survivor la fluidité du déplacement **est** le jeu. Il gèle l'horloge de
@@ -934,6 +939,17 @@ qu'une **créature** dit en mourant.
   détaché.
 
 **La mort** — la matière se déduit du comportement :
+
+- **L'ACTE FINAL se déduit de ce que la créature TENAIT** (`finalDe`) :
+  `lienRange` → un dernier arc vers le corps qu'elle aurait pu relier ;
+  `auraRadius`/`egideRadius` → le champ se **rétracte** (un `burst` dont le rayon
+  maximal est plus petit que celui de départ — il rentre au lieu de s'ouvrir) ;
+  un rayon de type ≥ 20 → un anneau court et épais plus trois morceaux lents.
+  **Quatre lignes du bestiaire sur treize**, et c'est la condition : un acte de
+  fermeture sur les treize sortirait 20 à 60 fois par seconde et cesserait d'être
+  une information. Aucun champ neuf — même idiome que `matiereDe()`. La donnée
+  vit dans `fx.js` (`finArcs`), le **tracé** dans `actors.js`, parce que
+  `drawArc` est d'une couche plus haute.
 
 - `splits` → un sac ; `heal` ou `auraRadius` → de l'énergie ; le reste → une
   carapace. **L'axe est la matière, pas le métal contre l'organique** : l'arène
