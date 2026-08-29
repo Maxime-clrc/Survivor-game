@@ -5,13 +5,13 @@ import { CARD_CFG } from "/shared/cards.js";
 import { t } from "/shared/i18n.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, SKILL_ULT_WIND, classAt } from "/shared/classes.js";
 import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG } from "/shared/game_state.js";
-import { BOSS, BOSS_SKIN, CLASS_COLOR, COMBAT, EFFECT_COLOR, FX, HUD, MARK, POWERUP_COLOR, SIGNAL, SURFACE, TEXT, alpha } from "/shared/palette.js";
+import { BOSS, BOSS_SKIN, CLASS_COLOR, COMBAT, EFFECT_COLOR, FX, HUD, MARK, POWERUP_COLOR, SIGNAL, SURFACE, TEXT, alpha, melange } from "/shared/palette.js";
 import { STATUSES, STATUS_DOOM, STATUS_VULN } from "/shared/statuses.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { amSpectator, dash, myId, ownedCounts, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
-import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, drawBouche, drawOmbre, lastBossPos, shieldHit } from "./fx.js";
+import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, drawBouche, drawOmbre, lastBossPos, shieldHit, spawnFaisceauChaud } from "./fx.js";
 import { ARMES } from "/shared/armes.js";
 import { aimVector, cadreOf, camera, colorOf, ctx, lumDir, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
 
@@ -1468,30 +1468,48 @@ export function drawPlayers(list, tm, marks = []) {
 
     /* LE FAISCEAU EST UNE NAPPE, PAS UN TIR : deux couches, un coeur clair fin
        et un halo large additif. C est ce doublage qui separe « une ligne bleue »
-       de « un rayon ». Sa teinte se degrade a mesure que la chaleur monte. */
+       de « un rayon ».
+
+       LA CHALEUR EST CONTINUE, ELLE NE BASCULE PAS. Elle virait au rouge d un
+       coup a 0,7 et ne disait rien avant : une jauge qu on ne peut pas piloter
+       est une jauge subie. Quatre choses montent ensemble et aucune n encombre
+       l ecran — la teinte GLISSE, le halo s epaissit d un tiers, le trace se met
+       a TREMBLER, et de la matiere s echappe du canon. L instabilite est une
+       fonction du temps et de l identifiant : ni tableau, ni allocation.
+
+       LE COEUR, LUI, RESTE FIN. C est lui qu on suit, et un coeur qui grossirait
+       avec la chaleur effacerait ce qu il traverse au moment ou il faut le plus
+       le voir. Il ne gagne que le tremblement. */
     if (ARMES[p.arme]?.chaleur && p.armeRes < 1) {
       const a = ARMES[p.arme];
       const portee = 640 * 1.5 * a.portee;
       const chaud = p.armeRes;
-      const teinte = chaud > 0.7 ? SIGNAL.warn : col;
+      const teinte = melange(col, SIGNAL.warn, Math.min(1, chaud * 1.15));
       // un canon en plus ajoute une NAPPE au laser : elle se dessine du meme
       // ecart que la simulation lui donne, sinon le joueur tire ou il ne voit rien
       const n = 1 + (ownedCounts(p.id).get("secondCanon") ?? 0)
         + ((p.buffs & BUFF_DOUBLE) ? 1 : 0);
       const k = allumage(p.id);
+      // le tremblement ne commence qu au-dela de la moitie de la jauge, et il
+      // reste sous le degre : il doit se SENTIR, pas gener la visee
+      const trouble = Math.max(0, chaud - 0.5) * 2;
+      const sec = performance.now() / 1000;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       for (let i = 0; i < n; i++) {
-        const ang = p.armeAng + (n === 1 ? 0 : (i - (n - 1) / 2) * 0.13);
-        const bx = x + Math.cos(ang) * portee;
-        const by = y + Math.sin(ang) * portee;
-        ctx.strokeStyle = alpha(teinte, 0.22 + k * 0.4);
-        ctx.lineWidth = 14 + k * 20;
+        const wob = trouble * 0.018
+          * Math.sin(sec * 26 + i * 2.1 + p.id) * Math.sin(sec * 11.3 + i);
+        const ang = p.armeAng + (n === 1 ? 0 : (i - (n - 1) / 2) * 0.13) + wob;
+        const ux = Math.cos(ang), uy = Math.sin(ang);
+        const bx = x + ux * portee, by = y + uy * portee;
+        ctx.strokeStyle = alpha(teinte, 0.22 + k * 0.4 + chaud * 0.10);
+        ctx.lineWidth = (14 + k * 20) * (1 + chaud * 0.32);
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
         ctx.strokeStyle = alpha(FX.flash, 0.85);
-        ctx.lineWidth = 3 + k * 7;
+        ctx.lineWidth = 3 + k * 7 + trouble * (0.6 + 0.6 * Math.sin(sec * 41 + i));
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.stroke();
-        faisceauTerminus(bx, by, teinte, k);
+        faisceauTerminus(bx, by, teinte, k + chaud * 0.6);
+        spawnFaisceauChaud(p.id * 8 + i, x, y, ux, uy, chaud, teinte);
       }
       ctx.restore();
     } else if (ARMES[p.arme]?.chaleur) {

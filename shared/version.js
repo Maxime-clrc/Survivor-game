@@ -4864,6 +4864,33 @@
                    demi-ton et s appuie avec `armeRes`, et elle redescend
                    progressivement quand le joueur bouge — comme la rampe.
 
+     0.23.4 lot 5  LA CHALEUR BASCULAIT AU LIEU DE MONTER. Le faisceau virait au
+                   rouge d un coup a 0,7 et ne disait RIEN avant : une jauge qu
+                   on ne peut pas piloter est une jauge subie, et celle-ci est la
+                   moitie de l arme.
+                   Quatre choses montent ensemble et aucune n encombre l ecran :
+                   la teinte GLISSE (`melange`), le halo s epaissit d un tiers,
+                   le trace se met a TREMBLER au-dela de la moitie de la jauge,
+                   et de la matiere s echappe du canon. L instabilite est une
+                   fonction du temps et de l identifiant — ni tableau, ni
+                   allocation — et elle reste sous le DEGRE : elle doit se
+                   sentir, pas gener la visee.
+                   LE COEUR RESTE FIN. C est lui qu on suit, et un coeur qui
+                   grossirait avec la chaleur effacerait ce qu il traverse au
+                   moment ou il faut le plus le voir. Il ne gagne que le
+                   tremblement.
+                   LA MATIERE N EXISTE QU EN HAUT DE LA JAUGE (0,45), sinon elle
+                   dit « ca marche » au lieu de « ca chauffe ». Cadence bornee
+                   par emetteur : le trace tourne a 60 Hz et plus, l emission a
+                   16 — et le compte suit `glActive()` comme partout ailleurs.
+                   AU SON, LA HAUTEUR NE SUFFISAIT PAS : elle dit « ca monte »,
+                   pas « ca va lacher ». Ce qui le dit est que la note ne TIENT
+                   plus, donc une gigue sur le FILTRE — un fondamental instable
+                   sonne casse, un filtre instable sonne chaud — et un gain qui
+                   suit la jauge, pousse seulement une fois l attaque finie :
+                   deux automations au meme instant sur le meme parametre ne se
+                   departagent pas.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4872,4 +4899,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.23.3";
+export const VERSION = "0.23.4";

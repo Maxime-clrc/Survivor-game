@@ -193,15 +193,28 @@ export function startFaisceau() {
   g.gain.exponentialRampToValueAtTime(SOUND_GAIN.tir * 0.9, t0 + 0.06);
   osc.connect(f); f.connect(g); g.connect(master);
   osc.start(t0);
-  hum = { osc, f, g };
+  hum = { osc, f, g, t0 };
 }
 
+/* L'INSTABILITE EST LA MOITIE DE L'INFORMATION. La hauteur seule dit « ca
+   monte » ; ce qui dit « ca va lacher » est que la note ne TIENT plus. Le
+   tremblement ne commence qu'au-dela de la moitie de la jauge — comme a
+   l'image — et il porte sur le FILTRE et non sur le fondamental : un
+   fondamental instable sonne casse, un filtre instable sonne chaud.
+
+   Le gain n'est pousse qu'une fois l'attaque finie : deux automations sur le
+   meme parametre au meme instant ne se departagent pas. */
 export function setFaisceauChaleur(k) {
   if (!hum || !ac) return;
   const t = ac.currentTime;
   const q = Math.max(0, Math.min(1, k));
+  const trouble = Math.max(0, q - 0.5) * 2;
+  const gigue = 1 + trouble * (Math.random() - 0.5) * 0.5;
   hum.osc.frequency.setTargetAtTime(FAISCEAU_HZ * (1 + q * 0.85), t, 0.05);
-  hum.f.frequency.setTargetAtTime(FAISCEAU_HZ * 3 * (1 + q * 1.4), t, 0.05);
+  hum.f.frequency.setTargetAtTime(FAISCEAU_HZ * 3 * (1 + q * 1.4) * gigue, t, 0.02);
+  if (t > hum.t0 + 0.08) {
+    hum.g.gain.setTargetAtTime(SOUND_GAIN.tir * (0.9 + 0.30 * q), t, 0.08);
+  }
 }
 
 export function stopFaisceau(net = false) {

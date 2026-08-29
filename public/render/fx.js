@@ -684,6 +684,34 @@ export function spawnDeflect(x, y, a) {
     });
   }
 }
+/* LA CHALEUR SE VOIT PARTIR DU CANON. Un faisceau continu n'a rien qui bouge :
+   ses seules variables sont la largeur et la teinte, et les deux saturent vite.
+   Ce qui manquait est de la MATIERE qui s'echappe — et elle ne doit exister
+   qu'en HAUT de la jauge, sinon elle dit « ca marche » au lieu de « ca chauffe ».
+   La cadence d'emission est bornee par emetteur : le trace tourne a 60 Hz et
+   plus, l'emission a 16. */
+const FAISCEAU_SEUIL = 0.45;
+const FAISCEAU_GAP = 62;
+const faisceauT = new Map();
+export function spawnFaisceauChaud(cle, x, y, ux, uy, chaud, col) {
+  if (chaud < FAISCEAU_SEUIL) { faisceauT.delete(cle); return; }
+  const now = performance.now();
+  if (now - (faisceauT.get(cle) ?? 0) < FAISCEAU_GAP) return;
+  faisceauT.set(cle, now);
+  const k = (chaud - FAISCEAU_SEUIL) / (1 - FAISCEAU_SEUIL);
+  const n = glActive() ? 1 + Math.round(k * 2) : 1;
+  const px = -uy, py = ux;
+  for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+    const s = Math.random() < 0.5 ? -1 : 1;
+    const sp = 40 + Math.random() * 90 * k;
+    particles.push({
+      x: x + ux * 6, y: y + uy * 6,
+      vx: px * s * sp - ux * sp * 0.35, vy: py * s * sp - uy * sp * 0.35,
+      life: 0.24, max: 0.24, col, size: 3 + 3 * k, frame: fxGlow,
+      grow: 26, a0: 0.35 + 0.35 * k, drag: 0.9,
+    });
+  }
+}
 export const CRIT_PUNCH = 0.07;
 // [26e] des ECLATS, pas un disque : la forme doit dire « perforation ». Le
 // noyau chaud qui les accompagne est ce qui rend le critique lisible dans une
