@@ -173,8 +173,16 @@ export function diffSnapshots(a, b, opts = {}) {
       out.push({ t: "degats", x: mine[3] ?? b.boss.x, y: mine[4] ?? b.boss.y,
                  dmg: mine[1], crit: (mine[2] ?? 0) > 0 });
     } else if (mine) {
-      // une touche sans degat : le palier. Elle RICOCHE, elle ne chiffre pas.
-      out.push({ t: "ricochet", x: mine[3] ?? b.boss.x, y: mine[4] ?? b.boss.y,
+      /* LE NOM MENTAIT. Cet evenement s'appelait « ricochet » et n'en est pas
+         un : `bd` est vide a chaque diffusion, donc une entree presente avec un
+         `d` a zero veut dire « j'ai touche le boss pour moins d'un point », pas
+         « ca a rebondi ». Le vrai ricochet de carte passe par `_ricochet` et
+         sort en arcs (`kind: 3`, rang 2 et au-dela).
+         Un nom faux ne leve rien non plus : il envoie juste le lecteur suivant
+         chercher le ricochet a l'endroit ou il n'est pas. Le retour, lui, etait
+         deja correct et ne bouge pas — une touche sous le seuil d'affichage
+         merite une etincelle et rien de plus. */
+      out.push({ t: "effleure", x: mine[3] ?? b.boss.x, y: mine[4] ?? b.boss.y,
                  cx: b.boss.x, cy: b.boss.y });
     }
   } else if (a.boss && (a.boss.phase ?? 0) >= (a.boss.bars ?? 1) - 1) {

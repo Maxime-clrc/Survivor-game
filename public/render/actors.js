@@ -919,6 +919,26 @@ export function drawEffects(effects) {
             amp: 0.09 + rang * 0.025,
             width: Math.max(1.2, 2.2 - rang * 0.3),
             branches: 2, cut: 0.45 });
+      /* LE REBOND A UN DEPART, et c'est ce qui lui manquait. L'arc dit « ces
+         deux corps sont relies » ; il ne dit pas « l'energie est PARTIE d'ici
+         vers la ». Un chevron a l'origine, ouvert dans l'axe du saut, le dit en
+         trois traits — et il n'existe QUE sur un rebond (rang 1 et au-dela) :
+         sur l'amorce il redirait le tir, qui a deja sa bouche.
+         Il vit dans le meme `globalAlpha` que l'arc, donc il s'efface avec lui
+         et paie la meme perte par rang. */
+      if (rang > 0) {
+        const dx = f.x2 - f.x, dy = f.y2 - f.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const ux = dx / d, uy = dy / d, px = -uy, py = ux;
+        const s = 5 + 3 * f.k;
+        ctx.strokeStyle = alpha(FX.ricochetCore, 0.85);
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(f.x - ux * s + px * s, f.y - uy * s + py * s);
+        ctx.lineTo(f.x + ux * s * 0.6, f.y + uy * s * 0.6);
+        ctx.lineTo(f.x - ux * s - px * s, f.y - uy * s - py * s);
+        ctx.stroke();
+      }
       ctx.globalAlpha = 1;
       continue;
     }

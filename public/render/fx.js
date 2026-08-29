@@ -264,9 +264,12 @@ function handleEvent(e) {
       bossEclats(e.x, e.y, e.x - lastBossPos.x, e.y - lastBossPos.y, e.crit);
       break;
 
-    // le palier ne ment pas : la touche existe, elle ne compte pas. Etincelle
-    // renvoyee vers l'EXTERIEUR, son mat, aucun chiffre.
-    case "ricochet": {
+    // UNE TOUCHE SOUS LE SEUIL D'AFFICHAGE, sur le boss : moins d'un point de
+    // degat sur la fenetre de diffusion. Le palier ne ment pas — la touche
+    // existe, elle ne compte pas. Etincelle renvoyee vers l'EXTERIEUR, son mat,
+    // aucun chiffre. Ce n'est PAS un ricochet, et ca ne l'a jamais ete : le
+    // rebond de carte sort en arcs.
+    case "effleure": {
       const dx = e.x - (e.cx ?? e.x), dy = e.y - (e.cy ?? e.y);
       const a0 = Math.atan2(dy, dx) || Math.random() * Math.PI * 2;
       for (let i = 0; i < 2 && particles.length < PARTICLE_MAX; i++) {

@@ -4997,6 +4997,25 @@
                    MESURE : 100 % des impacts du fusil de precision portent le
                    drapeau, 0 % de ceux du tir standard.
 
+     0.24.1 lot 2  LE REBOND A UN DEPART, ET UN EVENEMENT PORTAIT UN FAUX NOM.
+                   L arc dit « ces deux corps sont relies » ; il ne disait pas
+                   « l energie est PARTIE d ici VERS la ». Un chevron a l origine,
+                   ouvert dans l axe du saut, le dit en trois traits — et il n
+                   existe QUE sur un rebond (rang 1 et au-dela) : sur l amorce il
+                   redirait le tir, qui a deja sa bouche. Il vit dans le meme
+                   `globalAlpha` que l arc, donc il s efface avec lui et paie la
+                   meme perte par rang.
+                   L EVENEMENT « ricochet » N EN ETAIT PAS UN. `bd` est vide a
+                   chaque diffusion, donc une entree presente avec un `d` a zero
+                   veut dire « j ai touche le boss pour moins d un point », pas
+                   « ca a rebondi » — le vrai ricochet de carte passe par
+                   `_ricochet` et sort en arcs. Il devient `effleure`.
+                   UN NOM FAUX NE LEVE RIEN, exactement comme un champ non
+                   transporte : il envoie seulement le lecteur suivant chercher
+                   le ricochet a l endroit ou il n est pas. Le RETOUR, lui, etait
+                   deja juste et ne bouge pas d un pixel — une touche sous le
+                   seuil d affichage merite une etincelle et rien de plus.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5005,4 +5024,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.24.0";
+export const VERSION = "0.24.1";
