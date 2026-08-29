@@ -4,7 +4,7 @@ import { POWERUP_ICON, POWERUP_STYLE, paintIcon } from "/icons.js";
 import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
-import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, fullMods, traitsOf } from "/shared/game_state.js";
+import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, defDe, fullMods, traitsOf } from "/shared/game_state.js";
 import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
@@ -1623,7 +1623,7 @@ function auraPass(list, diff) {
   auraActive.clear();
   const src = [];
   for (const e of list) {
-    const def = ENEMY_TYPES[e.type];
+    const def = defDe(e.type, e.elite);
     if (!def) continue;
     if (def.auraRadius) src.push({ e, r: def.auraRadius });
     else if (hasTrait(traitsOf(diff, e.type), TRAIT_AURA)) {
@@ -1676,7 +1676,7 @@ function drawMedicLinks(list) {
   for (const m of list) {
     if (m.type !== 7) continue;
     if (hits.has(m.id)) continue;
-    const def = ENEMY_TYPES[7];
+    const def = defDe(7, m.elite);
     let best = null, bd = def.healRange * def.healRange;
     for (const o of list) {
       if (o === m || o.hp >= o.maxHp) continue;
@@ -1707,10 +1707,10 @@ function drawRelaisArcs(list) {
   if (RELAIS < 0) return;
   const par = new Map();
   for (const e of list) if (e.pair) par.set(e.id, e);
-  const def = ENEMY_TYPES[RELAIS];
   for (const a of par.values()) {
     const b = par.get(a.pair);
     if (!b || b.pair !== a.id || b.id < a.id) continue;
+    const def = defDe(RELAIS, a.elite);
     if (!inView(a.x, a.y, 260) && !inView(b.x, b.y, 260)) continue;
     if (voileBrume(a.x, a.y) <= 0.02 && voileBrume(b.x, b.y) <= 0.02) continue;
     drawArc(`r${a.id}`, a.x, a.y - 16, b.x, b.y - 16, {
@@ -1738,7 +1738,7 @@ export function drawEnemies(list, view) {
       if (!inView(e.x, e.y)) continue;
       const v = windup.has(e.id) ? 1 : voileBrume(e.x, e.y);
       if (v <= 0.02) continue;
-      const d = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
+      const d = defDe(e.type, e.elite);
       drawOmbre(e.x, e.y, e.elite ? d.r * CFG.ELITE_RADIUS_MUL : d.r, v);
     }
   }
@@ -1754,7 +1754,7 @@ export function drawEnemies(list, view) {
     // aussi des lots de dessin, ce qui n'est pas plus mal.
     const voile = windup.has(e.id) ? 1 : voileBrume(e.x, e.y);
     if (voile <= 0.02) continue;
-    const def = ENEMY_TYPES[e.type] ?? ENEMY_TYPES[0];
+    const def = defDe(e.type, e.elite);
     const r = e.elite ? def.r * CFG.ELITE_RADIUS_MUL : def.r;
 
     const hit = hits.get(e.id);

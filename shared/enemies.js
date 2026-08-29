@@ -117,27 +117,36 @@ export function masseDe(r) {
 export const ecartDe = def => (def?.shootCd || def?.heal) ? ROLE_CFG.POSTE_ECART : 0;
 
 export const ENEMY_TYPES = [
-  { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10, xp: 10 },
+  { key: "grunt",   minMin: 0,   fallback: -1, weight: 1.00, share: 1.00, hpMul: 1.0,  speed: 95,  dmg: 18, r: 12, score: 10, xp: 10,
+    elite: { blastRadius: 80, blastDamage: 34, blastDelay: ATK_CFG.WARN } },
   { key: "runner",  minMin: 1,   fallback: 0,  weight: 0.55, share: 0.45, hpMul: 0.40, speed: 156, dmg: 7,  r: 9,  score: 14, xp: 6,
-    flanc: 0.55 },
-  { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 44,  dmg: 30, r: 21, score: 30, xp: 32 },
+    flanc: 0.55,
+    elite: { flanc: 0.85, isole: 1 } },
+  { key: "tank",    minMin: 4,   fallback: 0,  weight: 0.30, share: 0.22, hpMul: 4.5,  speed: 44,  dmg: 30, r: 21, score: 30, xp: 32,
+    elite: { auraRadius: 105, auraReduction: 0.22 } },
   { key: "shooter", minMin: 7,   fallback: 1,  weight: 0.30, share: 0.16, hpMul: 1.3,  speed: 62,  dmg: 14, r: 14, score: 25, xp: 14,
-    shootCd: 2.6, standoff: 170 },
+    shootCd: 2.6, standoff: 170,
+    elite: { shootCd: 1.5, standoff: 215 } },
   { key: "brood",   minMin: 9,   fallback: 1,  weight: 0.25, share: 0.12, hpMul: 1.8,  speed: 78,  dmg: 20, r: 16, score: 20, xp: 18,
-    splits: 3 },
+    splits: 3,
+    elite: { splits: 5 } },
 
   { key: "kamikaze", minMin: 12, fallback: 1, weight: 0.22, share: 0.18, hpMul: 0.5, speed: 118, dmg: 8, r: 10, score: 18, xp: 8,
-    blastRadius: 90, blastDamage: 45, blastDelay: ATK_CFG.WARN },
+    blastRadius: 90, blastDamage: 45, blastDelay: ATK_CFG.WARN,
+    elite: { blastRadius: 135 } },
 
   { key: "bulwark",  minMin: 15, fallback: 2, weight: 0.30, share: 0.16, hpMul: 2.2, speed: 50, dmg: 22, r: 15, score: 32, xp: 22,
-    shieldArc: 100, shieldTurnRate: 2.4 },
+    shieldArc: 100, shieldTurnRate: 2.4,
+    elite: { shieldArc: 165, shieldTurnRate: 3.4 } },
 
   { key: "medic",    minMin: 19, fallback: 3, weight: 0.28, share: 0.09, hpMul: 0.9, speed: 68, dmg: 10, r: 13, score: 28, xp: 14,
     standoff: 240, heal: 6, healInterval: 1.2, healRange: 190,
-    fireWindow: 0.35, breakTime: 1.0, fleeTime: 3.0 },
+    fireWindow: 0.35, breakTime: 1.0, fleeTime: 3.0,
+    elite: { heal: 9, healInterval: 0.7, healRange: 250 } },
 
   { key: "choeur",   minMin: 23, fallback: 4, weight: 0.20, share: 0.08, hpMul: 1.6, speed: 70, dmg: 12, r: 15, score: 30, xp: 20,
-    auraRadius: 130, auraReduction: 0.35 },
+    auraRadius: 130, auraReduction: 0.35,
+    elite: { auraRadius: 180 } },
 
   /* TROIS VERBES, PAS TROIS SILHOUETTES. Chacun repose la meme question au
      joueur sous une forme neuve, et aucun ne se contente d'un autre jeu de
@@ -154,7 +163,8 @@ export const ENEMY_TYPES = [
                  sol. La ou le kamikaze punit une mise a mort et la trainee suit
                  un trajet, lui VISE la place que vous occupez. */
   { key: "harceleur", minMin: 14, fallback: 1, weight: 0.26, share: 0.14, hpMul: 0.6, speed: 132, dmg: 12, r: 10, score: 22, xp: 12,
-    flanc: 0.95, isole: 1, recul: 1.6 },
+    flanc: 0.95, isole: 1, recul: 1.6,
+    elite: { recul: 2.4 } },
 
   /* L'EGIDE EST UNE PART DES PV, PAS UN NOMBRE. Un bouclier plat de 26 vaut
      38 % d'un fantassin a la cinquieme minute et 9 % a la trentieme : il serait
@@ -163,10 +173,12 @@ export const ENEMY_TYPES = [
      `egideRegen` est la meme part PAR SECONDE : la coque revient en trois
      secondes si on lache le corps, et c'est ce qui punit le tir disperse. */
   { key: "generateur", minMin: 17, fallback: 4, weight: 0.18, share: 0.06, hpMul: 1.7, speed: 52, dmg: 8, r: 15, score: 34, xp: 24,
-    egideRadius: 150, egideShield: 0.34, egideRegen: 0.11 },
+    egideRadius: 150, egideShield: 0.34, egideRegen: 0.11,
+    elite: { egideRadius: 215, egideShield: 0.45 } },
 
   { key: "saboteur",  minMin: 20, fallback: 3, weight: 0.22, share: 0.10, hpMul: 1.1, speed: 66, dmg: 10, r: 13, score: 28, xp: 18,
-    standoff: 300, poseCd: 4.2, poseRange: 380, poseR: 60, poseDot: 22, poseLife: 4 },
+    standoff: 300, poseCd: 4.2, poseRange: 380, poseR: 60, poseDot: 22, poseLife: 4,
+    elite: { poseCd: 2.4, poseR: 75 } },
 
   /* RELAIS — « qui va avec qui ? » Le seul corps du roster dont la menace
      n'est pas LUI mais la PAIRE : deux relais tendent un arc, et l'arc est ce
@@ -174,8 +186,66 @@ export const ENEMY_TYPES = [
      Tuer l'un des deux suffit — c'est la premiere fois que le roster propose
      une cible dont la valeur depend d'une AUTRE cible. */
   { key: "relais",   minMin: 22, fallback: 3, weight: 0.20, share: 0.08, hpMul: 1.3, speed: 74, dmg: 10, r: 13, score: 30, xp: 20,
-    lienRange: 300, lienRupture: 430, lienLarge: 16, lienDot: 34, cohesion: 0.55 },
+    lienRange: 300, lienRupture: 430, lienLarge: 16, lienDot: 34, cohesion: 0.55,
+    elite: { lienRange: 400, lienRupture: 560, lienDot: 44 } },
 ];
+
+/* UNE ELITE EST UNE VARIANTE DE COMPORTEMENT, PAS UN MULTIPLICATEUR DE PV.
+
+   Elle s'ecrit SUR LA LIGNE DE SON TYPE, et elle ne surcharge que des champs de
+   COMPORTEMENT : les statistiques d'apparition et l'economie sont interdites
+   (`ELITE_INTERDIT`), sans quoi une elite deviendrait un type de plus qui vole
+   son quota et son score au sien. Les trois multiplicateurs existants
+   (`ELITE_HP_MUL`, `ELITE_SPEED_MUL`, `ELITE_RADIUS_MUL`) restent le socle et ne
+   se declarent pas ici — une ligne qui les redirait divergerait.
+
+   `defDe(type, elite)` est le SEUL point de lecture du bestiaire par corps. Il
+   est pur, donc le client le rejoue a partir de `e.elite` : le reseau ne porte
+   pas une fiche de plus, il porte deja le bit. */
+export const ELITE_INTERDIT = new Set([
+  "key", "minMin", "fallback", "weight", "share", "score", "xp",
+  "hpMul", "speed", "r", "elite",
+]);
+
+const ELITE_TYPES = ENEMY_TYPES.map(d => (d.elite ? { ...d, ...d.elite } : d));
+
+export function defDe(index, elite) {
+  return (elite ? ELITE_TYPES[index] : ENEMY_TYPES[index]) ?? ENEMY_TYPES[0];
+}
+
+/* CRITERE REJOUABLE. Muet = tout va bien. Il ne juge pas l'equilibre d'une
+   elite : il juge qu'elle reste UNE VARIANTE DE SON TYPE. */
+export function verifierElites() {
+  const soucis = [];
+  for (const d of ENEMY_TYPES) {
+    if (!d.elite) { soucis.push(`${d.key} : aucune variante d'elite`); continue; }
+    for (const champ of Object.keys(d.elite)) {
+      if (ELITE_INTERDIT.has(champ)) {
+        soucis.push(`${d.key} : l'elite surcharge « ${champ} », qui n'est pas du comportement`);
+      } else if (!(champ in d)) {
+        // une elite qui OUVRE un champ absent du type de base est permise —
+        // c'est meme le cas du fantassin, qui n'explose que sous cette forme —
+        // mais elle doit le faire pour un champ que la simulation LIT.
+        if (!CHAMPS_LUS.has(champ)) {
+          soucis.push(`${d.key} : l'elite ouvre « ${champ} », que rien ne lit`);
+        }
+      }
+    }
+  }
+  return soucis;
+}
+
+/* CE QUE LA SIMULATION LIT SUR UNE FICHE, releve a la main parce qu'il n'y a
+   pas d'autre facon de le savoir : un champ mal orthographie ne leve rien, il
+   rend `undefined`, donc `NaN`, donc du silence. */
+const CHAMPS_LUS = new Set([
+  "dmg", "shootCd", "standoff", "splits", "heal", "healInterval", "healRange",
+  "fireWindow", "breakTime", "fleeTime", "blastRadius", "blastDamage",
+  "blastDelay", "shieldArc", "shieldTurnRate", "auraRadius", "auraReduction",
+  "flanc", "isole", "recul", "egideRadius", "egideShield", "egideRegen",
+  "poseCd", "poseRange", "poseR", "poseDot", "poseLife",
+  "lienRange", "lienRupture", "lienLarge", "lienDot", "cohesion",
+]);
 
 export function trailMax(aireVue) {
   return Math.round(aireVue * TRAIT_CFG.TRAIL_SURFACE

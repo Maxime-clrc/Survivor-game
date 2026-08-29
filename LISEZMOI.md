@@ -65,6 +65,64 @@ mur long, poche en U, couloir étroit, deux boîtes proches, goulet à 50/100/15
 200 corps, cible mobile, quatre cibles, cible qui meurt, couverture détruite) et
 la grille des quatre lieux. Muet au 0.21.0.
 
+### Les élites, et un bug de treize mois (0.21.5)
+
+**Le porte-bouclier absorbait de toutes les directions.** Le serveur comparait
+`def.shieldArc` — 100, en **degrés** — au retour de `_angleDiff`, qui vaut au
+plus 3,15 **radians**. Le test `|d| ≤ 50` était donc toujours vrai. Pendant ce
+temps le client, lui, ne dessinait le blocage que de face. Après correction,
+corps orienté vers 0° :
+
+| angle du tir | ordinaire (arc 100°) | élite (arc 165°) |
+|---|---|---|
+| 0° · 30° · 45° | absorbé | absorbé |
+| 60° · 80° | **passe** | absorbé |
+| 90° · 120° · 180° | passe | passe |
+
+Exactement ±50° et ±82°, c'est-à-dire ce que le client dessinait déjà. Le
+porte-bouclier reste néanmoins imprenable pour un joueur qui tourne **moins
+vite que lui** : 1,4 rad/s contre `shieldTurnRate` 2,4 (3,4 en élite). Il faut
+le déborder plus vite qu'il ne pivote, ou le prendre de dos.
+
+**Les treize variantes, chacune jugée sur SON verbe.** PV égalisés — sinon on
+ne mesurerait que `ELITE_HP_MUL` — et géométrie choisie *entre* la valeur de
+base et celle de l'élite, seule position d'où l'écart se voit :
+
+| type | grandeur mesurée | ordinaire | élite |
+|---|---|---|---|
+| fantassin | dégâts de souffle à 60 px (0 → 80) | **0** | **57** |
+| coureur | part de cibles = joueur isolé | **0,00** | **0,31** |
+| colosse | corps sous aura à 90 px (90 → 105) | 0,65 | 0,77 |
+| tireur | balles en 24 s | 154 | **270** |
+| pondeuse | rejetons après six morts | 24 | **36** |
+| kamikaze | dégâts de souffle à 115 px (90 → 135) | **0** | **56** |
+| porte-bouclier | tir à 60° et 80° | passe | **absorbé** |
+| soigneur | PV rendus à 210 px (190 → 250) | **0** | **153** |
+| chœur | corps sous aura à 155 px (130 → 180) | 2,12 | 2,88 |
+| harceleur | part du temps au contact | 0,05 | 0,04 |
+| générateur | corps sous égide à 185 px (150 → 215) | 1,69 | 2,56 |
+| saboteur | zones posées en 24 s | 36 | **60** |
+| relais | part d'arc vif à 350 px (300 → 400) | **0,00** | **1,00** |
+
+Douze variantes sur treize se lisent. **Le harceleur est la plus faible** :
+0,05 → 0,04 de temps au contact, parce que sa base n'y passe déjà presque
+aucun temps — allonger son retrait ne change presque rien.
+
+**Une surcharge a été écrite, mesurée, puis retirée.** L'élite harceleur portait
+aussi `flanc: 1.25` : la mesure a donné 0,32 → **0,16** sur son propre verbe de
+ciblage. Un flanc plus large déplace le corps, et le corps déplacé ne choisit
+plus le même joueur — la surcharge combattait son propre type. Retirée, le
+ciblage revient à 0,32 → 0,32.
+
+**Deux pièges de banc de plus.** Une scène générique saturait tout : six corps
+sur un anneau de 340 px sont soit tous dans un rayon d'aura, soit tous dehors,
+et la mesure rendait « 6 contre 6 » pour toutes les auras. Et le poids
+d'isolement (`ISOLE_COUVERT` = 2,2) ne peut renverser un choix que si les
+distances sont **comparables** : avec l'isolé deux fois plus loin, le rapport
+au carré vaut 8,2 et aucun poids de 2,2 ne le retourne.
+
+Coût inchangé : 0,235 ms à 200 corps, 0,500 ms à 400.
+
 ### Le groupe, le relais, et un instrument aveugle (0.21.4)
 
 **Le relais.** Le seul corps dont la menace n'est pas lui mais la **paire**.

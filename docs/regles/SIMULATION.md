@@ -188,6 +188,27 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 - **La cohésion est ce qui fait tenir un arc**, et elle ne s'applique qu'au-delà
   de la moitié de la portée : de près les deux corps sont libres, et c'est ce
   qui garde l'arc mobile.
+- **UNE ÉLITE EST UNE VARIANTE DE COMPORTEMENT**, écrite **sur la ligne de son
+  type** (`elite: { … }`). Elle ne surcharge que du comportement : les
+  statistiques d'apparition et l'économie sont **interdites**
+  (`ELITE_INTERDIT`), sans quoi une élite deviendrait un type de plus qui vole
+  son quota et son score au sien. Les trois multiplicateurs existants
+  (`ELITE_HP_MUL`, `ELITE_SPEED_MUL`, `ELITE_RADIUS_MUL`) restent le socle et ne
+  se redéclarent jamais ligne à ligne.
+- **`defDe(type, elite)` est LE point de lecture du bestiaire par corps**, des
+  deux côtés du réseau. Il est **pur**, donc le client le rejoue à partir du bit
+  `e.elite` qu'il reçoit déjà : aucune fiche ne traverse le réseau.
+- **Les statistiques d'apparition viennent de la ligne de BASE, le comportement
+  de la variante** (`_spawnEnemy`) : rayon, PV et vitesse restent ceux du type,
+  cadences et portées sont celles de l'élite.
+- **La fiche d'un arc se lit PAR PAIRE**, jamais une fois pour toutes : une
+  élite tend un arc plus long et plus mordant, et prendre la fiche du premier
+  arc pour tous ferait porter sa morsure à des paires ordinaires.
+- **L'arc du porte-bouclier se mesure en RADIANS.** Le dépôt comparait
+  `def.shieldArc` (100, en degrés) au retour de `_angleDiff` (au plus 3,15) :
+  le test était **toujours vrai**, donc il absorbait de toutes les directions
+  depuis qu'il existe — pendant que le client ne dessinait le blocage que de
+  face. L'arc en radians vit sur le **corps**, posé à l'apparition.
 - **Un arc se charge avant de blesser**, par le même préavis que tout le reste
   (`ATK_CFG.WARN`, les deux porteurs dans `wu`), et `pair` ne traverse le réseau
   qu'une fois l'arc **vif** : pas de trait dessiné pendant la charge, c'est le

@@ -50,7 +50,7 @@ import {
 } from "./timeline.js";
 import {
   ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, ATK_CFG, adaptType, hasTrait, traitBit,
-  trailMax, masseDe, ecartDe,
+  trailMax, masseDe, ecartDe, defDe, verifierElites,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 } from "./enemies.js";
 import {
@@ -67,7 +67,8 @@ import {
 export { CARD_CFG };
 export { NAV_CFG, construireNav, diffuser, verifierNavigation };
 export {
-  ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, ATK_CFG, masseDe, adaptType, hasTrait, trailMax,
+  ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, ATK_CFG, masseDe, defDe, verifierElites,
+  adaptType, hasTrait, trailMax,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 };
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
@@ -3356,15 +3357,19 @@ export class GameState {
       ti = adaptType(ti, this.hordeMinutes());
       if (ti < 0 || !typesFor(this.diffIndex).includes(ti)) ti = 0;
     }
-    const t = ti >= 0 ? ENEMY_TYPES[ti] : this._pickType();
-    if (ti < 0) ti = ENEMY_TYPES.indexOf(t);
+    const base = ti >= 0 ? ENEMY_TYPES[ti] : this._pickType();
+    if (ti < 0) ti = ENEMY_TYPES.indexOf(base);
+    // LES STATISTIQUES D'APPARITION VIENNENT DE LA LIGNE DE BASE, LE
+    // COMPORTEMENT DE LA VARIANTE : une elite ne vole ni le quota ni le score de
+    // son type, mais elle demarre avec SES cadences et SON arc.
+    const t = defDe(ti, elite);
 
     const past = this.hordeMinutes();
     const baseHp = (CFG.ENEMY_HP_BASE + past * CFG.ENEMY_HP_MIN_RAMP)
       * (1 + CFG.WAVE_HP_POWER_K * (this._teamPower() - 1))
       * this.diff.hp;
-    const pos = x === null ? this._spawnPoint(geom, t.r) : { x, y };
-    const hp = baseHp * t.hpMul * (elite ? CFG.ELITE_HP_MUL : 1);
+    const pos = x === null ? this._spawnPoint(geom, base.r) : { x, y };
+    const hp = baseHp * base.hpMul * (elite ? CFG.ELITE_HP_MUL : 1);
     const e = {
       id: this._nextId++,
       type: ti,
@@ -3374,7 +3379,7 @@ export class GameState {
       hp,
       maxHp: hp,
       speed: enemySpeed(ti, past, this.diffIndex, 0.9 + Math.random() * 0.2, elite),
-      r: elite ? t.r * CFG.ELITE_RADIUS_MUL : t.r,
+      r: elite ? base.r * CFG.ELITE_RADIUS_MUL : base.r,
       ang: Math.atan2(CFG.ARENA_H / 2 - pos.y, CFG.ARENA_W / 2 - pos.x),
       shootCd: t.shootCd ? t.shootCd * (0.5 + Math.random()) : 0,
       aimT: 0,
@@ -3407,7 +3412,7 @@ export class GameState {
       navCible: 0,
       navAncre: -1,
       navX: 0, navY: 0,
-      masse: masseDe(elite ? t.r * CFG.ELITE_RADIUS_MUL : t.r),
+      masse: masseDe(elite ? base.r * CFG.ELITE_RADIUS_MUL : base.r),
       ecart: ecartDe(t),
       flanc: t.flanc ?? 0,
     };
@@ -4139,7 +4144,7 @@ export class GameState {
         if (e.hp <= 0) continue;
       }
 
-      const def = ENEMY_TYPES[e.type];
+      const def = defDe(e.type, e.elite);
       const t = this._nearestPlayer(e.x, e.y, def.isole);
       if (!t) continue;
       const wasX = e.x, wasY = e.y;
@@ -4521,7 +4526,7 @@ export class GameState {
       if (e.hp <= 0) continue;
       e.aura = 0;
       e.shieldMax = 0;
-      const def = ENEMY_TYPES[e.type];
+      const def = defDe(e.type, e.elite);
       if (def.auraRadius) src.push({ e, r: def.auraRadius, k: def.auraReduction });
       else if (hasTrait(e.traits, TRAIT_AURA)) {
         src.push({ e, r: TRAIT_CFG.AURA_RADIUS, k: TRAIT_CFG.AURA_REDUCTION });
@@ -4581,7 +4586,7 @@ export class GameState {
     const relais = [];
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
-      if (ENEMY_TYPES[e.type].lienRange) relais.push(e);
+      if (defDe(e.type, e.elite).lienRange) relais.push(e);
     }
     if (relais.length === 0) {
       if (this._liens.length) this._liens.length = 0;
@@ -4593,7 +4598,7 @@ export class GameState {
     for (const e of relais) {
       if (!e.pair) continue;
       const o = parId.get(e.pair);
-      const def = ENEMY_TYPES[e.type];
+      const def = defDe(e.type, e.elite);
       if (!o || o.pair !== e.id
           || (e.x - o.x) ** 2 + (e.y - o.y) ** 2 > def.lienRupture ** 2) {
         if (o && o.pair === e.id) { o.pair = 0; o.lienT = 0; }
@@ -4603,7 +4608,7 @@ export class GameState {
 
     for (const e of relais) {
       if (e.pair) continue;
-      const def = ENEMY_TYPES[e.type];
+      const def = defDe(e.type, e.elite);
       let best = null, bd = def.lienRange ** 2;
       for (const o of relais) {
         if (o === e || o.pair || o.id < e.id) continue;
@@ -4630,9 +4635,14 @@ export class GameState {
     }
     if (this._liens.length === 0) return;
 
-    const def = ENEMY_TYPES[this._liens[0].type];
+    // LA FICHE SE LIT PAR PAIRE, PAS UNE FOIS POUR TOUTES. Une elite tend un
+    // arc plus long et plus mordant que le sien : prendre la fiche du premier
+    // arc pour tous les autres aurait fait porter sa morsure a des paires
+    // ordinaires, et l'inverse. C'est celle du porteur de PLUS PETIT
+    // identifiant qui fait foi — le meme que celui qui a forme la paire.
     for (let i = 0; i < this._liens.length; i += 2) {
       const a = this._liens[i], b = this._liens[i + 1];
+      const def = defDe(a.type, a.elite);
       const vx = b.x - a.x, vy = b.y - a.y;
       const portee = Math.hypot(vx, vy);
       if (portee < 1) continue;
@@ -7735,10 +7745,14 @@ export class GameState {
   }
 
   _bulletHitInterne(b, e, ix, iy) {
-    const bdef = ENEMY_TYPES[e.type];
-    if (bdef?.shieldArc) {
+    // LE DEPOT COMPARAIT DES DEGRES A DES RADIANS. `def.shieldArc` vaut 100
+    // (degres) et `_angleDiff` rend au plus 3,15 : le test `|d| <= 50` etait
+    // TOUJOURS vrai, donc le porte-bouclier absorbait de TOUTES les directions
+    // depuis qu'il existe — pendant que le client, lui, ne dessinait le blocage
+    // que de face. L'arc en radians vit deja sur le corps, pose a l'apparition.
+    if (e.shieldArc > 0) {
       const from = Math.atan2(iy - e.y, ix - e.x);
-      if (Math.abs(this._angleDiff(from, e.ang)) <= bdef.shieldArc / 2) {
+      if (Math.abs(this._angleDiff(from, e.ang)) <= e.shieldArc / 2) {
         e.hitSeq = (e.hitSeq + 1) % 10;
         return true;
       }
@@ -7916,7 +7930,7 @@ export class GameState {
       for (const e of this.enemies) {
         const rr = e.r + CFG.PLAYER_RADIUS;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
-          const bdef = ENEMY_TYPES[e.type];
+          const bdef = defDe(e.type, e.elite);
           this._hurt(p, bdef.dmg, { src: SRC_CONTACT });
           // le harceleur se retire APRES avoir touche : c'est la seule chose
           // qui separe un harcelement d'une morsure.
@@ -8070,7 +8084,7 @@ export class GameState {
   _killEnemy(e, ownerId) {
     this.totalKills++;
     if (this.quarry === e.id) this.quarry = 0;
-    const def = ENEMY_TYPES[e.type];
+    const def = defDe(e.type, e.elite);
     const owner = this.players.get(ownerId);
     this._addXp(this._xpValue(e));
     this._credit(owner, e.elite ? Math.round(def.score * CFG.ELITE_SCORE_MUL) : def.score);

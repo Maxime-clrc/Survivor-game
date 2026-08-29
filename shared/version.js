@@ -4284,6 +4284,44 @@
                    sans que le jeu change n est pas un critere.
                    Cout : 0,242 ms a 200 corps, 0,463 ms a 400.
 
+     0.21.5 lot 6  UNE ELITE ETAIT TROIS MULTIPLICATEURS. Elle est desormais une
+                   VARIANTE DE COMPORTEMENT, ecrite SUR LA LIGNE DE SON TYPE, et
+                   les treize en ont une.
+                   `defDe(type, elite)` est LE point de lecture du bestiaire par
+                   corps, des deux cotes du reseau. Il est PUR, donc le client le
+                   rejoue a partir du bit `e.elite` qu il recoit deja : aucune
+                   fiche ne traverse le reseau. Une surcharge ne touche QUE du
+                   comportement — `ELITE_INTERDIT` refuse les statistiques
+                   d apparition et l economie, sans quoi une elite deviendrait un
+                   type de plus qui vole son quota et son score au sien.
+                   `verifierElites()` est le critere rejouable.
+                   LE PORTE-BOUCLIER ABSORBAIT DE TOUTES LES DIRECTIONS DEPUIS
+                   QU IL EXISTE. Le serveur comparait `def.shieldArc` — 100, en
+                   DEGRES — au retour de `_angleDiff`, qui vaut au plus 3,15
+                   RADIANS : le test etait toujours vrai. Le client, lui, ne
+                   dessinait le blocage que de face. Apres correction, corps
+                   oriente vers 0 : absorbe a 45, passe a 60 pour un arc de 100 ;
+                   absorbe a 80, passe a 90 pour l elite a 165. C est exactement
+                   ce que le client dessinait deja. Le changement d equilibre est
+                   REEL et va au registre : tout ce qui le frappait de dos devient
+                   efficace.
+                   DOUZE VARIANTES SUR TREIZE SE LISENT, PV egalises et geometrie
+                   choisie ENTRE la valeur de base et celle de l elite — seule
+                   position d ou l ecart se voit. Le fantassin explose (0 -> 57),
+                   le coureur va chercher l isole (0,00 -> 0,31), le tireur passe
+                   de 154 a 270 balles, le soigneur rend 153 PV la ou sa base n en
+                   rend aucun, le relais tend un arc a 350 px la ou sa base n en
+                   tend pas.
+                   UNE SURCHARGE A ETE ECRITE, MESUREE, PUIS RETIREE : l elite
+                   harceleur portait `flanc: 1.25`, et son propre verbe de ciblage
+                   TOMBAIT de 0,32 a 0,16 — un flanc plus large deplace le corps,
+                   et le corps deplace ne choisit plus le meme joueur. La
+                   surcharge combattait son type.
+                   ET LE HARCELEUR RESTE LA PLUS FAIBLE DES TREIZE (0,05 -> 0,04
+                   de temps au contact) : sa base n y passe deja presque aucun
+                   temps, donc allonger son retrait ne change presque rien. Note
+                   au registre plutot que chiffre invente.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4292,4 +4330,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.21.4";
+export const VERSION = "0.21.5";
