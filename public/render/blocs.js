@@ -49,8 +49,8 @@ const BLOC = {
   },
   fonderie: {
     [B_FOUR]: { forme: formeOctogone, habit: four },
-    [B_CONDUITE]: { forme: formeOctogone, habit: four },
-    [B_CUVE]: { forme: formeOctogone, habit: four },
+    [B_CONDUITE]: { forme: formeConduite, habit: conduite },
+    [B_CUVE]: { forme: formeCuve, habit: cuve },
   },
   friche: {
     [B_RUINE]: { forme: formeRuine, habit: ruinePan, hors: debord },
@@ -82,6 +82,45 @@ function formeMachine(g, o) { machine(g, -o.w / 2, -o.h / 2, o.w, o.h); }
 function formeOctogone(g, o) { octogone(g, -o.w / 2, -o.h / 2, o.w, o.h); }
 function formeChanfreine(g, o) { chanfreine(g, -o.w / 2, -o.h / 2, o.w, o.h, CHANFREIN_LARGE); }
 function formeRuine(g, o) { ruine(g, o, -o.w / 2, -o.h / 2, o.w, o.h); }
+
+/* LA CONDUITE EST UN CYLINDRE VU DE DESSUS : ses FLANCS sont droits sur toute
+   la longueur, ses BOUTS sont ronds. Elle ne coupe donc que ses quatre coins de
+   bout, et profond (16 px sur 43 de haut) — l inverse de l octogone du four, qui
+   coupe partout et peu. Deux pieces longues du meme lieu, deux lectures : le
+   four est une MASSE posee, la conduite un TRONCON qui continue hors du cadre. */
+function formeConduite(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const c = Math.min(CHANFREIN_LARGE, w * 0.12, h * 0.40);
+  g.beginPath();
+  g.moveTo(x + c, y);
+  g.lineTo(x + w - c, y);
+  g.lineTo(x + w, y + c);
+  g.lineTo(x + w, y + h - c);
+  g.lineTo(x + w - c, y + h);
+  g.lineTo(x + c, y + h);
+  g.lineTo(x, y + h - c);
+  g.lineTo(x, y + c);
+  g.closePath();
+}
+
+/* LA CUVE EST UN RECIPIENT, ET UN RECIPIENT N A PAS D ANGLE. Son biseau est
+   ALLONGE — large en x, court en y — la ou l octogone du four les prend egaux :
+   c est ce qui la rend capsulaire au lieu de trapue, et donc ce qui la separe
+   d un four en petit. */
+function formeCuve(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const bx = Math.min(w * 0.17, 22), by = Math.min(h * 0.17, 11);
+  g.beginPath();
+  g.moveTo(x + bx, y);
+  g.lineTo(x + w - bx, y);
+  g.lineTo(x + w, y + by);
+  g.lineTo(x + w, y + h - by);
+  g.lineTo(x + w - bx, y + h);
+  g.lineTo(x + bx, y + h);
+  g.lineTo(x, y + h - by);
+  g.lineTo(x, y + by);
+  g.closePath();
+}
 
 /* LA CHAINE EST LA SEULE PIECE DU DEPOT SANS UN SEUL COIN CASSE. C est ce qui
    la distingue a 368 x 32 px, ou un chanfrein de 6 px ne se voit pas : une
@@ -378,7 +417,20 @@ export function ledDe(o) {
   // fonctionne, la seconde a ete abandonnee. Et quand elle s allume, c est sur
   // un PAN DE MUR : un tube se fixe en hauteur. Sur un mur bas de 36 px il
   // n aurait pas de quoi tenir, et une epave n a jamais eu d eclairage fixe.
-  const seuil = cle === "fonderie" ? 10
+  /* ET UNE CONDUITE N A PAS DE GUEULE. Les trois familles de Fonderie tiraient
+     la meme, donc neuf conduites par arene portaient une bouche de four : ce qui
+     brule est DEDANS, une conduite est calorifugee et ne s ouvre pas. Elle garde
+     sa chaleur par ses joints, dans son habillage — pas par une source.
+
+     LE FOUR DESCEND A 7, ET C EST UNE CORRECTION. A 10 la condition `(h % 10) >=
+     seuil` etait TOUJOURS fausse, donc `ledDe` ne rendait jamais `null` pour ce
+     lieu, donc l EMBASE DE CHEMINEE de `four()` — le pied des cheminees du
+     premier plan, sans lequel elles ne tiennent a rien — n a jamais ete dessinee
+     une seule fois. La regle etait ecrite dans la charte et le code disait le
+     contraire, en silence. Un four sur trois montre desormais son conduit au
+     lieu de sa bouche. */
+  const seuil = cle === "fonderie"
+      ? (o.kind === B_CONDUITE ? 0 : o.kind === B_FOUR ? 6 : 10)
     : cle === "friche" ? (o.kind === B_RUINE ? 1 : 0)
     : cle === "nebuleuse" ? 7 : 6;
   if ((h % 10) >= seuil) return null;
@@ -388,7 +440,10 @@ export function ledDe(o) {
   const hw = o.w / 2 - inset, hh = o.h / 2 - inset;
   const long = (cote & 1 ? o.h : o.w) * (cle === "fonderie" ? 0.34 : 0.52);
   const col = cle === "fonderie" ? PROP.fonte : S.emis;
-  const r = cle === "fonderie" ? long + 128 : long + 74;
+  // UNE POCHE N ECLAIRE PAS COMME UN FOUR. Le four ouvre sa bouche sur ce qui
+  // brule dedans, la cuve ne montre que sa surface : meme matiere, deux fois
+  // moins de portee.
+  const r = cle === "fonderie" && o.kind === B_FOUR ? long + 128 : long + 74;
   const type = cle === "fonderie" ? "gueule" : cle === "nebuleuse" ? "feux"
              : cle === "friche" ? "tube" : "bande";
 
@@ -796,6 +851,132 @@ function four(o, S) {
   ctx.fillStyle = suie;
   ctx.fillRect(gx - gw, gy - h * 0.5, gw * 2, h * 0.5);
   if (s & 4) boulons(o, S, 2);
+}
+
+/* LA CONDUITE EST UN CYLINDRE, ET RIEN D AUTRE NE LE DIT QUE SON DEGRADE. Vue
+   de dessus, une conduite n a aucune arete interieure : ce qui la rend ronde est
+   que sa valeur monte au milieu et tombe aux flancs. Un aplat avec des lignes
+   dessus reste une planche.
+
+   Sa loi d implantation ne pose qu une conduite couchee (0,260 x 0,048), donc
+   pas de bascule d orientation ici — meme raison que pour la chaine de l Usine.
+
+   ELLE EST CALORIFUGEE : ce qui brule est dedans, on ne le voit qu aux JOINTS.
+   C est la seule facon d avoir une piece manifestement brulante qui ne soit pas
+   une seconde source de lumiere — la gueule du four et la coulee en tiennent
+   deja deux, et une troisieme rendrait le tampon uniformement chaud. */
+const CONDUITE_BRIDE = 74;
+function conduite(o, S) {
+  const L = o.w, T = o.h;
+  const s = graine(o);
+
+  const rond = ctx.createLinearGradient(0, -T / 2, 0, T / 2);
+  rond.addColorStop(0, alpha("#000000", 0.42));
+  rond.addColorStop(0.38, alpha(S.bloc, 0.30));
+  rond.addColorStop(0.62, alpha("#000000", 0.10));
+  rond.addColorStop(1, alpha("#000000", 0.50));
+  ctx.fillStyle = rond;
+  ctx.fillRect(-L / 2, -T / 2, L, T);
+
+  // LES SELLES. Une conduite de ce diametre ne tient pas toute seule : elle
+  // repose sur des berceaux, et ce sont eux qui disent son POIDS.
+  const nb = Math.max(2, Math.round(L / 150));
+  for (let i = 0; i < nb; i++) {
+    const x = -L / 2 + ((i + 0.5) / nb) * L;
+    ctx.fillStyle = alpha("#000000", 0.44);
+    ctx.fillRect(x - 7, -T / 2, 14, T);
+    ctx.fillStyle = alpha(PROP.metalDark, 0.50);
+    ctx.fillRect(x - 5, -T / 2, 10, T);
+  }
+
+  // LES BRIDES, et l une d elles FUIT. Deux troncons se boulonnent, et c est au
+  // joint que la chaleur sort — une ligne mince, qui ONDULE parce que du metal
+  // en fusion ondule. Continue et periodique : elle n annonce rien.
+  const t = maintenant();
+  let k = 0;
+  for (let x = -L / 2 + CONDUITE_BRIDE; x < L / 2 - 6; x += CONDUITE_BRIDE, k++) {
+    ctx.fillStyle = alpha("#000000", 0.40);
+    ctx.fillRect(x - 3, -T / 2, 6, T);
+    ctx.fillStyle = alpha(S.blocEdge, 0.20);
+    ctx.fillRect(x - 3, -T / 2, 1.4, T);
+    if (((s >>> (k * 3)) & 3) !== 0) continue;
+    const on = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * (0.5 + (k & 3) * 0.11) + k * 2.3));
+    const fuite = ctx.createLinearGradient(x, -T / 2, x, T / 2);
+    fuite.addColorStop(0, alpha(PROP.fonte, 0));
+    fuite.addColorStop(0.5, alpha("#ffd9a8", 0.70 * on));
+    fuite.addColorStop(1, alpha(PROP.fonte, 0));
+    ctx.fillStyle = fuite;
+    ctx.fillRect(x - 1, -T / 2, 2, T);
+  }
+
+  // LE CALORIFUGE : des cerces fines entre les brides. Elles ne coupent pas le
+  // degrade — elles sont plus claires que lui d un cheveu.
+  ctx.strokeStyle = alpha(PROP.metal, 0.08);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = -L / 2 + 12; x < L / 2; x += 17) {
+    ctx.moveTo(x, -T / 2 + 3); ctx.lineTo(x, T / 2 - 3);
+  }
+  ctx.stroke();
+}
+
+/* LA CUVE MONTRE SA SURFACE, LE FOUR MONTRE SA BOUCHE. C est toute la
+   difference entre les deux, et c est pourquoi la cuve n a pas de suie : rien ne
+   sort par le haut d une poche, ca reste dedans et ca refroidit en peau.
+
+   LA PEAU EST LE SUJET. Du metal au repos se couvre d une croute sombre que le
+   mouvement dechire : la surface n est donc pas orange, elle est NOIRE avec des
+   dechirures oranges — et c est ce qui la rend liquide au lieu de lumineuse. */
+function cuve(o, S) {
+  const w = o.w, h = o.h;
+  const s = graine(o);
+  const t = maintenant();
+
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+
+  // LA CEINTURE. Une poche est ferree : un bandeau epais sur tout le pourtour,
+  // et c est lui qui porte le poids a l ecran.
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.72);
+  ctx.lineWidth = 7;
+  formeCuve(ctx, { w: w - 5, h: h - 5 });
+  ctx.stroke();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.20);
+  ctx.lineWidth = 1.6;
+  formeCuve(ctx, { w: w - 9, h: h - 9 });
+  ctx.stroke();
+
+  const rw = w * 0.62, rh = h * 0.52;
+  ctx.fillStyle = alpha("#0a0605", 0.86);
+  ctx.beginPath(); ctx.ellipse(0, 0, rw / 2, rh / 2, 0, 0, Math.PI * 2); ctx.fill();
+
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(0, 0, rw / 2, rh / 2, 0, 0, Math.PI * 2); ctx.clip();
+  for (let i = 0; i < 4; i++) {
+    const ph = ((s >>> (i * 4)) & 15) / 15;
+    const u = 0.5 + 0.5 * Math.sin(t * (0.30 + ph * 0.24) + ph * 8 + i);
+    const y = (-0.5 + (i + 0.5) / 4) * rh + (u - 0.5) * rh * 0.16;
+    const l = rw * (0.30 + 0.42 * u);
+    const dech = ctx.createLinearGradient(-l / 2, 0, l / 2, 0);
+    dech.addColorStop(0, alpha(PROP.fonte, 0));
+    dech.addColorStop(0.5, alpha("#ffd9a8", 0.52 + 0.26 * u));
+    dech.addColorStop(1, alpha(PROP.fonte, 0));
+    ctx.fillStyle = dech;
+    ctx.fillRect(-l / 2, y - 1.6, l, 3.2);
+  }
+  ctx.restore();
+
+  // LES TOURILLONS : les deux axes par lesquels on la BASCULE. Sans eux une
+  // poche est une marmite ; avec eux, c est une piece d installation.
+  for (const d of [-1, 1]) {
+    const x = d * (w / 2 - 4);
+    ctx.fillStyle = alpha("#000000", 0.50);
+    ctx.beginPath(); ctx.arc(x, 0, 5.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = alpha(PROP.metal, 0.26);
+    ctx.beginPath(); ctx.arc(x, 0, 3.4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  if (s & 8) boulons(o, S, 2);
 }
 
 /* --- FRICHE : ce qui a ETE LAISSE --------------------------------------

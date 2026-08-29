@@ -683,8 +683,6 @@ export function drawWeather(tm) {
 
    TOUT RESTE DISCRET : a l'arret quelque chose bouge et on ne sait pas dire
    quoi ; en mouvement on ne le remarque pas. */
-const POUSSIERE = 150;
-
 /* LA POUSSIERE N'EST PAS LA MEME PARTOUT. Dans le vide il n'y a pas d'air, donc
    rien ne reste en suspension : ce qui derive est du DEBRIS — cinq fois plus
    lent, deux fois plus court, et froid. Il derive dans DEUX sens : deux nappes
@@ -709,20 +707,34 @@ const AMBIANCE = {
      rectiligne de ce lieu. */
   usine: { v: 64, l: 7, n: 130, col: WEATHER.wind, a: 0.045, e: 1.2,
            ang: 0.12, swing: 0 },
+  /* DANS UNE FONDERIE, L AIR MONTE. C est la seule chose qu on ne peut pas ne
+     pas ressentir sur un plancher a cette temperature, et c est aussi ce qui
+     l oppose terme a terme a l Usine juste au-dessus : celle-ci tire vite et
+     droit a l horizontale, celle-la monte lentement et epais. Sept fois plus
+     lent, deux fois plus long, deux fois moins nombreux, et le trait le plus
+     epais du depot — de l air charge se voit, il ne file pas.
+     La teinte est la CENDRE et non la fonte : ce qui flotte a refroidi. Le ton
+     chaud reste a ce qui brule vraiment — gueules, joints, coulee. */
+  fonderie: { v: 9, l: 9, n: 72, col: WEATHER.ash, a: 0.055, e: 2.3,
+              ang: -Math.PI / 2, swing: 0.10 },
 };
-const AMB_DEFAUT = { v: 24, l: 5, n: POUSSIERE, col: WEATHER.wind, a: 0.055, e: 1.6 };
 const AMB_ANG = Math.PI * 0.62;
 const AMB_SWING = 0.30;
 
 export function drawAtmosphere(tm) {
   if (gfx < GFX_HIGH) return;
 
-  const A = AMBIANCE[biomeAt(biomeIndex).key] ?? AMB_DEFAUT;
-  const ang = (A.ang ?? AMB_ANG) + Math.sin(tm * 0.07) * (A.swing ?? AMB_SWING);
-  champ(tm, ang, A.v, A.l, A.n, A.col, A.a, A.e);
-  if (A.contre) {
-    const c = A.contre;
-    champ(tm, c.ang + Math.sin(tm * 0.04) * 0.22, c.v, c.l, c.n, A.col, c.a, c.e);
+  // LES QUATRE LIEUX DECLARENT LEUR AIR. Un cinquieme qui ne le ferait pas n a
+  // pas d ambiance du tout : c est visible tout de suite, la ou un repli sur
+  // celle d un autre lieu ne se serait jamais signale.
+  const A = AMBIANCE[biomeAt(biomeIndex).key];
+  if (A) {
+    const ang = (A.ang ?? AMB_ANG) + Math.sin(tm * 0.07) * (A.swing ?? AMB_SWING);
+    champ(tm, ang, A.v, A.l, A.n, A.col, A.a, A.e);
+    if (A.contre) {
+      const c = A.contre;
+      champ(tm, c.ang + Math.sin(tm * 0.04) * 0.22, c.v, c.l, c.n, A.col, c.a, c.e);
+    }
   }
 
   for (const h of hazardsActifs()) {

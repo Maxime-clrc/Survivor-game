@@ -4522,6 +4522,45 @@
                    bandes horizontales ; elle est retiree plutot que gardee.
                    Signatures des quatre lieux inchangees.
 
+     0.22.3 lot 4  LA FONDERIE : LA CHALEUR ET LA MASSE, PAS L ORANGE. Trois
+                   familles la ou une seule maconnerie servait aux trois. Le
+                   FOUR garde son octogone — huit cotes egaux, peu coupes, une
+                   masse posee. La CONDUITE ne coupe QUE ses coins de bout, et
+                   profond : un cylindre vu de dessus a les flancs droits et les
+                   bouts ronds, et il CONTINUE hors du cadre. La CUVE a un biseau
+                   ALLONGE la ou le four les prend egaux — capsulaire au lieu de
+                   trapu, donc pas un four en petit.
+                   CE QUI REND UNE CONDUITE RONDE EST SON DEGRADE, rien d autre :
+                   un aplat avec des lignes dessus reste une planche. Elle est
+                   CALORIFUGEE, donc ce qui brule est dedans et ne se voit qu aux
+                   JOINTS — une piece manifestement brulante qui n est pas une
+                   source de lumiere de plus. La cuve, elle, montre sa SURFACE :
+                   noire, avec des dechirures oranges qui ondulent. Du metal
+                   liquide n est pas orange, il est croute et dechire.
+                   NEUF CONDUITES PAR ARENE PORTAIENT UNE BOUCHE DE FOUR. Les
+                   trois familles tiraient la meme `ledDe` ; une conduite ne
+                   s ouvre pas. Sources fixes de ce lieu : 45 avant, 26 apres.
+                   ET L EMBASE DE CHEMINEE N AVAIT JAMAIS ETE DESSINEE UNE SEULE
+                   FOIS. Le seuil de la Fonderie valait 10, donc `(h % 10) >= 10`
+                   etait TOUJOURS faux, donc `ledDe` ne rendait jamais `null`,
+                   donc la branche `if (!l)` de `four()` etait morte — alors que
+                   la charte declare que le pied des cheminees du premier plan
+                   vit la. Le code disait le contraire de la regle, en silence.
+                   Seuil a 6 : 8 fours sur 18 montrent leur bouche, 10 montrent
+                   leur conduit, et la halle cesse d etre chaude partout.
+                   L AIR MONTE, et c est l oppose terme a terme de l Usine : sept
+                   fois plus lent, deux fois plus long, deux fois moins nombreux,
+                   le trait le plus epais du depot. Teinte CENDRE et non fonte —
+                   ce qui flotte a refroidi, le ton chaud reste a ce qui brule.
+                   `AMB_DEFAUT` est SUPPRIME : les quatre lieux declarent leur
+                   air, et un cinquieme qui ne le ferait pas n en aurait aucun
+                   plutot que celui d un autre en silence.
+                   Sa couche de 1 200 px n est plus les douze nappes rondes
+                   communes : trois foyers TRES larges, des zones froides plus
+                   profondes qu ailleurs, et AUCUNE nappe claire — le seul clair
+                   de ce lieu doit venir de ce qui brule vraiment.
+                   Signatures des quatre lieux inchangees.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4530,4 +4569,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.2";
+export const VERSION = "0.22.3";

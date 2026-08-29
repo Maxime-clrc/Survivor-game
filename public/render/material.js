@@ -78,7 +78,7 @@ function cuireMacro(biomeIndex, diffIndex, seed, dpr) {
   const usure = USURE[diffIndex] ?? USURE[1];
   const cle = (BIOMES[biomeIndex] ?? BIOMES[0]).key;
   if (cle === "friche") return macroFriche(cv, g, rand, usure);
-  const chaud = cle === "fonderie";
+  if (cle === "fonderie") return macroFonderie(cv, g, rand, usure);
 
   for (let i = 0; i < 5; i++) {
     const r = 260 + rand() * 300;
@@ -91,8 +91,29 @@ function cuireMacro(biomeIndex, diffIndex, seed, dpr) {
   const n = 2 + Math.round(4 * usure);
   for (let i = 0; i < n; i++) {
     const r = 150 + rand() * 220;
-    nappe(g, rand() * MACRO, rand() * MACRO, r,
-          chaud ? PROP.led : PROP.rouille, 0.020 + 0.028 * usure);
+    nappe(g, rand() * MACRO, rand() * MACRO, r, PROP.rouille, 0.020 + 0.028 * usure);
+  }
+  return cv;
+}
+
+/* UNE FONDERIE N EST PAS CHAUDE PARTOUT, ET C EST CA QU ON RESSENT. Douze
+   nappes rondes de meme gamme donnaient une temperature uniforme ; ce que dit
+   une halle de fonderie est le CONTRASTE — on est pres d un four ou on ne l est
+   pas, et l ecart se lit a la dizaine de metres, pas au pixel.
+
+   Trois foyers TRES larges, et des zones froides plus profondes que partout
+   ailleurs. Aucune nappe claire : le seul clair de ce lieu doit venir de ce qui
+   brule vraiment, et ce qui brule est deja pose — gueules, joints, coulee. Une
+   tache blanche ici les concurrencerait a plus grande echelle qu elles. */
+function macroFonderie(cv, g, rand, usure) {
+  for (let i = 0; i < 6; i++) {
+    const r = 240 + rand() * 380;
+    nappe(g, rand() * MACRO, rand() * MACRO, r, "#000000", 0.07 + rand() * 0.08);
+  }
+  for (let i = 0; i < 3; i++) {
+    const r = 330 + rand() * 220;
+    nappe(g, rand() * MACRO, rand() * MACRO, r, PROP.fonte, 0.022 + 0.014 * usure);
+    nappe(g, rand() * MACRO, rand() * MACRO, r * 0.55, PROP.brique, 0.026 + 0.018 * usure);
   }
   return cv;
 }

@@ -8,6 +8,68 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Fonderie, et une branche morte depuis le plan 16 (0.22.3)
+
+| famille | ce qui la dit | vide d'empreinte |
+|---|---|---|
+| four | octogone à huit côtés égaux, brique, tirants, gueule ou embase | 0,5 % |
+| conduite | coins **de bout seuls**, dégradé transversal, selles, brides, joint qui fuit | 2,8 % |
+| cuve | biseau **allongé**, ceinture ferrée, peau noire déchirée, tourillons | 5,7 % |
+
+#### L'embase de cheminée n'avait jamais été dessinée
+
+La charte déclare : *« l'embase de cheminée est le pied des cheminées du premier
+plan, posée sur les fours qui n'ont pas de gueule — sans elle les silhouettes du
+bord ne tiennent à rien »*. Le code disait l'inverse, **en silence** :
+
+```
+const seuil = cle === "fonderie" ? 10 : …
+if ((h % 10) >= seuil) return null;     // h % 10 ∈ [0,9] : jamais vrai
+```
+
+`ledDe()` ne rendait donc jamais `null` pour ce lieu, et la branche `if (!l)` de
+`four()` était morte depuis son écriture. Seuil ramené à **6**.
+
+**Sources fixes de la Fonderie**, graine 7, arène complète :
+
+| famille | avant | après | type |
+|---|---|---|---|
+| four | 18 / 18 | **8 / 18** | gueule (`r ≈ long + 128`) |
+| conduite | 9 / 9 | **0 / 9** | — |
+| cuve | 18 / 18 | 18 / 18 | gueule (`r ≈ long + 74`) |
+| **total** | **45** | **26** | |
+
+Neuf conduites par arène portaient une bouche de four : les trois familles
+tiraient la même déclaration. Une conduite ne s'ouvre pas — ce qui brûle est
+dedans, et ne se voit qu'aux joints, dans l'habillage. Une pièce manifestement
+brûlante qui n'est **pas** une source de lumière de plus : la gueule et la coulée
+en tiennent déjà deux, une troisième rendrait le tampon uniformément chaud.
+
+Le seuil ne peut pas viser 2/3 : `h = (x·73856093) ^ (y·19349663)` sur des
+positions pavées et mirroitées ne donne que deux paquets modulo 10 — 44 % à
+seuil 5 ou 6, 89 % à 7 ou 8. Le pas est grossier, et **c'est le seuil 6 qui sert
+le lieu** : une halle où plus de la moitié des fours sont en veille a du
+contraste thermique, ce que la couche de 1 200 px raconte au même moment.
+
+#### L'air, terme à terme contre l'Usine
+
+| | Usine | Fonderie |
+|---|---|---|
+| vitesse | 64 | **9** |
+| longueur | 7 | **9** |
+| brins | 130 | **72** |
+| épaisseur | 1,2 | **2,3** |
+| angle | 0,12 rad, tenu | **−π/2**, ±0,10 |
+
+Teinte **cendre** et non fonte : ce qui flotte a refroidi, le ton chaud reste à
+ce qui brûle. `AMB_DEFAUT` est **supprimé** — les quatre lieux déclarent leur
+air, et un cinquième qui ne le ferait pas n'en aurait aucun (visible tout de
+suite) plutôt que celui d'un autre (jamais signalé).
+
+Signatures des quatre lieux **inchangées** ; `verifierBiomes()` muet sur
+200 graines (11,7 s), `verifierNavigation()`, `verifierBlocs()` et
+`verifierEmpreinte()` muets.
+
 ### L'Usine, trois rôles dans une même ligne (0.22.2)
 
 | famille | rôle | ce qui le porte | vide d'empreinte |
