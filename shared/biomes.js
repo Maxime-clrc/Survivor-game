@@ -220,49 +220,75 @@ function rng(seed) {
                 le meme lieu, quelle que soit la couleur du sol.
 
    LE CARRE CENTRAL RESTE TRAVERSABLE dans les deux axes — `verifierBiomes()`
-   le rejoue a chaque graine, et c est ce qui autorise des masses pareilles sans
-   jamais enfermer une equipe. */
+   le rejoue a chaque graine ET A CHAQUE MODE, et c est ce qui autorise des
+   masses pareilles sans jamais enfermer une equipe.
+
+   `min` EST LE MODE A PARTIR DUQUEL UNE ENTREE EXISTE (0 partout, 1 des le
+   normal, 2 en cauchemar seul). La geometrie etait identique dans les trois
+   modes ; c etait ecrit comme un invariant, et ca ne l est plus.
+
+   CE QUI CHANGE EST CE QU IL Y A, PAS LA TAILLE DE CE QU IL Y A. Un facteur
+   d echelle sur `w`/`h` aurait donne la meme arene grossie — donc le meme
+   parcours, avec moins de place —, alors qu une entree en plus ou en moins
+   change le CHEMIN. C est la difference entre « plus exigeant spatialement » et
+   « le joueur ne peut plus bouger », et c est le §12 du cahier des charges.
+
+   Les entrees retirees au calme sont celles qui encombrent le MILIEU, celles
+   ajoutees au cauchemar sont pres des BORDS : on ouvre par le centre et on
+   resserre par le pourtour. Aucun point de vie, aucun degat, aucun
+   multiplicateur ne bouge — la difficulte reste celle des systemes existants. */
 const OBSTACLES = {
   usine: [
     { x: 0.28, y: 0.16, w: 0.230, h: 0.036, kind: B_CHAINE },
     { x: 0.72, y: 0.84, w: 0.230, h: 0.036, kind: B_CHAINE },
     { x: 0.10, y: 0.16, w: 0.048, h: 0.090, kind: B_POSTE },
     { x: 0.90, y: 0.84, w: 0.048, h: 0.090, kind: B_POSTE },
-    { x: 0.34, y: 0.52, w: 0.052, h: 0.130, kind: B_MACHINE },
-    { x: 0.66, y: 0.48, w: 0.052, h: 0.130, kind: B_MACHINE },
+    { x: 0.34, y: 0.52, w: 0.052, h: 0.130, kind: B_MACHINE, min: 1 },
+    { x: 0.66, y: 0.48, w: 0.052, h: 0.130, kind: B_MACHINE, min: 1 },
     { x: 0.50, y: 0.90, w: 0.070, h: 0.048, kind: B_POSTE },
+    { x: 0.14, y: 0.74, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
+    { x: 0.86, y: 0.24, w: 0.052, h: 0.130, kind: B_MACHINE, min: 2 },
   ],
   fonderie: [
     { x: 0.30, y: 0.30, w: 0.120, h: 0.190, kind: B_FOUR },
     { x: 0.70, y: 0.70, w: 0.120, h: 0.190, kind: B_FOUR },
-    { x: 0.50, y: 0.06, w: 0.260, h: 0.048, kind: B_CONDUITE },
+    { x: 0.50, y: 0.06, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 1 },
     { x: 0.12, y: 0.78, w: 0.070, h: 0.070, kind: B_CUVE },
-    { x: 0.88, y: 0.22, w: 0.070, h: 0.070, kind: B_CUVE },
+    { x: 0.88, y: 0.22, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
+    { x: 0.08, y: 0.30, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
+    { x: 0.50, y: 0.94, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 2 },
   ],
   friche: [
     { x: 0.10, y: 0.18, w: 0.085, h: 0.070, kind: B_RUINE },
-    { x: 0.19, y: 0.30, w: 0.045, h: 0.110, kind: B_RUINE },
+    { x: 0.19, y: 0.30, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
     { x: 0.26, y: 0.14, w: 0.060, h: 0.048, kind: B_RUINE },
     { x: 0.82, y: 0.80, w: 0.085, h: 0.070, kind: B_RUINE },
-    { x: 0.90, y: 0.66, w: 0.045, h: 0.110, kind: B_RUINE },
+    { x: 0.90, y: 0.66, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
     { x: 0.73, y: 0.88, w: 0.060, h: 0.048, kind: B_RUINE },
     { x: 0.50, y: 0.10, w: 0.110, h: 0.040, kind: B_MUR },
     // TROIS EPAVES DE MEME GABARIT ETAIENT TROIS FOIS LE MEME OBJET. A surface
     // egale (± 3 %), elles portent maintenant trois formats — couche, carre,
     // debout : c est ce qui separe un champ d epaves d un parking. La vue est
     // en 16/9, donc un format DEBOUT demande h/w > 1,78 en fraction, pas 1,2.
-    { x: 0.46, y: 0.44, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
+    { x: 0.46, y: 0.44, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE, min: 1 },
     { x: 0.70, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE },
-    { x: 0.30, y: 0.62, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE },
+    { x: 0.30, y: 0.62, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 1 },
+    { x: 0.06, y: 0.46, w: 0.052, h: 0.086, kind: B_RUINE, min: 2 },
+    { x: 0.94, y: 0.54, w: 0.052, h: 0.086, kind: B_RUINE, min: 2 },
   ],
   nebuleuse: [
     { x: 0.22, y: 0.24, w: 0.145, h: 0.150, kind: B_FRAGMENT },
     { x: 0.78, y: 0.76, w: 0.145, h: 0.150, kind: B_FRAGMENT },
     { x: 0.06, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE },
-    { x: 0.94, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE },
+    { x: 0.94, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE, min: 1 },
     { x: 0.10, y: 0.70, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
-    { x: 0.90, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
-    { x: 0.63, y: 0.20, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS },
+    { x: 0.90, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 1 },
+    { x: 0.63, y: 0.20, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 1 },
+    // en cauchemar, ce qu on ajoute est DESTRUCTIBLE : `celluleTraversable`
+    // ignore les couvertures, donc densifier par la ne peut pas fermer le carre
+    // central — et le joueur garde un moyen de rouvrir un passage au tir.
+    { x: 0.37, y: 0.80, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 2 },
+    { x: 0.50, y: 0.30, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 2 },
   ],
 };
 
@@ -388,6 +414,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
     for (let cx = 0; cx < cols; cx++) {
       const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
       for (const o of OBSTACLES[def.key] ?? []) {
+        if ((o.min ?? 0) > diffIndex) continue;
         const j = def.key === "friche" ? 40 : 0;
         const w = o.w * cw, h = o.h * ch;
         const area = w * h;
@@ -581,6 +608,28 @@ export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
   }
   for (let k = 0; k < BLOCS.length; k++) {
     if (!tirees.has(k)) soucis.push(`${BLOCS[k].lieu}/${BLOCS[k].key} : famille jamais tiree`);
+  }
+
+  /* LA DIFFICULTE DOIT SE VOIR DANS LE TERRAIN, ET DANS LE BON SENS. Trois
+     modes qui produisent la meme geometrie ne servent a rien ; un cauchemar plus
+     OUVERT qu un normal serait pire encore, et ce serait une inversion de signe
+     que personne ne remarquerait a l ecran. On exige donc la monotonie stricte,
+     par lieu, sur le NOMBRE et sur la SURFACE. */
+  for (const b of BIOMES) {
+    const bi = BIOMES.indexOf(b);
+    const v = [0, 1, 2].map(di => buildBiome(bi, di, 7, arenaW, arenaH, viewW, viewH));
+    for (let di = 1; di < 3; di++) {
+      const m = ["calme", "normal", "cauchemar"];
+      if (v[di].obstacles.length <= v[di - 1].obstacles.length) {
+        soucis.push(`${b.key} : ${m[di]} n'a pas plus d'obstacles que ${m[di - 1]} `
+          + `(${v[di - 1].obstacles.length} -> ${v[di].obstacles.length})`);
+      }
+      if (v[di].obstacleSurface <= v[di - 1].obstacleSurface) {
+        soucis.push(`${b.key} : ${m[di]} n'encombre pas plus que ${m[di - 1]} `
+          + `(${(v[di - 1].obstacleSurface * 100).toFixed(1)} -> `
+          + `${(v[di].obstacleSurface * 100).toFixed(1)} %)`);
+      }
+    }
   }
 
   const sigs = BIOMES.map((_, i) => signatureBiome(i, arenaW, arenaH, viewW, viewH));

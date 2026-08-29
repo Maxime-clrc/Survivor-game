@@ -388,8 +388,8 @@ taille donnaient un espace **uniformément encombré** : ni dense ni ouvert, don
 sans rythme. Une arène se traverse, elle ne se piétine pas.
 
 - Chaque lieu a **sa loi d'implantation** (table ci-dessus). Le contraste se lit
-  dans les chiffres : la Fonderie pose **5 objets par vue pour 6,8 % de surface**,
-  la Friche **10 pour 4,4 %**.
+  dans les chiffres : la Fonderie pose **7 objets par vue pour 8,5 % de surface**,
+  la Friche **12 pour 5,3 %** (relevé en cauchemar).
 - **Deux lieux ne peuvent pas partager une loi.** La Nébuleuse avait celle de
   l'Usine à un centième près — barre 0,230 × 0,036 contre 0,300 × 0,034 : deux
   lieux à la même implantation sont le même lieu, quelle que soit la couleur du
@@ -400,8 +400,13 @@ sans rythme. Une arène se traverse, elle ne se piétine pas.
   dans le couloir *entre* les deux fours, les jets de vapeur tombent dans les
   allées.
 - **Le carré central reste traversable dans les deux axes.** `verifierBiomes()`
-  le rejoue à chaque graine — muet sur 200 — et c'est ce qui autorise des masses
-  pareilles sans jamais enfermer une équipe.
+  le rejoue à chaque graine **et à chaque mode** — muet sur 200 — et c'est ce qui
+  autorise des masses pareilles sans jamais enfermer une équipe.
+- **La loi d'implantation est celle du CAUCHEMAR ; le calme et le normal en sont
+  des retraits** (`min` sur une entrée). Les chiffres ci-dessus, comme
+  `signatureBiome()`, se relèvent donc en cauchemar : c'est le seul mode où la
+  table est entière. Ce qui change d'un mode à l'autre est **ce qu'il y a**,
+  jamais la taille de ce qu'il y a — détail dans `SIMULATION.md`.
 - `BIOME=<clé> GRAINE=<n>` forcent le tirage d'une salle, **pour les tests
   uniquement**. Sans ça, comparer quatre lieux demande de relancer des salles
   jusqu'au bon tirage, et c'est le genre de protocole qu'on finit par ne plus

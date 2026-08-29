@@ -8,6 +8,64 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La difficulté touche enfin le terrain (0.22.6)
+
+*« La géométrie est la MÊME dans les trois modes, seuls les dangers changent »*
+était écrit comme un invariant depuis le plan 14. Il tombe ici — seul point du
+plan 19 qui lève une règle du dépôt, et il le fait sur demande explicite.
+
+| lieu | objets/vue | % obstacles | dangers/vue | % dangers |
+|---|---|---|---|---|
+| usine | 5 → 7 → **9** | 2,9 → 4,2 → **5,3** | 0 → 2 → **5** | 0 → 4,6 → **6,3** |
+| fonderie | 3 → 5 → **7** | 5,1 → 6,8 → **8,5** | 0 → 2 → **4** | 0 → 5,2 → **6,2** |
+| friche | 6 → 10 → **12** | 2,6 → 4,4 → **5,3** | 0 → 2 → **5** | 0 → 5,6 → **6,8** |
+| nébuleuse | 4 → 7 → **9** | 5,6 → 7,0 → **7,3** | 0 → 2 → **5** | 0 → 6,0 → **6,4** |
+
+Plafond d'obstacles à 10 % tenu partout ; la Fonderie en cauchemar est la plus
+proche, à 8,5 %.
+
+**Ce qui change est ce qu'il y a, pas la taille de ce qu'il y a.** Un facteur
+d'échelle sur `w`/`h` aurait donné la même arène grossie — donc le même parcours,
+avec moins de place. Une entrée en plus ou en moins change le **chemin**. C'est
+la différence entre « plus exigeant spatialement » et « le joueur ne peut plus
+bouger ».
+
+On **ouvre par le centre** — les entrées retirées au calme sont celles qui
+encombrent le milieu — et on **resserre par le pourtour**. Ce que la Nébuleuse
+ajoute en cauchemar est **destructible** : `celluleTraversable()` ignore les
+couvertures, donc densifier par là ne peut pas fermer le carré central, et le
+joueur garde un moyen de rouvrir un passage au tir.
+
+**Monotonie stricte, vérifiée.** `verifierBiomes()` refuse qu'un mode n'ait pas
+plus d'obstacles **et** plus de surface que le précédent, par lieu. Trois modes
+qui produisent la même géométrie ne servent à rien ; un cauchemar plus *ouvert*
+qu'un normal serait une inversion de signe que personne ne remarquerait à
+l'écran.
+
+**Les quatre lois restent séparées aux mêmes écarts** — la loi d'implantation est
+celle du **cauchemar**, les deux autres modes en sont des retraits, donc
+`signatureBiome()` ne bouge que d'un facteur commun :
+
+| paire | axe | écart |
+|---|---|---|
+| usine / fonderie | contraste | 47 % |
+| usine / friche | élongation | 57 % |
+| usine / nébuleuse | contraste | 87 % |
+| fonderie / friche | contraste | 56 % |
+| fonderie / nébuleuse | contraste | 75 % |
+| friche / nébuleuse | contraste | 89 % |
+
+Deux entrées de cauchemar de l'Usine tombaient sur un danger au premier essai
+(le poste sur un geyser à 67 px pour 70 de rayon, la machine sur le bac de trempe
+à 50 pour 85) : `comptePosesSurObstacle` les a signalées sur les 60 graines avant
+qu'aucune image ne soit produite.
+
+**Aucun PV, aucun dégât, aucun multiplicateur ne bouge.** Le terrain n'est pas un
+second système de difficulté : `_teamPower()` et le résidu de `DIFFICULTIES`
+restent seuls. `verifierBiomes()` muet sur 200 graines (11,5 s),
+`verifierNavigation()`, `verifierBlocs()`, `verifierEmpreinte()` et
+`verifierDangers()` muets.
+
 ### Les dangers : une échelle par lieu, six entrées qui ne se rencontraient pas (0.22.5)
 
 #### L'état de départ

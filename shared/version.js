@@ -4649,6 +4649,42 @@
                    mode egal. Normal 4,61 / 5,16 / 5,60 / 6,03 %, cauchemar
                    6,34 / 6,16 / 6,85 / 6,36 %. Le §28 rendu executable.
 
+     0.22.6 lot 7  LA DIFFICULTE TOUCHE ENFIN LE TERRAIN. « La geometrie est la
+                   MEME dans les trois modes, seuls les dangers changent » etait
+                   ecrit comme un invariant depuis le plan 14 ; il tombe ici, et
+                   c est le seul point du plan qui leve une regle du depot.
+                   `min` sur une entree d `OBSTACLES` dit a partir de quel mode
+                   elle existe — 0 partout, 1 des le normal, 2 en cauchemar seul.
+                   CE QUI CHANGE EST CE QU IL Y A, PAS LA TAILLE DE CE QU IL Y A.
+                   Un facteur d echelle sur `w`/`h` aurait donne la meme arene
+                   grossie, donc le meme parcours avec moins de place ; une
+                   entree en plus ou en moins change le CHEMIN. C est la
+                   difference entre « plus exigeant spatialement » et « le joueur
+                   ne peut plus bouger ».
+                   ON OUVRE PAR LE CENTRE, ON RESSERRE PAR LE POURTOUR : les
+                   entrees retirees au calme sont celles qui encombrent le milieu,
+                   celles ajoutees au cauchemar sont pres des bords. Et ce que la
+                   Nebuleuse ajoute est DESTRUCTIBLE — `celluleTraversable`
+                   ignore les couvertures, donc densifier par la ne peut pas
+                   fermer le carre central, et le joueur garde un moyen de
+                   rouvrir un passage au tir.
+                   MONOTONIE STRICTE, VERIFIEE. `verifierBiomes()` refuse qu un
+                   mode n ait pas plus d obstacles ET plus de surface que le
+                   precedent, par lieu. Trois modes qui produisent la meme
+                   geometrie ne servent a rien ; un cauchemar plus OUVERT qu un
+                   normal serait une inversion de signe que personne ne
+                   remarquerait a l ecran.
+                   Objets par vue : usine 5/7/9, fonderie 3/5/7, friche 6/10/12,
+                   nebuleuse 4/7/9. Surface 2,9/4,2/5,3 — 5,1/6,8/8,5 —
+                   2,6/4,4/5,3 — 5,6/7,0/7,3 %, plafond 10 % tenu.
+                   LES QUATRE LOIS RESTENT SEPAREES AUX MEMES ECARTS — 47, 57,
+                   87, 56, 75, 89 % : la loi est celle du cauchemar et les deux
+                   autres modes en sont des retraits, donc `signatureBiome()` ne
+                   bouge que d un facteur commun.
+                   AUCUN PV, AUCUN DEGAT, AUCUN MULTIPLICATEUR. Le terrain n est
+                   pas un second systeme de difficulte : `_teamPower()` et le
+                   residu de `DIFFICULTIES` restent seuls.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -4657,4 +4693,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.22.5";
+export const VERSION = "0.22.6";

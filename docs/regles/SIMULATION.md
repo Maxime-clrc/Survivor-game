@@ -582,7 +582,22 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   naître en cours de manche : les zones, traversables. `verifierBiomes()` est le
   critère rejouable (plafonds, aucun danger en calme, aucun danger **qui blesse**
   en normal, **passage traversable dans le carré central minimal** `SHRINK_MIN`).
-- **La géométrie est la MÊME dans les trois modes, seuls les dangers changent.**
+- **La géométrie DÉPEND du mode**, et c'est `min` sur une entrée d'`OBSTACLES`
+  qui le dit (0 partout, 1 dès le normal, 2 en cauchemar seul). L'invariant
+  inverse était écrit ici jusqu'en 0.22.6.
+  - **Ce qui change est ce qu'il y a, pas la taille de ce qu'il y a.** Un facteur
+    d'échelle sur `w`/`h` aurait donné la même arène grossie — donc le même
+    parcours, avec moins de place ; une entrée en plus ou en moins change le
+    **chemin**.
+  - On **ouvre par le centre** (les entrées retirées au calme sont celles qui
+    encombrent le milieu) et on **resserre par le pourtour**.
+  - **Monotonie stricte, vérifiée** : `verifierBiomes()` refuse qu'un mode n'ait
+    pas plus d'obstacles *et* plus de surface que le précédent, par lieu. Trois
+    modes qui produisent la même géométrie ne servent à rien ; un cauchemar plus
+    ouvert qu'un normal est une inversion de signe que personne ne verrait.
+  - **Aucun PV, aucun dégât, aucun multiplicateur ne bouge.** Le terrain n'est
+    pas un second système de difficulté : `_teamPower()` et le résidu de
+    `DIFFICULTIES` restent seuls.
 - **Un mur destructible ne cède qu'au TIR DU JOUEUR, ne rend NI SCORE NI
   EXPÉRIENCE, et ne passe PAS par `_damage()`.**
 - **Une météo est un MODIFICATEUR GLOBAL, jamais une entité** (cauchemar
