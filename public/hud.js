@@ -1170,6 +1170,25 @@ const DMG_MERGE_PX = 34;
 const DMG_MERGE_MS = 420;
 const dmgLive = [];
 
+/* LE MOT QUI MONTE. Meme couche et meme animation que les chiffres — c'est la
+   meme question posee au meme endroit : « qu'est-ce qui vient de se passer la ».
+   Il ne se FUSIONNE pas, contrairement aux degats : deux bonus ramasses coup sur
+   coup sont deux faits, pas un cumul. */
+export function hudLabel(x, y, texte, col) {
+  if (!texte) return;
+  if (x < -20 || x > CFG.VIEW_W + 20 || y < -20 || y > CFG.VIEW_H + 20) return;
+  if (dmgCount >= DMG_MAX) return;
+  const d = document.createElement("div");
+  d.className = "dmg mot";
+  d.style.color = col;
+  d.appendChild(document.createTextNode(texte));
+  d.style.left = (x / CFG.VIEW_W * 100).toFixed(2) + "%";
+  d.style.top = (y / CFG.VIEW_H * 100).toFixed(2) + "%";
+  d.addEventListener("animationend", () => { d.remove(); dmgCount--; }, { once: true });
+  el.dmg.appendChild(d);
+  dmgCount++;
+}
+
 export function hudDamage(x, y, val, kind = "deal", icon = null) {
   if (x < -20 || x > CFG.VIEW_W + 20 || y < -20 || y > CFG.VIEW_H + 20) return;
 

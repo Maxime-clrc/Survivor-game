@@ -1,11 +1,11 @@
 
 import { playSound } from "/audio.js";
 import { EventPump } from "/events.js";
-import { hudDamage, hudEvent } from "/hud.js";
-import { SRC_ICON } from "/icons.js";
+import { hudDamage, hudEvent, hudLabel } from "/hud.js";
+import { SRC_ICON, bonusNom } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
-import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, FIN_CHAMP, FIN_MASSE, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, echelleBouche, ficheDe, familleDe, finalDe, finalRayon, matiereDe, poids } from "/shared/feedback.js";
-import { CFG, ENEMY_TYPES, hazardState } from "/shared/game_state.js";
+import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, FIN_CHAMP, FIN_MASSE, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, bonusFamille, bonusRang, echelleBouche, ficheDe, familleDe, finalDe, finalRayon, matiereDe, poids } from "/shared/feedback.js";
+import { CFG, ENEMY_TYPES, POWERUP_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, melange } from "/shared/palette.js";
 import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
@@ -179,7 +179,31 @@ function handleEvent(e) {
       break;
     }
 
-    case "bonus": playSound("bonus"); break;
+    case "bonusNe": {
+      const cle = POWERUP_TYPES[e.type];
+      playSound("bonusNe", { key: "bonus" });
+      spawnBonusNe(e.x, e.y, POWERUP_COLOR[cle] ?? FX.heal);
+      break;
+    }
+
+    case "bonus": {
+      const cle = POWERUP_TYPES[e.type];
+      const fam = bonusFamille(cle);
+      const rang = bonusRang(cle);
+      // MEME CLEF POUR LES TROIS FAMILLES : un ramassage est un ramassage, et
+      // l'identite ne se paie pas en places de voix — meme regle qu'aux morts.
+      playSound(fam.son, { key: "bonus", rang });
+      const col = POWERUP_COLOR[cle] ?? FX.heal;
+      spawnBonusPris(e.x, e.y, col, fam, rang);
+      // le mot EST l'explication : un bonus se ramasse en courant, un panneau a
+      // ouvrir n'existerait pour personne
+      hudLabel(e.x - camera.x0, e.y - camera.y0 - 26, bonusNom(cle), col);
+      break;
+    }
+
+    case "bonusPerdu":
+      spawnBonusPerdu(e.x, e.y, POWERUP_COLOR[POWERUP_TYPES[e.type]] ?? FX.heal);
+      break;
 
     case "recolte": playSound("recolte", { k: e.k }); break;
     case "recolteFin": playSound("recolteFin"); break;
@@ -1244,6 +1268,55 @@ export function spawnShieldBreak(x, y) {
       life: 0.42, max: 0.42, col, size: 3 + Math.random() * 2.2,
       frame: fxShard, ang: a, spin: (Math.random() - 0.5) * 9, drag: 0.93,
     });
+  }
+}
+
+/* LE RAMASSAGE EST UNE CONVERGENCE, PAS UNE DETONATION. Les eclats viennent du
+   sol et montent vers le porteur, l'anneau se RESSERRE : c'est le seul mouvement
+   qui dise « pris » plutot que « eclate ». La FAMILLE donne le nombre, la
+   vitesse et la matiere du grain, le TYPE donne la teinte — deux bonus d'une
+   meme famille ne doivent pas se confondre. Le RANG ajoute un second anneau, et
+   rien d'autre : « rare » se lit en portee, pas en taille de gerbe. */
+export function spawnBonusPris(x, y, col, fam, rang = 0) {
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: 34, max: 8, life: 0.26, t: 0.26, col, w: 2.4 });
+  }
+  if (rang > 0 && bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: 6, max: 78, life: 0.44, t: 0.44, col, w: 1.6 });
+  }
+  const n = glActive() ? fam.eclats : Math.ceil(fam.eclats / 2);
+  for (let i = 0; i < n && particles.length < PARTICLE_MAX; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+    const d = 15 + Math.random() * 13;
+    particles.push({
+      x: x + Math.cos(a) * d, y: y + Math.sin(a) * d,
+      vx: -Math.cos(a) * fam.vite,
+      vy: -Math.sin(a) * fam.vite - fam.vite * 0.6,
+      life: 0.36, max: 0.36, col, size: 3.2,
+      frame: fam.cotes ? fxShard : fxGlow,
+      ang: a, spin: fam.cotes ? 6 : 0, drag: 0.9,
+    });
+  }
+}
+
+/* UNE OCCASION PERDUE N'EST PAS UN EVENEMENT : aucun son, trois grains qui
+   retombent. Ce qu'il faut lire est que la place s'est LIBEREE, pas qu'on a
+   rate quelque chose. */
+export function spawnBonusPerdu(x, y, col) {
+  for (let i = 0; i < 3 && particles.length < PARTICLE_MAX; i++) {
+    particles.push({
+      x: x + (Math.random() - 0.5) * 14, y: y + (Math.random() - 0.5) * 10,
+      vx: (Math.random() - 0.5) * 18, vy: 16 + Math.random() * 14,
+      life: 0.5, max: 0.5, col, size: 2.4, frame: fxGlow, drag: 0.94,
+    });
+  }
+}
+
+/* L'APPARITION MONTRE OU, une fois. Un anneau qui s'ouvre coute un burst et
+   aucune particule : a quatre bonus par minute, c'est le budget d'un palier 2. */
+export function spawnBonusNe(x, y, col) {
+  if (bursts.length < BURST_MAX) {
+    bursts.push({ x, y, r: 4, max: 42, life: 0.34, t: 0.34, col, w: 1.8 });
   }
 }
 

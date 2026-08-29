@@ -549,6 +549,56 @@ const PALETTE = {
     return { end: a.end + 0.18, stop: a.stop };
   },
 
+  /* TROIS MATIERES DE RAMASSAGE, UNE SEULE PLACE DE VOIX. Treize bonus rendaient
+     la meme quinte montante : ce qu'on ramasse en courant doit s'entendre sans
+     avoir a le regarder. La famille donne la matiere — le corps pour la survie,
+     le metal pour l'arme, la masse pour le terrain — et le RANG ajoute une
+     quinte au-dessus, jamais du gain : « rare » se dit en hauteur, pas en
+     volume (RENDU.md, palier 2). */
+  bonusSurvie: (o = {}) => {
+    const a = tone({ freq: 494, to: 740, dur: 0.16, type: "sine",
+                     gain: SOUND_GAIN.bonus * 0.75 });
+    tone({ freq: 988, dur: 0.13, type: "sine", gain: SOUND_GAIN.bonus * 0.45, delay: 0.06 });
+    tone({ freq: 165, dur: 0.22, type: "sine", gain: SOUND_GAIN.bonus * 0.30 });
+    if (o.rang > 0) {
+      tone({ freq: 1480, dur: 0.20, type: "sine", gain: SOUND_GAIN.bonus * 0.26, delay: 0.11 });
+    }
+    return { end: a.end + 0.20, stop: a.stop };
+  },
+
+  bonusArme: (o = {}) => {
+    const a = noise({ dur: 0.035, type: "bandpass", freq: 3200, to: 2000, q: 1.4,
+                      gain: SOUND_GAIN.bonus * 0.45 });
+    tone({ freq: 330, to: 990, dur: 0.13, type: "sawtooth",
+           gain: SOUND_GAIN.bonus * 0.42, delay: 0.01 });
+    tone({ freq: 660, dur: 0.09, type: "square", gain: SOUND_GAIN.bonus * 0.20, delay: 0.08 });
+    if (o.rang > 0) {
+      tone({ freq: 1320, dur: 0.16, type: "triangle", gain: SOUND_GAIN.bonus * 0.24, delay: 0.10 });
+    }
+    return { end: a.end + 0.24, stop: a.stop };
+  },
+
+  bonusTerrain: (o = {}) => {
+    const a = tone({ freq: 196, to: 262, dur: 0.20, type: "triangle",
+                     gain: SOUND_GAIN.bonus * 0.70 });
+    noise({ dur: 0.18, type: "lowpass", freq: 1100, to: 320,
+            gain: SOUND_GAIN.bonus * 0.38 });
+    tone({ freq: 523, dur: 0.10, type: "sine", gain: SOUND_GAIN.bonus * 0.26, delay: 0.09 });
+    if (o.rang > 0) {
+      tone({ freq: 784, dur: 0.18, type: "triangle", gain: SOUND_GAIN.bonus * 0.24, delay: 0.12 });
+    }
+    return { end: a.end + 0.22, stop: a.stop };
+  },
+
+  // L'APPARITION EST UN APPEL, PAS UN GAIN : tres court, tres haut, tres bas en
+  // gain. Elle prend la meme clef de limiteur — une naissance ne doit pas
+  // disputer sa place au ramassage qu'elle annonce.
+  bonusNe: () => {
+    const a = tone({ freq: 1245, dur: 0.05, type: "sine", gain: SOUND_GAIN.bonus * 0.22 });
+    noise({ dur: 0.03, type: "bandpass", freq: 5200, q: 2, gain: SOUND_GAIN.bonus * 0.12 });
+    return { end: a.end + 0.06, stop: a.stop };
+  },
+
   // la jauge est COMMUNE : la montee de niveau est un evenement d'equipe, et le
   // fondamental grave est ce qui la fait sonner comme tel.
   niveau: () => {

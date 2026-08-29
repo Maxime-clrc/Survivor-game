@@ -5201,6 +5201,47 @@
                    AUCUN LEVIER DE DIFFICULTE dans la table de poids : compenser
                    un mode par des recompenses est le defaut que le plan refuse.
 
+     0.26.2 lot 3  TREIZE DISQUES IDENTIQUES, UN SEUL SON, AUCUN PREAVIS. Un bonus
+                   se ramasse EN COURANT : l icone est ce qu on lit en dernier, et
+                   c etait la seule chose qui separait les treize. Le socle prend
+                   la forme de sa FAMILLE — disque pour ce qui rend au corps,
+                   hexagone pour ce qui arme le tir, losange pour ce qui se pose
+                   dans l arene — et la teinte reste celle du type. Troisieme
+                   sujet de `feedback.js`, meme regle qu aux deux autres : la
+                   famille porte la matiere, le type porte l identite. Elle se
+                   DECLARE et ne se deduit pas, `POWERUP_TYPES` etant une liste de
+                   clefs sans champ de mecanique.
+                   TROIS RECETTES, UNE SEULE PLACE DE VOIX. `bonusSurvie`,
+                   `bonusArme`, `bonusTerrain` partagent la clef `bonus` du
+                   limiteur — un ramassage est un ramassage. Le RANG ajoute une
+                   quinte au-dessus et un second anneau au sol, jamais du gain ni
+                   de la taille : « rare » se dit en hauteur et en portee
+                   (RENDU.md, palier 2). Trois types sur treize le portent.
+                   UN BONUS QUI EXPIRAIT SONNAIT COMME UN BONUS RAMASSE. Le seul
+                   critere etait « l identifiant disparait pres d un joueur », et
+                   la portee de ramassage monte pourtant a 146 px avec la carte
+                   d aimantation contre 80 px de test : un bonus attire de loin
+                   disparaissait EN SILENCE. La part de vie restante prend le
+                   cinquieme emplacement du tuple `w` et tranche aux deux bouts —
+                   `bonusNe` a l apparition, `bonus` au ramassage, `bonusPerdu` a
+                   l extinction. Elle ne se deduit pas : l instantane FILTRE par
+                   vue, donc une horloge locale demarrerait a l entree dans le
+                   champ et ferait naitre une seconde fois un bonus deja vieux.
+                   LE CADRAN NE S ALLUME QU AU DERNIER TIERS, sinon treize
+                   horloges tournent en permanence. L apparition DEPASSE puis
+                   retombe : une montee lineaire fait « animation », un
+                   depassement fait « ca vient de tomber ». Une occasion perdue n a
+                   pas de voix, trois grains qui retombent.
+                   LE MOT EST L EXPLICATION. `hudLabel` monte le nom du bonus a
+                   l endroit du ramassage, dans sa teinte ; il ne FUSIONNE pas,
+                   contrairement aux chiffres de degats — deux ramassages sont deux
+                   faits. Le francais est ecrit a cote de `POWERUP_STYLE`, la
+                   surcharge se fait par clef `bonus.<type>`.
+                   `_poserBonus()` devient le point de pose unique : cinq endroits
+                   ecrivaient le bonus a la main et QUATRE ignoraient la cendre,
+                   dont les depouilles d elite. `verifierFeedback()` croise les
+                   quatre recettes neuves et refuse un type sans famille.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5209,4 +5250,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.26.1";
+export const VERSION = "0.26.2";

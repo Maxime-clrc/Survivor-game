@@ -903,6 +903,34 @@ qu'une **créature** dit en mourant.
   — d'autant qu'à six tirs par seconde il ne revient jamais au repos. Le départ
   se dit **devant** le personnage, jamais sur lui.
 
+**Le bonus au sol** — palier 2, et il se lit **en courant** :
+
+- **La famille porte la matière, le type porte la teinte** (`BONUS`,
+  `BONUS_FAM` dans `feedback.js`) : disque pour ce qui rend au **corps**,
+  hexagone pour ce qui arme le **tir**, losange pour ce qui se pose dans
+  l'**arène**. Treize disques identiques ne se séparaient que par leur icône, or
+  l'icône est ce qu'on lit **en dernier**. Elle se **déclare** ici et ne se déduit
+  pas : `POWERUP_TYPES` est une liste de clés, sans champ de mécanique.
+- **La clé du limiteur est la même pour les trois familles.** Un ramassage est un
+  ramassage : l'identité ne se paie pas en places de voix, même règle qu'aux
+  morts.
+- **Trois horloges, trois choses, aucune ne redit l'autre** : l'**apparition** est
+  une échelle qui dépasse puis retombe, la **présence** est le flottement, la
+  **fin** est un cadran qui se vide — et il ne s'allume qu'au dernier tiers, sinon
+  treize horloges tournent en permanence.
+- **Un bonus qui entre dans la vue ne naît pas**, et un bonus qui s'éteint n'est
+  pas un bonus qu'on prend. L'instantané **filtre par vue**, donc aucune horloge
+  locale ne peut le savoir : c'est la part de vie transportée qui tranche, aux
+  deux bouts.
+- **Une occasion perdue n'a pas de voix.** L'expiration rend trois grains qui
+  retombent et rien d'autre : ce qu'il faut lire est que la place s'est libérée.
+- **Le rang dit la rareté par un second anneau**, plus loin, tireté et lent — ni
+  plus gros ni plus clair. Trois types sur treize le portent ; un rang donné à la
+  moitié du catalogue ne dit plus rien.
+- **Le mot EST l'explication** (`hudLabel`, `bonusNom`). On ramasse un bonus en
+  courant : un panneau à ouvrir n'existerait pour personne. Il ne **fusionne**
+  pas, contrairement aux chiffres de dégâts — deux ramassages sont deux faits.
+
 **L'impact** — quatre paliers, et **c'est la cible qui les décide** :
 
 - La part de PV max retirée dit à la fois la puissance du coup **et** la masse de

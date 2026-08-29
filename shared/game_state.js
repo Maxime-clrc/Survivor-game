@@ -990,13 +990,7 @@ export class GameState {
     if (meta && meta.confort && meta.confort.ravitaillement) {
       const a = Math.random() * Math.PI * 2;
       const at2 = this._dropPoint(p.x + Math.cos(a) * 120, p.y + Math.sin(a) * 120, 60);
-      this.powerups.push({
-        id: this._nextId++,
-        type: this._randomPowerupType(),
-        x: at2.x,
-        y: at2.y,
-        life: CFG.POWERUP_LIFE,
-      });
+      this._poserBonus(this._randomPowerupType(), at2.x, at2.y);
     }
   }
 
@@ -3972,6 +3966,19 @@ export class GameState {
     return n;
   }
 
+  /* LE POINT DE POSE D'UN BONUS AU SOL. Cinq endroits l'ecrivaient a la main, et
+     quatre d'entre eux ignoraient la cendre : le raccourcissement de la meteo ne
+     valait que pour le generateur, jamais pour une depouille d'elite. `max` est
+     ce qui permet au compte a rebours d'exister — la duree de vie ne se deduit
+     pas d'un compteur local, l'instantane CULE par la vue et un bonus qui entre
+     dans le champ a deja vecu. */
+  _poserBonus(type, x, y) {
+    const max = this.weather?.id === WX_CENDRES ? BIOME_CFG.ASH_LIFE : CFG.POWERUP_LIFE;
+    const w = { id: this._nextId++, type, x, y, life: max, max };
+    this.powerups.push(w);
+    return w;
+  }
+
   _powerups(dt) {
     this.powerupCd -= dt;
     if (this.powerupCd <= 0 && this._solBonus() < CFG.POWERUP_MAX_GROUND) {
@@ -3982,12 +3989,7 @@ export class GameState {
         B.x0 + margin + Math.random() * Math.max(1, B.x1 - B.x0 - margin * 2),
         B.y0 + margin + Math.random() * Math.max(1, B.y1 - B.y0 - margin * 2),
         margin);
-      this.powerups.push({
-        id: this._nextId++,
-        type: this._randomPowerupType(),
-        x: pt.x, y: pt.y,
-        life: this.weather?.id === WX_CENDRES ? BIOME_CFG.ASH_LIFE : CFG.POWERUP_LIFE,
-      });
+      this._poserBonus(this._randomPowerupType(), pt.x, pt.y);
     }
 
     const kept = [];
@@ -8331,12 +8333,7 @@ export class GameState {
       if (owner.mods.harvest > 0 && Math.random() < owner.mods.harvest
           && this.powerups.length - this._solBonus() < CFG.FRAGMENT_MAX_GROUND) {
         const pt = this._dropPoint(e.x, e.y);
-        this.powerups.push({
-          id: this._nextId++,
-          type: POWERUP_TYPES.indexOf("fragment"),
-          x: pt.x, y: pt.y,
-          life: CFG.POWERUP_LIFE,
-        });
+        this._poserBonus(TYPE_FRAGMENT, pt.x, pt.y);
       }
 
       // un ennemi qui meurt sous le tesla relance un arc depuis son corps
@@ -8360,21 +8357,11 @@ export class GameState {
 
     if (e.elite) {
       const pt = this._dropPoint(e.x, e.y);
-      this.powerups.push({
-        id: this._nextId++,
-        type: this._randomPowerupType(),
-        x: pt.x, y: pt.y,
-        life: CFG.POWERUP_LIFE,
-      });
+      this._poserBonus(this._randomPowerupType(), pt.x, pt.y);
       // une elite en larguait DEJA un : la carte en donne un second
       if (owner && owner.mods.eliteDrop > 0) {
         const pt2 = this._dropPoint(e.x, e.y);
-        this.powerups.push({
-          id: this._nextId++,
-          type: this._randomPowerupType(),
-          x: pt2.x, y: pt2.y,
-          life: CFG.POWERUP_LIFE,
-        });
+        this._poserBonus(this._randomPowerupType(), pt2.x, pt2.y);
       }
       this.effects.push({
         id: this._nextId++,
@@ -8662,8 +8649,11 @@ export class GameState {
                                m.a, m.b, m.need, m.cur,
                                r2(m.maxHp > 0 ? Math.max(0, m.hp) / m.maxHp : 0),
                                m.noeud ? 1 : 0]),
+      // le dernier emplacement est la part de vie qui reste : sans elle un bonus
+      // disparait sans preavis, et le client ne peut pas la deduire — la vue
+      // filtre, donc une horloge locale demarrerait a l'entree dans le champ
       w: filtrer(this.powerups, () => CFG.POWERUP_RADIUS,
-        w => [w.id, r1(w.x), r1(w.y), w.type]),
+        w => [w.id, r1(w.x), r1(w.y), w.type, r2(w.life / w.max)]),
       hv: this.harvests.map(h => [h.id, r1(h.x), r1(h.y), h.kind,
         r2(h.kind === 0 ? h.hp / h.maxHp : h.prog)]),
       tu: this.turrets.map(t => [t.id, r1(t.x), r1(t.y), r2(t.life / CFG.TURRET_LIFE), r2(t.ang)]),

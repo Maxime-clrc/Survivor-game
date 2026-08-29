@@ -167,6 +167,44 @@ export const finalDe = d =>
 export const finalRayon = d =>
   d?.lienRange ?? d?.auraRadius ?? d?.egideRadius ?? (d?.r ?? 0) * 3;
 
+/* CE QU'UN BONUS AU SOL DIT. Troisieme sujet du meme module, et la meme regle
+   qu'aux deux autres : la FAMILLE porte la matiere, le TYPE porte la teinte.
+   Treize disques identiques ne se separaient que par leur icone, or on ramasse
+   un bonus en courant — l'icone est ce qu'on lit en dernier.
+
+   Trois familles, parce qu'il y a trois choses qu'un bonus peut faire : rendre
+   quelque chose au CORPS, armer le TIR pour un temps, poser quelque chose dans
+   l'ARENE. Elle se declare, elle ne se deduit pas : `POWERUP_TYPES` est une liste
+   de clefs et n'a aucun champ de mecanique d'ou tirer quoi que ce soit.
+
+   `son` est aussi la CLE du limiteur — elle est la MEME pour les trois : un
+   ramassage est un ramassage, l'identite ne se paie pas en voix. */
+export const BON_SURVIE = 0, BON_ARME = 1, BON_TERRAIN = 2;
+
+export const BONUS_FAM = {
+  heal: BON_SURVIE, shield: BON_SURVIE, fragment: BON_SURVIE,
+  purification: BON_SURVIE, beacon: BON_SURVIE,
+  damage: BON_ARME, rate: BON_ARME, double: BON_ARME,
+  pierce: BON_ARME, ricochet: BON_ARME,
+  slow: BON_TERRAIN, nova: BON_TERRAIN, turret: BON_TERRAIN,
+};
+
+/* `cotes` = la forme du socle : 0 le disque, 6 l'hexagone, 4 le losange. Elle
+   est ce qui se lit de loin, avant la teinte et bien avant l'icone. */
+export const BONUS = [
+  { cle: "survie",  cotes: 0, son: "bonusSurvie",  eclats: 8,  vite: 44 },
+  { cle: "arme",    cotes: 6, son: "bonusArme",    eclats: 10, vite: 66 },
+  { cle: "terrain", cotes: 4, son: "bonusTerrain", eclats: 9,  vite: 54 },
+];
+
+/* LE RANG DIT LA RARETE, et il ne se donne qu'a ce qui change une situation au
+   lieu d'en ameliorer une : relever l'equipe, faucher l'ecran, laver les etats.
+   Trois sur treize — un rang donne a la moitie du catalogue ne dit plus rien. */
+export const BONUS_RANG = { beacon: 1, nova: 1, purification: 1 };
+
+export const bonusFamille = cle => BONUS[BONUS_FAM[cle] ?? BON_SURVIE];
+export const bonusRang = cle => BONUS_RANG[cle] ?? 0;
+
 /* CE QUI NE LEVE RIEN : un nom de recette faux rend `playSound` a `false` et
    l'evenement devient MUET. C'est exactement la classe de bug que `CLAUDE.md`
    appelle « silence », et la seule facon de la voir est de croiser les tables
@@ -174,7 +212,8 @@ export const finalRayon = d =>
 
    Les tables et le bestiaire arrivent en ARGUMENT : ce module ne depend de rien
    et ne va pas commencer ici. Muet = tout va bien, comme `verifierBiomes()`. */
-export function verifierFeedback(armes = [], types = [], recettes = []) {
+export function verifierFeedback(armes = [], types = [], recettes = [],
+  bonusCles = []) {
   const soucis = [];
   const dispo = new Set(recettes);
 
@@ -223,6 +262,19 @@ export function verifierFeedback(armes = [], types = [], recettes = []) {
 
   for (let i = 0; i < types.length; i++) {
     if (!MATIERE[matiereDe(types[i])]) soucis.push(`${types[i].key} : matiere inconnue`);
+  }
+
+  for (const f of BONUS) {
+    if (recettes.length && !dispo.has(f.son)) {
+      soucis.push(`bonus ${f.cle} : recette « ${f.son} » absente d'audio.js`);
+    }
+    if (!(f.eclats > 0) || !(f.vite > 0)) soucis.push(`bonus ${f.cle} : gerbe sans corps`);
+  }
+  if (recettes.length && !dispo.has("bonusNe")) {
+    soucis.push("bonus : recette « bonusNe » absente d'audio.js");
+  }
+  for (const cle of bonusCles) {
+    if (BONUS_FAM[cle] === undefined) soucis.push(`bonus ${cle} : sans famille`);
   }
 
   return soucis;

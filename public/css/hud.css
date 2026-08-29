@@ -1322,6 +1322,14 @@
 .dmg.crit { font-size: var(--t-m); color: var(--warn); }
 .dmg.crit::after { content: "!"; }
 .dmg.deal { color: var(--boss-eye); }
+/* le mot d'un bonus : chasse fixe et capitales espacees, comme tout libelle
+   technique de la charte — la couleur vient du type, elle est posee en ligne */
+.dmg.mot {
+  font-family: var(--font);
+  font-size: var(--t-s);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 
 @keyframes dmgRise {
   from { opacity: 1; transform: translate(-50%, -50%); }

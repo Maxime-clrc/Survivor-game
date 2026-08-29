@@ -1,4 +1,5 @@
 
+import { t } from "/shared/i18n.js";
 import { POWERUP_COLOR, EFFECT_COLOR } from "/shared/palette.js";
 
 export const POWERUP_ICON = {
@@ -144,21 +145,27 @@ export const POWERUP_ICON = {
   },
 };
 
+/* `nom` EST L'EXPLICATION, et elle tient en deux mots : ce qui se lit au vol au
+   moment du ramassage. Un panneau a ouvrir n'existerait pas pour un objet qu'on
+   prend en courant. Le francais est ecrit a cote de la donnee et sert de repli,
+   la surcharge se fait par cle (`bonus.<type>`). */
 export const POWERUP_STYLE = {
-  heal:   { color: POWERUP_COLOR.heal, icon: POWERUP_ICON.heal   },
-  damage: { color: POWERUP_COLOR.damage, icon: POWERUP_ICON.damage },
-  rate:   { color: POWERUP_COLOR.rate, icon: POWERUP_ICON.rate   },
-  double: { color: POWERUP_COLOR.double, icon: POWERUP_ICON.double },
-  shield: { color: POWERUP_COLOR.shield, icon: POWERUP_ICON.shield },
-  slow:   { color: POWERUP_COLOR.slow, icon: POWERUP_ICON.slow   },
-  pierce: { color: POWERUP_COLOR.pierce, icon: POWERUP_ICON.pierce },
-  nova:   { color: POWERUP_COLOR.nova, icon: POWERUP_ICON.nova   },
-  beacon: { color: POWERUP_COLOR.beacon, icon: POWERUP_ICON.beacon },
-  turret: { color: POWERUP_COLOR.turret, icon: POWERUP_ICON.turret },
-  ricochet: { color: POWERUP_COLOR.ricochet, icon: POWERUP_ICON.ricochet },
-  fragment: { color: POWERUP_COLOR.fragment, icon: POWERUP_ICON.fragment },
-  purification: { color: POWERUP_COLOR.purification, icon: POWERUP_ICON.purification },
+  heal:   { color: POWERUP_COLOR.heal, icon: POWERUP_ICON.heal, nom: "soin" },
+  damage: { color: POWERUP_COLOR.damage, icon: POWERUP_ICON.damage, nom: "dégâts ×1,8" },
+  rate:   { color: POWERUP_COLOR.rate, icon: POWERUP_ICON.rate, nom: "cadence" },
+  double: { color: POWERUP_COLOR.double, icon: POWERUP_ICON.double, nom: "canon en plus" },
+  shield: { color: POWERUP_COLOR.shield, icon: POWERUP_ICON.shield, nom: "bouclier" },
+  slow:   { color: POWERUP_COLOR.slow, icon: POWERUP_ICON.slow, nom: "horde ralentie" },
+  pierce: { color: POWERUP_COLOR.pierce, icon: POWERUP_ICON.pierce, nom: "perforant" },
+  nova:   { color: POWERUP_COLOR.nova, icon: POWERUP_ICON.nova, nom: "onde de choc" },
+  beacon: { color: POWERUP_COLOR.beacon, icon: POWERUP_ICON.beacon, nom: "balise" },
+  turret: { color: POWERUP_COLOR.turret, icon: POWERUP_ICON.turret, nom: "tourelle" },
+  ricochet: { color: POWERUP_COLOR.ricochet, icon: POWERUP_ICON.ricochet, nom: "ricochet" },
+  fragment: { color: POWERUP_COLOR.fragment, icon: POWERUP_ICON.fragment, nom: "éclat" },
+  purification: { color: POWERUP_COLOR.purification, icon: POWERUP_ICON.purification, nom: "purification" },
 };
+
+export const bonusNom = cle => t(`bonus.${cle}`, POWERUP_STYLE[cle]?.nom ?? "");
 
 export const EFFECT_BADGES = [
   { id: "orbiteurs", nom: "lames", color: EFFECT_COLOR.orbiteurs,

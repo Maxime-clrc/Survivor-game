@@ -4,6 +4,7 @@ import { POWERUP_ICON, POWERUP_STYLE, paintIcon } from "/icons.js";
 import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
+import { bonusFamille, bonusRang } from "/shared/feedback.js";
 import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, defDe, fullMods, traitsOf } from "/shared/game_state.js";
 import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
@@ -1390,34 +1391,117 @@ export function drawBombRange(x, y) {
   ctx.stroke();
   ctx.setLineDash([]);
 }
+/* TREIZE DISQUES IDENTIQUES ne se separaient que par leur icone, or on ramasse
+   un bonus EN COURANT : l'icone est ce qu'on lit en dernier. Le socle prend donc
+   la forme de sa FAMILLE — disque pour ce qui rend au corps, hexagone pour ce
+   qui arme le tir, losange pour ce qui se pose dans l'arene — et la teinte reste
+   celle du type, qui separe deux bonus d'une meme famille.
+
+   Trois horloges, trois choses differentes, aucune ne redit l'autre :
+   l'APPARITION est une echelle qui depasse puis retombe, la PRESENCE est le
+   flottement d'avant, la FIN est un cadran qui se vide. */
+const BONUS_NAISSANCE = 340;
+const BONUS_PREAVIS = 0.30;
+const BONUS_CLIGNE = 0.12;
+const bonusNe = new Map();
+const bonusVus = new Set();
+
+function socleBonus(x, y, r, cotes) {
+  ctx.beginPath();
+  if (!cotes) { ctx.arc(x, y, r, 0, Math.PI * 2); return; }
+  for (let i = 0; i < cotes; i++) {
+    const a = -Math.PI / 2 + (i / cotes) * Math.PI * 2;
+    const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
 export function drawPowerups(list) {
   const now = performance.now();
+  bonusVus.clear();
   for (const w of list) {
+    bonusVus.add(w.id);
     if (!inView(w.x, w.y, 60)) continue;
-    const st = POWERUP_STYLE[POWERUP_TYPES[w.type]] ?? POWERUP_STYLE.heal;
+    const cle = POWERUP_TYPES[w.type];
+    const st = POWERUP_STYLE[cle] ?? POWERUP_STYLE.heal;
+    const fam = bonusFamille(cle);
+    const rang = bonusRang(cle);
+    const k = w.k ?? 1;
+
+    // l'apparition ne se joue QUE pour un bonus NEUF : le serveur filtre par
+    // vue, donc un bonus qui entre dans le champ a deja vecu et le faire naitre
+    // une seconde fois serait un mensonge. La part de vie est le seul canal qui
+    // sache les distinguer.
+    let ne = bonusNe.get(w.id);
+    if (ne === undefined) { ne = k >= 0.95 ? now : 0; bonusNe.set(w.id, ne); }
+    const naissance = ne === 0 ? 1 : Math.min(1, (now - ne) / BONUS_NAISSANCE);
+    // depassement puis retour : une montee lineaire fait « animation », un
+    // depassement fait « ca vient de tomber »
+    const ech = naissance >= 1 ? 1
+      : 0.25 + 0.75 * naissance + Math.sin(naissance * Math.PI) * 0.30;
+
     const r = CFG.POWERUP_RADIUS;
     const pulse = 1 + Math.sin(now / 260 + w.id) * 0.1;
     const bob = Math.sin(now / 520 + w.id * 1.7) * 1.6;
     const y = w.y + bob;
+    const rr = r * pulse * ech;
 
+    // LE CADRAN DIT COMBIEN IL RESTE, et il n'apparait qu'a l'approche : un
+    // compte a rebours permanent sur chaque bonus ferait treize horloges.
+    const fin = k < BONUS_PREAVIS;
+    const cligne = k < BONUS_CLIGNE
+      ? 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(now / 90)) : 1;
+
+    ctx.globalAlpha = 0.25 * naissance * cligne;
     ctx.strokeStyle = st.color;
-    ctx.globalAlpha = 0.25;
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(w.x, y, r * 1.9 * pulse, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = 1;
+    socleBonus(w.x, y, r * 1.9 * pulse * ech, fam.cotes);
+    ctx.stroke();
 
+    if (fin) {
+      ctx.globalAlpha = 0.85 * cligne;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(w.x, y, r * 1.9 * pulse, -Math.PI / 2,
+              -Math.PI / 2 + Math.PI * 2 * (k / BONUS_PREAVIS));
+      ctx.stroke();
+    }
+
+    // LE RANG DIT LA RARETE : un second anneau, plus loin, tirete et lent. Ni
+    // plus gros ni plus clair — la charte reserve la taille a autre chose.
+    if (rang > 0) {
+      ctx.globalAlpha = 0.30 * naissance * cligne;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 7]);
+      ctx.lineDashOffset = -now / 90;
+      ctx.beginPath();
+      ctx.arc(w.x, y, r * 2.7 * ech, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+    }
+
+    ctx.globalAlpha = naissance;
     ctx.fillStyle = alpha(SURFACE.shadow, 0.28);
     ctx.beginPath();
-    ctx.ellipse(w.x, w.y + r * 0.95, r * 0.62, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.ellipse(w.x, w.y + r * 0.95, r * 0.62 * ech, r * 0.22 * ech, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.globalAlpha = cligne;
     ctx.fillStyle = alpha(SURFACE.void, 0.82);
-    ctx.beginPath(); ctx.arc(w.x, y, r * pulse, 0, Math.PI * 2); ctx.fill();
+    socleBonus(w.x, y, rr, fam.cotes);
+    ctx.fill();
     ctx.strokeStyle = st.color;
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    paintPowerupIcon(st, w.x, y, (r / 8.6) * pulse);
+    paintPowerupIcon(st, w.x, y, rr / 8.6, naissance * cligne);
+    ctx.globalAlpha = 1;
+  }
+
+  if (bonusNe.size > bonusVus.size) {
+    for (const id of bonusNe.keys()) if (!bonusVus.has(id)) bonusNe.delete(id);
   }
 }
 /* UNE ARME QUI VISE AU SOL DOIT MONTRER OU. Sans ce marqueur, le point

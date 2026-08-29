@@ -4,7 +4,13 @@ export const EVENT_GAP_MS = 500;
 const MAX_IMPACT = 48;
 const MAX_DEATH = 40;
 
-const PICKUP_NEAR = 80;
+// la portee de ramassage monte a 146 px avec la carte d'aimantation, et elle se
+// multiplie encore : a 80, un bonus attire de loin disparaissait en silence
+const PICKUP_NEAR = 200;
+// un bonus qui ENTRE dans la vue n'est pas un bonus qui NAIT, et un bonus qui
+// s'eteint n'est pas un bonus qu'on prend : la part de vie tranche les deux.
+const BONUS_NEUF = 0.95;
+const BONUS_FIN = 0.03;
 const BULLET_CLAIM = 90;
 // une balle nait a `PLAYER_RADIUS + 2` et parcourt au plus un instantane avant
 // d'etre vue : la marge couvre les deux, et reste tres en dessous des 260 px de
@@ -236,10 +242,21 @@ export function diffSnapshots(a, b, opts = {}) {
                n: f.n ?? 0, ang: f.ang ?? 0 });
   }
 
+  const wa = new Set(a.powerups.map(w => w.id));
+  for (const w of b.powerups) {
+    if (wa.has(w.id)) continue;
+    if (!dansVue(vue, w.x, w.y)) continue;
+    if (w.k >= BONUS_NEUF) out.push({ t: "bonusNe", x: w.x, y: w.y, type: w.type });
+  }
+
   const wb = new Set(b.powerups.map(w => w.id));
   for (const w of a.powerups) {
     if (wb.has(w.id)) continue;
     if (!dansVue(vue, w.x, w.y)) continue;
+    if (w.k <= BONUS_FIN) {
+      out.push({ t: "bonusPerdu", x: w.x, y: w.y, type: w.type });
+      continue;
+    }
     let near = false;
     for (const [, p] of b.players) {
       if ((p.x - w.x) ** 2 + (p.y - w.y) ** 2 < PICKUP_NEAR * PICKUP_NEAR) { near = true; break; }

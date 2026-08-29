@@ -339,6 +339,21 @@ export const EN = {
   "ui.buff.pierce": "piercing",
   "ui.buff.ricochet": "ricochet",
 
+  /* --- bonus au sol ------------------------------------------------------ */
+  "bonus.heal": "heal",
+  "bonus.damage": "damage ×1.8",
+  "bonus.rate": "fire rate",
+  "bonus.double": "extra barrel",
+  "bonus.shield": "shield",
+  "bonus.slow": "horde slowed",
+  "bonus.pierce": "piercing",
+  "bonus.nova": "shockwave",
+  "bonus.beacon": "beacon",
+  "bonus.turret": "turret",
+  "bonus.ricochet": "ricochet",
+  "bonus.fragment": "shard",
+  "bonus.purification": "purification",
+
   /* --- statistiques ----------------------------------------------------- */
   "ui.stat.score": "score",
   "ui.stat.kills": "kills",

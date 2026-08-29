@@ -238,7 +238,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | états | `STATUSES` (`statuses.js`), bit dans `_statusMask()` | `STATUS_ICON` + halo + cadre d'équipe |
 | `shape` de zone | 0 disque · 1 rect · 2 anneau · 3 cône · 4 Pac-Man · 5 croix | `zonePath()`/`zoneSubPath()` + `_zoneHits()` |
 | bits de buff | `BUFF_DAMAGE` … `BUFF_RICOCHET` | anneaux + bandeau HUD |
-| bonus | `_applyPowerup()` ; `POWERUP_ROTATION` dit ce qui **tombe**, `POWERUP_TYPES` ce qui **circule** | `POWERUP_ICON` + `POWERUP_STYLE` |
+| bonus | `_applyPowerup()` ; `POWERUP_ROTATION` dit ce qui **tombe**, `POWERUP_POIDS` **quand**, `POWERUP_TYPES` ce qui **circule**. Le tuple `w` porte un cinquième emplacement : la **part de vie restante**, seul canal qui sépare un bonus neuf d'un bonus qui entre dans la vue, et un bonus pris d'un bonus expiré | `POWERUP_ICON` + `POWERUP_STYLE` + `BONUS` (`feedback.js`) |
 | texte d'une carte | `CARDS` (`cards.js`) ; `cardBrief` n'envoie que `id` et `rarity` — le texte **ne circule pas** | `cardNom()` / `cardDesc()` / `cardDetail()`, marqueurs `{0}` remplis par `vals` |
 | texte d'une relique | `RELICS` (`reliques.js`) — **ne circule pas** | `relicNom()` / `relicDesc()` / `relicContrepartie()` |
 | clés de `mods` | `defaultMods()` (`cards.js`) | rien |
