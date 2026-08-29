@@ -301,8 +301,14 @@ function applyShake() {
 
    LE PIRE CENTILE COMPTE PLUS QUE LA MOYENNE. Un rendu qui tient 60 images par
    seconde en moyenne mais tombe a 22 sur les souffles est pire qu'un rendu plat
-   a 50 — et c'est la mediane qui le cache. La ligne porte donc les DEUX, plus le
-   p95 du temps d'image, qui est ce qui se SENT a la manette.
+   a 50 — et c'est la mediane qui le cache.
+
+   LE p95 NE SUFFIT PAS, ET SON PROPRE CONTROLE L'A MONTRE : sur 105 images dont
+   5 a 45 ms, la pointe pese 4,76 % et le p95 tombe JUSTE EN DESSOUS d'elle, donc
+   il rend 60 images par seconde sur un echantillon qui en perd cinq. Une mesure
+   qui rate exactement ce qu'elle cherche est pire qu'une mesure absente. La
+   ligne porte donc le p99 ET le MAXIMUM : le p99 dit ce qui se sent a la
+   manette, le maximum dit s'il existe une image qui saute.
 
    Aucune allocation par image : trois tableaux poses au demarrage, remplis en
    place, tries une seule fois a l'echeance. */
@@ -336,8 +342,9 @@ function relever(now, raw, st) {
     arme,
     pop,
     Math.round(1000 / Math.max(0.001, relCentile(REL.dt, 0.5))),
-    Math.round(1000 / Math.max(0.001, relCentile(REL.dt, 0.95))),
-    relCentile(REL.dt, 0.95).toFixed(1),
+    Math.round(1000 / Math.max(0.001, relCentile(REL.dt, 0.99))),
+    relCentile(REL.dt, 0.99).toFixed(1),
+    relCentile(REL.dt, 1).toFixed(1),
     Math.round(relMoy(REL.draws)),
     Math.round(relMoy(REL.quads)),
     relCentile(REL.frag, 1),

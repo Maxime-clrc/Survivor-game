@@ -155,9 +155,9 @@ cache.
 Protocole : `BANC=1 BIOME=… npm start`, puis `/?banc&perf` ; pour chaque palier
 de qualité (menu pause) et chaque densité (`[` `]`), tenir le tir et presser `R`.
 
-| gfx | rendu | arme | corps | FPS méd | FPS p5 | ms p95 | draws | quads | frag max | voix pointe | refusées/s | volées/s |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| *(à remplir au banc)* | | | | | | | | | | | | |
+| gfx | rendu | arme | corps | FPS méd | FPS p1 | ms p99 | ms max | draws | quads | frag max | voix pointe | refusées/s | volées/s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| *(à remplir au banc)* | | | | | | | | | | | | | |
 
 #### Ce qui n'a PAS été mesuré, et son protocole
 

@@ -5107,6 +5107,22 @@
                    couche 19 et la mesure couche 14 — une liaison ES est morte a
                    l ecriture, donc elle passe par un setter.
 
+     0.25.2 fix    LE p95 RATAIT EXACTEMENT CE QU IL CHERCHAIT, et c est son
+                   propre controle qui l a dit : sur 105 images dont 5 a 45 ms,
+                   la pointe pese 4,76 %, donc le p95 tombe JUSTE EN DESSOUS et
+                   rend 60 images par seconde sur un echantillon qui en perd
+                   cinq. Une mesure qui manque ce qu elle cherche est pire qu une
+                   mesure absente : elle rassure.
+                   La ligne porte desormais le p99 ET LE MAXIMUM. Trois formes de
+                   pointe, trois lectures : a 5 % le p99 la voit, a 1 % il la
+                   rate deja et c est le maximum qui la tient, et sur UNE image a
+                   120 ms le maximum est le seul temoin. Le p99 dit ce qui se
+                   sent a la manette, le maximum dit s il existe une image qui
+                   saute.
+                   Trouve en verifiant le lot dans la minute qui a suivi sa
+                   livraison, par un controle qui tient en douze lignes et qui ne
+                   demande pas de navigateur — les centiles sont du code pur.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5115,4 +5131,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.25.1";
+export const VERSION = "0.25.2";
