@@ -93,7 +93,8 @@ export function ingest(msg) {
           kind: msg.bo[9] ?? 0, ult: msg.bo[10] ?? 0,
           enrage: msg.bo[11] ?? 0,
           palier: msg.bo[12] ?? 0,
-          gazeWarn: msg.bo[13] ?? 0, gaze: msg.bo[14] ?? 0 }
+          gazeWarn: msg.bo[13] ?? 0, gaze: msg.bo[14] ?? 0,
+          burn: msg.bo[15] ?? 0, vuln: msg.bo[16] ?? 0 }
       : null,
     boss2: msg.bo2
       ? { id: msg.bo2[0], x: msg.bo2[1], y: msg.bo2[2], ang: msg.bo2[3],

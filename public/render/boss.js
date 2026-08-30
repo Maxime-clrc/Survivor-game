@@ -11,7 +11,7 @@ import { drawSprite, frameOf } from "/sprites.js";
 import { amSpectator, dash, myId, ownedCounts, phase, predicted } from "../core/state.js";
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
-import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, drawBouche, drawOmbre, lastBossPos, shieldHit, spawnFaisceauChaud } from "./fx.js";
+import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, drawBouche, drawBrulure, drawOmbre, drawVulnerable, lastBossPos, shieldHit, spawnBraise, spawnFaisceauChaud } from "./fx.js";
 import { ARMES } from "/shared/armes.js";
 import { aimVector, cadreOf, camera, colorOf, ctx, lumDir, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
 
@@ -57,6 +57,19 @@ export function drawBoss(b, bossTm = 0) {
   ctx.fillStyle = alpha(SURFACE.shadow, 0.30);
   ctx.beginPath(); ctx.arc(0, 0, r * 1.02, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
+
+  /* LES DEUX ETATS DE LA HORDE, SUR LE BOSS, PAR LA MEME MAIN. Il brulait et
+     devenait vulnerable depuis toujours sans qu un pixel ne le dise — or un boss
+     qui encaisse +25 % pendant quatre secondes est exactement le moment ou
+     l equipe doit tout donner, et c est le seul moment ou personne ne le savait.
+     SOUS le corps, comme sur la horde : la lueur borde la silhouette, les
+     pointes en sortent. Un second vocabulaire pour le boss aurait fait
+     apprendre l etat deux fois. */
+  if (b.burn > 0) {
+    drawBrulure(b.x, b.y, r, Math.min(1, b.burn * 1.6), t, b.id ?? 0);
+    if (Math.random() < 0.45) spawnBraise(b.x, b.y, r);
+  }
+  if (b.vuln > 0) drawVulnerable(b.x, b.y, r, Math.min(1, b.vuln / 0.5), t, b.id ?? 0);
 
   const dedans = kind === BOSS_FINAL;
   ctx.fillStyle = alpha(skin, 0.10 + burst * (dedans ? -0.04 : 0.10));

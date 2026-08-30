@@ -474,8 +474,11 @@ function drawWorld(v) {
     }
     drawBoss(v.boss, v.tm ?? 0);
     if (v.boss2) {
+      // brulure et vulnerabilite suivent la barre : `_damage` redirige le jumeau
+      // vers le boss avant de lire l etat, donc les deux corps le partagent.
       drawBoss({ ...v.boss2, kind: v.boss.kind, phase: v.boss.phase, bars: v.boss.bars,
-                 hp: v.boss.hp, maxHp: v.boss.maxHp, twin: 1 }, v.tm ?? 0);
+                 hp: v.boss.hp, maxHp: v.boss.maxHp, twin: 1,
+                 burn: v.boss.burn, vuln: v.boss.vuln }, v.tm ?? 0);
       drawTwinLink(v.boss, v.boss2);
       drawTwinFocus(v.boss, v.boss2);
     }

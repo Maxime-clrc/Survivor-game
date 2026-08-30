@@ -8802,7 +8802,16 @@ export class GameState {
            // spatiale : aucun telegraphe au sol ne peut l'exprimer, donc son
            // decompte doit traverser. Deux nombres, en fin de tuple.
            r2(Math.max(0, this.boss.gazeWarn ?? 0)),
-           r2(Math.max(0, this.boss.gaze ?? 0))]
+           r2(Math.max(0, this.boss.gaze ?? 0)),
+           /* LES DEUX MEMES ETATS QUE LA HORDE, ET DANS LES MEMES UNITES. Le
+              boss brulait et devenait vulnerable depuis toujours sans que rien
+              ne le dise — un boss qui encaisse +25 % pendant quatre secondes est
+              precisement le moment ou l equipe doit tout donner.
+              Sur `bo` et non sur `bo2` : `_damage` redirige le jumeau vers le
+              boss avant de lire l etat, donc les deux corps partagent celui-ci
+              comme ils partagent la barre. */
+           r2(this.boss.burn ? this.boss.burn.t / CARD_CFG.BURN_TIME : 0),
+           r1(Math.max(0, (this.boss.vulnUntil ?? 0) - this.time))]
         : null,
       bo2: this.boss2
         ? trimTail([this.boss2.id, r1(this.boss2.x), r1(this.boss2.y), r2(this.boss2.ang),

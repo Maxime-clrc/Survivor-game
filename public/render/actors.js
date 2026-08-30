@@ -3,7 +3,6 @@ import { ARME_CFG, ARMES } from "/shared/armes.js";
 import { POWERUP_ICON, POWERUP_STYLE, paintIcon } from "/icons.js";
 import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
-import { STATUSES, STATUS_VULN } from "/shared/statuses.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { bonusFamille, bonusRang } from "/shared/feedback.js";
 import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, defDe, fullMods, traitsOf } from "/shared/game_state.js";
@@ -11,7 +10,7 @@ import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alp
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
-import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawBrulure, drawOmbre, finArcs, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, spawnBraise, zoneFx } from "./fx.js";
+import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawBrulure, drawOmbre, drawVulnerable, finArcs, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, spawnBraise, zoneFx } from "./fx.js";
 import { ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
@@ -1896,7 +1895,6 @@ export function drawFinArcs() {
 }
 
 const BRAISES_PAR_IMAGE = 8;
-const VULN_COL = STATUSES[STATUS_VULN].couleur;
 const BREATH_HZ = 1.2;
 export const shooterFire = new Map();
 export const seenShots = new Set();
@@ -2157,30 +2155,9 @@ export function drawEnemies(list, view) {
       ctx.globalAlpha = 1;
     }
 
-    /* L ARMURE EST OUVERTE. Sept sources posent la vulnerabilite pour +25 % de
-       degats et rien ne la montrait : le joueur ne pouvait pas savoir sur QUI
-       frapper. Des POINTES, jamais un anneau — les trois anneaux lisses sont
-       pris (elite, aura, egide) et `#f4b04a` frole l or d elite, donc c est la
-       SIGNATURE qui doit separer, pas la teinte.
-       Sous le corps : les pointes sortent proprement du bord au lieu de barrer
-       la silhouette. La rotation est CONTINUE, donc elle n annonce rien — le
-       canal du telegraphe reste au boss. */
-    if (e.vuln > 0) {
-      const k = Math.min(1, e.vuln / 0.5);
-      const pulse = 0.62 + 0.38 * Math.sin(t / 200 + e.id);
-      ctx.strokeStyle = VULN_COL;
-      ctx.globalAlpha = (0.30 + pulse * 0.40) * k * voile;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let i = 0; i < 4; i++) {
-        const a = e.id * 0.7 + i * (Math.PI / 2) + t / 2400;
-        const c = Math.cos(a), s = Math.sin(a);
-        ctx.moveTo(e.x + c * (r + 1), e.y + s * (r + 1));
-        ctx.lineTo(e.x + c * (r + 7), e.y + s * (r + 7));
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
+    // SOUS le corps : les pointes sortent du bord au lieu de barrer la
+    // silhouette. Le trace vit dans `fx.js` — le boss porte le meme.
+    if (e.vuln > 0) drawVulnerable(e.x, e.y, r, Math.min(1, e.vuln / 0.5), ts, e.id, voile);
 
     let breath = 1 + 0.03 * Math.sin(ts * BREATH_HZ * Math.PI * 2 + e.id * 1.7);
     let squash = flash > 0 ? 0.12 * flash : 0;

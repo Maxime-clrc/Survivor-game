@@ -5915,6 +5915,41 @@
                    porte ni l un ni l autre. Une entite contre neuf cents, rendu
                    dans `boss.js` — le lot qui ferme cette serie.
 
+     0.29.4 lot 5  LE BOSS DIT LES MEMES ETATS, PAR LA MEME MAIN. Il brulait et
+                   devenait vulnerable depuis toujours sans qu un pixel ne le
+                   dise — or un boss qui encaisse +25 % pendant quatre secondes
+                   est exactement le moment ou l equipe doit tout donner, et
+                   c etait le seul moment ou personne ne le savait.
+                   DEUX EMPLACEMENTS EN FIN DE TUPLE `bo` (15 et 16), dans les
+                   MEMES unites que la horde : part de duree pour la brulure,
+                   secondes pour la vulnerabilite. `bo` n est pas rogne par
+                   `trimTail`, donc il passe de 15 a 17 champs en permanence —
+                   deux nombres pour UNE entite, la ou le meme choix coutait 900
+                   tuples cote horde. Mesure : indices 0-14 inchanges, extinction
+                   1 -> 0,67 -> 0,33 -> 0 et 4 -> 3 -> 2 -> 1 -> 0.
+                   ET LE TRACE EST PARTAGE, PAS RECOPIE. `drawVulnerable` quitte
+                   `actors.js` pour `fx.js`, a cote de `drawBrulure` : les deux
+                   signes vivent desormais au meme endroit et le boss les appelle
+                   tels quels. Un second vocabulaire pour le boss aurait fait
+                   apprendre l etat DEUX FOIS — un boss n est pas un autre jeu.
+                   La longueur des pointes suit le rayon (`7 + r * 0,12`) : quatre
+                   traits de 7 px disparaissaient sur un corps de 84.
+                   LE JUMEAU LES PORTE AUSSI, et par la ligne qui existait deja :
+                   `world.js` lui transmettait deja `hp`, `maxHp`, `phase` et
+                   `bars` du boss principal parce qu ils partagent la barre.
+                   `_damage` redirige le jumeau vers le boss AVANT de lire l etat,
+                   donc les deux corps le partagent exactement comme la barre —
+                   l etat est sur `bo`, jamais sur `bo2`.
+                   Un seul lecteur du tuple `bo` dans tout le depot (`ingest.js`),
+                   par indice et avec repli : rien d autre ne depend de sa
+                   longueur, ni la telemetrie ni la page d administration.
+                   CE QUI FERME LA SERIE : les quatre cartes de `brulure` et les
+                   sept sources de vulnerabilite se lisent maintenant sur la
+                   horde ET sur le boss. La `vulnUntil` propre au JUMEAU reste
+                   posee par les souffles (`_bossTargets`) et n est lue par
+                   personne — defaut anterieur a ce plan, laisse tel quel : le
+                   corriger est une question de simulation, pas de rendu.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5923,4 +5958,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.3";
+export const VERSION = "0.29.4";

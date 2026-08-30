@@ -6,7 +6,7 @@ import { SRC_ICON, bonusNom } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
 import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, FIN_CHAMP, FIN_MASSE, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, bonusFamille, bonusRang, echelleBoss, echelleBouche, ficheDe, familleDe, finalDe, finalRayon, matiereDe, poids, voixDe } from "/shared/feedback.js";
 import { bossAt } from "/shared/bosses.js";
-import { STATUSES, STATUS_BURN } from "/shared/statuses.js";
+import { STATUSES, STATUS_BURN, STATUS_VULN } from "/shared/statuses.js";
 import { CFG, ENEMY_TYPES, POWERUP_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, melange } from "/shared/palette.js";
@@ -1240,6 +1240,7 @@ export function drawOmbre(x, y, r, k = 1) {
    AUCUNE GARDE `gfx` : une brulure est de l INFORMATION, pas un agrement — `gfx`
    regle la matiere, il ne decide jamais de ce qui SE LIT. */
 const BRULURE_COL = STATUSES[STATUS_BURN].couleur;
+const VULN_COL = STATUSES[STATUS_VULN].couleur;
 export function drawBrulure(x, y, r, k, tm, sceau, v = 1) {
   if (!fxGlow) return;
   const puls = 0.72 + 0.28 * Math.sin(tm * 9 + sceau);
@@ -1247,6 +1248,34 @@ export function drawBrulure(x, y, r, k, tm, sceau, v = 1) {
   drawSprite(ctx, fxGlow, x, y, {
     scaleX: s, scaleY: s, tint: BRULURE_COL, alpha: 0.40 * k * puls * v,
   });
+}
+
+/* L ARMURE OUVERTE, ET C EST LA MEME MAIN QUI LA DESSINE SUR LA HORDE ET SUR LE
+   BOSS. Deux tracés separes auraient fait apprendre l etat deux fois — un boss
+   n est pas un autre jeu.
+
+   DES POINTES, JAMAIS UN ANNEAU : les trois anneaux lisses sont pris (elite,
+   aura, egide) et `#f4b04a` frole l or d elite, donc c est la SIGNATURE qui
+   separe et non la teinte. La longueur suit le rayon, sinon quatre traits de
+   7 px sur un corps de 84 disparaissent.
+
+   ROTATION CONTINUE, donc sans debut ni echeance, donc ce n est pas un
+   telegraphe : ce canal-la appartient au boss et a ses ordres. */
+export function drawVulnerable(x, y, r, k, tm, sceau, v = 1) {
+  const puls = 0.62 + 0.38 * Math.sin(tm * 5 + sceau);
+  const L = 7 + r * 0.12;
+  ctx.strokeStyle = VULN_COL;
+  ctx.globalAlpha = (0.30 + puls * 0.40) * k * v;
+  ctx.lineWidth = Math.max(2, r * 0.05);
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const a = sceau * 0.7 + i * (Math.PI / 2) + tm * 0.417;
+    const c = Math.cos(a), s = Math.sin(a);
+    ctx.moveTo(x + c * (r + 1), y + s * (r + 1));
+    ctx.lineTo(x + c * (r + 1 + L), y + s * (r + 1 + L));
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 
 export function spawnBraise(x, y, r) {
