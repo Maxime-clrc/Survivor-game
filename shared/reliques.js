@@ -17,6 +17,20 @@ export const RELIC_CFG = {
 };
 
 
+/* CE QU'UNE RELIQUE EXIGE DE L'ARME PORTEE. Une relique de chaleur sur un
+   railgun, de chargeur sur un tesla, de critique sur une arme qui n'en a pas :
+   l'offre etait un emplacement perdu, et rien ne le disait. Le predicat lit la
+   fiche d'`armes.js` — ce module ne depend toujours de rien, il recoit l'arme.
+   `_offerRelics()` FILTRE dessus, comme il filtre deja `minPlayers`. */
+export const ARME_EXIGENCE = {
+  crit:     a => (a.critBase ?? 1) !== 0,
+  chaleur:  a => !!a.chaleur,
+  charge:   a => !!a.charge,
+  chargeur: a => !!a.chargeur,
+  rampe:    a => !!a.rampe,
+  souffle:  a => !!a.souffle,
+};
+
 export const RELICS = [
   {
     id: "eclat_dur", nom: "Éclat dur", tier: 0,
@@ -148,6 +162,85 @@ export const RELICS = [
     flatDamage: 50, flatHp: 80, speedFixed: true,
     desc: "+50 dégâts bruts, +80 PV bruts, mais la vitesse de déplacement est fixée à sa valeur de base (annule tout bonus de vitesse des cartes)",
     contrepartie: "vitesse de déplacement fixée à la base",
+  },
+
+  /* AUCUN COUT SUR LES DEGATS BRUTS. Une arme nominale fait 7 a 53 : un malus de
+     -14 ecrivait la moitie du catalogue sous zero sur l'assaut, et un flat
+     s'applique PAR PLOMB sur la dispersion, donc x6. Les contreparties portent
+     donc sur les PV ou sur une recharge — deux axes bornes, lisibles, et qui ne
+     peuvent pas retourner le signe d'un degat.
+
+     LES ARCHETYPES QUI MANQUAIENT. Le catalogue couvrait les degats bruts sous
+     huit formes et laissait vides le critique, le bouclier, la cadence, le
+     controle, les explosions, la mobilite et la RESSOURCE d'arme. Chacune de
+     celles-ci porte une exigence d'arme ou une contrepartie ecrite : une
+     relique sans condition ni cout est un pourcentage de plus. */
+
+  {
+    id: "lentille_taillee", nom: "Lentille taillée", tier: 1,
+    critFlat: 0.10, requiresArme: "crit",
+    desc: "+10 points de taux de critique",
+  },
+  {
+    id: "verre_taille", nom: "Verre taillé", tier: 2,
+    critMulFlat: 0.60, flatHp: -20, requiresArme: "crit",
+    desc: "+0,60 au multiplicateur critique, mais −20 PV bruts",
+    contrepartie: "−20 PV bruts",
+  },
+
+  {
+    id: "dissipateur", nom: "Dissipateur", tier: 0,
+    chaleurChuteFlat: 0.60, requiresArme: "chaleur",
+    desc: "la chaleur retombe 60 % plus vite",
+  },
+  {
+    id: "barillet_long", nom: "Barillet long", tier: 0,
+    chargeurPlus: 2, requiresArme: "chargeur",
+    desc: "+2 munitions au chargeur",
+  },
+  {
+    id: "culasse_froide", nom: "Culasse froide", tier: 2,
+    railViteFlat: -0.18, flatHp: -20, requiresArme: "charge",
+    desc: "la charge est 18 % plus courte, mais −20 PV bruts",
+    contrepartie: "−20 PV bruts",
+  },
+  {
+    id: "ancrage", nom: "Ancrage", tier: 0,
+    rampeGardeFlat: -0.45, requiresArme: "rampe",
+    desc: "la rampe se perd 45 % moins vite en se déplaçant",
+  },
+  {
+    id: "gaine_creuse", nom: "Gaine creuse", tier: 0,
+    souffleFlat: 0.22, requiresArme: "souffle",
+    desc: "+22 % de rayon de souffle",
+  },
+
+  {
+    id: "coque_stratifiee", nom: "Coque stratifiée", tier: 1,
+    shieldFlat: 40, flatHp: -20,
+    desc: "+40 à la jauge de bouclier, mais −20 PV bruts",
+    contrepartie: "−20 PV bruts",
+  },
+  {
+    id: "givre_de_poche", nom: "Givre de poche", tier: 1,
+    frostFlat: 80, flatHp: -15,
+    desc: "une aura de givre de 80 px ralentit ce qui approche, mais −15 PV bruts",
+    contrepartie: "−15 PV bruts",
+  },
+  {
+    id: "culasse_legere", nom: "Culasse légère", tier: 2,
+    rateFlat: -0.05, flatHp: -25,
+    desc: "−0,05 s d'intervalle de tir, mais −25 PV bruts",
+    contrepartie: "−25 PV bruts",
+  },
+  // l'esquive rend DEJA invulnerable (`_hurt` sort sur `dashT > 0`) : la
+  // relique de mobilite porte donc sur sa DUREE, qui est la meme chose que sa
+  // distance et que sa fenetre d'invulnerabilite — un seul champ pour les trois
+  {
+    id: "pas_de_cote", nom: "Pas de côté", tier: 0,
+    dashTimeFlat: 0.09, dashCdFlat: 0.45,
+    desc: "l'esquive dure 0,09 s de plus, mais +0,45 s de recharge d'esquive",
+    contrepartie: "+0,45 s de recharge d'esquive",
   },
 ];
 

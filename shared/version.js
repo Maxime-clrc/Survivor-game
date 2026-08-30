@@ -5242,6 +5242,47 @@
                    dont les depouilles d elite. `verifierFeedback()` croise les
                    quatre recettes neuves et refuse un type sans famille.
 
+     0.26.3 lot 4  VINGT-QUATRE RELIQUES, HUIT FORMES DE DEGATS BRUTS, SEPT
+                   ARCHETYPES VIDES. Le critique, le bouclier, la cadence, le
+                   controle, les explosions, la mobilite et la RESSOURCE d arme
+                   n avaient aucune relique — la cadence en avait une, le controle
+                   une, le bouclier une. Onze reliques neuves les ouvrent, en
+                   queue de `RELICS` : `lentille_taillee`, `verre_taille`,
+                   `dissipateur`, `barillet_long`, `culasse_froide`, `ancrage`,
+                   `gaine_creuse`, `coque_stratifiee`, `givre_de_poche`,
+                   `culasse_legere`, `pas_de_cote`. Chacune porte une exigence
+                   d arme ou une contrepartie ecrite : une relique sans condition
+                   ni cout est un pourcentage de plus.
+                   `requiresArme` FILTRE L OFFRE SUR L ARME PORTEE
+                   (`ARME_EXIGENCE`, predicats sur la fiche d `armes.js`). Une
+                   relique de chaleur sur un railgun etait un emplacement d offre
+                   perdu. Le filtre vit au meme endroit que `minPlayers` — ET dans
+                   `visePalier()`, sinon l acheteur du banc vise un palier que le
+                   tirage ne peut pas lui montrer et relance a vide.
+                   AUCUN COUT SUR LES DEGATS BRUTS. Premiere ecriture :
+                   `culasse_legere` valait -14 bruts. Une arme nominale fait 7 a
+                   53, et un flat s applique PAR PLOMB sur la dispersion : le
+                   malus retournait le SIGNE du degat sur l assaut. Les
+                   contreparties portent donc sur les PV ou sur une recharge, deux
+                   axes bornes qui ne peuvent pas passer sous zero.
+                   L ACHAT RECALCULE TOUJOURS. La liste des champs qui exigeaient
+                   `_recomputeAll()` (`flatHp`, `allyFlatHp`) etait a tenir a jour
+                   a la main, et la moitie des reliques neuves touche `mods` : un
+                   achat par visite, sur un ecran, le recalcul complet ne coute
+                   rien. Le panneau de stats suit — critique et jauge de bouclier
+                   se lisent au point d application, donc le client les manquait.
+                   `verifierReliques()` MESURE que chaque champ apparait comme
+                   litteral dans la source des methodes de `GameState` — une
+                   relique se lit a un POINT D APPLICATION, donc un champ mal
+                   orthographie ne leve rien du tout — et qu un malus porte sa
+                   `contrepartie` ecrite. Un nombre negatif n est pas un malus :
+                   `rateFlat` descend quand la cadence monte.
+                   MESURE, `verifierMarchand([1,4], 6)` : MUET, la ou le depot
+                   sortait « 41 % de visites relancees, bande 15-40 % » avant le
+                   lot. 15/10/8/2 reliques par palier, la proportion d avant a
+                   35 pieces. 1j : 5 achats, 40 % du catalogue vu, 21 % de
+                   relances. 4j : 5 achats, 43 % vu, 32 % de relances.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5250,4 +5291,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.26.2";
+export const VERSION = "0.26.3";

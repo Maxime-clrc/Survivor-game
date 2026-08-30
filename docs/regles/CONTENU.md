@@ -367,6 +367,28 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   `_damage()` (**avant** la redirection Jumeaux), flat PV dans `_recomputeMods()`,
   cadence dans `_players()`, vitesse en **remplaçant** `speedMul`, essaim en
   ajoutant à `mods.swarm`. Elles voyagent dans le champ `relics` du `loadout`.
+- **UNE RELIQUE NEUVE PORTE UNE EXIGENCE OU UNE CONTREPARTIE**, jamais un
+  pourcentage nu. Le catalogue couvrait les dégâts bruts sous huit formes et
+  laissait vides le critique, le bouclier, la cadence, le contrôle, les
+  explosions, la mobilité et la **ressource d'arme** — les sept archétypes que le
+  plan 23 a ajoutés. Une relique sans condition ni coût est un « +5 % de tout »
+  qui n'a pas de décision derrière lui.
+- **`requiresArme` filtre l'offre sur l'ARME PORTÉE** (`ARME_EXIGENCE` dans
+  `reliques.js`, prédicats sur la fiche d'`armes.js`). Une relique de chaleur sur
+  un railgun, de chargeur sur un tesla, de critique sur une arme qui n'en a pas
+  était un **emplacement d'offre perdu**, et rien ne le disait. Le filtre vit au
+  même endroit que `minPlayers` — **et dans `visePalier()`**, sinon l'acheteur du
+  banc vise un palier que le tirage ne peut pas lui montrer et relance à vide.
+- **`verifierReliques()` MESURE deux choses** : que chaque champ apparaît comme
+  littéral dans la source des méthodes de `GameState` — une relique se lit à un
+  **point d'application**, donc un champ mal orthographié ou dont la lecture a
+  été supprimée ne lève **rien** — et qu'un **malus porte sa `contrepartie`
+  écrite**. Un nombre négatif n'est pas un malus : `rateFlat` descend quand la
+  cadence monte, la liste des clés où le négatif coûte est explicite.
+- **L'achat recalcule TOUJOURS** (`_recomputeAll()`). La liste des champs qui
+  exigeaient un recalcul (`flatHp`, `allyFlatHp`) était à tenir à jour à la main,
+  et la moitié des reliques neuves touche `mods` : un achat par visite, sur un
+  écran, le recalcul complet ne coûte rien.
 - **Le bannissement est PAR MANCHE** (décision du porteur, 2026-08-19 — il était
   permanent par compte depuis le lot J) : la clôture (`banClosure`, champ
   `dependsOn`) rejoint `p.locked` du `GameState` et meurt avec lui. Rien ne

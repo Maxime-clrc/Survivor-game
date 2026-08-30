@@ -17,7 +17,7 @@ import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN, SRC_TINT } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, SKILL_ICON, SRC_ICON, STATUS_ICON, iconImg } from "/icons.js";
 import { HF_BY_ID, cadreNom, hfNom, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
-import { cardNom } from "/shared/cards.js";
+import { CARD_CFG, cardNom } from "/shared/cards.js";
 import { relicNom } from "/shared/reliques.js";
 
 const $ = id => document.getElementById(id);
@@ -251,8 +251,11 @@ function shieldPools(v) {
     const autres = [];
     for (let j = 0; j < counts.length; j++) if (j !== i) autres.push(counts[j]);
     const arme = ARMES[p.arme]?.id ?? ARME_DEFAUT;
+    // la jauge de bouclier passe par `mods` cote serveur, reliques comprises :
+    // l'omettre ici ferait mentir le panneau ET la coque dessinee
     pools.set(p.id, fullMods(counts[i], autres, p.cls ?? CLASS_DEFAULT,
-                             v.teamLevel ?? p.level ?? 1, arme).mods.shieldPool);
+                             v.teamLevel ?? p.level ?? 1, arme).mods.shieldPool
+                    + relicFlat(p.id, "shieldFlat"));
   }
   return pools;
 }
@@ -1041,10 +1044,15 @@ function updateStats(me, v, c, now) {
   const interval = me.fireInterval > 0 ? me.fireInterval : CFG.FIRE_INTERVAL * m.fireIntervalMul;
   const cadence = 1 / Math.max(0.01, interval);
   const tubes = canonGain(arme, canons ? m.extraBarrels : 0) + (m.backShot ? 0.7 : 0);
+  // les reliques de critique ne passent PAS par `mods` : elles se lisent au
+  // point d'application, comme les degats bruts au-dessus
+  const critChance = Math.min(CARD_CFG.CRIT_CHANCE_CAP,
+    m.critChance + relicFlat(me.id, "critFlat"));
+  const critMul = m.critMul + relicFlat(me.id, "critMulFlat");
   const s = {
     degats, cadence, canons: tubes,
-    dps: degats * cadence * tubes * (1 + m.critChance * (m.critMul - 1)),
-    critChance: m.critChance, critMul: m.critMul,
+    dps: degats * cadence * tubes * (1 + critChance * (critMul - 1)),
+    critChance, critMul,
     hp: me.hp, maxHp: me.maxHp || CFG.PLAYER_MAX_HP,
     bouclier: shieldPools(v).get(me.id) ?? 0,
     portee: CFG.BULLET_SPEED * m.bulletSpeedMul * CFG.BULLET_LIFE * m.bulletLifeMul,

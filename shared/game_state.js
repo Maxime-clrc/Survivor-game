@@ -14,7 +14,7 @@ import {
 import {
   PROG_CFG, TREES, COMMUN, applyMeta, coresForRun, lockedCards, lockedRelics, slotsFor,
 } from "./progression.js";
-import { RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
+import { ARME_EXIGENCE, RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
 import {
   ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, appliquerEchelle, armeAt, cibleArme,
@@ -1091,6 +1091,10 @@ export class GameState {
       p.maxHp = r.maxHp;
     }
 
+    // le bouclier passe par `mods` et non par un point d'application : la
+    // regeneration teste `mods.shieldPool > 0` et le plafond de bonus s'y indexe
+    p.mods.shieldPool += this._relicSum(p, "shieldFlat");
+
     const flat = this._relicSum(p, "flatHp") + this._relicAllySum(p, "allyFlatHp");
     if (flat !== 0) p.maxHp = Math.max(1, p.maxHp + flat);
     p.maxHp = plafonnerHp(p.maxHp, p.mods);
@@ -1336,7 +1340,7 @@ export class GameState {
         const d = Math.hypot(dx, dy) || 1;
         p.dashX = dx / d;
         p.dashY = dy / d;
-        p.dashT = CFG.DASH_TIME;
+        p.dashT = CFG.DASH_TIME + this._relicSum(p, "dashTimeFlat");
         p.dashCd = Math.max(CFG.DASH_CD_MIN, CFG.DASH_CD * p.mods.dashCdMul
           + this._relicSum(p, "dashCdFlat"));
         if (p.mods.dashTrail > 0) p.dashHits = new Set();
@@ -1401,7 +1405,7 @@ export class GameState {
       if (p.buffRate > 0) interval *= CFG.BUFF_RATE_MUL;
       if (p.odBonus > 0) interval /= 1 + p.odBonus;
       if (p.healSwapBoost > 0) interval /= 1 + CARD_CFG.BASCULE_VIVE_RATE;
-      if (arme.charge) interval *= p.mods.railVite;
+      if (arme.charge) interval *= Math.max(0.2, p.mods.railVite + this._relicSum(p, "railViteFlat"));
       interval = Math.max(CFG.FIRE_INTERVAL_MIN, interval + this._relicSum(p, "rateFlat"));
 
       p.fireInterval = interval;
@@ -1519,18 +1523,20 @@ export class GameState {
     // la table ne sert que de memoire courte
     if (p.precVus.size > 2000) p.precVus.clear();
     p.armeAng = Math.atan2(p.aimY, p.aimX);
-    p.frostR = p.mods.frostRadius;
+    const givre = p.mods.frostRadius + this._relicSum(p, "frostFlat");
+    p.frostR = givre;
 
     if (arme.rampe) {
       // la RETOMBEE est progressive : sans elle, esquiver une mecanique de boss
       // couterait toute la puissance accumulee, et l'arme serait injouable.
       const bouge = (p.vx * p.vx + p.vy * p.vy) > ARME_CFG.RAMPE_SEUIL ** 2;
+      const garde = Math.max(0, p.mods.rampeGarde + this._relicSum(p, "rampeGardeFlat"));
       p.armeRes = bouge
-        ? Math.max(0, p.armeRes - dt * p.mods.rampeGarde / ARME_CFG.RAMPE_CHUTE)
+        ? Math.max(0, p.armeRes - dt * garde / ARME_CFG.RAMPE_CHUTE)
         : Math.min(1, p.armeRes + dt * (1 + p.mods.rampeVite) / ARME_CFG.RAMPE_MONTEE);
       // le champ du 4/4 REUTILISE l'aura de givre : une seconde machinerie de
       // ralentissement serait un second chemin pour la meme regle
-      p.frostR = Math.max(p.mods.frostRadius,
+      p.frostR = Math.max(givre,
         p.mods.rampeZone > 0 && p.armeRes >= 1 && !bouge ? p.mods.rampeZone : 0);
       return;
     }
@@ -1593,12 +1599,15 @@ export class GameState {
           this._surchauffe(p);
         }
       } else {
-        p.armeRes = Math.max(0, p.armeRes - dt * ARME_CFG.CHALEUR_CHUTE * p.mods.chaleurChute);
+        p.armeRes = Math.max(0, p.armeRes - dt * ARME_CFG.CHALEUR_CHUTE * p.mods.chaleurChute
+          * (1 + this._relicSum(p, "chaleurChuteFlat")));
       }
     }
   }
 
-  _chargeur(p, arme) { return arme.chargeur + p.mods.chargeurPlus; }
+  _chargeur(p, arme) {
+    return arme.chargeur + p.mods.chargeurPlus + this._relicSum(p, "chargeurPlus");
+  }
 
   // une mise a mort remplit le chargeur ET coupe la recharge en cours : c'est ce
   // qui transforme la fenetre morte en recompense au lieu d'une attente
@@ -1780,7 +1789,7 @@ export class GameState {
             // la balle nait deja devant le joueur : la duree ne couvre que le reste
             vie: Math.max(0, Math.min(p.aimR, max) - (CFG.PLAYER_RADIUS + 2)) / v,
             boomR: (arme.souffle ?? CARD_CFG.GRENADE_RADIUS)
-              * p.mods.areaMul * p.mods.souffleMul,
+              * p.mods.areaMul * (p.mods.souffleMul + this._relicSum(p, "souffleFlat")),
           });
         }
         break;
@@ -1835,7 +1844,8 @@ export class GameState {
             direct: !!arme.obus,
             boomDmg: arme.souffle ? dmg * dernier * (arme.souffleDmg ?? 1) : undefined,
             boomR: arme.souffle
-              ? arme.souffle * p.mods.areaMul * p.mods.souffleMul : undefined,
+              ? arme.souffle * p.mods.areaMul
+                * (p.mods.souffleMul + this._relicSum(p, "souffleFlat")) : undefined,
             brule: arme.charge && p.mods.railSillon > 0 ? p.mods.railSillon : 0,
             reso: arme.charge ? p.mods.railResonance : 0,
           });
@@ -2818,9 +2828,10 @@ export class GameState {
         owner.dashCrits--;
         this.lastCrit = true;
         amount *= owner.mods.critMul;
-      } else if (!overTime && Math.random() < owner.mods.critChance) {
+      } else if (!overTime && Math.random() < Math.min(CARD_CFG.CRIT_CHANCE_CAP,
+          owner.mods.critChance + this._relicSum(owner, "critFlat"))) {
         this.lastCrit = true;
-        amount *= owner.mods.critMul;
+        amount *= owner.mods.critMul + this._relicSum(owner, "critMulFlat");
         if (owner.mods.critVuln) target.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
       }
 
@@ -3676,6 +3687,9 @@ export class GameState {
       && (r.tier < 3 || !this.relicLegendaryTaken)
       && !(r.minPlayers && this.players.size < r.minPlayers)
       && !(r.requiresSystem === "hasards_actifs" && this.hazards.length === 0)
+      // une relique de chaleur sur un railgun est un emplacement d'offre perdu,
+      // et rien ne le disait : le filtre est au meme endroit que `minPlayers`
+      && !(r.requiresArme && !ARME_EXIGENCE[r.requiresArme](armeAt(p.arme)))
       && !(p.lockedRelics && p.lockedRelics.has(r.id)));
     const picks = [];
     const from = [...pool];
@@ -3724,7 +3738,10 @@ export class GameState {
     if (r.tier === 3) this.relicLegendaryTaken = true;
     const off = this.relicOffers.get(p.id);
     if (off) this.relicOffers.set(p.id, off.filter(o => o !== id));
-    if (r.flatHp || r.allyFlatHp) this._recomputeAll();
+    // la liste des champs qui exigeaient un recalcul etait a tenir a jour a la
+    // main, et c'est la forme exacte d'un defaut silencieux. Un achat par visite,
+    // sur un ecran : le recalcul complet ne coute rien.
+    this._recomputeAll();
     return true;
   }
 
@@ -9971,6 +9988,67 @@ export function verifierBonus(tirages = 20000) {
   return soucis;
 }
 
+/* LE BANC DES RELIQUES. Une relique se lit a un POINT D'APPLICATION, jamais par
+   une boucle generique : un champ mal orthographie, ou dont la seule lecture a
+   ete supprimee, ne leve donc rien du tout — `relicById(id)?.[key]` rend
+   `undefined`, la somme reste a zero, et la relique est achetee pour rien.
+
+   Le controle se MESURE au lieu de se declarer : on relit la SOURCE des methodes
+   de `GameState` et on exige que chaque champ y apparaisse comme litteral. Une
+   seconde liste de champs a tenir a jour aurait exactement le defaut qu'elle
+   cherche. Les reliques a `mode` se lisent par leur identifiant, pas par un
+   champ : c'est l'identifiant qu'on cherche alors.
+
+   Deuxieme question, de conception celle-la : une relique qui porte un MALUS
+   doit porter sa `contrepartie` ecrite. Un cout qu'on decouvre en jouant est un
+   piege, et il n'y a que le texte pour l'annoncer. */
+const RELIC_META = new Set(["id", "nom", "tier", "desc", "contrepartie", "mode",
+  "equipe", "minPlayers", "requiresSystem", "requiresArme"]);
+// un nombre negatif n'est pas un malus : `rateFlat` descend quand la cadence monte
+const RELIC_MALUS = new Set(["noHeal", "speedFixed"]);
+const RELIC_MALUS_NEG = new Set(["flatHp", "flatDamage"]);
+
+export function verifierReliques() {
+  const soucis = [];
+  const src = Object.getOwnPropertyNames(GameState.prototype)
+    .map(k => {
+      const d = Object.getOwnPropertyDescriptor(GameState.prototype, k);
+      return d && typeof d.value === "function" ? String(d.value) : "";
+    }).join(" ");
+  const vus = new Set();
+
+  for (const r of RELICS) {
+    if (vus.has(r.id)) soucis.push(`${r.id} : identifiant en double`);
+    vus.add(r.id);
+    if (!(r.tier >= 0 && r.tier < RELIC_RARITY.length)) {
+      soucis.push(`${r.id} : palier ${r.tier}`);
+    }
+    if (!r.desc) soucis.push(`${r.id} : sans description`);
+    if (r.requiresArme && !ARME_EXIGENCE[r.requiresArme]) {
+      soucis.push(`${r.id} : exigence d'arme « ${r.requiresArme} » inconnue`);
+    }
+
+    let effets = 0, malus = false;
+    for (const [cle, v] of Object.entries(r)) {
+      if (RELIC_META.has(cle)) continue;
+      effets++;
+      if (RELIC_MALUS.has(cle) || (RELIC_MALUS_NEG.has(cle) && v < 0)) malus = true;
+      if (!src.includes(`"${cle}"`)) {
+        soucis.push(`${r.id} : le champ « ${cle} » n'est lu nulle part`);
+      }
+    }
+    if (r.mode) {
+      effets++;
+      if (!src.includes(`"${r.id}"`)) {
+        soucis.push(`${r.id} : mode « ${r.mode} » sans lecteur`);
+      }
+    }
+    if (effets === 0) soucis.push(`${r.id} : aucun effet`);
+    if (malus && !r.contrepartie) soucis.push(`${r.id} : un malus sans contrepartie ecrite`);
+  }
+  return soucis;
+}
+
 /* CE QUI TOMBE VRAIMENT, sur une manche entiere. Le poids situationnel ne se
    juge pas sur sa table : il se juge sur la DISTRIBUTION qu'il produit, et un
    terme trop gourmand ne se voit qu'a la fin. On compte les APPARITIONS et non
@@ -10423,6 +10501,9 @@ function visePalier(g, p) {
     if (r.tier === 3 && g.relicLegendaryTaken) continue;
     if (r.minPlayers && g.players.size < r.minPlayers) continue;
     if (r.requiresSystem === "hasards_actifs" && g.hazards.length === 0) continue;
+    // le meme filtre que l'offre, sinon l'acheteur vise un palier que le tirage
+    // ne peut PAS lui montrer et relance jusqu'a epuiser sa bourse
+    if (r.requiresArme && !ARME_EXIGENCE[r.requiresArme](armeAt(p.arme))) continue;
     if (relicPrice(r) <= p.eclats && r.tier > vise) vise = r.tier;
   }
   return vise;

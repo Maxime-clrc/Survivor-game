@@ -233,6 +233,11 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `drawShieldShell()` | l'état du bouclier à l'écran ; `spawnShieldOn` / `spawnShieldBreak` ses deux fronts |
 | `spawnBlast(x, y, r, ampleur, style)` | les couches chaudes d'un souffle, mises à l'échelle par la magnitude |
 | `_applyStatus()` / `_purgeStatus()` | pose et retrait d'état |
+| `_poserBonus(type, x, y)` | LA pose d'un bonus au sol — les cinq sources y passent, et `max` (la durée de vie, raccourcie par la cendre) est ce qui permet au compte à rebours d'exister |
+| `POWERUP_POIDS` / `_contexteBonus()` | QUAND un bonus tombe : PV manquants, densité, boss, joueurs à terre, et ce que les **armes de l'équipe** savent lire. Jamais un interdit — `CFG.POWERUP_POIDS_MIN` garde tout type tirable. Aucun levier de difficulté ici |
+| `_soinBonus(p, montant)` / `_capBonus(p)` | ce qu'un bonus rend au CORPS : le surplus de soin part en bouclier, `noHeal` coupe la part PV et laisse passer le tampon, et le plafond s'ajoute à la jauge de la build au lieu de la remplacer |
+| `bonusFamille(cle)` (`shared/feedback.js`) | ce qu'un bonus DIT : la famille donne la forme du socle, la matière de la gerbe et la CLEF du limiteur — la même pour les trois. La teinte reste celle du type |
+| `ARME_EXIGENCE` (`shared/reliques.js`) | ce qu'une relique exige de l'ARME portée. Lu par `_offerRelics()` **et** par `visePalier()` : un seul des deux et l'acheteur vise un palier que le tirage ne peut pas montrer |
 | `_killEnemy()` | **toute** mort d'ennemi : XP, explosion du kamikaze, cumuls |
 | `_bulletHitEnemy()` | une balle qui touche — appelé par la boucle de collision **et** le balayage à l'apparition |
 | `_groundZone()` | toute zone posée par la horde, plafond global `trailMax()` |
