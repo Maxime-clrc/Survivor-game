@@ -5587,6 +5587,31 @@
                    cinquieme regle de `verifierEcrans`, croisee dans les deux
                    sens comme les quatre autres.
 
+     0.28.2 correctif  LA BANDE DE DUREE SUIT LES PV. Trois defauts de CRITERE
+                   que la campagne du lot 7 a leves, dont deux sont entres au
+                   lot 1 avec le critere par boss lui-meme.
+                   Elle ne suivait pas la DIFFICULTE : `BOSS_FIGHT_MIN/MAX` est
+                   une bande de normal, appliquee aux trois modes elle sortait
+                   neuf lignes en calme — ou `diff.boss` vaut 0,75 et ou
+                   `LISEZMOI` ecrit depuis le lot H que les combats tombent a
+                   40-47 s. Mesure : p50 de 47 s en calme contre 65 s en normal,
+                   soit 0,72, et la bande scalee par 0,75 tombe dessus.
+                   Elle ne suivait pas les BARRES : ecrite `[2 x MIN, 2 x MAX]`
+                   au lot 3 en pensant a l Amalgame et ses HUIT barres, elle
+                   declarait le RECITANT hors bande a 76-87 s alors qu il en a
+                   CINQ. Le seuil d emportement du lot 2 se met a l echelle des
+                   barres ; la bande de duree aurait du le faire des le depart.
+                   `bandeDuree(kind, diffIndex)` la fait suivre les barres, le
+                   multiplicateur de final et le mode — et SURTOUT PAS `hpMul`,
+                   qui est le reglage sous test : l y faire entrer rendrait le
+                   critere vrai par construction, le piege meme que le lot 2 avait
+                   evite en refusant d indexer l emportement sur `BOSS_FIGHT_MAX`.
+                   Bandes obtenues : calme [38, 68], normal [50, 90], cauchemar
+                   [63, 113] pour un ordinaire ; [44, 79], [94, 168], [88, 158]
+                   pour le final de chaque mode.
+                   Et le taux d emportement s affiche a la decimale : « 10 % des
+                   combats, sous le plancher de 10 % » etait 9,83 % arrondi.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5595,4 +5620,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.1";
+export const VERSION = "0.28.2";

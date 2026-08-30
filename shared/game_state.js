@@ -40,7 +40,7 @@ import {
   MECH_SHRINK, MECH_PUDDLE, MECH_SAFE,
   MECH_BREATH, MECH_BROOD, MECH_REVERSE, MECH_SWAP, MECH_ENRAGE,
   MECH_SYNTH, MECH_SEAL, MECH_RELOC,
-  BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME,
+  BOSS_JUMEAUX, BOSS_ORACLE, BOSS_MATRIARCHE, BOSS_METRONOME, BOSS_RAVAGEUR,
   BOSS_VEILLEUR, BOSS_TISSEUR, BOSS_PRISME, BOSS_RECITANT, BOSS_SILENCE,
   BOSS_FINAL, BOSS_POOL_COUNT, BOSS_POOL, estFinal, finalPour,
 } from "./bosses.js";
@@ -10365,6 +10365,31 @@ export const BOSS_ENRAGE_MIN = 0.10;
 // un boss ordinaire a quatre paliers ; au-dela de ce plafond ils cessent d'etre
 // un sommet de phase pour devenir la moitie du combat.
 export const BOSS_PALIER_MAX = 0.15;
+
+/* LA BANDE DE DUREE SUIT LES PV, ET SEULEMENT CE QUI N EST PAS SOUS TEST.
+   `BOSS_FIGHT_MIN/MAX` est une bande de NORMAL pour un boss a cinq barres :
+   l appliquer telle quelle aux trois modes sortait neuf lignes en calme, ou
+   `diff.boss` vaut 0,75 et ou `LISEZMOI` ecrit depuis le lot H que les combats
+   tombent a 40-47 s. Mesure : p50 de 47 s en calme contre 65 s en normal, soit
+   0,72 — la bande scalee par `diff.boss` (0,75) tombe dessus.
+
+   Elle suit aussi les BARRES. Ecrite `[2 x MIN, 2 x MAX]` au lot 1 en pensant a
+   l Amalgame et ses huit barres, elle declarait le RECITANT hors bande : il en a
+   CINQ, donc il dure ce que dure un boss ordinaire. Le seuil d emportement du
+   lot 2 se met a l echelle des barres ; la bande de duree aurait du faire pareil
+   des le depart.
+
+   CE QU ELLE NE SUIT PAS : `hpMul`. C est le reglage SOUS TEST — l y faire
+   entrer rendrait le critere vrai par construction, exactement le piege que le
+   lot 2 a evite en refusant d indexer l emportement sur `BOSS_FIGHT_MAX`. */
+export function bandeDuree(kind, diffIndex) {
+  const def = bossAt(kind);
+  const d = DIFFICULTIES[diffIndex] ?? DIFFICULTIES[DIFF_NORMAL];
+  const k = ((def.bars ?? CFG.BOSS_BARS) / CFG.BOSS_BARS)
+    * (estFinal(kind) ? BOSS_CFG.FINAL_HP_MUL : 1)
+    * d.boss;
+  return [BOSS_FIGHT_MIN * k, BOSS_FIGHT_MAX * k];
+}
 // EN DESSOUS, UNE MEDIANE PAR BOSS NE DIT RIEN. Une manche montre 5 boss sur 8,
 // donc six manches n'en donnent que trois ou quatre chacun — et la duree d'un
 // meme boss va de 49 a 126 s selon le tirage de cartes. Le seuil est le nombre a
@@ -10522,22 +10547,25 @@ export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_N
           + ` ${dernier.toFixed(0)} s au dernier ordinaire, pour une derive de`
           + ` ${(BOSS_DRIFT_MAX * 100).toFixed(0)} % au plus`);
       }
+      // un SEGMENT melange les boss du pool, donc sa bande est celle d'un boss a
+      // cinq barres dans ce mode — pas la bande brute, qui vaut pour le normal.
+      const [smin, smax] = bandeDuree(BOSS_RAVAGEUR, diffIndex);
       for (const [s, v] of [[1, premier], [ordinaire, dernier]]) {
-        if (v < BOSS_FIGHT_MIN || v > BOSS_FIGHT_MAX) {
+        if (v < smin || v > smax) {
           soucis.push(`${ou} : boss du segment ${s} en ${v.toFixed(0)} s,`
-            + ` hors de [${BOSS_FIGHT_MIN}, ${BOSS_FIGHT_MAX}]`);
+            + ` hors de [${smin.toFixed(0)}, ${smax.toFixed(0)}]`);
         }
       }
     }
 
-    // le final se juge sur DEUX fois un boss ordinaire. La borne basse etait le
-    // plancher de sejour (7 x 10 s) : le palier n'etant plus un plancher, elle
-    // serait tombee a 18 s et n'aurait plus rien attrape.
+    // le final se juge sur SA bande, celle de ses barres et de son mode — pas
+    // sur « deux boss ordinaires », qui declarait le Recitant et ses CINQ barres
+    // hors bande a 76-87 s alors qu'il y etait exactement.
     const final = r.duree.get(TL_CFG.SEGMENTS);
-    if (final !== undefined
-        && (final < 2 * BOSS_FIGHT_MIN || final > 2 * BOSS_FIGHT_MAX)) {
+    const [fmin, fmax] = bandeDuree(finalPour(diffIndex), diffIndex);
+    if (final !== undefined && (final < fmin || final > fmax)) {
       soucis.push(`${ou} : boss final en ${final.toFixed(0)} s, hors de`
-        + ` [${2 * BOSS_FIGHT_MIN}, ${2 * BOSS_FIGHT_MAX}]`);
+        + ` [${fmin.toFixed(0)}, ${fmax.toFixed(0)}]`);
     }
 
     // PAR BOSS. La duree d'un boss donne varie du simple au triple d'un combat a
@@ -10549,9 +10577,10 @@ export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_N
     for (const [kind, v] of r.parBoss) {
       if (estFinal(kind)) continue;
       if (v.n < BOSS_ECHANTILLON_MIN) { maigres.push(`${bossAt(kind).key}=${v.n}`); continue; }
-      if (v.duree < BOSS_FIGHT_MIN || v.duree > BOSS_FIGHT_MAX) {
+      const [bmin, bmax] = bandeDuree(kind, diffIndex);
+      if (v.duree < bmin || v.duree > bmax) {
         soucis.push(`${ou} : ${bossAt(kind).key} en ${v.duree.toFixed(0)} s`
-          + ` (n=${v.n}), hors de [${BOSS_FIGHT_MIN}, ${BOSS_FIGHT_MAX}]`);
+          + ` (n=${v.n}), hors de [${bmin.toFixed(0)}, ${bmax.toFixed(0)}]`);
       }
       if (v.palier > BOSS_PALIER_MAX) {
         soucis.push(`${ou} : ${bossAt(kind).key} passe`
@@ -10570,11 +10599,11 @@ export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_N
     // sans qu'aucune mesure ne le dise. Un anti-enlisement se juge sur les deux
     // bords — trop souvent il devient la regle, jamais il n'existe pas.
     if (r.enrages !== null && r.enrages > BOSS_ENRAGE_MAX) {
-      soucis.push(`${ou} : ${(r.enrages * 100).toFixed(0)} % des combats partent`
+      soucis.push(`${ou} : ${(r.enrages * 100).toFixed(1)} % des combats partent`
         + ` en emportement pour un plafond de ${(BOSS_ENRAGE_MAX * 100).toFixed(0)} %`);
     }
     if (r.enrages !== null && r.enrages < BOSS_ENRAGE_MIN) {
-      soucis.push(`${ou} : ${(r.enrages * 100).toFixed(0)} % des combats partent`
+      soucis.push(`${ou} : ${(r.enrages * 100).toFixed(1)} % des combats partent`
         + ` en emportement, sous le plancher de`
         + ` ${(BOSS_ENRAGE_MIN * 100).toFixed(0)} % — l'anti-enlisement ne sert`
         + ` a rien s'il ne part jamais`);
