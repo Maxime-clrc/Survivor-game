@@ -177,6 +177,22 @@ particules, sous `PARTICLE_MAX`.**
 - **Un prop émissif existe par trois canaux** : il grésille, il crache des
   étincelles, il éclaire son pourtour. Les trois lisent la **même** déclaration
   (`forEachPropLight`). Un coffret qui n'aurait que le premier serait du décor.
+- **Ce qui blesse exhale sa propre matière** : `SOUFFLE[biome][kind]`
+  (`dangers.js`), une entrée par danger chaud posé, lue par `drawAtmosphere` —
+  `dangers.js` **déclare**, `decor.js` **lit**, même contrat que la bouche
+  d'évacuation d'un bloc et le regard de coulée. Un seul brin gris pour les douze
+  rendait un danger lisible au sol et muet dans l'air, juste au-dessus d'une
+  table qui avait déjà payé le travail de le distinguer.
+  **Table parallèle à `DANGER`, jamais une déduction depuis le `kind`** : c'est
+  le *lieu* qui décide si la flaque fume chaud ou dérive lourd. La teinte de
+  chaque entrée est celle que son dessin au sol porte déjà — rien de neuf à
+  apprendre. Et l'angle est un canal à lui seul : la seule entrée qui ne monte
+  pas est la flaque toxique de la Friche, parce qu'un gaz plus lourd que l'air se
+  sépare d'une vapeur à l'œil **avant** toute couleur.
+  `verifierDangers()` croise les deux tables dans les deux sens et sur trois
+  questions — blesse sans souffle, souffle jamais posé, souffle sur un danger
+  **froid** : `souffleDe` replie en silence sur le brin gris d'avant, et un lieu
+  oublié ne se signalerait que par un danger chaud qui exhale du vent.
 
 **Le premier plan** (`drawPremierPlan`), sur `#cv` après le vignettage :
 

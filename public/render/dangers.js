@@ -1,6 +1,6 @@
 import { HZ_EMBER, HZ_GEYSER, HZ_POOL, HZ_SLIP, HZ_SLOW, hazardState } from "/shared/game_state.js";
 import { BIOMES, HAZARDS, hazardsDe } from "/shared/biomes.js";
-import { BIOME, PROP, alpha } from "/shared/palette.js";
+import { BIOME, PROP, WEATHER, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, hazardsActifs, inView, skin } from "./stage.js";
 
 /* UN DANGER N'EST PAS UN CERCLE. Il l'etait : disque ambre, hachures, meme
@@ -62,6 +62,49 @@ const DANGER = {
   },
 };
 
+/* CE QU'UN DANGER EXHALE. Le sol distinguait vingt matieres, l'air au-dessus
+   n'en avait qu'une : le meme brin gris de `WEATHER.wind`, a la meme vitesse,
+   pour une vapeur d'eau, une coulee de metal et un front de braise. Un danger
+   qui blesse etait donc lisible en bas et muet en haut.
+
+   Table parallele a `DANGER` et non une deduction : la matiere qui monte n'est
+   pas calculable depuis le `kind` — c'est le LIEU qui decide si la flaque fume
+   chaud ou derive lourd. Meme paire de cles, donc `verifierDangers()` les croise
+   toutes les deux.
+
+   `r` est un facteur de `h.r`, pas une distance : un souffle ancre sur sa source
+   depasse toujours un peu son collider, jamais la vue. */
+const SOUFFLE = {
+  usine: {
+    [HZ_GEYSER]: { ang: -Math.PI / 2, v: 74, l: 26, n: 16, col: "#dfe7ee", a: 0.16, e: 3.6, r: 0.85 },
+    [HZ_POOL]:   { ang: -Math.PI / 2, v: 26, l: 13, n: 11, col: "#ffd9a8", a: 0.11, e: 3.0, r: 0.62 },
+    [HZ_EMBER]:  { ang: -Math.PI / 2, v: 96, l: 8,  n: 9,  col: PROP.led,  a: 0.30, e: 1.6, r: 0.50 },
+  },
+  fonderie: {
+    [HZ_GEYSER]: { ang: -Math.PI / 2, v: 40,  l: 20, n: 12, col: "#ffc07a", a: 0.13, e: 3.2, r: 0.80 },
+    [HZ_POOL]:   { ang: -Math.PI / 2, v: 88,  l: 9,  n: 13, col: PROP.fonte, a: 0.34, e: 1.9, r: 0.70 },
+    [HZ_EMBER]:  { ang: -Math.PI / 2, v: 120, l: 7,  n: 10, col: "#ffd9a8", a: 0.32, e: 1.5, r: 0.45 },
+  },
+  friche: {
+    [HZ_GEYSER]: { ang: -Math.PI / 2, v: 150, l: 6,  n: 7,  col: "#9fe4ff", a: 0.26, e: 1.3, r: 0.55 },
+    // la seule qui ne monte pas : un gaz plus lourd que l'air DERIVE, et c'est
+    // ce qui le separe d'une vapeur a l'oeil, avant toute couleur.
+    [HZ_POOL]:   { ang: -Math.PI / 2 + 0.5, v: 20, l: 14, n: 10, col: "#b9d97a", a: 0.14, e: 3.4, r: 0.70 },
+    [HZ_EMBER]:  { ang: -Math.PI / 2, v: 70,  l: 11, n: 14, col: PROP.fonte, a: 0.26, e: 2.2, r: 0.70 },
+  },
+  nebuleuse: {
+    [HZ_GEYSER]: { ang: -Math.PI / 2, v: 58,  l: 15, n: 11, col: "#c8b4ff", a: 0.20, e: 2.4, r: 0.80 },
+    [HZ_POOL]:   { ang: -Math.PI / 2 - 0.6, v: 16, l: 10, n: 14, col: "#d8a8ff", a: 0.16, e: 2.0, r: 0.70 },
+    [HZ_EMBER]:  { ang: -Math.PI / 2, v: 110, l: 9,  n: 9,  col: "#9fe4ff", a: 0.30, e: 1.6, r: 0.50 },
+  },
+};
+
+const SOUFFLE_DEFAUT = { ang: -Math.PI / 2, v: 30, l: 15, n: 14, col: WEATHER.wind, a: 0.10, e: 3.2, r: 0.75 };
+
+export function souffleDe(kind) {
+  return (SOUFFLE[biomeKey()] ?? SOUFFLE.usine)[kind] ?? SOUFFLE_DEFAUT;
+}
+
 export function drawHazards(tm) {
   const list = hazardsActifs();
   if (!list.length) return;
@@ -104,6 +147,19 @@ export function verifierDangers() {
     // peut pas savoir si le sol va le freiner ou l emporter.
     if (table[HZ_SLOW] && table[HZ_SLOW] === table[HZ_SLIP]) {
       soucis.push(`${b.key} : ralenti et glissant partagent un dessin`);
+    }
+
+    /* ET LE SOUFFLE, DANS LES DEUX SENS AUSSI. `souffleDe` replie en silence sur
+       le brin gris d avant : un lieu oublie ne se signalerait que par un danger
+       chaud qui exhale du vent froid, ce que personne ne va chercher. */
+    const air = SOUFFLE[b.key];
+    if (!air) { soucis.push(`${b.key} : aucune table de souffle`); continue; }
+    for (const k of poses) {
+      if (HAZARDS[k].hurts && !air[k]) soucis.push(`${b.key}/${HAZARDS[k].key} : blesse sans souffle`);
+    }
+    for (const k of Object.keys(air)) {
+      if (!poses.includes(+k)) soucis.push(`${b.key}/${HAZARDS[+k].key} : souffle jamais pose`);
+      else if (!HAZARDS[+k].hurts) soucis.push(`${b.key}/${HAZARDS[+k].key} : souffle sur un danger froid`);
     }
   }
   return soucis;

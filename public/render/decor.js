@@ -3,6 +3,7 @@ import { BIOMES, BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_C
 import { BIOME, BOSS, PROP, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
+import { souffleDe } from "./dangers.js";
 import { couleeDe, floorPattern, fondEspace, macroPattern } from "./material.js";
 import { mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
@@ -1272,12 +1273,16 @@ export function drawAtmosphere(tm) {
     }
   }
 
+  // CE QUI BLESSE EXHALE SA PROPRE MATIERE. Le sol distingue vingt dangers,
+  // l air au-dessus n en distinguait aucun : `dangers.js` porte la table, ici on
+  // la LIT — meme contrat que le bloc qui evacue et le regard de coulee.
   for (const h of hazardsActifs()) {
     if (h.kind === HZ_SLOW || h.kind === HZ_SLIP) continue;
     const st = hazardState(h, tm);
     if (!st.on || !inView(st.x, st.y, h.r)) continue;
-    champ(tm, -Math.PI / 2, 30, 15, 14, WEATHER.wind, 0.10 * st.k, 3.2,
-          st.x, st.y, h.r * 0.75);
+    const s = souffleDe(h.kind);
+    champ(tm, s.ang, s.v, s.l, s.n, s.col, s.a * st.k, s.e,
+          st.x, st.y, h.r * s.r);
   }
 
   // UN COFFRET QUI GRESILLE EST DU DECOR ; un coffret qui gresille, crache trois

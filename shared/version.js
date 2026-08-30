@@ -5777,6 +5777,36 @@
                    lui l est — `verifierPopulation` ne signale aucun depassement
                    du budget de 16 ms au p99.
 
+     0.29.0 lot 1  CE QUI BLESSE EXHALE SA PROPRE MATIERE. `render/dangers.js`
+                   separait VINGT representations au sol, et l air au-dessus n en
+                   separait AUCUNE : `drawAtmosphere` posait le meme brin de
+                   `WEATHER.wind`, meme vitesse, meme opacite, sur les douze
+                   dangers qui blessent. Une vapeur d eau, une coulee de metal et
+                   un front de braise respiraient le meme gris — un danger etait
+                   lisible en bas et muet en haut, alors que la table du sol avait
+                   deja paye le travail de le rendre diegetique.
+                   `SOUFFLE[biome][kind]`, parallele a `DANGER` et non deduite :
+                   la matiere qui monte n est pas calculable depuis le `kind`,
+                   c est le LIEU qui decide si la flaque fume chaud (le bac de
+                   trempe de l Usine) ou DERIVE lourd (la flaque toxique de la
+                   Friche, seule entree dont l angle n est pas la verticale — un
+                   gaz plus lourd que l air se separe d une vapeur a l oeil avant
+                   toute couleur). Chaque entree reprend la teinte que son dessin
+                   au sol porte deja, donc rien de neuf a apprendre.
+                   AUCUNE ALLOCATION, AUCUN APPEL DE DESSIN EN PLUS : c est
+                   `champ()`, qui coute un `stroke` par source et dont la position
+                   d un brin reste une fonction de son indice et du temps. Le
+                   nombre de brins par danger passe de 14 fixe a 7-16 selon la
+                   matiere. Le serveur ne bouge pas d un octet — ni `hazardState`,
+                   ni le collider, ni le `dot`.
+                   `verifierDangers()` croise MAINTENANT LES DEUX TABLES, dans les
+                   deux sens et sur les trois questions : un danger qui blesse
+                   sans souffle, un souffle jamais pose, un souffle sur un danger
+                   FROID. `souffleDe` replie en silence sur le brin gris d avant —
+                   un lieu oublie ne se serait signale que par un danger chaud qui
+                   exhale du vent, ce que personne ne va chercher. Verifie rouge
+                   sur mutation avant d etre enregistre vert.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5785,4 +5815,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.8";
+export const VERSION = "0.29.0";
