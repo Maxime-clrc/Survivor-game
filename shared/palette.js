@@ -178,6 +178,15 @@ export const ZONE = {
   blast:    "#ff788c",
   dying:    "#ffbecd",
   persist:  "#b282ff",
+
+  /* LE SOL BRULANT D UN JOUEUR est de la MATIERE en combustion, pas un
+     avertissement : il ne blesse que la horde. Il se tient donc a l ecart de
+     l ambre de danger des biomes (`BIOME.hazard`), qui dit « evite » — un lit
+     sombre, des braises chaudes, un liseré clair. Ce qui dit A QUI est le
+     CONTOUR, et lui seul. */
+  braise:     "#ff6a18",
+  braiseBord: "#ffb066",
+  braiseFond: "#5a1f08",
 };
 
 export const WALL = { fill: "#7896ff", edge: "#aac3ff" };

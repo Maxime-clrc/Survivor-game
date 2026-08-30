@@ -555,9 +555,7 @@ export function drawZones(zones, tm = 0) {
       if (!g) groupes.set(k, g = []);
       g.push(z);
     }
-    for (const [pj, g] of groupes) {
-      drawZonesActive(g, tm, pj ? ownerColorOf(pj) ?? null : null);
-    }
+    for (const [pj, g] of groupes) drawZonesActive(g, tm, pj);
   }
 
   for (const z of list) drawZoneFlow(z, tm);
@@ -623,14 +621,24 @@ function drawZoneWarn(z, tm, ring) {
     ctx.fill(zoneRule(z));
   }
 }
-function drawZonesActive(list, tm, teinte = null) {
+/* UNE ZONE DE JOUEUR EST DU FEU, ET SON PROPRIETAIRE EST SON CONTOUR. La teinte
+   d equipe couvrait les QUATRE canaux : le sol brulant d un joueur bleu crachait
+   des braises BLEUES, donc la seule carte qui pose du feu (`terrain_conquis`) ne
+   montrait pas de feu. La couleur dit maintenant A QUI, la matiere dit QUOI — et
+   le contour etait deja une passe separee, il ne coute rien.
+
+   `pj` et non la couleur : `ownerColorOf` rend `null` des qu un joueur quitte le
+   salon, et la matiere du sol se serait alors mise a changer sous les pieds. */
+function drawZonesActive(list, tm, pj = 0) {
   const tick = CFG.ZONE_TICK || 0.25;
   const ph = (tm % tick) / tick;
   const pulse = 0.88 + 0.12 * Math.max(0, 1 - ph * 2.5);
-  const cBraise = teinte ?? ZONE.blast;
-  const cBord = teinte ?? ZONE.edge;
-  const cFond = teinte ?? ZONE.fill;
-  const cHachure = teinte ?? ZONE.persist;
+  const feu = pj !== 0;
+  const cBraise  = feu ? ZONE.braise     : ZONE.blast;
+  const cBord    = feu ? ZONE.braiseBord : ZONE.edge;
+  const cFond    = feu ? ZONE.braiseFond : ZONE.fill;
+  const cHachure = feu ? ZONE.braise     : ZONE.persist;
+  const cContour = (feu ? ownerColorOf(pj) : null) ?? ZONE.persist;
 
   for (const z of list) {
     if (zoneFx >= ZONE_FX_MAX || particles.length >= PARTICLE_MAX) break;
@@ -689,7 +697,7 @@ function drawZonesActive(list, tm, teinte = null) {
 
   ctx.beginPath();
   for (const z of list) zoneSubPath(z, 1.05);
-  ctx.strokeStyle = alpha(ZONE.persist, 0.55 * pulse);
+  ctx.strokeStyle = alpha(cContour, 0.55 * pulse);
   ctx.lineWidth = 2;
   ctx.stroke();
 

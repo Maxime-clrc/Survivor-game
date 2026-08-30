@@ -869,6 +869,17 @@ le sien :
   colonne (`drawMarkColumns`, seule chose au-dessus de la horde). Détonation →
   **décoloration du sol 2 s** (`scorches`). Trois plafonds : `zoneFx` (600), fumée
   **jamais** sur un télégraphe, télégraphe jamais plus voyant que la zone active.
+- **Sur une zone de joueur, la couleur dit À QUI et la matière dit QUOI.**
+  `terrain_conquis` est la seule carte qui pose du sol brûlant, et le seul des
+  cinq appelants de `_groundZone` à passer un `pj` non nul — donc `z.pj !== 0`
+  identifie ce sol **sans rien ajouter au réseau** (`pj` voyage déjà, indice 15).
+  La teinte d'équipe couvrait les quatre canaux et le feu sortait aux couleurs du
+  joueur : elle est maintenant sur le **contour** seul, une passe qui existait
+  déjà, et le lit/les braises/la hachure prennent `ZONE.braise*`.
+  **Tenu à l'écart de `BIOME.hazard`** : l'ambre des biomes dit « évite », or ce
+  sol ne blesse que la horde. Et le branchement lit `pj`, jamais la couleur —
+  `ownerColorOf` rend `null` dès qu'un joueur quitte le salon, et la matière du
+  sol se mettrait à changer sous les pieds.
 - **Le rempart est interpolé** (`lerpList`), comme les marqueurs. Il **suit son
   tank sauf s'il est ancré** (`bw.anchor`, choix fait à la pose et gravé). Un
   propriétaire déconnecté ou à terre le laisse où il est.

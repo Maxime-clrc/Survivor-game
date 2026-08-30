@@ -240,7 +240,8 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `ARME_EXIGENCE` (`shared/reliques.js`) | ce qu'une relique exige de l'ARME portée. Lu par `_offerRelics()` **et** par `visePalier()` : un seul des deux et l'acheteur vise un palier que le tirage ne peut pas montrer |
 | `_killEnemy()` | **toute** mort d'ennemi : XP, explosion du kamikaze, cumuls |
 | `_bulletHitEnemy()` | une balle qui touche — appelé par la boucle de collision **et** le balayage à l'apparition |
-| `_groundZone()` | toute zone posée par la horde, plafond global `trailMax()` |
+| `_groundZone()` | toute zone posée par la horde, plafond global `trailMax()`. **Un `pj` non nul n'y arrive que par `terrain_conquis`** — c'est ce qui rend le sol brûlant reconnaissable côté client sans champ de réseau en plus |
+| `drawZonesActive(list, tm, pj)` (`render/actors.js`) | LA zone persistante. Sur une zone de joueur, la COULEUR dit à qui (le contour, seul) et la MATIÈRE dit quoi (`ZONE.braise*`) — la teinte d'équipe sur les quatre canaux faisait cracher des braises bleues au sol brûlant. Tenu à l'écart de `BIOME.hazard`, qui dit « évite » alors que ce sol ne blesse que la horde. Lit `pj` et JAMAIS la couleur : `ownerColorOf` rend `null` dès qu'un joueur quitte le salon |
 | `plafonnerHp(maxHp, mods)` | LE plafond de PV, et il est le **dernier** : cartes, classe, méta puis reliques passent devant lui |
 | `_harvestDamage(h, dmg)` | tout ce qui entame un cristal — balle, faisceau, arc, balayage, souffle de joueur ; la **géométrie** appartient à l'arme |
 | `porteeReticule(ar)` | la distance au réticule, assainie ; chaque usage pose sa propre borne |

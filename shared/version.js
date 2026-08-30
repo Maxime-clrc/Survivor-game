@@ -5807,6 +5807,38 @@
                    exhale du vent, ce que personne ne va chercher. Verifie rouge
                    sur mutation avant d etre enregistre vert.
 
+     0.29.1 lot 2  LA SEULE CARTE QUI POSE DU FEU N EN MONTRAIT PAS.
+                   `terrain_conquis` (« tes explosions et tes ondes laissent un
+                   sol brulant ») est le SEUL des cinq appelants de `_groundZone`
+                   a passer un `pj` non nul. `drawZonesActive` recevait
+                   `ownerColorOf(pj)` et l appliquait aux QUATRE canaux — braise,
+                   bord, fond, hachure : le sol brulant d un joueur bleu crachait
+                   des braises BLEUES. Les particules montantes existaient deja,
+                   elles portaient la couleur d equipe au lieu du feu.
+                   LA COULEUR DIT A QUI, LA MATIERE DIT QUOI. Le contour prend la
+                   teinte du proprietaire — c etait deja une passe separee, en
+                   `ZONE.persist` fixe, donc elle ne coute rien —, et les trois
+                   autres canaux prennent `ZONE.braise` / `braiseBord` /
+                   `braiseFond` : un lit sombre, des braises chaudes, un lisere
+                   clair. VOLONTAIREMENT A L ECART DE `BIOME.hazard` : l ambre des
+                   biomes dit « evite », or ce sol ne blesse que la horde.
+                   Le branchement lit `pj`, JAMAIS la couleur : `ownerColorOf`
+                   rend `null` des qu un joueur quitte le salon, et la matiere du
+                   sol se serait alors mise a changer sous les pieds.
+                   Rien sur le reseau : `pj` voyage deja (tuple de zone, indice
+                   15, `ingest.js` le lit avec un repli). Verifie de bout en bout
+                   — carte posee, `_blastGround` declenche, une zone `SOL_JOUEUR`
+                   `pj=1` dans l instantane, et une zone de horde `pj=0` a cote
+                   qui garde exactement le rouge d avant.
+                   CE QUI RESTE MUET, ET C EST UN LOT A PART : la famille
+                   `brulure` (quatre cartes, 3 a 50 degats). `burn` n apparait pas
+                   UNE fois dans `public/` ; le tuple ennemi ne porte aucun champ
+                   d etat ; la balle incendiaire est `[id, x, y, owner]`, la meme
+                   qu une balle ordinaire ; `enemyStatusMask()` a un seul
+                   appelant, le bonus de degats de `catalyseur`. Un ennemi qui
+                   brule ne le montre nulle part — le corriger demande un champ en
+                   FIN de tuple, donc un lot de reseau, pas de rendu.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5815,4 +5847,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.0";
+export const VERSION = "0.29.1";
