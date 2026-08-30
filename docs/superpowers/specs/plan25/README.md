@@ -95,6 +95,12 @@ pour une densité ×4.
 
 ## 2 · Les lots
 
+**Les versions ont glissé d'un cran à partir du lot 3** : un correctif hors plan
+(`0.28.2`, la bande de durée de `verifierBoss`) a pris le patch suivant comme
+l'aurait fait un lot. C'est le cas que la table d'historique de `shared/version.js`
+prévoit, et c'est pourquoi la correspondance lot → chiffre s'y **écrit** au lieu
+de se déduire.
+
 | lot | version | contenu | critère |
 |---|---|---|---|
 | **1** | 0.28.0 | **L'écran qui n'a jamais été enregistré.** `#hautsFaits` prend ses neuf entrées, son nœud descend dans `ui/dom.js` et les quatre `getElementById` disparaissent. Puis le contrôle qui empêche que ça recommence : `verifierEcrans()` croise le markup avec les neuf points et refuse un écran qui n'en tient qu'une partie — les absences voulues se **déclarent**, elles ne s'oublient pas. | `verifierEcrans()` muet ; sortie d'écran mesurée à `--screen-out` et non à zéro |
@@ -133,10 +139,41 @@ pour une densité ×4.
 
 ---
 
-## 4 · La checklist de régression
+## 4 · Ce que l'audit a trouvé et que ce plan ne corrige PAS
+
+Huit vérificateurs de simulation sont rouges, **tous antérieurs au plan**. Le
+relevé a été fait sur l'arbre du plan 24, avant toute modification de ce plan-ci.
+Ils sont écrits ici pour qu'ils ne se re-découvrent pas.
+
+**Un seul n'est pas de l'équilibrage, et c'est le plus grave.**
+
+| # | vérificateur | ce qu'il dit |
+|---|---|---|
+| **A** | `verifierMecaniques` | **`abri sous le feu à l'échéance`**, en *normal*, à 1, 2, 3 **et** 4 joueurs — 6 / 3 / 4 / 3 images. **Rejoué deux fois, chiffres identiques** : c'est déterministe, pas du bruit. C'est la garantie d'abri, que `SIMULATION.md` appelle « le seul invariant que le dépôt a payé deux fois ». Le plan 24 l'enregistrait vert à son lot 1. |
+| B | `verifierBoss` | tisseur 97 s en solo · dérive 85 → 174 s à quatre · boss du segment 5 à 174 s · 34 % d'emportement pour un plafond de 25 % · débit de renforts à 61 % d'écart · critère par boss *non mesuré* sous 8 combats |
+| C | `verifierTTK` | hors bande à plusieurs jalons dans les trois modes ; la minute 30 n'est jamais atteinte en cauchemar à quatre |
+| D | `verifierPopulation` | des paliers de population qui **redescendent** d'un segment au suivant, aux trois modes ; niveau atteint de 20 à 30 selon l'effectif |
+| E | `verifierProgression` | niveau 22 à la minute 20 pour une cible de 20 · écart-type de 3,9 cartes pour un plafond de 3 |
+| F | `verifierMeta` | 546 noyaux par manche en solo contre 420 budgétés, 302 à quatre |
+| G | `verifierMarchand` | 3 achats sur 3 manches à quatre joueurs : le revenu ne couvre pas une relique par visite |
+| H | `verifierEquilibreArmes` | cinq armes sous leur cible : tesla 87 % pour 102, laser et dispersion 93 % pour 106 |
+
+**B à H sont une campagne d'équilibrage**, mesurée au bot et pas au joueur, et la
+mission l'interdit explicitement : « Ne pas modifier les statistiques
+fondamentales sans justification. Le polish ne doit pas devenir un prétexte pour
+changer DPS, PV, XP, monnaie, scaling. » Elles vont dans un plan à elles.
+
+**A est un bug d'invariant**, pas un chiffre : une zone recouvre un abri à
+l'échéance, quelques images, en normal seulement. Il n'entre pas dans ce plan
+parce que ce plan ne touche pas `game_state.js` — mais il ne doit pas attendre
+une campagne d'équilibrage, et il est le premier candidat au prochain lot.
+
+---
+
+## 5 · La checklist de régression
 
 Une passe complète. Rien de ceci n'est automatisable : ce qui l'est vit dans les
-vérificateurs, et la liste des vingt muets est au § 1.
+vérificateurs, et la liste des vingt muets est au § 1 — les huit rouges au § 4.
 
 **Armes** — les dix, au banc (`BANC=1` + `?banc`, touches 1-0) : bouche, voix de
 départ, silhouette de projectile, impact, ressource (chaleur, charge, chargeur,

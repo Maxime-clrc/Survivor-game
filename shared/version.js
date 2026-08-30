@@ -5746,6 +5746,37 @@
                    1 437 -> 1 421 cles, ZERO sans point d appel. Le balayage des
                    exports ne rend plus une seule ligne a « interne 0 ».
 
+     0.28.8 lot 8  LES CHIFFRES ET LA CHECKLIST. Aucun changement de
+                   comportement : ce lot ECRIT ce que les sept precedents ont
+                   mesure, et il nomme ce qu ils ne corrigent pas.
+                   Dans `LISEZMOI` : la lisibilite aux quatre densites (2,6 % de
+                   bonus recouverts a 50 corps, 36,9 % a 200, pour 3,3 % de
+                   surface couverte — c est un probleme d ORDRE, pas de densite),
+                   la ligne de silhouette du pavois et le passage de la paire la
+                   plus serree du bestiaire de 0,87 a 1,20 fois sa tolerance, et
+                   les quatorze ecrans contre les neuf points (1/9 -> 9/9,
+                   quatre listes JS qui se recopiaient -> zero, cinq regles CSS
+                   croisees).
+                   HUIT VERIFICATEURS DE SIMULATION SONT ROUGES, TOUS ANTERIEURS
+                   AU PLAN, releves sur l arbre du plan 24 avant toute
+                   modification. Sept sont de l EQUILIBRAGE — `verifierBoss`,
+                   `verifierTTK`, `verifierPopulation`, `verifierProgression`,
+                   `verifierMeta`, `verifierMarchand`, `verifierEquilibreArmes` —
+                   et la mission interdit d y toucher sous couvert de polish.
+                   Le huitieme n en est pas : `verifierMecaniques` compte des
+                   ABRIS SOUS LE FEU a l echeance, en normal, a 1, 2, 3 et 4
+                   joueurs (6/3/4/3 images), REJOUE DEUX FOIS AUX MEMES CHIFFRES
+                   — donc deterministe. C est la garantie d abri, « le seul
+                   invariant que le depot a paye deux fois », et le plan 24
+                   l enregistrait vert. Il est nomme dans `plan25/README` § 4 :
+                   il n entre pas dans ce plan parce que ce plan ne touche pas
+                   `game_state.js`, mais il n attend pas une campagne
+                   d equilibrage.
+                   CE QUI RESTE AU BANC : la table de `?banc` est la seule chose
+                   de ce plan qui demande un navigateur. Ce qui se mesure sans
+                   lui l est — `verifierPopulation` ne signale aucun depassement
+                   du budget de 16 ms au p99.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5754,4 +5785,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.7";
+export const VERSION = "0.28.8";

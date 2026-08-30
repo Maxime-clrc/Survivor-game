@@ -8,6 +8,91 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La couture, plan 25 (0.28.x)
+
+#### La lisibilité aux quatre densités
+
+Cauchemar, quatre joueurs, population **forcée**, 300 s par cas, relevé deux fois
+par seconde sur la vue **réelle** du joueur 1 (1600 × 900 centrée puis écrêtée
+comme `vueDe()`). Un bonus compte comme recouvert dès qu'un corps vivant
+chevauche le disque de son icône.
+
+| pop | corps dans la vue | surface couverte | paires en contact | bonus vus | **part recouverte** |
+|---|---|---|---|---|---|
+| 50 | 30,0 | 1,0 % | 3,2 | 499 | **2,6 %** |
+| 100 | 52,1 | 1,7 % | 10,1 | 478 | **18,0 %** |
+| 150 | 96,8 | 3,1 % | 23,4 | 2 036 | **21,3 %** |
+| 200 | 106,3 | 3,3 % | 46,5 | 2 049 | **36,9 %** |
+
+**Les corps ne mangent pas l'écran** : 3,3 % de la vue à 200. Le personnage, les
+projectiles, les télégraphes, le boss et les objectifs vivent tous au-dessus de
+la horde ou dans le HUD. Le **bonus** était le seul objet de gameplay dessiné en
+dessous, et c'est le seul chiffre qui se dégrade — ×14 pour une densité ×4. Ce
+n'est donc pas un problème de densité, c'est un problème d'**ordre**, et le
+lot 4 le corrige en faisant monter le **signal** (socle, cadran, anneau de rang)
+sans l'objet. La hiérarchie devient structurelle : le signal est sur `#cv`, les
+corps sur `#cvGl`.
+
+Contrôle de non-régression du découpage : la géométrie tracée par les **deux**
+passes réunies est identique à celle de la passe unique d'avant, rejouée sur un
+contexte enregistreur — 24 anneaux, 12 dans chacune.
+
+#### Les silhouettes, après le pavois
+
+`verifierSilhouettes()` était **rouge depuis 0.21.7** : porte-bouclier et chœur
+se confondaient sur les cinq axes. La table de 0.21.7 tient, une ligne change.
+
+| type | élancement | remplissage | sommets | avance | matière |
+|---|---|---|---|---|---|
+| **porte-bouclier** | **0,78** | **0,84** | 29 | **−0,008** | **0,68** |
+
+Les douze autres lignes sont inchangées. L'écart d'élancement avec le chœur
+(1,12) passe de **0,16 à 0,34**, pour une tolérance de 0,18.
+
+**Ce qui rend une paire lisible se mesure en part de tolérance**, et c'est le
+chiffre qu'il faut regarder plutôt que le seul verdict :
+
+| paire | avant | après |
+|---|---|---|
+| porte-bouclier / chœur | **0,87** (confondues) | 1,20 sur un autre axe |
+| couvain / porte-bouclier | 1,53 | **1,20** (la plus serrée) |
+| fantassin / kamikaze | 1,40 | 1,40 |
+
+La paire la plus serrée du bestiaire passe donc de **0,87 à 1,20** : le
+plancher monte, il ne se déplace pas.
+
+#### Les quatorze écrans contre les neuf points d'enregistrement
+
+Un écran s'enregistre à neuf endroits et **un oubli ne lève rien**.
+`#hautsFaits` n'en tenait qu'un — le fil d'Ariane.
+
+| | avant | après |
+|---|---|---|
+| points tenus par `#hautsFaits` | **1 / 9** | 9 / 9 |
+| contrôles muets (`#brief`, `#merchant`, `#hautsFaits`) | **~24** | 0 |
+| listes JS qui se recopiaient | 4 | **0** (dérivées d'`ECRANS`) |
+| listes CSS croisées par un contrôle | 0 | **5** |
+
+Les quatre points dérivés — observateur, masquage de la barre, les deux
+sélecteurs de son — ne **peuvent plus** diverger. Les cinq qui vivent en CSS le
+peuvent encore, et `verifierEcrans(css)` les croise **dans les deux sens** : un
+écran qui déclare un point absent de la règle, et un identifiant dans la règle
+que la table ne déclare pas. Témoin : retirer `#hautsFaits` de deux règles fait
+sortir exactement deux lignes.
+
+La cinquième règle est le **miroir du curseur** — « ce qui montre le crochet est
+exactement ce qui sonne au survol » était écrit des deux côtés et vérifié nulle
+part.
+
+#### Ce que le banc attend toujours
+
+La table de `?banc` reste **vide**, et c'est la seule chose de ce plan qui
+demande un navigateur : FPS médian et p1, ms p99 et max, `draws`, `quads`,
+particules, aux quatre densités × cinq paliers de qualité. Le protocole est
+écrit plus bas (0.25.1) ; ce qui se mesure sans navigateur l'est :
+`verifierPopulation` ne signale **aucun** dépassement du budget de 16 ms au p99,
+aux trois modes × trois effectifs sur 45 minutes.
+
 ### Ce qui restait à dire, plan 21 (0.24.2)
 
 #### Le budget du tressaillement de touche
