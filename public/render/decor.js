@@ -1353,6 +1353,42 @@ export function drawAtmosphere(tm) {
 
    La parallaxe est une DERIVE globale proportionnelle a la position de camera :
    assez pour donner la profondeur, trop peu pour attirer l oeil. */
+/* LA SILHOUETTE DE BORD, PAR LIEU, EN TABLE. Elle se choisissait par une chaine
+   de `if` a defaut implicite, comme la matiere : un cinquieme lieu qui oubliait
+   sa branche heritait de la passerelle de l Usine sans que rien ne le dise.
+   Une table rend l absence visible, `verifierPremierPlan()` la refuse.
+
+   Les cinq silhouettes ne partagent AUCUNE orientation : passerelle
+   horizontale, cheminees verticales et fumantes, grillage affaisse, haubans en
+   diagonale, montants d immeuble. Un bord qui se ressemblerait d un lieu a
+   l autre annulerait tout le travail fait sur le sol et les blocs. */
+const PREMIER_PLAN = {
+  usine: passerelle,
+  fonderie: cheminees,
+  friche: grillage,
+  nebuleuse: haubans,
+  secteur: passerelles,
+};
+
+export function verifierPremierPlan() {
+  const soucis = [];
+  const cles = new Set(BIOMES.map(b => b.key));
+  for (const b of BIOMES) {
+    if (!PREMIER_PLAN[b.key]) soucis.push(`${b.key} : aucun premier plan`);
+  }
+  for (const k of Object.keys(PREMIER_PLAN)) {
+    if (!cles.has(k)) soucis.push(`${k} : premier plan sans lieu`);
+  }
+  // deux lieux sous la meme silhouette de bord rendraient leurs bords
+  // interchangeables — c est exactement le defaut que ce systeme corrigeait.
+  const vus = new Map();
+  for (const [k, f] of Object.entries(PREMIER_PLAN)) {
+    if (vus.has(f)) soucis.push(`${k} et ${vus.get(f)} partagent un premier plan`);
+    else vus.set(f, k);
+  }
+  return soucis;
+}
+
 const PP_PARALLAXE = 0.055;
 const PP_BANDE = 0.155;
 export function drawPremierPlan(v) {
@@ -1374,11 +1410,7 @@ export function drawPremierPlan(v) {
     ctx.fillRect(0, haut ? 0 : CFG.VIEW_H - h, CFG.VIEW_W, h);
   }
 
-  if (cle === "friche") grillage(h, dx, dy);
-  else if (cle === "fonderie") cheminees(h, dx, dy);
-  else if (cle === "nebuleuse") haubans(h, dx, dy);
-  else if (cle === "secteur") passerelles(h, dx, dy);
-  else passerelle(h, dx, dy);
+  (PREMIER_PLAN[cle] ?? passerelle)(h, dx, dy);
 
   ctx.restore();
 }

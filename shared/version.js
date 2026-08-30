@@ -6089,6 +6089,45 @@
                    `verifierBiomes`, `verifierBlocs`, `verifierEmpreinte`,
                    `verifierDangers`, `verifierZones`, `verifierAmers`.
 
+     0.29.8 lot 9  LE DEFAUT IMPLICITE ETAIT LE VRAI DEFAUT. Le lot precedent a
+                   ajoute un cinquieme lieu et les six verificateurs de rendu
+                   l ont accepte — mais ils ne couvrent que ce qui est deja une
+                   TABLE. Trois aiguillages par lieu n en etaient pas : des
+                   chaines de `if` a defaut implicite, dans `cuire`, `cuireMacro`
+                   et `drawPremierPlan`.
+                   ET L UN DES TROIS ETAIT DEJA FAUX : le Secteur n avait AUCUNE
+                   branche dans `cuireMacro`, donc sa seconde periode — la nappe
+                   de 1200 px, celle qu on lit a 400 px de distance — etait celle
+                   de l Usine. De la rouille d atelier et du blanc de halogene sur
+                   de l asphalte mouille, livre en 0.29.7 sans que rien ne puisse
+                   le dire, parce qu un defaut implicite est indistinguable d un
+                   CHOIX.
+                   TROIS TABLES ET DEUX VERIFICATEURS. `TUILE`, `MACRO_TUILE` et
+                   `PORTE_MAILLE` dans `material.js`, croisees par
+                   `verifierMatiere()` ; `PREMIER_PLAN` dans `decor.js`, croisee
+                   par `verifierPremierPlan()`. Dans les deux sens : un lieu sans
+                   entree, et une entree sans lieu.
+                   `macroUsine` EST EXTRAIT. C etait le corps de repli de
+                   `cuireMacro`, donc la seconde periode de tout lieu qui n en
+                   declarait pas ; il porte maintenant son nom et sa ligne. Un
+                   lieu qui herite de l Usine le fait desormais parce que
+                   quelqu un l a ecrit.
+                   `verifierPremierPlan` POSE UNE QUESTION DE PLUS que les autres
+                   tables : deux lieux ne peuvent pas PARTAGER une silhouette de
+                   bord. Les cinq n ont aucune orientation commune — passerelle
+                   horizontale, cheminees verticales, grillage affaisse, haubans
+                   en diagonale, montants d immeuble — et deux bords
+                   interchangeables annuleraient tout le travail fait sur le sol
+                   et les blocs. Meme role que la garde qui refuse un ralenti et
+                   un glissant sous le meme dessin.
+                   LE SECTEUR A DONC SA SECONDE PERIODE : des HALOS et non des
+                   taches. Les quatre autres posent de la salissure a cette
+                   echelle — rouille, vegetation, suie, givre ; une rue de nuit a
+                   des ilots de lumiere et du noir entre eux, et c est ce qui lui
+                   donne son rythme quand on la traverse.
+                   Les deux verificateurs sont enregistres verts APRES avoir ete
+                   vus rouges sur mutation.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6097,4 +6136,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.7";
+export const VERSION = "0.29.8";

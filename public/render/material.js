@@ -59,20 +59,10 @@ function cuire(biomeIndex, diffIndex, seed, dpr) {
   const usure = USURE[diffIndex] ?? USURE[1];
   const cle = (BIOMES[biomeIndex] ?? BIOMES[0]).key;
 
-  if (cle === "fonderie") fonderie(g, rand, usure);
-  else if (cle === "friche") friche(g, rand, usure);
-  else if (cle === "nebuleuse") nebuleuse(g, rand, usure);
-  else if (cle === "secteur") secteur(g, rand, usure);
-  else usine(g, rand, usure);
+  (TUILE[cle] ?? TUILE.usine)(g, rand, usure);
 
-  // LA FRICHE N A PAS DE MAILLE DE 5 M. Un joint technique regulier decrit une
-  // installation entretenue ; une dalle de beton lave a des JOINTS DE COULAGE,
-  // irreguliers, et c est `dalles()` qui les pose. La regularite du terrain est
-  // exactement ce qu il faut casser ici.
-  // NI LA FRICHE, NI LA NEBULEUSE, NI LE SECTEUR : une chaussee n a pas de
-  // joints techniques reguliers, elle a des REPRISES irregulieres, et c est son
-  // propre dessin qui les pose. Une maille par-dessus dirait « dalle d atelier ».
-  if (gfx > GFX_LOW && cle !== "friche" && cle !== "nebuleuse" && cle !== "secteur") maille(g, usure, cle);
+  // qui la porte est une LISTE, pas une suite de `!==` : voir `PORTE_MAILLE`.
+  if (gfx > GFX_LOW && PORTE_MAILLE.has(cle)) maille(g, usure, cle);
   return cv;
 }
 
@@ -81,10 +71,16 @@ function cuireMacro(biomeIndex, diffIndex, seed, dpr) {
   const rand = mulberry32((seed >>> 0) * 7919 + biomeIndex * 131 + 3);
   const usure = USURE[diffIndex] ?? USURE[1];
   const cle = (BIOMES[biomeIndex] ?? BIOMES[0]).key;
-  if (cle === "friche") return macroFriche(cv, g, rand, usure);
-  if (cle === "fonderie") return macroFonderie(cv, g, rand, usure);
-  if (cle === "nebuleuse") return macroNebuleuse(cv, g, rand, usure);
+  return (MACRO_TUILE[cle] ?? macroUsine)(cv, g, rand, usure);
+}
 
+/* L USINE : de la suie, du blanc de halogene et de la rouille. Ce dessin ETAIT
+   le repli implicite de la seconde periode — donc celle de tout lieu qui n en
+   declarait pas, et c est exactement comme ca que le Secteur a failli porter
+   de la rouille d atelier sur de l asphalte mouille. Il a maintenant son nom et
+   sa ligne dans la table : un lieu qui herite de l Usine le fait desormais
+   parce que quelqu un l a ECRIT. */
+function macroUsine(cv, g, rand, usure) {
   for (let i = 0; i < 5; i++) {
     const r = 260 + rand() * 300;
     nappe(g, rand() * MACRO, rand() * MACRO, r, "#ffffff", 0.016 + rand() * 0.014);
@@ -1042,4 +1038,84 @@ function secteur(g, rand, usure) {
     g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
     g.restore();
   }
+}
+
+/* LE MACRO DU SECTEUR : DES HALOS, PAS DES TACHES. Les quatre autres lieux
+   posent a cette echelle de la SALISSURE — rouille, vegetation, suie, givre. Une
+   rue de nuit n a pas de grande tache : elle a des ILOTS DE LUMIERE, larges et
+   mous, entre lesquels il fait noir. C est ce qui remplace la salissure ici, et
+   c est aussi ce qui donne au lieu son rythme quand on le traverse.
+
+   Deux teintes seulement, et ce sont celles du lieu : le magenta des enseignes,
+   le cyan de ce qui reste allume tout seul. La troisieme couche est le NOIR
+   entre elles, et il est plus fort que partout ailleurs — sans lui les halos ne
+   sont pas des halos, juste un fond clair. */
+function macroSecteur(cv, g, rand, usure) {
+  for (let i = 0; i < 6; i++) {
+    const r = 300 + rand() * 380;
+    nappe(g, rand() * MACRO, rand() * MACRO, r, "#000000", 0.07 + rand() * 0.08);
+  }
+  for (let i = 0; i < 5; i++) {
+    const chaud = rand() < 0.6;
+    const rx = 200 + rand() * 300, ry = rx * (0.55 + rand() * 0.45);
+    nappeOvale(g, rand() * MACRO, rand() * MACRO, rx, ry, rand() * Math.PI,
+               chaud ? "#ff3d9a" : "#4de0ff", 0.022 + 0.014 * (1 - usure));
+  }
+  // LES TRAINEES D EAU : plus l arene est usee, plus il a plu. Elles sont
+  // presque horizontales et tres etirees — de l eau suit la pente, elle ne fait
+  // pas de tache ronde, et c est la meme regle que sur la tuile de sol.
+  const n = 3 + Math.round(3 * usure);
+  for (let i = 0; i < n; i++) {
+    const a = (rand() - 0.5) * 0.5;
+    nappeOvale(g, rand() * MACRO, rand() * MACRO, 380 + rand() * 340, 34 + rand() * 44,
+               a, "#8f7fc4", 0.020 + 0.016 * usure);
+  }
+}
+
+/* TROIS TABLES, ET C EST UNE CORRECTION. La matiere d un lieu se choisissait par
+   des chaines de `if` a defaut implicite : `cle === "fonderie" ? ... : usine`.
+   Tant qu il y avait quatre lieux ecrits en meme temps, ca tenait. Le cinquieme
+   a montre le prix : il n avait AUCUNE branche dans `cuireMacro`, donc il
+   heritait en silence du macro de l Usine — de la rouille d atelier sur de
+   l asphalte mouille — et rien ne pouvait le signaler, parce qu un defaut
+   implicite est indistinguable d un choix.
+
+   Une TABLE rend l absence visible, et `verifierMatiere()` la refuse. Meme forme
+   que `DANGER`, `BLOC`, `SOUFFLE`, `ZONES` : ajouter un lieu = une entree.
+
+   Les cinq lieux ont une entree dans les trois : plus aucun defaut implicite,
+   donc plus rien a heriter sans le savoir. */
+const TUILE = {
+  usine, fonderie, friche, nebuleuse, secteur,
+};
+
+const MACRO_TUILE = {
+  usine: macroUsine,
+  friche: macroFriche,
+  fonderie: macroFonderie,
+  nebuleuse: macroNebuleuse,
+  secteur: macroSecteur,
+};
+
+/* QUI PORTE LA PORTE_MAILLE DE 5 M. Un joint technique regulier decrit une
+   installation ENTRETENUE : l Usine et la Fonderie en ont une, les trois autres
+   non — la Friche a des joints de coulage irreguliers, la Nebuleuse son nid
+   d abeille, le Secteur ses reprises de chaussee. L ecrire en liste plutot qu en
+   suite de `!==` fait qu un sixieme lieu doit CHOISIR au lieu d heriter. */
+const PORTE_MAILLE = new Set(["usine", "fonderie"]);
+
+/* LES TROIS TABLES CONTRE `BIOMES`, DANS LES DEUX SENS. Un lieu sans tuile
+   heritait de l Usine sans que rien ne le dise ; une tuile pour un lieu qui
+   n existe plus ne se signale jamais non plus. */
+export function verifierMatiere() {
+  const soucis = [];
+  const cles = new Set(BIOMES.map(b => b.key));
+  for (const b of BIOMES) {
+    if (!TUILE[b.key]) soucis.push(`${b.key} : aucune tuile de sol`);
+    if (!MACRO_TUILE[b.key]) soucis.push(`${b.key} : aucune seconde periode (heritera de l Usine)`);
+  }
+  for (const k of Object.keys(TUILE)) if (!cles.has(k)) soucis.push(`${k} : tuile sans lieu`);
+  for (const k of Object.keys(MACRO_TUILE)) if (!cles.has(k)) soucis.push(`${k} : seconde periode sans lieu`);
+  for (const k of PORTE_MAILLE) if (!cles.has(k)) soucis.push(`${k} : maille sans lieu`);
+  return soucis;
 }

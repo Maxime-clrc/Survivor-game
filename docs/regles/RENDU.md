@@ -138,6 +138,21 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
 - **Une seconde période sans aucune arête** (`MACRO`, 1 200) : à 400 px l'œil
   trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
   ne rattrape ça.
+- **Un aiguillage par lieu est une TABLE, jamais une chaîne de `if` à défaut
+  implicite.** `TUILE`, `MACRO_TUILE`, `PORTE_MAILLE` (`material.js`) et
+  `PREMIER_PLAN` (`decor.js`) le sont, croisées avec `BIOMES` dans les deux sens
+  par `verifierMatiere()` et `verifierPremierPlan()`.
+  La raison est mesurée : le cinquième lieu est parti en production sans branche
+  dans `cuireMacro`, donc avec la **seconde période de l'Usine** — rouille
+  d'atelier sur asphalte mouillé. Les six vérificateurs étaient verts, parce
+  qu'ils ne couvrent que ce qui est déjà une table. **Un défaut implicite est
+  indistinguable d'un choix**, et c'est pour ça que `macroUsine` a été extrait :
+  hériter de l'Usine doit être écrit.
+  `verifierPremierPlan` pose une question de plus — **deux lieux ne peuvent pas
+  partager une silhouette de bord** : leurs cinq orientations sont toutes
+  distinctes, et deux bords interchangeables annuleraient le travail fait sur le
+  sol et les blocs. Même rôle que la garde qui refuse un ralenti et un glissant
+  sous le même dessin.
 - **Un cinquième lieu se déclare dans TREIZE tables, et il se livre entier.**
   `BIOMES`, `BLOCS`, `OBSTACLES`, `HZ_NORMAL`, `HZ_CAUCHEMAR`, `ECHELLE`
   (`biomes.js`) ; `BIOME_SKIN` (`palette.js`) ; `BLOC`, `CONTOUR` (`blocs.js`) ;
