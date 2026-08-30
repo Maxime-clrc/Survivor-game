@@ -477,7 +477,8 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   partir de `(diffIndex, type)`** — coût réseau nul, sauf `wu` (anticipation de
   ruée).
 - **Tout ce qui s'indexait sur la vague s'indexe sur le NIVEAU D'ÉQUIPE** (D3).
-  `this.tier` n'existe plus. `beatIndex()` reste exporté.
+  `this.tier` n'existe plus. `beatIndex()` était resté exporté sans appelant :
+  supprimé, `verifierScript()` calculait déjà son indice en ligne.
 
 ### Boss
 

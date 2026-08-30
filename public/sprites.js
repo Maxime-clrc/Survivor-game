@@ -1171,7 +1171,6 @@ export function reuploadAtlas() {
   renderer?.setAtlas(atlas);
 }
 
-export function atlasCanvas() { return atlas; }
 
 export const SPRITE_CELL = CELL;
 

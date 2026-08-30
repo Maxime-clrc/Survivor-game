@@ -65,21 +65,19 @@ export const HZ_EMBER = 2;
 export const HZ_SLOW = 3;
 export const HZ_SLIP = 4;
 
+/* UN DANGER S ANNONCE PAR SA GEOMETRIE PERMANENTE, jamais par un mot : `nom`
+   n avait pour seul lecteur `hazardNom`, que personne n appelait. Ce qui blesse
+   est chaud, ce qui ralentit est froid — c est la seule chose a apprendre, et
+   `render/dangers.js` la porte. */
 export const HAZARDS = [
-  { key: "geyser", nom: "geyser", hurts: true,
-    r: BIOME_CFG.GEYSER_R, dot: BIOME_CFG.GEYSER_DOT },
-  { key: "flaque", nom: "flaque corrompue", hurts: true,
-    r: BIOME_CFG.POOL_R, dot: BIOME_CFG.POOL_DOT },
-  { key: "braise", nom: "braise", hurts: true,
-    r: BIOME_CFG.EMBER_R, dot: BIOME_CFG.EMBER_DOT },
-  { key: "ralenti", nom: "champ de ralentissement", hurts: false,
-    r: BIOME_CFG.SLOW_R, dot: 0 },
-  { key: "glissant", nom: "sol glissant", hurts: false,
-    r: BIOME_CFG.SLIP_R, dot: 0 },
+  { key: "geyser",   hurts: true,  r: BIOME_CFG.GEYSER_R, dot: BIOME_CFG.GEYSER_DOT },
+  { key: "flaque",   hurts: true,  r: BIOME_CFG.POOL_R,   dot: BIOME_CFG.POOL_DOT },
+  { key: "braise",   hurts: true,  r: BIOME_CFG.EMBER_R,  dot: BIOME_CFG.EMBER_DOT },
+  { key: "ralenti",  hurts: false, r: BIOME_CFG.SLOW_R,   dot: 0 },
+  { key: "glissant", hurts: false, r: BIOME_CFG.SLIP_R,   dot: 0 },
 ];
 
 export function hazardAt(kind) { return HAZARDS[kind] ?? null; }
-export const hazardNom = k => t(`hazard.${HAZARDS[k]?.key}`, HAZARDS[k]?.nom ?? "");
 
 export const WX_BRUME = 0;
 export const WX_BOURRASQUE = 1;

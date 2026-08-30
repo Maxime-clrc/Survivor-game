@@ -151,7 +151,6 @@ export const briefArmeRerollBtn = document.getElementById("briefArmeReroll");
 export const briefGoBtn = document.getElementById("briefGo");
 export const briefCountEl = document.getElementById("briefCount");
 export const hudBriefEl = document.getElementById("hudBrief");
-export const hudHfEl = document.getElementById("hudHf");
 
 export const metaEl = document.getElementById("meta");
 export const metaCoresEl = document.getElementById("metaCores");

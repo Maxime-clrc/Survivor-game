@@ -406,7 +406,6 @@ export const BOSS_SKIN = [
 
    `defaut` n'a pas d'entree : ce n'est pas un cadre, c'est son absence. */
 export const CADRE_EMPLACEMENTS = ["silhouette", "fond", "bordure", "ornement", "lueur", "insigne"];
-export const CADRE_PALIER_MAX = 3;
 export const CADRE_MARQUEURS_2 = ["double", "blindee", "balaye", "nette", "segment"];
 export const CADRE_ANIMES = ["irise", "pulse", "chassis"];
 

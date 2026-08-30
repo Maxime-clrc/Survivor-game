@@ -5716,6 +5716,36 @@
                    Aucune regle de simulation ne bouge, et `gfx` garde ses cinq
                    points de lecture.
 
+     0.28.7 lot 7  DIX-SEPT EXPORTS MORTS ET SEIZE CLES ANGLAISES MORTES,
+                   supprimes. Definis une fois, nommes nulle part :
+                   `sampleReady`, `getMusicDuck`, `audioReady`,
+                   `getMusicIntensity`, `musicStats`, `stopMusic`, `atlasCanvas`,
+                   `tracksStats`, `hudHfEl`, `hazardNom`, `classBrief`,
+                   `typeAt`, `CADRE_PALIER_MAX`, `STATUS_BY_KEY`, `statusNom`,
+                   `statusDesc`, `beatIndex`.
+                   TROIS CAS ONT DEMANDE UNE DECISION, pas une suppression
+                   mecanique.
+                   `stopMusic` : `RENDU.md` l appelait l un des QUATRE aiguillages
+                   de `music.js`. Il y en a trois. `startMusic()` part une fois a
+                   l amorce, `setMusicScene("menu")` couvre le hors-manche, et
+                   `refreshMusicSource()` appelle deja `stopSynth`/`stopTracks`
+                   en direct : RIEN n arrete la musique, et rien ne doit. La doc
+                   est corrigee, pas le code ressuscite.
+                   `statusNom`/`statusDesc` et `hazardNom` etaient les seuls
+                   lecteurs de `STATUSES[].nom/desc` et de `HAZARDS[].nom` — donc
+                   ces champs et leurs treize traductions etaient morts aussi.
+                   UN ETAT SE LIT A SON ICONE, A SA TEINTE ET A SON ANNEAU ; un
+                   danger s annonce par sa geometrie permanente. Leur donner un
+                   lecteur voudrait dire une info-bulle au HUD, or on ne survole
+                   rien pendant une vague. Les champs partent avec leurs
+                   accesseurs.
+                   `beatIndex` : `SIMULATION.md` ecrivait « reste exporte ».
+                   `verifierScript` calculait deja son indice en ligne.
+                   Restent dix cles anglaises que ni `t()` ni `tn()` n atteignait
+                   — `u.rebond`, `u.plomb`, `u.obus`, `u.grenade`, `u.drone`.
+                   1 437 -> 1 421 cles, ZERO sans point d appel. Le balayage des
+                   exports ne rend plus une seule ligne a « interne 0 ».
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5724,4 +5754,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.6";
+export const VERSION = "0.28.7";

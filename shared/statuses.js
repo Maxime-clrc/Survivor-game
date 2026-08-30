@@ -1,43 +1,25 @@
 
-import { t } from "./i18n.js";
-
 export const STATUS_VULN = 0;
 export const STATUS_BURN = 1;
 export const STATUS_ROOT = 2;
 export const STATUS_DOOM = 3;
 
+/* UN ETAT SE LIT A SON ICONE, A SA TEINTE ET A SON ANNEAU — jamais a un mot.
+   `nom` et `desc` etaient traduits en anglais et n'ont JAMAIS eu de lecteur :
+   `statusNom`/`statusDesc` ne sont appeles nulle part. Leur donner un lecteur
+   voudrait dire une info-bulle au HUD, or on ne survole rien pendant une vague
+   et le budget de l'ecran est deja depense. La regle du depot tranche : un champ
+   dont la seule lecture est morte se supprime. Ce qui reste est ce qui se lit —
+   la teinte, portee par `couleur`, et le rang dans `PURGE_ORDER`. */
 export const STATUSES = [
-  {
-    id: STATUS_VULN, key: "vuln", nom: "Vulnérabilité",
-    stacks: 3, time: 20, lethal: false,
-    desc: "+25 % de dégâts subis par cumul",
-    couleur: "#f4b04a",
-  },
-  {
-    id: STATUS_BURN, key: "burn", nom: "Brûlure",
-    stacks: 1, time: 5, lethal: false,
-    desc: "6 dégâts par seconde",
-    couleur: "#ff8f4d",
-  },
-  {
-    id: STATUS_ROOT, key: "root", nom: "Entrave",
-    stacks: 1, time: 6, lethal: false,
-    desc: "vitesse −40 %",
-    couleur: "#9fb4ff",
-  },
-  {
-    id: STATUS_DOOM, key: "doom", nom: "Sentence",
-    stacks: 1, time: 8, lethal: true,
-    desc: "mort à échéance sauf si soigné à plein",
-    couleur: "#ff6b8a",
-  },
+  { id: STATUS_VULN, key: "vuln", stacks: 3, time: 20, lethal: false, couleur: "#f4b04a" },
+  { id: STATUS_BURN, key: "burn", stacks: 1, time: 5,  lethal: false, couleur: "#ff8f4d" },
+  { id: STATUS_ROOT, key: "root", stacks: 1, time: 6,  lethal: false, couleur: "#9fb4ff" },
+  { id: STATUS_DOOM, key: "doom", stacks: 1, time: 8,  lethal: true,  couleur: "#ff6b8a" },
 ];
 
-export const STATUS_BY_KEY = new Map(STATUSES.map(s => [s.key, s.id]));
 
 export function statusAt(id) { return STATUSES[id] ?? null; }
-export const statusNom = id => t(`status.${id}.nom`, statusAt(id)?.nom ?? "");
-export const statusDesc = id => t(`status.${id}.desc`, statusAt(id)?.desc ?? "");
 export function statusBit(id) { return 1 << id; }
 
 export const PURGE_ORDER = [STATUS_DOOM, STATUS_BURN, STATUS_ROOT, STATUS_VULN];

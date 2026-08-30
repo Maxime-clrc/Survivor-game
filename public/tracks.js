@@ -46,10 +46,6 @@ let running = false;
 let watch = 0;
 let fading = 0;
 
-export function tracksStats() {
-  return { running, scene, cur, dernier, playing: decks?.[cur]?.el?.src ?? "" };
-}
-
 function ready() {
   return typeof Audio !== "undefined" && audioContext() !== null;
 }

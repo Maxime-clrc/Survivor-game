@@ -150,12 +150,6 @@ export function classAt(index) {
   return CLASSES[index] ?? CLASSES[CLASS_DEFAULT];
 }
 
-export function classBrief(index) {
-  const c = classAt(index);
-  return { id: c.id, nom: c.nom, desc: c.desc, couleur: c.couleur, unique: c.unique,
-           solo: c.solo ?? "", skills: c.skills };
-}
-
 /* Points de passage du texte d'une classe. Le francais de la table est le repli ;
    une description de competence compose ses constantes par marqueurs, comme une
    carte. */

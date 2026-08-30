@@ -136,7 +136,6 @@ export function loadSamples() {
   }
 }
 
-export function sampleReady(name) { return buffers.has(name); }
 
 /* `durMax` est en temps de SORTIE, le troisieme argument de `start()` en temps
    de TAMPON : les deux ne coincident qu'a vitesse 1. C'est ce qui autorise une
@@ -294,7 +293,6 @@ export function setMusicDuck(on) {
   applyMusicGain(monte ? AUDIO_CFG.DUCK_UP : AUDIO_CFG.DUCK_DOWN);
 }
 
-export function getMusicDuck() { return duck; }
 
 function applyMusicGain(dur) {
   if (!musicG) return;
@@ -306,7 +304,6 @@ function applyMusicGain(dur) {
   musicG.gain.linearRampToValueAtTime(cible, now + dur);
 }
 
-export function audioReady() { return ac !== null; }
 
 export function setVolume(v) {
   volume = Math.max(0, Math.min(1, v));

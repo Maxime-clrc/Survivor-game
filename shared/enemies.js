@@ -252,7 +252,6 @@ export function trailMax(aireVue) {
     / (Math.PI * TRAIT_CFG.TRAIL_R * TRAIT_CFG.TRAIL_R));
 }
 
-export function typeAt(index) { return ENEMY_TYPES[index] ?? ENEMY_TYPES[0]; }
 
 
 export function hasTrait(mask, id) { return (mask & traitBit(id)) !== 0; }

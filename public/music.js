@@ -38,9 +38,7 @@ export function setMusicIntensity(v) {
   if (Number.isFinite(v)) target = Math.max(0, Math.min(1, v));
 }
 
-export function getMusicIntensity() { return level; }
 
-export function musicStats() { return { running, level, target, scheduled, step }; }
 
 
 let scene = "horde";
@@ -56,12 +54,6 @@ export function startMusic() {
   started = true;
   route();
   return true;
-}
-
-export function stopMusic() {
-  started = false;
-  stopSynth();
-  stopTracks();
 }
 
 export function setMusicScene(name) {

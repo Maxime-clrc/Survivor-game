@@ -1066,10 +1066,14 @@ qu'il regarde.
   synthétisée (test sur le **tampon chargé**, jamais sur le réglage) ; piste
   introuvable → `setTrackFallback` posé par `music.js`. Le repli ne réécrit pas le
   réglage.
-- **`music.js` est l'aiguillage** : `startMusic`, `stopMusic`,
+- **`music.js` est l'aiguillage, et il a TROIS points** : `startMusic`,
   `setMusicIntensity`, `setMusicScene`. La synthèse lit une **intensité
   continue**, les pistes une **scène discrète**. La boucle de rendu pousse les
-  deux depuis la **même** source.
+  deux depuis la **même** source. Il n'y a pas de quatrième : `startMusic()`
+  part une fois à l'amorce et **rien n'arrête la musique** — hors manche c'est
+  la scène `menu` qui prend le relais. `stopMusic` a été écrit, n'a jamais eu
+  d'appelant, et a été supprimé ; `refreshMusicSource()` appelle déjà
+  `stopSynth`/`stopTracks` en direct, qui sont internes.
 - **LES PISTES NE JOUENT QU'EN MANCHE** (`route()`, point unique). Hors manche la
   synthèse reprend (scène `menu`), y compris en source `pistes`.
 - **Fondu croisé à PUISSANCE CONSTANTE, armé seulement à `canplay`.** Compteur de

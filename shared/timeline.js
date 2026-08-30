@@ -184,6 +184,3 @@ export function verifierScript() {
   return soucis;
 }
 
-export function beatIndex(segment, beat) {
-  return (segment - 1) * TL_CFG.BEATS + beat;
-}
