@@ -216,6 +216,23 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
   dans le HUD DOM — ils ne bougent jamais.
 - Le champ d'atmosphère du boss est le **seul** qui ait le droit de traverser le
   centre : il annonce ce qui s'y trouve.
+- **DEUX BOSS DE POOL NE PRENNENT PAS L'ARÈNE DE LA MÊME FAÇON**
+  (`verifierPrises(BOSS_SKIN)`, dans `bosses.js`, la table en **argument**).
+  Miroir exact de `verifierArchetypes()` sur l'autre moitié de l'identité :
+  l'archétype dit comment le boss déforme l'espace, la prise dit ce que le
+  **monde** en fait. Cinq lignes recopiaient celle de l'Amalgame au caractère
+  près — dont **trois boss de pool**, que le commentaire de la table appelait
+  « les finals » parce qu'ils avaient été ajoutés en queue après son écriture.
+  Rien ne levait : la table était bien indexée et les couleurs de corps
+  différaient.
+- **L'atmosphère a sa propre règle**, et ce n'est pas une redite du tuple : c'est
+  le seul champ qui traverse le centre. Deux boss aux profils différents mais au
+  même souffle se ressemblaient là où ça se voit — le Prisme portait celui des
+  Jumeaux.
+- **Les deux finals par difficulté gardent le droit de ressembler au final** (un
+  seul sort par manche) mais ne s'y confondent plus : le Récitant est le même
+  combat en plus clair, le **Silence n'a aucun battement**, ce qui est exactement
+  son verbe.
 
 ### Quatre lieux, pas quatre couleurs
 
@@ -1025,6 +1042,23 @@ qu'il regarde.
 
 ### Audio
 
+- **UN BOSS A UNE VOIX, ET ELLE SE DÉDUIT** (`voixDe(def)`, `echelleBoss(def)`
+  dans `shared/feedback.js`). Onze boss partageaient **un** son d'arrivée et
+  **un** son de rupture : c'était le seul canal d'identité sans rien à lui.
+  - **L'archétype porte la matière.** C'est déjà ce qui sépare les boss dans le
+    dépôt, et `verifierArchetypes()` en garantit l'unicité sur le pool : déduire
+    la voix de là se paie une seule fois, et un dixième boss de pool arrive avec
+    la sienne.
+  - **Les barres portent l'échelle.** Trois finaux partagent « fixe » — le roster
+    l'autorise, un seul sort par manche — mais pas leur nombre de barres : 5, 6,
+    8. La hauteur descend et la durée monte avec, donc les onze arrivées se
+    séparent quand même. `pitch` va aussi à `barre`, `bossBrise` et `bossQueue`.
+  - **UNE recette, neuf jeux de paramètres.** `bossVoix` porte la forme, la table
+    porte les nombres — exactement `BOUCHE` pour les armes. Neuf recettes écrites
+    à la main auraient neuf enveloppes à tenir d'accord.
+  - `verifierFeedback` refuse un archétype sans voix (il retomberait sur le repli,
+    donc deux boss identiques à l'oreille sans que rien ne le dise) et deux boss
+    de même archétype **et** même nombre de barres.
 - **DEUX SOURCES, UN SEUL RÉGLAGE** (`survivor.audio.source`, tenu par
   `audio.js`) : `pistes` (défaut) ou `synthe`. Il commande **musique et son de
   tir** ensemble.

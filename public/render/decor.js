@@ -8,7 +8,7 @@ import { mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
+import { GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
 /* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine deux fois : une passe
    PLEINE VUE entre la couleur d'arene et la matiere du sol — c'est ce qui
@@ -484,7 +484,7 @@ export function drawAmer() {
   const cle = biomeAt(biomeIndex).key;
   const f = AMERS[cle];
   if (!f) return;
-  const r = amerDe(biomeSeed, cle, hazardsActifs());
+  const r = amerDe(biomeSeed, cle, hazardsDuLieu());
   if (!inView(r.x, r.y, AMER_R)) return;
   ctx.save();
   ctx.translate(r.x, r.y);
@@ -529,6 +529,16 @@ export function verifierAmers(seeds = [1, 7, 99]) {
             break;
           }
         }
+        /* CE QUE CE VERIFICATEUR NE PEUT PAS VOIR, et il faut le dire ici plutot
+           que de faire semblant : `amerDe` rend forcement autre chose sur une
+           liste de dangers VIDE — tous les candidats y valent `Infinity`,
+           `Infinity > Infinity` est faux, donc c'est le PREMIER qui sort au lieu
+           du plus loin. Ce n'est pas un defaut de la fonction, c'est un defaut
+           d'APPELANT : `drawAmer` lisait `hazardsActifs()`, vide pendant un
+           combat, donc l'amer sautait a l'arrivee du boss et resautait a sa mort
+           — 299 cas sur 320, jusqu'a 2 596 px. Il lit `hazardsDuLieu()`, la
+           geometrie de la MANCHE. Une mesure ne garde pas cette regle, seule la
+           lecture du seul appelant de production le fait. */
       }
     }
   }

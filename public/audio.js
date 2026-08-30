@@ -837,9 +837,10 @@ const PALETTE = {
     return { end: a.end + 0.22, stop: a.stop };
   },
 
-  barre: () => {
-    const a = tone({ freq: 147, dur: 0.5, type: "sawtooth", gain: SOUND_GAIN.boss * 0.5 });
-    tone({ freq: 220, dur: 0.5, type: "sawtooth", gain: SOUND_GAIN.boss * 0.35 });
+  barre: (o) => {
+    const p = o.pitch ?? 1;
+    const a = tone({ freq: 147 * p, dur: 0.5, type: "sawtooth", gain: SOUND_GAIN.boss * 0.5 });
+    tone({ freq: 220 * p, dur: 0.5, type: "sawtooth", gain: SOUND_GAIN.boss * 0.35 });
     noise({ dur: 0.35, type: "lowpass", freq: 1600, to: 200, gain: SOUND_GAIN.boss * 0.4 });
     return { end: a.end, stop: a.stop };
   },
@@ -909,9 +910,33 @@ const PALETTE = {
     return { end: a.end, stop: a.stop };
   },
 
-  boss: () => {
-    const a = tone({ freq: 98, to: 82, dur: 0.9, type: "sawtooth", gain: SOUND_GAIN.boss * 0.55 });
-    tone({ freq: 147, dur: 0.9, type: "sine", gain: SOUND_GAIN.boss * 0.3 });
+  /* LA VOIX D'UN BOSS. UNE recette, neuf jeux de parametres : ils vivent dans
+     `BOSS_VOIX` (`shared/feedback.js`), deduits de l'ARCHETYPE, et `pitch` porte
+     l'echelle tiree du nombre de barres. Neuf recettes ecrites a la main
+     auraient neuf enveloppes a tenir d'accord ; ici la forme est ici et les
+     nombres sont la-bas, comme `BOUCHE` pour les armes.
+
+     `battement` est ce qui separe un corps de plusieurs : 1,01 bat, 1,03 dedouble,
+     1,50 ouvre une quinte. A 0 il n'y a qu'une voix, et c'est le cas de six
+     archetypes sur neuf. */
+  bossVoix: (o) => {
+    const p = o.pitch ?? 1;
+    const dur = (o.dur ?? 1) * (o.etire ?? 1);
+    const g = SOUND_GAIN.boss;
+    const a = tone({ freq: (o.f0 ?? 98) * p, to: (o.f1 ?? o.f0 ?? 82) * p,
+                     dur, type: o.type ?? "sawtooth", gain: g * 0.55 });
+    if (o.harm) {
+      tone({ freq: (o.f0 ?? 98) * p * o.harm, dur,
+             type: "sine", gain: g * (o.gainHarm ?? 0.3) });
+    }
+    if (o.battement) {
+      tone({ freq: (o.f0 ?? 98) * p * o.battement, to: (o.f1 ?? o.f0 ?? 82) * p * o.battement,
+             dur, type: o.type ?? "sawtooth", gain: g * 0.30 });
+    }
+    if (o.bruit) {
+      noise({ dur: dur * 0.6, type: "lowpass", freq: 900 * p, to: 90,
+              gain: g * o.bruit });
+    }
     return { end: a.end, stop: a.stop };
   },
 
@@ -919,24 +944,29 @@ const PALETTE = {
      (bruit large, 50 ms), le corps qui s'effondre, un sub qui part de haut et
      descend sous la mesure. C'est le seul son du jeu qui ait le droit de DURER —
      un moment de manche par boss, onze par partie. */
-  bossBrise: () => {
+  // `pitch` vient de l'echelle du boss : une barre de l'Amalgame se brise plus
+  // bas qu'une barre du Metronome. La CASSURE, elle, ne bouge pas — c'est du
+  // bruit large, et le transporter ferait un autre son au lieu du meme plus gros.
+  bossBrise: (o) => {
+    const p = o.pitch ?? 1;
     const a = noise({ dur: 0.05, type: "highpass", freq: 4200, q: 0.6,
                       gain: SOUND_GAIN.boss * 1.0 });
     noise({ dur: 0.45, type: "lowpass", freq: 1800, to: 90,
             gain: SOUND_GAIN.boss * 1.1, delay: 0.01 });
-    tone({ freq: 220, to: 38, dur: 0.40, type: "sawtooth",
+    tone({ freq: 220 * p, to: 38 * p, dur: 0.40, type: "sawtooth",
            gain: SOUND_GAIN.boss * 0.7 });
-    tone({ freq: 55, to: 28, dur: 0.9, type: "sine",
+    tone({ freq: 55 * p, to: 28 * p, dur: 0.9, type: "sine",
            gain: SOUND_GAIN.boss * 0.55, delay: 0.03 });
     return { end: a.end + 0.9, stop: a.stop };
   },
 
   // LA QUEUE : ce qui reste quand l'image est finie. Elle MONTE avant de tomber
   // (`attack`) et elle ne resout pas — le boss est mort, la manche continue.
-  bossQueue: () => {
+  bossQueue: (o) => {
+    const p = o.pitch ?? 1;
     const a = noise({ dur: 1.1, type: "lowpass", freq: 380, to: 60, attack: 0.10,
                       gain: SOUND_GAIN.boss * 0.45 });
-    tone({ freq: 62, to: 41, dur: 1.0, type: "sine", gain: SOUND_GAIN.boss * 0.4 });
+    tone({ freq: 62 * p, to: 41 * p, dur: 1.0, type: "sine", gain: SOUND_GAIN.boss * 0.4 });
     return { end: a.end, stop: a.stop };
   },
 };

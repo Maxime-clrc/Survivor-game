@@ -5331,6 +5331,208 @@
                    ramasses et perimes. Deux chemins pour la meme mesure valent
                    deux mesures qui divergent. Chiffres dans `LISEZMOI.md`.
 
+     0.27.0 lot 1  LE PALIER S OUVRE AU PLANCHER, PAS A LA RUPTURE PRECEDENTE.
+                   `BAR_DWELL` comptait depuis `lastBreak`, donc une barre fondue
+                   en 2 s laissait 8 s ou le boss ne prenait plus rien et une
+                   barre lente n en laissait aucune : LE TEMPS MORT ETAIT MAXIMAL
+                   EXACTEMENT QUAND L EQUIPE JOUAIT LE MIEUX. Le defaut n etait
+                   pas le niveau moyen (10 % a la mediane) mais la VARIANCE — 4 %
+                   au Ravageur contre 54 % a l Oracle en calme, 42 % en normal,
+                   40 % au Metronome, 37 % au Veilleur a quatre.
+                   `PALIER_TIME` remplace `BAR_DWELL` et `FINAL_BAR_DWELL`, et le
+                   levier de profil `dwell` devient `palier` (1,0 / 1,4 / 1,8 —
+                   il monte toujours avec la difficulte, c est la que se joue la
+                   mecanique de la phase suivante). Mesure apres : 5 a 17 %
+                   partout, contre 0 a 54 % avant.
+                   ELLE EST COURTE PARCE QUE LA MESURE LE DIT. Premiere ecriture
+                   a 2,6 s : quatre paliers pesaient 10,4 s sur un combat de 53 s,
+                   soit 20 % — plus de temps mort que la regle qu elle remplacait
+                   n en produisait a la mediane. Le niveau et la variance sont deux
+                   reglages, et seul le second etait casse.
+                   `b.finalLibre` EST LE TERMINUS DE LA DERNIERE BARRE DU FINAL.
+                   Elle a son palier comme les autres ; sans terminus le plancher
+                   se rouvrait a l image suivante, `palierOuvert` retombant a zero
+                   des que le plancher disparait — un boss final immortel.
+                   `verifierBoss` gagne un critere PAR BOSS (duree et part de
+                   palier) : la mediane par SEGMENT melange cinq boss tires au
+                   sort, donc un boss aberrant s y noie — releve 189 s a la
+                   Matriarche en solo pour une bande de 50 a 90 s, invisible au
+                   critere de segment. Et la bande du final passe de
+                   `[7 x FINAL_BAR_DWELL, 180]` a `[2 x 50, 2 x 90]` : la borne
+                   basse etait un plancher de sejour qui n existe plus.
+                   LE CRITERE PAR BOSS SE DECLARE NON MESURE PLUTOT QUE VERT.
+                   Six manches ne donnent que trois ou quatre combats par boss et
+                   la duree d un meme boss va de 49 a 126 s : `BOSS_ECHANTILLON_MIN`
+                   vaut 8, et en dessous `verifierBoss` NOMME les boss qu il n a
+                   pas pu juger. Un critere qui passe au vert sans avoir rien
+                   regarde est le defaut que ce lot vient de trouver ailleurs.
+
+     0.27.1 lot 2  L EMPORTEMENT SE COMPTE PAR BARRE. `ENRAGE_AT` valait 150 s et
+                   `FINAL_ENRAGE_AT` 300 s contre des combats de 40 a 120 s :
+                   0 % des combats en calme, 0 % en normal a deux joueurs, 4 % a
+                   quatre, 8 % en solo, JAMAIS sur un final. Un anti-enlisement
+                   qui ne part jamais est du contenu mort, et le critere ne le
+                   voyait pas — `BOSS_ENRAGE_MAX` etait un plafond SANS PLANCHER.
+                   `ENRAGE_PAR_BARRE x b.bars` remplace les deux constantes : le
+                   nombre de barres est ce qui fait la longueur d un combat, donc
+                   un boss a huit barres a plus de temps qu un boss a cinq sans
+                   qu on ecrive une seconde constante pour lui. 105 s pour un
+                   ordinaire, 168 s pour le final, 126 s pour le Silence.
+                   21 EST LU SUR LA DISTRIBUTION : 82 combats ordinaires, huit
+                   manches, trois effectifs — p50 65 s, p75 90 s, p90 118 s. 18 s
+                   par barre donne 26 % de combats emportes, 21 en donne 15 %,
+                   24 en donne 10 %.
+                   `BOSS_ENRAGE_MIN` ferme la bande. Un critere a une seule borne
+                   laisse passer « jamais », et c est exactement ce qui s est
+                   produit pendant tout un plan.
+                   CE QUE LA MESURE A REFUSE DE DONNER : la bande aux TROIS
+                   effectifs. Au meme seuil, 48 % des combats ordinaires partent
+                   en emportement en solo, 0 % a deux, 6 % a quatre — parce que
+                   les combats solo durent le double. Aucune forme de seuil ne
+                   rattrape un ecart de DUREE ; le lever ici reviendrait a
+                   compenser un desequilibre par une punition. Le critere le dit
+                   maintenant au lieu de le taire.
+
+     0.27.2 lot 3  LA RESPIRATION DU FINAL, PAYEE EN PV. Le lot 1 lui avait deja
+                   rendu ses paliers (0 % du combat avant, 11 a 13 % apres) ;
+                   restait qu ils etaient tous de la meme longueur. Sept ruptures
+                   qui ouvrent chacune une couche, toutes cadencees pareil, sont
+                   une escalade sans palier de lecture.
+                   `FINAL_PALIER_RAMP` allonge la fenetre avec la phase :
+                   1,38 · 1,88 · 2,37 · 2,87 · 3,35 · 3,85 · 4,33 · 4,82 s,
+                   mesurees dans le moteur. La derniere — celle ou il devient
+                   tuable — vaut 3,5 fois la premiere, et le patron differe par
+                   `PALIER_AMORCE` s y RESOUT au lieu de deborder : la mecanique
+                   de la phase suivante se joue pendant qu il est invulnerable,
+                   ce qui est l intention ecrite du palier depuis le debut.
+                   ELLE SE PAIE EN PV, JAMAIS SUR L HORLOGE. `FINAL_HP_MUL`
+                   1,30 -> 1,17, de ce que les fenetres ajoutent (11,2 -> 24,9 s).
+                   Ce qui change est la COMPOSITION du combat : moins de fonte,
+                   plus de moments etages. Ajoutee par-dessus elle rendait 182 s
+                   a quatre joueurs, hors de la bande.
+                   MESURE : part de palier du final 11-13 % -> 21-23 %. Duree a
+                   deux joueurs 99 -> 109 s, donc DANS la bande. A un joueur la
+                   mediane bouge de 87 a 147 s sur quatre combats, ce que
+                   l echantillon ne separe pas de la fourchette historique
+                   (82-152 s) : la duree par effectif demande le protocole
+                   profond, meme conclusion qu au lot 1.
+
+     0.27.3 lot 4  UN BOSS A UNE VOIX, ET ELLE SE DEDUIT. Onze boss partageaient
+                   UN son d arrivee (`boss`) et UN son de rupture : le seul canal
+                   d identite qui n avait rien a lui, alors que la silhouette, la
+                   teinte, le verbe, le repertoire et l archetype en ont un.
+                   L ARCHETYPE PORTE LA MATIERE. C est deja ce qui separe les
+                   boss — `ARCHETYPES` dit comment chacun DEFORME l arene et
+                   `verifierArchetypes()` en garantit l unicite sur le pool —
+                   donc la deduction se paie une seule fois et un dixieme boss de
+                   pool arrivera avec sa voix. Neuf jeux : le guetteur tient une
+                   sinus mince sans aucun bruit, le batisseur un creneau qui
+                   descend d une marche, le reflet un battement a 1,03, l ancre un
+                   grave tenu, le constricteur une voix qui DESCEND, le diffus un
+                   granuleux a 1,01, le multiple une QUINTE, le mobile une voix
+                   qui MONTE, le fixe la reference.
+                   LES BARRES PORTENT L ECHELLE. Trois finaux partagent « fixe »
+                   — le roster l autorise, un seul sort par manche — mais pas leur
+                   nombre de barres : Recitant 98->82 Hz, Silence 92->77,
+                   Amalgame 83->70, et la duree monte d autant. Les onze arrivees
+                   se separent donc quand meme.
+                   UNE SEULE RECETTE, `bossVoix`, neuf jeux de parametres. La
+                   table porte les nombres, `audio.js` porte la forme — le modele
+                   de `BOUCHE`. Neuf recettes ecrites a la main auraient neuf
+                   enveloppes a tenir d accord. `pitch` va aussi a `barre`,
+                   `bossBrise` et `bossQueue` : une barre de l Amalgame se brise
+                   plus bas qu une barre du Metronome. La CASSURE ne bouge pas —
+                   c est du bruit large, le transporter ferait un autre son au
+                   lieu du meme plus gros.
+                   `verifierFeedback` prend le roster et la table d archetypes :
+                   il refuse un archetype SANS voix (il retomberait sur le repli,
+                   donc deux boss identiques a l oreille sans que rien ne le dise)
+                   et deux boss de meme archetype ET meme nombre de barres. Vert,
+                   zero souci, onze voix distinctes.
+                   AU PASSAGE, LE REGARD DOUBLE. `_atkRegardDouble` calculait son
+                   differe sur `GAZE_WARN` BRUT alors que `_atkRegard` ouvre sur
+                   `_warn(GAZE_WARN)` : en cauchemar derniere phase la fenetre
+                   tombe a 0,8 s et le second regard arrivait quand meme 4,0 s
+                   plus tard. 3,2 s de trou, et le double regard cessait d etre un
+                   double pour devenir deux regards — la signature du Veilleur se
+                   defaisait la ou elle devait etre la plus serree.
+
+     0.27.4 lot 5  CINQ BOSS PORTAIENT LA PRISE D ARENE DE L AMALGAME, AU
+                   CARACTERE PRES : `amb #2e2a30, k 0.80, vig 1.45,
+                   puls [0.35, 0.22], atmo #e8e4dc`. Le commentaire de
+                   `BOSS_SKIN` les appelait « les finals par difficulte » — or
+                   TROIS d entre eux (Veilleur, Tisseur, Prisme) sont des boss de
+                   POOL, ajoutes en queue apres l ecriture de ce commentaire. La
+                   doc justifiait donc la copie par une phrase devenue fausse, et
+                   rien ne levait : la table etait bien indexee, les couleurs de
+                   corps differaient, seule la PRISE etait la meme. Pour ces cinq
+                   boss, « le monde repete le boss » se reduisait a un changement
+                   de couleur de corps — exactement ce que le plan interdit.
+                   Chacun rejoue maintenant son verbe. Le Veilleur porte le
+                   vignettage le plus fort du roster : c est un IRIS qui se
+                   resserre, et son battement lent et faible est un clignement.
+                   Le Tisseur epaissit l ombre et n a AUCUN battement — ce qu il
+                   fait n a pas de rythme, c est une accumulation. Le Prisme ouvre
+                   l arene, claire et sans cadre, et son battement rapide EST
+                   l interference. Le Recitant est le meme combat en plus clair.
+                   Le Silence n a aucun battement non plus, et c est son verbe :
+                   il n y aura pas d avertissement.
+                   `verifierPrises(BOSS_SKIN)` est le miroir de
+                   `verifierArchetypes()` sur l autre moitie de l identite —
+                   l archetype dit comment le boss deforme l espace, la prise dit
+                   ce que le MONDE en fait. La table arrive en ARGUMENT :
+                   `bosses.js` ne depend que d `i18n.js` et n importera pas la
+                   charte pour un verificateur.
+                   L ATMOSPHERE A SA PROPRE REGLE, et ce n est pas une redite du
+                   tuple : c est le seul champ de la prise qui traverse le CENTRE
+                   de l ecran. Elle a attrape un cas que le tuple laissait
+                   passer — le Prisme soufflait la couleur des Jumeaux.
+
+     0.27.5 lot 6  L AMER TELEPORTAIT A L ARRIVEE DU BOSS. `amerDe` prend le
+                   candidat le plus LOIN de tout danger ; `drawAmer` lui passait
+                   `hazardsActifs()`, vide pendant un combat. Tous les candidats
+                   valaient alors `Infinity`, et `Infinity > Infinity` est faux :
+                   c est le PREMIER qui sortait, pas le meilleur. 299 cas sur 320
+                   (4 lieux x 2 modes x 40 graines), saut jusqu a 2 596 px, et
+                   rejoue A L ENVERS a la mort du boss. Un objet de 460 px de
+                   rayon dont sa propre regle dit qu il est « ancre au MONDE »
+                   traversait l arene deux fois par combat. Le semis bougeait pour
+                   la meme raison : `occupe()` ne rejetait plus rien, donc des
+                   props naissaient dans l empreinte des blocs — et sa cle de
+                   cache ne contient ni obstacles ni dangers, donc c est le
+                   PANORAMIQUE du combat qui declenchait le recalcul.
+                   LA REGLE : ce qui est PLACE UNE FOIS pour la manche lit
+                   `obstaclesDuLieu()` / `hazardsDuLieu()`, ce qui se DESSINE par
+                   image lit `obstaclesActifs()` / `hazardsActifs()`. Les deux
+                   lecteurs de decor pose une fois etaient les seuls a confondre ;
+                   les huit autres lecteurs sont du dessin par image et restent
+                   sur les listes actives. Mesure apres : 0 cas sur 320.
+                   L ARENE DU BOSS RESTE NUE, ET C EST MAINTENANT ECRIT.
+                   `biomeNu` n existait dans aucune doc — la seule ligne qui
+                   aurait du le dire (« le boss n y passe pas ») etait devenue
+                   vide de sens, puisqu il n y a plus rien a traverser. Les deux
+                   raisons entrent dans `SIMULATION.md` : les six archetypes
+                   supposent un sol neutre, et la garantie d abri est ecrite sur
+                   un sol propre. Ce lot ne remet donc NI obstacle NI danger dans
+                   l arene du boss ; il corrige ce que la boite nue faisait bouger.
+                   AUCUN CHANGEMENT DE SIMULATION : trois fichiers de rendu.
+
+     0.27.6 lot 7  LA CAMPAGNE. Aucun changement de comportement : ce lot MESURE
+                   les six precedents et ecrit ce qu ils laissent ouvert.
+                   SUITE STATIQUE, SEPT VERIFICATEURS, TOUS VERTS :
+                   `verifierGrammaire` (11 formes pour 32 mecaniques),
+                   `verifierCoexistence` (41 paires incompatibles, toutes
+                   gardees), `verifierArchetypes` (9 archetypes, unicite sur le
+                   pool), `verifierPrises` (8 prises d arene distinctes,
+                   atmospheres comprises), `verifierFeedback` (11 voix, 9 timbres,
+                   aucune recette absente), la couverture des patrons (45 cles,
+                   45 `case`, 0 orphelin dans les deux sens) et l amer (0 sur 320
+                   deplacements).
+                   Les deux constantes que le plan a deplacees, dans leur forme
+                   finale : l emportement a 21 s x barres (105 s pour un
+                   ordinaire, 126 s au Silence, 168 s a l Amalgame) et le palier a
+                   1,40 s x 4 pour un ordinaire, 1,40 a 4,83 s pour le final.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5339,4 +5541,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.26.4";
+export const VERSION = "0.27.6";

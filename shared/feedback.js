@@ -205,6 +205,61 @@ export const BONUS_RANG = { beacon: 1, nova: 1, purification: 1 };
 export const bonusFamille = cle => BONUS[BONUS_FAM[cle] ?? BON_SURVIE];
 export const bonusRang = cle => BONUS_RANG[cle] ?? 0;
 
+/* CE QU'UN BOSS DIT EN ARRIVANT, ET EN SE BRISANT. Quatrieme sujet du module, et
+   la meme regle qu'aux trois autres : la voix se DEDUIT, elle ne se declare pas
+   boss par boss. Onze boss partageaient UN son d'arrivee et UN son de rupture —
+   c'etait le seul canal d'identite qui n'avait rien a lui.
+
+   L'ARCHETYPE EST LA MATIERE. C'est deja ce qui separe les boss dans le depot :
+   `ARCHETYPES` dit comment chacun DEFORME l'arene, et `verifierArchetypes()`
+   refuse que deux boss de pool en partagent un. Deduire la voix de la se paie
+   donc une seule fois : un dixieme boss de pool arrive avec sa voix.
+
+   LES BARRES SONT L'ECHELLE. Trois finaux partagent « fixe » — le roster le
+   permet, un seul sort par manche — mais ils n'ont pas le meme nombre de
+   barres : 5 au Recitant, 6 au Silence, 8 a l'Amalgame. La hauteur descend et la
+   duree monte avec, donc les onze arrivees se separent quand meme.
+
+   UNE SEULE RECETTE, NEUF JEUX DE PARAMETRES. Neuf recettes ecrites a la main
+   auraient neuf enveloppes a tenir d'accord ; ici la table porte les nombres et
+   `audio.js` porte la forme, exactement comme `BOUCHE` pour les armes. */
+const VOIX = (f0, f1, type, dur, harm, gainHarm, bruit, battement) =>
+  ({ son: "bossVoix", f0, f1, type, dur, harm, gainHarm, bruit, battement });
+
+export const BOSS_VOIX = {
+  // il ne bouge pas et il REGARDE : une tenue mince, aucune matiere, l'harmonique
+  // haute porte seule. C'est la seule voix sans bruit du jeu.
+  guetteur:     VOIX(196, 196, "sine",     1.05, 1.50, 0.26, 0,    0),
+  // il CONSTRUIT : creneau, marche descendante, du bruit median comme un moteur
+  batisseur:    VOIX(110,  98, "square",   0.95, 2.00, 0.16, 0.22, 0),
+  // plusieurs corps, un seul vrai : deux voix a un battement l'une de l'autre
+  reflet:       VOIX(165, 165, "triangle", 1.00, 1.50, 0.18, 0.10, 1.03),
+  // il occupe un bord et n'en bouge plus : grave tenu, harmonique a l'octave
+  ancre:        VOIX( 87,  87, "sawtooth", 1.10, 2.00, 0.24, 0.16, 0),
+  // l'espace diminue et ne revient pas : la voix DESCEND
+  constricteur: VOIX(110,  73, "sawtooth", 1.00, 1.50, 0.22, 0.18, 0),
+  // la horde est son corps : granuleux, un battement serre, du bruit haut
+  diffus:       VOIX(131, 124, "triangle", 1.00, 1.50, 0.20, 0.26, 1.01),
+  // l'equipe doit se diviser : deux voix a la QUINTE, franchement separees
+  multiple:     VOIX(123, 123, "sawtooth", 1.00, 1.50, 0.20, 0.12, 1.50),
+  // l'espace se deplace avec lui : la voix MONTE
+  mobile:       VOIX( 82, 131, "sawtooth", 0.90, 1.50, 0.18, 0.14, 0),
+  // l'espace est neutre : c'est la voix de reference, celle des trois finaux
+  fixe:         VOIX( 98,  82, "sawtooth", 1.05, 1.50, 0.30, 0.24, 0),
+};
+
+export const BOSS_BARS_REF = 5;
+const BOSS_ECHELLE_K = 0.35;
+
+export const voixDe = def => BOSS_VOIX[def?.archetype] ?? BOSS_VOIX.fixe;
+
+/* PLUS DE BARRES, PLUS BAS ET PLUS LONG. La racine ecrase l'ecart comme
+   `poids()` le fait pour les armes : de 5 a 8 barres la hauteur ne perd que
+   15 %, ce qui suffit a separer deux finaux sans faire de l'Amalgame un autre
+   instrument. */
+export const echelleBoss = def =>
+  Math.pow(BOSS_BARS_REF / Math.max(1, def?.bars ?? BOSS_BARS_REF), BOSS_ECHELLE_K);
+
 /* CE QUI NE LEVE RIEN : un nom de recette faux rend `playSound` a `false` et
    l'evenement devient MUET. C'est exactement la classe de bug que `CLAUDE.md`
    appelle « silence », et la seule facon de la voir est de croiser les tables
@@ -213,9 +268,34 @@ export const bonusRang = cle => BONUS_RANG[cle] ?? 0;
    Les tables et le bestiaire arrivent en ARGUMENT : ce module ne depend de rien
    et ne va pas commencer ici. Muet = tout va bien, comme `verifierBiomes()`. */
 export function verifierFeedback(armes = [], types = [], recettes = [],
-  bonusCles = []) {
+  bonusCles = [], boss = [], archetypes = null) {
   const soucis = [];
   const dispo = new Set(recettes);
+
+  for (const [cle, v] of Object.entries(BOSS_VOIX)) {
+    if (recettes.length && !dispo.has(v.son)) {
+      soucis.push(`voix ${cle} : recette « ${v.son} » absente d'audio.js`);
+    }
+    if (!(v.f0 > 0) || !(v.f1 > 0)) soucis.push(`voix ${cle} : sans fondamentale`);
+    if (!(v.dur > 0.5 && v.dur < 2)) soucis.push(`voix ${cle} : duree ${v.dur} hors bornes`);
+    if (!(v.harm > 0)) soucis.push(`voix ${cle} : harmonique ${v.harm}`);
+    if (!(v.bruit >= 0) || !(v.battement >= 0)) {
+      soucis.push(`voix ${cle} : bruit ${v.bruit}, battement ${v.battement}`);
+    }
+  }
+  // un archetype du jeu sans voix rendrait la voix de repli, donc DEUX boss
+  // identiques a l'oreille sans que rien ne le dise.
+  for (const cle of Object.keys(archetypes ?? {})) {
+    if (!BOSS_VOIX[cle]) soucis.push(`archetype ${cle} : aucune voix`);
+  }
+  // et deux boss de POOL qui sonnent pareil sont le defaut que ce lot ferme :
+  // meme matiere ET meme echelle.
+  const vus = new Map();
+  for (const b of boss) {
+    const cle = `${b.archetype}|${b.bars ?? BOSS_BARS_REF}`;
+    if (vus.has(cle)) soucis.push(`${b.key} et ${vus.get(cle)} : meme voix (${cle})`);
+    else vus.set(cle, b.key);
+  }
 
   for (const [cle, f] of Object.entries(FEEDBACK)) {
     // une famille a son depart ENTIER ou pas de depart du tout : une voix sans

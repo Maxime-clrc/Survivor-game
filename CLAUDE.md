@@ -250,6 +250,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `litCanons(a)` | quelles armes lisent `extraBarrels`, donc lesquelles paient `barrelDamageMul` |
 | `conversionBoss(a)` | ce qu’une arme rend contre une CIBLE UNIQUE |
 | `ficheDe(a)` / `poids(a)` (`shared/feedback.js`) | ce qu’une arme DIT : la famille donne la matière (et la CLEF du limiteur de voix), `interval` donne l’échelle. Trois familles rendent `son: null` — leur délivrance sonne déjà, un son de départ la doublerait |
+| `voixDe(def)` / `echelleBoss(def)` (`shared/feedback.js`) | ce qu'un BOSS dit en arrivant et en se brisant. L'ARCHÉTYPE donne la matière — c'est déjà ce qui sépare les boss, et `verifierArchetypes()` en garantit l'unicité sur le pool ; les BARRES donnent l'échelle, seul axe qui sépare les trois finaux, tous « fixe ». UNE recette (`bossVoix`), neuf jeux de paramètres |
 | `matiereDe(def)` (`shared/feedback.js`) | ce qu’une créature DIT en mourant, déduit de ce qu’elle fait (`splits`, `heal`, `auraRadius`). La case d’atlas se lit à l’appel, jamais dans la table |
 | `MATIERE[i].touche` (`shared/feedback.js`) | ce qu’une créature dit quand on la TOUCHE. Le PALIER dit combien, la MATIERE dit à quoi — et elle n’ajoute AUCUNE particule : `PALIER` garde le compte, le cône et la vitesse, `touche` ne fait que les plier |
 | `finalDe(def)` / `finalRayon(def)` (`shared/feedback.js`) | l’ACTE FINAL d’une mort, déduit de ce que la créature TENAIT — lien, champ, ou masse. Quatre lignes du bestiaire sur treize, et c’est la condition pour que ce soit un fait notable |
@@ -278,6 +279,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `enemySpeed(type, minute, diff, tirage, elite)` | vitesse d'un ennemi — apparition **et** vérificateur |
 | `_clampToBounds()` / `_dropPoint()` | tout ce qui borne un déplacement ou pose un objet |
 | `_bossTargets()` | tout ce qui frappe « le boss » en zone |
+| `_bossBars(b, dt)` | LE palier et LA rupture. Le palier s'ouvre **au plancher**, dure `PALIER_TIME` et se ferme en cassant la barre — sauf sur la dernière du final, où il pose `b.finalLibre`, son seul terminus. Compter depuis la rupture **précédente** rendait le temps mort maximal quand l'équipe jouait le mieux |
 | `_mechLibre(mech)` | la coexistence de deux ordres ; lu par `_pickAtk` **avant** le tirage |
 | `_zoneEcarteAbris(z)` (dans `_zone()`) | tout ce qui empêche une zone de couvrir un abri |
 | `_solPret(b)` / `_solPose(b, n0)` | l'exclusivité d'un motif qui sature le sol |

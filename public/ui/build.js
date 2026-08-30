@@ -94,7 +94,7 @@ function powerBlockHtml(mods) {
     + `${escapeHtml(t(`ui.build.mark.${m.cle}`, m.lab))}</span>`).join("");
 
   const brut = BOSS_MEDIAN_FIGHT * ref / Math.max(0.1, v);
-  const plancher = CFG.BOSS_BARS * BOSS_CFG.BAR_DWELL;
+  const plancher = (CFG.BOSS_BARS - 1) * BOSS_CFG.PALIER_TIME;
   const duree = Math.max(plancher, brut);
 
   return (

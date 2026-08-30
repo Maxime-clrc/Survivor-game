@@ -292,7 +292,28 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 - **`state.walls` bloque, il ne blesse pas.** On repousse du côté **d'où l'on
   venait** (une esquive traverse 162 px en trois images). Le client rejoue la
   règle. Les obstacles de biome repoussent **par axe** (glissement). Le **boss**
-  n'y passe pas.
+  n'y passe pas — et c'est vrai sans qu'il y ait de test, parce qu'il n'y a plus
+  rien à traverser : voir `biomeNu` juste dessous. `_bossMove` n'appelle donc ni
+  `_obstacleBlock` ni `_wallBlock`.
+- **L'ARÈNE DU BOSS EST NUE, ET C'EST UNE DÉCISION** (`biomeNu`, un getter :
+  `obstacles` et `hazards` rendent une liste **vide** dès `bossPending`, serveur
+  **et** client — `render/stage.js` rejoue la même règle). Mesuré : **0 obstacle
+  sur 62 377 images de combat**. Deux raisons, et aucune n'est l'économie :
+  - les six **archétypes** disent tous comment le boss *déforme* l'espace, ce qui
+    suppose un sol neutre au départ ;
+  - la **garantie d'abri** (`_solLibrePart`, `_zoneEcarteAbris`, `_foyerPoint`)
+    est écrite sur un sol propre. Y compter le terrain rouvrirait le seul
+    invariant que le dépôt a payé deux fois.
+- **CE QUI EST PLACÉ UNE FOIS POUR LA MANCHE LIT LA GÉOMÉTRIE DE LA MANCHE**
+  (`obstaclesDuLieu()` / `hazardsDuLieu()`), **ce qui se dessine par image lit
+  les listes actives** (`obstaclesActifs()` / `hazardsActifs()`). Confondre les
+  deux fait **bouger** du décor déterministe : l'amer choisit le candidat le plus
+  loin de tout danger, or sur une liste vide tous valent `Infinity` et
+  `Infinity > Infinity` est faux — c'est le **premier** qui sortait. **299 cas
+  sur 320** (4 lieux × 2 modes × 40 graines), saut jusqu'à **2 596 px**, rejoué à
+  l'envers à la mort du boss. Le semis bougeait pour la même raison, et sa clé de
+  cache ne contient ni obstacles ni dangers : c'est le panoramique du combat qui
+  déclenchait le recalcul.
 - **Le plafond de population est une FONCTION, pas une constante** :
   `enemyCap(diffIndex, joueurs)` = `MAX_ENEMIES_BASE × MAX_ENEMIES_DIFF[i] ×
   joueurs^WAVE_CROWD_EXP`, borné par `MAX_ENEMIES_HARD_CAP`. Le **même exposant**
@@ -437,9 +458,9 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   La **couche 1 se dessine avant tout télégraphe au sol** — par construction, pas
   par réglage d'opacité. La **couche 4** dessine `acos(BOSS_CFG.GAZE_COS)`, la
   constante que le serveur mesure, jamais un angle recopié.
-- **`BAR_DWELL` MONTE avec la difficulté** (8 / 10 / 12), ce qui est
-  contre-intuitif : le palier est le moment où se joue la mécanique de la phase
-  suivante, donc en cauchemar on en subit **plus**, pas moins.
+- **Le palier MONTE avec la difficulté** (`bossProfil.palier`, 1,0 / 1,4 / 1,8),
+  ce qui est contre-intuitif : le palier est le moment où se joue la mécanique de
+  la phase suivante, donc en cauchemar on en subit **plus**, pas moins.
 - **P4 · L'ÉCHEC EST D'ABORD INDIVIDUEL**, point de passage `_mechFail(fautifs,
   ratio, mech)`. En `mixte` (normal), seules les mécaniques d'**occupation**
   restent collectives — et elles se reconnaissent à leur **forme `colonne`**,
@@ -521,15 +542,49 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 - **La rupture de barre ne blesse pas**, et elle est déclinée par **boss**
   (`_bossBreak`). Chaque variante **s'annonce**. Le boss peut mourir dans sa
   propre rupture : tester `this.boss` après chaque tour de boucle.
-- **Le plancher de barre** (`BOSS_CFG.BAR_DWELL`, dans `_bossBars`) **diffère** la
-  rupture sans perdre les dégâts en excès (`broken` se déduit des PV). **La banque
-  se vide BARRE PAR BARRE**, jamais d'un coup — on n'applique que ce qui mène au
-  plancher de la barre suivante. **La dernière barre du final a un plancher elle
-  aussi.**
-- **L'enrage** (`_bossEnrage`, `ENRAGE_AT`/`ENRAGE_STEP`, `FINAL_ENRAGE_AT` pour
-  le final ≈ deux fois la médiane) monte dégâts de zone et cadence, et
-  **s'annonce à chaque palier**. Il passe par `_zoneDamage()` et `attackCd`, donc
-  sous le plafond des mécaniques.
+- **LE PALIER S'OUVRE AU PLANCHER, PAS À LA RUPTURE PRÉCÉDENTE**
+  (`BOSS_CFG.PALIER_TIME`, `_bossBars(b, dt)`). L'ancien `BAR_DWELL` comptait
+  depuis `lastBreak`, donc une barre fondue en 2 s laissait 8 s où le boss ne
+  prenait plus rien et une barre lente n'en laissait aucune : **le temps mort
+  était maximal exactement quand l'équipe jouait le mieux**. Mesuré, part du
+  combat au palier : 4 % au Ravageur contre **54 %** à l'Oracle en calme, 42 % en
+  normal. La fenêtre est maintenant **courte et constante** — 10 à 17 % partout —
+  et la durée d'un combat redevient la somme des fontes, donc `hpMul` règle
+  vraiment la durée.
+  - **Elle est courte parce que la mesure le dit.** Première écriture à 2,6 s :
+    quatre paliers pesaient 10,4 s sur 53 s, soit **20 %**, plus que la règle
+    qu'elle remplaçait n'en produisait à la médiane. Le défaut n'était pas le
+    niveau, c'était la **variance**.
+  - **Les dégâts en excès restent perdus** (`_damage`) : la banque a été retirée
+    parce qu'elle cadençait la mort du boss sans jamais la retarder.
+  - **La dernière barre du final a son palier elle aussi**, et `b.finalLibre` en
+    est le terminus — sans lui le plancher se rouvre à l'image suivante, puisque
+    `palierOuvert` retombe à zéro dès que le plancher disparaît.
+  - **LE FINAL RESPIRE DE PLUS EN PLUS** (`FINAL_PALIER_RAMP`, `_palierTime(b)`) :
+    sa fenêtre s'allonge avec la phase, 1,4 s à la première rupture et 4,8 s au
+    moment où il devient tuable, soit **3,5×**. Sept ruptures qui ouvrent chacune
+    une couche, toutes cadencées pareil, sont une escalade sans palier de lecture.
+    Aux fenêtres tardives, le patron différé par `PALIER_AMORCE` **se résout dans
+    la fenêtre** : la mécanique de la phase suivante se joue pendant que le boss
+    est invulnérable, ce qui est exactement l'intention écrite du palier.
+  - **La respiration se paie en PV, jamais sur l'horloge.** `FINAL_HP_MUL`
+    descend de ce que les fenêtres ajoutent (1,30 → 1,17 pour 11,2 s → 24,9 s).
+    Ce qui change est la **composition** du combat, pas sa durée : moins de
+    fonte, plus de moments étagés. Ajoutée par-dessus, la respiration sortait le
+    final de la bande à quatre joueurs.
+- **L'EMPORTEMENT SE COMPTE PAR BARRE** (`_bossEnrage`,
+  `ENRAGE_PAR_BARRE × b.bars`, puis `ENRAGE_STEP`). Deux secondes absolues —
+  150 s, 300 s pour le final — contre des combats de 40 à 120 s : il ne partait
+  **jamais** en calme ni en normal à deux, 4 % à quatre, 8 % en solo, et jamais
+  sur un final. Le nombre de barres est ce qui fait la longueur d'un combat, donc
+  un boss à huit barres a plus de temps qu'un boss à cinq **sans seconde
+  constante**. Il vient du **jeu**, pas du critère : l'indexer sur
+  `BOSS_FIGHT_MAX` rendrait `verifierBoss` vrai par construction.
+  Il monte dégâts de zone et cadence, **s'annonce à chaque palier**, et passe par
+  `_zoneDamage()` et `attackCd`, donc sous le plafond des mécaniques.
+- **`BOSS_ENRAGE_MIN`/`MAX` est une BANDE, pas un plafond.** Le critère n'avait
+  qu'une borne haute, donc « jamais » le passait : l'anti-enlisement est resté
+  mort pendant tout un plan sans qu'aucune mesure ne le dise.
 - **LE POOL EST UNE LISTE, PAS UN PRÉFIXE** (`BOSS_POOL`, huit entrées) : le
   roster est **append-only** puisque l'index circule dans `bo[9]`, donc les
   finaux vivent *après* les boss de pool dans le tableau. `BOSS_POOL_COUNT` (5)

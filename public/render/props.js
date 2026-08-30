@@ -1,7 +1,7 @@
 import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
-import { biomeIndex, biomeSeed, camera, ctx, hazardsActifs, obstaclesActifs, skin } from "./stage.js";
+import { biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, skin } from "./stage.js";
 import { biomeAt } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
@@ -94,11 +94,17 @@ function h2(x, y, s) {
 const props = [];
 let cle = "";
 
+/* LE SEMIS LIT LA GEOMETRIE DE LA MANCHE, PAS LA LISTE ACTIVE. Un prop est place
+   UNE fois par cellule et pour la manche ; le lire sur les listes videes par le
+   boss le fait NAITRE dans l'empreinte des blocs des que la camera bouge — et
+   `cle` ne contient ni obstacles ni dangers, donc c'est le panoramique du combat
+   qui declenche le recalcul. Il disparait ensuite a la mort du boss. La trace
+   d'un bloc absent est le prix, et il est plus petit qu'un semis qui change. */
 function occupe(x, y) {
-  for (const o of obstaclesActifs()) {
+  for (const o of obstaclesDuLieu()) {
     if (Math.abs(x - o.x) < o.w / 2 + 26 && Math.abs(y - o.y) < o.h / 2 + 26) return true;
   }
-  for (const h of hazardsActifs()) {
+  for (const h of hazardsDuLieu()) {
     if ((x - h.x) ** 2 + (y - h.y) ** 2 < (h.r + 14) ** 2) return true;
   }
   return false;

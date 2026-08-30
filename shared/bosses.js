@@ -299,6 +299,53 @@ export function verifierArchetypes() {
   return { ok: err.length === 0, err };
 }
 
+/* DEUX BOSS DE POOL NE PRENNENT PAS L'ARENE DE LA MEME FACON. Miroir exact de
+   `verifierArchetypes()`, sur l'autre moitie de l'identite : l'archetype dit
+   comment le boss deforme l'espace, la prise dit ce que le MONDE en fait.
+
+   Cinq lignes de `BOSS_SKIN` recopiaient celle de l'Amalgame au caractere pres,
+   dont TROIS boss de pool — le commentaire de la table les disait « finals »
+   parce qu'ils avaient ete ajoutes en queue apres son ecriture. Rien ne levait :
+   la table etait bien indexee, les couleurs de corps differaient, et seule la
+   prise etait la meme.
+
+   La table arrive en ARGUMENT : `bosses.js` ne depend que d'`i18n.js` et ne va
+   pas importer la charte pour un verificateur. Muet = tout va bien. */
+export function verifierPrises(skins = []) {
+  const err = [];
+  if (!skins.length) return { ok: true, err };
+  const cle = s => `${s.amb}|${s.k}|${s.vig}|${s.puls?.join(",")}|${s.atmo}`;
+
+  for (const b of BOSS_ROSTER) {
+    const s = skins[b.id];
+    if (!s) { err.push(`${b.key} : aucune prise`); continue; }
+    if (!(s.k > 0 && s.k < 1)) err.push(`${b.key} : k ${s.k}`);
+    if (!(s.vig > 0.5 && s.vig < 2)) err.push(`${b.key} : vig ${s.vig}`);
+    if (!Array.isArray(s.puls) || s.puls.length !== 2) err.push(`${b.key} : puls malforme`);
+    else if (!(s.puls[0] >= 0) || !(s.puls[1] >= 0)) err.push(`${b.key} : puls ${s.puls}`);
+    if (!s.amb) err.push(`${b.key} : sans ambiante`);
+  }
+
+  const vus = new Map();
+  // l'ATMOSPHERE a sa propre regle, et ce n'est pas une redite du tuple : c'est
+  // le seul champ de la prise qui traverse le CENTRE de l'ecran. Deux boss de
+  // pool aux tuples differents mais au meme souffle se ressemblaient quand meme
+  // la ou ca se voit — le Prisme portait celui des Jumeaux.
+  const souffles = new Map();
+  for (const i of BOSS_POOL) {
+    const s = skins[i];
+    if (!s) continue;
+    const c = cle(s);
+    if (vus.has(c)) err.push(`${BOSS_ROSTER[i].key} et ${vus.get(c)} : meme prise d'arene`);
+    else vus.set(c, BOSS_ROSTER[i].key);
+    if (!s.atmo) continue;
+    if (souffles.has(s.atmo)) {
+      err.push(`${BOSS_ROSTER[i].key} et ${souffles.get(s.atmo)} : meme atmosphere ${s.atmo}`);
+    } else souffles.set(s.atmo, BOSS_ROSTER[i].key);
+  }
+  return { ok: err.length === 0, err };
+}
+
 export function adaptMech(id, alive) {
   const def = MECHS[id];
   if (!def) return -1;
@@ -517,11 +564,49 @@ export const WARN_PREPARATION = 4.0;
 export const WARN_CLASSES = [WARN_REFLEXE, WARN_STANDARD, WARN_LECTURE, WARN_PREPARATION];
 
 export const BOSS_CFG = {
-  BAR_DWELL: 10,
+  /* LE PALIER EST UNE FENETRE, PAS UN PLANCHER DE BARRE. `BAR_DWELL` comptait
+     depuis la rupture PRECEDENTE, donc une barre fondue en 2 s laissait 8 s ou
+     le boss ne prenait plus rien et une barre lente n'en laissait aucune : le
+     temps mort etait maximal exactement quand l'equipe jouait le mieux. Mesure
+     avant : 54 % du combat au plancher (Oracle, calme, 2 j), 42 % (Oracle,
+     normal), 40 % (Metronome). Le compte part maintenant du PLANCHER, et sa
+     duree est celle qu'il faut pour lire l'ouverture de la couche suivante —
+     `PALIER_AMORCE` puis un temps. Elle monte toujours avec la difficulte.
+     Duree de combat = somme des fontes + (barres - 1) x palier, donc `hpMul`
+     redevient ce qui regle la duree.
 
-  ENRAGE_AT: 150,
+     ELLE EST COURTE, ET C'EST LA MESURE QUI LE DIT. Premiere ecriture a 2,6 s :
+     quatre paliers pesaient alors 10,4 s sur un combat de 53 s, soit 20 % — plus
+     de temps mort que la regle qu'elle remplacait n'en produisait a la mediane
+     (10 %). Le defaut n'etait pas le niveau, c'etait la VARIANCE : 4 % au
+     Ravageur contre 54 % a l'Oracle en calme, selon que la barre fondait avant
+     ou apres le plancher de sejour. Une fenetre courte et CONSTANTE tient les
+     deux bouts. */
+  PALIER_TIME: 1.4,
+  PALIER_AMORCE: 0.6,
+
+  /* L EMPORTEMENT SE COMPTE PAR BARRE, PAS EN SECONDES ABSOLUES. `ENRAGE_AT`
+     valait 150 s et `FINAL_ENRAGE_AT` 300 s contre des combats de 40 a 120 s :
+     il ne se declenchait dans AUCUN combat en calme ni en normal a deux joueurs,
+     4 % a quatre, 8 % en solo, jamais sur un final. Un anti-enlisement qui ne
+     part jamais n est pas un reglage prudent, c est du contenu mort — et le
+     critere ne le voyait pas, `BOSS_ENRAGE_MAX` etant un plafond sans plancher.
+
+     LE NOMBRE DE BARRES EST LA BONNE ECHELLE : c est lui qui fait la longueur
+     d un combat, donc un boss a huit barres a droit a plus de temps qu un boss a
+     cinq sans qu on ecrive une seconde constante pour lui. Et il vient du JEU,
+     pas du critere : indexer sur `BOSS_FIGHT_MAX` rendrait `verifierBoss` vrai
+     par construction.
+
+     21 EST LU SUR LA DISTRIBUTION, pas choisi. 82 combats ordinaires, huit
+     manches, trois effectifs : p50 65 s, p75 90 s, p90 118 s. A 18 s par barre
+     l emportement part dans 26 % des combats, a 21 dans 15 %, a 24 dans 10 % —
+     la bande visee est 10 a 25 %. AUCUNE valeur ne la tient aux trois effectifs
+     a la fois : les combats solo durent le double des combats a deux, donc le
+     meme seuil rend 48 % en solo et 0 % a deux. C est un ecart de DUREE, pas de
+     seuil, et aucune forme de seuil ne le rattrape. */
+  ENRAGE_PAR_BARRE: 21,
   ENRAGE_STEP: 30,
-  FINAL_ENRAGE_AT: 300,
   ENRAGE_DAMAGE: 0.25,
   ENRAGE_CD: 0.12,
   ENRAGE_CD_FLOOR: 0.45,
@@ -692,8 +777,15 @@ export const BOSS_CFG = {
   CROSSD_LIFE: 8,
   CROSSD_DOT: 26,
 
-  FINAL_HP_MUL: 1.3,
-  FINAL_BAR_DWELL: 10,
+  /* LA RESPIRATION DU FINAL SE PAIE EN PV, PAS SUR L HORLOGE. Sa fenetre de
+     palier s allonge avec la phase — 1,4 s a la premiere rupture, 4,8 s au
+     moment ou il devient tuable, huit fenetres pour 25 s au lieu de 9,8 — et
+     `FINAL_HP_MUL` descend d autant pour que la duree ne bouge pas. Ce qui
+     change est la COMPOSITION du combat : moins de fonte, plus de moments
+     etages. Ajouter la respiration par-dessus aurait rendu 182 s a quatre
+     joueurs, hors de la bande. */
+  FINAL_PALIER_RAMP: 0.35,
+  FINAL_HP_MUL: 1.17,
 
   SEAL_RADIUS: 88,
   SEAL_WARN: WARN_PREPARATION,

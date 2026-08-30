@@ -431,7 +431,7 @@ export const DIFFICULTIES = [
     hp: 0.78, spawn: 0.80, dmg: 0.80, boss: 0.75, speed: 0.85,
     bossProfil: {
       parPhase: 1, warn: 1, mechRatio: 0.60, echec: "individuel",
-      couches: 3, dwell: 8, renforts: 0, reflexe: -1,
+      couches: 3, palier: 1.0, renforts: 0, reflexe: -1,
     },
   },
   {
@@ -455,7 +455,7 @@ export const DIFFICULTIES = [
     hp: 1.00, spawn: 1.00, dmg: 1.00, boss: 1.00, speed: 1.00,
     bossProfil: {
       parPhase: 2, warn: 0, mechRatio: 0.90, echec: "mixte",
-      couches: 99, dwell: 10, renforts: 0, reflexe: -1,
+      couches: 99, palier: 1.4, renforts: 0, reflexe: -1,
     },
   },
   {
@@ -514,7 +514,7 @@ export const DIFFICULTIES = [
        a la classe de telegraphe est le prealable, et c'est un lot a part. */
     bossProfil: {
       parPhase: 2, warn: 0, mechRatio: 1.40, echec: "collectif",
-      couches: 99, dwell: 12, renforts: 1, reflexe: 4, superpose: 1,
+      couches: 99, palier: 1.8, renforts: 1, reflexe: 4, superpose: 1,
     },
   },
 ];
@@ -5091,6 +5091,8 @@ export class GameState {
           enrage: 0,
           palier: 0,
           palierOuvert: 0,
+          palierT: 0,
+          finalLibre: 0,
           solT: 0,
           defer: [],
         };
@@ -5149,7 +5151,7 @@ export class GameState {
     this._marks(dt);
     this._bossPassives(b, dt);
     if (!this.boss) return;
-    this._bossBars(b);
+    this._bossBars(b, dt);
 
     b.summonCd -= dt;
     if (b.summonCd <= 0) {
@@ -5190,7 +5192,7 @@ export class GameState {
   }
 
   _bossEnrage(b) {
-    const seuil = estFinal(b.kind) ? BOSS_CFG.FINAL_ENRAGE_AT : BOSS_CFG.ENRAGE_AT;
+    const seuil = BOSS_CFG.ENRAGE_PAR_BARRE * b.bars;
     if (b.fightT < seuil) return;
     const palier = 1 + Math.floor((b.fightT - seuil) / BOSS_CFG.ENRAGE_STEP);
     if (palier <= b.enrage) return;
@@ -5323,18 +5325,26 @@ export class GameState {
   // de sauter des phases : `_damage` s'y arrete, `_bossBars` l'attend.
   _bossFloor(b) {
     if (b.phase < b.bars - 1) return b.maxHp - (b.phase + 1) * b.barHp;
-    if (estFinal(b.kind) && b.fightT - b.lastBreak < this._dwell(b)) return 1;
+    // LA DERNIERE BARRE DU FINAL A SON PALIER ELLE AUSSI, et il se compte comme
+    // les autres — au plancher, pas depuis la rupture precedente. `finalLibre`
+    // est le terminus : sans lui le plancher se rouvre a l'image suivante, parce
+    // que `palierOuvert` retombe a zero des que le plancher disparait.
+    if (estFinal(b.kind) && !b.finalLibre) return 1;
     return null;
   }
 
   // le palier MONTE avec la difficulte, ce qui est contre-intuitif : c'est le
   // moment ou se joue la mecanique de la phase suivante, donc en cauchemar on
   // en subit PLUS, pas moins.
-  _dwell(b) {
-    const P = this._bossProfil();
-    return estFinal(b.kind)
-      ? BOSS_CFG.FINAL_BAR_DWELL * (P.dwell / BOSS_CFG.BAR_DWELL)
-      : P.dwell;
+  // LE FINAL RESPIRE DE PLUS EN PLUS. Sept ruptures qui ouvrent chacune une
+  // couche, toutes cadencees pareil, c'est une escalade sans palier de lecture :
+  // la fenetre s'allonge avec la phase, donc la derniere vaut 3,5 fois la
+  // premiere et le moment ou il devient tuable est le plus long du combat.
+  // Elle est PAYEE EN PV (`FINAL_HP_MUL`), jamais ajoutee a l'horloge.
+  _palierTime(b) {
+    const base = this._bossProfil().palier ?? BOSS_CFG.PALIER_TIME;
+    if (!b || !estFinal(b.kind)) return base;
+    return base * (1 + BOSS_CFG.FINAL_PALIER_RAMP * b.phase);
   }
 
   // TOUT SOIN DE BOSS PASSE ICI. Sans ce point de passage, un boss qui se
@@ -5350,18 +5360,30 @@ export class GameState {
     b.hp = Math.min(plafond, b.hp + amount);
   }
 
-  _bossBars(b) {
-    const dwell = this._dwell(b);
+  // LE PALIER S'OUVRE AU PLANCHER, PAS A LA RUPTURE PRECEDENTE. Le compte partait
+  // de `lastBreak` : une barre fondue en 2 s laissait 8 s ou le boss ne prenait
+  // plus rien, une barre lente n'en laissait aucune. Le temps mort etait donc
+  // maximal exactement quand l'equipe jouait le mieux, et `hpMul` n'achetait plus
+  // une duree mais du vide. Il dure maintenant ce qu'il faut pour lire
+  // l'ouverture de la couche suivante, et la duree du combat redevient la somme
+  // des fontes.
+  _bossBars(b, dt) {
+    const max = this._palierTime(b);
     const plancher = this._bossFloor(b);
     const auPlancher = plancher !== null && b.hp <= plancher + 1e-6;
-    const reste = dwell - (b.fightT - b.lastBreak);
+
+    if (!auPlancher) {
+      b.palier = 0;
+      b.palierOuvert = 0;
+      return;
+    }
 
     // le palier est la fenetre ou le boss est DE FAIT invulnerable. Il se voit
     // (enveloppe, barre blanche, ricochets) et il est OCCUPE : la mecanique de
     // la phase suivante s'y joue, ce qui en fait le sommet de la phase.
-    b.palier = auPlancher && reste > 0 ? reste / dwell : 0;
-    if (b.palier > 0 && !b.palierOuvert) {
+    if (!b.palierOuvert) {
       b.palierOuvert = 1;
+      b.palierT = max;
       this.effects.push({
         id: this._nextId++, x: b.x, y: b.y,
         r: CFG.BOSS_BREAK_RADIUS * 0.55, life: 0.55, max: 0.55, kind: 15,
@@ -5369,12 +5391,20 @@ export class GameState {
       if (b.phase < b.bars - 1 && b.phase < this._bossProfil().couches) {
         const couche = bossAt(b.kind).unlock[b.phase];
         if (couche && couche.length) {
-          this._deferAtk(b, couche[Math.floor(Math.random() * couche.length)], 0.9);
+          this._deferAtk(b, couche[Math.floor(Math.random() * couche.length)],
+                         BOSS_CFG.PALIER_AMORCE);
         }
       }
     }
 
-    if (!auPlancher || reste > 0 || b.phase >= b.bars - 1) return;
+    b.palierT -= dt;
+    b.palier = Math.max(0, Math.min(1, b.palierT / max));
+    if (b.palierT > 0) return;
+
+    // derniere barre : le palier s'acheve en LIBERANT le boss, pas en rompant
+    // une barre qui n'existe pas. Seul un final y passe — un boss ordinaire n'a
+    // pas de plancher sur sa derniere barre.
+    if (b.phase >= b.bars - 1) { b.finalLibre = 1; b.palier = 0; return; }
 
     b.lastBreak = b.fightT;
     b.palier = 0;
@@ -5625,8 +5655,13 @@ export class GameState {
   // seconde fenetre s'ouvre ou se replie en cone.
   _atkRegardDouble(b) {
     this._atkRegard(b);
+    // LE DIFFERE LIT LA MEME FENETRE QUE L'OUVERTURE. Il comptait sur
+    // `GAZE_WARN` BRUT alors que `_atkRegard` ouvre sur `_warn(GAZE_WARN)` : en
+    // cauchemar derniere phase (`reflexe`) la fenetre tombe a 0,8 s et le second
+    // regard arrivait quand meme 4,0 s plus tard — 3,2 s de trou, et le double
+    // regard cessait d'etre un double pour devenir deux regards.
     this._deferAtk(b, "regard",
-      BOSS_CFG.GAZE_TIME + BOSS_CFG.GAZE_WARN + BOSS_CFG.GAZE_REST + 0.1);
+      BOSS_CFG.GAZE_TIME + this._warn(BOSS_CFG.GAZE_WARN) + BOSS_CFG.GAZE_REST + 0.1);
   }
 
   _atkRegardMobile(b) {
@@ -9543,6 +9578,9 @@ export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes 
         duree: g.boss.fightT, puissance: puissance(),
         enrage: g.boss.enrage ?? 0,
         renforts: (vu?.renforts ?? 0) + venus,
+        // la part du combat ou le boss ne prend RIEN : c'est elle que le palier
+        // achete, et elle ne se deduit d'aucune duree.
+        auPalier: (vu?.auPalier ?? 0) + (g.boss.palier > 0 ? 1 : 0),
         dernier: g.enemies.length,
         corps: (vu?.corps ?? 0) + g.enemies.length,
         images: (vu?.images ?? 0) + 1,
@@ -9554,6 +9592,7 @@ export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes 
         ...vu,
         debit: vu.duree > 0 ? vu.renforts / vu.duree / joueurs : null,
         vivants: vu.corps / vu.images / joueurs,
+        partPalier: vu.images > 0 ? vu.auPalier / vu.images : 0,
       });
       vu = null;
     }
@@ -10322,6 +10361,16 @@ export function verifierMeta(effectifs = [1, 4], manches = 4) {
 export const BOSS_DRIFT_MAX = 0.20;
 export const BOSS_DENSITY_TOL = 0.15;
 export const BOSS_ENRAGE_MAX = 0.25;
+export const BOSS_ENRAGE_MIN = 0.10;
+// un boss ordinaire a quatre paliers ; au-dela de ce plafond ils cessent d'etre
+// un sommet de phase pour devenir la moitie du combat.
+export const BOSS_PALIER_MAX = 0.15;
+// EN DESSOUS, UNE MEDIANE PAR BOSS NE DIT RIEN. Une manche montre 5 boss sur 8,
+// donc six manches n'en donnent que trois ou quatre chacun — et la duree d'un
+// meme boss va de 49 a 126 s selon le tirage de cartes. Le seuil est le nombre a
+// partir duquel la mediane cesse de suivre l'echantillon ; a 6 manches le critere
+// se declare NON MESURE au lieu de passer au vert.
+export const BOSS_ECHANTILLON_MIN = 8;
 
 export function mesureBoss(diffIndex, joueurs, manches = 6, minutes = 60) {
   const combats = [];
@@ -10335,13 +10384,25 @@ export function mesureBoss(diffIndex, joueurs, manches = 6, minutes = 60) {
     Math.random = alea;
   }
   const parSegment = new Map();
+  const parKind = new Map();
   for (const c of combats) {
     if (!parSegment.has(c.segment)) parSegment.set(c.segment, []);
     parSegment.get(c.segment).push(c);
+    if (!parKind.has(c.kind)) parKind.set(c.kind, []);
+    parKind.get(c.kind).push(c);
   }
   return {
     diffIndex, joueurs, combats,
     duree: new Map([...parSegment].map(([s, cs]) => [s, mediane(cs.map(c => c.duree))])),
+    // PAR BOSS, et pas seulement par segment : la mediane d'un segment melange
+    // cinq boss tires au sort, donc un boss aberrant s'y noie. Mesure : 59 s au
+    // Metronome contre 156 s aux Jumeaux au meme effectif, tous deux invisibles
+    // au critere de segment.
+    parBoss: new Map([...parKind].map(([k, cs]) => [k, {
+      n: cs.length,
+      duree: mediane(cs.map(c => c.duree)),
+      palier: mediane(cs.map(c => c.partPalier)),
+    }])),
     debit: mediane(combats.map(c => c.debit).filter(v => v !== null)),
     vivants: mediane(combats.map(c => c.vivants)),
     enrages: combats.length
@@ -10469,17 +10530,54 @@ export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_N
       }
     }
 
+    // le final se juge sur DEUX fois un boss ordinaire. La borne basse etait le
+    // plancher de sejour (7 x 10 s) : le palier n'etant plus un plancher, elle
+    // serait tombee a 18 s et n'aurait plus rien attrape.
     const final = r.duree.get(TL_CFG.SEGMENTS);
-    const plancher = ((bossAt(BOSS_FINAL).bars ?? CFG.BOSS_BARS) - 1)
-      * BOSS_CFG.FINAL_BAR_DWELL;
-    if (final !== undefined && (final < plancher || final > 2 * BOSS_FIGHT_MAX)) {
+    if (final !== undefined
+        && (final < 2 * BOSS_FIGHT_MIN || final > 2 * BOSS_FIGHT_MAX)) {
       soucis.push(`${ou} : boss final en ${final.toFixed(0)} s, hors de`
-        + ` [${plancher}, ${2 * BOSS_FIGHT_MAX}]`);
+        + ` [${2 * BOSS_FIGHT_MIN}, ${2 * BOSS_FIGHT_MAX}]`);
     }
 
+    // PAR BOSS. La duree d'un boss donne varie du simple au triple d'un combat a
+    // l'autre (releve : Ravageur 1 j, 49 s au minimum, 126 s au maximum), donc
+    // une mediane sur trois combats ne decide rien. Un boss sous l'echantillon
+    // n'est pas ignore en silence : il est NOMME comme non mesure, sinon le
+    // critere passerait au vert sans avoir rien regarde.
+    const maigres = [];
+    for (const [kind, v] of r.parBoss) {
+      if (estFinal(kind)) continue;
+      if (v.n < BOSS_ECHANTILLON_MIN) { maigres.push(`${bossAt(kind).key}=${v.n}`); continue; }
+      if (v.duree < BOSS_FIGHT_MIN || v.duree > BOSS_FIGHT_MAX) {
+        soucis.push(`${ou} : ${bossAt(kind).key} en ${v.duree.toFixed(0)} s`
+          + ` (n=${v.n}), hors de [${BOSS_FIGHT_MIN}, ${BOSS_FIGHT_MAX}]`);
+      }
+      if (v.palier > BOSS_PALIER_MAX) {
+        soucis.push(`${ou} : ${bossAt(kind).key} passe`
+          + ` ${(v.palier * 100).toFixed(0)} % du combat au palier, pour un`
+          + ` plafond de ${(BOSS_PALIER_MAX * 100).toFixed(0)} %`);
+      }
+    }
+    if (maigres.length) {
+      soucis.push(`${ou} : critere par boss NON MESURE, moins de`
+        + ` ${BOSS_ECHANTILLON_MIN} combats pour ${maigres.join(", ")}`
+        + ` — relancer avec plus de manches`);
+    }
+
+    // UNE BANDE, PAS UN PLAFOND. Le critere n'avait qu'une borne haute, donc
+    // « jamais » le passait : l'emportement est reste mort pendant tout un plan
+    // sans qu'aucune mesure ne le dise. Un anti-enlisement se juge sur les deux
+    // bords — trop souvent il devient la regle, jamais il n'existe pas.
     if (r.enrages !== null && r.enrages > BOSS_ENRAGE_MAX) {
       soucis.push(`${ou} : ${(r.enrages * 100).toFixed(0)} % des combats partent`
         + ` en emportement pour un plafond de ${(BOSS_ENRAGE_MAX * 100).toFixed(0)} %`);
+    }
+    if (r.enrages !== null && r.enrages < BOSS_ENRAGE_MIN) {
+      soucis.push(`${ou} : ${(r.enrages * 100).toFixed(0)} % des combats partent`
+        + ` en emportement, sous le plancher de`
+        + ` ${(BOSS_ENRAGE_MIN * 100).toFixed(0)} % — l'anti-enlisement ne sert`
+        + ` a rien s'il ne part jamais`);
     }
     if (r.debordements > 0) {
       soucis.push(`${ou} : ${r.debordements} combats depassent le plafond de horde`);

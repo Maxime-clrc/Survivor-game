@@ -3714,6 +3714,311 @@ rendu de la séquence de mort du boss demandent un œil en jeu — `?perf` sort
 désormais `frag/plafond`, le nombre d'effets vivants, les balles et les refus de
 voix pour ça.
 
+### Le palier de barre : une fenêtre, plus un plancher (plan 24, lot 1)
+
+Protocole du lot H — `mesureBoss()` / `verifierBoss()`, graines écrites, six
+manches, effectifs 1 / 2 / 4, normal. La part de palier est **nouvelle** :
+`partPalier` compte les images où `boss.palier > 0`, c'est-à-dire où le boss ne
+prend **rien**.
+
+**Le défaut n'était pas le niveau, c'était la variance.** `BAR_DWELL` comptait
+depuis la rupture précédente, donc le temps mort valait `dwell − fonte` : nul
+quand la barre était lente, maximal quand elle était rapide. La médiane restait
+à 9-10 %, et personne ne la regardait par boss.
+
+| part du combat au palier, 2 j, quatre manches | avant | après |
+|---|---|---|
+| calme | 0 % (Jumeaux) à **54 %** (Oracle) | 4 à 17 % |
+| normal | 4 % (Ravageur) à **42 %** (Oracle) | 10 à 17 % |
+| médiane, calme / normal | 9 % / 10 % | 10 % / 11 % |
+
+Au bot du dépôt, six manches, les trois effectifs : **5 à 14 %**, aucun boss
+au-dessus du plafond de 15 %. Quatre paliers de **1,40 s exactement** par combat
+ordinaire en normal, tracés.
+
+**La première écriture valait 2,6 s et c'était pire que la règle remplacée** :
+quatre paliers pesaient 10,4 s sur un combat de 53 s, soit 20 % contre 10 % à la
+médiane d'avant. Le niveau et la variance sont deux réglages, et un seul était
+cassé. 1,0 / 1,4 / 1,8 tient les deux.
+
+**La Matriarche n'est pas une régression, c'est un outlier antérieur.** Boss
+forcé, mêmes graines, bot du dépôt à deux joueurs :
+
+| Matriarche forcée, 2 j, dix graines | abattue | durée | soin cumulé |
+|---|---|---|---|
+| avant (`BAR_DWELL`) | 4 / 10 | 142 s | **122 %** des PV max |
+| après (`PALIER_TIME`) | 3 / 10 | **106 s** | **70 %** des PV max |
+
+Le soin tombe de 43 % et le combat de 25 %. L'écart d'un combat abattu est du
+bruit à dix graines ; les deux grandeurs continues, elles, vont dans le même
+sens. Ce qui reste est
+`DIFFUS_HEAL` — jusqu'à 1,44 % des PV max par seconde sur douze corps — contre un
+bot qui **ne nettoie pas autour d'elle** : `botVersBoss` va au boss. Au tirage
+naturel, avant le lot, elle sortait à 189 s en solo, 118 s à deux et 212 s à
+quatre, pour le `hpMul` le plus bas du roster (0,85). **Baisser son `hpMul`
+réglerait le bot, pas le jeu** : c'est une mesure qui manque un pilote, pas une
+courbe de PV à corriger.
+
+**Le critère par boss ne décide rien à six manches.** Même boss, même effectif :
+Ravageur de 49 à 126 s, Tisseur de 52 à 206 s, Ravageur à deux joueurs jusqu'à
+179 s. Six manches ne donnent que trois à cinq combats par boss puisqu'une manche
+en montre cinq sur huit. `BOSS_ECHANTILLON_MIN = 8`, et en dessous `verifierBoss`
+**nomme** les boss qu'il n'a pas jugés — un critère qui passe au vert sans avoir
+rien regardé est le défaut que ce plan a trouvé sur l'emportement.
+
+**Le final perd ses 60 s de séjour, et la bande dit maintenant l'intention.**
+Elle passe de `[7 × FINAL_BAR_DWELL, 180]` à `[2 × 50, 2 × 90]` — la borne basse
+était un plancher de séjour qui n'existe plus, et « deux boss ordinaires » se
+lit, alors que « sept fois dix secondes d'attente » ne se lisait pas.
+
+| boss final, médiane | 1 j | 2 j | 4 j |
+|---|---|---|---|
+| avant | 101 s | 145 s | **211-232 s** |
+| après | **87 s** | **99 s** | 167 s |
+
+Les sept paliers valaient jusqu'à 60 s : le combat à quatre joueurs rentre dans
+la bande, celui à un et deux joueurs passe **sous** la borne basse. C'est le
+constat que le lot 3 prend en charge — le final n'a **jamais** montré un palier
+(0 % à tous les effectifs, avant comme après), donc sa respiration est à écrire,
+pas à récupérer.
+
+**`verifierBoss` était déjà rouge avant le lot**, et sur des points qu'il ne
+touche pas : dérive du premier au dernier boss ordinaire au-delà de 20 % aux
+**trois** effectifs, boss du segment 5 à 104 s à quatre joueurs, débit de
+renforts à 26 % d'écart pour une tolérance de 15 %.
+
+**Ce qui n'est pas mesuré :** le cauchemar. La campagne y prend plusieurs fois le
+temps du normal, et `verifierMecaniques` n'y a été rejoué qu'à un effectif.
+
+### L'emportement se compte par barre (plan 24, lot 2)
+
+Protocole du lot H, huit manches pour la distribution, six pour le taux, trois
+effectifs, normal.
+
+**Deux secondes absolues contre des combats de 40 à 120 s.** `ENRAGE_AT` valait
+150 s, `FINAL_ENRAGE_AT` 300 s. Taux relevé avant : **0 %** en calme, **0 %** en
+normal à deux joueurs, 4 % à quatre, 8 % en solo, 12 % en cauchemar, et **jamais**
+sur un boss final. Le critère ne le voyait pas : `BOSS_ENRAGE_MAX` était un
+plafond sans plancher.
+
+**Le seuil est lu sur la distribution, pas choisi.** 82 combats ordinaires :
+
+| | p50 | p75 | p80 | p90 | max |
+|---|---|---|---|---|---|
+| ordinaire (n=82) | 65 s | 90 s | 96 s | 118 s | 278 s |
+| final (n=13) | 105 s | 136 s | 150 s | 160 s | 185 s |
+
+| seuil | combats ordinaires emportés |
+|---|---|
+| 18 s × barres (90 s) | 26 % |
+| **21 s × barres (105 s)** | **15 %** |
+| 24 s × barres (120 s) | 10 % |
+
+Le nombre de **barres** est la bonne échelle : c'est lui qui fait la longueur
+d'un combat, donc un boss à huit barres a plus de temps qu'un boss à cinq sans
+qu'on écrive une seconde constante. Et il vient du jeu, pas du critère —
+l'indexer sur `BOSS_FIGHT_MAX` rendrait `verifierBoss` vrai par construction.
+
+**Ce que la mesure a refusé de donner : la bande aux trois effectifs.** Au même
+seuil de 105 s :
+
+| | 1 j | 2 j | 4 j |
+|---|---|---|---|
+| combats ordinaires emportés | **48 %** | **0 %** | 6 % |
+| finaux emportés | 25 % | 0 % | 67 % |
+
+L'agrégat tombe à 15 %, en plein dans la bande [10, 25] ; par effectif, rien n'y
+est. La cause n'est pas le seuil, c'est que **les combats solo durent le double
+des combats à deux** — médianes par boss en solo jusqu'à 120 s contre 40 à 66 s à
+deux. Aucune forme de seuil ne rattrape un écart de durée, et le lever pour le
+solo reviendrait à compenser un déséquilibre par une punition. Le critère le
+**dit** maintenant, au lieu de le taire ; c'est la campagne d'équilibrage (lot 7)
+qui referme l'écart.
+
+Six combats sur 80 atteignent le palier 2 ou plus : la rampe existe sans devenir
+la règle.
+
+### La respiration du final (plan 24, lot 3)
+
+Le lot 1 lui avait déjà rendu ses paliers — **0 %** du combat avant, 11 à 13 %
+après. Restait qu'ils étaient tous de la même longueur : sept ruptures qui
+ouvrent chacune une couche, toutes cadencées pareil, sont une escalade sans
+palier de lecture.
+
+`FINAL_PALIER_RAMP` allonge la fenêtre avec la phase. Mesuré **dans le moteur**,
+phase par phase :
+
+```
+1,38  1,88  2,37  2,87  3,35  3,85  4,33  4,82 s
+```
+
+La dernière — celle où il devient tuable — vaut **3,5×** la première, et le
+patron différé par `PALIER_AMORCE` s'y **résout** au lieu de déborder : la
+mécanique de la phase suivante se joue pendant qu'il est invulnérable, ce qui est
+l'intention écrite du palier depuis le début.
+
+**Elle se paie en PV.** `FINAL_HP_MUL` 1,30 → 1,17, de ce que les fenêtres
+ajoutent (11,2 s → 24,9 s). Ce qui change est la **composition** du combat, pas
+sa durée. Ajoutée par-dessus, elle rendait 182 s à quatre joueurs, hors bande.
+
+| boss final | avant | après |
+|---|---|---|
+| 1 j | 87 s · palier 13 % | 147 s · palier **21 %** |
+| 2 j | 99 s · palier 11 % | **109 s** · palier **23 %** |
+| 4 j | 167 s · palier 7 % | 176 s · palier **14 %** |
+
+La part de palier double partout : c'est la mesure du lot. Les durées à deux et
+quatre joueurs rentrent dans [100, 180] ; **176 s à quatre est tenu de peu, sur
+trois combats**. La médiane solo bouge de 87 à 147 s sur quatre combats, ce que
+l'échantillon ne sépare pas de la fourchette historique (82 à 152 s). Le net
+mesuré est +9 à +10 s là où l'arithmétique donne 0 : **on ne retouche pas
+`FINAL_HP_MUL` sur un écart de 9 s entre deux échantillons de 2 et 3 combats** —
+c'est exactement l'erreur que le lot 1 s'est interdite. Le protocole profond
+tranchera (lot 7).
+
+### Un boss a une voix (plan 24, lot 4)
+
+Onze boss partageaient **un** son d'arrivée et **un** son de rupture. C'était le
+seul canal d'identité sans rien à lui : la silhouette, la teinte, le verbe, le
+répertoire et l'archétype en ont tous un.
+
+L'**archétype** porte la matière, les **barres** portent l'échelle. Les onze
+voix, croisées par `verifierFeedback` — **zéro souci** :
+
+| boss | archétype | fondamentale | matière |
+|---|---|---|---|
+| veilleur | guetteur | 196 Hz tenu | sinus, **aucun bruit** |
+| prisme | reflet | 165 Hz | triangle, battement 1,03 |
+| matriarche | diffus | 131 → 124 | triangle, battement 1,01 |
+| jumeaux | multiple | 123 Hz | scie, **quinte** |
+| ravageur | constricteur | 110 → **73** | scie, elle descend |
+| tisseur | bâtisseur | 110 → 98 | **créneau** |
+| récitant | fixe (5 barres) | 98 → 82 | scie |
+| silence | fixe (6 barres) | 92 → 77 | scie |
+| oracle | ancre | 87 Hz **tenu** | scie |
+| métronome | mobile | **82 → 131** | scie, elle monte |
+| amalgame | fixe (8 barres) | 83 → 70 | scie |
+
+Les trois finaux partagent « fixe » — le roster l'autorise, un seul sort par
+manche — et se séparent par les barres seules : 98/92/83 Hz.
+
+**Une seule recette, `bossVoix`, neuf jeux de paramètres.** La table porte les
+nombres, `audio.js` porte la forme — le modèle de `BOUCHE`. Neuf recettes écrites
+à la main auraient neuf enveloppes à tenir d'accord. `pitch` va aussi à `barre`,
+`bossBrise` et `bossQueue` ; la **cassure** ne bouge pas, c'est du bruit large et
+le transporter ferait un autre son au lieu du même en plus gros.
+
+**Ce qui n'est pas mesuré :** l'oreille. Onze fondamentales distinctes et quatre
+timbres se lisent sur le papier ; que le Ravageur et le Tisseur (110 Hz tous
+deux, scie contre créneau) se distinguent **en jeu, sous le fracas d'un combat**,
+demande une écoute.
+
+### Cinq boss portaient la prise d'arène du final (plan 24, lot 5)
+
+Relevé, pas mesuré : cinq lignes de `BOSS_SKIN` recopiaient celle de l'Amalgame
+**au caractère près** — `amb #2e2a30, k 0.80, vig 1.45, puls [0.35, 0.22],
+atmo #e8e4dc`. Le commentaire de la table les appelait « les finals par
+difficulté », mais **trois d'entre elles sont des boss de pool** (Veilleur,
+Tisseur, Prisme), ajoutés en queue après l'écriture de ce commentaire. La doc
+justifiait donc la copie par une phrase devenue fausse.
+
+Rien ne levait : la table était bien indexée, les couleurs de corps différaient,
+seule la prise était la même. Pour ces cinq boss, « le monde répète le boss » se
+réduisait à un changement de couleur de corps.
+
+| boss | pool | amb | k | vig | puls | atmo |
+|---|---|---|---|---|---|---|
+| ravageur | pool | `#5a3a28` | 0,72 | 1,30 | — | `#ff8a3d` |
+| matriarche | pool | `#4f5a3a` | 0,66 | 1,15 | 0,55 / 0,16 | `#a8d13a` |
+| métronome | pool | `#5a6270` | 0,62 | 1,12 | 1,50 / 0,20 | aucune |
+| oracle | pool | `#6e6a72` | 0,48 | 0,78 | — | `#8b5cf6` |
+| jumeaux | pool | `#44506e` | 0,68 | 1,18 | 0,90 / 0,10 | `#7ec8ff` |
+| **veilleur** | pool | `#3a3226` | 0,66 | **1,50** | 0,28 / 0,09 | `#f2c14e` |
+| **tisseur** | pool | `#23332f` | **0,84** | 1,22 | — | `#3fbfa0` |
+| **prisme** | pool | `#2b3a4a` | **0,52** | **0,92** | 1,10 / 0,13 | `#b4e0ff` |
+| amalgame | final | `#2e2a30` | 0,80 | 1,45 | 0,35 / 0,22 | `#e8e4dc` |
+| **récitant** | final | `#33302a` | 0,70 | 1,28 | 0,30 / 0,14 | `#c9a227` |
+| **silence** | final | `#202028` | **0,88** | **1,62** | — | `#4a4a55` |
+
+Chacun rejoue son verbe. Le Veilleur porte le **vignettage le plus fort du
+roster** — c'est un iris qui se resserre — et son battement lent et faible est un
+clignement. Le Tisseur épaissit l'ombre et n'a **aucun** battement : ce qu'il fait
+n'a pas de rythme, c'est une accumulation. Le Prisme ouvre l'arène, claire et
+sans cadre, et son battement rapide **est** l'interférence. Le Silence n'a aucun
+battement non plus, et c'est son verbe : il n'y aura pas d'avertissement.
+
+`verifierPrises(BOSS_SKIN)` est vert, huit prises distinctes sur huit boss de
+pool. **L'atmosphère y a sa propre règle** — c'est le seul champ qui traverse le
+centre de l'écran — et elle a attrapé un cas que le tuple laissait passer : le
+Prisme soufflait la couleur des Jumeaux.
+
+**Ce qui n'est pas mesuré :** l'œil. Que huit prises se distinguent sur le papier
+ne dit pas qu'elles se distinguent en jeu, et `k`, `vig` et `puls` sont des
+grandeurs qui se jugent à l'écran.
+
+### L'amer téléportait à l'arrivée du boss (plan 24, lot 6)
+
+`amerDe` prend le candidat le **plus loin** de tout danger. `drawAmer` lui passait
+`hazardsActifs()`, vide pendant un combat : tous les candidats valent alors
+`Infinity`, et `Infinity > Infinity` est faux — c'est le **premier** qui sortait,
+pas le meilleur.
+
+| amer déplacé à l'arrivée du boss | cas | saut maximal |
+|---|---|---|
+| avant | **299 / 320** (93 %) | **2 596 px** |
+| après | **0 / 320** | 0 px |
+
+4 lieux × 2 modes × 40 graines. Le saut se rejouait **à l'envers** à la mort du
+boss : un objet de 460 px de rayon, dont sa propre règle dit qu'il est « ancré au
+MONDE », traversait l'arène deux fois par combat.
+
+Le semis bougeait pour la même raison — `occupe()` ne rejetait plus rien, donc des
+props naissaient dans l'empreinte des blocs. Sa clé de cache ne contient ni
+obstacles ni dangers : c'est le **panoramique** du combat qui déclenchait le
+recalcul, pas l'arrivée du boss.
+
+**La règle qui manquait :** ce qui est **placé une fois** pour la manche lit
+`obstaclesDuLieu()` / `hazardsDuLieu()`, ce qui se **dessine par image** lit
+`obstaclesActifs()` / `hazardsActifs()`. Les deux lecteurs de décor posé une fois
+étaient les seuls à confondre ; les huit autres sont du dessin par image et
+restent sur les listes actives.
+
+**Aucun changement de simulation** — trois fichiers de rendu. L'arène du boss
+reste nue, et `biomeNu` s'écrit enfin dans `SIMULATION.md` : il n'était documenté
+nulle part, et la seule ligne qui aurait dû le dire (« le boss n'y passe pas »)
+était devenue vide de sens puisqu'il n'y a plus rien à traverser.
+
+**Ce qui n'est pas mesuré :** la trace d'un bloc absent. Le semis évite maintenant
+des empreintes qu'on ne voit pas pendant un combat — un vide discret, contre un
+semis qui change. Le choix se juge à l'œil.
+
+### La campagne du plan 24 (lot 7)
+
+Ce qui se vérifie **sans simuler**, après les six lots. Sept vérificateurs, tous
+verts :
+
+| vérificateur | ce qu'il tient |
+|---|---|
+| `verifierGrammaire` | 11 formes pour 32 mécaniques, chacune son ordre court et son explication |
+| `verifierCoexistence` | 41 paires d'ordres incompatibles, toutes gardées par `_mechLibre` |
+| `verifierArchetypes` | 9 archétypes, unicité sur le **pool** |
+| `verifierPrises` | 8 prises d'arène distinctes, atmosphères comprises — **lot 5** |
+| `verifierFeedback` | 11 voix, 9 timbres, aucune recette absente — **lot 4** |
+| patrons | **45 clés, 45 `case`, 0 orphelin dans les deux sens** |
+| amer | **0 / 320** déplacements à l'arrivée du boss — **lot 6** |
+
+Les deux constantes que les lots ont déplacées, dans leur forme finale :
+
+```
+emportement   21 s × barres    ordinaire 105 s · Silence 126 s · Amalgame 168 s
+palier        ordinaire        1,40 s × 4
+              final            1,40 1,89 2,38 2,87 3,36 3,85 4,34 4,83  (24,9 s)
+```
+
+**Ce que la suite statique ne dit pas :** rien sur les durées. Le critère par boss
+(`BOSS_ECHANTILLON_MIN = 8`) demande une campagne, et c'est elle qui départage
+ce que les lots 1, 2 et 3 ont laissé ouvert.
+
 ## Réglages
 
 Tout est en haut de `shared/game_state.js`.

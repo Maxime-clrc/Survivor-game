@@ -332,8 +332,19 @@ export const BOSS = {
    fosse, le Metronome bat, l'Oracle ouvre trop grand, le final absorbe. Le monde
    ne fait pas un effet en plus — il repete le boss.
 
-   Les cinq dernieres lignes sont les finals par difficulte : meme profil que le
-   final, c'est le meme combat. */
+   CE COMMENTAIRE A MENTI PENDANT DEUX PLANS. Il disait « les cinq dernieres
+   lignes sont les finals par difficulte : meme profil que le final » — or trois
+   d'entre elles (Veilleur, Tisseur, Prisme) sont des boss de POOL, ajoutes en
+   queue apres coup. Cinq lignes recopiaient donc la prise d'arene de l'Amalgame
+   au caractere pres, et pour ces cinq boss « le monde repete le boss » se
+   reduisait a un changement de couleur de corps. `verifierPrises()`
+   (`bosses.js`) le refuse maintenant, en miroir de `verifierArchetypes()` : deux
+   boss de pool ne peuvent plus prendre l'arene de la meme facon.
+
+   Les DEUX finals par difficulte gardent le droit de ressembler au final — un
+   seul sort par manche — mais ils ne s'y confondent plus : le Recitant est le
+   meme combat en plus clair, le Silence n'a AUCUN battement, ce qui est
+   exactement son verbe. */
 export const BOSS_SKIN = [
   { skin: "#ff4d6d", dark: "#8e1230", edge: "#5c0b1c", bar: "#ff8fa3", deep: "#7a0f26",
     amb: "#5a3a28", k: 0.72, vig: 1.30, puls: [0, 0],       atmo: "#ff8a3d" },
@@ -347,16 +358,26 @@ export const BOSS_SKIN = [
     amb: "#44506e", k: 0.68, vig: 1.18, puls: [0.90, 0.10], atmo: "#7ec8ff" },
   { skin: "#e8e4dc", dark: "#6f6a63", edge: "#2f2c28", bar: "#f4f1ea", deep: "#5b5750",
     amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+  // VEILLEUR — il ne bouge pas et il REGARDE. Le vignettage est le plus fort du
+  // roster : c'est le cadre qui se resserre, un iris. Le battement est lent et
+  // faible, un clignement, pas un pouls.
   { skin: "#f2c14e", dark: "#7a5a0c", edge: "#3f2e04", bar: "#ffdc8a", deep: "#6b4f0a",
-    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+    amb: "#3a3226", k: 0.66, vig: 1.50, puls: [0.28, 0.09], atmo: "#f2c14e" },
+  // TISSEUR — il CONSTRUIT, donc l'ombre s'epaissit et ne repart pas. Aucun
+  // battement : ce qu'il fait n'a pas de rythme, c'est une accumulation.
   { skin: "#3fbfa0", dark: "#125a4a", edge: "#08312a", bar: "#7fe0c8", deep: "#0f4c40",
-    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+    amb: "#23332f", k: 0.84, vig: 1.22, puls: [0, 0], atmo: "#3fbfa0" },
+  // PRISME — plusieurs corps, un seul vrai. L'arene est CLAIRE et ouverte : le
+  // cadre n'aide pas a trier, et le battement rapide est l'interference elle-meme.
   { skin: "#7ec8ff", dark: "#1d5c8e", edge: "#0d3350", bar: "#b4e0ff", deep: "#19506f",
-    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+    amb: "#2b3a4a", k: 0.52, vig: 0.92, puls: [1.10, 0.13], atmo: "#b4e0ff" },
+  // RECITANT — le final du calme : le meme combat, en plus clair et plus lent.
   { skin: "#c9a227", dark: "#6b530c", edge: "#3a2c05", bar: "#e6c96a", deep: "#5c470a",
-    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+    amb: "#33302a", k: 0.70, vig: 1.28, puls: [0.30, 0.14], atmo: "#c9a227" },
+  // SILENCE — le final du cauchemar. AUCUN battement, et c'est son verbe : il
+  // n'y aura pas d'avertissement. L'arene la plus sombre et la plus fermee.
   { skin: "#4a4a55", dark: "#1c1c24", edge: "#0a0a0e", bar: "#8a8a99", deep: "#16161d",
-    amb: "#2e2a30", k: 0.80, vig: 1.45, puls: [0.35, 0.22], atmo: "#e8e4dc" },
+    amb: "#202028", k: 0.88, vig: 1.62, puls: [0, 0], atmo: "#4a4a55" },
 ];
 
 /* LA PEAU D'UN CADRE — l'identite reste dans hauts_faits.js, comme BOSS_ROSTER

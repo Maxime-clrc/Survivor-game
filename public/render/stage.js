@@ -155,6 +155,14 @@ function biomeNu() {
 }
 export function obstaclesActifs() { return biomeNu() ? VIDE : biome.obstacles; }
 export function hazardsActifs() { return biomeNu() ? VIDE : biome.hazards; }
+/* LA GEOMETRIE DE LA MANCHE, celle qui ne bouge pas de l'arrivee du boss a sa
+   mort. Ce qui est PLACE UNE FOIS pour la manche la lit — l'amer, le semis —
+   parce que la placer sur la liste videe la fait BOUGER : l'amer sautait dans
+   93 % des cas, jusqu'a 2 596 px, et des props apparaissaient dans l'empreinte
+   des blocs des que la camera bougeait. Ce qui se DESSINE par image lit les
+   listes actives : pendant un boss il n'y a ni bloc ni danger a montrer. */
+export function obstaclesDuLieu() { return biome.obstacles; }
+export function hazardsDuLieu() { return biome.hazards; }
 export function groundAt(x, y) {
   let slow = 1, slip = false;
   for (const h of hazardsActifs()) {

@@ -4,7 +4,8 @@ import { EventPump } from "/events.js";
 import { hudDamage, hudEvent, hudLabel } from "/hud.js";
 import { SRC_ICON, bonusNom } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
-import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, FIN_CHAMP, FIN_MASSE, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, bonusFamille, bonusRang, echelleBouche, ficheDe, familleDe, finalDe, finalRayon, matiereDe, poids } from "/shared/feedback.js";
+import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, FIN_CHAMP, FIN_MASSE, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, bonusFamille, bonusRang, echelleBoss, echelleBouche, ficheDe, familleDe, finalDe, finalRayon, matiereDe, poids, voixDe } from "/shared/feedback.js";
+import { bossAt } from "/shared/bosses.js";
 import { CFG, ENEMY_TYPES, POWERUP_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, melange } from "/shared/palette.js";
@@ -140,6 +141,7 @@ function handleEvent(e) {
     }
 
     case "bossMort":
+      voixDuBoss(e.kind ?? 0);
       bossMort(e.x, e.y);
       break;
 
@@ -267,7 +269,7 @@ function handleEvent(e) {
     }
 
     case "barre":
-      playSound("barre");
+      playSound("barre", { pitch: pitchBoss() });
       addShake(SHAKE_MAX);
       addHitstop(0.10);
       addPulse(SIGNAL.warn, 0.5);
@@ -275,7 +277,7 @@ function handleEvent(e) {
       break;
 
     case "boss":
-      playSound("boss");
+      playSound("bossVoix", voixDuBoss(e.kind ?? 0));
       break;
 
     case "degats":
@@ -1621,6 +1623,17 @@ export const ZONE_FX_MAX = 600;
 export let zoneFx = 0;
 export const lastBossPos = { x: CFG.ARENA_W / 2, y: CFG.ARENA_H / 2 };
 
+/* LA VOIX DU BOSS COURANT. Seul l'evenement `boss` porte le `kind` ; la rupture
+   de barre et la mort n'en ont pas, et leur en ajouter un ferait circuler deux
+   fois ce que la salle sait deja. On le retient a l'arrivee. */
+let voixBoss = null;
+export function voixDuBoss(kind) {
+  const def = bossAt(kind);
+  voixBoss = { ...voixDe(def), pitch: echelleBoss(def), etire: 1 / echelleBoss(def) };
+  return voixBoss;
+}
+export const pitchBoss = () => (voixBoss?.pitch ?? 1);
+
 // [27] LE RETOUR DE TOUCHE DU BOSS. L'eclair blanc de la horde vit dans
 // `flashAtlas` ; le boss est trace a la main, hors atlas, donc il n'en avait
 // aucun equivalent. Ce n'etait pas un reglage trop discret, c'etait un canal
@@ -1729,7 +1742,7 @@ function jouerBossMort(q) {
   }
   if (E.shake) addShake(E.shake);
   if (E.ping) addGridPing(q.x, q.y, r);
-  if (E.son) playSound(E.son);
+  if (E.son) playSound(E.son, { pitch: pitchBoss() });
   const dense = glActive();
   if (E.debris) {
     const n = dense ? E.debris : Math.ceil(E.debris / 2);
