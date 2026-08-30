@@ -115,7 +115,8 @@ export const weatherTexte = i => t(`weather.${WEATHERS[i]?.key}.texte`, WEATHERS
 export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_FOUR = 3, B_CONDUITE = 4, B_CUVE = 5,
              B_RUINE = 6, B_MUR = 7, B_CARCASSE = 8,
-             B_FRAGMENT = 9, B_TRAVEE = 10, B_DEBRIS = 11;
+             B_FRAGMENT = 9, B_TRAVEE = 10, B_DEBRIS = 11,
+             B_DEVANTURE = 12, B_PYLONE = 13, B_CONTENEUR = 14;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -130,6 +131,9 @@ export const BLOCS = [
   { key: "fragment", lieu: "nebuleuse" },
   { key: "travee", lieu: "nebuleuse" },
   { key: "debris", lieu: "nebuleuse" },
+  { key: "devanture", lieu: "secteur" },
+  { key: "pylone", lieu: "secteur" },
+  { key: "conteneur", lieu: "secteur" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -181,6 +185,15 @@ export const BIOMES = [
     key: "nebuleuse", nom: "Nébuleuse",
     resume: "épaves à la dérive, verrières ouvertes sur le vide",
     fond: "espace",
+  },
+  /* LE SEUL LIEU HABITE, ET C EST SON VERBE : les quatre autres FONT quelque
+     chose — fabriquer, couler, pourrir, deriver — celui-ci S ADRESSE A VOUS.
+     Tout y est une surface qui vend : devantures, enseignes, panneaux. C est
+     aussi le seul dont la matiere soit MOUILLEE, et l eau est ce qui autorise
+     le neon a exister deux fois, en l air et par terre. */
+  {
+    key: "secteur", nom: "Secteur",
+    resume: "rues trempées, néons et passerelles",
   },
 ];
 
@@ -288,6 +301,29 @@ const OBSTACLES = {
     { x: 0.37, y: 0.80, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 2 },
     { x: 0.50, y: 0.30, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 2 },
   ],
+  /* UNE RUE, PAS UNE SALLE. Les quatre autres lieux sont des interieurs ou du
+     vide : leurs obstacles sont poses DANS un volume. Ici les devantures bordent
+     deux axes et laissent une chaussee franche au milieu — c est ce que le mot
+     « rue » veut dire, et c est aussi ce qui donne au joueur une ligne de fuite
+     que la Fonderie n a pas.
+     Les PYLONES sont fins et hauts : un mat d enseigne se contourne d un pas,
+     mais il coupe la ligne de tir, donc il fait exister le couvert sans fermer
+     le passage. Les CONTENEURS sont les seuls destructibles du lieu — ce qu on a
+     empile dans la rue est aussi ce qu on peut degager au tir. */
+  secteur: [
+    { x: 0.18, y: 0.16, w: 0.150, h: 0.052, kind: B_DEVANTURE },
+    { x: 0.82, y: 0.84, w: 0.150, h: 0.052, kind: B_DEVANTURE },
+    { x: 0.10, y: 0.72, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
+    { x: 0.90, y: 0.28, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
+    { x: 0.34, y: 0.50, w: 0.014, h: 0.230, kind: B_PYLONE },
+    { x: 0.66, y: 0.50, w: 0.014, h: 0.230, kind: B_PYLONE },
+    { x: 0.50, y: 0.14, w: 0.014, h: 0.150, kind: B_PYLONE, min: 2 },
+    { x: 0.50, y: 0.86, w: 0.014, h: 0.150, kind: B_PYLONE, min: 2 },
+    { x: 0.26, y: 0.84, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
+    { x: 0.74, y: 0.16, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
+    { x: 0.44, y: 0.74, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 1 },
+    { x: 0.56, y: 0.26, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 2 },
+  ],
 };
 
 /* L ECHELLE D UN DANGER APPARTIENT AU LIEU, SES DEGATS NON. `h.r` etait lu par
@@ -320,6 +356,11 @@ const ECHELLE = {
   // PLUS FIN qu ailleurs alors que ce qui entrave est plus large.
   nebuleuse: { [HZ_GEYSER]: 0.72, [HZ_POOL]: 1.16, [HZ_EMBER]: 0.80,
                [HZ_SLOW]: 1.10, [HZ_SLIP]: 1.20 },
+  // une rue est ETROITE : tout y est plus petit que partout ailleurs, sauf le
+  // glissant, qui est l eau et qui court. C est le seul lieu dont TOUT ce qui
+  // blesse tienne sous 1,0 — on y esquive au pas, pas a la course.
+  secteur: { [HZ_GEYSER]: 0.88, [HZ_POOL]: 0.90, [HZ_EMBER]: 0.94,
+             [HZ_SLOW]: 0.86, [HZ_SLIP]: 1.16 },
 };
 
 /* LE MODE NORMAL ETAIT LE MEME DANS LES QUATRE LIEUX : deux champs de
@@ -350,6 +391,12 @@ const HZ_NORMAL = {
   nebuleuse: [
     { kind: HZ_SLOW, x: 0.30, y: 0.55 },
     { kind: HZ_SLIP, x: 0.70, y: 0.45 },
+  ],
+  // une rue mouillee GLISSE, et le ralentissement y est ce qui s est accumule
+  // dans le caniveau. Les deux se tiennent aux bords : le milieu reste franc.
+  secteur: [
+    { kind: HZ_SLIP, x: 0.20, y: 0.46 },
+    { kind: HZ_SLOW, x: 0.80, y: 0.56 },
   ],
 };
 
@@ -391,6 +438,19 @@ const HZ_CAUCHEMAR = {
     { kind: HZ_EMBER, x: 0.50, y: 0.62, dx: 0, dy: 1, phase: 0.70, period: 7 },
     { kind: HZ_POOL, x: 0.50, y: 0.88 },
     { kind: HZ_GEYSER, x: 0.76, y: 0.34, period: 4.6, phase: 0.45, active: 1.2 },
+  ],
+  /* CE QUI TUE DANS UNE RUE VIENT DU RESEAU, PAS DU SOL. Une fuite de vapeur
+     sous la chaussee, un transformateur qui lache, une enseigne qui tombe et
+     tracte son arc le long du trottoir. Le GEYSER est donc le danger dominant
+     ici — c est le seul lieu ou le danger intermittent soit plus present que le
+     permanent, et c est ce qui fait qu on TRAVERSE une rue au lieu de la
+     contourner. */
+  secteur: [
+    { kind: HZ_SLIP, x: 0.20, y: 0.46 },
+    { kind: HZ_GEYSER, x: 0.42, y: 0.32, period: 5.4, phase: 0.00 },
+    { kind: HZ_GEYSER, x: 0.58, y: 0.68, period: 6.0, phase: 0.50 },
+    { kind: HZ_EMBER, x: 0.16, y: 0.28, dx: 1, dy: 0, phase: 0.25, period: 9 },
+    { kind: HZ_POOL, x: 0.80, y: 0.56 },
   ],
 };
 

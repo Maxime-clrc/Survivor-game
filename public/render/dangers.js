@@ -60,6 +60,13 @@ const DANGER = {
     [HZ_EMBER]: debrisPlasma,
     [HZ_GEYSER]: anomaliePlasma,
   },
+  secteur: {
+    [HZ_SLOW]: caniveau,
+    [HZ_SLIP]: chausseeMouillee,
+    [HZ_POOL]: effluent,
+    [HZ_EMBER]: enseigneTombee,
+    [HZ_GEYSER]: bouchePression,
+  },
 };
 
 /* CE QU'UN DANGER EXHALE. Le sol distinguait vingt matieres, l'air au-dessus
@@ -96,6 +103,14 @@ const SOUFFLE = {
     [HZ_GEYSER]: { ang: -Math.PI / 2, v: 58,  l: 15, n: 11, col: "#c8b4ff", a: 0.20, e: 2.4, r: 0.80 },
     [HZ_POOL]:   { ang: -Math.PI / 2 - 0.6, v: 16, l: 10, n: 14, col: "#d8a8ff", a: 0.16, e: 2.0, r: 0.70 },
     [HZ_EMBER]:  { ang: -Math.PI / 2, v: 110, l: 9,  n: 9,  col: "#9fe4ff", a: 0.30, e: 1.6, r: 0.50 },
+  },
+  secteur: {
+    // la vapeur d une conduite sous la chaussee : la plus RAPIDE et la plus
+    // longue du depot, parce qu elle sort sous pression et non par convection.
+    [HZ_GEYSER]: { ang: -Math.PI / 2, v: 96, l: 30, n: 17, col: "#e6ecf4", a: 0.18, e: 3.8, r: 0.88 },
+    // un effluent chimique ne monte pas, il STAGNE et il rampe.
+    [HZ_POOL]:   { ang: -Math.PI / 2 + 0.62, v: 17, l: 12, n: 11, col: "#7fe0b4", a: 0.13, e: 3.2, r: 0.66 },
+    [HZ_EMBER]:  { ang: -Math.PI / 2, v: 128, l: 7, n: 11, col: "#ff3d9a", a: 0.30, e: 1.4, r: 0.50 },
   },
 };
 
@@ -830,4 +845,162 @@ function anomaliePlasma(h, st, tm, S) {
     ctx.stroke();
   });
   limite(h.x, h.y, h.r, "#c8b4ff", 0.30 + 0.5 * k);
+}
+
+/* --- SECTEUR : ce qui blesse dans une rue --------------------------------
+
+   LE RESEAU, PAS LE SOL. Les quatre autres lieux blessent par ce qu ils SONT —
+   du metal en fusion, une decharge qui brule, du plasma. Une rue ne blesse que
+   par ce qui passe DESSOUS et qui lache : une conduite de vapeur, un effluent
+   qui remonte, une enseigne qui tombe et tracte son arc. C est le seul lieu du
+   depot dont tous les dangers soient des ACCIDENTS. */
+
+// LE CANIVEAU : ce qui s accumule au bord d une chaussee et qui freine. Froid,
+// mat, et il coule DANS un sens — c est ce qui le separe d une flaque.
+function caniveau(h, st, tm, S) {
+  nappe(h.x, h.y, h.r, "#1a2430", 0.66, 0.42);
+  dansLeDisque(h.x, h.y, h.r, () => {
+    const s = sceau(h);
+    ctx.strokeStyle = alpha(BIOME.slow, 0.20);
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const y = h.y - h.r + (i + 0.5) * (h.r * 2 / 5) + Math.sin(tm * 0.5 + i + s * 7) * 3;
+      ctx.moveTo(h.x - h.r, y);
+      ctx.bezierCurveTo(h.x - h.r * 0.3, y + 7, h.x + h.r * 0.3, y - 7, h.x + h.r, y);
+    }
+    ctx.stroke();
+    grain(h, h.x, h.y, h.r * 0.9, 20, "#000000", 0.34, 5);
+  });
+  limite(h.x, h.y, h.r, BIOME.slow, 0.44);
+}
+
+/* LA CHAUSSEE MOUILLEE : le seul glissant du depot qui REFLECHISSE. L eau ne
+   colle pas, elle rend la ville deux fois — c est la raison d etre du lieu, et
+   c est aussi pourquoi son glissant est le plus large des cinq. Des bandes
+   claires etirees VERTICALEMENT : un reflet est toujours plus long que ce qu il
+   reflete. */
+function chausseeMouillee(h, st, tm, S) {
+  nappe(h.x, h.y, h.r, "#141024", 0.54, 0.30);
+  dansLeDisque(h.x, h.y, h.r, () => {
+    const s = sceau(h);
+    for (let i = 0; i < 7; i++) {
+      const x = h.x - h.r + ((i * 0.618 + s) % 1) * h.r * 2;
+      const k = 0.5 + 0.5 * Math.sin(tm * 0.8 + i * 1.4 + s * 11);
+      const g = ctx.createLinearGradient(x, h.y - h.r, x, h.y + h.r);
+      const col = i % 3 === 0 ? S.emis : (i % 3 === 1 ? "#8f7fc4" : "#e6ecf4");
+      g.addColorStop(0, alpha(col, 0));
+      g.addColorStop(0.5, alpha(col, 0.16 + 0.10 * k));
+      g.addColorStop(1, alpha(col, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(x - 3.5, h.y - h.r, 7, h.r * 2);
+    }
+  });
+  limite(h.x, h.y, h.r, BIOME.slip, 0.40);
+}
+
+// L EFFLUENT : ce qui remonte d une bouche d egout. Le seul danger vert du
+// depot, et il PULSE au rythme de ce qui le pousse d en dessous.
+function effluent(h, st, tm, S) {
+  const puls = 0.5 + 0.5 * Math.sin(tm * 1.1 + h.x * 0.01);
+  nappe(h.x, h.y, h.r, "#10281f", 0.68, 0.44);
+  dansLeDisque(h.x, h.y, h.r, () => {
+    const s = sceau(h);
+    // LA BOUCHE : la grille par ou ca sort, au centre, toujours visible. Sans
+    // elle une nappe verte n a pas de cause.
+    ctx.fillStyle = alpha("#05100c", 0.80);
+    ctx.beginPath(); ctx.arc(h.x, h.y, h.r * 0.26, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha(PROP.metalDark, 0.70);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = -2; i <= 2; i++) {
+      const u = h.x + i * (h.r * 0.10);
+      ctx.moveTo(u, h.y - h.r * 0.24); ctx.lineTo(u, h.y + h.r * 0.24);
+    }
+    ctx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const r = h.r * (0.36 + i * 0.17) + Math.sin(tm * 0.9 + i * 1.7 + s * 5) * 4;
+      ctx.strokeStyle = alpha("#7fe0b4", 0.11 + 0.07 * ((i + 1) % 2) + 0.05 * puls);
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.arc(h.x, h.y, r, 0, Math.PI * 2); ctx.stroke();
+    }
+    grain(h, h.x, h.y, h.r * 0.82, 11, "#a8f0d0", 0.12 + 0.06 * puls, 4);
+  });
+  limite(h.x, h.y, h.r, "#5fd6a0", 0.50 + 0.16 * puls);
+}
+
+/* L ENSEIGNE TOMBEE : le danger MOBILE de la rue, et le seul du depot qui soit
+   un objet BRISE plutot qu une matiere. Elle tracte son arc le long du
+   trottoir : le cable reste peint au sol en permanence, donc la trajectoire est
+   connue avant le passage — meme contrat que le chariot et la louche. */
+function enseigneTombee(h, st, tm, S) {
+  rail(h, PROP.metalDark, 0.20);
+  const r = h.r * 0.72;
+  ctx.fillStyle = alpha("#000000", 0.48);
+  ctx.beginPath(); ctx.ellipse(st.x + 3, st.y + 4, r * 1.15, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+
+  // le CAISSON : un rectangle, pas un disque — une enseigne a des bords droits.
+  ctx.save();
+  ctx.translate(st.x, st.y);
+  ctx.rotate(Math.sin(tm * 1.7 + h.x * 0.01) * 0.16);
+  ctx.fillStyle = alpha("#191428", 0.94);
+  ctx.fillRect(-r, -r * 0.52, r * 2, r * 1.04);
+  const k = 0.45 + 0.55 * Math.abs(Math.sin(tm * 6.5 + h.y * 0.01));
+  ctx.fillStyle = alpha(S.emis, 0.30 + 0.55 * k);
+  ctx.fillRect(-r * 0.86, -r * 0.36, r * 1.72, r * 0.72);
+  ctx.strokeStyle = alpha("#ffffff", 0.20 + 0.35 * k);
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(-r, -r * 0.52, r * 2, r * 1.04);
+  ctx.restore();
+
+  // L ARC : ce qui blesse vraiment, et il claque du caisson vers le sol.
+  ctx.strokeStyle = alpha("#dff4ff", 0.30 + 0.5 * k);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  const s = sceau(h);
+  for (let i = 0; i < 3; i++) {
+    const a = tm * 5 + i * 2.1 + s * 13;
+    ctx.moveTo(st.x, st.y);
+    ctx.lineTo(st.x + Math.cos(a) * h.r * 0.9, st.y + Math.sin(a) * h.r * 0.9);
+  }
+  ctx.stroke();
+  limite(st.x, st.y, h.r, S.emis, 0.46 + 0.3 * st.k);
+}
+
+/* LA BOUCHE SOUS PRESSION : une conduite de vapeur sous la chaussee. Au repos la
+   PLAQUE est la, fermee, visible — c est elle l annonce permanente, exactement
+   comme le cable mort de la Friche. Active, la plaque se souleve et la colonne
+   sort. Rien ne clignote : la geometrie dit tout. */
+function bouchePression(h, st, tm, S) {
+  // la plaque de fonte, toujours dessinee : au repos elle EST le danger.
+  ctx.fillStyle = alpha("#0e0c14", 0.86);
+  ctx.beginPath(); ctx.arc(h.x, h.y, 17, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.30);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(h.x, h.y, 17, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metal, 0.16);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = -1; i <= 1; i++) {
+    ctx.moveTo(h.x - 13, h.y + i * 6); ctx.lineTo(h.x + 13, h.y + i * 6);
+  }
+  ctx.stroke();
+
+  if (!st.on) { limite(h.x, h.y, h.r, BIOME.hazardIdle, 0.34); return; }
+
+  const k = st.k;
+  const s = sceau(h);
+  dansLeDisque(h.x, h.y, h.r, () => {
+    nappe(h.x, h.y, h.r * k, "#e6ecf4", 0.26 * k, 0.08 * k);
+    ctx.fillStyle = alpha("#ffffff", 0.14 * k);
+    for (let i = 0; i < 14; i++) {
+      const a = (i * 2.399 + s * 17) % (Math.PI * 2);
+      const u = ((tm * 1.15 + i * 0.27 + s) % 1);
+      const d = u * h.r;
+      ctx.beginPath();
+      ctx.arc(h.x + Math.cos(a) * d, h.y + Math.sin(a) * d, (4 + u * 15) * k, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  limite(h.x, h.y, h.r, "#eef4f8", 0.30 + 0.5 * k);
 }

@@ -138,6 +138,20 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
 - **Une seconde période sans aucune arête** (`MACRO`, 1 200) : à 400 px l'œil
   trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
   ne rattrape ça.
+- **Un cinquième lieu se déclare dans TREIZE tables, et il se livre entier.**
+  `BIOMES`, `BLOCS`, `OBSTACLES`, `HZ_NORMAL`, `HZ_CAUCHEMAR`, `ECHELLE`
+  (`biomes.js`) ; `BIOME_SKIN` (`palette.js`) ; `BLOC`, `CONTOUR` (`blocs.js`) ;
+  `DANGER`, `SOUFFLE` (`dangers.js`) ; `TABLE`, `ZONES` (`props.js`) ; plus la
+  recette de sol de `cuire()`, et `AMERS`/`GRILLE`/`AMBIANCE`/premier plan dans
+  `decor.js`.
+  **Aucune tranche n'est livrable** : sans `DANGER` le lieu replie sur un disque
+  ambre, sans `BLOC` sur une silhouette d'emprunt, sans `HZ_*` c'est un lieu sans
+  dangers. Chaque état intermédiaire est soit un vérificateur rouge, soit — pire
+  — un repli **silencieux**.
+  **La trame d'obstacles ET celle des dangers se répètent sur 3 × 3 cellules de
+  1600 × 900** : leurs fractions sont par *cellule*, jamais par arène. Toute
+  position posée en coordonnées d'arène est fausse, et c'est `verifierBiomes` qui
+  le dit — en refusant les dangers tombés sur un obstacle.
 - **Un lieu a des QUARTIERS, et le type d'un prop se lit sur sa zone.** Le semis
   tirait uniformément dans toute la liste du biome, indépendamment des voisins :
   déterministe dans son *calcul*, parfaitement aléatoire dans sa *distribution* —

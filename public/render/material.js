@@ -62,13 +62,17 @@ function cuire(biomeIndex, diffIndex, seed, dpr) {
   if (cle === "fonderie") fonderie(g, rand, usure);
   else if (cle === "friche") friche(g, rand, usure);
   else if (cle === "nebuleuse") nebuleuse(g, rand, usure);
+  else if (cle === "secteur") secteur(g, rand, usure);
   else usine(g, rand, usure);
 
   // LA FRICHE N A PAS DE MAILLE DE 5 M. Un joint technique regulier decrit une
   // installation entretenue ; une dalle de beton lave a des JOINTS DE COULAGE,
   // irreguliers, et c est `dalles()` qui les pose. La regularite du terrain est
   // exactement ce qu il faut casser ici.
-  if (gfx > GFX_LOW && cle !== "friche" && cle !== "nebuleuse") maille(g, usure, cle);
+  // NI LA FRICHE, NI LA NEBULEUSE, NI LE SECTEUR : une chaussee n a pas de
+  // joints techniques reguliers, elle a des REPRISES irregulieres, et c est son
+  // propre dessin qui les pose. Une maille par-dessus dirait « dalle d atelier ».
+  if (gfx > GFX_LOW && cle !== "friche" && cle !== "nebuleuse" && cle !== "secteur") maille(g, usure, cle);
   return cv;
 }
 
@@ -974,4 +978,68 @@ function fricheLegacy(g, rand, usure) {
   for (let i = 0; i < n; i++) tache(g, rand() * TILE, rand() * TILE, 30 + rand() * 55, "#5c6b4a", 0.07 + 0.06 * usure);
   const m = Math.round(4 * usure);
   for (let i = 0; i < m; i++) tache(g, rand() * TILE, rand() * TILE, 45 + rand() * 60, "#000000", 0.10);
+}
+
+/* LE SECTEUR : DE L ASPHALTE MOUILLE. C est le seul sol du depot qui RENDE la
+   lumiere au lieu de l absorber, et c est toute la difference entre une rue de
+   nuit et une salle sombre — une salle sombre est noire, une rue de nuit est
+   brillante ET noire en meme temps.
+
+   TROIS COUCHES, dans cet ordre, et aucune n est decorative :
+   1. l enrobe, granuleux et presque noir ;
+   2. les REPRISES — les tranchees rebouchees, en bandes plus claires et aux
+      bords francs. C est ce qui dit qu il y a un reseau DESSOUS, donc ce qui
+      justifie que les dangers du lieu en sortent ;
+   3. le film d eau, quelques nappes claires tres etirees.
+
+   PAS DE MAILLE DE 5 M ICI, comme la Friche et la Nebuleuse : une chaussee n a
+   pas de joints techniques reguliers, elle a des reprises irregulieres, et c est
+   la couche 2 qui les pose. Une maille par-dessus dirait « dalle d atelier ». */
+function secteur(g, rand, usure) {
+  if (gfx <= GFX_LOW) return usine(g, rand, usure);
+
+  g.fillStyle = alpha("#15121f", 0.95);
+  g.fillRect(0, 0, TILE, TILE);
+
+  // 1. L ENROBE. Un grain dense et fin : de l asphalte n a pas de motif, il a une
+  // texture, et c est ce qui le separe du beton lave de la Friche.
+  for (let i = 0; i < 260; i++) {
+    const x = rand() * TILE, y = rand() * TILE;
+    const t = 1 + rand() * 2.2;
+    g.fillStyle = alpha(rand() < 0.42 ? "#000000" : "#3a3352", 0.05 + rand() * 0.07);
+    g.fillRect(x, y, t, t);
+  }
+
+  // 2. LES REPRISES. Bords FRANCS, largeurs inegales, jamais paralleles entre
+  // elles : une tranchee rebouchee ne suit pas un plan, elle suit une panne.
+  for (let i = 0; i < 3; i++) {
+    const vert = rand() < 0.5;
+    const u = rand() * TILE;
+    const w = 14 + rand() * 26;
+    g.fillStyle = alpha("#241f36", 0.55 + usure * 0.20);
+    if (vert) g.fillRect(u, 0, w, TILE);
+    else      g.fillRect(0, u, TILE, w);
+    g.strokeStyle = alpha("#000000", 0.34);
+    g.lineWidth = 1.4;
+    g.beginPath();
+    if (vert) { g.moveTo(u, 0); g.lineTo(u, TILE); g.moveTo(u + w, 0); g.lineTo(u + w, TILE); }
+    else      { g.moveTo(0, u); g.lineTo(TILE, u); g.moveTo(0, u + w); g.lineTo(TILE, u + w); }
+    g.stroke();
+  }
+
+  // 3. LE FILM D EAU. Des nappes tres etirees, presque horizontales, jamais
+  // rondes : une flaque de chaussee suit la pente, elle ne fait pas un disque.
+  for (let i = 0; i < 5; i++) {
+    const x = rand() * TILE, y = rand() * TILE;
+    const rx = 26 + rand() * 54, ry = 5 + rand() * 9;
+    const grad = g.createRadialGradient(x, y, 0, x, y, rx);
+    grad.addColorStop(0, alpha("#8f7fc4", 0.10));
+    grad.addColorStop(1, alpha("#8f7fc4", 0));
+    g.save();
+    g.translate(x, y);
+    g.scale(1, ry / rx);
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
 }

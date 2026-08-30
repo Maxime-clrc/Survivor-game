@@ -133,7 +133,7 @@ shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
 shared/armes.js        LES ARMES : 10 fiches, coefficients d echelle, conversions boss
 shared/hauts_faits.js  LES HAUTS FAITS : 36 exigences, 13 cadres, recompenses NOMMEES
 shared/timeline.js     LE SCRIPT — six segments, trente beats, TROIS variantes, les EVENEMENTS
-shared/biomes.js       LE LIEU — quatre biomes, cinq dangers, trois meteos, generateur DETERMINISTE
+shared/biomes.js       LE LIEU — cinq biomes, cinq dangers, trois meteos, generateur DETERMINISTE
 shared/feedback.js     CE QUE LE COMBAT DIT : famille d arme et matiere de creature, DEDUITES
 shared/units.js        pixels -> metres, SEUL point de conversion d'affichage
 shared/i18n.js         LA langue : cle -> texte, le FR restant le REPLI

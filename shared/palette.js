@@ -275,6 +275,22 @@ export const BIOME_SKIN = {
     bloc: "#38455f", blocEdge: "#7fa8d8",
     amb: "#59637d", k: 0.70, dir: [0.58, 0.81], emis: "#7fd0e8",
   },
+  /* LE SEUL LIEU DONT LA LUMIERE VIENNE D EN FACE ET NON D EN HAUT. Les quatre
+     autres sont eclaires par leur toit, leur ciel ou leur four ; une rue est
+     eclairee par ses VITRINES, donc par ses murs. `dir` est le plus proche de
+     l horizontale du depot (0,86 / 0,51), et c est ce qui fait que les ombres y
+     sont longues et couchees au lieu de tomber sous les corps.
+     `k` est le plus BAS des cinq : une rue trempee renvoie la lumiere au lieu de
+     l absorber, donc rien n y est vraiment noir — c est l inverse exact de la
+     Nebuleuse, qui a le plus haut.
+     Et l emissif est MAGENTA, le seul du depot qui ne soit ni ambre ni cyan : il
+     ne peut se confondre avec aucun signal de jeu, ce qui est la condition pour
+     qu un lieu ait le droit d etre sature. */
+  secteur: {
+    arena: "#0d0b16", gridFine: "#1c1830", gridMajor: "#2e2650",
+    bloc: "#3c3552", blocEdge: "#8f7fc4",
+    amb: "#6b5f8c", k: 0.44, dir: [0.86, 0.51], emis: "#ff3d9a",
+  },
 };
 
 export function biomeSkin(key) { return BIOME_SKIN[key] ?? BIOME_SKIN.usine; }

@@ -6034,6 +6034,61 @@
                    Verifie rouge sur les deux mutations avant d etre enregistre
                    vert.
 
+     0.29.7 lot 8  UN CINQUIEME LIEU : LE SECTEUR. Rue trempee, neons,
+                   passerelles. C est le SEUL lieu habite du depot, et c est son
+                   verbe : les quatre autres FONT quelque chose — fabriquer,
+                   couler, pourrir, deriver — celui-ci S ADRESSE A VOUS. Tout y
+                   est une surface qui vend.
+                   TREIZE TABLES, ET C EST LE CHIFFRAGE QUI A DECIDE DU DECOUPAGE.
+                   Un lieu ne se livre pas en tranches : `BIOMES` sans `DANGER`
+                   replie sur un disque ambre, sans `BLOC` sur une silhouette
+                   d emprunt, sans `HZ_*` sur un lieu SANS DANGERS. Chaque etat
+                   intermediaire est soit un verificateur rouge, soit pire, un
+                   repli SILENCIEUX. Donc un seul lot.
+                   CE QUI LE SEPARE DES QUATRE AUTRES, table par table. Sa
+                   LUMIERE vient d en FACE (`dir` 0,86/0,51, le plus proche de
+                   l horizontale) parce qu une rue est eclairee par ses vitrines
+                   et non par son toit ; son `k` est le plus BAS des cinq parce
+                   qu une chaussee mouillee RENVOIE au lieu d absorber — l inverse
+                   exact de la Nebuleuse. Son emissif est MAGENTA, le seul du
+                   depot qui ne soit ni ambre ni cyan, donc le seul qui ne puisse
+                   se confondre avec un signal de jeu : c est la condition pour
+                   qu un lieu ait le droit d etre sature.
+                   SON SOL A DES REPRISES et pas de maille de 5 m — troisieme lieu
+                   dans ce cas apres la Friche et la Nebuleuse. Une chaussee n a
+                   pas de joints techniques reguliers, elle a des tranchees
+                   rebouchees, et ce sont elles qui disent qu il y a un RESEAU
+                   dessous. C est aussi ce qui justifie ses dangers : ils en
+                   sortent tous. Le seul lieu dont les cinq dangers soient des
+                   ACCIDENTS et non une matiere.
+                   SON AIR TOMBE : seule ambiance des cinq qui descende, les
+                   autres derivent, tirent ou montent. Sans la pluie au-dessus,
+                   l eau par terre n a pas de cause.
+                   SON AMER EST UN VIDE : les quatre autres ont un OBJET —
+                   creuset, tour, sas, coeur de ligne. Une ville ne se repere pas
+                   a un objet mais a un CROISEMENT, donc le carrefour est le seul
+                   amer du depot defini par ce qu il n a pas.
+                   UN DEFAUT ATTRAPE PAR `verifierEmpreinte`, et c est exactement
+                   celui que `CLAUDE.md` nomme : le premier pylone avait un pied
+                   evase et un mat etroit — juste physiquement, et FAUX ici, parce
+                   que la collision est une AABB. 33 % de l empreinte vide, donc
+                   on aurait bute sur du vide. Reecrit plein, et ce qui le separe
+                   de la travee de la Nebuleuse est desormais sa TETE (deux coupes
+                   au seul bout haut) et non sa masse.
+                   UN AUTRE ATTRAPE PAR `verifierBiomes` : les dangers tombaient
+                   sur les pylones. Repositionnes sur une carte des creux calculee,
+                   pas devinee — et la carte a montre au passage que la trame
+                   d obstacles ET celle des dangers se REPETENT sur 3 x 3 cellules
+                   de 1600 x 900, ce qui rend toute intuition en coordonnees
+                   d arene fausse.
+                   MESURE, contre les quatre autres lieux : 54/81/108 obstacles
+                   selon le mode (la Friche fait 54/90/108), 2,68 -> 5,21 % de
+                   surface batie pour un budget de 10 %, 4,61 -> 6,20 % de surface
+                   dangereuse pour un budget de 8 %. Il tombe en famille partout.
+                   LES SIX VERIFICATEURS DE RENDU SONT VERTS sur le nouveau lieu :
+                   `verifierBiomes`, `verifierBlocs`, `verifierEmpreinte`,
+                   `verifierDangers`, `verifierZones`, `verifierAmers`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6042,4 +6097,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.6";
+export const VERSION = "0.29.7";

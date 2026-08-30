@@ -1200,6 +1200,8 @@ export const EN = {
   "biome.friche.resume": "two rubble fields, bare ground between",
   "biome.nebuleuse.nom": "Nebula",
   "biome.nebuleuse.resume": "drifting wrecks, glazed bays open on the void",
+  "biome.secteur.nom": "Sector",
+  "biome.secteur.resume": "wet streets, neon and gantries",
   "weather.brume.nom": "Fog",
   "weather.brume.texte": "thick fog — you cannot see it coming",
   "weather.bourrasque.nom": "Squall",

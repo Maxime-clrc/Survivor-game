@@ -1,6 +1,7 @@
 import {
   BLOCS, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CUVE, B_DEBRIS, B_FOUR,
-  B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE, gabaritsDe,
+  B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE,
+  B_DEVANTURE, B_PYLONE, B_CONTENEUR, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
@@ -61,6 +62,11 @@ const BLOC = {
     [B_FRAGMENT]: { forme: formeFragment, habit: fragment },
     [B_TRAVEE]: { forme: formeTravee, habit: travee },
     [B_DEBRIS]: { forme: formeDebris, habit: debris },
+  },
+  secteur: {
+    [B_DEVANTURE]: { forme: formeDevanture, habit: devanture },
+    [B_PYLONE]: { forme: formePylone, habit: pylone },
+    [B_CONTENEUR]: { forme: formeConteneur, habit: conteneur },
   },
 };
 
@@ -499,6 +505,9 @@ function ruine(g, o, x, y, w, h) {
    du GAMEPLAY, il dit des points de vie. */
 const CONTOUR = {
   usine:     { plat: 0.45, relief: 0.70 },
+  // une vitrine a un CADRE, et un cadre est ce qui se lit de plus loin dans une
+  // rue : le lisere le plus marque des cinq lieux, et c est voulu.
+  secteur:   { plat: 0.52, relief: 0.78 },
   nebuleuse: { plat: 0.45, relief: 0.70 },
   fonderie:  { plat: 0.16, relief: 0.26 },
   friche:    { plat: 0.10, relief: 0.16 },
@@ -1626,4 +1635,204 @@ export function dessinerLed(l, rx, ry) {
 
   ctx.lineCap = "butt";
   ctx.restore();
+}
+
+/* --- SECTEUR : ce qui borde une rue --------------------------------------
+
+   TROIS FAMILLES, TROIS ROLES DANS UNE RUE, et aucune ne peut etre prise pour
+   une piece d un autre lieu : la DEVANTURE est un front bati continu perce
+   d une vitrine, le PYLONE un mat qui coupe la ligne de tir sans fermer le
+   passage, le CONTENEUR ce qu on a empile sur le trottoir et qu on peut degager
+   au tir. */
+
+/* LA DEVANTURE. Elle remplit son rectangle — c est la regle : la collision est
+   une AABB, une forme qui rentre ses coins fait buter sur du vide. Ce qui la
+   separe de la chaine de l Usine, qui est aussi un long rectangle, est son
+   AUVENT : un debord franc sur la face longue, cote rue, qui casse l arete sur
+   toute la longueur au lieu de la chanfreiner aux bouts. */
+const AUVENT = 7;
+function formeDevanture(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const c = Math.min(CHANFREIN, w * 0.08, h * 0.08);
+  const large = w >= h;
+  g.beginPath();
+  if (large) {
+    const d = Math.min(AUVENT, h * 0.22);
+    g.moveTo(x + c, y);
+    g.lineTo(x + w - c, y);
+    g.lineTo(x + w, y + c);
+    g.lineTo(x + w, y + h - d);
+    g.lineTo(x + w - d * 0.6, y + h);
+    g.lineTo(x + d * 0.6, y + h);
+    g.lineTo(x, y + h - d);
+    g.lineTo(x, y + c);
+  } else {
+    const d = Math.min(AUVENT, w * 0.22);
+    g.moveTo(x + c, y);
+    g.lineTo(x + w - d, y);
+    g.lineTo(x + w, y + d * 0.6);
+    g.lineTo(x + w, y + h - d * 0.6);
+    g.lineTo(x + w - d, y + h);
+    g.lineTo(x + c, y + h);
+    g.lineTo(x, y + h - c);
+    g.lineTo(x, y + c);
+  }
+  g.closePath();
+}
+
+/* LE PYLONE. 22 px de large pour 207 de haut. Il REMPLIT SON RECTANGLE, et ce
+   n est pas negociable : la collision est une AABB, et une forme qui rentre ses
+   coins fait buter sur du vide — `verifierEmpreinte` l a refusee a 33 % avant
+   celle-ci. Le premier dessin lui donnait un PIED evase et un mat etroit : juste,
+   physiquement, et faux ici.
+
+   Ce qui le separe donc de la travee de la Nebuleuse, l autre longue piece fine
+   du depot, n est pas sa masse mais sa TETE : deux coupes symetriques au seul
+   bout haut, la lame d enseigne. La travee, elle, est rythmee sur ses FLANCS. */
+function formePylone(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const debout = h >= w;
+  const c = Math.min(CHANFREIN, (debout ? w : h) * 0.42);
+  g.beginPath();
+  if (debout) {
+    g.moveTo(x + c, y);
+    g.lineTo(x + w - c, y);
+    g.lineTo(x + w, y + c);
+    g.lineTo(x + w, y + h);
+    g.lineTo(x, y + h);
+    g.lineTo(x, y + c);
+  } else {
+    g.moveTo(x, y);
+    g.lineTo(x + w - c, y);
+    g.lineTo(x + w, y + c);
+    g.lineTo(x + w, y + h - c);
+    g.lineTo(x + w - c, y + h);
+    g.lineTo(x, y + h);
+  }
+  g.closePath();
+}
+
+// LE CONTENEUR : une caisse, donc des coins FRANCS et un seul chanfrein large en
+// haut a gauche — c est ce qui dit « pose la » plutot que « construit la ».
+function formeConteneur(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const c = Math.min(CHANFREIN_LARGE, w * 0.24, h * 0.24);
+  g.beginPath();
+  g.moveTo(x + c, y);
+  g.lineTo(x + w, y);
+  g.lineTo(x + w, y + h);
+  g.lineTo(x, y + h);
+  g.lineTo(x, y + c);
+  g.closePath();
+}
+
+/* LA DEVANTURE EST ALLUMEE, ET C EST TOUT CE QU ELLE A A DIRE. Une vitrine
+   occupe la moitie basse de sa face longue, le bandeau d enseigne la borde en
+   haut. Le reste est du beton sale — un signal sature n existe que parce que ce
+   qui l entoure ne l est pas. */
+function devanture(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const large = w >= h;
+
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.40);
+  ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8);
+
+  // le BANDEAU : la bande d enseigne, toujours du cote long, toujours en haut.
+  const bx = -w / 2 + 6, by = -h / 2 + 6;
+  const bw = large ? w - 12 : (w - 12) * 0.62;
+  const bh = large ? (h - 12) * 0.34 : h - 12;
+  ctx.fillStyle = alpha("#000000", 0.50);
+  ctx.fillRect(bx, by, bw, bh);
+
+  // LA VITRINE : des travees regulieres, allumees INEGALEMENT. Toutes allumees,
+  // c est un bureau ; une sur trois eteinte, c est une rue.
+  const n = Math.max(2, Math.round((large ? w : h) / 42));
+  const pas = (large ? bw : bh) / n;
+  for (let i = 0; i < n; i++) {
+    const mort = ((s >>> (i % 12)) & 7) === 0;
+    const k = mort ? 0.05 : 0.28 + (((s >> (i * 3)) & 7) / 7) * 0.34;
+    ctx.fillStyle = alpha(S.emis, k);
+    if (large) ctx.fillRect(bx + i * pas + 2, by + 2, pas - 4, bh - 4);
+    else       ctx.fillRect(bx + 2, by + i * pas + 2, bw - 4, pas - 4);
+  }
+
+  // le SOUBASSEMENT : le beton sous la vitrine, plus sombre, avec ses coulures.
+  if (large) {
+    ctx.fillStyle = alpha("#000000", 0.30);
+    ctx.fillRect(-w / 2 + 6, by + bh + 3, w - 12, h / 2 - bh * 0.5);
+  }
+  ctx.strokeStyle = alpha(S.blocEdge, 0.16);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < 5; i++) {
+    const u = -w / 2 + (w * i) / 5 + (((s >> i) & 3) - 1.5) * 3;
+    ctx.moveTo(u, by + bh + 4); ctx.lineTo(u, h / 2 - 3);
+  }
+  ctx.stroke();
+}
+
+/* LE PYLONE PORTE UNE ENSEIGNE VERTICALE, et c est le seul objet du depot qui
+   ecrive dans le sens de sa hauteur. Des caissons empiles, un seul allume a la
+   fois et il DESCEND — un chenillard. Mouvement continu et periodique, donc pas
+   un telegraphe. */
+function pylone(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const debout = h >= w;
+  const L = debout ? h : w;
+
+  ctx.fillStyle = alpha("#000000", 0.52);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.34);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+
+  const n = Math.max(3, Math.round(L / 34));
+  const pas = L / n;
+  const t = performance.now() / 1000;
+  const vif = Math.floor(((t * 0.9 + (s & 15) / 16) % 1) * n);
+  for (let i = 0; i < n; i++) {
+    const k = i === vif ? 0.72 : 0.10 + (((s >> i) & 3) / 3) * 0.10;
+    ctx.fillStyle = alpha(S.emis, k);
+    if (debout) ctx.fillRect(-w / 2 + 3, -h / 2 + i * pas + 2, w - 6, pas - 4);
+    else        ctx.fillRect(-w / 2 + i * pas + 2, -h / 2 + 3, pas - 4, h - 6);
+  }
+  // le mat reste visible SOUS l enseigne : sans lui le pylone est un ruban.
+  ctx.strokeStyle = alpha(S.blocEdge, 0.30);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  if (debout) { ctx.moveTo(0, -h / 2 + 2); ctx.lineTo(0, h / 2 - 2); }
+  else        { ctx.moveTo(-w / 2 + 2, 0); ctx.lineTo(w / 2 - 2, 0); }
+  ctx.stroke();
+}
+
+/* LE CONTENEUR EST LE SEUL DESTRUCTIBLE DU LIEU, donc le seul qui garde son
+   contour plein — c est du gameplay. Sa matiere est de la TOLE ONDULEE : des
+   nervures serrees, dans le sens de sa plus grande dimension, et rien d autre.
+   Aucun neon : ce qu on a pose dans la rue ne vend rien. */
+function conteneur(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.46);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+
+  const long = w >= h;
+  const pas = 7;
+  ctx.strokeStyle = alpha("#000000", 0.30);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  if (long) for (let u = -w / 2 + pas; u < w / 2; u += pas) { ctx.moveTo(u, -h / 2 + 3); ctx.lineTo(u, h / 2 - 3); }
+  else      for (let u = -h / 2 + pas; u < h / 2; u += pas) { ctx.moveTo(-w / 2 + 3, u); ctx.lineTo(w / 2 - 3, u); }
+  ctx.stroke();
+
+  // deux ferrures aux extremites : c est ce qui dit qu on le souleve.
+  ctx.fillStyle = alpha(S.blocEdge, 0.22);
+  const f = Math.min(6, w * 0.18, h * 0.18);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, f, h - 6);
+  ctx.fillRect(w / 2 - 3 - f, -h / 2 + 3, f, h - 6);
+  // une marque peinte, differente par piece, jamais lisible : de la matiere.
+  ctx.fillStyle = alpha(S.emis, 0.10);
+  ctx.fillRect(-w / 2 + f + 6, -h / 2 + h * 0.30, Math.max(4, w * 0.16), Math.max(3, h * 0.16));
 }

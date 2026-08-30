@@ -39,7 +39,10 @@ const P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_BROUSSE = 23, P_JONCHEE = 24, P_GRILLAGE = 25, P_CARCASSE = 26,
       P_BIDON = 27, P_PANNEAU = 28,
       P_BRAS = 29, P_PRESSE = 30, P_VENTILATION = 31, P_PALETTIER = 32,
-      P_POCHE = 33, P_MOULE = 34, P_TREMIE = 35, P_OUTILLAGE = 36;
+      P_POCHE = 33, P_MOULE = 34, P_TREMIE = 35, P_OUTILLAGE = 36,
+      P_PASSAGE = 37, P_BORNE = 38, P_AFFICHE = 39, P_GRILLE_AIR = 40,
+      P_DISTRIB = 41, P_MOTO = 42, P_CAGEOT = 43, P_PARABOLE = 44,
+      P_NEON_SOL = 45, P_PLAQUE_EGOUT = 46, P_GAINE = 47, P_FLAQUE = 48;
 
 /* UN PROP QUI BOUGE N'EST PAS UN SIGNAL, A UNE CONDITION QUI SE VERIFIE : SON
    MOUVEMENT EST CONTINU ET PERIODIQUE, donc il n'a ni debut ni fin, donc il
@@ -61,6 +64,12 @@ const EMISSIF = {
   [P_POCHE]:   { r: 120, col: PROP.fonte },
   [P_BALISE]:  { r: 70, col: PROP.balise },
   [P_CRISTAL]: { r: 86, col: PROP.balise },
+  // LE SEUL LIEU QUI AIT TROIS SOURCES AU SOL, et c est ce qui le definit : une
+  // rue est eclairee par ce qui la borde, pas par son ciel.
+  [P_BORNE]:     { r: 74, col: "#ff3d9a" },
+  [P_AFFICHE]:   { r: 92, col: "#ff3d9a" },
+  [P_NEON_SOL]:  { r: 66, col: "#4de0ff" },
+  [P_DISTRIB]:   { r: 58, col: "#4de0ff" },
 };
 
 const TABLE = {
@@ -80,6 +89,14 @@ const TABLE = {
            P_CARCASSE, P_BIDON, P_PANNEAU, P_TUBE, P_DEBRIS, P_CABLE],
   nebuleuse: [P_EPAVE, P_EPAVE, P_VOILE, P_VOILE, P_CRISTAL, P_CRISTAL,
               P_MODULE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_GIVRE, P_BALISE],
+  /* LE SECTEUR NE PARTAGE RIEN NON PLUS. La tentation etait de lui preter le
+     cable et le tuyau du fonds industriel — ils existent, ils sont ecrits — mais
+     une rue habitee n a pas la meme quincaillerie qu un atelier : ce qui traine
+     ici a ete JETE ou POSE par quelqu un, pas monte. Douze props, tous les
+     siens. */
+  secteur: [P_PASSAGE, P_PASSAGE, P_FLAQUE, P_FLAQUE, P_BORNE, P_AFFICHE,
+            P_GRILLE_AIR, P_DISTRIB, P_MOTO, P_CAGEOT, P_PARABOLE, P_NEON_SOL,
+            P_PLAQUE_EGOUT, P_GAINE],
 };
 
 /* UN LIEU A DES QUARTIERS, ET LE SEMIS N EN AVAIT AUCUN. Chaque prop tirait
@@ -138,6 +155,14 @@ const ZONES = {
     [P_VOILE, P_VOILE, P_ANCRAGE, P_RAIL],
     [P_CRISTAL, P_CRISTAL, P_GIVRE, P_VOILE],
     [P_BALISE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_MODULE],
+  ],
+  // elle S AFFICHE : le devant de vitrine, la chaussee, ce qui dessert par
+  // derriere, et le coin ou l on stationne.
+  secteur: [
+    [P_AFFICHE, P_BORNE, P_NEON_SOL, P_DISTRIB],
+    [P_PASSAGE, P_PASSAGE, P_FLAQUE, P_PLAQUE_EGOUT],
+    [P_GRILLE_AIR, P_GAINE, P_CAGEOT, P_FLAQUE],
+    [P_MOTO, P_PARABOLE, P_CAGEOT, P_BORNE],
   ],
 };
 
@@ -335,6 +360,18 @@ function dessin(p, ox, oy) {
     case P_GIVRE:       return givre(p);
     case P_ANCRAGE:     return ancrage(ox, oy);
     case P_BALISE:      return balise(p, ox, oy);
+    case P_PASSAGE:      return passage(p);
+    case P_FLAQUE:       return flaqueRue(p);
+    case P_BORNE:        return borne(p, ox, oy);
+    case P_AFFICHE:      return affiche(p, ox, oy);
+    case P_GRILLE_AIR:   return grilleAir(ox, oy);
+    case P_DISTRIB:      return distributeur(p, ox, oy);
+    case P_MOTO:         return moto(p, ox, oy);
+    case P_CAGEOT:       return cageot(p, ox, oy);
+    case P_PARABOLE:     return parabole(p, ox, oy);
+    case P_NEON_SOL:     return neonSol(p);
+    case P_PLAQUE_EGOUT: return plaqueEgout(ox, oy);
+    case P_GAINE:        return gaine(p, ox, oy);
     default:            return tube(p, ox, oy);
   }
 }
@@ -1278,4 +1315,211 @@ function tube(p, ox, oy) {
   ctx.fillStyle = alpha(PROP.metalDark, 0.85);
   ctx.fillRect(-l / 2 - 2, -r - 1, 4, r * 2 + 2);
   ctx.fillRect(l / 2 - 2, -r - 1, 4, r * 2 + 2);
+}
+
+/* --- SECTEUR : ce qu on a POSE ou JETE ------------------------------------
+
+   Une rue habitee n a pas la quincaillerie d un atelier. Ce qui traine ici a ete
+   POSE par quelqu un (bornes, cageots, moto) ou JETE par quelqu un (flaques,
+   affiches decollees) — jamais monte. C est ce qui separe ses douze props du
+   fonds industriel que les trois premiers lieux partagent, et c est la meme
+   regle qui avait deja fait retirer la quincaillerie terrestre de la Nebuleuse.
+
+   ET IL EST LE SEUL A AVOIR QUATRE SOURCES DE LUMIERE AU SOL : une rue s eclaire
+   par ce qui la borde, pas par son ciel. */
+
+// LE PASSAGE PIETON : la seule chose peinte de ce lieu, et elle est EFFACEE par
+// endroits — une bande sur quatre manque. Une peinture neuve dirait entretenu.
+function passage(p) {
+  const n = 5, pas = 11;
+  for (let i = 0; i < n; i++) {
+    const use = ((p.p * 97 + i * 31) | 0) % 4 === 0;
+    ctx.fillStyle = alpha("#c8cede", use ? 0.05 : 0.13);
+    ctx.fillRect(-n * pas / 2 + i * pas, -13, pas - 4, 26);
+  }
+}
+
+/* LA FLAQUE : elle ne fait rien, elle REND. Une tache sombre, et deux traits
+   clairs etires VERS LE HAUT — un reflet est toujours plus long que ce qu il
+   reflete, et c est ce qui le fait lire comme un reflet plutot que comme une
+   tache lumineuse. Elle ne lit rien de son entourage : la ville qu elle rend est
+   une fonction de sa graine, comme tout le reste du semis. */
+function flaqueRue(p) {
+  const r = 9 + p.p * 7;
+  ctx.fillStyle = alpha("#080610", 0.34);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 1.5, r * 0.72, p.p * 3, 0, Math.PI * 2);
+  ctx.fill();
+  const col = p.p < 0.5 ? "#ff3d9a" : "#4de0ff";
+  const g = ctx.createLinearGradient(0, -r, 0, r);
+  g.addColorStop(0, alpha(col, 0));
+  g.addColorStop(0.5, alpha(col, 0.16));
+  g.addColorStop(1, alpha(col, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(-r * 0.5, -r * 0.9, 2.4, r * 1.8);
+  ctx.fillRect(r * 0.2, -r * 0.7, 1.6, r * 1.4);
+}
+
+// LA BORNE : un pied lumineux de trottoir. Elle RESPIRE — mouvement continu et
+// periodique, donc de la matiere, jamais un telegraphe.
+function borne(p, ox, oy) {
+  ctx.fillStyle = alpha(PROP.ombre, 0.24);
+  ctx.beginPath(); ctx.ellipse(ox, oy + 2, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.86);
+  ctx.fillRect(-3, -9, 6, 18);
+  const k = gresil(p);
+  ctx.fillStyle = alpha("#ff3d9a", 0.34 + 0.5 * k);
+  ctx.fillRect(-2, -6, 4, 11);
+}
+
+/* L AFFICHE DECOLLEE : le seul prop du depot qui soit du PAPIER. Plaquee au sol
+   comme tout le reste — c est ce qui est TOMBE d un mur, pas ce qui y est
+   encore. Son coin est CORNE : sans lui, c est un rectangle lumineux, donc un
+   ecran, donc un objet qui fonctionne. */
+function affiche(p, ox, oy) {
+  const w = 15 + p.p * 9, h = 20 + p.p * 8;
+  ctx.fillStyle = alpha(PROP.ombre, 0.18);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, -h / 2);
+  ctx.lineTo(w / 2, -h / 2);
+  ctx.lineTo(w / 2, h / 2 - 6);
+  ctx.lineTo(w / 2 - 7, h / 2);
+  ctx.lineTo(-w / 2, h / 2);
+  ctx.closePath();
+  ctx.fillStyle = alpha("#1a1226", 0.80);
+  ctx.fill();
+  ctx.fillStyle = alpha("#ff3d9a", 0.30 + 0.30 * gresil(p));
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h * 0.42);
+  ctx.fillStyle = alpha("#e6ecf4", 0.14);
+  for (let i = 0; i < 3; i++) ctx.fillRect(-w / 2 + 4, h * 0.02 + i * 4, w - 9 - i * 3, 1.6);
+}
+
+// LA GRILLE D AIR : la bouche d extraction d en dessous, au ras du trottoir.
+function grilleAir(ox, oy) {
+  ctx.fillStyle = alpha(PROP.ombre, 0.20);
+  ctx.fillRect(-13 + ox, -9 + oy, 26, 18);
+  ctx.fillStyle = alpha("#0d0b14", 0.72);
+  ctx.fillRect(-13, -9, 26, 18);
+  ctx.strokeStyle = alpha(PROP.metal, 0.24);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (let y = -6; y <= 6; y += 4) { ctx.moveTo(-11, y); ctx.lineTo(11, y); }
+  ctx.stroke();
+}
+
+// LE DISTRIBUTEUR : la seule chose de la rue qui FONCTIONNE encore, et son ecran
+// est le seul cyan du lieu qui ne soit pas un reflet.
+function distributeur(p, ox, oy) {
+  ctx.fillStyle = alpha(PROP.ombre, 0.24);
+  ctx.fillRect(-8 + ox, -11 + oy, 16, 22);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.90);
+  ctx.fillRect(-8, -11, 16, 22);
+  ctx.strokeStyle = alpha(PROP.metal, 0.22);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-8, -11, 16, 22);
+  ctx.fillStyle = alpha("#4de0ff", 0.26 + 0.34 * gresil(p));
+  ctx.fillRect(-5, -8, 10, 8);
+  ctx.fillStyle = alpha("#000000", 0.50);
+  ctx.fillRect(-5, 3, 10, 5);
+}
+
+// LA MOTO COUCHEE : ce qu on a laisse tomber la. Un cadre et deux roues, a plat.
+function moto(p, ox, oy) {
+  ctx.fillStyle = alpha(PROP.ombre, 0.22);
+  ctx.beginPath(); ctx.ellipse(ox, oy, 19, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.88);
+  ctx.lineWidth = 3.4;
+  ctx.beginPath();
+  ctx.moveTo(-15, 2); ctx.lineTo(-4, -4); ctx.lineTo(7, -2); ctx.lineTo(15, 3);
+  ctx.stroke();
+  ctx.strokeStyle = alpha("#0a0810", 0.86);
+  ctx.lineWidth = 2.6;
+  for (const cx of [-14, 14]) { ctx.beginPath(); ctx.arc(cx, 2, 5.5, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.fillStyle = alpha("#ff3d9a", 0.14);
+  ctx.fillRect(-2, -5, 7, 2.4);
+}
+
+// LES CAGEOTS : ce qu on empile derriere une boutique. Trois, jamais alignes.
+function cageot(p, ox, oy) {
+  for (let i = 0; i < 3; i++) {
+    const dx = ((p.p * 37 + i * 13) % 9) - 4, dy = ((p.p * 53 + i * 7) % 7) - 3;
+    ctx.fillStyle = alpha(PROP.ombre, 0.18);
+    ctx.fillRect(dx - 6 + ox, dy - 5 + oy, 12, 10);
+    ctx.fillStyle = alpha(PROP.rouille, 0.50);
+    ctx.fillRect(dx - 6, dy - 5, 12, 10);
+    ctx.strokeStyle = alpha("#000000", 0.34);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(dx - 6, dy - 5, 12, 10);
+    ctx.beginPath(); ctx.moveTo(dx - 6, dy); ctx.lineTo(dx + 6, dy); ctx.stroke();
+  }
+}
+
+// LA PARABOLE TOMBEE : un disque et son bras. Elle regarde le sol, maintenant.
+function parabole(p, ox, oy) {
+  const r = 9 + p.p * 4;
+  ctx.fillStyle = alpha(PROP.ombre, 0.20);
+  ctx.beginPath(); ctx.ellipse(ox, oy, r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.verre, 0.34);
+  ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.30);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.7, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.74);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(r * 1.5, r * 0.5); ctx.stroke();
+}
+
+// LE NEON AU SOL : un tube tombe qui ECLAIRE ENCORE. Le seul objet du lieu qui
+// soit a la fois casse et vivant, et c est pour ca qu il est cyan et non magenta
+// — le magenta ici est ce qui vend, le cyan ce qui reste allume tout seul.
+function neonSol(p) {
+  const L = 16 + p.p * 10;
+  const k = gresil(p);
+  ctx.strokeStyle = alpha("#4de0ff", 0.16 + 0.30 * k);
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(-L, 0); ctx.lineTo(L, 0); ctx.stroke();
+  ctx.strokeStyle = alpha("#dffaff", 0.30 + 0.5 * k);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(-L, 0); ctx.lineTo(L * 0.62, 0); ctx.stroke();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.80);
+  ctx.fillRect(-L - 3, -2.6, 4, 5.2);
+  ctx.fillRect(L - 1, -2.6, 4, 5.2);
+}
+
+// LA PLAQUE D EGOUT : ronde et pleine, la seule du sol de ce lieu a l etre.
+function plaqueEgout(ox, oy) {
+  ctx.fillStyle = alpha(PROP.ombre, 0.22);
+  ctx.beginPath(); ctx.arc(ox, oy, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha("#141220", 0.84);
+  ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.20);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3;
+    ctx.moveTo(Math.cos(a) * 3, Math.sin(a) * 3);
+    ctx.lineTo(Math.cos(a) * 9, Math.sin(a) * 9);
+  }
+  ctx.stroke();
+}
+
+// LA GAINE : le faisceau de cables qui court au pied des murs. Il PEND, il n est
+// pas tendu — c est ce qui le separe du cable d atelier, qui est agrafe.
+function gaine(p, ox, oy) {
+  const L = 20 + p.p * 14;
+  ctx.strokeStyle = alpha(PROP.ombre, 0.20);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-L + ox, oy); ctx.quadraticCurveTo(ox, 8 + oy, L + ox, oy);
+  ctx.stroke();
+  for (let i = 0; i < 3; i++) {
+    ctx.strokeStyle = alpha(i === 1 ? PROP.rouille : PROP.metalDark, 0.60);
+    ctx.lineWidth = 2.2 - i * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(-L, i * 1.6 - 1.6);
+    ctx.quadraticCurveTo(0, 8 + i * 1.4, L, i * 1.6 - 1.6);
+    ctx.stroke();
+  }
 }

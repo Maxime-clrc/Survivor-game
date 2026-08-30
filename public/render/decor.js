@@ -479,6 +479,7 @@ const AMERS = {
   usine: coeurDeLigne,
   fonderie: creuset,
   nebuleuse: sasAmarrage,
+  secteur: carrefour,
 };
 
 export function drawAmer() {
@@ -909,6 +910,7 @@ const GRILLE = {
   fonderie: grilleRepere,
   friche: grilleEffacee,
   nebuleuse: grilleNervure,
+  secteur: grilleCaniveau,
 };
 
 // L'USINE EST CONSTRUITE ET ENTRETENUE : le trait franc est le sien, et c'est
@@ -1253,6 +1255,15 @@ const AMBIANCE = {
      chaud reste a ce qui brule vraiment — gueules, joints, coulee. */
   fonderie: { v: 9, l: 9, n: 72, col: WEATHER.ash, a: 0.055, e: 2.3,
               ang: -Math.PI / 2, swing: 0.10 },
+  /* IL PLEUT DANS LE SECTEUR, ET C EST LA SEULE AMBIANCE DU DEPOT QUI TOMBE. Les
+     quatre autres derivent, tirent ou montent ; celle-ci DESCEND, presque a la
+     verticale, vite et fin. C est aussi ce qui justifie que son sol soit mouille
+     et que ses flaques rendent la lumiere — sans la pluie au-dessus, l eau par
+     terre n a pas de cause.
+     `swing` est faible mais pas nul : une pluie parfaitement verticale est une
+     texture, une pluie qui balance un peu est de la meteo. */
+  secteur: { v: 340, l: 18, n: 150, col: "#a8b6d8", a: 0.055, e: 1.1,
+             ang: Math.PI / 2 + 0.16, swing: 0.06 },
 };
 const AMB_ANG = Math.PI * 0.62;
 const AMB_SWING = 0.30;
@@ -1366,6 +1377,7 @@ export function drawPremierPlan(v) {
   if (cle === "friche") grillage(h, dx, dy);
   else if (cle === "fonderie") cheminees(h, dx, dy);
   else if (cle === "nebuleuse") haubans(h, dx, dy);
+  else if (cle === "secteur") passerelles(h, dx, dy);
   else passerelle(h, dx, dy);
 
   ctx.restore();
@@ -1521,4 +1533,99 @@ export function drawWalls(w) {
   ctx.lineWidth = 2;
   ctx.strokeRect(w.x - t / 2, 0, t, CFG.ARENA_H);
   ctx.strokeRect(0, w.y - t / 2, CFG.ARENA_W, t);
+}
+
+/* LA GRILLE DU SECTEUR : DEUX TRAITS, PAS UN. Le pas de 20 m ne se negocie pas,
+   mais ce qui le PORTE appartient au lieu, et dans une rue ce sont les
+   caniveaux : une ligne creuse, doublee d un filet clair du cote de la lumiere.
+   C est le meme principe que la nervure de la Nebuleuse, avec la lumiere qui
+   vient d en FACE au lieu d en haut — donc un decalage presque horizontal. */
+function grilleCaniveau(a) {
+  const dir = lumDir();
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = alpha("#000000", 0.42);
+  ctx.lineWidth = 3;
+  nervures(0, 0);
+  ctx.strokeStyle = alpha(skin().blocEdge, 0.22);
+  ctx.lineWidth = 1.2;
+  nervures(-dir[0] * 2.2, -dir[1] * 2.2);
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 1;
+}
+
+/* L AMER DU SECTEUR : LE CARREFOUR. Les quatre autres lieux ont un objet pour
+   amer — un creuset, une tour, un sas, un coeur de ligne. Une rue n a pas
+   d objet remarquable : ce qui fait qu on se repere dans une ville est un
+   CROISEMENT, donc un vide organise, et c est le seul amer du depot qui soit
+   defini par ce qu il n a pas.
+
+   Plaque au sol et sans collider, comme les quatre autres : un grand objet qui
+   aurait du volume ferait voir une masse la ou le pathfinding voit du vide. */
+function carrefour(R, S) {
+  // le disque d asphalte plus sombre : le centre est use, pas construit.
+  ctx.fillStyle = alpha("#000000", 0.26);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.78, 0, Math.PI * 2); ctx.fill();
+
+  // LES QUATRE BRANCHES, et leurs passages pietons. C est ce qui dit
+  // « croisement » avant toute autre lecture.
+  for (let i = 0; i < 4; i++) {
+    ctx.save();
+    ctx.rotate((i / 4) * Math.PI * 2);
+    ctx.fillStyle = alpha("#c8cede", 0.07);
+    for (let j = 0; j < 6; j++) {
+      ctx.fillRect(R * 0.34 + j * (R * 0.072), -R * 0.26, R * 0.040, R * 0.52);
+    }
+    ctx.restore();
+  }
+
+  // LA LIGNE D ARRET : un anneau franc, la ou les branches s ouvrent. Un cercle
+  // peint est la seule geometrie qu une ville produise a cette echelle.
+  anneau(R * 0.30, 4, "#c8cede", 0.10);
+  anneau(R * 0.79, 2, S.blocEdge, 0.12);
+
+  // LE MAT CENTRAL, couche : ce qui reglait le carrefour est tombe dedans.
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.50);
+  ctx.lineWidth = 9;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-R * 0.10, -R * 0.06);
+  ctx.lineTo(R * 0.52, R * 0.30);
+  ctx.stroke();
+  ctx.lineCap = "butt";
+  ctx.fillStyle = alpha(S.emis, 0.16);
+  ctx.beginPath(); ctx.arc(R * 0.52, R * 0.30, 7, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LE PREMIER PLAN DU SECTEUR : DES PASSERELLES ET LEURS ENSEIGNES. Les trois
+   regles tiennent — rien au centre, jamais opaque, coupe pendant un boss — et
+   c est la seule des cinq silhouettes qui soit VERTICALE : l Usine a une
+   passerelle horizontale, la Fonderie des cheminees, la Friche un grillage
+   affaisse, la Nebuleuse des haubans. Ici ce sont des IMMEUBLES, donc des
+   montants, et entre eux les enseignes qui pendent.
+
+   Les caissons sont eteints un sur trois, comme les vitrines : c est la meme
+   regle et elle fait la meme chose — toutes allumees, c est un centre-ville de
+   carte postale. */
+function passerelles(h, dx, dy) {
+  const S = skin();
+  const pas = 176;
+  const base = Math.floor(-dx / pas) * pas;
+  for (const haut of [true, false]) {
+    for (let i = 0; i < CFG.VIEW_W / pas + 2; i++) {
+      const x = base + i * pas - dx * 0.5;
+      const w = 30 + ((i * 37) % 5) * 11;
+      const hh = h * (0.52 + ((i * 53) % 7) / 14);
+      const y0 = haut ? -6 - dy * 0.4 : CFG.VIEW_H - hh + 6 - dy * 0.4;
+      ctx.fillStyle = alpha(SURFACE.void, 0.40);
+      ctx.fillRect(x, y0, w, hh);
+
+      // l enseigne pendante : un caisson etroit, sur le flanc du montant.
+      const mort = (i * 29) % 3 === 0;
+      const ey = haut ? y0 + hh - 22 : y0 + 8;
+      ctx.fillStyle = alpha(SURFACE.void, 0.46);
+      ctx.fillRect(x + w - 4, ey, 9, 34);
+      ctx.fillStyle = alpha(S.emis, mort ? 0.04 : 0.13);
+      ctx.fillRect(x + w - 3, ey + 2, 7, 30);
+    }
+  }
 }
