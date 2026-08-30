@@ -869,6 +869,19 @@ le sien :
   colonne (`drawMarkColumns`, seule chose au-dessus de la horde). Détonation →
   **décoloration du sol 2 s** (`scorches`). Trois plafonds : `zoneFx` (600), fumée
   **jamais** sur un télégraphe, télégraphe jamais plus voyant que la zone active.
+- **Trois états sur un ennemi, trois PLANS — et c'est le plan qui les sépare,
+  pas la couleur.** Brûlure = lueur **autour** du corps ; vulnérabilité =
+  pointes qui en **sortent** ; entrave = anneau **au sol**. Superposés sur le
+  même corps, aucun ne peut être pris pour un autre. Les trois teintes viennent
+  de `STATUSES`, donc le glyphe du HUD dit déjà la même chose.
+  L'entrave est **froide**, par la règle qui vaut déjà pour les dangers : ce qui
+  blesse est chaud, ce qui ralentit est froid — et une entrave est le
+  ralentissement total (`mul = 0`, mesuré à 0,00 px). Deux épaisseurs, la fine
+  seule saturée, jamais de pointillés : le trait franc de `limite()`, et le
+  pointillé appartient au télégraphe.
+  **Un signe reste nécessaire même quand le corps s'arrête déjà** : `nasse`
+  oblige à *désigner* les entravés pour concentrer le feu, et un corps immobile
+  est sinon indistinguable d'un corps qui vise, qui prend son élan, ou qui bute.
 - **Un ennemi vulnérable porte des POINTES, jamais un anneau.** Les trois
   anneaux lisses sont déjà pris — élite, aura, égide — et l'ambre de `vuln`
   (`#f4b04a`) frôle l'or d'élite (`#ffd76e`) : c'est la **signature** qui sépare,

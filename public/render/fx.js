@@ -6,7 +6,7 @@ import { SRC_ICON, bonusNom } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
 import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, FIN_CHAMP, FIN_MASSE, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, bonusFamille, bonusRang, echelleBoss, echelleBouche, ficheDe, familleDe, finalDe, finalRayon, matiereDe, poids, voixDe } from "/shared/feedback.js";
 import { bossAt } from "/shared/bosses.js";
-import { STATUSES, STATUS_BURN, STATUS_VULN } from "/shared/statuses.js";
+import { STATUSES, STATUS_BURN, STATUS_ROOT, STATUS_VULN } from "/shared/statuses.js";
 import { CFG, ENEMY_TYPES, POWERUP_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, melange } from "/shared/palette.js";
@@ -1276,6 +1276,43 @@ export function drawVulnerable(x, y, r, k, tm, sceau, v = 1) {
   }
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+/* CE QUI EST CLOUE AU SOL, ET C EST LE SOL QUI LE DIT.
+
+   TROIS ETATS, TROIS PLANS — c est ca qui les rend lisibles ensemble et non la
+   couleur seule : la brulure est une lueur AUTOUR du corps, la vulnerabilite des
+   pointes qui en SORTENT, l entrave un anneau AU SOL. Aucun des trois ne peut
+   etre pris pour un autre, meme superposes sur le meme corps.
+
+   FROID, et c est la regle du depot appliquee telle quelle : ce qui blesse est
+   chaud, ce qui RALENTIT est froid — une entrave est le ralentissement total.
+   `#9fb4ff` vient de `STATUSES`, donc le glyphe du HUD dit deja la meme chose.
+
+   IL FAUT UN SIGNE MEME SI LE CORPS S ARRETE DEJA. Deux raisons : `nasse` fait
+   des entraves une cible a +degats, donc il faut pouvoir les DESIGNER ; et un
+   corps immobile est autrement indistinguable d un corps qui vise, qui prend son
+   elan ou qui bute sur un obstacle.
+
+   Deux epaisseurs, la fine seule saturee — le meme trait franc que `limite()`
+   pose sur un danger, et jamais de pointilles : le pointille est le langage du
+   telegraphe. */
+const ENTRAVE_PLAT = 0.42;
+const ROOT_COL = STATUSES[STATUS_ROOT].couleur;
+export function drawEntrave(x, y, r, k, tm, sceau, v = 1) {
+  const serre = 0.92 + 0.08 * Math.sin(tm * 4 + sceau);
+  const rr = (r + 3) * serre;
+  const a = k * v;
+  ctx.save();
+  ctx.translate(x, y + r * 0.40);
+  ctx.scale(1, ENTRAVE_PLAT);
+  ctx.strokeStyle = alpha(ROOT_COL, 0.20 * a);
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = alpha(ROOT_COL, 0.72 * a);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
 }
 
 export function spawnBraise(x, y, r) {

@@ -5950,6 +5950,45 @@
                    personne — defaut anterieur a ce plan, laisse tel quel : le
                    corriger est une question de simulation, pas de rendu.
 
+     0.29.5 lot 6  L ENTRAVE SE VOIT, ET LES TROIS ETATS TIENNENT ENSEMBLE.
+                   `rootUntil` sur un ennemi fait DEUX choses : `mul = 0`, le
+                   corps ne bouge plus du tout — mesure : 0,00 px sur une
+                   demi-seconde —, et `nasse` en fait une cible a +degats. Trois
+                   sources la posent : `etau` (souffles et ondes), `filins`
+                   (balles) et le tesla legendaire (`teslaEntrave`).
+                   ET LE CORPS QUI S ARRETE NE SUFFISAIT PAS A LE DIRE. C est la
+                   question qu il fallait se poser avant d ajouter un signe, et la
+                   reponse est non pour deux raisons : `nasse` oblige a DESIGNER
+                   les entraves pour concentrer le feu, et un corps immobile est
+                   autrement indistinguable d un corps qui vise, qui prend son
+                   elan, ou qui bute sur un obstacle.
+                   TROIS ETATS, TROIS PLANS — et c est ca qui les rend lisibles
+                   ensemble, pas la couleur : la brulure est une lueur AUTOUR du
+                   corps, la vulnerabilite des pointes qui en SORTENT, l entrave
+                   un anneau AU SOL. Superposes sur le meme corps, aucun ne peut
+                   etre pris pour un autre.
+                   FROID, et c est la regle du depot appliquee telle quelle : ce
+                   qui blesse est chaud, ce qui RALENTIT est froid — une entrave
+                   est le ralentissement total. Deux epaisseurs, la fine seule
+                   saturee, jamais de pointilles : le meme trait franc que
+                   `limite()` pose sur un danger, et le pointille appartient au
+                   telegraphe.
+                   SEPT CAS DE TUPLE MESURES : rien = 7 ; brulure = 12 ; vuln = 13
+                   ; entrave SEULE = 14, avec DEUX zeros en 11 et 12 que `trimTail`
+                   ne peut pas couper — quatre octets, le prix des tuples
+                   positionnels, et il n y a pas moyen de l eviter sans reordonner,
+                   ce qui casserait l append-only.
+                   ET LA SERIE ENTIERE NE COUTE RIEN DE PLUS : horde de 900 a 4
+                   joueurs, apres compression, les TROIS etats a 100 % coutent
+                   +1299 o (14,1 %) — contre +1283 o (14,0 %) pour la brulure
+                   SEULE en 0.29.2. Deux etats de plus pour seize octets : les
+                   valeurs se repetent, deflate les absorbe. A 25 % des trois,
+                   +538 o (5,9 %).
+                   `doom` n a PAS de trou : il est joueur-seul, aucun ennemi n en
+                   porte. Et le boss n est jamais entrave — `mul = 0` vit dans la
+                   boucle de deplacement de la horde, `_rootEnemy` n a que deux
+                   appelants et aucun ne vise un boss.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5958,4 +5997,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.4";
+export const VERSION = "0.29.5";

@@ -48,6 +48,7 @@ export function ingest(msg) {
       pair: a[10] ?? 0,
       burn: a[11] ?? 0,
       vuln: a[12] ?? 0,
+      root: a[13] ?? 0,
     }])),
     bullets: new Map(msg.b.map(a => [a[0], {
       id: a[0], x: a[1], y: a[2], owner: a[3] ?? 0, sil: a[4] ?? 0,

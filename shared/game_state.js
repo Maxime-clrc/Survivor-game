@@ -8718,7 +8718,14 @@ export class GameState {
                           non en part : `VULNERABLE_TIME` (4 s) et
                           `CONTRE_PIED_TIME` (3 s) different, donc une part
                           obligerait le client a savoir QUI l a posee. */
-                       r1(Math.max(0, (e.vulnUntil ?? 0) - this.time))], 7)),
+                       r1(Math.max(0, (e.vulnUntil ?? 0) - this.time)),
+                       /* L ENTRAVE. Trois sources — `etau`, `filins`, le tesla
+                          legendaire — et elle fait DEUX choses : `mul = 0`, le
+                          corps ne bouge plus, et `nasse` en fait une cible a
+                          +degats. Le corps qui s arrete ne suffit pas a le dire :
+                          il est indistinguable d un corps qui vise, qui prend son
+                          elan ou qui bute sur un obstacle. */
+                       r1(Math.max(0, (e.rootUntil ?? 0) - this.time))], 7)),
       b: filtrer(this.bullets, () => CFG.BULLET_RADIUS,
         b => b.missile ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_MISSILE]
           : b.scinde ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_PORTEUR]
