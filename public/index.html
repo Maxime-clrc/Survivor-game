@@ -457,6 +457,20 @@
     </section>
 
     <section class="setCard">
+      <div class="sectionTitle" data-i18n="ui.set.image">Image et confort</div>
+      <div class="setRow">
+        <span data-i18n="ui.set.gfx">Qualité graphique</span>
+        <button id="setGfx" class="srcBtn">Élevée</button>
+        <span class="setVal" id="setGfxVal"></span>
+      </div>
+      <div class="setRow">
+        <span data-i18n="ui.set.shake">Tressaillement de l'écran</span>
+        <button id="setShake" class="srcBtn">Complet</button>
+        <span class="setVal" id="setShakeVal"></span>
+      </div>
+    </section>
+
+    <section class="setCard">
       <div class="sectionTitle" data-i18n="ui.set.ctrl">Contrôles</div>
       <p class="setLead" data-i18n="ui.set.ctrl.lead">Disposition AZERTY. La souris sert toujours à viser.</p>
 
@@ -690,6 +704,7 @@
     <div id="pauseHud">
       <button id="pauseTele">Télémétrie : masquée</button>
       <button id="pauseGfx">Qualité graphique : élevée</button>
+      <button id="pauseShake">Tressaillement : complet</button>
     </div>
 
     <button id="pauseBuild" data-i18n="ui.pause.build">Consulter son build</button>

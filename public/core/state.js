@@ -149,6 +149,38 @@ function readGfx() {
     return i < 0 ? GFX_HIGH : i;
   } catch { return GFX_HIGH; }
 }
+
+/* LE CONFORT S'ARRETAIT AU DOM. `prefers-reduced-motion` est lu par trois blocs
+   de `menus.css` et ne peut atteindre ni le tressaillement — un `transform`
+   ecrit par JS sur `#arena` —, ni le hitstop, ni les eclairs du canvas. Rien ne
+   lisait un reglage parce qu'il n'y en avait pas.
+
+   UN SEUL POINT DE LECTURE, comme `gfx` : `addShake` multiplie, et rien d'autre.
+   Trois crans plutot qu'un interrupteur — le tressaillement porte de
+   l'information (une detonation, une rupture de barre), le couper entierement
+   est un choix, le baisser en est un autre.
+
+   La preference systeme donne la VALEUR PAR DEFAUT et n'ecrase jamais un choix :
+   elle n'est lue que si la clef est absente. Une preference qui reviendrait par
+   dessus le reglage serait le contraire du confort. */
+export const SECOUSSE_FACTEURS = [0, 0.5, 1];
+const SECOUSSE_KEY = "survivor.secousse";
+export let secousse = readSecousse();
+export function setSecousse(v) {
+  secousse = Math.min(SECOUSSE_FACTEURS.length - 1, Math.max(0, v | 0));
+  try { localStorage.setItem(SECOUSSE_KEY, String(secousse)); } catch {  }
+}
+export function secousseMul() { return SECOUSSE_FACTEURS[secousse]; }
+function readSecousse() {
+  try {
+    const brut = localStorage.getItem(SECOUSSE_KEY);
+    if (brut !== null) {
+      const n = Number(brut);
+      if (Number.isInteger(n) && n >= 0 && n < SECOUSSE_FACTEURS.length) return n;
+    }
+    return matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? 1 : 2;
+  } catch { return SECOUSSE_FACTEURS.length - 1; }
+}
 export const PERF = location.search.includes("perf");
 /* LE BANC, COTE CLIENT. Les touches ne s'arment que sur `?banc`, et le serveur
    n'accepte les messages que sur `BANC=1` : les deux moities sont necessaires,

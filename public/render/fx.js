@@ -11,7 +11,7 @@ import { t } from "/shared/i18n.js";
 import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, melange } from "/shared/palette.js";
 import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
-import { GFX_MEDIUM, gfx, latest, myId } from "../core/state.js";
+import { GFX_MEDIUM, gfx, latest, myId, secousseMul } from "../core/state.js";
 import { ENEMY_TINT, alertInfo, setAlertInfo } from "../net/interp.js";
 import { ELITE_GOLD, GRID_FINE, camera, ctx, hazardsActifs, inView, lumDir, ownerColorOf, skin } from "./stage.js";
 
@@ -54,8 +54,11 @@ export const pump = new EventPump(handleEvent, {
   },
   hazardState,
 });
+// LE SEUL POINT DE LECTURE DU CONFORT. Le tressaillement est un `transform`
+// ecrit par JS : `prefers-reduced-motion` ne l'atteint pas, et le multiplier ici
+// est ce qui evite qu'un second reglage apparaisse un jour ailleurs.
 function addShake(mag) {
-  shake.mag = Math.min(SHAKE_MAX, Math.max(shake.mag, mag));
+  shake.mag = Math.min(SHAKE_MAX, Math.max(shake.mag, mag * secousseMul()));
 }
 // UN KIND ABSENT DE CETTE TABLE EST MUET. Trois exceptions volontaires : `2`
 // (niveau) et `6` (rupture de barre) sonnent par leur evenement NOMME, les

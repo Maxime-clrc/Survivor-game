@@ -5693,6 +5693,29 @@
                    native : la mesure dit qu une paire est confusable, elle ne
                    dit pas quoi dessiner.
 
+     0.28.6 lot 6  IMAGE ET CONFORT, LA OU ON LES CHERCHE. `setGfx` n avait qu UN
+                   appelant, le menu de pause : le palier de qualite n etait donc
+                   joignable qu une manche en cours, alors que « Parametres »
+                   annonce « les reglages de cette machine » et porte deja la
+                   langue, l audio et les controles. Il est maintenant dans les
+                   deux vues, avec UN seul setter — meme forme qu `audioUi`, dont
+                   les trois rangees incluent deja celles de la pause.
+                   ET LE CONFORT S ARRETAIT AU DOM. `prefers-reduced-motion` est
+                   lu par trois blocs de `menus.css` ; le tressaillement est un
+                   `transform` ECRIT PAR JS sur `#arena`, le hitstop est
+                   `timeWarp`, les eclairs sont sur le canvas — la preference ne
+                   les atteignait pas, et rien ne lisait un reglage parce qu il
+                   n y en avait pas.
+                   `secousseMul()` a UN SEUL POINT DE LECTURE, `addShake`, comme
+                   `gfx` en a cinq et pas six. Trois crans et non un
+                   interrupteur : le tressaillement porte de l information (une
+                   detonation, une rupture de barre), le couper est un choix,
+                   le baisser en est un autre.
+                   La preference systeme donne la VALEUR PAR DEFAUT et n ecrase
+                   jamais un choix — elle n est lue que si la clef est absente.
+                   Aucune regle de simulation ne bouge, et `gfx` garde ses cinq
+                   points de lecture.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5701,4 +5724,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.5";
+export const VERSION = "0.28.6";

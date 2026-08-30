@@ -16,7 +16,7 @@ import { appliquerCadre } from "./cadres.js";
 import { relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { drawSprite, frameOf } from "/sprites.js";
-import { INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, tally, ws } from "../core/state.js";
+import { GFX_KEYS, GFX_ULTRA, INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, SECOUSSE_FACTEURS, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setGfx, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, setSecousse, secousse, gfx, tally, ws } from "../core/state.js";
 import { netPerf } from "../net/interp.js";
 import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
@@ -332,6 +332,7 @@ onLangChange(() => {
   traduireStatique();
   renderLangue();
   refreshAudioUi();
+  refreshImageUi();
   syncTopbar();
   if (hubScreenEl && !hubScreenEl.hidden) { renderRooms(); renderResume(); renderBoard(); }
   if (panel && !panel.hidden) refreshPanel();
@@ -618,6 +619,47 @@ const audioUi = [
     srcVal: document.getElementById("setSrcVal"),
   },
 ].filter(u => u.vol);
+/* IMAGE ET CONFORT, DANS LES DEUX VUES OU ON LES CHERCHE. Le palier de qualite
+   n'avait qu'un appelant, le menu de pause — donc joignable seulement une manche
+   en cours, alors que « Parametres » annonce « les reglages de cette machine » et
+   porte deja la langue, l'audio et les controles. Et le tressaillement n'avait
+   aucun reglage : `prefers-reduced-motion` est lu par `menus.css` et n'atteint
+   pas un `transform` ecrit par JS.
+   Meme forme qu'`audioUi` : une liste de vues, un rendu, un setter. Les deux
+   boutons de la pause sont ici pour la meme raison que ses trois rangees de son
+   — c'est cette couche qui tient ce qui existe a plusieurs endroits. */
+const GFX_NOM = ["basse", "moyenne", "élevée", "ultra"];
+const SHAKE_NOM = ["coupé", "réduit", "complet"];
+const imageUi = [
+  { gfx: document.getElementById("setGfx"), gfxVal: document.getElementById("setGfxVal"),
+    shake: document.getElementById("setShake"),
+    shakeVal: document.getElementById("setShakeVal") },
+  { gfx: document.getElementById("pauseGfx"), shake: document.getElementById("pauseShake"),
+    long: true },
+].filter(u => u.gfx);
+function refreshImageUi() {
+  const q = t(`ui.pause.gfx.${GFX_KEYS[gfx]}`, GFX_NOM[gfx]);
+  const s = t(`ui.image.shake.${secousse}`, SHAKE_NOM[secousse]);
+  for (const u of imageUi) {
+    u.gfx.textContent = u.long
+      ? tf("ui.pause.gfx", "Qualité graphique : {n}", { n: q }) : q;
+    u.gfx.classList.toggle("on", gfx > 0);
+    if (u.gfxVal) u.gfxVal.textContent = q;
+    u.shake.textContent = u.long
+      ? tf("ui.pause.shake", "Tressaillement : {n}", { n: s }) : s;
+    u.shake.classList.toggle("on", secousse > 0);
+    if (u.shakeVal) u.shakeVal.textContent = s;
+  }
+}
+for (const u of imageUi) {
+  u.gfx.onclick = () => { setGfx((gfx + 1) % (GFX_ULTRA + 1)); refreshImageUi(); };
+  u.shake.onclick = () => {
+    setSecousse((secousse + 1) % SECOUSSE_FACTEURS.length);
+    refreshImageUi();
+  };
+}
+refreshImageUi();
+
 function refreshAudioUi() {
   const pct = Math.round(getVolume() * 100);
   const mus = Math.round(getMusicVolume() * 100);

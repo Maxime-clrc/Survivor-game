@@ -1,18 +1,20 @@
 
 import { onLangChange, t, tf } from "/shared/i18n.js";
-import { GFX_KEYS, GFX_ULTRA, PHASE_ROUND, amSpectator, gfx, hostId, hudDps, hudStats, myId, pauseReal, phase, setGfx, setHudDps, setHudStats, ws } from "../core/state.js";
+import { PHASE_ROUND, amSpectator, hostId, hudDps, hudStats, myId, pauseReal, phase, setHudDps, setHudStats, ws } from "../core/state.js";
 import { openBuild } from "./build.js";
 import { hudPauseEl, pauseConfirm, pauseEl, pauseQuitAsk, pauseQuitBtn, pauseState, updateVersion } from "./dom.js";
 
 const teleBtn = document.getElementById("pauseTele");
-const gfxBtn = document.getElementById("pauseGfx");
-
-const GFX_NOM = ["basse", "moyenne", "élevée", "ultra"];
 
 /* DEUX BOUTONS POUR UN SEUL PANNEAU : le compteur de degats et le panneau de
    statistiques etaient deux interrupteurs independants alors qu'ils sont deux
    NIVEAUX de la meme couche. Un seul controle, trois crans — et les deux
-   drapeaux restent, donc un reglage deja enregistre se relit tel quel. */
+   drapeaux restent, donc un reglage deja enregistre se relit tel quel.
+
+   La qualite et le tressaillement sont partis dans `ui/screens.js` : ils vivent
+   dans DEUX vues (la pause et les Parametres), et c'est deja la couche qui tient
+   les reglages a plusieurs vues — les trois rangees d'`audioUi` y sont, celles
+   de la pause comprises. */
 const TELE_NOM = ["masquée", "combat", "détail"];
 const teleNiveau = () => hudStats ? 2 : hudDps ? 1 : 0;
 
@@ -21,9 +23,6 @@ function renderHudOptions() {
   teleBtn.textContent = tf("ui.pause.tele", "Télémétrie : {n}",
     { n: t(`ui.pause.tele.${n}`, TELE_NOM[n]) });
   teleBtn.classList.toggle("on", n > 0);
-  gfxBtn.textContent = tf("ui.pause.gfx", "Qualité graphique : {n}",
-    { n: t(`ui.pause.gfx.${GFX_KEYS[gfx]}`, GFX_NOM[gfx]) });
-  gfxBtn.classList.toggle("on", gfx > 0);
 }
 onLangChange(() => {
   renderHudOptions();
@@ -35,7 +34,6 @@ teleBtn.onclick = () => {
   setHudStats(n === 2);
   renderHudOptions();
 };
-gfxBtn.onclick = () => { setGfx((gfx + 1) % (GFX_ULTRA + 1)); renderHudOptions(); };
 renderHudOptions();
 
 // le nom de celui qui a fige la partie : le serveur envoie une DONNEE (`par`),
