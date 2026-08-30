@@ -5667,6 +5667,32 @@
                    passe basse inscrit la naissance : l ordre des deux ne peut pas
                    decider qu un bonus vient de tomber.
 
+     0.28.5 lot 5  PORTE-BOUCLIER ET CHOEUR CESSAIENT DE SE DISTINGUER, et
+                   `verifierSilhouettes` etait ROUGE depuis 0.21.7 : elancement
+                   0,96 / 1,12 pour une tolerance de 0,18, matiere 0,66 / 0,78
+                   pour 0,14, remplissage 0,79 / 0,78, sommets 29 / 27, avance
+                   0,001 / 0,001. Deux corps dont la bonne reponse est OPPOSEE —
+                   on contourne l un, on tue l autre en premier.
+                   Le plan 18 avait avance le pavois de huit pixels et note que
+                   la mesure ne bougeait pas : `avance` est invariante par
+                   translation. L axe qui separe la paire est l ELANCEMENT, et
+                   c est le seul dont la DIRECTION porte le verbe des deux — un
+                   pavois est large et bas, une planche qui barre le passage ; un
+                   choeur est haut, sa couronne monte. Les deux autres axes
+                   possibles allaient contre le verbe : baisser la matiere du
+                   pavois le rendrait ajoure, monter celle du choeur lui fermerait
+                   sa couronne.
+                   Le pavois perd 7,5 px de hauteur et les hanches 3,5 :
+                   **0,96 -> 0,78**, ecart 0,34 pour une tolerance de 0,18.
+                   `verifierSilhouettes` MUET, et la paire la plus serree du
+                   bestiaire passe de 0,87 a 1,20 fois sa tolerance — c est
+                   couvain / porte-bouclier, et elle tient. Le bord de case est
+                   respecte : `x = 29` laisse la moitie du contour avant la
+                   gouttiere de 2 px.
+                   Reste a valider a l oeil, planche `?planche` en resolution
+                   native : la mesure dit qu une paire est confusable, elle ne
+                   dit pas quoi dessiner.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5675,4 +5701,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.4";
+export const VERSION = "0.28.5";

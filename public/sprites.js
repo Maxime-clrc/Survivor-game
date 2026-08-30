@@ -416,17 +416,20 @@ function bulwarkPath(k) {
     }
     g.closePath();
 
-    // LE BOUCLIER SORT DEVANT, ET C'EST SON VERBE. Il etait colle au corps :
-    // la mesure confondait le porte-bouclier et le choeur sur les cinq axes
-    // (`verifierSilhouettes`), et a l'oeil deux masses rondes de meme taille
-    // avec des appendices ne se distinguaient que par la couleur — ce que la
-    // charte interdit. Le pavois avance de huit pixels et gagne en hauteur :
-    // la masse passe devant, et un corps dont la masse est devant ne peut plus
-    // etre pris pour un corps qui appelle.
-    g.moveTo(19, -21);
-    g.lineTo(28, -17.5);
-    g.lineTo(28, 16.5);
-    g.lineTo(19, 20);
+    // LE BOUCLIER SORT DEVANT, ET C'EST SON VERBE. Avancer de huit pixels n'a
+    // pas suffi et la mesure le disait : `avance` est invariante par
+    // translation, donc le porte-bouclier et le choeur restaient confondus sur
+    // les cinq axes. L'axe qui les separe est l'ELANCEMENT, le seul dont la
+    // direction porte le verbe des deux — un pavois est LARGE ET BAS, une
+    // planche qui barre le passage ; un choeur est HAUT, sa couronne monte.
+    // Le pavois perd 7,5 px de hauteur, les hanches 3,5 : 0,96 -> 0,78 pour un
+    // choeur a 1,12, soit un ecart de 0,34 sur une tolerance de 0,18. La masse
+    // ne bouge pas, la proportion change. `x = 29` est le bord de la case (30)
+    // moins la moitie du contour : au-dela, le trace bave dans la gouttiere.
+    g.moveTo(19, -17);
+    g.lineTo(29, -14);
+    g.lineTo(29, 13.5);
+    g.lineTo(19, 16.5);
     g.closePath();
     g.moveTo(11, -6);
     g.lineTo(20, -5);
@@ -435,7 +438,7 @@ function bulwarkPath(k) {
     g.closePath();
 
     for (const s of [-1, 1]) {
-      mirrored(g, s, [[11, 13], [16 + brace, 16], [16 + brace, 21 + brace * 2], [7, 15]]);
+      mirrored(g, s, [[11, 13], [16 + brace, 15], [16 + brace, 17.5 + brace * 2], [7, 14]]);
     }
 
     for (const s of [-1, 1]) {
