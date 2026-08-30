@@ -869,6 +869,15 @@ le sien :
   colonne (`drawMarkColumns`, seule chose au-dessus de la horde). Détonation →
   **décoloration du sol 2 s** (`scorches`). Trois plafonds : `zoneFx` (600), fumée
   **jamais** sur un télégraphe, télégraphe jamais plus voyant que la zone active.
+- **Un ennemi qui brûle le montre sur son corps**, en passe séparée avant les
+  corps — même primitive et même raison que l'ombre. La couleur est celle de
+  `STATUSES[STATUS_BURN]`, donc le glyphe du HUD et la horde disent l'état d'une
+  seule voix. Le tuple porte une **part de durée** et non un drapeau : la lueur
+  s'éteint *avec* la brûlure, là où un booléen aurait dit « purge ».
+  Les braises ont un budget **par image**, jamais par ennemi — la brûlure se
+  propage, leur nombre suivrait sinon la horde. Et **aucune garde `gfx`** : une
+  brûlure est de l'information, `gfx` règle la matière sans jamais décider de ce
+  qui se lit.
 - **Sur une zone de joueur, la couleur dit À QUI et la matière dit QUOI.**
   `terrain_conquis` est la seule carte qui pose du sol brûlant, et le seul des
   cinq appelants de `_groundZone` à passer un `pj` non nul — donc `z.pj !== 0`

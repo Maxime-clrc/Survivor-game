@@ -10,7 +10,7 @@ import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alp
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
-import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawOmbre, finArcs, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, zoneFx } from "./fx.js";
+import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawBrulure, drawOmbre, finArcs, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, spawnBraise, zoneFx } from "./fx.js";
 import { ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
 
 export const ARROW_MARGIN = 34;
@@ -1894,6 +1894,7 @@ export function drawFinArcs() {
   }
 }
 
+const BRAISES_PAR_IMAGE = 8;
 const BREATH_HZ = 1.2;
 export const shooterFire = new Map();
 export const seenShots = new Set();
@@ -2093,6 +2094,28 @@ export function drawEnemies(list, view) {
       const d = defDe(e.type, e.elite);
       drawOmbre(e.x, e.y, e.elite ? d.r * CFG.ELITE_RADIUS_MUL : d.r, v);
     }
+  }
+
+  /* CE QUI BRULE, EN PASSE SEPAREE ET POUR LA MEME RAISON QUE LES OMBRES : une
+     lueur posee juste avant SON corps tomberait sur le corps deja dessine du
+     voisin. Elle passe SOUS les corps — un halo au pourtour, pas un lavis qui
+     mange la silhouette.
+     LE BUDGET DE BRAISES EST PAR IMAGE, JAMAIS PAR ENNEMI : la brulure se
+     PROPAGE (`burnSpread`), donc leur nombre suivrait la horde au lieu de suivre
+     l effet. */
+  let braises = BRAISES_PAR_IMAGE;
+  for (const e of list) {
+    if (!(e.burn > 0) || !inView(e.x, e.y)) continue;
+    const v = windup.has(e.id) ? 1 : voileBrume(e.x, e.y);
+    if (v <= 0.02) continue;
+    const d = defDe(e.type, e.elite);
+    const r = e.elite ? d.r * CFG.ELITE_RADIUS_MUL : d.r;
+    // la part de duree porte l EXTINCTION : la lueur s eteint avec la brulure au
+    // lieu de disparaitre d un coup, ce qui aurait dit « purge » — or la brulure
+    // va au bout.
+    const k = Math.min(1, e.burn * 1.6);
+    drawBrulure(e.x, e.y, r, k, ts, e.id, v);
+    if (braises > 0 && Math.random() < 0.22 * k && spawnBraise(e.x, e.y, r)) braises--;
   }
 
   for (const e of list) {

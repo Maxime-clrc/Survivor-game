@@ -8703,7 +8703,15 @@ export class GameState {
         e => trimTail([e.id, r1(e.x), r1(e.y), Math.round(e.hp), Math.round(e.maxHp),
                        e.type + (e.elite ? 100 : 0),
                        r2(e.ang), e.hitSeq, e.critSeq, Math.round(e.shield),
-                       e.lienT > 0 ? 0 : e.pair], 7)),
+                       e.lienT > 0 ? 0 : e.pair,
+                       /* LA BRULURE, EN PART DE DUREE ET NON EN DRAPEAU. Quatre
+                          cartes la posent et rien ne la montrait. Une part laisse
+                          la lueur s eteindre avec elle ; un booleen l aurait fait
+                          disparaitre d un coup, ce qui aurait ressemble a une
+                          purge alors que la brulure va au bout. `trimTail` la
+                          retire quand elle vaut 0, donc elle ne coute rien a la
+                          horde qui ne brule pas. */
+                       r2(e.burn ? e.burn.t / CARD_CFG.BURN_TIME : 0)], 7)),
       b: filtrer(this.bullets, () => CFG.BULLET_RADIUS,
         b => b.missile ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_MISSILE]
           : b.scinde ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_PORTEUR]

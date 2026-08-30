@@ -6,6 +6,7 @@ import { SRC_ICON, bonusNom } from "/icons.js";
 import { ARMES } from "/shared/armes.js";
 import { FAM_DISPERSION, FAM_EXPLOSIF, FAM_OBUS, FAM_RAIL, FIN_CHAMP, FIN_MASSE, MAT_CARAPACE, MAT_ENERGIE, MATIERE, POIDS_MAX, bonusFamille, bonusRang, echelleBoss, echelleBouche, ficheDe, familleDe, finalDe, finalRayon, matiereDe, poids, voixDe } from "/shared/feedback.js";
 import { bossAt } from "/shared/bosses.js";
+import { STATUSES, STATUS_BURN } from "/shared/statuses.js";
 import { CFG, ENEMY_TYPES, POWERUP_TYPES, hazardState } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
 import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, melange } from "/shared/palette.js";
@@ -1223,6 +1224,41 @@ export function drawOmbre(x, y, r, k = 1) {
     tint: SURFACE.shadow,
     alpha: OMBRE_A * k,
   });
+}
+
+/* CE QUI BRULE LE DIT SUR SON CORPS. Quatre cartes posent la brulure, de 3 a 50
+   degats, et `burn` n apparaissait pas UNE fois dans tout `public/` : le tuple
+   ennemi ne portait aucun etat, la balle incendiaire etait celle de tout le
+   monde, et `enemyStatusMask()` n avait qu un appelant — un calcul de degats.
+   La famille entiere etait donc muette.
+
+   MEME PRIMITIVE QUE L OMBRE : un quad `fx_glow` teinte, dans le lot NORMAL qui
+   existe deja, donc aucun appel de dessin en plus. Et la MEME couleur que le
+   glyphe de brulure du HUD (`STATUSES`), pour que l etat se dise d une seule
+   voix sur le joueur et sur la horde.
+
+   AUCUNE GARDE `gfx` : une brulure est de l INFORMATION, pas un agrement — `gfx`
+   regle la matiere, il ne decide jamais de ce qui SE LIT. */
+const BRULURE_COL = STATUSES[STATUS_BURN].couleur;
+export function drawBrulure(x, y, r, k, tm, sceau, v = 1) {
+  if (!fxGlow) return;
+  const puls = 0.72 + 0.28 * Math.sin(tm * 9 + sceau);
+  const s = (r * 2.6) / SPRITE_CELL;
+  drawSprite(ctx, fxGlow, x, y, {
+    scaleX: s, scaleY: s, tint: BRULURE_COL, alpha: 0.40 * k * puls * v,
+  });
+}
+
+export function spawnBraise(x, y, r) {
+  if (particles.length >= PARTICLE_MAX) return false;
+  const a = Math.random() * Math.PI * 2;
+  particles.push({
+    x: x + Math.cos(a) * r * 0.7, y: y + Math.sin(a) * r * 0.7,
+    vx: (Math.random() - 0.5) * 14, vy: -26 - Math.random() * 22,
+    lift: 34, life: 0.5 + Math.random() * 0.3, max: 0.8,
+    col: BRULURE_COL, size: 3, frame: fxGlow,
+  });
+  return true;
 }
 
 // LA COQUE. Sa rupture est du VERRE : `fx_shard` est deja la matiere « eclat

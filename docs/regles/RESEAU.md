@@ -260,6 +260,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | soins rendus | `p.healDealt`, champ `heal` de `scoreboardRows()` | colonne « soins » du bilan |
 | magnitude d'un souffle | `n` sur l'effet, 9ᵉ élément (index 8, coupé si nul) — nova, grenade, onde, bombe | `BLAST_STYLE` + `spawnBlast()` + force du son |
 | critique | `critSeq` sur l'ennemi (index 8) ; `p.critKills` (index 34) | `crits` de l'impact, `crit` de la mort — teinte ambre, coup de zoom, éclats, noyau chaud, **chiffre ambre** (`a.crit` dans `dmgAgg`) |
+| brûlure d'un ennemi | `e.burn.t / BURN_TIME` en **fin** de tuple ennemi (index 11), coupé à zéro — une **part de durée** et non un drapeau, pour que la lueur s'éteigne *avec* la brûlure au lieu de dire « purge » | `drawBrulure()` + `spawnBraise()` (`render/fx.js`), passe séparée avant les corps, braises budgétées **par image** |
 | propriétaire d'une balle | 4ᵉ élément du tuple `b` | `ownerColorOf(b.owner) ?? COMBAT.bullet` |
 | missile de Salve | 5ᵉ élément du tuple `b`, **émis seulement si missile** | `drawMissile()` |
 | lien de soin | `_healLinks()` ; clé `hl`, triplets `[soigneur, cible, ennemi]` — **quadruplets** quand le lien vient d'un Sanctuaire (id du dôme) | `drawSoinLinks()` : soin chaud et **calme**, siphon froid et **agité** ; un lien de dôme part du **dôme** |

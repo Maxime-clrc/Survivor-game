@@ -5839,6 +5839,48 @@
                    brule ne le montre nulle part — le corriger demande un champ en
                    FIN de tuple, donc un lot de reseau, pas de rendu.
 
+     0.29.2 lot 3  UN ENNEMI QUI BRULE LE MONTRE. La famille `brulure` — quatre
+                   cartes, `braises` / `incendiaire` / `brasier` / `fournaise`,
+                   de 3 a 115 degats cumules — etait ENTIEREMENT muette : `burn`
+                   n apparaissait pas UNE fois dans `public/`, le tuple ennemi ne
+                   portait aucun etat, la balle incendiaire etait `[id, x, y,
+                   owner]` comme toutes les autres, et `enemyStatusMask()` n avait
+                   qu un appelant — le calcul de degats de `catalyseur`.
+                   UN EMPLACEMENT, EN FIN DE TUPLE (indice 11), lu avec un repli.
+                   Et une PART DE DUREE, pas un drapeau : la lueur s eteint AVEC
+                   la brulure au lieu de disparaitre d un coup, ce qui aurait dit
+                   « purge » alors que la brulure va au bout. `trimTail` la retire
+                   a zero, donc la horde qui ne brule pas ne paie rien — mesure :
+                   tuple de 7 inchange sans brulure, 12 avec, et retour a 7 des
+                   l extinction (1 -> 0,67 -> 0,33 -> absent sur 3 s).
+                   BANDE PASSANTE, APRES COMPRESSION (c est la seule qui compte,
+                   `ws_lite` deflate a chaque envoi), horde de 900 a 4 joueurs :
+                   +0 o a 0 % de brulants, +586 o (6,4 %) a 25 %, +1283 o (14,0 %)
+                   quand les 900 brulent en meme temps. Le pire cas tient sur un
+                   LAN, et il n est pas atteignable en jeu.
+                   RENDU : meme primitive que l ombre — un quad `fx_glow` teinte,
+                   dans le lot NORMAL, aucun appel de dessin en plus — et la meme
+                   couleur que le glyphe du HUD, pour que l etat se dise d une
+                   seule voix sur le joueur et sur la horde. PASSE SEPAREE, meme
+                   raison que les ombres : une lueur posee juste avant SON corps
+                   tomberait sur le corps deja dessine du voisin. Les braises ont
+                   un budget PAR IMAGE (8) et non par ennemi, parce que la brulure
+                   se PROPAGE et que leur nombre suivrait sinon la horde.
+                   AUCUNE GARDE `gfx` : une brulure est de l INFORMATION, pas un
+                   agrement. `gfx` regle la matiere, il ne decide jamais de ce qui
+                   se lit — et ses cinq points de lecture restent cinq.
+                   VERIFICATEUR ECARTE, ET C EST MESURE : un `verifierEnnemis` sur
+                   le modele de `verifierEffets` (tout champ numerique non nul doit
+                   atteindre un emplacement) leverait sur QUINZE champs legitimement
+                   serveur-seul — `speed`, `standoff`, `navAncre`, `navT`, `masse`,
+                   `xpWorth`, `traits`… que le client derive de `defDe(type)`. La
+                   liste d exclusion serait plus longue que la regle et pourrirait.
+                   `verifierEffets` reste vert mais ne couvre que la liste `f` : il
+                   ne dit RIEN de ce lot, la preuve est le relevé bout en bout.
+                   CE QUI N EST PAS FAIT : le BOSS brule aussi (`b.burn`) et son
+                   tuple ne porte pas la part. Une entite contre neuf cents, et son
+                   rendu vit dans `boss.js` — lot a part.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5847,4 +5889,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.1";
+export const VERSION = "0.29.2";
