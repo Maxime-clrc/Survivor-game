@@ -5639,6 +5639,34 @@
                    conclure est ce que ce depot supprime. Protocole et chiffres
                    dans `LISEZMOI`.
 
+     0.28.4 lot 4  LE BONUS ETAIT LE SEUL OBJET DE GAMEPLAY DESSINE SOUS LA
+                   HORDE. Ordre impose : sol, zones, BONUS, ennemis, projectiles,
+                   joueurs — et un bonus n a ni anneau d equipe ni telegraphe pour
+                   se rattraper. Mesure, cauchemar a quatre joueurs, 300 s par
+                   densite, sur la vue reelle : la part de bonus recouverts par un
+                   corps va de 2,6 % a 50 corps a 18,0 % a 100, 21,3 % a 150 et
+                   36,9 % a 200. Ce n est pas une affaire de DENSITE — les corps
+                   ne couvrent que 3,3 % de la vue a 200 —, c est une affaire
+                   d ORDRE.
+                   CE QUI MONTE EST LE SIGNAL, PAS L OBJET. Faire passer le bonus
+                   entier au-dessus mettrait treize disques opaques devant la
+                   horde, soit du decor devant du gameplay. Seul ce qui DESIGNE
+                   monte — socle de famille, cadran de fin, anneau de rarete, des
+                   traits fins et jamais un aplat ; l icone, celle qu on lit en
+                   dernier et de pres, reste ou elle est. Meme geste que
+                   `drawMarkColumns`, l autre chose qui a le droit de passer
+                   devant la horde.
+                   LA HIERARCHIE EST STRUCTURELLE, comme la passe de lumiere :
+                   `drawBonusSignal` est appelee apres `setCtx(overCtx)`, donc
+                   elle vit sur `#cv`, au-dessus du `#cvGl` ou vivent les corps.
+                   La deplacer d une ligne avant la bascule la casse en silence.
+                   AUCUN PIXEL NOUVEAU : la geometrie tracee par les deux passes
+                   reunies est identique a celle de la passe unique d avant,
+                   rejouee sur un contexte enregistreur — 24 anneaux, 12 dans
+                   chaque passe. Les deux lisent le meme `bonusEtat`, et seule la
+                   passe basse inscrit la naissance : l ordre des deux ne peut pas
+                   decider qu un bonus vient de tomber.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5647,4 +5675,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.3";
+export const VERSION = "0.28.4";

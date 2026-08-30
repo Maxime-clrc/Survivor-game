@@ -1417,91 +1417,124 @@ function socleBonus(x, y, r, cotes) {
   ctx.closePath();
 }
 
+/* LES DEUX PASSES LISENT LE MEME ETAT, sinon le socle et son anneau derivent
+   d'une image a l'autre. L'apparition ne se joue QUE pour un bonus NEUF : le
+   serveur filtre par vue, donc un bonus qui entre dans le champ a deja vecu et
+   le faire naitre une seconde fois serait un mensonge. La part de vie est le
+   seul canal qui sache les distinguer — et seule `drawPowerups` l'inscrit, pour
+   que l'ordre des deux passes ne puisse pas decider d'une naissance. */
+function bonusEtat(w, now, inscrire) {
+  const cle = POWERUP_TYPES[w.type];
+  const k = w.k ?? 1;
+  let ne = bonusNe.get(w.id);
+  if (ne === undefined) {
+    ne = k >= 0.95 ? now : 0;
+    if (inscrire) bonusNe.set(w.id, ne);
+  }
+  const naissance = ne === 0 ? 1 : Math.min(1, (now - ne) / BONUS_NAISSANCE);
+  // depassement puis retour : une montee lineaire fait « animation », un
+  // depassement fait « ca vient de tomber »
+  const ech = naissance >= 1 ? 1
+    : 0.25 + 0.75 * naissance + Math.sin(naissance * Math.PI) * 0.30;
+  const r = CFG.POWERUP_RADIUS;
+  const pulse = 1 + Math.sin(now / 260 + w.id) * 0.1;
+  const bob = Math.sin(now / 520 + w.id * 1.7) * 1.6;
+  return {
+    st: POWERUP_STYLE[cle] ?? POWERUP_STYLE.heal,
+    fam: bonusFamille(cle), rang: bonusRang(cle),
+    k, naissance, ech, r, pulse, y: w.y + bob, rr: r * pulse * ech,
+    // LE CADRAN DIT COMBIEN IL RESTE, et il n'apparait qu'a l'approche : un
+    // compte a rebours permanent sur chaque bonus ferait treize horloges.
+    fin: k < BONUS_PREAVIS,
+    cligne: k < BONUS_CLIGNE ? 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(now / 90)) : 1,
+  };
+}
+
 export function drawPowerups(list) {
   const now = performance.now();
   bonusVus.clear();
   for (const w of list) {
     bonusVus.add(w.id);
     if (!inView(w.x, w.y, 60)) continue;
-    const cle = POWERUP_TYPES[w.type];
-    const st = POWERUP_STYLE[cle] ?? POWERUP_STYLE.heal;
-    const fam = bonusFamille(cle);
-    const rang = bonusRang(cle);
-    const k = w.k ?? 1;
+    const e = bonusEtat(w, now, true);
 
-    // l'apparition ne se joue QUE pour un bonus NEUF : le serveur filtre par
-    // vue, donc un bonus qui entre dans le champ a deja vecu et le faire naitre
-    // une seconde fois serait un mensonge. La part de vie est le seul canal qui
-    // sache les distinguer.
-    let ne = bonusNe.get(w.id);
-    if (ne === undefined) { ne = k >= 0.95 ? now : 0; bonusNe.set(w.id, ne); }
-    const naissance = ne === 0 ? 1 : Math.min(1, (now - ne) / BONUS_NAISSANCE);
-    // depassement puis retour : une montee lineaire fait « animation », un
-    // depassement fait « ca vient de tomber »
-    const ech = naissance >= 1 ? 1
-      : 0.25 + 0.75 * naissance + Math.sin(naissance * Math.PI) * 0.30;
-
-    const r = CFG.POWERUP_RADIUS;
-    const pulse = 1 + Math.sin(now / 260 + w.id) * 0.1;
-    const bob = Math.sin(now / 520 + w.id * 1.7) * 1.6;
-    const y = w.y + bob;
-    const rr = r * pulse * ech;
-
-    // LE CADRAN DIT COMBIEN IL RESTE, et il n'apparait qu'a l'approche : un
-    // compte a rebours permanent sur chaque bonus ferait treize horloges.
-    const fin = k < BONUS_PREAVIS;
-    const cligne = k < BONUS_CLIGNE
-      ? 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(now / 90)) : 1;
-
-    ctx.globalAlpha = 0.25 * naissance * cligne;
-    ctx.strokeStyle = st.color;
-    ctx.lineWidth = 1;
-    socleBonus(w.x, y, r * 1.9 * pulse * ech, fam.cotes);
-    ctx.stroke();
-
-    if (fin) {
-      ctx.globalAlpha = 0.85 * cligne;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(w.x, y, r * 1.9 * pulse, -Math.PI / 2,
-              -Math.PI / 2 + Math.PI * 2 * (k / BONUS_PREAVIS));
-      ctx.stroke();
-    }
-
-    // LE RANG DIT LA RARETE : un second anneau, plus loin, tirete et lent. Ni
-    // plus gros ni plus clair — la charte reserve la taille a autre chose.
-    if (rang > 0) {
-      ctx.globalAlpha = 0.30 * naissance * cligne;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([5, 7]);
-      ctx.lineDashOffset = -now / 90;
-      ctx.beginPath();
-      ctx.arc(w.x, y, r * 2.7 * ech, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.lineDashOffset = 0;
-    }
-
-    ctx.globalAlpha = naissance;
+    ctx.globalAlpha = e.naissance;
     ctx.fillStyle = alpha(SURFACE.shadow, 0.28);
     ctx.beginPath();
-    ctx.ellipse(w.x, w.y + r * 0.95, r * 0.62 * ech, r * 0.22 * ech, 0, 0, Math.PI * 2);
+    ctx.ellipse(w.x, w.y + e.r * 0.95, e.r * 0.62 * e.ech, e.r * 0.22 * e.ech,
+                0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.globalAlpha = cligne;
+    ctx.globalAlpha = e.cligne;
     ctx.fillStyle = alpha(SURFACE.void, 0.82);
-    socleBonus(w.x, y, rr, fam.cotes);
+    socleBonus(w.x, e.y, e.rr, e.fam.cotes);
     ctx.fill();
-    ctx.strokeStyle = st.color;
+    ctx.strokeStyle = e.st.color;
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    paintPowerupIcon(st, w.x, y, rr / 8.6, naissance * cligne);
+    paintPowerupIcon(e.st, w.x, e.y, e.rr / 8.6, e.naissance * e.cligne);
     ctx.globalAlpha = 1;
   }
 
   if (bonusNe.size > bonusVus.size) {
     for (const id of bonusNe.keys()) if (!bonusVus.has(id)) bonusNe.delete(id);
+  }
+}
+
+/* CE QUI MONTE EST LE SIGNAL, PAS L OBJET. Un bonus etait le seul objet de
+   gameplay dessine SOUS la horde, et il n'a ni anneau d'equipe ni telegraphe
+   pour se rattraper. Mesure, cauchemar a quatre joueurs, 300 s par densite : la
+   part de bonus recouverts par un corps passe de 2,6 % a 50 corps a 36,9 % a
+   200. Ce n'est pas une affaire de densite — les corps ne couvrent que 3,3 % de
+   la vue —, c'est une affaire d'ORDRE.
+
+   Faire passer le bonus ENTIER au-dessus mettrait treize disques opaques devant
+   la horde, soit du decor devant du gameplay. On ne monte donc que ce qui
+   DESIGNE : le socle de famille, le cadran de fin, l'anneau de rarete — des
+   traits fins, jamais un aplat. L'icone, celle qu'on lit en dernier et de pres,
+   reste ou elle est.
+
+   La hierarchie est STRUCTURELLE et non reglee, comme la passe de lumiere :
+   appelee apres `setCtx(overCtx)`, elle vit sur `#cv`, donc au-dessus de
+   `#cvGl` ou vivent les corps. La deplacer d'une ligne avant la bascule la
+   casse en silence. Meme geste que `drawMarkColumns`, l'autre chose qui a le
+   droit de passer devant la horde. */
+export function drawBonusSignal(list) {
+  const now = performance.now();
+  for (const w of list) {
+    if (!inView(w.x, w.y, 60)) continue;
+    const e = bonusEtat(w, now, false);
+
+    ctx.globalAlpha = 0.25 * e.naissance * e.cligne;
+    ctx.strokeStyle = e.st.color;
+    ctx.lineWidth = 1;
+    socleBonus(w.x, e.y, e.r * 1.9 * e.pulse * e.ech, e.fam.cotes);
+    ctx.stroke();
+
+    if (e.fin) {
+      ctx.globalAlpha = 0.85 * e.cligne;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(w.x, e.y, e.r * 1.9 * e.pulse, -Math.PI / 2,
+              -Math.PI / 2 + Math.PI * 2 * (e.k / BONUS_PREAVIS));
+      ctx.stroke();
+    }
+
+    // LE RANG DIT LA RARETE : un second anneau, plus loin, tirete et lent. Ni
+    // plus gros ni plus clair — la charte reserve la taille a autre chose.
+    if (e.rang > 0) {
+      ctx.globalAlpha = 0.30 * e.naissance * e.cligne;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 7]);
+      ctx.lineDashOffset = -now / 90;
+      ctx.beginPath();
+      ctx.arc(w.x, e.y, e.r * 2.7 * e.ech, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+    }
+    ctx.globalAlpha = 1;
   }
 }
 /* UNE ARME QUI VISE AU SOL DOIT MONTRER OU. Sans ce marqueur, le point
