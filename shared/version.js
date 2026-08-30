@@ -5612,6 +5612,33 @@
                    Et le taux d emportement s affiche a la decimale : « 10 % des
                    combats, sous le plancher de 10 % » etait 9,83 % arrondi.
 
+     0.28.3 lot 3  UN ORDRE DE BOSS ARRIVAIT EN SILENCE. `applyAlert` est le
+                   chemin unique des trois tables du serveur, et il sonnait pour
+                   une METEO et pour un EVENEMENT — pas pour une MECANIQUE. Le
+                   bandeau `ALERT_ORDER`, celui qui porte un compte a rebours et
+                   dit ou aller, etait donc le seul des trois a ne rien emettre :
+                   un changement de temps s entendait, un ordre de boss non.
+                   La recette existait, ecrite POUR cet appel : `annonce` prend
+                   un `level` et lit `level === 0` pour separer l ordre de
+                   l avertissement, et `ALERT_ORDER` vaut 0. Elle n avait jamais
+                   ete branchee — et un nom de recette que personne ne nomme ne
+                   leve rien. `level` sert aussi de clef de limiteur, donc un
+                   ordre ne prend pas la place d un avertissement.
+                   LE CONTROLE EST STATIQUE, ET C EST UNE DECISION.
+                   `verifierFeedback` refuse un nom de recette ABSENT de la
+                   palette ; le sens inverse — une recette presente qu aucun
+                   chemin n atteint — se croise sur le TEXTE du depot :
+                   `annonce` etait la seule des cinquante. Un compteur dans
+                   `playSound` a ete ecrit, mesure, puis RETIRE : sur cent
+                   minutes de jeu pilote et quinze combats de boss, le pipeline
+                   complet n en nomme que 28 sur 50, et les vingt-deux autres ne
+                   sont pas orphelines (voix d armes que le bot n equipe pas,
+                   sons d interface sans interface, mise a terre avec des bots
+                   immortels). Un comptage mesure une COUVERTURE, pas une
+                   orpheline, et un compteur dont la seule lecture ne peut pas
+                   conclure est ce que ce depot supprime. Protocole et chiffres
+                   dans `LISEZMOI`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5620,4 +5647,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.2";
+export const VERSION = "0.28.3";

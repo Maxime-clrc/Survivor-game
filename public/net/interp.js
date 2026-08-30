@@ -286,6 +286,15 @@ function applyAlert(msg, now) {
   }
   if (def.level === ALERT_ORDER || def.level === ALERT_WARN) {
     bossCue = { from: now, impact: now + (msg.dur > 0 ? msg.dur * 1000 : 1500) };
+    /* UN ORDRE DE BOSS ARRIVAIT EN SILENCE. Les deux autres branches d'`applyAlert`
+       sonnent depuis toujours — un changement de temps s'entendait, la ligne a
+       rebours qui dit ou aller, non. La recette existait, ecrite POUR cet appel :
+       elle prend un `level` et lit `level === 0` pour separer l'ordre de
+       l'avertissement, et `ALERT_ORDER` vaut 0. Elle n'avait simplement jamais
+       ete branchee, et un nom de recette qui n'est nomme nulle part ne leve rien.
+       `level` sert aussi de clef de limiteur (`playSound`) : un ordre ne prend
+       donc pas la place d'un avertissement. */
+    playSound("annonce", { level: def.level });
   }
 }
 

@@ -720,6 +720,38 @@ pas `"webgl"` et `createGL` n'est jamais construit. C'est ce qui rend
 `verifierBlocs()` et `verifierEmpreinte()` rejouables en script jetable plutôt
 qu'à la console — `verifierSilhouettes()` peut suivre le même chemin.
 
+#### Une recette que personne ne nomme (0.28.3)
+
+`verifierFeedback()` refuse un nom de recette **absent** de la palette. Il ne dit
+rien du sens inverse : une recette **présente** dans la palette qu'aucun chemin
+n'atteint. `annonce` est restée écrite et muette assez longtemps pour qu'un
+**ordre de boss arrive en silence**, et rien ne pouvait le lever.
+
+**Le contrôle est STATIQUE, et c'est mesuré.** On croise `recettes()` avec le
+texte de tout le dépôt : une recette dont le nom n'apparaît nulle part hors
+d'`audio.js` est orpheline. Vingt lignes de Node, et c'est ce qui a trouvé
+`annonce` — **une seule sur cinquante**.
+
+```js
+const jamais = audio.recettes().filter(n => !code.includes(`"${n}"`));
+```
+
+**Un comptage à l'exécution ne peut pas le remplacer, et ç'a été essayé.** Un
+compteur dans `playSound` a été écrit, mesuré, puis **retiré**. Sur cent minutes
+de jeu piloté (calme solo, normal à deux, cauchemar à quatre, quinze combats de
+boss traversés), le pipeline complet — `GameState` → `snapshot(vue)` → `ingest`
+→ `EventPump` → `playSound`, avec les vraies recettes sur un `AudioContext` de
+papier — n'en nomme que **28 sur 50**. Les vingt-deux autres ne sont pas
+orphelines : ce sont les quatre voix d'arme que le bot n'équipe pas, la recharge
+et sa fin, le geyser, le rempart, la provocation, la vague de soin, le
+relèvement et la mise à terre (les bots de mesure sont immortels), et les huit
+sons d'interface, qui n'ont pas d'interface. **Un comptage mesure une
+COUVERTURE, pas une orpheline** — et un compteur dont la seule lecture ne peut
+pas conclure est exactement ce que ce dépôt supprime.
+
+Le harnais reste utile pour autre chose : c'est le même que celui du mix, et
+c'est lui qui rejoue le limiteur avec les vrais événements.
+
 ### Le vocabulaire bâti d'un lieu (0.22.0)
 
 Plomberie du plan 19 : `kind` sur l'obstacle, `BLOC[biome][kind]` côté rendu.
