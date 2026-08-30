@@ -13,7 +13,7 @@ ouvre le premier.
 
 | # | défaut | preuve |
 |---|---|---|
-| 1 | **Quatre bonus sur treize ne tombent jamais.** `damage`, `rate`, `double`, `pierce` sont dans `POWERUP_TYPES` mais absents de `POWERUP_ROTATION`, et les trois autres points d'apparition (élite, `ravitaillement`, `harvest`) passent par `_randomPowerupType()`. | `game_state.js:552` |
+| 1 | **Quatre bonus sur treize ne tombent jamais.** `damage`, `rate`, `double`, `pierce` sont dans `POWERUP_TYPES` mais absents de `POWERUP_ROTATION`, et les trois autres points d'apparition (élite, `ravitaillement`, `harvest`) passent par `_randomPowerupType()`. **Correction apportée au lot 5** : ce n'était pas un oubli. `LISEZMOI.md`, « Retrait des bonus au sol », enregistre le retrait comme une **décision mesurée**, antérieure au premier commit du dépôt. Le lot 1 les rend, le lot 5 paie la dette d'équilibrage que ce retour crée. | `game_state.js:552`, `LISEZMOI.md` |
 | 2 | **Quatre pastilles de HUD sur cinq sont donc inatteignables**, ainsi que leur rangée d'insignes sur le joueur. | `hud.js:891`, `boss.js:1415` |
 | 3 | **Le bonus de ralentissement pouvait RACCOURCIR un ralentissement en cours.** `this.slow = CFG.SLOW_TIME` écrase ; la carte Instinct, elle, écrit `Math.max`. | `game_state.js:4021` vs `7747` |
 | 4 | **Le bonus de bouclier plafonne à `CFG.SHIELD_POOL`**, sans lire `p.mods.shieldPool` : une build bouclier au-dessus de 80 le ramasse pour rien. | `game_state.js:4019` |
@@ -38,7 +38,7 @@ Le défaut y est de conception, pas de câblage — voir le lot 4.
 | **2** | 0.26.1 | **Le tirage situationnel.** Un poids par type, fonction de l'état — PV manquants, états posés, corps à l'écran, boss, et ce que les ARMES de l'équipe savent lire. | tout type reste tirable, aucun ne dépasse le double de sa part plate |
 | **3** | 0.26.2 | **Ce qu'un bonus dit.** Trois familles → une forme, un son, une gerbe ; apparition, collecte, expiration séparées ; le compte à rebours sur le fil. | un bonus se nomme sans son icône |
 | **4** | 0.26.3 | **Les reliques : des archétypes, pas des pourcentages.** | aucune relique neuve sans condition ni contrepartie |
-| **5** | 0.26.4 | **Mesures.** Rythme des bonus, part ramassée, puissance cumulée, effectif, difficulté. | chiffres dans `LISEZMOI.md` |
+| **5** | 0.26.4 | **Mesures, et la dette du lot 1.** Rythme, part ramassée, blocage du générateur, part de survie, effectif, difficulté. | chiffres dans `LISEZMOI.md`, survie médiane rendue à la référence |
 
 ---
 
@@ -52,3 +52,17 @@ Le défaut y est de conception, pas de câblage — voir le lot 4.
   conserve, aucun ne s'empile : ils se rafraîchissent.
 - **Il ne compense pas la difficulté par des récompenses.** `DIFFICULTIES` n'a
   aucun levier de bonus et n'en gagne pas.
+
+---
+
+## 4 · Ce que le lot 5 a corrigé du lot 1
+
+Rendre quatre bonus **offensifs** à une rotation de sept types dont **trois**
+étaient des bonus de survie fait tomber la part de survie de 43 % à 29 %. Mesuré,
+c'est **−32 % de survie médiane**. Le retrait d'origine n'était donc pas une
+économie de code : il concentrait les chutes sur le soin.
+
+Le lot 5 rend les quatre types **sans rien retirer de soin** : les poids de
+`heal`, `shield` et `beacon` montent d'autant, la part de survie revient à 43 %,
+la survie médiane rentre dans le bruit de la référence. C'est le **mix** qui
+change, pas la cadence — `POWERUP_MIN/MAX` n'a pas bougé du plan.

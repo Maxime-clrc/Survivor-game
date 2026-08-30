@@ -5283,6 +5283,54 @@
                    35 pieces. 1j : 5 achats, 40 % du catalogue vu, 21 % de
                    relances. 4j : 5 achats, 43 % vu, 32 % de relances.
 
+     0.26.4 lot 5  LE LOT 1 AVAIT UNE DETTE, ET `LISEZMOI` LA DISAIT DEPUIS
+                   LONGTEMPS. « Quatre bonus sur treize ne tombent jamais »
+                   n etait pas un oubli : la section « Retrait des bonus au sol »
+                   enregistre le retrait comme une DECISION MESUREE, anterieure au
+                   premier commit du depot. Et elle tenait quelque chose que le
+                   lot 1 n avait pas vu : la rotation a sept types comptait TROIS
+                   bonus de survie sur sept, soit 42,9 % des chutes. A onze types
+                   et poids egaux ils tombent a 29 %, et la survie mediane passe
+                   de 1 044 a 708 s. Le retrait n economisait pas du code, il
+                   CONCENTRAIT les chutes sur le soin.
+                   LES POIDS DE SURVIE MONTENT D AUTANT. `heal`, `shield` et
+                   `beacon` reprennent 41,2 % des chutes — c est le MIX qui
+                   change, pas la cadence, `POWERUP_MIN/MAX` n a pas bouge du
+                   plan. A/B seize manches par bras, meme processus, seule
+                   `POWERUP_ROTATION` differe : 906 s de moyenne contre 876,
+                   692 s de mediane contre 710, pour un ecart interquartile de
+                   1 000 s. LA SURVIE NE BOUGE PAS, et le temps passe avec un
+                   bonus d arme actif est MULTIPLIE PAR QUATRE (7,9 % contre
+                   2,0 %). C est ce que le plan visait : de la variete, pas de la
+                   puissance.
+                   SEIZE MANCHES ET PAS SIX. Le meme A/B a rendu successivement
+                   708/1044, 961/896 puis 1055/367 a six manches : la mediane
+                   d une manche de survie avec bots oscille d un facteur trois.
+                   Le seul chiffre stable a six est l uptime.
+                   LE PLANCHER EST UNE PART, PAS UN POIDS. `POWERUP_POIDS_MIN`
+                   valait 0,20 en absolu, or le total monte avec les PV
+                   manquants : le ricochet d une equipe qui ne sait pas le lire
+                   passait sous le cinquieme d une part plate en cauchemar, et
+                   nulle part ailleurs. `CFG.POWERUP_PART_MIN = 0,04` garantit
+                   par CONSTRUCTION ce que le critere verifie.
+                   ET LE CRITERE MANQUAIT D ECHANTILLON : a 66 apparitions un type
+                   au plancher en vaut 1,2, donc « ricochet 1,8 % » tenait a UN
+                   tirage. Vingt par type, et les huit couples (difficulte,
+                   effectif) sont muets.
+                   LE GENERATEUR SE MESURE BLOQUE, PAS PLEIN. L occupation moyenne
+                   depasse le plafond a quatre joueurs parce que les depouilles d
+                   elite ne le consultent pas — c est voulu, une recompense de
+                   kill tombe toujours. Ce qui se mesure est la part du temps ou
+                   l echeance est passee ET le sol plein : 1 a 9 % a un et deux
+                   joueurs, la ou 0.8.12 le decrivait bloque la plupart du temps ;
+                   21 a 24 % a quatre, et c est structurel.
+                   `verifierRythmeBonus()` tient les deux invariants — sol et part
+                   de survie. `mesureRamassage()` a ete ECRITE PUIS RETIREE : elle
+                   embarquait un second pilote alors que `pilotage()` va deja
+                   chercher les bonus, et `manchePilotee` comptait deja poses,
+                   ramasses et perimes. Deux chemins pour la meme mesure valent
+                   deux mesures qui divergent. Chiffres dans `LISEZMOI.md`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5291,4 +5339,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.26.3";
+export const VERSION = "0.26.4";

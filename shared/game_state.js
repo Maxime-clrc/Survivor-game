@@ -229,7 +229,11 @@ export const CFG = {
   POWERUP_LIFE: 22,
   POWERUP_MAX_GROUND: 2,
   POWERUP_RADIUS: 13,
-  POWERUP_POIDS_MIN: 0.20,
+  // le plancher est une PART, pas un poids : un poids fixe garde son sens tant
+  // que le total ne bouge pas, or le total monte avec les PV manquants — le
+  // ricochet d'une equipe qui ne sait pas le lire tombait alors sous le
+  // cinquieme d'une part plate en cauchemar, et nulle part ailleurs
+  POWERUP_PART_MIN: 0.040,
   // MESURE : 29 corps medians a deux joueurs, pour un plafond de 370. Normaliser
   // sur le PLAFOND rendait la densite quasi nulle en permanence et la nova
   // tombait trois fois moins qu'une part plate. La reference est la FOULE par
@@ -571,27 +575,38 @@ export const POWERUP_ROTATION = [
    une equipe a PV pleins, une nova sur un ecran vide et une perforation sur un
    faisceau qui traverse deja tout : la pastille est ramassee, elle ne rend rien,
    et le joueur apprend a ne plus se detourner. Le poids est donc une FONCTION de
-   l'etat, jamais un interdit — le plancher `CFG.POWERUP_POIDS_MIN` garde tous
+   l'etat, jamais un interdit — le plancher `CFG.POWERUP_PART_MIN` garde tous
    les types tirables, y compris celui qui ne sert pas maintenant.
 
    Les termes se lisent : une constante = ce que le type vaut toujours, un terme
    en `c.x` = ce qu'il vaut EN PLUS quand la situation le demande. Rien ici ne
    depend de la difficulte : compenser un mode par des recompenses est le defaut
    que ce plan refuse. */
+/* LES TROIS BONUS DE SURVIE GARDENT LEUR CADENCE ABSOLUE. La rotation d'avant
+   n'avait que sept types dont TROIS de survie — `heal`, `shield`, `beacon` —
+   soit 43 % des chutes ; a onze types et poids egaux ils tombaient a 29 %, et la
+   MESURE l'a dit sans ambiguite : 708 s de survie mediane contre 1 044 s. Rendre
+   quatre bonus a la rotation ne doit RIEN retirer de soin a l'equipe : leurs
+   poids montent d'autant. C'est le MIX qui change, pas la cadence. */
 const POWERUP_POIDS = {
-  heal:     c => 0.35 + 2.00 * c.manque,
+  heal:     c => 1.70 + 2.00 * c.manque,
   damage:   c => 0.80 + 0.55 * c.densite + 0.55 * c.boss,
-  rate:     c => 0.25 + 0.95 * c.cadence,
-  double:   c => 0.25 + 0.95 * c.canons,
-  shield:   c => 0.55 + 0.95 * c.manque + 0.55 * c.boss,
+  rate:     c => 0.35 + 0.95 * c.cadence,
+  double:   c => 0.35 + 0.95 * c.canons,
+  // le SOIN porte la survie, le bouclier l'accompagne : a base egale le
+  // bouclier passait devant des que l'equipe etait intacte, et il sortait de la
+  // bande a un et deux joueurs. La SOMME des trois ne bouge pas.
+  shield:   c => 1.35 + 1.40 * c.manque + 0.60 * c.boss,
   slow:     c => 0.35 + 1.10 * c.densite,
-  pierce:   c => 0.25 + c.perce * (0.55 + 0.85 * c.densite),
+  // 0,25 tombait SOUS le plancher du critere pour une equipe solo dont l'arme
+  // ne lit ni l'un ni l'autre : rare est voulu, invisible ne l'est pas
+  pierce:   c => 0.35 + c.perce * (0.55 + 0.85 * c.densite),
   nova:     c => 0.30 + 1.20 * c.densite,
   // relever demande quelqu'un pour relever : seul, un joueur a terre est la fin
   // de la manche, pas une situation
-  beacon:   c => (c.aTerre > 0 && c.vivants > 0) ? 3.00 : 0.55,
+  beacon:   c => (c.aTerre > 0 && c.vivants > 0) ? 3.60 : 1.55,
   turret:   c => 0.60 + 0.85 * c.boss + 0.55 * c.densite,
-  ricochet: c => 0.25 + c.rebond * (0.55 + 0.85 * c.densite),
+  ricochet: c => 0.35 + c.rebond * (0.55 + 0.85 * c.densite),
 };
 
 // un tirage se fait une fois toutes les vingt secondes : le tableau de poids est
@@ -3959,9 +3974,13 @@ export class GameState {
     let total = 0;
     POIDS.length = 0;
     for (const k of POWERUP_ROTATION) {
-      const w = Math.max(CFG.POWERUP_POIDS_MIN, POWERUP_POIDS[POWERUP_TYPES[k]](c));
+      const w = POWERUP_POIDS[POWERUP_TYPES[k]](c);
       total += w;
       POIDS.push(w);
+    }
+    const plancher = total * CFG.POWERUP_PART_MIN;
+    for (let i = 0; i < POIDS.length; i++) {
+      if (POIDS[i] < plancher) { total += plancher - POIDS[i]; POIDS[i] = plancher; }
     }
     let r = Math.random() * total;
     for (let i = 0; i < POIDS.length; i++) {
@@ -10109,8 +10128,44 @@ export function mesureBonus(diffIndex = DIFF_NORMAL, joueurs = 2, minutes = 30,
 /* Le plancher est BAS, et c'est voulu : un type que l'equipe ne peut pas lire —
    la perforation sur un faisceau, la cadence sur une arme continue — DOIT se
    rarefier, c'est le sujet du lot. Ce que le critere refuse est qu'il disparaisse
-   (`CFG.POWERUP_POIDS_MIN` le garantit) ou qu'un terme trop gourmand mange la
+   (`CFG.POWERUP_PART_MIN` le garantit) ou qu'un terme trop gourmand mange la
    rotation. */
+/* LE GENERATEUR NE DOIT PAS PASSER SA MANCHE BLOQUE par un sol plein de bonus
+   que personne ne ramasse — c'est le releve de 0.8.12, et il n'avait jamais eu
+   de critere. Ce qui se mesure est la part du temps ou son echeance est passee
+   ET le sol plein, pas l'occupation moyenne : a quatre joueurs celle-ci depasse
+   le plafond, les depouilles d'elite ne le consultant pas.
+   La part de survie, elle, garde l'equilibrage d'avant le plan : quatre bonus
+   rendus a la rotation ne doivent RIEN retirer de soin a l'equipe. */
+export const SOL_OCCUPE_MAX = 0.50;
+export const PART_SURVIE = [0.36, 0.50];
+const SURVIE_CLES = ["heal", "shield", "beacon"];
+
+export function verifierRythmeBonus(diffIndex = DIFF_NORMAL, joueurs = 2,
+  manches = 4, minutes = 40) {
+  const soucis = [];
+  const r = mesureSurvie(diffIndex, joueurs, [0, 2], PROFIL_ENGAGE, manches, minutes);
+  const ou = `${DIFFICULTIES[diffIndex].key}/${joueurs}j`;
+  if (r.partBloquee > SOL_OCCUPE_MAX) {
+    soucis.push(`${ou} : le generateur est bloque ${Math.round(r.partBloquee * 100)} %`
+      + ` du temps par un sol plein (${r.solMoyen.toFixed(2)} bonus en moyenne)`);
+  }
+  if (!(r.poses > 0)) { soucis.push(`${ou} : aucun bonus pose`); return soucis; }
+
+  const b = mesureBonus(diffIndex, joueurs, minutes, manches);
+  let rot = 0, survie = 0;
+  for (const k of POWERUP_ROTATION) {
+    rot += b.parts[k];
+    if (SURVIE_CLES.includes(POWERUP_TYPES[k])) survie += b.parts[k];
+  }
+  const part = rot ? survie / rot : 0;
+  if (part < PART_SURVIE[0] || part > PART_SURVIE[1]) {
+    soucis.push(`${ou} : ${Math.round(part * 100)} % de bonus de survie, bande`
+      + ` ${PART_SURVIE.map(x => Math.round(x * 100)).join("-")} %`);
+  }
+  return soucis;
+}
+
 export const BONUS_PART_MIN = 0.20;
 export const BONUS_PART_MAX = 2.00;
 
@@ -10132,7 +10187,11 @@ export function verifierTirageBonus(diffIndex = DIFF_NORMAL, joueurs = 2,
   const { parts } = mesureBonus(diffIndex, joueurs, minutes, manches);
   let total = 0;
   for (const k of POWERUP_ROTATION) total += parts[k];
-  if (total < POWERUP_ROTATION.length * 6) {
+  // L'ECHANTILLON DOIT POUVOIR SEPARER LE PLANCHER DE SA MOITIE. A 66
+  // apparitions, un type au plancher en vaut 1,2 : une manche cauchemar solo
+  // sortait « ricochet 1,8 % » sur UN tirage de plus ou de moins. Vingt par
+  // type met le plancher a quatre apparitions, ou le bruit ne decide plus.
+  if (total < POWERUP_ROTATION.length * 20) {
     soucis.push(`${total} apparitions seulement : l'echantillon ne dit rien`);
     return soucis;
   }
@@ -11046,6 +11105,11 @@ function manchePilotee(diffIndex, joueurs, classes, profil, minutes, options = {
   const images = Math.round(minutes * 60 / CFG.TICK);
   const vies = new Map();
   let poses = 0, ramasses = 0, perimes = 0;
+  // OCCUPATION DU SOL et UPTIME des bonus d'arme : le premier dit si le
+  // generateur est bloque par ce que personne ne ramasse, le second combien de
+  // temps le combat est effectivement « arme ». Deux compteurs, pas un second
+  // pilote — `pilotage()` va deja chercher les bonus.
+  let solSomme = 0, solN = 0, armeT = 0, joueurT = 0, bloque = 0;
 
   for (let k = 0; k < images && !g.gameOver && !g.victory; k++) {
     if (g.cardsPending) {
@@ -11078,6 +11142,22 @@ function manchePilotee(diffIndex, joueurs, classes, profil, minutes, options = {
       if (!g.victory) g.gameOver = false;
     }
 
+    // `_solBonus()` et non `powerups.length` : c'est CE compte que le generateur
+    // regarde, les fragments ont leur propre plafond depuis 0.26.1
+    const sol = g._solBonus();
+    solSomme += sol;
+    solN++;
+    // LE GENERATEUR EST BLOQUE quand son echeance est passee et que le sol est
+    // plein : c'est la mesure exacte du releve de 0.8.12, qui ne regardait que
+    // l'occupation moyenne — laquelle depasse le plafond a quatre joueurs parce
+    // que les depouilles d'elite, elles, ne le consultent pas.
+    if (g.powerupCd <= 0 && sol >= CFG.POWERUP_MAX_GROUND) bloque++;
+    for (const p of g.players.values()) {
+      joueurT += CFG.TICK;
+      if (p.buffDamage > 0 || p.buffRate > 0 || p.buffDouble > 0
+          || p.buffPierce > 0 || p.buffRicochet > 0) armeT += CFG.TICK;
+    }
+
     const vus = new Set();
     for (const w of g.powerups) {
       vus.add(w.id);
@@ -11107,6 +11187,10 @@ function manchePilotee(diffIndex, joueurs, classes, profil, minutes, options = {
     skill1: s1 / joueurs / minutesJouees,
     skill2: s2 / joueurs / minutesJouees,
     poses, ramasses, perimes,
+    bonusMinute: poses / minutesJouees,
+    solMoyen: solN ? solSomme / solN : 0,
+    partBloquee: solN ? bloque / solN : 0,
+    uptimeArme: joueurT ? armeT / joueurT : 0,
   };
 }
 
@@ -11146,6 +11230,13 @@ export function mesureSurvie(diffIndex, joueurs, classes, profil, manches = 6,
     taux: gagnees / runs.length,
     ramasses: somme(runs.map(r => r.ramasses)),
     poses: somme(runs.map(r => r.poses)),
+    perimes: somme(runs.map(r => r.perimes)),
+    partPrise: somme(runs.map(r => r.poses))
+      ? somme(runs.map(r => r.ramasses)) / somme(runs.map(r => r.poses)) : 0,
+    bonusMinute: mediane(runs.map(r => r.bonusMinute)),
+    solMoyen: mediane(runs.map(r => r.solMoyen)),
+    partBloquee: mediane(runs.map(r => r.partBloquee)),
+    uptimeArme: mediane(runs.map(r => r.uptimeArme)),
   };
 }
 

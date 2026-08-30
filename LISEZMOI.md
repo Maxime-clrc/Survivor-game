@@ -3116,6 +3116,116 @@ isolé, la dispersion reste large (−17 % à +29 %) : c'est la variance d'une
 manche de survie avec bots, pas un effet du retrait — d'où la lecture sur la
 moyenne des quatre effectifs.
 
+### La boucle de bonus (plan 23)
+
+Les quatre bonus retirés ci-dessus (`damage`, `rate`, `double`, `pierce`) sont
+**rendus à la rotation**. La fréquence, elle, ne revient pas : `POWERUP_MIN/MAX`
+ne bouge pas du plan. Ce qui change est le **mix**, et c'est lui qu'il fallait
+mesurer.
+
+#### Ce que le retrait d'origine tenait vraiment
+
+La rotation à sept types comptait **trois bonus de survie sur sept** — `heal`,
+`shield`, `beacon`, soit **42,9 %** des chutes. À onze types et poids égaux ils
+tombent à **29 %**, et la survie médiane passe de 1 044 à 708 s sur un relevé à
+quatre manches. Le retrait n'économisait donc pas du code : il **concentrait les
+chutes sur le soin**. Les poids de ces trois-là montent d'autant ; la part de
+survie revient à **41,2 %**.
+
+#### A/B, seize manches par bras
+
+Les deux bras tournent dans le **même processus**, en ne changeant que
+`POWERUP_ROTATION` : même code, mêmes graines, seul le tirage diffère.
+`mesureSurvie(normal, 2 j., [rempart, tireur], PROFIL_ENGAGE, 16, 40 min)`.
+
+| | moyenne | médiane | Q1 | Q3 | bonus d'arme actifs |
+|---|---|---|---|---|---|
+| rotation 11 | **906 s** | 692 s | 352 | 1 409 | **7,9 %** |
+| rotation 7 (référence) | **876 s** | 710 s | 359 | 1 706 | 2,0 % |
+
+**La survie ne bouge pas** (+3,4 % de moyenne, −2,5 % de médiane, pour un écart
+interquartile de 1 000 s) et le temps passé avec un bonus d'arme actif est
+**multiplié par quatre**. C'est exactement ce que le plan visait : de la variété,
+pas de la puissance.
+
+**Seize manches, et pas six.** À six, le même A/B a rendu successivement
+708/1 044, 961/896 puis 1 055/367 : la médiane d'une manche de survie avec bots
+oscille d'un facteur trois, et six tirages n'en disent rien. Le chiffre stable à
+six manches est l'uptime, pas la durée.
+
+#### La distribution
+
+Normal, 2 joueurs, 3 × 30 min. Dénominateur : la **rotation seule** — `fragment`
+et `purification` ont chacun leur propre source.
+
+| type | part | | type | part |
+|---|---|---|---|---|
+| `heal` | 16,4 % | | `double` | 8,5 % |
+| `shield` | 13,8 % | | `damage` | 8,2 % |
+| `beacon` | 11,0 % | | `ricochet` | 6,6 % |
+| `rate` | 9,1 % | | `turret` | 6,3 % |
+| `pierce` | 9,1 % | | `nova` | 6,0 % |
+| | | | `slow` | 5,0 % |
+
+Part plate : 9,1 %. Aucun type hors de la bande **0,2× à 2×** sur les huit
+couples (difficulté, effectif) — `verifierTirageBonus()`.
+
+**L'échantillon doit pouvoir séparer le plancher de sa moitié.** À 66
+apparitions, un type au plancher en vaut 1,2, et une manche cauchemar solo
+sortait « ricochet 1,8 % » sur **un tirage** de plus ou de moins. Le critère
+exige vingt apparitions par type ; à ce compte les huit couples sont muets.
+
+#### La densité ne se normalise pas sur le plafond de population
+
+Première écriture : `enemies.length / _enemyCap()`. Relevé, normal à deux
+joueurs : **29 corps médians pour un plafond de 370**, donc une densité de 0,08
+en permanence et une nova qui tombait **trois fois moins** qu'une part plate
+(3,0 % contre 9,1 %). La référence est la foule **par joueur vivant**,
+`CFG.POWERUP_FOULE = 28`, réglée pour que la médiane tombe à mi-échelle.
+
+#### Le fragment bloquait le générateur
+
+Il tombe de la carte « Récolte », sur un kill, donc par dizaines, et il comptait
+dans `POWERUP_MAX_GROUND` : **55 à 64 %** des apparitions d'une manche cauchemar
+à quatre joueurs. C'est la cause, jamais nommée, du relevé de 0.8.12 — « le sol
+porte 1,1 à 2,9 bonus en permanence pour un `POWERUP_MAX_GROUND` de 2 ». Les
+deux populations ont chacune leur plafond depuis.
+
+#### La boucle, par mode et par effectif
+
+`mesureSurvie(..., 4 manches, 40 min)`. « bloqué » = part du temps où l'échéance
+du générateur est passée **et** le sol plein — c'est la mesure exacte du défaut
+de 0.8.12, l'occupation moyenne ne suffisant pas : à quatre joueurs elle dépasse
+le plafond parce que les **dépouilles d'élite ne le consultent pas**.
+
+| | apparitions | ramassées | sol | générateur bloqué | bonus d'arme actifs |
+|---|---|---|---|---|---|
+| calme 2 j. | 6,1 /min | 27 % | 1,65 | 9 % | 7,5 % |
+| normal 1 j. | 4,0 /min | 49 % | 1,02 | 1 % | 9,5 % |
+| normal 2 j. | 5,6 /min | 32 % | 1,39 | 5 % | 9,9 % |
+| normal 4 j. | 11,1 /min | 33 % | 2,04 | 24 % | 5,3 % |
+| cauchemar 2 j. | 8,4 /min | 25 % | 1,51 | 8 % | 6,5 % |
+| cauchemar 4 j. | 6,8 /min | 36 % | 1,80 | 21 % | 5,7 % |
+
+Trois lectures :
+
+- **Le générateur n'est plus bloqué** à un et deux joueurs (1 à 9 %), là où le
+  relevé de 0.8.12 le décrivait bloqué la plupart du temps.
+- **À quatre joueurs il l'est un cinquième du temps**, et c'est structurel : les
+  élites ne consultent pas le plafond du sol, donc elles fournissent l'essentiel.
+  Le plafond reste **par équipe** et non par joueur — un bonus est une ressource
+  d'équipe, comme les points de récolte.
+- **`pilotage()` ramasse un quart à la moitié de ce qui tombe** (poids 0,12 dans
+  son champ de buts). Le chiffre sert à comparer deux bras, pas à décrire ce
+  qu'un joueur ramasse.
+
+#### Ce que la difficulté ne fait pas
+
+`DIFFICULTIES` n'a **aucun** levier de bonus et n'en gagne pas : les écarts
+ci-dessus viennent de la durée des manches et de la densité de horde, pas d'une
+table. Même raison que `hasHealer()` pour `heal` — un poids qui dépendrait du
+mode ferait du mode un robinet à récompenses.
+
 ### Motifs au sol
 
 Bots remis à neuf après chaque image — la sanction de mécanique est calibrée en
@@ -3639,7 +3749,10 @@ LEVEL_KILLS_GROWTH: 1.18 // coût de chaque palier suivant
 WAVE_XP_BONUS: 12       // équivalent kills versé à la fin d'une vague
 LEVEL_MAX: 30           // plafond — un niveau = une carte
 POWERUP_MIN / MAX: 18-26 // secondes entre deux bonus au sol
-POWERUP_MAX_GROUND: 2   // bonus présents au sol simultanément
+POWERUP_MAX_GROUND: 2   // bonus présents au sol simultanément — FRAGMENTS EXCLUS
+POWERUP_PART_MIN: 0.04  // plancher de PART : aucun type ne cesse d'être tirable
+POWERUP_FOULE: 28       // corps par joueur vivant qui valent « la horde est dense »
+FRAGMENT_MAX_GROUND: 6  // les fragments de la carte Récolte, plafond séparé
 MAX_ENEMIES_BASE: 220   // plafond de reference, solo, normal
 MAX_ENEMIES_DIFF: [0.80, 1.00, 1.45]  // par mode
 MAX_ENEMIES_HARD_CAP: 900             // limite du MOTEUR, reglee au profileur

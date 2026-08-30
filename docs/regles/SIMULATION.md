@@ -309,6 +309,44 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   rectangle de vue est **reconstruit** (centré puis clampé). Exempts : `anneau`
   et les nuées de pondeuse.
 
+### Bonus au sol
+
+- **UN BONUS EST UNE MICRO-DECISION DE COMBAT, jamais un second système de
+  build.** Effet simple, immédiat, le plus souvent temporaire. Rien ne se
+  conserve, rien ne s'empile : un ramassage **rafraîchit** son minuteur
+  (`Math.max`), il ne l'additionne pas.
+- **`POWERUP_TYPES` dit ce qui circule, `POWERUP_ROTATION` ce qui tombe,
+  `POWERUP_POIDS` QUAND.** Le poids est une fonction de l'état — PV manquants,
+  densité de horde, boss, joueurs à terre, et ce que les **armes de l'équipe**
+  savent lire (`litCadence`, `litCanons`, `litPerce`, `litRebond`). **Jamais un
+  interdit** : `CFG.POWERUP_PART_MIN` garde les onze types tirables, y compris
+  celui qui ne sert pas maintenant.
+- **La densité se lit sur la FOULE par joueur** (`CFG.POWERUP_FOULE`), pas sur le
+  plafond de population : celui-ci vaut 370 pour 29 corps médians, donc une
+  densité de 0,08 en permanence et une nova qui ne tombait plus.
+- **La part des trois bonus de survie est un INVARIANT d'équilibrage** —
+  `heal`, `shield`, `beacon`, 43 % des chutes. C'était la proportion de la
+  rotation à sept types, et la survie médiane y est sensible d'un facteur 1,5 :
+  rendre des bonus offensifs à la rotation ne doit rien retirer de soin.
+  `verifierRythmeBonus()` tient la bande.
+- **AUCUN LEVIER DE DIFFICULTÉ dans la table de poids.** Compenser un mode par
+  des récompenses est refusé par principe ; `DIFFICULTIES` n'a aucun champ de
+  bonus et n'en gagne pas. Même raison que `hasHealer()` pour `heal` : un second
+  poids qui dépendrait de la composition ferait de la composition un réglage.
+- **`_applyPowerup()` ne rend jamais rien du tout.** Le surplus de soin part en
+  bouclier (`_soinBonus`), le plafond de bouclier s'**ajoute** à la jauge de la
+  build (`_capBonus`) au lieu de la remplacer, une purification à vide rend la
+  moitié d'un soin. `verifierBonus()` refuse une empreinte de combat inchangée
+  sur un état défavorable mais plausible.
+- **Le fragment n'est pas un bonus de rotation** : il tombe d'une carte, sur un
+  kill, donc par dizaines. Plafond séparé (`CFG.FRAGMENT_MAX_GROUND`) — compté
+  dans `POWERUP_MAX_GROUND`, il bloquait le générateur.
+- **Une dépouille d'élite ne consulte pas le plafond du sol.** C'est voulu : une
+  récompense de kill tombe toujours. Le corollaire est qu'à quatre joueurs le
+  générateur est bloqué la plupart du temps et que les élites fournissent
+  l'essentiel — la mesure porte donc sur la **part de temps bloquée**, pas sur
+  l'occupation moyenne.
+
 ### États
 
 - **Une purge ne retire jamais qu'un seul état**, dans l'ordre `PURGE_ORDER` :
