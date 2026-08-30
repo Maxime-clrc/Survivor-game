@@ -5533,6 +5533,33 @@
                    ordinaire, 126 s au Silence, 168 s a l Amalgame) et le palier a
                    1,40 s x 4 pour un ordinaire, 1,40 a 4,83 s pour le final.
 
+     0.28.0 lot 1  UN ECRAN ETAIT ENREGISTRE A UNE PLACE SUR NEUF. `#hautsFaits`
+                   n etait que dans `TOPBAR_SCREENS` : ni dans `ui/dom.js`, ni
+                   dans l observateur, ni dans `UI_SOUND_SCREENS`, ni dans la
+                   regle `[hidden].leaving`, ni dans le balayage, ni dans les
+                   deux listes de curseur. Il disparaissait donc D UN COUP au
+                   lieu de sortir, ses quatorze controles etaient muets et il
+                   prenait la fleche du systeme — et rien ne levait, parce qu un
+                   oubli d enregistrement ne produit jamais d erreur.
+                   `ECRANS` remplace les quatre listes JS qui se recopiaient :
+                   l observateur, le masquage de la barre et les deux selecteurs
+                   de son se DERIVENT maintenant de la table, donc ces quatre
+                   points ne peuvent plus diverger. `TOPBAR_SCREENS` en est un
+                   filtre, et l ORDRE des lignes est la priorite du fil d Ariane.
+                   Les quatre points qui vivent en CSS y restent — un selecteur
+                   ne se lit pas depuis JS sans supposer la structure de la
+                   feuille — et `verifierEcrans(css)` les croise DANS LES DEUX
+                   SENS, comme `verifierDangers` : un ecran qui declare un point
+                   absent de la regle, et un identifiant dans la regle que la
+                   table ne declare pas. La feuille arrive en argument, sur le
+                   modele de `verifierPrises(BOSS_SKIN)`.
+                   Deux choses que le controle a trouvees en s ecrivant : `#pause`
+                   a bien une entree (`animation: fadeIn var(--fade)`), et
+                   `#brief` a la sienne a une autre duree (`--brief-in`), ce qui
+                   est la regle deja ecrite et non une exception a declarer.
+                   Restent deux trous CONNUS et declares, pour le lot 2 :
+                   `#brief` et `#merchant` n ont pas de son.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5541,4 +5568,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.27.6";
+export const VERSION = "0.28.0";

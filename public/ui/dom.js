@@ -163,6 +163,9 @@ export const metaClassTabsEl = document.getElementById("metaClassTabs");
 export const metaSlotsEl = document.getElementById("metaSlots");
 export const metaHfEl = document.getElementById("metaHf");
 export const metaCadresEl = document.getElementById("metaCadres");
+export const hautsFaitsEl = document.getElementById("hautsFaits");
+export const hautsFaitsBtn = document.getElementById("hautsFaitsBtn");
+export const hautsFaitsCloseBtn = document.getElementById("hautsFaitsClose");
 /* Le francais du markup EST le repli : on le releve au premier passage, on ne
    le recopie donc jamais dans le dictionnaire. */
 const ORIGINE = new WeakMap();

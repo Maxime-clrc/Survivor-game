@@ -825,7 +825,7 @@
 .finWrap, #bilan > * {
   animation: screenIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
-#gate, #hubScreen, #panel, #bilan, #fin, #menu, #settings {
+#gate, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #hautsFaits {
   animation: fadeIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
 .panelBar {
@@ -836,7 +836,8 @@
   animation: fadeIn var(--brief-in) var(--ease-out) backwards;
 }
 
-:is(#gate, #loading, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #pause, #brief)[hidden].leaving {
+:is(#gate, #loading, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #hautsFaits,
+    #pause, #brief)[hidden].leaving {
   display: flex;
   pointer-events: none;
   animation: screenOut var(--screen-out) var(--ease-in) forwards;
@@ -853,7 +854,7 @@
   40%  { opacity: .55; }
   to   { background-position: 0 0; opacity: .4; }
 }
-#gate::after, #hubScreen::after, #panel::after,
+#gate::after, #hubScreen::after, #panel::after, #hautsFaits::after,
 #bilan::after, #menu::after, #settings::after {
   animation: rasterSweep var(--screen) var(--ease-out) backwards;
 }
@@ -1553,19 +1554,21 @@ input:focus { border-color: var(--go); }
 button { cursor: pointer; }
 button:disabled { opacity: 0.45; cursor: default; }
 
-:is(#gate, #loading, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause) {
+:is(#gate, #loading, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits,
+    #topbar, #pause) {
   cursor: var(--cursor-ui), default;
 }
 
 /* Ce qui REPOND au clic prend le crochet de visee. Selecteur duplique dans
    `ui/screens.js` (UI_SOUND_SCREENS / UI_SOUND_TARGETS) : ce qui montre le
    crochet est exactement ce qui sonne au survol. Bouger l'un, bouger l'autre. */
-:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause)
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits, #topbar, #pause)
   :is(button, a, summary, tr.clickable, input[type="range"]) {
   cursor: var(--cursor-go), pointer;
 }
 
-:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause) button:disabled {
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits, #topbar,
+    #pause) button:disabled {
   cursor: var(--cursor-ui), default;
 }
 
@@ -1704,7 +1707,7 @@ tr.clickable { cursor: pointer; }
 
 .gateForm[hidden], #gateForms[hidden], #hubPassBox[hidden], #hubPassAsk[hidden] { display: none; }
 
-#gate[hidden], #loading[hidden], #hubScreen[hidden], #panel[hidden],
+#gate[hidden], #loading[hidden], #hubScreen[hidden], #panel[hidden], #hautsFaits[hidden],
 #bilan[hidden], #fin[hidden], #menu[hidden], #settings[hidden], #cards[hidden],
 #build[hidden], #pause[hidden], #topbar[hidden],
 #meta[hidden], #gateHold[hidden], #cardsKicker[hidden], #pauseConfirm[hidden],

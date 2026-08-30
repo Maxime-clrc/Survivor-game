@@ -22,7 +22,7 @@ import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -32,31 +32,72 @@ export function hubStatus(msg, isError = false) {
 }
 export let myPing = -1;
 export let settingsFrom = null;
-const TOPBAR_SCREENS = [
-  { el: () => settingsEl, crumb: () => t("ui.set.title", "Paramètres") },
-  { el: () => document.getElementById("hautsFaits"),
-    crumb: () => t("ui.hf.title", "Hauts faits") },
-  { el: () => menuEl, crumb: () => tf("ui.crumb.meta", "Progression · {cls}",
+/* LES NEUF ENDROITS OU S'ENREGISTRE UN ECRAN, EN UNE SEULE TABLE. Un oubli ne
+   levait rien : `#hautsFaits` n'en tenait qu'un — le fil d'Ariane — donc il
+   disparaissait d'un coup au lieu de sortir, ses quatorze controles etaient
+   muets et il prenait la fleche du systeme.
+
+   Quatre des neuf ne se declarent plus deux fois, ils se DERIVENT d'ici :
+   l'observateur, le masquage de la barre, et les deux selecteurs de son. Les
+   quatre qui vivent en CSS — entree, sortie, balayage, curseur — y restent, et
+   `verifierEcrans(css)` les croise avec cette table dans les deux sens.
+
+   L'ORDRE EST CELUI DU FIL D'ARIANE : `syncTopbar` prend le premier ecran
+   visible qui porte un `fil`, donc l'ordre de ces lignes est une priorite.
+
+   `son` a deux valeurs : `survol` sonne au survol ET a l'appui, `appui` ne
+   sonne qu'a l'appui — c'est le regime des ecrans poses sur une manche qui
+   tourne, qui gardent le reticule et n'ont donc pas de crochet a montrer. */
+const ECRANS = [
+  { id: "settings",   el: () => settingsEl,   observe: 1, entre: 1, sort: 1, balaye: 1,
+    curseur: 1, son: "survol",
+    fil: () => t("ui.set.title", "Paramètres") },
+  { id: "hautsFaits", el: () => hautsFaitsEl, observe: 1, entre: 1, sort: 1, balaye: 1,
+    curseur: 1, son: "survol",
+    fil: () => t("ui.hf.title", "Hauts faits") },
+  { id: "menu",       el: () => menuEl,       observe: 1, entre: 1, sort: 1, balaye: 1,
+    curseur: 1, son: "survol",
+    fil: () => tf("ui.crumb.meta", "Progression · {cls}",
       { cls: classNom(classAt(metaClsOverride ?? CLASS_DEFAULT)) }) },
-  { el: () => bilanEl, crumb: () => t("ui.crumb.bilan", "Bilan de manche") },
-  { el: () => panel, crumb: () => roomNameCur
+  { id: "bilan",      el: () => bilanEl,      observe: 1, entre: 1, sort: 1, balaye: 1,
+    curseur: 1, son: "survol",
+    fil: () => t("ui.crumb.bilan", "Bilan de manche") },
+  { id: "panel",      el: () => panel,        observe: 1, entre: 1, sort: 1, balaye: 1,
+    curseur: 1, son: "survol",
+    fil: () => roomNameCur
       ? tf("ui.crumb.salon.nom", "Salon · {nom}", { nom: roomNameCur })
       : t("ui.crumb.salon", "Salon") },
-  { el: () => hubScreenEl, crumb: () => t("ui.hub.title", "Salons") },
+  { id: "hubScreen",  el: () => hubScreenEl,  observe: 1, entre: 1, sort: 1, balaye: 1,
+    curseur: 1, son: "survol",
+    fil: () => t("ui.hub.title", "Salons") },
+
+  { id: "gate",     el: () => gate,       observe: 1, masque: 1, entre: 1, sort: 1,
+    balaye: 1, curseur: 1, son: "survol" },
+  { id: "loading",  el: () => loadingEl,  observe: 1, masque: 1, sort: 1, curseur: 1 },
+  { id: "fin",      el: () => finEl,      observe: 1, masque: 1, entre: 1, sort: 1,
+    curseur: 1, son: "survol" },
+  { id: "brief",    el: () => briefEl,    observe: 1, masque: 1, entre: 1, sort: 1 },
+  { id: "cards",    el: () => cardsEl,    observe: 1, masque: 1, son: "appui" },
+  { id: "merchant", el: () => merchantEl, masque: 1 },
+  { id: "build",    el: () => buildEl,    son: "appui" },
+  { id: "pause",    el: () => pauseEl,    observe: 1, entre: 1, sort: 1, curseur: 1,
+    son: "survol" },
+  /* La barre n'est pas un ecran : elle n'a ni entree ni sortie, mais elle porte
+     des boutons, donc elle est dans les deux listes qui en decoulent. */
+  { id: "topbar",   el: () => topbarEl,   curseur: 1, son: "survol" },
 ];
+const TOPBAR_SCREENS = ECRANS.filter(e => e.fil);
+const MASQUE_SCREENS = ECRANS.filter(e => e.masque);
 function syncTopbar() {
   if (!topbarEl) return;
 
-  const masque = (cardsEl && !cardsEl.hidden) || (loadingEl && !loadingEl.hidden)
-    || (gate && !gate.hidden)
-    || (finEl && !finEl.hidden)
-    || (document.getElementById("brief")?.hidden === false);
+  const masque = MASQUE_SCREENS.some(s => { const e = s.el(); return e && !e.hidden; });
 
   const vue = masque ? null : TOPBAR_SCREENS.find(s => { const e = s.el(); return e && !e.hidden; });
   topbarEl.hidden = !vue;
   if (!vue) return;
 
-  topCrumbEl.textContent = vue.crumb();
+  topCrumbEl.textContent = vue.fil();
 
   const pseudo = localStorage.getItem("survivor.pseudo") || "";
   topNameEl.textContent = pseudo;
@@ -111,18 +152,14 @@ function syncLeaving(el) {
       syncLeaving(r.target);
     }
   });
-  const screens = [gate, loadingEl, hubScreenEl, panel, bilanEl, finEl, menuEl, cardsEl,
-                   settingsEl, document.getElementById("pause"),
-                   document.getElementById("brief")];
-  for (const el of screens) {
+  for (const s of ECRANS) {
+    const el = s.observe && s.el();
     if (el) {
       obs.observe(el, { attributes: true, attributeFilter: ["hidden"], attributeOldValue: true });
     }
   }
 
-  const etouffants = [cardsEl, merchantEl,
-                      document.getElementById("pause"),
-                      document.getElementById("build")].filter(Boolean);
+  const etouffants = [cardsEl, merchantEl, pauseEl, buildEl].filter(Boolean);
   const syncDuck = () => setMusicDuck(etouffants.some(el => !el.hidden));
   const obsDuck = new MutationObserver(syncDuck);
   for (const el of etouffants) {
@@ -131,12 +168,61 @@ function syncLeaving(el) {
   syncDuck();
 }
 /* Miroir de la regle `--cursor-go` de `menus.css` : ce qui montre le crochet
-   sonne au survol, ce qui ne le montre pas est muet. Duplication assumee — un
-   selecteur CSS ne se lit pas depuis JS sans supposer la structure de la
-   feuille. Bouger l'un, bouger l'autre. */
-const UI_SOUND_SCREENS = "#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #topbar, #pause";
+   sonne au survol, ce qui ne le montre pas est muet. Les deux selecteurs se
+   DERIVENT d'`ECRANS` — c'est la moitie JS du miroir ; la moitie CSS y reste, et
+   `verifierEcrans(css)` refuse qu'elles divergent. */
+const listeSel = (f) => ECRANS.filter(f).map(s => "#" + s.id).join(", ");
+const UI_SOUND_SCREENS = listeSel(s => s.son === "survol");
 const UI_SOUND_TARGETS = 'button, a, summary, tr.clickable, input[type="range"]';
-const UI_CLICK_SCREENS = `${UI_SOUND_SCREENS}, #cards, #build`;
+const UI_CLICK_SCREENS = `${UI_SOUND_SCREENS}, ${listeSel(s => s.son === "appui")}`;
+
+/* CRITERE REJOUABLE. Muet = aucun ecran n'est enregistre a moitie. La feuille
+   arrive en ARGUMENT, comme `verifierPrises(BOSS_SKIN)` : ce module ne lit pas
+   un fichier, et le controle se joue en script jetable aussi bien qu'a la
+   console. Les quatre points derives ne peuvent plus diverger ; restent les
+   quatre qui vivent en CSS, et c'est exactement ceux-la qu'on croise ici — dans
+   les DEUX sens, comme `verifierDangers` : un ecran declare et absent de la
+   regle, et un identifiant dans la regle que la table ne declare pas. */
+const REGLES_CSS = [
+  { champ: "entre",   corps: "animation: fadeIn" },
+  { champ: "sort",    selecteur: "[hidden].leaving" },
+  { champ: "balaye",  corps: "animation: rasterSweep" },
+  { champ: "curseur", corps: "cursor: var(--cursor-ui), default" },
+];
+function selecteurAvant(css, i) {
+  const ouvre = css.lastIndexOf("{", i);
+  if (ouvre < 0) return "";
+  const fin = Math.max(css.lastIndexOf("}", ouvre), css.lastIndexOf("*/", ouvre));
+  return css.slice(fin + 1, ouvre);
+}
+function idsDeRegle(css, { corps, selecteur }) {
+  const marque = corps ?? selecteur;
+  const vus = new Set();
+  for (let i = css.indexOf(marque); i >= 0; i = css.indexOf(marque, i + marque.length)) {
+    const sel = corps ? selecteurAvant(css, i) : selecteurAvant(css, css.indexOf("{", i));
+    for (const m of sel.matchAll(/#([A-Za-z][\w-]*)/g)) vus.add(m[1]);
+  }
+  return vus;
+}
+export function verifierEcrans(css = "") {
+  const soucis = [];
+  for (const s of ECRANS) {
+    if (!s.el()) soucis.push(`${s.id} : aucun noeud`);
+  }
+  const connus = new Set(ECRANS.map(s => s.id));
+  for (const r of REGLES_CSS) {
+    const vus = idsDeRegle(css, r);
+    if (!vus.size) { soucis.push(`regle « ${r.champ} » introuvable dans la feuille`); continue; }
+    for (const s of ECRANS) {
+      if (s[r.champ] && !vus.has(s.id)) soucis.push(`${s.id} : declare « ${r.champ} », absent de la regle`);
+      if (!s[r.champ] && vus.has(s.id)) soucis.push(`${s.id} : dans la regle « ${r.champ} », non declare`);
+    }
+    for (const id of vus) {
+      if (!connus.has(id)) soucis.push(`${id} : dans la regle « ${r.champ} », inconnu de la table`);
+    }
+  }
+  return soucis;
+}
 const UI_SOUND_GAP = 70;
 let lastHovered = null;
 let lastHoverAt = 0;
@@ -173,8 +259,7 @@ function goHome() {
   }
   if (settingsEl && !settingsEl.hidden) { settingsEl.hidden = true; settingsFrom = null; }
   if (menuEl && !menuEl.hidden) menuEl.hidden = true;
-  const hf = document.getElementById("hautsFaits");
-  if (hf && !hf.hidden) hf.hidden = true;
+  if (hautsFaitsEl && !hautsFaitsEl.hidden) hautsFaitsEl.hidden = true;
   closeBuild();
   if (!inRoom) { enterHub(); syncTopbar(); return; }
   ws.send(JSON.stringify({ t: "leaveRoom" }));
@@ -183,7 +268,7 @@ topHomeBtn.onclick = goHome;
 function openSettings() {
   if (!settingsEl) return;
   settingsFrom = [hubScreenEl, panel, bilanEl, menuEl,
-    document.getElementById("hautsFaits")].find(e => e && !e.hidden) ?? null;
+    hautsFaitsEl].find(e => e && !e.hidden) ?? null;
   if (settingsFrom) settingsFrom.hidden = true;
   settingsEl.hidden = false;
   syncTopbar();
@@ -444,8 +529,6 @@ function openMenuFor(clsIndex) {
 
 /* HAUTS FAITS : page dediee, hors du Terminal. L'entree est le bouton or
    sous la categorie Classe du salon ; le retour est le salon. */
-const hautsFaitsEl = document.getElementById("hautsFaits");
-
 function openHautsFaits() {
   panel.hidden = true;
   hautsFaitsEl.hidden = false;
@@ -453,8 +536,8 @@ function openHautsFaits() {
   syncTopbar();
 }
 
-document.getElementById("hautsFaitsBtn").onclick = openHautsFaits;
-document.getElementById("hautsFaitsClose").onclick = () => {
+hautsFaitsBtn.onclick = openHautsFaits;
+hautsFaitsCloseBtn.onclick = () => {
   hautsFaitsEl.hidden = true;
   refreshPanel();
   syncTopbar();
