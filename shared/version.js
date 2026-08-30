@@ -5989,6 +5989,51 @@
                    boucle de deplacement de la horde, `_rootEnemy` n a que deux
                    appelants et aucun ne vise un boss.
 
+     0.29.6 lot 7  UN LIEU A DES QUARTIERS. `props.js` tirait chaque prop
+                   UNIFORMEMENT dans toute la liste du biome, independamment de
+                   ses voisins : un bras robotise naissait a cote d un marquage au
+                   sol et d un palettier sans qu aucune regle ne l en empeche. Le
+                   semis etait deterministe dans son CALCUL et parfaitement
+                   aleatoire dans sa DISTRIBUTION — c est la difference entre
+                   « genere » et « compose », et c est elle qui rendait les quatre
+                   lieux plats.
+                   UNE FONCTION DE PLUS, PAS UNE COUCHE DE PLUS : la zone est un
+                   hachage de la cellule DIVISEE par trois (600 px, soit deux a
+                   trois quartiers par vue). Rien ne s alloue, rien ne se garde
+                   entre deux images, et le resultat reste une fonction pure de
+                   (cellule, graine) — les trois proprietes qui font que deux
+                   clients voient la meme chose. Le hachage prend `g + 8`, le
+                   premier decalage libre : les sept precedents portent deja
+                   presence, type, angle, echelle, opacite et phase, et reutiliser
+                   l un d eux aurait CORRELE le quartier avec l inclinaison des
+                   props.
+                   `TABLE` reste ce que le lieu POSSEDE, `ZONES` devient la facon
+                   dont il l ARRANGE — quatre quartiers par lieu, tires uniquement
+                   dans son propre catalogue : l Usine fabrique, empile, circule et
+                   entretient ; la Fonderie coule, moule, stocke et rebute ; la
+                   Friche repousse, casse, cloture et garde un reste allume ; la
+                   Nebuleuse a sa coque morte, sa voilure, son givre et son
+                   amarrage.
+                   LA FUITE (18 %) EST CE QUI EMPECHE LA GRILLE DE SE VOIR. Sans
+                   elle, la frontiere de deux quartiers est une droite franche
+                   tous les 600 px — un damier, pas une installation. Une part des
+                   props ignore donc sa zone et tire dans le fonds du lieu.
+                   MESURE, cinq graines, densite `ultra`. Props VOISINS de meme
+                   type : 12,8 -> 26,0 % a l Usine, 12,5 -> 22,9 % a la Fonderie,
+                   13,4 -> 22,9 % a la Friche, 12,5 -> 22,3 % a la Nebuleuse — le
+                   regroupement DOUBLE.
+                   ET LA CONTRE-MESURE, qui est la vraie question : a-t-on paye en
+                   MONOTONIE ? Non. Types distincts visibles dans une vue :
+                   8,7 -> 8,4 sur neuf. Types encore presents sur l arene entiere :
+                   9 -> 9, dans les quatre lieux. Rien n a disparu, tout s est
+                   range.
+                   `verifierZones()` croise les deux tables DANS LES DEUX SENS. Un
+                   prop du catalogue qu aucune zone ne tire est un prop SUPPRIME
+                   du lieu en silence — le piege que `CLAUDE.md` nomme en premier —
+                   et l inverse fait entrer un prop sans que le catalogue le dise.
+                   Verifie rouge sur les deux mutations avant d etre enregistre
+                   vert.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5997,4 +6042,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.5";
+export const VERSION = "0.29.6";

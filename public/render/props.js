@@ -82,6 +82,91 @@ const TABLE = {
               P_MODULE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_GIVRE, P_BALISE],
 };
 
+/* UN LIEU A DES QUARTIERS, ET LE SEMIS N EN AVAIT AUCUN. Chaque prop tirait
+   uniformement dans TOUTE la liste du biome, independamment de ses voisins : un
+   bras robotise naissait a cote d un marquage au sol et d un palettier sans
+   qu aucune regle ne l en empeche. Le semis etait deterministe dans son calcul
+   et parfaitement aleatoire dans sa DISTRIBUTION — c est la difference entre
+   « genere » et « compose », et c est elle qui rendait les quatre lieux plats.
+
+   UNE FONCTION DE PLUS, PAS UNE COUCHE DE PLUS : la zone est un hachage de la
+   cellule divisee, donc elle ne s alloue pas, ne se garde pas entre deux images,
+   et reste une fonction pure de (cellule, graine) — les trois proprietes qui
+   font que deux clients voient la meme chose.
+
+   `TABLE` reste ce que le lieu POSSEDE, `ZONES` devient la facon dont il
+   l ARRANGE, et `verifierZones()` croise les deux : un prop qu aucune zone ne
+   tire est un prop SUPPRIME du jeu en silence, exactement le piege que
+   `CLAUDE.md` nomme en premier.
+
+   LA FUITE EST CE QUI EMPECHE LA GRILLE DE SE VOIR. Sans elle, la frontiere de
+   deux quartiers est une droite franche tous les 600 px — un damier, pas une
+   installation. Une part des props ignore donc sa zone et tire dans le fonds du
+   lieu : les quartiers gardent leur dominante, leur bord se brouille. */
+const ZONE_CELL = 3;
+const FUITE = 0.18;
+
+const ZONES = {
+  // elle FABRIQUE : la chaine, ce qu on empile autour, ce par quoi on circule,
+  // et ce qui l entretient.
+  usine: [
+    [P_CONVOYEUR, P_CONVOYEUR, P_BRAS, P_PRESSE],
+    [P_PALETTIER, P_CAISSES, P_CAISSES, P_MARQUAGE],
+    [P_ALLEE, P_ALLEE, P_MARQUAGE, P_CONVOYEUR],
+    [P_VENTILATION, P_CABLE, P_CABLE, P_BRAS],
+  ],
+  // elle COULE : le metal liquide, ce qui le met en forme, ce qui en sort, et ce
+  // qu on jette.
+  fonderie: [
+    [P_POCHE, P_RIGOLE, P_RIGOLE, P_MOULE],
+    [P_MOULE, P_MOULE, P_TREMIE, P_OUTILLAGE],
+    [P_LINGOTS, P_LINGOTS, P_CAILLEBOTIS, P_OUTILLAGE],
+    [P_SCORIE, P_SCORIE, P_TUYAU, P_CAILLEBOTIS],
+  ],
+  // elle a ETE ABANDONNEE : ce qui repousse, ce qui a ete casse, ce qui fermait,
+  // et le peu qui reste allume.
+  friche: [
+    [P_BROUSSE, P_BROUSSE, P_BROUSSE, P_JONCHEE],
+    [P_CARCASSE, P_DEBRIS, P_JONCHEE, P_BIDON],
+    [P_GRILLAGE, P_PANNEAU, P_CABLE, P_BROUSSE],
+    [P_TUBE, P_CABLE, P_DEBRIS, P_PANNEAU],
+  ],
+  // elle FLOTTE : la coque morte, la voilure, ce qui a gele dessus, et le point
+  // ou l on s amarre.
+  nebuleuse: [
+    [P_EPAVE, P_EPAVE, P_GIVRE, P_MODULE],
+    [P_VOILE, P_VOILE, P_ANCRAGE, P_RAIL],
+    [P_CRISTAL, P_CRISTAL, P_GIVRE, P_VOILE],
+    [P_BALISE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_MODULE],
+  ],
+};
+
+/* LES DEUX TABLES DOIVENT SE RECOUVRIR EXACTEMENT, DANS LES DEUX SENS. Un prop
+   de `TABLE` qu aucune zone ne tire ne se signale JAMAIS : il disparait du lieu
+   et le semis continue de tourner. Un prop de `ZONES` absent de `TABLE` est
+   l inverse — il entre dans un lieu sans que le catalogue le dise. Meme role que
+   `verifierDangers` pour les dessins de danger. */
+export function verifierZones() {
+  const soucis = [];
+  for (const [lieu, table] of Object.entries(TABLE)) {
+    const zones = ZONES[lieu];
+    if (!zones) { soucis.push(`${lieu} : aucune zone`); continue; }
+    const dansZones = new Set(zones.flat());
+    const dansTable = new Set(table);
+    for (const p of dansTable) {
+      if (!dansZones.has(p)) soucis.push(`${lieu} : prop ${p} au catalogue, tire par aucune zone`);
+    }
+    for (const p of dansZones) {
+      if (!dansTable.has(p)) soucis.push(`${lieu} : prop ${p} tire par une zone, absent du catalogue`);
+    }
+    if (zones.length < 2) soucis.push(`${lieu} : une seule zone, donc pas de composition`);
+  }
+  for (const lieu of Object.keys(ZONES)) {
+    if (!TABLE[lieu]) soucis.push(`${lieu} : zones sans catalogue`);
+  }
+  return soucis;
+}
+
 // densite : 0 en `low` — le sol reste celui d'avant le plan 13.
 const DENSITE = [0, 0.34, 0.58, 0.74];
 
@@ -122,7 +207,9 @@ function refresh() {
   props.length = 0;
   if (dens <= 0) return;
 
-  const table = TABLE[biomeAt(biomeIndex).key] ?? TABLE.usine;
+  const lieu = biomeAt(biomeIndex).key;
+  const table = TABLE[lieu] ?? TABLE.usine;
+  const zones = ZONES[lieu] ?? ZONES.usine;
   const s = biomeSeed >>> 0;
 
   for (let cy = c0y; cy <= c1y; cy++) {
@@ -134,8 +221,16 @@ function refresh() {
         const x = (cx + 0.12 + h2(cx, cy, g + 1) * 0.76) * CELL;
         const y = (cy + 0.12 + h2(cx, cy, g + 2) * 0.76) * CELL;
         if (occupe(x, y)) continue;
+        // LE QUARTIER DECIDE, SAUF QUAND IL FUIT. La zone se lit sur la cellule
+        // DIVISEE, donc des cellules voisines partagent leur dominante ; la
+        // fuite renvoie une part des props au fonds du lieu, et c est ce qui
+        // empeche la frontiere de deux quartiers d etre une droite franche.
+        const jeu = h2(cx, cy, g + 8) < FUITE
+          ? table
+          : zones[(h2(Math.floor(cx / ZONE_CELL), Math.floor(cy / ZONE_CELL), s + 977)
+                   * zones.length) | 0];
         props.push({
-          k: table[(h2(cx, cy, g + 3) * table.length) | 0],
+          k: jeu[(h2(cx, cy, g + 3) * jeu.length) | 0],
           x, y,
           a: h2(cx, cy, g + 4) * Math.PI * 2,
           s: 0.72 + h2(cx, cy, g + 5) * 0.66,

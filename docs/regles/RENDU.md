@@ -138,6 +138,21 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
 - **Une seconde période sans aucune arête** (`MACRO`, 1 200) : à 400 px l'œil
   trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
   ne rattrape ça.
+- **Un lieu a des QUARTIERS, et le type d'un prop se lit sur sa zone.** Le semis
+  tirait uniformément dans toute la liste du biome, indépendamment des voisins :
+  déterministe dans son *calcul*, parfaitement aléatoire dans sa *distribution* —
+  la différence entre « généré » et « composé ». `TABLE` reste ce que le lieu
+  **possède**, `ZONES` la façon dont il l'**arrange** (quatre quartiers, tirés
+  dans son seul catalogue), et **`verifierZones()` croise les deux dans les deux
+  sens** : un prop qu'aucune zone ne tire est un prop supprimé en silence.
+  La zone est un **hachage de la cellule divisée**, donc encore une fonction pure
+  de (cellule, graine) — rien ne s'alloue. Elle prend `g + 8`, le premier
+  décalage libre : réutiliser l'un des sept autres corrélerait le quartier avec
+  l'angle ou l'échelle des props.
+  **La fuite (18 %) est ce qui empêche la grille de se voir** — sans elle la
+  frontière de deux quartiers est une droite franche tous les 600 px. Mesuré sur
+  cinq graines : voisins de même type ×1,7 à ×2,0, pour une variété par vue de
+  8,7 → 8,4 sur neuf et **9 → 9** types sur l'arène. Rien n'a disparu.
 - **`props.js` ne garde rien** : présence, type, angle et échelle d'un prop sont
   des fonctions de sa cellule monde et de la graine — même motif que `champ()`,
   ancré à une cellule au lieu d'un indice. Le semis est donc infini, non répétitif
