@@ -869,6 +869,13 @@ le sien :
   colonne (`drawMarkColumns`, seule chose au-dessus de la horde). Détonation →
   **décoloration du sol 2 s** (`scorches`). Trois plafonds : `zoneFx` (600), fumée
   **jamais** sur un télégraphe, télégraphe jamais plus voyant que la zone active.
+- **Un ennemi vulnérable porte des POINTES, jamais un anneau.** Les trois
+  anneaux lisses sont déjà pris — élite, aura, égide — et l'ambre de `vuln`
+  (`#f4b04a`) frôle l'or d'élite (`#ffd76e`) : c'est la **signature** qui sépare,
+  pas la teinte, exactement comme pour les zones. Elles passent **sous** le
+  corps, donc elles sortent du bord au lieu de barrer la silhouette, et leur
+  rotation est **continue** — sans début ni échéance, donc le canal du télégraphe
+  reste au boss.
 - **Un ennemi qui brûle le montre sur son corps**, en passe séparée avant les
   corps — même primitive et même raison que l'ombre. La couleur est celle de
   `STATUSES[STATUS_BURN]`, donc le glyphe du HUD et la horde disent l'état d'une

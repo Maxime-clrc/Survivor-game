@@ -5881,6 +5881,40 @@
                    tuple ne porte pas la part. Une entite contre neuf cents, et son
                    rendu vit dans `boss.js` — lot a part.
 
+     0.29.3 lot 4  L ARMURE OUVERTE SE VOIT. `vulnUntil` sur un ennemi vaut
+                   +25 % de degats (`VULNERABLE_MUL`) et SEPT sources le posent —
+                   un critique (`critVuln`), une ruee (`contre_pied`), un souffle,
+                   une balle porteuse. Le joueur ne pouvait pas savoir sur QUI
+                   frapper : rien ne le montrait, exactement comme la brulure au
+                   lot precedent.
+                   UN EMPLACEMENT DE PLUS, EN FIN DE TUPLE (indice 12), et EN
+                   SECONDES et non en part : `VULNERABLE_TIME` (4 s) et
+                   `CONTRE_PIED_TIME` (3 s) different, donc une part obligerait le
+                   client a savoir QUI l a posee — il ne le sait pas et n a aucune
+                   raison de l apprendre.
+                   DES POINTES, JAMAIS UN ANNEAU. Les trois anneaux lisses sont
+                   deja pris — elite, aura, egide — et `#f4b04a` frole l or
+                   d elite (`#ffd76e`) : c est donc la SIGNATURE qui separe, pas
+                   la teinte, la meme regle que pour les zones. Quatre pointes
+                   radiales sous le corps, qui sortent proprement du bord au lieu
+                   de barrer la silhouette, en rotation CONTINUE — donc sans debut
+                   ni echeance, donc le canal du telegraphe reste au boss.
+                   QUATRE CAS MESURES, dont celui qui coute : rien = tuple de 7
+                   inchange ; brulure seule = 12 ; vuln SEULE = 13, avec un zero a
+                   l indice 11 que `trimTail` ne peut pas couper puisqu il n est
+                   plus en queue — deux octets, le prix des tuples positionnels ;
+                   les deux = 13. Retour a 7 a l extinction.
+                   ET ELLE EST QUASI GRATUITE SUR LE FIL : horde de 900 a 4
+                   joueurs, apres compression, +212 o (2,3 %) a 25 % de
+                   vulnerables, et le pire cas brulure ET vuln a 100 % coute
+                   +1272 o (13,9 %) — soit MOINS que la brulure seule au lot
+                   precedent (+1283 o). Les secondes entieres se repetent, deflate
+                   les absorbe.
+                   LE BOSS RESTE MUET SUR LES DEUX : il brule (`b.burn`) et il est
+                   vulnerable (`vulnUntil`, meme ligne que la horde), son tuple ne
+                   porte ni l un ni l autre. Une entite contre neuf cents, rendu
+                   dans `boss.js` — le lot qui ferme cette serie.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5889,4 +5923,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.2";
+export const VERSION = "0.29.3";

@@ -8711,7 +8711,14 @@ export class GameState {
                           purge alors que la brulure va au bout. `trimTail` la
                           retire quand elle vaut 0, donc elle ne coute rien a la
                           horde qui ne brule pas. */
-                       r2(e.burn ? e.burn.t / CARD_CFG.BURN_TIME : 0)], 7)),
+                       r2(e.burn ? e.burn.t / CARD_CFG.BURN_TIME : 0),
+                       /* LA VULNERABILITE, EN SECONDES RESTANTES. Sept sources la
+                          posent — crit, ruee, souffle, balle — pour +25 % de
+                          degats, et rien ne la montrait non plus. En secondes et
+                          non en part : `VULNERABLE_TIME` (4 s) et
+                          `CONTRE_PIED_TIME` (3 s) different, donc une part
+                          obligerait le client a savoir QUI l a posee. */
+                       r1(Math.max(0, (e.vulnUntil ?? 0) - this.time))], 7)),
       b: filtrer(this.bullets, () => CFG.BULLET_RADIUS,
         b => b.missile ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_MISSILE]
           : b.scinde ? [b.id, r1(b.x), r1(b.y), b.owner, SIL_PORTEUR]
