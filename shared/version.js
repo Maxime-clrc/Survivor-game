@@ -5560,6 +5560,33 @@
                    Restent deux trous CONNUS et declares, pour le lot 2 :
                    `#brief` et `#merchant` n ont pas de son.
 
+     0.28.1 lot 2  TROIS ECRANS DE DECISION N AVAIENT PAS DE VOIX. `#brief` (le
+                   choix d arme : trois offres, une relance, un « continuer »),
+                   `#merchant` (acheter, relancer, passer) et `#hautsFaits`
+                   (treize cadres, un retour) etaient hors des selecteurs de son
+                   — environ vingt-quatre controles — alors que `#cards` et
+                   `#build`, ouverts aux memes moments, y etaient. Le choix
+                   d arme est la decision la plus lourde de la manche et c etait
+                   la seule qui ne faisait aucun bruit.
+                   `#brief` et `#merchant` prennent le regime `appui`, celui de
+                   `#cards` et `#build` : un ecran pose sur une manche qui tourne
+                   garde le reticule, donc il n a pas de crochet a montrer, donc
+                   il ne sonne pas au survol. `#hautsFaits` a pris `survol` au
+                   lot 1. Quatorze ecrans, dix en `survol`, quatre en `appui`,
+                   aucun muet qui porte un controle.
+                   `uiSoundFor` gagne trois lignes, et AUCUNE recette nouvelle :
+                   les trois degres de la famille existaient deja. Acheter une
+                   relique depense des eclats et ferme la visite, choisir une
+                   arme verrouille la manche, fermer le briefing lance la vague —
+                   les trois prennent `pret`, la deuxieme marche. Une carte parmi
+                   trois reste `selection` : elle ne coute rien et l ecran ne se
+                   referme pas sur elle.
+                   Le miroir du curseur devient EXECUTABLE. « Ce qui montre le
+                   crochet est exactement ce qui sonne au survol » etait une
+                   duplication assumee, ecrite des deux cotes ; c est une
+                   cinquieme regle de `verifierEcrans`, croisee dans les deux
+                   sens comme les quatre autres.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -5568,4 +5595,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.28.0";
+export const VERSION = "0.28.1";

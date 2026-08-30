@@ -76,9 +76,10 @@ const ECRANS = [
   { id: "loading",  el: () => loadingEl,  observe: 1, masque: 1, sort: 1, curseur: 1 },
   { id: "fin",      el: () => finEl,      observe: 1, masque: 1, entre: 1, sort: 1,
     curseur: 1, son: "survol" },
-  { id: "brief",    el: () => briefEl,    observe: 1, masque: 1, entre: 1, sort: 1 },
+  { id: "brief",    el: () => briefEl,    observe: 1, masque: 1, entre: 1, sort: 1,
+    son: "appui" },
   { id: "cards",    el: () => cardsEl,    observe: 1, masque: 1, son: "appui" },
-  { id: "merchant", el: () => merchantEl, masque: 1 },
+  { id: "merchant", el: () => merchantEl, masque: 1, son: "appui" },
   { id: "build",    el: () => buildEl,    son: "appui" },
   { id: "pause",    el: () => pauseEl,    observe: 1, entre: 1, sort: 1, curseur: 1,
     son: "survol" },
@@ -188,6 +189,11 @@ const REGLES_CSS = [
   { champ: "sort",    selecteur: "[hidden].leaving" },
   { champ: "balaye",  corps: "animation: rasterSweep" },
   { champ: "curseur", corps: "cursor: var(--cursor-ui), default" },
+  /* LE MIROIR DEVIENT EXECUTABLE. « Ce qui montre le crochet est exactement ce
+     qui sonne au survol » etait une duplication assumee des deux cotes ; c est
+     maintenant un croisement. */
+  { champ: "crochet", corps: "cursor: var(--cursor-go), pointer",
+    test: s => s.son === "survol" },
 ];
 function selecteurAvant(css, i) {
   const ouvre = css.lastIndexOf("{", i);
@@ -213,9 +219,10 @@ export function verifierEcrans(css = "") {
   for (const r of REGLES_CSS) {
     const vus = idsDeRegle(css, r);
     if (!vus.size) { soucis.push(`regle « ${r.champ} » introuvable dans la feuille`); continue; }
+    const veut = r.test ?? (s => !!s[r.champ]);
     for (const s of ECRANS) {
-      if (s[r.champ] && !vus.has(s.id)) soucis.push(`${s.id} : declare « ${r.champ} », absent de la regle`);
-      if (!s[r.champ] && vus.has(s.id)) soucis.push(`${s.id} : dans la regle « ${r.champ} », non declare`);
+      if (veut(s) && !vus.has(s.id)) soucis.push(`${s.id} : declare « ${r.champ} », absent de la regle`);
+      if (!veut(s) && vus.has(s.id)) soucis.push(`${s.id} : dans la regle « ${r.champ} », non declare`);
     }
     for (const id of vus) {
       if (!connus.has(id)) soucis.push(`${id} : dans la regle « ${r.champ} », inconnu de la table`);
@@ -239,9 +246,18 @@ document.addEventListener("pointerover", e => {
   lastHoverAt = now;
   playSound("survol");
 });
+/* UN ENGAGEMENT N EST PAS UN CHOIX, et les trois degres de la famille existent
+   deja : inflexion pour un choix, deux notes pour un engagement, accord resolu
+   pour le depart. Acheter une relique depense des eclats et ferme la visite,
+   choisir une arme verrouille la manche, fermer le briefing lance la vague :
+   les trois prennent la deuxieme marche. Une carte parmi trois reste une
+   inflexion — elle ne coute rien et l ecran ne se referme pas sur elle. */
 function uiSoundFor(el) {
   if (el.id === "start") return el.classList.contains("cancel") ? "pretAnnule" : "lancer";
   if (el.id === "readyBtn") return el.classList.contains("on") ? "pretAnnule" : "pret";
+  if (el.id === "briefGo") return "pret";
+  if (el.classList.contains("armeOpt")) return "pret";
+  if (el.classList.contains("cardOpt") && el.closest("#merchantRow")) return "pret";
   return "selection";
 }
 document.addEventListener("pointerdown", e => {
