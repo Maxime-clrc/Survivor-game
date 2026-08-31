@@ -6751,6 +6751,23 @@
                    178 cartes. `verifierCartes`, `verifierBuilds` et
                    `verifierCodex` verts, et une manche de 120 s tourne.
 
+    0.30.1 lot 1 UNE RELIQUE LUE DANS UN SEUL SENS. `verifierReliques` existait
+                   deja et couvrait le sens CHAMP -> LECTEUR : il relit la source
+                   des methodes de `GameState` et exige que chaque champ y
+                   apparaisse en litteral. Le plan 27 l a d abord cru absent — il
+                   n est pas exporte par `reliques.js` mais par `game_state.js`.
+                   Le sens INVERSE manquait, et il etait aveugle a trois choses :
+                   un LECTEUR qui reclame un champ que plus aucune relique ne
+                   porte (systeme ecrit avant sa relique, champ renomme d un seul
+                   cote) — un `_relicFlag(p, "blindageFlat")` ajoute laissait le
+                   controle VERT et rendait zero ; un `requiresSystem` mal
+                   orthographie, compare EN DUR a deux points, qui n exclut alors
+                   plus rien et fait offrir la relique sans que le systeme existe ;
+                   une entree d `ARME_EXIGENCE` que plus personne ne demande.
+                   Les trois se MESURENT sur la source au lieu de tenir une
+                   seconde liste qui pourrirait — meme idiome que `sonsManques`.
+                   Les trois prouves rouges par mutation, puis verts.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6759,4 +6776,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.24";
+export const VERSION = "0.30.1";

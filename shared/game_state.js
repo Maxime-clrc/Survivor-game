@@ -10190,6 +10190,38 @@ export function verifierReliques() {
     if (effets === 0) soucis.push(`${r.id} : aucun effet`);
     if (malus && !r.contrepartie) soucis.push(`${r.id} : un malus sans contrepartie ecrite`);
   }
+
+  /* ET LE SENS INVERSE, qui manquait. La boucle ci-dessus ne parcourt que les
+     RELIQUES : un lecteur qui reclame un champ que plus personne ne porte —
+     systeme ecrit avant sa relique, champ renomme d'un seul cote — rend zero
+     sans que rien ne le dise. Mesure prouvee aveugle : un
+     `_relicFlag(p, "blindageFlat")` ajoute laissait le controle VERT.
+     On releve les clefs litterales aux points d'appel ; la clef VARIABLE de
+     `_relicAllySum` ne matche pas, et c'est voulu — elle est deja couverte par
+     le litteral de son appelant. */
+  const porte = new Set();
+  for (const r of RELICS) for (const cle of Object.keys(r)) porte.add(cle);
+  for (const [, cle] of src.matchAll(/_relic(?:Sum|Flag|AllySum)\(\w+, "(\w+)"/g)) {
+    if (!porte.has(cle)) soucis.push(`le champ « ${cle} » est lu, aucune relique ne le porte`);
+  }
+
+  /* `requiresSystem` est compare EN DUR (`=== "hasards_actifs"`, deux points).
+     Une faute de frappe n'exclut plus rien : la relique est offerte sans que le
+     systeme existe. On releve les valeurs comparees au lieu d'en tenir la liste. */
+  const systemes = new Set(
+    [...src.matchAll(/requiresSystem === "(\w+)"/g)].map(m => m[1]));
+  for (const r of RELICS) {
+    if (r.requiresSystem && !systemes.has(r.requiresSystem)) {
+      soucis.push(`${r.id} : systeme « ${r.requiresSystem} » sans filtre`);
+    }
+  }
+
+  // une exigence d'arme que personne ne demande est une entree morte
+  const demandees = new Set(RELICS.map(r => r.requiresArme).filter(Boolean));
+  for (const cle of Object.keys(ARME_EXIGENCE)) {
+    if (!demandees.has(cle)) soucis.push(`exigence d'arme « ${cle} » que personne ne demande`);
+  }
+
   return soucis;
 }
 

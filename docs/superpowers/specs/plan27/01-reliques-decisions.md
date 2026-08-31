@@ -93,41 +93,53 @@ Le brief propose trois exemples. Verdict après audit :
 | **Condensateur fracturé** — puissance en échange de rechargement | **retenu.** `chargeurPlus` négatif est un axe vierge, et il crée une vraie tension avec `barillet_long` (t0, +2 munitions) : deux reliques qui se contredisent, donc un choix. |
 | **Noyau parasite** — vole aux alliés | **à trancher.** `equipe` et `allyFlatHp`/`allyFlatDamage` existent, donc c'est faisable ; mais une relique qui pénalise un allié en LAN est un problème social, pas d'équilibrage. Décision de l'auteur, pas du plan. |
 
-## 3 · Le vérificateur manquant
+## 3 · Le vérificateur — ce qu'il couvrait déjà, ce qui manquait
 
-**Il n'existe aucun `verifierReliques()`** — `shared/reliques.js` exporte
-`ARME_EXIGENCE`, `RELICS`, `RELIC_CFG`, `RELIC_RARITY` et six accesseurs, pas un
-seul contrôle.
+**Correction d'une erreur de ce plan.** La première rédaction affirmait qu'aucun
+`verifierReliques()` n'existait. C'est faux : il existe, mais il est exporté par
+`shared/game_state.js` et non par `shared/reliques.js` — d'où la conclusion
+hâtive, tirée des seuls exports du module de données. C'est exactement le défaut
+de méthode que le README de ce plan reproche à plan 26, commis dans le plan
+lui-même.
 
-C'est un manque de la même famille que celui que `verifierFeedback` couvre pour
-les sons : **l'accès est à clef chaîne**, donc `_relicSum(p, "flatDamge")` rend
-zéro et ne lève rien. Un champ posé sur une relique et jamais lu est muet, et
-c'est le premier piège listé par `CLAUDE.md`.
+### 3.1 · Ce qu'il faisait déjà, et bien
 
-`verifierReliques()` doit croiser, **dans les deux sens** :
+Il couvre le sens **champ → lecteur**, et par la bonne méthode : il relit la
+**source** des méthodes de `GameState.prototype` et exige que chaque champ
+d'effet y apparaisse comme littéral. Pas de seconde liste à tenir — l'idiome de
+`sonsManques()`. Il vérifie aussi les identifiants en double, la plage de
+palier, la description, `requiresArme` ↔ `ARME_EXIGENCE`, les reliques à
+`mode` (cherchées par identifiant), l'absence d'effet, et **un malus sans
+contrepartie écrite**.
 
-1. **champ d'effet ↔ lecture réelle.** Chaque champ de `RELICS` hors métadonnées
-   doit apparaître dans les sources qui consomment les reliques ; et
-   réciproquement, chaque clef littérale passée à `_relicSum` / `_relicFlag` /
-   `relicFlat` doit exister sur au moins une relique.
-2. **`requiresArme` ↔ `ARME_EXIGENCE`.** Déjà nommé point de passage unique dans
-   `CLAUDE.md` : lu par `_offerRelics()` **et** `visePalier()`, et un seul des
-   deux fait viser un palier que le tirage ne peut pas montrer.
-3. **contrepartie ↔ `RELIC_MALUS` / `RELIC_MALUS_NEG`.** Une relique portant
-   `contrepartie` dont aucun champ n'est reconnu comme malus affiche un
-   avantage net faux.
+### 3.2 · Ce qui manquait : le sens inverse
 
-**État au 2026-08-31, à reconfirmer avant d'écrire :** 32 champs d'effet,
-**aucun mort** ; `requiresArme` et `ARME_EXIGENCE` se recouvrent exactement
-(`crit chaleur charge chargeur rampe souffle`). Le vérificateur est donc
-préventif, pas curatif — et il doit être **prouvé rouge par mutation** avant
-d'être noté vert.
+La boucle ne parcourait que les **reliques**. Trois angles morts, chacun prouvé
+par mutation :
+
+| angle mort | mutation | avant |
+|---|---|---|
+| un **lecteur** réclame un champ que plus aucune relique ne porte | `_relicFlag(p, "blindageFlat")` ajouté | **vert** |
+| `requiresSystem` mal orthographié — comparé **en dur** à deux endroits, donc n'exclut plus rien | `"hasards_actifs"` → `"hasard_actif"` | **vert** |
+| une entrée d'`ARME_EXIGENCE` que plus personne ne demande | `requiresArme: "souffle"` retiré | **vert** |
+
+Le premier est le plus dangereux : il survient quand on écrit un système avant
+sa relique, ou qu'on renomme un champ d'un seul côté. Le lecteur reçoit zéro et
+rien ne le dit.
+
+Un cas voisin était **déjà** couvert sans qu'on l'ait prévu : mal orthographier
+la clef au *seul* point d'appel retire le littéral de la source, donc orpheline
+les reliques qui portent le champ — le contrôle avant rougit. C'est seulement
+quand la clef n'a jamais eu de relique que rien ne parle.
+
+**Livré en v0.30.1.** Les trois croisements se mesurent sur la source, comme le
+premier ; aucune seconde liste n'a été créée.
 
 ## 4 · Lots proposés
 
 | lot | contenu | fichiers |
 |---|---|---|
-| **a** | `verifierReliques()`, les trois croisements, rouge prouvé par mutation | `shared/reliques.js` |
+| **a** | **étendre** `verifierReliques()` (il existe, dans `game_state.js`) : les trois croisements inverses, rouges prouvés par mutation — **livré v0.30.1** | `shared/game_state.js` |
 | **b** | nouveaux axes de contrepartie dans `RELIC_MALUS`/`RELIC_MALUS_NEG` + 2-3 reliques les employant (dont Condensateur fracturé) | `shared/game_state.js`, `shared/reliques.js`, `shared/lang/en.js` |
 | **c** | relecture du palier 0 : donner une condition à une partie des dix bonus plats, **sans** en retirer aucun | `shared/reliques.js`, `shared/lang/en.js` |
 
