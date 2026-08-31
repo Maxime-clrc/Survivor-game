@@ -126,7 +126,7 @@ shared/cards.js        cartes, raretes, tirage, calcul des mods
 shared/classes.js      les 3 classes, constantes de competence
 shared/statuses.js     les 4 etats, priorite de purge
 shared/bosses.js       roster des 5 boss + le final, registre des mecaniques
-shared/enemies.js      LE BESTIAIRE — 9 types, 6 traits, attachement, adaptType
+shared/enemies.js      LE BESTIAIRE — 13 types NOMMES, 6 traits, fiches, roleDe() DEDUIT
 shared/navigation.js   OU VA LA HORDE — grille de 40 px, UN champ par JOUEUR
 shared/reliques.js     le catalogue des reliques
 shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
@@ -191,7 +191,7 @@ réseau.** `classes.js`, `statuses.js`, `bosses.js`, `enemies.js`,
 `progression.js`, `navigation.js` et `biomes.js` ne dépendent de **rien**. Deux exceptions, toutes
 deux feuille → feuille et sans cycle : `timeline.js` importe `ALERT_*` de
 `bosses.js`, et tout ce qui porte du **texte de joueur** importe `i18n.js`
-(`cards.js`, `reliques.js`, `units.js`).
+(`cards.js`, `reliques.js`, `units.js`, `enemies.js`).
 
 Les constantes de comportement vivent à côté de leur table : `CARD_CFG`,
 `SKILL_CFG`, `STATUS_CFG`, `BOSS_CFG`, `TL_CFG`, `TRAIT_CFG`, `BIOME_CFG`. Ce

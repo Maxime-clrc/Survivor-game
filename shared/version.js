@@ -6460,6 +6460,41 @@
                    n est pas encore debloque sur le grognard — le codex note donc
                    ce qui est REELLEMENT apparu, et c est la bonne semantique.
 
+    0.29.17 lot 18 TREIZE CREATURES N AVAIENT PAS DE NOM. Elles n avaient que leur
+                   cle de code — `grunt`, `brood`, `bulwark` —, jamais montree, et
+                   le jeu les a fait combattre pendant tout ce temps sans jamais
+                   les nommer. Un bestiaire commence par la. Deuxieme lot de la
+                   serie du codex : ses TEXTES.
+                   ET LE RELEVE A CHANGE LE LOT. Les BOSS, eux, portent deja
+                   `nom`, `verbe`, `sous` et `archetype` — leur fiche se DEDUIT, il
+                   n y avait rien a ecrire pour eux. Ce lot ne touche donc que les
+                   corps de horde.
+                   CE QUI S ECRIT ET CE QUI SE DEDUIT, et la ligne entre les deux
+                   est celle de `feedback.js`. Le NOM et le LORE s ecrivent :
+                   aucun chiffre ne les porte. Le ROLE se DEDUIT de la fiche de
+                   combat — `splits`, `shieldArc`, `egideRadius`, `poseCd`,
+                   `lienRange`, vitesse, masse — parce qu un role redige a la main
+                   aurait menti au premier equilibrage et que personne n aurait
+                   pense a le relire.
+                   UN CAS QUE LE VERIFICATEUR A TROUVE, ET QUI N ETAIT PAS UN
+                   DEFAUT : le fantassin ne declenche AUCUNE ligne de role. Normal
+                   — les deux references de comparaison SONT ses propres chiffres,
+                   donc il est litteralement l etalon des douze autres. Mais une
+                   fiche vide aurait eu l air d un texte manquant sans en etre un,
+                   d ou un repli qui le DIT. `verifierFiches()` peut donc exiger
+                   qu aucune creature ne soit sans role.
+                   `enemies.js` IMPORTE MAINTENANT `i18n.js`, et c est l exception
+                   que `CLAUDE.md` nomme deja : tout ce qui porte du texte de
+                   joueur l importe (`cards.js`, `reliques.js`, `units.js`).
+                   Feuille vers feuille, aucun cycle — `game_state.js` importe
+                   `enemies.js`, jamais l inverse.
+                   `verifierFiches()` croise dans les deux sens : une creature sans
+                   fiche afficherait sa cle de code a l ecran, ce qui a l air d un
+                   texte manquant sans en etre un ; une fiche qu aucune creature ne
+                   tire est du texte a traduire pour rien. Et deux creatures de
+                   meme nom rendraient le bestiaire illisible. Trois mutations
+                   rouges, temoin vert.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6468,4 +6503,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.16";
+export const VERSION = "0.29.17";

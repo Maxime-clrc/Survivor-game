@@ -1,3 +1,4 @@
+import { t, tf } from "./i18n.js";
 
 export const TRAIT_DASH = 0;
 export const TRAIT_TRAIL = 1;
@@ -264,4 +265,141 @@ export function adaptType(index, minute) {
   if (back < 0) return -1;
   const bd = ENEMY_TYPES[back];
   return bd && minute >= bd.minMin ? back : -1;
+}
+
+/* --- LA FICHE D UNE CREATURE ----------------------------------------------
+
+   CE QUI S ECRIT ET CE QUI SE DEDUIT, et la ligne entre les deux est la meme
+   que celle de `feedback.js`. Le NOM et le LORE s ecrivent : aucun chiffre ne
+   les porte. Le ROLE se DEDUIT de la fiche de combat — vitesse, masse, portee,
+   ce qu elle pose — parce qu un role ecrit a la main mentirait au premier
+   equilibrage, et personne ne penserait a le relire.
+
+   Treize creatures n avaient PAS DE NOM. Elles n avaient que leur cle de code
+   (`grunt`, `brood`, `bulwark`), jamais montree, et le jeu les a fait combattre
+   pendant tout ce temps sans jamais les nommer. Un bestiaire commence par la.
+
+   Le francais vit ICI, a cote de sa donnee, et sert de repli ; l anglais est une
+   surcharge par cle dans `lang/en.js`. */
+const FICHES = {
+  grunt: {
+    nom: "Fantassin",
+    lore: "Le corps par défaut de la horde. Rien ne le distingue, et c'est précisément ce qui le rend dangereux en nombre.",
+  },
+  runner: {
+    nom: "Coureur",
+    lore: "Trop léger pour encaisser, assez rapide pour ne pas avoir à le faire. Il ne vient jamais par le chemin qu'on surveille.",
+  },
+  tank: {
+    nom: "Colosse",
+    lore: "Il n'a pas besoin d'être rapide : il suffit qu'il arrive. Ce qui le suit compte sur lui pour absorber ce qui lui était destiné.",
+  },
+  shooter: {
+    nom: "Tireur",
+    lore: "Le premier corps de la horde qui ait compris qu'on peut blesser sans toucher. Il garde ses distances et laisse les autres avancer.",
+  },
+  brood: {
+    nom: "Couveuse",
+    lore: "La tuer ne la fait pas disparaître, ça la divise. Elle est le seul corps qui gagne à mourir.",
+  },
+  kamikaze: {
+    nom: "Détonateur",
+    lore: "Il ne porte rien d'autre que sa charge. Sa fragilité n'est pas un défaut de conception : elle garantit qu'il arrive vite et qu'il ne sert qu'une fois.",
+  },
+  bulwark: {
+    nom: "Pavois",
+    lore: "Il tourne toujours sa plaque vers la menace. Sa faiblesse n'est pas dans son armure, elle est derrière.",
+  },
+  medic: {
+    nom: "Soigneur",
+    lore: "Il ne vous attaquera presque jamais. Il défait simplement, derrière vous, tout ce que vous venez de faire.",
+  },
+  choeur: {
+    nom: "Chœur",
+    lore: "Il ne frappe pas plus fort : il rend les autres plus durs. Tant qu'il chante, la horde autour de lui coûte le double.",
+  },
+  harceleur: {
+    nom: "Harceleur",
+    lore: "Il cherche celui qui s'est éloigné. Il ne s'engage jamais de face et recule dès qu'on se retourne.",
+  },
+  generateur: {
+    nom: "Générateur",
+    lore: "Il ne se bat pas, il équipe. Les coques qu'il distribue se refont tant qu'il est debout — le tuer d'abord est une consigne que personne n'a écrite.",
+  },
+  saboteur: {
+    nom: "Saboteur",
+    lore: "Il ne vise pas les corps, il vise le sol. Ce qu'il pose reste après lui et décide où vous n'irez pas.",
+  },
+  relais: {
+    nom: "Relais",
+    lore: "Seul, il n'est presque rien. Apparié, le vide entre les deux devient l'arme — et ils tiennent le lien plus longtemps qu'on ne le croit.",
+  },
+};
+
+export const enemyNom = key => t(`bestiaire.${key}.nom`, FICHES[key]?.nom ?? key);
+export const enemyLore = key => t(`bestiaire.${key}.lore`, FICHES[key]?.lore ?? "");
+
+/* CE QU UNE CREATURE FAIT, RELEVE SUR SA FICHE DE COMBAT. Aucune de ces lignes
+   n est ecrite deux fois : elles sortent des memes champs que la simulation lit,
+   donc un reglage d equilibrage les met a jour tout seul. C est la raison d etre
+   de cette fonction — un role redige a la main aurait menti des le lot suivant.
+
+   L ordre compte : ce qui SEPARE une creature des autres passe devant ce qu elle
+   partage. Un pavois est d abord une plaque orientable, un colosse d abord une
+   masse. */
+const VITESSE_REF = 95, MASSE_REF = 1;
+export function roleDe(def) {
+  const out = [];
+  if (def.splits) out.push(tf("bestiaire.role.divise", "se divise en {n} à sa mort", { n: def.splits }));
+  if (def.blastRadius) out.push(t("bestiaire.role.explose", "explose en mourant"));
+  if (def.shieldArc) out.push(t("bestiaire.role.plaque", "plaque orientable, vulnérable de dos"));
+  if (def.heal) out.push(t("bestiaire.role.soigne", "soigne la horde autour de lui"));
+  if (def.egideRadius) out.push(t("bestiaire.role.equipe", "donne une coque à ses voisins"));
+  if (def.auraRadius) out.push(t("bestiaire.role.aura", "réduit les dégâts subis autour de lui"));
+  if (def.poseCd) out.push(t("bestiaire.role.pose", "pose du sol dangereux à distance"));
+  if (def.lienRange) out.push(t("bestiaire.role.lien", "tend un lien mortel avec son pair"));
+  if (def.shootCd) out.push(t("bestiaire.role.tire", "tire de loin et garde ses distances"));
+  if (def.flanc >= 0.8) out.push(t("bestiaire.role.contourne", "contourne au lieu d'avancer"));
+  if (def.recul) out.push(t("bestiaire.role.recule", "recule dès qu'on lui fait face"));
+
+  if (def.speed >= VITESSE_REF * 1.3) out.push(t("bestiaire.role.rapide", "rapide"));
+  else if (def.speed <= VITESSE_REF * 0.6) out.push(t("bestiaire.role.lent", "lent"));
+  if (def.hpMul >= MASSE_REF * 2) out.push(t("bestiaire.role.robuste", "très résistant"));
+  else if (def.hpMul <= MASSE_REF * 0.6) out.push(t("bestiaire.role.fragile", "fragile"));
+
+  /* RIEN A DIRE EST UNE CHOSE A DIRE. Le fantassin ne declenche aucune ligne, et
+     ce n est pas un trou : les deux references SONT ses propres chiffres, donc
+     il est litteralement l etalon auquel les douze autres se comparent. Une
+     fiche vide aurait eu l air d un texte manquant sans en etre un.
+     `verifierFiches()` refuse toute creature sans role — ce repli est ce qui
+     rend cette exigence tenable. */
+  if (out.length === 0) {
+    out.push(t("bestiaire.role.etalon", "sans spécialité — la mesure des autres"));
+  }
+  return out;
+}
+
+/* UNE FICHE SANS NOM EST UNE ENTREE VIDE, et rien ne le dirait : l ecran
+   afficherait la cle de code a la place, ce qui a l air d un texte manquant sans
+   en etre un. Le croisement va dans les DEUX sens — une fiche qu aucun type ne
+   tire est du texte a traduire pour rien. */
+export function verifierFiches() {
+  const soucis = [];
+  const cles = new Set(ENEMY_TYPES.map(t => t.key));
+  for (const t of ENEMY_TYPES) {
+    const f = FICHES[t.key];
+    if (!f) { soucis.push(`${t.key} : aucune fiche`); continue; }
+    if (!f.nom) soucis.push(`${t.key} : fiche sans nom`);
+    if (!f.lore) soucis.push(`${t.key} : fiche sans lore`);
+    if (roleDe(t).length === 0) soucis.push(`${t.key} : aucun role deduit de sa fiche de combat`);
+  }
+  for (const k of Object.keys(FICHES)) {
+    if (!cles.has(k)) soucis.push(`${k} : fiche sans creature`);
+  }
+  const noms = new Map();
+  for (const [k, f] of Object.entries(FICHES)) {
+    if (noms.has(f.nom)) soucis.push(`${k} et ${noms.get(f.nom)} portent le meme nom`);
+    else noms.set(f.nom, k);
+  }
+  return soucis;
 }
