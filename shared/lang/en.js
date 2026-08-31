@@ -1053,7 +1053,7 @@ export const EN = {
   "cards.coeur_forge.nom": "Forge heart",
   "cards.coeur_forge.desc": "+80 % damage, and +5 % more per team level",
   "cards.chaine_assaut.nom": "Assault chain",
-  "cards.chaine_assaut.desc": "−40 % fire interval, and overheating no longer applies",
+  "cards.chaine_assaut.desc": "−40 % fire interval, and the rate can climb higher",
   "cards.constitution.nom": "Constitution",
   "cards.constitution.desc": "+80 max HP and {0} HP per second",
   "cards.vif_argent.nom": "Quicksilver",

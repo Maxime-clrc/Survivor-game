@@ -986,11 +986,20 @@ export const CARDS = [
     desc: "+80 % de dégâts, et +5 % de plus par niveau d'équipe",
     apply(m) { m.damageMul += 0.80; m.damagePerLevel += CARD_CFG.FORGE_PER_LEVEL; },
   },
+  /* ELLE NE PARLAIT PAS DE LA CHALEUR, ET SON TEXTE LE DISAIT POURTANT. « La
+     surchauffe ne s applique plus » : le drapeau n a JAMAIS ete lu par
+     `_armeTick`, il ne fait que descendre le plancher du multiplicateur
+     d intervalle de 0,35 a 0,20 — donc la cadence PLAFONNE plus haut. Mesure : laser seul et laser + cette carte
+     saturent tous deux la jauge a 0,48 — a l identique. Deux systemes
+     partageaient le mot « surchauffe » et un seul des deux etait implemente.
+     On aligne le TEXTE sur le code et non l inverse : rendre la promesse vraie
+     obligeait a couper `porteChaleur`, qui garde aussi la delivrance du
+     FAISCEAU — le laser aurait cesse de tirer. */
   {
     id: "chaine_assaut", nom: "Chaîne d'assaut", rarity: 3, max: 1, tags: ["off", "cadence"],
     family: "cadence", tier: 3,
-    desc: "−40 % d'intervalle de tir, et la surchauffe ne s'applique plus",
-    apply(m) { m.fireIntervalMul *= 0.60; m.noOverheat = 1; },
+    desc: "−40 % d'intervalle de tir, et la cadence peut monter plus haut",
+    apply(m) { m.fireIntervalMul *= 0.60; m.lowRateFloor = 1; },
   },
   {
     id: "constitution", nom: "Constitution", rarity: 3, max: 1, tags: ["def"],
@@ -1357,23 +1366,19 @@ export const CARDS = [
      bouge presque pas — il tient au taux d occupation, pas au bonus final.
      C est donc le PLANCHER qui se regle ici, pas la recompense du bon joueur.
 
-     `noOverheat` la neutralise, et c est juste : `chaine_assaut` retire la
-     surchauffe en echange de -40 % d intervalle. Les deux ensemble donneraient
-     une gachette sans contrepartie. */
+     ELLE NE SE NEUTRALISE PLUS AVEC `chaine_assaut`, et la garde qui le faisait
+     etait fondee sur un texte faux. On la croyait exclusive parce que la
+     legendaire annoncait retirer la surchauffe ; elle ne l a jamais retiree.
+     Les deux ensemble donnent une gachette a intervalle court, et la
+     contrepartie EXISTE toujours — la jauge monte, elle sature, l arme se
+     tait. Mesure : la carte etait purement annulee (`tirManuel` a 0, jauge a
+     0,00), donc payee pour rien. */
   {
     id: "surchauffe", nom: "Chambre thermique", rarity: 2, max: 1, tags: ["off"],
     horsEchelle: true,
     desc: "tu tires en maintenant le clic ; ton arme chauffe et frappe jusqu'à +{0} % — à saturation elle se tait",
     vals: () => ({ "0": Math.round(ARME_CFG.CHALEUR_BONUS_MANUEL * 100) }),
-    /* EN `applyAfter`, ET LE TEST L A EXIGE. En `apply` ordinaire, l ordre du
-       catalogue decide : `surchauffe` passait AVANT `chaine_assaut`, donc
-       `noOverheat` n etait pas encore pose et la garde ne voyait RIEN. Les deux
-       cartes ensemble donnaient une gachette sans contrepartie — exactement ce
-       que la garde devait empecher, et rien ne l aurait signale.
-       `applyAfter` passe une fois toutes les cartes appliquees : la garde lit
-       alors un `noOverheat` definitif. */
-    apply() {},
-    applyAfter(m) { if (!m.noOverheat) m.tirManuel = 1; },
+    apply(m) { m.tirManuel = 1; },
   },
   {
     id: "filon", nom: "Filon", rarity: 1, max: 1, tags: ["util"],
@@ -1827,7 +1832,7 @@ export function defaultMods() {
     inertia: 0,
 
     damagePerLevel: 0,
-    noOverheat: 0,
+    lowRateFloor: 0,
     hpRegen: 0,
     dashCdMul: 1,
     dashTrail: 0,
@@ -1973,7 +1978,7 @@ export function computeMods(owned) {
   }
 
   m.fireIntervalMul = Math.max(
-    m.noOverheat ? CARD_CFG.FIRE_INTERVAL_HARD_FLOOR : CARD_CFG.FIRE_INTERVAL_FLOOR,
+    m.lowRateFloor ? CARD_CFG.FIRE_INTERVAL_HARD_FLOOR : CARD_CFG.FIRE_INTERVAL_FLOOR,
     m.fireIntervalMul);
   m.damageTakenMul = Math.max(CARD_CFG.DAMAGE_TAKEN_FLOOR, m.damageTakenMul);
   m.speedMul = Math.max(0.5, m.speedMul);

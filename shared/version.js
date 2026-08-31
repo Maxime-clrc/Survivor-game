@@ -6828,6 +6828,32 @@
                    relique n est JAMAIS offerte : croise avec `defaultMods()`,
                    prouve rouge par mutation.
 
+    0.30.4 lot 4 DEUX SYSTEMES PARTAGEAIENT LE MOT « SURCHAUFFE », UN SEUL ETAIT
+                   IMPLEMENTE. `chaine_assaut` annonce depuis toujours « la
+                   surchauffe ne s applique plus » ; son drapeau n a JAMAIS ete lu
+                   par `_armeTick`. Il descend le plancher du multiplicateur d
+                   intervalle de 0,35 a 0,20, rien d autre. Mesure : laser seul et
+                   laser + la carte montent la jauge a 0,48 tous les deux, a l
+                   identique.
+                   ON ALIGNE LE TEXTE SUR LE CODE ET NON L INVERSE, et c est la
+                   lecture de `_armeTick` qui le decide : `porteChaleur` garde tout
+                   le bloc, FAISCEAU COMPRIS. Rendre la promesse vraie en coupant
+                   cette garde aurait eteint le laser — le commentaire du bloc
+                   decrivait deja ce piege pour le double tir. `noOverheat` devient
+                   `lowRateFloor`, qui est ce qu il fait ; « levé » aurait surdit a
+                   son tour, le plancher DESCEND et c est la cadence qui plafonne
+                   plus haut.
+                   ET MA PROPRE GARDE TOMBE AVEC. La Chambre thermique (0.29.22) se
+                   neutralisait sur ce drapeau, au motif ecrit que la legendaire
+                   retirait la surchauffe. Elle ne l a jamais retiree : les deux
+                   cartes ensemble donnaient `tirManuel` a 0 et une jauge a 0,00 —
+                   une epique payee pour RIEN. Elles coexistent maintenant, et la
+                   contrepartie existe toujours : 91 pas de mutisme sur 400.
+                   L `applyAfter` disparait avec la garde qui l exigeait.
+                   Le chantier 02 devait commencer par mesurer le pool laser ; la
+                   mesure a trouve ce defaut en amont et s y est arretee. La
+                   decision A/B/C reste a prendre au lot suivant.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6836,4 +6862,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.30.3";
+export const VERSION = "0.30.4";

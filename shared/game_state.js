@@ -648,7 +648,7 @@ export function fullMods(cards, others, cls, level = 1, arme = ARME_DEFAUT) {
   appliquerEchelle(mods, arme);
   mods.critChance = Math.min(CARD_CFG.CRIT_CHANCE_CAP, mods.critChance);
   mods.fireIntervalMul = Math.max(
-    mods.noOverheat ? CARD_CFG.FIRE_INTERVAL_HARD_FLOOR : CARD_CFG.FIRE_INTERVAL_FLOOR,
+    mods.lowRateFloor ? CARD_CFG.FIRE_INTERVAL_HARD_FLOOR : CARD_CFG.FIRE_INTERVAL_FLOOR,
     mods.fireIntervalMul);
   mods.weapon = arme === ARME_DEFAUT ? null : arme;
 
