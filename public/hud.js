@@ -3,6 +3,7 @@ import {
   CFG, PLAYER_COLORS, DAMAGE_SOURCES, diffLabel, srcLabel, enemyCap, fullMods,
   BUFF_DAMAGE, BUFF_RATE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RICOCHET,
 } from "/shared/game_state.js";
+import { playSound } from "/audio.js";
 import { dec, getLang, onLangChange, t, tf } from "/shared/i18n.js";
 import { relicById } from "/shared/reliques.js";
 import { fmtM, toM } from "/shared/units.js";
@@ -1328,6 +1329,10 @@ function updateHautsFaits(now, couvert) {
     + `<div class="hfTexte">${escapeHtml(hfTexte(h.id))}</div>`
     + `<div class="hfGain">${escapeHtml(nomRecompense(h))}</div>`;
   el.hf.hidden = false;
+  // LE BANDEAU AVAIT TOUT SAUF UNE VOIX. `hud.js` etait le seul module du client
+  // qui affiche quelque chose sans jamais rien faire entendre — et ce qu il
+  // affiche ici est la recompense la plus rare du jeu.
+  playSound("hautFait");
   // le panneau de telemetrie occupe le meme coin : il s'efface pendant que le
   // bandeau est la, et lui seul — c'est le rang de lecture qui tranche.
   el.root.classList.add("hf");

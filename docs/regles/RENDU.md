@@ -201,6 +201,17 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   1600 × 900** : leurs fractions sont par *cellule*, jamais par arène. Toute
   position posée en coordonnées d'arène est fausse, et c'est `verifierBiomes` qui
   le dit — en refusant les dangers tombés sur un obstacle.
+- **Une récompense doit s'entendre.** Le bandeau de haut fait avait son nœud,
+  sa transition et sa fenêtre de 3,2 s — et `hud.js` ne jouait **pas un seul
+  son**. Sa voix se sépare de `niveau`, l'autre triade montante : celle-ci est
+  d'**équipe**, rapide et résolue ; le haut fait est **personnel**, plus lent, et
+  se pose sur une quinte tenue qui laisse l'accord **ouvert**. Une triade qui se
+  résout dit une étape, une triade qui reste ouverte dit un accomplissement.
+  Le haut fait d'un **allié** reste muet : seuls les tiens ont un bandeau, les
+  siens passent en une ligne du fil, et la même fanfare effacerait la distinction.
+  `sonsManques()` couvre ce que `verifierFeedback` ne peut pas : les noms
+  **littéraux**. On mesure ce qui a été demandé et n'existait pas — une seconde
+  liste de noms attendus pourrirait.
 - **La matière d'un sol n'est pas son matériau, c'est ce qui lui est ARRIVÉ.**
   La tuile de `material.js` est cuite une fois par lieu : devant une presse et au
   fond d'un rack, c'est le même béton. `MATIERE[lieu]` donne une **trace** par

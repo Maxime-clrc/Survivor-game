@@ -261,6 +261,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `routerArme()` (`public/render/world.js`) | ce qu’une ressource d’arme DIT, et elle ne le dit qu’à SON porteur : chaleur, charge, chargeur, rampe. Aucune de ces voix ne dispute sa place à celles de la horde |
 | `arcLot` / `flushArcs()` (`render/fx.js`) | une CHAÎNE est un événement, pas trois : les segments d’un même tir arrivent dans le même lot, on les cumule et on sonne une fois avec la longueur |
 | `verifierFeedback(armes, types, recettes)` | croise les deux tables avec `recettes()` d’`audio.js`. **Un nom de recette faux ne lève rien** : `playSound` rend `false` et l’événement devient muet |
+| `sonsManques()` (`public/audio.js`) | LES NOMS DE SON LITTERAUX, que `verifierFeedback` ne peut pas couvrir — il croise les noms CALCULES. Une trentaine d’appels ecrits a la main ou une faute de frappe rend `false` et rend l’evenement MUET. On MESURE ce qui a ete demande et qui n’existait pas, au lieu de tenir une seconde liste qui pourrirait. Rien sur le chemin chaud |
 | `palierDe(e)` (`render/fx.js`) | LE palier d’une touche, de la part de PV retirée. `hits === 0` = dégât CONTINU, pas une touche — le serveur le dit déjà en n’incrémentant pas `hitSeq` |
 | `bossTouche(e)` | la touche d’un boss, en part de BARRE et en racine. Chemin séparé : son événement n’a pas de `hits`, le barème de la horde le rendrait muet |
 | `_armeTick(p, arme, dt, tir)` | la ressource d’une arme : rampe, chaleur, charge, chargeur |

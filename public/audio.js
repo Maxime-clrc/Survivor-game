@@ -607,6 +607,33 @@ const PALETTE = {
     return { end: a.end + 0.34, stop: a.stop };
   },
 
+/* UN HAUT FAIT N EST PAS UNE MONTEE DE NIVEAU, et le bandeau le disait deja :
+   il a son nœud, sa transition et sa fenetre de 3,2 s. Il n avait juste aucune
+   voix — `hud.js` ne jouait pas UN son, et c est le seul module du client qui
+   affiche quelque chose sans jamais rien faire entendre. Une recompense muette
+   est une notification qu on peut manquer entierement.
+
+   CE QUI LE SEPARE DE `niveau`, qui est l autre triade montante du depot :
+   `niveau` est un evenement d EQUIPE — il monte vite, en triangle, sur un
+   fondamental grave qui le fait sonner commun. Celui-ci est PERSONNEL : plus
+   lent, en sinus, et il se pose sur une QUINTE tenue au lieu d une fondamentale.
+   Une triade qui s ouvre puis reste ouverte se lit comme un accomplissement ;
+   une triade qui se resout se lit comme une etape.
+
+   Et il ne CLAQUE pas : aucun bruit, aucun transitoire. Ce qui claque dans ce
+   depot est ce qui frappe, et un haut fait ne frappe personne. */
+  hautFait: () => {
+    const g = SOUND_GAIN.niveau * 0.9;
+    const a = tone({ freq: 392, dur: 0.18, type: "sine", gain: g });
+    tone({ freq: 587, dur: 0.20, type: "sine", gain: g * 0.9, delay: 0.13 });
+    tone({ freq: 784, dur: 0.44, type: "sine", gain: g * 0.8, delay: 0.26 });
+    // la quinte TENUE : elle demarre avec la premiere note et survit aux trois,
+    // donc l accord reste ouvert au lieu de se resoudre.
+    tone({ freq: 196, dur: 0.86, type: "sine", gain: g * 0.34 });
+    tone({ freq: 294, dur: 0.86, type: "sine", gain: g * 0.22 });
+    return { end: a.end + 0.80, stop: a.stop };
+  },
+
   annonce: (o) => {
     const g = SOUND_GAIN.alerte * (o.level === 0 ? 1 : 0.7);
     const f = o.level === 0 ? 196 : 165;
@@ -973,10 +1000,28 @@ const PALETTE = {
    croise cette liste avec les tables de `shared/feedback.js`. */
 export function recettes() { return Object.keys(PALETTE); }
 
+/* ET CE QU ELLE NE SAIT PAS JOUER SE MESURE, IL NE SE DECLARE PAS.
+   `verifierFeedback()` couvre les noms CALCULES — famille d arme, matiere de
+   creature, voix de boss — parce que ceux-la viennent de tables qu on peut
+   croiser. Les noms LITTERAUX, eux, sont ecrits a la main dans une trentaine
+   d appels : une faute de frappe y rend `false` et l evenement devient muet,
+   sans qu aucune erreur ne soit levee et sans qu aucune table ne le dise.
+
+   Une seconde liste de noms attendus pourrirait — c est exactement le defaut
+   que ce depot evite partout ailleurs. On enregistre donc ce qui a ETE demande
+   et qui n existait pas : le banc et un script de mesure le lisent, et un nom
+   faux se signale des la premiere fois qu il devait sonner.
+   Rien sur le chemin chaud : la recherche a lieu de toute facon. */
+const manques = new Map();
+export function sonsManques() {
+  return [...manques].map(([n, c]) => `${n} : demande ${c} fois, aucune recette`);
+}
+export function oublierManques() { manques.clear(); }
+
 export function playSound(name, opts = {}) {
   if (!ac || muted || volume <= 0) return false;
   const recipe = PALETTE[name];
-  if (!recipe) return false;
+  if (!recipe) { manques.set(name, (manques.get(name) ?? 0) + 1); return false; }
 
   const now = ac.currentTime;
   const key = opts.key ?? (opts.level !== undefined ? `${name}:${opts.level}` : name);

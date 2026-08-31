@@ -6337,6 +6337,45 @@
                    quartiers, et une primitive ecrite que plus aucun lieu ne tire.
                    Verifie rouge sur trois mutations, dont une qui en a leve deux.
 
+    0.29.14 lot 15 LA RECOMPENSE LA PLUS RARE DU JEU ETAIT MUETTE. `hud.js` ne
+                   jouait pas UN son — zero appel a `playSound` dans tout le
+                   module —, et c est lui qui porte le bandeau de haut fait : son
+                   propre nœud, sa propre transition, sa fenetre de 3,2 s, et
+                   aucune voix. Une recompense muette est une notification qu on
+                   peut manquer entierement, et c est la seule chose que le jeu
+                   accorde qui ne s entende pas.
+                   AVANT DE L ECRIRE, LE RELEVE : 50 recettes declarees, 27 noms
+                   joues en litteral, ZERO fantome — le son du depot est bien plus
+                   complet que le brief ne le suppose. Impacts, boss, niveau,
+                   relevement, recolte, bonus, evenements, interface : tout sonne.
+                   Les 23 recettes absentes du releve litteral passent par un nom
+                   CALCULE (`ficheDe`, `matiereDe`, `voixDe`, `bonusFamille`), que
+                   `verifierFeedback()` croise deja. Le seul trou etait celui-la.
+                   ET AUCUNE DES 50 NE POUVAIT SERVIR : `niveau` est la montee de
+                   niveau, `bonusSurvie` un ramassage, `bossBrise` une barre.
+                   Une 51e, donc, et elle se separe de `niveau` — l autre triade
+                   montante — sur trois points : `niveau` est un evenement
+                   d EQUIPE, rapide, en triangle, sur une fondamentale grave qui
+                   RESOUT ; celui-ci est PERSONNEL, plus lent, en sinus, et il se
+                   pose sur une quinte TENUE qui laisse l accord ouvert. Une
+                   triade qui se resout dit une etape, une triade qui reste
+                   ouverte dit un accomplissement. Et il ne claque pas : aucun
+                   bruit, aucun transitoire — ce qui claque ici est ce qui frappe,
+                   et un haut fait ne frappe personne.
+                   LE HAUT FAIT D UN ALLIE RESTE MUET, et c est deja la regle du
+                   depot : seuls les tiens produisent un bandeau, ceux des allies
+                   passent en une ligne du fil. Leur donner la meme fanfare
+                   effacerait cette distinction.
+                   `sonsManques()` FERME LA CLASSE. Le depot savait deja qu un nom
+                   de recette faux rend `false` et devient muet — c est ecrit
+                   au-dessus de `recettes()` — et `verifierFeedback` couvre les
+                   noms calcules. Les noms LITTERAUX, une trentaine ecrits a la
+                   main, n etaient couverts par rien. On ENREGISTRE donc ce qui a
+                   ete demande et qui n existait pas, au lieu de tenir une seconde
+                   liste de noms attendus qui pourrirait. Rien sur le chemin
+                   chaud : la recherche a lieu de toute facon. Verifie sur deux
+                   fautes de frappe, comptees et nommees.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6345,4 +6384,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.13";
+export const VERSION = "0.29.14";
