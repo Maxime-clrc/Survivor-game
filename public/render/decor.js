@@ -1485,6 +1485,11 @@ export function verifierPremierPlan() {
 
 const PP_PARALLAXE = 0.055;
 const PP_BANDE = 0.155;
+// LE VOILE DU PREMIER PLAN, ET IL EST ICI PARCE QU IL VAUT POUR LES CINQ.
+// La bande et les silhouettes portent chacune leurs alphas ; un reglage par
+// silhouette ferait cinq endroits a tenir d accord. `globalAlpha` les met a
+// l echelle d un coup, et `restore()` le rend.
+const PP_VOILE = 0.78;
 export function drawPremierPlan(v) {
   if (gfx < GFX_HIGH || v.boss) return;
   const h = CFG.VIEW_H * PP_BANDE;
@@ -1493,6 +1498,7 @@ export function drawPremierPlan(v) {
   const cle = biomeAt(biomeIndex).key;
 
   ctx.save();
+  ctx.globalAlpha = PP_VOILE;
   ctx.translate(camera.x0, camera.y0);
 
   for (const haut of [true, false]) {

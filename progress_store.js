@@ -160,6 +160,40 @@ const JALONS_V3 = new Map([
   ["vague15", "niveau18"], ["vague20", "niveau24"],
 ]);
 
+/* CE QU UN PROFIL DOIT PORTER, QUELLE QUE SOIT SA VERSION.
+
+   Ce bloc vivait DANS `migrateProfile`, qui sort en tete sur
+   `from === PROG_CFG.VERSION` : un profil deja a la version courante ne le
+   traversait donc JAMAIS. Or c est exactement la population des comptes
+   enregistres AVANT qu un champ n existe, sans bump de version — le motif que
+   le commentaire du codex revendique (« on normalise a la lecture »). Il ne
+   normalisait rien du tout.
+
+   Consequence mesuree sur `vus` : `pr.vus` restait `undefined`,
+   `progressPayload` le MASQUAIT avec `?? []` — donc un codex vide a l ecran,
+   pour toujours — et `mergerCodex` levait sur `pr.vus.push`, ce qui fait
+   FERMER LA SALLE (`hub.js`, `room.tick` en erreur). Un champ absent, trois
+   symptomes, et aucun qui nomme sa cause.
+
+   Elle est donc appelee pour CHAQUE profil adopte, et `migrateProfile` la
+   termine. Idempotente par construction. */
+export function normaliserProfil(profile) {
+  if (!profile || typeof profile !== "object") return profile;
+  if (!Array.isArray(profile.hf)) profile.hf = [];
+  if (!Array.isArray(profile.vus)) profile.vus = [];
+  if (!Array.isArray(profile.debloquees)) profile.debloquees = [];
+  if (!Array.isArray(profile.cadres) || profile.cadres.length === 0) {
+    profile.cadres = [CADRE_DEFAUT];
+  }
+  if (typeof profile.cadreActif !== "string") profile.cadreActif = CADRE_DEFAUT;
+  if (!profile.stats || typeof profile.stats !== "object") {
+    profile.stats = statsVierges();
+  }
+  // (`bannedCards` a disparu : le ban est par manche et gratuit — champ mort
+  //  chez les comptes qui en portent encore un)
+  return profile;
+}
+
 export function migrateProfile(profile, from) {
   if (!profile || typeof profile !== "object") return false;
   if (from === PROG_CFG.VERSION) return false;
@@ -198,24 +232,7 @@ export function migrateProfile(profile, from) {
     profile.hf = [...hf];
   }
 
-  if (!Array.isArray(profile.hf)) profile.hf = [];
-  /* UN CODEX N EST PAS UNE MIGRATION. Bumper `PROG_CFG.VERSION` pour ajouter ce
-     champ REMETTRAIT A NEUF tout profil sans entree de migration
-     (`reset = row.version < VERSION && !migre`) — on effacerait la progression de
-     tout le monde pour un tableau vide. Le depot a deja le bon motif juste
-     au-dessus : on normalise a la lecture, et un compte existant commence son
-     codex a zero sans rien perdre. */
-  if (!Array.isArray(profile.vus)) profile.vus = [];
-  if (!Array.isArray(profile.debloquees)) profile.debloquees = [];
-  if (!Array.isArray(profile.cadres) || profile.cadres.length === 0) {
-    profile.cadres = [CADRE_DEFAUT];
-  }
-  if (typeof profile.cadreActif !== "string") profile.cadreActif = CADRE_DEFAUT;
-  if (!profile.stats || typeof profile.stats !== "object") {
-    profile.stats = statsVierges();
-  }
-  // (`bannedCards` a disparu : le ban est par manche et gratuit — champ mort
-  //  chez les comptes qui en portent encore un)
+  normaliserProfil(profile);
   return true;
 }
 
@@ -319,6 +336,7 @@ export function createStore(log = console.log) {
       return 0;
     }
     const migre = connue && migrateProfile(row.data, row.version);
+    normaliserProfil(row.data);
     const reset = row.version < PROG_CFG.VERSION && !migre;
     const cur = accounts.get(lower);
     if (cur && !pristine(cur.profile)) return 0;

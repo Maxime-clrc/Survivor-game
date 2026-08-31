@@ -7199,6 +7199,39 @@
                   et son correctif tient. Mais elle n etait PAS la cause des ecrans
                   rapportes. Celle-ci l est.
 
+    0.31.7 lot 8  « ON NORMALISE A LA LECTURE » NE NORMALISAIT RIEN. Le bloc qui
+                  garantit `vus`, `hf`, `debloquees`, `cadres`, `cadreActif` et
+                  `stats` vivait DANS `migrateProfile`, qui sort en tete sur
+                  `from === PROG_CFG.VERSION` — et `adoptRow` ne l appelle que si
+                  `row.version < VERSION`. Un profil deja a la version courante
+                  ne le traversait donc JAMAIS, ce qui est exactement la
+                  population visee : les comptes enregistres AVANT qu un champ
+                  n existe, sans bump de version.
+                  TROIS SYMPTOMES, AUCUN QUI NOMME SA CAUSE. `pr.vus` restait
+                  `undefined` ; `progressPayload` le masquait avec `?? []`, donc
+                  un codex vide a l ecran, pour toujours ; et `mergerCodex` levait
+                  sur `pr.vus.push`, ce que `hub.tick` attrape en FERMANT LA
+                  SALLE. Le joueur voyait sa partie s arreter et un codex vide,
+                  et rien ne reliait les deux.
+                  ET MES DEUX ESSAIS PRECEDENTS NE POUVAIENT PAS LE VOIR : ils
+                  creaient un compte NEUF, donc `newProfile`, donc `vus: []`. Un
+                  correctif de progression se mesure sur un profil EXISTANT.
+                  L essai le fait maintenant : faux Supabase local, une ligne a la
+                  version courante privee de `vus`, `hf`, `cadres` et `stats`.
+                  Avant : `TypeError` a `mergerCodex`, salle fermee. Apres :
+                  340 noyaux et 12 manches conserves, les quatre champs rendus,
+                  aucune exception, salon atteint, `vus` porte `e:grunt` dans le
+                  profil ET dans le payload.
+                  `normaliserProfil` sort donc de `migrateProfile`, qui la
+                  TERMINE, et `adoptRow` la passe sur TOUTE ligne adoptee. Elle
+                  est idempotente par construction.
+                  ET LES DEUX `?? []` DU PAYLOAD DISPARAISSENT : c est ce masque
+                  qui rendait un champ absent indistinguable d un tableau vide.
+                  LE PREMIER PLAN S ALLEGE, `PP_VOILE = 0.78`. Un `globalAlpha`
+                  pose dans `drawPremierPlan` plutot que cinq alphas a tenir
+                  d accord — la bande et les silhouettes suivent ensemble, et
+                  `restore()` le rend.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7207,4 +7240,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.6";
+export const VERSION = "0.31.7";

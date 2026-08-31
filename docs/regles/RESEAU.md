@@ -149,6 +149,25 @@ compte.
   3 → 4 → 5) ; **envoi raté réessayé** (10 s) ; **`flush()` sur SIGTERM/SIGINT**.
   Récupération tardive : n'adopte une ligne distante que si le local est
   **vierge** (`pristine()`).
+- **« On normalise à la lecture » exige un point de lecture qui s'exécute
+  TOUJOURS.** Le bloc qui garantit `vus`, `hf`, `debloquees`, `cadres`,
+  `cadreActif` et `stats` vivait dans `migrateProfile`, qui **sort en tête** sur
+  `from === PROG_CFG.VERSION`, et `adoptRow` ne l'appelle que si
+  `row.version < VERSION`. Un profil déjà à la version courante ne le traversait
+  donc jamais — c'est-à-dire **exactement** la population visée : les comptes
+  enregistrés avant qu'un champ n'existe, sans bump de version. `normaliserProfil`
+  est désormais appelée sur **toute** ligne adoptée ; `migrateProfile` la termine.
+- **Un `??` dans la charge utile masque un champ absent** et le rend
+  indistinguable d'un tableau vide : `vus: pr.vus ?? []` a fait afficher un codex
+  vide pendant que `mergerCodex` levait sur `pr.vus.push` — ce que `hub.tick`
+  attrape en **fermant la salle**. Trois symptômes, un champ, aucun qui nomme sa
+  cause. Le repli appartient à la normalisation, pas au lecteur.
+- **Un correctif de progression se mesure sur un profil EXISTANT.** Deux essais
+  de suite ont validé le codex sur un compte créé par `register` — donc par
+  `newProfile`, donc avec `vus: []` — et ne pouvaient rien voir. L'essai monte
+  maintenant un faux Supabase local et adopte une ligne à la version courante
+  privée de ses champs tardifs.
+
 - **Le compte est pseudo + MOT DE PASSE, la session est un JETON.** Trois portes
   (`register`, `login`, `loginToken`) aboutissent toutes à `finishAuth`. Mot de
   passe haché **scrypt** avec sel par compte (dans `progress_store.js`, jamais

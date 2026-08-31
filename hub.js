@@ -53,7 +53,9 @@ export function createHub(store, log, commit = "") {
       runs: pr.runs,
       best: pr.best,
       milestones: pr.milestones,
-      vus: pr.vus ?? [],
+      // PAS DE `?? []` ICI : c est ce masque qui a rendu un codex vide
+      // indistinguable d un champ absent. `normaliserProfil` garantit les deux.
+      vus: pr.vus,
       kills: pr.kills,
       classes: pr.classes,
       commun: pr.commun ?? {},
@@ -61,7 +63,7 @@ export function createHub(store, log, commit = "") {
       confort: pr.confort,
       pseudo: pr.pseudo ?? "",
       gained: c.lastGain ?? 0,
-      hf: pr.hf ?? [],
+      hf: pr.hf,
       stats: pr.stats ?? {},
       cadres: [...cadresDe(pr)],
       cadreActif: cadreActifDe(pr),
