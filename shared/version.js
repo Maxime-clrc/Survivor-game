@@ -6934,6 +6934,33 @@
                    NOTES au lieu d etre corriges : ils sont atteignables. Matrice
                    complete et protocole dans LISEZMOI.
 
+    0.30.8 lot 8 LES DEUX MANQUES DU SECTEUR, RELEVES CONTRE LE BRIEF. Le lieu
+                   repondait a cinq des sept exigences de la megapole nocturne ;
+                   il manquait la PUBLICITE au loin et les CABLES devant.
+                   La publicite est cuite dans `cuireVille`, sur un toit sur neuf.
+                   C est le seul endroit du lieu ou la couleur a le droit de
+                   saturer — le brief le demande explicitement, et une enseigne a
+                   trente etages plus bas ne dispute rien au centre de l ecran,
+                   elle est a DEUX couches de lui. Deux teintes et non une : une
+                   seule ferait une ville qui appartient a un seul annonceur. Le
+                   panneau est franchement debout ou franchement couche, jamais
+                   carre — un carre lumineux sur un toit est un edicule qui brille.
+                   Le halo est un second rectangle plus pale et non un flou : la
+                   couche est CUITE une fois, un flou coute a chaque pixel pour un
+                   resultat invisible a cette echelle.
+                   Les cables passent DERRIERE les montants, et ce sont les seules
+                   courbes d un premier plan qui n avait que des rectangles. Trois
+                   brins : un cable seul se lit comme une rayure. La fleche reste
+                   DANS la bande — un cable qui sagerait vers le centre entrerait
+                   dans le champ de jeu, et la regle du premier plan est que rien
+                   n y descend.
+                   Les deux formules du montant deviennent `mont()` et `haut_i()` :
+                   les cables doivent s accrocher exactement ou le montant finit, et
+                   deux copies de la meme formule auraient diverge au premier
+                   reglage.
+                   RIEN DE TOUT CECI N EST VERIFIE A L OEIL : le rendu ne s importe
+                   pas hors navigateur, seul `node --check` a tourne.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6942,4 +6969,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.30.7";
+export const VERSION = "0.30.8";

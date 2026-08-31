@@ -1226,6 +1226,30 @@ function cuireVille(seed, w, h) {
         g.fillRect(bx + 4 + rand() * (bw - 10), by + 4 + rand() * (bh - 10), 2.4, 2.4);
       }
     }
+    /* LA PUBLICITE, ET C EST LE SEUL ENDROIT DU LIEU OU LA COULEUR A LE DROIT DE
+       SATURER. Le Secteur tient sa lisibilite en gardant l arene sombre et son
+       rose emissif pour la signaletique ; une enseigne de trente etages plus bas
+       ne dispute rien au centre de l ecran, elle est a DEUX couches de lui.
+       DEUX teintes et non une : une seule ferait une ville qui appartient a un
+       seul annonceur. Une par tirage, jamais melangees sur un meme toit.
+       Le panneau est plus HAUT que large, ou franchement plus large que haut —
+       jamais carre : un carre lumineux sur un toit est un edicule qui brille,
+       une proportion franche est une enseigne. Le halo est un second rectangle
+       plus grand et bien plus pale, parce que la couche est CUITE une fois et
+       qu un flou coute a chaque pixel pour un resultat qu on ne verra pas a
+       cette echelle. */
+    if (rand() < 0.11) {
+      const teinte = rand() < 0.5 ? "#ff3d9a" : "#3de0ff";
+      const debout = rand() < 0.5;
+      const pw = debout ? 3 + rand() * 3 : 14 + rand() * 20;
+      const ph = debout ? 16 + rand() * 22 : 3 + rand() * 3;
+      const px = bx + 3 + rand() * Math.max(1, bw - pw - 6);
+      const py = by + 3 + rand() * Math.max(1, bh - ph - 6);
+      g.fillStyle = alpha(teinte, 0.05);
+      g.fillRect(px - 3, py - 3, pw + 6, ph + 6);
+      g.fillStyle = alpha(teinte, 0.16 + rand() * 0.14);
+      g.fillRect(px, py, pw, ph);
+    }
   }
   g.restore();
   return cv;

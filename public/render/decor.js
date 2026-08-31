@@ -1736,11 +1736,40 @@ function passerelles(h, dx, dy) {
   const S = skin();
   const pas = 176;
   const base = Math.floor(-dx / pas) * pas;
+  const mont = i => 30 + ((i * 37) % 5) * 11;
+  const haut_i = i => h * (0.52 + ((i * 53) % 7) / 14);
+
+  /* LES CABLES, AVANT LES MONTANTS ET DONC DERRIERE EUX. Une megapole se
+     reconnait autant a ce qui PEND entre ses structures qu a ses structures :
+     c est la seule ligne courbe d un premier plan qui n a que des rectangles.
+     La fleche reste dans la bande — un cable qui sagerait vers le centre
+     entrerait dans le champ de jeu, et la regle de ce plan est que rien n y
+     descend. Trois brins et non un : un cable seul se lit comme une rayure,
+     un faisceau se lit comme une installation. */
+  ctx.strokeStyle = alpha(SURFACE.void, 0.30);
+  ctx.lineWidth = 2;
+  for (const haut of [true, false]) {
+    for (let i = 0; i < CFG.VIEW_W / pas + 2; i++) {
+      const xa = base + i * pas - dx * 0.5 + mont(i) * 0.5;
+      const xb = base + (i + 1) * pas - dx * 0.5 + mont(i + 1) * 0.5;
+      const ha = haut_i(i), hb = haut_i(i + 1);
+      const ya = haut ? -6 - dy * 0.4 + ha * 0.72 : CFG.VIEW_H - ha * 0.28 + 6 - dy * 0.4;
+      const yb = haut ? -6 - dy * 0.4 + hb * 0.72 : CFG.VIEW_H - hb * 0.28 + 6 - dy * 0.4;
+      for (let c = 0; c < 3; c++) {
+        const fleche = (haut ? -1 : 1) * (9 + c * 8);
+        ctx.beginPath();
+        ctx.moveTo(xa, ya + fleche * 0.3);
+        ctx.quadraticCurveTo((xa + xb) / 2, (ya + yb) / 2 - fleche, xb, yb + fleche * 0.3);
+        ctx.stroke();
+      }
+    }
+  }
+
   for (const haut of [true, false]) {
     for (let i = 0; i < CFG.VIEW_W / pas + 2; i++) {
       const x = base + i * pas - dx * 0.5;
-      const w = 30 + ((i * 37) % 5) * 11;
-      const hh = h * (0.52 + ((i * 53) % 7) / 14);
+      const w = mont(i);
+      const hh = haut_i(i);
       const y0 = haut ? -6 - dy * 0.4 : CFG.VIEW_H - hh + 6 - dy * 0.4;
       ctx.fillStyle = alpha(SURFACE.void, 0.40);
       ctx.fillRect(x, y0, w, hh);
