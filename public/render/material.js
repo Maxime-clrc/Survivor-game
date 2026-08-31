@@ -92,7 +92,13 @@ function cuireMacro(biomeIndex, diffIndex, seed, dpr) {
   const rand = mulberry32((seed >>> 0) * 7919 + biomeIndex * 131 + 3);
   const usure = USURE[diffIndex] ?? USURE[1];
   const cle = (BIOMES[biomeIndex] ?? BIOMES[0]).key;
-  return (MACRO_TUILE[cle] ?? macroUsine)(cv, g, rand, usure);
+  /* LA TOILE APPARTIENT A CETTE FONCTION, DONC C EST ELLE QUI LA REND. Elle
+     rendait ce que la RECETTE DE LIEU rendait, et `macroSecteur` ne rendait
+     rien : `createPattern(undefined)` LEVE, a chaque image, sur le cinquieme
+     lieu et lui seul. Une recette PEINT, elle ne decide pas de ce qui sort
+     d ici — c est ce qui rend l oubli impossible au lieu de le rattraper. */
+  (MACRO_TUILE[cle] ?? macroUsine)(g, rand, usure);
+  return cv;
 }
 
 /* L USINE : de la suie, du blanc de halogene et de la rouille. Ce dessin ETAIT
@@ -101,7 +107,7 @@ function cuireMacro(biomeIndex, diffIndex, seed, dpr) {
    de la rouille d atelier sur de l asphalte mouille. Il a maintenant son nom et
    sa ligne dans la table : un lieu qui herite de l Usine le fait desormais
    parce que quelqu un l a ECRIT. */
-function macroUsine(cv, g, rand, usure) {
+function macroUsine(g, rand, usure) {
   for (let i = 0; i < 5; i++) {
     const r = 260 + rand() * 300;
     nappe(g, rand() * MACRO, rand() * MACRO, r, "#ffffff", 0.016 + rand() * 0.014);
@@ -115,7 +121,6 @@ function macroUsine(cv, g, rand, usure) {
     const r = 150 + rand() * 220;
     nappe(g, rand() * MACRO, rand() * MACRO, r, PROP.rouille, 0.020 + 0.028 * usure);
   }
-  return cv;
 }
 
 /* UNE FONDERIE N EST PAS CHAUDE PARTOUT, ET C EST CA QU ON RESSENT. Douze
@@ -127,7 +132,7 @@ function macroUsine(cv, g, rand, usure) {
    ailleurs. Aucune nappe claire : le seul clair de ce lieu doit venir de ce qui
    brule vraiment, et ce qui brule est deja pose — gueules, joints, coulee. Une
    tache blanche ici les concurrencerait a plus grande echelle qu elles. */
-function macroFonderie(cv, g, rand, usure) {
+function macroFonderie(g, rand, usure) {
   for (let i = 0; i < 6; i++) {
     const r = 240 + rand() * 380;
     nappe(g, rand() * MACRO, rand() * MACRO, r, "#000000", 0.07 + rand() * 0.08);
@@ -137,7 +142,6 @@ function macroFonderie(cv, g, rand, usure) {
     nappe(g, rand() * MACRO, rand() * MACRO, r, PROP.fonte, 0.022 + 0.014 * usure);
     nappe(g, rand() * MACRO, rand() * MACRO, r * 0.55, PROP.brique, 0.026 + 0.018 * usure);
   }
-  return cv;
 }
 
 /* LA COUCHE LARGE ETAIT LA MEME DANS LES QUATRE LIEUX, et c est la plus grande
@@ -153,7 +157,7 @@ function macroFonderie(cv, g, rand, usure) {
 
    Les deux se lisent a 1 200 px, donc au-dela de ce que l oeil echantillonne en
    une seconde : c est ce qui fait qu on sent le lieu avant de le detailler. */
-function macroFriche(cv, g, rand, usure) {
+function macroFriche(g, rand, usure) {
   const pente = rand() * Math.PI;
 
   for (let i = 0; i < 5; i++) {
@@ -176,7 +180,6 @@ function macroFriche(cv, g, rand, usure) {
     nappeOvale(g, rand() * MACRO, rand() * MACRO, rx, ry, rand() * Math.PI,
                PROP.vert, 0.030 + 0.024 * usure);
   }
-  return cv;
 }
 
 /* UN PONT EST SOUS QUELQUE CHOSE, ET C EST CE QUI MANQUAIT. Les douze nappes
@@ -189,7 +192,7 @@ function macroFriche(cv, g, rand, usure) {
    Aucune nappe claire non plus, et pour la meme raison qu a la Fonderie : le
    clair de ce lieu appartient aux BAIES. Une tache pale sur le plancher ferait
    croire a une seconde ouverture. */
-function macroNebuleuse(cv, g, rand, usure) {
+function macroNebuleuse(g, rand, usure) {
   const ang = rand() * Math.PI;
   for (let i = 0; i < 2; i++) {
     const d = (i - 0.5) * MACRO * 0.42;
@@ -206,7 +209,6 @@ function macroNebuleuse(cv, g, rand, usure) {
     const r = 180 + rand() * 220;
     nappe(g, rand() * MACRO, rand() * MACRO, r, PROP.givre, 0.016 + 0.010 * usure);
   }
-  return cv;
 }
 
 function nappeOvale(g, x, y, rx, ry, ang, couleur, a) {
@@ -1104,7 +1106,7 @@ function secteur(g, rand, usure) {
    le cyan de ce qui reste allume tout seul. La troisieme couche est le NOIR
    entre elles, et il est plus fort que partout ailleurs — sans lui les halos ne
    sont pas des halos, juste un fond clair. */
-function macroSecteur(cv, g, rand, usure) {
+function macroSecteur(g, rand, usure) {
   for (let i = 0; i < 6; i++) {
     const r = 300 + rand() * 380;
     nappe(g, rand() * MACRO, rand() * MACRO, r, "#000000", 0.07 + rand() * 0.08);

@@ -897,6 +897,24 @@ particules : **300 en 2D, 3 000 en WebGL**.
 
 ### Quand le rendu casse
 
+- **CE QUI CUIT UNE TOILE LA REND ; UNE RECETTE DE LIEU PEINT, ELLE NE REND
+  RIEN.** `cuireMacro` rendait ce que la recette rendait : quatre recettes sur
+  cinq finissaient par `return cv`, `macroSecteur` non, et
+  `createPattern(undefined)` **lève** — sur le cinquième lieu et lui seul, à
+  chaque image, à tous les paliers au-dessus de `low`. La carte était injouable
+  *et* invisible : `resetHud()` vide le memo mais pas le DOM, et le nom du lieu
+  n'est écrit que par `updateSegment`, qui ne tourne plus dès que l'image lève —
+  le HUD pouvait donc afficher le lieu de la manche **précédente**.
+  `verifierMatiere()` était vert : il croise les **tables** et voyait bien une
+  entrée `secteur`. Ce qui manquait n'était pas l'entrée, c'était ce qu'elle rend.
+  La borne juste n'est donc pas un vérificateur de plus, c'est **une seule main
+  qui décide** — `cuire` avait déjà cette forme.
+- **UN HARNAIS DE RENDU QUI NE REFUSE PAS CE QUE LE NAVIGATEUR REFUSE NE VÉRIFIE
+  RIEN.** Le balayage headless (5 lieux × 3 modes × 12 graines × 5 vues × 4
+  paliers, sur un DOM de papier) passait sur ce défaut parce que son
+  `createPattern` acceptait n'importe quoi. Il lève désormais sur un non-canvas,
+  et le même balayage désigne le lieu fautif.
+
 - **UN CACHE DONT LA CLEF PORTE LA GRAINE EST UNE FUITE**, parce que la graine
   se retire à **chaque** sortie de manche (`room.drawBiome()`). Le cache de
   tuiles de `material.js` n'avait aucune éviction : deux toiles cuites par

@@ -7158,6 +7158,47 @@
                   captures peuvent tenir a une autre allocation qui echoue sous la
                   meme pression. La prochaine occurrence le dira, et elle parlera.
 
+    0.31.6 lot 7  LA CINQUIEME CARTE ETAIT INJOUABLE ET INVISIBLE, ET C EST UN
+                  `return` MANQUANT. `cuireMacro` rendait ce que la RECETTE DE
+                  LIEU rendait ; quatre recettes sur cinq finissaient par
+                  `return cv`, `macroSecteur` non. Sur le Secteur et lui seul,
+                  `createPattern(undefined)` LEVE — a chaque image, a tous les
+                  paliers au-dessus de `low`, dans les trois modes, quelle que
+                  soit la graine.
+                  C EST LE BANDEAU DU LOT 2 QUI L A DIT, mot pour mot :
+                  « Failed to execute 'createPattern' … The provided value is not
+                  of type … at motif (material.js:42:11) », puis « arrete apres 3
+                  images en echec ». Le lot 01 du plan 28 ne pretendait pas
+                  corriger le defaut, il pretendait le rendre capturable ; c est
+                  ce qu il a fait, et la premiere occurrence a suffi.
+                  ET LE JOUEUR NE POUVAIT PAS LE NOMMER. `resetHud()` vide le
+                  memo, pas le DOM, et le nom du lieu n est ecrit que par
+                  `updateSegment` — qui ne tourne plus des que l image leve. Le
+                  bandeau du HUD pouvait donc porter le lieu de la manche
+                  PRECEDENTE, ce qui explique « je n arrive jamais a tomber sur la
+                  nouvelle map » : on y tombait, elle mourait avant de s afficher.
+                  LA CORRECTION N EST PAS LE `return` MANQUANT. La toile appartient
+                  a `cuireMacro`, donc c est elle qui la rend ; les cinq recettes
+                  ne rendent plus rien. Une recette PEINT, elle ne decide pas de ce
+                  qui sort. `cuire` avait deja cette forme — c est `cuireMacro` qui
+                  etait l exception.
+                  ET `cv` DISPARAIT DE LEUR SIGNATURE : aucune des cinq ne le
+                  lisait, et un parametre dont la seule lecture est morte se
+                  supprime. La forme dit maintenant le contrat.
+                  POURQUOI LES NEUF VERIFICATEURS ETAIENT VERTS : `verifierMatiere`
+                  croise les TABLES et voit bien une entree `secteur` ; ce qui
+                  manquait n etait pas l entree, c etait ce qu elle rend. Et le
+                  balayage de rendu du lot 6 passait aussi — parce que le canvas de
+                  papier acceptait n importe quoi. UN HARNAIS QUI NE REFUSE PAS CE
+                  QUE LE NAVIGATEUR REFUSE NE VERIFIE RIEN : `createPattern` du
+                  harnais leve maintenant sur un non-canvas, et les 50 400 appels
+                  de passe designent le Secteur avant correction, et se taisent
+                  apres.
+                  CE QUE 0.31.5 DISAIT DE TROP : la fuite du cache de tuiles est
+                  reelle et mesuree — 9,8 Mo par manche a dpr 1, aucune eviction —
+                  et son correctif tient. Mais elle n etait PAS la cause des ecrans
+                  rapportes. Celle-ci l est.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7166,4 +7207,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.5";
+export const VERSION = "0.31.6";
