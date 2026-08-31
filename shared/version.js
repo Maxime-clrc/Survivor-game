@@ -7083,6 +7083,40 @@
                   lecture, et bumper `PROG_CFG.VERSION` remettrait a neuf tout
                   profil sans entree de migration.
 
+    0.31.4 lot 5  LA TRACE SE DESSINAIT LA OU ELLE SE SONDE, ET LES DEUX PLUS
+                  GRANDES N AVAIENT AUCUNE FORME. Deux defauts independants, la
+                  meme couche, et ensemble ils annulaient la composition par
+                  quartiers livree au plan 26.
+                  LE CENTRE EST LE BON POINT POUR LIRE UN QUARTIER — stable,
+                  independant des props — ET LE PIRE POUR POSER UNE MARQUE. La
+                  sonde reste au centre, le point de dessin est maintenant tire de
+                  la meme cellule. Mesure sur une vue de 1600x900 : au centre, 22
+                  traces sur UNE colonne et UNE ligne distinctes, c est-a-dire un
+                  reseau de 200 px ; avec le decalage, 18 et 18. C etait le reseau
+                  qu on voyait, pas les taches.
+                  UNE MARQUE A UN BORD ET UNE DIRECTION, une ellipse lisse n a ni
+                  l un ni l autre. La SOUILLURE revendiquait « un bord net et une
+                  aureole » dans son propre commentaire et posait un ovale sous un
+                  halo radial : son contour est desormais tire de la cellule —
+                  sept rayons refermes en courbes par leurs milieux, une tache et
+                  non un polygone — et une COULEE part du bord, seul trait
+                  directionnel de la marque. La POUSSIERE avait deja son arete
+                  balayee, mais son degrade RADIAL debordait du trapeze de tous
+                  les cotes et rendait justement cette arete invisible ; il devient
+                  LINEAIRE et PERPENDICULAIRE a elle, dense contre le bord net,
+                  eteint du cote qui fuit.
+                  AUCUNE DES DEUX NE CHANGE DE TAILLE : c est la forme qui
+                  manquait, pas l echelle. Un ovale plus petit reste un ovale.
+                  LE CONTRAT DU SEMIS TIENT : fonction pure de (cellule, graine),
+                  rien ne s alloue, deux clients voient le meme sol. Verifie en
+                  extrayant les deux fonctions du fichier REEL — une copie dans un
+                  test aurait diverge de ce qu on mesure : 75 000 coordonnees
+                  emises sur mille cellules, ZERO NaN, et deux appels identiques
+                  rendent la meme suite de points.
+                  LES TABLES NE BOUGENT PAS — `MATIERE`, `ZONES`, `QUARTIER` sont
+                  intactes, donc `verifierTraces()` et `verifierZones()` disent la
+                  meme chose qu avant.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7091,4 +7125,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.3";
+export const VERSION = "0.31.4";

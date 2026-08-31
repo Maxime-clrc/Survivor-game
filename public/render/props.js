@@ -327,13 +327,22 @@ function refresh() {
          elle est plus grande que ce qui traine dessus, et une cellule vide de
          props a autant de raisons d etre marquee qu une cellule pleine. Deux
          cellules sur trois seulement, sinon le sol devient un tapis et plus rien
-         ne ressort. */
+         ne ressort.
+         MAIS ELLE NE SE DESSINE PAS OU ELLE SE SONDE. Le centre est le bon point
+         pour LIRE le quartier — il est stable, il ne depend d aucun prop — et le
+         pire pour POSER la marque : deux cellules sur trois marquees au centre
+         d une maille de 200 px font vingt-quatre taches par ecran sur un reseau
+         carre, et c est le reseau qu on voit, pas les taches. */
       if (matieres && h2(cx, cy, s + 199) < TRACE_TAUX) {
         const mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL;
         const mq = sonder(mx, my, quartiers);
         if (mq >= 0) {
           const t = matieres[mq % matieres.length];
-          if (t) traces.push({ t, cx, cy, x: mx, y: my, s });
+          if (t) {
+            traces.push({ t, cx, cy,
+              x: (cx + 0.15 + h2(cx, cy, s + 201) * 0.70) * CELL,
+              y: (cy + 0.15 + h2(cx, cy, s + 202) * 0.70) * CELL, s });
+          }
         }
       }
 
@@ -1713,44 +1722,94 @@ function roulage(cx, cy, x, y, s) {
   ctx.stroke();
 }
 
-// LA SOUILLURE : ce qui a coule et qu on n a pas essuye. Une tache franche au
-// centre et un halo autour — une flaque d huile a un bord net et une aureole.
+/* LA SOUILLURE : ce qui a coule et qu on n a pas essuye.
+
+   ELLE ETAIT UNE ELLIPSE, DONC ELLE N ETAIT RIEN. Le commentaire revendiquait
+   « un bord net et une aureole » ; le code posait un ovale parfaitement lisse
+   sous un halo radial, et un ovale lisse au sol ne se lit ni comme une flaque ni
+   comme une marque — juste comme un rond. Une marque a besoin de DEUX choses
+   qu une ellipse n a pas : un bord irregulier et une DIRECTION.
+
+   Le contour est donc tire de la cellule, sept rayons, refermes en courbes par
+   leurs milieux — une tache organique, pas un polygone. Et une COULEE part du
+   bord dans un sens tire lui aussi de la cellule : c est elle qui dit que
+   quelque chose a coule LA, et vers ou. */
+const SOUILLURE_N = 7;
 function souillure(cx, cy, x, y, s) {
   const r = 16 + h2(cx, cy, s + 221) * 20;
+  const ap = r * (0.55 + h2(cx, cy, s + 222) * 0.4);
+  const a = h2(cx, cy, s + 223) * Math.PI * 2;
+
   const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.9);
   g.addColorStop(0, alpha("#000000", 0.20));
   g.addColorStop(0.45, alpha("#000000", 0.10));
   g.addColorStop(1, alpha("#000000", 0));
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, Math.PI * 2); ctx.fill();
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
   ctx.fillStyle = alpha("#000000", 0.16);
+
+  const px = [], py = [];
+  for (let i = 0; i < SOUILLURE_N; i++) {
+    const th = (i / SOUILLURE_N) * Math.PI * 2;
+    const k = 0.62 + h2(cx * 31 + i, cy, s + 224) * 0.56;
+    px.push(Math.cos(th) * r * k);
+    py.push(Math.sin(th) * ap * k);
+  }
   ctx.beginPath();
-  ctx.ellipse(x, y, r, r * (0.55 + h2(cx, cy, s + 222) * 0.4),
-              h2(cx, cy, s + 223) * Math.PI, 0, Math.PI * 2);
+  ctx.moveTo((px[SOUILLURE_N - 1] + px[0]) / 2, (py[SOUILLURE_N - 1] + py[0]) / 2);
+  for (let i = 0; i < SOUILLURE_N; i++) {
+    const j = (i + 1) % SOUILLURE_N;
+    ctx.quadraticCurveTo(px[i], py[i], (px[i] + px[j]) / 2, (py[i] + py[j]) / 2);
+  }
+  ctx.closePath();
   ctx.fill();
+
+  // LA COULEE : une langue qui s affine. C est le seul trait DIRECTIONNEL de la
+  // marque, donc le seul qui la distingue d une tache posee.
+  const L = r * (1.3 + h2(cx, cy, s + 225) * 1.5);
+  ctx.beginPath();
+  ctx.moveTo(r * 0.2, -ap * 0.42);
+  ctx.quadraticCurveTo(r * 0.9, -ap * 0.22, L, 0);
+  ctx.quadraticCurveTo(r * 0.9, ap * 0.26, r * 0.2, ap * 0.42);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 /* LA POUSSIERE : un film CLAIR, et il a un bord BALAYE. C est le seul de ces
    gestes qui ajoute de la clarte au lieu d en retirer, et c est ce qui le rend
-   lisible sur un sol sombre. Le bord droit dit qu on est passe la avec un balai
-   il y a longtemps — sans lui, c est une tache de lumiere. */
+   lisible sur un sol sombre.
+
+   LE DEGRADE ETAIT RADIAL DANS UN TRAPEZE, donc il debordait de son arete par
+   tous les cotes et rendait le trapeze invisible : il ne restait qu une aureole
+   claire, exactement ce que le commentaire disait vouloir eviter. Il est
+   maintenant LINEAIRE et PERPENDICULAIRE a l arete balayee — dense contre elle,
+   eteint de l autre cote —, et le bord oppose est irregulier. Un coup de balai a
+   un cote net et un cote qui fuit. */
 function poussiere(cx, cy, x, y, s) {
-  const rx = 40 + h2(cx, cy, s + 231) * 44, ry = rx * (0.5 + h2(cx, cy, s + 232) * 0.45);
+  const L = 40 + h2(cx, cy, s + 231) * 44;
+  const W = L * (0.34 + h2(cx, cy, s + 232) * 0.30);
   const a = h2(cx, cy, s + 233) * Math.PI;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(a);
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
-  g.addColorStop(0, alpha("#c8cede", 0.055));
+  const g = ctx.createLinearGradient(0, -W / 2, 0, W / 2);
+  g.addColorStop(0, alpha("#c8cede", 0.085));
+  g.addColorStop(0.55, alpha("#c8cede", 0.030));
   g.addColorStop(1, alpha("#c8cede", 0));
-  ctx.beginPath();
-  ctx.moveTo(-rx, -ry);
-  ctx.lineTo(rx * 0.62, -ry);
-  ctx.lineTo(rx, ry);
-  ctx.lineTo(-rx, ry);
-  ctx.closePath();
-  ctx.scale(1, ry / rx);
   ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(-L / 2, -W / 2);
+  ctx.lineTo(L / 2, -W / 2);
+  for (let i = 4; i >= 0; i--) {
+    ctx.lineTo(-L / 2 + (i / 4) * L,
+               W / 2 * (0.55 + h2(cx * 17 + i, cy, s + 234) * 0.60));
+  }
+  ctx.closePath();
   ctx.fill();
   ctx.restore();
 }

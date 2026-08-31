@@ -229,8 +229,25 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   elle est plus grande que ce qui traîne dessus. Deux cellules sur trois : au-delà
   le sol devient un tapis. Elle passe **sous la grille de 20 m** (c'est de la
   matière, pas une graduation) et sous les props.
+  **Mais elle ne se DESSINE pas où elle se SONDE**, et confondre les deux coûtait
+  tout le travail au-dessus : le centre est le bon point pour *lire* le quartier —
+  stable, indépendant des props — et le pire pour *poser* la marque. Mesuré : deux
+  cellules sur trois marquées au centre d'une maille de 200 px donnent 22 traces
+  par écran sur **1 colonne et 1 ligne** distinctes, c'est-à-dire un réseau ; avec
+  un décalage tiré de la même cellule, 18 et 18. C'est le réseau qu'on voyait, pas
+  les taches.
   `verifierTraces()` refuse un lieu qui pose moins de **deux** matières
   différentes — sans quoi il n'y a pas de grammaire, juste une texture.
+- **UNE MARQUE A UN BORD ET UNE DIRECTION ; une ellipse lisse n'a ni l'un ni
+  l'autre et ne se lit que comme un rond.** Deux des six primitives étaient dans
+  ce cas, et c'étaient les deux plus grandes. La *souillure* revendiquait « un bord
+  net et une auréole » et posait un ovale sous un halo radial : son contour est
+  maintenant tiré de la cellule (sept rayons refermés en courbes par leurs
+  milieux, une tache et non un polygone) et une **coulée** part du bord — le seul
+  trait directionnel de la marque. La *poussière* avait déjà son arête balayée,
+  mais son dégradé **radial** débordait du trapèze de tous les côtés et rendait
+  justement cette arête invisible ; il est devenu **linéaire et perpendiculaire**
+  à elle, dense contre le bord net, éteint du côté qui fuit.
 - **L'ARCHITECTURE décide, le hachage comble, la fuite brouille.** Trois sources
   dans cet ordre pour le quartier d'un prop : ce qui est **bâti** à moins de
   `PORTEE_QUARTIER` impose le sien (`QUARTIER[biome]`, une famille de bloc → un
