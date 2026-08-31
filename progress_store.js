@@ -4,7 +4,7 @@ import { request as httpRequest } from "node:http";
 import { scryptSync, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 
 import { PROG_CFG, newProfile, statsVierges } from "./shared/progression.js";
-import { CADRE_DEFAUT } from "./shared/hauts_faits.js";
+import { CADRE_DEFAUT, HAUTS_FAITS } from "./shared/hauts_faits.js";
 import { BOSS_ROSTER } from "./shared/bosses.js";
 
 const REMOTE_TIMEOUT_MS = 3000;
@@ -14,6 +14,30 @@ const SAVE_BATCH_MS = 2000;
 const LOAD_PAGE = 1000;
 
 const TOKEN_TTL_MS = 30 * 24 * 3600 * 1000;
+
+/* LE BAC A SABLE. Meme statut que `BANC`, `BIOME` et `GRAINE` : une surcharge
+   d'environnement, POUR LES TESTS UNIQUEMENT — un profil neuf nait avec de quoi
+   acheter et avec toutes les clefs.
+
+   IL N'EST PAS DEDUIT DE L'ABSENCE DE SUPABASE : un hote de production mal
+   configure est dans le meme etat, et il ouvrirait la meta a de vrais joueurs
+   sans que rien ne le dise.
+
+   `1e6` et non `Infinity`, qui se serialise en `null` : plus rien ne serait
+   payable, l'inverse exact du but. Et on pose `hf` SEUL — `lignesVerrouillees()`
+   et `cadresDe()` relisent les recompenses de la, donc ecrire aussi `cadres`
+   serait une seconde source pour la meme information. */
+const BAC = process.env.BAC === "1";
+const BAC_NOYAUX = 1e6;
+
+function profilNeuf(pseudo) {
+  const p = newProfile(pseudo);
+  if (BAC) {
+    p.cores = BAC_NOYAUX;
+    p.hf = HAUTS_FAITS.map(h => h.id);
+  }
+  return p;
+}
 
 export const PASS_MIN = 8;
 export const PASS_MAX = 72;
@@ -305,7 +329,7 @@ export function createStore(log = console.log) {
       passHash: row.pass_hash,
       jetonHash: row.jeton_hash ?? null,
       jetonExp: row.jeton_exp ? Date.parse(row.jeton_exp) || 0 : 0,
-      profile: reset ? newProfile(affichage) : row.data,
+      profile: reset ? profilNeuf(affichage) : row.data,
       creeLe: row.cree_le ?? new Date().toISOString(),
       vuLe: row.vu_le ?? new Date().toISOString(),
     });
@@ -366,6 +390,10 @@ export function createStore(log = console.log) {
       + "les comptes ne survivront PAS à un redémarrage");
     ready = Promise.resolve();
   }
+  if (BAC) {
+    log("BAC=1 — bac a sable : tout profil neuf nait avec les noyaux et les hauts "
+      + "faits, POUR LES TESTS");
+  }
 
 
   function issueToken(acc) {
@@ -387,7 +415,7 @@ export function createStore(log = console.log) {
       passHash: hashPass(pass, salt),
       jetonHash: null,
       jetonExp: 0,
-      profile: newProfile(pseudo),
+      profile: profilNeuf(pseudo),
       creeLe: now,
       vuLe: now,
     };

@@ -6961,6 +6961,39 @@
                    RIEN DE TOUT CECI N EST VERIFIE A L OEIL : le rendu ne s importe
                    pas hors navigateur, seul `node --check` a tourne.
 
+    0.31.0 lot 1  LE BAC A SABLE, ET IL OUVRE LE PLAN 28. Tester un arbre, un
+                  noyau commun, un cadre ou une ligne verrouillee demandait de
+                  jouer les manches qui les debloquent — et l environnement
+                  local ne persistant rien (voulu), ces manches etaient a
+                  rejouer a chaque redemarrage. `BAC=1` fait naitre tout profil
+                  neuf avec `cores` a 1e6 et `hf` complet.
+                  DEUX LIGNES, ET C EST LE POINT DE PASSAGE QUI LES REND
+                  SUFFISANTES. Les noyaux ne se depensent qu a trois endroits
+                  (`hub.js` 368/391/444), tous en `if (pr.cores < cost) break`,
+                  donc une reserve posee en amont les couvre sans qu aucun
+                  chemin de production ne change. Et les recompenses des hauts
+                  faits NE SE STOCKENT PAS : `lignesVerrouillees()` et
+                  `cadresDe()` les relisent de `hf` par `recompensesDe()`.
+                  Poser `hf` ouvre donc d un coup les lignes d arbre, les
+                  cadres, les cartes et les reliques — ecrire aussi `cadres`
+                  serait une seconde source pour la meme information.
+                  `1e6` ET NON `Infinity` : `Infinity` se serialise en `null`,
+                  donc plus rien ne serait payable. L inverse exact du but, et
+                  le genre de defaut que ce depot paie en silence.
+                  JAMAIS DEDUIT DE L ABSENCE DE SUPABASE, et c est la seule
+                  decision du lot. C est pourtant la definition pratique de
+                  « local » — mais un hote de production dont la configuration
+                  Supabase est mal renseignee est dans le MEME etat, et il
+                  ouvrirait la meta a de vrais joueurs sans que rien ne le dise.
+                  Un drapeau explicite ne peut pas arriver par accident.
+                  IL NE REMPLIT PAS LE CODEX : c est precisement ce que le lot
+                  03 du plan 28 doit pouvoir verifier.
+                  Verifie sur socket reelle : `BAC=1` donne 1 000 000 noyaux,
+                  36/36 hauts faits, 13/13 cadres, zero ligne verrouillee ; une
+                  manche complete jusqu a la mort ne declenche AUCUNE annonce de
+                  haut fait (`gagnes` vide) ; sans la variable, un compte neuf
+                  nait a 0 noyau et 0 haut fait.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6969,4 +7002,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.30.8";
+export const VERSION = "0.31.0";

@@ -128,6 +128,13 @@ compte.
   jamais l'inverse. État chaud en mémoire (Map `accounts`). Configuration :
   `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` et rien d'autre. Appels REST en
   `node:https` natif.
+- **`BAC=1` ouvre la méta d'un profil NEUF, et rien d'autre** : `cores` à `1e6` et
+  `hf` complet, posés dans `progress_store.js` au seul endroit où un profil naît
+  (`profilNeuf`). Les récompenses ne sont pas écrites — `lignesVerrouillees()` et
+  `cadresDe()` les relisent de `hf`. Le drapeau n'est **jamais déduit** de
+  l'absence de Supabase : un hôte de production mal configuré est dans le même
+  état. Il ne remplit pas le codex, `1e6` et non `Infinity` (qui se sérialise en
+  `null`).
 - **Les écritures de PROGRESSION n'ont lieu qu'au salon, en fin de manche et au
   départ d'un joueur** — jamais pendant une vague. Les écritures
   d'**AUTHENTIFICATION** partent quand elles arrivent (un upsert par ligne est

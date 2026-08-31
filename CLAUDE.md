@@ -64,8 +64,10 @@ node --check server.js    # pas de linter dans le projet
 npm run version-check     # refuse un deploiement sans bump
 ```
 
-`ROOM_GRACE_MS`, `ROOM_MAX`, `BIOME`, `GRAINE` et `BANC` sont surchargeables par
-l'environnement, **pour les tests uniquement**.
+`ROOM_GRACE_MS`, `ROOM_MAX`, `BIOME`, `GRAINE`, `BANC` et `BAC` sont
+surchargeables par l'environnement, **pour les tests uniquement**. `BAC=1` fait
+naitre tout profil neuf avec les noyaux et tous les hauts faits — donc toute la
+meta ouverte, le codex excepte.
 
 ```bash
 BANC=1 BIOME=fonderie GRAINE=7 npm start   # puis http://localhost:7777/?banc&perf
