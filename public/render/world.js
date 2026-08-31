@@ -18,7 +18,7 @@ import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, 
 import { drawArenaBounds, drawAtmosphere, drawBaies, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawPremierPlan, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
-import { drawProps } from "./props.js";
+import { drawProps, drawTraces } from "./props.js";
 import { PARTICLE_MAX, blastMarks, bossMortQueue, bouches, bursts, dashMarks, deaths, dmgAgg, finArcs, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp, zoneFx } from "./fx.js";
 import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
 import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";

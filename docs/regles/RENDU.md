@@ -201,6 +201,25 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   1600 × 900** : leurs fractions sont par *cellule*, jamais par arène. Toute
   position posée en coordonnées d'arène est fausse, et c'est `verifierBiomes` qui
   le dit — en refusant les dangers tombés sur un obstacle.
+- **La matière d'un sol n'est pas son matériau, c'est ce qui lui est ARRIVÉ.**
+  La tuile de `material.js` est cuite une fois par lieu : devant une presse et au
+  fond d'un rack, c'est le même béton. `MATIERE[lieu]` donne une **trace** par
+  quartier — six primitives partagées (rouler, souiller, empoussiérer, cendrer,
+  rayer, ruisseler), pas soixante marques : c'est une grammaire, pas un
+  catalogue.
+  Elles suivent le **quartier**, donc l'architecture : une trace de roulage n'a
+  de sens que dans une circulation. Posées au hasard, ce serait du bruit avec des
+  noms.
+  `null` est permis et c'est un choix — un quartier sans trace est du sol **nu**,
+  et le contraste en a besoin. Et **la Nébuleuse n'a ni poussière ni roulage** :
+  sans gravité rien ne se dépose et rien ne roule, ce qui marque une coque est ce
+  qui l'a heurtée.
+  La trace se sonde au **centre de la cellule**, pas à la position d'un prop —
+  elle est plus grande que ce qui traîne dessus. Deux cellules sur trois : au-delà
+  le sol devient un tapis. Elle passe **sous la grille de 20 m** (c'est de la
+  matière, pas une graduation) et sous les props.
+  `verifierTraces()` refuse un lieu qui pose moins de **deux** matières
+  différentes — sans quoi il n'y a pas de grammaire, juste une texture.
 - **L'ARCHITECTURE décide, le hachage comble, la fuite brouille.** Trois sources
   dans cet ordre pour le quartier d'un prop : ce qui est **bâti** à moins de
   `PORTEE_QUARTIER` impose le sien (`QUARTIER[biome]`, une famille de bloc → un

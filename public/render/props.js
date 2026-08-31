@@ -122,6 +122,9 @@ const TABLE = {
    lieu : les quartiers gardent leur dominante, leur bord se brouille. */
 const ZONE_CELL = 3;
 const FUITE = 0.18;
+// deux cellules sur trois : au-dela le sol devient un tapis et plus aucune
+// trace ne se lit comme un evenement.
+const TRACE_TAUX = 0.66;
 
 const ZONES = {
   // elle FABRIQUE : la chaine, ce qu on empile autour, ce par quoi on circule,
@@ -261,6 +264,9 @@ function h2(x, y, s) {
 }
 
 const props = [];
+// UNE trace par CELLULE, la ou l architecture en designe une — pas une par
+// prop : ce qui a marque le sol est plus grand que ce qui traine dessus.
+const traces = [];
 let cle = "";
 
 /* LE SEMIS LIT LA GEOMETRIE DE LA MANCHE, PAS LA LISTE ACTIVE. Un prop est place
@@ -303,17 +309,34 @@ function refresh() {
   if (k === cle) return;
   cle = k;
   props.length = 0;
+  traces.length = 0;
   if (dens <= 0) return;
 
   const lieu = biomeAt(biomeIndex).key;
   const table = TABLE[lieu] ?? TABLE.usine;
   const zones = ZONES[lieu] ?? ZONES.usine;
   const quartiers = QUARTIER[lieu] ?? {};
+  const matieres = MATIERE[lieu] ?? null;
   const s = biomeSeed >>> 0;
 
   for (let cy = c0y; cy <= c1y; cy++) {
     for (let cx = c0x; cx <= c1x; cx++) {
       if (cx < 0 || cy < 0 || cx * CELL > CFG.ARENA_W || cy * CELL > CFG.ARENA_H) continue;
+
+      /* LA TRACE SE SONDE AU CENTRE DE LA CELLULE, pas a la position d un prop :
+         elle est plus grande que ce qui traine dessus, et une cellule vide de
+         props a autant de raisons d etre marquee qu une cellule pleine. Deux
+         cellules sur trois seulement, sinon le sol devient un tapis et plus rien
+         ne ressort. */
+      if (matieres && h2(cx, cy, s + 199) < TRACE_TAUX) {
+        const mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL;
+        const mq = sonder(mx, my, quartiers);
+        if (mq >= 0) {
+          const t = matieres[mq % matieres.length];
+          if (t) traces.push({ t, cx, cy, x: mx, y: my, s });
+        }
+      }
+
       const n = h2(cx, cy, s) < dens ? (h2(cx, cy, s + 31) < 0.28 ? 2 : 1) : 0;
       for (let i = 0; i < n; i++) {
         const g = s + 101 * (i + 1);
@@ -1599,4 +1622,209 @@ function gaine(p, ox, oy) {
     ctx.quadraticCurveTo(0, 8 + i * 1.4, L, i * 1.6 - 1.6);
     ctx.stroke();
   }
+}
+
+/* --- LA MATIERE DU SOL, PAR QUARTIER -------------------------------------
+
+   UN LIEU N AVAIT QU UNE SEULE MATIERE. La tuile de `material.js` est cuite une
+   fois par (lieu, mode, graine) : elle donne au sol son grain et sa couleur, et
+   c est tout ce qu il dit. Deux endroits d une meme Usine — devant une presse et
+   au fond d un rack — portent donc exactement le meme beton, alors que ce qui
+   distingue l un de l autre dans une vraie installation n est pas le materiau
+   mais ce qui lui est ARRIVE.
+
+   SIX PRIMITIVES PARTAGEES, PAS SOIXANTE MARQUES. Le brief demande une grammaire
+   de materiaux, pas un catalogue : les memes six gestes — rouler, souiller,
+   empoussierer, cendrer, rayer, ruisseler — suffisent aux cinq lieux, et c est la
+   TABLE qui dit lequel appartient a quel quartier. Ajouter un lieu = une ligne.
+
+   ELLES SUIVENT LE QUARTIER, DONC L ARCHITECTURE. C est ce qui les separe d une
+   texture de plus : une trace de roulage n a de sens que dans une circulation,
+   une souillure que la ou quelque chose fonctionne. Posees au hasard, ce serait
+   du bruit avec des noms.
+
+   MEME CONTRAT QUE LE SEMIS : fonction pure de (cellule, graine), rien ne
+   s alloue, et le tout est recalcule seulement quand la fenetre de cellules
+   change. `null` est permis — un quartier sans trace est du sol NU, et le
+   contraste en a besoin ; `verifierTraces()` exige seulement qu un lieu en pose
+   au moins deux differentes. */
+
+const TRACE_ROULAGE = 1, TRACE_SOUILLURE = 2, TRACE_POUSSIERE = 3,
+      TRACE_CENDRES = 4, TRACE_RAYURES = 5, TRACE_RUISSELLEMENT = 6;
+
+const MATIERE = {
+  // on y roule, on y renverse, et le fond des racks n est jamais balaye.
+  usine:     [TRACE_SOUILLURE, TRACE_POUSSIERE, TRACE_ROULAGE, TRACE_RAYURES],
+  // tout ce qui tombe ici BRULE quelque chose, sauf la ou l on entrepose.
+  fonderie:  [TRACE_SOUILLURE, TRACE_CENDRES, TRACE_POUSSIERE, TRACE_CENDRES],
+  // plus personne ne roule ni ne balaye : il reste ce que le temps a fait.
+  friche:    [TRACE_POUSSIERE, TRACE_CENDRES, null, TRACE_SOUILLURE],
+  // pas de gravite, donc pas de poussiere qui tombe : ce qui marque une coque
+  // est ce qui l a HEURTEE. Le givre est la seule chose qui s y depose.
+  nebuleuse: [TRACE_RAYURES, null, TRACE_RAYURES, TRACE_POUSSIERE],
+  // il pleut, donc l eau court partout ou elle peut ; le reste est ce que la
+  // livraison a laisse.
+  secteur:   [TRACE_RUISSELLEMENT, TRACE_RUISSELLEMENT, TRACE_SOUILLURE, TRACE_ROULAGE],
+};
+
+export function verifierTraces() {
+  const soucis = [];
+  const connues = new Set([TRACE_ROULAGE, TRACE_SOUILLURE, TRACE_POUSSIERE,
+                           TRACE_CENDRES, TRACE_RAYURES, TRACE_RUISSELLEMENT]);
+  const tirees = new Set();
+  for (const [lieu, zones] of Object.entries(ZONES)) {
+    const m = MATIERE[lieu];
+    if (!m) { soucis.push(`${lieu} : aucune matiere de sol`); continue; }
+    if (m.length !== zones.length) {
+      soucis.push(`${lieu} : ${m.length} matieres pour ${zones.length} quartiers`);
+    }
+    for (const t of m) {
+      if (t === null) continue;
+      if (!connues.has(t)) soucis.push(`${lieu} : trace inconnue ${t}`);
+      else tirees.add(t);
+    }
+    const vives = new Set(m.filter(t => t !== null));
+    if (vives.size < 2) soucis.push(`${lieu} : moins de deux matieres, donc pas de grammaire`);
+  }
+  for (const lieu of Object.keys(MATIERE)) {
+    if (!ZONES[lieu]) soucis.push(`${lieu} : matiere sans quartiers`);
+  }
+  for (const t of connues) {
+    if (!tirees.has(t)) soucis.push(`trace ${t} : ecrite et tiree par aucun lieu`);
+  }
+  return soucis;
+}
+
+/* LE ROULAGE : deux traces PARALLELES, et c est le parallelisme qui fait tout —
+   deux bandes seules disent « un vehicule est passe la », dix disent « le sol
+   est raye ». L ecartement ne varie pas dans une cellule : c est le meme engin. */
+function roulage(cx, cy, x, y, s) {
+  const a = h2(cx, cy, s + 211) * Math.PI;
+  const e = 26 + h2(cx, cy, s + 212) * 14;
+  const L = 70 + h2(cx, cy, s + 213) * 70;
+  const nx = -Math.sin(a), ny = Math.cos(a);
+  ctx.strokeStyle = alpha("#000000", 0.13);
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  for (const k of [-0.5, 0.5]) {
+    ctx.moveTo(x + nx * e * k - Math.cos(a) * L, y + ny * e * k - Math.sin(a) * L);
+    ctx.lineTo(x + nx * e * k + Math.cos(a) * L, y + ny * e * k + Math.sin(a) * L);
+  }
+  ctx.stroke();
+}
+
+// LA SOUILLURE : ce qui a coule et qu on n a pas essuye. Une tache franche au
+// centre et un halo autour — une flaque d huile a un bord net et une aureole.
+function souillure(cx, cy, x, y, s) {
+  const r = 16 + h2(cx, cy, s + 221) * 20;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.9);
+  g.addColorStop(0, alpha("#000000", 0.20));
+  g.addColorStop(0.45, alpha("#000000", 0.10));
+  g.addColorStop(1, alpha("#000000", 0));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha("#000000", 0.16);
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * (0.55 + h2(cx, cy, s + 222) * 0.4),
+              h2(cx, cy, s + 223) * Math.PI, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/* LA POUSSIERE : un film CLAIR, et il a un bord BALAYE. C est le seul de ces
+   gestes qui ajoute de la clarte au lieu d en retirer, et c est ce qui le rend
+   lisible sur un sol sombre. Le bord droit dit qu on est passe la avec un balai
+   il y a longtemps — sans lui, c est une tache de lumiere. */
+function poussiere(cx, cy, x, y, s) {
+  const rx = 40 + h2(cx, cy, s + 231) * 44, ry = rx * (0.5 + h2(cx, cy, s + 232) * 0.45);
+  const a = h2(cx, cy, s + 233) * Math.PI;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  g.addColorStop(0, alpha("#c8cede", 0.055));
+  g.addColorStop(1, alpha("#c8cede", 0));
+  ctx.beginPath();
+  ctx.moveTo(-rx, -ry);
+  ctx.lineTo(rx * 0.62, -ry);
+  ctx.lineTo(rx, ry);
+  ctx.lineTo(-rx, ry);
+  ctx.closePath();
+  ctx.scale(1, ry / rx);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
+}
+
+// LES CENDRES : un semis de points, pas une nappe. Ce qui a brule est retombe
+// en morceaux, et des morceaux se comptent.
+function cendres(cx, cy, x, y, s) {
+  ctx.fillStyle = alpha("#000000", 0.22);
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const a = (i * 2.399 + h2(cx, cy, s + 241) * 31) % (Math.PI * 2);
+    const d = Math.sqrt((i * 0.618 + h2(cx, cy, s + 242)) % 1) * 52;
+    const t = 2 + ((i * 5) % 3);
+    ctx.rect(x + Math.cos(a) * d, y + Math.sin(a) * d, t, t);
+  }
+  ctx.fill();
+}
+
+/* LES RAYURES : le seul geste qui n a pas besoin de gravite, donc le seul que la
+   Nebuleuse puisse porter. Elles sont FINES, DROITES et presque paralleles —
+   quelque chose a frotte le long de la coque, ca n a pas coule dessus. */
+function rayures(cx, cy, x, y, s) {
+  const a = h2(cx, cy, s + 251) * Math.PI;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  ctx.strokeStyle = alpha("#c8cede", 0.075);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const off = (i - 2) * (7 + h2(cx, cy, s + 252 + i) * 6);
+    const L = 30 + h2(cx, cy, s + 258 + i) * 46;
+    ctx.moveTo(x - sa * off - ca * L, y + ca * off - sa * L);
+    ctx.lineTo(x - sa * off + ca * L, y + ca * off + sa * L);
+  }
+  ctx.stroke();
+}
+
+/* LE RUISSELLEMENT : de l eau suit la PENTE, elle ne fait pas de tache. Des
+   filets qui vont tous dans le meme sens dans une cellule, et qui se rejoignent
+   — c est ce qui separe une chaussee mouillee d une flaque. */
+function ruissellement(cx, cy, x, y, s) {
+  const a = Math.PI * 0.5 + (h2(cx, cy, s + 261) - 0.5) * 0.7;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  ctx.strokeStyle = alpha("#8f7fc4", 0.085);
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const off = (i - 1.5) * (13 + h2(cx, cy, s + 262 + i) * 9);
+    const L = 34 + h2(cx, cy, s + 266 + i) * 40;
+    const x0 = x - sa * off, y0 = y + ca * off;
+    // ils CONVERGENT : un filet plus loin est plus pres de l axe.
+    ctx.moveTo(x0 - ca * L, y0 - sa * L);
+    ctx.quadraticCurveTo(x0, y0, x - sa * off * 0.3 + ca * L, y + ca * off * 0.3 + sa * L);
+  }
+  ctx.stroke();
+}
+
+function tracer(t, cx, cy, x, y, s) {
+  switch (t) {
+    case TRACE_ROULAGE:      return roulage(cx, cy, x, y, s);
+    case TRACE_SOUILLURE:    return souillure(cx, cy, x, y, s);
+    case TRACE_POUSSIERE:    return poussiere(cx, cy, x, y, s);
+    case TRACE_CENDRES:      return cendres(cx, cy, x, y, s);
+    case TRACE_RAYURES:      return rayures(cx, cy, x, y, s);
+    case TRACE_RUISSELLEMENT: return ruissellement(cx, cy, x, y, s);
+  }
+}
+
+/* LE SOL SE PEINT SOUS LA GRILLE DE 20 M, comme l amer : c est de la matiere,
+   pas une graduation. Et sous les props, evidemment — ce qui traine est POSE
+   SUR ce qui a marque le sol, jamais l inverse.
+   Le meme cache que le semis : rien ne se recalcule tant que la fenetre de
+   cellules ne bouge pas. */
+export function drawTraces() {
+  if (gfx <= GFX_LOW) return;
+  refresh();
+  for (const t of traces) tracer(t.t, t.cx, t.cy, t.x, t.y, t.s);
 }

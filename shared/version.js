@@ -6290,6 +6290,53 @@
                    declare sans recette, sans habillage, et deux fonds sous le meme
                    habillage.
 
+    0.29.13 lot 14 UN LIEU N AVAIT QU UNE SEULE MATIERE. La tuile de
+                   `material.js` est cuite une fois par (lieu, mode, graine) :
+                   elle donne au sol son grain et sa couleur, et c est tout ce
+                   qu il dit. Deux endroits d une meme Usine — devant une presse
+                   et au fond d un rack — portaient exactement le meme beton,
+                   alors que ce qui les distingue dans une vraie installation
+                   n est pas le MATERIAU mais ce qui lui est ARRIVE.
+                   SIX PRIMITIVES PARTAGEES, PAS SOIXANTE MARQUES. Le brief
+                   demande une grammaire de materiaux, pas un catalogue : les
+                   memes six gestes — rouler, souiller, empoussierer, cendrer,
+                   rayer, ruisseler — suffisent aux cinq lieux, et c est la TABLE
+                   `MATIERE[lieu]` qui dit lequel appartient a quel quartier.
+                   Ajouter un lieu = une ligne.
+                   ELLES SUIVENT LE QUARTIER, DONC L ARCHITECTURE — et c est le
+                   lot precedent qui rend celui-ci possible. Une trace de roulage
+                   n a de sens que dans une circulation, une souillure que la ou
+                   quelque chose fonctionne. Posees au hasard, ce serait du bruit
+                   avec des noms.
+                   `null` EST PERMIS, et c est un choix : un quartier sans trace
+                   est du sol NU, et le contraste en a besoin. La Friche n a rien
+                   sur sa cloture, la Nebuleuse rien sur sa voilure.
+                   ET LA NEBULEUSE N A NI POUSSIERE NI ROULAGE. Sans gravite rien
+                   ne se depose et rien ne roule : ce qui marque une coque est ce
+                   qui l a HEURTEE. Elle porte donc des RAYURES, le seul des six
+                   gestes qui ne demande pas de sol.
+                   MEME CONTRAT QUE LE SEMIS : fonction pure de (cellule, graine),
+                   rien ne s alloue, meme cache de fenetre de cellules. La trace
+                   se sonde au CENTRE de la cellule et non a la position d un prop
+                   — elle est plus grande que ce qui traine dessus, et une cellule
+                   vide de props a autant de raisons d etre marquee. Deux cellules
+                   sur trois seulement : au-dela le sol devient un tapis et plus
+                   rien ne ressort.
+                   SOUS LA GRILLE DE 20 M, comme l amer : c est de la matiere, pas
+                   une graduation. Et sous les props — ce qui traine est POSE SUR
+                   ce qui a marque le sol, jamais l inverse.
+                   COUT MESURE, par vue et en densite `ultra` : 13 a 36 traces
+                   pour 18 a 46 operations de dessin, contre une centaine de props
+                   deja poses. Environ un tiers de ce que coute la couche qui
+                   existait. Le Secteur en porte deux fois plus que les autres —
+                   aucun `null` dans sa ligne, et son architecture couvre plus de
+                   sol : une rue mouillee est marquee partout.
+                   `verifierTraces()` refuse un lieu sans matiere, un lieu qui en
+                   pose moins de DEUX differentes (sans quoi il n y a pas de
+                   grammaire, juste une texture), une longueur qui ne suit pas ses
+                   quartiers, et une primitive ecrite que plus aucun lieu ne tire.
+                   Verifie rouge sur trois mutations, dont une qui en a leve deux.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6298,4 +6345,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.12";
+export const VERSION = "0.29.13";
