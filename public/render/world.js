@@ -70,11 +70,31 @@ let fps = 0;
 // le temps d'image BRUT, celui qui se sent : `dt` est plafonne a 0,1 s pour la
 // simulation, donc il ment justement sur les images qui coutent.
 let rawFrame = 0;
+/* UNE IMAGE QUI ECHOUE NE DOIT PAS DETRUIRE LA PRECEDENTE. `draw()` commence par
+   repeindre le sol et effacer la couche haute ; une exception laisse donc une
+   arene VIDE au lieu d'une arene PERIMEE, et le HUD, dessine en dernier, se fige
+   sur ses valeurs — d'ou l'image trompeuse « arene vide, HUD plein ».
+
+   TROIS IMAGES ET NON UNE : un accroc isole (contexte WebGL perdu le temps d'une
+   image) ne doit pas figer une partie, une panne installee doit se voir. Le
+   compteur retombe a zero des qu'une image passe.
+
+   Le gel ne se leve pas. A ce stade le rendu est casse ; le bandeau le dit et
+   c'est un rechargement qui repart. */
+const RENDU_ECHECS_MAX = 3;
+let rendufige = false;
+let echecs = 0;
 export function boucleDeRendu(now) {
   try {
     frameBody(now);
+    echecs = 0;
   } catch (err) {
     signalerErreur("rendu", err?.message ?? String(err), err?.stack);
+    if (++echecs >= RENDU_ECHECS_MAX && !rendufige) {
+      rendufige = true;
+      signalerErreur("rendu",
+        `arrete apres ${RENDU_ECHECS_MAX} images en echec — recharge la page`, null);
+    }
   } finally {
     requestAnimationFrame(boucleDeRendu);
   }
@@ -270,6 +290,7 @@ function gameIntensity() {
   return Math.max(0.05, Math.min(1, i));
 }
 function draw(v) {
+  if (rendufige) return;
   if ((v.segment ?? 0) !== weatherSeg) {
     setWeatherSeg(v.segment ?? 0);
     setWeather(weatherFor(v.diff ?? difficulty, biomeSeed, weatherSeg));

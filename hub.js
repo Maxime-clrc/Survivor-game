@@ -1,7 +1,7 @@
 
 import { readFileSync } from "node:fs";
 
-import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES } from "./shared/game_state.js";
+import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES, biomeAt } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, COMMUN, slotsFor, tierCost, coresForRun, coresPartial, recordFinal,
   cadreActifDe, cadresDe, cumulerStats, evaluerHautsFaits, ligneOuverte, vueStats } from "./shared/progression.js";
@@ -345,7 +345,11 @@ export function createHub(store, log, commit = "") {
 
     const qui = client.name || "anonyme";
     const pile = propre(msg.pile, 400);
-    log(`[client] ${qui} — ${ou} : ${quoi}${pile ? ` — ${pile}` : ""}`);
+    /* LE LIEU ET LA GRAINE, sans quoi une exception de rendu n est pas rejouable :
+       avec eux, `BIOME=<clef> GRAINE=<n> npm start` refabrique l arene fautive. */
+    const r = client.room;
+    const lieu = r ? ` [${biomeAt(r.biomeIndex).key} graine ${r.seed}]` : "";
+    log(`[client] ${qui}${lieu} — ${ou} : ${quoi}${pile ? ` — ${pile}` : ""}`);
   }
 
   function metaAllowed(client) {

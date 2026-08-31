@@ -6994,6 +6994,39 @@
                   haut fait (`gagnes` vide) ; sans la variable, un compte neuf
                   nait a 0 noyau et 0 haut fait.
 
+    0.31.1 lot 2  UNE EXCEPTION DE RENDU NE SE VOYAIT NULLE PART. `draw()`
+                  commence par repeindre le sol et effacer la couche haute, et le
+                  HUD passe en DERNIER : un throw dans `drawWorld` laisse donc une
+                  arene VIDE avec un HUD FIGE sur ses dernieres valeurs. C est
+                  exactement l image rapportee comme « bug de map », et c est la
+                  seule construction du client qui la produise.
+                  `signalerErreur` n ecrivait qu en console et vers le serveur.
+                  Sur une partie LAN le journal utile est donc sur la machine de
+                  QUELQU UN D AUTRE, et le joueur qui voit son arene disparaitre
+                  n a aucun moyen de savoir qu une exception a eu lieu. Un bandeau
+                  s affiche desormais, EN STYLE EN LIGNE et se creant lui-meme :
+                  il doit tenir quand ce qui a casse est la feuille de style ou le
+                  DOM du jeu. C est le seul endroit du client ou `document` sert
+                  sans passer par `ui/dom.js`, et la couche 0 n importe toujours
+                  rien.
+                  TROIS IMAGES ET NON UNE. Le rendu se gele apres trois images
+                  CONSECUTIVES en echec : un accroc isole — un contexte WebGL
+                  perdu le temps d une image — ne doit pas figer une partie, une
+                  panne installee doit se voir. `draw()` sort alors immediatement,
+                  donc la DERNIERE IMAGE RESTE a l ecran au lieu d etre effacee
+                  soixante fois par seconde. Le compteur retombe a zero des qu une
+                  image passe, et le gel ne se leve pas.
+                  ET LE JOURNAL DE L HOTE PORTE LE LIEU ET LA GRAINE, sans quoi
+                  une exception de rendu n est pas rejouable :
+                  `[client] max [fonderie graine 1767893249] — rendu : ...` donne
+                  directement `BIOME=fonderie GRAINE=1767893249 npm start`.
+                  Verifie : le bandeau se cree une fois, cumule deux erreurs
+                  distinctes, dedoublonne la meme (harnais avec faux DOM) ; la
+                  ligne de journal porte le lieu et la graine EN salle et rien
+                  hors salle (client WebSocket reel). Le gel lui-meme n a pas de
+                  navigateur pour etre joue — sa preuve est la prochaine
+                  occurrence, ce qui est l objet meme du lot.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7002,4 +7035,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.0";
+export const VERSION = "0.31.1";

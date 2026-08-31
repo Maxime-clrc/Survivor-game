@@ -14,6 +14,33 @@ export let ws = null;
 const errVues = new Set();
 const errFile = [];
 const ERR_MAX = 12;
+/* UNE ERREUR DE RENDU DOIT SE VOIR LA OU ELLE SE PRODUIT. `signalerErreur`
+   n'ecrivait qu'en console et vers le serveur : sur une partie LAN, le journal
+   utile est donc sur la machine de QUELQU'UN D'AUTRE, et le joueur qui voit son
+   arene disparaitre n'a aucun moyen de savoir qu'une exception a eu lieu.
+
+   Le bandeau est en STYLE EN LIGNE et se cree lui-meme : il doit tenir quand ce
+   qui a casse est justement la feuille de style ou le DOM du jeu. Pour la meme
+   raison il n'importe rien — la couche 0 n'a pas de dependance, et ce bandeau
+   est le seul endroit du client ou `document` sert sans passer par `ui/dom.js`.
+
+   Il ne se ferme pas : c'est une capture d'ecran qui doit le porter. */
+let bandeau = null;
+function afficherErreur(ou, message, pile) {
+  try {
+    if (!bandeau) {
+      bandeau = document.createElement("div");
+      bandeau.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:99999;"
+        + "background:#3a0d14;color:#ffd7d7;border-bottom:2px solid #ff5a5a;"
+        + "font:12px/1.45 ui-monospace,Consolas,monospace;padding:6px 10px;"
+        + "white-space:pre-wrap;max-height:38vh;overflow:auto;pointer-events:none";
+      document.body.appendChild(bandeau);
+    }
+    const debut = String(pile ?? "").split("\n").slice(0, 2).join("\n").trim();
+    bandeau.textContent += `${ou} : ${message}` + (debut ? `\n${debut}` : "") + "\n";
+  } catch { /* si le DOM lui-meme est mort, la console et le serveur restent */ }
+}
+
 export function signalerErreur(ou, message, pile, grave = true) {
   const signature = ou + "|" + String(message).slice(0, 200);
   if (errVues.has(signature) || errVues.size >= ERR_MAX) return;
@@ -21,6 +48,7 @@ export function signalerErreur(ou, message, pile, grave = true) {
   const paquet = { t: "clientError", ou, message: String(message).slice(0, 200),
                    pile: String(pile ?? "").slice(0, 400) };
   (grave ? console.error : console.info)("[" + ou + "]", message, pile ?? "");
+  if (grave) afficherErreur(ou, message, pile);
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(paquet));
   else if (errFile.length < ERR_MAX) errFile.push(paquet);
 }

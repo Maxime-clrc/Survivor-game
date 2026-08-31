@@ -869,6 +869,30 @@ jeu est en **mode immédiat**, les moteurs à graphe de scène sont en mode rete
 particules : **300 en 2D, 3 000 en WebGL**.
 
 
+### Quand le rendu casse
+
+- **Une exception dans `drawWorld` ne se voyait nulle part.** `draw()` commence
+  par repeindre le sol et effacer la couche haute, et le HUD est dessiné en
+  **dernier** : un throw laisse donc une arène **vide** avec un HUD **figé sur ses
+  dernières valeurs**, ce qui se lit comme « la map n'a pas chargé » et non comme
+  « le rendu est tombé ». C'est la seule construction du client qui produise cette
+  image, et c'est ce qui l'identifie sur une capture d'écran.
+- **`signalerErreur` affiche un bandeau**, en plus de la console et de l'envoi au
+  serveur. Sur une partie LAN, le journal utile est sur la machine de quelqu'un
+  d'autre. Le bandeau est en **style en ligne** et se crée lui-même : il doit
+  tenir quand ce qui a cassé est la feuille de style ou le DOM du jeu — c'est le
+  seul endroit du client où `document` sert sans passer par `ui/dom.js`, et la
+  couche 0 n'importe toujours rien.
+- **Le rendu se GÈLE après trois images consécutives en échec**, pas après une :
+  un accroc isolé ne doit pas figer une partie, une panne installée doit se voir.
+  `draw()` sort alors immédiatement, donc la **dernière image reste à l'écran** au
+  lieu d'être effacée soixante fois par seconde. Le gel ne se lève pas — à ce
+  stade le rendu est cassé, c'est un rechargement qui repart.
+- **Le journal de l'hôte porte le lieu et la graine** (`logClientError`), sans
+  quoi une exception de rendu n'est pas rejouable : avec eux,
+  `BIOME=<clef> GRAINE=<n> npm start` refabrique l'arène fautive.
+
+
 ## Retour sensoriel
 
 **LA FRÉQUENCE D'UN ÉVÉNEMENT DÉTERMINE INVERSEMENT SON BUDGET DE RETOUR.** La
