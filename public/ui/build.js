@@ -1,7 +1,7 @@
 
 import { BOSS_CFG } from "/shared/bosses.js";
 import { dec, onLangChange, t, tf } from "/shared/i18n.js";
-import { CARD_BY_ID, RARITY_COLOR, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
+import { CARD_BY_ID, RARITY_COLOR, archetypeDe, archetypeNom, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
 import { CLASS_DEFAULT, SKILL_HEAL_MODE, classAt, classNom, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
 import { CFG, PLAYER_COLORS, fullMods, plafonnerHp, powerIndex } from "/shared/game_state.js";
 import { SIGNAL } from "/shared/palette.js";
@@ -151,6 +151,16 @@ export function renderBuild() {
   buildName.style.color = buildTarget === myId ? SIGNAL.go : col;
   buildClass.textContent = sansClasse ? t("ui.build.noClass", "sans classe") : classNom(def);
   buildClass.style.color = sansClasse ? "" : def.couleur;
+
+  /* CE QUE CE BUILD EST DEVENU, a cote de sa classe et jamais a sa place : la
+     classe est CHOISIE, l archetype est CONSTATE. Il se pose donc en second, et
+     il DISPARAIT tant que rien n est engage — un badge permanent qui dirait
+     « aucun » apprendrait au joueur a ne plus le lire.
+     Pure lecture de ce que le client a deja : rien de plus ne circule, et il ne
+     donne AUCUN bonus. Un archetype qui changerait quoi que ce soit serait une
+     classe cachee. */
+  const arch = archetypeDe(info.counts);
+  if (arch) buildClass.textContent += " \u00b7 " + archetypeNom(arch.id);
 
   buildStats.innerHTML = [
     ["score", "score", info.score], ["kills", "kills", info.kills],

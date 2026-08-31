@@ -2220,3 +2220,115 @@ export function cardDetail(id, owned = new Map()) {
            categorie: categoryLabel(catId), categorieId: catId, rang,
            cumul, valeur, effectif, avertissement };
 }
+
+/* CE QUE LE JOUEUR EST EN TRAIN DE CONSTRUIRE, LU SUR CE QU IL POSSEDE DEJA.
+
+   Un build se voyait comme une pile de pourcentages : le joueur empilait des
+   statistiques sans qu aucun ecran ne lui dise qu il venait de fabriquer une
+   FACON DE JOUER. L archetype ne change rien au jeu — c est une LECTURE, jamais
+   une regle : aucun bonus, aucun deblocage, aucun filtre de tirage. Un badge qui
+   modifierait quoi que ce soit deviendrait une classe cachee.
+
+   IL NE PEUT PAS ETRE DEDUIT DE `family` SEULE, et c est mesure. `family` est une
+   ECHELLE VERTICALE — vingt-et-une familles de quatre cartes, une par rarete —
+   et elle est LOURDE : le tirage refuse un palier inferieur a ce qu on possede
+   (`eligibleCards`), les armes filtrent sur elle, l echelle d arme la lit. Poser
+   une famille sur `elan` ou `meute` pour les rattacher a un archetype changerait
+   ce qui SORT du tirage. Un archetype cite donc des familles ET des cartes
+   nommees, et ne touche a rien.
+
+   LES SEUILS SORTENT DE LA MESURE, PAS D UN AVIS. Plafond de cartes tenables par
+   archetype, en comptant qu une famille se garde entiere si on l acquiert en
+   ordre croissant : sniper 13, forteresse 10, berserker 8, demolition 8,
+   acrobat 7, technicien 7, incendiaire 5. Mais quatre des treize du sniper et
+   quatre des huit de la demolition n arrivent QU AVEC une arme precise — sans
+   elle, la demolition tombe a quatre. Un seuil de 4 la rendrait donc
+   inatteignable pour qui ne joue pas la grenade, et exigerait 4 cartes sur 5 a
+   l incendiaire. D ou TROIS, et `verifierBuilds()` refuse tout seuil qu un
+   archetype ne peut pas atteindre SANS son arme.
+
+   `acrobat` et `technicien` sont dans la table malgre l avertissement du plan 26
+   (« risque d archetype creux ») : la mesure dit sept cartes chacun, toutes
+   universelles — plus que la demolition sans sa grenade. L avertissement portait
+   sur un catalogue d avant. */
+export const ARCHETYPES = [
+  { id: "incendiaire", familles: ["brulure"], graines: ["catalyseur"], seuil: 3 },
+  { id: "sniper", familles: ["portee", "critique"],
+    graines: ["elan", "prec_portee", "prec_marque", "prec_perce", "prec_froide"], seuil: 3 },
+  { id: "forteresse", familles: ["survie", "bouclier"],
+    graines: ["meute", "symbiose"], seuil: 3 },
+  { id: "berserker", familles: ["execution"],
+    graines: ["adrenaline", "dernier_souffle", "contrat", "dette"], seuil: 3 },
+  { id: "demolition", familles: ["souffle"],
+    graines: ["gren_souffle", "gren_salve", "gren_contact", "gren_chaine"], seuil: 3 },
+  { id: "acrobat", familles: ["mobilite"],
+    graines: ["celerite", "vif_argent", "contre_pied"], seuil: 3 },
+  { id: "technicien", familles: ["recharge"],
+    graines: ["flux_continu", "dynamo"], seuil: 3 },
+];
+
+export const archetypeNom = id =>
+  t(`archetype.${id}.nom`, ARCHETYPE_FR[id] ?? id);
+
+const ARCHETYPE_FR = {
+  incendiaire: "Incendiaire", sniper: "Sniper", forteresse: "Forteresse",
+  berserker: "Berserker", demolition: "Démolition", acrobat: "Acrobate",
+  technicien: "Technicien",
+};
+
+function comptePour(a, owned) {
+  let n = 0;
+  for (const [id, k] of owned) {
+    if (!(k > 0)) continue;
+    const c = CARD_BY_ID.get(id);
+    if (!c) continue;
+    if ((c.family && a.familles.includes(c.family)) || a.graines.includes(id)) n++;
+  }
+  return n;
+}
+
+/* L ARCHETYPE ENGAGE, ou `null`. Le PLUS FOURNI gagne, et a egalite le premier
+   de la table : un build peut satisfaire deux lectures — portee plus critique
+   est aussi un debut de forteresse si l on a pris du bouclier — et en afficher
+   deux ne dirait plus rien. Un seul badge, ou aucun. */
+export function archetypeDe(owned) {
+  if (!owned) return null;
+  let best = null, bestN = 0;
+  for (const a of ARCHETYPES) {
+    const n = comptePour(a, owned);
+    if (n >= a.seuil && n > bestN) { best = a; bestN = n; }
+  }
+  return best ? { ...best, n: bestN } : null;
+}
+
+/* CE QUE LE CATALOGUE PEUT REELLEMENT SOUTENIR. Trois questions qu aucune erreur
+   ne pose : une graine qui n existe plus (un renommage de carte suffit), un
+   archetype dont le seuil depasse ce qu on peut tenir SANS son arme dediee — donc
+   un badge que la moitie des joueurs ne verra jamais —, et deux archetypes de
+   meme identifiant. */
+export function verifierBuilds() {
+  const soucis = [];
+  const vus = new Set();
+  for (const a of ARCHETYPES) {
+    if (vus.has(a.id)) soucis.push(`${a.id} : identifiant en double`);
+    vus.add(a.id);
+    for (const g of a.graines) {
+      if (!CARD_BY_ID.has(g)) soucis.push(`${a.id} : graine « ${g} » absente du catalogue`);
+    }
+    for (const f of a.familles) {
+      if (!CARDS.some(c => c.family === f)) soucis.push(`${a.id} : famille « ${f} » sans carte`);
+    }
+    // ce qu on peut tenir sans dependre d une arme : les cartes d arme ne sortent
+    // que si on la porte, donc elles ne comptent pas dans le plancher.
+    const universel = CARDS.filter(c => a.familles.includes(c.family)).length
+      + a.graines.filter(g => {
+          const c = CARD_BY_ID.get(g);
+          return c && !(c.family ?? "").startsWith("arme_");
+        }).length;
+    if (a.seuil > universel) {
+      soucis.push(`${a.id} : seuil ${a.seuil} pour ${universel} carte(s) sans arme dediee`);
+    }
+    if (!ARCHETYPE_FR[a.id]) soucis.push(`${a.id} : aucun nom francais`);
+  }
+  return soucis;
+}

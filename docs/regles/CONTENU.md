@@ -451,3 +451,23 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
 - Les chiffres relevés vivent dans `LISEZMOI.md` ; le chantier d'équilibrage en
   cours dans `docs/superpowers/specs/plan6/`.
 
+
+## L archétype
+
+- **Il est une LECTURE, jamais une règle.** Aucun bonus, aucun déblocage, aucun
+  filtre de tirage : pure lecture de l état de build que le client a déjà. Un
+  badge qui modifierait quoi que ce soit serait une classe cachée.
+- **Il ne peut pas se déduire de `family`, et c est mesuré.** `family` est une
+  **échelle verticale** (21 familles × 4 raretés) et 94 cartes sur 178 n en ont
+  aucune — dont les cartes-graines. Surtout elle est **lourde** :
+  `eligibleCards` refuse un palier inférieur à ce qu on possède, les armes
+  filtrent dessus, `appliquerEchelle` la lit. Poser une famille sur une graine
+  changerait **ce qui sort du tirage**. Un archétype cite donc des familles *et*
+  des cartes nommées.
+- **Les seuils sortent de la mesure.** Plafond tenable : sniper 13, forteresse
+  10, berserker 8, démolition 8, acrobat 7, technicien 7, incendiaire 5 — mais
+  4 des 13 du sniper et 4 des 8 de la démolition n arrivent **qu avec une arme
+  précise**. Sans la grenade, la démolition tombe à 4. `verifierBuilds()` refuse
+  donc tout seuil qu un archétype ne peut pas atteindre **sans** son arme.
+- Le plus fragile est l **incendiaire** (plafond 5), pas l acrobat comme le
+  supposait le plan 26.

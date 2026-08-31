@@ -6376,6 +6376,48 @@
                    chaud : la recherche a lieu de toute facon. Verifie sur deux
                    fautes de frappe, comptees et nommees.
 
+    0.29.15 lot 16 UN BUILD SE VOYAIT COMME UNE PILE DE POURCENTAGES. Le joueur
+                   empilait des statistiques sans qu aucun ecran ne lui dise qu il
+                   venait de fabriquer une FACON DE JOUER. Sept archetypes se
+                   lisent maintenant sur ce qu il possede, et le badge se pose a
+                   cote de sa classe — la classe est CHOISIE, l archetype est
+                   CONSTATE.
+                   IL NE CHANGE RIEN, ET C EST LA CONDITION. Aucun bonus, aucun
+                   deblocage, aucun filtre de tirage : pure lecture de l etat de
+                   build que le client a deja, rien de plus ne circule. Un badge
+                   qui modifierait quoi que ce soit serait une classe cachee.
+                   IL NE POUVAIT PAS SE DEDUIRE DE `family`, ET C EST MESURE.
+                   `family` est une ECHELLE VERTICALE — vingt-et-une familles de
+                   quatre cartes, une par rarete — et 94 cartes sur 178 n en ont
+                   AUCUNE, dont precisement les cartes-graines (`elan`, `meute`,
+                   `adrenaline`, `symbiose`). Surtout, elle est LOURDE :
+                   `eligibleCards` refuse un palier inferieur a ce qu on possede,
+                   les armes filtrent dessus, `appliquerEchelle` la lit. Poser une
+                   famille sur une graine pour la rattacher a un archetype aurait
+                   change CE QUI SORT DU TIRAGE. Un archetype cite donc des
+                   familles ET des cartes nommees, et ne touche a rien.
+                   LES SEUILS SORTENT DE LA MESURE. Plafond tenable par archetype :
+                   sniper 13, forteresse 10, berserker 8, demolition 8, acrobat 7,
+                   technicien 7, incendiaire 5. Mais quatre des treize du sniper et
+                   quatre des huit de la demolition n arrivent QU AVEC une arme
+                   precise — sans la grenade, la demolition tombe a QUATRE. Un
+                   seuil de 4 l aurait rendue inatteignable pour qui ne joue pas
+                   cette arme, et aurait exige 4 cartes sur 5 a l incendiaire.
+                   D ou TROIS, et `verifierBuilds()` refuse tout seuil qu un
+                   archetype ne peut pas atteindre SANS son arme dediee.
+                   ET LA MESURE CORRIGE LE PLAN 26 : il avertissait contre
+                   « Acrobat, risque d archetype creux ». Le plus fragile est
+                   l INCENDIAIRE (plafond 5), et c est celui que le brief prend en
+                   exemple. Acrobat en tient sept, toutes universelles — plus que
+                   la demolition sans sa grenade.
+                   UNE ERREUR ATTRAPEE EN CHEMIN, et elle aurait ete silencieuse :
+                   `buildInfo` expose `counts`, pas `cards`. `archetypeDe(undefined)`
+                   rend `null`, donc aucun badge et AUCUNE erreur — le lot entier
+                   aurait paru fonctionner.
+                   Verifie sur l exemple exact du brief (braises, incendiaire,
+                   brasier, catalyseur) : `incendiaire`, n = 4. Deux cartes seules
+                   ne declenchent rien. Trois mutations rouges, temoin vert.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6384,4 +6426,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.14";
+export const VERSION = "0.29.15";
