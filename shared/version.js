@@ -6495,6 +6495,47 @@
                    meme nom rendraient le bestiaire illisible. Trois mutations
                    rouges, temoin vert.
 
+    0.29.18 lot 19 L ECRAN DU CODEX. Troisieme lot de la serie : la donnee
+                   (0.29.16) et les textes (0.29.17) avaient de quoi remplir une
+                   page, il leur manquait la page.
+                   LE « ? » N EST PAS UNE CASE VIDE. Il garde la place, la taille
+                   et le rang de la fiche qu il cache : on voit donc TOUJOURS
+                   combien il en reste et ou elles sont. Une grille qui
+                   n afficherait que le connu serait une liste, pas une
+                   collection — elle ne dirait pas qu il manque quelque chose.
+                   Et la carte fermee n est pas GRISEE : une carte assombrie a
+                   l air desactivee, donc d une chose qu on ne peut pas avoir. Ici
+                   on PEUT l avoir, il suffit de croiser la creature. Elle garde
+                   son fond et perd seulement son contenu.
+                   AUCUN CHIFFRE DE COMBAT SUR UNE FICHE. Le codex dit ce qu une
+                   creature EST et ce qu elle FAIT ; ses PV et ses degats
+                   appartiennent a l equilibrage et changeraient sous le texte.
+                   `roleDe()` porte le comportement et se DEDUIT, donc il suit un
+                   reglage tout seul.
+                   LE BOSS N A RIEN A ECRIRE : `bossNom`, `bossSous` et
+                   `bossVerbe` existent deja — ecrits pour l annonce d arrivee, et
+                   ils disent exactement ce qu un codex doit dire. Un second texte
+                   les aurait fait diverger.
+                   LES CINQ REGLES CSS SONT TENUES, et c est le filet de ce lot :
+                   `verifierEcrans` croise la table `ECRANS` avec la feuille dans
+                   les deux sens, sur `entre`, `sort`, `balaye`, `curseur` et
+                   `crochet`. Seize ecrans, rien a signaler — un ecran a moitie
+                   enregistre disparaitrait d un coup au lieu de sortir, et ses
+                   boutons seraient muets. C est exactement ce qui etait arrive a
+                   `#hautsFaits` avant 0.28.0.
+                   QUATRE VARIABLES CSS N EXISTAIENT PAS. Le premier jet employait
+                   `--r-2`, `--fs-1`, `--fs-4` et `--panel` : aucune n est definie,
+                   et une variable absente ne leve RIEN — la regle tombe et la
+                   carte s affiche sans rayon, sans taille et sans fond. Relevees
+                   une par une contre `tokens.css` et ce que `cssVars()` expose,
+                   puis remplacees par `--radius`, `--t-s`, `--t-l`, `--bg-panel`.
+                   `--fs-1` et `--fs-4` sont d ailleurs deja employees AILLEURS
+                   dans la feuille sans etre definies : defaut anterieur, laisse
+                   tel quel, mais pas propage.
+                   Verifie sur trois etats — compte neuf 0/24, apres une manche
+                   3/24, tout rencontre 24/24 — et l ecran est servi par le
+                   serveur avec son bouton.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6503,4 +6544,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.17";
+export const VERSION = "0.29.18";

@@ -389,6 +389,32 @@
 <!-- HAUTS FAITS : page dediee, hors du Terminal (demande du porteur). Les
      objectifs du compte et ce que chacun debloque — jamais des noyaux. Le
      point d'entree est le bouton or sous la categorie Classe du salon. -->
+<div id="codex" class="overlay" hidden>
+  <div class="metaWrap">
+
+    <div class="metaHead">
+      <div>
+        <div class="sectionTitle" data-i18n="ui.codex.kicker">Ce que tu as rencontré</div>
+        <h1 data-i18n="ui.codex.title">Codex</h1>
+      </div>
+      <div id="codexCompte" class="hfCount"></div>
+    </div>
+
+    <p class="metaLead" data-i18n="ui.codex.lead">Une fiche s’ouvre la première fois que tu croises la créature — pas quand tu la bats. Ce que tu n’as jamais vu reste un point d’interrogation.</p>
+
+    <div class="sectionTitle" data-i18n="ui.codex.horde">Horde</div>
+    <div id="codexHorde" class="codexGrille"></div>
+
+    <div class="sectionTitle" data-i18n="ui.codex.boss">Boss</div>
+    <div id="codexBoss" class="codexGrille"></div>
+
+    <div class="row metaBack">
+      <button id="codexClose" data-i18n="ui.meta.back">Retour au salon</button>
+    </div>
+
+  </div>
+</div>
+
 <div id="hautsFaits" class="overlay" hidden>
   <div class="metaWrap">
 
@@ -546,6 +572,7 @@
                (demande du porteur) : ils ont quitte les onglets du Terminal. -->
           <div class="row">
             <button id="hautsFaitsBtn" data-i18n="ui.class.hautsfaits">Hauts faits</button>
+            <button id="codexBtn" data-i18n="ui.class.codex">Codex</button>
           </div>
         </div>
 

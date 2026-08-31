@@ -165,6 +165,12 @@ export const metaCadresEl = document.getElementById("metaCadres");
 export const hautsFaitsEl = document.getElementById("hautsFaits");
 export const hautsFaitsBtn = document.getElementById("hautsFaitsBtn");
 export const hautsFaitsCloseBtn = document.getElementById("hautsFaitsClose");
+export const codexEl = document.getElementById("codex");
+export const codexBtn = document.getElementById("codexBtn");
+export const codexCloseBtn = document.getElementById("codexClose");
+export const codexCompteEl = document.getElementById("codexCompte");
+export const codexHordeEl = document.getElementById("codexHorde");
+export const codexBossEl = document.getElementById("codexBoss");
 /* Le francais du markup EST le repli : on le releve au premier passage, on ne
    le recopie donc jamais dans le dictionnaire. */
 const ORIGINE = new WeakMap();

@@ -825,7 +825,7 @@
 .finWrap, #bilan > * {
   animation: screenIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
-#gate, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #hautsFaits {
+#gate, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #hautsFaits, #codex {
   animation: fadeIn var(--screen) var(--ease-out) var(--screen-hold) backwards;
 }
 .panelBar {
@@ -836,7 +836,7 @@
   animation: fadeIn var(--brief-in) var(--ease-out) backwards;
 }
 
-:is(#gate, #loading, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #hautsFaits,
+:is(#gate, #loading, #hubScreen, #panel, #bilan, #fin, #menu, #settings, #hautsFaits, #codex,
     #pause, #brief)[hidden].leaving {
   display: flex;
   pointer-events: none;
@@ -854,7 +854,7 @@
   40%  { opacity: .55; }
   to   { background-position: 0 0; opacity: .4; }
 }
-#gate::after, #hubScreen::after, #panel::after, #hautsFaits::after,
+#gate::after, #hubScreen::after, #panel::after, #hautsFaits::after, #codex::after,
 #bilan::after, #menu::after, #settings::after {
   animation: rasterSweep var(--screen) var(--ease-out) backwards;
 }
@@ -1554,7 +1554,7 @@ input:focus { border-color: var(--go); }
 button { cursor: pointer; }
 button:disabled { opacity: 0.45; cursor: default; }
 
-:is(#gate, #loading, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits,
+:is(#gate, #loading, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits, #codex,
     #topbar, #pause) {
   cursor: var(--cursor-ui), default;
 }
@@ -1562,12 +1562,12 @@ button:disabled { opacity: 0.45; cursor: default; }
 /* Ce qui REPOND au clic prend le crochet de visee. Selecteur duplique dans
    `ui/screens.js` (UI_SOUND_SCREENS / UI_SOUND_TARGETS) : ce qui montre le
    crochet est exactement ce qui sonne au survol. Bouger l'un, bouger l'autre. */
-:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits, #topbar, #pause)
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits, #codex, #topbar, #pause)
   :is(button, a, summary, tr.clickable, input[type="range"]) {
   cursor: var(--cursor-go), pointer;
 }
 
-:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits, #topbar,
+:is(#gate, #hubScreen, #panel, #menu, #bilan, #fin, #settings, #hautsFaits, #codex, #topbar,
     #pause) button:disabled {
   cursor: var(--cursor-ui), default;
 }
@@ -1707,7 +1707,7 @@ tr.clickable { cursor: pointer; }
 
 .gateForm[hidden], #gateForms[hidden], #hubPassBox[hidden], #hubPassAsk[hidden] { display: none; }
 
-#gate[hidden], #loading[hidden], #hubScreen[hidden], #panel[hidden], #hautsFaits[hidden],
+#gate[hidden], #loading[hidden], #hubScreen[hidden], #panel[hidden], #hautsFaits[hidden], #codex[hidden],
 #bilan[hidden], #fin[hidden], #menu[hidden], #settings[hidden], #cards[hidden],
 #build[hidden], #pause[hidden], #topbar[hidden],
 #meta[hidden], #gateHold[hidden], #cardsKicker[hidden], #pauseConfirm[hidden],
@@ -3978,3 +3978,62 @@ input:focus {
    punition, un malus annonce est une decision */
 .armeCout { font-family: var(--font); font-size: var(--t-xs); color: var(--warn); }
 #briefArmeReroll { margin-top: var(--sp-2); }
+
+/* --- LE CODEX ------------------------------------------------------------
+   UNE GRILLE, PAS UNE LISTE. Un codex se PARCOURT du regard : ce qui compte est
+   de voir d un coup combien de cases restent fermees, et une liste verticale
+   oblige a defiler pour repondre a cette question.
+
+   LA CASE FERMEE GARDE SA PLACE, sa taille et son rang. Elle est le seul endroit
+   de l interface ou du vide est une INFORMATION — n afficher que le connu ferait
+   une liste qui ne dit pas qu il manque quelque chose. */
+.codexGrille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.codexCarte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  min-height: 118px;
+}
+/* ELLE N EST PAS GRISEE, ELLE EST VIDE. Une carte fermee qu on assombrirait
+   aurait l air desactivee — donc d une chose qu on ne peut pas avoir. Ici on
+   PEUT l avoir : il suffit de croiser la creature. Elle garde donc son fond et
+   perd seulement son contenu. */
+.codexCarte.closed {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  background: transparent;
+}
+.codexMarque {
+  font-family: var(--font);
+  font-size: var(--t-l);
+  color: var(--text-faint);
+  opacity: .55;
+}
+.codexNom {
+  font-weight: 700;
+  color: var(--text);
+}
+/* LE LORE EST SECONDAIRE ET IL DOIT LE RESTER : c est le comportement qui se
+   lit en premier quand on cherche « qu est-ce que ce truc me fait ». */
+.codexSous {
+  color: var(--text-dim);
+  font-size: var(--t-s);
+  line-height: 1.35;
+}
+.codexRoles {
+  margin: var(--sp-1) 0 0;
+  padding-left: var(--sp-3);
+  color: var(--text-faint);
+  font-size: var(--t-s);
+}
+.codexRoles li { margin: 1px 0; }

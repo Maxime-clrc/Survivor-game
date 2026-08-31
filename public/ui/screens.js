@@ -2,14 +2,15 @@
 import { getAudioSource, getMusicVolume, getVolume, initAudio, isMuted, playSound, setAudioSource, setMusicDuck, setMusicVolume, setMuted, setVolume } from "/audio.js";
 import { showHud } from "/hud.js";
 import { refreshMusicSource } from "/music.js";
-import { bossAt, bossNom } from "/shared/bosses.js";
+import { BOSS_ROSTER, bossAt, bossNom, bossSous, bossVerbe } from "/shared/bosses.js";
 import { CARDS, CARD_BY_ID, RARITY_COLOR, banClosure, cardDesc, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
 import { CLASSES, CLASS_DEFAULT, classAt, classDesc, classMission, classNom, classSolo, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
 import { CFG, DAMAGE_SOURCES, DIFFICULTIES, PLAYER_COLORS, diffLabel, diffResume, srcLabel } from "/shared/game_state.js";
 import { biomeNom, biomeResume } from "/shared/biomes.js";
 import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from "/shared/i18n.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
-import { COMMUN, CONFORT, PROG_CFG, TREES, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, slotsFor, tierCost, vueStats } from "/shared/progression.js";
+import { ENEMY_TYPES, enemyLore, enemyNom, roleDe } from "/shared/enemies.js";
+import { COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, slotsFor, tierCost, vueStats } from "/shared/progression.js";
 import { ARME_CFG, armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
 import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
 import { appliquerCadre } from "./cadres.js";
@@ -22,7 +23,7 @@ import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -55,6 +56,9 @@ const ECRANS = [
   { id: "hautsFaits", el: () => hautsFaitsEl, observe: 1, entre: 1, sort: 1, balaye: 1,
     curseur: 1, son: "survol",
     fil: () => t("ui.hf.title", "Hauts faits") },
+  { id: "codex",      el: () => codexEl,      observe: 1, entre: 1, sort: 1, balaye: 1,
+    curseur: 1, son: "survol",
+    fil: () => t("ui.codex.title", "Codex") },
   { id: "menu",       el: () => menuEl,       observe: 1, entre: 1, sort: 1, balaye: 1,
     curseur: 1, son: "survol",
     fil: () => tf("ui.crumb.meta", "Progression · {cls}",
@@ -2072,3 +2076,72 @@ export function setBriefWaiting(v) { briefWaiting = v; }
 export function setLaunchEndsAt(v) { launchEndsAt = v; }
 export function setMyPing(v) { myPing = v; }
 export function setSettingsFrom(v) { settingsFrom = v; }
+
+/* --- LE CODEX -------------------------------------------------------------
+
+   CE QU ON A RENCONTRE, ET RIEN DE PLUS. Une fiche s ouvre a la RENCONTRE et pas
+   a la victoire — un boss qui vous tue doit entrer au codex, sinon le seul
+   moyen d ouvrir sa page serait de ne jamais perdre contre lui.
+
+   LE « ? » N EST PAS UNE CASE VIDE. Il garde la place, la forme et le rang de la
+   fiche qu il cache : on voit donc TOUJOURS combien il en reste et ou elles sont.
+   Une grille qui n afficherait que le connu ne dirait pas qu il manque quelque
+   chose — c est la difference entre une collection et une liste.
+
+   AUCUN CHIFFRE DE COMBAT ICI. Le codex dit ce qu une creature EST et ce qu elle
+   FAIT ; ses points de vie et ses degats appartiennent a l equilibrage et
+   changeraient sous le texte. `roleDe()` porte le comportement, et il se DEDUIT
+   de la fiche de combat — donc il suit un reglage tout seul. */
+function carteCodex(ouverte, nom, sous, lignes) {
+  if (!ouverte) {
+    return `<div class="codexCarte closed" aria-hidden="true">`
+      + `<div class="codexMarque">?</div></div>`;
+  }
+  return `<div class="codexCarte">`
+    + `<div class="codexNom">${escapeHtml(nom)}</div>`
+    + (sous ? `<div class="codexSous">${escapeHtml(sous)}</div>` : "")
+    + (lignes.length
+        ? `<ul class="codexRoles">`
+          + lignes.map(l => `<li>${escapeHtml(l)}</li>`).join("")
+          + `</ul>`
+        : "")
+    + `</div>`;
+}
+
+export function renderCodex() {
+  if (!codexEl || codexEl.hidden) return;
+  const vus = new Set(progressState?.vus ?? []);
+
+  codexHordeEl.innerHTML = ENEMY_TYPES.map(def => {
+    const ouverte = vus.has(`e:${def.key}`);
+    return carteCodex(ouverte, enemyNom(def.key), enemyLore(def.key), roleDe(def));
+  }).join("");
+
+  /* LE BOSS N A RIEN A ECRIRE : sa fiche existe deja dans `BOSS_ROSTER`. `sous`
+     est la consigne que le jeu affiche a son arrivee, `verbe` l axe qu il
+     enseigne — les deux etaient ecrits pour l annonce, ils disent exactement ce
+     qu un codex doit dire. Un second texte les aurait fait diverger. */
+  codexBossEl.innerHTML = BOSS_ROSTER.map((b, i) => {
+    const ouverte = vus.has(`b:${b.key}`);
+    return carteCodex(ouverte, bossNom(i), bossSous(i), [bossVerbe(i)].filter(Boolean));
+  }).join("");
+
+  const total = codexClefs().length;
+  const n = codexClefs().filter(c => vus.has(c)).length;
+  codexCompteEl.textContent = tf("ui.codex.compte", "{n} / {tot} rencontrés",
+    { n, tot: total });
+}
+
+function openCodex() {
+  panel.hidden = true;
+  codexEl.hidden = false;
+  renderCodex();
+  syncTopbar();
+}
+
+codexBtn.onclick = openCodex;
+codexCloseBtn.onclick = () => {
+  codexEl.hidden = true;
+  refreshPanel();
+  syncTopbar();
+};
