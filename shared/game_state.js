@@ -794,6 +794,11 @@ export class GameState {
     this.slipT = 0;
     this.repriseGrace = 0;
     this.boss = null;
+    /* CE QUE CETTE MANCHE A MONTRE. Un Set par partie, replie dans le profil a
+       la fin par `awardRun` — le hub reste seul a ecrire dans le magasin.
+       On enregistre a l APPARITION et non a la mort : le codex dit ce qu on a
+       rencontre, pas ce qu on a battu. */
+    this.vus = new Set();
 
     this.bounds = { x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H };
     this.shrink = null;
@@ -3471,6 +3476,10 @@ export class GameState {
     // COMPORTEMENT DE LA VARIANTE : une elite ne vole ni le quota ni le score de
     // son type, mais elle demarre avec SES cadences et SON arc.
     const t = defDe(ti, elite);
+    // CE QUI APPARAIT EST RENCONTRE. Le point d apparition est unique, donc le
+    // codex ne peut pas rater un type — et il le note sur la LIGNE DE BASE, pas
+    // sur la variante : une elite n est pas une creature de plus.
+    this.vus.add(`e:${base.key}`);
 
     const past = this.hordeMinutes();
     const baseHp = (CFG.ENEMY_HP_BASE + past * CFG.ENEMY_HP_MIN_RAMP)
@@ -5052,6 +5061,10 @@ export class GameState {
           ? this._finalKind()
           : this._pickBoss(this.players.size);
         this.lastBossKind = kind;
+        // LE BOSS EST RENCONTRE QUAND IL ARRIVE, pas quand il tombe. Le jalon
+        // `boss_<kind>` de `milestones` dit « vaincu » et reste juste ; celui-ci
+        // dit « vu », sans quoi un boss qui vous tue resterait un « ? » eternel.
+        this.vus.add(`b:${bossAt(kind).key}`);
         const def = bossAt(kind);
         const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
           * this._bossHpRamp()

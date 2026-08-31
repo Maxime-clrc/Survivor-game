@@ -6418,6 +6418,48 @@
                    brasier, catalyseur) : `incendiaire`, n = 4. Deux cartes seules
                    ne declenchent rien. Trois mutations rouges, temoin vert.
 
+    0.29.16 lot 17 LE CODEX A SA DONNEE. Premier lot d une serie : ce qu un compte
+                   a RENCONTRE, enregistre, persiste et transporte. L ecran vient
+                   ensuite ; sans cette moitie-la il n aurait rien a montrer.
+                   RENCONTRE ET NON VAINCU, et c est la seule decision qui compte
+                   ici. `milestones` porte deja `boss_<kind>` pour les boss TUES,
+                   ecrit a la fin de manche : le reutiliser aurait laisse en « ? »
+                   eternel tout boss qui vous tue. Les deux existent donc, et ils
+                   ne disent pas la meme chose. La cle s ecrit a l APPARITION du
+                   corps et a l ARRIVEE du boss.
+                   DEUX POINTS D ECRITURE, ET CE SONT LES POINTS DE PASSAGE :
+                   `_spawnEnemy` — le seul endroit ou un corps nait — et le bloc
+                   d apparition du boss. Le codex ne peut donc pas rater un type.
+                   Il note la LIGNE DE BASE et non la variante : une elite n est
+                   pas une creature de plus.
+                   DES CLES, PAS DES INDEX. `ENEMY_TYPES` et `BOSS_ROSTER` sont
+                   append-only, mais un profil dure plus longtemps qu une table, et
+                   c est le seul champ de progression qu on ne pourrait JAMAIS
+                   reparer si les index bougeaient — il n a pas de source de verite
+                   ailleurs. `e:grunt`, `b:metronome`.
+                   PAS DE BUMP DE `PROG_CFG.VERSION`, ET C EST DELIBERE. Le magasin
+                   fait `reset = row.version < VERSION && !migre` : ajouter le champ
+                   par une version aurait REMIS A NEUF tout profil sans entree de
+                   migration — on aurait efface la progression de tous pour un
+                   tableau vide. Le depot a deja le bon motif deux lignes au-dessus
+                   (`if (!Array.isArray(profile.hf)) profile.hf = []`) : on
+                   normalise a la LECTURE, et un compte existant commence son codex
+                   a zero sans rien perdre.
+                   UNE MANCHE PERDUE COMPTE. Le repli passe par `awardRun`, appele
+                   depuis `endRound`, qui couvre les DEUX sorties : on a bien
+                   rencontre ce qu on a rencontre, meme en mourant.
+                   `verifierCodex()` refuse une cle inconnue, une entree sans cle,
+                   et deux entrees qui partageraient la leur. Une cle mal formee ne
+                   leve rien du tout : elle se persiste pour toujours et laisse son
+                   entree en « ? » que le joueur ne pourra jamais ouvrir.
+                   MESURE : 24 entrees (13 corps, 11 boss), les treize types notes
+                   quand le bestiaire est deverrouille, le boss note a l arrivee,
+                   et un second repli de la meme manche n ajoute rien.
+                   ET UN PIEGE DE MESURE, PAS UN DEFAUT : forcer les treize types a
+                   la minute zero n en enregistre qu UN. `adaptType` replie ce qui
+                   n est pas encore debloque sur le grognard — le codex note donc
+                   ce qui est REELLEMENT apparu, et c est la bonne semantique.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6426,4 +6468,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.15";
+export const VERSION = "0.29.16";

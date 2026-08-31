@@ -175,6 +175,13 @@ export function migrateProfile(profile, from) {
   }
 
   if (!Array.isArray(profile.hf)) profile.hf = [];
+  /* UN CODEX N EST PAS UNE MIGRATION. Bumper `PROG_CFG.VERSION` pour ajouter ce
+     champ REMETTRAIT A NEUF tout profil sans entree de migration
+     (`reset = row.version < VERSION && !migre`) — on effacerait la progression de
+     tout le monde pour un tableau vide. Le depot a deja le bon motif juste
+     au-dessus : on normalise a la lecture, et un compte existant commence son
+     codex a zero sans rien perdre. */
+  if (!Array.isArray(profile.vus)) profile.vus = [];
   if (!Array.isArray(profile.debloquees)) profile.debloquees = [];
   if (!Array.isArray(profile.cadres) || profile.cadres.length === 0) {
     profile.cadres = [CADRE_DEFAUT];

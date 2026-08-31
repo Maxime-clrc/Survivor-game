@@ -53,6 +53,7 @@ export function createHub(store, log, commit = "") {
       runs: pr.runs,
       best: pr.best,
       milestones: pr.milestones,
+      vus: pr.vus ?? [],
       kills: pr.kills,
       classes: pr.classes,
       commun: pr.commun ?? {},
@@ -112,6 +113,14 @@ export function createHub(store, log, commit = "") {
       const pr = c.profile;
       const gain = shared;
 
+
+      /* CE QUE LA MANCHE A MONTRE ENTRE DANS LE COMPTE. `endRound` couvre les
+         DEUX sorties — victoire et defaite —, donc une manche perdue enrichit
+         le codex comme une manche gagnee : on y a bien rencontre ce qu on a
+         rencontre. Le hub reste seul a ecrire dans le magasin. */
+      for (const cle of state.vus) {
+        if (!pr.vus.includes(cle)) pr.vus.push(cle);
+      }
       for (const kind of state.bossKindsKilled) {
         const id = `boss_${kind}`;
         if (!pr.milestones.includes(id)) pr.milestones.push(id);

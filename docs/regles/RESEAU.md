@@ -298,3 +298,25 @@ l'orientation voyage avec la mort), cible d'un son d'interface
 (`UI_SOUND_SCREENS`/`UI_SOUND_TARGETS`, **miroir** de `--cursor-go` dans
 `menus.css`), type d'événement client (`diffSnapshots()` dans `events.js`).
 
+
+## Le codex
+
+- **RENCONTRÉ, jamais VAINCU.** `milestones` porte déjà `boss_<kind>` pour les
+  boss *tués*, écrit en fin de manche. Le réutiliser laisserait en « ? » éternel
+  tout boss qui vous tue. `profile.vus` est un second champ, écrit à
+  l **apparition** du corps et à l **arrivée** du boss.
+- **Deux points d écriture, et ce sont les points de passage** : `_spawnEnemy`
+  et le bloc d apparition du boss. Il note la **ligne de base**, pas la variante
+  — une élite n est pas une créature de plus.
+- **Des clés, pas des index** (`e:grunt`, `b:metronome`). Les tables sont
+  append-only, mais un profil dure plus longtemps qu une table, et c est le seul
+  champ de progression qu on ne pourrait **jamais** réparer si les index
+  bougeaient : il n a pas de source de vérité ailleurs.
+- **On ne bumpe PAS `PROG_CFG.VERSION` pour ajouter un champ.** Le magasin fait
+  `reset = row.version < VERSION && !migre` : sans entrée de migration, le bump
+  remet à neuf tout profil — on effacerait la progression de tous pour un tableau
+  vide. On **normalise à la lecture**, comme `hf` et `debloquees` juste au-dessus.
+- Le repli passe par `awardRun` depuis `endRound`, qui couvre les **deux**
+  sorties : une manche perdue enrichit le codex.
+- `verifierCodex()` refuse une clé inconnue — une clé mal formée ne lève rien,
+  se persiste pour toujours, et laisse son entrée en « ? » à jamais.

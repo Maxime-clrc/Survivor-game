@@ -2,6 +2,8 @@
 import { nombre, t, tf } from "./i18n.js";
 import { CARD_BY_ID, CARD_CFG } from "./cards.js";
 import { ARMES, ARME_BY_ID, ARME_DEFAUT } from "./armes.js";
+import { ENEMY_TYPES } from "./enemies.js";
+import { BOSS_ROSTER } from "./bosses.js";
 import { SKILL_CFG } from "./classes.js";
 import {
   CADRE_DEFAUT, HAUTS_FAITS, HF_BY_ID, TOUTES_RECOMPENSES,
@@ -316,6 +318,15 @@ export function newProfile(pseudo) {
     runs: 0,
     best: { wave: 0, level: 0, segment: 0, score: 0 },
     milestones: [],
+    /* CE QUE CE COMPTE A RENCONTRE. Des CLES et non des index : `ENEMY_TYPES`
+       et `BOSS_ROSTER` sont append-only, mais un profil dure plus longtemps
+       qu une table et une cle survit a n importe quel reordonnancement futur —
+       c est le seul champ de progression qu on ne pourra jamais reparer si les
+       index bougent, parce qu il n a pas de source de verite ailleurs.
+       RENCONTRE et non VAINCU : `milestones` porte deja `boss_<kind>` pour les
+       boss TUES, et un boss qui vous tue resterait un « ? » eternel. Les deux
+       existent donc, et ils ne disent pas la meme chose. */
+    vus: [],
     kills: {},
     classes: {},
     commun: {},
@@ -418,4 +429,38 @@ export function recordFinal(profile, run, dateISO) {
     date: dateISO,
   };
   return true;
+}
+
+/* CE QUE LE CODEX PEUT CONTENIR, ET RIEN D AUTRE. Les cles de decouverte sont
+   ecrites a DEUX endroits de la simulation — l apparition d un corps et
+   l arrivee d un boss — et lues par un ecran qui affichera « ? » pour tout ce
+   qu il ne trouve pas. Une cle mal formee ne leve donc rien du tout : elle
+   s ecrit dans le profil, s y persiste pour toujours, et l entree correspondante
+   reste un « ? » que le joueur ne pourra JAMAIS ouvrir.
+
+   `codexClefs()` est la seule source de verite du format, et les deux ecrivains
+   comme le lecteur s y comparent. */
+export function codexClefs() {
+  return [
+    ...ENEMY_TYPES.map(t => `e:${t.key}`),
+    ...BOSS_ROSTER.map(b => `b:${b.key}`),
+  ];
+}
+
+export function verifierCodex(vus = []) {
+  const soucis = [];
+  const connues = new Set(codexClefs());
+  if (connues.size !== ENEMY_TYPES.length + BOSS_ROSTER.length) {
+    soucis.push("deux entrees partagent une cle de codex");
+  }
+  for (const t of ENEMY_TYPES) {
+    if (!t.key) soucis.push(`un type d ennemi sans cle : ${t.nom ?? "?"}`);
+  }
+  for (const b of BOSS_ROSTER) {
+    if (!b.key) soucis.push(`un boss sans cle : ${b.nom ?? "?"}`);
+  }
+  for (const v of vus) {
+    if (!connues.has(v)) soucis.push(`« ${v} » : rencontre enregistree, entree inconnue`);
+  }
+  return soucis;
 }
