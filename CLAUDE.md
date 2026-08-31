@@ -273,6 +273,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `hfStatsDeManche(p)` | ce qu'une manche produit pour un joueur, dans la forme qu'attend l'évaluation |
 | `vueStats` / `cumulerStats` | la FUSION (lecture) et le REPLI (écriture) des cumuls de profil — les inverser compte la manche deux fois |
 | `evaluerHautsFaits()` | l'obtention d'un haut fait, en cours de manche comme à la fin |
+| `mergerCodex(pr, state)` | l'entrée d'une rencontre au codex ; appelé par `awardRun` **et** `awardPartial`, donc la façon dont la manche se termine n'y change rien |
 | `_causeBlast` | ce qui compte comme « tué par explosion » : `_explode` **et** `_bombBlast`, qui résout son souffle lui-même |
 | `_windupSature()` / `_windupCompte()` | budget de préavis de ruée, par vue |
 | `_wave(x, y, r, dmg, owner)` | l'onde blanche des cartes (l'horloge de manche s'appelle `_segmentTick(dt)` — deux méthodes de même nom s'écrasent en silence) |

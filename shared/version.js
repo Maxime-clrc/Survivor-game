@@ -7054,6 +7054,35 @@
                   negatif la premiere seconde d une partie mais absorbe par un
                   `Math.max(0, ...)`.
 
+    0.31.3 lot 4  UNE RENCONTRE NE DEPEND PLUS DE LA FACON DONT LA MANCHE SE
+                  TERMINE. Le codex ne s ecrivait qu a `endRound()`, donc sur une
+                  victoire ou une defaite. Les deux autres sorties — quitter par
+                  le menu pause, fermer l onglet — passent par `awardPartial`, qui
+                  versait des noyaux et JETAIT tout ce qu on avait croise.
+                  MESURE, sur socket reelle : a 22 s de manche, `vus` est vide et
+                  aucun `roundEnd` n a eu lieu ; apres `leaveRound`, `vus` porte
+                  `e:grunt`, les noyaux sont verses, et c est bien un `roundAbort`
+                  qui suit — le chemin exact qui perdait tout. Le chemin de la
+                  mort, lui, rend le meme resultat qu avant : verifie sur une
+                  manche jouee jusqu au bout.
+                  UN SEUL CHEMIN, `mergerCodex(pr, state)`, appele par `awardRun`
+                  ET par `awardPartial`. La boucle qui vivait dans `awardRun`
+                  disparait : deux copies de la meme fusion auraient diverge a la
+                  premiere famille ajoutee au codex.
+                  LA GARDE DE `awardPartial` RESTE COMMUNE, et c est une decision :
+                  `players.has(c.id)` exclut le SPECTATEUR. Un spectateur entre a
+                  la derniere seconde heriterait sinon de tout ce que la salle a
+                  vu depuis le debut, ce qui ferait dependre la collection du
+                  hasard des connexions plutot que du jeu.
+                  ET LE SECOND TROU, PLUS PETIT : `case "progress"` (`net/router`)
+                  rafraichissait la meta et les hauts faits mais pas le codex —
+                  ouvert pendant qu une manche se terminait, il restait sur ses
+                  « ? » jusqu a ce qu on le referme. `renderCodex()` porte deja sa
+                  garde `hidden`, l ajout est inconditionnel et gratuit.
+                  AUCUNE MIGRATION : `progress_store.js` normalise deja `vus` a la
+                  lecture, et bumper `PROG_CFG.VERSION` remettrait a neuf tout
+                  profil sans entree de migration.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7062,4 +7091,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.2";
+export const VERSION = "0.31.3";

@@ -104,6 +104,16 @@ export function createHub(store, log, commit = "") {
     c.lastHf = null;
   }
 
+  /* CE QUE LA MANCHE A MONTRE ENTRE DANS LE COMPTE, ET LA FACON DONT ELLE SE
+     TERMINE N Y CHANGE RIEN. Une rencontre est une rencontre : on l a subie, on
+     ne l a pas gagnee. `awardRun` ne couvre que la victoire et la defaite —
+     quitter par le menu pause ou fermer l onglet passe par `awardPartial`, et
+     jetait tout ce qu on avait croise.
+     LE HUB RESTE SEUL ECRIVAIN DU MAGASIN, et ceci est le seul chemin. */
+  function mergerCodex(pr, state) {
+    for (const cle of state.vus) if (!pr.vus.includes(cle)) pr.vus.push(cle);
+  }
+
   function awardRun(room) {
     const state = room.state;
     const shared = coresForRun(state.level, state.bossKills, state.diffIndex);
@@ -113,14 +123,7 @@ export function createHub(store, log, commit = "") {
       const pr = c.profile;
       const gain = shared;
 
-
-      /* CE QUE LA MANCHE A MONTRE ENTRE DANS LE COMPTE. `endRound` couvre les
-         DEUX sorties — victoire et defaite —, donc une manche perdue enrichit
-         le codex comme une manche gagnee : on y a bien rencontre ce qu on a
-         rencontre. Le hub reste seul a ecrire dans le magasin. */
-      for (const cle of state.vus) {
-        if (!pr.vus.includes(cle)) pr.vus.push(cle);
-      }
+      mergerCodex(pr, state);
       for (const kind of state.bossKindsKilled) {
         const id = `boss_${kind}`;
         if (!pr.milestones.includes(id)) pr.milestones.push(id);
@@ -208,6 +211,7 @@ export function createHub(store, log, commit = "") {
   function awardPartial(c, room) {
     if (room.phase === PHASE_LOBBY || !c.profile || !room.state.players.has(c.id)) return;
     c.profile.cores += coresPartial(room.state.level, room.state.diffIndex);
+    mergerCodex(c.profile, room.state);
     persist(c);
   }
 
