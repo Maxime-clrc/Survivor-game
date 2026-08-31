@@ -731,6 +731,7 @@ const maintenant = () => performance.now() / 1000;
    flotte pas au-dessus. */
 const CHAINE_PAS = 13;
 const CHAINE_VITESSE = 26;
+const CHAINE_MOTIF = CHAINE_PAS * 4;
 function chaine(o, S) {
   // LA LOI D IMPLANTATION DE L USINE NE POSE QUE DES BANDES HORIZONTALES
   // (« chaine, allee, chaine »), donc `L` est toujours la largeur. Une bascule
@@ -770,9 +771,16 @@ function chaine(o, S) {
   }
 
   const sens = (s >>> 25) & 1 ? 1 : -1;
-  const u = ((maintenant() * CHAINE_VITESSE * sens) % CHAINE_PAS + CHAINE_PAS) % CHAINE_PAS;
+  // LE REPLI SE FAIT SUR LA PERIODE DE CE QUI EST DESSINE, jamais sur une
+  // sous-graduation de la surface : `CHAINE_PAS` est le pas des stries du tapis,
+  // les taquets sont tous les quatre. Replie sur 13 px pour un motif de 52, ils
+  // reculaient d un quart d ecartement deux fois par seconde, indefiniment.
+  const u = ((maintenant() * CHAINE_VITESSE * sens) % CHAINE_MOTIF + CHAINE_MOTIF) % CHAINE_MOTIF;
   ctx.fillStyle = alpha(S.emis, 0.30);
-  for (let x = -L / 2 + u; x < L / 2; x += CHAINE_PAS * 4) {
+  // et la boucle demarre une periode AVANT le bord : sinon le premier taquet
+  // NAIT sur le tapis au lieu d y entrer. Le clip de `habillerBloc` retient ce
+  // qui deborde, des deux cotes.
+  for (let x = -L / 2 - CHAINE_MOTIF + u; x < L / 2; x += CHAINE_MOTIF) {
     ctx.fillRect(x - 2.4, -T / 2 + 6, 4.8, T - 12);
   }
 

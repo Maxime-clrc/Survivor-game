@@ -7027,6 +7027,33 @@
                   navigateur pour etre joue — sa preuve est la prochaine
                   occurrence, ce qui est l objet meme du lot.
 
+    0.31.2 lot 3  LA CHAINE DE L USINE RECULAIT DEUX FOIS PAR SECONDE. Les
+                  taquets se posent tous les `CHAINE_PAS * 4` — 52 px — et leur
+                  avance etait repliee sur `CHAINE_PAS`, 13. A 26 px/s, ils
+                  avancaient donc 13 px puis revenaient tous en arriere d un
+                  quart d ecartement, indefiniment.
+                  RIEN NE POUVAIT LE LEVER : un `%` qui rend un nombre trop petit
+                  rend un nombre parfaitement valide. Le motif ne se voit qu a
+                  l oeil, ou en le mesurant — ce qui a ete fait : sur dix
+                  secondes, 120 taquets deplaces sur 600 images, saut de 13,00 px,
+                  exactement `CHAINE_PAS`. Apres : zero.
+                  ET LE PREMIER TAQUET NAISSAIT SUR LE TAPIS. La boucle demarrait
+                  au bord gauche ; elle demarre maintenant une periode avant, donc
+                  un taquet ENTRE au lieu d apparaitre. Le clip de `habillerBloc`
+                  retient ce qui deborde — verifie, l habillage est dessine sous
+                  `silhouetteBloc(...); ctx.clip()`.
+                  `CHAINE_MOTIF` devient une constante nommee a cote des deux
+                  autres : c est elle, et non `CHAINE_PAS`, qui est la periode du
+                  MOUVEMENT. `CHAINE_PAS` reste le pas de la SURFACE, celui des
+                  deux rangs de stries du tapis, et ils ne se confondent plus.
+                  LES TROIS AUTRES MOUVEMENTS PERIODIQUES DU LIEU ONT ETE RELUS :
+                  `convoyeur()` (`props.js`) est juste — le modulo et le pas de
+                  boucle sont le meme nombre, et le tapis est clippe ; les brides
+                  de `conduite()` et `dessinerLed()` sont des enveloppes en `sin`,
+                  sans repli ; `feux()` est juste en regime, son argument etant
+                  negatif la premiere seconde d une partie mais absorbe par un
+                  `Math.max(0, ...)`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7035,4 +7062,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.1";
+export const VERSION = "0.31.2";

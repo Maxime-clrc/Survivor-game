@@ -281,6 +281,15 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   grésille, un voyant respire, du métal en fusion ondule, une balise bat : **le
   comportement est un canal de matière**. L'Usine est le lieu qui l'exploite le
   plus, parce que c'est le seul dont le verbe soit au présent.
+- **UN DÉFILEMENT SE REPLIE SUR LA PÉRIODE DE CE QUI EST DESSINÉ**, jamais sur une
+  sous-graduation de la surface. Les taquets de la chaîne de l'Usine se posent
+  tous les `CHAINE_PAS * 4` alors que leur avance était repliée sur
+  `CHAINE_PAS` : ils reculaient d'un quart d'écartement **deux fois par seconde**,
+  indéfiniment. Mesuré : 13,00 px de saut, 120 taquets déplacés sur 600 images —
+  et rien ne le levait, parce qu'un `%` qui rend un nombre trop petit reste un
+  nombre valide. Une boucle de défilement démarre en outre **une période avant le
+  bord**, sinon le premier motif *naît* sur la pièce au lieu d'y entrer ; le clip
+  de `habillerBloc` retient ce qui déborde.
 
 ### L'atmosphère
 
