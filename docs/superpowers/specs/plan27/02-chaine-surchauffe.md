@@ -115,4 +115,4 @@ Le point **4** est celui qui produira un défaut silencieux si on l'oublie.
 | lot | contenu |
 |---|---|
 | **a** | ~~mesure du pool laser~~ — la mesure a trouvé un défaut **en amont** et s y est arrêtée : `chaine_assaut` annonçait retirer la surchauffe sans jamais la retirer (drapeau jamais lu par `_armeTick`), et la garde de la Chambre thermique reposait sur cette promesse — les deux cartes ensemble annulaient l épique. Texte aligné sur le code, `noOverheat` → `lowRateFloor`, garde retirée — **livré v0.30.4**. La décision A/B/C reste à prendre |
-| **b** | si A : le verrou de système, les quatre descriptions, la garde `noOverheat`, l'anglais |
+| **b** | **A retenue et livrée v0.30.5.** Le verrou se relâche par un champ `systeme` déclaré sur les quatre cartes — la famille n est PAS déplacée : la sortir de `FAMILLES_D_ARME` viderait l échelle du laser et ferait entrer quatre cartes dans un plancher qui n a que 0,5 commune de marge. Pool laser inchangé (109, 39/33/20/17). Le point 4 (`noOverheat`) est sans objet depuis v0.30.4 : le drapeau ne touchait pas la chaleur |

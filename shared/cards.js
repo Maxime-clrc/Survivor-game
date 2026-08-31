@@ -1476,23 +1476,23 @@ export const CARDS = [
 
   {
     id: "laser_seuil", nom: "Dissipateur", rarity: 0, max: 3, tags: ["off"],
-    family: "arme_laser", tier: 0,
-    desc: "canon laser : seuil de chaleur +{0} %",
+    family: "arme_laser", tier: 0, systeme: "chaleur",
+    desc: "seuil de chaleur +{0} %",
     vals: () => ({ "0": 25 }),
     stack: n => pctAdd(0.25, n),
     apply(m, n) { m.chaleurSeuil = 1 / (1 + 0.25 * n); },
   },
   {
     id: "laser_froid", nom: "Circuit froid", rarity: 1, max: 2, tags: ["off"],
-    family: "arme_laser", tier: 1,
-    desc: "canon laser : refroidit deux fois plus vite",
+    family: "arme_laser", tier: 1, systeme: "chaleur",
+    desc: "la chaleur retombe deux fois plus vite",
     stack: n => tf("cards.laser_froid.stack", "×{0}", { "0": num(1 + n) }),
     apply(m, n) { m.chaleurChute += n; },
   },
   {
     id: "laser_chaud", nom: "Focale ardente", rarity: 2, max: 1, tags: ["off"],
-    family: "arme_laser", tier: 2,
-    desc: "canon laser : à chaleur pleine, +{0} % de dégâts de plus",
+    family: "arme_laser", tier: 2, systeme: "chaleur",
+    desc: "à chaleur pleine, +{0} % de dégâts de plus",
     vals: () => ({ "0": 30 }),
     effective: () => t("cards.laser_chaud.eff",
       "la même ressource devient un malus en horde et un bonus sur un boss"),
@@ -1500,8 +1500,8 @@ export const CARDS = [
   },
   {
     id: "laser_nova", nom: "Purge thermique", rarity: 3, max: 1, tags: ["off"], cat: "zone",
-    family: "arme_laser", tier: 3,
-    desc: "canon laser : la surchauffe déclenche une nova de {0}",
+    family: "arme_laser", tier: 3, systeme: "chaleur",
+    desc: "la surchauffe déclenche une nova de {0}",
     vals: () => ({ "0": fmtM(260) }),
     apply(m) { m.surchauffeNova = 260; m.chaleurDegats += 0.30; m.chaleurSeuil = 1 / 1.5; },
   },
@@ -2033,7 +2033,17 @@ export function eligibleCards(owned, cls = null, levelNow = 0, locked = null, ct
   const porteur = ctx?.arme && ctx.arme !== ARME_DEFAUT ? ARME_BY_ID.get(ctx.arme) : null;
   const ech = porteur?.ech ?? null;
   return CARDS.filter(c => {
-    if (c.family && FAMILLES_D_ARME.has(c.family) && c.family !== mienne) return false;
+    /* LA CHALEUR EST UN SYSTEME, LES CARTES DE CHALEUR ETAIENT UN CONTENU D ARME.
+       Une build qui prend la Chambre thermique a une jauge, un bonus de degats et
+       un mutisme a saturation — et AUCUNE carte ne pouvait l ameliorer, parce que
+       les quatre paliers de chaleur portent `family: "arme_laser"` et que ce
+       verrou lit l arme PORTEE. La carte-graine ne germait pas.
+       `systeme` relache le verrou pour qui possede le systeme, sans deplacer la
+       famille : la sortir de `FAMILLES_D_ARME` aurait vide l echelle du laser —
+       la table est DERIVEE des armes — et fait entrer quatre cartes dans le
+       plancher `communes >= epiques x 1,5`, qui n a que 0,5 commune de marge. */
+    if (c.family && FAMILLES_D_ARME.has(c.family) && c.family !== mienne
+        && !(c.systeme && ctx?.systems?.has(c.systeme))) return false;
     // la penalite de `barrelDamageMul` est payee par TOUTES les armes, le canon
     // en plus ne sert qu'a celles qui tirent des balles unitaires : ailleurs la
     // carte est un malus pur, cumulable deux fois, et rien ne le dit a l'ecran

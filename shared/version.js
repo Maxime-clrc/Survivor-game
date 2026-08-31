@@ -6854,6 +6854,35 @@
                    mesure a trouve ce defaut en amont et s y est arretee. La
                    decision A/B/C reste a prendre au lot suivant.
 
+    0.30.5 lot 5 LA CHALEUR EST UN SYSTEME, SES CARTES ETAIENT UN CONTENU D ARME.
+                   La Chambre thermique donne une jauge, un bonus et un mutisme a
+                   saturation — et AUCUNE carte ne pouvait l ameliorer : les quatre
+                   paliers de chaleur portent `family: "arme_laser"`, et ce verrou
+                   lit l arme PORTEE. La carte-graine ne germait pas.
+                   Le brief demandait trois cartes de plus (Refroidissement brutal,
+                   Pression critique, Fusion) ; elles EXISTENT deja sous ces quatre
+                   paliers — Dissipateur, Circuit froid, Focale ardente, Purge
+                   thermique. Les ecrire aurait produit quatre quasi-doublons.
+                   `systeme` relache le verrou pour qui porte le systeme, sans
+                   DEPLACER la famille — et c est mesure : la sortir de
+                   `FAMILLES_D_ARME` aurait vide l echelle du laser, la table etant
+                   DERIVEE des armes, et fait entrer quatre cartes dans le plancher
+                   `communes >= epiques x 1,5` qui n a que 0,5 commune de marge.
+                   Le pool laser ne bouge PAS : 109 cartes et 39/33/20/17 avant
+                   comme apres, memes quatre cartes de chaleur. Une build
+                   `tirManuel` sur n importe quelle arme les voit desormais.
+                   La Set de `_cardCtx` est PARTAGEE par les joueurs d une meme
+                   salve : elle est recopiee, sinon la chaleur d un joueur ouvrirait
+                   les cartes des autres.
+                   Les quatre descriptions cessent de nommer le canon laser : elles
+                   disent ce que fait la CHALEUR, puisqu elles ne s adressent plus a
+                   une seule arme.
+                   `verifierCartes` croise `systeme` et `requiresSystem` avec ce que
+                   la source POSE dans la Set — une faute de frappe rend la carte
+                   introuvable pour toujours, sans rien lever. Il refuse aussi un
+                   `systeme` sur une carte sans famille d arme : il n y aurait rien
+                   a deverrouiller. Les deux prouves rouges par mutation.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6862,4 +6891,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.30.4";
+export const VERSION = "0.30.5";

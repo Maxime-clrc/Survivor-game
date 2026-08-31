@@ -17,7 +17,7 @@ import {
 import { ARME_EXIGENCE, RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
 import {
-  ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, appliquerEchelle, armeAt, cibleArme,
+  ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, FAMILLES_D_ARME, appliquerEchelle, armeAt, cibleArme,
   canonEffet, canonGain, conversionBoss, difficulte, dpsBase, lameRayon, litCadence,
   litCanons, litPerce, litRebond, survieArme, verifierArmes,
 } from "./armes.js";
@@ -1036,7 +1036,14 @@ export class GameState {
        famille de l'arme portee etait retiree du pool au lieu d'y etre garantie,
        le filtre a coefficient nul ne s'appliquait a personne, et « Second canon »
        etait offert a des armes qui ne le lisaient pas. */
+    /* LE SYSTEME EST PAR JOUEUR, PAS PAR EQUIPE : `_cardCtx` ne connait pas le
+       porteur, et sa Set est PARTAGEE par tous les joueurs d une meme salve. On
+       la recopie, sinon la chaleur d un joueur ouvrirait les cartes de chaleur
+       des autres. */
     const ctx = { ...this._cardCtx(), arme: p.arme };
+    if (armeAt(p.arme).chaleur || p.mods.tirManuel > 0) {
+      ctx.systems = new Set(ctx.systems).add("chaleur");
+    }
     const picks = drawCards(p.cards, quality, forceRare || p.commonStreak >= 2,
       classAt(p.cls).id, Math.random, jalon, this.level,
       { locked: p.locked, count: p.meta?.confort?.quatrieme ? 4 : 3, ctx });
@@ -9818,6 +9825,29 @@ export function verifierCartes() {
   // rencontrent, `armes.js` etant une feuille
   soucis.push(...verifierArmes(CARDS, axesDeCarte));
   const byId = new Map(CARDS.map(c => [c.id, c]));
+
+  /* UN SYSTEME QUE PERSONNE NE POSE N EST PAS UNE ERREUR, C EST UN SILENCE.
+     `requiresSystem` FERME une carte, `systeme` OUVRE une famille d arme a qui
+     porte le systeme : dans les deux cas la clef est comparee a une Set, donc
+     une faute de frappe ne leve rien — la carte est simplement introuvable pour
+     toujours. On releve ce que la source POSE au lieu de tenir une liste.
+     C est `game_state.js` qui pose, et `cards.js` qui lit : le controle ne peut
+     pas vivre dans `cards.js`, qui est en amont. */
+  {
+    const src = String(GameState.prototype._cardCtx) + String(GameState.prototype.offerCards);
+    const poses = new Set(
+      [...src.matchAll(new RegExp('systems[^;]{0,60}[.]add[(]"([a-z_]+)"', "g"))].map(m => m[1]));
+    for (const c of CARDS) {
+      for (const [champ, cle] of [["requiresSystem", c.requiresSystem], ["systeme", c.systeme]]) {
+        if (cle && !poses.has(cle)) {
+          soucis.push(`${c.id} : ${champ} « ${cle} » que rien ne pose`);
+        }
+      }
+      if (c.systeme && !(c.family && FAMILLES_D_ARME.has(c.family))) {
+        soucis.push(`${c.id} : systeme sans famille d'arme a deverrouiller`);
+      }
+    }
+  }
 
   for (const c of CARDS) {
     for (const other of c.incompatible ?? []) {
