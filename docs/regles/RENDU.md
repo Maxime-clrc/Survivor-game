@@ -188,6 +188,21 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   1600 × 900** : leurs fractions sont par *cellule*, jamais par arène. Toute
   position posée en coordonnées d'arène est fausse, et c'est `verifierBiomes` qui
   le dit — en refusant les dangers tombés sur un obstacle.
+- **L'ARCHITECTURE décide, le hachage comble, la fuite brouille.** Trois sources
+  dans cet ordre pour le quartier d'un prop : ce qui est **bâti** à moins de
+  `PORTEE_QUARTIER` impose le sien (`QUARTIER[biome]`, une famille de bloc → un
+  quartier) ; en terrain libre le hachage garde une dominante locale ; et ~18 %
+  ignorent les deux.
+  Le repli sur le hachage **est le sens**, pas un défaut : le stockage et la
+  circulation sont ce qui occupe l'espace *entre* les machines, ils n'ont pas
+  d'architecture à suivre.
+  **Le rayon se mesure, il ne se choisit pas.** À 190 px l'architecture couvrait
+  62-78 % du sol et tuait les quartiers qu'elle ne dessert pas (0-1 %) ; à **90**,
+  aucun ne descend sous 11 % et 21-35 % des props suivent le bâti. La distance se
+  prend au **rectangle**, pas au centre — une chaîne de 368 px ne dirait rien à
+  ses extrémités.
+  `verifierZones()` refuse un quartier hors des zones, une famille du lieu sans
+  quartier, et un lieu dont toutes les familles mènent au même.
 - **Un lieu a des QUARTIERS, et le type d'un prop se lit sur sa zone.** Le semis
   tirait uniformément dans toute la liste du biome, indépendamment des voisins :
   déterministe dans son *calcul*, parfaitement aléatoire dans sa *distribution* —

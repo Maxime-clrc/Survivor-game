@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, skin } from "./stage.js";
-import { biomeAt } from "/shared/biomes.js";
+import { biomeAt, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, BIOMES, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -166,6 +166,41 @@ const ZONES = {
   ],
 };
 
+/* CE QUE L ARCHITECTURE ATTIRE AUTOUR D ELLE. Le quartier se lisait sur un
+   hachage de la cellule divisee : coherent avec lui-meme, mais pose AU HASARD
+   par rapport aux batiments. Une « zone stockage » pouvait donc tomber a dix
+   metres d une presse et loin de tout rack — les quartiers etaient corrects et
+   ne racontaient rien.
+
+   La regle manquante est une hierarchie : L ARCHITECTURE DECIDE, LE SEMIS SUIT.
+   Un prop assez proche d un bloc prend le quartier de ce bloc ; loin de tout, il
+   retombe sur le hachage. Ce repli n est pas un defaut, c est le SENS : le
+   stockage et la circulation sont precisement ce qui occupe l espace ENTRE les
+   machines, donc ils n ont pas d architecture propre a suivre.
+
+   La donnee etait deja la — `occupe()` balayait les memes obstacles pour eviter
+   les collisions et jetait la distance. On la garde maintenant.
+
+   `verifierZones()` exige qu une famille batie pointe sur un quartier qui
+   existe, et que le lieu en desserve au moins DEUX : une architecture qui
+   ramene tout au meme quartier ne compose rien. */
+const PORTEE_QUARTIER = 90;
+const QUARTIER = {
+  // la chaine et la cellule PRODUISENT, le poste ENTRETIENT. Stockage et
+  // circulation restent a l espace libre, et c est leur definition.
+  usine: { [B_CHAINE]: 0, [B_MACHINE]: 0, [B_POSTE]: 3 },
+  // le four COULE, la cuve MOULE, la conduite appartient au rebut — c est par
+  // elle que part ce qui ne sert plus.
+  fonderie: { [B_FOUR]: 0, [B_CUVE]: 1, [B_CONDUITE]: 3 },
+  // la carcasse fait la CASSE, le mur fait la CLOTURE, et une ruine est le seul
+  // endroit ou il reste quelque chose d allume.
+  friche: { [B_CARCASSE]: 1, [B_MUR]: 2, [B_RUINE]: 3 },
+  // la coque et ses debris font l EPAVE, la travee est ce a quoi on s AMARRE.
+  nebuleuse: { [B_FRAGMENT]: 0, [B_DEBRIS]: 0, [B_TRAVEE]: 3 },
+  // devanture et pylone VENDENT, le conteneur est ce qu on livre PAR DERRIERE.
+  secteur: { [B_DEVANTURE]: 0, [B_PYLONE]: 0, [B_CONTENEUR]: 2 },
+};
+
 /* LES DEUX TABLES DOIVENT SE RECOUVRIR EXACTEMENT, DANS LES DEUX SENS. Un prop
    de `TABLE` qu aucune zone ne tire ne se signale JAMAIS : il disparait du lieu
    et le semis continue de tourner. Un prop de `ZONES` absent de `TABLE` est
@@ -185,6 +220,30 @@ export function verifierZones() {
       if (!dansTable.has(p)) soucis.push(`${lieu} : prop ${p} tire par une zone, absent du catalogue`);
     }
     if (zones.length < 2) soucis.push(`${lieu} : une seule zone, donc pas de composition`);
+
+    /* ET L ARCHITECTURE DOIT DESSERVIR CE QU ELLE DECLARE. Une famille batie
+       qui pointe sur un quartier inexistant retombe silencieusement sur le
+       modulo, donc sur un quartier arbitraire ; une famille du lieu absente de
+       la table ne dit rien de ce qui l entoure ; et un lieu dont toutes les
+       familles menent au meme quartier ne compose pas, il uniformise. */
+    const q = QUARTIER[lieu];
+    if (!q) { soucis.push(`${lieu} : aucune table de quartier`); continue; }
+    const familles = blocsDe(lieu);
+    for (const k of familles) {
+      if (q[k] === undefined) soucis.push(`${lieu}/${blocAt(k).key} : famille sans quartier`);
+    }
+    for (const k of Object.keys(q)) {
+      if (!familles.includes(+k)) soucis.push(`${lieu} : quartier sur une famille etrangere (${k})`);
+      else if (!(q[k] >= 0 && q[k] < zones.length)) {
+        soucis.push(`${lieu}/${blocAt(+k).key} : quartier ${q[k]} hors des ${zones.length} zones`);
+      }
+    }
+    if (new Set(Object.values(q)).size < 2) {
+      soucis.push(`${lieu} : toutes les familles menent au meme quartier`);
+    }
+  }
+  for (const lieu of Object.keys(QUARTIER)) {
+    if (!TABLE[lieu]) soucis.push(`${lieu} : quartiers sans catalogue`);
   }
   for (const lieu of Object.keys(ZONES)) {
     if (!TABLE[lieu]) soucis.push(`${lieu} : zones sans catalogue`);
@@ -210,14 +269,28 @@ let cle = "";
    `cle` ne contient ni obstacles ni dangers, donc c'est le panoramique du combat
    qui declenche le recalcul. Il disparait ensuite a la mort du boss. La trace
    d'un bloc absent est le prix, et il est plus petit qu'un semis qui change. */
-function occupe(x, y) {
+/* UN SEUL BALAYAGE POUR LES DEUX QUESTIONS : « est-ce libre ? » et « quelle
+   architecture est la plus proche ? ». Les separer relirait la meme liste deux
+   fois par prop candidat, et `refresh()` en teste une centaine.
+   Rend -2 si la place est prise, sinon l indice de quartier du bloc le plus
+   proche, ou -1 si aucun n est a portee. */
+function sonder(x, y, quartiers) {
+  let best = -1, bestD = PORTEE_QUARTIER * PORTEE_QUARTIER;
   for (const o of obstaclesDuLieu()) {
-    if (Math.abs(x - o.x) < o.w / 2 + 26 && Math.abs(y - o.y) < o.h / 2 + 26) return true;
+    if (Math.abs(x - o.x) < o.w / 2 + 26 && Math.abs(y - o.y) < o.h / 2 + 26) return -2;
+    const q = quartiers[o.kind];
+    if (q === undefined) continue;
+    // distance au RECTANGLE, pas a son centre : une chaine longue de 368 px
+    // rayonnerait depuis son milieu et ne dirait rien a ses extremites.
+    const dx = Math.max(Math.abs(x - o.x) - o.w / 2, 0);
+    const dy = Math.max(Math.abs(y - o.y) - o.h / 2, 0);
+    const d = dx * dx + dy * dy;
+    if (d < bestD) { bestD = d; best = q; }
   }
   for (const h of hazardsDuLieu()) {
-    if ((x - h.x) ** 2 + (y - h.y) ** 2 < (h.r + 14) ** 2) return true;
+    if ((x - h.x) ** 2 + (y - h.y) ** 2 < (h.r + 14) ** 2) return -2;
   }
-  return false;
+  return best;
 }
 
 function refresh() {
@@ -235,6 +308,7 @@ function refresh() {
   const lieu = biomeAt(biomeIndex).key;
   const table = TABLE[lieu] ?? TABLE.usine;
   const zones = ZONES[lieu] ?? ZONES.usine;
+  const quartiers = QUARTIER[lieu] ?? {};
   const s = biomeSeed >>> 0;
 
   for (let cy = c0y; cy <= c1y; cy++) {
@@ -245,15 +319,18 @@ function refresh() {
         const g = s + 101 * (i + 1);
         const x = (cx + 0.12 + h2(cx, cy, g + 1) * 0.76) * CELL;
         const y = (cy + 0.12 + h2(cx, cy, g + 2) * 0.76) * CELL;
-        if (occupe(x, y)) continue;
-        // LE QUARTIER DECIDE, SAUF QUAND IL FUIT. La zone se lit sur la cellule
-        // DIVISEE, donc des cellules voisines partagent leur dominante ; la
-        // fuite renvoie une part des props au fonds du lieu, et c est ce qui
-        // empeche la frontiere de deux quartiers d etre une droite franche.
+        const q = sonder(x, y, quartiers);
+        if (q === -2) continue;
+        /* L ARCHITECTURE DECIDE, LE HACHAGE COMBLE, LA FUITE BROUILLE. Trois
+           sources dans cet ordre : ce qui est BATI a cote impose son quartier ;
+           en terrain libre le hachage de la cellule divisee garde une dominante
+           locale ; et une part des props ignore les deux pour que la frontiere
+           de deux quartiers ne soit pas une droite franche. */
         const jeu = h2(cx, cy, g + 8) < FUITE
           ? table
-          : zones[(h2(Math.floor(cx / ZONE_CELL), Math.floor(cy / ZONE_CELL), s + 977)
-                   * zones.length) | 0];
+          : zones[q >= 0 ? q % zones.length
+                  : (h2(Math.floor(cx / ZONE_CELL), Math.floor(cy / ZONE_CELL), s + 977)
+                     * zones.length) | 0];
         props.push({
           k: jeu[(h2(cx, cy, g + 3) * jeu.length) | 0],
           x, y,

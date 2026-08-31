@@ -6209,6 +6209,45 @@
                    et `visePalier`. Sept chantiers sur huit etaient perimes ou
                    deja faits ; restent 01 (bestiaire) et 06 (surchauffe).
 
+    0.29.11 lot 12 L ARCHITECTURE DECIDE, LE SEMIS SUIT. Le lot 0.29.6 avait donne
+                   des quartiers aux lieux, mais il les posait sur un hachage de
+                   la cellule divisee : coherents avec eux-memes, et AU HASARD par
+                   rapport aux batiments. Une « zone stockage » pouvait tomber a
+                   dix metres d une presse et loin de tout rack. Les quartiers
+                   etaient corrects et ne racontaient RIEN — c est exactement la
+                   moitie du travail que le brief demandait, et la moitie facile.
+                   La regle manquante etait une HIERARCHIE : un prop assez proche
+                   d un bloc prend le quartier de ce bloc ; loin de tout, il
+                   retombe sur le hachage. Et ce repli n est pas un defaut, c est
+                   le SENS : le stockage et la circulation sont precisement ce qui
+                   occupe l espace ENTRE les machines, donc ils n ont pas
+                   d architecture propre a suivre.
+                   LA DONNEE ETAIT DEJA LA. `occupe()` balayait les memes obstacles
+                   pour eviter les collisions et JETAIT la distance. `sonder()` la
+                   garde, et repond aux deux questions en un seul balayage —
+                   `refresh()` teste une centaine de props, les separer relirait la
+                   liste deux fois. Distance au RECTANGLE et non a son centre : une
+                   chaine de 368 px rayonnerait depuis son milieu et ne dirait rien
+                   a ses extremites.
+                   LA MESURE A CORRIGE MON PROPRE REGLAGE, et c est le vrai
+                   contenu de ce lot. A 190 px l architecture couvrait 62 a 78 %
+                   du sol, donc les quartiers qu elle ne dessert pas tombaient a
+                   0-1 % : le stockage et la circulation de l Usine, la chaussee du
+                   Secteur etaient MORTS. Balayage a 60 / 90 / 120 / 190 : a 90 px
+                   aucun quartier ne descend sous 11 %, et l architecture gouverne
+                   un col d environ 4,5 m — assez pour qu un prop colle a sa
+                   machine, pas assez pour manger l espace libre.
+                   REPARTITION FINALE : 21 a 35 % des props suivent l architecture
+                   (0 % avant), 47 a 60 % relevent du hachage en terrain libre,
+                   18 % de fuite. Et les 9 (12 pour le Secteur) types restent tous
+                   presents dans les cinq lieux — la fuite est ce qui le garantit.
+                   `verifierZones()` couvre maintenant `QUARTIER` : une famille qui
+                   pointe sur un quartier inexistant retomberait en SILENCE sur le
+                   modulo, une famille du lieu absente de la table ne dirait rien
+                   de ce qui l entoure, et un lieu dont toutes les familles menent
+                   au meme quartier n aurait pas de composition. Les trois fautes
+                   verifiees rouges avant enregistrement.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6217,4 +6256,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.10";
+export const VERSION = "0.29.11";
