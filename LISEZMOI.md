@@ -4136,6 +4136,50 @@ palier        ordinaire        1,40 s × 4
 (`BOSS_ECHANTILLON_MIN = 8`) demande une campagne, et c'est elle qui départage
 ce que les lots 1, 2 et 3 ont laissé ouvert.
 
+### La lame orbitale, et ce que le banc ne peut pas dire (plan 27, chantier 3)
+
+**Protocole.** `GameState` réelle, difficulté normale, un joueur rendu
+invulnérable, 300 s par manche, **5 graines appariées** (11, 23, 37, 53, 71).
+On compte le montant passé à `_damage()` avec le joueur pour propriétaire, en
+séparant la horde du boss. Aucune cible synthétique : un banc de DPS sur cible
+immobile avait déjà rendu +789 % sur ce dépôt et été jeté.
+
+**Empilement d'Orbiteurs**, bot immobile — la scène la plus favorable à la
+carte, puisque la horde vient à lui :
+
+| exemplaires | lames | dégâts horde | vs témoin |
+|---|---|---|---|
+| témoin (aucune) | — | 12 419 | — |
+| ×1 | 2 | 16 398 | +32 % |
+| ×2 | 4 | 17 346 | +40 % |
+| ×3 | 6 | 17 313 | **+39 %** |
+
+Le troisième exemplaire ne rend rien. `orbitHits` est indexé par **ennemi** et
+partagé par toutes les lames : une fois touché, un ennemi est immunisé
+`ORBIT_HIT_CD` contre **toutes**. Diviser la recharge par le nombre de lames a
+été essayé et ne change rien (16 717 à six lames) — ce n'est pas la recharge qui
+lie, c'est que les ennemis **traversent** la bande au lieu d'y séjourner.
+
+**Où sont les ennemis**, part du temps passé par bande de 20 px :
+
+| distance | bot immobile | bot qui recule |
+|---|---|---|
+| 20-40 px | 29,7 % | 0,0 % |
+| **60-100 px (les lames)** | **2,6 %** | **0,1 %** |
+| 220-240 px | 54,6 % | 96,4 % |
+
+**Ce que ce banc ne peut pas trancher.** Les deux bots sont des extrêmes : l'un
+ne bouge jamais et laisse la horde le couvrir, l'autre recule dès 260 px et n'en
+laisse approcher aucun. Aucun ne représente un joueur. La question « l'épique
+est-elle au bon palier » **reste ouverte** — elle demande une partie réelle, pas
+un bot. Ce qui est tranché est plus étroit et ne dépend pas du bot : `max: 3`
+promettait un empilement que le code ne rend pas, et le troisième exemplaire
+était mort **même dans le cas favorable**.
+
+**Pour mémoire, les pairs** (bot immobile, mêmes graines) : `pulsar` ×2 rend
++168 %, `drone` ×2 rend +13 %, `orbiteurs` ×2 rend +40 %. L'écart entre épiques
+d'invocation est large, et ce relevé ne suffit pas à le corriger.
+
 ## Réglages
 
 Tout est en haut de `shared/game_state.js`.

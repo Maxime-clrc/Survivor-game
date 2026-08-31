@@ -87,4 +87,4 @@ légitimement se conclure par « rien à faire », et c'est un résultat.
 
 | lot | contenu |
 |---|---|
-| **a** | script de mesure, deux scènes, trois profils ; résultats consignés dans `LISEZMOI.md` avec leur protocole ; verdict écrit. Modification **seulement** si le verdict la demande |
+| **a** | **livré v0.30.6.** Verdict PARTIEL, et la limite est écrite : les deux bots sont des extrêmes (l un laisse 29,7 % des ennemis au corps, l autre 96,4 % au loin), donc le banc **ne peut pas** trancher le palier de la carte — il faut une partie réelle. Ce qui est tranché ne dépend pas du bot : `orbitHits` étant indexé par ennemi, le 3ᵉ exemplaire ne rendait rien même dans le cas favorable. `max` 3 → 2. Relevé dans `LISEZMOI.md` |

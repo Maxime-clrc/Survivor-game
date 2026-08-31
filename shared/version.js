@@ -6883,6 +6883,30 @@
                    `systeme` sur une carte sans famille d arme : il n y aurait rien
                    a deverrouiller. Les deux prouves rouges par mutation.
 
+    0.30.6 lot 6 LE TROISIEME ORBITEUR NE RENDAIT RIEN, ET C EST MESURE DANS LE CAS
+                   FAVORABLE. `orbitHits` est indexe par ENNEMI et partage par
+                   toutes les lames : une fois touche, un ennemi est immunise
+                   `ORBIT_HIT_CD` contre TOUTES. Le nombre de lames ne decide donc
+                   pas des degats. 300 s x 5 graines appariees, bot immobile —
+                   la horde vient a lui, c est la scene la plus favorable a la
+                   carte : +32 % a un exemplaire, +40 % a deux, +39 % a trois.
+                   `max` passe de 3 a 2. `surcharge_orbitale` reste la facon d
+                   investir plus et elle, elle passe a l echelle (+94 % a deux).
+                   DEUX PISTES ESSAYEES ET REJETEES PAR LA MESURE. Diviser la
+                   recharge par le nombre de lames ne change rien (16 717 a six
+                   lames) : ce n est pas la recharge qui lie, les ennemis
+                   TRAVERSENT la bande au lieu d y sejourner. Et le rayon ne peut
+                   pas descendre vers la foule — a 46 et 30 px la pile d anneaux du
+                   joueur recouvre ce qui orbite, defaut deja paye par `DRONE_ORBIT`.
+                   CE QUE LE BANC NE PEUT PAS DIRE, et c est ecrit dans LISEZMOI :
+                   les deux bots sont des extremes. L immobile laisse 29,7 % des
+                   ennemis a 20-40 px, celui qui recule en garde 96,4 % a 220-240 px
+                   et n en laisse approcher aucun. Aucun ne represente un joueur, et
+                   la bande des lames tient 2,6 % du temps dans le meilleur des cas.
+                   La question du PALIER de la carte reste donc OUVERTE — elle
+                   demande une partie reelle. Ce qui est tranche ne depend pas du
+                   bot : un exemplaire mort promis par `max`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6891,4 +6915,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.30.5";
+export const VERSION = "0.30.6";

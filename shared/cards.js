@@ -720,8 +720,21 @@ export const CARDS = [
     apply(m, n) { m.damageMul += 0.40 * n; m.bulletSpeedMul -= 0.25 * n; },
   },
 
+  /* MAX 3 PROMETTAIT UN EMPILEMENT QUE LE CODE NE REND PAS. `orbitHits` est
+     indexe par ENNEMI et partage par toutes les lames : une fois touche, un
+     ennemi est immunise `ORBIT_HIT_CD` contre TOUTES. Le nombre de lames ne
+     decide donc pas des degats, la largeur de la bande le fait — et les ennemis
+     TRAVERSENT cette bande au lieu d'y sejourner.
+     Mesure, 300 s x 5 graines appariees, sur la scene la PLUS FAVORABLE a la
+     carte (bot immobile, la horde vient a lui) : +32 % de degats a un
+     exemplaire, +40 % a deux, +39 % a trois. Le troisieme est mort, et il l est
+     dans le cas favorable — un joueur qui se deplace en tire encore moins.
+     Le rayon ne peut pas descendre vers la foule : a 46 et 30 px la pile
+     d'anneaux du joueur recouvre ce qui orbite, defaut deja paye par
+     `DRONE_ORBIT`. `surcharge_orbitale` reste la facon d'investir plus, et
+     elle, elle passe a l'echelle : +94 % avec deux exemplaires. */
   {
-    id: "orbiteurs", nom: "Orbiteurs", rarity: 2, max: 3, tags: ["off"],
+    id: "orbiteurs", nom: "Orbiteurs", rarity: 2, max: 2, tags: ["off"],
     horsEchelle: true,
     desc: "2 lames tournantes à {0}, 25 dégâts au contact",
     vals: () => ({ "0": fmtM(CARD_CFG.ORBIT_RADIUS) }),
