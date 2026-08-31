@@ -6536,6 +6536,43 @@
                    3/24, tout rencontre 24/24 — et l ecran est servi par le
                    serveur avec son bouton.
 
+    0.29.19 lot 20 LE CODEX PREND SES DEUX AUTRES FAMILLES : cartes et reliques.
+                   237 entrees au lieu de 24.
+                   UN SEUL CHAMP, PAS TROIS. Elles auraient pu avoir leur propre
+                   tableau — ce sont les memes questions, qu ai-je rencontre et que
+                   me reste-t-il — mais trois systemes paralleles auraient demande
+                   trois replis dans `awardRun`, trois normalisations a la lecture
+                   et trois verificateurs. Le prefixe suffit a les separer, et
+                   `codexSection()` est le seul endroit qui le sache.
+                   ET LES QUATRE N ENTRENT PAS AU MEME MOMENT. Un corps et un boss
+                   entrent a la RENCONTRE : on les subit, on ne les choisit pas.
+                   Une carte et une relique entrent quand on les PREND, pas quand
+                   on les voit — une carte apercue dans un tirage n a rien appris a
+                   personne, et « avec quoi ai-je deja joue » a une reponse la ou
+                   « qu ai-je deja apercu » n en a pas.
+                   DES PUCES ET NON DES FICHES, et ce n est pas une economie de
+                   place. Le texte d une carte EXISTE DEJA — au tirage, chez le
+                   marchand, sur l ecran de build : le repeter ici en ferait une
+                   TROISIEME copie a tenir a jour, ce que ce depot refuse partout
+                   ailleurs. Ce que le codex apporte pour elles est ce qu aucun
+                   autre ecran ne dit : combien il en reste, et lesquelles.
+                   La fiche reste riche pour les creatures parce que la
+                   l information n existe nulle part ailleurs — rien dans le jeu
+                   ne nommait un Pavois avant le lot precedent.
+                   L ORDRE DES PUCES EST CELUI DU CATALOGUE, jamais « obtenues
+                   d abord » : il est stable d une visite a l autre, donc un trou
+                   reste au meme endroit et se REMARQUE. Trier par decouverte
+                   ferait bouger la grille a chaque prise et effacerait cette
+                   lecture.
+                   UN COMPTEUR PERIME ATTRAPE PAR SON PROPRE VERIFICATEUR :
+                   `verifierCodex` comparait le nombre de cles a une SOMME ECRITE
+                   (`ENEMY_TYPES.length + BOSS_ROSTER.length`), donc il a cri au
+                   doublon des que le codex a grandi. Il se releve maintenant sur
+                   `codexClefs()` — ajouter une famille ne doit pas obliger a se
+                   souvenir d un compteur ailleurs. 237 cles, zero doublon.
+                   Les cinq regles CSS restent tenues sur les seize ecrans, et
+                   toutes les variables de la feuille resolvent.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6544,4 +6581,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.18";
+export const VERSION = "0.29.19";

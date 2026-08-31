@@ -1064,6 +1064,12 @@ export class GameState {
     if (had >= card.max) return false;
 
     p.cards.set(id, had + 1);
+    /* PRISE, ET NON OFFERTE. Une carte vue dans un tirage n a rien appris a
+       personne — on la lit trois secondes et on en choisit une autre. Le codex
+       garde ce qu on a JOUE, ce qui est aussi la seule lecture qui fasse une
+       collection : « avec quoi ai-je deja joue » a une reponse, « qu ai-je deja
+       apercu » n en a pas. */
+    this.vus.add(`c:${id}`);
     if (!card.fallback) {
       p.commonStreak = card.rarity === 0 ? p.commonStreak + 1 : 0;
       p.hf.cartes++;
@@ -3757,6 +3763,8 @@ export class GameState {
     if (p.eclats < price) return false;
     p.eclats -= price;
     p.relics.set(id, 1);
+    // ACHETEE, pas offerte : le marchand en montre trois, on en emporte une.
+    this.vus.add(`r:${id}`);
     p.relicBought = (p.relicBought ?? 0) + 1;
     p.hf.relics++;
     if (r.tier === 3) this.relicLegendaryTaken = true;

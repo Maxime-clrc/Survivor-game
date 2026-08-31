@@ -14,7 +14,7 @@ import { COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, c
 import { ARME_CFG, armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
 import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
 import { appliquerCadre } from "./cadres.js";
-import { relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
+import { RELICS, relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { GFX_KEYS, GFX_ULTRA, INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, SECOUSSE_FACTEURS, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setGfx, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, setSecousse, secousse, gfx, tally, ws } from "../core/state.js";
@@ -23,7 +23,7 @@ import { fmtTime } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -2108,6 +2108,17 @@ function carteCodex(ouverte, nom, sous, lignes) {
     + `</div>`;
 }
 
+/* UNE PUCE PAR ENTREE, DANS L ORDRE DU CATALOGUE. L ordre compte : il est
+   stable d une visite a l autre, donc un trou reste au meme endroit et se
+   remarque. Trier par « obtenu d abord » ferait bouger la grille a chaque
+   decouverte et effacerait cette lecture. */
+function puces(liste, cleDe, nomDe) {
+  const vus = new Set(progressState?.vus ?? []);
+  return liste.map(x => vus.has(cleDe(x))
+    ? `<span class="codexPuce">${escapeHtml(nomDe(x))}</span>`
+    : `<span class="codexPuce closed" aria-hidden="true">?</span>`).join("");
+}
+
 export function renderCodex() {
   if (!codexEl || codexEl.hidden) return;
   const vus = new Set(progressState?.vus ?? []);
@@ -2125,6 +2136,18 @@ export function renderCodex() {
     const ouverte = vus.has(`b:${b.key}`);
     return carteCodex(ouverte, bossNom(i), bossSous(i), [bossVerbe(i)].filter(Boolean));
   }).join("");
+
+  /* CARTES ET RELIQUES EN PUCES, PAS EN FICHES, et ce n est pas une economie
+     de place : leur texte EXISTE DEJA — au tirage, chez le marchand, sur
+     l ecran de build. Le repeter ici en ferait une troisieme copie a tenir a
+     jour, et c est exactement ce que ce depot refuse partout ailleurs.
+     Ce que le codex apporte pour elles est ce qu aucun autre ecran ne dit :
+     COMBIEN il en reste, et lesquelles. Une puce suffit a ca.
+
+     La fiche reste riche pour les creatures parce que la, l information
+     n existe nulle part ailleurs : rien dans le jeu ne nomme un Pavois. */
+  codexCartesEl.innerHTML = puces(CARDS, c => `c:${c.id}`, c => cardNom(c.id));
+  codexReliquesEl.innerHTML = puces(RELICS, r => `r:${r.id}`, r => relicNom(r.id));
 
   const total = codexClefs().length;
   const n = codexClefs().filter(c => vus.has(c)).length;

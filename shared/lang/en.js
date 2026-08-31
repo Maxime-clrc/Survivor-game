@@ -1206,6 +1206,8 @@ export const EN = {
   "ui.codex.horde": "Horde",
   "ui.codex.boss": "Bosses",
   "ui.codex.compte": "{n} / {tot} met",
+  "ui.codex.cartes": "Cards played",
+  "ui.codex.reliques": "Relics taken",
   "ui.class.codex": "Codex",
   "bestiaire.grunt.nom": "Trooper",
   "bestiaire.grunt.lore": "The horde's default body. Nothing sets it apart, and that is exactly what makes it dangerous in numbers.",

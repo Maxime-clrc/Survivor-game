@@ -171,6 +171,8 @@ export const codexCloseBtn = document.getElementById("codexClose");
 export const codexCompteEl = document.getElementById("codexCompte");
 export const codexHordeEl = document.getElementById("codexHorde");
 export const codexBossEl = document.getElementById("codexBoss");
+export const codexCartesEl = document.getElementById("codexCartes");
+export const codexReliquesEl = document.getElementById("codexReliques");
 /* Le francais du markup EST le repli : on le releve au premier passage, on ne
    le recopie donc jamais dans le dictionnaire. */
 const ORIGINE = new WeakMap();

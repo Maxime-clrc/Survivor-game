@@ -1,6 +1,7 @@
 
 import { nombre, t, tf } from "./i18n.js";
-import { CARD_BY_ID, CARD_CFG } from "./cards.js";
+import { CARDS, CARD_BY_ID, CARD_CFG } from "./cards.js";
+import { RELICS } from "./reliques.js";
 import { ARMES, ARME_BY_ID, ARME_DEFAUT } from "./armes.js";
 import { ENEMY_TYPES } from "./enemies.js";
 import { BOSS_ROSTER } from "./bosses.js";
@@ -440,18 +441,44 @@ export function recordFinal(profile, run, dateISO) {
 
    `codexClefs()` est la seule source de verite du format, et les deux ecrivains
    comme le lecteur s y comparent. */
-export function codexClefs() {
-  return [
+/* QUATRE FAMILLES, UN SEUL CHAMP. Cartes et reliques auraient pu avoir leur
+   propre tableau : ce sont les memes questions — qu ai-je rencontre, que me
+   reste-t-il — et trois systemes paralleles auraient demande trois replis dans
+   `awardRun`, trois normalisations a la lecture et trois verificateurs.
+   Le prefixe suffit a les separer, et `codexSection()` est le seul endroit qui
+   le sache.
+
+   ET LES QUATRE N ENTRENT PAS AU MEME MOMENT. Un corps et un boss entrent a
+   la RENCONTRE — on les subit, on ne les choisit pas. Une carte et une relique
+   entrent quand on les PREND : une carte apercue dans un tirage n a rien
+   appris a personne, et « avec quoi ai-je deja joue » a une reponse la ou
+   « qu ai-je deja apercu » n en a pas. */
+export const CODEX_SECTIONS = ["e", "b", "c", "r"];
+export const codexSection = cle => cle.slice(0, cle.indexOf(":"));
+
+export function codexClefs(section = null) {
+  const tout = [
     ...ENEMY_TYPES.map(t => `e:${t.key}`),
     ...BOSS_ROSTER.map(b => `b:${b.key}`),
+    ...CARDS.map(c => `c:${c.id}`),
+    ...RELICS.map(r => `r:${r.id}`),
   ];
+  return section ? tout.filter(k => codexSection(k) === section) : tout;
 }
 
 export function verifierCodex(vus = []) {
   const soucis = [];
   const connues = new Set(codexClefs());
-  if (connues.size !== ENEMY_TYPES.length + BOSS_ROSTER.length) {
-    soucis.push("deux entrees partagent une cle de codex");
+  for (const s of CODEX_SECTIONS) {
+    if (codexClefs(s).length === 0) soucis.push(`section « ${s} » : aucune entree`);
+  }
+  // le compte se releve sur la LISTE et non sur une somme ecrite : ajouter une
+  // famille au codex ne doit pas obliger a se souvenir d un compteur ailleurs.
+  const liste = codexClefs();
+  if (connues.size !== liste.length) {
+    const vu = new Set(), doubles = new Set();
+    for (const k of liste) { if (vu.has(k)) doubles.add(k); else vu.add(k); }
+    soucis.push("cles en double : " + [...doubles].join(", "));
   }
   for (const t of ENEMY_TYPES) {
     if (!t.key) soucis.push(`un type d ennemi sans cle : ${t.nom ?? "?"}`);

@@ -4037,3 +4037,35 @@ input:focus {
   font-size: var(--t-s);
 }
 .codexRoles li { margin: 1px 0; }
+
+/* LES PUCES : cartes et reliques. Elles ne sont pas des fiches parce que leur
+   texte existe deja au tirage, chez le marchand et sur l ecran de build — le
+   repeter ici en ferait une troisieme copie a tenir a jour. Ce que le codex
+   apporte pour elles est ce qu aucun autre ecran ne dit : COMBIEN il en reste.
+   Le flux libre est voulu : deux cents entrees en grille reguliere se lisent
+   comme un tableau de donnees, en flux comme une collection. */
+.codexPuces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-4);
+}
+.codexPuce {
+  padding: 2px var(--sp-2);
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: var(--t-xs);
+  white-space: nowrap;
+}
+/* MEME REGLE QUE LA CARTE FERMEE : pas grisee, VIDE. Et une largeur minimale,
+   sinon un « ? » est deux fois plus etroit qu un nom et la rangee ondule. */
+.codexPuce.closed {
+  min-width: 2.4em;
+  text-align: center;
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-faint);
+  opacity: .55;
+}
