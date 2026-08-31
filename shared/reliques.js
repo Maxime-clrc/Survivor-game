@@ -60,8 +60,10 @@ export const RELICS = [
     desc: "retire un état toutes les 10 s",
   },
   {
+    // elle recharge la jauge a 50 % ; sans carte de bouclier la jauge vaut 0,
+    // donc 50 % de rien
     id: "battery_secours", nom: "Batterie de secours", tier: 1,
-    mode: "battery",
+    mode: "battery", requiresMod: "shieldPool",
     desc: "le bouclier, une fois vide, se recharge une fois à 50 % de sa jauge (une fois par manche)",
   },
 
@@ -82,8 +84,12 @@ export const RELICS = [
   },
 
   {
+    /* NULLE SANS SOURCE DE BRULURE, et pas seulement faible : son champ est lu
+       derriere `p.mods.burnDmg > 0 ? ... : 0`, donc sans carte de brulure elle
+       rend EXACTEMENT zero. `burnDmg` vaut 0 a la base et aucune des dix armes
+       ne brule. */
     id: "silex", nom: "Silex", tier: 0,
-    burnFlat: 5,
+    burnFlat: 5, requiresMod: "burnDmg",
     desc: "+5 dégâts de brûlure bruts",
   },
   {
@@ -102,8 +108,9 @@ export const RELICS = [
     desc: "canalisation d'un amas deux fois plus rapide",
   },
   {
+    // `_relicAllySum` boucle sur les AUTRES joueurs : en solo, zero
     id: "fanion", nom: "Fanion", tier: 0,
-    allyFlatHp: 15, equipe: true,
+    allyFlatHp: 15, equipe: true, minPlayers: 2,
     desc: "+15 PV bruts à chaque allié",
   },
   {
@@ -123,8 +130,9 @@ export const RELICS = [
     desc: "10 % de chance d'entraver la cible 1 s",
   },
   {
+    // relever un allie n'existe pas sans allie
     id: "trousse_campagne", nom: "Trousse de campagne", tier: 1,
-    reviveHeal: 30,
+    reviveHeal: 30, minPlayers: 2,
     desc: "relever un allié rend 30 PV bruts aux deux",
   },
   {

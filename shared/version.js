@@ -6795,6 +6795,39 @@
                    3 -> 5. 37 reliques (15/11/9/2). Les trois directions de malus
                    prouvees rouges par mutation.
 
+    0.30.3 lot 3 QUATRE RELIQUES POUVAIENT RENDRE EXACTEMENT ZERO. Le plan 27
+                   annoncait « dix bonus plats » au palier 0 a conditionner ; la
+                   mesure dit autre chose. Six des dix portent DEJA une condition
+                   reelle — esquive, recolte, sols glissants, allie — simplement
+                   pas DECLAREE, et l audit qui ne regardait que les conditions
+                   declarees les avait comptees comme seches. Quatre seulement
+                   sont des bonus plats francs, et ce n est pas un defaut : une
+                   commune a 25 eclats est un appoint.
+                   Le vrai defaut etait ailleurs, et il est pire qu un bonus
+                   ennuyeux : quatre reliques sont NULLES selon la partie. `silex`
+                   est lu derriere `p.mods.burnDmg > 0 ? ... : 0` et `burnDmg`
+                   vaut 0 a la base, aucune des dix armes ne brulant ;
+                   `battery_secours` recharge 50 % d une jauge qui vaut 0 sans
+                   carte de bouclier ; `fanion` et `trousse_campagne` bouclent sur
+                   les AUTRES joueurs. Achetees, elles ne faisaient rien — et
+                   c est exactement l « emplacement d offre perdu » que le
+                   commentaire de `requiresArme` decrivait deja.
+                   `requiresMod` declare la condition de build, `minPlayers`
+                   existait deja pour l effectif. Zero relique nulle sur 1600
+                   emplacements solo ; offertes a taux normal des que la condition
+                   est remplie.
+                   ET LE FILTRE DEVIENT UN SEUL ENDROIT. Il vivait recopie dans
+                   `_offerRelics` et `visePalier`, avec le commentaire qui disait
+                   deja le danger : une condition ajoutee d un seul cote et l
+                   acheteur vise un palier que le tirage ne peut pas montrer, donc
+                   il relance jusqu a epuiser sa bourse. `_relicOffrable` les
+                   reunit ; `lockedRelics` reste dehors, c est un choix du joueur
+                   sur SON offre et non une eligibilite. `mesureMarchand` tourne a
+                   travers le refactor.
+                   Un `requiresMod` mal orthographie teste `undefined > 0`, donc la
+                   relique n est JAMAIS offerte : croise avec `defaultMods()`,
+                   prouve rouge par mutation.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6803,4 +6836,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.30.2";
+export const VERSION = "0.30.3";

@@ -140,8 +140,8 @@ premier ; aucune seconde liste n'a été créée.
 | lot | contenu | fichiers |
 |---|---|---|
 | **a** | **étendre** `verifierReliques()` (il existe, dans `game_state.js`) : les trois croisements inverses, rouges prouvés par mutation — **livré v0.30.1** | `shared/game_state.js` |
-| **b** | nouveaux axes de contrepartie dans `RELIC_MALUS`/`RELIC_MALUS_NEG` + 2-3 reliques les employant (dont Condensateur fracturé) | `shared/game_state.js`, `shared/reliques.js`, `shared/lang/en.js` |
-| **c** | relecture du palier 0 : donner une condition à une partie des dix bonus plats, **sans** en retirer aucun | `shared/reliques.js`, `shared/lang/en.js` |
+| **b** | nouveaux axes de contrepartie dans `RELIC_MALUS`/`RELIC_MALUS_NEG` + 2-3 reliques les employant (dont Condensateur fracturé) — **livré v0.30.2** (`RELIC_MALUS_POS` : le sens positif n avait pas de case, `harvestSpeed` et `shieldFlat` rejetés par la mesure) | `shared/game_state.js`, `shared/reliques.js`, `shared/lang/en.js` |
+| **c** | ~~conditionner les dix bonus plats~~ — **la prémisse était fausse**. Six des dix portent déjà une condition réelle, non déclarée ; le vrai défaut est que **quatre reliques rendent exactement zéro** selon la partie. `requiresMod` + `minPlayers` les déclarent, et le filtre d offre devient un seul endroit — **livré v0.30.3** | `shared/game_state.js`, `shared/reliques.js` |
 
 Le lot **c** est le seul qui touche à l'existant, et il n'y touche que par
 **ajout de condition** — jamais par suppression, jamais par réordonnancement.

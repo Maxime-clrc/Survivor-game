@@ -3744,16 +3744,29 @@ export class GameState {
     this.relicBossDue = true;
   }
 
-  _offerRelics(p) {
-    const poss = p.relics;
-    const pool = RELICS.filter(r =>
-      !poss.has(r.id)
+  /* LE FILTRE D'OFFRE, EN UN SEUL ENDROIT. Il vivait recopie ici et dans
+     `visePalier()`, avec un commentaire qui disait deja le danger : une
+     condition ajoutee d'un seul cote et l'acheteur vise un palier que le tirage
+     ne peut PAS lui montrer, donc il relance jusqu'a epuiser sa bourse. Une
+     cinquieme ligne a tenir en double a deux endroits finit toujours par ne
+     l'etre qu'a un. `lockedRelics` reste hors du predicat : c'est un choix du
+     joueur sur SON offre, pas une eligibilite. */
+  _relicOffrable(p, r) {
+    return !p.relics.has(r.id)
       && (r.tier < 3 || !this.relicLegendaryTaken)
       && !(r.minPlayers && this.players.size < r.minPlayers)
       && !(r.requiresSystem === "hasards_actifs" && this.hazards.length === 0)
-      // une relique de chaleur sur un railgun est un emplacement d'offre perdu,
-      // et rien ne le disait : le filtre est au meme endroit que `minPlayers`
+      // une relique de chaleur sur un railgun est un emplacement d'offre perdu
       && !(r.requiresArme && !ARME_EXIGENCE[r.requiresArme](armeAt(p.arme)))
+      // ... et une relique de brulure sans source de brulure en est un aussi :
+      // son champ est lu derriere une garde `> 0`, elle rend donc EXACTEMENT
+      // zero. C'est le meme emplacement perdu, mesure au lieu d'etre suppose.
+      && !(r.requiresMod && !(p.mods[r.requiresMod] > 0));
+  }
+
+  _offerRelics(p) {
+    const pool = RELICS.filter(r =>
+      this._relicOffrable(p, r)
       && !(p.lockedRelics && p.lockedRelics.has(r.id)));
     const picks = [];
     const from = [...pool];
@@ -10147,7 +10160,7 @@ export function verifierBonus(tirages = 20000) {
    doit porter sa `contrepartie` ecrite. Un cout qu'on decouvre en jouant est un
    piege, et il n'y a que le texte pour l'annoncer. */
 const RELIC_META = new Set(["id", "nom", "tier", "desc", "contrepartie", "mode",
-  "equipe", "minPlayers", "requiresSystem", "requiresArme"]);
+  "equipe", "minPlayers", "requiresSystem", "requiresArme", "requiresMod"]);
 // un nombre negatif n'est pas un malus : `rateFlat` descend quand la cadence monte
 const RELIC_MALUS = new Set(["noHeal", "speedFixed"]);
 const RELIC_MALUS_NEG = new Set(["flatHp", "flatDamage", "chargeurPlus"]);
@@ -10222,6 +10235,16 @@ export function verifierReliques() {
   for (const r of RELICS) {
     if (r.requiresSystem && !systemes.has(r.requiresSystem)) {
       soucis.push(`${r.id} : systeme « ${r.requiresSystem} » sans filtre`);
+    }
+  }
+
+  /* `requiresMod` mal orthographie ne leve rien et ne replie sur rien : le
+     filtre teste `p.mods[cle] > 0`, donc `undefined > 0` est faux et la relique
+     n'est JAMAIS offerte. Le catalogue des mods est la reference. */
+  const mods = defaultMods();
+  for (const r of RELICS) {
+    if (r.requiresMod && !(r.requiresMod in mods)) {
+      soucis.push(`${r.id} : mod « ${r.requiresMod} » inconnu`);
     }
   }
 
@@ -10810,13 +10833,7 @@ export function revenuRecolte(minutes, part = 0.7) {
 function visePalier(g, p) {
   let vise = 0;
   for (const r of RELICS) {
-    if (p.relics.has(r.id)) continue;
-    if (r.tier === 3 && g.relicLegendaryTaken) continue;
-    if (r.minPlayers && g.players.size < r.minPlayers) continue;
-    if (r.requiresSystem === "hasards_actifs" && g.hazards.length === 0) continue;
-    // le meme filtre que l'offre, sinon l'acheteur vise un palier que le tirage
-    // ne peut PAS lui montrer et relance jusqu'a epuiser sa bourse
-    if (r.requiresArme && !ARME_EXIGENCE[r.requiresArme](armeAt(p.arme))) continue;
+    if (!g._relicOffrable(p, r)) continue;
     if (relicPrice(r) <= p.eclats && r.tier > vise) vise = r.tier;
   }
   return vise;
