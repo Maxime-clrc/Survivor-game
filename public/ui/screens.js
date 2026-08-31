@@ -52,15 +52,22 @@ export let settingsFrom = null;
 const ECRANS = [
   { id: "settings",   el: () => settingsEl,   observe: 1, entre: 1, sort: 1, balaye: 1,
     curseur: 1, son: "survol",
+    /* Le SEUL ecran dont le parent varie : il s ouvre depuis le hub, un salon, un
+       bilan ou la progression. `settingsFrom` retient deja le noeud d ou on
+       vient — on le RELIT au lieu d en tenir une seconde copie qui divergerait. */
+    parent: () => ECRANS.find(e => e.el() === settingsFrom)?.id ?? null,
     fil: () => t("ui.set.title", "Paramètres") },
   { id: "hautsFaits", el: () => hautsFaitsEl, observe: 1, entre: 1, sort: 1, balaye: 1,
     curseur: 1, son: "survol",
+    parent: () => "panel",
     fil: () => t("ui.hf.title", "Hauts faits") },
   { id: "codex",      el: () => codexEl,      observe: 1, entre: 1, sort: 1, balaye: 1,
     curseur: 1, son: "survol",
+    parent: () => "panel",
     fil: () => t("ui.codex.title", "Codex") },
   { id: "menu",       el: () => menuEl,       observe: 1, entre: 1, sort: 1, balaye: 1,
     curseur: 1, son: "survol",
+    parent: () => "panel",
     fil: () => tf("ui.crumb.meta", "Progression · {cls}",
       { cls: classNom(classAt(metaClsOverride ?? CLASS_DEFAULT)) }) },
   { id: "bilan",      el: () => bilanEl,      observe: 1, entre: 1, sort: 1, balaye: 1,
@@ -68,6 +75,7 @@ const ECRANS = [
     fil: () => t("ui.crumb.bilan", "Bilan de manche") },
   { id: "panel",      el: () => panel,        observe: 1, entre: 1, sort: 1, balaye: 1,
     curseur: 1, son: "survol",
+    parent: () => "hubScreen",
     fil: () => roomNameCur
       ? tf("ui.crumb.salon.nom", "Salon · {nom}", { nom: roomNameCur })
       : t("ui.crumb.salon", "Salon") },
@@ -93,6 +101,63 @@ const ECRANS = [
 ];
 const TOPBAR_SCREENS = ECRANS.filter(e => e.fil);
 const MASQUE_SCREENS = ECRANS.filter(e => e.masque);
+/* UN FIL D ARIANE QUI NE MONTRE QUE LA FEUILLE N EN EST PAS UN. Il affichait
+   `vue.fil()` — une seule etiquette —, donc ouvrir le Codex depuis un salon
+   disait « Codex » et perdait le fait qu on etait dans une salle. La question
+   que cette barre doit repondre n est pas « quel ecran » mais « OU SUIS-JE »,
+   et les deux ne se confondent qu au premier niveau.
+
+   `parent` est une FONCTION et non une chaine, parce que le chemin d un ecran
+   n est pas toujours le meme : les Parametres s ouvrent depuis le hub, un
+   salon, un bilan ou l ecran de progression, et `settingsFrom` sait deja
+   lequel — on le lit au lieu d en tenir une seconde copie.
+
+   La remontee est BORNEE : un parent mal declare qui pointerait vers lui-meme
+   ferait une boucle infinie dans la barre de titre, ce qui gele la page sans
+   lever la moindre erreur. `verifierFil()` refuse le cycle, la borne le rattrape
+   quand meme. */
+/* LE SEPARATEUR DE NIVEAU N EST PAS CELUI DES ETIQUETTES. Le point median sert
+   deja DANS un libelle — « Salon · Nuit », « Progression · Tireur » — donc
+   l employer aussi entre les niveaux rendait « Salons · Salon · Nuit · Codex »,
+   quatre items plats au lieu de trois niveaux. Le chevron dit la DESCENTE, le
+   point median QUALIFIE : deux roles, deux signes. */
+const FIL_SEP = " › ";
+const FIL_MAX = 4;
+function filChemin(vue) {
+  const parts = [];
+  let cur = vue, garde = 0;
+  while (cur && garde++ < FIL_MAX) {
+    parts.unshift(cur.fil());
+    const pid = cur.parent ? cur.parent() : null;
+    cur = pid ? ECRANS.find(e => e.id === pid) : null;
+  }
+  return parts.join(FIL_SEP);
+}
+
+/* Un `parent` qui nomme un ecran inexistant coupe le chemin en silence, et un
+   cycle gele la barre. Ni l un ni l autre ne leve quoi que ce soit. */
+export function verifierFil() {
+  const soucis = [];
+  const ids = new Set(ECRANS.map(e => e.id));
+  for (const e of ECRANS) {
+    if (!e.parent) continue;
+    if (!e.fil) { soucis.push(`${e.id} : declare un parent sans porter de fil`); continue; }
+    const vus = new Set([e.id]);
+    let cur = e, n = 0;
+    while (cur && n++ <= FIL_MAX) {
+      const pid = cur.parent ? cur.parent() : null;
+      if (!pid) break;
+      if (!ids.has(pid)) { soucis.push(`${cur.id} : parent « ${pid} » inconnu`); break; }
+      if (vus.has(pid)) { soucis.push(`${cur.id} : cycle de parent sur « ${pid} »`); break; }
+      vus.add(pid);
+      cur = ECRANS.find(x => x.id === pid);
+      if (cur && !cur.fil) { soucis.push(`${cur.id} : parent d un ecran, sans fil`); break; }
+    }
+    if (n > FIL_MAX) soucis.push(`${e.id} : chemin plus long que ${FIL_MAX}`);
+  }
+  return soucis;
+}
+
 function syncTopbar() {
   if (!topbarEl) return;
 
@@ -102,7 +167,7 @@ function syncTopbar() {
   topbarEl.hidden = !vue;
   if (!vue) return;
 
-  topCrumbEl.textContent = vue.fil();
+  topCrumbEl.textContent = filChemin(vue);
 
   const pseudo = localStorage.getItem("survivor.pseudo") || "";
   topNameEl.textContent = pseudo;

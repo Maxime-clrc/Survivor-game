@@ -6573,6 +6573,34 @@
                    Les cinq regles CSS restent tenues sur les seize ecrans, et
                    toutes les variables de la feuille resolvent.
 
+    0.29.20 lot 21 UN FIL D ARIANE QUI NE MONTRE QUE LA FEUILLE N EN EST PAS UN.
+                   `syncTopbar` posait `vue.fil()` — UNE etiquette —, donc ouvrir
+                   le Codex depuis un salon affichait « Codex » et perdait le fait
+                   qu on etait dans une salle. La question que cette barre doit
+                   repondre n est pas « quel ecran » mais OU SUIS-JE, et les deux
+                   ne se confondent qu au premier niveau. C est la demande du
+                   brief, mot pour mot : « le joueur doit savoir ou il est ».
+                   `parent` EST UNE FONCTION, pas une chaine, parce que le chemin
+                   d un ecran n est pas toujours le meme : les Parametres s ouvrent
+                   depuis le hub, un salon, un bilan ou la progression, et
+                   `settingsFrom` sait deja lequel — on le RELIT au lieu d en tenir
+                   une seconde copie qui divergerait. C est le seul des cinq
+                   parents qui varie.
+                   ET LA MESURE A TROUVE UN DEFAUT QUE LE PREMIER JET AVAIT :
+                   le point median sert DEJA dans les libelles — « Salon · Nuit »,
+                   « Progression · Tireur » —, donc l employer aussi entre les
+                   niveaux rendait « Salons · Salon · Nuit · Codex » : quatre items
+                   plats la ou il y a trois niveaux. Le chevron dit la DESCENTE, le
+                   point median QUALIFIE. Deux roles, deux signes.
+                   LA REMONTEE EST BORNEE, et pas par prudence : un parent qui
+                   pointerait vers lui-meme ferait une boucle infinie dans la barre
+                   de titre — la page GELE sans lever la moindre erreur.
+                   `verifierFil()` refuse le cycle et le parent inconnu, la borne
+                   rattrape ce qui passerait quand meme.
+                   Trois mutations rouges (parent inconnu, cycle, parent sans fil),
+                   etat reel vert, et les cinq regles CSS restent tenues sur les
+                   seize ecrans.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6581,4 +6609,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.19";
+export const VERSION = "0.29.20";

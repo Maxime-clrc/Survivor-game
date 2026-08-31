@@ -1536,3 +1536,20 @@ Neuf endroits, aucun facultatif — un oubli ne produit jamais d'erreur.
 | `menus.css` | `fadeIn`, `screenIn` sur le wrapper, `[hidden].leaving`, `contentOut`, `[hidden] { display: none }` |
 | `menus.css` | les deux listes de curseur, et la liste `#… small` |
 
+
+## Le fil d Ariane
+
+- **Il montre un CHEMIN, pas une étiquette.** `syncTopbar` posait `vue.fil()`
+  seul : ouvrir le Codex depuis un salon disait « Codex » et perdait la salle.
+  La question n est pas *quel écran* mais **où suis-je**, et les deux ne se
+  confondent qu au premier niveau.
+- **`parent` est une fonction**, pas une chaîne : le chemin des Paramètres
+  dépend d où on les a ouverts, et `settingsFrom` le sait déjà — on le relit au
+  lieu d en tenir une seconde copie.
+- **Le séparateur de niveau n est pas celui des étiquettes.** Le point médian
+  sert déjà *dans* un libellé (« Salon · Nuit ») ; l employer aussi entre les
+  niveaux fait lire quatre items plats là où il y a trois niveaux. Le chevron dit
+  la descente, le point médian qualifie.
+- **La remontée est bornée**, et pas par prudence : un parent qui pointerait vers
+  lui-même gèlerait la page sans lever la moindre erreur. `verifierFil()` refuse
+  le cycle et le parent inconnu ; la borne rattrape le reste.
