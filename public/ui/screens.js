@@ -16,10 +16,10 @@ import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProg
 import { appliquerCadre } from "./cadres.js";
 import { RELICS, relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
-import { drawSprite, frameOf } from "/sprites.js";
+import { SPRITE_CELL, drawSprite, frameOf } from "/sprites.js";
 import { GFX_KEYS, GFX_ULTRA, INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, SECOUSSE_FACTEURS, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setGfx, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, setSecousse, secousse, gfx, tally, ws } from "../core/state.js";
 import { netPerf } from "../net/interp.js";
-import { fmtTime } from "../render/boss.js";
+import { fmtTime, portraitBoss } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
@@ -2174,12 +2174,55 @@ export function setSettingsFrom(v) { settingsFrom = v; }
    FAIT ; ses points de vie et ses degats appartiennent a l equilibrage et
    changeraient sous le texte. `roleDe()` porte le comportement, et il se DEDUIT
    de la fiche de combat — donc il suit un reglage tout seul. */
-function carteCodex(ouverte, nom, sous, lignes) {
+/* LA VIGNETTE, ET ELLE VIENT DE LA MEME MAIN QUE LE JEU. Une fiche qui nommerait
+   sans montrer demande au joueur de se souvenir d une silhouette ; or c est
+   precisement ce que le depot travaille — « un corps se reconnait sans sa
+   couleur ». La montrer ici est donc la suite de cette regle, pas une decoration.
+
+   DEUX CHEMINS PARCE QU IL Y A DEUX NATURES. Un corps de horde est CUIT DANS
+   L ATLAS, a sa taille reelle : `drawSprite` a l echelle 1 rend donc les tailles
+   RELATIVES justes, un colosse est plus gros qu un rampant sans qu on l ecrive.
+   Un boss n est pas dans l atlas — son corps est un trace —, d ou
+   `portraitBoss`, qui detourne le `ctx` du module comme le fait deja
+   `bossSheet()`.
+
+   ELLE SE PEINT APRES `innerHTML` : une balise `<canvas>` dans une chaine n a pas
+   de contexte tant qu elle n est pas dans le document. */
+const CODEX_VIGNETTE = 72;
+function peindreVignettes(racine) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  for (const cv of racine.querySelectorAll("canvas.codexVisuel")) {
+    const T = CODEX_VIGNETTE;
+    cv.width = Math.round(T * dpr);
+    cv.height = Math.round(T * dpr);
+    cv.style.width = T + "px";
+    cv.style.height = T + "px";
+    const g = cv.getContext("2d");
+    if (!g) continue;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    try {
+      const e = cv.dataset.e, b = cv.dataset.b;
+      if (e !== undefined) {
+        const k = T / SPRITE_CELL;
+        drawSprite(g, frameOf(`e${e}_idle`), T / 2, T / 2, { scaleX: k, scaleY: k });
+      } else if (b !== undefined) {
+        portraitBoss(g, Number(b), T);
+      }
+    } catch (err) {
+      // une vignette qui echoue ne doit pas emporter la grille : la fiche reste
+      // lisible sans elle, et l erreur se raconte.
+      signalerErreur("codex", err?.message ?? String(err), err?.stack);
+    }
+  }
+}
+function carteCodex(ouverte, nom, sous, lignes, vis = "") {
   if (!ouverte) {
     return `<div class="codexCarte closed" aria-hidden="true">`
       + `<div class="codexMarque">?</div></div>`;
   }
   return `<div class="codexCarte">`
+    + (vis ? `<canvas class="codexVisuel" ${vis} aria-hidden="true"></canvas>` : "")
+    + `<div class="codexTexte">`
     + `<div class="codexNom">${escapeHtml(nom)}</div>`
     + (sous ? `<div class="codexSous">${escapeHtml(sous)}</div>` : "")
     + (lignes.length
@@ -2187,7 +2230,7 @@ function carteCodex(ouverte, nom, sous, lignes) {
           + lignes.map(l => `<li>${escapeHtml(l)}</li>`).join("")
           + `</ul>`
         : "")
-    + `</div>`;
+    + `</div></div>`;
 }
 
 /* UNE PUCE PAR ENTREE, DANS L ORDRE DU CATALOGUE. L ordre compte : il est
@@ -2205,10 +2248,12 @@ export function renderCodex() {
   if (!codexEl || codexEl.hidden) return;
   const vus = new Set(progressState?.vus ?? []);
 
-  codexHordeEl.innerHTML = ENEMY_TYPES.map(def => {
+  codexHordeEl.innerHTML = ENEMY_TYPES.map((def, i) => {
     const ouverte = vus.has(`e:${def.key}`);
-    return carteCodex(ouverte, enemyNom(def.key), enemyLore(def.key), roleDe(def));
+    return carteCodex(ouverte, enemyNom(def.key), enemyLore(def.key), roleDe(def),
+                      `data-e="${i}"`);
   }).join("");
+  peindreVignettes(codexHordeEl);
 
   /* LE BOSS N A RIEN A ECRIRE : sa fiche existe deja dans `BOSS_ROSTER`. `sous`
      est la consigne que le jeu affiche a son arrivee, `verbe` l axe qu il
@@ -2216,8 +2261,10 @@ export function renderCodex() {
      qu un codex doit dire. Un second texte les aurait fait diverger. */
   codexBossEl.innerHTML = BOSS_ROSTER.map((b, i) => {
     const ouverte = vus.has(`b:${b.key}`);
-    return carteCodex(ouverte, bossNom(i), bossSous(i), [bossVerbe(i)].filter(Boolean));
+    return carteCodex(ouverte, bossNom(i), bossSous(i), [bossVerbe(i)].filter(Boolean),
+                      `data-b="${i}"`);
   }).join("");
+  peindreVignettes(codexBossEl);
 
   /* CARTES ET RELIQUES EN PUCES, PAS EN FICHES, et ce n est pas une economie
      de place : leur texte EXISTE DEJA — au tirage, chez le marchand, sur

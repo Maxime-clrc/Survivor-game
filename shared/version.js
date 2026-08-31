@@ -7232,6 +7232,35 @@
                   d accord — la bande et les silhouettes suivent ensemble, et
                   `restore()` le rend.
 
+    0.31.8 lot 9  LE CODEX MONTRE CE QU IL NOMME. Une fiche qui nomme sans
+                  montrer demande au joueur de se souvenir d une silhouette — or
+                  c est precisement le travail du depot (« un corps se reconnait
+                  sans sa couleur », `verifierSilhouettes`). La vignette est la
+                  suite de cette regle, pas une decoration.
+                  DEUX CHEMINS PARCE QU IL Y A DEUX NATURES. Un corps de horde est
+                  CUIT DANS L ATLAS a sa taille reelle : `drawSprite` a l echelle 1
+                  rend donc les tailles RELATIVES justes — un colosse est plus gros
+                  qu un rampant sans qu on l ecrive nulle part. Un boss n est PAS
+                  dans l atlas, son corps est un trace ; `portraitBoss` detourne
+                  donc le `ctx` du module, exactement comme `bossSheet()` le fait
+                  deja, et le rend dans un `finally` — un portrait qui leverait
+                  laisserait sinon TOUT le rendu sur un canvas de vignette.
+                  ELLE SE PEINT APRES `innerHTML` : une balise `<canvas>` dans une
+                  chaine n a pas de contexte tant qu elle n est pas dans le
+                  document. Et une vignette qui echoue ne peut pas emporter la
+                  grille — la fiche reste lisible sans elle, et l erreur passe par
+                  `signalerErreur`.
+                  LA FICHE PASSE EN RANGEE : vignette a gauche, texte a droite. En
+                  colonne, un carre de 72 px poussait le nom sous la ligne de
+                  flottaison sur vingt-quatre fiches ; la grille passe de 210 a
+                  268 px de colonne. La carte FERMEE garde son centrage, elle n a
+                  rien a ranger.
+                  Verifie hors navigateur : atlas cuit a 106 images, les 13 types
+                  ont chacun leur case `eN_idle` — aucune absente, aucune
+                  partagee —, les 11 portraits de boss passent sans exception, et
+                  le `ctx` du module est rendu DANS LES DEUX CAS, y compris quand
+                  le dessin leve.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7240,4 +7269,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.7";
+export const VERSION = "0.31.8";

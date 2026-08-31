@@ -163,6 +163,37 @@ function peindreBoss(kind, S) {
     default:              drawBossRavageur(S);
   }
 }
+/* LE PORTRAIT D UN BOSS, HORS MANCHE. Meme main que `bossSheet()` juste
+   au-dessus, et pour la meme raison : un boss n est PAS dans l atlas, son corps
+   est un trace. Le codex ne peut donc pas s en tirer avec un `drawSprite`, et
+   redessiner la silhouette a cote ferait DEUX boss a tenir d accord.
+
+   `drawBoss` ecrit sur le `ctx` du module : on le detourne le temps du portrait,
+   exactement comme la planche, et on le rend dans un `finally` — un portrait qui
+   leverait laisserait sinon tout le rendu sur un canvas de vignette.
+
+   L etat de combat est NEUTRALISE (repere, touche) : une fiche montre ce qu une
+   creature EST, pas ce qui lui arrive. */
+export function portraitBoss(g, kind, taille) {
+  const r = CFG.BOSS_RADIUS * (kind === BOSS_FINAL ? 1.4 : 1);
+  const demi = r + 20;
+  const k = taille / (demi * 2);
+  const garde = ctx, gardeCue = bossCue, gardeHit = bossHit.at;
+  g.save();
+  try {
+    setCtx(g);
+    setBossCue(null);
+    bossHit.at = 0;
+    g.scale(k, k);
+    drawBoss({ kind, x: demi, y: demi, ang: 0, hp: 100, maxHp: 100, bars: 4,
+               phase: kind === BOSS_FINAL ? 4 : 0, twin: 0 });
+  } finally {
+    setCtx(garde);
+    setBossCue(gardeCue);
+    bossHit.at = gardeHit;
+    g.restore();
+  }
+}
 export function bossSheet() {
   const r = CFG.BOSS_RADIUS;
   const pas = (r + 26) * 2;

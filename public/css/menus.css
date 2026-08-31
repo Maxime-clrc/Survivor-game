@@ -3989,7 +3989,7 @@ input:focus {
    une liste qui ne dit pas qu il manque quelque chose. */
 .codexGrille {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
   gap: var(--sp-2);
   margin-bottom: var(--sp-4);
 }
@@ -4002,6 +4002,29 @@ input:focus {
   border-radius: var(--radius);
   background: var(--bg-panel);
   min-height: 118px;
+}
+/* LA FICHE PASSE EN RANGEE QUAND ELLE MONTRE : la vignette a gauche, le texte a
+   droite. En colonne, un carre de 72 px pousserait le nom sous la ligne de
+   flottaison sur vingt-quatre fiches. La carte FERMEE garde son centrage — elle
+   n a rien a ranger. */
+.codexCarte {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.codexTexte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+/* ELLE NE PORTE NI CADRE NI FOND : le corps est deja detoure, un contour autour
+   ferait un second bord a l interieur de celui de la fiche. */
+.codexVisuel {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  image-rendering: auto;
 }
 /* ELLE N EST PAS GRISEE, ELLE EST VIDE. Une carte fermee qu on assombrirait
    aurait l air desactivee — donc d une chose qu on ne peut pas avoir. Ici on
