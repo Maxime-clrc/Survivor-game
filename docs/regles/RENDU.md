@@ -138,6 +138,19 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
 - **Une seconde période sans aucune arête** (`MACRO`, 1 200) : à 400 px l'œil
   trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
   ne rattrape ça.
+- **Deux lieux ne peuvent pas avoir la même couleur, et ça se mesure.**
+  `verifierCharte()` (`palette.js`) croise les cinq `BIOME_SKIN` deux à deux sur
+  `arena`, `bloc` et `emis`, en **Lab** (CIE76) — deux hex proches en octets
+  peuvent être loin à l'œil, et l'inverse.
+  **Les seuils sont les minima déjà acceptés** par les quatre lieux d'origine,
+  pas des chiffres choisis : 6 / 9 / 8. Le vérificateur dit « ne fais pas pire
+  que ce qui existe », donc il ne peut pas devenir rouge sur l'existant.
+  Il existe parce que le cinquième lieu est parti avec un sol à **ΔE 3,5** de la
+  Nébuleuse — la paire la plus proche du dépôt, loin devant la deuxième à 6,1 —
+  avec neuf vérificateurs verts, parce qu'aucun ne regardait la couleur.
+  `dir` n'est **pas** vérifié, délibérément : deux lieux peuvent partager leur
+  direction de lumière, on n'en voit jamais deux sur le même écran. La règle sur
+  les ombres vaut *dans* une vue, pas entre deux lieux.
 - **Un aiguillage par lieu est une TABLE, jamais une chaîne de `if` à défaut
   implicite.** `TUILE`, `MACRO_TUILE`, `PORTE_MAILLE` (`material.js`),
   `PREMIER_PLAN` (`decor.js`) et `LED` (`blocs.js`) le sont, croisées avec

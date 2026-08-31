@@ -286,9 +286,16 @@ export const BIOME_SKIN = {
      Et l emissif est MAGENTA, le seul du depot qui ne soit ni ambre ni cyan : il
      ne peut se confondre avec aucun signal de jeu, ce qui est la condition pour
      qu un lieu ait le droit d etre sature. */
+  /* SON SOL EST LE PLUS CLAIR DES CINQ, et c est `k` qui l exigeait. Le premier
+     jet le posait a #0d0b16 : a 3,5 de dE de la Nebuleuse, la paire la plus
+     proche du depot, loin devant la deuxieme a 6,1. Deux lieux quasi
+     indistinguables au sol, et c est le sol qu on regarde le plus.
+     La mesure a ramene le lieu a ce qui etait DEJA ecrit deux lignes plus bas :
+     une rue trempee RENVOIE la lumiere, donc rien n y est vraiment noir, donc
+     elle ne peut pas partager sa valeur avec du vide spatial. */
   secteur: {
-    arena: "#0d0b16", gridFine: "#1c1830", gridMajor: "#2e2650",
-    bloc: "#3c3552", blocEdge: "#8f7fc4",
+    arena: "#181026", gridFine: "#241a3a", gridMajor: "#3a2a5e",
+    bloc: "#4e3f6c", blocEdge: "#8f7fc4",
     amb: "#6b5f8c", k: 0.44, dir: [0.86, 0.51], emis: "#ff3d9a",
   },
 };
@@ -751,4 +758,68 @@ export function cssVars(diffIndex = 1) {
     "--t-2xl": TYPE[5] + "px",
     "--t-3xl": TYPE[6] + "px",
   };
+}
+
+/* DEUX LIEUX NE PEUVENT PAS AVOIR LA MEME COULEUR, ET CA SE MESURE.
+
+   Le depot refuse deja deux lieux sous la meme silhouette de bord
+   (`verifierPremierPlan`), sous le meme type de source (`verifierLed`), et deux
+   mecaniques opposees sous le meme dessin (`verifierDangers`). La charte etait
+   le dernier axe d identite qu aucune mesure ne tenait — et le cinquieme lieu
+   est arrive avec un sol a 3,5 de dE de la Nebuleuse, la paire la plus proche du
+   depot, LOIN devant la deuxieme a 6,1. Deux lieux quasi indistinguables sur la
+   surface qu on regarde le plus.
+
+   EN LAB ET NON EN RVB : deux hex proches en octets peuvent etre loin a l oeil,
+   et l inverse. CIE76 suffit ici — on cherche « est-ce que ces deux lieux se
+   confondent », pas une egalisation fine.
+
+   LES SEUILS SONT LES MINIMA DEJA ACCEPTES par les quatre lieux d origine, pas
+   des chiffres choisis : `arena` 6 (fonderie/friche a 6,1), `bloc` 9
+   (usine/nebuleuse a 9,8), `emis` 8 (usine/friche a 8,4). Le verificateur dit
+   donc exactement « ne fais pas pire que ce qui existe », et il ne peut pas
+   devenir rouge sur l existant.
+
+   `dir` N EST PAS VERIFIE, et c est deliberate : deux lieux peuvent partager
+   leur direction de lumiere sans consequence, puisqu on n en voit jamais deux
+   sur le meme ecran. La regle sur les ombres vaut DANS une vue, pas entre deux
+   lieux. */
+const CHARTE_SEUIL = { arena: 6, bloc: 9, emis: 8 };
+
+function labDe(hex) {
+  let [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+    .map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  let x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+  let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  let z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+  [x, y, z] = [f(x), f(y), f(z)];
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+export function ecartCouleur(a, b) {
+  const A = labDe(a), B = labDe(b);
+  return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);
+}
+
+export function verifierCharte(seuils = CHARTE_SEUIL) {
+  const soucis = [];
+  const lieux = Object.keys(BIOME_SKIN);
+  for (const [champ, min] of Object.entries(seuils)) {
+    for (let i = 0; i < lieux.length; i++) {
+      for (let j = i + 1; j < lieux.length; j++) {
+        const a = BIOME_SKIN[lieux[i]][champ], b = BIOME_SKIN[lieux[j]][champ];
+        if (a === undefined || b === undefined) {
+          soucis.push(`${lieux[a === undefined ? i : j]} : pas de « ${champ} »`);
+          continue;
+        }
+        const d = ecartCouleur(a, b);
+        if (d < min) {
+          soucis.push(`${lieux[i]} et ${lieux[j]} se confondent sur « ${champ} »`
+            + ` : dE ${d.toFixed(1)} sous le plancher de ${min}`);
+        }
+      }
+    }
+  }
+  return soucis;
 }

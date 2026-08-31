@@ -6168,6 +6168,47 @@
                    `biomeKey() !== "usine"`, donc son appartenance est ecrite au
                    lieu d etre heritee.
 
+    0.29.10 lot 11 DEUX LIEUX NE PEUVENT PAS AVOIR LA MEME COULEUR, ET CA SE
+                   MESURE. Le depot refusait deja deux lieux sous la meme
+                   silhouette de bord, sous le meme type de source, et deux
+                   mecaniques opposees sous le meme dessin. La CHARTE etait le
+                   dernier axe d identite qu aucune mesure ne tenait.
+                   ET LE CINQUIEME LIEU EST PARTI FAUX. Son sol etait a 3,5 de dE
+                   de celui de la Nebuleuse — la paire la plus proche du depot,
+                   LOIN devant la deuxieme a 6,1. Deux lieux quasi indistinguables
+                   sur la surface qu on regarde le PLUS, livre en 0.29.7 avec neuf
+                   verificateurs verts, parce qu aucun ne regardait la couleur.
+                   C est le troisieme defaut du Secteur trouve apres coup, et le
+                   seul que je ne pouvais pas voir autrement qu en le mesurant.
+                   LA MESURE A RAMENE LE LIEU A CE QUI ETAIT DEJA ECRIT deux
+                   lignes plus bas dans sa propre fiche : `k: 0.44`, le plus bas
+                   des cinq, parce qu une rue trempee RENVOIE la lumiere et que
+                   rien n y est vraiment noir. Un sol quasi noir contredisait sa
+                   propre justification. `arena` passe a #181026 (dE 10,6 du plus
+                   proche), `bloc` a #4e3f6c (16,4), et la tuile de `material.js`
+                   suit — elle etait calee sur l ancienne valeur, a 7,2 de son
+                   propre fond, elle est maintenant a 1,0.
+                   EN LAB, PAS EN RVB : deux hex proches en octets peuvent etre
+                   loin a l oeil et l inverse. CIE76 suffit — on demande « est-ce
+                   que ces deux lieux se confondent », pas une egalisation fine.
+                   LES SEUILS SONT LES MINIMA DEJA ACCEPTES par les quatre lieux
+                   d origine, pas des chiffres choisis : `arena` 6 (fonderie /
+                   friche a 6,1), `bloc` 9 (usine / nebuleuse a 9,8), `emis` 8
+                   (usine / friche a 8,4). Le verificateur dit donc exactement
+                   « ne fais pas pire que ce qui existe », et il ne peut pas
+                   devenir rouge sur l existant.
+                   `dir` N EST PAS VERIFIE, deliberement : deux lieux peuvent
+                   partager leur direction de lumiere sans consequence, puisqu on
+                   n en voit jamais deux sur le meme ecran — la regle sur les
+                   ombres vaut DANS une vue, pas entre deux lieux.
+                   Enregistre vert APRES avoir ete vu rouge sur la couleur
+                   exactement telle qu elle a ete livree en 0.29.7.
+                   CE LOT DIT AUSSI QUE PLAN 26 EST EPUISE : la derniere premisse
+                   qui restait a verifier — la relique de chaleur offerte sur une
+                   arme sans chaleur — est corrigee des DEUX cotes, `_offerRelics`
+                   et `visePalier`. Sept chantiers sur huit etaient perimes ou
+                   deja faits ; restent 01 (bestiaire) et 06 (surchauffe).
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6176,4 +6217,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.9";
+export const VERSION = "0.29.10";

@@ -994,7 +994,7 @@ function fricheLegacy(g, rand, usure) {
 function secteur(g, rand, usure) {
   if (gfx <= GFX_LOW) return usine(g, rand, usure);
 
-  g.fillStyle = alpha("#15121f", 0.95);
+  g.fillStyle = alpha("#1a1228", 0.95);
   g.fillRect(0, 0, TILE, TILE);
 
   // 1. L ENROBE. Un grain dense et fin : de l asphalte n a pas de motif, il a une
@@ -1012,7 +1012,7 @@ function secteur(g, rand, usure) {
     const vert = rand() < 0.5;
     const u = rand() * TILE;
     const w = 14 + rand() * 26;
-    g.fillStyle = alpha("#241f36", 0.55 + usure * 0.20);
+    g.fillStyle = alpha("#2b2340", 0.55 + usure * 0.20);
     if (vert) g.fillRect(u, 0, w, TILE);
     else      g.fillRect(0, u, TILE, w);
     g.strokeStyle = alpha("#000000", 0.34);
