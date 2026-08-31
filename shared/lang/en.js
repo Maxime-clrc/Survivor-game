@@ -1154,6 +1154,12 @@ export const EN = {
   "relics.pas_de_cote.nom": "Sidestep",
   "relics.pas_de_cote.desc": "the dodge lasts 0.09 s longer, but +0.45 s of dodge cooldown",
   "relics.pas_de_cote.contrepartie": "+0.45 s of dodge cooldown",
+  "relics.ame_rayee.nom": "Rifled bore",
+  "relics.ame_rayee.desc": "+18 raw damage, but +0.04 s of fire interval",
+  "relics.ame_rayee.contrepartie": "+0.04 s of fire interval",
+  "relics.condensateur_fracture.nom": "Cracked capacitor",
+  "relics.condensateur_fracture.desc": "+35 raw damage, but −2 rounds in the magazine",
+  "relics.condensateur_fracture.contrepartie": "−2 rounds in the magazine",
 
   /* --- classes ------------------------------------------------------------ */
   "class.tank.nom": "Bulwark",

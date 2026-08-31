@@ -242,6 +242,31 @@ export const RELICS = [
     desc: "l'esquive dure 0,09 s de plus, mais +0,45 s de recharge d'esquive",
     contrepartie: "+0,45 s de recharge d'esquive",
   },
+  /* LA MEME PUISSANCE QUE `noyau_instable`, DANS UNE AUTRE MONNAIE. Les deux
+     donnent +18 degats bruts au palier 1 ; l'une coute 10 PV, l'autre de la
+     cadence. C'est le seul axe de prix qui vaut pour les DIX armes — le
+     chargeur n'existe que sur le siege, la jauge de bouclier vaut zero sans
+     carte, et `harvestSpeed` est lu par un `Math.max` depuis 0 donc un negatif
+     y est jete.
+     0,04 et non 0,05 : `culasse_legere` achete 0,05 s de cadence contre 25 PV
+     bruts, soit plus cher que les 10 PV de `noyau_instable`. On reste sous ce
+     taux plutot que de le depasser. */
+  {
+    id: "ame_rayee", nom: "Âme rayée", tier: 1,
+    flatDamage: 18, rateFlat: 0.04,
+    desc: "+18 dégâts bruts, mais +0,04 s d'intervalle de tir",
+    contrepartie: "+0,04 s d'intervalle de tir",
+  },
+  /* LE SIEGE EST LA SEULE ARME A CHARGEUR, et c'est ce qui rend la relique
+     etroite ET tendue : elle contredit `barillet_long` (+2 munitions, palier 0),
+     donc porter les deux revient a n'avoir rien pris. Deux munitions sur six
+     est un tiers du chargeur. */
+  {
+    id: "condensateur_fracture", nom: "Condensateur fracturé", tier: 2,
+    flatDamage: 35, chargeurPlus: -2, requiresArme: "chargeur",
+    desc: "+35 dégâts bruts, mais −2 munitions au chargeur",
+    contrepartie: "−2 munitions au chargeur",
+  },
 ];
 
 export function relicById(id) {

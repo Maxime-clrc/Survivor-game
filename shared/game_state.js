@@ -10150,7 +10150,14 @@ const RELIC_META = new Set(["id", "nom", "tier", "desc", "contrepartie", "mode",
   "equipe", "minPlayers", "requiresSystem", "requiresArme"]);
 // un nombre negatif n'est pas un malus : `rateFlat` descend quand la cadence monte
 const RELIC_MALUS = new Set(["noHeal", "speedFixed"]);
-const RELIC_MALUS_NEG = new Set(["flatHp", "flatDamage"]);
+const RELIC_MALUS_NEG = new Set(["flatHp", "flatDamage", "chargeurPlus"]);
+/* ET LE SENS INVERSE, qui n'etait pas representable. Sur ces champs c'est le
+   POSITIF qui coute : un intervalle de tir plus long, une esquive plus lente,
+   une charge plus longue. Le catalogue n'avait qu'une seule monnaie — six des
+   neuf contreparties etaient « -N PV bruts » — parce que payer autrement
+   n'avait pas de case. `pas_de_cote` portait deja un `dashCdFlat` positif et
+   sa contrepartie ecrite : il valide la regle sur l'existant. */
+const RELIC_MALUS_POS = new Set(["rateFlat", "dashCdFlat", "railViteFlat"]);
 
 export function verifierReliques() {
   const soucis = [];
@@ -10176,7 +10183,9 @@ export function verifierReliques() {
     for (const [cle, v] of Object.entries(r)) {
       if (RELIC_META.has(cle)) continue;
       effets++;
-      if (RELIC_MALUS.has(cle) || (RELIC_MALUS_NEG.has(cle) && v < 0)) malus = true;
+      if (RELIC_MALUS.has(cle)
+          || (RELIC_MALUS_NEG.has(cle) && v < 0)
+          || (RELIC_MALUS_POS.has(cle) && v > 0)) malus = true;
       if (!src.includes(`"${cle}"`)) {
         soucis.push(`${r.id} : le champ « ${cle} » n'est lu nulle part`);
       }

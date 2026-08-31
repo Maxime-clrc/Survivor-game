@@ -6768,6 +6768,33 @@
                    seconde liste qui pourrirait — meme idiome que `sonsManques`.
                    Les trois prouves rouges par mutation, puis verts.
 
+    0.30.2 lot 2 SIX CONTREPARTIES SUR NEUF DISAIENT LA MEME CHOSE. « -N PV bruts »
+                   etait la seule monnaie du catalogue, et la cause etait
+                   structurelle : le controle ne connaissait que « ce drapeau est
+                   un malus » et « ce champ negatif est un malus ». Le sens
+                   POSITIF n avait pas de case, donc payer en cadence, en esquive
+                   ou en charge etait irrepresentable. `RELIC_MALUS_POS` l ouvre ;
+                   `pas_de_cote` portait deja un `dashCdFlat` positif et sa
+                   contrepartie ecrite, il valide la regle sur l existant.
+                   Trois axes proposes, deux rejetes par la MESURE et non par le
+                   gout : `harvestSpeed` est lu par un `Math.max` depuis 0, donc un
+                   negatif y est jete ; `shieldFlat` a ses trois lecteurs gardes
+                   par `shieldPool > 0`, donc sans carte de bouclier la jauge vaut
+                   zero et le malus ne coute RIEN — un bonus deguise.
+                   Deux reliques : `ame_rayee` (+18 degats, +0,04 s d intervalle)
+                   est le meme gain que `noyau_instable` dans une autre monnaie, et
+                   le seul axe de prix qui vaut pour les DIX armes ;
+                   `condensateur_fracture` (+35 degats, -2 munitions) contredit
+                   `barillet_long`, donc porter les deux revient a n avoir rien
+                   pris. Le chargeur n existe que sur le siege : la relique est
+                   etroite, et c est dit.
+                   La mutation a trouve un trou de plus : `chargeurPlus` negatif n
+                   etait pas un malus reconnu, la relique aurait pu partir sans
+                   contrepartie ecrite. Ajoute a `RELIC_MALUS_NEG`.
+                   Part des PV : 6 sur 9 avant, 6 sur 11 apres ; leviers distincts
+                   3 -> 5. 37 reliques (15/11/9/2). Les trois directions de malus
+                   prouvees rouges par mutation.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6776,4 +6803,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.30.1";
+export const VERSION = "0.30.2";
