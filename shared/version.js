@@ -6248,6 +6248,48 @@
                    au meme quartier n aurait pas de composition. Les trois fautes
                    verifiees rouges avant enregistrement.
 
+    0.29.12 lot 13 LE SECTEUR EST SURELEVE, ET IL LE MONTRE. Le brief nomme la
+                   profondeur « probablement le plus gros manque visuel actuel »
+                   et concoit la map cyberpunk en quatre plans. J en avais livre
+                   UN — le premier plan. UN SEUL LIEU DU DEPOT avait un
+                   arriere-plan, la Nebuleuse, et ce n etait pas celui concu pour
+                   montrer une skyline.
+                   LE MECANISME EXISTAIT, IL N ETAIT PAS PARTAGEABLE. `fondEspace`
+                   etait la seule recette possible, en dur, et `decor.js` la
+                   demandait par un `fond !== "espace"` : un deuxieme lieu qui
+                   declarait un fond n aurait simplement rien affiche. Trois tables
+                   maintenant — `FOND` (ce qui se CUIT), `VITRAGE` (ce qui SEPARE),
+                   `VIE` (ce qui BOUGE) —, et deux verificateurs, `verifierFonds`
+                   et `verifierBaies`.
+                   LA VILLE EST VUE D EN HAUT : des TOITS, pas des facades. Un
+                   immeuble vu du dessus est un rectangle sombre borde de lumiere,
+                   et c est la seule chose qui le distingue d une tache. Les
+                   avenues sont posees AVANT les ilots — batir au hasard donne un
+                   champ de rectangles, poser la trame puis batir dedans donne une
+                   ville.
+                   PAS DE NEON DANS LE FOND, et c est la regle du lieu appliquee :
+                   le sature appartient aux enseignes, qui sont AU NIVEAU DU
+                   JOUEUR. Une ville lointaine qui clignoterait en magenta
+                   concurrencerait ses propres devantures. Le fond est froid et
+                   sourd, et c est le contraste qui fait exister les enseignes.
+                   UNE BAIE EST TOUJOURS PLEINE, et la regle vient de la Nebuleuse :
+                   « un trou franc dans le plancher ment » — le joueur le traverse,
+                   la horde le traverse, un obstacle peut tomber dessus. Le verre
+                   devient donc un CAILLEBOTIS ici : les deux sont des sols sur
+                   lesquels on marche, les deux laissent voir en dessous, et aucun
+                   ne demande de toucher au deplacement. Il justifie du meme coup
+                   ce que le lieu portait deja sans raison — ses grilles d air, ses
+                   plaques d egout et son effluent donnent tous sur QUELQUE CHOSE.
+                   ET LA CIRCULATION CIRCULE. `scintiller` et `orbite` sont propres
+                   au vide : rien n y passe. Une ville, elle, a du trafic, et un
+                   trafic immobile est une contradiction — la couche « pres » du
+                   Secteur est la seule des six a deriver toute seule, en continu
+                   et dans un seul sens. Deux couleurs qui disent le SENS : blanc
+                   ce qui vient, rouge ce qui s eloigne.
+                   Les trois fautes verifiees rouges avant enregistrement : fond
+                   declare sans recette, sans habillage, et deux fonds sous le meme
+                   habillage.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6256,4 +6298,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.11";
+export const VERSION = "0.29.12";

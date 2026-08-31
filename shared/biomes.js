@@ -194,6 +194,12 @@ export const BIOMES = [
   {
     key: "secteur", nom: "Secteur",
     resume: "rues trempées, néons et passerelles",
+    /* IL EST SURELEVE, et c est son fond qui le dit. Un secteur logistique pose
+       au-dessus de la megapole : ce qui se voit par ses caillebotis est la ville,
+       trente etages plus bas. C est aussi ce qui justifie ce que le lieu porte
+       deja au sol — ses grilles d air, ses plaques d egout et son effluent
+       donnent tous sur QUELQUE CHOSE. */
+    fond: "ville",
   },
 ];
 

@@ -138,6 +138,19 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
 - **Une seconde période sans aucune arête** (`MACRO`, 1 200) : à 400 px l'œil
   trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
   ne rattrape ça.
+- **Un arrière-plan est trois tables, pas une fonction.** `FOND` (ce qui se
+  *cuit*, `material.js`), `VITRAGE` (ce qui *sépare*) et `VIE` (ce qui *bouge*,
+  `decor.js`), croisées avec le champ `fond` des `BIOMES` par `verifierFonds()`
+  et `verifierBaies()`. `verifierBaies` refuse en plus deux fonds sous le même
+  habillage : la baie est le seul endroit où un lieu montre ce qu'il y a
+  **dessous**.
+  **Une baie est toujours pleine** — « un trou franc dans le plancher ment » : le
+  joueur le traverse, la horde le traverse, un obstacle peut tomber dessus. Verre
+  pour la Nébuleuse, **caillebotis** pour le Secteur : deux sols sur lesquels on
+  marche, qui laissent voir en dessous, sans toucher au déplacement.
+  Et la couche « près » n'a pas le même sens partout : les étoiles scintillent et
+  ne vont nulle part, **une circulation immobile est une contradiction** — celle
+  du Secteur dérive seule, en continu, dans un seul sens.
 - **Deux lieux ne peuvent pas avoir la même couleur, et ça se mesure.**
   `verifierCharte()` (`palette.js`) croise les cinq `BIOME_SKIN` deux à deux sur
   `arena`, `bloc` et `emis`, en **Lab** (CIE76) — deux hex proches en octets

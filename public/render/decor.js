@@ -4,7 +4,7 @@ import { BIOME, BOSS, PROP, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/
 import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
 import { souffleDe } from "./dangers.js";
-import { couleeDe, floorPattern, fondEspace, macroPattern } from "./material.js";
+import { couleeDe, floorPattern, fondDe, macroPattern } from "./material.js";
 import { mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
@@ -51,8 +51,8 @@ function majDerive() {
 }
 
 export function drawFond() {
-  if (gfx <= GFX_LOW || biomeAt(biomeIndex).fond !== "espace") return;
-  const f = fondEspace(biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
+  const f = fondDe(biomeAt(biomeIndex).fond, biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
+  if (gfx <= GFX_LOW || !f) return;
   majDerive();
   const ddx = derive.lx, ddy = derive.ly, gx = derive.gx, gy = derive.gy;
   // LES ETOILES NE SONT PLUS ICI : sous un plancher a 0,93 elles ne se voyaient
@@ -107,8 +107,8 @@ function cadreBaie(x, y, w, h) {
 }
 
 export function drawBaies() {
-  if (gfx <= GFX_LOW || biomeAt(biomeIndex).fond !== "espace") return;
-  const f = fondEspace(biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
+  const f = fondDe(biomeAt(biomeIndex).fond, biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
+  if (gfx <= GFX_LOW || !f) return;
   majDerive();
   const ddx = derive.lx, ddy = derive.ly, gx = derive.gx, gy = derive.gy;
   const s = biomeSeed >>> 0;
@@ -142,25 +142,18 @@ export function drawBaies() {
   ctx.lineWidth = 1;
 }
 
-function baie(f, x, y, w, h, ddx, ddy, gx, gy) {
-  const S = skin();
-  ctx.save();
-  cadreBaie(x, y, w, h);
-  ctx.clip();
+/* CE QU IL Y A ENTRE VOUS ET LE VIDE, ET IL EST TOUJOURS PLEIN. Une baie sans
+   surface est un trou, et un trou MENT : le joueur le traverse, la horde le
+   traverse, un obstacle peut tomber dessus. La Nebuleuse met du VERRE, le
+   Secteur un CAILLEBOTIS — les deux sont des sols sur lesquels on marche, les
+   deux laissent voir en dessous, et aucun ne demande de toucher au deplacement.
 
-  // LE VIDE EST PEINT AVANT D'ETRE REMPLI : le plancher est encore dessous, et
-  // ce qui doit se voir dans une baie est le ciel, pas un ciel sur du metal.
-  ctx.fillStyle = VIDE;
-  ctx.fillRect(x, y, w, h);
-  blitFond(f, f.loin, FOND_LOIN, 1, ddx, ddy, x, y, w, h);
-  blitFond(f, f.gaz, FOND_GAZ, f.ech, gx, gy, x, y, w, h);
-  blitFond(f, f.pres, FOND_PRES, 1, 0, 0, x, y, w, h);
-  scintiller(f, x, y, w, h);
-  orbite(x, y, w, h);
-
-  // LE VERRE. Un voile froid — qui PLAFONNE aussi la clarte de la baie, donc la
-  // lisibilite d'un ennemi qui passe dessus — et deux reflets obliques. Sans
-  // eux la baie se lit comme un trou, et un trou ment.
+   Table et non un `if` : un troisieme lieu qui declarerait un fond sans
+   habillage prendrait celui de la Nebuleuse en silence, et une verriere sur une
+   rue ne se signalerait par aucune erreur. */
+function verre(x, y, w, h, S) {
+  // Un voile froid — qui PLAFONNE la clarte de la baie, donc la lisibilite d un
+  // ennemi qui passe dessus — et deux reflets obliques.
   ctx.fillStyle = alpha(PROP.givre, 0.030);
   ctx.fillRect(x, y, w, h);
   ctx.fillStyle = alpha(PROP.givre, 0.045);
@@ -174,25 +167,126 @@ function baie(f, x, y, w, h, ddx, ddy, gx, gy) {
     ctx.closePath();
     ctx.fill();
   }
-
-  // LES MENEAUX. Ils donnent l'echelle : sans eux on ne sait pas si la baie fait
-  // deux metres ou vingt.
+  // LES MENEAUX donnent l echelle : sans eux on ne sait pas si la baie fait deux
+  // metres ou vingt.
   const vert = h >= w;
   const n = Math.floor((vert ? h : w) / BAIE_MENEAU);
-  if (n >= 1) {
-    ctx.strokeStyle = alpha("#000000", 0.62);
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    for (let i = 1; i <= n; i++) {
-      const v = i / (n + 1);
-      if (vert) { ctx.moveTo(x, y + h * v); ctx.lineTo(x + w, y + h * v); }
-      else { ctx.moveTo(x + w * v, y); ctx.lineTo(x + w * v, y + h); }
-    }
-    ctx.stroke();
-    ctx.strokeStyle = alpha(S.blocEdge, 0.20);
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
+  if (n < 1) return;
+  ctx.strokeStyle = alpha("#000000", 0.62);
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  for (let i = 1; i <= n; i++) {
+    const v = i / (n + 1);
+    if (vert) { ctx.moveTo(x, y + h * v); ctx.lineTo(x + w, y + h * v); }
+    else { ctx.moveTo(x + w * v, y); ctx.lineTo(x + w * v, y + h); }
   }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.20);
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+}
+
+/* LE CAILLEBOTIS. Un pas SERRE et dans les deux sens : c est ce qui le separe
+   des meneaux du verre, qui sont rares et dans un seul. Il assombrit plus que
+   le verre — on voit la ville a travers du metal, pas a travers une vitre — et
+   c est ce qui garde un ennemi lisible quand il passe dessus.
+   Il justifie aussi ce que le lieu porte deja : ses grilles d air et ses plaques
+   d egout donnent toutes sur quelque chose, et ce quelque chose est en bas. */
+const CAILLE_PAS = 26;
+function caillebotis(x, y, w, h, S) {
+  ctx.fillStyle = alpha("#0a0812", 0.30);
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = alpha("#000000", 0.58);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for (let u = x + CAILLE_PAS; u < x + w; u += CAILLE_PAS) { ctx.moveTo(u, y); ctx.lineTo(u, y + h); }
+  for (let v = y + CAILLE_PAS; v < y + h; v += CAILLE_PAS) { ctx.moveTo(x, v); ctx.lineTo(x + w, v); }
+  ctx.stroke();
+  // l arete eclairee des barreaux, du cote de la lumiere du lieu : sans elle le
+  // caillebotis est une grille dessinee, pas du metal pose.
+  const d = lumDir();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.16);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let u = x + CAILLE_PAS; u < x + w; u += CAILLE_PAS) {
+    ctx.moveTo(u - d[0] * 1.6, y); ctx.lineTo(u - d[0] * 1.6, y + h);
+  }
+  for (let v = y + CAILLE_PAS; v < y + h; v += CAILLE_PAS) {
+    ctx.moveTo(x, v - d[1] * 1.6); ctx.lineTo(x + w, v - d[1] * 1.6);
+  }
+  ctx.stroke();
+}
+
+/* CE QUI BOUGE DANS LE FOND, ET CE N EST PAS LA MEME CHOSE SELON L ENDROIT.
+   Les etoiles SCINTILLENT et une station passe en ORBITE : c est du vide, rien
+   n y circule. Une ville, elle, CIRCULE — et une circulation immobile est une
+   contradiction, pas un decor. La couche « pres » du Secteur est donc la seule
+   des six a deriver toute seule, en continu et dans un seul sens : ce qui rend
+   une autoroute lisible de loin est qu elle va QUELQUE PART.
+   Un lieu qui declarerait un fond sans entree ici prendrait le scintillement
+   d etoiles au-dessus de ses toits, en silence. */
+function vieEspace(f, x, y, w, h) {
+  blitFond(f, f.pres, FOND_PRES, 1, 0, 0, x, y, w, h);
+  scintiller(f, x, y, w, h);
+  orbite(x, y, w, h);
+}
+
+const TRAFIC = 13;
+function vieVille(f, x, y, w, h) {
+  const u = (performance.now() / 1000 * TRAFIC) % f.w;
+  blitFond(f, f.pres, FOND_PRES, 1, u, u * 0.34, x, y, w, h);
+}
+
+const VIE = { espace: vieEspace, ville: vieVille };
+
+/* LES DEUX TABLES DE LA BAIE CONTRE CE QUE LES LIEUX DECLARENT. `verifierFonds`
+   (`material.js`) garantit qu un `fond` a de quoi etre CUIT ; celui-ci qu il a
+   de quoi etre HABILLE et ANIME. Sans lui, un lieu qui declare un fond sans
+   entree ici prend le verre de la Nebuleuse et son scintillement d etoiles
+   au-dessus de ses toits — une verriere sur une rue, et pas une erreur.
+   Les deux sens : une entree que plus aucun lieu ne demande est du code mort
+   qui ne se signale jamais non plus. */
+export function verifierBaies() {
+  const soucis = [];
+  const demandes = new Set();
+  for (const b of BIOMES) {
+    if (!b.fond) continue;
+    demandes.add(b.fond);
+    if (!VITRAGE[b.fond]) soucis.push(`${b.key} : fond « ${b.fond} » sans habillage de baie`);
+    if (!VIE[b.fond]) soucis.push(`${b.key} : fond « ${b.fond} » sans couche vivante`);
+  }
+  for (const [nom, t] of [["habillage", VITRAGE], ["couche vivante", VIE]]) {
+    for (const k of Object.keys(t)) {
+      if (!demandes.has(k)) soucis.push(`${nom} « ${k} » : aucun lieu ne le demande`);
+    }
+  }
+  // deux fonds sous le meme habillage rendraient leurs baies interchangeables,
+  // et la baie est le seul endroit ou le lieu montre ce qu il y a DESSOUS.
+  const vus = new Map();
+  for (const [k, f] of Object.entries(VITRAGE)) {
+    if (vus.has(f)) soucis.push(`${k} et ${vus.get(f)} partagent un habillage de baie`);
+    else vus.set(f, k);
+  }
+  return soucis;
+}
+
+const VITRAGE = { espace: verre, ville: caillebotis };
+
+function baie(f, x, y, w, h, ddx, ddy, gx, gy) {
+  const S = skin();
+  ctx.save();
+  cadreBaie(x, y, w, h);
+  ctx.clip();
+
+  // LE VIDE EST PEINT AVANT D'ETRE REMPLI : le plancher est encore dessous, et
+  // ce qui doit se voir dans une baie est le ciel, pas un ciel sur du metal.
+  ctx.fillStyle = VIDE;
+  ctx.fillRect(x, y, w, h);
+  blitFond(f, f.loin, FOND_LOIN, 1, ddx, ddy, x, y, w, h);
+  blitFond(f, f.gaz, FOND_GAZ, f.ech, gx, gy, x, y, w, h);
+  (VIE[biomeAt(biomeIndex).fond] ?? vieEspace)(f, x, y, w, h);
+
+  (VITRAGE[biomeAt(biomeIndex).fond] ?? verre)(x, y, w, h, S);
 
   // L'OMBRE DU CADRE, tracee DANS le clip : la moitie interieure d'un trait
   // large. C'est elle qui donne au plancher son EPAISSEUR — une baie sans

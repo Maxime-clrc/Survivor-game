@@ -781,15 +781,48 @@ export function couleeDe(seed, arenaW, arenaH, obstacles, hazards) {
 const FOND_MARGE = 300;
 let fondCache = null;
 
-export function fondEspace(seed, viewW, viewH) {
-  const cle = `${seed}|${viewW}|${viewH}`;
+/* UN ARRIERE-PLAN EST TROIS COUCHES, ET LE LIEU DIT LESQUELLES. `fondEspace`
+   etait la seule recette possible, en dur, et `decor.js` la demandait par un
+   `fond !== "espace"` — donc un deuxieme lieu qui declarait un fond n aurait
+   simplement rien affiche, en silence. Meme forme que `TUILE` et
+   `PREMIER_PLAN` : une table, et `verifierFonds()` la croise avec `BIOMES`.
+
+   Les trois couches ont toujours le meme ROLE — l infini, ce qui separe, ce
+   qui bouge — et jamais la meme matiere : la Nebuleuse met du gaz et des
+   etoiles la ou le Secteur met du smog et de la circulation. */
+const FOND = {
+  espace: { loin: cuireLoin, sep: cuireGaz, pres: cuireEtoiles },
+  ville:  { loin: cuireVille, sep: cuireSmog, pres: cuireCirculation },
+};
+
+export function fondDe(kind, seed, viewW, viewH) {
+  const r = FOND[kind];
+  if (!r) return null;
+  const cle = `${kind}|${seed}|${viewW}|${viewH}`;
   if (fondCache && fondCache.cle === cle) return fondCache;
   const w = viewW + FOND_MARGE * 2, h = viewH + FOND_MARGE * 2;
   fondCache = { cle, w, h, marge: FOND_MARGE, ech: GAZ_ECH,
-                loin: cuireLoin(seed, w, h),
-                gaz: cuireGaz(seed, w, h),
-                pres: cuireEtoiles(seed, w, h) };
+                loin: r.loin(seed, w, h),
+                gaz: r.sep(seed, w, h),
+                pres: r.pres(seed, w, h) };
   return fondCache;
+}
+
+/* Un lieu qui declare un fond sans recette n affiche rien et ne le dit pas ;
+   une recette que plus aucun lieu ne demande est du code mort qui ne se
+   signale jamais. Les deux sens, comme partout ailleurs. */
+export function verifierFonds() {
+  const soucis = [];
+  const demandes = new Set();
+  for (const b of BIOMES) {
+    if (!b.fond) continue;
+    demandes.add(b.fond);
+    if (!FOND[b.fond]) soucis.push(`${b.key} : fond « ${b.fond} » sans recette`);
+  }
+  for (const k of Object.keys(FOND)) {
+    if (!demandes.has(k)) soucis.push(`fond « ${k} » : aucun lieu ne le demande`);
+  }
+  return soucis;
 }
 
 /* LA TROISIEME PARALLAXE, ET ELLE EST CUITE A MOITIE. Deux couches donnaient
@@ -1118,4 +1151,134 @@ export function verifierMatiere() {
   for (const k of Object.keys(MACRO_TUILE)) if (!cles.has(k)) soucis.push(`${k} : seconde periode sans lieu`);
   for (const k of PORTE_MAILLE) if (!cles.has(k)) soucis.push(`${k} : maille sans lieu`);
   return soucis;
+}
+
+/* LA VILLE, VUE D EN HAUT ET DE TRES LOIN. Meme contrat que `fondEspace` et
+   meme cache : trois couches cuites une fois, blittees avec trois derives
+   differentes.
+
+   LE SECTEUR EST UN PONT LOGISTIQUE AU-DESSUS DE LA MEGAPOLE, et c est ce fond
+   qui le dit. C est aussi ce qui justifie ce que le lieu porte deja au sol : ses
+   grilles d air, ses plaques d egout et son effluent donnent tous sur QUELQUE
+   CHOSE, et ce quelque chose est en bas.
+
+   TROIS COUCHES, DE L INFINI AU PROCHE :
+   1. `loin` — la masse batie. Des toits, pas des facades : on regarde vers le
+      BAS. Un immeuble vu du dessus est un rectangle sombre borde de lumiere, et
+      c est la seule chose qui le distingue d une tache.
+   2. `gaz` — la couche de smog qui separe le pont de la ville. Elle est ce qui
+      rend la distance credible : sans elle, les toits sont a portee de main.
+   3. `pres` — la CIRCULATION. Des trainees courtes, alignees sur deux axes, a
+      des altitudes differentes. C est la seule couche qui bouge assez pour se
+      lire comme du mouvement plutot que comme de la matiere.
+
+   PAS DE NEON DANS LE FOND. La regle du lieu est que le sature appartient aux
+   enseignes, qui sont AU NIVEAU DU JOUEUR ; une ville lointaine qui clignoterait
+   en magenta concurrencerait ses propres devantures et rendrait le sol illisible.
+   Le fond est donc froid et sourd, et c est le contraste qui fait exister les
+   enseignes. */
+function cuireVille(seed, w, h) {
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const g = cv.getContext("2d");
+  const rand = mulberry32((seed >>> 0) * 3253 + 29);
+
+  g.fillStyle = alpha("#070610", 0.96);
+  g.fillRect(0, 0, w, h);
+
+  /* LES AVENUES D ABORD, LES ILOTS ENSUITE. Poser des immeubles au hasard donne
+     un champ de rectangles ; poser d abord la TRAME et batir dedans donne une
+     ville. Deux axes, pas orthogonaux a l ecran — une grille alignee sur la vue
+     se lirait comme un motif d interface. */
+  const ang = 0.22;
+  g.save();
+  g.translate(w / 2, h / 2);
+  g.rotate(ang);
+  const PAS = 132;
+  for (let u = -w; u < w; u += PAS) {
+    const large = 16 + rand() * 14;
+    g.fillStyle = alpha("#0d0c1a", 0.9);
+    g.fillRect(u, -h, large, h * 2);
+    g.fillRect(-w, u, w * 2, large * 0.8);
+  }
+
+  // LES ILOTS. Chacun est un toit : sombre, avec une arete claire du cote de la
+  // lumiere du lieu, et quelques edicules dessus.
+  for (let i = 0; i < 90; i++) {
+    const bx = -w + rand() * w * 2, by = -h + rand() * h * 2;
+    const bw = 34 + rand() * 78, bh = 34 + rand() * 78;
+    g.fillStyle = alpha("#14121f", 0.72 + rand() * 0.2);
+    g.fillRect(bx, by, bw, bh);
+    g.fillStyle = alpha("#3a3556", 0.16 + rand() * 0.12);
+    g.fillRect(bx + bw - 3, by, 3, bh);
+    g.fillRect(bx, by + bh - 3, bw, 3);
+    // les EDICULES : ce qui depasse d un toit et qui donne l echelle.
+    const n = 1 + ((rand() * 3) | 0);
+    g.fillStyle = alpha("#0a0912", 0.8);
+    for (let k = 0; k < n; k++) {
+      g.fillRect(bx + 5 + rand() * (bw - 16), by + 5 + rand() * (bh - 16),
+                 6 + rand() * 10, 6 + rand() * 10);
+    }
+    // et de tres rares fenetres CHAUDES : un immeuble habite au milieu du froid.
+    if (rand() < 0.34) {
+      g.fillStyle = alpha("#ffcf8a", 0.10 + rand() * 0.10);
+      for (let k = 0; k < 3; k++) {
+        g.fillRect(bx + 4 + rand() * (bw - 10), by + 4 + rand() * (bh - 10), 2.4, 2.4);
+      }
+    }
+  }
+  g.restore();
+  return cv;
+}
+
+// LE SMOG : la couche qui rend la distance credible. Cuite en demi-resolution
+// comme le gaz de la Nebuleuse — une nappe floue n a pas besoin d un pixel par
+// pixel, et c est un quart de la memoire des deux autres.
+function cuireSmog(seed, w, h) {
+  const cv = document.createElement("canvas");
+  cv.width = Math.ceil(w / GAZ_ECH); cv.height = Math.ceil(h / GAZ_ECH);
+  const g = cv.getContext("2d");
+  const rand = mulberry32((seed >>> 0) * 6151 + 71);
+  const W = cv.width, H = cv.height;
+  for (let i = 0; i < 14; i++) {
+    const x = rand() * W, y = rand() * H, r = (60 + rand() * 130) / GAZ_ECH * GAZ_ECH;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    const froid = rand() < 0.7;
+    grad.addColorStop(0, alpha(froid ? "#2a3352" : "#4a3a52", 0.10 + rand() * 0.08));
+    grad.addColorStop(1, alpha(froid ? "#2a3352" : "#4a3a52", 0));
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  return cv;
+}
+
+/* LA CIRCULATION AERIENNE. Des TRAINEES et non des points : a cette distance un
+   vehicule n est pas un objet, c est la lumiere qu il laisse. Elles sont
+   alignees sur deux axes seulement — une circulation qui part dans toutes les
+   directions n est pas une circulation, c est de la poussiere. */
+function cuireCirculation(seed, w, h) {
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const g = cv.getContext("2d");
+  const rand = mulberry32((seed >>> 0) * 8419 + 13);
+  g.save();
+  g.translate(w / 2, h / 2);
+  g.rotate(0.22);
+  g.lineCap = "round";
+  for (let i = 0; i < 46; i++) {
+    const vertical = rand() < 0.5;
+    const x = -w + rand() * w * 2, y = -h + rand() * h * 2;
+    const L = 10 + rand() * 26;
+    // deux couleurs, et elles disent le SENS : ce qui vient vers vous est blanc,
+    // ce qui s eloigne est rouge. La regle est la meme dans toutes les villes.
+    const vers = rand() < 0.5;
+    g.strokeStyle = alpha(vers ? "#cfe0ff" : "#ff7a6a", 0.16 + rand() * 0.16);
+    g.lineWidth = 1 + rand() * 1.2;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(vertical ? x : x + L, vertical ? y + L : y);
+    g.stroke();
+  }
+  g.restore();
+  return cv;
 }
