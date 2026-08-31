@@ -897,6 +897,21 @@ particules : **300 en 2D, 3 000 en WebGL**.
 
 ### Quand le rendu casse
 
+- **UN CACHE DONT LA CLEF PORTE LA GRAINE EST UNE FUITE**, parce que la graine
+  se retire à **chaque** sortie de manche (`room.drawBiome()`). Le cache de
+  tuiles de `material.js` n'avait aucune éviction : deux toiles cuites par
+  manche, gardées pour toujours — **9,8 Mo par manche à dpr 1, ~39 à dpr 2**,
+  mesuré en instrumentant les allocations de canvas. La borne juste est **une
+  entrée par famille** : il n'y a qu'une arène à la fois, donc qu'une tuile de
+  sol et qu'une seconde période. `couleeCache` et `fondCache` étaient déjà à
+  entrée unique — c'est le bon modèle.
+  **Et la panne qui suit est SILENCIEUSE** : `createPattern` rend `null` quand le
+  navigateur ne peut plus allouer, `floorPattern` propage le `null`, et
+  `drawFloor` sort sur `if (!p) return;`. Il ne reste que la couleur d'arène et
+  la grille de 20 m — une carte qui **a l'air cassée** sans qu'aucune exception
+  n'ait été levée, dans n'importe quel lieu. Un `null` de bake passe donc par
+  `signalerErreur`, seul moyen qu'un défaut de ce genre se raconte.
+
 - **Une exception dans `drawWorld` ne se voyait nulle part.** `draw()` commence
   par repeindre le sol et effacer la couche haute, et le HUD est dessiné en
   **dernier** : un throw laisse donc une arène **vide** avec un HUD **figé sur ses

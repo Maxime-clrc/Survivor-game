@@ -7117,6 +7117,47 @@
                   intactes, donc `verifierTraces()` et `verifierZones()` disent la
                   meme chose qu avant.
 
+    0.31.5 lot 6  LE SOL DISPARAISSAIT SANS RIEN LEVER, ET C EST UNE FUITE.
+                  Le cache de tuiles de `material.js` n avait AUCUNE eviction —
+                  aucun `cache.delete`, aucun plafond — et sa clef porte la
+                  GRAINE, que `room.drawBiome()` retire a CHAQUE sortie de manche,
+                  victoire, defaite ou interruption. Chaque manche cuisait donc
+                  deux toiles de plus, gardees pour toujours : une tuile de sol de
+                  400 px et une seconde periode de 1200 px, aux dimensions
+                  multipliees par le rapport de pixels.
+                  MESURE, en instrumentant les allocations de canvas : 9,8 Mo par
+                  manche a dpr 1 — donc environ 39 a dpr 2, ce que rend
+                  `Math.min(devicePixelRatio, 2)` sur un ecran moderne. Dix
+                  manches passent la barre des 400 Mo de fonds de canvas, et rien
+                  ne le signale.
+                  CE QUI ARRIVE ENSUITE EST LE DEFAUT VISIBLE. Quand le navigateur
+                  ne peut plus allouer, `createPattern` rend `null`, donc
+                  `floorPattern` rend `null`, donc `drawFloor` SORT SANS RIEN
+                  DIRE — deux `if (!p) return;` de suite. Il ne reste a l ecran
+                  que la couleur d arene et la grille de 20 m : une carte qui a
+                  l air cassee alors qu aucune exception n a ete levee, dans
+                  N IMPORTE QUEL lieu. C est exactement la forme rapportee, et
+                  exactement pourquoi le lot 2 ne l aurait pas attrapee : il n y
+                  avait rien a attraper.
+                  UNE ENTREE PAR FAMILLE, et c est la borne juste : il n y a
+                  qu une arene a la fois, donc qu une tuile de sol et qu une
+                  seconde periode. Changer de lieu, de mode, de graine ou de
+                  palier de qualite jette la precedente.
+                  ET LE SILENCE EST ROMPU : un `createPattern` nul passe par
+                  `signalerErreur`, donc par le bandeau du lot 2 et par le journal
+                  de l hote, qui porte deja le lieu et la graine.
+                  Verifie sur le vrai module : graine A puis B puis A DE NOUVEAU
+                  donne trois cuissons — la premiere a bien ete jetee ; une meme
+                  clef deux fois de suite n en donne qu une, le cache sert
+                  toujours ; sol et macro coexistent, deux familles, deux entrees.
+                  Et les 50 400 appels de passe de rendu (5 lieux x 3 modes x 12
+                  graines x 5 vues x 4 paliers) restent muets.
+                  CE QUI N EST PAS PROUVE : que ce soit la SEULE cause des ecrans
+                  rapportes. La fuite est mesuree, le silence l etait aussi, et
+                  les deux produisent la bonne image ; les corps absents des memes
+                  captures peuvent tenir a une autre allocation qui echoue sous la
+                  meme pression. La prochaine occurrence le dira, et elle parlera.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7125,4 +7166,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.4";
+export const VERSION = "0.31.5";

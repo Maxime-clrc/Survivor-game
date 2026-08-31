@@ -1,7 +1,7 @@
 import { BIOMES, mulberry32 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
-import { GFX_LOW, gfx } from "../core/state.js";
+import { GFX_LOW, gfx, signalerErreur } from "../core/state.js";
 
 // TILE vaut exactement GRID_MAJOR et MAILLE exactement GRID_FINE : la tuile
 // porte donc les deux grilles en JOINTS au lieu de les laisser se tracer par
@@ -18,6 +18,21 @@ const MACRO = 1200;
 
 const USURE = [0.0, 0.45, 1.0];
 
+/* IL N Y A QU UNE ARENE A LA FOIS, DONC IL N Y A QU UNE TUILE A LA FOIS.
+
+   Ce cache n avait AUCUNE eviction et sa clef porte la GRAINE — que
+   `room.drawBiome()` retire a CHAQUE sortie de manche. Chaque manche cuisait
+   donc deux toiles de plus, gardees pour toujours : 9,8 Mo par manche a dpr 1,
+   quatre fois plus a dpr 2, mesure. Dix manches suffisent a passer la barre des
+   400 Mo de fonds de canvas.
+
+   Et ce qui arrive ensuite est SILENCIEUX : quand le navigateur ne peut plus
+   allouer, `createPattern` rend `null`, `floorPattern` rend `null`, et
+   `drawFloor` SORT SANS RIEN DIRE. Il ne reste que la couleur d arene et la
+   grille — une carte qui a l air « cassee » alors que rien n a leve.
+
+   Une entree par FAMILLE (`f` le sol, `m` la seconde periode) : changer de lieu,
+   de mode, de graine ou de densite jette la precedente. */
 const cache = new Map();
 
 function motif(ctx, cle, dpr, cuisson) {
@@ -25,10 +40,16 @@ function motif(ctx, cle, dpr, cuisson) {
   if (p) return p;
   const cv = cuisson();
   p = ctx.createPattern(cv, "repeat");
-  if (!p) return null;
+  if (!p) {
+    signalerErreur("matiere", `tuile « ${cle} » : createPattern a rendu null`
+      + " — le sol ne sera pas peint", null);
+    return null;
+  }
   if (p.setTransform && typeof DOMMatrix === "function") {
     p.setTransform(new DOMMatrix([1 / dpr, 0, 0, 1 / dpr, 0, 0]));
   }
+  const fam = cle.slice(0, cle.indexOf("|") + 1);
+  for (const k of cache.keys()) if (k.startsWith(fam)) cache.delete(k);
   cache.set(cle, p);
   return p;
 }
