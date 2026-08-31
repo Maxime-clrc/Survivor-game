@@ -4069,3 +4069,68 @@ input:focus {
   color: var(--text-faint);
   opacity: .55;
 }
+
+/* --- LES HAUTS FAITS EN PLAQUES ------------------------------------------
+   Une liste de texte ne donne pas envie de collectionner, et le systeme
+   derriere est bien plus riche que ce qu elle en montrait. */
+#metaHf .hfGrille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+#metaHf .hfPlaque {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  opacity: .62;
+}
+/* OBTENU N EST PAS « ALLUME », C EST « PLEIN ». Le liseré passe au ton de gain
+   et l opacite revient a 1 : la plaque ne brille pas, elle cesse d etre sourde.
+   Une plaque acquise qui rayonnerait concurrencerait le bandeau d obtention,
+   qui est le seul moment ou ca doit se voir. */
+#metaHf .hfPlaque.done {
+  opacity: 1;
+  border-color: var(--gain);
+}
+#metaHf .hfTete {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+#metaHf .hfMark { color: var(--text-faint); font-family: var(--font); }
+#metaHf .hfPlaque.done .hfMark { color: var(--gain); }
+#metaHf .hfTitre { font-weight: 700; color: var(--text); }
+#metaHf .hfDiff {
+  margin-left: auto;
+  font-size: var(--t-xs);
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+#metaHf .hfCond { color: var(--text-dim); font-size: var(--t-s); line-height: 1.35; }
+/* LA JAUGE NE S AFFICHE QUE QUAND ELLE MESURE QUELQUE CHOSE. Dix-huit hauts
+   faits sur trente-six sont a pile ou face : chez eux la condition tient seule
+   la place, et une barre a zero aurait dit « bloque » au lieu de « pas encore ». */
+#metaHf .hfBarre {
+  height: 4px;
+  border-radius: var(--radius);
+  background: var(--line-soft);
+  overflow: hidden;
+}
+#metaHf .hfBarre i {
+  display: block;
+  height: 100%;
+  background: var(--go);
+}
+#metaHf .hfCompte { font-size: var(--t-xs); color: var(--text-faint); }
+#metaHf .hfPrix {
+  margin-top: auto;
+  padding-top: var(--sp-1);
+  font-size: var(--t-xs);
+  color: var(--text-faint);
+}
+#metaHf .hfPlaque.done .hfPrix { color: var(--gain); }

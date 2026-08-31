@@ -6601,6 +6601,36 @@
                    etat reel vert, et les cinq regles CSS restent tenues sur les
                    seize ecrans.
 
+    0.29.21 lot 22 LES HAUTS FAITS DEVIENNENT DES PLAQUES. Le systeme derriere
+                   etait deja riche — progression chiffree, trois niveaux,
+                   recompenses nommees, treize cadres — et il s affichait en lignes
+                   de texte : rien n y donnait envie de collectionner. C est le
+                   §5-6 du brief, et le plan 25 avait deja repare l ecran sans
+                   toucher a ce qu il montre.
+                   DEUX FORMES, ET C EST LA MESURE QUI L IMPOSE. Le plan 26
+                   demandait de « verifier la forme exacte de `hfProgres` avant de
+                   coder l etat intermediaire » : sur les 36 hauts faits,
+                   DIX-HUIT seulement ont une progression chiffree utile
+                   (`max > 1`) — dix-sept n en rendent aucune et un seul a `max: 1`.
+                   Les dix-huit autres sont a pile ou face : `debout`,
+                   `intouchable`, `foudroyant`, `puriste`, `ascete`...
+                   UNE GRILLE UNIFORME AURAIT DONC MONTRE DIX-HUIT BARRES VIDES,
+                   soit exactement la moitie des plaques ayant l air CASSEE. Celles
+                   qui n ont pas de compteur montrent leur CONDITION a la place :
+                   l information existe (`hfTexte`), elle n a simplement pas la
+                   forme d une jauge. Et une barre a zero aurait dit « bloque » la
+                   ou il faut lire « pas encore ».
+                   OBTENU N EST PAS « ALLUME », C EST « PLEIN » : le lisere passe
+                   au ton de gain et la plaque cesse d etre sourde, sans rayonner.
+                   Une plaque acquise qui brillerait concurrencerait le bandeau
+                   d obtention — le seul moment ou ca doit se voir, et il a
+                   maintenant sa voix depuis 0.29.14.
+                   Verifie aux trois etats : compte neuf 0 obtenus / 18 jauges /
+                   18 conditions, moitie faite 18/5/13, tout obtenu 36/0/0. Les 36
+                   sont couvertes a chaque fois, aucune jauge sans denominateur.
+                   Les cinq regles CSS tiennent sur les seize ecrans, le fil reste
+                   vert, et toutes les variables de la feuille resolvent.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6609,4 +6639,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.20";
+export const VERSION = "0.29.21";

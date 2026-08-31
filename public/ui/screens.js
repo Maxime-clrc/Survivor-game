@@ -1547,6 +1547,38 @@ function nomsRecompense(h) {
     : (cardNom(id) || id)).join(", ");
 }
 
+/* DES PLAQUES, PAS UNE LISTE. Le systeme derriere est riche — progression
+   chiffree, trois niveaux, recompenses nommees, cadres — et il s affichait en
+   lignes de texte : rien n y donnait envie de collectionner.
+
+   DEUX FORMES, ET C EST LA MESURE QUI L IMPOSE. Sur les 36 hauts faits,
+   DIX-HUIT seulement ont une progression chiffree utile (`max > 1`) ; les
+   dix-huit autres sont a pile ou face — on l a fait ou on ne l a pas fait.
+   Une barre vide sur la moitie des plaques aurait eu l air CASSEE, et c est
+   exactement ce qu une grille uniforme aurait produit. Celles qui n ont pas de
+   compteur montrent donc leur CONDITION a la place : l information existe
+   (`hfTexte`), elle n a simplement pas la forme d une jauge.
+
+   TROIS ETATS, TROIS LECTURES : verrouille (plaque sourde), en cours (la
+   jauge porte le regard), obtenu (plein, et la recompense passe devant la
+   condition — une fois acquis, ce qui compte est ce qu on a GAGNE). */
+function plaqueHf(h, ok, pg, modes) {
+  const diff = h.diffMin !== undefined
+    ? `<span class="hfDiff">${escapeHtml(modes[h.diffMin] ?? "")}</span>` : "";
+  const jauge = !ok && pg && pg.max > 1
+    ? `<div class="hfBarre"><i style="width:${Math.round(100 * pg.n / pg.max)}%"></i></div>`
+      + `<div class="hfCompte">${pg.n} / ${pg.max}</div>`
+    : "";
+  return `<div class="hfPlaque${ok ? " done" : ""}">`
+    + `<div class="hfTete"><span class="hfMark">${ok ? "✓" : "•"}</span>`
+      + `<span class="hfTitre">${escapeHtml(hfNom(h.id))}</span>${diff}</div>`
+    + `<div class="hfCond">${escapeHtml(hfTexte(h.id))}</div>`
+    + jauge
+    + `<div class="hfPrix">${escapeHtml(rewardLabel(h.reward.type))} · `
+      + `${escapeHtml(nomsRecompense(h))}</div>`
+    + `</div>`;
+}
+
 function renderHauts(pr) {
   const done = new Set(pr.hf ?? []);
   const stats = vueStats(pr);
@@ -1559,27 +1591,12 @@ function renderHauts(pr) {
   for (let niv = 0; niv < HF_NIVEAUX.length; niv++) {
     const liste = HAUTS_FAITS.filter(h => h.niveau === niv);
     const faits = liste.filter(h => done.has(h.id)).length;
-    html += `<div class="hfGroupe"><div class="sectionTitle">`
-      + escapeHtml(hfNiveauLabel(niv))
-      + ` <small>${faits} / ${liste.length}</small></div>`;
-    for (const h of liste) {
-      const ok = done.has(h.id);
-      const pg = ok ? null : hfProgres(h.id, stats);
-      html += `<div class="hfRow${ok ? " done" : ""}">`
-        + `<span class="hfMark">${ok ? "✓" : "•"}</span>`
-        + `<span class="hfBody">`
-          + `<span class="hfTitre">${escapeHtml(hfNom(h.id))}`
-          + (h.diffMin !== undefined
-              ? `<em class="hfDiff">${escapeHtml(modes[h.diffMin] ?? "")}</em>` : "")
-          + `</span>`
-          + `<span class="hfCond">${escapeHtml(hfTexte(h.id))}</span>`
-          + `<span class="hfPrix">${escapeHtml(rewardLabel(h.reward.type))} : `
-          + `${escapeHtml(nomsRecompense(h))}</span>`
-        + `</span>`
-        + (pg ? `<span class="hfJauge">${pg.n} / ${pg.max}</span>` : `<span class="hfJauge"></span>`)
-        + `</div>`;
-    }
-    html += `</div>`;
+    html += `<div class="sectionTitle">${escapeHtml(hfNiveauLabel(niv))}`
+      + ` <small>${faits} / ${liste.length}</small></div>`
+      + `<div class="hfGrille">`
+      + liste.map(h => plaqueHf(h, done.has(h.id),
+          done.has(h.id) ? null : hfProgres(h.id, stats), modes)).join("")
+      + `</div>`;
   }
   metaHfEl.innerHTML = html;
 }
