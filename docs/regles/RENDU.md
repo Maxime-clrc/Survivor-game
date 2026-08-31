@@ -1021,6 +1021,17 @@ le sien :
   propage, leur nombre suivrait sinon la horde. Et **aucune garde `gfx`** : une
   brûlure est de l'information, `gfx` règle la matière sans jamais décider de ce
   qui se lit.
+- **Une zone de horde CLIGNOTE, un feu S ÉTEINT.** Le clignotement est un carré
+  (`sin > 0`), donc à flanc **franc** : il annonce une échéance, ce qui est juste
+  pour un sol qui va cesser de blesser le *joueur*. Le sol brûlant d une carte ne
+  blesse que la horde — il n a personne à avertir, et un flanc franc y
+  fabriquerait un télégraphe qui ne dit rien. Il retombe donc en continu vers une
+  cendre tiède.
+- **Le sol brûlé RESTE.** `scorches` ne se posait que sur une détonation
+  (`blast > 0.15`) ; un sol de carte a `blast: 0` — il naît sous une explosion
+  qui a déjà son dessin — donc il s éteignait sans rien laisser. La disparition se
+  **détecte** côté client (le zone était là, elle n y est plus), on ne la fait pas
+  dire par le réseau : même idiome que `zoneMotion` et `blastSeen`.
 - **Sur une zone de joueur, la couleur dit À QUI et la matière dit QUOI.**
   `terrain_conquis` est la seule carte qui pose du sol brûlant, et le seul des
   cinq appelants de `_groundZone` à passer un `pj` non nul — donc `z.pj !== 0`

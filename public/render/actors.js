@@ -418,6 +418,38 @@ function drawZoneCracks(z, k, punch) {
   ctx.stroke();
   ctx.restore();
 }
+/* LE SOL BRULE RESTE, ET C EST LA DERNIERE DES TROIS ETAPES. `scorches` ne se
+   posait que sur une DETONATION (`zoneResolved`, `blast > 0.15`) : un sol
+   brulant de carte a `blast: 0` — il nait sous une explosion qui a deja son
+   propre dessin — donc il s eteignait sans rien laisser. « Les flammes
+   disparaissent, les braises restent un moment, le sol brule reste » : les deux
+   premiers existaient, le troisieme non.
+
+   ON DETECTE LA DISPARITION, on ne la fait pas dire par le reseau. Le serveur
+   n a pas a annoncer qu une zone s eteint : le client la voyait a l image
+   precedente et ne la voit plus. Meme idiome que `zoneMotion` et `blastSeen` —
+   une carte cote client, bornee, videe quand elle grossit.
+
+   SEULEMENT LE FEU D UN JOUEUR : une zone de horde qui expire a deja son
+   clignotement d avertissement, et laisser une trace la ou le danger a CESSE
+   dirait le contraire de ce qu on veut. */
+const feuVu = new Map();
+function traceDuFeu(list, tm) {
+  const vivantes = new Set();
+  for (const z of list) {
+    if (!(z.pj > 0) || !(z.life > 0)) continue;
+    vivantes.add(z.id);
+    feuVu.set(z.id, z);
+  }
+  for (const [id, z] of feuVu) {
+    if (vivantes.has(id)) continue;
+    feuVu.delete(id);
+    scorches.push({ z: { ...z }, until: tm + 2 });
+    if (scorches.length > 24) scorches.shift();
+  }
+  if (feuVu.size > 220) feuVu.clear();
+}
+
 function trackZoneMotion(list) {
   for (const z of list) {
     const m = zoneMotion.get(z.id);
@@ -530,6 +562,7 @@ export function drawZones(zones, tm = 0) {
   }
 
   drawScorches(tm);
+  traceDuFeu(list, tm);
   trackZoneMotion(list);
 
   const ring = list.reduce((n, z) => n + (z.warn > 0 ? 1 : 0), 0) <= 8;
@@ -701,12 +734,32 @@ function drawZonesActive(list, tm, pj = 0) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
+  /* UNE ZONE DE HORDE CLIGNOTE, UN FEU S ETEINT — et c est la meme difference
+     qu entre un avertissement et une matiere. Le clignotement est un carre
+     (`sin > 0`), donc a flanc FRANC : il annonce une echeance, et c est juste
+     pour un sol qui va cesser de blesser le JOUEUR. Le sol brulant d une carte
+     ne blesse que la horde — il n a personne a avertir, et un flanc franc y
+     fabriquerait un telegraphe qui ne dit rien.
+     Il retombe donc en continu sur ses trois dernieres secondes, vers une
+     cendre tiede : « les flammes disparaissent, les braises restent un moment,
+     le sol brule reste ». Meme oubli que les quatre autres canaux avant
+     0.29.1 — la teinte d equipe couvrait tout, et celle-ci avait survecu. */
   const dying = list.filter(z => z.life > 0 && z.life < 3);
-  if (dying.length && Math.sin(tm * 12) > 0) {
-    ctx.beginPath();
-    for (const z of dying) zoneSubPath(z, 1.05);
-    ctx.fillStyle = alpha(ZONE.dying, 0.16);
-    ctx.fill("nonzero");
+  if (dying.length) {
+    if (feu) {
+      for (const z of dying) {
+        const k = 1 - z.life / 3;
+        ctx.beginPath();
+        zoneSubPath(z, 1.05);
+        ctx.fillStyle = alpha(ZONE.braiseMorte, 0.26 * k);
+        ctx.fill("nonzero");
+      }
+    } else if (Math.sin(tm * 12) > 0) {
+      ctx.beginPath();
+      for (const z of dying) zoneSubPath(z, 1.05);
+      ctx.fillStyle = alpha(ZONE.dying, 0.16);
+      ctx.fill("nonzero");
+    }
   }
 }
 export function drawTurrets(list) {

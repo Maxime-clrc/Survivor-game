@@ -187,6 +187,12 @@ export const ZONE = {
   braise:     "#ff6a18",
   braiseBord: "#ffb066",
   braiseFond: "#5a1f08",
+  /* CE QUI RESTE QUAND LE FEU S EST ETEINT. Une cendre tiede, pas un rose :
+     `dying` sert la zone de la horde, qui CLIGNOTE en rose pale parce qu elle
+     va cesser de blesser — c est un avertissement. Le sol brulant d un joueur
+     n a personne a avertir : il ne blesse que la horde, et sa fin est une
+     extinction, pas une echeance. */
+  braiseMorte: "#4a3a30",
 };
 
 export const WALL = { fill: "#7896ff", edge: "#aac3ff" };

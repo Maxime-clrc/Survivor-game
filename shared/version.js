@@ -6677,6 +6677,43 @@
                    absent, faux ou vrai ; avec, 44 en tenant (les mutismes) et 0
                    en relachant ; le laser en rend toujours 0, il est un faisceau.
 
+    0.29.23 lot 24 LE FEU S ETEINT AU LIEU DE CLIGNOTER, ET IL LAISSE UNE TRACE.
+                   Les deux dernieres etapes du §2 du brief — « les flammes
+                   disparaissent, les braises restent un moment, le sol brule
+                   reste » — dont je n avais livre que la premiere.
+                   UN OUBLI DANS MON PROPRE LOT 0.29.1. La teinte d equipe couvrait
+                   QUATRE canaux — braise, bord, fond, hachure — et je les ai tous
+                   corriges. Le CINQUIEME, `dying`, avait survecu : le sol brulant
+                   d un joueur mourait encore en rose pale, la couleur de la zone
+                   de horde. Cinq canaux, quatre corriges, et rien ne l a dit.
+                   UNE ZONE DE HORDE CLIGNOTE, UN FEU S ETEINT, et c est la meme
+                   difference qu entre un avertissement et une matiere. Le
+                   clignotement est un carre (`sin > 0`), donc a flanc FRANC : il
+                   annonce une echeance, ce qui est juste pour un sol qui va cesser
+                   de blesser le JOUEUR. Le sol brulant d une carte ne blesse que
+                   la horde — il n a personne a avertir, et un flanc franc y
+                   fabriquerait un telegraphe qui ne dit rien. Il retombe donc en
+                   continu sur ses trois dernieres secondes, vers une cendre tiede.
+                   ET LE SOL BRULE RESTE. `scorches` ne se posait que sur une
+                   DETONATION (`zoneResolved`, `blast > 0.15`), or un sol de carte
+                   a `blast: 0` — verifie : `warn 0, blast 0, life 4`. Il naissait
+                   sous une explosion qui a deja son propre dessin, et s eteignait
+                   sans rien laisser.
+                   ON DETECTE LA DISPARITION, ON NE LA FAIT PAS DIRE PAR LE RESEAU :
+                   le serveur n a pas a annoncer qu une zone s eteint, le client la
+                   voyait a l image precedente et ne la voit plus. Meme idiome que
+                   `zoneMotion` et `blastSeen` — une carte cote client, bornee,
+                   videe quand elle grossit. Aucun champ de plus ne circule.
+                   SEULEMENT LE FEU D UN JOUEUR : une zone de horde qui expire a
+                   deja son clignotement, et laisser une trace la ou le danger a
+                   CESSE dirait le contraire de ce qu on veut.
+                   Verifie sur quatre questions : la trace se pose quand le feu
+                   disparait et pas avant, une seule fois, jamais pour une zone de
+                   horde, et le plafond de 24 tient sous soixante disparitions.
+                   LA NAISSANCE N EST PAS AJOUTEE, et c est un choix : le sol de
+                   carte nait SOUS une explosion, qui a deja son burst, sa secousse
+                   et son eclat. Un second depart y serait un doublon.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6685,4 +6722,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.22";
+export const VERSION = "0.29.23";
