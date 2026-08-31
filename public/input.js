@@ -32,11 +32,29 @@ addEventListener("keydown", e => {
   if (s2 && !repeat && !e.repeat) requestSkill(2);
   if (s3 && !repeat && !e.repeat) requestSkill(3);
 });
+/* LA GACHETTE. Le bouton GAUCHE etait le seul libre — le milieu porte la
+   troisieme competence — et il ne servait a rien parce que le tir est
+   automatique. Une carte le rend utile sans rien deplacer.
+
+   ELLE EST TENUE, PAS CLIQUEE, et elle se relache sur trois evenements et pas
+   un : `mouseup` bien sur, mais aussi `blur` de la fenetre et `mouseleave` du
+   canvas. Sans les deux derniers, un alt-tab en plein tir laisse la gachette
+   ENFONCEE pour toujours — le joueur revient a une arme qui surchauffe seule et
+   rien ne le lui dit.
+
+   `tirTenu()` rend TOUJOURS une valeur, et le serveur ne la lit que si la carte
+   est posee : aucune des dix armes ne change de comportement sans elle. */
+let gachette = false;
+export function tirTenu() { return gachette; }
 cv.addEventListener("mousedown", e => {
+  if (e.button === 0) { gachette = true; return; }
   if (e.button !== 1) return;
   e.preventDefault();
   requestSkill(3);
 });
+addEventListener("mouseup", e => { if (e.button === 0) gachette = false; });
+cv.addEventListener("mouseleave", () => { gachette = false; });
+addEventListener("blur", () => { gachette = false; });
 cv.addEventListener("contextmenu", e => e.preventDefault());
 addEventListener("keyup", e => keys.delete(e.code));
 addEventListener("blur", () => keys.clear());
@@ -141,7 +159,15 @@ setInterval(() => {
   if (phase !== PHASE_ROUND || amSpectator) return;
   const m = readMove();
   const a = aimVector();
-  const msg = { t: "input", x: m.x, y: m.y, ax: a.ax, ay: a.ay, ar: aimRange() };
+  /* LA GACHETTE EST CONTINUE, comme la visee et la portee au reticule : on la
+     TIENT. Les ponctuels (`d`, `s1`..`s3`) se remettent a zero apres chaque
+     tick, celle-ci non — sans quoi relacher la souris une image sur deux
+     hacherait le tir.
+     Elle part TOUJOURS, meme sans la carte : le serveur ne la lit que si
+     `tirManuel` est pose, et un champ conditionnel aurait fait deux formes de
+     message a tenir. Un booleen par tick a 30 Hz ne se mesure pas. */
+  const msg = { t: "input", x: m.x, y: m.y, ax: a.ax, ay: a.ay, ar: aimRange(),
+                tir: tirTenu() };
   if (dash.pending) { msg.d = 1; dash.pending = false; }
   if (skills.s1) { msg.s1 = 1; skills.s1 = false; }
   if (skills.s2) { msg.s2 = 1; skills.s2 = false; }

@@ -32,6 +32,17 @@ export const ARME_CFG = {
   CHALEUR_CHUTE: 1 / 2.6,
   CHALEUR_MUET: 1.5,
   CHALEUR_BONUS: 0.25,
+  /* LE BONUS DE LA CHAMBRE THERMIQUE EST PLUS HAUT QUE CELUI DU LASER, et ce
+     n est pas de la generosite. Le faisceau ne rate jamais et sature sa jauge
+     tout seul : son +25 % est acquis. Une arme a coups discrets ne chauffe que
+     si le joueur TIENT la gachette, et il doit la relacher avant la saturation
+     — la jauge passe donc son temps a mi-course.
+     La simulation du plan 26 mesure le prix de cet ecart : a +55 %, un joueur
+     PARFAIT rendait 72,3 de DPS contre 75,0 en automatique, donc la carte
+     etait strictement PIRE que de ne pas la prendre. A +70 % il repasse devant
+     d environ 5 %, et l ecart parfait/moyen ne bouge presque pas — il tient au
+     taux d occupation, pas au bonus final. On regle donc le PLANCHER ici. */
+  CHALEUR_BONUS_MANUEL: 0.70,
   LASER_TICK: 0.1,
   // MESURE : a 18 px la nappe ne delivrait que 0,51 du nominal en horde — le
   // faisceau ne rate jamais SA cible, encore faut-il qu'il en rencontre

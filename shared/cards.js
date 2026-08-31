@@ -1332,6 +1332,35 @@ export const CARDS = [
     desc: "les élites laissent un bonus au sol de plus en mourant",
     apply(m) { m.eliteDrop = 1; },
   },
+  /* LA SEULE CARTE QUI CHANGE LE CONTROLE DE L ARME, et c est pour ca qu elle
+     est epique et non legendaire : l effet est QUALITATIF — une autre facon de
+     jouer — pas un multiplicateur de plus.
+
+     LA SIMULATION DIT QU ELLE NE DOIT PAS ETRE GENEREUSE PAR PRUDENCE. A +55 %
+     de bonus en pleine jauge, un joueur PARFAIT faisait 72,3 de DPS contre 75,0
+     en automatique : la carte etait strictement pire que de ne pas la prendre.
+     A +70 % il repasse devant d environ 5 %, et l ecart parfait/moyen (+6 %) ne
+     bouge presque pas — il tient au taux d occupation, pas au bonus final.
+     C est donc le PLANCHER qui se regle ici, pas la recompense du bon joueur.
+
+     `noOverheat` la neutralise, et c est juste : `chaine_assaut` retire la
+     surchauffe en echange de -40 % d intervalle. Les deux ensemble donneraient
+     une gachette sans contrepartie. */
+  {
+    id: "surchauffe", nom: "Chambre thermique", rarity: 2, max: 1, tags: ["off"],
+    horsEchelle: true,
+    desc: "tu tires en maintenant le clic ; ton arme chauffe et frappe jusqu'à +{0} % — à saturation elle se tait",
+    vals: () => ({ "0": Math.round(ARME_CFG.CHALEUR_BONUS_MANUEL * 100) }),
+    /* EN `applyAfter`, ET LE TEST L A EXIGE. En `apply` ordinaire, l ordre du
+       catalogue decide : `surchauffe` passait AVANT `chaine_assaut`, donc
+       `noOverheat` n etait pas encore pose et la garde ne voyait RIEN. Les deux
+       cartes ensemble donnaient une gachette sans contrepartie — exactement ce
+       que la garde devait empecher, et rien ne l aurait signale.
+       `applyAfter` passe une fois toutes les cartes appliquees : la garde lit
+       alors un `noOverheat` definitif. */
+    apply() {},
+    applyAfter(m) { if (!m.noOverheat) m.tirManuel = 1; },
+  },
   {
     id: "filon", nom: "Filon", rarity: 1, max: 1, tags: ["util"],
     desc: "un point de récolte sur trois en laisse un second à sa place",
@@ -1723,6 +1752,7 @@ export function defaultMods() {
     groundResist: 0,
     hazardDps: 0,
     blastGround: 0,
+    tirManuel: 0,
     blastRoot: 0,
     rootChance: 0,
     rootDamage: 0,

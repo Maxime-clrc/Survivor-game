@@ -6631,6 +6631,52 @@
                    Les cinq regles CSS tiennent sur les seize ecrans, le fil reste
                    vert, et toutes les variables de la feuille resolvent.
 
+    0.29.22 lot 23 LA CHAMBRE THERMIQUE : la seule carte qui change le CONTROLE de
+                   l arme. On tire en tenant le clic, l arme chauffe et frappe
+                   jusqu a +70 %, et a saturation elle se tait 1,5 s.
+                   ET LA PREMISSE DU PLAN 26 ETAIT FAUSSE. Il annoncait « rien de
+                   nouveau cote moteur de chaleur — c est le systeme du laser,
+                   reutilise ». Mesure : `chaleur` n est pas une ressource
+                   generique, elle est SOUDEE a la livraison en faisceau. Les deux
+                   vivaient dans le meme `if (arme.chaleur)`, et `_shoot` ne
+                   demande qu `interval > 0` — poser `chaleur: true` sur le Tir
+                   standard l aurait fait tirer DEUX FOIS, le faisceau et les
+                   balles. Le faisceau se garde donc sur ce qui le definit, un
+                   intervalle NUL ; la chaleur sur ce qui la porte, arme ou carte.
+                   A COUPS DISCRETS, LA CHALEUR MONTE PARCE QU ON TIENT, pas parce
+                   qu on touche : lier la montee au contact punirait de viser une
+                   cible qui bouge, alors que le choix qu on demande au joueur est
+                   QUAND relacher.
+                   ET LA CHALEUR DEVAIT PAYER SUR LE COUP. Le bonus ne vivait que
+                   dans `_faisceauInterne` : sans ca, l arme aurait porte une jauge
+                   qui monte, se tait a saturation, et ne rend RIEN — que du risque.
+                   +70 % ET NON +55 %, ET C EST LA SIMULATION QUI LE DIT. A +55 %,
+                   un joueur PARFAIT rendait 72,3 de DPS contre 75,0 en
+                   automatique : la carte etait strictement PIRE que de ne pas la
+                   prendre. A +70 % il repasse devant d environ 5 %, et l ecart
+                   parfait/moyen ne bouge presque pas — il tient au taux
+                   d occupation, pas au bonus final. C est le PLANCHER qu on regle,
+                   pas la recompense du bon joueur. Le reste s equilibrera en jeu.
+                   LA GACHETTE EST CONTINUE, comme la visee et la portee au
+                   reticule — les ponctuels (`d`, `s1`..`s3`) se remettent a zero
+                   apres le tick, pas elle. Elle se relache sur TROIS evenements :
+                   `mouseup`, `blur` de la fenetre et `mouseleave` du canvas. Sans
+                   les deux derniers, un alt-tab en plein tir la laisse ENFONCEE
+                   pour toujours. Le champ part toujours, meme sans la carte, et le
+                   serveur ne le lit que si `tirManuel` est pose : `?? true` fait
+                   qu un client qui ne l envoie pas tire comme avant.
+                   UN DEFAUT TROUVE PAR LE TEST, ET IL ETAIT SILENCIEUX : en `apply`
+                   ordinaire, l ordre du catalogue faisait passer `surchauffe`
+                   AVANT `chaine_assaut`, donc `noOverheat` n etait pas encore pose
+                   et la garde ne voyait rien — les deux cartes ensemble donnaient
+                   une gachette SANS contrepartie, exactement ce que la garde
+                   devait empecher. Passee en `applyAfter`, elle lit un
+                   `noOverheat` definitif.
+                   SIX NON-REGRESSIONS, comptees a `_shoot` qui est le point de
+                   passage : sans la carte, 60 tirs sur 10 s que le champ soit
+                   absent, faux ou vrai ; avec, 44 en tenant (les mutismes) et 0
+                   en relachant ; le laser en rend toujours 0, il est un faisceau.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6639,4 +6685,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.21";
+export const VERSION = "0.29.22";

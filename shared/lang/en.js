@@ -1206,6 +1206,8 @@ export const EN = {
   "ui.codex.horde": "Horde",
   "ui.codex.boss": "Bosses",
   "ui.codex.compte": "{n} / {tot} met",
+  "cards.surchauffe.nom": "Thermal chamber",
+  "cards.surchauffe.desc": "you fire by holding the click; your weapon heats up and hits for up to +{0} % — at saturation it falls silent",
   "ui.codex.cartes": "Cards played",
   "ui.codex.reliques": "Relics taken",
   "ui.class.codex": "Codex",

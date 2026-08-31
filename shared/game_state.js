@@ -1359,6 +1359,9 @@ export class GameState {
         if (ad > 0.001) { p.aimX = inp.ax / ad; p.aimY = inp.ay / ad; }
       }
       if (inp) p.aimR = porteeReticule(inp.ar);
+      // `?? true` : un client qui n envoie pas le champ — ancien, ou un script
+      // de mesure — tire comme avant. L absence ne doit jamais rendre muet.
+      p.tirTenu = inp ? (inp.tir ?? true) : true;
 
       if (inp && inp.dash && p.dashCd <= 0 && p.dashT <= 0) {
         let dx = inp.x, dy = inp.y;
@@ -1436,7 +1439,16 @@ export class GameState {
 
       p.fireInterval = interval;
 
-      const tirAutorise = this.warmup <= 0 && !p.healMode && !p.downed;
+      /* LE TIR EST AUTOMATIQUE, SAUF SI ON A DEMANDE LE CONTRAIRE. Une seule
+         carte bascule ce drapeau, et elle donne en echange une jauge de
+         chaleur : le joueur cesse de subir sa cadence et se met a la GERER.
+         L intention est CONTINUE comme la visee — on tient la gachette, on ne
+         la declenche pas —, donc elle ne se remet pas a zero apres le tick.
+         Sans la carte, `tirTenu` n est jamais lu : le tir reste exactement ce
+         qu il etait pour les dix armes. */
+      const manuel = p.mods.tirManuel > 0;
+      const veutTirer = !manuel || !!p.tirTenu;
+      const tirAutorise = this.warmup <= 0 && !p.healMode && !p.downed && veutTirer;
       if (tirAutorise) {
         p.hf.armeTemps += dt;
         // muet = REFUSE pour cause de ressource. La charge du railgun n'en est
@@ -1600,17 +1612,32 @@ export class GameState {
       return;
     }
 
-    if (arme.chaleur) {
+    /* LA CHALEUR N EST PAS LE FAISCEAU, ET ELLE L ETAIT. Les deux vivaient
+       dans le meme `if (arme.chaleur)`, donc la ressource etait soudee a une
+       livraison CONTINUE : attacher la chaleur a une arme a coups discrets la
+       faisait tirer DEUX FOIS — le faisceau ici, et `_shoot` plus bas, qui ne
+       demande qu `interval > 0`.
+       Le faisceau se garde donc sur ce qui le definit — un intervalle NUL —,
+       et la chaleur sur ce qui la porte, arme ou carte. */
+    const porteChaleur = arme.chaleur || p.mods.tirManuel > 0;
+    if (porteChaleur) {
       const tire = tirAutorise && p.armeMuet <= 0;
-      if (tire) {
-        p.armeT += dt;
-        while (p.armeT >= ARME_CFG.LASER_TICK) {
-          p.armeT -= ARME_CFG.LASER_TICK;
-          p.armeTouche = this._faisceau(p, arme, ARME_CFG.LASER_TICK) > 0 ? 1 : 0;
+      if (arme.interval === 0) {
+        if (tire) {
+          p.armeT += dt;
+          while (p.armeT >= ARME_CFG.LASER_TICK) {
+            p.armeT -= ARME_CFG.LASER_TICK;
+            p.armeTouche = this._faisceau(p, arme, ARME_CFG.LASER_TICK) > 0 ? 1 : 0;
+          }
+        } else {
+          p.armeT = 0;
+          p.armeTouche = 0;
         }
       } else {
-        p.armeT = 0;
-        p.armeTouche = 0;
+        /* A COUPS DISCRETS, LA CHALEUR MONTE PARCE QU ON TIENT LA GACHETTE, pas
+           parce qu on touche : le joueur choisit QUAND relacher, et lier la
+           montee au contact le punirait de viser une cible qui bouge. */
+        p.armeTouche = tire ? 1 : 0;
       }
       /* LA CHALEUR SUIT LE FAISCEAU, PAS LA TOUCHE. Elle ne montait qu'en
          contact, donc elle ne se remplissait que dans les moments ou le joueur
@@ -1762,7 +1789,14 @@ export class GameState {
       * (p.buffDamage > 0 ? CFG.BUFF_DAMAGE_MUL : 1)
       // la rampe monte les degats, elle ne touche a rien d'autre : c'est le
       // dialogue entre le danger qui approche et le compteur qui monte
-      * (arme.rampe ? 1 + p.armeRes * ((p.mods.rampeMax ?? ARME_CFG.RAMPE_MAX) - 1) : 1);
+      * (arme.rampe ? 1 + p.armeRes * ((p.mods.rampeMax ?? ARME_CFG.RAMPE_MAX) - 1) : 1)
+      /* LA CHALEUR PAIE SUR LE COUP, comme elle paie sur le faisceau. Elle ne
+         pouvait pas : le bonus ne vivait que dans `_faisceauInterne`, donc une
+         arme a coups discrets aurait porte une jauge qui monte, se tait a
+         saturation, et ne rend RIEN — que du risque. */
+      * (p.mods.tirManuel > 0
+          ? 1 + p.armeRes * (ARME_CFG.CHALEUR_BONUS_MANUEL + (p.mods.chaleurDegats ?? 0))
+          : 1);
     this._volley(p, base);
     if (p.mods.echoChance > 0 && Math.random() < p.mods.echoChance) this._volley(p, base);
   }

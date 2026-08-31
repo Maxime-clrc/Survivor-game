@@ -966,6 +966,8 @@ export class Room {
         }
 
         client.input.ar = bombRange(msg.ar);
+        // CONTINU comme `ar` : on ne le remet pas a zero apres le tick.
+        client.input.tir = !!msg.tir;
 
         if (msg.d) client.input.dash = true;
         if (msg.s1) client.input.s1 = true;
