@@ -4180,6 +4180,51 @@ promettait un empilement que le code ne rend pas, et le troisième exemplaire
 +168 %, `drone` ×2 rend +13 %, `orbiteurs` ×2 rend +40 %. L'écart entre épiques
 d'invocation est large, et ce relevé ne suffit pas à le corriger.
 
+### La matrice des builds (plan 27, chantier 4)
+
+**Protocole.** 300 manches par politique, 25 cartes par manche, arme standard,
+graines écrites. On appelle le vrai `offerCards()` — le tirage n'est pas
+remodélisé — puis `archetypeDe()` sur la build finale. Trois politiques : prise
+au hasard, prise de la plus haute rareté, et **dirigée** — on joue *pour*
+l'archétype, en prenant toute carte qui y mène, du palier le plus bas au plus
+haut (l'ordre croissant est le seul qui permette de posséder les quatre paliers
+d'une famille, un palier supérieur retirant les inférieurs du pool).
+
+**Ce que la mesure a trouvé.** L'atteignabilité ne suit pas la taille du bassin
+*déclaré* : elle suit le bassin **réellement tirable**, c'est-à-dire hors cartes
+d'arme et hors cartes de classe.
+
+| archétype | cartes libres | dirigé, avant | dirigé, après |
+|---|---|---|---|
+| forteresse | 10 | 87 % | 87 % |
+| sniper | 9 | 76 % | 76 % |
+| **demolition** | 4 → **8** | **4 %** | **77 %** |
+| **technicien** | 6 → **9** | **4 %** | **72 %** |
+| berserker | 8 | 69 % | 69 % |
+| acrobat | 7 | 25 % | 25 % |
+| incendiaire | 5 | 17 % | 17 % |
+
+Les **quatre** graines de *demolition* étaient des cartes de la grenade : sans
+elle il restait 4 cartes pour un seuil de 3. Les cartes qui collaient au thème
+sans dépendre d'une arme — `bombe_fragmentation`, `bombe_double`,
+`detonateur` — sont `cls: "dps"`, soit le **même verrou sous un autre nom**.
+Seules `etau`, `terrain_conquis`, `contreAttaque` et `pulsar` sont libres des
+deux.
+
+**Le seuil de lisibilité est autour de 8 cartes libres.** 4 en rendent 4 %, 5 en
+rendent 17 %, 7 en rendent 25 %, 8 en rendent 69 %. Un bassin égal au seuil
+demande que les trois cartes soient offertes *et* prises sur 25 tirages, ce qui
+n'arrive pas.
+
+**Effet de bord mesuré** : les manches qui ne lisent **aucun** archétype tombent
+de 55 % à 40 % en prise au hasard, et de 58 % à 36 % en prise gloutonne. Le
+badge parle plus souvent.
+
+**Reste faible, et c'est noté plutôt que corrigé** : *incendiaire* (5 cartes,
+17 %) et *acrobat* (7 cartes, 25 %). Ils sont atteignables, contrairement aux
+deux corrigés ; en jouant pour *acrobat* on finit d'ailleurs plus souvent
+*sniper* (14 %) qu'*acrobat*. À trancher en jouant, pas au banc.
+
 ## Réglages
 
 Tout est en haut de `shared/game_state.js`.

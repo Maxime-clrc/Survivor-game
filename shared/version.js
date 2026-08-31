@@ -6907,6 +6907,33 @@
                    demande une partie reelle. Ce qui est tranche ne depend pas du
                    bot : un exemplaire mort promis par `max`.
 
+    0.30.7 lot 7 DEUX ARCHETYPES SUR SEPT ETAIENT DES BADGES QUE PERSONNE NE
+                   POUVAIT OBTENIR. Les QUATRE graines de `demolition` etaient des
+                   cartes de la grenade : sans elle, 4 cartes pour un seuil de 3.
+                   Mesure sur 300 manches par politique, 25 cartes, en jouant POUR
+                   l archetype : 4 % d obtention. `technicien` en avait 6 et rendait
+                   4 % aussi.
+                   Le controle existait et comptait JUSTE — il excluait deja les
+                   cartes d arme — mais son plancher etait le seuil nu, et un bassin
+                   egal au seuil demande que les trois cartes soient offertes ET
+                   prises sur 25 tirages. La mesure donne l echelle : 4 cartes
+                   rendent 4 %, 5 en rendent 17 %, 7 en rendent 25 %, 8 en rendent
+                   69 %. Plancher a `seuil + 2`.
+                   ET LE VERROU DE CLASSE EST LE MEME QUE CELUI D ARME, ce que le
+                   controle ne voyait pas : une carte `cls` ne sort que pour une
+                   classe sur trois. Les cartes qui collaient au theme demolition
+                   sans dependre d une arme — `bombe_fragmentation`, `bombe_double`,
+                   `detonateur` — sont toutes `cls: "dps"`. Seules `etau`,
+                   `terrain_conquis`, `contreAttaque` et `pulsar` sont libres des
+                   deux ; ce sont elles qui sont ajoutees.
+                   Apres : demolition 4 % -> 77 %, technicien 4 % -> 72 %. Et les
+                   manches qui ne lisent AUCUN archetype tombent de 55 % a 40 % en
+                   prise au hasard, de 58 % a 36 % en prise gloutonne — le badge
+                   parle plus souvent.
+                   `incendiaire` (17 %) et `acrobat` (25 %) restent faibles et sont
+                   NOTES au lieu d etre corriges : ils sont atteignables. Matrice
+                   complete et protocole dans LISEZMOI.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6915,4 +6942,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.30.6";
+export const VERSION = "0.30.7";

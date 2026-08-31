@@ -2331,12 +2331,19 @@ export const ARCHETYPES = [
     graines: ["meute", "symbiose"], seuil: 3 },
   { id: "berserker", familles: ["execution"],
     graines: ["adrenaline", "dernier_souffle", "contrat", "dette"], seuil: 3 },
+  /* SES QUATRE GRAINES ETAIENT TOUTES DES CARTES DE LA GRENADE. Sans elle il
+     restait 4 cartes pour un seuil de 3, et la mesure dit 4 % d obtention meme
+     en jouant POUR l archetype. Les quatre ajoutees sont libres d arme ET de
+     classe — `bombe_*` et `detonateur` collaient au theme mais sont `cls:
+     "dps"`, ce qui est le meme verrou sous un autre nom. */
   { id: "demolition", familles: ["souffle"],
-    graines: ["gren_souffle", "gren_salve", "gren_contact", "gren_chaine"], seuil: 3 },
+    graines: ["gren_souffle", "gren_salve", "gren_contact", "gren_chaine",
+              "etau", "terrain_conquis", "contreAttaque", "pulsar"], seuil: 3 },
   { id: "acrobat", familles: ["mobilite"],
     graines: ["celerite", "vif_argent", "contre_pied"], seuil: 3 },
+  // 6 cartes accessibles ne suffisaient pas : 4 % d obtention en jeu dirige
   { id: "technicien", familles: ["recharge"],
-    graines: ["flux_continu", "dynamo"], seuil: 3 },
+    graines: ["flux_continu", "dynamo", "stimulant", "briseur", "tourelleAppui"], seuil: 3 },
 ];
 
 export const archetypeNom = id =>
@@ -2390,15 +2397,23 @@ export function verifierBuilds() {
     for (const f of a.familles) {
       if (!CARDS.some(c => c.family === f)) soucis.push(`${a.id} : famille « ${f} » sans carte`);
     }
-    // ce qu on peut tenir sans dependre d une arme : les cartes d arme ne sortent
-    // que si on la porte, donc elles ne comptent pas dans le plancher.
+    /* CE QU ON PEUT TENIR SANS DEPENDRE D UNE ARME NI D UNE CLASSE. Une carte
+       d arme ne sort que si on la porte ; une carte `cls` ne sort que pour une
+       classe sur trois. Les deux verrous sont le meme, et seul le premier etait
+       compte — les quatre graines de `demolition` etaient de la grenade, celles
+       qui collaient au theme sans arme etaient `cls: "dps"`.
+       ET LE PLANCHER MONTE, PARCE QU UN SEUIL NU NE VEUT RIEN DIRE. Mesure sur
+       300 manches par politique, 25 cartes, en jouant POUR l archetype : 4
+       cartes rendent 4 % d obtention, 5 en rendent 17 %, 7 en rendent 25 %, et
+       il faut 8 cartes pour passer 69 %. Un bassin egal au seuil demande que
+       les trois cartes soient offertes ET prises, ce qui n arrive pas. */
     const universel = CARDS.filter(c => a.familles.includes(c.family)).length
       + a.graines.filter(g => {
           const c = CARD_BY_ID.get(g);
-          return c && !(c.family ?? "").startsWith("arme_");
+          return c && !(c.family ?? "").startsWith("arme_") && !c.cls;
         }).length;
-    if (a.seuil > universel) {
-      soucis.push(`${a.id} : seuil ${a.seuil} pour ${universel} carte(s) sans arme dediee`);
+    if (universel < a.seuil + 2) {
+      soucis.push(`${a.id} : ${universel} carte(s) libres pour un seuil de ${a.seuil}`);
     }
     if (!ARCHETYPE_FR[a.id]) soucis.push(`${a.id} : aucun nom francais`);
   }

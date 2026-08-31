@@ -70,4 +70,4 @@ décrirait un état intermédiaire.
 
 | lot | contenu |
 |---|---|
-| **a** | script de simulation de tirage, trois politiques, matrice consignée dans `LISEZMOI.md` ; correction **par `graines` ou `seuil` seulement**, et uniquement pour les archétypes que la mesure montre inatteignables |
+| **a** | **livré v0.30.7.** Matrice mesurée et consignée dans `LISEZMOI.md`. Deux archétypes étaient inatteignables (4 %) : `demolition`, dont les QUATRE graines sont des cartes de la grenade, et `technicien`. Corrigés par `graines` uniquement — 77 % et 72 %. Le verrou de CLASSE s est révélé équivalent au verrou d arme, et le contrôle ne le voyait pas |
