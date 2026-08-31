@@ -139,9 +139,17 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
   ne rattrape ça.
 - **Un aiguillage par lieu est une TABLE, jamais une chaîne de `if` à défaut
-  implicite.** `TUILE`, `MACRO_TUILE`, `PORTE_MAILLE` (`material.js`) et
-  `PREMIER_PLAN` (`decor.js`) le sont, croisées avec `BIOMES` dans les deux sens
-  par `verifierMatiere()` et `verifierPremierPlan()`.
+  implicite.** `TUILE`, `MACRO_TUILE`, `PORTE_MAILLE` (`material.js`),
+  `PREMIER_PLAN` (`decor.js`) et `LED` (`blocs.js`) le sont, croisées avec
+  `BIOMES` dans les deux sens par `verifierMatiere()`, `verifierPremierPlan()` et
+  `verifierLed()`. `evacDe` reste une chaîne, et c'est **juste** : elle commence
+  par `biomeKey() !== "usine"`, donc son appartenance est *écrite* au lieu d'être
+  héritée.
+  Deux de ces vérificateurs posent une question de plus — **deux lieux ne peuvent
+  partager ni une silhouette de bord ni un `type` de source**. Le `type` porte un
+  *comportement* (`dessinerLed`) : la chenille de l'Usine dit qu'une ligne
+  **tourne**, et le Secteur en a hérité en silence alors que le commentaire
+  l'interdisait. Deux lieux qui disent la même chose ne sont plus deux lieux.
   La raison est mesurée : le cinquième lieu est parti en production sans branche
   dans `cuireMacro`, donc avec la **seconde période de l'Usine** — rouille
   d'atelier sur asphalte mouillé. Les six vérificateurs étaient verts, parce

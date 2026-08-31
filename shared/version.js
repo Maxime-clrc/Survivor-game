@@ -6128,6 +6128,46 @@
                    Les deux verificateurs sont enregistres verts APRES avoir ete
                    vus rouges sur mutation.
 
+     0.29.9 lot 10 LA CHENILLE N APPARTENAIT QU A L USINE, ET LE SECTEUR LA
+                   PORTAIT. Troisieme et dernier aiguillage par lieu a defaut
+                   implicite : `ledDe`, cinq valeurs choisies par une chaine de
+                   ternaires. Le cinquieme lieu heritait donc du profil emissif
+                   COMPLET de l Usine — seuil, longueur, portee et TYPE.
+                   ET LE TYPE PORTE UN COMPORTEMENT : `dessinerLed` fait courir un
+                   point sur une bande d Usine, et son commentaire dit noir sur
+                   blanc pourquoi ca n appartient qu a elle — un point qui COURT
+                   dit qu une ligne TOURNE. Une devanture ne tourne pas. La regle
+                   etait ecrite, le code disait le contraire, et rien ne pouvait
+                   le signaler : meme forme exacte que la gueule de four jamais
+                   dessinee que ce depot avait deja payee.
+                   `LED` EST UNE TABLE, `verifierLed()` la croise avec `BIOMES`
+                   dans les deux sens ET refuse deux lieux sous le meme `type` —
+                   la meme question que `verifierPremierPlan` pose sur les
+                   silhouettes de bord, parce que c est la meme faute : deux lieux
+                   qui disent la meme chose ne sont plus deux lieux.
+                   `seuil` et `porte` gardent leur variation PAR FAMILLE, avec un
+                   `defaut` explicite que le verificateur exige : un four ouvre sa
+                   gueule, une conduite jamais, et cette nuance-la n est pas du
+                   defaut implicite mais une regle ecrite.
+                   LE SECTEUR EMET NEUF FOIS SUR DIX, la part la plus haute des
+                   cinq, et c est son identite : sa masse batie EST de la
+                   signaletique. La bande la plus longue (0,72), la portee la plus
+                   grande (118) — une devanture eclaire le trottoir d en face, pas
+                   seulement son propre pied.
+                   ET SON COMPORTEMENT EST LE TROISIEME ETAT D ENTRETIEN du depot.
+                   Le TUBE de la Friche grelotte : un neon mort qui ne s amorce
+                   plus. L ENSEIGNE tient sa lumiere puis LACHE d un coup,
+                   brievement, et revient : un ballast fatigue, pas un tube mort.
+                   La BANDE de l Usine respire, parce que l installation marche.
+                   Elle ne pouvait pas grelotter comme la Friche : ce lieu VEND, et
+                   une enseigne illisible ne vend rien.
+                   LES NEUF VERIFICATEURS DE RENDU SONT VERTS. Les trois
+                   aiguillages a defaut implicite sont fermes — `cuire`,
+                   `cuireMacro`, `drawPremierPlan` au lot precedent, `ledDe` ici.
+                   `evacDe` reste une chaine, et c est JUSTE : il commence par
+                   `biomeKey() !== "usine"`, donc son appartenance est ecrite au
+                   lieu d etre heritee.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6136,4 +6176,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.8";
+export const VERSION = "0.29.9";

@@ -1,5 +1,5 @@
 import {
-  BLOCS, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CUVE, B_DEBRIS, B_FOUR,
+  BIOMES, BLOCS, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CUVE, B_DEBRIS, B_FOUR,
   B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE,
   B_DEVANTURE, B_PYLONE, B_CONTENEUR, gabaritsDe,
 } from "/shared/biomes.js";
@@ -515,6 +515,50 @@ const CONTOUR = {
 
 export function contourDe(cle) { return CONTOUR[cle] ?? CONTOUR.usine; }
 
+/* CE QU UN LIEU EMET, EN TABLE. Ces cinq valeurs se choisissaient par une
+   chaine de ternaires a defaut implicite, et le cinquieme lieu en a paye le
+   prix : il heritait du profil complet de l Usine, CHENILLE COMPRISE — or le
+   commentaire de `dessinerLed` dit noir sur blanc qu elle n appartient qu a
+   l Usine, parce qu un point qui COURT dit qu une ligne tourne. Une devanture
+   ne tourne pas. La regle etait ecrite et le code disait le contraire, en
+   silence : exactement le defaut que ce depot a deja paye sur la gueule du four.
+
+   `seuil` est la part sur dix qui EMET (la garde est `h % 10 >= seuil`), et
+   c est le seul champ qui varie par famille — un four ouvre sa gueule, une
+   conduite jamais. `verifierLed()` croise la table avec `BIOMES` dans les deux
+   sens et refuse deux lieux sous le meme `type`. */
+const LED = {
+  usine: { seuil: { defaut: 6 }, part: 0.52, fonte: false,
+           porte: { defaut: 74 }, type: "bande" },
+  fonderie: { seuil: { [B_CONDUITE]: 0, [B_FOUR]: 6, defaut: 10 }, part: 0.34,
+              fonte: true, porte: { [B_FOUR]: 128, defaut: 74 }, type: "gueule" },
+  friche: { seuil: { [B_RUINE]: 1, defaut: 0 }, part: 0.52, fonte: false,
+            porte: { defaut: 74 }, type: "tube" },
+  nebuleuse: { seuil: { defaut: 7 }, part: 0.52, fonte: false,
+               porte: { defaut: 74 }, type: "feux" },
+  /* LE SEUL LIEU OU PRESQUE TOUT EMET, et c est son identite : sa masse batie
+     EST de la signaletique. Neuf sur dix, la bande la plus longue des cinq, et
+     la portee la plus grande — une devanture eclaire la rue d en face, pas
+     seulement son propre pied. */
+  secteur: { seuil: { defaut: 9 }, part: 0.72, fonte: false,
+             porte: { defaut: 118 }, type: "enseigne" },
+};
+
+export function verifierLed() {
+  const soucis = [];
+  const cles = new Set(BIOMES.map(b => b.key));
+  for (const b of BIOMES) if (!LED[b.key]) soucis.push(`${b.key} : aucun profil emissif`);
+  for (const k of Object.keys(LED)) if (!cles.has(k)) soucis.push(`${k} : profil emissif sans lieu`);
+  const vus = new Map();
+  for (const [k, f] of Object.entries(LED)) {
+    if (f.seuil.defaut === undefined) soucis.push(`${k} : seuil sans defaut`);
+    if (f.porte.defaut === undefined) soucis.push(`${k} : portee sans defaut`);
+    if (vus.has(f.type)) soucis.push(`${k} et ${vus.get(f.type)} partagent le type « ${f.type} »`);
+    else vus.set(f.type, k);
+  }
+  return soucis;
+}
+
 /* LA SOURCE FIXE D'UN BLOC. `decor.js` la DESSINE, `lumiere.js` l'ALLUME, les
    deux lisent cette fonction — sinon la lueur au sol et le trait a l'ecran
    finissent sur deux aretes differentes. Elle porte sa TEINTE et son RAYON :
@@ -544,23 +588,19 @@ export function ledDe(o) {
      une seule fois. La regle etait ecrite dans la charte et le code disait le
      contraire, en silence. Un four sur trois montre desormais son conduit au
      lieu de sa bouche. */
-  const seuil = cle === "fonderie"
-      ? (o.kind === B_CONDUITE ? 0 : o.kind === B_FOUR ? 6 : 10)
-    : cle === "friche" ? (o.kind === B_RUINE ? 1 : 0)
-    : cle === "nebuleuse" ? 7 : 6;
-  if ((h % 10) >= seuil) return null;
+  const F = LED[cle] ?? LED.usine;
+  if ((h % 10) >= (F.seuil[o.kind] ?? F.seuil.defaut)) return null;
 
   const cote = (h >>> 4) % 4;
   const inset = 4;
   const hw = o.w / 2 - inset, hh = o.h / 2 - inset;
-  const long = (cote & 1 ? o.h : o.w) * (cle === "fonderie" ? 0.34 : 0.52);
-  const col = cle === "fonderie" ? PROP.fonte : S.emis;
+  const long = (cote & 1 ? o.h : o.w) * F.part;
+  const col = F.fonte ? PROP.fonte : S.emis;
   // UNE POCHE N ECLAIRE PAS COMME UN FOUR. Le four ouvre sa bouche sur ce qui
   // brule dedans, la cuve ne montre que sa surface : meme matiere, deux fois
   // moins de portee.
-  const r = cle === "fonderie" && o.kind === B_FOUR ? long + 128 : long + 74;
-  const type = cle === "fonderie" ? "gueule" : cle === "nebuleuse" ? "feux"
-             : cle === "friche" ? "tube" : "bande";
+  const r = long + (F.porte[o.kind] ?? F.porte.defaut);
+  const type = F.type;
 
   if (cote === 0) return { x: o.x, y: o.y - hh, dx: 1, dy: 0, len: long, col, r, type, cote };
   if (cote === 1) return { x: o.x + hw, y: o.y, dx: 0, dy: 1, len: long, col, r, type, cote };
@@ -1600,8 +1640,18 @@ function boulons(o, S, coins) {
 export function dessinerLed(l, rx, ry) {
   if (!l || l.type === "gueule" || l.type === "feux") return;
   const t = performance.now();
+  /* TROIS COMPORTEMENTS, TROIS ETATS D ENTRETIEN. Le TUBE de la Friche grelotte
+     — un neon mort qui ne parvient plus a s amorcer. L ENSEIGNE du Secteur tient
+     sa lumiere puis LACHE d un coup, brievement, et revient : un ballast fatigue,
+     pas un tube mort, et c est la difference entre un commerce mal entretenu et
+     une ruine. La BANDE de l Usine respire, parce que l installation marche.
+     L enseigne ne peut pas grelotter comme la Friche : ce lieu VEND, et une
+     enseigne illisible ne vend rien. */
   const puls = l.type === "tube"
     ? (Math.sin(t / 90 + l.x) * Math.sin(t / 640) > 0.1 ? 1 : 0.12)
+    : l.type === "enseigne"
+    ? (((t / 7300 + l.x * 0.0007) % 1) < 0.055 ? 0.10
+       : 0.80 + 0.20 * Math.sin(t / 380 + l.y * 0.01))
     : 0.72 + 0.28 * Math.sin(t / 620 + l.x * 0.01);
   ctx.save();
   ctx.translate(rx, ry);
