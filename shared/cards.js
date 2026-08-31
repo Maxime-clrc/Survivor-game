@@ -351,18 +351,22 @@ export const CARDS = [
     apply(m, n) { m.maxHpBonus += 20 * n; },
   },
   {
-    id: "poudre", nom: "Poudre dense", rarity: 0, max: 3, tags: ["off"],
-    horsEchelle: true,
-    desc: "+12 % de vitesse des balles",
-    stack: n => pctAdd(0.12, n),
-    apply(m, n) { m.bulletSpeedMul += 0.12 * n; },
-  },
-  {
+    /* LE PALIER 0 DE L ECHELLE `portee` RECUPERE SA MOITIE MANQUANTE. Les trois
+       paliers au-dessus donnent DEUX stats — duree ET vitesse : x1,10 / x1,20 /
+       x1,40. Seul celui-ci n en donnait qu une, et « Poudre dense » portait
+       l autre : meme rarete, meme plafond, hors echelle, et un effet qui
+       ALLONGE AUSSI LA PORTEE puisque la distance d une balle vaut
+       `vitesse x duree`. Deux communes pour un seul palier de puissance, dont
+       une invisible dans la progression.
+       +5 % et non +12 % : la vitesse de l echelle monte 1,05 / 1,10 / 1,20 /
+       1,40, et reprendre le chiffre de la poudre aurait rendu le palier 0 plus
+       rapide que le palier 1. Trois exemplaires donnent desormais x2,01 de
+       portee la ou les deux cartes ensemble en demandaient SIX pour x2,38. */
     id: "canonLong", nom: "Canon long", rarity: 0, max: 3, tags: ["off"],
     family: "portee", tier: 0,
-    desc: "+25 % de portée",
+    desc: "+25 % de portée, +5 % de vitesse des balles",
     stack: n => pctAdd(0.25, n),
-    apply(m, n) { m.bulletLifeMul += 0.25 * n; },
+    apply(m, n) { m.bulletLifeMul += 0.25 * n; m.bulletSpeedMul += 0.05 * n; },
   },
   {
     id: "trousse", nom: "Trousse de secours", rarity: 0, max: 3, tags: ["coop"],
@@ -828,7 +832,17 @@ export const CARDS = [
     apply(m, n) { m.frostRadius = Math.max(m.frostRadius, 160 * (1 + 0.35 * (n - 1))); },
   },
   {
-    id: "recolte", nom: "Récolte", rarity: 1, max: 2, tags: ["def"],
+    /* DESCENDUE EN COMMUNE, ET C EST LE RATIO QUI L A DEMANDE. `verifierCartes`
+       exige `communes >= epiques x 1,5`, et ce plancher est DYNAMIQUE : ajouter
+       la Chambre thermique (epique) l a monte de 42 a 43,5, ce qui a consomme
+       toute la marge ; fusionner Poudre dense dans Canon long a retire la
+       derniere commune de reserve. Deux changements dont aucun n est fautif
+       seul.
+       C EST ELLE ET PAS UNE AUTRE : de toutes les peu-communes sans famille,
+       c est le seul effet qui n ouvre AUCUNE mecanique — pas de rebond, pas de
+       tourelle, pas d etat, pas d aura. Huit pour cent de fragments a cinq PV
+       est un appoint, et un appoint est exactement ce qu une commune doit etre. */
+    id: "recolte", nom: "Récolte", rarity: 0, max: 2, tags: ["def"],
     desc: "8 % des ennemis tués laissent un fragment de 5 PV",
     stack: n => tf("cards.recolte.stack", "{0} %", { "0": num(8 * n) }),
     apply(m, n) { m.harvest += 0.08 * n; },

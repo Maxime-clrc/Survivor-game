@@ -6714,6 +6714,43 @@
                    carte nait SOUS une explosion, qui a deja son burst, sa secousse
                    et son eclat. Un second depart y serait un doublon.
 
+    0.29.24 lot 25 DEUX COMMUNES POUR UN SEUL PALIER DE PUISSANCE. Le plan 26 le
+                   signalait ; la mesure le confirme, et par un chemin qu il ne
+                   donnait pas : la distance d une balle vaut `vitesse x duree`,
+                   donc « Poudre dense » (+12 % de vitesse) ALLONGEAIT AUSSI LA
+                   PORTEE de 12 %. Elle faisait le meme travail que le palier 0 de
+                   l echelle `portee`, en moins lisible et hors de l echelle.
+                   L ECHELLE DONNAIT DEJA LES DEUX STATS A PARTIR DU PALIER 1 :
+                   vitesse x1,10 / x1,20 / x1,40 pour `chargeur_long`,
+                   `canon_siege`, `horizon`. Seul le palier 0 n en donnait qu une —
+                   et la carte hors echelle portait l autre. `canonLong` recupere
+                   donc sa moitie manquante et « Poudre dense » disparait.
+                   +5 % ET NON +12 % : la vitesse de l echelle monte desormais
+                   1,05 / 1,10 / 1,20 / 1,40, monotone sur les DEUX axes. Reprendre
+                   le chiffre de la poudre aurait rendu le palier 0 plus rapide que
+                   le palier 1. Trois exemplaires donnent x2,01 de portee la ou les
+                   deux cartes ensemble en demandaient SIX pour x2,38.
+                   RETRAIT SUR : `CARDS` est append-only, mais rien ne le lit par
+                   INDEX — tout passe par `CARD_BY_ID`, verifie sur tout le depot.
+                   Et « poudre » n etait cite nulle part ailleurs que dans sa
+                   definition et sa traduction : ni haut fait, ni archetype, ni
+                   progression.
+                   ET LE VERIFICATEUR A ATTRAPE UNE CONSEQUENCE QUE JE N AVAIS PAS
+                   VUE. `verifierCartes` exige `communes >= epiques x 1,5`, et ce
+                   plancher est DYNAMIQUE. Trace : avant la session 44/28, plancher
+                   42,0 — confortable. La Chambre thermique (0.29.22, epique) l a
+                   monte a 43,5 : encore vert, mais a marge NULLE. La fusion a
+                   retire la derniere commune de reserve, et il est passe rouge.
+                   Deux de mes propres changements, dont aucun n est fautif seul.
+                   « Recolte » descend donc en commune, et c est elle et pas une
+                   autre : de toutes les peu-communes sans famille, c est le seul
+                   effet qui n ouvre AUCUNE mecanique — pas de rebond, pas de
+                   tourelle, pas d etat, pas d aura. Huit pour cent de fragments a
+                   cinq PV est un appoint, et un appoint est ce qu une commune doit
+                   etre. Pool revenu a 44/29, plancher 43,5, vert.
+                   178 cartes. `verifierCartes`, `verifierBuilds` et
+                   `verifierCodex` verts, et une manche de 120 s tourne.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -6722,4 +6759,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.29.23";
+export const VERSION = "0.29.24";
