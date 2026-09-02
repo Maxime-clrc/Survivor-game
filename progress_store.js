@@ -3,7 +3,7 @@ import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
 import { scryptSync, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 
-import { PROG_CFG, newProfile, statsVierges } from "./shared/progression.js";
+import { PROG_CFG, clefRecord, newProfile, statsVierges } from "./shared/progression.js";
 import { CADRE_DEFAUT, HAUTS_FAITS } from "./shared/hauts_faits.js";
 import { BOSS_ROSTER } from "./shared/bosses.js";
 
@@ -230,6 +230,24 @@ export function migrateProfile(profile, from) {
     if (jalons.has("kills500")) hf.add("moisson");
     if ((profile.runs | 0) >= 1) hf.add("recrue");
     profile.hf = [...hf];
+  }
+
+  /* v7 -> v8 : LES RECORDS RETROUVENT LEUR EFFECTIF. La clef etait la difficulte
+     SEULE, donc un profil n avait qu un record par mode et un bon temps a quatre
+     effacait definitivement le record solo. `players` etait deja stocke : la
+     migration est donc sans perte POUR CE QUI RESTE — les records ecrases avant
+     ce lot le sont pour de bon, et ca s ecrit au lieu de se masquer.
+     `players` absent ou nul vaut 1 : un record ecrit avant que le champ existe
+     vient forcement d une manche jouee, donc d au moins un joueur. */
+  if (from < 8 && profile.bestFinal && typeof profile.bestFinal === "object") {
+    const neuf = {};
+    for (const [k, e] of Object.entries(profile.bestFinal)) {
+      if (!e || typeof e !== "object") continue;
+      const clef = k.includes(":") ? k : clefRecord(Number(k) | 0, e.players || 1);
+      const cur = neuf[clef];
+      if (!cur || e.time < cur.time) neuf[clef] = e;
+    }
+    profile.bestFinal = neuf;
   }
 
   normaliserProfil(profile);

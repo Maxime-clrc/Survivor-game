@@ -12,7 +12,7 @@ import {
 } from "./hauts_faits.js";
 
 export const PROG_CFG = {
-  VERSION: 7,
+  VERSION: 8,
 
   SLOTS_BASE: 3,
   SLOTS_MAX: 6,
@@ -414,10 +414,67 @@ export function cumulerStats(profil, run) {
   s.classes = [...classes];
 }
 
+/* LA CLE PORTE L EFFECTIF, ET ELLE NE LE PORTAIT PAS. Un profil n avait qu un
+   record par DIFFICULTE, tous effectifs confondus : le meilleur temps solo etait
+   DETRUIT des qu une manche a quatre faisait mieux. `players` etait bien ecrit —
+   mais APRES la comparaison qui avait deja decide d ecraser, donc la donnee
+   existait sans jamais servir au bon moment.
+   Point de passage unique de la clef : le stockage, la migration et le classement
+   la lisent d ici, sinon ils divergent au premier changement de format. */
+export const clefRecord = (difficulty, players) =>
+  `${difficulty | 0}:${Math.max(1, players | 0)}`;
+
+/* LE CLASSEMENT EST UNE LECTURE DE `bestFinal`, DONC IL VIT AVEC LUI. Il etait
+   dans `hub.js`, ou rien ne peut le tester sans monter un serveur : ici il est
+   pur, et le meme code repond au jeu et au script de mesure.
+
+   UNE MANCHE D EQUIPE EST UNE LIGNE, ET ELLE EN OCCUPAIT QUATRE. `recordFinal`
+   s appelle PAR PROFIL : quatre joueurs qui finissent ensemble ecrivent quatre
+   records au meme temps, et deux bonnes manches a quatre consommaient huit places
+   sur dix. On regroupe donc a l AFFICHAGE — chaque joueur garde son record
+   personnel dans son profil, et le classement montre la manche une fois.
+   La clef de regroupement est (difficulte, effectif, temps, date), et c est pour
+   ca que le tampon horaire d une manche se calcule UNE fois par manche : a la
+   milliseconde pres, quatre appels a `toISOString()` donnent quatre dates et le
+   regroupement ne prend plus.
+
+   PAR DIFFICULTE **ET** PAR EFFECTIF : comparer un temps solo a un temps a quatre
+   ne compare rien. Rend `[difficulte][effectif] = lignes`. */
+export function classement(profils, modes, limit = 10) {
+  const par = Array.from({ length: modes }, () => ({}));
+  const groupes = new Map();
+  for (const pr of profils) {
+    for (const [k, e] of Object.entries(pr?.bestFinal ?? {})) {
+      if (!e) continue;
+      const [ds, ns] = k.split(":");
+      const d = Number(ds);
+      if (!par[d]) continue;
+      const n = Math.max(1, ns === undefined ? (e.players | 0) || 1 : Number(ns) | 0);
+      const clef = `${d}:${n}:${e.time}:${e.date ?? ""}`;
+      const g = groupes.get(clef);
+      if (g) { g.pseudos.push(pr.pseudo); continue; }
+      groupes.set(clef, { d, n, pseudos: [pr.pseudo], time: e.time | 0,
+                          level: e.level | 0, biome: e.biome | 0 });
+    }
+  }
+  for (const g of groupes.values()) {
+    // l ordre des pseudos ne doit pas dependre de l ordre du magasin
+    (par[g.d][g.n] ??= []).push(
+      { pseudos: g.pseudos.sort(), time: g.time, level: g.level, biome: g.biome });
+  }
+  for (const d of par) {
+    for (const n of Object.keys(d)) {
+      d[n].sort((a, b) => a.time - b.time);
+      d[n] = d[n].slice(0, limit);
+    }
+  }
+  return par;
+}
+
 export function recordFinal(profile, run, dateISO) {
   if (!profile || !run) return false;
   if (!profile.bestFinal) profile.bestFinal = {};
-  const k = String(run.difficulty | 0);
+  const k = clefRecord(run.difficulty, run.players);
   const cur = profile.bestFinal[k];
   if (cur && cur.time <= run.time) return false;
   profile.bestFinal[k] = {

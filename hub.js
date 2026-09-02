@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES, biomeAt } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
-import { PROG_CFG, TREES, COMMUN, slotsFor, tierCost, coresForRun, coresPartial, recordFinal,
+import { PROG_CFG, TREES, COMMUN, classement, slotsFor, tierCost, coresForRun, coresPartial, recordFinal,
   cadreActifDe, cadresDe, cumulerStats, evaluerHautsFaits, ligneOuverte, vueStats } from "./shared/progression.js";
 import { CADRE_DEFAUT, recompensesDe } from "./shared/hauts_faits.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
@@ -117,6 +117,10 @@ export function createHub(store, log, commit = "") {
   }
 
   function awardRun(room) {
+    // UN SEUL TAMPON POUR LA MANCHE : quatre appels a `toISOString()` donnent
+    // quatre dates a la milliseconde pres, et le classement ne peut plus
+    // regrouper les quatre records d une meme manche en une ligne.
+    const quand = new Date().toISOString();
     const state = room.state;
     const shared = coresForRun(state.level, state.bossKills, state.diffIndex);
     for (const c of room.joined()) {
@@ -179,7 +183,7 @@ export function createHub(store, log, commit = "") {
           variant: DIFFICULTIES[state.diffIndex]?.script ?? "normal",
           biome: state.biomeIndex,
           players: room.joined().length,
-        }, new Date().toISOString()) ? "record" : "victoire";
+        }, quand) ? "record" : "victoire";
       }
 
       c.lastGain = gain;
@@ -187,20 +191,10 @@ export function createHub(store, log, commit = "") {
     }
   }
 
-  function leaderboard(limit = 10) {
-    const par = DIFFICULTIES.map(() => []);
-    for (const pr of store.profiles()) {
-      const bf = pr.bestFinal;
-      if (!bf) continue;
-      for (const k of Object.keys(bf)) {
-        const d = Number(k);
-        if (!par[d]) continue;
-        par[d].push({ pseudo: pr.pseudo, time: bf[k].time | 0 });
-      }
-    }
-    for (const l of par) l.sort((a, b) => a.time - b.time);
-    return par.map(l => l.slice(0, limit));
-  }
+  // le classement est une lecture de `bestFinal` : il vit avec lui, dans
+  // `progression.js`, ou un script de mesure peut l appeler sans serveur.
+  const leaderboard = (limit = 10) =>
+    classement(store.profiles(), DIFFICULTIES.length, limit);
 
   function equiperCadre(c, id) {
     if (!c.profile) return false;

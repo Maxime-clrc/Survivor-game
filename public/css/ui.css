@@ -157,9 +157,27 @@ input, textarea, [contenteditable] {
 #hubBoardTabs { justify-content: center; }
 #hubBoardList { display: flex; flex-direction: column; gap: var(--hair); }
 
+/* QUATRE COLONNES : le rang, qui, le contexte, le temps. Le niveau et le lieu
+   etaient stockes depuis toujours et jetes a l affichage — un temps sans eux ne
+   dit pas a quel prix il a ete fait. */
+.boardSection {
+  padding: var(--sp-3) var(--sp-3) var(--sp-1);
+  font-family: var(--font-display);
+  font-size: var(--t-xs);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.boardMeta {
+  color: var(--text-faint);
+  font-size: var(--t-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .boardRow {
   display: grid;
-  grid-template-columns: 2.5rem 1fr auto;
+  grid-template-columns: 2.5rem 1fr auto auto;
   align-items: baseline;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);

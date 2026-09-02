@@ -7260,6 +7260,47 @@
                   partagee —, les 11 portraits de boss passent sans exception, et
                   le `ctx` du module est rendu DANS LES DEUX CAS, y compris quand
                   le dessin leve.
+    0.32.0 lot 1  LE CLASSEMENT DETRUISAIT DES RECORDS A CHAQUE MANCHE, ET IL
+                  OUVRE LE PLAN 29. Trois defauts distincts, tous des pertes de
+                  donnees actives.
+                  LA CLEF ETAIT LA DIFFICULTE SEULE. Un profil n avait donc qu un
+                  record par mode, tous effectifs confondus : un bon temps a
+                  quatre DETRUISAIT DEFINITIVEMENT le record solo. `players` etait
+                  bien ecrit — mais APRES la comparaison qui avait deja decide
+                  d ecraser, donc la donnee existait sans jamais servir au bon
+                  moment. `clefRecord(difficulty, players)` devient le point de
+                  passage unique de la clef ; le stockage, la migration et le
+                  classement la lisent de la.
+                  LES RECORDS DEJA ECRASES SONT PERDUS POUR DE BON, et ca s ecrit
+                  ici au lieu de se masquer : la migration v7 -> v8 rend son
+                  effectif a ce qui reste, elle ne ressuscite pas ce que le defaut
+                  avait deja mange. Un `players` absent ou nul vaut 1.
+                  UNE MANCHE D EQUIPE EST UNE LIGNE, ET ELLE EN OCCUPAIT QUATRE.
+                  `recordFinal` s appelle PAR PROFIL : deux bonnes manches a
+                  quatre consommaient huit places sur dix. Le regroupement se fait
+                  a l AFFICHAGE, sur (difficulte, effectif, temps, date) — chaque
+                  joueur garde son record personnel, le classement montre la
+                  manche une fois, pseudos joints.
+                  ET C EST POUR CA QUE LE TAMPON HORAIRE SORT DE LA BOUCLE. A la
+                  milliseconde pres, quatre appels a `toISOString()` donnaient
+                  quatre dates et le regroupement ne prenait pas. Une manche a un
+                  instant, pas quatre.
+                  `classement()` QUITTE `hub.js` POUR `progression.js` : c est une
+                  lecture de `bestFinal`, donc elle vit avec sa donnee — et un
+                  test peut l appeler sans monter un serveur. Un test qui rejoue
+                  l algorithme au lieu de l appeler est une seconde source de
+                  verite ; le premier jet de ce lot en etait un, il a ete refait.
+                  SIX CHAMPS SUR SEPT ETAIENT STOCKES PUIS JETES. `level` et
+                  `biome` remontent a l ecran : un temps sans contexte ne dit pas
+                  a quel prix il a ete fait. L ecran passe en sections par
+                  effectif — Solo, Duo, Trio, Quatuor.
+                  Verifie hors navigateur : un record solo et un record a quatre
+                  coexistent, un moins bon temps au meme effectif est refuse, la
+                  migration rend son effectif a chaque entree et elle est
+                  idempotente, quatre profils d une meme manche font UNE ligne a
+                  quatre pseudos, et aucun effectif ne contient l entree d un
+                  autre. Sur socket reelle, le message `leaderboard` rend bien un
+                  tableau de trois difficultes indexe par effectif.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7269,4 +7310,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.31.8";
+export const VERSION = "0.32.0";

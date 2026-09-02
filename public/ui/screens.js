@@ -531,6 +531,12 @@ hubBoardBtn.onclick = () => {
   setTimeout(() => { hubBoardBtn.disabled = false; }, 1000);
   renderBoard();
 };
+/* UN CLASSEMENT PAR EFFECTIF, parce qu'un temps solo et un temps a quatre ne se
+   comparent pas. Les quatre sections vivent sur le meme ecran : une manche a
+   quatre n'a plus a chasser un record solo pour exister. */
+const EFFECTIF_NOM = ["", "Solo", "Duo", "Trio", "Quatuor"];
+export const effectifNom = n => t(`ui.hub.board.n${n}`, EFFECTIF_NOM[n] ?? `${n} joueurs`);
+
 export function renderBoard() {
   hubBoardTabs.innerHTML = "";
   DIFFICULTIES.forEach((d, i) => {
@@ -542,19 +548,29 @@ export function renderBoard() {
   });
 
   if (!boardData) { hubBoardList.textContent = t("ui.hub.board.loading", "chargement…"); return; }
-  const lignes = boardData[boardDiff] ?? [];
-  if (lignes.length === 0) {
+  const parEffectif = boardData[boardDiff] ?? {};
+  const effectifs = Object.keys(parEffectif)
+    .map(Number).filter(n => (parEffectif[n] ?? []).length > 0).sort((a, b) => a - b);
+  if (effectifs.length === 0) {
     hubBoardList.innerHTML =
       `<div class="hint">${escapeHtml(t("ui.hub.board.empty",
         "personne n'a encore vaincu le Noyau à cette difficulté"))}</div>`;
     return;
   }
-  hubBoardList.innerHTML = lignes.map((l, i) =>
-    `<div class="boardRow${l.pseudo === myPseudo ? " moi" : ""}">` +
-      `<span class="boardRank">${i + 1}</span>` +
-      `<span class="boardWho">${escapeHtml(l.pseudo)}</span>` +
-      `<span class="boardTime">${escapeHtml(fmtTime(l.time))}</span>` +
-    `</div>`).join("");
+  hubBoardList.innerHTML = effectifs.map(n =>
+    `<div class="boardSection">${escapeHtml(effectifNom(n))}</div>` +
+    (parEffectif[n] ?? []).map((l, i) => {
+      const moi = (l.pseudos ?? []).includes(myPseudo);
+      return `<div class="boardRow${moi ? " moi" : ""}">` +
+        `<span class="boardRank">${i + 1}</span>` +
+        `<span class="boardWho">${escapeHtml((l.pseudos ?? []).join(" / "))}</span>` +
+        // le niveau et le lieu etaient STOCKES et jetes a l'affichage : un temps
+        // sans contexte ne dit pas a quel prix il a ete fait
+        `<span class="boardMeta">${escapeHtml(tf("ui.hub.board.meta",
+          "niv. {n} · {lieu}", { n: l.level | 0, lieu: biomeNom(l.biome | 0) }))}</span>` +
+        `<span class="boardTime">${escapeHtml(fmtTime(l.time))}</span>` +
+      `</div>`;
+    }).join("")).join("");
 }
 hubPassAskGoBtn.onclick = () => {
   if (!connected || inRoom || !joinAttempt) return;

@@ -404,6 +404,28 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   se reverrouille. Le filtre vit dans `metaLinesFor`, **le** point de lecture du
   serveur, du HUD et de la fenêtre de build — le poser ailleurs ferait mentir
   l’un des trois. Couper n’est pas vendre : les paliers restent payés.
+- **UN RECORD APPARTIENT À UN EFFECTIF AUTANT QU'À UNE DIFFICULTÉ.** La clé de
+  `bestFinal` était la difficulté **seule** : un profil n'avait qu'un record par
+  mode, et un bon temps à quatre **détruisait définitivement** le record solo.
+  `players` était bien écrit — mais **après** la comparaison qui avait déjà décidé
+  d'écraser, donc la donnée existait sans jamais servir au bon moment.
+  `clefRecord(difficulty, players)` est le point de passage unique de la clé : le
+  stockage, la migration et le classement la lisent de là.
+- **UNE MANCHE D'ÉQUIPE EST UNE LIGNE, ET ELLE EN OCCUPAIT QUATRE.**
+  `recordFinal` s'appelle **par profil** : deux bonnes manches à quatre
+  consommaient huit places sur dix. Le regroupement se fait à l'**affichage**, sur
+  `(difficulté, effectif, temps, date)` — chaque joueur garde son record personnel
+  dans son profil, et le classement montre la manche une fois.
+- **Le tampon horaire d'une manche se calcule UNE fois par manche, pas par
+  joueur.** À la milliseconde près, quatre appels à `toISOString()` donnent quatre
+  dates, et le regroupement ci-dessus ne prend plus. C'est la seule raison pour
+  laquelle `quand` sort de la boucle d'`awardRun`.
+- **`classement()` vit dans `progression.js`, pas dans `hub.js`.** C'est une
+  lecture de `bestFinal` : la mettre avec sa donnée la rend appelable par un
+  script de mesure sans monter un serveur — et un test qui rejoue l'algorithme au
+  lieu de l'appeler est une seconde source de vérité.
+- **Six champs sur sept étaient stockés puis jetés.** `level` et `biome`
+  remontent : un temps sans contexte ne dit pas à quel prix il a été fait.
 - **L'économie** : `coresForRun` **linéaire et plafonnée** (niveau × `CORE_LEVEL` +
   boss × `CORE_BOSS`, plafond `CORE_RUN_CAP`), **les jalons ne créditent jamais de
   noyaux**, les **emplacements se gagnent aux jalons** (`slotsFor(profile)`).
