@@ -7711,6 +7711,51 @@
                   Le pilote gagne UNE manche sur vingt : tout verdict sur un haut
                   fait de victoire est borne par le bot et non par le seuil, et c est
                   la limite principale du banc.
+    0.32.10 lot 11 TRENTE-TROIS VERIFICATEURS DANS NEUF MODULES, ET RIEN NE LES
+                  LANCAIT. Chacun est ecrit a cote de sa donnee — c est la bonne
+                  place et elle ne bouge pas — mais personne n avait la LISTE. Ce
+                  plan en a trouve TROIS rouges, tous par hasard en cherchant autre
+                  chose : l equilibre des armes (lot 9), la progression (lot 10) et
+                  les boss (celui-ci). Le defaut est dans l ABSENCE D APPEL, la
+                  seule chose qu un verificateur ne peut pas signaler lui-meme.
+                  `verif.js` est le point d entree. 22 verificateurs de TABLE en
+                  moins d une seconde, donc lancables avant chaque commit ; les 11
+                  campagnes simulees derriere `--tout`. Un outil qu on n ose pas
+                  lancer ne se lance pas, et c est la SEULE raison des deux modes.
+                  LE COUT SE MESURE, IL NE SE DEVINE PAS : `verifierBoss` lit une
+                  table de mecaniques et prend 446 s, `verifierBiomes` genere 200
+                  graines sur cinq lieux et prend 0,0 s. Parier d apres le nom
+                  donnait l inverse dans les deux cas.
+                  UNE CONSTANTE SANS LECTEUR NE LEVE RIEN. Balayage des 689 clefs
+                  des quinze tables : NEUF sans lecteur. Un bloc `CFG.SEAL_*`
+                  doublait `BOSS_CFG.SEAL_*` — et se cachait derriere son propre
+                  prefixe —, un cooldown de touche sur un drone qui se CONSOMME, une
+                  intensite de ralentissement que le canal global portait deja, une
+                  purge comptee en touches que le code disait lui-meme remplacee.
+                  Plus trois leviers a zero dans un terme neutre : `(1 + 0 * x)`
+                  vaut 1 et coutait un `_teamPower()` par apparition.
+                  UN ZERO N EST PAS UNE MORT : `GAZE_TIME: 0` distingue le regard
+                  INSTANTANE du regard permanent, le zero PORTE la mecanique.
+                  DEUX DEFAUTS DANS LA SONDE AVANT QU ELLE NE DISE VRAI, tous deux
+                  du genre qu elle cherche : `` dans un litteral gabarit est un
+                  BACKSPACE — zero lecteur pour les 689 clefs —, et
+                  `indexOf("CFG.SEAL_RADIUS")` trouve `BOSS_CFG.SEAL_RADIUS`.
+                  UN ARCHETYPE SE MESURE AU COMPTE NEUF. `verifierBuilds` comptait
+                  a contenu COMPLET ; la carte de rarete 3 de CHAQUE famille etant
+                  la recompense d un haut fait, deux archetypes tombaient sous le
+                  plancher pour qui commence. `sillage` entre chez l acrobat —
+                  seule carte libre de verrou, d arme et de classe qui parle
+                  d esquive sans appartenir deja a un autre archetype.
+                  `TIR_FIGE` est une seconde source de verite VOLONTAIRE : `tir`
+                  aiguille `_volleyInterne`, et le changer fait basculer une arme
+                  d une branche a l autre sans qu aucune erreur ne se leve.
+                  RELEVE NON CORRIGE : les sept constats de `verifierBoss` — les
+                  combats RACCOURCISSENT (79 s au premier boss, 55 s au dernier),
+                  segment 1 a 95 s et final a 173 s hors bornes a quatre,
+                  emportement a 29,4 % pour un plafond de 25 %, renforts a 58 %
+                  d ecart selon l effectif. Meme cause probable que les deux
+                  precedents, le lot 5. Et DEUX des sept n en sont pas : le
+                  verificateur melange « rouge » et « je n ai pas pu mesurer ».
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7720,4 +7765,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.9";
+export const VERSION = "0.32.10";

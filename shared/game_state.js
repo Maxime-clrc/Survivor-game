@@ -209,8 +209,6 @@ export const CFG = {
   WAVE_CROWD_EXP: 0.75,
   WAVE_ELITE_CROWD_EXP: 0.75,
 
-  WAVE_HP_POWER_K: 0,
-  WAVE_RATE_POWER_K: 0,
   BOSS_POWER_REF: 2.89,
   CROWD_HYSTERESIS: 8,
 
@@ -302,11 +300,6 @@ export const CFG = {
   BOSS_BARS: 5,
   BOSS_HP_MUL: 2.6,
 
-  SEAL_RADIUS: 120,
-  SEAL_HOLD: 4.5,
-  SEAL_WARN: 22,
-  SEAL_DECAY: 0.5,
-  BOSS_GROWTH: 0,
   BOSS_HP_MINUTE_RAMP: 0.055,
   BOSS_POWER_KNEE: 2.5,
   BOSS_POWER_K: 0.50,
@@ -3603,9 +3596,7 @@ export class GameState {
     this.vus.add(`e:${base.key}`);
 
     const past = this.hordeMinutes();
-    const baseHp = (CFG.ENEMY_HP_BASE + past * CFG.ENEMY_HP_MIN_RAMP)
-      * (1 + CFG.WAVE_HP_POWER_K * (this._teamPower() - 1))
-      * this.diff.hp;
+    const baseHp = (CFG.ENEMY_HP_BASE + past * CFG.ENEMY_HP_MIN_RAMP) * this.diff.hp;
     const pos = x === null ? this._spawnPoint(geom, base.r) : { x, y };
     const hp = baseHp * base.hpMul * (elite ? CFG.ELITE_HP_MUL : 1);
     const e = {
@@ -3938,7 +3929,6 @@ export class GameState {
     const rate = entry.rate
       * (ev ? ev.rateMul : 1)
       * Math.pow(crowd, CFG.WAVE_CROWD_EXP)
-      * (1 + CFG.WAVE_RATE_POWER_K * (this._teamPower() - 1))
       * this.diff.spawn
       * (this.repriseT > 0 ? CFG.BOSS_REPRISE_MUL : 1);
 
@@ -7156,8 +7146,7 @@ export class GameState {
   // COMPOSE, et le taux se lit sur la croissance de puissance mesuree (x2,6 du
   // premier au dernier boss) : lineaire, la duree des combats redecroit de 40 %.
   _bossHpRamp() {
-    return Math.pow(1 + CFG.BOSS_HP_MINUTE_RAMP, this.hordeMinutes())
-      * (1 + (this.bossCount - 1) * CFG.BOSS_GROWTH);
+    return Math.pow(1 + CFG.BOSS_HP_MINUTE_RAMP, this.hordeMinutes());
   }
 
   // borne par le plafond de horde : deux plafonds ne reglent pas la meme grandeur

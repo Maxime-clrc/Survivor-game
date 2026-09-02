@@ -1,6 +1,6 @@
 {
   "name": "survivor-lan",
-  "version": "0.32.9",
+  "version": "0.32.10",
   "description": "Mini survivor multijoueur en reseau local — serveur autoritaire, client navigateur",
   "type": "module",
   "private": true,
@@ -9,6 +9,9 @@
   },
   "scripts": {
     "start": "node server.js",
-    "version-check": "node version_check.js"
+    "version-check": "node version_check.js",
+    "constantes-check": "node constantes_check.js",
+    "verif": "node verif.js",
+    "verif-tout": "node verif.js --tout"
   }
 }

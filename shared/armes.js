@@ -447,6 +447,20 @@ export function conversionBoss(a) {
 /* Critere rejouable, sur le modele de `verifierBiomes()`. Le catalogue lui est
    PASSE et non importe : `cards.js` importe deja ce module, et le cycle inverse
    n'existe pas. Meme idiome que `verifierHautsFaits(cardIds, …)`. */
+/* CE QUE CHAQUE ARME TIRE, FIGE. Une seconde source de verite est normalement
+   le defaut a eviter ; ici elle est le TEST, et c est sa raison d etre. `tir`
+   est le champ qui aiguille `_volleyInterne` : le changer sur une arme la fait
+   basculer d une branche a l autre — d une balle a un arc, d un obus a une
+   grenade — sans qu aucune erreur ne se leve, et les trois lecteurs qui en
+   dependent (`canonEffet`, `litPerce`/`litRebond`, `ficheDe` d `feedback.js`)
+   suivent en silence. Une arme NOUVELLE s ajoute ici en meme temps qu ailleurs :
+   la table refuse aussi l arme qu elle ne connait pas. */
+const TIR_FIGE = {
+  standard: "balle", assaut: "balle", laser: "faisceau", tesla: "arc",
+  lame: "arc_sol", dispersion: "balle", railgun: "balle", grenade: "grenade",
+  siege: "balle", precision: "balle",
+};
+
 export function verifierArmes(cards = null, axesDeCarte = null) {
   const out = [];
   const vus = new Set();
@@ -474,6 +488,9 @@ export function verifierArmes(cards = null, axesDeCarte = null) {
     if (a.id !== ARME_DEFAUT && !a.contrainte) out.push(`${a.id} : aucune contrainte`);
     if (!(a.degats > 0)) out.push(`${a.id} : dégâts nuls`);
     if (a.interval < 0) out.push(`${a.id} : intervalle négatif`);
+    const fige = TIR_FIGE[a.id];
+    if (fige === undefined) out.push(`${a.id} : absente de TIR_FIGE`);
+    else if (fige !== a.tir) out.push(`${a.id} : tir « ${a.tir} » au lieu de « ${fige} »`);
   }
 
   /* LES BOSS SONT UN CINQUIEME DU TEMPS DE MANCHE, contre une CIBLE UNIQUE. Une
@@ -485,6 +502,10 @@ export function verifierArmes(cards = null, axesDeCarte = null) {
      le dps nominal, et il est reste muet pendant que le tesla dominait et que la
      grenade faisait x1,88 de survie. Ce qui tranche est `verifierEquilibreArmes`
      (`game_state.js`), qui MESURE. Celui-ci ne refuse plus qu'une fiche absurde. */
+  for (const id of Object.keys(TIR_FIGE)) {
+    if (!ARME_BY_ID.has(id)) out.push(`TIR_FIGE : « ${id} » n'est plus une arme`);
+  }
+
   const dpsRef = dpsBase(armeAt(ARME_DEFAUT));
   for (const a of ARMES) {
     const mono = dpsBase(a) * conversionBoss(a) / dpsRef;

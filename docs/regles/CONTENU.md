@@ -77,6 +77,13 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   et non un seuil — à 0,2 le joueur fait un choix informé et perdant, ce qui
   reste un choix. `every` et non `some` : une carte qui donne perforation **et**
   dégâts sert encore par ses dégâts. `poolThin()` se rejoue **arme par arme**.
+- **UN ARCHÉTYPE SE MESURE AU COMPTE NEUF, PAS À CONTENU COMPLET.** La carte de
+  rareté 3 de **chaque** famille est la récompense d’un haut fait : le bassin réel
+  d’un compte qui commence est plus maigre d’une carte, et deux archétypes
+  tombaient sous le plancher sans que `verifierBuilds` le voie. Il mesure
+  désormais les deux états — `seuil + 2` à contenu complet, `seuil + 1` au compte
+  neuf, parce qu’un compte neuf n’a pas non plus les armes ni les classes et que
+  l’archétype est une **lecture**, pas une porte à ouvrir tout de suite.
 - **UNE CAPACITÉ N’EST PAS UN COEFFICIENT, et le tableau d’échelle ne sait dire
   que le second.** Il rend un axe plus ou moins payant ; il ne sait pas dire
   « cette arme ne lance pas de projectile ». Les cartes concernées sont justement

@@ -68,7 +68,6 @@ export const CARD_CFG = {
   SWARM_ORBIT: 92,
   SWARM_SPEED: 3.1,
   SWARM_DAMAGE: 12,
-  SWARM_HIT_CD: 0.6,
   SWARM_RESPAWN: 8,
 
   FROST_MUL: 0.65,
@@ -88,7 +87,6 @@ export const CARD_CFG = {
   INSTINCT_CD: 45,
   INSTINCT_HP: 0.2,
   INSTINCT_TIME: 4,
-  INSTINCT_MUL: 0.4,
 
   FRENZY_STEP: 0.02,
   FRENZY_MAX: 0.60,
@@ -2386,8 +2384,13 @@ export const ARCHETYPES = [
              "les explosions rassemblent la horde avant de la tuer"],
     faiblesses: ["le rayon ne vaut rien sans explosion pour le porter",
                  "presque aucun gain sur une cible seule"] },
+  /* `sillage` EST ENTRE PARCE QUE LE BASSIN SE MESURE AU COMPTE NEUF. Sa carte
+     de rarete 3, `vif_argent`, est la recompense d un haut fait — comme celle de
+     CHAQUE famille —, donc un compte qui commence n en voyait que quatre, sous le
+     plancher. Elle est la seule carte libre de verrou, d arme et de classe qui
+     parle d esquive sans appartenir deja a un autre archetype. */
   { id: "acrobat", familles: ["mobilite"],
-    graines: ["celerite", "vif_argent", "contre_pied"], seuil: 3,
+    graines: ["celerite", "vif_argent", "contre_pied", "sillage"], seuil: 3,
     forces: ["tu évites au lieu d'encaisser",
              "l'esquive revient vite et blesse au passage"],
     faiblesses: ["aucun gain de dégâts direct",
@@ -2553,7 +2556,7 @@ export function archetypeDe(owned) {
    archetype dont le seuil depasse ce qu on peut tenir SANS son arme dediee — donc
    un badge que la moitie des joueurs ne verra jamais —, et deux archetypes de
    meme identifiant. */
-export function verifierBuilds() {
+export function verifierBuilds(neuves = null) {
   const soucis = [];
   const vus = new Set();
   for (const a of ARCHETYPES) {
@@ -2575,13 +2578,35 @@ export function verifierBuilds() {
        cartes rendent 4 % d obtention, 5 en rendent 17 %, 7 en rendent 25 %, et
        il faut 8 cartes pour passer 69 %. Un bassin egal au seuil demande que
        les trois cartes soient offertes ET prises, ce qui n arrive pas. */
-    const universel = CARDS.filter(c => a.familles.includes(c.family)).length
-      + a.graines.filter(g => {
-          const c = CARD_BY_ID.get(g);
-          return c && !(c.family ?? "").startsWith("arme_") && !c.cls;
-        }).length;
+    const bassin = (locked) => {
+      const ids = new Set([
+        ...CARDS.filter(c => a.familles.includes(c.family)).map(c => c.id),
+        ...a.graines,
+      ]);
+      let n = 0;
+      for (const id of ids) {
+        const c = CARD_BY_ID.get(id);
+        if (!c || (c.family ?? "").startsWith("arme_") || c.cls) continue;
+        if (locked && locked.has(id)) continue;
+        n++;
+      }
+      return n;
+    };
+    const universel = bassin(null);
     if (universel < a.seuil + 2) {
       soucis.push(`${a.id} : ${universel} carte(s) libres pour un seuil de ${a.seuil}`);
+    }
+    /* ET AU COMPTE NEUF, PARCE QUE C EST LA QUE LE BASSIN EST LE PLUS MAIGRE. La
+       carte de rarete 3 de chaque famille est la recompense d un haut fait : a
+       contenu complet la mesure ci-dessus voyait sept archetypes sains, et deux
+       tombaient sous le plancher pour qui commence. Le plancher y est d une carte
+       plus bas — un compte neuf n a pas non plus les armes ni les classes, et
+       l archetype est une LECTURE, pas une porte a ouvrir tout de suite. */
+    if (neuves) {
+      const debut = bassin(neuves);
+      if (debut < a.seuil + 1) {
+        soucis.push(`${a.id} : ${debut} carte(s) pour un compte neuf, seuil ${a.seuil}`);
+      }
     }
     if (!ARCHETYPE_FR[a.id]) soucis.push(`${a.id} : aucun nom francais`);
     /* UNE JAUGE QUI NAIT PLEINE N EN EST PAS UNE : le plafond se mesure sur les

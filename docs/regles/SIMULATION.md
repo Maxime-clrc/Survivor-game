@@ -67,6 +67,26 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   sépare jamais deux corps qui se touchent). La taille de cellule est ce qui
   **prouve** la couverture : deux corps qui se chevauchent sont à moins d'une
   cellule, donc dans le voisinage. La toucher casse la preuve.
+- **RIEN NE REJOUAIT LES VÉRIFICATEURS, ET C’EST LE SEUL DÉFAUT QU’AUCUN D’EUX NE
+  PEUT SIGNALER.** Trente-trois vivaient dans neuf modules — chacun à côté de sa
+  donnée, ce qui est la bonne place — et personne n’avait la liste. Trois étaient
+  rouges depuis des lots, tous trouvés **par hasard** en cherchant autre chose.
+  `verif.js` est le seul appelant ; `npm run verif` passe en moins d’une seconde,
+  donc il se lance avant chaque commit.
+- **LE COÛT D’UN VÉRIFICATEUR SE MESURE, IL NE SE DEVINE PAS.** `verifierBoss` lit
+  une table de mécaniques et prend **446 s** ; `verifierBiomes` génère 200 graines
+  sur cinq lieux et prend **0,0 s**. Parier d’après le nom donnait l’inverse dans
+  les deux cas, et c’est ce qui décide du mode par défaut.
+- **UNE CONSTANTE SANS LECTEUR NE LÈVE RIEN.** Elle reste dans la table, se lit
+  comme un réglage, et ment sur ce que le jeu fait — un bloc `CFG.SEAL_*` doublait
+  `BOSS_CFG.SEAL_*` derrière son propre préfixe. `constantes_check.js` balaie les
+  689 clés des quinze tables ; il accepte la lecture par **alias** (`C.GUST_PERIOD`)
+  dans le fichier qui **définit** la table, et nulle part ailleurs.
+- **UN ZÉRO N’EST PAS UNE MORT.** `BOSS_CFG.GAZE_TIME: 0` distingue le regard
+  instantané du regard permanent : le zéro **porte** la mécanique. Trois autres
+  leviers à zéro ne portaient rien — `(1 + 0 × x)` vaut 1 — et coûtaient un appel
+  à `_teamPower()` par apparition. La différence se lit sur l’usage, pas sur la
+  valeur.
 - **LA NAVIGATION EST UNE PILE DE TROIS COUCHES, ET ELLES NE SE MÉLANGENT PAS.**
   *Où aller* = `shared/navigation.js` ; *comment éviter* = la tangente locale de
   `_enemies()` ; *comment se tasser* = `_separateEnemies` / `_separateFromPlayers`.

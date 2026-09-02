@@ -3,7 +3,6 @@ import { t } from "./i18n.js";
 
 export const BIOME_CFG = {
   HAZARD_SURFACE_MAX: 0.08,
-  TRAIL_BUDGET: 0.04,
 
   OBSTACLE_SURFACE_MAX: 0.10,
 

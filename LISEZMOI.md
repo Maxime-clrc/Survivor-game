@@ -4056,6 +4056,102 @@ aucun segment qui perde plus d'un battement en solo, et la pression effective
 croissante. **Vert sur les trois scripts.**
 
 
+### La suite de vérification (plan 29, lot 11)
+
+#### Le défaut qu'aucun vérificateur ne pouvait attraper
+
+**Trente-trois vérificateurs vivaient dans neuf modules et rien ne les lançait.**
+Ce plan en a trouvé trois rouges, tous par hasard, en cherchant autre chose :
+`verifierEquilibreArmes` (lot 09), `verifierProgression` (lot 10) et
+`verifierBoss` (ce lot). Le défaut est dans l'**absence d'appel** — la seule
+chose qu'un vérificateur ne peut pas signaler lui-même.
+
+`verif.js` est le point d'entrée. Le coût sépare les deux modes, et c'est la
+seule raison : un outil qu'on n'ose pas lancer ne se lance pas.
+
+| mode | contenu | coût |
+|---|---|---|
+| `npm run verif` | 22 vérificateurs de table | **< 1 s** |
+| `npm run verif-tout` | + les 11 campagnes simulées | ~20 min |
+
+**Le drapeau `lent` est mesuré, pas supposé** — et deviner d'après le nom donnait
+l'inverse dans les deux cas extrêmes :
+
+| vérificateur | coût | ce qu'on aurait parié |
+|---|---:|---|
+| `verifierBoss` | **446 s** | table de mécaniques, donc rapide |
+| `verifierBiomes` | **0,0 s** | 200 graines × 5 lieux, donc lent |
+| `verifierMarchand` | 861 s | — |
+
+#### Le troisième rouge : `verifierBoss`
+
+Sept constats, **non corrigés ici** — rééquilibrer les boss est un chantier, pas
+la fin d’un lot d’outillage :
+
+| constat | mesure |
+|---|---|
+| les combats **raccourcissent** au lieu de s’allonger | 79 s au premier boss, 55 s au dernier — dérive 20 % au plafond |
+| boss du segment 1 à quatre | 95 s, hors de [50, 90] |
+| boss final à quatre | 173 s, hors de [94, 168] |
+| emportement à quatre | 29,4 % des combats pour un plafond de 25 % |
+| débit de renforts | 0,19 à 0,42 par joueur et par seconde, 58 % d’écart selon l’effectif |
+
+Le sens est cohérent avec le lot 05 — plus de corps à quatre allonge les combats
+et remplit la jauge d’emportement. **Troisième vérificateur dérivé sous le même
+changement**, et le troisième trouvé par hasard.
+
+Les **deux constats restants n’en sont pas** : « critère par boss NON MESURÉ,
+moins de 8 combats pour veilleur=5, métronome=3… ». Le vérificateur mélange
+« rouge » et « je n’ai pas pu mesurer », et le dit lui-même en demandant plus de
+manches. Une suite qui distingue les deux vaudrait mieux qu’une suite qui compte
+sept problèmes là où il y en a cinq.
+
+#### Les constantes sans lecteur
+
+Balayage des 689 clés des 15 tables de configuration. **Neuf** n'avaient aucun
+lecteur, et trois leviers valaient zéro dans un terme neutre :
+
+| constante | ce que c'était |
+|---|---|
+| `CFG.SEAL_RADIUS/HOLD/WARN/DECAY` | doublon périmé de `BOSS_CFG.SEAL_*`, qui est ce que le sceau lit |
+| `CARD_CFG.SWARM_HIT_CD` | vestige : le mini-drone se **consomme** au contact |
+| `CARD_CFG.INSTINCT_MUL` | l'intensité appartient au canal global (`CFG.SLOW_MUL`) |
+| `STATUS_CFG.PURGE_HITS` | le code dit lui-même « la purge se comptait en touches » |
+| `STATUS_CFG.BULWARK_PURGE` | le Rempart ne purge pas ; seule une relique le fait |
+| `BIOME_CFG.TRAIL_BUDGET` | une seule occurrence : sa définition |
+| `WAVE_HP_POWER_K`, `WAVE_RATE_POWER_K`, `BOSS_GROWTH` | à zéro depuis le lot R (« plus aucun scaling de puissance ») — le terme valait ×1 et appelait `_teamPower()` à chaque apparition |
+
+`GAZE_TIME: 0` **n'en est pas** : le zéro porte du sens — il distingue le regard
+instantané du regard permanent (`GAZE_PERM_OPEN: 1.4`). Une valeur nulle n'est pas
+une valeur morte.
+
+Deux défauts dans la sonde avant qu'elle ne dise vrai, tous deux du genre qu'elle
+cherche : `` dans un *template literal* est un **backspace** (0 lecteur pour
+tout le monde), et `indexOf("CFG.SEAL_RADIUS")` trouve `BOSS_CFG.SEAL_RADIUS` —
+c'est derrière ce préfixe que le bloc mort de `CFG` s'était caché.
+
+#### Les archétypes, mesurés à trois états de progression
+
+`verifierBuilds` mesurait le bassin à **contenu complet**. La carte de rareté 3 de
+chaque famille étant la récompense d'un haut fait, le bassin réel d'un compte qui
+commence est plus maigre — et deux archétypes tombaient sous le plancher :
+
+| archétype | compte neuf | à mi-parcours | complet |
+|---|---:|---:|---:|
+| incendiaire | **4** | **4** | 5 |
+| acrobat (avant) | **4** | 5 | 5 |
+| acrobat (après) | 5 | 6 | 6 |
+| sniper | 6 | 6 | 9 |
+| forteresse | 7 | 9 | 10 |
+| berserker | 6 | 7 | 8 |
+| démolition | 7 | 7 | 8 |
+| technicien | 6 | 6 | 7 |
+
+`sillage` entre chez l'acrobat : seule carte libre de verrou, d'arme et de classe
+qui parle d'esquive sans appartenir déjà à un autre archétype. L'incendiaire reste
+à 4 — c'est le plancher du catalogue, et le vérificateur l'exige désormais au
+compte neuf (`seuil + 1`) en plus du contenu complet (`seuil + 2`).
+
 ### Les hauts faits, campagne mesurée (plan 29, lot 10)
 
 Un **compte** qui enchaîne 20 manches de 40 min : il prend ses cartes, achète au

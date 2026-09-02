@@ -62,7 +62,15 @@ npm start                 # serveur sur le port 7777
 PORT=8123 node server.js
 node --check server.js    # pas de linter dans le projet
 npm run version-check     # refuse un deploiement sans bump
+npm run verif             # LA SUITE : 22 verificateurs de table, < 1 s
+npm run verif-tout        # + les campagnes simulees, ~20 min
+npm run constantes-check  # une constante de CFG sans lecteur
 ```
+
+**`npm run verif` AVANT CHAQUE COMMIT.** Les vérificateurs vivent à côté de
+leur donnée — c'est la bonne place — mais rien ne les rejouait : trois étaient
+rouges depuis des lots, trouvés par hasard. Le mode rapide ne coûte rien ; le
+mode `--tout` se lance en fin de plan.
 
 `ROOM_GRACE_MS`, `ROOM_MAX`, `BIOME`, `GRAINE`, `BANC` et `BAC` sont
 surchargeables par l'environnement, **pour les tests uniquement**. `BAC=1` fait
@@ -79,8 +87,8 @@ client. Touches : **1-0** les dix armes, **[** et **]** la densité par pas de 5
 se taise, l'étiquette du banc comprise —, **R** lance un relevé de 10 s qui
 imprime une ligne prête à coller dans `LISEZMOI.md`.
 
-Pas de suite de tests. La logique est pure et sans DOM : on l'importe dans un
-script jetable. 600 s de jeu ≈ 1 s de CPU.
+Pas de framework de test : la suite est `verif.js`, et le reste se mesure dans un
+script jetable — la logique est pure et sans DOM, 600 s de jeu ≈ 1 s de CPU.
 
 ```js
 import { GameState, CFG } from "file:///<absolu>/shared/game_state.js";
@@ -122,6 +130,8 @@ ws_lite.js             WebSocket minimal (RFC 6455 + permessage-deflate), pas de
 perf.js                echantillonnage CPU
 telemetry.js           trace JSONL d'une VRAIE partie — serveur SEUL, hub ecrivain
 version_check.js       refuse un deploiement sans bump
+verif.js               LA SUITE : le seul appelant des 33 verificateurs
+constantes_check.js    une constante de configuration sans lecteur
 progress_store.js      persistance Supabase — serveur SEUL, memoire + replique
 shared/game_state.js   LOGIQUE PURE — importee par le serveur ET le navigateur
 shared/cards.js        cartes, raretes, tirage, calcul des mods
