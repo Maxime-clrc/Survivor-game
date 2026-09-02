@@ -305,6 +305,9 @@ Ajouter une entrée impose de traiter les deux côtés.
 | briefing | `state.warmup`, `WARMUP_S`, champ `warmup` du `round` | `#brief`, `openBrief()`/`closeBrief()` |
 | briefing fermé | `briefDone` → `briefState{waiting:[noms]}` | `#hudBrief`, `renderBriefWait()` |
 | victoire | `state.victory`, `state.finalKill`, clés du `roundEnd` ; `bestFinal` | `#bilan.win` + `.bilanStat.final` |
+| record personnel | `c.lastFinal` = `{record, avant, temps}`, champ `final` de `scoreboardRows()` — l'**ancien** temps se lit **avant** `recordFinal`, qui l'écrase, et sur la même `clefRecord` (difficulté **et** effectif) | ligne « record » de `#bilanFait`, pour **soi** seulement |
+| hauts faits de la manche | `c.hfRun`, remis à zéro au lancement, alimenté par `hautsFaits()` **et** `awardRun` ; champ `hf` de `scoreboardRows()`. `lastHf` reste la file du **bandeau**, elle ne couvre pas les hauts faits obtenus en cours de manche | ligne « hauts faits » de `#bilanFait` |
+| archétype de build | `ARCHETYPES` (`cards.js`) — **ne circule pas**, `archetypeDe(ownedCounts(id))` côté client | `#buildArch` + `.whoArch` du tableau de bilan |
 | transition | `round`/`roundAbort`/`roundEnd`/`cards`/`cardsWait` | `pushWorld()` — jamais à la réception |
 | sortie de manche | `leaveRound` : `removePlayer` + spectateur | bouton du menu pause, avec confirmation |
 | langue | `shared/i18n.js` + `shared/lang/*.js` — **ne circule pas**, réglage de machine | `#topLang`, `#setLangRow`, `#gateLangRow`, `traduireStatique()`, `onLangChange` |

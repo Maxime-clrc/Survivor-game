@@ -528,10 +528,18 @@ on compare des réglages en surchargeant `CFG` depuis un script de mesure.
   filtrent dessus, `appliquerEchelle` la lit. Poser une famille sur une graine
   changerait **ce qui sort du tirage**. Un archétype cite donc des familles *et*
   des cartes nommées.
-- **Les seuils sortent de la mesure.** Plafond tenable : sniper 13, forteresse
-  10, berserker 8, démolition 8, acrobat 7, technicien 7, incendiaire 5 — mais
-  4 des 13 du sniper et 4 des 8 de la démolition n arrivent **qu avec une arme
-  précise**. Sans la grenade, la démolition tombe à 4. `verifierBuilds()` refuse
-  donc tout seuil qu un archétype ne peut pas atteindre **sans** son arme.
-- Le plus fragile est l **incendiaire** (plafond 5), pas l acrobat comme le
-  supposait le plan 26.
+- **Les seuils sortent de la mesure.** 4 des 13 cartes du sniper et 4 des 12 de
+  la démolition n arrivent **qu avec une arme précise** : sans la grenade, la
+  démolition tombe à 4. `verifierBuilds()` refuse donc tout seuil qu un archétype
+  ne peut pas atteindre **sans** son arme.
+- **Le plafond se COMPTE, il ne se déclare pas** (`plafondDe()`). Les sept
+  chiffres relevés à la main avaient pourri sur deux lignes : la démolition
+  valait 8 avant ses quatre graines et vaut 12, l acrobat 7 alors que deux de ses
+  trois graines *sont* des cartes de `mobilite` — donc 5. Une jauge calée sur un
+  plafond faux ne se remplit jamais, ou déborde.
+- Le plus fragile reste l **incendiaire** (plafond 5), à égalité avec l acrobat —
+  et non l acrobat seul comme le supposait le plan 26.
+- **Deux forces, deux faiblesses, écrites à côté de la table.** Elles décrivent
+  ce que l archétype *fait*, jamais ce qu il donne : « l exécution ne touche
+  JAMAIS un boss » est une lecture du code (`_damage` sort avant le seuil), pas
+  un avis. `verifierBuilds()` exige exactement deux de chaque.

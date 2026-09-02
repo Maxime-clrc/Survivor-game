@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES, biomeAt } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, COMMUN, META_ITEMS, classement, metaActives, metaCharge, metaPoids,
-  metaPossede, slotsFor, tierCost, coresForRun, coresPartial, recordFinal,
+  metaPossede, slotsFor, tierCost, coresForRun, coresPartial, recordFinal, clefRecord,
   cadreActifDe, cadresDe, cumulerStats, evaluerHautsFaits, ligneOuverte, vueStats } from "./shared/progression.js";
 import { CADRE_DEFAUT, recompensesDe } from "./shared/hauts_faits.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
@@ -116,6 +116,7 @@ export function createHub(store, log, commit = "") {
     for (const c of room.joined()) {
       const gagnes = evaluerPour(c, room, false);
       if (gagnes.length === 0) continue;
+      c.hfRun = [...(c.hfRun ?? []), ...gagnes];
       c.conn.send(JSON.stringify({ t: "hautFait", ids: gagnes }));
       room.broadcastSauf(c.id, { t: "hautFaitAllie", qui: c.name, ids: gagnes });
     }
@@ -189,6 +190,7 @@ export function createHub(store, log, commit = "") {
       }
       cumulerStats(pr, run);
       c.lastHf = gagnes;
+      c.hfRun = [...(c.hfRun ?? []), ...gagnes];
 
       pr.cores += gain;
       pr.runs += 1;
@@ -197,15 +199,21 @@ export function createHub(store, log, commit = "") {
       if (p.score > pr.best.score) pr.best.score = p.score;
 
       if (state.victory && state.finalKill > 0) {
-        c.lastFinal = recordFinal(pr, {
+        const effectif = room.joined().length;
+        /* L ECART SE LIT AVANT L ECRITURE : `recordFinal` remplace l entree, donc
+           l ancien temps n existe plus une ligne plus bas. Meme clef que lui —
+           par difficulte ET par effectif — sinon on compare a une autre course. */
+        const avant = pr.bestFinal?.[clefRecord(state.diffIndex, effectif)]?.time ?? null;
+        const bat = recordFinal(pr, {
           time: state.finalKill,
           total: Math.round(state.time),
           level: state.level,
           difficulty: state.diffIndex,
           variant: DIFFICULTIES[state.diffIndex]?.script ?? "normal",
           biome: state.biomeIndex,
-          players: room.joined().length,
-        }, quand) ? "record" : "victoire";
+          players: effectif,
+        }, quand);
+        c.lastFinal = { record: bat ? 1 : 0, avant, temps: state.finalKill };
       }
 
       c.lastGain = gain;

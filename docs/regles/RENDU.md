@@ -1594,6 +1594,12 @@ toute créature, aucun sur le décor**, et **jamais de noir pur**.
   **répartition des dégâts subis** agrégée sur l'**équipe**, en **barre empilée**
   + légende (`SRC_TINT`), rien si personne n'a rien pris. **Il ne se ferme plus
   tout seul** : deux boutons, aucun minuteur.
+- **`#bilanFait` ne parle que de TOI.** Un record et un haut fait sont des faits
+  de **profil** : quatre lignes dont trois ne se lisent pas ne valent pas une.
+  L'écart se compare à un record de **même effectif** — c'est `clefRecord` qui le
+  garantit côté serveur, et l'ancien temps se **lit avant** `recordFinal`, qui
+  l'écrase. La colonne « archétype » du tableau est une lecture locale de
+  `ownedCounts` : **rien de plus ne circule**.
 - **La fenêtre de build est UN écran pour trois entrées** (Tab, ligne du bilan,
   ligne du salon) ; on passe d'un joueur à l'autre **sans refermer**. Sa ligne la
   plus importante est celle des **multiplicateurs** (« ×1,84 », jamais « +84 % » ;
@@ -1602,7 +1608,16 @@ toute créature, aucun sur le décor**, et **jamais de noir pur**.
   (description de la carte tirée, repérée par `excl: "skill3"`).
 - **Un multiplicateur affiché sans échelle n'informe personne** : repères
   **mesurés** (`POWER_MARKS` dans `ui/build.js`) — à remesurer si le catalogue ou
-  les raretés bougent.
+  les raretés bougent. `#buildPower` avait disparu du **markup** en gardant son
+  code et sa CSS : un producteur sans consommateur ne lève rien.
+- **L'archétype est une SECTION, pas un suffixe.** La classe est choisie,
+  l'archétype est **constaté** : il se pose donc sous elle, avec sa jauge du
+  **seuil** (là où il s'allume) au **plafond** compté sur les tables, et ses deux
+  listes. Il **disparaît** tant que rien n'est engagé — un bloc permanent qui
+  dirait « aucun » apprendrait à ne plus le lire.
+- **Aucun `[hidden]` global dans ce dépôt** : chaque élément déclare le sien.
+  `.sectionTitle` n'en avait pas, donc `el.hidden = true` sur un titre de section
+  ne faisait rien.
 - **L'ambre dit « c'est toi »** : nom en tête de la build, colonne score de sa
   propre ligne au bilan.
 - **Le menu pause n'est pas un `.overlay`** (à plusieurs la partie continue

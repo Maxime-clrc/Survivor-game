@@ -2309,14 +2309,12 @@ export function cardDetail(id, owned = new Map()) {
    ce qui SORT du tirage. Un archetype cite donc des familles ET des cartes
    nommees, et ne touche a rien.
 
-   LES SEUILS SORTENT DE LA MESURE, PAS D UN AVIS. Plafond de cartes tenables par
-   archetype, en comptant qu une famille se garde entiere si on l acquiert en
-   ordre croissant : sniper 13, forteresse 10, berserker 8, demolition 8,
-   acrobat 7, technicien 7, incendiaire 5. Mais quatre des treize du sniper et
-   quatre des huit de la demolition n arrivent QU AVEC une arme precise — sans
-   elle, la demolition tombe a quatre. Un seuil de 4 la rendrait donc
-   inatteignable pour qui ne joue pas la grenade, et exigerait 4 cartes sur 5 a
-   l incendiaire. D ou TROIS, et `verifierBuilds()` refuse tout seuil qu un
+   LES SEUILS SORTENT DE LA MESURE, PAS D UN AVIS. Le plafond de cartes tenables
+   est `plafondDe()`, plus bas — il se COMPTE sur les tables. Quatre des treize
+   du sniper et quatre des douze de la demolition n arrivent QU AVEC une arme
+   precise : sans la grenade, la demolition tombe a quatre. Un seuil de 4 la
+   rendrait donc inatteignable pour qui ne la joue pas, et exigerait 4 cartes sur
+   5 a l incendiaire. D ou TROIS, et `verifierBuilds()` refuse tout seuil qu un
    archetype ne peut pas atteindre SANS son arme.
 
    `acrobat` et `technicien` sont dans la table malgre l avertissement du plan 26
@@ -2324,13 +2322,29 @@ export function cardDetail(id, owned = new Map()) {
    universelles — plus que la demolition sans sa grenade. L avertissement portait
    sur un catalogue d avant. */
 export const ARCHETYPES = [
-  { id: "incendiaire", familles: ["brulure"], graines: ["catalyseur"], seuil: 3 },
+  { id: "incendiaire", familles: ["brulure"], graines: ["catalyseur"], seuil: 3,
+    forces: ["les dégâts continuent quand tu ne tires plus",
+             "un mourant enflamme ses voisins"],
+    faiblesses: ["rien ne meurt plus vite au premier tir",
+                 "aucun apport en survie"] },
   { id: "sniper", familles: ["portee", "critique"],
-    graines: ["elan", "prec_portee", "prec_marque", "prec_perce", "prec_froide"], seuil: 3 },
+    graines: ["elan", "prec_portee", "prec_marque", "prec_perce", "prec_froide"], seuil: 3,
+    forces: ["tu frappes hors de portée de la horde",
+             "des pointes de dégâts énormes"],
+    faiblesses: ["irrégulier tant que le critique ne tombe pas",
+                 "au contact, la portée ne sert plus à rien"] },
   { id: "forteresse", familles: ["survie", "bouclier"],
-    graines: ["meute", "symbiose"], seuil: 3 },
+    graines: ["meute", "symbiose"], seuil: 3,
+    forces: ["tu encaisses ce qui tue les autres",
+             "tu tiens la ligne pendant les relèvements"],
+    faiblesses: ["tu tues lentement, la manche s'allonge",
+                 "rien ne remplace des dégâts sur un boss"] },
   { id: "berserker", familles: ["execution"],
-    graines: ["adrenaline", "dernier_souffle", "contrat", "dette"], seuil: 3 },
+    graines: ["adrenaline", "dernier_souffle", "contrat", "dette"], seuil: 3,
+    forces: ["un blessé meurt sans finir sa barre de vie",
+             "Moisson et Faucheuse rendent des PV à chaque coupe"],
+    faiblesses: ["l'exécution ne touche JAMAIS un boss",
+                 "les cartes qui la nourrissent se paient en PV ou en dégâts subis"] },
   /* SES QUATRE GRAINES ETAIENT TOUTES DES CARTES DE LA GRENADE. Sans elle il
      restait 4 cartes pour un seuil de 3, et la mesure dit 4 % d obtention meme
      en jouant POUR l archetype. Les quatre ajoutees sont libres d arme ET de
@@ -2338,13 +2352,46 @@ export const ARCHETYPES = [
      "dps"`, ce qui est le meme verrou sous un autre nom. */
   { id: "demolition", familles: ["souffle"],
     graines: ["gren_souffle", "gren_salve", "gren_contact", "gren_chaine",
-              "etau", "terrain_conquis", "contreAttaque", "pulsar"], seuil: 3 },
+              "etau", "terrain_conquis", "contreAttaque", "pulsar"], seuil: 3,
+    forces: ["tu frappes un groupe entier d'un seul coup",
+             "les explosions rassemblent la horde avant de la tuer"],
+    faiblesses: ["le rayon ne vaut rien sans explosion pour le porter",
+                 "presque aucun gain sur une cible seule"] },
   { id: "acrobat", familles: ["mobilite"],
-    graines: ["celerite", "vif_argent", "contre_pied"], seuil: 3 },
+    graines: ["celerite", "vif_argent", "contre_pied"], seuil: 3,
+    forces: ["tu évites au lieu d'encaisser",
+             "l'esquive revient vite et blesse au passage"],
+    faiblesses: ["aucun gain de dégâts direct",
+                 "une erreur de placement coûte tout"] },
   // 6 cartes accessibles ne suffisaient pas : 4 % d obtention en jeu dirige
   { id: "technicien", familles: ["recharge"],
-    graines: ["flux_continu", "dynamo", "stimulant", "briseur", "tourelleAppui"], seuil: 3 },
+    graines: ["flux_continu", "dynamo", "stimulant", "briseur", "tourelleAppui"], seuil: 3,
+    forces: ["tes compétences tournent presque sans attente",
+             "chaque kill raccourcit la suivante"],
+    faiblesses: ["tout dépend de la classe jouée",
+                 "aucun effet sur le tir de base"] },
 ];
+
+const ARCH_BY_ID = new Map(ARCHETYPES.map(a => [a.id, a]));
+
+/* LE PLAFOND SE MESURE, IL NE SE DECLARE PAS. Le commentaire ci-dessus portait
+   sept chiffres releves a la main, et deux avaient deja pourri : la demolition
+   valait 8 AVANT ses quatre graines et vaut 12, l acrobat 7 alors que deux de
+   ses trois graines SONT des cartes de `mobilite` — donc 5. Une jauge calee sur
+   un plafond faux ne se remplit jamais, ou deborde. */
+const plafondDe = a => new Set([
+  ...CARDS.filter(c => a.familles.includes(c.family)).map(c => c.id),
+  ...a.graines.filter(g => CARD_BY_ID.has(g)),
+]).size;
+export const archetypePlafond = id => {
+  const a = ARCH_BY_ID.get(id);
+  return a ? plafondDe(a) : 0;
+};
+
+export const archetypeForces = id => (ARCH_BY_ID.get(id)?.forces ?? [])
+  .map((v, k) => t(`archetype.${id}.force.${k}`, v));
+export const archetypeFaiblesses = id => (ARCH_BY_ID.get(id)?.faiblesses ?? [])
+  .map((v, k) => t(`archetype.${id}.faible.${k}`, v));
 
 export const archetypeNom = id =>
   t(`archetype.${id}.nom`, ARCHETYPE_FR[id] ?? id);
@@ -2377,7 +2424,7 @@ export function archetypeDe(owned) {
     const n = comptePour(a, owned);
     if (n >= a.seuil && n > bestN) { best = a; bestN = n; }
   }
-  return best ? { ...best, n: bestN } : null;
+  return best ? { ...best, n: bestN, plafond: archetypePlafond(best.id) } : null;
 }
 
 /* CE QUE LE CATALOGUE PEUT REELLEMENT SOUTENIR. Trois questions qu aucune erreur
@@ -2416,6 +2463,15 @@ export function verifierBuilds() {
       soucis.push(`${a.id} : ${universel} carte(s) libres pour un seuil de ${a.seuil}`);
     }
     if (!ARCHETYPE_FR[a.id]) soucis.push(`${a.id} : aucun nom francais`);
+    /* UNE JAUGE QUI NAIT PLEINE N EN EST PAS UNE : le plafond se mesure sur les
+       tables, mais rien n empeche un archetype de n avoir que son seuil. */
+    const plafond = plafondDe(a);
+    if (plafond <= a.seuil) {
+      soucis.push(`${a.id} : plafond ${plafond} pour un seuil de ${a.seuil}`);
+    }
+    if ((a.forces?.length ?? 0) !== 2 || (a.faiblesses?.length ?? 0) !== 2) {
+      soucis.push(`${a.id} : il faut DEUX forces et DEUX faiblesses`);
+    }
   }
   return soucis;
 }

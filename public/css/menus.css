@@ -2591,6 +2591,24 @@ tr.clickable { cursor: pointer; }
 .whoText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .whoName { font-family: var(--font-display); font-weight: 700; color: var(--text); }
 .whoCls { font-size: var(--t-xs); color: var(--text-faint); }
+.whoArch { font-size: var(--t-xs); color: var(--text-faint); font-family: var(--font); }
+
+#bilanFait {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-4) var(--sp-6);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+.faitLab {
+  font-family: var(--font);
+  letter-spacing: var(--track-caps);
+  min-width: 9ch;
+}
+.faitTxt { font-family: var(--font-body); }
 
 #bilanNext {
   display: flex;
@@ -3228,6 +3246,18 @@ tr.clickable { cursor: pointer; }
   background: var(--ui-panel);
 }
 #minePower { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+#buildArch {
+  padding: var(--sp-4);
+  border: var(--hair) solid var(--ui-line);
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+.archNom { font-family: var(--font-display); }
+.archCount { font-family: var(--font); }
+.archGauge { border-radius: var(--radius-chip); overflow: hidden; }
+.archColLab { font-family: var(--font); letter-spacing: var(--track-caps); }
+.archLigne { font-family: var(--font-body); line-height: 1.6; }
 .pLab {
   font-family: var(--font);
   font-size: var(--t-xs);

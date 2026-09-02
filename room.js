@@ -693,6 +693,7 @@ export class Room {
         total: c.total,
         cores: c.lastGain ?? 0,
         final: c.lastFinal ?? null,
+        hf: c.hfRun ?? [],
       };
     }).sort((a, b) => b.score - a.score);
   }
@@ -856,6 +857,7 @@ export class Room {
       }
       c.rerollLeft = rerollsFor(confortActif);
       c.lastFinal = null;
+      c.hfRun = [];
       c.armeOffres = this.offreArmes(c);
       c.armeRelances = 0;
       c.arme = ARME_DEFAUT;

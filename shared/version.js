@@ -7534,6 +7534,45 @@
                   c est la fenetre de mesure qui le borne, pas le script.
                   Et une premisse ecartee : `TL_CFG.QUARRY_*` EST utilise —
                   `_spawnQuarry` est appele par l evenement Chasse.
+    0.32.6 lot 7  LA JAUGE DE PUISSANCE N EXISTAIT PLUS DEPUIS UN AN, ET RIEN NE
+                  LE DISAIT. `powerBlockHtml()` etait complete, ses reperes
+                  MESURES, sa CSS ecrite dans DEUX feuilles, la regle de rendu
+                  documentee — et `<div id="buildPower">` avait disparu du markup.
+                  Un producteur sans consommateur est le meme silence qu un champ
+                  sans lecteur : personne ne voyait la jauge. Elle est remise.
+                  Meme forme, un cran plus bas : `.sectionTitle` n avait aucune
+                  regle `[hidden]` et ce depot n en a pas de globale, donc
+                  `buildSkillsTitle.hidden = true` ne faisait RIEN — le titre
+                  « Competences » restait sous une ligne vide.
+                  LE PLAFOND D UN ARCHETYPE SE COMPTE, IL NE SE DECLARE PAS. Les
+                  sept chiffres du commentaire etaient releves a la main et deux
+                  avaient pourri : la demolition valait 8 AVANT ses quatre graines
+                  et vaut 12, l acrobat 7 alors que deux de ses trois graines SONT
+                  des cartes de `mobilite` — donc 5. Une jauge calee dessus se
+                  serait remplie a 66 % un badge plein en main. `plafondDe()`
+                  compte sur les tables, `verifierBuilds()` refuse un plafond qui
+                  touche le seuil.
+                  L ARCHETYPE DEVIENT UNE SECTION, PLUS UN SUFFIXE. Icone, jauge du
+                  SEUIL au PLAFOND, deux forces et deux faiblesses par archetype —
+                  du texte, jamais une regle : aucun bonus, aucun deblocage, aucun
+                  filtre de tirage. Il DISPARAIT tant que rien n est engage. Le
+                  badge accole au nom de classe disparait : la meme chose dite deux
+                  fois sur un ecran ne se lit plus qu une fois.
+                  LE BILAN DIT CE QUE LA MANCHE A LAISSE AU COMPTE, et seulement
+                  au SIEN — un record et un haut fait sont des faits de PROFIL,
+                  quatre lignes dont trois ne se lisent pas n en valent pas une.
+                  `c.lastFinal` etait ECRIT et lu NULLE PART depuis sa creation :
+                  il porte desormais l ecart, et l ancien temps se lit AVANT
+                  `recordFinal` — qui l ecrase — sur la meme `clefRecord`, donc a
+                  effectif egal (lot 1). `c.hfRun` accumule les hauts faits des
+                  DEUX chemins : `lastHf` ne portait que ceux de la fin, et ceux
+                  gagnes en cours de manche ne seraient jamais apparus.
+                  Le tableau du bilan porte l archetype sous la classe. Rien de
+                  plus ne circule : `ownedCounts` est deja chez le client.
+                  PREMISSE ECARTEE : le 10a du chantier — attribuer les degats
+                  subis a une source — etait DEJA FAIT. `DAMAGE_SOURCES` porte
+                  SEPT categories, `_hurt` les cumule dans `p.hurtBy`, le bilan en
+                  fait une barre empilee et le HUD une ventilation en direct.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7543,4 +7582,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.5";
+export const VERSION = "0.32.6";

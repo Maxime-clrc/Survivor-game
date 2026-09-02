@@ -3,7 +3,7 @@ import { getAudioSource, getMusicVolume, getVolume, initAudio, isMuted, playSoun
 import { showHud } from "/hud.js";
 import { refreshMusicSource } from "/music.js";
 import { BOSS_ROSTER, bossAt, bossNom, bossSous, bossVerbe } from "/shared/bosses.js";
-import { CARDS, CARD_BY_ID, RARITY_COLOR, banClosure, cardDesc, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
+import { CARDS, CARD_BY_ID, RARITY_COLOR, archetypeDe, archetypeNom, banClosure, cardDesc, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
 import { CLASSES, CLASS_DEFAULT, classAt, classDesc, classMission, classNom, classSolo, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
 import { CFG, DAMAGE_SOURCES, DIFFICULTIES, PLAYER_COLORS, diffLabel, diffResume, srcLabel } from "/shared/game_state.js";
 import { biomeNom, biomeResume } from "/shared/biomes.js";
@@ -23,7 +23,7 @@ import { fmtTime, portraitBoss } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanFait, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -1814,8 +1814,55 @@ export function showBilan(res) {
     `<div class="bilanStat"><span class="lab">${escapeHtml(
       t("ui.bilan.stat.manche", "manche"))}</span>` +
     `<span class="val">${res.round}</span></div>`;
+  renderBilanFait(res.rows);
   renderHurtBy(res.rows);
   renderBilanScores(res.rows);
+}
+
+/* CE QUE LA MANCHE A LAISSE AU COMPTE, et rien d autre : un record et des hauts
+   faits sont des faits de PROFIL, donc ils ne concernent que le sien — les
+   afficher pour toute l equipe ferait quatre lignes dont trois ne se lisent pas.
+   L ecart se compare a un record de MEME effectif : `clefRecord` le garantit
+   cote serveur, et c est ce qui rend la ligne honnete en solo comme a quatre. */
+function renderBilanFait(rows) {
+  const mine = rows.find(r => r.id === myId);
+  const lignes = [];
+
+  const fin = mine?.final;
+  if (fin && fin.temps > 0) {
+    const ecart = fin.avant === null || fin.avant === undefined
+      ? null : Math.abs(fin.temps - fin.avant);
+    lignes.push({
+      cle: "record",
+      lab: t("ui.bilan.fait.record", "record"),
+      gain: !!fin.record,
+      txt: fin.record
+        ? (ecart === null
+            ? tf("ui.bilan.fait.premier", "premier temps à cet effectif — {t}",
+                { t: fmtTime(fin.temps) })
+            : tf("ui.bilan.fait.battu", "record battu de {e} s — {t}",
+                { e: dec(ecart, 1), t: fmtTime(fin.temps) }))
+        : tf("ui.bilan.fait.manque", "à {e} s de ton record ({t})",
+            { e: dec(ecart ?? 0, 1), t: fmtTime(fin.avant ?? 0) }),
+    });
+  }
+
+  const hf = mine?.hf ?? [];
+  if (hf.length > 0) {
+    lignes.push({
+      cle: "hf",
+      lab: tn("ui.bilan.fait.hf", "haut fait", "hauts faits", hf.length),
+      gain: true,
+      txt: hf.map(id => hfNom(id)).join(" · "),
+    });
+  }
+
+  bilanFait.hidden = lignes.length === 0;
+  bilanFait.innerHTML = lignes.map(l =>
+    `<div class="faitLigne${l.gain ? " gain" : ""}">` +
+      `<span class="faitLab">${escapeHtml(l.lab)}</span>` +
+      `<span class="faitTxt">${escapeHtml(l.txt)}</span>` +
+    `</div>`).join("");
 }
 const BILAN_COLS = [
   { cle: "score",  lab: "score",  val: r => fmtBig(r.score ?? 0),   mine: true },
@@ -1838,6 +1885,7 @@ function renderBilanScores(rows) {
     const cdef = (r.cls === null || r.cls === undefined) ? null : classAt(r.cls);
     const col = cdef ? cdef.couleur : PLAYER_COLORS[r.colorIndex % PLAYER_COLORS.length];
     const ini = (r.name || "?")[0].toUpperCase();
+    const arch = archetypeDe(ownedCounts(r.id));
 
     tr.innerHTML =
       `<td class="who">` +
@@ -1845,6 +1893,7 @@ function renderBilanScores(rows) {
         `<span class="whoText">` +
           `<span class="whoName">${escapeHtml(r.name)}</span>` +
           `<span class="whoCls">${cdef ? escapeHtml(classNom(cdef)) : "—"}</span>` +
+          (arch ? `<span class="whoArch">${escapeHtml(archetypeNom(arch.id))}</span>` : "") +
         `</span>` +
       `</td>`
       + BILAN_COLS.map(c =>

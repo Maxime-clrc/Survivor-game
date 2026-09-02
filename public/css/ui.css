@@ -90,6 +90,10 @@ input, textarea, [contenteditable] {
   text-transform: uppercase;
   color: var(--text-faint);
 }
+/* aucun `[hidden]` global dans ce depot : sans cette ligne, `el.hidden = true`
+   sur un titre de section ne fait RIEN — « Competences » restait affiche sous une
+   ligne vide pour un joueur sans classe. */
+.sectionTitle[hidden] { display: none; }
 .sectionTitle::before {
   content: "";
   width: var(--sp-6);
@@ -331,6 +335,42 @@ input, textarea, [contenteditable] {
 .pMark i { display: block; width: var(--hair); height: 3px; background: var(--line); margin: 0 auto var(--sp-1); }
 .pNote { color: var(--text-dim); font-size: var(--t-xs); }
 .pNote.gain { color: var(--gain); }
+
+#buildArch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: min(100%, 760px);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--hair) solid var(--line);
+  background: var(--bg-panel);
+}
+#buildArch[hidden] { display: none; }
+.archHead { display: flex; align-items: center; gap: var(--sp-3); }
+.archIcon { display: block; width: 18px; height: 18px; flex: none; color: var(--go); }
+.archIcon svg { display: block; width: 100%; height: 100%; }
+.archNom { font-weight: 700; letter-spacing: var(--track-title); color: var(--go); }
+.archCount { margin-left: auto; color: var(--text-dim); font-size: var(--t-s); }
+.archGauge { position: relative; height: 8px; background: var(--bg-void); border: var(--hair) solid var(--line); }
+.archGauge > i { display: block; height: 100%; background: var(--go); opacity: .55; }
+.archSeuil {
+  position: absolute; top: -3px; bottom: -3px; width: 2px;
+  background: var(--persist); transform: translateX(-1px);
+}
+.archListes { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-6); }
+.archCol { flex: 1 1 240px; display: flex; flex-direction: column; gap: var(--sp-1); }
+.archColLab { font-size: var(--t-xs); text-transform: uppercase; color: var(--text-faint); }
+.archLigne { font-size: var(--t-s); color: var(--text-dim); }
+.archCol.gain .archColLab { color: var(--gain); }
+.archCol.cout .archColLab { color: var(--warn); }
+
+#bilanFait { display: flex; flex-direction: column; gap: var(--sp-1); }
+#bilanFait[hidden] { display: none; }
+.faitLigne { display: flex; gap: var(--sp-3); align-items: baseline; font-size: var(--t-s); }
+.faitLab { font-size: var(--t-xs); text-transform: uppercase; color: var(--text-faint); }
+.faitTxt { color: var(--text-dim); }
+.faitLigne.gain .faitTxt { color: var(--gain); }
+.whoArch { font-size: var(--t-xs); color: var(--text-faint); }
 
 #buildSkills { display: flex; flex-direction: column; gap: var(--sp-1); width: min(100%, 760px); }
 .buildSkill {

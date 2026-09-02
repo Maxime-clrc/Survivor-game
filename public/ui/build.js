@@ -1,7 +1,7 @@
 
 import { BOSS_CFG } from "/shared/bosses.js";
 import { dec, onLangChange, t, tf } from "/shared/i18n.js";
-import { CARD_BY_ID, RARITY_COLOR, archetypeDe, archetypeNom, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
+import { CARD_BY_ID, RARITY_COLOR, archetypeDe, archetypeFaiblesses, archetypeForces, archetypeNom, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
 import { CLASS_DEFAULT, SKILL_HEAL_MODE, classAt, classNom, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
 import { CFG, PLAYER_COLORS, fullMods, plafonnerHp, powerIndex } from "/shared/game_state.js";
 import { SIGNAL } from "/shared/palette.js";
@@ -9,7 +9,7 @@ import { applyMeta, metaLinesFor } from "/shared/progression.js";
 import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, myId, ownedCounts, phase, progressState, skills } from "../core/state.js";
 import { deaths } from "../render/fx.js";
 import { nameOf } from "../render/stage.js";
-import { buildBackBtn, buildCards, buildClass, buildEl, buildMods, buildName, buildSkills, buildSkillsTitle, buildStats, escapeHtml, fmtBig } from "./dom.js";
+import { buildArch, buildArchTitle, buildBackBtn, buildCards, buildClass, buildEl, buildMods, buildName, buildPower, buildSkills, buildSkillsTitle, buildStats, escapeHtml, fmtBig } from "./dom.js";
 
 let buildTarget = 0;
 export let buildPaintedAt = 0;
@@ -121,6 +121,57 @@ function powerBlockHtml(mods) {
         : "") +
     `</div>`);
 }
+/* UNE FORME PAR ARCHETYPE, sur le modele de `FAMILY_ICON` : sept traces, aucun
+   fichier. Elles ne portent aucune information que le nom ne porte pas — c est
+   ce qui rend la ligne reconnaissable d un coup d oeil dans une liste. */
+const ARCH_ICON = {
+  incendiaire: `<path d="M12 2 c4 5 6 7 6 11 a6 6 0 0 1 -12 0 c0 -3 3 -5 3 -8 c2 2 3 3 3 5 z"/>`,
+  sniper:      `<path d="M12 3 v4 M12 17 v4 M3 12 h4 M17 12 h4"/><circle cx="12" cy="12" r="5"/>`,
+  forteresse:  `<path d="M12 2 L20 6 v6 c0 5 -4 8 -8 10 c-4 -2 -8 -5 -8 -10 V6 Z"/>`,
+  berserker:   `<path d="M4 20 L16 8 M13 5 l6 6 l-3 3 l-6 -6 z M4 20 l3 -1 l-2 -2 z"/>`,
+  demolition:  `<path d="M12 2 l3 6 l6 -1 l-4 5 l4 5 l-6 -1 l-3 6 l-3 -6 l-6 1 l4 -5 l-4 -5 l6 1 z"/>`,
+  acrobat:     `<path d="M6 21 l5 -8 l-4 -3 l4 -7 M11 13 l6 4 M7 10 l-3 4"/>`,
+  technicien:  `<path d="M13 2 L5 13 h5 l-1 9 l9 -12 h-5 z"/>`,
+};
+function archIcon(id) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"` +
+         ` stroke-width="2" stroke-linejoin="miter">${ARCH_ICON[id] ?? ""}</svg>`;
+}
+/* CE QUE CE BUILD EST DEVENU. La classe est CHOISIE, l archetype est CONSTATE :
+   il se pose donc SOUS elle, et il DISPARAIT tant que rien n est engage — un
+   bloc permanent qui dirait « aucun » apprendrait a ne plus le lire.
+   La jauge va du SEUIL — la ou l archetype s allume — au PLAFOND mesure par
+   `archetypePlafond`, et les deux listes ne sont que du texte : pure lecture de
+   ce que le client a deja, rien de plus ne circule, aucun bonus. Un archetype
+   qui changerait quoi que ce soit serait une classe cachee. */
+function archBlockHtml(counts) {
+  const a = archetypeDe(counts);
+  if (!a) return "";
+  const plafond = Math.max(1, a.plafond);
+  const pct = Math.max(0, Math.min(100, a.n / plafond * 100));
+  const liste = (cle, lab, items) =>
+    `<div class="archCol ${cle}">` +
+      `<div class="archColLab">${escapeHtml(t(`ui.build.arch.${cle}`, lab))}</div>` +
+      items.map(x => `<div class="archLigne">${escapeHtml(x)}</div>`).join("") +
+    `</div>`;
+
+  return (
+    `<div class="archHead">` +
+      `<span class="archIcon">${archIcon(a.id)}</span>` +
+      `<span class="archNom">${escapeHtml(archetypeNom(a.id))}</span>` +
+      `<span class="archCount">${a.n} / ${plafond}</span>` +
+    `</div>` +
+    `<div class="archGauge">` +
+      `<i style="width:${pct}%"></i>` +
+      `<span class="archSeuil" style="left:${a.seuil / plafond * 100}%" title="${
+        escapeHtml(tf("ui.build.arch.seuil", "l'archétype s'allume à {n} cartes",
+          { n: a.seuil }))}"></span>` +
+    `</div>` +
+    `<div class="archListes">` +
+      liste("gain", "points forts", archetypeForces(a.id)) +
+      liste("cout", "à surveiller", archetypeFaiblesses(a.id)) +
+    `</div>`);
+}
 function modsChipsHtml(mods, live) {
   return BUILD_MODS.map(d => {
     let v = d.get(mods);
@@ -152,16 +203,6 @@ export function renderBuild() {
   buildClass.textContent = sansClasse ? t("ui.build.noClass", "sans classe") : classNom(def);
   buildClass.style.color = sansClasse ? "" : def.couleur;
 
-  /* CE QUE CE BUILD EST DEVENU, a cote de sa classe et jamais a sa place : la
-     classe est CHOISIE, l archetype est CONSTATE. Il se pose donc en second, et
-     il DISPARAIT tant que rien n est engage — un badge permanent qui dirait
-     « aucun » apprendrait au joueur a ne plus le lire.
-     Pure lecture de ce que le client a deja : rien de plus ne circule, et il ne
-     donne AUCUN bonus. Un archetype qui changerait quoi que ce soit serait une
-     classe cachee. */
-  const arch = archetypeDe(info.counts);
-  if (arch) buildClass.textContent += " \u00b7 " + archetypeNom(arch.id);
-
   buildStats.innerHTML = [
     ["score", "score", info.score], ["kills", "kills", info.kills],
     ["morts", "morts", info.deaths], ["degats", "dégâts", info.damage],
@@ -170,7 +211,13 @@ export function renderBuild() {
     `<div class="buildStat"><span class="val">${escapeHtml(fmtBig(val))}</span>` +
     `<span class="lab">${escapeHtml(t(`ui.stat.${cle}`, lab))}</span></div>`).join("");
 
+  const arche = archBlockHtml(info.counts);
+  buildArch.innerHTML = arche;
+  buildArch.hidden = arche === "";
+  buildArchTitle.hidden = arche === "";
+
   buildMods.innerHTML = modsChipsHtml(mods, info);
+  buildPower.innerHTML = powerBlockHtml(mods);
 
   let skills = "";
   if (!sansClasse) {
