@@ -86,9 +86,37 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   fermée, et un corps qui ne lirait que le champ ne le rejoindrait jamais.
 - **UNE CASE EST FERMÉE QUAND SON CENTRE TOMBE DANS LA BOÎTE GONFLÉE**, jamais
   quand les deux se recouvrent — le recouvrement ferme un couloir d'une case de
-  large. La contrepartie est qu'une cloison plus mince que
-  `CELL - 2 × CLEARANCE` passerait entre deux centres ; `verifierNavigation()`
-  la rejoue au lieu de la supposer.
+  large. La contrepartie a **deux faces**, et une seule était gardée : une
+  **cloison** plus mince que `CELL - 2 × CLEARANCE` passe entre deux centres, et
+  un **passage** dont la bande libre (`écart - 2 × CLEARANCE`) est plus étroite
+  qu'une case n'en porte aucun. `verifierNavigation()` rejoue désormais les deux.
+- **UNE FENTE PLUS ÉTROITE QUE `NAV_CFG.PASSAGE_MIN` EST UN ABRI PARFAIT.** Le
+  joueur s'y tient, la grille y voit un mur plein, donc le champ ne peut pas l'y
+  rejoindre — et comme la fente est plus longue que `PASSAGE_LONG`, l'évitement
+  local ne compense pas. C'était le seul abri du dépôt : deux conduites de la
+  Fonderie, 65 px d'écart sur 416 px, **119 s** avant le premier contact contre
+  4,4 s pour la fente jumelle mieux calée — et **jamais** avec le spawner réel.
+  Le même objet fermait le même abri contre le **bord de l'arène**, à 32 px.
+- **CE DÉFAUT NE DÉPEND QUE DU CALAGE DE LA GRILLE, donc il est invisible à la
+  lecture** : le *même* objet, à la *même* largeur, est franchi à un endroit de
+  l'arène et infranchissable à un autre. Un correctif à la position photographiée
+  n'aurait rien réglé ; c'est la **forme** qui est en faute, et elle est
+  maintenant le onzième cas de `NAV_CAS` — posé au **pire** calage, centre sur un
+  multiple de `CELL`, sans quoi le cas passe et ne garde rien.
+- **Les seuils sont mesurés, pas choisis.** Au pire calage, 50, 65 et 68 px
+  d'écart ne sont **jamais** contestés, 72 et 80 le sont en 5 s ; une fente de
+  160 px de long est contestée en 4,2 s, une de 200 px ne l'est jamais. D'où
+  `PASSAGE_MIN = 80` et `PASSAGE_LONG = 200`.
+- **L'abri du BOSS et l'abri de la HORDE sont deux systèmes sans rapport.**
+  `ABRI_RETOUR` / `_abris()` garantissent qu'un motif de boss laisse toujours où
+  se mettre — c'est **voulu**, et `verifierMecaniques` compte ces abris. La fente
+  de navigation n'est pas de cette famille : rien ne la borne dans le temps et
+  aucun rôle ne la contexte. Corriger l'une n'approche jamais l'autre.
+- **En terrain découvert, aucun abri n'existe** : 17 286 positions balayées sur
+  5 lieux × 2 modes, la horde lâchée en anneau à 800 px, **toutes** contestées,
+  pire cas 6,3 s. Le balayage au pas de 80 px ne voyait pas l'intérieur d'une
+  fente de 64 px — c'est pour ça que le défaut se cherche sur la **géométrie**
+  (`passagesAveugles`) et se confirme en simulation, jamais l'inverse.
 - **UN CORPS PLAQUÉ CONTRE UNE BOÎTE EST DANS UNE CASE FERMÉE** (`CLEARANCE`
   vaut 14, le plus petit rayon 9). Son côté **ne se déduit pas, il se souvient**
   (`navAncre`, posée tant qu'on est libre) : prendre la case libre « la plus

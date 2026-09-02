@@ -17,9 +17,15 @@
    LE PIEGE DEJA PAYE : la case est marquee bloquee quand son CENTRE tombe dans
    la boite gonflee de `CLEARANCE`, jamais quand les deux se recouvrent. Le
    recouvrement ferme un couloir d'une case de large ; le centre laisse passer.
-   La contrepartie est qu'une cloison plus mince que `CELL - 2 x CLEARANCE`
-   passerait entre deux centres — la plus mince du depot fait 32 px pour 12,
-   donc la marge est de 20 px et `verifierNavigation()` la rejoue.
+   La contrepartie a DEUX faces, et une seule etait gardee :
+     — une CLOISON plus mince que `CELL - 2 x CLEARANCE` passe entre deux
+       centres, donc la grille ne la voit pas. La plus mince du depot fait 32 px
+       pour 12, la marge est de 20 px.
+     — un PASSAGE dont la bande libre (`ecart - 2 x CLEARANCE`) est plus etroite
+       qu'une case ne porte aucun centre, donc la grille y voit un MUR PLEIN. Un
+       corps peut s'y tenir, le champ ne peut pas l'y rejoindre — c'est un abri
+       parfait, et il ne tient qu'au CALAGE de la grille.
+   `verifierNavigation()` rejoue les deux.
    =========================================================================== */
 
 export const NAV_CFG = {
@@ -43,6 +49,22 @@ export const NAV_CFG = {
   LOOK: 3,
 
   REBUILD_MIN: 0.2,
+
+  /* CE QU IL FAUT A UN PASSAGE POUR EXISTER AUX YEUX DE LA GRILLE, MESURE. Deux
+     barres paralleles, un joueur au milieu, la horde en anneau a 800 px.
+     Sur 20 calages de grille, sans contact en 60 s : bande 22 px -> 9 calages,
+     37 px -> 1, 40 px -> 1, 52 px -> 0. Et au PIRE calage — la fente centree sur
+     un multiple de `CELL`, ou la bande tient entre deux centres — 50, 65 et
+     68 px d ecart ne sont JAMAIS contestes, 72 et 80 le sont en 5 s.
+     La bande vaut `ecart - 2 x CLEARANCE` : il lui faut DEPASSER `CELL`, et
+     `CELL` tout juste ne suffit pas. En dessous, la fente porte ou ne porte pas
+     de centre selon l endroit ou elle tombe — le meme objet est franchi a un
+     endroit de l arene et infranchissable a un autre.
+     La LONGUEUR decide si c est grave : au calage perdant, une fente de 160 px
+     est contestee en 4,2 s et une de 200 px ne l est JAMAIS. En deca, le corps
+     entre par un bout avant que l evitement local ne le rejette. */
+  PASSAGE_MIN: 80,
+  PASSAGE_LONG: 200,
 
   COUT_DROIT: 2,
   COUT_DIAG: 3,
@@ -272,6 +294,55 @@ export function droitPossible(nav, x0, y0, x1, y1) {
 /* CRITERE REJOUABLE, sur le modele de `verifierBiomes()`. Muet = tout va bien.
    Il ne juge pas un chemin : il juge la GRILLE — qu'aucune cloison du depot ne
    passe entre deux centres, et que le lieu reste d'un seul tenant. */
+/* LES FENTES QUE LA GRILLE NE PEUT PAS VOIR. Les quatre bords de l arene comptent
+   comme des boites : un obstacle long pose a 32 px du mur ferme le meme abri que
+   deux obstacles face a face. `CORPS` est le diametre du plus petit corps du
+   bestiaire — en dessous personne ne s y glisse, et la fente n est rien. */
+const CORPS = 18;
+export function passagesAveugles(obstacles, arenaW, arenaH) {
+  const out = [];
+  const boites = [];
+  for (const o of obstacles) {
+    if (o.maxHp > 0 && o.hp <= 0) continue;
+    boites.push({ x: o.x, y: o.y, w: o.w, h: o.h, bord: false });
+  }
+  boites.push(
+    { x: -arenaW, y: arenaH / 2, w: 2 * arenaW, h: 4 * arenaH, bord: true },
+    { x: 2 * arenaW, y: arenaH / 2, w: 2 * arenaW, h: 4 * arenaH, bord: true },
+    { x: arenaW / 2, y: -arenaH, w: 4 * arenaW, h: 2 * arenaH, bord: true },
+    { x: arenaW / 2, y: 2 * arenaH, w: 4 * arenaW, h: 2 * arenaH, bord: true });
+
+  for (let i = 0; i < boites.length; i++) {
+    for (let j = i + 1; j < boites.length; j++) {
+      const a = boites[i], b = boites[j];
+      if (a.bord && b.bord) continue;
+      const gx = Math.abs(a.x - b.x) - (a.w + b.w) / 2;
+      const gy = Math.abs(a.y - b.y) - (a.h + b.h) / 2;
+      let ecart, long, x, y;
+      if (gy > 0 && gx < 0) {
+        ecart = gy;
+        const x0 = Math.max(a.x - a.w / 2, b.x - b.w / 2);
+        const x1 = Math.min(a.x + a.w / 2, b.x + b.w / 2);
+        long = x1 - x0;
+        x = (x0 + x1) / 2;
+        y = (a.y < b.y ? a.y + a.h / 2 : b.y + b.h / 2) + ecart / 2;
+      } else if (gx > 0 && gy < 0) {
+        ecart = gx;
+        const y0 = Math.max(a.y - a.h / 2, b.y - b.h / 2);
+        const y1 = Math.min(a.y + a.h / 2, b.y + b.h / 2);
+        long = y1 - y0;
+        y = (y0 + y1) / 2;
+        x = (a.x < b.x ? a.x + a.w / 2 : b.x + b.w / 2) + ecart / 2;
+      } else continue;
+      if (ecart < CORPS || ecart >= NAV_CFG.PASSAGE_MIN) continue;
+      if (long < NAV_CFG.PASSAGE_LONG) continue;
+      out.push({ ecart: Math.round(ecart), long: Math.round(long),
+                 x: Math.round(x), y: Math.round(y), bord: a.bord || b.bord });
+    }
+  }
+  return out;
+}
+
 export function verifierNavigation(obstacles, arenaW, arenaH) {
   const soucis = [];
   const nav = construireNav(obstacles, arenaW, arenaH);
@@ -285,6 +356,11 @@ export function verifierNavigation(obstacles, arenaW, arenaH) {
   if (mince < seuil) {
     soucis.push(`cloison de ${mince.toFixed(0)} px sous le seuil de ${seuil} px`
       + " — elle peut passer entre deux centres de case");
+  }
+
+  for (const p of passagesAveugles(obstacles, arenaW, arenaH)) {
+    soucis.push(`fente aveugle de ${p.ecart} px sur ${p.long} px en (${p.x}, ${p.y})`
+      + " — un corps s y tient, la grille y voit un mur");
   }
 
   if (nav.libre < nav.cells * 0.35) {

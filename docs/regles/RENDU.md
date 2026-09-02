@@ -215,9 +215,9 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
 - **La matière d'un sol n'est pas son matériau, c'est ce qui lui est ARRIVÉ.**
   La tuile de `material.js` est cuite une fois par lieu : devant une presse et au
   fond d'un rack, c'est le même béton. `MATIERE[lieu]` donne une **trace** par
-  quartier — six primitives partagées (rouler, souiller, empoussiérer, cendrer,
-  rayer, ruisseler), pas soixante marques : c'est une grammaire, pas un
-  catalogue.
+  quartier — neuf primitives partagées (rouler, souiller, empoussiérer, cendrer,
+  rayer, ruisseler, corroder, fendre, joncher), pas soixante marques : c'est une
+  grammaire, pas un catalogue.
   Elles suivent le **quartier**, donc l'architecture : une trace de roulage n'a
   de sens que dans une circulation. Posées au hasard, ce serait du bruit avec des
   noms.
@@ -237,7 +237,26 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   un décalage tiré de la même cellule, 18 et 18. C'est le réseau qu'on voyait, pas
   les taches.
   `verifierTraces()` refuse un lieu qui pose moins de **deux** matières
-  différentes — sans quoi il n'y a pas de grammaire, juste une texture.
+  différentes — sans quoi il n'y a pas de grammaire, juste une texture. Il refuse
+  aussi une primitive **écrite et tirée par personne** : les trois dernières du
+  brief ne pouvaient donc pas entrer sans prendre une place.
+- **LES TROIS DERNIÈRES PRIMITIVES SONT UN DÉDOUBLONNAGE, PAS UN AJOUT.** Trois
+  lieux répétaient une matière sur deux de leurs quatre quartiers — la Fonderie
+  deux fois des cendres, la Nébuleuse deux fois des rayures, le Secteur deux fois
+  du ruissellement. **Corrosion**, **fissures** et **déchets** prennent ces trois
+  places : ce qui dort dans un entrepôt de fonderie rouille au lieu de brûler, ce
+  qui heurte une coque assez fort la **fend** au lieu de la rayer, et une
+  livraison laisse ses emballages. Trois lieux passent de 3 à 4 matières
+  distinctes ; les deux `null` restent, parce que c'est le sol **nu** qui fait
+  lire les autres.
+  Chacune se sépare de sa voisine par **un** trait, jamais par sa couleur : la
+  corrosion a un **foyer** là où la souillure a un bord ; la fissure **se divise**
+  là où la rayure reste droite ; le déchet est **orienté au hasard et porte une
+  ombre** — il est posé *sur* le sol, la cendre est retombée *dedans*.
+- **`drawTraces()` sort sous `GFX_LOW`, et c'est voulu.** Le palier `low` rend la
+  technique d'avant le plan 13 — matière, semis, lumière, grille. Ce n'est pas un
+  tout-ou-rien : les paliers sont **quatre** (`low`, `medium`, `high`, `ultra`)
+  et seul le premier coupe, donc l'intermédiaire demandé existe déjà.
 - **UNE MARQUE A UN BORD ET UNE DIRECTION ; une ellipse lisse n'a ni l'un ni
   l'autre et ne se lit que comme un rond.** Deux des six primitives étaient dans
   ce cas, et c'étaient les deux plus grandes. La *souillure* revendiquait « un bord

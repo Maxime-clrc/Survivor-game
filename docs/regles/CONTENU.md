@@ -468,6 +468,18 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   lieu de l'appeler est une seconde source de vérité.
 - **Six champs sur sept étaient stockés puis jetés.** `level` et `biome`
   remontent : un temps sans contexte ne dit pas à quel prix il a été fait.
+- **LE LIEU NE DOIT PAS AVANTAGER UNE ARME TANT QU'IL EST TIRÉ AU SORT.** L'idée
+  « où je suis modifie comment je joue » — longues lignes en Usine pour la
+  précision, goulots en Fonderie pour la zone — se heurte au classement : deux
+  manches d'un même mode et d'un même effectif ne seraient plus comparables, et
+  `bestFinal` stocke déjà le `biome` sans que rien n'en tienne compte au tri.
+  Deux issues, et **une seule est praticable** : séparer aussi le classement par
+  lieu donnerait 3 modes × 4 effectifs × 5 lieux = **60 classements**, chacun
+  nourri par trop peu de manches pour valoir quoi que ce soit ; **fixer le lieu
+  des manches classées** et laisser la variété aux autres en donne un seul. Rien
+  n'est encore construit dans cette direction — ce qui est arbitré ici, c'est la
+  **contrainte à respecter le jour où elle le sera**. Aujourd'hui le lieu ne
+  change que la géométrie et la palette, jamais l'efficacité d'une arme.
 - **L'économie** : `coresForRun` **linéaire et plafonnée** (niveau × `CORE_LEVEL` +
   boss × `CORE_BOSS`, plafond `CORE_RUN_CAP`), **les jalons ne créditent jamais de
   noyaux**, les **emplacements se gagnent aux jalons** (`slotsFor(profile)`).

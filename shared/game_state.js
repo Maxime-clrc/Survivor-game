@@ -9243,7 +9243,7 @@ export function mesureEncerclement(diffIndex, joueurs, distance = 600, limite = 
   return { cap, corps: g.enemies.length, t: null };
 }
 
-/* LES DIX SITUATIONS DE NAVIGATION, en dur. Ce ne sont pas des lieux du jeu :
+/* LES SITUATIONS DE NAVIGATION, en dur. Ce ne sont pas des lieux du jeu :
    ce sont les FORMES qui cassent un evitement local — la cloison mince, la
    poche, le goulet, l'interstice trop etroit pour un corps. Un lieu du depot
    qui en contiendrait une nouvelle se retrouverait ici, pas dans un reglage.
@@ -9274,6 +9274,23 @@ const NAV_CAS = [
   { key: "goulet", t: [2400, 1100], e: [2400, 1700], libre: 800,
     mur: [{ x: 1900, y: 1400, w: 800, h: 60 },
           { x: 2900, y: 1400, w: 800, h: 60 }] },
+  /* LA FENTE AU MINIMUM ADMIS, ET AU PIRE CALAGE. Deux barres ecartees de
+     `NAV_CFG.PASSAGE_MIN` : une de moins et la bande libre passe sous une case,
+     donc plus aucun centre ne tombe dedans, la grille y voit un MUR PLEIN — le
+     corps n'entre plus, le joueur si. C'est le seul abri parfait qu'ait eu le
+     depot (fonderie, conduites a 0,06), et ce cas garde le seuil : le baisser le
+     fait rougir ICI avant de rouvrir l'abri en jeu.
+     LE CENTRE EST UN MULTIPLE DE `CELL`, ET CE N'EST PAS DECORATIF : c'est le
+     calage ou la bande libre tient tout entiere entre deux centres. A 1350 la
+     fente porte une case quoi qu'il arrive et le cas ne garde RIEN — il passait
+     a 50 px d'ecart. A 1360, mesure : 50, 65 et 68 px ne sont JAMAIS contestes,
+     72 et 80 le sont en 5 s.
+     Le corps part de 1900 et non de 1750 : a 1750 le protocole en pose un a
+     118 px de la barre, du mauvais cote, et il compte bloque sur TOUTES les
+     largeurs — y compris 220 px. C'etait la mesure, pas la forme. */
+  { key: "fente minimale", t: [2400, 1360], e: [2400, 1900], libre: 1000,
+    mur: [{ x: 2400, y: 1360 - (NAV_CFG.PASSAGE_MIN + 44) / 2, w: 416, h: 44 },
+          { x: 2400, y: 1360 + (NAV_CFG.PASSAGE_MIN + 44) / 2, w: 416, h: 44 }] },
 ];
 
 // LA FENETRE SE DERIVE DU PLUS LENT DU ROSTER, jamais d'une constante : un

@@ -7573,6 +7573,58 @@
                   subis a une source — etait DEJA FAIT. `DAMAGE_SOURCES` porte
                   SEPT categories, `_hurt` les cumule dans `p.hurtBy`, le bilan en
                   fait une barre empilee et le HUD une ventilation en direct.
+    0.32.7 lot 8  LE DEPOT AVAIT UN ABRI PARFAIT, ET IL NE TENAIT QU AU CALAGE DE
+                  LA GRILLE. Deux conduites de la Fonderie, 65 px d ecart sur
+                  416 px de long : gonfle de `CLEARANCE`, il reste 36 px de bande
+                  libre, moins qu une case. Aucun centre ne tombe dedans, la
+                  navigation y voit un MUR PLEIN — le joueur s y tient, le champ ne
+                  peut pas l y rejoindre. MESURE : 119 s avant le premier contact,
+                  et JAMAIS avec le spawner reel, contre 4,4 s pour la fente
+                  JUMELLE, meme objet, meme largeur, autre calage. Le meme obstacle
+                  fermait le meme abri contre le BORD de l arene, a 32 px.
+                  IL N Y EN AVAIT QU UN, ET IL A FALLU DEUX METHODES POUR LE VOIR.
+                  Le balayage large — 17 286 positions, 5 lieux x 2 modes, la horde
+                  en anneau a 800 px — repond « aucun abri, pire contact 6,3 s »,
+                  parce qu au pas de 80 px il ne pose jamais le joueur DANS une
+                  fente de 64 px. La forme se cherche donc sur la GEOMETRIE
+                  (`passagesAveugles()`) et se confirme en simulation.
+                  L EN-TETE DE `navigation.js` DECRIVAIT LA MOITIE DU PIEGE. Une
+                  CLOISON plus mince que `CELL - 2 x CLEARANCE` passe entre deux
+                  centres — garde. Un PASSAGE dont la bande libre est plus etroite
+                  qu une case n en porte aucun — pas garde. `verifierNavigation()`
+                  rejoue desormais les deux, et il tourne sur les CINQ lieux.
+                  SEUILS MESURES, PAS CHOISIS. Au pire calage — fente centree sur
+                  un multiple de `CELL` — 50, 65 et 68 px d ecart ne sont JAMAIS
+                  contestes, 72 et 80 le sont en 5 s ; une fente de 160 px de long
+                  est contestee en 4,2 s, une de 200 px ne l est jamais. D ou
+                  `PASSAGE_MIN = 80` et `PASSAGE_LONG = 200`. Onzieme cas de
+                  `NAV_CAS`, pose AU PIRE CALAGE : a 1350 il passait meme a 50 px
+                  d ecart et ne gardait rien, a 1360 il mord.
+                  La conduite passe de 0,06 a 0,12, seule valeur qui satisfasse les
+                  deux contraintes — 173 px entre deux conduites, 86 px contre le
+                  bord. Les cinq lieux sont muets. Remesure de l espace jouable de
+                  la Fonderie : 93,0 -> 89,5 -> 80,1 % contre 93,3 -> 90,6 ->
+                  81,6 %, monotonie et classement inchanges.
+                  L ABRI DU BOSS N EST PAS CELUI-CI, et c est ce qui permettait de
+                  toucher a l un sans casser l autre : `ABRI_RETOUR` / `_abris()`
+                  garantissent qu un MOTIF laisse ou se mettre, pour une duree
+                  bornee. La fente n a ni echeance ni role qui la conteste.
+                  LES TROIS DERNIERES MATIERES DU BRIEF SONT UN DEDOUBLONNAGE, PAS
+                  UN AJOUT : trois lieux repetaient une trace sur deux de leurs
+                  quatre quartiers. Corrosion, fissures et dechets prennent ces
+                  places — l entrepot d une fonderie rouille au lieu de bruler, ce
+                  qui heurte une coque assez fort la FEND au lieu de la rayer, une
+                  livraison laisse ses emballages. Chacune se separe de sa voisine
+                  par UN trait et jamais par sa couleur : la corrosion a un FOYER
+                  la ou la souillure a un bord, la fissure SE DIVISE la ou la
+                  rayure reste droite, le dechet est oriente au hasard et porte une
+                  OMBRE — il est pose SUR le sol, la cendre est retombee DEDANS.
+                  DEUX PREMISSES ECARTEES. `drawTraces()` coupe sous `GFX_LOW` :
+                  c est voulu et ce n est pas un tout-ou-rien — les paliers sont
+                  QUATRE et seul le premier coupe, l intermediaire demande existe.
+                  Et le lien lieu -> arme n est pas construit : ce qui est arbitre
+                  est la CONTRAINTE du jour ou il le sera — fixer le lieu des
+                  manches classees, l autre issue donnant 60 classements.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7582,4 +7634,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.6";
+export const VERSION = "0.32.7";

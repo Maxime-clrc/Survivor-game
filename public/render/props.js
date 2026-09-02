@@ -1659,27 +1659,37 @@ function gaine(p, ox, oy) {
    au moins deux differentes. */
 
 const TRACE_ROULAGE = 1, TRACE_SOUILLURE = 2, TRACE_POUSSIERE = 3,
-      TRACE_CENDRES = 4, TRACE_RAYURES = 5, TRACE_RUISSELLEMENT = 6;
+      TRACE_CENDRES = 4, TRACE_RAYURES = 5, TRACE_RUISSELLEMENT = 6,
+      TRACE_CORROSION = 7, TRACE_FISSURES = 8, TRACE_DECHETS = 9;
 
+/* LES TROIS DERNIERES PRIMITIVES DU BRIEF NE SONT PAS UN AJOUT, ELLES SONT UN
+   DEDOUBLONNAGE. Trois lieux repetaient une matiere sur deux quartiers — la
+   fonderie posait deux fois des cendres, la Nebuleuse deux fois des rayures, le
+   Secteur deux fois du ruissellement — donc deux de leurs quatre quartiers se
+   ressemblaient. Corrosion, fissures et dechets prennent ces trois places : la
+   variete monte sans qu un seul quartier perde son sens, et `null` reste ou il
+   est, parce que le sol NU est ce qui fait lire les autres. */
 const MATIERE = {
   // on y roule, on y renverse, et le fond des racks n est jamais balaye.
   usine:     [TRACE_SOUILLURE, TRACE_POUSSIERE, TRACE_ROULAGE, TRACE_RAYURES],
-  // tout ce qui tombe ici BRULE quelque chose, sauf la ou l on entrepose.
-  fonderie:  [TRACE_SOUILLURE, TRACE_CENDRES, TRACE_POUSSIERE, TRACE_CENDRES],
+  // tout ce qui tombe ici BRULE quelque chose ; ce qui dort dans un entrepot de
+  // fonderie ne brule pas, il ROUILLE.
+  fonderie:  [TRACE_SOUILLURE, TRACE_CENDRES, TRACE_POUSSIERE, TRACE_CORROSION],
   // plus personne ne roule ni ne balaye : il reste ce que le temps a fait.
   friche:    [TRACE_POUSSIERE, TRACE_CENDRES, null, TRACE_SOUILLURE],
   // pas de gravite, donc pas de poussiere qui tombe : ce qui marque une coque
-  // est ce qui l a HEURTEE. Le givre est la seule chose qui s y depose.
-  nebuleuse: [TRACE_RAYURES, null, TRACE_RAYURES, TRACE_POUSSIERE],
+  // est ce qui l a HEURTEE — de biais, ou assez fort pour la FENDRE.
+  nebuleuse: [TRACE_RAYURES, null, TRACE_FISSURES, TRACE_POUSSIERE],
   // il pleut, donc l eau court partout ou elle peut ; le reste est ce que la
-  // livraison a laisse.
-  secteur:   [TRACE_RUISSELLEMENT, TRACE_RUISSELLEMENT, TRACE_SOUILLURE, TRACE_ROULAGE],
+  // livraison a laisse, et une livraison laisse ses emballages.
+  secteur:   [TRACE_RUISSELLEMENT, TRACE_DECHETS, TRACE_SOUILLURE, TRACE_ROULAGE],
 };
 
 export function verifierTraces() {
   const soucis = [];
   const connues = new Set([TRACE_ROULAGE, TRACE_SOUILLURE, TRACE_POUSSIERE,
-                           TRACE_CENDRES, TRACE_RAYURES, TRACE_RUISSELLEMENT]);
+                           TRACE_CENDRES, TRACE_RAYURES, TRACE_RUISSELLEMENT,
+                           TRACE_CORROSION, TRACE_FISSURES, TRACE_DECHETS]);
   const tirees = new Set();
   for (const [lieu, zones] of Object.entries(ZONES)) {
     const m = MATIERE[lieu];
@@ -1866,6 +1876,74 @@ function ruissellement(cx, cy, x, y, s) {
   ctx.stroke();
 }
 
+/* LA CORROSION : elle part d un POINT et gagne vers l exterieur, en auréoles
+   de plus en plus pales. C est ce qui la separe d une souillure — une tache
+   renversee a un bord, une rouille a un FOYER et n en a pas. */
+function corrosion(cx, cy, x, y, s) {
+  const r0 = 9 + h2(cx, cy, s + 271) * 7;
+  for (let i = 3; i >= 0; i--) {
+    const r = r0 * (1 + i * 0.72);
+    ctx.fillStyle = alpha(PROP.rouille, 0.13 - i * 0.028);
+    ctx.beginPath();
+    for (let k = 0; k <= 7; k++) {
+      const a = (k / 7) * Math.PI * 2;
+      const rr = r * (0.74 + h2(cx * 13 + k, cy * 7 + i, s + 272) * 0.52);
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+      if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+/* LES FISSURES : un trait qui se DIVISE. Une fissure sans embranchement est
+   une rayure, et la Nebuleuse en pose deja — c est la fourche qui dit que la
+   matiere a cede au lieu d avoir ete frottee. */
+function fissures(cx, cy, x, y, s) {
+  const a0 = h2(cx, cy, s + 281) * Math.PI * 2;
+  ctx.strokeStyle = alpha("#05070b", 0.30);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (const sens of [1, -1]) {
+    let px = x, py = y, a = a0 + (sens < 0 ? Math.PI : 0);
+    ctx.moveTo(px, py);
+    for (let i = 0; i < 4; i++) {
+      const L = 13 + h2(cx * 5 + i, cy, s + 282) * 15;
+      a += (h2(cx, cy * 3 + i, s + 283) - 0.5) * 1.05;
+      px += Math.cos(a) * L; py += Math.sin(a) * L;
+      ctx.lineTo(px, py);
+      if (i !== 1) continue;
+      const b = a + (h2(cx, cy, s + 284) - 0.5 > 0 ? 0.85 : -0.85);
+      const Lb = 11 + h2(cx, cy, s + 285) * 13;
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + Math.cos(b) * Lb, py + Math.sin(b) * Lb);
+      ctx.moveTo(px, py);
+    }
+  }
+  ctx.stroke();
+}
+
+/* LES DECHETS : des morceaux ORIENTES AU HASARD, et c est tout ce qui les
+   separe des cendres — une cendre est retombee, un emballage a ete jete. Ils
+   portent donc une ombre, parce qu ils sont POSES SUR le sol et non dedans. */
+function dechets(cx, cy, x, y, s) {
+  for (let i = 0; i < 7; i++) {
+    const a = (i * 2.399 + h2(cx, cy, s + 291) * 17) % (Math.PI * 2);
+    const d = Math.sqrt((i * 0.618 + h2(cx, cy, s + 292)) % 1) * 44;
+    const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+    const w = 4 + h2(cx * 11 + i, cy, s + 293) * 7;
+    const h = 2.5 + h2(cx, cy * 11 + i, s + 294) * 4;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(h2(cx + i, cy, s + 295) * Math.PI);
+    ctx.fillStyle = alpha(PROP.ombre, 0.16);
+    ctx.fillRect(-w / 2 + 1.5, -h / 2 + 1.5, w, h);
+    ctx.fillStyle = alpha(i % 3 === 0 ? PROP.peint : PROP.metal, 0.16);
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+}
+
 function tracer(t, cx, cy, x, y, s) {
   switch (t) {
     case TRACE_ROULAGE:      return roulage(cx, cy, x, y, s);
@@ -1874,6 +1952,9 @@ function tracer(t, cx, cy, x, y, s) {
     case TRACE_CENDRES:      return cendres(cx, cy, x, y, s);
     case TRACE_RAYURES:      return rayures(cx, cy, x, y, s);
     case TRACE_RUISSELLEMENT: return ruissellement(cx, cy, x, y, s);
+    case TRACE_CORROSION:    return corrosion(cx, cy, x, y, s);
+    case TRACE_FISSURES:     return fissures(cx, cy, x, y, s);
+    case TRACE_DECHETS:      return dechets(cx, cy, x, y, s);
   }
 }
 

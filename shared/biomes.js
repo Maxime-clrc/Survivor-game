@@ -266,14 +266,24 @@ const OBSTACLES = {
     { x: 0.14, y: 0.74, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
     { x: 0.86, y: 0.24, w: 0.052, h: 0.130, kind: B_MACHINE, min: 2 },
   ],
+  /* LES CONDUITES ETAIENT A 0,06 ET LA FONDERIE AVAIT LE SEUL ABRI PARFAIT DU
+     DEPOT. La table se MIROITE par cellule : une conduite a 0,06 dans une cellule
+     fait face a sa jumelle a 0,94 dans celle du dessus, a 108 px de centre a
+     centre — 65 px d ecart libre, sur 416 px de long. Gonfle de `CLEARANCE`, il
+     reste 36 px, moins qu une case : aucun centre ne tombe dedans, la grille y
+     voit un mur, et la horde ne peut plus y entrer. Mesure : contact en 119 s au
+     lieu de 4,4 s dans la fente jumelle mieux calee, et JAMAIS avec le spawner.
+     Le meme objet fermait le meme abri contre le BORD de l arene, a 32 px.
+     0,12 satisfait les deux contraintes de `NAV_CFG.PASSAGE_MIN` : 173 px entre
+     deux conduites, 86 px contre le bord. */
   fonderie: [
     { x: 0.30, y: 0.30, w: 0.120, h: 0.190, kind: B_FOUR },
     { x: 0.70, y: 0.70, w: 0.120, h: 0.190, kind: B_FOUR },
-    { x: 0.50, y: 0.06, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 1 },
+    { x: 0.50, y: 0.12, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 1 },
     { x: 0.12, y: 0.78, w: 0.070, h: 0.070, kind: B_CUVE },
     { x: 0.88, y: 0.22, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
     { x: 0.08, y: 0.30, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
-    { x: 0.50, y: 0.94, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 2 },
+    { x: 0.50, y: 0.88, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 2 },
   ],
   friche: [
     { x: 0.10, y: 0.18, w: 0.085, h: 0.070, kind: B_RUINE },

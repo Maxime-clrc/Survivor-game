@@ -349,12 +349,53 @@ Monotone dans les quatre lieux et sur les trois métriques. Le plus resserré es
 la Fonderie en cauchemar à 81,6 % de l'arène jouable — c'est le lieu dont la loi
 est la masse, et c'est cohérent.
 
+**Remesure (lot 8).** Les conduites de la Fonderie ont bougé de 0,06 à 0,12 pour
+fermer l'abri de navigation ci-dessous. Au même protocole : **93,0 → 89,5 →
+80,1 %**, soit −0,3 / −1,1 / −1,5 point — la conduite n'est plus collée au bord,
+elle prend donc un peu plus d'arène. Monotonie conservée, classement des lieux
+inchangé. Les colonnes de dégagement ne sont **pas** reprises : l'estimateur
+rejoué donne 168/120/69 px sur l'Usine contre 196/125/70 publiés, donc il ne
+mesure pas tout à fait la même chose et mélanger les deux ne dirait rien.
+
+#### L'abri de navigation
+
+Un joueur immobile, la horde lâchée en anneau à 800 px, spawner coupé, 120 s.
+**Test A** = l'abri voulu, contesté après une fenêtre bornée. **Test B** = jamais
+contesté. Le balayage large répond A partout ; c'est la géométrie fine qui
+trouve B.
+
+| portée | résultat |
+|---|---|
+| 17 286 positions, 5 lieux × 2 modes, pas de 80 px | **aucun B**, pire contact 6,3 s |
+| fente Fonderie d1 (écart 64 px, long 416 px) | **119 s**, et **jamais** avec le spawner |
+| fente jumelle, même géométrie, autre calage | 4,4 s |
+| la même après correctif | 4,0 s |
+
+Le pas de 80 px ne voit pas l'intérieur d'une fente de 64 px : un balayage seul
+aurait conclu « pas d'exploit ». La forme se cherche donc sur la géométrie
+(`passagesAveugles()`) et se confirme en simulation.
+
+Les deux seuils, au **pire** calage de grille (fente centrée sur un multiple de
+`CELL`, la bande libre tenant entre deux centres) :
+
+| écart | 50 | 65 | 68 | 72 | 80 | 90 |
+|---|---|---|---|---|---|---|
+| contact | jamais | jamais | jamais | 5,1 s | 5,1 s | 4,9 s |
+
+| longueur | 80 | 120 | 160 | 200 | 416 | 900 |
+|---|---|---|---|---|---|---|
+| contact | 4,3 s | 4,2 s | 4,2 s | jamais | jamais | jamais |
+
+D'où `PASSAGE_MIN = 80` et `PASSAGE_LONG = 200`. Sur 20 calages tirés au hasard,
+une bande de 22 px échoue 9 fois, 37 px une fois, 40 px une fois, 52 px zéro : le
+défaut ne dépend que du calage, donc il est invisible à la lecture.
+
 #### Les six contrôles rejouables
 
 | contrôle | portée | état |
 |---|---|---|
 | `verifierBiomes()` | 200 graines × 4 lieux × 3 modes | **muet** (14,6 s) |
-| `verifierNavigation()` | 4 × 3 × 3 | **muet** |
+| `verifierNavigation()` | 5 lieux × 3 modes | **muet** — fentes aveugles comprises |
 | `verifierBlocs()` | 12 familles / 12 fiches | **muet** |
 | `verifierEmpreinte()` | 12 familles × gabarits réels × 5 positions | **muet** |
 | `verifierDangers()` | 2 sens × 4 lieux | **muet** |
