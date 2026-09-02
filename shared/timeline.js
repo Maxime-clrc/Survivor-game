@@ -45,6 +45,8 @@ export const EV_NUEE = 0;
 export const EV_SIEGE = 1;
 export const EV_CROISE = 2;
 export const EV_CHASSE = 3;
+export const EV_ESSAIM = 4;
+export const EV_RELAIS = 5;
 
 export const EVENTS = [
   { key: "nuee", nom: "Nuée", level: ALERT_WARN,
@@ -62,6 +64,20 @@ export const EVENTS = [
   { key: "chasse", nom: "Chasse", level: ALERT_ORDER,
     texte: "CONCENTREZ LE FEU sur la cible",
     types: [], rateMul: 0, minPlayers: 1, fallback: -1 },
+
+  /* DEUX TYPES DE PLUS, ET CE SONT DES DONNEES. Un evenement n est qu un tableau
+     de types, un multiplicateur de taux et une annonce : rien a ecrire dans la
+     simulation. Quatre types pour trente battements imposaient de repeter la
+     Nuee ou de laisser 83 % des battements muets ; six types en autorisent DOUZE
+     sans qu aucun ne serve plus de deux fois.
+     `EVENTS` est APPEND-ONLY — son index circule sur le reseau. */
+  { key: "essaim", nom: "Essaim", level: ALERT_WARN,
+    texte: "essaim de harceleurs — ne restez pas immobiles",
+    types: [9, 9, 1], rateMul: 2.2, minPlayers: 1, fallback: -1 },
+
+  { key: "relais", nom: "Chaîne de relais", level: ALERT_WARN,
+    texte: "ils se relaient — coupez la chaîne",
+    types: [12, 12, 10], rateMul: 0.8, minPlayers: 1, fallback: -1 },
 ];
 
 export function eventAt(id) { return EVENTS[id] ?? null; }
@@ -70,51 +86,75 @@ export const eventTexte = i => t(`event.${EVENTS[i]?.key}.texte`, EVENTS[i]?.tex
 
 export const GEOMETRIES = ["bords", "front", "pince", "quatre-fronts", "anneau"];
 
+/* LE SCRIPT EST UNE TABLE DE DONNEES, ET IL LAISSAIT 83 % DE SES BATTEMENTS
+   MUETS : cinq evenements sur trente, une seule geometrie sur cinq jamais tiree,
+   et la MEME dent de scie montante repetee six fois.
+
+   TROIS REGLES TENUES PAR `verifierScript` :
+   - aucun type d evenement plus de DEUX fois — d ou les six types : quatre n en
+     auraient autorise que huit, et repeter la Nuee etait le defaut d origine ;
+   - aucune geometrie declaree absente du script — `anneau` etait ecrite,
+     IMPLEMENTEE (`_ringPoint`) et jamais tiree ;
+   - deux segments consecutifs n ont pas la meme FORME de courbe, la forme etant
+     la suite des signes de variation.
+
+   LA SOMME PAR SEGMENT NE BOUGE PAS (6,0 · 10,0 · 12,6 · 14,7 · 17,9 · 20,7) :
+   on redistribue la pression a l interieur du segment, on n en ajoute pas. Sans
+   ca, tout ce que les lots precedents ont mesure serait a refaire.
+
+   ET LE SOLO NE PERD PLUS DEUX BATTEMENTS. `quatre-fronts` exige trois joueurs ;
+   les segments 5 et 6 en portaient DEUX chacun, donc l apogee du solo etait
+   doublement degradee. Un des deux devient `anneau`, qui n exige personne. */
 export const SCRIPT = [
+  // 1 · montee franche : c est le segment qui apprend
   [
     { rate: 0.6, geom: "bords" },
     { rate: 0.9, geom: "bords" },
-    { rate: 1.2, geom: "front" },
+    { rate: 1.2, geom: "front", event: EV_SIEGE },
     { rate: 1.5, geom: "bords" },
     { rate: 1.8, geom: "pince" },
   ],
+  // 2 · creux au deuxieme, puis montee
   [
-    { rate: 1.4, geom: "bords" },
-    { rate: 1.7, geom: "front" },
-    { rate: 2.0, geom: "pince", event: EV_NUEE },
-    { rate: 2.3, geom: "bords" },
-    { rate: 2.6, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
+    { rate: 1.6, geom: "bords", event: EV_SIEGE },
+    { rate: 1.2, geom: "front" },
+    { rate: 2.0, geom: "pince", event: EV_RELAIS },
+    { rate: 2.5, geom: "anneau" },
+    { rate: 2.7, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
   ],
+  // 3 · plateau, puis pic
   [
-    { rate: 2.0, geom: "front" },
-    { rate: 2.4, geom: "pince", event: EV_CROISE },
-    { rate: 2.2, geom: "bords" },
-    { rate: 2.8, geom: "quatre-fronts", minPlayers: 3, fallback: "front" },
+    { rate: 2.1, geom: "front", event: EV_RELAIS },
+    { rate: 2.3, geom: "pince" },
+    { rate: 2.2, geom: "bords", event: EV_CROISE },
+    { rate: 2.6, geom: "quatre-fronts", minPlayers: 3, fallback: "front" },
+    { rate: 3.4, geom: "pince" },
+  ],
+  // 4 · dents de scie
+  [
+    { rate: 2.6, geom: "bords" },
+    { rate: 2.1, geom: "anneau", event: EV_CROISE },
+    { rate: 3.2, geom: "front" },
+    { rate: 2.6, geom: "pince", event: EV_ESSAIM },
+    { rate: 4.2, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
+  ],
+  // 5 · montee, respiration, pic
+  [
     { rate: 3.2, geom: "pince" },
+    { rate: 3.8, geom: "quatre-fronts", minPlayers: 3, fallback: "front", event: EV_CHASSE },
+    { rate: 2.7, geom: "bords" },
+    { rate: 3.6, geom: "anneau", event: EV_ESSAIM },
+    { rate: 4.6, geom: "pince" },
   ],
+  // 6 · crescendo continu jusqu au final
   [
-    { rate: 2.2, geom: "bords" },
-    { rate: 2.5, geom: "bords" },
-    { rate: 2.9, geom: "front", event: EV_SIEGE },
-    { rate: 3.3, geom: "pince" },
-    { rate: 3.8, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
-  ],
-  [
-    { rate: 3.0, geom: "pince" },
-    { rate: 3.4, geom: "quatre-fronts", minPlayers: 3, fallback: "front", event: EV_CHASSE },
-    { rate: 3.2, geom: "bords" },
-    { rate: 3.9, geom: "front" },
-    { rate: 4.4, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
-  ],
-  [
-    { rate: 3.4, geom: "front" },
+    { rate: 3.4, geom: "front", event: EV_NUEE },
     { rate: 3.7, geom: "bords" },
     { rate: 4.0, geom: "pince", event: EV_NUEE },
-    { rate: 4.6, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
+    { rate: 4.6, geom: "anneau" },
     { rate: 5.0, geom: "quatre-fronts", minPlayers: 3, fallback: "pince" },
   ],
 ];
-
 
 const GEOM_CALME = { pince: "front", "quatre-fronts": "front", anneau: "bords" };
 const GEOM_CAUCHEMAR = { bords: "front", front: "pince", pince: "quatre-fronts" };
@@ -167,20 +207,78 @@ export function adaptEvent(id, alive) {
   return bd && alive >= bd.minPlayers ? back : -1;
 }
 
+/* LE CRITERE REJOUABLE DU SCRIPT. Il ne verifiait que la POSE d un evenement ;
+   il verifie desormais aussi ce qui faisait qu un script correct pouvait rester
+   pauvre — un type repete, une geometrie ecrite et jamais tiree, six segments de
+   meme forme, et une apogee amputee en solo. */
 export function verifierScript() {
   const soucis = [];
   for (const [nom, table] of Object.entries(SCRIPTS)) {
     let precedent = -9;
+    const parType = new Map();
+    const tirees = new Set();
     table.forEach((seg, s) => seg.forEach((b, i) => {
       const ou = `${nom} ${s + 1}.${i + 1}`;
+      tirees.add(b.geom);
+      if (b.fallback) tirees.add(b.fallback);
       if (b.event === undefined) return;
       if (!EVENTS[b.event]) soucis.push(`${ou} : evenement inconnu ${b.event}`);
+      else parType.set(b.event, (parType.get(b.event) ?? 0) + 1);
       if (i === TL_CFG.BEATS - 1) soucis.push(`${ou} : evenement sur un crescendo`);
       const idx = s * TL_CFG.BEATS + i;
       if (idx - precedent < 2) soucis.push(`${ou} : deux evenements consecutifs`);
       precedent = idx;
     }));
+
+    // UN TYPE REPETE TROIS FOIS N EST PLUS UNE VARIETE, c est un remplissage
+    for (const [id, n] of parType) {
+      if (n > 2) soucis.push(`${nom} : « ${EVENTS[id].key} » sert ${n} fois`);
+    }
+
+    /* UNE GEOMETRIE DECLAREE ET JAMAIS TIREE EST DU CODE MORT QUE RIEN NE
+       SIGNALE : `anneau` etait ecrite, implementee et absente des trois scripts.
+       Les scripts DERIVES remappent (`GEOM_CALME`, `GEOM_CAUCHEMAR`), donc le
+       critere porte sur la table SOURCE, seule a devoir tout couvrir. */
+    if (nom === "normal") {
+      for (const g of GEOMETRIES) {
+        if (!tirees.has(g)) soucis.push(`${nom} : geometrie « ${g} » jamais tiree`);
+      }
+    }
+
+    /* DEUX SEGMENTS CONSECUTIFS DE MEME FORME sont le meme segment joue deux
+       fois. La forme est la suite des signes de variation, pas les valeurs. */
+    const forme = seg => seg.slice(1)
+      .map((b, i) => b.rate > seg[i].rate ? "+" : b.rate < seg[i].rate ? "-" : "=").join("");
+    for (let s = 1; s < table.length; s++) {
+      if (forme(table[s]) === forme(table[s - 1])) {
+        soucis.push(`${nom} : segments ${s} et ${s + 1} ont la meme forme (${forme(table[s])})`);
+      }
+    }
+
+    /* EN SOLO, UN SEGMENT NE PERD PAS DEUX BATTEMENTS. `quatre-fronts` exige
+       trois joueurs ; les segments 5 et 6 en portaient deux chacun, donc l apogee
+       du solo etait doublement degradee — et le repli est SILENCIEUX. */
+    table.forEach((seg, s) => {
+      const replis = seg.filter(b => (b.minPlayers ?? 1) > 1).length;
+      if (replis > 1) {
+        soucis.push(`${nom} : segment ${s + 1} perd ${replis} battements en solo`);
+      }
+    });
+
+    /* LA PRESSION EFFECTIVE MONTE D UN SEGMENT AU SUIVANT. Un evenement
+       MULTIPLIE le taux — de x0,38 pour le siege a x2,6 pour la nuee —, donc une
+       somme de base croissante ne dit rien de ce que la manche fait sentir. Casser
+       la monotonie DANS un segment est le but ; la casser ENTRE eux ferait
+       redescendre la manche. */
+    const pression = seg => seg.reduce((a, b) =>
+      a + b.rate * (b.event !== undefined ? (EVENTS[b.event]?.rateMul ?? 1) : 1), 0);
+    for (let s = 1; s < table.length; s++) {
+      const av = pression(table[s - 1]), ap = pression(table[s]);
+      if (ap < av) {
+        soucis.push(`${nom} : la pression retombe du segment ${s} au ${s + 1}`
+          + ` (${av.toFixed(1)} -> ${ap.toFixed(1)})`);
+      }
+    }
   }
   return soucis;
 }
-

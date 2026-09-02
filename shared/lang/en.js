@@ -1298,6 +1298,10 @@ export const EN = {
   "event.croise.texte": "crossfire — close the distance",
   "event.chasse.nom": "Hunt",
   "event.chasse.texte": "FOCUS FIRE on the target",
+  "event.essaim.nom": "Swarmers",
+  "event.essaim.texte": "a swarm of harriers — keep moving",
+  "event.relais.nom": "Relay chain",
+  "event.relais.texte": "they relay each other — break the chain",
 
   /* --- boss ---------------------------------------------------------------- */
   "boss.ravageur.nom": "Ravager",

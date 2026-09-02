@@ -204,6 +204,36 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   équipe monte plus vite, donc la horde y vit à 7-10 % de son plafond **même hors
   boss**. La reprise, elle, passe de « jamais » à 31 s. C'est une question de
   taux nominal **par effectif**, pas de reprise.
+- **UNE GÉOMÉTRIE DÉCLARÉE ET JAMAIS TIRÉE EST DU CODE MORT QUE RIEN NE SIGNALE.**
+  `anneau` était dans `GEOMETRIES`, **implémentée** (`_ringPoint`, avec ses huit
+  essais et sa distance de dégagement) et absente des **trois** scripts. Elle est
+  maintenant tirée quatre fois. `verifierScript` croise `GEOMETRIES` avec la table
+  **source** — les scripts dérivés remappent (`GEOM_CALME`, `GEOM_CAUCHEMAR`),
+  donc seule la source doit tout couvrir.
+- **UN ÉVÉNEMENT EST UNE DONNÉE, PAS UNE MÉCANIQUE** : un tableau de types
+  d'ennemi, un multiplicateur de taux et une annonce. Ajouter un type n'écrit rien
+  dans la simulation — et quatre types pour trente battements imposaient de
+  répéter la Nuée ou de laisser 83 % des battements muets. Six types autorisent
+  onze événements sans qu'aucun ne serve plus de **deux** fois. `EVENTS` est
+  **append-only** : son index circule sur le réseau.
+- **LA SOMME PAR SEGMENT NE BOUGE PAS quand on réécrit le script.** On
+  redistribue la pression *dans* le segment, on n'en ajoute pas — sinon tout ce
+  qui a été mesuré ailleurs est à refaire. Sommes conservées au dixième :
+  6,0 · 10,0 · 12,6 · 14,7 · 17,9 · 20,7.
+- **MAIS LA PRESSION EFFECTIVE N'EST PAS LA SOMME DES TAUX.** Un événement
+  **multiplie** — de ×0,38 pour le siège à ×2,6 pour la nuée —, donc une somme de
+  base croissante ne dit rien de ce que la manche fait sentir. Casser la monotonie
+  **dans** un segment est le but ; la casser **entre** eux ferait redescendre la
+  manche, et c'est ce qu'un premier jet à sommes conservées produisait
+  (segment 4 à 21,4 contre segment 5 à 13,4). Les gros multiplicateurs vont tard,
+  et `verifierScript` refuse une pression qui retombe.
+- **LA FORME D'UN SEGMENT EST LA SUITE DES SIGNES DE VARIATION**, pas ses valeurs.
+  Deux segments consécutifs de même forme sont le même segment joué deux fois — le
+  script en avait **six**.
+- **EN SOLO, UN SEGMENT NE PERD PAS DEUX BATTEMENTS.** `quatre-fronts` exige trois
+  joueurs et le repli est **silencieux** ; les segments 5 et 6 en portaient deux
+  chacun, donc l'apogée du solo était doublement dégradée — et d'autant plus en
+  cauchemar, où `GEOM_CAUCHEMAR` mappe `pince → quatre-fronts`.
 - **La grille se refait quand une couverture cède** (`_obstacleHit`), et
   seulement là : la géométrie de biome ne bouge pas autrement.
 - **LA MASSE EST LA SURFACE** (`masseDe(r)` = `(r / 12)²`, bornée) et elle

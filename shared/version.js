@@ -7492,6 +7492,48 @@
                   la dose. A six manches la reponse est nette et INVERSE de l alarme
                   — 39 images sans reprise contre 18 avec. La rampe AMELIORE la
                   garantie d abri au lieu de la degrader.
+    0.32.5 lot 6  VINGT-CINQ BATTEMENTS SUR TRENTE ETAIENT MUETS. Cinq evenements
+                  dans tout le script, une geometrie declaree JAMAIS tiree, et la
+                  meme dent de scie montante repetee six fois. Tout est une TABLE
+                  DE DONNEES : aucun systeme a construire.
+                  `anneau` etait dans `GEOMETRIES`, IMPLEMENTEE (`_ringPoint`, avec
+                  ses huit essais et sa distance de degagement) et absente des TROIS
+                  scripts. Elle est tiree quatre fois.
+                  UN EVENEMENT EST UNE DONNEE, PAS UNE MECANIQUE : un tableau de
+                  types, un multiplicateur de taux, une annonce. Deux types de plus
+                  — Essaim et Chaine de relais — n ecrivent RIEN dans la
+                  simulation, et ils sont ce qui permet ONZE evenements sans
+                  qu aucun ne serve plus de DEUX fois. Quatre types n en auraient
+                  autorise que huit, et repeter la Nuee etait le defaut d origine.
+                  `EVENTS` est append-only : son index circule sur le reseau.
+                  LA SOMME PAR SEGMENT NE BOUGE PAS — 6,0 · 10,0 · 12,6 · 14,7 ·
+                  17,9 · 20,7, conservees au dixieme. On redistribue DANS le
+                  segment, on n ajoute pas : sans ca, tout ce que les lots
+                  precedents ont mesure serait a refaire.
+                  MAIS LA PRESSION EFFECTIVE N EST PAS LA SOMME DES TAUX. Un
+                  evenement MULTIPLIE — de x0,38 pour le siege a x2,6 pour la nuee.
+                  Un premier jet a sommes egales et types repartis « pour la
+                  variete » donnait 7,4 · 12,4 · 10,8 · 21,4 · 13,4 · 18,2 : le
+                  segment 4 plus intense que le 5, et l apogee du 6 SOUS le 4 — la
+                  manche redescendait deux fois. Les gros multiplicateurs vont donc
+                  tard : 5,3 · 8,6 · 12,0 · 17,6 · 18,4 · 32,5, monotone.
+                  EN SOLO, UN SEGMENT NE PERD PLUS DEUX BATTEMENTS.
+                  `quatre-fronts` exige trois joueurs et le repli est SILENCIEUX ;
+                  les segments 5 et 6 en portaient deux chacun, donc l apogee du
+                  solo etait doublement degradee — et d autant plus en cauchemar, ou
+                  `GEOM_CAUCHEMAR` mappe `pince -> quatre-fronts`.
+                  `verifierScript` ne verifiait que la POSE d un evenement. Il
+                  refuse desormais un type servi plus de deux fois, une geometrie
+                  declaree jamais tiree, deux segments consecutifs de meme FORME
+                  (la suite des signes de variation, pas les valeurs), un segment
+                  qui perd plus d un battement en solo, et une pression effective
+                  qui retombe. Vert sur les trois scripts.
+                  MESURE : la mi-manche gagne jusqu a 17 % de densite sans que la
+                  somme des taux change — minute 15, 69 -> 81 corps ; minute 5,
+                  44 -> 49 ; minute 20, 93 -> 100. Le plateau de fin ne bouge pas,
+                  c est la fenetre de mesure qui le borne, pas le script.
+                  Et une premisse ecartee : `TL_CFG.QUARRY_*` EST utilise —
+                  `_spawnQuarry` est appele par l evenement Chasse.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7501,4 +7543,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.4";
+export const VERSION = "0.32.5";

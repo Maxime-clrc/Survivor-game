@@ -3942,6 +3942,79 @@ passer la part de boss de 28 à 78 %. Après avoir semé `Math.random` dans le b
 le vrai chiffre est 17 % → 67 %. La conclusion tient, le chiffre était faux.
 
 
+### Le script : 25 battements muets sur 30 (plan 29, lot 06)
+
+#### Les trois prémisses, vérifiées
+
+| constat | mesure |
+|---|---|
+| 5 événements sur 30 battements | confirmé, **identique dans les trois scripts** |
+| une géométrie déclarée jamais tirée | `anneau` — absente des **trois** scripts, et pourtant **implémentée** (`_ringPoint`) |
+| six segments de même forme | confirmé : montée monotone, seuls les segments 3 et 5 ont un creux |
+
+Et une prémisse à écarter : `TL_CFG.QUARRY_*` **est** utilisé — `_spawnQuarry`
+est appelé par l'événement Chasse. Le « gibier » n'était pas un concept mort.
+
+#### Ce qui change
+
+| | avant | après |
+|---|---:|---:|
+| événements | 5 / 30 | **11 / 30** |
+| types d'événement | 4, dont un servi 2 fois | **6**, aucun servi plus de 2 fois |
+| `anneau` tirée | **0 fois** | 4 fois |
+| formes de segment distinctes | 2 sur 6 | **6 sur 6** |
+| segments qui perdent 2 battements en solo | **2** (5 et 6) | 0 |
+
+Les deux nouveaux types sont des **données pures** — un tableau de types, un
+multiplicateur, une annonce : Essaim (harceleurs, ×2,2) et Chaîne de relais
+(relais + générateur, ×0,8). Rien n'est écrit dans la simulation.
+
+#### La somme ne bouge pas, la pression effective monte
+
+Sommes de base par segment, conservées au dixième :
+**6,0 · 10,0 · 12,6 · 14,7 · 17,9 · 20,7**. On redistribue *dans* le segment.
+
+**Mais un événement multiplie le taux**, de ×0,38 (siège) à ×2,6 (nuée) : une
+somme conservée ne conserve donc pas la pression. Un premier jet, sommes égales
+et types répartis « pour la variété », donnait :
+
+| segment | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---:|---:|---:|---:|---:|---:|
+| pression effective | 7,4 | 12,4 | 10,8 | **21,4** | **13,4** | 18,2 |
+
+Le segment 4 plus intense que le 5, et l'apogée du 6 **en dessous** du 4 : la
+manche redescendait deux fois. Après placement des gros multiplicateurs en fin de
+script :
+
+| segment | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---:|---:|---:|---:|---:|---:|
+| pression effective | 5,3 | 8,6 | 12,0 | 17,6 | 18,4 | **32,5** |
+
+Monotone. `verifierScript` refuse désormais une pression qui retombe.
+
+#### Effet mesuré sur la densité — solo normal, plafond 220, fenêtre 45 s
+
+| minute | 1 | 5 | 10 | 15 | 20 | 25 | 30 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| avant | 25 | 44 | 63 | 69 | 93 | 107 | 107 |
+| **après** | 26 | **49** | **66** | **81** | **100** | 107 | 107 |
+| gain | — | +11 % | +5 % | **+17 %** | +8 % | 0 | 0 |
+
+La mi-manche gagne jusqu'à 17 % de densité **sans que la somme des taux
+change** : le gain vient du placement des multiplicateurs. Le plateau de fin
+(107 en fenêtre de 45 s) ne bouge pas — c'est le temps de fenêtre qui le borne,
+pas le script.
+
+#### Les critères d'acceptation, tous tenus par `verifierScript`
+
+Il ne vérifiait que la **pose** d'un événement (type connu, pas sur un crescendo,
+pas deux d'affilée). Il vérifie maintenant aussi ce qui faisait qu'un script
+formellement correct pouvait rester pauvre : aucun type plus de deux fois, aucune
+géométrie déclarée absente, deux segments consécutifs de formes différentes,
+aucun segment qui perde plus d'un battement en solo, et la pression effective
+croissante. **Vert sur les trois scripts.**
+
+
 ### Les armes, banc d'essai (plan 11, lot 02 — tranche de quatre)
 
 **Banc, pas manche.** Le spawner, l'horloge de vague et le crédit d'expérience
