@@ -67,6 +67,26 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   sépare jamais deux corps qui se touchent). La taille de cellule est ce qui
   **prouve** la couverture : deux corps qui se chevauchent sont à moins d'une
   cellule, donc dans le voisinage. La toucher casse la preuve.
+- **UN VÉRIFICATEUR REND CE QUI EST ROUGE, ET SÉPARÉMENT CE QU’IL N’A PAS PU
+  MESURER.** Les deux étaient dans le même tableau : `verifierBoss` comptait
+  **sept** problèmes là où il y en a **cinq**, les deux autres disant seulement
+  « moins de huit combats pour ce boss ». Un échantillon trop maigre est un défaut
+  de la **mesure**, pas du jeu, et les confondre apprend à ne plus lire la sortie.
+  Le contrat est `{ err, note }` ; il accepte toujours un tableau nu, donc les
+  trente-deux autres ne bougent pas.
+- **UNE MARQUE DE MESURE DOIT PORTER SUR UN INSTANT QUI EXISTE.** `LEVEL_MARKS`
+  demandait le niveau 27 à la **minute 32** alors que la horde dure exactement
+  **30 minutes** (`TL_CFG.SEGMENTS × SEGMENT_TIME`). La marque ne se mesurait
+  jamais : `mesureProgression` rendait la dernière valeur connue, et le
+  vérificateur lisait le **plafond de niveau** comme un dépassement.
+- **UN BUDGET DE PRESSION N’EST PAS UN PARTAGE DE RÉCOMPENSE.**
+  `WAVE_CROWD_EXP` gouvernait six grandeurs — plafond de population, taux
+  d’apparition, part d’élites, ajouts et renforts du boss — **et** le partage
+  d’XP par effectif. Régler l’un cassait l’autre, donc aucun des deux n’était
+  réglable : quand la mi-manche a été densifiée de 17 %, l’XP a suivi la densité
+  sans que le partage puisse s’ajuster, et la courbe de niveau a divergé **selon
+  l’effectif**. `XP_CROWD_EXP` est le levier qui manquait, posé à la valeur
+  identique — donc sans changer un seul comportement.
 - **RIEN NE REJOUAIT LES VÉRIFICATEURS, ET C’EST LE SEUL DÉFAUT QU’AUCUN D’EUX NE
   PEUT SIGNALER.** Trente-trois vivaient dans neuf modules — chacun à côté de sa
   donnée, ce qui est la bonne place — et personne n’avait la liste. Trois étaient

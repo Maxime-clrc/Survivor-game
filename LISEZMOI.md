@@ -4056,6 +4056,44 @@ aucun segment qui perde plus d'un battement en solo, et la pression effective
 croissante. **Vert sur les trois scripts.**
 
 
+### L'instrument mentait sur trois points (plan 30, lot 01)
+
+Le plan 29 s'est terminé sur trois vérificateurs rouges. Avant de régler quoi que
+ce soit, il fallait constater que **la mesure elle-même était fausse** à trois
+endroits — et deux de ces défauts empêchaient purement et simplement le réglage.
+
+| défaut | conséquence |
+|---|---|
+| `LEVEL_MARKS` demandait la **minute 32** | la horde dure exactement 30 min (6 × 300 s) : la marque ne se mesurait jamais, et le plafond `LEVEL_MAX` se lisait comme un dépassement |
+| `verifierBoss` comptait le **non-mesuré** comme rouge | sept problèmes affichés là où il y en a cinq |
+| `WAVE_CROWD_EXP` portait **six grandeurs + le partage d'XP** | un budget de pression et un partage de récompense sous une constante : ni l'un ni l'autre n'était réglable |
+
+Le troisième explique le rouge de `verifierProgression` : quand le lot 5 du plan
+29 a densifié la mi-manche de 17 %, l'XP a suivi la densité **sans que le partage
+par effectif puisse s'ajuster**. D'où une courbe qui diverge selon qu'on joue à un
+ou à quatre. `XP_CROWD_EXP` est posée à la valeur identique (0,75) : le levier
+existe, aucun comportement ne change, le réglage vient ensuite.
+
+#### Deux pièges de méthode payés sur ce lot
+
+**La mesure à 3 manches n'est pas monotone.** `LEVEL_XP_GROWTH` à 1,12 rend un
+niveau *plus haut* qu'à 1,10 à quatre joueurs, et l'écart-type atteint 4,2 cartes.
+Le système a une rétroaction — niveaux → cartes → kills → XP — et la variance du
+script domine. Régler là-dessus aurait été régler sur du bruit.
+
+La sortie n'est pas « plus de manches » mais le **découplage** : on mesure l'XP
+**brute** cumulée par minute de horde (une campagne par effectif), puis on résout
+la courbe analytiquement. Le revenu ne dépend pas du coût des niveaux, donc une
+seule campagne teste tous les couples — et le résultat redevient monotone. Valide
+en milieu et fin de manche, là où sont les écarts : à saturation le revenu est
+piloté par le **spawn** et non par le DPS (mesure M2 du plan 29).
+
+Relevé brut, 6 manches, normal : solo `8=5 698 `20=51 868 `30=299 883 ;
+quatre joueurs `8=29 791 `20=244 998.
+
+**Un `&` de shell tue le job avec son shell.** Une campagne lancée en arrière-plan
+de cette façon n'a rien produit du tout ; il faut le mode tâche de fond de l'outil.
+
 ### La suite de vérification (plan 29, lot 11)
 
 #### Le défaut qu'aucun vérificateur ne pouvait attraper

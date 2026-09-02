@@ -206,8 +206,16 @@ export const CFG = {
 
   BOSS_XP_BASE: 300,
 
+  /* UN BUDGET DE PRESSION ET UN PARTAGE DE RECOMPENSE NE SONT PAS LA MEME
+     GRANDEUR, et une seule constante portait les deux. `WAVE_CROWD_EXP` regle
+     SIX choses — plafond de population, taux d apparition, part d elites, ajouts
+     et renforts du boss — plus le partage d XP par effectif. Regler l un cassait
+     l autre, donc aucun des deux n etait reglable : quand le plan 29 a densifie
+     la mi-manche de 17 %, l XP a suivi la densite sans que le partage puisse
+     s ajuster, et la courbe de niveau a diverge SELON L EFFECTIF. */
   WAVE_CROWD_EXP: 0.75,
   WAVE_ELITE_CROWD_EXP: 0.75,
+  XP_CROWD_EXP: 0.75,
 
   BOSS_POWER_REF: 2.89,
   CROWD_HYSTERESIS: 8,
@@ -8509,7 +8517,7 @@ export class GameState {
   }
 
   _addXp(amount) {
-    this.xp += amount / Math.pow(Math.max(1, this.players.size), CFG.WAVE_CROWD_EXP);
+    this.xp += amount / Math.pow(Math.max(1, this.players.size), CFG.XP_CROWD_EXP);
 
     while (this.level < CFG.LEVEL_MAX && this.xp >= this.levelAt) {
       this.level++;
@@ -9895,7 +9903,14 @@ export const TTK_MAX = 0.60;
 export const BOSS_FIGHT_MIN = 50;
 export const BOSS_FIGHT_MAX = 90;
 
-export const LEVEL_MARKS = [[8, 10], [20, 20], [32, 27]];
+/* LA DERNIERE MARQUE PORTAIT SUR UNE MINUTE QUI N EXISTE PAS. La horde dure
+   exactement TRENTE minutes — `TL_CFG.SEGMENTS` x `SEGMENT_TIME`, six fois
+   300 s — donc « niveau 27 a la minute 32 » ne se mesurait jamais :
+   `mesureProgression` rendait la derniere valeur connue, et le verificateur
+   lisait le PLAFOND de niveau comme un depassement. L intention ne change pas —
+   arriver au bout de la horde avec trois niveaux de marge sous `LEVEL_MAX` —,
+   seule la minute est corrigee. */
+export const LEVEL_MARKS = [[8, 10], [20, 20], [30, 27]];
 export const LEVEL_MARK_TOL = 1;
 export const CARD_SD_MAX = 3;
 export const CADENCE_TOL = 0.9;
@@ -11094,8 +11109,17 @@ export function verifierMecaniques(effectifs = [1, 2, 3, 4], manches = 3,
   return soucis;
 }
 
+/* UN VERIFICATEUR REND CE QUI EST ROUGE, ET SEPAREMENT CE QU IL N A PAS PU
+   MESURER. Les deux etaient dans le meme tableau : `verifierBoss` comptait SEPT
+   problemes la ou il y en a CINQ, les deux autres disant seulement « moins de
+   huit combats pour ce boss, relancer avec plus de manches ». Un echantillon
+   trop maigre n est pas un defaut du JEU — c est un defaut de la MESURE, et le
+   confondre avec un rouge apprend a ne plus lire la sortie.
+   `{ err, note }` : `verif.js` compte `err` et affiche `note` a part. Le contrat
+   accepte toujours un tableau nu, donc les trente-deux autres ne bougent pas. */
 export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_NORMAL) {
   const soucis = [];
+  const notes = [];
   const densites = [];
 
   for (const n of effectifs) {
@@ -11159,7 +11183,7 @@ export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_N
       }
     }
     if (maigres.length) {
-      soucis.push(`${ou} : critere par boss NON MESURE, moins de`
+      notes.push(`${ou} : critere par boss non mesure, moins de`
         + ` ${BOSS_ECHANTILLON_MIN} combats pour ${maigres.join(", ")}`
         + ` — relancer avec plus de manches`);
     }
@@ -11197,7 +11221,7 @@ export function verifierBoss(effectifs = [1, 4], manches = 6, diffIndex = DIFF_N
         + ` une fois l'exposant retire`);
     }
   }
-  return soucis;
+  return { err: soucis, note: notes };
 }
 
 export function verifierProgression(effectifs = [1, 4], manches = 6, diffIndex = DIFF_NORMAL) {

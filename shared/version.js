@@ -7757,6 +7757,43 @@
                   precedents, le lot 5. Et DEUX des sept n en sont pas : le
                   verificateur melange « rouge » et « je n ai pas pu mesurer ».
 
+   --- plan 30 : ce que le lot 5 du plan 29 a deplace ------------------------
+
+    0.33.0 lot 1  L INSTRUMENT MENTAIT SUR TROIS POINTS, ET DEUX EMPECHAIENT LE
+                  REGLAGE. Avant de corriger les trois verificateurs rouges que le
+                  plan 29 laisse, il fallait constater que la MESURE elle-meme
+                  etait fausse.
+                  `LEVEL_MARKS` demandait le niveau 27 a la MINUTE 32 alors que la
+                  horde dure exactement TRENTE minutes — six segments de 300 s. La
+                  marque ne se mesurait jamais : `mesureProgression` rendait la
+                  derniere valeur connue, et le verificateur lisait le PLAFOND de
+                  niveau comme un depassement.
+                  UN VERIFICATEUR REND CE QUI EST ROUGE, ET SEPAREMENT CE QU IL N A
+                  PAS PU MESURER. `verifierBoss` comptait SEPT problemes la ou il y
+                  en a CINQ : les deux autres disaient seulement « moins de huit
+                  combats pour ce boss ». Un echantillon maigre est un defaut de la
+                  MESURE, pas du jeu, et les confondre apprend a ne plus lire la
+                  sortie. Le contrat devient `{ err, note }` et accepte toujours un
+                  tableau nu, donc les trente-deux autres ne bougent pas.
+                  UN BUDGET DE PRESSION N EST PAS UN PARTAGE DE RECOMPENSE.
+                  `WAVE_CROWD_EXP` gouvernait SIX grandeurs — plafond de population,
+                  taux d apparition, part d elites, ajouts et renforts du boss — ET
+                  le partage d XP par effectif. Regler l un cassait l autre, donc
+                  aucun des deux n etait reglable : quand le lot 5 a densifie la
+                  mi-manche de 17 %, l XP a suivi la densite sans que le partage
+                  puisse s ajuster, et la courbe de niveau a diverge SELON
+                  L EFFECTIF. `XP_CROWD_EXP` est le levier qui manquait, pose a la
+                  valeur IDENTIQUE : aucun comportement ne change, le reglage vient
+                  au lot suivant.
+                  PIEGE DE MESURE PAYE : a trois manches la courbe n est pas
+                  monotone — `LEVEL_XP_GROWTH` a 1,12 rend un niveau PLUS HAUT qu a
+                  1,10 a quatre joueurs, ecart-type 4,2 cartes. Le systeme a une
+                  retroaction (niveaux -> cartes -> kills -> XP). La sortie n est
+                  pas « plus de manches » mais le DECOUPLAGE : on mesure l XP BRUTE
+                  cumulee par minute, le revenu ne dependant pas du cout des
+                  niveaux, et une seule campagne par effectif teste alors tous les
+                  couples. Le resultat redevient monotone.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7765,4 +7802,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.10";
+export const VERSION = "0.33.0";

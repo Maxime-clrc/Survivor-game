@@ -56,8 +56,12 @@ const { recettes } = await import("./public/audio.js");
 
 /* Trois verificateurs de `bosses.js` rendent `{ ok, err }` et non un tableau : ils
    servaient aussi a INSPECTER (les formes, les paires compatibles). On lit `err`
-   sans toucher a leur forme — la suite s'adapte a ses membres, pas l'inverse. */
+   sans toucher a leur forme — la suite s'adapte a ses membres, pas l'inverse.
+   `note` porte ce qui N EST PAS un rouge : un echantillon trop maigre est un
+   defaut de la MESURE, pas du jeu, et `verifierBoss` en comptait deux comme des
+   problemes — sept la ou il y en a cinq. On les affiche, on ne les compte pas. */
 const soucisDe = r => Array.isArray(r) ? r : (r?.err ?? []);
+const notesDe = r => Array.isArray(r) ? [] : (r?.note ?? []);
 
 const cardIds = new Set(C.CARDS.map(c => c.id));
 const relicIds = new Set(R.RELICS.map(r => r.id));
@@ -140,9 +144,11 @@ for (const [nom, fn, lent] of SUITE) {
   const vraiLog = console.log;
   let bruit = 0;
   console.log = () => { bruit++; };
-  let soucis;
+  let soucis, notes = [];
   try {
-    soucis = soucisDe(await fn());
+    const r = await fn();
+    soucis = soucisDe(r);
+    notes = notesDe(r);
   } catch (e) {
     soucis = [`a leve : ${e.message}`];
   } finally {
@@ -151,13 +157,16 @@ for (const [nom, fn, lent] of SUITE) {
   joues++;
   const s = ((Date.now() - t0) / 1000).toFixed(1).padStart(6);
   const bruitTxt = bruit ? `  (${bruit} ligne(s) de journal)` : "";
+  const noteTxt = notes.length ? `  [${notes.length} non mesure(s)]` : "";
   if (!soucis || soucis.length === 0) {
-    console.log(`  ${s} s  ${nom.padEnd(16)} vert${bruitTxt}`);
-    continue;
+    console.log(`  ${s} s  ${nom.padEnd(16)} vert${noteTxt}${bruitTxt}`);
+  } else {
+    rouges++;
+    console.log(`  ${s} s  ${nom.padEnd(16)} ${soucis.length} PROBLEME(S)${noteTxt}${bruitTxt}`);
+    for (const x of soucis) console.log(`             ${x}`);
   }
-  rouges++;
-  console.log(`  ${s} s  ${nom.padEnd(16)} ${soucis.length} PROBLEME(S)${bruitTxt}`);
-  for (const x of soucis) console.log(`             ${x}`);
+  for (const x of notes) console.log(`             · ${x}`);
+  continue;
 }
 const total = ((Date.now() - debut) / 1000).toFixed(0);
 console.log(`\n  ${joues} verificateurs, ${rouges} rouge(s), ${total} s\n`);
