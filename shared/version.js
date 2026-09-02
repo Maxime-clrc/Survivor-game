@@ -7794,6 +7794,12 @@
                   niveaux, et une seule campagne par effectif teste alors tous les
                   couples. Le resultat redevient monotone.
 
+    0.33.1 correctif  `badgePoids` etait declare APRES la boucle de l arbre qui
+                  l appelle : `const` dans une zone morte temporelle, donc
+                  `renderMeta` levait a chaque ouverture de la progression et
+                  l ecran restait vide. Declaration remontee avant les deux
+                  boucles qui la lisent.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7802,4 +7808,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.33.0";
+export const VERSION = "0.33.1";

@@ -1466,6 +1466,13 @@ export function renderMeta(clsOverride) {
     : t("ui.meta.sub.confort",
         "confort et lignes communes : un budget de doctrine partagé, valable pour les trois classes");
 
+  /* LE POIDS EST SUR LA CARTE, pas dans une bulle d'aide : le compromis doit se
+     voir AVANT l'achat, pas se découvrir après. */
+  const badgePoids = id =>
+    `<i class="metaPoids" title="${escapeHtml(tf("ui.meta.poids",
+      "pèse {n} sur les {tot} points de doctrine",
+      { n: metaPoids(id, pr), tot: PROG_CFG.META_BUDGET }))}">${metaPoids(id, pr)}</i>`;
+
   metaTreeEl.innerHTML = "";
   for (const line of TREES[clsId] ?? []) {
     const n = cp.tiers?.[line.id] | 0;
@@ -1510,13 +1517,6 @@ export function renderMeta(clsOverride) {
   metaConfortEl.innerHTML = "";
   const actives = metaActives(pr);
   const charge = metaCharge([...actives], pr);
-
-  /* LE POIDS EST SUR LA CARTE, pas dans une bulle d'aide : le compromis doit se
-     voir AVANT l'achat, pas se découvrir après. */
-  const badgePoids = id =>
-    `<i class="metaPoids" title="${escapeHtml(tf("ui.meta.poids",
-      "pèse {n} sur les {tot} points de doctrine",
-      { n: metaPoids(id, pr), tot: PROG_CFG.META_BUDGET }))}">${metaPoids(id, pr)}</i>`;
 
   const boutonDoctrine = id => {
     const on = actives.has(id);
