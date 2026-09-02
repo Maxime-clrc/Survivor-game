@@ -3756,6 +3756,95 @@ serveur n'applique pas.
   est refusé, et le budget tient même quand un poids **monte** avec le palier.
 
 
+### Ligne de vue et équilibre des armes (plan 29, lot 04)
+
+#### 2c · Le périmètre, mesuré et non supposé
+
+Banc : joueur en (1000, 1000), mur plein de 60 × 600 px en x = 1200, mannequin
+issu du **vrai spawner** en (1400, 1000), 120 pas. On mesure `p.hf.armeDegats` —
+ce que l'**arme** délivre, pas ce que le corps perd.
+
+| arme | tir | sans mur | avec mur (avant) | avec mur (après) |
+|---|---|---:|---:|---:|
+| standard | balle | 144 | 0 | 0 |
+| assaut | balle | 78 | 0 | 0 |
+| **laser** | **faisceau** | 181 | **181** | **0** |
+| **tesla** | **arc** | 110 | **110** | **0** |
+| lame | arc_sol | 0 | 0 | 0 |
+| dispersion | balle | 80 | 0 | 0 |
+| railgun | balle | 216 | 0 | 0 |
+| grenade | grenade | 120 | 0 | 0 |
+| siège | balle | 130 | 0 | 0 |
+| précision | balle | 103 | 0 | 0 |
+
+**Le périmètre se referme exactement sur deux armes** — les deux seules à ne pas
+lancer de projectile physique. Précision (portée 2,2) et railgun (1,8) étaient
+déjà arrêtés malgré leurs portées.
+
+#### 2a · Ce que la ligne de vue a coûté, à graines appariées, 6 × 15 min
+
+| arme | Dh avant | Dh après | écart | V avant | V après | cible |
+|---|---:|---:|---:|---:|---:|---:|
+| **laser** | 71,4 | 65,1 | **−9 %** | **1,218** | **1,132** | 1,06 |
+| tesla | 53,7 | 53,8 | +0 % | 0,997 | 0,998 | 1,02 |
+| les huit autres | — | — | **+0 %** | identiques à 3 décimales | | |
+
+**Le laser perd plus de la moitié de son dépassement** : +0,158 → +0,072. C'était
+le levier que §2a cherchait — sa perforation native infinie et gratuite —, et il
+se borne **sans toucher un seul coefficient**. Il reste au-dessus de sa cible.
+
+Le tesla est à **0,998 net** parce que sa dette a été payée dans le même lot.
+
+#### La dette du tesla, payée sur un levier mesuré
+
+Borner l'arc lui coûte 0,16 de V. Le **saut** est le seul levier **horde pure** :
+contre une cible unique l'arc n'a nulle part où sauter, et `Db` reste à **74 pour
+toutes les valeurs essayées** — là où la portée le fait monter à 89, ce qui la
+disqualifie (elle rendrait deux fois).
+
+| `TESLA_SAUT` | Dh | Db | cibles/s | V | écart à 1,02 |
+|---|---:|---:|---:|---:|---:|
+| 220 | 43,7 | 74 | 2,67 | 0,858 | −0,162 |
+| 300 | 49,4 | 74 | 2,99 | 0,938 | −0,082 |
+| 340 | 50,0 | 74 | 3,06 | 0,946 | −0,074 |
+| **380** | 53,8 | 74 | 3,29 | **0,998** | **−0,022** |
+
+**Le protocole se choisit avant la valeur.** À 3 graines × 10 min la même
+courbe était **non monotone** (380 meilleur que 460, accroche 60 meilleure que
+80) : c'était du bruit. À 6 × 15 elle est monotone. Et les deux protocoles ne
+donnent pas la même liste rouge — railgun et grenade sont hors tolérance à 3 × 10
+et dedans à 6 × 15, la lame l'inverse. **Le défaut de `verifierEquilibreArmes(3,
+10)` n'est pas ce qu'il mesure, c'est combien.**
+
+#### Le banc d'armes est aveugle aux coefficients d'échelle
+
+`mesureArmes` ne gère ni `cardsPending` ni `takeCard` : **le joueur du banc n'a
+aucune carte** (vérifié : `p.cards.size === 0` après 50 s). Or
+`appliquerEchelle` met à l'échelle ce que les **cartes** donnent à `mods`.
+
+| `ech.degats` du laser | Dh | V |
+|---|---:|---:|
+| 0,0 | 38,00 | 0,9711 |
+| 1,2 *(valeur du dépôt)* | 38,00 | 0,9711 |
+| 5,0 | 38,00 | 0,9711 |
+
+**Identiques à quatre décimales.** Les sept coefficients d'`ech` sont
+structurellement inertes dans ce banc, donc `verifierEquilibreArmes` **ne peut
+pas** détecter un déséquilibre d'échelle — et le levier que §2a désignait en
+premier pour le laser (`ech.degats = 1,2` qui amplifie les cartes génériques) est
+**inévaluable en l'état**.
+
+La largeur du faisceau, levier historique du laser en 0.15.5, est elle aussi
+inerte aujourd'hui : 22 → 20 → 18 → 16 px donne V 1,132 · 1,131 · 1,157 · 1,158,
+et `cibles/s` **monte** en rétrécissant. À la densité de horde actuelle le
+faisceau couvre déjà tout ce qui est dans son axe.
+
+**Le laser reste donc à +0,072, et son levier restant n'est pas identifié.** Le
+rendre mesurable demande que le banc prenne des cartes — ce qui déplacerait
+toutes les valeurs de V déjà enregistrées. C'est un chantier de mesure, pas un
+réglage.
+
+
 ### Les armes, banc d'essai (plan 11, lot 02 — tranche de quatre)
 
 **Banc, pas manche.** Le spawner, l'horloge de vague et le crédit d'expérience

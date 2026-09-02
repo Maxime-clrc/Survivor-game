@@ -100,6 +100,11 @@ const EMPTY_LIST = Object.freeze([]);
 // balayage complet si un jour elle ne tient plus.
 const STAT_MARGE = 80;
 
+/* UN PIXEL DANS LA BOITE. `_vueCoupee` rend l entree EXACTE, donc le point d arret
+   tombe sur la FACE — et `_obstacleAt` teste `< w / 2` strictement, donc il ne
+   trouve rien. Le tir mordait le mur sans jamais l entamer. */
+const VUE_MORDU = 1;
+
 // LE VOISINAGE 3x3 D'UNE CELLULE NE CHANGE JAMAIS : la geometrie est posee a la
 // construction. On ne le parcourt donc pas a la requete, on le CUIT — une liste
 // deja dedupliquee et deja triee par cellule, et la requete se reduit a lire une
@@ -1726,6 +1731,20 @@ export class GameState {
      faisceau du laser, et le rail du railgun s'il en vient un jour. */
   _segmentHits(p, ox, oy, dx, dy, portee, large, dmg, overTime) {
     let touches = 0;
+    /* LA COUVERTURE ARRETE LE SEGMENT, ET ELLE ENCAISSE. Ne pas l entamer
+       rendrait un joueur a couvert INVULNERABLE au faisceau la ou une balle perce
+       le mur, et le tireur n aurait aucun retour sur ce qui a bloque : le contour
+       plein d une couverture destructible est du gameplay, pas de la decoration.
+       Le point d impact est le point d ARRET, et `_obstacleHit` reste le seul
+       endroit qui retire des PV a un mur. */
+    if (this.obstacles.length) {
+      const coupe = this._vueCoupee(ox, oy, dx, dy, portee);
+      if (coupe !== null) {
+        portee = coupe;
+        this._obstacleHit(ox + dx * (coupe + VUE_MORDU),
+                          oy + dy * (coupe + VUE_MORDU), dmg);
+      }
+    }
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       const px = e.x - ox, py = e.y - oy;
@@ -1943,9 +1962,17 @@ export class GameState {
      Sur un boss, les rebonds REVIENNENT sur la meme cible avec leur perte : une
      arme qui saute entre les cibles n'a rien a sauter face a une cible unique. */
   _teslaTir(p, arme, dmg, ang = p.armeAng) {
-    const portee = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * p.mods.bulletLifeMul;
+    let portee = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * p.mods.bulletLifeMul;
     const dx = Math.cos(ang), dy = Math.sin(ang);
     const large = ARME_CFG.TESLA_ACCROCHE;
+    /* LA PORTEE SE RABOTE AVANT LE CHOIX DE CIBLE, jamais apres : un corps
+       derriere un mur ne doit meme pas etre CANDIDAT, sinon il vole la selection a
+       celui qui est devant et l arme se tait au lieu de frapper ce qu elle voit.
+       Les REBONDS suivants ne changent pas — ils sautent de corps a corps sur
+       220 px, c est une capacite distincte du rebond-sur-mur. */
+    const coupe = this.obstacles.length
+      ? this._vueCoupee(p.x, p.y, dx, dy, portee) : null;
+    if (coupe !== null) portee = coupe;
     // le PREMIER corps du segment, pas le plus proche du joueur : c'est la
     // difference entre viser et se laisser porter
     let cible = null, best = portee;
@@ -1966,7 +1993,18 @@ export class GameState {
     // LE CRISTAL NE VOLE PAS LA CIBLE : un cristal qui aspire les arcs pendant
     // une vague est une punition, pas une arme. Il n'est acquis que quand il
     // n'y a plus rien de vivant a portee.
-    if (!cible && !boss) { this._teslaCristaux(p, dmg, portee, rebonds, garde, ang); return; }
+    if (!cible && !boss) {
+      if (coupe !== null) {
+        // L AMORCE SE VOIT SUR LE MUR : sans ce trait, un joueur qui tire dans une
+        // cloison ne voit RIEN partir et croit son arme cassee.
+        const ix = p.x + dx * coupe, iy = p.y + dy * coupe;
+        this._effetArc(p.x, p.y, ix, iy, 1);
+        this._obstacleHit(ix + dx * VUE_MORDU, iy + dy * VUE_MORDU, dmg);
+        return;
+      }
+      this._teslaCristaux(p, dmg, portee, rebonds, garde, ang);
+      return;
+    }
 
     if (boss) {
       // conversion boss : le meme nombre d'arcs, tous sur le meme corps
@@ -7367,6 +7405,62 @@ export class GameState {
       if (px <= py) o.x = wasX <= b.x ? b.x - hw : b.x + hw;
       else o.y = wasY <= b.y ? b.y - hh : b.y + hh;
     }
+  }
+
+  /* CE QUI COUPE UN TIR, point de passage unique de la ligne de vue. Mesure sur
+     les dix armes, mur plein entre le joueur et un mannequin : le faisceau et
+     l arc sont LES DEUX SEULS a traverser — une balle meurt deja sur la
+     couverture, une grenade y saute, une zone n en sort pas. Ils sont aussi les
+     deux seuls a ne pas lancer de projectile physique, donc les deux qui
+     echappaient naturellement au test. C est une mise en coherence, pas une
+     penalite neuve.
+
+     SEGMENT CONTRE AABB PAR LES DALLES, et non une marche a pas fixe sur
+     `_obstacleAt` : la plus petite cloison du depot fait 32 px, une marche assez
+     large pour etre bon marche l enjambe, et un tir qui traverse un mur A
+     CERTAINS ANGLES est exactement le defaut silencieux qu on retire.
+     `droitPossible` ne convient pas non plus — il raisonne sur la grille de 40 px
+     AVEC la marge d un CORPS, or un tir passe ou un corps ne passe pas.
+
+     Rend la distance du point d arret le long de l axe, ou `null` si la vue est
+     libre. Une couverture DETRUITE ne coupe rien. `dx`/`dy` sont unitaires. */
+  _vueCoupee(x0, y0, dx, dy, portee) {
+    let best = null;
+    for (const o of this.obstacles) {
+      if (o.maxHp > 0 && o.hp <= 0) continue;
+      const hw = o.w / 2, hh = o.h / 2;
+      /* REJET PREALABLE : il fait passer l appel de 419 a 257 ns sur les 63 boites
+         d une arene, sans une seule divergence sur 200 000 tirs. Meme projection
+         que `_surSegment`, avec `hw + hh` en majorant de la demi-diagonale — plus
+         grand que la vraie, donc il ne rejette JAMAIS une boite qui touche, et il
+         evite la racine. */
+      const cx = o.x - x0, cy = o.y - y0;
+      const rc = hw + hh;
+      const le = cx * dx + cy * dy;
+      if (le < -rc || le > portee + rc) continue;
+      const ex = cx - le * dx, ey = cy - le * dy;
+      if (ex * ex + ey * ey > rc * rc) continue;
+      let t0 = 0, t1 = portee;
+      // composante nulle = segment parallele a cette paire de faces : il ne coupe
+      // que s il est deja entre elles, et la dalle ne borne rien
+      if (dx > -1e-9 && dx < 1e-9) {
+        if (Math.abs(x0 - o.x) >= hw) continue;
+      } else {
+        const a = (o.x - hw - x0) / dx, b = (o.x + hw - x0) / dx;
+        t0 = Math.max(t0, Math.min(a, b));
+        t1 = Math.min(t1, Math.max(a, b));
+      }
+      if (dy > -1e-9 && dy < 1e-9) {
+        if (Math.abs(y0 - o.y) >= hh) continue;
+      } else {
+        const a = (o.y - hh - y0) / dy, b = (o.y + hh - y0) / dy;
+        t0 = Math.max(t0, Math.min(a, b));
+        t1 = Math.min(t1, Math.max(a, b));
+      }
+      if (t0 > t1) continue;
+      if (best === null || t0 < best) best = t0;
+    }
+    return best;
   }
 
   _obstacleAt(x, y, margin = 0) {

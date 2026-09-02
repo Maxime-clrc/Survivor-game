@@ -138,6 +138,38 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   `COMPO_VIABLE = 0,5`) : aucune composition ne doit rendre une manche impossible,
   aucune ne doit être strictement dominée. En dessous de la moitié du meilleur **à
   effectif égal**, une composition n'est plus un choix, c'est une erreur.
+- **UN TIR NE TRAVERSE PAS UNE COUVERTURE, ET DEUX ARMES LE FAISAIENT.** Mesuré
+  sur les dix : le faisceau (`_segmentHits`) et l'arc (`_teslaTir`) sont **les
+  deux seuls** — une balle meurt déjà sur un mur, une grenade y saute, une zone
+  n'en sort pas. Ce sont aussi les deux seuls à ne pas lancer de **projectile
+  physique**, donc les deux qui échappaient naturellement au test. Le périmètre se
+  referme exactement sur eux ; précision et railgun, malgré leurs portées de 2,2
+  et 1,8, sont déjà arrêtés. C'est une mise en cohérence, pas une pénalité neuve.
+- **`_vueCoupee(x0, y0, dx, dy, portée)` est le point de passage unique de la
+  ligne de vue.** Segment contre AABB **par les dalles**, et non une marche à pas
+  fixe sur `_obstacleAt` : la plus petite cloison du dépôt fait 32 px, une marche
+  assez large pour être bon marché l'enjambe, et un tir qui traverse un mur *à
+  certains angles* est exactement le défaut silencieux qu'on retire.
+  `droitPossible` ne convient pas non plus — il raisonne sur la grille de 40 px
+  **avec la marge d'un corps**, or un tir passe où un corps ne passe pas.
+- **La portée se rabote AVANT le choix de cible, jamais après.** Un corps derrière
+  un mur ne doit pas être *candidat* : sinon il vole la sélection à celui qui est
+  devant, et l'arme se tait au lieu de frapper ce qu'elle voit.
+- **La couverture destructible ENCAISSE le faisceau et l'amorce de l'arc.** Ne pas
+  l'entamer rendrait un joueur à couvert invulnérable à ces deux armes là où une
+  balle perce le mur, et le tireur n'aurait aucun retour sur ce qui a bloqué. Le
+  point d'impact mord d'`VUE_MORDU` (1 px) **dans** la boîte : `_vueCoupee` rend
+  l'entrée exacte, donc le point tombe sur la face, et `_obstacleAt` teste
+  `< w / 2` strictement.
+- **Les rebonds de l'arc ne changent pas** : ils sautent de corps à corps, c'est
+  une capacité distincte du rebond-sur-mur — et c'est ce qui fait de `TESLA_SAUT`
+  un levier **horde pure**, `Db` restant identique à toutes ses valeurs.
+- **`mesureArmes` NE PREND AUCUNE CARTE, donc le banc d'armes est AVEUGLE aux sept
+  coefficients d'`ech`.** `appliquerEchelle` met à l'échelle ce que les **cartes**
+  donnent à `mods` ; sans carte, aucun `mods` ne bouge. Vérifié : `ech.degats` du
+  laser à **0, 1,2 et 5** rend des `Dh` et des `V` identiques à quatre décimales.
+  Conséquence : **`verifierEquilibreArmes` ne peut structurellement pas détecter
+  un déséquilibre d'échelle**, et un écart qu'il remonte ne vient jamais de là.
 - **La grille se refait quand une couverture cède** (`_obstacleHit`), et
   seulement là : la géométrie de biome ne bouge pas autrement.
 - **LA MASSE EST LA SURFACE** (`masseDe(r)` = `(r / 12)²`, bornée) et elle

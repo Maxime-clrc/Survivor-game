@@ -7399,6 +7399,56 @@
                   `LIGNES_MESURE` rend l ordre EXPLICITE : +3,7 min et les deux
                   grandeurs restaurees. L artefact aurait corrompu en silence toute
                   mesure de classe a venir.
+    0.32.3 lot 4  LE FAISCEAU ET L ARC TIRAIENT A TRAVERS LES MURS, ET C ETAIENT
+                  LES DEUX SEULS. Mesure sur les dix armes, mur plein entre le
+                  joueur et un mannequin : une balle meurt deja sur la couverture,
+                  une grenade y saute, une zone n en sort pas. Ce sont aussi les
+                  deux seules a ne pas lancer de PROJECTILE PHYSIQUE, donc les deux
+                  qui echappaient naturellement au test. Le perimetre se referme
+                  exactement sur elles — precision (portee 2,2) et railgun (1,8)
+                  etaient deja arretes. Mise en coherence, pas penalite neuve.
+                  `_vueCoupee` est le point de passage unique. SEGMENT CONTRE AABB
+                  PAR LES DALLES et non une marche a pas fixe : la plus petite
+                  cloison du depot fait 32 px, une marche assez large pour etre bon
+                  marche l enjambe. `droitPossible` ne convient pas non plus — il
+                  raisonne sur la grille de 40 px AVEC la marge d un CORPS, or un
+                  tir passe ou un corps ne passe pas.
+                  LA COUVERTURE DESTRUCTIBLE ENCAISSE (§3 du chantier tranche :
+                  oui). Ne pas l entamer rendrait un joueur a couvert invulnerable
+                  a ces deux armes la ou une balle perce le mur, et le tireur
+                  n aurait aucun retour sur ce qui a bloque.
+                  LE LASER PERD PLUS DE LA MOITIE DE SON DEPASSEMENT : +0,158 ->
+                  +0,072, a graines appariees, 6 x 15 min. C etait le levier que le
+                  chantier cherchait — sa perforation native infinie et gratuite —
+                  et il se borne SANS TOUCHER UN SEUL COEFFICIENT. Il reste
+                  au-dessus de sa cible.
+                  LA DETTE DU TESLA, PAYEE SUR UN LEVIER MESURE. Borner l arc lui
+                  coute 0,16 de V. Le SAUT est le seul levier HORDE PURE — contre
+                  une cible unique l arc n a nulle part ou sauter, et `Db` reste a
+                  74 pour toutes les valeurs, la ou la portee le fait monter a 89,
+                  ce qui la disqualifie. 220 -> 380 : V 0,858 -> 0,998, et aucune
+                  des neuf autres armes ne bouge d un millieme.
+                  LE PROTOCOLE SE CHOISIT AVANT LA VALEUR. A 3 graines x 10 min la
+                  courbe du saut etait NON MONOTONE — c etait du bruit ; a 6 x 15
+                  elle est monotone. Et les deux protocoles ne donnent pas la meme
+                  liste rouge : railgun et grenade sont hors tolerance a 3 x 10 et
+                  dedans a 6 x 15, la lame l inverse. Le defaut de
+                  `verifierEquilibreArmes(3, 10)` n est pas ce qu il mesure, c est
+                  COMBIEN.
+                  ET LE BANC D ARMES EST AVEUGLE AUX SEPT COEFFICIENTS D ECHELLE.
+                  `mesureArmes` ne gere ni `cardsPending` ni `takeCard` : le joueur
+                  du banc n a AUCUNE carte, or `appliquerEchelle` met a l echelle ce
+                  que les CARTES donnent a `mods`. Verifie : `ech.degats` du laser a
+                  0, a 1,2 et a 5 rend des `Dh` et des `V` IDENTIQUES A QUATRE
+                  DECIMALES. `verifierEquilibreArmes` ne peut donc pas detecter un
+                  desequilibre d echelle, et le levier que le chantier designait en
+                  premier pour le laser est inevaluable en l etat. La largeur du
+                  faisceau, son levier historique de 0.15.5, est inerte elle aussi
+                  — a la densite actuelle il couvre deja tout ce qui est dans son
+                  axe. Le laser reste a +0,072, levier non identifie : le rendre
+                  mesurable demande que le banc prenne des cartes, ce qui
+                  deplacerait toutes les valeurs de V enregistrees. Chantier de
+                  mesure, pas reglage.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7408,4 +7458,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.2";
+export const VERSION = "0.32.3";

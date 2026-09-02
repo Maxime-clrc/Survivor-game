@@ -52,7 +52,13 @@ export const ARME_CFG = {
   TESLA_REBONDS: 1,
   TESLA_PERTE: 0.30,
   // la distance de SAUT d'un rebond, pas la portee : celle-la vient de la table
-  TESLA_SAUT: 220,
+  /* 220 -> 380 : LA DETTE DE LA LIGNE DE VUE, PAYEE SUR UN LEVIER MESURE. Borner
+     l arc aux obstacles coute 0,16 de V au tesla ; le SAUT est le seul levier
+     HORDE PURE — contre une cible unique l arc n a nulle part ou sauter, et `Db`
+     reste a 74 pour TOUTES les valeurs essayees, la ou la portee le fait monter a
+     89. Courbe monotone a 6 graines x 15 min : 220 -> -0,162, 300 -> -0,082,
+     340 -> -0,074, 380 -> -0,022. Aucune des neuf autres armes ne bouge. */
+  TESLA_SAUT: 380,
   // sans cette marge, « ca ne peut pas rater » devient « ca rate tout le temps »
   TESLA_ACCROCHE: 40,
 
