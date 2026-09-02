@@ -155,7 +155,14 @@ export const ARMES = [
     resume: "un faisceau continu qui traverse une file entière et ne rate jamais",
     contrainte: "il chauffe, et se tait 1,5 s à saturation",
     exige: EXIGE(0, 0, 0, 1, 1),
-    ech: ECH(1.2, 0.4, 1.3, 0.2, 0.0, 0.0, 0.6),
+    /* SA CADENCE ETAIT A 0,4 ET IL N EN LIT AUCUNE. `_faisceauInterne` avance sur
+       `LASER_TICK` et ne touche jamais a `fireIntervalMul` : la seule arme a
+       intervalle NUL n a pas d intervalle a raccourcir, ce que `litCadence` dit
+       deja. Le coefficient promettait donc 40 % d un gain qui n arrive jamais —
+       quatre cartes mortes dans son offre, et un `powerIndex` qui montait sans
+       que rien ne monte. Zero est la seule valeur vraie, et c est la meme raison
+       qui met deja la perforation et le ricochet a zero ailleurs. */
+    ech: ECH(1.2, 0.0, 1.3, 0.2, 0.0, 0.0, 0.6),
   },
   {
     id: "tesla", nom: "Tesla", tir: "arc", axe: "visee",
@@ -307,7 +314,30 @@ export const litCanons = a => canonEffet(a) !== null;
    jamais pour l'interdire. */
 export const litCadence = a => a.interval > 0;
 export const litPerce = a => a.tir === "balle" && !a.perforeTout && !a.obus;
+/* DEUX SENS DE « REBOND », ET ILS NE PARTAGENT AUCUNE LIGNE DE CODE.
+   Ici c est le rebond SUR LE DECOR : `m.bounce` voyage sur la balle et se
+   resout contre les bornes et les obstacles. Il n existe donc que pour une arme
+   qui lance une balle, et pas pour un obus, qui est consomme au contact — pire,
+   `bounce` le fait REBONDIR sur le mur au lieu d exploser, donc la carte lui
+   retire son souffle.
+   L autre sens est le rebond ENTRE CIBLES : `mods.chain` pour une balle,
+   `ARME_CFG.TESLA_REBONDS` pour l arc. Le tesla porte le second et pas le
+   premier — c est pour ca que son `ech.ricochet` est a zero alors qu il est
+   l arme qui rebondit le plus. */
 export const litRebond = a => a.tir === "balle" && !a.obus;
+
+/* QUAND UN COEFFICIENT A ZERO EST UNE VERITE ET NON UN OUBLI. Une seule table,
+   lue par `verifierArmes` : la capacite decide, jamais un nom d axe. */
+const ZERO_LEGITIME = {
+  perforation: a => !litPerce(a),
+  /* MEME PREDICAT QUE `litRebond`, RAISON DIFFERENTE : le ricochet de l echelle
+     est le rebond ENTRE CIBLES (`mods.chain`), pas sur le decor. Les deux
+     exigent aujourd hui la meme chose — une balle qui SURVIT a son impact — donc
+     une seule fonction ; une arme dont l obus ricocherait sans exploser les
+     separerait, et c est le jour ou il faudra deux noms. */
+  ricochet: a => !litRebond(a),
+  cadence: a => !litCadence(a),
+};
 
 /* Ce que `extraBarrels` multiplie, arme par arme : `powerIndex()` et le panneau
    de stats lisent la MEME fonction que `_volley`, sinon les trois divergent. */
@@ -428,10 +458,12 @@ export function verifierArmes(cards = null, axesDeCarte = null) {
     for (const k of AXES) {
       const v = a.ech?.[k];
       if (typeof v !== "number") { out.push(`${a.id} : coefficient « ${k} » absent`); continue; }
-      // une carte a valeur nulle est un choix vide : seules la perforation et le
-      // ricochet ont le droit de tomber a zero — une arme sans projectile n'a ni
-      // file a traverser ni corps ou rebondir — et c'est ce qui rend le tableau reel
-      if (v === 0 && k !== "perforation" && k !== "ricochet") out.push(`${a.id} : « ${k} » à zéro`);
+      // une carte a valeur nulle est un choix vide : un coefficient ne tombe a
+      // zero que si l ARME n a pas la capacite — pas de projectile, donc ni file
+      // a traverser ni corps ou rebondir ; pas d intervalle, donc pas de cadence
+      // a raccourcir. L exemption se LIT sur la capacite au lieu de se declarer
+      // par une liste de noms, sinon la prochaine arme la rouvre en silence.
+      if (v === 0 && !ZERO_LEGITIME[k]?.(a)) out.push(`${a.id} : « ${k} » à zéro`);
       else if (v > 0 && v < 0.2) out.push(`${a.id} : « ${k} » sous 0,2 (${v})`);
     }
     for (const k of ["visee", "anticipation", "position", "ressource", "vulnerabilite"]) {

@@ -77,6 +77,41 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   et non un seuil — à 0,2 le joueur fait un choix informé et perdant, ce qui
   reste un choix. `every` et non `some` : une carte qui donne perforation **et**
   dégâts sert encore par ses dégâts. `poolThin()` se rejoue **arme par arme**.
+- **UNE CAPACITÉ N’EST PAS UN COEFFICIENT, et le tableau d’échelle ne sait dire
+  que le second.** Il rend un axe plus ou moins payant ; il ne sait pas dire
+  « cette arme ne lance pas de projectile ». Les cartes concernées sont justement
+  `horsEchelle` — leur effet ne passe par aucune clé d’`AXE_DE_CLEF` — donc le
+  filtre par axes ne peut pas les voir. `CAPACITE` (`cards.js`) est la table qui
+  les branche : une carte porte `exige: "<capacité>"`, `eligibleCards` interroge
+  le prédicat de l’arme. Trois capacités aujourd’hui : `canons`, `rebond`,
+  `cadence`.
+- **UNE EXIGENCE SE MESURE SUR LE CODE, JAMAIS SUR LA DESCRIPTION.**
+  « Bascule vive » parle de cadence et garde son instantanéité, donc elle n’en
+  porte pas. À l’inverse `echo`, `salveArriere`, `frenesie` et `adrenaline` passent
+  toutes par `_shoot`, gardé par `arme.interval > 0` : elles sont **mortes** sur le
+  faisceau, seule arme à intervalle nul, et rien ne le disait.
+- **DEUX SENS DE « REBOND », AUCUNE LIGNE DE CODE EN COMMUN.** Sur le **décor** :
+  `m.bounce` voyage sur la balle et se résout contre les bornes et les obstacles.
+  Entre **cibles** : `mods.chain` pour une balle, `ARME_CFG.TESLA_REBONDS` pour
+  l’arc. Le tesla porte le second et pas le premier — c’est pourquoi son
+  `ech.ricochet` est à zéro alors qu’il est l’arme qui rebondit le plus.
+  « Balles rebondissantes » était offerte aux **dix** armes : morte sur les quatre
+  sans projectile, et pire que morte sur l’**obus**, qu’elle fait rebondir sur le
+  mur au lieu d’exploser — donc elle retirait son souffle au siège.
+- **UN COEFFICIENT À ZÉRO EST UNE VÉRITÉ OU UN OUBLI, et `ZERO_LEGITIME` tranche
+  sur la capacité, jamais sur un nom d’axe.** La liste en dur « perforation et
+  ricochet » laissait passer le cas du laser : `ech.cadence` valait 0,4 pour la
+  seule arme à intervalle nul, qui n’en lit aucune. Le coefficient promettait
+  40 % d’un gain qui n’arrive jamais — quatre cartes mortes dans son offre, et un
+  `powerIndex` qui montait sans que rien ne monte.
+- **`rapportCarteArme(carte, arme)` rassemble les trois verrous** — famille d’arme,
+  exigence de capacité, axes d’échelle — écrits à trois endroits. Il ne **décide**
+  rien : `eligibleCards` reste le tirage. Outil de conception, pas une mécanique.
+  `verifierPools()` garde ce que les verrous produisent : une exigence inconnue,
+  une capacité que plus aucune carte n’exige ou que **toutes** les armes ont — donc
+  qui ne filtre rien —, et un pool tombé sous **80 %** de celui du tir standard,
+  qui ne filtre rien. Un verrou de plus vide le pool par le bas sans que rien ne
+  le dise.
 - **UN LEVIER OFFENSIF HORS DU TABLEAU EST INVISIBLE À L’ÉQUILIBRAGE PAR ARME**,
   et c’est par là qu’est passé « Second canon ». Toute carte `off` doit toucher
   un axe ou porter `horsEchelle: true` — une exemption **explicite**, le porteur

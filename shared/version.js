@@ -7625,6 +7625,51 @@
                   Et le lien lieu -> arme n est pas construit : ce qui est arbitre
                   est la CONTRAINTE du jour ou il le sera — fixer le lieu des
                   manches classees, l autre issue donnant 60 classements.
+    0.32.8 lot 9  UNE CAPACITE N EST PAS UN COEFFICIENT, ET LE TABLEAU D ECHELLE
+                  NE SAIT DIRE QUE LE SECOND. Il rend un axe plus ou moins payant ;
+                  il ne sait pas dire « cette arme ne lance pas de projectile ».
+                  Les cartes concernees sont justement `horsEchelle` — leur effet
+                  ne passe par aucune clef d `AXE_DE_CLEF` — donc le filtre par
+                  axes ne pouvait pas les voir. `CAPACITE` les branche : la carte
+                  porte `exige`, `eligibleCards` interroge le predicat de l arme.
+                  « BALLES REBONDISSANTES » ETAIT OFFERTE AUX DIX ARMES. Morte sur
+                  les quatre qui ne lancent pas de balle — `m.bounce` voyage sur le
+                  projectile — et PIRE QUE MORTE sur l obus du siege :
+                  `if (o && b.bounce > 0)` le fait rebondir sur l obstacle AU LIEU
+                  d exploser, donc la carte lui retire son souffle. `litRebond`
+                  disait deja tout cela depuis le debut, mais il ne servait qu a
+                  ponderer les BONUS AU SOL — jamais le tirage des cartes.
+                  DEUX SENS DE « REBOND », AUCUNE LIGNE EN COMMUN : sur le DECOR
+                  (`m.bounce`), et entre CIBLES (`mods.chain` pour une balle,
+                  `TESLA_REBONDS` pour l arc). Le tesla porte le second et pas le
+                  premier — c est pour ca que son `ech.ricochet` est a zero alors
+                  qu il est l arme qui rebondit le plus.
+                  LE LASER DECLARAIT 0,4 DE CADENCE ET N EN LIT AUCUNE.
+                  `_faisceauInterne` avance sur `LASER_TICK` et ne touche jamais a
+                  `fireIntervalMul` ; `_shoot` est garde par `arme.interval > 0`.
+                  Quatre cartes d echelle mortes dans son offre, plus echo, salve
+                  arriere, frenesie et adrenaline qui passent toutes par `_shoot` —
+                  neuf cartes, de 113 a 104. `ZERO_LEGITIME` remplace la liste en
+                  dur « perforation et ricochet » : l exemption se LIT sur la
+                  capacite, sinon la prochaine arme la rouvre en silence.
+                  PREMISSE ECARTEE : `ech.cadence` n est PAS la cause du +16 % du
+                  laser. `mesureArmes` joue SANS CARTES, donc `appliquerEchelle`
+                  n y intervient pas. Le coefficient ne reduisait que la
+                  DECLARATION ; l effet etait deja nul.
+                  `rapportCarteArme()` rassemble les trois verrous ecrits a trois
+                  endroits — famille d arme, exigence, axes — et ne DECIDE rien.
+                  `verifierPools()` garde ce qu ils produisent : une exigence
+                  inconnue, une capacite que plus aucune carte n exige ou que
+                  TOUTES les armes ont, et un pool sous 80 % de celui du tir
+                  standard. Le laser est le plus pauvre a 93 %.
+                  L EQUILIBRE DES ARMES A BOUGE ET PERSONNE NE L AVAIT REJOUE.
+                  Cinq armes hors tolerance : lame +21 (elle n etait pas dans le
+                  tableau du plan), laser +18, siege -13, dispersion -14,
+                  precision -5. Railgun et grenade sont RENTRES depuis. Le sens du
+                  deplacement suit le lot 5 — densite de mi-manche +17 %, donc les
+                  armes de zone montent et les cible-unique descendent. RIEN N EST
+                  CORRIGE ICI : ce lot porte sur la compatibilite, et la regle du
+                  plan est de mesurer le levier avant d y toucher.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7634,4 +7679,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.7";
+export const VERSION = "0.32.8";

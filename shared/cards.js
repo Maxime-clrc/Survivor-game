@@ -2,7 +2,7 @@
 import { nombre, ordinal, t, tf, tn } from "./i18n.js";
 import { fmtM } from "./units.js";
 import { RARITY_COLOR } from "./palette.js";
-import { ARME_BY_ID, ARME_CFG, ARME_DEFAUT, FAMILLES_D_ARME, armeAt, familleDeArme, litCanons } from "./armes.js";
+import { ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, FAMILLES_D_ARME, armeAt, familleDeArme, litCadence, litCanons, litRebond } from "./armes.js";
 
 export const RARITY = { COMMUNE: 0, RARE: 1, EPIQUE: 2, LEGENDAIRE: 3 };
 
@@ -539,7 +539,7 @@ export const CARDS = [
   {
     id: "secondCanon", nom: "Second canon", rarity: 1, max: 2, tags: ["off"],
     horsEchelle: true,
-    canons: true,
+    exige: "canons",
     desc: "+1 balle en éventail, −18 % de dégâts par balle",
     stack: n => tf("cards.secondCanon.stack", "+{0}, {1} par balle", { "0": plur(n, "balle"), "1": pctCut(0.82, n) }),
     apply(m, n) { m.extraBarrels += n; m.barrelDamageMul *= Math.pow(0.82, n); },
@@ -674,7 +674,7 @@ export const CARDS = [
     apply(m, n) { m.ragePerKill += CARD_CFG.RAGE_STEP * n; },
   },
   {
-    id: "adrenaline", nom: "Adrénaline", rarity: 0, max: 2, tags: ["off", "cadence"],
+    id: "adrenaline", nom: "Adrénaline", rarity: 0, max: 2, tags: ["off", "cadence"], exige: "cadence",
     horsEchelle: true,
     desc: "+25 % de cadence sous 50 % de PV",
     stack: n => pctAdd(CARD_CFG.ADRENALINE_RATE, n),
@@ -742,7 +742,7 @@ export const CARDS = [
     apply(m, n) { m.orbiters += 2 * n; },
   },
   {
-    id: "salveArriere", nom: "Salve arrière", rarity: 1, max: 1, tags: ["off"],
+    id: "salveArriere", nom: "Salve arrière", rarity: 1, max: 1, tags: ["off"], exige: "cadence",
     horsEchelle: true,
     desc: "chaque tir envoie aussi une balle à 180°, dégâts à 70 %",
     apply(m) { m.backShot = 1; },
@@ -832,7 +832,7 @@ export const CARDS = [
     apply(m) { m.guardianCd = CARD_CFG.GUARDIAN_CD; },
   },
   {
-    id: "frenesie", nom: "Frénésie", rarity: 2, max: 1, tags: ["off"],
+    id: "frenesie", nom: "Frénésie", rarity: 2, max: 1, tags: ["off"], exige: "cadence",
     horsEchelle: true,
     desc: "chaque kill donne +2 % de cadence, jusqu'à +60 %",
     apply(m) { m.frenzy = 1; },
@@ -929,8 +929,17 @@ export const CARDS = [
   },
 
   {
+    /* ELLE ETAIT OFFERTE AUX DIX ARMES, ET QUATRE N ONT PAS DE BALLE. `m.bounce`
+       voyage sur le projectile : le faisceau, l arc et le balayage n en lancent
+       aucun, la carte y est un choix mort. Sur l OBUS elle est pire que morte —
+       `bounce` le fait rebondir sur le mur AU LIEU d exploser, donc elle retire
+       son souffle au siege. `litRebond` disait deja tout cela, mais il ne servait
+       qu a ponderer les bonus au sol ; `exige` le branche sur le TIRAGE.
+       Elle est `horsEchelle`, donc le filtre par axes ne pouvait pas la voir :
+       `bounce` n a pas de clef dans `AXE_DE_CLEF` — c est une CAPACITE, pas un
+       coefficient. */
     id: "rebond", nom: "Balles rebondissantes", rarity: 1, max: 1, tags: ["off"],
-    horsEchelle: true,
+    horsEchelle: true, exige: "rebond",
     desc: "les balles rebondissent sur les bords, −25 % de dégâts par rebond",
     apply(m) { m.bounce = 1; },
   },
@@ -956,7 +965,7 @@ export const CARDS = [
   },
 
   {
-    id: "echo", nom: "Écho", rarity: 3, max: 1, tags: ["off"],
+    id: "echo", nom: "Écho", rarity: 3, max: 1, tags: ["off"], exige: "cadence",
     horsEchelle: true,
     desc: "20 % de chance que chaque balle soit tirée en double",
     apply(m) { m.echoChance = 0.2; },
@@ -2034,6 +2043,29 @@ export const POOL_MIN = 6;
 
 // `ctx` : { players, teamOwned:Set, systems:Set }. Absent, les trois filtres de
 // contexte laissent tout passer — un script de mesure n'a rien a construire.
+/* CE QU UNE CARTE EXIGE DE L ARME PORTEE, ET C EST UNE CAPACITE, PAS UN
+   COEFFICIENT. Le tableau d echelle ne sait rendre qu un axe plus ou moins
+   payant ; il ne sait pas dire « cette arme ne lance pas de projectile ». Les
+   cartes concernees sont justement `horsEchelle` — leur effet ne passe par
+   aucune clef d `AXE_DE_CLEF` —, donc le filtre par axes ne peut pas les voir.
+
+   `canons` : la penalite de `barrelDamageMul` est payee par TOUTES les armes,
+   le canon en plus ne sert qu a celles qui lancent quelque chose. Ailleurs la
+   carte est un malus pur, cumulable deux fois, et rien ne le dit a l ecran.
+   `rebond` : `m.bounce` voyage sur la balle. Sans projectile la carte ne fait
+   rien ; sur un obus elle le fait rebondir AU LIEU d exploser.
+   `cadence` : `_shoot` est garde par `arme.interval > 0`, donc tout ce qui
+   raccourcit l intervalle — echo, salve arriere, frenesie, adrenaline — est
+   mort sur le faisceau, seule arme a intervalle nul.
+
+   UNE EXIGENCE SE MESURE SUR LE CODE, JAMAIS SUR LA DESCRIPTION : `bascule_vive`
+   parle de cadence et garde son instantaneite, donc elle n en porte pas. */
+export const CAPACITE = {
+  canons: litCanons,
+  rebond: litRebond,
+  cadence: litCadence,
+};
+
 export function eligibleCards(owned, cls = null, levelNow = 0, locked = null, ctx = null) {
   const blocked = new Set();
   for (const id of owned.keys()) {
@@ -2057,10 +2089,7 @@ export function eligibleCards(owned, cls = null, levelNow = 0, locked = null, ct
        plancher `communes >= epiques x 1,5`, qui n a que 0,5 commune de marge. */
     if (c.family && FAMILLES_D_ARME.has(c.family) && c.family !== mienne
         && !(c.systeme && ctx?.systems?.has(c.systeme))) return false;
-    // la penalite de `barrelDamageMul` est payee par TOUTES les armes, le canon
-    // en plus ne sert qu'a celles qui tirent des balles unitaires : ailleurs la
-    // carte est un malus pur, cumulable deux fois, et rien ne le dit a l'ecran
-    if (c.canons && !litCanons(armeAt(ctx?.arme))) return false;
+    if (c.exige && !CAPACITE[c.exige](armeAt(ctx?.arme))) return false;
     // UNE CARTE A COEFFICIENT NUL NE RAPPORTE RIEN, et sur trois cartes offertes
     // en tirer une morte fait un choix a deux options sans le dire. `=== 0` et
     // non un seuil : a 0,2 le joueur fait un choix informe et perdant, ce qui
@@ -2411,6 +2440,98 @@ function comptePour(a, owned) {
     if ((c.family && a.familles.includes(c.family)) || a.graines.includes(id)) n++;
   }
   return n;
+}
+
+/* ------------------------------------------------------------------------
+   CE QU UNE CARTE VAUT SUR UNE ARME, EN CLAIR. 178 cartes x 10 armes ne se
+   relisent pas a la main, et les trois verrous qui decident — la famille
+   d arme, l exigence de capacite, les axes d echelle — sont ecrits a trois
+   endroits differents. Cette fonction est le seul endroit qui les rassemble,
+   et elle ne DECIDE rien : `eligibleCards` reste le tirage.
+   Outil de conception et de mise au point, pas une mecanique de jeu. */
+export function rapportCarteArme(carteId, armeId) {
+  const c = CARD_BY_ID.get(carteId);
+  const a = ARME_BY_ID.get(armeId);
+  if (!c || !a) return null;
+  const axes = axesDeCarte(c);
+  const ech = a.id === ARME_DEFAUT ? null : a.ech;
+  const morts = ech ? axes.filter(k => ech[k] === 0) : [];
+  const vifs = axes.filter(k => !morts.includes(k));
+  const raisons = [];
+
+  const mienne = familleDeArme(a.id);
+  if (c.family && FAMILLES_D_ARME.has(c.family) && c.family !== mienne) {
+    raisons.push(`famille « ${c.family} » : elle appartient a une autre arme`);
+  }
+  if (c.exige && CAPACITE[c.exige] && !CAPACITE[c.exige](a)) {
+    raisons.push(`capacite « ${c.exige} » absente de cette arme`);
+  }
+  if (ech && axes.length > 0 && vifs.length === 0) {
+    raisons.push(`axes [${axes}] tous a zero dans son tableau d echelle`);
+  }
+
+  return {
+    carte: c.id, arme: a.id,
+    applicable: raisons.length === 0,
+    raisons,
+    axes, vifs, morts,
+    // ce que l arme rend REELLEMENT de chaque axe touche par la carte
+    echelle: ech ? Object.fromEntries(axes.map(k => [k, ech[k]])) : null,
+    // une carte hors du tableau ne peut pas etre jugee par l echelle : son
+    // effet passe ailleurs, et c est exactement la que se cachent les choix
+    // morts que rien ne filtre.
+    horsEchelle: !!c.horsEchelle && axes.length === 0,
+  };
+}
+
+/* CE QUE LES TROIS VERROUS PRODUISENT, VU DE L ARME. Un verrou de plus retire
+   des cartes a une arme sans que rien ne le dise : le pool se vide par le bas,
+   et le joueur voit trois fois la meme offre avant que quiconque s en apercoive.
+   Le plancher est RELATIF au tir standard, qui ne filtre rien — mesure au lot 9 :
+   le laser est le plus pauvre a 104 contre 112, soit 93 %. */
+export const POOL_PART_MIN = 0.8;
+export function verifierPools() {
+  const soucis = [];
+  for (const c of CARDS) {
+    if (c.exige && !CAPACITE[c.exige]) {
+      soucis.push(`carte « ${c.id} » : exigence « ${c.exige} » absente de CAPACITE`);
+    }
+  }
+  for (const cle of Object.keys(CAPACITE)) {
+    if (!CARDS.some(c => c.exige === cle)) {
+      soucis.push(`capacite « ${cle} » : aucune carte ne l exige`);
+    }
+    if (ARMES.every(a => CAPACITE[cle](a))) {
+      soucis.push(`capacite « ${cle} » : toutes les armes l ont, elle ne filtre rien`);
+    }
+  }
+
+  const vide = new Map();
+  const pool = id => eligibleCards(vide, "dps", 1, null,
+    { arme: id, systems: new Set() });
+  const parRarete = p => [0, 1, 2, 3].map(r => p.filter(c => c.rarity === r).length);
+  const ref = pool(ARME_DEFAUT);
+  const refRar = parRarete(ref);
+  for (const a of ARMES) {
+    if (a.id === ARME_DEFAUT) continue;
+    const p = pool(a.id);
+    if (p.length < ref.length * POOL_PART_MIN) {
+      soucis.push(`${a.id} : ${p.length} cartes tirables pour ${ref.length} au tir standard`
+        + ` (${Math.round(p.length / ref.length * 100)} %, plancher ${Math.round(POOL_PART_MIN * 100)} %)`);
+    }
+    /* ET RARETE PAR RARETE, parce que c est la que le tirage se joue : une offre
+       se compose par PALIER, et `_poolWarn()` journalise deja quand un palier
+       tombe court. Un verrou qui ne toucherait que les legendaires viderait le
+       haut du catalogue sans bouger le total. */
+    const rar = parRarete(p);
+    for (let r = 0; r < rar.length; r++) {
+      if (refRar[r] > 0 && rar[r] < refRar[r] * POOL_PART_MIN) {
+        soucis.push(`${a.id} : ${rar[r]} cartes de rarete ${r} pour ${refRar[r]}`
+          + ` au tir standard (${Math.round(rar[r] / refRar[r] * 100)} %)`);
+      }
+    }
+  }
+  return soucis;
 }
 
 /* L ARCHETYPE ENGAGE, ou `null`. Le PLUS FOURNI gagne, et a egalite le premier

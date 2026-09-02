@@ -4056,6 +4056,64 @@ aucun segment qui perde plus d'un battement en solo, et la pression effective
 croissante. **Vert sur les trois scripts.**
 
 
+### Compatibilité carte × arme (plan 29, lot 09)
+
+#### Les cartes mortes que rien ne filtrait
+
+Pool tirable par arme, build vide, niveau 1, classe dps :
+
+| arme | avant | après | ce qu’elle perd |
+|---|---:|---:|---|
+| standard | 112 | 112 | — |
+| assaut | 116 | 116 | — |
+| **laser** | 113 | **104** | 4 cartes de cadence, rebond, écho, salve arrière, frénésie, adrénaline |
+| tesla | 113 | 112 | rebond |
+| lame | 112 | 111 | rebond |
+| dispersion | 116 | 116 | — |
+| railgun | 114 | 114 | — |
+| grenade | 113 | 112 | rebond |
+| siège | 113 | 112 | rebond |
+| précision | 116 | 116 | — |
+
+Le plus pauvre est le laser à **93 %** du pool du tir standard, d’où le plancher
+de `verifierPools()` à 80 % : un verrou de plus vide le pool par le bas sans que
+rien ne le dise.
+
+« Balles rebondissantes » était offerte aux **dix** armes. Elle est morte sur les
+quatre qui ne lancent pas de balle, et **nuisible** sur l’obus du siège :
+`if (o && b.bounce > 0)` le fait rebondir sur l’obstacle au lieu d’exploser.
+
+#### Équilibre des armes, rejoué (3 manches × 10 min, `mesureArmes`)
+
+Tolérance 0,05. **Cette mesure se fait sans cartes** — c’est ce qui réfute
+l’hypothèse du chantier, qui voyait dans `ech.cadence` du laser la cause de son
+dépassement : `appliquerEchelle` n’y intervient pas.
+
+| arme | délivré | cible | écart | v0.31.8 (plan) |
+|---|---:|---:|---:|---:|
+| **lame** | 123 % | 102 % | **+21** | absente du tableau |
+| **laser** | 124 % | 106 % | **+18** | +16 |
+| assaut | 110 % | 108 % | +2 | — |
+| standard | 100 % | 100 % | 0 | — |
+| railgun | 108 % | 110 % | −2 | −15 |
+| grenade | 102 % | 104 % | −2 | −12 |
+| tesla | 99 % | 102 % | −3 | — |
+| précision | 101 % | 106 % | −5 | −7 |
+| **siège** | 93 % | 106 % | **−13** | −10 |
+| **dispersion** | 92 % | 106 % | **−14** | −9 |
+
+**Cinq armes hors tolérance, et le tableau a bougé depuis le plan.** Railgun et
+grenade sont rentrés ; la **lame** est sortie, à +21. Le sens du déplacement est
+cohérent avec le lot 05 (densité de mi-manche +17 %) : les armes de zone montent,
+les armes à cible unique descendent. Personne n’avait rejoué la mesure après.
+**Rien n’est corrigé ici** — le chantier 04 porte sur la compatibilité, pas sur
+l’équilibrage, et la règle du plan est de mesurer le levier avant d’y toucher.
+
+Reste un défaut connu et non traité : `ballesLourdes` (+35 % de dégâts, −20 % de
+cadence) est un **bonus pur** pour le laser, qui ne lit pas la cadence. C’était
+déjà vrai avant ce lot — `ech.cadence` à 0,4 ne réduisait que la déclaration, pas
+l’effet, qui était déjà nul.
+
 ### Les armes, banc d'essai (plan 11, lot 02 — tranche de quatre)
 
 **Banc, pas manche.** Le spawner, l'horloge de vague et le crédit d'expérience
