@@ -291,6 +291,12 @@ export const CFG = {
   SWEEP_STACK_GRACE: 18,
   BOSS_SUMMON_BASE: 4,
   BOSS_ADD_CAP_BASE: 42,
+  /* CE QUE LA HORDE RATTRAPE APRES UN BOSS. Le combat la laisse a zero et elle met
+     158 s (solo) a retrouver la moitie du plafond ; sur cinq boss, c est la moitie
+     de la manche passee a remonter. Majoration du TAUX pendant la remontee, et
+     seulement pendant elle — le regime permanent ne bouge pas. */
+  BOSS_REPRISE_TIME: 45,
+  BOSS_REPRISE_MUL: 3,
   BOSS_SWEEP_R: 1000,
 
   BOSS_BARS: 5,
@@ -799,6 +805,8 @@ export class GameState {
     this.slow = 0;
     this.slipT = 0;
     this.repriseGrace = 0;
+    // la fenetre de rattrapage de horde qui suit la mort d un boss
+    this.repriseT = 0;
     this.boss = null;
     /* CE QUE CETTE MANCHE A MONTRE. Un Set par partie, replie dans le profil a
        la fin par `awardRun` — le hub reste seul a ecrire dans le magasin.
@@ -1229,6 +1237,7 @@ export class GameState {
     this.slow = Math.max(0, this.slow - dt);
     this.slipT = Math.max(0, this.slipT - dt);
     this.repriseGrace = Math.max(0, this.repriseGrace - dt);
+    this.repriseT = Math.max(0, this.repriseT - dt);
     this._arena(dt);
     this._players(dt, inputs);
     this._statuses(dt);
@@ -3926,7 +3935,8 @@ export class GameState {
       * (ev ? ev.rateMul : 1)
       * Math.pow(crowd, CFG.WAVE_CROWD_EXP)
       * (1 + CFG.WAVE_RATE_POWER_K * (this._teamPower() - 1))
-      * this.diff.spawn;
+      * this.diff.spawn
+      * (this.repriseT > 0 ? CFG.BOSS_REPRISE_MUL : 1);
 
     this.eliteCd -= dt;
     let eliteDue = this.eliteCd <= 0;
@@ -8686,6 +8696,12 @@ export class GameState {
     if (this.boss && !final) this._merchantDue();
 
     if (final) this.finalDone = true;
+    /* LA REPRISE. Le boss ne coupe pas seulement la horde pendant le combat : il
+       la laisse a ZERO en partant, et elle met plus de deux minutes a retrouver la
+       moitie du plafond — mesure solo, 158 s. Sur une manche de trente minutes qui
+       compte cinq boss, c est la moitie du temps passee a remonter une pente.
+       On majore donc le taux le temps de la remontee, et SEULEMENT ce temps. */
+    this.repriseT = CFG.BOSS_REPRISE_TIME;
     this.boss = null;
     this.boss2 = null;
     this.shots = [];

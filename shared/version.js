@@ -7449,6 +7449,49 @@
                   mesurable demande que le banc prenne des cartes, ce qui
                   deplacerait toutes les valeurs de V enregistrees. Chantier de
                   mesure, pas reglage.
+    0.32.4 lot 5  LE GOULOT DE LA HORDE N EST NI LE PLAFOND, NI LE TAUX, NI LES
+                  ARMES — et le levier que le chantier proposait en P0 se retourne
+                  contre son propre objectif. Mesure : les armes retirent 0 % de la
+                  population passe la minute 10, et sur 300 s ininterrompues la
+                  horde SATURE son plafond. Le goulot est le TEMPS DE HORDE
+                  ININTERROMPU.
+                  AJOUTER DE LA HORDE PENDANT UN BOSS EST AUTO-DESTRUCTEUR. Le tir
+                  se disperse, le boss meurt plus lentement, la part du temps passee
+                  en boss monte — donc l exposition TOTALE a la horde BAISSE. A
+                  toutes les doses essayees (taux 0,20 a 0,50, plafond 60 a 100),
+                  `hors boss` chute de 81 a 40-55 corps et la part de boss passe de
+                  17 % a 35-67 %. C1 N EST PAS LIVRE : le plafond de boss reste a
+                  42 et le spawner reste coupe pendant un combat. Le risque de
+                  second ordre que le chantier demandait d evaluer avant n etait pas
+                  celui qu il annoncait — ce n est pas le Rempart qui devient fort,
+                  c est le RYTHME qui casse.
+                  LE LEVIER QUI TIENT EST LA REPRISE. Un boss laisse la horde a zero
+                  en partant et elle met 158 s (solo) a retrouver la moitie du
+                  plafond ; sur cinq boss, c est la moitie de la manche passee a
+                  remonter une pente. `BOSS_REPRISE_TIME` x `BOSS_REPRISE_MUL` —
+                  45 s a taux triple APRES la mort du boss, et seulement la. Le
+                  regime permanent ne bouge pas, le combat de boss non plus.
+                  Solo : population hors boss 39 % -> 54 % du plafond (seuil 50),
+                  chute resorbee en 25 s au lieu de 148 (seuil 60). Les DEUX
+                  criteres d acceptation du chantier sont tenus. Part du temps en
+                  boss inchangee : 33 % contre 34 %.
+                  A QUATRE JOUEURS SEUL LE CRITERE DE REPRISE EST TENU (jamais ->
+                  31 s). La population y reste a 10 % du plafond, et elle y est DEJA
+                  hors boss chez le temoin (7 %) : le plafond suit `joueurs^0,75`
+                  mais la vitesse de nettoyage d une equipe monte plus vite. C est
+                  une question de taux nominal PAR EFFECTIF, hors du perimetre de ce
+                  lot — le chantier interdisait d y toucher sans preuve, la preuve
+                  existe maintenant.
+                  DEUX PIEGES DE MESURE PAYES, ET LES DEUX ONT FAILLI FAIRE
+                  CONCLURE FAUX. La graine de `GameState` ne seme que le BIOME : les
+                  tirages de cartes, les types d ennemi et la cadence d elite passent
+                  par `Math.random`, global et non seme. Deux campagnes du MEME code
+                  ont rendu 28 % puis 50 % de temps en boss. Et le compteur d abri
+                  sous le feu de `verifierMecaniques` est un NOMBRE D IMAGES, pas un
+                  taux : a deux manches il a rendu 1, 2, 3, 12 puis 18 sans suivre
+                  la dose. A six manches la reponse est nette et INVERSE de l alarme
+                  — 39 images sans reprise contre 18 avec. La rampe AMELIORE la
+                  garantie d abri au lieu de la degrader.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7458,4 +7501,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.3";
+export const VERSION = "0.32.4";

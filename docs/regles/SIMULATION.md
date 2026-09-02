@@ -170,6 +170,40 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   laser à **0, 1,2 et 5** rend des `Dh` et des `V` identiques à quatre décimales.
   Conséquence : **`verifierEquilibreArmes` ne peut structurellement pas détecter
   un déséquilibre d'échelle**, et un écart qu'il remonte ne vient jamais de là.
+- **LE GOULOT DE LA HORDE N'EST NI LE PLAFOND, NI LE TAUX, NI LES ARMES.** Mesuré :
+  les armes retirent **0 %** de la population passé la minute 10 (les courbes avec
+  et sans tir sont superposées), et sur 300 s ininterrompues la horde **sature**
+  son plafond de 220. Les trois pistes des briefs — monter `MAX_ENEMIES_*`,
+  nerfer les armes, monter le taux nominal — sont écartées **par la mesure**. Le
+  goulot est le **temps de horde ininterrompu**.
+- **AJOUTER DE LA HORDE PENDANT UN BOSS EST AUTO-DESTRUCTEUR, et c'est mesuré.**
+  Le tir se disperse, le boss meurt plus lentement, la part du temps passée en
+  boss monte — donc l'exposition **totale** à la horde **baisse**. À toutes les
+  doses essayées (taux 0,20 à 0,50, plafond 60 à 100), `hors boss` chute de 81 à
+  40-55 corps et la part de boss passe de 17 % à 35-67 %. Le levier proposé par le
+  chantier se retourne contre son propre objectif.
+- **Le levier qui marche est la REPRISE, pas le combat.** Un boss laisse la horde
+  à zéro en partant et elle met **158 s** (solo) à retrouver la moitié du plafond ;
+  sur cinq boss, c'est la moitié de la manche passée à remonter une pente. Le taux
+  est majoré `BOSS_REPRISE_MUL` fois pendant `BOSS_REPRISE_TIME` **après** la mort
+  du boss, et seulement là — le régime permanent ne bouge pas, et le combat de
+  boss reste un combat de positionnement.
+- **UN COMPTE NE SE COMPARE QU'À ÉCHANTILLONNAGE ÉGAL.** Le compteur d'abri sous
+  le feu de `verifierMecaniques` est un **nombre d'images**, pas un taux : il
+  grandit avec le nombre de manches. À deux manches il a rendu 1, 2, 3, 12 puis 18
+  **sans suivre la dose** ; à six, la réponse est nette et **inverse** de l'alarme
+  — 39 images sans reprise contre 18 avec. Une garantie qu'on arbitre sur un
+  échantillon trop court arbitre le bruit.
+- **UNE MESURE DE POPULATION EST APPARIÉE OU ELLE N'EST RIEN.** La graine de
+  `GameState` ne sème que le **biome** : les tirages de cartes, les types d'ennemi
+  et la cadence d'élite passent par `Math.random`, global et non semé. Sans le
+  semer, deux campagnes du **même code** ont rendu 28 % et 50 % de temps en boss.
+  Tout banc qui compare deux états doit remplacer `Math.random` lui-même.
+- **Le critère de population n'est pas atteignable à quatre joueurs par ce
+  levier** : le plafond suit `joueurs^0,75` mais la vitesse de nettoyage d'une
+  équipe monte plus vite, donc la horde y vit à 7-10 % de son plafond **même hors
+  boss**. La reprise, elle, passe de « jamais » à 31 s. C'est une question de
+  taux nominal **par effectif**, pas de reprise.
 - **La grille se refait quand une couverture cède** (`_obstacleHit`), et
   seulement là : la géométrie de biome ne bouge pas autrement.
 - **LA MASSE EST LA SURFACE** (`masseDe(r)` = `(r / 12)²`, bornée) et elle

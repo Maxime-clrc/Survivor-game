@@ -3845,6 +3845,103 @@ toutes les valeurs de V déjà enregistrées. C'est un chantier de mesure, pas u
 réglage.
 
 
+### La horde, le boss et la reprise (plan 29, lot 05)
+
+#### Les prémisses, reproduites sur base propre
+
+`sim/pop5.mjs`, solo normal, plafond 220, fenêtre 45 s :
+
+| minute | 1 | 5 | 10 | 15 | 20 | 25 | 30 |
+|---|---|---|---|---|---|---|---|
+| sans tir | 28 | 44 | 63 | 69 | 94 | 107 | 107 |
+| avec tir | 25 | 44 | 63 | 69 | 93 | 107 | 107 |
+| part retirée par les armes | 10 % | **0 %** | **0 %** | **0 %** | 1 % | **0 %** | **0 %** |
+
+Et le plafond de boss vaut **19 % du plafond de horde à tous les effectifs**
+(42/220 solo, 71/370 à deux, 119/622 à quatre). M2 et M3 confirmés.
+
+#### C1 — ajouter de la horde pendant un boss se retourne contre son objectif
+
+Banc : vraie manche, 30 min, bots immortels, 3 graines **appariées**, population
+relevée séparément pendant et hors boss.
+
+| dose (taux / plafond) | j | hors boss | % cap | pendant boss | % cap | part du temps en boss |
+|---|---:|---:|---:|---:|---:|---:|
+| **témoin** 0 / 42 | 1 | **81** | 37 % | 2 | 1 % | **17 %** |
+| 0,20 / 60 | 1 | 48 | 22 % | 9 | 4 % | 35 % |
+| 0,35 / 80 | 1 | 40 | 18 % | 39 | 18 % | 51 % |
+| 0,50 / 100 | 1 | 55 | 25 % | 62 | 28 % | **67 %** |
+| témoin 0 / 42 | 4 | 53 | 9 % | 3 | 0 % | 19 % |
+| 0,50 / 100 | 4 | 32 | 5 % | 19 | 3 % | 54 % |
+
+**Le mécanisme est direct** : le tir se disperse, le boss meurt plus lentement, la
+part du temps passée en boss monte — donc l'exposition **totale** à la horde
+**baisse**. À toutes les doses, `hors boss` chute. Le levier que le chantier
+proposait en P0 est **réfuté par sa propre mesure**, et le risque de second ordre
+qu'il demandait d'évaluer avant n'était pas celui qu'il annonçait : ce n'est pas
+le Rempart qui devient fort, c'est le **rythme** qui casse.
+
+**C1 n'est donc pas livré.** Le plafond de boss reste à 42, le spawner reste coupé
+pendant un combat.
+
+#### C2 — la reprise, elle, tient
+
+Un boss laisse la horde à zéro en partant et elle met **158 s** (solo) à retrouver
+la moitié du plafond. Sur cinq boss, c'est la moitié de la manche passée à remonter.
+
+| reprise | j | hors boss | % cap | part boss | reprise à 50 % |
+|---|---:|---:|---:|---:|---:|
+| témoin (aucune) | 1 | 86 | 39 % | 34 % | **148 s** |
+| 45 s × 2 | 1 | 80 | 36 % | 28 % | 124 s |
+| **45 s × 3** | 1 | **120** | **54 %** | 33 % | **25 s** |
+| 60 s × 4 | 1 | 111 | 50 % | 15 % | 17 s |
+| témoin | 4 | 45 | 7 % | 17 % | **jamais** |
+| 45 s × 2 | 4 | 63 | 10 % | 17 % | 179 s |
+| **45 s × 3** | 4 | 62 | 10 % | 19 % | **31 s** |
+
+**Retenu : 45 s × 3.** En solo les **deux** critères d'acceptation du chantier sont
+tenus — population hors boss à 54 % du plafond (seuil 50 %) et chute résorbée en
+25 s (seuil 60 s). Et la part du temps passée en boss ne bouge pas (33 % contre
+34 %) : on ne touche pas au combat.
+
+**À quatre joueurs, seul le critère de reprise est tenu** (« jamais » → 31 s). La
+population reste à 10 % du plafond, et elle y est **déjà hors boss chez le témoin**
+(7 %) : le plafond suit `joueurs^0,75` mais la vitesse de nettoyage d'une équipe
+monte plus vite. C'est une question de **taux nominal par effectif**, pas de
+reprise — hors du périmètre de ce lot, et le chantier interdit d'y toucher sans
+preuve. La preuve existe maintenant.
+
+#### La garantie d'abri : mesurée, et l'alarme était à l'envers
+
+Le chantier demande de vérifier `verifierMecaniques` avant et après, « et pas
+seulement le confort visuel ». À **deux** manches, le compteur d'abri sous le feu
+a rendu 1, puis 2, puis 3, puis 12, puis 18 images selon les passages — **sans
+suivre la dose**, et 3 images pour la configuration *sans* rampe qui en avait
+rendu 1 au passage précédent. C'est un **compte**, pas un taux : il grandit avec
+le nombre de manches, donc il ne se compare qu'à échantillonnage égal, et deux
+manches n'en donnent pas assez.
+
+À **six** manches sur l'effectif qui le fait rougir :
+
+| état | abri sous le feu, 4 joueurs |
+|---|---:|
+| aucune reprise *(dépôt)* | **39 images** |
+| 45 s × 3 | **18 images** |
+
+**La rampe améliore la garantie au lieu de la dégrader.** L'alarme lue à deux
+manches (3 → 12) pointait dans le sens exactement inverse du résultat.
+
+
+#### Le piège payé : une mesure de population non appariée ne mesure rien
+
+La graine de `GameState` ne sème que le **biome**. Les tirages de cartes, les
+types d'ennemi et la cadence d'élite passent par `Math.random`, global et **non
+semé**. Deux campagnes du **même code** ont rendu **28 %** puis **50 %** de temps
+passé en boss — et la première version de ce lot en avait conclu que C1 faisait
+passer la part de boss de 28 à 78 %. Après avoir semé `Math.random` dans le banc,
+le vrai chiffre est 17 % → 67 %. La conclusion tient, le chiffre était faux.
+
+
 ### Les armes, banc d'essai (plan 11, lot 02 — tranche de quatre)
 
 **Banc, pas manche.** Le spawner, l'horloge de vague et le crédit d'expérience
