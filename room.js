@@ -7,7 +7,7 @@ import { VERSION } from "./shared/version.js";
 import { segmentName } from "./shared/timeline.js";
 import { RELIC_CFG } from "./shared/reliques.js";
 import { CLASSES, CLASS_DEFAULT, bombRange } from "./shared/classes.js";
-import { armesOuvertes, cadreActifDe, lockedCards, lockedRelics, metaLinesFor } from "./shared/progression.js";
+import { armesOuvertes, cadreActifDe, lockedCards, lockedRelics, metaActives, metaLinesFor } from "./shared/progression.js";
 import { ARMES, ARME_CFG, ARME_DEFAUT } from "./shared/armes.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
@@ -22,10 +22,10 @@ import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 const BANC = process.env.BANC === "1";
 const BANC_POP_MAX = 300;
 
-const rerollsFor = profile => {
-  const cf = profile?.confort ?? [];
-  return (cf.includes("relance") ? 1 : 0) + (cf.includes("relance2") ? 1 : 0);
-};
+// LE CONFORT ACTIF, PAS LE CONFORT ACHETE : depuis le budget de doctrine les deux
+// ne sont plus la meme liste, et `metaLinesFor` est le seul a le savoir.
+const rerollsFor = confort =>
+  (confort?.relance ? 1 : 0) + (confort?.relance2 ? 1 : 0);
 
 export const PHASE_LOBBY = 0;
 export const PHASE_ROUND = 1;
@@ -147,7 +147,9 @@ export class Room {
         meta: this.clients.get(p.id)?.profile
           ? { noyaux: this.clients.get(p.id).profile.cores ?? 0,
               jalons: (this.clients.get(p.id).profile.milestones ?? []).length,
-              confort: [...(this.clients.get(p.id).profile.confort ?? [])] }
+              // CE QUI ETAIT ACTIF, pas ce qui etait paye : depuis le budget de
+              // doctrine, la liste des achats ne decrit plus la manche.
+              doctrine: [...metaActives(this.clients.get(p.id).profile)] }
           : null,
       })),
     });
@@ -835,16 +837,15 @@ export class Room {
       c.ready = false;
       c.briefDone = false;
       let meta = null;
+      let confortActif = null;
       if (c.profile) {
         const clsId = CLASSES[c.cls].id;
-        const { lines, commun } = metaLinesFor(c.profile, clsId);
+        const { lines, commun, confort } = metaLinesFor(c.profile, clsId);
+        confortActif = confort;
         meta = {
           lines,
           commun,
-          confort: {
-            ravitaillement: c.profile.confort.includes("ravitaillement") ? 1 : 0,
-            quatrieme: c.profile.confort.includes("quatrieme") ? 1 : 0,
-          },
+          confort,
           /* Les bans sont PAR MANCHE : ils vivent dans `p.locked` du GameState
              et meurent avec lui, le profil n'entre plus dans le filtre. Ce que
              le profil apporte ici, ce sont les VERROUS DE HAUT FAIT — cartes
@@ -853,7 +854,7 @@ export class Room {
           lockedRelics: lockedRelics(c.profile),
         };
       }
-      c.rerollLeft = rerollsFor(c.profile);
+      c.rerollLeft = rerollsFor(confortActif);
       c.lastFinal = null;
       c.armeOffres = this.offreArmes(c);
       c.armeRelances = 0;

@@ -10,7 +10,7 @@ import { biomeNom, biomeResume } from "/shared/biomes.js";
 import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from "/shared/i18n.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
 import { ENEMY_TYPES, enemyLore, enemyNom, roleDe } from "/shared/enemies.js";
-import { COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, slotsFor, tierCost, vueStats } from "/shared/progression.js";
+import { COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, metaActives, metaCharge, metaPoids, slotsFor, tierCost, vueStats } from "/shared/progression.js";
 import { ARME_CFG, armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
 import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
 import { appliquerCadre } from "./cadres.js";
@@ -1398,6 +1398,29 @@ export function renderMeta(clsOverride) {
   const equipped = cp.equipped ?? [];
 
   menuTitleEl.textContent = tf("ui.meta.title", "Arbre du {cls}", { cls: classNom(cdef) });
+
+  /* UN JOUEUR QUI PERD DES LIGNES ACTIVES SANS EXPLICATION LIT UN NERF, pas un
+     choix rendu. Le bandeau vit le temps d une lecture : le serveur ferme le
+     drapeau, donc il ne revient pas a la connexion suivante. */
+  if (pr.avisMeta) {
+    let avis = document.getElementById("metaAvis");
+    if (!avis) {
+      avis = document.createElement("div");
+      avis.id = "metaAvis";
+      metaEl.insertBefore(avis, metaEl.firstChild);
+    }
+    avis.textContent = tf("ui.meta.avis",
+      "Deux bornes arrivent : {n} emplacements de classe, et {b} points de doctrine"
+      + " partagés par les communes et le confort. Rien n'est perdu — tes paliers"
+      + " restent payés, à toi de choisir lesquels porter.",
+      { n: slots, b: PROG_CFG.META_BUDGET });
+    avis.onclick = () => {
+      avis.remove();
+      ws.send(JSON.stringify({ t: "metaAvisVu" }));
+    };
+  } else {
+    document.getElementById("metaAvis")?.remove();
+  }
   metaCoresEl.textContent = tf("ui.meta.cores", "{n} noyaux", { n: pr.cores });
 
   metaClassTabsEl.innerHTML = "";
@@ -1424,7 +1447,13 @@ export function renderMeta(clsOverride) {
         { n: PROG_CFG.SLOTS_BOSSES, a: Math.min(bosses, PROG_CFG.SLOTS_BOSSES) }))
     + ` · ` + escapeHtml(tf("ui.meta.slots.parties", "{n} parties ({a}/{n})",
         { n: PROG_CFG.SLOTS_RUNS, a: Math.min(pr.runs ?? 0, PROG_CFG.SLOTS_RUNS) }))
-    + `</small>`;
+    + `</small>`
+    /* LE BUDGET SE LIT A COTE DES EMPLACEMENTS, parce que c est la meme question
+       posee deux fois : ce que je possede n est pas ce que j emporte. */
+    + `<br><b>` + escapeHtml(tf("ui.meta.doctrine", "Doctrine {n} / {tot}",
+        { n: metaCharge([...metaActives(pr)], pr), tot: PROG_CFG.META_BUDGET })) + `</b> `
+    + escapeHtml(t("ui.meta.doctrine.sur",
+        "points partagés par les lignes communes et le confort — le poids de chacun est sur sa carte"));
 
   metaTreeEl.hidden = metaTab !== "arbre";
   metaConfortEl.hidden = metaTab !== "confort";
@@ -1435,7 +1464,7 @@ export function renderMeta(clsOverride) {
     ? tf("ui.meta.sub.arbre", "arbre du {cls} — l'effet affiché est le TOTAL possédé",
         { cls: classNom(cdef) })
     : t("ui.meta.sub.confort",
-        "confort et lignes communes : aucun emplacement consommé, valent pour les trois classes");
+        "confort et lignes communes : un budget de doctrine partagé, valable pour les trois classes");
 
   metaTreeEl.innerHTML = "";
   for (const line of TREES[clsId] ?? []) {
@@ -1447,7 +1476,7 @@ export function renderMeta(clsOverride) {
     row.className = "metaLine"
       + (isEquipped ? " equipped" : n > 0 ? " owned" : " locked");
     row.innerHTML =
-      `<span class="metaName">${escapeHtml(ligneNom(line))}</span>` +
+      `<span class="metaName">${escapeHtml(ligneNom(line))}${badgePoids(line.id)}</span>` +
       `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
       `<span class="metaDesc">${escapeHtml(n > 0 ? line.desc(n)
         : tf("ui.meta.parPalier", "{txt} par palier", { txt: line.desc(1) }))}</span>`;
@@ -1479,13 +1508,42 @@ export function renderMeta(clsOverride) {
   }
 
   metaConfortEl.innerHTML = "";
+  const actives = metaActives(pr);
+  const charge = metaCharge([...actives], pr);
+
+  /* LE POIDS EST SUR LA CARTE, pas dans une bulle d'aide : le compromis doit se
+     voir AVANT l'achat, pas se découvrir après. */
+  const badgePoids = id =>
+    `<i class="metaPoids" title="${escapeHtml(tf("ui.meta.poids",
+      "pèse {n} sur les {tot} points de doctrine",
+      { n: metaPoids(id, pr), tot: PROG_CFG.META_BUDGET }))}">${metaPoids(id, pr)}</i>`;
+
+  const boutonDoctrine = id => {
+    const on = actives.has(id);
+    const b = document.createElement("button");
+    b.className = "metaEquip" + (on ? " on" : "");
+    b.textContent = on
+      ? t("ui.meta.equipped", "équipée")
+      : t("ui.meta.equip", "équiper");
+    b.disabled = phase !== PHASE_LOBBY
+      || (!on && charge + metaPoids(id, pr) > PROG_CFG.META_BUDGET);
+    b.onclick = () => {
+      // on repart de ce que le SERVEUR applique, pas de ce que le profil porte :
+      // un identifiant tombé hors budget ne doit pas revenir par la porte
+      const reste = [...actives].filter(x => x !== id);
+      ws.send(JSON.stringify({ t: "metaEquipes", ids: on ? reste : [...reste, id] }));
+    };
+    return b;
+  };
+
   for (const cf of CONFORT) {
     const owned = (pr.confort ?? []).includes(cf.id);
     const cost = PROG_CFG.CONFORT_COSTS[cf.id];
     const row = document.createElement("div");
-    row.className = "metaLine confort";
+    row.className = "metaLine confort"
+      + (owned && !actives.has(cf.id) ? " coupee" : "");
     row.innerHTML =
-      `<span class="metaName">${escapeHtml(confortNom(cf.id))}</span>` +
+      `<span class="metaName">${escapeHtml(confortNom(cf.id))}${badgePoids(cf.id)}</span>` +
       `<span class="metaDesc">${escapeHtml(confortDesc(cf.id))}</span>`;
     const b = document.createElement("button");
     b.className = "metaBuy";
@@ -1498,6 +1556,7 @@ export function renderMeta(clsOverride) {
       b.onclick = () => ws.send(JSON.stringify({ t: "metaConfort", id: cf.id }));
     }
     row.appendChild(b);
+    if (owned) row.appendChild(boutonDoctrine(cf.id));
     metaConfortEl.appendChild(row);
   }
 
@@ -1511,10 +1570,10 @@ export function renderMeta(clsOverride) {
     const n = (pr.commun ?? {})[line.id] | 0;
     const cost = tierCost(n, line.id);
     const ferme = verrous.has(line.famille ?? "");
-    const coupee = (pr.communOff ?? []).includes(line.id);
+    const coupee = n > 0 && !actives.has(line.id);
     const row = document.createElement("div");
     row.className = "metaLine" + (n > 0 ? " owned" : "") + (ferme ? " taken" : "")
-      + (n > 0 && coupee ? " coupee" : "");
+      + (coupee ? " coupee" : "");
     row.innerHTML =
       `<span class="metaName">${escapeHtml(ligneNom(line))}</span>` +
       `<span class="metaPips">${"●".repeat(n)}${"○".repeat(PROG_CFG.TIERS_MAX - n)}</span>` +
@@ -1535,16 +1594,7 @@ export function renderMeta(clsOverride) {
       b.onclick = () => ws.send(JSON.stringify({ t: "metaCommun", line: line.id }));
     }
     row.appendChild(b);
-    if (n > 0) {
-      const sw = document.createElement("button");
-      sw.className = "metaEquip" + (coupee ? "" : " on");
-      sw.textContent = coupee
-        ? t("ui.meta.coupee", "coupée")
-        : t("ui.meta.active", "active");
-      sw.disabled = phase !== PHASE_LOBBY;
-      sw.onclick = () => ws.send(JSON.stringify({ t: "metaCommunOff", line: line.id }));
-      row.appendChild(sw);
-    }
+    if (n > 0) row.appendChild(boutonDoctrine(line.id));
     metaConfortEl.appendChild(row);
   }
 

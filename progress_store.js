@@ -3,7 +3,7 @@ import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
 import { scryptSync, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 
-import { PROG_CFG, clefRecord, newProfile, statsVierges } from "./shared/progression.js";
+import { PROG_CFG, clefRecord, newProfile, slotsFor, sousBudget, statsVierges } from "./shared/progression.js";
 import { CADRE_DEFAUT, HAUTS_FAITS } from "./shared/hauts_faits.js";
 import { BOSS_ROSTER } from "./shared/bosses.js";
 
@@ -182,6 +182,7 @@ export function normaliserProfil(profile) {
   if (!Array.isArray(profile.hf)) profile.hf = [];
   if (!Array.isArray(profile.vus)) profile.vus = [];
   if (!Array.isArray(profile.debloquees)) profile.debloquees = [];
+  if (!Array.isArray(profile.equipes)) profile.equipes = [];
   if (!Array.isArray(profile.cadres) || profile.cadres.length === 0) {
     profile.cadres = [CADRE_DEFAUT];
   }
@@ -248,6 +249,39 @@ export function migrateProfile(profile, from) {
       if (!cur || e.time < cur.time) neuf[clef] = e;
     }
     profile.bestFinal = neuf;
+  }
+
+  /* v8 -> v9 : AUCUN ACHAT N EST PERDU, SEULE L ACTIVATION CHANGE. Deux bornes
+     arrivent en meme temps — les emplacements passent sous le nombre de lignes, et
+     les huit ameliorations hors classe partagent un budget — donc un compte
+     complet ne peut plus tout porter. On equipe dans l ORDRE D ACHAT jusqu a la
+     borne et on laisse le reste paye et desequipe.
+
+     L ordre d achat n est enregistre qu a l INTERIEUR de chaque groupe : les cles
+     de `commun` et le tableau `confort` sont en ordre d insertion, mais rien ne
+     date un groupe par rapport a l autre. Les communes passent devant — ce sont
+     les lignes de PUISSANCE, et un compte qui perd un confort s en apercoit moins
+     qu un compte qui perd ses PV. Derniere lecture de `communOff`, qui devient un
+     champ mort.
+
+     `avisMeta` fait ouvrir l ecran une fois avec un bandeau : un joueur qui perd
+     des lignes actives sans explication lit un nerf, pas un choix rendu. */
+  if (from < 9) {
+    const coupees = new Set(profile.communOff ?? []);
+    const ordre = [
+      ...Object.keys(profile.commun).filter(id => (profile.commun[id] | 0) > 0),
+      ...profile.confort,
+    ].filter(id => !coupees.has(id));
+    profile.equipes = sousBudget(ordre, profile);
+    let trop = ordre.length > profile.equipes.length;
+
+    const max = slotsFor(profile);
+    for (const cp of Object.values(profile.classes ?? {})) {
+      if (!Array.isArray(cp?.equipped) || cp.equipped.length <= max) continue;
+      cp.equipped = cp.equipped.slice(0, max);
+      trop = true;
+    }
+    if (trop) profile.avisMeta = 1;
   }
 
   normaliserProfil(profile);

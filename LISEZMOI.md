@@ -3663,6 +3663,99 @@ mono-Tireur : à 34 % et 23 % du meilleur, ces compositions ne sont plus un choi
 chantier 03 ; ce lot livre la mesure qui permettra d'en juger le résultat.
 
 
+### Les emplacements qui n'arbitraient plus (plan 29, lot 03)
+
+**Le système était dimensionné pour se désactiver lui-même.** `TREES` porte
+**six** lignes par classe et `SLOTS_MAX` valait **six** : 3 sur 6 en début de
+compte (vrai arbitrage), 6 sur 6 en fin (aucun). Les trois jalons menaient donc à
+la **disparition** du choix, pas à son élargissement. `SLOTS_MAX = 4`.
+
+#### `gainMeta` ne voit pas ce lot, et c'est le résultat à retenir
+
+| emplacements | tank puissance / PV | soigneur | tireur |
+|---|---|---|---|
+| 6 | ×1,000 / ×1,453 | ×1,000 / ×1,350 | ×1,344 / ×1,153 |
+| 5 | ×1,000 / ×1,453 | ×1,000 / ×1,350 | ×1,344 / ×1,153 |
+| **4** | ×1,000 / ×1,453 | ×1,000 / ×1,350 | ×1,344 / ×1,153 |
+| 3 | ×1,000 / ×1,453 | ×1,000 / ×1,350 | ×1,344 / ×1,153 |
+
+**Strictement insensible de 3 à 6.** La cause : `powerIndex` et `maxHp` réunis
+sont **aveugles à 13 des 18 lignes de classe**.
+
+| classe | lignes invisibles aux deux instruments |
+|---|---|
+| tank | `alliage`, `ancrage`, `defi`, `epines`, `garde` — 5 sur 6 |
+| soigneur | `flux`, `portee`, `releve`, `osmose`, `catalyse` — 5 sur 6 |
+| tireur | `munitions`, `charge`, `surchauffe` — 3 sur 6 |
+
+Réduction de dégâts subis, recharges, épines, aura, soins prodigués, vitesse de
+réanimation, rayon de lien : aucun n'entre dans l'indice de puissance ni dans les
+PV. **`verifierMeta` qui reste vert n'est donc pas une preuve que ce lot est sans
+effet** — il maximise un seul axe, et cet axe sature en trois lignes.
+
+#### L'instrument qui voit, c'est le banc de contribution du lot précédent
+
+Quatuor 1/1/2, normal, pilote, mortel, profil complet, 3 graines, 30 min :
+
+| emplacements | survie | niv | Rempart `protégés` | Soigneur `permis` |
+|---|---:|---:|---:|---:|
+| 6 | 30,0 m *(plafond de fenêtre)* | 26 | 57 | 1 674 |
+| **4** | **19,2 m** | 18 | 42 | 448 |
+
+**Solo tireur : 14,1 m → 14,0 m, inchangé.** Ses quatre premières lignes portent
+déjà toute sa puissance ; les deux qu'il perd (`charge`, `surchauffe`) ne touchent
+pas son débit. **La borne mord sur le jeu d'équipe et sur les rôles de soutien,
+pas sur le tireur solo** — exactement là où le lot précédent avait mesuré que la
+contribution se joue.
+
+#### Un défaut créé par ce lot, trouvé par sa propre mesure
+
+Premier passage à 4 emplacements : quatuor 1/1/2 à **15,5 min**, `protégés` = **0**
+et `permis` = **0**. Ce n'était pas le jeu, c'était le banc.
+`metaProfil` prenait `TREES[cls].slice(0, emplacements)` — sans conséquence tant
+que le maximum valait six pour six lignes, puisqu'il prenait **tout**. À quatre,
+l'ordre de la table **devient un choix**, et il met `garde` et `catalyse` en
+sixième position : le profil de mesure jetait mécaniquement les deux seules lignes
+qui produisent ces grandeurs, et jouait donc la pire build possible.
+
+`LIGNES_MESURE` rend l'ordre **explicite**, rôle en tête. Après correction :
+19,2 min, `protégés` 42, `permis` 448. **+3,7 min et les deux grandeurs
+restaurées** — l'artefact était réel, et il aurait silencieusement corrompu toute
+mesure de classe à venir.
+
+#### Le budget de doctrine
+
+Huit items hors classe, **13 points** au total pour un budget de **6**.
+
+| item | poids | pourquoi |
+|---|---:|---|
+| `sursis` T5 | **3** | relèvement automatique — le seul palier dont le dépôt écrit qu'il « change l'issue d'une manche » |
+| `sursis` T1-T4 | 2 | régénération seule |
+| `carcasse` | 2 | +15 % PV max à T5 |
+| `quatrieme` | 2 | +33 % d'options par tirage : agit sur toute la construction |
+| `relance` | 2 | même famille — qualité moyenne du build |
+| `foulee` | 1 | +7,5 % de vitesse à T5 |
+| `glanage` | 1 | +70 px de ramassage |
+| `ravitaillement` | 1 | un bonus au sol, effet borné |
+| `relance2` | **1** | rendement décroissant : 900 noyaux achètent **moins** que les 250 de la première |
+
+**Le poids suit l'effet, pas le prix**, et un seul dépend du palier. Payer le T5
+de `sursis` peut faire déborder un budget qui tenait : `rangerDoctrine` normalise
+la liste stockée **à l'achat**, sinon l'écran afficherait un item équipé que le
+serveur n'applique pas.
+
+#### Migration v8 → v9, vérifiée
+
+- Avant migration, `metaLinesFor` n'applique déjà que **4** lignes sur les 6
+  stockées : la borne est à la **lecture**, un compte non migré ne passe pas entre
+  les mailles.
+- Après : listes rangées, `communOff` absorbé (une ligne coupée ne revient pas
+  équipée), **aucun palier, aucun achat, aucune commune perdus**, `avisMeta` armé.
+- Bout en bout sur socket réelle : équiper six lignes est refusé **en entier**,
+  une doctrine à exactement 6 points passe, un message forgé sur les huit items
+  est refusé, et le budget tient même quand un poids **monte** avec le palier.
+
+
 ### Les armes, banc d'essai (plan 11, lot 02 — tranche de quatre)
 
 **Banc, pas manche.** Le spawner, l'horloge de vague et le crédit d'expérience

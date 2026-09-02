@@ -7349,6 +7349,56 @@
                   ouvert. `verifierContribution` (`COMPO_VIABLE = 0,5`) le remonte.
                   Aucun equilibrage dans ce lot : le levier est la horde, donc le
                   chantier suivant. Ce lot livre de quoi en juger le resultat.
+    0.32.2 lot 3  LES EMPLACEMENTS N ARBITRAIENT PLUS. `TREES` porte SIX lignes
+                  par classe et `SLOTS_MAX` valait SIX : 3 sur 6 en debut de compte
+                  (vrai arbitrage), 6 sur 6 en fin (aucun). Les trois jalons
+                  menaient a la DISPARITION du choix, pas a son elargissement — le
+                  systeme etait dimensionne pour se desactiver lui-meme.
+                  `SLOTS_MAX = 4` : a cinq, renoncer a une ligne sur six se resout
+                  par « celle qui rapporte le moins », ce qui est un tri.
+                  LA BORNE SE RELIT DANS `metaLinesFor`. `cp.equipped` est une
+                  liste STOCKEE et `metaEquip` n en verifie la longueur qu a
+                  l ECRITURE : sans borne a la lecture, abaisser la constante
+                  n aurait rien change aux comptes existants.
+                  ET UN BUDGET DE DOCTRINE POUR LES HUIT ITEMS HORS CLASSE. Ils
+                  pesent 13, on en tient 6. Une seule enveloppe : 4 + 4 items sont
+                  trop peu pour scinder. Le poids suit l EFFET et non le PRIX —
+                  `relance2` coute 900 noyaux et pese moins que `relance` a 250,
+                  parce qu une seconde relance ne fait que repeter la premiere.
+                  UN SEUL POIDS DEPEND DU PALIER, `sursis` : 2 sous le plein, 3 a
+                  T5. `metaPoids(id, profile)` prend donc le profil, et SANS profil
+                  rend le poids PLEIN — le majorant, donc un appelant qui ne sait
+                  pas ne peut jamais sous-estimer la charge. Payer ce palier peut
+                  faire deborder un budget qui tenait : `rangerDoctrine` normalise
+                  la liste stockee A L ACHAT, sinon l ecran afficherait un item
+                  equipe que le serveur n applique pas.
+                  `profile.equipes` est une liste d INCLUSION la ou `communOff`
+                  etait une liste d EXCLUSION, et l inversion est FORCEE : deux
+                  mecanismes de renoncement pour la meme categorie, l un couteux et
+                  l autre gratuit, n auraient pas coexiste. Profil v9, migration en
+                  chaine : aucun palier, aucun achat, aucune commune perdus.
+                  `GAINMETA` NE VOIT PAS CE LOT, et c est le resultat a retenir. Il
+                  rend exactement les memes plafonds a 3, 4, 5 et 6 emplacements,
+                  parce que `powerIndex` et `maxHp` reunis sont AVEUGLES A 13 DES
+                  18 LIGNES DE CLASSE — reduction de degats subis, recharges,
+                  epines, aura, soins prodigues, vitesse de reanimation, rayon de
+                  lien n entrent dans aucun des deux. `verifierMeta` vert n est
+                  donc PAS une preuve que ce lot est sans effet.
+                  L INSTRUMENT QUI VOIT EST LE BANC DE CONTRIBUTION DU LOT 2.
+                  Quatuor 1/1/2 : 30,0 min a six emplacements, 19,2 a quatre.
+                  Solo tireur : 14,1 -> 14,0, INCHANGE — ses quatre premieres
+                  lignes portent deja sa puissance. La borne mord sur le jeu
+                  d equipe et les roles de soutien, pas sur le tireur solo.
+                  UN DEFAUT CREE PAR CE LOT, TROUVE PAR SA PROPRE MESURE. Premier
+                  passage a quatre : 15,5 min, `proteges` ZERO, `permis` ZERO.
+                  `metaProfil` prenait `slice(0, emplacements)` — sans consequence
+                  tant que six emplacements prenaient TOUT, mais a quatre l ordre
+                  de la table DEVIENT un choix, et il met `garde` et `catalyse` en
+                  sixieme position. Le banc jetait donc les deux seules lignes qui
+                  produisent ces grandeurs et jouait la pire build possible.
+                  `LIGNES_MESURE` rend l ordre EXPLICITE : +3,7 min et les deux
+                  grandeurs restaurees. L artefact aurait corrompu en silence toute
+                  mesure de classe a venir.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7358,4 +7408,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.1";
+export const VERSION = "0.32.2";

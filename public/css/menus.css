@@ -1949,7 +1949,34 @@ tr.clickable { cursor: pointer; }
 .metaBuy { font-family: var(--font); }
 .metaBuy, .metaEquip { white-space: nowrap; }
 .metaLine { grid-template-columns: 130px 64px 1fr 104px 96px; }
-.metaLine.confort { grid-template-columns: 170px 1fr 104px; }
+.metaLine.confort { grid-template-columns: 170px 1fr 104px 96px; }
+/* LE POIDS TIENT DANS LE NOM et non dans une colonne : les deux grilles n ont pas
+   le meme nombre de cellules, une sixieme aurait desaligne l une des deux. */
+.metaPoids {
+  display: inline-block;
+  min-width: 1.2em;
+  margin-left: var(--sp-2);
+  padding: 0 .3em;
+  border: var(--hair) solid var(--line-soft);
+  border-radius: var(--radius-chip);
+  font-family: var(--font);
+  font-style: normal;
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+  text-align: center;
+}
+/* LE BANDEAU DE MIGRATION : une ligne, cliquable, qui disparait pour toujours. */
+#metaAvis {
+  padding: var(--sp-2) var(--sp-4);
+  border: var(--hair) solid var(--go);
+  border-radius: var(--radius-ctl);
+  background: color-mix(in srgb, var(--go) 10%, transparent);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--t-s);
+  line-height: 1.5;
+  cursor: pointer;
+}
 .metaEquip.on { border-color: var(--go); color: var(--go); background: color-mix(in srgb, var(--go) 12%, transparent); }
 .metaLine.coupee { opacity: .55; }
 .metaLine.coupee .metaName { text-decoration: line-through; }

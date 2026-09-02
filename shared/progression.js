@@ -12,10 +12,17 @@ import {
 } from "./hauts_faits.js";
 
 export const PROG_CFG = {
-  VERSION: 8,
+  VERSION: 9,
 
   SLOTS_BASE: 3,
-  SLOTS_MAX: 6,
+  /* LE NOMBRE D EMPLACEMENTS EST STRICTEMENT INFERIEUR AU NOMBRE DE LIGNES, et il
+     ne l etait pas. `TREES` porte SIX lignes par classe et le maximum valait SIX :
+     un compte qui avait debloque ses trois jalons equipait donc son arbre ENTIER.
+     Le systeme etait dimensionne pour se DESACTIVER lui-meme — 3 sur 6 au debut
+     (vrai arbitrage), 6 sur 6 a la fin (aucun).
+     Quatre et non cinq : a cinq, renoncer a UNE ligne sur six se resout par
+     « celle qui rapporte le moins », ce qui est un tri et non un arbitrage. */
+  SLOTS_MAX: 4,
   SLOTS_BOSSES: 3,
   SLOTS_RUNS: 25,
   SLOTS_LEVEL: 13,
@@ -40,6 +47,15 @@ export const PROG_CFG = {
   CONFORT_COSTS: {
     relance: 250, quatrieme: 450, ravitaillement: 500, relance2: 900,
   },
+
+  /* LE BUDGET DE DOCTRINE. Les huit ameliorations hors classe — quatre communes,
+     quatre conforts — pesent 13 au total : un compte qui a tout paye en tient 6,
+     donc il CHOISIT. Une seule enveloppe et non une par groupe : 4 + 4 items sont
+     trop peu pour scinder, et deux compteurs feraient comparer les budgets entre
+     eux au lieu des items.
+     Il ne grandit pas : un budget qui monte avec les jalons est une courbe de
+     puissance deguisee, c est-a-dire ce que ce systeme retire. */
+  META_BUDGET: 6,
 
   SECOURS_REGEN: 1.2,
 
@@ -134,14 +150,18 @@ export const confortDesc = id => {
 };
 export const ligneNom = l => t(`prog.${l.id}.nom`, l.nom);
 
+/* LE POIDS EST SUR LA LIGNE, jamais dans une table a cote : il appartient a un
+   seul item, comme son cout. Il suit l EFFET et non le PRIX — `relance2` coute
+   900 noyaux et pese moins que `relance` a 250, parce qu une seconde relance ne
+   fait que repeter la premiere. */
 export const CONFORT = [
-  { id: "relance", nom: "Relance",
+  { id: "relance", nom: "Relance", poids: 2,
     desc: "une relance de tirage de carte par partie" },
-  { id: "quatrieme", nom: "Quatrième offre",
+  { id: "quatrieme", nom: "Quatrième offre", poids: 2,
     desc: "quatre cartes proposées au lieu de trois" },
-  { id: "ravitaillement", nom: "Ravitaillement initial",
+  { id: "ravitaillement", nom: "Ravitaillement initial", poids: 1,
     desc: "un bonus au sol dès le début de la manche" },
-  { id: "relance2", nom: "Seconde relance",
+  { id: "relance2", nom: "Seconde relance", poids: 1,
     desc: "une deuxième relance de tirage par partie" },
 ];
 
@@ -149,8 +169,11 @@ export const CONFORT = [
 // clemence, et son cinquieme palier est le seul achat qui change l'issue d'une
 // manche — c'est lui qui porte le saut P0 -> P1, pas les pourcentages.
 export const COMMUN = [
+  /* LE SEUL POIDS QUI DEPEND DU PALIER, et c est le seul palier du depot dont le
+     commentaire dit qu il « change l issue d une manche ». En dessous, la ligne
+     n est qu une regeneration. */
   { id: "sursis", nom: "Sursis", famille: "secours", costs: "SECOURS_COSTS",
-    step: PROG_CFG.SECOURS_REGEN,
+    poids: 2, poidsPlein: 3, step: PROG_CFG.SECOURS_REGEN,
     desc: n => tf("prog.sursis.desc", "+{0} PV/s hors coup",
       { "0": nombre(PROG_CFG.SECOURS_REGEN * n) })
       + (n >= PROG_CFG.TIERS_MAX
@@ -159,38 +182,115 @@ export const COMMUN = [
       m.hpRegen += PROG_CFG.SECOURS_REGEN * n;
       if (n >= PROG_CFG.TIERS_MAX) m.selfRevive = 1;
     } },
-  { id: "carcasse", nom: "Carcasse", famille: "tronc", costs: "TRONC_COSTS", step: 0.03,
+  { id: "carcasse", nom: "Carcasse", famille: "tronc", costs: "TRONC_COSTS",
+    poids: 2, step: 0.03,
     desc: n => tf("prog.carcasse.desc", "+{0} de PV max", { "0": pct(0.03 * n) }),
     apply(m, n) { m.metaHpRatio += 0.03 * n; } },
-  { id: "foulee", nom: "Foulée", famille: "tronc", costs: "TRONC_COSTS", step: 0.015,
+  { id: "foulee", nom: "Foulée", famille: "tronc", costs: "TRONC_COSTS",
+    poids: 1, step: 0.015,
     desc: n => tf("prog.foulee.desc", "+{0} de vitesse", { "0": pct(0.015 * n) }),
     apply(m, n) { m.speedMul += 0.015 * n; } },
-  { id: "glanage", nom: "Glanage", famille: "tronc", costs: "TRONC_COSTS", step: 14,
+  { id: "glanage", nom: "Glanage", famille: "tronc", costs: "TRONC_COSTS",
+    poids: 1, step: 14,
     desc: n => tf("prog.glanage.desc", "+{0} px de portée de ramassage", { "0": 14 * n }),
     apply(m, n) { m.pickupRadius = Math.max(m.pickupRadius, 14 * n); } },
 ];
 
 const COMMUN_BY_ID = new Map(COMMUN.map(l => [l.id, l]));
+const CONFORT_BY_ID = new Map(CONFORT.map(c => [c.id, c]));
 
-// LES LIGNES QUI COMPTENT SONT LES LIGNES EQUIPEES : une ligne achetee mais
-// laissee hors emplacement ne s'applique pas. Point de passage unique, lu par le
-// serveur au lancement ET par le client pour afficher des valeurs EFFECTIVES.
+/* CE QUI EST ACHETE N EST PAS CE QUI EST ACTIF. Les lignes de classe se
+   desequipent par les emplacements ; les huit ameliorations hors classe partagent
+   un budget de POIDS, `PROG_CFG.META_BUDGET`. Un item paye mais hors budget garde
+   ses paliers : couper n est pas vendre.
+
+   `profile.equipes` est une liste d INCLUSION la ou `communOff` etait une liste
+   d EXCLUSION, et l inversion est FORCEE : « le champ absent vaut tout actif » ne
+   peut plus tenir des que le total possede depasse le budget. Deux mecanismes de
+   renoncement concurrents pour la meme categorie — l un couteux, l autre gratuit —
+   n auraient de toute facon pas coexiste. `communOff` devient un champ mort, lu
+   une derniere fois par la migration. */
+export const META_ITEMS = [...COMMUN, ...CONFORT];
+
+/* LE POIDS PEUT DEPENDRE DU PALIER POSSEDE, donc il prend le profil. SANS profil
+   il rend le poids PLEIN : c est le majorant, donc un appelant qui ne sait pas ne
+   peut jamais sous-estimer la charge. */
+export function metaPoids(id, profile = null) {
+  const l = COMMUN_BY_ID.get(id);
+  if (!l) return CONFORT_BY_ID.get(id)?.poids ?? 0;
+  if (!l.poidsPlein) return l.poids;
+  const n = profile ? (profile.commun?.[id] | 0) : PROG_CFG.TIERS_MAX;
+  return n >= PROG_CFG.TIERS_MAX ? l.poidsPlein : l.poids;
+}
+
+export function metaCharge(ids, profile = null) {
+  let n = 0;
+  for (const id of ids) n += metaPoids(id, profile);
+  return n;
+}
+
+export function metaPossede(profile, id) {
+  if (COMMUN_BY_ID.has(id)) return (profile?.commun?.[id] | 0) > 0;
+  return (profile?.confort ?? []).includes(id);
+}
+
+/* GREEDY DANS L ORDRE DONNE, et un item qui ne rentre pas est SAUTE au lieu
+   d arreter le remplissage : un poids 3 en tete gelerait sinon un budget que deux
+   poids 1 auraient rempli. */
+export function sousBudget(ids, profile = null, budget = PROG_CFG.META_BUDGET) {
+  const out = [];
+  let n = 0;
+  for (const id of ids) {
+    const p = metaPoids(id, profile);
+    if (p <= 0 || n + p > budget) continue;
+    out.push(id);
+    n += p;
+  }
+  return out;
+}
+
+// LE point de lecture : le serveur relit ici ce que le client a envoye, donc un
+// message trafique ne peut ni equiper un item non paye ni depasser le budget.
+export function metaActives(profile) {
+  const vus = new Set();
+  const ids = [];
+  for (const id of profile?.equipes ?? []) {
+    if (vus.has(id) || !metaPossede(profile, id)) continue;
+    vus.add(id);
+    ids.push(id);
+  }
+  return new Set(sousBudget(ids, profile));
+}
+
+/* LES LIGNES QUI COMPTENT SONT LES LIGNES EQUIPEES : une ligne achetee mais
+   laissee hors emplacement — ou hors budget de doctrine — ne s'applique pas.
+   Point de passage unique, lu par le serveur au lancement ET par le client pour
+   afficher des valeurs EFFECTIVES.
+
+   IL REND LES TROIS FAMILLES. Le confort sortait d'une lecture directe de
+   `profile.confort` dans `room.js` : depuis qu'il partage le budget des communes,
+   deux lecteurs auraient donne deux reponses. */
 export function metaLinesFor(profile, clsId) {
   const cp = profile?.classes?.[clsId];
   const lines = {};
-  for (const lid of cp?.equipped ?? []) {
+  /* LE NOMBRE D EMPLACEMENTS SE RELIT ICI, il ne se croit pas. `cp.equipped` est
+     une liste STOCKEE : un profil ecrit quand le maximum valait six en porte six,
+     et `metaEquip` n en verifie la longueur qu a l ECRITURE. Sans cette borne,
+     abaisser la constante n aurait rien change aux comptes existants. */
+  const max = slotsFor(profile);
+  for (const lid of (cp?.equipped ?? []).slice(0, max)) {
     const n = cp.tiers?.[lid] | 0;
     if (n > 0) lines[lid] = n;
   }
-  // UNE LIGNE COMMUNE COUPEE NE S APPLIQUE PAS. Le champ absent vaut TOUT
-  // ACTIF : aucun profil existant ne change, et rien n a a migrer.
-  const coupees = new Set(profile?.communOff ?? []);
+  const actives = metaActives(profile);
   const commun = {};
   for (const l of COMMUN) {
     const n = profile?.commun?.[l.id] | 0;
-    if (n > 0 && !coupees.has(l.id)) commun[l.id] = n;
+    if (n > 0 && actives.has(l.id)) commun[l.id] = n;
   }
-  return { lines, commun };
+  const confort = {};
+  for (const c of CONFORT) if (actives.has(c.id)) confort[c.id] = 1;
+  return { lines, commun, confort };
 }
 
 export function applyMeta(mods, maxHp, clsId, lines, commun = null) {
@@ -332,6 +432,9 @@ export function newProfile(pseudo) {
     classes: {},
     commun: {},
     confort: [],
+    // LISTE D INCLUSION : ce qui est ACTIF dans le budget de doctrine, communes
+    // et confort confondus. Un profil neuf n a rien paye, donc rien d equipe.
+    equipes: [],
     // `bannedCards` a disparu : les bans sont PAR MANCHE depuis le 2026-08-19
     // (p.locked du GameState) — les profils existants gardent un champ mort.
     bestFinal: {},

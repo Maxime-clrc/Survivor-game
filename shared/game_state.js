@@ -12,7 +12,8 @@ import {
   PURGE_ORDER, ELITE_STATUS, statusAt, statusBit, enemyStatusMask,
 } from "./statuses.js";
 import {
-  PROG_CFG, TREES, COMMUN, applyMeta, coresForRun, lockedCards, lockedRelics, slotsFor,
+  PROG_CFG, TREES, COMMUN, CONFORT, applyMeta, coresForRun, lockedCards, lockedRelics,
+  metaCharge, slotsFor, sousBudget,
 } from "./progression.js";
 import { ARME_EXIGENCE, RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
@@ -10660,16 +10661,29 @@ export function coutMeta() {
   };
 }
 
+/* LE PLAFOND SE MESURE SUR LA MEILLEURE COMBINAISON LEGALE DES DEUX BUDGETS, et
+   non sur « tout equipe », qui n'existe plus nulle part : six lignes pour QUATRE
+   emplacements d'un cote, huit items pour SIX points de l'autre. Les deux axes se
+   maximisent SEPAREMENT — c'est un plafond, pas une build jouable. */
 export function gainMeta(clsId) {
-  const plein = Object.fromEntries(
-    [...(TREES[clsId] ?? []), ...COMMUN].map(l => [l.id, PROG_CFG.TIERS_MAX]));
   const cls = CLASSES.findIndex(c => c.id === clsId);
   const nu = fullMods(new Map(), [], cls);
-  const avec = applyMeta(nu.mods, nu.maxHp, clsId, plein, plein);
-  return {
-    puissance: powerIndex(avec.mods) / powerIndex(nu.mods),
-    pv: avec.maxHp / nu.maxHp,
-  };
+  const arbre = TREES[clsId] ?? [];
+  let puissance = 1, pv = 1;
+  for (let a = 0; a < (1 << arbre.length); a++) {
+    const choisies = arbre.filter((_, k) => a & (1 << k));
+    if (choisies.length > PROG_CFG.SLOTS_MAX) continue;
+    const lignes = Object.fromEntries(choisies.map(l => [l.id, PROG_CFG.TIERS_MAX]));
+    for (let m = 0; m < (1 << COMMUN.length); m++) {
+      const pris = COMMUN.filter((_, k) => m & (1 << k));
+      if (metaCharge(pris.map(l => l.id)) > PROG_CFG.META_BUDGET) continue;
+      const commun = Object.fromEntries(pris.map(l => [l.id, PROG_CFG.TIERS_MAX]));
+      const avec = applyMeta(nu.mods, nu.maxHp, clsId, lignes, commun);
+      puissance = Math.max(puissance, powerIndex(avec.mods) / powerIndex(nu.mods));
+      pv = Math.max(pv, avec.maxHp / nu.maxHp);
+    }
+  }
+  return { puissance, pv };
 }
 
 export function verifierMeta(effectifs = [1, 4], manches = 4) {
@@ -11527,6 +11541,29 @@ export function pilotage() {
   };
 }
 
+/* LA DOCTRINE DE MESURE. Un compte complet ne peut plus tout tenir actif : les
+   profils de `PROFILS.md` choisissent donc six points, dans cet ordre de
+   preference. `sursis` d'abord — c'est son cinquieme palier qui porte le saut
+   P0 -> P1 —, puis la quatrieme carte, puis ce qui rentre. L'ordre est une
+   PREFERENCE et `sousBudget` saute ce qui deborde. */
+const DOCTRINE_MESURE = ["sursis", "quatrieme", "carcasse", "relance",
+                         "foulee", "ravitaillement", "relance2", "glanage"];
+
+/* QUELLES LIGNES UN PROFIL DE MESURE EQUIPE, et il fallait le dire. Tant que le
+   maximum valait six pour six lignes, `TREES[cls].slice(0, emplacements)` prenait
+   TOUT : l ordre de la table n etait pas un choix. A quatre emplacements il en
+   devient un — et l ordre de la table met `garde` et `catalyse` en SIXIEME
+   position, donc le profil de mesure jetait mecaniquement les deux seules lignes
+   qui produisent `proteges` et `permis`. Mesure : le quatuor 1/1/2 tombait de
+   30 a 15,5 min, non parce que le jeu avait change, mais parce que le banc s etait
+   mis a jouer la pire build possible.
+   L ordre est donc EXPLICITE, et il met en tete ce qui definit le role. */
+const LIGNES_MESURE = {
+  tank: ["constitution", "alliage", "garde", "ancrage", "epines", "defi"],
+  soigneur: ["vitalite", "flux", "catalyse", "releve", "osmose", "portee"],
+  dps: ["calibre", "precision", "letalite", "munitions", "charge", "surchauffe"],
+};
+
 // LES TROIS PROFILS DE COMPTE de `PROFILS.md`, en objet `meta` de manche : meme
 // forme que celui que `room.js` construit au lancement, emplacements compris —
 // une ligne achetee mais non EQUIPEE ne s'applique pas.
@@ -11550,14 +11587,18 @@ export function metaProfil(profil, clsId) {
   const hf = plein ? HAUTS_FAITS.map(h => h.id) : ["premier_sang", "recrue", "bestiaire1"];
   const profil2 = { hf, milestones: jalons, runs: plein ? PROG_CFG.SLOTS_RUNS : 0 };
   const emplacements = slotsFor(profil2);
-  const lignes = (TREES[clsId] ?? []).slice(0, emplacements);
+  const doctrine = new Set(sousBudget(DOCTRINE_MESURE, null));
+  const ordre = LIGNES_MESURE[clsId] ?? (TREES[clsId] ?? []).map(l => l.id);
+  const lignes = ordre.slice(0, emplacements)
+    .map(id => (TREES[clsId] ?? []).find(l => l.id === id)).filter(Boolean);
   return {
     lines: Object.fromEntries(lignes.map(l => [l.id, tier])),
     // `secours` est pleine des P1 : c'est ce que suppose le budget de `coutMeta()`,
     // et c'est son cinquieme palier qui porte le saut P0 -> P1.
-    commun: Object.fromEntries(COMMUN.map(l =>
+    commun: Object.fromEntries(COMMUN.filter(l => doctrine.has(l.id)).map(l =>
       [l.id, l.famille === "secours" ? PROG_CFG.TIERS_MAX : tier])),
-    confort: { quatrieme: 1, ravitaillement: plein ? 1 : 0 },
+    confort: Object.fromEntries(
+      CONFORT.filter(c => doctrine.has(c.id)).map(c => [c.id, 1])),
     locked: lockedCards(profil2),
     lockedRelics: lockedRelics(profil2),
     emplacements,

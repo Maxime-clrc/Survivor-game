@@ -396,14 +396,56 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   **consomme la phase** ; le bouton est **libre** (l'achat confort
   `bannissement` a disparu de la table — identifiant mort dans les profils qui
   l'avaient acheté). Pool vidé → carte de secours (`ravitaillement`).
-- **UNE LIGNE PERMANENTE SE COUPE, ET LA COUPURE EST UNE LISTE D’EXCLUSION.**
-  Les lignes de classe se déséquipent par les **emplacements** ; les **communes**
-  n’en consomment aucun, donc rien ne les arrêtait — `sursis` régénérait chez qui
-  voulait s’en passer. `profile.communOff` porte les identifiants **coupés** :
-  le champ absent vaut **tout actif**, donc aucun profil n’a à migrer et rien ne
-  se reverrouille. Le filtre vit dans `metaLinesFor`, **le** point de lecture du
-  serveur, du HUD et de la fenêtre de build — le poser ailleurs ferait mentir
-  l’un des trois. Couper n’est pas vendre : les paliers restent payés.
+- **LE NOMBRE D'EMPLACEMENTS EST STRICTEMENT INFÉRIEUR AU NOMBRE DE LIGNES, et il
+  ne l'était pas.** `TREES` porte **six** lignes par classe et `SLOTS_MAX` valait
+  **six** : un compte qui avait débloqué ses trois jalons équipait son arbre
+  **entier**. Le système était dimensionné pour se **désactiver lui-même** — 3 sur
+  6 au début (vrai arbitrage), 6 sur 6 à la fin (aucun). `SLOTS_MAX = 4` : à cinq,
+  renoncer à une ligne sur six se résout par « celle qui rapporte le moins », ce
+  qui est un tri, pas un arbitrage.
+- **La borne se relit dans `metaLinesFor`, elle ne se croit pas.** `cp.equipped`
+  est une liste **stockée**, et `metaEquip` n'en vérifie la longueur qu'à
+  l'**écriture** : sans borne à la lecture, abaisser la constante n'aurait rien
+  changé aux comptes existants.
+- **CE QUI EST ACHETÉ N'EST PAS CE QUI EST ACTIF, et c'est vrai des trois
+  familles.** Les huit améliorations hors classe partagent un **budget de
+  doctrine**, `PROG_CFG.META_BUDGET`. Elles pèsent 13 au total : un compte qui a
+  tout payé en tient 6. Une seule enveloppe et non une par groupe — 4 + 4 items
+  sont trop peu pour scinder, et deux compteurs feraient comparer les budgets
+  entre eux au lieu des items. Le **poids vit sur la ligne**, comme le coût.
+- **Le poids suit l'EFFET, pas le PRIX.** `relance2` coûte 900 noyaux et pèse
+  moins que `relance` à 250 : une seconde relance ne fait que répéter la première.
+- **UN SEUL POIDS DÉPEND DU PALIER**, `sursis` : 2 sous le plein, 3 à T5 — le seul
+  palier dont le dépôt écrit qu'il « change l'issue d'une manche ».
+  `metaPoids(id, profile)` prend donc le profil, et **sans profil rend le poids
+  plein** : c'est le majorant, donc un appelant qui ne sait pas ne peut jamais
+  sous-estimer la charge. Et payer ce palier peut faire déborder un budget qui
+  tenait : `rangerDoctrine` normalise la liste stockée **à l'achat**, là où le
+  poids a changé, sinon l'écran afficherait un item équipé que le serveur
+  n'applique pas.
+- **`profile.equipes` est une liste d'INCLUSION** là où `communOff` était une
+  liste d'exclusion. L'inversion est forcée : « le champ absent vaut tout actif »
+  ne tient plus dès que le total possédé dépasse le budget — et deux mécanismes de
+  renoncement concurrents pour la même catégorie, l'un coûteux et l'autre gratuit,
+  n'auraient de toute façon pas coexisté. `communOff` devient un champ mort, lu
+  une dernière fois par la migration v8 → v9.
+- **`metaLinesFor` rend les TROIS familles** (`lines`, `commun`, `confort`) et
+  reste le point de lecture unique. Le confort sortait d'une lecture directe de
+  `profile.confort` dans `room.js` : depuis qu'il partage le budget, deux lecteurs
+  auraient donné deux réponses. `metaActives(profile)` est ce que le serveur
+  **relit** d'un message client — un item non payé ou un budget dépassé n'est
+  jamais appliqué, et le message qui déborde est refusé **en entier**.
+- **`sousBudget` SAUTE ce qui déborde au lieu de s'arrêter** : un poids 3 en tête
+  gèlerait sinon un budget que deux poids 1 auraient rempli.
+- **Un achat s'équipe d'office SI LA PLACE EXISTE**, jamais en délogeant : un
+  achat qui ne sert à rien tant qu'on ne l'équipe pas est un piège, mais évincer
+  un item choisi serait pire.
+- **Un joueur qui perd des lignes actives sans explication lit un nerf, pas un
+  choix rendu.** `profile.avisMeta`, armé par la migration, fait afficher un
+  bandeau une fois ; le serveur ferme le drapeau, donc il ne revient pas.
+- **Les deux budgets se croisent dans `gainMeta`** : « tout équipé » n'existe plus
+  nulle part, donc le plafond de puissance se mesure sur la meilleure combinaison
+  **légale** des deux côtés.
 - **UN RECORD APPARTIENT À UN EFFECTIF AUTANT QU'À UNE DIFFICULTÉ.** La clé de
   `bestFinal` était la difficulté **seule** : un profil n'avait qu'un record par
   mode, et un bon temps à quatre **détruisait définitivement** le record solo.

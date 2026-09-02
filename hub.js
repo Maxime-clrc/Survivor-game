@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 
 import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES, biomeAt } from "./shared/game_state.js";
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
-import { PROG_CFG, TREES, COMMUN, classement, slotsFor, tierCost, coresForRun, coresPartial, recordFinal,
+import { PROG_CFG, TREES, COMMUN, META_ITEMS, classement, metaActives, metaCharge, metaPoids,
+  metaPossede, slotsFor, tierCost, coresForRun, coresPartial, recordFinal,
   cadreActifDe, cadresDe, cumulerStats, evaluerHautsFaits, ligneOuverte, vueStats } from "./shared/progression.js";
 import { CADRE_DEFAUT, recompensesDe } from "./shared/hauts_faits.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
@@ -45,6 +46,26 @@ export function createHub(store, log, commit = "") {
     if (c.pseudoKey) store.save(c.pseudoKey);
   }
 
+  /* UN ACHAT QUI NE SERT A RIEN TANT QU ON NE L EQUIPE PAS EST UN PIEGE. Le
+     premier palier d une commune et l achat d un confort s equipent donc d office
+     — mais seulement SI LE BUDGET LE PERMET : deloger un item choisi pour faire
+     place a un neuf serait pire que l inverse. */
+  function equiperSiPlace(pr, id) {
+    const deja = pr.equipes ?? (pr.equipes = []);
+    if (deja.includes(id)) return;
+    if (metaCharge(deja, pr) + metaPoids(id, pr) > PROG_CFG.META_BUDGET) return;
+    deja.push(id);
+  }
+
+  /* LA LISTE STOCKEE DOIT DIRE CE QUI S APPLIQUE. Le poids de `sursis` MONTE au
+     palier plein : payer le cinquieme palier peut faire deborder un budget qui
+     tenait, et `metaActives` tranche alors a la lecture — l ecran afficherait un
+     item equipe que le serveur n applique pas. On range donc a l ACHAT, une fois,
+     la ou le poids a change. */
+  function rangerDoctrine(pr) {
+    pr.equipes = [...metaActives(pr)];
+  }
+
   function progressPayload(c) {
     const pr = c.profile;
     return {
@@ -59,7 +80,8 @@ export function createHub(store, log, commit = "") {
       kills: pr.kills,
       classes: pr.classes,
       commun: pr.commun ?? {},
-      communOff: pr.communOff ?? [],
+      equipes: pr.equipes ?? [],
+      avisMeta: pr.avisMeta ? 1 : 0,
       confort: pr.confort,
       pseudo: pr.pseudo ?? "",
       gained: c.lastGain ?? 0,
@@ -395,23 +417,34 @@ export function createHub(store, log, commit = "") {
         if (pr.cores < cost) break;
         pr.cores -= cost;
         pr.commun[line.id] = cur + 1;
+        if (cur === 0) equiperSiPlace(pr, line.id);
+        rangerDoctrine(pr);
         persist(client);
         sendProgress(client);
         break;
       }
 
-      // COUPER UNE LIGNE COMMUNE N EST PAS LA VENDRE : les paliers restent
-      // payes, seule l application s arrete. Liste d exclusion et non
-      // d inclusion — un profil sans le champ garde tout actif.
-      case "metaCommunOff": {
-        const line = COMMUN.find(l => l.id === msg.line);
-        if (!line) break;
+      // COUPER UN ITEM DE DOCTRINE N EST PAS LE VENDRE : les paliers restent
+      // payes, seule l activation change. Le client envoie la liste ENTIERE et le
+      // serveur la RELIT — `metaActives` refuse un item non paye et tronque au
+      // budget, donc un message trafique ne peut pas depasser l enveloppe.
+      case "metaEquipes": {
+        if (!Array.isArray(msg.ids) || msg.ids.length > META_ITEMS.length) break;
         const pr = client.profile;
-        if (!(pr.commun?.[line.id] > 0)) break;
-        const coupees = new Set(pr.communOff ?? []);
-        if (coupees.has(line.id)) coupees.delete(line.id);
-        else coupees.add(line.id);
-        pr.communOff = [...coupees];
+        const ids = msg.ids.filter(x => typeof x === "string");
+        if (ids.some(id => !metaPossede(pr, id))) break;
+        if (metaCharge(new Set(ids), pr) > PROG_CFG.META_BUDGET) break;
+        pr.equipes = [...new Set(ids)];
+        persist(client);
+        sendProgress(client);
+        break;
+      }
+
+      /* LE BANDEAU SE FERME UNE FOIS, cote serveur : un drapeau ferme dans le
+         navigateur reviendrait a la prochaine connexion. */
+      case "metaAvisVu": {
+        if (!client.profile.avisMeta) break;
+        delete client.profile.avisMeta;
         persist(client);
         sendProgress(client);
         break;
@@ -448,6 +481,7 @@ export function createHub(store, log, commit = "") {
         if (pr.confort.includes(msg.id) || pr.cores < cost) break;
         pr.cores -= cost;
         pr.confort.push(msg.id);
+        equiperSiPlace(pr, msg.id);
         persist(client);
         sendProgress(client);
         break;
@@ -551,7 +585,8 @@ export function createHub(store, log, commit = "") {
         }
         case "metaBuy":
         case "metaCommun":
-        case "metaCommunOff":
+        case "metaEquipes":
+        case "metaAvisVu":
         case "metaEquip":
         case "metaCadre":
         case "metaConfort":
