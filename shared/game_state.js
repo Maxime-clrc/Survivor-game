@@ -1001,6 +1001,16 @@ export class GameState {
         : null,
       catalyseT: 0,
       catalyseMul: 1,
+      catalyseDe: 0,
+
+      /* CE QU UN ROLE APPORTE SANS LE DELIVRER LUI-MEME. Le dps se lit sur
+         `damageDealt`, mais un Rempart qui absorbe et un Soigneur qui rend un
+         allie plus fort n ont AUCUN compteur : tant qu on ne mesure que le dps,
+         « le role est-il satisfaisant » n a pas de reponse mesurable — seulement
+         un avis. Quatre grandeurs, quatre points de passage deja existants.
+         `evites` est ce que MA reduction m epargne, `proteges` ce que MON aura
+         epargne a un ALLIE : la difference est toute la contribution du Rempart. */
+      contrib: { evites: 0, proteges: 0, detournes: 0, permis: 0 },
     };
 
     this.players.set(id, p);
@@ -1266,7 +1276,7 @@ export class GameState {
         if (p.oathT === 0) p.oathMul = 0;
       }
       p.catalyseT = Math.max(0, p.catalyseT - dt);
-      if (p.catalyseT <= 0) p.catalyseMul = 1;
+      if (p.catalyseT <= 0) { p.catalyseMul = 1; p.catalyseDe = 0; }
       p.healSwapCd = Math.max(0, p.healSwapCd - dt);
       p.healSwapBoost = Math.max(0, p.healSwapBoost - dt);
       p.tauntInvuln = Math.max(0, p.tauntInvuln - dt);
@@ -2492,6 +2502,9 @@ export class GameState {
 
     if ((healer.mods.catalyse ?? 0) > 0 && healer !== target) {
       target.catalyseT = PROG_CFG.CATALYSE_TIME;
+      // le PORTEUR se retient avec le multiplicateur : sans lui, les degats que
+      // la catalyse rend possibles ne s attribuent a personne
+      if (1 + healer.mods.catalyse >= target.catalyseMul) target.catalyseDe = healer.id;
       target.catalyseMul = Math.max(target.catalyseMul, 1 + healer.mods.catalyse);
     }
 
@@ -2918,6 +2931,15 @@ export class GameState {
 
     if (owner) {
       owner.damageDealt += amount;
+      /* PERMIS : la part de ces degats que la catalyse d un ALLIE a ajoutee. Le
+         multiplicateur est deja dans `amount`, donc la part vaut
+         `amount x (1 - 1/cata)` — on ne recalcule rien, on defait. */
+      if (owner.catalyseT > 0 && owner.catalyseMul > 1 && owner.catalyseDe) {
+        const source = this.players.get(owner.catalyseDe);
+        if (source && source !== owner) {
+          source.contrib.permis += amount * (1 - 1 / owner.catalyseMul);
+        }
+      }
       /* CE QUE L'ARME DELIVRE : ni les invocations, ni les competences, ni les
          zones — elles ont leur propre echelle et ne se comparent pas entre armes.
          Et ce qui est ABSORBE, pas ce qui est envoye : un souffle sur dix corps
@@ -7970,11 +7992,19 @@ export class GameState {
     if (fromZone && p.timers.zoneImmune > 0) return;
     if (!ignoreCooldown && p.hitCd > 0) return;
 
-    amount *= this.diff.dmg * p.mods.damageTakenMul;
+    amount *= this.diff.dmg;
+    // LA DIFFICULTE N EST PAS UN MERITE : on ne compte que ce que la REDUCTION du
+    // joueur retire, pas ce que le mode ajoute.
+    const avantSoi = amount;
+    amount *= p.mods.damageTakenMul;
+    p.contrib.evites += avantSoi - amount;
     for (const o of this.players.values()) {
       if (o === p || o.downed || !(o.mods.guardAura > 0)) continue;
       if ((o.x - p.x) ** 2 + (o.y - p.y) ** 2 <= PROG_CFG.GUARD_RADIUS ** 2) {
+        const avant = amount;
         amount *= 1 - o.mods.guardAura;
+        // ATTRIBUE AU PORTEUR, pas a la victime : c est LUI qui a protege
+        o.contrib.proteges += avant - amount;
         break;
       }
     }
@@ -8012,6 +8042,10 @@ export class GameState {
 
     p.lastSrc = src;
     p.hurtBy[src] += amount;
+    /* DETOURNE : ce que j encaisse PENDANT ma provocation. `_nearestPlayer` rend
+       le Rempart a tout ennemi dans le rayon, donc ces degats seraient alles
+       ailleurs — pas de contre-factuel a calculer, la fenetre EST la mecanique. */
+    if (p.tauntT > 0) p.contrib.detournes += amount;
 
     if (p.mods.thorns > 0 && amount > 0 && !overTime) {
       const rr = PROG_CFG.THORNS_RADIUS ** 2;
@@ -9541,6 +9575,144 @@ export function verifierTraits(effectifs = [1, 2, 4], minutes = 37) {
         + ` contre ${portage[di - 1].toFixed(2)} en ${DIFFICULTIES[di - 1].key}`
         + ` — le levier du comportement ne monte pas avec le mode`);
     }
+  }
+  return soucis;
+}
+
+/* CE QU UNE COMPOSITION APPORTE, ET PAS SEULEMENT CE QU ELLE DELIVRE. Le dps
+   brut du Soigneur n a aucune raison d etre competitif avec celui du Tireur :
+   tant qu on ne mesure que le dps, « le role est-il satisfaisant » n a pas de
+   reponse mesurable, seulement un avis.
+
+   MORTELLE, contrairement a `mesureComposition` : la survie EST le resultat, donc
+   on ne releve pas les joueurs. Le pilote et non le bot — un apport de soutien se
+   voit dans les recharges consommees, et `botInput` ne les consomme pas.
+
+   Les grandeurs indirectes viennent de `p.contrib`, ecrit aux points de passage
+   du jeu (`_hurt`, `_heal`, `_damage`) : rien n est recalcule ici. */
+export const COMPOS_BANC = [
+  { nom: "solo tireur", classes: [2] },
+  { nom: "solo rempart", classes: [0] },
+  { nom: "solo soigneur", classes: [1] },
+  { nom: "duo 2 tireurs", classes: [2, 2] },
+  { nom: "duo rempart+tireur", classes: [0, 2] },
+  { nom: "duo soigneur+tireur", classes: [1, 2] },
+  { nom: "duo rempart+soigneur", classes: [0, 1] },
+  { nom: "trio 3 tireurs", classes: [2, 2, 2] },
+  { nom: "trio 1/1/1", classes: [0, 1, 2] },
+  { nom: "quatuor 4 tireurs", classes: [2, 2, 2, 2] },
+  { nom: "quatuor 1/1/2", classes: [0, 1, 2, 2] },
+];
+
+/* LE PROFIL EST COMPLET PAR DEFAUT, et ce n est pas un detail : `guardAura` et
+   `catalyse` sont des lignes de META. Sur un compte neuf, deux des quatre
+   grandeurs indirectes valent structurellement ZERO — le banc ne mesurerait alors
+   pas « ce que le role apporte » mais « ce qu un compte neuf n a pas encore ». */
+export function mesureContribution(diffIndex, classes, minutes = 30, graines = 3,
+                                   profil = PROFIL_COMPLET) {
+  const parRole = CLASSES.map(() => ({
+    n: 0, degats: 0, evites: 0, proteges: 0, detournes: 0, soignes: 0,
+    permis: 0, releves: 0, kills: 0,
+  }));
+  let survie = 0, niveau = 0, victoires = 0, tempsTotal = 0;
+
+  const alea = Math.random;
+  try {
+    for (let gr = 1; gr <= graines; gr++) {
+      Math.random = grainer(gr * 7919);
+      const g = new GameState(diffIndex);
+      classes.forEach((cls, i) =>
+        g.addPlayer(i + 1, `bot${i + 1}`, i, cls, metaProfil(profil, classAt(cls).id)));
+      g.warmup = 0;
+      const pil = pilotage();
+      const inputs = new Map();
+      const images = Math.round(minutes * 60 / CFG.TICK);
+      for (let k = 0; k < images && !g.gameOver && !g.victory; k++) {
+        if (g.cardsPending) {
+          for (const [id, o] of g.cardOffers) {
+            const p = g.players.get(id);
+            if (p && o.length) g.takeCard(p, o[Math.floor(Math.random() * o.length)]);
+          }
+          g.cardsPending = false; g.openNextScreen(); k--; continue;
+        }
+        if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
+        inputs.clear();
+        for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
+        g.step(CFG.TICK, inputs);
+      }
+      survie += g.time;
+      niveau += g.level;
+      tempsTotal += Math.max(1 / 60, g.time);
+      if (g.victory) victoires++;
+      for (const p of g.players.values()) {
+        const r = parRole[p.cls];
+        r.n++;
+        r.degats += p.damageDealt;
+        r.soignes += p.healDealt;
+        r.kills += p.kills;
+        r.releves += p.hf.revives;
+        r.evites += p.contrib.evites;
+        r.proteges += p.contrib.proteges;
+        r.detournes += p.contrib.detournes;
+        r.permis += p.contrib.permis;
+      }
+    }
+  } finally { Math.random = alea; }
+
+  const min = tempsTotal / 60;
+  const parMinute = x => x / Math.max(1e-6, min);
+  return {
+    classes, survie: survie / graines, niveau: niveau / graines,
+    victoires,
+    roles: parRole.map((r, cls) => r.n === 0 ? null : {
+      cls, joueurs: r.n / graines,
+      degats: parMinute(r.degats), evites: parMinute(r.evites),
+      proteges: parMinute(r.proteges), detournes: parMinute(r.detournes),
+      soignes: parMinute(r.soignes), permis: parMinute(r.permis),
+      releves: r.releves / graines, kills: parMinute(r.kills),
+    }),
+  };
+}
+
+/* LE CRITERE N EST PAS L EGALITE, C EST LA VIABILITE. On ne demande pas au
+   Soigneur le dps du Tireur : on demande qu aucune composition ne rende une
+   manche impossible, et qu aucune ne soit strictement dominee. La moitie du
+   meilleur A EFFECTIF EGAL est le seuil — en dessous, la composition n est plus
+   un choix, c est une erreur.
+   Separe de `verifierClasses` comme `verifierEquilibreArmes` l est de
+   `verifierArmes` : il MESURE, donc il coute des minutes de simulation. */
+export const COMPO_VIABLE = 0.5;
+
+export function verifierContribution(minutes = 30, graines = 3, diffIndex = DIFF_NORMAL) {
+  const soucis = [];
+  const parEffectif = new Map();
+  for (const c of COMPOS_BANC) {
+    const r = mesureContribution(diffIndex, c.classes, minutes, graines);
+    const n = c.classes.length;
+    if (!parEffectif.has(n)) parEffectif.set(n, []);
+    parEffectif.get(n).push({ ...c, ...r });
+  }
+  for (const [n, l] of parEffectif) {
+    const best = Math.max(...l.map(x => x.survie));
+    for (const x of l) {
+      if (x.survie < best * COMPO_VIABLE) {
+        soucis.push(`${x.nom} : ${(x.survie / 60).toFixed(1)} min contre`
+          + ` ${(best / 60).toFixed(1)} pour le meilleur a ${n} joueur(s),`
+          + ` soit ${(100 * x.survie / best).toFixed(0)} % — composition dominee`);
+      }
+    }
+  }
+  /* ET L INVERSE : une classe de soutien dont la contribution INDIRECTE est nulle
+     n a pas de role, elle a un handicap. On la lit sur la composition mixte la
+     plus large, seule ou les trois roles coexistent. */
+  const mixte = mesureContribution(diffIndex, [0, 1, 2, 2], minutes, graines);
+  const rempart = mixte.roles[0], soigneur = mixte.roles[1];
+  if (rempart && rempart.proteges + rempart.detournes <= 0) {
+    soucis.push("le rempart ne protege ni ne detourne rien — ses deux mecaniques"
+      + " de soutien ne produisent aucun effet mesurable");
+  }
+  if (soigneur && soigneur.soignes + soigneur.permis <= 0) {
+    soucis.push("le soigneur ne soigne ni ne rend possible aucun degat");
   }
   return soucis;
 }

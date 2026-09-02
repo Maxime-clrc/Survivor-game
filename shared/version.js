@@ -7301,6 +7301,54 @@
                   quatre pseudos, et aucun effectif ne contient l entree d un
                   autre. Sur socket reelle, le message `leaderboard` rend bien un
                   tableau de trois difficultes indexe par effectif.
+    0.32.1 lot 2  UN ROLE NE SE LIT PAS SUR SON DPS, ET RIEN NE MESURAIT LE
+                  RESTE. Le dps brut du Soigneur n a aucune raison d etre
+                  competitif avec celui du Tireur : tant qu on ne mesure que le
+                  dps, « le role est-il satisfaisant » n a pas de reponse
+                  mesurable, seulement un avis. Ce lot est un PREREQUIS — il
+                  debloque le chantier de la horde, dont le risque de second ordre
+                  (plus de pression pendant les boss renforce Rempart et Soigneur)
+                  n etait pas evaluable.
+                  LES TRACES NE POUVAIENT PAS REPONDRE, et c etait la premiere
+                  etape a ecarter. `traces/` contient DEUX manches, toutes deux
+                  SOLO, en v0.11.5 — vingt versions avant. Aucune composition,
+                  aucun degat evite, detourne ou rendu possible. La mesure est donc
+                  un banc de simulation, par la donnee et non par preference.
+                  QUATRE GRANDEURS AUX POINTS DE PASSAGE EXISTANTS. `p.contrib`
+                  porte `evites` (MA reduction), `proteges` (MON aura sur un
+                  ALLIE, attribue au PORTEUR et non a la victime), `detournes` (ce
+                  que j encaisse pendant MA provocation — `_nearestPlayer` rend le
+                  Rempart a tout ennemi du rayon, donc la fenetre EST la mecanique
+                  et il n y a pas de contre-factuel a calculer) et `permis` (les
+                  degats qu un allie delivre grace a MA catalyse). Ecrit dans
+                  `_hurt`, `_heal` et `_damage`, jamais ailleurs.
+                  LA DIFFICULTE N EST PAS UN MERITE : `diff.dmg` s applique AVANT
+                  le releve, on ne compte que ce que la reduction du JOUEUR retire.
+                  Et `permis` se DEFAIT au lieu de se recalculer — le
+                  multiplicateur est deja dans le montant, la part vaut
+                  `amount x (1 - 1/cata)` ; `catalyseDe` retient le porteur, sans
+                  quoi ces degats ne s attribuent a personne.
+                  LE BANC PRECISE SON PROFIL, ET LE DEFAUT EST COMPLET. Premier
+                  passage au profil neuf : `proteges` et `permis` sortent a ZERO
+                  partout, parce que `guardAura` et `catalyse` sont des lignes de
+                  META. Le banc mesurait « ce qu un compte neuf n a pas encore ».
+                  Il est aussi MORTEL et pilote : la survie EST le resultat, et un
+                  apport de soutien se voit dans les recharges consommees, que
+                  `botInput` ne consomme pas.
+                  LA REPONSE, CHIFFREE. En trio 1/1/1 le Soigneur delivre 3 037
+                  degats/min et en REND POSSIBLES 1 864 — 61 % de son propre debit,
+                  plus 775 PV/min soignes. Comparer son dps aux 38 552 du Tireur ne
+                  mesurait pas les deux tiers de sa contribution.
+                  ET LE MONO-TIREUR EST DOMINE A TOUS LES EFFECTIFS, l ecart
+                  croissant : x2,0 en solo, x1,9 en duo, x2,9 en trio, x4,3 en
+                  quatuor. QUATRE TIREURS SURVIVENT AUSSI LONGTEMPS QU UN SEUL
+                  (5,5 min) — ajouter des tireurs n ajoute rien pendant que la
+                  horde suit `joueurs^0,75`. Le critere §4 de `verifierClasses`
+                  (« 1/1/2 doit aller au moins aussi loin que quatre tireurs »)
+                  est tenu avec 4,3x de marge ; c est le risque INVERSE qui est
+                  ouvert. `verifierContribution` (`COMPO_VIABLE = 0,5`) le remonte.
+                  Aucun equilibrage dans ce lot : le levier est la horde, donc le
+                  chantier suivant. Ce lot livre de quoi en juger le resultat.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7310,4 +7358,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.0";
+export const VERSION = "0.32.1";

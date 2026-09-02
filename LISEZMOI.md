@@ -3601,6 +3601,68 @@ soit un défi que le pilote ne sait pas viser.
 v6 pour savoir ce que chaque profil avait ouvert, on migre, on revérifie.
 **2 371 déblocages testés, zéro perdu.**
 
+### Contribution réelle des classes (plan 29, lot 02)
+
+**Les traces ne pouvaient pas répondre, et c'était la première étape du
+chantier.** `traces/` contient **deux** manches, toutes deux **solo**, en
+**v0.11.5** — vingt versions avant la mesure. Champs par joueur : `degats`,
+`soins`, `kills`, `morts`, `puissance`. Aucune composition, aucun dégât évité,
+aucun dégât détourné, aucun dégât rendu possible. L'agrégation de traces est donc
+écartée par la donnée elle-même, pas par préférence : la mesure est un **banc de
+simulation**.
+
+**Quatre grandeurs indirectes, écrites aux points de passage existants**
+(`_hurt`, `_heal`, `_damage`) : `evites` (ma réduction), `proteges` (mon aura sur
+un allié, attribué au **porteur**), `detournes` (ce que j'encaisse pendant ma
+provocation), `permis` (les dégâts qu'un allié délivre grâce à ma catalyse).
+
+**Le profil du banc est COMPLET, et ce n'est pas un détail.** Premier passage au
+profil neuf : `proteges` et `permis` sortent à **0 partout** — `guardAura` et
+`catalyse` sont des lignes de méta. Le banc mesurait « ce qu'un compte neuf n'a
+pas encore », pas « ce que le rôle apporte.
+
+#### Le relevé — normal, pilote, **mortel**, profil complet, 3 graines, 30 min
+
+| composition | survie | niv | rôle | dgt/min | évités | protégés | détournés | soignés | permis | relev |
+|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| solo tireur | 5,5 m | 9 | Tireur | 8 784 | 0 | 0 | 0 | 0 | 0 | 0 |
+| solo rempart | **11,1 m** | 11 | Rempart | 2 682 | 21 | 0 | 14 | 0 | 0 | 0 |
+| solo soigneur | **10,3 m** | 13 | Soigneur | 3 726 | 0 | 0 | 0 | 18 | 0 | 0 |
+| duo 2 tireurs | 7,6 m | 13 | Tireur | 24 603 | 1 | 0 | 0 | 0 | 0 | 1,3 |
+| duo rempart+tireur | 9,9 m | 16 | Rempart | 2 478 | 15 | 8 | 18 | 0 | 0 | 2,3 |
+| duo soigneur+tireur | 10,2 m | 15 | Soigneur | 2 702 | 0 | 0 | 0 | 125 | **82** | 0,3 |
+| duo rempart+soigneur | **14,4 m** | 16 | Rempart | 13 940 | 24 | 19 | 28 | 0 | 0 | 4,0 |
+| trio 3 tireurs | 7,5 m | 13 | Tireur | 36 875 | 8 | 0 | 0 | 0 | 0 | 4,3 |
+| trio 1/1/1 | **22,1 m** | 21 | Soigneur | 3 037 | 0 | 0 | 0 | 775 | **1 864** | 0,3 |
+| quatuor 4 tireurs | 5,5 m | 9 | Tireur | 26 747 | 4 | 0 | 0 | 0 | 0 | 0 |
+| quatuor 1/1/2 | **23,9 m** | 26 | Soigneur | 5 003 | 0 | 0 | 0 | 847 | **3 187** | 3,3 |
+
+**La question du brief a sa réponse chiffrée.** En trio 1/1/1, le Soigneur
+délivre 3 037 dégâts/min et en **rend possibles 1 864** — soit 61 % de son propre
+débit, en plus de 775 PV/min soignés. Comparer son dps à celui du Tireur (38 552)
+ne mesurait donc rien : il manquait les deux tiers de sa contribution.
+
+#### Viabilité : le mono-Tireur est dominé à TOUS les effectifs, et l'écart croît
+
+| effectif | pire | meilleur | écart |
+|---|---|---|---:|
+| 1 | 5,5 m (tireur) | 11,1 m (rempart) | **×2,01** |
+| 2 | 7,6 m (2 tireurs) | 14,4 m (rempart+soigneur) | **×1,89** |
+| 3 | 7,5 m (3 tireurs) | 22,1 m (1/1/1) | **×2,94** |
+| 4 | 5,5 m (4 tireurs) | 23,9 m (1/1/2) | **×4,32** |
+
+**Quatre tireurs survivent exactement aussi longtemps qu'un seul** (5,5 min) :
+ajouter des tireurs n'ajoute rien à la survie pendant que la horde suit
+`joueurs^0,75`. Le critère §4 de `verifierClasses` — « 1/1/2 doit aller au moins
+aussi loin que quatre tireurs, sinon le système de classes est décoratif » — est
+tenu avec **4,3× de marge** ; c'est le risque **inverse** qui est ouvert.
+
+`verifierContribution` (`COMPO_VIABLE = 0,5`) remonte donc le trio et le quatuor
+mono-Tireur : à 34 % et 23 % du meilleur, ces compositions ne sont plus un choix.
+**Le levier n'est pas dans ce lot** — la horde suit l'effectif, c'est le sujet du
+chantier 03 ; ce lot livre la mesure qui permettra d'en juger le résultat.
+
+
 ### Les armes, banc d'essai (plan 11, lot 02 — tranche de quatre)
 
 **Banc, pas manche.** Le spawner, l'horloge de vague et le crédit d'expérience

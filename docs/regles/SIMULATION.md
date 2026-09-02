@@ -106,6 +106,38 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   (1 px sur 283 de moyenne) — le champ résout la géométrie, la séparation résout
   la foule. La détection reste, mais comme **critère** (`verifierDeplacement`),
   pas comme code. Ne pas le réintroduire sans une mesure qui le demande.
+- **CE QU'UN RÔLE APPORTE NE SE LIT PAS SUR SON DPS.** Le dps brut du Soigneur
+  n'a aucune raison d'être compétitif avec celui du Tireur : tant qu'on ne mesure
+  que le dps, « le rôle est-il satisfaisant » n'a pas de réponse mesurable,
+  seulement un avis. `p.contrib` porte les quatre grandeurs indirectes, écrites
+  aux points de passage qui existaient déjà — rien n'est recalculé ailleurs.
+- **`evites` et `proteges` sont DEUX grandeurs, et leur différence est toute la
+  contribution du Rempart.** `evites` est ce que **ma** réduction m'épargne ;
+  `proteges` est ce que **mon** aura épargne à un **allié**, et il s'attribue au
+  **porteur**, pas à la victime. `detournes` est ce que j'encaisse pendant **ma**
+  provocation : `_nearestPlayer` rend le Rempart à tout ennemi dans le rayon, donc
+  ces dégâts seraient allés ailleurs — pas de contrefactuel à calculer, la fenêtre
+  **est** la mécanique.
+- **La difficulté n'est pas un mérite.** Dans `_hurt`, `diff.dmg` s'applique
+  **avant** le relevé : on compte ce que la réduction du joueur retire, jamais ce
+  que le mode ajoute.
+- **`permis` se DÉFAIT au lieu de se recalculer.** Le multiplicateur de catalyse
+  est déjà dans le montant délivré, donc la part vaut `amount × (1 − 1/cata)`. Le
+  porteur du multiplicateur se retient dans `catalyseDe` : sans lui, les dégâts
+  qu'une catalyse rend possibles ne s'attribuent à personne.
+- **UN BANC DE CONTRIBUTION PRÉCISE SON PROFIL, et le défaut est COMPLET.**
+  `guardAura` et `catalyse` sont des lignes de **méta** : sur un compte neuf, deux
+  des quatre grandeurs indirectes valent structurellement zéro et le banc mesure
+  « ce qu'un compte neuf n'a pas encore » au lieu de « ce que le rôle apporte ».
+  Vérifié : au profil neuf, `proteges` et `permis` sortent à **0** partout.
+- **Le banc est MORTEL et il est piloté.** La survie **est** le résultat, donc on
+  ne relève pas les joueurs — contrairement à `mesureComposition`, qui mesure les
+  dégâts subis et doit donc durer. Et un apport de soutien se voit dans les
+  recharges consommées, que `botInput` ne consomme pas.
+- **Le critère n'est pas l'égalité, c'est la viabilité** (`verifierContribution`,
+  `COMPO_VIABLE = 0,5`) : aucune composition ne doit rendre une manche impossible,
+  aucune ne doit être strictement dominée. En dessous de la moitié du meilleur **à
+  effectif égal**, une composition n'est plus un choix, c'est une erreur.
 - **La grille se refait quand une couverture cède** (`_obstacleHit`), et
   seulement là : la géométrie de biome ne bouge pas autrement.
 - **LA MASSE EST LA SURFACE** (`masseDe(r)` = `(r / 12)²`, bornée) et elle
