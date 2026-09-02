@@ -4056,6 +4056,112 @@ aucun segment qui perde plus d'un battement en solo, et la pression effective
 croissante. **Vert sur les trois scripts.**
 
 
+### Les hauts faits, campagne mesurée (plan 29, lot 10)
+
+Un **compte** qui enchaîne 20 manches de 40 min : il prend ses cartes, achète au
+marchand, change d'arme et de classe, et il peut mourir. `mesureHautsFaits()`.
+
+| piste | obtenus | manches gagnées | reliques achetées | récolte |
+|---|---:|---:|---:|---:|
+| normal solo | 16 / 36 | 1 / 20 | 3 | 10 |
+| cauchemar solo | 7 / 36 | 0 / 20 | 0 | 0 |
+| normal × 4 | 22 / 36 | 1 / 20 | 8 | 40 |
+
+**Le pilote gagne une manche sur vingt** : tout verdict portant sur un haut fait
+de victoire est donc borné par la qualité du bot, pas par le seuil. C'est la
+limite principale du banc, et elle se lit dans cette colonne.
+
+`m<n>` = manche d'obtention. Sinon, la **meilleure part de jauge atteinte** — une
+jauge à 7 % dit « le pilote ne joue pas ça », une jauge à 77 % dit « le seuil est
+juste au-dessus ».
+
+| haut fait | niveau | normal solo | cauchemar | x4 |
+|---|---|---|---|---|
+| premier_sang | simple | **m2** | — | **m1** |
+| recrue | simple | **m1** | **m1** | **m1** |
+| sur_le_terrain | simple | **m1** | **m1** | **m1** |
+| au_contact | simple | 77 % | 34 % | **m8** |
+| curieux | simple | **m3** | **m3** | **m3** |
+| collectionneur | simple | **m11** | 40 % | **m5** |
+| prospecteur | simple | 7 % | — | 27 % |
+| marchand | simple | 10 % | — | 27 % |
+| bestiaire1 | simple | **m11** | — | **m5** |
+| debrouillard | simple | **m7** | **m11** | **m3** |
+| sans_faille | intermédiaire | 71 % | — | **m10** |
+| moisson | intermédiaire | **m11** | 34 % | **m5** |
+| economie | intermédiaire | **m7** | — | **m5** |
+| longue_portee | intermédiaire | **m11** | 36 % | **m5** |
+| perce_ligne | intermédiaire | **m5** | **m5** | **m5** |
+| debout | intermédiaire | **m11** | — | — |
+| demolisseur | intermédiaire | 39 % | 10 % | **m10** |
+| veteran | intermédiaire | **m11** | — | **m5** |
+| chirurgien | intermédiaire | 40 % | 28 % | **m5** |
+| increvable | intermédiaire | 36 % | **m10** | **m5** |
+| fraternite | intermédiaire | — | — | **m5** |
+| phalange | intermédiaire | — | — | **m5** |
+| bestiaire2 | intermédiaire | 55 % | — | 73 % |
+| maitre_armes | intermédiaire | — | **m5** | **m3** |
+| puriste | défi | — | — | — |
+| ascete | défi | **m2** | — | **m1** |
+| intouchable | défi | — | — | — |
+| foudroyant | défi | **m4** | — | **m5** |
+| armurier | défi | — | — | — |
+| ermite | défi | **m11** | — | — |
+| nuit_blanche | défi | — | — | — |
+| sans_egratignure | défi | — | — | — |
+| bestiaire3 | défi | — | — | — |
+| perfection | défi | — | — | — |
+| quatuor | défi | — | — | — |
+| legende | défi | — | — | — |
+
+#### Ce que le croisement a produit
+
+**Sept hauts faits disaient « terminer une manche » en lisant `finie`**, vrai dès
+que la manche s'arrête — donc en mourant. Avant/après correctif :
+
+| haut fait | niveau | avant | après |
+|---|---|---|---|
+| `veteran` | intermédiaire | m1 partout | m11 solo, m5 à quatre |
+| `puriste` | défi | m3 solo, **m1** cauchemar | jamais en 20 manches |
+| `nuit_blanche` | défi | **m1** cauchemar | jamais en 20 manches |
+| `perfection`, `quatuor` | défi | — | inchangé (déjà hors de portée du bot) |
+
+`recrue` et `debout` gardent `arretee` : ils ouvrent la ligne `tronc` et l'arme
+**dispersion**, et enfermer du contenu de départ derrière une victoire est le seul
+risque que ce chantier ne prend pas. Leurs **textes** ont été corrigés à la place.
+
+#### Non concluants, et pourquoi
+
+- `prospecteur` (7 % solo, 27 % à quatre) : le pilote ne va pas chercher les
+  cristaux — 10 et 40 points de récolte sur 20 manches. Le seuil de 150 n'est pas
+  jugé.
+- `marchand` (10 % / 27 %) : 3 et 8 reliques achetées sur 20 manches, faute
+  d'éclats. Cible 30.
+- `ascete` (défi, m1–m2) : le pilote n'utilise pas son ultime, donc la condition
+  « vaincre un boss sans ultime » lui est gratuite. Un joueur ne joue pas comme ça.
+- Tout ce qui exige la victoire en cauchemar : 0 sur 20.
+
+#### Un second vérificateur a dérivé sans que personne le rejoue
+
+`verifierProgression()` est **rouge**, et il l’était déjà avant ce lot (vérifié sur
+`HEAD` dans un worktree isolé) : la courbe de niveau monte trop vite — 25 au lieu
+de 20 à la minute 20 en solo, 26,5 au lieu de 20 à quatre — et l’écart-type de
+cartes dépasse son plafond à quatre joueurs.
+
+C’est le **même schéma qu’au lot 09** avec l’équilibre des armes, et la même cause
+probable : le lot 05 a densifié la mi-manche de 17 %, donc plus de kills, donc
+plus d’XP. Deux vérificateurs mesurés ont bougé sous un changement qui ne les
+nommait pas, et rien ne les rejoue. **Non corrigé ici** — c’est l’objet du
+chantier 06.
+
+#### Ce qui reste franchement dur, et paraît juste
+
+`au_contact` (77 % solo, obtenu m8 à quatre) et `bestiaire2` (55–73 %) sont les
+deux seuils qui approchent sans tomber. Ils sont respectivement **simple** et
+**intermédiaire** — le premier ouvre la **lame**, donc c'est le candidat le plus
+sérieux à un REWORK de seuil, et il n'a pas été touché faute de mesure sur un
+joueur humain.
+
 ### Compatibilité carte × arme (plan 29, lot 09)
 
 #### Les cartes mortes que rien ne filtrait

@@ -83,8 +83,8 @@ export const HAUTS_FAITS = [
   },
   {
     id: "recrue", niveau: HF_SIMPLE, nom: "Recrue",
-    texte: "terminer une manche",
-    fait: s => s.finie,
+    texte: "jouer une manche jusqu'à son terme",
+    fait: s => s.arretee,
     reward: { type: "ligne", ids: ["tronc"] },
   },
   {
@@ -181,8 +181,12 @@ export const HAUTS_FAITS = [
   },
   {
     id: "debout", niveau: HF_INTER, nom: "Debout",
-    texte: "terminer une manche sans être mis à terre",
-    fait: s => s.finie && s.chutes === 0,
+    /* IL OUVRE LA DISPERSION : le passer a `complete` enfermerait une ARME
+       derriere une victoire sans chute, ce qu aucun haut fait de niveau 0 ou 1
+       ne doit faire. Il garde donc `arretee`, et c est son TEXTE qui devient
+       vrai. */
+    texte: "aller au bout d'une manche sans être mis à terre",
+    fait: s => s.arretee && s.chutes === 0,
     reward: { type: "arme", ids: ["dispersion"] },
   },
   {
@@ -195,7 +199,7 @@ export const HAUTS_FAITS = [
   {
     id: "veteran", niveau: HF_INTER, nom: "Vétéran", diffMin: 1,
     texte: "terminer une manche en normal",
-    fait: s => s.finie,
+    fait: s => s.complete,
     reward: { type: "relique", ids: ["boussole", "marteau_breche", "registre"] },
   },
   {
@@ -244,7 +248,7 @@ export const HAUTS_FAITS = [
   {
     id: "puriste", niveau: HF_DEFI, nom: "Puriste",
     texte: "terminer une manche sans prendre une seule carte épique ni légendaire",
-    fait: s => s.finie && s.rareteMax <= 1 && s.cartesMax > 0,
+    fait: s => s.complete && s.rareteMax <= 1 && s.cartesMax > 0,
     reward: { type: "cadre", ids: ["sobre"] },
   },
   {
@@ -282,7 +286,7 @@ export const HAUTS_FAITS = [
   {
     id: "nuit_blanche", niveau: HF_DEFI, nom: "Nuit blanche", diffMin: 2,
     texte: "terminer une manche en cauchemar",
-    fait: s => s.finie,
+    fait: s => s.complete,
     reward: { type: "cadre", ids: ["insomniaque"] },
   },
   {
@@ -301,14 +305,14 @@ export const HAUTS_FAITS = [
   {
     id: "perfection", niveau: HF_DEFI, nom: "Perfection", diffMin: 2,
     texte: "terminer une manche en cauchemar sans être mis à terre",
-    fait: s => s.finie && s.chutes === 0,
+    fait: s => s.complete && s.chutes === 0,
     reward: { type: "cadre", ids: ["or"] },
   },
   {
     id: "quatuor", niveau: HF_DEFI, nom: "Quatuor", diffMin: 2,
     texte: "terminer une manche en cauchemar à {0} joueurs",
     vals: () => ({ "0": 4 }),
-    fait: s => s.finie && s.joueurs >= 4,
+    fait: s => s.complete && s.joueurs >= 4,
     reward: { type: "cadre", ids: ["phalange"] },
   },
   {
@@ -383,6 +387,18 @@ export function recompensesDe(ids) {
 
 export const TOUTES_RECOMPENSES = recompensesDe(HAUTS_FAITS.map(h => h.id));
 
+/* CE QU UN HAUT FAIT A LE DROIT DE PORTER. L invariant « ils ouvrent des
+   portes, ils ne donnent pas de puissance » est tenu depuis toujours et rien
+   ne le verifiait : il suffisait d ajouter `mods`, `bonus` ou `gain` a une
+   entree pour qu une puissance permanente entre par la porte de service, sans
+   qu aucune erreur ne se leve. La liste blanche rend le champ inconnu
+   IMPOSSIBLE ; `REWARD_LABEL` ferme deja les types, et une recompense ne peut
+   donc designer qu un objet NOMME d une des cinq tables. */
+const CLEFS_HF = new Set([
+  "id", "niveau", "nom", "texte", "vals", "jauge", "cible", "fait",
+  "diffMin", "reward",
+]);
+
 /* Critere rejouable, sur le modele de `verifierBiomes()`. */
 export function verifierHautsFaits(cardIds = null, relicIds = null, armeIds = null) {
   const out = [];
@@ -395,6 +411,9 @@ export function verifierHautsFaits(cardIds = null, relicIds = null, armeIds = nu
     if (!h.reward || !Array.isArray(h.reward.ids) || h.reward.ids.length === 0) {
       out.push(`${h.id} : aucune récompense`);
       continue;
+    }
+    for (const k of Object.keys(h)) {
+      if (!CLEFS_HF.has(k)) out.push(`${h.id} : champ « ${k} » hors de la liste blanche`);
     }
     if (!REWARD_LABEL[h.reward.type]) out.push(`${h.id} : type « ${h.reward.type} » inconnu`);
     if (h.cible === undefined && !h.fait && h.id !== "legende") {
@@ -492,6 +511,41 @@ export function verifierHautsFaits(cardIds = null, relicIds = null, armeIds = nu
     }
     for (const x of armeIds) {
       if (!donnees.has(x)) out.push(`arme « ${x} » : aucun haut fait ne la donne`);
+    }
+  }
+
+  /* UNE CONDITION QUI PARLE DE LA MANCHE ENTIERE DOIT LIRE `complete`, et ca se
+     MESURE : on evalue sur des etats identiques et genereux dont on ne fait
+     varier que l issue. Une condition qui change de verdict avec `arretee` parle
+     de la FIN de la manche ; si elle ne change pas avec `complete`, elle confond
+     « terminee » et « gagnee » — et `arretee` vaut vrai des que la manche
+     s arrete, donc en MOURANT. Sept hauts faits ecrivaient « terminer une
+     manche » comme ca, dont quatre DEFIS qui tombaient a la premiere manche.
+     LA REGLE S ARRETE A L ACCES, et c est le seul endroit ou elle doit s arreter :
+     `recrue` ouvre une ligne, `debout` ouvre une ARME. Durcir l un des deux
+     reviendrait a enfermer du contenu de depart derriere une victoire, ce qu aucun
+     haut fait ne doit faire — l exemption se lit donc sur la RECOMPENSE, jamais
+     sur une liste d identifiants.
+     Et elle ne dit RIEN des defis d exploit ponctuel — un boss sans ultime, un
+     segment sans degat — qui ne lisent ni l un ni l autre. */
+  const genereux = (arretee, complete) => ({
+    arretee, complete, diff: 2, joueurs: 4, chutes: 0, niveau: 99,
+    kills: 1e6, stillMax: 1e6, basPvMax: 1e6, sainMax: 1e6, killsNear: 1e6,
+    killsFar: 1e6, killsBlast: 1e6, percee: 1e6, critBest: 1e6, killBest: 1e6,
+    tirsPourCent: 1, harvests: 1e6, revives: 1e6, relicsBought: 1e6,
+    skillUses: 1e6, cartesMax: 1e6, rareteMax: 0, familleMax: true, armes: 1e6,
+    segmentsSains: 1e6, bossSansUlt: true, bossSansDegat: true, bossVite: 1,
+    bossTotal: 1e6, bossKinds: 1e6, bossKindsDur: 1e6, classes: 1e6,
+  });
+  const OUVRE_UN_ACCES = new Set(["arme", "ligne"]);
+  for (const h of HAUTS_FAITS) {
+    if (h.id === "legende" || !h.fait) continue;
+    if (OUVRE_UN_ACCES.has(h.reward.type)) continue;
+    const litArretee = h.fait(genereux(true, true)) !== h.fait(genereux(false, true));
+    const litComplete = h.fait(genereux(true, true)) !== h.fait(genereux(true, false));
+    if (litArretee && !litComplete) {
+      out.push(`${h.id} : parle de la fin de manche sans distinguer la victoire`
+        + ` — il tombe sur une manche PERDUE`);
     }
   }
 

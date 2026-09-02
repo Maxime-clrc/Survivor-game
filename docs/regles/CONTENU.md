@@ -260,6 +260,36 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   une courbe, les hauts faits sont des marches ; une puissance qui arrive par
   marches crée des falaises. Une arme débloquée doit encore être choisie et
   jouée, une ligne coûte toujours des noyaux, un cadre ne change rien.
+- **« ARRÊTÉE » N’EST PAS « GAGNÉE », et le champ s’appelait `finie`.**
+  `hfStatsDeManche` le pose à l’évaluation de **fin de manche**, quelle qu’en soit
+  l’issue — la victoire a son propre champ, `complete`. Sept hauts faits
+  écrivaient « terminer une manche » en lisant `finie` : ils tombaient donc en
+  **mourant**, dont quatre défis qui s’obtenaient à la première manche. Le champ
+  s’appelle `arretee`, et le nom était la seule chose qui manquait pour que les
+  deux cessent de se confondre.
+- **UNE CONDITION QUI PARLE DE LA MANCHE ENTIÈRE DOIT LIRE `complete` — sauf si
+  elle ouvre un ACCÈS.** `recrue` ouvre la ligne `tronc`, `debout` ouvre l’arme
+  **dispersion** : les durcir enfermerait du contenu de départ derrière une
+  victoire, ce qu’aucun haut fait ne doit faire. L’exemption se lit donc sur la
+  **récompense**, jamais sur une liste d’identifiants. Et la règle ne dit rien des
+  défis d’exploit **ponctuel** — un boss sans ultime, un segment sans dégât — qui
+  ne lisent ni l’un ni l’autre.
+- **LA RÈGLE SE MESURE, ELLE NE SE RELIT PAS.** `verifierHautsFaits` évalue chaque
+  condition sur des états identiques et généreux dont il ne fait varier que
+  l’issue : celle qui change de verdict avec `arretee` parle de la fin de manche,
+  et si elle ne change pas avec `complete` elle confond les deux. Aucune lecture
+  de libellé, donc rien à tenir à jour.
+- **LA LISTE BLANCHE DES CHAMPS EST CE QUI PROTÈGE L’INVARIANT.** « Ils ouvrent
+  des portes, ils ne donnent pas de puissance » était tenu depuis toujours et
+  **rien ne le vérifiait** : ajouter `mods`, `bonus` ou `gain` à une entrée
+  faisait entrer une puissance permanente sans qu’aucune erreur ne se lève.
+  `CLEFS_HF` rend le champ inconnu impossible ; `REWARD_LABEL` ferme les types.
+- **`HF_NIVEAUX` DÉCLARE UNE DIFFICULTÉ, `mesureHautsFaits()` la MESURE.** Un
+  compte qui enchaîne les manches — cartes prises, marchand, arme et classe
+  tournantes, et il peut mourir. Le croisement des deux produit le verdict ; relire
+  les libellés n’en produit aucun. Le banc dit aussi ce qu’il **ne** joue pas : la
+  part de jauge atteinte sépare « le pilote ne fait pas ça » de « le seuil est
+  juste au-dessus ».
 - **TOUTE RÉCOMPENSE EST NOMMÉE** (`reward: { type, ids }`, cinq types : `arme`,
   `carte`, `ligne`, `relique`, `cadre`). Un déblocage indexé sur une **position
   de tableau** se casse dès qu'on ajoute un élément : c'est ce qui reverrouillait

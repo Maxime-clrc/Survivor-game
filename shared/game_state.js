@@ -13,10 +13,10 @@ import {
 } from "./statuses.js";
 import {
   PROG_CFG, TREES, COMMUN, CONFORT, applyMeta, coresForRun, lockedCards, lockedRelics,
-  metaCharge, slotsFor, sousBudget,
+  metaCharge, slotsFor, sousBudget, vueStats, cumulerStats, statsVierges,
 } from "./progression.js";
 import { ARME_EXIGENCE, RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
-import { HAUTS_FAITS, HF_CFG } from "./hauts_faits.js";
+import { HAUTS_FAITS, HF_CFG, HF_NIVEAUX, evaluerHautsFaits } from "./hauts_faits.js";
 import {
   ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, FAMILLES_D_ARME, appliquerEchelle, armeAt, cibleArme,
   canonEffet, canonGain, conversionBoss, difficulte, dpsBase, lameRayon, litCadence,
@@ -1171,7 +1171,11 @@ export class GameState {
       diff: this.diffIndex,
       joueurs: this.players.size,
       clsId: classAt(p.cls).id,
-      finie: !!opts.finie,
+      /* ARRETEE, PAS GAGNEE. Le champ s appelait `finie` et sept hauts faits
+         ecrivaient « terminer une manche » en le lisant : ils tombaient donc en
+         MOURANT. La victoire a deja son champ, `complete` — le nom etait la
+         seule chose qui manquait pour que les deux ne se confondent plus. */
+      arretee: !!opts.arretee,
       complete: !!this.victory,
       chutes: p.deaths,
       niveau: this.level,
@@ -10736,6 +10740,90 @@ export function verifierEquilibreArmes(manches = 3, minutes = 10) {
     }
   }
   return soucis;
+}
+
+/* ===========================================================================
+   LA CAMPAGNE DE HAUTS FAITS.
+
+   `HF_NIVEAUX` DECLARE UNE DIFFICULTE, RIEN NE LA MESURAIT. Un « defi » obtenu a
+   la premiere manche est mal classe, un « simple » jamais obtenu l est autant.
+   Le croisement des deux est ce qui produit un verdict ; relire les libelles n en
+   produit aucun. La methode existait deja pour UNE constante (`ECONOMIE_TIRS`,
+   « 118 tirs pour 100 kills en mediane »), elle vaut pour les trente-six.
+
+   UN COMPTE, PAS UNE MANCHE : le profil progresse d une manche a l autre, sinon
+   aucun haut fait CUMULATIF ne peut tomber. Le bot prend ses cartes, achete au
+   marchand, change d arme et de classe, et il PEUT mourir — sans ces quatre
+   choses trente hauts faits sur trente-six sont hors de portee par construction.
+
+   CE QU IL NE MESURE PAS, ET IL FAUT LE LIRE AVEC : le pilote ne va pas chercher
+   les cristaux et achete peu, donc `prospecteur` et `marchand` restent sous leur
+   cible sans que ce soit un verdict sur leur seuil. La colonne `part` est la pour
+   ca : une jauge a 7 % dit « le banc ne joue pas ca », une jauge a 77 % dit « le
+   seuil est juste au-dessus ». */
+export function mesureHautsFaits(manches = 20, minutes = 40,
+  diffIndex = DIFF_NORMAL, joueurs = 1) {
+  const profil = { hf: [], stats: statsVierges() };
+  const quand = new Map(), part = new Map();
+  let finies = 0;
+  const alea = Math.random;
+  try {
+    for (let r = 1; r <= manches; r++) {
+      Math.random = grainer(r * 7919 + diffIndex * 131 + joueurs * 17);
+      const g = new GameState(diffIndex);
+      for (let i = 1; i <= joueurs; i++) {
+        g.addPlayer(i, `bot${i}`, i - 1, (r + i) % CLASSES.length);
+        const p = g.players.get(i);
+        p.arme = ARMES[(r + i) % ARMES.length].id;
+        g._recomputeMods(p);
+      }
+      const pil = pilotage();
+      const images = Math.round(minutes * 60 / CFG.TICK);
+      const inputs = new Map();
+      for (let k = 0; k < images && !g.victory && !g.gameOver; k++) {
+        if (g.cardsPending) {
+          for (const [id, offres] of g.cardOffers) {
+            const p = g.players.get(id);
+            if (p && offres.length) g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
+          }
+          g.cardsPending = false;
+          g.openNextScreen();
+          continue;
+        }
+        if (g.relicPending) {
+          for (const p of g.players.values()) {
+            for (const o of (g.relicOffers.get(p.id) ?? [])) if (g.buyRelic(p, o)) break;
+          }
+          g.closeMerchant();
+          g.openNextScreen();
+          continue;
+        }
+        inputs.clear();
+        for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
+        g.step(CFG.TICK, inputs);
+      }
+      const p = g.players.get(1);
+      if (!p) continue;
+      if (g.victory) finies++;
+      const run = g.hfStatsDeManche(p, { arretee: true });
+      const stats = vueStats(profil, run);
+      for (const h of HAUTS_FAITS) {
+        if (h.cible === undefined || !h.jauge) continue;
+        const v = (h.jauge(stats) || 0) / h.cible;
+        if (v > (part.get(h.id) ?? 0)) part.set(h.id, v);
+      }
+      const gagnes = evaluerHautsFaits(profil.hf, stats);
+      for (const id of gagnes) if (!quand.has(id)) quand.set(id, r);
+      profil.hf = [...profil.hf, ...gagnes];
+      cumulerStats(profil, run);
+    }
+  } finally { Math.random = alea; }
+
+  return HAUTS_FAITS.map(h => ({
+    id: h.id, niveau: HF_NIVEAUX[h.niveau],
+    manche: quand.get(h.id) ?? null,
+    part: part.get(h.id) ?? null,
+  })).concat([{ id: "_manchesGagnees", niveau: "", manche: finies, part: null }]);
 }
 
 export function mesureRevenu(diffIndex, joueurs, manches = 8, minutes = 60) {

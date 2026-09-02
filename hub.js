@@ -95,10 +95,10 @@ export function createHub(store, log, commit = "") {
   /* LES HAUTS FAITS OUVRENT DES PORTES : le hub decide, parce qu'il est le seul
      ecrivain du magasin et le seul a connaitre les profils. La salle ne fait
      qu'emettre — a la mort d'un boss et a la fin de la manche. */
-  function evaluerPour(c, room, finie) {
+  function evaluerPour(c, room, arretee) {
     const p = room.state.players.get(c.id);
     if (!p || !c.profile) return [];
-    const run = room.state.hfStatsDeManche(p, { finie });
+    const run = room.state.hfStatsDeManche(p, { arretee });
     const gagnes = evaluerHautsFaits(c.profile.hf, vueStats(c.profile, run));
     if (gagnes.length === 0) return [];
     c.profile.hf = [...(c.profile.hf ?? []), ...gagnes];
@@ -177,7 +177,7 @@ export function createHub(store, log, commit = "") {
 
       // l'ordre compte : on EVALUE la manche, puis on la REPLIE dans les cumuls.
       // L'inverse la compterait deux fois.
-      const run = state.hfStatsDeManche(p, { finie: true });
+      const run = state.hfStatsDeManche(p, { arretee: true });
       const gagnes = evaluerHautsFaits(pr.hf, vueStats(pr, run));
       if (gagnes.length) {
         pr.hf = [...(pr.hf ?? []), ...gagnes];

@@ -7670,6 +7670,47 @@
                   armes de zone montent et les cible-unique descendent. RIEN N EST
                   CORRIGE ICI : ce lot porte sur la compatibilite, et la regle du
                   plan est de mesurer le levier avant d y toucher.
+    0.32.9 lot 10 « ARRETEE » N EST PAS « GAGNEE », ET LE CHAMP S APPELAIT `finie`.
+                  `hfStatsDeManche` le pose a l evaluation de FIN DE MANCHE, quelle
+                  qu en soit l issue — la victoire a son propre champ, `complete`,
+                  et trois hauts faits le lisaient deja. SEPT autres ecrivaient
+                  « terminer une manche » en lisant `finie` : ils tombaient donc en
+                  MOURANT. Le champ s appelle `arretee`, et le nom etait la seule
+                  chose qui manquait pour que les deux cessent de se confondre.
+                  MESURE, avant -> apres : `veteran` (intermediaire, trois reliques)
+                  passe de m1 PARTOUT a m11 en solo ; `puriste` et `nuit_blanche`,
+                  deux DEFIS qui donnent des cadres, passent de la PREMIERE manche
+                  a jamais en vingt. `perfection` et `quatuor` suivent.
+                  `recrue` et `debout` gardent `arretee` : ils ouvrent la ligne
+                  `tronc` et l ARME dispersion. Enfermer du contenu de depart
+                  derriere une victoire est le seul risque que ce chantier ne prend
+                  pas — leurs TEXTES ont ete corriges a la place. C est pour ca que
+                  l exemption du verificateur se lit sur la RECOMPENSE et jamais sur
+                  une liste d identifiants.
+                  LA REGLE SE MESURE, ELLE NE SE RELIT PAS. `verifierHautsFaits`
+                  evalue chaque condition sur des etats identiques et genereux dont
+                  il ne fait varier que l issue : celle qui change de verdict avec
+                  `arretee` parle de la fin de manche, et si elle ne change pas avec
+                  `complete` elle confond les deux. Aucune lecture de libelle, donc
+                  rien a tenir a jour. Premiere version de la regle ECARTEE : « un
+                  defi ne se valide jamais sur une manche perdue » accusait quatre
+                  defis d exploit PONCTUEL — un boss sans ultime, un segment sans
+                  degat — qui ne lisent ni l un ni l autre.
+                  LA LISTE BLANCHE DES CHAMPS PROTEGE L INVARIANT QUE RIEN NE
+                  GARDAIT. « Ils ouvrent des portes, ils ne donnent pas de
+                  puissance » etait tenu depuis toujours, et il suffisait d ajouter
+                  `mods` a une entree pour qu une puissance permanente entre par la
+                  porte de service sans qu aucune erreur ne se leve.
+                  `HF_NIVEAUX` DECLARE UNE DIFFICULTE, RIEN NE LA MESURAIT.
+                  `mesureHautsFaits()` fait jouer un COMPTE — vingt manches, cartes
+                  prises, marchand, arme et classe tournantes, et il peut mourir.
+                  Sans ces quatre choses, trente hauts faits sur trente-six sont hors
+                  de portee par construction : le premier banc n en voyait que six.
+                  Il dit aussi ce qu il NE joue pas — une jauge a 7 % signifie « le
+                  pilote ne fait pas ca », une a 77 % « le seuil est juste au-dessus ».
+                  Le pilote gagne UNE manche sur vingt : tout verdict sur un haut
+                  fait de victoire est borne par le bot et non par le seuil, et c est
+                  la limite principale du banc.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -7679,4 +7720,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.32.8";
+export const VERSION = "0.32.9";
