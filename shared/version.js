@@ -7800,6 +7800,47 @@
                   l ecran restait vide. Declaration remontee avant les deux
                   boucles qui la lisent.
 
+   --- plan 31 : les fondations ---------------------------------------------
+
+    0.34.0 lot 02 LE HASARD APPARTENAIT AU PROCESSUS, ET SEIZE SALLES SE LE
+                  PARTAGEAIENT. La graine existait — `new GameState(diff, biome,
+                  seed)` pilotait deja `buildBiome` et `weatherFor` — mais le
+                  DEROULE tirait ses 91 decisions de `Math.random`, une variable
+                  GLOBALE. `hub.js` tient jusqu a `ROOM_MAX = 16` salles dans un
+                  processus, avancees par la meme boucle : il n existait aucun
+                  moyen d imposer une graine a une salle sans l imposer aux quinze
+                  autres. Le generateur est desormais un CHAMP de l etat,
+                  `this.alea = mulberry32(this.seed ^ 0x9E3779B9)` — le decalage
+                  evite que le terrain et le deroule partagent la meme suite.
+                  LE DEFAUT ETAIT EN PRODUCTION ET LE BANC LE MONTRAIT. Six
+                  campagnes semaient en ECRASANT la fonction globale
+                  (`Math.random = grainer(r * 7919)`) : correct pour un script a
+                  une seule `GameState`, faux des qu il y en a deux. `grainer` est
+                  SUPPRIME — c etait une recopie exacte de `rng()` (`biomes.js`),
+                  le meme mulberry32 ecrit deux fois — et les six campagnes
+                  passent la graine au CONSTRUCTEUR : `mesureTTK` et
+                  `manchePilotee` la prennent en argument, les quatre autres la
+                  posent a la construction. Le `try/finally` de restauration
+                  disparait avec.
+                  LE PILOTE DE BANC TIRAIT AUSSI, ET IL TIRAIT DU GLOBAL. Dix
+                  choix — la carte prise, la relique achetee, la position d un
+                  corps en anneau — venaient de `Math.random` et devenaient
+                  irreproductibles des que le global cessait d etre seme. Ils
+                  passent par `g.alea` : une manche de banc redevient entierement
+                  fonction de sa graine.
+                  LE BIOME SE TIRE DE LA GRAINE quand il n est pas impose. Sinon
+                  « meme graine, meme terrain » etait faux hors banc : le lieu
+                  etait choisi avant que la graine existe.
+                  `verifierDeterminisme()` AVANCE DEUX ETATS EN ALTERNANCE, et
+                  c est tout le test : avances l un apres l autre ils passeraient
+                  meme avec un generateur global. Verifie aussi l inverse — deux
+                  graines differentes doivent donner deux manches differentes,
+                  sinon le critere passerait sur un jeu devenu constant. En
+                  `--tout`, 10 s.
+                  MESURE, ET C EST LA CONTREPARTIE ANNONCEE : un generateur change
+                  decale toutes les suites de tirage. Les verificateurs lents ne
+                  changent pas de couleur, mais leurs chiffres BOUGENT.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7808,4 +7849,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.33.1";
+export const VERSION = "0.34.0";

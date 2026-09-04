@@ -56,7 +56,7 @@ import {
 } from "./enemies.js";
 import {
   BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
-  biomeAt, hazardAt, weatherAt, verifierBiomes,
+  biomeAt, hazardAt, weatherAt, verifierBiomes, mulberry32,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
 } from "./biomes.js";
@@ -763,10 +763,16 @@ export class GameState {
     this.diffIndex = Math.min(Math.max(difficulty | 0, 0), DIFFICULTIES.length - 1);
     this.diff = DIFFICULTIES[this.diffIndex];
 
-    this.biomeIndex = biomeIndex === null
-      ? Math.floor(Math.random() * BIOMES.length)
-      : Math.min(Math.max(biomeIndex | 0, 0), BIOMES.length - 1);
     this.seed = (seed === null ? Math.floor(Math.random() * 0x7fffffff) : seed | 0) >>> 0;
+    /* LE HASARD APPARTIENT A LA SALLE. Un generateur global ne peut pas servir
+       seize salles du meme processus : imposer une graine a l une l imposait aux
+       quinze autres. Le decalage evite que le terrain et le deroule partagent la
+       meme suite, pour que deux manches de meme graine sur des biomes forces
+       differents restent comparables. */
+    this.alea = mulberry32(this.seed ^ 0x9E3779B9);
+    this.biomeIndex = biomeIndex === null
+      ? Math.floor(this.alea() * BIOMES.length)
+      : Math.min(Math.max(biomeIndex | 0, 0), BIOMES.length - 1);
     this.biome = buildBiome(this.biomeIndex, this.diffIndex, this.seed,
       CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
     this._biomeObstacles = this.biome.obstacles;
@@ -825,7 +831,7 @@ export class GameState {
     // le joueur dont l'ARME est en train de frapper ; 0 sinon
     this._armeDe = 0;
     this.harvestCd = CFG.HARVEST_MIN
-      + Math.random() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
+      + this.alea() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
 
     this.bossSeen = [];
     this.bossPrecedents = [];
@@ -896,8 +902,8 @@ export class GameState {
     const p = {
       id, name, colorIndex,
       cls: CLASSES[cls] ? cls : CLASS_DEFAULT,
-      x: at.x + (Math.random() - 0.5) * 140,
-      y: at.y + (Math.random() - 0.5) * 140,
+      x: at.x + (this.alea() - 0.5) * 140,
+      y: at.y + (this.alea() - 0.5) * 140,
       hp: def.hp,
       maxHp: def.hp,
       downed: false,
@@ -1033,7 +1039,7 @@ export class GameState {
     p.hp = p.maxHp;
 
     if (meta && meta.confort && meta.confort.ravitaillement) {
-      const a = Math.random() * Math.PI * 2;
+      const a = this.alea() * Math.PI * 2;
       const at2 = this._dropPoint(p.x + Math.cos(a) * 120, p.y + Math.sin(a) * 120, 60);
       this._poserBonus(this._randomPowerupType(), at2.x, at2.y);
     }
@@ -1070,7 +1076,7 @@ export class GameState {
       ctx.systems = new Set(ctx.systems).add("chaleur");
     }
     const picks = drawCards(p.cards, quality, forceRare || p.commonStreak >= 2,
-      classAt(p.cls).id, Math.random, jalon, this.level,
+      classAt(p.cls).id, this.alea, jalon, this.level,
       { locked: p.locked, count: p.meta?.confort?.quatrieme ? 4 : 3, ctx });
     this._poolWarn(p, ctx);
     return picks.map(c => c.id);
@@ -1849,7 +1855,7 @@ export class GameState {
           ? 1 + p.armeRes * (ARME_CFG.CHALEUR_BONUS_MANUEL + (p.mods.chaleurDegats ?? 0))
           : 1);
     this._volley(p, base);
-    if (p.mods.echoChance > 0 && Math.random() < p.mods.echoChance) this._volley(p, base);
+    if (p.mods.echoChance > 0 && this.alea() < p.mods.echoChance) this._volley(p, base);
   }
 
   /* LA PENALITE VIT AU MEME ENDROIT QUE LE BENEFICE. `barrelDamageMul` se payait
@@ -1944,7 +1950,7 @@ export class GameState {
         const rail = arme.charge ? 1 + p.mods.railDegats : 1;
         for (let i = 0; i < barrels; i++) {
           const off = (barrels === 1 ? 0 : (i - (barrels - 1) / 2) * 0.13)
-            + (disp > 0 ? (Math.random() * 2 - 1) * disp : 0);
+            + (disp > 0 ? (this.alea() * 2 - 1) * disp : 0);
           this._fire(p, dmg * dernier * rail, off, {
             pierceAll: !!arme.perforeTout,
             court: arme.portee,
@@ -2961,7 +2967,7 @@ export class GameState {
         owner.dashCrits--;
         this.lastCrit = true;
         amount *= owner.mods.critMul;
-      } else if (!overTime && Math.random() < Math.min(CARD_CFG.CRIT_CHANCE_CAP,
+      } else if (!overTime && this.alea() < Math.min(CARD_CFG.CRIT_CHANCE_CAP,
           owner.mods.critChance + this._relicSum(owner, "critFlat"))) {
         this.lastCrit = true;
         amount *= owner.mods.critMul + this._relicSum(owner, "critMulFlat");
@@ -3577,7 +3583,7 @@ export class GameState {
     if (avail.length === 0) avail = [0];
     let total = 0;
     for (const i of avail) total += ENEMY_TYPES[i].weight;
-    let roll = Math.random() * total;
+    let roll = this.alea() * total;
     for (const i of avail) {
       roll -= ENEMY_TYPES[i].weight;
       if (roll <= 0) return ENEMY_TYPES[i];
@@ -3615,10 +3621,10 @@ export class GameState {
       y: pos.y,
       hp,
       maxHp: hp,
-      speed: enemySpeed(ti, past, this.diffIndex, 0.9 + Math.random() * 0.2, elite),
+      speed: enemySpeed(ti, past, this.diffIndex, 0.9 + this.alea() * 0.2, elite),
       r: elite ? base.r * CFG.ELITE_RADIUS_MUL : base.r,
       ang: Math.atan2(CFG.ARENA_H / 2 - pos.y, CFG.ARENA_W / 2 - pos.x),
-      shootCd: t.shootCd ? t.shootCd * (0.5 + Math.random()) : 0,
+      shootCd: t.shootCd ? t.shootCd * (0.5 + this.alea()) : 0,
       aimT: 0,
       shield: 0, shieldMax: 0, regen: 0, egide: 0,
       pair: 0, lienT: 0,
@@ -3626,7 +3632,7 @@ export class GameState {
       aimAng: 0,
       standoff: t.standoff ?? 200,
       traits: traitsOf(this.diffIndex, ti),
-      dashCd: TRAIT_CFG.DASH_CD * (0.4 + Math.random()),
+      dashCd: TRAIT_CFG.DASH_CD * (0.4 + this.alea()),
       dashWarn: 0,
       dashT: 0,
       trailAt: 0,
@@ -3698,7 +3704,7 @@ export class GameState {
   _startBeat() {
     this.spawnAcc = 0;
     this.packLeft = 0;
-    this.beatSide = Math.floor(Math.random() * 4);
+    this.beatSide = Math.floor(this.alea() * 4);
 
 
     for (const p of this.players.values()) p.relicMemoireUsed = 0;
@@ -3854,7 +3860,7 @@ export class GameState {
       const weights = RELIC_CFG.WEIGHT;
       let total = 0;
       for (const r of from) total += weights[r.tier];
-      let roll = Math.random() * total;
+      let roll = this.alea() * total;
       let idx = 0;
       for (let i = 0; i < from.length; i++) {
         roll -= weights[from[i].tier];
@@ -3949,14 +3955,14 @@ export class GameState {
       this.spawnAcc -= 1;
       if (this.enemies.length >= cap) { this.spawnAcc = 0; break; }
       const type = ev && ev.types.length > 0
-        ? ev.types[Math.floor(Math.random() * ev.types.length)]
+        ? ev.types[Math.floor(this.alea() * ev.types.length)]
         : -1;
       const e = this._spawnEnemy(type, null, null, eliteDue, entry.geom);
       if (!e) break;
       if (eliteDue) {
         eliteDue = false;
         const k = Math.pow(crowd, CFG.WAVE_ELITE_CROWD_EXP);
-        this.eliteCd = (CFG.ELITE_MIN + Math.random() * (CFG.ELITE_MAX - CFG.ELITE_MIN)) / k;
+        this.eliteCd = (CFG.ELITE_MIN + this.alea() * (CFG.ELITE_MAX - CFG.ELITE_MIN)) / k;
       }
     }
   }
@@ -3990,10 +3996,10 @@ export class GameState {
     const s = side & 3;
     let pt;
     switch (s) {
-      case 0:  pt = { x: B.x0 + Math.random() * (B.x1 - B.x0), y: B.y0 }; break;
-      case 1:  pt = { x: B.x0 + Math.random() * (B.x1 - B.x0), y: B.y1 }; break;
-      case 2:  pt = { x: B.x0, y: B.y0 + Math.random() * (B.y1 - B.y0) }; break;
-      default: pt = { x: B.x1, y: B.y0 + Math.random() * (B.y1 - B.y0) };
+      case 0:  pt = { x: B.x0 + this.alea() * (B.x1 - B.x0), y: B.y0 }; break;
+      case 1:  pt = { x: B.x0 + this.alea() * (B.x1 - B.x0), y: B.y1 }; break;
+      case 2:  pt = { x: B.x0, y: B.y0 + this.alea() * (B.y1 - B.y0) }; break;
+      default: pt = { x: B.x1, y: B.y0 + this.alea() * (B.y1 - B.y0) };
     }
     return this._pushOffScreen(pt, s);
   }
@@ -4029,7 +4035,7 @@ export class GameState {
       case "front":
         return this._edgePoint(this.beatSide);
       case "pince":
-        return this._edgePoint(Math.random() < 0.5 ? this.beatSide : this.beatSide ^ 1);
+        return this._edgePoint(this.alea() < 0.5 ? this.beatSide : this.beatSide ^ 1);
       case "quatre-fronts": {
         if (this.packLeft <= 0) {
           this.packLeft = TL_CFG.PACK;
@@ -4041,7 +4047,7 @@ export class GameState {
       case "anneau":
         return this._ringPoint(r);
       default:
-        return this._edgePoint(Math.floor(Math.random() * 4));
+        return this._edgePoint(Math.floor(this.alea() * 4));
     }
   }
 
@@ -4050,7 +4056,7 @@ export class GameState {
     const cx = c.x, cy = c.y;
     const rad = (CFG.VIEW_H / 2) * TL_CFG.RING_RATIO;
     for (let i = 0; i < TL_CFG.RING_TRIES; i++) {
-      const a = Math.random() * Math.PI * 2;
+      const a = this.alea() * Math.PI * 2;
       const x = cx + Math.cos(a) * rad;
       const y = cy + Math.sin(a) * rad;
       const clear = TL_CFG.RING_CLEAR + r;
@@ -4061,7 +4067,7 @@ export class GameState {
       }
       if (ok) return { x, y };
     }
-    return this._edgePoint(Math.floor(Math.random() * 4));
+    return this._edgePoint(Math.floor(this.alea() * 4));
   }
 
 
@@ -4111,7 +4117,7 @@ export class GameState {
     const chance = this.hasHealer()
       ? STATUS_CFG.PURIFY_CHANCE
       : STATUS_CFG.PURIFY_CHANCE_NO_HEALER;
-    if (Math.random() < chance * this._pressionEtats()) {
+    if (this.alea() < chance * this._pressionEtats()) {
       return POWERUP_TYPES.indexOf("purification");
     }
     const c = this._contexteBonus();
@@ -4126,7 +4132,7 @@ export class GameState {
     for (let i = 0; i < POIDS.length; i++) {
       if (POIDS[i] < plancher) { total += plancher - POIDS[i]; POIDS[i] = plancher; }
     }
-    let r = Math.random() * total;
+    let r = this.alea() * total;
     for (let i = 0; i < POIDS.length; i++) {
       r -= POIDS[i];
       if (r <= 0) return POWERUP_ROTATION[i];
@@ -4162,12 +4168,12 @@ export class GameState {
   _powerups(dt) {
     this.powerupCd -= dt;
     if (this.powerupCd <= 0 && this._solBonus() < CFG.POWERUP_MAX_GROUND) {
-      this.powerupCd = CFG.POWERUP_MIN + Math.random() * (CFG.POWERUP_MAX - CFG.POWERUP_MIN);
+      this.powerupCd = CFG.POWERUP_MIN + this.alea() * (CFG.POWERUP_MAX - CFG.POWERUP_MIN);
       const margin = 90;
       const B = this.bounds;
       const pt = this._dropPoint(
-        B.x0 + margin + Math.random() * Math.max(1, B.x1 - B.x0 - margin * 2),
-        B.y0 + margin + Math.random() * Math.max(1, B.y1 - B.y0 - margin * 2),
+        B.x0 + margin + this.alea() * Math.max(1, B.x1 - B.x0 - margin * 2),
+        B.y0 + margin + this.alea() * Math.max(1, B.y1 - B.y0 - margin * 2),
         margin);
       this._poserBonus(this._randomPowerupType(), pt.x, pt.y);
     }
@@ -4195,14 +4201,14 @@ export class GameState {
     this.harvestCd -= dt;
     if (this.harvestCd <= 0) {
       this.harvestCd = CFG.HARVEST_MIN
-        + Math.random() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
+        + this.alea() * (CFG.HARVEST_MAX - CFG.HARVEST_MIN);
       if (!this.biomeNu && this.harvests.length < this._harvestGroundCap()) {
         const at = this._harvestPoint();
         if (at) {
           this.harvests.push({
             id: this._nextId++,
             x: at.x, y: at.y,
-            kind: Math.random() < 0.5 ? 0 : 1,
+            kind: this.alea() < 0.5 ? 0 : 1,
             hp: CFG.HARVEST_CRYSTAL_HP, maxHp: CFG.HARVEST_CRYSTAL_HP,
             prog: 0,
           });
@@ -4245,8 +4251,8 @@ export class GameState {
     const B = this.bounds;
     const margin = 150;
     for (let i = 0; i < 20; i++) {
-      const x = B.x0 + margin + Math.random() * Math.max(1, B.x1 - B.x0 - margin * 2);
-      const y = B.y0 + margin + Math.random() * Math.max(1, B.y1 - B.y0 - margin * 2);
+      const x = B.x0 + margin + this.alea() * Math.max(1, B.x1 - B.x0 - margin * 2);
+      const y = B.y0 + margin + this.alea() * Math.max(1, B.y1 - B.y0 - margin * 2);
       let ok = true;
       for (const p of this._alivePlayers()) {
         if ((p.x - x) ** 2 + (p.y - y) ** 2 < CFG.HARVEST_PLAYER_DIST ** 2) {
@@ -4269,7 +4275,7 @@ export class GameState {
 
   _harvestYield(h) {
     const gain = CFG.HARVEST_YIELD_MIN
-      + Math.floor(Math.random() * (CFG.HARVEST_YIELD_MAX - CFG.HARVEST_YIELD_MIN + 1));
+      + Math.floor(this.alea() * (CFG.HARVEST_YIELD_MAX - CFG.HARVEST_YIELD_MIN + 1));
     let soin = 0, encore = 0;
     for (const p of this.players.values()) {
       const bonus = this.event ? p.mods.eventShard : 0;
@@ -4284,12 +4290,12 @@ export class GameState {
         if (!p.downed) p.hp = Math.min(p.maxHp, p.hp + soin);
       }
     }
-    if (encore > 0 && Math.random() < encore
+    if (encore > 0 && this.alea() < encore
         && this.harvests.length < this._harvestGroundCap()) {
       this.harvests.push({
         id: this._nextId++,
         x: h.x, y: h.y,
-        kind: Math.random() < 0.5 ? 0 : 1,
+        kind: this.alea() < 0.5 ? 0 : 1,
         hp: CFG.HARVEST_CRYSTAL_HP, maxHp: CFG.HARVEST_CRYSTAL_HP,
         prog: 0,
       });
@@ -5140,7 +5146,7 @@ export class GameState {
     // le tirage, et la memoire appartient a la salle, pas au module.
     const neufs = pool.filter(i => !this.bossPrecedents.includes(i));
     if (neufs.length > 0) pool = neufs;
-    const kind = pool[Math.floor(Math.random() * pool.length)];
+    const kind = pool[Math.floor(this.alea() * pool.length)];
     this.bossSeen.push(kind);
     return kind;
   }
@@ -5247,7 +5253,7 @@ export class GameState {
 
         // ANCRE : il s'encastre dans un bord tire au sort, et il n'en change
         // qu'a la rupture de barre.
-        if (def.archetype === "ancre") this._encastre(this.boss, Math.floor(Math.random() * 4));
+        if (def.archetype === "ancre") this._encastre(this.boss, Math.floor(this.alea() * 4));
         else if (def.archetype === "guetteur") this._poste(this.boss);
 
         if (kind === BOSS_JUMEAUX) {
@@ -5308,11 +5314,11 @@ export class GameState {
         const count = this._bossSummonCount();
         const B = this.bounds;
         for (let i = 0; i < count; i++) {
-          const side = Math.floor(Math.random() * 4);
+          const side = Math.floor(this.alea() * 4);
           const sx = side === 2 ? B.x0 + 20 : side === 3 ? B.x1 - 20
-            : B.x0 + Math.random() * (B.x1 - B.x0);
+            : B.x0 + this.alea() * (B.x1 - B.x0);
           const sy = side === 0 ? B.y0 + 20 : side === 1 ? B.y1 - 20
-            : B.y0 + Math.random() * (B.y1 - B.y0);
+            : B.y0 + this.alea() * (B.y1 - B.y0);
           const r = this._spawnEnemy(-1, sx, sy);
           if (r) r.renfort = 1;
         }
@@ -5363,7 +5369,7 @@ export class GameState {
   // vue inutile.
   _poste(b) {
     const c = this._teamCentroid();
-    const a = Math.random() * Math.PI * 2;
+    const a = this.alea() * Math.PI * 2;
     const pt = this._dropPoint(c.x + Math.cos(a) * BOSS_CFG.RELOC_DIST,
                                c.y + Math.sin(a) * BOSS_CFG.RELOC_DIST, 90);
     b.x = pt.x; b.y = pt.y;
@@ -5377,7 +5383,7 @@ export class GameState {
     this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
                         r: 130, life: 0.35, max: 0.35, kind: 14 });
     if (bossAt(b.kind).archetype === "ancre") {
-      this._encastre(b, ((b.bord ?? 0) + 1 + Math.floor(Math.random() * 3)) % 4);
+      this._encastre(b, ((b.bord ?? 0) + 1 + Math.floor(this.alea() * 3)) % 4);
     } else {
       this._poste(b);
     }
@@ -5422,7 +5428,7 @@ export class GameState {
       if (b.blinkCd > 0) return;
       b.blinkCd = BOSS_CFG.BLINK_EVERY;
       if (!t) return;
-      const a = Math.random() * Math.PI * 2;
+      const a = this.alea() * Math.PI * 2;
       const pt = this._dropPoint(t.x + Math.cos(a) * BOSS_CFG.BLINK_DIST,
                                  t.y + Math.sin(a) * BOSS_CFG.BLINK_DIST, 90);
       this.effects.push({ id: this._nextId++, x: b.x, y: b.y,
@@ -5539,7 +5545,7 @@ export class GameState {
       if (b.phase < b.bars - 1 && b.phase < this._bossProfil().couches) {
         const couche = bossAt(b.kind).unlock[b.phase];
         if (couche && couche.length) {
-          this._deferAtk(b, couche[Math.floor(Math.random() * couche.length)],
+          this._deferAtk(b, couche[Math.floor(this.alea() * couche.length)],
                          BOSS_CFG.PALIER_AMORCE);
         }
       }
@@ -5667,7 +5673,7 @@ export class GameState {
   _finalBrood(b) {
     for (let i = 0; i < BOSS_CFG.BROOD_COUNT; i++) {
       if (this.enemies.length >= this._enemyCap()) break;
-      const a = Math.random() * Math.PI * 2;
+      const a = this.alea() * Math.PI * 2;
       this._spawnEnemy(1, b.x + Math.cos(a) * 130, b.y + Math.sin(a) * 130);
     }
     this._alert(MECH_BROOD, 2);
@@ -5730,7 +5736,7 @@ export class GameState {
     const memo = (b.lastAttacks ??= []);
     const libres = base.filter(k => !memo.includes(k));
     const source = libres.length ? libres : base;
-    const choice = source[Math.floor(Math.random() * source.length)];
+    const choice = source[Math.floor(this.alea() * source.length)];
     memo.push(choice);
     while (memo.length > BOSS_CFG.ATK_MEMO) memo.shift();
     return choice;
@@ -5833,8 +5839,8 @@ export class GameState {
     const hp = BOSS_CFG.NOEUD_HP * this._bossPower();
     const n = Math.max(2, Math.min(BOSS_CFG.NOEUD_COUNT, this._alivePlayers().length + 1));
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + Math.random() * 0.6;
-      const d = 140 + Math.random() * 220;
+      const a = (i / n) * Math.PI * 2 + this.alea() * 0.6;
+      const d = 140 + this.alea() * 220;
       const pt = this._dropPoint(b.x + Math.cos(a) * d, b.y + Math.sin(a) * d);
       this._mark({
         mech: MECH_CLUSTER, noeud: 1,
@@ -5942,7 +5948,7 @@ export class GameState {
     const B = this.bounds;
     const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
     const rad = Math.min(B.x1 - B.x0, B.y1 - B.y0) * BOSS_CFG.SEAL_SPREAD;
-    const base = Math.random() * Math.PI * 2;
+    const base = this.alea() * Math.PI * 2;
     const n = towerCount(alive.length);
 
     for (let i = 0; i < n; i++) {
@@ -5977,8 +5983,8 @@ export class GameState {
     b.spiral = {
       left: CFG.SPIRAL_SHOTS,
       t: 0,
-      ang: Math.random() * Math.PI * 2,
-      dir: Math.random() < 0.5 ? 1 : -1,
+      ang: this.alea() * Math.PI * 2,
+      dir: this.alea() < 0.5 ? 1 : -1,
     };
   }
 
@@ -6034,11 +6040,11 @@ export class GameState {
     const n0 = this.zones.length;
     const B = this.bounds;
     const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
-    const vertical = Math.random() < 0.5;
+    const vertical = this.alea() < 0.5;
     const span = vertical ? bw : bh;
     const across = vertical ? bh : bw;
-    let hole = CFG.WALL_HOLE / 2 + Math.random() * (across - CFG.WALL_HOLE);
-    const drift = (Math.random() < 0.5 ? 1 : -1) * (across / (CFG.WALL_STEPS + 1));
+    let hole = CFG.WALL_HOLE / 2 + this.alea() * (across - CFG.WALL_HOLE);
+    const drift = (this.alea() < 0.5 ? 1 : -1) * (across / (CFG.WALL_STEPS + 1));
 
     for (let i = 0; i < CFG.WALL_STEPS; i++) {
       const k = (i + 0.5) / CFG.WALL_STEPS;
@@ -6414,7 +6420,7 @@ export class GameState {
     }
 
     if (!this._mechLibre(MECH_STACK)) { this._atkMarques(b); return; }
-    const p = alive[Math.floor(Math.random() * alive.length)];
+    const p = alive[Math.floor(this.alea() * alive.length)];
     this._mark({
       mech: MECH_STACK, a: p.id, x: p.x, y: p.y,
       r: this._stackRadius(alive.length), t: this._warn(BOSS_CFG.STACK_WARN),
@@ -6473,13 +6479,13 @@ export class GameState {
     const B = this.bounds;
     const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
     const rad = Math.min(B.x1 - B.x0, B.y1 - B.y0) * 0.32;
-    const base = Math.random() * Math.PI * 2;
+    const base = this.alea() * Math.PI * 2;
     const warn = mech === MECH_COUNT ? this._warn(BOSS_CFG.COUNT_WARN) : this._warn(BOSS_CFG.TOWER_WARN);
 
     const n = mech === MECH_COUNT ? 2 : towerCount(alive.length);
     const needs = [];
     if (mech === MECH_COUNT) {
-      const first = 1 + Math.floor(Math.random() * (alive.length - 1));
+      const first = 1 + Math.floor(this.alea() * (alive.length - 1));
       needs.push(first, alive.length - first);
     } else {
       for (let i = 0; i < n; i++) needs.push(1);
@@ -6525,8 +6531,8 @@ export class GameState {
     const alive = this._alivePlayers();
     if (adaptMech(MECH_LINK, alive.length) !== MECH_LINK
         || !this._mechLibre(MECH_LINK)) { this._atkMarques(b); return; }
-    const i = Math.floor(Math.random() * alive.length);
-    let j = Math.floor(Math.random() * (alive.length - 1));
+    const i = Math.floor(this.alea() * alive.length);
+    let j = Math.floor(this.alea() * (alive.length - 1));
     if (j >= i) j++;
     this._mark({
       mech: MECH_LINK, a: alive[i].id, b: alive[j].id,
@@ -6542,7 +6548,7 @@ export class GameState {
     if (mech === MECH_CLUSTER) { this._atkGrappes(b, 1, true); return; }
     if (mech !== MECH_JAIL || !this._mechLibre(MECH_JAIL)) { this._atkMarques(b); return; }
 
-    const p = alive[Math.floor(Math.random() * alive.length)];
+    const p = alive[Math.floor(this.alea() * alive.length)];
     const hp = BOSS_CFG.JAIL_HP * this._bossPower();
     this._mark({
       mech: MECH_JAIL, a: p.id, x: p.x, y: p.y, r: 46,
@@ -6556,8 +6562,8 @@ export class GameState {
     if (!count) count = this.players.size >= 2 ? BOSS_CFG.CLUSTER_COUNT : 1;
     const hp = BOSS_CFG.CLUSTER_HP * this._bossPower();
     for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = 90 + Math.random() * 190;
+      const a = this.alea() * Math.PI * 2;
+      const d = 90 + this.alea() * 190;
       const pt = this._dropPoint(b.x + Math.cos(a) * d, b.y + Math.sin(a) * d);
       this._mark({
         mech: MECH_CLUSTER,
@@ -6573,7 +6579,7 @@ export class GameState {
   _atkNourriciers(b) {
     const n = this.players.size >= 2 ? BOSS_CFG.FEED_COUNT : 1;
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
+      const a = this.alea() * Math.PI * 2;
       const e = this._spawnEnemy(0, b.x + Math.cos(a) * 120, b.y + Math.sin(a) * 120);
       if (!e) continue;
       this._mark({ mech: MECH_FEED, a: e.id, x: e.x, y: e.y, r: 24, t: 600 });
@@ -6645,7 +6651,7 @@ export class GameState {
   _atkExaflare(b) {
     const B = this.bounds;
     const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
-    const a = Math.random() * Math.PI * 2;
+    const a = this.alea() * Math.PI * 2;
     const start = {
       x: (B.x0 + B.x1) / 2 - Math.cos(a) * bw * 0.45,
       y: (B.y0 + B.y1) / 2 - Math.sin(a) * bh * 0.45,
@@ -6690,10 +6696,10 @@ export class GameState {
 
   _atkDerive(b) {
     for (let i = 0; i < BOSS_CFG.DRIFT_COUNT; i++) {
-      const a = Math.random() * Math.PI * 2;
+      const a = this.alea() * Math.PI * 2;
       this._zone({
-        x: this.bounds.x0 + Math.random() * (this.bounds.x1 - this.bounds.x0),
-        y: this.bounds.y0 + Math.random() * (this.bounds.y1 - this.bounds.y0),
+        x: this.bounds.x0 + this.alea() * (this.bounds.x1 - this.bounds.x0),
+        y: this.bounds.y0 + this.alea() * (this.bounds.y1 - this.bounds.y0),
         r: BOSS_CFG.DRIFT_R,
         vx: Math.cos(a) * BOSS_CFG.DRIFT_SPEED,
         vy: Math.sin(a) * BOSS_CFG.DRIFT_SPEED,
@@ -6710,13 +6716,13 @@ export class GameState {
     const grp = this._nextId++;
     const total = this._warn(BOSS_CFG.SANCT_WARN) + BOSS_CFG.SANCT_TICKS * BOSS_CFG.SANCT_PERIOD;
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
+      const a = this.alea() * Math.PI * 2;
       let px = 0, py = 0;
       // echeance nulle : un refuge est un abri sans echeance (`_abris`), donc il
       // ne nait sous rien de mortel, pas meme sous un telegraphe qui partirait.
       for (let k = 0; k < 8; k++) {
-        px = this.bounds.x0 + 200 + Math.random() * Math.max(1, this.bounds.x1 - this.bounds.x0 - 400);
-        py = this.bounds.y0 + 150 + Math.random() * Math.max(1, this.bounds.y1 - this.bounds.y0 - 300);
+        px = this.bounds.x0 + 200 + this.alea() * Math.max(1, this.bounds.x1 - this.bounds.x0 - 400);
+        py = this.bounds.y0 + 150 + this.alea() * Math.max(1, this.bounds.y1 - this.bounds.y0 - 300);
         if (this._foyerLibre(px, py, BOSS_CFG.SANCT_R, 0)) break;
       }
       this._mark({
@@ -6741,7 +6747,7 @@ export class GameState {
   // (`_zoneEcarteAbris`), pas par l'exclusivite du sol.
   _atkCroix(b) {
     for (const e of this._bossTargets()) {
-      const a = Math.random() * Math.PI * 2;
+      const a = this.alea() * Math.PI * 2;
       const len = Math.hypot(this.bounds.x1 - this.bounds.x0, this.bounds.y1 - this.bounds.y0);
       for (let i = 0; i < 2; i++) {
         this._zone({
@@ -6762,7 +6768,7 @@ export class GameState {
       this._zone({
         shape: 5, x: e.x, y: e.y,
         r: len, h: BOSS_CFG.CROSSD_THICKNESS,
-        ang: Math.random() * Math.PI / 2,
+        ang: this.alea() * Math.PI / 2,
         warn: this._warn(BOSS_CFG.CROSSD_WARN),
         life: BOSS_CFG.CROSSD_LIFE,
         dot: BOSS_CFG.CROSSD_DOT,
@@ -6794,7 +6800,7 @@ export class GameState {
     this._zone({
       shape: 4, x: b.x, y: b.y,
       r: BOSS_CFG.PACMAN_R, spread: BOSS_CFG.PACMAN_SAFE,
-      ang: Math.random() * Math.PI * 2,
+      ang: this.alea() * Math.PI * 2,
       warn: this._warn(BOSS_CFG.PACMAN_WARN),
       prox: 1,
       dmg: this._zoneDamage(b) * 1.25,
@@ -6937,7 +6943,7 @@ export class GameState {
         if (m.noeud) { this._groundZone(m.x, m.y, BOSS_CFG.NOEUD_R, BOSS_CFG.NOEUD_DOT,
                                         BOSS_CFG.NOEUD_LIFE, 0, SOL_BOSS); break; }
         for (let i = 0; i < BOSS_CFG.CLUSTER_HATCH; i++) {
-          const a = Math.random() * Math.PI * 2;
+          const a = this.alea() * Math.PI * 2;
           this._spawnEnemy(1, m.x + Math.cos(a) * 24, m.y + Math.sin(a) * 24);
         }
         break;
@@ -7191,7 +7197,7 @@ export class GameState {
 
   _atkSalve(b) {
     const count = 16 + b.phase * 2;
-    const base = Math.random() * Math.PI * 2;
+    const base = this.alea() * Math.PI * 2;
     for (let i = 0; i < count; i++) {
       const a = base + (i / count) * Math.PI * 2;
       this.shots.push({
@@ -7208,8 +7214,8 @@ export class GameState {
     for (const p of this.players.values()) {
       if (p.downed) continue;
       this._zone({
-        x: p.x + (Math.random() - 0.5) * 90,
-        y: p.y + (Math.random() - 0.5) * 90,
+        x: p.x + (this.alea() - 0.5) * 90,
+        y: p.y + (this.alea() - 0.5) * 90,
         r: CFG.ZONE_RADIUS,
         dmg: this._zoneDamage(b),
       });
@@ -7223,7 +7229,7 @@ export class GameState {
     const B = this.bounds;
     const cw = (B.x1 - B.x0) / CFG.GRID_COLS;
     const ch = (B.y1 - B.y0) / CFG.GRID_ROWS;
-    const parity = Math.random() < 0.5 ? 0 : 1;
+    const parity = this.alea() < 0.5 ? 0 : 1;
 
     for (let cx = 0; cx < CFG.GRID_COLS; cx++) {
       for (let cy = 0; cy < CFG.GRID_ROWS; cy++) {
@@ -7245,7 +7251,7 @@ export class GameState {
     const n0 = this.zones.length;
     const B = this.bounds;
     const cx = (B.x0 + B.x1) / 2, cy = (B.y0 + B.y1) / 2;
-    const ringFirst = Math.random() < 0.5;
+    const ringFirst = this.alea() < 0.5;
     const outer = Math.hypot(B.x1 - B.x0, B.y1 - B.y0);
 
     this._zone({
@@ -7267,7 +7273,7 @@ export class GameState {
     const B = this.bounds;
     const bw = B.x1 - B.x0, bh = B.y1 - B.y0;
     const mx = (B.x0 + B.x1) / 2, my = (B.y0 + B.y1) / 2;
-    const vertical = Math.random() < 0.5;
+    const vertical = this.alea() < 0.5;
     const lanes = 3;
 
     for (let i = 0; i < lanes; i++) {
@@ -7299,8 +7305,8 @@ export class GameState {
     const n0 = this.zones.length;
     const blades = CFG.SWEEP_BLADES;
     const len = Math.hypot(this.bounds.x1 - this.bounds.x0, this.bounds.y1 - this.bounds.y0);
-    const base = Math.random() * Math.PI * 2;
-    const dir = Math.random() < 0.5 ? 1 : -1;
+    const base = this.alea() * Math.PI * 2;
+    const dir = this.alea() < 0.5 ? 1 : -1;
 
     for (let i = 0; i < blades; i++) {
       const a = base + dir * (i / blades) * Math.PI * 2;
@@ -7707,8 +7713,8 @@ export class GameState {
   _atkQuadrantZone(b) {
     const n0 = this.zones.length;
     const B = this.bounds;
-    const qx = Math.random() < 0.5 ? 0 : 1;
-    const qy = Math.random() < 0.5 ? 0 : 1;
+    const qx = this.alea() < 0.5 ? 0 : 1;
+    const qy = this.alea() < 0.5 ? 0 : 1;
     const w = (B.x1 - B.x0) / 2, h = (B.y1 - B.y0) / 2;
     this._zone({
       shape: 1,
@@ -8299,12 +8305,12 @@ export class GameState {
     if (b.reso > 0) b.dmg *= 1 + b.reso;
     if (tireur) {
       const chance = tireur.mods.rootChance + this._relicSum(tireur, "rootChance");
-      if (chance > 0 && Math.random() < chance) {
+      if (chance > 0 && this.alea() < chance) {
         this._rootEnemy(e, CARD_CFG.FILINS_TIME);
       }
     }
     const critPierce = this.lastCrit && tireur?.mods.critVuln;
-    if (b.arc > 0 && Math.random() < b.arc) this._arc(e, b.dmg, b.owner);
+    if (b.arc > 0 && this.alea() < b.arc) this._arc(e, b.dmg, b.owner);
     if (e.hp <= 0 && b.chain > 0) this._ricochet(e, b);
 
     if (b.inertia) {
@@ -8616,7 +8622,7 @@ export class GameState {
         owner.cd2 = Math.max(0, owner.cd2 - owner.mods.cdPerKill);
       }
 
-      if (owner.mods.harvest > 0 && Math.random() < owner.mods.harvest
+      if (owner.mods.harvest > 0 && this.alea() < owner.mods.harvest
           && this.powerups.length - this._solBonus() < CFG.FRAGMENT_MAX_GROUND) {
         const pt = this._dropPoint(e.x, e.y);
         this._poserBonus(TYPE_FRAGMENT, pt.x, pt.y);
@@ -8657,7 +8663,7 @@ export class GameState {
 
     if (def.splits) {
       for (let i = 0; i < def.splits; i++) {
-        const a = Math.random() * Math.PI * 2;
+        const a = this.alea() * Math.PI * 2;
         this._spawnEnemy(1, e.x + Math.cos(a) * 22, e.y + Math.sin(a) * 22);
       }
     }
@@ -9219,8 +9225,8 @@ export function mesureEncerclement(diffIndex, joueurs, distance = 600, limite = 
   const rayon = distance * 0.75;
   const cap = enemyCap(diffIndex, joueurs);
   while (g.enemies.length < cap) {
-    const a = Math.random() * Math.PI * 2;
-    const d = Math.sqrt(Math.random()) * rayon;
+    const a = g.alea() * Math.PI * 2;
+    const d = Math.sqrt(g.alea()) * rayon;
     if (!g._spawnEnemy(-1, meneur.x + Math.cos(a) * d, meneur.y + Math.sin(a) * d)) break;
   }
 
@@ -9745,48 +9751,44 @@ export function mesureContribution(diffIndex, classes, minutes = 30, graines = 3
   }));
   let survie = 0, niveau = 0, victoires = 0, tempsTotal = 0;
 
-  const alea = Math.random;
-  try {
-    for (let gr = 1; gr <= graines; gr++) {
-      Math.random = grainer(gr * 7919);
-      const g = new GameState(diffIndex);
-      classes.forEach((cls, i) =>
-        g.addPlayer(i + 1, `bot${i + 1}`, i, cls, metaProfil(profil, classAt(cls).id)));
-      g.warmup = 0;
-      const pil = pilotage();
-      const inputs = new Map();
-      const images = Math.round(minutes * 60 / CFG.TICK);
-      for (let k = 0; k < images && !g.gameOver && !g.victory; k++) {
-        if (g.cardsPending) {
-          for (const [id, o] of g.cardOffers) {
-            const p = g.players.get(id);
-            if (p && o.length) g.takeCard(p, o[Math.floor(Math.random() * o.length)]);
-          }
-          g.cardsPending = false; g.openNextScreen(); k--; continue;
+  for (let gr = 1; gr <= graines; gr++) {
+    const g = new GameState(diffIndex, null, gr * 7919);
+    classes.forEach((cls, i) =>
+      g.addPlayer(i + 1, `bot${i + 1}`, i, cls, metaProfil(profil, classAt(cls).id)));
+    g.warmup = 0;
+    const pil = pilotage();
+    const inputs = new Map();
+    const images = Math.round(minutes * 60 / CFG.TICK);
+    for (let k = 0; k < images && !g.gameOver && !g.victory; k++) {
+      if (g.cardsPending) {
+        for (const [id, o] of g.cardOffers) {
+          const p = g.players.get(id);
+          if (p && o.length) g.takeCard(p, o[Math.floor(g.alea() * o.length)]);
         }
-        if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
-        inputs.clear();
-        for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
-        g.step(CFG.TICK, inputs);
+        g.cardsPending = false; g.openNextScreen(); k--; continue;
       }
-      survie += g.time;
-      niveau += g.level;
-      tempsTotal += Math.max(1 / 60, g.time);
-      if (g.victory) victoires++;
-      for (const p of g.players.values()) {
-        const r = parRole[p.cls];
-        r.n++;
-        r.degats += p.damageDealt;
-        r.soignes += p.healDealt;
-        r.kills += p.kills;
-        r.releves += p.hf.revives;
-        r.evites += p.contrib.evites;
-        r.proteges += p.contrib.proteges;
-        r.detournes += p.contrib.detournes;
-        r.permis += p.contrib.permis;
-      }
+      if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
+      inputs.clear();
+      for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
+      g.step(CFG.TICK, inputs);
     }
-  } finally { Math.random = alea; }
+    survie += g.time;
+    niveau += g.level;
+    tempsTotal += Math.max(1 / 60, g.time);
+    if (g.victory) victoires++;
+    for (const p of g.players.values()) {
+      const r = parRole[p.cls];
+      r.n++;
+      r.degats += p.damageDealt;
+      r.soignes += p.healDealt;
+      r.kills += p.kills;
+      r.releves += p.hf.revives;
+      r.evites += p.contrib.evites;
+      r.proteges += p.contrib.proteges;
+      r.detournes += p.contrib.detournes;
+      r.permis += p.contrib.permis;
+    }
+  }
 
   const min = tempsTotal / 60;
   const parMinute = x => x / Math.max(1e-6, min);
@@ -9940,8 +9942,8 @@ function botVersBoss(g, p) {
 }
 
 export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes = 42,
-  acheteur = null) {
-  const g = new GameState(diffIndex);
+  acheteur = null, graine = null) {
+  const g = new GameState(diffIndex, null, graine);
   for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
   g.warmup = 0;
 
@@ -9960,7 +9962,7 @@ export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes 
       for (const [id, offres] of g.cardOffers) {
         const p = g.players.get(id);
         if (p && offres.length) {
-          g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
+          g.takeCard(p, offres[Math.floor(g.alea() * offres.length)]);
         }
       }
       g.cardsPending = false;
@@ -10070,41 +10072,105 @@ export function verifierTTK(effectifs = [1, 4], manches = 3, jalons = [1, 10, 20
 export function mesurePuissanceBoss(joueurs = 1, manches = 6, diffIndex = DIFF_NORMAL) {
   const releves = [];
   for (let r = 0; r < manches; r++) {
-    const m = mesureTTK(diffIndex, joueurs, []);
+    const m = mesureTTK(diffIndex, joueurs, [], 42, null, (r + 1) * 7919);
     for (const c of m.combats) releves.push(c.puissance);
   }
   return { n: releves.length, mediane: mediane(releves), releves };
 }
 
-// LA GRAINE EST ECRITE, sinon rien n'est decidable : deux reglages doivent se
-// comparer sur les MEMES manches. Non appariee, la meme courbe rendait 18 puis 23
-// au niveau de la minute 20. Meme generateur que `buildBiome`.
-function grainer(g) {
-  let a = g | 0;
-  return () => {
-    a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+/* LE GENERATEUR APPARTIENT A LA SALLE, ET SEULE L ALTERNANCE LE PROUVE. Deux
+   etats avances l un APRES l autre passeraient meme avec un `Math.random`
+   global ; alternes dans la meme boucle, ils ne passent que si chacun porte le
+   sien. C est exactement la panne de production : `hub.js` tient jusqu a seize
+   salles dans un processus, avancees par la meme boucle de `room.js`. */
+export function verifierDeterminisme(minutes = 10, graine = 7919, joueurs = 2) {
+  const soucis = [];
+  const monter = () => {
+    const g = new GameState(DIFF_NORMAL, 0, graine);
+    for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+    g.warmup = 0;
+    return g;
   };
+  // entrees SCRIPTEES : fonction du tick et du joueur, jamais de l etat — deux
+  // manches identiques doivent l etre pour ce que le jeu tire, pas pour ce que
+  // le pilote lit.
+  const entree = (k, id) => {
+    const t = k * CFG.TICK + id;
+    const x = Math.cos(t * 0.7), y = Math.sin(t * 0.5);
+    return {
+      x, y, ax: -y, ay: x, ar: 0, dash: k % 240 === 0,
+      s1: k % 600 === 120, s2: k % 900 === 300, s3: k % 1500 === 600,
+    };
+  };
+  const pas = (g, k) => {
+    if (g.cardsPending) {
+      for (const [id, o] of g.cardOffers) {
+        const p = g.players.get(id);
+        if (p && o.length) g.takeCard(p, o[0]);
+      }
+      g.cardsPending = false;
+      g.openNextScreen();
+      return;
+    }
+    if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); return; }
+    const inputs = new Map();
+    for (const p of g.players.values()) inputs.set(p.id, entree(k, p.id));
+    g.step(CFG.TICK, inputs);
+    // des entrees scriptees ne savent pas eviter : sans ca la manche meurt vers
+    // la minute 4 et le test ne voit jamais un boss, donc jamais `_pickAtk`.
+    for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
+    if (!g.victory) g.gameOver = false;
+  };
+  // l empreinte de horde repond a « la meme composition aux memes endroits »,
+  // sans exiger le pixel : la cellule de 200 px suffit a separer deux tirages.
+  const empreinte = g => {
+    let h = g.enemies.length;
+    for (const e of g.enemies) {
+      h = (h + (e.type + 1) * 7919 + e.elite * 104729
+        + Math.floor(e.x / 200) * 131 + Math.floor(e.y / 200) * 17) | 0;
+    }
+    return h;
+  };
+  const vue = g => [g.time.toFixed(3), g.level, Math.round(g.xp), g.totalKills,
+    g.bossCount, g.enemies.length, empreinte(g)].join("/");
+
+  const a = monter(), b = monter();
+  if (a.seed !== b.seed) soucis.push("deux etats de meme graine n ont pas la meme graine");
+  const images = Math.round(minutes * 60 / CFG.TICK);
+  const jalon = Math.round(60 / CFG.TICK);
+  let diverge = null;
+  for (let k = 0; k < images && diverge === null; k++) {
+    pas(a, k);
+    pas(b, k);
+    if (k % jalon === jalon - 1 && vue(a) !== vue(b)) diverge = k;
+  }
+  if (diverge === null && vue(a) !== vue(b)) diverge = images - 1;
+  if (diverge !== null) {
+    soucis.push(`deux manches de graine ${graine} divergent a`
+      + ` ${(diverge * CFG.TICK / 60).toFixed(1)} min : ${vue(a)} contre ${vue(b)}`);
+  }
+  // et le controle inverse : deux graines DIFFERENTES doivent produire autre
+  // chose, sinon le verificateur passerait sur un jeu devenu constant.
+  const c = new GameState(DIFF_NORMAL, 0, graine + 1);
+  for (let i = 1; i <= joueurs; i++) c.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+  c.warmup = 0;
+  for (let k = 0; k < images; k++) pas(c, k);
+  if (vue(c) === vue(a)) {
+    soucis.push(`la graine ${graine + 1} rend la manche de la graine ${graine}`);
+  }
+  return soucis;
 }
 
 // fenetre plus large que celle du ttk : un compte de cartes ne veut rien dire sur
 // une manche tronquee, et un combat de boss long repousse la fin bien apres 42 min.
 export function mesureProgression(diffIndex, joueurs, manches = 6, minutes = 60) {
   const cartes = [], parMarque = new Map(LEVEL_MARKS.map(m => [m[0], []]));
-  const alea = Math.random;
   let finies = 0;
-  try {
-    for (let r = 1; r <= manches; r++) {
-      Math.random = grainer(r * 7919);
-      const m = mesureTTK(diffIndex, joueurs, [], minutes);
-      cartes.push(m.cartes);
-      if (m.victoire) finies++;
-      for (const [min, niv] of m.niveaux) parMarque.get(min)?.push(niv);
-    }
-  } finally {
-    Math.random = alea;
+  for (let r = 1; r <= manches; r++) {
+    const m = mesureTTK(diffIndex, joueurs, [], minutes, null, r * 7919);
+    cartes.push(m.cartes);
+    if (m.victoire) finies++;
+    for (const [min, niv] of m.niveaux) parMarque.get(min)?.push(niv);
   }
   const moy = cartes.reduce((a, b) => a + b, 0) / cartes.length;
   const ecart = Math.sqrt(cartes.reduce((a, b) => a + (b - moy) ** 2, 0) / cartes.length);
@@ -10247,50 +10313,46 @@ export function verifierCartes() {
    graines differentes mesureraient le script et pas l'arme.
    =========================================================================== */
 export function mesureArmes(manches = 3, minutes = 10, diffIndex = DIFF_NORMAL) {
-  const alea = Math.random;
   const out = [];
-  try {
-    for (const a of ARMES) {
-      let temps = 0, muet = 0, cibles = 0, degats = 0, tirs = 0, survie = 0;
-      for (let r = 1; r <= manches; r++) {
-        Math.random = grainer(r * 7919);
-        const g = new GameState(diffIndex);
-        g.addPlayer(1, "banc", 2);
-        const p = g.players.get(1);
-        p.arme = a.id;
-        g._recomputeMods(p);
-        const pil = pilotage();
-        const fin = minutes * 60;
-        let t = 0, chute = fin;
-        while (t < fin) {
-          g.step(CFG.TICK, new Map([[1, pil(g, p)]]));
-          t += CFG.TICK;
-          if (p.downed && chute === fin) chute = t;
-          /* IMMORTEL, PAS INVULNERABLE. Sans ca `Dh` est confondu avec la survie :
-             une arme qui tient plus longtemps atteint des minutes plus denses,
-             donc mesure un debit plus eleve — et la survie serait comptee deux
-             fois, une fois dans `Dh` et une fois dans `S`. Toutes les armes
-             voient exactement la meme horde pendant exactement le meme temps. */
-          p.hp = p.maxHp; p.downed = false; p.downT = 0;
-        }
-        temps += p.hf.armeTemps; muet += p.hf.armeMuet;
-        cibles += p.hf.armeCibles; degats += p.hf.armeDegats;
-        tirs += p.hf.tirs; survie += chute;
+  for (const a of ARMES) {
+    let temps = 0, muet = 0, cibles = 0, degats = 0, tirs = 0, survie = 0;
+    for (let r = 1; r <= manches; r++) {
+      const g = new GameState(diffIndex, null, r * 7919);
+      g.addPlayer(1, "banc", 2);
+      const p = g.players.get(1);
+      p.arme = a.id;
+      g._recomputeMods(p);
+      const pil = pilotage();
+      const fin = minutes * 60;
+      let t = 0, chute = fin;
+      while (t < fin) {
+        g.step(CFG.TICK, new Map([[1, pil(g, p)]]));
+        t += CFG.TICK;
+        if (p.downed && chute === fin) chute = t;
+        /* IMMORTEL, PAS INVULNERABLE. Sans ca `Dh` est confondu avec la survie :
+           une arme qui tient plus longtemps atteint des minutes plus denses,
+           donc mesure un debit plus eleve — et la survie serait comptee deux
+           fois, une fois dans `Dh` et une fois dans `S`. Toutes les armes
+           voient exactement la meme horde pendant exactement le meme temps. */
+        p.hp = p.maxHp; p.downed = false; p.downT = 0;
       }
-      out.push({
-        id: a.id,
-        dh: temps > 0 ? degats / temps : 0,
-        db: mesureArmeBoss(a, diffIndex),
-        u: temps > 0 ? 1 - muet / temps : 1,
-        // par SECONDE et non par tir : le faisceau, l'arc et le balayage ne
-        // passent pas par `_fire`, donc ils n'ont pas de « tir » a diviser
-        ciblesParSec: temps > 0 ? cibles / temps : 0,
-        tirs,
-        survie: survie / manches,
-        s: survieArme(a, CLASSES[2].hp),
-      });
+      temps += p.hf.armeTemps; muet += p.hf.armeMuet;
+      cibles += p.hf.armeCibles; degats += p.hf.armeDegats;
+      tirs += p.hf.tirs; survie += chute;
     }
-  } finally { Math.random = alea; }
+    out.push({
+      id: a.id,
+      dh: temps > 0 ? degats / temps : 0,
+      db: mesureArmeBoss(a, diffIndex),
+      u: temps > 0 ? 1 - muet / temps : 1,
+      // par SECONDE et non par tir : le faisceau, l'arc et le balayage ne
+      // passent pas par `_fire`, donc ils n'ont pas de « tir » a diviser
+      ciblesParSec: temps > 0 ? cibles / temps : 0,
+      tirs,
+      survie: survie / manches,
+      s: survieArme(a, CLASSES[2].hp),
+    });
+  }
 
   const ref = out.find(x => x.id === ARME_DEFAUT);
   const brut = x => (1 - ARME_CFG.PART_BOSS) * x.dh + ARME_CFG.PART_BOSS * x.db;
@@ -10309,37 +10371,33 @@ export function mesureArmes(manches = 3, minutes = 10, diffIndex = DIFF_NORMAL) 
    delivre et non combien de temps elle tient. La horde est videe : c'est la cible
    unique qu'on veut, et elle seule. */
 export function mesureArmeBoss(a, diffIndex = DIFF_NORMAL, secondes = 90, graines = 2) {
-  const alea = Math.random;
   let total = 0, n = 0;
-  try {
-    for (let r = 1; r <= graines; r++) {
-      Math.random = grainer(r * 4507);
-      const g = new GameState(diffIndex);
-      g.addPlayer(1, "banc", 2);
-      const p = g.players.get(1);
-      p.arme = a.id;
-      g._recomputeMods(p);
-      g.bossPending = true;
-      g.step(CFG.TICK, new Map());
-      if (!g.boss) continue;
-      const pil = pilotage();
-      const avant = p.hf.armeDegats;
-      let t = 0;
-      while (t < secondes) {
-        g.enemies.length = 0;
-        const B = g.boss;
-        if (!B) break;
-        B.hp = 1e12; B.maxHp = 1e12;
-        if (g.boss2) { g.boss2.hp = 1e12; g.boss2.maxHp = 1e12; }
-        g.step(CFG.TICK, new Map([[1, pil(g, p)]]));
-        // immortel, pas invulnerable : il subit tout, il ne tombe pas
-        p.hp = p.maxHp; p.downed = false; p.downT = 0;
-        t += CFG.TICK;
-      }
-      total += (p.hf.armeDegats - avant) / secondes;
-      n++;
+  for (let r = 1; r <= graines; r++) {
+    const g = new GameState(diffIndex, null, r * 4507);
+    g.addPlayer(1, "banc", 2);
+    const p = g.players.get(1);
+    p.arme = a.id;
+    g._recomputeMods(p);
+    g.bossPending = true;
+    g.step(CFG.TICK, new Map());
+    if (!g.boss) continue;
+    const pil = pilotage();
+    const avant = p.hf.armeDegats;
+    let t = 0;
+    while (t < secondes) {
+      g.enemies.length = 0;
+      const B = g.boss;
+      if (!B) break;
+      B.hp = 1e12; B.maxHp = 1e12;
+      if (g.boss2) { g.boss2.hp = 1e12; g.boss2.maxHp = 1e12; }
+      g.step(CFG.TICK, new Map([[1, pil(g, p)]]));
+      // immortel, pas invulnerable : il subit tout, il ne tombe pas
+      p.hp = p.maxHp; p.downed = false; p.downT = 0;
+      t += CFG.TICK;
     }
-  } finally { Math.random = alea; }
+    total += (p.hf.armeDegats - avant) / secondes;
+    n++;
+  }
   return n > 0 ? total / n : 0;
 }
 
@@ -10606,49 +10664,45 @@ export function mesureBonus(diffIndex = DIFF_NORMAL, joueurs = 2, minutes = 30,
   manches = 3) {
   const parts = new Array(POWERUP_TYPES.length).fill(0);
   let total = 0, temps = 0;
-  const alea = Math.random;
-  try {
-    for (let r = 1; r <= manches; r++) {
-      Math.random = grainer(r * 6151);
-      const g = new GameState(diffIndex);
-      for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
-      g.warmup = 0;
-      const inputs = new Map();
-      const vus = new Set();
-      const images = Math.round(minutes * 60 / CFG.TICK);
-      for (let k = 0; k < images && !g.victory; k++) {
-        if (g.cardsPending) {
-          for (const [id, offres] of g.cardOffers) {
-            const p = g.players.get(id);
-            if (p && offres.length) {
-              g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
-            }
-          }
-          g.cardsPending = false;
-          g.openNextScreen();
-          k--;
-          continue;
-        }
-        if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
-        inputs.clear();
-        for (const p of g.players.values()) inputs.set(p.id, botInput(g, p));
-        g.step(CFG.TICK, inputs);
-        for (const w of g.powerups) {
-          if (vus.has(w.id)) continue;
-          vus.add(w.id);
-          parts[w.type]++;
-          total++;
-        }
-        for (const p of g.players.values()) {
-          if (p.downed && Math.random() < CFG.TICK / 6) {
-            p.downed = false; p.revive = 0; p.hp = p.maxHp * 0.5;
+  for (let r = 1; r <= manches; r++) {
+    const g = new GameState(diffIndex, null, r * 6151);
+    for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+    g.warmup = 0;
+    const inputs = new Map();
+    const vus = new Set();
+    const images = Math.round(minutes * 60 / CFG.TICK);
+    for (let k = 0; k < images && !g.victory; k++) {
+      if (g.cardsPending) {
+        for (const [id, offres] of g.cardOffers) {
+          const p = g.players.get(id);
+          if (p && offres.length) {
+            g.takeCard(p, offres[Math.floor(g.alea() * offres.length)]);
           }
         }
-        g.gameOver = false;
+        g.cardsPending = false;
+        g.openNextScreen();
+        k--;
+        continue;
       }
-      temps += g.time;
+      if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
+      inputs.clear();
+      for (const p of g.players.values()) inputs.set(p.id, botInput(g, p));
+      g.step(CFG.TICK, inputs);
+      for (const w of g.powerups) {
+        if (vus.has(w.id)) continue;
+        vus.add(w.id);
+        parts[w.type]++;
+        total++;
+      }
+      for (const p of g.players.values()) {
+        if (p.downed && g.alea() < CFG.TICK / 6) {
+          p.downed = false; p.revive = 0; p.hp = p.maxHp * 0.5;
+        }
+      }
+      g.gameOver = false;
     }
-  } finally { Math.random = alea; }
+    temps += g.time;
+  }
   return { parts, total, parMinute: total / Math.max(1, temps / 60) };
 }
 
@@ -10770,58 +10824,55 @@ export function mesureHautsFaits(manches = 20, minutes = 40,
   const profil = { hf: [], stats: statsVierges() };
   const quand = new Map(), part = new Map();
   let finies = 0;
-  const alea = Math.random;
-  try {
-    for (let r = 1; r <= manches; r++) {
-      Math.random = grainer(r * 7919 + diffIndex * 131 + joueurs * 17);
-      const g = new GameState(diffIndex);
-      for (let i = 1; i <= joueurs; i++) {
-        g.addPlayer(i, `bot${i}`, i - 1, (r + i) % CLASSES.length);
-        const p = g.players.get(i);
-        p.arme = ARMES[(r + i) % ARMES.length].id;
-        g._recomputeMods(p);
-      }
-      const pil = pilotage();
-      const images = Math.round(minutes * 60 / CFG.TICK);
-      const inputs = new Map();
-      for (let k = 0; k < images && !g.victory && !g.gameOver; k++) {
-        if (g.cardsPending) {
-          for (const [id, offres] of g.cardOffers) {
-            const p = g.players.get(id);
-            if (p && offres.length) g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
-          }
-          g.cardsPending = false;
-          g.openNextScreen();
-          continue;
-        }
-        if (g.relicPending) {
-          for (const p of g.players.values()) {
-            for (const o of (g.relicOffers.get(p.id) ?? [])) if (g.buyRelic(p, o)) break;
-          }
-          g.closeMerchant();
-          g.openNextScreen();
-          continue;
-        }
-        inputs.clear();
-        for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
-        g.step(CFG.TICK, inputs);
-      }
-      const p = g.players.get(1);
-      if (!p) continue;
-      if (g.victory) finies++;
-      const run = g.hfStatsDeManche(p, { arretee: true });
-      const stats = vueStats(profil, run);
-      for (const h of HAUTS_FAITS) {
-        if (h.cible === undefined || !h.jauge) continue;
-        const v = (h.jauge(stats) || 0) / h.cible;
-        if (v > (part.get(h.id) ?? 0)) part.set(h.id, v);
-      }
-      const gagnes = evaluerHautsFaits(profil.hf, stats);
-      for (const id of gagnes) if (!quand.has(id)) quand.set(id, r);
-      profil.hf = [...profil.hf, ...gagnes];
-      cumulerStats(profil, run);
+  for (let r = 1; r <= manches; r++) {
+    const g = new GameState(diffIndex, null,
+      r * 7919 + diffIndex * 131 + joueurs * 17);
+    for (let i = 1; i <= joueurs; i++) {
+      g.addPlayer(i, `bot${i}`, i - 1, (r + i) % CLASSES.length);
+      const p = g.players.get(i);
+      p.arme = ARMES[(r + i) % ARMES.length].id;
+      g._recomputeMods(p);
     }
-  } finally { Math.random = alea; }
+    const pil = pilotage();
+    const images = Math.round(minutes * 60 / CFG.TICK);
+    const inputs = new Map();
+    for (let k = 0; k < images && !g.victory && !g.gameOver; k++) {
+      if (g.cardsPending) {
+        for (const [id, offres] of g.cardOffers) {
+          const p = g.players.get(id);
+          if (p && offres.length) g.takeCard(p, offres[Math.floor(g.alea() * offres.length)]);
+        }
+        g.cardsPending = false;
+        g.openNextScreen();
+        continue;
+      }
+      if (g.relicPending) {
+        for (const p of g.players.values()) {
+          for (const o of (g.relicOffers.get(p.id) ?? [])) if (g.buyRelic(p, o)) break;
+        }
+        g.closeMerchant();
+        g.openNextScreen();
+        continue;
+      }
+      inputs.clear();
+      for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
+      g.step(CFG.TICK, inputs);
+    }
+    const p = g.players.get(1);
+    if (!p) continue;
+    if (g.victory) finies++;
+    const run = g.hfStatsDeManche(p, { arretee: true });
+    const stats = vueStats(profil, run);
+    for (const h of HAUTS_FAITS) {
+      if (h.cible === undefined || !h.jauge) continue;
+      const v = (h.jauge(stats) || 0) / h.cible;
+      if (v > (part.get(h.id) ?? 0)) part.set(h.id, v);
+    }
+    const gagnes = evaluerHautsFaits(profil.hf, stats);
+    for (const id of gagnes) if (!quand.has(id)) quand.set(id, r);
+    profil.hf = [...profil.hf, ...gagnes];
+    cumulerStats(profil, run);
+  }
 
   return HAUTS_FAITS.map(h => ({
     id: h.id, niveau: HF_NIVEAUX[h.niveau],
@@ -10832,21 +10883,15 @@ export function mesureHautsFaits(manches = 20, minutes = 40,
 
 export function mesureRevenu(diffIndex, joueurs, manches = 8, minutes = 60) {
   const runs = [];
-  const alea = Math.random;
-  try {
-    for (let r = 1; r <= manches; r++) {
-      Math.random = grainer(r * 7919);
-      const m = mesureTTK(diffIndex, joueurs, [], minutes);
-      const boss = m.combats.length;
-      runs.push({
-        niveau: m.niveau, boss, victoire: m.victoire,
-        noyaux: coresForRun(m.niveau, boss, diffIndex),
-        brut: Math.round((PROG_CFG.CORE_LEVEL * m.niveau + PROG_CFG.CORE_BOSS * boss)
-          * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)),
-      });
-    }
-  } finally {
-    Math.random = alea;
+  for (let r = 1; r <= manches; r++) {
+    const m = mesureTTK(diffIndex, joueurs, [], minutes, null, r * 7919);
+    const boss = m.combats.length;
+    runs.push({
+      niveau: m.niveau, boss, victoire: m.victoire,
+      noyaux: coresForRun(m.niveau, boss, diffIndex),
+      brut: Math.round((PROG_CFG.CORE_LEVEL * m.niveau + PROG_CFG.CORE_BOSS * boss)
+        * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)),
+    });
   }
   const plafonnees = runs.filter(r => r.brut > PROG_CFG.CORE_RUN_CAP);
   return {
@@ -10984,14 +11029,8 @@ export const BOSS_ECHANTILLON_MIN = 8;
 
 export function mesureBoss(diffIndex, joueurs, manches = 6, minutes = 60) {
   const combats = [];
-  const alea = Math.random;
-  try {
-    for (let r = 1; r <= manches; r++) {
-      Math.random = grainer(r * 7919);
-      combats.push(...mesureTTK(diffIndex, joueurs, [], minutes).combats);
-    }
-  } finally {
-    Math.random = alea;
+  for (let r = 1; r <= manches; r++) {
+    combats.push(...mesureTTK(diffIndex, joueurs, [], minutes, null, r * 7919).combats);
   }
   const parSegment = new Map();
   const parKind = new Map();
@@ -11028,7 +11067,6 @@ export function mesureBoss(diffIndex, joueurs, manches = 6, minutes = 60) {
 export function verifierMecaniques(effectifs = [1, 2, 3, 4], manches = 3,
   diffIndex = DIFF_NORMAL, minutes = 42) {
   const soucis = [];
-  const alea = Math.random;
 
   for (const n of effectifs) {
     const cas = new Map();
@@ -11037,70 +11075,68 @@ export function verifierMecaniques(effectifs = [1, 2, 3, 4], manches = 3,
       cas.get(quoi).n++;
     };
 
-    try {
-      for (let r = 1; r <= manches; r++) {
-        Math.random = grainer(r * 7919 + n * 31 + diffIndex * 101);
-        const g = new GameState(diffIndex);
-        for (let i = 1; i <= n; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
-        g.warmup = 0;
-        const inputs = new Map();
-        const images = Math.round(minutes * 60 / CFG.TICK);
+    for (let r = 1; r <= manches; r++) {
+      const g = new GameState(diffIndex, null,
+        r * 7919 + n * 31 + diffIndex * 101);
+      for (let i = 1; i <= n; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+      g.warmup = 0;
+      const inputs = new Map();
+      const images = Math.round(minutes * 60 / CFG.TICK);
 
-        for (let k = 0; k < images && !g.victory; k++) {
-          if (g.cardsPending) {
-            for (const [id, offres] of g.cardOffers) {
-              const p = g.players.get(id);
-              if (p && offres.length) g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
-            }
-            g.cardsPending = false; g.openNextScreen(); k--; continue;
+      for (let k = 0; k < images && !g.victory; k++) {
+        if (g.cardsPending) {
+          for (const [id, offres] of g.cardOffers) {
+            const p = g.players.get(id);
+            if (p && offres.length) g.takeCard(p, offres[Math.floor(g.alea() * offres.length)]);
           }
-          if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
-          inputs.clear();
-          for (const p of g.players.values()) inputs.set(p.id, botVersBoss(g, p));
-          g.step(CFG.TICK, inputs);
-          for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
-          if (!g.victory) g.gameOver = false;
-          if (!g.boss) continue;
-
-          const vivantes = g.marks.filter(m => !m.dead);
-          const vivants = g._alivePlayers().length;
-
-          // 1. deux ordres que le joueur ne peut pas suivre ensemble
-          for (let i = 0; i < vivantes.length; i++) {
-            for (let j = i + 1; j < vivantes.length; j++) {
-              const a = vivantes[i], c = vivantes[j];
-              // deux foyers d'un MEME groupe sont un seul ordre, pas deux.
-              if (a.grp && a.grp === c.grp) continue;
-              if (a.mech === MECH_FEED || c.mech === MECH_FEED) continue;
-              if (mechsCompatibles(a.mech, c.mech)) continue;
-              note("ordres incompatibles", `${mechAt(a.mech).key} + ${mechAt(c.mech).key}`);
-            }
-          }
-
-          // 2. plus de places a tenir que de joueurs pour les tenir
-          const occ = vivantes.filter(m => mechAt(m.mech)?.forme === "colonne");
-          const besoin = occ.reduce((s, m) => s + Math.max(1, m.need), 0);
-          if (occ.length && besoin > vivants) {
-            note("places > joueurs", `${besoin} places pour ${vivants} joueurs`);
-          }
-
-          // 3. un abri sous le feu a l'instant meme ou il faut y etre. « Brule »
-          // = applique des degats maintenant : une zone instantanee ne blesse
-          // qu'a la detonation (`blast` neuf), le reste de sa vie est un
-          // remanent visuel que `_zones` ne fait plus passer par `_zoneApply`.
-          const actives = g.zones.filter(z => !z.pj && !z.sol && z.dmg > 0
-            && z.warn <= 0 && (z.life > 0 || z.blast > 0.2));
-          for (const a of g._abris()) {
-            if (a.t > BOSS_CFG.ABRI_RETOUR) continue;
-            if (!actives.some(z => g._zoneCouvre(z, a))) continue;
-            note("abri sous le feu a l'echeance", `${vivants} joueurs`);
-          }
-
-          // 4. plus rien de sur au sol
-          if (!g._solLibrePart(actives)) note("aucun safe spot", `${vivants} joueurs`);
+          g.cardsPending = false; g.openNextScreen(); k--; continue;
         }
+        if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); k--; continue; }
+        inputs.clear();
+        for (const p of g.players.values()) inputs.set(p.id, botVersBoss(g, p));
+        g.step(CFG.TICK, inputs);
+        for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
+        if (!g.victory) g.gameOver = false;
+        if (!g.boss) continue;
+
+        const vivantes = g.marks.filter(m => !m.dead);
+        const vivants = g._alivePlayers().length;
+
+        // 1. deux ordres que le joueur ne peut pas suivre ensemble
+        for (let i = 0; i < vivantes.length; i++) {
+          for (let j = i + 1; j < vivantes.length; j++) {
+            const a = vivantes[i], c = vivantes[j];
+            // deux foyers d'un MEME groupe sont un seul ordre, pas deux.
+            if (a.grp && a.grp === c.grp) continue;
+            if (a.mech === MECH_FEED || c.mech === MECH_FEED) continue;
+            if (mechsCompatibles(a.mech, c.mech)) continue;
+            note("ordres incompatibles", `${mechAt(a.mech).key} + ${mechAt(c.mech).key}`);
+          }
+        }
+
+        // 2. plus de places a tenir que de joueurs pour les tenir
+        const occ = vivantes.filter(m => mechAt(m.mech)?.forme === "colonne");
+        const besoin = occ.reduce((s, m) => s + Math.max(1, m.need), 0);
+        if (occ.length && besoin > vivants) {
+          note("places > joueurs", `${besoin} places pour ${vivants} joueurs`);
+        }
+
+        // 3. un abri sous le feu a l'instant meme ou il faut y etre. « Brule »
+        // = applique des degats maintenant : une zone instantanee ne blesse
+        // qu'a la detonation (`blast` neuf), le reste de sa vie est un
+        // remanent visuel que `_zones` ne fait plus passer par `_zoneApply`.
+        const actives = g.zones.filter(z => !z.pj && !z.sol && z.dmg > 0
+          && z.warn <= 0 && (z.life > 0 || z.blast > 0.2));
+        for (const a of g._abris()) {
+          if (a.t > BOSS_CFG.ABRI_RETOUR) continue;
+          if (!actives.some(z => g._zoneCouvre(z, a))) continue;
+          note("abri sous le feu a l'echeance", `${vivants} joueurs`);
+        }
+
+        // 4. plus rien de sur au sol
+        if (!g._solLibrePart(actives)) note("aucun safe spot", `${vivants} joueurs`);
       }
-    } finally { Math.random = alea; }
+    }
 
     for (const [quoi, v] of cas) {
       soucis.push(`${DIFFICULTIES[diffIndex].key}/${n}j : ${quoi}, ${v.n} images (${v.ex})`);
@@ -11305,7 +11341,7 @@ function acheteurGourmand(visites, patience = 0, part = 0.7, neutre = false,
         const abordables = offres.filter(r => relicPrice(r) <= p.eclats);
         if (neutre) {
           achat = abordables.length
-            ? abordables[Math.floor(Math.random() * abordables.length)]
+            ? abordables[Math.floor(g.alea() * abordables.length)]
             : null;
           break;
         }
@@ -11332,32 +11368,26 @@ function acheteurGourmand(visites, patience = 0, part = 0.7, neutre = false,
 export function mesureMarchand(diffIndex, joueurs, manches = 6, patience = 0,
   neutre = false, part = 0.7, minutes = 60) {
   const runs = [];
-  const alea = Math.random;
-  try {
-    for (let r = 1; r <= manches; r++) {
-      Math.random = grainer(r * 7919);
-      const visites = [];
-      const m = mesureTTK(diffIndex, joueurs, [], minutes,
-        acheteurGourmand(visites, patience, part, neutre));
-      const mien = visites.filter(v => v.joueur === 1);
-      const vus = new Set(mien.flatMap(v => v.offres));
-      const achats = mien.filter(v => v.achat);
-      runs.push({
-        graine: r, visites: mien, victoire: m.victoire, boss: m.combats.length,
-        niveau: m.niveau,
-        achats: achats.length,
-        valeur: somme(achats.map(v => relicPrice(relicById(v.achat)))),
-        paliers: achats.map(v => v.tier),
-        vus: vus.size,
-        relances: somme(mien.map(v => v.relances)),
-        avecRelance: mien.filter(v => v.relances > 0).length,
-        revenu: somme(mien.map(v => v.eclats))
-          ? mien[mien.length - 1].eclats + somme(achats.map(v => relicPrice(relicById(v.achat))))
-          : 0,
-      });
-    }
-  } finally {
-    Math.random = alea;
+  for (let r = 1; r <= manches; r++) {
+    const visites = [];
+    const m = mesureTTK(diffIndex, joueurs, [], minutes,
+      acheteurGourmand(visites, patience, part, neutre), r * 7919);
+    const mien = visites.filter(v => v.joueur === 1);
+    const vus = new Set(mien.flatMap(v => v.offres));
+    const achats = mien.filter(v => v.achat);
+    runs.push({
+      graine: r, visites: mien, victoire: m.victoire, boss: m.combats.length,
+      niveau: m.niveau,
+      achats: achats.length,
+      valeur: somme(achats.map(v => relicPrice(relicById(v.achat)))),
+      paliers: achats.map(v => v.tier),
+      vus: vus.size,
+      relances: somme(mien.map(v => v.relances)),
+      avecRelance: mien.filter(v => v.relances > 0).length,
+      revenu: somme(mien.map(v => v.eclats))
+        ? mien[mien.length - 1].eclats + somme(achats.map(v => relicPrice(relicById(v.achat))))
+        : 0,
+    });
   }
   const visites = somme(runs.map(r => r.visites.length));
   const paliers = runs.flatMap(r => r.paliers);
@@ -11834,7 +11864,7 @@ export function metaProfil(profil, clsId) {
 }
 
 function manchePilotee(diffIndex, joueurs, classes, profil, minutes, options = {}) {
-  const g = new GameState(diffIndex);
+  const g = new GameState(diffIndex, null, options.graine ?? null);
   for (let i = 1; i <= joueurs; i++) {
     const cls = classes[(i - 1) % classes.length];
     g.addPlayer(i, `bot${i}`, i - 1, cls, metaProfil(profil, classAt(cls).id));
@@ -11858,7 +11888,7 @@ function manchePilotee(diffIndex, joueurs, classes, profil, minutes, options = {
       for (const [id, offres] of g.cardOffers) {
         const p = g.players.get(id);
         if (p && offres.length) {
-          g.takeCard(p, offres[Math.floor(Math.random() * offres.length)]);
+          g.takeCard(p, offres[Math.floor(g.alea() * offres.length)]);
         }
       }
       g.cardsPending = false;
@@ -11952,14 +11982,9 @@ export function rechargesParMinute(cls) {
 export function mesureSurvie(diffIndex, joueurs, classes, profil, manches = 6,
   minutes = 60) {
   const runs = [];
-  const alea = Math.random;
-  try {
-    for (let r = 1; r <= manches; r++) {
-      Math.random = grainer(r * 7919);
-      runs.push(manchePilotee(diffIndex, joueurs, classes, profil, minutes));
-    }
-  } finally {
-    Math.random = alea;
+  for (let r = 1; r <= manches; r++) {
+    runs.push(manchePilotee(diffIndex, joueurs, classes, profil, minutes,
+      { graine: r * 7919 }));
   }
   const gagnees = runs.filter(r => r.victoire).length;
   return {
@@ -11987,15 +12012,9 @@ export function mesureSurvie(diffIndex, joueurs, classes, profil, manches = 6,
 export function mesureDebit(diffIndex, cls, profil = PROFIL_ENGAGE, manches = 3,
   minutes = 12) {
   const runs = [];
-  const alea = Math.random;
-  try {
-    for (let r = 1; r <= manches; r++) {
-      Math.random = grainer(r * 7919);
-      runs.push(manchePilotee(diffIndex, 1, [cls], profil, minutes,
-        { invulnerable: true }));
-    }
-  } finally {
-    Math.random = alea;
+  for (let r = 1; r <= manches; r++) {
+    runs.push(manchePilotee(diffIndex, 1, [cls], profil, minutes,
+      { invulnerable: true, graine: r * 7919 }));
   }
   const prets = rechargesParMinute(cls);
   return {

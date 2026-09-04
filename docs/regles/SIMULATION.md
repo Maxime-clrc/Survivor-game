@@ -526,6 +526,22 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   rectangle de vue est **reconstruit** (centré puis clampé). Exempts : `anneau`
   et les nuées de pondeuse.
 
+- **LE HASARD APPARTIENT À LA SALLE, PAS AU PROCESSUS.** `this.alea =
+  mulberry32(this.seed ^ 0x9E3779B9)`, et **aucun `Math.random` ne subsiste dans
+  la simulation** — `hub.js` tient jusqu'à seize salles dans un processus, et un
+  générateur global ne peut pas les servir : imposer une graine à l'une l'imposait
+  aux quinze autres. Le décalage sépare le terrain du déroulé. Les deux seuls
+  `Math.random` restants sont dans le constructeur, quand rien n'impose ni graine
+  ni biome ; `room.js` garde le sien pour ce qui est **hors manche** (couleurs,
+  mélange des armes proposées). `offerCards` passe `this.alea` à `drawCards` :
+  `cards.js` ne connaît pas `GameState` et ne doit pas le connaître.
+- **Une graine identique donne le même CONTENU — même terrain, même composition
+  de horde, mêmes instants d'élite, mêmes attaques de boss. Elle ne donne jamais
+  le même RÉSULTAT** : les entrées des joueurs restent des entrées.
+- **`verifierDeterminisme()` avance deux états EN ALTERNANCE**, et c'est tout le
+  test : avancés l'un après l'autre ils passeraient même avec un générateur
+  global. C'est la panne de production, pas une propriété théorique.
+
 ### Bonus au sol
 
 - **UN BONUS EST UNE MICRO-DECISION DE COMBAT, jamais un second système de

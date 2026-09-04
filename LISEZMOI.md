@@ -4980,77 +4980,102 @@ deux corrigés ; en jouant pour *acrobat* on finit d'ailleurs plus souvent
 
 ## Réglages
 
-Tout est en haut de `shared/game_state.js`.
+Tout est en haut de `shared/game_state.js`, dans `CFG` — **156 constantes**, dont
+voici les seules qui se règlent à la main. Les valeurs ci-dessous sont relues sur
+le code : `npm run constantes-check` attrape une constante sans lecteur, il
+n'attrape pas une documentation qui invente une constante.
 
 ```js
-ARENA_W / ARENA_H       // 1600 x 900
-DASH_TIME / DASH_CD: 0.18 s / 3 s   // durée du bond, puis recharge
+ARENA_W / ARENA_H       // 4800 x 2700
+VIEW_W / VIEW_H         // 1600 x 900 — la vue, et l'unite du filtrage reseau
+PLAYER_SPEED: 260
+DASH_TIME / DASH_CD: 0.18 s / 3 s   // duree du bond, puis recharge
 DASH_SPEED: 900         // 162 px parcourus
-ELITE_MIN / MAX: 22-34  // secondes entre deux élites
+DASH_CD_MIN: 0.3        // plancher de recharge, cartes cumulees
+REVIVE_RADIUS: 96       // distance a laquelle on peut relever
+REVIVE_TIME: 1.0        // secondes, divisees par le nombre de sauveteurs
+REVIVE_HP_RATIO: 0.45   // part des PV max rendus au releve
+RESUME_GRACE: 0.6       // un ecran ne tue pas : `_hurt` inerte a la reprise
+
+ELITE_FROM: 40          // premiere elite, en secondes
+ELITE_MIN / MAX: 22-34  // secondes entre deux elites
 ELITE_HP_MUL: 3         // et butin garanti
-BOSS_BARS: 5            // barres de vie, une mécanique de plus par barre brisée
-BOSS_HP_MUL: 2.6        // par rapport à l'ancien boss
-BOSS_HP_BASE: 1200      // PV de référence, avant joueurs / puissance / difficulté
-BOSS_GROWTH: 0.06       // croissance d'un boss au suivant
-GRID_COLS / ROWS: 4 x 3 // découpe du damier
-SWEEP_BLADES: 12        // pales du balayage
-REVIVE_TIME: 1.0        // secondes, divisées par le nombre de sauveteurs
-REVIVE_HP_RATIO: 0.45   // part des PV max rendus au relevé
-
-WAVE_BUDGET_BASE: 14    // apparitions de la vague 1
-WAVE_BUDGET_RAMP: 6     // apparitions ajoutées par vague
-WAVE_CROWD_EXP: 0.75    // budget ET paliers de niveau × joueurs^0.75
-WAVE_BREATHER: 4        // secondes de répit entre deux vagues
-WAVE_HEAL: 18           // PV rendus à la fin d'une vague
-WAVE_BOSS_EVERY: 5      // la vague 5, 10, 15... est un boss
-WAVE_STRAGGLER_DELAY: 8 // secondes avant de marquer les retardataires
-WAVE_STRAGGLER_SPEED: 1.6
-WAVE_HP_POWER_K: 0.55   // part de la puissance d'équipe répercutée sur les PV
-WAVE_RATE_POWER_K: 0.35 // ... et sur le débit d'apparition
-
-LEVEL_KILLS_BASE: 15    // kills normalisés du premier palier
-LEVEL_KILLS_GROWTH: 1.18 // coût de chaque palier suivant
-WAVE_XP_BONUS: 12       // équivalent kills versé à la fin d'une vague
-LEVEL_MAX: 30           // plafond — un niveau = une carte
-POWERUP_MIN / MAX: 18-26 // secondes entre deux bonus au sol
-POWERUP_MAX_GROUND: 2   // bonus présents au sol simultanément — FRAGMENTS EXCLUS
-POWERUP_PART_MIN: 0.04  // plancher de PART : aucun type ne cesse d'être tirable
-POWERUP_FOULE: 28       // corps par joueur vivant qui valent « la horde est dense »
-FRAGMENT_MAX_GROUND: 6  // les fragments de la carte Récolte, plafond séparé
+ENEMY_HP_BASE: 16       // PV a la minute 0
+ENEMY_HP_MIN_RAMP: 7    // PV gagnes par minute de horde
+ENEMY_SPEED_RAMP_PCT: 0.007   // vitesse gagnee par minute
 MAX_ENEMIES_BASE: 220   // plafond de reference, solo, normal
 MAX_ENEMIES_DIFF: [0.80, 1.00, 1.45]  // par mode
 MAX_ENEMIES_HARD_CAP: 900             // limite du MOTEUR, reglee au profileur
-ENEMY_HP_WAVE_RAMP: 9   // PV gagnés par les ennemis, par vague
-SPAWN_WAVE_RAMP: 0.15   // apparitions par seconde gagnées par vague
-TURRET_LIFE / RANGE: 20 s / 350 px
-RICOCHET_RADIUS: 250    // portée d'un saut de chaîne
-SHIELD_POOL: 80         // réserve du bouclier
-SLOW_MUL: 0.45          // vitesse des ennemis pendant le ralentissement
-NOVA_RADIUS: 430        // portée de l'onde de choc
-FIRE_INTERVAL: 0.16     // intervalle de tir, fixe : il ne progresse plus seul
-FIRE_INTERVAL_MIN: 0.05 // plancher, cartes et bonus cumulés
-BOSS_FIRST: 180         // premier boss
-BOSS_EVERY: 180         // puis tous les
+WAVE_CROWD_EXP: 0.75    // budget de pression x joueurs^0.75
+WAVE_ELITE_CROWD_EXP: 0.75            // part d'elites, meme exposant
+CROWD_HYSTERESIS: 8     // secondes avant qu'un depart change l'effectif
+
+LEVEL_MAX: 30           // plafond — un niveau = une carte
+LEVEL_XP_BASE: 330      // XP du premier palier
+LEVEL_XP_GROWTH: 1.10   // cout de chaque palier suivant
+XP_CROWD_EXP: 0.75      // PARTAGE de l'XP par effectif — separe du budget
+XP_MINUTE_GROWTH: 1.055 // valeur d'un corps, par minute de horde
+XP_LEVEL_GROWTH: 1      // ... et par niveau d'equipe (neutre aujourd'hui)
+BOSS_XP_BASE: 300       // XP d'un boss, versee AU PRORATA des degats
+
+POWERUP_MIN / MAX: 18-26 // secondes entre deux bonus au sol
+POWERUP_LIFE: 22        // duree de vie au sol, raccourcie par la cendre
+POWERUP_MAX_GROUND: 2   // bonus presents au sol simultanement — FRAGMENTS EXCLUS
+POWERUP_PART_MIN: 0.04  // plancher de PART : aucun type ne cesse d'etre tirable
+POWERUP_FOULE: 28       // corps par joueur vivant qui valent « la horde est dense »
+FRAGMENT_MAX_GROUND: 6  // les fragments de la carte Recolte, plafond separe
+BUFF_TIME: 14           // duree des bonus
+HARVEST_MIN / MAX: 25-45 // secondes entre deux cristaux
+HARVEST_MAX_GROUND: 4   // cristaux simultanes
+HARVEST_CRYSTAL_HP: 60  // PV d'un cristal, entames par TOUTE arme
+HARVEST_YIELD_MIN / MAX: 8-17   // eclats rendus
+
+BOSS_HP_BASE: 520       // PV de reference, avant joueurs / puissance / difficulte
+BOSS_BARS: 5            // barres de vie, une mecanique de plus par barre brisee
+BOSS_HP_MUL: 2.6        // du boss de segment au boss FINAL
+BOSS_HP_MINUTE_RAMP: 0.055      // croissance d'un boss au suivant, par minute
+BOSS_POWER_REF: 2.89    // puissance d'equipe de reference
+BOSS_POWER_KNEE / K: 2.5 / 0.5  // au-dela du genou, la puissance compte a moitie
 BOSS_SUMMON_EVERY: 15   // intervalle des renforts pendant le combat
-BOSS_ADD_CAP: 55        // plafond des renforts
-BUFF_TIME: 14           // durée des bonus
+BOSS_ADD_CAP_BASE: 42   // plafond des renforts, solo
+BOSS_REPRISE_TIME / MUL: 45 s / 3   // la horde reprend, triplee, apres un boss
+GRID_COLS / ROWS: 4 x 3 // decoupe du damier
+SWEEP_BLADES: 12        // pales du balayage
+
+FIRE_INTERVAL: 0.16     // intervalle de tir, fixe : il ne progresse plus seul
+FIRE_INTERVAL_MIN: 0.05 // plancher, cartes et bonus cumules
+TURRET_LIFE / RANGE: 20 s / 350 px
+RICOCHET_RADIUS: 250    // portee d'un saut de chaine
+SHIELD_POOL: 80         // reserve du bouclier
+SLOW_TIME / SLOW_MUL: 7 s / 0.45    // duree et vitesse pendant le ralentissement
+NOVA_RADIUS: 430        // portee de l'onde de choc
 ```
 
-Courbe de difficulté, dans `_spawner()` :
+**Le rythme de la manche n'est plus dans `CFG`.** Il n'y a ni `BOSS_FIRST`, ni
+`BOSS_EVERY`, ni aucune constante `WAVE_BUDGET_*` : depuis le passage au script
+(0.7.1), la cadence vient de `shared/timeline.js` — `TL_CFG.SEGMENTS = 6` fois
+`SEGMENT_TIME = 300 s`, `BEATS = 5` battements de `BEAT_TIME = 60 s` par segment,
+et un boss à la fin de chaque segment. Le débit d'apparition est **lu sur le
+battement**, pas calculé :
 
 ```js
-const rate = (0.8 + this.time / 78) * Math.sqrt(crowd);  // ennemis par seconde
-const hp = 16 + this.time * 0.16;                        // PV de base
+const entry = this._beat();
+const rate = entry.rate * (ev ? ev.rateMul : 1)
+  * Math.pow(crowd, CFG.WAVE_CROWD_EXP) * this.diff.spawn
+  * (this.repriseT > 0 ? CFG.BOSS_REPRISE_MUL : 1);
 ```
 
-Le nombre de joueurs entre en `sqrt` : à quatre, la pression monte sans devenir
-quatre fois plus forte, sinon les grosses parties seraient plus faciles.
+Les PV d'un corps, eux, ne dependent que de la minute de horde :
+`(ENEMY_HP_BASE + minute × ENEMY_HP_MIN_RAMP) × diff.hp`.
 
-Les deux ont été détendus en même temps que la cadence est devenue fixe. Le
-levier qui compte est **le débit d'apparition, pas les PV** : baisser
-`ENEMY_HP_RAMP` seul ne rallongeait la survie que de quelques secondes, alors
-que `SPAWN_RAMP` la déplaçait de trente. C'est la densité qui tue, pas la
-résistance.
+Le nombre de joueurs entre en `crowd^0.75` : à quatre, la pression monte sans
+devenir quatre fois plus forte. **`WAVE_CROWD_EXP` et `XP_CROWD_EXP` sont deux
+leviers distincts depuis 0.33.0** — le premier gouverne la pression, le second le
+partage de la récompense ; les confondre rendait les deux inréglables.
+
+Le levier qui compte reste **le débit d'apparition, pas les PV** : baisser la
+rampe de PV seule ne rallonge la survie que de quelques secondes, là où le débit
+la déplace de trente. C'est la densité qui tue, pas la résistance.
 
 Les valeurs propres aux cartes vivent dans `CARD_CFG`, en haut de
 `shared/cards.js`, celles des compétences dans `SKILL_CFG` (`shared/classes.js`),
@@ -5064,7 +5089,7 @@ Les réglages des états, dans `STATUS_CFG` :
 VULN_PER_STACK: 0.25    // dégâts subis en plus, par cumul (3 au maximum)
 BURN_DPS: 6             // dégâts par seconde
 ROOT_SLOW: 0.40         // part de vitesse perdue
-PURGE_HITS / WINDOW: 2 impacts en 3 s   // purge par insistance du faisceau
+PURGE_WINDOW: 3         // secondes de lien CONTINU qui purgent un etat
 ELITE_STATUS_CD: 4      // secondes entre deux applications par la même élite
 BOSS_MIASMA_EVERY: 25   // usure imposée par les boss qui l'utilisent (lot 4)
 PURIFY_CHANCE: 0.06     // ... et 0,16 quand l'équipe n'a pas de soigneur
@@ -5085,7 +5110,7 @@ GAZE_WARN: 4.0           // regard : décompte, puis UN instant de résolution
 GAZE_RATIO: 0.30         // regard : le coup unique, en part des PV max
 GAZE_GRACE: 0.2          // regard : détourner une fois dans cette fenêtre suffit
 FEED_HEAL: 0.005         // soin par seconde et par rejeton, en part des PV max
-TWIN_HEAL: 0.008         // soin mutuel des Jumeaux, à moins de 400 px
+TWIN_HEAL: 0.022         // soin mutuel des Jumeaux, à moins de 400 px
 ULT_FILL / ULT_DRAIN     // 1/42 par seconde, 1/9 tours tenues
 SLIP_ACCEL: 3.4          // sol glissant : plus c'est bas, plus ça patine
 
@@ -5095,8 +5120,7 @@ CONE_R / CONE_SPREAD     // 640 px, demi-angle 0,40 rad (~23°)
 PACMAN_R / PACMAN_SAFE   // 700 px, secteur épargné de 0,58 rad (~33°)
 CROSSD_LIFE / DOT: 8 s / 26   // croix durable des Jumeaux
 SHRINK_STEP / MIN: 0.13 / 0.45 // constriction : palier, puis plancher de l'arène
-SHRINK_WARN: 2.6         // annonce d'un palier
-CROWN_DPS: 60            // dégâts par seconde aux ennemis restés dans la couronne
+SHRINK_WARN: 2.4         // annonce d'un palier
 QUAD_TIME / QUAD_THICK   // verrouillage : 20 s, murs de 26 px (3 joueurs minimum)
 ```
 
