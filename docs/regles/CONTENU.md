@@ -534,6 +534,51 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   joueur.** À la milliseconde près, quatre appels à `toISOString()` donnent quatre
   dates, et le regroupement ci-dessus ne prend plus. C'est la seule raison pour
   laquelle `quand` sort de la boucle d'`awardRun`.
+- **L'ORDRE DE LA CHAÎNE DE CALCUL, ÉCRIT UNE FOIS.** Il existe depuis toujours
+  et n'était nulle part :
+
+  ```
+  cartes → échelle d'arme → classe → conversions → méta → reliques → plafond de PV
+  ```
+
+  Le **loot de run** s'insère **après les reliques et avant le plafond** : il est
+  une source de puissance de manche, comme une carte, et le plafond reste le
+  dernier mot. `plafonnerHp()` ne bouge pas.
+- **IL N'EXISTAIT AUCUN ARBITRAGE DÉFENSIF, ET C'EST MESURÉ.** Sur les 151 clés de
+  `defaultMods()`, 53 sont offensives et 24 défensives — mais les **sept axes** que
+  la table d'échelle des armes sait lire sont **tous offensifs**. On empilait donc
+  des PV et de la réduction, sans jamais choisir.
+- **TROIS AXES, ET ILS SONT DE NATURES DIFFÉRENTES — c'est tout leur intérêt.**
+  L'**esquive** est binaire et variante là où `damageTakenMul` est lisse et
+  multiplicatif : deux joueurs à +30 % de survie ne jouent pas pareil selon lequel
+  des deux ils ont pris. L'**armure** est **soustractive**, donc **anti-corrélée**
+  au multiplicateur — mesuré : elle retire **50 %** d'un coup de 8 et **3 %** d'un
+  coup de 120, ce qui spécialise le Rempart contre le **contact de horde** plutôt
+  que contre les mécaniques de boss. La **chance** agit sur la **rareté seule**,
+  jamais sur la quantité : c'est ce qui garde l'axe lisible à haut niveau, là où le
+  genre devient illisible en faisant les deux. Elle entre par le **poids de
+  rareté**, pas par `quality` : celle-ci est plafonnée par `RARITY_DRIFT_CAP` et
+  déjà saturée en fin de manche, donc une chance qui s'y ajouterait ne ferait plus
+  rien là où elle compte le plus. Mesuré : 38,1 % de cartes non communes sans,
+  47,8 % avec.
+- **L'ESQUIVE A UN PLAFOND DÈS LE PREMIER JOUR** (`ESQUIVE_MAX = 0,6`, mesuré à
+  59,7 %). Sans lui c'est une **immunité stochastique**, et en coopération elle rend
+  le Soigneur illisible : on ne sait plus si un allié tient parce qu'il est soigné
+  ou parce qu'il a eu de la chance.
+- **LA CARTE OUVRE L'AXE, LE LOOT L'AMPLIFIE.** Un axe qui n'existerait que dans le
+  loot serait un axe qu'on **subit** — on ne peut pas décider de « jouer esquive »
+  si l'esquive tombe au hasard ; un axe qui n'existerait que dans les cartes
+  rendrait le loot redondant. C'est ce qui fait qu'un loot est une **trouvaille**
+  et pas un cadeau.
+- **`powerIndex()` NE LIT PAS LA DÉFENSE, ET C'EST VÉRIFIÉ À L'IDENTIQUE.** Il
+  remonte jusqu'aux PV du boss (`powerIndex → _playerPower → _teamPower →
+  bossPower`) : s'il apprenait à lire l'armure, la calibration des six boss et
+  `BOSS_POWER_REF = 2,89` bougeraient d'un coup, **sans que rien ne lève**. C'est
+  `survieIndex()` qui porte les trois axes, et il ne sert **qu'à** la tension —
+  sinon un loot défensif serait invisible donc **entièrement gratuit**, et avec six
+  loots par manche l'optimum deviendrait « tout défensif » : ce n'est pas un choix,
+  c'est un tarif.
+
 - **LE MODE SUR MESURE EST LA DERNIÈRE PIÈCE DU BANC, PAS UN BONUS.** Graine
   déterministe (plan 31) + compte rendu (plan 32) + mutateurs = **isoler une
   variable**, ce que le dépôt n'a jamais pu faire — et avec de vrais joueurs, pas

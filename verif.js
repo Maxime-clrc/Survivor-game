@@ -135,6 +135,7 @@ const SUITE = [
   ["contrats", () => verifierContrats()],
   ["objectifs", () => G.verifierObjectifs()],
   ["proposition", () => G.verifierProposition()],
+  ["defense", () => G.verifierDefense()],
   ["prereglages", () => G.verifierPrereglages(), true],
   ["tirageBonus", () => G.verifierTirageBonus(), true],
   ["rythmeBonus", () => G.verifierRythmeBonus(), true],

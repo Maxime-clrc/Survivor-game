@@ -431,7 +431,18 @@ export function survieIndex(mods, maxHp) {
   const pv = Math.max(1, maxHp) / CFG.PLAYER_MAX_HP;
   const reduc = 1 / Math.max(0.05, mods.damageTakenMul);
   const tampon = 1 + Math.max(0, mods.shieldPool) / CFG.PLAYER_MAX_HP;
-  return pv * reduc * tampon;
+  /* L ESQUIVE ET L ARMURE ENTRENT ICI ET NULLE PART AILLEURS. C est la
+     reparation du defaut que personne n avait concu : `powerIndex` est
+     purement offensif et remonte jusqu aux PV du boss, donc un loot DEFENSIF
+     serait invisible a l indice et entierement GRATUIT — avec six loots par
+     manche et des joueurs qui apprennent, l optimum serait de tout prendre
+     defensif. Ce n est pas un choix, c est un tarif.
+     L esquive compte en survie MOYENNE (1 / (1 - p)), l armure en part du
+     coup median de la horde — les deux mesurent ce qu on encaisse en plus,
+     pas ce qu on evite une fois. */
+  const esq = 1 / (1 - Math.min(ESQUIVE_MAX, Math.max(0, mods.esquive ?? 0)));
+  const arm = 1 + Math.max(0, mods.armure ?? 0) / 12;
+  return pv * reduc * tampon * esq * arm;
 }
 
 /* LA BORNE. Un objet du monde, tire de la GRAINE — donc deux manches de meme
@@ -459,6 +470,12 @@ export const BORNE_LIBRE = 0;
 export const BORNE_PROPOSEE = 1;
 export const BORNE_ACCEPTEE = 2;
 export const BORNE_CONSOMMEE = 3;
+
+/* L ESQUIVE A UN PLAFOND DES LE PREMIER JOUR. Sans lui c est une IMMUNITE
+   STOCHASTIQUE, et en cooperation elle rend le Soigneur illisible : on ne
+   sait plus si un allie tient parce qu il est soigne ou parce qu il a eu de
+   la chance. Le genre le fixe vers 60 %, et il a raison. */
+const ESQUIVE_MAX = 0.6;
 
 const GROUPE_VUE = CFG.VIEW_W;
 const GROUPE_SORTIE = 1.5;
@@ -1302,7 +1319,8 @@ export class GameState {
     }
     const picks = drawCards(p.cards, quality, forceRare || p.commonStreak >= 2,
       classAt(p.cls).id, this.alea, jalon, this.level,
-      { locked: p.locked, count: p.meta?.confort?.quatrieme ? 4 : 3, ctx });
+      { locked: p.locked, count: p.meta?.confort?.quatrieme ? 4 : 3, ctx,
+        chance: p.mods.chance ?? 0 });
     this._poolWarn(p, ctx);
     return picks.map(c => c.id);
   }
@@ -8782,11 +8800,32 @@ export class GameState {
     if (fromZone && p.timers.zoneImmune > 0) return;
     if (!ignoreCooldown && p.hitCd > 0) return;
 
+    /* L ESQUIVE SE TIRE ICI, AU POINT DE PASSAGE UNIQUE DE TOUT CE QUI BLESSE
+       UN JOUEUR — et elle tire dans `this.alea`, donc deux manches de meme
+       graine esquivent aux memes instants. Une esquive rend le coup GRATUIT
+       et ouvre la fenetre d invulnerabilite : `PLAYER_HIT_CD` est deja cette
+       fenetre, l esquive s y branche au lieu d en ouvrir une seconde. */
+    const esq = Math.min(ESQUIVE_MAX, p.mods.esquive ?? 0);
+    if (esq > 0 && !overTime && this.alea() < esq) {
+      p.hitCd = CFG.PLAYER_HIT_CD;
+      this.effects.push({ id: this._nextId++, x: p.x, y: p.y, r: 26,
+                          life: 0.22, max: 0.22, kind: 4 });
+      return;
+    }
     amount *= this.diff.dmg * (this.diff.subis ?? 1);
     // LA DIFFICULTE N EST PAS UN MERITE : on ne compte que ce que la REDUCTION du
     // joueur retire, pas ce que le mode ajoute.
     const avantSoi = amount;
+    /* L ARMURE EST SOUSTRACTIVE ET ELLE PASSE APRES LE MULTIPLICATEUR : les
+       deux COEXISTENT, c est la reponse du genre, et l ordre decide de leur
+       interaction. Un plancher garde le coup non nul — une armure qui annule
+       un degat rend le contact de horde inoffensif et casse la boucle.
+       Ce que la reduction epargne reste compte dans `evites` : l armure est
+       une reduction comme une autre du point de vue de la contribution. */
     amount *= p.mods.damageTakenMul;
+    if ((p.mods.armure ?? 0) > 0 && !overTime) {
+      amount = Math.max(amount * 0.15, amount - p.mods.armure);
+    }
     // LA TENSION SE PREND ICI PARCE QUE TOUT CE QUI BLESSE PASSE ICI : un second
     // point d'ecriture serait un second systeme a tenir. En fraction des PV MAX,
     // apres la reduction — c'est ce que le joueur encaisse vraiment.
@@ -10343,6 +10382,122 @@ export function verifierProposition(secondes = 12) {
   }
   if (b.etat !== 1) soucis.push("la proposition disparait toute seule");
   return soucis;
+}
+/* LES TROIS AXES DEFENSIFS, ET LA SEPARATION QUI LES REND POSSIBLES.
+
+   `powerIndex()` DOIT RENDRE EXACTEMENT LA MEME VALEUR QU AVANT. Il remonte
+   jusqu aux PV du boss (`powerIndex -> _playerPower -> _teamPower -> bossPower`),
+   donc s il apprenait a lire l armure ou l esquive, toute la calibration des six
+   boss, `BOSS_POWER_REF = 2,89` et les mesures des plans 27 a 30 bougeraient d un
+   coup — sans que rien ne leve. C est le test le plus important du lot.
+
+   ET L INDICE DE SURVIE DOIT BOUGER, LUI. Sinon un loot defensif reste invisible
+   donc entierement GRATUIT, et avec six loots par manche l optimum devient « tout
+   defensif » : ce n est pas un choix, c est un tarif. */
+export function verifierDefense(tirages = 20000) {
+  const soucis = [];
+  const nu = defaultMods();
+
+  // 1 · LE PLAFOND EXISTE ET IL EST ATTEINT. Sans lui, l esquive est une immunite
+  // stochastique, et en cooperation elle rend le Soigneur illisible.
+  const g = new GameState(DIFF_NORMAL, 0, 7919);
+  g.addPlayer(1, "bot", 0, 0);
+  const p = g.players.get(1);
+  p.mods.esquive = 5;
+  p.mods.damageTakenMul = 1;
+  p.maxHp = 1e9;
+  p.hp = 1e9;
+  let touches = 0;
+  for (let i = 0; i < tirages; i++) {
+    p.hitCd = 0;
+    const avant = p.hp;
+    g._hurt(p, 10, { ignoreCooldown: true });
+    if (p.hp < avant) touches++;
+  }
+  const passe = touches / tirages;
+  if (passe < 1 - ESQUIVE_MAX - 0.03 || passe > 1 - ESQUIVE_MAX + 0.03) {
+    soucis.push(`esquive infinie : ${(100 * (1 - passe)).toFixed(1)} % de coups evites`
+      + ` pour un plafond de ${(100 * ESQUIVE_MAX).toFixed(0)} %`);
+  }
+
+  // 2 · NON-REGRESSION STRICTE DE L INDICE OFFENSIF.
+  const ref = powerIndex(nu);
+  const defensif = { ...nu, esquive: 0.5, armure: 40, chance: 3,
+                     damageTakenMul: 0.5, shieldPool: 200 };
+  if (powerIndex(defensif) !== ref) {
+    soucis.push(`powerIndex a appris a lire la defense : ${powerIndex(defensif)}`
+      + ` au lieu de ${ref}. Les six boss et BOSS_POWER_REF sont calibres sur le`
+      + " contraire, et rien ne leverait");
+  }
+
+  // 3 · L INDICE DE SURVIE, LUI, DOIT BOUGER — ET LE BOSS NE DOIT PAS.
+  const s0 = survieIndex(nu, CFG.PLAYER_MAX_HP);
+  const sArm = survieIndex({ ...nu, armure: 6 }, CFG.PLAYER_MAX_HP);
+  const sEsq = survieIndex({ ...nu, esquive: 0.3 }, CFG.PLAYER_MAX_HP);
+  if (!(sArm > s0)) soucis.push("l armure ne bouge pas l indice de survie");
+  if (!(sEsq > s0)) soucis.push("l esquive ne bouge pas l indice de survie");
+  const hp0 = bossPower(_teamPowerRef(nu));
+  const hp1 = bossPower(_teamPowerRef({ ...nu, armure: 40, esquive: 0.5 }));
+  if (hp0 !== hp1) {
+    soucis.push(`la defense change la puissance vue par le boss : ${hp1} contre ${hp0}`);
+  }
+
+  // 4 · L ARMURE EST SOUSTRACTIVE, DONC ANTI-CORRELEE : enorme contre les petits
+  // coups, faible contre les gros. C est ce qui specialise le Rempart contre le
+  // CONTACT DE HORDE plutot que contre les mecaniques de boss.
+  const coup = (base, armure) => {
+    const h = new GameState(DIFF_NORMAL, 0, 7919);
+    h.addPlayer(1, "bot", 0, 0);
+    const q = h.players.get(1);
+    q.mods.armure = armure;
+    q.mods.damageTakenMul = 1;
+    q.maxHp = 1e9; q.hp = 1e9;
+    h._hurt(q, base, { ignoreCooldown: true });
+    return 1e9 - q.hp;
+  };
+  const petitNu = coup(8, 0), petitArm = coup(8, 4);
+  const grosNu = coup(120, 0), grosArm = coup(120, 4);
+  const gainPetit = 1 - petitArm / petitNu;
+  const gainGros = 1 - grosArm / grosNu;
+  if (!(gainPetit > gainGros * 3)) {
+    soucis.push(`l armure n est pas anti-correlee : ${(100 * gainPetit).toFixed(0)} %`
+      + ` sur un petit coup contre ${(100 * gainGros).toFixed(0)} % sur un gros`);
+  }
+
+  // 5 · LA CHANCE PESE LA RARETE ET NE TOUCHE PAS AU COMPTE. Une clef de
+  // chargement que personne ne lit ne leve rien : elle rend `undefined`, donc
+  // `NaN`, donc RIEN — et la carte promettrait une rarete qu elle ne donne pas.
+  const offres = (chance, n) => {
+    const h = new GameState(DIFF_NORMAL, 0, 4211);
+    h.addPlayer(1, "bot", 0, 0);
+    const q = h.players.get(1);
+    q.mods.chance = chance;
+    let hautes = 0, total = 0, compte = 0;
+    for (let i = 0; i < n; i++) {
+      q.cards.clear();
+      const ids = h.offerCards(q, 3);
+      compte += ids.length;
+      for (const id of ids) {
+        total++;
+        if (CARD_BY_ID.get(id).rarity > 0) hautes++;
+      }
+    }
+    return { part: hautes / total, compte };
+  };
+  const sansChance = offres(0, 400), avecChance = offres(0.45, 400);
+  if (!(avecChance.part > sansChance.part * 1.1)) {
+    soucis.push(`la chance ne pese pas la rarete : ${(100 * avecChance.part).toFixed(1)} %`
+      + ` de cartes non communes avec, ${(100 * sansChance.part).toFixed(1)} % sans`);
+  }
+  if (avecChance.compte !== sansChance.compte) {
+    soucis.push("la chance change la QUANTITE offerte — elle ne doit peser que la rarete");
+  }
+  return soucis;
+}
+
+// la puissance d equipe telle que le boss la lit, sur un chargement donne
+function _teamPowerRef(mods) {
+  return powerIndex(mods) / SUMMON_REF;
 }
 export function verifierObjectifs() {
   const soucis = [];

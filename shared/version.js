@@ -8534,6 +8534,67 @@
                   les deux coup sur coup. Un instantane est un OBJET, pas un
                   schema : une collision ecrase en silence.
 
+   --- plan 35 : mini-boss, loot, statistiques ------------------------------
+
+    0.38.0 lot 03 CHANCE, ESQUIVE, ARMURE — ET LE TROU QU ELLES COMBLENT EST
+                  MESURE. Sur les 151 clefs de `defaultMods()`, 53 sont offensives
+                  et 24 defensives, mais les SEPT AXES que la table d echelle des
+                  armes sait lire sont TOUS offensifs. Consequence jamais ecrite :
+                  IL N EXISTAIT AUCUN ARBITRAGE DEFENSIF — on empilait des PV et de
+                  la reduction, sans jamais choisir.
+                  TROIS AXES DE NATURES DIFFERENTES, ET C EST TOUT LEUR INTERET. L
+                  ESQUIVE est binaire et variante la ou `damageTakenMul` est lisse
+                  et multiplicatif : deux joueurs a +30 % de survie ne jouent pas
+                  pareil selon lequel des deux ils ont pris. L ARMURE est
+                  SOUSTRACTIVE donc ANTI-CORRELEE — mesure : elle retire 50 % d un
+                  coup de 8 et 3 % d un coup de 120, ce qui specialise le Rempart
+                  contre le CONTACT DE HORDE plutot que contre les mecaniques de
+                  boss. La CHANCE agit sur la RARETE SEULE et jamais sur la
+                  quantite : c est ce qui garde l axe lisible a haut niveau, la ou
+                  le genre devient illisible en faisant les deux.
+                  L ESQUIVE A UN PLAFOND DES LE PREMIER JOUR — 60 %, mesure a
+                  59,7 % sur vingt mille tirages. Sans lui c est une IMMUNITE
+                  STOCHASTIQUE, et en cooperation elle rend le Soigneur illisible :
+                  on ne sait plus si un allie tient parce qu il est soigne ou parce
+                  qu il a eu de la chance. Elle tire dans `this.alea`, donc deux
+                  manches de meme graine esquivent aux memes instants, et elle se
+                  branche sur `PLAYER_HIT_CD` — la fenetre d invulnerabilite
+                  existait deja.
+                  LA CARTE OUVRE L AXE, LE LOOT L AMPLIFIERA. Un axe qui n
+                  existerait que dans le loot serait un axe qu on SUBIT : on ne peut
+                  pas decider de « jouer esquive » si l esquive tombe au hasard. Un
+                  axe qui n existerait que dans les cartes rendrait le loot
+                  redondant. Trois cartes ouvrent les trois — et `CARDS` est
+                  APPEND-ONLY, donc elles s ajoutent a la fin.
+                  `powerIndex()` NE LIT PAS LA DEFENSE, ET C EST VERIFIE A L
+                  IDENTIQUE : il remonte jusqu aux PV du boss, donc s il apprenait a
+                  lire l armure, la calibration des six boss et `BOSS_POWER_REF`
+                  bougeraient d un coup SANS QUE RIEN NE LEVE. C est `survieIndex()`
+                  qui porte les trois axes, et il ne sert QU A la tension — sinon un
+                  loot defensif serait invisible donc ENTIEREMENT GRATUIT, et avec
+                  six loots par manche l optimum deviendrait « tout defensif » : ce
+                  n est pas un choix, c est un tarif.
+                  LA CHANCE ENTRE PAR LE POIDS DE RARETE, PAS PAR `quality` :
+                  celle-ci est plafonnee par `RARITY_DRIFT_CAP` et deja saturee en
+                  fin de manche, donc une chance qui s y ajouterait ne ferait plus
+                  rien la ou elle compte le plus. Elle pese les raretes au-dessus de
+                  la commune et laisse `count` intact — mesure : 38,1 % de cartes
+                  non communes sans, 47,8 % avec les trois `Flair`. Le verificateur
+                  mesure LES DEUX, la part ET le compte : une clef de chargement que
+                  personne ne lit ne leve rien, elle rend `undefined` donc `NaN`
+                  donc RIEN, et la carte promettrait une rarete qu elle ne donne pas.
+                  LES DEUX VERIFICATEURS LENTS ETAIENT DEJA ROUGES AVANT LE LOT,
+                  et c est MESURE contre l arbre a HEAD : `equilibreArmes` rend les
+                  quatre memes ecarts (dispersion 82 %, railgun 116 %, grenade 90 %,
+                  siege 93 %) et `progression` six defauts avant comme apres. Leur
+                  COMPOSITION bouge parce que trois cartes entrent dans un pool de
+                  181, donc les manches simulees divergent des le premier tirage —
+                  pas parce que la defense y touche. Le lot 04 de ce plan est celui
+                  qui recalibre, et il est imperativement DERNIER.
+                  L ORDRE DE LA CHAINE DE CALCUL entre dans `CONTENU.md` : il
+                  existait depuis toujours et n etait nulle part. Le loot s inserera
+                  APRES les reliques et AVANT le plafond de PV.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8542,4 +8603,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.37.4";
+export const VERSION = "0.38.0";

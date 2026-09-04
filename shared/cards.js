@@ -1752,6 +1752,24 @@ export const CARDS = [
     vals: () => ({ "0": 25 }),
     apply(m) { m.bulletLifeMul += 0.25; m.precMarque = 1; },
   },
+  {
+    id: "reflexe", nom: "Réflexe", rarity: 0, max: 4, tags: ["def"],
+    desc: "+8 % de chance d'esquiver un coup",
+    stack: n => tf("cards.reflexe.stack", "{0} d'esquive", { "0": pctAdd(0.08, n) }),
+    apply(m, n) { m.esquive += 0.08 * n; },
+  },
+  {
+    id: "plaque", nom: "Plaque dure", rarity: 0, max: 4, tags: ["def"],
+    desc: "−2 dégâts sur chaque coup reçu",
+    stack: n => tf("cards.plaque.stack", "−{0} par coup", { "0": 2 * n }),
+    apply(m, n) { m.armure += 2 * n; },
+  },
+  {
+    id: "flair", nom: "Flair", rarity: 1, max: 3, tags: ["eco"],
+    desc: "ce que vous trouvez est plus rare — jamais plus abondant",
+    stack: n => tf("cards.flair.stack", "{0} de rareté", { "0": pctAdd(0.15, n) }),
+    apply(m, n) { m.chance += 0.15 * n; },
+  },
 ];
 
 export const CARD_BY_ID = new Map(CARDS.map(c => [c.id, c]));
@@ -1786,6 +1804,23 @@ export function defaultMods() {
     reviveRadiusMul: 1,
     reviveHpRatio: 0,
     damageTakenMul: 1,
+    /* LES TROIS AXES QUE LE JEU N AVAIT PAS. Sur 151 clefs de chargement, 53
+       sont offensives et 24 defensives — mais les sept axes que la table
+       d echelle des armes sait lire sont TOUS offensifs. Consequence jamais
+       ecrite : il n existait AUCUN ARBITRAGE DEFENSIF, on empilait des PV et
+       de la reduction.
+       `esquive` est binaire et variante la ou `damageTakenMul` est lisse et
+       multiplicatif : deux joueurs a +30 % de survie ne jouent pas pareil selon
+       lequel des deux ils ont pris. `armure` est SOUSTRACTIVE, donc
+       anti-correlee au multiplicateur — enorme contre les petits coups, faible
+       contre les gros, ce qui specialise le Rempart contre le CONTACT DE HORDE
+       plutot que contre les mecaniques de boss.
+       `chance` agit sur la RARETE SEULE, jamais sur la quantite : c est ce qui
+       garde l axe lisible a haut niveau, la ou le genre devient illisible en
+       faisant les deux. */
+    esquive: 0,
+    armure: 0,
+    chance: 0,
     pickupRadius: 0,
     pickupRadiusMul: 1,
     groundResist: 0,
@@ -2013,9 +2048,16 @@ export function computeMods(owned) {
 }
 
 
-function rarityWeights(quality) {
+/* LA CHANCE AGIT SUR LA RARETE SEULE, JAMAIS SUR LA QUANTITE : elle pese les
+   raretes au-dessus de la commune et laisse `count` intact. Deux axes en un —
+   plus rare ET plus abondant — rendent le genre illisible a haut niveau. Elle
+   entre par le POIDS et non par `quality`, qui est plafonne par
+   `RARITY_DRIFT_CAP` et deja sature en fin de manche : une chance qui y serait
+   ajoutee ne ferait plus rien la ou elle compte le plus. */
+function rarityWeights(quality, chance = 0) {
   const k = Math.min(Math.max(0, quality - 1), CARD_CFG.RARITY_DRIFT_CAP);
-  return RARITY_WEIGHT.map((w, i) => w * Math.pow(RARITY_DRIFT[i], k));
+  const c = 1 + Math.max(0, chance);
+  return RARITY_WEIGHT.map((w, i) => w * Math.pow(RARITY_DRIFT[i], k) * (i > 0 ? c : 1));
 }
 
 export function legendaryCount(owned) {
@@ -2132,7 +2174,7 @@ export function drawCards(owned, quality, forceRare = false, cls = null,
   const capped = legendaryCount(owned) >= CARD_CFG.LEGENDARY_MAX;
   const pool = eligibleCards(owned, cls, levelNow, opts.locked ?? null, opts.ctx ?? null)
     .filter(c => !(capped && c.rarity === RARITY.LEGENDAIRE));
-  const weights = rarityWeights(quality);
+  const weights = rarityWeights(quality, opts.chance ?? 0);
   const out = [];
   const taken = new Set();
   const families = new Set();
