@@ -8595,6 +8595,72 @@
                   existait depuis toujours et n etait nulle part. Le loot s inserera
                   APRES les reliques et AVANT le plafond de PV.
 
+    0.38.1 lot 01 LE MINI-BOSS — UN ENNEMI, PAS UN `this.boss`. Il joue sur la map
+                  normale, donc il n a ni arene, ni barres, ni pause, ni CERCLE AU
+                  SOL : ce canal appartient au boss et ne se partage pas, sans quoi
+                  une arene a 200 corps n a plus de sol lisible. Il ne lui reste que
+                  la POSTURE, et c est ce qui a decide de son verbe.
+                  LE BELIER CHARGE SANS CORRIGER SA COURSE. Le cap se verrouille au
+                  DEBUT du preavis, comme l angle du tireur : fige a la fin, il
+                  suivrait la cible une demi-seconde, et une attaque qui suit sa
+                  cible jusqu a la detente n est pas une attaque. Esquiver l envoie
+                  dans un obstacle, et l encastrement OUVRE UNE FENETRE — immobile
+                  et Vulnerable, l etat existait deja avec ses pointes et ses
+                  +25 %. C est la seule punition d esquive du bestiaire. Mesure :
+                  89 encastrements pour 268 charges, un tiers, avec un pilote qui
+                  ne les cherche pas.
+                  SON PREAVIS SE COMPTE MAIS NE SE REFUSE JAMAIS. `_windupSature`
+                  est une regle de lisibilite d ecran ; un mini-boss a qui l on
+                  refuserait son creneau ne chargerait pas du tout, et son unique
+                  verbe disparaitrait derriere huit fantassins.
+                  RETIRER N EST PAS TUER, ET LE VERIFICATEUR LE MESURE. Trois des
+                  quatre sorties du cycle ne doivent RIEN laisser : `_killEnemy`
+                  porte l XP, le kill compte, les hauts faits et le butin, et un
+                  retrait qui y passerait paierait quatre fois sans qu une ligne le
+                  dise. Abattu paie en ECLATS et jamais en XP — `e.xpWorth = 0` le
+                  coupe a la source, et `TL_CFG.QUARRY_XP_WORTH` s est CONVERTI la,
+                  il ne s y est pas ajoute.
+                  `EV_CHASSE` EST REDEFINI, PAS RETIRE : son index circule. Sa proie
+                  etait un mini-boss qui ne disait pas son nom ; ce qui reste est ce
+                  que l evenement a toujours voulu dire, une ELITE DESIGNEE dans la
+                  horde. Les quatre constantes `QUARRY_*` disparaissent avec elle.
+                  TROIS DEFAUTS SILENCIEUX PAYES EN ECRIVANT, ET AUCUN NE LEVAIT.
+                  1) `hordeTime` est une horloge DE SEGMENT, pas de manche : compares
+                  a elle, les deux derniers mini-boss n apparaissaient JAMAIS —
+                  « zero rencontre sur six manches ». Les instants cumules se lisent
+                  sur `hordeMinutes()`. 2) Les quatre compteurs de charge n etaient
+                  pas initialises : `e.chgCd -= dt` vaut `NaN`, donc `NaN <= 0` est
+                  faux, donc LA CHARGE NE PARTAIT JAMAIS — zero charge sur
+                  trente-six secondes de combat. 3) A `PREMIER = 260` le premier
+                  mini-boss naissait quarante secondes avant le boss du premier
+                  segment et se faisait balayer : trois occasions sur trois perdues.
+                  Les trois fenetres tiennent maintenant chacune dans un segment.
+                  DEUX ANNONCES TOMBAIENT DEJA DANS LE VIDE, ET LA SECONDE EST CELLE
+                  DU PLAN 34. `applyAlert` resolvait `def` dans les trois tables du
+                  serveur puis sortait sur `!def` : le contrat rempli (`msg.contrat`,
+                  livre au lot 34/02) et la menace rendaient `null`, donc `return`,
+                  donc RIEN. Pas une erreur, pas un journal — une annonce muette.
+                  `verifierSilhouettes` ETAIT ECRIT, EXPORTE, ET APPELE PAR PERSONNE.
+                  C est le defaut que `verif.js` existe pour fermer, et le seul qui
+                  garde les corps distinguables quand on en ajoute un quatorzieme.
+                  Il ne demandait qu a resoudre les specificateurs ABSOLUS du client
+                  — `sprites.js` ne touche au DOM qu au four, pas a l import. Le
+                  belier passe par l AVANCE (0,125 contre 0,038 au mieux ailleurs) :
+                  toute sa masse est devant, et c est le seul axe sur lequel une
+                  quatorzieme variation de silhouette pouvait encore separer.
+                  TROIS TABLES MANQUAIENT A `constantes_check` — `ATK_CFG`,
+                  `BORNE_CFG` et `MINI_CFG`, ajoutees par des lots successifs sans
+                  que personne les inscrive. Meme defaut, meme forme : l ABSENCE
+                  d appel.
+                  ECHELLE : les PV d une elite ne dependent que du TEMPS, ceux d un
+                  boss portent `crowd^1,15` — « entre les deux » est donc deux
+                  positions differentes selon l effectif. `CROWD_EXP = 0,6` tient
+                  dans les deux cas. Temps d abattage median mesure : 24/11/13/12 s
+                  en calme, 42/27/16 s en normal, 86/65/39/24 s en cauchemar, MEDIANE
+                  GLOBALE 18 s sur 50 abattages. Il BAISSE avec l effectif, et c est
+                  la consequence assumee de l exposant : le lot 04 du plan est celui
+                  qui recalibre.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8603,4 +8669,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.38.0";
+export const VERSION = "0.38.1";

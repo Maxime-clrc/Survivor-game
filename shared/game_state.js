@@ -53,6 +53,7 @@ import {
 import {
   ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, ATK_CFG, adaptType, hasTrait, traitBit,
   trailMax, masseDe, ecartDe, defDe, verifierElites,
+  MINI_TYPE, MINI_DITS, MINI_DIT_ARRIVE, MINI_DIT_PARTI,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 } from "./enemies.js";
 import {
@@ -73,6 +74,7 @@ export { NAV_CFG, construireNav, diffuser, verifierNavigation };
 export {
   ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, ATK_CFG, masseDe, defDe, verifierElites,
   adaptType, hasTrait, trailMax,
+  MINI_TYPE, MINI_DITS, MINI_DIT_ARRIVE, MINI_DIT_PARTI,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 };
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
@@ -470,6 +472,71 @@ export const BORNE_LIBRE = 0;
 export const BORNE_PROPOSEE = 1;
 export const BORNE_ACCEPTEE = 2;
 export const BORNE_CONSOMMEE = 3;
+
+/* LE MINI-BOSS. UN ENNEMI, PAS UN `this.boss` : il joue sur la map normale,
+   donc il n a ni arene, ni barres, ni pause, ni cercle au sol — ce canal
+   appartient au boss et ne se partage pas. Ce qui le separe d une elite est son
+   CYCLE : il dort, il se reveille, il tient sa zone, et il PART.
+
+   IL EST DANS LA GRAINE, comme les bornes : instants et positions sont tires a
+   la construction, donc deux manches de meme graine posent les memes.
+
+   ON NE LE MONTRE PAS — ni fleche, ni marqueur, ni minicarte. Le filtre de vue
+   de l instantane EST le comportement voulu. Le seul levier honnete contre « ne
+   jamais le rencontrer » est la FENETRE DE PRESENCE, genereuse : il ne vient pas
+   a vous, il dure assez pour que votre trajet le croise.
+
+   LA LAISSE SE MESURE DEPUIS SON ANCRE, JAMAIS DEPUIS LE JOUEUR LE PLUS PROCHE :
+   deux joueurs qui se relaient le promeneraient d un bout a l autre de la carte.
+   Rentrer lui rend ses PV, ce qui interdit de l user en plusieurs passages — et
+   le retour est VISIBLE, corps qui marche a l envers, sinon la barre repart en
+   haut sans que rien ne l explique. */
+export const MINI_CFG = {
+  PAR_MANCHE: 3,
+  /* LES TROIS FENETRES TIENNENT CHACUNE DANS UN SEGMENT, ET C EST MESURE, PAS
+     suppose : a `PREMIER = 260` le premier mini-boss naissait quarante secondes
+     avant le boss du premier segment et se faisait BALAYER — trois occasions sur
+     trois perdues sans qu une seule ligne le dise. Un segment dure
+     `SEGMENT_TIME`, la fenetre tient dedans avec de la marge des deux cotes.
+     ET LE PREMIER N EST PAS DANS LE PREMIER SEGMENT : « Installation » est le
+     seul segment ou la horde est encore lisible seule, et un mini-boss a la
+     premiere minute vaut ce que vaut la premiere minute — presque rien. */
+  PREMIER: 360,
+  ECART: 300,
+  ECART_MIN: 1500,
+  PRESENCE: 210,
+  COMBAT: 60,
+  REVEIL: 430,
+  LAISSE: 950,
+  RETOUR: 2.4,
+  REGEN: 0.5,
+  ECLATS: 55,
+  HP_MUL: 0.6,
+  CROWD_EXP: 0.6,
+  KNEE: 1.8,
+  K: 0.35,
+};
+
+export const MINI_ATTEND = 0;
+export const MINI_DORT = 1;
+export const MINI_EVEILLE = 2;
+export const MINI_RENTRE = 3;
+export const MINI_FINI = 4;
+
+/* LES PV D UNE ELITE NE DEPENDENT QUE DU TEMPS, CEUX D UN BOSS PORTENT
+   `crowd^1,15` : « entre l elite et le boss » est donc DEUX positions
+   differentes selon l effectif, et a quatre la bande basse est vide.
+   `CROWD_EXP = 0,6` reste entre les deux dans les deux cas.
+
+   ET IL SUIT LA PUISSANCE DU JOUEUR, AVEC SON PROPRE SEUIL. Le boss, lui, est
+   calibre sur une reference FIXE (`BOSS_POWER_REF`) ; la proie de `EV_CHASSE` ne
+   suivait rien du tout et fondait en fin de manche. Le genou est plus bas que
+   celui du boss et la fraction plus faible : une build deux fois plus forte ne
+   rend pas la cible deux fois plus grosse. */
+export function miniPower(power) {
+  if (power <= MINI_CFG.KNEE) return power;
+  return MINI_CFG.KNEE + MINI_CFG.K * (power - MINI_CFG.KNEE);
+}
 
 /* L ESQUIVE A UN PLAFOND DES LE PREMIER JOUR. Sans lui c est une IMMUNITE
    STOCHASTIQUE, et en cooperation elle rend le Soigneur illisible : on ne
@@ -1085,6 +1152,9 @@ export class GameState {
        identifiant. Posees plus haut, leurs `id` valaient NaN — donc `null` sur
        le reseau, donc quatre bornes que le client ne pouvait pas distinguer. */
     this.bornes = this._poserBornes();
+    // MEME RAISON, MEME PLACE : le placement lit les bornes de l arene et les
+    // dangers du lieu, et il tire dans `this.alea` juste apres les bornes.
+    this.minis = this._poserMinis();
     this.contrat = null;
     this.contratsFinis = 0;
     this.eliteKills = 0;
@@ -1511,6 +1581,7 @@ export class GameState {
     this._effects(dt);
     this._powerups(dt);
     this._bornes(dt);
+    this._minis(dt);
     this._contratTick(dt);
     this._harvests(dt);
     this._turrets(dt);
@@ -3187,6 +3258,16 @@ export class GameState {
   _damage(target, amount, ownerId, burn = 0, overTime = false, hx, hy,
           src = DLT_ARME) {
     if (!target || amount <= 0) return;
+    /* LE REVEIL SE PREND ICI PARCE QUE TOUT CE QUI BLESSE UN ENNEMI PASSE ICI —
+       balle, arc, zone, souffle, brulure. Un second point d ecoute aurait laissé
+       une source dehors, et un mini-boss qu on entame sans reveiller serait un
+       sac de PV. Le meme coup RECHARGE la fenetre de combat : elle mesure
+       l ENGAGEMENT, pas le sejour. */
+    if (target.mini) {
+      const m = target.mini;
+      if (m.etat === MINI_DORT) this._reveillerMini(m);
+      if (m.etat === MINI_EVEILLE) m.combat = MINI_CFG.COMBAT;
+    }
     const struck = target;
     if ((struck === this.boss || struck === this.boss2) && ownerId) {
       const owner = this.players.get(ownerId);
@@ -3864,11 +3945,16 @@ export class GameState {
     return ENEMY_TYPES[0];
   }
 
+  /* `mini` EXEMPTE DES DEUX FILTRES DE HORDE, ET DES DEUX SEULEMENT. Le
+     plafond de population regle une DENSITE : un mini-boss refuse parce que la
+     horde est pleine serait absurde, et il n en occupe qu une place. Le roster
+     dit quels corps le SCRIPT tire ; aucun ne porte le mini-boss, donc sans
+     cette porte `ti` retomberait sur le fantassin, en silence. */
   _spawnEnemy(typeIndex = -1, x = null, y = null, elite = false, geom = "bords",
-              groupe = null) {
-    if (this.enemies.length >= this._enemyCap()) return null;
+              groupe = null, mini = false) {
+    if (!mini && this.enemies.length >= this._enemyCap()) return null;
     let ti = typeIndex;
-    if (ti >= 0) {
+    if (ti >= 0 && !mini) {
       ti = adaptType(ti, this.hordeMinutes());
       if (ti < 0 || !typesFor(this.diff).includes(ti)) ti = 0;
     }
@@ -4012,18 +4098,18 @@ export class GameState {
     }
   }
 
+  /* `EV_CHASSE` EST REDEFINI, PAS RETIRE : son index circule sur le reseau et
+     dans les instantanes. Sa proie ETAIT un mini-boss qui ne disait pas son nom
+     — formule de boss sans le terme de puissance, taille x2,5, quarante corps
+     d XP — et le vrai mini-boss lui prend cette place. Ce qui reste ici est ce
+     que l evenement a toujours voulu dire : UNE CIBLE DESIGNEE DANS LA HORDE,
+     a abattre avant la fin du battement.
+     LA PROIE EST UNE ELITE, ET ELLE PASSE PAR `_killEnemy` : c est un corps de
+     horde, il vaut son XP et son score. Les quarante corps d XP de l ancienne
+     proie se sont CONVERTIS en eclats sur le mini-boss, ils ne s y ajoutent pas. */
   _spawnQuarry() {
-    const e = this._spawnEnemy(2, CFG.ARENA_W / 2, 120, true, "bords");
+    const e = this._spawnEnemy(2, null, null, true, "bords");
     if (!e) return;
-    const crowd = this.aliveCrowd();
-    const hp = CFG.BOSS_HP_BASE * Math.pow(crowd, 1.15)
-      * this._bossHpRamp()
-      * CFG.BOSS_HP_MUL * this.diff.boss * TL_CFG.QUARRY_HP_MUL;
-    e.hp = e.maxHp = hp;
-    e.r *= TL_CFG.QUARRY_SIZE_MUL;
-    e.speed *= TL_CFG.QUARRY_SPEED_MUL;
-    e.noExec = 1;
-    e.xpWorth = TL_CFG.QUARRY_XP_WORTH;
     this.quarry = e.id;
   }
 
@@ -4841,6 +4927,12 @@ export class GameState {
         if (e.hp <= 0) continue;
       }
 
+      /* UN MINI-BOSS QUI DORT OU QUI RENTRE N EST PAS DE LA HORDE : `_minis`
+         le deplace, ou ne le deplace pas. Le laisser tomber dans cette boucle
+         lui ferait poursuivre le joueur pendant qu il regenere, ce qui est
+         exactement l inverse de ce que la laisse promet. */
+      if (e.mini && e.mini.etat !== MINI_EVEILLE) continue;
+
       const def = defDe(e.type, e.elite);
       const t = this._nearestPlayer(e.x, e.y, def.isole);
       if (!t) continue;
@@ -4878,6 +4970,55 @@ export class GameState {
         const missing = 1 - e.hp / e.maxHp;
         const k = Math.min(1, missing / (1 - TRAIT_CFG.FRENZY_AT));
         mul *= 1 + (TRAIT_CFG.FRENZY_MAX - 1) * k;
+      }
+
+      /* LA CHARGE. Meme grammaire que la ruee — telegraphe, action, impact,
+         recuperation — et deux differences qui font tout son verbe.
+         LE CAP SE VERROUILLE AU DEBUT DU PREAVIS, comme l angle du tireur : un
+         cap fige a la FIN suivrait la cible pendant une demi-seconde, et une
+         attaque qui suit sa cible jusqu a la detente n est pas une attaque.
+         ELLE NE S ARRETE PAS AU CONTACT. Esquiver l envoie dans un obstacle, et
+         l encastrement OUVRE une fenetre : le corps est immobile et
+         VULNERABLE — l etat existe deja, il porte ses pointes et ses +25 %,
+         donc la recompense de l esquive se lit sans un canal de plus.
+         SON PREAVIS SE COMPTE MAIS NE SE REFUSE JAMAIS. Le budget est une
+         regle de LISIBILITE d ecran ; un mini-boss a qui l on refuserait son
+         creneau ne chargerait pas du tout, et son unique verbe disparaitrait
+         derriere huit fantassins. */
+      if (def.chargeCd) {
+        if (e.chgT > 0) {
+          e.chgT -= dt;
+          mul *= def.chargeMul;
+          const nx = e.x + Math.cos(e.chgAng) * (e.r + 8);
+          const ny = e.y + Math.sin(e.chgAng) * (e.r + 8);
+          const B = this.bounds;
+          const mur = nx <= B.x0 + e.r || nx >= B.x1 - e.r
+                   || ny <= B.y0 + e.r || ny >= B.y1 - e.r;
+          if (mur || this._obstacleAt(nx, ny, e.r)) {
+            e.chgT = 0;
+            e.chgSonne = def.chargeSonne;
+            e.vulnUntil = Math.max(e.vulnUntil ?? 0, this.time + def.chargeSonne);
+            this._blastPush(e.x, e.y, e.r * 2.2, 180);
+            this.effects.push({ id: this._nextId++, x: e.x, y: e.y, r: e.r * 2.2,
+                                life: 0.4, max: 0.4, kind: 1 });
+          }
+        } else if (e.chgSonne > 0) {
+          e.chgSonne -= dt;
+          mul = 0;
+        } else if (e.chgWarn > 0) {
+          e.chgWarn -= dt;
+          mul *= TRAIT_CFG.DASH_GATHER;
+          this.windup.push(e);
+          if (e.chgWarn <= 0) e.chgT = def.chargeTime;
+        } else {
+          e.chgCd -= dt;
+          if (e.chgCd <= 0 && d < def.chargeRange) {
+            this._windupCompte(e, budget);
+            e.chgCd = def.chargeCd;
+            e.chgWarn = ATK_CFG.WARN;
+            e.chgAng = Math.atan2(dy, dx);
+          }
+        }
       }
 
       if (hasTrait(e.traits, TRAIT_DASH)) {
@@ -4972,13 +5113,20 @@ export class GameState {
         sx = fx / fn; sy = fy / fn;
       }
 
+      // LA COURSE NE SE CORRIGE PAS, DONC ELLE PASSE APRES TOUT CE QUI BRAQUE.
+      // Le champ, le flanc et l evitement d obstacle voudraient tous la faire
+      // tourner — et un belier qui contourne l obstacle ne s y encastre jamais,
+      // c est-a-dire que l esquive cesse d etre recompensee.
+      const fige = e.chgT > 0;
+      if (fige) { sx = Math.cos(e.chgAng); sy = Math.sin(e.chgAng); }
+
       // 2 · COMMENT EVITER. TROIS ECHANTILLONS, PAS UN : le point unique a
       // `look` px sautait par-dessus toute cloison plus mince que lui, et la
       // plus mince du depot fait 32 px pour une portee de 58. Le corps ne
       // voyait alors RIEN, se collait a la face, et le centre de la face est un
       // attracteur (composante tangentielle nulle par symetrie) — il y restait
       // jusqu'a la fin de la manche.
-      if (this.obstacles.length) {
+      if (this.obstacles.length && !fige) {
         const look = e.r + CFG.ENEMY_AVOID_LOOK;
         let b = null, px = 0, py = 0;
         for (let s = 1; s <= 3; s++) {
@@ -6487,6 +6635,186 @@ export class GameState {
     return out;
   }
 
+  /* MEMES REGLES QUE LES BORNES, ET POUR LES MEMES RAISONS : tire dans
+     `this.alea`, ecarte des dangers, ecarte des autres. Un ecart en TEMPS
+     s ajoute — deux mini-boss dont les fenetres de presence se recouvrent
+     mettent deux menaces nommees sur la carte en meme temps, ce qu on refuse
+     deja pour le boss.
+     LE PLACEMENT EST BIAISE VERS LES BORNES. C est le seul contrepoids honnete
+     au risque du lot : un corps qui n attire pas, ne se signale pas et disparait
+     peut n etre JAMAIS rencontre. Les bornes sont ce qui fait deja marcher le
+     joueur, donc c est la qu on le croise. */
+  _poserMinis() {
+    const out = [];
+    const marge = 320;
+    for (let i = 0; i < MINI_CFG.PAR_MANCHE; i++) {
+      let pose = null;
+      for (let essai = 0; essai < 24 && !pose; essai++) {
+        // une borne sur deux essais : le biais est un TIRAGE, pas une regle —
+        // un mini-boss toujours colle a une borne ferait de la borne un piege.
+        const pres = (essai & 1) && this.bornes.length > 0
+          ? this.bornes[Math.floor(this.alea() * this.bornes.length)] : null;
+        const x = pres ? pres.x + (this.alea() - 0.5) * 900
+          : marge + this.alea() * (CFG.ARENA_W - marge * 2);
+        const y = pres ? pres.y + (this.alea() - 0.5) * 900
+          : marge + this.alea() * (CFG.ARENA_H - marge * 2);
+        const pt = this._dropPoint(
+          Math.min(CFG.ARENA_W - marge, Math.max(marge, x)),
+          Math.min(CFG.ARENA_H - marge, Math.max(marge, y)),
+          ENEMY_TYPES[MINI_TYPE].r + 12);
+        if (!pt || this._dansDanger(pt.x, pt.y, ENEMY_TYPES[MINI_TYPE].r + 24)) continue;
+        const loin = out.every(m =>
+          (m.x - pt.x) ** 2 + (m.y - pt.y) ** 2 >= MINI_CFG.ECART_MIN ** 2);
+        if (loin) pose = pt;
+      }
+      if (!pose) continue;
+      out.push({
+        t: MINI_CFG.PREMIER + i * MINI_CFG.ECART,
+        x: pose.x, y: pose.y,
+        id: 0, etat: MINI_ATTEND, fenetre: 0,
+      });
+    }
+    return out;
+  }
+
+  /* LE CYCLE, EN UN SEUL ENDROIT. Cinq transitions et quatre sorties : abattu,
+     presence expiree (retrait SILENCIEUX — une occasion manquee ne s annonce
+     pas), combat expire (retrait ANNONCE — un echec, si), laisse rompue (il
+     rentre et se rendort).
+     LE RETOUR AU SOMMEIL REARME LA FENETRE DE COMBAT, PAS LA PRESENCE : on peut
+     retenter tant qu il est la, on ne rallonge pas son sejour. L echec coute donc
+     du TEMPS, et l occasion peut se refermer pendant qu on se soigne. */
+  _minis(dt) {
+    for (const m of this.minis) {
+      if (m.etat === MINI_FINI) continue;
+
+      if (m.etat === MINI_ATTEND) {
+        // DEUX MENACES NOMMEES A LA FOIS, C EST LA LISIBILITE PERDUE. Le
+        // mini-boss ATTEND le boss ; il ne se supprime pas, sans quoi un boss
+        // long ferait disparaitre une occasion que personne n a refusee.
+        /* `hordeTime` SE REMET A ZERO A CHAQUE SEGMENT — c est une horloge DE
+           SEGMENT, pas de manche. Les instants d apparition sont cumules, donc
+           ils se lisent sur `hordeMinutes()`, la seule horloge qui court d un
+           bout a l autre de la horde. Compares a `hordeTime`, les deux derniers
+           mini-boss n apparaissaient JAMAIS : la mesure a rendu zero rencontre
+           sur six manches, sans une seule erreur. */
+        if (this.boss || this.bossPending || this.hordeMinutes() * 60 < m.t) continue;
+        const e = this._spawnMini(m);
+        if (!e) continue;
+        m.id = e.id;
+        m.etat = MINI_DORT;
+        m.fenetre = MINI_CFG.PRESENCE;
+        this._alerteMini(MINI_DIT_ARRIVE);
+        continue;
+      }
+
+      const e = this._enemyById(m.id);
+      // BALAYE PAR AUTRE CHOSE — un boss, un evenement qui vide la horde. C est
+      // un RETRAIT, pas une mort : il ne laisse rien et il ne dit rien.
+      if (!e) { m.etat = MINI_FINI; continue; }
+
+      /* UN BOSS GELE LE MINI-BOSS, IL NE LE SUPPRIME PAS. Deux menaces nommees
+         qui agissent en meme temps, c est la lisibilite perdue ; une occasion
+         effacee par l arrivee d un boss serait une occasion que personne n a
+         refusee. Il rompt le combat, rentre, se rendort — et sa fenetre de
+         presence s ARRETE, sinon le boss lui mangerait son sejour. */
+      if (this.boss || this.bossPending) {
+        if (m.etat === MINI_EVEILLE) m.etat = MINI_RENTRE;
+        if (m.etat !== MINI_RENTRE) continue;
+      } else {
+        /* LA PRESENCE COURT TOUT LE TEMPS — endormi, eveille, en train de rentrer
+           — ET ELLE NE SE REARME JAMAIS. C est ce qui fait que L ECHEC COUTE DU
+         TEMPS : on retente tant qu il est la, on ne rallonge pas son sejour, et
+         l occasion peut se refermer pendant qu on se soigne. Elle ne le retire
+         pas en plein combat — ca, c est la fenetre de combat — elle decide de ce
+           qui l attend au retour au sommeil. */
+        m.fenetre -= dt;
+      }
+
+      if (m.etat === MINI_RENTRE) {
+        const dx = m.x - e.x, dy = m.y - e.y;
+        const d = Math.hypot(dx, dy);
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * MINI_CFG.REGEN * dt);
+        if (d <= e.r) {
+          e.hp = e.maxHp;
+          m.etat = MINI_DORT;
+          m.combat = 0;
+        } else {
+          const pas = e.speed * MINI_CFG.RETOUR * dt;
+          e.x += (dx / d) * pas;
+          e.y += (dy / d) * pas;
+          e.ang = Math.atan2(-dy, -dx);
+        }
+        continue;
+      }
+
+      if (m.etat === MINI_DORT) {
+        if (m.fenetre <= 0) { this._retirerMini(m, false); continue; }
+        const p = this._nearestPlayer(e.x, e.y);
+        if (p && (p.x - e.x) ** 2 + (p.y - e.y) ** 2
+                 <= MINI_CFG.REVEIL * MINI_CFG.REVEIL) {
+          this._reveillerMini(m);
+        }
+        continue;
+      }
+
+      // EVEILLE : c est la fenetre de COMBAT qui decide, et elle se recharge a
+      // chaque coup encaisse.
+      m.combat -= dt;
+      if (m.combat <= 0) { this._retirerMini(m, true); continue; }
+      if ((e.x - m.x) ** 2 + (e.y - m.y) ** 2 > MINI_CFG.LAISSE * MINI_CFG.LAISSE) {
+        m.etat = MINI_RENTRE;
+      }
+    }
+  }
+
+  _reveillerMini(m) {
+    m.etat = MINI_EVEILLE;
+    m.combat = MINI_CFG.COMBAT;
+  }
+
+  // RETIRER N EST PAS TUER : aucun passage par `_killEnemy`, donc ni XP, ni kill
+  // compte, ni haut fait, ni butin. C est ce que le verificateur mesure.
+  _retirerMini(m, annonce) {
+    m.etat = MINI_FINI;
+    this.enemies = this.enemies.filter(e => e.id !== m.id);
+    if (annonce) this._alerteMini(MINI_DIT_PARTI);
+  }
+
+  _alerteMini(quoi) {
+    this.alerts.push({ mini: quoi, level: ALERT_INFO, dur: TL_CFG.EVENT_ANNOUNCE });
+    if (this.alerts.length > 16) this.alerts.shift();
+  }
+
+  _miniHp() {
+    return CFG.BOSS_HP_BASE * MINI_CFG.HP_MUL
+      * Math.pow(this.aliveCrowd(), MINI_CFG.CROWD_EXP)
+      * this._bossHpRamp() * CFG.BOSS_HP_MUL * this.diff.boss
+      * miniPower(this._teamPower());
+  }
+
+  _spawnMini(m) {
+    const e = this._spawnEnemy(MINI_TYPE, m.x, m.y, false, "bords", null, true);
+    if (!e) return null;
+    const hp = this._miniHp();
+    e.hp = e.maxHp = hp;
+    e.mini = m;
+    e.xpWorth = 0;
+    e.noExec = 1;
+    /* LES QUATRE COMPTEURS DE CHARGE SE POSENT ICI ET PAS DANS `_spawnEnemy`.
+       D abord parce que seul ce corps les lit — deux cents fantassins n ont pas
+       a porter quatre champs morts. Ensuite parce que sans eux `e.chgCd -= dt`
+       vaut `NaN`, donc `NaN <= 0` est faux, donc LA CHARGE NE PART JAMAIS : la
+       premiere mesure a compte zero charge sur trente-six secondes de combat,
+       sans une seule erreur. */
+    e.chgCd = ENEMY_TYPES[MINI_TYPE].chargeCd * 0.5;
+    e.chgWarn = 0;
+    e.chgT = 0;
+    e.chgSonne = 0;
+    e.chgAng = 0;
+    return e;
+  }
+
   _dansDanger(x, y, marge = 0) {
     for (const h of this.hazards) {
       const r = (h.r ?? 0) + marge;
@@ -6766,7 +7094,7 @@ export class GameState {
     if (ps.length === 0) return;
     const R2 = RECYCLE_DIST * RECYCLE_DIST;
     const loin = e => {
-      if (e.elite || e.id === this.quarry) return false;
+      if (e.elite || e.mini || e.id === this.quarry) return false;
       for (const p of ps) {
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= R2) return false;
       }
@@ -9299,8 +9627,13 @@ export class GameState {
     return worst * (this.diff.xp ?? 1);
   }
 
+  /* UN BALAYAGE VIDE LA HORDE, ET UN MINI-BOSS N EST PAS LA HORDE. `EV_CHASSE`
+     et l arrivee d un boss passent par ici ; sans cette ligne, une occasion
+     posee par la graine disparaissait au milieu d un combat — jamais tuee,
+     jamais retiree, juste absente. Meme raison que `_recyclerLoin`, qui le
+     sautait deja. */
   _sweepEnemies() {
-    this.enemies = [];
+    this.enemies = this.enemies.filter(e => e.mini);
     this.shots = [];
     this.zones = [];
     this.harvests = [];
@@ -9322,6 +9655,14 @@ export class GameState {
     // memes morts finirait par en compter d autres.
     if (e.elite) this.eliteKills++;
     if (this.quarry === e.id) this.quarry = 0;
+    /* ABATTU. C est la SEULE sortie du cycle qui paie, et elle paie en ECLATS —
+       jamais en XP : l XP est le seul canal qui ne peut pas distinguer qui a
+       pris le risque, et `e.xpWorth = 0` la coupe deja a la source. Le loot du
+       lot suivant se branchera ici et nulle part ailleurs. */
+    if (e.mini) {
+      e.mini.etat = MINI_FINI;
+      for (const p of this.players.values()) p.eclats += MINI_CFG.ECLATS;
+    }
     const def = defDe(e.type, e.elite);
     const owner = this.players.get(ownerId);
     this._addXp(this._xpValue(e));
@@ -10498,6 +10839,173 @@ export function verifierDefense(tirages = 20000) {
 // la puissance d equipe telle que le boss la lit, sur un chargement donne
 function _teamPowerRef(mods) {
   return powerIndex(mods) / SUMMON_REF;
+}
+
+/* LE MINI-BOSS, ET LA SEULE CHOSE QUI LE SEPARE VRAIMENT D UNE ELITE : IL PART.
+   Quatre sorties, et TROIS d entre elles ne doivent RIEN laisser. `_killEnemy`
+   est le point de passage unique de toute MORT — XP, kill compte, haut fait,
+   butin — et un retrait qui y passerait paierait quatre fois sans qu une seule
+   ligne le dise.
+
+   ON PILOTE `_minis` AVEC DE GROS `dt` AU LIEU DE JOUER LES QUINZE MINUTES. Le
+   cycle est une fonction du temps ecoule et de rien d autre ; le rejouer en
+   temps reel couterait la seconde entiere du budget de la suite pour mesurer
+   exactement la meme chose. */
+export function verifierMinis() {
+  const soucis = [];
+  const cle = g => g.minis.map(m => `${m.t}:${Math.round(m.x)}:${Math.round(m.y)}`).join("|");
+
+  // 1 · MEME GRAINE, MEMES MINI-BOSS, AUX MEMES INSTANTS ET AUX MEMES ENDROITS.
+  const a = new GameState(DIFF_NORMAL, 0, 4242);
+  const b = new GameState(DIFF_NORMAL, 0, 4242);
+  const c = new GameState(DIFF_NORMAL, 0, 4243);
+  if (cle(a) !== cle(b)) soucis.push("deux manches de meme graine posent des mini-boss differents");
+  if (cle(a) === cle(c)) soucis.push("deux graines differentes posent les memes mini-boss");
+  if (a.minis.length !== MINI_CFG.PAR_MANCHE) {
+    soucis.push(`${a.minis.length} mini-boss poses pour ${MINI_CFG.PAR_MANCHE} demandes`);
+  }
+  for (let i = 0; i < a.minis.length; i++) {
+    for (let j = i + 1; j < a.minis.length; j++) {
+      const d = Math.hypot(a.minis[i].x - a.minis[j].x, a.minis[i].y - a.minis[j].y);
+      if (d < MINI_CFG.ECART_MIN) {
+        soucis.push(`deux mini-boss a ${Math.round(d)} px pour un ecart de ${MINI_CFG.ECART_MIN}`);
+      }
+    }
+  }
+
+  const ouvrir = (g, i, loin = true) => {
+    const m = g.minis[i];
+    m.t = 0;
+    g.hordeTime = Math.max(g.hordeTime, 1);
+    const p = g.players.get(1);
+    if (loin) { p.x = m.x + MINI_CFG.REVEIL * 3; p.y = m.y; }
+    else { p.x = m.x + 40; p.y = m.y; }
+    // DEUX TICKS : le premier le fait apparaitre et sort de la boucle, le
+    // second est le premier ou son cycle tourne vraiment.
+    g._minis(CFG.TICK);
+    g._minis(CFG.TICK);
+    return m;
+  };
+  const partie = () => {
+    const g = new GameState(DIFF_NORMAL, 0, 4242);
+    g.addPlayer(1, "bot", 0, 0);
+    return g;
+  };
+
+  // 2 · UNE OCCASION MANQUEE NE PAIE RIEN ET NE DIT RIEN.
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    const m = ouvrir(g, 0);
+    if (m.etat !== MINI_DORT) soucis.push("le mini-boss n apparait pas a son instant");
+    if (!g._enemyById(m.id)) soucis.push("le mini-boss apparait sans corps");
+    const xp0 = g.xp, k0 = g.totalKills, ec0 = p.eclats;
+    g.alerts.length = 0;
+    g._minis(MINI_CFG.PRESENCE + 1);
+    if (m.etat !== MINI_FINI) soucis.push("la fenetre de presence expire sans retirer le mini-boss");
+    if (g._enemyById(m.id)) soucis.push("le corps reste apres un retrait");
+    if (g.xp !== xp0 || g.totalKills !== k0 || p.eclats !== ec0) {
+      soucis.push(`un retrait paie : xp ${g.xp - xp0}, kills ${g.totalKills - k0},`
+        + ` eclats ${p.eclats - ec0}`);
+    }
+    if (g.alerts.length > 0) soucis.push("une occasion manquee s annonce");
+  }
+
+  // 3 · UN COMBAT ABANDONNE ANNONCE, ET NE PAIE PAS DAVANTAGE.
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    const m = ouvrir(g, 0, false);
+    if (m.etat !== MINI_EVEILLE) soucis.push("la proximite ne reveille pas le mini-boss");
+    const xp0 = g.xp, k0 = g.totalKills, ec0 = p.eclats;
+    g.alerts.length = 0;
+    g._minis(MINI_CFG.COMBAT + 1);
+    if (m.etat !== MINI_FINI) soucis.push("la fenetre de combat expire sans retirer le mini-boss");
+    if (g.xp !== xp0 || g.totalKills !== k0 || p.eclats !== ec0) {
+      soucis.push("un combat abandonne paie");
+    }
+    if (g.alerts.length !== 1) {
+      soucis.push(`un combat abandonne produit ${g.alerts.length} annonce(s) au lieu d une`);
+    }
+  }
+
+  // 4 · LES DEGATS REVEILLENT, ET LA LAISSE REND SES PV.
+  {
+    const g = partie();
+    const m = ouvrir(g, 0);
+    const e = g._enemyById(m.id);
+    g._damage(e, e.maxHp * 0.4, 1);
+    if (m.etat !== MINI_EVEILLE) soucis.push("un coup encaisse ne reveille pas le mini-boss");
+    e.x = m.x + MINI_CFG.LAISSE + 10;
+    g._minis(CFG.TICK);
+    if (m.etat !== MINI_RENTRE) soucis.push("la laisse ne le fait pas rentrer");
+    const hp0 = e.hp;
+    g._minis(1);
+    if (!(e.hp > hp0)) soucis.push("il rentre sans recuperer ses PV");
+    if (Math.hypot(e.x - m.x, e.y - m.y) >= MINI_CFG.LAISSE + 10) {
+      soucis.push("il rentre sans se rapprocher de son ancre");
+    }
+    for (let k = 0; k < 400 && m.etat === MINI_RENTRE; k++) g._minis(0.1);
+    if (m.etat !== MINI_DORT) soucis.push("il ne se rendort jamais");
+    if (e.hp !== e.maxHp) soucis.push("il se rendort sans avoir recupere");
+    // LE RETOUR REARME LE COMBAT, PAS LA PRESENCE : on retente tant qu il est
+    // la, on ne rallonge pas son sejour.
+    if (m.fenetre > MINI_CFG.PRESENCE - 1) {
+      soucis.push("un retour au sommeil rallonge la fenetre de presence");
+    }
+  }
+
+  // 5 · ABATTU : DES ECLATS POUR TOUT LE MONDE, ET PAS UN POINT D XP.
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    const m = ouvrir(g, 0, false);
+    const e = g._enemyById(m.id);
+    const xp0 = g.xp, ec0 = p.eclats;
+    g._damage(e, e.maxHp * 2, 1);
+    if (g._enemyById(m.id)) soucis.push("le mini-boss survit a un coup letal");
+    if (m.etat !== MINI_FINI) soucis.push("un mini-boss abattu laisse son creneau ouvert");
+    if (g.xp !== xp0) soucis.push(`un mini-boss abattu verse ${g.xp - xp0} d XP`);
+    if (p.eclats - ec0 !== MINI_CFG.ECLATS) {
+      soucis.push(`un mini-boss abattu verse ${p.eclats - ec0} eclats`
+        + ` au lieu de ${MINI_CFG.ECLATS}`);
+    }
+    if (g.totalKills === 0) soucis.push("un mini-boss abattu ne compte pas comme une mort");
+  }
+
+  // 6 · ENTRE L ELITE ET LE BOSS, DANS LES DEUX CAS. Les PV d une elite ne
+  // dependent que du TEMPS, ceux d un boss portent `crowd^1,15` : « entre les
+  // deux » est deux positions differentes selon l effectif, et c est le seul
+  // endroit ou l exposant du mini-boss se juge.
+  for (const di of [0, 1, 2]) {
+    for (const n of [1, 2, 3, 4]) {
+      const g = new GameState(di, 0, 4242);
+      for (let i = 1; i <= n; i++) g.addPlayer(i, `bot${i}`, i - 1, 0);
+      g.hordeTime = 15 * 60;
+      /* LA PUISSANCE EST FORCEE A LA REFERENCE, ET C EST LA SEULE MESURE JUSTE.
+         Des bots neufs valent 1 : les comparer a un boss calibre sur
+         `BOSS_POWER_REF` mesurerait un mini-boss de debut de manche contre un
+         boss de milieu. La reference est deja LA valeur contre laquelle les six
+         boss sont regles, donc c est elle qui rend les trois nombres
+         comparables. */
+      g._powerCache = CFG.BOSS_POWER_REF;
+      g._powerAt = g.time;
+      const minute = g.hordeMinutes();
+      const mini = g._miniHp();
+      const elite = (CFG.ENEMY_HP_BASE + minute * CFG.ENEMY_HP_MIN_RAMP)
+        * g.diff.hp * ENEMY_TYPES[2].hpMul * CFG.ELITE_HP_MUL;
+      const boss = CFG.BOSS_HP_BASE * Math.pow(g.aliveCrowd(), 1.15)
+        * g._bossHpRamp() * CFG.BOSS_POWER_REF * CFG.BOSS_HP_MUL * g.diff.boss;
+      const ou = `${DIFFICULTIES[di].key}/${n}j`;
+      if (!(mini > elite * 1.2)) {
+        soucis.push(`${ou} : mini-boss a ${Math.round(mini)} PV pour une elite a ${Math.round(elite)}`);
+      }
+      if (!(mini < boss * 0.75)) {
+        soucis.push(`${ou} : mini-boss a ${Math.round(mini)} PV pour un boss a ${Math.round(boss)}`);
+      }
+    }
+  }
+  return soucis;
 }
 export function verifierObjectifs() {
   const soucis = [];

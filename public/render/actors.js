@@ -1983,7 +1983,7 @@ function enemyFrame(e, t, def, ctxInfo) {
   // pour le tireur ; le saboteur passe par le meme preavis et restait inerte.
   // Un corps annonce par `wu` et qui ne bouge pas de pose est un preavis qu'on
   // ne peut pas lire, c'est-a-dire pas un preavis.
-  if (ctxInfo?.vise && (def.shootCd || def.poseCd)) return frameOf(base + "walkB");
+  if (ctxInfo?.vise && (def.shootCd || def.poseCd || def.chargeCd)) return frameOf(base + "walkB");
 
   if (e.type === 3) {
     // LE RECUL RESTE DEDUIT du depart d'une balle : il n'a pas besoin d'une
@@ -2246,7 +2246,12 @@ export function drawEnemies(list, view) {
       breath *= 1 + 0.09 * ready * (0.5 + 0.5 * Math.sin(t / (140 - ready * 95)));
     }
 
-    let gain = (e.elite ? CFG.ELITE_RADIUS_MUL : 1) * breath;
+    /* `zoom` EST LE SEUL CHAMP D ART DU BESTIAIRE. La cellule d atlas fait
+       60 px, donc un corps dont la fiche annonce 47 px de rayon y est cuit trop
+       petit : sans ce terme il se dessinerait a la moitie de ce qu il occupe, et
+       le collider serait un mensonge. Les treize corps de horde tiennent dans
+       leur cellule et n en ont pas. */
+    let gain = (e.elite ? CFG.ELITE_RADIUS_MUL : 1) * breath * (def.zoom ?? 1);
     if (def.blastRadius) {
       const worn = 1 - Math.max(0, e.hp / e.maxHp);
       gain *= 1 + worn * 0.14 * (0.5 + 0.5 * Math.sin(t / (90 - worn * 50) + e.id));

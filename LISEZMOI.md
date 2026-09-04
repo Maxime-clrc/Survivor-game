@@ -8,6 +8,44 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le mini-boss, plan 35 (0.38.1)
+
+`sim/ttk-mini.mjs`. Le pilote de `pilotage()` garde sa visée, ses esquives et ses
+compétences ; on ne lui impose que la **destination** tant qu'un mini-boss est
+posé et qu'aucun boss n'est là — sinon on mesure « le bot le trouve-t-il » et non
+« combien de temps met-il à l'abattre ». Deux graines par case, trois occasions
+par manche, cartes tirées au hasard dans l'offre.
+
+#### Temps d'abattage médian, en secondes
+
+| mode | 1 j | 2 j | 3 j | 4 j |
+|---|---:|---:|---:|---:|
+| calme | 24 | 11 | 13 | 12 |
+| normal | 42 | 27 | 16 | — |
+| cauchemar | 86 | 65 | 39 | 24 |
+
+**Médiane globale 18 s sur 50 abattages**, de 5 s à 205 s. **50 abattages sur 55
+occasions ouvertes** : cinq se sont refermées sans que le mini-boss tombe.
+
+#### Ce que ces chiffres disent, et ce qu'ils ne disent pas
+
+**Le temps d'abattage BAISSE avec l'effectif.** `CROWD_EXP = 0,6` a été choisi
+pour que les PV restent **entre l'élite** (qui ne dépend que du temps) **et le
+boss** (`crowd^1,15`) aux deux bouts de l'effectif — pas pour que la durée du
+combat soit stable. Les dégâts d'équipe montent en `n`, les PV en `n^0,6` : à
+quatre, on met environ la moitié du temps qu'on met seul. C'est un choix, il est
+mesuré, et **c'est le lot 04 du plan qui le retouche s'il faut** — il est
+impérativement le dernier et recalibre contre toutes les sources neuves.
+
+**`normal/4j` n'a produit aucun relevé, et ce n'est pas le mini-boss.** Le pilote
+n'abat pas le boss du premier segment avec un tirage de cartes aléatoire : la
+manche reste bloquée à `hordeTime = 300` pendant les soixante minutes simulées, et
+aucun mini-boss n'a donc son heure. Avec un tirage déterministe (première carte
+offerte), la même case va jusqu'à la victoire et pose ses trois mini-boss.
+
+**L'encastrement se produit.** 89 sur les onze cases mesurées, pour 268 charges
+lancées — un tiers. Le pilote esquive assez pour l'ouvrir sans le chercher.
+
 ### La horde suivait le script, pas les joueurs, plan 31 (0.34.3)
 
 `sim/separation.mjs`. Deux joueurs invulnérables maintenus à un écart fixe

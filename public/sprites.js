@@ -669,6 +669,43 @@ function relaisAccents(ecart) {
   };
 }
 
+/* BELIER — LE SEUL CORPS DONT TOUTE LA MASSE EST DEVANT. Les treize autres sont
+   centres, etires ou verticaux ; celui-ci porte une proue et traine un corps
+   maigre, et c est cette asymetrie qui le separe a la silhouette avant meme
+   qu il bouge. Le VIDE entre la proue et le corps est vu par l enveloppe
+   convexe et pas rempli par la matiere : deux axes d un coup, la ou une
+   quatorzieme variation de masse n en aurait bouge aucun. */
+function belierPath(k) {
+  const elan = k.elan ?? 0;
+  const a = 11 + elan * 5;
+  return g => {
+    for (const s of [-1, 1]) {
+      mirrored(g, s, [[a, -17], [a + 9, -13], [a + 15, -4], [a + 8, -3]]);
+    }
+    g.moveTo(a, -4);
+    g.lineTo(a + 17, -3);
+    g.lineTo(a + 17, 3);
+    g.lineTo(a, 4);
+    g.closePath();
+    g.moveTo(-8, -12);
+    g.lineTo(a - 1, -8);
+    g.lineTo(a - 1, 8);
+    g.lineTo(-8, 12);
+    g.lineTo(-17, 6);
+    g.lineTo(-17, -6);
+    g.closePath();
+  };
+}
+
+function belierAccents(elan) {
+  return (g, R) => {
+    g.fillStyle = R.lumiere;
+    g.beginPath(); g.ellipse(19 + elan * 6, 0, 2.4, 7 + elan * 2, 0, 0, 7); g.fill();
+    g.fillStyle = R.accent;
+    g.beginPath(); g.arc(-4, 0, 4.2, 0, 7); g.fill();
+  };
+}
+
 const NEUTRAL = ramp("#dfe5f0");
 
 function tankClassPath(k) {
@@ -920,6 +957,11 @@ const SILHOUETTES = [
       shapes: [{ bras: 0 }, { bras: 0.25 }, { bras: -0.15 }, { bras: 1 }] },
     { key: "relais", path: relaisPath, accents: k => relaisAccents(k.ecart ?? 0), edge: 2, floats: false,
       shapes: [{ ecart: 0 }, { ecart: 0.25 }, { ecart: -0.15 }, { ecart: 1 }] },
+    /* `walkB` EST LA POSE RAMASSEE, et ce n est pas un detail de table :
+       `enemyFrame` rend cette case pour tout corps qui s apprete, donc l elan
+       y est NEGATIF — la proue rentre avant de partir. */
+    { key: "belier", path: belierPath, accents: k => belierAccents(k.elan ?? 0), edge: 3, floats: false,
+      shapes: [{ elan: 0 }, { elan: 0.3 }, { elan: -0.3 }, { elan: 1 }] },
 ].map(def => ({ ...def, repos: def.shapes[0] }));
 
 function plan(raster) {

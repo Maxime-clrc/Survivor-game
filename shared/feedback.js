@@ -144,14 +144,14 @@ export const matiereDe = d =>
    la matiere, le flux d'XP. Ce qui manquait est la CONSEQUENCE : ce que le corps
    maintenait pour les autres ne s'arrete pas en silence.
 
-   TROIS LIGNES DU BESTIAIRE SUR TREIZE, et c'est la condition pour que ce soit
-   un fait notable. Un acte de fermeture sur les treize types serait un evenement
+   CINQ LIGNES DU BESTIAIRE SUR QUATORZE, et c'est la condition pour que ce soit
+   un fait notable. Un acte de fermeture sur tous les types serait un evenement
    de palier 2 a 20-60 par seconde : ce n'est plus une information, c'est du
    bruit. Il se DEDUIT de ce que la creature tenait, exactement comme la matiere
    se deduit de ce qu'elle fait — aucun champ neuf dans le bestiaire.
 
-   L'ordre compte : un relais n'a pas d'aura, un choeur n'a pas de lien, et seul
-   le corps le plus lourd du bestiaire passe le seuil de masse. Le rayon est
+   L'ordre compte : un relais n'a pas d'aura, un choeur n'a pas de lien, et seuls
+   le colosse et le mini-boss passent le seuil de masse. Le rayon est
    celui du TYPE et non de l'instance : une elite ne change pas d'acte, elle joue
    le sien en plus gros. */
 export const FIN_AUCUN = 0, FIN_ARC = 1, FIN_CHAMP = 2, FIN_MASSE = 3;

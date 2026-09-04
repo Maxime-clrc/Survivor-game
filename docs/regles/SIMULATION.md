@@ -109,10 +109,63 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   le bouclier et relève les joueurs à terre, rien d'autre. On ne l'introduit pas,
   on la **préserve** : sans elle, partir chercher un objectif pendant qu'un autre
   farme ne coûte rien à personne, et l'arbitrage n'existe pas.
-- **`TL_CFG.QUARRY_XP_WORTH = 40` EST LA SEULE EXCEPTION EN ATTENTE.** La proie
-  de `EV_CHASSE` vaut quarante corps ordinaires **en XP** ; quand elle deviendra
-  un mini-boss porteur de récompense, cette valeur se **convertit** en éclats et
-  en loot — elle ne s'y ajoute pas.
+- **LA PROIE DE `EV_CHASSE` EST DEVENUE LE MINI-BOSS, ET `QUARRY_XP_WORTH` S'EST
+  CONVERTI.** Les quarante corps d'XP sont partis en **éclats** sur le mini-boss ;
+  ils ne s'y sont pas ajoutés. `EV_CHASSE` est **redéfini, pas retiré** — son index
+  circule — et désigne maintenant une **élite** dans la horde, qui passe par
+  `_killEnemy` comme n'importe quel corps.
+- **LE MINI-BOSS EST UN ENNEMI, PAS UN `this.boss`.** Il joue sur la map normale,
+  donc il n'a ni arène, ni barres, ni pause, ni **cercle au sol** : ce canal
+  appartient au boss et ne se partage pas. Il ne lui reste que la **posture**, et
+  c'est ce qui a décidé de son verbe.
+- **SON VERBE NE CORRIGE PAS SA COURSE.** Le cap se verrouille au **début** du
+  préavis, comme l'angle du tireur : figé à la fin, il suivrait la cible pendant
+  une demi-seconde, et une attaque qui suit sa cible jusqu'à la détente n'est pas
+  une attaque. Esquiver l'envoie dans un obstacle, et l'encastrement **ouvre une
+  fenêtre** — il est immobile et **Vulnérable**, l'état existait déjà et porte ses
+  pointes et ses +25 %. C'est la seule punition d'esquive du bestiaire.
+- **SON PRÉAVIS SE COMPTE MAIS NE SE REFUSE JAMAIS.** `_windupSature` est une règle
+  de lisibilité d'écran ; un mini-boss à qui l'on refuserait son créneau ne
+  chargerait pas du tout, et son unique verbe disparaîtrait derrière huit
+  fantassins.
+- **IL EST DANS LA GRAINE, SON CONTRAT NE L'EST PAS** — même partage que la borne :
+  instants et positions se tirent à la construction, la rencontre non. Le placement
+  est **biaisé vers les bornes** un essai sur deux : c'est le seul contrepoids
+  honnête au risque du lot, un corps qui n'attire pas, ne se signale pas et
+  disparaît peut n'être **jamais** rencontré.
+- **LES TROIS FENÊTRES TIENNENT CHACUNE DANS UN SEGMENT, ET C'EST MESURÉ.** À
+  `PREMIER = 260` le premier mini-boss naissait quarante secondes avant le boss et
+  se faisait **balayer** — trois occasions sur trois perdues, sans qu'une ligne le
+  dise. Et le premier n'est pas dans le premier segment : « Installation » vaut ce
+  que vaut la première minute.
+- **LA PRÉSENCE COURT TOUT LE TEMPS ET NE SE RÉARME JAMAIS ; LA FENÊTRE DE COMBAT
+  SE RECHARGE À CHAQUE COUP ENCAISSÉ.** C'est ce qui fait que **l'échec coûte du
+  temps** : on retente tant qu'il est là, on ne rallonge pas son séjour, et
+  l'occasion peut se refermer pendant qu'on se soigne.
+- **LA LAISSE SE MESURE DEPUIS SON ANCRE, JAMAIS DEPUIS LE JOUEUR LE PLUS PROCHE**
+  — deux joueurs qui se relaient le promèneraient d'un bout à l'autre de la carte.
+  Rentrer lui rend ses PV, ce qui interdit de l'user en plusieurs passages, et le
+  retour est **visible** : corps qui marche à l'envers, sinon la barre repart en
+  haut sans que rien ne l'explique.
+- **DEUX MENACES NOMMÉES À LA FOIS, C'EST LA LISIBILITÉ PERDUE.** Un mini-boss
+  **attend** le boss au lieu de se supprimer — sans quoi un boss long ferait
+  disparaître une occasion que personne n'a refusée.
+- **IL N'A PAS D'ÉLITE, ET `verifierElites` le saute explicitement** : il n'a ni
+  quota, ni part de pool, ni score de pool. Une variante serait un troisième palier
+  que rien ne tire. Il est hors des **deux** filtres de `_spawnEnemy` — le plafond
+  de population règle une densité, le roster dit ce que le **script** tire — et
+  sans cette porte `ti` retomberait sur le fantassin, en silence.
+- **SES PV NE SUIVENT NI LA COURBE DE L'ÉLITE NI CELLE DU BOSS.** Ceux d'une élite
+  ne dépendent que du **temps**, ceux d'un boss portent `crowd^1,15` : « entre les
+  deux » est donc deux positions différentes selon l'effectif, et à quatre la bande
+  basse est vide. `CROWD_EXP = 0,6` reste entre les deux dans les deux cas. Et il
+  **suit la puissance du joueur** avec son propre genou, plus bas que celui du boss
+  — lequel est calibré sur une référence fixe, `BOSS_POWER_REF`.
+- **LA CELLULE DE `_grille()` DOUBLE TANT QU'UN MINI-BOSS EST VIVANT.** Elle se
+  dimensionne sur le plus grand rayon **présent**, pas sur la table : un corps de
+  47 px la porte de `50 à 94 px, donc environ 3,5 fois plus de candidats par
+  voisinage 3×3. C'est assumé — le coût ne dure que le temps de la rencontre — mais
+  ça se sait avant d'ajouter un deuxième grand corps.
 - **RETIRER N'EST PAS TUER.** `_killEnemy()` est le point de passage unique de
   toute **mort** d'ennemi : XP, cumuls, hauts faits, butin. Un corps qui **part**
   — recyclé au loin, mini-boss qui se retire — n'y passe pas, et il ne doit rien

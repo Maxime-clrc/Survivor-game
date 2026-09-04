@@ -189,6 +189,26 @@ export const ENEMY_TYPES = [
   { key: "relais",   minMin: 22, fallback: 3, weight: 0.20, share: 0.08, hpMul: 1.3, speed: 74, dmg: 10, r: 13, score: 30, xp: 20,
     lienRange: 300, lienRupture: 430, lienLarge: 16, lienDot: 34, cohesion: 0.55,
     elite: { lienRange: 400, lienRupture: 560, lienDot: 44 } },
+
+  /* LE BELIER — LE PREMIER CORPS QUI N EST PAS DE LA HORDE. Aucun roster ne le
+     porte, donc `_pickType` ne le tire jamais : c est ce qui le garde hors du
+     budget de population comme du script. Sa ligne est ici parce qu un mini-boss
+     reste un ENNEMI — `e.type` circule deja, donc le client le dessine sans une
+     clef de reseau de plus, et le codex le note comme une creature.
+
+     SON VERBE EST LA CHARGE, ET ELLE NE SUIT PAS SA CIBLE. Le cap se fige au
+     telegraphe. C est la seule facon d etre lisible sur la map normale : le
+     canal du cercle au sol appartient au boss et ne se partage pas, il ne reste
+     que la POSTURE. Esquiver l envoie dans un obstacle, et l encastrement est la
+     fenetre — punir une esquive reussie est ce que la horde ne fait jamais.
+
+     `zoom` EST LE SEUL CHAMP D ART DU BESTIAIRE, et il existe parce que la
+     cellule d atlas fait 60 px : un corps de 47 px de rayon n y tient pas a sa
+     taille reelle. Les treize autres sont dessines a l echelle du monde. */
+  { key: "belier", minMin: 0, fallback: 0, weight: 0, share: 0, hpMul: 1,
+    speed: 58, dmg: 34, r: 47, score: 140, xp: 0, mini: 1, zoom: 1.75,
+    chargeCd: 5.2, chargeRange: 660, chargeTime: 1.05, chargeMul: 4.4,
+    chargeSonne: 2.4 },
 ];
 
 /* UNE ELITE EST UNE VARIANTE DE COMPORTEMENT, PAS UN MULTIPLICATEUR DE PV.
@@ -203,6 +223,30 @@ export const ENEMY_TYPES = [
    `defDe(type, elite)` est le SEUL point de lecture du bestiaire par corps. Il
    est pur, donc le client le rejoue a partir de `e.elite` : le reseau ne porte
    pas une fiche de plus, il porte deja le bit. */
+/* DEDUIT, PAS DECLARE : un index ecrit en dur se serait desynchronise au
+   premier corps ajoute, et `ENEMY_TYPES` est append-only. */
+export const MINI_TYPE = ENEMY_TYPES.findIndex(d => d.mini);
+
+/* CE QU UN MINI-BOSS DIT, ET IL EN DIT LE MOINS POSSIBLE. Pas de direction, pas
+   de distance, pas de nom — et au niveau INFO, jamais WARN : le canal WARN est
+   celui des choses qui affectent le joueur MAINTENANT, et une menace qu on n a
+   pas encore croisee ne l affecte pas.
+   DEUX MESSAGES ET PAS TROIS : une occasion MANQUEE ne s annonce pas, sinon le
+   jeu apprend au joueur a courir apres ce qu il n a pas vu. Un combat ABANDONNE,
+   si — c est un echec, et un echec se sait. */
+export const MINI_DIT_ARRIVE = 0;
+export const MINI_DIT_PARTI = 1;
+
+export const MINI_DITS = [
+  { nom: "Une menace", texte: "quelque chose de lourd s'est posé sur la carte" },
+  { nom: "Elle est repartie", texte: "la menace s'est retirée — l'occasion est passée" },
+];
+
+export const miniDitNom = i =>
+  t(`bestiaire.mini.${i}.nom`, MINI_DITS[i]?.nom ?? "");
+export const miniDitTexte = i =>
+  t(`bestiaire.mini.${i}.texte`, MINI_DITS[i]?.texte ?? "");
+
 export const ELITE_INTERDIT = new Set([
   "key", "minMin", "fallback", "weight", "share", "score", "xp",
   "hpMul", "speed", "r", "elite",
@@ -219,6 +263,9 @@ export function defDe(index, elite) {
 export function verifierElites() {
   const soucis = [];
   for (const d of ENEMY_TYPES) {
+    // UN MINI-BOSS N A PAS D ELITE : il n a ni quota ni part de pool, donc une
+    // variante serait un troisieme palier que rien ne tire.
+    if (d.mini) continue;
     if (!d.elite) { soucis.push(`${d.key} : aucune variante d'elite`); continue; }
     for (const champ of Object.keys(d.elite)) {
       if (ELITE_INTERDIT.has(champ)) {
@@ -246,6 +293,7 @@ const CHAMPS_LUS = new Set([
   "flanc", "isole", "recul", "egideRadius", "egideShield", "egideRegen",
   "poseCd", "poseRange", "poseR", "poseDot", "poseLife",
   "lienRange", "lienRupture", "lienLarge", "lienDot", "cohesion",
+  "mini", "chargeCd", "chargeRange", "chargeTime", "chargeMul", "chargeSonne",
 ]);
 
 export function trailMax(aireVue) {
@@ -334,6 +382,10 @@ const FICHES = {
     nom: "Relais",
     lore: "Seul, il n'est presque rien. Apparié, le vide entre les deux devient l'arme — et ils tiennent le lien plus longtemps qu'on ne le croit.",
   },
+  belier: {
+    nom: "Bélier",
+    lore: "Il ne corrige pas sa course. Ce qu'il vise au moment où il se ramasse est ce qu'il percutera — et s'il vous manque, il trouve un mur.",
+  },
 };
 
 export const enemyNom = key => t(`bestiaire.${key}.nom`, FICHES[key]?.nom ?? key);
@@ -350,6 +402,7 @@ export const enemyLore = key => t(`bestiaire.${key}.lore`, FICHES[key]?.lore ?? 
 const VITESSE_REF = 95, MASSE_REF = 1;
 export function roleDe(def) {
   const out = [];
+  if (def.chargeCd) out.push(t("bestiaire.role.charge", "charge en ligne droite sans corriger sa course"));
   if (def.splits) out.push(tf("bestiaire.role.divise", "se divise en {n} à sa mort", { n: def.splits }));
   if (def.blastRadius) out.push(t("bestiaire.role.explose", "explose en mourant"));
   if (def.shieldArc) out.push(t("bestiaire.role.plaque", "plaque orientable, vulnérable de dos"));

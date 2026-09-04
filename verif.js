@@ -26,7 +26,27 @@
    `public/render/*`, qui importe `stage.js`, donc le DOM. Les faire tourner ici
    demanderait un faux canvas — un deuxieme systeme a tenir, pour des tables que
    le navigateur verifie deja au chargement.
+
+   SAUF `sprites.js`, ET C EST L EXCEPTION QUI SE MESURE : il ne touche au DOM
+   qu au FOUR, pas a l import, donc `verifierSilhouettes` ne demande rien d autre
+   que de resoudre les specificateurs ABSOLUS du client. Il etait ecrit, exporte,
+   et APPELE PAR PERSONNE — exactement le defaut que ce fichier existe pour
+   fermer, et la seule chose qui garde les corps distinguables quand on en ajoute
+   un de plus.
    =========================================================================== */
+
+/* LE CLIENT IMPORTE PAR CHEMIN ABSOLU (`/shared/palette.js`), parce que c est
+   `resolvePath()` du serveur qui le sert. Node ne connait pas cette racine : on
+   la lui donne une fois, au lieu de recopier une table de silhouettes ici. */
+import { registerHooks } from "node:module";
+registerHooks({
+  resolve(spec, ctx, suivant) {
+    if (!spec.startsWith("/")) return suivant(spec, ctx);
+    const rel = spec.slice(1);
+    return { url: new URL(rel.startsWith("shared/") ? rel : "public/" + rel,
+                          import.meta.url).href, shortCircuit: true };
+  },
+});
 
 import { CFG, GameState, DIFF_NORMAL } from "./shared/game_state.js";
 import * as G from "./shared/game_state.js";
@@ -56,6 +76,7 @@ globalThis.AudioContext ??= class {
 globalThis.window ??= globalThis;
 globalThis.document ??= { createElement: () => ({ getContext: () => ({}) }) };
 const { recettes } = await import("./public/audio.js");
+const S = await import("./public/sprites.js");
 
 /* Trois verificateurs de `bosses.js` rendent `{ ok, err }` et non un tableau : ils
    servaient aussi a INSPECTER (les formes, les paires compatibles). On lit `err`
@@ -136,6 +157,8 @@ const SUITE = [
   ["objectifs", () => G.verifierObjectifs()],
   ["proposition", () => G.verifierProposition()],
   ["defense", () => G.verifierDefense()],
+  ["minis", () => G.verifierMinis()],
+  ["silhouettes", () => S.verifierSilhouettes()],
   ["prereglages", () => G.verifierPrereglages(), true],
   ["tirageBonus", () => G.verifierTirageBonus(), true],
   ["rythmeBonus", () => G.verifierRythmeBonus(), true],

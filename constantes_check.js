@@ -25,9 +25,14 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 
+/* TROIS TABLES MANQUAIENT A CETTE LISTE, ET C EST LE MEME DEFAUT QUE CELUI QUE
+   CE FICHIER EXISTE POUR ATTRAPER : `ATK_CFG`, `BORNE_CFG` et `MINI_CFG` ont ete
+   ajoutees par des lots successifs sans que personne les inscrive, donc leurs
+   constantes mortes n auraient rien leve. Une liste tenue a la main est une
+   liste qu on oublie ; celle-ci est au moins verifiee a chaque commit. */
 const TABLES = ["CFG", "CARD_CFG", "SKILL_CFG", "STATUS_CFG", "BOSS_CFG", "TL_CFG",
   "TRAIT_CFG", "BIOME_CFG", "ARME_CFG", "HF_CFG", "PROG_CFG", "RELIC_CFG",
-  "NAV_CFG", "PILOT_CFG", "ROLE_CFG"];
+  "NAV_CFG", "PILOT_CFG", "ROLE_CFG", "ATK_CFG", "BORNE_CFG", "MINI_CFG"];
 
 const MODULES = ["game_state.js", "cards.js", "classes.js", "statuses.js",
   "bosses.js", "timeline.js", "enemies.js", "biomes.js", "armes.js",

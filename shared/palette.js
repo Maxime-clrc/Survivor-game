@@ -163,9 +163,12 @@ export const COMBAT = {
 };
 
 export const ENEMY = {
+  /* LE QUATORZIEME EST ACHROMATIQUE, ET C EST LE SEUL. Les treize corps de
+     horde sont satures ; un mini-boss en acier se lit comme une autre CLASSE de
+     chose avant qu on ait mesure sa taille ou lu sa barre. */
   TINT: ["#c9364a", "#f97316", "#7f1d3a", "#a855f7", "#ec4899",
          "#84cc16", "#a16207", "#2dd4bf", "#4f46e5",
-         "#facc15", "#38bdf8", "#059669", "#d946ef"],
+         "#facc15", "#38bdf8", "#059669", "#d946ef", "#cbd5e1"],
 
   elite:      "#ffd76e",
   base:       "#e05263",

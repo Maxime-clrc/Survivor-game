@@ -6,7 +6,9 @@ import { CFG, weatherAt } from "/shared/game_state.js";
 import { weatherNom, weatherTexte } from "/shared/biomes.js";
 import { ENEMY } from "/shared/palette.js";
 import { STATUSES, statusBit } from "/shared/statuses.js";
-import { eventAt, eventNom, eventTexte } from "/shared/timeline.js";
+import { miniDitNom, miniDitTexte } from "/shared/enemies.js";
+import { contratAt, eventAt, eventNom, eventTexte, rareteAt } from "/shared/timeline.js";
+import { t, tf } from "/shared/i18n.js";
 import { EMPTY_SET, INTERP_MS, PERF, PHASE_ROUND, bilanOpen, cardsState, difficulty, merchantState, pauseReal, phase, signalerErreur, snapshots } from "../core/state.js";
 import { ctx } from "../render/stage.js";
 
@@ -258,6 +260,28 @@ function applyAlert(msg, now) {
     bossCue = null;
     return;
   }
+  /* DEUX ANNONCES N ONT PAS DE TABLE DE DEFINITION, ET ELLES TOMBAIENT DANS LE
+     VIDE. `applyAlert` resolvait `def` dans les trois tables du serveur puis
+     sortait sur `!def` : le contrat rempli (`msg.contrat`) et la menace
+     (`msg.mini`) rendaient `null`, donc `return`, donc RIEN — pas une erreur,
+     pas un journal, une annonce muette. Elles se posent avant la resolution,
+     parce qu elles n ont rien a y resoudre. */
+  if (msg.contrat !== undefined) {
+    const c = contratAt(msg.contrat), r = rareteAt(msg.rarete);
+    poserAlerte(now, msg.dur, ALERT_INFO, {
+      nom: t("ui.contrat.rempli", "Contrat rempli"),
+      texte: tf("ui.contrat.gain", "{quoi} — +{n} éclats",
+        { quoi: c?.nom ?? "", n: r.eclats }),
+    });
+    playSound("evenement", { haut: false });
+    return;
+  }
+  if (msg.mini !== undefined) {
+    poserAlerte(now, msg.dur, ALERT_INFO,
+      { nom: miniDitNom(msg.mini), texte: miniDitTexte(msg.mini) });
+    playSound("evenement", { haut: false });
+    return;
+  }
   const def = msg.meteo !== undefined ? weatherAt(msg.meteo)
     : msg.event !== undefined ? eventAt(msg.event) : mechAt(msg.mech);
   if (!def) return;
@@ -296,6 +320,16 @@ function applyAlert(msg, now) {
        donc pas la place d'un avertissement. */
     playSound("annonce", { level: def.level });
   }
+}
+
+/* LA DUREE EST LA MEME POUR LES TROIS NIVEAUX ET ELLE EST DEJA ECRITE PLUS
+   HAUT : une seconde formule aurait diverge au premier reglage. */
+function poserAlerte(now, dur, level, entry) {
+  const ms = dur > 0 ? Math.max(800, dur * 1000 - 250) : 1500;
+  const e = { ...entry, from: now, until: now + ms, forme: "", collective: false };
+  if (level === ALERT_ORDER) alertOrder = e;
+  else if (level === ALERT_WARN) alertWarn = e;
+  else alertInfo = e;
 }
 
 export function setAlertInfo(v) { alertInfo = v; }

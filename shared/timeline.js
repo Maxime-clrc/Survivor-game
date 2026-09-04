@@ -17,12 +17,6 @@ export const TL_CFG = {
   PACK: 4,
 
   EVENT_ANNOUNCE: 2.6,
-
-  QUARRY_HP_MUL: 0.8,
-  QUARRY_SIZE_MUL: 2.5,
-  QUARRY_SPEED_MUL: 0.72,
-
-  QUARRY_XP_WORTH: 40,
 };
 
 export const SEGMENT_NAMES = [
