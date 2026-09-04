@@ -7,6 +7,13 @@ import { closeBuild, cycleBuild, openBuild } from "./ui/build.js";
 import { buildEl, cv, enSaisie, pauseEl, readMove } from "./ui/dom.js";
 import { closePause, openPause } from "./ui/pause.js";
 
+function requestInteract() {
+  if (phase !== PHASE_ROUND || amSpectator || cardsState || merchantState) return;
+  if (!pauseEl.hidden) return;
+  if (latest?.players.get(myId)?.downed) return;
+  skills.f = true;
+}
+
 function requestSkill(n) {
   if (phase !== PHASE_ROUND || amSpectator || cardsState || merchantState) return;
   if (!pauseEl.hidden) return;
@@ -31,6 +38,13 @@ addEventListener("keydown", e => {
   if (s1 && !repeat && !e.repeat) requestSkill(1);
   if (s2 && !repeat && !e.repeat) requestSkill(2);
   if (s3 && !repeat && !e.repeat) requestSkill(3);
+  /* LA TOUCHE D INTERACTION EST GENERIQUE, pas « la touche contrat » : une touche
+     par systeme est ce qui rend un jeu impossible a apprendre. Elle ouvrira le
+     ramassage volontaire et l activation sans rien deplacer.
+     `e.code` est independant de la disposition : `KeyF` est la meme touche
+     physique en AZERTY et en QWERTY — et `enSaisie()` garde deja la porte, donc
+     taper un nom de salle ne declenche rien. */
+  if (e.code === "KeyF" && !repeat && !e.repeat) requestInteract();
 });
 /* LA GACHETTE. Le bouton GAUCHE etait le seul libre — le milieu porte la
    troisieme competence — et il ne servait a rien parce que le tir est
@@ -172,5 +186,6 @@ setInterval(() => {
   if (skills.s1) { msg.s1 = 1; skills.s1 = false; }
   if (skills.s2) { msg.s2 = 1; skills.s2 = false; }
   if (skills.s3) { msg.s3 = 1; skills.s3 = false; }
+  if (skills.f) { msg.f = 1; skills.f = false; }
   ws.send(JSON.stringify(msg));
 }, 1000 / INPUT_HZ);

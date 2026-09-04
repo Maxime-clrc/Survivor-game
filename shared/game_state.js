@@ -433,6 +433,32 @@ export function survieIndex(mods, maxHp) {
   return pv * reduc * tampon;
 }
 
+/* LA BORNE. Un objet du monde, tire de la GRAINE — donc deux manches de meme
+   graine posent les memes bornes, ce qui est la moitie du protocole d'experience
+   du plan 33. Ce qu'elle PROPOSE, lui, se tire a l'activation : la borne est dans
+   la graine, son contenu ne l'est pas.
+
+   ELLE NE DISPARAIT PAS. On peut partir et revenir : c'est un CHOIX DIFFERE, pas
+   une occasion qui s'evapore, et ca supprime le « il faut y aller maintenant »
+   d'un jeu dont le fond reste la horde.
+   CONSEQUENCE, ET ELLE SE REGLE ICI : si refuser ne coute rien, on relance le
+   tirage jusqu'a obtenir ce qu'on veut. La recharge est ce prix — refuser coute
+   d'ATTENDRE, pas de renoncer.
+
+   QUATRE ETATS, ET LE CLIENT N'EN LIT QU'UN NOMBRE : disponible, proposee,
+   acceptee, consommee. */
+export const BORNE_CFG = {
+  PAR_MANCHE: 4,
+  RAYON: 22,
+  INTERACTION: 90,
+  RECHARGE: 60,
+  ECART_MIN: 900,
+};
+export const BORNE_LIBRE = 0;
+export const BORNE_PROPOSEE = 1;
+export const BORNE_ACCEPTEE = 2;
+export const BORNE_CONSOMMEE = 3;
+
 const GROUPE_VUE = CFG.VIEW_W;
 const GROUPE_SORTIE = 1.5;
 const GROUPE_POIDS = 0.5;
@@ -1036,6 +1062,11 @@ export class GameState {
     this.totalKills = 0;
     this.gameOver = false;
     this._nextId = 1;
+    /* APRES `bounds`, APRES le biome, ET APRES `_nextId` : le placement lit les
+       bornes de l arene et les dangers du lieu, et chaque borne prend un
+       identifiant. Posees plus haut, leurs `id` valaient NaN — donc `null` sur
+       le reseau, donc quatre bornes que le client ne pouvait pas distinguer. */
+    this.bornes = this._poserBornes();
 
     this.warmup = 0;
 
@@ -1457,6 +1488,7 @@ export class GameState {
     this._skills(dt);
     this._effects(dt);
     this._powerups(dt);
+    this._bornes(dt);
     this._harvests(dt);
     this._turrets(dt);
     this._drones(dt);
@@ -1619,6 +1651,9 @@ export class GameState {
       if (inp && inp.s1) this._skill1(p);
       if (inp && inp.s2) this._skill2(p);
       if (inp && inp.s3) this._skill3(p);
+      // UNE INTERACTION EST UNE INTENTION, comme une competence : elle se consomme
+      // au tick ou elle arrive, et elle ne fait rien si rien n est a portee.
+      if (inp && inp.f) this._interagir(p);
 
       const wasX = p.x, wasY = p.y;
 
@@ -6392,6 +6427,96 @@ export class GameState {
      battement sortait de TOUS les groupes, et sa part de horde tombait sur son
      voisin pour les soixante secondes suivantes — mesure : rapport 4,2 la ou le
      partage doit rendre 1. Le tri des vivants appartient a la LECTURE. */
+  /* LES BORNES SE POSENT UNE FOIS, A LA CONSTRUCTION, ET ELLES SONT DANS LA
+     GRAINE. Le tirage passe par `this.alea` comme tout le reste : deux manches de
+     meme graine les posent aux memes endroits, et c'est ce qui rend une mesure
+     reproductible chez quelqu'un d'autre.
+     ELLES S'ECARTENT LES UNES DES AUTRES : quatre bornes tirees a plat tombent
+     regulierement a portee l'une de l'autre, et deux contrats au meme endroit ne
+     donnent pas deux decisions, ils donnent une decision et un rappel. */
+  _poserBornes() {
+    const out = [];
+    const marge = 260;
+    for (let i = 0; i < BORNE_CFG.PAR_MANCHE; i++) {
+      let pose = null;
+      for (let essai = 0; essai < 24 && !pose; essai++) {
+        const x = marge + this.alea() * (CFG.ARENA_W - marge * 2);
+        const y = marge + this.alea() * (CFG.ARENA_H - marge * 2);
+        const pt = this._dropPoint(x, y, BORNE_CFG.RAYON + 8);
+        // `_dropPoint` pousse hors des OBSTACLES et ne connait pas les DANGERS :
+        // une borne dans une nappe de fusion demanderait de traverser le feu pour
+        // lire une proposition qu on peut refuser.
+        if (this._dansDanger(pt.x, pt.y, BORNE_CFG.RAYON + 20)) continue;
+        const loin = out.every(b =>
+          (b.x - pt.x) ** 2 + (b.y - pt.y) ** 2 >= BORNE_CFG.ECART_MIN ** 2);
+        if (loin) pose = pt;
+      }
+      // au pire on relache la contrainte d'ecart : une borne de moins serait pire
+      // qu'une borne un peu proche, et l'echec de placement doit rester visible
+      // dans le compte rendu plutot que silencieux.
+      if (!pose) pose = this._dropPoint(
+        marge + this.alea() * (CFG.ARENA_W - marge * 2),
+        marge + this.alea() * (CFG.ARENA_H - marge * 2), BORNE_CFG.RAYON + 8);
+      if (!pose) continue;
+      out.push({ id: this._nextId++, x: pose.x, y: pose.y,
+                 etat: BORNE_LIBRE, cd: 0, contrat: -1 });
+    }
+    return out;
+  }
+
+  _dansDanger(x, y, marge = 0) {
+    for (const h of this.hazards) {
+      const r = (h.r ?? 0) + marge;
+      if ((h.x - x) ** 2 + (h.y - y) ** 2 <= r * r) return true;
+    }
+    return false;
+  }
+
+  _bornes(dt) {
+    for (const b of this.bornes) {
+      if (b.cd > 0) {
+        b.cd -= dt;
+        if (b.cd <= 0 && b.etat === BORNE_LIBRE) b.cd = 0;
+      }
+    }
+  }
+
+  /* LA TOUCHE EST GENERIQUE, ET C'EST TOUT SON INTERET : `F` interagit avec ce
+     qui est a portee, pas « avec une borne ». Une touche par systeme est ce qui
+     rend un jeu impossible a apprendre — celle-ci ouvrira le ramassage
+     volontaire et l'activation sans rien deplacer. */
+  _interagir(p) {
+    if (!p || p.downed) return null;
+    const b = this.borneProche(p.x, p.y);
+    if (!b) return null;
+    if (b.etat === BORNE_LIBRE && b.cd <= 0) {
+      b.etat = BORNE_PROPOSEE;
+      return b;
+    }
+    return null;
+  }
+
+  borneProche(x, y) {
+    const r2 = BORNE_CFG.INTERACTION * BORNE_CFG.INTERACTION;
+    let best = null, bd = r2;
+    for (const b of this.bornes) {
+      if (b.etat === BORNE_CONSOMMEE) continue;
+      const d = (b.x - x) ** 2 + (b.y - y) ** 2;
+      if (d <= bd) { bd = d; best = b; }
+    }
+    return best;
+  }
+
+  // REFUSER COUTE D'ATTENDRE, PAS DE RENONCER : la borne revient, mais pas tout
+  // de suite. Sans ce prix, on relance le tirage jusqu'a obtenir ce qu'on veut.
+  refuserBorne(id) {
+    const b = this.bornes.find(x => x.id === id);
+    if (!b || b.etat !== BORNE_PROPOSEE) return false;
+    b.etat = BORNE_LIBRE;
+    b.cd = BORNE_CFG.RECHARGE;
+    return true;
+  }
+
   _grouper() {
     const ps = [...this.players.values()];
     const vus = new Set();
@@ -9445,6 +9570,14 @@ export class GameState {
       // filtre, donc une horloge locale demarrerait a l'entree dans le champ
       w: filtrer(this.powerups, () => CFG.POWERUP_RADIUS,
         w => [w.id, r1(w.x), r1(w.y), w.type, r2(w.life / w.max)]),
+      // ELLE VOYAGE COMME LE RESTE, filtree par la vue : on la TROUVE en jouant,
+      // et un marqueur global la rendrait cochable au lieu de trouvable.
+      /* `bo` EST LE BOSS ET `bn` SONT LES BOUNDS : deux clefs de deux lettres
+         prises coup sur coup. Une borne sous l une des deux l aurait ECRASEE en
+         silence — l instantane est un objet, pas un schema, et rien ne signale
+         une collision. `bq` est libre, et le releve des clefs est dans le lot. */
+      bq: filtrer(this.bornes, () => BORNE_CFG.RAYON,
+        b => [b.id, r1(b.x), r1(b.y), b.etat]),
       hv: this.harvests.map(h => [h.id, r1(h.x), r1(h.y), h.kind,
         r2(h.kind === 0 ? h.hp / h.maxHp : h.prog)]),
       tu: this.turrets.map(t => [t.id, r1(t.x), r1(t.y), r2(t.life / CFG.TURRET_LIFE), r2(t.ang)]),

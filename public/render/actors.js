@@ -6,12 +6,12 @@ import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { bonusFamille, bonusRang } from "/shared/feedback.js";
 import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, defDe, fullMods, traitsOf } from "/shared/game_state.js";
-import { BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
+import { BIOME_SKIN, BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
 import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawBrulure, drawEntrave, drawOmbre, drawVulnerable, finArcs, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, spawnBraise, zoneFx } from "./fx.js";
-import { ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
+import { biomeKey, ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
 
 export const bulletTrail = new Map();
 export const shotTrail = new Map();
@@ -2298,5 +2298,96 @@ export function drawEnemies(list, view) {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+  }
+}
+
+/* LA BORNE, CINQ APPARENCES ET UN MARQUEUR. Le meme objet fonctionnel, cinq
+   dessins — exactement le modele de `BLOC[biome][kind]` : l'apparence suit le
+   THEME, jamais la variante, ce qui la rend compatible avec les variantes de
+   biome a venir.
+
+   DE LOIN ELLE SE REMARQUE PARCE QU'ELLE EST EMISSIVE : `emis` est la couleur
+   d'identite du lieu, et un objet qui l'utilise saute aux yeux sur son propre sol
+   sans qu'on ait besoin d'un marqueur global.
+
+   LE MARQUEUR EST AU-DESSUS, ET C'EST LE SEUL CANAL LIBRE. Les anneaux au sol
+   sont TOUS pris — le rayon de relevement en pointilles, l'aura du colosse,
+   l'egide du generateur, les cercles de competence. Le canal au-dessus du corps a
+   deja un precedent dans ce fichier (les trois chevrons du lanceur), et « ! » /
+   « ? » est une convention que le joueur connait d'ailleurs : il l'apprend en une
+   seconde. */
+const BORNE_FORME = {
+  usine: (g, x, y, r) => {
+    g.beginPath();
+    g.rect(x - r * 0.7, y - r, r * 1.4, r * 2);
+    g.fill();
+    g.beginPath();
+    g.rect(x - r, y + r * 0.55, r * 2, r * 0.45);
+    g.fill();
+  },
+  fonderie: (g, x, y, r) => {
+    g.beginPath();
+    g.moveTo(x, y - r);
+    g.lineTo(x + r * 0.9, y + r * 0.7);
+    g.lineTo(x - r * 0.9, y + r * 0.7);
+    g.closePath();
+    g.fill();
+  },
+  nebuleuse: (g, x, y, r) => {
+    g.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.9;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.closePath();
+    g.fill();
+  },
+  ville: (g, x, y, r) => {
+    g.beginPath();
+    g.rect(x - r * 0.5, y - r, r, r * 1.7);
+    g.fill();
+    g.beginPath();
+    g.rect(x - r, y + r * 0.6, r * 2, r * 0.4);
+    g.fill();
+  },
+  serre: (g, x, y, r) => {
+    g.beginPath();
+    g.ellipse(x, y, r * 0.75, r, 0, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();
+    g.rect(x - r * 0.12, y, r * 0.24, r * 0.9);
+    g.fill();
+  },
+};
+
+export function drawBornes(list) {
+  if (!list || list.length === 0) return;
+  const skin = BIOME_SKIN[biomeKey()] ?? BIOME_SKIN.usine;
+  const forme = BORNE_FORME[biomeKey()] ?? BORNE_FORME.usine;
+  const t = performance.now() / 1000;
+
+  for (const b of list) {
+    if (b.etat === 3) continue;
+    if (!inView(b.x, b.y, 60)) continue;
+
+    // le socle : la matiere du lieu, pour qu'elle appartienne au decor
+    ctx.fillStyle = alpha(skin.bloc, 0.9);
+    forme(ctx, b.x, b.y, 14);
+
+    // la lueur : elle respire lentement — ce qui bouge en permanence n'est pas un
+    // telegraphe, ce canal appartient au boss, donc la periode reste longue
+    const k = 0.55 + 0.25 * Math.sin(t * 1.6 + b.id);
+    ctx.fillStyle = alpha(skin.emis, k);
+    forme(ctx, b.x, b.y, 8);
+
+    // LE MARQUEUR : « ! » disponible, « ? » en cours. Il flotte, il ne clignote
+    // pas : un clignotement au-dessus de deux cents corps devient du bruit.
+    const dy = -30 - Math.sin(t * 1.8 + b.id) * 3;
+    ctx.fillStyle = alpha(skin.emis, 0.95);
+    ctx.font = "700 22px ui-monospace, Menlo, Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(b.etat === 0 ? "!" : "?", b.x, b.y + dy);
+    ctx.textAlign = "left";
   }
 }

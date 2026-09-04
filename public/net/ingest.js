@@ -72,6 +72,10 @@ export function ingest(msg) {
     cover: msg.ob ?? null,
     powerups: msg.w.map(a => ({ id: a[0], x: a[1], y: a[2], type: a[3], k: a[4] ?? 1 })),
     harvests: (msg.hv ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], kind: a[3], k: a[4] ?? 1 })),
+    // la borne : trois nombres et un ETAT, filtree par la vue comme le reste
+    // `bo` est le BOSS et `bn` les BOUNDS : une borne sous l une des deux
+    // l aurait ecrasee EN SILENCE — un instantane est un objet, pas un schema.
+    bornes: (msg.bq ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], etat: a[3] })),
     turrets: (msg.tu ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], k: a[3], ang: a[4] })),
     bulwarks: (msg.bw ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4] })),
     anchors: (msg.an ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], r: a[3], k: a[4], vuln: a[5] ?? 0 })),

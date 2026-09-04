@@ -945,6 +945,7 @@ export class Room {
       c.conn.send(JSON.stringify(this.armePayload(c)));
       c.input.x = 0; c.input.y = 0; c.input.dash = false;
       c.input.s1 = false; c.input.s2 = false; c.input.s3 = false;
+      c.input.f = false;
     }
     this.state.warmup = WARMUP_S;
     this.bossVus = 0;
@@ -1054,6 +1055,7 @@ export class Room {
         if (msg.s1) client.input.s1 = true;
         if (msg.s2) client.input.s2 = true;
         if (msg.s3) client.input.s3 = true;
+        if (msg.f) client.input.f = true;
         break;
       }
 
@@ -1364,6 +1366,9 @@ export class Room {
           c.input.s1 = false;
           c.input.s2 = false;
           c.input.s3 = false;
+          // MEME VIE QU UNE COMPETENCE : une intention se consomme au tick, sinon
+          // une touche relachée pendant une pause reste enfoncee a la reprise.
+          c.input.f = false;
         }
         this.acc -= CFG.TICK;
       }

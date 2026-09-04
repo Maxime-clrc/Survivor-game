@@ -8395,6 +8395,48 @@
                   inutile. Un son a chaque borne qui entre dans le champ
                   deviendrait un tic-tac.
 
+    0.37.1 lot 01 LA BORNE : un objet du monde, TIRE DE LA GRAINE, avec lequel on
+                  interagit. Deux manches de meme graine les posent aux memes
+                  endroits — c est la moitie du protocole d experience du plan 33.
+                  Ce qu elle PROPOSE, lui, se tirera a l activation : la borne est
+                  dans la graine, son contenu ne l est pas.
+                  ELLE NE DISPARAIT PAS. On part, on revient : c est un CHOIX
+                  DIFFERE et non une occasion qui s evapore, ce qui supprime le
+                  « il faut y aller maintenant » d un jeu dont le fond reste la
+                  horde. CONSEQUENCE REGLEE ICI : si refuser ne coutait rien, on
+                  relancerait le tirage jusqu a obtenir ce qu on veut — la recharge
+                  est ce prix, refuser coute d ATTENDRE, pas de renoncer.
+                  LE MARQUEUR EST AU-DESSUS, ET C EST LE SEUL CANAL LIBRE : les
+                  anneaux au sol sont TOUS pris — relevement, aura du colosse,
+                  egide, cercles de competence. Le canal au-dessus du corps avait
+                  deja un precedent dans le depot, et « ! » / « ? » est une
+                  convention que le joueur connait d ailleurs : il l apprend en une
+                  seconde. Il flotte, il ne CLIGNOTE pas — un clignotement au-dessus
+                  de deux cents corps devient du bruit.
+                  CINQ APPARENCES, UN SEUL OBJET : le modele de `BLOC[biome][kind]`.
+                  L apparence suit le THEME et jamais la variante, donc elle
+                  restera compatible avec les variantes de biome du plan 37. De
+                  loin, elle se remarque parce qu elle est EMISSIVE — la couleur
+                  d identite du lieu saute aux yeux sur son propre sol, ce qui
+                  dispense d un marqueur global.
+                  LA TOUCHE EST GENERIQUE. `F` interagit avec ce qui est a portee,
+                  pas « avec une borne » : une touche par systeme est ce qui rend
+                  un jeu impossible a apprendre, et celle-ci ouvrira le ramassage
+                  volontaire et l activation sans rien deplacer. `KeyF` est la meme
+                  touche physique en AZERTY et en QWERTY, et `enSaisie()` garde
+                  deja la porte.
+                  TROIS DEFAUTS PAYES EN ECRIVANT, ET AUCUN N AURAIT LEVE. `bo` est
+                  DEJA le boss dans l instantane et `bn` les bounds : une borne
+                  sous l une des deux l aurait ECRASEE en silence — un instantane
+                  est un objet, pas un schema. Et les bornes naissaient AVANT
+                  `_nextId` : leurs identifiants valaient NaN, donc `null` sur le
+                  reseau, donc quatre bornes que le client ne pouvait pas
+                  distinguer.
+                  ELLE EVITE LES DANGERS AUTANT QUE LES OBSTACLES : `_dropPoint`
+                  pousse hors des boites et ne connait pas les nappes. Une borne
+                  dans une flaque de fusion demanderait de traverser le feu pour
+                  lire une proposition qu on peut refuser.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8403,4 +8445,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.37.0";
+export const VERSION = "0.37.1";
