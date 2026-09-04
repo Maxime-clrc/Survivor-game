@@ -10,6 +10,7 @@ import { biomeNom, biomeResume } from "/shared/biomes.js";
 import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from "/shared/i18n.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
 import { ENEMY_TYPES, enemyLore, enemyNom, roleDe } from "/shared/enemies.js";
+import { CONDITIONS, PREREGLAGES, construireCustom, exporterChoix, importerChoix, severite } from "/shared/custom.js";
 import { CLASSEMENTS, COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, metaActives, metaCharge, metaPoids, slotsFor, tierCost, vueStats } from "/shared/progression.js";
 import { ARME_CFG, armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
 import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
@@ -17,13 +18,13 @@ import { appliquerCadre } from "./cadres.js";
 import { RELICS, relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf } from "/sprites.js";
-import { traceOn, tracePar, rapportTexte, GFX_KEYS, GFX_ULTRA, INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, SECOUSSE_FACTEURS, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setGfx, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, setSecousse, secousse, gfx, tally, ws } from "../core/state.js";
+import { customChoix, setCustomChoix, traceOn, tracePar, rapportTexte, GFX_KEYS, GFX_ULTRA, INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, SECOUSSE_FACTEURS, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setGfx, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, setSecousse, secousse, gfx, tally, ws } from "../core/state.js";
 import { netPerf } from "../net/interp.js";
 import { fmtTime, portraitBoss } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanRapport, bilanRapportTexte, bilanRapportCopy, traceCheck, traceHint, bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanFait, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { customBox, customOn, customJauge, customPresets, customList, customCode, customImport, customExport, customMsg, bilanRapport, bilanRapportTexte, bilanRapportCopy, traceCheck, traceHint, bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanFait, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -1093,9 +1094,164 @@ if (bilanRapportCopy) {
   };
 }
 
+/* L'ECRAN DU SUR MESURE. Le fond reste une liste de RANGS ; la presentation
+   s'adapte, et c'est une decision de presentation, pas de modele : deux ou trois
+   rangs se lisent mieux en CASES — on voit les options d'un coup — cinq rangs
+   monotones se liraient mieux en curseur crante. Ici toutes les conditions ont
+   deux a quatre rangs, donc des cases partout, et un bouton « aucun » qui est le
+   rang absent.
+
+   DEUX INDICATEURS, ET ILS DISENT DEUX CHOSES DIFFERENTES. La SEVERITE annonce
+   l'intention (une somme de couts ecrits a la main) ; le PRODUIT annonce ce que la
+   simulation va reellement subir, parce que les coefficients se composent et que
+   le produit explose bien avant que chaque facteur soit a son maximum. Les deux
+   ensemble evitent la surprise de la composition — et le REPERE par rapport a
+   cauchemar en dit plus a quelqu'un qui ouvre le mode qu'un nombre absolu.
+
+   L'INDICE EST UNE APPROXIMATION ET IL LE DIT. Pas d'avertissement moralisateur
+   pour autant : « attention, ce reglage est tres difficile » n'apprend rien a qui
+   vient de tout pousser expres. */
+
+const customEnvoi = () => {
+  if (!connected || !inRoom) return;
+  ws.send(JSON.stringify({ t: "custom", on: customChoix ? 1 : 0,
+                           choix: customChoix ?? {} }));
+};
+
+function customProduit(choix) {
+  const d = construireCustom(DIFFICULTIES[1], choix ?? {});
+  const cauchemar = DIFFICULTIES[2];
+  const p = d.hp * d.spawn * d.dmg * d.speed * (d.cap ?? 1);
+  const ref = cauchemar.hp * cauchemar.spawn * cauchemar.dmg * cauchemar.speed
+    * (CFG.MAX_ENEMIES_DIFF[2] / CFG.MAX_ENEMIES_DIFF[1]);
+  return { produit: p, versCauchemar: p / ref };
+}
+
+export function renderCustom() {
+  if (!customBox) return;
+  const hote = myId === hostId;
+  customBox.hidden = phase !== PHASE_LOBBY;
+  if (customOn) {
+    customOn.checked = !!customChoix;
+    customOn.disabled = !hote;
+  }
+  const actif = !!customChoix;
+  if (customList) customList.hidden = !actif;
+  if (customPresets) customPresets.hidden = !actif;
+
+  if (customJauge) {
+    if (!actif) {
+      customJauge.textContent = "";
+    } else {
+      const sev = severite(customChoix);
+      const { produit, versCauchemar } = customProduit(customChoix);
+      customJauge.textContent = tf("ui.panel.custom.jauge",
+        "sévérité {s} · pression ×{p} · {r} fois cauchemar",
+        { s: sev, p: produit.toFixed(2), r: versCauchemar.toFixed(2) });
+      customJauge.title = t("ui.panel.custom.approx",
+        "la sévérité est une approximation : une même condition ne coûte pas le même prix à toutes les armes");
+    }
+  }
+
+  if (customPresets && actif) {
+    customPresets.innerHTML = "";
+    for (const p of PREREGLAGES) {
+      const b = document.createElement("button");
+      b.className = "ghost";
+      b.textContent = p.nom;
+      b.title = p.resume;
+      b.disabled = !hote;
+      b.onclick = () => { setCustomChoix(p.choix); customEnvoi(); renderCustom(); };
+      customPresets.appendChild(b);
+    }
+  }
+
+  if (customList && actif) {
+    customList.innerHTML = "";
+    for (const c of CONDITIONS) {
+      const ligne = document.createElement("div");
+      ligne.className = "customLigne";
+      const tete = document.createElement("div");
+      tete.className = "customNom";
+      tete.textContent = c.nom;
+      tete.title = c.resume;
+      ligne.appendChild(tete);
+
+      const rangs = document.createElement("div");
+      rangs.className = "row customRangs";
+      const pose = (label, rang, titre) => {
+        const b = document.createElement("button");
+        b.textContent = label;
+        b.title = titre ?? "";
+        b.className = (customChoix[c.key] ?? -1) === rang ? "" : "ghost";
+        b.disabled = !hote;
+        b.onclick = () => {
+          const suivant = { ...customChoix };
+          if (rang < 0) delete suivant[c.key];
+          else suivant[c.key] = rang;
+          setCustomChoix(suivant);
+          customEnvoi();
+          renderCustom();
+        };
+        rangs.appendChild(b);
+      };
+      pose(t("ui.panel.custom.aucun", "aucun"), -1);
+      c.rangs.forEach((r, i) => pose(r.cout > 0 ? `+${r.cout}` : `${r.cout}`, i, r.dit));
+      ligne.appendChild(rangs);
+
+      const dit = document.createElement("div");
+      dit.className = "customDit";
+      const r = c.rangs[customChoix[c.key] ?? -1];
+      dit.textContent = r ? r.dit : c.resume;
+      ligne.appendChild(dit);
+      customList.appendChild(ligne);
+    }
+  }
+}
+
+if (customOn) {
+  customOn.onchange = () => {
+    setCustomChoix(customOn.checked ? {} : null);
+    customEnvoi();
+    renderCustom();
+  };
+}
+if (customExport) {
+  customExport.onclick = () => {
+    if (!customChoix) return;
+    const code = exporterChoix(customChoix);
+    if (customCode) customCode.value = code;
+    navigator.clipboard?.writeText(code);
+    if (customMsg) customMsg.textContent = tf("ui.panel.custom.copie", "copié : {code}", { code });
+  };
+}
+if (customImport) {
+  customImport.onclick = () => {
+    const r = importerChoix(customCode?.value ?? "");
+    if (!r.ok) {
+      // REFUSER, ET DIRE POURQUOI. Un code d'une autre version applique en
+      // silence decale les rangs, et la mesure est fausse sans que rien le dise.
+      if (customMsg) {
+        customMsg.textContent = r.motif === "version"
+          ? tf("ui.panel.custom.mauvaiseVersion",
+              "code d'une autre table (v{a}, ici v{b}) — les rangs ne veulent plus dire la même chose",
+              { a: r.version, b: r.attendue })
+          : t("ui.panel.custom.mauvaisCode", "code illisible");
+      }
+      return;
+    }
+    setCustomChoix(r.choix);
+    if (customMsg) customMsg.textContent = "";
+    customEnvoi();
+    renderCustom();
+  };
+}
+
+
 export function refreshPanel() {
   updateVersion();
   syncTrace();
+  renderCustom();
   if (!connected) return;
   if (!inRoom) { panel.hidden = true; return; }
   if (!gate.hidden) return;

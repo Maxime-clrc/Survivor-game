@@ -12,7 +12,7 @@ import { ARMES, ARME_CFG, ARME_DEFAUT } from "./shared/armes.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 import { Rapport } from "./rapport.js";
-import { CUSTOM_INDEX } from "./shared/custom.js";
+import { CUSTOM_INDEX, conditionAt, severite } from "./shared/custom.js";
 
 /* LE BANC. Meme statut que `BIOME` et `GRAINE` : une surcharge d'environnement
    POUR LES TESTS, absente en jeu. Quatre protocoles de `LISEZMOI.md` sont restes
@@ -107,6 +107,11 @@ export class Room {
     this.rapport = null;
     this.rapportTexte = "";
     this.releveVus = new Map();
+    /* LE SUR MESURE APPARTIENT A LA SALLE, comme la mesure et comme la graine.
+       `null` veut dire « aucun sur mesure » — un objet vide veut dire « sur
+       mesure sans aucune condition », ce qui n'est pas la meme chose et doit
+       rester distinguable. */
+    this.custom = null;
   }
 
   /* ON FERME LA TRACE AVANT DE LA DESARMER, et l'ordre est tout : `traceLigne`
@@ -699,6 +704,9 @@ export class Room {
       seed: this.seed,
       trace: this.traceArme ? 1 : 0,
       tracePar: this.tracePar,
+      // TOUT LE MONDE VOIT LES REGLES AVANT DE SE DIRE PRET : un joueur qui
+      // rejoint doit savoir dans quoi il entre.
+      custom: this.custom,
       history: this.history.slice().reverse(),
       players: this.joined().map(c => ({
         id: c.id,
@@ -893,9 +901,9 @@ export class Room {
   startRound() {
     this.roundNumber++;
     this.setPaused(false);
-    const diff = this.votedDifficulty().index;
+    const diff = this.custom ? CUSTOM_INDEX : this.votedDifficulty().index;
     const vus = this.state ? this.state.bossSeen.slice() : [];
-    this.state = new GameState(diff, this.biomeIndex, this.seed);
+    this.state = new GameState(diff, this.biomeIndex, this.seed, this.custom);
     // la memoire du tirage appartient a la SALLE : deux manches de suite ne
     // montrent pas le meme quintette.
     this.state.bossPrecedents = vus;
@@ -1108,6 +1116,27 @@ export class Room {
          plus faible decide de l'experience, donc on garde les fenetres de chacun
          et jamais une moyenne. Borne a douze fenetres par message et vingt-quatre
          par manche : un client bavard ne remplit pas la trace. */
+      /* LE SUR MESURE SE CONFIGURE, ET C'EST L'HOTE QUI CONFIGURE. Le mode
+         decide de ce que la salle entiere va jouer et de ce qu'elle ne gagnera
+         pas — noyaux, records, hauts faits : ce n'est pas un reglage personnel.
+         Tout le monde le VOIT, une seule personne le POSE. */
+      case "custom": {
+        if (this.phase !== PHASE_LOBBY || id !== this.hostId) break;
+        if (!msg.on) { this.custom = null; }
+        else {
+          const choix = {};
+          for (const [key, rang] of Object.entries(msg.choix ?? {})) {
+            const c = conditionAt(key);
+            if (c && Number.isInteger(rang) && c.rangs[rang]) choix[key] = rang;
+          }
+          this.custom = choix;
+        }
+        this.broadcast(this.lobbyPayload());
+        this.hooks.log("[" + this.code + "] sur mesure "
+          + (this.custom ? "severite " + severite(this.custom) : "desarme"));
+        break;
+      }
+
       case "releve": {
         if (!this.traceArme || !Array.isArray(msg.fenetres)) break;
         const compte = this.releveVus.get(id) ?? 0;

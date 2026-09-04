@@ -26,6 +26,7 @@ const $ = id => document.getElementById(id);
 const el = {
   root:     $("hud"),
   clock:    $("hudClock"),
+  custom:   $("hudCustom"),
   meta:     $("hudMeta"),
   seg:      $("hudSegment"),
   segKicker: $("segKicker"),
@@ -1238,6 +1239,15 @@ export function updateHud(v, c) {
   const now = c.now;
 
   setText(el.clock, "clk", fmtTime(v.tm));
+  /* LE SUR MESURE SE VOIT EN MANCHE, ET IL DIT SA SEVERITE : le mode change ce
+     que la salle joue ET ce qu elle ne gagnera pas. Il disparait dans les trois
+     modes normaux — un temoin permanent qui ne dit rien cesse d etre lu. */
+  const surMesure = c.difficulty === CUSTOM_INDEX;
+  setHidden(el.custom, "cst", !surMesure);
+  if (surMesure) {
+    setText(el.custom, "cstT",
+      tf("ui.hud.custom", "SUR MESURE · sévérité {s}", { s: c.customSeverite ?? 0 }));
+  }
 
   const me = v.playerList.find(p => p.id === c.myId);
   const eclats = me?.eclats ?? 0;

@@ -8331,6 +8331,30 @@
                   qui n avance pas, et personne ne saura si c est le reglage ou le
                   jeu.
 
+    0.36.3 lot 04 L INTERFACE DU SUR MESURE, ET DEUX INDICATEURS QUI NE DISENT PAS
+                  LA MEME CHOSE. La SEVERITE annonce l intention — une somme de
+                  couts ecrits a la main ; le PRODUIT annonce ce que la simulation
+                  va reellement subir, parce que les coefficients se COMPOSENT et
+                  que le produit explose bien avant que chaque facteur soit a son
+                  maximum. Les deux ensemble evitent la surprise de la composition,
+                  et le repere « x fois cauchemar » en dit plus a quelqu un qui
+                  ouvre le mode qu un nombre absolu.
+                  PAS D ONGLETS PAR FAMILLE : les onze conditions tiennent sur un
+                  ecran, et voir deux d entre elles ensemble est ce qui donne envie
+                  de les combiner. Pas d avertissement moralisateur non plus —
+                  « attention, ce reglage est tres difficile » n apprend rien a qui
+                  vient de tout pousser expres.
+                  L HOTE POSE, TOUT LE MONDE VOIT. Le mode decide de ce que la
+                  salle entiere va jouer ET de ce qu elle ne gagnera pas : ce n est
+                  pas un reglage personnel. Un joueur qui rejoint voit les regles
+                  AVANT de se dire pret, et le HUD porte la mention en manche —
+                  elle disparait dans les trois modes normaux, parce qu un temoin
+                  permanent qui ne dit rien cesse d etre lu.
+                  UNE VIOLATION DE COUCHES PAYEE EN ECRIVANT : le HUD (couche 12)
+                  doit afficher le reglage, et il ne peut pas lire l ecran de salon
+                  (couche 14). L etat descend donc en COUCHE 0, comme `traceOn` —
+                  le serveur restant sa seule source.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8339,4 +8363,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.36.2";
+export const VERSION = "0.36.3";

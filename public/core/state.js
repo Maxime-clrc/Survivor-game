@@ -83,6 +83,10 @@ export let pendingRejoin = null;
 export let traceOn = false;
 export let tracePar = "";
 export let rapportTexte = "";
+/* LE REGLAGE SUR MESURE EST UN ETAT DE SALLE, donc il vit en couche 0 : le HUD
+   (couche 12) doit l afficher en manche, et il ne peut pas lire l ecran de salon
+   (couche 14). Le serveur en reste la seule source. */
+export let customChoix = null;
 export let joinAttempt = null;
 export let lastResult = null;
 export let difficulty = 1;
@@ -293,6 +297,7 @@ export function setHostId(v) { hostId = v; }
 export function setInRoom(v) { inRoom = v; }
 export function setTrace(on, par) { traceOn = !!on; tracePar = par ?? ""; }
 export function setRapport(v) { rapportTexte = v ?? ""; }
+export function setCustomChoix(v) { customChoix = v ? { ...v } : null; }
 export function setJoinAttempt(v) { joinAttempt = v; }
 export function setLastResult(v) { lastResult = v; }
 export function setLastSnapAt(v) { lastSnapAt = v; }

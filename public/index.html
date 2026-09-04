@@ -45,6 +45,9 @@
       <div id="hudRun">
         <div id="hudClock">00:00</div>
         <div id="hudMeta"></div>
+        <!-- UNE MANCHE SUR MESURE SE VOIT PENDANT QU'ON Y JOUE, pas seulement au
+             salon : un joueur qui rejoint doit savoir dans quoi il entre. -->
+        <div id="hudCustom" hidden></div>
       </div>
 
       <div id="hudSegment" hidden>
@@ -599,6 +602,27 @@
           <p class="panelLead" data-i18n="ui.panel.vote.lead">Chacun vote, la majorité l'emporte. Le mode retenu s'applique à toute l'équipe.</p>
           <div id="voteRow"></div>
           <div id="voteHint"></div>
+        </div>
+
+        <!-- LE SUR MESURE VAUT PAR LA VUE D'ENSEMBLE : les onze conditions
+             tiennent sur un écran, et c'est voir deux d'entre elles ensemble qui
+             donne envie de les combiner. Pas d'onglets par famille. -->
+        <div id="customBox">
+          <div class="sectionTitle" data-i18n="ui.panel.custom.label">3 — Sur mesure</div>
+          <p class="panelLead" data-i18n="ui.panel.custom.lead">Les règles sont les vôtres. Aucun noyau, aucun record, aucun haut fait : ce mode sert à essayer et à mesurer.</p>
+          <label class="traceOpt">
+            <input type="checkbox" id="customOn">
+            <span data-i18n="ui.panel.custom.on">Jouer en sur mesure</span>
+          </label>
+          <div id="customJauge"></div>
+          <div id="customPresets" class="row"></div>
+          <div id="customList"></div>
+          <div class="row">
+            <input id="customCode" type="text" spellcheck="false" data-i18n-placeholder="ui.panel.custom.code" placeholder="code de réglages">
+            <button id="customImport" class="ghost" data-i18n="ui.panel.custom.import">Coller</button>
+            <button id="customExport" class="ghost" data-i18n="ui.panel.custom.export">Copier</button>
+          </div>
+          <div id="customMsg" class="hint"></div>
         </div>
       </div>
 

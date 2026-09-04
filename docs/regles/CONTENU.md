@@ -534,6 +534,46 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   joueur.** À la milliseconde près, quatre appels à `toISOString()` donnent quatre
   dates, et le regroupement ci-dessus ne prend plus. C'est la seule raison pour
   laquelle `quand` sort de la boucle d'`awardRun`.
+- **LE MODE SUR MESURE EST LA DERNIÈRE PIÈCE DU BANC, PAS UN BONUS.** Graine
+  déterministe (plan 31) + compte rendu (plan 32) + mutateurs = **isoler une
+  variable**, ce que le dépôt n'a jamais pu faire — et avec de vrais joueurs, pas
+  avec un pilote qui ne sait pas jouer deux armes sur quatre.
+- **DES RANGS, PAS DES CURSEURS.** La somme des coûts donne un indice de sévérité
+  qui existe **sans être calculé** ; un espace fini où deux joueurs peuvent se dire
+  « j'ai fait 24 » ; et des paliers déjà pensés, là où un curseur invite à mettre
+  87 % parce que c'est possible. Un rang **ne coûte jamais zéro** : un rang gratuit
+  est toujours pris, donc ce n'est pas un choix. Un rang dont l'effet dépend de la
+  build coûte **cher**, parce qu'il sera pris par ceux à qui il ne coûte rien.
+- **L'INDICE EST UNE APPROXIMATION, ET IL SE PRÉSENTE COMME TELLE.** Avec dix armes
+  et trois classes, « +25 % de vitesse ennemie » ne veut pas dire la même chose
+  pour un laser que pour un railgun. C'est aussi ce qui rend le mode utile à
+  l'équilibrage : un mutateur dont la sévérité varie de trois à un selon l'arme
+  **est** un résultat de mesure. L'écran affiche donc **deux** chiffres — la
+  sévérité dit l'intention, le **produit** dit ce que la simulation va subir.
+- **L'INDEX 3 EST RÉSERVÉ ET NE SE RÉORDONNE JAMAIS** : il circule dans le message
+  `round`, dans `clefRecord` et dans les profils. La difficulté custom est
+  **construite au lancement** et voyage par le constructeur de `GameState` —
+  écrire dans `DIFFICULTIES[3]` serait la panne que le plan 31 a corrigée pour le
+  hasard, seize salles d'un processus se partageant un objet.
+- **PAS DE CLASSEMENT, PAS DE NOYAUX, PAS DE HAUTS FAITS**, et chaque test est
+  **explicite**. `DIFF_MUL` garde trois entrées : son `??` rendrait le tarif de
+  normal — mesuré, **390 noyaux** pour une manche dont le joueur écrit les règles.
+  « ×2 loot, −50 % ennemis » deviendrait la meilleure façon de farmer la méta.
+- **LE SUR MESURE NE SE VOTE PAS, IL SE CONFIGURE**, et c'est l'hôte qui configure :
+  un vote l'aurait choisi avec les réglages par défaut, donc une manche normale
+  privée de tout, sans que personne l'ait voulu. Tout le monde le **voit** — au
+  salon avant de se dire prêt, et dans le HUD pendant la manche.
+- **LE CODE DE PARTAGE PORTE LA VERSION DE LA TABLE.** Un code collé après un
+  changement de conditions **décale silencieusement les rangs**, et ça coûte une
+  soirée de mesure fausse : le collage refuse au lieu d'appliquer à moitié — un
+  choix partiel serait pire que rien, il serait **plausible**. Il porte les rangs
+  et **rien d'autre** : ni graine ni biome, qui ne se partagent pas toujours avec
+  le réglage.
+- **LES PRÉRÉGLAGES N'EXISTENT PAS POUR JOUER, ILS ENSEIGNENT LE MODE.** Une page
+  de curseurs vierges n'apprend rien. Chacun doit être **jouable** — pas une
+  démonstration de maximum — et ils couvrent des **familles différentes** : trois
+  variantes de « plus dur » n'enseigneraient rien.
+
 - **LA VICTOIRE EST LA PORTE D'ENTRÉE, ET ELLE VAUT POUR LES TROIS TABLEAUX.**
   On n'entre au classement qu'en ayant fini : `state.victory && state.finalKill > 0`
   ne bouge pas. Ce qui change, c'est qu'elle ouvre une manche **enregistrée** au
