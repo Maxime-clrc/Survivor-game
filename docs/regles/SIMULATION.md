@@ -92,6 +92,31 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   **30 minutes** (`TL_CFG.SEGMENTS × SEGMENT_TIME`). La marque ne se mesurait
   jamais : `mesureProgression` rendait la dernière valeur connue, et le
   vérificateur lisait le **plafond de niveau** comme un dépassement.
+- **L'XP ET LE NIVEAU SONT DES GRANDEURS DE SALLE ; LA CARTE, LES ÉCLATS, LES
+  RELIQUES ET LE LOOT DE RUN SONT DES GRANDEURS DE JOUEUR.** `this.xp`,
+  `this.level`, `this.levelAt` : un seul compteur pour tout le monde, et le
+  snapshot écrit la même valeur sur la ligne de chaque joueur. Ce qui est
+  individuel est le **choix**, pas la cadence.
+- **`_addXp` A DEUX APPELANTS, ET LA LISTE EST FERMÉE** : `_killEnemy()` pour la
+  horde, et `_damage()` pour le boss — qui crédite **au prorata des dégâts
+  infligés** sur ses PV max, jamais à la mort. On est payé pour avoir tapé, pas
+  pour avoir achevé : un joueur qui meurt à 5 % des PV du boss a déjà touché 95 %
+  de son XP. Un troisième appelant est une erreur, et c'est cette ligne qui le
+  dit.
+- **TOUTE RÉCOMPENSE D'OBJECTIF SE VERSE EN ÉCLATS OU EN LOOT, JAMAIS EN XP** —
+  parce que l'XP est le seul canal qui **ne peut pas distinguer qui a pris le
+  risque**. La règle est déjà respectée : `_eventReward()` rend des PV, remonte
+  le bouclier et relève les joueurs à terre, rien d'autre. On ne l'introduit pas,
+  on la **préserve** : sans elle, partir chercher un objectif pendant qu'un autre
+  farme ne coûte rien à personne, et l'arbitrage n'existe pas.
+- **`TL_CFG.QUARRY_XP_WORTH = 40` EST LA SEULE EXCEPTION EN ATTENTE.** La proie
+  de `EV_CHASSE` vaut quarante corps ordinaires **en XP** ; quand elle deviendra
+  un mini-boss porteur de récompense, cette valeur se **convertit** en éclats et
+  en loot — elle ne s'y ajoute pas.
+- **RETIRER N'EST PAS TUER.** `_killEnemy()` est le point de passage unique de
+  toute **mort** d'ennemi : XP, cumuls, hauts faits, butin. Un corps qui **part**
+  — recyclé au loin, mini-boss qui se retire — n'y passe pas, et il ne doit rien
+  laisser derrière lui.
 - **UN BUDGET DE PRESSION N’EST PAS UN PARTAGE DE RÉCOMPENSE.**
   `WAVE_CROWD_EXP` gouvernait six grandeurs — plafond de population, taux
   d’apparition, part d’élites, ajouts et renforts du boss — **et** le partage

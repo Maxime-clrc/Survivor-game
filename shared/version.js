@@ -7890,6 +7890,35 @@
                   remesure sur une arene DOUBLEE. Restent verts : `navigation`,
                   `encerclement`, `deplacement`, `determinisme`.
 
+    0.34.2 lot 06 LA DOCTRINE DE L XP, ECRITE — AUCUNE LIGNE DE CODE. Une regle
+                  qui a ete decidee et qui contraint tous les plans suivants ; elle
+                  est beaucoup plus facile a TENIR qu a reparer, et une decision
+                  qui ne vit que dans un document de brainstorming est perdue au
+                  troisieme plan.
+                  L XP ET LE NIVEAU SONT DES GRANDEURS DE SALLE, la carte, les
+                  eclats, les reliques et le loot de run des grandeurs de JOUEUR.
+                  Ce qui est individuel est le CHOIX, pas la cadence.
+                  `_addXp` A DEUX APPELANTS, ET LA LISTE EST FERMEE : `_killEnemy`
+                  pour la horde, `_damage` pour le boss — AU PRORATA des degats
+                  infliges, jamais a la mort. Le document de decisions en annoncait
+                  trois : releve fait, `_killBoss` n en est pas un, et cette
+                  conception (on est paye pour avoir tape, pas pour avoir acheve)
+                  n etait ecrite nulle part.
+                  TOUTE RECOMPENSE D OBJECTIF SE VERSE EN ECLATS OU EN LOOT, JAMAIS
+                  EN XP : l XP est le seul canal qui ne peut pas distinguer qui a
+                  pris le risque. `_eventReward()` ne verse deja aucune XP — on ne
+                  cree pas une contrainte, on ECRIT une propriete que le code a
+                  deja et qu un futur lot casserait sans le savoir. Sans elle,
+                  partir chercher un objectif pendant qu un autre farme ne coute
+                  rien : les deux montent au meme niveau a la meme seconde, et
+                  l arbitrage central du plan n existe pas.
+                  `TL_CFG.QUARRY_XP_WORTH = 40` est la seule exception en attente :
+                  quand la proie deviendra un mini-boss porteur de recompense,
+                  cette valeur se CONVERTIT en eclats et en loot, elle ne s y
+                  ajoute pas.
+                  RETIRER N EST PAS TUER, ecrit une fois pour le recyclage lointain
+                  et pour les deux retraits du mini-boss a venir.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7898,4 +7927,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.34.1";
+export const VERSION = "0.34.2";
