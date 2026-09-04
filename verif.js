@@ -42,6 +42,7 @@ import * as PR from "./shared/progression.js";
 import * as R from "./shared/reliques.js";
 import { BIOMES } from "./shared/biomes.js";
 import { verifierConditions, verifierPartage } from "./shared/custom.js";
+import { verifierContrats } from "./shared/timeline.js";
 import { constantesMortes } from "./constantes_check.js";
 import { verifierRapport } from "./rapport.js";
 
@@ -131,6 +132,8 @@ const SUITE = [
   ["indices", () => G.verifierIndices(), true],
   ["custom", () => G.verifierCustom(), true],
   ["partage", () => verifierPartage()],
+  ["contrats", () => verifierContrats()],
+  ["objectifs", () => G.verifierObjectifs()],
   ["prereglages", () => G.verifierPrereglages(), true],
   ["tirageBonus", () => G.verifierTirageBonus(), true],
   ["rythmeBonus", () => G.verifierRythmeBonus(), true],

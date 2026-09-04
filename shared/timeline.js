@@ -282,3 +282,117 @@ export function verifierScript() {
   }
   return soucis;
 }
+
+/* ===========================================================================
+   LES CONTRATS. Meme forme que `EVENTS` — une table purement declarative — mais
+   une table SEPAREE, et c'est un choix : un evenement remplace la COMPOSITION du
+   battement (`types`, `rateMul`), un contrat ne touche a RIEN du budget de
+   pression. Les melanger ferait qu'accepter un contrat changerait la horde, et
+   `verifierScript()` mesurerait alors deux choses a la fois.
+
+   `CONTRATS` EST APPEND-ONLY, comme `EVENTS` : son index circule dans
+   l'instantane et dans la trace.
+
+   UN CONTRAT SE LIT EN UNE PHRASE ET SE FAIT SANS QUITTER LONGTEMPS CE QU'ON
+   FAISAIT. Le fond du jeu reste la horde, et deux derives symetriques le
+   detruiraient : trop dur, il devient un combat et dilue le mini-boss, qui doit
+   rester la seule menace nommee qu'on va chercher ; trop nombreux, il devient
+   obligatoire, et un objectif obligatoire n'est plus une decision, c'est une
+   corvee.
+
+   AUCUN OBJECTIF NE DEMANDE D'INSTRUMENTER LA SIMULATION, et c'est le critere de
+   selection : les cinq compteurs existent deja (kills, elites, temps, presence,
+   cible designee). Un objectif qui demanderait un compteur neuf sort de la table.
+   =========================================================================== */
+
+export const CONTRAT_COMMUN = 0;
+export const CONTRAT_RARE = 1;
+export const CONTRAT_DANGEREUX = 2;
+export const CONTRAT_MAUDIT = 3;
+
+/* LES QUATRE RARETES NE CHANGENT PAS QUE LA QUANTITE, ELLES CHANGENT LA FORME.
+   Plus le joueur accepte de mettre la manche en danger, plus la recompense change
+   la FORME de sa run et pas seulement ses chiffres. Le `loot` est declare ici et
+   n'est pas encore verse : c'est le plan 35 qui le branchera, et le declarer
+   maintenant evite d'ecrire deux fois la table des recompenses. */
+export const RARETES = [
+  { key: "commun", nom: "Contrat", eclats: 26, loot: null, poids: 52 },
+  { key: "rare", nom: "Contrat rare", eclats: 40, loot: { rang: 1, choix: 2 }, poids: 30 },
+  { key: "dangereux", nom: "Contrat dangereux", eclats: 62,
+    loot: { rang: 2, choix: 1, contrepartie: 1 }, poids: 14 },
+  { key: "maudit", nom: "Contrat maudit", eclats: 95,
+    loot: { rang: 3, choix: 2, multiple: 1 }, poids: 4 },
+];
+
+export const OBJ_KILLS = 0;
+export const OBJ_ELITES = 1;
+export const OBJ_TENIR = 2;
+export const OBJ_ZONE = 3;
+
+/* `duree` EST UNE ECHEANCE, PAS UNE DUREE D'OBJECTIF : c'est le temps qu'on a
+   pour le remplir. `seuil` est ce qu'il faut atteindre, et il est ecrit PAR
+   RARETE parce qu'un meme objectif ne vaut pas le meme prix a deux raretes. */
+export const CONTRATS = [
+  { key: "nettoyage", obj: OBJ_KILLS, nom: "Nettoyage",
+    texte: "abattez {n} corps avant l'échéance",
+    seuils: [60, 90, 130, 180], duree: 90 },
+
+  { key: "decapitation", obj: OBJ_ELITES, nom: "Décapitation",
+    texte: "abattez {n} élites avant l'échéance",
+    seuils: [1, 2, 3, 4], duree: 150 },
+
+  { key: "position", obj: OBJ_ZONE, nom: "Position tenue",
+    texte: "tenez la borne {n} secondes",
+    seuils: [20, 30, 40, 55], duree: 120 },
+
+  { key: "endurance", obj: OBJ_TENIR, nom: "Endurance",
+    texte: "survivez {n} secondes, personne à terre",
+    seuils: [45, 60, 80, 100], duree: 110 },
+];
+
+export const contratAt = i => CONTRATS[i] ?? null;
+export const rareteAt = i => RARETES[i] ?? RARETES[0];
+
+/* CRITERE REJOUABLE DE LA TABLE. Un seuil qui redescend d'une rarete a la
+   suivante rendrait le contrat plus DUR moins payant ; une echeance trop courte
+   pour son seuil le rendrait infaisable sans que rien le dise — et un contrat
+   infaisable ne se distingue pas d'un joueur qui a mal joue. */
+export function verifierContrats() {
+  const soucis = [];
+  const cles = new Set();
+  for (const c of CONTRATS) {
+    if (cles.has(c.key)) soucis.push(`contrat en double : ${c.key}`);
+    cles.add(c.key);
+    if (c.seuils.length !== RARETES.length) {
+      soucis.push(`${c.key} : ${c.seuils.length} seuils pour ${RARETES.length} raretes`);
+    }
+    for (let i = 1; i < c.seuils.length; i++) {
+      if (c.seuils[i] <= c.seuils[i - 1]) {
+        soucis.push(`${c.key} : le seuil ne monte pas de la rarete ${i - 1} a ${i}`);
+      }
+    }
+    if (!c.texte.includes("{n}")) soucis.push(`${c.key} : le texte ne dit pas son seuil`);
+    // UN OBJECTIF DE TEMPS NE PEUT PAS DEMANDER PLUS QUE SON ECHEANCE.
+    if ((c.obj === OBJ_TENIR || c.obj === OBJ_ZONE)
+        && c.seuils[c.seuils.length - 1] >= c.duree) {
+      soucis.push(`${c.key} : le seuil maximal (${c.seuils[c.seuils.length - 1]} s)`
+        + ` atteint ou depasse l echeance (${c.duree} s) — infaisable`);
+    }
+  }
+  let poids = 0;
+  for (const r of RARETES) {
+    poids += r.poids;
+    if (r.poids <= 0) soucis.push(`rarete ${r.key} : poids nul, elle ne sort jamais`);
+    if (r.eclats <= 0) soucis.push(`rarete ${r.key} : aucune recompense`);
+  }
+  for (let i = 1; i < RARETES.length; i++) {
+    if (RARETES[i].eclats <= RARETES[i - 1].eclats) {
+      soucis.push(`rarete ${RARETES[i].key} : elle paie moins que la precedente`);
+    }
+    if (RARETES[i].poids >= RARETES[i - 1].poids) {
+      soucis.push(`rarete ${RARETES[i].key} : elle sort aussi souvent que la precedente`);
+    }
+  }
+  if (poids <= 0) soucis.push("aucune rarete n est tirable");
+  return soucis;
+}

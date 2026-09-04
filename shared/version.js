@@ -8437,6 +8437,46 @@
                   dans une flaque de fusion demanderait de traverser le feu pour
                   lire une proposition qu on peut refuser.
 
+    0.37.2 lot 02 LES OBJECTIFS. Meme forme declarative qu `EVENTS`, mais une TABLE
+                  SEPAREE, et c est un choix : un evenement remplace la COMPOSITION
+                  du battement, un contrat ne touche a RIEN du budget de pression.
+                  Les melanger ferait qu accepter un contrat changerait la horde, et
+                  `verifierScript()` mesurerait alors deux choses a la fois.
+                  QUATRE OBJECTIFS, ET AUCUN NE DEMANDE D INSTRUMENTER LA
+                  SIMULATION : c est le critere de selection. Kills, elites, temps
+                  tenu, position tenue — les compteurs existaient tous, sauf celui
+                  des elites, qui est UNE LIGNE au point de passage unique de toute
+                  mort. Un objectif qui aurait demande un compteur neuf serait
+                  sorti de la table.
+                  QUATRE RARETES QUI CHANGENT LA FORME, PAS QUE LA QUANTITE : plus
+                  le joueur accepte de mettre la manche en danger, plus la
+                  recompense change la FORME de sa run. Le `loot` est DECLARE et
+                  pas encore verse — le plan 35 le branchera, et le declarer
+                  maintenant evite d ecrire deux fois la table des recompenses.
+                  UN SEUL CONTRAT ACTIF : le suivi reste lisible, et le jeu ne
+                  devient pas une liste de taches.
+                  LE CONTRAT SE TIRE A L ACTIVATION, PAS A LA GRAINE. Consequence
+                  ASSUMEE ET ECRITE : deux manches de meme graine ont les memes
+                  bornes aux memes endroits et des contrats DIFFERENTS. Les
+                  occasions sont rejouables, leur contenu ne l est pas — a savoir
+                  avant de promettre un challenge a graine imposee, qui comparerait
+                  alors des parcours et non des tirages.
+                  IL NE VERSE JAMAIS D XP, et la regle etait deja respectee : ce lot
+                  la PRESERVE. L XP est le seul canal qui ne peut pas distinguer qui
+                  a pris le risque — les eclats sont individuels, l objectif est d
+                  equipe, et chacun touche la meme part ou qu il soit.
+                  UN COMPTEUR DE TEMPS RECULE, IL NE SE REMET PAS A ZERO : une
+                  progression perdue d un coup se lit comme un bug, pas comme un
+                  cout.
+                  `verifierObjectifs()` rejoue les seize couples objectif x rarete :
+                  seuil atteint, contrat ferme, eclats verses a chacun, ZERO XP,
+                  borne consommee — et l echec qui ne verse rien, ne casse pas le
+                  battement, et rend la borne avec sa recharge. Defaut paye en
+                  ecrivant : le test forcait le PROGRES la ou les objectifs de
+                  kills le RECALCULENT depuis les compteurs, donc il echouait sur
+                  un code juste. On deplace la reference, ce qui exerce le vrai
+                  chemin.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8445,4 +8485,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.37.1";
+export const VERSION = "0.37.2";

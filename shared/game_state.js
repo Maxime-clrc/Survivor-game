@@ -48,6 +48,7 @@ import {
 import {
   TL_CFG, SCRIPTS, EVENTS, beatAt, adaptEntry, adaptEvent, eventAt, verifierScript,
   EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE,
+  CONTRATS, RARETES, OBJ_KILLS, OBJ_ELITES, OBJ_TENIR, OBJ_ZONE,
 } from "./timeline.js";
 import {
   ENEMY_TYPES, TRAITS, TRAIT_CFG, ROLE_CFG, ATK_CFG, adaptType, hasTrait, traitBit,
@@ -1067,6 +1068,9 @@ export class GameState {
        identifiant. Posees plus haut, leurs `id` valaient NaN — donc `null` sur
        le reseau, donc quatre bornes que le client ne pouvait pas distinguer. */
     this.bornes = this._poserBornes();
+    this.contrat = null;
+    this.contratsFinis = 0;
+    this.eliteKills = 0;
 
     this.warmup = 0;
 
@@ -1489,6 +1493,7 @@ export class GameState {
     this._effects(dt);
     this._powerups(dt);
     this._bornes(dt);
+    this._contratTick(dt);
     this._harvests(dt);
     this._turrets(dt);
     this._drones(dt);
@@ -6472,6 +6477,94 @@ export class GameState {
     return false;
   }
 
+  /* LE CONTRAT SE TIRE A L'ACTIVATION, PAS A LA GRAINE. Consequence assumee et
+     ecrite : deux manches de meme graine ont les MEMES bornes aux memes endroits
+     et des contrats DIFFERENTS. Les occasions sont rejouables, leur contenu ne
+     l'est pas — a savoir avant de promettre un challenge a graine imposee, qui
+     comparerait alors des parcours et non des tirages. */
+  accepterBorne(id) {
+    const b = this.bornes.find(x => x.id === id);
+    if (!b || b.etat !== BORNE_PROPOSEE) return null;
+    // UN SEUL CONTRAT ACTIF : le suivi reste lisible, et le jeu ne devient pas
+    // une liste de taches.
+    if (this.contrat) return null;
+
+    let total = 0;
+    for (const r of RARETES) total += r.poids;
+    let roll = this.alea() * total;
+    let rarete = 0;
+    for (let i = 0; i < RARETES.length; i++) {
+      roll -= RARETES[i].poids;
+      if (roll <= 0) { rarete = i; break; }
+    }
+    const idx = Math.floor(this.alea() * CONTRATS.length);
+    const def = CONTRATS[idx];
+
+    b.etat = BORNE_ACCEPTEE;
+    b.contrat = idx;
+    this.contrat = {
+      borne: b.id, def: idx, rarete,
+      seuil: def.seuils[rarete], cur: 0,
+      t: def.duree, max: def.duree,
+      x: b.x, y: b.y,
+      kills0: this.totalKills, elites0: this.eliteKills,
+    };
+    return this.contrat;
+  }
+
+  /* LES CINQ COMPTEURS EXISTENT DEJA, et c'est le critere de selection des
+     objectifs : `totalKills`, `eliteKills`, le temps, la presence a la borne. Un
+     objectif qui aurait demande un compteur neuf serait sorti de la table. */
+  _contratTick(dt) {
+    const c = this.contrat;
+    if (!c) return;
+    const def = CONTRATS[c.def];
+    c.t -= dt;
+
+    if (def.obj === OBJ_KILLS) c.cur = this.totalKills - c.kills0;
+    else if (def.obj === OBJ_ELITES) c.cur = this.eliteKills - c.elites0;
+    else if (def.obj === OBJ_TENIR) {
+      // « personne a terre » : le compteur RECULE, il ne se remet pas a zero —
+      // une progression perdue d'un coup se lit comme un bug, pas comme un cout.
+      const aTerre = [...this.players.values()].some(p => p.downed);
+      c.cur = Math.max(0, c.cur + (aTerre ? -dt * 2 : dt));
+    } else if (def.obj === OBJ_ZONE) {
+      const r = BORNE_CFG.INTERACTION * 2;
+      const tenue = [...this.players.values()].some(p =>
+        !p.downed && (p.x - c.x) ** 2 + (p.y - c.y) ** 2 <= r * r);
+      c.cur = Math.max(0, c.cur + (tenue ? dt : -dt * 0.5));
+    }
+
+    if (c.cur >= c.seuil) this._contratFini(true);
+    else if (c.t <= 0) this._contratFini(false);
+  }
+
+  /* LA RECOMPENSE EST EN ECLATS, JAMAIS EN XP — et la regle est deja respectee :
+     `_addXp` a deux appelants, `_killEnemy` et `_damage`. Ce lot la PRESERVE, il
+     ne l'introduit pas. L'XP est le seul canal qui ne peut pas distinguer qui a
+     pris le risque, donc un objectif ne s'y verse jamais.
+     LES ECLATS SONT INDIVIDUELS et l'objectif est d'EQUIPE : chacun touche la
+     meme part, ou qu'il soit. C'est le choix permissif — exiger la presence
+     ferait du contrat une decision de placement, et il en existe deja une avec
+     l'objectif « position tenue ». */
+  _contratFini(gagne) {
+    const c = this.contrat;
+    if (!c) return;
+    this.contrat = null;
+    const b = this.bornes.find(x => x.id === c.borne);
+    if (b) {
+      b.etat = gagne ? BORNE_CONSOMMEE : BORNE_LIBRE;
+      if (!gagne) b.cd = BORNE_CFG.RECHARGE;
+    }
+    this.contratsFinis = (this.contratsFinis ?? 0) + (gagne ? 1 : 0);
+    if (!gagne) return;
+
+    const r = RARETES[c.rarete];
+    for (const p of this.players.values()) p.eclats += r.eclats;
+    this.alerts.push({ contrat: c.def, rarete: c.rarete, dur: TL_CFG.EVENT_ANNOUNCE });
+    if (this.alerts.length > 16) this.alerts.shift();
+  }
+
   _bornes(dt) {
     for (const b of this.bornes) {
       if (b.cd > 0) {
@@ -9185,6 +9278,10 @@ export class GameState {
 
   _killEnemy(e, ownerId) {
     this.totalKills++;
+    // LE POINT DE PASSAGE UNIQUE DE TOUTE MORT porte aussi le compteur d elites :
+    // un contrat de decapitation le lit, et un second endroit qui compterait les
+    // memes morts finirait par en compter d autres.
+    if (e.elite) this.eliteKills++;
     if (this.quarry === e.id) this.quarry = 0;
     const def = defDe(e.type, e.elite);
     const owner = this.players.get(ownerId);
@@ -9576,6 +9673,14 @@ export class GameState {
          prises coup sur coup. Une borne sous l une des deux l aurait ECRASEE en
          silence — l instantane est un objet, pas un schema, et rien ne signale
          une collision. `bq` est libre, et le releve des clefs est dans le lot. */
+      /* LE CONTRAT ACTIF VOYAGE ENTIER ET SANS FILTRE DE VUE : il est le seul
+         element de l instantane qui doive rester lisible quand on est LOIN de ce
+         qu il decrit — c est meme tout l interet d un suivi. */
+      ct: this.contrat
+        ? [this.contrat.def, this.contrat.rarete, r1(this.contrat.cur),
+           this.contrat.seuil, r1(Math.max(0, this.contrat.t)),
+           r1(this.contrat.x), r1(this.contrat.y)]
+        : null,
       bq: filtrer(this.bornes, () => BORNE_CFG.RAYON,
         b => [b.id, r1(b.x), r1(b.y), b.etat]),
       hv: this.harvests.map(h => [h.id, r1(h.x), r1(h.y), h.kind,
@@ -10182,6 +10287,96 @@ export function verifierVentilation(manches = 3, minutes = 6, joueurs = 2) {
    sature, horde qui n arrive plus, niveau qui ne monte pas — ne leve rien : il
    rend une partie qui n avance pas, et personne ne saura si c est le reglage ou
    le jeu. On les joue donc, courts mais reels, et on exige que la manche AVANCE. */
+/* CE QU'UN CONTRAT NE VERSE JAMAIS : DE L'XP. `_addXp` a deux appelants —
+   `_killEnemy` et `_damage` pour le boss — et la regle est deja respectee
+   aujourd'hui : ce verificateur la PRESERVE, il ne l'introduit pas. L'XP est le
+   seul canal qui ne peut pas distinguer qui a pris le risque, donc un objectif ne
+   s'y verse pas — sinon partir chercher un contrat pendant qu'un autre farme ne
+   coute rien a personne, et l'arbitrage central du corpus n'existe plus.
+
+   ET CHAQUE OBJECTIF DOIT ETRE ATTEIGNABLE : un seuil ecrit trop haut ne se
+   distingue pas d'un joueur qui a mal joue. On les joue donc tous, aux quatre
+   raretes, en forcant le compteur — ce qu'on verifie ici est la MECANIQUE
+   (l'echeance, la reussite, le versement), le banc du plan 32 dira si les seuils
+   sont justes en vraie partie. */
+export function verifierObjectifs() {
+  const soucis = [];
+  for (let ci = 0; ci < CONTRATS.length; ci++) {
+    for (let r = 0; r < RARETES.length; r++) {
+      const g = new GameState(DIFF_NORMAL, 0, 7919 + ci * 31 + r);
+      g.addPlayer(1, "bot1", 0, 0);
+      g.addPlayer(2, "bot2", 1, 2);
+      g.warmup = 0;
+      const b = g.bornes[0];
+      for (const p of g.players.values()) { p.x = b.x; p.y = b.y; }
+      b.etat = 1;
+      const c = g.accepterBorne(b.id);
+      if (!c) { soucis.push(`${CONTRATS[ci].key} : la borne refuse le contrat`); continue; }
+      // on impose le contrat voulu au lieu d'attendre le bon tirage : ce qui se
+      // teste ici est la mecanique, pas le hasard.
+      c.def = ci;
+      c.rarete = r;
+      c.seuil = CONTRATS[ci].seuils[r];
+      c.cur = 0;
+      c.t = CONTRATS[ci].duree;
+      c.max = CONTRATS[ci].duree;
+
+      const xp0 = g.xp;
+      const ec0 = [...g.players.values()].map(p => p.eclats);
+      /* ON PASSE PAR LES COMPTEURS, PAS PAR LE PROGRES. Les objectifs de kills
+         RECALCULENT `cur` a chaque tick depuis `totalKills` : forcer le progres
+         le faisait ecraser avant la comparaison, et le test echouait sur un code
+         juste. On deplace donc la REFERENCE, ce qui exerce le vrai chemin. */
+      c.kills0 = g.totalKills - c.seuil;
+      c.elites0 = g.eliteKills - c.seuil;
+      c.cur = c.seuil;
+      g.step(CFG.TICK, new Map());
+
+      if (g.contrat) {
+        soucis.push(`${CONTRATS[ci].key}/${RARETES[r].key} : le seuil atteint ne`
+          + " ferme pas le contrat");
+        continue;
+      }
+      if (g.xp !== xp0) {
+        soucis.push(`${CONTRATS[ci].key}/${RARETES[r].key} : ${g.xp - xp0} XP versee`
+          + " — un objectif ne paie JAMAIS en XP, c'est le seul canal qui ne peut"
+          + " pas distinguer qui a pris le risque");
+      }
+      const gain = [...g.players.values()].map((p, i) => p.eclats - ec0[i]);
+      if (gain.some(v => v !== RARETES[r].eclats)) {
+        soucis.push(`${CONTRATS[ci].key}/${RARETES[r].key} : eclats ${gain.join("/")}`
+          + ` au lieu de ${RARETES[r].eclats} pour chacun`);
+      }
+      if (g.bornes[0].etat !== BORNE_CONSOMMEE) {
+        soucis.push(`${CONTRATS[ci].key}/${RARETES[r].key} : la borne n'est pas consommee`);
+      }
+    }
+  }
+
+  // L'ECHEC NE VERSE RIEN ET NE CASSE PAS LE BATTEMENT EN COURS.
+  const g = new GameState(DIFF_NORMAL, 0, 4242);
+  g.addPlayer(1, "bot1", 0, 0);
+  g.warmup = 0;
+  const b = g.bornes[0];
+  const p = g.players.get(1);
+  p.x = b.x; p.y = b.y;
+  b.etat = 1;
+  const c = g.accepterBorne(b.id);
+  const ec0 = p.eclats, beat0 = g.beat, seg0 = g.segment;
+  c.t = 0;
+  c.cur = 0;
+  g.step(CFG.TICK, new Map());
+  if (g.contrat) soucis.push("un contrat expire ne se ferme pas");
+  if (p.eclats !== ec0) soucis.push("un contrat echoue verse quelque chose");
+  if (g.beat !== beat0 || g.segment !== seg0) {
+    soucis.push("un contrat echoue casse le battement en cours");
+  }
+  if (g.bornes[0].etat !== BORNE_LIBRE || g.bornes[0].cd <= 0) {
+    soucis.push("apres un echec la borne ne revient pas avec sa recharge");
+  }
+  return soucis;
+}
+
 export function verifierPrereglages(minutes = 5, graine = 3517) {
   const soucis = [];
   for (const pre of PREREGLAGES) {

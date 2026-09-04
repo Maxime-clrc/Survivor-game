@@ -1122,6 +1122,18 @@ export class Room {
          decide de ce que la salle entiere va jouer et de ce qu'elle ne gagnera
          pas — noyaux, records, hauts faits : ce n'est pas un reglage personnel.
          Tout le monde le VOIT, une seule personne le POSE. */
+      /* ACCEPTER OU REFUSER — ET C EST UNE REPONSE, PAS UNE ACTIVATION : la
+         borne se met en « proposee » par la touche d interaction, dans la
+         simulation. Le message ne porte que la reponse, donc un client ne peut
+         pas s accorder un contrat a distance. */
+      case "contrat": {
+        if (this.phase !== PHASE_ROUND) break;
+        const id = Number(msg.borne) | 0;
+        if (msg.ok) this.state.accepterBorne(id);
+        else this.state.refuserBorne(id);
+        break;
+      }
+
       case "custom": {
         if (this.phase !== PHASE_LOBBY || id !== this.hostId) break;
         if (!msg.on) { this.custom = null; }
