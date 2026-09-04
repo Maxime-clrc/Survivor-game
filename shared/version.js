@@ -7976,6 +7976,43 @@
                   le Director en aura besoin pour ne PAS venir au secours de qui
                   s isole.
 
+    0.34.4 lot 01 LE CLASSEMENT ETAIT ECRIT A 95 % ET NE MONTRAIT RIEN. Toute la
+                  chaine existait — `classement()` regroupe par difficulte x
+                  effectif et dedoublonne une manche d equipe, `hub.js` repond au
+                  message `leaderboard`, `renderBoard()` affiche les sections avec
+                  le joueur surligne. Le blocage tenait en UNE condition : la
+                  victoire n ouvrait qu UN chiffre, le temps.
+                  TROIS CLASSEMENTS SUR LA MEME MANCHE, ET ILS SONT PAR ROLE : le
+                  temps recompense l equipe qui finit vite, les kills celui qui
+                  tient la horde, les degats celui qui frappe. La victoire reste la
+                  porte d entree des TROIS : on n entre au tableau qu en ayant
+                  fini, et la condition `victory && finalKill > 0` ne bouge pas.
+                  LE DEDOUBLONNAGE VAUT POUR LE TEMPS ET NE VAUT PAS POUR LES DEUX
+                  AUTRES, et c est LE point du lot. Le temps est une grandeur d
+                  EQUIPE — une manche, une ligne, quatre pseudos ; les kills et les
+                  degats sont des grandeurs de JOUEUR. Applique a eux, le
+                  regroupement ferait disparaitre TROIS JOUEURS SUR QUATRE, alors
+                  que le sens d un classement par role est de les montrer tous les
+                  quatre avec leur chiffre. Un PARAMETRE de `classement()`, jamais
+                  une troisieme fonction : la coupe par difficulte x effectif ne
+                  doit pas se recopier.
+                  TROIS RECORDS INDEPENDANTS, DONC TROIS CLEFS (`bestFinal`,
+                  `bestKills`, `bestDegats`). Un joueur peut battre son record de
+                  kills dans une manche PLUS LENTE ; une entree unique « la
+                  meilleure au temps » aurait jete ce record-la. Trois clefs
+                  plutot que trois sous-entrees : AUCUNE MIGRATION, les profils
+                  existants se lisent tels quels.
+                  UN PROFIL D AVANT CE LOT A SA LIGNE, A ZERO. `classement()`
+                  parcourt les manches GAGNEES et lit la valeur dans la table du
+                  mode : une absence vaut zero et se classe en bas, ce qui est
+                  exact — ces manches n ont pas mesure ces grandeurs. Un `undefined`
+                  casserait le tri au premier profil ancien.
+                  `p.kills` et `p.damageDealt` etaient DEJA comptes en manche :
+                  rien a instrumenter, deux champs a transporter. `verifierClassement()`
+                  entre dans la suite rapide — une manche a quatre rend UNE ligne
+                  au temps et QUATRE aux kills, et c est la seule chose qui separe
+                  les deux modes.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7984,4 +8021,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.34.3";
+export const VERSION = "0.34.4";

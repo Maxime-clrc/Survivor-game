@@ -5,6 +5,7 @@ import { CFG, PLAYER_COLORS, DIFF_NORMAL, DIFFICULTIES, biomeAt } from "./shared
 import { CLASSES, SKILL_CFG } from "./shared/classes.js";
 import { PROG_CFG, TREES, COMMUN, META_ITEMS, classement, metaActives, metaCharge, metaPoids,
   metaPossede, slotsFor, tierCost, coresForRun, coresPartial, recordFinal, clefRecord,
+  CLASSEMENTS,
   cadreActifDe, cadresDe, cumulerStats, evaluerHautsFaits, ligneOuverte, vueStats } from "./shared/progression.js";
 import { CADRE_DEFAUT, recompensesDe } from "./shared/hauts_faits.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
@@ -212,6 +213,8 @@ export function createHub(store, log, commit = "") {
           variant: DIFFICULTIES[state.diffIndex]?.script ?? "normal",
           biome: state.biomeIndex,
           players: effectif,
+          kills: p.kills,
+          degats: p.damageDealt,
         }, quand);
         c.lastFinal = { record: bat ? 1 : 0, avant, temps: state.finalKill };
       }
@@ -223,8 +226,12 @@ export function createHub(store, log, commit = "") {
 
   // le classement est une lecture de `bestFinal` : il vit avec lui, dans
   // `progression.js`, ou un script de mesure peut l appeler sans serveur.
-  const leaderboard = (limit = 10) =>
-    classement(store.profiles(), DIFFICULTIES.length, limit);
+  /* TROIS TABLEAUX SUR LA MEME MANCHE, ET ILS SONT PAR ROLE : le temps recompense
+     l equipe qui finit vite, les kills celui qui tient la horde, les degats celui
+     qui frappe. Un seul balayage du magasin par tableau, et la victoire reste la
+     porte d entree des trois. */
+  const leaderboard = (limit = 10) => Object.fromEntries(CLASSEMENTS.map(mode =>
+    [mode, classement(store.profiles(), DIFFICULTIES.length, limit, mode)]));
 
   function equiperCadre(c, id) {
     if (!c.profile) return false;

@@ -93,6 +93,7 @@ const SUITE = [
   ["reliques", () => G.verifierReliques()],
   ["hautsFaits", () => H.verifierHautsFaits(cardIds, relicIds, armeIds)],
   ["codex", () => PR.verifierCodex()],
+  ["classement", () => PR.verifierClassement()],
   ["classes", () => G.verifierClasses(), true],
   ["boss", () => G.verifierBoss(), true],
   ["archetypes", () => B.verifierArchetypes()],

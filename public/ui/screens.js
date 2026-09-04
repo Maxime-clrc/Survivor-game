@@ -10,7 +10,7 @@ import { biomeNom, biomeResume } from "/shared/biomes.js";
 import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from "/shared/i18n.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
 import { ENEMY_TYPES, enemyLore, enemyNom, roleDe } from "/shared/enemies.js";
-import { COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, metaActives, metaCharge, metaPoids, slotsFor, tierCost, vueStats } from "/shared/progression.js";
+import { CLASSEMENTS, COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, metaActives, metaCharge, metaPoids, slotsFor, tierCost, vueStats } from "/shared/progression.js";
 import { ARME_CFG, armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
 import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
 import { appliquerCadre } from "./cadres.js";
@@ -533,9 +533,16 @@ hubBoardBtn.onclick = () => {
 };
 /* UN CLASSEMENT PAR EFFECTIF, parce qu'un temps solo et un temps a quatre ne se
    comparent pas. Les quatre sections vivent sur le meme ecran : une manche a
-   quatre n'a plus a chasser un record solo pour exister. */
+   quatre n'a plus a chasser un record solo pour exister.
+   ET TROIS TABLEAUX SUR LA MEME MANCHE : le temps est une grandeur d EQUIPE (une
+   manche, une ligne, quatre pseudos), les kills et les degats des grandeurs de
+   JOUEUR (quatre lignes). Le regroupement appartient au premier et a lui seul. */
 const EFFECTIF_NOM = ["", "Solo", "Duo", "Trio", "Quatuor"];
 export const effectifNom = n => t(`ui.hub.board.n${n}`, EFFECTIF_NOM[n] ?? `${n} joueurs`);
+
+const BOARD_NOM = { temps: "Temps", kills: "Éliminations", degats: "Dégâts" };
+const boardNom = m => t(`ui.hub.board.mode.${m}`, BOARD_NOM[m] ?? m);
+let boardMode = "temps";
 
 export function renderBoard() {
   hubBoardTabs.innerHTML = "";
@@ -546,9 +553,19 @@ export function renderBoard() {
     b.onclick = () => { boardDiff = i; renderBoard(); };
     hubBoardTabs.appendChild(b);
   });
+  const sep = document.createElement("span");
+  sep.className = "boardSep";
+  hubBoardTabs.appendChild(sep);
+  for (const m of CLASSEMENTS) {
+    const b = document.createElement("button");
+    b.textContent = boardNom(m);
+    b.className = m === boardMode ? "" : "ghost";
+    b.onclick = () => { boardMode = m; renderBoard(); };
+    hubBoardTabs.appendChild(b);
+  }
 
   if (!boardData) { hubBoardList.textContent = t("ui.hub.board.loading", "chargement…"); return; }
-  const parEffectif = boardData[boardDiff] ?? {};
+  const parEffectif = (boardData[boardMode] ?? [])[boardDiff] ?? {};
   const effectifs = Object.keys(parEffectif)
     .map(Number).filter(n => (parEffectif[n] ?? []).length > 0).sort((a, b) => a - b);
   if (effectifs.length === 0) {
@@ -557,6 +574,9 @@ export function renderBoard() {
         "personne n'a encore vaincu le Noyau à cette difficulté"))}</div>`;
     return;
   }
+  const valeur = l => boardMode === "temps" ? fmtTime(l.time)
+    : boardMode === "kills" ? tf("ui.hub.board.kills", "{n} corps", { n: l.valeur | 0 })
+    : tf("ui.hub.board.degats", "{n} dgts", { n: Math.round(l.valeur | 0).toLocaleString() });
   hubBoardList.innerHTML = effectifs.map(n =>
     `<div class="boardSection">${escapeHtml(effectifNom(n))}</div>` +
     (parEffectif[n] ?? []).map((l, i) => {
@@ -565,10 +585,12 @@ export function renderBoard() {
         `<span class="boardRank">${i + 1}</span>` +
         `<span class="boardWho">${escapeHtml((l.pseudos ?? []).join(" / "))}</span>` +
         // le niveau et le lieu etaient STOCKES et jetes a l'affichage : un temps
-        // sans contexte ne dit pas a quel prix il a ete fait
+        // sans contexte ne dit pas a quel prix il a ete fait. Hors du tableau des
+        // temps, le temps de la manche REJOINT ce contexte.
         `<span class="boardMeta">${escapeHtml(tf("ui.hub.board.meta",
-          "niv. {n} · {lieu}", { n: l.level | 0, lieu: biomeNom(l.biome | 0) }))}</span>` +
-        `<span class="boardTime">${escapeHtml(fmtTime(l.time))}</span>` +
+          "niv. {n} · {lieu}", { n: l.level | 0, lieu: biomeNom(l.biome | 0) })
+          + (boardMode === "temps" ? "" : ` · ${fmtTime(l.time)}`))}</span>` +
+        `<span class="boardTime">${escapeHtml(valeur(l))}</span>` +
       `</div>`;
     }).join("")).join("");
 }

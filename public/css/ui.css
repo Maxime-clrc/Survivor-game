@@ -158,7 +158,15 @@ input, textarea, [contenteditable] {
   flex-direction: column;
   gap: var(--sp-2);
 }
-#hubBoardTabs { justify-content: center; }
+#hubBoardTabs { justify-content: center; flex-wrap: wrap; }
+/* DEUX FAMILLES D ONGLETS SUR UNE LIGNE : la difficulte, puis le classement. Le
+   trait les separe — sans lui on lit six onglets de meme rang. */
+.boardSep {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--line);
+}
 #hubBoardList { display: flex; flex-direction: column; gap: var(--hair); }
 
 /* QUATRE COLONNES : le rang, qui, le contexte, le temps. Le niveau et le lieu

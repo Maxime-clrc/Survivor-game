@@ -541,54 +541,147 @@ export const clefRecord = (difficulty, players) =>
    milliseconde pres, quatre appels a `toISOString()` donnent quatre dates et le
    regroupement ne prend plus.
 
-   PAR DIFFICULTE **ET** PAR EFFECTIF : comparer un temps solo a un temps a quatre
-   ne compare rien. Rend `[difficulte][effectif] = lignes`. */
-export function classement(profils, modes, limit = 10) {
+   DEUX MODES, ET C EST LE POINT DE CE LOT. Le dedoublonnage vaut pour le TEMPS —
+   une manche d equipe est une ligne, pas quatre — et il ne vaut PAS pour les
+   kills ni pour les degats : applique la, il ferait disparaitre trois joueurs sur
+   quatre, alors que le sens d un classement par ROLE est justement de les montrer
+   tous les quatre avec leur chiffre. C est un PARAMETRE et non une troisieme
+   fonction : la coupe par difficulte x effectif ne doit pas se recopier. */
+export const CLASSEMENTS = ["temps", "kills", "degats"];
+
+export function classement(profils, modes, limit = 10, mode = "temps") {
   const par = Array.from({ length: modes }, () => ({}));
+  const source = mode === "kills" ? "bestKills"
+    : mode === "degats" ? "bestDegats" : "bestFinal";
+  const groupe = mode === "temps";
   const groupes = new Map();
   for (const pr of profils) {
-    for (const [k, e] of Object.entries(pr?.bestFinal ?? {})) {
-      if (!e) continue;
+    /* LA VICTOIRE EST LA PORTE D ENTREE, ET ELLE VAUT POUR LES TROIS TABLEAUX :
+       on parcourt donc les manches gagnees (`bestFinal`) et on lit la valeur dans
+       la table du mode. Un profil d avant ce lot a bien sa ligne, a zero. */
+    for (const [k, base] of Object.entries(pr?.bestFinal ?? {})) {
+      if (!base) continue;
+      const e = pr?.[source]?.[k] ?? base;
       const [ds, ns] = k.split(":");
       const d = Number(ds);
       if (!par[d]) continue;
       const n = Math.max(1, ns === undefined ? (e.players | 0) || 1 : Number(ns) | 0);
-      const clef = `${d}:${n}:${e.time}:${e.date ?? ""}`;
+      /* UN PROFIL D AVANT CE LOT N A NI KILLS NI DEGATS : l absence se lit ZERO
+         et se classe en bas, ce qui est exact — cette manche n a pas mesure ca.
+         Un `undefined` casserait le tri au premier profil ancien. */
+      const val = mode === "kills" ? (e.kills | 0)
+        : mode === "degats" ? Math.round(e.degats ?? 0) : (e.time | 0);
+      const clef = groupe ? `${d}:${n}:${e.time}:${e.date ?? ""}`
+        : `${d}:${n}:${pr.pseudo}`;
       const g = groupes.get(clef);
       if (g) { g.pseudos.push(pr.pseudo); continue; }
-      groupes.set(clef, { d, n, pseudos: [pr.pseudo], time: e.time | 0,
+      groupes.set(clef, { d, n, pseudos: [pr.pseudo], valeur: val, time: e.time | 0,
                           level: e.level | 0, biome: e.biome | 0 });
     }
   }
   for (const g of groupes.values()) {
     // l ordre des pseudos ne doit pas dependre de l ordre du magasin
-    (par[g.d][g.n] ??= []).push(
-      { pseudos: g.pseudos.sort(), time: g.time, level: g.level, biome: g.biome });
+    (par[g.d][g.n] ??= []).push({ pseudos: g.pseudos.sort(), valeur: g.valeur,
+                                  time: g.time, level: g.level, biome: g.biome });
   }
   for (const d of par) {
     for (const n of Object.keys(d)) {
-      d[n].sort((a, b) => a.time - b.time);
+      d[n].sort((a, b) => (groupe ? a.valeur - b.valeur : b.valeur - a.valeur));
       d[n] = d[n].slice(0, limit);
     }
   }
   return par;
 }
 
+/* CRITERE REJOUABLE DU CLASSEMENT. Une manche a quatre rend UNE ligne au temps et
+   QUATRE aux kills : c est toute la difference entre les deux modes, et elle ne se
+   lit nulle part ailleurs. Le profil `f` est un profil d AVANT ce lot. */
+export function verifierClassement() {
+  const soucis = [];
+  const quand = "2026-09-04T10:00:00.000Z";
+  const commun = { time: 900, level: 28, biome: 2, players: 4, date: quand };
+  const equipe = ["a", "b", "c", "d"].map((pseudo, i) => ({
+    pseudo,
+    bestFinal: { "1:4": { ...commun } },
+    bestKills: { "1:4": { ...commun, kills: 100 + i } },
+    bestDegats: { "1:4": { ...commun, degats: 1000 * (i + 1) } },
+  }));
+  const solo = { time: 800, level: 30, biome: 1, players: 1, date: quand };
+  const profils = [...equipe, {
+    pseudo: "e",
+    bestFinal: { "1:1": { ...solo } },
+    bestKills: { "1:1": { ...solo, kills: 500 } },
+    bestDegats: { "1:1": { ...solo, degats: 90000 } },
+  }, {
+    pseudo: "f",
+    bestFinal: { "1:1": { time: 700, level: 20, biome: 0, players: 1, date: quand } },
+  }];
+
+  const temps = classement(profils, 3, 10, "temps");
+  const q = temps[1][4] ?? [];
+  if (q.length !== 1) {
+    soucis.push(`une manche a quatre rend ${q.length} ligne(s) au temps, attendu 1`);
+  }
+  if ((q[0]?.pseudos ?? []).join(",") !== "a,b,c,d") {
+    soucis.push("les quatre pseudos ne sont pas regroupes sur la ligne d equipe");
+  }
+  const soloT = temps[1][1] ?? [];
+  if (soloT.length !== 2 || soloT[0].valeur !== 700) {
+    soucis.push("le classement solo au temps ne va pas du plus court au plus long");
+  }
+
+  const kills = classement(profils, 3, 10, "kills");
+  const qk = kills[1][4] ?? [];
+  if (qk.length !== 4) {
+    soucis.push(`une manche a quatre rend ${qk.length} ligne(s) aux kills, attendu 4`
+      + " — le dedoublonnage ne vaut que pour le temps");
+  }
+  if (qk[0]?.valeur !== 103) soucis.push("les kills ne vont pas du plus grand au plus petit");
+  const soloK = kills[1][1] ?? [];
+  if (soloK.length !== 2 || soloK[soloK.length - 1].valeur !== 0) {
+    soucis.push("un profil sans kills ne se classe pas en bas avec zero");
+  }
+
+  const degats = classement(profils, 3, 10, "degats");
+  if (degats[1][4]?.[0]?.valeur !== 4000) {
+    soucis.push("les degats ne vont pas du plus grand au plus petit");
+  }
+  if ((degats[1][1] ?? []).some(l => !Number.isFinite(l.valeur))) {
+    soucis.push("un profil ancien rend une valeur de degats qui n est pas un nombre");
+  }
+
+  return soucis;
+}
+
+/* TROIS RECORDS INDEPENDANTS, ET C EST VOULU : un joueur peut battre son record de
+   kills dans une manche plus lente. Une entree par manche, la meilleure au temps,
+   aurait jete ce record-la. Trois clefs plutot que trois sous-entrees : les
+   profils existants restent lisibles tels quels, aucune migration.
+   Rend le record du TEMPS — c est ce que le bilan affiche. */
 export function recordFinal(profile, run, dateISO) {
   if (!profile || !run) return false;
   if (!profile.bestFinal) profile.bestFinal = {};
+  if (!profile.bestKills) profile.bestKills = {};
+  if (!profile.bestDegats) profile.bestDegats = {};
   const k = clefRecord(run.difficulty, run.players);
-  const cur = profile.bestFinal[k];
-  if (cur && cur.time <= run.time) return false;
-  profile.bestFinal[k] = {
+  const ligne = {
     time: Math.round((run.time ?? 0) * 10) / 10,
     level: run.level | 0,
     total: run.total | 0,
     variant: run.variant ?? "",
     biome: run.biome | 0,
     players: run.players | 0,
+    kills: run.kills | 0,
+    degats: Math.round(run.degats ?? 0),
     date: dateISO,
   };
+  const curK = profile.bestKills[k];
+  if (!curK || (curK.kills | 0) < ligne.kills) profile.bestKills[k] = { ...ligne };
+  const curD = profile.bestDegats[k];
+  if (!curD || (curD.degats ?? 0) < ligne.degats) profile.bestDegats[k] = { ...ligne };
+  const cur = profile.bestFinal[k];
+  if (cur && cur.time <= ligne.time) return false;
+  profile.bestFinal[k] = ligne;
   return true;
 }
 

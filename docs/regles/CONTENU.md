@@ -534,6 +534,34 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   joueur.** À la milliseconde près, quatre appels à `toISOString()` donnent quatre
   dates, et le regroupement ci-dessus ne prend plus. C'est la seule raison pour
   laquelle `quand` sort de la boucle d'`awardRun`.
+- **LA VICTOIRE EST LA PORTE D'ENTRÉE, ET ELLE VAUT POUR LES TROIS TABLEAUX.**
+  On n'entre au classement qu'en ayant fini : `state.victory && state.finalKill > 0`
+  ne bouge pas. Ce qui change, c'est qu'elle ouvre une manche **enregistrée** au
+  lieu d'un seul chiffre. Conséquence assumée : le tableau reste vide tant que
+  personne n'a battu le Noyau — c'est le classement de ceux qui finissent.
+- **TROIS CLASSEMENTS SUR LA MÊME MANCHE, ET ILS SONT PAR RÔLE** : le **temps**
+  récompense l'équipe qui finit vite, les **kills** celui qui tient la horde, les
+  **dégâts** celui qui frappe. Chacun coupé par effectif, comme avant.
+- **LE DÉDOUBLONNAGE VAUT POUR LE TEMPS ET NE VAUT PAS POUR LES DEUX AUTRES.** Le
+  temps est une grandeur d'**équipe** — une manche, une ligne, quatre pseudos ;
+  les kills et les dégâts sont des grandeurs de **joueur**. Appliqué à eux, le
+  regroupement ferait **disparaître trois joueurs sur quatre**, alors que le sens
+  d'un classement par rôle est de les montrer tous les quatre. C'est un
+  **paramètre** de `classement()`, jamais une troisième fonction : la coupe par
+  difficulté × effectif ne doit pas se recopier.
+- **TROIS RECORDS INDÉPENDANTS, DONC TROIS CLEFS** (`bestFinal`, `bestKills`,
+  `bestDegats`). Un joueur peut battre son record de kills dans une manche plus
+  lente ; une entrée unique « la meilleure au temps » aurait jeté ce record-là.
+  Trois clefs plutôt que trois sous-entrées : **aucune migration**, les profils
+  existants se lisent tels quels.
+- **UN PROFIL D'AVANT CE LOT A SA LIGNE, À ZÉRO.** `classement()` parcourt les
+  manches **gagnées** (`bestFinal`) et lit la valeur dans la table du mode : une
+  absence vaut zéro et se classe en bas, ce qui est exact — ces manches n'ont pas
+  mesuré ces grandeurs. Un `undefined` casserait le tri au premier profil ancien.
+- **Les soins et `p.contrib` ne sortent toujours nulle part.** Ce sont les seules
+  grandeurs où un Soigneur ou un Rempart peut apparaître ; elles sont **déjà
+  calculées** aux points de passage. C'est la suite naturelle de « par rôle »,
+  elle n'est pas décidée, et elle appartient au plan de l'outillage.
 - **`classement()` vit dans `progression.js`, pas dans `hub.js`.** C'est une
   lecture de `bestFinal` : la mettre avec sa donnée la rend appelable par un
   script de mesure sans monter un serveur — et un test qui rejoue l'algorithme au
