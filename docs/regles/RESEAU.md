@@ -314,6 +314,8 @@ Ajouter une entrée impose de traiter les deux côtés.
 | motif d'erreur | `authError{motif}`, `joinRoomError{motif}`, `roomClosed{why}` — **codes**, la phrase n'est qu'un repli | `authTexte()` / `MOTIFS` (`net/router.js`) → `ui.auth.*`, `ui.hub.join.*` |
 | version | `VERSION` (`shared/version.js`), clés `version` et `commit` du `welcome` | `#version` + `updateVersion()` : ambre `.stale` **sans le hash** |
 | mesure | `trace` → `traceState{on,par}` ; clés `trace`/`tracePar` du salon ; hook `trace`, `telemetry.js` | **case du salon** `#traceCheck`, `#trace`, `updateTrace()`, `traceOn`/`tracePar` (couche 0) |
+| borne | clé `bq` de l'instantané, filtrée par la vue ; intention `f` (touche `F`) | `drawBornes()`, marqueur « ! » / « ? » au-dessus |
+| contrat | `contrat{borne,ok}` → clé `ct` de l'instantané, **sans filtre de vue** | `#hudContrat` (suivi), `#hudProposition` (réponse, sans figer la manche) |
 | relevé client | `releve{fenetres[]}` — une fenêtre par SEGMENT, envoyée dès qu'elle est fermée ; ligne `releve` de la trace | `SEG` + `relevesSeg` (`render/world.js`), vidés par `viderReleves()` |
 | compte rendu | `rapport{texte,manche}`, diffusé à TOUTE la salle à la fermeture de la trace ; `rapport.js` réduit les MÊMES lignes que le JSONL | `#bilanRapport`, `rapportTexte` (couche 0), bouton **Copier** |
 
@@ -386,6 +388,15 @@ ne dit pas de quelle table elle vient.
 **ON FERME LA TRACE AVANT DE LA DÉSARMER.** `traceLigne` est gardée par
 `traceArme` : baisser le drapeau d'abord jetait la ligne `fin` — du JSONL comme
 du compte rendu, qui annonçait alors « en cours » sur une manche terminée.
+
+**AVANT D'AJOUTER UNE CLÉ À L'INSTANTANÉ, RELEVER CELLES QUI EXISTENT.** `bo`
+est le **boss**, `bn` les **bounds** : la borne a heurté les deux coup sur coup.
+Un instantané est un **objet**, pas un schéma — une collision écrase en silence,
+et le boss disparaîtrait de l'écran sans que rien ne lève.
+
+**LE CONTRAT ACTIF VOYAGE SANS FILTRE DE VUE**, seul de tout l'instantané : il
+doit rester lisible quand on est **loin** de ce qu'il décrit, et c'est même tout
+l'intérêt d'un suivi.
 
 **Registres purement CLIENTS** (ils se déduisent du snapshot ou de la liste de
 cartes, déjà diffusée) : image de sprite (`plan()` dans `sprites.js`, adressée par

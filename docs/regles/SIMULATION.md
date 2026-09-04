@@ -691,6 +691,51 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   bornée à [0, 1], **ni plate ni saturée** — une tension qui reste à zéro ou colle
   à 1 ne dit rien, et c'est maintenant qu'on veut le savoir.
 
+- **LA BORNE EST DANS LA GRAINE, SON CONTRAT NE L'EST PAS.** Deux manches de
+  même graine posent les bornes aux **mêmes endroits** ; ce qu'elles proposent se
+  tire à l'**activation**. Conséquence à connaître avant de promettre un challenge
+  à graine imposée : il comparerait des **parcours**, pas des tirages.
+- **ELLE NE DISPARAÎT PAS**, et c'est ce qui en fait un **choix différé** plutôt
+  qu'une occasion qui s'évapore — cohérent avec un jeu dont le fond reste la
+  horde. Le prix du refus est la **recharge** : refuser coûte d'**attendre**, pas
+  de renoncer. Sans ce prix, on relancerait le tirage jusqu'à obtenir ce qu'on
+  veut.
+- **Elle évite les dangers autant que les obstacles.** `_dropPoint` pousse hors
+  des boîtes et **ne connaît pas les nappes** : une borne dans une flaque de
+  fusion demanderait de traverser le feu pour lire une proposition qu'on peut
+  refuser.
+- **LA TOUCHE D'INTERACTION EST GÉNÉRIQUE** (`F`) : elle interagit avec ce qui est
+  à portée, pas « avec une borne ». Une touche par système est ce qui rend un jeu
+  impossible à apprendre. `G` refuse — refuser doit coûter un geste **différent**
+  pour ne jamais se faire par inadvertance.
+- **UN CONTRAT N'EST PAS UN ÉVÉNEMENT, ET SA TABLE EST SÉPARÉE.** Un événement
+  remplace la **composition du battement** (`types`, `rateMul`) ; un contrat ne
+  touche à **rien** du budget de pression. Les mélanger ferait qu'accepter un
+  contrat changerait la horde, et `verifierScript()` mesurerait deux choses à la
+  fois. `CONTRATS` est **append-only** comme `EVENTS` : son index circule.
+- **AUCUN OBJECTIF N'INSTRUMENTE LA SIMULATION**, et c'est le critère de
+  sélection : kills, élites, temps tenu, position tenue — tous les compteurs
+  existaient, sauf celui des élites, qui est **une ligne** au point de passage
+  unique de toute mort. Un objectif qui demanderait un compteur neuf sort de la
+  table.
+- **UN SEUL CONTRAT ACTIF.** Le suivi reste lisible et le jeu ne devient pas une
+  liste de tâches.
+- **UN COMPTEUR DE TEMPS RECULE, IL NE SE REMET PAS À ZÉRO** : une progression
+  perdue d'un coup se lit comme un bug, pas comme un coût.
+- **LES QUATRE RARETÉS CHANGENT LA FORME, PAS SEULEMENT LA QUANTITÉ** : plus le
+  joueur accepte de mettre la manche en danger, plus la récompense change la forme
+  de sa run. Le `loot` est **déclaré** dans la table et pas encore versé — le
+  plan 35 le branchera, et le déclarer maintenant évite d'écrire deux fois la
+  table des récompenses.
+- **UN CONTRAT NE PAIE JAMAIS EN XP** — voir la doctrine plus haut : c'est le seul
+  canal qui ne peut pas distinguer qui a pris le risque. Les éclats sont
+  **individuels**, l'objectif est d'**équipe**, et chacun touche la même part où
+  qu'il soit.
+- **LA PROPOSITION NE SUSPEND PAS LA SIMULATION.** Les écrans de carte et de
+  marchand figent la manche ; celui-ci non — sinon activer une borne devient une
+  **pause**, et le joueur l'utilisera comme telle sous la horde.
+  `verifierProposition()` le **mesure** au lieu de l'affirmer.
+
 ### Bonus au sol
 
 - **UN BONUS EST UNE MICRO-DECISION DE COMBAT, jamais un second système de

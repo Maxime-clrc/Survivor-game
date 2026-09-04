@@ -8514,6 +8514,26 @@
                   test ramene le pilote pour l instant de l activation — et mesure
                   ensuite que la proposition SURVIT a son depart.
 
+    0.37.4 regles  LES REGLES DES CONTRATS, ECRITES. Les trois lots precedents ont
+                  livre le code et ses verificateurs ; ce qui explique un CHOIX de
+                  conception appartient a `docs/regles/`, et il y manquait. Rien
+                  d executable ne bouge.
+                  Ce qui entre dans `SIMULATION.md` : la borne est dans la graine
+                  et son contrat ne l est pas ; elle ne disparait pas, et la
+                  recharge est le prix du refus ; la touche d interaction est
+                  GENERIQUE ; un contrat n est pas un evenement et sa table est
+                  separee, parce qu un evenement remplace la composition du
+                  battement et qu un contrat ne touche a rien du budget de
+                  pression ; aucun objectif n instrumente la simulation ; un
+                  compteur de temps RECULE au lieu de se remettre a zero ; les
+                  quatre raretes changent la FORME ; un contrat ne paie jamais en
+                  XP ; et la proposition ne suspend pas la simulation.
+                  Ce qui entre dans `RESEAU.md` : les deux registres neufs, et
+                  surtout AVANT D AJOUTER UNE CLE A L INSTANTANE, RELEVER CELLES QUI
+                  EXISTENT — `bo` est le boss, `bn` les bounds, et la borne a heurte
+                  les deux coup sur coup. Un instantane est un OBJET, pas un
+                  schema : une collision ecrase en silence.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8522,4 +8542,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.37.3";
+export const VERSION = "0.37.4";
