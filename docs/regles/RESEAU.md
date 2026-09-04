@@ -314,6 +314,7 @@ Ajouter une entrée impose de traiter les deux côtés.
 | motif d'erreur | `authError{motif}`, `joinRoomError{motif}`, `roomClosed{why}` — **codes**, la phrase n'est qu'un repli | `authTexte()` / `MOTIFS` (`net/router.js`) → `ui.auth.*`, `ui.hub.join.*` |
 | version | `VERSION` (`shared/version.js`), clés `version` et `commit` du `welcome` | `#version` + `updateVersion()` : ambre `.stale` **sans le hash** |
 | mesure | `trace` → `traceState{on,par}` ; clés `trace`/`tracePar` du salon ; hook `trace`, `telemetry.js` | **case du salon** `#traceCheck`, `#trace`, `updateTrace()`, `traceOn`/`tracePar` (couche 0) |
+| relevé client | `releve{fenetres[]}` — une fenêtre par SEGMENT, envoyée dès qu'elle est fermée ; ligne `releve` de la trace | `SEG` + `relevesSeg` (`render/world.js`), vidés par `viderReleves()` |
 | compte rendu | `rapport{texte,manche}`, diffusé à TOUTE la salle à la fermeture de la trace ; `rapport.js` réduit les MÊMES lignes que le JSONL | `#bilanRapport`, `rapportTexte` (couche 0), bouton **Copier** |
 
 **LA MESURE S'ARME AU SALON, PLUS PAR L'URL.** Elle vivait dans
@@ -324,6 +325,28 @@ impossible à oublier — une case dans le salon, un témoin à l'écran **penda
 toute la manche**, et le nom de qui l'a armée des deux côtés. L'état reste porté
 par la **salle** : deux salles se tracent indépendamment, et rien ne survit à leur
 destruction.
+
+**LE SERVEUR TRAÇAIT UNE MANCHE DONT IL IGNORAIT LE RENDU.** Le relevé client
+remonte désormais, et **par segment** : « ça a ramé au segment 5 » est la question
+qu'on se pose, « la manche a fait 48 images/s » ne l'est pas. Les six fenêtres se
+lisent contre les six lignes de segment de la trace — population, événement,
+météo, état du boss.
+
+**QUATRE JOUEURS SONT QUATRE MACHINES, ET LA PLUS FAIBLE DÉCIDE DE
+L'EXPÉRIENCE** : le compte rendu donne les fenêtres de **chacun**, jamais une
+moyenne — une moyenne d'images par seconde sur des machines hétérogènes ne veut
+rien dire. C'est ce qui dira si « ça rame » veut dire « chez tout le monde » ou
+« sur une seule machine ».
+
+**L'INSTRUMENT TOURNE TOUJOURS, tracée ou non.** C'est ce qui rend le critère
+tenable : un instrument qui ne s'allume que quand on mesure change ce qu'il
+mesure. Quatre écritures de tableau par image, sans allocation, même plafond que
+le relevé de banc.
+
+**UNE FENÊTRE PART DÈS QU'ELLE EST FERMÉE**, pas à la fin de la manche : un
+client qui se déconnecte au segment 4 laisse ses trois premières au lieu de tout
+perdre. Au plus six envois par manche, plus la fermeture de la dernière fenêtre à
+`roundEnd`.
 
 **LE COMPTE RENDU EST UNE RÉDUCTION DE LA TRACE, JAMAIS UNE SECONDE COLLECTE.**
 `Room.traceLigne()` pousse chaque ligne dans le fichier **et** dans `Rapport`,

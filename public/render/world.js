@@ -380,6 +380,67 @@ function relever(now, raw, st) {
 }
 const BANC_RELEVE_S = 10;
 
+/* LE RELEVE REMONTE, ET IL EST PAR SEGMENT. Le meme instrument que `?banc`, mais
+   decoupe en six fenetres au lieu d'une : « ca a rame au segment 5 » est la
+   question qu'on se pose reellement, « la manche a fait 48 images/s » ne l'est
+   pas. Une fois les six fenetres cote a cote avec les six lignes de segment de la
+   trace serveur, une chute se lit contre la population, l'evenement, la meteo et
+   l'etat du boss de ce segment-la.
+
+   IL TOURNE TOUJOURS, tracee ou non. C'est ce qui rend le critere tenable : un
+   instrument qui ne s'allume que quand on mesure change ce qu'il mesure. Le cout
+   est quatre ecritures de tableau par image, sans allocation, avec le meme
+   plafond que `REL`.
+
+   QUATRE JOUEURS, QUATRE MACHINES, ET LA PLUS FAIBLE DECIDE DE L'EXPERIENCE : on
+   remonte donc les fenetres de CHACUN, jamais une moyenne. C'est ce qui dira si
+   « ca rame » veut dire « chez tout le monde » ou « sur le portable de Pierre ». */
+const SEG = { dt: [], draws: [], quads: [], frag: [], n: 0, seg: 0, t0: 0 };
+export const relevesSeg = [];
+
+function segCentile(a, n, p) {
+  const t = a.slice(0, n).sort((x, y) => x - y);
+  return t[Math.min(t.length - 1, Math.max(0, Math.round((t.length - 1) * p)))] ?? 0;
+}
+
+function segFermer(now) {
+  if (SEG.n > 0 && relevesSeg.length < 24) {
+    let draws = 0, quads = 0;
+    for (let i = 0; i < SEG.n; i++) { draws += SEG.draws[i]; quads += SEG.quads[i]; }
+    relevesSeg.push({
+      seg: SEG.seg,
+      s: Math.round((now - SEG.t0) / 100) / 10,
+      n: SEG.n,
+      gfx,
+      gl: glActive() ? 1 : 0,
+      fps50: Math.round(1000 / Math.max(0.001, segCentile(SEG.dt, SEG.n, 0.5))),
+      fps99: Math.round(1000 / Math.max(0.001, segCentile(SEG.dt, SEG.n, 0.99))),
+      ms99: Math.round(segCentile(SEG.dt, SEG.n, 0.99) * 10) / 10,
+      msMax: Math.round(segCentile(SEG.dt, SEG.n, 1) * 10) / 10,
+      draws: Math.round(draws / SEG.n),
+      quads: Math.round(quads / SEG.n),
+      fragMax: segCentile(SEG.frag, SEG.n, 1),
+    });
+  }
+  SEG.n = 0;
+  SEG.t0 = now;
+}
+
+function segEchantillon(now, raw, seg) {
+  if (seg !== SEG.seg) { segFermer(now); SEG.seg = seg; }
+  if (SEG.n < 4096) {
+    SEG.dt[SEG.n] = raw;
+    SEG.frag[SEG.n] = particles.length;
+    SEG.draws[SEG.n] = gl?.draws ?? 0;
+    SEG.quads[SEG.n] = gl?.quads ?? 0;
+    SEG.n++;
+  }
+}
+
+// la fin de manche ferme la fenetre en cours : sans ca le dernier segment, celui
+// du boss final, ne remonte jamais.
+export function fermerReleve() { segFermer(performance.now()); }
+
 function drawScreen(v) {
   const now = performance.now();
   if (alertOrder && now > alertOrder.until) setAlertOrder(null);
@@ -388,6 +449,7 @@ function drawScreen(v) {
 
   const st = PERF || bancReleve > 0 ? audioStats() : null;
   if (bancReleve > 0) relever(now, rawFrame, st);
+  if (phase === PHASE_ROUND) segEchantillon(now, rawFrame, v.segment | 0);
   updateHud(v, {
     now, myId, lobby, ping, difficulty, amSpectator,
     // le bandeau ne recouvre jamais une decision : il attend que l'ecran de

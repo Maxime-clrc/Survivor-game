@@ -2,12 +2,12 @@
 import { playSound } from "/audio.js";
 import { pousserHautFait, showHud } from "/hud.js";
 import { t, tf } from "/shared/i18n.js";
-import { setTrace, setRapport, PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setMerchantState, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
+import { traceOn, setTrace, setRapport, PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setMerchantState, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
 import { ingest } from "./ingest.js";
 import { netPerfBoundary, pushAlert, pushWorld, screenCloseQueued, setAlertInfo, setScreenCloseQueued, worldQueue } from "./interp.js";
 import { hfNom } from "/shared/hauts_faits.js";
 import { applyPalette, biomeIndex, biomeSeed, rebuildBiome, setBiomeIndex, setBiomeSeed } from "../render/stage.js";
-import { resetFeedback } from "../render/world.js";
+import { fermerReleve, relevesSeg, resetFeedback } from "../render/world.js";
 import { renderGateMode, renderGateSwitch, renderServerInfo } from "../ui/boot.js";
 import { closeBuild } from "../ui/build.js";
 import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, registerFormEl, setGateBusy, setStatus, settingsEl, updateTrace, updateVersion, waitMsg } from "../ui/dom.js";
@@ -16,6 +16,16 @@ import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, 
 
 /* Le serveur envoie un CODE ; sa phrase francaise, quand il en met une, n'est
    plus qu'un repli pour un motif que le client ne connait pas. */
+/* ON N'ENVOIE QUE SI LA SALLE MESURE : le releve tourne toujours, mais un
+   message par segment sur une manche non tracee serait du bruit reseau pour
+   personne. */
+function viderReleves() {
+  if (relevesSeg.length === 0) return;
+  if (!traceOn) { relevesSeg.length = 0; return; }
+  const lot = relevesSeg.splice(0, relevesSeg.length);
+  ws.send(JSON.stringify({ t: "releve", fenetres: lot }));
+}
+
 function authTexte(msg) {
   const repli = msg.msg ?? t("ui.auth.refuse", "refusé");
   return msg.motif ? t(`ui.auth.${msg.motif}`, repli) : repli;
@@ -345,6 +355,12 @@ export function connect() {
         break;
 
       case "roundEnd":
+        /* LA FIN DE MANCHE FERME LA FENETRE EN COURS, puis la file part. Une
+           fenetre par segment est deja remontee au fil de l'eau : un client qui
+           se deconnecte en cours de manche laisse ce qu'il a mesure au lieu de
+           tout perdre. */
+        fermerReleve();
+        viderReleves();
         pushWorld(() => {
           setPhase(PHASE_LOBBY);
           setHostId(msg.host);
@@ -362,6 +378,10 @@ export function connect() {
 
       case "state":
         ingest(msg);
+        /* UNE FENETRE PART DES QU'ELLE EST FERMEE, pas a la fin de la manche : un
+           client qui se deconnecte au segment 4 laisse ses trois premieres au
+           lieu de tout perdre. Une fenetre par segment, donc au plus six envois. */
+        if (relevesSeg.length > 0) viderReleves();
         if ((cardsState || merchantState) && !screenCloseQueued) {
           setScreenCloseQueued(true);
           pushWorld(() => { setScreenCloseQueued(false); closeCards(); closeMerchant(); });

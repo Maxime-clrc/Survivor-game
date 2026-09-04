@@ -28,6 +28,9 @@ const DIFF_NOM = ["calme", "normal", "cauchemar"];
 // meme ordre que `DEALT_SOURCES` : le compte rendu ne lit pas le module de
 // simulation, il lit des lignes de trace, et l ordre est ce qui les relie.
 const DEALT_NOM = ["arme", "invoc", "zone", "brûlure", "souffle", "ricochet", "compét."];
+// meme ordre que `DAMAGE_SOURCES`, pour la meme raison.
+const SUBI_NOM = ["contact", "projectile", "zone", "mécanique", "brûlure",
+                  "explosion", "environnement"];
 const CONTRIB_NOM = { evites: "évités", proteges: "protégés",
                       detournes: "détournés", permis: "permis" };
 const BIOME_NOM = ["usine", "fonderie", "nebuleuse", "ville", "serre"];
@@ -72,6 +75,7 @@ export class Rapport {
       case "barre": if (this.bossEnCours) this.bossEnCours.barres++; break;
       case "mech": this._mech(o); break;
       case "carte": this._carte(o); break;
+      case "releve": this._releve(o); break;
       // le niveau et le segment se relisent sur les echantillons : deux lignes
       // de plus dans le texte pour une information deja tabulee
       case "niveau": break;
@@ -80,10 +84,15 @@ export class Rapport {
     }
   }
 
-  // le releve d'images par seconde d'un client (lot 03) : une entree par client
-  perfClient(id, p50, p99) {
-    if (!this.perf.has(id)) this.perf.set(id, []);
-    this.perf.get(id).push({ p50, p99 });
+  /* UNE FENETRE PAR CLIENT ET PAR SEGMENT — jamais une moyenne. Quatre joueurs
+     sont quatre machines : une moyenne d'images par seconde sur des machines
+     heterogenes ne veut rien dire, et c'est justement ce qu'on veut savoir en
+     LAN — « ca rame » chez tout le monde, ou sur une seule machine ? */
+  _releve(o) {
+    const k = o.id;
+    if (!this.perf.has(k)) this.perf.set(k, []);
+    const l = this.perf.get(k);
+    if (l.length < 24) l.push(o);
   }
 
   _echantillon(o) {
@@ -233,13 +242,23 @@ export class Rapport {
     L.push("");
 
     if (this.perf.size > 0) {
-      L.push("## Images par seconde, par client");
+      L.push("## Le rendu, par client et par segment");
       L.push("");
-      L.push("| client | p50 | p99 |");
-      L.push("|---|---|---|");
+      L.push("| client | seg | durée | im/s p50 | im/s p99 | ms p99 | ms max | quads | particules |");
+      L.push("|---|---|---|---|---|---|---|---|---|");
       for (const [id, xs] of this.perf) {
-        L.push(`| ${this._nom(id)} | ${n1(mediane(xs.map(x => x.p50)))}`
-          + ` | ${n1(mediane(xs.map(x => x.p99)))} |`);
+        for (const f of xs) {
+          L.push(`| ${this._nom(id)} | ${f.seg} | ${mmss(f.s)} | ${f.fps50}`
+            + ` | ${f.fps99} | ${f.ms99} | ${f.msMax} | ${f.quads} | ${f.fragMax} |`);
+        }
+      }
+      const pire = [...this.perf.values()].flat()
+        .reduce((a, f) => (a === null || f.fps99 < a.fps99 ? f : a), null);
+      if (pire) {
+        L.push("");
+        L.push(`**La pire image** : ${pire.fps99} im/s au p99 au segment ${pire.seg}`
+          + ` (${pire.msMax} ms de pointe). C'est la machine la plus faible qui`
+          + " décide de l'expérience, pas la moyenne.");
       }
       L.push("");
     }
@@ -315,12 +334,17 @@ export class Rapport {
       }
     }
 
-    const subis = lignes.filter(l => l.subisPar && Object.keys(l.subisPar).length > 0);
+    /* `subisPar` EST UN TABLEAU INDEXE PAR `DAMAGE_SOURCES`, pas un objet nomme :
+       le lire avec `Object.entries` rendait « 0 0 · 1 0 · 2 0 », c'est-a-dire des
+       indices et des zeros. On nomme, et on ne garde que ce qui a blesse. */
+    const subis = lignes.filter(l => (l.subisPar ?? []).some(v => v > 0));
     if (subis.length > 0) {
       L.push("### Dégâts subis, par source");
       L.push("");
       for (const l of subis) {
-        const par = Object.entries(l.subisPar)
+        const par = [...l.subisPar]
+          .map((v, i) => [SUBI_NOM[i] ?? i, v])
+          .filter(([, v]) => v > 0)
           .sort((a, b) => b[1] - a[1])
           .map(([src, v]) => `${src} ${Math.round(v)}`).join(" · ");
         L.push(`- **${this._nom(l.id)}** — ${par}`);
@@ -381,13 +405,23 @@ export function verifierRapport() {
     kills: 5400, boss: 6, mecaniques: [[0, 12, 3], [1, 8, 1]],
     lignes: [1, 2, 3, 4].map(id => ({
       id, cls: 0, score: 1000, kills: 1800, morts: 1, degats: 216000,
-      soins: 5400, subisPar: { contact: 900, zone: 300 },
+      // MEME FORME QUE LA TRACE : un tableau indexe par `DAMAGE_SOURCES`. Le
+      // jour ou la fixture ment sur la forme, le verificateur valide un rendu que
+      // la vraie manche ne produira jamais.
+      soins: 5400, subisPar: [900, 120, 300, 40, 0, 60, 0],
       cartes: ["blindage", "cadence", "garde"],
       degatsPar: [140000, 20000, 30000, 6000, 18000, 2000, 0],
       contrib: { evites: 1200, proteges: 800, detournes: 300, permis: 150 },
     })),
   });
 
+  for (const id of [1, 2]) {
+    for (let seg = 1; seg <= 6; seg++) {
+      r.ligne({ k: "releve", id, seg, s: 300, n: 18000, gfx: 3, gl: 1,
+                fps50: 120 - id * 40, fps99: 55 - id * 20, ms99: 18, msMax: 44,
+                draws: 12, quads: 2400, fragMax: 900 });
+    }
+  }
   for (let i = 0; i < 8; i++) {
     r.ligne({ k: "carte", t: 120 * i, id: 1 + (i % 4), carte: "c" + i, niveau: 3 + i });
   }
@@ -411,6 +445,15 @@ export function verifierRapport() {
       + " a un compte rendu vide");
   }
   if (!/0:00 c0/.test(texte)) soucis.push("les cartes ne sont pas DATEES");
+  const fenetres = (texte.match(/\| 18 \| 44 \|/g) ?? []).length;
+  if (fenetres !== 12) {
+    soucis.push(`${fenetres} fenetres de releve pour deux clients et six segments,`
+      + " attendu 12 — le releve reste PAR CLIENT et PAR SEGMENT, jamais une moyenne");
+  }
+  if (!texte.includes("La pire image")) {
+    soucis.push("la machine la plus faible ne ressort pas : c est elle qui decide"
+      + " de l experience, pas la moyenne");
+  }
   if (r.segments.size !== 6) {
     soucis.push(`${r.segments.size} segments agreges, attendu 6`);
   }

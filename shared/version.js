@@ -8149,6 +8149,39 @@
                   Le compte rendu montre les trois, et il n ecrit que ce qui pese :
                   cinq colonnes a zero ne sont pas une information.
 
+    0.35.3 lot 03 LE SERVEUR TRACAIT UNE MANCHE DONT IL IGNORAIT LE RENDU. Le
+                  releve client existait, il etait bon — dix secondes, zero
+                  allocation par image, images/s medianes ET p99, duree p99 ET
+                  maximum — et il allait dans le PRESSE-PAPIER. Il remonte
+                  desormais, et PAR SEGMENT : « ca a rame au segment 5 » est la
+                  question qu on se pose reellement, « la manche a fait 48
+                  images/s en moyenne » ne l est pas. Les six fenetres se lisent
+                  contre les six lignes de segment de la trace — population,
+                  evenement, meteo, etat du boss.
+                  QUATRE JOUEURS SONT QUATRE MACHINES, ET LA PLUS FAIBLE DECIDE DE
+                  L EXPERIENCE. Le compte rendu donne les fenetres de CHACUN,
+                  jamais une moyenne : une moyenne d images par seconde sur des
+                  machines heterogenes ne veut rien dire. C est ce qui dira si
+                  « ca rame » veut dire chez tout le monde ou sur une seule
+                  machine, et c est ce qui rend le lot utile en LAN.
+                  L INSTRUMENT TOURNE TOUJOURS, tracee ou non, et c est ce qui rend
+                  le critere tenable : un instrument qui ne s allume que quand on
+                  mesure CHANGE ce qu il mesure. Quatre ecritures de tableau par
+                  image, sans allocation, meme plafond que le releve de banc.
+                  UNE FENETRE PART DES QU ELLE EST FERMEE, pas a la fin de la
+                  manche : un client qui se deconnecte au segment 4 laisse ses
+                  trois premieres au lieu de tout perdre.
+                  LE RESEAU AVEC : la salle echantillonnait deja la taille des
+                  messages sous `PERF_ON` et c etait jete — la ligne de segment est
+                  sa place.
+                  DEUX DEFAUTS PAYES EN ECRIVANT. Un second `case "roundEnd"` dans
+                  le meme `switch` aurait MASQUE le vrai : un `switch` ne previent
+                  pas, il prend le premier. Et `subisPar` est un TABLEAU indexe par
+                  `DAMAGE_SOURCES`, pas un objet nomme : le lire avec
+                  `Object.entries` imprimait « 0 0 · 1 0 · 2 0 » — des indices et
+                  des zeros. La fixture du verificateur mentait sur la forme, donc
+                  elle validait un rendu que la vraie manche ne produit jamais.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8157,4 +8190,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.35.2";
+export const VERSION = "0.35.3";

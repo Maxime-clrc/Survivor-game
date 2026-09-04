@@ -105,6 +105,7 @@ export class Room {
     // au meme instant, et ne peut donc pas en diverger.
     this.rapport = null;
     this.rapportTexte = "";
+    this.releveVus = new Map();
   }
 
   /* ON FERME LA TRACE AVANT DE LA DESARMER, et l'ordre est tout : `traceLigne`
@@ -136,6 +137,7 @@ export class Room {
     const s = this.state;
     this.rapport = new Rapport();
     this.rapportTexte = "";
+    this.releveVus.clear();
     this.traceVu = {
       niveau: s.level, segment: s.segment, bossKind: -1, bossPhase: 0, bossT: 0,
       event: -1, meteo: s.weather ? s.weather.id : -1,
@@ -1095,6 +1097,33 @@ export class Room {
       case "trace":
         this.armerTrace(client, msg.on);
         break;
+
+      /* LE SERVEUR TRACAIT UNE MANCHE DONT IL IGNORAIT LE RENDU. Le releve
+         client remonte par SEGMENT — quatre joueurs sont quatre machines, et la
+         plus faible decide de l'experience, donc on garde les fenetres de chacun
+         et jamais une moyenne. Borne a douze fenetres par message et vingt-quatre
+         par manche : un client bavard ne remplit pas la trace. */
+      case "releve": {
+        if (!this.traceArme || !Array.isArray(msg.fenetres)) break;
+        const compte = this.releveVus.get(id) ?? 0;
+        if (compte >= 24) break;
+        for (const f of msg.fenetres.slice(0, 12)) {
+          if (!f || typeof f !== "object") continue;
+          this.traceLigne({
+            k: "releve", id, seg: f.seg | 0, s: Number(f.s) || 0, n: f.n | 0,
+            gfx: f.gfx | 0, gl: f.gl ? 1 : 0,
+            fps50: f.fps50 | 0, fps99: f.fps99 | 0,
+            ms99: Number(f.ms99) || 0, msMax: Number(f.msMax) || 0,
+            draws: f.draws | 0, quads: f.quads | 0, fragMax: f.fragMax | 0,
+            // LE RESEAU, TANT QU ON Y EST : la salle echantillonne deja la
+            // taille des messages et c'etait jete. La ligne de segment est sa
+            // place.
+            clair: Math.round(this.perf.clair), defl: Math.round(this.perf.defl),
+          });
+        }
+        this.releveVus.set(id, compte + Math.min(12, msg.fenetres.length));
+        break;
+      }
 
       case "buyRelic": {
         if (this.phase !== PHASE_MERCHANT) break;
