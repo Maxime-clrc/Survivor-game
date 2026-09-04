@@ -8299,6 +8299,38 @@
                   cauchemar » par `length - 1` : il aurait silencieusement dit
                   « normal et custom ».
 
+    0.36.2 lot 03 PARTAGE ET PREREGLAGES. Les reglages s exportent en une chaine
+                  courte, collable, lisible A VOIX HAUTE en LAN — un code deux fois
+                  plus court mais indebogable serait un mauvais echange.
+                  LE VRAI USAGE N EST PAS LE FUN, C EST LE PROTOCOLE D EXPERIENCE :
+                  « voici le code, voici la graine, voici le compte rendu » devient
+                  une phrase qui suffit a reproduire une mesure, chez un ami ou dans
+                  une conversation avec un modele. C est le chainon qui manquait
+                  entre le mode et l outillage du plan 32, et c est ce qui rend le
+                  banc utilisable A PLUSIEURS.
+                  LA CHAINE PORTE SA VERSION, ET CE N EST PAS DECORATIF. Un code
+                  colle apres un changement de table DECALE SILENCIEUSEMENT les
+                  rangs : la condition 4 rang 2 devient autre chose, et rien ne le
+                  dit — une soiree de mesure fausse avant qu on comprenne. Le
+                  collage REFUSE au lieu d appliquer a moitie : un choix partiel
+                  serait pire que rien, il serait plausible.
+                  LA VERSION EST CELLE DE LA TABLE, PAS CELLE DU DEPOT : un lot qui
+                  ne touche pas aux conditions ne doit pas invalider les codes de la
+                  veille. Elle se bouge A LA MAIN, et aucun verificateur ne peut le
+                  deviner.
+                  IL PORTE LES RANGS ET RIEN D AUTRE — ni la graine, ni le biome :
+                  un reglage et une graine ne se partagent pas toujours ensemble.
+                  QUATRE PREREGLAGES, ET ILS N EXISTENT PAS POUR JOUER : ils
+                  ENSEIGNENT le mode. Une page de curseurs vierges n apprend rien.
+                  Chacun doit etre JOUABLE — pas une demonstration de maximum — et
+                  ils couvrent des FAMILLES DIFFERENTES : trois variantes de « plus
+                  dur » n enseigneraient rien. `verifierPartage()` refuse d ailleurs
+                  un jeu de prereglages qui tiendrait dans moins de trois familles.
+                  `verifierPrereglages()` les JOUE, courts mais reels : un
+                  prereglage qui bloque une manche ne leve rien — il rend une partie
+                  qui n avance pas, et personne ne saura si c est le reglage ou le
+                  jeu.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8307,4 +8339,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.36.1";
+export const VERSION = "0.36.2";

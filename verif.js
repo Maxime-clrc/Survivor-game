@@ -41,7 +41,7 @@ import * as F from "./shared/feedback.js";
 import * as PR from "./shared/progression.js";
 import * as R from "./shared/reliques.js";
 import { BIOMES } from "./shared/biomes.js";
-import { verifierConditions } from "./shared/custom.js";
+import { verifierConditions, verifierPartage } from "./shared/custom.js";
 import { constantesMortes } from "./constantes_check.js";
 import { verifierRapport } from "./rapport.js";
 
@@ -130,6 +130,8 @@ const SUITE = [
   ["determinisme", () => G.verifierDeterminisme(), true],
   ["indices", () => G.verifierIndices(), true],
   ["custom", () => G.verifierCustom(), true],
+  ["partage", () => verifierPartage()],
+  ["prereglages", () => G.verifierPrereglages(), true],
   ["tirageBonus", () => G.verifierTirageBonus(), true],
   ["rythmeBonus", () => G.verifierRythmeBonus(), true],
   ["encerclement", () => G.verifierEncerclement(), true],

@@ -60,7 +60,7 @@ import {
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
 } from "./biomes.js";
-import { CUSTOM_INDEX, construireCustom } from "./custom.js";
+import { CUSTOM_INDEX, PREREGLAGES, construireCustom } from "./custom.js";
 import {
   NAV_CFG, construireNav, diffuser, viser, droitPossible, celluleDe,
   celluleX, celluleY, fenetreNav,
@@ -10044,6 +10044,58 @@ export function verifierVentilation(manches = 3, minutes = 6, joueurs = 2) {
    qu on puisse le savoir. On avance donc deux etats EN ALTERNANCE, comme pour le
    determinisme, l un en `normal` et l autre en `custom` sans aucune condition
    prise, et on exige le meme etat a l arrivee. */
+/* CHAQUE PREREGLAGE EST JOUABLE JUSQU AU BOUT, ET C EST UN TEST BETE QUI ATTRAPE
+   LES COMBINAISONS IMPOSSIBLES. Un prereglage qui bloque une manche — plafond
+   sature, horde qui n arrive plus, niveau qui ne monte pas — ne leve rien : il
+   rend une partie qui n avance pas, et personne ne saura si c est le reglage ou
+   le jeu. On les joue donc, courts mais reels, et on exige que la manche AVANCE. */
+export function verifierPrereglages(minutes = 5, graine = 3517) {
+  const soucis = [];
+  for (const pre of PREREGLAGES) {
+    const g = new GameState(CUSTOM_INDEX, 0, graine, pre.choix);
+    g.addPlayer(1, "bot1", 0, 0);
+    g.addPlayer(2, "bot2", 1, 2);
+    g.warmup = 0;
+    const pil = pilotage();
+    const inputs = new Map();
+    const images = Math.round(minutes * 60 / CFG.TICK);
+    let pointe = 0;
+    try {
+      for (let k = 0; k < images && !g.victory; k++) {
+        if (g.cardsPending) {
+          for (const [id, o] of g.cardOffers) {
+            const p = g.players.get(id);
+            if (p && o.length) g.takeCard(p, o[Math.floor(g.alea() * o.length)]);
+          }
+          g.cardsPending = false;
+          g.openNextScreen();
+          continue;
+        }
+        if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); continue; }
+        inputs.clear();
+        for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
+        g.step(CFG.TICK, inputs);
+        for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
+        if (!g.victory) g.gameOver = false;
+        if (g.enemies.length > pointe) pointe = g.enemies.length;
+      }
+    } catch (e) {
+      soucis.push(`${pre.id} : la manche a leve — ${e.message}`);
+      continue;
+    }
+    if (g.totalKills === 0) soucis.push(`${pre.id} : aucun corps abattu en ${minutes} min`);
+    if (g.level <= 1) soucis.push(`${pre.id} : le niveau ne monte pas`);
+    if (pointe > CFG.MAX_ENEMIES_HARD_CAP) {
+      soucis.push(`${pre.id} : pointe de ${pointe} corps pour une limite MOTEUR de`
+        + ` ${CFG.MAX_ENEMIES_HARD_CAP}`);
+    }
+    if (g.time < minutes * 60 * 0.9 && !g.victory) {
+      soucis.push(`${pre.id} : la manche s'arrete a ${g.time.toFixed(0)} s`);
+    }
+  }
+  return soucis;
+}
+
 export function verifierCustom(minutes = 6, graine = 4242) {
   const soucis = [];
   const monter = (di, custom) => {

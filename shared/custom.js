@@ -292,3 +292,147 @@ export function verifierConditions(hardCap, capBase, capDiffMax) {
   }
   return soucis;
 }
+
+/* ===========================================================================
+   LE PARTAGE. Une chaine courte, collable, et QUI PORTE SA VERSION.
+
+   LE VRAI USAGE N'EST PAS LE FUN, C'EST LE PROTOCOLE D'EXPERIENCE : « voici le
+   code, voici la graine, voici le compte rendu » devient une phrase qui suffit a
+   reproduire une mesure — chez un ami ou dans une conversation avec un modele.
+   C'est le chainon entre le mode et l'outillage du plan 32, et c'est ce qui rend
+   le banc utilisable A PLUSIEURS.
+
+   LA VERSION N'EST PAS DECORATIVE. Un code colle apres un changement de table
+   DECALE SILENCIEUSEMENT les rangs : la condition 4 rang 2 devient autre chose, et
+   rien ne le dit. C'est le genre de defaut qui coute une soiree de mesure fausse
+   avant qu'on comprenne — donc la chaine porte la version de la TABLE, et le
+   collage refuse au lieu d'appliquer.
+
+   LA VERSION DE LA TABLE, PAS CELLE DU DEPOT : un lot qui ne touche pas aux
+   conditions ne doit pas invalider les codes de la veille. Elle se bouge A LA MAIN
+   quand une condition, un rang ou un ordre change — et `verifierPartage()` ne peut
+   pas le deviner a votre place.
+
+   IL PORTE LES RANGS ET RIEN D'AUTRE. Pas la graine, pas le biome : un reglage et
+   une graine ne se partagent pas toujours ensemble. */
+export const TABLE_VERSION = 1;
+
+const B36 = n => n.toString(36);
+
+/* Format : `sv1-<clef><rang>...`, une lettre par condition dans l'ordre de la
+   TABLE, le rang en base 36. Court, collable, et lisible a voix haute en LAN —
+   un code deux fois plus court mais indebogable serait un mauvais echange. */
+export function exporterChoix(choix) {
+  const parts = [];
+  CONDITIONS.forEach((c, i) => {
+    const r = choix?.[c.key];
+    if (!Number.isInteger(r) || r < 0 || r >= c.rangs.length) return;
+    parts.push(B36(i) + B36(r));
+  });
+  return `sv${TABLE_VERSION}-${parts.join("") || "0"}`;
+}
+
+/* REFUSER, JAMAIS APPLIQUER A MOITIE. Un code d'une autre version, un indice
+   inconnu, un rang hors table : on rend la RAISON, et l'appelant decide quoi en
+   dire. Rendre un choix partiel serait pire que rien — il serait plausible. */
+export function importerChoix(code) {
+  const s = String(code ?? "").trim().toLowerCase();
+  const m = s.match(/^sv(\d+)-([0-9a-z]*)$/);
+  if (!m) return { ok: false, motif: "format" };
+  if (Number(m[1]) !== TABLE_VERSION) {
+    return { ok: false, motif: "version", version: Number(m[1]),
+             attendue: TABLE_VERSION };
+  }
+  const corps = m[2] === "0" ? "" : m[2];
+  if (corps.length % 2 !== 0) return { ok: false, motif: "format" };
+  const choix = {};
+  for (let i = 0; i < corps.length; i += 2) {
+    const ci = parseInt(corps[i], 36);
+    const ri = parseInt(corps[i + 1], 36);
+    const c = CONDITIONS[ci];
+    if (!c || !c.rangs[ri]) return { ok: false, motif: "inconnu" };
+    choix[c.key] = ri;
+  }
+  return { ok: true, choix };
+}
+
+/* LES PREREGLAGES N'EXISTENT PAS POUR JOUER, ILS EXISTENT POUR ENSEIGNER LE MODE.
+   Une page de curseurs vierges n'apprend rien ; trois entrees montrent ce que le
+   mode sait faire et donnent un point de depart a modifier.
+   Deux principes : chacun doit etre JOUABLE — pas une demonstration de maximum —
+   et ils doivent couvrir des FAMILLES DIFFERENTES. Trois variantes de « plus
+   dur » n'enseignent rien. */
+export const PREREGLAGES = [
+  {
+    id: "maree", nom: "Marée noire",
+    resume: "beaucoup de corps, pas plus dangereux — la horde comme un terrain",
+    choix: { densite: 2, plafond: 0, vitalite: 0, frappe: 0 },
+  },
+  {
+    id: "chirurgie", nom: "Chirurgie",
+    resume: "peu d'ennemis, mais chacun fait mal et on se relève lentement",
+    choix: { densite: 0, frappe: 1, fragilite: 0, sursis: 0 },
+  },
+  {
+    id: "disette", nom: "Disette",
+    resume: "la même horde, mais les cartes arrivent au compte-gouttes",
+    choix: { avarice: 1, elites: 0 },
+  },
+  {
+    id: "promenade", nom: "Promenade",
+    resume: "sous la référence : pour apprendre une arme, pas pour prouver",
+    choix: { densite: 0, vitalite: 0, avarice: 0, script: 0 },
+  },
+];
+
+/* CRITERE REJOUABLE DU PARTAGE. Aller-retour exact sur chaque prereglage et sur
+   le choix maximal, refus d'une autre version, et refus d'un rang qui n'existe
+   pas. Le point 3 du lot — « chaque prereglage est jouable jusqu'au bout » — est
+   un test de SIMULATION : il vit dans `verifierPrereglages()`, cote
+   `game_state.js`, parce qu'il lui faut une manche. */
+export function verifierPartage() {
+  const soucis = [];
+  const aller = choix => {
+    const code = exporterChoix(choix);
+    const r = importerChoix(code);
+    if (!r.ok) return `code ${code} refuse : ${r.motif}`;
+    const a = JSON.stringify(Object.entries(choix).sort());
+    const b = JSON.stringify(Object.entries(r.choix).sort());
+    return a === b ? null : `aller-retour perdu : ${b} au lieu de ${a}`;
+  };
+
+  for (const p of PREREGLAGES) {
+    const err = aller(p.choix);
+    if (err) soucis.push(`prereglage ${p.id} : ${err}`);
+    for (const [key, rang] of Object.entries(p.choix)) {
+      const c = conditionAt(key);
+      if (!c) soucis.push(`prereglage ${p.id} : condition inconnue ${key}`);
+      else if (!c.rangs[rang]) soucis.push(`prereglage ${p.id} : ${key} rang ${rang} n'existe pas`);
+    }
+  }
+  const err = aller(choixMaximal());
+  if (err) soucis.push(`choix maximal : ${err}`);
+
+  // LES FAMILLES : trois variantes de « plus dur » n enseigneraient rien.
+  const vues = new Set();
+  for (const p of PREREGLAGES) {
+    for (const key of Object.keys(p.choix)) {
+      const c = conditionAt(key);
+      if (c) vues.add(c.famille);
+    }
+  }
+  if (vues.size < 3) {
+    soucis.push(`les prereglages ne couvrent que ${vues.size} famille(s) :`
+      + " ils enseignent le mode, et trois variantes de la meme chose n enseignent rien");
+  }
+
+  const autre = importerChoix(`sv${TABLE_VERSION + 1}-0000`);
+  if (autre.ok) {
+    soucis.push("un code d'une AUTRE version est accepte : les rangs se decalent"
+      + " en silence, et la mesure est fausse sans que rien le dise");
+  }
+  if (importerChoix("sv1-zz").ok) soucis.push("un rang inexistant est accepte");
+  if (importerChoix("bonjour").ok) soucis.push("un code invalide est accepte");
+
+  return soucis;
+}
