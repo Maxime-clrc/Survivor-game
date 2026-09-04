@@ -8216,6 +8216,50 @@
                   jamais sur leur NOMBRE : la trace est nominalement a 1 Hz, mais
                   une pause ou un ecran de cartes decalent l horloge.
 
+   --- plan 33 : le mode custom ----------------------------------------------
+
+    0.36.0 lot 01 DES RANGS, PAS DES CURSEURS. Le modele est le Pacte de Chatiment
+                  de Hades, et il donne trois choses qu un curseur ne donne pas :
+                  un INDICE DE SEVERITE qui existe sans etre calcule — la SOMME des
+                  couts, plus honnete qu un produit de multiplicateurs parce qu un
+                  cout ecrit a la main peut dire ce qu un produit ne sait pas dire ;
+                  un ESPACE FINI ET COMPARABLE, ou deux joueurs se disent « j ai
+                  fait 24 » ; et des PALIERS DEJA PENSES — un curseur invite a
+                  mettre 87 % parce que c est possible, un rang oblige a decider ce
+                  que veut dire chaque cran.
+                  ONZE CONDITIONS SUR LES CINQ FAMILLES, severite maximale 40. La
+                  table est DECLARATIVE et c est un critere : un rang ne porte que
+                  des NOMBRES sous des noms fixes, jamais de logique. Ce qui les
+                  applique ne connait pas les conditions une par une — sinon chaque
+                  condition nouvelle demanderait du code, et la table cesserait d
+                  etre une table.
+                  LE COUT D UN RANG EST UN JUGEMENT, PAS UN CALCUL. Deux reperes :
+                  un rang qui change peu coute peu mais JAMAIS ZERO — un rang
+                  gratuit est toujours pris, donc il n est pas un choix ; et un rang
+                  dont l effet depend fortement de la build coute CHER, parce qu il
+                  sera pris par ceux a qui il ne coute rien. « Ruee » (vitesse de la
+                  horde) coute 3 et 4 pour cette seule raison : une arme a cible
+                  unique et longue portee y perd tout, une arme de zone au contact
+                  presque rien.
+                  L INDICE EST UNE APPROXIMATION, ET IL SE PRESENTE COMME TELLE. Le
+                  wiki de Hades le dit lui-meme : beaucoup de conditions sont
+                  presque sans effet contre une build et extremement dures contre
+                  une autre. Avec dix armes et trois classes, c est double — et
+                  c est ce qui rend le mode utile a l EQUILIBRAGE : un mutateur dont
+                  la severite varie de trois a un selon l arme EST un resultat de
+                  mesure.
+                  LE SCRIPT EST UNE CONDITION COMME LES AUTRES, et c est la ligne
+                  qui multiplie par trois l espace du mode : « courbe calme,
+                  ennemis de cauchemar » n existe dans aucun des trois modes.
+                  LE PLANCHER EST UN OU DEUX CRANS SOUS LA REFERENCE, PAS CINQ.
+                  Calme est deja a hp 0,78 et spawn 0,80 : descendre franchement en
+                  dessous ne produit plus une partie mais une demonstration.
+                  `verifierConditions()` refuse un rang gratuit, un rang dont l
+                  effet repete le precedent, un cout qui redescend, et surtout un
+                  maximum global qui depasserait `MAX_ENEMIES_HARD_CAP` : ce n est
+                  pas un reglage de difficulte, c est le point au-dela duquel le
+                  rendu et le reseau lachent — et l echec y est SILENCIEUX.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8224,4 +8268,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.35.4";
+export const VERSION = "0.36.0";

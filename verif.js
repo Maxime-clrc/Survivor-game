@@ -41,6 +41,7 @@ import * as F from "./shared/feedback.js";
 import * as PR from "./shared/progression.js";
 import * as R from "./shared/reliques.js";
 import { BIOMES } from "./shared/biomes.js";
+import { verifierConditions } from "./shared/custom.js";
 import { constantesMortes } from "./constantes_check.js";
 import { verifierRapport } from "./rapport.js";
 
@@ -95,6 +96,8 @@ const SUITE = [
   ["hautsFaits", () => H.verifierHautsFaits(cardIds, relicIds, armeIds)],
   ["codex", () => PR.verifierCodex()],
   ["classement", () => PR.verifierClassement()],
+  ["conditions", () => verifierConditions(CFG.MAX_ENEMIES_HARD_CAP,
+    CFG.MAX_ENEMIES_BASE, Math.max(...CFG.MAX_ENEMIES_DIFF))],
   ["rapport", () => verifierRapport()],
   ["ventilation", () => G.verifierVentilation(), true],
   ["classes", () => G.verifierClasses(), true],
