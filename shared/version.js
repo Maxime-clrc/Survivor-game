@@ -7919,6 +7919,63 @@
                   RETIRER N EST PAS TUER, ecrit une fois pour le recyclage lointain
                   et pour les deux retraits du mini-boss a venir.
 
+    0.34.3 lot 04 SE SEPARER NE PARTAGEAIT PAS LA HORDE, IL LA TIRAIT AU SORT.
+                  `_spawnBox()` construisait UNE boite englobante de tous les
+                  joueurs et `_edgePoint(side)` en tirait un bord d apres
+                  `beatSide` — c est-a-dire d apres le battement du script, qui
+                  ignore ou sont les joueurs. Sur une boite de 3 600 px de large,
+                  le bord tire est colle a l un et a 3 600 px de l autre. Mesure a
+                  cet ecart : rapport de 2,7 a 24,2 entre les deux joueurs, ET LE
+                  SENS CHANGE AVEC LA GRAINE. Ce n est pas une difficulte, c est
+                  une loterie : rien a l ecran ne dit de quel cote la vague tombe.
+                  UNE BOITE PAR GROUPE, et `beatSide` s applique DEDANS : la
+                  geometrie du battement dit d ou ca vient, elle n a jamais eu a
+                  dire pour qui. Rapport apres : 1,13 · 1,36 · 1,39 sur les trois
+                  graines mesurables, et le total en jeu passe de 196 a 41, de 130
+                  a 52. A 400 px, RIEN NE CHANGE D UN CHIFFRE — si la calibration
+                  avait bouge pour une equipe soudee, la geometrie n aurait pas ete
+                  corrigee, elle aurait ete deplacee.
+                  LE BUDGET SE REPARTIT, IL NE SE MULTIPLIE PAS : poids =
+                  effectif^0,5, part = poids / somme x budget. Le total ne bouge
+                  jamais, quel que soit l exposant — c est ce qui rend ce bouton
+                  sur : il deplace la pression entre groupes, il n en cree pas.
+                  `crowd^WAVE_CROWD_EXP` reste calcule sur l effectif TOTAL. A
+                  e = 1 un joueur parti seul d une equipe de quatre recevrait 0,71
+                  fois la horde d un vrai solo — partir seul serait PLUS DOUX que
+                  jouer solo ; a e = 0,5 il recoit 1,04, sans aucune des
+                  compensations du solo.
+                  LE PLAFOND SE REPARTIT, IL NE SE DIVISE PAS. `_enemyCap()` reste
+                  global — sinon se separer multiplierait la horde — mais chaque
+                  groupe recoit une part proportionnelle a son effectif, avec du
+                  jeu : sans elle le groupe le plus fourni consomme tout et l autre
+                  joue dans le vide.
+                  UN CORPS A PLUS DE `RECYCLE_DIST` DE TOUT JOUEUR EST RETIRE EN
+                  SILENCE. A 3 600 px la population doublait ou triplait sans que
+                  le contact augmente : les corps en trop etaient EN TRANSIT, on
+                  payait leur simulation, leur separation et leur instantane, et
+                  ils ne menacaient personne. Il ne passe PAS par `_killEnemy()` —
+                  retirer n est pas tuer — et il epargne les elites et le porteur
+                  d objectif, sinon un contrat « tuez trois elites » se viderait
+                  tout seul.
+                  DEUX DEFAUTS TROUVES PAR LA MESURE, INVISIBLES A LA LECTURE.
+                  Un joueur A TERRE a l instant du battement sortait de TOUS les
+                  groupes, et sa part de horde tombait sur son voisin : rapport 4,2
+                  la ou le partage doit rendre 1. Et un GROUPEMENT PERIME est pire
+                  que pas de groupement — refait au seul battement, il tenait
+                  jusqu a soixante secondes apres une separation, la horde naissant
+                  pendant tout ce temps sur la boite englobante : 358 corps d un
+                  cote contre 11, et cette masse consommait le plafond bien apres
+                  le regroupement. La validite se verifie a chaque tick, avec
+                  HYSTERESIS — on entre a une vue, on sort a une vue et demie —
+                  sinon deux joueurs a la limite font clignoter la geometrie.
+                  `verifierGroupes()` dans la suite RAPIDE : conservation du budget
+                  sur sept decoupes, la part de l isole contre un vrai solo, la
+                  fermeture transitive, le joueur a terre qui reste dans un groupe,
+                  et le recyclage qui epargne elite et objectif sans compter de
+                  mort. La composition est LISIBLE depuis l etat (`this.groupes`) :
+                  le Director en aura besoin pour ne PAS venir au secours de qui
+                  s isole.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7927,4 +7984,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.34.2";
+export const VERSION = "0.34.3";

@@ -8,6 +8,63 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La horde suivait le script, pas les joueurs, plan 31 (0.34.3)
+
+`sim/separation.mjs`. Deux joueurs invulnérables maintenus à un écart fixe
+pendant la horde, manche réelle depuis t = 0. Relevé : **600 s hors boss** après
+la minute 10, corps à moins de 700 px. Chacun vise son plus proche.
+
+#### Le rapport entre les deux joueurs, à 3 600 px
+
+| graine | avant | après | total avant | total après |
+|---|---:|---:|---:|---:|
+| 7919 | **2,67** | **1,13** | 196 | 41 |
+| 10007 | **4,35** | **1,36** | 130 | 52 |
+| 4242 | **24,16** | **1,39** | 293 | 256 |
+| 3517 | *non mesurable* | *non mesurable* | — | — |
+
+Et **à 400 px, la ligne ne bouge pas d'un chiffre** : 1,10 · 1,30 · 1,03 avant
+comme après. C'était le critère de non-régression le plus important — si la
+calibration avait bougé pour une équipe soudée, la géométrie n'aurait pas été
+corrigée, elle aurait été déplacée.
+
+Les **naissances** par joueur, qui sont ce que le lot gouverne directement,
+passent de 1,02-1,31 à **1,01-1,08** selon la graine. Le reste de l'écart
+appartient au terrain et à ce que chacun tue.
+
+#### Trois pièges de protocole, payés
+
+**Un joueur figé à 1 800 px d'un boss ne peut pas le toucher** — aucune arme ne
+porte si loin. Le combat ne finissait jamais, la horde ne reprenait pas, et deux
+graines sur trois ne rendaient **aucune image**. On rend donc leur déplacement
+aux deux joueurs pendant un boss ; l'écart n'est tenu que pendant la horde, qui
+est ce qu'on mesure. La graine 3517 reste inmesurable **des deux côtés** : sa
+manche passe les 4 000 s de garde en combats de boss que deux bots immobiles ne
+tuent pas.
+
+**Une visée figée sur un cap fixe a un plancher de bruit de 1,33**, mesuré à
+écart nul — donc sur la même horde vue deux fois. Un joueur balaie ce qui arrive,
+l'autre laisse passer. Chacun vise son plus proche depuis.
+
+**Ce qui est près d'un joueur mélange trois causes** : où les corps naissent, ce
+que le terrain retient, ce que le joueur tue. Seule la première appartient à ce
+lot, d'où la colonne des naissances.
+
+#### Ce que la mesure a trouvé et que personne ne cherchait
+
+Deux défauts de l'implémentation, tous deux invisibles à la lecture :
+
+- **un joueur à terre à l'instant du battement sortait de tous les groupes**, et
+  sa part de horde tombait sur son voisin — rapport 4,2 là où le partage doit
+  rendre 1. On regroupe désormais tout le monde ; le tri des vivants appartient à
+  la lecture ;
+- **un groupement périmé est pire que pas de groupement.** Refait au seul
+  battement, il tenait jusqu'à soixante secondes après une séparation, et pendant
+  ce temps la horde naissait sur la boîte englobante : **358 corps d'un côté
+  contre 11**, et la masse ainsi posée consommait le plafond global bien après le
+  regroupement. La validité se vérifie à chaque tick, avec hystérésis — on entre à
+  une vue, on sort à une vue et demie.
+
 ### Les deux structures qui couvraient l'arène, plan 31 (0.34.1)
 
 Même machine, même session, `process.hrtime`. Les chiffres du document de plan

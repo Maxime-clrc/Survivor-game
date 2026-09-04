@@ -576,6 +576,63 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   `_spawnEnemy` rend `null` en silence. La réponse est de l'**information** (taux
   d'occupation au HUD, déduit de `enemies.length` — le client rejoue `enemyCap()`
   à partir de la difficulté et de la longueur de `playerList`).
+- **LA HORDE SUIT LES GROUPES, ET UN GROUPE EST UNE VUE.** Deux joueurs à moins
+  de `GROUPE_VUE` l'un de l'autre affrontent la même horde ; au-delà, ils en
+  affrontent deux. `_spawnBox(groupe)` rend **une boîte par groupe** et
+  `beatSide` s'applique **dans** cette boîte : la géométrie du battement dit d'où
+  ça vient, elle n'a jamais eu à dire pour qui. Avant, une seule boîte englobante
+  et un bord tiré par le script donnaient, à 3 600 px d'écart, un rapport de 2,7 à
+  4,4 entre les deux joueurs — **et le sens changeait avec la graine**. Ce n'était
+  pas une difficulté, c'était une loterie : rien à l'écran ne disait de quel côté
+  la vague allait tomber.
+- **LE BUDGET SE RÉPARTIT, IL NE SE MULTIPLIE PAS.** `poids = effectif^0,5`,
+  `part = poids / Σ poids × budget`. Le total ne bouge **jamais**, quel que soit
+  l'exposant : c'est ce qui rend ce bouton sûr — il déplace la pression entre
+  groupes, il n'en crée pas, donc `verifierScript()` et `verifierPopulation()`
+  restent valides. `crowd^WAVE_CROWD_EXP` reste calculé sur l'effectif **total** :
+  un joueur qui part seul ne doit pas subir la pression d'un solo, il doit subir
+  **sa part** de celle d'une équipe.
+- **L'EXPOSANT EST LE SEUL RÉGLAGE DE L'ISOLEMENT, ET IL SE LIT SUR UNE LIGNE.**
+  À `e = 1` (prorata pur) un joueur parti seul d'une équipe de quatre reçoit
+  **0,71** fois la horde d'un vrai solo — partir seul serait plus **doux** que
+  jouer solo. À `e = 0,5` il reçoit **1,04** : la pression d'un solo, sans aucune
+  des compensations du solo (lien du Soigneur et sa rupture, auras de classe,
+  cartes coopératives, `REVIVE_RADIUS = 96`). Le coût de l'isolement est
+  **émergent** — personne ne l'a écrit, il découle de la coopération elle-même.
+- **LE PLAFOND SE RÉPARTIT, IL NE SE DIVISE PAS.** `_enemyCap()` reste global —
+  sinon se séparer multiplierait la horde — mais chaque groupe reçoit une part
+  proportionnelle à son effectif, avec du jeu. Sans elle, le groupe le plus
+  fourni consomme tout le plafond et l'autre joue dans le vide.
+- **UN GROUPEMENT PÉRIMÉ EST PIRE QUE PAS DE GROUPEMENT.** Refait au seul
+  battement, il tient jusqu'à **soixante secondes** après que l'équipe s'est
+  séparée, et pendant tout ce temps la horde naît sur la boîte englobante :
+  mesuré, 358 corps d'un côté contre 11 de l'autre, et la masse ainsi posée
+  consomme le plafond bien après le regroupement. La validité se **vérifie** à
+  chaque tick, avec **hystérésis** — on entre dans un groupe à une vue, on n'en
+  sort qu'à une vue et demie — sinon deux joueurs qui marchent à la limite font
+  clignoter la géométrie du battement.
+- **ON REGROUPE TOUT LE MONDE, À TERRE COMPRIS.** Un joueur à terre à l'instant du
+  battement sortait de tous les groupes, et sa part de horde tombait sur son
+  voisin : rapport mesuré 4,2 là où le partage doit rendre 1. Le tri des vivants
+  appartient à la **lecture**, pas au regroupement.
+- **UN CORPS À PLUS DE `RECYCLE_DIST` DE TOUT JOUEUR EST RETIRÉ EN SILENCE**, et
+  sa place rendue au plafond. À 3 600 px d'écart la population **doublait ou
+  triplait** (55-69 → 106-200) sans que le contact augmente : les corps en trop
+  étaient **en transit**, on payait leur simulation, leur séparation et leur
+  instantané, et ils ne menaçaient personne. Trois conditions, et elles ne sont
+  pas négociables : il **ne passe pas par `_killEnemy()`** (ni XP, ni cumul, ni
+  haut fait, ni butin) ; il **ne s'applique ni aux élites ni au porteur
+  d'objectif** — un contrat « tuez trois élites » ne doit pas se vider tout
+  seul ; et la distance est **franchement plus grande** que la boîte
+  d'apparition, sinon un corps naît et meurt aussitôt et la horde clignote.
+  C'est le pendant exact du champ fenêtré : là on cesse de **calculer** loin, ici
+  on cesse d'**entretenir** loin.
+- **LA COMPOSITION DES GROUPES EST LISIBLE DEPUIS L'ÉTAT** (`this.groupes`),
+  jamais recalculée ailleurs. Le Director en aura besoin : **une équipe en
+  difficulté est un accident, un joueur qui s'isole est une décision**, et il ne
+  doit pas venir au secours du second — sinon il lirait la tension de l'isolé
+  comme une surcharge et **adoucirait** la composition, ce qui annulerait tout ce
+  qui précède.
 - **UN ENNEMI NE SE MATÉRIALISE JAMAIS SOUS LES YEUX** (`_pushOffScreen`). Le
   **côté appartient au script, la distance à la lisibilité** : on ne change jamais
   de bord, on repousse le long de l'axe du bord, quitte à sortir de la salle. Le

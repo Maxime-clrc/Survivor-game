@@ -367,6 +367,37 @@ export const CFG = {
 const NAV_FENETRE = Math.hypot(CFG.VIEW_W / 2 + TL_CFG.SPAWN_MARGIN,
                                CFG.VIEW_H / 2 + TL_CFG.SPAWN_MARGIN) + 4 * NAV_CFG.CELL;
 
+/* CE QUI FAIT UN GROUPE, ET CE QUI FAIT UN CORPS DE TROP.
+
+   Deux joueurs a moins d'une VUE l'un de l'autre affrontent la meme horde ;
+   au-dela, ils en affrontent deux. Mesure du plan 31 : a 400 px d'ecart les deux
+   joueurs voient EXACTEMENT la meme horde (65,7 contre 65,0), a 3 600 px l'un est
+   noye et l'autre au chomage dans un rapport de 2,2 a 4,5 — et le SENS du
+   desequilibre change avec la graine. Ce n'est pas un biais de position, c'est un
+   tirage : `_edgePoint` naissait sur un bord de la boite ENGLOBANTE, et le cote
+   venait du battement du script, qui ignore ou sont les joueurs.
+
+   LE POIDS EST L'UNIQUE BOUTON. Le budget total ne bouge jamais : il se
+   REPARTIT, poids = effectif^e. A e = 1 (prorata pur) un joueur parti seul d'une
+   equipe de quatre recoit 0,71 fois la horde d'un vrai solo — partir seul serait
+   PLUS DOUX que jouer solo. A e = 0,5 il recoit 1,04 : la pression d'un solo,
+   sans aucune des compensations du solo (lien du Soigneur, auras, cartes
+   cooperatives, `REVIVE_RADIUS`). Contrepartie assumee : le groupe reste soulage
+   d'autant, et c'est le prix d'un budget fixe.
+
+   RETIRER N'EST PAS TUER. Un corps a plus de `RECYCLE_DIST` de TOUT joueur est
+   retire en silence et sa place rendue au plafond : il ne passe pas par
+   `_killEnemy()`, donc ni XP, ni cumul, ni haut fait, ni butin. La distance est
+   franchement plus grande que la boite d'apparition — sinon un corps naitrait et
+   mourrait aussitot, et la horde clignoterait. Les elites et le gibier de
+   `chasse` en sont exempts : un objectif ne doit pas se vider tout seul. */
+const GROUPE_VUE = CFG.VIEW_W;
+const GROUPE_SORTIE = 1.5;
+const GROUPE_POIDS = 0.5;
+const GROUPE_CAP_JEU = 1.25;
+const RECYCLE_DIST = CFG.VIEW_W * 1.5;
+const RECYCLE_PERIODE = 0.5;
+
 export const PLAYER_COLORS = [
   CLASS_COLOR.tank,
   CLASS_COLOR.soigneur,
@@ -871,7 +902,6 @@ export class GameState {
     this.finalDone = false;
 
     this.time = 0;
-    this.spawnAcc = 0;
     this.powerupCd = 8;
     this.eliteCd = CFG.ELITE_FROM;
     this.bossCount = 0;
@@ -888,6 +918,12 @@ export class GameState {
     this.beatSide = 0;
     this.packLeft = 0;
     this.packSide = 0;
+    // LA COMPOSITION EST LISIBLE DEPUIS L'ETAT, jamais recalculee ailleurs : le
+    // Director devra savoir qu'un groupe s'est isole pour ne PAS lui venir en
+    // aide. Refaite au battement, pas au tick — a la limite le groupe clignote.
+    this.groupes = null;
+    this.spawnAccG = [];
+    this.recycleT = RECYCLE_PERIODE;
     this.bossPending = false;
     this._beatCache = null;
     this._crowdHeld = 1;
@@ -1263,6 +1299,11 @@ export class GameState {
     if (!echauffement) {
       this._segmentTick(dt);
       this._spawner(dt);
+    }
+    this.recycleT -= dt;
+    if (this.recycleT <= 0) {
+      this.recycleT = RECYCLE_PERIODE;
+      this._recyclerLoin();
     }
     this._skills(dt);
     this._effects(dt);
@@ -3599,7 +3640,8 @@ export class GameState {
     return ENEMY_TYPES[0];
   }
 
-  _spawnEnemy(typeIndex = -1, x = null, y = null, elite = false, geom = "bords") {
+  _spawnEnemy(typeIndex = -1, x = null, y = null, elite = false, geom = "bords",
+              groupe = null) {
     if (this.enemies.length >= this._enemyCap()) return null;
     let ti = typeIndex;
     if (ti >= 0) {
@@ -3619,7 +3661,7 @@ export class GameState {
 
     const past = this.hordeMinutes();
     const baseHp = (CFG.ENEMY_HP_BASE + past * CFG.ENEMY_HP_MIN_RAMP) * this.diff.hp;
-    const pos = x === null ? this._spawnPoint(geom, base.r) : { x, y };
+    const pos = x === null ? this._spawnPoint(geom, base.r, groupe) : { x, y };
     const hp = baseHp * base.hpMul * (elite ? CFG.ELITE_HP_MUL : 1);
     const e = {
       id: this._nextId++,
@@ -3710,8 +3752,9 @@ export class GameState {
   }
 
   _startBeat() {
-    this.spawnAcc = 0;
+    this.spawnAccG = [];
     this.packLeft = 0;
+    this._grouper();
     this.beatSide = Math.floor(this.alea() * 4);
 
 
@@ -3958,30 +4001,67 @@ export class GameState {
     let eliteDue = this.eliteCd <= 0;
 
     const cap = this._enemyCap();
-    this.spawnAcc += rate * dt;
-    while (this.spawnAcc >= 1) {
-      this.spawnAcc -= 1;
-      if (this.enemies.length >= cap) { this.spawnAcc = 0; break; }
-      const type = ev && ev.types.length > 0
-        ? ev.types[Math.floor(this.alea() * ev.types.length)]
-        : -1;
-      const e = this._spawnEnemy(type, null, null, eliteDue, entry.geom);
-      if (!e) break;
-      if (eliteDue) {
-        eliteDue = false;
-        const k = Math.pow(crowd, CFG.WAVE_ELITE_CROWD_EXP);
-        this.eliteCd = (CFG.ELITE_MIN + this.alea() * (CFG.ELITE_MAX - CFG.ELITE_MIN)) / k;
+    const groupes = this._groupesVivants();
+    if (groupes.length === 0) return;
+
+    /* LE BUDGET SE REPARTIT, IL NE SE MULTIPLIE PAS. `crowd` reste calcule sur
+       l'effectif TOTAL — un joueur qui part seul ne doit pas subir la pression
+       d'un solo, il doit subir SA PART de celle d'une equipe. Le poids distribue,
+       il ne cree rien : la somme des parts vaut toujours `rate`. */
+    let somme = 0;
+    const poids = groupes.map(g => Math.pow(g.length, GROUPE_POIDS));
+    for (const w of poids) somme += w;
+    let effectif = 0;
+    for (const g of groupes) effectif += g.length;
+
+    /* LE PLAFOND SE REPARTIT AUSSI, sinon le groupe le plus fourni le consomme
+       tout et l'autre joue dans le vide. Il reste GLOBAL — se separer ne
+       multiplie pas la horde — et la part garde du jeu, sans quoi un corps en
+       transit d'un groupe a l'autre bloquerait une apparition. */
+    const parGroupe = new Array(groupes.length).fill(0);
+    for (const e of this.enemies) {
+      const gi = this._groupeDe(e, groupes);
+      if (gi >= 0) parGroupe[gi]++;
+    }
+
+    if (this.spawnAccG.length !== groupes.length) {
+      this.spawnAccG = new Array(groupes.length).fill(0);
+    }
+
+    for (let gi = 0; gi < groupes.length; gi++) {
+      const capG = Math.ceil(cap * (groupes[gi].length / effectif) * GROUPE_CAP_JEU);
+      this.spawnAccG[gi] += rate * (poids[gi] / somme) * dt;
+      while (this.spawnAccG[gi] >= 1) {
+        this.spawnAccG[gi] -= 1;
+        if (this.enemies.length >= cap || parGroupe[gi] >= capG) {
+          this.spawnAccG[gi] = 0;
+          break;
+        }
+        const type = ev && ev.types.length > 0
+          ? ev.types[Math.floor(this.alea() * ev.types.length)]
+          : -1;
+        const e = this._spawnEnemy(type, null, null, eliteDue, entry.geom, groupes[gi]);
+        if (!e) break;
+        parGroupe[gi]++;
+        if (eliteDue) {
+          eliteDue = false;
+          const k = Math.pow(crowd, CFG.WAVE_ELITE_CROWD_EXP);
+          this.eliteCd = (CFG.ELITE_MIN + this.alea() * (CFG.ELITE_MAX - CFG.ELITE_MIN)) / k;
+        }
       }
     }
   }
 
-  _spawnBox() {
+  /* UNE BOITE PAR GROUPE, et `beatSide` s'applique DANS cette boite : la
+     geometrie du battement garde tout son sens — elle dit d'ou ca vient, elle n'a
+     jamais eu a dire pour qui. */
+  _spawnBox(groupe = null) {
     const m = TL_CFG.SPAWN_MARGIN;
     const hw = CFG.VIEW_W / 2 + m, hh = CFG.VIEW_H / 2 + m;
-    const ps = this._alivePlayers();
+    const ps = groupe ?? this._alivePlayers();
     let x0, y0, x1, y1;
     if (ps.length === 0) {
-      const c = this._teamCentroid();
+      const c = this._teamCentroid(groupe);
       x0 = c.x - hw; x1 = c.x + hw; y0 = c.y - hh; y1 = c.y + hh;
     } else {
       x0 = y0 = Infinity; x1 = y1 = -Infinity;
@@ -3999,8 +4079,8 @@ export class GameState {
     };
   }
 
-  _edgePoint(side) {
-    const B = this._spawnBox();
+  _edgePoint(side, groupe = null) {
+    const B = this._spawnBox(groupe);
     const s = side & 3;
     let pt;
     switch (s) {
@@ -4029,38 +4109,38 @@ export class GameState {
     return pt;
   }
 
-  _spawnPoint(geom = "bords", r = 12) {
-    if (this.blastHoles.length === 0) return this._spawnGeom(geom, r);
+  _spawnPoint(geom = "bords", r = 12, groupe = null) {
+    if (this.blastHoles.length === 0) return this._spawnGeom(geom, r, groupe);
     for (let i = 0; i < 4; i++) {
-      const pt = this._spawnGeom(geom, r);
+      const pt = this._spawnGeom(geom, r, groupe);
       if (!this._dansUnTrou(pt.x, pt.y)) return pt;
     }
-    return this._spawnGeom(geom, r);
+    return this._spawnGeom(geom, r, groupe);
   }
 
-  _spawnGeom(geom, r) {
+  _spawnGeom(geom, r, groupe = null) {
     switch (geom) {
       case "front":
-        return this._edgePoint(this.beatSide);
+        return this._edgePoint(this.beatSide, groupe);
       case "pince":
-        return this._edgePoint(this.alea() < 0.5 ? this.beatSide : this.beatSide ^ 1);
+        return this._edgePoint(this.alea() < 0.5 ? this.beatSide : this.beatSide ^ 1, groupe);
       case "quatre-fronts": {
         if (this.packLeft <= 0) {
           this.packLeft = TL_CFG.PACK;
           this.packSide = (this.packSide + 1) & 3;
         }
         this.packLeft--;
-        return this._edgePoint(this.packSide);
+        return this._edgePoint(this.packSide, groupe);
       }
       case "anneau":
-        return this._ringPoint(r);
+        return this._ringPoint(r, groupe);
       default:
-        return this._edgePoint(Math.floor(this.alea() * 4));
+        return this._edgePoint(Math.floor(this.alea() * 4), groupe);
     }
   }
 
-  _ringPoint(r) {
-    const c = this._teamCentroid();
+  _ringPoint(r, groupe = null) {
+    const c = this._teamCentroid(groupe);
     const cx = c.x, cy = c.y;
     const rad = (CFG.VIEW_H / 2) * TL_CFG.RING_RATIO;
     for (let i = 0; i < TL_CFG.RING_TRIES; i++) {
@@ -4075,7 +4155,7 @@ export class GameState {
       }
       if (ok) return { x, y };
     }
-    return this._edgePoint(Math.floor(this.alea() * 4));
+    return this._edgePoint(Math.floor(this.alea() * 4), groupe);
   }
 
 
@@ -6127,14 +6207,143 @@ export class GameState {
   }
 
 
+  /* UNE PASSE EN O(n^2) SUR QUATRE JOUEURS AU PLUS, refaite au battement. La
+     fermeture est transitive : trois joueurs en file a une vue l'un de l'autre
+     sont UN groupe, parce qu'ils se relaient la meme horde.
+     ON REGROUPE TOUT LE MONDE, A TERRE COMPRIS. Un joueur a terre a l'instant du
+     battement sortait de TOUS les groupes, et sa part de horde tombait sur son
+     voisin pour les soixante secondes suivantes — mesure : rapport 4,2 la ou le
+     partage doit rendre 1. Le tri des vivants appartient a la LECTURE. */
+  _grouper() {
+    const ps = [...this.players.values()];
+    const vus = new Set();
+    const out = [];
+    for (const p of ps) {
+      if (vus.has(p.id)) continue;
+      vus.add(p.id);
+      const file = [p], grp = [];
+      while (file.length > 0) {
+        const a = file.pop();
+        grp.push(a.id);
+        for (const b of ps) {
+          if (vus.has(b.id)) continue;
+          if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 <= GROUPE_VUE * GROUPE_VUE) {
+            vus.add(b.id);
+            file.push(b);
+          }
+        }
+      }
+      out.push(grp);
+    }
+    this.groupes = out;
+    return out;
+  }
+
+  /* UN GROUPEMENT PERIME EST PIRE QUE PAS DE GROUPEMENT. Refait au seul battement,
+     il tient jusqu'a SOIXANTE SECONDES apres que l'equipe s'est separee — et
+     pendant tout ce temps la horde nait sur la boite ENGLOBANTE. Mesure : 358
+     corps d'un cote, 11 de l'autre, et la masse ainsi posee consomme le plafond
+     GLOBAL, donc l'autre groupe joue dans le vide bien apres le regroupement.
+     L'HYSTERESIS EST CE QUI EMPECHE LE CLIGNOTEMENT : on ENTRE dans un groupe a
+     une vue, on n'en SORT qu'a une vue et demie. Deux joueurs qui marchent a la
+     limite ne font donc pas osciller la geometrie du battement. Quatre joueurs au
+     plus : seize distances, par tick, et rien n'alloue. */
+  _groupesPerimes() {
+    const g = this.groupes;
+    if (!g) return true;
+    const sortie = GROUPE_VUE * GROUPE_SORTIE;
+    for (const grp of g) {
+      const ps = [];
+      for (const id of grp) {
+        const p = this.players.get(id);
+        if (p) ps.push(p);
+      }
+      if (ps.length < 2) continue;
+      // le groupe doit rester d'un seul tenant au seuil de SORTIE
+      const vus = [ps[0]];
+      const reste = ps.slice(1);
+      for (let i = 0; i < vus.length; i++) {
+        for (let j = reste.length - 1; j >= 0; j--) {
+          const d2 = (vus[i].x - reste[j].x) ** 2 + (vus[i].y - reste[j].y) ** 2;
+          if (d2 <= sortie * sortie) { vus.push(reste[j]); reste.splice(j, 1); }
+        }
+      }
+      if (reste.length > 0) return true;
+    }
+    for (let i = 0; i < g.length; i++) {
+      for (let j = i + 1; j < g.length; j++) {
+        for (const ia of g[i]) {
+          for (const ib of g[j]) {
+            const a = this.players.get(ia), b = this.players.get(ib);
+            if (!a || !b) continue;
+            if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 <= GROUPE_VUE * GROUPE_VUE) return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  // les identifiants peuvent mourir ou partir entre deux battements : on relit,
+  // on ne regroupe pas.
+  _groupesVivants() {
+    if (this._groupesPerimes()) this._grouper();
+    const out = [];
+    for (const g of this.groupes) {
+      const ps = [];
+      for (const id of g) {
+        const p = this.players.get(id);
+        if (p && !p.downed) ps.push(p);
+      }
+      if (ps.length > 0) out.push(ps);
+    }
+    if (out.length === 0) {
+      const ps = this._alivePlayers();
+      if (ps.length > 0) out.push(ps);
+    }
+    return out;
+  }
+
+  _groupeDe(e, groupes) {
+    let best = -1, bd = Infinity;
+    for (let gi = 0; gi < groupes.length; gi++) {
+      for (const p of groupes[gi]) {
+        const d = (p.x - e.x) ** 2 + (p.y - e.y) ** 2;
+        if (d < bd) { bd = d; best = gi; }
+      }
+    }
+    return best;
+  }
+
+  /* LE PENDANT EXACT DU CHAMP FENETRE : la on cesse de CALCULER loin, ici on
+     cesse d'ENTRETENIR loin. A 3 600 px d'ecart la population doublait ou
+     triplait (55-69 -> 106-200) sans que le contact augmente : les corps en trop
+     etaient EN TRANSIT, on payait leur simulation, leur separation et leur
+     instantane, et ils ne menacaient personne. */
+  _recyclerLoin() {
+    const ps = this._alivePlayers();
+    if (ps.length === 0) return;
+    const R2 = RECYCLE_DIST * RECYCLE_DIST;
+    const loin = e => {
+      if (e.elite || e.id === this.quarry) return false;
+      for (const p of ps) {
+        if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= R2) return false;
+      }
+      return true;
+    };
+    let n = 0;
+    for (const e of this.enemies) if (loin(e)) n++;
+    if (n > 0) this.enemies = this.enemies.filter(e => !loin(e));
+  }
+
   _alivePlayers() {
     const out = [];
     for (const p of this.players.values()) if (!p.downed) out.push(p);
     return out;
   }
 
-  _teamCentroid() {
-    const ps = this._alivePlayers();
+  _teamCentroid(groupe = null) {
+    const ps = groupe ?? this._alivePlayers();
     if (ps.length === 0) {
       const B = this.bounds;
       return { x: (B.x0 + B.x1) / 2, y: (B.y0 + B.y1) / 2 };
@@ -9545,6 +9754,101 @@ export function verifierEncerclement(effectifs = [1, 2, 4], marge = 3) {
    proportionnelle a la surface n aurait rien regle — elle aurait attenue.
    La couverture passe d abord : une grille bornee qui manquerait une paire
    casserait la separation EN SILENCE, et c est le seul defaut qui compte. */
+/* CE QUE LE PARTAGE DOIT TENIR, ET IL SE VERIFIE SANS SIMULER. Le budget total ne
+   bouge jamais : il se REPARTIT. Le poids `e = 0,5` est le seul bouton, et sa
+   valeur se lit sur une seule ligne — ce que recoit un joueur PARTI SEUL, compare
+   a un vrai solo. A e = 1 il recevrait 0,71 (partir serait plus doux que jouer
+   solo), a e = 0,5 il recoit 1,04. */
+export function verifierGroupes() {
+  const soucis = [];
+  const part = (tailles, i) => {
+    const poids = tailles.map(n => Math.pow(n, GROUPE_POIDS));
+    const somme = poids.reduce((a, b) => a + b, 0);
+    const total = tailles.reduce((a, b) => a + b, 0);
+    return Math.pow(total, CFG.WAVE_CROWD_EXP) * poids[i] / somme;
+  };
+
+  // 1 · le budget ne se cree ni ne se perd : la somme des parts vaut le budget
+  for (const tailles of [[1], [2], [1, 1], [3, 1], [2, 2], [1, 1, 1, 1], [2, 1, 1]]) {
+    const total = tailles.reduce((a, b) => a + b, 0);
+    let somme = 0;
+    for (let i = 0; i < tailles.length; i++) somme += part(tailles, i);
+    const attendu = Math.pow(total, CFG.WAVE_CROWD_EXP);
+    if (Math.abs(somme - attendu) > 1e-9) {
+      soucis.push(`budget cree ou perdu sur [${tailles}] : ${somme.toFixed(4)}`
+        + ` pour ${attendu.toFixed(4)}`);
+    }
+  }
+
+  // 2 · ce que coute l'isolement, et c'est LE reglage
+  const solo = Math.pow(1, CFG.WAVE_CROWD_EXP);
+  for (const [equipe, cible] of [[2, 0.84], [3, 0.94], [4, 1.04]]) {
+    const r = part([1, equipe - 1], 0) / solo;
+    if (Math.abs(r - cible) > 0.05) {
+      soucis.push(`un joueur isole d'une equipe de ${equipe} recoit ${r.toFixed(2)}`
+        + ` fois la horde d'un solo, cible ${cible}`);
+    }
+  }
+
+  // 3 · le regroupement : la vue separe, et la fermeture est transitive
+  const g = new GameState(DIFF_NORMAL, 0, 7);
+  const poser = (id, x, y) => {
+    g.addPlayer(id, `b${id}`, id - 1, 0);
+    const p = g.players.get(id);
+    p.x = x; p.y = y;
+    return p;
+  };
+  poser(1, 1000, 1000);
+  poser(2, 1000 + GROUPE_VUE * 0.9, 1000);
+  poser(3, 1000 + GROUPE_VUE * 1.8, 1000);
+  poser(4, 4600, 2500);
+  const grp = g._grouper();
+  if (grp.length !== 2) {
+    soucis.push(`quatre joueurs en file plus un a l'ecart rendent ${grp.length}`
+      + " groupe(s), attendu 2 (la fermeture est transitive)");
+  }
+  const g1 = grp.find(x => x.includes(1));
+  if (!g1 || g1.length !== 3) {
+    soucis.push(`la file de trois ne fait pas un groupe : ${JSON.stringify(grp)}`);
+  }
+
+  // 4 · un joueur a terre reste dans un groupe. Sorti de la table, sa part de
+  // horde tombait sur son voisin jusqu'au battement suivant.
+  g.players.get(2).downed = true;
+  const grp2 = g._grouper();
+  if (!grp2.some(x => x.includes(2))) {
+    soucis.push("un joueur a terre sort de tous les groupes");
+  }
+
+  // 5 · le recyclage ne tue pas, et il epargne ce qui porte un objectif
+  const h = new GameState(DIFF_NORMAL, 0, 7);
+  h.addPlayer(1, "b1", 0, 0);
+  const p1 = h.players.get(1);
+  p1.x = 1000; p1.y = 1000;
+  const loin = { x: p1.x + RECYCLE_DIST * 2, y: p1.y };
+  const ordinaire = h._spawnEnemy(0, loin.x, loin.y);
+  const elite = h._spawnEnemy(0, loin.x, loin.y, true);
+  const gibier = h._spawnEnemy(0, loin.x, loin.y);
+  const pres = h._spawnEnemy(0, p1.x + 100, p1.y);
+  h.quarry = gibier.id;
+  const killsAvant = h.totalKills, xpAvant = h.xp;
+  h._recyclerLoin();
+  const restants = new Set(h.enemies.map(e => e.id));
+  if (restants.has(ordinaire.id)) soucis.push("un corps ordinaire au loin n'est pas recycle");
+  if (!restants.has(elite.id)) soucis.push("une elite au loin est recyclee");
+  if (!restants.has(gibier.id)) soucis.push("le porteur d'objectif au loin est recycle");
+  if (!restants.has(pres.id)) soucis.push("un corps proche est recycle");
+  if (h.totalKills !== killsAvant || h.xp !== xpAvant) {
+    soucis.push("le recyclage compte une mort : il ne doit pas passer par _killEnemy");
+  }
+  if (RECYCLE_DIST < CFG.VIEW_W / 2 + TL_CFG.SPAWN_MARGIN + CFG.VIEW_W / 2) {
+    soucis.push(`RECYCLE_DIST = ${RECYCLE_DIST} n'est pas franchement plus grand`
+      + " que la boite d'apparition — un corps naitrait et mourrait aussitot");
+  }
+
+  return soucis;
+}
+
 export function verifierGrilles(corps = 600) {
   const soucis = [];
   const g = new GameState(DIFF_NORMAL, 0, 7);
