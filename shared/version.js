@@ -8077,6 +8077,49 @@
                   quand le resume ne suffit pas, mais il demande un acces au disque
                   de la machine. Le compte rendu, lui, se colle.
 
+    0.35.1 lot 04 DEUX INDICES MESURES, ET RIEN NE LES LIT. C EST LE POINT. Le
+                  Director arrive deux plans plus tard avec six reglages a
+                  calibrer — A, B, C, DECAY, seuil bas, seuil haut ; s il apportait
+                  sa mesure avec lui, il n existerait AUCUNE manche enregistree
+                  pour dire a quoi ressemble une courbe normale, et les six
+                  seraient devines. En livrant la mesure maintenant, chaque manche
+                  jouee d ici la accumule une courbe — et si la mesure est
+                  mauvaise, on le voit AVANT qu un systeme s appuie dessus.
+                  LA TENSION EST UN RESSENTI, PAS UN COMPTE. Les degats y entrent
+                  en FRACTION DES PV MAX — un Rempart et un Tireur ne recoivent pas
+                  le meme coup de la meme facon — et la DENSITE PROCHE est le seul
+                  terme qui monte AVANT qu on prenne des coups : sans elle la
+                  mesure est toujours en retard, et etre au contact est une tension
+                  meme quand on gagne.
+                  AUCUNE INSTRUMENTATION NEUVE : le terme de degats se prend dans
+                  `_hurt()`, passage oblige de tout ce qui blesse un joueur ; la
+                  densite se compte dans `_separateFromPlayers`, qui parcourt DEJA
+                  le voisinage 3x3 ; `p.downed` existe. Cout mesure, meme graine et
+                  600 s de simulation : p50 17,7 -> 18,0 us, p99 216 -> 219 us,
+                  soit +1,2 % — sous le bruit.
+                  DEUX AGREGATS D EQUIPE, PAS UN. `tensionMax` dira « trop haut »,
+                  `tensionMoy` dira « trop bas » : l ennui est un etat COLLECTIF.
+                  Une moyenne seule effacerait exactement ce que le plan 31 a
+                  mesure — a 3 600 px de separation, un joueur voyait 137 corps
+                  pendant que l autre en voyait 36.
+                  LA MEMOIRE COURTE EST UNE DUREE : depuis la derniere elite,
+                  depuis le dernier evenement, et le temps passe SOUS LE SEUIL BAS.
+                  Une tension basse dix secondes n est rien, quatre-vingt-dix c est
+                  une manche plate.
+                  `survieIndex()` REPARE UN DEFAUT QUE PERSONNE N A CONCU, ET IL NE
+                  SERT QU A LA TENSION. `powerIndex()` est purement OFFENSIF —
+                  delibere, il dit ce que l arme rend contre une cible unique — mais
+                  il remonte jusqu aux PV DU BOSS : une equipe cuirassee est donc
+                  mesuree FAIBLE, et un loot defensif serait invisible a l indice
+                  donc entierement gratuit, la ou un loot offensif grossit le boss
+                  et paie une partie de lui-meme. `powerIndex()` ne bouge pas, ni
+                  `BOSS_POWER_REF`, ni `SUMMON_REF`, ni la courbe des six boss.
+                  `verifierIndices()` en `--tout` : meme graine, meme courbe ; borne
+                  [0, 1] ; NI PLATE NI SATUREE — une tension qui reste a zero ou
+                  colle a 1 ne dit rien. Les poids sont des VALEURS DE DEPART : on
+                  regardera des courbes de vraies manches et on ajustera, et c est
+                  exactement pour ca que ce lot vient avant le Director.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8085,4 +8128,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.35.0";
+export const VERSION = "0.35.1";

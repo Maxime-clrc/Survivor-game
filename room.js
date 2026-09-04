@@ -218,6 +218,14 @@ export class Room {
       kills: s.totalKills,
       meteo: s.weather ? s.weather.id : -1,
       ev: s.event ? s.event.id : -1,
+      // LES DEUX AGREGATS ET LA MEMOIRE COURTE. Ils ne pilotent rien : ils
+      // s accumulent pour que le Director, deux plans plus loin, lise des
+      // distributions OBSERVEES au lieu de six reglages devines.
+      tensionMax: Math.round(s.tensionMax * 1000) / 1000,
+      tensionMoy: Math.round(s.tensionMoy * 1000) / 1000,
+      depuisElite: Math.round(s.depuisElite),
+      depuisEvent: Math.round(s.depuisEvent),
+      tensionBas: Math.round(s.tensionBasT),
       boss: s.boss
         ? { kind: s.boss.kind, hp: Math.round(s.boss.hp), max: Math.round(s.boss.maxHp),
             phase: s.boss.phase, barres: s.boss.bars, t: Math.round(s.boss.fightT) }
@@ -233,6 +241,8 @@ export class Room {
         kills: p.kills,
         morts: p.deaths,
         puissance: Math.round(s._playerPower(p) * 1000) / 1000,
+        tension: Math.round(p.tension * 1000) / 1000,
+        survie: Math.round(p.survie * 1000) / 1000,
       })),
     };
   }

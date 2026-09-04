@@ -655,6 +655,42 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   test : avancés l'un après l'autre ils passeraient même avec un générateur
   global. C'est la panne de production, pas une propriété théorique.
 
+- **DEUX INDICES SONT MESURÉS ET RIEN NE LES LIT.** C'est le point : le Director
+  arrive deux plans plus tard avec six réglages à calibrer, et s'il apportait sa
+  mesure avec lui, ces réglages seraient **devinés** faute d'une seule manche
+  enregistrée. Ils sont calculés, tracés, et aucun comportement du jeu ne change.
+  Si la mesure est mauvaise, on le voit **avant** qu'un système s'appuie dessus.
+- **LA TENSION EST UN RESSENTI, PAS UN COMPTE** : les dégâts y entrent en
+  **fraction des PV max** — un Rempart et un Tireur ne reçoivent pas le même coup
+  de la même façon — et la **densité proche** est le seul terme qui monte **avant**
+  qu'on prenne des coups. Sans elle la mesure est toujours en retard, et être au
+  contact est une tension même quand on gagne.
+- **Aucune instrumentation neuve.** Le terme de dégâts se prend dans `_hurt()`,
+  passage obligé de tout ce qui blesse un joueur ; la densité se compte dans
+  `_separateFromPlayers`, qui parcourt **déjà** le voisinage 3×3 ; `p.downed`
+  existe. Coût mesuré : p50 17,7 → 18,0 µs et p99 216 → 219 µs par tick, soit
+  **+1,2 %**, sous le bruit.
+- **DEUX AGRÉGATS D'ÉQUIPE, PAS UN.** `tensionMax` dira « trop haut »,
+  `tensionMoy` dira « trop bas » — l'ennui est un état collectif. Une moyenne
+  seule effacerait exactement ce que la mesure du plan 31 a trouvé : à 3 600 px de
+  séparation, un joueur voyait 137 corps pendant que l'autre en voyait 36.
+- **La mémoire courte est une DURÉE, pas une valeur** : temps depuis la dernière
+  élite, depuis le dernier événement, et **temps passé sous le seuil bas**. Une
+  tension basse dix secondes n'est rien ; quatre-vingt-dix, c'est une manche plate.
+- **`survieIndex()` RÉPARE UN DÉFAUT QUE PERSONNE N'A CONÇU, ET IL NE SERT QU'À LA
+  TENSION.** `powerIndex()` est purement offensif — c'est délibéré, il dit ce que
+  l'arme rend contre une cible unique — mais il remonte jusqu'aux **PV du boss**
+  (`powerIndex → _playerPower → _teamPower → bossPower`) : une équipe cuirassée
+  est donc mesurée **faible**, et un loot défensif serait invisible à l'indice donc
+  entièrement **gratuit**, là où un loot offensif grossit le boss et paie une
+  partie de lui-même. `powerIndex()` **ne bouge pas** : ni `BOSS_POWER_REF`, ni
+  `SUMMON_REF`, ni la courbe des six boss. Aucun boss, aucun mini-boss, aucune
+  récompense ne se branche sur l'indice de survie.
+- **La tension ne tire jamais** : elle est aussi déterministe que la manche.
+  `verifierIndices()` rejoue deux manches de même graine et exige la même courbe,
+  bornée à [0, 1], **ni plate ni saturée** — une tension qui reste à zéro ou colle
+  à 1 ne dit rien, et c'est maintenant qu'on veut le savoir.
+
 ### Bonus au sol
 
 - **UN BONUS EST UNE MICRO-DECISION DE COMBAT, jamais un second système de

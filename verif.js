@@ -124,6 +124,7 @@ const SUITE = [
   ["contribution", () => G.verifierContribution(), true],
   ["progression", () => G.verifierProgression(), true],
   ["determinisme", () => G.verifierDeterminisme(), true],
+  ["indices", () => G.verifierIndices(), true],
   ["tirageBonus", () => G.verifierTirageBonus(), true],
   ["rythmeBonus", () => G.verifierRythmeBonus(), true],
   ["encerclement", () => G.verifierEncerclement(), true],

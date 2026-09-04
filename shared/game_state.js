@@ -391,6 +391,47 @@ const NAV_FENETRE = Math.hypot(CFG.VIEW_W / 2 + TL_CFG.SPAWN_MARGIN,
    franchement plus grande que la boite d'apparition — sinon un corps naitrait et
    mourrait aussitot, et la horde clignoterait. Les elites et le gibier de
    `chasse` en sont exempts : un objectif ne doit pas se vider tout seul. */
+/* LES DEUX INDICES, ET ILS NE PILOTENT RIEN. C'est tout le point du lot : ils
+   sont calcules, traces, et AUCUN comportement du jeu ne les lit. Le Director
+   viendra deux plans plus tard ; s'il apportait sa mesure avec lui, ses six
+   reglages seraient devines faute d'une seule manche enregistree.
+
+   LA TENSION EST UN RESSENTI, PAS UN COMPTE. Les degats comptent en fraction des
+   PV MAX — un Rempart et un Tireur ne recoivent pas le meme coup de la meme
+   facon. La densite proche est le seul terme qui monte AVANT qu'on prenne des
+   coups : sans elle la mesure est toujours en retard, et etre au contact est une
+   tension meme quand on gagne.
+
+   LES POIDS SONT DES VALEURS DE DEPART, et il n'y a pas de bonne reponse a
+   priori : on part de plausible, on regarde des courbes de vraies manches, on
+   ajuste. C'est pour cela que la mesure part MAINTENANT. */
+const TENSION_CFG = {
+  A: 1.2,             // un coup de 20 % des PV max ajoute 0,24
+  B: 0.35,            // par seconde, a DENSITE_REF corps proches
+  C: 0.5,             // par seconde a terre
+  DECAY: 0.12,        // par seconde ; de 1 a 0 en huit secondes de calme
+  DENSITE_REF: 12,
+  SEUIL_BAS: 0.15,
+  SEUIL_HAUT: 0.7,
+};
+
+/* L'INDICE DE SURVIE REPARE UN DEFAUT QUE PERSONNE N'A CONCU. `powerIndex()` est
+   purement OFFENSIF — c'est delibere, il dit ce que l'arme rend contre une cible
+   unique, et c'est le contexte sur lequel les six boss sont calibres. Mais il
+   remonte toute la chaine jusqu'aux PV du boss : une equipe cuirassee est donc
+   mesuree FAIBLE, et un loot defensif serait invisible a l'indice, donc
+   entierement gratuit, la ou un loot offensif grossit le boss et paie une partie
+   de lui-meme.
+   CET INDICE NE SERT QU'A LA TENSION. `powerIndex()` ne bouge pas, ni
+   `BOSS_POWER_REF`, ni la courbe des six boss : aucun boss, aucun mini-boss,
+   aucune recompense ne s'y branche. */
+export function survieIndex(mods, maxHp) {
+  const pv = Math.max(1, maxHp) / CFG.PLAYER_MAX_HP;
+  const reduc = 1 / Math.max(0.05, mods.damageTakenMul);
+  const tampon = 1 + Math.max(0, mods.shieldPool) / CFG.PLAYER_MAX_HP;
+  return pv * reduc * tampon;
+}
+
 const GROUPE_VUE = CFG.VIEW_W;
 const GROUPE_SORTIE = 1.5;
 const GROUPE_POIDS = 0.5;
@@ -924,6 +965,17 @@ export class GameState {
     this.groupes = null;
     this.spawnAccG = [];
     this.recycleT = RECYCLE_PERIODE;
+    /* DEUX AGREGATS, PAS UN. Une moyenne d'equipe effacerait exactement ce que la
+       mesure du plan 31 a trouve : a 3 600 px de separation un joueur voyait
+       137 corps pendant que l'autre en voyait 36. Le MAX dira « trop haut », la
+       MOYENNE dira « trop bas » — l'ennui est un etat collectif. */
+    this.tensionMax = 0;
+    this.tensionMoy = 0;
+    // la memoire courte : le contexte instantane ne sait pas dire « ca fait deux
+    // minutes qu'il ne s'est rien passe ».
+    this.depuisElite = 0;
+    this.depuisEvent = 0;
+    this.tensionBasT = 0;
     this.bossPending = false;
     this._beatCache = null;
     this._crowdHeld = 1;
@@ -1076,6 +1128,12 @@ export class GameState {
          `evites` est ce que MA reduction m epargne, `proteges` ce que MON aura
          epargne a un ALLIE : la difference est toute la contribution du Rempart. */
       contrib: { evites: 0, proteges: 0, detournes: 0, permis: 0 },
+      // MESURES, ET RIEN NE LES LIT : la tension monte aux degats, a la densite
+      // proche et a la chute, et redescend toute seule. `survie` est l'indice
+      // defensif, celui que `powerIndex()` ne peut pas porter.
+      tension: 0,
+      proches: 0,
+      survie: 1,
     };
 
     this.players.set(id, p);
@@ -1206,6 +1264,8 @@ export class GameState {
     const flat = this._relicSum(p, "flatHp") + this._relicAllySum(p, "allyFlatHp");
     if (flat !== 0) p.maxHp = Math.max(1, p.maxHp + flat);
     p.maxHp = plafonnerHp(p.maxHp, p.mods);
+    // APRES le plafond, sinon l indice lit une valeur que le joueur n a pas.
+    p.survie = survieIndex(p.mods, p.maxHp);
 
     const gained = p.maxHp - before;
     if (gained > 0 && !p.downed) p.hp = Math.min(p.maxHp, p.hp + gained);
@@ -1300,6 +1360,7 @@ export class GameState {
       this._segmentTick(dt);
       this._spawner(dt);
     }
+    this._tension(dt);
     this.recycleT -= dt;
     if (this.recycleT <= 0) {
       this.recycleT = RECYCLE_PERIODE;
@@ -3773,6 +3834,7 @@ export class GameState {
     if (!def) return;
 
     this.event = { id, t: TL_CFG.BEAT_TIME, max: TL_CFG.BEAT_TIME };
+    this.depuisEvent = 0;
     this.alerts.push({ event: id, level: def.level, dur: TL_CFG.EVENT_ANNOUNCE });
     if (this.alerts.length > 16) this.alerts.shift();
 
@@ -4045,6 +4107,7 @@ export class GameState {
         parGroupe[gi]++;
         if (eliteDue) {
           eliteDue = false;
+          this.depuisElite = 0;
           const k = Math.pow(crowd, CFG.WAVE_ELITE_CROWD_EXP);
           this.eliteCd = (CFG.ELITE_MIN + this.alea() * (CFG.ELITE_MAX - CFG.ELITE_MIN)) / k;
         }
@@ -5242,6 +5305,11 @@ export class GameState {
             const min = e.r + CFG.PLAYER_RADIUS - CFG.PLAYER_BITE;
             const dx = e.x - p.x, dy = e.y - p.y;
             const d2 = dx * dx + dy * dy;
+            // LA DENSITE PROCHE NE COUTE RIEN ICI : le voisinage 3x3 est deja
+            // parcouru pour separer, et le rayon de comptage est celui de la
+            // cellule — la grille PROUVE deja qu'aucun corps a cette distance ne
+            // lui echappe.
+            if (d2 < cell * cell) p.proches++;
             if (d2 >= min * min) continue;
             const d = Math.sqrt(d2) || 0.0001;
             const push = (min - d) * CFG.PLAYER_SEPARATION;
@@ -6302,6 +6370,33 @@ export class GameState {
       if (ps.length > 0) out.push(ps);
     }
     return out;
+  }
+
+  /* UNE SEULE PASSE, APRES LA HORDE. Le terme de degats est deja pris dans
+     `_hurt`, celui de densite dans `_separateFromPlayers` : il ne reste que la
+     chute, la decroissance et les deux agregats. Aucun tirage, donc la courbe est
+     aussi deterministe que la manche. */
+  _tension(dt) {
+    const T = TENSION_CFG;
+    let max = 0, som = 0, n = 0;
+    for (const p of this.players.values()) {
+      let t = p.tension;
+      t += (p.proches / T.DENSITE_REF) * T.B * dt;
+      if (p.downed) t += T.C * dt;
+      t -= T.DECAY * dt;
+      p.tension = t < 0 ? 0 : t > 1 ? 1 : t;
+      p.proches = 0;
+      if (p.tension > max) max = p.tension;
+      som += p.tension;
+      n++;
+    }
+    this.tensionMax = max;
+    this.tensionMoy = n > 0 ? som / n : 0;
+    this.depuisElite += dt;
+    this.depuisEvent += dt;
+    // UNE TENSION BASSE DIX SECONDES N'EST RIEN, quatre-vingt-dix c'est une
+    // manche plate : c'est la DUREE qui est le signal, pas la valeur.
+    this.tensionBasT = this.tensionMoy < T.SEUIL_BAS ? this.tensionBasT + dt : 0;
   }
 
   _groupeDe(e, groupes) {
@@ -8364,6 +8459,10 @@ export class GameState {
     // joueur retire, pas ce que le mode ajoute.
     const avantSoi = amount;
     amount *= p.mods.damageTakenMul;
+    // LA TENSION SE PREND ICI PARCE QUE TOUT CE QUI BLESSE PASSE ICI : un second
+    // point d'ecriture serait un second systeme a tenir. En fraction des PV MAX,
+    // apres la reduction — c'est ce que le joueur encaisse vraiment.
+    p.tension = Math.min(1, p.tension + (amount / Math.max(1, p.maxHp)) * TENSION_CFG.A);
     p.contrib.evites += avantSoi - amount;
     for (const o of this.players.values()) {
       if (o === p || o.downed || !(o.mods.guardAura > 0)) continue;
@@ -9759,6 +9858,95 @@ export function verifierEncerclement(effectifs = [1, 2, 4], marge = 3) {
    valeur se lit sur une seule ligne — ce que recoit un joueur PARTI SEUL, compare
    a un vrai solo. A e = 1 il recevrait 0,71 (partir serait plus doux que jouer
    solo), a e = 0,5 il recoit 1,04. */
+/* LES DEUX INDICES NE PILOTENT RIEN, ET C'EST CE QUI SE VERIFIE. Un indice qui
+   se contenterait d'exister ne demanderait pas de critere ; celui-ci en demande
+   trois, parce que le plan 36 s'appuiera dessus et qu'une mesure fausse
+   decouverte a ce moment-la couterait un plan entier :
+     - la courbe est DETERMINISTE — elle ne tire jamais, donc deux manches de
+       meme graine rendent la meme ;
+     - elle est LISIBLE — ni plate, ni saturee. Une tension qui reste a zero ou
+       colle a 1 ne dit rien, et c'est maintenant qu'on veut le savoir ;
+     - la borne [0, 1] tient, sinon les seuils du Director ne veulent rien dire. */
+export function verifierIndices(minutes = 8, graine = 7919, joueurs = 2) {
+  const soucis = [];
+  const monter = () => {
+    const g = new GameState(DIFF_NORMAL, 0, graine);
+    for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+    g.warmup = 0;
+    return g;
+  };
+  const entree = (k, id) => {
+    const t = k * CFG.TICK + id;
+    const x = Math.cos(t * 0.7), y = Math.sin(t * 0.5);
+    return { x, y, ax: -y, ay: x, ar: 0, dash: false,
+             s1: false, s2: false, s3: false };
+  };
+  const jouer = g => {
+    const images = Math.round(minutes * 60 / CFG.TICK);
+    const courbe = [];
+    const inputs = new Map();
+    for (let k = 0; k < images; k++) {
+      if (g.cardsPending) {
+        for (const [id, o] of g.cardOffers) {
+          const p = g.players.get(id);
+          if (p && o.length) g.takeCard(p, o[0]);
+        }
+        g.cardsPending = false;
+        g.openNextScreen();
+        continue;
+      }
+      if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); continue; }
+      inputs.clear();
+      for (const p of g.players.values()) inputs.set(p.id, entree(k, p.id));
+      g.step(CFG.TICK, inputs);
+      for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
+      if (!g.victory) g.gameOver = false;
+      if (k % 60 === 0) courbe.push(Math.round(g.tensionMoy * 1000) / 1000);
+    }
+    return courbe;
+  };
+
+  const a = monter(), b = monter();
+  const ca = jouer(a), cb = jouer(b);
+  if (ca.join(",") !== cb.join(",")) {
+    soucis.push("deux manches de meme graine donnent deux courbes de tension"
+      + " differentes — la tension tire quelque part");
+  }
+  if (ca.some(v => v < 0 || v > 1)) {
+    soucis.push(`la tension sort de [0, 1] : min ${Math.min(...ca)}, max ${Math.max(...ca)}`);
+  }
+  const max = Math.max(...ca), min = Math.min(...ca);
+  if (max < 0.1) {
+    soucis.push(`courbe PLATE : la tension ne depasse jamais ${max.toFixed(2)}`
+      + " — les poids sont a revoir, et c'est maintenant qu'on veut le savoir");
+  }
+  if (min > 0.9) {
+    soucis.push(`courbe SATUREE : la tension ne descend jamais sous ${min.toFixed(2)}`);
+  }
+  if (max - min < 0.05) {
+    soucis.push(`courbe sans relief : ${min.toFixed(2)} a ${max.toFixed(2)}`);
+  }
+  if (a.tensionMax < a.tensionMoy) {
+    soucis.push("le maximum d equipe est sous la moyenne");
+  }
+
+  // l indice de SURVIE lit ce que `powerIndex` ne lit pas, et il ne remonte nulle
+  // part : deux chargements de meme puissance offensive doivent s en separer.
+  const mods = defaultMods();
+  const nu = survieIndex(mods, CFG.PLAYER_MAX_HP);
+  const cuirasse = survieIndex({ ...mods, damageTakenMul: 0.8, shieldPool: 60 },
+    CFG.PLAYER_MAX_HP * 1.4);
+  if (!(cuirasse > nu * 1.5)) {
+    soucis.push(`une build cuirassee rend ${cuirasse.toFixed(2)} contre ${nu.toFixed(2)}`
+      + " pour une build nue — l indice de survie ne voit pas la defense");
+  }
+  if (Math.abs(powerIndex(mods) - powerIndex({ ...mods, damageTakenMul: 0.5 })) > 1e-9) {
+    soucis.push("`powerIndex` a appris a lire la defense : les six boss et"
+      + " BOSS_POWER_REF sont calibres sur le contraire");
+  }
+  return soucis;
+}
+
 export function verifierGroupes() {
   const soucis = [];
   const part = (tailles, i) => {
