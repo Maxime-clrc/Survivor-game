@@ -104,7 +104,7 @@ export function construireNav(obstacles, arenaW, arenaH) {
   for (let c = 0; c < cells; c++) if (!bloque[c]) libre++;
 
   return {
-    cell, cols, rows, cells, bloque, libre,
+    cell, cols, rows, cells, bloque, libre, ox: 0, oy: 0,
     buckets: [
       new Int32Array(cells), new Int32Array(cells),
       new Int32Array(cells), new Int32Array(cells),
@@ -113,14 +113,55 @@ export function construireNav(obstacles, arenaW, arenaH) {
   };
 }
 
+/* TOUTE GRILLE PORTE UNE ORIGINE, et celle du lieu vaut (0, 0). C'est le seul
+   point ou une fenetre se distingue de l'arene : trois fonctions convertissent
+   monde <-> case, et ce sont les trois memes pour les deux. */
 export function celluleDe(nav, x, y) {
-  const cx = Math.floor(x / nav.cell), cy = Math.floor(y / nav.cell);
+  const cx = Math.floor((x - nav.ox) / nav.cell);
+  const cy = Math.floor((y - nav.oy) / nav.cell);
   if (cx < 0 || cy < 0 || cx >= nav.cols || cy >= nav.rows) return -1;
   return cy * nav.cols + cx;
 }
 
-export const celluleX = (nav, c) => ((c % nav.cols) + 0.5) * nav.cell;
-export const celluleY = (nav, c) => (Math.floor(c / nav.cols) + 0.5) * nav.cell;
+export const celluleX = (nav, c) => nav.ox + ((c % nav.cols) + 0.5) * nav.cell;
+export const celluleY = (nav, c) => nav.oy + (Math.floor(c / nav.cols) + 0.5) * nav.cell;
+
+/* LE CHAMP NE COUVRE PLUS L'ARENE, IL COUVRE SA SOURCE. La diffusion ouvre par
+   un remplissage puis balaie ses seaux : son cout est celui du NOMBRE DE CASES,
+   pas de la population, et la horde n'existe que dans la boite d'apparition.
+   La fenetre est une nav a part entiere — meme cellule, meme masque, une
+   ORIGINE — donc viser, libreProche et droitPossible la lisent sans savoir
+   qu'elle en est une.
+
+   LA TAILLE EST FIXE ET C'EST L'ORIGINE QUI GLISSE : des dimensions qui
+   changeraient au bord de l'arene rendraient les tampons irreutilisables, et une
+   allocation par diffusion couterait plus cher que la diffusion. Le masque est
+   RECOPIE — un tableau plat n'a pas de vue par ligne — pour trois kilo-octets
+   contre les deux cents microsecondes de la diffusion. */
+export function fenetreNav(nav, x, y, rayon, fen = null) {
+  const cell = nav.cell;
+  const r = Math.max(1, Math.ceil(rayon / cell));
+  const cols = Math.min(nav.cols, 2 * r + 1), rows = Math.min(nav.rows, 2 * r + 1);
+  const cx = Math.floor((x - nav.ox) / cell), cy = Math.floor((y - nav.oy) / cell);
+  const cx0 = Math.min(Math.max(0, cx - r), nav.cols - cols);
+  const cy0 = Math.min(Math.max(0, cy - r), nav.rows - rows);
+  const cells = cols * rows;
+  const f = fen && fen.cols === cols && fen.rows === rows ? fen : {
+    cell, cols, rows, cells,
+    bloque: new Uint8Array(cells),
+    buckets: [new Int32Array(cells), new Int32Array(cells),
+              new Int32Array(cells), new Int32Array(cells)],
+    cnt: new Int32Array(4),
+    ox: 0, oy: 0,
+  };
+  f.ox = nav.ox + cx0 * cell;
+  f.oy = nav.oy + cy0 * cell;
+  for (let j = 0; j < rows; j++) {
+    const src = (cy0 + j) * nav.cols + cx0;
+    f.bloque.set(nav.bloque.subarray(src, src + cols), j * cols);
+  }
+  return f;
+}
 
 /* La case libre la plus proche, en anneaux carres. Sert aux DEUX bouts : une
    source posee dans un mur ne diffuse rien, un corps pousse dans un mur ne lit
@@ -230,11 +271,13 @@ function meilleurVoisin(nav, dist, c) {
 
    Le bon cote ne se deduit d'aucune geometrie locale : il se SOUVIENT. Le corps
    etait libre il y a moins de 0,1 s, a moins d'une case de la — c'est cette
-   case-la qui dit de quel cote il se trouve. `ancre` la transporte, `viser` rend
-   celle qu'il a retenue. */
-export function viser(nav, dist, x, y, ancre, out) {
+   case-la qui dit de quel cote il se trouve. L'ancre voyage en coordonnees
+   MONDE et non en indice : le champ est une FENETRE qui glisse, donc un indice
+   retenu a l'image precedente ne designe plus la meme case. */
+export function viser(nav, dist, x, y, ax, ay, out) {
   const ici = celluleDe(nav, x, y);
   if (ici < 0) return -1;
+  const ancre = Number.isFinite(ax) && Number.isFinite(ay) ? celluleDe(nav, ax, ay) : -1;
   let c = ici;
   if (nav.bloque[c] || dist[c] === NAV_INF) {
     c = proche(nav, ici, ancre) ? ancre : libreProche(nav, ici);

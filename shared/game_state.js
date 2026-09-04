@@ -62,6 +62,7 @@ import {
 } from "./biomes.js";
 import {
   NAV_CFG, construireNav, diffuser, viser, droitPossible, celluleDe,
+  celluleX, celluleY, fenetreNav,
   verifierNavigation,
 } from "./navigation.js";
 
@@ -358,6 +359,13 @@ export const CFG = {
   TICK: 1 / 60,
   SNAPSHOT_HZ: 20,
 };
+
+/* LA FENETRE DU CHAMP DE NAVIGATION : la demi-diagonale de la boite
+   d'apparition, plus quatre cases. Au-dela un corps retombe sur la droite
+   ligne — il n'a pas d'obstacle a contourner qui vaille une diffusion pleine
+   arene, et la boite d'apparition est le seul endroit ou la horde existe. */
+const NAV_FENETRE = Math.hypot(CFG.VIEW_W / 2 + TL_CFG.SPAWN_MARGIN,
+                               CFG.VIEW_H / 2 + TL_CFG.SPAWN_MARGIN) + 4 * NAV_CFG.CELL;
 
 export const PLAYER_COLORS = [
   CLASS_COLOR.tank,
@@ -3653,7 +3661,7 @@ export class GameState {
       scoreWorth: 1,
       navT: 0,
       navCible: 0,
-      navAncre: -1,
+      navAncreX: NaN, navAncreY: NaN,
       navX: 0, navY: 0,
       masse: masseDe(elite ? base.r * CFG.ELITE_RADIUS_MUL : base.r),
       ecart: ecartDe(t),
@@ -4470,19 +4478,23 @@ export class GameState {
     const nav = this._nav();
     if (!nav) return null;
     let f = this._navChamps.get(cible.id);
-    if (!f) {
-      f = { dist: new Uint16Array(nav.cells), cell: -1, at: -99, pret: false };
-      this._navChamps.set(cible.id, f);
-    }
     const c = celluleDe(nav, cible.x, cible.y);
-    if (c >= 0 && c !== f.cell && this._navBudget > 0
-        && this.time - f.at >= NAV_CFG.REBUILD_MIN) {
+    if (c >= 0 && (!f || c !== f.cell) && this._navBudget > 0
+        && this.time - (f ? f.at : -99) >= NAV_CFG.REBUILD_MIN) {
       this._navBudget--;
+      const fen = fenetreNav(nav, cible.x, cible.y, NAV_FENETRE, f ? f.fen : null);
+      if (!f) {
+        f = { fen, dist: new Uint16Array(fen.cells), cell: -1, at: -99, pret: false };
+        this._navChamps.set(cible.id, f);
+      } else {
+        f.fen = fen;
+        if (f.dist.length < fen.cells) f.dist = new Uint16Array(fen.cells);
+      }
       f.cell = c;
       f.at = this.time;
-      f.pret = diffuser(nav, c, f.dist);
+      f.pret = diffuser(fen, celluleDe(fen, cible.x, cible.y), f.dist);
     }
-    return f.pret ? f : null;
+    return f && f.pret ? f : null;
   }
 
   _enemies(dt) {
@@ -4592,12 +4604,19 @@ export class GameState {
           // coince : elle ne sert qu'apres, et elle n'existerait pas si on
           // attendait d'en avoir besoin.
           const ici = celluleDe(nav, e.x, e.y);
-          if (ici >= 0 && !nav.bloque[ici]) e.navAncre = ici;
+          if (ici >= 0 && !nav.bloque[ici]) { e.navAncreX = e.x; e.navAncreY = e.y; }
           if (d > NAV_CFG.NEAR && !droitPossible(nav, e.x, e.y, t.x, t.y)) {
             const f = this._navChamp(t);
-            const ancre = f ? viser(nav, f.dist, e.x, e.y, e.navAncre, this._navVise) : -1;
+            // HORS FENETRE, RIEN : `viser` rend -1 et le corps retombe sur la
+            // droite ligne, celle qu'il suit deja en deca de `NEAR`. Un corps a
+            // deux mille pixels de sa cible n'a pas d'obstacle a contourner qui
+            // vaille une diffusion pleine arene.
+            const ancre = f
+              ? viser(f.fen, f.dist, e.x, e.y, e.navAncreX, e.navAncreY, this._navVise)
+              : -1;
             if (ancre >= 0) {
-              e.navAncre = ancre;
+              e.navAncreX = celluleX(f.fen, ancre);
+              e.navAncreY = celluleY(f.fen, ancre);
               e.navX = this._navVise.x; e.navY = this._navVise.y;
             }
           }
@@ -4800,6 +4819,15 @@ export class GameState {
     this._separateFromPlayers();
   }
 
+  /* LA GRILLE COUVRE CE QUI EST OCCUPE, PAS L'ARENE. Son cout est ENTIEREMENT
+     dans ses cases vides : le `fill` puis la somme prefixe balaient la grille
+     entiere quel que soit le nombre de corps, et tripler la population ne le
+     bougeait pas. La horde tient dans la boite d'apparition, donc bornee, la
+     grille cesse de dependre de `CFG.ARENA_W x ARENA_H`.
+     LA MARGE D'UNE CELLULE N'EST PAS DECORATIVE : `_separateFromPlayers` et
+     `_renforts` interrogent le VOISINAGE d'une case ; sans elle un corps au bord
+     de la boite cherche un voisin hors tableau et la separation echoue en
+     silence. */
   _grille() {
     const list = this.enemies, n = list.length;
     let maxR = CFG.PLAYER_RADIUS;
@@ -4809,8 +4837,24 @@ export class GameState {
     // s'applique au-dela de la somme des rayons, et une cellule dimensionnee
     // sur les seuls rayons ne le verrait pas d'un bout a l'autre.
     const cell = Math.max(maxR * 2, ROLE_CFG.POSTE_ECART);
-    const cols = Math.max(1, Math.ceil(CFG.ARENA_W / cell));
-    const rows = Math.max(1, Math.ceil(CFG.ARENA_H / cell));
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const e = list[i];
+      if (e.x < bx0) bx0 = e.x;
+      if (e.x > bx1) bx1 = e.x;
+      if (e.y < by0) by0 = e.y;
+      if (e.y > by1) by1 = e.y;
+    }
+    for (const p of this.players.values()) {
+      if (p.x < bx0) bx0 = p.x;
+      if (p.x > bx1) bx1 = p.x;
+      if (p.y < by0) by0 = p.y;
+      if (p.y > by1) by1 = p.y;
+    }
+    if (!Number.isFinite(bx0)) { bx0 = bx1 = 0; by0 = by1 = 0; }
+    const x0 = bx0 - cell, y0 = by0 - cell;
+    const cols = Math.max(1, Math.ceil((bx1 - bx0) / cell) + 3);
+    const rows = Math.max(1, Math.ceil((by1 - by0) / cell) + 3);
     const cells = cols * rows;
 
     if (!this._gStart || this._gStart.length < cells + 1) {
@@ -4828,8 +4872,8 @@ export class GameState {
 
     for (let i = 0; i < n; i++) {
       const e = list[i];
-      const cx = Math.min(cols - 1, Math.max(0, Math.floor(e.x / cell)));
-      const cy = Math.min(rows - 1, Math.max(0, Math.floor(e.y / cell)));
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor((e.x - x0) / cell)));
+      const cy = Math.min(rows - 1, Math.max(0, Math.floor((e.y - y0) / cell)));
       at[i] = cy * cols + cx;
       start[at[i] + 1]++;
     }
@@ -4837,7 +4881,7 @@ export class GameState {
     cur.set(start.subarray(0, cells));
     for (let i = 0; i < n; i++) items[cur[at[i]]++] = i;
 
-    return { cell, cols, rows, start, items, at };
+    return { cell, x0, y0, cols, rows, start, items, at };
   }
 
   _separateEnemies() {
@@ -5100,12 +5144,13 @@ export class GameState {
   _separateFromPlayers() {
     const list = this.enemies;
     if (list.length === 0) return;
-    const { cell, cols, rows, start, items } = this._grille();
+    const g = this._grille();
+    const { cell, cols, rows, start, items } = g;
 
     for (const p of this.players.values()) {
       if (p.downed) continue;
-      const cx = Math.min(cols - 1, Math.max(0, Math.floor(p.x / cell)));
-      const cy = Math.min(rows - 1, Math.max(0, Math.floor(p.y / cell)));
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor((p.x - g.x0) / cell)));
+      const cy = Math.min(rows - 1, Math.max(0, Math.floor((p.y - g.y0) / cell)));
       const y0 = cy > 0 ? cy - 1 : 0, y1 = cy + 1 < rows ? cy + 1 : rows - 1;
       const x0 = cx > 0 ? cx - 1 : 0, x1 = cx + 1 < cols ? cx + 1 : cols - 1;
       for (let gy = y0; gy <= y1; gy++) {
@@ -7018,12 +7063,13 @@ export class GameState {
     if (!this._bossProfil().renforts) return;
     const list = this.enemies;
     if (list.length === 0) return;
-    const { cell, cols, rows, start, items } = this._grille();
+    const g = this._grille();
+    const { cell, cols, rows, start, items } = g;
     const R2 = BOSS_CFG.RENFORT_RANGE * BOSS_CFG.RENFORT_RANGE;
     for (const e of list) {
       if (e.hp <= 0 || !e.renfort) continue;
-      const cx = Math.min(cols - 1, Math.max(0, Math.floor(e.x / cell)));
-      const cy = Math.min(rows - 1, Math.max(0, Math.floor(e.y / cell)));
+      const cx = Math.min(cols - 1, Math.max(0, Math.floor((e.x - g.x0) / cell)));
+      const cy = Math.min(rows - 1, Math.max(0, Math.floor((e.y - g.y0) / cell)));
       let n = 0;
       for (let gy = Math.max(0, cy - 1); gy <= Math.min(rows - 1, cy + 1); gy++) {
         for (let gx = Math.max(0, cx - 1); gx <= Math.min(cols - 1, cx + 1); gx++) {
@@ -9490,6 +9536,132 @@ export function verifierEncerclement(effectifs = [1, 2, 4], marge = 3) {
       }
     }
   }
+  return soucis;
+}
+
+/* LES DEUX STRUCTURES QUI COUVRAIENT L ARENE. Le critere n est pas « c est plus
+   rapide » mais « le cout NE DEPEND PLUS DE LA SURFACE » : on mesure, puis on
+   DOUBLE l arene dans le banc et on remesure. Une amelioration qui resterait
+   proportionnelle a la surface n aurait rien regle — elle aurait attenue.
+   La couverture passe d abord : une grille bornee qui manquerait une paire
+   casserait la separation EN SILENCE, et c est le seul defaut qui compte. */
+export function verifierGrilles(corps = 600) {
+  const soucis = [];
+  const g = new GameState(DIFF_NORMAL, 0, 7);
+  g.addPlayer(1, "banc", 0);
+  const p = g.players.get(1);
+  p.x = CFG.ARENA_W / 2; p.y = CFG.ARENA_H / 2;
+
+  const semer = (n, w, h) => {
+    g.enemies.length = 0;
+    for (let i = 0; i < n; i++) {
+      g.enemies.push({
+        x: p.x + (g.alea() - 0.5) * w, y: p.y + (g.alea() - 0.5) * h,
+        r: 12, hp: 10, renfort: false, type: 0, ecart: 0,
+      });
+    }
+  };
+
+  // 1 · COUVERTURE : aucune paire a portee d interaction ne doit echapper au
+  // voisinage 3x3, sinon `_separateEnemies` cesse de separer sans rien lever.
+  semer(500, CFG.VIEW_W * 1.6, CFG.VIEW_H * 1.6);
+  const list = g.enemies;
+  const { cell, x0, y0, cols, rows, start, items, at } = g._grille();
+  const voisins = i => {
+    const out = new Set();
+    const cx = at[i] % cols, cy = (at[i] - cx) / cols;
+    for (let gy = Math.max(0, cy - 1); gy <= Math.min(rows - 1, cy + 1); gy++) {
+      for (let gx = Math.max(0, cx - 1); gx <= Math.min(cols - 1, cx + 1); gx++) {
+        const c = gy * cols + gx;
+        for (let k = start[c]; k < start[c + 1]; k++) out.add(items[k]);
+      }
+    }
+    return out;
+  };
+  let manquees = 0;
+  for (let i = 0; i < list.length; i++) {
+    const vus = voisins(i);
+    for (let j = i + 1; j < list.length; j++) {
+      const dx = list[j].x - list[i].x, dy = list[j].y - list[i].y;
+      if (dx * dx + dy * dy < ROLE_CFG.POSTE_ECART * ROLE_CFG.POSTE_ECART
+          && !vus.has(j)) manquees++;
+    }
+  }
+  if (manquees > 0) soucis.push(`${manquees} paire(s) a moins de POSTE_ECART hors du voisinage`);
+  if (cell <= 0 || cols < 3 || rows < 3) soucis.push(`grille degeneree : ${cols}x${rows}`);
+
+  // 2 · BORD : quatre corps aux quatre coins de la boite occupee. C est le test
+  // de la MARGE — sans elle, un corps au bord interroge un indice hors tableau.
+  let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+  for (const e of list) {
+    if (e.x < bx0) bx0 = e.x;
+    if (e.x > bx1) bx1 = e.x;
+    if (e.y < by0) by0 = e.y;
+    if (e.y > by1) by1 = e.y;
+  }
+  const coins = [[bx0, by0], [bx1, by0], [bx0, by1], [bx1, by1]];
+  for (const [cx, cy] of coins) {
+    g.enemies.push({ x: cx, y: cy, r: 12, hp: 10, renfort: false, type: 0, ecart: 0 });
+    g.enemies.push({ x: cx + 4, y: cy + 4, r: 12, hp: 10, renfort: false, type: 0, ecart: 0 });
+  }
+  const gr = g._grille();
+  const i0 = g.enemies.length - 2, j0 = g.enemies.length - 1;
+  for (let k = 0; k < 4; k++) {
+    const i = i0 - 2 * (3 - k), j = j0 - 2 * (3 - k);
+    const cx = gr.at[i] % gr.cols, cy = (gr.at[i] - cx) / gr.cols;
+    if (cx < 1 || cy < 1 || cx > gr.cols - 2 || cy > gr.rows - 2) {
+      soucis.push(`coin ${k} en case de bord (${cx}, ${cy}) — la marge manque`);
+    }
+    if (gr.at[i] !== gr.at[j] && Math.abs((gr.at[j] % gr.cols) - cx) > 1) {
+      soucis.push(`coin ${k} : le voisin colle n est pas dans une case adjacente`);
+    }
+  }
+
+  // 3 · COUT, ET SON INVARIANCE A LA SURFACE
+  const chrono = (fn, tours) => {
+    fn(); fn();
+    const t0 = process.hrtime.bigint();
+    for (let i = 0; i < tours; i++) fn();
+    return Number(process.hrtime.bigint() - t0) / 1000 / tours;
+  };
+  const mesurerGrille = () => {
+    semer(corps, CFG.VIEW_W * 1.6, CFG.VIEW_H * 1.6);
+    return chrono(() => g._grille(), 2000);
+  };
+  const aw = CFG.ARENA_W, ah = CFG.ARENA_H;
+  const usGrille = mesurerGrille();
+  CFG.ARENA_W = aw * 2; CFG.ARENA_H = ah * 2;
+  const usGrilleDouble = mesurerGrille();
+  CFG.ARENA_W = aw; CFG.ARENA_H = ah;
+  if (usGrille > 20) {
+    soucis.push(`_grille() a ${usGrille.toFixed(1)} us pour ${corps} corps (plafond 20)`);
+  }
+  if (usGrilleDouble > usGrille * 1.5 + 2) {
+    soucis.push(`_grille() suit la surface : ${usGrille.toFixed(1)} us puis`
+      + ` ${usGrilleDouble.toFixed(1)} us sur une arene doublee`);
+  }
+
+  // 5 · LA DIFFUSION, MEME QUESTION
+  const mesurerChamp = () => {
+    const nav = construireNav(new GameState(DIFF_NORMAL, 0, 7).obstacles,
+      CFG.ARENA_W, CFG.ARENA_H);
+    const fen = fenetreNav(nav, CFG.ARENA_W / 2, CFG.ARENA_H / 2, NAV_FENETRE);
+    const dist = new Uint16Array(fen.cells);
+    const src = celluleDe(fen, CFG.ARENA_W / 2, CFG.ARENA_H / 2);
+    return { us: chrono(() => diffuser(fen, src, dist), 300), cases: fen.cells };
+  };
+  const champ = mesurerChamp();
+  CFG.ARENA_W = aw * 2; CFG.ARENA_H = ah * 2;
+  const champDouble = mesurerChamp();
+  CFG.ARENA_W = aw; CFG.ARENA_H = ah;
+  if (champ.us > 500) {
+    soucis.push(`diffuser() a ${champ.us.toFixed(0)} us sur ${champ.cases} cases (plafond 500)`);
+  }
+  if (champDouble.us > champ.us * 1.5 + 20) {
+    soucis.push(`diffuser() suit la surface : ${champ.us.toFixed(0)} us puis`
+      + ` ${champDouble.us.toFixed(0)} us sur une arene doublee`);
+  }
+
   return soucis;
 }
 

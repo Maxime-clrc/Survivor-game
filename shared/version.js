@@ -7841,6 +7841,55 @@
                   decale toutes les suites de tirage. Les verificateurs lents ne
                   changent pas de couleur, mais leurs chiffres BOUGENT.
 
+    0.34.1 lot 03 DEUX STRUCTURES COUVRAIENT L ARENE, LA HORDE OCCUPE UNE BOITE.
+                  Leur cout etait indexe sur `ARENA_W x ARENA_H` alors que ce
+                  qu elles decrivent tient dans la boite d apparition. Mesure :
+                  `_grille()` coutait 17,4 us a 200 corps et 16,6 a 600 — tripler
+                  la population ne le bougeait pas, signature d une structure
+                  dominee par ses cases VIDES.
+                  LA GRILLE SE BORNE A L ENGLOBANTE des corps et des joueurs,
+                  plus UNE CELLULE de marge. 3 225 cases -> 1 118, 16,6 us ->
+                  8,8 us, et 7,5 us sur une arene DOUBLEE dans le banc : le cout
+                  cesse de dependre de la surface, ce qui est le critere — une
+                  amelioration restee proportionnelle n aurait rien regle.
+                  LA MARGE N EST PAS DECORATIVE : `_separateFromPlayers` et
+                  `_renforts` interrogent le VOISINAGE d une case, et sans elle un
+                  corps au bord cherche un voisin hors tableau — la separation
+                  echoue en SILENCE. L origine sort de `_grille()` avec le reste.
+                  LE CHAMP DE NAVIGATION S ALLOUE SUR UNE FENETRE ancree sur sa
+                  source, de la demi-diagonale de la boite d apparition plus
+                  quatre cases. 8 160 cases -> 3 481, 184 us -> 83 us, et la
+                  taille NE DEPEND PAS de l arene : a la map cible, la diffusion
+                  pleine arene passait a 32 400 cases et 1,5 ms — quatre champs
+                  pouvant echoir dans le meme tick, pour un budget de 16,6 ms.
+                  PAS DE SECTEURS, PAS DE PORTAILS. La litterature (Supreme
+                  Commander 2, Game AI Pro ch. 23) decoupe la carte et relie les
+                  secteurs par un graphe, parce qu une unite de RTS peut etre a
+                  l autre bout de sa cible. Ici les ennemis n existent QUE dans
+                  `_spawnBox()` : il n y a jamais de trajet long a planifier.
+                  UNE FENETRE EST UNE NAV A PART ENTIERE — meme cellule, meme
+                  masque, une ORIGINE — donc `celluleDe`, `viser`, `libreProche`
+                  et `droitPossible` la lisent sans savoir qu elle en est une. Sa
+                  TAILLE EST FIXE et c est l ORIGINE QUI GLISSE : des dimensions
+                  variables au bord de l arene rendraient les tampons
+                  irreutilisables, et une allocation par diffusion couterait plus
+                  que la diffusion. `nav.bloque` reste plein arene, bati une fois
+                  par manche, hors boucle.
+                  L ANCRE VOYAGE EN COORDONNEES MONDE. Un indice de case retenu a
+                  l image precedente ne designe plus la meme case quand la fenetre
+                  a glisse — et l ancre est ce qui empeche un corps plaque contre
+                  une cloison d etre aspire DANS le mur (mesure du plan 19 : 4
+                  corps sur 4 plantes, 0 arrivee en 40 s).
+                  HORS FENETRE, LA DROITE LIGNE : c est deja ce que fait tout
+                  corps sous `NEAR`, et un corps a deux mille pixels de sa cible n
+                  a pas d obstacle a contourner qui vaille une diffusion.
+                  `verifierGrilles()` dans la suite RAPIDE : couverture (500 corps,
+                  aucune paire a moins de `POSTE_ECART` hors du voisinage 3x3),
+                  BORD (les quatre coins de la boite occupee trouvent leurs
+                  voisins — le test de la marge), et les deux couts, chacun
+                  remesure sur une arene DOUBLEE. Restent verts : `navigation`,
+                  `encerclement`, `deplacement`, `determinisme`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -7849,4 +7898,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.34.0";
+export const VERSION = "0.34.1";

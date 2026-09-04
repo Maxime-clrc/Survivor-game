@@ -67,6 +67,19 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   sépare jamais deux corps qui se touchent). La taille de cellule est ce qui
   **prouve** la couverture : deux corps qui se chevauchent sont à moins d'une
   cellule, donc dans le voisinage. La toucher casse la preuve.
+- **LA GRILLE COUVRE LA BOÎTE OCCUPÉE, PAS L'ARÈNE.** Son coût est **entièrement
+  dans ses cases vides** — le `fill` et la somme préfixe balaient toute la grille
+  quel que soit le nombre de corps, et tripler la population ne le bougeait pas
+  (17,4 µs à 200 corps, 16,6 µs à 600). Bornée à l'englobante des corps et des
+  joueurs, elle passe à **1 118 cases et 8,8 µs**, et elle **cesse de dépendre de
+  `ARENA_W × ARENA_H`** : doubler l'arène ne change plus rien. C'est le critère,
+  pas la vitesse — une amélioration restée proportionnelle à la surface n'aurait
+  rien réglé.
+- **LA MARGE D'UNE CELLULE N'EST PAS DÉCORATIVE.** `_separateFromPlayers` et
+  `_renforts` interrogent le **voisinage** d'une case ; sans marge, un corps au
+  bord de la boîte cherche un voisin hors tableau et la séparation échoue **en
+  silence**. L'origine `x0/y0` sort de `_grille()` avec le reste : un lecteur qui
+  calculerait encore `floor(x / cell)` viserait une autre case.
 - **UN VÉRIFICATEUR REND CE QUI EST ROUGE, ET SÉPARÉMENT CE QU’IL N’A PAS PU
   MESURER.** Les deux étaient dans le même tableau : `verifierBoss` comptait
   **sept** problèmes là où il y en a **cinq**, les deux autres disant seulement
@@ -117,6 +130,24 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   Dial par joueur vivant, au plus **une par image** (`_navBudget`), rejouée
   seulement si la cible a changé de case depuis `REBUILD_MIN`. 200 corps lisent
   quatre champs — c'est la seule raison pour laquelle la chose tient à 200.
+- **LE CHAMP EST UNE FENÊTRE ANCRÉE SUR SA SOURCE**, de la demi-diagonale de la
+  boîte d'apparition plus quatre cases (`NAV_FENETRE`). Une diffusion pleine
+  arène coûte 184 µs pour 8 160 cases et **1,5 ms à la map cible** ; la fenêtre en
+  coûte 83 pour 3 481, et **la même chose quelle que soit la taille de l'arène**.
+  Le levier est la **surface diffusée, jamais `REBUILD_MIN`** : sa valeur porte sa
+  mesure (« un joueur à 150 px/s traverse une case en 0,27 s »), et la relever
+  ferait suivre la horde à un champ périmé.
+- **Hors fenêtre, un corps retombe sur la droite ligne** — celle qu'il suit déjà
+  sous `NEAR`. Contrepartie assumée : un corps à deux mille pixels de sa cible
+  n'a pas d'obstacle à contourner qui vaille une diffusion.
+- **Une fenêtre est une nav à part entière** : même cellule, même masque, une
+  **origine**. `celluleDe`, `celluleX` et `celluleY` la lisent sans savoir qu'elle
+  en est une. Sa **taille est fixe et c'est l'origine qui glisse**, sinon les
+  tampons ne se réutilisent pas et l'allocation coûte plus que la diffusion.
+  `nav.bloque` **reste plein arène** : bâti une fois par manche, hors boucle.
+- **L'ancre de navigation voyage en coordonnées MONDE**, plus en indice de case :
+  le champ est une fenêtre qui glisse, donc un indice retenu à l'image précédente
+  ne désigne plus la même case.
 - **LE CHAMP NE SERT QUE SI LA LIGNE DROITE NE PASSE PAS** (`droitPossible`,
   testé une image sur `LOS_PERIOD`, échelonné par `e.id`). En terrain libre le
   déplacement est celui d'avant, au pixel près : c'est ce qui rend la couche

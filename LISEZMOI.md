@@ -8,6 +8,44 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les deux structures qui couvraient l'arène, plan 31 (0.34.1)
+
+Même machine, même session, `process.hrtime`. Les chiffres du document de plan
+(443 µs pour une diffusion) viennent d'une autre machine : c'est le **rapport
+avant/après** et l'**invariance à la surface** qui se lisent ici, pas la valeur
+absolue.
+
+#### `_grille()`, 2 000 appels, 600 corps semés sur 1,6 vue
+
+| | cases | coût |
+|---|---:|---:|
+| pleine arène (4800 × 2700) | 3 225 | 16,6 µs |
+| **bornée à la boîte occupée** | **1 118** | **8,8 µs** |
+| bornée, arène doublée dans le banc | 1 118 | **7,5 µs** |
+
+La troisième ligne est le critère : le coût **ne suit plus la surface**. Le
+budget de la salle passe de 3,1 ms/s à 1,6 ms/s, et il ne bougera plus quand
+l'arène passera à 9600 × 5400.
+
+#### `diffuser()`, une source, grille de 40 px
+
+| | cases | coût |
+|---|---:|---:|
+| pleine arène | 8 160 | 184 µs |
+| **fenêtre ancrée sur la source** | **3 481** | **83 µs** |
+
+La fenêtre vaut la demi-diagonale de la boîte d'apparition plus quatre cases,
+soit 59 × 59 cases — et cette taille **ne dépend pas de l'arène**. À la map
+cible, la diffusion pleine arène passait à 32 400 cases et 1,5 ms ; la fenêtre y
+coûtera les mêmes 83 µs.
+
+#### Ce qui reste vert après
+
+`verifierNavigation` (cloison de 32 px, passage de 80 px, trois modes, cinq
+lieux), `verifierEncerclement`, `verifierDeplacement`, `verifierMecaniques` et
+`verifierDeterminisme`. C'est ce qui dit que la fenêtre n'a pas cassé
+l'approche : ce sont les vérificateurs qui mesurent l'arrivée de la horde.
+
 ### La couture, plan 25 (0.28.x)
 
 #### La lisibilité aux quatre densités

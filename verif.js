@@ -104,6 +104,7 @@ const SUITE = [
   ["traits", () => G.verifierTraits(), true],
   ["script", () => G.verifierScript()],
   ["biomes", () => G.verifierBiomes()],
+  ["grilles", () => G.verifierGrilles()],
   ["navigation", () => BIOMES.flatMap((b, i) =>
     [0, 1, 2].flatMap(d => N.verifierNavigation(
       new GameState(d, i, 7).obstacles, CFG.ARENA_W, CFG.ARENA_H)
