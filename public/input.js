@@ -7,6 +7,16 @@ import { closeBuild, cycleBuild, openBuild } from "./ui/build.js";
 import { buildEl, cv, enSaisie, pauseEl, readMove } from "./ui/dom.js";
 import { closePause, openPause } from "./ui/pause.js";
 
+/* LA REPONSE PART TOUT DE SUITE ET NE PASSE PAS PAR L INTENTION : accepter n est
+   pas une action de simulation qu on echantillonne a 30 Hz, c est une reponse a
+   une question posee. */
+function repondreContrat(ok) {
+  if (phase !== PHASE_ROUND || amSpectator) return;
+  const prop = (latest?.bornes ?? []).find(b => b.etat === 1);
+  if (!prop || latest?.contrat) return;
+  ws.send(JSON.stringify({ t: "contrat", borne: prop.id, ok: ok ? 1 : 0 }));
+}
+
 function requestInteract() {
   if (phase !== PHASE_ROUND || amSpectator || cardsState || merchantState) return;
   if (!pauseEl.hidden) return;
@@ -45,6 +55,13 @@ addEventListener("keydown", e => {
      physique en AZERTY et en QWERTY — et `enSaisie()` garde deja la porte, donc
      taper un nom de salle ne declenche rien. */
   if (e.code === "KeyF" && !repeat && !e.repeat) requestInteract();
+  /* LA MEME TOUCHE ACCEPTE : on active avec F, on accepte avec F — deux
+     touches pour deux moments du meme geste seraient une regle de plus a
+     apprendre. `G` refuse, et refuser doit couter un geste DIFFERENT pour ne
+     jamais se faire par inadvertance. */
+  if ((e.code === "KeyF" || e.code === "KeyG") && !repeat && !e.repeat) {
+    repondreContrat(e.code === "KeyF");
+  }
 });
 /* LA GACHETTE. Le bouton GAUCHE etait le seul libre — le milieu porte la
    troisieme competence — et il ne servait a rien parce que le tir est

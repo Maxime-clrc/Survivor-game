@@ -27,6 +27,15 @@ const el = {
   root:     $("hud"),
   clock:    $("hudClock"),
   custom:   $("hudCustom"),
+  contrat:  $("hudContrat"),
+  ctNom:    $("ctNom"),
+  ctObj:    $("ctObj"),
+  ctProg:   $("ctProg"),
+  prop:     $("hudProposition"),
+  propNom:  $("propNom"),
+  propObj:  $("propObj"),
+  propGain: $("propGain"),
+  propAide: $("propAide"),
   meta:     $("hudMeta"),
   seg:      $("hudSegment"),
   segKicker: $("segKicker"),
@@ -451,6 +460,49 @@ function updateMarks(v, c) {
     setText(m.lastElementChild, `mkt${id}`, p.downed
       ? t("ui.hud.downed", "à terre")
       : fmtM(Math.hypot(p.x - me.x, p.y - me.y)));
+  }
+}
+
+/* LE SUIVI EST LE PREMIER ELEMENT PERSISTANT DU HUD DE JEU, et c est tout le
+   point du lot : le reste de ce qui informe est TRANSITOIRE — les bandeaux
+   s effacent, les popups passent, les pips sont des etats. Il ne rappelle donc
+   que ce qui CHANGE (un encart fige pendant deux minutes devient du decor), et il
+   ne porte ni la recompense — elle etait dans la proposition, au moment
+   d accepter — ni de fleche vers la zone : le ping est un autre systeme, et un
+   contrat n est pas une destination imposee. */
+function updateContrat(v) {
+  const ct = v.contrat;
+  setHidden(el.contrat, "ctOn", !ct);
+  if (ct) {
+    const def = CONTRATS[ct.def];
+    const rare = RARETES[ct.rarete];
+    setText(el.ctNom, "ctN", rare ? rare.nom : "Contrat");
+    // LA RARETE SE LIT SANS TEXTE, ET PAR LA FORME AVANT LA COULEUR : un lisere
+    // qui s epaissit puis se dedouble. La charte interdit le rouge pour ce vers
+    // quoi il faut aller, donc aucune rarete n y touche.
+    for (let i = 0; i < RARETES.length; i++) {
+      setClass(el.contrat, "ctR" + i, "r" + i, i === ct.rarete);
+    }
+    setText(el.ctObj, "ctO",
+      def ? def.texte.replace("{n}", String(Math.round(ct.seuil))) : "");
+    const minuteur = ct.t > 0 ? " · " + fmtTime(ct.t) : "";
+    setText(el.ctProg, "ctP",
+      Math.floor(ct.cur) + " / " + Math.round(ct.seuil) + minuteur);
+  }
+
+  /* LA PROPOSITION NE FIGE RIEN : elle est un ELEMENT DU HUD et non un ecran.
+     Les ecrans de carte et de marchand suspendent la manche ; celui-ci laisse la
+     horde avancer — sinon activer une borne deviendrait une pause, et le joueur
+     l utiliserait comme telle sous la horde. C est LA decision de ce lot, et la
+     tentation de reutiliser le mecanisme d ecran existant etait forte. */
+  const prop = (v.bornes ?? []).find(b => b.etat === 1);
+  setHidden(el.prop, "prOn", !prop || !!ct);
+  if (prop && !ct) {
+    setText(el.propNom, "prN", t("ui.hud.contrat.prop", "Contrat disponible"));
+    setText(el.propObj, "prO",
+      t("ui.hud.contrat.propObj", "l’objectif se révèle à l’acceptation"));
+    setText(el.propAide, "prA",
+      t("ui.hud.contrat.aide", "F pour accepter · G pour refuser"));
   }
 }
 
@@ -1242,6 +1294,7 @@ export function updateHud(v, c) {
   /* LE SUR MESURE SE VOIT EN MANCHE, ET IL DIT SA SEVERITE : le mode change ce
      que la salle joue ET ce qu elle ne gagnera pas. Il disparait dans les trois
      modes normaux — un temoin permanent qui ne dit rien cesse d etre lu. */
+  updateContrat(v);
   const surMesure = c.difficulty === CUSTOM_INDEX;
   setHidden(el.custom, "cst", !surMesure);
   if (surMesure) {

@@ -8477,6 +8477,43 @@
                   un code juste. On deplace la reference, ce qui exerce le vrai
                   chemin.
 
+    0.37.3 lot 03 LE SUIVI, A GAUCHE — ET C EST LE PREMIER ELEMENT PERSISTANT DU
+                  HUD DE JEU. Tout ce qui informe aujourd hui est TRANSITOIRE : les
+                  bandeaux s effacent, les popups passent, les pips sont des etats
+                  et non des messages. Celui-ci reste tant que le contrat vit, donc
+                  il ne rappelle que ce qui CHANGE — un encart fige pendant deux
+                  minutes devient du decor. Il ne porte NI la recompense, qui etait
+                  dans la proposition au moment d accepter, NI de fleche vers la
+                  zone : le ping est un autre systeme, et un contrat n est pas une
+                  destination imposee.
+                  LA PLACE ETAIT LIBRE, ET C EST LA SEULE : `#hudRun` occupe le coin
+                  haut-gauche et ne descend pas, `#hudTeam` tient la droite avec ses
+                  190 px. Toute la hauteur gauche sous l horloge etait disponible.
+                  LA PROPOSITION NE SUSPEND PAS LA SIMULATION, ET C EST LA DECISION
+                  D ARCHITECTURE DU LOT. Les ecrans de carte et de marchand FIGENT
+                  la manche ; celui-ci non — sinon activer une borne devient une
+                  pause, et le joueur l utilisera comme telle sous la horde. La
+                  tentation de reutiliser le mecanisme d ecran existant etait forte,
+                  et il est le mauvais : la proposition est un element du HUD.
+                  `verifierProposition()` le MESURE au lieu de l affirmer — le temps
+                  avance, la horde meurt, aucun ecran ne s ouvre.
+                  LA RARETE SE LIT SANS TEXTE, PAR LA FORME AVANT LA COULEUR : un
+                  lisere qui s epaissit puis se dedouble. La charte interdit le
+                  rouge pour ce vers quoi il faut aller, donc aucune rarete n y
+                  touche.
+                  LA MEME TOUCHE ACCEPTE : on active avec F, on accepte avec F —
+                  deux touches pour deux moments du meme geste seraient une regle de
+                  plus a apprendre. `G` refuse, parce que refuser doit couter un
+                  geste DIFFERENT pour ne jamais se faire par inadvertance.
+                  UN JOUEUR QUI REJOINT VOIT LE CONTRAT ACTIF : il voyage ENTIER et
+                  SANS filtre de vue — c est le seul element de l instantane qui
+                  doive rester lisible quand on est LOIN de ce qu il decrit, et
+                  c est meme tout l interet d un suivi.
+                  Defaut paye en ecrivant : le pilote de banc s ELOIGNE de la borne
+                  entre deux ticks, donc le verificateur activait dans le vide. Le
+                  test ramene le pilote pour l instant de l activation — et mesure
+                  ensuite que la proposition SURVIT a son depart.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8485,4 +8522,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.37.2";
+export const VERSION = "0.37.3";

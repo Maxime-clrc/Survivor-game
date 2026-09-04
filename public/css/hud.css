@@ -82,6 +82,53 @@
   left: var(--hud-safe);
 }
 
+/* A GAUCHE, SOUS L'HORLOGE, ET C'EST LA SEULE PLACE LIBRE : `#hudRun` occupe
+   le coin haut-gauche et ne descend pas, `#hudTeam` tient la droite. Le suivi ne
+   recouvre donc rien. */
+#hudContrat {
+  position: absolute;
+  left: var(--hud-safe);
+  top: calc(var(--hud-safe) + 92px);
+  max-width: 15rem;
+  font-size: var(--t-xs);
+  line-height: 1.35;
+  text-shadow: 0 1px 2px var(--bg-void);
+}
+#ctNom {
+  font-family: var(--font-display);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+#ctObj { color: var(--text-faint); }
+/* LE CHIFFRE QUI CHANGE EST LE SEUL QUI GROSSIT : c'est lui qu'on relit, le reste
+   se lit une fois. */
+#ctProg { font-size: var(--t-s); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* LA RARETE SE LIT SANS TEXTE, ET PAR LA FORME AVANT LA COULEUR : un liseré qui
+   s'epaissit. La charte interdit le rouge pour ce vers quoi il faut aller, donc
+   aucune rarete n'y touche. */
+#hudContrat { border-left: var(--hair) solid var(--text-faint); padding-left: var(--sp-2); }
+#hudContrat.r1 { border-left-width: 3px; }
+#hudContrat.r2 { border-left-width: 5px; }
+#hudContrat.r3 { border-left-width: 5px; border-left-style: double; }
+#hudContrat[hidden], #hudProposition[hidden] { display: none; }
+
+/* LA PROPOSITION EST AU CENTRE-BAS : elle demande une reponse tout de suite, et
+   elle ne fige rien — la horde continue derriere. */
+#hudProposition {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  padding: var(--sp-2) var(--sp-4);
+  text-align: center;
+  font-size: var(--t-s);
+  background: var(--bg-panel, rgba(0, 0, 0, 0.55));
+  border: var(--hair) solid var(--text-faint);
+}
+#propNom { font-family: var(--font-display); letter-spacing: .08em; text-transform: uppercase; }
+#propGain { color: var(--gain); }
+#propAide { color: var(--text-faint); font-size: var(--t-xs); margin-top: var(--sp-1); }
+
 #hudClock {
   font-size: var(--t-xl);      
   font-weight: 700;

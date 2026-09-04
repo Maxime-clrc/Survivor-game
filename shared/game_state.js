@@ -10299,6 +10299,51 @@ export function verifierVentilation(manches = 3, minutes = 6, joueurs = 2) {
    raretes, en forcant le compteur — ce qu'on verifie ici est la MECANIQUE
    (l'echeance, la reussite, le versement), le banc du plan 32 dira si les seuils
    sont justes en vraie partie. */
+/* LA PROPOSITION NE SUSPEND PAS LA SIMULATION, et c est la decision d architecture
+   de son lot : les ecrans de carte et de marchand FIGENT la manche
+   (`cardsPending`, `relicPending`) ; une borne proposee ne doit pas — sinon
+   l activer devient une pause, et le joueur l utilisera comme telle sous la
+   horde. On le VERIFIE au lieu de l affirmer : la horde doit avancer pendant
+   qu une proposition est affichee. */
+export function verifierProposition(secondes = 12) {
+  const soucis = [];
+  const g = new GameState(DIFF_NORMAL, 0, 7919);
+  g.addPlayer(1, "bot1", 0, 0);
+  g.warmup = 0;
+  const p = g.players.get(1);
+  const b = g.bornes[0];
+  p.x = b.x; p.y = b.y;
+  const pil = pilotage();
+  const images = Math.round(secondes / CFG.TICK);
+  for (let k = 0; k < images; k++) {
+    g.step(CFG.TICK, new Map([[1, pil(g, p)]]));
+    p.hp = p.maxHp; p.downed = false; p.revive = 0;
+    g.gameOver = false;
+  }
+  const t0 = g.time, kills0 = g.totalKills, pop0 = g.enemies.length;
+  // LE PILOTE S ELOIGNE : il poursuit la horde. On le ramene a la borne pour
+  // l instant de l activation — apres, la proposition doit survivre au fait qu il
+  // reparte, et c est justement ce que la suite mesure.
+  p.x = b.x; p.y = b.y;
+  g._interagir(p);
+  if (b.etat !== 1) { soucis.push("la borne ne propose pas"); return soucis; }
+  for (let k = 0; k < images; k++) {
+    g.step(CFG.TICK, new Map([[1, pil(g, p)]]));
+    p.hp = p.maxHp; p.downed = false; p.revive = 0;
+    g.gameOver = false;
+  }
+  if (g.time <= t0 + 1) {
+    soucis.push("le temps n avance pas pendant une proposition : elle FIGE la manche");
+  }
+  if (g.cardsPending || g.relicPending) {
+    soucis.push("une proposition ouvre un ecran : elle doit rester un element du HUD");
+  }
+  if (g.totalKills === kills0 && pop0 > 0 && g.enemies.length > 0) {
+    soucis.push("rien ne meurt pendant une proposition — la horde semble arretee");
+  }
+  if (b.etat !== 1) soucis.push("la proposition disparait toute seule");
+  return soucis;
+}
 export function verifierObjectifs() {
   const soucis = [];
   for (let ci = 0; ci < CONTRATS.length; ci++) {

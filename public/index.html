@@ -57,6 +57,29 @@
         <div id="segState"></div>
       </div>
 
+      <!-- LE PREMIER ELEMENT PERSISTANT DU HUD DE JEU. Tout ce qui informe
+           aujourd'hui est TRANSITOIRE : les bandeaux s'effacent, les popups
+           passent, les pips sont des etats. Celui-ci reste tant que le contrat
+           vit, donc il doit etre petit et ne rappeler que le chiffre qui change —
+           un encart fige pendant deux minutes devient du decor. -->
+      <div id="hudContrat" hidden>
+        <div id="ctNom"></div>
+        <div id="ctObj"></div>
+        <div id="ctProg"></div>
+      </div>
+
+      <!-- LA PROPOSITION NE SUSPEND PAS LA SIMULATION, et c'est LA decision de ce
+           lot : les ecrans de carte et de marchand figent la manche, celui-ci
+           non — sinon activer une borne devient une pause, et le joueur
+           l'utilisera comme telle sous la horde. C'est donc un element du HUD,
+           pas un ecran. -->
+      <div id="hudProposition" hidden>
+        <div id="propNom"></div>
+        <div id="propObj"></div>
+        <div id="propGain"></div>
+        <div id="propAide"></div>
+      </div>
+
       <div id="hudBrief" hidden></div>
 
       <div id="hudHf" class="hudPanel dense ancreBD" hidden></div>
