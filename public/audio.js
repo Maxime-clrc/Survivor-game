@@ -634,6 +634,99 @@ const PALETTE = {
     return { end: a.end + 0.80, stop: a.stop };
   },
 
+/* ===========================================================================
+   LES SEPT SONS DU CONTRAT, DU MINI-BOSS ET DU LOOT — ECRITS EN UNE FOIS.
+
+   TROIS SERVENT MAINTENANT, QUATRE ATTENDENT LEUR BRANCHEMENT, et c'est
+   delibere : le depot a deja paye le defaut inverse — « treize bonus rendaient la
+   meme quinte montante », corriges en une seule fois par les trois matieres. Sept
+   sons ajoutes par sept lots differents ne font pas une palette, ils font un
+   bruit, et il faut les refaire. Ils peuvent etre approximatifs et changer plus
+   tard ; ils ne peuvent pas etre ecrits a sept moments differents.
+
+   LES REGLES DE LA PALETTE DECIDENT PRESQUE TOUT. La rarete et l'importance
+   passent par la HAUTEUR, jamais par le gain. Une seule place de voix par
+   famille, donc la meme clef de limiteur. Ce qui NAIT ne dispute pas sa place a
+   ce qu'on RAMASSE. Et le moment le plus tendu merite le plus gros budget — ce
+   qui, ici, veut dire qu'aucun des sept ne s'approche de `relevement`.
+   =========================================================================== */
+
+  /* [1] LE PING — le plus contraint des sept : il doit percer deux cents corps.
+     Famille `annonce` : fondamentale grave plus quinte, deux notes, c'est la
+     famille qui COUPE.
+     LA HAUTEUR PORTE L'IDENTITE DE CELUI QUI APPELLE. Quatre joueurs, quatre
+     fondamentales : on entend QUI appelle avant de regarder l'ecran. C'est
+     gratuit, et ca double la valeur du son. */
+  ping: (o) => {
+    const f = [175, 208, 233, 262][(o.qui ?? 0) & 3];
+    const g = SOUND_GAIN.alerte * 0.85;
+    const a = tone({ freq: f, dur: 0.14, type: "sine", gain: g });
+    tone({ freq: f * 1.5, dur: 0.18, type: "sine", gain: g * 0.9, delay: 0.12 });
+    return { end: a.end + 0.30, stop: a.stop };
+  },
+
+  /* [2] LE REVEIL DU MINI-BOSS — bas, physique, PAS musical, et surtout PAS de
+     la famille `annonce`. Il ne doit pas sonner comme un boss : le boss a son
+     bandeau et sa musique, le mini-boss n'a que ca. Court, sourd, SANS
+     RESOLUTION — une note qui se resout dirait « scene », et ce n'en est pas une. */
+  miniReveil: () => {
+    const a = tone({ freq: 92, to: 64, dur: 0.34, type: "sine", gain: SOUND_GAIN.boss * 0.6 });
+    noise({ dur: 0.22, type: "lowpass", freq: 900, to: 160, q: 0.8,
+            gain: SOUND_GAIN.mort * 0.55 });
+    return { end: a.end + 0.10, stop: a.stop };
+  },
+
+  /* [3] LE RAMASSAGE D'UN LOOT — aucune invention : une QUATRIEME MATIERE a cote
+     des trois qui existent (corps, metal, masse), et la rarete passe par la
+     QUINTE DE RANG, mecanisme deja ecrit et deja mesure. Cristalline : la seule
+     des quatre qui ne soit ni organique, ni metallique, ni massive. */
+  loot: (o) => {
+    const rang = Math.max(0, Math.min(3, o.rang ?? 0));
+    const f = 880 * Math.pow(1.5, rang);
+    const g = SOUND_GAIN.bonus;
+    const a = tone({ freq: f, dur: 0.09, type: "sine", gain: g * 0.8, attack: 0.002 });
+    tone({ freq: f * 2, dur: 0.14, type: "sine", gain: g * 0.35, delay: 0.03 });
+    noise({ dur: 0.05, type: "bandpass", freq: 6400, q: 3, gain: g * 0.18 });
+    return { end: a.end + 0.16, stop: a.stop };
+  },
+
+  /* [4] LE CONTRAT REUSSI — le seul des sept qui ait droit a un vrai budget.
+     Entre `recolteFin` et `hautFait` : il RESOUT, il DURE, et il ne prend pas la
+     place d'un haut fait, qui garde sa quinte tenue et son accord ouvert. */
+  contratFait: () => {
+    const g = SOUND_GAIN.niveau * 0.75;
+    const a = tone({ freq: 440, dur: 0.14, type: "triangle", gain: g });
+    tone({ freq: 659, dur: 0.16, type: "triangle", gain: g * 0.85, delay: 0.10 });
+    tone({ freq: 880, dur: 0.30, type: "sine", gain: g * 0.7, delay: 0.20 });
+    // la fondamentale se resout SOUS la triade : c'est ce qui le separe du haut
+    // fait, dont l'accord reste ouvert.
+    tone({ freq: 220, dur: 0.42, type: "sine", gain: g * 0.3, delay: 0.20 });
+    return { end: a.end + 0.44, stop: a.stop };
+  },
+
+  /* [5] LE CONTRAT ACCEPTE — famille `recolteFin` : trois notes qui montent et se
+     referment. Mais PLUS PETITE, parce qu'accepter n'est pas accomplir. */
+  contratPris: () => {
+    const g = SOUND_GAIN.bonus * 0.8;
+    const a = tone({ freq: 392, dur: 0.09, type: "triangle", gain: g });
+    tone({ freq: 523, dur: 0.11, type: "triangle", gain: g * 0.8, delay: 0.07 });
+    tone({ freq: 659, dur: 0.14, type: "sine", gain: g * 0.6, delay: 0.14 });
+    return { end: a.end + 0.18, stop: a.stop };
+  },
+
+  /* [6] L'ECHEC OU L'EXPIRATION — le modele existe : `aterre` descend de 520 a
+     120 en dents de scie SANS RESOUDRE. Un contrat qui expire fait ca, en plus
+     court : il n'est pas une mort, il est un renoncement. */
+  contratRate: () => tone({ freq: 392, to: 131, dur: 0.30, type: "sawtooth",
+                            gain: SOUND_GAIN.niveau * 0.45 }),
+
+  /* [7] ENTRER DANS LE RAYON D'INTERACTION — le plus REPETE du lot, donc le plus
+     discret : une seule note, tres courte, tres basse en gain. C'est celui qui
+     agacera le premier s'il est mal regle, et c'est pour ca qu'il ne sonne qu'a
+     l'ENTREE — l'appelant tient l'etat, le son ne sait pas se taire tout seul. */
+  borneProche: () => tone({ freq: 587, dur: 0.05, type: "sine",
+                            gain: SOUND_GAIN.menu * 0.9, attack: 0.004 }),
+
   annonce: (o) => {
     const g = SOUND_GAIN.alerte * (o.level === 0 ? 1 : 0.7);
     const f = o.level === 0 ? 196 : 165;

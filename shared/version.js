@@ -8355,6 +8355,46 @@
                   (couche 14). L etat descend donc en COUCHE 0, comme `traceOn` —
                   le serveur restant sa seule source.
 
+   --- plan 34 : les contrats -------------------------------------------------
+
+    0.37.0 lot 04 LES SEPT SONS, ECRITS EN UNE FOIS — ET C EST TOUT LE LOT. Trois
+                  servent dans ce plan (borne, interaction, contrat), quatre
+                  serviront aux plans 35 et 37. Le depot a deja paye le defaut
+                  inverse : « treize bonus rendaient la meme quinte montante »,
+                  corriges en une seule fois par les trois matieres. Sept sons
+                  ecrits par sept lots differents ne font pas une palette, ils font
+                  un bruit, et il faut les refaire. Ils peuvent etre approximatifs
+                  et changer plus tard ; ils ne peuvent pas etre ecrits a sept
+                  moments differents.
+                  LA RAREUR SE DIT EN HAUTEUR, JAMAIS EN GAIN — la regle de la
+                  palette, et les seize expressions de gain des sept recettes sont
+                  constantes : aucune ne depend d un rang. Le LOOT porte sa rarete
+                  par la QUINTE DE RANG, mecanisme deja ecrit et deja mesure, sur
+                  une QUATRIEME matiere — cristalline, la seule qui ne soit ni
+                  organique, ni metallique, ni massive.
+                  LE PING PORTE L IDENTITE DE CELUI QUI APPELLE : quatre joueurs,
+                  quatre fondamentales, donc on entend QUI appelle avant de
+                  regarder l ecran. C est gratuit et ca double la valeur du son.
+                  Famille `annonce` — c est la famille qui COUPE, et il doit percer
+                  deux cents corps.
+                  LE REVEIL DU MINI-BOSS N EST PAS DE LA FAMILLE `annonce` : bas,
+                  physique, sans resolution. Il ne doit surtout pas sonner comme un
+                  boss — le boss a son bandeau et sa musique, le mini-boss n a que
+                  ca.
+                  ACCEPTER N EST PAS ACCOMPLIR : le contrat pris est un `recolteFin`
+                  plus petit, le contrat fait resout SOUS sa triade la ou le haut
+                  fait garde son accord OUVERT. L echec descend en dents de scie
+                  sans resoudre, comme `aterre` mais plus court : ce n est pas une
+                  mort, c est un renoncement.
+                  L ENTREE DANS LE RAYON est le plus REPETE, donc le plus discret —
+                  une note, tres courte, tres basse en gain. Il ne sonne qu a l
+                  ENTREE : l appelant tient l etat, un son ne sait pas se taire
+                  tout seul.
+                  RESTE A ECOUTER : le ping a 200 corps avec un boss, et le
+                  huitieme son — la borne reperee — que le « ! » rend peut-etre
+                  inutile. Un son a chaque borne qui entre dans le champ
+                  deviendrait un tic-tac.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8363,4 +8403,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.36.3";
+export const VERSION = "0.37.0";
