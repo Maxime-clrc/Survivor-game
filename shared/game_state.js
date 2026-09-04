@@ -473,6 +473,30 @@ export const DAMAGE_SOURCES = [
   { key: "env",        label: "environnement" },
 ];
 
+/* CE QUE LE JOUEUR INFLIGE, VENTILE — le pendant de `DAMAGE_SOURCES`, qui ne
+   disait que ce qu'il SUBIT. `damageDealt` etait un total : on ne savait pas
+   quelle part venait de l'arme, des invocations, des zones posees, de la brulure
+   ou du ricochet, et c'est exactement ce qui manque pour equilibrer une arme sur
+   une vraie partie.
+   LA SOMME DOIT EGALER LE TOTAL, et `verifierVentilation()` le rejoue : deux
+   comptes de la meme chose derivent au premier oubli. */
+export const DEALT_SOURCES = [
+  { key: "arme",       label: "arme" },
+  { key: "invocation", label: "invocation" },
+  { key: "zone",       label: "zone posée" },
+  { key: "brulure",    label: "brûlure" },
+  { key: "souffle",    label: "souffle" },
+  { key: "ricochet",   label: "ricochet" },
+  { key: "competence", label: "compétence" },
+];
+export const DLT_ARME = 0;
+export const DLT_INVOC = 1;
+export const DLT_ZONE = 2;
+export const DLT_BRULURE = 3;
+export const DLT_SOUFFLE = 4;
+export const DLT_RICOCHET = 5;
+export const DLT_COMP = 6;
+
 /* Points de passage du texte de difficulte et de provenance d'un degat. */
 export const srcLabel = i => t(`src.${DAMAGE_SOURCES[i]?.key}`, DAMAGE_SOURCES[i]?.label ?? "");
 export const diffLabel = i => t(`diff.${DIFFICULTIES[i]?.key}.label`, DIFFICULTIES[i]?.label ?? "");
@@ -1108,6 +1132,7 @@ export class GameState {
 
       lastSrc: SRC_CONTACT,
       hurtBy: DAMAGE_SOURCES.map(() => 0),
+      degatsPar: DEALT_SOURCES.map(() => 0),
 
       meta,
       locked: meta && meta.locked
@@ -2716,7 +2741,8 @@ export class GameState {
         const c = l.cible;
         if (!c) continue;
         if (l.ennemi) {
-          this._damage(c, CARD_CFG.SIPHON_DAMAGE * dt, p.id, 0, true);
+          this._damage(c, CARD_CFG.SIPHON_DAMAGE * dt, p.id, 0, true,
+          undefined, undefined, DLT_COMP);
           if (c.hp <= 0) siphonne = true;
           if (!p.downed) {
             p.hp = Math.min(p.maxHp, p.hp + CARD_CFG.SIPHON_RATE * dt);
@@ -2948,7 +2974,7 @@ export class GameState {
     let fauches = 0;
     for (let i = 0; i < near.length && i < SKILL_CFG.DPS_BOMB_MAX_TARGETS; i++) {
       if (vulnerable) near[i].e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
-      this._damage(near[i].e, dmg, bo.owner);
+      this._damage(near[i].e, dmg, bo.owner, 0, false, undefined, undefined, DLT_SOUFFLE);
       if (near[i].e.hp <= 0) fauches++;
       this._blastAfter(owner, near[i].e);
     }
@@ -2956,7 +2982,8 @@ export class GameState {
     for (const boss of this._bossTargets()) {
       if ((boss.x - bo.x) ** 2 + (boss.y - bo.y) ** 2 > r * r) continue;
       if (vulnerable) boss.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
-      this._damage(boss, dmg * SKILL_CFG.DPS_BOMB_BOSS_MUL, bo.owner, 0, false, bo.x, bo.y);
+      this._damage(boss, dmg * SKILL_CFG.DPS_BOMB_BOSS_MUL, bo.owner, 0, false,
+        bo.x, bo.y, DLT_SOUFFLE);
     }
     souffle.n = fauches;
     this._blastPush(bo.x, bo.y, r, 1);
@@ -2975,6 +3002,7 @@ export class GameState {
           life: SKILL_CFG.DPS_BOMB_SHARD_LIFE,
           dmg: dmg * SKILL_CFG.DPS_BOMB_SHARD_MUL,
           owner: bo.owner,
+          src: DLT_SOUFFLE,
           pierce: 0, chain: 0, burn: 0, arc: 0, boom: 0,
           hits: null, hit: null, inertia: 0, bounce: 0,
           dmg0: dmg * SKILL_CFG.DPS_BOMB_SHARD_MUL,
@@ -3017,6 +3045,9 @@ export class GameState {
             life: CFG.BULLET_LIFE,
             dmg: tu.dmg,
             owner: tu.owner,
+            // LA SOURCE VOYAGE SUR LA BALLE, comme le drapeau d arme : au moment
+            // de l impact plus personne ne sait qui a tire.
+            src: DLT_INVOC,
             pierce: 0,
             chain: 0,
             hit: null,
@@ -3032,7 +3063,8 @@ export class GameState {
   // `hx`/`hy` : le POINT TOUCHE. Sur un boss il est ramene sur la silhouette,
   // sinon chiffres et etincelles naissent au centre d'un corps de 34 px de rayon
   // et le retour cesse de designer ce que la balle a fait.
-  _damage(target, amount, ownerId, burn = 0, overTime = false, hx, hy) {
+  _damage(target, amount, ownerId, burn = 0, overTime = false, hx, hy,
+          src = DLT_ARME) {
     if (!target || amount <= 0) return;
     const struck = target;
     if ((struck === this.boss || struck === this.boss2) && ownerId) {
@@ -3100,6 +3132,9 @@ export class GameState {
 
     if (owner) {
       owner.damageDealt += amount;
+      // MEME LIGNE QUE LE TOTAL : la ventilation ne peut pas rater un chemin que
+      // le total attrape, ni compter ce qu'il ne compte pas.
+      owner.degatsPar[src] += amount;
       /* PERMIS : la part de ces degats que la catalyse d un ALLIE a ajoutee. Le
          multiplicateur est deja dans `amount`, donc la part vaut
          `amount x (1 - 1/cata)` — on ne recalcule rien, on defait. */
@@ -3369,14 +3404,14 @@ export class GameState {
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) {
-        this._damage(e, dmg, ownerId);
+        this._damage(e, dmg, ownerId, 0, false, undefined, undefined, DLT_SOUFFLE);
         if (e.hp <= 0) fauches++;
         this._blastAfter(owner, e);
       }
     }
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) {
-        this._damage(boss, dmg * bossMul, ownerId, 0, false, x, y);
+        this._damage(boss, dmg * bossMul, ownerId, 0, false, x, y, DLT_SOUFFLE);
       }
     }
     // le souffle d'un JOUEUR casse le cristal — sans quoi le lance-grenades,
@@ -3443,14 +3478,14 @@ export class GameState {
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       if ((e.x - x) ** 2 + (e.y - y) ** 2 <= r2) {
-        this._damage(e, dmg, ownerId);
+        this._damage(e, dmg, ownerId, 0, false, undefined, undefined, DLT_SOUFFLE);
         if (e.hp <= 0) fauches++;
         this._blastAfter(owner, e);
       }
     }
     for (const boss of this._bossTargets()) {
       if ((boss.x - x) ** 2 + (boss.y - y) ** 2 <= r2) {
-        this._damage(boss, dmg, ownerId, 0, false, x, y);
+        this._damage(boss, dmg, ownerId, 0, false, x, y, DLT_SOUFFLE);
       }
     }
     onde.n = fauches;
@@ -3504,7 +3539,8 @@ export class GameState {
         x: src.x, y: src.y, x2: best.x, y2: best.y,
         r: 0, life: 0.22, max: 0.22, kind: 3, n: i + 2,
       });
-      this._damage(best, dmg * CARD_CFG.CHAIN_MUL, ownerId);
+      this._damage(best, dmg * CARD_CFG.CHAIN_MUL, ownerId, 0, false,
+        undefined, undefined, DLT_RICOCHET);
       src = best;
     }
   }
@@ -3622,6 +3658,7 @@ export class GameState {
       life: CFG.BULLET_LIFE,
       dmg: CFG.BULLET_DAMAGE * this._summonMul(p) * CARD_CFG.DRONE_DAMAGE_MUL,
       owner: p.id,
+      src: DLT_INVOC,
       pierce: 0, chain: 0, burn: 0, arc: 0, boom: 0,
       hits: null, hit: null,
     });
@@ -3650,7 +3687,8 @@ export class GameState {
     d.y += (dy / dist) * step;
 
     if (dist <= target.r + 12) {
-      this._damage(target, CARD_CFG.SWARM_DAMAGE * this._summonMul(p), p.id);
+      this._damage(target, CARD_CFG.SWARM_DAMAGE * this._summonMul(p), p.id,
+        0, false, undefined, undefined, DLT_INVOC);
       d.dead = CARD_CFG.SWARM_RESPAWN;
       d.target = 0;
     }
@@ -4578,7 +4616,7 @@ export class GameState {
       const ux = d > 0.01 ? dx / d : 1, uy = d > 0.01 ? dy / d : 0;
       e.x += ux * CFG.NOVA_PUSH;
       e.y += uy * CFG.NOVA_PUSH;
-      this._damage(e, CFG.NOVA_DAMAGE, p.id);
+      this._damage(e, CFG.NOVA_DAMAGE, p.id, 0, false, undefined, undefined, DLT_SOUFFLE);
       if (e.hp <= 0) fauches++;
     }
     onde.n = fauches;
@@ -4586,7 +4624,9 @@ export class GameState {
 
     for (const boss of this._bossTargets()) {
       const d = Math.hypot(boss.x - p.x, boss.y - p.y);
-      if (d <= R) this._damage(boss, CFG.NOVA_BOSS_DAMAGE, p.id, 0, false, p.x, p.y);
+      if (d <= R) {
+        this._damage(boss, CFG.NOVA_BOSS_DAMAGE, p.id, 0, false, p.x, p.y, DLT_SOUFFLE);
+      }
     }
 
     this.shots = this.shots.filter(sh =>
@@ -4669,7 +4709,8 @@ export class GameState {
 
       if (e.burn) {
         e.burn.t -= dt;
-        this._damage(e, e.burn.dmg * dt / CARD_CFG.BURN_TIME, e.burn.owner, 0, true);
+        this._damage(e, e.burn.dmg * dt / CARD_CFG.BURN_TIME, e.burn.owner, 0, true,
+        undefined, undefined, DLT_BRULURE);
         if (e.burn.t <= 0) e.burn = null;
         if (e.hp <= 0) continue;
       }
@@ -5484,7 +5525,8 @@ export class GameState {
 
     if (b.burn) {
       b.burn.t -= dt;
-      this._damage(b, b.burn.dmg * dt / CARD_CFG.BURN_TIME, b.burn.owner, 0, true);
+      this._damage(b, b.burn.dmg * dt / CARD_CFG.BURN_TIME, b.burn.owner, 0, true,
+        undefined, undefined, DLT_BRULURE);
       if (b.burn.t <= 0) b.burn = null;
       if (!this.boss) return;
     }
@@ -7966,7 +8008,7 @@ export class GameState {
         for (const e of this.enemies) {
           if (e.hp <= 0) continue;
           if ((e.x - st.x) ** 2 + (e.y - st.y) ** 2 > r * r) continue;
-          this._damage(e, dmg, conducteur.id, 0, true);
+          this._damage(e, dmg, conducteur.id, 0, true, undefined, undefined, DLT_ZONE);
         }
       }
 
@@ -8279,7 +8321,7 @@ export class GameState {
       for (const e of this.enemies) {
         if (e.hp <= 0) continue;
         if (!this._zoneHits(z, e)) continue;
-        this._damage(e, amount, z.pj, 0, true);
+        this._damage(e, amount, z.pj, 0, true, undefined, undefined, DLT_ZONE);
       }
       return;
     }
@@ -8518,7 +8560,8 @@ export class GameState {
       for (const e of this.enemies) {
         if (e.hp <= 0) continue;
         if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= rr) {
-          this._damage(e, amount * p.mods.thorns, p.id);
+          this._damage(e, amount * p.mods.thorns, p.id, 0, false,
+          undefined, undefined, DLT_COMP);
         }
       }
     }
@@ -8651,7 +8694,8 @@ export class GameState {
       }
       tireur.precVus.set(e.id, this.time);
     }
-    this._damage(e, b.dmg * froid, b.owner, b.burn);
+    this._damage(e, b.dmg * froid, b.owner, b.burn, false, undefined, undefined,
+      b.src ?? DLT_ARME);
     if (tireur && tireur.mods.precMarque > 0) {
       e.vulnUntil = this.time + CARD_CFG.VULNERABLE_TIME;
     }
@@ -8728,17 +8772,20 @@ export class GameState {
             // cibles saturees, donc tout double dessus — seraient la meilleure
             // source de degats du jeu contre un boss.
             if (b.missile) {
-              this._damage(boss, b.dmg * CARD_CFG.SALVE_BOSS_MUL, b.owner, 0, false, b.x, b.y);
+              this._damage(boss, b.dmg * CARD_CFG.SALVE_BOSS_MUL, b.owner, 0, false,
+            b.x, b.y, b.src ?? DLT_ARME);
             } else if (b.direct) {
               // UN OBUS FAIT LES DEUX SUR UN BOSS AUSSI. Sans cette branche, tout
               // ce que le siege rendait a une cible unique venait de son souffle,
               // et reduire le rayon le faisait tomber a ZERO — mesure a l'appui.
-              this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y);
+              this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y,
+          b.src ?? DLT_ARME);
             }
             this._explode(b.x, b.y, b.boom, b.owner, b.boomR, b.missile ? CARD_CFG.SALVE_BOSS_MUL : 1, this._sensBoom(b));
             hit = true;
           } else {
-            this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y);
+            this._damage(boss, b.dmg, b.owner, b.burn, false, b.x, b.y,
+          b.src ?? DLT_ARME);
             if (b.pierce > 0) {
               b.pierce--;
               if (b.hits) b.hits.add(boss.id); else b.hit = boss.id;
@@ -8858,7 +8905,7 @@ export class GameState {
         r: 0, life: 0.22, max: 0.22, kind: 3, n: i + 2,
       });
 
-      this._damage(best, dmg, b.owner);
+      this._damage(best, dmg, b.owner, 0, false, undefined, undefined, DLT_RICOCHET);
       src = best;
       dmg *= CFG.RICOCHET_MUL;
     }
@@ -9867,6 +9914,60 @@ export function verifierEncerclement(effectifs = [1, 2, 4], marge = 3) {
      - elle est LISIBLE — ni plate, ni saturee. Une tension qui reste a zero ou
        colle a 1 ne dit rien, et c'est maintenant qu'on veut le savoir ;
      - la borne [0, 1] tient, sinon les seuils du Director ne veulent rien dire. */
+/* DEUX COMPTES DE LA MEME CHOSE DERIVENT AU PREMIER OUBLI. `damageDealt` reste le
+   total, `degatsPar` la ventilation : si un chemin de degats echappe a l un des
+   deux, rien ne le signale — les deux nombres sont plausibles separement. On les
+   croise donc sur des manches completes, et l ecart tolere est celui du flottant,
+   pas un pourcentage.
+   ET ON VERIFIE QUE LA VENTILATION VENTILE : une manche dont tout tomberait dans
+   `arme` passerait l egalite tout en n apprenant rien. */
+export function verifierVentilation(manches = 3, minutes = 6, joueurs = 2) {
+  const soucis = [];
+  const vus = new Set();
+  for (let r = 1; r <= manches; r++) {
+    const g = new GameState(DIFF_NORMAL, 0, r * 7919);
+    for (let i = 1; i <= joueurs; i++) {
+      g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+    }
+    g.warmup = 0;
+    const pil = pilotage();
+    const inputs = new Map();
+    const images = Math.round(minutes * 60 / CFG.TICK);
+    for (let k = 0; k < images && !g.victory; k++) {
+      if (g.cardsPending) {
+        for (const [id, o] of g.cardOffers) {
+          const p = g.players.get(id);
+          if (p && o.length) g.takeCard(p, o[Math.floor(g.alea() * o.length)]);
+        }
+        g.cardsPending = false;
+        g.openNextScreen();
+        continue;
+      }
+      if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); continue; }
+      inputs.clear();
+      for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
+      g.step(CFG.TICK, inputs);
+      for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
+      if (!g.victory) g.gameOver = false;
+    }
+    for (const p of g.players.values()) {
+      let somme = 0;
+      p.degatsPar.forEach((v, i) => { somme += v; if (v > 0) vus.add(i); });
+      const ecart = Math.abs(somme - p.damageDealt);
+      if (ecart > Math.max(1e-6, p.damageDealt * 1e-9)) {
+        soucis.push(`graine ${r * 7919}, joueur ${p.id} : ventilation ${somme.toFixed(2)}`
+          + ` contre un total de ${p.damageDealt.toFixed(2)} — un chemin de degats`
+          + " echappe a l un des deux comptes");
+      }
+    }
+  }
+  if (vus.size < 2) {
+    soucis.push(`la ventilation ne separe rien : ${vus.size} source(s) alimentee(s)`
+      + " sur " + DEALT_SOURCES.length);
+  }
+  return soucis;
+}
+
 export function verifierIndices(minutes = 8, graine = 7919, joueurs = 2) {
   const soucis = [];
   const monter = () => {

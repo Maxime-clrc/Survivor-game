@@ -96,6 +96,7 @@ const SUITE = [
   ["codex", () => PR.verifierCodex()],
   ["classement", () => PR.verifierClassement()],
   ["rapport", () => verifierRapport()],
+  ["ventilation", () => G.verifierVentilation(), true],
   ["classes", () => G.verifierClasses(), true],
   ["boss", () => G.verifierBoss(), true],
   ["archetypes", () => B.verifierArchetypes()],

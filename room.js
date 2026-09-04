@@ -139,7 +139,7 @@ export class Room {
     this.traceVu = {
       niveau: s.level, segment: s.segment, bossKind: -1, bossPhase: 0, bossT: 0,
       event: -1, meteo: s.weather ? s.weather.id : -1,
-      aterre: new Set(), morts: new Map(), mech: new Map(),
+      aterre: new Set(), morts: new Map(), mech: new Map(), cartes: new Map(),
     };
     this.traceT = 0;
     this.traceLigne({
@@ -188,6 +188,7 @@ export class Room {
       lignes: this.scoreboardRows().map(r => ({
         id: r.id, cls: r.cls, score: r.score, kills: r.kills, morts: r.deaths,
         degats: r.damage, soins: r.heal, subisPar: r.hurtBy, cartes: r.cards,
+        degatsPar: r.degatsPar, contrib: r.contrib,
       })),
     });
     /* LA PAGE PART A TOUTE LA SALLE, pas au seul armeur : la mesure est visible
@@ -293,6 +294,26 @@ export class Room {
     if (meteo !== vu.meteo) {
       this.traceLigne({ k: "meteo", t, id: meteo, seg: s.segment });
       vu.meteo = meteo;
+    }
+
+    /* UNE CARTE PRISE EST UN INSTANT, et la build n etait datee que de la FIN :
+       on ne pouvait pas rattacher un saut de DPS a une prise. Deduite comme le
+       reste, par comparaison — la simulation ne sait toujours pas qu on
+       l observe. */
+    for (const p of s.players.values()) {
+      const avant = vu.cartes.get(p.id);
+      if (!avant) {
+        vu.cartes.set(p.id, new Map(p.cards));
+      } else {
+        for (const [id, n] of p.cards) {
+          const n0 = avant.get(id) ?? 0;
+          if (n > n0) {
+            avant.set(id, n);
+            this.traceLigne({ k: "carte", t, id: p.id, carte: id, n,
+                              niveau: s.level });
+          }
+        }
+      }
     }
 
     for (const p of s.players.values()) {
@@ -725,6 +746,16 @@ export class Room {
         damage: p ? Math.round(p.damageDealt) : 0,
         heal: p ? Math.round(p.healDealt) : 0,
         hurtBy: p ? p.hurtBy.map(v => Math.round(v)) : [],
+        // CE QUI ETAIT CALCULE ET NE SORTAIT NULLE PART : un Rempart qui joue
+        // parfaitement avait un tableau de fin VIDE, et les quatre nombres qui
+        // le disent existaient deja.
+        degatsPar: p ? p.degatsPar.map(v => Math.round(v)) : [],
+        contrib: p ? {
+          evites: Math.round(p.contrib.evites),
+          proteges: Math.round(p.contrib.proteges),
+          detournes: Math.round(p.contrib.detournes),
+          permis: Math.round(p.contrib.permis),
+        } : null,
         cards: p ? this.expandCards(p) : [],
         total: c.total,
         cores: c.lastGain ?? 0,

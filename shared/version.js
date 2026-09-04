@@ -8120,6 +8120,35 @@
                   regardera des courbes de vraies manches et on ajustera, et c est
                   exactement pour ca que ce lot vient avant le Director.
 
+    0.35.2 lot 02 QUATRE GRANDEURS EXISTAIENT ET NE SORTAIENT NULLE PART.
+                  LES DEGATS INFLIGES N ETAIENT PAS VENTILES. `p.hurtBy` ventilait
+                  ce qu un joueur SUBIT par source, et il n existait rien de
+                  symetrique pour ce qu il INFLIGE : `damageDealt` etait un total.
+                  On ne savait donc pas quelle part venait de l arme, des
+                  invocations, des zones posees, de la brulure ou du ricochet —
+                  c est exactement ce qui manque pour equilibrer une arme sur une
+                  VRAIE partie. `_damage()` prend une SOURCE, comme `_hurt()` en a
+                  une, et la balle la porte jusqu a l impact comme elle porte deja
+                  son drapeau d arme : au moment ou elle touche, plus personne ne
+                  sait qui a tire. Releve sur une manche de banc : un joueur a
+                  65,6 % de souffle et 33,6 % d arme la ou le total ne disait rien.
+                  LA SOMME DOIT EGALER LE TOTAL, et `verifierVentilation()` le
+                  rejoue sur trois manches completes : deux comptes de la meme
+                  chose derivent au premier oubli, et separement ils restent tous
+                  les deux plausibles.
+                  `p.contrib` ETAIT CALCULE ET NE SORTAIT NULLE PART. Quatre
+                  grandeurs — evites, proteges, detournes, permis — ecrites aux
+                  points de passage et lues par le seul banc de bots. UN REMPART
+                  QUI JOUE PARFAITEMENT AVAIT UN TABLEAU DE FIN VIDE : c est le
+                  seul role du jeu dont la contribution etait invisible, et les
+                  quatre nombres qui la disent existaient deja.
+                  LA BUILD N ETAIT DATEE QUE DE LA FIN. On ne pouvait pas rattacher
+                  un saut de DPS a une prise. Une ligne `carte` par prise, deduite
+                  PAR COMPARAISON comme le reste — la simulation ne sait toujours
+                  pas qu on l observe.
+                  Le compte rendu montre les trois, et il n ecrit que ce qui pese :
+                  cinq colonnes a zero ne sont pas une information.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8128,4 +8157,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.35.1";
+export const VERSION = "0.35.2";

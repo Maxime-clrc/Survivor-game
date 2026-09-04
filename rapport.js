@@ -25,6 +25,11 @@ import { VERSION } from "./shared/version.js";
 const COULEURS = ["bleu", "ambre", "vert", "rose", "cyan", "violet", "rouge", "or"];
 const CLASSES_NOM = ["Rempart", "Soigneur", "Tireur"];
 const DIFF_NOM = ["calme", "normal", "cauchemar"];
+// meme ordre que `DEALT_SOURCES` : le compte rendu ne lit pas le module de
+// simulation, il lit des lignes de trace, et l ordre est ce qui les relie.
+const DEALT_NOM = ["arme", "invoc", "zone", "brûlure", "souffle", "ricochet", "compét."];
+const CONTRIB_NOM = { evites: "évités", proteges: "protégés",
+                      detournes: "détournés", permis: "permis" };
 const BIOME_NOM = ["usine", "fonderie", "nebuleuse", "ville", "serre"];
 
 const n1 = x => Math.round(x * 10) / 10;
@@ -66,6 +71,7 @@ export class Rapport {
       case "bossFin": this._bossFin(o); break;
       case "barre": if (this.bossEnCours) this.bossEnCours.barres++; break;
       case "mech": this._mech(o); break;
+      case "carte": this._carte(o); break;
       // le niveau et le segment se relisent sur les echantillons : deux lignes
       // de plus dans le texte pour une information deja tabulee
       case "niveau": break;
@@ -146,6 +152,15 @@ export class Rapport {
     let pose = 0, echec = 0;
     for (const c of (this.mech ?? new Map()).values()) { pose += c.pose; echec += c.echec; }
     return { pose, echec };
+  }
+
+  // la build DATEE : une carte, un instant, un niveau. C est ce qui rattache un
+  // saut de DPS a une prise.
+  _carte(o) {
+    if (!this.cartes) this.cartes = new Map();
+    if (!this.cartes.has(o.id)) this.cartes.set(o.id, []);
+    const l = this.cartes.get(o.id);
+    if (l.length < 40) l.push({ t: o.t ?? 0, carte: o.carte, niveau: o.niveau ?? 0 });
   }
 
   _notable(o) {
@@ -242,12 +257,62 @@ export class Rapport {
     }
     L.push("");
 
-    const cartes = lignes.filter(l => (l.cartes ?? []).length > 0);
-    if (cartes.length > 0) {
+    /* CE QUE LE JOUEUR INFLIGE, VENTILE. Un total ne dit pas quelle part vient de
+       l'arme, des invocations ou du souffle — et c'est exactement ce qui manque
+       pour equilibrer une arme sur une VRAIE partie. On n'ecrit que ce qui pese :
+       cinq colonnes a zero ne sont pas une information. */
+    const vent = lignes.filter(l => (l.degatsPar ?? []).some(v => v > 0));
+    if (vent.length > 0) {
+      L.push("### Dégâts infligés, ventilés");
+      L.push("");
+      for (const l of vent) {
+        const tot = l.degatsPar.reduce((a, b) => a + b, 0) || 1;
+        const par = l.degatsPar
+          .map((v, i) => [DEALT_NOM[i] ?? i, v])
+          .filter(([, v]) => v / tot >= 0.005)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `${k} ${pct(v / tot)}`).join(" · ");
+        L.push(`- **${this._nom(l.id)}** — ${Math.round(tot)} · ${par}`);
+      }
+      L.push("");
+    }
+
+    /* LA CONTRIBUTION INDIRECTE ETAIT CALCULEE ET NE SORTAIT NULLE PART : un
+       Rempart qui joue parfaitement avait un tableau de fin VIDE. C'est le seul
+       role du jeu dont l'apport etait invisible. */
+    const contrib = lignes.filter(l => l.contrib
+      && Object.values(l.contrib).some(v => v > 0));
+    if (contrib.length > 0) {
+      L.push("### Contribution indirecte");
+      L.push("");
+      for (const l of contrib) {
+        const par = Object.entries(l.contrib)
+          .filter(([, v]) => v > 0)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `${CONTRIB_NOM[k] ?? k} ${Math.round(v)}`).join(" · ");
+        L.push(`- **${this._nom(l.id)}** — ${par}`);
+      }
+      L.push("");
+    }
+
+    if (this.cartes && this.cartes.size > 0) {
       L.push("### Builds, dans l'ordre de prise");
       L.push("");
-      for (const l of cartes) L.push(`- **${this._nom(l.id)}** — ${(l.cartes ?? []).join(", ")}`);
+      for (const [id, prises] of this.cartes) {
+        L.push(`- **${this._nom(id)}** — `
+          + prises.map(c => `${mmss(c.t)} ${c.carte}`).join(" · "));
+      }
       L.push("");
+    } else {
+      const cartes = lignes.filter(l => (l.cartes ?? []).length > 0);
+      if (cartes.length > 0) {
+        L.push("### Builds");
+        L.push("");
+        for (const l of cartes) {
+          L.push(`- **${this._nom(l.id)}** — ${(l.cartes ?? []).join(", ")}`);
+        }
+        L.push("");
+      }
     }
 
     const subis = lignes.filter(l => l.subisPar && Object.keys(l.subisPar).length > 0);
@@ -318,8 +383,14 @@ export function verifierRapport() {
       id, cls: 0, score: 1000, kills: 1800, morts: 1, degats: 216000,
       soins: 5400, subisPar: { contact: 900, zone: 300 },
       cartes: ["blindage", "cadence", "garde"],
+      degatsPar: [140000, 20000, 30000, 6000, 18000, 2000, 0],
+      contrib: { evites: 1200, proteges: 800, detournes: 300, permis: 150 },
     })),
   });
+
+  for (let i = 0; i < 8; i++) {
+    r.ligne({ k: "carte", t: 120 * i, id: 1 + (i % 4), carte: "c" + i, niveau: 3 + i });
+  }
 
   const texte = r.rendu();
   const n = texte.split("\n").length;
@@ -332,6 +403,14 @@ export function verifierRapport() {
     soucis.push("un pseudo apparait dans le compte rendu : il est fait pour etre colle ailleurs");
   }
   if (!texte.includes("## Par segment")) soucis.push("le resume par segment manque");
+  if (!texte.includes("Dégâts infligés, ventilés")) {
+    soucis.push("la ventilation des degats infliges ne sort pas");
+  }
+  if (!texte.includes("Contribution indirecte")) {
+    soucis.push("la contribution indirecte ne sort pas — un Rempart parfait"
+      + " a un compte rendu vide");
+  }
+  if (!/0:00 c0/.test(texte)) soucis.push("les cartes ne sont pas DATEES");
   if (r.segments.size !== 6) {
     soucis.push(`${r.segments.size} segments agreges, attendu 6`);
   }

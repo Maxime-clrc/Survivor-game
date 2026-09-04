@@ -130,7 +130,8 @@ ws_lite.js             WebSocket minimal (RFC 6455 + permessage-deflate), pas de
 perf.js                echantillonnage CPU
 telemetry.js           trace JSONL d'une VRAIE partie — serveur SEUL, hub ecrivain
 version_check.js       refuse un deploiement sans bump
-verif.js               LA SUITE : le seul appelant des 33 verificateurs
+verif.js               LA SUITE : le seul appelant des verificateurs
+rapport.js             le COMPTE RENDU d'une manche — reduction de la trace, jamais une seconde collecte
 constantes_check.js    une constante de configuration sans lecteur
 progress_store.js      persistance Supabase — serveur SEUL, memoire + replique
 shared/game_state.js   LOGIQUE PURE — importee par le serveur ET le navigateur
@@ -235,8 +236,10 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 
 | point | ce qui y est branché |
 |---|---|
+| `_tension(dt)` / `survieIndex()` | LES DEUX INDICES, et **rien ne les lit** : la tension monte dans `_hurt` (dégâts, en fraction des PV max) et `_separateFromPlayers` (densité proche), l'indice de survie lit ce que `powerIndex()` refuse de lire. Tracés pour que le Director calibre sur des courbes OBSERVÉES |
+| `Room.traceLigne()` / `rapport.js` | LA MESURE : la même ligne part au JSONL **et** au compte rendu, au même instant. Un second point de collecte divergerait |
 | `_hurt(p, d, opts)` | **tout** ce qui blesse un joueur ; multiplicateur de difficulté **ici et nulle part ailleurs** ; plafond de mécanique ; provenance |
-| `_damage()` | **tout** ce qui blesse un ennemi ou le boss ; vol de vie, critique, momentum, exécution, brûlure, `hitSeq`, `critSeq`, point d'impact du boss, redirection Jumeaux, crédit XP du boss |
+| `_damage()` | **tout** ce qui blesse un ennemi ou le boss ; vol de vie, critique, momentum, exécution, brûlure, `hitSeq`, `critSeq`, point d'impact du boss, redirection Jumeaux, crédit XP du boss, **ventilation de ce qui est infligé** (`src` → `degatsPar`, dont la somme DOIT égaler `damageDealt`) |
 | `_blastPush(x, y, r, force)` | **toute** impulsion radiale d'un souffle, et le trou d'apparition qui va avec (`_dansUnTrou`) |
 | `_healLinks(dt)` | accrochage, rupture, soin, réanimation et siphon du Soigneur ; `_postureLinks` = la posture, `_sanctLinks` = le dôme (ni plafond ni rupture) |
 | `_ultFire(p)` | **tout** ce que déclenche une 3ᵉ compétence, à l'échéance de l'amorce ; effet d'écran et marqueur d'équipe posés une fois pour les trois |
