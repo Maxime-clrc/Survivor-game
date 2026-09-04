@@ -355,6 +355,24 @@ jamais deux fois, et le compte rendu **ne peut pas** diverger du fichier. Le JSO
 reste la sortie secondaire — il ne coûte rien, il sert quand le résumé ne suffit
 pas, mais il demande un accès au disque de la machine ; le compte rendu se colle.
 
+**LE COMPTE RENDU CHERCHE DE LUI-MÊME.** Cinq anomalies, chacune avec **son
+contexte** : l'image qui saute — avec la population, l'événement et la météo de
+cet instant —, le **plafond tenu** (le budget d'apparition demande plus que le
+moteur ne rend, et la difficulté cesse de monter), le joueur **à terre** longtemps
+(personne n'a pu venir ; `REVIVE_RADIUS` vaut 96 px), l'**arme muette**, et la
+**tension plate**. Plus la mécanique de boss jamais posée, qui est un réglage mort.
+
+**UNE ANOMALIE NON DÉTECTÉE EST UN DÉFAUT ; UNE ANOMALIE DÉTECTÉE TROP SOUVENT EST
+UN BRUIT.** Si une ligne sort dans tous les comptes rendus, ce n'est plus une
+anomalie — c'est un réglage à corriger ou un seuil à relever. Les seuils sont donc
+**déclarés** dans `ANO`, jamais écrits dans le code de détection. Le critère a
+deux moitiés : une manche **saine** ne produit rien, une manche fabriquée avec des
+défauts connus les fait tous sortir.
+
+**Les durées d'anomalie se comptent sur l'ÉCART entre deux échantillons, jamais
+sur leur nombre** : la trace est nominalement à 1 Hz, mais une pause ou un écran
+de cartes décalent l'horloge.
+
 **IL EST BORNÉ, ET C'EST UN CRITÈRE.** Trente minutes à 1 Hz font 1 800
 échantillons : on ne les garde jamais, on les **agrège par segment** à l'arrivée.
 `verifierRapport()` fabrique une manche complète et refuse au-delà de **400

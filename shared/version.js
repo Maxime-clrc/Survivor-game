@@ -8182,6 +8182,40 @@
                   des zeros. La fixture du verificateur mentait sur la forme, donc
                   elle validait un rendu que la vraie manche ne produit jamais.
 
+    0.35.4 lot 05 LE COMPTE RENDU CHERCHE DE LUI-MEME. « Trois images au-dessus de
+                  33 ms, toutes pendant une nova a 190 corps » est une
+                  information ; un tableau de 1 800 durees d image n en est pas
+                  une. C est la seule section qui LIT au lieu de presenter, et
+                  c est pour elle que le plan existe : la trace serveur sait ce qui
+                  se passait a la seconde pres, le releve client sait ce que la
+                  machine rendait, et rien ne croisait les deux.
+                  CINQ ANOMALIES, ET CHACUNE PORTE SON CONTEXTE. L image qui saute
+                  avec la population, l evenement et la meteo de cet instant ; le
+                  PLAFOND tenu, qui dit que le budget d apparition demande plus que
+                  le moteur ne rend et que la difficulte cesse de monter ; le
+                  joueur A TERRE longtemps, qui dit que personne n a pu venir —
+                  `REVIVE_RADIUS` vaut 96 px, et sur une map plus grande ce sera
+                  frequent ; l ARME MUETTE ; et la TENSION PLATE, qu on saura AVANT
+                  que le Director existe. Plus la mecanique de boss jamais posee,
+                  qui est un reglage mort.
+                  UNE ANOMALIE NON DETECTEE EST UN DEFAUT ; UNE ANOMALIE DETECTEE
+                  TROP SOUVENT EST UN BRUIT. Si une ligne sort dans TOUS les comptes
+                  rendus, ce n est plus une anomalie — c est un reglage a corriger
+                  ou un seuil a relever. Les huit seuils sont donc DECLARES dans une
+                  table, jamais ecrits dans le code de detection.
+                  LE CRITERE A DEUX MOITIES, et la premiere compte plus : une
+                  manche saine ne produit RIEN (une section toujours pleine ne sera
+                  plus lue), une manche fabriquee avec des defauts connus les fait
+                  tous sortir. `verifierRapport()` rejoue les deux.
+                  DEFAUT PAYE EN ECRIVANT : l instant precedent etait lu APRES que
+                  le cumul de DPS l avait remplace, donc l ecart valait toujours
+                  ZERO et toutes les anomalies de DUREE restaient muettes. Un defaut
+                  qui ne se voit que sur une manche malade — c est-a-dire jamais,
+                  sans le second critere.
+                  Et les durees se comptent sur l ECART entre deux echantillons,
+                  jamais sur leur NOMBRE : la trace est nominalement a 1 Hz, mais
+                  une pause ou un ecran de cartes decalent l horloge.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8190,4 +8224,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.35.3";
+export const VERSION = "0.35.4";

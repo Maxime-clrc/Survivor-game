@@ -35,6 +35,31 @@ const CONTRIB_NOM = { evites: "évités", proteges: "protégés",
                       detournes: "détournés", permis: "permis" };
 const BIOME_NOM = ["usine", "fonderie", "nebuleuse", "ville", "serre"];
 
+/* CE QUE LE COMPTE RENDU CHERCHE DE LUI-MEME.
+
+   « Trois images au-dessus de 33 ms, toutes pendant une nova a 190 corps » est une
+   information ; un tableau de 1 800 durees d image n en est pas une. Cette
+   section est la seule du compte rendu qui LIT au lieu de presenter, et c est
+   pour elle que le plan 32 existe : la trace serveur sait ce qui se passait a la
+   seconde pres, le releve client sait ce que la machine rendait, et personne ne
+   croisait les deux.
+
+   UNE ANOMALIE NON DETECTEE EST UN DEFAUT ; UNE ANOMALIE DETECTEE TROP SOUVENT
+   EST UN BRUIT. Si une ligne sort dans TOUS les comptes rendus, ce n est plus une
+   anomalie — c est un reglage a corriger ou un seuil a relever. Les seuils sont
+   donc declares ici, jamais ecrits dans le code de detection : on les relit, on
+   les discute, on les bouge d un endroit. */
+const ANO = {
+  IMAGE_MS: 33,          // une image au-dela ne tient pas les 30 im/s
+  IMAGES_MIN: 3,         // en deca, c est un hoquet, pas une anomalie
+  PLAFOND_PART: 0.98,    // « au plafond » = a 2 % pres
+  PLAFOND_S: 20,         // ... et tenu si longtemps
+  ATERRE_S: 25,          // personne n a pu venir relever
+  MUET_S: 45,            // une arme qui n inflige rien pendant ce temps
+  TENSION_S: 90,         // une tension basse dix secondes n est rien
+  BOSS_MECA_MIN: 1,      // une mecanique jamais posee est un reglage mort
+};
+
 const n1 = x => Math.round(x * 10) / 10;
 const pct = x => `${Math.round(x * 100)} %`;
 const mmss = s => {
@@ -59,6 +84,7 @@ export class Rapport {
     this.notables = [];
     this.perf = new Map();
     this.dernier = null;
+    this.tensionBasMax = 0;
   }
 
   /* UNE SEULE PORTE D'ENTREE, et elle recoit exactement ce que le JSONL recoit.
@@ -97,6 +123,10 @@ export class Rapport {
 
   _echantillon(o) {
     const s = this._segment(o.seg);
+    // L INSTANT PRECEDENT SE PREND AVANT que le cumul de DPS ne le remplace :
+    // lu apres, l ecart valait toujours ZERO et toutes les anomalies de duree
+    // restaient muettes — un defaut qui ne se voit que sur une manche malade.
+    const tPrec = this.dernier ? this.dernier.t : null;
     s.n++;
     s.pop += o.pop ?? 0;
     if ((o.pop ?? 0) > s.popMax) s.popMax = o.pop ?? 0;
@@ -120,14 +150,39 @@ export class Rapport {
     }
     this.dernier = { t: o.t ?? 0, degats: total };
 
+    /* LES DUREES SE COMPTENT SUR L ECART ENTRE DEUX ECHANTILLONS, jamais sur
+       leur NOMBRE : la trace est nominalement a 1 Hz, mais une manche en pause ou
+       un ecran de cartes decalent l horloge, et compter les echantillons ferait
+       mentir toutes les anomalies de duree. */
+    const dt = tPrec === null ? 0 : Math.max(0, Math.min(30, (o.t ?? 0) - tPrec));
+    if ((o.pop ?? 0) >= (o.plafond ?? 0) * ANO.PLAFOND_PART && (o.plafond ?? 0) > 0) {
+      s.plafondS += dt;
+    }
+    if (this.tensionBas0 === undefined) this.tensionBas0 = 0;
+    this.tensionBas0 = (o.tensionBas ?? 0);
+    if (this.tensionBas0 > this.tensionBasMax) this.tensionBasMax = this.tensionBas0;
+
     for (const p of o.joueurs ?? []) {
       const j = this._joueur(p.id);
+      const avant = j.degats;
       j.degats = p.degats ?? j.degats;
       j.soins = p.soins ?? j.soins;
       j.kills = p.kills ?? j.kills;
       j.morts = p.morts ?? j.morts;
       j.puissance = p.puissance ?? j.puissance;
-      if ((p.aterre ?? 0) === 1) j.aterreT++;
+      if ((p.aterre ?? 0) === 1) {
+        j.aterreT++;
+        j.aterreS += dt;
+        if (j.aterreS > j.aterreMax) j.aterreMax = j.aterreS;
+      } else {
+        j.aterreS = 0;
+      }
+      if (j.degats <= avant) {
+        j.muetS += dt;
+        if (j.muetS > j.muetMax) j.muetMax = j.muetS;
+      } else {
+        j.muetS = 0;
+      }
     }
   }
 
@@ -172,6 +227,67 @@ export class Rapport {
     if (l.length < 40) l.push({ t: o.t ?? 0, carte: o.carte, niveau: o.niveau ?? 0 });
   }
 
+  /* LES ANOMALIES, ET CHACUNE PORTE SON CONTEXTE. Un instant sans ce qui se
+     passait a cet instant n est pas exploitable : c est precisement ce que le
+     croisement trace serveur / releve client rend possible, et c est pour ca
+     qu il fallait les deux. */
+  _anomalies() {
+    const out = [];
+    const seg = [...this.segments.entries()].sort((a, b) => a[0] - b[0]);
+
+    // 1 · les images qui sautent, avec ce que la simulation faisait a ce moment
+    for (const [id, fenetres] of this.perf) {
+      for (const f of fenetres) {
+        if (f.msMax < ANO.IMAGE_MS) continue;
+        const s = this.segments.get(f.seg);
+        const ctx = s
+          ? `${n1(s.pop / Math.max(1, s.n))} corps en moyenne, pointe ${s.popMax}`
+            + (s.evenements.size ? `, événement ${[...s.evenements].join("/")}` : "")
+            + (s.meteos.size ? `, météo ${[...s.meteos].join("/")}` : "")
+          : "contexte inconnu";
+        out.push(`**image** — ${this._nom(id)} : pointe à ${f.msMax} ms au segment`
+          + ` ${f.seg} (p99 ${f.ms99} ms, ${f.fps99} im/s) · ${ctx}`);
+      }
+    }
+
+    // 2 · le plafond tenu : la difficulte cesse de monter sans que personne le voie
+    for (const [i, s] of seg) {
+      if (s.plafondS >= ANO.PLAFOND_S) {
+        out.push(`**plafond** — segment ${i} : population au plafond (${s.plafond})`
+          + ` pendant ${Math.round(s.plafondS)} s. Le budget d'apparition demande`
+          + " plus que le moteur ne rend, et la difficulté cesse d'augmenter");
+      }
+    }
+
+    // 3 · a terre longtemps : personne n a pu venir, et REVIVE_RADIUS vaut 96
+    for (const j of (this.joueurs ? this.joueurs.values() : [])) {
+      if (j.aterreMax >= ANO.ATERRE_S) {
+        out.push(`**à terre** — ${this._nom(j.id)} : ${Math.round(j.aterreMax)} s`
+          + " au sol d'affilée. Personne n'a pu venir le relever");
+      }
+      if (j.muetMax >= ANO.MUET_S && j.degats > 0) {
+        out.push(`**arme muette** — ${this._nom(j.id)} : ${Math.round(j.muetMax)} s`
+          + " sans infliger un dégât. À terre, hors de portée, ou un défaut");
+      }
+    }
+
+    // 4 · la tension plate, et on le sait AVANT que le Director existe
+    if (this.tensionBasMax >= ANO.TENSION_S) {
+      out.push(`**tension plate** — ${Math.round(this.tensionBasMax)} s sous le`
+        + " seuil bas d'affilée. La manche est plate à cet endroit");
+    }
+
+    // 5 · une mecanique de boss jamais posee est un reglage mort
+    const meca = this.fin?.mecaniques ?? [];
+    const jamais = meca.filter(m => (m[1] ?? 0) < ANO.BOSS_MECA_MIN).map(m => m[0]);
+    if (jamais.length > 0 && meca.length > 0) {
+      out.push(`**mécanique morte** — ${jamais.length} mécanique(s) jamais posée(s)`
+        + ` sur la manche : ${jamais.join(", ")}`);
+    }
+
+    return out;
+  }
+
   _notable(o) {
     if (this.notables.length < 40) this.notables.push(o);
   }
@@ -182,6 +298,7 @@ export class Rapport {
       this.segments.set(k, {
         n: 0, pop: 0, popMax: 0, plafond: 0, niveau: 0, kills: 0, kills0: null,
         t0: null, t1: 0, dps: [], evenements: new Set(), meteos: new Set(),
+        plafondS: 0,
       });
     }
     return this.segments.get(k);
@@ -191,7 +308,8 @@ export class Rapport {
     if (!this.joueurs) this.joueurs = new Map();
     if (!this.joueurs.has(id)) {
       this.joueurs.set(id, { id, degats: 0, soins: 0, kills: 0, morts: 0,
-                             puissance: 0, aterreT: 0 });
+                             puissance: 0, aterreT: 0,
+                             aterreS: 0, aterreMax: 0, muetS: 0, muetMax: 0 });
     }
     return this.joueurs.get(id);
   }
@@ -222,6 +340,16 @@ export class Rapport {
     L.push(`- **niveau atteint** ${f ? f.niveau : "?"}`
       + ` · **corps abattus** ${f ? f.kills : "?"}`
       + ` · **boss** ${f ? f.boss : this.boss.length}`);
+    L.push("");
+
+    const anomalies = this._anomalies();
+    L.push("## Anomalies");
+    L.push("");
+    if (anomalies.length === 0) {
+      L.push("*Rien à signaler.*");
+    } else {
+      for (const a of anomalies) L.push(`- ${a}`);
+    }
     L.push("");
 
     L.push("## Par segment");
@@ -418,7 +546,7 @@ export function verifierRapport() {
   for (const id of [1, 2]) {
     for (let seg = 1; seg <= 6; seg++) {
       r.ligne({ k: "releve", id, seg, s: 300, n: 18000, gfx: 3, gl: 1,
-                fps50: 120 - id * 40, fps99: 55 - id * 20, ms99: 18, msMax: 44,
+                fps50: 120 - id * 40, fps99: 55 - id * 20, ms99: 18, msMax: 28,
                 draws: 12, quads: 2400, fragMax: 900 });
     }
   }
@@ -445,7 +573,7 @@ export function verifierRapport() {
       + " a un compte rendu vide");
   }
   if (!/0:00 c0/.test(texte)) soucis.push("les cartes ne sont pas DATEES");
-  const fenetres = (texte.match(/\| 18 \| 44 \|/g) ?? []).length;
+  const fenetres = (texte.match(/[|] 18 [|] 28 [|]/g) ?? []).length;
   if (fenetres !== 12) {
     soucis.push(`${fenetres} fenetres de releve pour deux clients et six segments,`
       + " attendu 12 — le releve reste PAR CLIENT et PAR SEGMENT, jamais une moyenne");
@@ -460,6 +588,38 @@ export function verifierRapport() {
   const dps = [...r.segments.values()].map(s => mediane(s.dps));
   if (dps.some(v => !(v > 0))) {
     soucis.push("le DPS d'equipe d'un segment vaut zero — il se deduit de deux cumuls");
+  }
+
+  /* LES DEUX MOITIES DU CRITERE D ANOMALIE, et la premiere compte plus que la
+     seconde : une section toujours pleine ne sera plus lue. La manche ci-dessus
+     est SAINE — population sous le plafond, personne a terre, tension qui bouge —
+     et elle ne doit rien produire. */
+  const iAno = texte.split("\n").indexOf("## Anomalies");
+  if (iAno < 0) soucis.push("la section des anomalies manque");
+  else if (!texte.split("\n")[iAno + 2].startsWith("*Rien")) {
+    soucis.push("une manche saine produit des anomalies : "
+      + texte.split("\n")[iAno + 2]);
+  }
+
+  // ... et une manche fabriquee avec des defauts CONNUS doit les faire sortir.
+  const mal = new Rapport();
+  mal.ligne({ k: "debut", graine: 1, difficulte: 1, variante: "normal", biome: 0,
+              effectif: 2, joueurs: [{ id: 1, cls: 0 }, { id: 2, cls: 2 }] });
+  for (let t = 0; t <= 600; t++) {
+    mal.ligne({ k: "e", t, seg: 1, niveau: 5, xp: t * 10, pop: 370, plafond: 370,
+                vivants: 1, kills: t, meteo: -1, ev: -1, tensionBas: t,
+                joueurs: [
+                  { id: 1, degats: 0, kills: 0, morts: 1, aterre: 1, puissance: 1 },
+                  { id: 2, degats: t * 50, kills: t, morts: 0, aterre: 0, puissance: 1.5 },
+                ] });
+  }
+  mal.ligne({ k: "fin", cause: "defaite", t: 600, segment: 1, niveau: 5, victoire: 0,
+              kills: 600, boss: 0, mecaniques: [[0, 0, 0], [1, 4, 1]], lignes: [] });
+  const a = mal._anomalies().join("\n");
+  for (const [quoi, motif] of [["plafond", /plafond/], ["à terre", /à terre/],
+                               ["tension plate", /tension plate/],
+                               ["mécanique morte", /mécanique morte/]]) {
+    if (!motif.test(a)) soucis.push(`une manche malade ne signale pas « ${quoi} »`);
   }
   return soucis;
 }
