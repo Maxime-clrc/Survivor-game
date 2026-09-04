@@ -8042,6 +8042,41 @@
                   le doublon qui le bloquait, sans quoi le ping ferait clignoter une
                   couche sur deux.
 
+   --- plan 32 : l outillage de mesure ---------------------------------------
+
+    0.35.0 lot 01 LA MESURE S ARMAIT PAR L URL, ET UNE URL NE SE VOIT PAS. Le code
+                  justifiait `?mesure` par « elle ne doit couter aucun clic a
+                  personne — et surtout pas vivre dans un menu ou on l oublierait
+                  armee ». L objection etait juste, la reponse ne l etait pas :
+                  une URL ne se voit pas non plus, pas meme de celui qui l a tapee
+                  deux manches plus tot. Elle devient une OPTION DE SALLE, cochee
+                  avant la manche, et le temoin reste a l ecran pendant toute la
+                  partie avec le nom de qui l a armee. La moitie du travail etait
+                  deja faite : `armerTrace` diffusait `traceState` a toute la
+                  salle, et l etat etait deja porte par la SALLE.
+                  LE COMPTE RENDU EST UNE REDUCTION DE LA TRACE, JAMAIS UNE SECONDE
+                  COLLECTE. `traceLigne()` pousse chaque ligne dans le JSONL ET
+                  dans `Rapport`, au meme instant : on n instrumente jamais deux
+                  fois, et le compte rendu NE PEUT PAS diverger du fichier.
+                  IL EST BORNE, ET C EST UN CRITERE. Trente minutes a 1 Hz font
+                  1 800 echantillons — illisible et couteux a coller. On ne les
+                  garde jamais : on les AGREGE par segment a l arrivee, et le texte
+                  tient en quelques dizaines de lignes quelle que soit la duree.
+                  `verifierRapport()` fabrique une manche complete et refuse
+                  au-dela de 400 lignes.
+                  AUCUN PSEUDO DANS LE CORPS : chaque joueur y apparait par sa
+                  CLASSE et sa COULEUR (« Rempart bleu »). Le compte rendu est fait
+                  pour etre colle ailleurs. Seul l en-tete nomme qui a arme la
+                  mesure — une trace anonyme ne dit pas de quelle table elle vient.
+                  DEFAUT TROUVE PAR LE TEST BOUT EN BOUT : `traceLigne` est gardee
+                  par `traceArme`, donc desarmer en cours de manche baissait le
+                  drapeau AVANT `traceFin` et jetait la ligne `fin` — du JSONL
+                  comme du compte rendu, qui annoncait « en cours » sur une manche
+                  terminee. On ferme la trace, PUIS on desarme.
+                  Le JSONL reste la sortie secondaire : il ne coute rien et il sert
+                  quand le resume ne suffit pas, mais il demande un acces au disque
+                  de la machine. Le compte rendu, lui, se colle.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8050,4 +8085,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.34.5";
+export const VERSION = "0.35.0";

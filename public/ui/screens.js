@@ -17,13 +17,13 @@ import { appliquerCadre } from "./cadres.js";
 import { RELICS, relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";
 import { TL_CFG, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf } from "/sprites.js";
-import { GFX_KEYS, GFX_ULTRA, INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, SECOUSSE_FACTEURS, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setGfx, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, setSecousse, secousse, gfx, tally, ws } from "../core/state.js";
+import { traceOn, tracePar, rapportTexte, GFX_KEYS, GFX_ULTRA, INTERP_MS, PERF, PHASE_LOBBY, PHASE_ROUND, ROMAN, SECOUSSE_FACTEURS, amSpectator, bilanOpen, finOpen, setFinOpen, cardsPending, cardsState, cardsTimerHandle, connected, difficulty, hostId, inRoom, joinAttempt, keys, lastResult, lobby, merchantState, merchantTimerHandle, merchantWait, metaClsOverride, myId, myPseudo, myVote, ownedCounts, pendingRejoin, phase, progressState, roomNameCur, roomsList, roundHistory, setBilanOpen, setCardsPending, setCardsState, setCardsTimerHandle, setJoinAttempt, setMerchantState, setMerchantTimerHandle, setGfx, setMerchantWait, setMetaClsOverride, setMyVote, setPendingRejoin, setSecousse, secousse, gfx, tally, ws } from "../core/state.js";
 import { netPerf } from "../net/interp.js";
 import { fmtTime, portraitBoss } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanFait, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { bilanRapport, bilanRapportTexte, bilanRapportCopy, traceCheck, traceHint, bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanFait, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -1058,8 +1058,44 @@ export function renderBriefWait() {
     "En attente de {qui} — briefing <i>{n} s</i>", { qui, n: reste });
 }
 
+/* LA MESURE S'ARME AU SALON, ET TOUT LE MONDE LA VOIT. Elle vivait dans l'URL —
+   « aucun clic, et surtout pas un menu ou on l'oublierait armee ». L'objection
+   etait juste, la reponse ne l'etait pas : une URL ne se voit pas non plus, pas
+   meme de celui qui l'a tapee. On la rend donc IMPOSSIBLE A OUBLIER — une case
+   dans le salon, un temoin a l'ecran pendant toute la manche, et le nom de qui
+   l'a armee des deux cotes. */
+function syncTrace() {
+  if (!traceCheck) return;
+  traceCheck.checked = traceOn;
+  if (traceHint) {
+    traceHint.textContent = traceOn
+      ? tf("ui.panel.trace.on", "La manche sera enregistrée · armée par {qui}",
+          { qui: tracePar || "?" })
+      : t("ui.panel.trace.off",
+          "Enregistre la manche et produit un compte rendu à coller. Visible de tous.");
+  }
+}
+if (traceCheck) {
+  traceCheck.onchange = () => {
+    if (!connected || !inRoom) return;
+    ws.send(JSON.stringify({ t: "trace", on: traceCheck.checked ? 1 : 0 }));
+  };
+}
+if (bilanRapportCopy) {
+  bilanRapportCopy.onclick = e => {
+    e.preventDefault();
+    if (!rapportTexte) return;
+    navigator.clipboard?.writeText(rapportTexte);
+    bilanRapportCopy.textContent = t("ui.bilan.rapport.copied", "Copié");
+    setTimeout(() => {
+      bilanRapportCopy.textContent = t("ui.bilan.rapport.copy", "Copier");
+    }, 1200);
+  };
+}
+
 export function refreshPanel() {
   updateVersion();
+  syncTrace();
   if (!connected) return;
   if (!inRoom) { panel.hidden = true; return; }
   if (!gate.hidden) return;
@@ -1807,6 +1843,10 @@ export function showBilan(res) {
   setBilanOpen(true);
   bilanEl.hidden = false;
   panel.hidden = true;
+  if (bilanRapport) {
+    bilanRapport.hidden = !rapportTexte;
+    if (rapportTexte && bilanRapportTexte) bilanRapportTexte.textContent = rapportTexte;
+  }
 
   const niv = res.level
     ? ` — ${tf("ui.bilan.niveau", "niveau {n}", { n: res.level })}`

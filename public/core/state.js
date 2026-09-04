@@ -77,6 +77,12 @@ export let inRoom = false;
 export let roomsList = [];
 export let roomNameCur = "";
 export let pendingRejoin = null;
+/* LA MESURE EST UN ETAT DE LA SALLE, et le client en garde le reflet : la case du
+   salon doit dire ce que le SERVEUR a retenu, pas ce que ce navigateur a clique —
+   n importe qui dans la salle peut l armer. */
+export let traceOn = false;
+export let tracePar = "";
+export let rapportTexte = "";
 export let joinAttempt = null;
 export let lastResult = null;
 export let difficulty = 1;
@@ -285,6 +291,8 @@ export function setConnected(v) { connected = v; }
 export function setDifficulty(v) { difficulty = v; }
 export function setHostId(v) { hostId = v; }
 export function setInRoom(v) { inRoom = v; }
+export function setTrace(on, par) { traceOn = !!on; tracePar = par ?? ""; }
+export function setRapport(v) { rapportTexte = v ?? ""; }
 export function setJoinAttempt(v) { joinAttempt = v; }
 export function setLastResult(v) { lastResult = v; }
 export function setLastSnapAt(v) { lastSnapAt = v; }

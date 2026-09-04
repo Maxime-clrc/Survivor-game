@@ -329,6 +329,16 @@
 
     <div id="bilanPerf" hidden></div>
 
+    <!-- LE COMPTE RENDU EST FAIT POUR SORTIR D'ICI : une page a coller dans une
+         conversation, pas un ecran a lire. Le bouton copie, le bloc se replie. -->
+    <details id="bilanRapport" hidden>
+      <summary>
+        <span data-i18n="ui.bilan.rapport">Compte rendu de mesure</span>
+        <button id="bilanRapportCopy" class="ghost" data-i18n="ui.bilan.rapport.copy">Copier</button>
+      </summary>
+      <pre id="bilanRapportTexte"></pre>
+    </details>
+
     <div id="bilanTableWrap">
       <table id="bilanScores"><tbody></tbody></table>
     </div>
@@ -600,6 +610,15 @@
           </div>
           <div id="teamList"></div>
           <button id="readyBtn" data-i18n="ui.panel.ready">Je suis prêt</button>
+          <!-- LA MESURE S'ARME ICI ET PLUS PAR L'URL : une option de salle,
+               visible par tout le monde avant la manche. Enregistrer la partie
+               des autres sans le dire ne se fait pas, et une URL ne se voit
+               pas — pas même de celui qui l'a tapée, deux manches plus tard. -->
+          <label class="traceOpt">
+            <input type="checkbox" id="traceCheck">
+            <span data-i18n="ui.panel.trace">Mesurer cette manche</span>
+          </label>
+          <div id="traceHint" class="hint"></div>
         </section>
 
         <section class="panelCard">

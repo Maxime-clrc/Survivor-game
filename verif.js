@@ -42,6 +42,7 @@ import * as PR from "./shared/progression.js";
 import * as R from "./shared/reliques.js";
 import { BIOMES } from "./shared/biomes.js";
 import { constantesMortes } from "./constantes_check.js";
+import { verifierRapport } from "./rapport.js";
 
 /* `audio.js` NE DEPEND DE RIEN — sauf d'un `AudioContext`, qu'un script de mesure
    doit lui fournir. C'est la seule facon d'atteindre `recettes()`, et sans elle
@@ -94,6 +95,7 @@ const SUITE = [
   ["hautsFaits", () => H.verifierHautsFaits(cardIds, relicIds, armeIds)],
   ["codex", () => PR.verifierCodex()],
   ["classement", () => PR.verifierClassement()],
+  ["rapport", () => verifierRapport()],
   ["classes", () => G.verifierClasses(), true],
   ["boss", () => G.verifierBoss(), true],
   ["archetypes", () => B.verifierArchetypes()],

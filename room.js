@@ -11,6 +11,7 @@ import { armesOuvertes, cadreActifDe, lockedCards, lockedRelics, metaActives, me
 import { ARMES, ARME_CFG, ARME_DEFAUT } from "./shared/armes.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
+import { Rapport } from "./rapport.js";
 
 /* LE BANC. Meme statut que `BIOME` et `GRAINE` : une surcharge d'environnement
    POUR LES TESTS, absente en jeu. Quatre protocoles de `LISEZMOI.md` sont restes
@@ -100,21 +101,31 @@ export class Room {
     this.tracePar = "";
     this.traceT = 0;
     this.traceVu = null;
+    // LE COMPTE RENDU EST UNE REDUCTION DE LA TRACE : il recoit les MEMES lignes,
+    // au meme instant, et ne peut donc pas en diverger.
+    this.rapport = null;
+    this.rapportTexte = "";
   }
 
+  /* ON FERME LA TRACE AVANT DE LA DESARMER, et l'ordre est tout : `traceLigne`
+     est gardee par `traceArme`, donc baisser le drapeau d'abord jetait la ligne
+     `fin` — du JSONL comme du compte rendu, qui annoncait alors « en cours » sur
+     une manche terminee. */
   armerTrace(client, on) {
     const veut = !!on;
     if (this.traceArme === veut) return;
+    if (!veut) this.traceFin("desarmee");
     this.traceArme = veut;
     this.tracePar = veut ? client.name : "";
     this.broadcast({ t: "traceState", on: veut ? 1 : 0, par: this.tracePar });
     this.hooks.log(`[${this.code}] mesure ${veut ? `armée par ${client.name}` : "désarmée"}`);
     if (veut && this.phase === PHASE_ROUND) this.traceDebut();
-    if (!veut) this.traceFin("desarmee");
   }
 
   traceLigne(obj) {
-    if (this.traceArme) this.hooks.trace(this, obj);
+    if (!this.traceArme) return;
+    this.hooks.trace(this, obj);
+    this.rapport?.ligne(obj);
   }
 
   // L'EN-TETE PORTE TOUT CE QU'UNE SIMULATION DOIT REJOUER : difficulte,
@@ -123,6 +134,8 @@ export class Room {
   // equipee ne s'applique pas, donc le lire du profil ne suffirait pas.
   traceDebut() {
     const s = this.state;
+    this.rapport = new Rapport();
+    this.rapportTexte = "";
     this.traceVu = {
       niveau: s.level, segment: s.segment, bossKind: -1, bossPhase: 0, bossT: 0,
       event: -1, meteo: s.weather ? s.weather.id : -1,
@@ -136,6 +149,9 @@ export class Room {
       manche: this.roundNumber,
       quand: new Date().toISOString(),
       difficulte: s.diffIndex,
+      // QUI A ARME LA MESURE reste dans l'en-tete : une trace anonyme laisse le
+      // compte rendu incapable de dire de quelle table elle vient.
+      tracePar: this.tracePar,
       variante: DIFFICULTIES[s.diffIndex]?.script ?? "normal",
       biome: s.biomeIndex,
       graine: s.seed,
@@ -174,6 +190,16 @@ export class Room {
         degats: r.damage, soins: r.heal, subisPar: r.hurtBy, cartes: r.cards,
       })),
     });
+    /* LA PAGE PART A TOUTE LA SALLE, pas au seul armeur : la mesure est visible
+       de tous pendant la manche, son resultat l'est aussi. Le JSONL reste la
+       sortie secondaire — il ne coute rien et il sert quand le resume ne suffit
+       pas, mais il demande un acces au disque de la machine. */
+    const texte = this.rapport?.rendu() ?? "";
+    this.rapport = null;
+    if (texte) {
+      this.rapportTexte = texte;
+      this.broadcast({ t: "rapport", texte, manche: this.roundNumber });
+    }
   }
 
   traceEchantillon() {

@@ -2,7 +2,7 @@
 import { playSound } from "/audio.js";
 import { pousserHautFait, showHud } from "/hud.js";
 import { t, tf } from "/shared/i18n.js";
-import { PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setMerchantState, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
+import { setTrace, setRapport, PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setMerchantState, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
 import { ingest } from "./ingest.js";
 import { netPerfBoundary, pushAlert, pushWorld, screenCloseQueued, setAlertInfo, setScreenCloseQueued, worldQueue } from "./interp.js";
 import { hfNom } from "/shared/hauts_faits.js";
@@ -13,11 +13,6 @@ import { closeBuild } from "../ui/build.js";
 import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, registerFormEl, setGateBusy, setStatus, settingsEl, updateTrace, updateVersion, waitMsg } from "../ui/dom.js";
 import { applyPause, closePause, setPausePar } from "../ui/pause.js";
 import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderCodex, renderMeta, renderHautsFaits, setArmeEtat, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
-
-// LA MESURE S'ARME PAR L'URL : elle sert a enregistrer de VRAIES parties pour
-// l'equilibrage, donc elle ne doit couter aucun clic a personne — et surtout
-// pas vivre dans un menu ou on l'oublierait armee.
-const MESURE = location.search.includes("mesure");
 
 /* Le serveur envoie un CODE ; sa phrase francaise, quand il en met une, n'est
    plus qu'un repli pour un motif que le client ne connait pas. */
@@ -97,7 +92,6 @@ export function connect() {
 
       case "roomJoined":
         setInRoom(true);
-        if (MESURE) ws.send(JSON.stringify({ t: "trace", on: 1 }));
         setPendingRejoin(null);
         hubResumeEl.hidden = true;
         setJoinAttempt(null);
@@ -140,6 +134,7 @@ export function connect() {
 
       case "roomClosed":
         setInRoom(false);
+        setTrace(false, "");
         updateTrace(false, "");
         setRoomNameCur("");
         setPhase(PHASE_LOBBY);
@@ -258,6 +253,7 @@ export function connect() {
           }
           setTally(msg.tally ?? tally);
           setRoundHistory(msg.history ?? []);
+          setTrace(msg.trace === 1, msg.tracePar ?? "");
           updateTrace(msg.trace === 1, msg.tracePar ?? "");
           const mine = msg.players?.find(p => p.id === myId);
           if (mine && mine.ping !== undefined) { setMyPing(Number(mine.ping)); renderTopPing(); }
@@ -275,7 +271,16 @@ export function connect() {
         break;
 
       case "traceState":
+        setTrace(msg.on === 1, msg.par ?? "");
         updateTrace(msg.on === 1, msg.par ?? "");
+        refreshPanel();
+        break;
+
+      /* LA PAGE ARRIVE A TOUTE LA SALLE, et elle arrive AVANT le bilan : le
+         serveur la produit a la fermeture de la trace, donc au meme instant que
+         la fin de manche. On la garde, le bilan la montre. */
+      case "rapport":
+        setRapport(msg.texte ?? "");
         break;
 
       case "round":

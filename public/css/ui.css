@@ -569,6 +569,39 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 
 #version.stale { color: var(--warn); }
 
+/* L OPTION DE MESURE EST UNE LIGNE DU SALON, pas un reglage cache : elle se lit
+   a cote du bouton « pret », la ou l on decide de lancer. */
+.traceOpt {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  font-size: var(--t-xs);
+  cursor: pointer;
+}
+#bilanRapport { margin: var(--sp-3) 0; }
+#bilanRapport > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+  font-size: var(--t-xs);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+/* le compte rendu se COLLE ailleurs : on le montre en monospace, borne en
+   hauteur, et on ne le met jamais sur le chemin du bouton « continuer ». */
+#bilanRapportTexte {
+  max-height: 30vh;
+  overflow: auto;
+  margin-top: var(--sp-2);
+  padding: var(--sp-2);
+  font-size: var(--t-xs);
+  white-space: pre;
+  border: var(--hair) solid var(--line);
+}
+
 /* la mesure reste visible PENDANT la manche, contrairement a la version : un
    enregistrement qui court sans se voir n'est pas un enregistrement honnete. */
 #trace {

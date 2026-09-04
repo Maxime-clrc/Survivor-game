@@ -313,7 +313,38 @@ Ajouter une entrée impose de traiter les deux côtés.
 | langue | `shared/i18n.js` + `shared/lang/*.js` — **ne circule pas**, réglage de machine | `#topLang`, `#setLangRow`, `#gateLangRow`, `traduireStatique()`, `onLangChange` |
 | motif d'erreur | `authError{motif}`, `joinRoomError{motif}`, `roomClosed{why}` — **codes**, la phrase n'est qu'un repli | `authTexte()` / `MOTIFS` (`net/router.js`) → `ui.auth.*`, `ui.hub.join.*` |
 | version | `VERSION` (`shared/version.js`), clés `version` et `commit` du `welcome` | `#version` + `updateVersion()` : ambre `.stale` **sans le hash** |
-| mesure | `trace` → `traceState{on,par}` ; clés `trace`/`tracePar` du salon ; hook `trace`, `telemetry.js` | `?mesure` dans l'URL, `#trace`, `updateTrace()` |
+| mesure | `trace` → `traceState{on,par}` ; clés `trace`/`tracePar` du salon ; hook `trace`, `telemetry.js` | **case du salon** `#traceCheck`, `#trace`, `updateTrace()`, `traceOn`/`tracePar` (couche 0) |
+| compte rendu | `rapport{texte,manche}`, diffusé à TOUTE la salle à la fermeture de la trace ; `rapport.js` réduit les MÊMES lignes que le JSONL | `#bilanRapport`, `rapportTexte` (couche 0), bouton **Copier** |
+
+**LA MESURE S'ARME AU SALON, PLUS PAR L'URL.** Elle vivait dans
+`?mesure` — « aucun clic, et surtout pas un menu où on l'oublierait armée ».
+L'objection était juste, la réponse ne l'était pas : **une URL ne se voit pas non
+plus**, pas même de celui qui l'a tapée deux manches plus tôt. On la rend donc
+impossible à oublier — une case dans le salon, un témoin à l'écran **pendant
+toute la manche**, et le nom de qui l'a armée des deux côtés. L'état reste porté
+par la **salle** : deux salles se tracent indépendamment, et rien ne survit à leur
+destruction.
+
+**LE COMPTE RENDU EST UNE RÉDUCTION DE LA TRACE, JAMAIS UNE SECONDE COLLECTE.**
+`Room.traceLigne()` pousse chaque ligne dans le fichier **et** dans `Rapport`,
+au même instant. Deux raisons, et la seconde est la vraie : on n'instrumente
+jamais deux fois, et le compte rendu **ne peut pas** diverger du fichier. Le JSONL
+reste la sortie secondaire — il ne coûte rien, il sert quand le résumé ne suffit
+pas, mais il demande un accès au disque de la machine ; le compte rendu se colle.
+
+**IL EST BORNÉ, ET C'EST UN CRITÈRE.** Trente minutes à 1 Hz font 1 800
+échantillons : on ne les garde jamais, on les **agrège par segment** à l'arrivée.
+`verifierRapport()` fabrique une manche complète et refuse au-delà de **400
+lignes**.
+
+**AUCUN PSEUDO DANS LE CORPS DU COMPTE RENDU** : chaque joueur y apparaît par sa
+**classe et sa couleur** (« Rempart bleu »). Il est fait pour être collé ailleurs.
+Seul l'en-tête nomme **qui a armé la mesure**, et c'est voulu : une trace anonyme
+ne dit pas de quelle table elle vient.
+
+**ON FERME LA TRACE AVANT DE LA DÉSARMER.** `traceLigne` est gardée par
+`traceArme` : baisser le drapeau d'abord jetait la ligne `fin` — du JSONL comme
+du compte rendu, qui annonçait alors « en cours » sur une manche terminée.
 
 **Registres purement CLIENTS** (ils se déduisent du snapshot ou de la liste de
 cartes, déjà diffusée) : image de sprite (`plan()` dans `sprites.js`, adressée par
