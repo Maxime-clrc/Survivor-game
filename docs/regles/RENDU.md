@@ -829,8 +829,30 @@ les transforms, jamais dans les fonctions de dessin** : translation posée par
 
 Tout ce qui est « plein écran » couvre le **rectangle de vue**
 (`camera.x0/y0` + `VIEW_W/H`), jamais l'arène. Culling par `inView()`. Les
-chiffres de dégâts convertissent monde → vue au point d'appel. Les flèches de
-coéquipiers hors champ se dessinent après le vignettage.
+chiffres de dégâts convertissent monde → vue au point d'appel.
+
+**UN SEUL INDICATEUR D'ALLIÉ HORS ÉCRAN, ET C'EST LE DOM** (`updateMarks`,
+`#hudMarks`, `.mark`). Il y en avait **deux** : la version canvas
+`drawAllyArrows` tournait à chaque image par-dessus, à une **autre marge**, donc
+un allié hors champ recevait deux chevrons superposés. On garde le DOM pour trois
+raisons — son vocabulaire d'état est plus riche (la **forme** change avant la
+couleur, et il écrit « à terre » **à la place** de la distance) ; son commentaire
+décrit une **conception**, avec deux défauts déjà payés (un cercle laisserait les
+quatre coins vides ; la charte interdit le rouge pour ce vers quoi il faut aller)
+là où celui de la version canvas décrivait une implémentation ; et c'est du DOM,
+donc le clignotement du **ping** se pilotera par une classe CSS, sans toucher à la
+boucle de rendu ni au budget d'image.
+
+**Le chevron d'un allié à terre PULSE.** C'était le seul des trois signaux —
+direction, distance en mètres, état à terre — que la version canvas portait et que
+le DOM n'avait pas. La forme et le mot se lisent quand on regarde ; la pulsation
+se voit **sans** regarder, et un allié à terre hors écran est l'information la
+plus urgente que ce système transporte.
+
+**Les chevrons ne coûtent AUCUN champ réseau, sur aucune taille de map.** Dans
+`snapshot(vue)` tout est filtré par la vue — ennemis, balles, tirs, zones —
+**sauf les joueurs** : la liste `p` est complète, toujours. C'est du rendu pur,
+et c'est aussi ce qui justifie de ne pas construire de minicarte.
 
 **Un combat de boss resserre `state.bounds` à UNE VUE** ancrée sur
 `_teamCentroid` ; `_killBoss()` rouvre. Toute la géométrie des mécaniques lit les

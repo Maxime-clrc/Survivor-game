@@ -1299,7 +1299,18 @@
 .mark.aterre { opacity: 1; }
 /* la FORME dit l'etat avant la couleur : chevron creux pour un allie loin,
    triangle PLEIN pour un allie a terre. */
-.mark.aterre > i { clip-path: polygon(50% 0, 100% 88%, 0 88%); }
+.mark.aterre > i {
+  clip-path: polygon(50% 0, 100% 88%, 0 88%);
+  /* ET IL PULSE. Un allie a terre HORS ECRAN est l'information la plus urgente
+     que ce systeme transporte : la forme et le mot se lisent quand on regarde, la
+     pulsation se voit sans regarder. C'est le seul signal que la version canvas
+     portait et que celle-ci n'avait pas. */
+  animation: markDown 900ms ease-in-out infinite;
+}
+@keyframes markDown {
+  0%, 100% { opacity: 1; transform: rotate(calc(var(--ang, 0deg) + 90deg)) scale(1); }
+  50% { opacity: 0.45; transform: rotate(calc(var(--ang, 0deg) + 90deg)) scale(1.12); }
+}
 
 
 #dmgLayer { position: absolute; inset: 0; }

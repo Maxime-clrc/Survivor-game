@@ -8013,6 +8013,35 @@
                   au temps et QUATRE aux kills, et c est la seule chose qui separe
                   les deux modes.
 
+    0.34.5 lot 05 UN ALLIE HORS ECRAN RECEVAIT DEUX CHEVRONS SUPERPOSES, A DEUX
+                  MARGES DIFFERENTES. `drawAllyArrows` (canvas, `ARROW_MARGIN`) et
+                  `updateMarks` (DOM, `MARK_MARGE`) tournaient TOUTES LES DEUX a
+                  chaque image. L une etait le vestige d un remplacement dont la
+                  suppression a ete oubliee — exactement le code mort que le `grep`
+                  doit trouver.
+                  ON GARDE LE DOM. Son vocabulaire d etat est plus riche : la FORME
+                  change avant la couleur, et il ecrit « a terre » A LA PLACE de la
+                  distance. Son commentaire decrit une CONCEPTION avec deux defauts
+                  deja payes — un cercle laisserait les quatre coins vides, la
+                  charte interdit le rouge pour ce vers quoi il faut ALLER — la ou
+                  celui de la version canvas decrivait une implementation. Et c est
+                  du DOM, donc le clignotement du ping se pilotera par une classe
+                  CSS, sans toucher a la boucle de rendu ni au budget d image.
+                  LE CHEVRON D UN ALLIE A TERRE PULSE, et c est un AJOUT : c etait
+                  le seul des trois signaux — direction, distance en metres, etat a
+                  terre — que la version canvas portait et que le DOM n avait pas.
+                  La forme et le mot se lisent quand on REGARDE ; la pulsation se
+                  voit sans regarder, et un allie a terre hors ecran est l
+                  information la plus urgente que ce systeme transporte.
+                  L import `fmtM` de `world.js` part avec le chemin qu il servait :
+                  un import sans lecteur est du code mort, et la distance en metres
+                  reste ecrite par le DOM, qui a garde le SEUL point de conversion.
+                  Ce lot ne livre PAS le ping : le message, la classe `.pingue`, la
+                  duree et le son appartiennent au plan qui portera les sept sons —
+                  celui du ping doit etre compose AVEC les six autres. Ce lot retire
+                  le doublon qui le bloquait, sans quoi le ping ferait clignoter une
+                  couche sur deux.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8021,4 +8050,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.34.4";
+export const VERSION = "0.34.5";

@@ -9,11 +9,10 @@ import { biomeNom, weatherNom } from "/shared/biomes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
-import { fmtM } from "/shared/units.js";
 import { drawSprite, glActive } from "/sprites.js";
 import { INTERP_MS, PERF, PHASE_ROUND, amSpectator, bancReleve, connected, dash, difficulty, gfx, latest, lobby, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setBancReleve, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
-import { ARROW_MARGIN, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBonusSignal, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawFinArcs, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
+import { BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBonusSignal, drawBulwarks, drawDrones, drawEffects, drawEnemies, drawFinArcs, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, faisceauAllume, lastPlayerPos, noeudsSortis, noeudsVus, resetGaze } from "./boss.js";
 import { drawArenaBounds, drawAtmosphere, drawBaies, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawPremierPlan, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { drawHazards } from "./dangers.js";
@@ -535,7 +534,6 @@ function drawWorld(v) {
   drawPremierPlan(v);
   drawGazeEcran();
   drawPulse();
-  drawAllyArrows(v.playerList);
   if (REPERE) drawRepere();
 }
 // `?repere` : la MEME croix posee aux memes coordonnees monde sur les trois
@@ -575,44 +573,5 @@ function drawRepere() {
       drawSprite(ctx, fxWhite, x, y, { scaleX: bras / 8, scaleY: 0.35, alpha: 0.9 });
       drawSprite(ctx, fxWhite, x, y, { scaleX: 0.35, scaleY: bras / 8, alpha: 0.9 });
     }
-  }
-}
-function drawAllyArrows(players) {
-  if (phase !== PHASE_ROUND) return;
-  const me = predicted ?? { x: camera.x, y: camera.y };
-  for (const p of players) {
-    if (p.id === myId) continue;
-    if (inView(p.x, p.y, -20)) continue;
-    const dx = p.x - camera.x, dy = p.y - camera.y;
-    const ang = Math.atan2(dy, dx);
-    const hw = CFG.VIEW_W / 2 - ARROW_MARGIN, hh = CFG.VIEW_H / 2 - ARROW_MARGIN;
-    const k = Math.min(hw / Math.max(Math.abs(dx), 1e-6),
-                       hh / Math.max(Math.abs(dy), 1e-6));
-    const ax = camera.x + dx * k, ay = camera.y + dy * k;
-    const col = colorOf(p.id);
-    const pulse = p.downed ? 0.45 + 0.4 * Math.sin(performance.now() / 160) : 1;
-
-    ctx.save();
-    ctx.translate(ax, ay);
-    ctx.rotate(ang);
-    ctx.globalAlpha = 0.9 * pulse;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.moveTo(12, 0);
-    ctx.lineTo(-7, -8);
-    ctx.lineTo(-3, 0);
-    ctx.lineTo(-7, 8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    ctx.save();
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = col;
-    ctx.font = "700 13px ui-monospace, Menlo, Consolas, monospace";
-    ctx.textAlign = "center";
-    ctx.fillText(fmtM(Math.hypot(p.x - me.x, p.y - me.y)),
-                 ax, ay + (ay < camera.y ? 26 : -16));
-    ctx.restore();
   }
 }

@@ -13,7 +13,6 @@ import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
 import { BURST_MAX, CRIT_PUNCH, HIT_FLASH, HIT_KICK, PARTICLE_MAX, ZONE_FX_MAX, bursts, drawBrulure, drawEntrave, drawOmbre, drawVulnerable, finArcs, fxGlow, fxShard, hits, ombresActives, particles, setZoneFx, spawnBraise, zoneFx } from "./fx.js";
 import { ELITE_GOLD, camera, ctx, inView, mouse, ownerColorOf, voileBrume } from "./stage.js";
 
-export const ARROW_MARGIN = 34;
 export const bulletTrail = new Map();
 export const shotTrail = new Map();
 function boltGlow(b, r, col) {
