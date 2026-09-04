@@ -8260,6 +8260,45 @@
                   pas un reglage de difficulte, c est le point au-dela duquel le
                   rendu et le reseau lachent — et l echec y est SILENCIEUX.
 
+    0.36.1 lot 02 LE MODE, BRANCHE — ET LA DIFFICULTE VOYAGE PAR LE CONSTRUCTEUR,
+                  JAMAIS PAR LA TABLE. Ecrire dans `DIFFICULTIES[3]` aurait ete
+                  exactement la panne que le plan 31 a corrigee pour le hasard :
+                  seize salles d un processus se seraient partage un objet, et deux
+                  customs simultanes se seraient mentis l un a l autre.
+                  L INDEX 3 EST RESERVE ET NE SE REORDONNE JAMAIS : il circule dans
+                  le message `round`, dans `clefRecord` et dans les profils.
+                  L entree existe pour l index et les libelles ; la manche ne lit
+                  jamais ses coefficients.
+                  QUATRE GARDE-FOUS, CHACUN EXPLICITE. Pas de classement — une
+                  course dont chacun ecrit les regles ne se compare a rien. Pas de
+                  noyaux : `DIFF_MUL` a TROIS entrees et en garde trois, et son
+                  `??` rendrait 1 pour l index 3, c est-a-dire le tarif de NORMAL —
+                  mesure, 390 noyaux pour une manche dont le joueur a ecrit les
+                  regles. « x2 loot, -50 % ennemis » serait alors la meilleure facon
+                  de farmer la meta. Pas de hauts faits, meme raison. Et le plafond
+                  MOTEUR reste : une borne qu on suppose inatteignable finit par
+                  etre atteinte.
+                  LE SUR MESURE NE SE VOTE PAS, IL SE CONFIGURE : un vote l aurait
+                  choisi avec les reglages par defaut, donc une manche normale
+                  privee de noyaux, de records et de hauts faits sans que personne
+                  l ait voulu.
+                  TROIS DEFAUTS TROUVES PAR LE CRITERE, ET AUCUN N AURAIT LEVE.
+                  `custom(normal)` DOIT rendre `normal`, sinon la construction ment
+                  et toute mesure faite avec ce mode est fausse — c est le meilleur
+                  test du lot, et il a echoue trois fois. `TRAIT_BY_TYPE`,
+                  `typesFor` et `enemySpeed` lisaient la TABLE au lieu de la
+                  difficulte de la salle ; `buildBiome`, `weatherFor` et
+                  `finalPour` sont indexes par MODE et lisaient un index 3 dont
+                  leurs tables n ont pas d entree — le terrain lui-meme differait,
+                  et le TEMPS divergeait. Le sur mesure herite donc de l index dont
+                  il derive pour tout ce qui est indexe par mode.
+                  ET LE CUSTOM N EST PAS UN MODE MESURABLE : huit boucles de
+                  campagne bouclaient sur `DIFFICULTIES` et se seraient mises a
+                  mesurer une quatrieme difficulte dont les coefficients
+                  appartiennent au JOUEUR. Pire, `COMPO_MODES` disait « normal et
+                  cauchemar » par `length - 1` : il aurait silencieusement dit
+                  « normal et custom ».
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8268,4 +8307,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.36.0";
+export const VERSION = "0.36.1";

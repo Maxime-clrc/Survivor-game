@@ -12,6 +12,7 @@ import { ARMES, ARME_CFG, ARME_DEFAUT } from "./shared/armes.js";
 import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 import { Rapport } from "./rapport.js";
+import { CUSTOM_INDEX } from "./shared/custom.js";
 
 /* LE BANC. Meme statut que `BIOME` et `GRAINE` : une surcharge d'environnement
    POUR LES TESTS, absente en jeu. Quatre protocoles de `LISEZMOI.md` sont restes
@@ -1061,7 +1062,11 @@ export class Room {
       case "vote": {
         if (this.phase !== PHASE_LOBBY) break;
         const v = Number(msg.v);
+        // LE SUR MESURE NE SE VOTE PAS, IL SE CONFIGURE : un vote le
+        // choisirait avec les reglages par defaut, donc une manche normale privee
+        // de noyaux, de records et de hauts faits — sans que personne l'ait voulu.
         if (!Number.isInteger(v) || v < 0 || v >= DIFFICULTIES.length) break;
+        if (v === CUSTOM_INDEX) break;
         client.vote = v;
         this.broadcast(this.lobbyPayload());
         break;

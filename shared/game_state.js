@@ -60,6 +60,7 @@ import {
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
 } from "./biomes.js";
+import { CUSTOM_INDEX, construireCustom } from "./custom.js";
 import {
   NAV_CFG, construireNav, diffuser, viser, droitPossible, celluleDe,
   celluleX, celluleY, fenetreNav,
@@ -634,8 +635,40 @@ export const DIFFICULTIES = [
       couches: 99, palier: 1.8, renforts: 1, reflexe: 4, superpose: 1,
     },
   },
+  /* L'INDEX 3 EST RESERVE AU MODE SUR MESURE, ET IL NE SE REORDONNE JAMAIS. Cette
+     entree existe pour l'INDEX et les libelles — le message `round`, `clefRecord`
+     et `PROG_CFG.DIFF_MUL` la voient passer. La manche, elle, ne lit jamais ses
+     coefficients : ils sont construits au lancement et voyagent par le
+     constructeur, parce qu'une table de module est partagee par les seize salles
+     du processus. */
+  {
+    key: "custom", label: "sur mesure",
+    custom: 1,
+    script: "normal",
+    roster: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    traits: {},
+    resume: [
+      "les règles sont les vôtres — chaque condition a un rang et un coût",
+      "l'indice de sévérité est une SOMME, donc une approximation : dix armes ne",
+      "paient pas le même prix pour la même condition",
+    ],
+    hp: 1, spawn: 1, dmg: 1, boss: 1, speed: 1,
+    bossProfil: {
+      parPhase: 2, warn: 0, mechRatio: 0.9, echec: "mixte",
+      couches: 99, palier: 1.4, renforts: 0, reflexe: -1,
+    },
+  },
 ];
 export const DIFF_NORMAL = 1;
+
+/* LE CUSTOM N'EST PAS UN MODE MESURABLE, et l'oublier serait silencieux : toutes
+   les campagnes bouclent sur `DIFFICULTIES` et se seraient mises a mesurer une
+   quatrieme difficulte dont les coefficients appartiennent au JOUEUR. Pire,
+   `COMPO_MODES` disait « normal et cauchemar » par `length - 1` : il aurait
+   silencieusement dit « normal et custom ». */
+export const DIFFS_MESURE = DIFFICULTIES
+  .map((d, i) => i).filter(i => !DIFFICULTIES[i].custom);
+export const DIFF_MAX_MESURE = DIFFS_MESURE[DIFFS_MESURE.length - 1];
 
 const TRAIT_BY_TYPE = DIFFICULTIES.map(d => {
   const row = new Array(ENEMY_TYPES.length).fill(0);
@@ -646,20 +679,39 @@ const TRAIT_BY_TYPE = DIFFICULTIES.map(d => {
   return row;
 });
 
-export function typesFor(diffIndex) {
-  return (DIFFICULTIES[diffIndex] ?? DIFFICULTIES[DIFF_NORMAL]).roster;
+/* UN INDEX OU UNE DIFFICULTE. La table reste la verite des trois modes reels ;
+   pour le sur mesure, elle ne l'est plus — ses coefficients sont construits au
+   lancement et ne vivent que dans l'objet porte par la salle. */
+const diffDe = d => (typeof d === "object" && d !== null
+  ? d : DIFFICULTIES[d] ?? DIFFICULTIES[DIFF_NORMAL]);
+
+export function typesFor(diff) {
+  return diffDe(diff).roster;
 }
 
-export function traitsOf(diffIndex, type) {
-  return TRAIT_BY_TYPE[diffIndex]?.[type] ?? 0;
+const traitRow = d => {
+  const row = new Array(ENEMY_TYPES.length).fill(0);
+  for (const [key, mask] of Object.entries(d.traits ?? {})) {
+    const i = ENEMY_TYPES.findIndex(t => t.key === key);
+    if (i >= 0) row[i] = mask;
+  }
+  return row;
+};
+
+export function traitsOf(diff, type) {
+  if (typeof diff === "number") return TRAIT_BY_TYPE[diff]?.[type] ?? 0;
+  // le custom n'a pas de ligne cuite : sa table de traits est celle du mode dont
+  // il herite, et elle ne change pas en cours de manche.
+  if (!diff._traitRow) diff._traitRow = traitRow(diff);
+  return diff._traitRow[type] ?? 0;
 }
 
-export function enemySpeed(typeIndex, minute, diffIndex, roll = 1, elite = false) {
+export function enemySpeed(typeIndex, minute, diff, roll = 1, elite = false) {
   const t = ENEMY_TYPES[typeIndex];
   if (!t) return 0;
   return t.speed * roll
     * (1 + minute * CFG.ENEMY_SPEED_RAMP_PCT)
-    * (DIFFICULTIES[diffIndex]?.speed ?? 1)
+    * (diffDe(diff).speed ?? 1)
     * (elite ? CFG.ELITE_SPEED_MUL : 1);
 }
 
@@ -863,9 +915,16 @@ export function bossPower(power) {
 }
 
 export class GameState {
-  constructor(difficulty = DIFF_NORMAL, biomeIndex = null, seed = null) {
+  /* LA DIFFICULTE CUSTOM VOYAGE PAR LE CONSTRUCTEUR, JAMAIS PAR LA TABLE. Ecrire
+     dans `DIFFICULTIES[3]` serait exactement la panne que le plan 31 a corrigee
+     pour le hasard : seize salles d'un meme processus se partageraient un objet,
+     et deux customs simultanes se mentiraient l'un a l'autre. */
+  constructor(difficulty = DIFF_NORMAL, biomeIndex = null, seed = null,
+              custom = null) {
     this.diffIndex = Math.min(Math.max(difficulty | 0, 0), DIFFICULTIES.length - 1);
-    this.diff = DIFFICULTIES[this.diffIndex];
+    this.diff = this.diffIndex === CUSTOM_INDEX && custom
+      ? construireCustom(DIFFICULTIES[DIFF_NORMAL], custom)
+      : DIFFICULTIES[this.diffIndex];
 
     this.seed = (seed === null ? Math.floor(Math.random() * 0x7fffffff) : seed | 0) >>> 0;
     /* LE HASARD APPARTIENT A LA SALLE. Un generateur global ne peut pas servir
@@ -874,10 +933,14 @@ export class GameState {
        meme suite, pour que deux manches de meme graine sur des biomes forces
        differents restent comparables. */
     this.alea = mulberry32(this.seed ^ 0x9E3779B9);
+    /* CE QUI EST INDEXE PAR MODE — terrain, meteo, boss final — lit l'index dont
+       le sur mesure HERITE, jamais 3 : ces tables n'ont pas de quatrieme entree,
+       et l'absence y est silencieuse. */
+    this.diffTerrain = this.diffIndex === CUSTOM_INDEX ? DIFF_NORMAL : this.diffIndex;
     this.biomeIndex = biomeIndex === null
       ? Math.floor(this.alea() * BIOMES.length)
       : Math.min(Math.max(biomeIndex | 0, 0), BIOMES.length - 1);
-    this.biome = buildBiome(this.biomeIndex, this.diffIndex, this.seed,
+    this.biome = buildBiome(this.biomeIndex, this.diffTerrain, this.seed,
       CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
     this._biomeObstacles = this.biome.obstacles;
     this._biomeHazards = this.biome.hazards;
@@ -968,7 +1031,7 @@ export class GameState {
 
     this.time = 0;
     this.powerupCd = 8;
-    this.eliteCd = CFG.ELITE_FROM;
+    this.eliteCd = CFG.ELITE_FROM * (this.diff.elite ?? 1);
     this.bossCount = 0;
     this.totalKills = 0;
     this.gameOver = false;
@@ -979,7 +1042,7 @@ export class GameState {
     this.segment = 1;
     this.hordeTime = 0;
     this.beat = 0;
-    this.weather = weatherFor(this.diffIndex, this.seed, 1);
+    this.weather = weatherFor(this.diffTerrain, this.seed, 1);
     this.beatSide = 0;
     this.packLeft = 0;
     this.packSide = 0;
@@ -3715,7 +3778,11 @@ export class GameState {
 
 
   _enemyCap() {
-    return enemyCap(this.diffIndex, this.players.size);
+    /* LE PLAFOND RESTE CELUI DU MOTEUR. La condition de « cohue » le multiplie,
+       le plafond de moteur le borne — une borne qu'on suppose inatteignable finit par etre
+       atteinte, et au-dela le rendu et le reseau lachent en silence. */
+    return Math.min(CFG.MAX_ENEMIES_HARD_CAP,
+      Math.round(enemyCap(this.diffTerrain, this.players.size) * (this.diff.cap ?? 1)));
   }
 
   _pickType() {
@@ -3723,7 +3790,7 @@ export class GameState {
     for (const e of this.enemies) counts[e.type]++;
 
     const minute = this.hordeMinutes();
-    const pool = typesFor(this.diffIndex);
+    const pool = typesFor(this.diff);
     const cap = this._enemyCap();
     let avail = pool.filter(i =>
       minute >= ENEMY_TYPES[i].minMin
@@ -3745,7 +3812,7 @@ export class GameState {
     let ti = typeIndex;
     if (ti >= 0) {
       ti = adaptType(ti, this.hordeMinutes());
-      if (ti < 0 || !typesFor(this.diffIndex).includes(ti)) ti = 0;
+      if (ti < 0 || !typesFor(this.diff).includes(ti)) ti = 0;
     }
     const base = ti >= 0 ? ENEMY_TYPES[ti] : this._pickType();
     if (ti < 0) ti = ENEMY_TYPES.indexOf(base);
@@ -3770,7 +3837,7 @@ export class GameState {
       y: pos.y,
       hp,
       maxHp: hp,
-      speed: enemySpeed(ti, past, this.diffIndex, 0.9 + this.alea() * 0.2, elite),
+      speed: enemySpeed(ti, past, this.diff, 0.9 + this.alea() * 0.2, elite),
       r: elite ? base.r * CFG.ELITE_RADIUS_MUL : base.r,
       ang: Math.atan2(CFG.ARENA_H / 2 - pos.y, CFG.ARENA_W / 2 - pos.x),
       shootCd: t.shootCd ? t.shootCd * (0.5 + this.alea()) : 0,
@@ -3780,7 +3847,7 @@ export class GameState {
       poseX: 0, poseY: 0,
       aimAng: 0,
       standoff: t.standoff ?? 200,
-      traits: traitsOf(this.diffIndex, ti),
+      traits: traitsOf(this.diff, ti),
       dashCd: TRAIT_CFG.DASH_CD * (0.4 + this.alea()),
       dashWarn: 0,
       dashT: 0,
@@ -3943,7 +4010,7 @@ export class GameState {
     this.hordeTime = 0;
     this.beat = 0;
     const avant = this.weather?.id ?? -1;
-    this.weather = weatherFor(this.diffIndex, this.seed, this.segment);
+    this.weather = weatherFor(this.diffTerrain, this.seed, this.segment);
     if (this.weather && this.weather.id !== avant) this._alertWeather(this.weather.id);
     this._startBeat();
   }
@@ -4147,7 +4214,8 @@ export class GameState {
           eliteDue = false;
           this.depuisElite = 0;
           const k = Math.pow(crowd, CFG.WAVE_ELITE_CROWD_EXP);
-          this.eliteCd = (CFG.ELITE_MIN + this.alea() * (CFG.ELITE_MAX - CFG.ELITE_MIN)) / k;
+          this.eliteCd = (CFG.ELITE_MIN + this.alea() * (CFG.ELITE_MAX - CFG.ELITE_MIN))
+            / k * (this.diff.elite ?? 1);
         }
       }
     }
@@ -5387,7 +5455,7 @@ export class GameState {
 
   // le final se choisit par DIFFICULTE. C'est la seule variante de boss par
   // mode du depot, et elle est bornee au final : le pool reste commun.
-  _finalKind() { return finalPour(this.diffIndex); }
+  _finalKind() { return finalPour(this.diffTerrain); }
 
   // « les cinq vaincus » se compte sur ce que la MANCHE a montre, pas sur la
   // taille du pool : il en compte huit et une manche en tire cinq.
@@ -8496,7 +8564,7 @@ export class GameState {
     if (fromZone && p.timers.zoneImmune > 0) return;
     if (!ignoreCooldown && p.hitCd > 0) return;
 
-    amount *= this.diff.dmg;
+    amount *= this.diff.dmg * (this.diff.subis ?? 1);
     // LA DIFFICULTE N EST PAS UN MERITE : on ne compte que ce que la REDUCTION du
     // joueur retire, pas ce que le mode ajoute.
     const avantSoi = amount;
@@ -8969,7 +9037,9 @@ export class GameState {
     for (const p of this.players.values()) {
       if (p.mods.xpCostMul > worst) worst = p.mods.xpCostMul;
     }
-    return worst;
+    // la condition d'avarice passe par le MEME point que la carte qui rencherit
+    // les niveaux : deux chemins pour une meme grandeur divergeraient.
+    return worst * (this.diff.xp ?? 1);
   }
 
   _sweepEnemies() {
@@ -9136,7 +9206,7 @@ export class GameState {
       if (!p.downed) continue;
 
       let rate = 0;
-      let ratio = CFG.REVIVE_HP_RATIO;
+      let ratio = CFG.REVIVE_HP_RATIO * (this.diff.releveHp ?? 1);
       let bonus = 0;
       let jureur = null;
       for (const o of this.players.values()) {
@@ -9156,7 +9226,7 @@ export class GameState {
 
       if (rate > 0) {
         p.revive += dt * rate;
-        if (p.revive >= CFG.REVIVE_TIME) {
+        if (p.revive >= CFG.REVIVE_TIME * (this.diff.relever ?? 1)) {
           for (const o of this.players.values()) {
             if (o.id === p.id || o.downed) continue;
             const r = CFG.REVIVE_RADIUS * o.mods.reviveRadiusMul;
@@ -9592,7 +9662,7 @@ export function verifierVitesses(minutes = 30, roll = 1.1) {
   const soucis = [];
   const plafond = vitesseClasseMediane() * SPEED_DOCTRINE;
 
-  for (let di = 0; di < DIFFICULTIES.length; di++) {
+  for (const di of DIFFS_MESURE) {
     let pire = 0, pireOu = "";
     for (const ti of typesFor(di)) {
       const v = enemySpeed(ti, minutes, di, roll);
@@ -9880,7 +9950,7 @@ export function verifierDeplacement(effectifs = [1, 4], budgetMs = 16) {
 export function verifierEncerclement(effectifs = [1, 2, 4], marge = 3) {
   const soucis = [];
   const libre = 600 / CFG.PLAYER_SPEED;
-  for (let di = 0; di < DIFFICULTIES.length; di++) {
+  for (const di of DIFFS_MESURE) {
     for (const n of effectifs) {
       const r = mesureEncerclement(di, n);
       const ou = `${DIFFICULTIES[di].key}/${n}j`;
@@ -9964,6 +10034,79 @@ export function verifierVentilation(manches = 3, minutes = 6, joueurs = 2) {
   if (vus.size < 2) {
     soucis.push(`la ventilation ne separe rien : ${vus.size} source(s) alimentee(s)`
       + " sur " + DEALT_SOURCES.length);
+  }
+  return soucis;
+}
+
+/* LE MEILLEUR TEST DU MODE : SI custom(normal) N EST PAS normal, LA CONSTRUCTION
+   MENT. Un mode qui derive ne leve rien — il rend une manche plausible, un peu
+   plus dure ou un peu plus molle, et toute mesure faite avec lui est fausse sans
+   qu on puisse le savoir. On avance donc deux etats EN ALTERNANCE, comme pour le
+   determinisme, l un en `normal` et l autre en `custom` sans aucune condition
+   prise, et on exige le meme etat a l arrivee. */
+export function verifierCustom(minutes = 6, graine = 4242) {
+  const soucis = [];
+  const monter = (di, custom) => {
+    const g = new GameState(di, 0, graine, custom);
+    g.addPlayer(1, "bot1", 0, 0);
+    g.addPlayer(2, "bot2", 1, 2);
+    g.warmup = 0;
+    return g;
+  };
+  const entree = (k, id) => {
+    const t = k * CFG.TICK + id;
+    const x = Math.cos(t * 0.7), y = Math.sin(t * 0.5);
+    return { x, y, ax: -y, ay: x, ar: 0, dash: false, s1: false, s2: false, s3: false };
+  };
+  const pas = (g, k) => {
+    if (g.cardsPending) {
+      for (const [id, o] of g.cardOffers) {
+        const p = g.players.get(id);
+        if (p && o.length) g.takeCard(p, o[0]);
+      }
+      g.cardsPending = false;
+      g.openNextScreen();
+      return;
+    }
+    if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); return; }
+    const inputs = new Map();
+    for (const p of g.players.values()) inputs.set(p.id, entree(k, p.id));
+    g.step(CFG.TICK, inputs);
+    for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
+    if (!g.victory) g.gameOver = false;
+  };
+  const vue = g => [g.time.toFixed(3), g.level, Math.round(g.xp), g.totalKills,
+    g.bossCount, g.enemies.length].join("/");
+
+  const a = monter(DIFF_NORMAL, null);
+  const b = monter(CUSTOM_INDEX, {});
+  const images = Math.round(minutes * 60 / CFG.TICK);
+  for (let k = 0; k < images; k++) { pas(a, k); pas(b, k); }
+  if (vue(a) !== vue(b)) {
+    soucis.push(`custom sans condition ne rend pas normal : ${vue(b)} contre ${vue(a)}`
+      + " — la construction ment, et toute mesure faite avec ce mode serait fausse");
+  }
+
+  // les coefficients se composent, et le produit explose bien avant que chaque
+  // facteur soit a son maximum : on verifie que la construction les APPLIQUE.
+  const dur = construireCustom(DIFFICULTIES[DIFF_NORMAL], { vitalite: 3, frappe: 2 });
+  if (Math.abs(dur.hp - DIFFICULTIES[DIFF_NORMAL].hp * 1.75) > 1e-9) {
+    soucis.push(`la condition de PV ne s applique pas : ${dur.hp}`);
+  }
+  if (Math.abs(dur.dmg - DIFFICULTIES[DIFF_NORMAL].dmg * 2) > 1e-9) {
+    soucis.push(`la condition de degats ne s applique pas : ${dur.dmg}`);
+  }
+  if (dur.severite !== 8) soucis.push(`severite ${dur.severite}, attendue 8`);
+
+  // l entree 3 de la table existe, et elle est la DERNIERE : elle ne se reordonne
+  // jamais, parce que son index circule sur le reseau et dans les profils.
+  if (DIFFICULTIES[CUSTOM_INDEX]?.key !== "custom") {
+    soucis.push("l index 3 n est pas le mode sur mesure — un index de difficulte"
+      + " circule dans le message `round`, dans `clefRecord` et dans les profils");
+  }
+  if (DIFFS_MESURE.includes(CUSTOM_INDEX)) {
+    soucis.push("le custom entre dans les campagnes de mesure : ses coefficients"
+      + " appartiennent au joueur, pas au jeu");
   }
   return soucis;
 }
@@ -10262,7 +10405,7 @@ export function verifierPopulation(minutes = 45, effectifs = [1, 2, 4], budgetMs
   const soucis = [];
   const niveaux = new Map();
 
-  for (let di = 0; di < DIFFICULTIES.length; di++) {
+  for (const di of DIFFS_MESURE) {
     for (const n of effectifs) {
       const r = mesurePopulation(di, n, minutes);
       const ou = `${DIFFICULTIES[di].key}/${n}j`;
@@ -10283,7 +10426,7 @@ export function verifierPopulation(minutes = 45, effectifs = [1, 2, 4], budgetMs
     }
   }
 
-  for (let di = 0; di < DIFFICULTIES.length; di++) {
+  for (const di of DIFFS_MESURE) {
     const vus = effectifs
       .map(n => niveaux.get(`${DIFFICULTIES[di].key}/${n}j`))
       .filter(Boolean)
@@ -10445,7 +10588,7 @@ export function verifierTraits(effectifs = [1, 2, 4], minutes = 37) {
   const soucis = [];
   const portage = [];
 
-  for (let di = 0; di < DIFFICULTIES.length; di++) {
+  for (const di of DIFFS_MESURE) {
     let pire = 0;
     for (const n of effectifs) {
       const r = mesureTraits(di, n, minutes);
@@ -10801,7 +10944,7 @@ export function mesureTTK(diffIndex, joueurs, jalons = [1, 10, 20, 30], minutes 
 export function verifierTTK(effectifs = [1, 4], manches = 3, jalons = [1, 10, 20, 30]) {
   const soucis = [];
 
-  for (let di = 0; di < DIFFICULTIES.length; di++) {
+  for (const di of DIFFS_MESURE) {
     for (const n of effectifs) {
       const ou = `${DIFFICULTIES[di].key}/${n}j`;
       const parJalon = new Map(jalons.map(j => [j, []]));
@@ -11020,7 +11163,7 @@ export function verifierCartes() {
     }
   }
 
-  for (let di = 0; di < DIFFICULTIES.length; di++) {
+  for (const di of DIFFS_MESURE) {
     for (const cls of CLASSES) {
       for (const niveau of [1, 10, 20, 30]) {
         for (const joueurs of [1, 4]) {
@@ -11718,7 +11861,7 @@ export function gainMeta(clsId) {
 export function verifierMeta(effectifs = [1, 4], manches = 4) {
   const soucis = [];
 
-  for (let di = 0; di < DIFFICULTIES.length; di++) {
+  for (const di of DIFFS_MESURE) {
     for (const n of effectifs) {
       const r = mesureRevenu(di, n, manches);
       const ou = `${DIFFICULTIES[di].key}/${n}j`;
@@ -11728,7 +11871,7 @@ export function verifierMeta(effectifs = [1, 4], manches = 4) {
         soucis.push(`${ou} : ${nominal} manches NON terminees touchent le plafond`
           + ` de ${PROG_CFG.CORE_RUN_CAP} noyaux`);
       }
-      if (di < DIFFICULTIES.length - 1 && r.plafonnees > 0) {
+      if (di < DIFF_MAX_MESURE && r.plafonnees > 0) {
         soucis.push(`${ou} : le plafond mord hors cauchemar`
           + ` (${r.plafonnees}/${manches} manches)`);
       }
@@ -12808,7 +12951,7 @@ export const COMPO_GAP = 0.15;
 // deux modes, et pas trois : a quatre joueurs, calme atteint le plafond de temps,
 // donc toutes les compositions y rendent le meme chiffre. Une mesure censuree ne
 // departage rien.
-export const COMPO_MODES = [DIFF_NORMAL, DIFFICULTIES.length - 1];
+export const COMPO_MODES = [DIFF_NORMAL, DIFF_MAX_MESURE];
 
 // `effectifs` reste a [1] par defaut : deux classes sur trois sont `unique`, donc
 // au-dessus d'un joueur une equipe monoclasse n'existe pas en jeu — la comparaison
@@ -12816,7 +12959,7 @@ export const COMPO_MODES = [DIFF_NORMAL, DIFFICULTIES.length - 1];
 export function matriceSurvie(effectifs = [1], profils = [0, 1, 2], manches = 4,
   diffs = null) {
   const table = [];
-  const modes = diffs ?? DIFFICULTIES.map((_, i) => i);
+  const modes = diffs ?? DIFFS_MESURE;
   for (const di of modes) {
     for (const n of effectifs) {
       for (const pr of profils) {

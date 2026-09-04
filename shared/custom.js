@@ -181,6 +181,43 @@ export function effetsDe(choix) {
   return out;
 }
 
+/* LE MODE EST CONSTRUIT AU LANCEMENT, ET IL APPARTIENT A LA SALLE. Ecrire dans
+   `DIFFICULTIES[3]` serait exactement la panne que le plan 31 a corrigee pour le
+   hasard : seize salles d'un meme processus se partageraient un objet, et deux
+   customs simultanes se mentiraient l'un a l'autre. L'objet construit voyage donc
+   par le constructeur de `GameState`, jamais par la table.
+
+   RIEN D'AUTRE NE CHANGE DANS LA SIMULATION : elle lit une difficulte, elle ne
+   demande pas d'ou elle vient. C'est ce qui rend le mode presque gratuit — et
+   c'est aussi ce qui le rend dangereux, parce qu'une difficulte qui ment ne
+   leverait rien. D'ou le critere : custom(normal) DOIT rendre normal. */
+export function construireCustom(base, choix) {
+  const e = effetsDe(choix);
+  const d = {
+    ...base,
+    key: "custom",
+    label: "sur mesure",
+    custom: 1,
+    rangs: { ...(choix ?? {}) },
+    severite: severite(choix),
+    script: typeof e.script === "string" ? e.script : base.script,
+    hp: base.hp * (e.hp ?? 1),
+    spawn: base.spawn * (e.spawn ?? 1),
+    dmg: base.dmg * (e.dmg ?? 1),
+    speed: base.speed * (e.speed ?? 1),
+    boss: base.boss * (e.hp ?? 1),
+    // ce qui n'existe pas dans les trois modes et que seul le custom lit
+    cap: e.cap ?? 1,
+    elite: e.elite ?? 1,
+    subis: e.subis ?? 1,
+    relever: e.relever ?? 1,
+    releveHp: e.releveHp ?? 1,
+    hasards: e.hasards ?? 1,
+    xp: e.xp ?? 1,
+  };
+  return d;
+}
+
 // le pire choix possible : tous les rangs les plus chers de chaque condition.
 export function choixMaximal() {
   const out = {};

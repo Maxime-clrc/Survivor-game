@@ -401,13 +401,24 @@ export function cadreActifDe(profil) {
   return cadresDe(profil).has(id) ? id : CADRE_DEFAUT;
 }
 
+/* UNE MANCHE SUR MESURE NE PAIE PAS, ET LE TEST EST EXPLICITE. `DIFF_MUL` a
+   TROIS entrees et en garde trois : le `??` rendrait 1 pour l index 3, c
+   est-a-dire le tarif de NORMAL — mesure, 390 noyaux pour une manche dont le
+   joueur a ecrit les regles. « x2 loot, -50 % ennemis » deviendrait la meilleure
+   facon de farmer la meta, et toute la progression hors manche s effondrerait en
+   une soiree. Le garde-fou vit ici, ou vit la donnee, ET dans `hub.js`, ou vit la
+   decision : deux verrous pour une porte qu on ne peut pas rouvrir. */
+const SANS_NOYAUX = 3;
+
 export function coresForRun(level, bossKills, diffIndex) {
+  if (diffIndex === SANS_NOYAUX) return 0;
   const base = PROG_CFG.CORE_LEVEL * level + PROG_CFG.CORE_BOSS * bossKills;
   return Math.min(PROG_CFG.CORE_RUN_CAP,
     Math.round(base * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)));
 }
 
 export function coresPartial(level, diffIndex) {
+  if (diffIndex === SANS_NOYAUX) return 0;
   return Math.min(PROG_CFG.CORE_RUN_CAP,
     Math.round(PROG_CFG.CORE_LEVEL * level * (PROG_CFG.DIFF_MUL[diffIndex] ?? 1)));
 }

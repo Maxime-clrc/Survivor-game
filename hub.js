@@ -11,6 +11,7 @@ import { CADRE_DEFAUT, recompensesDe } from "./shared/hauts_faits.js";
 import { PASS_MIN, PASS_MAX } from "./progress_store.js";
 import { VERSION } from "./shared/version.js";
 import { Trace, nomTrace } from "./telemetry.js";
+import { CUSTOM_INDEX } from "./shared/custom.js";
 import { Room, ROOM_MAX_PLAYERS, PHASE_LOBBY, PHASE_ROUND } from "./room.js";
 import { PERF_ON, PERF_REPORT_S, Sampler, nowMs as perfNow, f1 } from "./perf.js";
 
@@ -96,9 +97,17 @@ export function createHub(store, log, commit = "") {
   /* LES HAUTS FAITS OUVRENT DES PORTES : le hub decide, parce qu'il est le seul
      ecrivain du magasin et le seul a connaitre les profils. La salle ne fait
      qu'emettre — a la mort d'un boss et a la fin de la manche. */
+  /* TROIS GARDE-FOUS, ET CHACUN EST UN TEST EXPLICITE. Une course dont chacun
+     ecrit les regles ne se compare a rien, et « x2 loot, -50 % ennemis » serait la
+     meilleure facon de farmer la meta : toute la progression hors manche
+     s'effondrerait en une soiree. On ne laisse donc rien au `??` — `DIFF_MUL`
+     n'a pas de quatrieme entree, et son defaut rendrait 1, ce qui est FAUX. */
+  const sansProgression = state => state.diffIndex === CUSTOM_INDEX;
+
   function evaluerPour(c, room, arretee) {
     const p = room.state.players.get(c.id);
     if (!p || !c.profile) return [];
+    if (sansProgression(room.state)) return [];
     const run = room.state.hfStatsDeManche(p, { arretee });
     const gagnes = evaluerHautsFaits(c.profile.hf, vueStats(c.profile, run));
     if (gagnes.length === 0) return [];
@@ -146,7 +155,9 @@ export function createHub(store, log, commit = "") {
     // regrouper les quatre records d une meme manche en une ligne.
     const quand = new Date().toISOString();
     const state = room.state;
-    const shared = coresForRun(state.level, state.bossKills, state.diffIndex);
+    const shared = sansProgression(state)
+      ? 0
+      : coresForRun(state.level, state.bossKills, state.diffIndex);
     for (const c of room.joined()) {
       const p = state.players.get(c.id);
       if (!p || !c.profile) continue;
@@ -179,7 +190,7 @@ export function createHub(store, log, commit = "") {
       // l'ordre compte : on EVALUE la manche, puis on la REPLIE dans les cumuls.
       // L'inverse la compterait deux fois.
       const run = state.hfStatsDeManche(p, { arretee: true });
-      const gagnes = evaluerHautsFaits(pr.hf, vueStats(pr, run));
+      const gagnes = sansProgression(state) ? [] : evaluerHautsFaits(pr.hf, vueStats(pr, run));
       if (gagnes.length) {
         pr.hf = [...(pr.hf ?? []), ...gagnes];
         const { cadres } = recompensesDe(gagnes);
@@ -199,7 +210,7 @@ export function createHub(store, log, commit = "") {
       if (state.segment > (pr.best.segment | 0)) pr.best.segment = state.segment;
       if (p.score > pr.best.score) pr.best.score = p.score;
 
-      if (state.victory && state.finalKill > 0) {
+      if (state.victory && state.finalKill > 0 && !sansProgression(state)) {
         const effectif = room.joined().length;
         /* L ECART SE LIT AVANT L ECRITURE : `recordFinal` remplace l entree, donc
            l ancien temps n existe plus une ligne plus bas. Meme clef que lui —
