@@ -8903,6 +8903,55 @@
                   manches REELLES : c est la barriere B6, la seule du corpus qui
                   demande du temps et non un ordre.
 
+   --- plan 37 : la map ------------------------------------------------------
+
+    0.40.0 lot 01 QUATRE VARIANTES PAR THEME, VINGT LOIS D IMPLANTATION. Le
+                  generateur pavait deja l arene en cellules et rejouait LA MEME
+                  table sous quatre orientations miroir ; une variante est donc
+                  une dimension de tableau, et le reste ne bouge pas. LA VARIANTE
+                  0 EST LA LOI HISTORIQUE DU LIEU, a l identique : c est elle que
+                  toutes les mesures des plans precedents ont vue.
+                  LES BORDS SE DECLARENT, L ASSEMBLEUR NE DEVINE PAS. C est un
+                  probleme de WANG TILES : chaque variante dit l etat de ses
+                  quatre bords, et l assembleur ne pose que des voisines
+                  compatibles. Douze aretes internes sur un 3 x 3, chaque cellule
+                  ne regarde que ses DEUX voisins deja poses — l ordre de parcours
+                  suffit, aucun solveur. `bordsDe` SUIT LE MIROIR : une variante
+                  retournee echange est et ouest, et comparer les bords ecrits a
+                  ceux du voisin retourne accorderait deux aretes qui ne se
+                  touchent pas.
+                  LE PLANCHER SE LIT SUR SIX AXES, LE PLAFOND SUR QUATRE, ET
+                  L ASYMETRIE EST LE GARDE-FOU. Le plafond repond « est-ce encore
+                  le meme lieu ? », donc il n emploie que les axes dont
+                  `verifierLois` se sert pour separer deux LIEUX ; le plancher
+                  repond « est-ce encore la meme variante ? », et deux
+                  arrangements opposes a inventaire EGAL sont deux variantes —
+                  d ou `centrage` et `etalement`, que la signature de lieu n a pas.
+                  Sans cette separation, « le degagement » et « l atelier »
+                  etaient interdits par leur propre plafond.
+                  TRENTE PAIRES MESUREES, TRENTE ENTRE LE PLANCHER (15 %) ET LE
+                  PLAFOND (`LOI_ECART`, 40 %).
+                  ET C EST LA MESURE ELARGIE QUI A TROUVE LE SEUL VRAI DEFAUT.
+                  Avec un tirage PAR CELLULE, trois graines ne couvrent plus rien :
+                  la suite passe a CINQUANTE, et elle a rendu treize rouges d un
+                  coup — deux travees de la Nebuleuse fermaient le carre central en
+                  cauchemar UNE GRAINE SUR QUATRE. Le lieu n avait pas change, la
+                  mesure si. Une seule travee, et le defaut disparait.
+                  `verifierNavigation` NE TOURNAIT QUE SUR LA GRAINE 7. Le nouveau
+                  poste « passages » le rejoue sur cinq lieux, trois modes et huit
+                  graines — 750 arenes construites a la taille reelle, zero faute.
+                  C est la mesure de largeur de passage que le plan demandait « sur
+                  toute la region, pas seulement au centre ».
+                  SOIXANTE-DOUZE PUIS VINGT-NEUF ENTREES DEPLACEES par un solveur
+                  jetable : un obstacle pose sur un danger le rend invisible, et la
+                  FRICHE secoue les siens de 40 px a la construction — la marge doit
+                  couvrir la gigue, sinon l entree est libre sur la table et fautive
+                  une graine sur trois.
+                  UN THEME A UNE SEULE VARIANTE NE TIRE RIEN : consommer un
+                  `rand()` pour un choix qui n existe pas deplacerait toutes les
+                  arenes deja mesurees. C est ce qui a permis de livrer la
+                  restructuration AVANT les tables, a comportement identique.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8911,4 +8960,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.39.2";
+export const VERSION = "0.40.0";

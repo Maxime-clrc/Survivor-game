@@ -61,6 +61,7 @@ import * as F from "./shared/feedback.js";
 import * as PR from "./shared/progression.js";
 import * as R from "./shared/reliques.js";
 import { BIOMES } from "./shared/biomes.js";
+import * as B2 from "./shared/biomes.js";
 import { verifierConditions, verifierPartage } from "./shared/custom.js";
 import { verifierContrats } from "./shared/timeline.js";
 import * as TL from "./shared/timeline.js";
@@ -142,7 +143,22 @@ const SUITE = [
   ["elites", () => G.verifierElites()],
   ["traits", () => G.verifierTraits(), true],
   ["script", () => G.verifierScript()],
-  ["biomes", () => G.verifierBiomes()],
+  /* CINQUANTE GRAINES, ET PLUS TROIS. Avec des variantes tirees PAR CELLULE,
+     une graine ne montre qu un assemblage sur des milliers : trois graines
+     couvraient le generateur d avant, elles ne couvrent plus celui-ci. Mesure :
+     la suite passe de 1 a 2 s, ce qui reste sous le budget du mode rapide. */
+  ["biomes", () => G.verifierBiomes(
+    Array.from({ length: 50 }, (_, i) => i * 7 + 1))],
+  ["variantes", () => B2.verifierVariantes()],
+  /* LA LARGEUR DE PASSAGE, SUR TOUTE LA REGION ET SUR DES GRAINES. Le
+     verificateur de navigation ne tournait que sur la graine 7 : avec des
+     variantes tirees par cellule, une graine ne couvre presque rien, et un
+     couloir se voit en jeu au lieu de se voir ici. */
+  ["passages", () => BIOMES.flatMap((b, i) =>
+    [0, 1, 2].flatMap(d => [1, 3, 7, 11, 23, 47, 99, 151].flatMap(s =>
+      N.verifierNavigation(
+        B2.buildBiome(i, d, s, CFG.ARENA_W, CFG.ARENA_H).obstacles,
+        CFG.ARENA_W, CFG.ARENA_H).map(m => `${b.key}/d${d}/g${s} : ${m}`))))],
   ["grilles", () => G.verifierGrilles()],
   ["navigation", () => BIOMES.flatMap((b, i) =>
     [0, 1, 2].flatMap(d => N.verifierNavigation(

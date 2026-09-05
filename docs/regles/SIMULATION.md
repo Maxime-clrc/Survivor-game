@@ -8,6 +8,30 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 ### Simulation
 
 - **Toute chaîne d'effets mémorise ses cibles** (`Set` du ricochet).
+- **UN LIEU A QUATRE LOIS D'IMPLANTATION, TIRÉES PAR CELLULE — ET LA VARIANTE 0
+  EST LA LOI HISTORIQUE.** C'est elle que toutes les mesures des plans précédents
+  ont vue ; la déplacer invaliderait des relevés qui n'ont rien demandé.
+- **LES BORDS SE DÉCLARENT, L'ASSEMBLEUR NE DEVINE PAS.** Le problème des
+  transitions est un problème de **Wang tiles** : chaque variante dit l'état de
+  ses quatre bords, et l'assembleur ne pose que des voisines compatibles. Sur un
+  3 × 3 il y a douze arêtes internes, et chaque cellule ne regarde que ses **deux
+  voisins déjà posés** — l'ordre de parcours suffit, aucun solveur. `bordsDe` suit
+  le **miroir** : une variante retournée échange est et ouest, et comparer les
+  bords écrits à ceux du voisin retourné accorderait deux arêtes qui ne se
+  touchent pas.
+- **LE PLANCHER SE LIT SUR SIX AXES, LE PLAFOND SUR QUATRE, ET L'ASYMÉTRIE EST LE
+  GARDE-FOU.** Le plafond répond « est-ce encore le même lieu ? », donc il n'emploie
+  que les axes dont `verifierLois` se sert pour séparer deux **lieux** ; le plancher
+  répond « est-ce encore la même variante ? », et deux arrangements opposés à
+  inventaire égal **sont** deux variantes — d'où `centrage` et `etalement`, que la
+  signature de lieu n'a pas.
+- **UN THÈME À UNE SEULE VARIANTE NE TIRE RIEN.** Consommer un `rand()` pour un
+  choix qui n'existe pas déplacerait toutes les arènes déjà mesurées.
+- **AVEC UN TIRAGE PAR CELLULE, TROIS GRAINES NE COUVRENT PLUS RIEN.** Elles
+  couvraient le générateur d'avant ; celui-ci en demande cinquante, et c'est la
+  passe élargie qui a trouvé le seul vrai défaut du lot — deux travées de la
+  Nébuleuse fermaient le carré central en cauchemar **une graine sur quatre**.
+  Le lieu n'avait pas changé, la mesure si.
 
 - **Les Jumeaux sont deux entités pour UNE réserve de vie.** `state.boss` est la
   source de vérité, `state.boss2` un second point d'application ; redirection
