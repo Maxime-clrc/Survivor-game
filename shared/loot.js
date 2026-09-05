@@ -49,6 +49,20 @@ export const LOOT_CFG = {
   // ce que la chance fait au loot : elle MONTE LE RANG, jamais la quantite.
   CHANCE_MAX: 0.5,
 
+  /* LE TARIF DU LOOT DEFENSIF, ET IL PASSE PAR LA RARETE. Le defaut vient de
+     `powerIndex` : il est purement offensif et remonte jusqu aux PV du boss,
+     donc un loot OFFENSIF paie une partie de lui-meme en grossissant la cible,
+     tandis qu un loot DEFENSIF est entierement gratuit. Avec plusieurs loots par
+     manche et des joueurs qui apprennent, l optimum devient « tout defensif » :
+     ce n est pas un choix, c est un tarif.
+     LA RARETE PLUTOT QUE LA VALEUR, parce qu elle laisse au loot defensif sa
+     valeur de TROUVAILLE quand il tombe, au lieu d en faire une version tiede de
+     l offensif — le meme objet, moins souvent, contre un objet moins bon.
+     LA MAGNITUDE EST PROVISOIRE ET C EST ECRIT : aucun bot ne sait exprimer
+     l optimum « tout defensif », donc seul le compte rendu de vraies manches
+     (plan 32) peut la regler. Ce qui est acquis ici est le LEVIER et son sens. */
+  POIDS_DEF: 0.7,
+
   /* LE POSEUR NE PEUT PAS LE REPRENDRE TOUT DE SUITE. Il se tient dessus : sans
      ce delai, reposer et reprendre seraient la meme image, et le geste
      n existerait pas. Les autres peuvent le prendre immediatement. */
@@ -133,13 +147,24 @@ export function rangTire(rang, chance, alea) {
   return rang;
 }
 
+// le poids d un objet dans son rang : la DEFENSE tombe moins souvent, et c est
+// le seul tarif du systeme — voir `POIDS_DEF`.
+export const poidsLoot = l => (l.axe === "def" ? LOOT_CFG.POIDS_DEF : 1);
+
 /* LE TIRAGE. `exclus` evite de proposer deux fois le meme objet dans le meme
    choix : deux exemplaires identiques ne sont pas un choix. */
 export function tirerLoot(rang, alea, exclus = null) {
   let pool = LOOTS.filter(l => l.rang === rang && !(exclus && exclus.has(l.id)));
   if (pool.length === 0) pool = LOOTS.filter(l => l.rang === rang);
   if (pool.length === 0) pool = LOOTS;
-  return pool[Math.floor(alea() * pool.length)];
+  let total = 0;
+  for (const l of pool) total += poidsLoot(l);
+  let roll = alea() * total;
+  for (const l of pool) {
+    roll -= poidsLoot(l);
+    if (roll <= 0) return l;
+  }
+  return pool[pool.length - 1];
 }
 
 /* L APPLICATION, ET ELLE S INSERE ENTRE LA META ET LES RELIQUES.
@@ -202,6 +227,22 @@ export function verifierLoot(defaut) {
   // chaque rang doit pouvoir offrir un choix de deux sans doublon
   for (let r = 1; r <= LOOT_RANGS; r++) {
     if (parRang[r] < 3) soucis.push(`rang ${r} : ${parRang[r]} objets, il en faut 3`);
+  }
+
+  /* LE TARIF DEFENSIF DOIT MORDRE, ET IL DOIT MORDRE PARTOUT. Un rang sans
+     aucun objet defensif rendrait le tarif muet pour ce rang, et le joueur
+     apprendrait que la defense se paie a un palier et pas a l autre. */
+  for (let r = 1; r <= LOOT_RANGS; r++) {
+    const dedans = LOOTS.filter(l => l.rang === r);
+    const def = dedans.filter(l => l.axe === "def");
+    if (def.length === 0) { soucis.push(`rang ${r} : aucun objet defensif`); continue; }
+    const total = dedans.reduce((s, l) => s + poidsLoot(l), 0);
+    const partDef = def.reduce((s, l) => s + poidsLoot(l), 0) / total;
+    const partPlate = def.length / dedans.length;
+    if (!(partDef < partPlate - 1e-9)) {
+      soucis.push(`rang ${r} : la defense tombe autant qu au tirage plat`
+        + ` (${(100 * partDef).toFixed(1)} % contre ${(100 * partPlate).toFixed(1)} %)`);
+    }
   }
   return soucis;
 }

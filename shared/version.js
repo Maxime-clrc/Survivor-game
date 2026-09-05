@@ -8716,6 +8716,71 @@
                   INVISIBLE au banc. Mesure apres : 3 groupes poses et 2 ramasses
                   en solo, 6 et 3 a deux, 9 et 2 a trois.
 
+    0.38.3 lot 04 L EQUILIBRAGE — ET LE LOT A D ABORD DU MESURER SES PROPRES
+                  INSTRUMENTS, QUI NE MESURAIENT PAS CE QU ILS ANNONCAIENT.
+                  `verifierEquilibreArmes`, REJOUE A 3, 6 ET 12 MANCHES SUR LE MEME
+                  CODE, rend cinq armes rouges, puis sept, puis cinq. Trois seules
+                  tiennent aux trois tailles — laser, lame, dispersion — et elles
+                  sont toutes au-dela de 9 points d ecart ; toutes les
+                  entrantes-sortantes sont a 5-9 points, c est-a-dire a portee de
+                  `TOLERANCE_V = 0,05` plus la dispersion du banc. CONTRE-EPREUVE
+                  DECISIVE : retirer les trois cartes du lot 0.38.0 du pool ne
+                  change RIEN au verdict — memes cinq armes, memes pourcentages.
+                  Ce n est donc pas le contenu du plan qui a bouge la liste, c est
+                  l ECHANTILLON.
+                  LA TOLERANCE DIT CE QU ON ACCEPTE, LA RESOLUTION CE QUE
+                  L INSTRUMENT DISTINGUE. `RESOLUTION_V = 0,10` et le contrat
+                  `{ err, note }` — qui existait deja pour `verifierBoss` — separent
+                  ce qui est rouge de ce qu on n a pas pu mesurer.
+                  `BOSS_POWER_REF = 2,89` NE BOUGE PAS, ET C EST UNE DECISION
+                  MESUREE. `mesurePuissanceBoss` rend 1,58 sur 52 releves, p10 0,93,
+                  p90 4,08, etendue 0,89 - 6,23, et ses medianes par tiers valent
+                  2,45 / 1,71 / 1,50 : l estimateur ne converge pas, il derive avec
+                  la famille de graines. A quatre manches, retirer trois cartes sur
+                  181 fait passer le releve de 2,60 a 5,30. Recalibrer la constante
+                  qui gouverne les PV des six boss sur ce releve serait deplacer le
+                  jeu sur du BRUIT. L ancienne valeur reste, et la raison est
+                  ecrite dans `LISEZMOI.md` et `CONTENU.md`.
+                  LE BANC DE `mesureTTK` NE RAMASSE RIEN, donc la puissance qu il
+                  mesure est celle d un jeu SANS loot — meme maintenant que le loot
+                  existe. C est `pilotage()` qui ramasse : a quatre joueurs, 3,204
+                  avant le plan 35 et 3,587 apres, pour 22 loots sur trois manches,
+                  soit +12 %. C est la seule mesure honnete de ce que le loot
+                  ajoute, et elle est bien plus petite que la peremption annoncee.
+                  TROIS ARMES CORRIGEES, ET CHACUNE PAR UN LEVIER DIFFERENT.
+                  Le LASER a demande deux passes : le multiplicateur releve donnait
+                  69, a 69 il rendait 95 %. -8 % de degats coutent -20 % de debit
+                  horde — un faisceau qui tue moins vite garde ses cibles devant lui
+                  plus longtemps, donc sa reponse N EST PAS LINEAIRE. 75 -> 72,
+                  interpolation des deux points mesures, ecart +0,092 -> -0,035.
+                  La LAME ne pouvait PAS etre corrigee par les degats, et c est le
+                  garde-fou du dps nominal qui l a dit : son debit sur CIBLE UNIQUE
+                  etait deja au plancher (51 % au banc, 53 % au modele, plancher a
+                  60 %). Le RAYON ne touche que la horde : 0,25 -> 0,227, l aire
+                  x0,824, ecart +0,135 -> +0,051.
+                  La DISPERSION etait a 31 points sous sa cible, trois fois l ecart
+                  de n importe quelle autre arme et le seul chiffre identique aux
+                  trois tailles d echantillon. 6,2 -> 8,75, ecart -0,308 -> -0,050.
+                  UN GARDE-FOU ANALYTIQUE PEUT ETRE FAUX, ET IL L ETAIT DEPUIS
+                  TOUJOURS. Le plancher/plafond de dps nominal lisait la dispersion
+                  a 219 % de la reference sur cible unique quand le banc en mesure
+                  110 % : `dpsBase` compte `degats x plombs` et `conversionBoss`
+                  rendait 1, avec un commentaire affirmant que « la gerbe couvre un
+                  boss a la scission sans depasser ». Un plomb sur deux porte,
+                  `DISP_GERBE = 0,50`. Le modele ne s est trahi qu au moment ou l on
+                  a touche la ligne.
+                  RESULTAT : `verifierEquilibreArmes` rend ZERO ROUGE a 3 comme a 12
+                  manches. `verifierProgression` passe de six defauts a trois. Le
+                  temps d abattage du mini-boss est remesure apres coup — mediane
+                  globale 16 s sur 52 abattages contre 18 avant, etendue resserree
+                  de 5-205 s a 5-114 s.
+                  LE TARIF DU LOOT DEFENSIF PASSE PAR LA RARETE (`POIDS_DEF = 0,7`),
+                  pas par la valeur : elle laisse au loot defensif sa valeur de
+                  TROUVAILLE quand il tombe, au lieu d en faire une version tiede de
+                  l offensif. La magnitude est PROVISOIRE et c est ecrit — aucun bot
+                  ne sait exprimer l optimum « tout defensif », donc seul le compte
+                  rendu de vraies manches peut la regler.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8724,4 +8789,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.38.2";
+export const VERSION = "0.38.3";

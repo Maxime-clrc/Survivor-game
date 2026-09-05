@@ -103,7 +103,21 @@ export const ARME_CFG = {
 
   // prime de difficulte : ecart max 17 %, le tir standard reste a 1,00
   PRIME_D: 0.04,
+  // la part de la gerbe qui porte sur une CIBLE UNIQUE : 110 % mesures au banc
+  // pour 219 % de dps nominal, donc un plomb sur deux — voir `conversionBoss`
+  DISP_GERBE: 0.50,
   TOLERANCE_V: 0.05,
+  /* CE QUE LA MESURE SAIT RESOUDRE, ET C EST DEUX FOIS LA TOLERANCE. Le meme
+     verificateur, rejoue a 3, 6 et 12 manches sur le MEME code, a rendu trois
+     listes differentes : cinq armes, puis sept, puis cinq — et une seule arme
+     commune aux trois series au-dela de 10 points d ecart. Toutes celles qui
+     ENTRAIENT et SORTAIENT du rouge etaient a 5-9 points de leur cible.
+     La tolerance dit ce qu on ACCEPTE ; la resolution dit ce que l instrument
+     peut DISTINGUER, et les confondre fait rougir du bruit. Entre les deux, le
+     verdict est une NOTE : « trop juste pour conclure a ce nombre de manches ».
+     Le contrat `{ err, note }` existe deja pour exactement ca — `verifierBoss`
+     comptait sept problemes la ou il y en avait cinq. */
+  RESOLUTION_V: 0.10,
   // les boss sont un CINQUIEME du temps de manche
   PART_BOSS: 0.2,
   // taux de change deja equilibre entre PV et degats (`CONVERT_DMG_REF`) : on
@@ -150,7 +164,15 @@ export const ARMES = [
     // joueur en voit 800 devant lui, le faisceau en parcourait 1536. Une portee
     // dont on ne voit jamais la fin EST une portee illimitee. 43 m tombent juste
     // au-dela du demi-ecran : elle s'apprend en la voyant s'arreter.
-    interval: 0, degats: 75, portee: 0.9,
+    /* 75 -> 72, EN DEUX PASSES, ET LA PREMIERE A DEPASSE. Mesure a douze
+       manches : 115 % delivre pour une cible de 106 %, et le laser est la seule
+       arme rouge aux trois tailles d echantillon (3, 6 et 12) — ce n est pas du
+       bruit. Le multiplicateur du releve donnait 69 ; a 69 il rendait 95 %, donc
+       la reponse du faisceau N EST PAS LINEAIRE en degats : -8 % de degats ont
+       coute -20 % de debit horde, parce qu un faisceau qui tue moins vite garde
+       ses cibles devant lui plus longtemps. 72 est l interpolation des deux
+       points mesures, pas une moyenne choisie. */
+    interval: 0, degats: 72, portee: 0.9,
     chaleur: true, perforeTout: true, famille: true,
     resume: "un faisceau continu qui traverse une file entière et ne rate jamais",
     contrainte: "il chauffe, et se tait 1,5 s à saturation",
@@ -179,7 +201,14 @@ export const ARMES = [
   },
   {
     id: "lame", nom: "Lame tournoyante", tir: "arc_sol", axe: "distance",
-    interval: 0.40, degats: 13.2, portee: 0.25,
+    /* SON EXCES EST EN HORDE, DONC LA CORRECTION EST LE RAYON ET PAS LES DEGATS.
+       Mesure a douze manches : 116 % delivre pour une cible de 102 %, mais son
+       debit sur CIBLE UNIQUE etait deja au plancher (51 % du tir standard au
+       banc, 53 % au modele, pour un plancher de 60 %). Baisser ses degats la
+       faisait passer sous ce plancher — un balayage qui ne peut plus rien contre
+       un boss n est plus une arme, c est un outil de nettoyage. Le rayon ne
+       touche QUE la horde : 0,25 -> 0,227, soit l aire multipliee par 0,824. */
+    interval: 0.40, degats: 13.2, portee: 0.227,
     // le rayon du balayage EST la portee de la table : 110 px etait un nombre
     // invente a cote d une colonne qui disait deja combien
     rayon: true,
@@ -193,7 +222,13 @@ export const ARMES = [
   {
     id: "dispersion", nom: "Fusil à dispersion", tir: "balle", axe: "distance",
     famille: true,
-    interval: 0.32, degats: 6.2, plombs: 6, portee: 0.5,
+    /* 6,2 -> 8,75, et c est la plus grosse correction du depot. Mesure a douze
+       manches : 75 % delivre pour une cible de 106 %, soit 31 points sous sa
+       cible — trois fois l ecart de n importe quelle autre arme, et le SEUL
+       chiffre identique aux trois tailles d echantillon (0,30 / 0,30 / 0,308).
+       Elle est faible partout, pas seulement sur la horde : 77 de debit sur
+       cible unique contre 99 au tir standard. x1,410. */
+    interval: 0.32, degats: 8.75, plombs: 6, portee: 0.5,
     scission: ARME_CFG.DISP_SCISSION, porteur: ARME_CFG.DISP_PORTEUR,
     resume: "une balle qui se scinde en six plombs à mi-portée",
     contrainte: "inoffensive de près, dispersée de loin",
@@ -438,8 +473,16 @@ export function conversionBoss(a) {
     const plancher = Math.max(0, 1 - ARME_CFG.CHALEUR_MUET * ARME_CFG.CHALEUR_CHUTE);
     return 1 + ((plancher + 1) / 2) * ARME_CFG.CHALEUR_BONUS;
   }
-  // les quatre autres rendent 1, et c'est MESURE : la gerbe de la dispersion
-  // couvre un boss a la scission sans depasser, la perforation du railgun n'a
+  /* LA GERBE NE MET PAS SES SIX PLOMBS DANS LE MEME CORPS, ET LE MODELE LE
+     CROYAIT. `dpsBase` compte `degats x plombs`, donc il lisait la dispersion a
+     219 % de la reference sur cible unique la ou le banc en mesure 110 %
+     (`mesureArmeBoss` : 109,0 contre 98,7). La ligne d avant affirmait meme le
+     contraire — « la gerbe couvre un boss a la scission sans depasser » — et
+     c est ce que la mesure a dementi. Le terme est le rapport des deux : la
+     moitie de la gerbe porte. Sans lui, le garde-fou du dps nominal refusait une
+     arme que le banc trouve juste. */
+  if ((a.plombs ?? 1) > 1) return ARME_CFG.DISP_GERBE;
+  // les trois autres rendent 1, et c'est MESURE : la perforation du railgun n'a
   // rien a traverser sur un corps, et la rampe de l'assaut vaut autant en horde
   return 1;
 }

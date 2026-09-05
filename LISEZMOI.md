@@ -8,6 +8,102 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les deux instruments d'équilibrage ne mesuraient pas ce qu'ils annonçaient, plan 35 (0.38.3)
+
+**5 septembre 2026.** Ce lot devait recalibrer contre le loot. Il a d'abord dû
+mesurer ses propres instruments, et les deux se sont révélés inutilisables tels
+quels.
+
+#### `verifierEquilibreArmes` : le verdict dépend du nombre de manches
+
+Même code, trois tailles d'échantillon :
+
+| manches | armes rouges |
+|---:|---|
+| 3 | laser, tesla, lame, dispersion, precision |
+| 6 | laser, tesla, lame, dispersion, railgun, grenade, siege |
+| 12 | laser, lame, dispersion, siege, precision |
+
+**Trois armes tiennent aux trois tailles** — laser, lame, dispersion — et elles
+sont toutes au-delà de 9 points d'écart. Toutes les entrantes-sortantes sont à
+**5-9 points**, c'est-à-dire à portée de `TOLERANCE_V = 0,05` plus la dispersion
+du banc. **La tolérance dit ce qu'on accepte, la résolution ce que l'instrument
+distingue** : les confondre fait rougir du bruit. D'où `RESOLUTION_V = 0,10` et
+le contrat `{ err, note }`, qui existait déjà pour `verifierBoss`.
+
+**Contre-épreuve, décisive** : retirer les trois cartes du lot 0.38.0 du pool ne
+change **rien** au verdict des armes à 3 manches — mêmes cinq armes, mêmes
+pourcentages. Ce n'est donc pas le contenu du plan 35 qui a bougé la liste, c'est
+l'échantillon.
+
+#### `mesurePuissanceBoss` : une médiane sur une distribution trois fois plus large qu'elle
+
+Solo, 12 manches, 52 relevés : **médiane 1,58, p10 0,93, p90 4,08, étendue
+0,89 – 6,23**. Et les médianes par tiers d'échantillon valent **2,45 / 1,71 /
+1,50** — l'estimateur ne converge pas, il dérive avec la famille de graines.
+
+À 4 manches, la même mesure a rendu **3,01 avant le plan 35, 2,60 après, et 5,30
+après en retirant trois cartes sur cent quatre-vingt-une.** Un changement qui ne
+devrait presque rien faire double le résultat.
+
+**Conclusion, écrite pour le prochain lot : `BOSS_POWER_REF = 2,89` NE BOUGE
+PAS.** La médiane mesurée a bougé, mais l'instrument ne sait pas la mesurer à
+mieux qu'un facteur deux. Recalibrer la constante qui gouverne les PV des six
+boss sur ce relevé serait déplacer le jeu sur du bruit. L'ancienne valeur reste,
+et la raison est ici.
+
+#### Ce que le loot fait vraiment à la puissance
+
+Le bot de `mesureTTK` (`botVersBoss`) **ne ramasse rien** : il ne va pas sur le
+loot et ne réveille pas les mini-boss. La puissance qu'il mesure est donc celle
+d'un jeu **sans loot**, même maintenant que le loot existe — et c'est pour ça que
+la calibration du plan 30 n'a pas bougé sous lui.
+
+Avec `pilotage()`, qui ramasse depuis ce plan, à quatre joueurs : **3,204 avant le
+plan 35, 3,587 après, pour 22 loots ramassés sur trois manches.** C'est la vraie
+mesure de ce que le loot ajoute, et elle vaut **+12 %**.
+
+#### Les trois armes corrigées, et la non-linéarité du faisceau
+
+| arme | levier | avant | après | écart avant | écart après |
+|---|---|---:|---:|---:|---:|
+| laser | dégâts | 75 | **72** | +0,092 | −0,035 |
+| lame | rayon | 0,25 | **0,227** | +0,135 | +0,051 |
+| dispersion | dégâts | 6,2 | **8,75** | −0,308 | −0,050 |
+
+**Le laser a demandé deux passes.** Le multiplicateur relevé donnait 69 ; à 69 il
+rendait 95 %, soit un dépassement dans l'autre sens. **−8 % de dégâts coûtent
+−20 % de débit horde** : un faisceau qui tue moins vite garde ses cibles devant
+lui plus longtemps, donc sa réponse n'est pas linéaire en dégâts. 72 est
+l'interpolation des deux points mesurés.
+
+**La lame ne pouvait pas être corrigée par les dégâts**, et c'est le garde-fou du
+dps nominal qui l'a dit : son débit sur **cible unique** était déjà au plancher
+(51 % du tir standard au banc, 53 % au modèle, pour un plancher de 60 %). Baisser
+ses dégâts la faisait passer dessous — un balayage qui ne peut plus rien contre un
+boss n'est plus une arme. Le **rayon** ne touche que la horde : 0,25 → 0,227,
+l'aire ×0,824, et l'écart tombe de +0,135 à +0,051.
+
+**Le modèle de la dispersion était faux, et de deux fois.** `dpsBase` compte
+`dégâts × plombs` et `conversionBoss` rendait 1, avec un commentaire affirmant que
+« la gerbe couvre un boss à la scission sans dépasser ». Le banc mesure
+**109,0 contre 98,7** pour le tir standard, soit **110 %**, là où le modèle lisait
+**219 %**. Un plomb sur deux porte : `DISP_GERBE = 0,50`. Sans ce terme, le
+garde-fou refusait une arme que le banc trouve juste — et il l'aurait refusée dès
+qu'on aurait touché à sa ligne, pas avant.
+
+Restent `siege` (−0,089), `precision` (−0,073) et `lame` (+0,051), tous **sous la
+résolution** du banc : notés, pas corrigés. Les corriger reviendrait à régler sur
+du bruit, ce que ce lot vient précisément d'établir.
+
+#### La courbe de progression, elle, s'est améliorée
+
+`verifierProgression` passe de **six défauts à trois** entre avant le plan 35 et
+après ce lot. Les trois qui restent sont des **dépassements** — niveau 23 à la
+minute 20 pour une cible de 20 en solo, 12,5 à la minute 8 et 25 à la minute 20 à
+quatre. Le loot n'y contribue pas : le bot de `verifierProgression` ramasse
+depuis ce plan, mais la courbe est portée par l'XP, et le loot n'en verse jamais.
+
 ### Le mini-boss, plan 35 (0.38.1)
 
 `sim/ttk-mini.mjs`. Le pilote de `pilotage()` garde sa visée, ses esquives et ses
@@ -26,6 +122,12 @@ par manche, cartes tirées au hasard dans l'offre.
 
 **Médiane globale 18 s sur 50 abattages**, de 5 s à 205 s. **50 abattages sur 55
 occasions ouvertes** : cinq se sont refermées sans que le mini-boss tombe.
+
+**Remesuré après l'équilibrage des armes (0.38.3)**, puisque trois armes ont
+changé : 12 / 12 / 9 / 12 en calme, 35 / 16 / 16 / — en normal, 86 / 25 / 48 / 24
+en cauchemar. **Médiane globale 16 s sur 52 abattages, de 5 s à 114 s** — la
+médiane bouge de deux secondes et l'étendue se resserre de moitié. La fourchette
+écrite au lot 01 tient.
 
 #### Ce que ces chiffres disent, et ce qu'ils ne disent pas
 

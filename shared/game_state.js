@@ -13171,15 +13171,25 @@ export function verifierTirageBonus(diffIndex = DIFF_NORMAL, joueurs = 2,
 
 /* Critere rejouable de l'equilibrage des armes. Il ne peut PAS tourner sans
    mesures : c'est un verificateur de campagne, comme `verifierMeta`. */
+/* UN ECART QUE L INSTRUMENT NE SAIT PAS DISTINGUER N EST PAS UN VERDICT.
+   Rejoue a 3, 6 et 12 manches sur le meme code, ce verificateur rendait cinq,
+   sept puis cinq armes rouges — et les entrantes-sortantes etaient toutes a
+   5-9 points de leur cible, c est-a-dire sous la resolution du banc. Trois
+   seulement tenaient aux trois tailles.
+   ON SEPARE DONC CE QUI EST ROUGE DE CE QU ON N A PAS PU MESURER, comme
+   `verifierBoss` le fait deja : au-dela de `RESOLUTION_V` c est l arme, entre
+   la tolerance et la resolution c est l echantillon. */
 export function verifierEquilibreArmes(manches = 3, minutes = 10) {
-  const soucis = [];
+  const err = [], note = [];
   for (const x of mesureArmes(manches, minutes)) {
-    if (Math.abs(x.v - x.cible) > ARME_CFG.TOLERANCE_V) {
-      soucis.push(`${x.id} : ${Math.round(x.v * 100)} % délivré pour une cible de`
-        + ` ${Math.round(x.cible * 100)} % (difficulté ${difficulte(ARME_BY_ID.get(x.id))})`);
-    }
+    const ecart = Math.abs(x.v - x.cible);
+    if (ecart <= ARME_CFG.TOLERANCE_V) continue;
+    const ligne = `${x.id} : ${Math.round(x.v * 100)} % délivré pour une cible de`
+      + ` ${Math.round(x.cible * 100)} % (difficulté ${difficulte(ARME_BY_ID.get(x.id))})`;
+    if (ecart > ARME_CFG.RESOLUTION_V) err.push(ligne);
+    else note.push(`${ligne} — sous la résolution du banc à ${manches} manches`);
   }
-  return soucis;
+  return { err, note };
 }
 
 /* ===========================================================================

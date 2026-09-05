@@ -578,6 +578,31 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 - **LA CENDRE NE RACCOURCIT PAS SA VIE**, alors qu'elle raccourcit celle d'un
   bonus. Un loot qui disparaîtrait plus vite parce qu'il fait mauvais temps ne
   serait compris par personne : le joueur n'a aucun moyen de faire le lien.
+- **LA TOLÉRANCE DIT CE QU'ON ACCEPTE, LA RÉSOLUTION CE QUE L'INSTRUMENT
+  DISTINGUE — ET LES CONFONDRE FAIT ROUGIR DU BRUIT.** `verifierEquilibreArmes`,
+  rejoué à 3, 6 et 12 manches sur le **même code**, rendait cinq armes rouges,
+  puis sept, puis cinq : toutes les entrantes-sortantes étaient à **5-9 points**
+  de leur cible, c'est-à-dire à portée de `TOLERANCE_V = 0,05` plus la dispersion
+  du banc. Contre-épreuve : retirer trois cartes sur cent quatre-vingt-une ne
+  change **rien** au verdict. D'où `RESOLUTION_V = 0,10` et le contrat
+  `{ err, note }`, qui existait déjà pour `verifierBoss`.
+- **`BOSS_POWER_REF = 2,89` NE BOUGE PAS, ET C'EST UNE DÉCISION MESURÉE.** La
+  médiane de puissance a bougé — mais `mesurePuissanceBoss` rend 1,58 sur 52
+  relevés, avec p10 0,93 et p90 4,08, et ses médianes par tiers valent
+  2,45 / 1,71 / 1,50 : l'estimateur ne converge pas. À quatre manches, retirer
+  trois cartes sur cent quatre-vingt-une fait passer le relevé de 2,60 à 5,30.
+  **Recalibrer la constante qui gouverne les PV des six boss sur ce relevé serait
+  déplacer le jeu sur du bruit.**
+- **LE BANC DE `mesureTTK` NE RAMASSE RIEN**, donc la puissance qu'il mesure est
+  celle d'un jeu **sans loot**, même maintenant que le loot existe. C'est
+  `pilotage()` qui ramasse : à quatre joueurs, **3,204 avant le plan 35, 3,587
+  après**, pour 22 loots sur trois manches — **+12 %**.
+- **UN GARDE-FOU ANALYTIQUE PEUT ÊTRE FAUX, ET IL L'ÉTAIT.** Le plancher/plafond
+  de dps nominal lisait la dispersion à **219 %** de la référence sur cible unique
+  quand le banc en mesure **110 %** : `dpsBase` compte `dégâts × plombs` et
+  `conversionBoss` rendait 1, avec un commentaire affirmant que la gerbe couvre un
+  boss entier. Un plomb sur deux porte (`DISP_GERBE`). Le modèle ne s'est trahi
+  qu'au moment où quelqu'un a touché la ligne — il était faux depuis toujours.
 - **`p.powerMods` EST UNE COPIE, ET C'ÉTAIT UN DÉFAUT MESURÉ.** Il était **le même
   objet** que `p.mods` quand le joueur n'a pas de méta : tout ce qui écrit dans
   `p.mods` après coup écrivait donc aussi dans l'indice de puissance. Les reliques
