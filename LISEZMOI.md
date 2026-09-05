@@ -8,6 +8,41 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La sensibilité des six réglages de tension, plan 36 (0.39.2)
+
+`sim/sens.mjs`. Chaque poids **doublé**, tout le reste identique, deux graines,
+15 minutes simulées, `pilotage()` à deux joueurs, `tensionMoy` échantillonnée à
+1 Hz. **Un poids dont un doublement ne change rien à la courbe est un poids mort :
+il faut le retirer, pas le régler.** C'est l'étape 3 de la calibration, et la seule
+des quatre qui ne demande pas de vraies parties.
+
+| réglage ×2 | tensionMoy | p80 | part sous le seuil bas | écart |
+|---|---:|---:|---:|---:|
+| *référence* | 0,179 | 0,380 | 73 % | — |
+| `A` (dégâts) | 0,234 | 0,545 | 62 % | **+30,8 %** |
+| `B` (densité) | 0,182 | 0,406 | 72 % | +1,8 % |
+| `C` (à terre) | 0,179 | 0,380 | 73 % | **0,0 %** |
+| `DECAY` | 0,097 | 0,075 | 84 % | **−46,1 %** |
+| `DENSITE_REF` | 0,176 | 0,374 | 73 % | −1,5 % |
+
+**Deux poids portent la courbe** — `A` et `DECAY` — et `DECAY` plus que tout le
+reste réuni.
+
+**`C` rend exactement 0,0 %, et ce n'est PAS un poids mort : c'est le banc qui le
+masque.** Le harnais relève les joueurs à chaque tick pour que toutes les mesures
+voient la même horde ; `C` ne s'applique qu'à un joueur **à terre**, donc il ne
+peut jamais s'exprimer ici. Lire ce zéro comme « à supprimer » serait exactement le
+piège que ce relevé existe pour éviter.
+
+**`B` à +1,8 % pour un doublement est presque inerte, avec CE pilote.** Le bot ne
+reste pas longtemps dans un paquet dense — il recule et esquive. Ce chiffre décrit
+le pilote autant que le poids, et il demande une vraie partie pour être tranché.
+
+**Et la courbe est plate : 73 % des relevés sous le seuil bas, p20 à 0,000.** Le
+brainstorm dessinait un rythme — pression, pic, résolution, respiration. La courbe
+observée n'est pas ce rythme. **Ce sont donc les poids qu'il faut corriger avant les
+seuils**, et cette correction se fait sur des manches réelles.
+
 ### Le Director sort de « normal », et il en sort assez, plan 36 (0.39.1)
 
 `sim/etats.mjs`. Deux manches par case, `pilotage()`, 25 minutes simulées, chaque

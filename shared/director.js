@@ -93,10 +93,6 @@ export const DIR_CFG = {
      pose un compteur separe au lieu de relire la valeur. */
   ENNUI_T: 75,
 
-  // au-dela, un joueur se noie — et `tensionMax` suffit : un seul joueur en
-  // train de couler EST une surcharge, meme si les trois autres s ennuient
-  SURCHARGE: 0.82,
-
   // ce qu il faut attendre avant de proposer un evenement de sa propre main
   EVENT_FAIM: 200,
 
@@ -129,7 +125,14 @@ export const GEOM_ORDRE = ["front", "bords", "pince", "quatre-fronts", "anneau"]
    de separation, un joueur voit 137 corps pendant que l autre en voit 36.
    `tensionMax` dit « trop haut », `tensionMoy` dit « trop bas », et jamais les
    deux en meme temps. */
-export function etatDe(ctx, cfg = DIR_CFG) {
+/* `cfg` DOIT PORTER `SURCHARGE`, ET IL VIENT DE `TENSION_CFG`. Le seuil haut
+   appartient a la table de la MESURE, pas a celle de la politique : le plan 36
+   lot 03 calibre « seuil bas, seuil haut » comme deux des six reglages de la
+   tension, et un second seuil pour la meme grandeur derive au premier reglage.
+   `TENSION_CFG.SEUIL_HAUT` existait depuis le plan 32 et N AVAIT AUCUN LECTEUR —
+   la premiere version de ce fichier en avait recree un a cote, a 0,82, sans
+   savoir que 0,7 attendait deja. */
+export function etatDe(ctx, cfg) {
   /* LA RESPIRATION EST ECRITE DANS LE SCRIPT, ET LE DIRECTOR S EFFACE DEVANT.
      C est le quatrieme etat de la table, et sa reponse est « ce que le script
      prevoyait DEJA » : un Director qui durcirait un battement de repit ne
@@ -168,7 +171,7 @@ function composer(roster, dur, alea, n) {
    LA SURCHARGE NE RETIRE JAMAIS D ENNEMIS non plus — elle change par ou ils
    arrivent et ce qu ils sont. Le compte est le budget, et le budget appartient
    au script. */
-export function decider(ctx, entry, roster, alea, evenements = EVENTS, cfg = DIR_CFG) {
+export function decider(ctx, entry, roster, alea, cfg, evenements = EVENTS) {
   /* L ETAT SORT A COTE DE LA DECISION, JAMAIS DEDANS. Une decision ne porte
      que ses quatre leviers — `validerDecision` refuse tout le reste, et c est
      exactement ce qu on lui demande. Le journal garde les deux. */

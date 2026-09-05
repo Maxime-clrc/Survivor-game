@@ -421,13 +421,23 @@ const NAV_FENETRE = Math.hypot(CFG.VIEW_W / 2 + TL_CFG.SPAWN_MARGIN,
    LES POIDS SONT DES VALEURS DE DEPART, et il n'y a pas de bonne reponse a
    priori : on part de plausible, on regarde des courbes de vraies manches, on
    ajuste. C'est pour cela que la mesure part MAINTENANT. */
-const TENSION_CFG = {
+/* LES SEUILS QUE LE DIRECTOR LIT, ET ILS VIENNENT D UNE SEULE TABLE. Le seuil
+   haut appartient a `TENSION_CFG` parce qu il decrit la MESURE, pas la politique
+   — deux tables pour une meme grandeur divergent au premier reglage. */
+export const seuilsDirector = () => ({ ...DIR_CFG, SURCHARGE: TENSION_CFG.SEUIL_HAUT });
+
+export const TENSION_CFG = {
   A: 1.2,             // un coup de 20 % des PV max ajoute 0,24
   B: 0.35,            // par seconde, a DENSITE_REF corps proches
   C: 0.5,             // par seconde a terre
   DECAY: 0.12,        // par seconde ; de 1 a 0 en huit secondes de calme
   DENSITE_REF: 12,
   SEUIL_BAS: 0.15,
+  /* AU-DELA, UN JOUEUR SE NOIE, et `tensionMax` suffit a le dire : un seul joueur
+     qui coule EST une surcharge, meme si les trois autres s ennuient. Ecrit au
+     plan 32 et SANS AUCUN LECTEUR jusqu ici — le Director du plan 36 en avait
+     recree un a cote, a 0,82, sans savoir que celui-la attendait. Les deux
+     seuils sont deux des six reglages que le lot 03 calibre. */
   SEUIL_HAUT: 0.7,
 };
 
@@ -4178,7 +4188,7 @@ export class GameState {
      la comparaison de deux reglages en mode custom ne veut plus rien dire. */
   _directorDecide() {
     const r = decider(this._contexteDirector(), this._beatBrut(),
-      typesFor(this.diff), this.alea);
+      typesFor(this.diff), this.alea, seuilsDirector());
     this.directorEtat = r.etat;
     return r.d;
   }
@@ -11150,36 +11160,37 @@ function _teamPowerRef(mods) {
 export function verifierEtatsDirector() {
   const soucis = [];
   const ctx = (o) => ({ ...contexteVide(), ...o });
-  const haut = DIR_CFG.SURCHARGE + 0.05;
+  const S = seuilsDirector();
+  const haut = S.SURCHARGE + 0.05;
 
   // 1 · UNE EQUIPE ENTIERE EN DIFFICULTE : on la soulage.
-  if (etatDe(ctx({ tensionMax: haut, vivants: 4, separe: false })) !== DIR_SURCHARGE) {
+  if (etatDe(ctx({ tensionMax: haut, vivants: 4, separe: false }), S) !== DIR_SURCHARGE) {
     soucis.push("une equipe groupee en difficulte n entre pas en surcharge");
   }
 
   // 2 · UN JOUEUR QUI S EST ISOLE : on ne le soulage pas.
-  if (etatDe(ctx({ tensionMax: haut, vivants: 4, separe: true })) === DIR_SURCHARGE) {
+  if (etatDe(ctx({ tensionMax: haut, vivants: 4, separe: true }), S) === DIR_SURCHARGE) {
     soucis.push("le Director vient au secours d un groupe qui s est isole");
   }
 
   // 3 · LE DERNIER SURVIVANT N A RIEN CHOISI, donc il est soulage — meme si
   // l etat le voit « separe », puisqu il n y a plus personne dont se separer.
-  if (etatDe(ctx({ tensionMax: haut, vivants: 1, separe: true })) !== DIR_SURCHARGE) {
+  if (etatDe(ctx({ tensionMax: haut, vivants: 1, separe: true }), S) !== DIR_SURCHARGE) {
     soucis.push("le dernier survivant est traite comme un joueur qui s isole");
   }
 
   // 4 · L ENNUI EST COLLECTIF ET IL SE COMPTE EN TEMPS.
-  if (etatDe(ctx({ tensionBasT: DIR_CFG.ENNUI_T + 1 })) !== DIR_ENNUI) {
+  if (etatDe(ctx({ tensionBasT: S.ENNUI_T + 1 }), S) !== DIR_ENNUI) {
     soucis.push("une tension basse prolongee ne declenche pas l ennui");
   }
-  if (etatDe(ctx({ tensionBasT: DIR_CFG.ENNUI_T - 10 })) !== DIR_NORMAL) {
+  if (etatDe(ctx({ tensionBasT: S.ENNUI_T - 10 }), S) !== DIR_NORMAL) {
     soucis.push("une tension basse courte declenche deja l ennui");
   }
 
   // 5 · JAMAIS LES DEUX EN MEME TEMPS. La surcharge passe devant : un joueur qui
   // se noie pendant que les autres s ennuient est d abord un joueur qui se noie.
-  const deux = etatDe(ctx({ tensionMax: haut, tensionBasT: DIR_CFG.ENNUI_T + 60,
-                            vivants: 2, separe: false }));
+  const deux = etatDe(ctx({ tensionMax: haut, tensionBasT: S.ENNUI_T + 60,
+                            vivants: 2, separe: false }), S);
   if (deux !== DIR_SURCHARGE) soucis.push("ennui et surcharge simultanes : la surcharge ne passe pas devant");
 
   /* 6 · L ENNUI EPUISE LA FORME AVANT LA QUANTITE, ET LA SURCHARGE NE RETIRE
@@ -11193,8 +11204,8 @@ export function verifierEtatsDirector() {
   for (const geom of GEOMETRIES) {
     const entry = { rate: 3.3, geom };
     for (const c of [ctx({ tensionMax: haut, vivants: 2, separe: false }),
-                     ctx({ tensionBasT: DIR_CFG.ENNUI_T + 5 })]) {
-      const r = decider(c, entry, roster, g.alea);
+                     ctx({ tensionBasT: S.ENNUI_T + 5 })]) {
+      const r = decider(c, entry, roster, g.alea, S);
       const m = validerDecision(r.d, entry, roster);
       if (m.length > 0) soucis.push(geom + " : " + m.join(", "));
       const apres = appliquerDecision(entry, r.d);
@@ -11211,9 +11222,9 @@ export function verifierEtatsDirector() {
   /* 7 bis · LE DIRECTOR S EFFACE DEVANT UNE RESPIRATION, quel que soit l etat
      que la tension appellerait. Un rythme sans creux n est plus un rythme. */
   for (const c of [{ tensionMax: haut, vivants: 2, separe: false },
-                   { tensionBasT: DIR_CFG.ENNUI_T + 60 }]) {
+                   { tensionBasT: S.ENNUI_T + 60 }]) {
     const r = decider(ctx({ ...c, respire: true }), { rate: 2.1, geom: "bords" },
-      roster, g.alea);
+      roster, g.alea, S);
     if (r.etat !== DIR_NORMAL) soucis.push("le Director agit pendant une respiration");
     if (r.d !== DECISION_NEUTRE) soucis.push("une respiration ne rend pas la decision neutre");
   }
@@ -11222,8 +11233,8 @@ export function verifierEtatsDirector() {
      « a budget constant » : si le seul levier restant etait la quantite, une
      equipe forte recevrait une manche plus LONGUE et non plus interessante. */
   for (let i = 0; i < GEOM_ORDRE.length - 1; i++) {
-    const r = decider(ctx({ tensionBasT: DIR_CFG.ENNUI_T + 5 }),
-      { rate: 3, geom: GEOM_ORDRE[i] }, roster, g.alea);
+    const r = decider(ctx({ tensionBasT: S.ENNUI_T + 5 }),
+      { rate: 3, geom: GEOM_ORDRE[i] }, roster, g.alea, S);
     const j = GEOM_ORDRE.indexOf(r.d.geom ?? GEOM_ORDRE[i]);
     if (j <= i) soucis.push("ennui : " + GEOM_ORDRE[i] + " n est pas durci (" + r.d.geom + ")");
   }

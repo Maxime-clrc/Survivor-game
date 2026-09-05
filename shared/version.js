@@ -8875,6 +8875,34 @@
                   regle sur les courbes accumulees en VRAIES parties, et aucun bot
                   ne remplace ca.
 
+    0.39.2 fix    UN SEUIL POUR UNE GRANDEUR, ET LE SIEN EXISTAIT DEJA.
+                  `TENSION_CFG.SEUIL_HAUT = 0,7` est ecrit depuis le plan 32 et
+                  N AVAIT AUCUN LECTEUR ; le Director du lot precedent en a recree
+                  un a cote, `DIR_CFG.SURCHARGE = 0,82`, sans savoir que l autre
+                  attendait. Deux tables pour une meme grandeur divergent au
+                  premier reglage — et « seuil bas, seuil haut » sont deux des SIX
+                  reglages que le lot 03 calibre, donc ils appartiennent a la table
+                  de la MESURE et pas a celle de la politique. Le doublon
+                  disparait, le seuil du Director tombe de 0,82 a 0,70.
+                  `TENSION_CFG` ENTRE DANS `constantes_check` — elle n y etait pas,
+                  donc sa constante morte n aurait rien leve. Il a fallu l EXPORTER
+                  pour ca : une table locale est invisible au balayage.
+                  LA SENSIBILITE DES SIX REGLAGES, MESUREE. Chaque poids double,
+                  tout le reste identique : `A` rend +30,8 % sur `tensionMoy`,
+                  `DECAY` -46,1 %, `B` +1,8 %, `DENSITE_REF` -1,5 %, `C` 0,0 %.
+                  DEUX POIDS PORTENT LA COURBE et `DECAY` plus que tout le reste.
+                  `C` A 0,0 % N EST PAS UN POIDS MORT : le banc releve les joueurs
+                  a chaque tick pour que toutes les mesures voient la meme horde,
+                  donc un poids qui ne s applique qu a terre ne peut pas s exprimer.
+                  Lire ce zero comme « a supprimer » serait exactement le piege que
+                  ce releve existe pour eviter.
+                  ET LA COURBE EST PLATE : 73 % des releves sous le seuil bas, p20 a
+                  0,000. Le rythme attendu — pression, pic, resolution, respiration
+                  — n est pas celui qu on observe. Ce sont donc les POIDS qu il faut
+                  corriger avant les seuils, et cette correction se lit sur des
+                  manches REELLES : c est la barriere B6, la seule du corpus qui
+                  demande du temps et non un ordre.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8883,4 +8911,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.39.1";
+export const VERSION = "0.39.2";

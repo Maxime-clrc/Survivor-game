@@ -33,7 +33,7 @@ const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const TABLES = ["CFG", "CARD_CFG", "SKILL_CFG", "STATUS_CFG", "BOSS_CFG", "TL_CFG",
   "TRAIT_CFG", "BIOME_CFG", "ARME_CFG", "HF_CFG", "PROG_CFG", "RELIC_CFG",
   "NAV_CFG", "PILOT_CFG", "ROLE_CFG", "ATK_CFG", "BORNE_CFG", "MINI_CFG",
-  "LOOT_CFG"];
+  "LOOT_CFG", "TENSION_CFG"];
 
 const MODULES = ["game_state.js", "cards.js", "classes.js", "statuses.js",
   "bosses.js", "timeline.js", "enemies.js", "biomes.js", "armes.js",
