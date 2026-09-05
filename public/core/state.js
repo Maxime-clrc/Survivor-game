@@ -106,6 +106,15 @@ export let relicsByPlayer = new Map();
    et pas une Map : le meme objet se cumule, et l ordre est ce qui permet de
    reposer le dernier. Arrive par `loadout`, comme les cartes et les reliques. */
 export let lootsByPlayer = new Map();
+
+/* QUI CRIE, ET JUSQU A QUAND. Le ping ne dessine RIEN de neuf : il fait
+   clignoter le chevron qui existe deja. Une echeance par joueur, donc DEUX PINGS
+   DU MEME JOUEUR NE PEUVENT PAS S EMPILER — c est une propriete du choix de
+   conception, pas un garde-fou a ecrire. */
+export const PING_MS = 2600;
+export let pingues = new Map();
+export function notePing(id, at) { pingues.set(id, at + PING_MS); }
+export const pingueEncore = (id, now) => (pingues.get(id) ?? 0) > now;
 export function lootListOf(playerId) { return lootsByPlayer.get(playerId) ?? []; }
 export let myDashCd = CFG.DASH_CD;
 export function refreshLocalMods() {

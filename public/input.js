@@ -17,6 +17,15 @@ function repondreContrat(ok) {
   ws.send(JSON.stringify({ t: "contrat", borne: prop.id, ok: ok ? 1 : 0 }));
 }
 
+/* LE PING PART TOUT DE SUITE, comme la reponse a un contrat : ce n est pas une
+   intention de simulation qu on echantillonne a 30 Hz, c est un appel. Le
+   serveur porte la recharge — un client ne se rationne pas lui-meme. */
+function requestPing() {
+  if (phase !== PHASE_ROUND || amSpectator || cardsState || merchantState) return;
+  if (!pauseEl.hidden) return;
+  ws.send(JSON.stringify({ t: "ping" }));
+}
+
 function requestInteract() {
   if (phase !== PHASE_ROUND || amSpectator || cardsState || merchantState) return;
   if (!pauseEl.hidden) return;
@@ -55,6 +64,12 @@ addEventListener("keydown", e => {
      physique en AZERTY et en QWERTY — et `enSaisie()` garde deja la porte, donc
      taper un nom de salle ne declenche rien. */
   if (e.code === "KeyF" && !repeat && !e.repeat) requestInteract();
+  /* « VENEZ VERS MOI », ET PAS « ALLEZ LA-BAS ». Pour un contrat a deux mille
+     pixels dans l autre sens il faudrait un marqueur de LIEU, qui est un autre
+     systeme. Pour quatre personnes autour d une table qui se parlent, « venez
+     vers moi » suffit — et c est aussi ce qui justifie de ne pas construire de
+     minicarte. */
+  if (e.code === "KeyT" && !repeat && !e.repeat) requestPing();
   /* LA MEME TOUCHE ACCEPTE : on active avec F, on accepte avec F — deux
      touches pour deux moments du meme geste seraient une regle de plus a
      apprendre. `G` refuse, et refuser doit couter un geste DIFFERENT pour ne

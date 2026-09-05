@@ -1354,6 +1354,17 @@
      portait et que celle-ci n'avait pas. */
   animation: markDown 900ms ease-in-out infinite;
 }
+/* IL CRIE, ET IL CRIE PLUS FORT QUE « A TERRE ». Deux causes de pulsation sur
+   le meme chevron ne peuvent pas se confondre : celle-ci est PLUS RAPIDE et elle
+   grossit plus — un appel volontaire est un evenement, une chute est un etat.
+   La COULEUR ne bouge pas : le chevron garde celle du joueur, toujours. */
+.mark.pingue > i {
+  animation: markPing 380ms ease-in-out infinite;
+}
+@keyframes markPing {
+  0%, 100% { opacity: 1; transform: rotate(calc(var(--ang, 0deg) + 90deg)) scale(1); }
+  50% { opacity: 0.5; transform: rotate(calc(var(--ang, 0deg) + 90deg)) scale(1.35); }
+}
 @keyframes markDown {
   0%, 100% { opacity: 1; transform: rotate(calc(var(--ang, 0deg) + 90deg)) scale(1); }
   50% { opacity: 0.45; transform: rotate(calc(var(--ang, 0deg) + 90deg)) scale(1.12); }

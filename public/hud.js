@@ -7,7 +7,7 @@ import { playSound } from "/audio.js";
 import { dec, getLang, onLangChange, t, tf } from "/shared/i18n.js";
 import { relicById } from "/shared/reliques.js";
 import { fmtM, toM } from "/shared/units.js";
-import { difficulty, hudDps, hudStats, lootListOf, myId, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
+import { difficulty, hudDps, hudStats, lootListOf, myId, ownedCounts, pingueEncore, pipPress, progressState, relicsByPlayer } from "./core/state.js";
 import { appliquerLoot } from "/shared/loot.js";
 import { ARMES, ARME_DEFAUT, canonEffet, canonGain } from "/shared/armes.js";
 import { applyMeta, metaLinesFor } from "/shared/progression.js";
@@ -456,6 +456,10 @@ function updateMarks(v, c) {
     const bas = !p.downed && p.hp / maxHp < LOW_HP;
     setStyle(m, `mkc${id}`, "color", colorDe(c.lobby, id));
     setClass(m, `mkd${id}`, "aterre", !!p.downed);
+    // LE PING EST LE MOMENT OU LE CHEVRON CRIE. Il reste permanent le reste du
+    // temps — un allie hors ecran est une information CONTINUE — et le ping ne
+    // fait que lui donner une seconde cause de pulser, apres « a terre ».
+    setClass(m, `mkp${id}`, "pingue", pingueEncore(id, performance.now()));
     setClass(m, `mkb${id}`, "bas", bas);
     // LA DISTANCE EST EN METRES, comme partout ce qui s'adresse au joueur.
     setText(m.lastElementChild, `mkt${id}`, p.downed

@@ -2,7 +2,7 @@
 import { playSound } from "/audio.js";
 import { pousserHautFait, showHud } from "/hud.js";
 import { t, tf } from "/shared/i18n.js";
-import { setCustomChoix, traceOn, setTrace, setRapport, PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setLootsByPlayer, setMerchantState, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
+import { setCustomChoix, traceOn, setTrace, setRapport, PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setLootsByPlayer, setMerchantState, notePing, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
 import { ingest } from "./ingest.js";
 import { netPerfBoundary, pushAlert, pushWorld, screenCloseQueued, setAlertInfo, setScreenCloseQueued, worldQueue } from "./interp.js";
 import { hfNom } from "/shared/hauts_faits.js";
@@ -199,6 +199,18 @@ export function connect() {
       // allies passent en une ligne dans le fil d'evenements
       // `applyAlert` reste reserve aux trois tables du serveur (event, mech,
       // meteo) : cette ligne est un texte CLIENT, elle se pose directement.
+      /* LE CHEVRON DE L EMETTEUR CLIGNOTE, ET RIEN DE PLUS. Le cas qu on oublie
+         est celui d un emetteur DANS la vue : il n a pas de chevron, la classe
+         se pose sur un element cache, et le SON suffit — c est pour ca qu on ne
+         teste pas la visibilite ici. */
+      case "ping": {
+        const qui = msg.qui | 0;
+        notePing(qui, performance.now());
+        const l = lobby.find(x => x.id === qui);
+        playSound("ping", { qui: l?.colorIndex ?? 0 });
+        break;
+      }
+
       case "hautFaitAllie": {
         const maintenant = performance.now();
         setAlertInfo({

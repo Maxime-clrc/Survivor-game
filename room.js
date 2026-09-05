@@ -50,6 +50,9 @@ const PAUSE_MAX_MS = 5 * 60 * 1000;
 // compression.
 const CULL_MARGE = 300;
 const CULL_GRID = 256;
+// la recharge d un ping, cote SERVEUR : elle vaut la duree du clignotement, donc
+// un appel ne peut jamais recouvrir le precedent.
+const PING_CD = 2600;
 const SNAPSHOT_INTERVAL = 1 / CFG.SNAPSHOT_HZ;
 
 const WARMUP_S = 20;
@@ -1128,6 +1131,21 @@ export class Room {
          borne se met en « proposee » par la touche d interaction, dans la
          simulation. Le message ne porte que la reponse, donc un client ne peut
          pas s accorder un contrat a distance. */
+      /* LA RECHARGE EST ICI ET PAS CHEZ LE CLIENT : un client ne se rationne
+         pas lui-meme, et un ping repete deviendrait une alarme. Deux secondes et
+         demie — la duree du clignotement — pour qu un appel ne recouvre jamais
+         le precedent. */
+      case "ping": {
+        if (this.phase !== PHASE_ROUND) break;
+        const c = this.clients.get(id);
+        if (!c || c.spectator) break;
+        const t = Date.now();
+        if (t - (c.pingAt ?? 0) < PING_CD) break;
+        c.pingAt = t;
+        this.broadcast({ t: "ping", qui: id });
+        break;
+      }
+
       case "contrat": {
         if (this.phase !== PHASE_ROUND) break;
         const id = Number(msg.borne) | 0;

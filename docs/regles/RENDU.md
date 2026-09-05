@@ -2,6 +2,31 @@
 
 **Quand lire ce fichier :** on touche à `public/render/*`, `sprites.js`, `gl.js`, `hud.js`, `audio.js`, `public/css/*`, ou à un écran de menu.
 
+### Le ping
+
+- **LE PING NE DESSINE RIEN DE NEUF : il fait clignoter le chevron qui existe
+  déjà.** Le vocabulaire d'un indicateur qui « crie » était en place depuis qu'un
+  allié à terre pulse ; il fallait une **seconde cause**, et les deux ne peuvent
+  pas se confondre — l'appel est **plus rapide et grossit plus**, parce qu'un
+  appel volontaire est un **événement** et une chute un **état**.
+- **UN PING PAR JOUEUR AU MAXIMUM**, puisque c'est SON chevron qui clignote. Deux
+  pings du même joueur ne peuvent pas s'empiler : c'est une propriété du choix de
+  conception, pas un garde-fou à écrire.
+- **LA RECHARGE EST SERVEUR.** Un client ne se rationne pas lui-même, et un ping
+  répété deviendrait une alarme. Elle vaut la durée du clignotement, donc un appel
+  ne recouvre jamais le précédent.
+- **LE CAS QU'ON OUBLIE EST L'ÉMETTEUR DANS LA VUE** : il n'a pas de chevron, la
+  classe se pose sur un élément caché, et le **son suffit**. C'est pour ça qu'on ne
+  teste pas la visibilité au moment de la pose.
+- **LA HAUTEUR PORTE L'IDENTITÉ.** Quatre joueurs, quatre fondamentales : on entend
+  **qui** appelle avant de regarder l'écran.
+- **IL DIT « VENEZ VERS MOI », PAS « ALLEZ LÀ-BAS ».** Pour un contrat à deux mille
+  pixels dans l'autre sens il faudrait un marqueur de **lieu**, qui est un autre
+  système — et c'est aussi ce qui justifie de ne pas construire de minicarte.
+- **AUCUN CHAMP RÉSEAU.** La liste `p` de l'instantané n'est **pas** filtrée par la
+  vue : les chevrons ont déjà tout ce qu'il leur faut, sur n'importe quelle taille
+  de map.
+
 ### Silhouettes de la horde
 
 - **UN CORPS SE RECONNAÎT SANS SA COULEUR, et c'est VÉRIFIABLE.** À treize types

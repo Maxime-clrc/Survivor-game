@@ -8997,6 +8997,44 @@
                   a 9600 contre 4 a 4800, meme famille. `verifierPopulation` rend
                   13 contre 13 avant le plan 35.
 
+    0.40.2 lot 03 LE PING, ET IL NE DESSINE RIEN DE NEUF. Le chevron de l emetteur
+                  clignote, avec un son. Le plan 31 lot 05 avait retire le doublon
+                  de chevron, le plan 34 lot 04 avait compose le son AVEC les six
+                  autres : il ne restait que le message et la classe.
+                  DEUX CAUSES DE PULSATION SUR LE MEME CHEVRON, ET ELLES NE SE
+                  CONFONDENT PAS. « A terre » pulse en 900 ms et grossit de 12 % ;
+                  l appel pulse en 380 ms et grossit de 35 %. Un appel volontaire
+                  est un EVENEMENT, une chute est un ETAT. La couleur ne bouge
+                  dans aucun des deux cas — le chevron garde celle du joueur,
+                  toujours, parce que c est une DIRECTION.
+                  UN PING PAR JOUEUR AU MAXIMUM, puisque c est SON chevron qui
+                  clignote : deux pings du meme joueur ne peuvent pas s empiler.
+                  C est une propriete du choix de conception, pas un garde-fou a
+                  ecrire. LA RECHARGE EST SERVEUR — un client ne se rationne pas
+                  lui-meme — et elle vaut la duree du clignotement, donc un appel
+                  ne recouvre jamais le precedent.
+                  AUCUN CHAMP RESEAU, SUR AUCUNE TAILLE DE MAP. La liste `p` de l
+                  instantane n est PAS filtree par la vue — elle l est pour les
+                  ennemis, les balles, les tirs et les zones, jamais pour les
+                  joueurs — donc les chevrons ont deja tout, y compris a
+                  9 600 x 5 400.
+                  LE CAS QU ON OUBLIE EST L EMETTEUR DANS LA VUE : il n a pas de
+                  chevron, la classe se pose sur un element cache, et le SON
+                  suffit. C est pourquoi on ne teste pas la visibilite a la pose.
+                  VERIFIE BOUT EN BOUT, PAR LA VRAIE SOCKET : deux clients RFC
+                  6455 a la main, une manche lancee, et les trois points mesures —
+                  le ping arrive chez l allie avec le bon emetteur, la recharge
+                  mord (deux envois, une seule rediffusion), et l emetteur recoit
+                  le sien. Trois pieges de banc payes en l ecrivant : le pseudo
+                  doit etre UNIQUE par passe — un compte deja pris fait echouer
+                  `register` en silence —, le code de salle vient de `roomJoined`
+                  et non du `lobby`, et `ready` ne lance rien sans un `start` de l
+                  hote.
+                  IL DIT « VENEZ VERS MOI », PAS « ALLEZ LA-BAS ». Pour un contrat
+                  a deux mille pixels dans l autre sens il faudrait un marqueur de
+                  LIEU, qui est un autre systeme — et c est aussi ce qui justifie
+                  de ne pas construire de minicarte.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9005,4 +9043,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.1";
+export const VERSION = "0.40.2";
