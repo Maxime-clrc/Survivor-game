@@ -178,6 +178,15 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
 - **Une seconde période sans aucune arête** (`MACRO`, 1 200) : à 400 px l'œil
   trouve la période en deux secondes, et aucune quantité de détail *dans* la tuile
   ne rattrape ça.
+  **Et elle ne casse que ce qui est DOUX.** Les « zones vitrifiées » de la
+  Fonderie étaient trois ellipses de 60 à 152 px à `0,44` de noir dans une tuile
+  de 400 : un motif à fort contraste revient donc au pas exact de la grille de
+  20 m, et une nappe de 1 200 px ne le dissimule pas. **Ce qui est grand et
+  contrasté n'appartient pas à la tuile** — il appartient à `MATIERE[lieu]`
+  (`props.js`), qui est posé par cellule monde et n'a pas de période.
+  Elles cumulaient le second défaut : une **ellipse lisse** n'a ni bord ni
+  direction et ne se lit que comme un rond, exactement ce que la souillure a
+  déjà payé.
 - **Un arrière-plan est trois tables, pas une fonction.** `FOND` (ce qui se
   *cuit*, `material.js`), `VITRAGE` (ce qui *sépare*) et `VIE` (ce qui *bouge*,
   `decor.js`), croisées avec le champ `fond` des `BIOMES` par `verifierFonds()`
@@ -459,7 +468,7 @@ danger, implantation.
 |---|---|---|---|---|
 | **verbe** | a été laissée | fabrique | coule | flotte |
 | **bloc** | **pan fissuré, mur banché, carcasse** | **chaîne, cellule, poste** | **four, conduite, cuve** | **travée, fragment, débris** |
-| **sol** | dalles et joints de coulage | tôle et maille de 5 m | plaques, voies, vitrifié | nid d'abeille |
+| **sol** | dalles et joints de coulage | tôle et maille de 5 m | plaques, voies, coulées | nid d'abeille |
 | **pas de 20 m** | marquage peint effacé | trait franc | nœuds seuls | nervures du pont |
 | **contour de bloc** | presque aucun | franc | sourd | franc |
 | **source** | presque rien | bandes LED ambrées | la gueule des fours | feux de position froids |
@@ -786,7 +795,7 @@ passe pleine vue entre la couleur d'arène et la matière du sol, puis une passe
 #### Le canal de coulée
 
 Tout ce que la Fonderie disait d'elle-même vivait dans une **tuile de 400 px** —
-rigoles, voies, vitrifié : des *pièces*, répétées, jamais une installation. Il lui
+rigoles, voies, coulées : des *pièces*, répétées, jamais une installation. Il lui
 manquait ce qu'une fonderie a et qu'un atelier n'a pas : **quelque chose de long
 qui traverse**, et par rapport à quoi tout le reste se situe. `couleeDe()`
 (`material.js`) est cette géométrie, ancrée au **monde** et tirée par graine.
@@ -1149,7 +1158,13 @@ le sien :
   faisceau la rend visible par son **terminus**, dessiné même quand il ne touche
   rien — c'est lui qui l'apprend au joueur, pas un texte. Un faisceau continu n'a
   pas d'instant de départ : l'**allumage** (`faisceauAllume`, 90 ms plus large et
-  plus clair) lui en donne un, et il revient à chaque sortie de saturation.
+  plus clair) lui en donne un, et il revient à chaque **pression** de gâchette
+  comme à chaque sortie de saturation.
+- **Le faisceau se dessine quand l'arme TIRE, pas quand sa jauge n'est pas
+  pleine.** Les deux se confondaient tant que le tir était automatique ; le laser
+  est manuel, et la condition est devenue le bit `ETAT_TIR` du masque de bonus.
+  L'image et le son lisent **la même**, sinon le bourdonnement tient la gâchette
+  relâchée.
 - **Les marqueurs posés sur un joueur sont des glyphes distincts en silhouette.**
 - **UNE MÉCANIQUE DONT ON MONTRE LA CONSÉQUENCE AVANT QU'ELLE ARRIVE N'A PLUS
   BESOIN D'ÊTRE EXPLIQUÉE.** Le nœud du Tisseur porte l'**empreinte** de la zone

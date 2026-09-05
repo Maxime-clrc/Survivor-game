@@ -392,7 +392,13 @@ const OBSTACLES = {
        et la horde arrive donc toujours par un cote qu on ne regarde pas. */
     { nom: "le puits", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.35, y: 0.50, w: 0.120, h: 0.190, kind: B_FOUR },
-      { x: 0.30, y: 0.50, w: 0.120, h: 0.190, kind: B_FOUR, min: 1 },
+      /* LES DEUX FOURS SE TRAVERSAIENT DE 112 PX SUR 171. La masse restait un
+         rectangle propre, donc la collision ne disait rien ; ce qui se voyait
+         etait le second HABILLAGE — panneau et fente — pose en decale sur le
+         corps du premier. Ils se collent maintenant bord a bord, et EN HAUTEUR :
+         a cote, le second venait toucher le glissant de `HZ_NORMAL` a 0,16, et
+         `verifierBiomes` refuse un danger pose sur un obstacle. */
+      { x: 0.35, y: 0.69, w: 0.120, h: 0.190, kind: B_FOUR, min: 1 },
       { x: 0.26, y: 0.24, w: 0.070, h: 0.070, kind: B_CUVE },
       { x: 0.74, y: 0.76, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
       { x: 0.74, y: 0.24, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },

@@ -413,23 +413,14 @@ function fonderie(g, rand, usure) {
 
     voie(g, TILE * 0.22, false);
     voie(g, TILE * 0.74, true);
-
-    // LES ZONES VITRIFIEES : la ou le metal est tombe, le sol a FONDU puis
-    // refroidi en verre. Presque noir, presque lisse, un cerne encore chaud —
-    // c est la seule surface du depot qui soit plus sombre que le fond.
-    for (let i = 0; i < 3; i++) {
-      const x = rand() * TILE, y = rand() * TILE, r = 30 + rand() * 46;
-      poser(g, x, y, r + 6, (c) => {
-        c.fillStyle = alpha("#070507", 0.44);
-        c.beginPath(); c.ellipse(0, 0, r, r * 0.72, rand() * 3, 0, Math.PI * 2); c.fill();
-        c.strokeStyle = alpha(PROP.fonte, 0.14);
-        c.lineWidth = 2.6;
-        c.beginPath(); c.ellipse(0, 0, r + 2, r * 0.72 + 2, 0, 0, Math.PI * 2); c.stroke();
-        c.fillStyle = alpha("#c8b4a8", 0.05);
-        c.beginPath(); c.ellipse(-r * 0.3, -r * 0.22, r * 0.42, r * 0.16, -0.4, 0, Math.PI * 2); c.fill();
-      });
-    }
   }
+  /* LES ZONES VITRIFIEES SONT PARTIES, ET C EST LA TUILE QUI LES CONDAMNAIT.
+     Trois ellipses lisses de 60 a 152 px, presque noires (0,44), dans une tuile
+     de 400 px : donc trois taches a FORT contraste qui reviennent exactement au
+     pas de la grille de 20 m. La seconde periode de 1 200 px casse des nappes
+     douces, pas ca. Et une ellipse lisse ne se lit ni comme une flaque ni comme
+     une marque — c est deja ce que la souillure a paye dans `props.js`.
+     Ce qui a coule reste dit par la COULEE ci-dessous : elle a un sens. */
 
   const n = 3 + Math.round(5 * usure);
   for (let i = 0; i < n; i++) {
