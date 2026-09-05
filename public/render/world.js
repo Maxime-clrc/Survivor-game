@@ -271,10 +271,14 @@ function stepPrediction(dt) {
   const obs = obstaclesActifs();
   for (let i = 0; i < obs.length; i++) {
     const o = obs[i];
-    if (o.maxHp > 0 && (latest.cover?.find(c => c[0] === i)?.[1] ?? 1) <= 0) continue;
     const hw = o.w / 2 + r, hh = o.h / 2 + r;
     const dx = predicted.x - o.x, dy = predicted.y - o.y;
+    // LA BOITE D ABORD, LA COUVERTURE ENSUITE : le test de recouvrement est deux
+    // comparaisons, `cover.find` est un balayage. Les mettre dans cet ordre ne
+    // change rien au resultat et retire le balayage de tous les blocs qu on ne
+    // touche pas — c est-a-dire de tous, sauf un.
     if (Math.abs(dx) >= hw || Math.abs(dy) >= hh) continue;
+    if (o.maxHp > 0 && (latest.cover?.find(c => c[0] === i)?.[1] ?? 1) <= 0) continue;
     if (hw - Math.abs(dx) <= hh - Math.abs(dy)) predicted.x = wasX <= o.x ? o.x - hw : o.x + hw;
     else predicted.y = wasY <= o.y ? o.y - hh : o.y + hh;
   }

@@ -1179,6 +1179,15 @@ export function drawObstacles(cover) {
 
   for (let i = 0; i < list.length; i++) {
     const o = list[i];
+    /* LE DECOR SE CULL COMME LE RESTE. `list` est celle du LIEU ENTIER — de 187
+       a 319 blocs mesures selon le lieu — et la vue en montre le trente-sixieme
+       depuis 0.40.1. Les dangers, les baies, l amer et la coulee cullaient deja ;
+       les blocs etaient les seuls a ne pas le faire. Le trace le plus large est l
+       ombre portee, a `OBST_OMBRE` du bord, et `dessinerLed` trace une ligne sur
+       l arete et non un halo — la marge est donc la demi-boite et ces deux
+       decalages. ET LA COUVERTURE SE LIT APRES : `cover.find` est lineaire, donc
+       le faire avant le cull etait un balayage par bloc et par image. */
+    if (!inView(o.x, o.y, Math.max(o.w, o.h) / 2 + OBST_OMBRE + OBST_RELIEF + 4)) continue;
     const k = o.maxHp > 0 ? (cover?.find(c => c[0] === i)?.[1] ?? 1) : 1;
     if (o.maxHp > 0 && k <= 0) continue;
 

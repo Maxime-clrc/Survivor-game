@@ -9096,6 +9096,44 @@
                   0.40.1, et c est precisement le chiffre qui rend le decor non
                   cull quatre fois plus cher.
 
+    0.40.5 lot 06 TROIS GACHIS DE CHEMIN CHAUD, AUCUN VISIBLE A L IMAGE.
+                  LES BLOCS ETAIENT LES SEULS A NE PAS SE CULLER. Dangers,
+                  baies, amer et coulee testaient deja `inView` ; `drawObstacles`
+                  parcourait la liste du LIEU ENTIER — 262 usine, 187 fonderie,
+                  310 friche, 232 nebuleuse, 319 secteur — quand la vue en montre
+                  le trente-sixieme depuis 0.40.1. Environ huit blocs utiles sur
+                  trois cents, chacun paye quatre `save/translate/silhouette/fill`
+                  plus l habillage et la LED. La marge est la demi-boite plus l
+                  ombre portee et le relief : `dessinerLed` trace une LIGNE sur l
+                  arete, pas un halo, donc sa portee n entre pas dedans — elle n
+                  appartient qu a la source de `lumiere.js`.
+                  L AGRANDISSEMENT DE 0.40.1 N AVAIT MESURE QUE LE SERVEUR. Le
+                  message du lot chiffre `_grille` et `step` ; la liste de blocs a
+                  quadruple cote client sans que rien ne la regarde.
+                  LA BOITE D ABORD, LA COUVERTURE ENSUITE. `cover.find` est un
+                  balayage lineaire, et il tournait AVANT le test de
+                  recouvrement : un balayage par bloc et par image, au rendu
+                  comme dans la prediction. L ordre inverse ne change aucun
+                  resultat — les deux sont des `continue`.
+                  `#cvUnder` REPEINT TOUJOURS SON FOND, donc `alpha: false`. Il n
+                  a aucun pixel translucide a porter, et le `scale(1.015)` de
+                  `#arena` recouvre le pixel d arrondi du bord.
+                  UNE SOURIS EMET MILLE FOIS PAR SECONDE, LA BOITE BOUGE UNE FOIS
+                  PAR IMAGE. `getBoundingClientRect` force un calcul de mise en
+                  page a chaque `mousemove`. La boite est retenue, jetee par
+                  `applyCamera()` — une fois par image, et c est `#arena` qui
+                  porte le tressaillement —, par le redimensionnement et par le
+                  defilement. Au pixel identique. Elle se declare AU-DESSUS d
+                  `applyCamera` : `resize()` tourne au chargement du module et l
+                  appelle, donc un `let` pose pres de son lecteur serait lu dans
+                  sa zone morte.
+                  `desynchronized: true` N EST PAS PRIS. Il desynchroniserait les
+                  deux contextes 2D du canvas WebGL qui les separe, et une horde
+                  en retard d une image sur son sol se verrait. A mesurer, pas a
+                  supposer.
+                  AUCUN GAIN CHIFFRE ICI : les releves disponibles ont ete pris
+                  sous un compositeur LOGICIEL. Le gachis, lui, est compte.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9104,4 +9142,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.4";
+export const VERSION = "0.40.5";

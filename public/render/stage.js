@@ -40,7 +40,10 @@ export function applyPalette(diffIndex = 1) {
   refreshSol();
 }
 applyPalette();
-export const underCtx = cvUnder.getContext("2d");
+// `#cvUnder` REPEINT TOUJOURS SON FOND, donc il n a aucun pixel translucide a
+// porter : `alpha: false` retire le canal et le melange de composition. Le
+// `scale(1.015)` de `#arena` recouvre le pixel d arrondi eventuel du bord.
+export const underCtx = cvUnder.getContext("2d", { alpha: false });
 export const overCtx = cv.getContext("2d");
 export let ctx = underCtx;
 function rendererFlag() {
@@ -88,7 +91,19 @@ export function updateCamera(dt) {
   applyCamera();
   if (PERF) { window.__cam = camera; window.__pred = predicted; }
 }
+/* UNE SOURIS EMET JUSQU A MILLE FOIS PAR SECONDE, ET LA BOITE NE BOUGE QU UNE
+   FOIS PAR IMAGE. `getBoundingClientRect` force un calcul de mise en page, et il
+   etait appele a CHAQUE `mousemove` : sur une souris de jeu, mille vidages de
+   layout par seconde. La boite est retenue et jetee la ou elle peut changer —
+   `applyCamera()` (une fois par image, et `#arena` porte le tressaillement), le
+   redimensionnement et le defilement. Le resultat est au pixel identique.
+   ELLE EST DECLAREE ICI ET NON PRES DE SON LECTEUR : `resize()` tourne au
+   chargement du module et appelle `applyCamera()`, donc un `let` pose plus bas
+   serait lu dans sa zone morte.
+*/
+let rectCv = null;
 function applyCamera() {
+  rectCv = null;
   const tx = -camera.x0 * renderScale, ty = -camera.y0 * renderScale;
   underCtx.setTransform(renderScale, 0, 0, renderScale, tx, ty);
   overCtx.setTransform(renderScale, 0, 0, renderScale, tx, ty);
@@ -122,12 +137,17 @@ addEventListener("resize", resize);
 resize();
 const mouseView = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2 };
 export const mouse = { x: CFG.VIEW_W / 2, y: CFG.VIEW_H / 2 };
+function rectDeCv() {
+  if (!rectCv) rectCv = cv.getBoundingClientRect();
+  return rectCv;
+}
 export function updateMouse(e) {
-  const r = cv.getBoundingClientRect();
+  const r = rectDeCv();
   if (r.width === 0 || r.height === 0) return;
   mouseView.x = (e.clientX - r.left) * (CFG.VIEW_W / r.width);
   mouseView.y = (e.clientY - r.top) * (CFG.VIEW_H / r.height);
 }
+addEventListener("scroll", () => { rectCv = null; }, { passive: true });
 function refreshMouseWorld() {
   mouse.x = mouseView.x + camera.x0;
   mouse.y = mouseView.y + camera.y0;
