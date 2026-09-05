@@ -539,7 +539,7 @@ export const EN = {
   "arme.grenade.resume": "a slow projectile that explodes",
   "arme.grenade.contrainte": "you have to lead the shot",
   "arme.siege.nom": "Siege gun",
-  "arme.siege.resume": "six high-explosive shells, then a reload behind cover",
+  "arme.siege.resume": "six high-explosive shells, a 20 shield — ×3 while reloading",
   "arme.siege.contrainte": "1.8 s giving nothing back every six shots",
   "arme.precision.nom": "Marksman rifle",
   "arme.precision.resume": "a long shot that punches through one enemy, and crits often",

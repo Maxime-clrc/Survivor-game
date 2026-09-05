@@ -281,7 +281,11 @@ export const ARMES = [
     chargeur: ARME_CFG.SIEGE_CHARGEUR, recharge: ARME_CFG.SIEGE_RECHARGE,
     bouclier: ARME_CFG.SIEGE_BOUCLIER, rechargeGarde: ARME_CFG.SIEGE_GARDE,
     critBase: 0.15, famille: true,
-    resume: "six obus explosifs, puis une recharge à couvert",
+    // « a couvert » ne disait PAS d ou vient le couvert : l arme donne 20 de
+    // bouclier en propre et le triple pendant la recharge, et un joueur qui voit
+    // sa jauge passer a 60 puis revenir a 20 sans qu aucun texte l annonce lit un
+    // bug. Le seul systeme du depot qu aucune ligne de joueur ne nommait.
+    resume: "six obus explosifs, un bouclier de 20 — ×3 pendant la recharge",
     contrainte: "1,8 s sans rien rendre tous les six tirs",
     exige: EXIGE(0.5, 0, 0, 0.5, 1),
     ech: ECH(1.4, 0.3, 1.1, 0.4, 0.0, 0.0, 1.3),

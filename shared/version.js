@@ -9422,6 +9422,18 @@
                   permanence, donc il lit desormais le PLAFOND d uptime du laser
                   et non sa moyenne. Un chiffre de laser ne se corrige plus sur la
                   seule campagne simulee.
+    0.40.15 lot 16 LE SEUL SYSTEME QUE PLUS AUCUNE LIGNE DE JOUEUR NE NOMMAIT.
+                  Rapport de partie : « je n ai pas de talent de bouclier et j en
+                  ai 20, et il passe a 60 puis revient a 20 tout seul ». C est le
+                  Fusil de siege, exactement comme il est ecrit — `SIEGE_BOUCLIER`
+                  20 en propre, `SIEGE_GARDE` x3 pendant les 1,8 s de recharge,
+                  rendu a la fermeture de la fenetre. Aucun defaut.
+                  MAIS AUCUN TEXTE NE LE DISAIT : le resume parlait d une
+                  « recharge a couvert » sans dire d ou venait le couvert, et la
+                  contrainte ne comptait que les secondes. Une jauge qui bouge
+                  seule et qu aucune ligne n annonce se lit comme un bug — c est
+                  le rapport qu on vient de recevoir. Le resume porte desormais
+                  les deux chiffres, FR et EN.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9431,4 +9443,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.14";
+export const VERSION = "0.40.15";
