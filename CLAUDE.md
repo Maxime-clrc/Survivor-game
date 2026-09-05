@@ -144,6 +144,8 @@ shared/navigation.js   OU VA LA HORDE — grille de 40 px, UN champ par JOUEUR
 shared/reliques.js     le catalogue des reliques
 shared/loot.js         LE LOOT : trois rangs, tirage, application — la seule
                        source de puissance qui coute un DEPLACEMENT
+shared/director.js     LA LISTE FERMEE du Director : quatre leviers, le cout
+                       DEDUIT de `share`, et le validateur qui COMPARE
 shared/progression.js  la meta : arbres, noyaux, jalons, emplacements
 shared/armes.js        LES ARMES : 10 fiches, coefficients d echelle, conversions boss
 shared/hauts_faits.js  LES HAUTS FAITS : 36 exigences, 13 cadres, recompenses NOMMEES
@@ -250,6 +252,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `drawShieldShell()` | l'état du bouclier à l'écran ; `spawnShieldOn` / `spawnShieldBreak` ses deux fronts |
 | `spawnBlast(x, y, r, ampleur, style)` | les couches chaudes d'un souffle, mises à l'échelle par la magnitude |
 | `_applyStatus()` / `_purgeStatus()` | pose et retrait d'état |
+| `_beat()` / `_directorDecide()` | LE BATTEMENT, plie par la decision du Director. **Tout ce qui lit le script passe par `_beat()`** — un second accesseur « dirigé » laisserait une moitié du jeu lire le script brut. La décision se prend **au battement** (`_startBeat`), jamais dans `_beat()` qui est appelé plusieurs fois par image. `validerDecision` ne relit pas une liste d'interdits : elle **compare** le battement avant et après |
 | `_poserLootPour(p, rang, choix, x, y)` / `_loots(dt)` | LE LOOT AU SOL : la pose est **par joueur** et **au point de l'objectif**, donc toujours dans la vue de qui vient de le mériter ; le ramassage **ignore `pickupRadius`** — il faut passer dessus, et c'est tout le système. `pj` à zéro = « à qui le veut », ce qu'un loot **reposé** devient |
 | `_poserBonus(type, x, y)` | LA pose d'un bonus au sol — les cinq sources y passent, et `max` (la durée de vie, raccourcie par la cendre) est ce qui permet au compte à rebours d'exister |
 | `POWERUP_POIDS` / `_contexteBonus()` | QUAND un bonus tombe : PV manquants, densité, boss, joueurs à terre, et ce que les **armes de l'équipe** savent lire. Jamais un interdit — `CFG.POWERUP_PART_MIN` garde tout type tirable. Aucun levier de difficulté ici |

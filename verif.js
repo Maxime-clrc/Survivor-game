@@ -63,6 +63,7 @@ import * as R from "./shared/reliques.js";
 import { BIOMES } from "./shared/biomes.js";
 import { verifierConditions, verifierPartage } from "./shared/custom.js";
 import { verifierContrats } from "./shared/timeline.js";
+import * as TL from "./shared/timeline.js";
 import { constantesMortes } from "./constantes_check.js";
 import { verifierRapport } from "./rapport.js";
 
@@ -86,6 +87,15 @@ const S = await import("./public/sprites.js");
    problemes — sept la ou il y en a cinq. On les affiche, on ne les compte pas. */
 const soucisDe = r => Array.isArray(r) ? r : (r?.err ?? []);
 const notesDe = r => Array.isArray(r) ? [] : (r?.note ?? []);
+
+/* TOUS LES BATTEMENTS DE TOUS LES SCRIPTS, A PLAT. `verifierTableDirector`
+   croise les champs que le script porte avec ceux que le Director a le droit de
+   toucher : sans la liste reelle, il ne verifierait qu une moitie du contrat. */
+const battementsDuScript = () => {
+  const out = [];
+  for (const k of Object.keys(TL.SCRIPTS)) for (const seg of TL.SCRIPTS[k]) out.push(...seg);
+  return out;
+};
 
 const cardIds = new Set(C.CARDS.map(c => c.id));
 const relicIds = new Set(R.RELICS.map(r => r.id));
@@ -159,6 +169,8 @@ const SUITE = [
   ["defense", () => G.verifierDefense()],
   ["minis", () => G.verifierMinis()],
   ["loot", () => G.verifierLoot(C.defaultMods)],
+  ["tableDirector", () => G.verifierTableDirector(battementsDuScript())],
+  ["director", () => G.verifierDirector(), true],
   ["lootSol", () => G.verifierLootSol()],
   ["silhouettes", () => S.verifierSilhouettes()],
   ["prereglages", () => G.verifierPrereglages(), true],

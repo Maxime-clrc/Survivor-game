@@ -109,6 +109,27 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   le bouclier et relève les joueurs à terre, rien d'autre. On ne l'introduit pas,
   on la **préserve** : sans elle, partir chercher un objectif pendant qu'un autre
   farme ne coûte rien à personne, et l'arbitrage n'existe pas.
+- **LE DIRECTOR A UNE LISTE FERMÉE, ET ELLE EST ÉCRITE AVANT LUI.** Quatre
+  leviers — composition, géométrie, élite, événement — et **rien d'autre** : le
+  `rate` est le budget que `verifierScript()` tient, les PV/vitesse/dégâts sont les
+  leviers de la **difficulté**, la respiration est écrite dans le script, et le
+  plafond de population est une limite de **moteur**.
+- **`validerDecision` NE RELIT PAS UNE LISTE D'INTERDITS : ELLE COMPARE.** Le
+  battement avant et après la décision, champ par champ. Une liste d'interdits se
+  contourne en ajoutant un champ au script ; une comparaison protège les champs
+  futurs sans que personne y pense. Le croisement va dans les deux sens, et il a
+  déjà servi : `rateMul` figurait parmi les protégés alors qu'il appartient aux
+  **événements** et qu'aucun battement ne le porte — protéger un champ qui n'existe
+  pas donne l'illusion d'une couverture.
+- **LE COÛT D'UN CORPS EST L'INVERSE DE SON ABONDANCE, DONC IL N'Y A RIEN À
+  ÉCRIRE.** `share` dit quelle part du plafond un type a le droit d'occuper ; un
+  type rare est un type cher, et le rapport des deux **est** le prix. Une colonne
+  de coût à côté de `share` serait un second système d'équilibrage à tenir d'accord
+  avec le premier — on n'en diverge que si une mesure le demande.
+- **LA COUTURE EST NEUTRE TANT QUE LE DIRECTOR N'EXISTE PAS**, et c'est ce qui
+  garde `verifierScript` et `verifierPopulation` comme des verdicts sur le
+  **script** pendant qu'on construit ce qui va le plier. `DECISION_NEUTRE` rend le
+  battement à l'identique — pas une copie, **le même objet**.
 - **LA PROIE DE `EV_CHASSE` EST DEVENUE LE MINI-BOSS, ET `QUARRY_XP_WORTH` S'EST
   CONVERTI.** Les quarante corps d'XP sont partis en **éclats** sur le mini-boss ;
   ils ne s'y sont pas ajoutés. `EV_CHASSE` est **redéfini, pas retiré** — son index

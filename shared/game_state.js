@@ -17,6 +17,10 @@ import {
 } from "./progression.js";
 import { ARME_EXIGENCE, RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import {
+  DECISION_NEUTRE, DIR_LEVIERS, appliquerDecision, contexteVide, coutType,
+  validerDecision, verifierTableDirector,
+} from "./director.js";
+import {
   LOOTS, LOOT_CFG, LOOT_RANGS, appliquerLoot, lootAt, lootIndex, rangTire,
   tirerLoot, verifierLoot,
 } from "./loot.js";
@@ -82,6 +86,7 @@ export {
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 };
 export { LOOTS, LOOT_CFG, LOOT_RANGS, lootAt, lootIndex, verifierLoot };
+export { DECISION_NEUTRE, DIR_LEVIERS, coutType, validerDecision, verifierTableDirector };
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
 export { EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE };
 export {
@@ -1179,6 +1184,14 @@ export class GameState {
     this.contrat = null;
     this.contratsFinis = 0;
     this.eliteKills = 0;
+
+    /* LA COUTURE DU DIRECTOR, ET ELLE EST NEUTRE TANT QU IL N EXISTE PAS.
+       `DECISION_NEUTRE` rend le battement du script A L IDENTIQUE — c est ce qui
+       garantit que `verifierScript` et `verifierPopulation` restent des verdicts
+       sur le SCRIPT pendant qu on construit ce qui va le plier. Le journal est
+       ce que le verificateur relit ; il est borne, comme les alertes. */
+    this.directorChoix = DECISION_NEUTRE;
+    this.directorLog = [];
 
     this.warmup = 0;
 
@@ -4097,15 +4110,55 @@ export class GameState {
     return ((this.segment - 1) * TL_CFG.SEGMENT_TIME + this.hordeTime) / 60;
   }
 
+  /* LE POINT DE PASSAGE UNIQUE DU BATTEMENT, ET DONC DU DIRECTOR. Tout ce qui
+     lit le script passe ici : l ouverture d evenement, le taux d apparition, la
+     geometrie, la composition. Un second accesseur « dirige » aurait laisse une
+     moitie du jeu lire le script brut et l autre le script plie — et la moitie
+     oubliee ne se serait vue nulle part.
+     LA DECISION EST PRISE AU BATTEMENT, PAS ICI : `_beat()` est appele plusieurs
+     fois par image, et decider dedans tirerait dans `this.alea` a chaque appel. */
   _beat() {
     const alive = Math.max(1, this.aliveCount());
     const c = this._beatCache;
     if (c && c.alive === alive && c.seg === this.segment && c.beat === this.beat) {
       return c.entry;
     }
-    const entry = adaptEntry(beatAt(this.diff.script, this.segment, this.beat), alive);
+    const brut = adaptEntry(beatAt(this.diff.script, this.segment, this.beat), alive);
+    const entry = appliquerDecision(brut, this.directorChoix);
     this._beatCache = { alive, seg: this.segment, beat: this.beat, entry };
     return entry;
+  }
+
+  /* CE QUE LE DIRECTOR REGARDE. Six grandeurs deja calculees, aucune collecte de
+     plus : trois viennent de `_tension()` (plan 32 lot 04), l indice de survie du
+     chargement, et deux de la salle.
+     LE TROISIEME COMPTEUR EST LE VRAI DECLENCHEUR D ENNUI : une tension basse dix
+     secondes n est rien, quatre-vingt-dix c est une manche plate. C est la DUREE
+     qui est le signal, pas la valeur. */
+  _contexteDirector() {
+    const c = contexteVide();
+    c.tensionMoy = this.tensionMoy ?? 0;
+    c.tensionMax = this.tensionMax ?? 0;
+    c.tensionBasT = this.tensionBasT ?? 0;
+    c.depuisElite = this.depuisElite ?? 0;
+    c.depuisEvent = this.depuisEvent ?? 0;
+    let som = 0, n = 0;
+    for (const p of this.players.values()) { som += p.survie ?? 1; n++; }
+    c.survie = n > 0 ? som / n : 1;
+    c.minute = this.hordeMinutes();
+    c.joueurs = Math.max(1, this.aliveCount());
+    c.corps = this.enemies.length;
+    return c;
+  }
+
+  /* LA COUTURE, ET RIEN DE PLUS POUR L INSTANT. Elle rend la decision NEUTRE :
+     le lot suivant remplace ce corps par une politique, et le verificateur qui
+     existe deja refusera toute decision hors de la liste fermee. Ecrire la
+     couture et son garde-fou AVANT la politique est le seul ordre qui empeche
+     une derive silencieuse — un Director sans contrat n a aucun moment ou l on
+     compare ce qu il fait a ce qu il a le droit de faire. */
+  _directorDecide() {
+    return DECISION_NEUTRE;
   }
 
   _startBeat() {
@@ -4113,6 +4166,22 @@ export class GameState {
     this.packLeft = 0;
     this._grouper();
     this.beatSide = Math.floor(this.alea() * 4);
+
+    /* UNE FOIS PAR BATTEMENT, ET AVANT TOUT CE QUI LIT LE BATTEMENT. Le cache
+       est vide dans la foulee : sans ca le premier lecteur du battement rendrait
+       l entree pliee par la decision PRECEDENTE. */
+    this.directorChoix = this._directorDecide();
+    this._beatCache = null;
+    this.directorLog.push({ seg: this.segment, beat: this.beat,
+                            t: Math.round(this.time * 10) / 10,
+                            d: this.directorChoix });
+    if (this.directorLog.length > 64) this.directorLog.shift();
+    const dec = this.directorChoix;
+    // L ELITE EN PLUS OU EN MOINS PASSE PAR SA CADENCE, jamais par un compteur
+    // parallele : `eliteCd` est deja le seul point qui decide quand une elite
+    // est due, et un second en ferait apparaitre deux fois.
+    if (dec.elite > 0) this.eliteCd = 0;
+    else if (dec.elite < 0) this.eliteCd += CFG.ELITE_MAX * (this.diff.elite ?? 1);
 
 
     for (const p of this.players.values()) p.relicMemoireUsed = 0;
@@ -4395,9 +4464,15 @@ export class GameState {
           this.spawnAccG[gi] = 0;
           break;
         }
+        /* L EVENEMENT PASSE DEVANT LA COMPOSITION DU DIRECTOR : un evenement
+           EST une composition imposee, et deux compositions au meme instant ne
+           font pas une composition, elles font un tirage que personne ne peut
+           lire. -1 laisse `_pickType` choisir, comme avant. */
         const type = ev && ev.types.length > 0
           ? ev.types[Math.floor(this.alea() * ev.types.length)]
-          : -1;
+          : (entry.types && entry.types.length > 0
+            ? entry.types[Math.floor(this.alea() * entry.types.length)]
+            : -1);
         const e = this._spawnEnemy(type, null, null, eliteDue, entry.geom, groupes[gi]);
         if (!e) break;
         parGroupe[gi]++;
@@ -11028,6 +11103,85 @@ function _teamPowerRef(mods) {
   return powerIndex(mods) / SUMMON_REF;
 }
 
+/* LE DIRECTOR NE SORT JAMAIS DE SA LISTE, ET CE VERIFICATEUR EXISTE AVANT LUI.
+
+   C EST TOUT L INTERET DE L ORDRE. Un Director ecrit d abord derive en silence :
+   il n existe aucun moment ou quelqu un compare ce qu il fait a ce qu il a le
+   droit de faire, et une decision de trop ressemble a un reglage. Ecrit APRES
+   son garde-fou, chacune de ses decisions est relue.
+
+   IL VALIDE LE JOURNAL, PAS LA POLITIQUE. Il ne dit rien de la qualite d une
+   decision — cette question appartient a la calibration — il dit qu aucune
+   decision n a touche autre chose que ses quatre leviers, et il le dit sur des
+   battements REELLEMENT joues, roster du mode compris.
+
+   ET IL VERIFIE QUE DEUX MANCHES DE MEME GRAINE DECIDENT PAREIL. Un Director qui
+   tirerait dans `Math.random` rendrait inutile tout ce que le plan 31 a
+   construit : la comparaison de deux reglages en mode custom, les criteres a
+   graines appariees, le compte rendu. */
+export function verifierDirector(minutes = 20, battements = 100) {
+  const soucis = [];
+  const jouer = (graine, joueurs) => {
+    const g = new GameState(DIFF_NORMAL, 0, graine);
+    for (let i = 1; i <= joueurs; i++) g.addPlayer(i, `bot${i}`, i - 1, i % CLASSES.length);
+    g.warmup = 0;
+    const vus = [];
+    const pil = pilotage();
+    const inputs = new Map();
+    const images = Math.round(minutes * 60 / CFG.TICK);
+    let n = 0;
+    for (let k = 0; k < images && vus.length < battements; k++) {
+      if (g.cardsPending) {
+        for (const [id, o] of g.cardOffers) {
+          const p = g.players.get(id);
+          if (p && o.length) g.takeCard(p, o[Math.floor(g.alea() * o.length)]);
+        }
+        g.cardsPending = false;
+        g.openNextScreen();
+        continue;
+      }
+      if (g.relicPending) { g.relicPending = false; g.openNextScreen(); continue; }
+      inputs.clear();
+      for (const p of g.players.values()) inputs.set(p.id, pil(g, p));
+      g.step(CFG.TICK, inputs);
+      for (const p of g.players.values()) { p.hp = p.maxHp; p.downed = false; p.revive = 0; }
+      if (!g.victory) g.gameOver = false;
+      if (g.directorLog.length !== n) {
+        for (let i = n; i < g.directorLog.length; i++) vus.push(g.directorLog[i]);
+        n = g.directorLog.length;
+      }
+      // le journal est borne : on relit ce qui vient d arriver, jamais l historique
+      if (n > 32) { g.directorLog.length = 0; n = 0; }
+    }
+    return { g, vus };
+  };
+
+  const a = jouer(7919, 2);
+  if (a.vus.length === 0) soucis.push("aucun battement joue : le journal est vide");
+
+  const roster = typesFor(a.g.diff);
+  for (const l of a.vus) {
+    const brut = adaptEntry(beatAt(a.g.diff.script, l.seg, l.beat),
+      Math.max(1, a.g.players.size));
+    for (const m of validerDecision(l.d, brut, roster)) {
+      soucis.push(`segment ${l.seg} battement ${l.beat} : ${m}`);
+    }
+  }
+
+  // MEME GRAINE, MEMES DECISIONS. On compare la SUITE, pas seulement la
+  // derniere : une divergence qui se resorbe reste une divergence.
+  const b = jouer(7919, 2);
+  const cle = v => v.map(l => `${l.seg}/${l.beat}/${JSON.stringify(l.d)}`).join("|");
+  if (cle(a.vus) !== cle(b.vus)) {
+    soucis.push("deux manches de meme graine ne prennent pas les memes decisions");
+  }
+  const c = jouer(4242, 2);
+  if (a.vus.length > 4 && cle(a.vus) === cle(c.vus) && a.g.directorChoix !== DECISION_NEUTRE) {
+    soucis.push("deux graines differentes prennent exactement les memes decisions");
+  }
+  return soucis;
+}
+
 /* LE LOOT AU SOL, ET LA DECISION QUI FAIT TOUT LE LOT : IL SE RAMASSE DE PRES.
 
    `pickupRadius` ET `pickupRadiusMul` SONT IGNORES, ET C EST LA PREMIERE CHOSE
@@ -11890,8 +12044,14 @@ export function verifierPopulation(minutes = 45, effectifs = [1, 2, 4], budgetMs
       }
       for (let s = 1; s < r.parSegment.length; s++) {
         if (r.parSegment[s] > 0 && r.parSegment[s] < r.parSegment[s - 1]) {
+          /* UNE DECIMALE, ET CE N EST PAS COSMETIQUE : arrondi a l entier, ce
+             message imprimait « 41 -> 41 », c est-a-dire un rouge dont le
+             libelle se contredit lui-meme. La baisse etait de deux dixiemes de
+             corps. Le seuil en dessous duquel une baisse est du bruit reste a
+             ecrire — meme defaut que `verifierEquilibreArmes` avant 0.38.3, et
+             il appartient a un lot d equilibrage, pas a celui-ci. */
           soucis.push(`${ou} : population en baisse au segment ${s + 1}`
-            + ` (${r.parSegment[s - 1].toFixed(0)} -> ${r.parSegment[s].toFixed(0)})`);
+            + ` (${r.parSegment[s - 1].toFixed(1)} -> ${r.parSegment[s].toFixed(1)})`);
         }
       }
       if (r.msP99 > budgetMs) {

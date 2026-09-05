@@ -8781,6 +8781,57 @@
                   ne sait exprimer l optimum « tout defensif », donc seul le compte
                   rendu de vraies manches peut la regler.
 
+   --- plan 36 : le Director -----------------------------------------------
+
+    0.39.0 lot 01 LA LISTE FERMEE DU DIRECTOR, ET SON VERIFICATEUR — ECRITS AVANT
+                  LE DIRECTOR. L ordre n est pas cosmetique : un Director ecrit
+                  d abord derive en SILENCE, parce qu il n existe aucun moment ou
+                  quelqu un compare ce qu il fait a ce qu il a le droit de faire,
+                  et une decision de trop ressemble a un reglage.
+                  QUATRE LEVIERS — composition, geometrie, elite, evenement — et
+                  RIEN D AUTRE. Le `rate` est le BUDGET, et `verifierScript()` en
+                  tient les sommes ; les PV, la vitesse et les degats sont les
+                  leviers de la DIFFICULTE, et les melanger rendrait un mode
+                  illisible ; la respiration est ecrite dans le script, et un
+                  Director qui pourrait OTER de la pression pourrait rendre une
+                  manche plus facile que ce qui est ecrit ; le plafond de
+                  population est une limite de MOTEUR.
+                  `validerDecision` NE RELIT PAS UNE LISTE D INTERDITS, ELLE
+                  COMPARE le battement avant et apres, champ par champ. Une liste
+                  d interdits se contourne en ajoutant un champ au script ; une
+                  comparaison protege les champs futurs sans que personne y pense.
+                  Le croisement va dans les DEUX SENS, et il a deja servi :
+                  `rateMul` figurait parmi les proteges alors qu il appartient aux
+                  EVENEMENTS et qu aucun battement ne le porte — proteger un champ
+                  qui n existe pas donne l illusion d une couverture.
+                  LE COUT D UN CORPS EST L INVERSE DE SON ABONDANCE, DONC IL N Y A
+                  RIEN A ECRIRE. `share` dit quelle part du plafond un type a le
+                  droit d occuper : fantassin 1,00, colosse 4,55, choeur 12,50. Une
+                  colonne de cout a cote de `share` serait un SECOND systeme
+                  d equilibrage a tenir d accord avec le premier.
+                  LA COUTURE EST NEUTRE, ET C EST CE QUI PROTEGE LES DEUX CRITERES.
+                  `DECISION_NEUTRE` rend le battement A L IDENTIQUE — pas une
+                  copie, le MEME OBJET — donc `verifierScript` et
+                  `verifierPopulation` restent des verdicts sur le SCRIPT pendant
+                  qu on construit ce qui va le plier. `_beat()` est le point de
+                  passage unique : un second accesseur « dirige » aurait laisse une
+                  moitie du jeu lire le script brut, et la moitie oubliee ne se
+                  serait vue nulle part. La decision se prend AU BATTEMENT et pas
+                  dans `_beat()`, qui est appele plusieurs fois par image.
+                  `verifierDirector` REJOUE CENT BATTEMENTS et relit le journal :
+                  aucune decision hors des quatre leviers, et deux manches de meme
+                  graine decident PAREIL — sinon tout ce que le plan 31 a construit
+                  ne sert a rien.
+                  RELEVE AU PASSAGE, ET IL N EST PAS DE CE LOT :
+                  `verifierPopulation(45, [1,2,4], 16)` etait DEJA rouge avant le
+                  plan 35 — treize problemes contre dix-sept aujourd hui, meme
+                  famille de plainte. Et son message se contredisait :
+                  « population en baisse (41 -> 41) », arrondi a l entier sur une
+                  baisse de deux dixiemes de corps. Le libelle est corrige ici ; le
+                  SEUIL en dessous duquel une baisse est du bruit est le meme
+                  defaut que `verifierEquilibreArmes` avant 0.38.3, et il appartient
+                  a un lot d equilibrage.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8789,4 +8840,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.38.3";
+export const VERSION = "0.39.0";
