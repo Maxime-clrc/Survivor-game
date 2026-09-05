@@ -429,10 +429,14 @@ const OBSTACLES = {
        ferait un goulot, et un goulot detruit le kiting : la horde s y accumule,
        le joueur tire dans un entonnoir. Trois ouvertures, aucune obligatoire. */
     { nom: "le mur", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
-      { x: 0.29, y: 0.50, w: 0.110, h: 0.040, kind: B_MUR },
-      { x: 0.33, y: 0.50, w: 0.110, h: 0.040, kind: B_MUR },
+      /* DEUX MURS QUI SE RECOUVRAIENT AUX TROIS MODES SONT UN MUR. 0,29 et 0,33
+         donnaient l emprise [0,235 ; 0,385] et deux habillages l un dans l autre ;
+         une seule entree de 0,150 donne EXACTEMENT la meme emprise, donc le meme
+         parcours et les memes breches, avec un seul contour. */
+      { x: 0.31, y: 0.50, w: 0.150, h: 0.040, kind: B_MUR },
+      // le tronçon de cauchemar PROLONGE celui de normal au lieu de le doubler.
       { x: 0.68, y: 0.50, w: 0.110, h: 0.040, kind: B_MUR, min: 1 },
-      { x: 0.71, y: 0.50, w: 0.110, h: 0.040, kind: B_MUR, min: 2 },
+      { x: 0.79, y: 0.50, w: 0.110, h: 0.040, kind: B_MUR, min: 2 },
       { x: 0.29, y: 0.44, w: 0.085, h: 0.070, kind: B_RUINE },
       { x: 0.71, y: 0.56, w: 0.085, h: 0.070, kind: B_RUINE },
       { x: 0.72, y: 0.16, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
@@ -449,25 +453,37 @@ const OBSTACLES = {
       { x: 0.27, y: 0.84, w: 0.045, h: 0.110, kind: B_RUINE },
       { x: 0.73, y: 0.16, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
       { x: 0.31, y: 0.11, w: 0.110, h: 0.040, kind: B_MUR },
-      { x: 0.70, y: 0.55, w: 0.110, h: 0.040, kind: B_MUR, min: 1 },
-      { x: 0.27, y: 0.48, w: 0.060, h: 0.048, kind: B_RUINE },
-      { x: 0.73, y: 0.52, w: 0.060, h: 0.048, kind: B_RUINE, min: 1 },
+      /* 0,70 -> 0,86 : ce mur se tenait DANS la ruine de 0,71 et la rayait sur
+         140 x 41 px. Il part au POURTOUR, qui est la loi de la variante — le
+         centre reste vide, et c est le seul endroit ou il ne croise rien. */
+      { x: 0.86, y: 0.55, w: 0.110, h: 0.040, kind: B_MUR, min: 1 },
+      // les deux petites ruines s ecartent des grandes de 10 px : elles les
+      // entamaient de 17 px en hauteur, sur 84 de large.
+      { x: 0.27, y: 0.51, w: 0.060, h: 0.048, kind: B_RUINE },
+      { x: 0.73, y: 0.49, w: 0.060, h: 0.048, kind: B_RUINE, min: 1 },
       { x: 0.29, y: 0.59, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE, min: 2 },
-      { x: 0.73, y: 0.14, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 2 },
+      // 0,73 -> 0,62 : elle etait POSEE DANS la ruine debout de 0,73.
+      { x: 0.62, y: 0.14, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 2 },
     ] },
     /* L EFFONDREMENT — des masses de toutes tailles, sans loi apparente. C est
        la variante qui n a pas de regle, et elle en a donc une : le contraste. */
     { nom: "l effondrement", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       { x: 0.30, y: 0.45, w: 0.110, h: 0.040, kind: B_MUR },
       { x: 0.71, y: 0.56, w: 0.085, h: 0.070, kind: B_RUINE },
-      { x: 0.34, y: 0.48, w: 0.045, h: 0.110, kind: B_RUINE },
+      /* 0,34 -> 0,44 : cette ruine DEBOUT tombait dans les deux murs a la fois
+         et dans la grande ruine de 0,29 — quatre superpositions a elle seule, le
+         pire point du depot. Le contraste de la variante ne demande pas qu elles
+         s empilent, il demande qu elles n aient pas la meme taille. */
+      { x: 0.44, y: 0.48, w: 0.045, h: 0.110, kind: B_RUINE },
       { x: 0.73, y: 0.14, w: 0.060, h: 0.048, kind: B_RUINE, min: 1 },
       { x: 0.29, y: 0.56, w: 0.085, h: 0.070, kind: B_RUINE, min: 1 },
       { x: 0.72, y: 0.40, w: 0.052, h: 0.086, kind: B_RUINE },
       { x: 0.28, y: 0.66, w: 0.052, h: 0.086, kind: B_RUINE, min: 2 },
-      { x: 0.71, y: 0.59, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
+      // les deux carcasses etaient DANS la grande ruine de 0,71 : l une descend
+      // sous elle, l autre part a l est.
+      { x: 0.71, y: 0.65, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
       { x: 0.28, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE, min: 1 },
-      { x: 0.73, y: 0.50, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 2 },
+      { x: 0.83, y: 0.50, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 2 },
       { x: 0.33, y: 0.50, w: 0.110, h: 0.040, kind: B_MUR, min: 2 },
     ] },
   ],
@@ -517,8 +533,13 @@ const OBSTACLES = {
        La seule variante ASYMETRIQUE du theme : le miroir de cellule en fait une
        loi qui change de cote d une region a l autre, sans table de plus. */
     { nom: "la breche", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_MUR], poser: [
-      { x: 0.13, y: 0.24, w: 0.145, h: 0.150, kind: B_FRAGMENT },
-      { x: 0.13, y: 0.76, w: 0.145, h: 0.150, kind: B_FRAGMENT, min: 1 },
+      /* 0,13 -> 0,26 : LA TRAVEE PASSAIT A TRAVERS LES DEUX FRAGMENTS, 32 px sur
+         86 — une poutre dessinee DANS la roche, aux trois modes et a toutes les
+         graines. Elle ne bouge pas, elle : sa position tient d une passe a
+         cinquante graines sur la fermeture du carre central. Les fragments
+         s ecartent, et l ecart vaut 92 px, donc plus que `PASSAGE_MIN`. */
+      { x: 0.26, y: 0.24, w: 0.145, h: 0.150, kind: B_FRAGMENT },
+      { x: 0.26, y: 0.76, w: 0.145, h: 0.150, kind: B_FRAGMENT, min: 1 },
       /* UNE SEULE TRAVEE, ET C EST LA PASSE A CINQUANTE GRAINES QUI L A DIT.
          Deux travees a 0,12 et 0,40 fermaient le carre central en cauchemar une
          graine sur QUATRE — treize sur cinquante — parce que la cellule voisine
@@ -527,9 +548,11 @@ const OBSTACLES = {
          milliers, et c est la mesure qui a change, pas le lieu. */
       { x: 0.12, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE },
       { x: 0.40, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
-      { x: 0.26, y: 0.16, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
-      { x: 0.26, y: 0.84, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 1 },
-      { x: 0.44, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
+      // 0,26 -> 0,38 : les fragments ont pris cette place.
+      { x: 0.38, y: 0.16, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
+      { x: 0.38, y: 0.84, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 1 },
+      // 0,44 -> 0,48 : deux debris a 0,40 et 0,44 se touchaient sur 3 px.
+      { x: 0.48, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
       { x: 0.44, y: 0.70, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
     ] },
   ],
@@ -931,20 +954,32 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   const obstacles = [];
   const kDefaut = blocsDe(def.key)[0] ?? 0;
   let obsArea = 0;
+  /* LE TREMBLEMENT DE LA FRICHE EST PAR CELLULE, PAS PAR OBSTACLE. Tire par
+     objet, il rapprochait deux voisins de 80 px au pire — plus que l ecart de la
+     plupart des paires d un champ de ruines, qui est dense par definition. Sur
+     40 graines x 3 modes il produisait 19 318 paires de blocs qui se traversent,
+     dont 176 x 36 px : le seul lieu du depot ou deux habillages se dessinaient
+     l un dans l autre en permanence.
+     Par CELLULE, l ecart entre deux blocs d une meme variante ne bouge plus
+     JAMAIS — la table redevient le seul endroit ou une superposition peut
+     naitre, donc le seul a verifier. Ce qu on perd est le desordre a l interieur
+     d une cellule ; ce qu on garde est la desynchronisation entre cellules, qui
+     est ce qui casse la grille de 1600 x 900, la seule qui se voie. */
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
       const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
+      const j = def.key === "friche" ? 40 : 0;
+      const jx = (rand() - 0.5) * 2 * j, jy = (rand() - 0.5) * 2 * j;
       for (const o of varis[choix[cy * cols + cx]].poser) {
         if ((o.min ?? 0) > diffIndex) continue;
-        const j = def.key === "friche" ? 40 : 0;
         const w = o.w * cw, h = o.h * ch;
         const area = w * h;
         if ((obsArea + area) / surface > BIOME_CFG.OBSTACLE_SURFACE_MAX) continue;
         obsArea += area;
         const fx = mx ? 1 - o.x : o.x, fy = my ? 1 - o.y : o.y;
         obstacles.push({
-          x: cx * cw + fx * cw + (rand() - 0.5) * 2 * j,
-          y: cy * ch + fy * ch + (rand() - 0.5) * 2 * j,
+          x: cx * cw + fx * cw + jx,
+          y: cy * ch + fy * ch + jy,
           w, h,
           kind: o.kind ?? kDefaut,
           maxHp: o.hp ? BIOME_CFG.COVER_HP : 0,
@@ -1375,6 +1410,93 @@ export function verifierBiomes(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
         if (chevauche > 0) {
           soucis.push(`${ou} : ${chevauche} danger(s) poses sur un obstacle`);
         }
+      }
+    }
+  }
+  return soucis;
+}
+
+/* DEUX BLOCS NE SE TRAVERSENT PAS, ET RIEN NE LE REGARDAIT.
+
+   Une superposition ne leve RIEN : la collision est une AABB, deux AABB qui se
+   recouvrent bornent exactement comme leur union, et la navigation lit les memes
+   rectangles. Ce qui se voit est le DESSIN — `silhouetteBloc` remplit son rectangle
+   et `contourDe` le cerne, donc le second habillage se pose en decale sur le corps
+   du premier, et ca ressemble a une erreur de rendu. C est exactement comme ca que
+   le defaut est remonte : par une capture d ecran, pas par un verificateur.
+
+   IL SE MESURE SUR L ARENE REELLE, pas sur la table. Trois choses ne se lisent pas
+   dans `OBSTACLES` : le miroir de cellule, le tremblement de la Friche, et le
+   voisinage entre deux cellules. On construit donc les arenes et on compare les
+   blocs poses, en seaux de cellule — sans quoi c est du n^2 sur 700 blocs.
+
+   La tolerance est de 1 px : deux blocs qui se TOUCHENT sont une masse plus longue,
+   et c est une figure legitime — le mur de la Friche est fait comme ca. */
+const SUPERPOSE_TOL = 1;
+
+function compteSuperpositions(b, cols, rows, cw, ch) {
+  const seaux = new Map();
+  const o = b.obstacles;
+  for (let i = 0; i < o.length; i++) {
+    const cx = Math.min(cols - 1, Math.max(0, Math.floor(o[i].x / cw)));
+    const cy = Math.min(rows - 1, Math.max(0, Math.floor(o[i].y / ch)));
+    const k = cy * cols + cx;
+    const s = seaux.get(k);
+    if (s) s.push(i); else seaux.set(k, [i]);
+  }
+  const VOISINS = [[0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+  let n = 0, pire = null;
+  for (const [k, ids] of seaux) {
+    const cx = k % cols, cy = (k / cols) | 0;
+    for (const [dx, dy] of VOISINS) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || nx >= cols || ny >= rows) continue;
+      const autres = seaux.get(ny * cols + nx);
+      if (!autres) continue;
+      const meme = dx === 0 && dy === 0;
+      for (const i of ids) {
+        for (const j of autres) {
+          if (meme && j <= i) continue;
+          const a = o[i], c = o[j];
+          const ox = Math.min(a.x + a.w / 2, c.x + c.w / 2) - Math.max(a.x - a.w / 2, c.x - c.w / 2);
+          if (ox <= SUPERPOSE_TOL) continue;
+          const oy = Math.min(a.y + a.h / 2, c.y + c.h / 2) - Math.max(a.y - a.h / 2, c.y - c.h / 2);
+          if (oy <= SUPERPOSE_TOL) continue;
+          n++;
+          if (!pire || ox * oy > pire.ox * pire.oy) {
+            pire = { ox, oy, a: blocAt(a.kind).key, b: blocAt(c.kind).key };
+          }
+        }
+      }
+    }
+  }
+  return { n, pire };
+}
+
+export function verifierSuperpositions(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
+                                       viewW = 1600, viewH = 900) {
+  const soucis = [];
+  const cols = Math.max(1, Math.round(arenaW / viewW));
+  const rows = Math.max(1, Math.round(arenaH / viewH));
+  const cw = arenaW / cols, ch = arenaH / rows;
+  const modes = ["calme", "normal", "cauchemar"];
+  for (let bi = 0; bi < BIOMES.length; bi++) {
+    for (let di = 0; di < 3; di++) {
+      // le PIRE cas par (lieu, mode), pas une ligne par graine : cinquante
+      // graines d un meme defaut de table donnent cinquante fois la meme phrase.
+      let total = 0, pire = null, ou = "";
+      for (const seed of seeds) {
+        const b = buildBiome(bi, di, seed, arenaW, arenaH, viewW, viewH);
+        const r = compteSuperpositions(b, cols, rows, cw, ch);
+        total += r.n;
+        if (r.pire && (!pire || r.pire.ox * r.pire.oy > pire.ox * pire.oy)) {
+          pire = r.pire; ou = `graine ${seed}`;
+        }
+      }
+      if (total > 0) {
+        soucis.push(`${BIOMES[bi].key}/${modes[di]} : ${total} paire(s) de blocs qui se`
+          + ` traversent sur ${seeds.length} graines — pire ${pire.a}/${pire.b} a`
+          + ` ${Math.round(pire.ox)} x ${Math.round(pire.oy)} px (${ou})`);
       }
     }
   }

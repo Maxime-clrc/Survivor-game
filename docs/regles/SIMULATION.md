@@ -508,6 +508,33 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   cauchemar, où `GEOM_CAUCHEMAR` mappe `pince → quatre-fronts`.
 - **La grille se refait quand une couverture cède** (`_obstacleHit`), et
   seulement là : la géométrie de biome ne bouge pas autrement.
+- **DEUX BLOCS NE SE TRAVERSENT PAS, ET ÇA NE LÈVE RIEN — donc ça se mesure.**
+  La collision est une AABB : deux AABB qui se recouvrent bornent exactement
+  comme leur union, et la navigation lit les mêmes rectangles. Ce qui se voit est
+  le **dessin** — `silhouetteBloc` remplit son rectangle et `contourDe` le cerne,
+  donc le second habillage se pose en décalé sur le corps du premier, et ça
+  ressemble à une erreur de rendu. Le défaut est remonté par une **capture
+  d'écran**, avec 41 vérificateurs verts.
+  `verifierSuperpositions()` construit les arènes et compare les blocs posés, en
+  seaux de cellule. **Sur l'arène réelle, jamais sur la table** : le miroir de
+  cellule, le tremblement de la Friche et le voisinage entre deux cellules n'y
+  sont pas. Tolérance 1 px — deux blocs qui se **touchent** sont une masse plus
+  longue, et c'est une figure légitime (le mur de la Friche est fait comme ça).
+  Relevé avant correction : Usine, Fonderie et Secteur à **zéro**, Friche à
+  **19 318 paires** sur 40 graines × 3 modes, Nébuleuse à 2 814.
+- **LE TREMBLEMENT DE LA FRICHE EST PAR CELLULE, PAS PAR OBSTACLE.** Tiré par
+  objet, il rapprochait deux voisins de **80 px** au pire — plus que l'écart de
+  la plupart des paires d'un champ de ruines, qui est dense par définition ; il
+  produisait à lui seul 8 des 15 formes de superposition du lieu. Par cellule,
+  l'écart entre deux blocs d'une même variante **ne bouge plus**, donc la table
+  redevient le seul endroit où une superposition peut naître. On perd le désordre
+  *dans* une cellule, on garde la désynchronisation *entre* cellules — la seule
+  qui casse une grille de 1600 × 900, la seule qui se voie.
+- **DEUX ENTRÉES IDENTIQUES QUI SE RECOUVRENT AUX TROIS MODES SONT UNE ENTRÉE.**
+  Le mur de la Friche était deux `B_MUR` à 0,29 et 0,33 : même emprise qu'un seul
+  de 0,150 à 0,31, et deux contours. Quand les `min` **diffèrent**, c'est
+  l'inverse : le tronçon du mode supérieur doit **prolonger** celui d'en dessous,
+  pas le doubler.
 - **UN LIEU A DES QUARTIERS, ET UN QUARTIER SE TRAVERSE.** La variante
   d'implantation était tirée **par cellule** : sur les 81 cellules d'une arène,
   **45 à 48 amas de 1,8 cellule**. On changeait de loi tous les deux écrans —

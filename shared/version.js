@@ -9434,6 +9434,51 @@
                   seule et qu aucune ligne n annonce se lit comme un bug — c est
                   le rapport qu on vient de recevoir. Le resume porte desormais
                   les deux chiffres, FR et EN.
+    0.40.16 lot 17 LES CINQ LIEUX PASSES AU CRIBLE : PLUS AUCUN BLOC N EN
+                  TRAVERSE UN AUTRE, ET UN VERIFICATEUR LE TIENT.
+                  UNE SUPERPOSITION NE LEVE RIEN. La collision est une AABB :
+                  deux AABB qui se recouvrent bornent exactement comme leur
+                  union, et la navigation lit les memes rectangles. Ce qui se
+                  voit est le DESSIN — `silhouetteBloc` remplit son rectangle et
+                  `contourDe` le cerne, donc le second habillage se pose en
+                  decale sur le corps du premier. Le defaut est remonte par une
+                  CAPTURE D ECRAN, avec quarante verificateurs verts.
+                  RELEVE AVANT CORRECTION, 40 graines x 3 modes sur l arene
+                  reelle : Usine 0, Secteur 0, Fonderie 0 (corrigee en 0.40.13),
+                  Nebuleuse 2 814 paires, Friche 19 318.
+                  LE TREMBLEMENT DE LA FRICHE ETAIT LA MOITIE DU PROBLEME. Tire
+                  PAR OBSTACLE, il rapprochait deux voisins de 80 px au pire —
+                  plus que l ecart de la plupart des paires d un champ de ruines,
+                  qui est dense par definition. Il passe PAR CELLULE : l ecart
+                  entre deux blocs d une meme variante ne bouge plus, donc la
+                  table redevient le seul endroit ou une superposition peut
+                  naitre. On perd le desordre DANS une cellule, on garde la
+                  desynchronisation ENTRE cellules — la seule qui casse une
+                  grille de 1600 x 900, la seule qui se voie.
+                  L AUTRE MOITIE ETAIT DANS LES TABLES, onze paires a la Friche
+                  et trois a la Nebuleuse. Deux entrees identiques qui se
+                  recouvrent AUX TROIS MODES sont une entree : le mur de « le
+                  mur » etait deux `B_MUR` a 0,29 et 0,33, il devient un seul de
+                  0,150 a 0,31 — MEME EMPRISE, meme parcours, memes breches, un
+                  seul contour. Quand les `min` different c est l inverse : le
+                  tronçon du mode superieur PROLONGE celui d en dessous (0,71 ->
+                  0,79) au lieu de le doubler.
+                  Le reste est du deplacement : la ruine debout de « l
+                  effondrement » tombait dans les deux murs ET dans une grande
+                  ruine — quatre superpositions a elle seule —, et la travee de
+                  « la breche » traversait ses deux fragments sur 32 x 86 px a
+                  toutes les graines. La travee ne bouge pas, elle : sa position
+                  tient d une passe a cinquante graines sur la fermeture du carre
+                  central. Ce sont les fragments qui s ecartent, de 92 px, donc
+                  plus que `PASSAGE_MIN`.
+                  `verifierSuperpositions()` CONSTRUIT LES ARENES, il ne lit pas
+                  la table : le miroir de cellule, le tremblement et le voisinage
+                  entre deux cellules n y sont pas. Seaux de cellule, 50 graines
+                  x 5 lieux x 3 modes en 0,1 s. Tolerance 1 px — deux blocs qui
+                  se TOUCHENT sont une masse plus longue, figure legitime.
+                  Les onze autres verificateurs de terrain restent verts :
+                  signatures de variante, lois de lieu, monotonie des modes,
+                  carre central traversable, passages, navigation.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9443,4 +9488,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.15";
+export const VERSION = "0.40.16";

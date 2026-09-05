@@ -62,7 +62,7 @@ npm start                 # serveur sur le port 7777
 PORT=8123 node server.js
 node --check server.js    # pas de linter dans le projet
 npm run version-check     # refuse un deploiement sans bump
-npm run verif             # LA SUITE : 22 verificateurs de table, < 1 s
+npm run verif             # LA SUITE : 41 verificateurs de table, < 1 s
 npm run verif-tout        # + les campagnes simulees, ~20 min
 npm run constantes-check  # une constante de CFG sans lecteur
 ```

@@ -154,6 +154,13 @@ const SUITE = [
      peut pas lire `CFG` — et verifiait donc l assemblage d une arene que le jeu
      ne construit plus depuis 0.40.1. */
   ["variantes", () => B2.verifierVariantes(50, CFG.ARENA_W, CFG.ARENA_H)],
+  /* MEME TAILLE REELLE, ET POUR UNE RAISON DE PLUS : le miroir de cellule, le
+     tremblement de la Friche et le voisinage entre cellules ne se lisent pas
+     dans la table. Une superposition de blocs ne leve rien — elle se voit, sur
+     une capture d ecran, et c est comme ca qu elle est remontee. */
+  ["superpositions", () => B2.verifierSuperpositions(
+    Array.from({ length: 50 }, (_, i) => i * 7 + 1),
+    CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H)],
   ["districts", () => B2.verifierDistricts(60,
     Math.round(CFG.ARENA_W / CFG.VIEW_W), Math.round(CFG.ARENA_H / CFG.VIEW_H))],
   /* LA LARGEUR DE PASSAGE, SUR TOUTE LA REGION ET SUR DES GRAINES. Le
