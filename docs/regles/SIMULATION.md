@@ -109,6 +109,29 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   le bouclier et relève les joueurs à terre, rien d'autre. On ne l'introduit pas,
   on la **préserve** : sans elle, partir chercher un objectif pendant qu'un autre
   farme ne coûte rien à personne, et l'arbitrage n'existe pas.
+- **UNE ÉQUIPE EN DIFFICULTÉ EST UN ACCIDENT, UN JOUEUR QUI S'ISOLE EST UNE
+  DÉCISION.** Le Director soulage le premier et pas le second. Sans cette règle,
+  tout le lot 04 du plan 31 est annulé : le joueur isolé a une tension élevée, le
+  Director la lit comme une surcharge, et il **adoucit** la composition —
+  exactement l'inverse de l'effet voulu. Aucune contradiction avec « ne jamais
+  punir un joueur qui joue bien » : on ne lui ajoute rien, on **s'abstient de lui
+  retirer** ce qu'il a choisi d'affronter.
+- **LE CAS LIMITE EST TRANCHÉ PAR L'EFFECTIF VIVANT, PAS PAR CELUI DU GROUPE** :
+  un joueur seul parce que les trois autres sont morts n'a rien choisi.
+- **DEUX AGRÉGATS ET PAS UN, ET C'EST UN ÉCART ASSUMÉ AVEC LEFT 4 DEAD.**
+  `tensionMax` dit « trop haut » — un joueur qui se noie est une tension même si
+  les trois autres s'ennuient ; `tensionMoy` dit « trop bas » — l'ennui est un état
+  **collectif**. Jamais les deux en même temps, et la surcharge passe devant.
+- **LA RESPIRATION EST ÉCRITE DANS LE SCRIPT, ET LE DIRECTOR S'EFFACE DEVANT.**
+  Elle se **déduit** — un battement dont le taux retombe par rapport au précédent
+  en est une, seg 2 passe de 1,6 à 1,2 — plutôt que de se déclarer dans une colonne
+  qu'il faudrait tenir d'accord avec les taux. Un Director qui durcirait un
+  battement de répit ne ferait pas une manche plus intéressante, il **retirerait le
+  répit**, et un rythme sans creux n'est plus un rythme.
+- **L'ENNUI ÉPUISE LES LEVIERS DE FORME AVANT TOUT LEVIER DE QUANTITÉ**, et c'est
+  ce qui garantit qu'une équipe forte reçoit une manche plus **intéressante** et non
+  une manche plus **longue**. Le budget ne bouge pas : `rate` n'est pas dans la
+  liste, et le vérificateur le mesure sur les deux états et sur chaque géométrie.
 - **LE DIRECTOR A UNE LISTE FERMÉE, ET ELLE EST ÉCRITE AVANT LUI.** Quatre
   leviers — composition, géométrie, élite, événement — et **rien d'autre** : le
   `rate` est le budget que `verifierScript()` tient, les PV/vitesse/dégâts sont les

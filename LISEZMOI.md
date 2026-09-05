@@ -8,6 +8,30 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le Director sort de « normal », et il en sort assez, plan 36 (0.39.1)
+
+`sim/etats.mjs`. Deux manches par case, `pilotage()`, 25 minutes simulées, chaque
+battement journalisé avec son état.
+
+| cas | battements | normal | ennui | surcharge | tension moyenne |
+|---|---:|---:|---:|---:|---:|
+| calme / 1 j | 39 | 26 | 10 | 3 | 0,120 |
+| normal / 1 j | 30 | 19 | 6 | 5 | 0,228 |
+| normal / 4 j | 35 | 20 | 9 | 6 | 0,161 |
+| cauchemar / 2 j | 36 | 31 | 1 | 4 | 0,264 |
+
+**C'est le relevé qui dit que le système n'est pas décoratif** : un Director qui
+resterait en « normal » rendrait son vérificateur vide de sens — il validerait des
+décisions neutres. Un tiers des battements sort de l'état neutre en calme, un sur
+huit en cauchemar, et la direction est la bonne : **l'ennui disparaît quand la
+tension monte**, 10 battements sur 39 à tension moyenne 0,120 contre 1 sur 36 à
+0,264.
+
+**Les seuils ne sont pas calibrés, et c'est écrit.** `ENNUI_T = 75 s` et
+`SURCHARGE = 0,82` sont des défauts raisonnés. Le lot 03 du plan les règle sur les
+courbes de tension accumulées **en vraies parties** — il ne peut pas le faire avant
+qu'il y en ait, et aucun bot ne remplace ça.
+
 ### Les deux instruments d'équilibrage ne mesuraient pas ce qu'ils annonçaient, plan 35 (0.38.3)
 
 **5 septembre 2026.** Ce lot devait recalibrer contre le loot. Il a d'abord dû

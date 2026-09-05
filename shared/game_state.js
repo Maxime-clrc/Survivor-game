@@ -17,7 +17,8 @@ import {
 } from "./progression.js";
 import { ARME_EXIGENCE, RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
 import {
-  DECISION_NEUTRE, DIR_LEVIERS, appliquerDecision, contexteVide, coutType,
+  DECISION_NEUTRE, DIR_CFG, DIR_ENNUI, DIR_LEVIERS, DIR_NORMAL, DIR_SURCHARGE,
+  GEOM_ORDRE, appliquerDecision, contexteVide, coutType, decider, etatDe,
   validerDecision, verifierTableDirector,
 } from "./director.js";
 import {
@@ -54,7 +55,7 @@ import {
   BOSS_FINAL, BOSS_POOL_COUNT, BOSS_POOL, estFinal, finalPour,
 } from "./bosses.js";
 import {
-  TL_CFG, SCRIPTS, EVENTS, beatAt, adaptEntry, adaptEvent, eventAt, verifierScript,
+  TL_CFG, SCRIPTS, EVENTS, GEOMETRIES, beatAt, adaptEntry, adaptEvent, eventAt, verifierScript,
   EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE,
   CONTRATS, RARETES, OBJ_KILLS, OBJ_ELITES, OBJ_TENIR, OBJ_ZONE,
 } from "./timeline.js";
@@ -86,7 +87,8 @@ export {
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 };
 export { LOOTS, LOOT_CFG, LOOT_RANGS, lootAt, lootIndex, verifierLoot };
-export { DECISION_NEUTRE, DIR_LEVIERS, coutType, validerDecision, verifierTableDirector };
+export { DECISION_NEUTRE, DIR_CFG, DIR_ENNUI, DIR_LEVIERS, DIR_NORMAL, DIR_SURCHARGE };
+export { GEOM_ORDRE, coutType, decider, etatDe, validerDecision, verifierTableDirector };
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
 export { EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE };
 export {
@@ -1191,6 +1193,7 @@ export class GameState {
        sur le SCRIPT pendant qu on construit ce qui va le plier. Le journal est
        ce que le verificateur relit ; il est borne, comme les alertes. */
     this.directorChoix = DECISION_NEUTRE;
+    this.directorEtat = DIR_NORMAL;
     this.directorLog = [];
 
     this.warmup = 0;
@@ -4148,17 +4151,44 @@ export class GameState {
     c.minute = this.hordeMinutes();
     c.joueurs = Math.max(1, this.aliveCount());
     c.corps = this.enemies.length;
+    /* LES DEUX GRANDEURS DE LA REGLE MORALE. `separe` vient de `_grouper()`, que
+       le plan 31 lot 04 a laisse LISIBLE DEPUIS L ETAT precisement pour que ce
+       test soit possible ici. `vivants` tranche le cas limite : un joueur seul
+       parce que les trois autres sont morts n a rien choisi. */
+    c.separe = (this.groupes?.length ?? 1) > 1;
+    c.vivants = c.joueurs;
+    /* LA RESPIRATION SE DEDUIT DU SCRIPT ET NE S Y DECLARE PAS : un battement
+       dont le taux RETOMBE par rapport au precedent en est une — seg 2 passe de
+       1,6 a 1,2, seg 5 de 3,8 a 2,7. Une colonne « respiration » serait une
+       seconde source de verite a tenir d accord avec les taux. */
+    if (this.beat > 0) {
+      const av = beatAt(this.diff.script, this.segment, this.beat - 1);
+      const ici = beatAt(this.diff.script, this.segment, this.beat);
+      c.respire = !!av && !!ici && ici.rate < av.rate;
+    }
     return c;
   }
 
-  /* LA COUTURE, ET RIEN DE PLUS POUR L INSTANT. Elle rend la decision NEUTRE :
-     le lot suivant remplace ce corps par une politique, et le verificateur qui
-     existe deja refusera toute decision hors de la liste fermee. Ecrire la
-     couture et son garde-fou AVANT la politique est le seul ordre qui empeche
-     une derive silencieuse — un Director sans contrat n a aucun moment ou l on
-     compare ce qu il fait a ce qu il a le droit de faire. */
+  /* LA COUTURE, ET ELLE PORTE MAINTENANT UNE POLITIQUE. La liste fermee et son
+     validateur ont ete ecrits au lot precedent, donc chacune de ces decisions
+     est relue par `verifierDirector` : c est le seul ordre qui empeche une
+     derive silencieuse.
+     `decider` EST PURE ET NE LIT QUE LE CONTEXTE. Le tirage passe par
+     `this.alea`, donc deux manches de meme graine decident pareil — sans quoi
+     la comparaison de deux reglages en mode custom ne veut plus rien dire. */
   _directorDecide() {
-    return DECISION_NEUTRE;
+    const r = decider(this._contexteDirector(), this._beatBrut(),
+      typesFor(this.diff), this.alea);
+    this.directorEtat = r.etat;
+    return r.d;
+  }
+
+  // LE BATTEMENT AVANT DECISION. `decider` a besoin de la geometrie ECRITE pour
+  // en choisir une plus exigeante : lui passer le battement deja plie ferait
+  // monter l echelle d un cran a chaque battement.
+  _beatBrut() {
+    return adaptEntry(beatAt(this.diff.script, this.segment, this.beat),
+      Math.max(1, this.aliveCount()));
   }
 
   _startBeat() {
@@ -4174,7 +4204,7 @@ export class GameState {
     this._beatCache = null;
     this.directorLog.push({ seg: this.segment, beat: this.beat,
                             t: Math.round(this.time * 10) / 10,
-                            d: this.directorChoix });
+                            etat: this.directorEtat, d: this.directorChoix });
     if (this.directorLog.length > 64) this.directorLog.shift();
     const dec = this.directorChoix;
     // L ELITE EN PLUS OU EN MOINS PASSE PAR SA CADENCE, jamais par un compteur
@@ -11101,6 +11131,103 @@ export function verifierDefense(tirages = 20000) {
 // la puissance d equipe telle que le boss la lit, sur un chargement donne
 function _teamPowerRef(mods) {
   return powerIndex(mods) / SUMMON_REF;
+}
+
+/* LA REGLE MORALE DU DIRECTOR, ET ELLE SE MESURE SUR L ETAT, PAS SUR LE CODE.
+
+   UNE EQUIPE EN DIFFICULTE EST UN ACCIDENT, UN JOUEUR QUI S ISOLE EST UNE
+   DECISION. Le Director soulage le premier et pas le second. Sans cette regle,
+   tout le lot 04 du plan 31 est annule : le joueur isole a une tension elevee,
+   le Director la lit comme une surcharge, et il ADOUCIT la composition —
+   exactement l inverse de l effet voulu.
+   ET LE CAS LIMITE EST TRANCHE PAR L EFFECTIF VIVANT : un joueur seul parce que
+   les trois autres sont morts n a rien choisi, donc il est soulage. C est
+   `vivants` qui decide, pas la taille du groupe.
+
+   ON PILOTE LE CONTEXTE A LA MAIN, ET C EST LA BONNE FACON : `etatDe` est pure,
+   donc la mesurer sur une manche simulee ferait dependre le verdict de la
+   capacite du pilote a se noyer. Ce qu on verifie est la REGLE, pas le banc. */
+export function verifierEtatsDirector() {
+  const soucis = [];
+  const ctx = (o) => ({ ...contexteVide(), ...o });
+  const haut = DIR_CFG.SURCHARGE + 0.05;
+
+  // 1 · UNE EQUIPE ENTIERE EN DIFFICULTE : on la soulage.
+  if (etatDe(ctx({ tensionMax: haut, vivants: 4, separe: false })) !== DIR_SURCHARGE) {
+    soucis.push("une equipe groupee en difficulte n entre pas en surcharge");
+  }
+
+  // 2 · UN JOUEUR QUI S EST ISOLE : on ne le soulage pas.
+  if (etatDe(ctx({ tensionMax: haut, vivants: 4, separe: true })) === DIR_SURCHARGE) {
+    soucis.push("le Director vient au secours d un groupe qui s est isole");
+  }
+
+  // 3 · LE DERNIER SURVIVANT N A RIEN CHOISI, donc il est soulage — meme si
+  // l etat le voit « separe », puisqu il n y a plus personne dont se separer.
+  if (etatDe(ctx({ tensionMax: haut, vivants: 1, separe: true })) !== DIR_SURCHARGE) {
+    soucis.push("le dernier survivant est traite comme un joueur qui s isole");
+  }
+
+  // 4 · L ENNUI EST COLLECTIF ET IL SE COMPTE EN TEMPS.
+  if (etatDe(ctx({ tensionBasT: DIR_CFG.ENNUI_T + 1 })) !== DIR_ENNUI) {
+    soucis.push("une tension basse prolongee ne declenche pas l ennui");
+  }
+  if (etatDe(ctx({ tensionBasT: DIR_CFG.ENNUI_T - 10 })) !== DIR_NORMAL) {
+    soucis.push("une tension basse courte declenche deja l ennui");
+  }
+
+  // 5 · JAMAIS LES DEUX EN MEME TEMPS. La surcharge passe devant : un joueur qui
+  // se noie pendant que les autres s ennuient est d abord un joueur qui se noie.
+  const deux = etatDe(ctx({ tensionMax: haut, tensionBasT: DIR_CFG.ENNUI_T + 60,
+                            vivants: 2, separe: false }));
+  if (deux !== DIR_SURCHARGE) soucis.push("ennui et surcharge simultanes : la surcharge ne passe pas devant");
+
+  /* 6 · L ENNUI EPUISE LA FORME AVANT LA QUANTITE, ET LA SURCHARGE NE RETIRE
+     JAMAIS DE CORPS. Le compte est le budget, et le budget appartient au
+     script : aucun etat ne doit ecrire `rate`. On le mesure sur les DEUX etats
+     et sur chaque geometrie du script, parce que c est le seul endroit ou la
+     promesse « a budget CONSTANT » se verifie. */
+  const g = new GameState(DIFF_NORMAL, 0, 7919);
+  g.addPlayer(1, "bot", 0, 0);
+  const roster = typesFor(g.diff);
+  for (const geom of GEOMETRIES) {
+    const entry = { rate: 3.3, geom };
+    for (const c of [ctx({ tensionMax: haut, vivants: 2, separe: false }),
+                     ctx({ tensionBasT: DIR_CFG.ENNUI_T + 5 })]) {
+      const r = decider(c, entry, roster, g.alea);
+      const m = validerDecision(r.d, entry, roster);
+      if (m.length > 0) soucis.push(geom + " : " + m.join(", "));
+      const apres = appliquerDecision(entry, r.d);
+      if (apres.rate !== entry.rate) {
+        soucis.push(geom + " : l etat " + r.etat + " deplace le rate ("
+          + entry.rate + " -> " + apres.rate + ")");
+      }
+      if (r.etat === DIR_ENNUI && !(r.d.types && r.d.types.length > 0)) {
+        soucis.push(geom + " : l ennui ne touche pas a la composition");
+      }
+    }
+  }
+
+  /* 7 bis · LE DIRECTOR S EFFACE DEVANT UNE RESPIRATION, quel que soit l etat
+     que la tension appellerait. Un rythme sans creux n est plus un rythme. */
+  for (const c of [{ tensionMax: haut, vivants: 2, separe: false },
+                   { tensionBasT: DIR_CFG.ENNUI_T + 60 }]) {
+    const r = decider(ctx({ ...c, respire: true }), { rate: 2.1, geom: "bords" },
+      roster, g.alea);
+    if (r.etat !== DIR_NORMAL) soucis.push("le Director agit pendant une respiration");
+    if (r.d !== DECISION_NEUTRE) soucis.push("une respiration ne rend pas la decision neutre");
+  }
+
+  /* 7 · L ENNUI DURCIT LA GEOMETRIE, IL NE L ADOUCIT JAMAIS. C est la moitie de
+     « a budget constant » : si le seul levier restant etait la quantite, une
+     equipe forte recevrait une manche plus LONGUE et non plus interessante. */
+  for (let i = 0; i < GEOM_ORDRE.length - 1; i++) {
+    const r = decider(ctx({ tensionBasT: DIR_CFG.ENNUI_T + 5 }),
+      { rate: 3, geom: GEOM_ORDRE[i] }, roster, g.alea);
+    const j = GEOM_ORDRE.indexOf(r.d.geom ?? GEOM_ORDRE[i]);
+    if (j <= i) soucis.push("ennui : " + GEOM_ORDRE[i] + " n est pas durci (" + r.d.geom + ")");
+  }
+  return soucis;
 }
 
 /* LE DIRECTOR NE SORT JAMAIS DE SA LISTE, ET CE VERIFICATEUR EXISTE AVANT LUI.

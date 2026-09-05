@@ -170,6 +170,7 @@ const SUITE = [
   ["minis", () => G.verifierMinis()],
   ["loot", () => G.verifierLoot(C.defaultMods)],
   ["tableDirector", () => G.verifierTableDirector(battementsDuScript())],
+  ["etatsDirector", () => G.verifierEtatsDirector()],
   ["director", () => G.verifierDirector(), true],
   ["lootSol", () => G.verifierLootSol()],
   ["silhouettes", () => S.verifierSilhouettes()],

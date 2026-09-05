@@ -8832,6 +8832,49 @@
                   defaut que `verifierEquilibreArmes` avant 0.38.3, et il appartient
                   a un lot d equilibrage.
 
+    0.39.1 lot 02 ENNUI, NORMAL, SURCHARGE — ET UN JUGEMENT MORAL AU MILIEU.
+                  UNE EQUIPE EN DIFFICULTE EST UN ACCIDENT, UN JOUEUR QUI S ISOLE
+                  EST UNE DECISION. Le Director soulage le premier et pas le
+                  second. Sans cette regle, tout le lot 04 du plan 31 est annule :
+                  le joueur isole a une tension elevee, le Director la lit comme
+                  une surcharge, et il ADOUCIT la composition — exactement
+                  l inverse de l effet voulu. Aucune contradiction avec « ne jamais
+                  punir un joueur qui joue bien » : on ne lui ajoute rien, on
+                  s abstient de lui RETIRER ce qu il a choisi d affronter. Le cas
+                  limite est tranche par l EFFECTIF VIVANT et pas par celui du
+                  groupe — un joueur seul parce que les trois autres sont morts n a
+                  rien choisi.
+                  DEUX AGREGATS ET PAS UN, ecart assume avec Left 4 Dead et fonde
+                  sur une mesure de ce jeu : a 3 600 px de separation, un joueur
+                  voit 137 corps pendant que l autre en voit 36. `tensionMax` dit
+                  « trop haut », `tensionMoy` dit « trop bas », jamais les deux en
+                  meme temps, et la surcharge passe devant.
+                  LA RESPIRATION SE DEDUIT, ELLE NE SE DECLARE PAS : un battement
+                  dont le taux RETOMBE par rapport au precedent en est une — seg 2
+                  passe de 1,6 a 1,2, seg 5 de 3,8 a 2,7. Une colonne serait une
+                  seconde source de verite a tenir d accord avec les taux. Le
+                  Director s efface devant, quel que soit l etat que la tension
+                  appellerait : un rythme sans creux n est plus un rythme.
+                  L ENNUI EPUISE LA FORME AVANT LA QUANTITE — composition plus dure,
+                  une elite de plus, geometrie d un cran plus exigeante, et un
+                  evenement seulement apres 200 s sans. C est ce qui garantit qu une
+                  equipe forte recoit une manche plus INTERESSANTE et non plus
+                  LONGUE. `rate` n est pas dans la liste, et `verifierEtatsDirector`
+                  le mesure sur les deux etats et sur les cinq geometries.
+                  IL NE SE VOIT PAS : aucune annonce, aucun retour visuel, aucune
+                  clef de reseau. L etat vit a cote de la decision et jamais dedans
+                  — `validerDecision` refuse tout ce qui n est pas un des quatre
+                  leviers, et c est exactement ce qu on lui demande.
+                  MESURE, ET ELLE DIT QUE LE SYSTEME N EST PAS DECORATIF : sur
+                  quatre cas et 140 battements, l etat neutre couvre 26/39 en calme
+                  solo et 31/36 en cauchemar a deux. L ENNUI DISPARAIT QUAND LA
+                  TENSION MONTE — 10 battements sur 39 a tension moyenne 0,120
+                  contre 1 sur 36 a 0,264 — ce qui est la direction attendue.
+                  LES SEUILS NE SONT PAS CALIBRES, ET C EST ECRIT. `ENNUI_T = 75 s`
+                  et `SURCHARGE = 0,82` sont des defauts RAISONNES : le lot 03 les
+                  regle sur les courbes accumulees en VRAIES parties, et aucun bot
+                  ne remplace ca.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8840,4 +8883,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.39.0";
+export const VERSION = "0.39.1";
