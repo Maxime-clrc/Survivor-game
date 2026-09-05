@@ -8,6 +8,95 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### 9600 × 5400, et ce qui bouge vraiment, plan 37 (0.40.1)
+
+Même banc des deux côtés, `pilotage()`, mesures **en cours de manche** — une
+manche qui se termine pendant un combat de boss rend une arène vidée, et la
+première version de ce banc a mesuré exactement ça.
+
+#### Le critère principal : les deux coûts du plan 31
+
+| | 4800 × 2700 | 9600 × 5400 |
+|---|---:|---:|
+| `diffuser`, fenêtre | **3 025 cases** | **3 025 cases** |
+| `diffuser`, 1 j / 4 j | 60 / 66 µs | 64 / 80 µs |
+| `_grille`, cases 1 j / 4 j | 816 / 1 900 | 1 540 / 4 002 |
+| `_grille`, µs 1 j / 4 j | 9,6 / 9,4 | 7,4 / 15,5 |
+| `nav` plein (une fois par manche) | 8 160 cases | 32 400 cases |
+
+**La fenêtre de diffusion ne bouge pas d'une case**, et c'est le critère : elle
+est ancrée sur la boîte d'apparition, pas sur l'arène.
+
+**`_grille` double, et ce n'est pas un coût de surface** : elle est bâtie sur la
+**boîte occupée**, donc elle suit l'écartement des joueurs — et une arène quatre
+fois plus grande leur permet de s'écarter deux fois plus. Le terme
+`ARENA_W × ARENA_H` a bien disparu ; ce qui reste est une conséquence de
+gameplay. 15,5 µs sur une image de 16 600, c'est 0,09 %.
+
+#### Ce qui monte vraiment : la population
+
+| cas | 4800, pic / moyenne / `step` | 9600, pic / moyenne / `step` |
+|---|---|---|
+| normal 1 j | 174 / 43 / 109 µs | 56 / 25 / 18 µs |
+| normal 4 j | 404 / 75 / 451 µs | 556 / 115 / 555 µs |
+| cauchemar 4 j | 284 / 52 / 363 µs | 332 / 96 / 637 µs |
+
+**À plusieurs, la population moyenne double.** Un corps met plus longtemps à
+traverser une map quatre fois plus grande, donc il reste plus longtemps **en
+transit**, donc il est vivant plus longtemps à taux d'apparition égal. En solo
+c'est l'inverse — le joueur s'éloigne, et `_recyclerLoin` ramasse.
+
+637 µs sur 16 600 reste à 3,8 %. Si un jour ça mord, le levier est
+`RECYCLE_DIST`, pas le plafond.
+
+#### La densité d'intérêt, et le levier qui ne répond pas
+
+Secondes entre deux choses qui valent le détour — borne libre, mini-boss posé,
+cristal, bonus, loot — à moins d'une demi-vue d'un joueur, sur 50 min par cas :
+
+| | écart médian | plus long trou | trous > 30 s |
+|---|---:|---:|---:|
+| 4800 × 2700 | 1,0 s | 44 – 55 s | 1 – 5 |
+| 9600 × 5400, 4 bornes | 1,0 s | 76 – 103 s | 8 – 14 |
+| 9600 × 5400, 7 bornes | 1,0 s | 59 – 149 s | 8 – 16 |
+
+**La médiane ne bouge jamais et la queue double.** C'est la queue qui se joue :
+le plus long trou passe de `50 s à `90 s, et les trous de plus de 30 s triplent.
+
+**Et le levier prescrit ne répond pas.** Passer de 4 à 7 bornes n'améliore rien —
+il dégrade même deux cases sur trois. La raison : `pilotage()` **ne va pas aux
+bornes**, il ne cherche que le loot et les bonus. Ce banc mesure donc l'errance du
+bot, pas la densité d'intérêt d'un joueur — un joueur qui **voit** une borne y va,
+et aucun bot ne couvre cette différence. Le passage à sept bornes reste, mais sa
+justification est **arithmétique** — à nombre égal la densité spatiale est divisée
+par quatre — et pas mesurée.
+
+#### Le banc de séparation, et l'agrandissement le RÉPARE
+
+Deux joueurs invulnérables tenus à 3 600 px, corps à moins de 700 px de chacun :
+
+| | près de A | près de B | rapport | population |
+|---|---:|---:|---:|---:|
+| 4800 × 2700 | 9,1 | 36,7 | **4,04** | 46,7 |
+| 9600 × 5400 | 9,7 | 16,4 | **1,68** | 27,8 |
+
+**Le rapport était déjà hors de sa borne avant le lot**, et l'agrandissement le
+divise par 2,4. La cause est que 3 600 px font **75 % de la largeur** de l'ancienne
+arène : les deux joueurs se retrouvent chacun à 600 px d'un bord, les boîtes
+d'apparition sont écrêtées, et le traitement cesse d'être symétrique. À 9600 le
+même écart laisse les deux joueurs largement à l'intérieur. Aucune des deux tailles
+n'atteint 1,4.
+
+#### Ce qui ne bouge pas
+
+`verifierPopulation` : **13 problèmes** à 9600, contre 13 avant le plan 35 et 17 à
+4800 aujourd'hui — la forme de la courbe n'est pas dégradée.
+`verifierMecaniques` : **3** à 9600 contre **4** à 4800, même famille. Le boss était
+**déjà** confiné — `this.bounds` lui donne une boîte de la taille d'une **vue**,
+centrée sur l'équipe — donc l'agrandissement ne le touche pas, et la question
+« région tirée de la graine ou région de l'équipe ? » était déjà tranchée dans le
+code : celle de l'équipe, ce qui évite le déplacement forcé.
+
 ### La sensibilité des six réglages de tension, plan 36 (0.39.2)
 
 `sim/sens.mjs`. Chaque poids **doublé**, tout le reste identique, deux graines,

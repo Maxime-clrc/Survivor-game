@@ -8,6 +8,21 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 ### Simulation
 
 - **Toute chaîne d'effets mémorise ses cibles** (`Set` du ricochet).
+- **L'ARÈNE FAIT 9600 × 5400, ET LA TAILLE N'APPARAÎT DANS AUCUN COÛT DE
+  BOUCLE.** `_grille()` est bâtie sur la **boîte occupée**, `diffuser()` est
+  **fenêtré** sur la boîte d'apparition, le réseau est filtré par vue, le sol est
+  un motif répété sur la vue, les props bouclent sur les cellules de la caméra. Ce
+  qui reste est de la **mémoire** et le temps de génération, une fois par manche.
+- **CE QUI MONTE AVEC L'ARÈNE EST LA POPULATION, PAS LE COÛT PAR CORPS.** Un corps
+  met plus longtemps à traverser, donc reste plus longtemps **en transit**, donc
+  vit plus longtemps à taux d'apparition égal : la moyenne **double** à plusieurs.
+  En solo c'est l'inverse — le joueur s'éloigne et `_recyclerLoin` ramasse. Le
+  levier, si ça mord, est `RECYCLE_DIST` et pas le plafond.
+- **LE BOSS EST CONFINÉ À UNE BOÎTE DE LA TAILLE D'UNE VUE, CENTRÉE SUR
+  L'ÉQUIPE.** C'était déjà le cas avant l'agrandissement, et ça répond à la
+  question « région tirée de la graine ou région de l'équipe ? » : celle de
+  l'équipe, ce qui évite un déplacement forcé avant chaque boss. Aucune des six
+  mécaniques ne lit `CFG.ARENA_*` — elles lisent `bounds`.
 - **UN LIEU A QUATRE LOIS D'IMPLANTATION, TIRÉES PAR CELLULE — ET LA VARIANTE 0
   EST LA LOI HISTORIQUE.** C'est elle que toutes les mesures des plans précédents
   ont vue ; la déplacer invaliderait des relevés qui n'ont rien demandé.

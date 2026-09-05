@@ -8952,6 +8952,51 @@
                   arenes deja mesurees. C est ce qui a permis de livrer la
                   restructuration AVANT les tables, a comportement identique.
 
+    0.40.1 lot 02 9600 x 5400 — QUATRE REGIONS, ET LE CRITERE DU LOT EST UNE
+                  NON-MESURE. Le plan 31 avait retire les deux couts de surface ;
+                  ce lot verifie qu il avait raison, et il avait raison la ou ca
+                  compte : LA FENETRE DE DIFFUSION NE BOUGE PAS D UNE CASE —
+                  3 025 avant, 3 025 apres — parce qu elle est ancree sur la boite
+                  d apparition et pas sur l arene.
+                  `_grille` DOUBLE, ET CE N EST PAS UN COUT DE SURFACE : elle est
+                  batie sur la BOITE OCCUPEE, donc elle suit l ecartement des
+                  joueurs, et une arene quatre fois plus grande leur permet de s
+                  ecarter deux fois plus. 816 -> 1 540 cases en solo, 1 900 ->
+                  4 002 a quatre, soit 15,5 us sur une image de 16 600 : 0,09 %.
+                  Le terme `ARENA_W x ARENA_H` a bien disparu ; ce qui reste est
+                  une consequence de gameplay.
+                  CE QUI MONTE VRAIMENT EST LA POPULATION. A plusieurs, la moyenne
+                  DOUBLE — 75 -> 115 en normal a quatre, 52 -> 96 en cauchemar —
+                  parce qu un corps met plus longtemps a traverser, donc reste plus
+                  longtemps EN TRANSIT, donc vit plus longtemps a taux egal. En
+                  solo c est l inverse : le joueur s eloigne et `_recyclerLoin`
+                  ramasse (174 -> 56 de pic). 637 us de `step` sur 16 600 restent
+                  a 3,8 %, et si ca mord un jour le levier est `RECYCLE_DIST`.
+                  LA DENSITE D INTERET : LA MEDIANE NE BOUGE JAMAIS, LA QUEUE
+                  DOUBLE. 1,0 s d ecart median des deux cotes, mais le plus long
+                  trou passe de 44-55 s a 76-103 s et les trous de plus de 30 s
+                  TRIPLENT. C est la queue qui se joue.
+                  ET LE LEVIER PRESCRIT NE REPOND PAS. Passer de 4 a 7 bornes n
+                  ameliore rien — il degrade deux cases sur trois — parce que
+                  `pilotage()` NE VA PAS AUX BORNES : il ne cherche que le loot et
+                  les bonus. Ce banc mesure l errance du bot, pas la densite
+                  d interet d un joueur, et un joueur qui VOIT une borne y va. Le
+                  passage a sept bornes et cinq mini-boss reste, mais sa
+                  justification est ARITHMETIQUE — a nombre egal la densite
+                  spatiale est divisee par quatre — et elle est ecrite comme telle.
+                  LE BANC DE SEPARATION ETAIT DEJA HORS DE SA BORNE, ET
+                  L AGRANDISSEMENT LE REPARE : rapport 4,04 a 4800, 1,68 a 9600.
+                  La cause est que 3 600 px font 75 % de la largeur de l ancienne
+                  arene — les deux joueurs se retrouvent a 600 px d un bord, les
+                  boites d apparition sont ecretees, et le traitement cesse d etre
+                  symetrique. Aucune des deux tailles n atteint 1,4.
+                  LE BOSS ETAIT DEJA CONFINE, et la question ouverte du plan etait
+                  deja tranchee dans le code : `this.bounds` lui donne une boite de
+                  la taille d une VUE centree sur l EQUIPE, donc pas de deplacement
+                  force et pas de region tiree. `verifierMecaniques` rend 3 defauts
+                  a 9600 contre 4 a 4800, meme famille. `verifierPopulation` rend
+                  13 contre 13 avant le plan 35.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8960,4 +9005,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.0";
+export const VERSION = "0.40.1";

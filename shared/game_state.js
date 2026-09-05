@@ -160,8 +160,19 @@ function indexerStatique(list, cell, cols, rows) {
 }
 
 export const CFG = {
-  ARENA_W: 4800,
-  ARENA_H: 2700,
+  /* QUATRE REGIONS DE LA TAILLE DE L ANCIENNE ARENE. Le generateur pave en
+     cellules de la taille d une VUE — 6 x 6 ici contre 3 x 3 avant — et chacune
+     tire sa variante avec ses bords : l assemblage ne demande rien de plus.
+     ET CA NE COUTE RIEN, PARCE QUE LE PLAN 31 A RETIRE LES DEUX COUTS DE
+     SURFACE. Apres lui, la taille de l arene n apparait dans AUCUN cout de
+     boucle : `_grille()` est batie sur la boite occupee, `diffuser()` est
+     fenetre sur la boite d apparition, le reseau est filtre par vue, le sol est
+     un motif repete sur la vue, les props bouclent sur les cellules de la
+     camera. Il ne reste que de la MEMOIRE et le temps de generation, une fois
+     par manche. Mesure : `_grille` 660 cases / 4,8 us et `diffuser` 3 025 cases
+     / 83 us AVANT, les memes APRES. */
+  ARENA_W: 9600,
+  ARENA_H: 5400,
   VIEW_W: 1600,
   VIEW_H: 900,
 
@@ -484,7 +495,19 @@ export function survieIndex(mods, maxHp) {
    QUATRE ETATS, ET LE CLIENT N'EN LIT QU'UN NOMBRE : disponible, proposee,
    acceptee, consommee. */
 export const BORNE_CFG = {
-  PAR_MANCHE: 4,
+  /* SEPT ET PAS QUATRE, ET LA JUSTIFICATION EST ARITHMETIQUE, PAS MESUREE.
+     La map a quadruple : a nombre egal, la densite SPATIALE de bornes est
+     divisee par quatre, et ca ne demande pas de banc pour etre vrai. On ne la
+     restaure pas — il faudrait seize bornes, et seize bornes font une liste de
+     taches, pas une decision — on divise la perte par deux.
+     ET LE BANC NE CONFIRME PAS, IL FAUT LE DIRE. La mesure d ecart d interet
+     rend la meme mediane (1 s) avant et apres l agrandissement, et sa QUEUE ne
+     repond PAS au nombre de bornes : passer de 4 a 7 a fait monter le plus long
+     trou de 76-103 s a 59-149 s selon la case. La raison est que `pilotage()` ne
+     va PAS aux bornes — il ne cherche que le loot et les bonus — donc ce banc
+     mesure l errance du bot et non la densite d interet d un joueur. Un joueur
+     qui VOIT une borne y va ; c est la difference, et aucun bot ne la couvre. */
+  PAR_MANCHE: 7,
   RAYON: 22,
   INTERACTION: 90,
   RECHARGE: 60,
@@ -514,7 +537,10 @@ export const BORNE_CONSOMMEE = 3;
    le retour est VISIBLE, corps qui marche a l envers, sinon la barre repart en
    haut sans que rien ne l explique. */
 export const MINI_CFG = {
-  PAR_MANCHE: 3,
+  // meme raison que `BORNE_CFG.PAR_MANCHE` : la map a quadruple, les occasions
+  // suivent lineairement. Cinq fenetres de presence tiennent encore chacune dans
+  // son segment (360, 660, 960, 1260, 1560 pour 210 s de presence).
+  PAR_MANCHE: 5,
   /* LES TROIS FENETRES TIENNENT CHACUNE DANS UN SEGMENT, ET C EST MESURE, PAS
      suppose : a `PREMIER = 260` le premier mini-boss naissait quarante secondes
      avant le boss du premier segment et se faisait BALAYER — trois occasions sur
