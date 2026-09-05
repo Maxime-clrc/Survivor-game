@@ -71,60 +71,76 @@ export const LOOT_CFG = {
 
 export const LOOT_RANGS = 3;
 
+/* CE QU UN LOOT AUGMENTE, ET IL FAUT LE VOIR AVANT DE MARCHER DESSUS. Au sol il
+   ne portait que son RANG — un a trois points blancs — et sa couleur etait celle
+   de son PROPRIETAIRE : deux informations utiles, aucune sur ce qu il fait. Or le
+   loot est la seule source de puissance qui coute un DEPLACEMENT, donc la seule
+   ou le joueur doit decider AVANT de l avoir.
+
+   UNE CLEF DE SIGNE, PAS UN GLYPHE : `loot.js` est du domaine partage et ne
+   dessine rien. La table de dessin vit dans `public/icons.js`, et
+   `verifierLoot` n exige ici qu une clef de la liste FERMEE ci-dessous — une
+   faute de frappe rendrait le socle muet sans rien lever, exactement le piege
+   que les noms de son ont deja paye. */
+export const LOOT_SIGNES = new Set([
+  "degats", "cadence", "critique", "armure", "vitesse", "rarete",
+  "esquive", "zone", "vol",
+]);
+
 /* LE CATALOGUE. `LOOTS` EST ORDONNE ET SON INDEX CIRCULE SUR LE RESEAU :
    append-only, comme `CARDS` et `RELICS`. */
 export const LOOTS = [
   // --- rang 1 : plat, cumulable, aucune decision -------------------------
-  { id: "oeil", rang: 1, nom: "Œil de visée", axe: "off",
+  { id: "oeil", rang: 1, nom: "Œil de visée", axe: "off", signe: "degats",
     desc: "+8 % de dégâts",
     apply: m => { m.damageMul *= 1.08; } },
-  { id: "ressort", rang: 1, nom: "Ressort de culasse", axe: "off",
+  { id: "ressort", rang: 1, nom: "Ressort de culasse", axe: "off", signe: "cadence",
     desc: "+6 % de cadence",
     apply: m => { m.fireIntervalMul *= 0.94; } },
-  { id: "lentille", rang: 1, nom: "Lentille", axe: "off",
+  { id: "lentille", rang: 1, nom: "Lentille", axe: "off", signe: "critique",
     desc: "+6 % de chance de critique",
     apply: m => { m.critChance += 0.06; } },
-  { id: "plaque_de_champ", rang: 1, nom: "Plaque de champ", axe: "def",
+  { id: "plaque_de_champ", rang: 1, nom: "Plaque de champ", axe: "def", signe: "armure",
     desc: "−4 dégâts sur chaque coup reçu",
     apply: m => { m.armure += 4; } },
-  { id: "semelle", rang: 1, nom: "Semelle", axe: "mob",
+  { id: "semelle", rang: 1, nom: "Semelle", axe: "mob", signe: "vitesse",
     desc: "+6 % de vitesse",
     apply: m => { m.speedMul *= 1.06; } },
-  { id: "filtre", rang: 1, nom: "Filtre de tri", axe: "eco",
+  { id: "filtre", rang: 1, nom: "Filtre de tri", axe: "eco", signe: "rarete",
     desc: "+10 % de rareté sur ce que vous trouvez",
     apply: m => { m.chance += 0.10; } },
 
   // --- rang 2 : une conversion, et elle COUTE ----------------------------
-  { id: "fournaise", rang: 2, nom: "Fournaise", axe: "off", cout: 1,
+  { id: "fournaise", rang: 2, nom: "Fournaise", axe: "off", cout: 1, signe: "degats",
     desc: "+22 % de dégâts, −12 % de PV max",
     apply: m => { m.damageMul *= 1.22; m.maxHpMul *= 0.88; } },
-  { id: "carapace", rang: 2, nom: "Carapace lestée", axe: "def", cout: 1,
+  { id: "carapace", rang: 2, nom: "Carapace lestée", axe: "def", cout: 1, signe: "armure",
     desc: "−18 % de dégâts subis, −10 % de dégâts",
     apply: m => { m.damageTakenMul *= 0.82; m.damageMul *= 0.90; } },
-  { id: "voile", rang: 2, nom: "Voile", axe: "def", cout: 1,
+  { id: "voile", rang: 2, nom: "Voile", axe: "def", cout: 1, signe: "esquive",
     desc: "+12 % d'esquive, −15 % de PV max",
     apply: m => { m.esquive += 0.12; m.maxHpMul *= 0.85; } },
-  { id: "surcharge", rang: 2, nom: "Surcharge", axe: "off", cout: 1,
+  { id: "surcharge", rang: 2, nom: "Surcharge", axe: "off", cout: 1, signe: "cadence",
     desc: "+18 % de cadence, +18 % de dégâts subis",
     apply: m => { m.fireIntervalMul *= 0.82; m.damageTakenMul *= 1.18; } },
-  { id: "dilatation", rang: 2, nom: "Dilatation", axe: "off", cout: 1,
+  { id: "dilatation", rang: 2, nom: "Dilatation", axe: "off", cout: 1, signe: "zone",
     desc: "+25 % de zone, −12 % de dégâts",
     apply: m => { m.areaMul *= 1.25; m.damageMul *= 0.88; } },
-  { id: "sangsue", rang: 2, nom: "Sangsue", axe: "def", cout: 1,
+  { id: "sangsue", rang: 2, nom: "Sangsue", axe: "def", cout: 1, signe: "vol",
     desc: "+5 % de vol de vie, −8 % de vitesse",
     apply: m => { m.lifesteal += 0.05; m.speedMul *= 0.92; } },
 
   // --- rang 3 : fort, et sa rarete EST son prix --------------------------
-  { id: "noyau_chaud", rang: 3, nom: "Noyau chaud", axe: "off",
+  { id: "noyau_chaud", rang: 3, nom: "Noyau chaud", axe: "off", signe: "degats",
     desc: "+18 % de dégâts et +10 % de cadence",
     apply: m => { m.damageMul *= 1.18; m.fireIntervalMul *= 0.90; } },
-  { id: "egide_mobile", rang: 3, nom: "Égide mobile", axe: "def",
+  { id: "egide_mobile", rang: 3, nom: "Égide mobile", axe: "def", signe: "esquive",
     desc: "+12 % d'esquive et −5 dégâts par coup",
     apply: m => { m.esquive += 0.12; m.armure += 5; } },
-  { id: "prisme", rang: 3, nom: "Prisme", axe: "eco",
+  { id: "prisme", rang: 3, nom: "Prisme", axe: "eco", signe: "rarete",
     desc: "+20 % de rareté et +10 % de chance de critique",
     apply: m => { m.chance += 0.20; m.critChance += 0.10; } },
-  { id: "moteur", rang: 3, nom: "Moteur court", axe: "mob",
+  { id: "moteur", rang: 3, nom: "Moteur court", axe: "mob", signe: "vitesse",
     desc: "+14 % de vitesse et +14 % de zone",
     apply: m => { m.speedMul *= 1.14; m.areaMul *= 1.14; } },
 ];
@@ -222,6 +238,18 @@ export function verifierLoot(defaut) {
        veut rien dire. */
     if (l.rang === 2 && !l.cout) soucis.push(`${l.id} : rang 2 sans contrepartie`);
     if (l.rang !== 2 && l.cout) soucis.push(`${l.id} : contrepartie hors du rang 2`);
+
+    /* UN LOOT SANS SIGNE EST UN SOCLE MUET, et rien ne le leve : le rendu
+       replie sur les points de rang et le joueur ne voit plus ce que l objet
+       augmente — c est-a-dire l etat d avant ce lot, pour cette fiche-la
+       seulement, donc invisible a la relecture. */
+    if (!l.signe) soucis.push(`${l.id} : aucun signe`);
+    else if (!LOOT_SIGNES.has(l.signe)) {
+      soucis.push(`${l.id} : signe « ${l.signe} » hors de la liste fermee`);
+    }
+    if (!["off", "def", "mob", "eco"].includes(l.axe)) {
+      soucis.push(`${l.id} : axe « ${l.axe} » inconnu`);
+    }
   }
 
   // chaque rang doit pouvoir offrir un choix de deux sans doublon

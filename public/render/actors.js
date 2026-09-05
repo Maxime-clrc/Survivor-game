@@ -1,13 +1,14 @@
 
 import { ARME_CFG, ARMES } from "/shared/armes.js";
-import { POWERUP_ICON, POWERUP_STYLE, paintIcon } from "/icons.js";
+import { LOOT_ICON, POWERUP_ICON, POWERUP_STYLE, paintIcon } from "/icons.js";
 import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { bonusFamille, bonusRang } from "/shared/feedback.js";
 import { BORNE_CFG, CARD_CFG, CFG, ENEMY_TYPES, LOOT_CFG, POWERUP_TYPES, defDe, fullMods, lootAt, traitsOf } from "/shared/game_state.js";
 import { t } from "/shared/i18n.js";
-import { BIOME_SKIN, BOSS, CLASS_COLOR, COMBAT, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
+import { CONTRATS, OBJ_ZONE } from "/shared/timeline.js";
+import { BIOME_SKIN, BOSS, CLASS_COLOR, COMBAT, FX, LOOT_AXE_COLOR, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
@@ -1604,19 +1605,33 @@ export function drawLoots(list, moi) {
     ctx.stroke();
     ctx.setLineDash([]);
 
+    /* DEUX QUESTIONS, DEUX CANAUX. « A qui ? » reste sur le cercle de ramassage
+       et sur l opacite — c est deja ce que le joueur y lisait. « Quoi ? » prend
+       le socle : la COULEUR dit l axe (le meme vocabulaire que les cartes, donc
+       rien a reapprendre), le SIGNE dit la statistique, et les points comptent le
+       rang. Avant ce lot le socle ne portait QUE les points, dans la couleur du
+       proprietaire : deux informations utiles, aucune sur ce que l objet fait.
+       Le signe passe DANS le socle et les points en dessous : superposes, a neuf
+       pixels de rayon, ils se mangeaient. */
+    const teinte = LOOT_AXE_COLOR[def.axe] ?? col;
     ctx.globalAlpha = cligne * (mien ? 1 : 0.5);
-    ctx.fillStyle = alpha(SURFACE.void, 0.86);
-    socleBonus(w.x, y, r, 4);
+    ctx.fillStyle = alpha(SURFACE.void, 0.9);
+    socleBonus(w.x, y, r + 2.5, 6);
     ctx.fill();
-    ctx.strokeStyle = col;
+    ctx.strokeStyle = teinte;
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.fillStyle = col;
+    // le signe REMPLIT le socle : c est lui qu on doit voir de loin, pas le cadre.
+    paintIcon(ctx, LOOT_ICON[def.signe], teinte, w.x, y, 0.86,
+              cligne * (mien ? 1 : 0.5));
+
+    ctx.globalAlpha = cligne * (mien ? 0.95 : 0.45);
+    ctx.fillStyle = teinte;
     for (let i = 0; i < def.rang; i++) {
-      const dx = (i - (def.rang - 1) / 2) * (LOOT_PIP * 2.2);
+      const dx = (i - (def.rang - 1) / 2) * (LOOT_PIP * 2.4);
       ctx.beginPath();
-      ctx.arc(w.x + dx, y, LOOT_PIP, 0, Math.PI * 2);
+      ctx.arc(w.x + dx, y + r + 6.5, LOOT_PIP, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -2440,6 +2455,79 @@ const BORNE_FORME = {
    socle l objet EST la phrase. Elle ne parait que dans le rayon ou `_interagir`
    accepte — sinon elle promet ce que le serveur refuse —, et le drapeau `pret`
    la retire pendant la recharge, ou la borne reste pourtant `BORNE_LIBRE`. */
+/* LA ZONE D UN CONTRAT « POSITION TENUE » N ETAIT DESSINEE NULLE PART. Le HUD
+   disait « tenez la borne 30 secondes » et le compteur montait ou descendait sans
+   qu aucun pixel ne dise OU. Le rayon vaut deux fois `BORNE_CFG.INTERACTION`,
+   c est-a-dire quatre fois plus large que le cercle d activation : impossible a
+   deviner depuis la borne, et c est exactement ce qu il fallait montrer.
+
+   ELLE DIT « RESTE LA », PAS « EVITE ». La charte interdit le rouge pour ce vers
+   quoi il faut aller, et le vocabulaire des dangers (`BIOME.hazard`, un bord
+   franc et chaud) veut dire l inverse : bleu de `SIGNAL.go`, aplat tres faible,
+   bord DOUX. Un contour dur en ferait une limite qui blesse.
+
+   ELLE PORTE SON PROPRE ETAT, et c est ce qui la rend jouable : l arc compte la
+   progression, et le fait que quelqu un soit DEDANS se lit sans le HUD — le
+   serveur fait monter le compteur dans ce cas et le fait descendre sinon, donc
+   la zone doit dire lequel des deux. Le client le calcule sur la liste des
+   joueurs, la meme regle et le meme rayon : aucun champ reseau en plus, la
+   position du contrat voyage deja (`ct[5]`, `ct[6]`). */
+const CONTRAT_ZONE_R = BORNE_CFG.INTERACTION * 2;
+export function drawContratZone(ct, joueurs) {
+  if (!ct) return;
+  const def = CONTRATS[ct.def];
+  if (!def || def.obj !== OBJ_ZONE) return;
+  if (!inView(ct.x, ct.y, CONTRAT_ZONE_R + 40)) return;
+
+  const r = CONTRAT_ZONE_R;
+  const tenue = (joueurs ?? []).some(p =>
+    !p.downed && (p.x - ct.x) ** 2 + (p.y - ct.y) ** 2 <= r * r);
+  const tm = performance.now() / 1000;
+  // une respiration LENTE : ce qui bat vite est un telegraphe, et ce canal
+  // appartient au boss. Elle ne bat que quand la zone est tenue — c est la
+  // recompense visuelle du placement, et le reste du temps la zone attend.
+  const k = tenue ? 0.78 + 0.22 * Math.sin(tm * 2.2) : 0.42;
+  const part = Math.max(0, Math.min(1, ct.seuil > 0 ? ct.cur / ct.seuil : 0));
+
+  ctx.save();
+  const g = ctx.createRadialGradient(ct.x, ct.y, r * 0.35, ct.x, ct.y, r);
+  g.addColorStop(0, alpha(SIGNAL.go, 0));
+  g.addColorStop(1, alpha(SIGNAL.go, (tenue ? 0.13 : 0.07) * k));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(ct.x, ct.y, r, 0, Math.PI * 2); ctx.fill();
+
+  ctx.strokeStyle = alpha(SIGNAL.go, (tenue ? 0.55 : 0.3) * k);
+  ctx.lineWidth = 2;
+  ctx.setLineDash(tenue ? [] : [10, 9]);
+  ctx.beginPath(); ctx.arc(ct.x, ct.y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // LA PROGRESSION SUR LE BORD, pas au centre : le centre est la ou on se bat.
+  if (part > 0.001) {
+    ctx.strokeStyle = alpha(SIGNAL.go, 0.95);
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(ct.x, ct.y, r, -Math.PI / 2, -Math.PI / 2 + part * Math.PI * 2);
+    ctx.stroke();
+    ctx.lineCap = "butt";
+  }
+
+  // quatre marques au sol vers le centre : elles donnent la DIRECTION du dedans
+  // quand on longe le bord, ce qu un cercle seul ne dit pas.
+  ctx.strokeStyle = alpha(SIGNAL.go, 0.30 * k);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + Math.PI / 4;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    ctx.moveTo(ct.x + ca * (r - 4), ct.y + sa * (r - 4));
+    ctx.lineTo(ct.x + ca * (r - 26), ct.y + sa * (r - 26));
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 export function drawBornes(list, me = null) {
   if (!list || list.length === 0) return;
   const skin = BIOME_SKIN[biomeKey()] ?? BIOME_SKIN.usine;

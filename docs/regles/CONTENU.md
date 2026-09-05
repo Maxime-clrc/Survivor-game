@@ -597,6 +597,12 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   mémorable ; `verifierLoot` **refuse un rang 2 sans coût**, sinon « dangereux » ne
   veut plus rien dire. Rang 3 fort et sans contrepartie : sa **rareté est son
   prix**.
+- **UNE FICHE DE LOOT DÉCLARE CE QU'ELLE AUGMENTE**, et pas seulement ce qu'elle
+  fait : `axe` pour la famille (`off`/`def`/`mob`/`eco`), `signe` pour la
+  statistique dominante, tiré de `LOOT_SIGNES`, liste **fermée**. `verifierLoot`
+  refuse une fiche sans signe, un signe hors liste, ou un axe inconnu — c'est ce
+  qui permet au sol de dire l'objet au lieu de dire seulement son rang. Le glyphe,
+  lui, appartient au client (voir `RENDU.md`) : le domaine partagé ne dessine rien.
 - **LA CHANCE MONTE LE RANG, JAMAIS LA QUANTITÉ.** C'est la promesse du lot 03
   tenue : elle agit sur la rareté seule. Plafonnée à +50 % de déclenchement, sinon
   une build de chance transformerait tout objectif en rang 3.

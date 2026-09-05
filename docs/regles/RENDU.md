@@ -1262,6 +1262,51 @@ le sien :
   tank sauf s'il est ancré** (`bw.anchor`, choix fait à la pose et gravé). Un
   propriétaire déconnecté ou à terre le laisse où il est.
 
+### Ce qui se ramasse, et la zone qu'on tient
+
+- **UN OBJET QU'ON VA CHERCHER DOIT DIRE CE QU'IL FAIT AVANT QU'ON Y AILLE.** Le
+  loot est la seule source de puissance qui coûte un **déplacement** : la décision
+  se prend de loin, donc l'information doit y être. Au sol il ne portait que son
+  **rang** — un à trois points — dans la couleur de son **propriétaire**. Deux
+  informations utiles, aucune sur ce que l'objet augmente.
+- **DEUX QUESTIONS, DEUX CANAUX.** « À qui ? » reste sur le cercle de ramassage et
+  sur l'opacité, où le joueur le lisait déjà. « Quoi ? » prend le socle : la
+  **couleur** dit l'axe, le **signe** dit la statistique, les points comptent le
+  rang — et ils passent **sous** le socle, parce qu'à neuf pixels de rayon un
+  glyphe et trois points superposés se mangent.
+- **LA COULEUR EST CELLE DES CARTES** (`LOOT_AXE_COLOR` dérive de
+  `CARD_CATEGORY_COLOR`) : offensif rouge, défensif bleu, exactement comme dans
+  l'écran de choix. Un joueur qui a appris une couleur **en la choisissant** la
+  relit au sol sans rien réapprendre. `mob` et `eco` n'ont pas de catégorie de
+  carte : le vert de ce qui rend, l'or de ce qui se ramasse pour sa valeur —
+  éclats et cristaux de récolte le portent déjà.
+- **NEUF SIGNES POUR SEIZE OBJETS**, et c'est voulu : ce qui se décide en courant
+  est « offensif ou défensif, et sur quel axe », pas le détail du pourcentage —
+  celui-là se lit au ramassage et dans la fenêtre de build. Trois signes
+  **reprennent** un glyphe de bonus (dégâts, cadence, armure), même raison que la
+  charte.
+- **LA CLEF EST DÉCLARÉE DANS LE DOMAINE, LE GLYPHE EST DESSINÉ DANS LE CLIENT.**
+  `LOOT_SIGNES` (`shared/loot.js`) est une liste **fermée** et `verifierLoot`
+  refuse une fiche sans signe ou hors liste ; `LOOT_ICON` (`icons.js`) dessine.
+  Une clef ajoutée à la liste demande un glyphe — sans lui `paintIcon` ne dessine
+  rien et le socle retombe sur ses points, c'est-à-dire l'état d'avant.
+- **LA ZONE D'UN CONTRAT « POSITION TENUE » N'ÉTAIT DESSINÉE NULLE PART.** Le HUD
+  disait « tenez la borne 30 secondes » et le compteur montait ou descendait sans
+  qu'aucun pixel ne dise **où**. Le rayon vaut `BORNE_CFG.INTERACTION × 2`, soit
+  quatre fois le cercle d'activation : impossible à deviner depuis la borne.
+- **Elle dit « reste là », pas « évite ».** La charte interdit le rouge pour ce
+  vers quoi il faut aller, et le vocabulaire des dangers — bord franc et chaud —
+  veut dire l'inverse : bleu de `SIGNAL.go`, aplat très faible, **bord doux**. Un
+  contour dur en ferait une limite qui blesse.
+- **Elle porte son propre état**, et c'est ce qui la rend jouable : l'arc compte
+  la progression sur le **bord** (le centre est là où l'on se bat), et « quelqu'un
+  est dedans » se lit sans le HUD — le serveur fait monter le compteur dans ce cas
+  et descendre sinon, donc la zone doit dire lequel des deux. Tenue : trait plein
+  qui respire. Vide : pointillé éteint. **Aucun champ réseau** : la position du
+  contrat voyage déjà, et le client rejoue la même règle au même rayon.
+- **Elle se dessine avec le SOL, sous les obstacles** : c'est un marquage au sol,
+  et un bloc posé dessus doit la couvrir comme il couvre la grille.
+
 ### Le combat
 
 **Quatre canaux disent quatre choses différentes, et aucun ne redit celle d'un

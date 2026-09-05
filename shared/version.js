@@ -9530,6 +9530,49 @@
                   ligne dit aussi quand `BIOME=` fige le tirage depuis l
                   environnement, qui est la seule facon dont il puisse ne pas
                   changer.
+    0.40.18 lot 19 CE QU ON RAMASSE DIT CE QU IL FAIT, ET LA ZONE QU ON TIENT SE
+                  VOIT. Deux informations que le jeu DEMANDAIT et ne donnait pas.
+                  LE LOOT NE DISAIT QUE SON RANG. Un a trois points, dans la
+                  couleur de son PROPRIETAIRE : deux informations utiles, aucune
+                  sur ce que l objet augmente — pour la seule source de puissance
+                  qui coute un DEPLACEMENT, donc la seule ou la decision se prend
+                  de loin.
+                  DEUX QUESTIONS, DEUX CANAUX. « A qui » reste sur le cercle de
+                  ramassage et sur l opacite, ou le joueur le lisait deja ;
+                  « quoi » prend le socle. La COULEUR dit l axe et elle est celle
+                  des CARTES (`LOOT_AXE_COLOR` derive de `CARD_CATEGORY_COLOR`) :
+                  offensif rouge, defensif bleu, exactement comme dans l ecran de
+                  choix — un joueur qui a appris une couleur en la CHOISISSANT la
+                  relit au sol sans rien reapprendre. `mob` prend le vert de ce
+                  qui rend, `eco` l or des eclats et des cristaux.
+                  NEUF SIGNES POUR SEIZE OBJETS, et c est voulu : ce qui se decide
+                  en courant est « offensif ou defensif, et sur quel axe », pas le
+                  detail du pourcentage. Trois signes REPRENNENT un glyphe de
+                  bonus — degats, cadence, armure —, six sont neufs. Les points de
+                  rang passent SOUS le socle : a neuf pixels de rayon, un glyphe
+                  et trois points superposes se mangent.
+                  LA CLEF EST DANS LE DOMAINE, LE GLYPHE DANS LE CLIENT.
+                  `LOOT_SIGNES` est une liste FERMEE et `verifierLoot` refuse une
+                  fiche sans signe, un signe hors liste ou un axe inconnu ;
+                  `LOOT_ICON` dessine. Sans glyphe, `paintIcon` ne dessine rien et
+                  le socle retombe sur ses points — l etat d avant, jamais un
+                  trou.
+                  LA ZONE D UN CONTRAT « POSITION TENUE » N ETAIT DESSINEE NULLE
+                  PART. Le HUD disait « tenez la borne 30 secondes » et le
+                  compteur montait ou descendait sans qu aucun pixel ne dise OU.
+                  Le rayon vaut `BORNE_CFG.INTERACTION x 2`, soit QUATRE FOIS le
+                  cercle d activation : impossible a deviner depuis la borne.
+                  ELLE DIT « RESTE LA », PAS « EVITE ». La charte interdit le
+                  rouge pour ce vers quoi il faut aller, et le vocabulaire des
+                  dangers — bord franc et chaud — veut dire l inverse : bleu de
+                  `SIGNAL.go`, aplat tres faible, bord DOUX.
+                  Elle porte son propre etat : l arc compte la progression sur le
+                  BORD (le centre est la ou l on se bat), et « quelqu un est
+                  dedans » se lit sans le HUD — trait plein qui respire quand elle
+                  est tenue, pointille eteint sinon. AUCUN CHAMP RESEAU : la
+                  position du contrat voyage deja (`ct[5]`, `ct[6]`) et le client
+                  rejoue la meme regle au meme rayon. Elle se dessine avec le SOL,
+                  sous les obstacles.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9539,4 +9582,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.17";
+export const VERSION = "0.40.18";

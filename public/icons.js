@@ -167,6 +167,101 @@ export const POWERUP_STYLE = {
 
 export const bonusNom = cle => t(`bonus.${cle}`, POWERUP_STYLE[cle]?.nom ?? "");
 
+/* CE QU UN LOOT AUGMENTE, EN UN SIGNE. Au sol il ne portait que son rang — un a
+   trois points — et la couleur de son PROPRIETAIRE : rien sur ce qu il fait, pour
+   la seule source de puissance qui coute un DEPLACEMENT.
+
+   NEUF SIGNES POUR SEIZE OBJETS, et c est voulu : ce qui se decide en courant est
+   « offensif ou defensif, et sur quel axe », pas le detail du pourcentage — celui-
+   la se lit au ramassage et dans la fenetre de build. Les clefs sont celles de
+   `LOOT_SIGNES` (`shared/loot.js`), liste FERMEE et verifiee la-bas ; ici on
+   dessine, on ne declare pas une seconde fois.
+
+   TROIS SIGNES REPRENNENT UN GLYPHE DE BONUS — degats, cadence, armure — et c est
+   la meme raison que la charte : un joueur qui a appris la fleche de cadence sur
+   un bonus au sol la relit sur un loot sans rien reapprendre. Les six autres
+   n existaient pas. */
+export const LOOT_ICON = {
+  degats: POWERUP_ICON.damage,
+  cadence: POWERUP_ICON.rate,
+  armure: POWERUP_ICON.shield,
+  zone: POWERUP_ICON.nova,
+
+  // CRITIQUE : un eclat a quatre branches, effile. Ce qui « pique » plutot que ce
+  // qui « frappe » — la fleche de cadence et le projectile de degats sont pris.
+  critique: g => {
+    g.beginPath();
+    g.moveTo(0, -7); g.lineTo(1.5, -1.5); g.lineTo(7, 0); g.lineTo(1.5, 1.5);
+    g.lineTo(0, 7); g.lineTo(-1.5, 1.5); g.lineTo(-7, 0); g.lineTo(-1.5, -1.5);
+    g.closePath(); g.fill();
+  },
+
+  // VITESSE : deux chevrons qui filent, et une barre de depart derriere. Meme
+  // vocabulaire que le glyphe de dash, parce que c est la meme idee.
+  vitesse: g => {
+    g.lineWidth = 1.9; g.lineCap = "round"; g.lineJoin = "round";
+    for (const dx of [-3.6, 0.4]) {
+      g.beginPath();
+      g.moveTo(dx, -4.8); g.lineTo(dx + 4.2, 0); g.lineTo(dx, 4.8);
+      g.stroke();
+    }
+    const a = g.globalAlpha;
+    g.globalAlpha = a * 0.55;
+    g.beginPath(); g.moveTo(-6.4, -3.4); g.lineTo(-6.4, 3.4); g.stroke();
+    g.globalAlpha = a;
+  },
+
+  // RARETE : une gemme taillee. C est deja la forme de ce qui se ramasse pour sa
+  // VALEUR dans ce depot — eclats, cristaux de recolte —, et elle porte l or.
+  rarete: g => {
+    g.beginPath();
+    g.moveTo(0, -6.8); g.lineTo(6.2, -1.8); g.lineTo(3.6, 6.4);
+    g.lineTo(-3.6, 6.4); g.lineTo(-6.2, -1.8);
+    g.closePath(); g.fill();
+    const a = g.globalAlpha;
+    g.globalAlpha = a * 0.35;
+    g.beginPath();
+    g.moveTo(0, -6.8); g.lineTo(-2.6, -1.8); g.lineTo(0, 6.4); g.lineTo(2.6, -1.8);
+    g.closePath();
+    g.fillStyle = "#000"; g.fill();
+    g.globalAlpha = a;
+  },
+
+  // ESQUIVE : une silhouette qui SORT du trait — le contour reste, le corps est
+  // deja ailleurs. Un bouclier dirait « j encaisse », et c est l inverse.
+  esquive: g => {
+    g.lineWidth = 1.7; g.lineJoin = "round";
+    const a = g.globalAlpha;
+    g.globalAlpha = a * 0.45;
+    g.beginPath(); g.arc(-3.4, 0, 3.6, 0, Math.PI * 2); g.stroke();
+    g.globalAlpha = a;
+    g.beginPath(); g.arc(3.2, 0, 3.6, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 1.5; g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(-6.6, -5.6); g.lineTo(-4.4, -5.6);
+    g.moveTo(-6.6, 5.6); g.lineTo(-4.4, 5.6);
+    g.stroke();
+  },
+
+  // VOL DE VIE : une goutte, et la croix de soin dedans. Le glyphe de soin seul
+  // dirait « on te rend des PV » ; ici ils sont PRIS a quelqu un.
+  vol: g => {
+    g.beginPath();
+    g.moveTo(0, -7);
+    g.bezierCurveTo(4.6, -2.2, 6, 0.8, 6, 2.6);
+    g.bezierCurveTo(6, 5.8, 3.2, 7.4, 0, 7.4);
+    g.bezierCurveTo(-3.2, 7.4, -6, 5.8, -6, 2.6);
+    g.bezierCurveTo(-6, 0.8, -4.6, -2.2, 0, -7);
+    g.closePath(); g.fill();
+    const a = g.globalAlpha;
+    g.globalAlpha = a * 0.9;
+    g.fillStyle = "#000";
+    g.fillRect(-0.9, -0.4, 1.8, 5.6);
+    g.fillRect(-2.9, 1.6, 5.8, 1.8);
+    g.globalAlpha = a;
+  },
+};
+
 export const EFFECT_BADGES = [
   { id: "orbiteurs", nom: "lames", color: EFFECT_COLOR.orbiteurs,
     icon: g => {

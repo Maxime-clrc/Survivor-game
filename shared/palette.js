@@ -92,6 +92,19 @@ export const CARD_CATEGORY_COLOR = {
   util:    TEXT.dim,
 };
 
+/* LE MEME VOCABULAIRE QUE LES CARTES, ET C EST TOUT L INTERET : offensif rouge,
+   defensif bleu, exactement comme dans l ecran de choix. Un joueur qui a appris
+   une couleur en la CHOISISSANT la relit au sol sans rien reapprendre.
+   `mob` et `eco` n ont pas de categorie de carte : la mobilite prend le vert de
+   ce qui rend, l economie prend l or des ECLATS et des cristaux de recolte, qui
+   est deja la couleur de ce qui se ramasse pour sa valeur. */
+export const LOOT_AXE_COLOR = {
+  off: CARD_CATEGORY_COLOR.off,
+  def: CARD_CATEGORY_COLOR.def,
+  mob: SIGNAL.gain,
+  eco: RARITY_COLOR[3],
+};
+
 export const CLASS_COLOR = {
   tank:     "#7fd8e8",
   soigneur: "#8ef0c8",
