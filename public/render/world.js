@@ -15,7 +15,7 @@ import { customChoix, INTERP_MS, PERF, PHASE_ROUND, amSpectator, bancReleve, con
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
 import { drawBornes, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBonusSignal, drawBulwarks, drawDrones, drawLoots, drawEffects, drawEnemies, drawFinArcs, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, faisceauAllume, lastPlayerPos, noeudsSortis, noeudsVus, resetGaze } from "./boss.js";
-import { drawArenaBounds, drawAtmosphere, drawBaies, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawPremierPlan, drawVignette, drawWalls, drawWeather } from "./decor.js";
+import { drawArenaBounds, drawAtmosphere, drawBaies, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
 import { drawProps, drawTraces } from "./props.js";
@@ -615,7 +615,6 @@ function drawWorld(v) {
   drawBursts();
 
   drawVignette();
-  drawPremierPlan(v);
   drawGazeEcran();
   drawPulse();
   if (REPERE) drawRepere();

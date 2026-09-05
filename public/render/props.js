@@ -257,6 +257,63 @@ export function verifierZones() {
 // densite : 0 en `low` — le sol reste celui d'avant le plan 13.
 const DENSITE = [0, 0.34, 0.58, 0.74];
 
+/* COMBIEN, ET GROS COMMENT — PAR LIEU. Les deux etaient GLOBAUX : `DENSITE[gfx]`
+   et l echelle `0,72 + h x 0,66` n avaient aucun terme de lieu, donc les cinq
+   posaient le meme nombre d objets a la meme taille et ne differaient que par la
+   LISTE. C est la raison pour laquelle ils se ressemblent en mouvement : ce qui
+   se lit a la seconde est une quantite et un calibre, pas un catalogue.
+
+   Le multiplicateur porte le VERBE du lieu, pas un gout :
+   un atelier est encombre, une rue habitee l est plus encore parce que tout y a
+   ete pose par quelqu un ; une friche est un terrain NU entre deux champs de
+   ruines, sa table le dit deja ; et un champ de debris a la derive est
+   majoritairement du VIDE — c est ce qui fait qu on y voit loin.
+
+   L echelle porte la meme phrase : ce qui derive dans le vide est une EPAVE,
+   donc grand et rare ; ce qui traine dans une rue est un cageot, donc petit et
+   partout. `[base, etendue]`, l usine restant la reference d origine. */
+const DENSITE_LIEU = {
+  usine: 1.15, fonderie: 1.00, friche: 0.78, nebuleuse: 0.62, secteur: 1.28,
+};
+const ECHELLE_LIEU = {
+  usine:     [0.72, 0.66],
+  fonderie:  [0.80, 0.70],
+  // une carcasse et une brousse n ont pas le meme calibre : l etendue est la
+  // plus large des cinq, et c est ce qui fait lire « ce qui reste » et non
+  // « ce qui a ete pose ».
+  friche:    [0.66, 0.92],
+  nebuleuse: [0.90, 1.05],
+  secteur:   [0.60, 0.52],
+};
+
+export function verifierSemis() {
+  const soucis = [];
+  for (const lieu of Object.keys(TABLE)) {
+    if (!DENSITE_LIEU[lieu]) soucis.push(`${lieu} : aucune densite de semis`);
+    if (!ECHELLE_LIEU[lieu]) soucis.push(`${lieu} : aucune echelle de props`);
+  }
+  for (const lieu of Object.keys(DENSITE_LIEU)) {
+    if (!TABLE[lieu]) soucis.push(`densite de semis pour ${lieu}, qui n est pas un lieu`);
+  }
+  for (const lieu of Object.keys(ECHELLE_LIEU)) {
+    if (!TABLE[lieu]) soucis.push(`echelle de props pour ${lieu}, qui n est pas un lieu`);
+  }
+  // DEUX LIEUX AU MEME COUPLE (densite, echelle) NE SE DISTINGUENT PLUS QUE PAR
+  // LEUR CATALOGUE — c est l etat d ou l on vient, et il ne doit pas revenir.
+  const vus = new Map();
+  for (const lieu of Object.keys(TABLE)) {
+    const cle = `${DENSITE_LIEU[lieu]}|${(ECHELLE_LIEU[lieu] ?? []).join(",")}`;
+    if (vus.has(cle)) soucis.push(`${lieu} et ${vus.get(cle)} ont le meme semis`);
+    else vus.set(cle, lieu);
+  }
+  // le plafond protege le chemin chaud : la densite est une probabilite par
+  // cellule de 200 px, et au-dela de 1 elle sature sans rien ajouter.
+  for (const [lieu, d] of Object.entries(DENSITE_LIEU)) {
+    if (d <= 0 || d > 1.4) soucis.push(`${lieu} : densite ${d} hors de ]0 ; 1,4]`);
+  }
+  return soucis;
+}
+
 function h2(x, y, s) {
   let h = Math.imul(x | 0, 0x27d4eb2d) ^ Math.imul(y | 0, 0x85ebca6b) ^ Math.imul(s | 0, 0xc2b2ae35);
   h ^= h >>> 15; h = Math.imul(h, 0x2545f491); h ^= h >>> 13;
@@ -300,7 +357,8 @@ function sonder(x, y, quartiers) {
 }
 
 function refresh() {
-  const dens = DENSITE[gfx] ?? 0;
+  const dens = (DENSITE[gfx] ?? 0)
+    * (DENSITE_LIEU[biomeAt(biomeIndex).key] ?? 1);
   const c0x = Math.floor(camera.x0 / CELL) - MARGE;
   const c0y = Math.floor(camera.y0 / CELL) - MARGE;
   const c1x = Math.ceil((camera.x0 + CFG.VIEW_W) / CELL) + MARGE;
@@ -317,6 +375,7 @@ function refresh() {
   const zones = ZONES[lieu] ?? ZONES.usine;
   const quartiers = QUARTIER[lieu] ?? {};
   const matieres = MATIERE[lieu] ?? null;
+  const ech = ECHELLE_LIEU[lieu] ?? ECHELLE_LIEU.usine;
   const s = biomeSeed >>> 0;
 
   for (let cy = c0y; cy <= c1y; cy++) {
@@ -367,7 +426,7 @@ function refresh() {
           k: jeu[(h2(cx, cy, g + 3) * jeu.length) | 0],
           x, y,
           a: h2(cx, cy, g + 4) * Math.PI * 2,
-          s: 0.72 + h2(cx, cy, g + 5) * 0.66,
+          s: ech[0] + h2(cx, cy, g + 5) * ech[1],
           o: 0.55 + h2(cx, cy, g + 6) * 0.45,
           p: h2(cx, cy, g + 7),
         });

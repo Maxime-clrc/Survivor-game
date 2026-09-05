@@ -771,9 +771,8 @@ export function cssVars(diffIndex = 1) {
 
 /* DEUX LIEUX NE PEUVENT PAS AVOIR LA MEME COULEUR, ET CA SE MESURE.
 
-   Le depot refuse deja deux lieux sous la meme silhouette de bord
-   (`verifierPremierPlan`), sous le meme type de source (`verifierLed`), et deux
-   mecaniques opposees sous le meme dessin (`verifierDangers`). La charte etait
+   Le depot refuse deja deux lieux sous le meme type de source (`verifierLed`)
+   et deux mecaniques opposees sous le meme dessin (`verifierDangers`). La charte etait
    le dernier axe d identite qu aucune mesure ne tenait — et le cinquieme lieu
    est arrive avec un sol a 3,5 de dE de la Nebuleuse, la paire la plus proche du
    depot, LOIN devant la deuxieme a 6,1. Deux lieux quasi indistinguables sur la

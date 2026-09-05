@@ -8,6 +8,48 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le semis, avant et après la densité par lieu (0.40.10)
+
+Un prop = un `ctx.scale` dans `drawProps`, et c'est le seul de tout le module :
+le compte est **exact**, contrairement au relevé de 0.40.8 qui comptait les
+`translate`. Balayage des 81 vues, graine 7, mode normal, `gfx` élevée.
+
+| lieu | avant | après | ×  | ops par prop |
+|---|---:|---:|---:|---:|
+| secteur | 53 | **65** | 1,28 | 15,9 |
+| usine | 53 | **62** | 1,15 | 33,1 |
+| fonderie | 53 | **53** | 1,00 | 30,7 |
+| friche | 53 | **41** | 0,78 | 45,1 |
+| nébuleuse | 53 | **30** | 0,62 | 26,4 |
+
+**Avant, les cinq lieux posaient le même nombre d'objets** : `DENSITE[gfx]` et
+l'échelle `0,72 + h × 0,66` n'avaient aucun terme de lieu, donc ils ne
+différaient que par leur catalogue. Après, l'écart est de **2,2×** entre le plus
+dense et le plus vide.
+
+Les **ops par prop** disent l'autre moitié : le Secteur pose beaucoup de petites
+choses (15,9), la Friche peu de grandes et de très inégales (45,1). C'est
+l'échelle par lieu, `[base, étendue]`.
+
+### La palette des lieux, en LAB (0.40.10)
+
+`arena` est la surface qu'on regarde le plus, et les cinq tiennent dans **sept
+points de luminance**, tout en bas de l'échelle : nébuleuse 2,2 · secteur 6,4 ·
+fonderie 6,9 · usine 9,1 · friche 9,1. Les ΔE deux à deux :
+
+| paire | ΔE `arena` | | paire | ΔE `emis` |
+|---|---:|---|---|---:|
+| fonderie / friche | **6,1** | | usine / friche | **8,4** |
+| fonderie / nébuleuse | **8,9** | | usine / fonderie | 15,2 |
+| usine / nébuleuse | **9,3** | | fonderie / friche | 23,2 |
+| usine / secteur | 10,6 | | les six autres | > 82 |
+| friche / secteur | 21,6 | | | |
+
+« Indiscernable » commence vers 5. **Trois des cinq émissifs sont ambre.** Les
+seuils de `verifierCharte()` (6 / 9 / 8) sont les minima déjà présents : le
+vérificateur **ratifie** l'existant au lieu de poser une barre, donc il ne peut
+pas rougir dessus. Non traité dans ce lot.
+
 ### Ce que chaque palier de `gfx` retire, par lieu (0.40.8)
 
 Banc jetable, protocole « faire tourner les contrôles du rendu hors navigateur »
@@ -27,7 +69,10 @@ Opérations par vue, `gfx = élevée` :
 | atmosphère | 283 | 212 | 175 | 365 | 402 |
 | premier plan | 23 | 17 | 1 545 | 119 | 365 |
 
-Et en **objets** par vue : 51 à 124 props, 4 à 37 traces, 6 à 15 blocs.
+Et en **objets** par vue : 6 à 15 blocs. *(Le relevé de props annoncé ici en
+0.40.8 — « 51 à 124 » — comptait les `translate`, donc des traits de dessin et non
+des objets. Le compte exact est le nombre de `scale`, un par prop dans
+`drawProps` : voir le tableau du semis plus bas.)*
 
 **Ce que `basse` retire :** props **0**, traces **0**, fond **0**, baies **0**,
 coulée **0**, atmosphère **0**, premier plan **0**. Il ne reste que la tuile de

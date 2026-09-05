@@ -9271,6 +9271,50 @@
                   LA PASTILLE DIT « aucun gain » : `DIFF_MUL` n a pas de
                   quatrieme entree, et le `?? 1` du lot 07 annoncait « noyaux x1 ».
                   L absence est lue comme telle, pas rattrapee par un defaut.
+    0.40.10 lot 11 UN `t` QUI EN CACHAIT UN AUTRE, LE PREMIER PLAN RETIRE, ET LE
+                  SEMIS QUI DEVIENT PROPRE A CHAQUE LIEU.
+                  `t` EST DEUX CHOSES. Le lot 07 a importe `t` d `i18n.js` dans
+                  `actors.js` pour l invite de borne ; `drawBornes` declarait deja
+                  `const t = performance.now() / 1000`. `t("ui.borne.invite")`
+                  appelait donc un NOMBRE : TypeError a la premiere borne a
+                  portee, trois images en echec, rendu arrete. Le local s appelle
+                  `tm`. Un balayage dit que c etait le seul du depot — dix
+                  modules importent `t`, `boss.js` en declare un local sans jamais
+                  traduire dans sa portee.
+                  LE PREMIER PLAN EST RETIRE (-284 lignes). Il tenait ses trois
+                  regles et il a quand meme saute : sur une arene de 9 x 9 vues,
+                  une bordure presente a CHAQUE ecran devient la chose la plus
+                  repetee du jeu, et elle mange la hauteur utile. Ce qui decore
+                  les bords concurrence ce qui decore le monde ; le budget
+                  appartient au sol, aux props et aux blocs, qui sont ancres et
+                  donc jamais deux fois pareils.
+                  ET LA PREMIERE COUPE A EMPORTE DEUX VOISINS. `carrefour` (l amer
+                  du Secteur), `grilleCaniveau` et `drawWalls` vivaient APRES la
+                  derniere fonction de premier plan : une coupe « du commentaire
+                  a la fin du fichier » les a pris avec. `node --check` ne peut
+                  pas voir un `ReferenceError` de table, et `verif` ne charge pas
+                  les modules de rendu. C est le harnais du lot 09 — DOM de papier
+                  plus hook de resolution — qui l a leve, en une seconde.
+                  LE SEMIS ETAIT LE MEME PARTOUT. `DENSITE[gfx]` et l echelle
+                  `0,72 + h x 0,66` n avaient AUCUN terme de lieu : les cinq
+                  posaient le meme nombre d objets a la meme taille et ne
+                  differaient que par leur catalogue. C est ce qui les faisait se
+                  ressembler EN MOUVEMENT — ce qui se lit a la seconde est un
+                  encombrement, pas un inventaire. `DENSITE_LIEU` et
+                  `ECHELLE_LIEU` portent le verbe du lieu ; mesure sur 81 vues :
+                  53 partout AVANT, 65 / 62 / 53 / 41 / 30 APRES, soit 2,2x
+                  d ecart. `verifierSemis()` refuse un lieu sans entree ET deux
+                  lieux au meme couple.
+                  LE RELEVE DE PROPS DE 0.40.8 ETAIT FAUX et il est corrige :
+                  il comptait les `translate`, donc des traits de dessin. Un prop
+                  est un `ctx.scale`, le seul du module.
+                  LA PALETTE EST MESUREE, PAS CORRIGEE. `arena` tient dans SEPT
+                  points de luminance sur cent, et les paires les plus proches
+                  sont a 6,1 et 8,9 de dE quand « indiscernable » commence a 5 ;
+                  trois emissifs sur cinq sont ambre. Les seuils de
+                  `verifierCharte` (6/9/8) sont les minima DEJA presents, donc il
+                  ratifie l existant au lieu de poser une barre. Ecrit dans
+                  LISEZMOI, pas touche ici.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9280,4 +9324,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.9";
+export const VERSION = "0.40.10";

@@ -206,14 +206,12 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   les ombres vaut *dans* une vue, pas entre deux lieux.
 - **Un aiguillage par lieu est une TABLE, jamais une chaîne de `if` à défaut
   implicite.** `TUILE`, `MACRO_TUILE`, `PORTE_MAILLE` (`material.js`),
-  `PREMIER_PLAN` (`decor.js`) et `LED` (`blocs.js`) le sont, croisées avec
-  `BIOMES` dans les deux sens par `verifierMatiere()`, `verifierPremierPlan()` et
-  `verifierLed()`. `evacDe` reste une chaîne, et c'est **juste** : elle commence
+  et `LED` (`blocs.js`) le sont, croisées avec `BIOMES` dans les deux sens par
+  `verifierMatiere()` et `verifierLed()`. `evacDe` reste une chaîne, et c'est **juste** : elle commence
   par `biomeKey() !== "usine"`, donc son appartenance est *écrite* au lieu d'être
   héritée.
-  Deux de ces vérificateurs posent une question de plus — **deux lieux ne peuvent
-  partager ni une silhouette de bord ni un `type` de source**. Le `type` porte un
-  *comportement* (`dessinerLed`) : la chenille de l'Usine dit qu'une ligne
+  `verifierLed` pose une question de plus — **deux lieux ne peuvent pas partager
+  un `type` de source**. Le `type` porte un *comportement* (`dessinerLed`) : la chenille de l'Usine dit qu'une ligne
   **tourne**, et le Secteur en a hérité en silence alors que le commentaire
   l'interdisait. Deux lieux qui disent la même chose ne sont plus deux lieux.
   La raison est mesurée : le cinquième lieu est parti en production sans branche
@@ -222,17 +220,11 @@ réglages du même — et les faire coexister est ce que fait la 2D haut de gamm
   qu'ils ne couvrent que ce qui est déjà une table. **Un défaut implicite est
   indistinguable d'un choix**, et c'est pour ça que `macroUsine` a été extrait :
   hériter de l'Usine doit être écrit.
-  `verifierPremierPlan` pose une question de plus — **deux lieux ne peuvent pas
-  partager une silhouette de bord** : leurs cinq orientations sont toutes
-  distinctes, et deux bords interchangeables annuleraient le travail fait sur le
-  sol et les blocs. Même rôle que la garde qui refuse un ralenti et un glissant
-  sous le même dessin.
 - **Un cinquième lieu se déclare dans TREIZE tables, et il se livre entier.**
   `BIOMES`, `BLOCS`, `OBSTACLES`, `HZ_NORMAL`, `HZ_CAUCHEMAR`, `ECHELLE`
   (`biomes.js`) ; `BIOME_SKIN` (`palette.js`) ; `BLOC`, `CONTOUR` (`blocs.js`) ;
   `DANGER`, `SOUFFLE` (`dangers.js`) ; `TABLE`, `ZONES` (`props.js`) ; plus la
-  recette de sol de `cuire()`, et `AMERS`/`GRILLE`/`AMBIANCE`/premier plan dans
-  `decor.js`.
+  recette de sol de `cuire()`, et `AMERS`/`GRILLE`/`AMBIANCE` dans `decor.js`.
   **Aucune tranche n'est livrable** : sans `DANGER` le lieu replie sur un disque
   ambre, sans `BLOC` sur une silhouette d'emprunt, sans `HZ_*` c'est un lieu sans
   dangers. Chaque état intermédiaire est soit un vérificateur rouge, soit — pire
@@ -402,16 +394,14 @@ particules, sous `PARTICLE_MAX`.**
   **froid** : `souffleDe` replie en silence sur le brin gris d'avant, et un lieu
   oublié ne se signalerait que par un danger chaud qui exhale du vent.
 
-**Le premier plan** (`drawPremierPlan`), sur `#cv` après le vignettage :
-
-1. **Rien au centre.** Il vit dans les bandes haute et basse. Le centre appartient
-   au joueur.
-2. **Jamais opaque.** Il ne masque rien, il assombrit un peu.
-3. **Coupé pendant un boss.** L'arène se resserre déjà à une vue ; y ajouter du
-   bord serait le contraire de ce que le resserrement cherche.
-
-La parallaxe est une **dérive globale** proportionnelle à la position de caméra —
-assez pour donner la profondeur, trop peu pour attirer l'œil.
+**Il n'y a plus de premier plan.** `drawPremierPlan` posait des bandes sombres et
+une silhouette par lieu sur les bords haut et bas, après le vignettage. Il tenait
+ses trois règles — rien au centre, jamais opaque, coupé pendant un boss — et il a
+quand même été retiré : sur une arène qui tient 9 × 9 vues, une bordure présente à
+chaque écran devient la chose la plus répétée du jeu, et elle mange la hauteur
+utile d'un jeu qui se joue en s'éloignant. **Ce qui décore les bords de la vue
+concurrence ce qui décore le monde** ; le budget appartient au sol, aux props et
+aux blocs, qui eux sont ancrés et donc jamais deux fois pareils.
 
 ### Le boss prend l'arène
 
@@ -545,7 +535,19 @@ exécutable. Il ne circule pas sur le réseau et le serveur ne le lit jamais.
   d'ancienne tuile ; on lui en écrit une, on n'emprunte pas celle du voisin.
   **Et ça ne coûte rien par image** : la tuile est cuite une fois par manche puis
   répétée en motif — le prix de `low` est aux props, aux traces, à la lumière, à
-  l'atmosphère et au premier plan, jamais au four.
+  l'atmosphère, jamais au four.
+- **UN LIEU SE RECONNAÎT À UNE QUANTITÉ ET À UN CALIBRE, PAS À UN CATALOGUE.**
+  `DENSITE[gfx]` et l'échelle `0,72 + h × 0,66` du semis n'avaient **aucun terme
+  de lieu** : les cinq posaient le même nombre d'objets à la même taille et ne
+  différaient que par la liste tirée. C'est ce qui les faisait se ressembler *en
+  mouvement* — ce qui se lit à la seconde est un encombrement, pas un inventaire.
+  `DENSITE_LIEU` et `ECHELLE_LIEU` (`props.js`) portent le **verbe** du lieu :
+  une rue habitée est encombrée parce que tout y a été posé par quelqu'un, une
+  friche est un terrain **nu** entre deux champs de ruines, un champ de débris à
+  la dérive est majoritairement du **vide** — c'est ce qui fait qu'on y voit loin.
+  `verifierSemis()` refuse un lieu sans entrée **et deux lieux au même couple**
+  (densité, échelle) : deux lieux qui posent autant d'objets aussi gros ne se
+  distinguent plus que par leur catalogue, et c'est l'état d'où l'on vient.
 - **UNE TABLE PAR LIEU SE CROISE AVEC `BIOMES`, SANS EXCEPTION.** `BORNE_FORME`
   (`render/actors.js`) portait `ville` et `serre` — deux clefs qui n'ont **jamais**
   été des clefs de lieu : le `?? BORNE_FORME.usine` rendait donc la borne de
@@ -812,9 +814,9 @@ qui traverse**, et par rapport à quoi tout le reste se situe. `couleeDe()`
   est la source au lieu de teindre l'image. Une distorsion thermique aurait
   demandé un second tampon et un blit par image pour le même mot ; un brin qui
   monte le dit avec un `stroke`.
-- L'**embase de cheminée** est le pied des cheminées du premier plan, posée sur
-  les fours qui n'ont pas de gueule. Sans elle les silhouettes du bord ne tiennent
-  à rien.
+- L'**embase de cheminée** est posée sur les fours qui n'ont pas de gueule : elle
+  dit qu'il en sort quelque chose. Elle a survécu au retrait du premier plan, dont
+  elle était le pied — un four muet reste plus pauvre qu'un four qui tire.
 
 #### La baie
 

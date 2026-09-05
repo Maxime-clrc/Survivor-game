@@ -2444,7 +2444,11 @@ export function drawBornes(list, me = null) {
   if (!list || list.length === 0) return;
   const skin = BIOME_SKIN[biomeKey()] ?? BIOME_SKIN.usine;
   const forme = BORNE_FORME[biomeKey()] ?? BORNE_FORME.usine;
-  const t = performance.now() / 1000;
+  /* `tm` ET PAS `t` : ce module importe `t` d'`i18n.js`, et `t` est aussi le nom
+     du temps dans la moitie du rendu. Un `const t` local rendait `t("cle")` =
+     « appeler un nombre » — TypeError a la premiere borne a portee, donc trois
+     images en echec et le rendu qui s'arrete. Rien ne pouvait le lever avant. */
+  const tm = performance.now() / 1000;
   const r2 = BORNE_CFG.INTERACTION * BORNE_CFG.INTERACTION;
 
   for (const b of list) {
@@ -2457,13 +2461,13 @@ export function drawBornes(list, me = null) {
 
     // la lueur : elle respire lentement — ce qui bouge en permanence n'est pas un
     // telegraphe, ce canal appartient au boss, donc la periode reste longue
-    const k = 0.55 + 0.25 * Math.sin(t * 1.6 + b.id);
+    const k = 0.55 + 0.25 * Math.sin(tm * 1.6 + b.id);
     ctx.fillStyle = alpha(skin.emis, k);
     forme(ctx, b.x, b.y, 8);
 
     // LE MARQUEUR : « ! » disponible, « ? » en cours. Il flotte, il ne clignote
     // pas : un clignotement au-dessus de deux cents corps devient du bruit.
-    const dy = -30 - Math.sin(t * 1.8 + b.id) * 3;
+    const dy = -30 - Math.sin(tm * 1.8 + b.id) * 3;
     ctx.fillStyle = alpha(skin.emis, 0.95);
     ctx.font = "700 22px ui-monospace, Menlo, Consolas, monospace";
     ctx.textAlign = "center";

@@ -838,8 +838,8 @@ let fondCache = null;
 /* UN ARRIERE-PLAN EST TROIS COUCHES, ET LE LIEU DIT LESQUELLES. `fondEspace`
    etait la seule recette possible, en dur, et `decor.js` la demandait par un
    `fond !== "espace"` — donc un deuxieme lieu qui declarait un fond n aurait
-   simplement rien affiche, en silence. Meme forme que `TUILE` et
-   `PREMIER_PLAN` : une table, et `verifierFonds()` la croise avec `BIOMES`.
+   simplement rien affiche, en silence. Meme forme que `TUILE` : une table, et
+   `verifierFonds()` la croise avec `BIOMES`.
 
    Les trois couches ont toujours le meme ROLE — l infini, ce qui separe, ce
    qui bouge — et jamais la meme matiere : la Nebuleuse met du gaz et des
