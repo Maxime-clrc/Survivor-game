@@ -183,6 +183,19 @@ export function hazardsActifs() { return biomeNu() ? VIDE : biome.hazards; }
    listes actives : pendant un boss il n'y a ni bloc ni danger a montrer. */
 export function obstaclesDuLieu() { return biome.obstacles; }
 export function hazardsDuLieu() { return biome.hazards; }
+/* LE QUARTIER D UN POINT DU MONDE, celui-la meme qui a decide la loi
+   d implantation des blocs. Le semis avait le SIEN — un hachage sur une maille
+   de 600 px —, donc le bati et ce qui traine autour tiraient deux decoupages
+   independants a deux echelles differentes. Il ne circule pas sur le reseau :
+   `buildBiome` est deterministe, les deux cotes le rejouent sur la graine. */
+export function quartierMonde(x, y) {
+  const d = biome.districts;
+  if (!d) return 0;
+  const c = biome.districtCols, r = biome.districtRows;
+  const cx = Math.min(c - 1, Math.max(0, Math.floor(x / (CFG.ARENA_W / c))));
+  const cy = Math.min(r - 1, Math.max(0, Math.floor(y / (CFG.ARENA_H / r))));
+  return d[cy * c + cx];
+}
 export function groundAt(x, y) {
   let slow = 1, slip = false;
   for (const h of hazardsActifs()) {

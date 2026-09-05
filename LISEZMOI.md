@@ -8,6 +8,34 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les quartiers d'un lieu (0.40.12)
+
+Grille de 9 × 9 cellules d'une vue, 40 graines par lieu, amas de cellules de
+**même variante** en 4-voisinage.
+
+| lieu | amas avant | taille avant | amas après | taille après | plus gros |
+|---|---:|---:|---:|---:|---:|
+| usine | 45 | 1,79 | **12** | **7,04** | 34 |
+| fonderie | 45 | 1,79 | **12** | **7,04** | 34 |
+| secteur | 45 | 1,79 | **12** | **7,04** | 34 |
+| nébuleuse | 47 | 1,72 | **19** | **4,26** | 34 |
+| friche | 48 | 1,68 | **21** | **3,90** | 31 |
+
+Avant, une arène était coupée en **~46 morceaux d'1,8 écran** : on changeait de
+loi d'implantation tous les deux écrans. Quatre lois existaient et aucune n'avait
+la place de se faire reconnaître. La friche et la nébuleuse restent les plus
+fragmentées — leurs variantes s'accordent moins bien aux arêtes, donc la passe de
+réparation les casse plus souvent.
+
+**Le semis suivait un second découpage, à une autre échelle.** Il hachait une
+maille de 3 × 200 px = **600 px**, plus petite qu'une vue (1600 × 900) : **4
+cases de quartier par écran**, et aucun rapport avec le bâti. Après, il lit le
+découpage du lieu — mesure sur des vues **non alignées** (pas de 400 px, la caméra
+suit le joueur et ne tombe jamais sur la grille) : **1,32 quartier par vue**.
+
+`verifierDistricts()` sur 60 graines : aucun quartier en deux morceaux, aucun de
+moins de trois cellules, taille moyenne au-dessus de huit.
+
 ### Le semis, avant et après la densité par lieu (0.40.10)
 
 Un prop = un `ctx.scale` dans `drawProps`, et c'est le seul de tout le module :

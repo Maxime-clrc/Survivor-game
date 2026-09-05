@@ -154,6 +154,8 @@ const SUITE = [
      peut pas lire `CFG` — et verifiait donc l assemblage d une arene que le jeu
      ne construit plus depuis 0.40.1. */
   ["variantes", () => B2.verifierVariantes(50, CFG.ARENA_W, CFG.ARENA_H)],
+  ["districts", () => B2.verifierDistricts(60,
+    Math.round(CFG.ARENA_W / CFG.VIEW_W), Math.round(CFG.ARENA_H / CFG.VIEW_H))],
   /* LA LARGEUR DE PASSAGE, SUR TOUTE LA REGION ET SUR DES GRAINES. Le
      verificateur de navigation ne tournait que sur la graine 7 : avec des
      variantes tirees par cellule, une graine ne couvre presque rien, et un

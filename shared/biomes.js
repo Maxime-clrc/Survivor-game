@@ -740,11 +740,147 @@ const HZ_CAUCHEMAR = {
    choix qui n existe pas deplacerait toutes les arenes deja mesurees. Et le
    repli, quand aucune variante n est compatible, est de tirer dans TOUTES — une
    arete un peu dure vaut mieux qu une cellule vide. */
+/* UN QUARTIER EST UNE REGION QU ON TRAVERSE, PAS UNE CELLULE.
+
+   MESURE DU DEFAUT, ET ELLE EST LA RAISON DE CE DECOUPAGE : la variante etait
+   tiree independamment PAR CELLULE, donc sur les 81 cellules d une arene on
+   comptait 45 a 48 amas de meme variante, de 1,8 cellule en moyenne. Le joueur
+   changeait de loi d implantation tous les deux ecrans — c est du bruit a
+   l echelle ou il se deplace, et un lieu qui change tout le temps ne change
+   jamais. Quatre lois d implantation existaient et aucune n avait la place de se
+   faire reconnaitre.
+
+   ON PLANTE, ON FAIT POUSSER, PUIS ON REPARE. Quelques germes, chaque cellule
+   rejoint le plus proche, et la distance porte un BRUIT DE GRAINE : sans lui les
+   frontieres sont les bissectrices de Voronoi, donc des droites, et on lit un
+   decoupage administratif au lieu d un lieu.
+
+   LA REPARATION EST L ANCIENNE BOUCLE, ET ELLE NE TOUCHE QUE CE QU IL FAUT :
+   deux murs face a face ferment une arete interne, et une arete fermee coupe
+   l arene. On ne renonce donc pas a l invariant — la cellule fautive reprend une
+   variante compatible, et elle seule. C est ce qui garde `verifierVariantes` a
+   zero faute sans rendre le pavage a son bruit d avant. */
+/* COMBIEN DE CELLULES PAR QUARTIER — donc combien de VUES on traverse avant que
+   le lieu change de discours. En dessous d une quinzaine on retombe sur le bruit
+   qu on vient de retirer ; au-dessus, une arene de 81 cellules n a plus que deux
+   quartiers et la traversee ne raconte rien. */
+const DISTRICT_CELLULES = 18;
+const DISTRICT_MIN = 3, DISTRICT_MAX = 6;
+
+export function districtsDe(seed, cols, rows) {
+  const n = Math.max(DISTRICT_MIN, Math.min(DISTRICT_MAX,
+    Math.round((cols * rows) / DISTRICT_CELLULES)));
+  const rand = rng(seed ^ 0x5bf03635);
+  const germes = [];
+  // les germes s ecartent : deux germes cote a cote font un quartier d une
+  // cellule, ce qui est exactement ce qu on vient de retirer.
+  const ecart = Math.max(1, Math.floor(Math.min(cols, rows) / 2.2));
+  for (let i = 0; i < n; i++) {
+    let gx = 0, gy = 0;
+    for (let essai = 0; essai < 32; essai++) {
+      gx = Math.floor(rand() * cols); gy = Math.floor(rand() * rows);
+      if (germes.every(g => Math.abs(g[0] - gx) + Math.abs(g[1] - gy) > ecart)) break;
+    }
+    germes.push([gx, gy]);
+  }
+  /* LE BRUIT S AJOUTE A LA DISTANCE, PAS A SON CARRE, ET IL RESTE PETIT DEVANT
+     UNE CELLULE. Premier jet : `+/- 3,4` sur une distance AU CARRE — pres d un
+     germe les carres valent 0, 1, 4, donc le bruit decidait seul et le decoupage
+     sortait mouchete au lieu de continu. Ici il vaut au plus une demi-cellule :
+     assez pour que la frontiere ne soit pas la bissectrice de deux germes — une
+     droite se lit comme un decoupage administratif —, trop peu pour detacher une
+     cellule de son quartier. */
+  const bruit = new Array(cols * rows);
+  for (let i = 0; i < bruit.length; i++) bruit[i] = rand() - 0.5;
+
+  const out = new Array(cols * rows).fill(0);
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < germes.length; i++) {
+        const dx = cx - germes[i][0], dy = cy - germes[i][1];
+        const d = Math.hypot(dx, dy) + bruit[cy * cols + cx];
+        if (d < bd) { bd = d; best = i; }
+      }
+      out[cy * cols + cx] = best;
+    }
+  }
+  return out;
+}
+
+/* CRITERE REJOUABLE DU DECOUPAGE. Trois questions, et la premiere est celle qui
+   compte : un quartier doit etre d UN SEUL TENANT. Un quartier en deux morceaux
+   est deux endroits qui se ressemblent sans se toucher, et c est pire que pas de
+   quartier du tout — le joueur croit revenir sur ses pas. */
+export function verifierDistricts(graines = 60, cols = 9, rows = 9) {
+  const soucis = [];
+  let sommeTaille = 0, nAmas = 0;
+  for (let k = 0; k < graines; k++) {
+    const s = k * 7 + 1;
+    const g = districtsDe(s, cols, rows);
+    const nq = g.reduce((m, q) => Math.max(m, q), 0) + 1;
+    const vu = new Array(cols * rows).fill(false);
+    const morceaux = new Array(nq).fill(0);
+    for (let i = 0; i < g.length; i++) {
+      if (vu[i]) continue;
+      morceaux[g[i]]++;
+      const file = [i]; vu[i] = true; let taille = 0;
+      while (file.length) {
+        const c = file.pop(); taille++;
+        const cx = c % cols, cy = (c / cols) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+          const j = ny * cols + nx;
+          if (!vu[j] && g[j] === g[i]) { vu[j] = true; file.push(j); }
+        }
+      }
+      sommeTaille += taille; nAmas++;
+    }
+    for (let q = 0; q < nq; q++) {
+      if (morceaux[q] > 1) {
+        soucis.push(`graine ${s} : le quartier ${q} est en ${morceaux[q]} morceaux`);
+      }
+    }
+    const tailles = new Array(nq).fill(0);
+    for (const q of g) tailles[q]++;
+    if (Math.min(...tailles) < 3) {
+      soucis.push(`graine ${s} : un quartier de ${Math.min(...tailles)} cellule(s)`);
+    }
+  }
+  const moy = sommeTaille / nAmas;
+  if (moy < 8) {
+    soucis.push(`quartier moyen de ${moy.toFixed(1)} cellules : en dessous de huit`
+      + " on retombe sur le bruit d avant le decoupage");
+  }
+  return soucis;
+}
+
 export function grilleVariantes(lieu, seed, cols, rows) {
   const vs = OBSTACLES[lieu] ?? [];
   const choix = new Array(rows * cols).fill(0);
   if (vs.length < 2) return choix;
   const rand = rng(seed);
+
+  /* UNE VARIANTE PAR QUARTIER, ET DEUX QUARTIERS VOISINS N EN PARTAGENT PAS :
+     sans cette garde le decoupage existe et ne se voit pas. */
+  const quartiers = districtsDe(seed, cols, rows);
+  const nq = quartiers.reduce((m, q) => Math.max(m, q), 0) + 1;
+  const parQuartier = new Array(nq).fill(-1);
+  for (let q = 0; q < nq; q++) {
+    const voisines = new Set();
+    for (let cy = 0; cy < rows; cy++) {
+      for (let cx = 0; cx < cols; cx++) {
+        if (quartiers[cy * cols + cx] !== q) continue;
+        if (cx > 0) voisines.add(parQuartier[quartiers[cy * cols + cx - 1]]);
+        if (cy > 0) voisines.add(parQuartier[quartiers[(cy - 1) * cols + cx]]);
+      }
+    }
+    const libres = vs.map((_, i) => i).filter(i => !voisines.has(i));
+    const pool = libres.length > 0 ? libres : vs.map((_, i) => i);
+    parQuartier[q] = pool[Math.floor(rand() * pool.length)];
+  }
+
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
       const g = cx > 0 ? choix[cy * cols + cx - 1] : -1;
@@ -761,6 +897,9 @@ export function grilleVariantes(lieu, seed, cols, rows) {
         if (hb && !bordsAccordes(hb[2], b[0])) continue;
         ok.push(i);
       }
+      // LE QUARTIER PASSE EN PREMIER, LA COMPATIBILITE A RAISON EN DERNIER.
+      const voulu = parQuartier[quartiers[cy * cols + cx]];
+      if (ok.includes(voulu)) { choix[cy * cols + cx] = voulu; continue; }
       const pool = ok.length > 0 ? ok : vs.map((_, i) => i);
       choix[cy * cols + cx] = pool[Math.floor(rand() * pool.length)];
     }
@@ -781,6 +920,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
 
   const varis = OBSTACLES[def.key] ?? [];
   const choix = grilleVariantes(def.key, seed, cols, rows);
+  const grilleDistricts = districtsDe(seed, cols, rows);
 
   const obstacles = [];
   const kDefaut = blocsDe(def.key)[0] ?? 0;
@@ -844,6 +984,15 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   return {
     index: biomeIndex, key: def.key, nom: def.nom,
     obstacles, hazards,
+    /* LE DECOUPAGE SORT AVEC LE LIEU, ET C EST TOUT L INTERET. Le semis avait sa
+       PROPRE notion de quartier — un hachage de la cellule divisee, sur une
+       maille de 600 px — donc le batî et ce qui traîne autour tiraient deux
+       decoupages independants, a deux echelles differentes, et ne tombaient
+       jamais d accord. Un lieu se reconnait quand sa loi d implantation et son
+       semis disent la meme chose au meme endroit.
+       Il ne circule PAS sur le reseau : `buildBiome` est deterministe et les
+       deux cotes le rejouent sur la meme graine. */
+    districts: grilleDistricts, districtCols: cols, districtRows: rows,
     obstacleSurface: obsArea / surface,
     hazardSurface: hzArea / surface,
     // le budget EVINCE en silence : une entree declaree pouvait ne jamais etre

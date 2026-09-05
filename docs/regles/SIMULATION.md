@@ -508,6 +508,26 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   cauchemar, où `GEOM_CAUCHEMAR` mappe `pince → quatre-fronts`.
 - **La grille se refait quand une couverture cède** (`_obstacleHit`), et
   seulement là : la géométrie de biome ne bouge pas autrement.
+- **UN LIEU A DES QUARTIERS, ET UN QUARTIER SE TRAVERSE.** La variante
+  d'implantation était tirée **par cellule** : sur les 81 cellules d'une arène,
+  **45 à 48 amas de 1,8 cellule**. On changeait de loi tous les deux écrans —
+  c'est du bruit à l'échelle où l'on se déplace, et un lieu qui change tout le
+  temps ne change jamais. `districtsDe()` plante quelques germes, les fait
+  pousser, donne **une variante par quartier** et ne répare qu'ensuite les arêtes
+  fautives : **12 à 21 amas de 3,9 à 7,0 cellules**. Le bruit s'ajoute à la
+  distance et **jamais à son carré** — près d'un germe les carrés valent 0, 1, 4,
+  donc un jitter de ±3,4 décidait seul et le découpage sortait moucheté.
+  `verifierDistricts()` exige qu'un quartier soit **d'un seul tenant** : deux
+  morceaux, c'est deux endroits qui se ressemblent sans se toucher, et le joueur
+  croit revenir sur ses pas.
+- **LE SEMIS LIT CE DÉCOUPAGE, IL N'EN INVENTE PAS UN SECOND.** `props.js` avait
+  le sien — un hachage sur une maille de **600 px**, plus petite qu'une vue, donc
+  le semis changeait de discours **quatre fois par écran** et ne pouvait désigner
+  aucun endroit ; et il était **indépendant** du bâti, donc les deux ne tombaient
+  jamais d'accord. Il lit `quartierMonde()`, le même découpage qui a choisi la loi
+  d'implantation : **1,32 quartier par vue** au lieu de 4. L'architecture proche
+  (`sonder`, 90 px) passe toujours devant, et `FUITE` brouille toujours la
+  frontière.
 - **UN LIEU PAR MANCHE, ET IL VAUT POUR TOUTE L'ARÈNE.** `room.drawBiome()` le
   tire à la création de la salle puis **à chaque sortie de manche** ; `buildBiome`
   pave les 81 cellules avec les variantes de **ce** lieu. Traverser la carte ne

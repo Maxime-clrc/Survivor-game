@@ -1,7 +1,7 @@
 import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
-import { biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, skin } from "./stage.js";
+import { biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
 import { biomeAt, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
@@ -116,11 +116,10 @@ const TABLE = {
    tire est un prop SUPPRIME du jeu en silence, exactement le piege que
    `CLAUDE.md` nomme en premier.
 
-   LA FUITE EST CE QUI EMPECHE LA GRILLE DE SE VOIR. Sans elle, la frontiere de
-   deux quartiers est une droite franche tous les 600 px — un damier, pas une
+   LA FUITE EST CE QUI EMPECHE LA FRONTIERE DE SE VOIR. Sans elle, deux quartiers
+   se separent sur une droite franche — un decoupage administratif, pas une
    installation. Une part des props ignore donc sa zone et tire dans le fonds du
    lieu : les quartiers gardent leur dominante, leur bord se brouille. */
-const ZONE_CELL = 3;
 const FUITE = 0.18;
 // deux cellules sur trois : au-dela le sol devient un tapis et plus aucune
 // trace ne se lit comme un evenement.
@@ -412,16 +411,18 @@ function refresh() {
         const y = (cy + 0.12 + h2(cx, cy, g + 2) * 0.76) * CELL;
         const q = sonder(x, y, quartiers);
         if (q === -2) continue;
-        /* L ARCHITECTURE DECIDE, LE HACHAGE COMBLE, LA FUITE BROUILLE. Trois
-           sources dans cet ordre : ce qui est BATI a cote impose son quartier ;
-           en terrain libre le hachage de la cellule divisee garde une dominante
-           locale ; et une part des props ignore les deux pour que la frontiere
-           de deux quartiers ne soit pas une droite franche. */
+        /* L ARCHITECTURE DECIDE, LE QUARTIER DU LIEU COMBLE, LA FUITE BROUILLE.
+           Trois sources dans cet ordre : ce qui est BATI a cote impose son
+           quartier ; en terrain libre on prend celui du DECOUPAGE DU LIEU, le
+           meme qui a choisi la loi d implantation des blocs ; et une part des
+           props ignore les deux pour que la frontiere ne soit pas une droite.
+           LE COMBLEMENT ETAIT UN HACHAGE A LUI, sur une maille de 600 px — plus
+           petite qu une vue, donc le semis changeait deux a trois fois par ecran
+           et ne pouvait designer aucun endroit. Et il etait INDEPENDANT du bati :
+           deux decoupages a deux echelles qui ne tombaient jamais d accord. */
         const jeu = h2(cx, cy, g + 8) < FUITE
           ? table
-          : zones[q >= 0 ? q % zones.length
-                  : (h2(Math.floor(cx / ZONE_CELL), Math.floor(cy / ZONE_CELL), s + 977)
-                     * zones.length) | 0];
+          : zones[(q >= 0 ? q : quartierMonde(x, y)) % zones.length];
         props.push({
           k: jeu[(h2(cx, cy, g + 3) * jeu.length) | 0],
           x, y,

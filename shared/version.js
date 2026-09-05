@@ -9336,6 +9336,38 @@
                   doit l obtenir deux fois. La memoire appartient a la SALLE, pas
                   au module — seize salles d un processus ne partagent pas un
                   etat, c est la panne que le plan 31 a corrigee pour le hasard.
+    0.40.12 lot 13 UN LIEU A DES QUARTIERS, ET UN QUARTIER SE TRAVERSE. Les deux
+                  machineries existaient et produisaient du BRUIT, chacune a une
+                  echelle differente et sans jamais se parler.
+                  LE LAYOUT TIRAIT PAR CELLULE. Mesure : 45 a 48 amas de meme
+                  variante par arene, de 1,8 cellule — on changeait de loi
+                  d implantation tous les deux ecrans. Quatre lois existaient et
+                  aucune n avait la place de se faire reconnaitre. `districtsDe()`
+                  plante quelques germes, les fait pousser, donne UNE variante par
+                  quartier, et la boucle de compatibilite d avant ne repare plus
+                  que les aretes fautives : 12 a 21 amas de 3,9 a 7,0 cellules.
+                  ET LE BRUIT S AJOUTE A LA DISTANCE, JAMAIS A SON CARRE. Premier
+                  jet : `+/- 3,4` sur une distance au carre — pres d un germe les
+                  carres valent 0, 1, 4, donc le bruit decidait seul et le
+                  decoupage sortait MOUCHETE. Treize quartiers epars au lieu de
+                  cinq blocs. Il vaut maintenant au plus une demi-cellule.
+                  LE SEMIS AVAIT SON PROPRE DECOUPAGE. `ZONE_CELL = 3` x 200 px =
+                  une maille de 600 px, PLUS PETITE QU UNE VUE : quatre cases de
+                  quartier par ecran, donc rien qui puisse designer un endroit. Et
+                  il etait independant du bati — deux decoupages a deux echelles
+                  qui ne tombent jamais d accord. Il lit `quartierMonde()`, le
+                  meme decoupage qui a choisi la loi d implantation : 1,32 quartier
+                  par vue, mesure sur des vues NON ALIGNEES (la camera suit le
+                  joueur, elle ne tombe pas sur la grille). `sonder` passe toujours
+                  devant et `FUITE` brouille toujours la frontiere.
+                  `verifierDistricts()` EXIGE UN SEUL TENANT. Un quartier en deux
+                  morceaux est deux endroits qui se ressemblent sans se toucher, et
+                  c est pire que pas de quartier : le joueur croit revenir sur ses
+                  pas. Plus un plancher de trois cellules et une moyenne au-dessus
+                  de huit, sinon on est revenu au bruit sans le voir.
+                  `verifierVariantes` RESTE A ZERO FAUTE d arete, et `passages`
+                  comme `navigation` restent verts : le decoupage change ce qui se
+                  LIT, pas ce qui se TRAVERSE.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9345,4 +9377,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.11";
+export const VERSION = "0.40.12";
