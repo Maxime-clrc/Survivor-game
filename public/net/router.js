@@ -2,17 +2,17 @@
 import { playSound } from "/audio.js";
 import { pousserHautFait, showHud } from "/hud.js";
 import { t, tf } from "/shared/i18n.js";
-import { setCustomChoix, traceOn, setTrace, setRapport, PERF, PHASE_LOBBY, PHASE_ROUND, amSpectator, cardsPending, cardsState, connected, difficulty, hostId, inRoom, joinAttempt, lastResult, latest, loadouts, lobby, merchantState, merchantWait, metaClsOverride, myId, myPseudo, myVote, pauseReal, pendingAuth, pendingRejoin, phase, predicted, progressState, refreshLocalMods, relicsByPlayer, roomNameCur, roomsList, roundHistory, roundNumber, serverCommit, serverVersion, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setLootsByPlayer, setMerchantState, notePing, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, snapshots, tally, viderErreurs, ws } from "../core/state.js";
+import { setCustomChoix, traceOn, setTrace, setRapport, PERF, PHASE_LOBBY, PHASE_ROUND, cardsState, connected, difficulty, joinAttempt, lobby, merchantState, merchantWait, myId, myVote, pendingAuth, phase, refreshLocalMods, roomNameCur, setAmSpectator, setCardsPending, setCardsState, setConnected, setDifficulty, setHostId, setInRoom, setJoinAttempt, setLastResult, setLatest, setLoadouts, setLobby, setLootsByPlayer, setMerchantState, notePing, setMerchantWait, setMetaClsOverride, setMyId, setMyPseudo, setMyVote, setPauseReal, setPendingAuth, setPendingRejoin, setPhase, setPredicted, setProgressState, setRelicsByPlayer, setRoomNameCur, setRoomsList, setRoundHistory, setRoundNumber, setServerCommit, setServerVersion, setSnapshots, setTally, setWs, tally, viderErreurs, ws } from "../core/state.js";
 import { ingest } from "./ingest.js";
 import { netPerfBoundary, pushAlert, pushWorld, screenCloseQueued, setAlertInfo, setScreenCloseQueued, worldQueue } from "./interp.js";
 import { hfNom } from "/shared/hauts_faits.js";
-import { applyPalette, biomeIndex, biomeSeed, rebuildBiome, setBiomeIndex, setBiomeSeed } from "../render/stage.js";
+import { applyPalette, biomeSeed, rebuildBiome, setBiomeIndex, setBiomeSeed } from "../render/stage.js";
 import { fermerReleve, relevesSeg, resetFeedback } from "../render/world.js";
 import { renderGateMode, renderGateSwitch, renderServerInfo } from "../ui/boot.js";
 import { closeBuild } from "../ui/build.js";
 import { gate, gateHold, gateHoldMsgEl, gateWho, goBtn, hubPassAskEl, hubPassAskInput, hubPassAskWhoEl, hubResumeEl, hubScreenEl, loadingEl, menuEl, panel, passNewInput, passOldInput, registerFormEl, setGateBusy, setStatus, settingsEl, updateTrace, updateVersion, waitMsg } from "../ui/dom.js";
 import { applyPause, closePause, setPausePar } from "../ui/pause.js";
-import { boardData, briefWaiting, closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, launchEndsAt, myPing, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderCodex, renderMeta, renderHautsFaits, setArmeEtat, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, settingsFrom, showBilan, updateTerminalDot } from "../ui/screens.js";
+import { closeBilan, closeBrief, closeCards, closeFin, closeMerchant, enterHub, hubStatus, openBrief, openFin, passMsg, refreshPanel, renderBoard, renderBriefWait, renderCards, renderCardsWait, renderLaunch, renderMerchant, renderMerchantWait, renderCodex, renderMeta, renderHautsFaits, setArmeEtat, renderResume, renderRooms, renderTopPing, setBoardData, setBriefWaiting, setLaunchEndsAt, setMyPing, setSettingsFrom, updateTerminalDot } from "../ui/screens.js";
 
 /* Le serveur envoie un CODE ; sa phrase francaise, quand il en met une, n'est
    plus qu'un repli pour un motif que le client ne connait pas. */

@@ -6,10 +6,10 @@ import { VERSION } from "/shared/version.js";
 import { atlasStats, bindGL, buildAtlas, frameOf, glActive, silhouetteSheet } from "/sprites.js";
 import { PERF, inRoom, sendAuth, signalerErreur, ws } from "../core/state.js";
 import { bossSheet } from "../render/boss.js";
-import { PARTICLE_GL, PARTICLE_MAX, fxWhite, setFxGlow, setFxShard, setFxWhite, setPARTICLE_MAX } from "../render/fx.js";
+import { PARTICLE_GL, setFxGlow, setFxShard, setFxWhite, setPARTICLE_MAX } from "../render/fx.js";
 import { gl, overCtx, resize, underCtx } from "../render/stage.js";
 import { escapeHtml, gate, gateBuildEl, gateContinueBtn, gateFormsEl, gateHold, gateRoomsEl, gateServerEl, gateSwitchEl, goBtn, loadingEl, loginFormEl, nameInput, passInput, regGoBtn, regNameInput, regPass2Input, regPassInput, registerFormEl, setGateBusy, setLoading, setStatus, tabLoginBtn, tabRegisterBtn } from "./dom.js";
-import { enterHub, myPing, refreshPanel, renderTopPing, setMyPing } from "./screens.js";
+import { enterHub, refreshPanel, renderTopPing, setMyPing } from "./screens.js";
 
 export function renderGateMode() {
   gateFormsEl.hidden = false;

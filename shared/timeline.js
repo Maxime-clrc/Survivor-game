@@ -299,10 +299,6 @@ export function verifierScript() {
    cible designee). Un objectif qui demanderait un compteur neuf sort de la table.
    =========================================================================== */
 
-export const CONTRAT_COMMUN = 0;
-export const CONTRAT_RARE = 1;
-export const CONTRAT_DANGEREUX = 2;
-export const CONTRAT_MAUDIT = 3;
 
 /* LES QUATRE RARETES NE CHANGENT PAS QUE LA QUANTITE, ELLES CHANGENT LA FORME.
    Plus le joueur accepte de mettre la manche en danger, plus la recompense change

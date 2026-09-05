@@ -12,15 +12,15 @@ import { TL_CFG } from "/shared/timeline.js";
 import { severite } from "/shared/custom.js";
 import { drawSprite, glActive } from "/sprites.js";
 import { customChoix, INTERP_MS, PERF, PHASE_ROUND, amSpectator, bancReleve, connected, dash, difficulty, gfx, latest, lobby, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setBancReleve, setPredicted, signalerErreur, snapshots } from "../core/state.js";
-import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, bossCue, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
+import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
 import { drawBornes, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBonusSignal, drawBulwarks, drawDrones, drawLoots, drawEffects, drawEnemies, drawFinArcs, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, faisceauAllume, lastPlayerPos, noeudsSortis, noeudsVus, resetGaze } from "./boss.js";
 import { drawArenaBounds, drawAtmosphere, drawBaies, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawPremierPlan, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
 import { drawProps, drawTraces } from "./props.js";
-import { PARTICLE_MAX, blastMarks, bossMortQueue, bouches, bursts, dashMarks, deaths, dmgAgg, finArcs, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp, zoneFx } from "./fx.js";
-import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, vignette, weather, weatherSeg } from "./stage.js";
+import { PARTICLE_MAX, blastMarks, bossMortQueue, bouches, bursts, dashMarks, deaths, dmgAgg, finArcs, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp } from "./fx.js";
+import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, weather, weatherSeg } from "./stage.js";
 import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";
 
 export function resetFeedback() {

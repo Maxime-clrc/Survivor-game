@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, skin } from "./stage.js";
-import { biomeAt, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, BIOMES, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle

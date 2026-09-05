@@ -847,7 +847,7 @@ de boss) se dose sur `glActive()` et **jamais** sur `gfx`.
 
 ### Caméra et arène
 
-`CFG.ARENA_W/H` = 4800 × 2700, `CFG.VIEW_W/H` = 1600 × 900. **La caméra vit dans
+`CFG.ARENA_W/H` = 9600 × 5400, `CFG.VIEW_W/H` = 1600 × 900. **La caméra vit dans
 les transforms, jamais dans les fonctions de dessin** : translation posée par
 `applyCamera()` sur les deux contextes 2D, offset absorbé par la projection dans
 `gl.begin`, souris mémorisée en coordonnées de **vue** et convertie à la lecture.

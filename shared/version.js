@@ -9070,6 +9070,32 @@
                   importer ni le declarer. Trois vrais, sept faux positifs, tous
                   dans des commentaires ou des clefs d objet.
 
+    0.40.4 lot 05 CE QUE PLUS PERSONNE NE LIT. Quarante et un imports sans
+                  usage, quatre constantes sans lecteur, un chiffre d arene
+                  perime dans les regles.
+                  LES QUATRE `CONTRAT_*` DE `timeline.js` N AVAIENT AUCUN
+                  LECTEUR — les contrats circulent par leur INDICE, et
+                  `contratAt` / `rareteAt` suffisent. `constantes-check` ne les
+                  voyait pas : il ne couvre que `CFG`.
+                  LE BRUIT N EST PAS NEUTRE : `drawTraces` s etait cache dans
+                  cette liste pendant onze lots. Un import mort ne coute rien a
+                  l execution, mais il rend invisible celui qui designe un appel
+                  MANQUANT — c est la seule raison de les retirer.
+                  LE SCAN A DEUX PIEGES, ET LES DEUX ONT MORDU. Compter les
+                  usages sur le fichier ENTIER compte la ligne d import
+                  elle-meme. Et exclure ce qui suit un point pour ignorer les
+                  acces de propriete exclut aussi le SPREAD : ...f(x) se lit
+                  comme .f, donc `signatureSilhouette`, bien appele, sortait
+                  comme mort. Une suppression sur ce scan-la aurait casse le
+                  verificateur de silhouettes.
+                  `oublierManques` RESTE. Aucun appelant dans le depot, mais
+                  c est la remise a zero de `sonsManques()`, instrument prevu
+                  pour un script de mesure jetable — le retirer amputerait un
+                  outil au lieu de nettoyer du bruit.
+                  RENDU.md DISAIT ENCORE 4800 x 2700. C est 9600 x 5400 depuis
+                  0.40.1, et c est precisement le chiffre qui rend le decor non
+                  cull quatre fois plus cher.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9078,4 +9104,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.3";
+export const VERSION = "0.40.4";

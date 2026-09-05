@@ -1,7 +1,7 @@
 
 import { CLASS_DEFAULT } from "/shared/classes.js";
 import { CFG } from "/shared/game_state.js";
-import { EMPTY_SET, PERF, SNAP_THRESHOLD, bombReadyAt, bombStockSeen, dash, difficulty, lastSnapAt, latest, myId, phase, ping, predicted, setBombReadyAt, setBombStockSeen, setLastSnapAt, setLatest, setPing, setPredicted, snapshots } from "../core/state.js";
+import { EMPTY_SET, PERF, SNAP_THRESHOLD, bombStockSeen, dash, difficulty, lastSnapAt, myId, phase, predicted, setBombReadyAt, setBombStockSeen, setLastSnapAt, setLatest, setPing, setPredicted, snapshots } from "../core/state.js";
 import { netPerf, netPerfArrival } from "./interp.js";
 import { deaths } from "../render/fx.js";
 import { buildPaintedAt, renderBuild, setBuildPaintedAt } from "../ui/build.js";

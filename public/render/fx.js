@@ -13,7 +13,7 @@ import { BOSS, CLASS_COLOR, COMBAT, FX, POWERUP_COLOR, SIGNAL, SURFACE, alpha, m
 import { eventAt, eventNom, segmentName } from "/shared/timeline.js";
 import { SPRITE_CELL, drawSprite, frameOf, glActive } from "/sprites.js";
 import { GFX_MEDIUM, gfx, latest, myId, secousseMul } from "../core/state.js";
-import { ENEMY_TINT, alertInfo, setAlertInfo } from "../net/interp.js";
+import { ENEMY_TINT, setAlertInfo } from "../net/interp.js";
 import { ELITE_GOLD, GRID_FINE, camera, ctx, hazardsActifs, inView, lumDir, ownerColorOf, skin } from "./stage.js";
 
 

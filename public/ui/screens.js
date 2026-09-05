@@ -2,7 +2,7 @@
 import { getAudioSource, getMusicVolume, getVolume, initAudio, isMuted, playSound, setAudioSource, setMusicDuck, setMusicVolume, setMuted, setVolume } from "/audio.js";
 import { showHud } from "/hud.js";
 import { refreshMusicSource } from "/music.js";
-import { BOSS_ROSTER, bossAt, bossNom, bossSous, bossVerbe } from "/shared/bosses.js";
+import { BOSS_ROSTER, bossNom, bossSous, bossVerbe } from "/shared/bosses.js";
 import { CARDS, CARD_BY_ID, RARITY_COLOR, archetypeDe, archetypeNom, banClosure, cardDesc, cardDetail, cardNom, rarityLabel } from "/shared/cards.js";
 import { CLASSES, CLASS_DEFAULT, classAt, classDesc, classMission, classNom, classSolo, skill3Nom, skillDesc, skillNom } from "/shared/classes.js";
 import { CFG, DAMAGE_SOURCES, DIFFICULTIES, PLAYER_COLORS, diffLabel, diffResume, srcLabel } from "/shared/game_state.js";
@@ -12,7 +12,7 @@ import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
 import { ENEMY_TYPES, enemyLore, enemyNom, roleDe } from "/shared/enemies.js";
 import { CONDITIONS, PREREGLAGES, construireCustom, exporterChoix, importerChoix, severite } from "/shared/custom.js";
 import { CLASSEMENTS, COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, metaActives, metaCharge, metaPoids, slotsFor, tierCost, vueStats } from "/shared/progression.js";
-import { ARME_CFG, armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
+import { armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
 import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
 import { appliquerCadre } from "./cadres.js";
 import { RELICS, relicById, relicDesc, relicNom, relicPrice, relicContrepartie, relicRarityLabel } from "/shared/reliques.js";

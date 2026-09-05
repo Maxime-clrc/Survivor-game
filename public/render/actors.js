@@ -6,7 +6,7 @@ import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { bonusFamille, bonusRang } from "/shared/feedback.js";
 import { CARD_CFG, CFG, ENEMY_TYPES, LOOT_CFG, POWERUP_TYPES, defDe, fullMods, lootAt, traitsOf } from "/shared/game_state.js";
-import { BIOME_SKIN, BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
+import { BIOME_SKIN, BOSS, CLASS_COLOR, COMBAT, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
 import { ENEMY_TINT, paintPowerupIcon } from "../net/interp.js";
