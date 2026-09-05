@@ -570,28 +570,58 @@ button.danger:hover:not(:disabled) { color: var(--bg-void); background: var(--le
 #version.stale { color: var(--warn); }
 
 /* LE SUR MESURE TIENT SUR UN ECRAN, ET C EST VOULU : voir deux conditions
-   ensemble est ce qui donne envie de les combiner. Une ligne par condition, ses
-   rangs en cases — on voit les options d un coup. */
-#customBox { margin-top: var(--sp-4); }
+   ensemble est ce qui donne envie de les combiner. Une ligne par condition — un
+   curseur quand la condition est un AXE, des cases quand elle est un NOM. */
+.customHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
 #customJauge {
-  margin: var(--sp-2) 0;
   font-family: var(--font-display);
   font-size: var(--t-s);
   letter-spacing: .04em;
 }
 #customPresets { flex-wrap: wrap; gap: var(--sp-1); margin-bottom: var(--sp-2); }
-#customList { display: flex; flex-direction: column; gap: var(--sp-1); }
+/* DEUX COLONNES DES QUE LA PLACE EXISTE : onze lignes empilees repoussaient le
+   bouton de lancement d un ecran entier. */
+#customList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--sp-1) var(--sp-6);
+}
 .customLigne {
   display: grid;
-  grid-template-columns: 8em auto 1fr;
+  grid-template-columns: 7.5em minmax(90px, 1fr) 2.2em;
   align-items: center;
   gap: var(--sp-2);
   font-size: var(--t-xs);
+  padding: 2px 0;
 }
 .customNom { font-weight: 700; }
-.customRangs { flex-wrap: wrap; gap: 2px; }
-.customRangs button { min-width: 2.4em; padding: 2px var(--sp-1); }
-.customDit { color: var(--text-faint); }
+.customCtl { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.customCtl input[type="range"] { width: 100%; min-width: 0; }
+.customCtl button { min-width: 0; padding: 2px var(--sp-1); font-size: var(--t-xs); }
+/* LE COUT EST LA MESURE DU MODE : il garde une colonne a lui, en chasse fixe, et
+   sa couleur dit le SENS — un rang negatif rend la manche plus douce. */
+.customCout {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-faint);
+}
+.customCout.dur  { color: var(--warn); }
+.customCout.doux { color: var(--gain); }
+/* CE QUE LE RANG FAIT PASSE SOUS LA LIGNE : au-dela de deux colonnes il n y a
+   plus la largeur pour le mettre a cote sans couper le curseur. */
+.customDit {
+  grid-column: 1 / -1;
+  color: var(--text-faint);
+  padding-left: 7.5em;
+  margin-top: -2px;
+}
+.customDit.neutre { opacity: .62; }
 #customBox[hidden] { display: none; }
 
 /* L OPTION DE MESURE EST UNE LIGNE DU SALON, pas un reglage cache : elle se lit

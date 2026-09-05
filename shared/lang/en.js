@@ -141,7 +141,7 @@ export const EN = {
   "ui.panel.class.label": "1 — Class",
   "ui.panel.class.lead": "Bulwark and Healer are unique: one player each.",
   "ui.panel.vote.label": "2 — Difficulty",
-  "ui.panel.vote.lead": "Everyone votes, the majority wins. The chosen mode applies to the whole team.",
+  "ui.panel.vote.lead": "Everyone votes, the majority wins. The chosen mode applies to the whole team. Custom is not voted on: the host arms it, and it overrides the vote.",
   "ui.panel.vote2.label": "Difficulty",
   "ui.panel.team": "Team",
   "ui.panel.ready": "I am ready",
@@ -231,9 +231,8 @@ export const EN = {
   "ui.hub.board.n3": "Trio",
   "ui.hub.board.n4": "Squad",
   "ui.hub.board.meta": "lv. {n} · {lieu}",
-  "ui.panel.custom.label": "3 — Custom",
+  "ui.panel.custom.label": "Custom settings",
   "ui.panel.custom.lead": "The rules are yours. Nothing is saved — no cores, no records, no achievements, no milestones: this mode is for trying and measuring.",
-  "ui.panel.custom.on": "Play custom",
   "ui.panel.custom.aucun": "none",
   "ui.panel.custom.code": "settings code",
   "ui.panel.custom.import": "Paste",
@@ -326,6 +325,9 @@ export const EN = {
 
   /* --- vote de difficulte ----------------------------------------------- */
   "ui.vote.cores": "cores",
+  "ui.vote.cores.aucun": "no reward",
+  "ui.vote.hint.custom": "Mode kept: {mode}. It overrides the vote while it is on.",
+  "ui.vote.custom.vierge": "no condition — the run is worth normal, and that is the starting point",
   "ui.vote.tally.un": "{n} vote",
   "ui.vote.tally.n": "{n} votes",
   "ui.vote.hint.team": "Mode kept: {mode} ({n} votes out of {tot}). On a tie, the gentlest wins.",
@@ -1530,6 +1532,10 @@ export const EN = {
   "diff.cauchemar.resume.0": "all thirteen types: healers, choirs, generators and relays included",
   "diff.cauchemar.resume.1": "a covered pack is a wall, and two relays string an arc between them",
   "diff.cauchemar.resume.2": "several directions at all times: the ground closes behind them",
+  "diff.custom.label": "custom",
+  "diff.custom.resume.0": "the rules are yours — every condition has a rank and a cost",
+  "diff.custom.resume.1": "the severity index is a SUM, so an approximation: ten weapons do not",
+  "diff.custom.resume.2": "pay the same price for the same condition",
 
   /* --- provenance d'un degat ------------------------------------------------ */
   "src.contact": "contact",

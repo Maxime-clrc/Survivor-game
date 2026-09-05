@@ -10,7 +10,7 @@ import { biomeNom, biomeResume } from "/shared/biomes.js";
 import { LANGS, LANG_NOM, dec, getLang, onLangChange, setLang, t, tf, tn } from "/shared/i18n.js";
 import { CARD_CATEGORY_COLOR, SRC_TINT, SURFACE } from "/shared/palette.js";
 import { ENEMY_TYPES, enemyLore, enemyNom, roleDe } from "/shared/enemies.js";
-import { CONDITIONS, PREREGLAGES, construireCustom, exporterChoix, importerChoix, severite } from "/shared/custom.js";
+import { CONDITIONS, CUSTOM_INDEX, PREREGLAGES, construireCustom, exporterChoix, importerChoix, severite } from "/shared/custom.js";
 import { CLASSEMENTS, COMMUN, CONFORT, PROG_CFG, TREES, codexClefs, cadresDe, cadreActifDe, confortDesc, confortNom, lignesVerrouillees, ligneNom, metaActives, metaCharge, metaPoids, slotsFor, tierCost, vueStats } from "/shared/progression.js";
 import { armeAt, armeContrainte, armeFiche, armeNom, armeResume } from "/shared/armes.js";
 import { CADRES, HAUTS_FAITS, HF_NIVEAUX, cadreNom, hfNiveauLabel, hfNom, hfProgres, hfTexte, rewardLabel } from "/shared/hauts_faits.js";
@@ -24,7 +24,7 @@ import { fmtTime, portraitBoss } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
 import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
-import { customBox, customOn, customJauge, customPresets, customList, customCode, customImport, customExport, customMsg, bilanRapport, bilanRapportTexte, bilanRapportCopy, traceCheck, traceHint, bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanFait, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
+import { customBox, customJauge, customPresets, customList, customCode, customImport, customExport, customMsg, bilanRapport, bilanRapportTexte, bilanRapportCopy, traceCheck, traceHint, bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanFait, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
 
 
@@ -1128,33 +1128,67 @@ function customProduit(choix) {
   return { produit: p, versCauchemar: p / ref };
 }
 
+/* LES PALIERS D UNE CONDITION, ORDONNES PAR COUT, ET « aucun » EST LE ZERO. La
+   table ecrit des rangs dans l ordre ou ils ont ete PENSES, pas dans celui ou ils
+   se lisent : `densite` commence par -15 % puis monte. Un axe demande un ordre, et
+   le seul ordre honnete est le COUT, qui est deja la mesure du mode. Le rang
+   absent n est donc pas un bouton a part : c est la graduation du milieu.
+   `i` est l index DANS LA TABLE et il ne bouge pas — c est lui qui circule sur le
+   reseau et dans le code de partage. */
+function paliersDe(c) {
+  // DEUX RANGS PEUVENT PARTAGER UN COUT — `Maree` a deux fois +2, et
+  // `verifierConditions` ne refuse qu'un cout qui REDESCEND. Le departage est
+  // alors l'ordre de la TABLE, qui est celui dans lequel les rangs ont ete
+  // penses (« les rangs positifs se lisent de haut en bas »). Il est ecrit ici
+  // au lieu d'etre emprunte a la stabilite de `sort`.
+  const par = (signe) => c.rangs
+    .map((r, i) => ({ r, i }))
+    .filter(x => Math.sign(x.r.cout) === signe)
+    .sort((a, b) => a.r.cout - b.r.cout || a.i - b.i);
+  return [...par(-1), { r: null, i: -1 }, ...par(1)];
+}
+
+/* LE WIDGET SE DEDUIT DE LA TABLE, IL NE SE DECLARE PAS. Un rang qui pose un NOM
+   (`script: "cauchemar"`) n est pas sur un axe : entre « calme » et « cauchemar »
+   il n y a pas de milieu, donc des cases. Tout le reste est un coefficient, donc
+   monotone, donc un curseur — et un curseur dit d un coup COMBIEN DE CRANS il
+   reste, ce qu une rangee de boutons ne dit pas.
+   La regle vaut pour la condition qu on ajoutera : rien ici ne connait `script`. */
+const conditionNommee = c =>
+  c.rangs.some(r => Object.values(r.mods).some(v => typeof v === "string"));
+
+function detailCustom() {
+  if (!customChoix) return diffResume(CUSTOM_INDEX).join(" · ");
+  const actives = CONDITIONS
+    .filter(c => c.rangs[customChoix[c.key] ?? -1])
+    .map(c => c.nom.toLowerCase());
+  if (actives.length === 0) {
+    return t("ui.vote.custom.vierge",
+      "aucune condition — la manche vaut normal, et c'est le point de départ");
+  }
+  return actives.join(" · ");
+}
+
 export function renderCustom() {
   if (!customBox) return;
   const hote = myId === hostId;
-  customBox.hidden = phase !== PHASE_LOBBY;
-  if (customOn) {
-    customOn.checked = !!customChoix;
-    customOn.disabled = !hote;
-  }
   const actif = !!customChoix;
-  if (customList) customList.hidden = !actif;
-  if (customPresets) customPresets.hidden = !actif;
+  // LA CARTE OUVRE LE BLOC, ET RIEN D AUTRE NE L OUVRE : desarme, ces onze lignes
+  // sont onze lignes de reglages qui ne reglent rien.
+  customBox.hidden = phase !== PHASE_LOBBY || !actif;
+  if (customBox.hidden) return;
 
   if (customJauge) {
-    if (!actif) {
-      customJauge.textContent = "";
-    } else {
-      const sev = severite(customChoix);
-      const { produit, versCauchemar } = customProduit(customChoix);
-      customJauge.textContent = tf("ui.panel.custom.jauge",
-        "sévérité {s} · pression ×{p} · {r} fois cauchemar",
-        { s: sev, p: produit.toFixed(2), r: versCauchemar.toFixed(2) });
-      customJauge.title = t("ui.panel.custom.approx",
-        "la sévérité est une approximation : une même condition ne coûte pas le même prix à toutes les armes");
-    }
+    const sev = severite(customChoix);
+    const { produit, versCauchemar } = customProduit(customChoix);
+    customJauge.textContent = tf("ui.panel.custom.jauge",
+      "sévérité {s} · pression ×{p} · {r} fois cauchemar",
+      { s: sev, p: produit.toFixed(2), r: versCauchemar.toFixed(2) });
+    customJauge.title = t("ui.panel.custom.approx",
+      "la sévérité est une approximation : une même condition ne coûte pas le même prix à toutes les armes");
   }
 
-  if (customPresets && actif) {
+  if (customPresets) {
     customPresets.innerHTML = "";
     for (const p of PREREGLAGES) {
       const b = document.createElement("button");
@@ -1162,61 +1196,86 @@ export function renderCustom() {
       b.textContent = p.nom;
       b.title = p.resume;
       b.disabled = !hote;
-      b.onclick = () => { setCustomChoix(p.choix); customEnvoi(); renderCustom(); };
+      b.onclick = () => {
+        setCustomChoix(p.choix); customEnvoi(); renderCustom(); renderVote();
+      };
       customPresets.appendChild(b);
     }
   }
 
-  if (customList && actif) {
-    customList.innerHTML = "";
-    for (const c of CONDITIONS) {
-      const ligne = document.createElement("div");
-      ligne.className = "customLigne";
-      const tete = document.createElement("div");
-      tete.className = "customNom";
-      tete.textContent = c.nom;
-      tete.title = c.resume;
-      ligne.appendChild(tete);
+  if (!customList) return;
+  customList.innerHTML = "";
+  for (const c of CONDITIONS) {
+    const paliers = paliersDe(c);
+    const rang = customChoix[c.key] ?? -1;
+    const pos = Math.max(0, paliers.findIndex(p => p.i === rang));
 
-      const rangs = document.createElement("div");
-      rangs.className = "row customRangs";
-      const pose = (label, rang, titre) => {
+    const ligne = document.createElement("div");
+    ligne.className = "customLigne";
+
+    const tete = document.createElement("div");
+    tete.className = "customNom";
+    tete.textContent = c.nom;
+    tete.title = c.resume;
+    ligne.appendChild(tete);
+
+    const dit = document.createElement("div");
+    dit.className = "customDit";
+    const cout = document.createElement("span");
+    const ecrire = (p) => {
+      dit.textContent = p.r ? p.r.dit : c.resume;
+      dit.classList.toggle("neutre", !p.r);
+      cout.textContent = p.r ? (p.r.cout > 0 ? `+${p.r.cout}` : String(p.r.cout)) : "0";
+      cout.className = "customCout" + (p.r ? (p.r.cout > 0 ? " dur" : " doux") : "");
+    };
+
+    const poser = (i) => {
+      const suivant = { ...customChoix };
+      if (i < 0) delete suivant[c.key];
+      else suivant[c.key] = i;
+      setCustomChoix(suivant);
+      customEnvoi();
+      renderCustom();
+      // LA CARTE RESUME CE QUE LE BLOC REGLE : sans ce rappel elle garde la liste
+      // des conditions d'avant le geste.
+      renderVote();
+    };
+
+    const ctl = document.createElement("div");
+    ctl.className = "customCtl";
+    if (conditionNommee(c)) {
+      for (const p of paliers) {
         const b = document.createElement("button");
-        b.textContent = label;
-        b.title = titre ?? "";
-        b.className = (customChoix[c.key] ?? -1) === rang ? "" : "ghost";
+        b.textContent = p.r ? p.r.dit : t("ui.panel.custom.aucun", "aucun");
+        b.className = p.i === rang ? "" : "ghost";
         b.disabled = !hote;
-        b.onclick = () => {
-          const suivant = { ...customChoix };
-          if (rang < 0) delete suivant[c.key];
-          else suivant[c.key] = rang;
-          setCustomChoix(suivant);
-          customEnvoi();
-          renderCustom();
-        };
-        rangs.appendChild(b);
-      };
-      pose(t("ui.panel.custom.aucun", "aucun"), -1);
-      c.rangs.forEach((r, i) => pose(r.cout > 0 ? `+${r.cout}` : `${r.cout}`, i, r.dit));
-      ligne.appendChild(rangs);
-
-      const dit = document.createElement("div");
-      dit.className = "customDit";
-      const r = c.rangs[customChoix[c.key] ?? -1];
-      dit.textContent = r ? r.dit : c.resume;
-      ligne.appendChild(dit);
-      customList.appendChild(ligne);
+        b.onclick = () => poser(p.i);
+        ctl.appendChild(b);
+      }
+    } else {
+      const s = document.createElement("input");
+      s.type = "range";
+      s.min = "0";
+      s.max = String(paliers.length - 1);
+      s.step = "1";
+      s.value = String(pos);
+      s.disabled = !hote;
+      s.setAttribute("aria-label", c.nom);
+      // L APERCU SUIT LE POUCE, L ENVOI ATTEND QU ON LE LACHE : un `input` de
+      // curseur emet a chaque pixel, et chacun serait un message de salon
+      // rediffuse a toute la table.
+      s.oninput = () => ecrire(paliers[+s.value] ?? paliers[0]);
+      s.onchange = () => poser((paliers[+s.value] ?? paliers[0]).i);
+      ctl.appendChild(s);
     }
+    ligne.appendChild(ctl);
+    ligne.appendChild(cout);
+    ligne.appendChild(dit);
+    ecrire(paliers[pos] ?? paliers[0]);
+    customList.appendChild(ligne);
   }
 }
 
-if (customOn) {
-  customOn.onchange = () => {
-    setCustomChoix(customOn.checked ? {} : null);
-    customEnvoi();
-    renderCustom();
-  };
-}
 if (customExport) {
   customExport.onclick = () => {
     if (!customChoix) return;
@@ -1425,49 +1484,83 @@ function voteDetail(d, i) {
   lignes.push(`${biomeNom(biomeIndex)} — ${biomeResume(biomeIndex)} · ${risque}`);
   return lignes.join(" · ");
 }
+/* QUATRE CARTES, MAIS PAS QUATRE VOTES. Les trois premieres se votent — chacun la
+   sienne, la majorite l emporte ; la quatrieme est un INTERRUPTEUR D HOTE, parce
+   que le serveur refuse `v === CUSTOM_INDEX` : un vote l aurait choisie avec les
+   reglages par defaut, donc une manche normale privee de tout, sans que personne
+   l ait voulu.
+   ELLE RESTE UNE CARTE DE LA RANGEE, ET C EST LA DECISION : la difficulte est UN
+   choix, et l offrir a deux endroits — trois cartes ici, une case ailleurs —
+   demande au joueur de deviner que les deux parlent de la meme chose.
+   LE VOTE SURVIT DESSOUS. Le sur mesure ARME, il n efface pas : le desarmer rend
+   la main a la majorite, donc les voix restent visibles pendant qu il est actif.
+   Ce qui change est la couronne — `.winner` dit ce qui SERA JOUE, et c est le sur
+   mesure des qu il est arme. */
 function renderVote() {
   voteRow.innerHTML = "";
+  const hote = myId === hostId;
+  const surMesure = !!customChoix;
 
-  /* LE SUR MESURE N A PAS DE BOUTON DE VOTE, PARCE QU IL NE SE VOTE PAS : le
-     serveur refuse `v === CUSTOM_INDEX`, donc la case restait a l ecran, cliquable
-     et sans effet. Et `DIFF_MUL` n ayant pas de quatrieme entree, elle annoncait
-     « noyaux x1 » — l inverse exact de ce que le mode paie. Il se configure dans
-     son propre bloc, en dessous. */
   DIFFICULTIES.forEach((d, i) => {
-    if (d.custom) return;
     const btn = document.createElement("button");
-    const n = tally[i] ?? 0;
-    const noyaux = PROG_CFG.DIFF_MUL[i] ?? 1;
+    const n = d.custom ? 0 : (tally[i] ?? 0);
+    const noyaux = PROG_CFG.DIFF_MUL[i];
+    // LA PASTILLE DIT LE PRIX, ET POUR LE SUR MESURE LE PRIX EST « rien » :
+    // `DIFF_MUL` n a pas de quatrieme entree, et un `?? 1` aurait annonce le
+    // tarif de normal — l inverse exact de ce que le mode paie.
+    const chip = noyaux === undefined
+      ? escapeHtml(t("ui.vote.cores.aucun", "aucun gain"))
+      : `${escapeHtml(t("ui.vote.cores", "noyaux"))} ${mulCourt(noyaux)}`;
     btn.innerHTML =
       `<span class="voteHead"><span class="voteName"></span>`
-      + `<span class="voteMul">${escapeHtml(t("ui.vote.cores", "noyaux"))}`
-      + ` ${mulCourt(noyaux)}</span></span>`
+      + `<span class="voteMul">${chip}</span></span>`
       + `<span class="voteDetail"></span>`
       + (n > 0 ? `<span class="tally"></span>` : "");
     btn.querySelector(".voteName").textContent = diffLabel(i);
-    btn.querySelector(".voteDetail").textContent = voteDetail(d, i);
+    btn.querySelector(".voteDetail").textContent = d.custom
+      ? detailCustom() : voteDetail(d, i);
     if (n > 0) {
       btn.querySelector(".tally").textContent =
         tn("ui.vote.tally", "{n} voix", "{n} voix", n);
     }
-    btn.classList.toggle("mine", i === myVote);
-    btn.classList.toggle("winner", i === difficulty);
+    btn.classList.toggle("mine", !d.custom && i === myVote);
+    btn.classList.toggle("winner", d.custom ? surMesure : (!surMesure && i === difficulty));
+    btn.classList.toggle("customOpt", !!d.custom);
+    btn.disabled = d.custom && !hote;
+
     btn.onclick = () => {
       if (phase !== PHASE_LOBBY) return;
-      setMyVote(i);
-      ws.send(JSON.stringify({ t: "vote", v: i }));
+      if (d.custom) {
+        // le tirage vide EST le mode : `{}` vaut normal, et c est le critere
+        // rejoue par `verifierCustom`.
+        setCustomChoix(customChoix ? null : {});
+        customEnvoi();
+      } else {
+        setMyVote(i);
+        ws.send(JSON.stringify({ t: "vote", v: i }));
+        // CHOISIR UN DES TROIS DESARME LE SUR MESURE, SINON LA CARTE MENT : le
+        // serveur prend `this.custom` avant la majorite, donc voter en laissant
+        // le sur mesure arme aurait coche une carte qui ne sera pas jouee. Seul
+        // l hote peut desarmer — c est lui qui l a arme.
+        if (surMesure && hote) { setCustomChoix(null); customEnvoi(); }
+      }
       renderVote();
+      renderCustom();
     };
     voteRow.appendChild(btn);
   });
 
-  const retenu = diffLabel(difficulty);
-  voteHint.textContent = lobby.length > 1
-    ? tf("ui.vote.hint.team",
-        "Mode retenu : {mode} ({n} voix sur {tot}). À égalité, le plus doux l'emporte.",
-        { mode: retenu, n: tally[difficulty] ?? 0, tot: lobby.length })
-    : tf("ui.vote.hint.solo",
-        "Mode retenu : {mode}. Le vote se verrouille au lancement.", { mode: retenu });
+  const retenu = diffLabel(surMesure ? CUSTOM_INDEX : difficulty);
+  voteHint.textContent = surMesure
+    ? tf("ui.vote.hint.custom",
+         "Mode retenu : {mode}. Il passe devant le vote tant qu'il est actif.",
+         { mode: retenu })
+    : lobby.length > 1
+      ? tf("ui.vote.hint.team",
+          "Mode retenu : {mode} ({n} voix sur {tot}). À égalité, le plus doux l'emporte.",
+          { mode: retenu, n: tally[difficulty] ?? 0, tot: lobby.length })
+      : tf("ui.vote.hint.solo",
+          "Mode retenu : {mode}. Le vote se verrouille au lancement.", { mode: retenu });
 }
 const CLASS_STATS = [
   { cle: "pv", nom: "PV", val: c => c.hp, texte: c => String(c.hp) },

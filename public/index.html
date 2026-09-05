@@ -631,22 +631,24 @@
 
         <div id="vote">
           <div id="voteLabel" class="sectionTitle" data-i18n="ui.panel.vote.label">2 — Difficulté</div>
-          <p class="panelLead" data-i18n="ui.panel.vote.lead">Chacun vote, la majorité l'emporte. Le mode retenu s'applique à toute l'équipe.</p>
+          <p class="panelLead" data-i18n="ui.panel.vote.lead">Chacun vote, la majorité l'emporte. Le mode retenu s'applique à toute l'équipe. Le sur mesure ne se vote pas : l'hôte l'arme, et il passe devant le vote.</p>
           <div id="voteRow"></div>
           <div id="voteHint"></div>
         </div>
 
-        <!-- LE SUR MESURE VAUT PAR LA VUE D'ENSEMBLE : les onze conditions
-             tiennent sur un écran, et c'est voir deux d'entre elles ensemble qui
-             donne envie de les combiner. Pas d'onglets par famille. -->
-        <div id="customBox">
-          <div class="sectionTitle" data-i18n="ui.panel.custom.label">3 — Sur mesure</div>
+        <!-- LE SUR MESURE EST LA QUATRIEME CARTE DE LA RANGEE, ET CE BLOC EST CE
+             QU'ELLE OUVRE. Il n'a donc plus de numero de section ni d'interrupteur
+             a lui : la carte EST l'interrupteur, et une seconde porte vers le meme
+             etat se desynchronise le jour ou l'une des deux oublie un cas.
+             IL VAUT PAR LA VUE D'ENSEMBLE : les onze conditions tiennent sur un
+             ecran, et c'est voir deux d'entre elles ensemble qui donne envie de
+             les combiner. Pas d'onglets par famille. -->
+        <div id="customBox" hidden>
+          <div class="customHead">
+            <div class="sectionTitle" data-i18n="ui.panel.custom.label">Réglages sur mesure</div>
+            <div id="customJauge"></div>
+          </div>
           <p class="panelLead" data-i18n="ui.panel.custom.lead">Les règles sont les vôtres. Rien n'est enregistré — ni noyau, ni record, ni haut fait, ni jalon : ce mode sert à essayer et à mesurer.</p>
-          <label class="traceOpt">
-            <input type="checkbox" id="customOn">
-            <span data-i18n="ui.panel.custom.on">Jouer en sur mesure</span>
-          </label>
-          <div id="customJauge"></div>
           <div id="customPresets" class="row"></div>
           <div id="customList"></div>
           <div class="row">

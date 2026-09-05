@@ -674,13 +674,36 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   **et** `awardPartial` sortent avant la première écriture. `DIFF_MUL` garde par
   ailleurs trois entrées : son `??` rendrait le tarif de normal — mesuré,
   **390 noyaux** pour une manche dont le joueur écrit les règles.
-- **LE SUR MESURE NE SE VOTE PAS, IL SE CONFIGURE**, et c'est l'hôte qui configure :
-  un vote l'aurait choisi avec les réglages par défaut, donc une manche normale
-  privée de tout, sans que personne l'ait voulu. Conséquence côté écran : **il n'a
-  pas de bouton dans la rangée de vote**. Une boucle sur `DIFFICULTIES` entier en
-  posait un, que le serveur refusait en silence — un mode visible et impossible à
-  prendre, qui annonçait en plus « noyaux ×1 ». Tout le monde le **voit** quand
-  même — au salon avant de se dire prêt, et dans le HUD pendant la manche.
+- **LE SUR MESURE NE SE VOTE PAS, IL S'ARME**, et c'est l'hôte qui l'arme : un vote
+  l'aurait choisi avec les réglages par défaut, donc une manche normale privée de
+  tout, sans que personne l'ait voulu. **Il garde pourtant sa carte dans la rangée
+  de vote, en quatrième** : la difficulté est **un** choix, et l'offrir à deux
+  endroits — trois cartes ici, une case ailleurs — demande au joueur de deviner
+  que les deux parlent de la même chose. La carte est donc un **interrupteur**,
+  pas un bulletin : liseré **tireté** tant qu'elle n'est pas retenue, grisée chez
+  qui n'est pas hôte, et c'est elle — et rien d'autre — qui ouvre le bloc de
+  réglages. Deux portes vers le même état se désynchronisent le jour où l'une des
+  deux oublie un cas.
+- **LE VOTE SURVIT SOUS LE SUR MESURE.** Armer n'efface pas : le désarmer rend la
+  main à la majorité, donc les voix restent visibles pendant qu'il est actif, et
+  seule la **couronne** bouge — `.winner` dit ce qui **sera joué**. Corollaire :
+  l'hôte qui choisit un des trois modes **désarme** le sur mesure dans le même
+  geste, sinon la carte qu'il vient de cocher n'est pas celle que le serveur
+  jouera (`this.custom` passe avant la majorité). Un joueur qui n'est pas hôte
+  vote sans rien désarmer — ce n'est pas lui qui l'a armé.
+- **LA PASTILLE DE LA CARTE DIT LE PRIX, ET POUR LE SUR MESURE LE PRIX EST « rien ».**
+  `DIFF_MUL` n'a **pas** de quatrième entrée : un `?? 1` y annonçait « noyaux ×1 »,
+  l'inverse exact de ce que le mode paie. L'absence d'entrée est donc lue comme
+  telle, pas rattrapée par un défaut.
+- **LE WIDGET D'UNE CONDITION SE DÉDUIT DE LA TABLE, IL NE SE DÉCLARE PAS.** Un
+  rang qui pose un **nom** (`script: "cauchemar"`) n'est pas sur un axe — entre
+  « calme » et « cauchemar » il n'y a pas de milieu —, donc des **cases** ; tout le
+  reste est un coefficient, donc monotone, donc un **curseur**, qui dit d'un coup
+  combien de crans il reste. La règle vaut pour la condition qu'on ajoutera : rien
+  côté écran ne connaît `script`. L'axe est ordonné par **coût**, « aucun » est sa
+  graduation **zéro**, et deux rangs de même coût (`Marée` en a deux à +2) se
+  départagent par l'**ordre de la table** — écrit, pas emprunté à la stabilité de
+  `sort`. L'indice qui circule sur le réseau reste celui de la table.
 - **LE CODE DE PARTAGE PORTE LA VERSION DE LA TABLE.** Un code collé après un
   changement de conditions **décale silencieusement les rangs**, et ça coûte une
   soirée de mesure fausse : le collage refuse au lieu d'appliquer à moitié — un

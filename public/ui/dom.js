@@ -72,7 +72,6 @@ export const bilanRapportTexte = document.getElementById("bilanRapportTexte");
 export const bilanRapportCopy = document.getElementById("bilanRapportCopy");
 export const traceCheck = document.getElementById("traceCheck");
 export const customBox = document.getElementById("customBox");
-export const customOn = document.getElementById("customOn");
 export const customJauge = document.getElementById("customJauge");
 export const customPresets = document.getElementById("customPresets");
 export const customList = document.getElementById("customList");

@@ -9229,6 +9229,48 @@
                   `weatherFor` sort sur `diffIndex < 2`. Il n y a de meteo qu en
                   cauchemar, et un segment sur trois n en a pas meme la. Le banc
                   le dit au lieu de le supposer.
+    0.40.9 lot 10 LA QUATRIEME CARTE REVIENT, ET CETTE FOIS ELLE FAIT QUELQUE
+                  CHOSE. Le lot 07 avait retire du vote une carte que le serveur
+                  refusait : le symptome partait, la question restait. La
+                  difficulte est UN choix, et l offrir a deux endroits — trois
+                  cartes dans la rangee, une case a cocher plus bas — demande au
+                  joueur de deviner que les deux parlent de la meme chose. Elle
+                  reprend donc sa place, mais comme INTERRUPTEUR D HOTE et non
+                  comme bulletin : elle envoie `custom`, jamais `vote`.
+                  ELLE PORTE SON STATUT SANS TEXTE : lisere TIRETE tant qu elle n
+                  est pas retenue — la convention de la couverture destructible,
+                  ce qui n est pas plein n est pas acquis —, plein quand elle EST
+                  le mode, grisee chez qui n est pas hote.
+                  LE VOTE SURVIT DESSOUS. Armer n efface pas : desarmer rend la
+                  main a la majorite, donc les voix restent visibles et seule la
+                  couronne bouge. Corollaire ecrit : l HOTE qui choisit un des
+                  trois desarme dans le meme geste, sinon la carte qu il vient de
+                  cocher n est pas celle que le serveur jouera — `this.custom`
+                  passe avant la majorite.
+                  L INTERRUPTEUR EN DOUBLE A DISPARU. La case « Jouer en sur
+                  mesure » visait le meme etat que la carte ; deux portes vers un
+                  meme etat se desynchronisent le jour ou l une des deux oublie
+                  un cas. Le bloc de reglages n a plus ni numero de section ni
+                  interrupteur, il est CE QUE LA CARTE OUVRE — et il ne s affiche
+                  que si le mode est arme : onze lignes de reglages qui ne reglent
+                  rien sont onze lignes de trop.
+                  LE WIDGET SE DEDUIT DE LA TABLE. Un rang qui pose un NOM
+                  (`script: "cauchemar"`) n est pas sur un axe, donc des cases ;
+                  tout le reste est un coefficient, donc un CURSEUR, qui dit d un
+                  coup combien de crans il reste. Rien cote ecran ne connait
+                  `script`. L axe est ordonne par COUT et « aucun » en est le
+                  zero — `Maree` et `Carapace` ont des rangs plus DOUX que rien,
+                  ils sont a gauche. Deux rangs de meme cout (`Maree` en a deux a
+                  +2) se departagent par l ordre de la TABLE, ecrit et non
+                  emprunte a la stabilite de `sort`. L indice qui circule sur le
+                  reseau reste celui de la table.
+                  ET L ENVOI ATTEND QU ON LACHE LE CURSEUR : `oninput` ne fait que
+                  l apercu local, `onchange` envoie. Un `input` emet a chaque
+                  pixel, et chacun serait un message de salon rediffuse a toute la
+                  table.
+                  LA PASTILLE DIT « aucun gain » : `DIFF_MUL` n a pas de
+                  quatrieme entree, et le `?? 1` du lot 07 annoncait « noyaux x1 ».
+                  L absence est lue comme telle, pas rattrapee par un defaut.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9238,4 +9280,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.8";
+export const VERSION = "0.40.9";

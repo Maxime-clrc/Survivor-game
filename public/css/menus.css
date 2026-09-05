@@ -1918,6 +1918,17 @@ tr.clickable { cursor: pointer; }
 }
 #voteHint { font-family: var(--font-body); font-size: var(--t-s); color: var(--text-faint); }
 
+/* LA QUATRIEME CARTE N EST PAS UN VOTE, ET ELLE DOIT LE DIRE SANS TEXTE : un
+   lisere TIRETE, la meme convention que la couverture destructible en jeu — ce
+   qui n est pas plein est ce qui n est pas acquis. Elle prend le plein quand elle
+   est retenue, parce qu a ce moment-la elle EST le mode.
+   Grisee chez qui n est pas hote : le sur mesure se configure, et c est l hote
+   qui configure. */
+#voteRow button.customOpt { border-style: dashed; }
+#voteRow button.customOpt.winner { border-style: solid; }
+#voteRow button.customOpt:disabled { opacity: .55; }
+#voteRow button:nth-child(4) { animation-delay: 210ms; }
+
 #meta { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; }
 #metaTree, #metaConfort { display: flex; flex-direction: column; gap: var(--sp-1); width: 100%; }
 #metaTree[hidden], #metaConfort[hidden] { display: none; }
@@ -2921,6 +2932,17 @@ tr.clickable { cursor: pointer; }
 .panelCardHead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
 .panelCardHead #teamReady { font-family: var(--font); font-size: var(--t-xs); color: var(--text-dim); }
 .panelWrap #classes, .panelWrap #vote, .panelWrap #scoresWrap { padding-inline: 0; }
+
+/* CE QUE LA QUATRIEME CARTE A OUVERT SE LIT COMME UN PANNEAU, pas comme la suite
+   de la page : il n'apparait que quand la carte est retenue, donc il porte son
+   lisere — c'est le lien entre le geste et ce qu'il a produit. */
+#customBox {
+  padding: var(--sp-6);
+  border: var(--hair) solid color-mix(in srgb, var(--go) 45%, var(--ui-line));
+  border-radius: var(--radius-ui);
+  background: var(--ui-panel);
+}
+#customBox .panelLead { margin-block: var(--sp-2) var(--sp-3); }
 
 #teamList { display: flex; flex-direction: column; gap: var(--sp-2); }
 :is(#teamList, .cadreApercu) .teamRow {
