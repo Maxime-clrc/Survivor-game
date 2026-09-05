@@ -15,7 +15,8 @@ import { CLASS_DEFAULT, classAt, skill3Nom, skillNom,
          SKILL_HEAL_MODE, SKILL_TAUNT, SKILL_OVERDRIVE } from "/shared/classes.js";
 import { STATUSES, STATUS_VULN, STATUS_DOOM, statusBit } from "/shared/statuses.js";
 import { bossAt, bossNom, bossSous, bossVerbe, beatPhase, estFinal, ALERT_ORDER, BOSS_METRONOME } from "/shared/bosses.js";
-import { TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
+import { CONTRATS, RARETES, TL_CFG, eventAt, segmentName } from "/shared/timeline.js";
+import { CUSTOM_INDEX } from "/shared/custom.js";
 import { HUD, SIGNAL, TEXT, COMBAT, BOSS, BOSS_SKIN, SRC_TINT } from "/shared/palette.js";
 import { EFFECT_BADGES, POWERUP_STYLE, SKILL_ICON, SRC_ICON, STATUS_ICON, iconImg } from "/icons.js";
 import { HF_BY_ID, cadreNom, hfNom, hfTexte, rewardLabel } from "/shared/hauts_faits.js";

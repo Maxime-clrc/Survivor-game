@@ -9035,6 +9035,41 @@
                   LIEU, qui est un autre systeme — et c est aussi ce qui justifie
                   de ne pas construire de minicarte.
 
+    0.40.3 lot 04 QUATRE SYSTEMES ETEINTS, ET AUCUN NE LEVAIT — SAUF LE DERNIER.
+                  `hud.js` lisait CONTRATS, RARETES et CUSTOM_INDEX sans les
+                  importer. Le troisieme est dans `updateHud`, hors de toute
+                  garde : ReferenceError a CHAQUE image, donc le HUD entier muet
+                  puis le gel de rendu au bout de trois. Les deux premiers, eux,
+                  n avaient JAMAIS leve — et c est ca, l information.
+                  ILS ETAIENT SOUS `if (ct)`, ET `ct` NE POUVAIT PAS EXISTER.
+                  Le serveur emet `lo`, `bq` et `ct`, `ingest.js` les decode, et
+                  `flatten()` comme `interpolated()` ne les RECOPIAIENT PAS. Or
+                  le rendu et le HUD ne voient que cette vue-la. Le loot au sol,
+                  les bornes, le suivi de contrat et sa proposition : quatre
+                  systemes complets, cables de bout en bout, noirs au dernier
+                  saut. Les gardes defensifs les taisaient tous — `if (!list)
+                  return` dans `drawLoots` et `drawBornes`, `!ct` dans le HUD.
+                  Un champ absent rend `undefined`, et `undefined` ne leve pas.
+                  ET LES DEUX DEFAUTS SE VERROUILLAIENT : reparer le transport
+                  seul aurait fait lever CONTRATS a la premiere proposition.
+                  `drawTraces()` ETAIT IMPORTEE ET JAMAIS APPELEE. Le lot 0.29.13
+                  n avait ajoute que la ligne d import dans `world.js` : tout le
+                  systeme MATIERE[biome] — six primitives, une table par quartier,
+                  un point de passage ECRIT dans CLAUDE.md — n a jamais rien
+                  dessine. `verifierTraces()` etait vert : il croise les TABLES,
+                  pas le site d appel. Meme forme que `macroSecteur`.
+                  L ARENE SE REPEIGNAIT HORS MANCHE. La branche du menu faisait
+                  `fillRect(0, 0, 9600, 5400)` puis `drawGrid()` sur toute l
+                  arene, a chaque image, dans un canvas en `visibility: hidden`.
+                  Invisible, mais la couche restait SALE — et tout
+                  `backdrop-filter` pose au-dessus refaisait son flou soixante
+                  fois par seconde. Le menu payait un decor qu il ne montre pas.
+                  RENDU.md enoncait deja la regle, la branche ne la suivait pas.
+                  LE SCAN QUI LES TROUVE EST GENERIQUE : croiser les noms
+                  exportes du depot avec ce que chaque fichier utilise sans l
+                  importer ni le declarer. Trois vrais, sept faux positifs, tous
+                  dans des commentaires ou des clefs d objet.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9043,4 +9078,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.2";
+export const VERSION = "0.40.3";

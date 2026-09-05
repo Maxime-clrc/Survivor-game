@@ -132,7 +132,12 @@ function frameBody(now) {
     }
     stepFeedback(dt);
     draw(interpolated(renderTime) ?? flatten(latest));
-  } else {
+    // RIEN HORS MANCHE. `#arena` est en `visibility: hidden` des que la phase
+    // n'est pas la manche : repeindre l'arene entiere y est invisible, mais la
+    // couche reste SALE a chaque image — et tout `backdrop-filter` pose au-dessus
+    // doit alors refaire son flou soixante fois par seconde. Le menu payait le
+    // decor qu'il ne montre pas.
+  } else if (enJeu) {
     setCtx(underCtx);
     ctx.fillStyle = decor.arena;
     ctx.fillRect(0, 0, CFG.ARENA_W, CFG.ARENA_H);
@@ -490,6 +495,7 @@ function drawWorld(v) {
   drawBaies();
   drawCoulee();
   drawAmer();
+  drawTraces();
   drawGrid();
   drawProps();
   // LA LUMIERE S'ARRETE ICI. Tout ce qui suit est du gameplay — marques,
