@@ -5,7 +5,8 @@ import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { bonusFamille, bonusRang } from "/shared/feedback.js";
-import { CARD_CFG, CFG, ENEMY_TYPES, LOOT_CFG, POWERUP_TYPES, defDe, fullMods, lootAt, traitsOf } from "/shared/game_state.js";
+import { BORNE_CFG, CARD_CFG, CFG, ENEMY_TYPES, LOOT_CFG, POWERUP_TYPES, defDe, fullMods, lootAt, traitsOf } from "/shared/game_state.js";
+import { t } from "/shared/i18n.js";
 import { BIOME_SKIN, BOSS, CLASS_COLOR, COMBAT, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
@@ -2410,7 +2411,12 @@ const BORNE_FORME = {
     g.closePath();
     g.fill();
   },
-  ville: (g, x, y, r) => {
+  /* `ville` ET `serre` N ONT JAMAIS ETE DES CLEFS DE LIEU. Les cinq lieux sont
+     `usine`, `fonderie`, `friche`, `nebuleuse`, `secteur` : le `??` renvoyait
+     donc la borne de l usine sur DEUX lieux sur cinq, et deux formes ecrites ici
+     n etaient tirees par personne. Un repli en silence, exactement comme la fiche
+     de bloc. */
+  secteur: (g, x, y, r) => {
     g.beginPath();
     g.rect(x - r * 0.5, y - r, r, r * 1.7);
     g.fill();
@@ -2418,7 +2424,7 @@ const BORNE_FORME = {
     g.rect(x - r, y + r * 0.6, r * 2, r * 0.4);
     g.fill();
   },
-  serre: (g, x, y, r) => {
+  friche: (g, x, y, r) => {
     g.beginPath();
     g.ellipse(x, y, r * 0.75, r, 0, 0, Math.PI * 2);
     g.fill();
@@ -2428,11 +2434,18 @@ const BORNE_FORME = {
   },
 };
 
-export function drawBornes(list) {
+/* L INVITE EST AU SOL ET PAS DANS LE HUD, et c est la seule place qui repond a
+   la question posee. « F » est une reponse a « quoi, ICI » : dans un coin
+   d ecran il faudrait d abord dire DE QUOI on parle, alors qu au-dessus du
+   socle l objet EST la phrase. Elle ne parait que dans le rayon ou `_interagir`
+   accepte — sinon elle promet ce que le serveur refuse —, et le drapeau `pret`
+   la retire pendant la recharge, ou la borne reste pourtant `BORNE_LIBRE`. */
+export function drawBornes(list, me = null) {
   if (!list || list.length === 0) return;
   const skin = BIOME_SKIN[biomeKey()] ?? BIOME_SKIN.usine;
   const forme = BORNE_FORME[biomeKey()] ?? BORNE_FORME.usine;
   const t = performance.now() / 1000;
+  const r2 = BORNE_CFG.INTERACTION * BORNE_CFG.INTERACTION;
 
   for (const b of list) {
     if (b.etat === 3) continue;
@@ -2455,6 +2468,21 @@ export function drawBornes(list) {
     ctx.font = "700 22px ui-monospace, Menlo, Consolas, monospace";
     ctx.textAlign = "center";
     ctx.fillText(b.etat === 0 ? "!" : "?", b.x, b.y + dy);
+
+    const portee = me && b.etat === 0 && b.pret !== 0
+      && (b.x - me.x) ** 2 + (b.y - me.y) ** 2 <= r2;
+    if (portee) {
+      ctx.font = "700 12px ui-monospace, Menlo, Consolas, monospace";
+      const invite = t("ui.borne.invite", "F — ACTIVER");
+      const l = ctx.measureText(invite).width + 12;
+      ctx.fillStyle = alpha(SURFACE.void, 0.72);
+      ctx.fillRect(b.x - l / 2, b.y + 22, l, 17);
+      ctx.strokeStyle = alpha(skin.emis, 0.8);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(b.x - l / 2, b.y + 22, l, 17);
+      ctx.fillStyle = alpha(skin.emis, 0.98);
+      ctx.fillText(invite, b.x, b.y + 34);
+    }
     ctx.textAlign = "left";
   }
 }

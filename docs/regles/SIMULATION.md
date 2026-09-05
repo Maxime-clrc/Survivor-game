@@ -8,11 +8,23 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
 ### Simulation
 
 - **Toute chaîne d'effets mémorise ses cibles** (`Set` du ricochet).
-- **L'ARÈNE FAIT 9600 × 5400, ET LA TAILLE N'APPARAÎT DANS AUCUN COÛT DE
+- **L'ARÈNE FAIT 14400 × 8100, ET LA TAILLE N'APPARAÎT DANS AUCUN COÛT DE
   BOUCLE.** `_grille()` est bâtie sur la **boîte occupée**, `diffuser()` est
   **fenêtré** sur la boîte d'apparition, le réseau est filtré par vue, le sol est
   un motif répété sur la vue, les props bouclent sur les cellules de la caméra. Ce
   qui reste est de la **mémoire** et le temps de génération, une fois par manche.
+- **LES DEUX DIMENSIONS SONT DES MULTIPLES ENTIERS DE LA VUE** (9 × 9 cellules de
+  1600 × 900). `buildBiome` pave avec `cols = round(ARENA_W / VIEW_W)` : une
+  taille qui ne tombe pas juste étire les cellules du générateur par rapport à ce
+  que la caméra montre, sans que rien ne le signale.
+- **CE QUI SUIT LA TAILLE DE LA MAP SUIT SA DIMENSION LINÉAIRE, PAS SA SURFACE**
+  (`BORNE_CFG.PAR_MANCHE` : 4 à 4800, 7 à 9600, 10 à 14400). Restaurer la densité
+  spatiale demanderait le carré, et trente-six bornes font une liste de tâches.
+  **Le mini-boss, lui, ne suit rien** : son nombre est borné par l'horloge, pas
+  par la surface — cinq présences de 210 s tiennent chacune dans leur segment, une
+  sixième déborderait sur le boss final. Une map plus grande ne rallonge pas la
+  manche ; elle rend chaque rencontre plus rare, et c'est le prix écrit de
+  l'agrandissement.
 - **CE QUI MONTE AVEC L'ARÈNE EST LA POPULATION, PAS LE COÛT PAR CORPS.** Un corps
   met plus longtemps à traverser, donc reste plus longtemps **en transit**, donc
   vit plus longtemps à taux d'apparition égal : la moyenne **double** à plusieurs.

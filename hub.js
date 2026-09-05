@@ -155,9 +155,19 @@ export function createHub(store, log, commit = "") {
     // regrouper les quatre records d une meme manche en une ligne.
     const quand = new Date().toISOString();
     const state = room.state;
-    const shared = sansProgression(state)
-      ? 0
-      : coresForRun(state.level, state.bossKills, state.diffIndex);
+    /* UN MODE BONUS N ECRIT RIEN DANS LE PROFIL, ET « rien » VOULAIT DIRE TROIS
+       CHOSES DE MOINS. Les noyaux, les hauts faits et les records etaient coupes ;
+       passaient encore les JALONS — dont chacun ouvre un emplacement de meta —,
+       `pr.kills` et `cumulerStats`, qui replie la manche dans les compteurs que la
+       manche SUIVANTE lira pour accorder un haut fait. « x2 loot, -50 % ennemis »
+       restait donc la facon de farmer la meta, par un chemin plus lent et
+       parfaitement silencieux. Le codex part avec : c est un gain, et le mode n en
+       donne aucun. */
+    if (sansProgression(state)) {
+      for (const c of room.joined()) { c.lastGain = 0; c.lastHf = null; }
+      return;
+    }
+    const shared = coresForRun(state.level, state.bossKills, state.diffIndex);
     for (const c of room.joined()) {
       const p = state.players.get(c.id);
       if (!p || !c.profile) continue;
@@ -190,7 +200,7 @@ export function createHub(store, log, commit = "") {
       // l'ordre compte : on EVALUE la manche, puis on la REPLIE dans les cumuls.
       // L'inverse la compterait deux fois.
       const run = state.hfStatsDeManche(p, { arretee: true });
-      const gagnes = sansProgression(state) ? [] : evaluerHautsFaits(pr.hf, vueStats(pr, run));
+      const gagnes = evaluerHautsFaits(pr.hf, vueStats(pr, run));
       if (gagnes.length) {
         pr.hf = [...(pr.hf ?? []), ...gagnes];
         const { cadres } = recompensesDe(gagnes);
@@ -210,7 +220,7 @@ export function createHub(store, log, commit = "") {
       if (state.segment > (pr.best.segment | 0)) pr.best.segment = state.segment;
       if (p.score > pr.best.score) pr.best.score = p.score;
 
-      if (state.victory && state.finalKill > 0 && !sansProgression(state)) {
+      if (state.victory && state.finalKill > 0) {
         const effectif = room.joined().length;
         /* L ECART SE LIT AVANT L ECRITURE : `recordFinal` remplace l entree, donc
            l ancien temps n existe plus une ligne plus bas. Meme clef que lui —
@@ -254,6 +264,7 @@ export function createHub(store, log, commit = "") {
 
   function awardPartial(c, room) {
     if (room.phase === PHASE_LOBBY || !c.profile || !room.state.players.has(c.id)) return;
+    if (sansProgression(room.state)) return;
     c.profile.cores += coresPartial(room.state.level, room.state.diffIndex);
     mergerCodex(c.profile, room.state);
     persist(c);

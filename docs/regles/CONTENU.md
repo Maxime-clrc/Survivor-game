@@ -665,14 +665,22 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   **construite au lancement** et voyage par le constructeur de `GameState` —
   écrire dans `DIFFICULTIES[3]` serait la panne que le plan 31 a corrigée pour le
   hasard, seize salles d'un processus se partageant un objet.
-- **PAS DE CLASSEMENT, PAS DE NOYAUX, PAS DE HAUTS FAITS**, et chaque test est
-  **explicite**. `DIFF_MUL` garde trois entrées : son `??` rendrait le tarif de
-  normal — mesuré, **390 noyaux** pour une manche dont le joueur écrit les règles.
-  « ×2 loot, −50 % ennemis » deviendrait la meilleure façon de farmer la méta.
+- **UNE MANCHE SUR MESURE N'ÉCRIT RIEN DANS LE PROFIL**, et « rien » est le mot :
+  ni noyaux, ni classement, ni hauts faits, mais **ni jalons, ni cumuls, ni
+  codex**. Un jalon ouvre un emplacement de méta, et `cumulerStats` replie la
+  manche dans les compteurs que la manche **suivante** lira pour accorder un haut
+  fait — couper les trois premiers laissait donc « ×2 loot, −50 % ennemis »
+  farmer la méta par un chemin plus lent et parfaitement silencieux. `awardRun`
+  **et** `awardPartial` sortent avant la première écriture. `DIFF_MUL` garde par
+  ailleurs trois entrées : son `??` rendrait le tarif de normal — mesuré,
+  **390 noyaux** pour une manche dont le joueur écrit les règles.
 - **LE SUR MESURE NE SE VOTE PAS, IL SE CONFIGURE**, et c'est l'hôte qui configure :
   un vote l'aurait choisi avec les réglages par défaut, donc une manche normale
-  privée de tout, sans que personne l'ait voulu. Tout le monde le **voit** — au
-  salon avant de se dire prêt, et dans le HUD pendant la manche.
+  privée de tout, sans que personne l'ait voulu. Conséquence côté écran : **il n'a
+  pas de bouton dans la rangée de vote**. Une boucle sur `DIFFICULTIES` entier en
+  posait un, que le serveur refusait en silence — un mode visible et impossible à
+  prendre, qui annonçait en plus « noyaux ×1 ». Tout le monde le **voit** quand
+  même — au salon avant de se dire prêt, et dans le HUD pendant la manche.
 - **LE CODE DE PARTAGE PORTE LA VERSION DE LA TABLE.** Un code collé après un
   changement de conditions **décale silencieusement les rangs**, et ça coûte une
   soirée de mesure fausse : le collage refuse au lieu d'appliquer à moitié — un

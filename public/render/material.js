@@ -644,8 +644,39 @@ function centreHex(i, j) {
   return [i * HEX + ((j & 1) ? HEX / 2 : 0), j * HEX];
 }
 
+/* LE PALIER BAS GARDE LE LIEU, IL NE LE REMPLACE PAS. La Nebuleuse et le Secteur
+   rendaient la tuile de l USINE en `low` — deux lieux sur cinq portant le sol
+   d un troisieme, donc trois lieux indiscernables au palier bas. La Friche, elle,
+   avait `fricheLegacy` : sa PROPRE tuile d avant le plan 13, et c est le bon
+   modele. Ces deux-la sont nes apres, donc ils n avaient pas d ancienne tuile —
+   on leur en ecrit une au lieu d emprunter celle du voisin.
+   ET CA NE COUTE RIEN PAR IMAGE : la tuile est CUITE une fois par manche puis
+   repetee en motif. Le prix de `low` est ailleurs — props, traces, lumiere,
+   atmosphere, premier plan —, jamais dans le four. */
+function nebuleuseBasse(g) {
+  const N = TILE / HEX;
+  g.fillStyle = alpha("#232b40", 0.93);
+  g.fillRect(0, 0, TILE, TILE);
+  g.lineWidth = 2.4;
+  g.strokeStyle = alpha("#000000", 0.30);
+  g.beginPath();
+  for (let j = -1; j <= N; j++) {
+    for (let i = -1; i <= N; i++) {
+      const [cx, cy] = centreHex(i, j);
+      g.moveTo(cx, cy - HEX_U * 2);
+      g.lineTo(cx + HEX / 2, cy - HEX_U);
+      g.lineTo(cx + HEX / 2, cy + HEX_U);
+      g.lineTo(cx, cy + HEX_U * 2);
+    }
+  }
+  g.stroke();
+  g.lineWidth = 1;
+  g.strokeStyle = alpha(PROP.givre, 0.040);
+  g.stroke();
+}
+
 function nebuleuse(g, rand, usure) {
-  if (gfx <= GFX_LOW) return usine(g, rand, usure);
+  if (gfx <= GFX_LOW) return nebuleuseBasse(g);
   const N = TILE / HEX;
 
   g.fillStyle = alpha("#232b40", 0.93);
@@ -1047,8 +1078,30 @@ function fricheLegacy(g, rand, usure) {
    PAS DE MAILLE DE 5 M ICI, comme la Friche et la Nebuleuse : une chaussee n a
    pas de joints techniques reguliers, elle a des reprises irregulieres, et c est
    la couche 2 qui les pose. Une maille par-dessus dirait « dalle d atelier ». */
+// meme raison que `nebuleuseBasse` : l enrobe et ses reprises, sans le grain fin
+// ni le film d eau. Ce qui reste dit encore « chaussee », et rien d autre ne dit
+// chaussee.
+function secteurBasse(g, rand, usure) {
+  g.fillStyle = alpha("#1a1228", 0.95);
+  g.fillRect(0, 0, TILE, TILE);
+  for (let i = 0; i < 3; i++) {
+    const vert = rand() < 0.5;
+    const u = rand() * TILE;
+    const w = 14 + rand() * 26;
+    g.fillStyle = alpha("#2b2340", 0.55 + usure * 0.20);
+    if (vert) g.fillRect(u, 0, w, TILE);
+    else      g.fillRect(0, u, TILE, w);
+    g.strokeStyle = alpha("#000000", 0.34);
+    g.lineWidth = 1.4;
+    g.beginPath();
+    if (vert) { g.moveTo(u, 0); g.lineTo(u, TILE); g.moveTo(u + w, 0); g.lineTo(u + w, TILE); }
+    else      { g.moveTo(0, u); g.lineTo(TILE, u); g.moveTo(0, u + w); g.lineTo(TILE, u + w); }
+    g.stroke();
+  }
+}
+
 function secteur(g, rand, usure) {
-  if (gfx <= GFX_LOW) return usine(g, rand, usure);
+  if (gfx <= GFX_LOW) return secteurBasse(g, rand, usure);
 
   g.fillStyle = alpha("#1a1228", 0.95);
   g.fillRect(0, 0, TILE, TILE);

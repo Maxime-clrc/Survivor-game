@@ -42,12 +42,32 @@
 
     <div id="hud" hidden>
 
+      <!-- LA COLONNE EST UN FLUX, PLUS UNE PILE D'ANCRAGES. `#hudContrat` etait
+           pose en absolu a `--hud-safe + 92px`, une hauteur de bloc de telemetrie
+           SUPPOSEE : la ligne d'etat, le sur mesure et le ping la font varier, et
+           le suivi recouvrait le reseau. Ce qui se suit se met a la suite. -->
       <div id="hudRun">
         <div id="hudClock">00:00</div>
+        <!-- OU JE SUIS, EN PERMANENCE. Le nom du lieu vivait dans l'en-tete de
+             mission, qui se ternit au bout de six secondes et DISPARAIT pendant
+             un boss : au bout de deux minutes plus rien a l'ecran ne disait ou
+             l'on jouait. -->
+        <div id="hudLieu"></div>
         <div id="hudMeta"></div>
         <!-- UNE MANCHE SUR MESURE SE VOIT PENDANT QU'ON Y JOUE, pas seulement au
              salon : un joueur qui rejoint doit savoir dans quoi il entre. -->
         <div id="hudCustom" hidden></div>
+
+        <!-- LE PREMIER ELEMENT PERSISTANT DU HUD DE JEU. Tout ce qui informe
+             aujourd'hui est TRANSITOIRE : les bandeaux s'effacent, les popups
+             passent, les pips sont des etats. Celui-ci reste tant que le contrat
+             vit, donc il doit etre petit et ne rappeler que le chiffre qui
+             change — un encart fige pendant deux minutes devient du decor. -->
+        <div id="hudContrat" hidden>
+          <div id="ctNom"></div>
+          <div id="ctObj"></div>
+          <div id="ctProg"></div>
+        </div>
       </div>
 
       <div id="hudSegment" hidden>
@@ -55,17 +75,6 @@
         <div id="segName"></div>
         <div id="segBar" class="gauge"><i></i></div>
         <div id="segState"></div>
-      </div>
-
-      <!-- LE PREMIER ELEMENT PERSISTANT DU HUD DE JEU. Tout ce qui informe
-           aujourd'hui est TRANSITOIRE : les bandeaux s'effacent, les popups
-           passent, les pips sont des etats. Celui-ci reste tant que le contrat
-           vit, donc il doit etre petit et ne rappeler que le chiffre qui change —
-           un encart fige pendant deux minutes devient du decor. -->
-      <div id="hudContrat" hidden>
-        <div id="ctNom"></div>
-        <div id="ctObj"></div>
-        <div id="ctProg"></div>
       </div>
 
       <!-- LA PROPOSITION NE SUSPEND PAS LA SIMULATION, et c'est LA decision de ce
@@ -632,7 +641,7 @@
              donne envie de les combiner. Pas d'onglets par famille. -->
         <div id="customBox">
           <div class="sectionTitle" data-i18n="ui.panel.custom.label">3 — Sur mesure</div>
-          <p class="panelLead" data-i18n="ui.panel.custom.lead">Les règles sont les vôtres. Aucun noyau, aucun record, aucun haut fait : ce mode sert à essayer et à mesurer.</p>
+          <p class="panelLead" data-i18n="ui.panel.custom.lead">Les règles sont les vôtres. Rien n'est enregistré — ni noyau, ni record, ni haut fait, ni jalon : ce mode sert à essayer et à mesurer.</p>
           <label class="traceOpt">
             <input type="checkbox" id="customOn">
             <span data-i18n="ui.panel.custom.on">Jouer en sur mesure</span>

@@ -9133,6 +9133,102 @@
                   supposer.
                   AUCUN GAIN CHIFFRE ICI : les releves disponibles ont ete pris
                   sous un compositeur LOGICIEL. Le gachis, lui, est compte.
+    0.40.6 lot 07 LE SUR MESURE ETAIT INJOUABLE, ET IL PAYAIT QUAND MEME.
+                  UNE CASE DE VOTE QUE LE SERVEUR REFUSE. `renderVote` bouclait
+                  sur `DIFFICULTIES` entier, donc posait un quatrieme bouton
+                  « sur mesure » ; le handler `vote` de `room.js` casse sur
+                  `v === CUSTOM_INDEX` — le mode ne se vote pas, il se configure.
+                  Le clic ne levait rien et ne faisait rien. Le meme bouton
+                  annoncait « noyaux x1 », `PROG_CFG.DIFF_MUL` n ayant pas de
+                  quatrieme entree et le `??` rendant le tarif de normal :
+                  l inverse exact de ce que le mode paie. `renderBoard` posait de
+                  meme un onglet de classement definitivement vide.
+                  « AUCUNE PROGRESSION » VOULAIT DIRE TROIS CHOSES DE MOINS.
+                  Noyaux, hauts faits et records etaient coupes ; passaient encore
+                  les JALONS — dont chacun ouvre un emplacement de meta —,
+                  `pr.kills` et surtout `cumulerStats`, qui replie la manche dans
+                  les compteurs que la manche SUIVANTE lira pour accorder un haut
+                  fait. « x2 loot, -50 % ennemis » restait donc la facon de farmer
+                  la meta, par un chemin plus lent et parfaitement silencieux.
+                  `awardRun` sort maintenant AVANT toute ecriture de profil, et
+                  `awardPartial` — qui ne coupait que les noyaux — sort avec lui :
+                  le codex partait encore par la.
+    0.40.7 lot 08 QUATRE RAPPORTS DE PARTIE, ET TROIS ETAIENT DES SILENCES.
+                  LE SUIVI DE CONTRAT TOMBAIT SUR LA LIGNE DE PING.
+                  `#hudContrat` etait ancre en absolu a `--hud-safe + 92px`, une
+                  hauteur de `#hudRun` SUPPOSEE — la ligne d etat, le bandeau sur
+                  mesure et le ping la font varier. Il passe DANS LE FLUX, en
+                  frere de `#hudMeta` : un frere ne peut pas se tromper de
+                  hauteur. Le chiffre en dur ne pouvait que perimer.
+                  LE NOM DU LIEU DISPARAISSAIT AU BOUT DE SIX SECONDES. Il vivait
+                  dans l en-tete de mission, qui se ternit quand plus rien ne
+                  change ET SE CACHE PENDANT UN BOSS : passe la deuxieme minute,
+                  plus rien a l ecran ne disait ou l on jouait. Il monte dans
+                  `#hudRun`, qui ne s efface jamais ; l en-tete garde les deux
+                  rangs qu on relit vraiment.
+                  AUCUNE INVITE SUR LA BORNE. Le socle portait « ! », qui dit « il
+                  y a quelque chose », jamais « appuyez sur F ». L invite est AU
+                  SOL et pas dans un coin : « F » repond a « quoi, ICI ». Elle ne
+                  parait que dans le rayon ou `_interagir` accepte, et le drapeau
+                  `pret` — cinquieme champ du tuple `bq`, en FIN, lu avec repli —
+                  la retire pendant la recharge, ou la borne reste pourtant
+                  `BORNE_LIBRE`.
+                  `BORNE_FORME` PORTAIT DEUX CLEFS QUI N EXISTENT PAS. `ville` et
+                  `serre` n ont jamais ete des clefs de lieu : le `??` rendait la
+                  borne de l USINE sur la friche et le secteur — deux lieux sur
+                  cinq — et deux formes ecrites la n etaient tirees par personne.
+                  Meme famille que la fiche de bloc, et aucun verificateur ne
+                  regardait cette table parce qu elle n etait pas declaree comme
+                  une table de lieu.
+                  LA NEBULEUSE POSAIT DE LA POUSSIERE SOUS SA PROPRE REGLE. Le
+                  commentaire de `MATIERE` dit « pas de gravite, donc pas de
+                  poussiere qui tombe » et le quatrieme quartier tirait
+                  `TRACE_POUSSIERE`. Il tire `TRACE_DECHETS` : ce qui flotte
+                  encore autour d une coque.
+                  14400 x 8100 — NEUF REGIONS DE L ARENE D ORIGINE. Les deux
+                  dimensions restent des MULTIPLES ENTIERS de la vue (9 x 9) :
+                  `cols = round(ARENA_W / VIEW_W)` arrondit, donc une taille qui
+                  ne tombe pas juste etire les cellules du generateur par rapport
+                  a ce que la camera montre. `BORNE_CFG.PAR_MANCHE` 7 -> 10, le
+                  nombre suivant la dimension LINEAIRE ; le mini-boss ne suit
+                  RIEN, son compte etant borne par l horloge et pas par la
+                  surface. `verifierVariantes` verifiait encore 4800 x 2700, son
+                  defaut de module, donc un assemblage que le jeu ne construit
+                  plus depuis 0.40.1.
+                  MESURE : population INCHANGEE (154 -> 155 a quatre), et c est
+                  une limite du banc — les bots suivent la meme trajectoire, donc
+                  le meme ecart et le meme temps de transit. `step` a quatre monte
+                  de 38 % (140 -> 193 us) et ce sont les OBSTACLES, dont le nombre
+                  suit la surface : 1,2 % d une image.
+    0.40.8 lot 09 « AUCUNE DIFFERENCE VISUELLE ENTRE LES LIEUX » — MESURE, PUIS
+                  UNE VRAIE CAUSE TROUVEE. Le banc de rendu hors navigateur
+                  (contexte 2D qui ENREGISTRE, balayage des 81 vues) dit que les
+                  cinq lieux rendent bien des choses differentes au palier
+                  ELEVEE : 819 a 2 444 ops de props par vue, 51 a 124 objets, un
+                  fond et des baies pour les deux seuls lieux qui en declarent
+                  un. Le systeme n est donc pas eteint — c est le PALIER qui
+                  decide, et il decidait mal.
+                  `low` BAISSAIT LA TECHNIQUE ET CHANGEAIT DE LIEU. `nebuleuse()`
+                  et `secteur()` faisaient `return usine(...)` : au palier bas,
+                  TROIS LIEUX SUR CINQ portaient le sol de l usine — mesure, 8
+                  ops de cuisson pour les trois. La Friche avait pourtant la
+                  bonne forme depuis toujours (`fricheLegacy`, SA PROPRE tuile
+                  d avant le plan 13) ; ces deux lieux sont nes apres, donc ils n
+                  avaient pas d ancienne tuile et on leur avait prete celle du
+                  voisin. Ils ont la leur : la coque hexagonale pour l une, l
+                  enrobe et ses reprises pour l autre. Le sol rend maintenant
+                  8 / 4 / 16 / 6 / 1.
+                  ET CA NE COUTE RIEN PAR IMAGE : la tuile est cuite UNE FOIS par
+                  manche puis repetee en motif. Le prix de `low` est aux props,
+                  aux traces, a la lumiere, a l atmosphere et au premier plan —
+                  tous a ZERO op sur 81 vues, ce qui est son contrat.
+                  LA GARDE DE PALIER PASSAIT APRES LE FOUR. `drawFond` et
+                  `drawBaies` appelaient `fondDe()` — une toile pleine vue — puis
+                  sortaient sur `gfx <= GFX_LOW`. Cuite, jamais dessinee.
+                  ET `meteo` REND ZERO DANS LES CINQ LIEUX, CE QUI EST CORRECT :
+                  `weatherFor` sort sur `diffIndex < 2`. Il n y a de meteo qu en
+                  cauchemar, et un segment sur trois n en a pas meme la. Le banc
+                  le dit au lieu de le supposer.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9142,4 +9238,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.5";
+export const VERSION = "0.40.8";

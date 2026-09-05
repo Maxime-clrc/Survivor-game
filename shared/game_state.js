@@ -160,19 +160,23 @@ function indexerStatique(list, cell, cols, rows) {
 }
 
 export const CFG = {
-  /* QUATRE REGIONS DE LA TAILLE DE L ANCIENNE ARENE. Le generateur pave en
-     cellules de la taille d une VUE — 6 x 6 ici contre 3 x 3 avant — et chacune
-     tire sa variante avec ses bords : l assemblage ne demande rien de plus.
+  /* NEUF REGIONS DE LA TAILLE DE L ANCIENNE ARENE (4800 x 2700). Le generateur
+     pave en cellules de la taille d une VUE — 9 x 9 ici, 6 x 6 en 0.40.1, 3 x 3
+     avant — et chacune tire sa variante avec ses bords : l assemblage ne demande
+     rien de plus. LES DEUX DIMENSIONS RESTENT DES MULTIPLES ENTIERS DE LA VUE,
+     et ce n est pas cosmetique : `cols = round(ARENA_W / VIEW_W)` arrondit, donc
+     une taille qui ne tombe pas juste etire ou ecrase les cellules du generateur
+     par rapport a ce que la camera montre.
      ET CA NE COUTE RIEN, PARCE QUE LE PLAN 31 A RETIRE LES DEUX COUTS DE
      SURFACE. Apres lui, la taille de l arene n apparait dans AUCUN cout de
      boucle : `_grille()` est batie sur la boite occupee, `diffuser()` est
      fenetre sur la boite d apparition, le reseau est filtre par vue, le sol est
      un motif repete sur la vue, les props bouclent sur les cellules de la
      camera. Il ne reste que de la MEMOIRE et le temps de generation, une fois
-     par manche. Mesure : `_grille` 660 cases / 4,8 us et `diffuser` 3 025 cases
-     / 83 us AVANT, les memes APRES. */
-  ARENA_W: 9600,
-  ARENA_H: 5400,
+     par manche. Mesure a 9600 : `_grille` 660 cases / 4,8 us et `diffuser`
+     3 025 cases / 83 us AVANT, les memes APRES. */
+  ARENA_W: 14400,
+  ARENA_H: 8100,
   VIEW_W: 1600,
   VIEW_H: 900,
 
@@ -495,11 +499,11 @@ export function survieIndex(mods, maxHp) {
    QUATRE ETATS, ET LE CLIENT N'EN LIT QU'UN NOMBRE : disponible, proposee,
    acceptee, consommee. */
 export const BORNE_CFG = {
-  /* SEPT ET PAS QUATRE, ET LA JUSTIFICATION EST ARITHMETIQUE, PAS MESUREE.
-     La map a quadruple : a nombre egal, la densite SPATIALE de bornes est
-     divisee par quatre, et ca ne demande pas de banc pour etre vrai. On ne la
-     restaure pas — il faudrait seize bornes, et seize bornes font une liste de
-     taches, pas une decision — on divise la perte par deux.
+  /* LE NOMBRE SUIT LA DIMENSION LINEAIRE, PAS LA SURFACE, ET LA JUSTIFICATION
+     EST ARITHMETIQUE, PAS MESUREE. Quatre bornes a 4800, sept a 9600, dix a
+     14400 : restaurer la densite SPATIALE demanderait le carre — trente-six
+     bornes — et trente-six bornes font une liste de taches, pas une decision.
+     On divise la perte, on ne l annule pas.
      ET LE BANC NE CONFIRME PAS, IL FAUT LE DIRE. La mesure d ecart d interet
      rend la meme mediane (1 s) avant et apres l agrandissement, et sa QUEUE ne
      repond PAS au nombre de bornes : passer de 4 a 7 a fait monter le plus long
@@ -507,7 +511,7 @@ export const BORNE_CFG = {
      va PAS aux bornes — il ne cherche que le loot et les bonus — donc ce banc
      mesure l errance du bot et non la densite d interet d un joueur. Un joueur
      qui VOIT une borne y va ; c est la difference, et aucun bot ne la couvre. */
-  PAR_MANCHE: 7,
+  PAR_MANCHE: 10,
   RAYON: 22,
   INTERACTION: 90,
   RECHARGE: 60,
@@ -537,9 +541,13 @@ export const BORNE_CONSOMMEE = 3;
    le retour est VISIBLE, corps qui marche a l envers, sinon la barre repart en
    haut sans que rien ne l explique. */
 export const MINI_CFG = {
-  // meme raison que `BORNE_CFG.PAR_MANCHE` : la map a quadruple, les occasions
-  // suivent lineairement. Cinq fenetres de presence tiennent encore chacune dans
-  // son segment (360, 660, 960, 1260, 1560 pour 210 s de presence).
+  /* IL NE SUIT PAS LA TAILLE DE LA MAP, CONTRAIREMENT AUX BORNES, et c est ce
+     qui les separe : une borne ATTEND, un mini-boss a une FENETRE. Le nombre est
+     borne par l horloge, pas par la surface — cinq presences tiennent chacune
+     dans son segment (360, 660, 960, 1260, 1560 pour 210 s), une sixieme
+     deborderait sur le boss final. Une map plus grande ne rallonge pas la
+     manche : elle rend seulement chaque rencontre plus rare, et c est le prix
+     ecrit de l agrandissement. */
   PAR_MANCHE: 5,
   /* LES TROIS FENETRES TIENNENT CHACUNE DANS UN SEGMENT, ET C EST MESURE, PAS
      suppose : a `PREMIER = 260` le premier mini-boss naissait quarante secondes
@@ -10389,8 +10397,12 @@ export class GameState {
            this.contrat.seuil, r1(Math.max(0, this.contrat.t)),
            r1(this.contrat.x), r1(this.contrat.y)]
         : null,
+      /* LA RECHARGE VOYAGE, ET C EST CE QUI PERMET AU CLIENT DE NE PAS MENTIR :
+         une borne en recharge reste `BORNE_LIBRE`, donc sans ce drapeau l invite
+         « F » s afficherait sur une borne que `_interagir` refuse. Ajoute EN FIN
+         de tuple, lu avec un repli. */
       bq: filtrer(this.bornes, () => BORNE_CFG.RAYON,
-        b => [b.id, r1(b.x), r1(b.y), b.etat]),
+        b => [b.id, r1(b.x), r1(b.y), b.etat, b.cd > 0 ? 0 : 1]),
       hv: this.harvests.map(h => [h.id, r1(h.x), r1(h.y), h.kind,
         r2(h.kind === 0 ? h.hp / h.maxHp : h.prog)]),
       tu: this.turrets.map(t => [t.id, r1(t.x), r1(t.y), r2(t.life / CFG.TURRET_LIFE), r2(t.ang)]),

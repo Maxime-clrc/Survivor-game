@@ -8,6 +8,71 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Ce que chaque palier de `gfx` retire, par lieu (0.40.8)
+
+Banc jetable, protocole « faire tourner les contrôles du rendu hors navigateur »
+(plus bas) : le contexte 2D **enregistre** au lieu de peindre — il compte les
+opérations et relève les couleurs posées. Balayage des **81 vues** de l'arène,
+graine 7, mode normal. Une passe qui rend 0 op sur 81 vues ne dessine rien.
+
+Opérations par vue, `gfx = élevée` :
+
+| passe | usine | fonderie | friche | nébuleuse | secteur |
+|---|---:|---:|---:|---:|---:|
+| fond | 0 | 0 | 0 | 12 | 13 |
+| props | 1 797 | 1 637 | 2 444 | 1 354 | 819 |
+| traces | 226 | 230 | 161 | 305 | 238 |
+| obstacles | 1 268 | 1 290 | 1 361 | 2 681 | 810 |
+| baies | 0 | 0 | 0 | 524 | 768 |
+| atmosphère | 283 | 212 | 175 | 365 | 402 |
+| premier plan | 23 | 17 | 1 545 | 119 | 365 |
+
+Et en **objets** par vue : 51 à 124 props, 4 à 37 traces, 6 à 15 blocs.
+
+**Ce que `basse` retire :** props **0**, traces **0**, fond **0**, baies **0**,
+coulée **0**, atmosphère **0**, premier plan **0**. Il ne reste que la tuile de
+sol, la grille de 20 m et les blocs. C'est le contrat écrit du palier — mais il
+rendait aussi **le sol de l'usine sur la Nébuleuse et le Secteur** (`sol` : 8, 4,
+16, **8**, **8** ops), donc trois lieux indiscernables. Après correction :
+8, 4, 16, **6**, **1**.
+
+**`meteo` rend 0 op dans les cinq lieux, et c'est correct** : `weatherFor` sort
+sur `diffIndex < 2`. La météo n'existe qu'en **cauchemar**, et même là un segment
+sur trois n'en a pas. En calme et en normal il n'y en a jamais.
+
+**L'amer est visible dans 4 vues sur 81** (2 pour le Secteur) : un repère unique
+par arène couvre 5 % de la carte.
+
+### 14400 × 8100 (0.40.7)
+
+Banc jetable, un bot par joueur en cercle, PV rendus à chaque pas pour tenir les
+600 s, biome `nebuleuse`, graine 7, normal. Les deux tailles dans le **même**
+processus, `CFG.ARENA_W/H` réécrit entre les deux passes.
+
+| | 9600 × 5400 | 14400 × 8100 |
+|---|---:|---:|
+| cellules du générateur | 6 × 6 | 9 × 9 |
+| obstacles (usine / friche / secteur) | 262 / 310 / 319 | 594 / 682 / 726 |
+| génération, par manche | < 1 ms | 0,5 – 1,9 ms |
+| population moyenne 1 j / 4 j | 64 / 154 | 68 / 155 |
+| `step` 1 j / 4 j | 46 / 140 µs | 45 / **193 µs** |
+
+**La population ne bouge pas, et c'est une limite du banc, pas un résultat** :
+les bots suivent la même trajectoire des deux côtés, donc l'écart maximal entre
+joueurs est identique (1 722 px) et le temps de transit ne change pas. Une équipe
+réelle s'écarte davantage sur une map plus grande — c'est là que 0.40.1 avait
+mesuré le doublement.
+
+**`step` à quatre monte de 38 % (140 → 193 µs), et ce n'est pas la population** :
+elle est identique. Ce sont les **obstacles**, dont le nombre suit la surface
+(× 2,25) et que la pose d'apparition et le blocage rebalayent. 193 µs sur une
+image de 16 600, c'est 1,2 %.
+
+`BORNE_CFG.PAR_MANCHE` passe de 7 à 10 — **arithmétique, pas mesuré** : le nombre
+suit la dimension linéaire (4 à 4800, 7 à 9600, 10 à 14400). Le banc d'écart
+d'intérêt de 0.40.1 ne peut toujours pas trancher : `pilotage()` ne va pas aux
+bornes.
+
 ### 9600 × 5400, et ce qui bouge vraiment, plan 37 (0.40.1)
 
 Même banc des deux côtés, `pilotage()`, mesures **en cours de manche** — une

@@ -149,7 +149,11 @@ const SUITE = [
      la suite passe de 1 a 2 s, ce qui reste sous le budget du mode rapide. */
   ["biomes", () => G.verifierBiomes(
     Array.from({ length: 50 }, (_, i) => i * 7 + 1))],
-  ["variantes", () => B2.verifierVariantes()],
+  /* LA TAILLE REELLE, PAS LE DEFAUT DU MODULE. `verifierVariantes` porte
+     4800 x 2700 en valeur par defaut — `biomes.js` ne depend de rien, donc il ne
+     peut pas lire `CFG` — et verifiait donc l assemblage d une arene que le jeu
+     ne construit plus depuis 0.40.1. */
+  ["variantes", () => B2.verifierVariantes(50, CFG.ARENA_W, CFG.ARENA_H)],
   /* LA LARGEUR DE PASSAGE, SUR TOUTE LA REGION ET SUR DES GRAINES. Le
      verificateur de navigation ne tournait que sur la graine 7 : avec des
      variantes tirees par cellule, une graine ne couvre presque rien, et un

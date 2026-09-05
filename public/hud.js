@@ -39,6 +39,7 @@ const el = {
   propGain: $("propGain"),
   propAide: $("propAide"),
   meta:     $("hudMeta"),
+  lieu:     $("hudLieu"),
   seg:      $("hudSegment"),
   segKicker: $("segKicker"),
   segName:  $("segName"),
@@ -662,11 +663,12 @@ function updateBoss(b, now) {
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
 
-/* L'EN-TETE DE MISSION — trois rangs et rien de plus : OU je suis (le lieu, en
-   inscription), OU J'EN SUIS (la vague, en gros), COMBIEN DE TEMPS (la barre et
-   le decompte). Le nom du lieu ne peut pas etre un titre de jeu au milieu de
-   l'ecran : il descend en 13 px, et tout le bloc s'efface au bout de six
-   secondes quand plus rien ne change.
+/* L'EN-TETE DE MISSION — OU J'EN SUIS (la vague, en gros) et COMBIEN DE TEMPS
+   (la barre et le decompte). Tout le bloc s'efface au bout de six secondes quand
+   plus rien ne change, et il se CACHE pendant un boss : c'est pour ca que le
+   lieu n'y est plus. « OU je suis » est la seule des trois qu'on peut avoir
+   besoin de relire trois minutes plus tard, donc elle vit dans `#hudRun`, qui
+   ne s'efface jamais.
 
    LA VAGUE CIRCULAIT SANS JAMAIS S'AFFICHER. `v.beat` ne servait qu'a detecter
    le crescendo, alors que c'est le seul palier de progression a l'echelle de la
@@ -680,9 +682,8 @@ function updateSegment(v, c = {}, now = 0) {
   setHidden(el.seg, "sgOn", false);
 
   const dernier = v.beat >= TL_CFG.BEATS - 1;
-  const lieu = c.biomeNom ? ` · ${c.biomeNom}` : "";
   setText(el.segKicker, "sgk",
-    `${segmentName(v.segment)} · ${v.segment}/${TL_CFG.SEGMENTS}${lieu}`);
+    `${segmentName(v.segment)} · ${v.segment}/${TL_CFG.SEGMENTS}`);
   setText(el.segName, "sgn",
     tf("ui.hud.vague", "vague {n} / {max}",
        { n: Math.min(TL_CFG.BEATS, (v.beat ?? 0) + 1), max: TL_CFG.BEATS }));
@@ -1306,6 +1307,10 @@ export function updateHud(v, c) {
   const now = c.now;
 
   setText(el.clock, "clk", fmtTime(v.tm));
+  /* LE LIEU EST PERMANENT, ET IL A QUITTE L EN-TETE DE MISSION POUR CA : celui-ci
+     se ternit au bout de six secondes et se CACHE pendant un boss, donc apres
+     deux minutes rien a l ecran ne disait plus ou l on jouait. */
+  setText(el.lieu, "lieu", c.biomeNom ?? "");
   /* LE SUR MESURE SE VOIT EN MANCHE, ET IL DIT SA SEVERITE : le mode change ce
      que la salle joue ET ce qu elle ne gagnera pas. Il disparait dans les trois
      modes normaux — un temoin permanent qui ne dit rien cesse d etre lu. */

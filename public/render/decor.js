@@ -51,8 +51,11 @@ function majDerive() {
 }
 
 export function drawFond() {
+  // LA GARDE PASSE DEVANT LE FOUR : `fondDe` cuisait une toile pleine vue que
+  // le palier bas ne dessine jamais.
+  if (gfx <= GFX_LOW) return;
   const f = fondDe(biomeAt(biomeIndex).fond, biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
-  if (gfx <= GFX_LOW || !f) return;
+  if (!f) return;
   majDerive();
   const ddx = derive.lx, ddy = derive.ly, gx = derive.gx, gy = derive.gy;
   // LES ETOILES NE SONT PLUS ICI : sous un plancher a 0,93 elles ne se voyaient
@@ -107,8 +110,9 @@ function cadreBaie(x, y, w, h) {
 }
 
 export function drawBaies() {
+  if (gfx <= GFX_LOW) return;
   const f = fondDe(biomeAt(biomeIndex).fond, biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
-  if (gfx <= GFX_LOW || !f) return;
+  if (!f) return;
   majDerive();
   const ddx = derive.lx, ddy = derive.ly, gx = derive.gx, gy = derive.gy;
   const s = biomeSeed >>> 0;

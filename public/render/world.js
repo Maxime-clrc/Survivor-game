@@ -546,7 +546,11 @@ function drawWorld(v) {
   drawHarvests(v.harvests ?? []);
   // AVEC LES OBJETS DU MONDE, avant les corps : la borne appartient au decor
   // jouable, pas a la couche des acteurs mobiles.
-  drawBornes(v.bornes ?? []);
+  // LA POSITION PREDITE, PAS CELLE DE L INSTANTANE : l invite doit paraitre au
+  // moment ou le corps qu on VOIT entre dans le rayon, sinon elle a 110 ms de
+  // retard sur son propre declencheur.
+  drawBornes(v.bornes ?? [],
+             predicted ?? v.playerList.find(p => p.id === myId) ?? null);
   drawBombs(v.bombList ?? []);
   drawMarks(v.marks ?? [], v.playerList);
   drawGazeCone(v);

@@ -548,6 +548,7 @@ let boardMode = "temps";
 export function renderBoard() {
   hubBoardTabs.innerHTML = "";
   DIFFICULTIES.forEach((d, i) => {
+    if (d.custom) return;
     const b = document.createElement("button");
     b.textContent = diffLabel(i);
     b.className = i === boardDiff ? "" : "ghost";
@@ -1427,7 +1428,13 @@ function voteDetail(d, i) {
 function renderVote() {
   voteRow.innerHTML = "";
 
+  /* LE SUR MESURE N A PAS DE BOUTON DE VOTE, PARCE QU IL NE SE VOTE PAS : le
+     serveur refuse `v === CUSTOM_INDEX`, donc la case restait a l ecran, cliquable
+     et sans effet. Et `DIFF_MUL` n ayant pas de quatrieme entree, elle annoncait
+     « noyaux x1 » — l inverse exact de ce que le mode paie. Il se configure dans
+     son propre bloc, en dessous. */
   DIFFICULTIES.forEach((d, i) => {
+    if (d.custom) return;
     const btn = document.createElement("button");
     const n = tally[i] ?? 0;
     const noyaux = PROG_CFG.DIFF_MUL[i] ?? 1;

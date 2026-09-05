@@ -79,7 +79,8 @@ export function ingest(msg) {
     // la borne : trois nombres et un ETAT, filtree par la vue comme le reste
     // `bo` est le BOSS et `bn` les BOUNDS : une borne sous l une des deux
     // l aurait ecrasee EN SILENCE — un instantane est un objet, pas un schema.
-    bornes: (msg.bq ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], etat: a[3] })),
+    bornes: (msg.bq ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], etat: a[3],
+                                       pret: a[4] ?? 1 })),
     contrat: msg.ct
       ? { def: msg.ct[0], rarete: msg.ct[1], cur: msg.ct[2], seuil: msg.ct[3],
           t: msg.ct[4], x: msg.ct[5], y: msg.ct[6] }

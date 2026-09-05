@@ -102,6 +102,21 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   couches bougent ensemble). Le HUD est le **frère** de `#arena`. `#arena` porte
   un `scale(1.015)` permanent.
 - **Le HUD n'écrit dans le DOM que si la valeur a changé** (table `memo`).
+- **CE QUI SE SUIT SE MET DANS LE FLUX.** `#hudContrat` était ancré en absolu à
+  `--hud-safe + 92px`, une hauteur de `#hudRun` **supposée** : la ligne d'état, le
+  bandeau sur mesure et le ping la font varier, et le suivi de contrat tombait sur
+  la ligne de ping. Un frère de flux ne peut pas se tromper de hauteur ; un
+  ancrage absolu dans la même colonne est un chiffre qui périme en silence.
+- **CE QU'ON PEUT AVOIR BESOIN DE RELIRE PLUS TARD NE VIT PAS DANS UN BLOC QUI
+  S'EFFACE.** L'en-tête de mission se ternit au bout de six secondes **et se cache
+  pendant un boss** : le nom du lieu y était, donc après deux minutes plus rien à
+  l'écran ne disait où l'on jouait. Il vit dans `#hudRun`, qui ne s'efface jamais.
+- **UNE INVITE DE TOUCHE EST AU SOL, PAS DANS UN COIN.** « F » est une réponse à
+  « quoi, **ici** » : dans un coin d'écran il faudrait d'abord dire de quoi on
+  parle, alors qu'au-dessus du socle l'objet **est** la phrase. Elle ne paraît que
+  dans le rayon où `_interagir` accepte — sinon elle promet ce que le serveur
+  refuse — et une borne en **recharge** reste `BORNE_LIBRE`, donc son état ne
+  suffit pas : le drapeau `pret` voyage en fin de tuple pour ça.
 
 ### La lumière
 
@@ -521,6 +536,22 @@ différents sous quatre mêmes blocs donnent quatre mêmes maps.
 une famille appartient à **un** lieu, c'est la règle de non-réutilisation rendue
 exécutable. Il ne circule pas sur le réseau et le serveur ne le lit jamais.
 
+- **`low` BAISSE LA TECHNIQUE, IL NE CHANGE PAS DE LIEU.** La règle était déjà
+  écrite pour la palette d'arène (« c'est de la DA, pas de la qualité ») ; les
+  tuiles de sol ne la suivaient pas : `nebuleuse()` et `secteur()` faisaient
+  `return usine(...)` au palier bas — **trois lieux sur cinq avec le sol de
+  l'usine**. La Friche avait la bonne forme depuis toujours : `fricheLegacy`,
+  **sa propre** tuile d'avant le plan 13. Un lieu né après le plan 13 n'a pas
+  d'ancienne tuile ; on lui en écrit une, on n'emprunte pas celle du voisin.
+  **Et ça ne coûte rien par image** : la tuile est cuite une fois par manche puis
+  répétée en motif — le prix de `low` est aux props, aux traces, à la lumière, à
+  l'atmosphère et au premier plan, jamais au four.
+- **UNE TABLE PAR LIEU SE CROISE AVEC `BIOMES`, SANS EXCEPTION.** `BORNE_FORME`
+  (`render/actors.js`) portait `ville` et `serre` — deux clefs qui n'ont **jamais**
+  été des clefs de lieu : le `?? BORNE_FORME.usine` rendait donc la borne de
+  l'usine sur la **friche** et le **secteur**, et deux formes écrites là n'étaient
+  tirées par personne. Aucun vérificateur ne la regardait parce qu'elle n'était
+  pas déclarée comme une table de lieu ; elle en est une.
 - **Deux silences à refuser, pas un.** `verifierBiomes()` rejette un obstacle
   qui porte la famille d'un autre lieu **et** une famille que plus aucune table
   ne tire ; `verifierBlocs()` rejette un `kind` privé de fiche de dessin — sans
@@ -847,7 +878,7 @@ de boss) se dose sur `glActive()` et **jamais** sur `gfx`.
 
 ### Caméra et arène
 
-`CFG.ARENA_W/H` = 9600 × 5400, `CFG.VIEW_W/H` = 1600 × 900. **La caméra vit dans
+`CFG.ARENA_W/H` = 14400 × 8100, `CFG.VIEW_W/H` = 1600 × 900. **La caméra vit dans
 les transforms, jamais dans les fonctions de dessin** : translation posée par
 `applyCamera()` sur les deux contextes 2D, offset absorbé par la projection dans
 `gl.begin`, souris mémorisée en coordonnées de **vue** et convertie à la lecture.

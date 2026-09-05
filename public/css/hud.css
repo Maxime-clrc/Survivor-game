@@ -82,17 +82,28 @@
   left: var(--hud-safe);
 }
 
-/* A GAUCHE, SOUS L'HORLOGE, ET C'EST LA SEULE PLACE LIBRE : `#hudRun` occupe
-   le coin haut-gauche et ne descend pas, `#hudTeam` tient la droite. Le suivi ne
-   recouvre donc rien. */
+/* A GAUCHE, A LA SUITE DE LA TELEMETRIE, ET DANS LE FLUX : l'ancrage absolu
+   supposait une hauteur de `#hudRun` (92 px) que la ligne d'etat, le sur mesure
+   et le ping font varier — le suivi tombait sur le reseau. Un frere de flux ne
+   peut pas se tromper de hauteur. */
 #hudContrat {
-  position: absolute;
-  left: var(--hud-safe);
-  top: calc(var(--hud-safe) + 92px);
+  margin-top: var(--sp-3);
   max-width: 15rem;
   font-size: var(--t-xs);
   line-height: 1.35;
   text-shadow: 0 1px 2px var(--bg-void);
+}
+
+/* LE LIEU EST UNE INSCRIPTION, PAS UN TITRE : il se lit une fois puis se laisse
+   oublier, mais il reste LA — c'est la seule information de la manche qu'on peut
+   avoir besoin de relire trois minutes plus tard. */
+#hudLieu {
+  margin-top: var(--sp-1);
+  font-family: var(--font-display);
+  font-size: var(--t-s);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 #ctNom {
   font-family: var(--font-display);

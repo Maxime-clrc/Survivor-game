@@ -1678,8 +1678,10 @@ const MATIERE = {
   // plus personne ne roule ni ne balaye : il reste ce que le temps a fait.
   friche:    [TRACE_POUSSIERE, TRACE_CENDRES, null, TRACE_SOUILLURE],
   // pas de gravite, donc pas de poussiere qui tombe : ce qui marque une coque
-  // est ce qui l a HEURTEE — de biais, ou assez fort pour la FENDRE.
-  nebuleuse: [TRACE_RAYURES, null, TRACE_FISSURES, TRACE_POUSSIERE],
+  // est ce qui l a HEURTEE — de biais, assez fort pour la FENDRE, ou ce qui
+  // FLOTTE encore autour d elle. La regle etait ecrite ici depuis le debut et le
+  // quatrieme quartier posait quand meme de la poussiere.
+  nebuleuse: [TRACE_RAYURES, null, TRACE_FISSURES, TRACE_DECHETS],
   // il pleut, donc l eau court partout ou elle peut ; le reste est ce que la
   // livraison a laisse, et une livraison laisse ses emballages.
   secteur:   [TRACE_RUISSELLEMENT, TRACE_DECHETS, TRACE_SOUILLURE, TRACE_ROULAGE],
