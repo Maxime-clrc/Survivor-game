@@ -1165,6 +1165,24 @@ le sien :
   est manuel, et la condition est devenue le bit `ETAT_TIR` du masque de bonus.
   L'image et le son lisent **la même**, sinon le bourdonnement tient la gâchette
   relâchée.
+- **ET IL S'ARRÊTE OÙ LA SIMULATION L'ARRÊTE.** Il se dessinait jusqu'au bout de
+  sa portée alors que `_segmentHits` le coupait sur le premier obstacle : un trait
+  qui traverse un mur sans rien y faire n'est pas un effet, c'est une
+  **information fausse**. La coupe passe par `segmentCoupe()`, la **même**
+  fonction que la simulation appelle — elle a quitté `GameState` pour ça, elle ne
+  lisait que `this.obstacles`.
+  Le compte de **corps**, lui, est une approximation assumée : il se relit sur
+  `ownedCounts` (comme `secondCanon` deux lignes plus haut) avec la mise à
+  l'échelle d'`appliquerEchelle`. Aucune relique ne donne de perforation ; le jour
+  où l'une le fera, le trait s'arrêtera un corps trop tôt.
+- **LA CHALEUR EST LA SEULE RESSOURCE QUI N'AVAIT PAS DE JAUGE.** La rampe a son
+  anneau, la charge sa ligne de tir, le chargeur ses crans ; la chaleur se lisait
+  sur la **teinte du faisceau**, donc seulement en tirant — et depuis que le tir
+  est manuel, elle quittait l'écran au moment précis où l'on relâche pour la
+  gérer. Même anneau que les deux autres (`RING_BUFF0`) : un joueur ne porte
+  jamais deux ressources, la place est libre.
+  Le **mutisme** est le seul état qui bat, parce que c'est lui qui punit — et il
+  ne se déduit pas de la jauge, qui **redescend** pendant. D'où `ETAT_MUET`.
 - **Les marqueurs posés sur un joueur sont des glyphes distincts en silhouette.**
 - **UNE MÉCANIQUE DONT ON MONTRE LA CONSÉQUENCE AVANT QU'ELLE ARRIVE N'A PLUS
   BESOIN D'ÊTRE EXPLIQUÉE.** Le nœud du Tisseur porte l'**empreinte** de la zone

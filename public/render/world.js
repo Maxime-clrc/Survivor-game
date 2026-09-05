@@ -608,7 +608,7 @@ function drawWorld(v) {
 
   drawSoinLinks(v.links, v.playerList, v.enemyList, v.sancts ?? []);
 
-  drawPlayers(v.playerList, v.tm, v.marks ?? []);
+  drawPlayers(v.playerList, v.tm, v.marks ?? [], v.enemyList);
   drawMarkColumns(v.marks ?? [], v.tm);
   drawOrbiters(v.playerList, v.tm);
   drawWalls(v.walls);

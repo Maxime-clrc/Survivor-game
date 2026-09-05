@@ -629,6 +629,10 @@ export class Room {
   drawBiome() {
     const force = process.env.BIOME;
     const i = force === undefined ? -1 : BIOMES.findIndex(b => b.key === force);
+    /* LE LIEU SE JOURNALISE, ET C EST UN RAPPORT DE BUG QUI L A DEMANDE : « le
+       nom ne change jamais ». Le tirage etait juste — mais rien, hors du HUD
+       d une manche en cours, ne permettait de le VERIFIER, et une variable
+       d environnement peut le figer sans que personne ne s en souvienne. */
     if (i >= 0) this.biomeIndex = i;
     else {
       const avant = this.biomeIndex;
@@ -638,6 +642,9 @@ export class Room {
       this.biomeIndex = n;
     }
     this.seed = Number(process.env.GRAINE) || Math.floor(Math.random() * 0x7fffffff);
+    this.hooks.log(`[${this.code}] lieu : ${BIOMES[this.biomeIndex].nom}`
+      + ` (graine ${this.seed})`
+      + (i >= 0 ? ` — IMPOSE par BIOME=${force}, il ne changera plus` : ""));
   }
 
   recordRound() {

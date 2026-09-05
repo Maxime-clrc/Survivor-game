@@ -122,6 +122,54 @@ const STAT_MARGE = 80;
    trouve rien. Le tir mordait le mur sans jamais l entamer. */
 const VUE_MORDU = 1;
 
+/* LE MEME ARRET POUR LA SIMULATION ET POUR LE TRACE. Le faisceau s arretait sur
+   un obstacle dans `_segmentHits` et se dessinait quand meme au-dela : le joueur
+   voyait un trait traverser un mur sans rien y faire. Deux geometries pour une
+   seule question divergent toujours, donc celle-ci sort de la classe — elle ne
+   lisait que `this.obstacles` — et `render/boss.js` l appelle avec
+   `obstaclesActifs()`.
+
+   Rend la distance du point d arret le long de l axe, ou `null` si la vue est
+   libre. Une couverture DETRUITE ne coupe rien. `dx`/`dy` sont unitaires. */
+export function segmentCoupe(obstacles, x0, y0, dx, dy, portee) {
+  let best = null;
+  for (const o of obstacles) {
+    if (o.maxHp > 0 && o.hp <= 0) continue;
+    const hw = o.w / 2, hh = o.h / 2;
+    /* REJET PREALABLE : il fait passer l appel de 419 a 257 ns sur les 63 boites
+       d une arene, sans une seule divergence sur 200 000 tirs. Meme projection
+       que `_surSegment`, avec `hw + hh` en majorant de la demi-diagonale — plus
+       grand que la vraie, donc il ne rejette JAMAIS une boite qui touche, et il
+       evite la racine. */
+    const cx = o.x - x0, cy = o.y - y0;
+    const rc = hw + hh;
+    const le = cx * dx + cy * dy;
+    if (le < -rc || le > portee + rc) continue;
+    const ex = cx - le * dx, ey = cy - le * dy;
+    if (ex * ex + ey * ey > rc * rc) continue;
+    let t0 = 0, t1 = portee;
+    // composante nulle = segment parallele a cette paire de faces : il ne coupe
+    // que s il est deja entre elles, et la dalle ne borne rien
+    if (dx > -1e-9 && dx < 1e-9) {
+      if (Math.abs(x0 - o.x) >= hw) continue;
+    } else {
+      const a = (o.x - hw - x0) / dx, b = (o.x + hw - x0) / dx;
+      t0 = Math.max(t0, Math.min(a, b));
+      t1 = Math.min(t1, Math.max(a, b));
+    }
+    if (dy > -1e-9 && dy < 1e-9) {
+      if (Math.abs(y0 - o.y) >= hh) continue;
+    } else {
+      const a = (o.y - hh - y0) / dy, b = (o.y + hh - y0) / dy;
+      t0 = Math.max(t0, Math.min(a, b));
+      t1 = Math.min(t1, Math.max(a, b));
+    }
+    if (t0 > t1) continue;
+    if (best === null || t0 < best) best = t0;
+  }
+  return best;
+}
+
 // LE VOISINAGE 3x3 D'UNE CELLULE NE CHANGE JAMAIS : la geometrie est posee a la
 // construction. On ne le parcourt donc pas a la requete, on le CUIT — une liste
 // deja dedupliquee et deja triee par cellule, et la requete se reduit a lire une
@@ -971,6 +1019,11 @@ export const BUFF_RICOCHET = 16;
    bit de plus leur est inerte, et un champ de plus par joueur et par image
    n aurait rien porte que celui-la. */
 export const ETAT_TIR = 32;
+/* ET « CETTE ARME NE PEUT PLUS RIEN RENDRE ». `armeRes` ne suffit pas a le dire :
+   pendant les 1,5 s de mutisme la chaleur REDESCEND, donc la jauge quitte le haut
+   au moment precis ou elle devrait crier. Le client ne peut pas le deduire — une
+   gachette relachee donne les memes valeurs. */
+export const ETAT_MUET = 64;
 
 
 export function effectiveCards(cards, others = []) {
@@ -2174,11 +2227,20 @@ export class GameState {
     const dmg = base * dt * p.mods.barrelDamageMul;
     const portee = CFG.BULLET_SPEED * CFG.BULLET_LIFE * arme.portee * p.mods.bulletLifeMul;
     const large = ARME_CFG.LASER_LARGEUR * p.mods.faisceauLarge;
+    /* LE FAISCEAU S ARRETE SUR UN CORPS, ET C EST CE QUI LUI DONNE UN AXE. Il
+       traversait TOUT (`perforeTout`), donc sa perforation valait zero dans le
+       tableau d echelle et quatre cartes ne lui rendaient rien — dont `Inertie`,
+       qui est litteralement une perforation infinie. Il lit maintenant le meme
+       compte qu une balle : un corps, plus ce que la build achete. */
+    const perce = p.mods.inertia
+      ? Infinity
+      : 1 + (p.buffPierce > 0 ? CFG.PIERCE_HITS : 0) + p.mods.pierce;
+    const decroit = p.mods.inertia ? CARD_CFG.INERTIA_DECAY : 1;
     let touches = 0;
     for (let i = 0; i < n; i++) {
       const a = p.armeAng + (n === 1 ? 0 : (i - (n - 1) / 2) * 0.13);
       touches += this._segmentHits(p, p.x, p.y, Math.cos(a), Math.sin(a),
-                                   portee, large, dmg, true);
+                                   portee, large, dmg, true, perce, decroit);
     }
     return touches;
   }
@@ -2195,7 +2257,8 @@ export class GameState {
 
   /* Point de passage unique de tout ce qui frappe LE LONG D'UN SEGMENT : le
      faisceau du laser, et le rail du railgun s'il en vient un jour. */
-  _segmentHits(p, ox, oy, dx, dy, portee, large, dmg, overTime) {
+  _segmentHits(p, ox, oy, dx, dy, portee, large, dmg, overTime,
+                cibles = Infinity, decroit = 1) {
     let touches = 0;
     /* LA COUVERTURE ARRETE LE SEGMENT, ET ELLE ENCAISSE. Ne pas l entamer
        rendrait un joueur a couvert INVULNERABLE au faisceau la ou une balle perce
@@ -2211,6 +2274,12 @@ export class GameState {
                           oy + dy * (coupe + VUE_MORDU), dmg);
       }
     }
+    /* LES CORPS SE RAMASSENT AVANT DE SE FRAPPER, parce qu il faut savoir LEQUEL
+       est le premier. Le tri ne se paie que si le budget peut mordre : a
+       `cibles` infini le segment frappe tout, dans l ordre de la liste, comme
+       avant. Le point d arret RABAISSE `portee`, donc les cristaux derriere ne
+       sont pas touches non plus — un faisceau bloque est bloque pour tout. */
+    const corps = [];
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       const px = e.x - ox, py = e.y - oy;
@@ -2219,8 +2288,7 @@ export class GameState {
       const ex = px - le * dx, ey = py - le * dy;
       const rr = large + e.r;
       if (ex * ex + ey * ey > rr * rr) continue;
-      this._damage(e, dmg, p.id, p.mods.burnDmg > 0 ? p.mods.burnDmg : 0, overTime);
-      touches++;
+      corps.push({ le, e, boss: null });
     }
     for (const boss of this._bossTargets()) {
       const px = boss.x - ox, py = boss.y - oy;
@@ -2229,7 +2297,19 @@ export class GameState {
       const ex = px - le * dx, ey = py - le * dy;
       const rr = large + CFG.BOSS_RADIUS;
       if (ex * ex + ey * ey > rr * rr) continue;
-      this._damage(boss, dmg, p.id, 0, overTime, ox + dx * le, oy + dy * le);
+      corps.push({ le, e: null, boss });
+    }
+    if (corps.length > cibles) corps.sort((a, b) => a.le - b.le);
+    let d = dmg;
+    for (let i = 0; i < corps.length; i++) {
+      const c = corps[i];
+      if (i >= cibles) { portee = c.le; break; }
+      if (i > 0 && decroit !== 1) {
+        d *= decroit;
+        if (d < dmg * CARD_CFG.INERTIA_MIN_MUL) { portee = c.le; break; }
+      }
+      if (c.e) this._damage(c.e, d, p.id, p.mods.burnDmg > 0 ? p.mods.burnDmg : 0, overTime);
+      else this._damage(c.boss, d, p.id, 0, overTime, ox + dx * c.le, oy + dy * c.le);
       touches++;
     }
     // un faisceau qui traverse une file ET un cristal casse les deux : c'est
@@ -8799,42 +8879,7 @@ export class GameState {
      Rend la distance du point d arret le long de l axe, ou `null` si la vue est
      libre. Une couverture DETRUITE ne coupe rien. `dx`/`dy` sont unitaires. */
   _vueCoupee(x0, y0, dx, dy, portee) {
-    let best = null;
-    for (const o of this.obstacles) {
-      if (o.maxHp > 0 && o.hp <= 0) continue;
-      const hw = o.w / 2, hh = o.h / 2;
-      /* REJET PREALABLE : il fait passer l appel de 419 a 257 ns sur les 63 boites
-         d une arene, sans une seule divergence sur 200 000 tirs. Meme projection
-         que `_surSegment`, avec `hw + hh` en majorant de la demi-diagonale — plus
-         grand que la vraie, donc il ne rejette JAMAIS une boite qui touche, et il
-         evite la racine. */
-      const cx = o.x - x0, cy = o.y - y0;
-      const rc = hw + hh;
-      const le = cx * dx + cy * dy;
-      if (le < -rc || le > portee + rc) continue;
-      const ex = cx - le * dx, ey = cy - le * dy;
-      if (ex * ex + ey * ey > rc * rc) continue;
-      let t0 = 0, t1 = portee;
-      // composante nulle = segment parallele a cette paire de faces : il ne coupe
-      // que s il est deja entre elles, et la dalle ne borne rien
-      if (dx > -1e-9 && dx < 1e-9) {
-        if (Math.abs(x0 - o.x) >= hw) continue;
-      } else {
-        const a = (o.x - hw - x0) / dx, b = (o.x + hw - x0) / dx;
-        t0 = Math.max(t0, Math.min(a, b));
-        t1 = Math.min(t1, Math.max(a, b));
-      }
-      if (dy > -1e-9 && dy < 1e-9) {
-        if (Math.abs(y0 - o.y) >= hh) continue;
-      } else {
-        const a = (o.y - hh - y0) / dy, b = (o.y + hh - y0) / dy;
-        t0 = Math.max(t0, Math.min(a, b));
-        t1 = Math.min(t1, Math.max(a, b));
-      }
-      if (t0 > t1) continue;
-      if (best === null || t0 < best) best = t0;
-    }
-    return best;
+    return segmentCoupe(this.obstacles, x0, y0, dx, dy, portee);
   }
 
   _obstacleAt(x, y, margin = 0) {
@@ -10306,7 +10351,8 @@ export class GameState {
           | (p.buffDouble > 0 ? BUFF_DOUBLE : 0)
           | (p.buffPierce > 0 ? BUFF_PIERCE : 0)
           | (p.buffRicochet > 0 ? BUFF_RICOCHET : 0)
-          | (p.armeActif ? ETAT_TIR : 0),
+          | (p.armeActif ? ETAT_TIR : 0)
+          | (p.armeMuet > 0 ? ETAT_MUET : 0),
         p.score, p.deaths, Math.round(p.shield),
         this.level, Math.round(p.maxHp),
         this.level >= CFG.LEVEL_MAX

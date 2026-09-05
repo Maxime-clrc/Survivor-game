@@ -521,7 +521,7 @@ export const EN = {
   "arme.assaut.resume": "damage ramps up while you stand still, and falls off slowly",
   "arme.assaut.contrainte": "the ramp is lost by moving",
   "arme.laser.nom": "Laser cannon",
-  "arme.laser.resume": "a continuous beam that cuts through a whole line and never misses",
+  "arme.laser.resume": "a continuous beam that never misses and stops at the first body",
   "arme.laser.contrainte": "you fire by holding the click; it heats up, and goes silent for 1.5 s when saturated",
   "arme.tesla.nom": "Tesla",
   "arme.tesla.resume": "a bolt that scatters into arcs across nearby bodies",

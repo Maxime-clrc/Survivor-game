@@ -247,7 +247,9 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   dérivent de l’arme, et **ne s’activent que si l’arme les déclare** — avec le
   tir standard son comportement est celui du lot I, inchangé.
 - **La chaleur monte tant que le faisceau est ACTIF, à deux régimes** :
-  `CHALEUR_MONTEE` en contact (4,2 s), `CHALEUR_MONTEE_VIDE` à vide (7 s).
+  `CHALEUR_MONTEE` en contact (6 s), `CHALEUR_MONTEE_VIDE` à vide (10 s) — le
+  rapport de 0,6 est ce qui dit que couvrir une zone coûte moins cher que tirer
+  dedans, et il ne bouge pas.
   Adossée à la seule touche, elle ne se remplissait que dans les moments où le
   joueur gagnait déjà — donc jamais dans ceux où il aurait appris qu’elle existe,
   et comme le bonus croît avec elle, la ressource **récompensait sans jamais
@@ -264,6 +266,28 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     Elle achète le tir manuel ; sur une arme qui le déclare elle n’achète rien —
     et le faisceau lit `CHALEUR_BONUS`, pas `CHALEUR_BONUS_MANUEL`, donc elle n’y
     apporte pas même le bonus renforcé.
+  - **Une jauge qu’on ne peut pas relâcher n’a pas besoin d’être lente ; une
+    jauge qu’on gère, si.** 4,2 s de gâchette tenue ne laissent pas le temps de
+    décider quand relâcher : 6 s. Mesuré, 5 manches × 10 min : uptime 0,67 →
+    0,71, V 90 % → 97 %.
+- **LE FAISCEAU S’ARRÊTE SUR LE PREMIER CORPS, et c’est ce qui lui rend un axe.**
+  `perforeTout` lui faisait traverser une file entière, donc sa perforation valait
+  **zéro** dans le tableau d’échelle : quatre cartes ne lui rendaient rien, dont
+  `Inertie`, qui est littéralement une perforation infinie. Il compte maintenant
+  comme une balle (`litPerce` s’ouvre au `faisceau`), et `ech.perforation` passe
+  de 0 à **1,5** — le levier le plus direct du tableau pour lui, devant les
+  dégâts.
+  - **Le budget de corps est le MÊME que celui d’une balle** : `1 + pierce`, plus
+    `CFG.PIERCE_HITS` sous le bonus au sol, `Infinity` sous `Inertie` — avec la
+    même décroissance de 0,65 par corps traversé.
+  - **Le point d’arrêt rabaisse la portée**, donc un cristal derrière un corps
+    n’est pas touché non plus : un faisceau bloqué est bloqué pour tout.
+  - **LE DÉGÂT N’EST PLUS LE LEVIER DE SA HORDE, ET C’EST MESURÉ.** À une cible à
+    la fois, `Dh` sature : 72 → 100 de dégâts ne l’a fait passer que de 32,9 à
+    35,5 (+8 %), le reste part en surtuage. Ce qui a rendu les 16 points manquants
+    est l’**uptime** (le palier de chaleur ci-dessus), pas la puissance. Le plafond
+    de `verifierArmes` — 1,6 fois la référence en cible unique — borne de toute
+    façon les dégâts à ~101 pour cette arme.
 - **Le rayon d’une arme de balayage est un SEUIL, pas un levier** : sous ~150 px
   elle ne perce pas l’anneau qui se referme, au-dessus elle le nettoie. On pose
   le rayon au-dessus du seuil et on règle par l’**arc**.

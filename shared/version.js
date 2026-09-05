@@ -9479,6 +9479,57 @@
                   Les onze autres verificateurs de terrain restent verts :
                   signatures de variante, lois de lieu, monotonie des modes,
                   carre central traversable, passages, navigation.
+    0.40.17 lot 18 LE LASER S ARRETE SUR CE QU IL RENCONTRE, ET SA CHALEUR SE
+                  VOIT. Trois defauts d une meme partie, et le troisieme est le
+                  seul qui soit une INFORMATION FAUSSE.
+                  LE TRACE MENTAIT. `_segmentHits` coupait le faisceau sur le
+                  premier obstacle depuis toujours ; le rendu le dessinait quand
+                  meme jusqu au bout de sa portee. Un trait qui traverse un mur
+                  sans rien y faire n est pas un effet. `_vueCoupee` sort de la
+                  classe sous le nom `segmentCoupe` — elle ne lisait que
+                  `this.obstacles` — et `render/boss.js` l appelle avec
+                  `obstaclesActifs()` : UNE geometrie, deux lecteurs.
+                  `perforeTout` EST PARTI, et c est ce qui rend son axe jouable.
+                  Un faisceau qui traverse tout n a rien a acheter : sa
+                  perforation valait ZERO dans le tableau d echelle, donc quatre
+                  cartes ne lui rendaient rien — dont `Inertie`, qui est
+                  litteralement une perforation infinie. Il compte maintenant
+                  comme une balle (`litPerce` s ouvre au `faisceau`), budget
+                  `1 + pierce`, decroissance de 0,65 par corps sous `Inertie`, et
+                  `ech.perforation` passe de 0 a 1,5. Le point d arret RABAISSE
+                  la portee : un cristal derriere un corps n est pas touche non
+                  plus, un faisceau bloque est bloque pour tout.
+                  LE DEGAT N EST PLUS LE LEVIER DE SA HORDE, ET C EST MESURE. A
+                  une cible a la fois `Dh` sature : 72 -> 100 de degats ne l a
+                  fait passer que de 32,9 a 35,5 (+8 %), le reste part en
+                  surtuage. Ce qui a rendu les seize points manquants est l
+                  UPTIME — la chaleur monte en 6 s au lieu de 4,2, ce qui est de
+                  toute facon la vraie correction : une jauge qu on ne peut pas
+                  relacher n a pas besoin d etre lente, une jauge qu on GERE si.
+                  Le plafond de `verifierArmes` (1,6 fois la reference en cible
+                  unique) borne les degats a ~101 pour cette arme, donc le levier
+                  n existait pas de ce cote.
+                  Releve final, 6 manches x 10 min : laser 105 % pour une cible
+                  de 106 %. Les neuf autres armes ne bougent pas.
+                  LA CHALEUR N AVAIT AUCUNE JAUGE, et c est la seule ressource du
+                  depot dans ce cas : la rampe a son anneau, la charge sa ligne
+                  de tir, le chargeur ses crans. On la lisait sur la TEINTE du
+                  faisceau, donc seulement en tirant — et depuis 0.40.14 le tir
+                  est manuel, donc elle quittait l ecran au moment precis ou l on
+                  relache pour la gerer. Meme anneau que les deux autres
+                  ressources ; un joueur n en porte jamais deux. Le MUTISME bat,
+                  parce que c est lui qui punit et qu il ne se deduit pas de la
+                  jauge, qui REDESCEND pendant : d ou `ETAT_MUET` (64), un bit de
+                  plus dans un masque qui circulait deja.
+                  LA PORTEE : 34 m -> 29 m. 672 px s arretaient encore trop loin
+                  pour qu on les LISE ; 576 laissent 224 px de vide au bout.
+                  ET LE LIEU SE JOURNALISE. « Le nom de biome ne change jamais » :
+                  le tirage est juste — verifie, douze salles neuves et onze
+                  manches d une meme salle donnent bien cinq lieux — mais rien,
+                  hors du HUD d une manche en cours, ne permettait de le VOIR. La
+                  ligne dit aussi quand `BIOME=` fige le tirage depuis l
+                  environnement, qui est la seule facon dont il puisse ne pas
+                  changer.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9488,4 +9539,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.16";
+export const VERSION = "0.40.17";

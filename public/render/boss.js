@@ -4,7 +4,7 @@ import { beatPhase, BOSS_CFG, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_ME
 import { CARD_CFG } from "/shared/cards.js";
 import { t } from "/shared/i18n.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, SKILL_ULT_WIND, classAt } from "/shared/classes.js";
-import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG, ETAT_TIR } from "/shared/game_state.js";
+import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG, ETAT_MUET, ETAT_TIR, segmentCoupe } from "/shared/game_state.js";
 import { BOSS, BOSS_SKIN, CLASS_COLOR, COMBAT, EFFECT_COLOR, FX, HUD, MARK, POWERUP_COLOR, SIGNAL, SURFACE, TEXT, alpha, melange } from "/shared/palette.js";
 import { STATUSES, STATUS_DOOM, STATUS_VULN } from "/shared/statuses.js";
 import { drawSprite, frameOf } from "/sprites.js";
@@ -12,8 +12,8 @@ import { amSpectator, dash, myId, ownedCounts, phase, predicted } from "../core/
 import { activeStatuses, bossCue, paintStatusIcon, setBossCue } from "../net/interp.js";
 import { drawBombRange } from "./actors.js";
 import { RING_BUFF0, RING_SHIELD, RING_SKILL, RING_STATUS, bossFlash, bossHit, drawBouche, drawBrulure, drawOmbre, drawVulnerable, lastBossPos, shieldHit, spawnBraise, spawnFaisceauChaud } from "./fx.js";
-import { ARMES } from "/shared/armes.js";
-import { aimVector, cadreOf, camera, colorOf, ctx, lumDir, mouse, nameOf, ownerColorOf, setCtx, underCtx } from "./stage.js";
+import { ARMES, ARME_CFG } from "/shared/armes.js";
+import { aimVector, cadreOf, camera, colorOf, ctx, lumDir, mouse, nameOf, obstaclesActifs, ownerColorOf, setCtx, underCtx } from "./stage.js";
 
 
 const BOSS_RELEASE_MS = 320;
@@ -1352,7 +1352,41 @@ function faisceauTerminus(x, y, col, k) {
   }
   ctx.stroke();
 }
-export function drawPlayers(list, tm, marks = []) {
+/* LE FAISCEAU S ARRETE OU LA SIMULATION L ARRETE. Il se dessinait jusqu au bout
+   de sa portee alors que `_segmentHits` le coupait sur le premier obstacle : un
+   trait qui traverse un mur sans rien y faire n est pas un effet, c est une
+   information fausse. La coupe passe par `segmentCoupe`, LA MEME fonction que
+   la simulation appelle — elle a quitte `GameState` pour ca.
+
+   LE COMPTE DE CORPS, LUI, EST UNE APPROXIMATION ASSUMEE : il se relit sur les
+   cartes possedees (`ownedCounts`, comme `secondCanon` deux lignes plus bas),
+   avec la meme mise a l echelle que `appliquerEchelle`. Aucune relique ne donne
+   de perforation aujourd hui ; le jour ou l une le fera, le trait s arretera un
+   corps trop tot et ce commentaire sera la raison. */
+function faisceauArret(p, a, x, y, ux, uy, portee, ennemis) {
+  const coupe = segmentCoupe(obstaclesActifs(), x, y, ux, uy, portee);
+  if (coupe !== null) portee = coupe;
+  const cartes = ownedCounts(p.id);
+  if ((cartes.get("inertie") ?? 0) > 0) return portee;
+  let reste = 1
+    + Math.round(((cartes.get("perforation") ?? 0) + (cartes.get("horizon") ?? 0))
+                 * a.ech.perforation)
+    + ((p.buffs & BUFF_PIERCE) ? CFG.PIERCE_HITS : 0);
+  let arret = portee;
+  for (const e of ennemis) {
+    const px = e.x - x, py = e.y - y;
+    const le = px * ux + py * uy;
+    if (le < 0 || le > arret) continue;
+    const ex = px - le * ux, ey = py - le * uy;
+    const rr = ARME_CFG.LASER_LARGEUR + (e.r ?? 12);
+    if (ex * ex + ey * ey > rr * rr) continue;
+    if (reste > 0) { reste--; continue; }
+    arret = le;
+  }
+  return arret;
+}
+
+export function drawPlayers(list, tm, marks = [], ennemis = []) {
   for (const p of list) {
     const isMe = p.id === myId;
     const x = isMe && predicted ? predicted.x : p.x;
@@ -1528,7 +1562,7 @@ export function drawPlayers(list, tm, marks = []) {
     // vrai en permanence tant que le tir etait automatique. Il est MANUEL.
     if (ARMES[p.arme]?.chaleur && p.armeRes < 1 && (p.buffs & ETAT_TIR)) {
       const a = ARMES[p.arme];
-      const portee = 640 * 1.5 * a.portee;
+      const porteeMax = 640 * 1.5 * a.portee;
       const chaud = p.armeRes;
       const teinte = melange(col, SIGNAL.warn, Math.min(1, chaud * 1.15));
       // un canon en plus ajoute une NAPPE au laser : elle se dessine du meme
@@ -1547,6 +1581,7 @@ export function drawPlayers(list, tm, marks = []) {
           * Math.sin(sec * 26 + i * 2.1 + p.id) * Math.sin(sec * 11.3 + i);
         const ang = p.armeAng + (n === 1 ? 0 : (i - (n - 1) / 2) * 0.13) + wob;
         const ux = Math.cos(ang), uy = Math.sin(ang);
+        const portee = faisceauArret(p, a, x, y, ux, uy, porteeMax, ennemis);
         const bx = x + ux * portee, by = y + uy * portee;
         ctx.strokeStyle = alpha(teinte, 0.22 + k * 0.4 + chaud * 0.10);
         ctx.lineWidth = (14 + k * 20) * (1 + chaud * 0.32);
@@ -1560,6 +1595,30 @@ export function drawPlayers(list, tm, marks = []) {
       ctx.restore();
     } else if (ARMES[p.arme]?.chaleur) {
       faisceauAllume.delete(p.id);
+    }
+
+    /* LA CHALEUR N AVAIT AUCUNE JAUGE, et c est la seule ressource du depot qui
+       n en avait pas : la rampe a son anneau, la charge sa ligne de tir, le
+       chargeur ses crans. On la lisait sur la TEINTE du faisceau — donc seulement
+       EN TIRANT, et le tir est devenu manuel : au moment precis ou l on relache
+       pour la gerer, elle quittait l ecran.
+       Meme anneau que la rampe et le chargeur : un joueur ne porte jamais deux
+       ressources, la place est libre. La teinte va du joueur a l ambre, et le
+       MUTISME est le seul etat qui bat — c est lui qui punit, et il ne se deduit
+       pas de la jauge, qui REDESCEND pendant. */
+    if (ARMES[p.arme]?.chaleur && !p.downed) {
+      const muet = (p.buffs & ETAT_MUET) !== 0;
+      const jauge = p.armeRes;
+      if (muet || jauge > 0.02) {
+        const bat = muet ? 0.55 + 0.45 * Math.sin(performance.now() / 90) : 1;
+        ctx.strokeStyle = alpha(muet ? SIGNAL.warn : melange(col, SIGNAL.warn, jauge),
+                                (muet ? 0.9 : 0.45 + jauge * 0.45) * bat);
+        ctx.lineWidth = muet ? 4 : 3;
+        ctx.beginPath();
+        ctx.arc(x, y, RING_BUFF0, -Math.PI / 2,
+                -Math.PI / 2 + (muet ? 1 : jauge) * Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     /* LA RAMPE SE LIT SUR LE PERSONNAGE et non sous le reticule : elle depend du

@@ -417,8 +417,13 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   physique**, donc les deux qui échappaient naturellement au test. Le périmètre se
   referme exactement sur eux ; précision et railgun, malgré leurs portées de 2,2
   et 1,8, sont déjà arrêtés. C'est une mise en cohérence, pas une pénalité neuve.
-- **`_vueCoupee(x0, y0, dx, dy, portée)` est le point de passage unique de la
-  ligne de vue.** Segment contre AABB **par les dalles**, et non une marche à pas
+- **`segmentCoupe(obstacles, x0, y0, dx, dy, portée)` est le point de passage
+  unique de la ligne de vue**, et `_vueCoupee` n'en est plus que l'appel depuis la
+  simulation. Elle a quitté `GameState` parce qu'elle ne lisait que
+  `this.obstacles` et que **le rendu pose exactement la même question** : le
+  faisceau s'arrêtait sur un mur dans `_segmentHits` et se dessinait quand même
+  au-delà. Deux géométries pour une seule question divergent toujours.
+  Segment contre AABB **par les dalles**, et non une marche à pas
   fixe sur `_obstacleAt` : la plus petite cloison du dépôt fait 32 px, une marche
   assez large pour être bon marché l'enjambe, et un tir qui traverse un mur *à
   certains angles* est exactement le défaut silencieux qu'on retire.
@@ -555,6 +560,11 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   d'implantation : **1,32 quartier par vue** au lieu de 4. L'architecture proche
   (`sonder`, 90 px) passe toujours devant, et `FUITE` brouille toujours la
   frontière.
+- **LE LIEU SE JOURNALISE** (`[code] lieu : Fonderie (graine …)`), et c'est un
+  rapport de bug qui l'a demandé — « le nom ne change jamais ». Le tirage était
+  juste ; ce qui manquait était le moyen de le **vérifier** hors du HUD d'une
+  manche en cours. La ligne dit aussi quand `BIOME=` fige le tirage depuis
+  l'environnement, qui est la seule façon dont il puisse ne pas changer.
 - **UN LIEU PAR MANCHE, ET IL VAUT POUR TOUTE L'ARÈNE.** `room.drawBiome()` le
   tire à la création de la salle puis **à chaque sortie de manche** ; `buildBiome`
   pave les 81 cellules avec les variantes de **ce** lieu. Traverser la carte ne

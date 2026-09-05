@@ -24,11 +24,18 @@ export const ARME_CFG = {
 
   // laser : la MEME ressource est un malus en horde et un bonus sur boss. Une
   // mecanique, deux lectures selon le contexte.
-  CHALEUR_MONTEE: 1 / 4.2,
+  /* 4,2 s -> 6,0 s : UNE JAUGE QU ON NE PEUT PAS RELACHER N A PAS BESOIN D ETRE
+     LENTE, UNE JAUGE QU ON GERE SI. Le tir etait automatique, donc le cycle
+     tournait tout seul et sa periode n etait qu un rythme ; il est manuel, et
+     4,2 s de gachette tenue ne laissent pas le temps de decider quand relacher.
+     Mesure a 5 manches x 10 min : uptime 0,67 -> 0,71, V 90 % -> 97 %. Le rapport
+     contact/vide (0,6) ne bouge pas — c est lui qui dit que couvrir une zone
+     coute moins cher que tirer dedans. */
+  CHALEUR_MONTEE: 1 / 6.0,
   // TIRER DANS LE VIDE ETAIT GRATUIT : la jauge ne montait que dans les moments
   // ou le joueur gagnait deja, donc jamais dans ceux ou il aurait appris qu'elle
   // existe. Le faisceau chauffe tant qu'il est ACTIF, plus lentement a vide.
-  CHALEUR_MONTEE_VIDE: 1 / 7.0,
+  CHALEUR_MONTEE_VIDE: 1 / 10.0,
   CHALEUR_CHUTE: 1 / 2.6,
   CHALEUR_MUET: 1.5,
   CHALEUR_BONUS: 0.25,
@@ -160,10 +167,12 @@ export const ARMES = [
   },
   {
     id: "laser", nom: "Canon laser", tir: "faisceau", axe: "ressource",
-    /* 43 m -> 34 m : « JUSTE AU-DELA DU DEMI-ECRAN » RESTE HORS DE L ECRAN. Le
-       joueur voit 800 px devant lui et le faisceau en parcourait 864 : sa fin
-       tombait toujours dehors, donc la portee restait illimitee a l usage. 672 px
-       s arretent 128 px avant le bord, et c est la qu elle s apprend. */
+    /* 43 m -> 34 m -> 29 m, EN DEUX PASSES. « Juste au-dela du demi-ecran »
+       restait hors de l ecran : le joueur voit 800 px devant lui et le faisceau
+       en parcourait 864, donc sa fin tombait toujours dehors et la portee restait
+       illimitee a l usage. 672 px s arretaient encore trop loin pour qu on la
+       LISE ; 576 laissent 224 px de vide au bout, et un bout qu on voit est un
+       bout qu on apprend. */
     /* 75 -> 72, EN DEUX PASSES, ET LA PREMIERE A DEPASSE. Mesure a douze
        manches : 115 % delivre pour une cible de 106 %, et le laser est la seule
        arme rouge aux trois tailles d echantillon (3, 6 et 12) — ce n est pas du
@@ -172,7 +181,7 @@ export const ARMES = [
        coute -20 % de debit horde, parce qu un faisceau qui tue moins vite garde
        ses cibles devant lui plus longtemps. 72 est l interpolation des deux
        points mesures, pas une moyenne choisie. */
-    interval: 0, degats: 72, portee: 0.7,
+    interval: 0, degats: 100, portee: 0.6,
     /* LA SEULE ARME QUI NE TIRE PAS TOUTE SEULE. Le depot pose « le tir est
        automatique » partout, et une carte — `surchauffe` — achete le contraire ;
        sur le laser cette carte n achetait RIEN : le faisceau porte deja sa jauge,
@@ -183,8 +192,14 @@ export const ARMES = [
        automatique, il depend du joueur — `verifierEquilibreArmes` mesure avec un
        pilote qui tient la gachette en permanence, donc il lit le PLAFOND. */
     manuel: true,
-    chaleur: true, perforeTout: true, famille: true,
-    resume: "un faisceau continu qui traverse une file entière et ne rate jamais",
+    /* `perforeTout` EST PARTI, ET C EST CE QUI REND SON AXE JOUABLE. Un faisceau
+       qui traverse tout n a rien a acheter : sa perforation valait zero dans le
+       tableau d echelle, donc quatre cartes ne lui rendaient rien — dont
+       `Inertie`, qui est litteralement une perforation infinie. Il s arrete au
+       premier corps et compte comme une balle (`litPerce`) ; ce qu on lui ajoute
+       lui rend une file. */
+    chaleur: true, famille: true,
+    resume: "un faisceau continu qui ne rate jamais et s'arrête au premier corps",
     contrainte: "tu tires en maintenant le clic ; il chauffe, et se tait 1,5 s à saturation",
     exige: EXIGE(0, 0, 0, 1, 1),
     /* SA CADENCE ETAIT A 0,4 ET IL N EN LIT AUCUNE. `_faisceauInterne` avance sur
@@ -193,8 +208,12 @@ export const ARMES = [
        deja. Le coefficient promettait donc 40 % d un gain qui n arrive jamais —
        quatre cartes mortes dans son offre, et un `powerIndex` qui montait sans
        que rien ne monte. Zero est la seule valeur vraie, et c est la meme raison
-       qui met deja la perforation et le ricochet a zero ailleurs. */
-    ech: ECH(1.2, 0.0, 1.3, 0.2, 0.0, 0.0, 0.6),
+       qui met deja le ricochet a zero.
+       LA PERFORATION PASSE DE 0 A 1,5, ET ELLE DEVIENT SON AXE. Elle valait zero
+       parce qu il traversait tout ; il s arrete au premier corps, donc chaque
+       cran lui rend un corps — le levier le plus direct du tableau pour lui,
+       devant les degats. */
+    ech: ECH(1.2, 0.0, 1.3, 0.2, 1.5, 0.0, 0.6),
   },
   {
     id: "tesla", nom: "Tesla", tir: "arc", axe: "visee",
@@ -362,7 +381,12 @@ export const litCanons = a => canonEffet(a) !== null;
    nulle part ou rebondir. `_contexteBonus()` s'en sert pour PONDERER le tirage,
    jamais pour l'interdire. */
 export const litCadence = a => a.interval > 0;
-export const litPerce = a => a.tir === "balle" && !a.perforeTout && !a.obus;
+/* LE FAISCEAU COMPTE LES CORPS COMME UNE BALLE depuis qu il s arrete sur le
+   premier. Tant qu il traversait tout, `tir === "balle"` suffisait a l ecrire ;
+   maintenant la question est « ce tir peut-il s arreter sur un corps ? », et la
+   reponse ne se lit plus sur le seul mot `balle`. */
+export const litPerce = a =>
+  (a.tir === "balle" || a.tir === "faisceau") && !a.perforeTout && !a.obus;
 /* DEUX SENS DE « REBOND », ET ILS NE PARTAGENT AUCUNE LIGNE DE CODE.
    Ici c est le rebond SUR LE DECOR : `m.bounce` voyage sur la balle et se
    resout contre les bornes et les obstacles. Il n existe donc que pour une arme
