@@ -102,6 +102,11 @@ export let cardsPending = [];
 export let cardsTimerHandle = null;
 export let loadouts = new Map();
 export let relicsByPlayer = new Map();
+/* LE LOOT PORTE PAR CHAQUE JOUEUR, DANS L ORDRE OU IL A ETE RAMASSE. Une LISTE
+   et pas une Map : le meme objet se cumule, et l ordre est ce qui permet de
+   reposer le dernier. Arrive par `loadout`, comme les cartes et les reliques. */
+export let lootsByPlayer = new Map();
+export function lootListOf(playerId) { return lootsByPlayer.get(playerId) ?? []; }
 export let myDashCd = CFG.DASH_CD;
 export function refreshLocalMods() {
   myDashCd = CFG.DASH_CD * computeMods(ownedCounts(myId)).dashCdMul;
@@ -319,6 +324,7 @@ export function setPing(v) { ping = v; }
 export function setPredicted(v) { predicted = v; }
 export function setProgressState(v) { progressState = v; }
 export function setRelicsByPlayer(v) { relicsByPlayer = v; }
+export function setLootsByPlayer(v) { lootsByPlayer = v; }
 export function setRoomNameCur(v) { roomNameCur = v; }
 export function setRoomsList(v) { roomsList = v; }
 export function setRoundHistory(v) { roundHistory = v; }

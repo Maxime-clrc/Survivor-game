@@ -8661,6 +8661,61 @@
                   la consequence assumee de l exposant : le lot 04 du plan est celui
                   qui recalibre.
 
+    0.38.2 lot 02 LE LOOT TOMBE AU SOL, ET IL FAUT PASSER DESSUS. C est la seule
+                  source de puissance de manche qui coute un DEPLACEMENT : la
+                  carte s offre a chaque niveau et FIGE la manche, la relique
+                  s achete, l arme se porte. `shared/loot.js` : trois rangs,
+                  seize objets, tirage, application.
+                  IL IGNORE `pickupRadius` ET `pickupRadiusMul`, ET C EST TOUT LE
+                  LOT. Un bonus se ramasse de loin, un loot de PRES : passer sur
+                  un point precis pendant qu une horde arrive est une prise de
+                  risque, donc une decision. L asymetrie se DIT dans trois
+                  canaux — socle de 9 px contre 13, losange au lieu d un polygone
+                  de famille, et un anneau tirete pose EXACTEMENT a la portee de
+                  ramassage : le joueur voit ou poser ses pieds. Contrepartie
+                  notee pour l equilibrage : `pickupRadius` perd de la valeur
+                  sans qu on l ait touchee.
+                  INSTANCIE PAR JOUEUR, DONC QUATRE PROBLEMES DISPARAISSENT D UN
+                  COUP : conflit, vol, joueur prioritaire, arbitrage permanent.
+                  Un loot partage a negocier ARRETE le jeu au moment ou deux
+                  cents corps arrivent. Il reste REPOSABLE — `pj` a zero veut dire
+                  « a qui le veut » — donc « le DPS prend les degats, le Tank la
+                  defense » est vrai sans couter un ecran. Le poseur ne le reprend
+                  pas pendant 4 s : il se tient dessus, sinon reposer et reprendre
+                  seraient la meme image.
+                  TROIS RANGS, ET LE VERIFICATEUR TIENT LEUR SENS. Rang 1 plat et
+                  cumulable, rang 2 CONVERSION avec contrepartie — `verifierLoot`
+                  REFUSE un rang 2 sans cout, sinon « dangereux » ne veut plus
+                  rien dire —, rang 3 fort dont la rarete EST le prix. La CHANCE
+                  du lot 03 monte le RANG et jamais la quantite : la promesse
+                  « elle agit sur la rarete seule » se tient ici.
+                  DEUX SOURCES. Le mini-boss lache du rang 2 en deux exemplaires,
+                  sur sa depouille ; le contrat verse ce que `RARETES[].loot`
+                  DECLARAIT DEPUIS LE LOT 34/02 SANS QUE PERSONNE NE LE LISE — un
+                  champ dont la seule lecture est morte ne leve rien. Le point de
+                  chute est celui de l OBJECTIF, donc le loot tombe forcement dans
+                  la vue de qui vient de le meriter : le verificateur le confirme
+                  aux quatre coins de l arene au lieu de l esperer.
+                  `p.powerMods` ET `p.mods` ETAIENT LE MEME OBJET, et c est le
+                  defaut que ce lot a paye. Sans meta, `fullMods` rend un seul
+                  objet pour les deux : tout ce qui ecrit dans `p.mods` apres coup
+                  ecrivait donc dans l INDICE DE PUISSANCE. Les reliques passent a
+                  cote par `_relicSum` et ne l ont jamais montre ; le loot applique
+                  ses `apply` directement, et `powerIndex` passait de 1,050 a
+                  1,134 sur UN objet et 1,487 sur deux. Rien ne levait — c est la
+                  calibration des six boss qui aurait derive.
+                  LE PLAFOND AU SOL NE REFUSE JAMAIS : a la limite on retire le
+                  PLUS VIEUX. Un loot qui n apparait pas parce que le sol est
+                  plein est un loot vole, et il serait vole exactement quand on
+                  vient d en gagner beaucoup. La CENDRE ne raccourcit pas sa vie,
+                  alors qu elle raccourcit celle d un bonus : personne ne ferait
+                  le lien.
+                  LE PILOTE DE MESURE APPREND A LE RAMASSER, et c etait
+                  indispensable : sans ca la premiere mesure rendait « zero loot
+                  ramasse sur quarante minutes » — le systeme etait simplement
+                  INVISIBLE au banc. Mesure apres : 3 groupes poses et 2 ramasses
+                  en solo, 6 et 3 a deux, 9 et 2 a trois.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -8669,4 +8724,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.38.1";
+export const VERSION = "0.38.2";

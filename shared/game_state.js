@@ -16,6 +16,10 @@ import {
   metaCharge, slotsFor, sousBudget, vueStats, cumulerStats, statsVierges,
 } from "./progression.js";
 import { ARME_EXIGENCE, RELICS, RELIC_CFG, RELIC_RARITY, relicById, relicPrice, relicRerollCost } from "./reliques.js";
+import {
+  LOOTS, LOOT_CFG, LOOT_RANGS, appliquerLoot, lootAt, lootIndex, rangTire,
+  tirerLoot, verifierLoot,
+} from "./loot.js";
 import { HAUTS_FAITS, HF_CFG, HF_NIVEAUX, evaluerHautsFaits } from "./hauts_faits.js";
 import {
   ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, FAMILLES_D_ARME, appliquerEchelle, armeAt, cibleArme,
@@ -77,6 +81,7 @@ export {
   MINI_TYPE, MINI_DITS, MINI_DIT_ARRIVE, MINI_DIT_PARTI,
   TRAIT_DASH, TRAIT_TRAIL, TRAIT_VOLLEY, TRAIT_FRENZY, TRAIT_SPORE, TRAIT_AURA,
 };
+export { LOOTS, LOOT_CFG, LOOT_RANGS, lootAt, lootIndex, verifierLoot };
 export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
 export { EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE };
 export {
@@ -511,6 +516,12 @@ export const MINI_CFG = {
   RETOUR: 2.4,
   REGEN: 0.5,
   ECLATS: 55,
+  /* CE QU IL LACHE. Rang 2 — la conversion avec contrepartie — parce que c est
+     un COMBAT et non un objectif de patience : le contrat commun ne lache rien,
+     le contrat rare lache du rang 1, et un corps qu on abat doit valoir plus
+     qu une case cochee. Deux exemplaires, donc un CHOIX. */
+  LOOT_RANG: 2,
+  LOOT_CHOIX: 2,
   HP_MUL: 0.6,
   CROWD_EXP: 0.6,
   KNEE: 1.8,
@@ -1155,6 +1166,16 @@ export class GameState {
     // MEME RAISON, MEME PLACE : le placement lit les bornes de l arene et les
     // dangers du lieu, et il tire dans `this.alea` juste apres les bornes.
     this.minis = this._poserMinis();
+    /* LE LOOT AU SOL. Une liste a part, et pas une famille de plus dans
+       `powerups` : sa duree de vie se compte en MINUTES, son rayon de ramassage
+       ignore la build, la cendre ne le raccourcit pas, et il porte un
+       proprietaire. Cinq differences sur cinq champs — c est deux populations,
+       pas deux variantes, exactement comme le fragment a son propre plafond. */
+    this.loots = [];
+    /* LE CHARGEMENT A CHANGE EN COURS DE MANCHE, ET IL FAUT LE DIRE. `loadout`
+       n etait diffuse qu a la prise d une carte et a la reprise ; un loot
+       ramasse au milieu d une horde ne changeait rien a la fenetre de build. */
+    this.loadoutDirty = false;
     this.contrat = null;
     this.contratsFinis = 0;
     this.eliteKills = 0;
@@ -1286,6 +1307,9 @@ export class GameState {
       critKills: 0,
       eclats: 0,
       relics: new Map(),
+      // UNE LISTE, PAS UNE MAP : le meme loot se cumule, et l ORDRE compte —
+      // reposer rend le DERNIER ramasse.
+      loot: [],
 
       rally: 1,
       dashCrits: 0,
@@ -1457,7 +1481,15 @@ export class GameState {
   _recomputeMods(p) {
     const before = p.maxHp;
     const r = fullMods(p.cards, this._otherCards(p), p.cls, this.level, p.arme);
-    p.powerMods = r.mods;
+    /* UNE COPIE, ET C EST UN DEFAUT MESURE. `p.powerMods` et `p.mods` etaient LE
+       MEME OBJET quand le joueur n a pas de meta : tout ce qui ecrit dans
+       `p.mods` apres coup ecrivait donc aussi dans l indice de puissance. La
+       relique passe a cote par `_relicSum` et ne l a jamais montre ; le loot,
+       lui, applique ses `apply` directement : mesure, `powerIndex` passait de
+       1,050 a 1,134 sur UN objet ramasse et a 1,487 sur deux. Rien ne levait —
+       c est la calibration des six boss et de `BOSS_POWER_REF` qui aurait
+       derive, et le mini-boss lit `_teamPower()` en direct. */
+    p.powerMods = { ...r.mods };
     if (p.meta && (p.meta.lines || p.meta.commun)) {
       const rr = applyMeta(r.mods, r.maxHp, classAt(p.cls).id,
         p.meta.lines, p.meta.commun);
@@ -1466,6 +1498,20 @@ export class GameState {
     } else {
       p.mods = r.mods;
       p.maxHp = r.maxHp;
+    }
+
+    /* LE LOOT ENTRE ICI : APRES LA META, AVANT LES RELIQUES. La chaine est
+       cartes -> echelle d arme -> classe -> conversions -> meta -> LOOT ->
+       reliques -> plafond de PV, et le plafond garde le dernier mot.
+       IL N ENTRE PAS DANS `powerMods`, ET IL SUIT LA RELIQUE, PAS LA CARTE :
+       `powerMods` est le chargement de CARTES, et c est ce qui garde
+       `powerIndex` comparable d un lot a l autre — les mesures des plans 27 a
+       30 sont calibrees dessus. Les reliques passent deja a cote pour la meme
+       raison. */
+    if (p.loot.length > 0) {
+      const lo = appliquerLoot(p.mods, p.maxHp, p.loot);
+      p.mods = lo.mods;
+      p.maxHp = lo.maxHp;
     }
 
     // le bouclier passe par `mods` et non par un point d'application : la
@@ -1582,6 +1628,7 @@ export class GameState {
     this._powerups(dt);
     this._bornes(dt);
     this._minis(dt);
+    this._loots(dt);
     this._contratTick(dt);
     this._harvests(dt);
     this._turrets(dt);
@@ -4566,6 +4613,117 @@ export class GameState {
     return w;
   }
 
+  /* LA POSE D UN LOOT, ET ELLE EST PAR JOUEUR. Chacun voit et prend son
+     exemplaire : ca supprime d un coup le conflit, le vol, le joueur
+     prioritaire et l arbitrage permanent — et c est coherent avec les cartes,
+     deja individuelles. Un loot partage a negocier serait mauvais en LAN de
+     trente minutes : il arrete le jeu pour arbitrer, au moment ou deux cents
+     corps arrivent.
+
+     LE POINT DE CHUTE EST CELUI DE L OBJECTIF, jamais un tirage plein arene :
+     sur la depouille du mini-boss, sur la borne du contrat. C est ce qui rend
+     inutile un filtre de vue special — le loot tombe forcement dans la vue de
+     qui vient de le meriter.
+
+     LE PLAFOND N EST PAS UN REFUS. Au plafond on retire le PLUS VIEUX au lieu
+     de renoncer au neuf : un loot qui n apparait pas parce que le sol est plein
+     est un loot vole, et il serait vole exactement quand le sol est plein,
+     c est-a-dire quand on vient d en gagner beaucoup. */
+  _poserLootPour(p, rang, choix, x, y, multiple = false) {
+    const grp = this._nextId++;
+    const r = rangTire(rang, p.mods.chance ?? 0, this.alea);
+    const exclus = new Set();
+    const n = Math.max(1, choix);
+    for (let i = 0; i < n; i++) {
+      const def = tirerLoot(r, this.alea, exclus);
+      exclus.add(def.id);
+      const a = (i / n) * Math.PI * 2 + this.alea() * 0.5;
+      const pt = this._dropPoint(x + Math.cos(a) * LOOT_CFG.ECART,
+                                 y + Math.sin(a) * LOOT_CFG.ECART,
+                                 LOOT_CFG.RAYON + 6) ?? { x, y };
+      if (this.loots.length >= LOOT_CFG.MAX_SOL) {
+        let vieux = 0;
+        for (let k = 1; k < this.loots.length; k++) {
+          if (this.loots[k].life < this.loots[vieux].life) vieux = k;
+        }
+        this.loots.splice(vieux, 1);
+      }
+      this.loots.push({
+        id: this._nextId++, grp, pj: p.id, loot: lootIndex(def.id),
+        x: pt.x, y: pt.y, life: LOOT_CFG.VIE, max: LOOT_CFG.VIE,
+        excl: n > 1 && !multiple ? 1 : 0, cd: 0, par: 0,
+      });
+    }
+    this.loadoutDirty = true;
+  }
+
+  /* LE RAMASSAGE IGNORE `pickupRadius` ET `pickupRadiusMul`, ET C EST TOUT LE
+     LOT. Un bonus se ramasse de loin, un loot de PRES : passer sur un point
+     precis pendant qu une horde arrive est une prise de risque, donc une
+     decision. Contrepartie assumee et notee pour l equilibrage :
+     `pickupRadius` perd de la valeur sans qu on l ait touchee.
+
+     LA CENDRE NE LE RACCOURCIT PAS. `_poserBonus` plie `max` a la meteo ; un
+     loot gagne pendant une tempete qui disparaitrait plus vite qu un autre,
+     personne ne le comprendrait — et le joueur n a aucun moyen de savoir que
+     c est la meteo. */
+  _loots(dt) {
+    if (this.loots.length === 0) return;
+    let mort = false;
+    for (const w of this.loots) {
+      w.life -= dt;
+      if (w.cd > 0) w.cd -= dt;
+      if (w.life <= 0) { w.mort = 1; mort = true; continue; }
+      for (const p of this.players.values()) {
+        if (p.downed) continue;
+        // `pj` A ZERO VEUT DIRE « A QUI LE VEUT » : c est ce qu un loot REPOSE
+        // devient, et la seule facon pour un joueur d en donner un a un autre.
+        if (w.pj && w.pj !== p.id) continue;
+        if (w.cd > 0 && w.par === p.id) continue;
+        const reach = CFG.PLAYER_RADIUS + LOOT_CFG.RAYON;
+        if ((p.x - w.x) ** 2 + (p.y - w.y) ** 2 > reach * reach) continue;
+        this._prendreLoot(p, w);
+        mort = true;
+        break;
+      }
+    }
+    if (mort) this.loots = this.loots.filter(w => !w.mort);
+  }
+
+  _prendreLoot(p, w) {
+    const def = lootAt(w.loot);
+    if (!def) return;
+    p.loot.push(def.id);
+    w.mort = 1;
+    // PRENDRE L UN RETIRE L AUTRE : c est ce qui fait du rang 1 et du rang 3 un
+    // CHOIX et pas deux cadeaux. Le rang « multiple » pose `excl` a zero.
+    if (w.excl) for (const o of this.loots) if (o.grp === w.grp) o.mort = 1;
+    this._recomputeMods(p);
+    this.loadoutDirty = true;
+    this.effects.push({ id: this._nextId++, x: w.x, y: w.y, r: 34,
+                        life: 0.35, max: 0.35, kind: 2 });
+  }
+
+  /* REPOSER : LE DERNIER RAMASSE, ET RIEN D AUTRE. Le geste dit « je viens de
+     le prendre, ce n est pas pour moi » — c est le seul moment ou l on sait
+     lequel sans ouvrir un ecran, et ouvrir un ecran en pleine horde est
+     exactement ce que le loot instancie evite.
+     LE POSEUR NE PEUT PAS LE REPRENDRE TOUT DE SUITE : il se tient dessus, donc
+     sans ce delai le reposer et le reprendre seraient la meme image. */
+  _reposerLoot(p) {
+    if (!p.loot.length) return false;
+    const id = p.loot.pop();
+    const pt = this._dropPoint(p.x, p.y, LOOT_CFG.RAYON + 6) ?? { x: p.x, y: p.y };
+    this.loots.push({
+      id: this._nextId++, grp: 0, pj: 0, loot: lootIndex(id),
+      x: pt.x, y: pt.y, life: LOOT_CFG.VIE, max: LOOT_CFG.VIE,
+      excl: 0, cd: LOOT_CFG.REPRISE, par: p.id,
+    });
+    this._recomputeMods(p);
+    this.loadoutDirty = true;
+    return true;
+  }
+
   _powerups(dt) {
     this.powerupCd -= dt;
     if (this.powerupCd <= 0 && this._solBonus() < CFG.POWERUP_MAX_GROUND) {
@@ -6907,6 +7065,16 @@ export class GameState {
 
     const r = RARETES[c.rarete];
     for (const p of this.players.values()) p.eclats += r.eclats;
+    /* LE LOOT DU CONTRAT ETAIT DECLARE DEPUIS LE LOT 34/02 ET N ETAIT PAS VERSE :
+       `RARETES[].loot` porte le rang, le nombre d exemplaires et `multiple`,
+       ecrits en meme temps que les eclats pour ne pas avoir deux tables de
+       recompense. Il tombe A LA BORNE, la ou le contrat a eu lieu. */
+    if (r.loot && b) {
+      for (const p of this.players.values()) {
+        this._poserLootPour(p, r.loot.rang, r.loot.choix ?? 1, b.x, b.y,
+                            !!r.loot.multiple);
+      }
+    }
     this.alerts.push({ contrat: c.def, rarete: c.rarete, dur: TL_CFG.EVENT_ANNOUNCE });
     if (this.alerts.length > 16) this.alerts.shift();
   }
@@ -6924,14 +7092,18 @@ export class GameState {
      qui est a portee, pas « avec une borne ». Une touche par systeme est ce qui
      rend un jeu impossible a apprendre — celle-ci ouvrira le ramassage
      volontaire et l'activation sans rien deplacer. */
+  /* LA TOUCHE D INTERACTION EST GENERIQUE, et son commentaire d origine le
+     disait deja : « elle ouvrira le ramassage volontaire ». LA BORNE PASSE
+     DEVANT — elle est rare, elle est visible, et un joueur qui vise une borne ne
+     veut jamais reposer un loot au meme instant. */
   _interagir(p) {
     if (!p || p.downed) return null;
     const b = this.borneProche(p.x, p.y);
-    if (!b) return null;
-    if (b.etat === BORNE_LIBRE && b.cd <= 0) {
+    if (b && b.etat === BORNE_LIBRE && b.cd <= 0) {
       b.etat = BORNE_PROPOSEE;
       return b;
     }
+    if (!b) this._reposerLoot(p);
     return null;
   }
 
@@ -9661,7 +9833,13 @@ export class GameState {
        lot suivant se branchera ici et nulle part ailleurs. */
     if (e.mini) {
       e.mini.etat = MINI_FINI;
-      for (const p of this.players.values()) p.eclats += MINI_CFG.ECLATS;
+      for (const p of this.players.values()) {
+        p.eclats += MINI_CFG.ECLATS;
+        // SUR LA DEPOUILLE, ET PAR JOUEUR : le point de chute est celui de
+        // l objectif, donc il est forcement dans la vue de qui vient de le
+        // meriter — c est ce qui rend inutile un filtre de vue special.
+        this._poserLootPour(p, MINI_CFG.LOOT_RANG, MINI_CFG.LOOT_CHOIX, e.x, e.y);
+      }
     }
     const def = defDe(e.type, e.elite);
     const owner = this.players.get(ownerId);
@@ -10047,6 +10225,15 @@ export class GameState {
       // filtre, donc une horloge locale demarrerait a l'entree dans le champ
       w: filtrer(this.powerups, () => CFG.POWERUP_RADIUS,
         w => [w.id, r1(w.x), r1(w.y), w.type, r2(w.life / w.max)]),
+      /* LE LOOT AU SOL. `lo` etait libre — le releve des clefs fait partie de
+         l ajout depuis qu une borne a heurte `bo` et `bn` coup sur coup.
+         `pj` VOYAGE, et c est lui qui porte tout le systeme cote client : la
+         teinte du proprietaire, et le fait qu un loot REPOSE (`pj` a zero) est a
+         qui le veut. Le dernier emplacement est la part de vie qui reste, meme
+         raison qu au bonus : la vue filtre, donc une horloge locale demarrerait
+         a l entree dans le champ. */
+      lo: filtrer(this.loots, () => LOOT_CFG.RAYON,
+        w => [w.id, r1(w.x), r1(w.y), w.loot, w.pj, r2(w.life / w.max)]),
       // ELLE VOYAGE COMME LE RESTE, filtree par la vue : on la TROUVE en jouant,
       // et un marqueur global la rendrait cochable au lieu de trouvable.
       /* `bo` EST LE BOSS ET `bn` SONT LES BOUNDS : deux clefs de deux lettres
@@ -10839,6 +11026,205 @@ export function verifierDefense(tirages = 20000) {
 // la puissance d equipe telle que le boss la lit, sur un chargement donne
 function _teamPowerRef(mods) {
   return powerIndex(mods) / SUMMON_REF;
+}
+
+/* LE LOOT AU SOL, ET LA DECISION QUI FAIT TOUT LE LOT : IL SE RAMASSE DE PRES.
+
+   `pickupRadius` ET `pickupRadiusMul` SONT IGNORES, ET C EST LA PREMIERE CHOSE
+   QU ON MESURE. Un joueur a rayon de ramassage MAXIMAL doit passer dessus comme
+   les autres — si un jour quelqu un branche le loot sur la meme portee que les
+   bonus, rien ne leverait : le loot serait simplement aspire de loin, et la
+   seule prise de risque du systeme disparaitrait en silence.
+
+   LE POINT DE CHUTE EST CELUI DE L OBJECTIF, donc il tombe forcement dans la
+   vue de qui vient de le meriter. On le VERIFIE avec la vraie boite de vue au
+   lieu de l esperer : un loot pose hors ecran n est pas un loot, c est un piege.
+
+   ET LA CENDRE NE LE RACCOURCIT PAS. `_poserBonus` plie `max` a la meteo ; un
+   loot qui disparaitrait plus vite parce qu il fait mauvais temps ne serait
+   compris par personne — le joueur n a aucun moyen de faire le lien. */
+export function verifierLootSol() {
+  const soucis = [];
+  const vueDe = p => {
+    const vx = Math.max(0, Math.min(CFG.ARENA_W - CFG.VIEW_W, p.x - CFG.VIEW_W / 2));
+    const vy = Math.max(0, Math.min(CFG.ARENA_H - CFG.VIEW_H, p.y - CFG.VIEW_H / 2));
+    return { x0: vx, y0: vy, x1: vx + CFG.VIEW_W, y1: vy + CFG.VIEW_H };
+  };
+  const partie = (n = 1) => {
+    const g = new GameState(DIFF_NORMAL, 0, 5171);
+    for (let i = 1; i <= n; i++) g.addPlayer(i, `bot${i}`, i - 1, 0);
+    return g;
+  };
+
+  // 1 · LE RAYON DE RAMASSAGE DE LA BUILD NE VAUT PAS POUR LE LOOT.
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    p.mods.pickupRadius = 400;
+    p.mods.pickupRadiusMul = 4;
+    const x = p.x + 220, y = p.y;
+    g.loots.push({ id: g._nextId++, grp: 0, pj: p.id, loot: 0, x, y,
+                   life: LOOT_CFG.VIE, max: LOOT_CFG.VIE, excl: 0, cd: 0, par: 0 });
+    g._loots(CFG.TICK);
+    if (p.loot.length > 0) {
+      soucis.push("un loot a 220 px est ramasse par une build a pickupRadius maximal");
+    }
+    // et il se prend quand on passe DESSUS
+    p.x = x; p.y = y;
+    g._loots(CFG.TICK);
+    if (p.loot.length !== 1) soucis.push("un loot sous les pieds ne se ramasse pas");
+  }
+
+  // 2 · LA CENDRE NE RACCOURCIT PAS SA VIE.
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    g.weather = { id: WX_CENDRES };
+    g._poserLootPour(p, 1, 1, p.x + 300, p.y + 300);
+    const w = g.loots[g.loots.length - 1];
+    if (!w) soucis.push("aucun loot pose");
+    else if (w.max !== LOOT_CFG.VIE) {
+      soucis.push(`la cendre raccourcit le loot : ${w.max} s au lieu de ${LOOT_CFG.VIE}`);
+    }
+  }
+
+  // 3 · IL TOMBE DANS LA VUE DE QUI L A MERITE, AUX QUATRE COINS DE L ARENE.
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    const coins = [[200, 200], [CFG.ARENA_W - 200, 200],
+                   [200, CFG.ARENA_H - 200], [CFG.ARENA_W - 200, CFG.ARENA_H - 200],
+                   [CFG.ARENA_W / 2, CFG.ARENA_H / 2]];
+    for (const [x, y] of coins) {
+      p.x = x; p.y = y;
+      g.loots.length = 0;
+      p.loot.length = 0;
+      g._poserLootPour(p, 3, 2, x, y);
+      const v = vueDe(p);
+      for (const w of g.loots) {
+        if (w.x < v.x0 || w.x > v.x1 || w.y < v.y0 || w.y > v.y1) {
+          soucis.push(`un loot tombe hors de la vue de son proprietaire (${Math.round(x)}, ${Math.round(y)})`);
+          break;
+        }
+      }
+    }
+  }
+
+  // 4 · UN LOOT REPOSE EST A QUI LE VEUT, ET SON POSEUR NE LE REPREND PAS TOUT
+  // DE SUITE. Sans ce delai il se tient dessus, donc reposer et reprendre
+  // seraient la meme image.
+  {
+    const g = partie(2);
+    const a = g.players.get(1), b = g.players.get(2);
+    a.x = 900; a.y = 900;
+    b.x = 3000; b.y = 3000;
+    g._poserLootPour(a, 1, 1, a.x, a.y);
+    const w0 = g.loots[0];
+    a.x = w0.x; a.y = w0.y;
+    g._loots(CFG.TICK);
+    if (a.loot.length !== 1) { soucis.push("le proprietaire ne ramasse pas son loot"); }
+    else {
+      const id = a.loot[0];
+      if (!g._reposerLoot(a)) soucis.push("reposer un loot echoue");
+      if (a.loot.length !== 0) soucis.push("reposer ne retire pas le loot du porteur");
+      const w = g.loots[g.loots.length - 1];
+      if (!w || w.pj !== 0) soucis.push("un loot repose garde un proprietaire");
+      g._loots(CFG.TICK);
+      if (a.loot.length > 0) soucis.push("le poseur reprend son loot immediatement");
+      b.x = w.x; b.y = w.y;
+      g._loots(CFG.TICK);
+      if (b.loot.length !== 1 || b.loot[0] !== id) {
+        soucis.push("un allie ne peut pas ramasser un loot repose");
+      }
+    }
+  }
+
+  // 5 · PRENDRE L UN RETIRE L AUTRE, SAUF SI LE RANG EST « MULTIPLE ».
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    g._poserLootPour(p, 1, 2, p.x + 400, p.y + 400);
+    if (g.loots.length !== 2) soucis.push(`un choix de deux pose ${g.loots.length} objet(s)`);
+    p.x = g.loots[0].x; p.y = g.loots[0].y;
+    g._loots(CFG.TICK);
+    if (g.loots.length !== 0) soucis.push("prendre l un d un choix exclusif laisse l autre");
+
+    g.loots.length = 0;
+    p.loot.length = 0;
+    p.x = 900; p.y = 900;
+    g._poserLootPour(p, 1, 2, 2400, 2400, true);
+    p.x = g.loots[0].x; p.y = g.loots[0].y;
+    g._loots(CFG.TICK);
+    if (g.loots.length !== 1) soucis.push("un choix MULTIPLE se comporte comme un exclusif");
+  }
+
+  // 6 · IL ENTRE DANS LES STATISTIQUES, ET APRES LA META. Un loot qui ne change
+  // rien est un objet decoratif que le joueur croit avoir gagne.
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    const avant = p.mods.damageMul;
+    p.loot.push("oeil");
+    g._recomputeMods(p);
+    if (!(p.mods.damageMul > avant)) soucis.push("un loot ramasse ne change pas les mods");
+    // ET IL N ENTRE PAS DANS `powerMods` : `powerIndex` est le chargement de
+    // CARTES, et les mesures des plans 27 a 30 sont calibrees dessus.
+    const pm = powerIndex(p.powerMods);
+    p.loot.push("noyau_chaud");
+    g._recomputeMods(p);
+    if (powerIndex(p.powerMods) !== pm) {
+      soucis.push("le loot est entre dans powerMods — powerIndex n est plus comparable");
+    }
+  }
+
+  /* 7 · LE CONTRAT PAIE SON LOOT, ET IL ETAIT DECLARE SANS ETRE VERSE.
+     `RARETES[].loot` existe depuis le lot 34/02 — rang, nombre d exemplaires,
+     `multiple` — et rien ne le lisait : un champ dont la seule lecture est morte
+     ne leve rien, il rend `undefined`, donc rien. */
+  {
+    for (let r = 0; r < RARETES.length; r++) {
+      const g = partie(2);
+      const b = g.bornes[0];
+      if (!b) { soucis.push("aucune borne pour tester le loot de contrat"); break; }
+      for (const p of g.players.values()) { p.x = b.x; p.y = b.y; }
+      // la touche d interaction PROPOSE, le message ACCEPTE : on rejoue les deux
+      b.etat = BORNE_PROPOSEE;
+      const c = g.accepterBorne(b.id);
+      if (!c) { soucis.push(`rarete ${r} : la borne refuse le contrat`); continue; }
+      c.rarete = r;
+      c.cur = c.seuil;
+      g.loots.length = 0;
+      g._contratFini(true);
+      const attendu = RARETES[r].loot;
+      const n = attendu ? (attendu.choix ?? 1) * g.players.size : 0;
+      if (g.loots.length !== n) {
+        soucis.push(`${RARETES[r].key} : ${g.loots.length} loots poses au lieu de ${n}`);
+      }
+      // AU POINT DE L OBJECTIF, donc a la borne — pas quelque part dans l arene.
+      for (const w of g.loots) {
+        if (Math.hypot(w.x - b.x, w.y - b.y) > LOOT_CFG.ECART * 2.5) {
+          soucis.push(`${RARETES[r].key} : un loot tombe loin de sa borne`);
+          break;
+        }
+      }
+    }
+  }
+
+  // 8 · LE PLAFOND NE REFUSE JAMAIS UN LOOT : il retire le plus vieux.
+  {
+    const g = partie();
+    const p = g.players.get(1);
+    for (let i = 0; i < LOOT_CFG.MAX_SOL + 6; i++) {
+      g._poserLootPour(p, 1, 1, 2400 + (i % 5) * 40, 1400 + Math.floor(i / 5) * 40);
+    }
+    if (g.loots.length > LOOT_CFG.MAX_SOL) {
+      soucis.push(`${g.loots.length} loots au sol pour un plafond de ${LOOT_CFG.MAX_SOL}`);
+    }
+    if (g.loots.length < LOOT_CFG.MAX_SOL) {
+      soucis.push(`le plafond REFUSE au lieu de remplacer : ${g.loots.length} au sol`);
+    }
+  }
+  return soucis;
 }
 
 /* LE MINI-BOSS, ET LA SEULE CHOSE QUI LE SEPARE VRAIMENT D UNE ELITE : IL PART.
@@ -13704,6 +14090,20 @@ export function pilotage() {
           but = { x: bw.x, y: bw.y, poids: 0.3 };
           break;
         }
+      }
+      /* LE LOOT PASSE DEVANT LE BONUS, ET IL PESE PLUS LOURD. Il ne se ramasse
+         pas de loin — il faut passer DESSUS —, il ne se represente pas, et il
+         vaut une statistique permanente contre un effet de vingt secondes. Un
+         pilote qui l ignorait rendait « zero loot ramasse sur quarante minutes »
+         a la premiere mesure : le systeme etait juste invisible au banc. */
+      if (!but) {
+        let cible = null, dl = PILOT_CFG.BONUS ** 2;
+        for (const w of g.loots) {
+          if (w.pj && w.pj !== p.id) continue;
+          const d = (w.x - p.x) ** 2 + (w.y - p.y) ** 2;
+          if (d < dl) { dl = d; cible = w; }
+        }
+        if (cible) but = { x: cible.x, y: cible.y, poids: 0.30 };
       }
       if (!but) {
         let bonus = null, db = PILOT_CFG.BONUS ** 2;

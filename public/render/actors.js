@@ -5,7 +5,7 @@ import { RARITY_COLOR } from "/shared/cards.js";
 import { SKILL_CFG } from "/shared/classes.js";
 import { TRAIT_AURA, TRAIT_CFG, hasTrait } from "/shared/enemies.js";
 import { bonusFamille, bonusRang } from "/shared/feedback.js";
-import { CARD_CFG, CFG, ENEMY_TYPES, POWERUP_TYPES, defDe, fullMods, traitsOf } from "/shared/game_state.js";
+import { CARD_CFG, CFG, ENEMY_TYPES, LOOT_CFG, POWERUP_TYPES, defDe, fullMods, lootAt, traitsOf } from "/shared/game_state.js";
 import { BIOME_SKIN, BOSS, CLASS_COLOR, COMBAT, ENEMY, FX, OWNED, SIGNAL, SURFACE, ZONE, alpha } from "/shared/palette.js";
 import { drawSprite, frameOf } from "/sprites.js";
 import { EMPTY_SET, bombReadyAt, difficulty, myId, ownedCounts } from "../core/state.js";
@@ -1560,6 +1560,68 @@ export function drawPowerups(list) {
    `#cvGl` ou vivent les corps. La deplacer d'une ligne avant la bascule la
    casse en silence. Meme geste que `drawMarkColumns`, l'autre chose qui a le
    droit de passer devant la horde. */
+/* LE LOOT AU SOL, ET IL NE RESSEMBLE A AUCUN BONUS. Trois canaux disent la
+   meme chose — « il faut passer dessus » :
+   le SOCLE est un losange et il est PETIT (9 px contre 13) ;
+   le HALO est un anneau pose exactement a la PORTEE DE RAMASSAGE, donc le
+   joueur voit litteralement ou il doit poser ses pieds — aucun bonus n en a
+   parce qu aucun bonus n en a besoin, leur portee suivant la build ;
+   la COULEUR est celle du proprietaire, et un loot REPOSE (`pj` a zero) perd sa
+   teinte : « a qui le veut » se voit sans texte.
+   Le RANG se lit en PIPS et pas en taille : la taille dit deja autre chose. */
+const LOOT_PIP = 2.1;
+export function drawLoots(list, moi) {
+  if (!list || list.length === 0) return;
+  const now = performance.now();
+  for (const w of list) {
+    if (!inView(w.x, w.y, 40)) continue;
+    const def = lootAt(w.loot);
+    if (!def) continue;
+    const col = ownerColorOf(w.pj) ?? OWNED.orphan;
+    const bob = Math.sin(now / 560 + w.id * 1.7) * 1.4;
+    const y = w.y + bob;
+    const r = LOOT_CFG.RAYON;
+    const mien = !w.pj || w.pj === moi;
+    // CLIGNOTE A LA FIN, comme un bonus : la part de vie est deja transportee,
+    // et une disparition sans preavis se lit comme un vol.
+    const cligne = w.k < 0.12 ? 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(now / 90)) : 1;
+
+    ctx.globalAlpha = cligne * (mien ? 1 : 0.45);
+    ctx.fillStyle = alpha(SURFACE.shadow, 0.28);
+    ctx.beginPath();
+    ctx.ellipse(w.x, y + r, r * 0.7, r * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // LE CERCLE DE RAMASSAGE. Fin, tirete, immobile : il n annonce rien, il
+    // MESURE — un trait plein en ferait un telegraphe de danger.
+    ctx.globalAlpha = 0.34 * cligne * (mien ? 1 : 0.4);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.arc(w.x, w.y, CFG.PLAYER_RADIUS + r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.globalAlpha = cligne * (mien ? 1 : 0.5);
+    ctx.fillStyle = alpha(SURFACE.void, 0.86);
+    socleBonus(w.x, y, r, 4);
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = col;
+    for (let i = 0; i < def.rang; i++) {
+      const dx = (i - (def.rang - 1) / 2) * (LOOT_PIP * 2.2);
+      ctx.beginPath();
+      ctx.arc(w.x + dx, y, LOOT_PIP, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
 export function drawBonusSignal(list) {
   const now = performance.now();
   for (const w of list) {

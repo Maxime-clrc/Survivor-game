@@ -6,7 +6,8 @@ import { CLASS_DEFAULT, SKILL_HEAL_MODE, classAt, classNom, skill3Nom, skillDesc
 import { CFG, PLAYER_COLORS, fullMods, plafonnerHp, powerIndex } from "/shared/game_state.js";
 import { SIGNAL } from "/shared/palette.js";
 import { applyMeta, metaLinesFor } from "/shared/progression.js";
-import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, myId, ownedCounts, phase, progressState, skills } from "../core/state.js";
+import { PHASE_ROUND, bilanOpen, lastResult, latest, lobby, lootListOf, myId, ownedCounts, phase, progressState, skills } from "../core/state.js";
+import { LOOT_BY_ID, lootDesc, lootNom } from "/shared/loot.js";
 import { deaths } from "../render/fx.js";
 import { nameOf } from "../render/stage.js";
 import { buildArch, buildArchTitle, buildBackBtn, buildCards, buildClass, buildEl, buildMods, buildName, buildPower, buildSkills, buildSkillsTitle, buildStats, escapeHtml, fmtBig } from "./dom.js";
@@ -244,13 +245,49 @@ export function renderBuild() {
   buildSkills.innerHTML = skills;
   buildSkillsTitle.hidden = skills === "";
 
-  renderBuildCards(info.counts);
+  renderBuildCards(info.counts, lootListOf(info.id));
 }
-function renderBuildCards(counts) {
+
+/* LE LOOT PASSE AVANT LES CARTES, ET C EST DELIBERE : c est ce qui a change le
+   plus recemment, et c est le seul systeme dont le joueur n a pas vu l ecran de
+   choix — il l a ramasse en courant. Un compte par identifiant, parce que le
+   meme objet se cumule. */
+function renderBuildLoot(loot) {
+  if (!loot || loot.length === 0) return;
+  const counts = new Map();
+  for (const id of loot) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const rows = [...counts.entries()].sort((a, b) =>
+    (LOOT_BY_ID.get(b[0])?.rang ?? 0) - (LOOT_BY_ID.get(a[0])?.rang ?? 0));
+
+  const h = document.createElement("div");
+  h.className = "buildRarity";
+  h.style.color = RARITY_COLOR[2] ?? RARITY_COLOR[0];
+  h.textContent = t("ui.build.loot", "Trouvé au sol");
+  buildCards.appendChild(h);
+
+  for (const [id, n] of rows) {
+    const def = LOOT_BY_ID.get(id);
+    if (!def) continue;
+    const row = document.createElement("div");
+    row.className = "buildCard";
+    row.style.color = RARITY_COLOR[def.rang] ?? RARITY_COLOR[0];
+    row.innerHTML =
+      `<div class="buildCardHead">` +
+        `<span class="buildCardName">${escapeHtml(lootNom(id))}</span>` +
+        (n > 1 ? `<span class="buildCardMul">×${n}</span>` : "") +
+      `</div>` +
+      `<div class="buildCardDesc">${escapeHtml(lootDesc(id))}</div>`;
+    buildCards.appendChild(row);
+  }
+}
+function renderBuildCards(counts, loot) {
   buildCards.innerHTML = "";
+  renderBuildLoot(loot);
   if (counts.size === 0) {
-    buildCards.innerHTML = `<div class="buildEmpty">`
-      + `${escapeHtml(t("ui.build.noCards", "aucune carte"))}</div>`;
+    const vide = document.createElement("div");
+    vide.className = "buildEmpty";
+    vide.textContent = t("ui.build.noCards", "aucune carte");
+    buildCards.appendChild(vide);
     return;
   }
 

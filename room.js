@@ -733,11 +733,13 @@ export class Room {
   loadoutPayload() {
     const byPlayer = {};
     const relics = {};
+    const loots = {};
     for (const p of this.state.players.values()) {
       byPlayer[p.id] = this.expandCards(p);
       relics[p.id] = [...p.relics.keys()];
+      loots[p.id] = [...p.loot];
     }
-    return { t: "loadout", byPlayer, relics };
+    return { t: "loadout", byPlayer, relics, loots };
   }
 
   scoreboardRows() {
@@ -1388,6 +1390,15 @@ export class Room {
       if (this.state.alerts.length > 0) {
         for (const a of this.state.alerts) this.broadcast({ t: "alert", ...a });
         this.state.alerts.length = 0;
+      }
+      /* LE CHARGEMENT PEUT CHANGER EN PLEINE MANCHE DEPUIS LE LOOT. `loadout`
+         n etait diffuse qu a la prise d une carte et a la reprise : un loot
+         ramasse sous la horde ne changeait rien a la fenetre de build, et le
+         joueur n avait aucun moyen de voir ce qu il venait de gagner. Meme
+         forme que les alertes — un drapeau, vide au tick. */
+      if (this.state.loadoutDirty) {
+        this.state.loadoutDirty = false;
+        this.broadcast(this.loadoutPayload());
       }
       this.traceTick(dt);
       if (this.state.bossKills !== this.bossVus) {

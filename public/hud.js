@@ -7,7 +7,8 @@ import { playSound } from "/audio.js";
 import { dec, getLang, onLangChange, t, tf } from "/shared/i18n.js";
 import { relicById } from "/shared/reliques.js";
 import { fmtM, toM } from "/shared/units.js";
-import { difficulty, hudDps, hudStats, myId, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
+import { difficulty, hudDps, hudStats, lootListOf, myId, ownedCounts, pipPress, progressState, relicsByPlayer } from "./core/state.js";
+import { appliquerLoot } from "/shared/loot.js";
 import { ARMES, ARME_DEFAUT, canonEffet, canonGain } from "/shared/armes.js";
 import { applyMeta, metaLinesFor } from "/shared/progression.js";
 import { CLASS_DEFAULT, classAt, skill3Nom, skillNom,
@@ -1044,18 +1045,27 @@ function myMods(me, v) {
   const cls = me.cls ?? CLASS_DEFAULT;
   const clsId = classAt(cls).id;
   const meta = myMeta(clsId);
+  // LE LOOT ENTRE DANS LA SIGNATURE, SINON LE CACHE LE MASQUE : un objet
+  // ramasse ne change ni les cartes ni le niveau, donc la clef restait la meme
+  // et le panneau affichait la build d avant — les chiffres du HUD auraient
+  // menti sans qu une seule ligne leve.
+  const loot = lootListOf(me.id);
   let sig = `${niveau}|${me.cls}|${metaGen}|`;
   for (const [id, n] of counts) sig += `${id}${n},`;
   sig += "#";
   for (const o of others) for (const [id, n] of o) sig += `${id}${n},`;
+  sig += `#${loot.join(",")}`;
   if (sig !== modsSig || !modsCache) {
     modsSig = sig;
     // `fullMods` rend `{ mods, maxHp }`, pas les mods : le lire a plat donnait
     // des `NaN` en cascade, et le premier `.toFixed` sur un champ absent vidait
     // toutes les lignes suivantes du panneau.
     const r = fullMods(counts, others, cls, niveau);
-    modsCache = meta ? applyMeta(r.mods, r.maxHp, clsId, meta.lines, meta.commun).mods
-                     : r.mods;
+    const apresMeta = meta ? applyMeta(r.mods, r.maxHp, clsId, meta.lines, meta.commun)
+                           : r;
+    // MEME ORDRE QUE LE SERVEUR — apres la meta, avant les reliques. Un ordre
+    // different ici afficherait des chiffres que la simulation ne joue pas.
+    modsCache = appliquerLoot(apresMeta.mods, apresMeta.maxHp, loot).mods;
   }
   return modsCache;
 }

@@ -72,6 +72,10 @@ export function ingest(msg) {
     cover: msg.ob ?? null,
     powerups: msg.w.map(a => ({ id: a[0], x: a[1], y: a[2], type: a[3], k: a[4] ?? 1 })),
     harvests: (msg.hv ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], kind: a[3], k: a[4] ?? 1 })),
+    // le loot : `pj` dit A QUI, et zero veut dire « a qui le veut » — c est ce
+    // qu un loot repose devient.
+    loots: (msg.lo ?? []).map(a => ({ id: a[0], x: a[1], y: a[2], loot: a[3],
+                                      pj: a[4] ?? 0, k: a[5] ?? 1 })),
     // la borne : trois nombres et un ETAT, filtree par la vue comme le reste
     // `bo` est le BOSS et `bn` les BOUNDS : une borne sous l une des deux
     // l aurait ecrasee EN SILENCE — un instantane est un objet, pas un schema.

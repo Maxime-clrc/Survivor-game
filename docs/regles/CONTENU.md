@@ -541,9 +541,49 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   cartes → échelle d'arme → classe → conversions → méta → reliques → plafond de PV
   ```
 
-  Le **loot de run** s'insère **après les reliques et avant le plafond** : il est
+  Le **loot de run** s'insère **après la méta et avant les reliques** : il est
   une source de puissance de manche, comme une carte, et le plafond reste le
   dernier mot. `plafonnerHp()` ne bouge pas.
+- **LE LOOT IGNORE `pickupRadius` ET `pickupRadiusMul`, ET C'EST TOUT LE LOT.** Un
+  bonus se ramasse de loin, un loot **de près** : le ramassage redevient un
+  **geste**, et passer sur un point précis pendant qu'une horde arrive est une
+  prise de risque, donc une décision. L'asymétrie doit se **dire** — socle de 9 px
+  contre 13, losange au lieu d'un polygone de famille, et un **anneau tireté posé
+  exactement à la portée de ramassage** : le joueur voit où poser ses pieds. Sans
+  ça elle se lit comme un défaut de collision. **Contrepartie notée pour
+  l'équilibrage : `pickupRadius` perd de la valeur sans qu'on l'ait touchée.**
+- **IL EST INSTANCIÉ PAR JOUEUR, ET ÇA SUPPRIME QUATRE PROBLÈMES D'UN COUP** —
+  conflit, vol, joueur prioritaire, arbitrage permanent. Un loot partagé à négocier
+  serait mauvais en LAN de trente minutes : il **arrête le jeu** pour arbitrer, au
+  moment où deux cents corps arrivent. La nuance qui reste : un loot est
+  **reposable** (`pj` à zéro = « à qui le veut »), donc « le DPS prend les dégâts,
+  le Tank la défense » est vrai sans coûter d'écran.
+- **TROIS RANGS, ET LEUR NATURE CHANGE AVEC LE RANG.** Rang 1 plat et cumulable —
+  personne ne refuse +8 % de dégâts, c'est du fond de panier, et ça ne crée aucune
+  décision. Rang 2 **conversion avec contrepartie**, et c'est ce qui rend un loot
+  mémorable ; `verifierLoot` **refuse un rang 2 sans coût**, sinon « dangereux » ne
+  veut plus rien dire. Rang 3 fort et sans contrepartie : sa **rareté est son
+  prix**.
+- **LA CHANCE MONTE LE RANG, JAMAIS LA QUANTITÉ.** C'est la promesse du lot 03
+  tenue : elle agit sur la rareté seule. Plafonnée à +50 % de déclenchement, sinon
+  une build de chance transformerait tout objectif en rang 3.
+- **LE POINT DE CHUTE EST CELUI DE L'OBJECTIF** — sur la dépouille du mini-boss,
+  à la borne du contrat — donc le loot tombe forcément **dans la vue** de qui vient
+  de le mériter, et aucun filtre spécial n'est nécessaire. Le vérificateur le
+  confirme aux quatre coins de l'arène plutôt qu'on l'espère.
+- **LE PLAFOND AU SOL NE REFUSE JAMAIS.** À la limite on retire le **plus vieux**
+  au lieu de renoncer au neuf : un loot qui n'apparaît pas parce que le sol est
+  plein est un loot volé — et il serait volé exactement quand on vient d'en gagner
+  beaucoup.
+- **LA CENDRE NE RACCOURCIT PAS SA VIE**, alors qu'elle raccourcit celle d'un
+  bonus. Un loot qui disparaîtrait plus vite parce qu'il fait mauvais temps ne
+  serait compris par personne : le joueur n'a aucun moyen de faire le lien.
+- **`p.powerMods` EST UNE COPIE, ET C'ÉTAIT UN DÉFAUT MESURÉ.** Il était **le même
+  objet** que `p.mods` quand le joueur n'a pas de méta : tout ce qui écrit dans
+  `p.mods` après coup écrivait donc aussi dans l'indice de puissance. Les reliques
+  passent à côté par `_relicSum` et ne l'ont jamais montré ; le loot applique ses
+  `apply` directement, et `powerIndex` passait de **1,050 à 1,134** sur un objet,
+  **1,487** sur deux. Rien ne levait.
 - **IL N'EXISTAIT AUCUN ARBITRAGE DÉFENSIF, ET C'EST MESURÉ.** Sur les 151 clés de
   `defaultMods()`, 53 sont offensives et 24 défensives — mais les **sept axes** que
   la table d'échelle des armes sait lire sont **tous offensifs**. On empilait donc

@@ -1797,6 +1797,14 @@ export function defaultMods() {
     fireIntervalMul: 1,
     maxHpBonus: 0,
     hpCap: 0,
+    /* LE SEUL MULTIPLICATEUR DE PV DU CHARGEMENT, ET IL N APPARTIENT PAS AUX
+       CARTES : `appliquerLoot` le pose et le lit, et lui seul. Les conversions
+       de loot qui prennent des PV le font en PART — un cout plat serait
+       ecrasant a la premiere minute et invisible a la trentieme. Il est declare
+       ici parce que `defaultMods()` est le contrat du chargement : une clef
+       posee hors de lui n aurait aucun lecteur, donc aucun effet, et rien ne le
+       dirait. */
+    maxHpMul: 1,
     speedMul: 1,
     bulletSpeedMul: 1,
     bulletLifeMul: 1,
