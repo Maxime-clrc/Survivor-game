@@ -508,6 +508,20 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   cauchemar, où `GEOM_CAUCHEMAR` mappe `pince → quatre-fronts`.
 - **La grille se refait quand une couverture cède** (`_obstacleHit`), et
   seulement là : la géométrie de biome ne bouge pas autrement.
+- **UN LIEU PAR MANCHE, ET IL VAUT POUR TOUTE L'ARÈNE.** `room.drawBiome()` le
+  tire à la création de la salle puis **à chaque sortie de manche** ; `buildBiome`
+  pave les 81 cellules avec les variantes de **ce** lieu. Traverser la carte ne
+  peut donc pas changer de lieu — il faut finir une manche. C'est ce qui rend
+  possible tout ce qui est **cuit une fois** : la tuile de sol, le fond, la
+  coulée, le semis, la charte de couleur. Une carte à plusieurs lieux n'est pas
+  un réglage, c'est un autre modèle.
+- **DEUX MANCHES DE SUITE NE MONTRENT PAS LE MÊME LIEU**, même règle que le
+  quintette de boss : un tirage uniforme sur cinq rend le même une fois sur cinq,
+  et une répétition est ce qui fait conclure « il n'y a pas de biomes » — le
+  joueur ne compte pas les tirages, il compte ce qu'il a vu. La mémoire appartient
+  à la **salle**. `BIOME` (env) passe devant : un test qui redemande la fonderie
+  doit l'obtenir deux fois. Mesure du redraw sur 200 000 tirages : **0**
+  répétition immédiate, écart à l'uniforme **0,39 %**.
 - **LA MASSE EST LA SURFACE** (`masseDe(r)` = `(r / 12)²`, bornée) et elle
   **répartit** la poussée de séparation à son inverse. À masses égales on
   retombe exactement sur le demi-demi d'avant : `2 × 0,5 = 1`. Elle est

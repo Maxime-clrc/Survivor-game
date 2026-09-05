@@ -9315,6 +9315,27 @@
                   `verifierCharte` (6/9/8) sont les minima DEJA presents, donc il
                   ratifie l existant au lieu de poser une barre. Ecrit dans
                   LISEZMOI, pas touche ici.
+    0.40.11 lot 12 « J AI PARCOURU LA MAP, LE LIEU N A JAMAIS CHANGE » — CE N EST
+                  PAS UNE PANNE, C EST LA CONCEPTION, ET ELLE N ETAIT ECRITE
+                  NULLE PART. Un lieu par MANCHE, pour toute l arene :
+                  `room.drawBiome()` tire a la creation de la salle puis a chaque
+                  sortie de manche, et `buildBiome` pave les 81 cellules avec les
+                  variantes de CE lieu. C est ce qui rend possible tout ce qui est
+                  cuit une fois — tuile de sol, fond, coulee, semis, charte. La
+                  regle entre dans SIMULATION.md : sans elle la question se
+                  reposera, et elle s est deja posee comme un rapport de bug.
+                  LE DEFAUT REEL ETAIT AILLEURS, ET IL EST PETIT : le tirage
+                  uniforme sur cinq rendait le meme lieu deux manches de suite
+                  une fois sur cinq. La salle memorise deja le quintette de boss
+                  pour exactement cette raison ; le lieu, non. Un joueur ne compte
+                  pas les tirages, il compte ce qu il a vu — et deux fois l usine
+                  de suite se conclut « il n y a pas de biomes ». Le redecalage
+                  est mesure sur 200 000 tirages : ZERO repetition immediate,
+                  0,39 % d ecart a l uniforme, donc aucun lieu favorise.
+                  `BIOME` (env) PASSE DEVANT : un test qui redemande la fonderie
+                  doit l obtenir deux fois. La memoire appartient a la SALLE, pas
+                  au module — seize salles d un processus ne partagent pas un
+                  etat, c est la panne que le plan 31 a corrigee pour le hasard.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9324,4 +9345,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.10";
+export const VERSION = "0.40.11";

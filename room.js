@@ -618,10 +618,25 @@ export class Room {
     if (this.state.enemies.length > n) this.state.enemies.length = n;
   }
 
+  /* DEUX MANCHES DE SUITE NE MONTRENT PAS LE MEME LIEU, meme regle que le
+     quintette de boss et pour la meme raison : un tirage uniforme sur cinq rend
+     le meme lieu une fois sur cinq, et une repetition est ce qui fait conclure
+     « il n y a pas de biomes » — le joueur ne compte pas les tirages, il compte
+     ce qu il a vu. La memoire appartient a la SALLE, jamais au module : seize
+     salles d un meme processus ne se partagent pas un etat.
+     LE FORCAGE PASSE DEVANT : `BIOME` sert aux tests, et un test qui demande
+     deux fois la fonderie doit l obtenir deux fois. */
   drawBiome() {
     const force = process.env.BIOME;
     const i = force === undefined ? -1 : BIOMES.findIndex(b => b.key === force);
-    this.biomeIndex = i >= 0 ? i : Math.floor(Math.random() * BIOMES.length);
+    if (i >= 0) this.biomeIndex = i;
+    else {
+      const avant = this.biomeIndex;
+      let n = Math.floor(Math.random() * BIOMES.length);
+      if (n === avant) n = (n + 1 + Math.floor(Math.random() * (BIOMES.length - 1)))
+        % BIOMES.length;
+      this.biomeIndex = n;
+    }
     this.seed = Number(process.env.GRAINE) || Math.floor(Math.random() * 0x7fffffff);
   }
 
