@@ -9368,6 +9368,60 @@
                   `verifierVariantes` RESTE A ZERO FAUTE d arete, et `passages`
                   comme `navigation` restent verts : le decoupage change ce qui se
                   LIT, pas ce qui se TRAVERSE.
+    0.40.13 lot 14 DEUX FOURS QUI SE TRAVERSENT, ET DES RONDS QUI REVIENNENT AU
+                  PAS DE LA GRILLE — LES DEUX SE VOIENT SUR UNE CAPTURE DE LA
+                  FONDERIE, ET AUCUN VERIFICATEUR NE LES REGARDAIT.
+                  LES BLOCS. « Le puits » posait ses deux fours a 0,35 et 0,30 :
+                  112 px sur 171 de recouvrement. La masse restait un rectangle
+                  propre, donc la collision et la navigation ne disaient rien ; ce
+                  qui se voyait etait le second HABILLAGE — panneau et fente —
+                  pose en decale sur le corps du premier. Mesure sur 40 graines et
+                  cinq lieux : l Usine et le Secteur sont a ZERO, la Fonderie
+                  n avait que cette paire, la Friche et la Nebuleuse en gardent
+                  respectivement six et deux — releve, non corrige, faute d avoir
+                  ete rapporte. Le second four passe EN HAUTEUR (0,35 / 0,69) :
+                  colle a cote il venait toucher le glissant de `HZ_NORMAL` a
+                  0,16, et `verifierBiomes` refuse un danger pose sur un obstacle
+                  — c est ce refus qui a choisi la solution.
+                  LES RONDS. Les « zones vitrifiees » de la tuile de Fonderie
+                  etaient trois ellipses de 60 a 152 px a 0,44 de noir dans une
+                  tuile de 400 px : un motif a FORT contraste revient donc au pas
+                  exact de la grille de 20 m, et la seconde periode de 1 200 px ne
+                  casse que ce qui est DOUX. Elles cumulaient le second defaut —
+                  une ellipse lisse n a ni bord ni direction et ne se lit que
+                  comme un rond, exactement ce que la souillure de `props.js`
+                  avait deja paye. Supprimees : ce qui a coule reste dit par la
+                  COULEE, qui a un sens. La regle entre dans RENDU.md — ce qui est
+                  grand et contraste n appartient pas a la tuile, il appartient a
+                  `MATIERE[lieu]`, pose par cellule monde et sans periode.
+    0.40.14 lot 15 LE LASER NE TIRE PLUS TOUT SEUL, ET SA PORTEE RENTRE DANS
+                  L ECRAN. Le depot pose « le tir est automatique » partout, et
+                  une carte — la Chambre thermique — achete le contraire. Sur le
+                  laser cette carte n achetait RIEN : le faisceau porte deja sa
+                  jauge, donc elle ne rendait que la gachette a tenir. La
+                  contrepartie du faisceau EST sa chaleur, et une jauge qu on ne
+                  peut pas relacher n est pas geree, elle est SUBIE.
+                  `manuel` sur la fiche, lu par le meme `const manuel` que la
+                  carte : un seul chemin pour « je tire quand je le decide ».
+                  `exige: "tirAuto"` retire la Chambre thermique de l offre du
+                  laser — une carte offerte qui ne rend rien fait un choix a deux
+                  options sans le dire.
+                  LE CLIENT NE POUVAIT PAS LE DEDUIRE. Le faisceau se dessinait
+                  des que `armeRes < 1`, ce qui etait vrai en permanence tant que
+                  le tir etait automatique ; relache, il serait reste allume. Le
+                  bit `ETAT_TIR` (32) entre dans le masque de bonus qui circule
+                  deja : ses deux lecteurs le parcourent par LISTE de bits, donc
+                  un bit de plus leur est inerte, et aucun champ ne s ajoute au
+                  tuple joueur. L image et le son lisent la meme condition.
+                  LA PORTEE : 43 m tombaient « juste au-dela du demi-ecran », ce
+                  qui veut dire DEHORS — 864 px pour 800 visibles, donc une portee
+                  dont on ne voit jamais la fin. 0,7 rend 672 px, qui s arretent
+                  128 px avant le bord.
+                  CE QUE CA COUTE AU MODELE, ECRIT PLUTOT QUE TU :
+                  `verifierEquilibreArmes` pilote une gachette tenue en
+                  permanence, donc il lit desormais le PLAFOND d uptime du laser
+                  et non sa moyenne. Un chiffre de laser ne se corrige plus sur la
+                  seule campagne simulee.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9377,4 +9431,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.12";
+export const VERSION = "0.40.14";

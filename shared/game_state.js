@@ -966,6 +966,11 @@ export const SIL_MISSILE = 1;
 export const SIL_PORTEUR = 2;
 export const BUFF_PIERCE = 8;
 export const BUFF_RICOCHET = 16;
+/* PAS UN BONUS, MAIS LE MEME MASQUE : « cette arme rend quelque chose en ce
+   moment ». Les deux lecteurs du masque parcourent une LISTE de bits, donc un
+   bit de plus leur est inerte, et un champ de plus par joueur et par image
+   n aurait rien porte que celui-la. */
+export const ETAT_TIR = 32;
 
 
 export function effectiveCards(cards, others = []) {
@@ -1308,6 +1313,7 @@ export class GameState {
       hf: hfCompteurs(),
       arme: ARME_DEFAUT,
       armeRes: 0,
+      armeActif: 0,
       armeMun: 0,
       armeRech: 0,
       precVus: new Map(),
@@ -1916,14 +1922,14 @@ export class GameState {
 
       p.fireInterval = interval;
 
-      /* LE TIR EST AUTOMATIQUE, SAUF SI ON A DEMANDE LE CONTRAIRE. Une seule
-         carte bascule ce drapeau, et elle donne en echange une jauge de
-         chaleur : le joueur cesse de subir sa cadence et se met a la GERER.
-         L intention est CONTINUE comme la visee — on tient la gachette, on ne
-         la declenche pas —, donc elle ne se remet pas a zero apres le tick.
-         Sans la carte, `tirTenu` n est jamais lu : le tir reste exactement ce
-         qu il etait pour les dix armes. */
-      const manuel = p.mods.tirManuel > 0;
+      /* LE TIR EST AUTOMATIQUE, SAUF SI ON A DEMANDE LE CONTRAIRE. Une carte le
+         bascule, et une ARME le declare — le laser, dont la jauge de chaleur EST
+         la contrepartie : le joueur cesse de subir sa cadence et se met a la
+         GERER. L intention est CONTINUE comme la visee — on tient la gachette,
+         on ne la declenche pas —, donc elle ne se remet pas a zero apres le
+         tick. Pour les neuf autres armes sans la carte, `tirTenu` n est jamais
+         lu et le tir reste exactement ce qu il etait. */
+      const manuel = arme.manuel || p.mods.tirManuel > 0;
       const veutTirer = !manuel || !!p.tirTenu;
       const tirAutorise = this.warmup <= 0 && !p.healMode && !p.downed && veutTirer;
       if (tirAutorise) {
@@ -1934,6 +1940,12 @@ export class GameState {
         if (p.armeMuet > 0) p.hf.armeMuet += dt;
       }
       this._armeTick(p, arme, dt, tirAutorise);
+      /* CE QUE L ARME REND VRAIMENT, ET LE CLIENT NE POUVAIT PAS LE DEDUIRE. Le
+         faisceau se dessinait des que `armeRes < 1`, ce qui etait vrai en
+         permanence tant que le tir etait automatique ; avec une arme MANUELLE il
+         faut le dire. Ca ne coute aucun champ : `ETAT_TIR` est un bit de plus
+         dans le masque de bonus, que les deux lecteurs parcourent par liste. */
+      p.armeActif = tirAutorise && p.armeMuet <= 0 ? 1 : 0;
 
       // posture engagee : il ne tire plus du tout. Les liens s'accrochent seuls.
       if (arme.interval > 0 && p.fireCd <= 0 && tirAutorise && p.armeMuet <= 0) {
@@ -10293,7 +10305,8 @@ export class GameState {
           | (p.buffRate > 0 ? BUFF_RATE : 0)
           | (p.buffDouble > 0 ? BUFF_DOUBLE : 0)
           | (p.buffPierce > 0 ? BUFF_PIERCE : 0)
-          | (p.buffRicochet > 0 ? BUFF_RICOCHET : 0),
+          | (p.buffRicochet > 0 ? BUFF_RICOCHET : 0)
+          | (p.armeActif ? ETAT_TIR : 0),
         p.score, p.deaths, Math.round(p.shield),
         this.level, Math.round(p.maxHp),
         this.level >= CFG.LEVEL_MAX

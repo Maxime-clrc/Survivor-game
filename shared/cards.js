@@ -2,7 +2,7 @@
 import { nombre, ordinal, t, tf, tn } from "./i18n.js";
 import { fmtM } from "./units.js";
 import { RARITY_COLOR } from "./palette.js";
-import { ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, FAMILLES_D_ARME, armeAt, familleDeArme, litCadence, litCanons, litRebond } from "./armes.js";
+import { ARMES, ARME_BY_ID, ARME_CFG, ARME_DEFAUT, FAMILLES_D_ARME, armeAt, familleDeArme, litCadence, litCanons, litRebond, litTirAuto } from "./armes.js";
 
 export const RARITY = { COMMUNE: 0, RARE: 1, EPIQUE: 2, LEGENDAIRE: 3 };
 
@@ -1395,7 +1395,7 @@ export const CARDS = [
      0,00), donc payee pour rien. */
   {
     id: "surchauffe", nom: "Chambre thermique", rarity: 2, max: 1, tags: ["off"],
-    horsEchelle: true,
+    horsEchelle: true, exige: "tirAuto",
     desc: "tu tires en maintenant le clic ; ton arme chauffe et frappe jusqu'à +{0} % — à saturation elle se tait",
     vals: () => ({ "0": Math.round(ARME_CFG.CHALEUR_BONUS_MANUEL * 100) }),
     apply(m) { m.tirManuel = 1; },
@@ -2105,6 +2105,9 @@ export const POOL_MIN = 6;
    `cadence` : `_shoot` est garde par `arme.interval > 0`, donc tout ce qui
    raccourcit l intervalle — echo, salve arriere, frenesie, adrenaline — est
    mort sur le faisceau, seule arme a intervalle nul.
+   `tirAuto` : la Chambre thermique ACHETE le tir manuel. Sur une arme qui le
+   declare deja, elle n achete rien — et le faisceau lit `CHALEUR_BONUS`, donc
+   elle n y apporte meme pas le bonus renforce.
 
    UNE EXIGENCE SE MESURE SUR LE CODE, JAMAIS SUR LA DESCRIPTION : `bascule_vive`
    parle de cadence et garde son instantaneite, donc elle n en porte pas. */
@@ -2112,6 +2115,7 @@ export const CAPACITE = {
   canons: litCanons,
   rebond: litRebond,
   cadence: litCadence,
+  tirAuto: litTirAuto,
 };
 
 export function eligibleCards(owned, cls = null, levelNow = 0, locked = null, ctx = null) {

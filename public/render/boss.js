@@ -4,7 +4,7 @@ import { beatPhase, BOSS_CFG, BOSS_FINAL, BOSS_JUMEAUX, BOSS_MATRIARCHE, BOSS_ME
 import { CARD_CFG } from "/shared/cards.js";
 import { t } from "/shared/i18n.js";
 import { CLASS_DEFAULT, SKILL_CFG, SKILL_HEAL_MODE, SKILL_OVERDRIVE, SKILL_TAUNT, SKILL_ULT_WIND, classAt } from "/shared/classes.js";
-import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG } from "/shared/game_state.js";
+import { BUFF_DAMAGE, BUFF_DOUBLE, BUFF_PIERCE, BUFF_RATE, BUFF_RICOCHET, CFG, ETAT_TIR } from "/shared/game_state.js";
 import { BOSS, BOSS_SKIN, CLASS_COLOR, COMBAT, EFFECT_COLOR, FX, HUD, MARK, POWERUP_COLOR, SIGNAL, SURFACE, TEXT, alpha, melange } from "/shared/palette.js";
 import { STATUSES, STATUS_DOOM, STATUS_VULN } from "/shared/statuses.js";
 import { drawSprite, frameOf } from "/sprites.js";
@@ -1524,7 +1524,9 @@ export function drawPlayers(list, tm, marks = []) {
        LE COEUR, LUI, RESTE FIN. C est lui qu on suit, et un coeur qui grossirait
        avec la chaleur effacerait ce qu il traverse au moment ou il faut le plus
        le voir. Il ne gagne que le tremblement. */
-    if (ARMES[p.arme]?.chaleur && p.armeRes < 1) {
+    // le faisceau se dessinait des que la jauge n etait pas saturee, ce qui etait
+    // vrai en permanence tant que le tir etait automatique. Il est MANUEL.
+    if (ARMES[p.arme]?.chaleur && p.armeRes < 1 && (p.buffs & ETAT_TIR)) {
       const a = ARMES[p.arme];
       const portee = 640 * 1.5 * a.portee;
       const chaud = p.armeRes;

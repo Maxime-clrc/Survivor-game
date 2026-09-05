@@ -209,9 +209,9 @@ setInterval(() => {
      TIENT. Les ponctuels (`d`, `s1`..`s3`) se remettent a zero apres chaque
      tick, celle-ci non — sans quoi relacher la souris une image sur deux
      hacherait le tir.
-     Elle part TOUJOURS, meme sans la carte : le serveur ne la lit que si
-     `tirManuel` est pose, et un champ conditionnel aurait fait deux formes de
-     message a tenir. Un booleen par tick a 30 Hz ne se mesure pas. */
+     Elle part TOUJOURS : le serveur ne la lit que si l arme ou la carte declare
+     le tir manuel, et un champ conditionnel aurait fait deux formes de message a
+     tenir. Un booleen par tick a 30 Hz ne se mesure pas. */
   const msg = { t: "input", x: m.x, y: m.y, ax: a.ax, ay: a.ay, ar: aimRange(),
                 tir: tirTenu() };
   if (dash.pending) { msg.d = 1; dash.pending = false; }

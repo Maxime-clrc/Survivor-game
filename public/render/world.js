@@ -4,7 +4,7 @@ import { resetHud, updateHud } from "/hud.js";
 import { setMusicIntensity, setMusicScene } from "/music.js";
 import { ARMES } from "/shared/armes.js";
 import { BOSS_CFG, MECH_JAIL, estFinal } from "/shared/bosses.js";
-import { BIOME_CFG, CFG, SIL_MISSILE, SIL_PORTEUR, weatherFor, windAt } from "/shared/game_state.js";
+import { BIOME_CFG, CFG, ETAT_TIR, SIL_MISSILE, SIL_PORTEUR, weatherFor, windAt } from "/shared/game_state.js";
 import { biomeNom, weatherNom } from "/shared/biomes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
@@ -155,8 +155,9 @@ function frameBody(now) {
    Un seul point de passage, et il est LOCAL : ce qu'on entend est SA propre
    arme. Quatre joueurs sur quatre railguns ne font pas quatre bourdonnements de
    charge, et aucune de ces voix ne dispute sa place a celles de la horde.
-   Le tir est automatique : tant que la nappe est a l'ecran, l'arme tire — la
-   meme condition porte donc l'image et le son, et rien de plus ne circule. */
+   L'image et le son lisent la MEME condition, et depuis que le laser est manuel
+   cette condition n'est plus « la jauge n'est pas saturee » mais `ETAT_TIR` —
+   sinon le bourdonnement tiendrait la gachette relachee. */
 let faisceauOn = false, chargeOn = false;
 let armeResVu = -1, rechargeOn = false;
 function routerArme(enJeu) {
@@ -164,7 +165,7 @@ function routerArme(enJeu) {
   const a = me ? ARMES[me.arme] : null;
   const vivant = !!me && !me.downed;
 
-  if (vivant && a?.chaleur && me.armeRes < 1) {
+  if (vivant && a?.chaleur && me.armeRes < 1 && (me.buffs & ETAT_TIR)) {
     if (!faisceauOn) { startFaisceau(); faisceauOn = true; }
     setFaisceauChaleur(me.armeRes);
   } else if (faisceauOn) {

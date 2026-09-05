@@ -154,8 +154,8 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   (assaut) · **ressource** (laser, railgun, siège) · **visée** (tesla, précision)
   · **distance** (lame, dispersion, grenade).
 - **UNE JAUGE QUI NE SE DÉCLENCHE PAS EST UNE HORLOGE, PAS UNE MANIPULATION.**
-  Le tir est automatique, donc une charge qu'on relâche n'existe pas : la charge
-  du railgun se lit **sur la ligne de tir**, qui se dessine un peu plus loin à
+  Le tir du railgun est automatique, donc une charge qu'on relâche n'existe pas :
+  sa charge se lit **sur la ligne de tir**, qui se dessine un peu plus loin à
   chaque image. Elle dit **quand** et **où** en même temps, et ce que le joueur
   pilote est sa position à l'instant où le rail part — pas un geste de plus.
 - **Le chargeur du siège est un COMPTE, donc des crans** (`armeRes` porte le
@@ -251,10 +251,19 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   Adossée à la seule touche, elle ne se remplissait que dans les moments où le
   joueur gagnait déjà — donc jamais dans ceux où il aurait appris qu’elle existe,
   et comme le bonus croît avec elle, la ressource **récompensait sans jamais
-  mordre**. Le second régime est ce qui évite de punir la couverture de zone. Le
-  tir étant automatique, le cycle est permanent : 4 s de tir, 1,5 s de mutisme,
-  ~77 % d’activité — et `armeMuet` le porte, donc le modèle d’équilibrage le
-  capte par le terme d’uptime.
+  mordre**. Le second régime est ce qui évite de punir la couverture de zone.
+- **LE LASER EST LA SEULE ARME QUI NE TIRE PAS TOUTE SEULE** (`manuel` sur sa
+  fiche). Le tir automatique lui donnait un cycle permanent — 4 s de tir, 1,5 s
+  de mutisme, ~77 % d’activité — donc une jauge qu’on ne peut pas relâcher : une
+  ressource **subie**, pas gérée. Elle est rendue au porteur.
+  - **Le modèle d’équilibrage lit désormais un PLAFOND, plus une moyenne.**
+    `verifierEquilibreArmes` pilote une gâchette tenue en permanence : son uptime
+    est celui d’avant, celui d’un vrai joueur est plus bas. Un chiffre de laser
+    ne se corrige donc plus sur la seule campagne simulée.
+  - **La Chambre thermique n’est plus offerte au laser** (`exige: "tirAuto"`).
+    Elle achète le tir manuel ; sur une arme qui le déclare elle n’achète rien —
+    et le faisceau lit `CHALEUR_BONUS`, pas `CHALEUR_BONUS_MANUEL`, donc elle n’y
+    apporte pas même le bonus renforcé.
 - **Le rayon d’une arme de balayage est un SEUIL, pas un levier** : sous ~150 px
   elle ne perce pas l’anneau qui se referme, au-dessus elle le nettoie. On pose
   le rayon au-dessus du seuil et on règle par l’**arc**.

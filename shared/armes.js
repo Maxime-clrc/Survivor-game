@@ -160,10 +160,10 @@ export const ARMES = [
   },
   {
     id: "laser", nom: "Canon laser", tir: "faisceau", axe: "ressource",
-    // 77 m SORTAIENT DE L ECRAN A TOUS LES COUPS : la vue fait 1600 px, le
-    // joueur en voit 800 devant lui, le faisceau en parcourait 1536. Une portee
-    // dont on ne voit jamais la fin EST une portee illimitee. 43 m tombent juste
-    // au-dela du demi-ecran : elle s'apprend en la voyant s'arreter.
+    /* 43 m -> 34 m : « JUSTE AU-DELA DU DEMI-ECRAN » RESTE HORS DE L ECRAN. Le
+       joueur voit 800 px devant lui et le faisceau en parcourait 864 : sa fin
+       tombait toujours dehors, donc la portee restait illimitee a l usage. 672 px
+       s arretent 128 px avant le bord, et c est la qu elle s apprend. */
     /* 75 -> 72, EN DEUX PASSES, ET LA PREMIERE A DEPASSE. Mesure a douze
        manches : 115 % delivre pour une cible de 106 %, et le laser est la seule
        arme rouge aux trois tailles d echantillon (3, 6 et 12) — ce n est pas du
@@ -172,10 +172,20 @@ export const ARMES = [
        coute -20 % de debit horde, parce qu un faisceau qui tue moins vite garde
        ses cibles devant lui plus longtemps. 72 est l interpolation des deux
        points mesures, pas une moyenne choisie. */
-    interval: 0, degats: 72, portee: 0.9,
+    interval: 0, degats: 72, portee: 0.7,
+    /* LA SEULE ARME QUI NE TIRE PAS TOUTE SEULE. Le depot pose « le tir est
+       automatique » partout, et une carte — `surchauffe` — achete le contraire ;
+       sur le laser cette carte n achetait RIEN : le faisceau porte deja sa jauge,
+       donc elle ne rendait que la gachette a tenir. La contrepartie du faisceau
+       est sa chaleur, et une jauge qu on ne peut pas relacher n est pas geree,
+       elle est subie. `manuel` la rend au porteur.
+       CE QUE CA COUTE AU MODELE : l uptime du laser n est plus les 77 % du cycle
+       automatique, il depend du joueur — `verifierEquilibreArmes` mesure avec un
+       pilote qui tient la gachette en permanence, donc il lit le PLAFOND. */
+    manuel: true,
     chaleur: true, perforeTout: true, famille: true,
     resume: "un faisceau continu qui traverse une file entière et ne rate jamais",
-    contrainte: "il chauffe, et se tait 1,5 s à saturation",
+    contrainte: "tu tires en maintenant le clic ; il chauffe, et se tait 1,5 s à saturation",
     exige: EXIGE(0, 0, 0, 1, 1),
     /* SA CADENCE ETAIT A 0,4 ET IL N EN LIT AUCUNE. `_faisceauInterne` avance sur
        `LASER_TICK` et ne touche jamais a `fireIntervalMul` : la seule arme a
@@ -360,6 +370,13 @@ export const litPerce = a => a.tir === "balle" && !a.perforeTout && !a.obus;
    premier — c est pour ca que son `ech.ricochet` est a zero alors qu il est
    l arme qui rebondit le plus. */
 export const litRebond = a => a.tir === "balle" && !a.obus;
+
+/* CE QU UNE ARME PEUT ENCORE ACHETER EN PASSANT AU TIR MANUEL. Rien, si elle
+   tire deja comme ca : la Chambre thermique ne rendrait au laser que la gachette
+   a tenir, sans le bonus de chaleur — le faisceau lit `CHALEUR_BONUS`, pas
+   `CHALEUR_BONUS_MANUEL`. Une carte offerte qui ne rend rien fait un choix a
+   deux options sans le dire. */
+export const litTirAuto = a => !a.manuel;
 
 /* QUAND UN COEFFICIENT A ZERO EST UNE VERITE ET NON UN OUBLI. Une seule table,
    lue par `verifierArmes` : la capacite decide, jamais un nom d axe. */
