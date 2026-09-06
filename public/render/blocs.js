@@ -7,7 +7,7 @@ import {
   B_BASSIN, B_MALAXEUR, B_MOULE,
   B_BANCHE, B_EPAVES, B_GRILLAGE, B_POTEAU,
   B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE,
-  B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_FOSSE, gabaritsDe,
+  B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_FOSSE, B_POUTRE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -83,7 +83,7 @@ const HABILLAGE = {
   moule, malaxeur, bassin,
   epaves, poteau, banche,
   bras, coque, cloison, console: console_,
-  aveugle, escalier, monolithe, etal, fosse,
+  aveugle, escalier, monolithe, etal, fosse, poutre,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -98,6 +98,7 @@ const BLOC = {
     [B_PALETTIER]: { sil: "palettier", hab: "palettier" },
     [B_PILE]: { sil: "pile", hab: "pile" },
     [B_QUAI]: { sil: "quai", hab: "quai" },
+    [B_POUTRE]: { sil: "caisson", hab: "poutre" },
     // LE MEME CHASSIS QUE LA FRICHE, UNE AUTRE MATIERE : premier couple du
     // depot a servir deux themes.
     [B_REMORQUE]: { sil: "chassis", hab: "remorque" },
@@ -2859,6 +2860,45 @@ function fosse(o, S) {
   ctx.strokeStyle = alpha(S.blocEdge, 0.34);
   ctx.lineWidth = 2;
   ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+}
+
+
+/* LA POUTRE — UNE FERME DE CHARPENTE, DONC UN TREILLIS. Elle ne se dessine pas
+   comme une barre : ce qui la fait lire est la DIAGONALE de son ame, repetee, et
+   c est aussi ce qui dit qu elle etait faite pour porter et qu elle ne porte
+   plus. Chaque marche de l escalier en montre un troncon. */
+function poutre(o, S) {
+  const w = o.w, h = o.h;
+  const long = w >= h;
+  const L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LES DEUX MEMBRURES, pleines, sur les bords longs.
+  ctx.fillStyle = alpha(PROP.rouille, 0.44);
+  if (long) {
+    ctx.fillRect(-w / 2, -h / 2, w, Math.max(2, E * 0.22));
+    ctx.fillRect(-w / 2, h / 2 - Math.max(2, E * 0.22), w, Math.max(2, E * 0.22));
+  } else {
+    ctx.fillRect(-w / 2, -h / 2, Math.max(2, E * 0.22), h);
+    ctx.fillRect(w / 2 - Math.max(2, E * 0.22), -h / 2, Math.max(2, E * 0.22), h);
+  }
+  // L AME EN ZIGZAG : c est elle qui dit « treillis » et pas « barre ».
+  ctx.strokeStyle = alpha(PROP.rouille, 0.34);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const pas = Math.max(9, E * 0.9);
+  let haut = true;
+  for (let u = -L / 2; u < L / 2 - 1; u += pas, haut = !haut) {
+    const a = Math.min(u + pas, L / 2);
+    if (long) {
+      ctx.moveTo(u, haut ? -h / 2 + 2 : h / 2 - 2);
+      ctx.lineTo(a, haut ? h / 2 - 2 : -h / 2 + 2);
+    } else {
+      ctx.moveTo(haut ? -w / 2 + 2 : w / 2 - 2, u);
+      ctx.lineTo(haut ? w / 2 - 2 : -w / 2 + 2, a);
+    }
+  }
+  ctx.stroke();
 }
 
 function conteneur(o, S) {

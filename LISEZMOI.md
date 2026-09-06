@@ -8,6 +8,30 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La première oblique du dépôt (0.43.13)
+
+**Tout le jeu était horizontal ou vertical**, et pour une bonne raison :
+`verifierEmpreinte` refuse une forme qui ne remplit pas son rectangle, la
+collision étant une AABB. Une masse penchée ferait buter sur du vide sur toute la
+surface de ses coins.
+
+Le macro `oblique` **déplie en escalier** : `{ oblique, x0, y0, x1, y1, ep }`
+devient 3 à 8 AABB. Relevé sur l'arène réelle — 4 marches de **104 × 32 px**
+décalées de **22 px** chacune, soit moins que `ep` (32), donc **aucune fuite
+entre deux marches** ; et leurs intervalles en x sont disjoints, donc **aucune
+superposition**.
+
+**Deux corrections que les vérificateurs ont imposées :**
+
+- `gabaritsDe` lisait la pose **non dépliée** — une entrée oblique n'a ni `w` ni
+  `h`, donc `verifierEmpreinte` jugeait la silhouette sur `NaN × NaN` et rendait
+  **100 % de vide** ;
+- la poutre était à la **Friche**, qui a pourtant la charpente. Elle y fermait
+  **3 à 11 cases inatteignables** sur quatre graines : la Friche est le seul thème
+  qui **tremble de ±40 px par cellule**, et une marge qui tient sans tremblement
+  ne tient pas avec. Elle part au **dégagement de l'Usine**, région la plus vide
+  du dépôt et thème à `jMax` nul.
+
 ### Le puits a enfin un trou (0.43.12)
 
 Le dépôt ne savait dessiner que du **plein**, et trois de ses régions portaient

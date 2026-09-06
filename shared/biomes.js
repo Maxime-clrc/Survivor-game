@@ -145,7 +145,7 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_EPAVES = 26, B_GRILLAGE = 27, B_POTEAU = 28, B_BANCHE = 29,
              B_BRAS = 30, B_COQUE = 31, B_CLOISON = 32, B_CONSOLE = 33,
              B_AVEUGLE = 34, B_ESCALIER = 35, B_MONOLITHE = 36, B_ETAL = 37,
-             B_FOSSE = 38;
+             B_FOSSE = 38, B_POUTRE = 39;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -191,6 +191,7 @@ export const BLOCS = [
   { key: "monolithe", lieu: "secteur" },
   { key: "etal", lieu: "secteur" },
   { key: "fosse", lieu: "fonderie" },
+  { key: "poutre", lieu: "usine" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -210,7 +211,9 @@ export function gabaritsDe(kind, viewW = 1600, viewH = 900) {
   const f = blocAt(kind);
   if (!f) return [];
   const v = [];
-  for (const o of (OBSTACLES[f.lieu] ?? []).flatMap(v => v.poser)) {
+  // LA POSE DEPLIEE, sinon une entree oblique rend `NaN x NaN` : elle n a ni
+  // `w` ni `h`, et `verifierEmpreinte` jugeait une silhouette sur du vide.
+  for (const o of (OBSTACLES[f.lieu] ?? []).flatMap(v => deplierPose(v.poser))) {
     if (o.kind !== kind) continue;
     const w = o.w * viewW, h = o.h * viewH;
     if (!v.some(g => Math.abs(g[0] - w) < 0.5 && Math.abs(g[1] - h) < 0.5)) v.push([w, h]);
@@ -432,6 +435,13 @@ const OBSTACLES = {
       { x: 0.10, y: 0.86, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
       { x: 0.90, y: 0.14, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
       { x: 0.11, y: 0.68, w: 0.048, h: 0.090, kind: B_POSTE, min: 1 },
+      /* LA SEULE OBLIQUE DU DEPOT, ET ELLE EST ICI PARCE QUE LA PLACE Y EST.
+         Tout le reste du jeu est horizontal ou vertical : une charpente tombee
+         donne une direction qui n est ni l une ni l autre, et ca se lit
+         instantanement. Le degagement est la region la plus vide du theme et
+         l Usine ne tremble pas (`jMax` nul) — la Friche, elle, decale de 40 px
+         par cellule et fermait des ilots avec la meme poutre. */
+      { oblique: true, x0: 0.62, y0: 0.24, x1: 0.88, y1: 0.34, ep: 0.036, kind: B_POUTRE },
     ] },
     /* LE MAGASIN — ON GARDE, ON NE TRANSFORME PAS. Des travees de racks
        paralleles, ouvertes aux DEUX bouts, et des allees entre elles. C est la
@@ -1606,6 +1616,53 @@ export function verifierTrame(graines = [1, 7, 99, 323, 50, 8],
   return soucis;
 }
 
+/* L OBLIQUE N EST PAS UNE SILHOUETTE, C EST UN MACRO DE POSE.
+
+   `verifierEmpreinte` refuse une forme qui ne remplit pas son rectangle, et il a
+   raison : la collision est une AABB, donc une masse penchee ferait buter sur du
+   vide sur toute la surface de ses coins. Le depot n a par consequent aucun
+   obstacle desaligne des axes — et il lui manque exactement ca, parce que TOUT y
+   est horizontal ou vertical.
+
+   ON DEPLIE EN ESCALIER. Une entree `{ oblique: true, x0, y0, x1, y1, ep }`
+   devient trois a huit rectangles AABB, chacun remplissant le sien. Zero
+   changement de collision, zero exception au verificateur, et l oeil lit une
+   diagonale : c est la meme illusion qu une courbe de Bresenham.
+
+   LES MARCHES NE SE TRAVERSENT PAS. Elles se suivent sur l axe LONG — leurs
+   intervalles y sont disjoints — et se recouvrent sur l axe court tant que la
+   montee par marche reste sous `ep`. C est ce qui interdit a la fois la
+   superposition (`verifierSuperpositions`) et la fuite entre deux marches.
+
+   LE DEPLIAGE EST EN FRACTIONS DE CELLULE, donc il ne depend pas de la taille de
+   l arene : il se cache par table et ne se recalcule jamais. */
+const MARCHE_MIN = 3, MARCHE_MAX = 8;
+const deplie = new Map();
+
+export function deplierPose(poser) {
+  let v = deplie.get(poser);
+  if (v) return v;
+  v = [];
+  for (const o of poser) {
+    if (!o.oblique) { v.push(o); continue; }
+    // en pixels de vue, sinon un ecart en x et le meme en y ne pesent pas pareil
+    const dx = (o.x1 - o.x0) * 1600, dy = (o.y1 - o.y0) * 900;
+    const long = Math.abs(dx) >= Math.abs(dy);
+    const court = Math.abs(long ? dy : dx);
+    const epPx = o.ep * (long ? 900 : 1600);
+    const n = Math.min(MARCHE_MAX, Math.max(MARCHE_MIN, Math.ceil(court / (epPx * 0.8))));
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n, t1 = (i + 1) / n, tm = (t0 + t1) / 2;
+      const x = o.x0 + (o.x1 - o.x0) * tm, y = o.y0 + (o.y1 - o.y0) * tm;
+      const w = long ? Math.abs(o.x1 - o.x0) / n : o.ep;
+      const h = long ? o.ep : Math.abs(o.y1 - o.y0) / n;
+      v.push({ x, y, w, h, kind: o.kind, hp: o.hp, min: o.min });
+    }
+  }
+  deplie.set(poser, v);
+  return v;
+}
+
 /* Est-ce que le decalage de cette cellule met un de ses blocs sur un danger ?
    On teste la POSE ENTIERE et non un bloc : le tremblement est par cellule, donc
    il se garde ou se jette en entier. */
@@ -1744,7 +1801,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
     for (let cx = 0; cx < cols; cx++) {
       const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
       let jx = (rand() - 0.5) * 2 * jMax, jy = (rand() - 0.5) * 2 * jMax;
-      const pose = (varis[choix[cy * cols + cx]] ?? varis[0]).poser;
+      const pose = deplierPose((varis[choix[cy * cols + cx]] ?? varis[0]).poser);
       /* UN TREMBLEMENT NE POSE PAS UN BLOC SUR UN DANGER. Mesure sur la Friche,
          carte d un seul lieu et arene REELLE : 41 arenes sur 200 avaient un
          danger sous un obstacle. `verifierBiomes` ne pouvait pas le voir — il

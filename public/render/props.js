@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_POUTRE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -196,7 +196,10 @@ const QUARTIER = {
            [B_PALETTIER]: 1, [B_PILE]: 1, [B_QUAI]: 2, [B_REMORQUE]: 2,
            // l etabli et la machine ouverte ENTRETIENNENT ; le transformateur
            // et la claire-voie aussi — rien ne se fabrique dans un poste.
-           [B_ETABLI]: 3, [B_OUVERTE]: 3, [B_TRANSFO]: 3, [B_CLOTURE]: 3 },
+           [B_ETABLI]: 3, [B_OUVERTE]: 3, [B_TRANSFO]: 3, [B_CLOTURE]: 3,
+           // une charpente tombee est de l ENTRETIEN en retard, pas de la
+           // production : c est le quartier du poste.
+           [B_POUTRE]: 3 },
   // le four COULE, la cuve MOULE, la conduite appartient au rebut — c est par
   // elle que part ce qui ne sert plus.
   // le chassis et le malaxeur METTENT EN FORME, le bassin est ce qui SORT.

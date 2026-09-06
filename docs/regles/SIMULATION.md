@@ -606,6 +606,27 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     supprimé, et avec lui le repli silencieux de `biomeAt(-1)` sur l'Usine, qui
     privait toute carte composée de son arrière-plan, de ses baies, de son
     ambiance, de son liseré de bloc et de la chaleur de la coulée.
+- **L'OBLIQUE N'EST PAS UNE SILHOUETTE, C'EST UN MACRO DE POSE.**
+  `verifierEmpreinte` refuse une forme qui ne remplit pas son rectangle, et il a
+  raison : la collision est une AABB, donc une masse penchée ferait buter sur du
+  vide sur toute la surface de ses coins. Le dépôt n'avait par conséquent **aucun
+  obstacle désaligné des axes** — et il lui manquait exactement ça, parce que
+  *tout* y est horizontal ou vertical.
+  Une entrée `{ oblique: true, x0, y0, x1, y1, ep }` se **déplie en escalier** en
+  trois à huit AABB, chacune remplissant la sienne. Zéro changement de collision,
+  zéro exception au vérificateur, et l'œil lit une diagonale.
+  - **Les marches ne se traversent pas** : leurs intervalles sont disjoints sur
+    l'axe **long** et se recouvrent sur l'axe court tant que la montée par marche
+    reste sous `ep`. Mesuré : 4 marches de 104 × 32 décalées de 22 px.
+  - **Le dépliage est en fractions de cellule**, donc indépendant de la taille de
+    l'arène : il se cache par table et ne se recalcule jamais.
+  - **`gabaritsDe` lit la pose DÉPLIÉE.** Une entrée oblique n'a ni `w` ni `h`,
+    donc `verifierEmpreinte` jugeait la silhouette sur `NaN × NaN` — et rendait
+    100 % de vide, ce qui est vrai et ne veut rien dire.
+  - **Elle est à l'Usine et pas à la Friche**, alors que c'est la Friche qui a
+    une charpente : la Friche **tremble de ±40 px par cellule** et la même poutre
+    y fermait des îlots (3 à 11 cases inatteignables sur quatre graines). Une
+    marge qui tient sans tremblement ne tient pas avec.
 - **UNE RÉGION DOIT POSSÉDER UN OBJET, ET C'EST CE QUI MANQUAIT.** Mesure à
   l'ouverture du plan 39 : **zéro région sur vingt** avait une famille bâtie à
   elle — les vingt employaient **les trois** familles de leur thème, donc un

@@ -10030,6 +10030,25 @@
                   `verifierDessin` l a vu, mot pour mot le defaut de `drawGrid`
                   en 0.41.1. Quatorze regions sur vingt-quatre ont une signature.
 
+    0.43.13 lot 14 LA PREMIERE OBLIQUE DU DEPOT. Tout le jeu etait horizontal ou
+                  vertical, et pour une bonne raison : `verifierEmpreinte` refuse
+                  une forme qui ne remplit pas son rectangle, la collision etant
+                  une AABB — une masse penchee ferait buter sur du vide sur toute
+                  la surface de ses coins.
+                  Le macro `oblique` DEPLIE EN ESCALIER : trois a huit AABB,
+                  chacune remplissant la sienne. Releve sur l arene reelle, quatre
+                  marches de 104 x 32 decalees de 22 px — moins que `ep`, donc
+                  aucune fuite entre marches, et intervalles disjoints sur l axe
+                  long, donc aucune superposition. Le depliage est en fractions de
+                  cellule, donc cache et jamais recalcule.
+                  `gabaritsDe` lisait la pose NON DEPLIEE : une entree oblique n a
+                  ni `w` ni `h`, donc le verificateur jugeait la silhouette sur
+                  NaN x NaN et rendait 100 % de vide.
+                  ET LA POUTRE EST A L USINE, PAS A LA FRICHE qui a pourtant la
+                  charpente : la Friche tremble de +/- 40 px par cellule et la
+                  meme poutre y fermait 3 a 11 cases inatteignables sur quatre
+                  graines. Une marge qui tient sans tremblement ne tient pas avec.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10038,4 +10057,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.12";
+export const VERSION = "0.43.13";
