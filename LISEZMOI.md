@@ -8,6 +8,32 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Un repère unique ne repérait rien (0.43.15)
+
+L'amer était visible dans **4 vues sur 81** — un point qu'on ne rencontre presque
+jamais sur 14 400 × 8 100 px. Il y en a maintenant **un par quartier**, soit
+**5,3 par arène** en moyenne sur les cinq thèmes et les trois modes.
+
+**Trois fois le même dessin ne repère pas mieux qu'un seul**, et c'est pour ça
+que ce lot avait été reporté une première fois. Chaque amer porte une
+**variante** — le compte de sa répétition radiale et son élément central — et les
+trois sont vues à chaque arène (`v = quartier % 3`, 3 à 6 quartiers).
+
+| thème | amers / arène | variantes vues |
+|---|---:|---|
+| les cinq | **5,3** | 0, 1, 2 |
+
+**Deux mesures ont corrigé le premier jet :**
+
+- la boîte d'un quartier est **quatre fois plus petite** que l'arène, donc les
+  quatorze candidats y sont trop serrés : la Friche en cauchemar tombait à
+  **177 px** d'un danger pour une garde de 187. **Vingt-huit** points la
+  dégagent — c'est le nombre de points *réellement distincts* qui compte, la
+  même leçon qu'en 0.40.12 ;
+- deux quartiers voisins ont des boîtes englobantes qui **se recouvrent** (une
+  région est d'un seul tenant mais **pas convexe**), donc deux repères tombaient
+  côte à côte. `verifierAmers` refuse une paire à moins de leur diamètre.
+
 ### Le catalogue était le goulot (0.43.14)
 
 Sept régions d'Usine pour **quatre** quartiers de props. Ajouter des zones sans

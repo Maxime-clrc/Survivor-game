@@ -5,11 +5,11 @@ import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
 import { souffleDe } from "./dangers.js";
 import { couleeDe, floorPattern, fondDe, macroPattern } from "./material.js";
-import { mulberry32 } from "/shared/biomes.js";
+import { bornesDistricts, mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, estCreux, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { biomeKey, celluleH, celluleW, loiAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
+import { biomeKey, celluleH, celluleW, districtsCarte, loiAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
 /* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine deux fois : une passe
    PLEINE VUE entre la couleur d'arene et la matiere du sol — c'est ce qui
@@ -538,6 +538,24 @@ const AMER_POSES = [[0.30, 0.34], [0.70, 0.66], [0.72, 0.28], [0.28, 0.72],
                     [0.50, 0.36], [0.50, 0.64], [0.18, 0.50], [0.82, 0.50],
                     [0.40, 0.20], [0.60, 0.80], [0.36, 0.52], [0.64, 0.48],
                     [0.22, 0.26], [0.78, 0.74]];
+/* UN AMER PAR QUARTIER, ET TROIS VARIANTES PAR LIEU.
+
+   UN REPERE UNIQUE NE REPERE RIEN : mesure de `LISEZMOI`, l amer etait visible
+   dans QUATRE vues sur QUATRE-VINGT-UNE. Sur une arene de 14400 x 8100 c est un
+   point qu on ne rencontre presque jamais, donc il ne sert pas a se situer.
+
+   ET TROIS A SIX FOIS LE MEME DESSIN NE REPERE PAS DAVANTAGE. C est ce qui a
+   fait remettre ce lot a plus tard une premiere fois : poser un amer par
+   quartier avec un seul dessin par theme rend le repere INTERCHANGEABLE, donc
+   inutile a la meme chose. Chaque amer porte donc une VARIANTE — un tiers de son
+   dessin change — et la rotation acheve de les separer.
+
+   TROIS ET PAS DOUZE : au-dela, chaque variante coute un dessin entier pour un
+   objet qu on voit quatre fois par partie. Trois suffisent a ce qu une carte de
+   trois a six quartiers n en repete presque jamais deux identiques au meme
+   angle. */
+const AMER_ECART = AMER_R * 2.2;
+const AMER_VARIANTES = 3;
 let amerCache = null;
 
 /* ON PREND LE MOINS MAUVAIS, PAS LE PREMIER QUI PASSE. En cauchemar l arene
@@ -551,23 +569,43 @@ let amerCache = null;
    echouaient presque ensemble. `verifierAmers()` a signale la Friche — le lieu le
    plus dense — a 139 a 186 px pour une garde de 187, sur onze graines : le defaut
    n etait pas la garde, c etait le nombre de points reellement distincts. */
-function amerDe(seed, cle, hazards) {
-  const c = `${seed}|${cle}|${hazards.length}`;
+/* UN PAR QUARTIER, ET ON PREND LE MOINS MAUVAIS DANS CHACUN. Le tirage est le
+   meme qu avant — des candidats, chacun son ecart, on garde le plus loin de tout
+   danger — applique a la boite englobante de la region au lieu de l arene.
+   ET LES AMERS S ECARTENT ENTRE EUX : deux quartiers voisins peuvent avoir des
+   boites qui se recouvrent (une region est d un seul tenant mais pas convexe),
+   donc sans cette garde deux reperes tombaient cote a cote. */
+function amersDe(seed, cle, hazards, districts, cols, rows) {
+  const c = `${seed}|${cle}|${hazards.length}|${districts?.length ?? 0}`;
   if (amerCache && amerCache.c === c) return amerCache.v;
   const rand = mulberry32((seed >>> 0) * 3571 + 13);
-  const depart = (rand() * AMER_POSES.length) | 0;
-
-  let best = null, bestD = -Infinity;
-  for (let i = 0; i < AMER_POSES.length; i++) {
-    const p = AMER_POSES[(depart + i) % AMER_POSES.length];
-    const x = clampAmer(p[0] * CFG.ARENA_W + (rand() - 0.5) * 300, CFG.ARENA_W);
-    const y = clampAmer(p[1] * CFG.ARENA_H + (rand() - 0.5) * 240, CFG.ARENA_H);
-    let d = Infinity;
-    for (const h of hazards) d = Math.min(d, Math.hypot(x - h.x, y - h.y) - h.r);
-    if (d > bestD) { bestD = d; best = [x, y]; }
+  const cw = CFG.ARENA_W / cols, ch = CFG.ARENA_H / rows;
+  const bornes = bornesDistricts(districts, cols, rows, cw, ch);
+  const out = [];
+  for (let q = 0; q < bornes.length; q++) {
+    const b = bornes[q];
+    const depart = (rand() * AMER_POSES.length) | 0;
+    /* DEUX PASSES SUR LES CANDIDATS, ET C EST LE NOMBRE DE POINTS DISTINCTS QUI
+       COMPTE — la lecon est deja ecrite plus haut. Une seule passe dans une
+       BOITE DE QUARTIER, quatre fois plus petite que l arene, laisse quatorze
+       points trop serres : mesure, la Friche en cauchemar tombait a 177 px d un
+       danger pour une garde de 187. Vingt-huit points la degagent. */
+    let best = null, bestD = -Infinity;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < AMER_POSES.length; i++) {
+        const p = AMER_POSES[(depart + i) % AMER_POSES.length];
+        const x = clampAmer(b.x0 + p[0] * (b.x1 - b.x0) + (rand() - 0.5) * 300, CFG.ARENA_W);
+        const y = clampAmer(b.y0 + p[1] * (b.y1 - b.y0) + (rand() - 0.5) * 240, CFG.ARENA_H);
+        let d = Infinity;
+        for (const h of hazards) d = Math.min(d, Math.hypot(x - h.x, y - h.y) - h.r);
+        for (const a of out) d = Math.min(d, Math.hypot(x - a.x, y - a.y) - AMER_ECART);
+        if (d > bestD) { bestD = d; best = [x, y]; }
+      }
+    }
+    out.push({ x: best[0], y: best[1], a: rand() * Math.PI * 2, v: q % AMER_VARIANTES });
   }
-  amerCache = { c, v: { x: best[0], y: best[1], a: rand() * Math.PI * 2 } };
-  return amerCache.v;
+  amerCache = { c, v: out };
+  return out;
 }
 
 const clampAmer = (v, max) => Math.min(Math.max(v, AMER_R), max - AMER_R);
@@ -584,17 +622,20 @@ const AMERS = {
    se tire comme avant — un point unique par arene, tire par graine et ecarte des
    dangers — et c est seulement son dessin qui suit la region. */
 export function drawAmer() {
-  const place = biomeAt(biomeIndex).key;
-  const r = amerDe(biomeSeed, place, hazardsDuLieu());
   const cle = biomeKey();
   const f = AMERS[cle];
   if (!f) return;
-  if (!inView(r.x, r.y, AMER_R)) return;
-  ctx.save();
-  ctx.translate(r.x, r.y);
-  ctx.rotate(r.a);
-  f(AMER_R, skin());
-  ctx.restore();
+  const place = biomeAt(biomeIndex).key;
+  const cols = Math.max(1, Math.round(CFG.ARENA_W / CFG.VIEW_W));
+  const rows = Math.max(1, Math.round(CFG.ARENA_H / CFG.VIEW_H));
+  for (const r of amersDe(biomeSeed, place, hazardsDuLieu(), districtsCarte(), cols, rows)) {
+    if (!inView(r.x, r.y, AMER_R)) continue;
+    ctx.save();
+    ctx.translate(r.x, r.y);
+    ctx.rotate(r.a);
+    f(AMER_R, skin(), r.v);
+    ctx.restore();
+  }
 }
 
 /* DEUX MARQUAGES AU SOL AU MEME ENDROIT, DONT UN SEUL BLESSE. C est le seul
@@ -619,19 +660,39 @@ export function verifierAmers(seeds = [1, 7, 99]) {
       for (const seed of seeds) {
         const b = buildBiome(bi, di, seed, CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
         amerCache = null;
-        const a = amerDe(seed, cle, b.hazards);
+        const liste = amersDe(seed, cle, b.hazards, b.districts, b.cols, b.rows);
         const ou = `${cle}/${["calme", "normal", "cauchemar"][di]}/${seed}`;
-        if (a.x < AMER_R || a.y < AMER_R
-            || a.x > CFG.ARENA_W - AMER_R || a.y > CFG.ARENA_H - AMER_R) {
-          soucis.push(`${ou} : amer a moins de son rayon du bord`);
-        }
-        for (const h of b.hazards) {
-          const d = Math.hypot(a.x - h.x, a.y - h.y) - h.r;
-          if (d < garde) {
-            soucis.push(`${ou} : amer a ${Math.round(d)} px d'un ${h.kind} `
-              + `(garde ${Math.round(garde)})`);
+        if (liste.length < 3) soucis.push(`${ou} : ${liste.length} amer(s) pour une arene`);
+        for (const a of liste) {
+          if (a.x < AMER_R || a.y < AMER_R
+              || a.x > CFG.ARENA_W - AMER_R || a.y > CFG.ARENA_H - AMER_R) {
+            soucis.push(`${ou} : amer a moins de son rayon du bord`);
             break;
           }
+        }
+        let colle = 0;
+        for (let i = 0; i < liste.length; i++) {
+          for (let j = i + 1; j < liste.length; j++) {
+            const d = Math.hypot(liste[i].x - liste[j].x, liste[i].y - liste[j].y);
+            // DEUX REPERES COTE A COTE N EN FONT QU UN. La garde vaut le diametre
+            // d un amer : en deca leurs anneaux se touchent et on lit une seule
+            // installation en deux morceaux.
+            if (d < AMER_R * 2) colle++;
+          }
+        }
+        if (colle > 0) soucis.push(`${ou} : ${colle} paire(s) d amers a moins de leur diametre`);
+        for (const a of liste) {
+          let pris = false;
+          for (const h of b.hazards) {
+            const d = Math.hypot(a.x - h.x, a.y - h.y) - h.r;
+            if (d < garde) {
+              soucis.push(`${ou} : amer a ${Math.round(d)} px d'un ${h.kind} `
+                + `(garde ${Math.round(garde)})`);
+              pris = true;
+              break;
+            }
+          }
+          if (pris) break;
         }
         /* CE QUE CE VERIFICATEUR NE PEUT PAS VOIR, et il faut le dire ici plutot
            que de faire semblant : `amerDe` rend forcement autre chose sur une
@@ -644,6 +705,19 @@ export function verifierAmers(seeds = [1, 7, 99]) {
            geometrie de la MANCHE. Une mesure ne garde pas cette regle, seule la
            lecture du seul appelant de production le fait. */
       }
+    }
+  }
+  /* CHAQUE VARIANTE SE DESSINE VRAIMENT, ET PAS PAR CHANCE. La boucle ci-dessus
+     verifie la GEOMETRIE ; le dessin, lui, est cull par `inView`, donc une
+     variante peut n etre jamais atteinte par les quatre points de vue de
+     `verifierDessin` — et une faute DANS sa branche ne leve qu a l appel. On les
+     appelle donc toutes, a l origine, sous un save/restore. */
+  for (const [cle, f] of Object.entries(AMERS)) {
+    for (let v = 0; v < AMER_VARIANTES; v++) {
+      ctx.save();
+      try { f(AMER_R, skin(), v); }
+      catch (e) { soucis.push(`${cle}/variante ${v} : l amer leve — ${e.message}`); }
+      ctx.restore();
     }
   }
   amerCache = null;
@@ -664,7 +738,11 @@ function anneau(r, w, col, a) {
    pas la tour : c est son SOCLE, un anneau de beton de trente metres avec le
    bassin au milieu et le pan qui a cede. La brousse a repris le bassin, parce
    que c est la que l eau s est arretee. */
-function tourEffondree(R, S) {
+/* TROIS VARIANTES PAR AMER, ET DEUX CHANGEMENTS CHACUNE : le COMPTE de sa
+   repetition radiale, et son ELEMENT CENTRAL. C est le minimum pour qu un repere
+   pose trois a six fois par arene ne soit pas interchangeable — et le maximum
+   qu on paie pour un objet visible quatre fois par partie. */
+function tourEffondree(R, S, v = 0) {
   const br = R * 0.34;
   ctx.fillStyle = alpha("#000000", 0.26);
   ctx.beginPath(); ctx.arc(0, 0, R * 0.80, 0, Math.PI * 2); ctx.fill();
@@ -678,8 +756,9 @@ function tourEffondree(R, S) {
   ctx.strokeStyle = alpha("#6e6a5e", 0.34);
   ctx.lineWidth = 11;
   ctx.beginPath();
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2;
+  const nc = [14, 9, 20][v];
+  for (let i = 0; i < nc; i++) {
+    const a = (i / nc) * Math.PI * 2;
     ctx.moveTo(Math.cos(a) * R * 0.60, Math.sin(a) * R * 0.60);
     ctx.lineTo(Math.cos(a) * R * 0.94, Math.sin(a) * R * 0.94);
   }
@@ -704,9 +783,11 @@ function tourEffondree(R, S) {
   }
   ctx.restore();
 
-  // LE BASSIN, repris par ce qui pousse : l eau s est arretee la.
-  ctx.fillStyle = alpha("#0d1013", 0.34);
+  // LE BASSIN, repris par ce qui pousse : l eau s est arretee la. La variante 1
+  // n en a pas — son cœur s est effondre au lieu de se remplir.
+  ctx.fillStyle = alpha("#0d1013", v === 1 ? 0.52 : 0.34);
   ctx.beginPath(); ctx.arc(0, 0, br, 0, Math.PI * 2); ctx.fill();
+  if (v === 1) return;
   ctx.strokeStyle = alpha(PROP.vert, 0.22);
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -723,7 +804,7 @@ function tourEffondree(R, S) {
    tournant qui distribue vers les chaines. Il est PEINT et BOULONNE, pas
    construit : une empreinte de production, avec ses allees qui partent en
    rayons et ses trappes de service. */
-function coeurDeLigne(R, S) {
+function coeurDeLigne(R, S, v = 0) {
   const p = R * 0.62;
   ctx.fillStyle = alpha("#000000", 0.22);
   ctx.fillRect(-p, -p, p * 2, p * 2);
@@ -733,8 +814,9 @@ function coeurDeLigne(R, S) {
   ctx.strokeStyle = alpha(PROP.peint, 0.26);
   ctx.lineWidth = 3;
   ctx.beginPath();
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+  const na = [4, 6, 3][v];
+  for (let i = 0; i < na; i++) {
+    const a = (i / na) * Math.PI * 2 + Math.PI / 4;
     for (const d of [-13, 13]) {
       const nx = -Math.sin(a) * d, ny = Math.cos(a) * d;
       ctx.moveTo(Math.cos(a) * R * 0.34 + nx, Math.sin(a) * R * 0.34 + ny);
@@ -761,7 +843,9 @@ function coeurDeLigne(R, S) {
   ctx.stroke();
 
   // LES ANCRAGES : la grille de boulons d une machine qu on a demontee. C est ce
-  // qui dit qu il y avait quelque chose, et qu il n y est plus.
+  // qui dit qu il y avait quelque chose, et qu il n y est plus. La variante 2 n a
+  // jamais rien porte : son plateau est nu.
+  if (v === 2) return;
   ctx.fillStyle = alpha("#000000", 0.34);
   for (let i = -3; i <= 3; i++) {
     for (let j = -3; j <= 3; j++) {
@@ -776,11 +860,12 @@ function coeurDeLigne(R, S) {
    socle : un puits de brique refractaire, ses ceintures, et le CANAL DE COULEE
    qui en sort par un cote. Il ne rougeoie pas — la lumiere du lieu appartient
    aux gueules et aux regards, qui sont, eux, des sources declarees. */
-function creuset(R, S) {
+function creuset(R, S, v = 0) {
   ctx.fillStyle = alpha("#000000", 0.36);
   ctx.beginPath(); ctx.arc(0, 0, R * 0.86, 0, Math.PI * 2); ctx.fill();
 
-  for (let i = 0; i < 4; i++) {
+  const nr = [4, 6, 3][v];
+  for (let i = 0; i < nr; i++) {
     const r = R * (0.86 - i * 0.13);
     anneau(r, 9, i & 1 ? PROP.brique : PROP.metalDark, 0.30 - i * 0.04);
   }
@@ -807,8 +892,10 @@ function creuset(R, S) {
   ctx.lineWidth = 6;
   ctx.beginPath(); ctx.arc(0, 0, R * 0.32, 0, Math.PI * 2); ctx.stroke();
 
-  // LE TROU DE COULEE. Une rigole franche, orthogonale, qui sort du puits et
-  // continue hors du repere : c est ce qui le raccorde au reste du lieu.
+  /* LE TROU DE COULEE. Une rigole franche, orthogonale, qui sort du puits et
+     continue hors du repere : c est ce qui le raccorde au reste du lieu. La
+     variante 1 est BOUCHEE — un creuset hors service n en a plus. */
+  if (v === 1) return;
   ctx.fillStyle = alpha("#000000", 0.44);
   ctx.fillRect(R * 0.20, -17, R * 0.98, 34);
   ctx.fillStyle = alpha(PROP.scorie, 0.34);
@@ -825,7 +912,7 @@ function creuset(R, S) {
    pont, avec ses griffes de verrouillage et ses secteurs de guidage. Il dit
    qu on est sur une station A QUAI, et c est la seule chose de ce lieu qui parle
    d autre chose que de rupture. */
-function sasAmarrage(R, S) {
+function sasAmarrage(R, S, v = 0) {
   ctx.fillStyle = alpha("#000000", 0.30);
   ctx.beginPath(); ctx.arc(0, 0, R * 0.76, 0, Math.PI * 2); ctx.fill();
 
@@ -865,9 +952,12 @@ function sasAmarrage(R, S) {
   ctx.strokeStyle = alpha(PROP.givre, 0.20);
   ctx.lineWidth = 2;
   ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    const b = ((i + 1) / 6) * Math.PI * 2;
+  // le nombre de pans du sas : six, huit, ou quatre. Un sas carre n est pas le
+  // meme materiel qu un sas hexagonal, et ca se voit de loin.
+  const np = [6, 8, 4][v];
+  for (let i = 0; i < np; i++) {
+    const a = (i / np) * Math.PI * 2;
+    const b = ((i + 1) / np) * Math.PI * 2;
     ctx.moveTo(Math.cos(a) * R * 0.29, Math.sin(a) * R * 0.29);
     ctx.lineTo(Math.cos(b) * R * 0.29, Math.sin(b) * R * 0.29);
   }
@@ -1533,7 +1623,7 @@ function grilleCaniveau(a) {
 
    Plaque au sol et sans collider, comme les quatre autres : un grand objet qui
    aurait du volume ferait voir une masse la ou le pathfinding voit du vide. */
-function carrefour(R, S) {
+function carrefour(R, S, v = 0) {
   // le disque d asphalte plus sombre : le centre est use, pas construit.
   ctx.fillStyle = alpha("#000000", 0.26);
   ctx.beginPath(); ctx.arc(0, 0, R * 0.78, 0, Math.PI * 2); ctx.fill();
@@ -1555,15 +1645,23 @@ function carrefour(R, S) {
   anneau(R * 0.30, 4, "#c8cede", 0.10);
   anneau(R * 0.79, 2, S.blocEdge, 0.12);
 
-  // LE MAT CENTRAL, couche : ce qui reglait le carrefour est tombe dedans.
+  /* LE MAT CENTRAL, couche : ce qui reglait le carrefour est tombe dedans. La
+     variante 2 tient encore le sien DEBOUT — un point lumineux au centre au lieu
+     d une barre en travers, et le carrefour cesse d etre un accident. */
   ctx.strokeStyle = alpha(PROP.metalDark, 0.50);
   ctx.lineWidth = 9;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(-R * 0.10, -R * 0.06);
-  ctx.lineTo(R * 0.52, R * 0.30);
+  if (v === 2) {
+    ctx.moveTo(-6, -6); ctx.lineTo(6, 6);
+  } else {
+    const l = v === 1 ? 0.34 : 0.52;
+    ctx.moveTo(-R * 0.10, -R * 0.06);
+    ctx.lineTo(R * l, R * l * 0.58);
+  }
   ctx.stroke();
   ctx.lineCap = "butt";
-  ctx.fillStyle = alpha(S.emis, 0.16);
-  ctx.beginPath(); ctx.arc(R * 0.52, R * 0.30, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(S.emis, v === 2 ? 0.30 : 0.16);
+  const mx = v === 2 ? 0 : R * (v === 1 ? 0.34 : 0.52);
+  ctx.beginPath(); ctx.arc(mx, v === 2 ? 0 : mx * 0.58, 7, 0, Math.PI * 2); ctx.fill();
 }

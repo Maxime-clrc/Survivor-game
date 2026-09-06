@@ -10068,6 +10068,29 @@
                   et deux quartiers par region, deux regions qui partagent un
                   quartier partagent la moitie de leur inventaire.
 
+    0.43.15 lot 16 UN REPERE UNIQUE NE REPERAIT RIEN. L amer etait visible dans
+                  QUATRE VUES SUR QUATRE-VINGT-UNE : sur 14400 x 8100 c est un
+                  point qu on ne rencontre presque jamais, donc il ne servait pas
+                  a se situer. Il y en a maintenant UN PAR QUARTIER — 5,3 par
+                  arene en moyenne.
+                  ET TROIS FOIS LE MEME DESSIN NE REPERE PAS DAVANTAGE : c est ce
+                  qui avait fait reporter ce lot une premiere fois. Chaque amer
+                  porte une VARIANTE — le compte de sa repetition radiale et son
+                  element central — et la rotation acheve de les separer. Trois et
+                  pas douze : au-dela, chacune coute un dessin entier pour un
+                  objet vu quatre fois par partie.
+                  DEUX MESURES ONT CORRIGE LE PREMIER JET. La boite d un quartier
+                  est quatre fois plus petite que l arene, donc quatorze candidats
+                  y sont trop serres — la Friche en cauchemar tombait a 177 px
+                  d un danger pour une garde de 187, et vingt-huit points la
+                  degagent. Et deux quartiers voisins ont des boites qui SE
+                  RECOUVRENT (une region est d un seul tenant mais pas convexe),
+                  donc deux reperes tombaient cote a cote : `verifierAmers` refuse
+                  une paire a moins de leur diametre.
+                  Chaque variante se dessine vraiment : le dessin est cull par
+                  `inView`, donc une branche peut n etre jamais atteinte par les
+                  quatre points de vue de `verifierDessin`.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10076,4 +10099,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.14";
+export const VERSION = "0.43.15";

@@ -210,6 +210,10 @@ export function hazardsDuLieu() { return biome.hazards; }
    de 600 px —, donc le bati et ce qui traine autour tiraient deux decoupages
    independants a deux echelles differentes. Il ne circule pas sur le reseau :
    `buildBiome` est deterministe, les deux cotes le rejouent sur la graine. */
+// LE DECOUPAGE DE LA MANCHE, celui qui a decide la loi de chaque region. Lu
+// par l amer, qui en pose un PAR QUARTIER.
+export function districtsCarte() { return biome.districts; }
+
 export function quartierMonde(x, y) {
   const d = biome.districts;
   if (!d) return 0;

@@ -830,6 +830,33 @@ exécutable. Il ne circule pas sur le réseau et le serveur ne le lit jamais.
 
 ### L'amer
 
+- **UN REPÈRE UNIQUE NE REPÈRE RIEN, ET TROIS FOIS LE MÊME NON PLUS.** Mesuré :
+  l'amer était visible dans **4 vues sur 81**. Sur 14 400 × 8 100 px c'est un
+  point qu'on ne rencontre presque jamais, donc il ne sert pas à se situer. Il y
+  en a maintenant **un par quartier — 5,3 par arène en moyenne**.
+  Mais poser le même dessin trois à six fois le rend **interchangeable**, donc
+  inutile à la même chose. Chaque amer porte une **variante** : le compte de sa
+  répétition radiale et son élément central changent, et la rotation achève de
+  les séparer. **Trois variantes et pas douze** — au-delà, chacune coûte un
+  dessin entier pour un objet vu quatre fois par partie.
+- **Deux passes de candidats, parce que la boîte est quatre fois plus petite.**
+  Le tirage est le même qu'avant — des candidats, chacun son écart, on garde le
+  plus loin de tout danger — mais appliqué à une **boîte de quartier**. Quatorze
+  points y sont trop serrés : mesuré, la Friche en cauchemar tombait à **177 px**
+  d'un danger pour une garde de 187. Vingt-huit points la dégagent. C'est la même
+  leçon qu'en 0.40 : ce qui compte est le nombre de points **réellement
+  distincts**.
+- **Les amers s'écartent entre eux.** Deux quartiers voisins peuvent avoir des
+  boîtes englobantes qui se recouvrent — une région est d'un seul tenant mais
+  **pas convexe** — donc sans garde deux repères tombaient côte à côte, et deux
+  repères qui se touchent n'en font qu'un. `verifierAmers` refuse une paire à
+  moins de leur diamètre.
+- **Et chaque variante se dessine vraiment.** Le dessin est cullé par `inView`,
+  donc une variante peut n'être jamais atteinte par les quatre points de vue de
+  `verifierDessin`, et une faute *dans* sa branche ne lève qu'à l'appel.
+  `verifierAmers` les appelle toutes, à l'origine, sous `save`/`restore`.
+
+
 Un par arène, `drawAmer()` (`decor.js`), tiré par graine et **ancré au monde**.
 Le semis est homogène du premier au dernier pixel : rien ne dit où l'on est,
 donc 4 800 × 2 700 se traversent sans jamais se situer. Ce qui manque n'est pas
