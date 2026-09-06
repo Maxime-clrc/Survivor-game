@@ -7,7 +7,7 @@ import { souffleDe } from "./dangers.js";
 import { couleeDe, floorPattern, fondDe, macroPattern } from "./material.js";
 import { mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
-import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
+import { contourDe, dessinerLed, estCreux, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
 import { biomeKey, celluleH, celluleW, loiAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
@@ -1236,39 +1236,50 @@ export function drawObstacles(cover) {
     const d = Math.hypot(dx, dy) || 1;
     const rx = (dx / d) * OBST_RELIEF, ry = (dy / d) * OBST_RELIEF;
 
-    ctx.save();
-    ctx.translate(o.x + dir[0] * OBST_OMBRE, o.y + dir[1] * OBST_OMBRE);
-    silhouetteBloc(ctx, o, biome);
-    ctx.fillStyle = alpha("#000000", 0.34);
-    ctx.fill();
-    ctx.restore();
+    /* UN TROU NE PROJETTE PAS D OMBRE ET NE MONTE PAS VERS LA CAMERA. Les deux
+       passes qui suivent sont exactement ce qui fait lire un VOLUME : une ombre
+       portee decalee dans `lumDir` et un corps decale vers l exterieur de la
+       vue. Appliquees a une fosse, elles la feraient lire comme une masse
+       sombre — le contraire de ce qu elle est. Elle les saute, et son habillage
+       porte seul sa profondeur. */
+    const creux = estCreux(biome, o.kind);
+    if (!creux) {
+      ctx.save();
+      ctx.translate(o.x + dir[0] * OBST_OMBRE, o.y + dir[1] * OBST_OMBRE);
+      silhouetteBloc(ctx, o, biome);
+      ctx.fillStyle = alpha("#000000", 0.34);
+      ctx.fill();
+      ctx.restore();
 
-    ctx.save();
-    ctx.translate(o.x + rx, o.y + ry);
-    silhouetteBloc(ctx, o, biome);
-    ctx.fillStyle = o.maxHp > 0 ? BIOME.cover : S.bloc;
-    ctx.fill();
-    ctx.restore();
+      ctx.save();
+      ctx.translate(o.x + rx, o.y + ry);
+      silhouetteBloc(ctx, o, biome);
+      ctx.fillStyle = o.maxHp > 0 ? BIOME.cover : S.bloc;
+      ctx.fill();
+      ctx.restore();
+    }
 
     ctx.save();
     ctx.translate(o.x, o.y);
     silhouetteBloc(ctx, o, biome);
-    ctx.fillStyle = alpha(o.maxHp > 0 ? BIOME.cover : S.bloc, 0.55);
-    ctx.fill();
+    ctx.fillStyle = alpha(o.maxHp > 0 ? BIOME.cover : S.bloc, creux ? 0.0 : 0.55);
+    if (!creux) ctx.fill();
     ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge,
                             o.maxHp > 0 ? 0.45 : C.plat);
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.restore();
 
-    ctx.save();
-    ctx.translate(o.x + rx, o.y + ry);
-    silhouetteBloc(ctx, o, biome);
-    ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge,
-                            o.maxHp > 0 ? 0.7 : C.relief);
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
+    if (!creux) {
+      ctx.save();
+      ctx.translate(o.x + rx, o.y + ry);
+      silhouetteBloc(ctx, o, biome);
+      ctx.strokeStyle = alpha(o.maxHp > 0 ? BIOME.coverEdge : S.blocEdge,
+                              o.maxHp > 0 ? 0.7 : C.relief);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (gfx > GFX_LOW) {
       habillerBloc(o, rx, ry, biome, S);

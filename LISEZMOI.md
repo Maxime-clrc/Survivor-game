@@ -8,6 +8,29 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le puits a enfin un trou (0.43.12)
+
+Le dépôt ne savait dessiner que du **plein**, et trois de ses régions portaient
+un nom de vide : le cratère (corrigé en 0.43.8 en devenant une casse), la brèche,
+et le puits — qui posait **deux fours collés**.
+
+`creux` sur la fiche fait sauter à `drawObstacles` les **deux passes qui font
+lire un volume** : l'ombre portée et le corps décalé vers la caméra. Restent le
+contour et l'habillage, qui porte seul la profondeur.
+
+**Ce que ce lot ne fait pas, et pourquoi** : la fosse **bloque les tirs**. La
+rendre traversable demanderait que la simulation lise `kind` — or `kind` ne
+circule pas sur le réseau et le serveur ne le lit jamais. L'invariant passe
+devant l'effet.
+
+**Deux fois le même piège, attrapé deux fois par le même vérificateur** :
+`fosse()` employait `lumDir` sans l'importer dans `blocs.js`. Un identifiant
+utilisé *dans* une fonction et jamais importé **ne lève qu'à l'appel** —
+`node --check` passe, les 31 modules chargent, et seul `verifierDessin` le voit.
+C'est mot pour mot le défaut de `drawGrid` en 0.41.1.
+
+**14 régions sur 24** possèdent maintenant une famille exclusive.
+
 ### Une trace a une source, et elle existait déjà (0.43.11)
 
 `sonder()` balayait les obstacles, gardait le plus proche, en tirait un quartier

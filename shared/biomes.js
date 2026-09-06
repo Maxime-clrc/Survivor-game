@@ -144,7 +144,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_MOULE = 23, B_MALAXEUR = 24, B_BASSIN = 25,
              B_EPAVES = 26, B_GRILLAGE = 27, B_POTEAU = 28, B_BANCHE = 29,
              B_BRAS = 30, B_COQUE = 31, B_CLOISON = 32, B_CONSOLE = 33,
-             B_AVEUGLE = 34, B_ESCALIER = 35, B_MONOLITHE = 36, B_ETAL = 37;
+             B_AVEUGLE = 34, B_ESCALIER = 35, B_MONOLITHE = 36, B_ETAL = 37,
+             B_FOSSE = 38;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -189,6 +190,7 @@ export const BLOCS = [
   { key: "escalier", lieu: "secteur" },
   { key: "monolithe", lieu: "secteur" },
   { key: "etal", lieu: "secteur" },
+  { key: "fosse", lieu: "fonderie" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -560,7 +562,19 @@ const OBSTACLES = {
       { x: 0.35, y: 0.69, w: 0.120, h: 0.190, kind: B_FOUR, min: 1 },
       { x: 0.26, y: 0.24, w: 0.070, h: 0.070, kind: B_CUVE },
       { x: 0.74, y: 0.76, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
-      { x: 0.74, y: 0.24, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
+      /* LE PUITS A ENFIN UN TROU. Le nom promettait un creux et la region posait
+         deux fours colles : le depot ne savait dessiner que du PLEIN, et trois
+         de ses regions portaient un nom de vide — le cratere, la breche, celle-ci.
+         LA FOSSE BLOQUE COMME LE RESTE, et c est une decision : la laisser
+         traverser par les tirs demanderait que la simulation lise `kind`, or
+         `kind` ne circule pas et le serveur ne le lit JAMAIS. On garde
+         l invariant, la fosse est un obstacle — ce qui change est qu elle se
+         dessine EN CREUX au lieu d en relief. */
+      /* 0,200 DE HAUT ET PAS 0,220 : a 0,220 la fosse laissait 63 px jusqu au
+         bord de cellule, sous le passage minimal — un corps s y tient et la
+         grille y voit un mur. A 0,200 il reste 90 px des deux cotes. */
+      { x: 0.80, y: 0.20, w: 0.160, h: 0.200, kind: B_FOSSE },
+      { x: 0.14, y: 0.80, w: 0.160, h: 0.200, kind: B_FOSSE, min: 1 },
       { x: 0.70, y: 0.50, w: 0.120, h: 0.190, kind: B_FOUR, min: 2 },
       { x: 0.50, y: 0.14, w: 0.260, h: 0.048, kind: B_CONDUITE },
     ] },

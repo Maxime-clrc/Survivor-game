@@ -10011,6 +10011,25 @@
                   Une regle qui garde un cas impossible fait croire qu on a
                   verifie.
 
+    0.43.12 lot 13 LE PUITS A ENFIN UN TROU. Le depot ne savait dessiner que du
+                  PLEIN, et trois de ses regions portaient un nom de vide : le
+                  cratere (corrige en 0.43.8), la breche, et le puits — qui posait
+                  deux fours colles.
+                  `creux` sur la fiche fait sauter a `drawObstacles` les DEUX
+                  passes qui font lire un volume : l ombre portee et le corps
+                  decale vers la camera. Restent le contour et l habillage, qui
+                  porte seul la profondeur — parois eclairees du cote oppose a la
+                  lumiere, fond qui s assombrit vers le centre.
+                  LA FOSSE BLOQUE LES TIRS, ET C EST UNE DECISION : la rendre
+                  traversable demanderait que la simulation lise `kind`, or `kind`
+                  ne circule pas et le serveur ne le lit JAMAIS. L invariant passe
+                  devant l effet.
+                  `fosse()` employait `lumDir` sans l importer dans `blocs.js` —
+                  un identifiant utilise DANS une fonction ne leve qu a l APPEL,
+                  donc `node --check` passe et les 31 modules chargent. Seul
+                  `verifierDessin` l a vu, mot pour mot le defaut de `drawGrid`
+                  en 0.41.1. Quatorze regions sur vingt-quatre ont une signature.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10019,4 +10038,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.11";
+export const VERSION = "0.43.12";

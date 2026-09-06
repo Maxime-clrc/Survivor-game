@@ -7,10 +7,10 @@ import {
   B_BASSIN, B_MALAXEUR, B_MOULE,
   B_BANCHE, B_EPAVES, B_GRILLAGE, B_POTEAU,
   B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE,
-  B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, gabaritsDe,
+  B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_FOSSE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
-import { biomeKey, ctx, skin } from "./stage.js";
+import { biomeKey, ctx, lumDir, skin } from "./stage.js";
 
 /* LA MASSE BATIE, ET C'EST ELLE QUI DECIDE DE QUEL LIEU ON PARLE. Le semis de
    props et la tuile de sol distinguaient deja les quatre biomes ; les obstacles,
@@ -71,7 +71,7 @@ const SILHOUETTE = {
   eclat: formeFragment, travee: formeTravee, debris: formeDebris,
   devanture: formeDevanture, mat: formePylone, conteneur: formeConteneur,
   palettier: formePalettier, pile: formePile, quai: formeQuai,
-  ouverte: formeOuverte, cadre: formeCadre,
+  ouverte: formeOuverte, cadre: formeCadre, nappe: formeNappe,
 };
 
 const HABILLAGE = {
@@ -83,7 +83,7 @@ const HABILLAGE = {
   moule, malaxeur, bassin,
   epaves, poteau, banche,
   bras, coque, cloison, console: console_,
-  aveugle, escalier, monolithe, etal,
+  aveugle, escalier, monolithe, etal, fosse,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -118,6 +118,10 @@ const BLOC = {
     [B_MOULE]: { sil: "cadre", hab: "moule" },
     [B_MALAXEUR]: { sil: "fut", hab: "malaxeur" },
     [B_BASSIN]: { sil: "caisson", hab: "bassin" },
+    /* LE SEUL BLOC DU DEPOT QUI SE DESSINE EN CREUX. `creux` est lu par
+       `drawObstacles` : pas d ombre portee — un trou n en projette pas — et
+       pas de relief vers la camera, qui le ferait lire comme une masse. */
+    [B_FOSSE]: { sil: "nappe", hab: "fosse", creux: true },
   },
   friche: {
     [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
@@ -155,6 +159,9 @@ const BLOC = {
 };
 
 const formeDe = (f) => SILHOUETTE[f.sil] ?? SILHOUETTE.caisson;
+// UN BLOC EST-IL UN CREUX ? Lu par `drawObstacles`, qui inverse alors son
+// relief et retire son ombre portee.
+export function estCreux(cle, kind) { return !!fiche(cle, kind).creux; }
 const habitDe = (f) => HABILLAGE[f.hab] ?? HABILLAGE.cellule;
 
 // le repli d un lieu est cuit ICI et non cherche a l appel : `drawObstacles`
@@ -402,6 +409,16 @@ function formeCadre(g, o) {
   const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
   g.beginPath();
   g.rect(x, y, w, h);
+  g.closePath();
+}
+
+
+/* LA NAPPE — LA SEULE SILHOUETTE QUI DECRIVE UNE ABSENCE. Un rectangle franc :
+   un trou a un BORD NET, c est meme la seule chose qui le rende lisible. Elle
+   remplit son empreinte — ce qui manque est le sol, pas le dessin. */
+function formeNappe(g, o) {
+  g.beginPath();
+  g.rect(-o.w / 2, -o.h / 2, o.w, o.h);
   g.closePath();
 }
 
@@ -2801,6 +2818,47 @@ function etal(o, S) {
   ctx.fillStyle = alpha(PROP.led, 0.34);
   ctx.fillRect(-w / 2 + w * 0.24, -h / 2 + 1, 2, 2);
   ctx.fillRect(-w / 2 + w * 0.68, -h / 2 + 1, 2, 2);
+}
+
+
+/* LA FOSSE — ON REGARDE DEDANS. Une paroi eclairee du cote oppose a la lumiere,
+   un fond qui s assombrit vers le centre, et au fond du metal encore tiede. Rien
+   n en sort : c est le seul objet du depot dont le contenu soit PLUS BAS que le
+   sol, et tout son dessin sert a le dire. */
+function fosse(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const p = Math.min(14, w * 0.16, h * 0.16);
+  // LE FOND, plus sombre au centre : c est la profondeur.
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(w, h) * 0.5);
+  g.addColorStop(0, alpha("#000000", 0.92));
+  g.addColorStop(0.6, alpha("#000000", 0.80));
+  g.addColorStop(1, alpha("#000000", 0.58));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LES PAROIS : deux bandes claires du cote de la lumiere, deux sombres en
+  // face. C est l inverse exact du relief d un bloc, et c est ce qui fait lire
+  // « creux » sans un mot.
+  const d = lumDir();
+  ctx.fillStyle = alpha(S.blocEdge, 0.16);
+  if (d[0] > 0) ctx.fillRect(-w / 2, -h / 2, p, h); else ctx.fillRect(w / 2 - p, -h / 2, p, h);
+  if (d[1] > 0) ctx.fillRect(-w / 2, -h / 2, w, p); else ctx.fillRect(-w / 2, h / 2 - p, w, p);
+  ctx.fillStyle = alpha("#000000", 0.30);
+  if (d[0] > 0) ctx.fillRect(w / 2 - p, -h / 2, p, h); else ctx.fillRect(-w / 2, -h / 2, p, h);
+  // LE METAL AU FOND, tiede : quelques nappes orangees, jamais jusqu au bord.
+  for (let i = 0; i < 3; i++) {
+    const rx = w * (0.10 + ((s >> (i * 2)) & 3) * 0.05);
+    const px = ((((s >> i) & 7) / 7) - 0.5) * w * 0.44;
+    const py = ((((s >> (i + 3)) & 7) / 7) - 0.5) * h * 0.44;
+    const gr = ctx.createRadialGradient(px, py, 0, px, py, rx);
+    gr.addColorStop(0, alpha(S.emis, 0.20));
+    gr.addColorStop(1, alpha(S.emis, 0));
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(px, py, rx, 0, Math.PI * 2); ctx.fill();
+  }
+  // LA MARGELLE, un lisere franc tout autour : un trou se lit a son BORD.
+  ctx.strokeStyle = alpha(S.blocEdge, 0.34);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
 }
 
 function conteneur(o, S) {

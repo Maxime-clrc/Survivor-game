@@ -719,6 +719,19 @@ nomme une silhouette absente replie sur `caisson` **en silence** (le défaut que
 `fiche()` a déjà payé), et une silhouette écrite que plus aucune famille ne tire
 est un dessin mort qu'on entretient.
 
+**UN BLOC PEUT ÊTRE UN CREUX, ET LE DÉPÔT NE SAVAIT DESSINER QUE DU PLEIN.**
+Trois régions portaient un nom de vide — le cratère, la brèche, le puits — et
+aucune n'avait de trou. `creux` sur la fiche est lu par `drawObstacles`, qui
+saute alors **les deux passes qui font lire un volume** : l'ombre portée décalée
+dans `lumDir` (un trou n'en projette pas) et le corps décalé vers l'extérieur de
+la vue (qui le ferait monter vers la caméra). Il ne reste que le contour et
+l'habillage, qui porte seul la profondeur — parois éclairées du côté opposé à la
+lumière, fond qui s'assombrit vers le centre.
+**La fosse BLOQUE comme le reste, et c'est une décision.** La laisser traverser
+par les tirs demanderait que la simulation lise `kind`, or `kind` ne circule pas
+sur le réseau et **le serveur ne le lit jamais**. On garde l'invariant ; ce qui
+change est le dessin, pas la collision.
+
 **Le lieu ne donne plus la forme, il donne le rayon du catalogue.** Même patron
 que `DANGER[biome][kind]` :
 **ajouter un objet à un lieu = une entrée**. Le `kind` vient de `BLOCS`
