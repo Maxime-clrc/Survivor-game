@@ -62,6 +62,19 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   variable dans un `<span>` frère.
 - **Le nom d'une langue s'écrit dans cette langue** (« Français », « English ») :
   les boutons du sélecteur ne portent aucune clé.
+- **UNE CLÉ EST UN IDENTIFIANT, JAMAIS UN RANG.** `loiNom` composait
+  `biome.<lieu>.loi<i>` : réordonner `OBSTACLES` — ou en insérer une région au
+  milieu — **réécrivait tous les noms affichés, dans les deux langues**, sans
+  qu'une seule ligne de traduction ne bouge et sans qu'aucun vérificateur ne le
+  voie. Un thème qui passe de quatre régions à douze le fera forcément. Chaque
+  région porte donc une `cle` (`biome.usine.atelier`), sans accent ni majuscule,
+  unique dans son thème.
+- **UNE TRADUCTION MANQUANTE NE SE SIGNALE JAMAIS.** `t()` replie sur le
+  français : c'est le bon comportement en jeu, et c'est exactement ce qui rend un
+  oubli invisible. Un vérificateur qui veut croiser une table avec le
+  dictionnaire doit donc le **lire** — `clefsDe(code)` (`i18n.js`) est ce point
+  d'entrée, et il existe pour ça. `verifierVariantes` s'en sert pour refuser une
+  région sans nom anglais ; toute table de texte qui grandit devrait faire pareil.
 - **Trois entrées, un seul état** (`survivor.lang`) : bascule en haut à droite de
   la barre, choix explicite dans les paramètres, et **rangée sur `#gate`**
   (`#gateLangRow` — la barre y est masquée, sans quoi on ne pourrait changer de

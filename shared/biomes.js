@@ -1,5 +1,5 @@
 
-import { t } from "./i18n.js";
+import { clefsDe, t } from "./i18n.js";
 
 export const BIOME_CFG = {
   HAZARD_SURFACE_MAX: 0.08,
@@ -317,7 +317,7 @@ export const loisAccordees = (a, b) =>
    des relevees qui n ont rien demande. */
 const OBSTACLES = {
   usine: [
-    { nom: "la chaine", label: "La chaîne", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+    { cle: "chaine", nom: "la chaine", label: "La chaîne", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.28, y: 0.16, w: 0.230, h: 0.036, kind: B_CHAINE },
       { x: 0.72, y: 0.84, w: 0.230, h: 0.036, kind: B_CHAINE },
       { x: 0.10, y: 0.16, w: 0.048, h: 0.090, kind: B_POSTE },
@@ -331,7 +331,7 @@ const OBSTACLES = {
     /* LE CARREFOUR — deux allees larges qui se croisent, quatre ilots. La loi
        est l AXE : tout est pousse hors des deux bandes centrales, et ce qui
        reste se contourne au lieu de se longer. */
-    { nom: "le carrefour", label: "Le carrefour", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+    { cle: "carrefour", nom: "le carrefour", label: "Le carrefour", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
       { x: 0.22, y: 0.22, w: 0.052, h: 0.130, kind: B_MACHINE },
       { x: 0.78, y: 0.78, w: 0.052, h: 0.130, kind: B_MACHINE },
       { x: 0.78, y: 0.22, w: 0.052, h: 0.130, kind: B_MACHINE, min: 1 },
@@ -350,7 +350,7 @@ const OBSTACLES = {
     /* L ATELIER — semis dense de petits postes. Beaucoup d angles, rien qui
        bloque : c est la variante ou l on tire court et ou l on ne voit jamais
        loin, sans qu une seule masse coupe un passage. */
-    { nom: "l atelier", label: "L'atelier", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+    { cle: "atelier", nom: "l atelier", label: "L'atelier", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       { x: 0.18, y: 0.26, w: 0.048, h: 0.090, kind: B_POSTE },
       { x: 0.38, y: 0.20, w: 0.048, h: 0.090, kind: B_POSTE },
       { x: 0.62, y: 0.30, w: 0.070, h: 0.048, kind: B_POSTE },
@@ -366,7 +366,7 @@ const OBSTACLES = {
     /* LE DEGAGEMENT — la respiration du theme. Presque vide, deux masses
        isolees contre les bords : on y traverse en ligne droite, et c est
        precisement ce qu aucune autre variante ne permet. */
-    { nom: "le degagement", label: "Le dégagement", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+    { cle: "degagement", nom: "le degagement", label: "Le dégagement", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.12, y: 0.30, w: 0.052, h: 0.130, kind: B_MACHINE },
       { x: 0.88, y: 0.70, w: 0.052, h: 0.130, kind: B_MACHINE },
       { x: 0.50, y: 0.12, w: 0.230, h: 0.036, kind: B_CHAINE },
@@ -387,7 +387,7 @@ const OBSTACLES = {
      0,12 satisfait les deux contraintes de `NAV_CFG.PASSAGE_MIN` : 173 px entre
      deux conduites, 86 px contre le bord. */
   fonderie: [
-    { nom: "la coulee", label: "La coulée", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+    { cle: "coulee", nom: "la coulee", label: "La coulée", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.30, y: 0.30, w: 0.120, h: 0.190, kind: B_FOUR },
       { x: 0.70, y: 0.70, w: 0.120, h: 0.190, kind: B_FOUR },
       { x: 0.50, y: 0.12, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 1 },
@@ -398,7 +398,7 @@ const OBSTACLES = {
     ] },
     /* LES CUVES — six masses moyennes, aucun axe. La coulee donne une direction
        a suivre ; celle-ci n en donne aucune, et c est tout ce qui les separe. */
-    { nom: "les cuves", label: "Les cuves", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+    { cle: "cuves", nom: "les cuves", label: "Les cuves", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       /* UN SEUL FOUR, ET CINQ CUVES. Deux fours en faisaient une coulee sans
          son axe : c est la MASSE qui separe les deux lois, pas le rangement. */
       { x: 0.30, y: 0.22, w: 0.120, h: 0.190, kind: B_FOUR },
@@ -413,7 +413,7 @@ const OBSTACLES = {
        L ABRI PARFAIT, et elle ne revient qu avec sa contrainte explicite :
        l ecart entre deux rangs vaut le DOUBLE de `NAV_CFG.PASSAGE_MIN`, jamais
        moins. 0,22 d ecart en y font 198 px pour un minimum de 80. */
-    { nom: "le refroidissement", label: "Le refroidissement", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+    { cle: "refroidissement", nom: "le refroidissement", label: "Le refroidissement", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
       { x: 0.28, y: 0.32, w: 0.120, h: 0.190, kind: B_FOUR },
       { x: 0.72, y: 0.68, w: 0.120, h: 0.190, kind: B_FOUR },
       { x: 0.62, y: 0.28, w: 0.070, h: 0.070, kind: B_CUVE },
@@ -423,7 +423,7 @@ const OBSTACLES = {
     /* LE PUITS — une masse centrale massive, le reste degage. Le seul lieu du
        theme ou le centre est interdit : on tourne autour au lieu de le traverser,
        et la horde arrive donc toujours par un cote qu on ne regarde pas. */
-    { nom: "le puits", label: "Le puits", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+    { cle: "puits", nom: "le puits", label: "Le puits", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.35, y: 0.50, w: 0.120, h: 0.190, kind: B_FOUR },
       /* LES DEUX FOURS SE TRAVERSAIENT DE 112 PX SUR 171. La masse restait un
          rectangle propre, donc la collision ne disait rien ; ce qui se voyait
@@ -440,7 +440,7 @@ const OBSTACLES = {
     ] },
   ],
   friche: [
-    { nom: "le champ", label: "Le champ", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+    { cle: "champ", nom: "le champ", label: "Le champ", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.10, y: 0.18, w: 0.085, h: 0.070, kind: B_RUINE },
       { x: 0.19, y: 0.30, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
       { x: 0.26, y: 0.14, w: 0.060, h: 0.048, kind: B_RUINE },
@@ -461,7 +461,7 @@ const OBSTACLES = {
     /* LE MUR — une longue ruine avec PLUSIEURS breches larges. Une seule breche
        ferait un goulot, et un goulot detruit le kiting : la horde s y accumule,
        le joueur tire dans un entonnoir. Trois ouvertures, aucune obligatoire. */
-    { nom: "le mur", label: "Le mur", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+    { cle: "mur", nom: "le mur", label: "Le mur", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
       /* DEUX MURS QUI SE RECOUVRAIENT AUX TROIS MODES SONT UN MUR. 0,29 et 0,33
          donnaient l emprise [0,235 ; 0,385] et deux habillages l un dans l autre ;
          une seule entree de 0,150 donne EXACTEMENT la meme emprise, donc le meme
@@ -480,7 +480,7 @@ const OBSTACLES = {
     /* LE CRATERE — vide au centre, dense au pourtour : l INVERSE de la loi du
        theme, qui seme partout. On y combat au milieu, dos a rien, et c est la
        seule variante de friche qui offre ca. */
-    { nom: "le cratere", label: "Le cratère", bords: [BORD_MUR, BORD_ENCOMBRE, BORD_MUR, BORD_ENCOMBRE], poser: [
+    { cle: "cratere", nom: "le cratere", label: "Le cratère", bords: [BORD_MUR, BORD_ENCOMBRE, BORD_MUR, BORD_ENCOMBRE], poser: [
       { x: 0.29, y: 0.44, w: 0.085, h: 0.070, kind: B_RUINE },
       { x: 0.71, y: 0.56, w: 0.085, h: 0.070, kind: B_RUINE },
       { x: 0.27, y: 0.84, w: 0.045, h: 0.110, kind: B_RUINE },
@@ -500,7 +500,7 @@ const OBSTACLES = {
     ] },
     /* L EFFONDREMENT — des masses de toutes tailles, sans loi apparente. C est
        la variante qui n a pas de regle, et elle en a donc une : le contraste. */
-    { nom: "l effondrement", label: "L'effondrement", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+    { cle: "effondrement", nom: "l effondrement", label: "L'effondrement", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       { x: 0.30, y: 0.45, w: 0.110, h: 0.040, kind: B_MUR },
       { x: 0.71, y: 0.56, w: 0.085, h: 0.070, kind: B_RUINE },
       /* 0,34 -> 0,44 : cette ruine DEBOUT tombait dans les deux murs a la fois
@@ -521,7 +521,7 @@ const OBSTACLES = {
     ] },
   ],
   nebuleuse: [
-    { nom: "la derive", label: "La dérive", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+    { cle: "derive", nom: "la derive", label: "La dérive", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.22, y: 0.24, w: 0.145, h: 0.150, kind: B_FRAGMENT },
       { x: 0.78, y: 0.76, w: 0.145, h: 0.150, kind: B_FRAGMENT },
       { x: 0.06, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE },
@@ -538,7 +538,7 @@ const OBSTACLES = {
     /* LE CHAMP D EPAVES — beaucoup de petits eclats, aucune grosse masse. Rien
        ne cache, tout accroche : on voit la horde arriver de partout et on ne
        peut jamais s en couper. */
-    { nom: "le champ d epaves", label: "Le champ d'épaves", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+    { cle: "epaves", nom: "le champ d epaves", label: "Le champ d'épaves", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       { x: 0.18, y: 0.22, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
       { x: 0.82, y: 0.78, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
       { x: 0.38, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
@@ -553,7 +553,7 @@ const OBSTACLES = {
     /* LES GRANDS FRAGMENTS — trois masses enormes et tres espacees. Peu de
        choses, mais chaque contournement est LONG : c est la variante ou l on
        perd la horde de vue et ou elle reapparait d un cote qu on a quitte. */
-    { nom: "les grands fragments", label: "Les grands fragments", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+    { cle: "fragments", nom: "les grands fragments", label: "Les grands fragments", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
       { x: 0.22, y: 0.20, w: 0.145, h: 0.150, kind: B_FRAGMENT },
       { x: 0.78, y: 0.80, w: 0.145, h: 0.150, kind: B_FRAGMENT },
       { x: 0.78, y: 0.20, w: 0.145, h: 0.150, kind: B_FRAGMENT, min: 1 },
@@ -565,7 +565,7 @@ const OBSTACLES = {
     /* LA BRECHE — le bati concentre sur un bord, l autre ouvert sur le vide.
        La seule variante ASYMETRIQUE du theme : le miroir de cellule en fait une
        loi qui change de cote d une region a l autre, sans table de plus. */
-    { nom: "la breche", label: "La brèche", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_MUR], poser: [
+    { cle: "breche", nom: "la breche", label: "La brèche", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_MUR], poser: [
       /* 0,13 -> 0,26 : LA TRAVEE PASSAIT A TRAVERS LES DEUX FRAGMENTS, 32 px sur
          86 — une poutre dessinee DANS la roche, aux trois modes et a toutes les
          graines. Elle ne bouge pas, elle : sa position tient d une passe a
@@ -599,7 +599,7 @@ const OBSTACLES = {
      le passage. Les CONTENEURS sont les seuls destructibles du lieu — ce qu on a
      empile dans la rue est aussi ce qu on peut degager au tir. */
   secteur: [
-    { nom: "la rue", label: "La rue", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+    { cle: "rue", nom: "la rue", label: "La rue", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.18, y: 0.16, w: 0.150, h: 0.052, kind: B_DEVANTURE },
       { x: 0.82, y: 0.84, w: 0.150, h: 0.052, kind: B_DEVANTURE },
       { x: 0.10, y: 0.72, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
@@ -616,7 +616,7 @@ const OBSTACLES = {
     /* LA PLACE — ouvert au centre, encombre au pourtour. On y tient le milieu
        et la horde arrive par des angles ; c est l inverse de la rue, ou l on
        longe. */
-    { nom: "la place", label: "La place", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+    { cle: "place", nom: "la place", label: "La place", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       { x: 0.09, y: 0.22, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.91, y: 0.78, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.91, y: 0.22, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
@@ -630,7 +630,7 @@ const OBSTACLES = {
     ] },
     /* LE MARCHE — semis serre de petites structures. Beaucoup d objets, peu de
        masse : on se faufile partout, on ne se cache nulle part. */
-    { nom: "le marche", label: "Le marché", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+    { cle: "marche", nom: "le marche", label: "Le marché", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       { x: 0.22, y: 0.22, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
       { x: 0.34, y: 0.20, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR },
       { x: 0.50, y: 0.24, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR, min: 1 },
@@ -647,7 +647,7 @@ const OBSTACLES = {
     ] },
     /* LE PARVIS — presque vide, deux masses monumentales. La respiration du
        theme, et la seule ou l on voit d un bout a l autre de la region. */
-    { nom: "le parvis", label: "Le parvis", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+    { cle: "parvis", nom: "le parvis", label: "Le parvis", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.31, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.69, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.50, y: 0.21, w: 0.014, h: 0.230, kind: B_PYLONE },
@@ -1623,7 +1623,7 @@ export function loiNom(biomeIndex, loi) {
   const cle = biomeAt(biomeIndex).key;
   const v = (OBSTACLES[cle] ?? [])[loi];
   if (!v) return "";
-  return t(`biome.${cle}.loi${loi}`, v.label ?? v.nom);
+  return t(`biome.${cle}.${v.cle}`, v.label ?? v.nom);
 }
 
 export function hazardState(h, t) {
@@ -1760,13 +1760,10 @@ export function signatureVariante(lieu, vi, diffIndex = 2) {
 }
 
 
-/* DEUX VARIANTES D UN MEME THEME DOIVENT DIFFERER ASSEZ POUR SE DISTINGUER, ET
-   PAS TROP POUR RESTER DANS LE THEME. C est le garde-fou symetrique de celui qui
-   separe deux LIEUX : sans plancher, deux variantes sont un doublon ; sans
-   plafond, elles derivent en lieux deguises et le theme se dissout.
-   LE PLAFOND EST `LOI_ECART` LUI-MEME, et ce n est pas un choix arbitraire :
-   c est exactement le seuil au-dela duquel l instrument declare deux LOIS
-   distinctes. Une variante qui le franchit n est plus une variante. */
+/* DEUX BIOMES D UN MEME THEME DOIVENT DIFFERER ASSEZ POUR SE DISTINGUER. Sans
+   plancher, deux biomes sont un doublon — et un doublon ne se signale pas tout
+   seul, il se joue. Ce qui les garde DANS le theme n est plus ici : voir
+   `VARIANTE_AXES`. */
 const VARIANTE_PLANCHER = 0.15;
 
 // deux lois sont distinctes des qu'UN axe les separe franchement. Exiger les
@@ -1775,13 +1772,28 @@ const VARIANTE_PLANCHER = 0.15;
 const LOI_ECART = 0.40;
 const LOI_AXES = ["densite", "encombrement", "contraste", "elongation"];
 
-/* LE PLANCHER SE LIT SUR SIX AXES, LE PLAFOND SUR QUATRE — et l asymetrie est le
-   coeur du garde-fou. Le PLAFOND doit repondre « est-ce encore le meme lieu ? »,
-   donc il n emploie que les axes dont `verifierLois` se sert pour separer deux
-   LIEUX : y ajouter l arrangement ferait rougir une variante qui ne fait que
-   ranger autrement. Le PLANCHER doit repondre « est-ce encore la meme
-   variante ? », et deux arrangements opposes a inventaire egal sont deux
-   variantes — donc il voit les six. */
+/* LE PLANCHER SE LIT SUR SIX AXES, ET IL EST LE SEUL QUI RESTE. Il repond
+   « est-ce encore la meme variante ? », et deux arrangements opposes a inventaire
+   egal sont deux variantes — donc il voit les six.
+
+   LE PLAFOND GEOMETRIQUE EST SUPPRIME, ET C EST UNE MESURE QUI L A DIT. Il
+   repondait « est-ce encore le meme lieu ? » sur les quatre axes de
+   `verifierLois` — combien, quelle surface, quel contraste, quelle forme. Or ces
+   quatre axes ne portent PAS l identite d un theme : mesure sur l existant, en
+   distance normalisee au centroide de chaque theme, TROIS regions sur vingt sont
+   deja plus proches du centroide d un AUTRE theme que du leur — l atelier de
+   l Usine (marge 0,49), les cuves de la Fonderie (0,98) et le mur de la Friche
+   (0,72). Le plafond ne les voyait pas parce qu il comparait deux a deux ; il
+   aurait suffi d une cinquieme loi un peu plus vide pour le faire rougir sur une
+   conception juste.
+
+   CE QUI TIENT UN THEME EST AILLEURS, ET C EST DEJA VERIFIE. La CHARTE
+   (`BIOME_SKIN`, `lumDir`, `GRILLE`, `FOND`, `LED`, `CONTOUR`) est par theme par
+   construction, donc un biome ne peut pas en sortir. Le VOCABULAIRE l est aussi :
+   `verifierBiomes` refuse un obstacle qui porterait la famille d un autre lieu,
+   `verifierTrame` la meme chose pour la structure, et `verifierBlocs` refuse une
+   famille sans fiche. LA GEOMETRIE, ELLE, DOIT ETRE LIBRE — c est exactement ce
+   qui separe deux endroits d un meme monde. */
 export const VARIANTE_AXES = [...LOI_AXES, "centrage", "etalement"];
 
 // ce qui separe une identite d un desequilibre. 25 % laisse une echelle de lieu
@@ -1811,10 +1823,33 @@ export function hazardsDe(lieu) {
    symptome serait « la horde n arrive jamais », pas une erreur. */
 export function verifierVariantes() {
   const soucis = [];
+  const dicoEn = new Set(clefsDe("en"));
 
   for (const b of BIOMES) {
     const vs = OBSTACLES[b.key] ?? [];
     if (vs.length === 0) { soucis.push(`${b.key} : aucune variante`); continue; }
+    /* LA CLEF D UNE REGION EST SON IDENTIFIANT, PAS SON RANG. `loiNom` composait
+       `biome.<lieu>.loi<i>` : reordonner `OBSTACLES` — ou en inserer une au
+       milieu — reecrivait TOUS les noms affiches, dans les deux langues, sans
+       qu une seule ligne ne bouge et sans qu aucun verificateur ne le voie. Un
+       theme qui passe de quatre regions a douze le fera forcement. */
+    const cles = new Set();
+    for (const v of vs) {
+      if (!v.cle) soucis.push(`${b.key} : une region sans clef`);
+      else if (!/^[a-z0-9_]+$/.test(v.cle)) {
+        soucis.push(`${b.key}/${v.cle} : une clef s ecrit sans accent ni majuscule`);
+      } else if (cles.has(v.cle)) soucis.push(`${b.key} : deux regions sous la clef « ${v.cle} »`);
+      else cles.add(v.cle);
+    }
+    /* UNE REGION SANS TRADUCTION NE SE SIGNALE JAMAIS : `t()` replie sur le
+       francais, ce qui est le bon comportement en jeu et exactement ce qui rend
+       un oubli invisible. On croise donc avec le dictionnaire. */
+    for (const v of vs) {
+      if (!v.cle) continue;
+      if (!dicoEn.has(`biome.${b.key}.${v.cle}`)) {
+        soucis.push(`${b.key}/${v.cle} : aucun nom anglais — le joueur verra le francais`);
+      }
+    }
     const noms = new Set();
     for (const v of vs) {
       if (!v.nom) soucis.push(`${b.key} : une variante sans nom`);
@@ -1833,20 +1868,16 @@ export function verifierVariantes() {
     const sig = vs.map((_, i) => signatureVariante(b.key, i));
     for (let i = 0; i < sig.length; i++) {
       for (let j = i + 1; j < sig.length; j++) {
-        let pire = 0, quoi = "", plafond = 0, quoiP = "";
+        let pire = 0, quoi = "";
         for (const axe of VARIANTE_AXES) {
           const a = sig[i][axe], c = sig[j][axe];
           const d = Math.abs(a - c) / Math.max(1e-9, Math.max(Math.abs(a), Math.abs(c)));
           if (d > pire) { pire = d; quoi = axe; }
-          if (LOI_AXES.includes(axe) && d > plafond) { plafond = d; quoiP = axe; }
         }
         if (pire < VARIANTE_PLANCHER) {
           soucis.push(`${b.key} : « ${sig[i].nom} » et « ${sig[j].nom} » se ressemblent`
-            + ` (${(100 * pire).toFixed(0)} % au mieux, plancher ${100 * VARIANTE_PLANCHER} %)`);
-        }
-        if (plafond >= LOI_ECART) {
-          soucis.push(`${b.key} : « ${sig[i].nom} » et « ${sig[j].nom} » divergent sur`
-            + ` ${quoiP} (${(100 * plafond).toFixed(0)} %) — ce n est plus le meme lieu`);
+            + ` (${(100 * pire).toFixed(0)} % au mieux sur ${quoi},`
+            + ` plancher ${100 * VARIANTE_PLANCHER} %)`);
         }
       }
     }

@@ -606,6 +606,25 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     supprimé, et avec lui le repli silencieux de `biomeAt(-1)` sur l'Usine, qui
     privait toute carte composée de son arrière-plan, de ses baies, de son
     ambiance, de son liseré de bloc et de la chaleur de la coulée.
+- **LE PLAFOND GÉOMÉTRIQUE D'UNE RÉGION EST SUPPRIMÉ, ET C'EST UNE MESURE QUI
+  L'A DIT.** `verifierVariantes` refusait deux régions qui divergeaient de plus
+  de `LOI_ECART` (40 %) sur l'un des quatre axes de `verifierLois` — combien,
+  quelle surface, quel contraste, quelle forme. Or **ces quatre axes ne portent
+  pas l'identité d'un thème** : mesure sur l'existant, en distance normalisée au
+  centroïde de chaque thème, **trois régions sur vingt sont déjà plus proches du
+  centroïde d'un AUTRE thème que du leur** — l'atelier de l'Usine (marge 0,49),
+  les cuves de la Fonderie (0,98), le mur de la Friche (0,72). Le plafond ne les
+  voyait pas parce qu'il comparait **deux à deux** ; il aurait suffi d'une
+  cinquième région un peu plus vide pour le faire rougir sur une conception
+  juste, et douze régions par thème le garantissent.
+  **Ce qui tient un thème est ailleurs, et c'est déjà vérifié** : la charte
+  (`BIOME_SKIN`, `lumDir`, `GRILLE`, `FOND`, `LED`, `CONTOUR`) est par thème *par
+  construction*, et le vocabulaire l'est aussi — `verifierBiomes` refuse un
+  obstacle qui porterait la famille d'un autre lieu, `verifierTrame` la même
+  chose pour la structure, `verifierBlocs` refuse une famille sans fiche. **La
+  géométrie, elle, doit être libre** : c'est exactement ce qui sépare deux
+  endroits d'un même monde. Le **plancher** reste, sur ses six axes — sans lui,
+  deux régions sont un doublon, et un doublon ne se signale pas, il se joue.
 - **LA TRAME — CE QUI A LA TAILLE D'UN QUARTIER.** Le dépôt n'avait que **deux
   échelles** : le bloc (40 à 420 px) et le prop (20 à 140 px), pour une vue de
   1600 × 900. **Rien n'avait la taille d'un écran**, donc rien ne se

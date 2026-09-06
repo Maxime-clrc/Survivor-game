@@ -31,6 +31,14 @@ langue = lire() ?? LANG_DEFAUT;
 
 export function getLang() { return langue; }
 
+/* LES CLEFS QU UNE LANGUE PORTE. Il n existe aucun moyen de savoir qu une clef
+   MANQUE : `t()` replie sur le francais et ne dit rien, ce qui est exactement le
+   comportement voulu en jeu et exactement ce qui rend un oubli invisible. Un
+   verificateur qui veut croiser une table avec le dictionnaire a donc besoin de
+   le LIRE — et il ne peut pas importer `lang/en.js` lui-meme sans doubler la
+   source. Ce module reste le seul point d entree de la langue. */
+export function clefsDe(code) { return Object.keys(DICTS[code] ?? {}); }
+
 export function setLang(code) {
   if (!LANGS.includes(code) || code === langue) return;
   langue = code;

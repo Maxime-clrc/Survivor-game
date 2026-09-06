@@ -9839,6 +9839,31 @@
                   c est lui qui dira quand le plafond peut descendre.
                   57 verificateurs.
 
+    0.43.4 lot 5  LES DEUX GARDE-FOUS QUI EMPECHAIENT DOUZE REGIONS PAR THEME.
+                  LE PLAFOND GEOMETRIQUE EST SUPPRIME, et c est une mesure qui l a
+                  dit : `verifierVariantes` refusait deux regions divergeant de
+                  plus de 40 % sur l un des quatre axes de `verifierLois`. Or ces
+                  axes ne portent pas l identite d un theme — en distance
+                  normalisee au centroide, TROIS regions sur vingt sont deja plus
+                  proches du centroide d un AUTRE theme que du leur (atelier 0,49,
+                  cuves 0,98, mur 0,72). Le plafond ne les voyait pas parce qu il
+                  comparait deux a deux ; une cinquieme region un peu plus vide
+                  l aurait fait rougir sur une conception juste.
+                  Ce qui tient un theme est ailleurs et deja verifie : la charte
+                  est par theme PAR CONSTRUCTION, et le vocabulaire l est aussi
+                  (`verifierBiomes`, `verifierTrame`, `verifierBlocs`). La
+                  geometrie doit etre LIBRE — c est ce qui separe deux endroits
+                  d un meme monde. Le PLANCHER reste, sur ses six axes.
+                  UNE CLEF EST UN IDENTIFIANT, JAMAIS UN RANG. `loiNom` composait
+                  `biome.<lieu>.loi<i>` : reordonner `OBSTACLES` reecrivait TOUS
+                  les noms affiches, dans les deux langues, sans qu une ligne de
+                  traduction ne bouge et sans qu aucun verificateur ne le voie.
+                  Chaque region porte sa `cle`.
+                  ET UNE TRADUCTION MANQUANTE NE SE SIGNALE JAMAIS : `t()` replie
+                  sur le francais. `clefsDe(code)` (`i18n.js`) est le point
+                  d entree qui permet a un verificateur de LIRE le dictionnaire ;
+                  `verifierVariantes` refuse une region sans nom anglais.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9847,4 +9872,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.3";
+export const VERSION = "0.43.4";
