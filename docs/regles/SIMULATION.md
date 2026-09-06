@@ -606,6 +606,28 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     supprimé, et avec lui le repli silencieux de `biomeAt(-1)` sur l'Usine, qui
     privait toute carte composée de son arrière-plan, de ses baies, de son
     ambiance, de son liseré de bloc et de la chaleur de la coulée.
+- **LE MIROIR D'UNE CELLULE ÉTAIT À MOITIÉ MORT.** `my = (cx * 2 + cy) & 1` vaut
+  `cy & 1` — `cx * 2` est pair — donc les **deux** miroirs avaient la même
+  période de deux cellules. Deux bits d'un hachage de `(cx, cy, graine)` les
+  rendent indépendants : même coût, même déterminisme des deux côtés.
+  - **Ce que ça N'AJOUTE PAS, et le dossier se trompait dessus.** Il n'y a que
+    **quatre** combinaisons `(mx, my)`, donc le nombre d'arrangements distincts
+    d'une arène vaut `lois présentes × 4` — 16 avec quatre lois, 21,3
+    aujourd'hui parce qu'une carte en montre 5,3. Le hachage n'en crée aucun.
+  - **Ce que ça enlève, mesuré :** deux cellules distantes de deux portaient la
+    **même** disposition dans **100 %** des cas, en x comme en y. Après :
+    **28 %** et **25 %**, soit le hasard pur. La répétition existe toujours —
+    elle n'est plus **régulière**, donc elle ne se lit plus comme une grille.
+  - **Il ne peut rien fermer qu'avant ne fermait déjà** : le bord d'une variante
+    appartient à la **région** depuis 0.42, et la raison en était justement que
+    le miroir changeait à chaque cellule.
+  - **Il a exposé un défaut latent.** Une épave à `y = 0,94` tombe à **27 px** de
+    sa jumelle miroitée de la cellule voisine ; sur la Friche — seul thème à
+    trembler — deux cellules se décalent de 40 px **chacune** et referment
+    l'écart : 17 paires qui se traversent sur cinquante graines, jusqu'à
+    108 × 44 px. La garde y vaut donc `2 × jMax + PASSAGE_MIN` = **160 px**, et
+    la région passe de cinq piles à **trois** — le bas de sa cellule appartient
+    à la braise et à la flaque, et ce qui reste est trop près d'un grillage.
 - **L'OBLIQUE N'EST PAS UNE SILHOUETTE, C'EST UN MACRO DE POSE.**
   `verifierEmpreinte` refuse une forme qui ne remplit pas son rectangle, et il a
   raison : la collision est une AABB, donc une masse penchée ferait buter sur du

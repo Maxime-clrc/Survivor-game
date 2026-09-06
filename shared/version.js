@@ -10091,6 +10091,29 @@
                   `inView`, donc une branche peut n etre jamais atteinte par les
                   quatre points de vue de `verifierDessin`.
 
+    0.43.16 lot 17 LE MIROIR D UNE CELLULE ETAIT A MOITIE MORT. `my = (cx*2+cy)&1`
+                  vaut `cy&1` — `cx*2` est pair — donc les DEUX miroirs avaient la
+                  meme periode de deux cellules, et le bati se repetait tous les
+                  deux ecrans REGULIEREMENT. Deux bits d un hachage de
+                  (cx, cy, graine) les rendent independants.
+                  CE QUE CA N AJOUTE PAS, ET LE DOSSIER SE TROMPAIT DESSUS : il n y
+                  a que QUATRE combinaisons (mx, my), donc le nombre
+                  d arrangements distincts vaut « lois presentes x 4 » — 16 hier,
+                  21,3 aujourd hui parce qu une carte montre 5,3 lois. Le hachage
+                  n en cree aucun.
+                  CE QU IL ENLEVE, MESURE : deux cellules distantes de deux
+                  portaient la MEME disposition dans 100 % des cas, en x comme en
+                  y ; apres, 28 % et 25 %, soit le hasard pur. La repetition
+                  existe toujours, elle n est plus REGULIERE — et c est ca qu on
+                  voyait, pas le nombre.
+                  IL A EXPOSE UN DEFAUT LATENT. Une epave a y = 0,94 tombe a 27 px
+                  de sa jumelle miroitee de la cellule voisine ; la Friche est le
+                  seul theme qui tremble, deux cellules se decalent de 40 px
+                  CHACUNE, et l ecart se referme — 17 paires qui se traversent sur
+                  cinquante graines, jusqu a 108 x 44 px. La garde y vaut
+                  2 x jMax + PASSAGE_MIN = 160 px, et la casse passe de cinq piles
+                  a trois.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10099,4 +10122,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.15";
+export const VERSION = "0.43.16";

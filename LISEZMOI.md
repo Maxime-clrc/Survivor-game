@@ -8,6 +8,37 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le miroir était à moitié mort (0.43.16)
+
+`my = (cx * 2 + cy) & 1` vaut `cy & 1` — `cx * 2` est pair. Les **deux** miroirs
+avaient donc la même période de deux cellules, et le bâti se répétait tous les
+deux écrans **régulièrement**.
+
+**Ce que le hachage n'ajoute pas, et le dossier se trompait dessus.** Il n'y a
+que **quatre** combinaisons `(mx, my)` : le nombre d'arrangements distincts d'une
+arène vaut `lois présentes × 4`, soit 16 hier avec quatre lois et **21,3**
+aujourd'hui parce qu'une carte en montre 5,3. Le hachage n'en crée **aucun**.
+
+**Ce qu'il enlève, mesuré sur 5 graines × 81 cellules** — part de paires
+distantes de deux cellules portant la **même** disposition :
+
+| | avant | après | hasard pur |
+|---|---:|---:|---:|
+| en x | **100 %** | 28 % | 25 % |
+| en y | **100 %** | 25 % | 25 % |
+
+La répétition existe toujours ; elle n'est plus **régulière**, donc elle ne se
+lit plus comme une grille. C'est ça qu'on voyait, pas le nombre.
+
+**Il a exposé un défaut latent de la Friche.** Une épave à `y = 0,94` tombe à
+**27 px** de sa jumelle miroitée de la cellule voisine ; la Friche est le seul
+thème qui tremble, deux cellules se décalent de 40 px **chacune**, et l'écart se
+referme — **17 paires qui se traversent sur 50 graines, jusqu'à 108 × 44 px**.
+La garde y vaut `2 × jMax + PASSAGE_MIN` = **160 px**, et la casse passe de cinq
+piles à **trois** : le bas de sa cellule appartient en cauchemar à la braise
+(439 à 1161 px) et à la flaque de gauche, et ce qui reste est à moins de 160 px
+d'un grillage ou d'une ruine.
+
 ### Un repère unique ne repérait rien (0.43.15)
 
 L'amer était visible dans **4 vues sur 81** — un point qu'on ne rencontre presque

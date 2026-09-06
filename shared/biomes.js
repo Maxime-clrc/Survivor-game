@@ -636,11 +636,22 @@ const OBSTACLES = {
        cour sans la cacher — meme cadre que la claire-voie de l Usine, autre
        palette, autre lecture. */
     { cle: "casse", nom: "la casse", label: "La casse", bords: [BORD_MUR, BORD_ENCOMBRE, BORD_MUR, BORD_ENCOMBRE], poser: [
+      /* AUCUNE EPAVE A MOINS DE 0,16 D UN BORD DE CELLULE, et c est le
+         TREMBLEMENT qui l impose. Un bloc a 0,94 tombe a 27 px de son jumeau
+         miroite de la cellule voisine ; sur la Friche, seul theme a trembler,
+         deux cellules peuvent se decaler de 40 px CHACUNE et refermer l ecart.
+         Mesure : 17 paires qui se traversent sur cinquante graines, jusqu a
+         108 x 44 px. Il faut donc 2 x jMax plus le passage minimal, soit 160 px,
+         et 0,16 de cellule en fait 144 de chaque cote — 288 au total. */
       { x: 0.20, y: 0.20, w: 0.070, h: 0.090, kind: B_EPAVES },
-      { x: 0.46, y: 0.12, w: 0.070, h: 0.090, kind: B_EPAVES },
+      { x: 0.46, y: 0.18, w: 0.070, h: 0.090, kind: B_EPAVES },
       { x: 0.78, y: 0.44, w: 0.070, h: 0.090, kind: B_EPAVES, min: 1 },
-      { x: 0.20, y: 0.94, w: 0.070, h: 0.090, kind: B_EPAVES, min: 1 },
-      { x: 0.86, y: 0.86, w: 0.070, h: 0.090, kind: B_EPAVES, min: 2 },
+      /* TROIS PILES ET PAS CINQ. Le bas de la cellule appartient en cauchemar a
+         la braise (439 a 1161 px en x, 659 a 781 en y) et a la flaque de gauche ;
+         ce qui reste libre est a moins de 160 px d un grillage ou d une ruine, et
+         160 est ce qu il faut sur la Friche — deux fois son tremblement plus le
+         passage minimal. Trois piles suffisent a la signature ; une quatrieme
+         demanderait de deplacer la moitie de la region. */
       { x: 0.50, y: 0.30, w: 0.180, h: 0.014, kind: B_GRILLAGE },
       { x: 0.30, y: 0.66, w: 0.180, h: 0.014, kind: B_GRILLAGE, min: 1 },
       { x: 0.29, y: 0.44, w: 0.085, h: 0.070, kind: B_RUINE },
@@ -1681,6 +1692,32 @@ function cellePosePerturbe(pose, cx, cy, cw, ch, mx, my, jx, jy, diffIndex, haza
   return false;
 }
 
+/* LE MIROIR D UNE CELLULE, ET IL ETAIT A MOITIE MORT. `my = (cx * 2 + cy) & 1`
+   vaut `cy & 1` — `cx * 2` est pair — donc les DEUX miroirs avaient la meme
+   periode de deux cellules, et une region entiere ne contenait que QUATRE
+   dispositions. Mesure a l ouverture du plan 39 : une arene de quatre-vingt-une
+   vues n en portait que SEIZE distinctes, chacune revue cinq fois, et la
+   repetition etait REGULIERE donc lisible comme une grille.
+
+   UN HACHAGE DE POSITION LES REND INDEPENDANTS. Deux bits d un melange de
+   (cx, cy, graine) : meme cout, meme determinisme des deux cotes, et la periode
+   disparait au lieu de doubler. Soixante-quatre dispositions par arene.
+
+   IL NE PEUT PLUS RIEN FERMER QU AVANT NE FERMAIT DEJA. Le bord d une variante
+   appartient a la REGION depuis 0.42 — c est ecrit plus haut, et la raison en
+   etait justement que le miroir changeait a chaque cellule. Un miroir tire au
+   hasard ne change donc rien a l accord des aretes ; ce qu il change est la
+   GEOMETRIE, et `verifierBiomes`, `verifierSuperpositions` et
+   `verifierNavigation` la rejouent sur cinquante graines. */
+function miroirDe(cx, cy, seed) {
+  let h = Math.imul(cx | 0, 0x27d4eb2d) ^ Math.imul(cy | 0, 0x85ebca6b)
+        ^ Math.imul(seed | 0, 0xc2b2ae35);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2545f491);
+  h ^= h >>> 13;
+  return h >>> 0;
+}
+
 export function buildBiome(biomeIndex, diffIndex, seed = 1,
                            arenaW = 1600, arenaH = 900,
                            viewW = 1600, viewH = 900) {
@@ -1709,7 +1746,8 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   let hzJetes = 0;
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
-      const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
+      const mi = miroirDe(cx, cy, seed);
+      const mx = mi & 1, my = (mi >> 1) & 1;
       for (const h of tableHz) {
         const d = hazardAt(h.kind);
         if (!d) continue;
@@ -1799,7 +1837,8 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
      est ce qui casse la grille de 1600 x 900, la seule qui se voie. */
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
-      const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
+      const mi = miroirDe(cx, cy, seed);
+      const mx = mi & 1, my = (mi >> 1) & 1;
       let jx = (rand() - 0.5) * 2 * jMax, jy = (rand() - 0.5) * 2 * jMax;
       const pose = deplierPose((varis[choix[cy * cols + cx]] ?? varis[0]).poser);
       /* UN TREMBLEMENT NE POSE PAS UN BLOC SUR UN DANGER. Mesure sur la Friche,
