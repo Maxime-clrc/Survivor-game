@@ -8,6 +8,36 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Fonderie : le refroidissement refroidit (0.43.7)
+
+**Le plus gros écart du dépôt entre un nom et un pixel est corrigé.** La région
+s'appelait « refroidissement » et il y faisait exactement aussi chaud qu'à la
+coulée : même teinte, même émissif, même sol, mêmes trois familles. Elle porte
+maintenant des **bassins de trempe** — une eau `#0e1a20` calme dans un lieu
+orange, seule matière froide du thème.
+
+Et « les cuves » deviennent **la sablerie** : deux tailles d'un même octogone ne
+font pas deux endroits. Des châssis de sable **posés au sol**, en rangées, rien
+qui monte — la seule occupation basse du dépôt, donc le seul endroit où la ligne
+de vue et la ligne de marche divergent.
+
+| | régions | avec une signature |
+|---|---:|---:|
+| usine | 7 | 4 |
+| **fonderie** | **4** | **2** (sablerie → moule, malaxeur · refroidissement → bassin) |
+| friche | 4 | 0 |
+| nébuleuse | 4 | 0 |
+| secteur | 4 | 0 |
+| **total** | **23** | **6** |
+
+**Le `cadre` sert déjà deux thèmes** : claire-voie à l'Usine, châssis de sable à
+la Fonderie. Une silhouette qui laisse voir à travers n'a pas qu'un usage.
+
+**Deux défauts trouvés par les vérificateurs, aucun visible à l'œil** : le four
+et le châssis se traversaient sur 120 × 45 px (**1 410 paires sur 50 graines**),
+et la conduite remontée à `y = 0,10` laissait **68 px** entre elle et le bord de
+cellule — un corps s'y tient, la grille y voit un mur.
+
 ### L'Usine, sept régions dont quatre en possèdent une (0.43.6)
 
 | région | familles | signature |

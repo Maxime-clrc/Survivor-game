@@ -3,7 +3,8 @@ import {
   B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE,
   B_DEVANTURE, B_PYLONE, B_CONTENEUR,
   B_PALETTIER, B_PILE, B_QUAI, B_REMORQUE,
-  B_CLOTURE, B_ETABLI, B_OUVERTE, B_TRANSFO, gabaritsDe,
+  B_CLOTURE, B_ETABLI, B_OUVERTE, B_TRANSFO,
+  B_BASSIN, B_MALAXEUR, B_MOULE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
@@ -76,6 +77,7 @@ const HABILLAGE = {
   devanture, pylone, conteneur,
   palettier, pile, quai, remorque,
   etabli, ouverte, transfo, cloture,
+  moule, malaxeur, bassin,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -105,6 +107,11 @@ const BLOC = {
     [B_FOUR]: { sil: "octogone", hab: "four" },
     [B_CONDUITE]: { sil: "conduite", hab: "conduite" },
     [B_CUVE]: { sil: "fut", hab: "cuve" },
+    // LE MEME CADRE QUE LA CLAIRE-VOIE, et il sert ici a montrer le SABLE :
+    // une silhouette qui laisse voir a travers n a pas qu un usage.
+    [B_MOULE]: { sil: "cadre", hab: "moule" },
+    [B_MALAXEUR]: { sil: "fut", hab: "malaxeur" },
+    [B_BASSIN]: { sil: "caisson", hab: "bassin" },
   },
   friche: {
     [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
@@ -2325,6 +2332,105 @@ function cloture(o, S) {
   ctx.fillStyle = alpha(S.emis, 0.22);
   if (long) ctx.fillRect(-w / 2 + L * 0.33, -h / 2 + 2, 7, Math.max(3, h - 4));
   else ctx.fillRect(-w / 2 + 2, -h / 2 + L * 0.33, Math.max(3, w - 4), 7);
+}
+
+
+/* LE CHASSIS DE MOULAGE — UN CADRE PLEIN DE SABLE. Le cadre est celui des
+   utilites ; ce qui change est ce qu il CONTIENT. Un grain fin, mat, sans aucun
+   reflet, et l empreinte creuse au milieu : c est la piece qu on n a pas encore
+   coulee, et c est ce qui rend la region lisible sans un mot. */
+function moule(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LE SABLE : mat, sans liseré clair — c est la seule matiere du depot qui ne
+  // renvoie rien, et c est ce qui l oppose a la calamine du laminoir.
+  ctx.fillStyle = alpha("#2a2622", 0.62);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  const n = 90;
+  ctx.fillStyle = alpha("#ffffff", 0.045);
+  for (let i = 0; i < n; i++) {
+    const a = ((s * (i + 7)) % 997) / 997, b = ((s * (i + 31)) % 991) / 991;
+    ctx.fillRect(-w / 2 + 4 + a * (w - 8), -h / 2 + 4 + b * (h - 8), 1.2, 1.2);
+  }
+  // L EMPREINTE, creuse et centree : un contour sombre et un liseré au bord bas.
+  const ew = w * 0.44, eh = h * 0.40;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-ew / 2, -eh / 2, ew, eh);
+  ctx.fillStyle = alpha("#8b7f6d", 0.14);
+  ctx.fillRect(-ew / 2, eh / 2 - 2, ew, 2);
+  // LE CADRE metallique, seul element clair de la piece.
+  ctx.strokeStyle = alpha(S.blocEdge, 0.30);
+  ctx.lineWidth = 2.4;
+  ctx.strokeRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+}
+
+/* LE MALAXEUR — UNE CUVE QUI TOURNE. La cuve de fonderie ne dit rien de ce
+   qu elle contient ; celle-ci porte sa couronne d entrainement et sa trappe, et
+   c est ce qui la separe. */
+function malaxeur(o, S) {
+  const w = o.w, h = o.h;
+  const r = Math.min(w, h) * 0.42;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.52);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.30);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  // LA COURONNE : des dents courtes et regulieres sur le pourtour.
+  ctx.strokeStyle = alpha("#000000", 0.34);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    ctx.moveTo(Math.cos(a) * (r - 4), Math.sin(a) * (r - 4));
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.stroke();
+  // LA TRAPPE, en bas : un arc plus sombre, et le sable qui en est tombe.
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-r * 0.34, r * 0.52, r * 0.68, Math.max(3, r * 0.22));
+  ctx.fillStyle = alpha("#2a2622", 0.40);
+  ctx.fillRect(-r * 0.44, h / 2 - 4, r * 0.88, 3);
+}
+
+/* LE BASSIN DE TREMPE — LA SEULE MATIERE FROIDE DE LA FONDERIE. Une margelle
+   claire, une eau sombre et CALME, et un liseré de vapeur au bord. Rien n y est
+   ambre : c est le contraste avec le reste du theme qui porte l information, et
+   il vaut plus que n importe quelle etiquette. */
+function bassin(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LA MARGELLE, claire et large : c est elle qu on longe.
+  ctx.fillStyle = alpha(S.bloc, 0.50);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  const m = Math.min(7, w * 0.10, h * 0.10);
+  // L EAU : bleu-gris tres sombre, hors palette chaude du lieu.
+  ctx.fillStyle = alpha("#0e1a20", 0.86);
+  ctx.fillRect(-w / 2 + m, -h / 2 + m, w - m * 2, h - m * 2);
+  // trois rides horizontales, immobiles : une eau de trempe est CALME.
+  ctx.strokeStyle = alpha("#a8c4d6", 0.10);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i <= 3; i++) {
+    const y = -h / 2 + m + (h - m * 2) * (i / 4);
+    ctx.moveTo(-w / 2 + m + 2, y); ctx.lineTo(w / 2 - m - 2, y);
+  }
+  ctx.stroke();
+  // LA VAPEUR au bord, seul element clair : un liseré diffus sur le cote long.
+  ctx.fillStyle = alpha("#a8c4d6", 0.09);
+  ctx.fillRect(-w / 2 + m, -h / 2 + m, w - m * 2, Math.max(2, h * 0.10));
+  // LA PIECE qu on y a plongee, une fois sur deux, encore rougeoyante au bord.
+  if (s & 1) {
+    const pw = (w - m * 2) * 0.30, ph = (h - m * 2) * 0.34;
+    ctx.fillStyle = alpha("#000000", 0.50);
+    ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+    ctx.strokeStyle = alpha(S.emis, 0.16);
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(-pw / 2, -ph / 2, pw, ph);
+  }
 }
 
 function conteneur(o, S) {

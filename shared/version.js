@@ -9913,6 +9913,25 @@
                   Quatre regions de l Usine sur sept ont une signature, contre
                   zero sur vingt a l ouverture du plan. 58 verificateurs.
 
+    0.43.7 lot 8  LA FONDERIE : LE REFROIDISSEMENT REFROIDIT. C etait le plus gros
+                  ecart du depot entre un nom et un pixel — la region s appelait
+                  « refroidissement » et il y faisait aussi chaud qu a la coulee :
+                  meme teinte, meme emissif, meme sol, memes trois familles. Elle
+                  porte maintenant des BASSINS de trempe, une eau calme dans un
+                  lieu orange, seule matiere froide du theme.
+                  « Les cuves » deviennent LA SABLERIE : deux tailles d un meme
+                  octogone ne font pas deux endroits. Des chassis de sable POSES
+                  AU SOL, rien qui monte — la seule occupation basse du depot,
+                  donc le seul endroit ou la ligne de vue et la ligne de marche
+                  divergent.
+                  LE CADRE SERT DEJA DEUX THEMES : claire-voie a l Usine, chassis
+                  de sable a la Fonderie. Une silhouette qui laisse voir a travers
+                  n a pas qu un usage.
+                  Deux defauts trouves par les verificateurs et pas a l oeil : le
+                  four et le chassis se traversaient sur 120 x 45 px (1410 paires
+                  sur 50 graines), et la conduite a 0,10 laissait 68 px jusqu au
+                  bord de cellule. Six regions sur vingt-trois ont une signature.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9921,4 +9940,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.6";
+export const VERSION = "0.43.7";

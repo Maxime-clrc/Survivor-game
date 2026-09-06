@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_BASSIN, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_MALAXEUR, B_MOULE, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -199,7 +199,9 @@ const QUARTIER = {
            [B_ETABLI]: 3, [B_OUVERTE]: 3, [B_TRANSFO]: 3, [B_CLOTURE]: 3 },
   // le four COULE, la cuve MOULE, la conduite appartient au rebut — c est par
   // elle que part ce qui ne sert plus.
-  fonderie: { [B_FOUR]: 0, [B_CUVE]: 1, [B_CONDUITE]: 3 },
+  // le chassis et le malaxeur METTENT EN FORME, le bassin est ce qui SORT.
+  fonderie: { [B_FOUR]: 0, [B_CUVE]: 1, [B_CONDUITE]: 3,
+              [B_MOULE]: 1, [B_MALAXEUR]: 1, [B_BASSIN]: 2 },
   // la carcasse fait la CASSE, le mur fait la CLOTURE, et une ruine est le seul
   // endroit ou il reste quelque chose d allume.
   friche: { [B_CARCASSE]: 1, [B_MUR]: 2, [B_RUINE]: 3 },

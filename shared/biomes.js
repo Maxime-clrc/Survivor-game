@@ -140,7 +140,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_FRAGMENT = 9, B_TRAVEE = 10, B_DEBRIS = 11,
              B_DEVANTURE = 12, B_PYLONE = 13, B_CONTENEUR = 14,
              B_PALETTIER = 15, B_PILE = 16, B_QUAI = 17, B_REMORQUE = 18,
-             B_ETABLI = 19, B_OUVERTE = 20, B_TRANSFO = 21, B_CLOTURE = 22;
+             B_ETABLI = 19, B_OUVERTE = 20, B_TRANSFO = 21, B_CLOTURE = 22,
+             B_MOULE = 23, B_MALAXEUR = 24, B_BASSIN = 25;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -170,6 +171,9 @@ export const BLOCS = [
   { key: "ouverte", lieu: "usine" },
   { key: "transfo", lieu: "usine" },
   { key: "cloture", lieu: "usine" },
+  { key: "moule", lieu: "fonderie" },
+  { key: "malaxeur", lieu: "fonderie" },
+  { key: "bassin", lieu: "fonderie" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -484,17 +488,27 @@ const OBSTACLES = {
       { x: 0.08, y: 0.30, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
       { x: 0.50, y: 0.88, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 2 },
     ] },
-    /* LES CUVES — six masses moyennes, aucun axe. La coulee donne une direction
-       a suivre ; celle-ci n en donne aucune, et c est tout ce qui les separe. */
-    { cle: "cuves", nom: "les cuves", label: "Les cuves", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
-      /* UN SEUL FOUR, ET CINQ CUVES. Deux fours en faisaient une coulee sans
-         son axe : c est la MASSE qui separe les deux lois, pas le rangement. */
+    /* LA SABLERIE — LA SEULE REGION DU DEPOT QUI SOIT PLATE. Elle remplace
+       « les cuves », qui n etaient que des octogones moyens sans axe : deux
+       tailles d une meme forme ne font pas deux endroits.
+       Des chassis de sable POSES AU SOL, en rangees, et rien qui monte. C est
+       une occupation BASSE : on voit loin, on tire loin, et pourtant les corps
+       sont arretes — la ligne de vue et la ligne de marche divergent, ce qu
+       aucune autre region ne fait.
+       Le chassis reprend le CADRE des utilites avec une matiere de grain : la
+       silhouette qui laisse voir a travers sert ici a montrer le SABLE. */
+    { cle: "sablerie", nom: "la sablerie", label: "La sablerie", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       { x: 0.30, y: 0.22, w: 0.120, h: 0.190, kind: B_FOUR },
-      { x: 0.73, y: 0.78, w: 0.070, h: 0.070, kind: B_CUVE },
-      { x: 0.30, y: 0.74, w: 0.070, h: 0.070, kind: B_CUVE },
-      { x: 0.70, y: 0.26, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
-      { x: 0.86, y: 0.35, w: 0.070, h: 0.070, kind: B_CUVE },
-      { x: 0.14, y: 0.65, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
+      { x: 0.62, y: 0.30, w: 0.090, h: 0.070, kind: B_MOULE },
+      { x: 0.75, y: 0.14, w: 0.090, h: 0.070, kind: B_MOULE },
+      { x: 0.27, y: 0.50, w: 0.090, h: 0.070, kind: B_MOULE },
+      { x: 0.75, y: 0.50, w: 0.090, h: 0.070, kind: B_MOULE, min: 1 },
+      { x: 0.27, y: 0.86, w: 0.090, h: 0.070, kind: B_MOULE, min: 1 },
+      { x: 0.75, y: 0.86, w: 0.090, h: 0.070, kind: B_MOULE, min: 2 },
+      { x: 0.50, y: 0.90, w: 0.070, h: 0.070, kind: B_MALAXEUR },
+      { x: 0.10, y: 0.32, w: 0.070, h: 0.070, kind: B_MALAXEUR, min: 2 },
+      // 0,14 et pas 0,10 : a 0,10 la conduite laissait 68 px entre elle et le
+      // bord de cellule — un corps s y tient, la grille y voit un mur.
       { x: 0.50, y: 0.14, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 1 },
     ] },
     /* LE REFROIDISSEMENT — masses courtes en quinconce. C EST LA GEOMETRIE DE
@@ -506,6 +520,15 @@ const OBSTACLES = {
       { x: 0.72, y: 0.68, w: 0.120, h: 0.190, kind: B_FOUR },
       { x: 0.62, y: 0.28, w: 0.070, h: 0.070, kind: B_CUVE },
       { x: 0.38, y: 0.72, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
+      /* IL REFROIDIT VRAIMENT, ET C EST LA CORRECTION DU PLUS GROS ECART DU
+         DEPOT ENTRE UN NOM ET UN PIXEL. La region s appelait « refroidissement »
+         et il y faisait exactement aussi chaud qu a la coulee : meme teinte,
+         meme emissif, meme sol. Le BASSIN de trempe est ce qui manquait — une
+         surface sombre et calme dans un lieu orange, et la seule matiere froide
+         du theme. */
+      { x: 0.85, y: 0.24, w: 0.130, h: 0.090, kind: B_BASSIN },
+      { x: 0.15, y: 0.76, w: 0.130, h: 0.090, kind: B_BASSIN },
+      { x: 0.85, y: 0.76, w: 0.130, h: 0.090, kind: B_BASSIN, min: 1 },
       { x: 0.50, y: 0.86, w: 0.260, h: 0.048, kind: B_CONDUITE },
     ] },
     /* LE PUITS — une masse centrale massive, le reste degage. Le seul lieu du
@@ -913,8 +936,10 @@ const TRAMES = {
   ],
   fonderie: [
     { type: TR_RUBAN, kind: B_CONDUITE },
-    { type: TR_CRIBLE, kind: B_CUVE },
-    { type: TR_PEIGNE, kind: B_CUVE },
+    // la sablerie est une HALLE BASSE : deux parois, un fond, et des chassis.
+    { type: TR_NEF, kind: B_MOULE },
+    // le refroidissement aligne ses bassins : un peigne de trempe.
+    { type: TR_PEIGNE, kind: B_BASSIN },
     { type: TR_COURONNE, kind: B_FOUR },
   ],
   friche: [
