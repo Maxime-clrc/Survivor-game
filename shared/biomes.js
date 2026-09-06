@@ -143,7 +143,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_ETABLI = 19, B_OUVERTE = 20, B_TRANSFO = 21, B_CLOTURE = 22,
              B_MOULE = 23, B_MALAXEUR = 24, B_BASSIN = 25,
              B_EPAVES = 26, B_GRILLAGE = 27, B_POTEAU = 28, B_BANCHE = 29,
-             B_BRAS = 30, B_COQUE = 31, B_CLOISON = 32, B_CONSOLE = 33;
+             B_BRAS = 30, B_COQUE = 31, B_CLOISON = 32, B_CONSOLE = 33,
+             B_AVEUGLE = 34, B_ESCALIER = 35, B_MONOLITHE = 36, B_ETAL = 37;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -184,6 +185,10 @@ export const BLOCS = [
   { key: "coque", lieu: "nebuleuse" },
   { key: "cloison", lieu: "nebuleuse" },
   { key: "console", lieu: "nebuleuse" },
+  { key: "aveugle", lieu: "secteur" },
+  { key: "escalier", lieu: "secteur" },
+  { key: "monolithe", lieu: "secteur" },
+  { key: "etal", lieu: "secteur" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -762,20 +767,26 @@ const OBSTACLES = {
       { x: 0.44, y: 0.74, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 1 },
       { x: 0.56, y: 0.26, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 2 },
     ] },
-    /* LA PLACE — ouvert au centre, encombre au pourtour. On y tient le milieu
-       et la horde arrive par des angles ; c est l inverse de la rue, ou l on
-       longe. */
-    { cle: "place", nom: "la place", label: "La place", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
-      { x: 0.09, y: 0.22, w: 0.062, h: 0.140, kind: B_DEVANTURE },
-      { x: 0.91, y: 0.78, w: 0.062, h: 0.140, kind: B_DEVANTURE },
-      { x: 0.91, y: 0.22, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
-      { x: 0.09, y: 0.78, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
-      { x: 0.34, y: 0.21, w: 0.014, h: 0.230, kind: B_PYLONE },
-      { x: 0.66, y: 0.79, w: 0.014, h: 0.230, kind: B_PYLONE },
-      { x: 0.66, y: 0.21, w: 0.014, h: 0.230, kind: B_PYLONE, min: 1 },
-      { x: 0.34, y: 0.79, w: 0.014, h: 0.230, kind: B_PYLONE, min: 2 },
-      { x: 0.10, y: 0.50, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
-      { x: 0.90, y: 0.50, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
+    /* LA RUELLE — L ARRIERE, ET C EST LE DOS DE LA RUE. Elle remplace « la
+       place », qui posait le meme catalogue de props que la rue dans un autre
+       rangement : deux regions au meme vocabulaire sont une seule region.
+       Ici, AUCUNE VITRINE. Des murs aveugles — la seule famille batie du Secteur
+       qui n emette PAS, dans le seul lieu ou neuf blocs sur dix emettent — et
+       des escaliers de secours. Une seule source par ecran contre la saturation
+       de la rue : meme thème, meme palette, contraste maximal. */
+    { cle: "ruelle", nom: "la ruelle", label: "La ruelle", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+      // 0,12 et 0,88 : a 0,10 le mur laissait 76 px jusqu au bord de cellule,
+      // sous le passage minimal — un corps s y tient, la grille y voit un mur.
+      { x: 0.50, y: 0.12, w: 0.400, h: 0.030, kind: B_AVEUGLE },
+      { x: 0.50, y: 0.88, w: 0.400, h: 0.030, kind: B_AVEUGLE },
+      { x: 0.86, y: 0.14, w: 0.200, h: 0.030, kind: B_AVEUGLE, min: 1 },
+      { x: 0.14, y: 0.86, w: 0.200, h: 0.030, kind: B_AVEUGLE, min: 2 },
+      { x: 0.10, y: 0.12, w: 0.040, h: 0.070, kind: B_ESCALIER },
+      { x: 0.90, y: 0.30, w: 0.040, h: 0.070, kind: B_ESCALIER },
+      { x: 0.10, y: 0.72, w: 0.040, h: 0.070, kind: B_ESCALIER, min: 1 },
+      { x: 0.90, y: 0.86, w: 0.040, h: 0.070, kind: B_ESCALIER, min: 2 },
+      { x: 0.30, y: 0.62, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
+      { x: 0.70, y: 0.38, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR, min: 1 },
     ] },
     /* LE MARCHE — semis serre de petites structures. Beaucoup d objets, peu de
        masse : on se faufile partout, on ne se cache nulle part. */
@@ -791,6 +802,14 @@ const OBSTACLES = {
       { x: 0.66, y: 0.80, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR, min: 2 },
       { x: 0.29, y: 0.50, w: 0.014, h: 0.230, kind: B_PYLONE },
       { x: 0.71, y: 0.50, w: 0.014, h: 0.230, kind: B_PYLONE },
+      /* L ETAL EST CE QUE « MARCHE » PROMETTAIT. La region posait des
+         CONTENEURS, c est-a-dire des caisses : un marche a des tables couvertes,
+         et c est la seule structure du depot qu on peut EFFACER au tir. */
+      { x: 0.42, y: 0.50, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL },
+      { x: 0.58, y: 0.50, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL },
+      { x: 0.42, y: 0.66, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL, min: 1 },
+      { x: 0.66, y: 0.66, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL, min: 1 },
+      { x: 0.50, y: 0.40, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL, min: 2 },
       { x: 0.09, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.91, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
     ] },
@@ -805,7 +824,10 @@ const OBSTACLES = {
       { x: 0.88, y: 0.81, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR, min: 1 },
       { x: 0.88, y: 0.20, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 2 },
       { x: 0.12, y: 0.80, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 2 },
-      { x: 0.50, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
+      /* LE MONOLITHE — UNE MASSE LISSE ET SANS TEXTURE, le seul objet du depot
+         qui n ait AUCUN detail. Dans un lieu ou tout est une surface qui vend,
+         ce qui ne dit rien est ce qui impressionne le plus. */
+      { x: 0.50, y: 0.50, w: 0.100, h: 0.130, kind: B_MONOLITHE },
     ] },
   ],
 };
@@ -1000,9 +1022,12 @@ const TRAMES = {
   ],
   secteur: [
     { type: TR_RUBAN, kind: B_DEVANTURE },
-    { type: TR_COURONNE, kind: B_DEVANTURE },
-    { type: TR_PEIGNE, kind: B_CONTENEUR },
-    { type: TR_NEF, kind: B_DEVANTURE },
+    // une ruelle est un CANYON : deux parois aveugles et rien entre elles.
+    { type: TR_NEF, kind: B_AVEUGLE },
+    // un marche est un PEIGNE d etals, pas un empilement de caisses.
+    { type: TR_PEIGNE, kind: B_ETAL },
+    // le parvis tourne autour de sa masse : c est une couronne.
+    { type: TR_COURONNE, kind: B_MONOLITHE },
   ],
 };
 

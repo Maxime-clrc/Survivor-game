@@ -6,7 +6,8 @@ import {
   B_CLOTURE, B_ETABLI, B_OUVERTE, B_TRANSFO,
   B_BASSIN, B_MALAXEUR, B_MOULE,
   B_BANCHE, B_EPAVES, B_GRILLAGE, B_POTEAU,
-  B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, gabaritsDe,
+  B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE,
+  B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
@@ -82,6 +83,7 @@ const HABILLAGE = {
   moule, malaxeur, bassin,
   epaves, poteau, banche,
   bras, coque, cloison, console: console_,
+  aveugle, escalier, monolithe, etal,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -145,6 +147,10 @@ const BLOC = {
     [B_DEVANTURE]: { sil: "devanture", hab: "devanture" },
     [B_PYLONE]: { sil: "mat", hab: "pylone" },
     [B_CONTENEUR]: { sil: "conteneur", hab: "conteneur" },
+    [B_AVEUGLE]: { sil: "caisson", hab: "aveugle" },
+    [B_ESCALIER]: { sil: "caisson", hab: "escalier" },
+    [B_MONOLITHE]: { sil: "caisson", hab: "monolithe" },
+    [B_ETAL]: { sil: "conteneur", hab: "etal" },
   },
 };
 
@@ -2659,6 +2665,142 @@ function console_(o, S) {
     ctx.fillStyle = alpha(((s >> i) & 1) ? PROP.balise : "#000000", ((s >> i) & 1) ? 0.34 : 0.30);
     ctx.fillRect(-w / 2 + w * (0.16 + i * 0.16), h / 2 - h * 0.24, 3, 3);
   }
+}
+
+
+/* LE MUR AVEUGLE — LA SEULE FAMILLE DU SECTEUR QUI N EMETTE PAS. Dans le seul
+   lieu ou neuf blocs sur dix sont de la signaletique, ce qui reste noir est ce
+   qui se remarque. Pas de vitrine, pas d enseigne : de la maconnerie, une porte
+   de service, et ce que les gens ont ecrit dessus. */
+function aveugle(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  ctx.fillStyle = alpha("#000000", 0.52);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.brique, 0.34);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // L APPAREIL de maconnerie : des joints decales d une assise a l autre.
+  ctx.strokeStyle = alpha("#000000", 0.22);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const L = long ? w : h, E = long ? h : w;
+  const assises = Math.max(2, Math.round(E / 9));
+  for (let a = 1; a < assises; a++) {
+    const d = -E / 2 + (E / assises) * a;
+    if (long) { ctx.moveTo(-w / 2 + 2, d); ctx.lineTo(w / 2 - 2, d); }
+    else { ctx.moveTo(d, -h / 2 + 2); ctx.lineTo(d, h / 2 - 2); }
+  }
+  for (let a = 0; a < assises; a++) {
+    const d0 = -E / 2 + (E / assises) * a, d1 = d0 + E / assises;
+    for (let u = -L / 2 + ((a & 1) ? 9 : 0); u < L / 2; u += 18) {
+      if (long) { ctx.moveTo(u, d0); ctx.lineTo(u, d1); }
+      else { ctx.moveTo(d0, u); ctx.lineTo(d1, u); }
+    }
+  }
+  ctx.stroke();
+  // LA PORTE DE SERVICE, une seule, et son applique au-dessus : l unique
+  // source de la region, et elle est jaune sale, pas magenta.
+  const px = -L / 2 + L * (0.28 + ((s & 3) * 0.14));
+  ctx.fillStyle = alpha("#000000", 0.44);
+  if (long) ctx.fillRect(px - 7, -h / 2 + 3, 14, h - 6);
+  else ctx.fillRect(-w / 2 + 3, px - 7, w - 6, 14);
+  ctx.fillStyle = alpha(PROP.led, 0.28);
+  if (long) ctx.fillRect(px - 3, -h / 2 + 1, 6, 2);
+  else ctx.fillRect(-w / 2 + 1, px - 3, 2, 6);
+  // LES TAGS : deux traits satures, seule couleur vive d une region noire.
+  ctx.strokeStyle = alpha("#ff3d9a", 0.14);
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  const tx = -L / 2 + L * 0.66;
+  if (long) { ctx.moveTo(tx, -h / 2 + 5); ctx.lineTo(tx + 12, h / 2 - 5); ctx.moveTo(tx + 12, -h / 2 + 5); ctx.lineTo(tx, h / 2 - 5); }
+  else { ctx.moveTo(-w / 2 + 5, tx); ctx.lineTo(w / 2 - 5, tx + 12); ctx.moveTo(-w / 2 + 5, tx + 12); ctx.lineTo(w / 2 - 5, tx); }
+  ctx.stroke();
+}
+
+/* L ESCALIER DE SECOURS — DES MARCHES, DONC DES LIGNES REGULIERES ET SERREES.
+   Vu de dessus il n a pas de volume : c est un PEIGNE de traits clairs sur une
+   ombre, et c est exactement ce qui le distingue d une caisse. */
+function escalier(o, S) {
+  const w = o.w, h = o.h;
+  const vert = h >= w;
+  ctx.fillStyle = alpha("#000000", 0.50);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.34);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  ctx.strokeStyle = alpha(S.blocEdge, 0.34);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  const L = vert ? h : w;
+  for (let u = -L / 2 + 4; u < L / 2 - 2; u += 5) {
+    if (vert) { ctx.moveTo(-w / 2 + 3, u); ctx.lineTo(w / 2 - 3, u); }
+    else { ctx.moveTo(u, -h / 2 + 3); ctx.lineTo(u, h / 2 - 3); }
+  }
+  ctx.stroke();
+  // LE LIMON, un trait plein d un seul cote : l escalier est ACCROCHE au mur.
+  ctx.fillStyle = alpha(S.blocEdge, 0.30);
+  if (vert) ctx.fillRect(-w / 2 + 1, -h / 2 + 2, 2.5, h - 4);
+  else ctx.fillRect(-w / 2 + 2, -h / 2 + 1, w - 4, 2.5);
+}
+
+/* LE MONOLITHE — LE SEUL OBJET DU DEPOT SANS AUCUN DETAIL. Pas de joint, pas de
+   liseré, pas de voyant : une masse, son ombre portee et un reflet. Dans un lieu
+   ou tout est une surface qui vend, ce qui ne dit RIEN est ce qui impressionne
+   le plus, et c est la seule facon de dessiner « corporatif ». */
+function monolithe(o, S) {
+  const w = o.w, h = o.h;
+  ctx.fillStyle = alpha("#000000", 0.58);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.42);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // UN SEUL reflet, vertical, tres doux : la pierre est polie et rien d autre
+  // ne se lit dessus.
+  const g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  g.addColorStop(0, alpha("#ffffff", 0));
+  g.addColorStop(0.42, alpha("#ffffff", 0.07));
+  g.addColorStop(0.52, alpha("#ffffff", 0.02));
+  g.addColorStop(1, alpha("#ffffff", 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // une arete claire sur UN cote, et c est tout : le volume tient a ca.
+  ctx.fillStyle = alpha(S.blocEdge, 0.16);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, 2, h - 4);
+}
+
+/* L ETAL — UNE TABLE SOUS UNE BACHE. C est ce que « marche » promettait et que
+   des conteneurs ne pouvaient pas dire. La bache DEBORDE de la table, elle est
+   la seule chose du depot qui ait des plis, et le contraste entre son ampleur et
+   la petitesse de l etal est la signature de la region. */
+function etal(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  // LA BACHE : un ton chaud et desature, pose au-dessus du plateau.
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.peint, 0.30 + ((s & 3) * 0.03));
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // LES PLIS, des ombres paralleles irregulieres : rien d autre n en a.
+  ctx.strokeStyle = alpha("#000000", 0.20);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  const L = long ? w : h;
+  for (let i = 0; i < 4; i++) {
+    const u = -L / 2 + L * (0.18 + i * 0.22) + ((s >> i) & 1);
+    if (long) { ctx.moveTo(u, -h / 2 + 1); ctx.lineTo(u + 2, h / 2 - 1); }
+    else { ctx.moveTo(-w / 2 + 1, u); ctx.lineTo(w / 2 - 1, u + 2); }
+  }
+  ctx.stroke();
+  // LE PLATEAU visible sous l auvent, plus sombre, et la marchandise dessus.
+  const pw = w * 0.66, ph = h * 0.44;
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.fillRect(-pw / 2, h / 2 - 2 - ph, pw, ph);
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = alpha(((s >> i) & 1) ? PROP.vert : PROP.rouille, 0.30);
+    ctx.fillRect(-pw / 2 + 2 + i * (pw / 4), h / 2 - ph, Math.max(2, pw / 6), Math.max(2, ph * 0.5));
+  }
+  // LA GUIRLANDE, deux points chauds : la seule lumiere basse du Secteur.
+  ctx.fillStyle = alpha(PROP.led, 0.34);
+  ctx.fillRect(-w / 2 + w * 0.24, -h / 2 + 1, 2, 2);
+  ctx.fillRect(-w / 2 + w * 0.68, -h / 2 + 1, 2, 2);
 }
 
 function conteneur(o, S) {

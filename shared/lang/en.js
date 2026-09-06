@@ -1363,7 +1363,7 @@ export const EN = {
   "biome.nebuleuse.coursive": "The gangway",
   "biome.nebuleuse.breche": "The breach",
   "biome.secteur.rue": "The street",
-  "biome.secteur.place": "The square",
+  "biome.secteur.ruelle": "The alley",
   "biome.secteur.marche": "The market",
   "biome.secteur.parvis": "The forecourt",
   "biome.secteur.nom": "Sector",

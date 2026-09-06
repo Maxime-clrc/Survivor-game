@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -214,7 +214,10 @@ const QUARTIER = {
   nebuleuse: { [B_FRAGMENT]: 0, [B_DEBRIS]: 0, [B_TRAVEE]: 3, [B_COQUE]: 0,
                [B_BRAS]: 3, [B_CLOISON]: 3, [B_CONSOLE]: 3 },
   // devanture et pylone VENDENT, le conteneur est ce qu on livre PAR DERRIERE.
-  secteur: { [B_DEVANTURE]: 0, [B_PYLONE]: 0, [B_CONTENEUR]: 2 },
+  // le monolithe et l etal VENDENT (ou impressionnent) ; le mur aveugle et
+  // l escalier sont l arriere, la ou l on livre — le quartier du conteneur.
+  secteur: { [B_DEVANTURE]: 0, [B_PYLONE]: 0, [B_CONTENEUR]: 2,
+             [B_MONOLITHE]: 0, [B_ETAL]: 0, [B_AVEUGLE]: 2, [B_ESCALIER]: 2 },
 };
 
 /* LES DEUX TABLES DOIVENT SE RECOUVRIR EXACTEMENT, DANS LES DEUX SENS. Un prop

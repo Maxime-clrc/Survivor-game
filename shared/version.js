@@ -9967,6 +9967,27 @@
                   dock, la coursive 83 %.
                   Dix regions sur vingt-quatre ont une signature.
 
+    0.43.10 lot 11 LE SECTEUR, ET LES VINGT-QUATRE REGIONS DU DEPOT. « La place »
+                  posait le MEME catalogue de props que la rue dans un autre
+                  rangement — l une des quatre paires identiques mesurees a
+                  l ouverture du plan. Elle devient LA RUELLE : aucune vitrine,
+                  des MURS AVEUGLES (la seule famille du Secteur qui n emette pas,
+                  dans le seul lieu ou neuf blocs sur dix emettent) et des
+                  escaliers de secours. Meme theme, meme palette, contraste
+                  maximal.
+                  Le MARCHE a enfin des ETALS — il posait des conteneurs, donc des
+                  caisses — et le PARVIS son MONOLITHE, seul objet du depot sans
+                  aucun detail : dans un lieu ou tout est une surface qui vend, ce
+                  qui ne dit rien est ce qui impressionne.
+                  BILAN DES SIX LOTS DE CONTENU : 13 regions sur 24 possedent une
+                  famille exclusive, contre 0 sur 20 a l ouverture. Les onze
+                  restantes sont exactement celles que le dossier appelle des
+                  ARRANGEMENTS et non des biomes.
+                  23 familles neuves pour DIX silhouettes, dont cinq reemployees
+                  telles quelles : un `caisson` porte l etabli, le bassin, la
+                  coque, la cloison, la console, le mur aveugle, l escalier et le
+                  monolithe — huit lectures, un dessin de forme.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9975,4 +9996,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.9";
+export const VERSION = "0.43.10";

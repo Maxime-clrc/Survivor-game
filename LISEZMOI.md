@@ -8,6 +8,41 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le Secteur, et les vingt régions du dépôt (0.43.10)
+
+« La place » posait **le même catalogue de props que la rue** dans un autre
+rangement — c'est l'une des quatre paires identiques mesurées à l'ouverture du
+plan. Elle devient **la ruelle** : aucune vitrine, des **murs aveugles** (la
+seule famille bâtie du Secteur qui **n'émette pas**, dans le seul lieu où neuf
+blocs sur dix émettent) et des escaliers de secours. Même thème, même palette,
+contraste maximal.
+
+Le **marché** a enfin des **étals** — il posait des conteneurs, c'est-à-dire des
+caisses — et le **parvis** son **monolithe** : le seul objet du dépôt sans aucun
+détail. Dans un lieu où tout est une surface qui vend, ce qui ne dit rien est ce
+qui impressionne.
+
+**État des vingt-quatre régions, après six lots de contenu :**
+
+| thème | régions | avec une signature | familles neuves |
+|---|---:|---:|---|
+| usine | 7 | **4** | palettier, pile, quai, remorque, etabli, ouverte, transfo, cloture |
+| fonderie | 4 | **2** | moule, malaxeur, bassin |
+| friche | 5 | **2** | epaves, grillage, poteau, banche |
+| nébuleuse | 4 | **2** | bras, coque, cloison, console |
+| secteur | 4 | **3** | aveugle, escalier, monolithe, etal |
+| **total** | **24** | **13** | **23 familles**, 15 → 38 |
+
+**0 sur 20 à l'ouverture, 13 sur 24 maintenant.** Les onze régions sans signature
+sont exactement celles que le dossier désigne comme des *arrangements* — la
+chaîne, le carrefour, le dégagement, la coulée, le puits, le champ, le mur,
+l'effondrement, la dérive, la brèche, la rue.
+
+**Le couple silhouette × habillage a tenu sa promesse** : 23 familles nouvelles
+pour **10 silhouettes** seulement (dont 5 réemployées telles quelles), parce
+qu'un `caisson` porte l'établi, le bassin, la coque, la cloison, la console, le
+mur aveugle, l'escalier et le monolithe — huit lectures, un dessin de forme.
+
 ### La Nébuleuse : deux régions qui n'étaient qu'un facteur d'échelle (0.43.9)
 
 « Le champ d'épaves » était **la dérive avec des éclats plus petits**, « les
