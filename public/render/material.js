@@ -1463,7 +1463,9 @@ const TRAITEMENT = {
    `loisDe`, pas la confiance. DEUX REGIONS D UN THEME N ONT JAMAIS LE MEME :
    c est la seule chose qui rende une frontiere visible au sol. */
 const SOL_REGION = {
-  usine:     [T_LISSE, T_MARQUE, T_TECHNIQUE, T_DALLE],
+  // le magasin est POUDREUX dans ses travees peu servies, l expedition roule
+  // sur de l enrobe d aire.
+  usine:     [T_LISSE, T_MARQUE, T_TECHNIQUE, T_DALLE, T_POUDRE, T_BITUME],
   fonderie:  [T_LISSE, T_GRANULAT, T_MOUILLE, T_DALLE],
   friche:    [T_TERRE, T_GRANULAT, T_POUDRE, T_VEGETAL],
   nebuleuse: [T_TECHNIQUE, T_AJOURE, T_LISSE, T_MINERAL],

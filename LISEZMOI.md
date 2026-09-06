@@ -8,6 +8,41 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les deux premières régions à posséder un objet (0.43.5)
+
+**Avant : zéro région sur vingt avait une famille bâtie à elle.** Les vingt
+employaient **les trois** familles de leur thème — c'est la mesure qui a ouvert
+le plan 39. Après le magasin et l'expédition de l'Usine :
+
+| thème | régions | avec une famille exclusive |
+|---|---:|---:|
+| usine | **6** | **2** (magasin → palettier · expédition → quai, remorque) |
+| fonderie | 4 | 0 |
+| friche | 4 | 0 |
+| nébuleuse | 4 | 0 |
+| secteur | 4 | 0 |
+| **total** | **22** | **2** |
+
+**Le couple silhouette × habillage a payé son premier réemploi** : la remorque
+est le `chassis` de la Friche avec une matière peinte au lieu d'une carcasse
+rouillée. Une silhouette, deux thèmes, deux lectures — c'est ce que le couple
+1:1 rendait impossible.
+
+**Ce que les vérificateurs ont trouvé, et qu'on n'aurait pas vu.** Les cinq
+tables à remplir pour une région neuve se sont annoncées seules (`4 airs pour
+6 lois`, `4 traitements de sol pour 6 régions`, `famille sans quartier`, `aucun
+nom anglais`), et surtout **trois familles tombaient sur un danger en
+cauchemar** — 41 travées, 46 piles, 37 quais sur cinq graines. Le mode cauchemar
+porte cinq dangers dont une braise qui **balaie 420 px en x** : la bande
+y = 0,60 à 0,72 lui appartient sur toute la moitié centrale. Les quatre rangs de
+racks sont donc alternés en x **et** calés sur les creux, et la remorque passe de
+0,150 à 0,130 de large — à 0,150 son nez atteignait 552 px et entrait dans le
+balayage, qui commence à 535.
+
+`verifierEmpreinte` **existait, était exporté, et personne ne l'appelait** — il
+entre dans la suite (52 ms). C'est exactement le défaut que `verif.js` a été
+écrit pour fermer, et une silhouette neuve est ce qui le rend coûteux.
+
 ### La trame (0.43.1)
 
 **Ce qui manquait, en un chiffre.** Le plus grand objet bâti du dépôt faisait

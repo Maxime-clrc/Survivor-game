@@ -138,7 +138,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_FOUR = 3, B_CONDUITE = 4, B_CUVE = 5,
              B_RUINE = 6, B_MUR = 7, B_CARCASSE = 8,
              B_FRAGMENT = 9, B_TRAVEE = 10, B_DEBRIS = 11,
-             B_DEVANTURE = 12, B_PYLONE = 13, B_CONTENEUR = 14;
+             B_DEVANTURE = 12, B_PYLONE = 13, B_CONTENEUR = 14,
+             B_PALETTIER = 15, B_PILE = 16, B_QUAI = 17, B_REMORQUE = 18;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -156,6 +157,14 @@ export const BLOCS = [
   { key: "devanture", lieu: "secteur" },
   { key: "pylone", lieu: "secteur" },
   { key: "conteneur", lieu: "secteur" },
+  // LES QUATRE PREMIERES FAMILLES QUI N APPARTIENNENT QU A UN BIOME, pas au
+  // theme entier : c est ce que le plan 39 appelle une SIGNATURE, et c est ce
+  // qui manquait — les vingt regions du depot employaient les TROIS familles de
+  // leur theme, donc aucune n avait d objet a elle.
+  { key: "palettier", lieu: "usine" },
+  { key: "pile", lieu: "usine" },
+  { key: "quai", lieu: "usine" },
+  { key: "remorque", lieu: "usine" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -374,6 +383,57 @@ const OBSTACLES = {
       { x: 0.10, y: 0.86, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
       { x: 0.90, y: 0.14, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
       { x: 0.11, y: 0.68, w: 0.048, h: 0.090, kind: B_POSTE, min: 1 },
+    ] },
+    /* LE MAGASIN — ON GARDE, ON NE TRANSFORME PAS. Des travees de racks
+       paralleles, ouvertes aux DEUX bouts, et des allees entre elles. C est la
+       premiere region du depot qui pose une famille que personne d autre n a :
+       le palettier, long et mince, dont la repetition reguliere EST la
+       silhouette. Rien de ce qui fabrique n entre ici. */
+    { cle: "magasin", nom: "le magasin", label: "Le magasin", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      // les travees s ecartent de 0,20 en y, soit 180 px : plus du double de
+      // `PASSAGE_MIN`, et c est la contrainte qui interdit le quinconce serre.
+      /* LES TRAVEES SE POSENT ENTRE LES DANGERS, ET C EST LE CAUCHEMAR QUI
+         COMMANDE. L Usine y porte cinq dangers dont une braise qui BALAIE
+         420 px en x : la bande y = 0,60 a 0,72 lui appartient sur toute la
+         moitie centrale, et le geyser de gauche tient x = 0,12 a 0,20 autour de
+         y = 0,50. Les quatre rangs sont donc alternes en x ET cales sur les
+         creux — ce n est pas un reglage esthetique, le verificateur refuse un
+         danger sous un obstacle. Ecart minimal 0,20, soit 180 px, deux fois
+         le passage minimal. */
+      { x: 0.70, y: 0.16, w: 0.250, h: 0.030, kind: B_PALETTIER },
+      { x: 0.30, y: 0.36, w: 0.250, h: 0.030, kind: B_PALETTIER },
+      { x: 0.86, y: 0.68, w: 0.220, h: 0.030, kind: B_PALETTIER, min: 1 },
+      { x: 0.30, y: 0.88, w: 0.250, h: 0.030, kind: B_PALETTIER, min: 1 },
+      // ce qui attend au pied d une travee, et qui se degage au tir.
+      { x: 0.10, y: 0.28, w: 0.046, h: 0.052, hp: 1, kind: B_PILE },
+      { x: 0.90, y: 0.16, w: 0.046, h: 0.052, hp: 1, kind: B_PILE, min: 1 },
+      { x: 0.12, y: 0.68, w: 0.040, h: 0.044, hp: 1, kind: B_PILE, min: 2 },
+      { x: 0.88, y: 0.88, w: 0.040, h: 0.044, hp: 1, kind: B_PILE, min: 2 },
+      { x: 0.50, y: 0.08, w: 0.052, h: 0.130, kind: B_MACHINE },
+    ] },
+    /* L EXPEDITION — LE BORD DU BATIMENT. Une file de quais sur un cote, les
+       remorques a cul, et une aire de manoeuvre franche devant. La loi est
+       l ASYMETRIE : tout d un cote, rien de l autre, et le miroir de cellule
+       fait changer ce cote d une region a l autre.
+       La remorque est le premier CHASSIS de l Usine — la silhouette existait a
+       la Friche, la matiere non : une remorque en service n est pas une epave,
+       et c est exactement ce que le couple silhouette x habillage permet. */
+    { cle: "expedition", nom: "l expedition", label: "L'expédition", bords: [BORD_MUR, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.12, y: 0.16, w: 0.070, h: 0.100, kind: B_QUAI },
+      { x: 0.12, y: 0.34, w: 0.070, h: 0.100, kind: B_QUAI },
+      { x: 0.12, y: 0.64, w: 0.070, h: 0.100, kind: B_QUAI, min: 1 },
+      { x: 0.12, y: 0.88, w: 0.070, h: 0.100, kind: B_QUAI, min: 2 },
+      /* LA REMORQUE EST A CUL DU QUAI, donc juste devant lui et plus longue.
+         0,130 et pas 0,150 : a 0,150 son nez atteignait 552 px et entrait dans
+         le balayage de la braise, qui commence a 535. */
+      { x: 0.26, y: 0.16, w: 0.130, h: 0.062, kind: B_REMORQUE },
+      { x: 0.26, y: 0.64, w: 0.130, h: 0.062, kind: B_REMORQUE, min: 1 },
+      { x: 0.26, y: 0.34, w: 0.130, h: 0.062, kind: B_REMORQUE, min: 2 },
+      // l aire de manoeuvre reste FRANCHE : deux piles au pourtour, rien au
+      // milieu. C est la seule region de l Usine ou l on voit d un bout a l autre.
+      { x: 0.72, y: 0.12, w: 0.046, h: 0.052, hp: 1, kind: B_PILE },
+      { x: 0.88, y: 0.86, w: 0.046, h: 0.052, hp: 1, kind: B_PILE, min: 1 },
+      { x: 0.62, y: 0.90, w: 0.040, h: 0.044, hp: 1, kind: B_PILE, min: 2 },
     ] },
   ],
   /* LES CONDUITES ETAIENT A 0,06 ET LA FONDERIE AVAIT LE SEUL ABRI PARFAIT DU
@@ -813,6 +873,11 @@ const TRAMES = {
     { type: TR_CRIBLE, kind: B_MACHINE },
     { type: TR_PEIGNE, kind: B_POSTE },
     { type: TR_NEF, kind: B_CHAINE },
+    // le magasin est un PEIGNE de racks : meme primitive que l atelier, autre
+    // famille — et c est la famille qui porte la moitie de la silhouette.
+    { type: TR_PEIGNE, kind: B_PALETTIER },
+    // l expedition aligne ses quais sur un BORD : le peigne a echine de bord.
+    { type: TR_PEIGNE, kind: B_QUAI },
   ],
   fonderie: [
     { type: TR_RUBAN, kind: B_CONDUITE },
@@ -1359,10 +1424,16 @@ export function verifierTrame(graines = [1, 7, 99, 323, 50, 8],
         soucis.push(`${b.key}/region ${i} : la trame emploie la famille ${tr.kind},`
           + " qui n appartient pas au lieu");
       }
-      if (vus.has(tr.type)) {
-        soucis.push(`${b.key} : les regions ${vus.get(tr.type)} et ${i} portent la meme`
-          + ` trame « ${TRAME_NOMS[tr.type]} » — leur silhouette sera la meme`);
-      } else vus.set(tr.type, i);
+      /* LE COUPLE, PAS LE TYPE. Cinq primitives ne peuvent pas donner douze
+         regions distinctes, et ce n est pas la bonne question : un peigne de
+         racks et un peigne de quais ne se ressemblent pas — c est la FAMILLE
+         qui porte la moitie de la silhouette. Ce qu on refuse est un doublon
+         entier, structure ET vocabulaire. */
+      const couple = `${tr.type}|${tr.kind}`;
+      if (vus.has(couple)) {
+        soucis.push(`${b.key} : les regions ${vus.get(couple)} et ${i} portent la meme`
+          + ` trame « ${TRAME_NOMS[tr.type]} » sur la meme famille — meme silhouette`);
+      } else vus.set(couple, i);
     }
   }
   for (let ty = 0; ty < TRAME_NOMS.length; ty++) {

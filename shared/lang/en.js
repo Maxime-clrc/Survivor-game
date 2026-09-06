@@ -1346,6 +1346,8 @@ export const EN = {
   "biome.usine.carrefour": "The crossing",
   "biome.usine.atelier": "The workshop",
   "biome.usine.degagement": "The clearing",
+  "biome.usine.magasin": "The stores",
+  "biome.usine.expedition": "The shipping bay",
   "biome.fonderie.coulee": "The casting hall",
   "biome.fonderie.cuves": "The vats",
   "biome.fonderie.refroidissement": "The cooling floor",

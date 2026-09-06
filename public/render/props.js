@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -190,7 +190,10 @@ const PORTEE_QUARTIER = 90;
 const QUARTIER = {
   // la chaine et la cellule PRODUISENT, le poste ENTRETIENT. Stockage et
   // circulation restent a l espace libre, et c est leur definition.
-  usine: { [B_CHAINE]: 0, [B_MACHINE]: 0, [B_POSTE]: 3 },
+  // le palettier et la pile STOCKENT, le quai et la remorque font CIRCULER —
+  // c est par eux que la marchandise entre et sort.
+  usine: { [B_CHAINE]: 0, [B_MACHINE]: 0, [B_POSTE]: 3,
+           [B_PALETTIER]: 1, [B_PILE]: 1, [B_QUAI]: 2, [B_REMORQUE]: 2 },
   // le four COULE, la cuve MOULE, la conduite appartient au rebut — c est par
   // elle que part ce qui ne sert plus.
   fonderie: { [B_FOUR]: 0, [B_CUVE]: 1, [B_CONDUITE]: 3 },
@@ -1794,6 +1797,12 @@ const AIR = {
     // le degagement ENTRETIENT et STOCKE, il ne fabrique pas : c est la seule
     // region du theme qui ne tire aucune zone de production.
     { dens: 0.58, ech: [0.88, 0.86], zones: [1, 3], matieres: [TRACE_POUSSIERE, TRACE_FISSURES] },
+    /* UNE SEULE ZONE, ET C EST CE QUI LES SEPARE DE TOUT LE RESTE. Le theme n a
+       que quatre quartiers de props : a six regions, les paires distinctes sont
+       epuisees. Un magasin ne pose QUE du stockage et une expedition QUE de la
+       circulation — un inventaire etroit est une identite, pas un manque. */
+    { dens: 0.90, ech: [0.66, 0.54], zones: [1], matieres: [TRACE_ROULAGE] },
+    { dens: 0.70, ech: [0.80, 0.70], zones: [2], matieres: [TRACE_SOUILLURE] },
   ],
   fonderie: [
     { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },

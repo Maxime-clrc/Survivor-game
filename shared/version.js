@@ -9864,6 +9864,33 @@
                   d entree qui permet a un verificateur de LIRE le dictionnaire ;
                   `verifierVariantes` refuse une region sans nom anglais.
 
+    0.43.5 lot 6  LES DEUX PREMIERES REGIONS A POSSEDER UN OBJET. Le magasin et
+                  l expedition ouvrent l Usine a SIX regions, et ce sont les deux
+                  premieres du depot a porter une SIGNATURE — une famille batie
+                  que personne d autre du theme n emploie. Avant : zero region sur
+                  vingt, les vingt employant LES TROIS familles de leur theme.
+                  Quatre familles neuves : palettier (une travee ajouree, dont la
+                  repetition EST la silhouette), pile, quai (arete accostable,
+                  butoirs, bande hachuree) et remorque.
+                  LA REMORQUE EST LE PREMIER REEMPLOI DU COUPLE : c est le CHASSIS
+                  de la Friche avec une matiere peinte au lieu d une carcasse
+                  rouillee. Une silhouette, deux themes, deux lectures — ce que le
+                  couple 1:1 rendait impossible.
+                  LE COUPLE DE TRAME REMPLACE LE TYPE. Cinq primitives ne peuvent
+                  pas donner douze regions distinctes, et ce n est pas la bonne
+                  question : un peigne de racks et un peigne de quais ne se
+                  ressemblent pas. On refuse le doublon ENTIER, structure ET
+                  vocabulaire.
+                  LE DANGER COMMANDE LA TABLE. Trois familles sur quatre tombaient
+                  sur un danger en cauchemar (41 travees, 46 piles, 37 quais sur
+                  cinq graines) : ce mode porte une braise qui BALAIE 420 px en x.
+                  Les rangs se calent sur les creux, et la remorque passe de 0,150
+                  a 0,130 — a 0,150 son nez entrait dans le balayage.
+                  `verifierEmpreinte` EXISTAIT, ETAIT EXPORTE, ET PERSONNE NE
+                  L APPELAIT. Il entre dans la suite (52 ms) : une silhouette qui
+                  ne remplit pas son rectangle fait buter sur du vide, et c est
+                  exactement ce qu une silhouette NEUVE risque. 58 verificateurs.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9872,4 +9899,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.4";
+export const VERSION = "0.43.5";

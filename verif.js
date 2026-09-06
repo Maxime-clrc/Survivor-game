@@ -226,6 +226,10 @@ const SUITE = [
   ["vocabulaire", () => rendu.props?.verifierVocabulaire() ?? SANS_MODULE],
   ["semis", () => rendu.props?.verifierSemis() ?? SANS_MODULE],
   ["blocsRendu", () => rendu.blocs?.verifierBlocs() ?? SANS_MODULE],
+  /* IL EXISTAIT ET PERSONNE NE L APPELAIT. Une silhouette qui ne remplit pas
+     son rectangle fait buter sur du vide — la collision est une AABB — et c est
+     exactement ce qu une silhouette NEUVE risque. 52 ms. */
+  ["empreinte", () => rendu.blocs?.verifierEmpreinte() ?? SANS_MODULE],
   ["led", () => rendu.blocs?.verifierLed() ?? SANS_MODULE],
   ["dangersRendu", () => rendu.dangers?.verifierDangers() ?? SANS_MODULE],
   ["amers", () => rendu.decor?.verifierAmers() ?? SANS_MODULE],

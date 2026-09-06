@@ -1,7 +1,8 @@
 import {
   BIOMES, BLOCS, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CUVE, B_DEBRIS, B_FOUR,
   B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE,
-  B_DEVANTURE, B_PYLONE, B_CONTENEUR, gabaritsDe,
+  B_DEVANTURE, B_PYLONE, B_CONTENEUR,
+  B_PALETTIER, B_PILE, B_QUAI, B_REMORQUE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
@@ -64,12 +65,14 @@ const SILHOUETTE = {
   pan: formeRuine, mur_bas: formeMurBas, chassis: formeCarcasse,
   eclat: formeFragment, travee: formeTravee, debris: formeDebris,
   devanture: formeDevanture, mat: formePylone, conteneur: formeConteneur,
+  palettier: formePalettier, pile: formePile, quai: formeQuai,
 };
 
 const HABILLAGE = {
   chaine, cellule, poste, four, conduite, cuve,
   ruine: ruinePan, murBas, carcasse, fragment, travee, debris,
   devanture, pylone, conteneur,
+  palettier, pile, quai, remorque,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -81,6 +84,12 @@ const BLOC = {
     [B_CHAINE]: { sil: "barre", hab: "chaine" },
     [B_MACHINE]: { sil: "caisson", hab: "cellule" },
     [B_POSTE]: { sil: "machine", hab: "poste" },
+    [B_PALETTIER]: { sil: "palettier", hab: "palettier" },
+    [B_PILE]: { sil: "pile", hab: "pile" },
+    [B_QUAI]: { sil: "quai", hab: "quai" },
+    // LE MEME CHASSIS QUE LA FRICHE, UNE AUTRE MATIERE : premier couple du
+    // depot a servir deux themes.
+    [B_REMORQUE]: { sil: "chassis", hab: "remorque" },
   },
   fonderie: {
     [B_FOUR]: { sil: "octogone", hab: "four" },
@@ -247,6 +256,69 @@ function formeConduite(g, o) {
   g.lineTo(x + w - c, y + h);
   g.lineTo(x + c, y + h);
   g.lineTo(x, y + h - c);
+  g.lineTo(x, y + c);
+  g.closePath();
+}
+
+/* LE PALETTIER — UNE STRUCTURE, PAS UNE MASSE. Ce qui le distingue d une barre
+   est qu il est AJOURE : des montants regulierement espacés et deux lisses qui
+   les relient. Il remplit son rectangle — la collision est une AABB — mais son
+   interieur laisse voir le sol entre les montants, et c est ce qui fait lire un
+   rack plutot qu un mur.
+   LE PAS EST FIXE ET PAS PROPORTIONNEL : une travee de rack a une echelle
+   REELLE, c est ce qui donne l echelle du lieu quand on la longe. */
+const RACK_PAS = 46;
+function formePalettier(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const long = w >= h;
+  const c = Math.min(6, (long ? h : w) * 0.30);
+  g.beginPath();
+  g.moveTo(x + c, y);
+  g.lineTo(x + w - c, y);
+  g.lineTo(x + w, y + c);
+  g.lineTo(x + w, y + h - c);
+  g.lineTo(x + w - c, y + h);
+  g.lineTo(x + c, y + h);
+  g.lineTo(x, y + h - c);
+  g.lineTo(x, y + c);
+  g.closePath();
+}
+
+/* LA PILE — CE QU ON A EMPILE, DONC CE QUI N EST PAS D APLOMB. Chaque etage est
+   decale du precedent, et le decalage est deterministe : deux piles voisines ne
+   penchent pas du meme cote. Le contour reste dans le rectangle. */
+const PILE_ETAGES = 3;
+function formePile(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const s = graine(o);
+  const d = Math.min(w * 0.16, 7);
+  g.beginPath();
+  g.moveTo(x, y + h);
+  g.lineTo(x, y + h * 0.34);
+  for (let i = PILE_ETAGES - 1; i >= 0; i--) {
+    const yy = y + h * (i / PILE_ETAGES);
+    const dx = ((s >> (i * 3)) & 1) ? d : 0;
+    g.lineTo(x + dx, yy + h / PILE_ETAGES);
+    g.lineTo(x + dx, yy);
+  }
+  g.lineTo(x + w, y);
+  g.lineTo(x + w, y + h);
+  g.closePath();
+}
+
+/* LE QUAI — UNE DALLE SURELEVEE, DONC UN SEUL BORD FRANC ET TROIS CHANFREINS
+   COURTS. Le bord franc est celui qu on accoste ; c est lui qui dit le sens, et
+   il ne bouge pas avec la piece. */
+function formeQuai(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const c = Math.min(8, w * 0.14, h * 0.14);
+  g.beginPath();
+  g.moveTo(x, y);
+  g.lineTo(x + w, y);
+  g.lineTo(x + w, y + h);
+  g.lineTo(x, y + h);
+  g.lineTo(x, y + h - c);
+  g.lineTo(x + c * 0.5, y + h / 2);
   g.lineTo(x, y + c);
   g.closePath();
 }
@@ -1932,6 +2004,150 @@ function pylone(o, S) {
    contour plein — c est du gameplay. Sa matiere est de la TOLE ONDULEE : des
    nervures serrees, dans le sens de sa plus grande dimension, et rien d autre.
    Aucun neon : ce qu on a pose dans la rue ne vend rien. */
+/* LE RACK — CE QU IL PORTE EST CE QUI SE VOIT. Des montants au pas reel, deux
+   lisses, et des charges posees dessus dont une case sur trois est VIDE : un
+   magasin plein ne se lit pas, un magasin a trous se lit. */
+function palettier(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  const L = long ? w : h, E = long ? h : w;
+
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+
+  // les LISSES : deux traits continus sur toute la longueur, c est l ossature.
+  ctx.strokeStyle = alpha(S.blocEdge, 0.30);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (const d of [-E / 2 + 3, E / 2 - 3]) {
+    if (long) { ctx.moveTo(-w / 2, d); ctx.lineTo(w / 2, d); }
+    else { ctx.moveTo(d, -h / 2); ctx.lineTo(d, h / 2); }
+  }
+  ctx.stroke();
+
+  let i = 0;
+  for (let u = -L / 2 + RACK_PAS / 2; u < L / 2; u += RACK_PAS, i++) {
+    const mx = long ? u : 0, my = long ? 0 : u;
+    // le MONTANT
+    ctx.fillStyle = alpha(S.blocEdge, 0.34);
+    if (long) ctx.fillRect(u - 2, -h / 2, 4, h);
+    else ctx.fillRect(-w / 2, u - 2, w, 4);
+    // LA CHARGE, une alveole sur trois vide. Le tirage suit la piece.
+    if (((s >> (i % 12)) & 3) === 0) continue;
+    const cw = long ? RACK_PAS - 12 : w - 8;
+    const chh = long ? h - 8 : RACK_PAS - 12;
+    ctx.fillStyle = alpha(S.bloc, 0.50);
+    ctx.fillRect(mx - cw / 2 + (long ? RACK_PAS / 2 - 2 : 0), my - chh / 2 + (long ? 0 : RACK_PAS / 2 - 2), cw, chh);
+    ctx.strokeStyle = alpha("#000000", 0.26);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mx - cw / 2 + (long ? RACK_PAS / 2 - 2 : 0), my - chh / 2 + (long ? 0 : RACK_PAS / 2 - 2), cw, chh);
+  }
+  // l ADRESSE, peinte au pied : jamais lisible, c est de la matiere.
+  ctx.fillStyle = alpha(S.emis, 0.12);
+  if (long) ctx.fillRect(-w / 2 + 4, h / 2 - 5, Math.min(26, w * 0.2), 3);
+  else ctx.fillRect(w / 2 - 5, -h / 2 + 4, 3, Math.min(26, h * 0.2));
+}
+
+/* LA PILE — DES CAISSES, ET CE QUI LES TIENT. Le film etirable est ce qui dit
+   qu on l a preparee pour partir ; sans lui c est un tas. */
+function pile(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.38);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  const e = h / PILE_ETAGES;
+  for (let i = 0; i < PILE_ETAGES; i++) {
+    const dx = ((s >> (i * 3)) & 1) ? Math.min(w * 0.16, 7) : 0;
+    ctx.fillStyle = alpha(S.bloc, 0.44 + i * 0.05);
+    ctx.fillRect(-w / 2 + dx + 1, -h / 2 + i * e + 1, w - dx - 2, e - 2);
+    ctx.strokeStyle = alpha("#000000", 0.28);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-w / 2 + dx + 1, -h / 2 + i * e + 1, w - dx - 2, e - 2);
+  }
+  ctx.strokeStyle = alpha(S.blocEdge, 0.16);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 + 2, -h / 2 + e * 0.6); ctx.lineTo(w / 2 - 2, -h / 2 + e * 1.1);
+  ctx.moveTo(-w / 2 + 2, -h / 2 + e * 2.1); ctx.lineTo(w / 2 - 2, -h / 2 + e * 1.6);
+  ctx.stroke();
+}
+
+/* LE QUAI — UNE ARETE, UN BUTOIR, UN NIVELEUR. Le butoir est le seul objet du
+   depot qui soit peint en NOIR ET JAUNE, et c est ce qui le rend reconnaissable
+   d une vue entiere. */
+function quai(o, S) {
+  const w = o.w, h = o.h;
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.52);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+
+  // L ARETE accostable, du cote du chanfrein.
+  ctx.fillStyle = alpha(S.blocEdge, 0.34);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, Math.max(3, w * 0.10), h - 4);
+
+  // LES BUTOIRS, deux, en tete d arete.
+  const b = Math.min(7, h * 0.16);
+  ctx.fillStyle = alpha("#0b0b0b", 0.72);
+  for (const d of [-h * 0.26, h * 0.26]) {
+    ctx.fillRect(-w / 2 - 1, d - b / 2, Math.max(3, w * 0.08), b);
+  }
+  // la bande d avertissement au bord de la dalle, hachuree et courte.
+  ctx.strokeStyle = alpha(S.emis, 0.20);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let u = -h / 2 + 5; u < h / 2 - 3; u += 9) {
+    ctx.moveTo(-w / 2 + w * 0.14, u); ctx.lineTo(-w / 2 + w * 0.14 + 5, u + 5);
+  }
+  ctx.stroke();
+}
+
+/* LA REMORQUE — LE MEME CHASSIS QUE LA FRICHE, UNE AUTRE MATIERE. C est le
+   premier couple silhouette x habillage du depot a servir deux themes : une
+   epave et une remorque en service ont la meme forme et ne disent pas du tout
+   la meme chose. Ici la tole est PEINTE, les portes sont fermees, et rien ne
+   pend. */
+function remorque(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  ctx.fillStyle = alpha("#000000", 0.36);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.56);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+
+  // les NERVURES de caisse, regulieres et serrees : une remorque est une boite
+  // raidie, pas une plaque.
+  ctx.strokeStyle = alpha("#000000", 0.20);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  const pas = 11;
+  if (long) for (let u = -w / 2 + pas; u < w / 2 - 2; u += pas) { ctx.moveTo(u, -h / 2 + 3); ctx.lineTo(u, h / 2 - 3); }
+  else for (let u = -h / 2 + pas; u < h / 2 - 2; u += pas) { ctx.moveTo(-w / 2 + 3, u); ctx.lineTo(w / 2 - 3, u); }
+  ctx.stroke();
+
+  // LES PORTES, a l arriere, et l arriere est du cote du quai.
+  ctx.strokeStyle = alpha(S.blocEdge, 0.30);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  if (long) { ctx.moveTo(-w / 2 + 3, -h / 2 + 3); ctx.lineTo(-w / 2 + 3, h / 2 - 3); }
+  else { ctx.moveTo(-w / 2 + 3, -h / 2 + 3); ctx.lineTo(w / 2 - 3, -h / 2 + 3); }
+  ctx.stroke();
+
+  // les BEQUILLES, deux traits courts sous le nez : elle est POSEE, pas attelee.
+  ctx.strokeStyle = alpha("#000000", 0.34);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  const n = long ? w / 2 - 8 : 0, m = long ? 0 : h / 2 - 8;
+  for (const d of [-0.22, 0.22]) {
+    if (long) { ctx.moveTo(n, h * d); ctx.lineTo(n + 5, h * d); }
+    else { ctx.moveTo(w * d, m); ctx.lineTo(w * d, m + 5); }
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = alpha(S.emis, 0.10 + ((s & 3) * 0.02));
+  if (long) ctx.fillRect(-w / 2 + w * 0.30, -h / 2 + h * 0.32, w * 0.24, h * 0.16);
+  else ctx.fillRect(-w / 2 + w * 0.32, -h / 2 + h * 0.30, w * 0.16, h * 0.24);
+}
+
 function conteneur(o, S) {
   const w = o.w, h = o.h, s = graine(o);
 

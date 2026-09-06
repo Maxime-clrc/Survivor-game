@@ -606,6 +606,26 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     supprimé, et avec lui le repli silencieux de `biomeAt(-1)` sur l'Usine, qui
     privait toute carte composée de son arrière-plan, de ses baies, de son
     ambiance, de son liseré de bloc et de la chaleur de la coulée.
+- **UNE RÉGION DOIT POSSÉDER UN OBJET, ET C'EST CE QUI MANQUAIT.** Mesure à
+  l'ouverture du plan 39 : **zéro région sur vingt** avait une famille bâtie à
+  elle — les vingt employaient **les trois** familles de leur thème, donc un
+  biome ne pouvait être qu'un rangement des mêmes formes. Une région porte
+  désormais une **signature** : au moins une famille que personne d'autre du
+  thème n'emploie.
+  - **Une région neuve se déclare dans SIX tables, et aucune tranche n'est
+    livrable** : `BLOCS` + `OBSTACLES` + `TRAMES` (`biomes.js`), `BLOC`
+    (`blocs.js`), `QUARTIER` + `AIR` (`props.js`), `SOL_REGION`
+    (`material.js`), plus la clé anglaise. Cinq vérificateurs le disent
+    maintenant tout seuls — `4 airs pour 6 lois`, `4 traitements de sol pour
+    6 régions`, `famille sans quartier`, `aucun nom anglais` — et c'est le
+    contrat : un état intermédiaire est un rouge, jamais un repli silencieux.
+  - **Le danger commande la table, pas l'inverse.** Trois familles neuves sur
+    quatre tombaient sur un danger **en cauchemar** (41 travées, 46 piles,
+    37 quais sur cinq graines) : ce mode porte cinq dangers dont une braise qui
+    **balaie 420 px en x**, donc la bande `y = 0,60` à `0,72` lui appartient sur
+    toute la moitié centrale, et le geyser de gauche tient `x = 0,12` à `0,20`
+    autour de `y = 0,50`. Les rangs se calent sur les creux, et une pièce se
+    raccourcit plutôt que de se déplacer quand c'est son nez qui dépasse.
 - **LE PLAFOND GÉOMÉTRIQUE D'UNE RÉGION EST SUPPRIMÉ, ET C'EST UNE MESURE QUI
   L'A DIT.** `verifierVariantes` refusait deux régions qui divergeaient de plus
   de `LOI_ECART` (40 %) sur l'un des quatre axes de `verifierLois` — combien,
