@@ -1344,7 +1344,8 @@ export const EN = {
   // marchant.
   "biome.usine.chaine": "The line",
   "biome.usine.carrefour": "The crossing",
-  "biome.usine.atelier": "The workshop",
+  "biome.usine.maintenance": "Maintenance",
+  "biome.usine.utilites": "The utilities",
   "biome.usine.degagement": "The clearing",
   "biome.usine.magasin": "The stores",
   "biome.usine.expedition": "The shipping bay",

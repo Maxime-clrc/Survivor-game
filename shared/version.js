@@ -9891,6 +9891,28 @@
                   ne remplit pas son rectangle fait buter sur du vide, et c est
                   exactement ce qu une silhouette NEUVE risque. 58 verificateurs.
 
+    0.43.6 lot 7  L USINE PASSE A SEPT REGIONS, DONT QUATRE POSSEDENT UN OBJET.
+                  L atelier devient LA MAINTENANCE : son nom promettait des
+                  etablis et il posait des armoires en petit. Deux familles a
+                  elle — l ETABLI, bas et long, et la MACHINE OUVERTE, dont les
+                  capots sont poses A COTE : un objet qui raconte qu on l a
+                  demonte, et rien d autre du depot ne le fait.
+                  LES UTILITES ouvrent le premier obstacle qui BLOQUE LE CORPS
+                  SANS CACHER LA VUE — la claire-voie. Comportement inedit,
+                  immediatement lisible, et c est toute l identite de la region.
+                  Le cadre est la silhouette la plus reutilisee du dossier ; elle
+                  a sa regle : elle n est JAMAIS habillee d un vide.
+                  DEUX REEMPLOIS DU COUPLE : la remorque est le chassis de la
+                  Friche, le transformateur est le fut de la Fonderie. Deux
+                  recipients a la meme silhouette, et ce sont les AILETTES qui
+                  disent lequel.
+                  `verifierEmpreinte` a refuse la machine ouverte a 11,8 % pour
+                  un seuil de 10 : l echancrure passe de 0,30 a 0,19. Il venait
+                  d entrer dans la suite au lot 6, et c est exactement ce qu une
+                  silhouette echancree risque.
+                  Quatre regions de l Usine sur sept ont une signature, contre
+                  zero sur vingt a l ouverture du plan. 58 verificateurs.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9899,4 +9921,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.5";
+export const VERSION = "0.43.6";

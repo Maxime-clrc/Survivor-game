@@ -1465,7 +1465,10 @@ const TRAITEMENT = {
 const SOL_REGION = {
   // le magasin est POUDREUX dans ses travees peu servies, l expedition roule
   // sur de l enrobe d aire.
-  usine:     [T_LISSE, T_MARQUE, T_TECHNIQUE, T_DALLE, T_POUDRE, T_BITUME],
+  /* LA MAINTENANCE EST HUILEE, DONC ELLE RENVOIE : `mouille` n est pas que de
+     l eau, c est une surface qui reflete — une flaque d huile fait exactement ce
+     qu il faut. Les utilites sont sur GRAVIER, le seul sol non lisse du theme. */
+  usine:     [T_LISSE, T_MARQUE, T_MOUILLE, T_DALLE, T_POUDRE, T_BITUME, T_GRANULAT],
   fonderie:  [T_LISSE, T_GRANULAT, T_MOUILLE, T_DALLE],
   friche:    [T_TERRE, T_GRANULAT, T_POUDRE, T_VEGETAL],
   nebuleuse: [T_TECHNIQUE, T_AJOURE, T_LISSE, T_MINERAL],

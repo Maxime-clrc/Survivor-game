@@ -8,6 +8,33 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### L'Usine, sept régions dont quatre en possèdent une (0.43.6)
+
+| région | familles | signature |
+|---|---|---|
+| chaîne | chaine, poste, machine | — |
+| carrefour | machine, chaine, poste | — |
+| **maintenance** | etabli, ouverte, poste, machine | **etabli, ouverte** |
+| **utilités** | transfo, cloture | **transfo, cloture** |
+| dégagement | machine, chaine, poste | — |
+| **magasin** | palettier, pile, machine | **palettier** |
+| **expédition** | quai, remorque, pile | **quai, remorque** |
+
+**4 régions sur 7 possèdent un objet**, contre 0 sur 20 à l'ouverture du plan.
+Les trois qui n'en ont pas sont les trois que le dossier désigne comme des
+*arrangements* et non des biomes — la chaîne est la loi historique, le carrefour
+est la croix, le dégagement est la respiration.
+
+**Deux réemplois du couple silhouette × habillage** : la remorque est le
+`chassis` de la Friche, le transformateur est le `fut` de la Fonderie. Deux
+récipients à la même silhouette, et ce sont les **ailettes** qui disent lequel.
+
+**`verifierEmpreinte` a refusé la machine ouverte à 11,8 %** (seuil 10) :
+l'échancrure était trop profonde, elle passe de 0,30 à 0,19 de la petite
+dimension. Une forme qui rentre ses coins fait buter sur du vide, et c'est
+exactement ce qu'une silhouette échancrée risque — le vérificateur venait
+d'entrer dans la suite au lot précédent.
+
 ### Les deux premières régions à posséder un objet (0.43.5)
 
 **Avant : zéro région sur vingt avait une famille bâtie à elle.** Les vingt

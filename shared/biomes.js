@@ -139,7 +139,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_RUINE = 6, B_MUR = 7, B_CARCASSE = 8,
              B_FRAGMENT = 9, B_TRAVEE = 10, B_DEBRIS = 11,
              B_DEVANTURE = 12, B_PYLONE = 13, B_CONTENEUR = 14,
-             B_PALETTIER = 15, B_PILE = 16, B_QUAI = 17, B_REMORQUE = 18;
+             B_PALETTIER = 15, B_PILE = 16, B_QUAI = 17, B_REMORQUE = 18,
+             B_ETABLI = 19, B_OUVERTE = 20, B_TRANSFO = 21, B_CLOTURE = 22;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -165,6 +166,10 @@ export const BLOCS = [
   { key: "pile", lieu: "usine" },
   { key: "quai", lieu: "usine" },
   { key: "remorque", lieu: "usine" },
+  { key: "etabli", lieu: "usine" },
+  { key: "ouverte", lieu: "usine" },
+  { key: "transfo", lieu: "usine" },
+  { key: "cloture", lieu: "usine" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -356,21 +361,44 @@ const OBSTACLES = {
       // sortait du lieu par le bas au lieu d en etre une variante.
       { x: 0.50, y: 0.18, w: 0.070, h: 0.048, kind: B_POSTE },
     ] },
-    /* L ATELIER — semis dense de petits postes. Beaucoup d angles, rien qui
-       bloque : c est la variante ou l on tire court et ou l on ne voit jamais
-       loin, sans qu une seule masse coupe un passage. */
-    { cle: "atelier", nom: "l atelier", label: "L'atelier", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
-      { x: 0.18, y: 0.26, w: 0.048, h: 0.090, kind: B_POSTE },
-      { x: 0.38, y: 0.20, w: 0.048, h: 0.090, kind: B_POSTE },
-      { x: 0.62, y: 0.30, w: 0.070, h: 0.048, kind: B_POSTE },
-      { x: 0.82, y: 0.22, w: 0.048, h: 0.090, kind: B_POSTE, min: 1 },
-      { x: 0.28, y: 0.50, w: 0.070, h: 0.048, kind: B_POSTE },
-      { x: 0.72, y: 0.52, w: 0.070, h: 0.048, kind: B_POSTE, min: 1 },
-      { x: 0.18, y: 0.76, w: 0.048, h: 0.090, kind: B_POSTE, min: 1 },
-      { x: 0.40, y: 0.82, w: 0.070, h: 0.048, kind: B_POSTE, min: 2 },
-      { x: 0.84, y: 0.80, w: 0.052, h: 0.130, kind: B_MACHINE },
-      { x: 0.24, y: 0.62, w: 0.070, h: 0.048, kind: B_POSTE, min: 1 },
-      { x: 0.50, y: 0.13, w: 0.230, h: 0.036, kind: B_CHAINE },
+    /* LA MAINTENANCE — ON REPARE, DONC RIEN N EST FINI. Elle remplace
+       « l atelier », dont le nom promettait des etablis et qui posait des
+       armoires en petit. Deux familles a elle : l ETABLI, bas et long, le seul
+       objet du theme qu on contourne sans jamais le perdre de vue ; et la
+       MACHINE OUVERTE, dont les capots sont poses A COTE d elle — un objet qui
+       raconte qu on l a demontee.
+       Semis dense et anguleux : on tire court, on ne voit jamais loin, et
+       aucune masse ne coupe un passage. */
+    { cle: "maintenance", nom: "la maintenance", label: "La maintenance", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+      { x: 0.20, y: 0.14, w: 0.110, h: 0.030, kind: B_ETABLI },
+      { x: 0.75, y: 0.22, w: 0.110, h: 0.030, kind: B_ETABLI },
+      { x: 0.30, y: 0.72, w: 0.110, h: 0.030, kind: B_ETABLI, min: 1 },
+      { x: 0.70, y: 0.86, w: 0.110, h: 0.030, kind: B_ETABLI, min: 1 },
+      { x: 0.14, y: 0.30, w: 0.060, h: 0.100, kind: B_OUVERTE },
+      { x: 0.86, y: 0.70, w: 0.060, h: 0.100, kind: B_OUVERTE, min: 1 },
+      { x: 0.38, y: 0.50, w: 0.060, h: 0.100, kind: B_OUVERTE, min: 2 },
+      { x: 0.60, y: 0.14, w: 0.070, h: 0.048, kind: B_POSTE },
+      { x: 0.24, y: 0.90, w: 0.070, h: 0.048, kind: B_POSTE, min: 1 },
+      { x: 0.92, y: 0.14, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
+      { x: 0.50, y: 0.90, w: 0.052, h: 0.130, kind: B_MACHINE },
+    ] },
+    /* LES UTILITES — ON ALIMENTE, ET RIEN N Y EST INOFFENSIF. Un parc de
+       transformateurs sur reseau regulier, ceint d une CLAIRE-VOIE : le premier
+       obstacle du depot qui bloque le CORPS sans cacher la VUE. C est un
+       comportement inedit et immediatement lisible, et c est toute l identite de
+       la region.
+       Le reseau saute sa case centrale : les deux dangers de l Usine y sont. */
+    { cle: "utilites", nom: "les utilites", label: "Les utilités", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.20, y: 0.16, w: 0.056, h: 0.070, kind: B_TRANSFO },
+      { x: 0.50, y: 0.16, w: 0.056, h: 0.070, kind: B_TRANSFO },
+      { x: 0.80, y: 0.16, w: 0.056, h: 0.070, kind: B_TRANSFO, min: 1 },
+      { x: 0.08, y: 0.50, w: 0.056, h: 0.070, kind: B_TRANSFO },
+      { x: 0.95, y: 0.50, w: 0.056, h: 0.070, kind: B_TRANSFO, min: 1 },
+      { x: 0.20, y: 0.84, w: 0.056, h: 0.070, kind: B_TRANSFO, min: 1 },
+      { x: 0.50, y: 0.84, w: 0.056, h: 0.070, kind: B_TRANSFO, min: 2 },
+      { x: 0.80, y: 0.84, w: 0.056, h: 0.070, kind: B_TRANSFO, min: 2 },
+      { x: 0.30, y: 0.30, w: 0.200, h: 0.016, kind: B_CLOTURE },
+      { x: 0.74, y: 0.74, w: 0.200, h: 0.016, kind: B_CLOTURE, min: 1 },
     ] },
     /* LE DEGAGEMENT — la respiration du theme. Presque vide, deux masses
        isolees contre les bords : on y traverse en ligne droite, et c est
@@ -871,13 +899,17 @@ const TRAMES = {
   usine: [
     { type: TR_RUBAN, kind: B_CHAINE },
     { type: TR_CRIBLE, kind: B_MACHINE },
-    { type: TR_PEIGNE, kind: B_POSTE },
+    // la maintenance est une HALLE : deux parois et un fond, en etablis.
+    { type: TR_NEF, kind: B_ETABLI },
     { type: TR_NEF, kind: B_CHAINE },
     // le magasin est un PEIGNE de racks : meme primitive que l atelier, autre
     // famille — et c est la famille qui porte la moitie de la silhouette.
     { type: TR_PEIGNE, kind: B_PALETTIER },
     // l expedition aligne ses quais sur un BORD : le peigne a echine de bord.
     { type: TR_PEIGNE, kind: B_QUAI },
+    // les utilites sont un PARC, donc un crible — de transformateurs, pas
+    // d armoires : le couple separe ce que le type seul confondrait.
+    { type: TR_CRIBLE, kind: B_TRANSFO },
   ],
   fonderie: [
     { type: TR_RUBAN, kind: B_CONDUITE },

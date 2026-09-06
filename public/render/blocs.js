@@ -2,7 +2,8 @@ import {
   BIOMES, BLOCS, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CUVE, B_DEBRIS, B_FOUR,
   B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_RUINE, B_TRAVEE,
   B_DEVANTURE, B_PYLONE, B_CONTENEUR,
-  B_PALETTIER, B_PILE, B_QUAI, B_REMORQUE, gabaritsDe,
+  B_PALETTIER, B_PILE, B_QUAI, B_REMORQUE,
+  B_CLOTURE, B_ETABLI, B_OUVERTE, B_TRANSFO, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
@@ -66,6 +67,7 @@ const SILHOUETTE = {
   eclat: formeFragment, travee: formeTravee, debris: formeDebris,
   devanture: formeDevanture, mat: formePylone, conteneur: formeConteneur,
   palettier: formePalettier, pile: formePile, quai: formeQuai,
+  ouverte: formeOuverte, cadre: formeCadre,
 };
 
 const HABILLAGE = {
@@ -73,6 +75,7 @@ const HABILLAGE = {
   ruine: ruinePan, murBas, carcasse, fragment, travee, debris,
   devanture, pylone, conteneur,
   palettier, pile, quai, remorque,
+  etabli, ouverte, transfo, cloture,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -90,6 +93,13 @@ const BLOC = {
     // LE MEME CHASSIS QUE LA FRICHE, UNE AUTRE MATIERE : premier couple du
     // depot a servir deux themes.
     [B_REMORQUE]: { sil: "chassis", hab: "remorque" },
+    [B_ETABLI]: { sil: "caisson", hab: "etabli" },
+    [B_OUVERTE]: { sil: "ouverte", hab: "ouverte" },
+    // LA MEME SILHOUETTE QUE LA CUVE DE FONDERIE, une autre matiere : un
+    // transformateur et une cuve sont deux recipients, et ce sont les ailettes
+    // qui disent lequel.
+    [B_TRANSFO]: { sil: "fut", hab: "transfo" },
+    [B_CLOTURE]: { sil: "cadre", hab: "cloture" },
   },
   fonderie: {
     [B_FOUR]: { sil: "octogone", hab: "four" },
@@ -320,6 +330,47 @@ function formeQuai(g, o) {
   g.lineTo(x, y + h - c);
   g.lineTo(x + c * 0.5, y + h / 2);
   g.lineTo(x, y + c);
+  g.closePath();
+}
+
+
+/* LA MACHINE OUVERTE — UN CARTER ECARTE. Le contour est celui d un caisson dont
+   UN cote a ete tire : une echancrure franche, profonde, sur une seule face. Il
+   remplit son rectangle — l echancrure se referme par le bord — donc la
+   collision reste juste. Le cote echancre suit la piece, pas la camera. */
+const OUVERTE_ECHANCRE = 0.19;
+function formeOuverte(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  const s = graine(o);
+  const c = Math.min(CHANFREIN, w * 0.14, h * 0.14);
+  const e = Math.min(w, h) * OUVERTE_ECHANCRE;
+  const cote = s & 3;
+  g.beginPath();
+  g.moveTo(x + c, y);
+  if (cote === 0) { g.lineTo(x + w * 0.38, y); g.lineTo(x + w * 0.43, y + e); g.lineTo(x + w * 0.62, y + e); g.lineTo(x + w * 0.68, y); }
+  g.lineTo(x + w - c, y);
+  g.lineTo(x + w, y + c);
+  if (cote === 1) { g.lineTo(x + w, y + h * 0.38); g.lineTo(x + w - e, y + h * 0.43); g.lineTo(x + w - e, y + h * 0.62); g.lineTo(x + w, y + h * 0.68); }
+  g.lineTo(x + w, y + h - c);
+  g.lineTo(x + w - c, y + h);
+  if (cote === 2) { g.lineTo(x + w * 0.68, y + h); g.lineTo(x + w * 0.62, y + h - e); g.lineTo(x + w * 0.43, y + h - e); g.lineTo(x + w * 0.38, y + h); }
+  g.lineTo(x + c, y + h);
+  g.lineTo(x, y + h - c);
+  if (cote === 3) { g.lineTo(x, y + h * 0.68); g.lineTo(x + e, y + h * 0.62); g.lineTo(x + e, y + h * 0.43); g.lineTo(x, y + h * 0.38); }
+  g.lineTo(x, y + c);
+  g.closePath();
+}
+
+/* LE CADRE — ON VOIT A TRAVERS, ON NE PASSE PAS. C est la silhouette la plus
+   reutilisee du dossier (onze biomes la tirent), et elle a une regle a elle :
+   ELLE N EST JAMAIS HABILLEE D UN VIDE. Son interieur porte toujours une
+   matiere — claire-voie, verre, panneau — sinon le joueur bute sur du rien, et
+   `verifierEmpreinte` aurait raison de la refuser. `verifierBlocs` tient la
+   regle par table plutot que par confiance. */
+function formeCadre(g, o) {
+  const w = o.w, h = o.h, x = -w / 2, y = -h / 2;
+  g.beginPath();
+  g.rect(x, y, w, h);
   g.closePath();
 }
 
@@ -2146,6 +2197,134 @@ function remorque(o, S) {
   ctx.fillStyle = alpha(S.emis, 0.10 + ((s & 3) * 0.02));
   if (long) ctx.fillRect(-w / 2 + w * 0.30, -h / 2 + h * 0.32, w * 0.24, h * 0.16);
   else ctx.fillRect(-w / 2 + w * 0.32, -h / 2 + h * 0.30, w * 0.16, h * 0.24);
+}
+
+
+/* L ETABLI — UN PLATEAU, DES PIEDS, ET CE QU ON A LAISSE DESSUS. Bas et long :
+   c est le seul objet du theme qu on contourne sans jamais le perdre de vue,
+   et son plateau est plus clair que ses pieds parce qu on le regarde d en haut. */
+function etabli(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  ctx.fillStyle = alpha("#000000", 0.36);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.58);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // le CHANT du plateau, un liseré clair sur le bord long.
+  ctx.fillStyle = alpha(S.blocEdge, 0.26);
+  if (long) ctx.fillRect(-w / 2 + 2, h / 2 - 4, w - 4, 2);
+  else ctx.fillRect(w / 2 - 4, -h / 2 + 2, 2, h - 4);
+  // LES PIEDS, aux quarts : c est ce qui dit qu il est POSE et pas encastre.
+  ctx.fillStyle = alpha("#000000", 0.30);
+  const L = long ? w : h;
+  for (const f of [0.14, 0.5, 0.86]) {
+    const u = -L / 2 + L * f;
+    if (long) ctx.fillRect(u - 2, -h / 2 + 2, 4, h - 4);
+    else ctx.fillRect(-w / 2 + 2, u - 2, w - 4, 4);
+  }
+  // CE QU ON A LAISSE DESSUS : deux a quatre pieces, jamais alignees.
+  ctx.fillStyle = alpha(S.blocEdge, 0.20);
+  const n = 2 + (s & 3);
+  for (let i = 0; i < n; i++) {
+    const u = -L / 2 + L * (0.12 + 0.24 * i + ((s >> (i * 2)) & 1) * 0.05);
+    const t = 3 + ((s >> i) & 3);
+    if (long) ctx.fillRect(u, -h / 2 + 4, t, Math.max(2, h - 10));
+    else ctx.fillRect(-w / 2 + 4, u, Math.max(2, w - 10), t);
+  }
+}
+
+/* LA MACHINE OUVERTE — LES CAPOTS SONT POSES A COTE. Le carter ecarte est dans
+   la silhouette ; ce qui se peint ici est l INTERIEUR : plus sombre que la
+   coque, avec deux ou trois pieces claires dedans. Un objet qui montre son
+   ventre raconte qu on l a demonte, et rien d autre du depot ne le fait. */
+function ouverte(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.50);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  // LE VENTRE : un rectangle franchement plus sombre, decale, avec ses organes.
+  const vw = w * 0.44, vh = h * 0.44;
+  const vx = ((s & 1) ? 0.10 : -0.10) * w, vy = ((s & 2) ? 0.10 : -0.10) * h;
+  ctx.fillStyle = alpha("#000000", 0.46);
+  ctx.fillRect(vx - vw / 2, vy - vh / 2, vw, vh);
+  ctx.fillStyle = alpha(S.blocEdge, 0.24);
+  for (let i = 0; i < 3; i++) {
+    const px = vx - vw / 2 + 3 + ((s >> (i * 2)) & 3) * (vw / 6);
+    const py = vy - vh / 2 + 3 + ((s >> (i * 3)) & 3) * (vh / 6);
+    ctx.fillRect(px, py, Math.max(2, vw * 0.14), Math.max(2, vh * 0.14));
+  }
+  // LE CAPOT DEPOSE, plaque au sol contre le flanc : plus clair, plus mince.
+  ctx.fillStyle = alpha(S.bloc, 0.30);
+  const cw2 = w * 0.24, ch2 = h * 0.30;
+  ctx.fillRect((s & 1) ? -w / 2 + 3 : w / 2 - 3 - cw2, h / 2 - 3 - ch2, cw2, ch2);
+}
+
+/* LE TRANSFORMATEUR — DES AILETTES, ET C EST TOUT CE QU IL FAUT. Une cuve avec
+   des ailettes serrees sur ses deux flancs longs : la repetition fine est ce
+   qui le separe d une cuve de fonderie a la meme silhouette. */
+function transfo(o, S) {
+  const w = o.w, h = o.h;
+  ctx.fillStyle = alpha("#000000", 0.38);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.54);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  ctx.strokeStyle = alpha("#000000", 0.34);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  const long = w >= h;
+  const L = long ? w : h;
+  for (let u = -L / 2 + 6; u < L / 2 - 4; u += 5) {
+    if (long) { ctx.moveTo(u, -h / 2 + 3); ctx.lineTo(u, -h / 2 + 8); ctx.moveTo(u, h / 2 - 8); ctx.lineTo(u, h / 2 - 3); }
+    else { ctx.moveTo(-w / 2 + 3, u); ctx.lineTo(-w / 2 + 8, u); ctx.moveTo(w / 2 - 8, u); ctx.lineTo(w / 2 - 3, u); }
+  }
+  ctx.stroke();
+  // LES ISOLATEURS, trois plots clairs sur le dessus : la seule chose qui
+  // depasse d une cuve, et ce qui la rend electrique au premier coup d oeil.
+  ctx.fillStyle = alpha(S.blocEdge, 0.34);
+  for (const f of [0.28, 0.5, 0.72]) {
+    if (long) ctx.fillRect(-w / 2 + w * f - 2, -h / 2 + h * 0.24, 4, 4);
+    else ctx.fillRect(-w / 2 + w * 0.24, -h / 2 + h * f - 2, 4, 4);
+  }
+}
+
+/* LA CLAIRE-VOIE — LE PREMIER OBSTACLE DU DEPOT QUI BLOQUE LE CORPS SANS CACHER
+   LA VUE. Rien ne se peint en plein : deux lisses, des poteaux au pas reel, et
+   un grillage croise a tres faible alpha. C est ce qui remplit le rectangle
+   sans jamais faire ecran. */
+const CLOTURE_PAS = 34;
+function cloture(o, S) {
+  const w = o.w, h = o.h;
+  const long = w >= h;
+  const L = long ? w : h, E = long ? h : w;
+
+  ctx.strokeStyle = alpha(S.blocEdge, 0.10);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let u = -L / 2; u < L / 2; u += 7) {
+    if (long) { ctx.moveTo(u, -h / 2); ctx.lineTo(u + 7, h / 2); ctx.moveTo(u + 7, -h / 2); ctx.lineTo(u, h / 2); }
+    else { ctx.moveTo(-w / 2, u); ctx.lineTo(w / 2, u + 7); ctx.moveTo(-w / 2, u + 7); ctx.lineTo(w / 2, u); }
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = alpha(S.blocEdge, 0.34);
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  for (const d of [-E / 2 + 1, E / 2 - 1]) {
+    if (long) { ctx.moveTo(-w / 2, d); ctx.lineTo(w / 2, d); }
+    else { ctx.moveTo(d, -h / 2); ctx.lineTo(d, h / 2); }
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = alpha("#000000", 0.40);
+  for (let u = -L / 2; u <= L / 2; u += CLOTURE_PAS) {
+    if (long) ctx.fillRect(u - 1.5, -h / 2, 3, h);
+    else ctx.fillRect(-w / 2, u - 1.5, w, 3);
+  }
+  // le panneau de danger, une seule fois par piece, au tiers.
+  ctx.fillStyle = alpha(S.emis, 0.22);
+  if (long) ctx.fillRect(-w / 2 + L * 0.33, -h / 2 + 2, 7, Math.max(3, h - 4));
+  else ctx.fillRect(-w / 2 + 2, -h / 2 + L * 0.33, Math.max(3, w - 4), 7);
 }
 
 function conteneur(o, S) {
