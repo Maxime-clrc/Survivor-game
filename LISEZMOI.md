@@ -8,6 +8,39 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Nébuleuse : deux régions qui n'étaient qu'un facteur d'échelle (0.43.9)
+
+« Le champ d'épaves » était **la dérive avec des éclats plus petits**, « les
+grands fragments » **la dérive à `ech` 1,30**. Le commentaire d'`OBSTACLES`
+l'interdisait deux cents lignes plus haut : *un facteur d'échelle donne la même
+arène grossie, donc le même parcours*.
+
+Elles deviennent **le dock** (bras d'amarrage en file, coques qui **sortent du
+cadre** — le seul objet du dépôt plus grand que ce qu'on en voit) et **la
+coursive** (le seul sol **plein** du thème). Sans la coursive, « dépressurisé »
+ne veut rien dire : elle donne l'autre terme de l'axe.
+
+| | régions | avec une signature |
+|---|---:|---:|
+| usine | 7 | 4 |
+| fonderie | 4 | 2 |
+| friche | 5 | 2 |
+| **nébuleuse** | **4** | **2** (dock → bras, coque · coursive → cloison, console) |
+| secteur | 4 | 0 |
+| **total** | **24** | **10** |
+
+**Trois défauts, trois vérificateurs différents, aucun visible à l'œil :**
+
+- `regions` — le dock portait `BORD_MUR` face au `BORD_MUR` de la coursive,
+  donc `loisAccordees` les déclarait incompatibles et l'assembleur **répétait une
+  loi** plutôt que d'en poser deux distinctes. Une carte montrait 3 lois pour
+  5 régions.
+- `superpositions` — la console tombait dans le fragment sur **80 × 23 px**,
+  904 paires sur 50 graines.
+- `vocabulaire` — la dérive partageait **71 %** de ses props avec le dock, et la
+  coursive **83 %**. Le seuil dur est l'identité, mais l'écart maximal sort avec
+  le verdict, et c'est lui qui a désigné les deux à corriger.
+
 ### La Friche : le cratère sans cratère (0.43.8)
 
 **Un nom qui décrivait une disposition et promettait un objet.** « Le cratère »

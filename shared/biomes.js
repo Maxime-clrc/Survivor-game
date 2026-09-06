@@ -142,7 +142,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_PALETTIER = 15, B_PILE = 16, B_QUAI = 17, B_REMORQUE = 18,
              B_ETABLI = 19, B_OUVERTE = 20, B_TRANSFO = 21, B_CLOTURE = 22,
              B_MOULE = 23, B_MALAXEUR = 24, B_BASSIN = 25,
-             B_EPAVES = 26, B_GRILLAGE = 27, B_POTEAU = 28, B_BANCHE = 29;
+             B_EPAVES = 26, B_GRILLAGE = 27, B_POTEAU = 28, B_BANCHE = 29,
+             B_BRAS = 30, B_COQUE = 31, B_CLOISON = 32, B_CONSOLE = 33;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -179,6 +180,10 @@ export const BLOCS = [
   { key: "grillage", lieu: "friche" },
   { key: "poteau", lieu: "friche" },
   { key: "banche", lieu: "friche" },
+  { key: "bras", lieu: "nebuleuse" },
+  { key: "coque", lieu: "nebuleuse" },
+  { key: "cloison", lieu: "nebuleuse" },
+  { key: "console", lieu: "nebuleuse" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -669,32 +674,42 @@ const OBSTACLES = {
       { x: 0.37, y: 0.80, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 2 },
       { x: 0.50, y: 0.30, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 2 },
     ] },
-    /* LE CHAMP D EPAVES — beaucoup de petits eclats, aucune grosse masse. Rien
-       ne cache, tout accroche : on voit la horde arriver de partout et on ne
-       peut jamais s en couper. */
-    { cle: "epaves", nom: "le champ d epaves", label: "Le champ d'épaves", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
-      { x: 0.18, y: 0.22, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
-      { x: 0.82, y: 0.78, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
-      { x: 0.38, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
-      { x: 0.62, y: 0.70, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 1 },
-      { x: 0.19, y: 0.72, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 1 },
-      { x: 0.81, y: 0.28, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
-      { x: 0.41, y: 0.84, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
-      { x: 0.30, y: 0.20, w: 0.145, h: 0.150, kind: B_FRAGMENT },
-      { x: 0.12, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE },
+    /* LE DOCK — ON ACCOSTE, DONC IL Y A UN BORD ET DES PINCES DESSUS. Il
+       remplace « le champ d epaves », qui n etait que la derive avec des eclats
+       plus petits : `dens` et `ech` ne font pas un endroit.
+       Une file de BRAS D AMARRAGE le long d un cote, et derriere chacun une
+       COQUE — une masse lisse, enorme, qui SORT DU CADRE. C est le seul objet du
+       depot plus grand que ce qu on en voit, et c est ce qui donne l echelle de
+       la station. */
+    { cle: "dock", nom: "le dock", label: "Le dock", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.10, y: 0.14, w: 0.014, h: 0.120, kind: B_BRAS },
+      { x: 0.10, y: 0.38, w: 0.014, h: 0.120, kind: B_BRAS },
+      { x: 0.10, y: 0.62, w: 0.014, h: 0.120, kind: B_BRAS, min: 1 },
+      { x: 0.10, y: 0.86, w: 0.014, h: 0.120, kind: B_BRAS, min: 2 },
+      { x: 0.26, y: 0.20, w: 0.150, h: 0.170, kind: B_COQUE },
+      { x: 0.26, y: 0.80, w: 0.150, h: 0.170, kind: B_COQUE, min: 1 },
+      { x: 0.62, y: 0.70, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
+      { x: 0.81, y: 0.28, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 1 },
       { x: 0.88, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE, min: 1 },
     ] },
-    /* LES GRANDS FRAGMENTS — trois masses enormes et tres espacees. Peu de
-       choses, mais chaque contournement est LONG : c est la variante ou l on
-       perd la horde de vue et ou elle reapparait d un cote qu on a quitte. */
-    { cle: "fragments", nom: "les grands fragments", label: "Les grands fragments", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+    /* LA COURSIVE — LE DEDANS, ET C EST LUI QUI FAIT EXISTER LE DEHORS. Elle
+       remplace « les grands fragments », qui etaient la derive a `ech` 1,30 :
+       un facteur d echelle donne la meme arene grossie, donc le meme parcours.
+       Ici le sol est PLEIN — le seul de la Nebuleuse — et deux parois continues
+       le bordent. Sans cette region, « depressurise » ne veut rien dire : c est
+       la seule qui donne l autre terme de l axe du theme. */
+    { cle: "coursive", nom: "la coursive", label: "La coursive", bords: [BORD_MUR, BORD_OUVERT, BORD_MUR, BORD_OUVERT], poser: [
+      { x: 0.06, y: 0.20, w: 0.020, h: 0.200, kind: B_CLOISON },
+      { x: 0.06, y: 0.50, w: 0.020, h: 0.200, kind: B_CLOISON },
+      { x: 0.06, y: 0.80, w: 0.020, h: 0.200, kind: B_CLOISON, min: 1 },
+      { x: 0.94, y: 0.20, w: 0.020, h: 0.200, kind: B_CLOISON },
+      { x: 0.94, y: 0.50, w: 0.020, h: 0.200, kind: B_CLOISON, min: 1 },
+      { x: 0.94, y: 0.80, w: 0.020, h: 0.200, kind: B_CLOISON, min: 2 },
+      { x: 0.40, y: 0.06, w: 0.050, h: 0.060, kind: B_CONSOLE },
+      { x: 0.62, y: 0.92, w: 0.050, h: 0.060, kind: B_CONSOLE, min: 1 },
+      { x: 0.50, y: 0.20, w: 0.050, h: 0.060, kind: B_CONSOLE, min: 2 },
       { x: 0.22, y: 0.20, w: 0.145, h: 0.150, kind: B_FRAGMENT },
-      { x: 0.78, y: 0.80, w: 0.145, h: 0.150, kind: B_FRAGMENT },
-      { x: 0.78, y: 0.20, w: 0.145, h: 0.150, kind: B_FRAGMENT, min: 1 },
-      { x: 0.12, y: 0.50, w: 0.020, h: 0.560, kind: B_TRAVEE },
-      { x: 0.41, y: 0.86, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
-      { x: 0.59, y: 0.14, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 1 },
-      { x: 0.45, y: 0.50, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
+      { x: 0.78, y: 0.80, w: 0.145, h: 0.150, kind: B_FRAGMENT, min: 1 },
     ] },
     /* LA BRECHE — le bati concentre sur un bord, l autre ouvert sur le vide.
        La seule variante ASYMETRIQUE du theme : le miroir de cellule en fait une
@@ -977,8 +992,10 @@ const TRAMES = {
   ],
   nebuleuse: [
     { type: TR_CRIBLE, kind: B_FRAGMENT },
-    { type: TR_PEIGNE, kind: B_DEBRIS },
-    { type: TR_COURONNE, kind: B_FRAGMENT },
+    // le dock aligne ses postes d amarrage : un peigne a echine de bord.
+    { type: TR_PEIGNE, kind: B_BRAS },
+    // la coursive est le seul VOLUME CLOS du theme.
+    { type: TR_NEF, kind: B_CLOISON },
     { type: TR_NEF, kind: B_TRAVEE },
   ],
   secteur: [

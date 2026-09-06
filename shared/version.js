@@ -9950,6 +9950,23 @@
                   temps qu un vide de collision.
                   Huit regions sur vingt-quatre ont une signature.
 
+    0.43.9 lot 10 LA NEBULEUSE : DEUX REGIONS QUI N ETAIENT QU UN FACTEUR
+                  D ECHELLE. « Le champ d epaves » etait la derive avec des eclats
+                  plus petits, « les grands fragments » la derive a `ech` 1,30 —
+                  et le commentaire d `OBSTACLES` l interdisait deux cents lignes
+                  plus haut : un facteur d echelle donne la meme arene grossie.
+                  Elles deviennent LE DOCK — bras d amarrage en file et COQUES qui
+                  SORTENT DU CADRE, seul objet du depot plus grand que ce qu on en
+                  voit — et LA COURSIVE, le seul sol PLEIN du theme. Sans elle,
+                  « depressurise » ne veut rien dire.
+                  Trois defauts, trois verificateurs, aucun visible a l oeil : le
+                  dock portait un BORD_MUR face a celui de la coursive, donc
+                  l assembleur REPETAIT une loi (3 lois pour 5 regions) ; la
+                  console tombait dans le fragment sur 80 x 23 px, 904 paires sur
+                  50 graines ; et la derive partageait 71 % de ses props avec le
+                  dock, la coursive 83 %.
+                  Dix regions sur vingt-quatre ont une signature.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9958,4 +9975,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.8";
+export const VERSION = "0.43.9";

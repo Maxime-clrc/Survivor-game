@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_BANCHE, B_BASSIN, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -209,7 +209,10 @@ const QUARTIER = {
   friche: { [B_CARCASSE]: 1, [B_MUR]: 2, [B_RUINE]: 3,
             [B_EPAVES]: 1, [B_GRILLAGE]: 2, [B_POTEAU]: 2, [B_BANCHE]: 2 },
   // la coque et ses debris font l EPAVE, la travee est ce a quoi on s AMARRE.
-  nebuleuse: { [B_FRAGMENT]: 0, [B_DEBRIS]: 0, [B_TRAVEE]: 3 },
+  // la coque et ses debris font l EPAVE ; le bras, la cloison et la console
+  // sont ce a quoi on s AMARRE ou ce qui dessert — le quartier de la travee.
+  nebuleuse: { [B_FRAGMENT]: 0, [B_DEBRIS]: 0, [B_TRAVEE]: 3, [B_COQUE]: 0,
+               [B_BRAS]: 3, [B_CLOISON]: 3, [B_CONSOLE]: 3 },
   // devanture et pylone VENDENT, le conteneur est ce qu on livre PAR DERRIERE.
   secteur: { [B_DEVANTURE]: 0, [B_PYLONE]: 0, [B_CONTENEUR]: 2 },
 };
@@ -1831,9 +1834,14 @@ const AIR = {
     { dens: 0.64, ech: [0.72, 0.90], zones: [2], matieres: [TRACE_FISSURES] },
   ],
   nebuleuse: [
-    { dens: 1.00, ech: [0.90, 1.05], zones: [0, 3], matieres: [TRACE_RAYURES, null] },
-    { dens: 1.50, ech: [0.52, 0.56], zones: [0, 2], matieres: [TRACE_FISSURES, TRACE_DECHETS] },
-    { dens: 0.52, ech: [1.30, 1.34], zones: [1, 3], matieres: [TRACE_CORROSION, null] },
+    // la derive tire l EPAVE et ce qui a gele dessus, jamais l amarrage : a
+    // [0,3] elle partageait 71 % de ses props avec le dock.
+    { dens: 1.00, ech: [0.90, 1.05], zones: [0, 2], matieres: [TRACE_RAYURES, null] },
+    // un dock ne pose QUE ce a quoi on s amarre : balise, antenne, rail, ancrage.
+    { dens: 1.10, ech: [0.66, 0.70], zones: [3], matieres: [TRACE_FISSURES] },
+    // la coursive tire ce qui FLOTTE et ce a quoi on s AMARRE, jamais la
+    // signaletique du dock : a [1,3] elle partageait 83 % de ses props avec lui.
+    { dens: 0.52, ech: [1.30, 1.34], zones: [0, 1], matieres: [TRACE_CORROSION, null] },
     { dens: 0.86, ech: [0.80, 1.00], zones: [1, 2], matieres: [TRACE_RAYURES, TRACE_DECHETS] },
   ],
   secteur: [

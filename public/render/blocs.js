@@ -5,7 +5,8 @@ import {
   B_PALETTIER, B_PILE, B_QUAI, B_REMORQUE,
   B_CLOTURE, B_ETABLI, B_OUVERTE, B_TRANSFO,
   B_BASSIN, B_MALAXEUR, B_MOULE,
-  B_BANCHE, B_EPAVES, B_GRILLAGE, B_POTEAU, gabaritsDe,
+  B_BANCHE, B_EPAVES, B_GRILLAGE, B_POTEAU,
+  B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
@@ -80,6 +81,7 @@ const HABILLAGE = {
   etabli, ouverte, transfo, cloture,
   moule, malaxeur, bassin,
   epaves, poteau, banche,
+  bras, coque, cloison, console: console_,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -134,6 +136,10 @@ const BLOC = {
     [B_FRAGMENT]: { sil: "eclat", hab: "fragment" },
     [B_TRAVEE]: { sil: "travee", hab: "travee" },
     [B_DEBRIS]: { sil: "debris", hab: "debris" },
+    [B_BRAS]: { sil: "mat", hab: "bras" },
+    [B_COQUE]: { sil: "caisson", hab: "coque" },
+    [B_CLOISON]: { sil: "caisson", hab: "cloison" },
+    [B_CONSOLE]: { sil: "caisson", hab: "console" },
   },
   secteur: {
     [B_DEVANTURE]: { sil: "devanture", hab: "devanture" },
@@ -2532,6 +2538,127 @@ function banche(o, S) {
   ctx.strokeStyle = alpha(S.blocEdge, 0.28);
   ctx.lineWidth = 2;
   ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+}
+
+
+/* LE BRAS D AMARRAGE — UNE PINCE, DONC DEUX MACHOIRES ET UNE ARTICULATION. Il
+   est fin et long, il ne cache rien, et pourtant on le reconnait d une vue
+   entiere : c est la seule forme du depot qui se termine par une OUVERTURE. */
+function bras(o, S) {
+  const w = o.w, h = o.h;
+  const vert = h >= w;
+  const L = vert ? h : w, E = vert ? w : h;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.56);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // L ARTICULATION : un renflement au tiers, plus clair.
+  ctx.fillStyle = alpha(S.blocEdge, 0.30);
+  const a = -L / 2 + L * 0.34;
+  if (vert) ctx.fillRect(-w / 2 - 1, a - 3, w + 2, 6);
+  else ctx.fillRect(a - 3, -h / 2 - 1, 6, h + 2);
+  // LES MACHOIRES, en bout : deux traits qui s ecartent.
+  ctx.strokeStyle = alpha(S.blocEdge, 0.38);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const b = L / 2 - 1, o2 = E * 0.9;
+  for (const d of [-1, 1]) {
+    if (vert) { ctx.moveTo(0, b - E); ctx.lineTo(d * o2, b); }
+    else { ctx.moveTo(b - E, 0); ctx.lineTo(b, d * o2); }
+  }
+  ctx.stroke();
+  // le feu d approche, un point froid en bout : la station se signale en cyan.
+  ctx.fillStyle = alpha(PROP.balise, 0.44);
+  if (vert) ctx.fillRect(-1.5, b - 3, 3, 3);
+  else ctx.fillRect(b - 3, -1.5, 3, 3);
+}
+
+/* LA COQUE — LE SEUL OBJET DU DEPOT PLUS GRAND QUE CE QU ON EN VOIT. Une masse
+   lisse, quasi sans detail, avec une seule ligne de HUBLOTS qui donne l echelle.
+   Ce qui la fait lire n est pas son dessin, c est son GABARIT : rien d autre
+   n occupe autant d ecran d un seul tenant. */
+function coque(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.46);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.60);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  // deux plaques de bordé, jointes par une seule couture longitudinale.
+  ctx.strokeStyle = alpha("#000000", 0.20);
+  ctx.lineWidth = 2;
+  const long = w >= h;
+  ctx.beginPath();
+  if (long) { ctx.moveTo(-w / 2 + 4, -h * 0.12); ctx.lineTo(w / 2 - 4, -h * 0.12); }
+  else { ctx.moveTo(-w * 0.12, -h / 2 + 4); ctx.lineTo(-w * 0.12, h / 2 - 4); }
+  ctx.stroke();
+  // LES HUBLOTS : une file reguliere, petits, froids. C est l echelle.
+  const L = long ? w : h;
+  ctx.fillStyle = alpha(PROP.balise, 0.20);
+  for (let u = -L / 2 + 14; u < L / 2 - 8; u += 16) {
+    if (long) ctx.fillRect(u, h * 0.16, 4, 4);
+    else ctx.fillRect(w * 0.16, u, 4, 4);
+  }
+  // un GIVRE d arete, du cote de l ombre : la coque est dehors.
+  ctx.fillStyle = alpha(PROP.givre, 0.10 + (s & 3) * 0.02);
+  if (long) ctx.fillRect(-w / 2 + 3, h / 2 - 7, w - 6, 4);
+  else ctx.fillRect(w / 2 - 7, -h / 2 + 3, 4, h - 6);
+}
+
+/* LA CLOISON ETANCHE — LE SEUL PLEIN DE LA NEBULEUSE. Elle porte un CADRE
+   massif et un hublot rond : dedans, on ne voit le vide que par un trou. C est
+   l inverse exact de tout le reste du theme, et c est ce qui fait exister le
+   mot « depressurise ». */
+function cloison(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const vert = h >= w;
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // le PANNEAU composite, clair et uni : rien d autre du theme n est clair.
+  ctx.fillStyle = alpha(S.blocEdge, 0.26);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // LES RAIDISSEURS, reguliers et serres.
+  ctx.strokeStyle = alpha("#000000", 0.24);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  const L = vert ? h : w;
+  for (let u = -L / 2 + 12; u < L / 2 - 6; u += 18) {
+    if (vert) { ctx.moveTo(-w / 2 + 2, u); ctx.lineTo(w / 2 - 2, u); }
+    else { ctx.moveTo(u, -h / 2 + 2); ctx.lineTo(u, h / 2 - 2); }
+  }
+  ctx.stroke();
+  // LE HUBLOT, un seul, rond, sombre : le vide vu de l interieur.
+  const r = Math.min(w, h) * 0.30;
+  const c = (((s >> 2) & 3) - 1.5) * L * 0.18;
+  ctx.fillStyle = alpha("#03050c", 0.80);
+  ctx.beginPath();
+  ctx.arc(vert ? 0 : c, vert ? c : 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.34);
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+}
+
+/* LA CONSOLE — UN POSTE MURAL, DONC UN OBJET A HAUTEUR D HOMME. Elle est la
+   seule chose de la Nebuleuse qui soit ALLUMEE de l interieur, et c est ce qui
+   dit qu on est dans une piece et pas dans le vide. */
+function console_(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.56);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // L ECRAN : un rectangle froid, plus clair que tout le reste du lieu.
+  const ew = w * 0.52, eh = h * 0.34;
+  ctx.fillStyle = alpha(PROP.balise, 0.22);
+  ctx.fillRect(-ew / 2, -h / 2 + h * 0.18, ew, eh);
+  ctx.strokeStyle = alpha("#000000", 0.30);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-ew / 2, -h / 2 + h * 0.18, ew, eh);
+  // LES VOYANTS, une rangee, deux allumes sur cinq — un poste au repos.
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = alpha(((s >> i) & 1) ? PROP.balise : "#000000", ((s >> i) & 1) ? 0.34 : 0.30);
+    ctx.fillRect(-w / 2 + w * (0.16 + i * 0.16), h / 2 - h * 0.24, 3, 3);
+  }
 }
 
 function conteneur(o, S) {
