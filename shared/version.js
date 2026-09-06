@@ -9664,6 +9664,48 @@
                   Verifie en reinjectant les deux fautes : `biomeKey` absent de
                   `decor.js` et `LOOT_ICON` absent d `actors.js` sortent toutes
                   les deux.
+    0.42.0 lot 1  UNE CARTE EST D UN SEUL THEME, ET ELLE PORTE PLUSIEURS BIOMES
+                  DE CE THEME. Le decoupage posait LES CINQ ENTREES DE `BIOMES` —
+                  donc cinq MONDES — sur les cinq regions d une arene, et
+                  `verifierCarte` l EXIGEAIT : une friche pouvait etre une
+                  nebuleuse. Le mot « biome » designait un THEME ; ce qui joue le
+                  role d un biome est la LOI D IMPLANTATION.
+                  CINQ DEFAUTS VIVANTS MEURENT AVEC LA CARTE COMPOSEE, tous par
+                  la meme cause — `biomeIndex` valait -1, donc `biomeAt(-1)`
+                  repliait sur l Usine : `drawFond` et `drawBaies` rendaient
+                  `null`, donc AUCUN arriere-plan nulle part, Nebuleuse comprise ;
+                  `AMBIANCE` soufflait l air de l Usine dans les cinq regions ;
+                  `contourDe` donnait son lisere a tous les blocs ; et
+                  `=== "fonderie"` etait toujours faux, donc la coulee ne
+                  degageait JAMAIS sa chaleur.
+                  LE BORD APPARTIENT A LA REGION, PAS A LA CELLULE. `mx` et `my`
+                  changent TOUJOURS d une cellule a sa voisine, donc le bord sud
+                  de l une et le bord nord de l autre etaient le MEME element de
+                  table : un bord rencontrait lui-meme, et une loi portant un
+                  `BORD_MUR` etait incompatible avec ELLE-MEME. La reparation par
+                  cellule reecrivait alors la moitie d une region — 50 % sur la
+                  Friche (le cratere), 48 % sur la Nebuleuse (la breche) — et la
+                  region cessait de se lire. `bordsDe` est supprime ; deux LOIS
+                  s accordent si aucun de leurs quatre bords n est `BORD_MUR` des
+                  deux cotes.
+                  L ADJACENCE DES REGIONS SE CONSTRUIT DANS LES DEUX SENS : le
+                  premier jet ne regardait que le voisin de gauche et du haut deja
+                  pose, donc un quartier entierement a droite d un autre ne le
+                  voyait jamais et les deux pouvaient porter la meme loi.
+                  `verifierRegions` : toutes les cellules d une region portent SA
+                  loi, deux voisines en portent deux — borne au pigeonnier quand
+                  le theme a moins de lois qu il n y a de regions —, leurs bords
+                  s accordent, et la carte montre autant de lois que le theme peut
+                  en donner. 24 graines x 5 themes.
+                  Supprimes : `BIOME_COMPOSE`, `lieuxDe`, `lieuIndexAt`,
+                  `verifierCarte`, `bordsDe`, `lieuAt`, `lieuKeyAt`, `skinAt`,
+                  `solDe`, `lieuxCourants`, `lieuxPortent`, `drawSeuils` et la
+                  plaque de seuil. Aucun champ reseau ne bouge : `biome` porte un
+                  index de theme, et il est maintenant TOUJOURS reel.
+                  `Room.drawBiome` retrouve sa regle : deux manches de suite ne
+                  montrent pas le meme theme.
+                  Conception complete des 61 biomes dans
+                  `docs/superpowers/specs/plan38/`.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9673,4 +9715,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.41.1";
+export const VERSION = "0.42.0";

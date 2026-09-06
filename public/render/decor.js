@@ -9,7 +9,7 @@ import { mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { biomeKey, lieuxPortent, celluleH, celluleW, lieuAt, lieuKeyAt, skinAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
+import { biomeKey, celluleH, celluleW, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
 /* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine deux fois : une passe
    PLEINE VUE entre la couleur d'arene et la matiere du sol — c'est ce qui
@@ -586,14 +586,14 @@ const AMERS = {
 export function drawAmer() {
   const place = biomeAt(biomeIndex).key;
   const r = amerDe(biomeSeed, place, hazardsDuLieu());
-  const cle = lieuKeyAt(r.x, r.y);
+  const cle = biomeKey();
   const f = AMERS[cle];
   if (!f) return;
   if (!inView(r.x, r.y, AMER_R)) return;
   ctx.save();
   ctx.translate(r.x, r.y);
   ctx.rotate(r.a);
-  f(AMER_R, skinAt(r.x, r.y));
+  f(AMER_R, skin());
   ctx.restore();
 }
 
@@ -881,87 +881,6 @@ function sasAmarrage(R, S) {
    LE MOTIF EST ANCRE A L ORIGINE DU MONDE, pas a la cellule : deux cellules du
    meme lieu se raccordent donc au pixel, et la periode de la tuile ne se decale
    pas a la frontiere. */
-/* LE SEUIL — CE QUI RACCORDE DEUX REGIONS, ET IL NE FERME RIEN.
-
-   Deux lieux qui se touchent bord a bord font une COUTURE : le sol change d un
-   coup sur une droite, et ca se lit comme un defaut de rendu. Un fondu de matiere
-   couterait deux motifs et un masque par cellule frontiere ; un mur ferait un
-   goulot, et un goulot detruit le kiting — la horde s y accumule et le joueur tire
-   dans un entonnoir.
-
-   ON DECLARE DONC LA COUTURE AU LIEU DE LA CACHER. Une plaque de seuil, large,
-   posee A PLAT sur la frontiere : elle a un bord franc de chaque cote, donc la
-   droite cesse d etre un accident et devient une PIECE. Elle ne bloque rien, elle
-   ne ralentit rien, elle n a pas de collider — le joueur la traverse sans la
-   sentir, et c est la condition qu on s est donnee.
-
-   ELLE EST TECHNIQUE, PAS COLOREE. Un seuil qui prendrait la teinte d un des deux
-   lieux dirait que ce lieu deborde ; il prend celle du METAL, la seule matiere que
-   les cinq lieux partagent, et ses deux lisereses lisent le passage.
-   Elle passe SOUS la grille de 20 m et sous tout ce qui est pose : c est du sol. */
-const SEUIL_LARGE = 150;
-export function drawSeuils() {
-  const cw = celluleW(), ch = celluleH();
-  const x0 = camera.x0, y0 = camera.y0;
-  const x1 = x0 + CFG.VIEW_W, y1 = y0 + CFG.VIEW_H;
-  const i0 = Math.floor(x0 / cw), i1 = Math.floor((x1 - 1) / cw);
-  const j0 = Math.floor(y0 / ch), j1 = Math.floor((y1 - 1) / ch);
-  const demi = SEUIL_LARGE / 2;
-
-  for (let j = j0; j <= j1; j++) {
-    for (let i = i0; i <= i1; i++) {
-      const cx = (i + 0.5) * cw, cy = (j + 0.5) * ch;
-      const li = lieuAt(cx, cy);
-      // ON NE REGARDE QUE DEUX ARETES SUR QUATRE — ouest et nord : la voisine
-      // dessinera les siennes, et chaque arete interne se peint une seule fois.
-      if (i > 0 && lieuAt(cx - cw, cy) !== li) {
-        plaqueSeuil(i * cw - demi, j * ch, SEUIL_LARGE, ch, true);
-      }
-      if (j > 0 && lieuAt(cx, cy - ch) !== li) {
-        plaqueSeuil(i * cw, j * ch - demi, cw, SEUIL_LARGE, false);
-      }
-    }
-  }
-}
-
-function plaqueSeuil(x, y, w, h, vertical) {
-  ctx.fillStyle = alpha(PROP.metal, 0.16);
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = alpha("#000000", 0.18);
-  ctx.fillRect(x, y, w, h);
-
-  // LES DEUX LISERES : ce sont eux qui font la PIECE. Sans bord franc, une bande
-  // plus sombre est une salissure de plus.
-  ctx.strokeStyle = alpha(PROP.metal, 0.34);
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  if (vertical) {
-    ctx.moveTo(x + 1, y); ctx.lineTo(x + 1, y + h);
-    ctx.moveTo(x + w - 1, y); ctx.lineTo(x + w - 1, y + h);
-  } else {
-    ctx.moveTo(x, y + 1); ctx.lineTo(x + w, y + 1);
-    ctx.moveTo(x, y + h - 1); ctx.lineTo(x + w, y + h - 1);
-  }
-  ctx.stroke();
-
-  /* LES CRANS DISENT QU ON TRAVERSE, et ils sont PERPENDICULAIRES au passage —
-     paralleles, ils auraient dessine une barriere. Un pas de 90 px : assez pour
-     qu on les compte du regard, trop peu pour qu ils fassent une texture. */
-  ctx.strokeStyle = alpha(PROP.metal, 0.22);
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  if (vertical) {
-    for (let t = y + 45; t < y + h; t += 90) {
-      ctx.moveTo(x + 14, t); ctx.lineTo(x + w - 14, t);
-    }
-  } else {
-    for (let t = x + 45; t < x + w; t += 90) {
-      ctx.moveTo(t, y + 14); ctx.lineTo(t, y + h - 14);
-    }
-  }
-  ctx.stroke();
-}
-
 export function drawFloor() {
   const x0 = camera.x0, y0 = camera.y0;
   const x1 = x0 + CFG.VIEW_W, y1 = y0 + CFG.VIEW_H;
@@ -973,12 +892,11 @@ export function drawFloor() {
       const rx = Math.max(x0, i * cw), ry = Math.max(y0, j * ch);
       const rw = Math.min(x1, (i + 1) * cw) - rx, rh = Math.min(y1, (j + 1) * ch) - ry;
       if (rw <= 0 || rh <= 0) continue;
-      const li = lieuAt(rx + rw / 2, ry + rh / 2);
-      const p = floorPattern(ctx, li, difficulty, biomeSeed, renderScale);
+      const p = floorPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale);
       if (!p) continue;
       ctx.fillStyle = p;
       ctx.fillRect(rx, ry, rw, rh);
-      const m = macroPattern(ctx, li, difficulty, biomeSeed, renderScale);
+      const m = macroPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale);
       if (!m) continue;
       ctx.fillStyle = m;
       ctx.fillRect(rx, ry, rw, rh);
@@ -997,7 +915,7 @@ const COULEE_PLAQUE = 46;
 export function drawCoulee() {
   // LE CANAL EST UNE GEOMETRIE D ARENE, mais il n appartient qu a la Fonderie :
   // sur une carte composee, chaque segment se filtre sur SA region.
-  if (gfx <= GFX_LOW || !lieuxPortent("fonderie")) return;
+  if (gfx <= GFX_LOW || biomeKey() !== "fonderie") return;
   const c = couleeDe(biomeSeed, CFG.ARENA_W, CFG.ARENA_H, obstaclesActifs(), hazardsActifs());
   const t = performance.now() / 1000;
 
@@ -1006,7 +924,6 @@ export function drawCoulee() {
       const mx = (s.x0 + s.x1) / 2, my = (s.y0 + s.y1) / 2;
       const l = Math.hypot(s.x1 - s.x0, s.y1 - s.y0);
       if (!inView(mx, my, l / 2 + canal.large)) continue;
-      if (lieuKeyAt(mx, my) !== "fonderie") continue;
       const vert = s.x0 === s.x1;
       const w = vert ? canal.large : l, h = vert ? l : canal.large;
       const x = Math.min(s.x0, s.x1) - (vert ? canal.large / 2 : 0);

@@ -266,15 +266,25 @@ function rng(seed) {
 export const BORD_OUVERT = 0, BORD_ENCOMBRE = 1, BORD_MUR = 2;
 export const bordsAccordes = (a, b) => !(a === BORD_MUR && b === BORD_MUR);
 
-/* LES BORDS SUIVENT LE MIROIR. La table est rejouee sous quatre orientations
-   (`mx`, `my`) ; une variante retournee horizontalement echange son bord EST et
-   son bord OUEST. Comparer les bords ECRITS a ceux du voisin RETOURNE
-   accorderait deux aretes qui ne se touchent pas.
-   L ordre est [nord, est, sud, ouest], celui d une horloge. */
-export function bordsDe(v, mx, my) {
-  const b = v.bords;
-  return [my ? b[2] : b[0], mx ? b[3] : b[1], my ? b[0] : b[2], mx ? b[1] : b[3]];
-}
+/* LE BORD APPARTIENT A LA REGION, PLUS A LA CELLULE — ET LE MIROIR DIT POURQUOI.
+
+   `bordsDe(v, mx, my)` retournait les bords avec la cellule. Or `mx` et `my`
+   changent de valeur d une cellule a sa voisine, TOUJOURS : `my = cy & 1` bascule
+   d une ligne a l autre, `mx = (cx + cy) & 1` d une colonne a l autre. En
+   deroulant, le bord SUD de la cellule du dessus et le bord NORD de celle du
+   dessous sont le MEME element de la table — un bord rencontrait lui-meme. Une
+   loi portant un `BORD_MUR` etait donc incompatible avec ELLE-MEME, et comme une
+   region entiere porte une seule loi, la reparation d arete reecrivait la moitie
+   de ses cellules : mesure, 50 % sur la Friche (le cratere, deux murs) et 48 %
+   sur la Nebuleuse (la breche, un mur). La region cessait de se lire.
+
+   LA CONTRAINTE REMONTE DONC D UN CRAN. Une region est uniforme par
+   construction, il n y a rien a accorder dedans ; ce qui se touche vraiment,
+   c est DEUX REGIONS, et deux lois s accordent si aucun de leurs quatre bords
+   n est `BORD_MUR` des deux cotes. Les orientations restent, elles ne portent
+   que la GEOMETRIE. */
+export const loisAccordees = (a, b) =>
+  a.bords.every((x, k) => bordsAccordes(x, b.bords[k]));
 
 /* LES VARIANTES D UN THEME, ECRITES COMME DES LOIS D IMPLANTATION ET PAS COMME
    DES DECORS. Ce qui change est CE QU IL Y A, pas la taille de ce qu il y a : un
@@ -885,119 +895,88 @@ export function verifierDistricts(graines = 60, cols = 9, rows = 9) {
   return soucis;
 }
 
-/* UNE CARTE FAITE DE PLUSIEURS LIEUX, ET LE DECOUPAGE EXISTAIT DEJA.
+/* UNE LOI D IMPLANTATION PAR QUARTIER, ET C EST ELLE LE BIOME.
 
-   `districtsDe` rend 3 a 6 quartiers d UN SEUL TENANT sur les 81 cellules d une
-   arene — cinq en pratique, de seize cellules, soit quatre ecrans de cote. C est
-   exactement la taille d une REGION : assez grande pour qu on la traverse, assez
-   petite pour qu on en rencontre plusieurs. On y pose donc un LIEU au lieu d une
-   variante, et tout ce qui etait par lieu devient par CELLULE.
-
-   UNE PERMUTATION, PAS UN TIRAGE. Cinq quartiers, cinq lieux : chacun apparait
-   une fois et deux voisins different toujours. Au-dela de cinq quartiers la
-   reparation reprend l idiome de `grilleVariantes` — on evite ce que les voisins
-   DEJA POSES portent, et on retombe sur le pool complet si tout est pris.
-
-   `BIOME_COMPOSE` VOYAGE COMME UN INDEX DE LIEU. Le salon envoie deja `biome`, et
-   les deux cotes rejouent `buildBiome` sur la meme graine : une carte composee ne
-   demande donc AUCUN champ reseau, seulement une valeur de plus dans celui qui
-   existe. */
-export const BIOME_COMPOSE = -1;
-
-export function lieuxDe(seed, cols, rows) {
-  const q = districtsDe(seed, cols, rows);
-  const nq = q.reduce((m, x) => Math.max(m, x), 0) + 1;
-  const rand = rng(seed ^ 0x2f1b3c7d);
-  const ordre = BIOMES.map((_, i) => i);
-  for (let i = ordre.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    const t = ordre[i]; ordre[i] = ordre[j]; ordre[j] = t;
-  }
-  const par = new Array(nq).fill(-1);
-  const pris = new Set();
-  for (let d = 0; d < nq; d++) {
-    const voisins = new Set();
-    for (let cy = 0; cy < rows; cy++) {
-      for (let cx = 0; cx < cols; cx++) {
-        if (q[cy * cols + cx] !== d) continue;
-        if (cx > 0) voisins.add(par[q[cy * cols + cx - 1]]);
-        if (cy > 0) voisins.add(par[q[(cy - 1) * cols + cx]]);
-      }
-    }
-    /* DISTINCT PARTOUT, PAS SEULEMENT ENTRE VOISINS. Le premier jet ne bornait
-       que l adjacence, et un modulo rendait deux regions eloignees au meme lieu :
-       sur trois graines, deux cartes ne montraient que trois lieux sur cinq. Cinq
-       quartiers et cinq lieux se rangent en BIJECTION — c est la promesse d une
-       carte composee, et elle ne tient que si personne ne se repete. */
-    const libres = ordre.filter(i => !voisins.has(i));
-    const neufs = libres.filter(i => !pris.has(i));
-    par[d] = neufs[0] ?? libres[0] ?? ordre[d % ordre.length];
-    pris.add(par[d]);
-  }
-  return q.map(d => par[d]);
-}
-
-/* LE PAVAGE LIT LE LIEU DE CHAQUE CELLULE. En carte d un seul lieu, `lieux` est
-   nul et tout ce qui suit est le code d avant, au tirage pres — c est ce qui garde
-   les mesures des plans precedents valides.
-   EN CARTE COMPOSEE, LA VARIANTE PREND UN SECOND DECOUPAGE : le premier porte le
-   LIEU, et une region de seize cellules qui ne poserait qu une loi d implantation
-   serait seize fois le meme ecran. Deux partitions superposees de cinq germes
-   rendent une quinzaine d intersections, ce qui est la taille de quartier que le
-   plan 40 a mesuree comme juste. */
-export function grilleVariantes(lieu, seed, cols, rows, lieux = null) {
-  const cleDe = lieux ? (i) => BIOMES[lieux[i]].key : () => lieu;
-  const vsDe = (i) => OBSTACLES[cleDe(i)] ?? [];
+   UNE CARTE EST D UN SEUL THEME. Le decoupage porte la LOI, jamais le theme :
+   cinq regions de seize cellules, chacune sa loi, deux voisines jamais la meme.
+   Poser cinq THEMES sur une carte donnait cinq mondes dans une arene — une
+   friche pouvait etre une nebuleuse — et c est ce que ce module faisait jusqu au
+   plan 38. Ce qui varie DANS un theme est une variation de ce theme. */
+export function grilleVariantes(lieu, seed, cols, rows) {
   const vs = OBSTACLES[lieu] ?? [];
   const choix = new Array(rows * cols).fill(0);
   if (vs.length < 2) return choix;
   const rand = rng(seed);
 
-  /* UNE VARIANTE PAR QUARTIER, ET DEUX QUARTIERS VOISINS N EN PARTAGENT PAS :
-     sans cette garde le decoupage existe et ne se voit pas. */
-  const quartiers = districtsDe(lieux ? (seed ^ 0x51ed270b) : seed, cols, rows);
-  const nq = quartiers.reduce((m, q) => Math.max(m, q), 0) + 1;
-  const parQuartier = new Array(nq).fill(-1);
-  for (let q = 0; q < nq; q++) {
-    const voisines = new Set();
-    for (let cy = 0; cy < rows; cy++) {
-      for (let cx = 0; cx < cols; cx++) {
-        if (quartiers[cy * cols + cx] !== q) continue;
-        if (cx > 0) voisines.add(parQuartier[quartiers[cy * cols + cx - 1]]);
-        if (cy > 0) voisines.add(parQuartier[quartiers[(cy - 1) * cols + cx]]);
-      }
-    }
-    const libres = vs.map((_, i) => i).filter(i => !voisines.has(i));
-    const pool = libres.length > 0 ? libres : vs.map((_, i) => i);
-    parQuartier[q] = pool[Math.floor(rand() * pool.length)];
-  }
+  /* UNE LOI PAR QUARTIER, ET DEUX QUARTIERS VOISINS N EN PARTAGENT PAS.
 
+     L ADJACENCE SE CONSTRUIT DANS LES DEUX SENS, et c est ce qui manquait : le
+     premier jet ne regardait que le voisin de GAUCHE et du HAUT deja pose, donc
+     un quartier entierement a DROITE d un autre ne le voyait jamais et les deux
+     pouvaient porter la meme loi. Mesure : 24 graines x 5 themes, une dizaine de
+     frontieres fautives — et le decoupage y disparaissait a l oeil.
+
+     ON PREFERE UNE LOI JAMAIS POSEE. Quatre lois sur cinq regions doivent en
+     montrer QUATRE ; le tirage reste, il se fait seulement dans les lois encore
+     libres. Un `rand()` par quartier, comme avant. */
+  const quartiers = districtsDe(seed, cols, rows);
+  const nq = quartiers.reduce((m, q) => Math.max(m, q), 0) + 1;
+  const adj = Array.from({ length: nq }, () => new Set());
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
-      const g = cx > 0 ? choix[cy * cols + cx - 1] : -1;
-      const h = cy > 0 ? choix[(cy - 1) * cols + cx] : -1;
-      const vg = cx > 0 ? vsDe(cy * cols + cx - 1) : null;
-      const vh = cy > 0 ? vsDe((cy - 1) * cols + cx) : null;
-      const gb = g >= 0 && vg?.[g]
-        ? bordsDe(vg[g], (cx - 1 + cy) & 1, ((cx - 1) * 2 + cy) & 1) : null;
-      const hb = h >= 0 && vh?.[h]
-        ? bordsDe(vh[h], (cx + cy - 1) & 1, (cx * 2 + cy - 1) & 1) : null;
-      const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
-      const vc = vsDe(cy * cols + cx);
-      const ok = [];
-      for (let i = 0; i < vc.length; i++) {
-        const b = bordsDe(vc[i], mx, my);
-        if (gb && !bordsAccordes(gb[1], b[3])) continue;
-        if (hb && !bordsAccordes(hb[2], b[0])) continue;
-        ok.push(i);
+      const d = quartiers[cy * cols + cx];
+      if (cx > 0) {
+        const g = quartiers[cy * cols + cx - 1];
+        if (g !== d) { adj[d].add(g); adj[g].add(d); }
       }
-      // LE QUARTIER PASSE EN PREMIER, LA COMPATIBILITE A RAISON EN DERNIER.
-      const voulu = parQuartier[quartiers[cy * cols + cx]];
-      if (ok.includes(voulu)) { choix[cy * cols + cx] = voulu; continue; }
-      const pool = ok.length > 0 ? ok : vc.map((_, i) => i);
-      choix[cy * cols + cx] = pool[Math.floor(rand() * pool.length)];
+      if (cy > 0) {
+        const g = quartiers[(cy - 1) * cols + cx];
+        if (g !== d) { adj[d].add(g); adj[g].add(d); }
+      }
     }
   }
+  const parQuartier = new Array(nq).fill(-1);
+  const pris = new Set();
+  for (let q = 0; q < nq; q++) {
+    const voisines = new Set();
+    const poses = [];
+    for (const g of adj[q]) {
+      if (parQuartier[g] < 0) continue;
+      voisines.add(parQuartier[g]);
+      poses.push(parQuartier[g]);
+    }
+    const libres = vs.map((_, i) => i)
+      .filter(i => !voisines.has(i) && poses.every(j => loisAccordees(vs[i], vs[j])));
+    const neufs = libres.filter(i => !pris.has(i));
+    let pool;
+    if (neufs.length > 0) pool = neufs;
+    else if (libres.length > 0) pool = libres;
+    else {
+      /* PLUS DE REGIONS QUE LE THEME N A DE LOIS. Un quartier borde par quatre
+         voisins qui portent les quatre lois ne PEUT pas etre distinct : c est une
+         clique, pas un reglage. On repete alors une loi — mais JAMAIS une qui
+         fermerait la frontiere : l accord des bords passe devant la repetition,
+         parce qu une frontiere muree coupe l arene alors qu une loi repetee ne
+         fait que se voir. Et c est l argument pour qu un theme porte plus de lois
+         qu une carte n a de regions. */
+      const sains = vs.map((_, i) => i)
+        .filter(i => poses.every(j => loisAccordees(vs[i], vs[j])));
+      const cands = sains.length > 0 ? sains : vs.map((_, i) => i);
+      let bas = Infinity;
+      pool = [];
+      for (const i of cands) {
+        let n = 0;
+        for (const g of adj[q]) if (parQuartier[g] === i) n++;
+        if (n < bas) { bas = n; pool = [i]; } else if (n === bas) pool.push(i);
+      }
+    }
+    parQuartier[q] = pool[Math.floor(rand() * pool.length)];
+    pris.add(parQuartier[q]);
+  }
+
+  // LA CELLULE PORTE LA LOI DE SA REGION, SANS EXCEPTION. C est ce qui fait
+  // qu une region SE LIT : une reparation par cellule la reecrivait a moitie.
+  for (let i = 0; i < choix.length; i++) choix[i] = parQuartier[quartiers[i]];
   return choix;
 }
 
@@ -1029,20 +1008,17 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   const rows = Math.max(1, Math.round(arenaH / viewH));
   const cw = arenaW / cols, ch = arenaH / rows;
 
-  /* UNE CARTE COMPOSEE, OU UNE CARTE D UN SEUL LIEU. `lieux` est nul dans le
-     second cas et tout ce qui suit est le code d avant — c est ce qui garde
-     `BIOME=fonderie`, les mesures et les verificateurs par lieu.
-     `def` reste le lieu du CENTRE : il porte le nom de la carte et sert de repli
-     a ce qui demande encore un scalaire. */
-  const lieux = biomeIndex === BIOME_COMPOSE ? lieuxDe(seed, cols, rows) : null;
-  const centre = ((rows >> 1) * cols) + (cols >> 1);
-  const def = biomeAt(lieux ? lieux[centre] : biomeIndex);
-  const cleDe = lieux ? (k) => BIOMES[lieux[k]].key : () => def.key;
+  /* UN THEME PAR CARTE. Ce qui change d une region a l autre est la LOI
+     D IMPLANTATION, pas le monde : `choix` porte le biome de chaque cellule et
+     `def` le theme de toute l arene. */
+  const def = biomeAt(biomeIndex);
+  const cle = def.key;
 
-  const choix = grilleVariantes(def.key, seed, cols, rows, lieux);
+  const choix = grilleVariantes(cle, seed, cols, rows);
   const grilleDistricts = districtsDe(seed, cols, rows);
 
-  const tableDe = (cle) => diffIndex === 1 ? (HZ_NORMAL[cle] ?? [])
+  const ech = ECHELLE[cle] ?? null;
+  const tableHz = diffIndex === 1 ? (HZ_NORMAL[cle] ?? [])
     : diffIndex >= 2 ? (HZ_CAUCHEMAR[cle] ?? []) : [];
 
   const hazards = [];
@@ -1051,9 +1027,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
       const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
-      const cle = cleDe(cy * cols + cx);
-      const ech = ECHELLE[cle] ?? null;
-      for (const h of tableDe(cle)) {
+      for (const h of tableHz) {
         const d = hazardAt(h.kind);
         if (!d) continue;
         const r = Math.round(h.r ?? d.r * (ech?.[h.kind] ?? 1));
@@ -1076,6 +1050,9 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   }
 
   const obstacles = [];
+  const varis = OBSTACLES[cle] ?? [];
+  const kDefaut = blocsDe(cle)[0] ?? 0;
+  const jMax = cle === "friche" ? 40 : 0;
   let obsArea = 0;
   /* LE TREMBLEMENT DE LA FRICHE EST PAR CELLULE, PAS PAR OBSTACLE. Tire par
      objet, il rapprochait deux voisins de 80 px au pire — plus que l ecart de la
@@ -1091,11 +1068,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
       const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
-      const cle = cleDe(cy * cols + cx);
-      const varis = OBSTACLES[cle] ?? [];
-      const kDefaut = blocsDe(cle)[0] ?? 0;
-      const j = cle === "friche" ? 40 : 0;
-      let jx = (rand() - 0.5) * 2 * j, jy = (rand() - 0.5) * 2 * j;
+      let jx = (rand() - 0.5) * 2 * jMax, jy = (rand() - 0.5) * 2 * jMax;
       const pose = (varis[choix[cy * cols + cx]] ?? varis[0]).poser;
       /* UN TREMBLEMENT NE POSE PAS UN BLOC SUR UN DANGER. Mesure sur la Friche,
          carte d un seul lieu et arene REELLE : 41 arenes sur 200 avaient un
@@ -1103,7 +1076,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
          tourne sur 1600 x 900, donc UNE cellule et un seul jeu de miroirs, et le
          defaut naissait du decalage. Le repli est la position de table, qui est
          justement celle que ce verificateur-la valide. */
-      if (j > 0 && cellePosePerturbe(pose, cx, cy, cw, ch, mx, my, jx, jy,
+      if (jMax > 0 && cellePosePerturbe(pose, cx, cy, cw, ch, mx, my, jx, jy,
                                      diffIndex, hazards)) { jx = 0; jy = 0; }
       for (const o of pose) {
         if ((o.min ?? 0) > diffIndex) continue;
@@ -1127,11 +1100,7 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
 
   return {
     index: biomeIndex, key: def.key, nom: def.nom,
-    /* LE CHAMP DE LIEUX SORT AVEC LA CARTE, comme le decoupage : `buildBiome` est
-       deterministe et les deux cotes le rejouent sur la meme graine, donc rien de
-       tout ceci ne circule. `null` dit « carte d un seul lieu », et c est ce que
-       lisent `lieuIndexAt` et le rendu pour retomber sur `index`. */
-    lieux, cols, rows, cw, ch,
+    cols, rows, cw, ch,
     obstacles, hazards,
     /* LE DECOUPAGE SORT AVEC LE LIEU, ET C EST TOUT L INTERET. Le semis avait sa
        PROPRE notion de quartier — un hachage de la cellule divisee, sur une
@@ -1334,8 +1303,7 @@ export function hazardsDe(lieu) {
    bords, elle, depend du TIRAGE, donc elle se rejoue sur des graines. Un
    assembleur qui poserait deux murs face a face couperait l arene en deux, et le
    symptome serait « la horde n arrive jamais », pas une erreur. */
-export function verifierVariantes(seeds = 50, arenaW = 4800, arenaH = 2700,
-                                  viewW = 1600, viewH = 900) {
+export function verifierVariantes() {
   const soucis = [];
 
   for (const b of BIOMES) {
@@ -1378,36 +1346,6 @@ export function verifierVariantes(seeds = 50, arenaW = 4800, arenaH = 2700,
     }
   }
 
-  // LES ARETES, SUR DES GRAINES : c est le TIRAGE qu on verifie, pas la table.
-  const cols = Math.max(1, Math.round(arenaW / viewW));
-  const rows = Math.max(1, Math.round(arenaH / viewH));
-  for (let bi = 0; bi < BIOMES.length; bi++) {
-    const vs = OBSTACLES[BIOMES[bi].key] ?? [];
-    if (vs.length < 2) continue;
-    let fautes = 0;
-    for (let s = 1; s <= seeds; s++) {
-      const g = grilleVariantes(BIOMES[bi].key, s, cols, rows);
-      for (let cy = 0; cy < rows; cy++) {
-        for (let cx = 0; cx < cols; cx++) {
-          const v = vs[g[cy * cols + cx]];
-          const bo = bordsDe(v, (cx + cy) & 1, (cx * 2 + cy) & 1);
-          if (cx > 0) {
-            const o = vs[g[cy * cols + cx - 1]];
-            const ob = bordsDe(o, (cx - 1 + cy) & 1, ((cx - 1) * 2 + cy) & 1);
-            if (!bordsAccordes(ob[1], bo[3])) fautes++;
-          }
-          if (cy > 0) {
-            const o = vs[g[(cy - 1) * cols + cx]];
-            const ob = bordsDe(o, (cx + cy - 1) & 1, (cx * 2 + cy - 1) & 1);
-            if (!bordsAccordes(ob[2], bo[0])) fautes++;
-          }
-        }
-      }
-    }
-    if (fautes > 0) {
-      soucis.push(`${BIOMES[bi].key} : ${fautes} aretes incompatibles sur ${seeds} graines`);
-    }
-  }
   return soucis;
 }
 
@@ -1611,77 +1549,94 @@ export function verifierSuperpositions(seeds = [1, 7, 99], arenaW = 1600, arenaH
   return soucis;
 }
 
-/* LE LIEU D UN POINT DU MONDE. Repli sur `index` quand la carte n a qu un lieu :
-   c est ce qui laisse `BIOME=fonderie`, les mesures et tous les verificateurs par
-   lieu marcher sans savoir que la composition existe. */
-export function lieuIndexAt(b, x, y) {
-  if (!b?.lieux) return b?.index ?? 0;
-  const cx = Math.min(b.cols - 1, Math.max(0, Math.floor(x / b.cw)));
-  const cy = Math.min(b.rows - 1, Math.max(0, Math.floor(y / b.ch)));
-  return b.lieux[cy * b.cols + cx];
-}
 
-/* CRITERE REJOUABLE DE LA CARTE COMPOSEE. Il ne remplace aucun des verificateurs
-   par lieu — ils continuent de tourner sur des cartes d un seul lieu, et c est ce
-   qui garde leurs mesures comparables. Il pose les trois questions que seule une
-   carte composee peut rater : les lieux sont-ils tous la, sont-ils d un seul
-   tenant, et le pavage tient-il aux FRONTIERES, la ou deux tables de variantes
-   qui ne se sont jamais rencontrees se touchent. */
-export function verifierCarte(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
-                              viewW = 1600, viewH = 900) {
+/* UNE CARTE PORTE PLUSIEURS BIOMES D UN SEUL THEME, UN PAR REGION.
+
+   PERSONNE NE REGARDAIT CA. `verifierDistricts` juge le DECOUPAGE,
+   `verifierVariantes` juge les LOIS et leurs aretes — et rien ne disait qu une
+   region porte UNE loi, ni que deux voisines en portent DEUX. C est pourtant la
+   seule chose qu une carte promet, et c est exactement ce qui avait derape :
+   les regions ont porte cinq THEMES au lieu de cinq biomes d un theme, et le
+   verificateur qui existait l EXIGEAIT.
+
+   QUATRE QUESTIONS. Toutes les cellules d une region portent-elles SA loi ; deux
+   regions voisines en portent-elles deux ; leurs bords s accordent-ils a la
+   frontiere ; et la carte montre-t-elle autant de lois que le theme peut en
+   donner. */
+export function verifierRegions(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
+                                viewW = 1600, viewH = 900) {
   const soucis = [];
   const cols = Math.max(1, Math.round(arenaW / viewW));
   const rows = Math.max(1, Math.round(arenaH / viewH));
-  const cw = arenaW / cols, ch = arenaH / rows;
-  const attendus = Math.min(BIOMES.length,
-    new Set(districtsDe(seeds[0], cols, rows)).size);
+  for (const b of BIOMES) {
+    const vs = OBSTACLES[b.key] ?? [];
+    if (vs.length < 2) { soucis.push(`${b.key} : moins de deux biomes`); continue; }
+    for (const seed of seeds) {
+      const q = districtsDe(seed, cols, rows);
+      const choix = grilleVariantes(b.key, seed, cols, rows);
+      const nq = q.reduce((m, x) => Math.max(m, x), 0) + 1;
 
-  for (const seed of seeds) {
-    const lieux = lieuxDe(seed, cols, rows);
-    const vus = new Set(lieux);
-    if (vus.size < attendus) {
-      soucis.push(`graine ${seed} : ${vus.size} lieu(x) pour ${attendus} quartiers`
-        + " — deux regions portent le meme lieu");
-    }
-    // UN LIEU D UN SEUL TENANT : deux morceaux du meme lieu sont deux endroits
-    // qui se ressemblent sans se toucher, et le joueur croit revenir sur ses pas.
-    const vu = new Array(cols * rows).fill(false);
-    const morceaux = new Map();
-    for (let i = 0; i < lieux.length; i++) {
-      if (vu[i]) continue;
-      morceaux.set(lieux[i], (morceaux.get(lieux[i]) ?? 0) + 1);
-      const file = [i]; vu[i] = true;
-      while (file.length) {
-        const c = file.pop();
-        const cx = c % cols, cy = (c / cols) | 0;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const nx = cx + dx, ny = cy + dy;
-          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
-          const j = ny * cols + nx;
-          if (!vu[j] && lieux[j] === lieux[i]) { vu[j] = true; file.push(j); }
+      const dom = new Array(nq).fill(-1);
+      let hors = 0;
+      for (let i = 0; i < choix.length; i++) {
+        if (dom[q[i]] < 0) dom[q[i]] = choix[i];
+        else if (dom[q[i]] !== choix[i]) hors++;
+      }
+      if (hors > 0) {
+        soucis.push(`${b.key}/graine ${seed} : ${hors} cellule(s) hors de la loi de`
+          + ` leur region — une region qui change en son milieu ne se lit pas`);
+      }
+
+      // UNE PAIRE, PAS UNE CELLULE : deux regions se touchent par une frontiere
+      // entiere, et signaler chaque cellule de la frontiere dirait quarante fois
+      // la meme chose.
+      const paires = new Set();
+      const frontieres = new Set();
+      for (let cy = 0; cy < rows; cy++) {
+        for (let cx = 0; cx < cols; cx++) {
+          const d = q[cy * cols + cx];
+          for (const [dx, dy] of [[1, 0], [0, 1]]) {
+            const nx = cx + dx, ny = cy + dy;
+            if (nx >= cols || ny >= rows) continue;
+            const g = q[ny * cols + nx];
+            if (g === d) continue;
+            const k = d < g ? `${d}|${g}` : `${g}|${d}`;
+            frontieres.add(k);
+            if (dom[g] === dom[d]) paires.add(k);
+          }
         }
       }
-    }
-    for (const [l, n] of morceaux) {
-      if (n > 1) soucis.push(`graine ${seed} : ${BIOMES[l].key} en ${n} morceaux`);
-    }
+      /* LE PLANCHER EST LA PIGEONNIER, PAS ZERO. Cinq regions et quatre lois ne
+         peuvent pas etre toutes distinctes ; ce qu on exige est que le nombre de
+         frontieres fautives ne depasse pas ce que l arithmetique impose. Le jour
+         ou un theme portera plus de lois qu une carte n a de regions, la borne
+         tombera d elle-meme a zero. */
+      const borne = Math.max(0, nq - vs.length);
+      if (paires.size > borne) {
+        const noms = [...paires].map(k => {
+          const [d, g] = k.split("|");
+          return `${d}/${g} « ${vs[dom[+d]].nom} »`;
+        }).join(", ");
+        soucis.push(`${b.key}/graine ${seed} : ${paires.size} frontiere(s) entre deux`
+          + ` regions de meme loi pour une borne de ${borne} — ${noms}`);
+      }
 
-    for (let di = 0; di < 3; di++) {
-      const b = buildBiome(BIOME_COMPOSE, di, seed, arenaW, arenaH, viewW, viewH);
-      const ou = `carte/${["calme", "normal", "cauchemar"][di]}/${seed}`;
-      const r = compteSuperpositions(b, cols, rows, cw, ch);
-      if (r.n > 0) {
-        soucis.push(`${ou} : ${r.n} paire(s) de blocs qui se traversent`
-          + ` — pire ${r.pire.a}/${r.pire.b} a ${Math.round(r.pire.ox)} x`
-          + ` ${Math.round(r.pire.oy)} px`);
+      // L ARETE ENTRE DEUX REGIONS, la seule qui existe encore : deux murs face
+      // a face ferment une frontiere entiere, et une frontiere fermee coupe
+      // l arene en deux.
+      for (const k of frontieres) {
+        const [d, g] = k.split("|").map(Number);
+        if (!loisAccordees(vs[dom[d]], vs[dom[g]])) {
+          soucis.push(`${b.key}/graine ${seed} : « ${vs[dom[d]].nom} » et`
+            + ` « ${vs[dom[g]].nom} » se touchent avec deux bords murs`);
+        }
       }
-      const poses = comptePosesSurObstacle(b);
-      if (poses > 0) soucis.push(`${ou} : ${poses} danger(s) poses sur un obstacle`);
-      if (!coeurTraversable(b, arenaW, arenaH, viewW, viewH)) {
-        soucis.push(`${ou} : le carre central minimal n est pas traversable`);
-      }
-      if (b.hazardJetes > 0) {
-        soucis.push(`${ou} : ${b.hazardJetes} danger(s) evince(s) par le budget`);
+
+      const vues = new Set(dom).size;
+      const attendu = Math.min(nq, vs.length);
+      if (vues < attendu) {
+        soucis.push(`${b.key}/graine ${seed} : ${vues} loi(s) pour ${nq} regions`
+          + ` — la carte en montre moins que le theme n en a`);
       }
     }
   }

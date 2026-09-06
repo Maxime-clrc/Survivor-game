@@ -15,12 +15,12 @@ import { customChoix, INTERP_MS, PERF, PHASE_ROUND, amSpectator, bancReleve, con
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
 import { drawBornes, drawContratZone, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBonusSignal, drawBulwarks, drawDrones, drawLoots, drawEffects, drawEnemies, drawFinArcs, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, faisceauAllume, lastPlayerPos, noeudsSortis, noeudsVus, resetGaze } from "./boss.js";
-import { drawArenaBounds, drawAtmosphere, drawBaies, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawSeuils, drawVignette, drawWalls, drawWeather } from "./decor.js";
+import { drawArenaBounds, drawAtmosphere, drawBaies, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
 import { drawProps, drawTraces } from "./props.js";
 import { PARTICLE_MAX, blastMarks, bossMortQueue, bouches, bursts, dashMarks, deaths, dmgAgg, finArcs, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp } from "./fx.js";
-import { lieuAt, biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, weather, weatherSeg } from "./stage.js";
+import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, weather, weatherSeg } from "./stage.js";
 import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";
 
 export function resetFeedback() {
@@ -470,7 +470,7 @@ function drawScreen(v) {
     // LE LIEU OU L ON EST, pas celui de la carte : sur une carte composee c est le
     // seul temoin qui dise qu on vient de changer de region, et il change en
     // marchant. « Le nom ne change jamais » etait le rapport de bug.
-    biomeNom: biomeNom(lieuAt(camera.x, camera.y)),
+    biomeNom: biomeNom(biomeIndex),
     meteoNom: weather ? weatherNom(weather.id) : "",
     myColor: colorOf(myId),
     camX: camera.x0, camY: camera.y0,
@@ -502,7 +502,6 @@ function drawWorld(v) {
   drawFloor();
   // LE SEUIL SUIT LE SOL et precede tout le reste : c est du sol, il passe sous la
   // grille de 20 m, sous le semis et sous ce qui est pose.
-  drawSeuils();
   drawBaies();
   drawCoulee();
   drawAmer();

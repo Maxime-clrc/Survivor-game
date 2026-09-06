@@ -1,7 +1,7 @@
 import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
-import { lieuKeyAt, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
+import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
 import { biomeAt, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
@@ -375,7 +375,7 @@ function refresh() {
   const s = biomeSeed >>> 0;
   const parLieu = new Map();
   const lieuDe = (x, y) => {
-    const cle = lieuKeyAt(x, y);
+    const cle = biomeKey();
     let v = parLieu.get(cle);
     if (!v) {
       v = { table: TABLE[cle] ?? TABLE.usine, zones: ZONES[cle] ?? ZONES.usine,

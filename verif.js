@@ -146,22 +146,22 @@ const SUITE = [
      la suite passe de 1 a 2 s, ce qui reste sous le budget du mode rapide. */
   ["biomes", () => G.verifierBiomes(
     Array.from({ length: 50 }, (_, i) => i * 7 + 1))],
-  /* LA TAILLE REELLE, PAS LE DEFAUT DU MODULE. `verifierVariantes` porte
-     4800 x 2700 en valeur par defaut — `biomes.js` ne depend de rien, donc il ne
-     peut pas lire `CFG` — et verifiait donc l assemblage d une arene que le jeu
-     ne construit plus depuis 0.40.1. */
-  ["variantes", () => B2.verifierVariantes(50, CFG.ARENA_W, CFG.ARENA_H)],
+  /* PLUS DE GRAINES ICI : l arete de cellule n existe plus, une region est
+     uniforme par construction et ce qui se touche est deux REGIONS — c est
+     `regions` qui le rejoue sur des graines. Ne reste que ce qui se lit sur la
+     TABLE : plancher, plafond, noms, bords declares. */
+  ["variantes", () => B2.verifierVariantes()],
   /* MEME TAILLE REELLE, ET POUR UNE RAISON DE PLUS : le miroir de cellule, le
      tremblement de la Friche et le voisinage entre cellules ne se lisent pas
      dans la table. Une superposition de blocs ne leve rien — elle se voit, sur
      une capture d ecran, et c est comme ca qu elle est remontee. */
-  /* LA CARTE COMPOSEE A SES PROPRES RATES : un lieu manquant, un lieu en deux
-     morceaux, et surtout le pavage AUX FRONTIERES, la ou deux tables de variantes
-     qui ne se sont jamais rencontrees se touchent. Les verificateurs par lieu
-     restent sur des cartes d un seul lieu — c est ce qui garde leurs mesures
-     comparables. */
-  ["carte", () => B2.verifierCarte(
-    Array.from({ length: 12 }, (_, i) => i * 29 + 1),
+  /* UNE CARTE PORTE PLUSIEURS BIOMES D UN SEUL THEME, un par region. C est ce
+     que ce verificateur mesure, et rien d autre ne le regardait : le decoupage
+     est verifie (`districts`), les lois le sont (`variantes`), mais le fait
+     qu une region porte UNE loi et que deux voisines en portent deux ne l etait
+     pas. */
+  ["regions", () => B2.verifierRegions(
+    Array.from({ length: 24 }, (_, i) => i * 29 + 1),
     CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H)],
   ["superpositions", () => B2.verifierSuperpositions(
     Array.from({ length: 50 }, (_, i) => i * 7 + 1),

@@ -565,39 +565,42 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   juste ; ce qui manquait était le moyen de le **vérifier** hors du HUD d'une
   manche en cours. La ligne dit aussi quand `BIOME=` fige le tirage depuis
   l'environnement, qui est la seule façon dont il puisse ne pas changer.
-- **UNE CARTE PORTE LES CINQ LIEUX, ET LE DÉCOUPAGE EXISTAIT DÉJÀ.** `districtsDe`
-  rend 3 à 6 quartiers **d'un seul tenant** sur les 81 cellules — cinq en
-  pratique, de seize cellules, soit quatre écrans de côté. C'est exactement la
-  taille d'une **région** : assez grande pour qu'on la traverse, assez petite pour
-  qu'on en rencontre plusieurs. On y pose donc un **lieu** au lieu d'une variante,
-  et tout ce qui était par lieu devient par **cellule**.
-  - **Une bijection, pas un tirage** (`lieuxDe`). Cinq quartiers, cinq lieux :
-    chacun apparaît **une fois**. Le premier jet ne bornait que l'adjacence et un
-    modulo rendait deux régions éloignées au même lieu — sur trois graines, deux
-    cartes ne montraient que trois lieux sur cinq. `verifierCarte` refuse.
-  - **Deux découpages superposés**, et c'est ce qui évite seize écrans identiques :
-    le premier porte le **lieu**, le second (`seed ^ K`) la **loi d'implantation**.
-    Une région de seize cellules qui ne poserait qu'une variante serait seize fois
-    le même écran.
-  - **`BIOME_COMPOSE` (−1) voyage comme un index de lieu.** Le salon envoie déjà
-    `biome` et les deux côtés rejouent `buildBiome` sur la même graine : **aucun
-    champ réseau**, une valeur de plus dans celui qui existe.
-  - **Un index force encore un lieu unique**, et c'est ce qui garde `BIOME=`, les
-    campagnes de mesure et **tous** les vérificateurs par lieu — ils continuent de
-    tourner sur des cartes d'un seul lieu, donc leurs mesures restent comparables.
-    `verifierCarte` ne les remplace pas : il pose les trois questions que seule
-    une carte composée peut rater — les lieux sont-ils tous là, sont-ils d'un seul
-    tenant, et le pavage tient-il **aux frontières**, là où deux tables de
-    variantes qui ne se sont jamais rencontrées se touchent.
-- **LE SEUIL NE FERME RIEN.** Deux lieux bord à bord font une **couture** : le sol
-  change d'un coup sur une droite, et ça se lit comme un défaut de rendu. Un mur
-  ferait un **goulot**, et un goulot détruit le kiting — la horde s'y accumule, le
-  joueur tire dans un entonnoir. On **déclare** donc la couture : une plaque de
-  seuil de 150 px, à plat, **sans collider**, avec un bord franc de chaque côté —
-  la droite cesse d'être un accident et devient une *pièce*. Traversable au pixel
-  près, et le vocabulaire est technique (le métal, la seule matière que les cinq
-  lieux partagent), jamais la teinte de l'un des deux : un seuil coloré dirait que
-  ce lieu déborde.
+- **UNE CARTE EST D'UN SEUL THÈME, ET ELLE PORTE PLUSIEURS BIOMES DE CE THÈME.**
+  C'est la correction du plan 38, et elle a un nom : jusqu'en 0.41 le découpage
+  posait **les cinq entrées de `BIOMES`** — donc cinq *mondes* — sur les cinq
+  régions d'une arène, et `verifierCarte` **l'exigeait**. Une friche pouvait être
+  une nébuleuse. Le mot « biome » désignait un **thème** ; ce qui joue le rôle de
+  biome, c'est la **loi d'implantation** (`OBSTACLES[theme][i]`).
+  - **Le découpage porte la LOI, jamais le thème.** `districtsDe` rend 3 à 6
+    quartiers **d'un seul tenant** sur les 81 cellules — cinq en pratique, de
+    seize cellules, soit quatre écrans de côté. C'est la taille d'une région :
+    assez grande pour qu'on la traverse, assez petite pour qu'on en rencontre
+    plusieurs.
+  - **Une région porte UNE loi, sans exception.** Une réparation par cellule la
+    réécrivait à moitié (mesure : 50 % sur la Friche, 48 % sur la Nébuleuse) et la
+    région cessait de se lire. `verifierRegions` refuse une seule cellule hors de
+    la loi de sa région.
+  - **Deux régions voisines n'en partagent pas** — et l'adjacence se construit
+    **dans les deux sens**. Le premier jet ne regardait que le voisin de gauche et
+    du haut déjà posé : un quartier entièrement à droite d'un autre ne le voyait
+    jamais. Quand le thème a moins de lois qu'il n'y a de régions, la répétition
+    est **arithmétique** : `verifierRegions` la borne à `nq − lois` et non à zéro.
+  - **On préfère une loi jamais posée** : quatre lois sur cinq régions doivent en
+    montrer quatre, pas trois. Le tirage reste, il se fait dans les lois libres.
+  - **Le réseau ne bouge pas.** Le salon envoyait déjà `biome` ; il porte
+    maintenant un index de thème **toujours réel**. `BIOME_COMPOSE` (−1) est
+    supprimé, et avec lui le repli silencieux de `biomeAt(-1)` sur l'Usine, qui
+    privait toute carte composée de son arrière-plan, de ses baies, de son
+    ambiance, de son liseré de bloc et de la chaleur de la coulée.
+- **LE BORD APPARTIENT À LA RÉGION, PAS À LA CELLULE.** `bordsDe(v, mx, my)`
+  retournait les bords avec la cellule ; or `mx` et `my` changent **toujours**
+  d'une cellule à sa voisine, donc le bord sud de l'une et le bord nord de l'autre
+  étaient le **même** élément de table : un bord rencontrait lui-même, et une loi
+  portant un `BORD_MUR` était incompatible avec **elle-même**. Une région étant
+  uniforme par construction, il n'y a rien à accorder dedans ; ce qui se touche
+  vraiment, c'est **deux régions**, et deux lois s'accordent si aucun de leurs
+  quatre bords n'est `BORD_MUR` des deux côtés. `bordsDe` est supprimé, les
+  orientations ne portent plus que la **géométrie**.
 - **UN TREMBLEMENT NE POSE PAS UN BLOC SUR UN DANGER.** Mesuré sur la Friche,
   carte d'un seul lieu et **arène réelle** : 41 arènes sur 200 avaient un danger
   sous un obstacle. `verifierBiomes` ne pouvait pas le voir — il tourne sur

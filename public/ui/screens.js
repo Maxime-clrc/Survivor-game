@@ -22,7 +22,7 @@ import { customChoix, setCustomChoix, traceOn, tracePar, rapportTexte, GFX_KEYS,
 import { netPerf } from "../net/interp.js";
 import { fmtTime, portraitBoss } from "../render/boss.js";
 import { deaths } from "../render/fx.js";
-import { lieuxCourants, biomeIndex, nameOf } from "../render/stage.js";
+import { biomeIndex, nameOf } from "../render/stage.js";
 import { closeBuild, openBuild } from "./build.js";
 import { customBox, customJauge, customPresets, customList, customCode, customImport, customExport, customMsg, bilanRapport, bilanRapportTexte, bilanRapportCopy, traceCheck, traceHint, bilanEl, bilanGo, finEl, finGo, finKicker, finStats, finTitle, bilanFait, bilanHurt, bilanKicker, bilanLeaveBtn, bilanPerf, bilanScoresBody, bilanStats, bilanTitle, briefBarFill, briefCountEl, briefEl, briefGoBtn, briefLeftEl, briefMissionTextEl, briefNameEl, briefSkillsEl, briefThirdEl, briefArmeRowEl, briefArmeRerollBtn, buildEl, cardsEl, cardsRow, cardsTimerEl, cardsTimerFill, cardsTitle, cardsWaitEl, classHint, classRow, enSaisie, escapeHtml, fmtBig, gate, historyListEl, hubBoardBtn, hubBoardEl, hubBoardList, hubBoardTabs, hubLogoutBtn, hubPassAskCancelBtn, hubPassAskEl, hubPassAskGoBtn, hubPassAskInput, hubPassBoxEl, hubPassToggleBtn, hubRefreshBtn, hubResumeEl, hubResumeGoBtn, hubResumeIconEl, hubResumeStayBtn, hubResumeSubEl, hubResumeTitleEl, hubScreenEl, codexBossEl, codexBtn, codexCartesEl, codexReliquesEl, codexCloseBtn, codexCompteEl, codexEl, codexHordeEl, hautsFaitsBtn, hautsFaitsCloseBtn, hautsFaitsEl, hubStatusEl, hubWhoEl, hudBriefEl, launchSummaryEl, loadingEl, menuCloseBtn, menuEl, menuTitleEl, merchantEl, merchantRow, merchantTimerEl, merchantTimerFill, merchantTitle, merchantWaitEl, metaClassTabsEl, metaConfortEl, metaCoresEl, metaEl, metaCadresEl, metaHfEl, metaSlotsEl, metaSubEl, metaTreeEl, muteBtn, panel, panelKicker, panelLeaveBtn, panelTitle, passChangeBtn, passMsgEl, passNewInput, passOldInput, pauseEl, readyBtn, roomCreateBtn, roomListEl, roomNameInput, roomPassInput, scoresBody, settingsCloseBtn, settingsEl, startBtn, summary, teamListEl, teamReadyEl, topAvatarEl, topCrumbEl, topHomeBtn, topNameEl, topPingEl, topPingValEl, setLangRowEl, topLangBtn, gateLangRowEl, traduireStatique,
 topSettingsBtn, topbarEl, updateVersion, volInput, volVal, voteHint, voteRow, waitMsg } from "./dom.js";
@@ -1476,22 +1476,12 @@ readyBtn.onclick = () => {
   ws.send(JSON.stringify({ t: "ready", on: !me?.ready }));
 };
 function mulCourt(v) { return "×" + dec(+v.toFixed(2)).replace(/[.,]?0+$/, ""); }
-// les lieux d une carte composee, dans l ordre ou la graine les a poses.
-function lieuxDeLaCarte() {
-  const l = lieuxCourants();
-  return l.length ? l.map(biomeNom).join(" · ") : "";
-}
 function voteDetail(d, i) {
   const lignes = diffResume(i);
   const risque = i === 0 ? t("ui.vote.biome.calme", "aucun danger")
     : i === 1 ? t("ui.vote.biome.normal", "rien qui blesse")
     : t("ui.vote.biome.cauchemar", "dangers actifs et météo");
-  /* UNE CARTE COMPOSEE N A PAS UN NOM, ELLE EN A CINQ. Le salon annonce ce dans
-     quoi on entre : la liste des lieux vaut mieux qu un nom unique qui serait faux
-     des le premier ecran traverse. */
-  lignes.push(biomeIndex < 0
-    ? `${t("ui.vote.carte", "carte composée")} — ${lieuxDeLaCarte()} · ${risque}`
-    : `${biomeNom(biomeIndex)} — ${biomeResume(biomeIndex)} · ${risque}`);
+  lignes.push(`${biomeNom(biomeIndex)} — ${biomeResume(biomeIndex)} · ${risque}`);
   return lignes.join(" · ");
 }
 /* QUATRE CARTES, MAIS PAS QUATRE VOTES. Les trois premieres se votent — chacun la

@@ -5,7 +5,7 @@ import { bursts } from "./fx.js";
 import { couleeDe } from "./material.js";
 import { ledDe } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { lieuKeyAt, lieuxPortent, biomeKey, biomeSeed, camera, ctx, hazardsActifs, obstaclesActifs, ownerColorOf, skin } from "./stage.js";
+import { biomeKey, biomeSeed, camera, ctx, hazardsActifs, obstaclesActifs, ownerColorOf, skin } from "./stage.js";
 
 /* IL N'Y AVAIT AUCUNE LUMIERE DANS LE JEU. Tout etait eclaire a plat, seul le
    vignettage modulait.
@@ -157,10 +157,9 @@ export function drawLumiere(v) {
   // MEME FILTRE QUE LE TRACE : le canal traverse l arene, la Fonderie n en occupe
   // qu une region, et un regard qui brille en pleine Friche mettrait la lueur a
   // cote de la conduite — exactement ce que ce point de passage existe pour eviter.
-  if (lieuxPortent("fonderie")) {
+  if (biomeKey() === "fonderie") {
     const c = couleeDe(biomeSeed, CFG.ARENA_W, CFG.ARENA_H, obstaclesActifs(), hazardsActifs());
     for (const r of c.regards) {
-      if (lieuKeyAt(r.x, r.y) !== "fonderie") continue;
       const k = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(tm * 0.5 + r.ph * 9));
       source(g, r.x, r.y, 150, PROP.fonte, 0.34 * k);
     }

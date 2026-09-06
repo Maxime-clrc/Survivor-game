@@ -21,7 +21,7 @@
    =========================================================================== */
 
 import { charger } from "./verif_dom.js";
-import { BIOMES, BIOME_COMPOSE, CFG } from "./shared/game_state.js";
+import { BIOMES, CFG } from "./shared/game_state.js";
 
 /* CE QU ON APPELLE, ET AVEC QUOI. La liste est explicite : une decouverte
    automatique par `draw*` appellerait des fonctions d ACTEURS qui demandent un
@@ -30,7 +30,6 @@ import { BIOMES, BIOME_COMPOSE, CFG } from "./shared/game_state.js";
 const APPELS = [
   ["decor", "drawFond", () => []],
   ["decor", "drawFloor", () => []],
-  ["decor", "drawSeuils", () => []],
   ["decor", "drawAmer", () => []],
   ["decor", "drawCoulee", () => []],
   ["decor", "drawBaies", () => []],
@@ -100,10 +99,9 @@ export async function verifierDessin(graines = [1, 7, 99]) {
   }
   const stage = mod.stage;
 
-  // LES CINQ LIEUX, PUIS LA CARTE COMPOSEE : le dernier cas est le seul ou deux
-  // aiguillages differents cohabitent dans une meme vue.
-  const cas = BIOMES.map((b, i) => [b.key, i])
-    .concat([["carte composee", BIOME_COMPOSE]]);
+  // LES CINQ THEMES. Une carte est d UN theme : ce qui varie dans une vue est la
+  // loi d implantation, jamais le monde.
+  const cas = BIOMES.map((b, i) => [b.key, i]);
 
   for (const [nom, idx] of cas) {
     for (const graine of graines) {

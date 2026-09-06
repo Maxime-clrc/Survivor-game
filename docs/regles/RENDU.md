@@ -457,7 +457,7 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
   combat en plus clair, le **Silence n'a aucun battement**, ce qui est exactement
   son verbe.
 
-### Une carte, plusieurs lieux
+### Une carte, un thème
 
 - **CHARGER UN MODULE NE SUFFIT PAS, IL FAUT L APPELER.** `verif_dom.js` attrape
   ce qui casse à l'**évaluation** — une table qui référence un identifiant absent.
@@ -465,11 +465,11 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
   *dans* une fonction et jamais importé ne lève qu'au moment où cette fonction
   tourne. `drawGrid` a livré exactement ça (`biomeKey is not defined`) avec les
   cinquante-trois vérificateurs au vert et les trente et un modules chargés.
-  `verif_dessin.js` appelle donc **le décor entier** — sol, seuils, grille,
+  `verif_dessin.js` appelle donc **le décor entier** — sol, grille,
   obstacles, dangers, lumière, semis, amer, coulée, baies, météo, atmosphère,
   vignette — plus ce qui se pose dessus (loot, zone de contrat, bornes, bonus,
-  cristaux), **sur les cinq lieux, les trois modes et la carte composée**, et
-  depuis **quatre points de vue** dont deux sont des frontières.
+  cristaux), **sur les cinq thèmes et les trois modes**, et depuis **quatre
+  points de vue**.
   Ce n'est pas un test de rendu : rien n'est comparé à une image. C'est un test
   de **câblage**, et c'est le seul défaut que le reste de la suite laisse passer
   entier. Deux règles pour qu'il verifie vraiment : **la caméra se pose à la main**
@@ -478,43 +478,35 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
   sort par `inView` sans traverser son corps. Les **seize** fiches de loot y
   passent : un glyphe absent ne se voit que là.
 
-- **LE LIEU EST UNE FONCTION DE LA POSITION** (`lieuAt(x, y)`, `lieuKeyAt`,
-  `skinAt`), et c'est le point de passage unique du rendu : **tout ce qui se
-  dessine QUELQUE PART le lit là**. Ce qui peint la **vue entière** lit
-  `biomeKey()`, qui rend celui de la caméra. Sur une carte d'un seul lieu les deux
-  rendent la même chose et rien ne change.
-- **CE QUI RESTE GLOBAL, ET POURQUOI.** La **direction de lumière** d'abord :
-  deux ombres qui pointent différemment sur le même écran est le défaut le plus
-  visible d'un rendu 2D, et une direction par région ferait exactement ça **à
-  chaque frontière**. Elle est donc celle du lieu **central**, une fois pour toute
-  l'arène. Restent globaux pour la même raison — ils peignent la vue entière et
-  ne peuvent pas se couper en quatre : la **grille** de 20 m, le **vignettage**,
-  l'**arrière-plan** vu par les baies, l'**ambiance** et la météo.
-- **CE QUI DEVIENT POSITIONNEL** : le sol et sa seconde période, `BLOC[biome]`
-  (un four vu depuis la Friche voisine porte sa propre gueule), `DANGER` et
-  `SOUFFLE`, le semis et ses traces, la teinte de sol, l'amer — il garde sa
-  position tirée par graine et prend le style du lieu **où il tombe** —, et le
-  canal de la Fonderie, qui se filtre segment par segment.
-- **LE SOL SE PEINT PAR CELLULE.** Une cellule fait exactement une vue
-  (1600 × 900), donc la caméra en touche **quatre au pire** : quatre `fillRect` au
-  lieu d'un, et un seul quand la carte n'a qu'un lieu. Le motif est ancré à
-  l'**origine du monde**, pas à la cellule : deux cellules du même lieu se
-  raccordent au pixel, et la période de la tuile ne se décale pas à la frontière.
-- **UNE ENTRÉE DE CACHE PAR FAMILLE NE SUFFIT PLUS.** Une carte composée montre
-  jusqu'à quatre lieux dans une vue, et l'éviction par famille recuisait alors une
-  toile **par cellule et par image**. Le plafond est le nombre de **lieux** ; ce
-  qui ne diffère que par le lieu coexiste, ce qui diffère par le mode, la graine
-  ou la densité est toujours jeté.
-- **LE SEUIL EST UNE PIÈCE, PAS UN FONDU.** Voir `SIMULATION.md` pour la règle ;
-  côté rendu il passe **sous** la grille de 20 m, sous le semis et sous tout ce qui
-  est posé — c'est du sol —, et il se dessine juste après `drawFloor`. Chaque
-  arête interne se peint **une seule fois** : une cellule ne regarde que son ouest
-  et son nord, la voisine dessinera les siennes.
-- **DEUX LIEUX PEUVENT MAINTENANT ÊTRE SUR LE MÊME ÉCRAN**, et `verifierCharte`
-  en devient plus important, pas moins : sa justification pour ne pas vérifier
-  `dir` — « on ne voit jamais deux lieux sur le même écran » — est **caduque**, et
-  c'est précisément pour ça que la direction de lumière a quitté le lieu pour la
-  carte.
+- **LE THÈME EST UNE CONSTANTE DE CARTE, PAS UNE FONCTION DE LA POSITION.**
+  `biomeKey()` est le point de passage unique, et il n'a **pas** d'argument : ce
+  qui change d'une région à l'autre est la loi d'implantation, jamais le monde.
+  `lieuAt(x, y)`, `lieuKeyAt`, `skinAt` et `solDe` rendaient tous une constante
+  dès que la carte a cessé d'être composée — un accesseur qui rend une constante
+  est un accesseur mort, et ils sont **supprimés**. Le sol se peint toujours par
+  cellule, mais avec le même motif partout.
+- **CINQ DÉFAUTS SONT MORTS AVEC LA CARTE COMPOSÉE**, et tous par la même cause :
+  `biomeIndex` valait −1, donc `biomeAt(-1)` repliait sur `BIOMES[0]`, l'Usine.
+  `drawFond` et `drawBaies` rendaient `null` — **aucun arrière-plan nulle part**,
+  Nébuleuse comprise ; `AMBIANCE` soufflait l'air de l'Usine dans les cinq
+  régions ; `contourDe` donnait son liseré à tous les blocs ; et
+  `=== "fonderie"` était toujours faux, donc la coulée ne dégageait **jamais** sa
+  chaleur. `drawAmer` faisait, lui, la bonne chose. La règle existait ; elle
+  n'avait pas été appliquée partout, et rien ne pouvait le voir.
+- **CE QUI ÉTAIT GLOBAL LE RESTE, ET PLUS FACILEMENT.** La **direction de
+  lumière** d'abord : deux ombres qui pointent différemment sur le même écran est
+  le défaut le plus visible d'un rendu 2D. Elle est celle du thème, une fois pour
+  toute l'arène, et la tension qui justifiait ce choix a disparu avec la carte
+  composée. Même chose pour la grille de 20 m, le vignettage, l'arrière-plan vu
+  par les baies, l'ambiance et la météo.
+- **LE CACHE DE TUILES N'A PLUS À TENIR CINQ LIEUX VIVANTS.** Son plafond ne
+  bouge pas — ce qui ne diffère que par le lieu coexiste, ce qui diffère par le
+  mode, la graine ou la densité est jeté — mais une carte ne montre plus qu'une
+  famille à la fois. `fondCache`, cache à **une seule entrée**, cessait d'être un
+  cache dès qu'une carte portait deux fonds : il recuisait une toile de
+  2200 × 1500 à chaque traversée de frontière.
+- **LE SEUIL EST SUPPRIMÉ.** Il déclarait la couture entre deux lieux bord à
+  bord ; un thème par carte, plus de couture, plus de pièce à poser.
 
 ### Quatre lieux, pas quatre couleurs
 
