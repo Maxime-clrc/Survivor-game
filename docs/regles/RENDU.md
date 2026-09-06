@@ -586,6 +586,25 @@ différentes.
   reprenant `ECHELLE_LIEU`), et `verifierTraces` **compare** au lieu de faire
   confiance. Il remplace la table `MATIERE`, qui était par thème, et il refuse
   aussi qu'une zone de props ne soit tirée par aucune région.
+- **DEUX RÉGIONS AU MÊME VOCABULAIRE SONT UNE SEULE RÉGION**, et c'était le cas
+  de **quatre thèmes sur cinq**. `zones` était tiré dans un **ordre** différent —
+  usine `[2,1]` contre `[1,2]`, nébuleuse `[0,2]` contre `[2,0]`, secteur `[0,1]`
+  contre `[1,0]` — et l'ordre ne change rien à un **ensemble** : les deux régions
+  posaient exactement les mêmes props et ne différaient plus que par `dens` et
+  `ech`, un nombre et un calibre. La Friche faisait pire : `[2,1]` contre
+  `[0,2,1]`, donc une région **strictement incluse** dans l'autre. Les
+  **matières** avaient le même défaut sur les mêmes thèmes, la Nébuleuse deux
+  fois.
+  `verifierZones` répond « tout est branché » (un prop qu'aucune zone ne tire),
+  `verifierTraces` aussi (une zone qu'aucune région ne tire) — **aucun des deux
+  ne répond « tout est différent »**, et les deux étaient verts.
+  **`verifierVocabulaire` compare les régions deux à deux.** Le seuil est
+  l'**identité**, pas une fraction, et c'est délibéré : un thème n'a que quatre
+  zones, donc deux régions qui en tirent deux chacune en partagent une dans
+  quatre cas sur six — un Jaccard de 0,4 à 0,6 est le mieux que la table
+  permette, et exiger moins interdirait la conception au lieu de la garder.
+  **L'écart maximal sort avec le verdict** : c'est lui qui dira quand le plafond
+  peut descendre, le jour où `ZONES` passera par biome.
 
 ### Quatre lieux, pas quatre couleurs
 

@@ -1774,36 +1774,54 @@ const TRACES_CONNUES = new Set([TRACE_ROULAGE, TRACE_SOUILLURE, TRACE_POUSSIERE,
 
    LA LOI 0 EST LA REFERENCE : `dens` vaut 1 et `ech` reprend `ECHELLE_LIEU` — ce
    n est pas une duplication mais un invariant, et `verifierAir` le compare. */
+/* DEUX REGIONS AU MEME VOCABULAIRE SONT UNE SEULE REGION, ET C ETAIT LE CAS DE
+   QUATRE THEMES SUR CINQ. `zones` etait tire dans un ORDRE different — usine
+   [2,1] contre [1,2], nebuleuse [0,2] contre [2,0], secteur [0,1] contre [1,0] —
+   et l ordre ne change rien a un ENSEMBLE : les deux regions posaient exactement
+   les memes props et ne differaient plus que par `dens` et `ech`, un nombre et
+   un calibre. La friche faisait pire : [2,1] contre [0,2,1], donc une region
+   STRICTEMENT INCLUSE dans l autre, et l union des trois zones rendait les huit
+   memes props.
+   Les MATIERES avaient le meme defaut, et sur les memes themes : quatre paires
+   de regions posaient le meme jeu de traces, la Nebuleuse deux fois.
+   `verifierVocabulaire` compare maintenant les regions deux a deux ; rien ne le
+   faisait, et les deux tables etaient vertes. */
 const AIR = {
   usine: [
     { dens: 1.00, ech: [0.72, 0.66], zones: [0, 2], matieres: [TRACE_SOUILLURE, TRACE_ROULAGE] },
     { dens: 0.82, ech: [0.70, 0.60], zones: [2, 1], matieres: [TRACE_ROULAGE, TRACE_POUSSIERE] },
     { dens: 1.34, ech: [0.56, 0.48], zones: [3, 0], matieres: [TRACE_SOUILLURE, TRACE_RAYURES] },
-    { dens: 0.58, ech: [0.88, 0.86], zones: [1, 2], matieres: [TRACE_POUSSIERE, TRACE_ROULAGE] },
+    // le degagement ENTRETIENT et STOCKE, il ne fabrique pas : c est la seule
+    // region du theme qui ne tire aucune zone de production.
+    { dens: 0.58, ech: [0.88, 0.86], zones: [1, 3], matieres: [TRACE_POUSSIERE, TRACE_FISSURES] },
   ],
   fonderie: [
     { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
     { dens: 1.18, ech: [0.74, 0.58], zones: [1, 2], matieres: [TRACE_CENDRES, TRACE_CORROSION] },
     { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_POUSSIERE, TRACE_CORROSION] },
-    { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_SOUILLURE] },
+    { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_RAYURES] },
   ],
   friche: [
     { dens: 1.00, ech: [0.66, 0.92], zones: [0, 1], matieres: [TRACE_POUSSIERE, null] },
     { dens: 1.12, ech: [0.58, 0.78], zones: [2, 1], matieres: [TRACE_POUSSIERE, TRACE_SOUILLURE] },
     { dens: 0.70, ech: [0.82, 1.08], zones: [1, 3], matieres: [TRACE_CENDRES, null] },
-    { dens: 1.40, ech: [0.52, 1.14], zones: [0, 2, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES, null] },
+    // ce qui FERMAIT et le peu qui reste ALLUME : deux zones, pas trois. Trois
+    // zones sur quatre rendaient l union du theme entier.
+    { dens: 1.40, ech: [0.52, 1.14], zones: [2, 3], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
   ],
   nebuleuse: [
     { dens: 1.00, ech: [0.90, 1.05], zones: [0, 3], matieres: [TRACE_RAYURES, null] },
     { dens: 1.50, ech: [0.52, 0.56], zones: [0, 2], matieres: [TRACE_FISSURES, TRACE_DECHETS] },
-    { dens: 0.52, ech: [1.30, 1.34], zones: [1, 3], matieres: [TRACE_RAYURES, null] },
-    { dens: 0.86, ech: [0.80, 1.00], zones: [2, 0], matieres: [TRACE_DECHETS, TRACE_FISSURES] },
+    { dens: 0.52, ech: [1.30, 1.34], zones: [1, 3], matieres: [TRACE_CORROSION, null] },
+    { dens: 0.86, ech: [0.80, 1.00], zones: [1, 2], matieres: [TRACE_RAYURES, TRACE_DECHETS] },
   ],
   secteur: [
     { dens: 1.00, ech: [0.60, 0.52], zones: [0, 1], matieres: [TRACE_RUISSELLEMENT, TRACE_ROULAGE] },
-    { dens: 0.84, ech: [0.70, 0.62], zones: [1, 0], matieres: [TRACE_RUISSELLEMENT, TRACE_SOUILLURE] },
+    // la chaussee et ce qui la DESSERT par derriere : la place n est pas une rue
+    // vue de plus loin, elle a son propre inventaire.
+    { dens: 0.84, ech: [0.70, 0.62], zones: [1, 2], matieres: [TRACE_RUISSELLEMENT, TRACE_SOUILLURE] },
     { dens: 1.38, ech: [0.48, 0.40], zones: [3, 2], matieres: [TRACE_DECHETS, TRACE_SOUILLURE] },
-    { dens: 0.60, ech: [0.82, 0.74], zones: [0, 3], matieres: [TRACE_ROULAGE, TRACE_RUISSELLEMENT] },
+    { dens: 0.60, ech: [0.82, 0.74], zones: [0, 3], matieres: [TRACE_ROULAGE, TRACE_FISSURES] },
   ],
 };
 
@@ -1816,6 +1834,61 @@ const airDe = (cle, loi) => {
    croisent dans les deux sens — une zone de props que plus aucune region ne tire
    disparait du jeu en silence, exactement le piege que `CLAUDE.md` nomme en
    premier. Il remplace `verifierTraces` : les matieres ne sont plus par theme. */
+/* DEUX REGIONS D UN THEME NE PEUVENT PAS AVOIR LE MEME VOCABULAIRE.
+
+   C EST LE PREMIER VERIFICATEUR DU SEMIS QUI COMPARE DEUX REGIONS ENTRE ELLES.
+   `verifierZones` croise `TABLE` et `ZONES` — un prop qu aucune zone ne tire —,
+   `verifierTraces` croise `ZONES` et `AIR` — une zone qu aucune region ne tire.
+   Les deux repondent « tout est branche », et aucun ne repond « tout est
+   DIFFERENT ». Mesure a l ouverture du plan 39 : quatre themes sur cinq avaient
+   deux regions au jeu de props IDENTIQUE, et quatre sur cinq au jeu de traces
+   identique — la Nebuleuse deux fois. Les deux tables etaient vertes.
+
+   LE SEUIL EST L IDENTITE, PAS UNE FRACTION, ET C EST DELIBERE. Un theme n a que
+   QUATRE zones de props : deux regions qui en tirent deux chacune en partagent
+   une dans quatre cas sur six, donc un Jaccard de 0,4 a 0,6 est le mieux que la
+   table permette. Exiger moins interdirait la conception au lieu de la garder.
+   L ecart maximal est RENDU avec le verdict : quand `ZONES` passera par biome,
+   le plafond descendra sur une mesure et pas sur un gout. */
+function jaccard(a, b) {
+  let n = 0;
+  for (const x of a) if (b.has(x)) n++;
+  return n / (a.size + b.size - n);
+}
+
+export function verifierVocabulaire() {
+  const soucis = [];
+  let pireProps = 0, ouProps = "", pireMat = 0, ouMat = "";
+  for (const [cle, zones] of Object.entries(ZONES)) {
+    const t = AIR[cle];
+    if (!t) continue;
+    const props = t.map(a => new Set(a.zones.flatMap(z => zones[z] ?? [])));
+    const mats = t.map(a => new Set((a.matieres ?? []).filter(m => m)));
+    for (let i = 0; i < t.length; i++) {
+      for (let j = i + 1; j < t.length; j++) {
+        const jp = jaccard(props[i], props[j]);
+        if (jp >= 0.999) {
+          soucis.push(`${cle} : les regions ${i} et ${j} posent EXACTEMENT les memes`
+            + ` ${props[i].size} props — elles ne different que par un nombre et un calibre`);
+        } else if (jp > pireProps) { pireProps = jp; ouProps = `${cle} ${i}/${j}`; }
+        if (mats[i].size && jaccard(mats[i], mats[j]) >= 0.999) {
+          soucis.push(`${cle} : les regions ${i} et ${j} marquent le sol des memes traces`);
+        } else if (mats[i].size) {
+          const jm = jaccard(mats[i], mats[j]);
+          if (jm > pireMat) { pireMat = jm; ouMat = `${cle} ${i}/${j}`; }
+        }
+      }
+    }
+  }
+  // le pire ecart SORT avec le verdict : c est lui qui dira quand le plafond
+  // peut descendre, et il ne se devine pas.
+  if (soucis.length === 0 && pireProps > 0.70) {
+    soucis.push(`aucune region identique, mais ${ouProps} partage ${(pireProps * 100).toFixed(0)} %`
+      + ` de ses props et ${ouMat} ${(pireMat * 100).toFixed(0)} % de ses traces`);
+  }
+  return soucis;
+}
+
 export function verifierTraces() {
   const soucis = [];
   const tirees = new Set();

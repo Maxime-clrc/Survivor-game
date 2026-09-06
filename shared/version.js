@@ -9818,6 +9818,27 @@
                   silence, et une silhouette que plus rien ne tire est un dessin
                   mort qu on entretient.
 
+    0.43.3 lot 4  DEUX REGIONS AU MEME VOCABULAIRE SONT UNE SEULE REGION, et
+                  c etait le cas de QUATRE THEMES SUR CINQ. `AIR[...].zones` etait
+                  tire dans un ORDRE different — usine [2,1] contre [1,2],
+                  nebuleuse [0,2] contre [2,0], secteur [0,1] contre [1,0] — et
+                  l ordre ne change rien a un ENSEMBLE : les deux regions posaient
+                  exactement les memes props et ne differaient plus que par `dens`
+                  et `ech`, un nombre et un calibre. La friche faisait pire :
+                  [2,1] contre [0,2,1], donc une region STRICTEMENT INCLUSE dans
+                  l autre. Les MATIERES avaient le meme defaut sur les memes
+                  themes, la Nebuleuse deux fois.
+                  `verifierZones` repond « tout est branche », `verifierTraces`
+                  aussi ; AUCUN ne repond « tout est different », et les deux
+                  etaient verts. `verifierVocabulaire` compare les regions DEUX A
+                  DEUX — le premier verificateur du semis a le faire.
+                  LE SEUIL EST L IDENTITE, PAS UNE FRACTION. Un theme n a que
+                  quatre zones : deux regions qui en tirent deux en partagent une
+                  dans quatre cas sur six, donc 0,4 a 0,6 de Jaccard est le mieux
+                  que la table permette. L ecart maximal sort AVEC le verdict, et
+                  c est lui qui dira quand le plafond peut descendre.
+                  57 verificateurs.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9826,4 +9847,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.2";
+export const VERSION = "0.43.3";

@@ -223,6 +223,7 @@ const SUITE = [
   ["dessin", () => verifierDessin()],
   ["zones", () => rendu.props?.verifierZones() ?? SANS_MODULE],
   ["traces", () => rendu.props?.verifierTraces() ?? SANS_MODULE],
+  ["vocabulaire", () => rendu.props?.verifierVocabulaire() ?? SANS_MODULE],
   ["semis", () => rendu.props?.verifierSemis() ?? SANS_MODULE],
   ["blocsRendu", () => rendu.blocs?.verifierBlocs() ?? SANS_MODULE],
   ["led", () => rendu.blocs?.verifierLed() ?? SANS_MODULE],
