@@ -9769,6 +9769,36 @@
                   `verifierDessin` cuit les vingt regions explicitement : ses
                   quatre points de vue ne voient que ce que le tirage a pose.
 
+    0.43.1 lot 2  LA TRAME — CE QUI A LA TAILLE D UN QUARTIER. Le depot n avait
+                  que DEUX echelles, le bloc (40 a 420 px) et le prop (20 a
+                  140 px), pour une vue de 1600 x 900 : rien n avait la taille d un
+                  ecran, donc rien ne se reconnaissait de loin et une region ne
+                  pouvait etre qu un rangement. Le plus grand objet passe de 504 px
+                  a 3680, et 4 a 9 objets par arene couvrent au moins une vue.
+                  Cinq primitives — ruban, nef, peigne, couronne, crible — tirees
+                  UNE FOIS par region, en coordonnees de QUARTIER : une table de
+                  `poser` est en fractions de cellule, donc periodique par
+                  construction. La FAILLE attend sa silhouette de vide : une faille
+                  rendue en bloc plein serait un mensonge.
+                  ELLE PREND SA PART DU MEME BUDGET. `OBSTACLE_SURFACE_MAX` reste
+                  le plafond de tout ; la trame se sert d abord (0,030) et les
+                  cellules remplissent le reste. Pire cas 0,0743 -> 0,0844, donc le
+                  plafond n est jamais atteint et rien n est evince.
+                  ON DECOUPE, ON NE JETTE PAS. Rejeter un bloc entier des qu il
+                  touche un danger faisait perdre la MOITIE de la trame en
+                  cauchemar (1,82 % -> 0,75 % a la Fonderie) : le mode le plus tendu
+                  etait le moins lisible. Apres, 1,5 a 2,4 % dans les trois modes et
+                  le nombre de blocs MONTE avec la difficulte.
+                  Deux defauts trouves par les verificateurs et pas a l oeil : 207
+                  paires de blocs qui se traversent (la boite englobante d un
+                  quartier n est pas le quartier — il est d un seul tenant mais pas
+                  convexe) et 332 fentes aveugles de 33 px (jeter ce qui se traverse
+                  ne suffit pas, il faut `TRAME_GARDE` = 88 px).
+                  `verifierTrame` : une trame par loi, jamais la meme dans deux
+                  regions d un theme, une famille du lieu, une primitive que
+                  personne ne tire, et une trame qui ne pose AUCUN bloc sur des
+                  arenes reelles. 56 verificateurs.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9777,4 +9807,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.0";
+export const VERSION = "0.43.1";

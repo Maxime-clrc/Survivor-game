@@ -6,6 +6,29 @@ export const BIOME_CFG = {
 
   OBSTACLE_SURFACE_MAX: 0.10,
 
+  /* LA TRAME PREND SA PART DU MEME BUDGET, ELLE N EN AJOUTE PAS UN SECOND.
+     `OBSTACLE_SURFACE_MAX` reste LE plafond de tout ce qui est bati : la trame
+     se sert d abord, plafonnee a `TRAME_SURFACE_MAX`, et les cellules
+     remplissent le reste. Un second budget aurait fait grossir la matiere batie
+     de moitie, donc change le jeu sans que personne ne l ait decide.
+     Un bloc de cellule qui tombe DANS la trame est jete : la trame passe devant,
+     la cellule cede. Deux habillages l un dans l autre est le defaut que
+     `verifierSuperpositions` mesure deja. */
+  TRAME_SURFACE_MAX: 0.030,
+
+  // 3 x NAV_CFG.PASSAGE_MIN. La mesure de `navigation.js` dit qu au pire calage
+  // une fente de 160 px est contestee en 4,2 s et une de 200 px jamais ; 240
+  // garde la marge d un corps d elite.
+  TRAME_BRECHE: 240,
+  // une ouverture au moins tous les deux ecrans, et JAMAIS moins de deux
+  // troncons : une bande d un seul tenant qui traverse un quartier entier
+  // n aurait aucune brèche.
+  TRAME_PAS: 3200,
+  TRAME_EP: 62,
+  // recul du bord de quartier : deux trames voisines ne se touchent pas, et la
+  // frontiere reste franchissable sur toute sa longueur.
+  TRAME_MARGE: 200,
+
   CORE_RATIO: 0.45,
   CORE_CLEARANCE: 34,
 
@@ -638,6 +661,270 @@ const OBSTACLES = {
   ],
 };
 
+/* ===========================================================================
+   LA TRAME — CE QUI A LA TAILLE D UN QUARTIER.
+
+   LE DEFAUT QU ELLE CORRIGE SE MESURE : le depot n avait que DEUX echelles, le
+   bloc (40 a 420 px) et le prop (20 a 140 px), pour une vue de 1600 x 900.
+   RIEN N AVAIT LA TAILLE D UN ECRAN, donc rien ne se reconnaissait de loin, rien
+   ne traversait plusieurs vues, et une region ne pouvait etre qu un rangement
+   des trois memes formes.
+
+   ELLE EST ANCREE AU QUARTIER, PAS A LA CELLULE. Une table de `poser` est en
+   fractions de CELLULE et se reinstancie a chaque vue, donc elle est periodique
+   par construction ; une trame est tiree UNE FOIS par region, en coordonnees de
+   quartier, et ne se repete pas.
+
+   ELLE SORT DANS `obstacles`, ET C EST TOUT L INTERET : collision, navigation,
+   apparition, depot et separation la voient sans une ligne de plus, et RIEN ne
+   circule sur le reseau — `buildBiome` est deterministe, les deux cotes la
+   rejouent sur la graine.
+
+   CINQ PRIMITIVES, PAS UN CATALOGUE. La sixieme du dossier — la FAILLE — n est
+   pas ici : elle demande une silhouette de VIDE que `render/blocs.js` ne sait
+   pas encore dessiner, et une faille rendue en bloc plein serait un mensonge.
+   Elle entre avec son dessin, pas avant.
+
+   CHAQUE PRIMITIVE DECLARE SES OUVERTURES, elle ne les subit pas : `TRAME_BRECHE`
+   au minimum, une au moins tous les `TRAME_PAS`, et la couronne en a quatre.
+   =========================================================================== */
+export const TR_RUBAN = 0, TR_NEF = 1, TR_PEIGNE = 2, TR_COURONNE = 3, TR_CRIBLE = 4;
+
+export const TRAME_NOMS = ["ruban", "nef", "peigne", "couronne", "crible"];
+
+function poserBloc(out, x, y, w, h, kind) {
+  if (w < 24 || h < 24) return;
+  out.push({ x, y, w, h, kind });
+}
+
+/* UNE BANDE AVEC SES BRECHES. `pos` est la coordonnee sur l axe TRANSVERSE,
+   `a0`/`a1` les bornes sur l axe de la bande. Au moins deux troncons, donc au
+   moins une ouverture — une bande d un seul tenant fermerait la region. */
+function bande(out, kind, a0, a1, pos, ep, vert) {
+  const L = a1 - a0;
+  const br = BIOME_CFG.TRAME_BRECHE;
+  const n = Math.max(2, Math.round(L / BIOME_CFG.TRAME_PAS));
+  const seg = (L - (n - 1) * br) / n;
+  if (seg < ep) return;
+  for (let i = 0; i < n; i++) {
+    const c = a0 + i * (seg + br) + seg / 2;
+    if (vert) poserBloc(out, pos, c, ep, seg, kind);
+    else poserBloc(out, c, pos, seg, ep, kind);
+  }
+}
+
+const NEF_BORD = 0.16;
+const PEIGNE_DENT = 0.24;
+const COURONNE_R = 0.30, COURONNE_N = 12;
+const CRIBLE_NX = 4, CRIBLE_NY = 3, CRIBLE_TROUS = 2;
+
+/* LE QUARTIER EST DONNE EN PIXELS ET LA TRAME SE POSE DEDANS. `rand` est le
+   tirage de la carte : une region change de trame d une graine a l autre par ses
+   parametres, jamais par son type — le type appartient au biome. */
+export function poserTrame(type, kind, q, rand) {
+  const out = [];
+  const m = BIOME_CFG.TRAME_MARGE;
+  const x0 = q.x0 + m, x1 = q.x1 - m, y0 = q.y0 + m, y1 = q.y1 - m;
+  const W = x1 - x0, H = y1 - y0;
+  if (W < 600 || H < 600) return out;
+  const ep = BIOME_CFG.TRAME_EP;
+  // l axe long : une structure qui traverse suit la plus grande dimension.
+  const vert = H > W;
+  const a0 = vert ? y0 : x0, a1 = vert ? y1 : x1;
+  const t0 = vert ? x0 : y0, T = vert ? W : H;
+
+  if (type === TR_RUBAN) {
+    const n = 2;
+    for (let i = 0; i < n; i++) {
+      const pos = t0 + T * (0.30 + 0.40 * (i / Math.max(1, n - 1))) + (rand() - 0.5) * T * 0.10;
+      bande(out, kind, a0, a1, pos, ep, vert);
+    }
+  } else if (type === TR_NEF) {
+    // DEUX PAROIS ET UN FOND. Le fond ne ferme pas : son ouverture centrale vaut
+    // le tiers de la nef, donc bien plus que `TRAME_BRECHE`.
+    for (const f of [NEF_BORD, 1 - NEF_BORD]) {
+      bande(out, kind, a0, a1, t0 + T * f, ep, vert);
+    }
+    const cote = rand() < 0.5 ? a0 + ep : a1 - ep;
+    const p0 = t0 + T * NEF_BORD, p1 = t0 + T * (1 - NEF_BORD);
+    const trou = (p1 - p0) / 3;
+    const l = ((p1 - p0) - trou) / 2;
+    for (const s of [p0, p1 - l]) {
+      if (vert) poserBloc(out, s + l / 2, cote, l, ep, kind);
+      else poserBloc(out, cote, s + l / 2, ep, l, kind);
+    }
+  } else if (type === TR_PEIGNE) {
+    // UNE ECHINE ET SES DENTS. La dent s arrete avant le bord : un cul-de-sac
+    // ouvert d un cote seulement se contourne, un cul-de-sac ferme bouchonne.
+    const pos = t0 + T * 0.5;
+    bande(out, kind, a0, a1, pos, ep, vert);
+    const pas = Math.max(760, (a1 - a0) / 7);
+    const dent = T * PEIGNE_DENT;
+    let i = 0;
+    for (let a = a0 + pas / 2; a < a1 - pas / 4; a += pas, i++) {
+      const sens = (i & 1) ? 1 : -1;
+      const c = pos + sens * (dent / 2 + ep / 2);
+      if (vert) poserBloc(out, c, a, dent, ep, kind);
+      else poserBloc(out, a, c, ep, dent, kind);
+    }
+  } else if (type === TR_COURONNE) {
+    // QUATRE OUVERTURES, UNE PAR QUADRANT : `i % 3 === 2` en saute exactement
+    // quatre sur douze, regulierement reparties.
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const R = Math.min(W, H) * COURONNE_R;
+    const c0 = rand() * Math.PI * 2;
+    const cote = ep * 2.6;
+    for (let i = 0; i < COURONNE_N; i++) {
+      if (i % 3 === 2) continue;
+      const a = c0 + (i / COURONNE_N) * Math.PI * 2;
+      poserBloc(out, cx + Math.cos(a) * R, cy + Math.sin(a) * R, cote, cote, kind);
+    }
+  } else if (type === TR_CRIBLE) {
+    // UN RESEAU REGULIER AVEC SES MANQUES : les allees sont orthogonales, donc
+    // toujours traversantes, et deux cases retirees cassent la regularite.
+    const cote = ep * 3.0;
+    const sautA = Math.floor(rand() * CRIBLE_NX * CRIBLE_NY);
+    const sautB = (sautA + 1 + Math.floor(rand() * (CRIBLE_NX * CRIBLE_NY - 2)))
+      % (CRIBLE_NX * CRIBLE_NY);
+    for (let j = 0; j < CRIBLE_NY; j++) {
+      for (let i = 0; i < CRIBLE_NX; i++) {
+        const k = j * CRIBLE_NX + i;
+        if (CRIBLE_TROUS >= 1 && k === sautA) continue;
+        if (CRIBLE_TROUS >= 2 && k === sautB) continue;
+        poserBloc(out, x0 + W * ((i + 0.5) / CRIBLE_NX),
+                  y0 + H * ((j + 0.5) / CRIBLE_NY), cote, cote, kind);
+      }
+    }
+  }
+  return out;
+}
+
+/* QUELLE TRAME POUR QUELLE REGION, ET AVEC QUELLE FAMILLE BATIE. Une entree par
+   loi d implantation, dans l ordre d `OBSTACLES`. DEUX REGIONS D UN THEME
+   N ONT JAMAIS LA MEME : c est ce qui rend une frontiere lisible a la
+   silhouette, et `verifierTrame` le compare au lieu de le supposer.
+
+   LA FAMILLE EST UNE DE CELLES DU LIEU, sans exception : ce lot pose la
+   STRUCTURE, il n ajoute pas un dessin. Les familles propres a chaque biome
+   viennent avec leur silhouette. */
+const TRAMES = {
+  usine: [
+    { type: TR_RUBAN, kind: B_CHAINE },
+    { type: TR_CRIBLE, kind: B_MACHINE },
+    { type: TR_PEIGNE, kind: B_POSTE },
+    { type: TR_NEF, kind: B_CHAINE },
+  ],
+  fonderie: [
+    { type: TR_RUBAN, kind: B_CONDUITE },
+    { type: TR_CRIBLE, kind: B_CUVE },
+    { type: TR_PEIGNE, kind: B_CUVE },
+    { type: TR_COURONNE, kind: B_FOUR },
+  ],
+  friche: [
+    { type: TR_CRIBLE, kind: B_RUINE },
+    { type: TR_RUBAN, kind: B_MUR },
+    { type: TR_COURONNE, kind: B_RUINE },
+    { type: TR_NEF, kind: B_MUR },
+  ],
+  nebuleuse: [
+    { type: TR_CRIBLE, kind: B_FRAGMENT },
+    { type: TR_PEIGNE, kind: B_DEBRIS },
+    { type: TR_COURONNE, kind: B_FRAGMENT },
+    { type: TR_NEF, kind: B_TRAVEE },
+  ],
+  secteur: [
+    { type: TR_RUBAN, kind: B_DEVANTURE },
+    { type: TR_COURONNE, kind: B_DEVANTURE },
+    { type: TR_PEIGNE, kind: B_CONTENEUR },
+    { type: TR_NEF, kind: B_DEVANTURE },
+  ],
+};
+
+export function trameDe(cle, loi) {
+  const t = TRAMES[cle] ?? TRAMES.usine;
+  return t[loi] ?? t[0];
+}
+
+/* LES BORNES D UN QUARTIER, EN PIXELS. Un quartier est d un seul tenant
+   (`verifierDistricts` le garantit) donc sa boite englobante le decrit sans
+   trou — c est assez pour y poser une structure, et ca ne coute qu un balayage
+   de la grille de decoupage. */
+export function bornesDistricts(grille, cols, rows, cw, ch) {
+  const n = grille.reduce((m, q) => Math.max(m, q), 0) + 1;
+  const b = [];
+  for (let i = 0; i < n; i++) b.push({ x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const q = b[grille[cy * cols + cx]];
+      q.x0 = Math.min(q.x0, cx * cw); q.x1 = Math.max(q.x1, (cx + 1) * cw);
+      q.y0 = Math.min(q.y0, cy * ch); q.y1 = Math.max(q.y1, (cy + 1) * ch);
+    }
+  }
+  return b;
+}
+
+const surHazard = (x, y, w, h, hazards) => hazards.some(z => {
+  const px = Math.max(x - w / 2, Math.min(z.x, x + w / 2));
+  const py = Math.max(y - h / 2, Math.min(z.y, y + h / 2));
+  return (z.x - px) ** 2 + (z.y - py) ** 2 < z.r * z.r;
+});
+
+/* `g` EST UNE GARDE, PAS UNE TOLERANCE. Deux boites separees de moins que
+   `NAV_CFG.PASSAGE_MIN` (80) laissent une bande libre plus etroite qu une case
+   de navigation : aucun centre ne tombe dedans, la grille y voit un MUR, et un
+   corps peut quand meme s y tenir. C est l ABRI PARFAIT, que ce depot a deja
+   paye deux fois. 88 garde la marge d un arrondi.
+   `navigation.js` n est pas importe ici — ce module ne depend de RIEN, c est sa
+   regle — donc la valeur est ecrite avec sa raison. */
+const TRAME_GARDE = 88;
+
+const seChevauchent = (a, b, g = 0) =>
+  Math.abs(a.x - b.x) < (a.w + b.w) / 2 + g && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + g;
+
+// un troncon plus court que ca n est plus une structure, c est un debris : il ne
+// se lit ni de loin ni comme une ligne.
+const TRAME_TRONCON_MIN = 300;
+const TRAME_PAS_DECOUPE = 40;
+
+/* ON DECOUPE, ON NE JETTE PAS. Mesure du premier jet : un bloc de trame etait
+   rejete en entier des qu il touchait un danger ou debordait de son quartier —
+   or une bande fait trois mille pixels de long, donc elle rencontre presque
+   toujours quelque chose. Resultat, la trame PERDAIT LA MOITIE DE SES BLOCS EN
+   CAUCHEMAR (2,23 % de surface au calme, 0,75 % en cauchemar a la Fonderie) :
+   le mode ou la pression est la plus forte etait celui ou l architecture etait la
+   moins lisible.
+   On echantillonne donc le long de l axe LONG au pas d une case de navigation,
+   on garde les suites valides et on rend un troncon par suite. Ce qui coupe une
+   bande devient une OUVERTURE — un danger qui interrompt une structure se lit,
+   une structure qui disparait ne se lit pas. */
+function decouper(o, garde) {
+  const vert = o.h >= o.w;
+  const L = vert ? o.h : o.w;
+  if (L <= TRAME_TRONCON_MIN) return garde(o.x, o.y, o.w, o.h) ? [o] : [];
+  const a0 = (vert ? o.y : o.x) - L / 2;
+  const ep = vert ? o.w : o.h;
+  const n = Math.max(1, Math.round(L / TRAME_PAS_DECOUPE));
+  const pas = L / n;
+  const out = [];
+  let debut = -1;
+  for (let i = 0; i <= n; i++) {
+    const c = a0 + (i + 0.5) * pas;
+    const ok = i < n && garde(vert ? o.x : c, vert ? c : o.y,
+                              vert ? ep : pas, vert ? pas : ep);
+    if (ok && debut < 0) debut = i;
+    if (!ok && debut >= 0) {
+      const l = (i - debut) * pas;
+      if (l >= TRAME_TRONCON_MIN) {
+        const m = a0 + (debut + (i - debut) / 2) * pas;
+        out.push({ x: vert ? o.x : m, y: vert ? m : o.y,
+                   w: vert ? ep : l, h: vert ? l : ep, kind: o.kind });
+      }
+      debut = -1;
+    }
+  }
+  return out;
+}
+
 /* L ECHELLE D UN DANGER APPARTIENT AU LIEU, SES DEGATS NON. `h.r` etait lu par
    `buildBiome` depuis toujours (`h.r ?? d.r`) et AUCUNE table ne s en servait :
    tout geyser faisait 70 px, toute flaque 85, dans les quatre lieux. Le dessin
@@ -1036,6 +1323,78 @@ export function grilleVariantes(lieu, seed, cols, rows) {
   return choix;
 }
 
+/* LA TRAME EXISTE-T-ELLE VRAIMENT, ET DEUX REGIONS EN ONT-ELLES DEUX ?
+
+   TROIS QUESTIONS DE TABLE, GRATUITES, ET UNE QUATRIEME QUI COUTE. Les trois
+   premieres se lisent sur `TRAMES` ; la quatrieme demande de CONSTRUIRE, parce
+   qu une trame peut etre declaree et ne rien poser : elle est clipee a son
+   quartier, ecartee des dangers et des blocs deja poses, et une structure qui
+   sort vide ne leve rien du tout — elle disparait en silence, exactement le
+   premier piege de `CLAUDE.md`.
+
+   LA CONNEXITE N EST PAS ICI, ET C EST VOULU : `verifierNavigation` inonde deja
+   la grille sur l ARENE ENTIERE et compte les cases inatteignables. Un second
+   test dirait la meme chose, et ce module ne depend de RIEN — il ne peut pas
+   importer `navigation.js`. */
+export function verifierTrame(graines = [1, 7, 99, 323, 50, 8],
+                              arenaW = 14400, arenaH = 8100,
+                              viewW = 1600, viewH = 900) {
+  const soucis = [];
+  const tires = new Set();
+  for (const b of BIOMES) {
+    const t = TRAMES[b.key];
+    if (!t) { soucis.push(`${b.key} : aucune trame`); continue; }
+    const n = loisDe(b.key);
+    if (t.length !== n) soucis.push(`${b.key} : ${t.length} trames pour ${n} regions`);
+    const familles = new Set(blocsDe(b.key));
+    const vus = new Map();
+    for (let i = 0; i < t.length; i++) {
+      const tr = t[i];
+      if (TRAME_NOMS[tr.type] === undefined) {
+        soucis.push(`${b.key}/region ${i} : type de trame ${tr.type} inconnu`);
+        continue;
+      }
+      tires.add(tr.type);
+      if (!familles.has(tr.kind)) {
+        soucis.push(`${b.key}/region ${i} : la trame emploie la famille ${tr.kind},`
+          + " qui n appartient pas au lieu");
+      }
+      if (vus.has(tr.type)) {
+        soucis.push(`${b.key} : les regions ${vus.get(tr.type)} et ${i} portent la meme`
+          + ` trame « ${TRAME_NOMS[tr.type]} » — leur silhouette sera la meme`);
+      } else vus.set(tr.type, i);
+    }
+  }
+  for (let ty = 0; ty < TRAME_NOMS.length; ty++) {
+    if (!tires.has(ty)) soucis.push(`trame « ${TRAME_NOMS[ty]} » : ecrite, tiree par aucune region`);
+  }
+
+  /* UNE TRAME QUI NE POSE RIEN N EST PAS UNE TRAME. On compte les blocs poses
+     par region sur des arenes REELLES : le clipping au quartier, l ecart aux
+     dangers et la garde de passage peuvent tout manger, et rien ne le dirait. */
+  const poses = new Map();
+  for (const b of BIOMES) for (let i = 0; i < loisDe(b.key); i++) poses.set(`${b.key}|${i}`, 0);
+  for (let bi = 0; bi < BIOMES.length; bi++) {
+    const cle = BIOMES[bi].key;
+    for (const seed of graines) {
+      for (const di of [0, 2]) {
+        const a = buildBiome(bi, di, seed, arenaW, arenaH, viewW, viewH);
+        for (const [loi, n] of a.trameParRegion) {
+          poses.set(`${cle}|${loi}`, (poses.get(`${cle}|${loi}`) ?? 0) + n);
+        }
+        if (a.trameSurface > BIOME_CFG.TRAME_SURFACE_MAX + 1e-9) {
+          soucis.push(`${cle}/graine ${seed} : trame a ${(a.trameSurface * 100).toFixed(1)} %`
+            + ` de surface, au-dessus du plafond`);
+        }
+      }
+    }
+  }
+  for (const [k, n] of poses) {
+    if (n === 0) soucis.push(`${k} : sa trame ne pose AUCUN bloc sur ${graines.length} graines`);
+  }
+  return soucis;
+}
+
 /* Est-ce que le decalage de cette cellule met un de ses blocs sur un danger ?
    On teste la POSE ENTIERE et non un bloc : le tremblement est par cellule, donc
    il se garde ou se jette en entier. */
@@ -1110,6 +1469,55 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   const kDefaut = blocsDe(cle)[0] ?? 0;
   const jMax = cle === "friche" ? 40 : 0;
   let obsArea = 0;
+
+  /* LA TRAME SE SERT LA PREMIERE, ET DU MEME BUDGET. Elle est ce qui a la taille
+     d un quartier — la seule echelle qui manquait au depot — et elle est posee
+     AVANT la boucle de cellules pour deux raisons : le budget bati est unique
+     (`OBSTACLE_SURFACE_MAX`), et un bloc de cellule qui tombe dedans doit ceder,
+     pas l inverse.
+     Un bloc de trame sur un danger est jete, comme le tremblement de la Friche :
+     `verifierBiomes` refuse un danger sous un obstacle, et une brèche de plus
+     n a jamais ferme quoi que ce soit. */
+  const trames = [];
+  const trameParRegion = [];
+  let trArea = 0;
+  {
+    const bornes = bornesDistricts(grilleDistricts, cols, rows, cw, ch);
+    const randTr = rng((seed >>> 0) * 2749 + 17);
+    for (let i = 0; i < bornes.length; i++) {
+      // une region porte UNE loi, sans exception : la premiere de ses cellules
+      // la donne toute entiere.
+      const cellule = grilleDistricts.indexOf(i);
+      const loi = choix[cellule < 0 ? 0 : cellule] ?? 0;
+      const tr = trameDe(cle, loi);
+      let n = 0;
+      /* LA BOITE ENGLOBANTE D UN QUARTIER N EST PAS LE QUARTIER. Un quartier est
+         d un seul tenant mais pas convexe : deux boites englobantes se recouvrent
+         largement, donc deux trames voisines se traversaient — 207 paires de
+         blocs sur cinquante graines a l Usine. Un morceau n est garde que s il
+         tombe dans une cellule de SA region, s il est clair de tout danger et
+         s il laisse sa distance de passage a ce qui est deja pose. */
+      const garde = (x, y, w, h) => {
+        const qx = Math.min(cols - 1, Math.max(0, Math.floor(x / cw)));
+        const qy = Math.min(rows - 1, Math.max(0, Math.floor(y / ch)));
+        if (grilleDistricts[qy * cols + qx] !== i) return false;
+        if (surHazard(x, y, w, h, hazards)) return false;
+        return !trames.some(t => seChevauchent({ x, y, w, h }, t, TRAME_GARDE));
+      };
+      for (const brut of poserTrame(tr.type, tr.kind, bornes[i], randTr)) {
+        for (const o of decouper(brut, garde)) {
+          const area = o.w * o.h;
+          if ((trArea + area) / surface > BIOME_CFG.TRAME_SURFACE_MAX) continue;
+          if (trames.some(t => seChevauchent(o, t, TRAME_GARDE))) continue;
+          trArea += area; obsArea += area;
+          trames.push(o);
+          n++;
+          obstacles.push({ x: o.x, y: o.y, w: o.w, h: o.h, kind: o.kind, maxHp: 0, hp: 0 });
+        }
+      }
+      trameParRegion.push([loi, n]);
+    }
+  }
   /* LE TREMBLEMENT DE LA FRICHE EST PAR CELLULE, PAS PAR OBSTACLE. Tire par
      objet, il rapprochait deux voisins de 80 px au pire — plus que l ecart de la
      plupart des paires d un champ de ruines, qui est dense par definition. Sur
@@ -1139,11 +1547,18 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
         const w = o.w * cw, h = o.h * ch;
         const area = w * h;
         if ((obsArea + area) / surface > BIOME_CFG.OBSTACLE_SURFACE_MAX) continue;
-        obsArea += area;
         const fx = mx ? 1 - o.x : o.x, fy = my ? 1 - o.y : o.y;
+        const bx = cx * cw + fx * cw + jx, by = cy * ch + fy * ch + jy;
+        /* LA TRAME PASSE DEVANT, LA CELLULE CEDE — ET LA GARDE VAUT PLUS QUE LE
+           CONTACT. Jeter seulement ce qui se traverse laissait des FENTES
+           AVEUGLES de 33 px entre un bloc de cellule et une bande de trame :
+           332 sur cinquante graines. La structure est ce qui se lit, donc c est
+           elle qui reste, et elle reste avec sa distance de passage. */
+        if (trames.some(t => seChevauchent({ x: bx, y: by, w, h }, t, TRAME_GARDE))) continue;
+        obsArea += area;
         obstacles.push({
-          x: cx * cw + fx * cw + jx,
-          y: cy * ch + fy * ch + jy,
+          x: bx,
+          y: by,
           w, h,
           kind: o.kind ?? kDefaut,
           maxHp: o.hp ? BIOME_CFG.COVER_HP : 0,
@@ -1172,6 +1587,12 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
        deux cotes le rejouent sur la meme graine. */
     districts: grilleDistricts, districtCols: cols, districtRows: rows,
     obstacleSurface: obsArea / surface,
+    /* CE QUE LA TRAME A REELLEMENT POSE, PAR REGION. Une trame declaree peut ne
+       rien poser — elle est clipee a son quartier, ecartee des dangers et des
+       blocs deja poses — et une structure vide ne leve rien. `verifierTrame` le
+       compte au lieu de le supposer. */
+    trameSurface: trArea / surface,
+    trameParRegion,
     hazardSurface: hzArea / surface,
     // le budget EVINCE en silence : une entree declaree pouvait ne jamais etre
     // construite sans que rien ne le dise, et un lieu se retrouvait avec un

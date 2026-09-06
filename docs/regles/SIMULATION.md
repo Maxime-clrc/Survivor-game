@@ -606,6 +606,58 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     supprimé, et avec lui le repli silencieux de `biomeAt(-1)` sur l'Usine, qui
     privait toute carte composée de son arrière-plan, de ses baies, de son
     ambiance, de son liseré de bloc et de la chaleur de la coulée.
+- **LA TRAME — CE QUI A LA TAILLE D'UN QUARTIER.** Le dépôt n'avait que **deux
+  échelles** : le bloc (40 à 420 px) et le prop (20 à 140 px), pour une vue de
+  1600 × 900. **Rien n'avait la taille d'un écran**, donc rien ne se
+  reconnaissait de loin, rien ne traversait plusieurs vues, et une région ne
+  pouvait être qu'un rangement des trois mêmes formes. Mesure : le plus grand
+  objet du dépôt faisait **504 px** (la travée de la Nébuleuse) ; il en fait
+  maintenant **3 680**, et 4 à 9 objets par arène couvrent au moins une vue.
+  - **Elle est ancrée au QUARTIER, pas à la cellule.** Une table de `poser` est
+    en fractions de cellule et se réinstancie à chaque vue, donc elle est
+    **périodique par construction** ; une trame est tirée une fois par région et
+    ne se répète pas.
+  - **Elle sort dans `obstacles`**, donc collision, navigation, apparition, dépôt
+    et séparation la voient sans une ligne de plus, et **rien ne circule sur le
+    réseau** — `buildBiome` est déterministe, les deux côtés la rejouent.
+  - **CINQ primitives, pas un catalogue** : `ruban`, `nef`, `peigne`,
+    `couronne`, `crible`. La sixième du dossier — la **faille** — n'est pas là :
+    elle demande une silhouette de *vide* que `render/blocs.js` ne sait pas
+    dessiner, et une faille rendue en bloc plein serait un mensonge. Elle entre
+    avec son dessin, pas avant.
+  - **Elle prend sa part du MÊME budget.** `OBSTACLE_SURFACE_MAX` reste le
+    plafond de tout ce qui est bâti ; la trame se sert d'abord, plafonnée à
+    `TRAME_SURFACE_MAX` (3 %), et les cellules remplissent le reste. Un second
+    budget aurait fait grossir la matière bâtie de moitié, donc changé le jeu
+    sans que personne ne l'ait décidé.
+  - **La trame passe devant, la cellule cède — et la garde vaut plus que le
+    contact.** Ne jeter que ce qui se traverse laissait des **fentes aveugles de
+    33 px** (332 sur cinquante graines) : `TRAME_GARDE` vaut 88 px, au-dessus de
+    `NAV_CFG.PASSAGE_MIN`, parce qu'une bande plus étroite qu'une case de
+    navigation est un **abri parfait**. `biomes.js` ne dépend de rien, donc la
+    valeur est écrite avec sa raison plutôt qu'importée.
+  - **ON DÉCOUPE, ON NE JETTE PAS.** Premier jet : un bloc rejeté en entier dès
+    qu'il touchait un danger ou débordait de son quartier — or une bande fait
+    trois mille pixels, donc elle rencontre presque toujours quelque chose.
+    Mesure : la trame **perdait la moitié de ses blocs en cauchemar** (2,23 % de
+    surface au calme contre 0,75 % en cauchemar à la Fonderie), c'est-à-dire que
+    le mode le plus tendu était celui où l'architecture était la moins lisible.
+    On échantillonne le long de l'axe long au pas d'une case de navigation, on
+    garde les suites valides, et **ce qui coupe une bande devient une
+    ouverture** : un danger qui interrompt une structure se lit, une structure
+    qui disparaît ne se lit pas. Après : 1,5 à 2,4 % dans les trois modes, et le
+    nombre de blocs **monte** avec la difficulté au lieu de descendre.
+  - **La boîte englobante d'un quartier n'est pas le quartier.** Un quartier est
+    d'un seul tenant mais **pas convexe** : deux boîtes englobantes se recouvrent
+    largement, donc deux trames voisines se traversaient (207 paires sur
+    cinquante graines à l'Usine). Un morceau n'est gardé que si sa cellule
+    appartient à sa région.
+  - **`verifierTrame` compare deux régions**, il ne les suppose pas : une trame
+    par loi, **jamais la même dans deux régions d'un thème**, une famille bâtie
+    qui appartient au lieu, une primitive écrite que personne ne tire, et — le
+    seul contrôle qui coûte — **une trame qui ne pose aucun bloc** sur des arènes
+    réelles. La **connexité** n'y est pas : `verifierNavigation` inonde déjà la
+    grille sur l'arène entière et compte les cases inatteignables.
 - **LE BORD APPARTIENT À LA RÉGION, PAS À LA CELLULE.** `bordsDe(v, mx, my)`
   retournait les bords avec la cellule ; or `mx` et `my` changent **toujours**
   d'une cellule à sa voisine, donc le bord sud de l'une et le bord nord de l'autre

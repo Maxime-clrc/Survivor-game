@@ -8,6 +8,60 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La trame (0.43.1)
+
+**Ce qui manquait, en un chiffre.** Le plus grand objet bâti du dépôt faisait
+**504 px** — la travée de la Nébuleuse — pour une vue de **1600 × 900**. Après :
+
+| lieu | plus grand objet | objets ≥ 1 vue / arène | objets > 900 px / arène |
+|---|---:|---:|---:|
+| usine | **3 680 px** | 8,3 | 13,3 |
+| fonderie | 3 680 | 5,3 | 9,3 |
+| friche | 3 680 | 5,9 | 9,5 |
+| nébuleuse | 3 680 | 4,1 | 7,9 |
+| secteur | 3 680 | 9,1 | 12,5 |
+
+**Découper au lieu de jeter, et la mesure qui l'a imposé.** Premier jet : un bloc
+de trame rejeté en entier dès qu'il touchait un danger ou débordait de son
+quartier. Une bande fait 3 000 px, donc elle rencontre presque toujours quelque
+chose — et le nombre de dangers monte avec le mode :
+
+| | calme | normal | cauchemar |
+|---|---:|---:|---:|
+| surface de trame, **en jetant** (fonderie) | 1,82 % | 1,36 % | **0,75 %** |
+| blocs de trame, en jetant (usine) | 21 | 15 | **15** |
+| surface de trame, **en découpant** (fonderie) | 1,94 % | 1,60 % | **1,55 %** |
+| blocs de trame, en découpant (usine) | 30 | 36 | **39** |
+
+Le mode le plus tendu était celui où l'architecture était la moins lisible.
+Après découpage, le nombre de blocs **monte** avec la difficulté, et la surface
+tient dans une bande de 1,5 à 2,4 % sur les cinq thèmes et les trois modes.
+
+**Le budget bâti total ne bouge pas** — `OBSTACLE_SURFACE_MAX` = 0,10 reste le
+plafond de tout, la trame se sert d'abord (plafond 0,030), les cellules
+remplissent le reste :
+
+| lieu | avant (calme/normal/cauch.) | après |
+|---|---|---|
+| usine | 0,0277 / 0,0422 / 0,0490 | 0,0539 / 0,0572 / 0,0626 |
+| fonderie | 0,0514 / 0,0652 / **0,0743** | 0,0767 / 0,0784 / **0,0800** |
+| friche | 0,0238 / 0,0384 / 0,0474 | 0,0512 / 0,0534 / 0,0548 |
+| nébuleuse | 0,0467 / 0,0642 / 0,0670 | 0,0707 / **0,0844** / 0,0821 |
+| secteur | 0,0245 / 0,0418 / 0,0472 | 0,0498 / 0,0624 / 0,0584 |
+
+Le pire cas passe de 0,0743 à **0,0844**, donc le plafond de 0,10 n'est **jamais
+atteint** : aucun bloc n'est évincé, et l'éviction — qui frappe la fin de l'ordre
+de parcours, donc le bas-droite de l'arène — n'introduit aucun biais spatial.
+
+**Génération d'une arène** (moyenne de 40, cauchemar) : usine 0,34 ms, fonderie
+0,28, friche **1,37**, nébuleuse 0,25, secteur 0,20. La Friche est la plus chère
+parce qu'elle est la seule à trembler par cellule. Une fois par manche.
+
+**Deux défauts trouvés par les vérificateurs et pas à l'œil** : 207 paires de
+blocs qui se traversent (les boîtes englobantes de deux quartiers se recouvrent —
+un quartier est d'un seul tenant mais **pas convexe**) et 332 fentes aveugles de
+33 px (jeter ce qui se traverse ne suffit pas, il faut la distance de passage).
+
 ### Le sol par région (0.43.0)
 
 **L'audit qui a ouvert le plan 39, en trois relevés — et aucun des 55
