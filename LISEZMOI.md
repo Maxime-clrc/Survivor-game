@@ -8,6 +8,48 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le sol par région (0.43.0)
+
+**L'audit qui a ouvert le plan 39, en trois relevés — et aucun des 55
+vérificateurs ne les signalait.**
+
+| mesure | valeur | comment |
+|---|---|---|
+| régions employant **les trois** familles bâties de leur thème | **20 / 20** | balayage de `OBSTACLES[theme][v].poser` |
+| arrangements distincts sur une arène de **81 vues** | **16** | `(loi, mx, my)` distincts, `buildBiome` graine 7 |
+| thèmes ayant deux régions au vocabulaire de props **identique** | **4 / 5** | Jaccard des `ZONES` tirées par `AIR[…].zones` |
+
+Les paires identiques : **usine 1≡3** (`zones [2,1]` contre `[1,2]`),
+**friche 1≡3**, **nébuleuse 1≡3** (`[0,2]` contre `[2,0]`), **secteur 0≡1**
+(`[0,1]` contre `[1,0]`). Elles ne diffèrent plus que par `dens` et `ech` — un
+nombre et un calibre. `verifierTraces` contrôle la *couverture* (aucune zone
+orpheline), jamais la *distinction* : il ne peut pas les voir.
+
+Les seize arrangements viennent de `my = (cx·2 + cy) & 1`, qui **vaut `cy & 1`**
+— `cx·2` est pair. Les deux miroirs ont donc la même période de 2 cellules, et
+**le bâti se répète tous les deux écrans**. Corrigé plus tard, seul : le
+changement déplace toutes les arènes déjà mesurées.
+
+**Cuisson d'une tuile de région**, contexte de papier (donc coût d'**appel** et
+nombre d'opérations, pas de rastérisation), 20 cuissons à froid par entrée :
+
+| lieu | rég. 0 | rég. 1 | rég. 2 | rég. 3 |
+|---|---:|---:|---:|---:|
+| usine | 0,163 | 0,080 | 0,144 | 0,094 |
+| fonderie | 0,099 | 0,195 | 0,054 | 0,053 |
+| friche | **0,353** | **0,389** | 0,201 | 0,236 |
+| nébuleuse | 0,120 | 0,117 | 0,063 | 0,093 |
+| secteur | 0,089 | 0,082 | 0,235 | 0,084 |
+
+La Friche est la plus chère : sa tuile de base l'était déjà (`fricheLegacy` et
+ses dalles), et `terre`/`granulat` ajoutent des centaines de grains.
+
+**Le cache tient la traversée**, et c'est ce qu'il fallait prouver : dix demandes
+sur quatre régions alternées coûtent **0,212 ms** au premier passage (quatre
+cuissons) puis **0,014 ms** toutes chaudes — soit **×15**. Si la région était
+entrée *après* `biomeIndex` dans la clef, chaque cellule aurait vidé le cache de
+sa voisine et les dix demandes auraient coûté dix cuissons.
+
 ### Les quartiers d'un lieu (0.40.12)
 
 Grille de 9 × 9 cellules d'une vue, 40 graines par lieu, amas de cellules de

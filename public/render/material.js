@@ -1,4 +1,4 @@
-import { BIOMES, mulberry32 } from "/shared/biomes.js";
+import { BIOMES, loisDe, mulberry32 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { GFX_LOW, gfx, signalerErreur } from "../core/state.js";
@@ -38,9 +38,17 @@ const USURE = [0.0, 0.45, 1.0];
    changement de mode, de graine ou de densite jette toujours la precedente,
    c est seulement le nombre de lieux vivants qui monte. */
 const cache = new Map();
-// cinq lieux x deux familles ; au-dela, la clef a change pour une autre raison
-// que le lieu, et c est justement ce qu on veut jeter.
-const CACHE_MAX = 5;
+/* UNE ENTREE PAR REGION VISIBLE, ET LA FAMILLE PORTE LA REGION. `drawFloor`
+   peint par cellule de vue : une vue en chevauche au plus QUATRE, donc au plus
+   quatre regions coexistent a l image. Huit laisse la marge d une traversee de
+   frontiere sans recuire.
+   LA REGION ENTRE DANS LA FAMILLE (`${biomeIndex}-${loi}`) ET PAS APRES ELLE :
+   `motif()` jette toute entree dont le RESTE de la clef differe et garde celles
+   qui ne different que par la famille. Un `loi` pose apres `biomeIndex` aurait
+   fait de chaque region un reste different, donc chaque cellule aurait vide le
+   cache de sa voisine — un recuit par frontiere, exactement ce que `fondCache` a
+   deja paye. */
+const CACHE_MAX = 8;
 
 function motif(ctx, cle, dpr, cuisson) {
   let p = cache.get(cle);
@@ -70,9 +78,9 @@ function motif(ctx, cle, dpr, cuisson) {
   return p;
 }
 
-export function floorPattern(ctx, biomeIndex, diffIndex, seed, dpr) {
-  return motif(ctx, `f|${biomeIndex}|${diffIndex}|${seed}|${dpr}|${gfx > GFX_LOW ? 1 : 0}`,
-    dpr, () => cuire(biomeIndex, diffIndex, seed, dpr));
+export function floorPattern(ctx, biomeIndex, diffIndex, seed, dpr, loi = 0) {
+  return motif(ctx, `f|${biomeIndex}-${loi}|${diffIndex}|${seed}|${dpr}|${gfx > GFX_LOW ? 1 : 0}`,
+    dpr, () => cuire(biomeIndex, diffIndex, seed, dpr, loi));
 }
 
 // null en `low` : le sol reste celui d'avant le plan 13, au pixel.
@@ -90,9 +98,9 @@ function toile(taille, dpr) {
   return { cv, g };
 }
 
-function cuire(biomeIndex, diffIndex, seed, dpr) {
+function cuire(biomeIndex, diffIndex, seed, dpr, loi = 0) {
   const { cv, g } = toile(TILE, dpr);
-  const rand = mulberry32((seed >>> 0) * 6151 + biomeIndex * 97 + 1);
+  const rand = mulberry32((seed >>> 0) * 6151 + biomeIndex * 97 + loi * 1237 + 1);
   const usure = USURE[diffIndex] ?? USURE[1];
   const cle = (BIOMES[biomeIndex] ?? BIOMES[0]).key;
 
@@ -100,6 +108,11 @@ function cuire(biomeIndex, diffIndex, seed, dpr) {
 
   // qui la porte est une LISTE, pas une suite de `!==` : voir `PORTE_MAILLE`.
   if (gfx > GFX_LOW && PORTE_MAILLE.has(cle)) maille(g, usure, cle);
+
+  /* LE THEME DONNE LA MATIERE, LA REGION DIT CE QUI LUI EST ARRIVE. La passe
+     est APRES la maille : un traitement recouvre le joint quand il en recouvre
+     un — une resine coule sur le joint, elle ne s arrete pas devant. */
+  (TRAITEMENT[traitementDe(cle, loi)] ?? TRAITEMENT[T_LISSE])(g, rand, usure, cle);
   return cv;
 }
 
@@ -1201,6 +1214,267 @@ function macroSecteur(g, rand, usure) {
 
    Les cinq lieux ont une entree dans les trois : plus aucun defaut implicite,
    donc plus rien a heriter sans le savoir. */
+/* ===========================================================================
+   CE QUI EST ARRIVE A CE SOL-LA. Le theme donne la MATIERE — un beton d Usine
+   reste un beton d Usine —, la region donne le TRAITEMENT : douze passes
+   fermees, posees par-dessus la tuile du theme, dans sa palette.
+
+   C EST LE LEVIER LE PLUS FORT DU DEPOT, ET IL SE MESURE. `floorPattern`
+   n avait pas d argument de region : une arene de 14400 x 8100 avait UN sol,
+   et le sol est la plus grande surface de l ecran. Deux regions ne differaient
+   que par la teinte d arene (dE 3 a 8) sous un motif identique AU PIXEL — les
+   deux captures de `docs/screens/` le montrent.
+
+   IL VAUT A TOUS LES PALIERS DE `gfx`, comme la palette d arene : c est de la
+   DA, pas de la qualite. Ce qui suit `gfx` est la DENSITE des grains, jamais la
+   presence du traitement — sinon `low` retombe sur un sol unique, donc sur le
+   defaut qu on corrige.
+
+   Il passe APRES la maille : une resine coule sur le joint, elle ne s arrete
+   pas devant.
+   =========================================================================== */
+const T_LISSE = 0, T_DALLE = 1, T_GRANULAT = 2, T_POUDRE = 3, T_AJOURE = 4,
+      T_TECHNIQUE = 5, T_TERRE = 6, T_VEGETAL = 7, T_BITUME = 8, T_MINERAL = 9,
+      T_MOUILLE = 10, T_MARQUE = 11;
+
+const DENS = () => (gfx > GFX_LOW ? 1 : 0.4);
+
+function trLisse(g, rand, usure) {
+  g.fillStyle = alpha("#ffffff", 0.020 - 0.008 * usure);
+  g.fillRect(0, 0, TILE, TILE);
+  g.lineWidth = 46;
+  g.strokeStyle = alpha("#ffffff", 0.013);
+  for (let i = 0; i < 3; i++) {
+    const d = rand() * TILE;
+    // pente 1 et periode TILE : les trois copies suffisent a fermer le raccord.
+    for (const o of [-TILE, 0, TILE]) {
+      g.beginPath(); g.moveTo(d + o, 0); g.lineTo(d + o + TILE, TILE); g.stroke();
+    }
+  }
+  for (let i = 0; i < Math.round(5 * DENS()); i++) {
+    tache(g, rand() * TILE, rand() * TILE, 30 + rand() * 50, "#ffffff", 0.020);
+  }
+}
+
+function trDalle(g, rand, usure) {
+  const s = alpha("#000000", 0.26 + 0.10 * usure);
+  const c = alpha("#ffffff", 0.050 - 0.020 * usure);
+  const v = Math.round(TILE * (0.34 + rand() * 0.32));
+  joint(g, v, 0, v, TILE, s, c, 3.5);
+  joint(g, 0, v, TILE, v, s, c, 3.5);
+  joint(g, 0, 0, 0, TILE, s, c, 3.5);
+  joint(g, 0, 0, TILE, 0, s, c, 3.5);
+  for (const [x, y] of [[0, 0], [v, 0], [0, v], [v, v]]) {
+    poser(g, x, y, 10, (cc) => {
+      cc.fillStyle = alpha("#000000", 0.16 + 0.10 * usure);
+      cc.fillRect(-5, -5, 10, 10);
+    });
+  }
+}
+
+function trGranulat(g, rand, usure) {
+  const n = Math.round(520 * DENS());
+  for (let i = 0; i < n; i++) {
+    const x = rand() * TILE, y = rand() * TILE, r = 1 + rand() * 2.6;
+    g.fillStyle = alpha(rand() < 0.5 ? "#000000" : "#ffffff", 0.05 + rand() * 0.09);
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  for (let i = 0; i < Math.round(4 * DENS()); i++) {
+    tache(g, rand() * TILE, rand() * TILE, 40 + rand() * 60, "#000000", 0.06 + 0.04 * usure);
+  }
+}
+
+function trPoudre(g, rand, usure) {
+  g.fillStyle = alpha("#e8e2d4", 0.026 + 0.018 * (1 - usure));
+  g.fillRect(0, 0, TILE, TILE);
+  for (let i = 0; i < Math.round(7 * DENS()); i++) {
+    tache(g, rand() * TILE, rand() * TILE, 40 + rand() * 70, "#e8e2d4", 0.05);
+  }
+  const n = Math.round(160 * DENS());
+  g.fillStyle = alpha("#ffffff", 0.05);
+  for (let i = 0; i < n; i++) g.fillRect(rand() * TILE, rand() * TILE, 1.4, 1.4);
+}
+
+// 40 divise 400, et le nombre de rangs est PAIR : le decalage en quinconce se
+// raccorde donc de lui-meme d une tuile a la suivante.
+const AJOURE_PAS = 40;
+function trAjoure(g) {
+  let rang = 0;
+  for (let y = AJOURE_PAS / 2; y < TILE; y += AJOURE_PAS, rang++) {
+    const dec = (rang & 1) ? AJOURE_PAS / 2 : 0;
+    for (let x = AJOURE_PAS / 2; x < TILE; x += AJOURE_PAS) {
+      poser(g, (x + dec) % TILE, y, 11, (c) => {
+        c.fillStyle = alpha("#000000", 0.42);
+        c.beginPath(); c.arc(0, 0, 7.5, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = alpha("#ffffff", 0.06);
+        c.lineWidth = 1.2;
+        c.beginPath(); c.arc(0, -0.8, 8.4, 0, Math.PI * 2); c.stroke();
+      });
+    }
+  }
+}
+
+const PLAQUE = TILE / 4;
+function trTechnique(g, rand, usure) {
+  const s = alpha("#000000", 0.22), c = alpha("#ffffff", 0.045 - 0.015 * usure);
+  for (let v = 0; v < TILE; v += PLAQUE) {
+    joint(g, v, 0, v, TILE, s, c, 2);
+    joint(g, 0, v, TILE, v, s, c, 2);
+  }
+  for (let y = 0; y < TILE; y += PLAQUE) {
+    for (let x = 0; x < TILE; x += PLAQUE) {
+      for (const [bx, by] of [[7, 7], [PLAQUE - 7, 7], [7, PLAQUE - 7], [PLAQUE - 7, PLAQUE - 7]]) {
+        poser(g, x + bx, y + by, 4, (cc) => {
+          cc.fillStyle = alpha("#000000", 0.30);
+          cc.beginPath(); cc.arc(0.5, 0.7, 2.4, 0, Math.PI * 2); cc.fill();
+          cc.fillStyle = alpha("#c8d2e2", 0.16 - 0.06 * usure);
+          cc.beginPath(); cc.arc(0, 0, 2.1, 0, Math.PI * 2); cc.fill();
+        });
+      }
+    }
+  }
+}
+
+function trTerre(g, rand, usure) {
+  for (let i = 0; i < Math.round(14 * DENS()); i++) {
+    tache(g, rand() * TILE, rand() * TILE, 40 + rand() * 90,
+      rand() < 0.5 ? "#2b2318" : "#6b5c44", 0.10 + rand() * 0.10);
+  }
+  const n = Math.round(140 * DENS());
+  g.fillStyle = alpha("#0d0b07", 0.22);
+  for (let i = 0; i < n; i++) {
+    const x = rand() * TILE, y = rand() * TILE, r = 1.2 + rand() * 2.4;
+    g.beginPath(); g.ellipse(x, y, r * 1.4, r, rand() * 3, 0, Math.PI * 2); g.fill();
+  }
+}
+
+function trVegetal(g, rand, usure) {
+  for (let i = 0; i < Math.round(9 * DENS()); i++) {
+    tache(g, rand() * TILE, rand() * TILE, 34 + rand() * 60, PROP.vert, 0.10 + rand() * 0.08);
+  }
+  g.lineWidth = 1.2;
+  const n = Math.round(120 * DENS());
+  for (let i = 0; i < n; i++) {
+    // LE BRIN POUSSE SUR LE JOINT : c est le seul endroit ou rien ne l empeche.
+    const surX = rand() < 0.5;
+    const v = Math.round(rand() * 4) * PLAQUE;
+    const x = surX ? v : rand() * TILE, y = surX ? rand() * TILE : v;
+    const l = 3 + rand() * 7, a = rand() * Math.PI * 2;
+    g.strokeStyle = alpha(PROP.vert, 0.20 + rand() * 0.22);
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+}
+
+function trBitume(g, rand, usure) {
+  g.fillStyle = alpha("#000000", 0.10);
+  g.fillRect(0, 0, TILE, TILE);
+  const n = Math.round(420 * DENS());
+  for (let i = 0; i < n; i++) {
+    g.fillStyle = alpha(rand() < 0.4 ? "#ffffff" : "#000000", 0.035 + rand() * 0.05);
+    g.fillRect(rand() * TILE, rand() * TILE, 1.6, 1.6);
+  }
+  // LE RAPIECAGE A UN BORD FRANC, et c est ce qui le separe d une tache : une
+  // reprise de chaussee est DECOUPEE, une souillure ne l est pas.
+  for (let i = 0; i < 2; i++) {
+    const w = 70 + rand() * 130, h = 50 + rand() * 110;
+    const x = rand() * TILE, y = rand() * TILE;
+    for (const dx of [-TILE, 0, TILE]) {
+      for (const dy of [-TILE, 0, TILE]) {
+        g.fillStyle = alpha("#000000", 0.13);
+        g.fillRect(x + dx, y + dy, w, h);
+        g.strokeStyle = alpha("#000000", 0.20);
+        g.lineWidth = 2;
+        g.strokeRect(x + dx, y + dy, w, h);
+      }
+    }
+  }
+}
+
+function trMineral(g, rand, usure) {
+  g.lineWidth = 3;
+  for (let i = 0; i < Math.round(26 * DENS()); i++) {
+    const y = rand() * TILE, x = rand() * TILE, l = 60 + rand() * 220;
+    const dy = (rand() - 0.5) * 10;
+    g.strokeStyle = alpha(rand() < 0.5 ? "#000000" : "#ffffff", 0.030 + rand() * 0.030);
+    for (const o of [-TILE, 0]) {
+      g.beginPath(); g.moveTo(x + o, y); g.lineTo(x + o + l, y + dy); g.stroke();
+    }
+  }
+  g.fillStyle = alpha("#ffffff", 0.06);
+  for (let i = 0; i < Math.round(60 * DENS()); i++) {
+    const x = rand() * TILE, y = rand() * TILE, r = 2 + rand() * 4;
+    g.beginPath();
+    g.moveTo(x, y - r); g.lineTo(x + r, y + r); g.lineTo(x - r, y + r * 0.6);
+    g.closePath(); g.fill();
+  }
+}
+
+function trMouille(g, rand, usure) {
+  g.fillStyle = alpha("#000000", 0.10);
+  g.fillRect(0, 0, TILE, TILE);
+  for (let i = 0; i < Math.round(6 * DENS()); i++) {
+    const rx = 30 + rand() * 60, ry = 14 + rand() * 26;
+    poser(g, rand() * TILE, rand() * TILE, Math.max(rx, ry) + 4, (c) => {
+      c.fillStyle = alpha("#ffffff", 0.055);
+      c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = alpha("#ffffff", 0.08);
+      c.lineWidth = 1.2;
+      c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); c.stroke();
+    });
+  }
+  g.lineWidth = 2;
+  g.strokeStyle = alpha("#ffffff", 0.030);
+  for (let i = 0; i < Math.round(30 * DENS()); i++) {
+    const x = rand() * TILE, y = rand() * TILE, l = 20 + rand() * 60;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + l, y); g.stroke();
+  }
+}
+
+function trMarque(g, rand, usure, cle) {
+  const col = cle === "secteur" ? "#e8d24a" : "#d8b23c";
+  const a = 0.17 - 0.07 * usure;
+  const v = Math.round(TILE * (0.18 + rand() * 0.24));
+  // UN MARQUAGE TRAVERSE, IL NE TACHE PAS : deux bandes de bout en bout.
+  g.strokeStyle = alpha(col, a);
+  g.lineWidth = 7;
+  for (const [x0, y0, x1, y1] of [[v, 0, v, TILE], [0, TILE - v, TILE, TILE - v]]) {
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  }
+  const hx = TILE * 0.58, hy = TILE * 0.12, hw = TILE * 0.34, hh = TILE * 0.16;
+  g.save();
+  g.beginPath(); g.rect(hx, hy, hw, hh); g.clip();
+  g.strokeStyle = alpha(col, a * 0.8);
+  g.lineWidth = 6;
+  for (let d = -hh; d < hw + hh; d += 16) {
+    g.beginPath(); g.moveTo(hx + d, hy + hh); g.lineTo(hx + d + hh, hy); g.stroke();
+  }
+  g.restore();
+}
+
+const TRAITEMENT = {
+  [T_LISSE]: trLisse, [T_DALLE]: trDalle, [T_GRANULAT]: trGranulat,
+  [T_POUDRE]: trPoudre, [T_AJOURE]: trAjoure, [T_TECHNIQUE]: trTechnique,
+  [T_TERRE]: trTerre, [T_VEGETAL]: trVegetal, [T_BITUME]: trBitume,
+  [T_MINERAL]: trMineral, [T_MOUILLE]: trMouille, [T_MARQUE]: trMarque,
+};
+
+/* QUEL TRAITEMENT POUR QUELLE REGION. Une entree par loi d implantation, dans
+   l ordre d `OBSTACLES` — c est `verifierMatiere` qui compare les longueurs a
+   `loisDe`, pas la confiance. DEUX REGIONS D UN THEME N ONT JAMAIS LE MEME :
+   c est la seule chose qui rende une frontiere visible au sol. */
+const SOL_REGION = {
+  usine:     [T_LISSE, T_MARQUE, T_TECHNIQUE, T_DALLE],
+  fonderie:  [T_LISSE, T_GRANULAT, T_MOUILLE, T_DALLE],
+  friche:    [T_TERRE, T_GRANULAT, T_POUDRE, T_VEGETAL],
+  nebuleuse: [T_TECHNIQUE, T_AJOURE, T_LISSE, T_MINERAL],
+  secteur:   [T_MARQUE, T_MOUILLE, T_BITUME, T_DALLE],
+};
+
+export function traitementDe(cle, loi) {
+  const t = SOL_REGION[cle] ?? SOL_REGION.usine;
+  return t[loi] ?? t[0];
+}
+
 const TUILE = {
   usine, fonderie, friche, nebuleuse, secteur,
 };
@@ -1233,6 +1507,32 @@ export function verifierMatiere() {
   for (const k of Object.keys(TUILE)) if (!cles.has(k)) soucis.push(`${k} : tuile sans lieu`);
   for (const k of Object.keys(MACRO_TUILE)) if (!cles.has(k)) soucis.push(`${k} : seconde periode sans lieu`);
   for (const k of PORTE_MAILLE) if (!cles.has(k)) soucis.push(`${k} : maille sans lieu`);
+
+  /* DEUX REGIONS D UN THEME NE PEUVENT PAS AVOIR LE MEME SOL, et un traitement
+     ecrit que personne ne tire est mort. Les deux se lisent sur les tables,
+     donc c est gratuit — et sans le premier, une frontiere ne se voit pas. */
+  const tires = new Set();
+  for (const b of BIOMES) {
+    const t = SOL_REGION[b.key];
+    if (!t) { soucis.push(`${b.key} : aucun traitement de sol`); continue; }
+    const n = loisDe(b.key);
+    if (t.length !== n) soucis.push(`${b.key} : ${t.length} traitements de sol pour ${n} regions`);
+    const vus = new Map();
+    for (let i = 0; i < t.length; i++) {
+      if (!TRAITEMENT[t[i]]) { soucis.push(`${b.key}/region ${i} : traitement ${t[i]} inconnu`); continue; }
+      tires.add(t[i]);
+      if (vus.has(t[i])) {
+        soucis.push(`${b.key} : les regions ${vus.get(t[i])} et ${i} partagent le traitement de sol ${t[i]}`
+          + " — leur frontiere ne se verra pas");
+      } else vus.set(t[i], i);
+    }
+  }
+  for (const k of Object.keys(SOL_REGION)) {
+    if (!cles.has(k)) soucis.push(`${k} : traitements de sol sans lieu`);
+  }
+  for (const k of Object.keys(TRAITEMENT)) {
+    if (!tires.has(+k)) soucis.push(`traitement de sol ${k} : ecrit, tire par aucune region`);
+  }
   return soucis;
 }
 

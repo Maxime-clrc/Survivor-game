@@ -9746,6 +9746,29 @@
                   `verifierTraces` reecrit sur `AIR` — il refuse aussi qu une zone
                   de props ne soit tiree par aucune region. 55 verificateurs.
 
+    0.43.0 lot 1  LE SOL EST CELUI DE LA REGION. Ouverture du plan 39. Trois
+                  mesures ont ouvert l audit, et aucun des 55 verificateurs ne les
+                  signalait : les 20 regions emploient LES TROIS familles baties de
+                  leur theme, une arene de 81 vues ne contient que 16 arrangements
+                  distincts, et quatre themes sur cinq ont deux regions au
+                  vocabulaire de props IDENTIQUE.
+                  `floorPattern` n avait pas d argument de region : une arene de
+                  14400 x 8100 avait UN sol, et le sol est la plus grande surface
+                  de l ecran. Le theme donne la MATIERE, la region donne le
+                  TRAITEMENT — douze passes fermees posees sur la tuile du theme,
+                  dans sa palette. Il vaut a TOUS les paliers de `gfx` : c est de
+                  la DA, pas de la qualite ; seule la densite des grains suit.
+                  LA REGION ENTRE DANS LA FAMILLE DE LA CLEF DE CACHE, pas apres
+                  elle — `motif()` jette ce dont le RESTE differe, donc chaque
+                  cellule aurait vide le cache de sa voisine. `CACHE_MAX` 5 -> 8.
+                  Mesure : traversee de quatre regions, 0,212 ms a froid puis
+                  0,014 ms, x15.
+                  `verifierMatiere` refuse deux regions d un theme au meme
+                  traitement — c est le premier verificateur du depot qui COMPARE
+                  deux regions — et un traitement que plus rien ne tire.
+                  `verifierDessin` cuit les vingt regions explicitement : ses
+                  quatre points de vue ne voient que ce que le tirage a pose.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9754,4 +9777,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.42.1";
+export const VERSION = "0.43.0";

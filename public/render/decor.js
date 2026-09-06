@@ -9,7 +9,7 @@ import { mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { biomeKey, celluleH, celluleW, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
+import { biomeKey, celluleH, celluleW, loiAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
 /* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine deux fois : une passe
    PLEINE VUE entre la couleur d'arene et la matiere du sol — c'est ce qui
@@ -895,9 +895,14 @@ export function drawFloor() {
       // LA TEINTE DE LA REGION, PAR CELLULE. C est elle qui fait la frontiere :
       // la matiere du sol reste celle du theme — une friche reste une friche —,
       // sa teinte dit dans quelle region on est.
-      ctx.fillStyle = solDe(rx + rw / 2, ry + rh / 2).arena;
+      const mx = rx + rw / 2, my = ry + rh / 2;
+      ctx.fillStyle = solDe(mx, my).arena;
       ctx.fillRect(rx, ry, rw, rh);
-      const p = floorPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale);
+      /* LA MATIERE AUSSI EST CELLE DE LA REGION, PAS SEULEMENT SA TEINTE. La
+         teinte tient dans sept points de luminance pour les cinq themes — elle
+         ne peut pas porter une frontiere a elle seule. Le theme donne la
+         matiere, la region dit ce qui lui est ARRIVE (`traitementDe`). */
+      const p = floorPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale, loiAt(mx, my));
       if (!p) continue;
       ctx.fillStyle = p;
       ctx.fillRect(rx, ry, rw, rh);

@@ -22,6 +22,7 @@
 
 import { charger } from "./verif_dom.js";
 import { BIOMES, CFG } from "./shared/game_state.js";
+import { loisDe } from "./shared/biomes.js";
 
 /* CE QU ON APPELLE, ET AVEC QUOI. La liste est explicite : une decouverte
    automatique par `draw*` appellerait des fonctions d ACTEURS qui demandent un
@@ -93,7 +94,7 @@ function poser(stage, x, y) {
 export async function verifierDessin(graines = [1, 7, 99]) {
   const soucis = [];
   const mod = {};
-  for (const m of ["stage", "decor", "props", "dangers", "lumiere", "actors"]) {
+  for (const m of ["stage", "decor", "props", "dangers", "lumiere", "actors", "material"]) {
     try { mod[m] = await charger(`public/render/${m}.js`); }
     catch (e) { return [`render/${m}.js n a pas charge — ${e.message}`]; }
   }
@@ -135,6 +136,23 @@ export async function verifierDessin(graines = [1, 7, 99]) {
       }
     }
   }
+  /* CHAQUE TRAITEMENT DE SOL SE CUIT VRAIMENT, ET PAS PAR CHANCE. La boucle
+     ci-dessus ne voit que les regions que le tirage a posees sous ses quatre
+     points de vue : sur cinq themes et trois graines, un traitement peut n etre
+     jamais atteint, et une faute DANS sa fonction ne leve qu a l appel. On les
+     cuit donc tous, explicitement. Le cache les garde ensuite. */
+  const mat = mod.material;
+  if (typeof mat?.floorPattern !== "function") {
+    soucis.push("material.floorPattern n est pas exporte");
+  } else {
+    for (const [nom, idx] of cas) {
+      for (let loi = 0; loi < loisDe(BIOMES[idx].key); loi++) {
+        try { mat.floorPattern(stage.ctx, idx, 1, 7, 1, loi); }
+        catch (e) { soucis.push(`${nom}/region ${loi} : cuisson du sol leve — ${e.message}`); }
+      }
+    }
+  }
+
   // une phrase par defaut, pas une par appel : la meme faute sort 216 fois.
   return [...new Set(soucis)];
 }

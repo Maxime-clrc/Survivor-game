@@ -543,6 +543,40 @@ différentes.
     son trio sort d'une recherche numérique, écart minimal 3,0. C'est le plafond
     réel du lieu le plus sombre du dépôt, et c'est pourquoi elle dira ses régions
     par son semis avant sa teinte.
+- **LE SOL DE LA RÉGION DIT LAQUELLE, ET C'EST LE CANAL LE PLUS FORT.**
+  `floorPattern` n'avait **pas** d'argument de région : une arène de
+  14 400 × 8 100 avait **un seul sol**, cuit par `(thème, mode, graine)`. Or le
+  sol est la plus grande surface de l'écran, et deux régions ne différaient donc
+  que par une teinte d'arène à ΔE 3 à 8 **sous un motif identique au pixel** —
+  les deux captures de `docs/screens/` le montrent objet par objet.
+  **Le thème donne la MATIÈRE, la région donne le TRAITEMENT** : douze passes
+  fermées (`lisse`, `dalle`, `granulat`, `poudre`, `ajouré`, `technique`,
+  `terre`, `végétal`, `bitume`, `minéral`, `mouillé`, `marqué`), posées
+  par-dessus la tuile du thème, dans sa palette. Un béton d'Usine reste un béton
+  d'Usine.
+  - **La passe vient APRÈS la maille de 5 m** : une résine coule sur le joint,
+    elle ne s'arrête pas devant.
+  - **Il vaut à TOUS les paliers de `gfx`**, comme la palette d'arène : c'est de
+    la DA, pas de la qualité. Ce qui suit `gfx` est la **densité des grains**,
+    jamais la présence du traitement — sinon `low` retombe sur un sol unique,
+    donc sur le défaut qu'on corrige.
+  - **La région entre dans la FAMILLE de la clef de cache**
+    (`f|${biomeIndex}-${loi}|…`), **jamais après elle**. `motif()` jette toute
+    entrée dont le *reste* de la clef diffère et garde celles qui ne diffèrent
+    que par la famille : un `loi` posé après `biomeIndex` aurait fait de chaque
+    région un reste différent, donc **chaque cellule aurait vidé le cache de sa
+    voisine** — un recuit par frontière, exactement ce que `fondCache` a déjà
+    payé. `CACHE_MAX` passe de 5 à **8** : une vue chevauche au plus quatre
+    cellules, donc quatre régions.
+  - **`verifierMatiere` refuse deux régions d'un thème au même traitement** —
+    leur frontière ne se verrait pas — et un traitement écrit que plus personne
+    ne tire. C'est le premier vérificateur du dépôt qui **compare deux régions
+    entre elles** au lieu de croiser deux tables.
+  - **`verifierDessin` cuit les vingt régions explicitement.** Ses quatre points
+    de vue ne voient que les régions que le tirage a posées : un traitement peut
+    n'être jamais atteint, et une faute *dans* sa fonction ne lève qu'à l'appel.
+    Mesuré : casser `trMineral` (tiré par la seule Nébuleuse/région 3) sort
+    `nebuleuse/region 3 : cuisson du sol leve`.
 - **L'AIR (`AIR[theme][loi]`) dit LAQUELLE.** Quatre axes : combien (`dens`, en
   facteur de la densité du thème), gros comment (`ech`), quoi (`zones`, un
   sous-ensemble des quartiers de props du thème) et ce qui a marqué le sol
