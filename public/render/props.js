@@ -42,7 +42,10 @@ const P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_POCHE = 33, P_MOULE = 34, P_TREMIE = 35, P_OUTILLAGE = 36,
       P_PASSAGE = 37, P_BORNE = 38, P_AFFICHE = 39, P_GRILLE_AIR = 40,
       P_DISTRIB = 41, P_MOTO = 42, P_CAGEOT = 43, P_PARABOLE = 44,
-      P_NEON_SOL = 45, P_PLAQUE_EGOUT = 46, P_GAINE = 47, P_FLAQUE = 48;
+      P_NEON_SOL = 45, P_PLAQUE_EGOUT = 46, P_GAINE = 47, P_FLAQUE = 48,
+      P_GERBEUR = 49, P_TRANSPALETTE = 50, P_CALE = 51, P_SERVANTE = 52,
+      P_CARTER = 53, P_COFFRET_HT = 54,
+      P_PNEUS = 55, P_MOTEUR = 56, P_PARPAINGS = 57, P_PLOT = 58;
 
 /* UN PROP QUI BOUGE N'EST PAS UN SIGNAL, A UNE CONDITION QUI SE VERIFIE : SON
    MOUVEMENT EST CONTINU ET PERIODIQUE, donc il n'a ni debut ni fin, donc il
@@ -74,7 +77,8 @@ const EMISSIF = {
 
 const TABLE = {
   usine: [P_CONVOYEUR, P_CONVOYEUR, P_CONVOYEUR, P_BRAS, P_PRESSE, P_VENTILATION,
-          P_PALETTIER, P_CAISSES, P_ALLEE, P_ALLEE, P_MARQUAGE, P_CABLE],
+          P_PALETTIER, P_CAISSES, P_ALLEE, P_ALLEE, P_MARQUAGE, P_CABLE,
+          P_GERBEUR, P_TRANSPALETTE, P_CALE, P_SERVANTE, P_CARTER, P_COFFRET_HT],
   // la PLAQUE et le COFFRET sont SUPPRIMES du depot, pas deplaces : elle etait le
   // dernier lieu a les tirer, et un prop que plus aucune table ne tire ne
   // s'oublie pas au catalogue. Elle garde le caillebotis et le tuyau — une
@@ -86,7 +90,8 @@ const TABLE = {
   // l'abandon mieux qu'une rouille de plus. Le coffret, lui, part — un voyant
   // qui respire dit qu'un appareil FONCTIONNE, et plus rien ne fonctionne ici.
   friche: [P_BROUSSE, P_BROUSSE, P_BROUSSE, P_JONCHEE, P_JONCHEE, P_GRILLAGE,
-           P_CARCASSE, P_BIDON, P_PANNEAU, P_TUBE, P_DEBRIS, P_CABLE],
+           P_CARCASSE, P_BIDON, P_PANNEAU, P_TUBE, P_DEBRIS, P_CABLE,
+           P_PNEUS, P_MOTEUR, P_PARPAINGS, P_PLOT],
   nebuleuse: [P_EPAVE, P_EPAVE, P_VOILE, P_VOILE, P_CRISTAL, P_CRISTAL,
               P_MODULE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_GIVRE, P_BALISE],
   /* LE SECTEUR NE PARTAGE RIEN NON PLUS. La tentation etait de lui preter le
@@ -128,11 +133,17 @@ const TRACE_TAUX = 0.66;
 const ZONES = {
   // elle FABRIQUE : la chaine, ce qu on empile autour, ce par quoi on circule,
   // et ce qui l entretient.
+  /* SIX QUARTIERS ET PAS QUATRE, ET C EST UNE MESURE QUI L A DIT : sept regions
+     pour quatre quartiers, donc deux d entre elles partageaient 67 % de leur
+     inventaire. Ajouter des zones SANS ajouter de props n aurait rien change —
+     le catalogue etait le goulot, pas le rangement. */
   usine: [
     [P_CONVOYEUR, P_CONVOYEUR, P_BRAS, P_PRESSE],
     [P_PALETTIER, P_CAISSES, P_CAISSES, P_MARQUAGE],
     [P_ALLEE, P_ALLEE, P_MARQUAGE, P_CONVOYEUR],
-    [P_VENTILATION, P_CABLE, P_CABLE, P_BRAS],
+    [P_SERVANTE, P_CARTER, P_CABLE, P_VENTILATION],
+    [P_GERBEUR, P_TRANSPALETTE, P_CALE, P_CAISSES],
+    [P_COFFRET_HT, P_CABLE, P_MARQUAGE, P_VENTILATION],
   ],
   // elle COULE : le metal liquide, ce qui le met en forme, ce qui en sort, et ce
   // qu on jette.
@@ -149,6 +160,8 @@ const ZONES = {
     [P_CARCASSE, P_DEBRIS, P_JONCHEE, P_BIDON],
     [P_GRILLAGE, P_PANNEAU, P_CABLE, P_BROUSSE],
     [P_TUBE, P_CABLE, P_DEBRIS, P_PANNEAU],
+    [P_PNEUS, P_MOTEUR, P_BIDON, P_DEBRIS],
+    [P_PARPAINGS, P_PLOT, P_PANNEAU, P_DEBRIS],
   ],
   // elle FLOTTE : la coque morte, la voilure, ce qui a gele dessus, et le point
   // ou l on s amarre.
@@ -605,6 +618,16 @@ function dessin(p, ox, oy) {
     case P_NEON_SOL:     return neonSol(p);
     case P_PLAQUE_EGOUT: return plaqueEgout(ox, oy);
     case P_GAINE:        return gaine(p, ox, oy);
+    case P_GERBEUR: return gerbeur(p, ox, oy);
+    case P_TRANSPALETTE: return transpalette(p, ox, oy);
+    case P_CALE: return cale(p, ox, oy);
+    case P_SERVANTE: return servante(p, ox, oy);
+    case P_CARTER: return carter(p, ox, oy);
+    case P_COFFRET_HT: return coffretHt(p, ox, oy);
+    case P_PNEUS: return pneus(p, ox, oy);
+    case P_MOTEUR: return moteur(p, ox, oy);
+    case P_PARPAINGS: return parpaings(p, ox, oy);
+    case P_PLOT: return plot(p, ox, oy);
     default:            return tube(p, ox, oy);
   }
 }
@@ -1852,15 +1875,24 @@ const AIR = {
     { dens: 1.34, ech: [0.56, 0.48], zones: [3], matieres: [TRACE_SOUILLURE] },
     // le degagement ENTRETIENT et STOCKE, il ne fabrique pas : c est la seule
     // region du theme qui ne tire aucune zone de production.
-    { dens: 0.58, ech: [0.88, 0.86], zones: [1, 3], matieres: [TRACE_POUSSIERE, TRACE_FISSURES] },
+    // le degagement est une respiration DANS une halle de production : il tire
+    // ce qu on y fabrique et ce qu on y range, jamais l energie — a [1, 5] il
+    // CONTENAIT les utilites, donc 67 % de Jaccard.
+    { dens: 0.58, ech: [0.88, 0.86], zones: [1, 0], matieres: [TRACE_POUSSIERE, TRACE_FISSURES] },
     /* UNE SEULE ZONE, ET C EST CE QUI LES SEPARE DE TOUT LE RESTE. Le theme n a
        que quatre quartiers de props : a six regions, les paires distinctes sont
        epuisees. Un magasin ne pose QUE du stockage et une expedition QUE de la
        circulation — un inventaire etroit est une identite, pas un manque. */
-    { dens: 0.90, ech: [0.66, 0.54], zones: [1], matieres: [TRACE_ROULAGE] },
-    { dens: 0.70, ech: [0.80, 0.70], zones: [2], matieres: [TRACE_RAYURES] },
+    // le magasin STOCKE et MANUTENTIONNE : gerbeur, transpalette, cale. Les
+    // rayures sont les griffes de fourche sur le beton d une allee de rack.
+    { dens: 0.90, ech: [0.66, 0.54], zones: [1, 4], matieres: [TRACE_ROULAGE, TRACE_RAYURES] },
+    // l expedition manutentionne puis fait CIRCULER : l inverse du magasin.
+    { dens: 0.70, ech: [0.80, 0.70], zones: [4, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
     // la retention des utilites DEBORDE : une aureole autour de ce qui a fui.
-    { dens: 0.76, ech: [0.74, 0.62], zones: [0, 3], matieres: [TRACE_POUSSIERE, TRACE_AUREOLE] },
+    /* LES UTILITES NE TIRENT QUE L ENERGIE, et c est mesure : a [5, 3] elles
+       CONTENAIENT la maintenance — son quartier entier plus le leur, donc un
+       Jaccard de 67 %. Un inventaire etroit est une identite. */
+    { dens: 0.76, ech: [0.74, 0.62], zones: [5], matieres: [TRACE_AUREOLE] },
   ],
   fonderie: [
     { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
@@ -1874,12 +1906,14 @@ const AIR = {
     { dens: 1.00, ech: [0.66, 0.92], zones: [0, 1], matieres: [TRACE_POUSSIERE, null] },
     { dens: 1.12, ech: [0.58, 0.78], zones: [2, 1], matieres: [TRACE_POUSSIERE, TRACE_SOUILLURE] },
     // l huile coule des piles d epaves, toujours vers le bas de la pile.
-    { dens: 0.70, ech: [0.82, 1.08], zones: [1, 3], matieres: [TRACE_COULEE, TRACE_SOUILLURE] },
+    // la casse a sa MECANIQUE : pneus et moteurs deposes, que rien d autre ne tire.
+    { dens: 0.70, ech: [0.82, 1.08], zones: [4, 1], matieres: [TRACE_COULEE, TRACE_SOUILLURE] },
     // ce qui FERMAIT et le peu qui reste ALLUME : deux zones, pas trois. Trois
     // zones sur quatre rendaient l union du theme entier.
     { dens: 1.40, ech: [0.52, 1.14], zones: [2, 3], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
     // un chantier n a RIEN a lui : ce qui traine est ce qui fermait le terrain.
-    { dens: 0.64, ech: [0.72, 0.90], zones: [2], matieres: [TRACE_FISSURES] },
+    // un chantier n a que ce qu on y a livre et pas encore monte.
+    { dens: 0.64, ech: [0.72, 0.90], zones: [5], matieres: [TRACE_FISSURES] },
   ],
   nebuleuse: [
     // la derive tire l EPAVE et ce qui a gele dessus, jamais l amarrage : a
@@ -2307,6 +2341,185 @@ function coulee(cx, cy, x, y, s, ax, ay) {
     ctx.fill();
   }
   ctx.restore();
+}
+
+
+/* LES DIX PROPS QUI OUVRENT DEUX QUARTIERS DE PLUS. Mesure : l Usine porte SEPT
+   regions pour QUATRE quartiers de props, donc deux d entre elles partageaient
+   67 % de leur inventaire. Ajouter des zones sans ajouter de props n aurait rien
+   change — le catalogue est le goulot, pas le rangement. */
+
+// LE GERBEUR — un mat, deux fourches. Vu du dessus c est un T, et c est la
+// seule chose du semis qui ait une DIRECTION de service.
+function gerbeur(p, ox, oy) {
+  const l = 22 + p.p * 8, w = 13 + p.p * 4;
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillRect(-l / 2 + ox, -w / 2 + oy, l, w);
+  ctx.fillStyle = alpha(PROP.peint, 0.46);
+  ctx.fillRect(-l / 2, -w / 2, l * 0.62, w);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.60);
+  ctx.fillRect(-l / 2 + l * 0.58, -w / 2 - 1, 3.5, w + 2);
+  ctx.fillStyle = alpha(PROP.metal, 0.44);
+  for (const d of [-1, 1]) ctx.fillRect(-l / 2 + l * 0.62, d * w * 0.28 - 1.4, l * 0.36, 2.8);
+  ctx.strokeStyle = alpha(PROP.ombre, 0.34);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-l / 2, -w / 2, l * 0.62, w);
+}
+
+// LE TRANSPALETTE — deux lames et un timon. Plat, bas, et toujours abandonne de
+// travers : c est ce qui le separe du gerbeur.
+function transpalette(p, ox, oy) {
+  const l = 18 + p.p * 7, w = 10 + p.p * 3;
+  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillRect(-l / 2 + ox, -w / 2 + oy, l, w);
+  ctx.fillStyle = alpha(PROP.metal, 0.40);
+  for (const d of [-1, 1]) ctx.fillRect(-l / 2, d * w * 0.30 - 1.6, l * 0.86, 3.2);
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.60);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(l * 0.36, 0); ctx.lineTo(l * 0.5 + 5, -w * 0.5);
+  ctx.stroke();
+}
+
+// LA CALE — un coin de bois sous une roue absente. Petit, isole, et c est tout
+// ce qu il reste d un vehicule parti.
+function cale(p, ox, oy) {
+  const c = 7 + p.p * 4;
+  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.beginPath();
+  ctx.moveTo(-c + ox, c / 2 + oy); ctx.lineTo(c + ox, c / 2 + oy); ctx.lineTo(c + ox, -c / 2 + oy);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = alpha(PROP.peint, 0.50);
+  ctx.beginPath();
+  ctx.moveTo(-c, c / 2); ctx.lineTo(c, c / 2); ctx.lineTo(c, -c / 2);
+  ctx.closePath(); ctx.fill();
+}
+
+// LA SERVANTE — un bloc a tiroirs. Ce qui la fait lire est la pile de lignes
+// horizontales regulieres, et rien d autre du semis n en a.
+function servante(p, ox, oy) {
+  const w = 14 + p.p * 5, h = 18 + p.p * 6;
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha(PROP.peint, 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = alpha(PROP.ombre, 0.44);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 1; i < 4; i++) {
+    const y = -h / 2 + (h / 4) * i;
+    ctx.moveTo(-w / 2 + 1, y); ctx.lineTo(w / 2 - 1, y);
+  }
+  ctx.stroke();
+  ctx.fillStyle = alpha(PROP.metal, 0.30);
+  for (let i = 0; i < 4; i++) ctx.fillRect(-2, -h / 2 + (h / 4) * i + h / 8 - 1, 4, 2);
+}
+
+// LE CARTER DEPOSE — une coque courbe posee a l envers, avec ses trous de
+// boulon. Elle ne va nulle part, et c est ce qu elle dit.
+function carter(p, ox, oy) {
+  const r = 9 + p.p * 6;
+  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.beginPath(); ctx.ellipse(ox, oy, r * 1.3, r, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.54);
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 1.3, r, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.26);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 0.9, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = alpha(PROP.ombre, 0.50);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + p.p;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * r * 1.1, Math.sin(a) * r * 0.82, 1.4, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// LE COFFRET HAUTE TENSION — un bloc, trois isolateurs, un pictogramme. Le seul
+// prop du semis qui porte un AVERTISSEMENT, et il est minuscule.
+function coffretHt(p, ox, oy) {
+  const w = 12 + p.p * 5, h = 15 + p.p * 5;
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha(PROP.metal, 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.50);
+  for (let i = 0; i < 3; i++) ctx.fillRect(-w / 2 + 2 + i * (w - 5) / 3, -h / 2 - 2.5, 2.5, 3);
+  ctx.fillStyle = alpha(PROP.led, 0.34);
+  ctx.beginPath();
+  ctx.moveTo(1, -h * 0.20); ctx.lineTo(-2, h * 0.06); ctx.lineTo(0.5, h * 0.06);
+  ctx.lineTo(-1.5, h * 0.26); ctx.lineTo(2.5, -0.02); ctx.lineTo(0, -0.02);
+  ctx.closePath(); ctx.fill();
+}
+
+// LA PILE DE PNEUS — des anneaux concentriques. La seule forme MOLLE du semis
+// de Friche, et elle s affaisse.
+function pneus(p, ox, oy) {
+  const r = 9 + p.p * 6;
+  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
+  for (let i = 2; i >= 0; i--) {
+    const k = r * (1 - i * 0.13);
+    ctx.fillStyle = alpha("#1a1a1c", 0.60 + i * 0.06);
+    ctx.beginPath(); ctx.arc(i * 0.8, i * 0.8, k, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = alpha(PROP.ombre, 0.50);
+    ctx.beginPath(); ctx.arc(i * 0.8, i * 0.8, k * 0.42, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// LE MOTEUR DEPOSE — un bloc trapu, des nervures, et la tache d huile qui dit
+// depuis combien de temps il est la.
+function moteur(p, ox, oy) {
+  const w = 15 + p.p * 6, h = 12 + p.p * 5;
+  ctx.fillStyle = alpha("#000000", 0.16);
+  ctx.beginPath(); ctx.ellipse(0, h * 0.5, w * 0.9, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.62);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = alpha(PROP.metal, 0.24);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 1; i < 4; i++) {
+    const x = -w / 2 + (w / 4) * i;
+    ctx.moveTo(x, -h / 2 + 1); ctx.lineTo(x, h / 2 - 1);
+  }
+  ctx.stroke();
+  ctx.fillStyle = alpha(PROP.rouille, 0.34);
+  ctx.fillRect(-w * 0.16, -h / 2 - 3, w * 0.32, 3.5);
+}
+
+// LES PARPAINGS — une palette entamee. Reguliers, empiles a moitie, et le
+// dernier rang est de travers : c est ce qui dit qu on s est arrete.
+function parpaings(p, ox, oy) {
+  const c = 8 + p.p * 3;
+  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillRect(-c * 1.6 + ox, -c + oy, c * 3.2, c * 2);
+  for (let j = 0; j < 2; j++) {
+    for (let i = 0; i < 3; i++) {
+      const dx = (i - 1) * (c * 1.05) + (j ? c * 0.4 : 0);
+      const dy = (j - 0.5) * c * 0.9;
+      if (j === 1 && i === 2) continue;
+      ctx.fillStyle = alpha("#8c8c86", 0.42);
+      ctx.fillRect(dx - c / 2, dy - c * 0.4, c, c * 0.8);
+      ctx.strokeStyle = alpha(PROP.ombre, 0.34);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(dx - c / 2, dy - c * 0.4, c, c * 0.8);
+    }
+  }
+}
+
+// LE PLOT DE CHANTIER — un cone. Petit, sature, et le seul objet ORANGE VIF du
+// semis : c est le seul endroit du depot ou un prop a le droit de crier, parce
+// qu il est fait pour ca.
+function plot(p, ox, oy) {
+  const r = 5 + p.p * 3;
+  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha("#4a3320", 0.50);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha("#e06a1e", 0.52);
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha("#f2f2f2", 0.22);
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.42, 0, Math.PI * 2); ctx.fill();
 }
 
 function tracer(t, cx, cy, x, y, s, ax, ay) {

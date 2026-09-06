@@ -586,6 +586,19 @@ différentes.
   reprenant `ECHELLE_LIEU`), et `verifierTraces` **compare** au lieu de faire
   confiance. Il remplace la table `MATIERE`, qui était par thème, et il refuse
   aussi qu'une zone de props ne soit tirée par aucune région.
+- **LE CATALOGUE EST LE GOULOT, PAS LE RANGEMENT.** L'Usine porte **sept
+  régions** pour **quatre** quartiers de props : deux d'entre elles partageaient
+  **67 %** de leur inventaire, et ajouter des zones *sans ajouter de props*
+  n'aurait rien changé — les mêmes objets, redistribués. Usine et Friche passent
+  à **six quartiers** avec **dix props neufs** ; le pire recouvrement du dépôt
+  tombe de 67 % à **63 %**.
+  - **Un inventaire étroit est une identité, pas un manque.** Trois régions ne
+    tirent qu'**un seul** quartier — la maintenance (entretien), les utilités
+    (énergie), le chantier (ce qu'on a livré et pas monté). C'est ce qui les rend
+    reconnaissables : à deux quartiers elles *contenaient* leurs voisines.
+  - Mesuré deux fois : les utilités à `[5, 3]` **contenaient** la maintenance
+    (67 %), et le dégagement à `[1, 5]` **contenait** les utilités (67 %). Un
+    sur-ensemble n'est pas une variation.
 - **UNE TRACE EST LA CONSÉQUENCE DE QUELQUE CHOSE QUI EST ENCORE LÀ.** C'est ce
   qui la sépare d'une texture, et le dépôt ne le disait pas : les neuf primitives
   se posaient au hasard *dans* leur quartier sans jamais regarder l'objet dont

@@ -10049,6 +10049,25 @@
                   meme poutre y fermait 3 a 11 cases inatteignables sur quatre
                   graines. Une marge qui tient sans tremblement ne tient pas avec.
 
+    0.43.14 lot 15 LE CATALOGUE ETAIT LE GOULOT, PAS LE RANGEMENT. Sept regions
+                  d Usine pour QUATRE quartiers de props : deux d entre elles
+                  partageaient 67 % de leur inventaire, et ajouter des zones SANS
+                  ajouter de props n aurait rien change — les memes objets,
+                  redistribues.
+                  Dix props neufs — gerbeur, transpalette, cale, servante, carter,
+                  coffret HT a l Usine ; pneus, moteur depose, parpaings, plot a
+                  la Friche — et ces deux themes passent a SIX quartiers. Le pire
+                  recouvrement du depot tombe de 67 % a 63 %.
+                  DEUX SUR-ENSEMBLES TROUVES PAR LA MESURE : les utilites a
+                  zones [5,3] CONTENAIENT la maintenance, et le degagement a
+                  [1,5] contenait les utilites. Un sur-ensemble n est pas une
+                  variation. Les deux passent a un seul quartier — un inventaire
+                  ETROIT est une identite, pas un manque, et c est ce qui rend la
+                  maintenance, les utilites et le chantier reconnaissables.
+                  63 % reste le plafond du catalogue : a quatre props par quartier
+                  et deux quartiers par region, deux regions qui partagent un
+                  quartier partagent la moitie de leur inventaire.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10057,4 +10076,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.13";
+export const VERSION = "0.43.14";

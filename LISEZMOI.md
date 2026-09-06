@@ -8,6 +8,33 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le catalogue était le goulot (0.43.14)
+
+Sept régions d'Usine pour **quatre** quartiers de props. Ajouter des zones sans
+ajouter de props n'aurait rien changé : les mêmes objets, redistribués.
+
+| thème | régions | zones | pire Jaccard avant | après |
+|---|---:|---:|---:|---:|
+| usine | 7 | 4 → **6** | 67 % | **63 %** |
+| fonderie | 4 | 4 | 43 % | 43 % |
+| friche | 5 | 4 → **6** | 67 % | **63 %** |
+| nébuleuse | 4 | 4 | 57 % | 57 % |
+| secteur | 4 | 4 | 44 % | 44 % |
+
+**Dix props neufs** : gerbeur, transpalette, cale, servante, carter, coffret HT
+(Usine) ; pneus, moteur déposé, parpaings, plot (Friche).
+
+**Deux sur-ensembles trouvés par la mesure, pas à l'œil** : les utilités à
+`zones [5, 3]` **contenaient** la maintenance, et le dégagement à `[1, 5]`
+**contenait** les utilités. Un sur-ensemble n'est pas une variation — les deux
+régions passent à un seul quartier, et **un inventaire étroit est une identité**.
+
+Le pire recouvrement du dépôt reste **63 %**, plafonné par la taille du
+catalogue : à quatre props par quartier et deux quartiers par région, deux
+régions qui partagent un quartier partagent mécaniquement la moitié de leur
+inventaire. Descendre plus bas demande des quartiers **disjoints**, donc encore
+des props.
+
 ### La première oblique du dépôt (0.43.13)
 
 **Tout le jeu était horizontal ou vertical**, et pour une bonne raison :
