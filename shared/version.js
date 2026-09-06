@@ -9637,6 +9637,33 @@
                   se leve qu a l evaluation et que `node --check` ne la voit pas.
                   Verifie en injectant la faute : `modulesRendu` la remonte.
                   41 -> 53 verificateurs, 2 s. Les 31 modules du client chargent.
+    0.41.1 lot 2  UN IMPORT MANQUANT QUE CINQUANTE-TROIS VERIFICATEURS VERTS ONT
+                  LAISSE PASSER. `drawGrid` lisait `biomeKey()` sans que
+                  `decor.js` l importe : l arene ne se peignait plus, le rendu se
+                  figeait apres trois images en echec, et rien — ni
+                  `node --check`, ni les onze verificateurs de rendu, ni le
+                  chargement des trente et un modules du client — ne pouvait le
+                  voir.
+                  CHARGER NE SUFFIT PAS, IL FAUT APPELER. `verif_dom.js` attrape
+                  ce qui casse a l EVALUATION ; un identifiant utilise DANS une
+                  fonction et jamais importe ne leve qu a l APPEL.
+                  `verif_dessin.js` appelle donc le decor entier — sol, seuils,
+                  grille, obstacles, dangers, lumiere, semis, amer, coulee, baies,
+                  meteo, atmosphere, vignette — plus ce qui se pose dessus : les
+                  SEIZE fiches de loot (un glyphe absent ne se voit que la), la
+                  zone de contrat, les bornes, les bonus, les cristaux.
+                  CINQ LIEUX x TROIS MODES x LA CARTE COMPOSEE, et QUATRE POINTS
+                  DE VUE dont deux sont des frontieres : tout ce qui se dessine la
+                  est aiguille par lieu, donc un seul lieu teste une branche sur
+                  six. 0,2 s.
+                  DEUX REGLES POUR QU IL VERIFIE VRAIMENT, et les deux sont des
+                  pieges deja payes : la camera se POSE a la main — `updateCamera`
+                  lisse vers `predicted`, nul hors jeu, et rend une camera `NaN`
+                  qui cull tout en silence — et tout est DANS LE CHAMP, sans quoi
+                  `inView` sort avant le corps de la fonction.
+                  Verifie en reinjectant les deux fautes : `biomeKey` absent de
+                  `decor.js` et `LOOT_ICON` absent d `actors.js` sortent toutes
+                  les deux.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9646,4 +9673,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.41.0";
+export const VERSION = "0.41.1";

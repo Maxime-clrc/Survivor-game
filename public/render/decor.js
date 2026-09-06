@@ -9,7 +9,7 @@ import { mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { lieuxPortent, celluleH, celluleW, lieuAt, lieuKeyAt, skinAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
+import { biomeKey, lieuxPortent, celluleH, celluleW, lieuAt, lieuKeyAt, skinAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
 /* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine deux fois : une passe
    PLEINE VUE entre la couleur d'arene et la matiere du sol — c'est ce qui

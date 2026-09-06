@@ -1,0 +1,142 @@
+/* ===========================================================================
+   LE DECOR SE DESSINE VRAIMENT, SUR LES CINQ LIEUX ET SUR UNE CARTE COMPOSEE.
+
+   CHARGER UN MODULE NE SUFFIT PAS, ET C EST UNE FAUTE DEJA PAYEE. `verif_dom.js`
+   attrape ce qui casse a l EVALUATION — une table qui reference un identifiant
+   absent. Il ne peut rien dire de ce qui casse a l APPEL : un identifiant utilise
+   DANS une fonction et jamais importe ne leve qu au moment ou cette fonction
+   tourne. `drawGrid` a livre exactement ca (`biomeKey is not defined`), avec les
+   cinquante-trois verificateurs au vert et les trente et un modules charges.
+
+   ON APPELLE DONC. Un contexte de papier, une camera posee a la main, et chaque
+   fonction du DECOR — celles qui prennent peu ou pas d arguments, donc celles
+   qu on peut appeler sans inventer un monde. Ce n est pas un test de rendu : rien
+   n est compare a une image. C est un test de CABLAGE, et c est le seul defaut
+   que le reste de la suite laisse passer entier.
+
+   CINQ LIEUX PLUS LA CARTE COMPOSEE, parce que tout ce qui se dessine ici est
+   AIGUILLE PAR LIEU : `GRILLE`, `AMERS`, `FOND`, `VITRAGE`, `VIE`, `AMBIANCE`,
+   `BLOC`, `DANGER`, `SOUFFLE`, `MATIERE`, `TABLE`, `ZONES`. Un seul lieu teste
+   une branche sur six.
+   =========================================================================== */
+
+import { charger } from "./verif_dom.js";
+import { BIOMES, BIOME_COMPOSE, CFG } from "./shared/game_state.js";
+
+/* CE QU ON APPELLE, ET AVEC QUOI. La liste est explicite : une decouverte
+   automatique par `draw*` appellerait des fonctions d ACTEURS qui demandent un
+   monde entier, et un `catch` qui avale « argument manquant » ne verifierait plus
+   rien. Ici chaque entree est un appel qui traverse VRAIMENT son corps. */
+const APPELS = [
+  ["decor", "drawFond", () => []],
+  ["decor", "drawFloor", () => []],
+  ["decor", "drawSeuils", () => []],
+  ["decor", "drawAmer", () => []],
+  ["decor", "drawCoulee", () => []],
+  ["decor", "drawBaies", () => []],
+  ["decor", "drawGrid", () => []],
+  ["decor", "drawObstacles", (m) => [m.obstacles]],
+  ["decor", "drawWalls", () => [null]],
+  ["decor", "drawArenaBounds", () => [{ x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H }]],
+  ["decor", "drawWeather", () => [12]],
+  ["decor", "drawAtmosphere", () => [12]],
+  ["decor", "drawVignette", () => []],
+  ["props", "drawProps", () => []],
+  ["props", "drawTraces", () => []],
+  ["dangers", "drawHazards", () => [12]],
+  ["lumiere", "drawLumiere", () => [{ playerList: [], tm: 12 }]],
+
+  /* ET CE QUI SE POSE SUR LE SOL. Le loot passe par les SEIZE fiches : chacune a
+     son signe, donc son glyphe, et un glyphe absent ne se voit qu ici. La zone de
+     contrat n existe que pour un objectif `OBJ_ZONE` — la lui donner est le seul
+     moyen de traverser son corps. */
+  ["actors", "drawLoots", (m) => [m.loots, 1]],
+  ["actors", "drawContratZone", (m) => [m.contrat, m.joueurs]],
+  ["actors", "drawBornes", (m) => [m.bornes, m.joueurs[0]]],
+  ["actors", "drawPowerups", (m) => [m.bonus]],
+  ["actors", "drawHarvests", (m) => [m.cristaux]],
+];
+
+/* UN MONDE DE PAPIER, POSE DANS LA VUE. Tout est dans le champ : un objet hors
+   camera sort par `inView` et ne traverse pas son corps, donc il ne verifie
+   rien. Les seize loots se posent en ligne — c est le seul moyen de passer par
+   les seize signes. */
+function mondeDePapier(obstacles, vx, vy) {
+  const loots = [];
+  for (let i = 0; i < 16; i++) {
+    loots.push({ id: i + 1, loot: i, pj: i % 2 ? 1 : 0, k: i === 0 ? 0.05 : 1,
+                 x: vx - 700 + i * 90, y: vy - 300 });
+  }
+  const joueurs = [{ id: 1, x: vx, y: vy, downed: false, hp: 100, maxHp: 100,
+                     shield: 0, aimX: 1, aimY: 0, arme: 0, armeRes: 0.5,
+                     armeAng: 0, buffs: 0, cls: 0, statuses: 0, vuln: 0, doom: 0,
+                     cd1: 0, cd2: 0, cd3: 0, skills: 0, orbiters: 0, frostR: 0,
+                     bombStock: 0, dashCd: 0, dashT: 0, revive: 0, level: 1 }];
+  return {
+    obstacles, loots, joueurs,
+    // `def: 2` est « Position tenue », le seul contrat a OBJ_ZONE.
+    contrat: { def: 2, rarete: 1, cur: 12, seuil: 30, t: 60, x: vx, y: vy },
+    bornes: [{ id: 1, x: vx + 200, y: vy + 100, etat: 0, pret: 1 }],
+    bonus: [{ id: 1, x: vx - 200, y: vy + 150, type: 0, k: 1 }],
+    cristaux: [{ id: 1, x: vx + 300, y: vy - 150, kind: 0, v: 0.5 }],
+  };
+}
+
+/* LA CAMERA SE POSE A LA MAIN. `updateCamera(dt)` lisse vers `predicted`, nul
+   hors jeu, et rend une camera `NaN` qui cull tout en silence — donc un decor qui
+   ne dessine rien et un verificateur qui ne verifie rien. */
+function poser(stage, x, y) {
+  stage.camera.x = x; stage.camera.y = y;
+  stage.camera.x0 = x - CFG.VIEW_W / 2;
+  stage.camera.y0 = y - CFG.VIEW_H / 2;
+}
+
+export async function verifierDessin(graines = [1, 7, 99]) {
+  const soucis = [];
+  const mod = {};
+  for (const m of ["stage", "decor", "props", "dangers", "lumiere", "actors"]) {
+    try { mod[m] = await charger(`public/render/${m}.js`); }
+    catch (e) { return [`render/${m}.js n a pas charge — ${e.message}`]; }
+  }
+  const stage = mod.stage;
+
+  // LES CINQ LIEUX, PUIS LA CARTE COMPOSEE : le dernier cas est le seul ou deux
+  // aiguillages differents cohabitent dans une meme vue.
+  const cas = BIOMES.map((b, i) => [b.key, i])
+    .concat([["carte composee", BIOME_COMPOSE]]);
+
+  for (const [nom, idx] of cas) {
+    for (const graine of graines) {
+      for (const diff of [0, 1, 2]) {
+        stage.setBiomeIndex(idx);
+        stage.setBiomeSeed(graine);
+        stage.applyPalette(diff);
+        stage.rebuildBiome(diff);
+        /* QUATRE POINTS DE VUE, ET LES DEUX DU MILIEU SONT DES FRONTIERES. Sur
+           une carte composee, ce qui casse casse au RACCORD : une vue au centre
+           d une region ne traverse qu un seul jeu de tables. */
+        for (const [vx, vy] of [[CFG.ARENA_W / 2, CFG.ARENA_H / 2],
+                                [CFG.VIEW_W, CFG.VIEW_H],
+                                [CFG.ARENA_W - CFG.VIEW_W, CFG.ARENA_H - CFG.VIEW_H],
+                                [CFG.VIEW_W / 2, CFG.VIEW_H / 2]]) {
+          poser(stage, vx, vy);
+          const monde = mondeDePapier(stage.obstaclesActifs(), vx, vy);
+          for (const [m, fn, args] of APPELS) {
+            const f = mod[m]?.[fn];
+            if (typeof f !== "function") {
+              soucis.push(`${m}.${fn} n est pas exporte`);
+              continue;
+            }
+            try { f(...args(monde)); }
+            catch (e) {
+              soucis.push(`${nom}/${["calme", "normal", "cauchemar"][diff]}`
+                + `/graine ${graine} : ${m}.${fn} leve — ${e.message}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  // une phrase par defaut, pas une par appel : la meme faute sort 216 fois.
+  return [...new Set(soucis)];
+}

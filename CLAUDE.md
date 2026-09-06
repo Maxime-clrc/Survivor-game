@@ -62,7 +62,7 @@ npm start                 # serveur sur le port 7777
 PORT=8123 node server.js
 node --check server.js    # pas de linter dans le projet
 npm run version-check     # refuse un deploiement sans bump
-npm run verif             # LA SUITE : 53 verificateurs, < 3 s
+npm run verif             # LA SUITE : 54 verificateurs, < 3 s
 npm run verif-tout        # + les campagnes simulees, ~20 min
 npm run constantes-check  # une constante de CFG sans lecteur
 ```
@@ -133,6 +133,8 @@ version_check.js       refuse un deploiement sans bump
 verif.js               LA SUITE : le seul appelant des verificateurs
 verif_dom.js           LE FAUX DOM : il ne dessine rien, il CHARGE les modules du
                        client — les onze verificateurs de rendu entrent par la
+verif_dessin.js        LE DECOR SE DESSINE VRAIMENT : charger ne suffit pas, un
+                       identifiant manquant DANS une fonction ne leve qu a l APPEL
 rapport.js             le COMPTE RENDU d'une manche — reduction de la trace, jamais une seconde collecte
 constantes_check.js    une constante de configuration sans lecteur
 progress_store.js      persistance Supabase — serveur SEUL, memoire + replique

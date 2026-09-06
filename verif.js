@@ -60,6 +60,7 @@ import { verifierContrats } from "./shared/timeline.js";
 import * as TL from "./shared/timeline.js";
 import { constantesMortes } from "./constantes_check.js";
 import { verifierRapport } from "./rapport.js";
+import { verifierDessin } from "./verif_dessin.js";
 
 const { recettes } = await import("./public/audio.js");
 const S = await import("./public/sprites.js");
@@ -211,6 +212,10 @@ const SUITE = [
      suivantes est une PHRASE, pas un tableau vide : sans ca, une faute qui empeche
      le module de s evaluer eteignait ses propres verificateurs. */
   ["modulesRendu", () => renduEchecs],
+  /* ET LE DECOR SE DESSINE VRAIMENT. Charger ne suffit pas : un identifiant
+     utilise DANS une fonction et jamais importe ne leve qu a l APPEL, et
+     `drawGrid` a livre exactement ca avec la suite entiere au vert. */
+  ["dessin", () => verifierDessin()],
   ["zones", () => rendu.props?.verifierZones() ?? SANS_MODULE],
   ["traces", () => rendu.props?.verifierTraces() ?? SANS_MODULE],
   ["semis", () => rendu.props?.verifierSemis() ?? SANS_MODULE],

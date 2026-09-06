@@ -459,6 +459,25 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
 
 ### Une carte, plusieurs lieux
 
+- **CHARGER UN MODULE NE SUFFIT PAS, IL FAUT L APPELER.** `verif_dom.js` attrape
+  ce qui casse à l'**évaluation** — une table qui référence un identifiant absent.
+  Il ne peut rien dire de ce qui casse à l'**appel** : un identifiant utilisé
+  *dans* une fonction et jamais importé ne lève qu'au moment où cette fonction
+  tourne. `drawGrid` a livré exactement ça (`biomeKey is not defined`) avec les
+  cinquante-trois vérificateurs au vert et les trente et un modules chargés.
+  `verif_dessin.js` appelle donc **le décor entier** — sol, seuils, grille,
+  obstacles, dangers, lumière, semis, amer, coulée, baies, météo, atmosphère,
+  vignette — plus ce qui se pose dessus (loot, zone de contrat, bornes, bonus,
+  cristaux), **sur les cinq lieux, les trois modes et la carte composée**, et
+  depuis **quatre points de vue** dont deux sont des frontières.
+  Ce n'est pas un test de rendu : rien n'est comparé à une image. C'est un test
+  de **câblage**, et c'est le seul défaut que le reste de la suite laisse passer
+  entier. Deux règles pour qu'il verifie vraiment : **la caméra se pose à la main**
+  (`updateCamera` lisse vers `predicted`, nul hors jeu, et rend une caméra `NaN`
+  qui cull tout en silence), et **tout est dans le champ** — un objet hors caméra
+  sort par `inView` sans traverser son corps. Les **seize** fiches de loot y
+  passent : un glyphe absent ne se voit que là.
+
 - **LE LIEU EST UNE FONCTION DE LA POSITION** (`lieuAt(x, y)`, `lieuKeyAt`,
   `skinAt`), et c'est le point de passage unique du rendu : **tout ce qui se
   dessine QUELQUE PART le lit là**. Ce qui peint la **vue entière** lit
