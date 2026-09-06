@@ -9799,6 +9799,25 @@
                   personne ne tire, et une trame qui ne pose AUCUN bloc sur des
                   arenes reelles. 56 verificateurs.
 
+    0.43.2 lot 3  UNE FAMILLE BATIE EST UN COUPLE, PAS UN DESSIN. `forme` et
+                  `habit` etaient dans la meme entree, donc 1:1 : quinze familles,
+                  quinze formes, quinze habillages, aucun reemploi possible. Un
+                  conteneur n existait qu une fois, dans le Secteur.
+                  Separes, ils se composent : `BLOC[biome][kind]` devient
+                  { sil, hab, hors? } ou `sil` indexe SILHOUETTE (la forme, ce que
+                  la collision AABB doit remplir) et `hab` indexe HABILLAGE (la
+                  matiere et son usure). Une meme barre portera de la tole peinte a
+                  l Usine et du givre a la Nebuleuse : deux familles, un dessin de
+                  forme, deux de matiere.
+                  ZERO PIXEL CHANGE. Les trente fonctions sont celles d avant, aux
+                  memes appels et dans le meme ordre ; seule la table change de
+                  forme. C est le lot de PLOMBERIE qui rend la bibliotheque de
+                  biomes payable — le couple 1:1 demandait un dessin par famille.
+                  `verifierBlocs` croise les trois tables dans les DEUX sens : une
+                  fiche qui nomme une silhouette absente repliait sur `caisson` en
+                  silence, et une silhouette que plus rien ne tire est un dessin
+                  mort qu on entretient.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9807,4 +9826,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.1";
+export const VERSION = "0.43.2";

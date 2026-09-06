@@ -42,33 +42,70 @@ function graine(o) {
    ce lot est la PLOMBERIE et ne change pas un pixel. Les lots suivants les
    separent une par une, et `verifierBlocs()` refuse qu une famille en soit
    privee — un `kind` sans fiche ne leverait rien, il replierait en silence. */
+/* UNE FAMILLE BATIE EST UN COUPLE, PAS UN DESSIN. `forme` et `habit` etaient
+   ecrits cote a cote dans la meme entree, donc 1:1 : quinze familles, quinze
+   formes, quinze habillages, et aucun reemploi possible. Un conteneur n existait
+   qu une fois, dans le Secteur.
+
+   SEPARES, ILS SE COMPOSENT. La SILHOUETTE dit la forme — ce que la collision
+   AABB doit remplir —, l HABILLAGE dit la matiere et son usure. Une meme barre
+   peut porter de la tole peinte a l Usine et du givre a la Nebuleuse : deux
+   familles, un dessin de forme, deux dessins de matiere. C est ce qui rend une
+   bibliotheque de biomes payable — le couple 1:1 aurait demande un dessin par
+   famille.
+
+   CE LOT NE CHANGE PAS UN PIXEL. Les trente fonctions sont celles d avant, aux
+   memes appels, dans le meme ordre ; seule la table change de forme, et
+   `verifierBlocs` gagne de quoi voir une silhouette ou un habillage que plus
+   personne ne tire. */
+const SILHOUETTE = {
+  barre: formeChaine, caisson: formeCellule, machine: formeMachine,
+  octogone: formeOctogone, conduite: formeConduite, fut: formeCuve,
+  pan: formeRuine, mur_bas: formeMurBas, chassis: formeCarcasse,
+  eclat: formeFragment, travee: formeTravee, debris: formeDebris,
+  devanture: formeDevanture, mat: formePylone, conteneur: formeConteneur,
+};
+
+const HABILLAGE = {
+  chaine, cellule, poste, four, conduite, cuve,
+  ruine: ruinePan, murBas, carcasse, fragment, travee, debris,
+  devanture, pylone, conteneur,
+};
+
+// CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
+// canal : ni forme, ni matiere — ce qui deborde de la boite.
+const DEBORD = { pan: debord, mur_bas: eboulisPied };
+
 const BLOC = {
   usine: {
-    [B_CHAINE]: { forme: formeChaine, habit: chaine },
-    [B_MACHINE]: { forme: formeCellule, habit: cellule },
-    [B_POSTE]: { forme: formeMachine, habit: poste },
+    [B_CHAINE]: { sil: "barre", hab: "chaine" },
+    [B_MACHINE]: { sil: "caisson", hab: "cellule" },
+    [B_POSTE]: { sil: "machine", hab: "poste" },
   },
   fonderie: {
-    [B_FOUR]: { forme: formeOctogone, habit: four },
-    [B_CONDUITE]: { forme: formeConduite, habit: conduite },
-    [B_CUVE]: { forme: formeCuve, habit: cuve },
+    [B_FOUR]: { sil: "octogone", hab: "four" },
+    [B_CONDUITE]: { sil: "conduite", hab: "conduite" },
+    [B_CUVE]: { sil: "fut", hab: "cuve" },
   },
   friche: {
-    [B_RUINE]: { forme: formeRuine, habit: ruinePan, hors: debord },
-    [B_MUR]: { forme: formeMurBas, habit: murBas, hors: eboulisPied },
-    [B_CARCASSE]: { forme: formeCarcasse, habit: carcasse },
+    [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
+    [B_MUR]: { sil: "mur_bas", hab: "murBas", hors: "mur_bas" },
+    [B_CARCASSE]: { sil: "chassis", hab: "carcasse" },
   },
   nebuleuse: {
-    [B_FRAGMENT]: { forme: formeFragment, habit: fragment },
-    [B_TRAVEE]: { forme: formeTravee, habit: travee },
-    [B_DEBRIS]: { forme: formeDebris, habit: debris },
+    [B_FRAGMENT]: { sil: "eclat", hab: "fragment" },
+    [B_TRAVEE]: { sil: "travee", hab: "travee" },
+    [B_DEBRIS]: { sil: "debris", hab: "debris" },
   },
   secteur: {
-    [B_DEVANTURE]: { forme: formeDevanture, habit: devanture },
-    [B_PYLONE]: { forme: formePylone, habit: pylone },
-    [B_CONTENEUR]: { forme: formeConteneur, habit: conteneur },
+    [B_DEVANTURE]: { sil: "devanture", hab: "devanture" },
+    [B_PYLONE]: { sil: "mat", hab: "pylone" },
+    [B_CONTENEUR]: { sil: "conteneur", hab: "conteneur" },
   },
 };
+
+const formeDe = (f) => SILHOUETTE[f.sil] ?? SILHOUETTE.caisson;
+const habitDe = (f) => HABILLAGE[f.hab] ?? HABILLAGE.cellule;
 
 // le repli d un lieu est cuit ICI et non cherche a l appel : `drawObstacles`
 // passe par cette fonction quatre fois par obstacle et par image.
@@ -81,7 +118,7 @@ function fiche(cle, kind) {
 }
 
 export function silhouetteBloc(g, o, cle) {
-  return fiche(cle, o.kind).forme(g, o);
+  return formeDe(fiche(cle, o.kind))(g, o);
 }
 
 function formeMachine(g, o) { machine(g, -o.w / 2, -o.h / 2, o.w, o.h); }
@@ -340,10 +377,35 @@ function formeCarcasse(g, o) {
 // `verifierFeedback()` pour les recettes de son.
 export function verifierBlocs() {
   const soucis = [];
+  /* TROIS TABLES A CROISER AU LIEU D UNE, ET LES DEUX SENS COMPTENT. Une fiche
+     qui nomme une silhouette absente replie sur `caisson` EN SILENCE — le meme
+     defaut que `fiche()` a deja paye —, et une silhouette ecrite que plus aucune
+     famille ne tire est un dessin mort qu on entretient. */
+  const sil = new Set(), hab = new Set(), hors = new Set();
   for (let k = 0; k < BLOCS.length; k++) {
     const b = BLOCS[k];
-    if (!BLOC[b.lieu]) soucis.push(`${b.lieu} : aucune table de dessin`);
-    else if (!BLOC[b.lieu][k]) soucis.push(`${b.lieu}/${b.key} : aucune fiche de dessin`);
+    if (!BLOC[b.lieu]) { soucis.push(`${b.lieu} : aucune table de dessin`); continue; }
+    const f = BLOC[b.lieu][k];
+    if (!f) { soucis.push(`${b.lieu}/${b.key} : aucune fiche de dessin`); continue; }
+    if (!SILHOUETTE[f.sil]) {
+      soucis.push(`${b.lieu}/${b.key} : silhouette « ${f.sil} » inconnue`);
+    } else sil.add(f.sil);
+    if (!HABILLAGE[f.hab]) {
+      soucis.push(`${b.lieu}/${b.key} : habillage « ${f.hab} » inconnu`);
+    } else hab.add(f.hab);
+    if (f.hors !== undefined) {
+      if (!DEBORD[f.hors]) soucis.push(`${b.lieu}/${b.key} : debord « ${f.hors} » inconnu`);
+      else hors.add(f.hors);
+    }
+  }
+  for (const k of Object.keys(SILHOUETTE)) {
+    if (!sil.has(k)) soucis.push(`silhouette « ${k} » : ecrite, tiree par aucune famille`);
+  }
+  for (const k of Object.keys(HABILLAGE)) {
+    if (!hab.has(k)) soucis.push(`habillage « ${k} » : ecrit, tire par aucune famille`);
+  }
+  for (const k of Object.keys(DEBORD)) {
+    if (!hors.has(k)) soucis.push(`debord « ${k} » : ecrit, tire par aucune famille`);
   }
   return soucis;
 }
@@ -403,7 +465,7 @@ export function videEmpreinte(kind, w, h, pas = 2, x0 = 0, y0 = 0) {
   const f = b && BLOC[b.lieu]?.[kind];
   if (!f) return { vide: 1, hors: 0 };
   const g = enregistreur();
-  f.forme(g, { x: x0, y: y0, w, h, kind, maxHp: 0 });
+  formeDe(f)(g, { x: x0, y: y0, w, h, kind, maxHp: 0 });
   const poly = g.poly();
 
   let hors = 0;
@@ -655,7 +717,7 @@ export function habillerBloc(o, rx, ry, cle, S) {
   ctx.translate(o.x + rx, o.y + ry);
   silhouetteBloc(ctx, o, cle);
   ctx.clip();
-  f.habit(o, S);
+  habitDe(f)(o, S);
   ctx.restore();
 
   // CE QUI SORT DE L EMPREINTE, et il est HORS du clip pour ca. Deux choses, et
@@ -663,7 +725,7 @@ export function habillerBloc(o, rx, ry, cle, S) {
   // 5 px, et l EBOULIS de la breche, plaque au sol contre le pied du mur. Un mur
   // casse dont rien ne depasse est un mur coupe a la scie ; un mur perce dont
   // rien n est tombe est un mur qu on a perce PROPREMENT.
-  if (f.hors) f.hors(o, rx, ry);
+  if (f.hors) DEBORD[f.hors]?.(o, rx, ry);
 }
 
 function debord(o, rx, ry) {

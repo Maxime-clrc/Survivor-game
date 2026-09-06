@@ -658,8 +658,25 @@ la base — rendait impossible, et c'est pourquoi il a été supprimé.
 `render/blocs.js`. **C'est l'obstacle qui occupe l'écran** : quatre sols
 différents sous quatre mêmes blocs donnent quatre mêmes maps.
 
-**Le lieu ne donne plus la forme, il donne le rayon du catalogue.** `BLOC[biome]
-[kind] -> { forme, habit, hors? }`, même patron que `DANGER[biome][kind]` :
+**UNE FAMILLE BÂTIE EST UN COUPLE, PAS UN DESSIN.** `forme` et `habit` étaient
+écrits côte à côte dans la même entrée, donc **1:1** : quinze familles, quinze
+formes, quinze habillages, et **aucun réemploi possible**. Un conteneur n'existait
+qu'une fois, dans le Secteur.
+Séparés, ils se composent : `BLOC[biome][kind] -> { sil, hab, hors? }` où `sil`
+indexe `SILHOUETTE` (la forme, ce que la collision AABB doit remplir) et `hab`
+indexe `HABILLAGE` (la matière et son usure). **Une même barre porte de la tôle
+peinte à l'Usine et du givre à la Nébuleuse** : deux familles, un dessin de
+forme, deux dessins de matière. C'est ce qui rend une bibliothèque de biomes
+payable — le couple 1:1 demandait un dessin par famille.
+`hors` est un **troisième canal** — ni forme ni matière, ce qui déborde de la
+boîte — et il n'a que deux entrées.
+**`verifierBlocs` croise les trois tables dans les deux sens** : une fiche qui
+nomme une silhouette absente replie sur `caisson` **en silence** (le défaut que
+`fiche()` a déjà payé), et une silhouette écrite que plus aucune famille ne tire
+est un dessin mort qu'on entretient.
+
+**Le lieu ne donne plus la forme, il donne le rayon du catalogue.** Même patron
+que `DANGER[biome][kind]` :
 **ajouter un objet à un lieu = une entrée**. Le `kind` vient de `BLOCS`
 (`biomes.js`), table ordonnée append-only dont `lieu` déclare le propriétaire —
 une famille appartient à **un** lieu, c'est la règle de non-réutilisation rendue
