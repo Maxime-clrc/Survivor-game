@@ -353,6 +353,17 @@ let cle = "";
    fois par prop candidat, et `refresh()` en teste une centaine.
    Rend -2 si la place est prise, sinon l indice de quartier du bloc le plus
    proche, ou -1 si aucun n est a portee. */
+/* LA SOURCE SORT AVEC LE QUARTIER, et elle etait DEJA CALCULEE. `sonder`
+   balayait les obstacles, gardait le plus proche, en tirait un quartier et
+   JETAIT sa position — alors qu une trace n est pas un motif, c est la
+   CONSEQUENCE de quelque chose qui est encore la. Une aureole entoure ce qui a
+   deborde, une coulee pointe vers ce qui a fui : sans la source, les deux sont
+   du bruit avec un nom.
+   Objet de module et non valeur de retour : `refresh` appelle `sonder` une
+   centaine de fois par changement de fenetre, et le retour numerique a deux
+   sentinelles (-2 pris, -1 loin de tout) qu on ne veut pas transformer. */
+const SONDE = { x: 0, y: 0 };
+
 function sonder(x, y, quartiers) {
   let best = -1, bestD = PORTEE_QUARTIER * PORTEE_QUARTIER;
   for (const o of obstaclesDuLieu()) {
@@ -364,7 +375,16 @@ function sonder(x, y, quartiers) {
     const dx = Math.max(Math.abs(x - o.x) - o.w / 2, 0);
     const dy = Math.max(Math.abs(y - o.y) - o.h / 2, 0);
     const d = dx * dx + dy * dy;
-    if (d < bestD) { bestD = d; best = q; }
+    if (d < bestD) {
+      bestD = d; best = q;
+      /* LE POINT LE PLUS PROCHE DU RECTANGLE, JAMAIS SON CENTRE. La distance se
+         mesure deja au rectangle — c est ecrit deux lignes plus haut et c est
+         juste — mais une bande de trame fait jusqu a 3 680 px : son centre peut
+         etre a dix-huit cents pixels d une trace qui la touche. Une coulee
+         partirait du milieu du bloc, donc de nulle part. */
+      SONDE.x = Math.max(o.x - o.w / 2, Math.min(x, o.x + o.w / 2));
+      SONDE.y = Math.max(o.y - o.h / 2, Math.min(y, o.y + o.h / 2));
+    }
   }
   for (const h of hazardsDuLieu()) {
     if ((x - h.x) ** 2 + (y - h.y) ** 2 < (h.r + 14) ** 2) return -2;
@@ -438,7 +458,9 @@ function refresh() {
           if (t) {
             traces.push({ t, cx, cy,
               x: (cx + 0.15 + h2(cx, cy, s + 201) * 0.70) * CELL,
-              y: (cy + 0.15 + h2(cx, cy, s + 202) * 0.70) * CELL, s });
+              y: (cy + 0.15 + h2(cx, cy, s + 202) * 0.70) * CELL, s,
+              // la source, capturee par le meme balayage qui a donne le quartier
+              ax: SONDE.x, ay: SONDE.y });
           }
         }
       }
@@ -1759,7 +1781,22 @@ function gaine(p, ox, oy) {
 
 const TRACE_ROULAGE = 1, TRACE_SOUILLURE = 2, TRACE_POUSSIERE = 3,
       TRACE_CENDRES = 4, TRACE_RAYURES = 5, TRACE_RUISSELLEMENT = 6,
-      TRACE_CORROSION = 7, TRACE_FISSURES = 8, TRACE_DECHETS = 9;
+      TRACE_CORROSION = 7, TRACE_FISSURES = 8, TRACE_DECHETS = 9,
+      TRACE_AUREOLE = 10, TRACE_COULEE = 11;
+
+/* UNE TRACE N EST PAS UN MOTIF, C EST LA CONSEQUENCE DE QUELQUE CHOSE QUI EST
+   ENCORE LA. C est ce qui la separe d une texture, et le depot ne le disait pas :
+   les neuf primitives se posaient au hasard DANS leur quartier sans jamais
+   regarder l objet dont elles sont la trace.
+   LA SOURCE EXISTAIT DEJA, ET C EST MESURE : une trace n est posee que si
+   `sonder` rend un quartier, donc QUE si un bloc est a moins de
+   `PORTEE_QUARTIER` — 18 a 30 % des cellules selon le theme. Ce qui manquait
+   n etait pas la source, c est qu aucune primitive ne s en servait ; `sonder`
+   la calculait et la JETAIT.
+   PAS DE TABLE DE CLASSE. Une premiere version en portait une — libre, ancree,
+   orientee — dont le seul lecteur etait un controle de completude SUR
+   ELLE-MEME. Ce qu elle disait est deja porte par la signature : une primitive
+   qui prend `(ax, ay)` s en sert, les autres non. */
 
 /* LES TROIS DERNIERES PRIMITIVES DU BRIEF NE SONT PAS UN AJOUT, ELLES SONT UN
    DEDOUBLONNAGE. Trois lieux repetaient une matiere sur deux quartiers — la
@@ -1771,7 +1808,8 @@ const TRACE_ROULAGE = 1, TRACE_SOUILLURE = 2, TRACE_POUSSIERE = 3,
 
 const TRACES_CONNUES = new Set([TRACE_ROULAGE, TRACE_SOUILLURE, TRACE_POUSSIERE,
                                 TRACE_CENDRES, TRACE_RAYURES, TRACE_RUISSELLEMENT,
-                                TRACE_CORROSION, TRACE_FISSURES, TRACE_DECHETS]);
+                                TRACE_CORROSION, TRACE_FISSURES, TRACE_DECHETS,
+                                TRACE_AUREOLE, TRACE_COULEE]);
 
 /* L AIR D UNE REGION — LA SECONDE MOITIE DE CE QUI FAIT UN BIOME.
 
@@ -1818,18 +1856,22 @@ const AIR = {
        circulation — un inventaire etroit est une identite, pas un manque. */
     { dens: 0.90, ech: [0.66, 0.54], zones: [1], matieres: [TRACE_ROULAGE] },
     { dens: 0.70, ech: [0.80, 0.70], zones: [2], matieres: [TRACE_RAYURES] },
-    { dens: 0.76, ech: [0.74, 0.62], zones: [0, 3], matieres: [TRACE_POUSSIERE, TRACE_CORROSION] },
+    // la retention des utilites DEBORDE : une aureole autour de ce qui a fui.
+    { dens: 0.76, ech: [0.74, 0.62], zones: [0, 3], matieres: [TRACE_POUSSIERE, TRACE_AUREOLE] },
   ],
   fonderie: [
     { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
-    { dens: 1.18, ech: [0.74, 0.58], zones: [1, 2], matieres: [TRACE_CENDRES, TRACE_CORROSION] },
-    { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_POUSSIERE, TRACE_CORROSION] },
+    // le sable COULE des malaxeurs, et la coulee pointe vers celui qui l a lache.
+    { dens: 1.18, ech: [0.74, 0.58], zones: [1, 2], matieres: [TRACE_COULEE, TRACE_CORROSION] },
+    // le bassin laisse un depot de sels en s evaporant : une aureole, pas une tache.
+    { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_AUREOLE, TRACE_CORROSION] },
     { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_RAYURES] },
   ],
   friche: [
     { dens: 1.00, ech: [0.66, 0.92], zones: [0, 1], matieres: [TRACE_POUSSIERE, null] },
     { dens: 1.12, ech: [0.58, 0.78], zones: [2, 1], matieres: [TRACE_POUSSIERE, TRACE_SOUILLURE] },
-    { dens: 0.70, ech: [0.82, 1.08], zones: [1, 3], matieres: [TRACE_CENDRES, null] },
+    // l huile coule des piles d epaves, toujours vers le bas de la pile.
+    { dens: 0.70, ech: [0.82, 1.08], zones: [1, 3], matieres: [TRACE_COULEE, TRACE_SOUILLURE] },
     // ce qui FERMAIT et le peu qui reste ALLUME : deux zones, pas trois. Trois
     // zones sur quatre rendaient l union du theme entier.
     { dens: 1.40, ech: [0.52, 1.14], zones: [2, 3], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
@@ -2204,7 +2246,67 @@ function dechets(cx, cy, x, y, s) {
   }
 }
 
-function tracer(t, cx, cy, x, y, s) {
+
+/* L AUREOLE — CE QUI A DEBORDE PUIS SECHE. Elle est ANCREE : un anneau pale,
+   irregulier, pose contre la source et allonge dans son axe. Sans source elle
+   ne se dessine pas — et c est `verifierTraces` qui garantit qu une region ne
+   pose jamais QUE des traces ancrees, sinon les cellules loin de tout batî
+   seraient muettes. */
+const AUREOLE_N = 9;
+function aureole(cx, cy, x, y, s, ax, ay) {
+  const dx = ax - x, dy = ay - y;
+  const l = Math.hypot(dx, dy);
+  if (l < 1) return;
+  const a = Math.atan2(dy, dx);
+  const r = 20 + h2(cx, cy, s + 261) * 22;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  // deux passes : un depot clair au centre, un LISERE plus marque au bord —
+  // c est le bord qui dit qu une flaque a seche, pas la tache.
+  for (const [k, al, lw] of [[1.0, 0.055, 0], [1.0, 0.11, 2.2]]) {
+    ctx.beginPath();
+    for (let i = 0; i <= AUREOLE_N; i++) {
+      const th = (i / AUREOLE_N) * Math.PI * 2;
+      const w = 0.66 + h2(cx * 17 + i, cy, s + 262) * 0.62;
+      const px = Math.cos(th) * r * 1.45 * w * k, py = Math.sin(th) * r * 0.78 * w * k;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    if (lw) { ctx.strokeStyle = alpha("#d8cfae", al); ctx.lineWidth = lw; ctx.stroke(); }
+    else { ctx.fillStyle = alpha("#d8cfae", al); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
+/* LA COULEE — CA S EST ECOULE DEPUIS UN POINT. Elle est ORIENTEE : elle part de
+   la source, s eloigne d elle et MAIGRIT, donc elle porte un sens que rien
+   d autre au sol ne porte. Trois doigts, jamais paralleles. */
+function coulee(cx, cy, x, y, s, ax, ay) {
+  const dx = x - ax, dy = y - ay;
+  const l = Math.hypot(dx, dy);
+  if (l < 6) return;
+  const a = Math.atan2(dy, dx);
+  const L = Math.min(l + 26, 92);
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(a);
+  for (let i = 0; i < 3; i++) {
+    const off = (i - 1) * (5 + h2(cx * 7 + i, cy, s + 271) * 7);
+    const li = L * (0.55 + h2(cx * 13 + i, cy, s + 272) * 0.45);
+    const w0 = 5 + h2(cx * 5 + i, cy, s + 273) * 4;
+    ctx.beginPath();
+    ctx.moveTo(0, off - w0 / 2);
+    ctx.quadraticCurveTo(li * 0.6, off - w0 * 0.28, li, off);
+    ctx.quadraticCurveTo(li * 0.6, off + w0 * 0.28, 0, off + w0 / 2);
+    ctx.closePath();
+    ctx.fillStyle = alpha("#000000", 0.10 + h2(cx * 3 + i, cy, s + 274) * 0.08);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function tracer(t, cx, cy, x, y, s, ax, ay) {
   switch (t) {
     case TRACE_ROULAGE:      return roulage(cx, cy, x, y, s);
     case TRACE_SOUILLURE:    return souillure(cx, cy, x, y, s);
@@ -2215,6 +2317,8 @@ function tracer(t, cx, cy, x, y, s) {
     case TRACE_CORROSION:    return corrosion(cx, cy, x, y, s);
     case TRACE_FISSURES:     return fissures(cx, cy, x, y, s);
     case TRACE_DECHETS:      return dechets(cx, cy, x, y, s);
+    case TRACE_AUREOLE:      return aureole(cx, cy, x, y, s, ax, ay);
+    case TRACE_COULEE:       return coulee(cx, cy, x, y, s, ax, ay);
   }
 }
 
@@ -2226,5 +2330,5 @@ function tracer(t, cx, cy, x, y, s) {
 export function drawTraces() {
   if (gfx <= GFX_LOW) return;
   refresh();
-  for (const t of traces) tracer(t.t, t.cx, t.cy, t.x, t.y, t.s);
+  for (const t of traces) tracer(t.t, t.cx, t.cy, t.x, t.y, t.s, t.ax, t.ay);
 }

@@ -9988,6 +9988,29 @@
                   coque, la cloison, la console, le mur aveugle, l escalier et le
                   monolithe — huit lectures, un dessin de forme.
 
+    0.43.11 lot 12 UNE TRACE A UNE SOURCE, ET ELLE EXISTAIT DEJA. `sonder`
+                  balayait les obstacles, gardait le plus proche, en tirait un
+                  quartier et JETAIT sa position — alors qu une trace n est pas un
+                  motif, c est la consequence de quelque chose qui est encore la.
+                  Mesure : une trace n est posee que si ce balayage rend un
+                  quartier, donc QUE si un bloc est a moins de 90 px — 18 a 30 %
+                  des cellules selon le theme. La source etait toujours
+                  disponible, aucune primitive ne s en servait.
+                  LE CENTRE D UN BLOC N EST PAS SA SOURCE : une bande de trame
+                  fait jusqu a 3680 px, donc son centre peut etre a dix-huit cents
+                  pixels d une trace qui la touche. On garde le POINT LE PLUS
+                  PROCHE DU RECTANGLE.
+                  Deux primitives qui s en servent : l AUREOLE entoure ce qui a
+                  deborde puis seche, la COULEE en part et maigrit — la seule
+                  marque au sol du depot qui porte un SENS.
+                  DEUX REGLES ECRITES PUIS RETIREES DANS LE MEME LOT. Une table de
+                  classe dont le seul lecteur etait un controle de completude SUR
+                  ELLE-MEME — ce qu elle disait est porte par la signature. Et une
+                  regle « il faut une trace libre » qui protegeait d un cas
+                  IMPOSSIBLE, le terrain libre n en portant aucune de toute facon.
+                  Une regle qui garde un cas impossible fait croire qu on a
+                  verifie.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9996,4 +10019,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.10";
+export const VERSION = "0.43.11";

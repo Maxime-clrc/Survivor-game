@@ -8,6 +8,36 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Une trace a une source, et elle existait déjà (0.43.11)
+
+`sonder()` balayait les obstacles, gardait le plus proche, en tirait un quartier
+et **jetait sa position**. Or une trace n'est posée que si ce balayage rend un
+quartier — donc **que si un bloc est à moins de 90 px** :
+
+| lieu | cellules trouvant une source à moins de 90 px |
+|---|---:|
+| usine | 23,3 % |
+| fonderie | 29,3 % |
+| friche | 18,2 % |
+| nébuleuse | 22,2 % |
+| secteur | 29,5 % |
+
+La source était donc **toujours** disponible ; aucune primitive ne s'en servait.
+
+**Le centre d'un bloc n'est pas sa source.** La distance se mesurait déjà au
+rectangle, mais une bande de trame fait jusqu'à **3 680 px** : son centre peut
+être à dix-huit cents pixels d'une trace qui la touche. `SONDE` garde le **point
+le plus proche du rectangle**, pas le centre.
+
+**Deux règles écrites puis retirées, et c'est le lot qui les a mesurées :**
+
+- une table de classe *libre / ancrée / orientée* dont le seul lecteur était un
+  contrôle de complétude **sur elle-même** — ce qu'elle disait est porté par la
+  signature des fonctions ;
+- une règle « une région ne peut pas n'avoir que des traces à source », qui
+  protégeait d'un cas **impossible** : le terrain libre n'en porte aucune de
+  toute façon.
+
 ### Le Secteur, et les vingt régions du dépôt (0.43.10)
 
 « La place » posait **le même catalogue de props que la rue** dans un autre

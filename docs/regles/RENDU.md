@@ -586,6 +586,31 @@ différentes.
   reprenant `ECHELLE_LIEU`), et `verifierTraces` **compare** au lieu de faire
   confiance. Il remplace la table `MATIERE`, qui était par thème, et il refuse
   aussi qu'une zone de props ne soit tirée par aucune région.
+- **UNE TRACE EST LA CONSÉQUENCE DE QUELQUE CHOSE QUI EST ENCORE LÀ.** C'est ce
+  qui la sépare d'une texture, et le dépôt ne le disait pas : les neuf primitives
+  se posaient au hasard *dans* leur quartier sans jamais regarder l'objet dont
+  elles sont la trace.
+  **La source existait déjà** — une trace n'est posée que si `sonder` rend un
+  quartier, donc **que si un bloc est à moins de `PORTEE_QUARTIER`** : mesuré,
+  18 à 30 % des cellules selon le thème. Ce qui manquait n'était pas la source,
+  c'est que `sonder` la **calculait et la jetait**.
+  - **Le point le plus proche du rectangle, jamais son centre.** La distance se
+    mesurait déjà au rectangle — c'était juste — mais une bande de trame fait
+    jusqu'à **3 680 px** : son centre peut être à dix-huit cents pixels d'une
+    trace qui la touche, et une coulée partirait du milieu du bloc, donc de
+    nulle part.
+  - **L'auréole** entoure sa source (ce qui a débordé puis séché), **la coulée**
+    en part et maigrit (ce qui s'est écoulé) — c'est la seule marque au sol du
+    dépôt qui porte un **sens**.
+  - **Pas de table de classe.** Une première version en portait une — libre,
+    ancrée, orientée — dont le seul lecteur était un contrôle de complétude **sur
+    elle-même**. Ce qu'elle disait est déjà porté par la signature : une
+    primitive qui prend `(ax, ay)` s'en sert, les autres non. Une table dont la
+    seule lecture est morte se supprime.
+  - **Et pas de règle « il faut une trace libre »**, écrite puis retirée : elle
+    protégeait d'un cas **impossible** — le terrain libre ne porte aucune trace
+    de toute façon, `refresh` sort sur `mq < 0`. Une règle qui garde un cas
+    impossible fait croire qu'on a vérifié.
 - **DEUX RÉGIONS AU MÊME VOCABULAIRE SONT UNE SEULE RÉGION**, et c'était le cas
   de **quatre thèmes sur cinq**. `zones` était tiré dans un **ordre** différent —
   usine `[2,1]` contre `[1,2]`, nébuleuse `[0,2]` contre `[2,0]`, secteur `[0,1]`
