@@ -62,7 +62,7 @@ npm start                 # serveur sur le port 7777
 PORT=8123 node server.js
 node --check server.js    # pas de linter dans le projet
 npm run version-check     # refuse un deploiement sans bump
-npm run verif             # LA SUITE : 41 verificateurs de table, < 1 s
+npm run verif             # LA SUITE : 53 verificateurs, < 3 s
 npm run verif-tout        # + les campagnes simulees, ~20 min
 npm run constantes-check  # une constante de CFG sans lecteur
 ```
@@ -131,6 +131,8 @@ perf.js                echantillonnage CPU
 telemetry.js           trace JSONL d'une VRAIE partie — serveur SEUL, hub ecrivain
 version_check.js       refuse un deploiement sans bump
 verif.js               LA SUITE : le seul appelant des verificateurs
+verif_dom.js           LE FAUX DOM : il ne dessine rien, il CHARGE les modules du
+                       client — les onze verificateurs de rendu entrent par la
 rapport.js             le COMPTE RENDU d'une manche — reduction de la trace, jamais une seconde collecte
 constantes_check.js    une constante de configuration sans lecteur
 progress_store.js      persistance Supabase — serveur SEUL, memoire + replique
@@ -252,6 +254,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `drawShieldShell()` | l'état du bouclier à l'écran ; `spawnShieldOn` / `spawnShieldBreak` ses deux fronts |
 | `spawnBlast(x, y, r, ampleur, style)` | les couches chaudes d'un souffle, mises à l'échelle par la magnitude |
 | `_applyStatus()` / `_purgeStatus()` | pose et retrait d'état |
+| `lieuAt(x, y)` / `lieuxDe()` / `BIOME_COMPOSE` | LE LIEU D UN POINT. Une carte porte les CINQ lieux : `districtsDe` decoupe cinq regions d un seul tenant, `lieuxDe` y pose une BIJECTION de lieux, et tout ce qui etait par lieu devient par CELLULE. Ce qui peint la vue ENTIERE lit `biomeKey()` (celui de la camera) ; la LUMIERE reste une propriete de la CARTE, jamais du lieu — deux ombres qui divergent sur un ecran est LE defaut visible d un rendu 2D. Un index force encore un lieu unique, et c est ce qui garde `BIOME=`, les campagnes de mesure et tous les verificateurs par lieu |
 | `OBSTACLES[lieu][v]` / `grilleVariantes()` / `districtsDe()` | LES VARIANTES D UN LIEU : quatre lois d'implantation par thème, tirées **par QUARTIER** et non par cellule — quelques germes, une croissance, une variante chacun, puis la réparation d'arête. Le découpage sort de `buildBiome` et le semis le LIT (`quartierMonde`) : le bâti et ce qui traîne autour disent la même chose au même endroit. Chaque variante déclare l'état de ses **quatre bords** — l'assembleur ne pose que des voisines compatibles, et `bordsDe` suit le miroir. La variante **0 est la loi historique** et ne bouge pas. `signatureVariante` est bornée **des deux côtés** : plancher sur six axes (l'arrangement compte), plafond sur les quatre du lieu (sinon ce n'est plus le même lieu) |
 | `_beat()` / `_directorDecide()` | LE BATTEMENT, plie par la decision du Director. **Tout ce qui lit le script passe par `_beat()`** — un second accesseur « dirigé » laisserait une moitié du jeu lire le script brut. La décision se prend **au battement** (`_startBeat`), jamais dans `_beat()` qui est appelé plusieurs fois par image. `validerDecision` ne relit pas une liste d'interdits : elle **compare** le battement avant et après |
 | `_poserLootPour(p, rang, choix, x, y)` / `_loots(dt)` | LE LOOT AU SOL : la pose est **par joueur** et **au point de l'objectif**, donc toujours dans la vue de qui vient de le mériter ; le ramassage **ignore `pickupRadius`** — il faut passer dessus, et c'est tout le système. `pj` à zéro = « à qui le veut », ce qu'un loot **reposé** devient |

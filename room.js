@@ -1,6 +1,6 @@
 
 import {
-  GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL, BIOMES, enemyCap,
+  GameState, CFG, PLAYER_COLORS, DIFFICULTIES, DIFF_NORMAL, BIOMES, BIOME_COMPOSE, enemyCap,
 } from "./shared/game_state.js";
 import { CARD_CFG, cardBrief, banClosure } from "./shared/cards.js";
 import { VERSION } from "./shared/version.js";
@@ -13,6 +13,7 @@ import { prepareMessage } from "./ws_lite.js";
 import { PERF_ON, Sampler, nowMs, f1 } from "./perf.js";
 import { Rapport } from "./rapport.js";
 import { CUSTOM_INDEX, conditionAt, severite } from "./shared/custom.js";
+import { lieuxDe } from "./shared/biomes.js";
 
 /* LE BANC. Meme statut que `BIOME` et `GRAINE` : une surcharge d'environnement
    POUR LES TESTS, absente en jeu. Quatre protocoles de `LISEZMOI.md` sont restes
@@ -629,22 +630,21 @@ export class Room {
   drawBiome() {
     const force = process.env.BIOME;
     const i = force === undefined ? -1 : BIOMES.findIndex(b => b.key === force);
-    /* LE LIEU SE JOURNALISE, ET C EST UN RAPPORT DE BUG QUI L A DEMANDE : « le
-       nom ne change jamais ». Le tirage etait juste — mais rien, hors du HUD
-       d une manche en cours, ne permettait de le VERIFIER, et une variable
-       d environnement peut le figer sans que personne ne s en souvienne. */
-    if (i >= 0) this.biomeIndex = i;
-    else {
-      const avant = this.biomeIndex;
-      let n = Math.floor(Math.random() * BIOMES.length);
-      if (n === avant) n = (n + 1 + Math.floor(Math.random() * (BIOMES.length - 1)))
-        % BIOMES.length;
-      this.biomeIndex = n;
-    }
+    /* UNE CARTE COMPOSEE PAR DEFAUT, UN LIEU UNIQUE SI ON LE DEMANDE. La regle
+       « deux manches de suite ne montrent pas le meme lieu » n a plus d objet :
+       une carte porte les CINQ, et c est la graine qui les arrange autrement.
+       Le journal reste — c est un rapport de bug qui l a demande (« le nom ne
+       change jamais ») et une variable d environnement peut encore figer le
+       tirage sans que personne ne s en souvienne. */
+    this.biomeIndex = i >= 0 ? i : BIOME_COMPOSE;
     this.seed = Number(process.env.GRAINE) || Math.floor(Math.random() * 0x7fffffff);
-    this.hooks.log(`[${this.code}] lieu : ${BIOMES[this.biomeIndex].nom}`
-      + ` (graine ${this.seed})`
-      + (i >= 0 ? ` — IMPOSE par BIOME=${force}, il ne changera plus` : ""));
+    this.hooks.log(`[${this.code}] carte : `
+      + (i >= 0 ? `${BIOMES[i].nom} SEUL — impose par BIOME=${force}`
+                : lieuxDe(this.seed, Math.round(CFG.ARENA_W / CFG.VIEW_W),
+                          Math.round(CFG.ARENA_H / CFG.VIEW_H))
+                    .reduce((v, l) => v.includes(BIOMES[l].nom) ? v
+                      : v.concat(BIOMES[l].nom), []).join(" · "))
+      + ` (graine ${this.seed})`);
   }
 
   recordRound() {

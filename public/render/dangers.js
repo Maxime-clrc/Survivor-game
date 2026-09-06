@@ -1,7 +1,7 @@
 import { HZ_EMBER, HZ_GEYSER, HZ_POOL, HZ_SLIP, HZ_SLOW, hazardState } from "/shared/game_state.js";
 import { BIOMES, HAZARDS, hazardsDe } from "/shared/biomes.js";
 import { BIOME, PROP, WEATHER, alpha } from "/shared/palette.js";
-import { biomeKey, ctx, hazardsActifs, inView, skin } from "./stage.js";
+import { lieuKeyAt, skinAt, biomeKey, ctx, hazardsActifs, inView, skin } from "./stage.js";
 
 /* UN DANGER N'EST PAS UN CERCLE. Il l'etait : disque ambre, hachures, meme
    trace dans les quatre lieux — soit un element de debug pose sur la map, pas
@@ -116,20 +116,24 @@ const SOUFFLE = {
 
 const SOUFFLE_DEFAUT = { ang: -Math.PI / 2, v: 30, l: 15, n: 14, col: WEATHER.wind, a: 0.10, e: 3.2, r: 0.75 };
 
-export function souffleDe(kind) {
-  return (SOUFFLE[biomeKey()] ?? SOUFFLE.usine)[kind] ?? SOUFFLE_DEFAUT;
+// LE SOUFFLE SUIT SON DANGER, donc sa POSITION : c est le lieu qui decide si la
+// flaque fume chaud ou derive lourd, et sur une carte composee il change avec la
+// region, pas avec la camera.
+export function souffleDe(kind, x = null, y = null) {
+  const cle = x === null ? biomeKey() : lieuKeyAt(x, y);
+  return (SOUFFLE[cle] ?? SOUFFLE.usine)[kind] ?? SOUFFLE_DEFAUT;
 }
 
 export function drawHazards(tm) {
   const list = hazardsActifs();
   if (!list.length) return;
-  const table = DANGER[biomeKey()] ?? DANGER.usine;
-  const S = skin();
 
   for (const h of list) {
     const st = hazardState(h, tm);
     const porte = h.kind === HZ_EMBER ? h.span + h.r : h.r;
     if (!inView(h.x, h.y, porte + 40)) continue;
+    const table = DANGER[lieuKeyAt(h.x, h.y)] ?? DANGER.usine;
+    const S = skinAt(h.x, h.y);
     const f = table[h.kind] ?? defaut;
     f(h, st, tm, S);
   }

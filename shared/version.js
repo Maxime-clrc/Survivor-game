@@ -9573,6 +9573,70 @@
                   position du contrat voyage deja (`ct[5]`, `ct[6]`) et le client
                   rejoue la meme regle au meme rayon. Elle se dessine avec le SOL,
                   sous les obstacles.
+    0.41.0 lot 1  UNE CARTE PORTE LES CINQ LIEUX, ET LE DECOUPAGE EXISTAIT DEJA.
+                  « Ce n est pas un biome une partie, c est une grande map
+                  composee de plusieurs biomes colles avec une transition. »
+                  `districtsDe` rendait deja 3 a 6 quartiers d UN SEUL TENANT sur
+                  les 81 cellules — cinq en pratique, de seize cellules, soit
+                  quatre ecrans de cote. C est exactement la taille d une REGION.
+                  On y pose un LIEU au lieu d une variante, et tout ce qui etait
+                  par lieu devient par CELLULE.
+                  UNE BIJECTION, PAS UN TIRAGE. Cinq quartiers, cinq lieux, chacun
+                  une fois. Le premier jet ne bornait que l adjacence et un modulo
+                  rendait deux regions eloignees au meme lieu : sur trois graines,
+                  deux cartes ne montraient que TROIS lieux sur cinq.
+                  DEUX DECOUPAGES SUPERPOSES, et c est ce qui evite seize ecrans
+                  identiques : le premier porte le lieu, le second la loi
+                  d implantation.
+                  `BIOME_COMPOSE` (-1) VOYAGE COMME UN INDEX DE LIEU. Le salon
+                  envoie deja `biome` et les deux cotes rejouent `buildBiome` sur
+                  la meme graine : AUCUN champ reseau, une valeur de plus dans
+                  celui qui existe. Un index force encore un lieu unique, et c est
+                  ce qui garde `BIOME=`, les campagnes de mesure et TOUS les
+                  verificateurs par lieu — ils tournent toujours sur des cartes
+                  d un seul lieu, donc leurs mesures restent comparables.
+                  LE SEUIL NE FERME RIEN, et c est la contrainte posee : pas de
+                  mur, pas de goulot — un goulot detruit le kiting. Deux lieux
+                  bord a bord font une COUTURE ; on la DECLARE au lieu de la
+                  cacher. Une plaque de 150 px, a plat, sans collider, avec un
+                  bord franc de chaque cote : la droite cesse d etre un accident
+                  et devient une piece. Vocabulaire technique — le metal, seule
+                  matiere que les cinq lieux partagent — jamais la teinte de l un
+                  des deux, qui dirait que ce lieu deborde.
+                  CE QUI RESTE GLOBAL, ET POURQUOI : la LUMIERE d abord. Deux
+                  ombres qui pointent differemment sur le meme ecran est le defaut
+                  le plus visible d un rendu 2D, et une direction par region ferait
+                  exactement ca A CHAQUE FRONTIERE — elle devient une propriete de
+                  la CARTE. Meme raison pour la grille, le vignettage, l
+                  arriere-plan et l ambiance : ils peignent la vue entiere.
+                  LE SOL SE PEINT PAR CELLULE. Une cellule fait exactement une vue,
+                  donc la camera en touche quatre au pire. Le motif reste ancre a
+                  l ORIGINE DU MONDE : deux cellules du meme lieu se raccordent au
+                  pixel. Le cache de tuiles passe d une entree PAR FAMILLE a une
+                  par LIEU — sinon une vue a quatre lieux recuisait une toile par
+                  cellule et par image.
+                  DEUX DEFAUTS PREEXISTANTS SORTIS PAR LE NOUVEAU VERIFICATEUR.
+                  Le tremblement de la Friche posait un bloc sur son propre danger :
+                  41 arenes sur 200, carte d un seul lieu, ARENE REELLE. Invisible
+                  a `verifierBiomes`, qui tourne sur 1600 x 900 — une cellule, un
+                  seul jeu de miroirs. Et `coeurTraversable` testait les 750
+                  obstacles de l arene pour chacun des 5 000 points d une cellule,
+                  81 fois : 315 millions de comparaisons, 15 s la ou la
+                  construction en met 25. Le filtre par cellule est EXACT et rend
+                  0,6 s.
+                  ONZE VERIFICATEURS DE RENDU ETAIENT ECRITS ET APPELES PAR
+                  PERSONNE. `verifierZones`, `verifierTraces`, `verifierSemis`,
+                  `verifierBlocs`, `verifierLed`, `verifierDangers`,
+                  `verifierAmers`, `verifierBaies`, `verifierMatiere`,
+                  `verifierFonds` — tous dans `public/render/*`, donc derriere le
+                  DOM, et `verif.js` y renoncait pour cette seule raison. C est le
+                  defaut que `verif.js` existe pour fermer, sous une autre forme :
+                  l ABSENCE d appel. `verif_dom.js` est un canvas de PAPIER : il ne
+                  dessine rien, il CHARGE — et le chargement lui-meme est un
+                  critere, puisqu une table qui reference un identifiant absent ne
+                  se leve qu a l evaluation et que `node --check` ne la voit pas.
+                  Verifie en injectant la faute : `modulesRendu` la remonte.
+                  41 -> 53 verificateurs, 2 s. Les 31 modules du client chargent.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9582,4 +9646,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.40.18";
+export const VERSION = "0.41.0";

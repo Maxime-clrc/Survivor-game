@@ -885,7 +885,69 @@ export function verifierDistricts(graines = 60, cols = 9, rows = 9) {
   return soucis;
 }
 
-export function grilleVariantes(lieu, seed, cols, rows) {
+/* UNE CARTE FAITE DE PLUSIEURS LIEUX, ET LE DECOUPAGE EXISTAIT DEJA.
+
+   `districtsDe` rend 3 a 6 quartiers d UN SEUL TENANT sur les 81 cellules d une
+   arene — cinq en pratique, de seize cellules, soit quatre ecrans de cote. C est
+   exactement la taille d une REGION : assez grande pour qu on la traverse, assez
+   petite pour qu on en rencontre plusieurs. On y pose donc un LIEU au lieu d une
+   variante, et tout ce qui etait par lieu devient par CELLULE.
+
+   UNE PERMUTATION, PAS UN TIRAGE. Cinq quartiers, cinq lieux : chacun apparait
+   une fois et deux voisins different toujours. Au-dela de cinq quartiers la
+   reparation reprend l idiome de `grilleVariantes` — on evite ce que les voisins
+   DEJA POSES portent, et on retombe sur le pool complet si tout est pris.
+
+   `BIOME_COMPOSE` VOYAGE COMME UN INDEX DE LIEU. Le salon envoie deja `biome`, et
+   les deux cotes rejouent `buildBiome` sur la meme graine : une carte composee ne
+   demande donc AUCUN champ reseau, seulement une valeur de plus dans celui qui
+   existe. */
+export const BIOME_COMPOSE = -1;
+
+export function lieuxDe(seed, cols, rows) {
+  const q = districtsDe(seed, cols, rows);
+  const nq = q.reduce((m, x) => Math.max(m, x), 0) + 1;
+  const rand = rng(seed ^ 0x2f1b3c7d);
+  const ordre = BIOMES.map((_, i) => i);
+  for (let i = ordre.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const t = ordre[i]; ordre[i] = ordre[j]; ordre[j] = t;
+  }
+  const par = new Array(nq).fill(-1);
+  const pris = new Set();
+  for (let d = 0; d < nq; d++) {
+    const voisins = new Set();
+    for (let cy = 0; cy < rows; cy++) {
+      for (let cx = 0; cx < cols; cx++) {
+        if (q[cy * cols + cx] !== d) continue;
+        if (cx > 0) voisins.add(par[q[cy * cols + cx - 1]]);
+        if (cy > 0) voisins.add(par[q[(cy - 1) * cols + cx]]);
+      }
+    }
+    /* DISTINCT PARTOUT, PAS SEULEMENT ENTRE VOISINS. Le premier jet ne bornait
+       que l adjacence, et un modulo rendait deux regions eloignees au meme lieu :
+       sur trois graines, deux cartes ne montraient que trois lieux sur cinq. Cinq
+       quartiers et cinq lieux se rangent en BIJECTION — c est la promesse d une
+       carte composee, et elle ne tient que si personne ne se repete. */
+    const libres = ordre.filter(i => !voisins.has(i));
+    const neufs = libres.filter(i => !pris.has(i));
+    par[d] = neufs[0] ?? libres[0] ?? ordre[d % ordre.length];
+    pris.add(par[d]);
+  }
+  return q.map(d => par[d]);
+}
+
+/* LE PAVAGE LIT LE LIEU DE CHAQUE CELLULE. En carte d un seul lieu, `lieux` est
+   nul et tout ce qui suit est le code d avant, au tirage pres — c est ce qui garde
+   les mesures des plans precedents valides.
+   EN CARTE COMPOSEE, LA VARIANTE PREND UN SECOND DECOUPAGE : le premier porte le
+   LIEU, et une region de seize cellules qui ne poserait qu une loi d implantation
+   serait seize fois le meme ecran. Deux partitions superposees de cinq germes
+   rendent une quinzaine d intersections, ce qui est la taille de quartier que le
+   plan 40 a mesuree comme juste. */
+export function grilleVariantes(lieu, seed, cols, rows, lieux = null) {
+  const cleDe = lieux ? (i) => BIOMES[lieux[i]].key : () => lieu;
+  const vsDe = (i) => OBSTACLES[cleDe(i)] ?? [];
   const vs = OBSTACLES[lieu] ?? [];
   const choix = new Array(rows * cols).fill(0);
   if (vs.length < 2) return choix;
@@ -893,7 +955,7 @@ export function grilleVariantes(lieu, seed, cols, rows) {
 
   /* UNE VARIANTE PAR QUARTIER, ET DEUX QUARTIERS VOISINS N EN PARTAGENT PAS :
      sans cette garde le decoupage existe et ne se voit pas. */
-  const quartiers = districtsDe(seed, cols, rows);
+  const quartiers = districtsDe(lieux ? (seed ^ 0x51ed270b) : seed, cols, rows);
   const nq = quartiers.reduce((m, q) => Math.max(m, q), 0) + 1;
   const parQuartier = new Array(nq).fill(-1);
   for (let q = 0; q < nq; q++) {
@@ -914,14 +976,17 @@ export function grilleVariantes(lieu, seed, cols, rows) {
     for (let cx = 0; cx < cols; cx++) {
       const g = cx > 0 ? choix[cy * cols + cx - 1] : -1;
       const h = cy > 0 ? choix[(cy - 1) * cols + cx] : -1;
-      const gb = g >= 0
-        ? bordsDe(vs[g], (cx - 1 + cy) & 1, ((cx - 1) * 2 + cy) & 1) : null;
-      const hb = h >= 0
-        ? bordsDe(vs[h], (cx + cy - 1) & 1, (cx * 2 + cy - 1) & 1) : null;
+      const vg = cx > 0 ? vsDe(cy * cols + cx - 1) : null;
+      const vh = cy > 0 ? vsDe((cy - 1) * cols + cx) : null;
+      const gb = g >= 0 && vg?.[g]
+        ? bordsDe(vg[g], (cx - 1 + cy) & 1, ((cx - 1) * 2 + cy) & 1) : null;
+      const hb = h >= 0 && vh?.[h]
+        ? bordsDe(vh[h], (cx + cy - 1) & 1, (cx * 2 + cy - 1) & 1) : null;
       const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
+      const vc = vsDe(cy * cols + cx);
       const ok = [];
-      for (let i = 0; i < vs.length; i++) {
-        const b = bordsDe(vs[i], mx, my);
+      for (let i = 0; i < vc.length; i++) {
+        const b = bordsDe(vc[i], mx, my);
         if (gb && !bordsAccordes(gb[1], b[3])) continue;
         if (hb && !bordsAccordes(hb[2], b[0])) continue;
         ok.push(i);
@@ -929,17 +994,34 @@ export function grilleVariantes(lieu, seed, cols, rows) {
       // LE QUARTIER PASSE EN PREMIER, LA COMPATIBILITE A RAISON EN DERNIER.
       const voulu = parQuartier[quartiers[cy * cols + cx]];
       if (ok.includes(voulu)) { choix[cy * cols + cx] = voulu; continue; }
-      const pool = ok.length > 0 ? ok : vs.map((_, i) => i);
+      const pool = ok.length > 0 ? ok : vc.map((_, i) => i);
       choix[cy * cols + cx] = pool[Math.floor(rand() * pool.length)];
     }
   }
   return choix;
 }
 
+/* Est-ce que le decalage de cette cellule met un de ses blocs sur un danger ?
+   On teste la POSE ENTIERE et non un bloc : le tremblement est par cellule, donc
+   il se garde ou se jette en entier. */
+function cellePosePerturbe(pose, cx, cy, cw, ch, mx, my, jx, jy, diffIndex, hazards) {
+  for (const o of pose) {
+    if ((o.min ?? 0) > diffIndex) continue;
+    const w = o.w * cw, h = o.h * ch;
+    const fx = mx ? 1 - o.x : o.x, fy = my ? 1 - o.y : o.y;
+    const x = cx * cw + fx * cw + jx, y = cy * ch + fy * ch + jy;
+    for (const z of hazards) {
+      const px = Math.max(x - w / 2, Math.min(z.x, x + w / 2));
+      const py = Math.max(y - h / 2, Math.min(z.y, y + h / 2));
+      if ((z.x - px) ** 2 + (z.y - py) ** 2 < z.r * z.r) return true;
+    }
+  }
+  return false;
+}
+
 export function buildBiome(biomeIndex, diffIndex, seed = 1,
                            arenaW = 1600, arenaH = 900,
                            viewW = 1600, viewH = 900) {
-  const def = biomeAt(biomeIndex);
   const rand = rng(seed);
   const surface = arenaW * arenaH;
 
@@ -947,60 +1029,31 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   const rows = Math.max(1, Math.round(arenaH / viewH));
   const cw = arenaW / cols, ch = arenaH / rows;
 
-  const varis = OBSTACLES[def.key] ?? [];
-  const choix = grilleVariantes(def.key, seed, cols, rows);
+  /* UNE CARTE COMPOSEE, OU UNE CARTE D UN SEUL LIEU. `lieux` est nul dans le
+     second cas et tout ce qui suit est le code d avant — c est ce qui garde
+     `BIOME=fonderie`, les mesures et les verificateurs par lieu.
+     `def` reste le lieu du CENTRE : il porte le nom de la carte et sert de repli
+     a ce qui demande encore un scalaire. */
+  const lieux = biomeIndex === BIOME_COMPOSE ? lieuxDe(seed, cols, rows) : null;
+  const centre = ((rows >> 1) * cols) + (cols >> 1);
+  const def = biomeAt(lieux ? lieux[centre] : biomeIndex);
+  const cleDe = lieux ? (k) => BIOMES[lieux[k]].key : () => def.key;
+
+  const choix = grilleVariantes(def.key, seed, cols, rows, lieux);
   const grilleDistricts = districtsDe(seed, cols, rows);
 
-  const obstacles = [];
-  const kDefaut = blocsDe(def.key)[0] ?? 0;
-  let obsArea = 0;
-  /* LE TREMBLEMENT DE LA FRICHE EST PAR CELLULE, PAS PAR OBSTACLE. Tire par
-     objet, il rapprochait deux voisins de 80 px au pire — plus que l ecart de la
-     plupart des paires d un champ de ruines, qui est dense par definition. Sur
-     40 graines x 3 modes il produisait 19 318 paires de blocs qui se traversent,
-     dont 176 x 36 px : le seul lieu du depot ou deux habillages se dessinaient
-     l un dans l autre en permanence.
-     Par CELLULE, l ecart entre deux blocs d une meme variante ne bouge plus
-     JAMAIS — la table redevient le seul endroit ou une superposition peut
-     naitre, donc le seul a verifier. Ce qu on perd est le desordre a l interieur
-     d une cellule ; ce qu on garde est la desynchronisation entre cellules, qui
-     est ce qui casse la grille de 1600 x 900, la seule qui se voie. */
-  for (let cy = 0; cy < rows; cy++) {
-    for (let cx = 0; cx < cols; cx++) {
-      const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
-      const j = def.key === "friche" ? 40 : 0;
-      const jx = (rand() - 0.5) * 2 * j, jy = (rand() - 0.5) * 2 * j;
-      for (const o of varis[choix[cy * cols + cx]].poser) {
-        if ((o.min ?? 0) > diffIndex) continue;
-        const w = o.w * cw, h = o.h * ch;
-        const area = w * h;
-        if ((obsArea + area) / surface > BIOME_CFG.OBSTACLE_SURFACE_MAX) continue;
-        obsArea += area;
-        const fx = mx ? 1 - o.x : o.x, fy = my ? 1 - o.y : o.y;
-        obstacles.push({
-          x: cx * cw + fx * cw + jx,
-          y: cy * ch + fy * ch + jy,
-          w, h,
-          kind: o.kind ?? kDefaut,
-          maxHp: o.hp ? BIOME_CFG.COVER_HP : 0,
-          hp: o.hp ? BIOME_CFG.COVER_HP : 0,
-        });
-      }
-    }
-  }
-
-  let table = [];
-  if (diffIndex === 1) table = HZ_NORMAL[def.key] ?? [];
-  else if (diffIndex >= 2) table = HZ_CAUCHEMAR[def.key] ?? [];
+  const tableDe = (cle) => diffIndex === 1 ? (HZ_NORMAL[cle] ?? [])
+    : diffIndex >= 2 ? (HZ_CAUCHEMAR[cle] ?? []) : [];
 
   const hazards = [];
-  const ech = ECHELLE[def.key] ?? null;
   let hzArea = 0;
   let hzJetes = 0;
   for (let cy = 0; cy < rows; cy++) {
     for (let cx = 0; cx < cols; cx++) {
       const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
-      for (const h of table) {
+      const cle = cleDe(cy * cols + cx);
+      const ech = ECHELLE[cle] ?? null;
+      for (const h of tableDe(cle)) {
         const d = hazardAt(h.kind);
         if (!d) continue;
         const r = Math.round(h.r ?? d.r * (ech?.[h.kind] ?? 1));
@@ -1022,8 +1075,63 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
     }
   }
 
+  const obstacles = [];
+  let obsArea = 0;
+  /* LE TREMBLEMENT DE LA FRICHE EST PAR CELLULE, PAS PAR OBSTACLE. Tire par
+     objet, il rapprochait deux voisins de 80 px au pire — plus que l ecart de la
+     plupart des paires d un champ de ruines, qui est dense par definition. Sur
+     40 graines x 3 modes il produisait 19 318 paires de blocs qui se traversent,
+     dont 176 x 36 px : le seul lieu du depot ou deux habillages se dessinaient
+     l un dans l autre en permanence.
+     Par CELLULE, l ecart entre deux blocs d une meme variante ne bouge plus
+     JAMAIS — la table redevient le seul endroit ou une superposition peut
+     naitre, donc le seul a verifier. Ce qu on perd est le desordre a l interieur
+     d une cellule ; ce qu on garde est la desynchronisation entre cellules, qui
+     est ce qui casse la grille de 1600 x 900, la seule qui se voie. */
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      const mx = (cx + cy) & 1, my = (cx * 2 + cy) & 1;
+      const cle = cleDe(cy * cols + cx);
+      const varis = OBSTACLES[cle] ?? [];
+      const kDefaut = blocsDe(cle)[0] ?? 0;
+      const j = cle === "friche" ? 40 : 0;
+      let jx = (rand() - 0.5) * 2 * j, jy = (rand() - 0.5) * 2 * j;
+      const pose = (varis[choix[cy * cols + cx]] ?? varis[0]).poser;
+      /* UN TREMBLEMENT NE POSE PAS UN BLOC SUR UN DANGER. Mesure sur la Friche,
+         carte d un seul lieu et arene REELLE : 41 arenes sur 200 avaient un
+         danger sous un obstacle. `verifierBiomes` ne pouvait pas le voir — il
+         tourne sur 1600 x 900, donc UNE cellule et un seul jeu de miroirs, et le
+         defaut naissait du decalage. Le repli est la position de table, qui est
+         justement celle que ce verificateur-la valide. */
+      if (j > 0 && cellePosePerturbe(pose, cx, cy, cw, ch, mx, my, jx, jy,
+                                     diffIndex, hazards)) { jx = 0; jy = 0; }
+      for (const o of pose) {
+        if ((o.min ?? 0) > diffIndex) continue;
+        const w = o.w * cw, h = o.h * ch;
+        const area = w * h;
+        if ((obsArea + area) / surface > BIOME_CFG.OBSTACLE_SURFACE_MAX) continue;
+        obsArea += area;
+        const fx = mx ? 1 - o.x : o.x, fy = my ? 1 - o.y : o.y;
+        obstacles.push({
+          x: cx * cw + fx * cw + jx,
+          y: cy * ch + fy * ch + jy,
+          w, h,
+          kind: o.kind ?? kDefaut,
+          maxHp: o.hp ? BIOME_CFG.COVER_HP : 0,
+          hp: o.hp ? BIOME_CFG.COVER_HP : 0,
+        });
+      }
+    }
+  }
+
+
   return {
     index: biomeIndex, key: def.key, nom: def.nom,
+    /* LE CHAMP DE LIEUX SORT AVEC LA CARTE, comme le decoupage : `buildBiome` est
+       deterministe et les deux cotes le rejouent sur la meme graine, donc rien de
+       tout ceci ne circule. `null` dit « carte d un seul lieu », et c est ce que
+       lisent `lieuIndexAt` et le rendu pour retomber sur `index`. */
+    lieux, cols, rows, cw, ch,
     obstacles, hazards,
     /* LE DECOUPAGE SORT AVEC LE LIEU, ET C EST TOUT L INTERET. Le semis avait sa
        PROPRE notion de quartier — un hachage de la cellule divisee, sur une
@@ -1503,6 +1611,83 @@ export function verifierSuperpositions(seeds = [1, 7, 99], arenaW = 1600, arenaH
   return soucis;
 }
 
+/* LE LIEU D UN POINT DU MONDE. Repli sur `index` quand la carte n a qu un lieu :
+   c est ce qui laisse `BIOME=fonderie`, les mesures et tous les verificateurs par
+   lieu marcher sans savoir que la composition existe. */
+export function lieuIndexAt(b, x, y) {
+  if (!b?.lieux) return b?.index ?? 0;
+  const cx = Math.min(b.cols - 1, Math.max(0, Math.floor(x / b.cw)));
+  const cy = Math.min(b.rows - 1, Math.max(0, Math.floor(y / b.ch)));
+  return b.lieux[cy * b.cols + cx];
+}
+
+/* CRITERE REJOUABLE DE LA CARTE COMPOSEE. Il ne remplace aucun des verificateurs
+   par lieu — ils continuent de tourner sur des cartes d un seul lieu, et c est ce
+   qui garde leurs mesures comparables. Il pose les trois questions que seule une
+   carte composee peut rater : les lieux sont-ils tous la, sont-ils d un seul
+   tenant, et le pavage tient-il aux FRONTIERES, la ou deux tables de variantes
+   qui ne se sont jamais rencontrees se touchent. */
+export function verifierCarte(seeds = [1, 7, 99], arenaW = 1600, arenaH = 900,
+                              viewW = 1600, viewH = 900) {
+  const soucis = [];
+  const cols = Math.max(1, Math.round(arenaW / viewW));
+  const rows = Math.max(1, Math.round(arenaH / viewH));
+  const cw = arenaW / cols, ch = arenaH / rows;
+  const attendus = Math.min(BIOMES.length,
+    new Set(districtsDe(seeds[0], cols, rows)).size);
+
+  for (const seed of seeds) {
+    const lieux = lieuxDe(seed, cols, rows);
+    const vus = new Set(lieux);
+    if (vus.size < attendus) {
+      soucis.push(`graine ${seed} : ${vus.size} lieu(x) pour ${attendus} quartiers`
+        + " — deux regions portent le meme lieu");
+    }
+    // UN LIEU D UN SEUL TENANT : deux morceaux du meme lieu sont deux endroits
+    // qui se ressemblent sans se toucher, et le joueur croit revenir sur ses pas.
+    const vu = new Array(cols * rows).fill(false);
+    const morceaux = new Map();
+    for (let i = 0; i < lieux.length; i++) {
+      if (vu[i]) continue;
+      morceaux.set(lieux[i], (morceaux.get(lieux[i]) ?? 0) + 1);
+      const file = [i]; vu[i] = true;
+      while (file.length) {
+        const c = file.pop();
+        const cx = c % cols, cy = (c / cols) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+          const j = ny * cols + nx;
+          if (!vu[j] && lieux[j] === lieux[i]) { vu[j] = true; file.push(j); }
+        }
+      }
+    }
+    for (const [l, n] of morceaux) {
+      if (n > 1) soucis.push(`graine ${seed} : ${BIOMES[l].key} en ${n} morceaux`);
+    }
+
+    for (let di = 0; di < 3; di++) {
+      const b = buildBiome(BIOME_COMPOSE, di, seed, arenaW, arenaH, viewW, viewH);
+      const ou = `carte/${["calme", "normal", "cauchemar"][di]}/${seed}`;
+      const r = compteSuperpositions(b, cols, rows, cw, ch);
+      if (r.n > 0) {
+        soucis.push(`${ou} : ${r.n} paire(s) de blocs qui se traversent`
+          + ` — pire ${r.pire.a}/${r.pire.b} a ${Math.round(r.pire.ox)} x`
+          + ` ${Math.round(r.pire.oy)} px`);
+      }
+      const poses = comptePosesSurObstacle(b);
+      if (poses > 0) soucis.push(`${ou} : ${poses} danger(s) poses sur un obstacle`);
+      if (!coeurTraversable(b, arenaW, arenaH, viewW, viewH)) {
+        soucis.push(`${ou} : le carre central minimal n est pas traversable`);
+      }
+      if (b.hazardJetes > 0) {
+        soucis.push(`${ou} : ${b.hazardJetes} danger(s) evince(s) par le budget`);
+      }
+    }
+  }
+  return soucis;
+}
+
 function comptePosesSurObstacle(b) {
   let n = 0;
   for (const h of b.hazards) {
@@ -1515,19 +1700,33 @@ function comptePosesSurObstacle(b) {
   return n;
 }
 
+/* LE BALAYAGE NE REGARDE QUE LES BOITES DE SA CELLULE. Il testait les 750
+   obstacles de l arene pour chacun des 5 000 points d une cellule, quatre-vingt-
+   une fois : 315 millions de comparaisons par arene, et le verificateur de carte
+   composee mettait 15 s la ou la construction en met 25 ms. Sur une arene d une
+   seule cellule — la taille a laquelle `verifierBiomes` tournait — le cout ne se
+   voyait pas. Le filtre est exact : une boite hors de la cellule elargie de sa
+   demi-taille et de la garde ne peut pas toucher un point du coeur. */
 function coeurTraversable(b, arenaW, arenaH, viewW, viewH) {
   const cols = Math.max(1, Math.round(arenaW / viewW));
   const rows = Math.max(1, Math.round(arenaH / viewH));
+  const vw = arenaW / cols, vh = arenaH / rows;
+  const c = BIOME_CFG.CORE_CLEARANCE;
+  const durs = b.obstacles.filter(o => o.maxHp === 0);
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
-      if (!celluleTraversable(b, arenaW / cols, arenaH / rows,
-                              (i * arenaW) / cols, (j * arenaH) / rows)) return false;
+      const ox = i * vw, oy = j * vh;
+      const mx = ox + vw / 2, my = oy + vh / 2;
+      const proches = durs.filter(o =>
+        Math.abs(o.x - mx) < vw / 2 + o.w / 2 + c
+        && Math.abs(o.y - my) < vh / 2 + o.h / 2 + c);
+      if (!celluleTraversable(proches, vw, vh, ox, oy)) return false;
     }
   }
   return true;
 }
 
-function celluleTraversable(b, vw, vh, ox, oy) {
+function celluleTraversable(durs, vw, vh, ox, oy) {
   const cw = vw * BIOME_CFG.CORE_RATIO, ch = vh * BIOME_CFG.CORE_RATIO;
   const x0 = ox + (vw - cw) / 2, y0 = oy + (vh - ch) / 2;
   const step = 10;
@@ -1536,8 +1735,7 @@ function celluleTraversable(b, vw, vh, ox, oy) {
 
   const libre = (ix, iy) => {
     const x = x0 + ix * step, y = y0 + iy * step;
-    for (const o of b.obstacles) {
-      if (o.maxHp > 0) continue;
+    for (const o of durs) {
       if (Math.abs(x - o.x) < o.w / 2 + c && Math.abs(y - o.y) < o.h / 2 + c) return false;
     }
     return true;

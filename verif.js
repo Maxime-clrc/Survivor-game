@@ -35,18 +35,11 @@
    un de plus.
    =========================================================================== */
 
-/* LE CLIENT IMPORTE PAR CHEMIN ABSOLU (`/shared/palette.js`), parce que c est
-   `resolvePath()` du serveur qui le sert. Node ne connait pas cette racine : on
-   la lui donne une fois, au lieu de recopier une table de silhouettes ici. */
-import { registerHooks } from "node:module";
-registerHooks({
-  resolve(spec, ctx, suivant) {
-    if (!spec.startsWith("/")) return suivant(spec, ctx);
-    const rel = spec.slice(1);
-    return { url: new URL(rel.startsWith("shared/") ? rel : "public/" + rel,
-                          import.meta.url).href, shortCircuit: true };
-  },
-});
+/* LE FAUX DOM ET LA RACINE DU CLIENT VIENNENT D UN SEUL ENDROIT. Ce fichier en
+   tenait sa propre moitie — un `AudioContext`, un `document` a un seul appel — et
+   renoncait aux neuf verificateurs de rendu faute du reste. `verif_dom.js` porte
+   les deux, donc ils entrent. */
+import "./verif_dom.js";
 
 import { CFG, GameState, DIFF_NORMAL } from "./shared/game_state.js";
 import * as G from "./shared/game_state.js";
@@ -68,17 +61,20 @@ import * as TL from "./shared/timeline.js";
 import { constantesMortes } from "./constantes_check.js";
 import { verifierRapport } from "./rapport.js";
 
-/* `audio.js` NE DEPEND DE RIEN — sauf d'un `AudioContext`, qu'un script de mesure
-   doit lui fournir. C'est la seule facon d'atteindre `recettes()`, et sans elle
-   `verifierFeedback` ne croise plus rien : il compare des noms de son CALCULES a
-   ceux qui existent, donc une liste vide le rend muet au lieu de bavard. */
-globalThis.AudioContext ??= class {
-  createGain() { return { connect() {}, gain: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {} } }; }
-};
-globalThis.window ??= globalThis;
-globalThis.document ??= { createElement: () => ({ getContext: () => ({}) }) };
 const { recettes } = await import("./public/audio.js");
 const S = await import("./public/sprites.js");
+/* LES MODULES DE RENDU, POUR DE VRAI. Les charger EST le premier critere : une
+   table qui reference un identifiant absent ne se leve qu a l evaluation, et
+   c est le seul defaut de ce depot que `node --check` laisse passer entier. */
+const RENDU = ["stage", "material", "props", "blocs", "dangers", "decor",
+               "lumiere", "fx", "actors", "boss", "world"];
+const rendu = {};
+const SANS_MODULE = ["le module de rendu n a pas charge — voir « modulesRendu »"];
+const renduEchecs = [];
+for (const m of RENDU) {
+  try { rendu[m] = await import(`./public/render/${m}.js`); }
+  catch (e) { renduEchecs.push(`render/${m}.js — ${e.message}`); }
+}
 
 /* Trois verificateurs de `bosses.js` rendent `{ ok, err }` et non un tableau : ils
    servaient aussi a INSPECTER (les formes, les paires compatibles). On lit `err`
@@ -158,6 +154,14 @@ const SUITE = [
      tremblement de la Friche et le voisinage entre cellules ne se lisent pas
      dans la table. Une superposition de blocs ne leve rien — elle se voit, sur
      une capture d ecran, et c est comme ca qu elle est remontee. */
+  /* LA CARTE COMPOSEE A SES PROPRES RATES : un lieu manquant, un lieu en deux
+     morceaux, et surtout le pavage AUX FRONTIERES, la ou deux tables de variantes
+     qui ne se sont jamais rencontrees se touchent. Les verificateurs par lieu
+     restent sur des cartes d un seul lieu — c est ce qui garde leurs mesures
+     comparables. */
+  ["carte", () => B2.verifierCarte(
+    Array.from({ length: 12 }, (_, i) => i * 29 + 1),
+    CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H)],
   ["superpositions", () => B2.verifierSuperpositions(
     Array.from({ length: 50 }, (_, i) => i * 7 + 1),
     CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H)],
@@ -203,6 +207,20 @@ const SUITE = [
   ["director", () => G.verifierDirector(), true],
   ["lootSol", () => G.verifierLootSol()],
   ["silhouettes", () => S.verifierSilhouettes()],
+  /* UN MODULE QUI N A PAS CHARGE NE REND PAS "vert". Le repli des onze lignes
+     suivantes est une PHRASE, pas un tableau vide : sans ca, une faute qui empeche
+     le module de s evaluer eteignait ses propres verificateurs. */
+  ["modulesRendu", () => renduEchecs],
+  ["zones", () => rendu.props?.verifierZones() ?? SANS_MODULE],
+  ["traces", () => rendu.props?.verifierTraces() ?? SANS_MODULE],
+  ["semis", () => rendu.props?.verifierSemis() ?? SANS_MODULE],
+  ["blocsRendu", () => rendu.blocs?.verifierBlocs() ?? SANS_MODULE],
+  ["led", () => rendu.blocs?.verifierLed() ?? SANS_MODULE],
+  ["dangersRendu", () => rendu.dangers?.verifierDangers() ?? SANS_MODULE],
+  ["amers", () => rendu.decor?.verifierAmers() ?? SANS_MODULE],
+  ["baies", () => rendu.decor?.verifierBaies() ?? SANS_MODULE],
+  ["matiere", () => rendu.material?.verifierMatiere() ?? SANS_MODULE],
+  ["fonds", () => rendu.material?.verifierFonds() ?? SANS_MODULE],
   ["prereglages", () => G.verifierPrereglages(), true],
   ["tirageBonus", () => G.verifierTirageBonus(), true],
   ["rythmeBonus", () => G.verifierRythmeBonus(), true],

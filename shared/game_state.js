@@ -67,7 +67,7 @@ import {
 } from "./enemies.js";
 import {
   BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
-  biomeAt, hazardAt, weatherAt, verifierBiomes, mulberry32,
+  biomeAt, hazardAt, weatherAt, verifierBiomes, mulberry32, BIOME_COMPOSE, lieuIndexAt,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
 } from "./biomes.js";
@@ -93,7 +93,7 @@ export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
 export { EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE };
 export {
   BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
-  biomeAt, hazardAt, weatherAt, verifierBiomes,
+  biomeAt, hazardAt, weatherAt, verifierBiomes, BIOME_COMPOSE, lieuIndexAt,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
 };
@@ -1168,9 +1168,15 @@ export class GameState {
        le sur mesure HERITE, jamais 3 : ces tables n'ont pas de quatrieme entree,
        et l'absence y est silencieuse. */
     this.diffTerrain = this.diffIndex === CUSTOM_INDEX ? DIFF_NORMAL : this.diffIndex;
+    /* TROIS VALEURS, ET LA TROISIEME EST LA CARTE COMPOSEE. `null` tire un lieu
+       unique — le comportement des scripts de mesure ; `BIOME_COMPOSE` compose
+       cinq regions ; un index force un lieu, ce que fait `BIOME=` et ce dont
+       vivent tous les verificateurs par lieu. */
     this.biomeIndex = biomeIndex === null
       ? Math.floor(this.alea() * BIOMES.length)
-      : Math.min(Math.max(biomeIndex | 0, 0), BIOMES.length - 1);
+      : biomeIndex === BIOME_COMPOSE
+        ? BIOME_COMPOSE
+        : Math.min(Math.max(biomeIndex | 0, 0), BIOMES.length - 1);
     this.biome = buildBiome(this.biomeIndex, this.diffTerrain, this.seed,
       CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H);
     this._biomeObstacles = this.biome.obstacles;

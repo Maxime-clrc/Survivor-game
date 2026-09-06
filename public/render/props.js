@@ -1,7 +1,7 @@
 import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
-import { biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
+import { lieuKeyAt, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
 import { biomeAt, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
@@ -355,9 +355,12 @@ function sonder(x, y, quartiers) {
   return best;
 }
 
+/* LE SEMIS EST PAR CELLULE DE 200 PX, DONC LE LIEU AUSSI. Une carte composee en
+   montre jusqu a quatre dans une vue : catalogue, quartiers, matieres, densite et
+   calibre se relisent a chaque cellule, et rien de tout ca n est cher — ce sont
+   des lectures de table, dans une boucle qui ne tourne qu au changement de
+   fenetre. */
 function refresh() {
-  const dens = (DENSITE[gfx] ?? 0)
-    * (DENSITE_LIEU[biomeAt(biomeIndex).key] ?? 1);
   const c0x = Math.floor(camera.x0 / CELL) - MARGE;
   const c0y = Math.floor(camera.y0 / CELL) - MARGE;
   const c1x = Math.ceil((camera.x0 + CFG.VIEW_W) / CELL) + MARGE;
@@ -367,19 +370,31 @@ function refresh() {
   cle = k;
   props.length = 0;
   traces.length = 0;
-  if (dens <= 0) return;
+  if ((DENSITE[gfx] ?? 0) <= 0) return;
 
-  const lieu = biomeAt(biomeIndex).key;
-  const table = TABLE[lieu] ?? TABLE.usine;
-  const zones = ZONES[lieu] ?? ZONES.usine;
-  const quartiers = QUARTIER[lieu] ?? {};
-  const matieres = MATIERE[lieu] ?? null;
-  const ech = ECHELLE_LIEU[lieu] ?? ECHELLE_LIEU.usine;
   const s = biomeSeed >>> 0;
+  const parLieu = new Map();
+  const lieuDe = (x, y) => {
+    const cle = lieuKeyAt(x, y);
+    let v = parLieu.get(cle);
+    if (!v) {
+      v = { table: TABLE[cle] ?? TABLE.usine, zones: ZONES[cle] ?? ZONES.usine,
+            quartiers: QUARTIER[cle] ?? {}, matieres: MATIERE[cle] ?? null,
+            ech: ECHELLE_LIEU[cle] ?? ECHELLE_LIEU.usine,
+            dens: DENSITE_LIEU[cle] ?? 1 };
+      parLieu.set(cle, v);
+    }
+    return v;
+  };
 
   for (let cy = c0y; cy <= c1y; cy++) {
     for (let cx = c0x; cx <= c1x; cx++) {
       if (cx < 0 || cy < 0 || cx * CELL > CFG.ARENA_W || cy * CELL > CFG.ARENA_H) continue;
+      const LI = lieuDe((cx + 0.5) * CELL, (cy + 0.5) * CELL);
+      const table = LI.table, zones = LI.zones, quartiers = LI.quartiers;
+      const matieres = LI.matieres, ech = LI.ech;
+      const dens = (DENSITE[gfx] ?? 0) * LI.dens;
+      if (dens <= 0) continue;
 
       /* LA TRACE SE SONDE AU CENTRE DE LA CELLULE, pas a la position d un prop :
          elle est plus grande que ce qui traine dessus, et une cellule vide de

@@ -1,6 +1,6 @@
 import { createGL } from "/gl.js";
 
-import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome } from "/shared/game_state.js";
+import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome, lieuIndexAt } from "/shared/game_state.js";
 import { CADRE_SKIN, ENEMY, biomeSkin, cssVars, decorAt, solDeBiome } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { reuploadAtlas } from "/sprites.js";
@@ -18,9 +18,24 @@ let modeCourant = 1;
 
 export let sol = solDeBiome(1, "usine");
 
+/* LA TEINTE DE SOL EST PAR LIEU, donc sur une carte composee elle est par
+   CELLULE. On garde la teinte du lieu CENTRAL dans `sol` — la vignette et tout ce
+   qui peint la vue entiere la lisent — et `solDe(x, y)` rend celle du point.
+   `solCache` evite de rappeler `solDeBiome` a chaque trait de grille : cinq
+   entrees, refaites au changement de mode. */
+let solCache = new Map();
 function refreshSol() {
-  sol = solDeBiome(modeCourant, biomeAt(biomeIndex).key);
+  solCache = new Map();
+  // le lieu CENTRAL, pas celui de la camera : ce module s initialise AVANT que
+  // `camera` existe, et une lecture en zone morte casse tout le rendu a l import.
+  sol = solDeBiome(modeCourant, biome.key ?? "usine");
   vignette = null;
+}
+export function solDe(x, y) {
+  const cle = biomeAt(lieuIndexAt(biome, x, y)).key;
+  let v = solCache.get(cle);
+  if (!v) { v = solDeBiome(modeCourant, cle); solCache.set(cle, v); }
+  return v;
 }
 
 export function rebuildBiome(diffIndex = 1) {
@@ -231,15 +246,50 @@ export function cadreOf(id) {
    differemment sur le meme ecran, c'est le defaut le plus visible d'un rendu 2D.
    Le relief RADIAL de `drawObstacles` reste : c'est la CAMERA, pas la lumiere,
    et les deux coexistent — c'est ce que fait la 2D haut de gamme. */
-export function biomeKey() { return biomeAt(biomeIndex).key; }
+/* LE LIEU D UN POINT DU MONDE. Point de passage unique du rendu : tout ce qui se
+   dessine QUELQUE PART le lit ici, et tout ce qui peint la VUE ENTIERE lit
+   `biomeKey()`, qui rend celui de la camera. Sur une carte d un seul lieu les
+   deux rendent la meme chose et rien ne change. */
+export function lieuAt(x, y) { return lieuIndexAt(biome, x, y); }
+// LA MAILLE DE LA CARTE : une cellule fait exactement une vue. Le rendu en a
+// besoin pour peindre le sol par cellule sans reimporter la geometrie.
+// EST-CE QUE CETTE CARTE PORTE CE LIEU ? Ce qui est cuit une fois pour l arene —
+// le canal de la Fonderie — a besoin de le savoir avant de calculer sa geometrie.
+// LES LIEUX DE LA CARTE, dedupliques et dans l ordre du pavage : le salon les
+// annonce, et c est le seul endroit qui ait besoin de la LISTE plutot que du
+// lieu d un point.
+export function lieuxCourants() {
+  if (!biome.lieux) return [biomeIndex];
+  const out = [];
+  for (const i of biome.lieux) if (!out.includes(i)) out.push(i);
+  return out;
+}
+export function lieuxPortent(cle) {
+  if (!biome.lieux) return biome.key === cle;
+  for (const i of biome.lieux) if (biomeAt(i).key === cle) return true;
+  return false;
+}
+export function celluleW() { return biome.cw ?? CFG.VIEW_W; }
+export function celluleH() { return biome.ch ?? CFG.VIEW_H; }
+export function lieuKeyAt(x, y) { return biomeAt(lieuIndexAt(biome, x, y)).key; }
+export function biomeKey() { return lieuKeyAt(camera.x, camera.y); }
+
+/* LA LUMIERE RESTE UNE PROPRIETE DE LA CARTE, PAS DU LIEU. Deux ombres qui
+   pointent differemment sur le meme ecran est le defaut le plus visible d un
+   rendu 2D — et sur une carte composee, une direction par region ferait
+   exactement ca A CHAQUE FRONTIERE. Elle est donc celle du lieu CENTRAL, une
+   fois pour toute l arene. */
 export function lumDir() {
-  return biomeSkin(biomeAt(biomeIndex).key).dir;
+  return biomeSkin(biome.key ?? biomeAt(biomeIndex).key).dir;
 }
 
 // LA CHARTE DU LIEU COURANT. Un seul point de lecture cote rendu : forme,
 // matiere et lumiere d'un biome sortent toutes d'ici.
 export function skin() {
-  return biomeSkin(biomeAt(biomeIndex).key);
+  return biomeSkin(biomeKey());
+}
+export function skinAt(x, y) {
+  return biomeSkin(lieuKeyAt(x, y));
 }
 
 export const GRID_FINE = 5 * PX_PER_M;

@@ -565,20 +565,54 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   juste ; ce qui manquait était le moyen de le **vérifier** hors du HUD d'une
   manche en cours. La ligne dit aussi quand `BIOME=` fige le tirage depuis
   l'environnement, qui est la seule façon dont il puisse ne pas changer.
-- **UN LIEU PAR MANCHE, ET IL VAUT POUR TOUTE L'ARÈNE.** `room.drawBiome()` le
-  tire à la création de la salle puis **à chaque sortie de manche** ; `buildBiome`
-  pave les 81 cellules avec les variantes de **ce** lieu. Traverser la carte ne
-  peut donc pas changer de lieu — il faut finir une manche. C'est ce qui rend
-  possible tout ce qui est **cuit une fois** : la tuile de sol, le fond, la
-  coulée, le semis, la charte de couleur. Une carte à plusieurs lieux n'est pas
-  un réglage, c'est un autre modèle.
-- **DEUX MANCHES DE SUITE NE MONTRENT PAS LE MÊME LIEU**, même règle que le
-  quintette de boss : un tirage uniforme sur cinq rend le même une fois sur cinq,
-  et une répétition est ce qui fait conclure « il n'y a pas de biomes » — le
-  joueur ne compte pas les tirages, il compte ce qu'il a vu. La mémoire appartient
-  à la **salle**. `BIOME` (env) passe devant : un test qui redemande la fonderie
-  doit l'obtenir deux fois. Mesure du redraw sur 200 000 tirages : **0**
-  répétition immédiate, écart à l'uniforme **0,39 %**.
+- **UNE CARTE PORTE LES CINQ LIEUX, ET LE DÉCOUPAGE EXISTAIT DÉJÀ.** `districtsDe`
+  rend 3 à 6 quartiers **d'un seul tenant** sur les 81 cellules — cinq en
+  pratique, de seize cellules, soit quatre écrans de côté. C'est exactement la
+  taille d'une **région** : assez grande pour qu'on la traverse, assez petite pour
+  qu'on en rencontre plusieurs. On y pose donc un **lieu** au lieu d'une variante,
+  et tout ce qui était par lieu devient par **cellule**.
+  - **Une bijection, pas un tirage** (`lieuxDe`). Cinq quartiers, cinq lieux :
+    chacun apparaît **une fois**. Le premier jet ne bornait que l'adjacence et un
+    modulo rendait deux régions éloignées au même lieu — sur trois graines, deux
+    cartes ne montraient que trois lieux sur cinq. `verifierCarte` refuse.
+  - **Deux découpages superposés**, et c'est ce qui évite seize écrans identiques :
+    le premier porte le **lieu**, le second (`seed ^ K`) la **loi d'implantation**.
+    Une région de seize cellules qui ne poserait qu'une variante serait seize fois
+    le même écran.
+  - **`BIOME_COMPOSE` (−1) voyage comme un index de lieu.** Le salon envoie déjà
+    `biome` et les deux côtés rejouent `buildBiome` sur la même graine : **aucun
+    champ réseau**, une valeur de plus dans celui qui existe.
+  - **Un index force encore un lieu unique**, et c'est ce qui garde `BIOME=`, les
+    campagnes de mesure et **tous** les vérificateurs par lieu — ils continuent de
+    tourner sur des cartes d'un seul lieu, donc leurs mesures restent comparables.
+    `verifierCarte` ne les remplace pas : il pose les trois questions que seule
+    une carte composée peut rater — les lieux sont-ils tous là, sont-ils d'un seul
+    tenant, et le pavage tient-il **aux frontières**, là où deux tables de
+    variantes qui ne se sont jamais rencontrées se touchent.
+- **LE SEUIL NE FERME RIEN.** Deux lieux bord à bord font une **couture** : le sol
+  change d'un coup sur une droite, et ça se lit comme un défaut de rendu. Un mur
+  ferait un **goulot**, et un goulot détruit le kiting — la horde s'y accumule, le
+  joueur tire dans un entonnoir. On **déclare** donc la couture : une plaque de
+  seuil de 150 px, à plat, **sans collider**, avec un bord franc de chaque côté —
+  la droite cesse d'être un accident et devient une *pièce*. Traversable au pixel
+  près, et le vocabulaire est technique (le métal, la seule matière que les cinq
+  lieux partagent), jamais la teinte de l'un des deux : un seuil coloré dirait que
+  ce lieu déborde.
+- **UN TREMBLEMENT NE POSE PAS UN BLOC SUR UN DANGER.** Mesuré sur la Friche,
+  carte d'un seul lieu et **arène réelle** : 41 arènes sur 200 avaient un danger
+  sous un obstacle. `verifierBiomes` ne pouvait pas le voir — il tourne sur
+  1600 × 900, donc **une** cellule et un seul jeu de miroirs, et le défaut naissait
+  du décalage. Le repli est la position de table, qui est justement celle que ce
+  vérificateur-là valide. Le tremblement se garde ou se jette **par cellule**,
+  jamais par bloc.
+- **UN BALAYAGE DE TRAVERSABILITÉ NE REGARDE QUE LES BOÎTES DE SA CELLULE.**
+  `coeurTraversable` testait les 750 obstacles de l'arène pour chacun des 5 000
+  points d'une cellule, quatre-vingt-une fois : **315 millions** de comparaisons
+  par arène, et le vérificateur de carte composée mettait 15 s là où la
+  construction en met 25 ms. Le filtre est **exact** — une boîte hors de la cellule
+  élargie de sa demi-taille et de la garde ne peut pas toucher un point du cœur —
+  et il rend 0,6 s. Sur une arène d'une seule cellule, la taille à laquelle
+  `verifierBiomes` tournait, le coût ne se voyait pas.
 - **LA MASSE EST LA SURFACE** (`masseDe(r)` = `(r / 12)²`, bornée) et elle
   **répartit** la poussée de séparation à son inverse. À masses égales on
   retombe exactement sur le demi-demi d'avant : `2 × 0,5 = 1`. Elle est

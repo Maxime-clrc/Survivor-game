@@ -31,9 +31,16 @@ const USURE = [0.0, 0.45, 1.0];
    `drawFloor` SORT SANS RIEN DIRE. Il ne reste que la couleur d arene et la
    grille — une carte qui a l air « cassee » alors que rien n a leve.
 
-   Une entree par FAMILLE (`f` le sol, `m` la seconde periode) : changer de lieu,
-   de mode, de graine ou de densite jette la precedente. */
+   UNE ENTREE PAR FAMILLE NE SUFFIT PLUS : une carte composee montre jusqu a
+   QUATRE lieux dans une vue, et une eviction par famille recuisait alors une
+   toile par cellule et par image. Le plafond est le nombre de LIEUX — ce qu une
+   carte peut porter au maximum — et l eviction reste par famille au-dela : un
+   changement de mode, de graine ou de densite jette toujours la precedente,
+   c est seulement le nombre de lieux vivants qui monte. */
 const cache = new Map();
+// cinq lieux x deux familles ; au-dela, la clef a change pour une autre raison
+// que le lieu, et c est justement ce qu on veut jeter.
+const CACHE_MAX = 5;
 
 function motif(ctx, cle, dpr, cuisson) {
   let p = cache.get(cle);
@@ -49,7 +56,16 @@ function motif(ctx, cle, dpr, cuisson) {
     p.setTransform(new DOMMatrix([1 / dpr, 0, 0, 1 / dpr, 0, 0]));
   }
   const fam = cle.slice(0, cle.indexOf("|") + 1);
-  for (const k of cache.keys()) if (k.startsWith(fam)) cache.delete(k);
+  // le RESTE de la clef : mode, graine, densite. Ce qui differe par la est
+  // perime ; ce qui ne differe que par le LIEU coexiste.
+  const reste = cle.slice(cle.indexOf("|", cle.indexOf("|") + 1));
+  const memeFam = [];
+  for (const k of cache.keys()) {
+    if (!k.startsWith(fam)) continue;
+    if (!k.endsWith(reste)) { cache.delete(k); continue; }
+    memeFam.push(k);
+  }
+  while (memeFam.length >= CACHE_MAX) cache.delete(memeFam.shift());
   cache.set(cle, p);
   return p;
 }

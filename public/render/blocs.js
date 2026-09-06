@@ -4,7 +4,7 @@ import {
   B_DEVANTURE, B_PYLONE, B_CONTENEUR, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
-import { biomeKey, ctx, skin } from "./stage.js";
+import { lieuKeyAt, skinAt, biomeKey, ctx, skin } from "./stage.js";
 
 /* LA MASSE BATIE, ET C'EST ELLE QUI DECIDE DE QUEL LIEU ON PARLE. Le semis de
    props et la tuile de sol distinguaient deja les quatre biomes ; les obstacles,
@@ -568,9 +568,11 @@ export function verifierLed() {
    concurrencerait le contour tirete, qui est du gameplay. */
 export function ledDe(o) {
   if (o.maxHp > 0) return null;
-  const cle = biomeKey();
+  // LE LIEU D UN BLOC EST CELUI DE SA POSITION, pas celui de la camera : sur une
+  // carte composee, un four vu depuis la Friche voisine porte sa propre gueule.
+  const cle = lieuKeyAt(o.x, o.y);
   const h = ((o.x * 73856093) ^ (o.y * 19349663)) >>> 0;
-  const S = skin();
+  const S = skinAt(o.x, o.y);
 
   // le four a TOUJOURS sa gueule, la friche presque jamais : la premiere
   // fonctionne, la seconde a ete abandonnee. Et quand elle s allume, c est sur
@@ -617,7 +619,7 @@ export function ledDe(o) {
    choses qui vivent sur la meme arete se disputent la lecture, et la bande a
    ete la premiere. Un bloc sur trois, jamais une couverture destructible. */
 export function evacDe(o) {
-  if (biomeKey() !== "usine" || o.maxHp > 0) return null;
+  if (lieuKeyAt(o.x, o.y) !== "usine" || o.maxHp > 0) return null;
   const h = ((o.x * 40503) ^ (o.y * 2654435761)) >>> 0;
   if (h % 3 !== 0) return null;
   const l = ledDe(o);
