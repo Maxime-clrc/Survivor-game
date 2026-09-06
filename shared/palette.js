@@ -324,11 +324,157 @@ export const BIOME_SKIN = {
 
 export function biomeSkin(key) { return BIOME_SKIN[key] ?? BIOME_SKIN.usine; }
 
+/* L ACCENT D UNE REGION — CE QUI FAIT QU ON VOIT QU ON A CHANGE DE BIOME.
+
+   UNE LOI D IMPLANTATION NE DEPLACE QUE DES BLOCS, et a une dizaine de blocs par
+   ecran ca ne se voit pas. Mesure du defaut : cinq regions traversees de bout en
+   bout sans qu un joueur remarque une frontiere. Le sol, la palette, le semis et
+   le HUD etaient tous par THEME, donc identiques partout.
+
+   L ACCENT EST BORNE DES DEUX COTES, et c est ce qui le separe d un second
+   theme. Plancher : deux lois d un theme s ecartent d au moins `ACCENT_MIN` sur
+   l arene — sous ce seuil la frontiere ne se voit pas, et l accent ne sert a
+   rien.
+
+   LE PLAFOND N EST PAS UN NOMBRE, C EST UNE APPARTENANCE. Un ecart maximal
+   ecrit en dur ne veut rien dire : le dE grandit avec la clarte, donc la meme
+   borne interdit tout a la Nebuleuse (#06080f) et n interdit rien au Secteur.
+   Mesure : a valeurs egales de reglage, les ecarts allaient de 1,2 a 27,6. Ce
+   qu on veut dire est « on reconnait encore le lieu », et ca s ecrit : une
+   region accentuee reste `ACCENT_MARGE` fois plus proche de la base de SON theme
+   que de la base du theme le plus proche. Un accent peut donc aller loin s il va
+   dans la direction de son propre lieu, et pas du tout s il va vers un autre.
+
+   IL NE TOUCHE QUE LE SOL ET SA GRILLE. `dir`, `amb`, `k` et `emis` restent au
+   theme : deux ombres qui pointent differemment sur le meme ecran est LE defaut
+   visible d un rendu 2D, et une couleur de source qui changerait de region ferait
+   reapprendre au joueur ce qui est chaud. `bloc` et `blocEdge` restent au theme
+   aussi, et pour deux raisons : une ruine de Friche doit etre la meme partout —
+   c est le VOCABULAIRE du lieu, pas son ambiance —, et le bloc est clair, donc il
+   bouge trois fois plus vite en dE que le sol. Mesure : a reglage egal, 27,6 sur
+   le bloc de la Nebuleuse contre 9,0 sur son arene. C etait lui qui bridait tout.
+
+   LA LOI 0 EST LA REFERENCE et ne bouge pas : c est elle que toutes les mesures
+   des plans precedents ont vue. */
+const ACCENT = {
+  // l USINE reste froide : ce qui change est la CLARTE et la part d huile.
+  usine: [
+    { l: 1.00, k: 0.00, vers: null },
+    { l: 1.26, k: 0.14, vers: "#2b3850" },
+    // ASSOMBRIR L USINE LA FAIT MARCHER VERS LA NEBULEUSE — 5,4 de sa base pour
+    // 6,0 du vide, mesure. L atelier se dit donc par l HUILE et non par l ombre.
+    { l: 1.02, k: 0.20, vers: "#3a2e14" },
+    { l: 1.44, k: 0.12, vers: "#16283e" },
+  ],
+  // la FONDERIE garde son ocre : ce qui change est la TEMPERATURE.
+  fonderie: [
+    { l: 1.00, k: 0.00, vers: null },
+    { l: 1.28, k: 0.14, vers: "#31200f" },
+    { l: 0.84, k: 0.20, vers: "#14181c" },
+    { l: 1.50, k: 0.16, vers: "#3a1206" },
+  ],
+  // la FRICHE garde son gris-vert : ce qui change est ce qui a POUSSE dessus.
+  friche: [
+    { l: 1.00, k: 0.00, vers: null },
+    { l: 1.30, k: 0.16, vers: "#2a2419" },
+    { l: 0.80, k: 0.14, vers: "#141810" },
+    { l: 1.46, k: 0.20, vers: "#1e2a12" },
+  ],
+  /* LA NEBULEUSE PART DE PRESQUE NOIR, donc son accent se fait par la CLARTE et
+     non par la teinte : a #06080f, un melange ne deplace rien. */
+  nebuleuse: [
+    { l: 1.00, k: 0.00, vers: null },
+    // TROIS REGLAGES SORTIS D UNE RECHERCHE, pas d un gout : a #06080f, tout ce
+    // qui s eclaircit marche vers l Usine (#121a26) et tout ce qui vire au violet
+    // marche vers le Secteur (#181026). Le trio retenu est celui dont l ecart
+    // minimal entre les quatre sols est le plus grand — 3,0 — sous la contrainte
+    // d appartenance. C est le plafond REEL du lieu le plus sombre du depot, et
+    // c est pourquoi la Nebuleuse dira ses regions par son semis avant sa teinte.
+    { l: 1.00, k: 0.25, vers: "#0c0a34" },
+    { l: 1.00, k: 0.30, vers: "#062830" },
+    { l: 1.20, k: 0.10, vers: "#0a1c38" },
+  ],
+  // le SECTEUR garde son violet : ce qui change est le QUARTIER.
+  secteur: [
+    { l: 1.00, k: 0.00, vers: null },
+    { l: 1.24, k: 0.14, vers: "#231636" },
+    { l: 0.78, k: 0.16, vers: "#100a1c" },
+    // 1,6 de la loi 1, mesure : elle part franchement sur le BLEU des enseignes
+    // froides au lieu de se contenter d etre plus claire.
+    { l: 1.34, k: 0.30, vers: "#0c1a3a" },
+  ],
+};
+
+const ACCENT_MIN = 2.0;
+/* LA MARGE EST DE 1,15 ET NON DE 2. Les bases des cinq themes ne sont separees
+   que de 6 a 12 : exiger le double interdisait tout accent visible. 1,15 dit ce
+   qu on veut vraiment — la region reste PLUS PROCHE de son lieu que de n importe
+   quel autre, avec de quoi absorber un arrondi. */
+const ACCENT_MARGE = 1.15;
+
+function accentDe(hex, a) {
+  const c = eclat(hex, a.l);
+  return a.vers ? melange(c, a.vers, a.k) : c;
+}
+
+/* LA CHARTE D UNE REGION. Le theme donne la lumiere, la loi donne la teinte —
+   et c est le seul point de lecture des deux. */
+export function biomeSkinDe(key, loi) {
+  const S = biomeSkin(key);
+  const a = (ACCENT[key] ?? [])[loi];
+  if (!a || a.k === 0 && a.l === 1) return S;
+  return {
+    ...S,
+    arena: accentDe(S.arena, a),
+    gridFine: accentDe(S.gridFine, a),
+    gridMajor: accentDe(S.gridMajor, a),
+  };
+}
+
+/* LES DEUX BORNES, ET LE PLANCHER EST CELUI QUI COMPTE. Un accent invisible est
+   un accent qui n existe pas — c est l etat d ou l on vient. Le plafond, lui,
+   garde une region a l interieur de son theme. */
+export function verifierAccents() {
+  const soucis = [];
+  for (const key of Object.keys(BIOME_SKIN)) {
+    const t = ACCENT[key];
+    if (!t) { soucis.push(`${key} : aucun accent de region`); continue; }
+    const base = BIOME_SKIN[key];
+    for (let i = 0; i < t.length; i++) {
+      const c = biomeSkinDe(key, i).arena;
+      const sien = ecartCouleur(base.arena, c);
+      let autre = Infinity, qui = "";
+      for (const k2 of Object.keys(BIOME_SKIN)) {
+        if (k2 === key) continue;
+        const d = ecartCouleur(BIOME_SKIN[k2].arena, c);
+        if (d < autre) { autre = d; qui = k2; }
+      }
+      if (sien * ACCENT_MARGE > autre) {
+        soucis.push(`${key}/loi ${i} : sol a ${sien.toFixed(1)} de sa base et`
+          + ` ${autre.toFixed(1)} de ${qui} — la region derive vers un autre lieu`);
+      }
+    }
+    for (let i = 0; i < t.length; i++) {
+      for (let j = i + 1; j < t.length; j++) {
+        const d = ecartCouleur(biomeSkinDe(key, i).arena, biomeSkinDe(key, j).arena);
+        if (d < ACCENT_MIN) {
+          soucis.push(`${key} : les lois ${i} et ${j} ont le meme sol`
+            + ` (${d.toFixed(1)}, plancher ${ACCENT_MIN}) — la frontiere ne se voit pas`);
+        }
+      }
+    }
+  }
+  for (const key of Object.keys(ACCENT)) {
+    if (!BIOME_SKIN[key]) soucis.push(`accent pour ${key}, qui n est pas un theme`);
+  }
+  return soucis;
+}
+
 /* LE MODE REGLE LA CLARTE, LE LIEU REGLE LA TEINTE. Le facteur se releve sur
    `DECOR` au lieu de s'ecrire : les trois modes gardent leur echelle exacte, et
    retoucher `DECOR` continue de tout suivre. */
-export function solDeBiome(diffIndex, key) {
-  const S = biomeSkin(key);
+export function solDeBiome(diffIndex, key, loi = 0) {
+  const S = biomeSkinDe(key, loi);
   const k = luminance(decorAt(diffIndex).arena) / luminance(DECOR[1].arena);
   return {
     arena: eclat(S.arena, k),

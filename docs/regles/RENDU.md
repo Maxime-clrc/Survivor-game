@@ -508,6 +508,51 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
 - **LE SEUIL EST SUPPRIMÉ.** Il déclarait la couture entre deux lieux bord à
   bord ; un thème par carte, plus de couture, plus de pièce à poser.
 
+#### Ce qui fait qu'une région SE VOIT
+
+Une loi d'implantation ne déplace que des blocs, et à une dizaine de blocs par
+écran **ça ne se voit pas**. Rapport de terrain : cinq régions traversées de bout
+en bout sans qu'un joueur remarque une frontière, et un bandeau qui ne changeait
+jamais de nom. Trois canaux le disent maintenant, et ils disent trois choses
+différentes.
+
+- **LE BANDEAU NOMME LA RÉGION, PAS SEULEMENT LE THÈME** (`Friche · Le cratère`).
+  Une carte étant d'un seul thème, un bandeau qui ne portait que le thème ne
+  pouvait par construction **jamais** changer — c'était le rapport de bug, mot
+  pour mot. `loiNom` passe par `t()`, les vingt régions ont leur clef anglaise.
+- **L'ACCENT DE PALETTE dit qu'on a changé de région**, et il est borné des deux
+  côtés. Plancher : deux lois d'un thème s'écartent d'au moins 2,0 de dE sur le
+  sol — en dessous la frontière ne se voit pas et l'accent ne sert à rien.
+  **Plafond : ce n'est pas un nombre, c'est une APPARTENANCE.** Un écart maximal
+  écrit en dur ne veut rien dire, le dE grandissant avec la clarté — mesure : à
+  réglages égaux, les écarts allaient de 1,2 à 27,6. On exige donc qu'une région
+  accentuée reste **plus proche de la base de son thème que de toute autre**
+  (marge 1,15). Un accent peut aller loin s'il va dans la direction de son propre
+  lieu, et pas du tout s'il va vers un autre.
+  - Il ne touche **que le sol et sa grille**. `dir`, `amb`, `k` et `emis` restent
+    au thème, et `bloc`/`blocEdge` aussi : une ruine de Friche doit être la même
+    partout — c'est le VOCABULAIRE du lieu, pas son ambiance — et le bloc, plus
+    clair, bouge trois fois plus vite en dE. C'était lui qui bridait tout.
+  - Le sol se peint **par cellule** ; la grille et le fond sous le décor prennent
+    la teinte de la région **de la caméra** : ce qui peint la vue entière ne peut
+    pas se couper par cellule, et la frontière franche reste au sol.
+  - Deux valeurs sortent de la mesure et non d'un goût : **assombrir l'Usine la
+    fait marcher vers la Nébuleuse** (5,4 de sa base pour 6,0 du vide), donc son
+    atelier se dit par l'huile ; et la **Nébuleuse est si sombre** que tout ce qui
+    l'éclaircit va vers l'Usine et tout ce qui la violette va vers le Secteur —
+    son trio sort d'une recherche numérique, écart minimal 3,0. C'est le plafond
+    réel du lieu le plus sombre du dépôt, et c'est pourquoi elle dira ses régions
+    par son semis avant sa teinte.
+- **L'AIR (`AIR[theme][loi]`) dit LAQUELLE.** Quatre axes : combien (`dens`, en
+  facteur de la densité du thème), gros comment (`ech`), quoi (`zones`, un
+  sous-ensemble des quartiers de props du thème) et ce qui a marqué le sol
+  (`matieres`, une par zone tirée). **Le thème garde son vocabulaire, la région
+  n'en tire qu'une part** — c'est la différence entre « un autre lieu » et « un
+  autre endroit du même lieu ». La loi 0 est la référence (`dens` à 1, `ech`
+  reprenant `ECHELLE_LIEU`), et `verifierTraces` **compare** au lieu de faire
+  confiance. Il remplace la table `MATIERE`, qui était par thème, et il refuse
+  aussi qu'une zone de props ne soit tirée par aucune région.
+
 ### Quatre lieux, pas quatre couleurs
 
 **Même univers ≠ même environnement.** Le socle est commun — sci-fi industriel

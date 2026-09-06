@@ -587,6 +587,20 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     est **arithmétique** : `verifierRegions` la borne à `nq − lois` et non à zéro.
   - **On préfère une loi jamais posée** : quatre lois sur cinq régions doivent en
     montrer quatre, pas trois. Le tirage reste, il se fait dans les lois libres.
+  - **Le NOMBRE de régions se tire, entre 3 et 6.** Cinq à chaque partie donnait
+    une maille fixe, donc un rythme de traversée fixe. Trois grandes régions et
+    six petites ne se parcourent pas pareil, et c'est de la rejouabilité gratuite.
+    Le plafond reste la taille de l'arène (`DISTRICT_CELLULES`, une douzaine de
+    cellules minimum par région, soit trois écrans de côté).
+  - **L'écart entre germes suit leur nombre.** Fixe, il tenait pour cinq et
+    devenait impossible à six : la boucle épuisait ses trente-deux essais et
+    posait deux germes côte à côte, donc un quartier d'une cellule.
+  - **Une région d'un seul tenant se RÉPARE, le bruit ne se retire pas.** Le
+    bruit de frontière vaut une demi-cellule et peut détacher une cellule de sa
+    région ; sans lui, les frontières sont les bissectrices des germes, donc des
+    droites, et on lit un découpage administratif. La réparation part du GERME —
+    le seul point dont on sait qu'il appartient à sa région — et tout ce qu'elle
+    n'atteint pas rejoint un voisin déjà atteint.
   - **Le réseau ne bouge pas.** Le salon envoyait déjà `biome` ; il porte
     maintenant un index de thème **toujours réel**. `BIOME_COMPOSE` (−1) est
     supprimé, et avec lui le repli silencieux de `biomeAt(-1)` sur l'Usine, qui

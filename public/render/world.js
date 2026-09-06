@@ -5,7 +5,7 @@ import { setMusicIntensity, setMusicScene } from "/music.js";
 import { ARMES } from "/shared/armes.js";
 import { BOSS_CFG, MECH_JAIL, estFinal } from "/shared/bosses.js";
 import { BIOME_CFG, CFG, ETAT_TIR, SIL_MISSILE, SIL_PORTEUR, weatherFor, windAt } from "/shared/game_state.js";
-import { biomeNom, weatherNom } from "/shared/biomes.js";
+import { biomeNom, loiNom, weatherNom } from "/shared/biomes.js";
 import { CARD_CFG } from "/shared/cards.js";
 import { BOSS, COMBAT, WALL, alpha } from "/shared/palette.js";
 import { TL_CFG } from "/shared/timeline.js";
@@ -20,7 +20,7 @@ import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
 import { drawProps, drawTraces } from "./props.js";
 import { PARTICLE_MAX, blastMarks, bossMortQueue, bouches, bursts, dashMarks, deaths, dmgAgg, finArcs, fxWhite, drawBlastMarks, drawBursts, drawDashMarks, drawDeaths, drawParticles, drawPulse, flushDamage, flushSelf, gridPings, hitQueue, hits, particles, pulse, pump, selfAgg, setZoneFx, shake, shieldHit, spawnDashMark, stepFeedback, timeWarp } from "./fx.js";
-import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, weather, weatherSeg } from "./stage.js";
+import { biomeIndex, biomeSeed, camera, colorOf, ctx, decor, gl, groundAt, inView, loiCourante, obstaclesActifs, overCtx, ownerColorOf, setCtx, setVignette, setWeather, setWeatherSeg, sol, underCtx, updateCamera, weather, weatherSeg } from "./stage.js";
 import { arenaEl, cardsEl, merchantEl, readMove } from "../ui/dom.js";
 
 export function resetFeedback() {
@@ -467,10 +467,11 @@ function drawScreen(v) {
     // le bandeau ne recouvre jamais une decision : il attend que l'ecran de
     // cartes ou le marchand se referme
     ecranOuvert: !cardsEl.hidden || !merchantEl.hidden,
-    // LE LIEU OU L ON EST, pas celui de la carte : sur une carte composee c est le
-    // seul temoin qui dise qu on vient de changer de region, et il change en
-    // marchant. « Le nom ne change jamais » etait le rapport de bug.
-    biomeNom: biomeNom(biomeIndex),
+    /* LE THEME PUIS LA REGION, et c est la region qui change en marchant. Le
+       bandeau n a longtemps porte que le theme : une carte etant d un seul theme,
+       il ne changeait JAMAIS, et le rapport de bug « on n a jamais change de
+       biome » disait exactement ca. */
+    biomeNom: `${biomeNom(biomeIndex)} · ${loiNom(biomeIndex, loiCourante())}`,
     meteoNom: weather ? weatherNom(weather.id) : "",
     myColor: colorOf(myId),
     camX: camera.x0, camY: camera.y0,

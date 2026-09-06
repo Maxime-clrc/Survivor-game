@@ -9706,6 +9706,45 @@
                   montrent pas le meme theme.
                   Conception complete des 61 biomes dans
                   `docs/superpowers/specs/plan38/`.
+    0.42.1 lot 2  LE BIOME SE VOIT, ET IL SE NOMME. Le lot 1 avait raison sur la
+                  structure et invisible a l ecran : une loi d implantation ne
+                  deplace que des blocs, et a une dizaine de blocs par ecran ca ne
+                  se voit pas. Rapport de terrain : cinq regions traversees sans
+                  qu un joueur remarque une frontiere, et un bandeau qui ne
+                  changeait jamais de nom.
+                  LE BANDEAU NOMME LA REGION (« Friche · Le cratere »). Une carte
+                  etant d un seul theme, un bandeau qui ne portait que le theme ne
+                  pouvait par construction JAMAIS changer — c etait le rapport de
+                  bug, mot pour mot. Vingt etiquettes, vingt clefs anglaises.
+                  L ACCENT DE PALETTE, borne des DEUX cotes. Plancher : 2,0 de dE
+                  entre deux regions d un theme, sinon la frontiere ne se voit pas.
+                  PLAFOND : PAS UN NOMBRE, UNE APPARTENANCE — un ecart maximal en
+                  dur ne veut rien dire, le dE grandissant avec la clarte (mesure :
+                  a reglages egaux, de 1,2 a 27,6). Une region reste PLUS PROCHE de
+                  la base de son theme que de toute autre, marge 1,15.
+                  Il ne touche que le SOL et sa grille : `bloc` reste au theme —
+                  une ruine de Friche est la meme partout, c est le VOCABULAIRE du
+                  lieu — et il bouge trois fois plus vite en dE, c est lui qui
+                  bridait tout. Deux valeurs sortent de la MESURE : assombrir
+                  l Usine la fait marcher vers la Nebuleuse (5,4 de sa base pour
+                  6,0 du vide), donc son atelier se dit par l huile ; et la
+                  Nebuleuse est si sombre que tout ce qui l eclaircit va vers
+                  l Usine et tout ce qui la violette va vers le Secteur — son trio
+                  sort d une recherche numerique, ecart minimal 3,0.
+                  L AIR D UNE REGION (`AIR[theme][loi]`) : combien, gros comment,
+                  quelles zones de props, quelles traces au sol. Le theme garde son
+                  vocabulaire, la region n en tire qu une part — c est la
+                  difference entre « un autre lieu » et « un autre endroit du meme
+                  lieu ». Remplace `MATIERE`, qui etait par theme.
+                  LE NOMBRE DE REGIONS SE TIRE, entre 3 et 6 : cinq a chaque partie
+                  donnait un rythme de traversee fixe. L ecart entre germes suit
+                  leur nombre — fixe, il epuisait ses trente-deux essais a six et
+                  posait un quartier d une cellule. Et une region d un seul tenant
+                  se REPARE au lieu de retirer le bruit : sans bruit les frontieres
+                  sont les bissectrices des germes, donc des droites.
+                  `verifierAccents` (plancher, plafond, appartenance) et
+                  `verifierTraces` reecrit sur `AIR` — il refuse aussi qu une zone
+                  de props ne soit tiree par aucune region. 55 verificateurs.
 
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
@@ -9715,4 +9754,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.42.0";
+export const VERSION = "0.42.1";

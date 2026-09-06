@@ -1,8 +1,8 @@
 import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
-import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
+import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_MUR, B_POSTE, B_PYLONE, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -373,16 +373,23 @@ function refresh() {
   if ((DENSITE[gfx] ?? 0) <= 0) return;
 
   const s = biomeSeed >>> 0;
-  const parLieu = new Map();
+  /* LE SEMIS EST PAR CELLULE, DONC LA REGION AUSSI : catalogue, quartiers,
+     matieres, densite et calibre se relisent a chaque cellule. Ce sont des
+     lectures de table, dans une boucle qui ne tourne qu au changement de
+     fenetre — quatre entrees de cache au plus, une par loi. */
+  const cleTheme = biomeKey();
+  const parLoi = new Map();
   const lieuDe = (x, y) => {
-    const cle = biomeKey();
-    let v = parLieu.get(cle);
+    const loi = loiAt(x, y);
+    let v = parLoi.get(loi);
     if (!v) {
-      v = { table: TABLE[cle] ?? TABLE.usine, zones: ZONES[cle] ?? ZONES.usine,
-            quartiers: QUARTIER[cle] ?? {}, matieres: MATIERE[cle] ?? null,
-            ech: ECHELLE_LIEU[cle] ?? ECHELLE_LIEU.usine,
-            dens: DENSITE_LIEU[cle] ?? 1 };
-      parLieu.set(cle, v);
+      const a = airDe(cleTheme, loi);
+      const zt = ZONES[cleTheme] ?? ZONES.usine;
+      v = { table: TABLE[cleTheme] ?? TABLE.usine,
+            zones: a.zones.map(i => zt[i] ?? zt[0]),
+            quartiers: QUARTIER[cleTheme] ?? {}, matieres: a.matieres ?? null,
+            ech: a.ech, dens: (DENSITE_LIEU[cleTheme] ?? 1) * a.dens };
+      parLoi.set(loi, v);
     }
     return v;
   };
@@ -1744,49 +1751,120 @@ const TRACE_ROULAGE = 1, TRACE_SOUILLURE = 2, TRACE_POUSSIERE = 3,
    ressemblaient. Corrosion, fissures et dechets prennent ces trois places : la
    variete monte sans qu un seul quartier perde son sens, et `null` reste ou il
    est, parce que le sol NU est ce qui fait lire les autres. */
-const MATIERE = {
-  // on y roule, on y renverse, et le fond des racks n est jamais balaye.
-  usine:     [TRACE_SOUILLURE, TRACE_POUSSIERE, TRACE_ROULAGE, TRACE_RAYURES],
-  // tout ce qui tombe ici BRULE quelque chose ; ce qui dort dans un entrepot de
-  // fonderie ne brule pas, il ROUILLE.
-  fonderie:  [TRACE_SOUILLURE, TRACE_CENDRES, TRACE_POUSSIERE, TRACE_CORROSION],
-  // plus personne ne roule ni ne balaye : il reste ce que le temps a fait.
-  friche:    [TRACE_POUSSIERE, TRACE_CENDRES, null, TRACE_SOUILLURE],
-  // pas de gravite, donc pas de poussiere qui tombe : ce qui marque une coque
-  // est ce qui l a HEURTEE — de biais, assez fort pour la FENDRE, ou ce qui
-  // FLOTTE encore autour d elle. La regle etait ecrite ici depuis le debut et le
-  // quatrieme quartier posait quand meme de la poussiere.
-  nebuleuse: [TRACE_RAYURES, null, TRACE_FISSURES, TRACE_DECHETS],
-  // il pleut, donc l eau court partout ou elle peut ; le reste est ce que la
-  // livraison a laisse, et une livraison laisse ses emballages.
-  secteur:   [TRACE_RUISSELLEMENT, TRACE_DECHETS, TRACE_SOUILLURE, TRACE_ROULAGE],
+
+const TRACES_CONNUES = new Set([TRACE_ROULAGE, TRACE_SOUILLURE, TRACE_POUSSIERE,
+                                TRACE_CENDRES, TRACE_RAYURES, TRACE_RUISSELLEMENT,
+                                TRACE_CORROSION, TRACE_FISSURES, TRACE_DECHETS]);
+
+/* L AIR D UNE REGION — LA SECONDE MOITIE DE CE QUI FAIT UN BIOME.
+
+   LA PALETTE DIT QU ON A CHANGE DE REGION, L AIR DIT LAQUELLE. Une loi
+   d implantation ne deplace que des blocs, et a une dizaine de blocs par ecran
+   ca ne se voit pas ; la teinte du sol se voit tout de suite mais ne raconte
+   rien. Ce qui raconte est ce qu on trouve par terre : COMBIEN (`dens`, en
+   facteur de la densite du theme), GROS COMMENT (`ech`), QUOI (`zones`, un
+   sous-ensemble des quartiers de props du theme) et CE QUI A MARQUE LE SOL
+   (`matieres`, une par zone tiree).
+
+   LE THEME GARDE SON VOCABULAIRE, LA REGION N EN TIRE QU UNE PART. Une friche
+   pose toujours des brousses et des carcasses ; le champ en pose beaucoup et
+   grandes, le mur pose surtout des clotures, l effondrement pose tout et serre.
+   C est la difference entre « un autre lieu » et « un autre endroit du meme
+   lieu », et c est toute la regle.
+
+   LA LOI 0 EST LA REFERENCE : `dens` vaut 1 et `ech` reprend `ECHELLE_LIEU` — ce
+   n est pas une duplication mais un invariant, et `verifierAir` le compare. */
+const AIR = {
+  usine: [
+    { dens: 1.00, ech: [0.72, 0.66], zones: [0, 2], matieres: [TRACE_SOUILLURE, TRACE_ROULAGE] },
+    { dens: 0.82, ech: [0.70, 0.60], zones: [2, 1], matieres: [TRACE_ROULAGE, TRACE_POUSSIERE] },
+    { dens: 1.34, ech: [0.56, 0.48], zones: [3, 0], matieres: [TRACE_SOUILLURE, TRACE_RAYURES] },
+    { dens: 0.58, ech: [0.88, 0.86], zones: [1, 2], matieres: [TRACE_POUSSIERE, TRACE_ROULAGE] },
+  ],
+  fonderie: [
+    { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
+    { dens: 1.18, ech: [0.74, 0.58], zones: [1, 2], matieres: [TRACE_CENDRES, TRACE_CORROSION] },
+    { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_POUSSIERE, TRACE_CORROSION] },
+    { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_SOUILLURE] },
+  ],
+  friche: [
+    { dens: 1.00, ech: [0.66, 0.92], zones: [0, 1], matieres: [TRACE_POUSSIERE, null] },
+    { dens: 1.12, ech: [0.58, 0.78], zones: [2, 1], matieres: [TRACE_POUSSIERE, TRACE_SOUILLURE] },
+    { dens: 0.70, ech: [0.82, 1.08], zones: [1, 3], matieres: [TRACE_CENDRES, null] },
+    { dens: 1.40, ech: [0.52, 1.14], zones: [0, 2, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES, null] },
+  ],
+  nebuleuse: [
+    { dens: 1.00, ech: [0.90, 1.05], zones: [0, 3], matieres: [TRACE_RAYURES, null] },
+    { dens: 1.50, ech: [0.52, 0.56], zones: [0, 2], matieres: [TRACE_FISSURES, TRACE_DECHETS] },
+    { dens: 0.52, ech: [1.30, 1.34], zones: [1, 3], matieres: [TRACE_RAYURES, null] },
+    { dens: 0.86, ech: [0.80, 1.00], zones: [2, 0], matieres: [TRACE_DECHETS, TRACE_FISSURES] },
+  ],
+  secteur: [
+    { dens: 1.00, ech: [0.60, 0.52], zones: [0, 1], matieres: [TRACE_RUISSELLEMENT, TRACE_ROULAGE] },
+    { dens: 0.84, ech: [0.70, 0.62], zones: [1, 0], matieres: [TRACE_RUISSELLEMENT, TRACE_SOUILLURE] },
+    { dens: 1.38, ech: [0.48, 0.40], zones: [3, 2], matieres: [TRACE_DECHETS, TRACE_SOUILLURE] },
+    { dens: 0.60, ech: [0.82, 0.74], zones: [0, 3], matieres: [TRACE_ROULAGE, TRACE_RUISSELLEMENT] },
+  ],
 };
 
+const airDe = (cle, loi) => {
+  const t = AIR[cle] ?? AIR.usine;
+  return t[loi] ?? t[0];
+};
+
+/* DEUX REGIONS D UN THEME DOIVENT AVOIR DEUX AIRS, et les deux tables se
+   croisent dans les deux sens — une zone de props que plus aucune region ne tire
+   disparait du jeu en silence, exactement le piege que `CLAUDE.md` nomme en
+   premier. Il remplace `verifierTraces` : les matieres ne sont plus par theme. */
 export function verifierTraces() {
   const soucis = [];
-  const connues = new Set([TRACE_ROULAGE, TRACE_SOUILLURE, TRACE_POUSSIERE,
-                           TRACE_CENDRES, TRACE_RAYURES, TRACE_RUISSELLEMENT,
-                           TRACE_CORROSION, TRACE_FISSURES, TRACE_DECHETS]);
   const tirees = new Set();
-  for (const [lieu, zones] of Object.entries(ZONES)) {
-    const m = MATIERE[lieu];
-    if (!m) { soucis.push(`${lieu} : aucune matiere de sol`); continue; }
-    if (m.length !== zones.length) {
-      soucis.push(`${lieu} : ${m.length} matieres pour ${zones.length} quartiers`);
+  for (const [cle, zones] of Object.entries(ZONES)) {
+    const t = AIR[cle];
+    const n = loisDe(cle);
+    if (!t) { soucis.push(`${cle} : aucun air de region`); continue; }
+    if (t.length !== n) soucis.push(`${cle} : ${t.length} airs pour ${n} lois`);
+    const ref = ECHELLE_LIEU[cle] ?? [];
+    if (String(t[0]?.ech) !== String(ref) || t[0]?.dens !== 1) {
+      soucis.push(`${cle} : la loi 0 n est pas la reference du theme`);
     }
-    for (const t of m) {
-      if (t === null) continue;
-      if (!connues.has(t)) soucis.push(`${lieu} : trace inconnue ${t}`);
-      else tirees.add(t);
+    for (let i = 0; i < t.length; i++) {
+      const a = t[i];
+      if (!(a.dens > 0 && a.dens <= 2)) soucis.push(`${cle}/loi ${i} : densite ${a.dens} hors de ]0 ; 2]`);
+      if (!Array.isArray(a.ech) || a.ech.length !== 2) soucis.push(`${cle}/loi ${i} : echelle mal formee`);
+      if (!a.zones?.length) soucis.push(`${cle}/loi ${i} : aucune zone de props`);
+      for (const z of a.zones ?? []) {
+        if (!(z >= 0 && z < zones.length)) soucis.push(`${cle}/loi ${i} : zone ${z} hors des ${zones.length}`);
+      }
+      if ((a.matieres ?? []).length !== (a.zones ?? []).length) {
+        soucis.push(`${cle}/loi ${i} : ${(a.matieres ?? []).length} matieres pour ${(a.zones ?? []).length} zones`);
+      }
+      const vives = new Set((a.matieres ?? []).filter(m => m !== null));
+      if (vives.size < 1) soucis.push(`${cle}/loi ${i} : aucune matiere vive`);
+      for (const m of vives) {
+        if (!TRACES_CONNUES.has(m)) soucis.push(`${cle}/loi ${i} : trace inconnue ${m}`);
+        else tirees.add(m);
+      }
     }
-    const vives = new Set(m.filter(t => t !== null));
-    if (vives.size < 2) soucis.push(`${lieu} : moins de deux matieres, donc pas de grammaire`);
+    for (let i = 0; i < t.length; i++) {
+      for (let j = i + 1; j < t.length; j++) {
+        const a = t[i], b = t[j];
+        if (Math.abs(a.dens - b.dens) < 0.12 && a.zones.join() === b.zones.join()
+            && String(a.matieres) === String(b.matieres) && String(a.ech) === String(b.ech)) {
+          soucis.push(`${cle} : les lois ${i} et ${j} ont le meme air`);
+        }
+      }
+    }
+    const zTirees = new Set(t.flatMap(a => a.zones ?? []));
+    for (let z = 0; z < zones.length; z++) {
+      if (!zTirees.has(z)) soucis.push(`${cle} : la zone de props ${z} n est tiree par aucune region`);
+    }
   }
-  for (const lieu of Object.keys(MATIERE)) {
-    if (!ZONES[lieu]) soucis.push(`${lieu} : matiere sans quartiers`);
+  for (const cle of Object.keys(AIR)) {
+    if (!ZONES[cle]) soucis.push(`air pour ${cle}, qui n est pas un theme`);
   }
-  for (const t of connues) {
-    if (!tirees.has(t)) soucis.push(`trace ${t} : ecrite et tiree par aucun lieu`);
+  for (const t of TRACES_CONNUES) {
+    if (!tirees.has(t)) soucis.push(`trace ${t} : ecrite et tiree par aucune region`);
   }
   return soucis;
 }

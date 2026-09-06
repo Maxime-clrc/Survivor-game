@@ -1,6 +1,6 @@
 import { createGL } from "/gl.js";
 
-import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome } from "/shared/game_state.js";
+import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome, loiAt as loiDeCarte } from "/shared/game_state.js";
 import { CADRE_SKIN, ENEMY, biomeSkin, cssVars, decorAt, solDeBiome } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { reuploadAtlas } from "/sprites.js";
@@ -18,12 +18,27 @@ let modeCourant = 1;
 
 export let sol = solDeBiome(1, "usine");
 
+/* LA TEINTE DE SOL EST PAR REGION, ET C EST LE PREMIER TEMOIN D UNE FRONTIERE.
+   `solCache` evite de rappeler `solDeBiome` par cellule et par image : quatre
+   entrees au plus, refaites au changement de mode ou de carte. */
+let solCache = new Map();
+function solLoi(loi) {
+  let v = solCache.get(loi);
+  if (!v) { v = solDeBiome(modeCourant, biome.key ?? "usine", loi); solCache.set(loi, v); }
+  return v;
+}
 function refreshSol() {
-  // le theme, pas la camera : ce module s initialise AVANT que `camera` existe,
-  // et une lecture en zone morte casse tout le rendu a l import.
-  sol = solDeBiome(modeCourant, biome.key ?? "usine");
+  solCache = new Map();
+  // la loi 0, pas celle de la camera : ce module s initialise AVANT que `camera`
+  // existe, et une lecture en zone morte casse tout le rendu a l import.
+  sol = solLoi(0);
   vignette = null;
 }
+// LE BIOME D UN POINT, ET CELUI DE LA VUE. Tout ce qui se dessine QUELQUE PART
+// lit le premier ; ce qui peint la vue entiere lit le second.
+export function loiAt(x, y) { return loiDeCarte(biome, x, y); }
+export function loiCourante() { return loiDeCarte(biome, camera.x, camera.y); }
+export function solDe(x, y) { return solLoi(loiAt(x, y)); }
 
 export function rebuildBiome(diffIndex = 1) {
   biome = buildBiome(biomeIndex, diffIndex, biomeSeed,
@@ -90,6 +105,11 @@ export function updateCamera(dt) {
   }
   camera.x0 = camera.x - CFG.VIEW_W / 2;
   camera.y0 = camera.y - CFG.VIEW_H / 2;
+  /* LE SOL DE LA VUE SUIT LA CAMERA. Ce qui peint la vue entiere — le fond sous
+     le decor, la grille de 20 m — ne peut pas se couper par cellule : il prend la
+     teinte de la region ou l on est, et il change en marchant. Le sol lui-meme se
+     peint par cellule (`solDe`), donc la frontiere reste franche au bon endroit. */
+  sol = solLoi(loiCourante());
   applyCamera();
   if (PERF) { window.__cam = camera; window.__pred = predicted; }
 }

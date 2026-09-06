@@ -67,7 +67,7 @@ import {
 } from "./enemies.js";
 import {
   BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
-  biomeAt, hazardAt, weatherAt, verifierBiomes, mulberry32,
+  biomeAt, hazardAt, weatherAt, verifierBiomes, mulberry32, loiAt, loiNom, loisDe,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
 } from "./biomes.js";
@@ -93,7 +93,7 @@ export { TL_CFG, SCRIPTS, EVENTS, eventAt, verifierScript };
 export { EV_NUEE, EV_SIEGE, EV_CROISE, EV_CHASSE };
 export {
   BIOMES, BIOME_CFG, HAZARDS, WEATHERS, buildBiome, hazardState, weatherFor, windAt,
-  biomeAt, hazardAt, weatherAt, verifierBiomes,
+  biomeAt, hazardAt, weatherAt, verifierBiomes, loiAt, loiNom, loisDe,
   HZ_GEYSER, HZ_POOL, HZ_EMBER, HZ_SLOW, HZ_SLIP,
   WX_BRUME, WX_BOURRASQUE, WX_CENDRES,
 };

@@ -183,6 +183,10 @@ const SUITE = [
       new GameState(d, i, 7).obstacles, CFG.ARENA_W, CFG.ARENA_H)
       .map(s => `${b.key}/d${d} : ${s}`)))],
   ["charte", () => P.verifierCharte()],
+  /* L ACCENT D UNE REGION EST BORNE DES DEUX COTES : assez pour qu on voie la
+     frontiere, pas assez pour que la region derive vers un autre theme. Le
+     plafond n est pas un nombre mais une APPARTENANCE — voir `palette.js`. */
+  ["accents", () => P.verifierAccents()],
   ["feedback", () => F.verifierFeedback(A.ARMES, E.ENEMY_TYPES, recettes())],
   ["effets", () => G.verifierEffets(unePartie())],
   ["bonus", () => G.verifierBonus()],
