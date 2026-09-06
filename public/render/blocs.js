@@ -4,7 +4,8 @@ import {
   B_DEVANTURE, B_PYLONE, B_CONTENEUR,
   B_PALETTIER, B_PILE, B_QUAI, B_REMORQUE,
   B_CLOTURE, B_ETABLI, B_OUVERTE, B_TRANSFO,
-  B_BASSIN, B_MALAXEUR, B_MOULE, gabaritsDe,
+  B_BASSIN, B_MALAXEUR, B_MOULE,
+  B_BANCHE, B_EPAVES, B_GRILLAGE, B_POTEAU, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, skin } from "./stage.js";
@@ -78,6 +79,7 @@ const HABILLAGE = {
   palettier, pile, quai, remorque,
   etabli, ouverte, transfo, cloture,
   moule, malaxeur, bassin,
+  epaves, poteau, banche,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -117,6 +119,16 @@ const BLOC = {
     [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
     [B_MUR]: { sil: "mur_bas", hab: "murBas", hors: "mur_bas" },
     [B_CARCASSE]: { sil: "chassis", hab: "carcasse" },
+    [B_EPAVES]: { sil: "pile", hab: "epaves" },
+    // LE MEME CADRE QUE LA CLAIRE-VOIE, sans un dessin de plus : la palette du
+    // lieu suffit a separer une cloture d atelier d une cloture de casse.
+    [B_GRILLAGE]: { sil: "cadre", hab: "cloture" },
+    [B_POTEAU]: { sil: "mat", hab: "poteau" },
+    /* PAS `mur_bas` : ses creneaux disent qu un mur a CASSE, et une banche est
+       neuve. `verifierEmpreinte` l a refusee a 15,6 % pour un seuil de 10 —
+       une silhouette de ruine sur un panneau de coffrage faisait buter sur du
+       vide en plus de mentir. */
+    [B_BANCHE]: { sil: "caisson", hab: "banche" },
   },
   nebuleuse: {
     [B_FRAGMENT]: { sil: "eclat", hab: "fragment" },
@@ -2431,6 +2443,95 @@ function bassin(o, S) {
     ctx.lineWidth = 1.4;
     ctx.strokeRect(-pw / 2, -ph / 2, pw, ph);
   }
+}
+
+
+/* LA PILE D EPAVES — CE QUI MONTE EN S ECARTANT DE L APLOMB. Elle reprend la
+   silhouette de la pile de palettes ; ce qui change est que chaque etage est une
+   CARROSSERIE, donc une forme qui a eu des vitres, des portes et de la rouille.
+   Trois etages, jamais alignes, et le plus bas est le plus ecrase. */
+function epaves(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  const e = h / 3;
+  for (let i = 0; i < 3; i++) {
+    const dx = ((s >> (i * 3)) & 1) ? Math.min(w * 0.16, 7) : 0;
+    const y0 = -h / 2 + i * e;
+    // la carrosserie : plus sombre en bas, la rouille prend le dessus en haut.
+    ctx.fillStyle = alpha(i === 2 ? PROP.rouille : S.bloc, 0.36 + i * 0.10);
+    ctx.fillRect(-w / 2 + dx + 1, y0 + 1, w - dx - 2, e - 2);
+    // LE PARE-BRISE, un trapeze clair : c est ce qui dit « voiture » et pas
+    // « caisse », et il n existe qu une fois par etage.
+    ctx.fillStyle = alpha(PROP.verre, 0.14);
+    ctx.fillRect(-w / 2 + dx + w * 0.22, y0 + e * 0.20, w * 0.46, e * 0.28);
+    ctx.strokeStyle = alpha("#000000", 0.34);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-w / 2 + dx + 1, y0 + 1, w - dx - 2, e - 2);
+  }
+  // les COULEES de rouille, verticales, depuis le haut de la pile.
+  ctx.strokeStyle = alpha(PROP.rouille, 0.26);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const x = -w / 2 + w * (0.20 + 0.3 * i);
+    ctx.moveTo(x, -h / 2 + 2); ctx.lineTo(x, -h / 2 + e * (1.2 + (s >> i & 1)));
+  }
+  ctx.stroke();
+}
+
+/* LE POTEAU NU — DU BETON COFFRE ET DES FERS EN ATTENTE. Le fer qui depasse est
+   toute l information : il dit INACHEVE la ou tout le reste du theme dit
+   DETRUIT, et c est la seule region de la Friche qui parle d un futur. */
+function poteau(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.58);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // les traces de banche : deux lignes horizontales, le beton garde son moule.
+  ctx.strokeStyle = alpha("#000000", 0.22);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const f of [0.36, 0.68]) {
+    ctx.moveTo(-w / 2 + 1, -h / 2 + h * f); ctx.lineTo(w / 2 - 1, -h / 2 + h * f);
+  }
+  ctx.stroke();
+  // LES FERS EN ATTENTE : quatre traits fins qui sortent du haut. Ils depassent
+  // de l empreinte, et c est voulu — rien ne se lit comme un volume.
+  ctx.strokeStyle = alpha(PROP.rouille, 0.44);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const x = -w / 2 + w * (0.2 + i * 0.2);
+    const l = 3 + ((s >> (i * 2)) & 3);
+    ctx.moveTo(x, -h / 2 + 1); ctx.lineTo(x + ((s >> i) & 1 ? 1 : -1), -h / 2 - l);
+  }
+  ctx.stroke();
+}
+
+/* LA BANCHE — UN PANNEAU DE COFFRAGE DEBOUT. Metal jaune, raidisseurs
+   horizontaux, et deux pieds obliques : elle est POSEE contre quelque chose,
+   jamais scellee. C est le seul objet NEUF de la Friche. */
+function banche(o, S) {
+  const w = o.w, h = o.h;
+  const long = w >= h;
+  ctx.fillStyle = alpha("#000000", 0.38);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.peint, 0.40);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  ctx.strokeStyle = alpha("#000000", 0.30);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  const L = long ? w : h;
+  for (let u = -L / 2 + 8; u < L / 2 - 4; u += 14) {
+    if (long) { ctx.moveTo(u, -h / 2 + 1); ctx.lineTo(u, h / 2 - 1); }
+    else { ctx.moveTo(-w / 2 + 1, u); ctx.lineTo(w / 2 - 1, u); }
+  }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.28);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
 }
 
 function conteneur(o, S) {

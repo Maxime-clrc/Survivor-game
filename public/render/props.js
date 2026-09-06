@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_BASSIN, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_MALAXEUR, B_MOULE, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_CONDUITE, B_BANCHE, B_BASSIN, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -204,7 +204,10 @@ const QUARTIER = {
               [B_MOULE]: 1, [B_MALAXEUR]: 1, [B_BASSIN]: 2 },
   // la carcasse fait la CASSE, le mur fait la CLOTURE, et une ruine est le seul
   // endroit ou il reste quelque chose d allume.
-  friche: { [B_CARCASSE]: 1, [B_MUR]: 2, [B_RUINE]: 3 },
+  // la pile d epaves fait la CASSE comme la carcasse ; le grillage, le poteau
+  // et la banche FERMENT ou DELIMITENT — c est le quartier de la cloture.
+  friche: { [B_CARCASSE]: 1, [B_MUR]: 2, [B_RUINE]: 3,
+            [B_EPAVES]: 1, [B_GRILLAGE]: 2, [B_POTEAU]: 2, [B_BANCHE]: 2 },
   // la coque et ses debris font l EPAVE, la travee est ce a quoi on s AMARRE.
   nebuleuse: { [B_FRAGMENT]: 0, [B_DEBRIS]: 0, [B_TRAVEE]: 3 },
   // devanture et pylone VENDENT, le conteneur est ce qu on livre PAR DERRIERE.
@@ -1824,6 +1827,8 @@ const AIR = {
     // ce qui FERMAIT et le peu qui reste ALLUME : deux zones, pas trois. Trois
     // zones sur quatre rendaient l union du theme entier.
     { dens: 1.40, ech: [0.52, 1.14], zones: [2, 3], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
+    // un chantier n a RIEN a lui : ce qui traine est ce qui fermait le terrain.
+    { dens: 0.64, ech: [0.72, 0.90], zones: [2], matieres: [TRACE_FISSURES] },
   ],
   nebuleuse: [
     { dens: 1.00, ech: [0.90, 1.05], zones: [0, 3], matieres: [TRACE_RAYURES, null] },

@@ -8,6 +8,36 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Friche : le cratère sans cratère (0.43.8)
+
+**Un nom qui décrivait une disposition et promettait un objet.** « Le cratère »
+n'avait ni sol brûlé, ni bourrelet, ni pente — juste un endroit un peu moins
+encombré. Il devient **la casse** : des piles d'épaves, seul empilement vertical
+du thème et seule chose du dépôt qui monte en s'écartant de l'aplomb.
+
+Et **le chantier** arrive : une grille de poteaux nus, des fers en attente, des
+banches. Le seul endroit du thème où ce qui est là soit **neuf et déjà mort** —
+il dit *inachevé* là où tout le reste dit *détruit*. C'est aussi la région la
+plus ouverte de la Friche, donc l'inverse exact de la casse.
+
+| | régions | avec une signature |
+|---|---:|---:|
+| usine | 7 | 4 |
+| fonderie | 4 | 2 |
+| **friche** | **5** | **2** (casse → epaves, grillage · chantier → poteau, banche) |
+| nébuleuse | 4 | 0 |
+| secteur | 4 | 0 |
+| **total** | **24** | **8** |
+
+**Le `cadre` sert trois thèmes sans un dessin de plus** : claire-voie à l'Usine,
+châssis de sable à la Fonderie, grillage de casse à la Friche. La palette du lieu
+suffit à les séparer — c'est l'argument de mutualisation, vérifié.
+
+**`verifierEmpreinte` a refusé la banche à 15,6 %** : elle portait la silhouette
+`mur_bas`, dont les créneaux disent qu'un mur a **cassé**. Une banche est neuve.
+Le vérificateur a attrapé un mensonge de forme en même temps qu'un vide de
+collision.
+
 ### La Fonderie : le refroidissement refroidit (0.43.7)
 
 **Le plus gros écart du dépôt entre un nom et un pixel est corrigé.** La région

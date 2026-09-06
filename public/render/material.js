@@ -1470,7 +1470,9 @@ const SOL_REGION = {
      qu il faut. Les utilites sont sur GRAVIER, le seul sol non lisse du theme. */
   usine:     [T_LISSE, T_MARQUE, T_MOUILLE, T_DALLE, T_POUDRE, T_BITUME, T_GRANULAT],
   fonderie:  [T_LISSE, T_GRANULAT, T_MOUILLE, T_DALLE],
-  friche:    [T_TERRE, T_GRANULAT, T_POUDRE, T_VEGETAL],
+  /* LA CASSE EST HUILEUSE, DONC ELLE RENVOIE, et le chantier est une DALLE
+     BRUTE — le seul sol de la Friche qui ne soit pas encore abime. */
+  friche:    [T_TERRE, T_GRANULAT, T_MOUILLE, T_VEGETAL, T_DALLE],
   nebuleuse: [T_TECHNIQUE, T_AJOURE, T_LISSE, T_MINERAL],
   secteur:   [T_MARQUE, T_MOUILLE, T_BITUME, T_DALLE],
 };

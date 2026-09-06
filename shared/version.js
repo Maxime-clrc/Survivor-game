@@ -9932,6 +9932,24 @@
                   sur 50 graines), et la conduite a 0,10 laissait 68 px jusqu au
                   bord de cellule. Six regions sur vingt-trois ont une signature.
 
+    0.43.8 lot 9  LA FRICHE : LE CRATERE SANS CRATERE. Le nom decrivait une
+                  disposition et promettait un objet — ni sol brule, ni bourrelet,
+                  ni pente. Il devient LA CASSE : des piles d epaves, seul
+                  empilement vertical du theme et seule chose du depot qui monte
+                  en s ecartant de l aplomb.
+                  LE CHANTIER arrive : grille de poteaux nus, fers en attente,
+                  banches. Le seul endroit du theme ou ce qui est la soit NEUF et
+                  deja mort — il dit INACHEVE la ou tout le reste dit DETRUIT, et
+                  c est la region la plus ouverte de la Friche.
+                  LE CADRE SERT TROIS THEMES SANS UN DESSIN DE PLUS : claire-voie
+                  a l Usine, chassis de sable a la Fonderie, grillage de casse a
+                  la Friche. La palette du lieu suffit a les separer.
+                  `verifierEmpreinte` a refuse la banche a 15,6 % : elle portait
+                  la silhouette `mur_bas`, dont les creneaux disent qu un mur a
+                  CASSE. Le verificateur a attrape un mensonge de forme en meme
+                  temps qu un vide de collision.
+                  Huit regions sur vingt-quatre ont une signature.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -9940,4 +9958,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.7";
+export const VERSION = "0.43.8";

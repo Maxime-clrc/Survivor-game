@@ -141,7 +141,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_DEVANTURE = 12, B_PYLONE = 13, B_CONTENEUR = 14,
              B_PALETTIER = 15, B_PILE = 16, B_QUAI = 17, B_REMORQUE = 18,
              B_ETABLI = 19, B_OUVERTE = 20, B_TRANSFO = 21, B_CLOTURE = 22,
-             B_MOULE = 23, B_MALAXEUR = 24, B_BASSIN = 25;
+             B_MOULE = 23, B_MALAXEUR = 24, B_BASSIN = 25,
+             B_EPAVES = 26, B_GRILLAGE = 27, B_POTEAU = 28, B_BANCHE = 29;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -174,6 +175,10 @@ export const BLOCS = [
   { key: "moule", lieu: "fonderie" },
   { key: "malaxeur", lieu: "fonderie" },
   { key: "bassin", lieu: "fonderie" },
+  { key: "epaves", lieu: "friche" },
+  { key: "grillage", lieu: "friche" },
+  { key: "poteau", lieu: "friche" },
+  { key: "banche", lieu: "friche" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -588,26 +593,44 @@ const OBSTACLES = {
       { x: 0.29, y: 0.59, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
       { x: 0.72, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE, min: 2 },
     ] },
-    /* LE CRATERE — vide au centre, dense au pourtour : l INVERSE de la loi du
-       theme, qui seme partout. On y combat au milieu, dos a rien, et c est la
-       seule variante de friche qui offre ca. */
-    { cle: "cratere", nom: "le cratere", label: "Le cratère", bords: [BORD_MUR, BORD_ENCOMBRE, BORD_MUR, BORD_ENCOMBRE], poser: [
+    /* LA CASSE — ON DEMONTE POUR REVENDRE, DONC C EST UN ABANDON ORGANISE. Elle
+       remplace « le cratere », dont le nom decrivait une disposition et
+       promettait un objet : il n y avait pas de cratere, pas de sol brule, pas
+       de bourrelet — juste un endroit un peu moins encombre.
+       Ici il y a des PILES : le seul empilement vertical du theme, et la seule
+       chose du depot qui monte en s ecartant de l aplomb. Le grillage ferme la
+       cour sans la cacher — meme cadre que la claire-voie de l Usine, autre
+       palette, autre lecture. */
+    { cle: "casse", nom: "la casse", label: "La casse", bords: [BORD_MUR, BORD_ENCOMBRE, BORD_MUR, BORD_ENCOMBRE], poser: [
+      { x: 0.20, y: 0.20, w: 0.070, h: 0.090, kind: B_EPAVES },
+      { x: 0.46, y: 0.12, w: 0.070, h: 0.090, kind: B_EPAVES },
+      { x: 0.78, y: 0.44, w: 0.070, h: 0.090, kind: B_EPAVES, min: 1 },
+      { x: 0.20, y: 0.94, w: 0.070, h: 0.090, kind: B_EPAVES, min: 1 },
+      { x: 0.86, y: 0.86, w: 0.070, h: 0.090, kind: B_EPAVES, min: 2 },
+      { x: 0.50, y: 0.30, w: 0.180, h: 0.014, kind: B_GRILLAGE },
+      { x: 0.30, y: 0.66, w: 0.180, h: 0.014, kind: B_GRILLAGE, min: 1 },
       { x: 0.29, y: 0.44, w: 0.085, h: 0.070, kind: B_RUINE },
-      { x: 0.71, y: 0.56, w: 0.085, h: 0.070, kind: B_RUINE },
-      { x: 0.27, y: 0.84, w: 0.045, h: 0.110, kind: B_RUINE },
       { x: 0.73, y: 0.16, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
-      { x: 0.31, y: 0.11, w: 0.110, h: 0.040, kind: B_MUR },
-      /* 0,70 -> 0,86 : ce mur se tenait DANS la ruine de 0,71 et la rayait sur
-         140 x 41 px. Il part au POURTOUR, qui est la loi de la variante — le
-         centre reste vide, et c est le seul endroit ou il ne croise rien. */
-      { x: 0.86, y: 0.55, w: 0.110, h: 0.040, kind: B_MUR, min: 1 },
-      // les deux petites ruines s ecartent des grandes de 10 px : elles les
-      // entamaient de 17 px en hauteur, sur 84 de large.
-      { x: 0.27, y: 0.51, w: 0.060, h: 0.048, kind: B_RUINE },
-      { x: 0.73, y: 0.49, w: 0.060, h: 0.048, kind: B_RUINE, min: 1 },
       { x: 0.29, y: 0.59, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE, min: 2 },
-      // 0,73 -> 0,62 : elle etait POSEE DANS la ruine debout de 0,73.
-      { x: 0.62, y: 0.14, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 2 },
+    ] },
+    /* LE CHANTIER — UN BATIMENT JAMAIS FINI, DONC UN ABANDON SANS USURE. C est
+       le seul endroit du theme ou ce qui est la soit NEUF et deja mort : une
+       ossature nue, des banches de coffrage debout, et rien entre les poteaux.
+       LA GRILLE DE POTEAUX EST LA SIGNATURE : des appuis fins et REGULIERS, donc
+       on voit la horde arriver de tres loin et on ne peut se cacher que du TIR.
+       C est la region la plus ouverte de la Friche, et l inverse exact de la
+       casse — l une empile, l autre n a rien monte. */
+    { cle: "chantier", nom: "le chantier", label: "Le chantier", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.20, y: 0.20, w: 0.020, h: 0.036, kind: B_POTEAU },
+      { x: 0.50, y: 0.20, w: 0.020, h: 0.036, kind: B_POTEAU },
+      { x: 0.70, y: 0.18, w: 0.020, h: 0.036, kind: B_POTEAU, min: 1 },
+      { x: 0.34, y: 0.50, w: 0.020, h: 0.036, kind: B_POTEAU },
+      { x: 0.80, y: 0.50, w: 0.020, h: 0.036, kind: B_POTEAU, min: 1 },
+      { x: 0.06, y: 0.94, w: 0.020, h: 0.036, kind: B_POTEAU, min: 2 },
+      { x: 0.50, y: 0.94, w: 0.020, h: 0.036, kind: B_POTEAU },
+      { x: 0.80, y: 0.80, w: 0.020, h: 0.036, kind: B_POTEAU, min: 1 },
+      { x: 0.30, y: 0.36, w: 0.100, h: 0.020, kind: B_BANCHE },
+      { x: 0.72, y: 0.36, w: 0.100, h: 0.020, kind: B_BANCHE, min: 1 },
     ] },
     /* L EFFONDREMENT — des masses de toutes tailles, sans loi apparente. C est
        la variante qui n a pas de regle, et elle en a donc une : le contraste. */
@@ -945,8 +968,12 @@ const TRAMES = {
   friche: [
     { type: TR_CRIBLE, kind: B_RUINE },
     { type: TR_RUBAN, kind: B_MUR },
-    { type: TR_COURONNE, kind: B_RUINE },
+    // la casse est un CRIBLE de piles : meme primitive que le champ, autre
+    // famille — c est la famille qui porte la moitie de la silhouette.
+    { type: TR_CRIBLE, kind: B_EPAVES },
     { type: TR_NEF, kind: B_MUR },
+    // une ossature EST un crible : des appuis reguliers et rien entre eux.
+    { type: TR_CRIBLE, kind: B_POTEAU },
   ],
   nebuleuse: [
     { type: TR_CRIBLE, kind: B_FRAGMENT },
