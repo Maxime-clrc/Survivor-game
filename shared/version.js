@@ -10511,6 +10511,31 @@
                   donc plus aucune signature ne disparait par manque de place.
                   Pire Jaccard bati : 0,50 sur 330 paires.
 
+    0.43.34 lot 35 DIX-SEPT OPACITES POUR LA MEME OMBRE. `lumDir()` unifie la
+                  DIRECTION de l ombre depuis le plan 13, avec sa raison ecrite —
+                  deux ombres qui pointent differemment sur le meme ecran est LE
+                  defaut visible d un rendu 2D. La FORCE n avait pas de point de
+                  passage : dix-sept valeurs sur quatre-vingt-deux sites, de
+                  0,16 a 0,55, soit un facteur 3,4 entre deux objets poses cote
+                  a cote. `ombre()` les remplace toutes ; 0,34 est la mediane et
+                  ce que vingt-trois props portaient deja. Sept props n en ont
+                  AUCUNE et c est juste : une marque au sol n a pas de volume.
+                  `constantes-check` trouvait une constante SANS LECTEUR ; il
+                  trouve maintenant le symetrique, une valeur ECRITE EN DUR la
+                  ou un point de passage existe.
+                  LES ONZE FAMILLES DE PROPS PARAMETRIQUES DU DOSSIER NE SERONT
+                  PAS ECRITES, et c est une mesure qui l a decide. Le §F.3
+                  promettait onze fonctions au lieu de quarante-huit ; sur les
+                  68 props reels, la plus forte similarite de suite d appels est
+                  de 100 % entre `rail` et `eprouvette` — deux files paralleles
+                  avec traverses d un cote, un portoir a trois tubes de l autre.
+                  CE N EST PAS LE MEME DESSIN, C EST LA MEME GRAMMAIRE. Une
+                  parametrisation ne factoriserait que le prologue d ombre et la
+                  taille tiree de `p.p`, soit 11 % des 1 373 lignes, au prix
+                  d une table par instance et du risque de props generiques que
+                  le §9 du cahier des charges refuse. Le prologue est donc
+                  factorise SEUL.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10519,4 +10544,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.33";
+export const VERSION = "0.43.34";

@@ -62,6 +62,19 @@ const P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
    gresille, un voyant respire, du metal en fusion ondule, une balise bat. Le
    comportement est un canal de MATIERE. L'Usine est le lieu qui l'exploite le
    plus, parce que c'est le seul dont le verbe soit au present. */
+/* L OMBRE D UN PROP, ET IL N Y EN A QU UNE. `lumDir()` unifie deja la DIRECTION
+   — « deux ombres qui pointent differemment sur le meme ecran est LE defaut
+   visible d un rendu 2D » — mais rien n unifiait l OPACITE, et c est le meme
+   defaut sur l autre axe. Mesure a l ouverture du lot 35 : DIX-SEPT valeurs
+   distinctes sur soixante et un props, de 0,16 a 0,55, soit un facteur 3,4 entre
+   deux objets poses cote a cote.
+   0,34 est la mediane et la plus employee — vingt-trois props sur soixante et un
+   la portaient deja. Sept props n ont AUCUNE ombre et c est juste : une flaque,
+   un marquage au sol et un neon tombe n ont pas de volume.
+   `constantes-check` refuse desormais un litteral a cette place. */
+const OMBRE = 0.34;
+const ombre = () => alpha(PROP.ombre, OMBRE);
+
 const CYCLE = (t, periode, phase) => ((t / periode) + phase) % 1;
 
 // un prop emissif declare son RAYON et sa COULEUR : une poche en fusion et un
@@ -783,7 +796,7 @@ function dessin(p, ox, oy) {
    et un buisson qui aurait du volume se lirait comme bloquant. */
 function brousse(p) {
   const n = 5 + ((p.p * 4) | 0);
-  ctx.fillStyle = alpha(PROP.ombre, 0.16);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.ellipse(1.5, 2, 15, 11, 0, 0, Math.PI * 2); ctx.fill();
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + p.p * 6;
@@ -816,11 +829,11 @@ function jonchee(p, ox, oy) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(a * 1.3);
-    ctx.fillStyle = alpha(PROP.ombre, 0.34);
+    ctx.fillStyle = ombre();
     ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
     ctx.fillStyle = alpha("#7e7a6e", 0.60 + (i % 3) * 0.10);
     ctx.fillRect(-w / 2, -h / 2, w, h);
-    ctx.fillStyle = alpha(PROP.ombre, 0.30);
+    ctx.fillStyle = ombre();
     ctx.fillRect(-w / 2, h / 2 - 1.4, w, 1.4);
     ctx.restore();
   }
@@ -849,7 +862,7 @@ function grillage(p, ox, oy) {
   const gauche = h * (0.86 + p.p * 0.2), droite = h * (1.1 - p.p * 0.18);
   const bordY = (u) => (-gauche + (droite - gauche) * u) / 2;
 
-  ctx.strokeStyle = alpha(PROP.ombre, 0.30);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let i = 0; i <= 6; i++) {
@@ -881,7 +894,7 @@ function grillage(p, ox, oy) {
    ce qu'il y avait a prendre. */
 function carcasse(p, ox, oy) {
   const w = 40 + p.p * 16, h = 26 + p.p * 9;
-  ctx.fillStyle = alpha(PROP.ombre, 0.38);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha(PROP.rouille, 0.62);
   ctx.fillRect(-w / 2, -h / 2, w, h);
@@ -910,13 +923,13 @@ function carcasse(p, ox, oy) {
    ELLIPTIQUE — c'est l'ellipse qui dit qu'il est sur le flanc. */
 function bidon(p, ox, oy) {
   const l = 26 + p.p * 10, r = 8 + p.p * 2.5;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-l / 2 + ox, -r + oy, l, r * 2);
   ctx.fillStyle = alpha(PROP.rouille, 0.66);
   ctx.fillRect(-l / 2, -r, l, r * 2);
   ctx.fillStyle = alpha("#c8c4b4", 0.07);
   ctx.fillRect(-l / 2, -r, l, r * 0.7);
-  ctx.strokeStyle = alpha(PROP.ombre, 0.40);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 2;
   ctx.beginPath();
   for (const u of [-0.22, 0.22]) {
@@ -945,7 +958,7 @@ function panneau(p, ox, oy) {
   ctx.fillStyle = alpha("#6b6a60", 0.50);
   ctx.fillRect(w * 0.5 + 20, -3 + p.p * 5, 9, 12);
 
-  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha("#5a5a52", 0.72);
   ctx.fillRect(-w / 2, -h / 2, w, h);
@@ -982,7 +995,7 @@ function epave(p, ox, oy) {
     }
     ctx.closePath();
   };
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   trace(ox, oy, 1); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.86);
   trace(0, 0, 1); ctx.fill();
@@ -1004,11 +1017,11 @@ function epave(p, ox, oy) {
 function voile(p, ox, oy) {
   const w = 46 + p.p * 26, h = 24 + p.p * 8;
   const cols = 4 + ((p.p * 3) | 0);
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha("#111a2e", 0.88);
   ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.strokeStyle = alpha(PROP.ombre, 0.50);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1.2;
   ctx.beginPath();
   for (let i = 1; i < cols; i++) {
@@ -1032,7 +1045,7 @@ function voile(p, ox, oy) {
    HABITE, et c'est ce qui lui donne son hublot. */
 function module_(p, ox, oy) {
   const l = 40 + p.p * 22, r = 11 + p.p * 4;
-  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillStyle = ombre();
   ctx.beginPath();
   ctx.ellipse(ox, oy, l / 2, r, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -1044,7 +1057,7 @@ function module_(p, ox, oy) {
   ctx.beginPath();
   ctx.ellipse(0, -r * 0.32, l / 2 - 3, r * 0.42, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = alpha(PROP.ombre, 0.46);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 2.2;
   ctx.beginPath();
   for (const u of [-0.28, 0.30]) {
@@ -1096,7 +1109,7 @@ function cristal(p) {
    est la balise, et il ne doit y avoir qu'une chose qui appelle. */
 function antenne(p, ox, oy) {
   const r = 13 + p.p * 6;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.ellipse(ox, oy, r, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.84);
   ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
@@ -1120,7 +1133,7 @@ function antenne(p, ox, oy) {
 function rail(p, ox, oy) {
   const l = 88 + p.p * 54;
   for (const dy of [-6, 6]) {
-    ctx.fillStyle = alpha(PROP.ombre, 0.32);
+    ctx.fillStyle = ombre();
     ctx.fillRect(-l / 2 + ox, dy - 2 + oy, l, 4);
     ctx.fillStyle = alpha(PROP.metalDark, 0.88);
     ctx.fillRect(-l / 2, dy - 2, l, 4);
@@ -1152,7 +1165,7 @@ function givre(p) {
 
 function ancrage(ox, oy) {
   const r = 11;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, r + 3, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.82);
   ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.fill();
@@ -1168,7 +1181,7 @@ function ancrage(ox, oy) {
 
 function balise(p, ox, oy) {
   const k = gresil(p);
-  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, 8, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.90);
   ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
@@ -1193,14 +1206,14 @@ function convoyeur(p, ox, oy) {
   const l = 68 + p.p * 40, w = 17;
   const sens = p.p < 0.5 ? 1 : -1;
   const d = (performance.now() / 1000 * 11 * sens) % TAQUET;
-  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-l / 2 + ox, -w / 2 + oy, l, w);
   ctx.fillStyle = alpha(PROP.metalDark, 0.86);
   ctx.fillRect(-l / 2, -w / 2, l, w);
 
   ctx.save();
   ctx.beginPath(); ctx.rect(-l / 2, -w / 2, l, w); ctx.clip();
-  ctx.strokeStyle = alpha(PROP.ombre, 0.46);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   for (let x = -l / 2 - TAQUET + d; x < l / 2 + TAQUET; x += TAQUET) {
@@ -1232,7 +1245,7 @@ function bras(p, ox, oy) {
   const a = a0 + (a1 - a0) * (v * v * (3 - 2 * v));
   const l1 = 16 + p.p * 5, l2 = 13 + p.p * 4;
 
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, 9, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.90);
   ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
@@ -1243,7 +1256,7 @@ function bras(p, ox, oy) {
   const x1 = Math.cos(a) * l1, y1 = Math.sin(a) * l1;
   const b = a + 0.85;
   const x2 = x1 + Math.cos(b) * l2, y2 = y1 + Math.sin(b) * l2;
-  ctx.strokeStyle = alpha(PROP.ombre, 0.40);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 7;
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
   ctx.strokeStyle = alpha("#6a7284", 0.86);
@@ -1271,7 +1284,7 @@ function presse(p, ox, oy) {
   const c = u < 0.62 ? 0 : u < 0.70 ? (u - 0.62) / 0.08 : 1 - (u - 0.70) / 0.30;
   const w = 30 + p.p * 10, h = 22 + p.p * 7;
 
-  ctx.fillStyle = alpha(PROP.ombre, 0.38);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha("#3f4552", 0.90);
   ctx.fillRect(-w / 2, -h / 2, w, h);
@@ -1288,7 +1301,7 @@ function presse(p, ox, oy) {
 
   const mh = h * 0.34;
   const my = -h / 2 + 5 + (h - mh - 10) * c;
-  ctx.fillStyle = alpha(PROP.ombre, 0.50);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + 7, my + 2, w - 14, mh);
   ctx.fillStyle = alpha("#79808f", 0.92);
   ctx.fillRect(-w / 2 + 7, my, w - 14, mh);
@@ -1302,7 +1315,7 @@ function presse(p, ox, oy) {
 function ventilation(p, ox, oy) {
   const r = 13 + p.p * 5;
   const a = performance.now() / 1000 * (1.5 + p.p * 1.1);
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, r + 2, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha("#0d1017", 0.88);
   ctx.beginPath(); ctx.arc(0, 0, r + 2, 0, Math.PI * 2); ctx.fill();
@@ -1343,7 +1356,7 @@ function ventilation(p, ox, oy) {
 function palettier(p, ox, oy) {
   const w = 54 + p.p * 24, h = 20 + p.p * 7;
   const n = 3 + ((p.p * 3) | 0);
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha("#2c3038", 0.76);
   ctx.fillRect(-w / 2, -h / 2, w, h);
@@ -1377,7 +1390,7 @@ function caisses(p, ox, oy) {
   for (let i = 0; i < n; i++) {
     const c = 13 + ((i * 29 + p.p * 61) % 8);
     const dx = ((i * 41 + p.p * 83) % 17) - 8, dy = ((i * 23 + p.p * 47) % 17) - 8;
-    ctx.fillStyle = alpha(PROP.ombre, 0.34);
+    ctx.fillStyle = ombre();
     ctx.fillRect(dx - c / 2 + ox * 1.5, dy - c / 2 + oy * 1.5, c, c);
     ctx.fillStyle = alpha(PROP.rouille, 0.52);
     ctx.fillRect(dx - c / 2, dy - c / 2, c, c);
@@ -1414,7 +1427,7 @@ function allee(p) {
 function poche(p, ox, oy) {
   const r = 17 + p.p * 6;
   const k = gresil(p);
-  ctx.fillStyle = alpha(PROP.ombre, 0.40);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.ellipse(ox, oy, r + 4, r + 3, 0, 0, Math.PI * 2); ctx.fill();
 
   // le socle, plus large que la cuve : c'est ce qui la pose au sol.
@@ -1459,7 +1472,7 @@ function moule(p, ox, oy) {
   const n = 3 + ((p.p * 3) | 0);
   const w = 15, h = 26;
   const W = n * (w + 3);
-  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-W / 2 + ox, -h / 2 + oy, W, h);
   ctx.fillStyle = alpha("#2a221e", 0.88);
   ctx.fillRect(-W / 2, -h / 2, W, h);
@@ -1487,7 +1500,7 @@ function moule(p, ox, oy) {
    trapeze sombre — et le tas qui a debordé au pied. */
 function tremie(p, ox, oy) {
   const w = 30 + p.p * 12, h = 22 + p.p * 8;
-  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillStyle = ombre();
   ctx.beginPath();
   ctx.moveTo(-w / 2 + ox, -h / 2 + oy); ctx.lineTo(w / 2 + ox, -h / 2 + oy);
   ctx.lineTo(w * 0.28 + ox, h / 2 + oy); ctx.lineTo(-w * 0.28 + ox, h / 2 + oy);
@@ -1529,7 +1542,7 @@ function outillage(p, ox, oy) {
     const a = -0.9 + (i / Math.max(1, n - 1)) * 0.8 + p.p * 0.3;
     const l = 30 + ((i * 31 + p.p * 61) % 12);
     const ex = bx + Math.cos(a) * l, ey = by + Math.sin(a) * l;
-    ctx.strokeStyle = alpha(PROP.ombre, 0.34);
+    ctx.strokeStyle = ombre();
     ctx.lineWidth = 3.4;
     ctx.beginPath(); ctx.moveTo(bx + ox, by + oy); ctx.lineTo(ex + ox, ey + oy); ctx.stroke();
     ctx.strokeStyle = alpha(PROP.metalDark, 0.86);
@@ -1560,7 +1573,7 @@ function outillage(p, ox, oy) {
 function rigole(p) {
   const l = 74 + p.p * 46, w = 13;
   const k = gresil(p);
-  ctx.fillStyle = alpha(PROP.ombre, 0.55);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-l / 2, -w / 2, l, w);
   ctx.fillStyle = alpha(PROP.brique, 0.44);
   ctx.fillRect(-l / 2, -w / 2, l, 2.6);
@@ -1582,7 +1595,7 @@ function lingots(p, ox, oy) {
     const w = 22, h = 7;
     const dy = (i - (n - 1) / 2) * (h + 1.6);
     const dx = ((i * 31 + p.p * 53) % 9) - 4;
-    ctx.fillStyle = alpha(PROP.ombre, 0.34);
+    ctx.fillStyle = ombre();
     ctx.fillRect(dx - w / 2 + ox, dy - h / 2 + oy, w, h);
     ctx.fillStyle = alpha(PROP.metalDark, 0.90);
     ctx.beginPath();
@@ -1607,16 +1620,16 @@ function scorie(p) {
     ctx.arc(Math.cos(a) * d, Math.sin(a) * d, r, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = alpha(PROP.ombre, 0.24);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill();
 }
 
 
 function caillebotis(ox, oy) {
   const w = 34, h = 22;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
-  ctx.fillStyle = alpha(PROP.ombre, 0.55);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2, -h / 2, w, h);
   ctx.strokeStyle = alpha(PROP.metal, 0.26);
   ctx.lineWidth = 1.4;
@@ -1634,7 +1647,7 @@ function cable(p) {
   for (let i = 0; i < n; i++) {
     const dy = (i - (n - 1) / 2) * 2.8;
     const bosse = 5 + p.p * 6;
-    ctx.strokeStyle = alpha(PROP.ombre, 0.34);
+    ctx.strokeStyle = ombre();
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(-l / 2 + 1, dy + 1.4);
@@ -1651,13 +1664,13 @@ function cable(p) {
 
 function tuyau(ox, oy) {
   const l = 58, r = 5;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-l / 2 + ox, -r + oy, l, r * 2);
   ctx.fillStyle = alpha(PROP.metalDark, 0.80);
   ctx.fillRect(-l / 2, -r, l, r * 2);
   ctx.fillStyle = alpha(PROP.metal, 0.20);
   ctx.fillRect(-l / 2, -r, l, 1.8);
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-l / 2, r - 1.4, l, 1.4);
   ctx.fillStyle = alpha(PROP.metal, 0.16);
   for (const x of [-l / 2 + 8, 0, l / 2 - 8]) ctx.fillRect(x - 1.6, -r - 1.4, 3.2, r * 2 + 2.8);
@@ -1673,7 +1686,7 @@ function debris(p, ox, oy) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(a * 1.7);
-    ctx.fillStyle = alpha(PROP.ombre, 0.36);
+    ctx.fillStyle = ombre();
     ctx.fillRect(-w / 2 + ox, -w / 3 + oy, w, w * 0.66);
     ctx.fillStyle = alpha(i % 3 === 0 ? PROP.rouille : PROP.metalDark, 0.72);
     ctx.fillRect(-w / 2, -w / 3, w, w * 0.66);
@@ -1702,7 +1715,7 @@ function marquage(p) {
 function tube(p, ox, oy) {
   const l = 40, r = 2.6;
   const k = gresil(p);
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-l / 2 + ox, -r + oy, l, r * 2);
   ctx.fillStyle = alpha(PROP.verre, 0.22);
   ctx.fillRect(-l / 2, -r, l, r * 2);
@@ -1759,7 +1772,7 @@ function flaqueRue(p) {
 // LA BORNE : un pied lumineux de trottoir. Elle RESPIRE — mouvement continu et
 // periodique, donc de la matiere, jamais un telegraphe.
 function borne(p, ox, oy) {
-  ctx.fillStyle = alpha(PROP.ombre, 0.24);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.ellipse(ox, oy + 2, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.86);
   ctx.fillRect(-3, -9, 6, 18);
@@ -1774,7 +1787,7 @@ function borne(p, ox, oy) {
    ecran, donc un objet qui fonctionne. */
 function affiche(p, ox, oy) {
   const w = 15 + p.p * 9, h = 20 + p.p * 8;
-  ctx.fillStyle = alpha(PROP.ombre, 0.18);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.beginPath();
   ctx.moveTo(-w / 2, -h / 2);
@@ -1793,7 +1806,7 @@ function affiche(p, ox, oy) {
 
 // LA GRILLE D AIR : la bouche d extraction d en dessous, au ras du trottoir.
 function grilleAir(ox, oy) {
-  ctx.fillStyle = alpha(PROP.ombre, 0.20);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-13 + ox, -9 + oy, 26, 18);
   ctx.fillStyle = alpha("#0d0b14", 0.72);
   ctx.fillRect(-13, -9, 26, 18);
@@ -1807,7 +1820,7 @@ function grilleAir(ox, oy) {
 // LE DISTRIBUTEUR : la seule chose de la rue qui FONCTIONNE encore, et son ecran
 // est le seul cyan du lieu qui ne soit pas un reflet.
 function distributeur(p, ox, oy) {
-  ctx.fillStyle = alpha(PROP.ombre, 0.24);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-8 + ox, -11 + oy, 16, 22);
   ctx.fillStyle = alpha(PROP.metalDark, 0.90);
   ctx.fillRect(-8, -11, 16, 22);
@@ -1822,7 +1835,7 @@ function distributeur(p, ox, oy) {
 
 // LA MOTO COUCHEE : ce qu on a laisse tomber la. Un cadre et deux roues, a plat.
 function moto(p, ox, oy) {
-  ctx.fillStyle = alpha(PROP.ombre, 0.22);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.ellipse(ox, oy, 19, 7, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = alpha(PROP.metalDark, 0.88);
   ctx.lineWidth = 3.4;
@@ -1840,7 +1853,7 @@ function moto(p, ox, oy) {
 function cageot(p, ox, oy) {
   for (let i = 0; i < 3; i++) {
     const dx = ((p.p * 37 + i * 13) % 9) - 4, dy = ((p.p * 53 + i * 7) % 7) - 3;
-    ctx.fillStyle = alpha(PROP.ombre, 0.18);
+    ctx.fillStyle = ombre();
     ctx.fillRect(dx - 6 + ox, dy - 5 + oy, 12, 10);
     ctx.fillStyle = alpha(PROP.rouille, 0.50);
     ctx.fillRect(dx - 6, dy - 5, 12, 10);
@@ -1854,7 +1867,7 @@ function cageot(p, ox, oy) {
 // LA PARABOLE TOMBEE : un disque et son bras. Elle regarde le sol, maintenant.
 function parabole(p, ox, oy) {
   const r = 9 + p.p * 4;
-  ctx.fillStyle = alpha(PROP.ombre, 0.20);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.ellipse(ox, oy, r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.verre, 0.34);
   ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
@@ -1885,7 +1898,7 @@ function neonSol(p) {
 
 // LA PLAQUE D EGOUT : ronde et pleine, la seule du sol de ce lieu a l etre.
 function plaqueEgout(ox, oy) {
-  ctx.fillStyle = alpha(PROP.ombre, 0.22);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, 10, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha("#141220", 0.84);
   ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
@@ -1905,7 +1918,7 @@ function plaqueEgout(ox, oy) {
 // pas tendu — c est ce qui le separe du cable d atelier, qui est agrafe.
 function gaine(p, ox, oy) {
   const L = 20 + p.p * 14;
-  ctx.strokeStyle = alpha(PROP.ombre, 0.20);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(-L + ox, oy); ctx.quadraticCurveTo(ox, 8 + oy, L + ox, oy);
@@ -2538,7 +2551,7 @@ function dechets(cx, cy, x, y, s) {
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(h2(cx + i, cy, s + 295) * Math.PI);
-    ctx.fillStyle = alpha(PROP.ombre, 0.16);
+    ctx.fillStyle = ombre();
     ctx.fillRect(-w / 2 + 1.5, -h / 2 + 1.5, w, h);
     ctx.fillStyle = alpha(i % 3 === 0 ? PROP.peint : PROP.metal, 0.16);
     ctx.fillRect(-w / 2, -h / 2, w, h);
@@ -2616,7 +2629,7 @@ function coulee(cx, cy, x, y, s, ax, ay) {
 // seule chose du semis qui ait une DIRECTION de service.
 function gerbeur(p, ox, oy) {
   const l = 22 + p.p * 8, w = 13 + p.p * 4;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-l / 2 + ox, -w / 2 + oy, l, w);
   ctx.fillStyle = alpha(PROP.peint, 0.46);
   ctx.fillRect(-l / 2, -w / 2, l * 0.62, w);
@@ -2624,7 +2637,7 @@ function gerbeur(p, ox, oy) {
   ctx.fillRect(-l / 2 + l * 0.58, -w / 2 - 1, 3.5, w + 2);
   ctx.fillStyle = alpha(PROP.metal, 0.44);
   for (const d of [-1, 1]) ctx.fillRect(-l / 2 + l * 0.62, d * w * 0.28 - 1.4, l * 0.36, 2.8);
-  ctx.strokeStyle = alpha(PROP.ombre, 0.34);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1;
   ctx.strokeRect(-l / 2, -w / 2, l * 0.62, w);
 }
@@ -2633,7 +2646,7 @@ function gerbeur(p, ox, oy) {
 // travers : c est ce qui le separe du gerbeur.
 function transpalette(p, ox, oy) {
   const l = 18 + p.p * 7, w = 10 + p.p * 3;
-  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-l / 2 + ox, -w / 2 + oy, l, w);
   ctx.fillStyle = alpha(PROP.metal, 0.40);
   for (const d of [-1, 1]) ctx.fillRect(-l / 2, d * w * 0.30 - 1.6, l * 0.86, 3.2);
@@ -2648,7 +2661,7 @@ function transpalette(p, ox, oy) {
 // ce qu il reste d un vehicule parti.
 function cale(p, ox, oy) {
   const c = 7 + p.p * 4;
-  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillStyle = ombre();
   ctx.beginPath();
   ctx.moveTo(-c + ox, c / 2 + oy); ctx.lineTo(c + ox, c / 2 + oy); ctx.lineTo(c + ox, -c / 2 + oy);
   ctx.closePath(); ctx.fill();
@@ -2662,11 +2675,11 @@ function cale(p, ox, oy) {
 // horizontales regulieres, et rien d autre du semis n en a.
 function servante(p, ox, oy) {
   const w = 14 + p.p * 5, h = 18 + p.p * 6;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha(PROP.peint, 0.44);
   ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.strokeStyle = alpha(PROP.ombre, 0.44);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1.2;
   ctx.beginPath();
   for (let i = 1; i < 4; i++) {
@@ -2685,7 +2698,7 @@ function servante(p, ox, oy) {
    vanne qui bouge annoncerait quelque chose. */
 function vanne(p, ox, oy) {
   const r = 6 + p.p * 3.5;
-  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-r * 0.4 + ox, -r * 1.9 + oy, r * 0.8, r * 1.4);
   ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.58);
@@ -2711,7 +2724,7 @@ function vanne(p, ox, oy) {
    epoques et les deux silhouettes ne se confondent pas. */
 function futRetention(p, ox, oy) {
   const c = 15 + p.p * 6, r = c * 0.34;
-  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-c / 2 + ox, -c / 2 + oy, c, c);
   ctx.fillStyle = alpha(PROP.metalDark, 0.42);
   ctx.fillRect(-c / 2, -c / 2, c, c);
@@ -2721,7 +2734,7 @@ function futRetention(p, ox, oy) {
   const d = (p.p - 0.5) * c * 0.22;
   ctx.fillStyle = alpha(PROP.peint, 0.50);
   ctx.beginPath(); ctx.arc(d, -d, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = alpha(PROP.ombre, 0.44);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1.4;
   ctx.beginPath(); ctx.arc(d, -d, r * 0.62, 0, Math.PI * 2); ctx.stroke();
   // la bonde, excentree : c est par elle qu on le vide, et elle donne le sens.
@@ -2736,14 +2749,14 @@ function futRetention(p, ox, oy) {
    cote. La poignee est le seul jaune franc du quartier. */
 function doucheSecu(p, ox, oy) {
   const l = 13 + p.p * 5, r = 5 + p.p * 2.5;
-  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, r * 1.15, 0, Math.PI * 2); ctx.fill();
   ctx.fillRect(-2 + ox, -l + oy, 4, l);
   ctx.fillStyle = alpha(PROP.metal, 0.34);
   ctx.fillRect(-2, -l, 4, l);
   ctx.fillStyle = alpha(PROP.metal, 0.46);
   ctx.beginPath(); ctx.arc(0, 0, r * 1.15, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = alpha(PROP.ombre, 0.40);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -2764,7 +2777,7 @@ function doucheSecu(p, ox, oy) {
    cellule, donc tous ceux d une meme cellule regardent au meme endroit. */
 function reflecteur(p, ox, oy) {
   const r = 6 + p.p * 4;
-  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.ellipse(ox, oy, r * 1.1, r * 0.8, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = alpha(PROP.metalDark, 0.44);
   ctx.lineWidth = 1.4;
@@ -2786,11 +2799,11 @@ function reflecteur(p, ox, oy) {
    un theme ou plus rien ne fonctionne. */
 function boitier(p, ox, oy) {
   const w = 11 + p.p * 6, h = 8 + p.p * 4;
-  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha(PROP.metal, 0.38);
   ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.strokeStyle = alpha(PROP.ombre, 0.40);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1;
   ctx.strokeRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
   ctx.fillStyle = alpha(PROP.balise, 0.30);
@@ -2802,7 +2815,7 @@ function boitier(p, ox, oy) {
    C est la latte manquante qui le rend urbain plutot que neuf. */
 function banc(p, ox, oy) {
   const w = 26 + p.p * 14, h = 8 + p.p * 3;
-  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   const n = 4;
   for (let i = 0; i < n; i++) {
@@ -2819,7 +2832,7 @@ function banc(p, ox, oy) {
    ville a d autres priorites. */
 function jardiniere(p, ox, oy) {
   const c = 15 + p.p * 8;
-  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-c / 2 + ox, -c / 2 + oy, c, c);
   ctx.fillStyle = alpha("#5a544a", 0.50);
   ctx.fillRect(-c / 2, -c / 2, c, c);
@@ -2841,7 +2854,7 @@ function jardiniere(p, ox, oy) {
    personne ne le vide. */
 function corbeille(p, ox, oy) {
   const r = 6 + p.p * 3;
-  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.48);
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
@@ -2867,11 +2880,11 @@ function corbeille(p, ox, oy) {
    la retrouver. */
 function cargo(p, ox, oy) {
   const w = 13 + p.p * 8, h = 10 + p.p * 6;
-  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha("#7a7266", 0.46);
   ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.strokeStyle = alpha(PROP.ombre, 0.36);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1;
   ctx.strokeRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
   // L ETIQUETTE : trois barres claires, comme un code.
@@ -2884,7 +2897,7 @@ function cargo(p, ox, oy) {
    qu elle a ete DETACHEE, pas perdue. */
 function sangle(p, ox, oy) {
   const l = 20 + p.p * 16;
-  ctx.strokeStyle = alpha(PROP.ombre, 0.26);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 3.4;
   ctx.beginPath();
   ctx.moveTo(-l / 2 + ox, oy);
@@ -2905,7 +2918,7 @@ function sangle(p, ox, oy) {
    prop dont on lise le CONTENU par transparence. */
 function eprouvette(p, ox, oy) {
   const w = 7 + p.p * 4, h = 9 + p.p * 5;
-  ctx.fillStyle = alpha(PROP.ombre, 0.26);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha(PROP.metalDark, 0.40);
   ctx.fillRect(-w / 2, h * 0.24, w, h * 0.26);
@@ -2924,13 +2937,13 @@ function eprouvette(p, ox, oy) {
    quelque part. */
 function registre(p, ox, oy) {
   const w = 12 + p.p * 6, h = 9 + p.p * 4;
-  ctx.fillStyle = alpha(PROP.ombre, 0.28);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha("#8a7a5a", 0.42);
   ctx.fillRect(-w / 2, -h / 2, w, h);
   ctx.fillStyle = alpha("#d8d2c0", 0.30);
   ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w / 2 - 2, h - 2);
-  ctx.strokeStyle = alpha(PROP.ombre, 0.30);
+  ctx.strokeStyle = ombre();
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, -h / 2 + 1); ctx.lineTo(0, h / 2 - 1);
@@ -2944,14 +2957,14 @@ function registre(p, ox, oy) {
 // boulon. Elle ne va nulle part, et c est ce qu elle dit.
 function carter(p, ox, oy) {
   const r = 9 + p.p * 6;
-  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.ellipse(ox, oy, r * 1.3, r, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha(PROP.metalDark, 0.54);
   ctx.beginPath(); ctx.ellipse(0, 0, r * 1.3, r, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = alpha(PROP.metal, 0.26);
   ctx.lineWidth = 1.4;
   ctx.beginPath(); ctx.ellipse(0, 0, r * 0.9, r * 0.66, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = alpha(PROP.ombre, 0.50);
+  ctx.fillStyle = ombre();
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2 + p.p;
     ctx.beginPath(); ctx.arc(Math.cos(a) * r * 1.1, Math.sin(a) * r * 0.82, 1.4, 0, Math.PI * 2); ctx.fill();
@@ -2962,7 +2975,7 @@ function carter(p, ox, oy) {
 // prop du semis qui porte un AVERTISSEMENT, et il est minuscule.
 function coffretHt(p, ox, oy) {
   const w = 12 + p.p * 5, h = 15 + p.p * 5;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha(PROP.metal, 0.40);
   ctx.fillRect(-w / 2, -h / 2, w, h);
@@ -2979,13 +2992,13 @@ function coffretHt(p, ox, oy) {
 // de Friche, et elle s affaisse.
 function pneus(p, ox, oy) {
   const r = 9 + p.p * 6;
-  ctx.fillStyle = alpha(PROP.ombre, 0.36);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
   for (let i = 2; i >= 0; i--) {
     const k = r * (1 - i * 0.13);
     ctx.fillStyle = alpha("#1a1a1c", 0.60 + i * 0.06);
     ctx.beginPath(); ctx.arc(i * 0.8, i * 0.8, k, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = alpha(PROP.ombre, 0.50);
+    ctx.fillStyle = ombre();
     ctx.beginPath(); ctx.arc(i * 0.8, i * 0.8, k * 0.42, 0, Math.PI * 2); ctx.fill();
   }
 }
@@ -2996,7 +3009,7 @@ function moteur(p, ox, oy) {
   const w = 15 + p.p * 6, h = 12 + p.p * 5;
   ctx.fillStyle = alpha("#000000", 0.16);
   ctx.beginPath(); ctx.ellipse(0, h * 0.5, w * 0.9, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
   ctx.fillStyle = alpha(PROP.metalDark, 0.62);
   ctx.fillRect(-w / 2, -h / 2, w, h);
@@ -3016,7 +3029,7 @@ function moteur(p, ox, oy) {
 // dernier rang est de travers : c est ce qui dit qu on s est arrete.
 function parpaings(p, ox, oy) {
   const c = 8 + p.p * 3;
-  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillStyle = ombre();
   ctx.fillRect(-c * 1.6 + ox, -c + oy, c * 3.2, c * 2);
   for (let j = 0; j < 2; j++) {
     for (let i = 0; i < 3; i++) {
@@ -3025,7 +3038,7 @@ function parpaings(p, ox, oy) {
       if (j === 1 && i === 2) continue;
       ctx.fillStyle = alpha("#8c8c86", 0.42);
       ctx.fillRect(dx - c / 2, dy - c * 0.4, c, c * 0.8);
-      ctx.strokeStyle = alpha(PROP.ombre, 0.34);
+      ctx.strokeStyle = ombre();
       ctx.lineWidth = 1;
       ctx.strokeRect(dx - c / 2, dy - c * 0.4, c, c * 0.8);
     }
@@ -3037,7 +3050,7 @@ function parpaings(p, ox, oy) {
 // qu il est fait pour ca.
 function plot(p, ox, oy) {
   const r = 5 + p.p * 3;
-  ctx.fillStyle = alpha(PROP.ombre, 0.34);
+  ctx.fillStyle = ombre();
   ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = alpha("#4a3320", 0.50);
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();

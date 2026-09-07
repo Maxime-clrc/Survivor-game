@@ -8,6 +8,56 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Dix-sept opacités pour la même ombre (0.43.34)
+
+`lumDir()` unifie la **direction** de l'ombre depuis le plan 13, avec sa raison
+écrite : *deux ombres qui pointent différemment sur le même écran est LE défaut
+visible d'un rendu 2D*. La **force** n'avait pas de point de passage.
+
+| | avant | après |
+|---|---:|---:|
+| sites qui dessinent l'ombre d'un prop | 82 | 82 |
+| **valeurs d'opacité distinctes** | **17** | **1** |
+| amplitude | 0,16 → 0,55 (**× 3,4**) | 0,34 |
+
+0,34 est la médiane et ce que **23 props sur 61** portaient déjà. Sept props
+n'ont aucune ombre et c'est juste : la flaque, le marquage, le passage, l'allée,
+le néon tombé, le cristal et le givre n'ont pas de volume.
+
+`npm run constantes-check` refuse désormais un littéral à cette place — il lisait
+déjà les sources pour trouver une constante sans lecteur, il trouve maintenant
+aussi le symétrique : **une valeur écrite en dur là où un point de passage
+existe**. Preuve qu'il mord : remettre un `alpha(PROP.ombre, 0.42)` sort
+`1 fois l opacite de l ombre d un prop en dur — passer par ombre()`.
+
+---
+
+**LES ONZE FAMILLES DE PROPS PARAMÉTRIQUES DU DOSSIER NE SERONT PAS ÉCRITES.**
+
+Le §F.3 promettait « 11 fonctions de dessin paramétrées au lieu de 48 ». Mesure
+sur les **68 props réels**, en comparant les suites d'appels canvas :
+
+| paire | similarité |
+|---|---:|
+| `rail` / `eprouvette` | **100 %** |
+| `caisses` / `cageot` | 100 % |
+| `cable` / `gaine` | 100 % |
+| `grilleAir` / `transpalette` | 100 % |
+
+`rail` dessine deux files parallèles avec des traverses ; `eprouvette` dessine un
+portoir à trois tubes. **Ce n'est pas le même dessin, c'est la même grammaire** —
+`fillRect`, `arc`, `alpha`, et rien d'autre. La mesure qui donne 100 % est aveugle
+au sujet, et c'est exactement l'hypothèse sur laquelle reposait le §F.3.
+
+Ce qu'une paramétrisation factoriserait réellement : le prologue d'ombre et la
+taille tirée de `p.p`, soit **~11 % des 1 373 lignes** de dessin — au prix d'une
+table de paramètres par instance, d'une indirection de plus, et du risque de
+props génériques que le **§9 du cahier des charges refuse explicitement**.
+
+**Le prologue d'ombre est donc factorisé seul.** Le reste ne l'est pas, et c'est
+la même règle que partout ailleurs dans ce dépôt : on ne mutualise que ce qui
+sert plusieurs endroits, et une mesure décide.
+
 ### La Friche passe à douze, et les cinq thèmes y sont (0.43.33)
 
 | région | sol | famille à elle | trame |

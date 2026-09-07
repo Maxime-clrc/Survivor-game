@@ -654,6 +654,30 @@ différentes.
     vingt entiers par trace posée, trois microsecondes par image.
   - Le nombre de matières n'est plus lié au nombre de zones : **une ou deux**,
     jamais « une par zone ». Aligner les deux est ce qui avait créé le défaut.
+- **L'OMBRE D'UN PROP A UNE SEULE OPACITÉ, ET C'EST `ombre()`.** `lumDir()`
+  unifiait déjà la **direction**, avec sa raison écrite : *deux ombres qui
+  pointent différemment sur le même écran est LE défaut visible d'un rendu 2D*.
+  La **force** n'avait pas de point de passage — **dix-sept** valeurs
+  coexistaient sur 61 props, de **0,16 à 0,55**, soit un facteur **3,4** entre
+  deux objets posés côte à côte. 0,34 est la médiane et ce que 23 props
+  portaient déjà.
+  - **Sept props n'ont aucune ombre, et c'est juste** : la flaque, le marquage,
+    le passage, l'allée, le néon tombé, le cristal et le givre n'ont pas de
+    volume — une marque au sol ne projette rien.
+  - `npm run constantes-check` refuse désormais un littéral à cette place. Il
+    lit les sources, ce qu'un navigateur ne peut pas faire, et la règle est
+    nommée par son **point de passage** et non par un fichier.
+- **LES ONZE FAMILLES DE PROPS PARAMÉTRIQUES DU DOSSIER NE SERONT PAS ÉCRITES**,
+  et c'est une mesure qui l'a décidé. Le §F.3 promettait « 11 fonctions de dessin
+  paramétrées au lieu de 48 ». Mesure sur les 68 props réels : la plus forte
+  similarité de **suite d'appels canvas** est de 100 % entre `rail` et
+  `eprouvette` — deux files parallèles avec traverses d'un côté, un portoir à
+  trois tubes de l'autre. **Ce n'est pas le même dessin, c'est la même
+  grammaire** : `fillRect`, `arc`, `alpha`. Ce qu'une paramétrisation
+  factoriserait est le prologue d'ombre et la taille tirée de `p.p` — soit
+  ~11 % des 1 373 lignes —, au prix d'une table de paramètres par instance et du
+  risque de props génériques que le §9 du cahier des charges refuse. **Le
+  prologue d'ombre est donc factorisé seul** ; le reste ne l'est pas.
   - **Pas de table de classe.** Une première version en portait une — libre,
     ancrée, orientée — dont le seul lecteur était un contrôle de complétude **sur
     elle-même**. Ce qu'elle disait est déjà porté par la signature : une

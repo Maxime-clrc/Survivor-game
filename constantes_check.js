@@ -103,15 +103,62 @@ export async function constantesMortes() {
   return morts;
 }
 
+
+/* ===========================================================================
+   ET LE SYMETRIQUE : UNE VALEUR ECRITE EN DUR LA OU UN POINT DE PASSAGE EXISTE.
+
+   Une constante sans lecteur ment sur ce que le jeu fait ; un litteral pose a
+   cote d une constante fait DIVERGER ce qui devrait etre unique, et il ne leve
+   pas davantage. Mesure a l ouverture du lot 35 : l ombre portee d un prop
+   s ecrivait avec DIX-SEPT opacites differentes, de 0,16 a 0,55 — un facteur 3,4
+   entre deux objets poses cote a cote. `lumDir()` unifiait deja la DIRECTION de
+   l ombre, et le depot dit pourquoi : deux ombres qui divergent sur le meme
+   ecran est LE defaut visible d un rendu 2D. L opacite, elle, n avait pas de
+   point de passage.
+
+   MEME PLACE QUE LE RESTE DU FICHIER : ca lit les SOURCES, ce qu un navigateur
+   ne peut pas faire. La regle est nommee par son POINT DE PASSAGE, pas par un
+   fichier : le jour ou l ombre d un prop se dessine ailleurs, la regle suit.
+   =========================================================================== */
+const DUR = [
+  { quoi: "l opacite de l ombre d un prop", ou: "render/props.js",
+    motif: /alpha\(PROP\.ombre,\s*[0-9]/g, passage: "ombre()" },
+];
+
+const sep = process.platform === "win32" ? "\\" : "/";
+
+export function litterauxEnDur() {
+  const src = sources();
+  const trouves = [];
+  for (const regle of DUR) {
+    for (const [nom, s] of src) {
+      if (!nom.split(sep).join("/").endsWith(regle.ou)) continue;
+      const n = (s.match(regle.motif) ?? []).length;
+      if (n > 0) trouves.push({ ...regle, nom, n });
+    }
+  }
+  return trouves;
+}
+
 const direct = process.argv[1] && import.meta.url.endsWith(
   process.argv[1].replace(/\\/g, "/").split("/").pop());
 if (direct) {
   const morts = await constantesMortes();
-  if (morts.length === 0) {
-    console.log("\n  constantes-check : aucune constante sans lecteur. OK\n");
+  const durs = litterauxEnDur();
+  if (morts.length === 0 && durs.length === 0) {
+    console.log("\n  constantes-check : aucune constante sans lecteur,"
+      + " aucun litteral hors de son point de passage. OK\n");
   } else {
-    console.log(`\n  constantes-check : ${morts.length} sans lecteur\n`);
-    for (const m of morts) console.log(`    ${m.table}.${m.clef} — ${m.pourquoi}`);
+    if (morts.length) {
+      console.log(`\n  constantes-check : ${morts.length} sans lecteur\n`);
+      for (const m of morts) console.log(`    ${m.table}.${m.clef} — ${m.pourquoi}`);
+    }
+    if (durs.length) {
+      console.log(`\n  constantes-check : ${durs.length} litteral(aux) hors point de passage\n`);
+      for (const d of durs) {
+        console.log(`    ${d.nom} : ${d.n} fois ${d.quoi} en dur — passer par \`${d.passage}\``);
+      }
+    }
     console.log();
     process.exitCode = 1;
   }
