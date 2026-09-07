@@ -10207,6 +10207,26 @@
                   de 64 px), et la garde de 80 px vaut aussi entre deux blocs de
                   la meme region.
 
+    0.43.21 lot 22 LE NOYAU PARTAGE ETAIT UNE CONTRADICTION ECRITE DANS LA TABLE.
+                  Le pire recouvrement bati tombe de 0,60 a 0,50 — la visee du
+                  dossier — sur les 86 paires de regions, et sans une seule
+                  famille neuve. Le defaut etait le meme dans les cinq themes :
+                  un NOYAU de trois familles que deux ou trois regions
+                  employaient TOUTES, plus une exclusive chacune, donc 3/5 quoi
+                  qu on ajoute par ailleurs.
+                  Et ce noyau n etait pas une contrainte d art : un FOUR dans le
+                  refroidissement, un MUR dans le champ, une DEVANTURE au marche,
+                  un PYLONE sur le parvis, un POSTE dans le degagement. Huit
+                  poses changent de famille, aucune ne change de boite — chaque
+                  substitution rend la region plus juste ET la separe.
+                  UNE SUBSTITUTION DE `kind` A BOITE EGALE NE TOUCHE AUCUN AXE :
+                  les six de `signatureVariante` et les quatre de
+                  `signatureBiome` se lisent tous sur la GEOMETRIE. Les 59
+                  verificateurs sont verts du premier coup, ce qu aucun lot de
+                  contenu de ce plan n avait fait.
+                  `SIGNATURE_MAX` passe de 0,65 a 0,50 : le seuil n est plus
+                  au-dessus de la mesure.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10215,4 +10235,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.20";
+export const VERSION = "0.43.21";

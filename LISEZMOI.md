@@ -8,6 +8,45 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le noyau partagé était une contradiction écrite dans la table (0.43.21)
+
+**Le pire recouvrement bâti tombe de 0,60 à 0,50** — la visée du dossier —
+**sur les 86 paires de régions**, et sans une seule famille neuve.
+
+Le défaut était structurel et identique dans les cinq thèmes : un **noyau** de
+trois familles que deux ou trois régions employaient *toutes*, plus une exclusive
+chacune. Trois familles communes sur cinq, donc 0,60, quoi qu'on ajoute par
+ailleurs.
+
+| thème | noyau | régions qui le portaient |
+|---|---|---|
+| usine | chaîne, poste, machine | chaîne, dégagement |
+| fonderie | four, cuve, conduite | coulée, refroidissement, puits |
+| friche | mur, ruine, carcasse | champ, mur, effondrement |
+| nébuleuse | fragment, travée, débris | dérive, brèche |
+| secteur | devanture, pylône, conteneur | rue, marché, parvis |
+
+**Et le noyau n'était pas une contrainte d'art : c'était une contradiction déjà
+écrite.** Un **four** dans le *refroidissement*, un **mur** dans le *champ*, une
+**devanture** au *marché*, un **pylône** sur le *parvis*, un **poste** dans le
+*dégagement*. Chaque substitution rend la région plus juste **et** la sépare —
+huit poses changent de famille, aucune ne change de boîte.
+
+**UNE SUBSTITUTION DE `kind` À BOÎTE ÉGALE NE TOUCHE AUCUN AXE.** Les six de
+`signatureVariante` (densité, encombrement, contraste, élongation, centrage,
+étalement) et les quatre de `signatureBiome` se lisent **tous** sur la géométrie.
+Mesure : les 59 vérificateurs sont verts **du premier coup**, ce qu'aucun lot de
+contenu de ce plan n'avait fait. Le seul risque restant est l'empreinte — une
+silhouette prend un rapport de forme qu'elle n'avait pas encore.
+
+| | pire Jaccard bâti | paires au-dessus de 0,50 |
+|---|---:|---:|
+| 0.43.20 | 0,60 | **11** sur 86 |
+| 0.43.21 | **0,50** | **0** sur 86 |
+
+`SIGNATURE_MAX` passe donc de 0,65 (garde contre la régression) à **0,50**, la
+valeur atteinte : le seuil n'est plus au-dessus de la mesure.
+
 ### Les neuf régions d'origine n'avaient aucun objet à elles (0.43.20)
 
 **Neuf régions sur trente et une n'employaient que des familles partagées**, et

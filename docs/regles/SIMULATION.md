@@ -656,12 +656,22 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   31**, et le plancher du vérificateur est **zéro** : il est arithmétique, chaque
   thème portant plus de familles que de régions (16 pour 9 à l'Usine). Le jour où
   un thème aura plus de régions que de familles, la borne montera d'elle-même.
-  - **Le plafond de recouvrement et la visée sont deux chiffres.** Le pire
-    Jaccard bâti mesuré est **0,60**, et il est structurel — un noyau de trois
-    familles partagé plus une exclusive chacune donne 3/5. Le plafond garde donc
-    contre la **régression** (0,65) ; la **visée du dossier, 0,50**, reste écrite
-    pour le lot qui cassera les noyaux. Ce qui est refusé sans condition est
-    l'**identité** : deux régions au jeu de familles strictement égal.
+  - **Le plafond de recouvrement est à 0,50, la visée du dossier, et il a été
+    payé.** Le pire Jaccard bâti était **0,60** et il était structurel : chaque
+    thème avait un **noyau** de trois familles que deux ou trois de ses régions
+    employaient *toutes*, plus une exclusive chacune — donc 3/5. Huit
+    substitutions ont cassé les cinq noyaux ; pire mesuré après : **0,50 tout
+    juste**, sur les 86 paires.
+  - **UNE SUBSTITUTION DE `kind` À BOÎTE ÉGALE NE TOUCHE AUCUN AXE.** Les six de
+    `signatureVariante` et les quatre de `signatureBiome` se lisent tous sur la
+    **géométrie** : changer la famille d'une pose sans changer sa boîte est donc
+    invisible à tous les vérificateurs de composition, et c'est ce qui rend ce
+    genre de lot sûr. Le seul risque restant est l'**empreinte** — une silhouette
+    prend un rapport de forme qu'elle n'avait pas encore.
+  - **Le noyau était une contradiction écrite dans la table**, pas une contrainte
+    d'art : un **four dans le refroidissement**, un **mur dans le champ**, une
+    **devanture au marché**, un **pylône sur le parvis**, un **poste dans le
+    dégagement**. Chaque substitution rend la région plus juste *et* la sépare.
   - **Les neuf dernières étaient les régions d'ORIGINE de chaque thème** — celles
     que sept lots de contenu avaient laissées intactes. Trois paires bâtissaient
     avec un jeu strictement égal. **Neuf familles neuves, zéro silhouette

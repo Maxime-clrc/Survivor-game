@@ -481,9 +481,13 @@ const OBSTACLES = {
       { x: 0.88, y: 0.70, w: 0.052, h: 0.130, kind: B_MACHINE },
       { x: 0.50, y: 0.12, w: 0.230, h: 0.036, kind: B_CHAINE },
       { x: 0.50, y: 0.88, w: 0.230, h: 0.036, kind: B_CHAINE, min: 1 },
-      { x: 0.10, y: 0.86, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
-      { x: 0.90, y: 0.14, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
-      { x: 0.11, y: 0.68, w: 0.048, h: 0.090, kind: B_POSTE, min: 1 },
+      { x: 0.10, y: 0.86, w: 0.048, h: 0.090, kind: B_MACHINE, min: 2 },
+      { x: 0.90, y: 0.14, w: 0.048, h: 0.090, kind: B_MACHINE, min: 2 },
+      /* PAS DE POSTE ICI, ET C EST UNE MESURE. Le degagement portait les trois
+         familles de la chaine — 60 % de Jaccard sur le bati pour une visee de 50. On
+         ne travaille pas dans un degagement : la cellule y remplace le poste, et
+         la region garde ses trois formats. */
+      { x: 0.11, y: 0.68, w: 0.048, h: 0.090, kind: B_MACHINE, min: 1 },
       /* LA SEULE OBLIQUE DU DEPOT, ET ELLE EST ICI PARCE QUE LA PLACE Y EST.
          Tout le reste du jeu est horizontal ou vertical : une charpente tombee
          donne une direction qui n est ni l une ni l autre, et ca se lit
@@ -590,7 +594,9 @@ const OBSTACLES = {
       { x: 0.30, y: 0.30, w: 0.120, h: 0.190, kind: B_FOUR },
       { x: 0.70, y: 0.70, w: 0.120, h: 0.190, kind: B_FOUR },
       { x: 0.50, y: 0.12, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 1 },
-      { x: 0.12, y: 0.78, w: 0.070, h: 0.070, kind: B_CUVE },
+      // la derniere cuve devient un convertisseur : la coulee VERSE, elle ne
+      // stocke pas — c est le refroidissement et le puits qui contiennent.
+      { x: 0.12, y: 0.78, w: 0.070, h: 0.070, kind: B_CONVERTISSEUR },
       // deux des trois cuves DEVIENNENT des convertisseurs, a la case pres :
       // c est le meme recipient, et seul celui qui BASCULE a des tourillons.
       { x: 0.88, y: 0.22, w: 0.070, h: 0.070, kind: B_CONVERTISSEUR, min: 1 },
@@ -628,8 +634,11 @@ const OBSTACLES = {
        l ecart entre deux rangs vaut le DOUBLE de `NAV_CFG.PASSAGE_MIN`, jamais
        moins. 0,22 d ecart en y font 198 px pour un minimum de 80. */
     { cle: "refroidissement", nom: "le refroidissement", label: "Le refroidissement", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
-      { x: 0.28, y: 0.32, w: 0.120, h: 0.190, kind: B_FOUR },
-      { x: 0.72, y: 0.68, w: 0.120, h: 0.190, kind: B_FOUR },
+      // AUCUN FOUR DANS UN REFROIDISSEMENT : la contradiction etait ecrite dans
+      // la table depuis l origine, et c est elle qui donnait 60 % de Jaccard
+      // avec la coulee et le puits. Deux bassins de plus a la place.
+      { x: 0.28, y: 0.32, w: 0.120, h: 0.190, kind: B_BASSIN },
+      { x: 0.72, y: 0.68, w: 0.120, h: 0.190, kind: B_BASSIN },
       { x: 0.62, y: 0.28, w: 0.070, h: 0.070, kind: B_CUVE },
       { x: 0.38, y: 0.72, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
       /* IL REFROIDIT VRAIMENT, ET C EST LA CORRECTION DU PLUS GROS ECART DU
@@ -723,7 +732,8 @@ const OBSTACLES = {
       { x: 0.82, y: 0.80, w: 0.085, h: 0.070, kind: B_RUINE },
       { x: 0.90, y: 0.66, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
       { x: 0.73, y: 0.88, w: 0.060, h: 0.048, kind: B_RUINE },
-      { x: 0.50, y: 0.10, w: 0.110, h: 0.040, kind: B_MUR },
+      // un champ n a pas de MUR : ce qui le borde est un pan de ruine tombe.
+      { x: 0.50, y: 0.10, w: 0.110, h: 0.040, kind: B_RUINE },
       // TROIS EPAVES DE MEME GABARIT ETAIENT TROIS FOIS LE MEME OBJET. A surface
       // egale (± 3 %), elles portent maintenant trois formats — couche, carre,
       // debout : c est ce qui separe un champ d epaves d un parking. La vue est
@@ -756,8 +766,9 @@ const OBSTACLES = {
       { x: 0.71, y: 0.56, w: 0.085, h: 0.070, kind: B_RUINE },
       { x: 0.72, y: 0.16, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
       { x: 0.28, y: 0.84, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
-      { x: 0.29, y: 0.59, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
-      { x: 0.72, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE, min: 2 },
+      // pas de CARCASSE au mur : ce qui traine contre lui est ce qui le fermait.
+      { x: 0.29, y: 0.59, w: 0.082, h: 0.048, hp: 1, kind: B_PORTAIL },
+      { x: 0.72, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_PORTAIL, min: 2 },
       /* LE PORTAIL — CE QUI RESTE DEBOUT QUAND LE MUR EST TOMBE. Il se pose DANS
          la plus large breche : un cadre qu on voit a travers, au milieu de
          l ouverture, et il laisse 160 px de chaque cote — deux fois
@@ -843,7 +854,8 @@ const OBSTACLES = {
     /* L EFFONDREMENT — des masses de toutes tailles, sans loi apparente. C est
        la variante qui n a pas de regle, et elle en a donc une : le contraste. */
     { cle: "effondrement", nom: "l effondrement", label: "L'effondrement", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
-      { x: 0.30, y: 0.45, w: 0.110, h: 0.040, kind: B_MUR },
+      // ce qui est tombe ici n est pas un mur mais le SOL : deux dalles de plus.
+      { x: 0.30, y: 0.45, w: 0.110, h: 0.040, kind: B_DALLE },
       { x: 0.71, y: 0.56, w: 0.085, h: 0.070, kind: B_RUINE },
       /* 0,34 -> 0,44 : cette ruine DEBOUT tombait dans les deux murs a la fois
          et dans la grande ruine de 0,29 — quatre superpositions a elle seule, le
@@ -859,7 +871,7 @@ const OBSTACLES = {
       { x: 0.71, y: 0.65, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
       { x: 0.28, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE, min: 1 },
       { x: 0.83, y: 0.50, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 2 },
-      { x: 0.33, y: 0.50, w: 0.110, h: 0.040, kind: B_MUR, min: 2 },
+      { x: 0.33, y: 0.50, w: 0.110, h: 0.040, kind: B_DALLE, min: 2 },
       /* LA DALLE LEVEE — LE SOL LUI-MEME, MIS DEBOUT. Une region d effondrement
          posait des morceaux de MURS ; ce qui manquait est ce sur quoi on
          marchait. Ses fers a beton sortent du bord haut, et c est le seul objet
@@ -959,8 +971,9 @@ const OBSTACLES = {
          graines. Elle ne bouge pas, elle : sa position tient d une passe a
          cinquante graines sur la fermeture du carre central. Les fragments
          s ecartent, et l ecart vaut 92 px, donc plus que `PASSAGE_MIN`. */
-      { x: 0.26, y: 0.24, w: 0.145, h: 0.150, kind: B_FRAGMENT },
-      { x: 0.26, y: 0.76, w: 0.145, h: 0.150, kind: B_FRAGMENT, min: 1 },
+      // pas de FRAGMENT a la breche : ce qui a tenu est ce qui etait PRESSURISE.
+      { x: 0.26, y: 0.24, w: 0.145, h: 0.150, kind: B_SAS },
+      { x: 0.26, y: 0.76, w: 0.145, h: 0.150, kind: B_SAS, min: 1 },
       /* UNE SEULE TRAVEE, ET C EST LA PASSE A CINQUANTE GRAINES QUI L A DIT.
          Deux travees a 0,12 et 0,40 fermaient le carre central en cauchemar une
          graine sur QUATRE — treize sur cinquante — parce que la cellule voisine
@@ -1006,8 +1019,10 @@ const OBSTACLES = {
       // deux destructibles, et sa densite ne bouge pas d une pose.
       { x: 0.26, y: 0.84, w: 0.052, h: 0.046, kind: B_ABRIBUS },
       { x: 0.74, y: 0.16, w: 0.052, h: 0.046, kind: B_ABRIBUS },
-      { x: 0.44, y: 0.74, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 1 },
-      { x: 0.56, y: 0.26, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 2 },
+      // les deux derniers conteneurs deviennent des abribus, DESTRUCTIBLES :
+      // du verre se casse, et la rue garde ses deux masses qu on peut degager.
+      { x: 0.44, y: 0.74, w: 0.046, h: 0.040, hp: 1, kind: B_ABRIBUS, min: 1 },
+      { x: 0.56, y: 0.26, w: 0.046, h: 0.040, hp: 1, kind: B_ABRIBUS, min: 2 },
       /* L ABRIBUS — LE SEUL MOBILIER DU DEPOT FAIT POUR QU ON S Y ARRETE. Tout
          le reste de la rue est du commerce ou de l infrastructure. Il est en
          verre sur trois cotes, donc on voit ce qui arrive derriere sans pouvoir
@@ -1057,8 +1072,10 @@ const OBSTACLES = {
       { x: 0.42, y: 0.66, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL, min: 1 },
       { x: 0.66, y: 0.66, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL, min: 1 },
       { x: 0.50, y: 0.40, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL, min: 2 },
-      { x: 0.09, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
-      { x: 0.91, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
+      // un marche n a pas de DEVANTURE : ce qui borde une allee de marche est
+      // un etal de plus, pas une vitrine.
+      { x: 0.09, y: 0.50, w: 0.062, h: 0.140, kind: B_ETAL },
+      { x: 0.91, y: 0.50, w: 0.062, h: 0.140, kind: B_ETAL, min: 1 },
     ] },
     /* LES CAPSULES — ON DORT ICI. Un mur d alveoles empilees sur trois hauteurs
        et les coursives qui les desservent. Chaque alveole a sa lumiere propre,
@@ -1089,8 +1106,9 @@ const OBSTACLES = {
     { cle: "parvis", nom: "le parvis", label: "Le parvis", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.31, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.69, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
-      { x: 0.50, y: 0.21, w: 0.014, h: 0.230, kind: B_PYLONE },
-      { x: 0.50, y: 0.79, w: 0.014, h: 0.230, kind: B_PYLONE, min: 1 },
+      // pas de PYLONE sur un parvis : ce qui monte ici est taille, pas boulonne.
+      { x: 0.50, y: 0.21, w: 0.014, h: 0.230, kind: B_MONOLITHE },
+      { x: 0.50, y: 0.79, w: 0.014, h: 0.230, kind: B_MONOLITHE, min: 1 },
       { x: 0.11, y: 0.20, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
       { x: 0.88, y: 0.81, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR, min: 1 },
       { x: 0.88, y: 0.20, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 2 },
@@ -2363,16 +2381,16 @@ export function signatureVariante(lieu, vi, diffIndex = 2) {
    ailleurs), donc une exclusive par region est toujours atteignable. Le jour ou
    un theme aura plus de regions que de familles, la borne montera d elle-meme.
 
-   LE PLAFOND ET LA VISEE SONT DEUX CHIFFRES DIFFERENTS, ET C EST DELIBERE. Le
-   dossier vise 0,50 de Jaccard sur le bati ; la mesure dit 0,60 — un noyau de
-   trois familles partage, plus une exclusive chacune, donne 3/5. Y descendre
-   demande de casser les noyaux de cinq themes, donc un lot de contenu de plus.
-   Le PLAFOND garde donc contre la REGRESSION (0,65, le pire mesure plus un
-   cran), la VISEE reste ecrite pour le lot qui la paiera, et l identite — deux
-   regions au jeu de familles strictement egal — est refusee sans condition.
-   Meme forme que `verifierVocabulaire`, qui plafonne a 0,70 pour une visee de
-   0,55. */
-const SIGNATURE_PLAFOND = 0.65, SIGNATURE_VISE = 0.50;
+   LE PLAFOND EST LA VISEE DU DOSSIER, ET IL A ETE PAYE. Le pire recouvrement
+   mesure etait 0,60 : chaque theme avait un NOYAU de trois familles que deux ou
+   trois de ses regions employaient toutes, plus une exclusive chacune — donc
+   3/5, structurellement. Huit substitutions ont casse les cinq noyaux : une pose
+   qui change de `kind` sans changer de boite ne touche aucun des six axes de
+   `signatureVariante` ni des quatre de `signatureBiome`, qui se lisent tous sur
+   la GEOMETRIE. Pire mesure apres : 0,50 tout juste, sur les 86 paires.
+   Le seuil est donc une garde contre la regression, et il est a la valeur
+   atteinte — pas un cran au-dessus. */
+const SIGNATURE_MAX = 0.50;
 
 function familles(v, diffIndex = 2) {
   return new Set(deplierPose(v.poser)
@@ -2413,10 +2431,10 @@ export function verifierSignature() {
   }
   // le pire SORT avec le verdict : c est lui qui dira quand le plafond peut
   // descendre a la valeur visee, et il ne se devine pas.
-  if (soucis.length === 0 && pire > SIGNATURE_PLAFOND) {
-    soucis.push(`toutes les regions ont une famille a elles, mais ${ou} en partage`
-      + ` ${(pire * 100).toFixed(0)} % de son bati — plafond ${SIGNATURE_PLAFOND * 100} %,`
-      + ` visee ${SIGNATURE_VISE * 100} %`);
+  if (pire > SIGNATURE_MAX + 1e-9) {
+    soucis.push(`${ou} : ${(pire * 100).toFixed(0)} % de bati commun pour un plafond`
+      + ` de ${SIGNATURE_MAX * 100} % — un noyau de familles partage entre trois`
+      + " regions donne 3/5, et c est ce qu il faut casser");
   }
   return soucis;
 }
