@@ -8,6 +8,44 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Posséder un objet n'est pas le montrer (0.43.22)
+
+`verifierSignature` dit qu'une région **possède** une famille bâtie à elle.
+Il ne dit pas qu'on la **voit** — et le cahier des charges demande exactement
+l'autre : *la différence doit être perceptible en jeu*. `verifierVue()` est ce
+test-là, rendu mécanique : on balaie les **81 vues** d'une arène réelle, cinq
+graines et deux modes, et on compte les vues qui montrent au moins une pièce de
+la famille exclusive de la région qui les couvre.
+
+**Le plancher est de 90 % PAR RÉGION**, jamais en moyenne : à 99,8 % de moyenne,
+une région invisible une fois sur cinq ne se verrait pas.
+
+| | vues signées |
+|---|---:|
+| total, 31 régions × 5 graines × 2 modes | **99,8 %** |
+| la plus basse avant correctif — fonderie/puits | 91,9 % |
+| la plus basse après | **95,9 %** |
+
+**Ce qui fait manquer une vue est le BUDGET, pas la table.** `buildBiome` jette
+un bloc dès que la surface bâtie de l'**arène** dépasserait
+`OBSTACLE_SURFACE_MAX`, et il parcourt les cellules **dans l'ordre** : ce qui
+tombe est donc ce qui vient en dernier, et le premier à tomber est le **plus
+gros**.
+
+Or **le puits demandait 15,5 % d'une cellule pour un plafond d'arène de 10 %** —
+il ne pouvait pas être bâti tel qu'écrit. À la graine 42 la Fonderie plafonne à
+**10,00 %** exactement, et ce qu'elle perd est la **fosse** : la plus grosse
+masse du dépôt, et la seule chose qui nomme la région. 14 vues sur 172.
+
+Les deux poses retirées sont celles du vocabulaire **partagé** — le troisième
+four, la conduite — donc le correctif sépare aussi : puits/refroidissement tombe
+de **40 %** à **20 %** de bâti commun.
+
+**Le vérificateur mord** : `OBSTACLE_SURFACE_MAX` abaissé de 0,10 à **0,075**
+sort quatre régions de la Fonderie — la coulée à **77,6 %**, le laminoir à
+75,4 %, le puits à **65,7 %**. C'est bien le budget que la mesure attrape, et
+pas la table.
+
 ### Le noyau partagé était une contradiction écrite dans la table (0.43.21)
 
 **Le pire recouvrement bâti tombe de 0,60 à 0,50** — la visée du dossier —

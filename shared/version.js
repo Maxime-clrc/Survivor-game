@@ -10227,6 +10227,31 @@
                   `SIGNATURE_MAX` passe de 0,65 a 0,50 : le seuil n est plus
                   au-dessus de la mesure.
 
+    0.43.22 lot 23 POSSEDER UN OBJET N EST PAS LE MONTRER. `verifierSignature`
+                  dit qu une region POSSEDE une famille batie a elle ; il ne dit
+                  pas qu on la VOIT, et le cahier des charges demande l autre.
+                  `verifierVue()` est le test du screenshot rendu mecanique : on
+                  balaie les 81 vues d une arene reelle, cinq graines et deux
+                  modes, et on compte celles qui montrent au moins une piece de
+                  la famille exclusive de la region qui les couvre. Plancher
+                  90 % PAR REGION — une moyenne cacherait une region invisible
+                  une fois sur cinq. Mesure : 99,8 %, la plus basse a 95,9 %.
+                  CE QUI FAIT MANQUER UNE VUE EST LE BUDGET, PAS LA TABLE.
+                  `buildBiome` jette un bloc des que la surface batie de l ARENE
+                  depasserait `OBSTACLE_SURFACE_MAX`, et il parcourt les cellules
+                  DANS L ORDRE : ce qui tombe vient en dernier, et le premier a
+                  tomber est le PLUS GROS. Le puits demandait 15,5 % d une
+                  cellule pour un plafond d arene de 10 %, donc il ne pouvait pas
+                  etre bati tel qu ecrit — a la graine 42 la Fonderie plafonne a
+                  10,00 % et perd sa FOSSE, la seule chose qui nomme la region,
+                  14 fois sur 172. Les deux poses retirees sont celles du
+                  vocabulaire PARTAGE, donc le correctif separe aussi : 95,9 % de
+                  vues signees et 20 % de bati commun avec le refroidissement au
+                  lieu de 40.
+                  Preuve que le verificateur mord : `OBSTACLE_SURFACE_MAX` a
+                  0,075 sort quatre regions de la Fonderie, la coulee a 77,6 %
+                  et le puits a 65,7 %.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10235,4 +10260,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.21";
+export const VERSION = "0.43.22";

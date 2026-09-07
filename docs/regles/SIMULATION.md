@@ -672,6 +672,26 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     d'art : un **four dans le refroidissement**, un **mur dans le champ**, une
     **devanture au marché**, un **pylône sur le parvis**, un **poste dans le
     dégagement**. Chaque substitution rend la région plus juste *et* la sépare.
+- **POSSÉDER UN OBJET N'EST PAS LE MONTRER, ET `verifierVue()` SÉPARE LES DEUX.**
+  C'est le test du screenshot du cahier des charges rendu mécanique : on balaie
+  les **81 vues** d'une arène réelle, cinq graines et deux modes, et on compte
+  les vues qui montrent au moins une pièce de la famille exclusive de la région
+  qui les couvre. Plancher **90 %, PAR RÉGION** — une moyenne cacherait une
+  région invisible une fois sur cinq. Mesuré : **99,8 %**, la plus basse étant le
+  puits à **95,9 %**. 100 ms, donc suite rapide.
+  - **Ce qui fait manquer une vue est le BUDGET, pas la table.** `buildBiome`
+    jette un bloc dès que la surface bâtie de l'**arène** dépasserait
+    `OBSTACLE_SURFACE_MAX`, et il parcourt les cellules **dans l'ordre** : ce qui
+    tombe est ce qui vient en dernier, et le premier à tomber est le **plus
+    gros**. Le puits demandait **15,5 %** d'une cellule pour un plafond d'arène
+    de **10 %** — sa fosse, la plus grosse masse du dépôt, disparaissait 14 fois
+    sur 172, et la région perdait exactement ce qui la nomme.
+  - **Une région ne peut pas demander plus que le plafond de l'arène.** Le
+    correctif retire du puits les deux poses de vocabulaire **partagé** (le
+    troisième four, la conduite) : 95,9 % de vues signées au lieu de 91,9 %, et
+    son recouvrement avec le refroidissement tombe de 40 à **20 %**.
+  - **Preuve que le vérificateur mord** : `OBSTACLE_SURFACE_MAX` abaissé à 0,075
+    sort quatre régions de la Fonderie, la coulée à 77,6 % et le puits à 65,7 %.
   - **Les neuf dernières étaient les régions d'ORIGINE de chaque thème** — celles
     que sept lots de contenu avaient laissées intactes. Trois paires bâtissaient
     avec un jeu strictement égal. **Neuf familles neuves, zéro silhouette

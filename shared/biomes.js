@@ -720,8 +720,14 @@ const OBSTACLES = {
          grille y voit un mur. A 0,200 il reste 90 px des deux cotes. */
       { x: 0.80, y: 0.20, w: 0.160, h: 0.200, kind: B_FOSSE },
       { x: 0.14, y: 0.80, w: 0.160, h: 0.200, kind: B_FOSSE, min: 1 },
-      { x: 0.70, y: 0.50, w: 0.120, h: 0.190, kind: B_FOUR, min: 2 },
-      { x: 0.50, y: 0.14, w: 0.260, h: 0.048, kind: B_CONDUITE },
+      /* NI TROISIEME FOUR NI CONDUITE ICI, ET C EST LE BUDGET QUI L A DIT. Le
+         puits demandait 15,5 % d une cellule pour un plafond d ARENE de 10 % :
+         il ne pouvait pas etre bati tel qu ecrit, et ce que `buildBiome` jetait
+         en premier etait sa FOSSE — la plus grosse masse du depot, et la seule
+         chose qui le nomme. Elle manquait dans 14 vues sur 172. Les deux poses
+         retirees sont celles du vocabulaire PARTAGE : le puits passe a 95,9 %
+         de vues signees, et son recouvrement avec le refroidissement tombe de
+         40 a 20 %. */
     ] },
   ],
   friche: [
@@ -2435,6 +2441,84 @@ export function verifierSignature() {
     soucis.push(`${ou} : ${(pire * 100).toFixed(0)} % de bati commun pour un plafond`
       + ` de ${SIGNATURE_MAX * 100} % — un noyau de familles partage entre trois`
       + " regions donne 3/5, et c est ce qu il faut casser");
+  }
+  return soucis;
+}
+
+/* LE TEST DU SCREENSHOT, RENDU MECANIQUE — ET C EST LA DEMANDE CENTRALE DU
+   CAHIER DES CHARGES : la difference doit etre PERCEPTIBLE EN JEU, pas seulement
+   vraie dans une table. `verifierSignature` dit qu une region POSSEDE un objet ;
+   il ne dit pas qu on le VOIT. Ce sont deux choses differentes, et le budget de
+   surface les separe.
+
+   ON BALAIE LES 81 VUES D UNE ARENE REELLE, cinq graines et deux modes, on
+   demande a chaque vue quelle region la couvre, et on compte celles qui montrent
+   au moins une piece de la famille exclusive de cette region. Le plancher est
+   PAR REGION et non global : une moyenne de 99 % cacherait une region invisible
+   une fois sur cinq.
+
+   CE QUI FAIT MANQUER UNE VUE EST LE BUDGET, PAS LA TABLE. `buildBiome` jette un
+   bloc des que la surface batie de l ARENE depasserait `OBSTACLE_SURFACE_MAX`,
+   et il parcourt les cellules dans l ordre : ce qui tombe est donc ce qui vient
+   en dernier, et le premier a tomber est le PLUS GROS. Mesure a l ouverture :
+   le puits demandait 15,5 % d une cellule pour un plafond d arene de 10 % — sa
+   fosse, la plus grosse masse du depot, disparaissait 14 fois sur 172 et la
+   region perdait exactement ce qui la nomme.
+
+   Il tourne en 100 ms, donc dans la suite RAPIDE. Une region qu aucune des
+   cinquante arenes ne pose n est pas comptee ici : c est `verifierRegions` qui
+   refuse ce cas, et le dire deux fois ferait deux verdicts pour un defaut. */
+const VUE_MIN = 0.90;
+const VUE_GRAINES = [1, 7, 42, 99, 1234];
+
+function exclusives(cle) {
+  const vs = OBSTACLES[cle] ?? [];
+  const fam = vs.map(v => familles(v));
+  return fam.map((f, i) => {
+    const autres = new Set(fam.filter((_, j) => j !== i).flatMap(g => [...g]));
+    return new Set([...f].filter(k => !autres.has(k)));
+  });
+}
+
+export function verifierVue(arenaW = 14400, arenaH = 8100, viewW = 1600, viewH = 900) {
+  const soucis = [];
+  let pire = 1, ou = "";
+  for (let bi = 0; bi < BIOMES.length; bi++) {
+    const cle = BIOMES[bi].key;
+    const vs = OBSTACLES[cle] ?? [];
+    const excl = exclusives(cle);
+    const vu = vs.map(() => [0, 0]);
+    for (const seed of VUE_GRAINES) {
+      for (const diff of [1, 2]) {
+        const b = buildBiome(bi, diff, seed, arenaW, arenaH, viewW, viewH);
+        for (let cy = 0; cy < b.rows; cy++) {
+          for (let cx = 0; cx < b.cols; cx++) {
+            const loi = b.lois[cy * b.cols + cx];
+            const e = excl[loi];
+            if (!e || e.size === 0) continue;
+            const x0 = cx * viewW, y0 = cy * viewH;
+            let ok = false;
+            for (const o of b.obstacles) {
+              if (o.x + o.w / 2 < x0 || o.x - o.w / 2 > x0 + viewW) continue;
+              if (o.y + o.h / 2 < y0 || o.y - o.h / 2 > y0 + viewH) continue;
+              if (e.has(o.kind)) { ok = true; break; }
+            }
+            vu[loi][1]++;
+            if (ok) vu[loi][0]++;
+          }
+        }
+      }
+    }
+    for (let i = 0; i < vs.length; i++) {
+      const [o, n] = vu[i];
+      if (n === 0) continue;
+      const p = o / n;
+      if (p < VUE_MIN) {
+        soucis.push(`${cle}/${vs[i].cle} : sa famille ne se voit que dans `
+          + `${(p * 100).toFixed(1)} % de ses vues (${o}/${n}) — plancher ${VUE_MIN * 100} %`);
+      }
+      if (p < pire) { pire = p; ou = `${cle}/${vs[i].cle}`; }
+    }
   }
   return soucis;
 }
