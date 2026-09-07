@@ -2057,7 +2057,11 @@ const AIR = {
     cour: { dens: 0.52, ech: [0.96, 0.94], zones: [2], matieres: [TRACE_ROULAGE, TRACE_DECHETS] },
     // une chaufferie ENTRETIENT et se branche, comme le traitement, mais son
     // quartier propre est celui de l energie et sa trace est le roussi.
-    chaufferie: { dens: 0.94, ech: [0.60, 0.56], zones: [5, 3], matieres: [TRACE_CENDRES, TRACE_ROUSSI] },
+    /* NI [5, 3] : c est la SEULE region du depot qui contenait DEUX inventaires
+       entiers a la fois — celui de la maintenance et celui des utilites, a 67 %
+       chacun. Une chaufferie a un circuit d eau : elle tire donc l energie et le
+       TRAITEMENT, et les deux singletons redescendent a 57 et 43 %. */
+    chaufferie: { dens: 0.94, ech: [0.60, 0.56], zones: [5, 6], matieres: [TRACE_CENDRES, TRACE_ROUSSI] },
     // la zone de charge ne tire QUE l entretien : rien n y travaille, tout y
     // attend, et le sol garde la trace des cables qu on traine.
     // PAS [3] SEUL : c est exactement l inventaire de la maintenance, et deux

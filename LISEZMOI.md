@@ -8,6 +8,35 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Une règle écrite puis retirée : l'inclusion est structurelle (0.43.35)
+
+**La chaufferie de l'Usine contenait DEUX inventaires entiers**, celui de la
+maintenance et celui des utilités, à **67 %** chacun — le seul cas de double
+inclusion à ce ratio. Une chaufferie a un circuit d'eau : elle tire donc
+l'énergie et le **traitement**, et les deux singletons redescendent à 57 et 43 %.
+
+| | inclusions strictes | dont ≥ 67 % |
+|---|---:|---:|
+| avant | 52 | **6** |
+| après | 52 | **4** |
+
+**Et la règle « une région ne peut pas contenir deux inventaires entiers » a été
+écrite, mesurée, puis retirée.** Elle sortait **14** cas, pas un — et
+l'arithmétique le prédit : une région à deux quartiers `[a, b]` contient
+**nécessairement** toute région qui ne tire que `a` ou que `b`. Avec cinq à sept
+quartiers pour douze régions, les singletons sont inévitables, donc toute paire
+en contient deux.
+
+C'est le même verdict qu'au lot 0.43.11 sur la table de classe des traces : une
+règle qui garde un cas **impossible** se supprime, elle ne se relâche pas. Ce qui
+reste vrai est ce que le dépôt avait déjà décidé au lot 20 — **un inventaire
+étroit est une identité, pas un manque** — et ce qu'il faut surveiller n'est pas
+l'inclusion mais le **ratio**, que `verifierVocabulaire` plafonne déjà à 70 %.
+
+Pire recouvrement de props après correction : **67 %** (fonderie crassier/labo),
+et il est structurel — une zone de 4 props incluse dans une paire de 6 donne 4/6
+exactement.
+
 ### Dix-sept opacités pour la même ombre (0.43.34)
 
 `lumDir()` unifie la **direction** de l'ombre depuis le plan 13, avec sa raison

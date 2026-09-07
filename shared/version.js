@@ -10536,6 +10536,26 @@
                   le §9 du cahier des charges refuse. Le prologue est donc
                   factorise SEUL.
 
+    0.43.35 lot 36 UNE REGLE ECRITE PUIS RETIREE : L INCLUSION EST STRUCTURELLE.
+                  La chaufferie de l Usine contenait DEUX inventaires entiers,
+                  celui de la maintenance et celui des utilites, a 67 % chacun.
+                  Une chaufferie a un circuit d eau : elle tire donc l energie
+                  et le TRAITEMENT, et les deux singletons redescendent a 57 et
+                  43 %. Les inclusions a 67 % ou plus passent de six a quatre.
+                  ET LA REGLE « une region ne peut pas contenir deux inventaires
+                  entiers » A ETE ECRITE, MESUREE, PUIS RETIREE. Elle sortait
+                  QUATORZE cas, pas un, et l arithmetique le predit : une region
+                  a deux quartiers [a, b] contient NECESSAIREMENT toute region
+                  qui ne tire que a ou que b. A cinq ou sept quartiers pour
+                  douze regions les singletons sont inevitables, donc toute
+                  paire en contient deux. Meme verdict qu au lot 0.43.11 sur la
+                  table de classe des traces : une regle qui garde un cas
+                  IMPOSSIBLE se supprime, elle ne se relache pas.
+                  Ce qui reste vrai est ce que le lot 20 avait deja decide — un
+                  inventaire etroit est une identite — et ce qu il faut
+                  surveiller est le RATIO, que `verifierVocabulaire` plafonne a
+                  70 %. Cinquante-deux inclusions strictes sur soixante regions.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10544,4 +10564,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.34";
+export const VERSION = "0.43.35";
