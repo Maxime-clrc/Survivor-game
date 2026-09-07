@@ -227,6 +227,7 @@ const SUITE = [
   ["traces", () => rendu.props?.verifierTraces() ?? SANS_MODULE],
   ["vocabulaire", () => rendu.props?.verifierVocabulaire() ?? SANS_MODULE],
   ["semis", () => rendu.props?.verifierSemis() ?? SANS_MODULE],
+  ["lumiereSol", () => rendu.props?.verifierLumiereSol() ?? SANS_MODULE],
   ["blocsRendu", () => rendu.blocs?.verifierBlocs() ?? SANS_MODULE],
   /* IL EXISTAIT ET PERSONNE NE L APPELAIT. Une silhouette qui ne remplit pas
      son rectangle fait buter sur du vide — la collision est une AABB — et c est

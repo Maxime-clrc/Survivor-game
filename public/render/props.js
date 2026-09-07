@@ -80,6 +80,16 @@ const CYCLE = (t, periode, phase) => ((t / periode) + phase) % 1;
 // un prop emissif declare son RAYON et sa COULEUR : une poche en fusion et un
 // tube mort ne sont pas la meme lumiere.
 const EMISSIF = {
+  /* L USINE N AVAIT AUCUNE SOURCE AU SOL, ET C ETAIT UNE CONTRADICTION. Elle est
+     le seul lieu dont le verbe soit au PRESENT — le seul ou quelque chose
+     fonctionne encore — et c etait le seul entierement noir : zero region
+     eclairee sur douze, quand le Secteur en avait dix. Deux props suffisent, et
+     les deux ont deja un voyant DESSINE : il ne manquait que le halo.
+     LE COFFRET RESPIRE, LE BRAS CLIGNOTE EN BOUT DE COURSE. Deux comportements,
+     pas un : un appareil sous tension a un rythme lent et regulier, une machine
+     qui travaille a un rythme court et sec. */
+  [P_COFFRET_HT]: { r: 62, col: PROP.led },
+  [P_BRAS]:       { r: 54, col: PROP.led },
   [P_TUBE]:    { r: 78, col: PROP.led },
   [P_RIGOLE]:  { r: 96, col: PROP.fonte },
   [P_POCHE]:   { r: 120, col: PROP.fonte },
@@ -438,6 +448,36 @@ const ECHELLE_LIEU = {
   secteur:   [0.60, 0.52],
 };
 
+/* UN THEME ENTIEREMENT NOIR NE DIT PLUS RIEN DE SES REGIONS. La lumiere au sol
+   est un des dix axes de differenciation, et il ne fonctionne que par CONTRASTE :
+   des regions eclairees ET des regions noires. Mesure a l ouverture du lot 39 :
+   l Usine avait ZERO region eclairee sur douze — le seul lieu dont le verbe soit
+   au present etait le seul entierement dans le noir.
+   On n exige pas un quota : une Friche presque noire est JUSTE, c est un lieu
+   abandonne. Ce qu on refuse est le zero absolu et le tout — un theme sans
+   aucune source, ou un theme sans aucune region noire. */
+export function verifierLumiereSol() {
+  const soucis = [];
+  for (const [cle, zones] of Object.entries(ZONES)) {
+    const t = AIR[cle];
+    if (!t) continue;
+    let clairs = 0, noires = 0;
+    for (const a of Object.values(t)) {
+      const props = new Set(a.zones.flatMap(z => zones[z] ?? []));
+      if ([...props].some(p => EMISSIF[p])) clairs++; else noires++;
+    }
+    if (clairs === 0) {
+      soucis.push(`${cle} : aucune region n a de source au sol — la lumiere ne dit`
+        + " plus rien de l endroit");
+    }
+    if (noires === 0) {
+      soucis.push(`${cle} : toutes les regions ont une source au sol — sans noir,`
+        + " la lumiere ne contraste avec rien");
+    }
+  }
+  return soucis;
+}
+
 export function verifierSemis() {
   const soucis = [];
   for (const lieu of Object.keys(TABLE)) {
@@ -675,6 +715,11 @@ function gresil(p) {
   if (p.k === P_TUBE) {
     const u = Math.sin(t * (7 + p.p * 5) + p.p * 12) * Math.sin(t * 1.7 + p.p * 3);
     return u > 0.15 ? 1 : u > -0.2 ? 0.35 : 0.06;
+  }
+  // le bras CLIGNOTE en bout de course : court, sec, et ca ne s eteint jamais
+  // tout a fait — un mouvement continu et periodique n est pas un telegraphe.
+  if (p.k === P_BRAS) {
+    return 0.30 + 0.70 * Math.pow(0.5 + 0.5 * Math.sin(t * (2.6 + p.p) + p.p * 7), 6);
   }
   if (p.k === P_RIGOLE || p.k === P_POCHE) {
     return 0.70 + 0.30 * (0.5 + 0.5 * Math.sin(t * (0.42 + p.p * 0.3) + p.p * 7));

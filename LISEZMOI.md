@@ -8,6 +8,40 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### L'Usine était le seul thème entièrement dans le noir (0.43.38)
+
+La lumière au sol est un des dix axes de différenciation, et il ne fonctionne que
+par **contraste** : des régions éclairées **et** des régions noires. Mesure :
+
+| thème | éclairées | noires |
+|---|---:|---:|
+| **usine** | **0 / 12** | 12 |
+| fonderie | 4 | 8 |
+| friche | 3 | 9 |
+| nébuleuse | 6 | 6 |
+| secteur | 10 | 2 |
+
+**L'Usine est le seul lieu dont le verbe soit au présent** — le seul où quelque
+chose fonctionne encore — et c'était le seul entièrement noir, quand le Secteur
+en avait dix sur douze. Une contradiction, pas un réglage.
+
+Deux props suffisent, et **les deux avaient déjà un voyant dessiné** : il ne
+manquait que le halo. Le **coffret haute tension** (quartier de l'énergie) et le
+**bras robotisé** (quartier de la production) — cinq régions passent à
+l'éclairage, sept restent noires.
+
+**Deux comportements, pas un.** Le coffret **respire** : un appareil sous tension
+a un rythme lent et régulier. Le bras **clignote en bout de course** : court, sec,
+et il ne s'éteint jamais tout à fait — un mouvement continu et périodique n'est
+pas un télégraphe, et ce canal-là appartient au boss.
+
+`verifierLumiereSol` refuse les deux extrêmes — un thème **sans aucune** source,
+un thème **sans aucune** région noire. Il n'exige pas de quota : une Friche
+presque noire est **juste**, c'est un lieu abandonné. Preuve qu'il mord : retirer
+les deux entrées sort `usine : aucune region n a de source au sol`.
+
+Total : **28 régions sur 60** portent une source au sol, contre 23.
+
 ### Une bitte et une bande de trame projetaient la même ombre (0.43.37)
 
 `OBST_OMBRE` était un décalage **fixe de 9 px** pour tous les blocs — d'une bitte

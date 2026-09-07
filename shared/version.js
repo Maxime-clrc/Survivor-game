@@ -10597,6 +10597,26 @@
                   prendrait l ombre d avant sans rien lever. Et `OBST_OMBRE` est
                   SUPPRIMEE : sa seule lecture etait morte.
 
+    0.43.38 lot 39 L USINE ETAIT LE SEUL THEME ENTIEREMENT DANS LE NOIR. La
+                  lumiere au sol est un des dix axes de differenciation et il ne
+                  fonctionne que par CONTRASTE : des regions eclairees ET des
+                  regions noires. Mesure : usine 0 sur 12, fonderie 4, friche 3,
+                  nebuleuse 6, secteur 10. Or l Usine est le seul lieu dont le
+                  verbe soit au PRESENT — le seul ou quelque chose fonctionne
+                  encore. Une contradiction, pas un reglage.
+                  Deux props suffisent, et les deux avaient deja un voyant
+                  DESSINE : il ne manquait que le halo. Le coffret haute tension
+                  et le bras robotise, donc cinq regions eclairees et sept
+                  noires. DEUX COMPORTEMENTS, PAS UN : le coffret RESPIRE, rythme
+                  lent et regulier d un appareil sous tension ; le bras CLIGNOTE
+                  en bout de course, court et sec, et il ne s eteint jamais tout
+                  a fait — un mouvement continu et periodique n est pas un
+                  telegraphe, ce canal appartient au boss.
+                  `verifierLumiereSol` refuse les deux extremes : un theme sans
+                  aucune source, un theme sans aucune region noire. Pas de
+                  quota — une Friche presque noire est JUSTE, c est un lieu
+                  abandonne. Vingt-huit regions sur soixante portent une source.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10605,4 +10625,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.37";
+export const VERSION = "0.43.38";
