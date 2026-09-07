@@ -8,6 +8,55 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le Secteur passe de huit régions à douze, et quatre vues ne suffisaient plus (0.43.30)
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **le parc** | `vegetal` | fontaine | couronne |
+| **la trémie** | `mineral` | mur de soutènement | nef à ciel ouvert |
+| **la berge** | `poudre` | bitte d'amarrage | ruban de bittes |
+| **le hall** | `resine` | banque d'accueil | crible d'îlots |
+
+- **La fontaine est le troisième creux du dépôt, et le seul qui soit PLEIN.** La
+  fosse du puits et le bac du traitement sont des vides ; celle-ci contient de
+  l'eau, donc elle **renvoie** le ciel au lieu de l'avaler.
+- **La trémie est la seule composition du jeu qui donne un SENS à une cellule** :
+  deux murs de soutènement qui se rapprochent, et les contreforts d'un seul côté
+  disent la direction de la pente.
+- **La berge est la seule fois du dépôt où le hors-champ est une information.**
+  Une file de bittes le long d'un bord, et rien au-delà : on comprend qu'il y a
+  de l'eau derrière parce qu'elles s'alignent, et pour aucune autre raison.
+- **Le hall est le seul intérieur PROPRE du Secteur**, et il n'est ni un commerce
+  ni un logement. La banque d'accueil est la **quatrième matière du conteneur**,
+  après la caisse, la carrosserie et le wagon.
+
+**Un cinquième quartier de props, et c'est la troisième fois que l'arithmétique
+le demande** — après l'Usine au lot 20 et la Nébuleuse au lot 27. Quatre
+quartiers donnent six paires distinctes : à douze régions elles sont épuisées
+bien avant. Celui-ci est le **mobilier urbain** (banc, jardinière, corbeille).
+
+**QUATRE POINTS DE VUE NE SUFFISAIENT PLUS À `verifierDessin`.** Un thème porte
+jusqu'à douze régions : à quatre vues et trois graines, une région sur douze
+pouvait n'être atteinte par **aucune** vue — et avec elle sa trace et ses props.
+
+| | vues par arène | régions max par thème |
+|---|---:|---:|
+| avant | 4 | 9 |
+| après | **9** | 12 |
+
+Mesure : `TRACE_EMPREINTE` a disparu du balayage **le jour où le Secteur est
+passé à douze**. La table était juste, c'est l'échantillonnage qui ne l'était
+plus — et c'est `tracesManquees()`, écrit au lot 24, qui l'a dit. Neuf vues
+coûtent 0,1 s.
+
+| | régions | avec une signature | props |
+|---|---:|---:|---:|
+| 0.43.29 | 46 | 46 | 62 |
+| 0.43.30 | **50** | **50** | **65** |
+
+Usine 12, Fonderie 9, Friche 9, Nébuleuse 8, Secteur 12. Pire Jaccard bâti :
+**0,50**.
+
 ### L'Usine passe de neuf régions à douze, et le dépôt gagne un treizième sol (0.43.29)
 
 | région | sol | famille à elle | trame |

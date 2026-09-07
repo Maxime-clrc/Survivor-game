@@ -158,7 +158,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_CULTURE = 65, B_TORE = 66, B_PARABOLE = 67,
              B_WAGON = 68, B_BALLE = 69, B_FERME = 70,
              B_GABARIT = 71, B_CABINE = 72, B_BRAME = 73,
-             B_BENNE = 74, B_CHAUDIERE = 75, B_CHARGEUR = 76;
+             B_BENNE = 74, B_CHAUDIERE = 75, B_CHARGEUR = 76,
+             B_FONTAINE = 77, B_SOUTENEMENT = 78, B_BITTE = 79, B_BANQUE = 80;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -247,6 +248,10 @@ export const BLOCS = [
   { key: "benne", lieu: "usine" },
   { key: "chaudiere", lieu: "usine" },
   { key: "chargeur", lieu: "usine" },
+  { key: "fontaine", lieu: "secteur" },
+  { key: "soutenement", lieu: "secteur" },
+  { key: "bitte", lieu: "secteur" },
+  { key: "banque", lieu: "secteur" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -1384,6 +1389,61 @@ const OBSTACLES = {
       { x: 0.86, y: 0.84, w: 0.050, h: 0.060, kind: B_GUERITE, min: 1 },
       { x: 0.50, y: 0.86, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR },
     ] },
+    /* LE PARC — LE SEUL CREUX D EAU DU DEPOT, ET LE SEUL VERT DU SECTEUR. La
+       fontaine est un bassin : elle se dessine EN CREUX comme la fosse du puits
+       et le bac du traitement, mais elle est la seule des trois a etre PLEINE.
+       C est aussi la seule region du theme ou personne ne vend rien.
+       Sol VEGETAL : de la pelouse tassee par les passages, pas du gazon. */
+    { cle: "parc", nom: "le parc", label: "Le parc", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
+      { x: 0.32, y: 0.34, w: 0.110, h: 0.130, kind: B_FONTAINE },
+      { x: 0.68, y: 0.66, w: 0.110, h: 0.130, kind: B_FONTAINE, min: 1 },
+      { x: 0.66, y: 0.30, w: 0.075, h: 0.085, kind: B_FONTAINE, min: 2 },
+      { x: 0.16, y: 0.72, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
+      { x: 0.84, y: 0.28, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR, min: 1 },
+    ] },
+    /* LA TREMIE — ON DESCEND, ET C EST LA SEULE FOIS DU DEPOT. Deux murs de
+       soutenement qui se rapprochent : la region a une DIRECTION, on lit d un
+       coup d oeil ou elle mene, et c est la seule composition du jeu qui donne
+       un sens a une cellule.
+       Les murs sont longs et bas, donc on voit par-dessus : ce n est pas un
+       couloir, c est une pente qu on longe. Sol MINERAL — de la pierre de
+       soutenement, pas du beton. */
+    { cle: "tremie", nom: "la tremie", label: "La trémie", bords: [BORD_MUR, BORD_OUVERT, BORD_MUR, BORD_OUVERT], poser: [
+      { x: 0.30, y: 0.20, w: 0.320, h: 0.040, kind: B_SOUTENEMENT },
+      { x: 0.30, y: 0.80, w: 0.320, h: 0.040, kind: B_SOUTENEMENT },
+      { x: 0.72, y: 0.30, w: 0.150, h: 0.040, kind: B_SOUTENEMENT, min: 1 },
+      { x: 0.72, y: 0.70, w: 0.150, h: 0.040, kind: B_SOUTENEMENT, min: 1 },
+      { x: 0.10, y: 0.50, w: 0.062, h: 0.140, kind: B_AVEUGLE },
+    ] },
+    /* LA BERGE — IL Y A DE L EAU DERRIERE, ET ON NE LA VOIT PAS. Une file de
+       bittes d amarrage le long d un bord, et rien au-dela : c est le SEUL
+       endroit du depot dont le hors-champ soit une information. On comprend que
+       le quai s arrete la parce que les bittes s alignent, et pour aucune autre
+       raison.
+       Sol POUDREUX : de la poussiere de vrac, ce qu on charge et decharge. */
+    { cle: "berge", nom: "la berge", label: "La berge", bords: [BORD_OUVERT, BORD_MUR, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.20, y: 0.18, w: 0.026, h: 0.055, kind: B_BITTE },
+      { x: 0.40, y: 0.18, w: 0.026, h: 0.055, kind: B_BITTE },
+      { x: 0.60, y: 0.18, w: 0.026, h: 0.055, kind: B_BITTE, min: 1 },
+      { x: 0.80, y: 0.18, w: 0.026, h: 0.055, kind: B_BITTE, min: 1 },
+      { x: 0.30, y: 0.82, w: 0.026, h: 0.055, kind: B_BITTE, min: 2 },
+      { x: 0.70, y: 0.82, w: 0.026, h: 0.055, kind: B_BITTE, min: 2 },
+      { x: 0.50, y: 0.52, w: 0.014, h: 0.230, kind: B_PYLONE },
+    ] },
+    /* LE HALL — ON ATTEND DEBOUT, ET TOUT EST FAIT POUR QU ON SE TIENNE
+       TRANQUILLE. Des banques d accueil larges et basses, un sol de resine
+       lustre, et pas une seule chose a acheter : c est le seul interieur PROPRE
+       du Secteur, et il n est ni un commerce ni un logement.
+       La banque reprend le CONTENEUR : une boite chanfreinee, en quatrieme
+       matiere apres la caisse, la carrosserie et le wagon. */
+    { cle: "hall", nom: "le hall", label: "Le hall", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.28, y: 0.30, w: 0.150, h: 0.050, kind: B_BANQUE },
+      { x: 0.72, y: 0.70, w: 0.150, h: 0.050, kind: B_BANQUE, min: 1 },
+      { x: 0.72, y: 0.30, w: 0.150, h: 0.050, kind: B_BANQUE, min: 2 },
+      { x: 0.28, y: 0.70, w: 0.150, h: 0.050, kind: B_BANQUE, min: 2 },
+      { x: 0.50, y: 0.14, w: 0.150, h: 0.052, kind: B_DEVANTURE },
+      { x: 0.50, y: 0.86, w: 0.150, h: 0.052, kind: B_DEVANTURE, min: 1 },
+    ] },
     { cle: "parvis", nom: "le parvis", label: "Le parvis", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.31, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.69, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
@@ -1673,6 +1733,14 @@ const TRAMES = {
     // un controle est un CRIBLE de chicanes — la premiere du Secteur, et la
     // seule trame du theme qui ne soit ni une file ni un alignement.
     controle: { type: TR_CRIBLE, kind: B_BARRIERE },
+    // un parc tourne autour de son bassin : une couronne, comme le parvis.
+    parc: { type: TR_COURONNE, kind: B_FONTAINE },
+    // une tremie est une NEF a ciel ouvert : deux parois et un fond.
+    tremie: { type: TR_NEF, kind: B_SOUTENEMENT },
+    // une berge est un RUBAN de bittes le long d un bord.
+    berge: { type: TR_RUBAN, kind: B_BITTE },
+    // un hall est un CRIBLE de banques : des ilots reguliers dans du vide.
+    hall: { type: TR_CRIBLE, kind: B_BANQUE },
   },
 };
 

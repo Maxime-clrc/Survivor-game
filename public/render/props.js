@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, exclusivesDe, loiCle, B_BENNE, B_CHAUDIERE, B_CHARGEUR, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, exclusivesDe, loiCle, B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE, B_BENNE, B_CHAUDIERE, B_CHARGEUR, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -47,7 +47,8 @@ const P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_CARTER = 53, P_COFFRET_HT = 54,
       P_PNEUS = 55, P_MOTEUR = 56, P_PARPAINGS = 57, P_PLOT = 58,
       P_VANNE = 59, P_FUT = 60, P_DOUCHE = 61,
-      P_REFLECTEUR = 62, P_BOITIER = 63;
+      P_REFLECTEUR = 62, P_BOITIER = 63,
+      P_BANC = 64, P_JARDINIERE = 65, P_CORBEILLE = 66;
 
 /* UN PROP QUI BOUGE N'EST PAS UN SIGNAL, A UNE CONDITION QUI SE VERIFIE : SON
    MOUVEMENT EST CONTINU ET PERIODIQUE, donc il n'a ni debut ni fin, donc il
@@ -105,7 +106,7 @@ const TABLE = {
      siens. */
   secteur: [P_PASSAGE, P_PASSAGE, P_FLAQUE, P_FLAQUE, P_BORNE, P_AFFICHE,
             P_GRILLE_AIR, P_DISTRIB, P_MOTO, P_CAGEOT, P_PARABOLE, P_NEON_SOL,
-            P_PLAQUE_EGOUT, P_GAINE],
+            P_PLAQUE_EGOUT, P_GAINE, P_BANC, P_JARDINIERE, P_CORBEILLE],
 };
 
 /* UN LIEU A DES QUARTIERS, ET LE SEMIS N EN AVAIT AUCUN. Chaque prop tirait
@@ -197,6 +198,12 @@ const ZONES = {
     [P_PASSAGE, P_PASSAGE, P_FLAQUE, P_PLAQUE_EGOUT],
     [P_GRILLE_AIR, P_GAINE, P_CAGEOT, P_FLAQUE],
     [P_MOTO, P_PARABOLE, P_CAGEOT, P_BORNE],
+    /* UN CINQUIEME QUARTIER, ET C EST LA TROISIEME FOIS QUE L ARITHMETIQUE LE
+       DEMANDE — apres l Usine au lot 20 et la Nebuleuse au lot 27. Quatre
+       quartiers pour douze regions : les six paires distinctes sont epuisees
+       bien avant. Celui-ci est LE MOBILIER URBAIN, ce qu une ville pose pour
+       qu on s y arrete. */
+    [P_BANC, P_JARDINIERE, P_BORNE, P_CORBEILLE],
   ],
 };
 
@@ -300,7 +307,11 @@ const QUARTIER = {
              // on se gare au STATIONNEMENT ; le tourniquet et la barriere sont
              // sur la chaussee, ce qu ils controlent ; la guerite est un local
              // de service, donc l arriere.
-             [B_VEHICULE]: 3, [B_TOURNIQUET]: 1, [B_BARRIERE]: 1, [B_GUERITE]: 2 },
+             [B_VEHICULE]: 3, [B_TOURNIQUET]: 1, [B_BARRIERE]: 1, [B_GUERITE]: 2,
+             // une fontaine est du MOBILIER, un soutenement est l arriere qu on
+             // ne montre pas, une bitte est ce a quoi on amarre — donc du
+             // stationnement —, et une banque d accueil est la vitrine du hall.
+             [B_FONTAINE]: 4, [B_SOUTENEMENT]: 2, [B_BITTE]: 3, [B_BANQUE]: 0 },
 };
 
 /* LES DEUX TABLES DOIVENT SE RECOUVRIR EXACTEMENT, DANS LES DEUX SENS. Un prop
@@ -717,6 +728,9 @@ function dessin(p, ox, oy) {
     case P_DOUCHE: return doucheSecu(p, ox, oy);
     case P_REFLECTEUR: return reflecteur(p, ox, oy);
     case P_BOITIER: return boitier(p, ox, oy);
+    case P_BANC: return banc(p, ox, oy);
+    case P_JARDINIERE: return jardiniere(p, ox, oy);
+    case P_CORBEILLE: return corbeille(p, ox, oy);
     case P_PNEUS: return pneus(p, ox, oy);
     case P_MOTEUR: return moteur(p, ox, oy);
     case P_PARPAINGS: return parpaings(p, ox, oy);
@@ -2089,6 +2103,16 @@ const AIR = {
     // les capsules : la chaussee qu on habite et le coin ou l on se gare.
     capsules: { dens: 1.20, ech: [0.52, 0.46], zones: [1, 3], matieres: [TRACE_DECHETS, TRACE_RUISSELLEMENT] },
     parvis: { dens: 0.60, ech: [0.82, 0.74], zones: [0, 3], matieres: [TRACE_ROULAGE, TRACE_FISSURES] },
+    // un parc ne tire QUE du mobilier : c est la seule region du theme ou
+    // personne ne vende rien, et le sol s y use en sentiers.
+    parc: { dens: 0.66, ech: [0.86, 0.90], zones: [4], matieres: [TRACE_INTERSTICE, TRACE_SENTIER] },
+    // une tremie tire l arriere et le mobilier de son garde-corps.
+    tremie: { dens: 0.80, ech: [0.72, 0.66], zones: [2, 4], matieres: [TRACE_SOUILLURE, TRACE_CORROSION] },
+    // une berge tire ce qu on stationne et ce qu on pose : rien d autre n y
+    // arrive, et la poussiere de vrac y raye tout.
+    berge: { dens: 0.92, ech: [0.64, 0.60], zones: [3, 4], matieres: [TRACE_POUSSIERE, TRACE_ECLATS] },
+    // un hall tire la vitrine et le mobilier, et son sol de resine RENVOIE.
+    hall: { dens: 0.48, ech: [1.00, 0.96], zones: [0, 4], matieres: [TRACE_REFLET, TRACE_MARQUAGE] },
     // UN SEUL QUARTIER CHACUNE POUR LES DEUX PREMIERES, et c est force autant
     // que voulu : le Secteur n a que quatre quartiers de props, donc les six
     // paires distinctes sont epuisees par les cinq regions d origine. Un
@@ -2718,6 +2742,71 @@ function boitier(p, ox, oy) {
   ctx.strokeRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
   ctx.fillStyle = alpha(PROP.balise, 0.30);
   ctx.fillRect(w / 2 - 4, -h / 2 + 2, 2, 2);
+}
+
+/* LE BANC — LE SEUL PROP DU DEPOT FAIT POUR QU ON S ASSEYE. Vu de dessus : une
+   assise, deux pieds qui depassent, et une latte manquante une fois sur trois.
+   C est la latte manquante qui le rend urbain plutot que neuf. */
+function banc(p, ox, oy) {
+  const w = 26 + p.p * 14, h = 8 + p.p * 3;
+  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  const n = 4;
+  for (let i = 0; i < n; i++) {
+    if (i === ((p.p * 7) | 0) % (n + 1)) continue;
+    ctx.fillStyle = alpha("#6a5238", 0.46);
+    ctx.fillRect(-w / 2, -h / 2 + i * (h / n), w, h / n - 1);
+  }
+  ctx.fillStyle = alpha(PROP.metalDark, 0.44);
+  for (const u of [-0.34, 0.34]) ctx.fillRect(w * u - 1.5, -h / 2 - 2, 3, h + 4);
+}
+
+/* LA JARDINIERE — UN BAC, ET CE QUI POUSSE DEDANS DEBORDE. Le debordement est
+   tout : une jardiniere taillee dirait qu on l entretient, celle-ci dit que la
+   ville a d autres priorites. */
+function jardiniere(p, ox, oy) {
+  const c = 15 + p.p * 8;
+  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillRect(-c / 2 + ox, -c / 2 + oy, c, c);
+  ctx.fillStyle = alpha("#5a544a", 0.50);
+  ctx.fillRect(-c / 2, -c / 2, c, c);
+  ctx.fillStyle = alpha("#1a1d14", 0.44);
+  ctx.fillRect(-c / 2 + 3, -c / 2 + 3, c - 6, c - 6);
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + p.p * 3;
+    const d = c * (0.20 + ((i * 3 + (p.p * 9 | 0)) % 5) * 0.06);
+    ctx.fillStyle = alpha(PROP.vert, 0.22 + (i & 1) * 0.10);
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * d, Math.sin(a) * d, 2.6 + (i % 3), 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* LA CORBEILLE — RONDE, AJOUREE, ET ELLE DEBORDE. Elle est le seul objet du
+   Secteur dont on lise le CONTENU par dessus le bord, et c est ce qui la separe
+   du bidon de la Friche : l un a ete jete, l autre est encore en service et
+   personne ne le vide. */
+function corbeille(p, ox, oy) {
+  const r = 6 + p.p * 3;
+  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.48);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metal, 0.26);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    ctx.moveTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5);
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.stroke();
+  // ce qui DEPASSE du bord : deux ou trois eclats clairs.
+  ctx.fillStyle = alpha("#b8b0a0", 0.26);
+  for (let i = 0; i < 3; i++) {
+    const a = p.p * 6 + i * 2.1;
+    ctx.fillRect(Math.cos(a) * r * 0.8 - 1.5, Math.sin(a) * r * 0.8 - 1.5, 3.4, 3);
+  }
 }
 
 // LE CARTER DEPOSE — une coque courbe posee a l envers, avec ses trous de

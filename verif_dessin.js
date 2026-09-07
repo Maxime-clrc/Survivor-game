@@ -111,13 +111,23 @@ export async function verifierDessin(graines = [1, 7, 99]) {
         stage.setBiomeSeed(graine);
         stage.applyPalette(diff);
         stage.rebuildBiome(diff);
-        /* QUATRE POINTS DE VUE, ET LES DEUX DU MILIEU SONT DES FRONTIERES. Sur
-           une carte composee, ce qui casse casse au RACCORD : une vue au centre
-           d une region ne traverse qu un seul jeu de tables. */
-        for (const [vx, vy] of [[CFG.ARENA_W / 2, CFG.ARENA_H / 2],
-                                [CFG.VIEW_W, CFG.VIEW_H],
-                                [CFG.ARENA_W - CFG.VIEW_W, CFG.ARENA_H - CFG.VIEW_H],
-                                [CFG.VIEW_W / 2, CFG.VIEW_H / 2]]) {
+        /* NEUF POINTS DE VUE, ET LES RACCORDS EN FONT PARTIE. Sur une carte
+           composee, ce qui casse casse au RACCORD : une vue au centre d une
+           region ne traverse qu un seul jeu de tables.
+           QUATRE NE SUFFISAIENT PLUS. Un theme porte jusqu a douze regions
+           depuis le lot 31 : a quatre points de vue et trois graines, une region
+           sur douze pouvait n etre atteinte par AUCUNE vue, et avec elle sa
+           trace et ses props. Mesure : `TRACE_EMPREINTE` a disparu du balayage
+           le jour ou le Secteur est passe a douze — la table etait juste, c est
+           l echantillonnage qui ne l etait plus. Neuf vues coutent 0,1 s. */
+        const PV = [];
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            PV.push([CFG.VIEW_W / 2 + i * (CFG.ARENA_W - CFG.VIEW_W) / 2,
+                     CFG.VIEW_H / 2 + j * (CFG.ARENA_H - CFG.VIEW_H) / 2]);
+          }
+        }
+        for (const [vx, vy] of PV) {
           poser(stage, vx, vy);
           const monde = mondeDePapier(stage.obstaclesActifs(), vx, vy);
           for (const [m, fn, args] of APPELS) {

@@ -17,7 +17,8 @@ import {
   B_CULTURE, B_TORE, B_PARABOLE,
   B_WAGON, B_BALLE, B_FERME,
   B_GABARIT, B_CABINE, B_BRAME,
-  B_BENNE, B_CHAUDIERE, B_CHARGEUR, gabaritsDe,
+  B_BENNE, B_CHAUDIERE, B_CHARGEUR,
+  B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -104,6 +105,7 @@ const HABILLAGE = {
   wagon, balle, fermeTombee,
   gabarit, cabine, brame,
   benne, chaudiere, chargeur,
+  fontaine, soutenement, bitte, banque,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -227,6 +229,13 @@ const BLOC = {
     [B_ALVEOLE]: { sil: "mur_bas", hab: "alveole" },
     [B_COURSIVE]: { sil: "barre", hab: "coursive" },
     [B_ABRIBUS]: { sil: "cadre", hab: "abribus" },
+    // LE TROISIEME CREUX DU DEPOT, et le seul qui soit PLEIN : la fosse et le
+    // bac sont des vides, une fontaine contient de l eau.
+    [B_FONTAINE]: { sil: "nappe", hab: "fontaine", creux: true },
+    [B_SOUTENEMENT]: { sil: "caisson", hab: "soutenement" },
+    [B_BITTE]: { sil: "mat", hab: "bitte" },
+    // LE QUATRIEME CONTENEUR : caisse, carrosserie, wagon, banque d accueil.
+    [B_BANQUE]: { sil: "conteneur", hab: "banque" },
     // LE MEME CONTENEUR, UNE AUTRE MATIERE : une boite chanfreinee vue de
     // dessus est une caisse ou une carrosserie, et c est le vitrage qui dit
     // laquelle. La carcasse de la Friche est le meme objet trente ans plus tard.
@@ -3541,6 +3550,124 @@ function chargeur(o, S) {
   ctx.fillRect(-w * 0.18, h * 0.04, 2.5, 2.5);
   ctx.fillStyle = alpha("#000000", 0.30);
   ctx.fillRect(w * 0.06, h * 0.04, 2.5, 2.5);
+}
+
+
+/* LA FONTAINE — LE TROISIEME CREUX DU DEPOT, ET LE SEUL QUI SOIT PLEIN. La fosse
+   du puits et le bac du traitement sont des vides ; celle-ci contient de l eau,
+   donc elle RENVOIE le ciel au lieu de l avaler. Deux passes : la margelle en
+   relief, la nappe en creux — et c est la margelle qui dit qu on ne tombe pas
+   dedans par accident. */
+function fontaine(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  // LA MARGELLE, claire et epaisse : le seul bord franc de la region.
+  ctx.fillStyle = alpha("#8a8478", 0.50);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.fillRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10);
+  // LA NAPPE : un degrade froid, plus clair au centre — c est un reflet, pas
+  // une profondeur.
+  const g = ctx.createRadialGradient(-w * 0.12, -h * 0.14, 0, 0, 0, Math.max(w, h) * 0.5);
+  g.addColorStop(0, alpha("#8fb4c8", 0.30));
+  g.addColorStop(1, alpha("#22343e", 0.40));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2 + 6, -h / 2 + 6, w - 12, h - 12);
+  // LES RIDES, concentriques et immobiles : deux traits, pas une animation.
+  ctx.strokeStyle = alpha("#cfe0ea", 0.14);
+  ctx.lineWidth = 1.2;
+  for (const k of [0.34, 0.56]) {
+    ctx.beginPath();
+    ctx.ellipse(-w * 0.06, -h * 0.06, w * k * 0.5, h * k * 0.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // le depot de sels sur la margelle, du cote ou l eau a debordé.
+  ctx.fillStyle = alpha("#d8cfae", 0.10 + (s & 3) * 0.02);
+  ctx.fillRect(-w / 2 + 2, h / 2 - 5, w - 4, 3);
+}
+
+/* LE MUR DE SOUTENEMENT — IL RETIENT LA TERRE, DONC IL A UN COTE PLEIN ET UN
+   COTE VIDE. Les contreforts sont du cote qu il retient : ils donnent la
+   DIRECTION de la pente, et c est la seule information de ce genre du depot.
+   Bas et long : on voit par-dessus, ce n est pas un couloir. */
+function soutenement(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#6a675e", 0.56);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // L APPAREILLAGE : de gros moellons, decales, et c est ce qui le separe d une
+  // banche — un mur de soutenement est MACONNE, pas coule.
+  ctx.strokeStyle = alpha("#000000", 0.22);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  let dec = 0;
+  for (let u = -L / 2 + 10; u < L / 2 - 4; u += 20) {
+    if (long) { ctx.moveTo(u + (dec ? 10 : 0), -h / 2 + 1); ctx.lineTo(u + (dec ? 10 : 0), h / 2 - 1); }
+    else { ctx.moveTo(-w / 2 + 1, u + (dec ? 10 : 0)); ctx.lineTo(w / 2 - 1, u + (dec ? 10 : 0)); }
+    dec ^= 1;
+  }
+  ctx.stroke();
+  // LES CONTREFORTS, d un seul cote : ils disent ce que le mur retient.
+  const d = (s & 1) ? 1 : -1;
+  ctx.fillStyle = alpha("#4a473e", 0.60);
+  for (let u = -L / 2 + 14; u < L / 2 - 8; u += 34) {
+    if (long) ctx.fillRect(u, d > 0 ? h / 2 - 4 : -h / 2, 8, 4);
+    else ctx.fillRect(d > 0 ? w / 2 - 4 : -w / 2, u, 4, 8);
+  }
+  // la barbacane : un point sombre, et la coulee qui en part est une TRACE.
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(long ? -L * 0.18 : -2, long ? -2 : -L * 0.18, 4, 4);
+}
+
+/* LA BITTE D AMARRAGE — LA PLUS PETITE MASSE DU DEPOT, ET ELLE PORTE LE SENS DE
+   TOUTE UNE REGION. Un champignon de fonte : large en haut, etrangle au pied.
+   Alignees, elles disent qu il y a de l eau derriere, et c est la seule fois du
+   jeu ou le hors-champ soit une information. */
+function bitte(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const r = Math.min(w, h) * 0.44;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.beginPath(); ctx.ellipse(0, h * 0.10, r * 1.05, r * 0.80, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha("#3a3a36", 0.66);
+  ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.82, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha("#8a8880", 0.24);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.ellipse(0, -h * 0.06, r * 0.62, r * 0.50, 0, 0, Math.PI * 2); ctx.stroke();
+  // L AUSSIERE, quand il y en a une : un trait epais qui sort du cadre.
+  if (s & 1) {
+    ctx.strokeStyle = alpha("#6a6252", 0.34);
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(w * 0.5, h * 0.3, w * 0.5, h * 0.5);
+    ctx.stroke();
+  }
+}
+
+/* LA BANQUE D ACCUEIL — LARGE, BASSE, ET ELLE A UN DEVANT. Le plateau deborde
+   du cote du public et pas de l autre : on lit de quel cote on est cense se
+   tenir, et c est tout ce qu il faut pour qu un hall se lise comme un hall.
+   Quatrieme matiere du conteneur, apres la caisse, la carrosserie et le wagon. */
+function banque(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#4a4640", 0.52);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // LE PLATEAU, plus clair, decale vers le public.
+  const d = (s & 1) ? 1 : -1;
+  ctx.fillStyle = alpha("#c8bfa8", 0.24);
+  if (long) ctx.fillRect(-w / 2 + 2, d > 0 ? -h / 2 + 2 : h / 2 - 8, w - 4, 6);
+  else ctx.fillRect(d > 0 ? -w / 2 + 2 : w / 2 - 8, -h / 2 + 2, 6, h - 4);
+  // LE BANDEAU LUMINEUX au nu du sol : un hall se signale, il ne crie pas.
+  ctx.fillStyle = alpha(S.emis, 0.16);
+  if (long) ctx.fillRect(-w / 2 + 6, d > 0 ? h / 2 - 4 : -h / 2 + 2, w - 12, 2);
+  else ctx.fillRect(d > 0 ? w / 2 - 4 : -w / 2 + 2, -h / 2 + 6, 2, h - 12);
+  ctx.strokeStyle = alpha("#000000", 0.24);
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(-w / 2 + 1.5, -h / 2 + 1.5, w - 3, h - 3);
 }
 
 function coque(o, S) {

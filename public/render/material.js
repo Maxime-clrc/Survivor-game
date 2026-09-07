@@ -1561,6 +1561,9 @@ const SOL_REGION = {
     // un niveau de stationnement est coule d un coup, une station se marche sur
     // caillebotis, et on repand du gravier la ou les camions font de la boue.
     parking: T_LISSE, station: T_AJOURE, controle: T_GRANULAT,
+    // de la pelouse tassee, de la pierre de soutenement, de la poussiere de
+    // vrac, et le second sol de resine du depot — le seul interieur propre ici.
+    parc: T_VEGETAL, tremie: T_MINERAL, berge: T_POUDRE, hall: T_RESINE,
   },
 };
 

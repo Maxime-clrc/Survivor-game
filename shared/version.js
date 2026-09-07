@@ -10416,6 +10416,30 @@
                   46 regions, 46 signatures, 13 traitements de sol. Usine 12,
                   Fonderie 9, Friche 9, Nebuleuse 8, Secteur 8.
 
+    0.43.30 lot 31 LE SECTEUR PASSE DE HUIT REGIONS A DOUZE, ET QUATRE VUES NE
+                  SUFFISAIENT PLUS. Le parc porte la FONTAINE, troisieme creux
+                  du depot et le seul qui soit PLEIN — la fosse et le bac sont
+                  des vides. La tremie est la seule composition du jeu qui donne
+                  un SENS a une cellule : deux murs de soutenement qui se
+                  rapprochent, contreforts d un seul cote. La berge est la seule
+                  fois du depot ou le hors-champ soit une information : des
+                  bittes alignees le long d un bord, et rien au-dela. Le hall
+                  est le seul interieur PROPRE du Secteur.
+                  Un CINQUIEME quartier de props, et c est la troisieme fois que
+                  l arithmetique le demande apres l Usine au lot 20 et la
+                  Nebuleuse au lot 27 : quatre quartiers donnent six paires, et
+                  a douze regions elles sont epuisees bien avant. Celui-ci est
+                  LE MOBILIER URBAIN — banc, jardiniere, corbeille.
+                  QUATRE POINTS DE VUE NE SUFFISAIENT PLUS A `verifierDessin` :
+                  a douze regions par theme, trois graines et quatre vues, une
+                  region sur douze pouvait n etre atteinte par AUCUNE vue, et
+                  avec elle sa trace et ses props. `TRACE_EMPREINTE` a disparu
+                  du balayage le jour ou le Secteur est passe a douze — la table
+                  etait juste, c est l echantillonnage qui ne l etait plus, et
+                  c est `tracesManquees()` qui l a dit. Neuf vues, 0,1 s.
+                  50 regions, 50 signatures, 65 props. Usine 12, Fonderie 9,
+                  Friche 9, Nebuleuse 8, Secteur 12.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10424,4 +10448,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.29";
+export const VERSION = "0.43.30";
