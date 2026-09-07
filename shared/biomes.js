@@ -495,6 +495,10 @@ const OBSTACLES = {
          l Usine ne tremble pas (`jMax` nul) — la Friche, elle, decale de 40 px
          par cellule et fermait des ilots avec la meme poutre. */
       { oblique: true, x0: 0.62, y0: 0.24, x1: 0.88, y1: 0.34, ep: 0.036, kind: B_POUTRE },
+      // UNE SEULE CHARPENTE TOMBEE NE SE VOYAIT QUE DANS 83 % DES VUES du
+      // degagement, pour un plancher de 90 : elle est sa seule famille a elle,
+      // et une signature qui manque une vue sur six n en est pas une.
+      { oblique: true, x0: 0.20, y0: 0.70, x1: 0.42, y1: 0.78, ep: 0.036, kind: B_POUTRE, min: 1 },
     ] },
     /* LE MAGASIN — ON GARDE, ON NE TRANSFORME PAS. Des travees de racks
        paralleles, ouvertes aux DEUX bouts, et des allees entre elles. C est la
@@ -1286,76 +1290,88 @@ export function poserTrame(type, kind, q, rand) {
    LA FAMILLE EST UNE DE CELLES DU LIEU, sans exception : ce lot pose la
    STRUCTURE, il n ajoute pas un dessin. Les familles propres a chaque biome
    viennent avec leur silhouette. */
+/* PAR CLEF DE REGION, ET C EST LA TROISIEME FOIS QUE CE DEFAUT SE PAIE. `TRAMES`
+   etait un tableau indexe par RANG, comme `loiNom` au lot 5 et comme `AIR` et
+   `SOL_REGION` au lot 20 : inserer une region au milieu d `OBSTACLES` decale
+   toutes les suivantes. Mesure : NEUF REGIONS SUR TRENTE ET UNE portaient la
+   trame d une autre — six a l Usine, trois a la Friche — et la trame est la plus
+   grosse structure de l ecran, jusqu a 3 680 px.
+   Pire que le sol et les props : SIX de ces neuf posaient la famille EXCLUSIVE
+   d une voisine, donc l exclusivite que `verifierSignature` declarait etait
+   fausse EN JEU. La zone robotisee batissait des bacs de traitement.
+   `familles()` compte donc aussi le `kind` de la trame : ce qui est pose est
+   pose, quel que soit le systeme qui l a pose. */
 const TRAMES = {
-  usine: [
-    { type: TR_RUBAN, kind: B_CHAINE },
-    { type: TR_CRIBLE, kind: B_MACHINE },
+  usine: {
+    chaine: { type: TR_RUBAN, kind: B_CHAINE },
+    carrefour: { type: TR_CRIBLE, kind: B_MACHINE },
     // la maintenance est une HALLE : deux parois et un fond, en etablis.
-    { type: TR_NEF, kind: B_ETABLI },
-    { type: TR_NEF, kind: B_CHAINE },
-    // le magasin est un PEIGNE de racks : meme primitive que l atelier, autre
-    // famille — et c est la famille qui porte la moitie de la silhouette.
-    { type: TR_PEIGNE, kind: B_PALETTIER },
-    // l expedition aligne ses quais sur un BORD : le peigne a echine de bord.
-    { type: TR_PEIGNE, kind: B_QUAI },
+    maintenance: { type: TR_NEF, kind: B_ETABLI },
     // les utilites sont un PARC, donc un crible — de transformateurs, pas
     // d armoires : le couple separe ce que le type seul confondrait.
-    { type: TR_CRIBLE, kind: B_TRANSFO },
+    utilites: { type: TR_CRIBLE, kind: B_TRANSFO },
+    degagement: { type: TR_NEF, kind: B_CHAINE },
+    // le magasin est un PEIGNE de racks : meme primitive que la maintenance,
+    // autre famille — et c est la famille qui porte la moitie de la silhouette.
+    magasin: { type: TR_PEIGNE, kind: B_PALETTIER },
     // le traitement est LA FAILLE : la seule trame qui decrive une absence.
-    { type: TR_FAILLE, kind: B_BAC },
+    traitement: { type: TR_FAILLE, kind: B_BAC },
     // la zone robotisee tourne autour de sa cellule : une couronne de cages.
-    { type: TR_COURONNE, kind: B_CAGE },
-  ],
-  fonderie: [
-    { type: TR_RUBAN, kind: B_CONDUITE },
+    robotisee: { type: TR_COURONNE, kind: B_CAGE },
+    // l expedition aligne ses quais sur un BORD : le peigne a echine de bord.
+    expedition: { type: TR_PEIGNE, kind: B_QUAI },
+  },
+  fonderie: {
+    coulee: { type: TR_RUBAN, kind: B_CONDUITE },
     // la sablerie est une HALLE BASSE : deux parois, un fond, et des chassis.
-    { type: TR_NEF, kind: B_MOULE },
+    sablerie: { type: TR_NEF, kind: B_MOULE },
     // le refroidissement aligne ses bassins : un peigne de trempe.
-    { type: TR_PEIGNE, kind: B_BASSIN },
+    refroidissement: { type: TR_PEIGNE, kind: B_BASSIN },
     // le laminoir est un RUBAN de masses espacees, pas une rigole continue.
-    { type: TR_RUBAN, kind: B_LAMINOIR },
+    laminoir: { type: TR_RUBAN, kind: B_LAMINOIR },
     // un parc est un CRIBLE de tas : le meme reseau que les cuves, en mou.
-    { type: TR_CRIBLE, kind: B_TAS },
-    { type: TR_COURONNE, kind: B_FOUR },
-  ],
-  friche: [
-    { type: TR_CRIBLE, kind: B_RUINE },
-    { type: TR_RUBAN, kind: B_MUR },
+    minerai: { type: TR_CRIBLE, kind: B_TAS },
+    puits: { type: TR_COURONNE, kind: B_FOUR },
+  },
+  friche: {
+    champ: { type: TR_CRIBLE, kind: B_RUINE },
+    mur: { type: TR_RUBAN, kind: B_MUR },
     // la casse est un CRIBLE de piles : meme primitive que le champ, autre
     // famille — c est la famille qui porte la moitie de la silhouette.
-    { type: TR_CRIBLE, kind: B_EPAVES },
-    { type: TR_NEF, kind: B_MUR },
+    casse: { type: TR_CRIBLE, kind: B_EPAVES },
     // une ossature EST un crible : des appuis reguliers et rien entre eux.
-    { type: TR_CRIBLE, kind: B_POTEAU },
+    chantier: { type: TR_CRIBLE, kind: B_POTEAU },
     // le vivant pousse en MASSE, pas en ligne : une couronne de bosquets.
-    { type: TR_COURONNE, kind: B_BOSQUET },
-  ],
-  nebuleuse: [
-    { type: TR_CRIBLE, kind: B_FRAGMENT },
+    repris: { type: TR_COURONNE, kind: B_BOSQUET },
+    effondrement: { type: TR_NEF, kind: B_MUR },
+  },
+  nebuleuse: {
+    derive: { type: TR_CRIBLE, kind: B_FRAGMENT },
     // le dock aligne ses postes d amarrage : un peigne a echine de bord.
-    { type: TR_PEIGNE, kind: B_BRAS },
+    dock: { type: TR_PEIGNE, kind: B_BRAS },
     // la coursive est le seul VOLUME CLOS du theme.
-    { type: TR_NEF, kind: B_CLOISON },
+    coursive: { type: TR_NEF, kind: B_CLOISON },
     // une ossature EST un crible : des appuis reguliers et rien entre eux.
-    { type: TR_CRIBLE, kind: B_MEMBRURE },
-    { type: TR_NEF, kind: B_TRAVEE },
-  ],
-  secteur: [
-    { type: TR_RUBAN, kind: B_DEVANTURE },
+    chantier: { type: TR_CRIBLE, kind: B_MEMBRURE },
+    breche: { type: TR_NEF, kind: B_TRAVEE },
+  },
+  secteur: {
+    rue: { type: TR_RUBAN, kind: B_DEVANTURE },
     // une ruelle est un CANYON : deux parois aveugles et rien entre elles.
-    { type: TR_NEF, kind: B_AVEUGLE },
+    ruelle: { type: TR_NEF, kind: B_AVEUGLE },
     // un marche est un PEIGNE d etals, pas un empilement de caisses.
-    { type: TR_PEIGNE, kind: B_ETAL },
+    marche: { type: TR_PEIGNE, kind: B_ETAL },
     // les capsules sont un PEIGNE d alveoles : meme primitive, autre echelle.
-    { type: TR_PEIGNE, kind: B_ALVEOLE },
+    capsules: { type: TR_PEIGNE, kind: B_ALVEOLE },
     // le parvis tourne autour de sa masse : c est une couronne.
-    { type: TR_COURONNE, kind: B_MONOLITHE },
-  ],
+    parvis: { type: TR_COURONNE, kind: B_MONOLITHE },
+  },
 };
+
 
 export function trameDe(cle, loi) {
   const t = TRAMES[cle] ?? TRAMES.usine;
-  return t[loi] ?? t[0];
+  return t[loiCle(cle, loi)] ?? Object.values(t)[0];
 }
 
 /* LES BORNES D UN QUARTIER, EN PIXELS. Un quartier est d un seul tenant
@@ -1857,20 +1873,33 @@ export function verifierTrame(graines = [1, 7, 99, 323, 50, 8],
   for (const b of BIOMES) {
     const t = TRAMES[b.key];
     if (!t) { soucis.push(`${b.key} : aucune trame`); continue; }
-    const n = loisDe(b.key);
-    if (t.length !== n) soucis.push(`${b.key} : ${t.length} trames pour ${n} regions`);
-    const familles = new Set(blocsDe(b.key));
+    /* LES DEUX SENS, COMME LE SOL ET L AIR. Une trame pour une region qui
+       n existe pas est un reglage mort ; une region sans trame repliait en
+       silence sur celle de la premiere. */
+    const cles = clesDe(b.key);
+    for (const c of cles) if (!t[c]) soucis.push(`${b.key}/${c} : aucune trame`);
+    for (const c of Object.keys(t)) {
+      if (!cles.includes(c)) soucis.push(`${b.key}/${c} : une trame pour une region qui n existe pas`);
+    }
+    const dispo = new Set(blocsDe(b.key));
     const vus = new Map();
-    for (let i = 0; i < t.length; i++) {
-      const tr = t[i];
+    for (const [c, tr] of Object.entries(t)) {
       if (TRAME_NOMS[tr.type] === undefined) {
-        soucis.push(`${b.key}/region ${i} : type de trame ${tr.type} inconnu`);
+        soucis.push(`${b.key}/${c} : type de trame ${tr.type} inconnu`);
         continue;
       }
       tires.add(tr.type);
-      if (!familles.has(tr.kind)) {
-        soucis.push(`${b.key}/region ${i} : la trame emploie la famille ${tr.kind},`
+      if (!dispo.has(tr.kind)) {
+        soucis.push(`${b.key}/${c} : la trame emploie la famille ${tr.kind},`
           + " qui n appartient pas au lieu");
+      }
+      /* ET ELLE DOIT ETRE A ELLE. La trame est la plus grosse structure de
+         l ecran : batir avec la famille EXCLUSIVE d une voisine, c est lui
+         retirer sa signature sans que rien ne le dise. Neuf regions sur trente
+         et une le faisaient quand la table etait indexee par rang. */
+      const sienne = famillesDe(b.key, c);
+      if (sienne && !sienne.has(tr.kind)) {
+        soucis.push(`${b.key}/${c} : sa trame batit en ${tr.kind}, que la region ne pose pas`);
       }
       /* LE COUPLE, PAS LE TYPE. Cinq primitives ne peuvent pas donner douze
          regions distinctes, et ce n est pas la bonne question : un peigne de
@@ -1879,9 +1908,9 @@ export function verifierTrame(graines = [1, 7, 99, 323, 50, 8],
          entier, structure ET vocabulaire. */
       const couple = `${tr.type}|${tr.kind}`;
       if (vus.has(couple)) {
-        soucis.push(`${b.key} : les regions ${vus.get(couple)} et ${i} portent la meme`
+        soucis.push(`${b.key} : « ${vus.get(couple)} » et « ${c} » portent la meme`
           + ` trame « ${TRAME_NOMS[tr.type]} » sur la meme famille — meme silhouette`);
-      } else vus.set(couple, i);
+      } else vus.set(couple, c);
     }
   }
   for (let ty = 0; ty < TRAME_NOMS.length; ty++) {
@@ -2398,10 +2427,16 @@ export function signatureVariante(lieu, vi, diffIndex = 2) {
    atteinte — pas un cran au-dessus. */
 const SIGNATURE_MAX = 0.50;
 
-function familles(v, diffIndex = 2) {
-  return new Set(deplierPose(v.poser)
+/* CE QU UNE REGION POSE, TRAME COMPRISE. La trame emet dans le meme tableau
+   d obstacles que la pose de cellule : ne compter que `poser` faisait declarer
+   exclusive une famille qu une voisine batissait par sa trame. */
+function familles(cle, v, diffIndex = 2) {
+  const k = new Set(deplierPose(v.poser)
     .filter(o => (o.min ?? 0) <= diffIndex)
     .map(o => o.kind));
+  const tr = (TRAMES[cle] ?? {})[v.cle];
+  if (tr) k.add(tr.kind);
+  return k;
 }
 
 export function verifierSignature() {
@@ -2410,7 +2445,7 @@ export function verifierSignature() {
   for (const b of BIOMES) {
     const vs = OBSTACLES[b.key] ?? [];
     if (vs.length < 2) continue;
-    const fam = vs.map(v => familles(v));
+    const fam = vs.map(v => familles(b.key, v));
     const dispo = new Set(fam.flatMap(f => [...f]));
     if (dispo.size < vs.length) {
       soucis.push(`${b.key} : ${dispo.size} familles baties pour ${vs.length} regions`
@@ -2476,9 +2511,14 @@ const VUE_GRAINES = [1, 7, 42, 99, 1234];
    d une region est ce que cette region a d unique, et sans cette liste la
    matiere de trace ne pouvait s accrocher qu a un quartier de props — un
    decoupage qui n a rien a voir avec le bati. */
+export function famillesDe(cle, regionCle) {
+  const v = (OBSTACLES[cle] ?? []).find(r => r.cle === regionCle);
+  return v ? familles(cle, v) : null;
+}
+
 export function exclusivesDe(cle) {
   const vs = OBSTACLES[cle] ?? [];
-  const fam = vs.map(v => familles(v));
+  const fam = vs.map(v => familles(cle, v));
   return fam.map((f, i) => {
     const autres = new Set(fam.filter((_, j) => j !== i).flatMap(g => [...g]));
     return new Set([...f].filter(k => !autres.has(k)));

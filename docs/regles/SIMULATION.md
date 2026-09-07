@@ -692,6 +692,20 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     son recouvrement avec le refroidissement tombe de 40 à **20 %**.
   - **Preuve que le vérificateur mord** : `OBSTACLE_SURFACE_MAX` abaissé à 0,075
     sort quatre régions de la Fonderie, la coulée à 77,6 % et le puits à 65,7 %.
+  - **LA TRAME COMPTE DANS LES FAMILLES D'UNE RÉGION.** Elle émet dans le même
+    tableau d'obstacles que la pose de cellule : ne compter que `poser` faisait
+    déclarer exclusive une famille qu'une voisine bâtissait par sa trame. Et
+    `verifierTrame` refuse désormais qu'une région bâtisse sa trame — **la plus
+    grosse structure de l'écran, jusqu'à 3 680 px** — avec une famille qu'elle ne
+    pose pas elle-même.
+  - **`TRAMES` était la TROISIÈME table indexée par rang**, après `loiNom` (lot
+    5) et `AIR`/`SOL_REGION` (0.43.19). Mesuré : **9 régions sur 31** portaient
+    la trame d'une autre — six à l'Usine, trois à la Friche — et **six** d'entre
+    elles bâtissaient avec la famille **exclusive** d'une voisine, donc
+    l'exclusivité que `verifierSignature` déclarait était fausse *en jeu* : la
+    zone robotisée bâtissait des bacs de traitement. **Avant d'ajouter une table
+    par région, vérifier par quoi elle est indexée** — c'est la classe de défaut
+    de tout ce plan, et elle ne lève jamais.
   - **Les neuf dernières étaient les régions d'ORIGINE de chaque thème** — celles
     que sept lots de contenu avaient laissées intactes. Trois paires bâtissaient
     avec un jeu strictement égal. **Neuf familles neuves, zéro silhouette

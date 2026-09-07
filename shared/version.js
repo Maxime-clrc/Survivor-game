@@ -10277,6 +10277,27 @@
                   primitives sur vingt ne l etaient par aucune des soixante vues,
                   les deux tables vertes. Vingt sur vingt maintenant.
 
+    0.43.24 lot 25 NEUF REGIONS PORTAIENT LA TRAME D UNE AUTRE. `TRAMES` etait la
+                  TROISIEME table indexee par rang, apres `loiNom` au lot 5 et
+                  `AIR`/`SOL_REGION` au lot 20 — meme mecanique, meme silence, et
+                  cette fois sur la plus grosse structure de l ecran : une bande
+                  de trame va jusqu a 3 680 px. Six regions sur neuf a l Usine,
+                  trois sur six a la Friche.
+                  ET SIX D ENTRE ELLES BATISSAIENT AVEC LA FAMILLE EXCLUSIVE
+                  D UNE VOISINE : la zone robotisee batissait des bacs de
+                  traitement, le degagement des palettiers de magasin. L
+                  exclusivite que `verifierSignature` declarait etait donc fausse
+                  EN JEU, parce qu il ne lisait que `poser` et jamais la trame.
+                  `familles()` compte desormais le `kind` de la trame — ce qui
+                  est pose est pose, quel que soit le systeme qui l a pose — et
+                  `verifierTrame` refuse qu une region batisse sa trame avec une
+                  famille qu elle ne pose pas elle-meme, en croisant la table
+                  dans LES DEUX SENS. Le pire Jaccard bati reste 0,50 une fois la
+                  trame comptee.
+                  Effet de bord revelateur : `verifierVue` sort alors le
+                  degagement a 83,3 % pour un plancher de 90 — sa charpente
+                  tombee est sa seule famille a elle et elle n avait qu UNE pose.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10285,4 +10306,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.23";
+export const VERSION = "0.43.24";

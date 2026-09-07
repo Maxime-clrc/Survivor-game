@@ -8,6 +8,39 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Neuf régions portaient la trame d'une autre (0.43.24)
+
+`TRAMES` était la **troisième** table indexée par rang, après `loiNom` (lot 5) et
+`AIR`/`SOL_REGION` (0.43.19). Même mécanique, même silence, et cette fois sur la
+**plus grosse structure de l'écran** — une bande de trame va jusqu'à 3 680 px.
+
+| thème | régions portant la trame d'une autre |
+|---|---:|
+| usine | **6 sur 9** |
+| friche | **3 sur 6** |
+| fonderie, nébuleuse, secteur | 0 |
+
+**Et six d'entre elles bâtissaient avec la famille EXCLUSIVE d'une voisine.** La
+zone robotisée bâtissait des bacs — la signature du traitement. Le dégagement
+bâtissait des palettiers — celle du magasin. L'exclusivité que
+`verifierSignature` déclarait était donc **fausse en jeu**, parce qu'il ne lisait
+que `poser` et jamais la trame.
+
+Deux corrections :
+
+- **`familles()` compte le `kind` de la trame.** Ce qui est posé est posé, quel
+  que soit le système qui l'a posé. Le pire Jaccard bâti reste **0,50** une fois
+  la trame comptée — mesuré sur les 86 paires.
+- **`verifierTrame` refuse qu'une région bâtisse sa trame avec une famille
+  qu'elle ne pose pas elle-même**, et croise la table **dans les deux sens**,
+  comme le sol et l'air depuis 0.43.19.
+
+**Effet de bord révélateur** : une fois la trame comptée, `verifierVue` sort
+`usine/degagement : sa famille ne se voit que dans 83,3 % de ses vues` — sa
+charpente tombée est sa seule famille à elle, et elle n'avait **qu'une** pose.
+Une signature qui manque une vue sur six n'en est pas une : une seconde charpente
+oblique, et la région repasse le plancher.
+
 ### La moitié des matières de trace étaient injoignables (0.43.23)
 
 Les neuf primitives de trace qui manquaient sont écrites — **vingt au total** :
