@@ -1,7 +1,7 @@
 import { createGL } from "/gl.js";
 
 import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome, loiAt as loiDeCarte } from "/shared/game_state.js";
-import { MEL_CFG, poidsAt } from "/shared/biomes.js";
+import { MEL_CFG, pointMel, poidsAt } from "/shared/biomes.js";
 import { CADRE_SKIN, ENEMY, biomeSkin, cssVars, decorAt, ecartCouleur, melerHex, solDeBiome } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { reuploadAtlas } from "/sprites.js";
@@ -331,14 +331,21 @@ export function hazardsDuLieu() { return biome.hazards; }
 // par l amer, qui en pose un PAR QUARTIER.
 export function districtsCarte() { return biome.districts; }
 
+/* IL SE LIT AU POINT GAUCHI, comme la frontiere. Ce comblement est ce qui donne
+   son quartier a un prop en terrain libre : lu sur la cellule brute, il redessinait
+   la droite que le fondu venait d effacer — a l endroit meme ou le sol, lui, avait
+   cesse de la montrer. `pointMel` est le SEUL gauchissement du depot, donc les
+   deux limites tombent au meme endroit. */
 export function quartierMonde(x, y) {
   const d = biome.districts;
   if (!d) return 0;
+  pointMel(biome, x, y, QM_PT);
   const c = biome.districtCols, r = biome.districtRows;
-  const cx = Math.min(c - 1, Math.max(0, Math.floor(x / (CFG.ARENA_W / c))));
-  const cy = Math.min(r - 1, Math.max(0, Math.floor(y / (CFG.ARENA_H / r))));
+  const cx = Math.min(c - 1, Math.max(0, Math.floor(QM_PT[0] / (CFG.ARENA_W / c))));
+  const cy = Math.min(r - 1, Math.max(0, Math.floor(QM_PT[1] / (CFG.ARENA_H / r))));
   return d[cy * c + cx];
 }
+const QM_PT = [0, 0];
 export function groundAt(x, y) {
   let slow = 1, slip = false;
   for (const h of hazardsActifs()) {

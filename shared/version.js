@@ -10666,6 +10666,39 @@
                   qui n est pas une droite — mesuree en comptant les abscisses
                   distinctes ou la dominante bascule. 62 verificateurs.
 
+    0.43.40 lot 41 LE SEMIS S ARRETAIT A LA REGLE, LUI AUSSI. Le lot precedent a
+                  fondu le SOL ; le semis basculait toujours au bord de la
+                  cellule, et sur la capture de controle la droite avait disparu
+                  du sol pour se relire dans les OBJETS — plaques rayees au-dessus,
+                  caisses sombres en dessous.
+                  UNE QUANTITE S INTERPOLE, UN CATALOGUE SE TIRE, et la distinction
+                  vient de ce que SONT les choses. La densite (0,52 a 1,34, x2,6)
+                  et le calibre sont des nombres : la moyenne ponderee a un sens.
+                  Un catalogue n a pas de milieu — la moitie d une caisse et d une
+                  epave n existe pas — donc on TIRE dans les poids, avec le hachage
+                  deterministe que la cellule a deja, et la part de chaque region
+                  sur une POPULATION est exactement son poids.
+                  LE TIRAGE EST PAR PROP, PAS PAR CELLULE : par cellule, la maille
+                  de 200 px redevenait visible et on remplacait une droite par un
+                  damier.
+                  LE CATALOGUE DE RACCORD EXISTAIT DEJA. `TABLE` est le fonds
+                  commun du theme et `FUITE` en tirait 18 % partout : il suffit d en
+                  tirer PLUS la ou deux regions se rencontrent (34 % au milieu
+                  exact). Un objet pris la n appartient a aucune des deux, donc il
+                  RELIE au lieu de designer. Une table de props de transition aurait
+                  demande d etre remplie pour cinq themes et soixante regions, et
+                  0.43.14 a deja mesure que le catalogue est le goulot.
+                  LE COMBLEMENT REDESSINAIT LA DROITE. `quartierMonde` donne son
+                  quartier a un prop en terrain libre — 18 a 30 % des cellules — et
+                  lisait la cellule BRUTE : il reposait la droite exactement la ou
+                  le sol venait de cesser de la montrer. Il lit le point gauchi,
+                  `pointMel` etant le seul gauchissement du depot.
+                  `verifierTirage` mesure les deux facons de mentir d un tirage :
+                  la part rendue (ecart tolere 12 %) et surtout la FUITE DANS UN
+                  CENTRE — un point pur doit tirer sa propre region, sans quoi une
+                  epave de la region d a cote se pose au milieu d une halle sans
+                  rien lever. 63 verificateurs.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10674,4 +10707,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.39";
+export const VERSION = "0.43.40";

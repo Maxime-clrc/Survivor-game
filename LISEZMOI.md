@@ -8,6 +8,68 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le semis s'arrêtait à la règle, lui aussi (0.43.40)
+
+0.43.39 a fondu le **sol** ; le **semis** basculait toujours au bord de la
+cellule. Sur la capture de contrôle (usine, graine 7, carrefour ↔ traitement),
+au-dessus de la ligne on ne voyait que des plaques rayées et en dessous que des
+caisses sombres — la droite avait disparu du sol et se relisait dans les objets.
+
+**Une seule distinction, et elle vient de ce que sont les choses.**
+
+| ce qui bascule | nature | traitement |
+|---|---|---|
+| `dens` (0,52 → 1,34, **×2,6**) | quantité | moyenne pondérée |
+| `ech` (0,56 → 0,96) | quantité | moyenne pondérée |
+| `zones` (catalogue) | catégoriel | **tirage** dans les poids |
+| `matieres` (trace) | catégoriel | **tirage** dans les poids |
+
+La moitié d'une caisse et d'une épave n'existe pas : un catalogue n'a pas de
+milieu. On tire donc dans les poids avec le hachage déterministe que la cellule a
+déjà, et **la part de chaque région sur une population est exactement son poids**.
+
+**Le tirage est par prop, pas par cellule.** Par cellule, la maille de 200 px
+redevenait visible à la frontière : on aurait remplacé une droite par un damier.
+
+#### Le catalogue de raccord existait déjà
+
+`TABLE[thème]` est le fonds commun — tout ce que le lieu possède, sans le
+rangement par quartier — et `FUITE` en tirait déjà 18 % partout. Il suffisait d'en
+tirer **plus** là où deux régions se rencontrent : un objet pris là n'appartient à
+aucune des deux, donc il **relie** au lieu de désigner.
+
+| position | part de fonds commun |
+|---|---:|
+| centre d'une région | 18 % (`FUITE`) |
+| milieu exact du fondu | **34 %** (`FUITE_MEL`) |
+
+Aucune nouvelle catégorie de props n'a été écrite : une table de plus aurait dû
+être remplie pour cinq thèmes et soixante régions, et le dépôt a déjà mesuré
+(0.43.14) que **le catalogue est le goulot, pas le rangement**.
+
+#### Le comblement redessinait la droite
+
+`quartierMonde` donne son quartier à un prop en terrain libre — c'est le repli
+quand aucune architecture n'est à portée, soit 18 à 30 % des cellules. Il lisait la
+cellule **brute** : il reposait donc la droite exactement là où le sol venait de
+cesser de la montrer. Il lit maintenant le point gauchi, `pointMel` étant le seul
+gauchissement du dépôt : les deux limites tombent au même endroit.
+
+#### Ce que mesure `verifierTirage`
+
+Un tirage a deux façons de mentir, et la seconde est la plus grave :
+
+| question | seuil | mesuré |
+|---|---|---|
+| la part rendue est-elle le poids annoncé ? | écart < 12 % | vert sur 8 graines |
+| un point **pur** tire-t-il sa propre région ? | toujours | vert (échec = arrêt immédiat) |
+
+La seconde protège l'identité : une épave de la région d'à côté au milieu d'une
+halle **ne lève rien**, et ne se verrait qu'à la capture d'écran. Coût : 23 ms.
+
+Coût par image, caméra posée sur la frontière, 180 images : **5,60 ms de médiane**,
+identique à avant le plan — le semis ne tourne qu'au changement de fenêtre.
+
 ### Le sol d'une région s'arrêtait à la règle (0.43.39)
 
 Rapport de terrain, capture à l'appui : trois régions se rencontrent et on voit

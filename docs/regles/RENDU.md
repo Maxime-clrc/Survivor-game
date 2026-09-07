@@ -508,6 +508,40 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
 - **LE SEUIL EST SUPPRIMÉ.** Il déclarait la couture entre deux lieux bord à
   bord ; un thème par carte, plus de couture, plus de pièce à poser.
 
+#### Le semis mélangé : ce qui s'interpole et ce qui se tire
+
+- **UNE QUANTITÉ S'INTERPOLE, UN CATALOGUE SE TIRE.** C'est la seule distinction du
+  mélange côté semis, et elle vient de ce que **sont** les choses. La densité et le
+  calibre sont des nombres : la moyenne pondérée a un sens, et à la frontière de la
+  maintenance (`dens 1,34`) et de la cour (`0,52`) le semis s'éclaircit au lieu de
+  s'éclaircir **d'un coup**. Un catalogue n'a pas de milieu — la moitié d'une caisse
+  et d'une épave n'existe pas — donc on tire dans les poids avec le hachage
+  déterministe que la cellule a déjà, et **la part de chaque région sur une
+  population est exactement son poids**.
+- **LE TIRAGE EST PAR PROP, PAS PAR CELLULE.** Deux props d'une même cellule peuvent
+  venir de deux régions ; sinon la maille de 200 px redevient visible à la
+  frontière, et on a remplacé une droite par un damier.
+- **LE CATALOGUE DE RACCORD EXISTAIT DÉJÀ, ET C'EST `TABLE`.** Le fonds commun du
+  thème — tout ce que le lieu possède, sans le rangement par quartier — était déjà
+  tiré à 18 % partout par `FUITE`. On en tire **plus** là où deux régions se
+  rencontrent (`FUITE_MEL`, 34 % au milieu exact) : un objet pris là n'appartient à
+  aucune des deux, donc il **relie** au lieu de désigner. Écrire une table de props
+  de transition aurait demandé de la remplir pour cinq thèmes et soixante régions,
+  et 0.43.14 a déjà mesuré que **le catalogue est le goulot, pas le rangement**.
+- **LE COMBLEMENT DOIT LIRE LE POINT GAUCHI.** `quartierMonde` donne son quartier à
+  un prop en terrain libre — 18 à 30 % des cellules selon le thème. Lu sur la
+  cellule brute, il **reposait la droite** exactement là où le sol venait de cesser
+  de la montrer. `pointMel` est le seul gauchissement du dépôt : les deux limites
+  tombent donc au même endroit.
+- **UN TIRAGE A DEUX FAÇONS DE MENTIR**, et `verifierTirage` mesure les deux. Rendre
+  une part qui n'est pas le poids (écart toléré 12 %), et surtout **fuiter dans un
+  centre** : un point pur doit tirer sa propre région, sans quoi une épave de la
+  région d'à côté apparaît au milieu d'une halle. La seconde ne lève rien et ne se
+  verrait qu'à la capture d'écran.
+- **CE QUI EST DU THÈME SORT DE LA BOUCLE.** Catalogue, quartiers et table de zones
+  ne dépendent pas de la région : les relire par cellule ne coûtait rien mais
+  laissait croire qu'ils pouvaient changer.
+
 #### La frontière de deux régions n'est pas une ligne
 
 - **`loiAt` REND UN ENTIER, ET C'EST TOUT LE DÉFAUT.** La région d'un point était

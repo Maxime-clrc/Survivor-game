@@ -1,8 +1,8 @@
 import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
-import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, exclusivesDe, loiCle, B_ISOLATEUR, B_POMPE, B_DECANTEUR, B_SILO, B_CRASSE, B_PAILLASSE, B_ARRIMAGE, B_NAVETTE, B_ECHANGEUR, B_FOREUSE, B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE, B_BENNE, B_CHAUDIERE, B_CHARGEUR, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, nLois, obstaclesDuLieu, poidsMonde, quartierMonde, skin } from "./stage.js";
+import { biomeAt, clesDe, exclusivesDe, loiCle, loiTiree, B_ISOLATEUR, B_POMPE, B_DECANTEUR, B_SILO, B_CRASSE, B_PAILLASSE, B_ARRIMAGE, B_NAVETTE, B_ECHANGEUR, B_FOREUSE, B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE, B_BENNE, B_CHAUDIERE, B_CHARGEUR, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -157,6 +157,12 @@ const TABLE = {
    installation. Une part des props ignore donc sa zone et tire dans le fonds du
    lieu : les quartiers gardent leur dominante, leur bord se brouille. */
 const FUITE = 0.18;
+/* LA PART COMMUNE AU MILIEU D UN FONDU. C est la « categorie de props de
+   transition » du dossier, et elle n a pas besoin d exister : `TABLE` est deja le
+   fonds commun du theme — tout ce que le lieu possede, sans le rangement par
+   quartier. Un objet tire la n appartient a aucune des deux regions, donc il
+   RELIE au lieu de designer. A 0,34, un prop sur trois au milieu exact. */
+const FUITE_MEL = 0.34;
 // deux cellules sur trois : au-dela le sol devient un tapis et plus aucune
 // trace ne se lit comme un evenement.
 const TRACE_TAUX = 0.66;
@@ -513,6 +519,7 @@ function h2(x, y, s) {
 }
 
 const props = [];
+let semisPoids = null;
 // UNE trace par CELLULE, la ou l architecture en designe une — pas une par
 // prop : ce qui a marque le sol est plus grand que ce qui traine dessus.
 const traces = [];
@@ -571,11 +578,11 @@ function sonder(x, y, quartiers) {
   return best;
 }
 
-/* LE SEMIS EST PAR CELLULE DE 200 PX, DONC LE LIEU AUSSI. Une carte composee en
-   montre jusqu a quatre dans une vue : catalogue, quartiers, matieres, densite et
-   calibre se relisent a chaque cellule, et rien de tout ca n est cher — ce sont
-   des lectures de table, dans une boucle qui ne tourne qu au changement de
-   fenetre. */
+/* LE SEMIS EST PAR CELLULE DE 200 PX, ET LA REGION Y EST UN VECTEUR. Ce qui est
+   une QUANTITE — densite, calibre — s interpole ; ce qui est un CATALOGUE se
+   TIRE, par prop et non par cellule, sinon la maille de 200 px redevient visible
+   a la frontiere. Le theme, lui, sort de la boucle : catalogue, quartiers et
+   table de zones ne dependent pas de la region. */
 function refresh() {
   const c0x = Math.floor(camera.x0 / CELL) - MARGE;
   const c0y = Math.floor(camera.y0 / CELL) - MARGE;
@@ -589,36 +596,72 @@ function refresh() {
   if ((DENSITE[gfx] ?? 0) <= 0) return;
 
   const s = biomeSeed >>> 0;
-  /* LE SEMIS EST PAR CELLULE, DONC LA REGION AUSSI : catalogue, quartiers,
-     matieres, densite et calibre se relisent a chaque cellule. Ce sont des
-     lectures de table, dans une boucle qui ne tourne qu au changement de
-     fenetre — quatre entrees de cache au plus, une par loi. */
+  /* CE QUI EST DU THEME SORT DE LA BOUCLE. Le catalogue, les quartiers et la
+     table de zones ne dependent pas de la region : les relire par cellule ne
+     coutait rien mais laissait croire qu ils pouvaient changer. */
   const cleTheme = biomeKey();
+  const table = TABLE[cleTheme] ?? TABLE.usine;
+  const quartiers = QUARTIER[cleTheme] ?? {};
+  const zt = ZONES[cleTheme] ?? ZONES.usine;
+  const excl = exclusivesDe(cleTheme);
+  const mulDens = DENSITE_LIEU[cleTheme] ?? 1;
   const parLoi = new Map();
-  const lieuDe = (x, y) => {
-    const loi = loiAt(x, y);
+  const ficheDe = (loi) => {
     let v = parLoi.get(loi);
     if (!v) {
       const a = airDe(cleTheme, loi);
-      const zt = ZONES[cleTheme] ?? ZONES.usine;
-      v = { table: TABLE[cleTheme] ?? TABLE.usine,
-            zones: a.zones.map(i => zt[i] ?? zt[0]),
-            sig: (exclusivesDe(cleTheme)[loi]) ?? new Set(),
-            quartiers: QUARTIER[cleTheme] ?? {}, matieres: a.matieres ?? null,
-            ech: a.ech, dens: (DENSITE_LIEU[cleTheme] ?? 1) * a.dens };
+      v = { zones: a.zones.map(i => zt[i] ?? zt[0]), sig: excl[loi] ?? new Set(),
+            matieres: a.matieres ?? null, ech: a.ech, dens: mulDens * a.dens };
       parLoi.set(loi, v);
     }
     return v;
   };
+  const nl = nLois();
+  if (!semisPoids || semisPoids.length !== nl) semisPoids = new Float32Array(nl);
 
   for (let cy = c0y; cy <= c1y; cy++) {
     for (let cx = c0x; cx <= c1x; cx++) {
       if (cx < 0 || cy < 0 || cx * CELL > CFG.ARENA_W || cy * CELL > CFG.ARENA_H) continue;
-      const LI = lieuDe((cx + 0.5) * CELL, (cy + 0.5) * CELL);
-      const table = LI.table, zones = LI.zones, quartiers = LI.quartiers;
-      const matieres = LI.matieres, ech = LI.ech;
-      const dens = (DENSITE[gfx] ?? 0) * LI.dens;
+      const mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL;
+
+      /* CE QUI EST UNE QUANTITE S INTERPOLE, CE QUI EST UN CATALOGUE SE TIRE.
+         C est la seule distinction du melange cote semis, et elle vient de ce que
+         sont les choses : la densite et le calibre sont des nombres, donc la
+         moyenne ponderee a un sens — a la frontiere de la maintenance (1,34) et
+         de la cour (0,52) le semis s eclaircit au lieu de s eclaircir D UN COUP.
+         Un catalogue n a pas de milieu : la moitie d une caisse et d une epave
+         n existe pas. On TIRE dans les poids, avec le hachage deterministe que la
+         cellule a deja, et la part de chaque region sur une POPULATION est
+         exactement son poids — au bord, un prop sur trois vient d en face et on
+         ne peut pas dire lesquels. */
+      const nR = poidsMonde(mx, my, semisPoids);
+      let dom = 0;
+      for (let i = 1; i < nl; i++) if (semisPoids[i] > semisPoids[dom]) dom = i;
+
+      let dLoi, e0, e1;
+      if (nR === 1) {
+        const f = ficheDe(dom);
+        dLoi = f.dens; e0 = f.ech[0]; e1 = f.ech[1];
+      } else {
+        dLoi = 0; e0 = 0; e1 = 0;
+        for (let i = 0; i < nl; i++) {
+          const w = semisPoids[i];
+          if (w <= 0) continue;
+          const f = ficheDe(i);
+          dLoi += w * f.dens; e0 += w * f.ech[0]; e1 += w * f.ech[1];
+        }
+      }
+      const dens = (DENSITE[gfx] ?? 0) * dLoi;
       if (dens <= 0) continue;
+
+      /* LA PART COMMUNE MONTE DANS LA TRANSITION, et c est ce qui tient lieu de
+         catalogue de raccord. `table` EST le fonds commun du theme — tout ce que
+         le lieu possede, sans le rangement par quartier —, donc la categorie de
+         props de transition existe deja : il suffit d en tirer plus la ou deux
+         regions se rencontrent. Au milieu exact du fondu, un prop sur trois est
+         un prop de personne ; au centre d une region, la fuite d origine. */
+      const fuite = nR === 1 ? FUITE
+        : FUITE + (FUITE_MEL - FUITE) * Math.min(1, 2 * (1 - semisPoids[dom]));
 
       /* LA TRACE SE SONDE AU CENTRE DE LA CELLULE, pas a la position d un prop :
          elle est plus grande que ce qui traine dessus, et une cellule vide de
@@ -630,10 +673,11 @@ function refresh() {
          pire pour POSER la marque : deux cellules sur trois marquees au centre
          d une maille de 200 px font vingt-quatre taches par ecran sur un reseau
          carre, et c est le reseau qu on voit, pas les taches. */
-      if (matieres && h2(cx, cy, s + 199) < TRACE_TAUX) {
-        const mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL;
-        const mq = sonder(mx, my, quartiers);
-        if (mq >= 0) {
+      if (h2(cx, cy, s + 199) < TRACE_TAUX) {
+        const LT = ficheDe(nR === 1 ? dom : loiTiree(semisPoids, h2(cx, cy, s + 203)));
+        const matieres = LT.matieres;
+        const mq = matieres ? sonder(mx, my, quartiers) : -1;
+        if (matieres && mq >= 0) {
           /* LA SECONDE MATIERE APPARTIENT A LA FAMILLE SIGNATURE, PAS A UN
              QUARTIER DE PROPS — et c est une refonte, pas un reglage.
 
@@ -651,7 +695,7 @@ function refresh() {
              `matieres[1]` ce que SON objet lui fait. La famille exclusive se
              voit dans au moins 90 % des vues de sa region (`verifierVue`), donc
              la seconde matiere est atteignable partout ou elle est ecrite. */
-          const t = (LI.sig.has(SONDE.kind) && matieres[1]) || matieres[0];
+          const t = (LT.sig.has(SONDE.kind) && matieres[1]) || matieres[0];
           if (t) {
             traces.push({ t, cx, cy,
               x: (cx + 0.15 + h2(cx, cy, s + 201) * 0.70) * CELL,
@@ -669,6 +713,11 @@ function refresh() {
         const y = (cy + 0.12 + h2(cx, cy, g + 2) * 0.76) * CELL;
         const q = sonder(x, y, quartiers);
         if (q === -2) continue;
+        // LE TIRAGE EST PAR PROP, PAS PAR CELLULE : deux props d une meme cellule
+        // peuvent venir de deux regions, sinon la maille de 200 px redevient
+        // visible a la frontiere — on aurait remplace une droite par un damier.
+        const zones = ficheDe(nR === 1 ? dom
+          : loiTiree(semisPoids, h2(cx, cy, g + 9))).zones;
         /* L ARCHITECTURE DECIDE, LE QUARTIER DU LIEU COMBLE, LA FUITE BROUILLE.
            Trois sources dans cet ordre : ce qui est BATI a cote impose son
            quartier ; en terrain libre on prend celui du DECOUPAGE DU LIEU, le
@@ -678,14 +727,14 @@ function refresh() {
            petite qu une vue, donc le semis changeait deux a trois fois par ecran
            et ne pouvait designer aucun endroit. Et il etait INDEPENDANT du bati :
            deux decoupages a deux echelles qui ne tombaient jamais d accord. */
-        const jeu = h2(cx, cy, g + 8) < FUITE
+        const jeu = h2(cx, cy, g + 8) < fuite
           ? table
           : zones[(q >= 0 ? q : quartierMonde(x, y)) % zones.length];
         props.push({
           k: jeu[(h2(cx, cy, g + 3) * jeu.length) | 0],
           x, y,
           a: h2(cx, cy, g + 4) * Math.PI * 2,
-          s: ech[0] + h2(cx, cy, g + 5) * ech[1],
+          s: e0 + h2(cx, cy, g + 5) * e1,
           o: 0.55 + h2(cx, cy, g + 6) * 0.45,
           p: h2(cx, cy, g + 7),
         });

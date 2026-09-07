@@ -3026,6 +3026,65 @@ export function verifierMelange(graines = 10) {
   return soucis;
 }
 
+/* LE TIRAGE REND-IL LA PART QU IL ANNONCE, ET NE DEBORDE-T-IL PAS.
+
+   DEUX QUESTIONS, ET LA SECONDE EST CELLE QUI PROTEGE L IDENTITE. Un catalogue
+   ne s interpole pas : au bord, il se TIRE, et la part de chaque region sur une
+   population DOIT etre son poids — c est la seule facon qu une frontiere de props
+   cesse d etre une ligne sans qu on touche aux catalogues. Mais un tirage qui
+   fuite d un pixel dans un CENTRE mettrait une epave de Nebuleuse au milieu d une
+   halle, et personne ne le verrait avant une capture d ecran.
+
+   ON MESURE SUR UNE VRAIE CARTE, avec le hachage du semis : un biais de
+   `loiTiree` seul serait invisible si le hachage n etait pas uniforme, et c est
+   le couple qui tourne en jeu. */
+export function verifierTirage(graines = 8) {
+  const soucis = [];
+  const aw = 14400, ah = 8100, vw = 1600, vh = 900;
+  const CELL = 200;
+  let ecartMax = 0, ou = "";
+  for (let k = 0; k < graines; k++) {
+    const b = buildBiome(0, 1, k * 13 + 3, aw, ah, vw, vh);
+    const poids = new Float32Array(b.nLois);
+    const tires = new Float64Array(b.nLois);
+    const attendus = new Float64Array(b.nLois);
+    let n = 0;
+    for (let cy = 0; cy * CELL < ah; cy++) {
+      for (let cx = 0; cx * CELL < aw; cx++) {
+        const x = (cx + 0.5) * CELL, y = (cy + 0.5) * CELL;
+        const nr = poidsAt(b, x, y, poids);
+        let dom = 0;
+        for (let i = 1; i < poids.length; i++) if (poids[i] > poids[dom]) dom = i;
+        if (nr === 1) {
+          // UN CENTRE NE TIRE PAS : le tirage d une region pure doit rendre cette
+          // region, sinon un catalogue etranger apparait au milieu d un biome.
+          const t = loiTiree(poids, hachMel(cx, cy, 991));
+          if (t !== dom) {
+            soucis.push(`graine ${k} : un point pur de la region ${dom} a tire ${t}`);
+            return soucis;
+          }
+          continue;
+        }
+        n++;
+        for (let i = 0; i < poids.length; i++) attendus[i] += poids[i];
+        tires[loiTiree(poids, hachMel(cx, cy, 991))]++;
+      }
+    }
+    if (n < 200) { soucis.push(`graine ${k} : ${n} cellules en transition, trop peu pour mesurer`); continue; }
+    for (let i = 0; i < poids.length; i++) {
+      if (attendus[i] < 30) continue;
+      const e = Math.abs(tires[i] - attendus[i]) / attendus[i];
+      if (e > ecartMax) { ecartMax = e; ou = `graine ${k}, region ${i}`; }
+      tires[i] = 0; attendus[i] = 0;
+    }
+  }
+  if (ecartMax > 0.12) {
+    soucis.push(`le tirage s ecarte de ${(ecartMax * 100).toFixed(1)} % du poids`
+      + ` annonce (${ou}) : la part d une region sur une population n est pas son poids`);
+  }
+  return soucis;
+}
+
 // COMBIEN DE LOIS UN THEME PORTE-T-IL. Lu par les tables qui en declarent une
 // entree chacune, et par leurs verificateurs.
 export function loisDe(cle) { return (OBSTACLES[cle] ?? []).length; }

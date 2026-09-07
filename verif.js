@@ -178,6 +178,11 @@ const SUITE = [
      satisfaits ensemble par erreur : le centre reste pur, les poids somment a un,
      et la frontiere n est pas une droite. */
   ["melange", () => B2.verifierMelange(10)],
+  /* LE CATALOGUE NE S INTERPOLE PAS, IL SE TIRE — et un tirage a deux facons de
+     mentir : rendre une part qui n est pas le poids, ou fuiter dans un CENTRE.
+     La seconde est la plus grave et la moins visible : une epave de la region
+     d a cote au milieu d une halle ne leve rien. */
+  ["tirage", () => B2.verifierTirage(8)],
   /* LA LARGEUR DE PASSAGE, SUR TOUTE LA REGION ET SUR DES GRAINES. Le
      verificateur de navigation ne tournait que sur la graine 7 : avec des
      variantes tirees par cellule, une graine ne couvre presque rien, et un
