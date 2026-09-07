@@ -18,7 +18,8 @@ import {
   B_WAGON, B_BALLE, B_FERME,
   B_GABARIT, B_CABINE, B_BRAME,
   B_BENNE, B_CHAUDIERE, B_CHARGEUR,
-  B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE, gabaritsDe,
+  B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE,
+  B_ARRIMAGE, B_NAVETTE, B_ECHANGEUR, B_FOREUSE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -106,6 +107,7 @@ const HABILLAGE = {
   gabarit, cabine, brame,
   benne, chaudiere, chargeur,
   fontaine, soutenement, bitte, banque,
+  arrimage, navette, echangeur, foreuse,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -217,6 +219,13 @@ const BLOC = {
     [B_TORE]: { sil: "octogone", hab: "tore" },
     [B_PARABOLE]: { sil: "fut", hab: "paraboleSol" },
     [B_SAS]: { sil: "caisson", hab: "sas" },
+    // LE CINQUIEME CONTENEUR : caisse, carrosserie, wagon, banque, colis.
+    [B_ARRIMAGE]: { sil: "conteneur", hab: "arrimage" },
+    // LE MEME CHASSIS QUE LA CARCASSE ET LA REMORQUE, en INTACT : c est la
+    // premiere fois que cette silhouette ne dit pas une epave.
+    [B_NAVETTE]: { sil: "chassis", hab: "navette" },
+    [B_ECHANGEUR]: { sil: "barre", hab: "echangeur" },
+    [B_FOREUSE]: { sil: "mat", hab: "foreuse" },
   },
   secteur: {
     [B_DEVANTURE]: { sil: "devanture", hab: "devanture" },
@@ -3668,6 +3677,135 @@ function banque(o, S) {
   ctx.strokeStyle = alpha("#000000", 0.24);
   ctx.lineWidth = 1.2;
   ctx.strokeRect(-w / 2 + 1.5, -h / 2 + 1.5, w - 3, h - 3);
+}
+
+
+/* LE COLIS ARRIME — DES SANGLES, ET C EST TOUT CE QUI LE SEPARE D UNE CAISSE.
+   Deux bandes croisees en travers de la boite, tendues vers un rail hors du
+   cadre : dans un theme ou tout derive, ce qui est ATTACHE se remarque. */
+function arrimage(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.54);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  ctx.strokeStyle = alpha("#000000", 0.22);
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10);
+  // LES SANGLES : plus claires que tout le reste, et elles DEBORDENT du bloc.
+  ctx.strokeStyle = alpha("#c8b880", 0.34);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 - 3, -h * 0.18); ctx.lineTo(w / 2 + 3, -h * 0.18);
+  ctx.moveTo(-w * 0.16, -h / 2 - 3); ctx.lineTo(-w * 0.16, h / 2 + 3);
+  ctx.stroke();
+  // les boucles de tension, sur une sangle seulement.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.56);
+  ctx.fillRect(w * 0.22 - 3, -h * 0.18 - 3, 6, 6);
+  ctx.fillStyle = alpha(S.emis, 0.12 + (s & 3) * 0.02);
+  ctx.fillRect(-w / 2 + 4, h / 2 - 6, 4, 2);
+}
+
+/* LA NAVETTE — LA SEULE COQUE INTACTE DU THEME, ET ELLE EST POSEE. Toutes les
+   autres sont crevees. Un fuselage, deux ailerons, une verriere a l avant : la
+   verriere donne le SENS, et c est elle qui empeche de la lire comme une epave.
+   Elle est sur berceaux, donc legerement decollee du sol — l ombre porte plus
+   loin que la coque, et c est ce qui dit qu elle ne repose pas dessus. */
+function navette(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2 - 2, -h / 2 - 2, w + 4, h + 4);
+  ctx.fillStyle = alpha("#b9c2cc", 0.44);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  const d = (s & 1) ? 1 : -1;
+  // LA VERRIERE, a une extremite : elle donne le sens.
+  ctx.fillStyle = alpha("#1c2a34", 0.54);
+  if (long) ctx.fillRect(d > 0 ? w / 2 - 4 - L * 0.18 : -w / 2 + 4, -h / 2 + 5, L * 0.18, h - 10);
+  else ctx.fillRect(-w / 2 + 5, d > 0 ? h / 2 - 4 - L * 0.18 : -h / 2 + 4, w - 10, L * 0.18);
+  // LES AILERONS : deux triangles sombres au tiers arriere.
+  ctx.fillStyle = alpha("#6a737d", 0.50);
+  for (const k of [-1, 1]) {
+    ctx.beginPath();
+    if (long) {
+      ctx.moveTo(-d * L * 0.18, k * h / 2);
+      ctx.lineTo(-d * L * 0.40, k * h / 2);
+      ctx.lineTo(-d * L * 0.30, k * h * 0.24);
+    } else {
+      ctx.moveTo(k * w / 2, -d * L * 0.18);
+      ctx.lineTo(k * w / 2, -d * L * 0.40);
+      ctx.lineTo(k * w * 0.24, -d * L * 0.30);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+  // la couture de fuselage, une seule, dans l axe.
+  ctx.strokeStyle = alpha("#000000", 0.20);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  if (long) { ctx.moveTo(-w / 2 + 4, 0); ctx.lineTo(w / 2 - 4, 0); }
+  else { ctx.moveTo(0, -h / 2 + 4); ctx.lineTo(0, h / 2 - 4); }
+  ctx.stroke();
+}
+
+/* L ECHANGEUR — UN FAISCEAU, ET IL A DEUX FACES. Du givre du cote froid, du
+   condensat de l autre : c est le seul objet du depot dont les deux longs cotes
+   ne disent pas la meme chose. Les ailettes sont serrees et regulieres — sans
+   elles, c est un tuyau. */
+function echangeur(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.38);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#6f7a84", 0.48);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // LES AILETTES, serrees : c est le seul rythme fin du theme.
+  ctx.strokeStyle = alpha("#000000", 0.22);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let u = -L / 2 + 3; u < L / 2 - 1; u += 5) {
+    if (long) { ctx.moveTo(u, -h / 2 + 2); ctx.lineTo(u, h / 2 - 2); }
+    else { ctx.moveTo(-w / 2 + 2, u); ctx.lineTo(w / 2 - 2, u); }
+  }
+  ctx.stroke();
+  // LE GIVRE d un cote, LE CONDENSAT de l autre : deux faces, deux etats.
+  ctx.fillStyle = alpha(PROP.givre, 0.20);
+  if (long) ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, Math.max(2, E * 0.22));
+  else ctx.fillRect(-w / 2 + 1, -h / 2 + 1, Math.max(2, E * 0.22), h - 2);
+  ctx.fillStyle = alpha("#8fb4c8", 0.14 + (s & 3) * 0.02);
+  if (long) ctx.fillRect(-w / 2 + 1, h / 2 - 1 - Math.max(2, E * 0.18), w - 2, Math.max(2, E * 0.18));
+  else ctx.fillRect(w / 2 - 1 - Math.max(2, E * 0.18), -h / 2 + 1, Math.max(2, E * 0.18), h - 2);
+}
+
+/* LA FOREUSE — PLANTEE, ET C EST LE SEUL OBJET DU DEPOT QUI ENTRE DANS LE SOL.
+   Un mat, un collier, et le cone de debris qu elle a remonte autour de son pied.
+   C est le cone qui fait la difference : sans lui c est un pylone, avec lui on
+   comprend qu elle CREUSE. */
+function foreuse(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h, E = long ? h : w;
+  // LE CONE DE DEBRIS, au pied et plus large que le mat.
+  ctx.fillStyle = alpha("#4a443c", 0.36);
+  ctx.beginPath();
+  ctx.ellipse(0, long ? 0 : L * 0.34, long ? L * 0.20 : E * 1.6, long ? E * 1.6 : L * 0.20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.58);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // LES COLLIERS, reguliers : un mat de forage est assemble par troncons.
+  ctx.strokeStyle = alpha(PROP.metal, 0.30);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let u = -L / 2 + 8; u < L / 2 - 4; u += 12) {
+    if (long) { ctx.moveTo(u, -h / 2); ctx.lineTo(u, h / 2); }
+    else { ctx.moveTo(-w / 2, u); ctx.lineTo(w / 2, u); }
+  }
+  ctx.stroke();
+  // la tete, a l extremite qui entre : plus large, et elle est claire.
+  ctx.fillStyle = alpha("#a8a49c", 0.34);
+  const d = (s & 1) ? 1 : -1;
+  if (long) ctx.fillRect(d > 0 ? w / 2 - 5 : -w / 2 + 1, -h / 2 - 1, 4, h + 2);
+  else ctx.fillRect(-w / 2 - 1, d > 0 ? h / 2 - 5 : -h / 2 + 1, w + 2, 4);
 }
 
 function coque(o, S) {

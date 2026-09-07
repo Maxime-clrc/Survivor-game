@@ -8,6 +8,49 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Nébuleuse passe de huit régions à douze, et six quartiers deviennent une règle (0.43.31)
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **la soute** | `poudre` | colis arrimé | peigne de travées |
+| **le hangar** | `resine` | navette | nef de berceaux |
+| **le condenseur** | `mouille` | échangeur | ruban de faisceaux |
+| **la carrière** | `terre` | foreuse | couronne |
+
+- **La soute est la seule région du thème où rien ne bouge parce que quelqu'un
+  l'a voulu.** La Nébuleuse est faite de ce qui *dérive* ; ici chaque masse est
+  sanglée à un rail, et les sangles débordent du bloc.
+- **La navette est la seule coque INTACTE du thème** — toutes les autres sont
+  crevées. C'est aussi la première fois que la silhouette `chassis` ne dit pas
+  une épave : carcasse, remorque, et maintenant un vaisseau qui attend.
+- **Le condenseur est le seul endroit mouillé d'un thème sans gravité**, et c'est
+  précisément pour ça qu'il existe : l'eau d'une station ne tombe pas, elle se
+  **dépose** sur ce qui est froid. Ses échangeurs sont le seul objet du dépôt
+  dont les deux longs côtés ne disent pas la même chose — givre d'un côté,
+  condensat de l'autre.
+- **La carrière est la seule activité du thème qui PRODUISE quelque chose.**
+  Partout ailleurs on répare, on amarre, ou on regarde dériver ce qui est déjà
+  mort.
+
+**SIX QUARTIERS POUR DOUZE RÉGIONS, ET C'EST DÉSORMAIS UNE RÈGLE.** Quatre
+quartiers de props donnent six paires distinctes, cinq en donnent dix : à douze
+régions il en faut quinze, donc **six quartiers**. La Nébuleuse est le troisième
+thème à le payer, après l'Usine (lot 20) et le Secteur (lot 31). Le sien est
+**ce qu'on transporte** — colis de fret, sangle larguée.
+
+**Et la carte des dangers dessine la table.** L'axe `x = 0,50` de la Nébuleuse
+appartient à une nappe de 99 px et à ses quatre miroirs, sur toute la hauteur :
+les deux fronts de taille de la carrière tiennent donc les colonnes `0,18`,
+`0,34`, `0,66` et `0,82`, et jamais le milieu.
+
+| | régions | avec une signature | props | familles bâties |
+|---|---:|---:|---:|---:|
+| 0.43.30 | 50 | 50 | 65 | 80 |
+| 0.43.31 | **54** | **54** | **67** | **84** |
+
+Usine 12, Fonderie 9, Friche 9, Nébuleuse 12, Secteur 12. Pire Jaccard bâti :
+**0,50**.
+
 ### Le Secteur passe de huit régions à douze, et quatre vues ne suffisaient plus (0.43.30)
 
 | région | sol | famille à elle | trame |

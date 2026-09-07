@@ -1553,6 +1553,9 @@ const SOL_REGION = {
     // LE SEUL SOL VEGETAL HORS DE LA FRICHE, et c est ce qui fait la serre : la
     // couleur dit qu on a change d endroit avant qu on ait vu un seul objet.
     serre: T_VEGETAL, reacteur: T_DALLE, antennes: T_GRANULAT,
+    // la poussiere de vrac, le sol lave d un hangar, le SEUL sol mouille d un
+    // theme sans gravite, et du regolithe tasse.
+    soute: T_POUDRE, hangar: T_RESINE, condenseur: T_MOUILLE, carriere: T_TERRE,
   },
   // les capsules marchent sur un plancher DEMONTABLE, pose sur la coursive.
   secteur: {

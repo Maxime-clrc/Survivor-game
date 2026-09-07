@@ -10440,6 +10440,30 @@
                   50 regions, 50 signatures, 65 props. Usine 12, Fonderie 9,
                   Friche 9, Nebuleuse 8, Secteur 12.
 
+    0.43.31 lot 32 LA NEBULEUSE PASSE DE HUIT REGIONS A DOUZE, ET SIX QUARTIERS
+                  DEVIENNENT UNE REGLE. La soute est la seule region du theme ou
+                  rien ne bouge parce que quelqu un l a VOULU : tout y est
+                  sangle a un rail. La navette est la seule coque INTACTE, et
+                  c est la premiere fois que la silhouette `chassis` ne dit pas
+                  une epave. Le condenseur est le seul endroit MOUILLE d un
+                  theme sans gravite — l eau d une station ne tombe pas, elle se
+                  depose sur ce qui est froid — et ses echangeurs sont le seul
+                  objet du depot dont les deux longs cotes ne disent pas la meme
+                  chose. La carriere est la seule activite du theme qui
+                  PRODUISE quelque chose.
+                  SIX QUARTIERS POUR DOUZE REGIONS : quatre quartiers donnent
+                  six paires distinctes, cinq en donnent dix, et a douze regions
+                  il en faut quinze. La Nebuleuse est le troisieme theme a le
+                  payer, apres l Usine au lot 20 et le Secteur au lot 31. Le
+                  sien est CE QU ON TRANSPORTE.
+                  Et la carte des dangers dessine la table : l axe x = 0,50
+                  appartient a une nappe de 99 px et a ses quatre miroirs sur
+                  toute la hauteur, donc les fronts de taille de la carriere
+                  tiennent les colonnes 0,18 / 0,34 / 0,66 / 0,82 et jamais le
+                  milieu.
+                  54 regions, 54 signatures, 67 props, 84 familles baties.
+                  Usine 12, Fonderie 9, Friche 9, Nebuleuse 12, Secteur 12.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10448,4 +10472,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.30";
+export const VERSION = "0.43.31";

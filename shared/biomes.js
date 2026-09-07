@@ -159,7 +159,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_WAGON = 68, B_BALLE = 69, B_FERME = 70,
              B_GABARIT = 71, B_CABINE = 72, B_BRAME = 73,
              B_BENNE = 74, B_CHAUDIERE = 75, B_CHARGEUR = 76,
-             B_FONTAINE = 77, B_SOUTENEMENT = 78, B_BITTE = 79, B_BANQUE = 80;
+             B_FONTAINE = 77, B_SOUTENEMENT = 78, B_BITTE = 79, B_BANQUE = 80,
+             B_ARRIMAGE = 81, B_NAVETTE = 82, B_ECHANGEUR = 83, B_FOREUSE = 84;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -252,6 +253,10 @@ export const BLOCS = [
   { key: "soutenement", lieu: "secteur" },
   { key: "bitte", lieu: "secteur" },
   { key: "banque", lieu: "secteur" },
+  { key: "arrimage", lieu: "nebuleuse" },
+  { key: "navette", lieu: "nebuleuse" },
+  { key: "echangeur", lieu: "nebuleuse" },
+  { key: "foreuse", lieu: "nebuleuse" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -1200,6 +1205,60 @@ const OBSTACLES = {
       { x: 0.90, y: 0.50, w: 0.024, h: 0.120, kind: B_TRAVEE, min: 1 },
       { x: 0.44, y: 0.28, w: 0.090, h: 0.100, kind: B_PARABOLE },
     ] },
+    /* LA SOUTE — TOUT Y EST ATTACHE, ET C EST TOUT LE PROPOS. La Nebuleuse est
+       faite de ce qui DERIVE : des fragments qui tournent, du givre, des eclats.
+       Ici chaque masse est sanglee a un rail, alignee, immobile — et c est la
+       seule region du theme ou rien ne bouge parce que quelqu un l a voulu.
+       Sol POUDREUX : la poussiere de vrac qu on charge et decharge. */
+    { cle: "soute", nom: "la soute", label: "La soute", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.24, y: 0.24, w: 0.090, h: 0.070, kind: B_ARRIMAGE },
+      { x: 0.24, y: 0.36, w: 0.090, h: 0.070, kind: B_ARRIMAGE },
+      { x: 0.76, y: 0.76, w: 0.090, h: 0.070, kind: B_ARRIMAGE, min: 1 },
+      { x: 0.76, y: 0.62, w: 0.090, h: 0.070, kind: B_ARRIMAGE, min: 1 },
+      { x: 0.76, y: 0.24, w: 0.090, h: 0.070, kind: B_ARRIMAGE, min: 2 },
+      { x: 0.50, y: 0.74, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
+    ] },
+    /* LE HANGAR — UNE COQUE INTACTE ET POSEE, ET IL N Y EN A PAS D AUTRE. Toutes
+       les coques du theme sont crevees ; celle-ci attend, sur ses berceaux, avec
+       son marquage au sol autour. C est la seule region qui montre a quoi
+       ressemblait un vaisseau AVANT, et elle le fait sans un mot.
+       Sol RESINE : un hangar se lave, donc il est peint. */
+    { cle: "hangar", nom: "le hangar", label: "Le hangar", bords: [BORD_MUR, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.30, y: 0.30, w: 0.170, h: 0.090, kind: B_NAVETTE },
+      { x: 0.70, y: 0.78, w: 0.170, h: 0.090, kind: B_NAVETTE, min: 1 },
+      { x: 0.70, y: 0.24, w: 0.120, h: 0.070, kind: B_NAVETTE, min: 2 },
+      { x: 0.14, y: 0.62, w: 0.020, h: 0.140, kind: B_TRAVEE },
+      { x: 0.86, y: 0.38, w: 0.020, h: 0.140, kind: B_TRAVEE, min: 1 },
+    ] },
+    /* LE CONDENSEUR — LE SEUL ENDROIT MOUILLE D UN THEME SANS GRAVITE, et c est
+       precisement pour ca qu il existe : l eau d une station ne tombe pas, elle
+       se DEPOSE sur ce qui est froid. Des faisceaux d echangeurs, longs et
+       minces, avec leur givre d un cote et leur condensat de l autre.
+       Rien d autre du depot ne fait tenir de l eau a la verticale. */
+    { cle: "condenseur", nom: "le condenseur", label: "Le condenseur", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.28, y: 0.22, w: 0.260, h: 0.030, kind: B_ECHANGEUR },
+      { x: 0.28, y: 0.34, w: 0.260, h: 0.030, kind: B_ECHANGEUR },
+      { x: 0.72, y: 0.78, w: 0.260, h: 0.030, kind: B_ECHANGEUR, min: 1 },
+      { x: 0.72, y: 0.66, w: 0.260, h: 0.030, kind: B_ECHANGEUR, min: 1 },
+      { x: 0.46, y: 0.50, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
+    ] },
+    /* LA CARRIERE — ON CREUSE UN CAILLOU, ET C EST LA SEULE ACTIVITE DU THEME
+       QUI PRODUISE QUELQUE CHOSE. Partout ailleurs on repare, on amarre ou on
+       regarde derive ce qui est deja mort. Les foreuses sont plantees dans le
+       regolithe, verticales, et leur alignement dit un FRONT DE TAILLE.
+       Sol de TERRE : du regolithe tasse, la seule matiere meuble du theme. */
+    { cle: "carriere", nom: "la carriere", label: "La carrière", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      /* DEUX FRONTS DE TAILLE, ET LA COLONNE CENTRALE LEUR EST INTERDITE : la
+         Nebuleuse porte une nappe de 99 px a (0,50 ; 0,12) et ses quatre
+         miroirs, donc l axe x = 0,50 lui appartient sur toute la hauteur. */
+      { x: 0.18, y: 0.24, w: 0.030, h: 0.150, kind: B_FOREUSE },
+      { x: 0.34, y: 0.24, w: 0.030, h: 0.150, kind: B_FOREUSE },
+      { x: 0.66, y: 0.76, w: 0.030, h: 0.150, kind: B_FOREUSE, min: 1 },
+      { x: 0.82, y: 0.76, w: 0.030, h: 0.150, kind: B_FOREUSE, min: 1 },
+      { x: 0.18, y: 0.76, w: 0.030, h: 0.150, kind: B_FOREUSE, min: 2 },
+      { x: 0.82, y: 0.24, w: 0.030, h: 0.150, kind: B_FOREUSE, min: 2 },
+      { x: 0.54, y: 0.50, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
+    ] },
     { cle: "breche", nom: "la breche", label: "La brèche", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_MUR], poser: [
       /* 0,13 -> 0,26 : LA TRAVEE PASSAIT A TRAVERS LES DEUX FRAGMENTS, 32 px sur
          86 — une poutre dessinee DANS la roche, aux trois modes et a toutes les
@@ -1714,6 +1773,14 @@ const TRAMES = {
     reacteur: { type: TR_COURONNE, kind: B_TORE },
     // un champ d antennes est un CRIBLE : des embases regulieres et rien entre.
     antennes: { type: TR_CRIBLE, kind: B_PARABOLE },
+    // une soute est un PEIGNE de travees sanglees.
+    soute: { type: TR_PEIGNE, kind: B_ARRIMAGE },
+    // un hangar est une NEF : deux parois de berceaux et un fond.
+    hangar: { type: TR_NEF, kind: B_NAVETTE },
+    // un condenseur est un RUBAN de faisceaux — le premier du theme.
+    condenseur: { type: TR_RUBAN, kind: B_ECHANGEUR },
+    // une carriere tourne autour de son front de taille : une couronne.
+    carriere: { type: TR_COURONNE, kind: B_FOREUSE },
   },
   secteur: {
     rue: { type: TR_RUBAN, kind: B_DEVANTURE },
