@@ -145,7 +145,10 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_EPAVES = 26, B_GRILLAGE = 27, B_POTEAU = 28, B_BANCHE = 29,
              B_BRAS = 30, B_COQUE = 31, B_CLOISON = 32, B_CONSOLE = 33,
              B_AVEUGLE = 34, B_ESCALIER = 35, B_MONOLITHE = 36, B_ETAL = 37,
-             B_FOSSE = 38, B_POUTRE = 39;
+             B_FOSSE = 38, B_POUTRE = 39,
+             B_LAMINOIR = 40,
+             B_MEMBRURE = 41, B_BORDE = 42,
+             B_ALVEOLE = 43, B_COURSIVE = 44;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -192,6 +195,11 @@ export const BLOCS = [
   { key: "etal", lieu: "secteur" },
   { key: "fosse", lieu: "fonderie" },
   { key: "poutre", lieu: "usine" },
+  { key: "laminoir", lieu: "fonderie" },
+  { key: "membrure", lieu: "nebuleuse" },
+  { key: "borde", lieu: "nebuleuse" },
+  { key: "alveole", lieu: "secteur" },
+  { key: "coursive", lieu: "secteur" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -558,6 +566,32 @@ const OBSTACLES = {
       { x: 0.85, y: 0.76, w: 0.130, h: 0.090, kind: B_BASSIN, min: 1 },
       { x: 0.50, y: 0.86, w: 0.260, h: 0.048, kind: B_CONDUITE },
     ] },
+    /* LE LAMINOIR — UNE FILE, ET RIEN D AUTRE. Le theme a deja un RUBAN — la
+       coulee — mais elle est CONTINUE : une rigole court sans interruption. Un
+       train de laminage est l inverse, des masses ENORMES et ESPACEES sur un axe
+       strict, avec la table a rouleaux entre elles.
+       C est la seule region du depot ou tout tient sur une ligne : la meilleure
+       ligne de tir du jeu, et le pire endroit pour se faire encercler. */
+    { cle: "laminoir", nom: "le laminoir", label: "Le laminoir", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      /* PAS DE TABLE A ROULEAUX, ET C EST LA MESURE QUI L A RETIREE. Une file de
+         cages avec ses rouleaux entre elles est juste physiquement et fait un MUR
+         en travers de la cellule : sept boites avec 8 a 56 px d ecart, donc le
+         carre central cessait d etre traversable. Ce qui manque a un train de
+         laminage est ce qui le rendait injouable ; les cages seules disent la
+         meme chose, et les ecarts valent 360 et 264 px.
+         Y = 0,26 ET PAS 0,50 : le milieu de la Fonderie appartient au champ de
+         ralentissement en normal (679 a 921 px) et a la braise en cauchemar. */
+      { x: 0.30, y: 0.26, w: 0.075, h: 0.150, kind: B_LAMINOIR },
+      { x: 0.60, y: 0.26, w: 0.075, h: 0.150, kind: B_LAMINOIR },
+      { x: 0.84, y: 0.26, w: 0.075, h: 0.150, kind: B_LAMINOIR, min: 1 },
+      // la quatrieme cage sort de la colonne centrale : la braise de cauchemar
+      // balaie x = 521 a 1079 entre y = 561 et 699, et une cage de 135 px de haut
+      // ne tient pas SOUS elle sans toucher le bord de cellule.
+      { x: 0.90, y: 0.74, w: 0.075, h: 0.150, kind: B_LAMINOIR, min: 2 },
+      { x: 0.50, y: 0.14, w: 0.260, h: 0.048, kind: B_CONDUITE },
+      { x: 0.20, y: 0.86, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
+      { x: 0.80, y: 0.86, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
+    ] },
     /* LE PUITS — une masse centrale massive, le reste degage. Le seul lieu du
        theme ou le centre est interdit : on tourne autour au lieu de le traverser,
        et la horde arrive donc toujours par un cote qu on ne regarde pas. */
@@ -751,6 +785,30 @@ const OBSTACLES = {
       { x: 0.22, y: 0.20, w: 0.145, h: 0.150, kind: B_FRAGMENT },
       { x: 0.78, y: 0.80, w: 0.145, h: 0.150, kind: B_FRAGMENT, min: 1 },
     ] },
+    /* LE CHANTIER ORBITAL — ON VOIT A TRAVERS DE PARTOUT. Une ossature nue :
+       des membrures en treillis sur un reseau regulier, et le borde pose par
+       endroits SEULEMENT. C est la seule region du depot dont les obstacles
+       BLOQUENT SANS CACHER — on voit toute la horde en permanence et on ne peut
+       pas lui tirer dessus partout, l inverse exact de la brume. */
+    { cle: "chantier", nom: "le chantier orbital", label: "Le chantier orbital", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+      /* LES MEMBRURES SONT COURTES ET AUX BORDS, ET C EST LE CENTRE QUI L IMPOSE.
+         La Nebuleuse tient son milieu avec un puits de gravite et un glissant en
+         normal (359-601 et 1006-1234 en x), une braise qui balaie de 756 a 844
+         sur presque toute la hauteur en cauchemar, et une flaque a 701-899. Une
+         poutre de 207 px de haut en travers de ca tombe forcement dessus.
+         Six appuis de 108 px repartis dans les couloirs libres disent la meme
+         ossature — c est le RESEAU qui se lit, pas la longueur d une piece. */
+      { x: 0.12, y: 0.20, w: 0.018, h: 0.120, kind: B_MEMBRURE },
+      { x: 0.50, y: 0.14, w: 0.018, h: 0.120, kind: B_MEMBRURE },
+      { x: 0.88, y: 0.20, w: 0.018, h: 0.120, kind: B_MEMBRURE, min: 1 },
+      { x: 0.12, y: 0.80, w: 0.018, h: 0.120, kind: B_MEMBRURE, min: 1 },
+      { x: 0.88, y: 0.80, w: 0.018, h: 0.120, kind: B_MEMBRURE },
+      { x: 0.30, y: 0.84, w: 0.018, h: 0.120, kind: B_MEMBRURE, min: 2 },
+      { x: 0.35, y: 0.14, w: 0.100, h: 0.080, kind: B_BORDE },
+      { x: 0.65, y: 0.88, w: 0.100, h: 0.080, kind: B_BORDE, min: 1 },
+      { x: 0.12, y: 0.50, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS },
+      { x: 0.88, y: 0.50, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
+    ] },
     /* LA BRECHE — le bati concentre sur un bord, l autre ouvert sur le vide.
        La seule variante ASYMETRIQUE du theme : le miroir de cellule en fait une
        loi qui change de cote d une region a l autre, sans table de plus. */
@@ -847,6 +905,30 @@ const OBSTACLES = {
       { x: 0.50, y: 0.40, w: 0.060, h: 0.036, hp: 1, kind: B_ETAL, min: 2 },
       { x: 0.09, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.91, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE, min: 1 },
+    ] },
+    /* LES CAPSULES — ON DORT ICI. Un mur d alveoles empilees sur trois hauteurs
+       et les coursives qui les desservent. Chaque alveole a sa lumiere propre,
+       donc le mur est un DAMIER LUMINEUX — le seul de la ville, contre les
+       grandes enseignes uniformes de la rue.
+       C est le pendant urbain du campement : beaucoup de recoins, aucune ligne
+       de vue, et tout y a ete pose par quelqu un qui habite la. */
+    { cle: "capsules", nom: "les capsules", label: "Les capsules", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
+      { x: 0.50, y: 0.14, w: 0.340, h: 0.036, kind: B_ALVEOLE },
+      { x: 0.50, y: 0.86, w: 0.340, h: 0.036, kind: B_ALVEOLE },
+      /* LES MURS LATERAUX COLLENT AUX BORDS, et c est le centre qui l impose :
+         le Secteur tient x = 210 a 430 avec son glissant et 1185 a 1375 avec son
+         ralentissement, sur toute la bande y = 315 a 585. Un mur d alveoles de
+         270 px de haut ne peut passer qu a l exterieur. */
+      { x: 0.08, y: 0.50, w: 0.036, h: 0.300, kind: B_ALVEOLE, min: 1 },
+      { x: 0.92, y: 0.50, w: 0.036, h: 0.300, kind: B_ALVEOLE, min: 2 },
+      /* LES COURSIVES NE SE FONT PAS FACE, et c est la meme contrainte que les
+         murs : en cauchemar le Secteur porte deux geysers a (672, 288) et
+         (928, 612), plus une braise qui balaie x = -6 a 518 autour de y = 250.
+         Une passerelle de 384 px centree traverse forcement l un des trois. */
+      { x: 0.72, y: 0.30, w: 0.240, h: 0.020, kind: B_COURSIVE },
+      { x: 0.28, y: 0.70, w: 0.240, h: 0.020, kind: B_COURSIVE, min: 1 },
+      { x: 0.34, y: 0.50, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
+      { x: 0.68, y: 0.50, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR, min: 1 },
     ] },
     /* LE PARVIS — presque vide, deux masses monumentales. La respiration du
        theme, et la seule ou l on voit d un bout a l autre de la region. */
@@ -1035,6 +1117,8 @@ const TRAMES = {
     { type: TR_NEF, kind: B_MOULE },
     // le refroidissement aligne ses bassins : un peigne de trempe.
     { type: TR_PEIGNE, kind: B_BASSIN },
+    // le laminoir est un RUBAN de masses espacees, pas une rigole continue.
+    { type: TR_RUBAN, kind: B_LAMINOIR },
     { type: TR_COURONNE, kind: B_FOUR },
   ],
   friche: [
@@ -1053,6 +1137,8 @@ const TRAMES = {
     { type: TR_PEIGNE, kind: B_BRAS },
     // la coursive est le seul VOLUME CLOS du theme.
     { type: TR_NEF, kind: B_CLOISON },
+    // une ossature EST un crible : des appuis reguliers et rien entre eux.
+    { type: TR_CRIBLE, kind: B_MEMBRURE },
     { type: TR_NEF, kind: B_TRAVEE },
   ],
   secteur: [
@@ -1061,6 +1147,8 @@ const TRAMES = {
     { type: TR_NEF, kind: B_AVEUGLE },
     // un marche est un PEIGNE d etals, pas un empilement de caisses.
     { type: TR_PEIGNE, kind: B_ETAL },
+    // les capsules sont un PEIGNE d alveoles : meme primitive, autre echelle.
+    { type: TR_PEIGNE, kind: B_ALVEOLE },
     // le parvis tourne autour de sa masse : c est une couronne.
     { type: TR_COURONNE, kind: B_MONOLITHE },
   ],

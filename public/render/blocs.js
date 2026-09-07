@@ -7,7 +7,8 @@ import {
   B_BASSIN, B_MALAXEUR, B_MOULE,
   B_BANCHE, B_EPAVES, B_GRILLAGE, B_POTEAU,
   B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE,
-  B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_FOSSE, B_POUTRE, gabaritsDe,
+  B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_FOSSE, B_POUTRE,
+  B_LAMINOIR, B_MEMBRURE, B_BORDE, B_ALVEOLE, B_COURSIVE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -84,6 +85,7 @@ const HABILLAGE = {
   epaves, poteau, banche,
   bras, coque, cloison, console: console_,
   aveugle, escalier, monolithe, etal, fosse, poutre,
+  laminoir, membrure, borde, alveole, coursive,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -123,6 +125,7 @@ const BLOC = {
        `drawObstacles` : pas d ombre portee — un trou n en projette pas — et
        pas de relief vers la camera, qui le ferait lire comme une masse. */
     [B_FOSSE]: { sil: "nappe", hab: "fosse", creux: true },
+    [B_LAMINOIR]: { sil: "caisson", hab: "laminoir" },
   },
   friche: {
     [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
@@ -147,6 +150,10 @@ const BLOC = {
     [B_COQUE]: { sil: "caisson", hab: "coque" },
     [B_CLOISON]: { sil: "caisson", hab: "cloison" },
     [B_CONSOLE]: { sil: "caisson", hab: "console" },
+    // LE CADRE, une quatrieme fois : claire-voie, chassis de sable, grillage de
+    // casse, et maintenant une ossature. Sa regle tient — il est habille.
+    [B_MEMBRURE]: { sil: "cadre", hab: "membrure" },
+    [B_BORDE]: { sil: "caisson", hab: "borde" },
   },
   secteur: {
     [B_DEVANTURE]: { sil: "devanture", hab: "devanture" },
@@ -156,6 +163,8 @@ const BLOC = {
     [B_ESCALIER]: { sil: "caisson", hab: "escalier" },
     [B_MONOLITHE]: { sil: "caisson", hab: "monolithe" },
     [B_ETAL]: { sil: "conteneur", hab: "etal" },
+    [B_ALVEOLE]: { sil: "mur_bas", hab: "alveole" },
+    [B_COURSIVE]: { sil: "barre", hab: "coursive" },
   },
 };
 
@@ -2898,6 +2907,149 @@ function poutre(o, S) {
       ctx.lineTo(haut ? w / 2 - 2 : -w / 2 + 2, a);
     }
   }
+  ctx.stroke();
+}
+
+
+/* LA CAGE DE LAMINOIR — DEUX TOURILLONS ET UNE FENTE. Ce qui la fait lire est la
+   FENTE horizontale au milieu : c est par la que passe la barre, et c est la
+   seule ouverture traversante d un objet du depot. */
+function laminoir(o, S) {
+  const w = o.w, h = o.h;
+  ctx.fillStyle = alpha("#000000", 0.46);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.56);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  // LA FENTE, incandescente : la barre y passe encore.
+  ctx.fillStyle = alpha("#000000", 0.62);
+  ctx.fillRect(-w / 2 + 1, -h * 0.06, w - 2, h * 0.12);
+  ctx.fillStyle = alpha(S.emis, 0.26);
+  ctx.fillRect(-w / 2 + 1, -h * 0.03, w - 2, h * 0.06);
+  // LES TOURILLONS, deux disques sur les flancs.
+  ctx.fillStyle = alpha(S.blocEdge, 0.28);
+  for (const d of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(0, d * h * 0.26, Math.min(w, h) * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = alpha("#000000", 0.30);
+  ctx.lineWidth = 1.6;
+  ctx.strokeRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+}
+
+/* LA MEMBRURE — UN TREILLIS QUI NE CACHE RIEN. Deux membrures fines et une ame
+   en zigzag ; entre les traits, on voit le fond. C est le seul obstacle du depot
+   qui bloque le corps en laissant passer le REGARD sur toute sa longueur. */
+function membrure(o, S) {
+  const w = o.w, h = o.h;
+  const vert = h >= w;
+  const L = vert ? h : w, E = vert ? w : h;
+  ctx.strokeStyle = alpha(S.blocEdge, 0.42);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (const d of [-E / 2 + 1, E / 2 - 1]) {
+    if (vert) { ctx.moveTo(d, -h / 2); ctx.lineTo(d, h / 2); }
+    else { ctx.moveTo(-w / 2, d); ctx.lineTo(w / 2, d); }
+  }
+  ctx.stroke();
+  ctx.strokeStyle = alpha(S.blocEdge, 0.26);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  const pas = Math.max(10, E * 1.6);
+  let haut = true;
+  for (let u = -L / 2; u < L / 2 - 1; u += pas, haut = !haut) {
+    const a = Math.min(u + pas, L / 2);
+    if (vert) {
+      ctx.moveTo(haut ? -w / 2 + 1 : w / 2 - 1, u);
+      ctx.lineTo(haut ? w / 2 - 1 : -w / 2 + 1, a);
+    } else {
+      ctx.moveTo(u, haut ? -h / 2 + 1 : h / 2 - 1);
+      ctx.lineTo(a, haut ? h / 2 - 1 : -h / 2 + 1);
+    }
+  }
+  ctx.stroke();
+  // LE GIVRE aux nœuds : la structure est DEHORS.
+  ctx.fillStyle = alpha(PROP.givre, 0.22);
+  for (let u = -L / 2; u <= L / 2; u += pas * 2) {
+    if (vert) ctx.fillRect(-w / 2, u - 1.5, w, 3);
+    else ctx.fillRect(u - 1.5, -h / 2, 3, h);
+  }
+}
+
+/* LE BORDE — LE SEUL OPAQUE DU CHANTIER. Un panneau de coque pose sur
+   l ossature, pas encore soude : ses bords sont NETS et il ne porte aucun
+   detail. Dans une region ou tout est transparent, ce qui bouche se remarque. */
+function borde(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.blocEdge, 0.24);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // les points de SOUDURE PROVISOIRE, sur un seul bord : il tient a peine.
+  ctx.fillStyle = alpha(PROP.balise, 0.30);
+  for (let i = 0; i < 4; i++) {
+    const u = -w / 2 + w * (0.2 + i * 0.2);
+    ctx.fillRect(u - 1.5, (s & 1) ? -h / 2 + 1 : h / 2 - 4, 3, 3);
+  }
+}
+
+/* L ALVEOLE — UN MUR DE PETITS TROUS ECLAIRES. Chaque capsule a sa lumiere
+   propre et deux sur cinq sont eteintes : c est un DAMIER, et rien d autre du
+   Secteur n eclaire par petits points. */
+const ALVEOLE_PAS = 15;
+function alveole(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  const L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.50);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.44);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  let i = 0;
+  for (let u = -L / 2 + ALVEOLE_PAS * 0.6; u < L / 2 - 3; u += ALVEOLE_PAS, i++) {
+    for (let r = 0; r < 2; r++) {
+      const d = (r - 0.5) * E * 0.44;
+      const on = ((s >> ((i * 2 + r) % 11)) & 3) !== 0;
+      ctx.fillStyle = alpha("#000000", 0.54);
+      if (long) ctx.fillRect(u - 4, d - E * 0.16, 8, E * 0.32);
+      else ctx.fillRect(d - E * 0.16, u - 4, E * 0.32, 8);
+      if (!on) continue;
+      // la teinte varie d une capsule a l autre : personne n a la meme ampoule.
+      const t = ((s >> i) & 3);
+      ctx.fillStyle = alpha(["#ffb84d", "#ff7ac2", "#7ad6ff", "#ffe08a"][t], 0.26);
+      if (long) ctx.fillRect(u - 3, d - E * 0.12, 6, E * 0.24);
+      else ctx.fillRect(d - E * 0.12, u - 3, E * 0.24, 6);
+    }
+  }
+}
+
+/* LA COURSIVE — UNE PASSERELLE ET SON GARDE-CORPS. Deux lignes fines et des
+   montants reguliers : elle dessert les alveoles et ne cache rien. */
+function coursive(o, S) {
+  const w = o.w, h = o.h;
+  const long = w >= h;
+  const L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = alpha(S.blocEdge, 0.34);
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  for (const d of [-E / 2 + 1, E / 2 - 1]) {
+    if (long) { ctx.moveTo(-w / 2, d); ctx.lineTo(w / 2, d); }
+    else { ctx.moveTo(d, -h / 2); ctx.lineTo(d, h / 2); }
+  }
+  ctx.stroke();
+  ctx.fillStyle = alpha("#000000", 0.40);
+  for (let u = -L / 2; u <= L / 2; u += 9) {
+    if (long) ctx.fillRect(u - 1, -h / 2, 2, h);
+    else ctx.fillRect(-w / 2, u - 1, w, 2);
+  }
+  // LE LINGE, un trait clair en travers : on habite au-dessus.
+  ctx.strokeStyle = alpha("#d8d2c4", 0.16);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  if (long) { ctx.moveTo(-w * 0.24, 0); ctx.lineTo(w * 0.10, 0); }
+  else { ctx.moveTo(0, -h * 0.24); ctx.lineTo(0, h * 0.10); }
   ctx.stroke();
 }
 

@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_POUTRE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_POUTRE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -217,7 +217,9 @@ const QUARTIER = {
   // elle que part ce qui ne sert plus.
   // le chassis et le malaxeur METTENT EN FORME, le bassin est ce qui SORT.
   fonderie: { [B_FOUR]: 0, [B_CUVE]: 1, [B_CONDUITE]: 3,
-              [B_MOULE]: 1, [B_MALAXEUR]: 1, [B_BASSIN]: 2, [B_FOSSE]: 2 },
+              [B_MOULE]: 1, [B_MALAXEUR]: 1, [B_BASSIN]: 2, [B_FOSSE]: 2,
+              // le laminoir COULE encore : c est du metal en mouvement.
+              [B_LAMINOIR]: 0 },
   // la carcasse fait la CASSE, le mur fait la CLOTURE, et une ruine est le seul
   // endroit ou il reste quelque chose d allume.
   // la pile d epaves fait la CASSE comme la carcasse ; le grillage, le poteau
@@ -228,12 +230,17 @@ const QUARTIER = {
   // la coque et ses debris font l EPAVE ; le bras, la cloison et la console
   // sont ce a quoi on s AMARRE ou ce qui dessert — le quartier de la travee.
   nebuleuse: { [B_FRAGMENT]: 0, [B_DEBRIS]: 0, [B_TRAVEE]: 3, [B_COQUE]: 0,
-               [B_BRAS]: 3, [B_CLOISON]: 3, [B_CONSOLE]: 3 },
+               [B_BRAS]: 3, [B_CLOISON]: 3, [B_CONSOLE]: 3,
+               // une ossature est ce a quoi on s AMARRE tant qu elle n est pas
+               // fermee ; le borde, lui, appartient deja a la coque.
+               [B_MEMBRURE]: 3, [B_BORDE]: 0 },
   // devanture et pylone VENDENT, le conteneur est ce qu on livre PAR DERRIERE.
   // le monolithe et l etal VENDENT (ou impressionnent) ; le mur aveugle et
   // l escalier sont l arriere, la ou l on livre — le quartier du conteneur.
   secteur: { [B_DEVANTURE]: 0, [B_PYLONE]: 0, [B_CONTENEUR]: 2,
-             [B_MONOLITHE]: 0, [B_ETAL]: 0, [B_AVEUGLE]: 2, [B_ESCALIER]: 2 },
+             [B_MONOLITHE]: 0, [B_ETAL]: 0, [B_AVEUGLE]: 2, [B_ESCALIER]: 2,
+             // on HABITE les alveoles : c est l arriere, pas la vitrine.
+             [B_ALVEOLE]: 2, [B_COURSIVE]: 2 },
 };
 
 /* LES DEUX TABLES DOIVENT SE RECOUVRIR EXACTEMENT, DANS LES DEUX SENS. Un prop
@@ -1900,6 +1907,8 @@ const AIR = {
     { dens: 1.18, ech: [0.74, 0.58], zones: [1, 2], matieres: [TRACE_COULEE, TRACE_CORROSION] },
     // le bassin laisse un depot de sels en s evaporant : une aureole, pas une tache.
     { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_AUREOLE, TRACE_CORROSION] },
+    // le laminoir tire ce qui COULE et ce qui en SORT : le seul de son theme.
+    { dens: 1.05, ech: [0.78, 0.64], zones: [0, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
     { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_RAYURES] },
   ],
   friche: [
@@ -1924,6 +1933,9 @@ const AIR = {
     // la coursive tire ce qui FLOTTE et ce a quoi on s AMARRE, jamais la
     // signaletique du dock : a [1,3] elle partageait 83 % de ses props avec lui.
     { dens: 0.52, ech: [1.30, 1.34], zones: [0, 1], matieres: [TRACE_CORROSION, null] },
+    // un chantier orbital tire ce qui a GELE dessus et ce a quoi on s AMARRE :
+    // rien n y est encore une coque.
+    { dens: 0.80, ech: [0.70, 0.80], zones: [2, 3], matieres: [TRACE_DECHETS, TRACE_FISSURES] },
     { dens: 0.86, ech: [0.80, 1.00], zones: [1, 2], matieres: [TRACE_RAYURES, TRACE_DECHETS] },
   ],
   secteur: [
@@ -1932,6 +1944,8 @@ const AIR = {
     // vue de plus loin, elle a son propre inventaire.
     { dens: 0.84, ech: [0.70, 0.62], zones: [1, 2], matieres: [TRACE_RUISSELLEMENT, TRACE_SOUILLURE] },
     { dens: 1.38, ech: [0.48, 0.40], zones: [3, 2], matieres: [TRACE_DECHETS, TRACE_SOUILLURE] },
+    // les capsules : la chaussee qu on habite et le coin ou l on se gare.
+    { dens: 1.20, ech: [0.52, 0.46], zones: [1, 3], matieres: [TRACE_DECHETS, TRACE_RUISSELLEMENT] },
     { dens: 0.60, ech: [0.82, 0.74], zones: [0, 3], matieres: [TRACE_ROULAGE, TRACE_FISSURES] },
   ],
 };

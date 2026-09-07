@@ -1,6 +1,6 @@
 {
   "name": "survivor-lan",
-  "version": "0.43.16",
+  "version": "0.43.17",
   "description": "Mini survivor multijoueur en reseau local — serveur autoritaire, client navigateur",
   "type": "module",
   "private": true,

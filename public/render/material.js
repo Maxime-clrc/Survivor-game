@@ -1469,12 +1469,16 @@ const SOL_REGION = {
      l eau, c est une surface qui reflete — une flaque d huile fait exactement ce
      qu il faut. Les utilites sont sur GRAVIER, le seul sol non lisse du theme. */
   usine:     [T_LISSE, T_MARQUE, T_MOUILLE, T_DALLE, T_POUDRE, T_BITUME, T_GRANULAT],
-  fonderie:  [T_LISSE, T_GRANULAT, T_MOUILLE, T_DALLE],
+  // le laminoir est couvert de CALAMINE : un sol qui scintille par plaques.
+  fonderie:  [T_LISSE, T_GRANULAT, T_MOUILLE, T_MINERAL, T_DALLE],
   /* LA CASSE EST HUILEUSE, DONC ELLE RENVOIE, et le chantier est une DALLE
      BRUTE — le seul sol de la Friche qui ne soit pas encore abime. */
   friche:    [T_TERRE, T_GRANULAT, T_MOUILLE, T_VEGETAL, T_DALLE],
-  nebuleuse: [T_TECHNIQUE, T_AJOURE, T_LISSE, T_MINERAL],
-  secteur:   [T_MARQUE, T_MOUILLE, T_BITUME, T_DALLE],
+  // le chantier orbital n a pas de sol : ce qu on voit est le REPERAGE peint
+  // sur son ossature.
+  nebuleuse: [T_TECHNIQUE, T_AJOURE, T_LISSE, T_MARQUE, T_MINERAL],
+  // les capsules marchent sur un plancher DEMONTABLE, pose sur la coursive.
+  secteur:   [T_MARQUE, T_MOUILLE, T_BITUME, T_TECHNIQUE, T_DALLE],
 };
 
 export function traitementDe(cle, loi) {

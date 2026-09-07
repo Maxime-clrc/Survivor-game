@@ -10114,6 +10114,27 @@
                   2 x jMax + PASSAGE_MIN = 160 px, et la casse passe de cinq piles
                   a trois.
 
+    0.43.17 lot 18 LES CINQ THEMES ONT CINQ REGIONS. Fonderie, Nebuleuse et
+                  Secteur n en avaient que quatre. LE LAMINOIR — une file de
+                  cages, la seule region ou tout tient sur une ligne. LE CHANTIER
+                  ORBITAL — des membrures qui BLOQUENT SANS CACHER, l inverse
+                  exact de la brume. LES CAPSULES — un mur d alveoles dont chacune
+                  a sa lumiere, seul damier lumineux d un theme fait de grandes
+                  enseignes.
+                  LE CENTRE D UNE CELLULE APPARTIENT AUX DANGERS, et ce lot l a
+                  paye quatre fois. Le laminoir posait sept boites en travers avec
+                  8 a 56 px d ecart — un MUR, donc un carre central
+                  infranchissable : la table a rouleaux, pourtant juste
+                  physiquement, est SUPPRIMEE, et les cages seules disent la meme
+                  chose avec 360 et 264 px d ecart. Le chantier orbital posait six
+                  poutres de 207 px en travers de deux dangers centraux : six
+                  appuis de 108 px repartis dans les couloirs disent la meme
+                  ossature — c est le RESEAU qui se lit, pas la longueur d une
+                  piece. Et les deux passerelles des capsules ne se font plus
+                  face, une passerelle de 384 px centree traversant forcement un
+                  geyser ou la braise.
+                  Dix-huit regions sur vingt-sept ont une signature.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10122,4 +10143,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.16";
+export const VERSION = "0.43.17";

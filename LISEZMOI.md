@@ -8,6 +8,39 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les cinq thèmes ont cinq régions (0.43.17)
+
+Fonderie, Nébuleuse et Secteur n'en avaient que quatre. Trois régions neuves :
+**le laminoir** (une file de cages, la seule région du dépôt où tout tient sur
+une ligne), **le chantier orbital** (des membrures qui **bloquent sans cacher**,
+l'inverse exact de la brume) et **les capsules** (un mur d'alvéoles dont chacune
+a sa lumière — le seul damier lumineux d'un thème fait de grandes enseignes).
+
+| thème | régions | avec une signature |
+|---|---:|---:|
+| usine | 7 | 4 |
+| fonderie | **5** | **3** |
+| friche | 5 | 2 |
+| nébuleuse | **5** | **3** |
+| secteur | **5** | **4** |
+| **total** | **27** | **18** |
+
+**Le centre d'une cellule appartient aux dangers, et ce lot l'a payé quatre
+fois.** Chacune des trois régions a dû être recalée sur les couloirs libres :
+
+- **le laminoir** posait sept boîtes en travers avec 8 à 56 px d'écart — un
+  **mur**, donc un carré central infranchissable. La table à rouleaux, pourtant
+  juste physiquement, est **supprimée** : les cages seules disent la même chose
+  avec 360 et 264 px d'écart. Et le train passe de `y = 0,50` à `0,26`, le milieu
+  de la Fonderie appartenant au ralentissement puis à la braise ;
+- **le chantier orbital** posait six poutres de 207 px en travers de deux dangers
+  centraux : six appuis de 108 px répartis dans les couloirs disent la même
+  ossature — c'est le **réseau** qui se lit, pas la longueur d'une pièce ;
+- **les capsules** : le Secteur tient `x = 210 à 430` et `1185 à 1375` sur toute
+  la bande `y = 315 à 585`, donc les murs latéraux collent aux bords ; et les
+  deux passerelles **ne se font plus face**, une passerelle de 384 px centrée
+  traversant forcément l'un des deux geysers ou la braise.
+
 ### Le miroir était à moitié mort (0.43.16)
 
 `my = (cx * 2 + cy) & 1` vaut `cy & 1` — `cx * 2` est pair. Les **deux** miroirs
