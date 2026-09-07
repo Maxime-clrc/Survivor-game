@@ -8,6 +8,54 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le Secteur passe de cinq régions à huit (0.43.25)
+
+Premier lot de contenu depuis que les six tables par région sont **toutes
+indexées par clef** : l'ajout ne décale plus rien, et les trois régions sont
+sorties vertes en quatre passes au lieu des dix habituelles.
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **le parking** | `lisse` | véhicule à l'arrêt | peigne de rangées |
+| **la station** | `ajoure` | tourniquet | ruban de portiques |
+| **le poste de contrôle** | `granulat` | barrière de chicane, guérite | crible de chicanes |
+
+- **Le parking est le seul endroit du dépôt où les masses sont RANGÉES.** Tout le
+  reste du Secteur est posé, empilé ou tombé. Les véhicules sont bas et larges :
+  on voit par-dessus, on ne passe pas au travers — la ligne de vue diverge de la
+  ligne de marche, comme à la sablerie, mais en ville.
+- **La station est la seule région dont l'architecture soit une RÈGLE**, pas une
+  installation : une file de tourniquets qu'il faut franchir. Les intervalles
+  font **112 px** — au-dessus de `PASSAGE_MIN`, donc jamais un goulot.
+- **Le contrôle est la seule composition qui impose un détour sans rien fermer** :
+  trois chicanes décalées, aucune bloquante, les trois ensemble font ralentir.
+
+**Quatre familles neuves, zéro silhouette neuve** — `conteneur` porte le
+véhicule (une boîte chanfreinée vue de dessus est une caisse ou une carrosserie,
+et c'est le vitrage qui dit laquelle ; la carcasse de la Friche est le même objet
+trente ans plus tard), `cadre` le tourniquet, `caisson` la barrière et la guérite.
+
+**Trois rouges, trois enseignements :**
+
+- **`secteur/rue : aucune famille bâtie à elle`** — la station posait des
+  abribus, et l'abribus était la **seule** famille que la rue avait à elle.
+  Ajouter une région peut **retirer** sa signature à une voisine ; c'est
+  `verifierSignature` qui l'a dit tout seul. La station prend un mur aveugle.
+- **`barriere 144x27 : 11,5 % de l'empreinte vide`** — `mur_bas` a des créneaux,
+  qui disent qu'un mur a **cassé** ; un bloc de chicane est **moulé**. À ce
+  rapport de forme les créneaux mangent le rectangle. Elle passe en `caisson`.
+- **Le mur aveugle mordait la flaque de cauchemar**, qui tient `(0,16 ; 0,28)`
+  sur 52 px — et ses **quatre miroirs** avec elle.
+
+| | régions | avec une signature |
+|---|---:|---:|
+| 0.43.24 | 31 | 31 |
+| 0.43.25 | **34** | **34** |
+
+Pire Jaccard bâti : **0,50**, inchangé. Bâti du Secteur : 6,47 % → **5,29 %** en
+cauchemar — les trois régions neuves sont légères, donc l'arène moyenne
+s'allège.
+
 ### Neuf régions portaient la trame d'une autre (0.43.24)
 
 `TRAMES` était la **troisième** table indexée par rang, après `loiNom` (lot 5) et

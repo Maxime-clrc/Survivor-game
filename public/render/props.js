@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, exclusivesDe, loiCle, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, exclusivesDe, loiCle, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -275,7 +275,11 @@ const QUARTIER = {
              [B_ALVEOLE]: 2, [B_COURSIVE]: 2,
              // on attend l abribus DEVANT, sur le trottoir : le quartier de la
              // vitrine, pas celui des livraisons.
-             [B_ABRIBUS]: 0 },
+             [B_ABRIBUS]: 0,
+             // on se gare au STATIONNEMENT ; le tourniquet et la barriere sont
+             // sur la chaussee, ce qu ils controlent ; la guerite est un local
+             // de service, donc l arriere.
+             [B_VEHICULE]: 3, [B_TOURNIQUET]: 1, [B_BARRIERE]: 1, [B_GUERITE]: 2 },
 };
 
 /* LES DEUX TABLES DOIVENT SE RECOUVRIR EXACTEMENT, DANS LES DEUX SENS. Un prop
@@ -2026,6 +2030,18 @@ const AIR = {
     // les capsules : la chaussee qu on habite et le coin ou l on se gare.
     capsules: { dens: 1.20, ech: [0.52, 0.46], zones: [1, 3], matieres: [TRACE_DECHETS, TRACE_RUISSELLEMENT] },
     parvis: { dens: 0.60, ech: [0.82, 0.74], zones: [0, 3], matieres: [TRACE_ROULAGE, TRACE_FISSURES] },
+    // UN SEUL QUARTIER CHACUNE POUR LES DEUX PREMIERES, et c est force autant
+    // que voulu : le Secteur n a que quatre quartiers de props, donc les six
+    // paires distinctes sont epuisees par les cinq regions d origine. Un
+    // inventaire etroit est une identite.
+    // le parking ne pose QUE ce qu on gare et ce qui traine autour ; l huile des
+    // moteurs coule sous les vehicules, et c est sa signature au sol.
+    parking: { dens: 0.72, ech: [0.66, 0.58], zones: [3], matieres: [TRACE_ROULAGE, TRACE_COULEE] },
+    // une station est la chaussee qu on TRAVERSE : marquage use, et des pas.
+    station: { dens: 1.15, ech: [0.50, 0.44], zones: [1], matieres: [TRACE_MARQUAGE, TRACE_EMPREINTE] },
+    // un poste de controle est le devant qu on montre et l arriere qu on cache ;
+    // les barrieres rayent le sol a force d etre poussees.
+    controle: { dens: 0.60, ech: [0.74, 0.66], zones: [0, 2], matieres: [TRACE_POUSSIERE, TRACE_RAYURES] },
   },
 };
 

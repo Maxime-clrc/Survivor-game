@@ -12,7 +12,8 @@ import {
   B_BAC, B_HOTTE, B_CAGE, B_PORTIQUE,
   B_TAS, B_BOSQUET, B_RONCE,
   B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE,
-  B_ROCHE, B_SAS, B_ABRIBUS, gabaritsDe,
+  B_ROCHE, B_SAS, B_ABRIBUS,
+  B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -94,6 +95,7 @@ const HABILLAGE = {
   bac, hotte, cage, portique,
   tas, bosquet, ronce,
   tunnel, tournante, convertisseur, talus, portail, dalle, roche, sas, abribus,
+  vehicule, tourniquet, barriere, guerite,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -194,6 +196,16 @@ const BLOC = {
     [B_ALVEOLE]: { sil: "mur_bas", hab: "alveole" },
     [B_COURSIVE]: { sil: "barre", hab: "coursive" },
     [B_ABRIBUS]: { sil: "cadre", hab: "abribus" },
+    // LE MEME CONTENEUR, UNE AUTRE MATIERE : une boite chanfreinee vue de
+    // dessus est une caisse ou une carrosserie, et c est le vitrage qui dit
+    // laquelle. La carcasse de la Friche est le meme objet trente ans plus tard.
+    [B_VEHICULE]: { sil: "conteneur", hab: "vehicule" },
+    [B_TOURNIQUET]: { sil: "cadre", hab: "tourniquet" },
+    /* PAS `mur_bas` : ses creneaux disent qu un mur a CASSE, et un bloc de
+       chicane est moule. `verifierEmpreinte` l a refuse a 11,5 % pour un seuil
+       de 10 — a 144 x 27 les creneaux mangent le rectangle. */
+    [B_BARRIERE]: { sil: "caisson", hab: "barriere" },
+    [B_GUERITE]: { sil: "caisson", hab: "guerite" },
   },
 };
 
@@ -2971,6 +2983,121 @@ function abribus(o, S) {
   ctx.fillStyle = alpha(S.emis, 0.20);
   if (long) ctx.fillRect(w / 2 - 8, -h / 2 + 5, 4, h - 10);
   else ctx.fillRect(-w / 2 + 5, h / 2 - 8, w - 10, 4);
+}
+
+
+/* LE VEHICULE A L ARRET — VU DE DESSUS, ET C EST CE QUI LE REND LISIBLE. Un
+   capot, un pare-brise, un toit, une lunette : quatre bandes dans l ordre, et
+   personne ne peut le confondre avec une caisse. Il est le seul objet du depot
+   qui soit INTACT et ABANDONNE en meme temps — la carcasse de la Friche est le
+   meme objet trente ans plus tard. */
+function vehicule(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LA CARROSSERIE, et sa teinte est la SEULE variation : trois carrosseries
+  // identiques alignees feraient un decor de catalogue.
+  const teintes = ["#6a7078", "#7a5a4a", "#4a5a6a", "#6a6a52"];
+  ctx.fillStyle = alpha(teintes[s & 3], 0.62);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // LE VITRAGE : deux bandes sombres, aux deux tiers de la longueur.
+  ctx.fillStyle = alpha("#1a2028", 0.50);
+  for (const u of [-0.18, 0.20]) {
+    if (long) ctx.fillRect(L * u - E * 0.06, -h / 2 + 4, E * 0.12, h - 8);
+    else ctx.fillRect(-w / 2 + 4, L * u - E * 0.06, w - 8, E * 0.12);
+  }
+  // le TOIT, plus clair : c est lui qui prend la lumiere.
+  ctx.fillStyle = alpha("#c8ccd2", 0.10);
+  if (long) ctx.fillRect(-L * 0.16, -h / 2 + 5, L * 0.34, h - 10);
+  else ctx.fillRect(-w / 2 + 5, -L * 0.16, w - 10, L * 0.34);
+  ctx.strokeStyle = alpha("#000000", 0.28);
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+}
+
+/* LE TOURNIQUET — UNE LIGNE QU IL FAUT FRANCHIR. Deux montants, trois bras, et
+   on voit a travers : c est un cadre, donc il bloque le corps sans cacher ce qui
+   arrive derriere. Les bras sont FIXES — un mouvement continu appartient a la
+   matiere, et un tourniquet qui tourne annoncerait quelque chose. */
+function tourniquet(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.26);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LES DEUX MONTANTS, pleins, aux extremites de l axe court.
+  ctx.fillStyle = alpha(PROP.metal, 0.44);
+  const long = w >= h;
+  if (long) {
+    ctx.fillRect(-w / 2, -h / 2, w, 4);
+    ctx.fillRect(-w / 2, h / 2 - 4, w, 4);
+  } else {
+    ctx.fillRect(-w / 2, -h / 2, 4, h);
+    ctx.fillRect(w / 2 - 4, -h / 2, 4, h);
+  }
+  // LES BRAS, trois, en etoile depuis le centre.
+  ctx.strokeStyle = alpha(PROP.metal, 0.34);
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  const r = Math.min(w, h) * 0.42;
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + (s & 3) * 0.3;
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.stroke();
+  // le voyant de passage : le seul point vert du depot, et il est minuscule.
+  ctx.fillStyle = alpha(((s >> 2) & 1) ? "#5ec87a" : "#c85e5e", 0.34);
+  ctx.fillRect(-1.5, -h / 2 + 5, 3, 3);
+}
+
+/* LA BARRIERE DE CHICANE — BASSE, LOURDE, ET ELLE NE FERME RIEN. Un bloc de
+   beton moule avec ses bandes reflechissantes : on le voit de loin, on le
+   contourne d un pas, et trois d entre elles decalees font ralentir sans jamais
+   couper un passage. C est le contraire d un goulot. */
+function barriere(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h;
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#9a9690", 0.56);
+  ctx.fillRect(-w / 2 + 1.5, -h / 2 + 1.5, w - 3, h - 3);
+  // LES BANDES, alternees et OBLIQUES : c est l obliquite qui dit « evite ».
+  const n = Math.max(3, (L / 22) | 0);
+  for (let i = 0; i < n; i++) {
+    if ((i + s) & 1) continue;
+    ctx.fillStyle = alpha("#c85e3e", 0.30);
+    if (long) ctx.fillRect(-w / 2 + 2 + i * ((w - 4) / n), -h / 2 + 2, (w - 4) / n - 1, h - 4);
+    else ctx.fillRect(-w / 2 + 2, -h / 2 + 2 + i * ((h - 4) / n), w - 4, (h - 4) / n - 1);
+  }
+  // le pied evase : un bloc de chicane n est pas un mur, il est POSE.
+  ctx.strokeStyle = alpha("#000000", 0.22);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1);
+}
+
+/* LA GUERITE — LA SEULE MASSE PLEINE DU POSTE, ET ELLE REGARDE. Une cabine, une
+   vitre sur un seul cote, un toit qui deborde. Ce qui la fait lire est
+   l ASYMETRIE : trois cotes aveugles et un vitre, donc elle a une direction, et
+   c est vers la chicane. */
+function guerite(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.62);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // LE TOIT QUI DEBORDE : une bande claire sur tout le pourtour.
+  ctx.strokeStyle = alpha("#c8ccd2", 0.16);
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-w / 2 + 1.5, -h / 2 + 1.5, w - 3, h - 3);
+  // LA VITRE, sur UN cote seulement — c est elle qui donne la direction.
+  const cote = s & 3;
+  ctx.fillStyle = alpha(PROP.verre, 0.24);
+  if (cote === 0) ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, h * 0.24);
+  else if (cote === 1) ctx.fillRect(-w / 2 + 4, h / 2 - 4 - h * 0.24, w - 8, h * 0.24);
+  else if (cote === 2) ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w * 0.24, h - 8);
+  else ctx.fillRect(w / 2 - 4 - w * 0.24, -h / 2 + 4, w * 0.24, h - 8);
+  ctx.fillStyle = alpha(S.emis, 0.18);
+  ctx.fillRect(-2, -2, 4, 4);
 }
 
 function coque(o, S) {

@@ -153,7 +153,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_TAS = 49, B_BOSQUET = 50, B_RONCE = 51,
              B_TUNNEL = 52, B_TOURNANTE = 53, B_CONVERTISSEUR = 54,
              B_TALUS = 55, B_PORTAIL = 56, B_DALLE = 57,
-             B_ROCHE = 58, B_SAS = 59, B_ABRIBUS = 60;
+             B_ROCHE = 58, B_SAS = 59, B_ABRIBUS = 60,
+             B_VEHICULE = 61, B_TOURNIQUET = 62, B_BARRIERE = 63, B_GUERITE = 64;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -226,6 +227,10 @@ export const BLOCS = [
   { key: "roche", lieu: "nebuleuse" },
   { key: "sas", lieu: "nebuleuse" },
   { key: "abribus", lieu: "secteur" },
+  { key: "vehicule", lieu: "secteur" },
+  { key: "tourniquet", lieu: "secteur" },
+  { key: "barriere", lieu: "secteur" },
+  { key: "guerite", lieu: "secteur" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -1113,6 +1118,57 @@ const OBSTACLES = {
     ] },
     /* LE PARVIS — presque vide, deux masses monumentales. La respiration du
        theme, et la seule ou l on voit d un bout a l autre de la region. */
+    /* LE PARKING — LE SEUL ENDROIT DU DEPOT OU LES MASSES SONT RANGEES. Tout le
+       reste du Secteur est pose, empile ou tombe ; ici tout est aligne au
+       cordeau, en rangees, et c est ce qui se lit d une vue entiere. Les
+       vehicules sont BAS et LARGES : on voit par-dessus, on ne passe pas au
+       travers, et la ligne de vue diverge de la ligne de marche comme a la
+       sablerie — mais en ville.
+       Sol LISSE : un niveau de stationnement est coule d un coup. */
+    { cle: "parking", nom: "le parking", label: "Le parking", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.30, y: 0.14, w: 0.075, h: 0.036, kind: B_VEHICULE },
+      { x: 0.30, y: 0.24, w: 0.075, h: 0.036, kind: B_VEHICULE },
+      { x: 0.70, y: 0.86, w: 0.075, h: 0.036, kind: B_VEHICULE, min: 1 },
+      { x: 0.70, y: 0.76, w: 0.075, h: 0.036, kind: B_VEHICULE, min: 1 },
+      { x: 0.50, y: 0.14, w: 0.075, h: 0.036, kind: B_VEHICULE, min: 2 },
+      { x: 0.08, y: 0.50, w: 0.014, h: 0.230, kind: B_PYLONE },
+      { x: 0.92, y: 0.50, w: 0.014, h: 0.230, kind: B_PYLONE, min: 1 },
+      { x: 0.50, y: 0.50, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
+    ] },
+    /* LA STATION — ON Y PASSE, ET LA LOI EST UNE LIGNE QU IL FAUT FRANCHIR. Les
+       tourniquets font une file de cadres : on voit a travers, on ne passe
+       qu entre eux, et les intervalles font 112 px — plus que `PASSAGE_MIN`,
+       donc jamais un goulot. C est la seule region du depot dont l architecture
+       soit une REGLE plutot qu une installation.
+       Sol AJOURE : on marche sur la dalle d une trémie, pas sur du beton. */
+    { cle: "station", nom: "la station", label: "La station", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.41, y: 0.50, w: 0.020, h: 0.070, kind: B_TOURNIQUET },
+      { x: 0.50, y: 0.50, w: 0.020, h: 0.070, kind: B_TOURNIQUET },
+      { x: 0.59, y: 0.50, w: 0.020, h: 0.070, kind: B_TOURNIQUET, min: 1 },
+      { x: 0.32, y: 0.50, w: 0.020, h: 0.070, kind: B_TOURNIQUET, min: 2 },
+      // PAS D ABRIBUS ICI : c est la seule famille que la rue ait a elle, et
+      // une station qui en pose la lui retire. Un mur aveugle fait le meme
+      // travail — donner un fond a la file — et il appartient deja a l arriere.
+      // 0,18 et pas 0,20 : le bloc mordait la flaque de cauchemar, qui tient
+      // (0,16 ; 0,28) sur 52 px de rayon — et ses quatre miroirs avec elle.
+      { x: 0.20, y: 0.18, w: 0.100, h: 0.045, kind: B_AVEUGLE },
+      { x: 0.80, y: 0.82, w: 0.100, h: 0.045, kind: B_AVEUGLE, min: 1 },
+      { x: 0.30, y: 0.82, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR },
+      { x: 0.70, y: 0.18, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 2 },
+    ] },
+    /* LE POSTE DE CONTROLE — DES CHICANES, ET C EST LA SEULE COMPOSITION DU
+       DEPOT QUI IMPOSE UN DETOUR SANS FERMER QUOI QUE CE SOIT. Trois barrieres
+       decalees : aucune ne bloque, les trois ensemble font ralentir. Et la
+       GUERITE, la seule masse pleine, qui les regarde.
+       Sol GRANULAT : on a repandu du gravier pour tenir la boue des camions. */
+    { cle: "controle", nom: "le poste de controle", label: "Le poste de contrôle", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.30, y: 0.36, w: 0.090, h: 0.030, kind: B_BARRIERE },
+      { x: 0.62, y: 0.52, w: 0.090, h: 0.030, kind: B_BARRIERE, min: 1 },
+      { x: 0.34, y: 0.68, w: 0.090, h: 0.030, kind: B_BARRIERE, min: 2 },
+      { x: 0.14, y: 0.16, w: 0.050, h: 0.060, kind: B_GUERITE },
+      { x: 0.86, y: 0.84, w: 0.050, h: 0.060, kind: B_GUERITE, min: 1 },
+      { x: 0.50, y: 0.86, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR },
+    ] },
     { cle: "parvis", nom: "le parvis", label: "Le parvis", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.31, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
       { x: 0.69, y: 0.50, w: 0.062, h: 0.140, kind: B_DEVANTURE },
@@ -1365,6 +1421,14 @@ const TRAMES = {
     capsules: { type: TR_PEIGNE, kind: B_ALVEOLE },
     // le parvis tourne autour de sa masse : c est une couronne.
     parvis: { type: TR_COURONNE, kind: B_MONOLITHE },
+    // un parking est un PEIGNE de rangees — la troisieme du theme, et c est la
+    // famille qui les separe : etals, alveoles, vehicules.
+    parking: { type: TR_PEIGNE, kind: B_VEHICULE },
+    // une station est un RUBAN de portiques : la ligne qu on franchit.
+    station: { type: TR_RUBAN, kind: B_TOURNIQUET },
+    // un controle est un CRIBLE de chicanes — la premiere du Secteur, et la
+    // seule trame du theme qui ne soit ni une file ni un alignement.
+    controle: { type: TR_CRIBLE, kind: B_BARRIERE },
   },
 };
 

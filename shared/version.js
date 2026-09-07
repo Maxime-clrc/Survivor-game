@@ -10298,6 +10298,28 @@
                   degagement a 83,3 % pour un plancher de 90 — sa charpente
                   tombee est sa seule famille a elle et elle n avait qu UNE pose.
 
+    0.43.25 lot 26 LE SECTEUR PASSE DE CINQ REGIONS A HUIT. Premier lot de contenu
+                  depuis que les six tables par region sont TOUTES indexees par
+                  clef : l ajout ne decale plus rien.
+                  LE PARKING est le seul endroit du depot ou les masses soient
+                  RANGEES — sol lisse, vehicules bas et larges, on voit
+                  par-dessus et on ne passe pas au travers. LA STATION est la
+                  seule region dont l architecture soit une REGLE et non une
+                  installation : une file de tourniquets, intervalles de 112 px,
+                  donc jamais un goulot. LE POSTE DE CONTROLE est la seule
+                  composition qui impose un detour sans rien fermer : trois
+                  chicanes decalees, aucune bloquante.
+                  Quatre familles neuves, ZERO silhouette neuve : `conteneur`
+                  porte le vehicule, `cadre` le tourniquet, `caisson` la barriere
+                  et la guerite.
+                  AJOUTER UNE REGION PEUT RETIRER SA SIGNATURE A UNE VOISINE : la
+                  station posait des abribus, et l abribus etait la seule famille
+                  que la rue eut a elle. `verifierSignature` l a dit tout seul.
+                  Et `mur_bas` a ete refuse pour la barriere — ses creneaux
+                  disent qu un mur a CASSE, un bloc de chicane est MOULE, et a
+                  144 x 27 ils mangent 11,5 % du rectangle pour un seuil de 10.
+                  34 regions, 34 signatures, pire Jaccard bati inchange a 0,50.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10306,4 +10328,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.24";
+export const VERSION = "0.43.25";

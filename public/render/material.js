@@ -1500,6 +1500,9 @@ const SOL_REGION = {
   secteur: {
     rue: T_MARQUE, ruelle: T_MOUILLE, marche: T_BITUME,
     capsules: T_TECHNIQUE, parvis: T_DALLE,
+    // un niveau de stationnement est coule d un coup, une station se marche sur
+    // caillebotis, et on repand du gravier la ou les camions font de la boue.
+    parking: T_LISSE, station: T_AJOURE, controle: T_GRANULAT,
   },
 };
 
