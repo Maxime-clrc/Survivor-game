@@ -508,6 +508,41 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
 - **LE SEUIL EST SUPPRIMÉ.** Il déclarait la couture entre deux lieux bord à
   bord ; un thème par carte, plus de couture, plus de pièce à poser.
 
+#### Une structure déborde, elle n'émigre pas
+
+- **UNE STRUCTURE COUPÉE À LA RÈGLE SIGNALE LA FRONTIÈRE QUE TOUT LE RESTE VIENT
+  D'EFFACER.** La trame est la plus grosse chose de l'écran — jusqu'à 3 680 px — et
+  `garde()` rejetait tout morceau dont la cellule n'était pas celle du district :
+  une nef, un ruban, un peigne s'arrêtaient net sur la ligne de grille. Deux
+  corrections, et **il faut les deux** : le **point gauchi** (`pointMel`, le seul
+  gauchissement du dépôt, donc la même courbe que le sol et le semis) et le
+  **débord** — on relit le district à `TRAME_DEBORD` px **vers le barycentre** de la
+  région, et un morceau qui dépasse de moins que ça y retombe.
+- **LE CENTRE EST LE BARYCENTRE DES CELLULES, PAS CELUI DE LA BOÎTE.** Un quartier
+  n'est pas convexe : le centre de sa boîte englobante peut tomber chez la voisine,
+  et la direction du rappel pointerait alors vers l'extérieur.
+- **`TRAME_DEBORD` EST BORNÉ PAR `TRAME_TRONCON_MIN`, ET C'EST STRUCTUREL.** À 260
+  px, un morceau isolé ne peut pas vivre entièrement dans le débord : il serait plus
+  court que 300 et serait jeté. Un débord plus grand que le tronçon minimal
+  autoriserait une trame à s'installer chez la voisine.
+- **LA MOITIÉ AU MOINS EST CHEZ ELLE**, et c'est `decouper` qui le tient — la garde
+  ne voit qu'un point. Le centre seul semblait suffire et ne suffit pas : un tronçon
+  qui **longe** une frontière ondulée peut avoir son milieu dedans et les deux tiers
+  dehors (mesure : 360 px sur 520). Une structure plus courte que le tronçon minimal
+  n'est, elle, testée qu'à son centre — donc elle doit y être franchement.
+- **CE QUI PROTÈGE LE JEU NE BOUGE PAS** : budget de surface, écart aux dangers, et
+  surtout `TRAME_GARDE`, testé contre **toutes** les trames déjà posées et pas
+  seulement celles de la région. Un débord ne peut donc pas fabriquer un goulot.
+- **« LE MORCEAU TOUCHE DEUX DISTRICTS » N'EST PAS UN CRITÈRE** : c'est vrai 8,2 %
+  du temps **sans aucun débord**, parce que `decouper` teste le milieu de ses pas.
+  Le premier jet de `verifierDebord` restait vert avec `TRAME_DEBORD = 0`. Il
+  échantillonne maintenant le morceau sur sa **longueur** et compte les pixels
+  passés chez la voisine.
+- **LES BLOCS DE CELLULE NE CHANGENT PAS.** Un bloc porte la loi de **sa** cellule,
+  sans exception — c'est ce qui fait qu'une région se lit, et `verifierRegions`
+  l'exige. Ce n'était pas le canal de la couture : 0.42.1 a mesuré qu'à une dizaine
+  de blocs par écran, une loi d'implantation ne se voit pas.
+
 #### Le semis mélangé : ce qui s'interpole et ce qui se tire
 
 - **UNE QUANTITÉ S'INTERPOLE, UN CATALOGUE SE TIRE.** C'est la seule distinction du

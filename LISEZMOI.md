@@ -8,6 +8,73 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Une structure coupée à la règle signale la frontière (0.43.41)
+
+Le sol fond (0.43.39), le semis se mélange (0.43.40), et la **trame** — la plus
+grosse chose de l'écran, jusqu'à 3 680 px — s'arrêtait toujours net sur le bord de
+cellule. `garde()` rejetait tout morceau dont la cellule n'appartenait pas au
+district, et `decouper()` tronçonnait la bande dessus. Une machine qui s'interrompt
+sur une frontière invisible est ce qui **signale** la frontière.
+
+**Deux corrections, et il faut les deux.**
+
+1. Le **point gauchi** (`pointMel`, le seul gauchissement du dépôt) : la coupe suit
+   la même courbe que le sol et le semis au lieu de la ligne de grille.
+2. Le **débord** : on relit le district à `TRAME_DEBORD` px **vers le barycentre**
+   de la région. Un morceau qui dépasse de moins que ça y retombe, donc il
+   traverse.
+
+Le centre est le **barycentre des cellules**, pas celui de la boîte : un quartier
+n'est pas convexe, et le centre de sa boîte peut tomber chez la voisine — la
+direction du rappel pointerait alors vers l'extérieur.
+
+| 60 cartes (5 thèmes × 12 graines) | avant | après |
+|---|---:|---:|
+| morceaux de trame posés | 2 065 | 2 092 |
+| dépassement moyen | 2 px | **23 px** |
+| morceaux passant de plus de 100 px | **0,0 %** | **7,2 %** |
+| plus grand dépassement | 80 px | **1 180 px** |
+| extrémités à moins de 60 px d'une ligne de grille | 8,8 % | **4,9 %** |
+| surface bâtie | 122,5 Mpx | 124,5 Mpx |
+
+**260 px n'est pas un goût.** Zéro coupe à la règle ; au-delà d'un demi-écran une
+trame entière émigre. À 260, un morceau isolé ne peut pas vivre dans le débord —
+il serait plus court que `TRAME_TRONCON_MIN` (300) et serait jeté.
+
+#### Le vérificateur ne mordait pas, et c'était le premier jet
+
+`verifierDebord` comptait d'abord « le morceau touche deux districts ». **C'est
+vrai 8,2 % du temps sans aucun débord** : `decouper` teste le milieu de ses pas,
+donc un morceau dépasse toujours d'un demi-pas. Réinjecter `TRAME_DEBORD = 0`
+laissait le vérificateur **vert**.
+
+Il échantillonne maintenant le morceau sur sa **longueur** et compte les pixels
+passés chez la voisine. Preuve qu'il mord : `TRAME_DEBORD = 0` sort
+`0.0 % des morceaux de trame passent de plus de 100 px chez la voisine`.
+
+#### Deux fuites qu'il a sorties dès sa première exécution
+
+| fuite | cause | correction |
+|---|---|---|
+| une structure entière chez la voisine | `L <= TRAME_TRONCON_MIN` n'est testé qu'à son **centre** | `chezSoi(centre)` exigé |
+| **360 px sur 520** chez la voisine | un tronçon qui **longe** une frontière ondulée a son milieu dedans et les deux tiers dehors | la **moitié des pas** au moins chez elle |
+
+Le second est le plus instructif : le centre seul semblait suffire, et il ne
+suffit pas dès que la frontière n'est plus une droite.
+
+**Ce qui protège le jeu n'a pas bougé** : budget de surface, écart aux dangers, et
+surtout `TRAME_GARDE`, testé contre **toutes** les trames déjà posées et pas
+seulement celles de la région — un débord ne peut donc pas fabriquer un goulot.
+`passages`, `navigation`, `superpositions` et `biomes` restent verts.
+
+#### Ce qui ne change pas : les blocs de cellule
+
+Un bloc porte la loi de **sa** cellule, sans exception — c'est ce qui fait qu'une
+région se lit, et `verifierRegions` l'exige. On ne l'a pas touché : 0.42.1 avait
+déjà mesuré qu'**à une dizaine de blocs par écran, une loi d'implantation ne se
+voit pas**. Ce n'était pas le canal de la couture, et le rendre flou aurait coûté
+l'identité pour rien.
+
 ### Le semis s'arrêtait à la règle, lui aussi (0.43.40)
 
 0.43.39 a fondu le **sol** ; le **semis** basculait toujours au bord de la

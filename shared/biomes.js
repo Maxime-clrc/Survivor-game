@@ -1967,6 +1967,13 @@ const seChevauchent = (a, b, g = 0) =>
 // un troncon plus court que ca n est plus une structure, c est un debris : il ne
 // se lit ni de loin ni comme une ligne.
 const TRAME_TRONCON_MIN = 300;
+/* DE COMBIEN UNE STRUCTURE A LE DROIT DE TRAVERSER SA FRONTIERE. Zero coupait
+   a la regle ; au-dela d un demi-ecran une trame entiere emigre chez la voisine
+   et l identite des deux se brouille. 260 px vaut trois fois la largeur d une
+   bande et moins d un troncon minimal : on voit la structure passer, jamais
+   s installer. */
+const TRAME_DEBORD = 260;
+const TR_PT = [0, 0];
 const TRAME_PAS_DECOUPE = 40;
 
 /* ON DECOUPE, ON NE JETTE PAS. Mesure du premier jet : un bloc de trame etait
@@ -1980,25 +1987,38 @@ const TRAME_PAS_DECOUPE = 40;
    on garde les suites valides et on rend un troncon par suite. Ce qui coupe une
    bande devient une OUVERTURE — un danger qui interrompt une structure se lit,
    une structure qui disparait ne se lit pas. */
-function decouper(o, garde) {
+/* UN MORCEAU DEBORDE, IL N EMIGRE PAS, et c est `decouper` qui doit le tenir : la
+   garde ne voit qu un point, elle ne peut rien dire du morceau entier. Deux fuites
+   sont sorties du verificateur, et il a fallu les deux corrections.
+   Une structure plus courte que `TRAME_TRONCON_MIN` n est testee qu a son CENTRE :
+   elle pouvait s installer entierement chez la voisine. Et le centre ne suffit pas
+   non plus pour un troncon long — un morceau qui LONGE une frontiere ondulee peut
+   avoir son milieu dedans et les deux tiers dehors (mesure : 360 px sur 520).
+   LA MOITIE AU MOINS EST CHEZ ELLE, sinon ce n est pas un debord, c est un
+   demenagement — et c est le mot exact du verificateur. */
+function decouper(o, garde, chezSoi) {
   const vert = o.h >= o.w;
   const L = vert ? o.h : o.w;
-  if (L <= TRAME_TRONCON_MIN) return garde(o.x, o.y, o.w, o.h) ? [o] : [];
+  if (L <= TRAME_TRONCON_MIN) {
+    return garde(o.x, o.y, o.w, o.h) && chezSoi(o.x, o.y) ? [o] : [];
+  }
   const a0 = (vert ? o.y : o.x) - L / 2;
   const ep = vert ? o.w : o.h;
   const n = Math.max(1, Math.round(L / TRAME_PAS_DECOUPE));
   const pas = L / n;
   const out = [];
-  let debut = -1;
+  let debut = -1, chez = 0;
   for (let i = 0; i <= n; i++) {
     const c = a0 + (i + 0.5) * pas;
-    const ok = i < n && garde(vert ? o.x : c, vert ? c : o.y,
-                              vert ? ep : pas, vert ? pas : ep);
-    if (ok && debut < 0) debut = i;
-    if (!ok && debut >= 0) {
-      const l = (i - debut) * pas;
-      if (l >= TRAME_TRONCON_MIN) {
-        const m = a0 + (debut + (i - debut) / 2) * pas;
+    const px = vert ? o.x : c, py = vert ? c : o.y;
+    const ok = i < n && garde(px, py, vert ? ep : pas, vert ? pas : ep);
+    if (ok) {
+      if (debut < 0) { debut = i; chez = 0; }
+      if (chezSoi(px, py)) chez++;
+    } else if (debut >= 0) {
+      const nPas = i - debut, l = nPas * pas;
+      if (l >= TRAME_TRONCON_MIN && chez * 2 >= nPas) {
+        const m = a0 + (debut + nPas / 2) * pas;
         out.push({ x: vert ? o.x : m, y: vert ? m : o.y,
                    w: vert ? ep : l, h: vert ? l : ep, kind: o.kind });
       }
@@ -2419,6 +2439,77 @@ export function grilleVariantes(lieu, seed, cols, rows) {
    la grille sur l ARENE ENTIERE et compte les cases inatteignables. Un second
    test dirait la meme chose, et ce module ne depend de RIEN — il ne peut pas
    importer `navigation.js`. */
+/* UNE STRUCTURE TRAVERSE-T-ELLE VRAIMENT, ET SANS EMIGRER.
+
+   DEUX ECHECS, ET ILS SONT SYMETRIQUES. Le debord peut etre du CODE MORT — la
+   trame se fait toujours couper a la regle, la carte reste valide, personne ne le
+   voit — ou il peut laisser une structure entiere s installer chez la voisine, et
+   deux regions cessent alors d avoir chacune la sienne. Ni l un ni l autre ne leve
+   quoi que ce soit ; le premier est exactement le piege que `CLAUDE.md` nomme en
+   tete.
+
+   ON MESURE LE DEPASSEMENT, PAS LE CROISEMENT. « Le morceau touche deux
+   districts » est vrai 8 % du temps SANS aucun debord : `decouper` teste le
+   milieu de ses pas, donc un morceau depasse toujours d un demi-pas. Le
+   verificateur ne mordait pas. On echantillonne donc le morceau sur sa LONGUEUR et
+   on compte les pixels passes chez la voisine — a debord nul le pire vaut 80 px
+   et rien ne depasse 100.
+
+   LE DISTRICT SE LIT AU POINT GAUCHI. Lu brut, on mesurerait la frontiere de la
+   GRILLE — celle que plus rien ne dessine.
+
+   LES TRAMES SONT LES PREMIERS OBSTACLES DE LA LISTE, et c est ce qui rend la
+   mesure possible sans champ en plus : la boucle de trame tourne avant celle des
+   cellules, et `trameParRegion` dit combien chaque region en a REELLEMENT pose. */
+export function verifierDebord(graines = [1, 7, 30, 99, 151, 323],
+                               arenaW = 14400, arenaH = 8100,
+                               viewW = 1600, viewH = 900) {
+  const soucis = [];
+  const pt = [0, 0];
+  let total = 0, franchissent = 0, emigres = 0;
+  for (let bi = 0; bi < BIOMES.length; bi++) {
+    for (const s of graines) {
+      const b = buildBiome(bi, 1, s, arenaW, arenaH, viewW, viewH);
+      const d = b.districts, cols = b.cols, rows = b.rows;
+      const q = (x, y) => {
+        pointMel(b, x, y, pt);
+        return d[Math.min(rows - 1, Math.max(0, Math.floor(pt[1] / b.ch))) * cols
+          + Math.min(cols - 1, Math.max(0, Math.floor(pt[0] / b.cw)))];
+      };
+      let j = 0;
+      for (let r = 0; r < b.trameParRegion.length; r++) {
+        for (let k = 0; k < b.trameParRegion[r][1]; k++, j++) {
+          const o = b.obstacles[j];
+          total++;
+          const vert = o.h >= o.w, L = vert ? o.h : o.w;
+          const a0 = (vert ? o.y : o.x) - L / 2;
+          let dehors = 0;
+          for (let t = 10; t < L; t += 20) {
+            const c = a0 + t;
+            if (q(vert ? o.x : c, vert ? c : o.y) !== r) dehors += 20;
+          }
+          if (dehors > 100) franchissent++;
+          if (dehors > L / 2) {
+            emigres++;
+            if (emigres === 1) {
+              soucis.push(`${BIOMES[bi].key}/g${s} : un morceau de la region ${r} est`
+                + ` a ${Math.round(dehors)} px sur ${Math.round(L)} chez la voisine —`
+                + " il a emigre, il n a pas deborde");
+            }
+          }
+        }
+      }
+    }
+  }
+  const part = total > 0 ? franchissent / total : 0;
+  if (part < 0.03) {
+    soucis.push(`${(part * 100).toFixed(1)} % des morceaux de trame passent de plus`
+      + " de 100 px chez la voisine : les structures sont coupees a la regle et le"
+      + " debord ne sert a rien");
+  }
+  return soucis;
+}
+
 export function verifierTrame(graines = [1, 7, 99, 323, 50, 8],
                               arenaW = 14400, arenaH = 8100,
                               viewW = 1600, viewH = 900) {
@@ -2659,6 +2750,9 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
   let trArea = 0;
   {
     const bornes = bornesDistricts(grilleDistricts, cols, rows, cw, ch);
+    // la carte n existe pas encore : `pointMel` n a besoin que de la maille et de
+    // la graine, et il doit rendre EXACTEMENT ce que le rendu lira plus tard.
+    const carteMel = { cw, ch, melSeed: seed >>> 0 };
     const randTr = rng((seed >>> 0) * 2749 + 17);
     for (let i = 0; i < bornes.length; i++) {
       // une region porte UNE loi, sans exception : la premiere de ses cellules
@@ -2671,17 +2765,61 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
          d un seul tenant mais pas convexe : deux boites englobantes se recouvrent
          largement, donc deux trames voisines se traversaient — 207 paires de
          blocs sur cinquante graines a l Usine. Un morceau n est garde que s il
-         tombe dans une cellule de SA region, s il est clair de tout danger et
-         s il laisse sa distance de passage a ce qui est deja pose. */
+         tombe dans SA region, s il est clair de tout danger et s il laisse sa
+         distance de passage a ce qui est deja pose.
+
+         LA REGION D UN MORCEAU SE LIT AU POINT GAUCHI, ET ELLE DEBORDE : c est la
+         seule facon qu une structure ne soit pas coupee A LA REGLE. La trame est
+         la plus grosse chose de l ecran — jusqu a 3 680 px — et `decouper` la
+         tronconnait exactement sur le bord de cellule : une nef, un ruban, un
+         peigne s arretaient net sur la droite que tout le reste du rendu venait
+         d effacer. Une machine qui s interrompt sur une frontiere invisible est ce
+         qui SIGNALE la frontiere.
+         DEUX CORRECTIONS, ET IL LES FAUT TOUTES LES DEUX. Le point gauchi d abord,
+         `pointMel` etant le seul gauchissement du depot : la coupe suit alors la
+         meme courbe que le sol et le semis. Le DEBORD ensuite — on relit le
+         district a `TRAME_DEBORD` px VERS LE CENTRE de la region : un morceau qui
+         depasse de moins que ca y retombe, donc il traverse. Un morceau qui
+         depasse davantage EMIGRE, et une structure entiere posee chez la voisine
+         n est plus une transition.
+         LE CENTRE EST LE BARYCENTRE DES CELLULES, pas celui de la boite : un
+         quartier n est pas convexe, et le centre de sa boite peut tomber chez la
+         voisine — la direction du rappel pointerait alors vers l exterieur.
+         CE QUI PROTEGE LE JEU NE BOUGE PAS : le budget de surface, l ecart aux
+         dangers et surtout `TRAME_GARDE`, teste contre TOUTES les trames deja
+         posees et pas seulement celles de la region — un debord ne peut donc pas
+         fabriquer un goulot. */
+      let cgx = 0, cgy = 0, nc = 0;
+      for (let c = 0; c < grilleDistricts.length; c++) {
+        if (grilleDistricts[c] !== i) continue;
+        cgx += (c % cols + 0.5) * cw; cgy += ((c / cols) | 0) + 0.5; nc++;
+      }
+      if (nc > 0) { cgx /= nc; cgy = cgy / nc * ch; }
+      const dansDistrict = (px, py) => {
+        const qx = Math.min(cols - 1, Math.max(0, Math.floor(px / cw)));
+        const qy = Math.min(rows - 1, Math.max(0, Math.floor(py / ch)));
+        return grilleDistricts[qy * cols + qx] === i;
+      };
+      // « CHEZ SOI » EST LE POINT GAUCHI SANS DEBORD, et c est le mot du
+      // verificateur : un morceau appartient a la region ou tombe son MILIEU.
+      const chezSoi = (x, y) => {
+        pointMel(carteMel, x, y, TR_PT);
+        return dansDistrict(TR_PT[0], TR_PT[1]);
+      };
       const garde = (x, y, w, h) => {
-        const qx = Math.min(cols - 1, Math.max(0, Math.floor(x / cw)));
-        const qy = Math.min(rows - 1, Math.max(0, Math.floor(y / ch)));
-        if (grilleDistricts[qy * cols + qx] !== i) return false;
+        pointMel(carteMel, x, y, TR_PT);
+        if (!dansDistrict(TR_PT[0], TR_PT[1])) {
+          const dx = cgx - TR_PT[0], dy = cgy - TR_PT[1];
+          const d = Math.hypot(dx, dy);
+          if (d <= 1) return false;
+          if (!dansDistrict(TR_PT[0] + dx / d * TRAME_DEBORD,
+                            TR_PT[1] + dy / d * TRAME_DEBORD)) return false;
+        }
         if (surHazard(x, y, w, h, hazards)) return false;
         return !trames.some(t => seChevauchent({ x, y, w, h }, t, TRAME_GARDE));
       };
       for (const brut of poserTrame(tr.type, tr.kind, bornes[i], randTr)) {
-        for (const o of decouper(brut, garde)) {
+        for (const o of decouper(brut, garde, chezSoi)) {
           const area = o.w * o.h;
           if ((trArea + area) / surface > BIOME_CFG.TRAME_SURFACE_MAX) continue;
           if (trames.some(t => seChevauchent(o, t, TRAME_GARDE))) continue;

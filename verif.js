@@ -183,6 +183,10 @@ const SUITE = [
      La seconde est la plus grave et la moins visible : une epave de la region
      d a cote au milieu d une halle ne leve rien. */
   ["tirage", () => B2.verifierTirage(8)],
+  /* UNE STRUCTURE COUPEE A LA REGLE SIGNALE LA FRONTIERE QUE TOUT LE RESTE VIENT
+     D EFFACER. Le debord a deux echecs symetriques et muets : etre du code mort,
+     ou laisser une trame entiere s installer chez la voisine. */
+  ["debord", () => B2.verifierDebord()],
   /* LA LARGEUR DE PASSAGE, SUR TOUTE LA REGION ET SUR DES GRAINES. Le
      verificateur de navigation ne tournait que sur la graine 7 : avec des
      variantes tirees par cellule, une graine ne couvre presque rien, et un

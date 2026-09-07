@@ -10699,6 +10699,45 @@
                   epave de la region d a cote se pose au milieu d une halle sans
                   rien lever. 63 verificateurs.
 
+    0.43.41 lot 42 UNE STRUCTURE COUPEE A LA REGLE SIGNALE LA FRONTIERE QUE TOUT LE
+                  RESTE VIENT D EFFACER. Le sol fond, le semis se melange, et la
+                  trame — la plus grosse chose de l ecran, jusqu a 3 680 px —
+                  s arretait toujours net sur le bord de cellule : `garde` rejetait
+                  tout morceau dont la cellule n etait pas celle du district, et
+                  `decouper` tronconnait la bande dessus.
+                  DEUX CORRECTIONS, ET IL FAUT LES DEUX. Le POINT GAUCHI d abord —
+                  `pointMel` est le seul gauchissement du depot, donc la coupe suit
+                  la meme courbe que le sol et le semis. Le DEBORD ensuite : on
+                  relit le district a `TRAME_DEBORD` px vers le BARYCENTRE de la
+                  region, et un morceau qui depasse de moins que ca y retombe. Le
+                  barycentre des CELLULES et non celui de la boite : un quartier
+                  n est pas convexe, le centre de sa boite peut tomber chez la
+                  voisine et le rappel pointerait dehors.
+                  260 PX EST BORNE PAR `TRAME_TRONCON_MIN`, ET C EST STRUCTUREL : un
+                  morceau isole ne peut pas vivre entierement dans le debord, il
+                  serait plus court que 300 et serait jete.
+                  LE VERIFICATEUR NE MORDAIT PAS, ET C ETAIT LE PREMIER JET. « Le
+                  morceau touche deux districts » est vrai 8,2 % du temps SANS aucun
+                  debord — `decouper` teste le milieu de ses pas — donc reinjecter
+                  `TRAME_DEBORD = 0` le laissait vert. Il echantillonne maintenant le
+                  morceau sur sa LONGUEUR et compte les pixels passes chez la
+                  voisine : 0,0 % a debord nul, 7,2 % a 260.
+                  DEUX FUITES SORTIES DES SA PREMIERE EXECUTION. Une structure plus
+                  courte que le troncon minimal n est testee qu a son CENTRE et
+                  pouvait s installer entierement chez la voisine ; et le centre ne
+                  suffit pas non plus pour un troncon long — un morceau qui LONGE une
+                  frontiere ondulee peut avoir son milieu dedans et les deux tiers
+                  dehors (360 px sur 520). La moitie des pas au moins doit etre chez
+                  elle : un debord n est pas un demenagement.
+                  CE QUI PROTEGE LE JEU NE BOUGE PAS : budget de surface, ecart aux
+                  dangers, et surtout `TRAME_GARDE`, teste contre TOUTES les trames
+                  deja posees. `passages`, `navigation`, `superpositions` et `biomes`
+                  restent verts.
+                  LES BLOCS DE CELLULE NE CHANGENT PAS : un bloc porte la loi de SA
+                  cellule, `verifierRegions` l exige, et 0.42.1 a mesure qu a une
+                  dizaine de blocs par ecran une loi d implantation ne se voit pas.
+                  Ce n etait pas le canal de la couture. 64 verificateurs.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10707,4 +10746,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.40";
+export const VERSION = "0.43.41";
